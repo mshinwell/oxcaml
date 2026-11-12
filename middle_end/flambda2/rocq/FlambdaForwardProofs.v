@@ -1698,27 +1698,6 @@ Proof.
       rewrite Pos.eqb_refl in Hself. discriminate Hself.
 Qed.
 
-(* The same of the entry that the pass makes, which is that or none. *)
-Lemma forward_entry_fits (k : continuation) (params : list variable)
-    (metadata : handler_metadata) (handler' body : expr) :
-  entry_fits false k params metadata handler'
-    (forward_entry k params metadata handler' body)
-  ∧ (∀ x : variable,
-      frozen_var (forward_entry k params metadata handler' body) x ->
-      binds_var x body = false)
-  ∧ (∀ k0 : continuation,
-      frozen_cont (forward_entry k params metadata handler' body) k0 ->
-      binds_cont k0 body = false).
-Proof.
-  unfold forward_entry.
-  destruct (given_one_inner_variable k params body);
-    [ | apply forwarding_fits; intros Hstrict; discriminate Hstrict ].
-  split; [ exact I | ].
-  split; [ intros x (params0 & target & Hsome & _)
-         | intros k0 (params0 & target & Hsome & _) ];
-    discriminate Hsome.
-Qed.
-
 Fixpoint forward_applications_fwd (e : expr) :
   ∀ (G : kinds_in_scope) (K : kinds_of_conts) (F : forwards),
     safe F e -> fwd false G K F e (forward_applications_under F e).
@@ -1733,12 +1712,13 @@ Proof.
   - destruct (safe_let_cont F k params metadata handler body Hsafe)
       as (Hhandler & Hbody & Hparams & Hk).
     destruct
-      (forward_entry_fits k params metadata
+      (forwarding_fits false k params metadata metadata
          (forward_applications_under F handler) body)
-      as (Hfits & Hvars & Hconts).
+      as (Hfits & Hvars & Hconts);
+      [ intros Hstrict; discriminate Hstrict | ].
     apply (Fwd_let_cont false G K F k params metadata metadata handler
       (forward_applications_under F handler)
-      (forward_entry k params metadata (forward_applications_under F handler)
+      (forwarding k params metadata (forward_applications_under F handler)
          body));
       [ apply forward_applications_fwd, Hhandler | reflexivity
       | exact Hparams | exact Hk | exact Hfits | ].

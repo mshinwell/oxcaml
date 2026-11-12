@@ -83,7 +83,7 @@
    FlambdaUnusedContsSpec.remove_unused_conts removes it if nothing
    names its continuation any more.
 
-   What stops it ([forwarding], [given_one_inner_variable]):
+   What stops it ([forwarding]):
    - a continuation that the [Apply_cont] of the handler names, the one
      it applies or the one of its trap action, or a variable of its
      arguments that is not a parameter, is bound again somewhere in the
@@ -96,28 +96,6 @@
    - parameters that are not distinct;
    - an application that has not as many arguments as the continuation
      has parameters stays as it is;
-   - every application of the continuation in the body of its
-     [Let_cont] gives one of its parameters the same variable, and the
-     body has a binder of that name ([given_one_inner_variable]).
-     Simplify's
-     analysis of the aliases of parameters then removes the parameter,
-     passes the variable as a parameter of its own and binds the old
-     name to it at the start of the handler
-     (simplify/simplify_let_cont_expr.ml,
-     [extra_params_for_continuation_param_aliases] and
-     [add_lets_around_handler], which comes before the handler is
-     looked at for a shortcut): the handler it has rebuilt is not a
-     single [Apply_cont], and no shortcut is recorded. In the term
-     after, once that [Let] has been followed and removed, the
-     continuation is left with a handler that only applies another, and
-     its applications still go through it; so they do here. It is how
-     a loop in a function leaves for the return continuation with what
-     it has computed. The test is on the syntax and is a guess at what
-     that analysis found: it may hold where the variable given is bound
-     outside and the body only has another binder of its name, or
-     through applications of a continuation of the same name bound
-     again inside. An application is then left that could have gone
-     on, no more;
    - recursive continuations are not forwarded;
    - an [Apply] returns where it did if the handler of its return
      continuation does anything to its parameters but pass them all on
@@ -126,6 +104,28 @@
      results to a continuation that expects others;
    - the bodies of code are not gone into
      (FlambdaNormaliseSpec.rewrite_code takes the pass there).
+
+   Simplify leaves some applications that the pass forwards. Where
+   every application of a continuation gives one of its parameters
+   the same variable, bound in the body of the [Let_cont], Simplify's
+   analysis of the aliases of parameters removes the parameter,
+   passes the variable as a parameter of its own and binds the old
+   name to it at the start of the handler
+   (simplify/simplify_let_cont_expr.ml,
+   [extra_params_for_continuation_param_aliases] and
+   [add_lets_around_handler], which comes before the handler is
+   looked at for a shortcut): the handler it has rebuilt is not a
+   single [Apply_cont], and no shortcut is recorded. It is how a loop
+   in a function leaves for the return continuation with what it has
+   computed. And a handler that ends a region before it applies
+   another continuation is not a single [Apply_cont] for Simplify; it
+   is one here, the model having no regions. In the term after, once
+   that [Let] has been followed and removed, such a continuation is
+   left with a handler that only applies another, and its
+   applications still go through it. The pass does not look for
+   those cases. The validation forwards those applications of the
+   term after too, by an equivalence
+   (FlambdaForwardKindedSpec.forward_kinded).
 
    The result refines the term ([forward_applications_refines_statement]),
    under all environments. It is not an equivalence as it is stated: an
@@ -295,37 +295,6 @@ Definition forwarding (k : continuation) (params : list variable)
     None
   end.
 
-(* Whether every application of [k] that [body], the body of its
-   [Let_cont], has gives some parameter the same variable, and [body]
-   has a binder of that name. A test on the syntax, which may say yes
-   when the variable given is not the one that [body] binds:
-   FlambdaParamAliasesSpec.binds_var looks for a binder of the name
-   anywhere in [body], and [some_args] and [always_given] count the
-   applications of a continuation of the name of [k] that [body] binds
-   again. Forwarding is then given up where it need not be. *)
-Definition given_one_inner_variable (k : continuation)
-    (params : list variable) (body : expr) : bool :=
-  match some_args k body with
-  | None => false
-  | Some args =>
-    existsb
-      (fun i =>
-         match nth_error args i with
-         | Some (Var x) =>
-           binds_var x body
-           && always_given k i (fun arg => simple_eqb arg (Var x)) body
-         | Some (Symbol _ | Const _) | None => false
-         end)
-      (seq 0 (length params))
-  end.
-
-(* The entry of [k] among the continuations in scope. *)
-Definition forward_entry (k : continuation) (params : list variable)
-    (metadata : handler_metadata) (handler body : expr)
-    : option (list variable * apply_cont) :=
-  if given_one_inner_variable k params body then None
-  else forwarding k params metadata handler body.
-
 (* ======================================================================== *)
 (* The pass                                                                 *)
 (* ======================================================================== *)
@@ -339,7 +308,7 @@ Fixpoint forward_applications_under (F : forwards) (e : expr) : expr :=
     let handler := forward_applications_under F handler in
     Let_cont_non_recursive k (Handler params metadata handler)
       (forward_applications_under
-         ((k, forward_entry k params metadata handler body) :: F) body)
+         ((k, forwarding k params metadata handler body) :: F) body)
   | Let_cont_recursive handlers body =>
     let F := map (fun '(k, _) => (k, None)) handlers ++ F in
     Let_cont_recursive

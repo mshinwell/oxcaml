@@ -7,7 +7,7 @@ open FlambdaCseSpec
 open FlambdaDeadParamsSpec
 open FlambdaDemoteSpec
 open FlambdaFloatCodeSpec
-open FlambdaForwardJumpsSpec
+open FlambdaForwardKindedSpec
 open FlambdaForwardSpec
 open FlambdaGuardScopeSpec
 open FlambdaHoistCodeSpec

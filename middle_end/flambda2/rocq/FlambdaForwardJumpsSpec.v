@@ -30,8 +30,12 @@
    equivalence.
 
    This file is to be reviewed: [forward_jumps] and what it is made of,
-   which are extracted and run by the validation of
-   middle_end/flambda2/tests/semantics/, and the statement.
+   and the statement. The validation of
+   middle_end/flambda2/tests/semantics/ ran this pass on the term
+   after. It runs FlambdaForwardKindedSpec.forward_kinded there now,
+   which forwards what this pass forwards and applications with
+   arguments too. The pass is kept as the case in which there is
+   nothing to know of kinds, and is still extracted.
 
    FlambdaForwardSpec.forward_applications makes an application of a
    non-recursive continuation whose handler is one [Apply_cont] that

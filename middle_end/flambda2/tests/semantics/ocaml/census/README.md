@@ -63,10 +63,11 @@ a `Switch` that give one continuation 0 and 1 made the tagging of
 what is tested (`FlambdaMergeSwitchesSpec.merge_switches`;
 `functions`, seed 5, and `unknown_scalar`, seed 38), and four more
 with the applications of a continuation of no parameters whose
-handler is one jump forwarded in the term after
-(`FlambdaForwardJumpsSpec.forward_jumps`; `functions`, seeds 14, 27
-and 72, the last at the second asking, and `unknown_scalar`, seed
-100). Sharing the projections of value slots changes none, and nor
+handler is one jump forwarded in the term after (by
+`FlambdaForwardJumpsSpec.forward_jumps` then, by
+`FlambdaForwardKindedSpec.forward_kinded` since; `functions`, seeds
+14, 27 and 72, the last at the second asking, and `unknown_scalar`,
+seed 100). Sharing the projections of value slots changes none, and nor
 does the unboxing of parameters giving, for an untagging under a
 test, the number that was tagged. One more with that unboxing
 giving a constant where a symbol of a constant block would be

@@ -237,7 +237,7 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaCompareSpec FlambdaNormaliseSpec FlambdaBlockLoadSpec
   FlambdaCodeLetsSpec FlambdaCseSpec FlambdaDeadParamsSpec FlambdaForwardSpec
-  FlambdaForwardJumpsSpec
+  FlambdaForwardKindedSpec
   FlambdaIdentitiesSpec FlambdaMergeSwitchesSpec
   FlambdaInlineSiblingsSpec FlambdaInlineTailSpec FlambdaLoopAliasesSpec
   FlambdaLoopLetsSpec
@@ -516,23 +516,37 @@ Definition normalise_before (rounds : nat) (kept : list code_id) (e : expr)
    before can have lost both: its rounds have [sink_let_conts] and
    FlambdaNormaliseSpec.inline_tail_conts.
 
-   Then an application of a continuation of no parameters whose handler
-   is one [Apply_cont] becomes that [Apply_cont], where
-   FlambdaForwardJumpsSpec.forward_jumps allows: among its conditions,
-   the handler gives no kinds, neither [Apply_cont] has a trap action,
-   and nothing that the [Apply_cont] of the handler names is bound
-   again in the body of the [Let_cont]. It is an equivalence. A
-   continuation that this leaves unused is removed. Simplify leaves
-   such an application where the handler was a [Switch] on a
-   parameter that it removed, every application giving it the same
-   constant: the handler it has is that [Switch] under the [Let] of
-   the parameter. The fold of the round before has made the handler
-   one [Apply_cont], in the term before too, where
-   FlambdaForwardSpec.forward_applications has then forwarded the
+   Then an application of a continuation whose handler is one
+   [Apply_cont] becomes that [Apply_cont], with the arguments put for
+   the parameters, where FlambdaForwardKindedSpec.forward_kinded
+   allows: among its conditions, each argument is known to have the
+   kind that the handler of the continuation gives the parameter it
+   is given to (a variable by the [Let] or the handler that binds it
+   in the term, a constant by itself, a symbol being of kind
+   [Value]), the handler gives as many kinds as it has parameters,
+   neither [Apply_cont] has a trap action, and nothing that the
+   [Apply_cont] of the handler names is bound again in the body of
+   the [Let_cont].
+   It is an equivalence. A continuation that this leaves unused is
+   removed. Simplify leaves such an application in three cases. The
+   handler was a [Switch] on a parameter that it removed, every
+   application giving it the same constant: the handler it has is
+   that [Switch] under the [Let] of the parameter, and the fold of
+   the round before has made it one [Apply_cont]. Or every
+   application gave a parameter the same variable, bound in the body
+   of the [Let_cont]: Simplify passes that variable in its place and
+   binds the old name at the head of the handler, and the round
+   before has followed that [Let] and removed it (a loop in a
+   function leaves so for the return continuation with what it has
+   computed). Or the handler ended a region before it passed its
+   parameter on, which the model does not have (the continuation
+   that follows a [try] whose result is matched). In all three the
+   term before has the same handler, and
+   FlambdaForwardSpec.forward_applications has forwarded its
    applications. *)
 Definition inline_once_applied_after (e : expr) : expr :=
   remove_unused_conts
-    (forward_jumps
+    (forward_kinded
        (inline_tail_conts_kinded (sink_let_conts (remove_unused_conts e)))).
 
 (* The same for the term after. Every rewrite is an equivalence. The
@@ -545,9 +559,15 @@ Definition inline_once_applied_after (e : expr) : expr :=
    (FlambdaUnusedProjectionsSpec.remove_unused_projections): the [Let]
    of a closure of a set that is not the first is one in the model
    (FlambdaModel.let_closures), and the term before loses it by a
-   refinement. Last in a round, the unused [Let]s that are sure to have
-   a value are removed in the bodies of code with the parameters of the
-   code in scope
+   refinement. Last in a round come two passes that go into the
+   bodies of code with the parameters of the code in scope, at the
+   kinds of its arity. The applications that
+   FlambdaForwardKindedSpec.forward_kinded forwards are forwarded
+   there ([forward_kinded_in_code]): in [inline_once_applied_after]
+   the pass starts in the body of code with nothing known, and leaves
+   an application that gives a continuation a parameter of the code
+   (a function that returns its argument where a [try] has failed).
+   Then the unused [Let]s that are sure to have a value are removed
    (FlambdaCodeLetsSpec.remove_unused_defined_lets_in_code): where
    Simplify makes a loop of a function, it leaves such a [Let] of each
    parameter of the function that every self tail call passes on as it
@@ -564,17 +584,18 @@ Definition normalise_code_after (body : expr) : expr :=
 
 Definition normalise_after_round (kept : list code_id) (e : expr) : expr :=
   remove_unused_defined_lets_in_code
-    (rewrite_code normalise_code_after
-       (merge_statics
-          (drop_deleted_code
-             (rewrite_rec_handlers normalise_expr_after
-                (remove_unused_defined_lets_in_loops []
-                   (remove_unused_projections
-                      (fold_constants
-                         (inline_known_calls kept [] []
-                            (follow_aliases_in_loops []
-                               (follow_aliases []
-                                  (inline_once_applied_after e))))))))))).
+    (forward_kinded_in_code
+       (rewrite_code normalise_code_after
+          (merge_statics
+             (drop_deleted_code
+                (rewrite_rec_handlers normalise_expr_after
+                   (remove_unused_defined_lets_in_loops []
+                      (remove_unused_projections
+                         (fold_constants
+                            (inline_known_calls kept [] []
+                               (follow_aliases_in_loops []
+                                  (follow_aliases []
+                                     (inline_once_applied_after e)))))))))))).
 
 Definition normalise_after (rounds : nat) (kept : list code_id) (e : expr)
     : expr :=

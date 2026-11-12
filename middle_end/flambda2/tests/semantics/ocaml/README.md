@@ -622,7 +622,7 @@ removed it:
   stays under that `Let`. The folding of constants of the validator
   makes the handler one jump in both terms; the term before has its
   applications forwarded, and the term after has them forwarded by
-  an equivalence (`FlambdaForwardJumpsSpec.forward_jumps`, in
+  an equivalence (`FlambdaForwardKindedSpec.forward_kinded`, in
   `FlambdaValidateSpec.inline_once_applied_after`).
 - Two arms of a `Switch` that give one continuation 0 and 1 (two
   generated units of `census/`): Simplify makes of them the tagging

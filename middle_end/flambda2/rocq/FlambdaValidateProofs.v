@@ -39,7 +39,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaCseEquivalentSpec FlambdaCseEquivalentProofs
   FlambdaDeadParamsSpec FlambdaDeadParamsProofs
   FlambdaForwardSpec FlambdaForwardProofs
-  FlambdaForwardJumpsSpec FlambdaForwardJumpsProofs
+  FlambdaForwardKindedSpec FlambdaForwardKindedProofs
   FlambdaIdentitiesSpec FlambdaIdentitiesProofs
   FlambdaMergeSwitchesSpec FlambdaMergeSwitchesProofs
   FlambdaInlineSiblingsSpec FlambdaInlineSiblingsProofs
@@ -107,7 +107,7 @@ Ltac equivalence_step :=
     | apply shortcut_switches_equivalent
     | apply remove_unused_defined_lets_in_loops_equivalent
     | apply inline_tail_conts_kinded_equivalent
-    | apply forward_jumps_equivalent
+    | apply forward_kinded_equivalent
     | apply unalias_params_equivalent
     | apply share_known_primitives_equivalent ].
 
@@ -288,6 +288,8 @@ Proof.
   unfold normalise_after_round, inline_once_applied_after.
   eapply expr_equivalent_trans;
     [ | apply remove_unused_defined_lets_in_code_equivalent ].
+  eapply expr_equivalent_trans;
+    [ | apply forward_kinded_in_code_equivalent ].
   eapply expr_equivalent_trans;
     [ | apply rewrite_code_equivalent, normalise_code_after_equivalent ].
   repeat (eapply expr_equivalent_trans; [ | solve [ equivalence_step ] ]).

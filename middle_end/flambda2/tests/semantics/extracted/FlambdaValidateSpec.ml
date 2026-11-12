@@ -7,7 +7,7 @@ open FlambdaCseSpec
 open FlambdaDeadParamsSpec
 open FlambdaDemoteSpec
 open FlambdaFloatCodeSpec
-open FlambdaForwardJumpsSpec
+open FlambdaForwardKindedSpec
 open FlambdaForwardSpec
 open FlambdaGuardScopeSpec
 open FlambdaHoistCodeSpec
@@ -160,7 +160,7 @@ let normalise_before rounds kept e =
 
 let inline_once_applied_after e =
   remove_unused_conts
-    (forward_jumps
+    (forward_kinded
        (inline_tail_conts_kinded (sink_let_conts (remove_unused_conts e))))
 
 (** val normalise_expr_after : expr -> expr **)
@@ -181,16 +181,18 @@ let normalise_code_after body =
 
 let normalise_after_round kept e =
   remove_unused_defined_lets_in_code
-    (rewrite_code normalise_code_after
-       (merge_statics
-          (drop_deleted_code
-             (rewrite_rec_handlers normalise_expr_after
-                (remove_unused_defined_lets_in_loops []
-                   (remove_unused_projections
-                      (fold_constants
-                         (inline_known_calls kept [] []
-                            (follow_aliases_in_loops []
-                               (follow_aliases [] (inline_once_applied_after e)))))))))))
+    (forward_kinded_in_code
+       (rewrite_code normalise_code_after
+          (merge_statics
+             (drop_deleted_code
+                (rewrite_rec_handlers normalise_expr_after
+                   (remove_unused_defined_lets_in_loops []
+                      (remove_unused_projections
+                         (fold_constants
+                            (inline_known_calls kept [] []
+                               (follow_aliases_in_loops []
+                                  (follow_aliases []
+                                     (inline_once_applied_after e))))))))))))
 
 (** val normalise_after : nat -> code_id list -> expr -> expr **)
 

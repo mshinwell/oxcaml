@@ -145,8 +145,7 @@
    their normalisation are over (FlambdaValidateSpec.placed). In a
    round it would change where a continuation is bound for the
    rewrites of the next round that look at that
-   (FlambdaForwardSpec.given_one_inner_variable,
-   FlambdaParamAliasesSpec.bind_aliased_params, the inlining of a call
+   (FlambdaParamAliasesSpec.bind_aliased_params, the inlining of a call
    whose continuation was moved), which follow Simplify on the term as
    it was.
 

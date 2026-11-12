@@ -59,8 +59,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSinkContsSpec FlambdaSinkUsesSpec FlambdaShortcutSpec
   FlambdaUnusedParamsSpec
   FlambdaLoopAliasesSpec FlambdaLoopLetsSpec FlambdaParamAliasesSpec
-  FlambdaForwardSpec FlambdaForwardJumpsSpec FlambdaInlineTailSpec
-  FlambdaDeadParamsSpec
+  FlambdaForwardSpec FlambdaForwardJumpsSpec FlambdaForwardKindedSpec
+  FlambdaInlineTailSpec FlambdaDeadParamsSpec
   FlambdaCodeLetsSpec
   FlambdaLoopifySpec
   FlambdaCseSpec FlambdaCseProofs
@@ -4361,39 +4361,6 @@ Proof.
     rewrite among_rename_variable, binds_var_equivariant. reflexivity.
 Qed.
 
-Lemma given_one_inner_variable_equivariant (r : renaming) (k : continuation)
-    (params : list variable) (body : expr) :
-  given_one_inner_variable (rename_continuation r k)
-    (map (rename_variable r) params) (rename_expr r body)
-  = given_one_inner_variable k params body.
-Proof.
-  unfold given_one_inner_variable.
-  rewrite some_args_equivariant, length_map.
-  destruct (some_args k body) as [args | ]; cbn [option_map];
-    [ | reflexivity ].
-  induction (seq 0 (length params)) as [ | i positions IH];
-    [ reflexivity | ].
-  cbn [existsb]. rewrite IH. f_equal. rewrite nth_error_map.
-  destruct (nth_error args i) as [[x | sym | c] | ];
-    cbn [option_map rename_simple]; try reflexivity.
-  rewrite binds_var_equivariant,
-    (always_given_equivariant r k i (fun arg => simple_eqb arg (Var x)))
-    by (intros arg; exact (simple_eqb_renamed r arg (Var x))).
-  reflexivity.
-Qed.
-
-Lemma forward_entry_equivariant (r : renaming) (k : continuation)
-    (params : list variable) (metadata : handler_metadata)
-    (handler body : expr) :
-  forward_entry (rename_continuation r k) (map (rename_variable r) params)
-    metadata (rename_expr r handler) (rename_expr r body)
-  = rename_forward_entry r (forward_entry k params metadata handler body).
-Proof.
-  unfold forward_entry.
-  rewrite given_one_inner_variable_equivariant, forwarding_equivariant.
-  destruct (given_one_inner_variable k params body); reflexivity.
-Qed.
-
 Fixpoint forward_applications_under_equivariant (r : renaming) (e : expr) :
   ∀ F : forwards,
     forward_applications_under (rename_forwards r F) (rename_expr r e)
@@ -4415,17 +4382,17 @@ Proof.
       rewrite forward_applications_under_equivariant. reflexivity.
     + cbn [rename_expr rename_handler forward_applications_under]. cbv zeta.
       rewrite (forward_applications_under_equivariant r handler F),
-        forward_entry_equivariant.
+        forwarding_equivariant.
       change
         ((rename_continuation r k,
           rename_forward_entry r
-            (forward_entry k params metadata
+            (forwarding k params metadata
                (forward_applications_under F handler) body))
          :: rename_forwards r F)
         with
           (rename_forwards r
              ((k,
-               forward_entry k params metadata
+               forwarding k params metadata
                  (forward_applications_under F handler) body)
               :: F)).
       rewrite (forward_applications_under_equivariant r body). reflexivity.
@@ -4548,6 +4515,209 @@ Lemma forward_jumps_equivariant : rewrite_equivariant forward_jumps.
 Proof.
   intros r e. exact (forward_jumps_under_equivariant r e []).
 Qed.
+
+(* The same where the arguments are known to have the kinds of the
+   parameters (FlambdaForwardKindedSpec.v). The kinds of the variables
+   in scope are renamed with the variables; those that the handlers
+   of the continuations in scope give their parameters are kept by
+   continuation, and a renaming acts on the continuations. *)
+Definition rename_cont_kinds (r : renaming) (K : cont_kinds) : cont_kinds :=
+  map (fun entry => (rename_continuation r (fst entry), snd entry)) K.
+
+Lemma lookup_rename_cont_kinds (r : renaming) (k : continuation)
+    (K : cont_kinds) :
+  lookup (rename_continuation r k) (rename_cont_kinds r K) = lookup k K.
+Proof.
+  induction K as [ | [k' kinds] K IH]; simpl; [ reflexivity | ].
+  rewrite rename_continuation_eqb. destruct (Pos.eqb k k'); [ reflexivity | ].
+  exact IH.
+Qed.
+
+Lemma have_kinds_equivariant (r : renaming) (G : kinds_in_scope)
+    (args : list simple) :
+  ∀ kinds : list flambda_kind,
+    have_kinds (rename_kinds_in_scope r G) (map (rename_simple r) args) kinds
+    = have_kinds G args kinds.
+Proof.
+  induction args as [ | s args IH]; intros [ | kind kinds];
+    cbn [map have_kinds]; try reflexivity.
+  rewrite kind_of_simple_in_scope_equivariant, IH. reflexivity.
+Qed.
+
+Lemma kinded_entry_equivariant (r : renaming) (k : continuation)
+    (params : list variable) (metadata : handler_metadata)
+    (handler body : expr) :
+  kinded_entry (rename_continuation r k) (map (rename_variable r) params)
+    metadata (rename_expr r handler) (rename_expr r body)
+  = rename_forward_entry r (kinded_entry k params metadata handler body).
+Proof.
+  unfold kinded_entry. rewrite length_map.
+  destruct (Nat.eqb (length params) (length (hm_params_kinds metadata)));
+    [ apply forwarding_equivariant | reflexivity ].
+Qed.
+
+Lemma forward_kinded_apply_cont_equivariant (r : renaming)
+    (G : kinds_in_scope) (K : cont_kinds) (F : forwards) (ac : apply_cont) :
+  forward_kinded_apply_cont (rename_kinds_in_scope r G)
+    (rename_cont_kinds r K) (rename_forwards r F) (rename_apply_cont r ac)
+  = rename_apply_cont r (forward_kinded_apply_cont G K F ac).
+Proof.
+  unfold forward_kinded_apply_cont.
+  change (ac_continuation (rename_apply_cont r ac))
+    with (rename_continuation r (ac_continuation ac)).
+  rewrite forward_of_renamed, lookup_rename_cont_kinds.
+  destruct (forward_of F (ac_continuation ac)) as [[params target] | ];
+    [ | reflexivity ].
+  cbn [rename_forward_entry option_map fst snd].
+  destruct (lookup (ac_continuation ac) K) as [kinds | ]; [ | reflexivity ].
+  change (ac_args (rename_apply_cont r ac))
+    with (map (rename_simple r) (ac_args ac)).
+  rewrite !length_map, !no_trap_action_renamed, have_kinds_equivariant.
+  destruct
+    (Nat.eqb (length (ac_args ac)) (length params)
+     && no_trap_action ac && no_trap_action target
+     && have_kinds G (ac_args ac) kinds);
+    [ apply forwarded_equivariant | reflexivity ].
+Qed.
+
+Fixpoint forward_kinded_under_equivariant (r : renaming) (e : expr) :
+  ∀ (G : kinds_in_scope) (K : cont_kinds) (F : forwards),
+    forward_kinded_under (rename_kinds_in_scope r G) (rename_cont_kinds r K)
+      (rename_forwards r F) (rename_expr r e)
+    = rename_expr r (forward_kinded_under G K F e)
+with forward_kinded_in_handler_equivariant (r : renaming)
+    (h : continuation_handler) :
+  ∀ (G : kinds_in_scope) (K : cont_kinds) (F : forwards),
+    forward_kinded_in_handler (rename_kinds_in_scope r G)
+      (rename_cont_kinds r K) (rename_forwards r F) (rename_handler r h)
+    = rename_handler r (forward_kinded_in_handler G K F h).
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k [params metadata handler] body
+         | handlers body | ap | ac | scrutinee arms | ];
+      intros G K F; try reflexivity.
+    + cbn [rename_expr forward_kinded_under].
+      change ((rename_variable r x, kind) :: rename_kinds_in_scope r G)
+        with (rename_kinds_in_scope r ((x, kind) :: G)).
+      rewrite forward_kinded_under_equivariant. reflexivity.
+    + cbn [rename_expr forward_kinded_under].
+      rewrite forward_kinded_under_equivariant. reflexivity.
+    + cbn [rename_expr rename_handler forward_kinded_under]. cbv zeta.
+      rewrite params_in_scope_equivariant,
+        (forward_kinded_under_equivariant r handler),
+        kinded_entry_equivariant.
+      change
+        ((rename_continuation r k, hm_params_kinds metadata)
+         :: rename_cont_kinds r K)
+        with (rename_cont_kinds r ((k, hm_params_kinds metadata) :: K)).
+      change
+        ((rename_continuation r k,
+          rename_forward_entry r
+            (kinded_entry k params metadata
+               (forward_kinded_under
+                  (params_in_scope params (hm_params_kinds metadata) G) K F
+                  handler)
+               body))
+         :: rename_forwards r F)
+        with
+          (rename_forwards r
+             ((k,
+               kinded_entry k params metadata
+                 (forward_kinded_under
+                    (params_in_scope params (hm_params_kinds metadata) G) K
+                    F handler)
+                 body)
+              :: F)).
+      rewrite (forward_kinded_under_equivariant r body). reflexivity.
+    + cbn [rename_expr forward_kinded_under]. cbv zeta.
+      assert (Hscope :
+        map (fun '(k, _) => (k, None))
+          (map (fun '(k, h) => (rename_continuation r k, rename_handler r h))
+             handlers)
+        ++ rename_forwards r F
+        = rename_forwards r
+            (map (fun '(k, _) => (k, None)) handlers ++ F)).
+      { unfold rename_forwards. rewrite map_app, !map_map. f_equal.
+        apply map_ext. intros [k h]. reflexivity. }
+      rewrite Hscope. clear Hscope.
+      rewrite (forward_kinded_under_equivariant r body). f_equal.
+      generalize (map (fun '(k, _) => (k, @None (list variable * apply_cont)))
+                    handlers ++ F).
+      intros F'.
+      induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
+      rewrite (forward_kinded_in_handler_equivariant r h G K F'), IH.
+      reflexivity.
+    + cbn [rename_expr forward_kinded_under].
+      rewrite forward_kinded_apply_cont_equivariant. reflexivity.
+    + cbn [rename_expr forward_kinded_under]. f_equal.
+      rewrite !map_map. apply map_ext. intros [i ac]. cbn [fst snd].
+      rewrite forward_kinded_apply_cont_equivariant. reflexivity.
+  - destruct h as [params metadata handler]. intros G K F.
+    cbn [rename_handler forward_kinded_in_handler].
+    rewrite params_in_scope_equivariant, forward_kinded_under_equivariant.
+    reflexivity.
+Qed.
+
+Lemma forward_kinded_equivariant : rewrite_equivariant forward_kinded.
+Proof.
+  intros r e. exact (forward_kinded_under_equivariant r e [] [] []).
+Qed.
+
+(* The same in the bodies of code, with the kinds of what a call
+   binds. *)
+Lemma forward_kinded_in_binding_equivariant (r : renaming)
+    (binding : static_binding) :
+  forward_kinded_in_binding (rename_static_binding r binding)
+  = rename_static_binding r (forward_kinded_in_binding binding).
+Proof.
+  destruct binding
+    as [id [params my_closure ret exn metadata body] | id | sym const];
+    try reflexivity.
+  cbn [rename_static_binding rename_code forward_kinded_in_binding].
+  unfold code_in_scope.
+  change [(rename_variable r my_closure, Value)]
+    with (rename_kinds_in_scope r [(my_closure, Value)]).
+  rewrite params_in_scope_equivariant.
+  pose proof
+    (forward_kinded_under_equivariant r body
+       (params_in_scope params (unarize (cm_params_arity metadata))
+          [(my_closure, Value)])
+       [] [])
+    as Hbody.
+  cbn [rename_cont_kinds rename_forwards map] in Hbody.
+  rewrite Hbody. reflexivity.
+Qed.
+
+Fixpoint forward_kinded_in_code_equivariant_aux (r : renaming) (e : expr) :
+  forward_kinded_in_code (rename_expr r e)
+  = rename_expr r (forward_kinded_in_code e)
+with forward_kinded_in_code_handler_equivariant (r : renaming)
+    (h : continuation_handler) :
+  forward_kinded_in_code_handler (rename_handler r h)
+  = rename_handler r (forward_kinded_in_code_handler h).
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      simpl; try reflexivity.
+    + rewrite forward_kinded_in_code_equivariant_aux. reflexivity.
+    + rewrite forward_kinded_in_code_equivariant_aux, !map_map.
+      f_equal. apply map_ext.
+      exact (forward_kinded_in_binding_equivariant r).
+    + rewrite forward_kinded_in_code_handler_equivariant,
+        forward_kinded_in_code_equivariant_aux.
+      reflexivity.
+    + rewrite forward_kinded_in_code_equivariant_aux. f_equal.
+      induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
+      rewrite (forward_kinded_in_code_handler_equivariant r h), IH.
+      reflexivity.
+  - destruct h as [params metadata handler]. simpl.
+    rewrite forward_kinded_in_code_equivariant_aux. reflexivity.
+Qed.
+
+Lemma forward_kinded_in_code_equivariant :
+  rewrite_equivariant forward_kinded_in_code.
+Proof. exact forward_kinded_in_code_equivariant_aux. Qed.
 
 (* Inlining a continuation at the end of its scope, where its handler
    gives one kind for each parameter. *)
@@ -4907,6 +5077,7 @@ Ltac rename_outwards :=
       | rewrite bind_aliased_params_equivariant
       | rewrite forward_applications_equivariant
       | rewrite forward_jumps_equivariant
+      | rewrite forward_kinded_equivariant
       | rewrite unbox_variant_params_renamed
       | rewrite remove_unused_defined_lets_in_loops_closed_equivariant
       | rewrite inline_tail_conts_kinded_equivariant_aux
@@ -5045,7 +5216,8 @@ Proof.
     (rewrite_rec_handlers_equivariant normalise_expr_after
        normalise_expr_after_equivariant).
   rename_outwards.
-  rewrite (rewrite_code_equivariant _ normalise_code_after_equivariant).
+  rewrite (rewrite_code_equivariant _ normalise_code_after_equivariant),
+    forward_kinded_in_code_equivariant.
   apply remove_unused_defined_lets_in_code_equivariant.
 Qed.
 

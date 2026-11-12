@@ -183,10 +183,12 @@
    FlambdaCodeLetsSpec.remove_unused_defined_lets_in_code, which
    starts that pass in the body of each piece of code;
    FlambdaParamAliasesSpec.bind_aliased_params;
-   FlambdaForwardSpec.forward_applications; and
+   FlambdaForwardSpec.forward_applications;
+   FlambdaForwardJumpsSpec.forward_jumps;
    FlambdaInlineTailSpec.inline_tail_conts_kinded and
-   FlambdaForwardJumpsSpec.forward_jumps, which the validation
-   applies to the term after; and
+   FlambdaForwardKindedSpec.forward_kinded with
+   [forward_kinded_in_code], which starts it in the body of each
+   piece of code, which the validation applies to the term after; and
    FlambdaUnaliasParamsSpec.unalias_params, which takes away a
    parameter that every application gives one variable, and which the
    check applies to each term once its continuations are placed. And
@@ -334,8 +336,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaUnusedParamsSpec
   FlambdaLoopAliasesSpec FlambdaLoopLetsSpec FlambdaCodeLetsSpec
   FlambdaParamAliasesSpec
-  FlambdaForwardSpec FlambdaForwardJumpsSpec FlambdaInlineTailSpec
-  FlambdaLoopifySpec
+  FlambdaForwardSpec FlambdaForwardJumpsSpec FlambdaForwardKindedSpec
+  FlambdaInlineTailSpec FlambdaLoopifySpec
   FlambdaDeadParamsSpec FlambdaRenameApartSpec FlambdaUnusedProjectionsSpec
   FlambdaUnaliasParamsSpec FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
@@ -813,6 +815,16 @@ Definition forward_applications_equivariant_statement : Prop :=
    equivalence (FlambdaForwardJumpsSpec.v). *)
 Definition forward_jumps_equivariant_statement : Prop :=
   rewrite_equivariant forward_jumps.
+
+(* The same where the arguments are known to have the kinds of the
+   parameters, an equivalence too (FlambdaForwardKindedSpec.v). *)
+Definition forward_kinded_equivariant_statement : Prop :=
+  rewrite_equivariant forward_kinded.
+
+(* The same pass in the body of each piece of code, started with the
+   kinds of the parameters of the code and of [my_closure]. *)
+Definition forward_kinded_in_code_equivariant_statement : Prop :=
+  rewrite_equivariant forward_kinded_in_code.
 
 (* Inlining a continuation at the end of its scope, where its handler
    gives one kind for each parameter (FlambdaInlineTailSpec.v). *)
