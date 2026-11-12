@@ -208,7 +208,11 @@ creates and lists here, and the `.fl` examples that need it. V1 wires the
 pass into the validator.
 
 - S1, primitives through types. Owner: unassigned.
-- S2, switch. Owner: unassigned.
+- S2, switch. Owner of the first slice: T1, on
+  `flambda2-rocq/T1-grammar`; the rest unassigned.
+  - `middle_end/flambda2/types/rocq/FlambdaSimplifySwitch*` (the arms
+    of a `Switch` that the type of its scrutinee excludes are removed;
+    after `simplify/simplify_switch_expr.ml`)
 - S3, continuations. Owner: unassigned.
 - S4, calls. Owner: unassigned.
 - S5, lets, CSE and lifting. Owner: unassigned.
