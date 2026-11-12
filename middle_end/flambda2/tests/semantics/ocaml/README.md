@@ -146,7 +146,7 @@ Simplify does to it. Steps are those of the machine, before and after
 Simplify. The names in brackets are the streams whose work in progress
 is the rewrite that is missing.
 
-251 sources: 237 validated, 7 compared on one run and not validated, 2
+252 sources: 238 validated, 7 compared on one run and not validated, 2
 undefined in the model, 5 not checked.
 
 ### Validated
@@ -223,55 +223,55 @@ undefined in the model, 5 not checked.
 | `exported_nested_pair.ml` | 10, 7 | `returned_closure_of_pair.ml` | 71, 50 |
 | `exported_option_fun_in_arm.ml` | 18, 10 | `seq_unit.ml` | 13, 2 |
 | `exported_option_library.ml` | 14, 10 | `shape2_heap.ml` | 61, 36 |
-| `exported_pair_fun_in_arms.ml` | 21, 14 | `shape_heap.ml` | 54, 30 |
-| `exported_record.ml` | 23, 9 | `shift_edges.ml` | 23, 1 |
-| `exported_record_of_funs.ml` | 14, 11 | `shift_unknown.ml` | 17, 7 |
-| `exported_record_update.ml` | 14, 6 | `shifts.ml` | 22, 8 |
-| `exported_records_in_arms.ml` | 21, 14 | `sign.ml` | 27, 1 |
-| `exported_some_again.ml` | 26, 6 | `string_const.ml` | 21, 2 |
-| `exported_string_length.ml` | 8, 5 | `string_get16.ml` | 10, 5 |
-| `exported_submodule.ml` | 14, 8 | `string_get16_be.ml` | 16, 6 |
-| `exported_table.ml` | 13, 8 | `string_get16_checked.ml` | 29, 17 |
-| `exported_twice_kept.ml` | 14, 10 | `string_get32.ml` | 23, 11 |
-| `exported_two_branches.ml` | 23, 15 | `string_get_const.ml` | 9, 4 |
-| `exported_two_functions.ml` | 22, 10 | `string_length_const.ml` | 8, 1 |
-| `exported_two_somes.ml` | 11, 5 | `string_length_unknown.ml` | 9, 5 |
-| `exported_two_tests.ml` | 26, 17 | `string_sum.ml` | 100, 82 |
-| `exported_two_values.ml` | 18, 1 | `submodule.ml` | 27, 1 |
-| `exported_variant.ml` | 17, 6 | `succ_pred.ml` | 12, 5 |
-| `fact_exported.ml` | 8, 3 | `swap_exported.ml` | 8, 4 |
-| `factorial.ml` | 70, 46 | `tail_loop.ml` | 128, 83 |
-| `fib.ml` | 2041, 1417 | `tree_root.ml` | 90, 4 |
-| `first_class_module.ml` | 22, 4 | `try_catch_all.ml` | 22, 10 |
-| `float_const.ml` | 15, 4 | `try_div_zero.ml` | 23, 12 |
-| `for_down.ml` | 79, 40 | `try_exported.ml` | 8, 4 |
-| `for_if.ml` | 165, 96 | `try_in_function.ml` | 25, 10 |
-| `for_nested.ml` | 171, 95 | `try_nested.ml` | 30, 14 |
-| `for_sum.ml` | 135, 81 | `try_no_raise.ml` | 14, 5 |
-| `for_two_refs.ml` | 90, 52 | `try_reraise.ml` | 29, 14 |
-| `fst_snd.ml` | 16, 3 | `try_result_unused.ml` | 13, 3 |
-| `functor_apply.ml` | 23, 1 | `try_test_outside.ml` | 22, 10 |
-| `gadt_known.ml` | 35, 4 | `tuple_match.ml` | 75, 1 |
-| `higher_order.ml` | 32, 5 | `tuple_return.ml` | 20, 5 |
-| `id_exported.ml` | 8, 4 | `tuple_swap.ml` | 19, 4 |
-| `identity.ml` | 22, 3 | `tupled_function.ml` | 21, 2 |
-| `if_unknown.ml` | 13, 6 | `twice_inlined.ml` | 19, 6 |
-| `ignore_value.ml` | 11, 2 | `unboxed_pair.ml` | 13, 4 |
-| `indirect_call.ml` | 13, 9 | `unboxed_pair_argument.ml` | 10, 3 |
-| `inline_function.ml` | 20, 4 | `uncaught_raise.ml` | 10, 4 |
-| `inline_record.ml` | 45, 7 | `unit_argument.ml` | 18, 1 |
-| `int32_arith.ml` | 27, 8 | `variant_blocks_join.ml` | 20, 8 |
-| `int32_overflow.ml` | 40, 1 | `variant_match_exported.ml` | 8, 4 |
-| `int32_unknown.ml` | 17, 7 | `while_const_after.ml` | 70, 45 |
-| `int64_boxed.ml` | 22, 8 | `while_countdown.ml` | 61, 34 |
-| `int64_built.ml` | 61, 43 | `while_if_inside.ml` | 161, 106 |
-| `int64_compare.ml` | 48, 1 | `while_loop.ml` | 78, 45 |
-| `int64_join.ml` | 26, 1 | `while_nested.ml` | 188, 127 |
-| `int64_of_int.ml` | 25, 7 | `while_sum_down.ml` | 133, 80 |
-| `int64_option_heap.ml` | 63, 38 | `while_two_loops.ml` | 126, 81 |
-| `int64_overflow.ml` | 33, 1 | `while_two_tests.ml` | 180, 123 |
-| `int64_shift.ml` | 21, 8 | `while_unused_counter.ml` | 78, 40 |
-| `int64_to_int32.ml` | 10, 6 |  |  |
+| `exported_pair_fun_in_arms.ml` | 21, 14 | `shape_constant.ml` | 24, 11 |
+| `exported_record.ml` | 23, 9 | `shape_heap.ml` | 54, 30 |
+| `exported_record_of_funs.ml` | 14, 11 | `shift_edges.ml` | 23, 1 |
+| `exported_record_update.ml` | 14, 6 | `shift_unknown.ml` | 17, 7 |
+| `exported_records_in_arms.ml` | 21, 14 | `shifts.ml` | 22, 8 |
+| `exported_some_again.ml` | 26, 6 | `sign.ml` | 27, 1 |
+| `exported_string_length.ml` | 8, 5 | `string_const.ml` | 21, 2 |
+| `exported_submodule.ml` | 14, 8 | `string_get16.ml` | 10, 5 |
+| `exported_table.ml` | 13, 8 | `string_get16_be.ml` | 16, 6 |
+| `exported_twice_kept.ml` | 14, 10 | `string_get16_checked.ml` | 29, 17 |
+| `exported_two_branches.ml` | 23, 15 | `string_get32.ml` | 23, 11 |
+| `exported_two_functions.ml` | 22, 10 | `string_get_const.ml` | 9, 4 |
+| `exported_two_somes.ml` | 11, 5 | `string_length_const.ml` | 8, 1 |
+| `exported_two_tests.ml` | 26, 17 | `string_length_unknown.ml` | 9, 5 |
+| `exported_two_values.ml` | 18, 1 | `string_sum.ml` | 100, 82 |
+| `exported_variant.ml` | 17, 6 | `submodule.ml` | 27, 1 |
+| `fact_exported.ml` | 8, 3 | `succ_pred.ml` | 12, 5 |
+| `factorial.ml` | 70, 46 | `swap_exported.ml` | 8, 4 |
+| `fib.ml` | 2041, 1417 | `tail_loop.ml` | 128, 83 |
+| `first_class_module.ml` | 22, 4 | `tree_root.ml` | 90, 4 |
+| `float_const.ml` | 15, 4 | `try_catch_all.ml` | 22, 10 |
+| `for_down.ml` | 79, 40 | `try_div_zero.ml` | 23, 12 |
+| `for_if.ml` | 165, 96 | `try_exported.ml` | 8, 4 |
+| `for_nested.ml` | 171, 95 | `try_in_function.ml` | 25, 10 |
+| `for_sum.ml` | 135, 81 | `try_nested.ml` | 30, 14 |
+| `for_two_refs.ml` | 90, 52 | `try_no_raise.ml` | 14, 5 |
+| `fst_snd.ml` | 16, 3 | `try_reraise.ml` | 29, 14 |
+| `functor_apply.ml` | 23, 1 | `try_result_unused.ml` | 13, 3 |
+| `gadt_known.ml` | 35, 4 | `try_test_outside.ml` | 22, 10 |
+| `higher_order.ml` | 32, 5 | `tuple_match.ml` | 75, 1 |
+| `id_exported.ml` | 8, 4 | `tuple_return.ml` | 20, 5 |
+| `identity.ml` | 22, 3 | `tuple_swap.ml` | 19, 4 |
+| `if_unknown.ml` | 13, 6 | `tupled_function.ml` | 21, 2 |
+| `ignore_value.ml` | 11, 2 | `twice_inlined.ml` | 19, 6 |
+| `indirect_call.ml` | 13, 9 | `unboxed_pair.ml` | 13, 4 |
+| `inline_function.ml` | 20, 4 | `unboxed_pair_argument.ml` | 10, 3 |
+| `inline_record.ml` | 45, 7 | `uncaught_raise.ml` | 10, 4 |
+| `int32_arith.ml` | 27, 8 | `unit_argument.ml` | 18, 1 |
+| `int32_overflow.ml` | 40, 1 | `variant_blocks_join.ml` | 20, 8 |
+| `int32_unknown.ml` | 17, 7 | `variant_match_exported.ml` | 8, 4 |
+| `int64_boxed.ml` | 22, 8 | `while_const_after.ml` | 70, 45 |
+| `int64_built.ml` | 61, 43 | `while_countdown.ml` | 61, 34 |
+| `int64_compare.ml` | 48, 1 | `while_if_inside.ml` | 161, 106 |
+| `int64_join.ml` | 26, 1 | `while_loop.ml` | 78, 45 |
+| `int64_of_int.ml` | 25, 7 | `while_nested.ml` | 188, 127 |
+| `int64_option_heap.ml` | 63, 38 | `while_sum_down.ml` | 133, 80 |
+| `int64_overflow.ml` | 33, 1 | `while_two_loops.ml` | 126, 81 |
+| `int64_shift.ml` | 21, 8 | `while_two_tests.ml` | 180, 123 |
+| `int64_to_int32.ml` | 10, 6 | `while_unused_counter.ml` | 78, 40 |
 
 ### What the validation of a unit that exports a function rests on
 
@@ -521,6 +521,14 @@ removed it:
   continuation the fields, with `poison` for those that a branch has
   not got, and the validator does the same in the first phase of the
   term before (`FlambdaUnboxVariantsSpec.unbox_variant_params`).
+- A variant that is a constant block on one path and a constant
+  constructor on the other, unboxed where they meet
+  (`shape_constant.ml`): Simplify gives the continuation whether the
+  value is an immediate and the field, which is that of the symbol
+  of the constant block on one path and `poison` on the other. Under
+  a test, the untagging of a symbol has no value, so the unboxing of
+  parameters gives a constant in its place
+  (`FlambdaUnboxVariantsSpec.no_value_on`).
 - A boolean untagged where the two tests of the condition of a loop
   meet (`while_two_tests.ml`, a `while` with `&&`): the first test
   gives the number 0 and the second its comparison, with nothing
@@ -590,7 +598,7 @@ once more on both sides, and `fib.ml` did not end. With it a round can
 only inline code that is not recursive, so the terms stop growing.
 Each attempt may go on to guess what Simplify lifted and which value
 slots it removed, and where it fails it is made again at the second
-asking. The 251 units here are checked in about ten seconds of
+asking. The 252 units here are checked in about ten seconds of
 processor time together.
 
 `FLSEMANTICS_PRINT_TERMS=1` makes the tool print, of a unit that is not
