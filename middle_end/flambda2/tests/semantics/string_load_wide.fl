@@ -1,0 +1,14 @@
+let $s = "\000\128\255\255\255\255\255\255\255\127\001\002\003\004\005\006\007\200" in
+let o = %opaque ($s) in
+let a = %string_load.[`16`] (o, 0n) in
+let b = %tag_imm (a) in
+let c = %string_load.[`16s`] (o, 0n) in
+let d = %num_conv.[`int16`].[`tagged_imm`] (c) in
+let e = %string_load.[`32`] ($s, 14n) in
+let f = %num_conv.[`int32`].[`tagged_imm`] (e) in
+let g = %string_load.[`64`] ($s, 10n) in
+let h = %num_conv.[`int64`].[`tagged_imm`] (g) in
+let i = %string_load.[`64`] (o, 1n) in
+let j = %num_conv.[`int64`].[`tagged_imm`] (i) in
+let $camlString_load_wide = Block 0 (b, d, f, h, j) in
+cont done ($camlString_load_wide)

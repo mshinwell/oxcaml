@@ -1,0 +1,5 @@
+let $s = "hello" in
+let a = %string_load.[`16`] ($s, 4n) in
+let b = %tag_imm (a) in
+let $camlString_load_wide_past_the_end = Block 0 (b) in
+cont done ($camlString_load_wide_past_the_end)
