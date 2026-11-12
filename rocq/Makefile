@@ -440,6 +440,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaSimplifyStaticsSpec.v \
   FlambdaSimplifySwitchArmsProofs.v \
   FlambdaSimplifySwitchArmsSpec.v \
+  FlambdaSimplifySwitchFuelProofs.v \
+  FlambdaSimplifySwitchFuelSpec.v \
   FlambdaSimplifySwitchMergeProofs.v \
   FlambdaSimplifySwitchMergeSpec.v \
   FlambdaSimplifySwitchProofs.v \
