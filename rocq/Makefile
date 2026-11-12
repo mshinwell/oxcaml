@@ -165,6 +165,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaKindModel.v \
   FlambdaKnownClosuresProofs.v \
   FlambdaKnownClosuresSpec.v \
+  FlambdaKnownSlotsProofs.v \
+  FlambdaKnownSlotsSpec.v \
   FlambdaKnownSymbolsProofs.v \
   FlambdaKnownSymbolsSpec.v \
   FlambdaLiftFromArmsProofs.v \
