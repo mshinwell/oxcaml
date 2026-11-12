@@ -177,6 +177,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaLiftFromCodeSpec.v \
   FlambdaLiftProofs.v \
   FlambdaLiftSpec.v \
+  FlambdaLocationsProofs.v \
+  FlambdaLocationsSpec.v \
   FlambdaLoopAliasesProofs.v \
   FlambdaLoopAliasesSpec.v \
   FlambdaLoopLetsProofs.v \
