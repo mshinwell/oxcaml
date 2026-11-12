@@ -1,0 +1,144 @@
+let $camlMatch_int_intervals__first_const_0 = Block 0 () in
+(let code inline(never) size(129)
+       band_0 (n/77 : imm tagged)
+         my_closure/78 &my_alloc_region/79 my_depth/80
+         -> k/70 * k/71
+         : imm tagged =
+   let next_depth/81 = rec_info (succ my_depth/80) in
+   (let prim/90 = %int_comp.ge (n/77, 12) in
+    let int_greaterequal/91 = %tag_imm (prim/90) in
+    (let untagged/92 = %untag_imm (int_greaterequal/91) in
+     switch untagged/92
+       | 0 -> k/94
+       | 1 -> k/95)
+      where k/95 =
+        cont k/76
+      where k/94 =
+        cont k/78)
+     where k/78 =
+       ((let prim/87 = %int_comp.ge (n/77, 0) in
+         let int_greaterequal/88 = %tag_imm (prim/87) in
+         (let untagged/89 = %untag_imm (int_greaterequal/88) in
+          switch untagged/89
+            | 0 -> k/92
+            | 1 -> k/93)
+           where k/93 =
+             cont k/79
+           where k/92 =
+             cont k/75)
+          where k/79 =
+            ((let untagged/86 = %untag_imm (n/77) in
+              switch untagged/86
+                | 0 -> k/80
+                | 1 -> k/81
+                | 2 -> k/82
+                | 3 -> k/83
+                | 4 -> k/84
+                | 5 -> k/85
+                | 6 -> k/86
+                | 7 -> k/87
+                | 8 -> k/88
+                | 9 -> k/89
+                | 10 -> k/90
+                | 11 -> k/91)
+               where k/91 =
+                 cont k/72
+               where k/90 =
+                 cont k/72
+               where k/89 =
+                 cont k/75
+               where k/88 =
+                 cont k/75
+               where k/87 =
+                 cont k/75
+               where k/86 =
+                 cont k/73
+               where k/85 =
+                 cont k/73
+               where k/84 =
+                 cont k/73
+               where k/83 =
+                 cont k/73
+               where k/82 =
+                 cont k/74
+               where k/81 =
+                 cont k/74
+               where k/80 =
+                 cont k/74))
+     where k/76 =
+       let int_add/82 = %int_barith.add (n/77, -20) in
+       let prim/83 = %int_comp.unsigned.lt (4, int_add/82) in
+       let Pisout/84 = %tag_imm (prim/83) in
+       ((let untagged/85 = %untag_imm (Pisout/84) in
+         switch untagged/85
+           | 0 -> k/70 (40)
+           | 1 -> k/77)
+          where k/77 =
+            cont k/75)
+     where k/75 =
+       cont k/70 (0)
+     where k/74 =
+       cont k/70 (10)
+     where k/73 =
+       cont k/70 (20)
+     where k/72 =
+       cont k/70 (30)
+ in
+ let band/93 = closure band_0 @band &toplevel in
+ (let Popaque/111 = %opaque (99) in
+  apply direct(band_0 &toplevel)
+    (band/93 : _ -> imm tagged) (Popaque/111) -> k/96 * error)
+   where k/96 (apply_result/94 : imm tagged) =
+     ((let Popaque/110 = %opaque (8) in
+       apply direct(band_0 &toplevel)
+         (band/93 : _ -> imm tagged) (Popaque/110) -> k/97 * error)
+        where k/97 (apply_result/95 : imm tagged) =
+          ((let Popaque/109 = %opaque (22) in
+            apply direct(band_0 &toplevel)
+              (band/93 : _ -> imm tagged) (Popaque/109) -> k/98 * error)
+             where k/98 (apply_result/96 : imm tagged) =
+               ((let Popaque/108 = %opaque (11) in
+                 apply direct(band_0 &toplevel)
+                   (band/93 : _ -> imm tagged) (Popaque/108) -> k/99 * error)
+                  where k/99 (apply_result/97 : imm tagged) =
+                    ((let Popaque/107 = %opaque (6) in
+                      apply direct(band_0 &toplevel)
+                        (band/93 : _ -> imm tagged)
+                          (Popaque/107)
+                          -> k/100 * error)
+                       where k/100 (apply_result/98 : imm tagged) =
+                         ((let Popaque/106 = %opaque (1) in
+                           apply direct(band_0 &toplevel)
+                             (band/93 : _ -> imm tagged)
+                               (Popaque/106)
+                               -> k/101 * error)
+                            where k/101 (apply_result/99 : imm tagged) =
+                              let int_add/100 =
+                                %int_barith.add
+                                  (apply_result/99, apply_result/98)
+                              in
+                              let int_add/101 =
+                                %int_barith.add
+                                  (int_add/100, apply_result/97)
+                              in
+                              let int_add/102 =
+                                %int_barith.add
+                                  (int_add/101, apply_result/96)
+                              in
+                              let int_add/103 =
+                                %int_barith.add
+                                  (int_add/102, apply_result/95)
+                              in
+                              let result/104 =
+                                %int_barith.add
+                                  (int_add/103, apply_result/94)
+                              in
+                              let Pmakeblock/105 =
+                                %block.[`0`].`toplevel` (result/104)
+                              in
+                              cont k/69 (Pmakeblock/105)))))))
+  where k/69 define_root_symbol (module_block/75) =
+    let field_0/76 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/75)
+    in
+    let $camlMatch_int_intervals = Block 0 (field_0/76) in
+    cont done ($camlMatch_int_intervals)

@@ -1,0 +1,42 @@
+let $camlMatch_constant_table__first_const_0 = Block 0 () in
+(let code inline(never) size(36)
+       hours_0 (d/39 : imm tagged)
+         my_closure/40 &my_alloc_region/41 my_depth/42
+         -> k/16 * k/17
+         : imm tagged =
+   let next_depth/43 = rec_info (succ my_depth/42) in
+   let untagged/44 = %untag_imm (d/39) in
+   switch untagged/44
+     | 0 -> k/16 (8)
+     | 1 -> k/16 (6)
+     | 2 -> k/16 (9)
+     | 3 -> k/16 (7)
+     | 4 -> k/16 (4)
+     | 5 -> k/16 (0)
+     | 6 -> k/16 (1)
+ in
+ let hours/45 = closure hours_0 @hours &toplevel in
+ (let Popaque/54 = %opaque (6) in
+  apply direct(hours_0 &toplevel)
+    (hours/45 : _ -> imm tagged) (Popaque/54) -> k/18 * error)
+   where k/18 (apply_result/46 : imm tagged) =
+     ((let Popaque/53 = %opaque (4) in
+       apply direct(hours_0 &toplevel)
+         (hours/45 : _ -> imm tagged) (Popaque/53) -> k/19 * error)
+        where k/19 (apply_result/47 : imm tagged) =
+          ((let Popaque/52 = %opaque (2) in
+            apply direct(hours_0 &toplevel)
+              (hours/45 : _ -> imm tagged) (Popaque/52) -> k/20 * error)
+             where k/20 (apply_result/48 : imm tagged) =
+               let int_add/49 =
+                 %int_barith.add (apply_result/48, apply_result/47)
+               in
+               let result/50 = %int_barith.add (int_add/49, apply_result/46)
+               in
+               let Pmakeblock/51 = %block.[`0`].`toplevel` (result/50) in
+               cont k/15 (Pmakeblock/51))))
+  where k/15 define_root_symbol (module_block/37) =
+    let field_0/38 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/37)
+    in
+    let $camlMatch_constant_table = Block 0 (field_0/38) in
+    cont done ($camlMatch_constant_table)

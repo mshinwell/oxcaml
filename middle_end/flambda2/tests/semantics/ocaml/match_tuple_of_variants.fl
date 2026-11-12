@@ -1,0 +1,101 @@
+let $camlMatch_tuple_of_variants__first_const_0 = Block 0 () in
+(let code inline(never) size(70)
+       mix_0 (a/73 : imm tagged, b/74 : imm tagged)
+         my_closure/75 &my_alloc_region/76 my_depth/77
+         -> k/40 * k/41
+         : imm tagged =
+   let next_depth/78 = rec_info (succ my_depth/77) in
+   (let untagged/84 = %untag_imm (a/73) in
+    switch untagged/84
+      | 0 -> k/44
+      | 1 -> k/46
+      | 2 -> k/49)
+     where k/49 =
+       ((let untagged/83 = %untag_imm (b/74) in
+         switch untagged/83
+           | 0 -> k/50
+           | 1 -> k/51
+           | 2 -> k/40 (5))
+          where k/51 =
+            cont k/42
+          where k/50 =
+            cont k/43)
+     where k/46 =
+       ((let untagged/82 = %untag_imm (b/74) in
+         switch untagged/82
+           | 0 -> k/47
+           | 1 -> k/40 (4)
+           | 2 -> k/48)
+          where k/48 =
+            cont k/42
+          where k/47 =
+            cont k/43)
+     where k/44 =
+       let prim/79 = %int_comp.ne (b/74, 0) in
+       let int_notequal/80 = %tag_imm (prim/79) in
+       ((let untagged/81 = %untag_imm (int_notequal/80) in
+         switch untagged/81
+           | 0 -> k/40 (1)
+           | 1 -> k/45)
+          where k/45 =
+            cont k/43)
+     where k/43 =
+       cont k/40 (2)
+     where k/42 =
+       cont k/40 (3)
+ in
+ let mix/85 = closure mix_0 @mix &toplevel in
+ (let Popaque/104 = %opaque (2) in
+  let Popaque/105 = %opaque (2) in
+  apply direct(mix_0 &toplevel)
+    (mix/85 : _ -> imm tagged) (Popaque/105, Popaque/104) -> k/52 * error)
+   where k/52 (apply_result/86 : imm tagged) =
+     ((let Popaque/102 = %opaque (1) in
+       let Popaque/103 = %opaque (1) in
+       apply direct(mix_0 &toplevel)
+         (mix/85 : _ -> imm tagged)
+           (Popaque/103, Popaque/102)
+           -> k/53 * error)
+        where k/53 (apply_result/87 : imm tagged) =
+          ((let Popaque/100 = %opaque (1) in
+            let Popaque/101 = %opaque (2) in
+            apply direct(mix_0 &toplevel)
+              (mix/85 : _ -> imm tagged)
+                (Popaque/101, Popaque/100)
+                -> k/54 * error)
+             where k/54 (apply_result/88 : imm tagged) =
+               ((let Popaque/98 = %opaque (0) in
+                 let Popaque/99 = %opaque (1) in
+                 apply direct(mix_0 &toplevel)
+                   (mix/85 : _ -> imm tagged)
+                     (Popaque/99, Popaque/98)
+                     -> k/55 * error)
+                  where k/55 (apply_result/89 : imm tagged) =
+                    ((let Popaque/96 = %opaque (0) in
+                      let Popaque/97 = %opaque (0) in
+                      apply direct(mix_0 &toplevel)
+                        (mix/85 : _ -> imm tagged)
+                          (Popaque/97, Popaque/96)
+                          -> k/56 * error)
+                       where k/56 (apply_result/90 : imm tagged) =
+                         let int_add/91 =
+                           %int_barith.add (apply_result/90, apply_result/89)
+                         in
+                         let int_add/92 =
+                           %int_barith.add (int_add/91, apply_result/88)
+                         in
+                         let int_add/93 =
+                           %int_barith.add (int_add/92, apply_result/87)
+                         in
+                         let result/94 =
+                           %int_barith.add (int_add/93, apply_result/86)
+                         in
+                         let Pmakeblock/95 =
+                           %block.[`0`].`toplevel` (result/94)
+                         in
+                         cont k/39 (Pmakeblock/95))))))
+  where k/39 define_root_symbol (module_block/71) =
+    let field_0/72 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/71)
+    in
+    let $camlMatch_tuple_of_variants = Block 0 (field_0/72) in
+    cont done ($camlMatch_tuple_of_variants)
