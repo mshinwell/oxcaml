@@ -209,6 +209,10 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaRangeSpec.v \
   FlambdaRecHandlersProofs.v \
   FlambdaRecHandlersSpec.v \
+  FlambdaRecoverComparisonProofs.v \
+  FlambdaRecoverComparisonScopeProofs.v \
+  FlambdaRecoverComparisonScopeSpec.v \
+  FlambdaRecoverComparisonSpec.v \
   FlambdaRenameApartProofs.v \
   FlambdaRenameApartSpec.v \
   FlambdaRoundsProofs.v \
