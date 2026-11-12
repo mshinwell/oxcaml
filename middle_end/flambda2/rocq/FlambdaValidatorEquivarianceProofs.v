@@ -1315,7 +1315,7 @@ Lemma of_known_block_equivariant (r : renaming) (p : unary_primitive)
   of_known_block p (rename_known_block r block)
   = option_map (rename_simple r) (of_known_block p block).
 Proof.
-  destruct p as [kind mut field | | | | | | | | | | | | | ];
+  destruct p as [kind mut field | | | | | | | | | | | | | | ];
     try reflexivity.
   destruct mut; try reflexivity; apply field_loaded_equivariant.
 Qed.

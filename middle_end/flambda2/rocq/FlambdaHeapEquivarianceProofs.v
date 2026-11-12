@@ -486,11 +486,17 @@ Proof.
   - exact Hbijection.
   - intros l l' Hl. destruct (Hcells l l' Hl) as (c & c' & Hc & Hc' & Hcell).
     exists c, c'. split; [ exact Hc | ]. split; [ exact Hc' | ].
-    destruct c as [mut tag fields], c' as [mut' tag' fields'].
-    destruct Hcell as (Hmut & Htag & Hfields).
-    split; [ exact Hmut | ]. split; [ exact Htag | ].
-    revert Hfields. apply Forall2_impl. intros a a'.
-    apply value_related_code.
+    destruct c as [mut tag fields | kind elements],
+      c' as [mut' tag' fields' | kind' elements'];
+      try (exfalso; exact Hcell).
+    + destruct Hcell as (Hmut & Htag & Hfields).
+      split; [ exact Hmut | ]. split; [ exact Htag | ].
+      revert Hfields. apply Forall2_impl. intros a a'.
+      apply value_related_code.
+    + destruct Hcell as (Hkind & Helements).
+      split; [ exact Hkind | ].
+      revert Helements. apply Forall2_impl. intros a a'.
+      apply value_related_code.
   - intros v v' Hcorr.
     apply (value_step_code poison_refines corr codes1 codes1' codes2 codes2').
     generalize (Hvalues v v' Hcorr). apply value_step_mono.

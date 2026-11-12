@@ -33,7 +33,11 @@
    This file is to be read with the request. It has
    - allocation, and what the primitives of the heap compute
      ([exec_prim], over FlambdaPrimitiveSpec.eval_prim, which is
-     unchanged);
+     unchanged). The mutable arrays of values are cells too
+     ([Cell_array]): what their four primitives do to a cell is here,
+     over the functions of the section "Arrays" of
+     FlambdaPrimitiveSpec.v, which say what they compute on the
+     elements;
    - the compiler's classification of primitives by effects and
      coeffects ([effects_of_prim], [coeffects_of_prim]), against
      [Flambda_primitive.effects_and_coeffects], and the laws that tie it
@@ -163,7 +167,16 @@ Definition unit_value : value := Value_const (Tagged_immediate 0).
    - [Make_block_with_identity] binds a fresh location to a cell holding
      the arguments, which must be of kind [Value].
    - [Block_set] replaces a field of a mutable cell, and its value is
-     unit. It has no value on anything else. *)
+     unit. It has no value on anything else.
+   - [Make_mutable_array] binds a fresh location to an array of the
+     kind it carries, holding the arguments, of which there is at least
+     one and each of which is a value that the kind holds
+     (FlambdaPrimitiveSpec.array_made).
+   - [Array_set] replaces an element of an array, and its value is
+     unit (FlambdaPrimitiveSpec.array_stored: the index is in the
+     bounds of the array, and the new value is one that the set kind
+     takes and that the kind of the array holds). It has no value on
+     anything else. *)
 (* CR mshinwell: [Block_set] has no value on a block that was not made
    [Mutable]: an immutable block, a symbol, an [Immutable_unique] cell.
    The machine would write; Simplify keeps the facts it has about the
@@ -173,6 +186,16 @@ Definition unit_value : value := Value_const (Tagged_immediate 0).
    change what the store does; the only stores marked [Initialization]
    are those of tail-modulo-cons, which the conversion refuses
    (decision 4). Decision 5 of requests/C4-heap.md. *)
+(* CR mshinwell: [Make_mutable_array] of no argument has no value. The
+   compiler does not allocate the empty array: [Closure_conversion]
+   makes a [Pmakearray] of no argument the one static empty array of
+   its kind ([Static_const.empty_array]), whatever its mutability, so
+   two empty arrays of a program may be physically equal, and a
+   location for each would tell them apart. No term that the front end
+   makes has a [Make_array] of no argument. It would be wrong if a
+   pass comes to make one and the term is executed. Decided while the
+   owner of the branch was away
+   (middle_end/flambda2/rocq/status/P1.md). *)
 Definition exec_heap_primitive (statics : static_env) (h : heap)
     (p : heap_primitive) (vs : list value) : option (value * heap) :=
   match p, vs with
@@ -189,6 +212,21 @@ Definition exec_heap_primitive (statics : static_env) (h : heap)
       | Some (Cell_block Cell_mutable tag fields) =>
         let* fields' := store_field kind field new tag fields in
         Some (unit_value, (l, Cell_block Cell_mutable tag fields') :: h)
+      | _ => None
+      end
+    | _ => None
+    end
+  | Make_mutable_array kind, _ :: _ =>
+    let* elements := array_made kind vs in
+    let l := fresh_location h in
+    Some (Value_location l, (l, Cell_array kind elements) :: h)
+  | Array_set _ set_kind, [v; index; new] =>
+    match v with
+    | Value_location l =>
+      match lookup l h with
+      | Some (Cell_array kind elements) =>
+        let* elements' := array_stored set_kind kind elements index new in
+        Some (unit_value, (l, Cell_array kind elements') :: h)
       | _ => None
       end
     | _ => None
@@ -213,7 +251,17 @@ Definition load_allowed (load_mut : mutability) (mut : cell_mutability)
    [Is_null] answer no; [Opaque_identity] is the location. The remaining
    unary primitives are on numbers or on strings, and have no value: a
    cell is neither. A primitive that is added and that reads a cell has
-   its case here. *)
+   its case here.
+   Of an array, [Array_length] is the number of elements
+   (FlambdaPrimitiveSpec.array_length_of), whatever the kind it
+   carries; [Is_null] answers no, and so does [Is_int] without
+   [variant_only]; [Opaque_identity] is the location. With
+   [variant_only], [Is_int] has no value on an array, which is no
+   variant: Simplify makes it [Invalid] there
+   ([Provers.prove_is_int_generic_value]), as on a closure, a boxed
+   number or a string (FlambdaPrimitiveSpec.eval_is_int). [Get_tag] and
+   [Block_load] have no value on an array, nor [Array_length] on a
+   block. *)
 (* CR mshinwell: a [Block_load] marked [Immutable] has no value on a
    block made [Mutable]. Simplify takes a field so read never to change
    afterwards (it records the field in the type of the block and shares
@@ -249,6 +297,42 @@ Definition exec_unary_on_cell (p : unary_primitive) (l : location) (c : cell)
       if kind_eqb kind Value then Some (Value_location l) else None
     | _ => None
     end
+  | Cell_array _ elements =>
+    match p with
+    | Array_length _ => array_length_of elements
+    | Is_int false | Is_null => Some (naked_bool false)
+    | Opaque_identity kind =>
+      if kind_eqb kind Value then Some (Value_location l) else None
+    | _ => None
+    end
+  end.
+
+(* A binary primitive of FlambdaPrimitiveModel.v whose first argument is
+   a location: it reads the cell. The only one is [Array_load], of an
+   array: the element at the index, as it is now
+   (FlambdaPrimitiveSpec.array_loaded), where the mark of the load
+   allows. An array that has an identity is mutable, so that is where
+   the load is marked [Mutable] ([load_allowed]). The remaining binary
+   primitives have no value: [Phys_equal] with a location is not read
+   here ([exec_bound_prim]), and the others are on numbers or on
+   strings. *)
+(* CR mshinwell: An [Array_load] marked [Immutable] has no value on an
+   array that has an identity, as a [Block_load] so marked has none on
+   a block made [Mutable] (the CR before [exec_unary_on_cell]). The
+   front end makes one for the reads of an immutable array ([iarray]),
+   and such an array may be a mutable array seen as immutable
+   ([%array_to_iarray], which is the identity): the model refuses
+   that program. Whether the reads of an array so frozen are stable is
+   the question that decision 4 of requests/C4-heap.md asks of the
+   fields of blocks. *)
+Definition exec_binary_on_cell (p : binary_primitive) (l : location)
+    (c : cell) (v2 : value) : option value :=
+  match c, p with
+  | Cell_array _ elements, Array_load _ load_kind load_mut =>
+    if load_allowed load_mut Cell_mutable
+    then array_loaded load_kind elements v2
+    else None
+  | _, _ => None
   end.
 
 (* An argument that a primitive may be given: anything but a symbol or a
@@ -264,8 +348,9 @@ Definition argument_bound (statics : static_env) (h : heap) (v : value)
 (* What a primitive does to arguments that are bound. One that does not
    touch the heap is FlambdaPrimitiveSpec.eval_prim, and the heap is
    returned as it came. A unary primitive of a location reads its cell,
-   and [Phys_equal] with a location among its two arguments is the
-   comparison above. *)
+   [Phys_equal] with a location among its two arguments is the
+   comparison above, and another binary primitive whose first argument
+   is a location reads its cell. *)
 Definition exec_bound_prim (statics : static_env) (h : heap) (p : prim)
     (vs : list value) : option (value * heap) :=
   match p, vs with
@@ -288,6 +373,10 @@ Definition exec_bound_prim (statics : static_env) (h : heap) (p : prim)
     else
       let* v := eval_prim statics p vs in
       Some (v, h)
+  | Binary p, [Value_location l; v2] =>
+    let* c := lookup l h in
+    let* v := exec_binary_on_cell p l c v2 in
+    Some (v, h)
   | _, _ =>
     let* v := eval_prim statics p vs in
     Some (v, h)
@@ -353,6 +442,8 @@ Definition effects_of_prim (p : prim) : effects :=
   | Heap (Make_block_with_identity Cell_immutable_unique _) =>
     Only_generative_effects Immutable_unique
   | Heap (Block_set _ _ _) => Arbitrary_effects
+  | Heap (Make_mutable_array _) => Only_generative_effects Mutable
+  | Heap (Array_set _ _) => Arbitrary_effects
   end.
 
 (* Its second component. *)
@@ -360,6 +451,7 @@ Definition coeffects_of_prim (p : prim) : coeffects :=
   match p with
   | Unary (Opaque_identity _) => Has_coeffects
   | Unary (Block_load _ Mutable _) => Has_coeffects
+  | Binary (Array_load _ _ Mutable) => Has_coeffects
   | _ => No_coeffects
   end.
 
@@ -400,22 +492,45 @@ Definition named_has_no_effects (d : named) : bool :=
     true
   end.
 
-(* What a run may do to a heap: a cell that is bound stays bound, with
-   its mutability, its tag and its number of fields, and with its fields
-   if it is not mutable. *)
+(* What a run may do to a heap: a cell that is bound stays bound. A
+   block keeps its mutability, its tag and its number of fields, and
+   its fields if it is not mutable. An array keeps its kind and its
+   number of elements. *)
 Definition heap_evolves (h h' : heap) : Prop :=
-  ∀ (l : location) (mut : cell_mutability) (tag : Z) (fields : list value),
+  (∀ (l : location) (mut : cell_mutability) (tag : Z) (fields : list value),
     lookup l h = Some (Cell_block mut tag fields) ->
     ∃ fields' : list value,
       lookup l h' = Some (Cell_block mut tag fields')
       ∧ length fields' = length fields
-      ∧ (mut = Cell_immutable_unique -> fields' = fields).
+      ∧ (mut = Cell_immutable_unique -> fields' = fields))
+  ∧ (∀ (l : location) (kind : array_kind) (elements : list value),
+      lookup l h = Some (Cell_array kind elements) ->
+      ∃ elements' : list value,
+        lookup l h' = Some (Cell_array kind elements')
+        ∧ length elements' = length elements).
 
 (* Every primitive leaves a heap that the one it was given evolves to. *)
 Definition exec_prim_evolves_statement : Prop :=
   ∀ (statics : static_env) (h h' : heap) (p : prim) (vs : list value)
     (v : value),
     exec_prim statics h p vs = Some (v, h') -> heap_evolves h h'.
+
+(* The elements of each array of a heap are values that the kind of the
+   array holds. It is what the kind of an array is recorded for: the
+   type that Simplify gives a mutable array says it of the array for as
+   long as the array lives. Every primitive keeps it. *)
+Definition arrays_hold_their_kinds (h : heap) : Prop :=
+  ∀ (l : location) (kind : array_kind) (elements : list value) (v : value),
+    lookup l h = Some (Cell_array kind elements) ->
+    v ∈ elements ->
+    array_element_ok kind v = true.
+
+Definition exec_prim_arrays_statement : Prop :=
+  ∀ (statics : static_env) (h h' : heap) (p : prim) (vs : list value)
+    (v : value),
+    arrays_hold_their_kinds h ->
+    exec_prim statics h p vs = Some (v, h') ->
+    arrays_hold_their_kinds h'.
 
 (* A primitive with no effects returns the heap as it came. *)
 Definition no_effects_statement : Prop :=
@@ -862,6 +977,9 @@ Definition cell_related (c c' : cell) : Prop :=
   match c, c' with
   | Cell_block mut tag fields, Cell_block mut' tag' fields' =>
     mut = mut' ∧ tag = tag' ∧ Forall2 value_related fields fields'
+  | Cell_array kind elements, Cell_array kind' elements' =>
+    kind = kind' ∧ Forall2 value_related elements elements'
+  | _, _ => False
   end.
 
 (* The correspondence is one between these two memories: on locations it
@@ -920,6 +1038,7 @@ Definition value_closed (h : heap) (v : value) : Prop :=
 Definition values_of_cell (c : cell) : list value :=
   match c with
   | Cell_block _ _ fields => fields
+  | Cell_array _ elements => elements
   end.
 
 Definition values_of_static (a : statically_allocated_value) : list value :=

@@ -275,7 +275,7 @@ Definition identity_of_binary (p : binary_primitive) (arg1 arg2 : simple)
       else None
     | _, _ => None
     end
-  | String_or_bigstring_load _ | Int_comp _ _ => None
+  | Array_load _ _ _ | String_or_bigstring_load _ | Int_comp _ _ => None
   end.
 
 (* A primitive applied to arguments, as a binary primitive applied to

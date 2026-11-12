@@ -84,16 +84,17 @@
    static environment, but only on what the symbols among its arguments
    are bound to ([eval_prim_static_values_statement]).
 
-   Arrays. The section "Arrays" says what the four primitives of
-   arrays ([Make_array], [Array_length], [Array_load], [Array_set])
-   compute on the elements of an array, given as a list. No value here
-   is an array and no primitive of the model is one of those four yet:
-   the section is what the cells of the heap of C4's prototype
-   (FlambdaHeapSpec.v) are to be read and written with. It is to be
-   reviewed against [Simplify_common.specialise_array_kind] and the
-   functions for arrays of the four files of Simplify above, and
-   against [Lambda_to_flambda_primitives] for the checks of bounds
-   that the front end puts before an access.
+   Arrays. No value here is an array: the only arrays of the model are
+   those that have an identity, which are cells of the heap of C4's
+   prototype (FlambdaHeapSpec.v). So [eval_prim] has no value on
+   [Array_length] and on [Array_load], as it has none on the primitives
+   of the heap. The section "Arrays" says what the four primitives of
+   arrays compute on the elements of an array, which is what
+   FlambdaHeapSpec.v applies to a cell; it is to be reviewed against
+   [Simplify_common.specialise_array_kind] and the functions for
+   arrays of the four files of Simplify above, and against
+   [Lambda_to_flambda_primitives] for the checks of bounds that the
+   front end puts before an access.
 
    The laws. The rest of the model does not look inside a primitive: it
    uses the statements at the end, which hold of every primitive.
@@ -609,6 +610,8 @@ Definition eval_unary_primitive (statics : static_env) (p : unary_primitive)
   | Get_tag =>
     let* '(tag, _) := block_of statics v in
     Some (Value_const (Naked_immediate tag))
+  (* No value is an array (the section "Arrays"). *)
+  | Array_length _ => None
   | String_length =>
     let* bytes := string_of statics v in
     let length := Z.of_nat (length bytes) in
@@ -779,6 +782,8 @@ Definition eval_phys_equal (statics : static_env) (v1 v2 : value)
 Definition eval_binary_primitive (statics : static_env)
     (p : binary_primitive) (v1 v2 : value) : option value :=
   match p with
+  (* No value is an array (the section "Arrays"). *)
+  | Array_load _ _ _ => None
   | String_or_bigstring_load width => eval_string_load statics width v1 v2
   | Phys_equal op =>
     let* same := eval_phys_equal statics v1 v2 in
@@ -854,12 +859,10 @@ Definition eval_prim (statics : static_env) (p : prim) (vs : list value)
 (* ======================================================================== *)
 
 (* What the primitives of arrays compute on the elements of an array,
-   given as a list, and on the kind that the array was made at. Nothing
-   uses it yet: no value of the model is an array, and no primitive of
-   the model is one of arrays. An array is to be a cell of the heap of
-   C4's prototype (FlambdaHeapSpec.v), read and written with these
-   functions; an immutable array, when the values of the model have
-   one, is to be read with the same.
+   given as a list, and on the kind that the array was made at. The
+   array itself is a cell of the heap (FlambdaHeapSpec.v); an immutable
+   array, when the values of the model have one, is to be read with the
+   same functions.
 
    An array keeps the kind it was made at, and each of its elements is
    a value that this kind holds ([array_element_ok]): a tagged
@@ -1190,17 +1193,17 @@ Definition unary_primitive_in_range (p : unary_primitive) : bool :=
     known_in_range tag_in_range tag
     && known_in_range ocaml_int_in_range size
     && ocaml_int_in_range field
-  | Is_int _ | Is_null | Get_tag | String_length | Opaque_identity _
-  | Unary_int_arith _ _ | Num_conv _ _ | Boolean_not | Unbox_number _
-  | Box_number _ | Untag_immediate | Tag_immediate
+  | Is_int _ | Is_null | Get_tag | Array_length _ | String_length
+  | Opaque_identity _ | Unary_int_arith _ _ | Num_conv _ _ | Boolean_not
+  | Unbox_number _ | Box_number _ | Untag_immediate | Tag_immediate
   | Reinterpret_64_bit_word _ =>
     true
   end.
 
 Definition binary_primitive_in_range (p : binary_primitive) : bool :=
   match p with
-  | String_or_bigstring_load _ | Phys_equal _ | Int_arith _ _
-  | Int_shift _ _ | Int_comp _ _ =>
+  | Array_load _ _ _ | String_or_bigstring_load _ | Phys_equal _
+  | Int_arith _ _ | Int_shift _ _ | Int_comp _ _ =>
     true
   end.
 
@@ -1223,6 +1226,7 @@ Definition heap_primitive_in_range (p : heap_primitive) : bool :=
   match p with
   | Make_block_with_identity _ tag => tag_in_range tag
   | Block_set kind _ field => access_in_range kind field
+  | Make_mutable_array _ | Array_set _ _ => true
   end.
 
 Definition prim_in_range (p : prim) : bool :=
@@ -1272,8 +1276,8 @@ Definition naked_immediate_kind : flambda_kind :=
 (* [Flambda_primitive.arg_kind_of_unary_primitive]. *)
 Definition arg_kind_of_unary_primitive (p : unary_primitive) : flambda_kind :=
   match p with
-  | Block_load _ _ _ | Is_int _ | Is_null | Get_tag | String_length
-  | Boolean_not | Unbox_number _ | Untag_immediate
+  | Block_load _ _ _ | Is_int _ | Is_null | Get_tag | Array_length _
+  | String_length | Boolean_not | Unbox_number _ | Untag_immediate
   | Reinterpret_64_bit_word Tagged_int63_as_unboxed_int64 =>
     Value
   | Opaque_identity kind => kind
@@ -1295,7 +1299,8 @@ Definition result_kind_of_unary_primitive (p : unary_primitive)
   | Unary_int_arith kind _ => kind_of_standard_int kind
   | Num_conv _ dst => kind_of_standard_int dst
   | Unbox_number kind => unboxed_kind kind
-  | Block_load _ _ _ | Boolean_not | Box_number _ | Tag_immediate
+  | Block_load _ _ _ | Array_length _ | Boolean_not | Box_number _
+  | Tag_immediate
   | Reinterpret_64_bit_word Unboxed_int64_as_tagged_int63 =>
     Value
   | Reinterpret_64_bit_word Tagged_int63_as_unboxed_int64 =>
@@ -1308,7 +1313,7 @@ Definition args_kind_of_binary_primitive (p : binary_primitive)
   match p with
   | String_or_bigstring_load _ =>
     (Value, Naked_number Kind_naked_nativeint)
-  | Phys_equal _ => (Value, Value)
+  | Array_load _ _ _ | Phys_equal _ => (Value, Value)
   | Int_arith kind _ | Int_comp kind _ =>
     (kind_of_standard_int kind, kind_of_standard_int kind)
   | Int_shift kind _ => (kind_of_standard_int kind, naked_immediate_kind)
@@ -1318,6 +1323,9 @@ Definition args_kind_of_binary_primitive (p : binary_primitive)
 Definition result_kind_of_binary_primitive (p : binary_primitive)
     : flambda_kind :=
   match p with
+  (* [Array_load_kind.kind_of_loaded_value], which is [Value] for the
+     load kinds of the model. *)
+  | Array_load _ _ _ => Value
   | Int_arith kind _ | Int_shift kind _ => kind_of_standard_int kind
   | String_or_bigstring_load (Eight | Sixteen) | Phys_equal _
   | Int_comp _ _ =>
@@ -1349,7 +1357,9 @@ Definition result_kind_of_variadic_primitive (p : variadic_primitive)
 Definition result_kind_of_heap_primitive (p : heap_primitive)
     : flambda_kind :=
   match p with
-  | Make_block_with_identity _ _ | Block_set _ _ _ => Value
+  | Make_block_with_identity _ _ | Block_set _ _ _
+  | Make_mutable_array _ | Array_set _ _ =>
+    Value
   end.
 
 (* [Flambda_primitive.result_kind']: the kind of the variable that a

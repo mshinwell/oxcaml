@@ -35,16 +35,21 @@
    The fragment has, with the compiler's names:
    - of [unary_primitive]: [Block_load] from an immutable block of
      values, whatever the load says of mutability, [Is_int], [Is_null],
-     [Get_tag], [String_length] of a string, [Opaque_identity], the
+     [Get_tag], [Array_length] of an array of values, [String_length] of
+     a string, [Opaque_identity], the
      unary [Int_arith] (here [Unary_int_arith]), [Num_conv] between the
      integer kinds, [Boolean_not], [Unbox_number],
      [Box_number], [Untag_immediate], [Tag_immediate] and
      [Reinterpret_64_bit_word] between a tagged immediate and an int64;
-   - of [binary_primitive]: [String_or_bigstring_load] of an integer of
-     one, two, four or eight bytes from a string, [Phys_equal], and
-     [Int_arith], [Int_shift] and [Int_comp], at every [Standard_int.t];
+   - of [binary_primitive]: [Array_load] from an array of values,
+     [String_or_bigstring_load] of an integer of one, two, four or
+     eight bytes from a string, [Phys_equal], and [Int_arith],
+     [Int_shift] and [Int_comp], at every [Standard_int.t];
    - of [variadic_primitive]: [Make_block] of an immutable block of
-     values.
+     values;
+   - under [Heap], with the primitives of C4's prototype: [Make_array]
+     of a mutable array of values (here [Make_mutable_array]), and the
+     ternary [Array_set] into one.
    Every other primitive is left out. The conversion from the compiler's
    terms must refuse a primitive that is not here, and a primitive whose
    fields have a value that is not here; it must never approximate one.
@@ -107,21 +112,32 @@
      those of an integer of one, two, four or eight bytes; the
      conversion must refuse the others ([Single], which loads a float,
      the three of vectors, and [Mask]).
-   - The kinds of arrays are here, and no primitive carries one yet
-     (the section "Arrays" of FlambdaPrimitiveSpec.v says what the
-     primitives of arrays compute). The only arrays are those whose
-     elements are of kind [Value]: [array_kind] has [Immediates],
-     [Gc_ignorable_values] and [Values] of the compiler's
-     [Array_kind.t], and the conversion must refuse the others (the
-     arrays of floats, of naked numbers, of vectors and of masks, and
-     [Unboxed_product]). [array_load_kind] and [array_set_kind] have
-     the same three of [Array_load_kind.t] and of [Array_set_kind.t].
-     The constructors are prefixed with [Array_], [Load_] and [Set_]:
-     the three types of the compiler have the same names in three
-     modules. [Float_array_opt_dynamic], the kind of an [Array_length]
-     of an array that may be one of floats, is here: the model has no
-     array of floats, and the conversion must refuse the load and the
-     store that the front end makes for the case of floats.
+   - The only arrays are those whose elements are of kind [Value]:
+     [array_kind] has [Immediates], [Gc_ignorable_values] and [Values]
+     of the compiler's [Array_kind.t], and the conversion must refuse
+     the others (the arrays of floats, of naked numbers, of vectors and
+     of masks, and [Unboxed_product]). [array_load_kind] and
+     [array_set_kind] have the same three of [Array_load_kind.t] and of
+     [Array_set_kind.t]. The constructors are prefixed with [Array_],
+     [Load_] and [Set_]: the three types of the compiler have the same
+     names in three modules. [Float_array_opt_dynamic], the kind of an
+     [Array_length] of an array that may be one of floats, is here: the
+     model has no array of floats, and the conversion must refuse the
+     load and the store that the front end makes for the case of
+     floats.
+   - [Make_array] is [Make_mutable_array], with no mutability and no
+     allocation mode: it is the allocation on the heap of an array
+     that is [Mutable], and the conversion must refuse the others.
+     ([Immutable_unique] is not a mutability of arrays: Simplify stops
+     on a [Make_array] that has it. An array made [Immutable] is a
+     value with no identity, as an immutable block is, and the values
+     of the model have not got one yet.)
+   - The conversion must refuse an [Array_set] whose array kind is
+     [Values] and whose set kind is not. The front end makes none, and
+     Simplify stops on one unless the type of the array lets it change
+     the array kind to [Immediates] first
+     ([Simplify_ternary_primitive.simplify_array_set], after
+     [Simplify_common.specialise_array_kind]).
 
    To add a primitive: add its constructor here, its case to the
    evaluation, to the kinds and to [prim_in_range] of
@@ -187,6 +203,7 @@ Inductive unary_primitive : Type :=
   | Is_int (variant_only : bool)
   | Is_null
   | Get_tag
+  | Array_length (kind : array_kind_for_length)
   | String_length
   | Opaque_identity (kind : flambda_kind)
   | Unary_int_arith (kind : standard_int) (op : unary_int_arith_op)
@@ -245,6 +262,8 @@ Inductive equality_comparison : Type :=
 
 (* [Flambda_primitive.binary_primitive]. *)
 Inductive binary_primitive : Type :=
+  | Array_load (kind : array_kind) (load_kind : array_load_kind)
+      (mut : mutability)
   | String_or_bigstring_load (width : string_accessor_width)
   | Phys_equal (op : equality_comparison)
   | Int_arith (kind : standard_int) (op : binary_int_arith_op)
@@ -266,7 +285,12 @@ Inductive variadic_primitive : Type :=
    [Block_set] is a binary primitive. The load from a block that has an
    identity is [Block_load] above, with its mutability, and the
    comparison of two such blocks is [Phys_equal] above: the prototype
-   says what they do on a location (FlambdaHeapSpec.v). *)
+   says what they do on a location (FlambdaHeapSpec.v). The two
+   primitives of arrays that are here are with them for the same
+   reason: in the change itself [Make_array] is a variadic primitive
+   with its [Mutability.t], and [Array_set] a ternary one. The length
+   and the load of an array are [Array_length] and [Array_load]
+   above. *)
 
 (* [Mutability.t] without [Immutable]: the mutability of a block that
    has an identity. *)
@@ -292,7 +316,11 @@ Inductive heap_primitive : Type :=
      variadic. *)
   | Make_block_with_identity (mut : cell_mutability) (tag : Z)
   (* [Block_set { kind; init; field }]: binary. *)
-  | Block_set (kind : block_access_kind) (init : init_or_assign) (field : Z).
+  | Block_set (kind : block_access_kind) (init : init_or_assign) (field : Z)
+  (* [Make_array (kind, Mutable, Heap)]: variadic. *)
+  | Make_mutable_array (kind : array_kind)
+  (* [Array_set (kind, set_kind)]: ternary. *)
+  | Array_set (kind : array_kind) (set_kind : array_set_kind).
 
 (* [Flambda_primitive.Without_args.t]: a primitive without its
    arguments. *)

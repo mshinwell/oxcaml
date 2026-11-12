@@ -257,7 +257,7 @@ Lemma eval_unary_primitive_static_values (p : unary_primitive) :
   eval_unary_primitive statics p v = eval_unary_primitive statics' p v.
 Proof.
   destruct p as [[tag size field_kind] mut field | | | | | | | | | | | |
-                | ];
+                | | ];
     simpl;
     unfold eval_is_int, eval_is_null, eval_block_load;
     rewrite ?block_of_static_values, ?is_allocated_static_values,
@@ -294,8 +294,9 @@ Lemma eval_binary_primitive_static_values (statics statics' : static_env)
   = eval_binary_primitive statics' p v1 v2.
 Proof.
   intros Hsame.
-  destruct p as [width | op | kind op | kind op | kind behaviour]; simpl;
-    try reflexivity.
+  destruct p as [array_kind load_kind mut | width | op | kind op | kind op
+                | kind behaviour];
+    simpl; try reflexivity.
   - unfold eval_string_load.
     rewrite (string_of_static_values statics statics' v1)
       by (intros s ->; apply Hsame; left; reflexivity).
@@ -557,8 +558,9 @@ Lemma eval_binary_primitive_statics_extend (statics statics' : static_env)
   eval_binary_primitive statics' p v1 v2 = Some result.
 Proof.
   intros Hextend.
-  destruct p as [width | op | kind op | kind op | kind behaviour]; simpl;
-    try exact (fun H => H).
+  destruct p as [array_kind load_kind mut | width | op | kind op | kind op
+                | kind behaviour];
+    simpl; try exact (fun H => H).
   - (* [String_or_bigstring_load] *)
     unfold eval_string_load.
     destruct (string_of statics v1) as [bytes | ] eqn:Hstring;
@@ -650,7 +652,7 @@ Lemma eval_unary_primitive_symbol_bound (statics : static_env)
   eval_unary_primitive statics p (Value_symbol s) = Some v ->
   lookup s (static_values statics) <> None.
 Proof.
-  destruct p as [[tag size field_kind] mut field | [ | ] | | | | kind
+  destruct p as [[tag size field_kind] mut field | [ | ] | | | | | kind
                 | kind op | src dst | | kind | kind | | | [ | ]];
     simpl; unfold eval_is_int, eval_is_null, eval_block_load; simpl;
     rewrite ?int_of_value_symbol;
@@ -693,8 +695,11 @@ Lemma eval_binary_primitive_symbol_bound (statics : static_env)
   v1 = Value_symbol s ∨ v2 = Value_symbol s ->
   lookup s (static_values statics) <> None.
 Proof.
-  destruct p as [width | op | kind op | kind op | kind behaviour];
-    cbn [eval_binary_primitive].
+  destruct p as [array_kind load_kind mut | width | op | kind op | kind op
+                | kind behaviour];
+    cbn [eval_binary_primitive];
+    (* [Array_load] has no value. *)
+    try (intros Hnone; discriminate Hnone).
   - (* [String_or_bigstring_load]: the string, if a symbol, is bound to
        one, and the index is not a symbol. *)
     unfold eval_string_load.
@@ -756,10 +761,12 @@ Lemma eval_unary_primitive_kinds (statics : static_env)
   kind_of_value arg = arg_kind_of_unary_primitive p
   ∧ kind_of_value v = result_kind_of_unary_primitive p.
 Proof.
-  destruct p as [access mut field | variant_only | | | | kind | kind op
-                | src dst | | kind | kind | | | reinterpret];
+  destruct p as [access mut field | variant_only | | | length_kind | | kind
+                | kind op | src dst | | kind | kind | | | reinterpret];
     cbn [eval_unary_primitive arg_kind_of_unary_primitive
-         result_kind_of_unary_primitive].
+         result_kind_of_unary_primitive];
+    (* [Array_length] has no value. *)
+    try (intros Hnone; discriminate Hnone).
   - (* [Block_load] *)
     unfold eval_block_load. destruct access as [tag size field_kind].
     destruct (block_of statics arg) as [[block_tag fields] | ] eqn:Hblock;
@@ -912,9 +919,12 @@ Lemma eval_binary_primitive_kinds (statics : static_env)
   ∧ kind_of_value arg2 = snd (args_kind_of_binary_primitive p)
   ∧ kind_of_value v = result_kind_of_binary_primitive p.
 Proof.
-  destruct p as [width | op | kind op | kind op | kind behaviour];
+  destruct p as [array_kind load_kind mut | width | op | kind op | kind op
+                | kind behaviour];
     cbn [eval_binary_primitive args_kind_of_binary_primitive
-         result_kind_of_binary_primitive fst snd].
+         result_kind_of_binary_primitive fst snd];
+    (* [Array_load] has no value. *)
+    try (intros Hnone; discriminate Hnone).
   - (* [String_or_bigstring_load] *)
     unfold eval_string_load.
     destruct (string_of statics arg1) as [bytes | ] eqn:Hstring;
@@ -1024,9 +1034,11 @@ Lemma eval_unary_primitive_preserves (p : unary_primitive) (arg v : value) :
   P arg -> eval_unary_primitive statics p arg = Some v -> P v.
 Proof.
   intros Harg.
-  destruct p as [access mut field | variant_only | | | | kind | kind op
-                | src dst | | kind | kind | | | reinterpret];
-    cbn [eval_unary_primitive].
+  destruct p as [access mut field | variant_only | | | length_kind | | kind
+                | kind op | src dst | | kind | kind | | | reinterpret];
+    cbn [eval_unary_primitive];
+    (* [Array_length] has no value. *)
+    try (intros Hnone; discriminate Hnone).
   - unfold eval_block_load. destruct access as [tag size field_kind].
     destruct (block_of statics arg) as [[block_tag fields] | ] eqn:Hblock;
       [ | discriminate ].
@@ -1092,8 +1104,11 @@ Lemma eval_binary_primitive_preserves (p : binary_primitive)
     (arg1 arg2 v : value) :
   eval_binary_primitive statics p arg1 arg2 = Some v -> P v.
 Proof.
-  destruct p as [width | op | kind op | kind op | kind behaviour];
-    cbn [eval_binary_primitive].
+  destruct p as [array_kind load_kind mut | width | op | kind op | kind op
+                | kind behaviour];
+    cbn [eval_binary_primitive];
+    (* [Array_load] has no value. *)
+    try (intros Hnone; discriminate Hnone).
   - (* [String_or_bigstring_load] *)
     unfold eval_string_load.
     destruct (string_of statics arg1) as [bytes | ]; [ | discriminate ].
@@ -1750,9 +1765,11 @@ Lemma eval_unary_primitive_in_range (p : unary_primitive) (arg v : value) :
   value_in_range v = true.
 Proof.
   intros Hsymbols Harg.
-  destruct p as [access mut field | variant_only | | | | kind | kind op
-                | src dst | | kind | kind | | | reinterpret];
-    cbn [eval_unary_primitive].
+  destruct p as [access mut field | variant_only | | | length_kind | | kind
+                | kind op | src dst | | kind | kind | | | reinterpret];
+    cbn [eval_unary_primitive];
+    (* [Array_length] has no value. *)
+    try (intros Hnone; discriminate Hnone).
   - unfold eval_block_load. destruct access as [tag size field_kind].
     destruct (block_of statics arg) as [[block_tag fields] | ] eqn:Hblock;
       [ | discriminate ].
@@ -1838,8 +1855,11 @@ Lemma eval_binary_primitive_in_range (p : binary_primitive)
   eval_binary_primitive statics p arg1 arg2 = Some v ->
   value_in_range v = true.
 Proof.
-  destruct p as [width | op | kind op | kind op | kind behaviour];
-    cbn [eval_binary_primitive].
+  destruct p as [array_kind load_kind mut | width | op | kind op | kind op
+                | kind behaviour];
+    cbn [eval_binary_primitive];
+    (* [Array_load] has no value. *)
+    try (intros Hnone; discriminate Hnone).
   - (* [String_or_bigstring_load] *)
     unfold eval_string_load.
     destruct (string_of statics arg1) as [bytes | ]; [ | discriminate ].
@@ -2147,9 +2167,11 @@ Proof.
   intros Hr.
   destruct (Hobserved v v' Hr)
     as (Hblocks & Hboxed & Hstring & _ & _ & Hbound).
-  destruct p as [access mut field | variant_only | | | | kind | kind op
-                | src dst | | kind | kind | | | reinterpret];
-    cbn [eval_unary_primitive].
+  destruct p as [access mut field | variant_only | | | length_kind | | kind
+                | kind op | src dst | | kind | kind | | | reinterpret];
+    cbn [eval_unary_primitive];
+    (* [Array_length] has no value. *)
+    try (intros Hnone; discriminate Hnone).
   - unfold eval_block_load. destruct access as [tag size field_kind].
     destruct (block_of statics v) as [[block_tag fields] | ] eqn:Hv;
       [ | discriminate ].
@@ -2248,8 +2270,11 @@ Lemma eval_binary_primitive_related (p : binary_primitive)
     ∧ R result result'.
 Proof.
   intros Hr1 Hr2.
-  destruct p as [width | op | kind op | kind op | kind behaviour];
-    cbn [eval_binary_primitive].
+  destruct p as [array_kind load_kind mut | width | op | kind op | kind op
+                | kind behaviour];
+    cbn [eval_binary_primitive];
+    (* [Array_load] has no value. *)
+    try (intros Hnone; discriminate Hnone).
   - (* [String_or_bigstring_load] *)
     unfold eval_string_load.
     destruct (string_of statics v1) as [bytes | ] eqn:Hv1;

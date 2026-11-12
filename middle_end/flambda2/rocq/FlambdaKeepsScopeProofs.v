@@ -234,7 +234,8 @@ Lemma identity_of_binary_free (p : binary_primitive) (arg1 arg2 : simple)
   incl (free_variables_of_named d)
     (free_variables_of_simple arg1 ++ free_variables_of_simple arg2).
 Proof.
-  destruct p as [width | op | kind op | kind op | kind behaviour];
+  destruct p as [array_kind load_kind mut | width | op | kind op | kind op
+                | kind behaviour];
     cbn [identity_of_binary]; try discriminate.
   - destruct arg1 as [x | | ], arg2 as [y | | ]; try discriminate.
     destruct (Pos.eqb x y); [ | discriminate ].

@@ -344,7 +344,8 @@ Proof.
   destruct (eval_simple vars arg1) as [v1 | ] eqn:Hv1; [ | discriminate ].
   destruct (eval_simple vars arg2) as [v2 | ] eqn:Hv2; [ | discriminate ].
   simpl in Heval. rewrite eval_prim_binary in Heval.
-  destruct p as [load_width | eq | kind op | kind op | kind behaviour];
+  destruct p as [array_kind load_kind mut | load_width | eq | kind op
+                | kind op | kind behaviour];
     try discriminate;
     cbn [identity_of_binary] in Hidentity;
     cbn [eval_binary_primitive] in Heval.
@@ -550,7 +551,8 @@ Lemma identity_of_binary_equivariant (r : renaming) (p : binary_primitive)
   identity_of_binary p (rename_simple r arg1) (rename_simple r arg2)
   = option_map (rename_named r) (identity_of_binary p arg1 arg2).
 Proof.
-  destruct p as [width | op | kind op | kind op | kind behaviour];
+  destruct p as [array_kind load_kind mut | width | op | kind op | kind op
+                | kind behaviour];
     cbn [identity_of_binary]; try reflexivity.
   - (* [Phys_equal] *)
     destruct arg1 as [x | | ], arg2 as [y | | ]; try reflexivity.

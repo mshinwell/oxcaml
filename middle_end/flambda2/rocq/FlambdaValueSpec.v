@@ -156,10 +156,15 @@ Definition empty_static_env : static_env := Static_env [] [].
 (* ======================================================================== *)
 
 (* What a location is bound to: a block of values with an identity,
-   mutable or not ([cell_mutability], FlambdaPrimitiveModel.v). An
-   immutable block is a value and no cell. *)
+   mutable or not ([cell_mutability], FlambdaPrimitiveModel.v), or a
+   mutable array of values, with the kind it was made at. An immutable
+   block is a value and no cell. An array is always mutable: the
+   compiler has none that is [Immutable_unique], and one made
+   [Immutable] has no identity and is no cell (the values have not got
+   one yet). *)
 Inductive cell : Type :=
-  | Cell_block (mut : cell_mutability) (tag : Z) (fields : list value).
+  | Cell_block (mut : cell_mutability) (tag : Z) (fields : list value)
+  | Cell_array (kind : array_kind) (elements : list value).
 
 (* The heap: a finite map of FlambdaMapSpec.v from locations to cells. A
    write is a new binding in front. *)
