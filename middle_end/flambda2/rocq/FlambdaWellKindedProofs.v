@@ -1453,17 +1453,12 @@ Qed.
 
 Theorem call_binds_at_kinds : call_binds_at_kinds_statement.
 Proof.
-  intros ap vars conts statics s. rewrite step_apply.
-  destruct (eval_simple vars (ap_callee ap)) as [callee | ];
-    [ | discriminate ].
-  destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | discriminate ].
-  destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
-    [ | discriminate ].
-  intros Hcall.
+  intros callee kind vs args_arity return_arity return_to exn_to statics s
+    Hcall.
   apply call_function_step in Hcall
     as (called & value_slots & c & callee_vars & Hclosure & Hcode & Hkinds
         & Hargs & Hreturn & Hbind & ->).
-  exists callee, vs, called, value_slots, c. repeat split.
+  exists called, value_slots, c. repeat split.
   - exact Hclosure.
   - exact Hcode.
   - exact (closure_of_kind _ _ _ _ Hclosure).

@@ -867,9 +867,12 @@ Definition partial_or_over_application_undefined_statement : Prop :=
    variable binds it to a value of the kind of its binder. A [Let] that
    has a step binds a value of its kind. A handler that runs has its
    parameters bound to values of the kinds it gives them, one for each.
-   A call that has a step binds the parameters of the code to values of
-   the kinds of its parameters, and [my_closure] to a value of kind
-   [Value]. *)
+   The body of code is entered in one place, a call that has a step
+   (FlambdaSemanticsSpec.call_function): it runs with the parameters of
+   the code bound to values of the kinds of its parameters, and
+   [my_closure] to a value of kind [Value]. The third statement is about
+   that place, and not about an [Apply], so that it stays as it is when
+   an [Apply] comes to do more than enter a body. *)
 Definition let_binds_at_kind_statement : Prop :=
   ∀ (x : variable) (kind : flambda_kind) (d : named) (body : expr)
     (vars : env) (conts : cont_env) (statics : static_env) (s : state),
@@ -897,14 +900,15 @@ Definition handler_binds_at_kinds_statement : Prop :=
               statics.
 
 Definition call_binds_at_kinds_statement : Prop :=
-  ∀ (ap : apply_expr) (vars : env) (conts : cont_env) (statics : static_env)
-    (s : state),
-    step (State (Apply ap) vars conts statics) = Step s ->
-    ∃ (callee : value) (vs : list value) (called : code_id)
-      (value_slots : list (value_slot * value)) (c : code),
-      eval_simple vars (ap_callee ap) = Some callee
-      ∧ eval_simples vars (ap_args ap) = Some vs
-      ∧ closure_of statics callee = Some (called, value_slots)
+  ∀ (callee : value) (kind : call_kind) (vs : list value)
+    (args_arity return_arity : arity) (return_to exn_to : cont_value)
+    (statics : static_env) (s : state),
+    call_function callee kind vs args_arity return_arity return_to exn_to
+      statics
+    = Step s ->
+    ∃ (called : code_id) (value_slots : list (value_slot * value))
+      (c : code),
+      closure_of statics callee = Some (called, value_slots)
       ∧ lookup called (static_code statics) = Some c
       ∧ kind_of_value callee = Value
       ∧ map kind_of_value vs = code_params_kinds c

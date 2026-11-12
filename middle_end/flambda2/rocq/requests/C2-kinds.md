@@ -632,10 +632,12 @@ the reports of partial applications are not).
 
 This section is the second series, on `flambda2-rocq/C2-binders`. It is
 not in the series above, which landed with the machine testing kinds at
-a call only. It is to land after C5's exceptions and C4's heap, and is
-to be rebased over them first. It is built: every file of the two
-Flambda 2 libraries is repaired, `make all` and the trust check pass,
-and the examples are run again (below).
+a call only. It is rebased over C5's exceptions ("Over the epoch of
+exceptions", below), and is to land after C4's heap and the
+generalisation of `transfer` in `FlambdaContextProofs.v`, over which it
+is to be rebased first. It is built: every file of the two Flambda 2
+libraries is repaired, `make all` and the trust check pass, and the
+examples are run again (below).
 
 ### The two tests
 
@@ -665,6 +667,11 @@ kinds that the handler gives its parameters:
         | None => Undefined
         end
       else Undefined
+    | Extra_args c extra => apply_cont_value c (vs ++ extra) statics
+
+The last case is C5's, unchanged: the extra arguments of an exception
+continuation reach the handler after the exception, and the handler
+tests them with it.
 
 Nothing more is needed. A call tests its arguments already (step B),
 and `my_closure` is bound to a closure, which is a `Value`. What is
@@ -681,7 +688,10 @@ What the tests do not reach:
   is tested where it arrives: against the kinds of the handler that the
   return continuation stands for, if it stands for one. The comparison
   of the two return arities at the call (step B) is a comparison of
-  annotations, as before.
+  annotations, as before;
+- the extra arguments of the exception continuation of a call, against
+  the kinds that the call gives them. They are tested where they
+  arrive, as above.
 
 The review comment before `step` is reworded: it now says that the two
 tests are there, that nothing in the compiler says what such a term
@@ -697,7 +707,13 @@ term or on the state. Each is about the step that binds:
 |---|---|
 | `let_binds_at_kind` | A `Let` that has a step binds its variable to the value of its defining expression, which is of the kind of the `Let`. |
 | `handler_binds_at_kinds` | A handler that runs has its parameters bound to values of the kinds it gives them, one kind for each value. |
-| `call_binds_at_kinds` | A call that has a step runs the body of the code called with its parameters bound to values of their kinds, and `my_closure` to a `Value`. |
+| `call_binds_at_kinds` | Where `call_function` has a step, the body of the code called runs with its parameters bound to values of their kinds, and `my_closure` to a `Value`. |
+
+The third is about `call_function`, the one place where the body of
+code is entered, and not about an `Apply`: so it keeps its content when
+partial applications and over-applications land, with which an `Apply`
+that has a step need not enter a body with all its arguments (the
+reviewer's point, agreed with C3, whose series renames the place).
 
 They are not a statement that a state is well-kinded, and the request
 does not claim one: `state_well_kinded` still needs the check as its
@@ -835,21 +851,60 @@ it drops, and `loopify` compares the return arity.
 ### Measured
 
 The compiler builds on the new extraction with no change to the test
-tool, which calls the passes through the validator. The 48 examples of
-`tests/semantics/` and the 16 of `tests/semantics/ocaml/` print what
-they printed, to the letter: 33 validated, 14 not validated, 7 with
-nothing to validate as the term before is undefined. So no example
-loses a validation to the test of `thread_switch` or to the tests of
-the two functions that remove a `Let`, and there is no choice to put
-to the human there. None gains one either: as section 7 measured, in
-no example does the term after Simplify keep a direct call of a symbol
-whose arguments are not all constants or symbols, which is what the
-guard of `inline_known_calls` refused.
+tool, which calls the passes through the validator. Before the epoch
+of exceptions, the 48 examples of `tests/semantics/` and the 16 of
+`tests/semantics/ocaml/` printed what they printed, to the letter. So
+no example loses a validation to the test of `thread_switch` or to
+the tests of the two functions that remove a `Let`, and there is no
+choice to put to the human there. None gained one either: as section
+7 measured, in none of them does the term after Simplify keep a direct
+call of a symbol whose arguments are not all constants or symbols,
+which is what the guard of `inline_known_calls` refused.
+
+Over the epoch of exceptions there are 55 and 16 examples, and two of
+the new ones are such: `raise_in_call.fl` and `try_in_code.fl` call
+known code with a variable as the argument. They go from "not
+validated" to "validated: the same once normalised", as the call is
+now inlined on the two sides; their expected files change, in the last
+commit of the series. The other 69 print what they printed. In all: 35
+validated, 18 not validated, 7 with nothing to validate as the term
+before is undefined, 11 not checked.
 
 No example runs a `Let` or a handler on a value of another kind: the
 compiler stops on such a term where Simplify visits it, so the test
 tool cannot be given one that is executed. `kinds_dead_cont.fl` has
 one in an arm that is not run, and prints what it printed.
+
+### Over the epoch of exceptions
+
+The series is replayed over C5's epoch. What that changed:
+
+- `apply_cont_value` is C5's fixpoint, with the test in its case of a
+  handler (above). `handler_binds_at_kinds` keeps its text: it is about
+  a handler, and a continuation with extra arguments comes to one.
+- `wrong_kinds_of_arguments`, the reason of `kind_fault`, follows the
+  extra arguments as C5's `wrong_number_given` does: a new
+  `wrong_kinds_given c given` compares, at the handler inside, the
+  kinds given followed by those of the extra arguments.
+  `well_kinded_no_kind_fault` keeps its text; its proof has one lemma
+  more (`right_kinds_given`).
+- The machine with a stack (`FlambdaTrapSpec.v`) is defined through
+  `step` and `apply_cont_value`, so it has the two tests with no
+  change, and `stack_agrees_statement` keeps its text. Its proofs get
+  two case splits.
+- `thread_switch` has C5's test (an arm with a trap action stays) and
+  this series' (the handler gives no kinds).
+- `step_apply_cont_target_handler`, C5's step lemma for a continuation
+  that may have extra arguments, has the premise on the kinds, as
+  `step_apply_cont_handler` has.
+- `inline_equivalent` is the proof of this series with C5's condition
+  that the call has no extra arguments.
+- Nothing else of C5's needed more than the case splits: twelve, in
+  proofs of `FlambdaSemanticsProofs.v`, `FlambdaScopeProofs.v`,
+  `FlambdaRangeProofs.v`, `FlambdaEquivarianceProofs.v`,
+  `FlambdaClosuresProofs.v`, `FlambdaWellFormedProofs.v`,
+  `FlambdaWellKindedProofs.v`, `FlambdaContextProofs.v` and
+  `FlambdaTrapProofs.v`.
 
 ### For a pass that is being written now
 
@@ -898,16 +953,16 @@ be reworded by their owners when it lands:
 
 One commit of the model and its proofs, which cannot be cut smaller
 (the two tests break every proof that steps through a `Let` or a
-handler), between the plan and this document. 26 files change, about
-960 lines added and 430 removed. It is rebased over the integration
-branch as it is with N1's, N2's and N3's statements about renaming
-and T2's refinements under an environment (a58028a82b). Before it
-lands:
-the rebase over C5 and C4, whose new proofs get the same case splits;
-the reviewer's reading of the three new statements and of the four
-functions of `FlambdaNormaliseSpec.v`; the owners of
-`FlambdaControlFlowSpec.v`, `FlambdaNormaliseSpec.v` and
-`FlambdaValidatorEquivarianceSpec.v` to confirm the changes above.
+handler), between the plan and this document. 27 files change, about
+1020 lines added and 460 removed. It is rebased over the integration
+branch as it is with C5's epoch of exceptions. The reviewer has read
+the three new statements, the changed ones and the four functions of
+`FlambdaNormaliseSpec.v` on the version before that rebase, and reads
+what the rebase changed. Before it lands: the rebase over C4's heap
+and over the generalisation of `transfer`, whose new proofs get the
+same case splits, and whose relation between handlers
+(`FlambdaContextWhereSpec.handler_refines_from`) is to hand over the
+kinds of the handler as `handler_refines_where` does.
 
 ## What is unfinished
 
@@ -926,6 +981,5 @@ functions of `FlambdaNormaliseSpec.v`; the owners of
   sketch) is not built; section 7 says what is lost without it. The
   second series (section 12) makes it unnecessary: the inlined body
   tests what the call tested.
-- The second series is not rebased over C5's exceptions and C4's heap,
-  and V2's newer units made from OCaml sources have not been run on
-  it.
+- The second series is not rebased over C4's heap, and V2's newer
+  units made from OCaml sources have not been run on it.

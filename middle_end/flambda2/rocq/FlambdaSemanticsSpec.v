@@ -701,11 +701,13 @@ Definition call_function (callee : value) (kind : call_kind)
    block or of a value slot, where it is stored (the fields of a block
    that a primitive makes are tested, as arguments of the primitive:
    FlambdaPrimitiveSpec.eval_variadic_primitive); the kinds of the
-   values given to a way out of the term; and a value that a call
-   returns against the result arity of the code. The handler that the
-   value returns to tests it against its own kinds, and the result
-   arity of the code is compared with that of the call, as two
-   annotations ([call_function]). Decision D10. *)
+   values given to a way out of the term; a value that a call returns,
+   against the result arity of the code; and the extra arguments of the
+   exception continuation of a call, against the kinds that the call
+   gives them. The handler that a value returns to, or that an
+   exception reaches with the extra arguments, tests them against its
+   own kinds; and the result arity of the code is compared with that of
+   the call, as two annotations ([call_function]). Decision D10. *)
 
 Definition step (s : state) : step_result :=
   match s with
