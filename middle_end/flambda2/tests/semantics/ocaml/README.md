@@ -461,7 +461,7 @@ in the table above.
 
 | Source | What the model has not got |
 |--------|----------------------------|
-| `array_literal.ml` | mutable arrays: `Make_array` (C4) |
+| `array_literal.ml` | arrays: `Array_load` |
 | `float_add.ml` | floating-point arithmetic |
 | `ref_counter.ml` | mutable fields: `Block_set` (C4) |
 | `tupled_recursive.ml` | after Simplify the unit calls tupled code directly, giving it the components; the model has not got that call (C3) |
