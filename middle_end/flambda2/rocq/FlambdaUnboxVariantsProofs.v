@@ -106,7 +106,8 @@ Lemma made_field_gives (known : facts) (vars : env) (statics : static_env)
     ∧ kind_of_value u = kind
     ∧ gives p v u statics.
 Proof.
-  intros ([Hvars _] & _ & Hvalued) Hmade Harg. unfold made_field in Hmade.
+  intros ([Hvars _] & _ & Hvalued & _) Hmade Harg.
+  unfold made_field in Hmade.
   destruct p as [access mut field | | | | | | | | | | | | | | ];
     try discriminate Hmade.
   assert (Hfield :
@@ -146,6 +147,48 @@ Proof.
     rewrite Hnth_loaded. simpl.
     destruct (kind_eqb (kind_of_value loaded) Value); [ | discriminate ].
     intros [= <-]. reflexivity.
+Qed.
+
+(* The number in a box that was made: it has a value of the kind of
+   the number, which is what the unboxing gives of the box if it gives
+   anything. *)
+Lemma made_number_gives (known : facts) (vars : env) (statics : static_env)
+    (p : unary_primitive) (kind : flambda_kind) (arg projection : simple)
+    (v : value) :
+  facts_hold known vars statics ->
+  made_number known p kind arg = Some projection ->
+  eval_simple vars arg = Some v ->
+  ∃ u : value,
+    eval_simple vars projection = Some u
+    ∧ kind_of_value u = kind
+    ∧ gives p v u statics.
+Proof.
+  intros (_ & Hnumbers & _ & Hkinded) Hmade Harg. unfold made_number in Hmade.
+  destruct p as [ | | | | | | | | | | boxed | | | | ]; try discriminate Hmade.
+  destruct arg as [y | sym | c]; try discriminate Hmade.
+  destruct (unwrapped (facts_numbers known) (Boxed boxed) (Var y))
+    as [contents | ] eqn:Hunwrapped; [ | discriminate ].
+  simpl in Hmade.
+  destruct (kind_eqb kind (unboxed_kind boxed)) eqn:Hkind; [ | discriminate ].
+  injection Hmade as <-. apply kind_eqb_eq in Hkind. subst kind.
+  destruct (unwrapped_var_sound _ _ _ _ _ _ Hnumbers Hunwrapped)
+    as (number & box & Hcontents & Hy & c & -> & ->).
+  assert (Hin :
+    (y, (Boxed boxed, contents)) ∈ known_wrapped_vars (facts_numbers known)).
+  { simpl in Hunwrapped.
+    destruct (lookup y (known_wrapped_vars (facts_numbers known)))
+      as [[how' contents'] | ] eqn:Hlookup; [ | discriminate ].
+    destruct (wrapping_eqb (Boxed boxed) how') eqn:Hhow; [ | discriminate ].
+    apply wrapping_eqb_eq in Hhow. subst how'.
+    injection Hunwrapped as ->. exact (lookup_in _ _ _ Hlookup). }
+  pose proof (Hkinded y boxed contents c Hin Hy) as Hnumber.
+  simpl in Harg. rewrite Hy in Harg. injection Harg as <-.
+  exists (Value_const c). split; [ exact Hcontents | split ].
+  - exact (is_number_of_kind_kind boxed c Hnumber).
+  - intros statics' _ w. rewrite eval_prim_unary. simpl.
+    unfold boxable_contents.
+    destruct (boxable_number_of_const c); [ | discriminate ].
+    simpl. rewrite Hnumber. intros [= <-]. reflexivity.
 Qed.
 
 (* ======================================================================== *)
@@ -418,10 +461,26 @@ Proof.
         ∧ kind_of_value u = kind
         ∧ gives p v u statics).
     { unfold certain_projection in Hcertain.
+      assert (Hmade :
+        match made_field known p kind arg with
+        | Some contents => Some contents
+        | None => made_number known p kind arg
+        end
+        = Some projection ->
+        ∃ u : value,
+          eval_simple vars projection = Some u
+          ∧ kind_of_value u = kind
+          ∧ gives p v u statics).
+      { destruct (made_field known p kind arg) as [contents | ] eqn:Hfield.
+        - intros [= <-].
+          exact (made_field_gives known vars statics p kind arg contents v
+            Hfacts Hfield Harg).
+        - intros Hnumber.
+          exact (made_number_gives known vars statics p kind arg projection
+            v Hfacts Hnumber Harg). }
       destruct (projection_of known p arg) as [[y | sym | c] | ]
         eqn:Hknown;
-        try exact (made_field_gives known vars statics p kind arg projection
-          v Hfacts Hcertain Harg).
+        try exact (Hmade Hcertain).
       destruct (kind_eqb (kind_of_const c) kind) eqn:Hkind;
         [ | discriminate ].
       injection Hcertain as <-. exists (Value_const c).

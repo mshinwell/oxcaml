@@ -161,17 +161,27 @@ Definition fields_valued (known : known_blocks) (vars : env) : Prop :=
     lookup y vars = Some (Value_block tag vs) ->
     Forall (fun v => kind_of_value v = Value) vs.
 
+(* The number in a box that a [Let] in scope made is of the kind of
+   the box: [Box_number] has no value otherwise. *)
+Definition numbers_kinded (known : known_numbers) (vars : env) : Prop :=
+  ∀ (y : variable) (kind : boxable_number) (contents : simple) (c : const),
+    (y, (Boxed kind, contents)) ∈ known_wrapped_vars known ->
+    lookup y vars = Some (Value_boxed_number c) ->
+    is_number_of_kind kind c = true.
+
 Definition facts_hold (known : facts) (vars : env) (statics : static_env)
     : Prop :=
   blocks_hold (facts_blocks known) vars statics
   ∧ numbers_hold (facts_numbers known) vars statics
-  ∧ fields_valued (facts_blocks known) vars.
+  ∧ fields_valued (facts_blocks known) vars
+  ∧ numbers_kinded (facts_numbers known) vars.
 
 Lemma no_facts_hold (vars : env) (statics : static_env) :
   facts_hold no_facts vars statics.
 Proof.
   split; [ split; intros entry [] | ].
-  split; [ split; intros entry [] | intros y block tag vs [] ].
+  split; [ split; intros entry [] | ].
+  split; [ intros y block tag vs [] | intros y kind contents c [] ].
 Qed.
 
 Lemma fields_valued_forget_var (known : known_blocks) (vars : env)
@@ -225,16 +235,73 @@ Proof.
   - apply IH, fields_valued_forget_var, Hvalued.
 Qed.
 
+Lemma numbers_kinded_forget_var (known : known_numbers) (vars : env)
+    (x : variable) (v : value) :
+  numbers_kinded known vars ->
+  numbers_kinded (forget_wrapped_var x known) ((x, v) :: vars).
+Proof.
+  intros Hkinded y kind contents c Hin Hlookup.
+  unfold forget_wrapped_var in Hin. cbn [known_wrapped_vars] in Hin.
+  apply filter_In in Hin. destruct Hin as [Hin Hkept]. cbv beta in Hkept.
+  apply andb_true_iff in Hkept as [Hkey _]. simpl in Hkey.
+  apply negb_true_iff, Pos.eqb_neq in Hkey.
+  rewrite lookup_other in Hlookup by congruence.
+  exact (Hkinded y kind contents c Hin Hlookup).
+Qed.
+
+Lemma numbers_kinded_under_let (known : known_numbers) (x : variable)
+    (d : named) (vars : env) (statics : static_env) (v : value) :
+  numbers_kinded known vars ->
+  eval_named statics vars d = Some v ->
+  numbers_kinded (numbers_under_let known x d) ((x, v) :: vars).
+Proof.
+  intros Hkinded Hd. unfold numbers_under_let.
+  pose proof (numbers_kinded_forget_var known vars x v Hkinded) as Hforgot.
+  destruct (number_wrapped d) as [[how wrapped] | ] eqn:Hwrapped;
+    [ | exact Hforgot ].
+  destruct (var_in_simple x wrapped); [ exact Hforgot | ].
+  intros y kind contents c Hin Hlookup. cbn [known_wrapped_vars] in Hin.
+  destruct Hin as [Heq | Hin];
+    [ | exact (Hforgot y kind contents c Hin Hlookup) ].
+  injection Heq as <- -> <-. rewrite lookup_head in Hlookup.
+  injection Hlookup as ->.
+  destruct (number_wrapped_spec d (Boxed kind) wrapped Hwrapped)
+    as [(kind' & [= <-] & ->) | [Hhow _]]; [ | discriminate Hhow ].
+  simpl in Hd.
+  destruct (eval_simple vars wrapped) as [unwrapped | ]; [ | discriminate ].
+  simpl in Hd.
+  destruct (eval_box_number statics kind unwrapped _ Hd)
+    as (c0 & -> & [= <-]).
+  rewrite eval_prim_unary in Hd. simpl in Hd.
+  destruct (is_number_of_kind kind c) eqn:Hkind;
+    [ reflexivity | discriminate ].
+Qed.
+
+Lemma numbers_kinded_bind_params (params : list variable) :
+  ∀ (known : known_numbers) (vs : list value) (vars handler_vars : env),
+    numbers_kinded known vars ->
+    bind_params params vs vars = Some handler_vars ->
+    numbers_kinded (forget_wrapped_vars params known) handler_vars.
+Proof.
+  induction params as [ | param params IH];
+    intros known [ | v vs] vars handler_vars Hkinded; simpl;
+    try discriminate.
+  - intros [= <-]. exact Hkinded.
+  - apply IH, numbers_kinded_forget_var, Hkinded.
+Qed.
+
 Lemma facts_hold_under_let (known : facts) (x : variable) (d : named)
     (vars : env) (statics : static_env) (v : value) :
   facts_hold known vars statics ->
   eval_named statics vars d = Some v ->
   facts_hold (facts_under_let known x d) ((x, v) :: vars) statics.
 Proof.
-  intros (Hblocks & Hnumbers & Hvalued) Hd. split; [ | split ].
+  intros (Hblocks & Hnumbers & Hvalued & Hkinded) Hd.
+  split; [ | split; [ | split ] ].
   - exact (blocks_hold_under_let _ x d vars statics v Hblocks Hd).
   - exact (numbers_hold_under_let _ x d vars statics v Hnumbers Hd).
   - exact (fields_valued_under_let _ x d vars statics v Hvalued Hd).
+  - exact (numbers_kinded_under_let _ x d vars statics v Hkinded Hd).
 Qed.
 
 Lemma facts_hold_under_statics (known : facts) (vars : env)
@@ -244,12 +311,14 @@ Lemma facts_hold_under_statics (known : facts) (vars : env)
   eval_static_bindings vars bindings statics = Some extended ->
   facts_hold (facts_under_statics known bindings) vars extended.
 Proof.
-  intros (Hblocks & Hnumbers & Hvalued) Heval. split; [ | split ].
+  intros (Hblocks & Hnumbers & Hvalued & Hkinded) Heval.
+  split; [ | split; [ | split ] ].
   - exact (blocks_hold_under_statics _ vars statics bindings extended
       Hblocks Heval).
   - exact (numbers_hold_under_statics _ vars statics bindings extended
       Hnumbers Heval).
   - exact Hvalued.
+  - exact Hkinded.
 Qed.
 
 Lemma facts_hold_bind_params (statics : static_env)
@@ -259,12 +328,15 @@ Lemma facts_hold_bind_params (statics : static_env)
   bind_params params vs vars = Some handler_vars ->
   facts_hold (facts_under_params known params) handler_vars statics.
 Proof.
-  intros (Hblocks & Hnumbers & Hvalued) Hbind. split; [ | split ].
+  intros (Hblocks & Hnumbers & Hvalued & Hkinded) Hbind.
+  split; [ | split; [ | split ] ].
   - exact (blocks_hold_bind_params statics params _ vs vars handler_vars
       Hblocks Hbind).
   - exact (numbers_hold_bind_params statics params _ vs vars handler_vars
       Hnumbers Hbind).
   - exact (fields_valued_bind_params params _ vs vars handler_vars Hvalued
+      Hbind).
+  - exact (numbers_kinded_bind_params params _ vs vars handler_vars Hkinded
       Hbind).
 Qed.
 

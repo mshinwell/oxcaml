@@ -82,15 +82,17 @@
      application does not come to the read ([never_reads], below);
      otherwise the constant that the term shows the primitive to give,
      if that is of the kind of the [Let]; or the field of a block that
-     a [Let] in scope made, for a load at the kind of values
-     ([certain_projection]); or, where the primitive has no value on
-     the argument for the parameter read, the constant that nothing
-     reads again. The primitive is known to have no value
-     ([no_value_on]) where it is a load or [Get_tag] and the argument
-     is a constant, and where it is [Untag_immediate] and the argument
-     is a variable that a [Let] in scope made a block.
-     Where the [Let] is the first thing in the handler ([head_read])
-     the argument is the one of the other pass ([extend_args]).
+     a [Let] in scope made, for a load at the kind of values; or the
+     number in a box that a [Let] in scope made, for the unboxing of
+     such a box at the kind of the number ([certain_projection]); or,
+     where the primitive has no value on the argument for the
+     parameter read, the constant that nothing reads again. The
+     primitive is known to have no value ([no_value_on]) where it is a
+     load or [Get_tag] and the argument is a constant, and where it is
+     [Untag_immediate] and the argument is a variable that a [Let] in
+     scope made a block. Where the [Let] is the first thing in the
+     handler ([head_read]) the argument is the one of the other pass
+     ([extend_args]).
 
    An application does not come to a read ([never_reads]) where the
    term shows it by the constants that the application gives. The
@@ -129,13 +131,14 @@
    handler is applied only to values of the kinds of its parameters
    (FlambdaSemanticsSpec.apply_cont_value), and the run of the term
    before, which may never come to the [Let], does not test anything
-   there. That is also why, under a test, the
-   argument given must be known to be of the kind of the [Let]
-   whether or not the primitive has a value on the box: the field of
-   a block that [Make_block] made is of the kind of values, as the
-   primitive tested when the block was made; of a field of a static
-   block nothing is tested, so a symbol is not taken as a known
-   block here.
+   there. That is also why, under a test, the argument given must be
+   known to be of the kind of the [Let] whether or not the primitive
+   has a value on the box: the field of a block that [Make_block]
+   made is of the kind of values, and the number in a box that
+   [Box_number] made is of the kind of the box, as each primitive
+   tested when it made the block or the box; of a field of a static
+   block nothing is tested, so a symbol is not taken as a known block
+   here.
 
    What stops it for a parameter: what stops the other pass; and,
    under a test, an application that may come to the read and whose
@@ -198,15 +201,31 @@ Definition made_field (known : facts) (p : unary_primitive)
   | _, _ => None
   end.
 
+(* The number in a box that a [Let] in scope made, for the unboxing of
+   a box of that sort, at the kind of the number. *)
+Definition made_number (known : facts) (p : unary_primitive)
+    (kind : flambda_kind) (arg : simple) : option simple :=
+  match p, arg with
+  | Unbox_number boxed, Var y =>
+    let* contents := unwrapped (facts_numbers known) (Boxed boxed) (Var y) in
+    if kind_eqb kind (unboxed_kind boxed) then Some contents else None
+  | _, _ => None
+  end.
+
 (* What the primitive gives of the argument, where the term shows it and
-   shows that it is of the kind given: a constant of that kind, or the
-   field of a block that was made. *)
+   shows that it is of the kind given: a constant of that kind, the
+   field of a block that was made, or the number in a box that was
+   made. *)
 Definition certain_projection (known : facts) (p : unary_primitive)
     (kind : flambda_kind) (arg : simple) : option simple :=
   match projection_of known p arg with
   | Some (Const c) =>
     if kind_eqb (kind_of_const c) kind then Some (Const c) else None
-  | Some (Var _ | Symbol _) | None => made_field known p kind arg
+  | Some (Var _ | Symbol _) | None =>
+    match made_field known p kind arg with
+    | Some contents => Some contents
+    | None => made_number known p kind arg
+    end
   end.
 
 (* The parameters that an application gives a constant naked immediate,

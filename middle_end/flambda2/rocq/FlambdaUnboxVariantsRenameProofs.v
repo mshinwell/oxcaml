@@ -236,14 +236,42 @@ Proof.
      destruct (kind_eqb kind Value); reflexivity).
 Qed.
 
+Lemma made_number_equivariant (r : renaming) (known : facts)
+    (p : unary_primitive) (kind : flambda_kind) (arg : simple) :
+  made_number (rename_facts r known) p kind (rename_simple r arg)
+  = option_map (rename_simple r) (made_number known p kind arg).
+Proof.
+  destruct p as [ | | | | | | | | | | boxed | | | | ];
+    try reflexivity; try (destruct arg; reflexivity).
+  destruct arg as [y | sym | c]; try reflexivity.
+  unfold made_number. cbn [rename_facts facts_numbers rename_simple].
+  change (Var (rename_variable r y)) with (rename_simple r (Var y)).
+  rewrite unwrapped_equivariant.
+  destruct (unwrapped (facts_numbers known) (Boxed boxed) (Var y)); simpl;
+    [ | reflexivity ].
+  destruct (kind_eqb kind (unboxed_kind boxed)); reflexivity.
+Qed.
+
 Lemma certain_projection_equivariant (r : renaming) (known : facts)
     (p : unary_primitive) (kind : flambda_kind) (arg : simple) :
   certain_projection (rename_facts r known) p kind (rename_simple r arg)
   = option_map (rename_simple r) (certain_projection known p kind arg).
 Proof.
   unfold certain_projection. rewrite projection_of_equivariant.
+  assert (Hmade :
+    match made_field (rename_facts r known) p kind (rename_simple r arg) with
+    | Some contents => Some contents
+    | None => made_number (rename_facts r known) p kind (rename_simple r arg)
+    end
+    = option_map (rename_simple r)
+        match made_field known p kind arg with
+        | Some contents => Some contents
+        | None => made_number known p kind arg
+        end).
+  { rewrite made_field_equivariant, made_number_equivariant.
+    destruct (made_field known p kind arg); reflexivity. }
   destruct (projection_of known p arg) as [[y | sym | c] | ];
-    cbn [option_map rename_simple]; try apply made_field_equivariant.
+    cbn [option_map rename_simple]; try exact Hmade.
   destruct (kind_eqb (kind_of_const c) kind); reflexivity.
 Qed.
 
@@ -926,6 +954,24 @@ Proof.
     (nth_error_In _ _ Hnth)).
 Qed.
 
+Lemma made_number_free (names : list variable) (known : facts)
+    (p : unary_primitive) (kind : flambda_kind) (arg projection : simple) :
+  facts_within names known ->
+  made_number known p kind arg = Some projection ->
+  incl (free_variables_of_simple projection) names.
+Proof.
+  intros [_ Hnumbers] Hmade. unfold made_number in Hmade.
+  destruct p as [ | | | | | | | | | | boxed | | | | ]; try discriminate Hmade.
+  destruct arg as [y | sym | c]; try discriminate Hmade.
+  destruct (unwrapped (facts_numbers known) (Boxed boxed) (Var y))
+    as [contents | ] eqn:Hunwrapped; [ | discriminate ].
+  simpl in Hmade.
+  destruct (kind_eqb kind (unboxed_kind boxed)); [ | discriminate ].
+  injection Hmade as <-.
+  exact (unwrapped_free names (facts_numbers known) _ _ _ Hnumbers
+    Hunwrapped).
+Qed.
+
 Lemma extend_args_certain_free (params : list variable)
     (handler without : expr) (i : nat) (p : unary_primitive)
     (kind : flambda_kind) (names : list variable) (known : facts)
@@ -952,9 +998,20 @@ Proof.
   destruct (certain_projection known p kind arg) as [projection | ]
     eqn:Hcertain.
   - intros [= <-]. apply Hlast. unfold certain_projection in Hcertain.
+    assert (Hmade :
+      match made_field known p kind arg with
+      | Some contents => Some contents
+      | None => made_number known p kind arg
+      end
+      = Some projection ->
+      incl (free_variables_of_simple projection) names).
+    { destruct (made_field known p kind arg) as [contents | ] eqn:Hfield.
+      - intros [= <-].
+        exact (made_field_free names known p kind arg contents Hknown
+          Hfield).
+      - exact (made_number_free names known p kind arg projection Hknown). }
     destruct (projection_of known p arg) as [[y | sym | c] | ];
-      try exact (made_field_free names known p kind arg projection Hknown
-        Hcertain).
+      try exact (Hmade Hcertain).
     destruct (kind_eqb (kind_of_const c) kind); [ | discriminate ].
     injection Hcertain as <-. intros z [].
   - destruct (no_value_on known p arg); [ | discriminate ].
