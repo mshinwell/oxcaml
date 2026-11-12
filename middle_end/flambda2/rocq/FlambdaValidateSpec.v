@@ -62,7 +62,13 @@
    bindings of the names given, and compares; in this comparison the
    bindings of code of both terms are first moved up to the head of
    what they are in (FlambdaFloatCodeSpec.float_code), as the two terms
-   do not bind the code of a lifted closure in the same place. The
+   do not bind the code of a lifted closure in the same place; and
+   before that the term after, normalised, has all its code bound at
+   its head, where it passes the checks of
+   FlambdaHoistCodeSpec.hoist_code ([with_code_first]): Simplify binds
+   the code of a closure that it lifts in the handler of a
+   continuation in that handler, and the term before binds all the
+   code of the unit first. The
    first lifting comes before any normalisation because the
    normalisation unfolds calls: a [Let] in the body of a function would
    be many [Let]s afterwards, and a closure that nothing uses would be
@@ -106,7 +112,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaSinkContsSpec FlambdaUnboxSpec FlambdaUnusedContsSpec
   FlambdaUnusedParamsSpec FlambdaUnusedStaticsSpec FlambdaLiftSpec
   FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec
-  FlambdaFloatCodeSpec.
+  FlambdaFloatCodeSpec FlambdaHoistCodeSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -302,6 +308,15 @@ Definition without_slots (slots : list value_slot) (e : expr) : expr :=
   | None => e
   end.
 
+(* The unit with all its code bound first, if the conditions of
+   FlambdaHoistCodeSpec.hoist_code hold, and its groups of static
+   bindings tidied again. *)
+Definition with_code_first (e : expr) : expr :=
+  match hoist_code e with
+  | Some e' => merge_statics (drop_deleted_code e')
+  | None => e
+  end.
+
 (* ======================================================================== *)
 (* The check                                                                *)
 (* ======================================================================== *)
@@ -329,7 +344,7 @@ Definition validate_unit (rounds : nat) (unused : dropped)
         (float_code
            (without_statics unused
               (without_slots slots (lifted_in_turn rounds Ls before))))
-        (float_code after)
+        (float_code (with_code_first after))
     then Same_once_lifted
     else Not_validated.
 

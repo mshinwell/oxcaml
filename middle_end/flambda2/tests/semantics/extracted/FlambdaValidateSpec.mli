@@ -4,6 +4,7 @@ open FlambdaBlockLoadSpec
 open FlambdaCompareSpec
 open FlambdaFloatCodeSpec
 open FlambdaForwardSpec
+open FlambdaHoistCodeSpec
 open FlambdaKnownClosuresSpec
 open FlambdaKnownSymbolsSpec
 open FlambdaLiftSpec
@@ -58,6 +59,8 @@ val normalise_lifted : nat -> expr -> expr
 val lifted_in_turn : nat -> lifting list -> expr -> expr
 
 val without_slots : value_slot list -> expr -> expr
+
+val with_code_first : expr -> expr
 
 type validation =
   | Same_up_to_bound_names

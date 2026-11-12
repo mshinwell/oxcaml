@@ -51,7 +51,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaLiftProofs FlambdaUnusedSlotsSpec FlambdaUnusedSlotsProofs
   FlambdaKnownSymbolsSpec FlambdaKnownSymbolsProofs
   FlambdaKnownClosuresSpec FlambdaKnownClosuresProofs FlambdaFloatCodeSpec
-  FlambdaFloatCodeProofs FlambdaInlineFreshProofs FlambdaRecHandlersSpec
+  FlambdaFloatCodeProofs FlambdaHoistCodeSpec FlambdaHoistCodeProofs
+  FlambdaInlineFreshProofs FlambdaRecHandlersSpec
   FlambdaSinkContsSpec FlambdaShortcutSpec FlambdaUnusedParamsSpec
   FlambdaLoopAliasesSpec FlambdaLoopLetsSpec FlambdaParamAliasesSpec
   FlambdaForwardSpec FlambdaInlineTailSpec FlambdaLoopifySpec
@@ -4994,6 +4995,40 @@ Lemma use_known_closures_rewrite_equivariant :
   rewrite_equivariant use_known_closures.
 Proof. intros r e. symmetry. apply use_known_closures_equivariant. Qed.
 
+(* The unit with its code first: the checks answer the same on the
+   renamed unit, for the free continuation renamed, and the two parts
+   commute with the renaming. *)
+Lemma hoist_code_renamed (r : renaming) (e : expr) :
+  hoist_code (rename_expr r e) = option_map (rename_expr r) (hoist_code e).
+Proof.
+  unfold hoist_code. cbv zeta.
+  assert (Htoplevel :
+    statics_at_toplevel_of_unit (rename_expr r e)
+    = statics_at_toplevel_of_unit e).
+  { unfold statics_at_toplevel_of_unit.
+    rewrite well_formed_free_continuations_renamed.
+    induction (free_continuations e) as [ | k ks IH]; [ reflexivity | ].
+    cbn [map existsb].
+    rewrite (statics_at_toplevel_equivariant r k true e), IH. reflexivity. }
+  rewrite Htoplevel, (proj1 (bound_static_names_equivariant r e)),
+    code_bindings_renamed, code_ids_of_bindings_renamed,
+    closures_in_scope_renamed, <- without_code_renamed.
+  destruct
+    (statics_at_toplevel_of_unit e
+     && distinct (static_names code_ids_of_binding e)
+     && distinct (flat_map code_ids_of_binding (code_bindings e))
+     && closures_in_scope (fun _ => false) e);
+    reflexivity.
+Qed.
+
+Lemma with_code_first_equivariant : rewrite_equivariant with_code_first.
+Proof.
+  intros r e. unfold with_code_first. rewrite hoist_code_renamed.
+  destruct (hoist_code e) as [e' | ]; cbn [option_map]; [ | reflexivity ].
+  rewrite drop_deleted_code_equivariant_aux, merge_statics_equivariant_aux.
+  reflexivity.
+Qed.
+
 Lemma float_code_rewrite_equivariant : rewrite_equivariant float_code.
 Proof. intros r e. symmetry. apply float_code_equivariant. Qed.
 
@@ -5033,7 +5068,8 @@ Proof.
   rewrite lifted_in_turn_renamed.
   rewrite normalise_before_equivariant, normalise_after_equivariant,
     without_slots_equivariant, !without_statics_equivariant,
-    !float_code_rewrite_equivariant, !expr_eqb_renamed.
+    with_code_first_equivariant, !float_code_rewrite_equivariant,
+    !expr_eqb_renamed.
   reflexivity.
 Qed.
 

@@ -45,7 +45,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaUnusedStaticsProofs FlambdaLiftSpec FlambdaLiftProofs
   FlambdaUnusedSlotsSpec FlambdaUnusedSlotsProofs FlambdaKnownSymbolsSpec
   FlambdaKnownSymbolsProofs FlambdaKnownClosuresSpec FlambdaKnownClosuresProofs
-  FlambdaFloatCodeSpec FlambdaFloatCodeProofs FlambdaValidateSpec.
+  FlambdaFloatCodeSpec FlambdaFloatCodeProofs FlambdaHoistCodeSpec
+  FlambdaHoistCodeProofs FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec
   FlambdaAliasesProofs.
 Import ListNotations.
@@ -287,6 +288,19 @@ Proof.
   exact (drop_unused_slots_program_refines slots e e' Hdrop).
 Qed.
 
+(* The term with its code first, run on its own, behaves as the
+   term. *)
+Lemma with_code_first_program_equivalent (e : expr) :
+  equivalent (State e [] [] empty_static_env)
+    (State (with_code_first e) [] [] empty_static_env).
+Proof.
+  unfold with_code_first.
+  destruct (hoist_code e) as [e' | ] eqn:Hhoist; [ | apply equivalent_refl ].
+  apply (equivalent_trans _ _ _ (hoist_code_program_equivalent e e' Hhoist)).
+  apply (equivalent_trans _ _ _ (drop_deleted_code_equivalent e' [] [] _)).
+  apply merge_statics_equivalent.
+Qed.
+
 Theorem validate_unit_sound_everywhere :
   validate_unit_sound_everywhere_statement.
 Proof.
@@ -305,7 +319,7 @@ Proof.
            (float_code
               (without_statics unused
                  (without_slots slots (lifted_in_turn rounds Ls before))))
-           (float_code (normalise_after rounds after)));
+           (float_code (with_code_first (normalise_after rounds after))));
         intros [H | H]; discriminate H.
 Qed.
 
@@ -338,18 +352,24 @@ Proof.
                 (without_statics unused
                    (without_slots slots
                       (lifted_in_turn rounds Ls before))))
-             (float_code (normalise_after rounds after))) eqn:Hlifted;
+             (float_code (with_code_first (normalise_after rounds after))))
+          eqn:Hlifted;
           [ intros _ | intros H; contradiction H; reflexivity ].
         apply (refines_trans _ _ _
           (lifted_in_turn_program_refines rounds Ls _)).
         apply (refines_trans _ _ _ (without_slots_program_refines slots _)).
         apply (refines_trans _ _ _
           (without_statics_program_refines unused _)).
-        apply expr_refines_program, expr_equivalent_refines.
-        apply (expr_equivalent_trans _ _ _ (float_code_equivalent _)).
-        apply (expr_equivalent_trans _ _ _ (expr_eqb_sound _ _ Hlifted)).
-        apply expr_equivalent_sym.
-        exact (expr_equivalent_trans _ _ _
-          (normalise_after_equivalent rounds after)
-          (float_code_equivalent _)).
+        apply (refines_trans _
+          (State (with_code_first (normalise_after rounds after)) [] []
+             empty_static_env)).
+        { apply expr_refines_program, expr_equivalent_refines.
+          apply (expr_equivalent_trans _ _ _ (float_code_equivalent _)).
+          apply (expr_equivalent_trans _ _ _ (expr_eqb_sound _ _ Hlifted)).
+          apply expr_equivalent_sym, float_code_equivalent. }
+        apply equivalent_refines, equivalent_sym.
+        apply (equivalent_trans _
+          (State (normalise_after rounds after) [] [] empty_static_env)).
+        { apply normalise_after_equivalent. }
+        apply with_code_first_program_equivalent.
 Qed.

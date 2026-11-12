@@ -4,6 +4,7 @@ open FlambdaBlockLoadSpec
 open FlambdaCompareSpec
 open FlambdaFloatCodeSpec
 open FlambdaForwardSpec
+open FlambdaHoistCodeSpec
 open FlambdaKnownClosuresSpec
 open FlambdaKnownSymbolsSpec
 open FlambdaLiftSpec
@@ -156,6 +157,13 @@ let rec lifted_in_turn rounds ls e =
 let without_slots slots e =
   match drop_unused_slots slots e with Some e' -> e' | None -> e
 
+(** val with_code_first : expr -> expr **)
+
+let with_code_first e =
+  match hoist_code e with
+  | Some e' -> merge_statics (drop_deleted_code e')
+  | None -> e
+
 type validation =
   | Same_up_to_bound_names
   | Same_once_normalised
@@ -181,6 +189,6 @@ let validate_unit rounds unused slots ls before after =
         (float_code
            (without_statics unused
               (without_slots slots (lifted_in_turn rounds ls before))))
-        (float_code after0)
+        (float_code (with_code_first after0))
     then Same_once_lifted
     else Not_validated
