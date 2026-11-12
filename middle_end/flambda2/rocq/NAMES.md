@@ -36,7 +36,7 @@ here.
 | The comparison `expr_eqb` | `FlambdaCompareAlphaSpec.v` | N1 |
 | The rewrites of the normalisation, the passes for loops, the checks of well-formedness (exception handlers and trap actions among them), the check of kinds, the normalisation of the term after and the first phase of that of the term before | `FlambdaValidatorEquivarianceSpec.v` | N3 |
 | The normalisation of the term before and that of a term in which something was lifted: up to the names that a round makes. `validate_unit`: where the code of the term before is closed | `FlambdaValidatorEquivarianceSpec.v` | N3 |
-| Identities of primitives, lifting, lifting out of code, the binding of `my_closure`, ranges, sharing of primitives, folding at known symbols, unused value slots, the order of static bindings, the static closures in sight, code moved up, code and static bindings bound first, lifting out of the arms of a test, inlining within a group of code, the unboxing of parameters, the merging of the arms of a `Switch`, the demotion of exception handlers | the `Spec` file of each pass | the owner of each |
+| Identities of primitives, lifting, lifting out of code, the binding of `my_closure`, ranges, sharing of primitives and of projections, folding at known symbols, unused and known value slots, the order of static bindings, the static closures in sight, code moved up, code and static bindings bound first, lifting out of the arms of a test, inlining within a group of code, the unboxing of parameters, the merging of the arms of a `Switch`, the demotion of exception handlers | the `Spec` file of each pass | the owner of each |
 | The second asking of the validation, `validate_unit_knowing`: where the code of the term before is closed | `FlambdaValidateKnowingSpec.v` | the owner of that file, N3 |
 | Typing environments and their levels, extensions, aliases, types, provers | the types library (`FlambdaEnvRenameSpec.v`, `FlambdaTypeRenameSpec.v`, `FlambdaEnvAliasesRenamingSpec.v`, `FlambdaTypingEnvExtensionSpec.v`, `FlambdaProversRenameSpec.v`) | N3 and the owners |
 | The model of Simplify: the function that rewrites a term from the types, the same with pruning, the rewrites of a `Switch`, following aliases with the aliases of the library | the types library (section 7 has the files) | the owners of those files |
@@ -379,7 +379,14 @@ every variable that the source or a use knows. It is enough where
 every use knows exactly the variables of the source
 (`uses_know_the_source`, `types/rocq/FlambdaJoinInTermsSpec.v`): no
 variable is then known to two uses without being one variable of the
-source. Of inputs in which a use knows a variable that the source
+source. Uses that are made from a source in which a meet may be
+made, by going one scope further and then by steps that make a
+variable equal to a `Simple` or give it a type (`made_from`, which
+has the conditions of each step), are such, and with variables to
+avoid that include those of the source they have the premise
+(`uses_made_from_source_statement`,
+`types/rocq/FlambdaJoinUsesSpec.v`): no step defines a variable. Of
+inputs in which a use knows a variable that the source
 does not, the part about valuations is not stated: the join takes a
 variable that two uses know for one variable, and a caller that gives
 it such inputs owes that it is one. The same is owed for the join
@@ -427,7 +434,9 @@ A rewrite that is not known to keep scope is made to by a test
 (`FlambdaGuardScopeSpec.guard_scope`): it keeps scope whatever the
 rewrite is, it is the rewrite where the rewrite keeps scope, and it
 commutes with renaming where the rewrite does
-(`FlambdaValidateScopeSpec.v`).
+(`FlambdaValidateScopeSpec.v`). The normalisation of the term before
+applies so, once, between its rounds, the function of the model of
+Simplify that rewrites a term from the types (below).
 
 Rewrites that have both compose and iterate, a rewrite that commutes
 with renaming has the first, and the comparison answers the same on
@@ -464,7 +473,14 @@ to the functions that it is given. Each of its functions gives the
 renamed answer on renamed arguments when those do (lemmas of
 `types/rocq/FlambdaEnvRenameJoinTypesProofs.v`). The second is not
 stated for the join: it needs that two sources give answers that
-differ by a renaming of the variables made.
+differ by a renaming of the variables made. Nothing calls it today.
+Its caller would be a pass that calls the join on renamed inputs with
+the model's one source, as a call of the join in the pass that
+rewrites a term from the types would; that call is not made. The
+fact that is missing is a simulation of two runs of the whole join
+under a renaming that grows at each call of the source, with the
+names to avoid containing every name of the state. The third
+prover's estimate is a few thousand lines of proof. It stays owed.
 
 Prove it by one recursion over expressions, handlers, bindings and
 code. A function whose answer depends on the order or the number of a
@@ -484,7 +500,7 @@ the other rewrites of `FlambdaNormaliseSpec.v`,
 `FlambdaWellFormedSpec.v`, those of exception handlers and of trap
 actions among them; the check of kinds; the passes for loops
 (`FlambdaRecHandlersSpec.v`, `FlambdaSinkContsSpec.v`,
-`FlambdaShortcutSpec.v`, `FlambdaUnusedParamsSpec.v`,
+`FlambdaSinkUsesSpec.v`, `FlambdaShortcutSpec.v`, `FlambdaUnusedParamsSpec.v`,
 `FlambdaLoopAliasesSpec.v`, `FlambdaLoopifySpec.v`, those of the
 second series, `FlambdaParamAliasesSpec.v`, `FlambdaForwardSpec.v`,
 `FlambdaInlineTailSpec.v`, `FlambdaLoopLetsSpec.v`, and that of the
@@ -495,7 +511,9 @@ removal, in the body of code, of the unused `Let`s of its parameters
 (`FlambdaCodeLetsSpec.v`); the
 test for inlining a call that gives tupled code a tuple; the demotion
 of exception handlers with the rounds that tidy after it
-(`demote_and_tidy`); the normalisation of the term after and the
+(`demote_and_tidy`); the placing of continuations that the check
+makes of each term that it compares (`FlambdaValidateSpec.placed`),
+which also keeps scope; the normalisation of the term after and the
 first phase of that of the term before. Every one is an equation
 that holds of every term. By
 the same prover, in the types library (`FlambdaEnvRenameSpec.v`): the
@@ -575,9 +593,13 @@ identities of primitives (`FlambdaIdentitiesSpec.v`), the lifting of
 constants (`FlambdaLiftSpec.v`) and out of the code of a function
 (`FlambdaLiftFromCodeSpec.v`), the binding of `my_closure`
 (`FlambdaMyClosureSpec.v`), the check of ranges (`FlambdaRangeSpec.v`),
-the sharing of primitives (`FlambdaCseSpec.v`), the folding at known
-symbols (`FlambdaKnownSymbolsSpec.v`), the removal of unused value
-slots (`FlambdaUnusedSlotsSpec.v`), the order of static bindings
+the sharing of primitives (`FlambdaCseSpec.v`) and of the
+projections of a value slot (`FlambdaShareProjectionsSpec.v`; that
+it keeps scope, `FlambdaShareProjectionsScopeSpec.v`), the folding
+at known symbols (`FlambdaKnownSymbolsSpec.v`), the removal of unused
+value slots (`FlambdaUnusedSlotsSpec.v`), the reading of a value slot
+that every set of closures of the unit gives the same symbol or
+constant (`FlambdaKnownSlotsSpec.v`), the order of static bindings
 (`FlambdaStaticsOrderSpec.v`), the use of the static closures in
 sight (`FlambdaKnownClosuresSpec.v`), the move of code to the head of
 what it is in (`FlambdaFloatCodeSpec.v`), the binding first of the
@@ -625,7 +647,13 @@ the model, which makes variables, is not.
   arms binds variables. It does not make them: they are an argument,
   and are renamed with the term. `FlambdaSimplifySwitchRewriteSpec.v`
   has the same with the variables kept as they are, for a renaming
-  that fixes them, which is less.
+  that fixes them, which is less. It also has that the rewrite of
+  `FlambdaSimplifySwitchArmsSpec.v` (`simplify_switch_arms`, which
+  merges nothing) is a rewrite of a `Switch` that commutes with
+  renaming, for such a meet and such a rewrite of an `Apply_cont`:
+  that is what the function with pruning asks of the rewrite that it
+  is given. The rewrite that merges the arms, with its variables kept
+  as they are, is not such a rewrite.
 - Following aliases in a term with the aliases of the library
   (`FlambdaEnvAliasesFollowSpec.v`; that it keeps scope,
   `FlambdaEnvAliasesFollowScopeSpec.v`), and the sets of aliases
