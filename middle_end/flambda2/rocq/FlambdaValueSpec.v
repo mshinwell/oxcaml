@@ -65,12 +65,12 @@
    immutable allocated value of the unit is, without its contents.
    None of the four observations reads an import of either class, so
    it is not a closure, a block, a boxed number or a string, and is not
-   allocated in the sense of [is_allocated]. Two primitives have a
-   value on it: the identity, which returns it, and physical equality,
-   which tells an identity from everything else
-   (FlambdaPrimitiveSpec.v). No static binding of a term makes an
-   import: the static environment in which a unit is run has them
-   (FlambdaImportsSpec.v).
+   allocated in the sense of [is_allocated]. Of the unary and binary
+   primitives two have a value on it: the identity, which returns it,
+   and physical equality, which tells an identity from everything else
+   (FlambdaPrimitiveSpec.v); and it can be a field of a block that is
+   made. No static binding of a term makes an import: the static
+   environment in which a unit is run has them (FlambdaImportsSpec.v).
 
    A closure is one of a set of closures. The closure of a set of one
    function whose function slot has no name is its code and the values
