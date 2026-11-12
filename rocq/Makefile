@@ -118,6 +118,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaCseSpec.v \
   FlambdaEquivarianceProofs.v \
   FlambdaEquivarianceSpec.v \
+  FlambdaExtcallProofs.v \
+  FlambdaExtcallSpec.v \
   FlambdaFreeNamesProofs.v \
   FlambdaFreeNamesSpec.v \
   FlambdaFreshAbstractionProofs.v \
