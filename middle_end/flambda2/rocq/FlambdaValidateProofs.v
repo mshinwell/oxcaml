@@ -71,6 +71,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaValidateSpec.
 From OxCamlFlambda2 Require FlambdaHoistStaticsProofs.
 From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
+From OxCamlFlambda2 Require Import FlambdaUnusedHeadStaticsSpec
+  FlambdaUnusedHeadStaticsProofs.
 From OxCamlFlambda2 Require FlambdaDemoteProofs.
 From OxCamlFlambda2 Require Import FlambdaKnownSlotsSpec
   FlambdaKnownSlotsProofs.
@@ -477,6 +479,24 @@ Proof.
     (merge_statics_equivalent _)).
 Qed.
 
+(* The term after refines, run on its own, the term after without the
+   unused static bindings of its head. *)
+Lemma without_head_statics_program_refines (D : dropped) (e : expr) :
+  program_refines (without_head_statics D e) e.
+Proof.
+  unfold without_head_statics.
+  destruct (head_statics_removable D e) eqn:Hchecks; [ | apply refines_refl ].
+  unfold without_statics.
+  destruct (drop_statics D e) as [e' | ] eqn:Hdrop; [ | apply refines_refl ].
+  assert (Hhead : drop_head_statics D e = Some e')
+    by (unfold drop_head_statics; rewrite Hchecks; exact Hdrop).
+  apply (refines_trans _ (State e' [] [] empty_static_env empty_heap));
+    [ | exact (drop_head_statics_program_refines D e e' Hhead) ].
+  apply expr_refines_program, expr_equivalent_refines, expr_equivalent_sym.
+  exact (expr_equivalent_trans _ _ _ (drop_deleted_code_equivalent e')
+    (merge_statics_equivalent _)).
+Qed.
+
 Lemma with_lifting_program_refines (L : lifting) (e : expr) :
   program_refines e (with_lifting L e).
 Proof.
@@ -624,27 +644,35 @@ Proof.
                            (normalise_before rounds kept before))))
                   a);
         [ intros [H | H]; discriminate H | ].
+      set (c := without_head_statics unused a).
+      destruct (expr_eqb [] []
+                  (order_statics_as c
+                     (without_statics unused
+                        (tidied_before rounds
+                           (normalise_before rounds kept before))))
+                  c);
+        [ intros [H | H]; discriminate H | ].
       destruct
         (expr_eqb [] []
-           (order_statics_as (float_code (with_code_first a))
+           (order_statics_as (float_code (with_code_first c))
               (float_code
                  (without_statics unused
                     (without_slots slots
                        (tidied_before rounds
                           (lifted_in_turn rounds (unit_continuations Ls) Ls
                              kept before))))))
-           (float_code (with_code_first a)));
+           (float_code (with_code_first c)));
         [ intros [H | H]; discriminate H | ].
       destruct
         (expr_eqb [] []
-           (order_statics_as (with_statics_first Ls a)
+           (order_statics_as (with_statics_first Ls c)
               (with_statics_first Ls
                  (without_statics unused
                     (without_slots slots
                        (tidied_before rounds
                           (lifted_in_turn rounds (unit_continuations Ls) Ls
                              kept before))))))
-           (with_statics_first Ls a));
+           (with_statics_first Ls c));
         intros [H | H]; discriminate H.
 Qed.
 
@@ -687,7 +715,34 @@ Proof.
           (without_statics_program_refines unused _)).
         apply expr_refines_program, expr_equivalent_refines.
         exact (ordered_same_equivalent rounds kept _ after Hremoved).
-      * set (lifted :=
+      * assert (Hafter :
+          equivalent (State after [] [] empty_static_env empty_heap)
+            (State a [] [] empty_static_env empty_heap))
+          by exact (tidied_after_normalised_equivalent rounds kept after []
+                      [] empty_static_env _).
+        set (c := without_head_statics unused a).
+        assert (Hcleaned : program_refines c after).
+        { apply (refines_trans _ _ _
+            (without_head_statics_program_refines unused a)).
+          apply equivalent_refines, equivalent_sym, Hafter. }
+        destruct (expr_eqb [] []
+                    (order_statics_as c
+                       (without_statics unused
+                          (tidied_before rounds
+                             (normalise_before rounds kept before))))
+                    c) eqn:Hremoved_head;
+          [ intros _; apply (refines_trans _ _ _ Hbefore);
+            apply (refines_trans _ _ _
+              (without_statics_program_refines unused _));
+            apply (refines_trans _
+              (State c [] [] empty_static_env empty_heap));
+              [ | exact Hcleaned ];
+            apply expr_refines_program, expr_equivalent_refines;
+            apply (expr_equivalent_trans _ _ _
+              (order_statics_as_equivalent c _));
+            exact (expr_eqb_sound _ _ Hremoved_head)
+          | ].
+        set (lifted :=
           without_statics unused
             (without_slots slots
                (tidied_before rounds
@@ -701,47 +756,46 @@ Proof.
             (expr_refines_program _ _ (tidied_before_refines rounds _))).
           apply (refines_trans _ _ _ (without_slots_program_refines slots _)).
           apply without_statics_program_refines. }
-        assert (Hafter :
-          equivalent (State after [] [] empty_static_env empty_heap)
-            (State a [] [] empty_static_env empty_heap))
-          by exact (tidied_after_normalised_equivalent rounds kept after []
-                      [] empty_static_env _).
         destruct
           (expr_eqb [] []
-             (order_statics_as (float_code (with_code_first a))
+             (order_statics_as (float_code (with_code_first c))
                 (float_code lifted))
-             (float_code (with_code_first a))) eqn:Hlifted.
+             (float_code (with_code_first c))) eqn:Hlifted.
         -- intros _. apply (refines_trans _ _ _ Hlifting).
            apply (refines_trans _
-             (State (with_code_first a) [] [] empty_static_env empty_heap)).
+             (State (with_code_first c) [] [] empty_static_env empty_heap)).
            { apply expr_refines_program, expr_equivalent_refines.
              apply (expr_equivalent_trans _ _ _ (float_code_equivalent _)).
              apply (expr_equivalent_trans _ _ _
                (order_statics_as_equivalent
-                  (float_code (with_code_first a)) _)).
+                  (float_code (with_code_first c)) _)).
              apply (expr_equivalent_trans _ _ _ (expr_eqb_sound _ _ Hlifted)).
              apply expr_equivalent_sym, float_code_equivalent. }
+           apply (refines_trans _
+             (State c [] [] empty_static_env empty_heap));
+             [ | exact Hcleaned ].
            apply equivalent_refines, equivalent_sym.
-           apply (equivalent_trans _ _ _ Hafter).
            apply with_code_first_program_equivalent.
         -- destruct
              (expr_eqb [] []
-                (order_statics_as (with_statics_first Ls a)
+                (order_statics_as (with_statics_first Ls c)
                    (with_statics_first Ls lifted))
-                (with_statics_first Ls a)) eqn:Hfirst;
+                (with_statics_first Ls c)) eqn:Hfirst;
              [ intros _ | intros H; contradiction H; reflexivity ].
            apply (refines_trans _ _ _ Hlifting).
            apply (refines_trans _ _ _
              (equivalent_refines _ _
                 (with_statics_first_program_equivalent Ls lifted))).
            apply (refines_trans _
-             (State (with_statics_first Ls a) [] [] empty_static_env
+             (State (with_statics_first Ls c) [] [] empty_static_env
                 empty_heap)).
            { apply expr_refines_program, expr_equivalent_refines.
              apply (expr_equivalent_trans _ _ _
-               (order_statics_as_equivalent (with_statics_first Ls a) _)).
+               (order_statics_as_equivalent (with_statics_first Ls c) _)).
              exact (expr_eqb_sound _ _ Hfirst). }
+           apply (refines_trans _
+             (State c [] [] empty_static_env empty_heap));
+             [ | exact Hcleaned ].
            apply equivalent_refines, equivalent_sym.
-           apply (equivalent_trans _ _ _ Hafter).
            apply with_statics_first_program_equivalent.
 Qed.

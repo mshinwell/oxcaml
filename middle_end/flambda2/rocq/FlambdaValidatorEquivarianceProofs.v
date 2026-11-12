@@ -43,6 +43,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaNominalSpec FlambdaNominalProofs FlambdaAlphaSpec FlambdaAlphaProofs
   FlambdaApplySpec FlambdaNormaliseSpec FlambdaEquivarianceSpec
   FlambdaEquivarianceProofs FlambdaUnusedContsSpec FlambdaUnusedStaticsSpec
+  FlambdaUnusedHeadStaticsSpec
   FlambdaPrimitiveModel FlambdaPrimitiveSpec FlambdaBlockLoadSpec
   FlambdaBindersSpec FlambdaFreeNamesSpec FlambdaFreeNamesProofs
   FlambdaUnboxSpec FlambdaWellFormedSpec FlambdaWellKindedSpec
@@ -1157,6 +1158,92 @@ Proof.
   unfold statics_free_of, rename_static_env. simpl. f_equal.
   unfold map_values. apply forallb_map_with. intros [id c].
   apply code_free_of_renamed.
+Qed.
+
+(* FlambdaUnusedHeadStaticsSpec.v: the checks of the removal from the
+   head of a unit read the same of a term renamed. *)
+Lemma head_bindings_renamed (r : renaming) (e : expr) :
+  head_bindings (rename_expr r e)
+  = map (rename_static_binding r) (head_bindings e).
+Proof.
+  induction e; simpl; try reflexivity.
+  rewrite map_app. f_equal. assumption.
+Qed.
+
+Lemma under_head_renamed (r : renaming) (e : expr) :
+  under_head (rename_expr r e) = rename_expr r (under_head e).
+Proof. induction e; simpl; try reflexivity. assumption. Qed.
+
+Lemma symbols_of_bindings_renamed (r : renaming)
+    (bindings : list static_binding) :
+  flat_map symbols_of_binding (map (rename_static_binding r) bindings)
+  = flat_map symbols_of_binding bindings.
+Proof.
+  induction bindings as [ | binding bindings IH]; simpl; [ reflexivity | ].
+  rewrite IH. destruct binding; reflexivity.
+Qed.
+
+Lemma code_ids_of_bindings_renamed (r : renaming)
+    (bindings : list static_binding) :
+  flat_map code_ids_of_binding (map (rename_static_binding r) bindings)
+  = flat_map code_ids_of_binding bindings.
+Proof.
+  induction bindings as [ | binding bindings IH]; simpl; [ reflexivity | ].
+  rewrite IH. destruct binding; reflexivity.
+Qed.
+
+Lemma plain_simple_renamed_same (r : renaming) (s : simple) :
+  plain_simple (rename_simple r s) = plain_simple s.
+Proof. destruct s; reflexivity. Qed.
+
+Lemma value_slots_plain_renamed (r : renaming)
+    (slots : list (value_slot * simple)) :
+  value_slots_plain
+    (map (fun slot => (fst slot, rename_simple r (snd slot))) slots)
+  = value_slots_plain slots.
+Proof.
+  unfold value_slots_plain. apply forallb_map_with. intros slot.
+  apply plain_simple_renamed_same.
+Qed.
+
+Lemma static_const_total_renamed (r : renaming) (const : static_const) :
+  static_const_total (rename_static_const r const)
+  = static_const_total const.
+Proof.
+  destruct const; simpl;
+    rewrite ?value_slots_plain_renamed, ?plain_simple_renamed_same;
+    try reflexivity.
+  apply forallb_map_with. apply plain_simple_renamed_same.
+Qed.
+
+Lemma removed_binding_total_renamed (r : renaming)
+    (binding : static_binding) :
+  removed_binding_total D (rename_static_binding r binding)
+  = removed_binding_total D binding.
+Proof.
+  destruct binding; simpl; try reflexivity.
+  rewrite static_const_total_renamed. reflexivity.
+Qed.
+
+Lemma kept_code_binds_only_kept_renamed (r : renaming)
+    (binding : static_binding) :
+  kept_code_binds_only_kept D (rename_static_binding r binding)
+  = kept_code_binds_only_kept D binding.
+Proof.
+  destruct binding; simpl; try reflexivity.
+  rewrite code_binds_only_kept_renamed. reflexivity.
+Qed.
+
+Lemma head_statics_removable_renamed (r : renaming) (e : expr) :
+  head_statics_removable D (rename_expr r e) = head_statics_removable D e.
+Proof.
+  unfold head_statics_removable.
+  rewrite expr_avoids_renamed, under_head_renamed, binds_only_kept_renamed,
+    head_bindings_renamed, symbols_of_bindings_renamed,
+    code_ids_of_bindings_renamed,
+    (forallb_map_with _ _ _ _ (kept_code_binds_only_kept_renamed r)),
+    (forallb_map_with _ _ _ _ (removed_binding_total_renamed r)).
+  reflexivity.
 Qed.
 
 End Dropped.
@@ -6204,6 +6291,15 @@ Lemma without_slots_scope (slots : list value_slot) :
   keeps_scope (without_slots slots).
 Proof. exact (FlambdaStaticsScopeProofs.without_slots_keeps_scope slots). Qed.
 
+Theorem without_head_statics_equivariant :
+  without_head_statics_equivariant_statement.
+Proof.
+  intros unused r e. unfold without_head_statics.
+  rewrite head_statics_removable_renamed.
+  destruct (head_statics_removable unused e); [ | reflexivity ].
+  apply without_statics_equivariant.
+Qed.
+
 Lemma without_statics_scope (unused : dropped) :
   keeps_scope (without_statics unused).
 Proof.
@@ -6860,6 +6956,7 @@ Proof.
   rewrite unit_continuations_renamed.
   rewrite Heq, Heq', normalise_after_equivariant,
     !tidied_before_equivariant, tidied_after_equivariant,
+    without_head_statics_equivariant,
     without_slots_equivariant, !without_statics_equivariant,
     with_code_first_equivariant, !float_code_rewrite_equivariant,
     (with_statics_first_renamed_alike r r Ls _ (fun k _ => eq_refl)),
@@ -6873,8 +6970,9 @@ Proof.
         (lifted_in_turn rounds (unit_continuations Ls) Ls kept before))
     in *.
   set (a := tidied_after rounds (normalise_after rounds kept after)).
-  set (c := float_code (with_code_first a)).
-  set (c' := with_statics_first Ls a).
+  set (a' := without_head_statics unused a).
+  set (c := float_code (with_code_first a')).
+  set (c' := with_statics_first Ls a').
   destruct
     (renames_alike_kept (order_statics_as a) r r' b (order_statics_as_scope a)
        Hclosed_b Halike)
@@ -6887,6 +6985,10 @@ Proof.
     (renames_alike_kept (order_statics_as a) r r' (without_statics unused b)
        (order_statics_as_scope a) Hclosed_without Halike_without)
     as (Hclosed_both & Halike_both).
+  destruct
+    (renames_alike_kept (order_statics_as a') r r' (without_statics unused b)
+       (order_statics_as_scope a') Hclosed_without Halike_without)
+    as (Hclosed_both' & Halike_both').
   destruct
     (renames_alike_kept (without_slots slots) r r'' l
        (without_slots_scope slots) Hclosed_l Halike')
@@ -6924,6 +7026,9 @@ Proof.
     (expr_eqb_renamed_alike r r'
        (order_statics_as a (without_statics unused b)) a Hclosed_both
        Halike_both),
+    (expr_eqb_renamed_alike r r'
+       (order_statics_as a' (without_statics unused b)) a' Hclosed_both'
+       Halike_both'),
     (expr_eqb_renamed_alike r r''
        (order_statics_as c
           (float_code (without_statics unused (without_slots slots l))))

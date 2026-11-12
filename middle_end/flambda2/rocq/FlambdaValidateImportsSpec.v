@@ -41,7 +41,7 @@
 
    [validate_unit_sound_imports_statement] is the same of the unit run
    from its imports (FlambdaImportsSpec.unit_refines), whatever they
-   are, for three of the four ways in which a unit is validated: the
+   are, for three of the five ways in which a unit is validated: the
    two terms are the same up to bound names; they are once normalised;
    they are once the unused static bindings of the term before are
    removed as well ([holds_from_imports]). Why these three:
@@ -79,6 +79,11 @@
    are under all environments too.
 
    What it is not of:
+   - a unit validated once unused static bindings are removed from the
+     head of the term after as well
+     ([Same_once_head_statics_removed]): that removal is the one of
+     the paragraph above, a law of a unit run from the empty static
+     environment (FlambdaUnusedHeadStaticsSpec.v);
    - a unit validated once something is lifted
      ([Same_once_lifted]). The liftings, and what is done to a lifted
      term (FlambdaLiftSpec, FlambdaLiftFromCodeSpec,
@@ -103,17 +108,20 @@ Import ListNotations.
 
 (* Whether a verdict of [validate_unit] is one that holds of the unit
    run from its imports: every way of being validated but the one that
-   lifts. *)
+   removes static bindings from the head of the term after and the one
+   that lifts. *)
 Definition holds_from_imports (v : validation) : bool :=
   match v with
   | Same_up_to_bound_names | Same_once_normalised
   | Same_once_unused_statics_removed =>
     true
-  | Same_once_lifted | Not_validated => false
+  | Same_once_head_statics_removed | Same_once_lifted | Not_validated =>
+    false
   end.
 
-(* A unit that is validated without anything being lifted refines the
-   unit it came from, each run on its own from the same imports. *)
+(* A unit that is validated in one of the three ways that
+   [holds_from_imports] accepts refines the unit it came from, each run
+   on its own from the same imports. *)
 Definition validate_unit_sound_imports_statement : Prop :=
   ∀ (imports : list (symbol * import_class)) (rounds : nat)
     (unused : dropped) (slots : list value_slot) (G : loopified)

@@ -52,3 +52,11 @@ val erase_binding : dropped -> static_binding -> static_binding
 val erase_code : dropped -> code -> code
 
 val drop_statics : dropped -> expr -> expr option
+
+val binds_only_kept : dropped -> expr -> bool
+
+val handler_binds_only_kept : dropped -> continuation_handler -> bool
+
+val binding_binds_only_kept : dropped -> static_binding -> bool
+
+val code_binds_only_kept : dropped -> code -> bool

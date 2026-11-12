@@ -177,3 +177,37 @@ and erase_code d = function
 (** val drop_statics : dropped -> expr -> expr option **)
 
 let drop_statics d e = if expr_avoids d e then Some (erase_expr d e) else None
+
+(** val binds_only_kept : dropped -> expr -> bool **)
+
+let rec binds_only_kept d = function
+  | Let (_, _, _, body) -> binds_only_kept d body
+  | Let_static (bindings, body) ->
+    forallb (binding_binds_only_kept d) bindings && binds_only_kept d body
+  | Let_cont_non_recursive (_, h, body) ->
+    handler_binds_only_kept d h && binds_only_kept d body
+  | Let_cont_recursive (handlers, body) ->
+    forallb
+      (fun pat ->
+        let _, h = pat in
+        handler_binds_only_kept d h)
+      handlers
+    && binds_only_kept d body
+  | _ -> true
+
+(** val handler_binds_only_kept : dropped -> continuation_handler -> bool **)
+
+and handler_binds_only_kept d = function
+  | Handler (_, _, handler) -> binds_only_kept d handler
+
+(** val binding_binds_only_kept : dropped -> static_binding -> bool **)
+
+and binding_binds_only_kept d = function
+  | Bind_code (id, c) -> code_kept d id && code_binds_only_kept d c
+  | Bind_deleted_code _ -> true
+  | Bind_symbol (s, _) -> symbol_kept d s
+
+(** val code_binds_only_kept : dropped -> code -> bool **)
+
+and code_binds_only_kept d = function
+  | Code (_, _, _, _, _, body) -> binds_only_kept d body

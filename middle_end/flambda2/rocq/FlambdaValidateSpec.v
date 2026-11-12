@@ -56,6 +56,22 @@
    that, it removes from the term
    before the static bindings of the names given
    (FlambdaUnusedStaticsSpec.drop_statics) and compares again. Failing
+   that, it removes from the term after too those of them that the
+   term after binds in the groups at its head, where the checks of
+   FlambdaUnusedHeadStaticsSpec.head_statics_removable pass
+   ([without_head_statics]), and compares again; a pair found the same
+   so has a verdict of its own ([Same_once_head_statics_removed]).
+   Simplify leaves such bindings where it left a call that the
+   normalisation has since inlined in both terms: the code that was
+   called and its closure. The term after so cleaned is the term
+   after of the comparisons that follow. That the term after refines
+   it is a law of a unit run on its own from empty environments, and
+   not one under all environments nor from a static environment that
+   binds something already (FlambdaUnusedHeadStaticsSpec.v says why):
+   so it comes after the comparisons whose verdicts
+   [validate_unit_sound_everywhere_statement] speaks of, and after
+   the comparison that removes from the term before only, and none
+   of those three verdicts rests on it. Failing
    that too, it starts again from the term before as it was given. For
    each of the liftings given, in turn ([lifted_in_turn]), it makes the
    [Let]s given static bindings of the symbols given: first those to
@@ -238,6 +254,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaGuardScopeSpec.
 From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
 From OxCamlFlambda2 Require Import FlambdaKnownSlotsSpec.
+From OxCamlFlambda2 Require Import FlambdaUnusedHeadStaticsSpec.
 From OxCamlFlambda2 Require Import FlambdaUnboxParamsSpec
   FlambdaUnboxInScopeSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
@@ -570,6 +587,14 @@ Definition without_statics (D : dropped) (e : expr) : expr :=
   | None => e
   end.
 
+(* For the term after: [without_statics], where the checks of
+   FlambdaUnusedHeadStaticsSpec.head_statics_removable hold. The
+   bindings removed are then among those of the groups at the head of
+   the term, and the term, run on its own, refines the result
+   ([drop_head_statics_program_refines_statement] of that file). *)
+Definition without_head_statics (D : dropped) (e : expr) : expr :=
+  if head_statics_removable D e then without_statics D e else e.
+
 (* The [Let]s given made static bindings of the symbols given: those
    to bind at the head of the unit, if the conditions of
    FlambdaLiftFromArmsSpec.lift_to_head_unit hold; then those in the
@@ -751,11 +776,18 @@ Definition tidied_after (rounds : nat) (e : expr) : expr :=
 (* The check                                                                *)
 (* ======================================================================== *)
 
-(* How a pair of terms was found to be correct, if it was. *)
+(* How a pair of terms was found to be correct, if it was.
+   [Same_once_unused_statics_removed] is of the term after as it is
+   once normalised, placed and tidied: the bindings are removed from
+   the term before only. [Same_once_head_statics_removed] is of the
+   term after with unused static bindings removed from its head too
+   ([without_head_statics]), and so is [Same_once_lifted] where there
+   are such bindings. *)
 Inductive validation : Type :=
   | Same_up_to_bound_names
   | Same_once_normalised
   | Same_once_unused_statics_removed
+  | Same_once_head_statics_removed
   | Same_once_lifted
   | Not_validated.
 
@@ -775,6 +807,12 @@ Definition validate_unit (rounds : nat) (unused : dropped)
       expr_eqb [] []
         (order_statics_as after (without_statics unused normalised)) after
     then Same_once_unused_statics_removed
+    else
+    let after := without_head_statics unused after in
+    if
+      expr_eqb [] []
+        (order_statics_as after (without_statics unused normalised)) after
+    then Same_once_head_statics_removed
     else if
       expr_eqb [] []
         (order_statics_as (float_code (with_code_first after))

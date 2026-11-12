@@ -897,6 +897,14 @@ Definition tidied_after_equivariant_statement : Prop :=
 Definition without_statics_equivariant_statement : Prop :=
   ∀ D : dropped, rewrite_equivariant (without_statics D).
 
+(* The same removal from the head of the term after, where the checks
+   of FlambdaUnusedHeadStaticsSpec.head_statics_removable pass
+   (FlambdaValidateSpec.without_head_statics): the checks read the
+   same of a term renamed, as a renaming changes no symbol and no code
+   id. *)
+Definition without_head_statics_equivariant_statement : Prop :=
+  ∀ D : dropped, rewrite_equivariant (without_head_statics D).
+
 (* The demotion of the exception handlers that no call can raise to,
    and the rounds that follow it, with which the normalisation of the
    term before and the liftings made in turn end
@@ -1352,8 +1360,10 @@ Definition with_statics_first_renamed_alike_statement : Prop :=
    number of rounds, the names of the static bindings to remove, the
    value slots to remove and the code whose calls are not inlined are
    as they were. Nothing is asked of the term after: its normalisation
-   commutes with renaming, and so does the putting of its code first
-   ([with_code_first_equivariant_statement]).
+   commutes with renaming, and so do the removal of unused static
+   bindings from its head and the putting of its code first
+   ([without_head_statics_equivariant_statement],
+   [with_code_first_equivariant_statement]).
 
    The first comparison is of the two terms as they are, and answers
    the same of the two renamed. After it the self tail calls of the
@@ -1361,9 +1371,12 @@ Definition with_statics_first_renamed_alike_statement : Prop :=
    commutes with the renaming, the names given for the loops being
    renamed with the term ([rename_loopified]), and keeps the code
    closed; what follows is said of the term that this gives. The next
-   two are of the term before
+   three are of the term before
    normalised, which under the renaming is that term under a second
-   renaming that does to its free names what the first does. The last
+   renaming that does to its free names what the first does; for the
+   third of them, and for the two comparisons after it, the term after
+   has the unused static bindings of its head removed
+   (FlambdaValidateSpec.without_head_statics). The last
    two are of the term before with the liftings made in turn, each
    followed by a normalisation
    ([lifted_in_turn_equivariant_up_to_statement]). The first lifting

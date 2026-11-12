@@ -43,6 +43,7 @@ open FlambdaUnboxParamsSpec
 open FlambdaUnboxSpec
 open FlambdaUnboxVariantsSpec
 open FlambdaUnusedContsSpec
+open FlambdaUnusedHeadStaticsSpec
 open FlambdaUnusedParamsSpec
 open FlambdaUnusedProjectionsSpec
 open FlambdaUnusedSlotsSpec
@@ -203,6 +204,11 @@ let without_statics d e =
   | Some e' -> merge_statics (drop_deleted_code e')
   | None -> e
 
+(** val without_head_statics : dropped -> expr -> expr **)
+
+let without_head_statics d e =
+  if head_statics_removable d e then without_statics d e else e
+
 (** val with_lifting : lifting -> expr -> expr **)
 
 let with_lifting l e =
@@ -331,6 +337,7 @@ type validation =
   | Same_up_to_bound_names
   | Same_once_normalised
   | Same_once_unused_statics_removed
+  | Same_once_head_statics_removed
   | Same_once_lifted
   | Not_validated
 
@@ -353,28 +360,35 @@ let validate_unit rounds unused slots g ls kept before after =
         (order_statics_as after0 (without_statics unused normalised))
         after0
     then Same_once_unused_statics_removed
-    else if
-      expr_eqb [] []
-        (order_statics_as
-           (float_code (with_code_first after0))
-           (float_code
-              (without_statics unused
-                 (without_slots slots
-                    (tidied_before rounds
-                       (lifted_in_turn rounds (unit_continuations ls) ls kept
-                          before0))))))
-        (float_code (with_code_first after0))
-    then Same_once_lifted
-    else if
-      expr_eqb [] []
-        (order_statics_as
-           (with_statics_first ls after0)
-           (with_statics_first ls
-              (without_statics unused
-                 (without_slots slots
-                    (tidied_before rounds
-                       (lifted_in_turn rounds (unit_continuations ls) ls kept
-                          before0))))))
-        (with_statics_first ls after0)
-    then Same_once_lifted
-    else Not_validated
+    else
+      let after1 = without_head_statics unused after0 in
+      if
+        expr_eqb [] []
+          (order_statics_as after1 (without_statics unused normalised))
+          after1
+      then Same_once_head_statics_removed
+      else if
+        expr_eqb [] []
+          (order_statics_as
+             (float_code (with_code_first after1))
+             (float_code
+                (without_statics unused
+                   (without_slots slots
+                      (tidied_before rounds
+                         (lifted_in_turn rounds (unit_continuations ls) ls kept
+                            before0))))))
+          (float_code (with_code_first after1))
+      then Same_once_lifted
+      else if
+        expr_eqb [] []
+          (order_statics_as
+             (with_statics_first ls after1)
+             (with_statics_first ls
+                (without_statics unused
+                   (without_slots slots
+                      (tidied_before rounds
+                         (lifted_in_turn rounds (unit_continuations ls) ls kept
+                            before0))))))
+          (with_statics_first ls after1)
+      then Same_once_lifted
+      else Not_validated

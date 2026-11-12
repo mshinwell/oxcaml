@@ -43,6 +43,7 @@ open FlambdaUnboxParamsSpec
 open FlambdaUnboxSpec
 open FlambdaUnboxVariantsSpec
 open FlambdaUnusedContsSpec
+open FlambdaUnusedHeadStaticsSpec
 open FlambdaUnusedParamsSpec
 open FlambdaUnusedProjectionsSpec
 open FlambdaUnusedSlotsSpec
@@ -87,6 +88,8 @@ val normalise_after : nat -> code_id list -> expr -> expr
 
 val without_statics : dropped -> expr -> expr
 
+val without_head_statics : dropped -> expr -> expr
+
 val with_lifting : lifting -> expr -> expr
 
 val with_known : expr -> expr
@@ -130,6 +133,7 @@ type validation =
   | Same_up_to_bound_names
   | Same_once_normalised
   | Same_once_unused_statics_removed
+  | Same_once_head_statics_removed
   | Same_once_lifted
   | Not_validated
 
