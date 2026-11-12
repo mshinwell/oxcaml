@@ -587,6 +587,11 @@ Owner: N3, on `flambda2-rocq/N3-equivariance` for the validator and on
   those of a round, keep scope: what the statement about
   `validate_unit` in the files above rests on, with
   `FlambdaKeepsScope*`)
+- `middle_end/flambda2/rocq/FlambdaUnaliasParams*` (a parameter of a
+  continuation that every application gives one variable is that
+  variable: an equivalence, written for the validation to apply to
+  either of its terms; and the lemmas for its laws of renaming and of
+  scope, which are stated in the files above)
 - `middle_end/flambda2/types/rocq/FlambdaEnvRename*` (the action of a
   renaming on a typing environment and on its levels, their free
   variables, and that the functions of `FlambdaTypingEnv.v` commute
