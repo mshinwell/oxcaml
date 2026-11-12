@@ -313,6 +313,32 @@
    In the three the continuation of the join is 2 and its parameter
    is 3.
 
+   One body more, for a load that the pass leaves. [two_tags] is the
+   body of
+
+       type side = Left of int | Right of int | Neither
+
+       fun c x ->
+        match if c then Left x else Right x with
+        | Left v | Right v -> v + 1
+        | Neither -> 0
+
+   Both arms make a block, of two tags, and the handler of the join
+   tests whether its parameter is an immediate and then loads the
+   field that the two constructors share, without going by the tag.
+   Simplify finds that the value is an immediate on neither arm and
+   removes the test; the two blocks, the parameter and the load
+   stay. The pass makes the test a parameter, which both arms give 0
+   and the round then removes, and leaves the load: blocks of two
+   tags come to it (FlambdaUnboxVariantsSpec.loads_of_two_tags). So
+   the rounds take the body before to the body after
+   ([two_tags_validated_statement], [two_tags_refines_statement]).
+   The continuation of the join is 2 and its parameter is 3; the
+   continuations that make the blocks are 4 and 5. The front end
+   allocates the two blocks in a region that it opens in the body and
+   closes after the join; the model has no regions, and the bodies
+   are written without it.
+
    The proofs are in FlambdaUnboxVariantsExamplesProofs.v, which needs
    no review. *)
 
@@ -1251,3 +1277,50 @@ Definition option_fields_validated_statement : Prop :=
 
 Definition option_fields_refines_statement : Prop :=
   expr_refines option_fields_before option_fields_after.
+
+(* ======================================================================== *)
+(* A load to which blocks of two tags come                                  *)
+(* ======================================================================== *)
+
+Definition block_tagged (tag : Z) (contents : simple) : named :=
+  Prim (Variadic (Make_block (Block_kind_values tag))) [contents].
+
+(* The two arms, which make the blocks and give them to the join. *)
+Definition two_tags_arms : expr :=
+  Let_cont_non_recursive 4
+    (Handler [] (make_handler_metadata [])
+       (Let 9 Value (block_tagged 0 (Var 2)) (Apply_cont (jump 2 [Var 9]))))
+    (Let_cont_non_recursive 5
+       (Handler [] (make_handler_metadata [])
+          (Let 10 Value (block_tagged 1 (Var 2))
+             (Apply_cont (jump 2 [Var 10]))))
+       (Let 11 naked_immediate (untag (Var 1))
+          (Switch (Var 11) [(0%Z, jump 5 []); (1%Z, jump 4 [])]))).
+
+(* The continuation that loads the field is 3. *)
+Definition two_tags_before : expr :=
+  Let_cont_non_recursive 2
+    (Handler [3] (make_handler_metadata [Value])
+       (Let 6 naked_immediate (is_int (Var 3))
+          (Let_cont_non_recursive 3
+             (Handler [] (make_handler_metadata [])
+                (Let 7 Value (field 0 3)
+                   (Let 8 Value (add_tagged (Var 7) (tagged 1))
+                      (Apply_cont (jump 1 [Var 8])))))
+             (Switch (Var 6)
+                [(0%Z, jump 3 []); (1%Z, jump 1 [tagged 0])]))))
+    two_tags_arms.
+
+Definition two_tags_after : expr :=
+  Let_cont_non_recursive 2
+    (Handler [3] (make_handler_metadata [Value])
+       (Let 7 Value (field 0 3)
+          (Let 8 Value (add_tagged (Var 7) (tagged 1))
+             (Apply_cont (jump 1 [Var 8])))))
+    two_tags_arms.
+
+Definition two_tags_validated_statement : Prop :=
+  validated_by_first_phase two_tags_before two_tags_after.
+
+Definition two_tags_refines_statement : Prop :=
+  expr_refines two_tags_before two_tags_after.

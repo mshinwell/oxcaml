@@ -243,3 +243,11 @@ Theorem option_fields_refines : option_fields_refines_statement.
 Proof.
   exact (validated_by_first_phase_refines _ _ option_fields_validated).
 Qed.
+
+Theorem two_tags_validated : two_tags_validated_statement.
+Proof. vm_compute. reflexivity. Qed.
+
+Theorem two_tags_refines : two_tags_refines_statement.
+Proof.
+  exact (validated_by_first_phase_refines _ _ two_tags_validated).
+Qed.
