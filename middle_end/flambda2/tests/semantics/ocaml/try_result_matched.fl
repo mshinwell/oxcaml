@@ -1,0 +1,87 @@
+let $camlTry_result_matched__first_const_0 = Block 0 () in
+(let code inline(never) size(19)
+       positive_0 (x/90 : imm tagged)
+         my_closure/91 &my_alloc_region/92 my_depth/93
+         -> k/38 * k/39
+         : imm tagged =
+   let next_depth/94 = rec_info (succ my_depth/93) in
+   (let prim/95 = %int_comp.lt (x/90, 0) in
+    let int_lessthan/96 = %tag_imm (prim/95) in
+    (let untagged/97 = %untag_imm (int_lessthan/96) in
+     switch untagged/97
+       | 0 -> k/38 (x/90)
+       | 1 -> k/41)
+      where k/41 =
+        cont k/40)
+     where k/40 =
+       cont k/39 pop(regular k/39) ($`*predef*`.caml_exn_Not_found)
+ in
+ let code inline(never) size(45)
+       or_default_1 (x/98 : imm tagged)
+         my_closure/99 &my_alloc_region/100 my_depth/101
+         -> k/42 * k/43
+         : imm tagged =
+   let next_depth/102 = rec_info (succ my_depth/101) in
+   let positive/103 =
+     %project_value_slot.[or_default].[positive] (my_closure/99)
+   in
+   let region/104 = %begin_region () in
+   let ghost_region/105 = %begin_ghost_region () in
+   (let try_region/115 = %begin_try_region (region/104) in
+    let try_ghost_region/116 = %begin_try_ghost_region (ghost_region/105) in
+    cont k/50 push(k/48)
+      where k/50 =
+        (apply direct(positive_0 &my_alloc_region/100)
+           (positive/103 : _ -> imm tagged) (x/98) -> k/51 * k/48
+           where k/51 (apply_result/121 : imm tagged) =
+             let Pmakeblock/122 =
+               %block.[`0`].my_alloc_region/100.local[region/104]
+                 (apply_result/121)
+             in
+             cont k/49 (Pmakeblock/122))
+      where k/49 (body_result/120 : [ 0 | 0 of imm tagged ]) =
+        cont k/45 pop(k/48) (body_result/120)
+      where k/48 exn (exn/117 : val) =
+        let unit/118 = %end_try_region (try_region/115) in
+        let unit/119 = %end_try_ghost_region (try_ghost_region/116) in
+        cont k/45 (0))
+     where k/45 (`*match*/109` : [ 0 | 0 of imm tagged ]) =
+       ((let prim/112 = %is_int (`*match*/109`) in
+         let Pisint/113 = %tag_imm (prim/112) in
+         (let untagged/114 = %untag_imm (Pisint/113) in
+          switch untagged/114
+            | 0 -> k/47
+            | 1 -> k/44 (0))
+           where k/47 =
+             cont k/46)
+          where k/46 =
+            let Pfield/110 = %block_load.[`0`] (`*match*/109`) in
+            let int_add/111 = %int_barith.add (Pfield/110, 1) in
+            cont k/44 (int_add/111))
+     where k/44 (region_return/106 : imm tagged) =
+       let unit/107 = %end_region (region/104) in
+       let unit/108 = %end_ghost_region (ghost_region/105) in
+       cont k/42 (region_return/106)
+ in
+ let positive/123 = closure positive_0 @positive &toplevel in
+ let or_default/124 = closure or_default_1 @or_default &toplevel
+ with { positive = positive/123 }
+ in
+ (let Popaque/130 = %opaque (-5) in
+  apply direct(or_default_1 &toplevel)
+    (or_default/124 : _ -> imm tagged) (Popaque/130) -> k/52 * error)
+   where k/52 (apply_result/125 : imm tagged) =
+     ((let Popaque/129 = %opaque (5) in
+       apply direct(or_default_1 &toplevel)
+         (or_default/124 : _ -> imm tagged) (Popaque/129) -> k/53 * error)
+        where k/53 (apply_result/126 : imm tagged) =
+          let result/127 =
+            %int_barith.add (apply_result/126, apply_result/125)
+          in
+          let Pmakeblock/128 = %block.[`0`].`toplevel` (result/127) in
+          cont k/37 (Pmakeblock/128)))
+  where k/37 define_root_symbol (module_block/88) =
+    let field_0/89 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/88)
+    in
+    let $camlTry_result_matched = Block 0 (field_0/89) in
+    cont done ($camlTry_result_matched)

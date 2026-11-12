@@ -1,0 +1,80 @@
+(let code inline(never) size(49)
+       measure_0
+         (known/79 : [ 0 | 0 of imm tagged * imm tagged ],
+          side/80 : imm tagged)
+         my_closure/81 &my_alloc_region/82 my_depth/83
+         -> k/28 * k/29
+         : imm tagged =
+   let next_depth/84 = rec_info (succ my_depth/83) in
+   let region/85 = %begin_region () in
+   let ghost_region/86 = %begin_ghost_region () in
+   (let prim/99 = %int_comp.lt (0, side/80) in
+    let int_lessthan/100 = %tag_imm (prim/99) in
+    (let untagged/101 = %untag_imm (int_lessthan/100) in
+     switch untagged/101
+       | 0 -> k/31 (known/79)
+       | 1 -> k/35)
+      where k/35 =
+        cont k/34)
+     where k/34 =
+       let int_add/97 = %int_barith.add (side/80, 1) in
+       let Pmakeblock/98 =
+         %block.[`0`].my_alloc_region/82.local[region/85]
+           (side/80, int_add/97)
+       in
+       cont k/31 (Pmakeblock/98)
+     where k/31 (shape/90 : [ 0 | 0 of imm tagged * imm tagged ]) =
+       ((let prim/94 = %is_int (shape/90) in
+         let Pisint/95 = %tag_imm (prim/94) in
+         (let untagged/96 = %untag_imm (Pisint/95) in
+          switch untagged/96
+            | 0 -> k/33
+            | 1 -> k/30 (0))
+           where k/33 =
+             cont k/32)
+          where k/32 =
+            let Pfield/91 = %block_load.[`1`] (shape/90) in
+            let Pfield/92 = %block_load.[`0`] (shape/90) in
+            let int_add/93 = %int_barith.add (Pfield/92, Pfield/91) in
+            cont k/30 (int_add/93))
+     where k/30 (region_return/87 : imm tagged) =
+       let unit/88 = %end_region (region/85) in
+       let unit/89 = %end_ghost_region (ghost_region/86) in
+       cont k/28 (region_return/87)
+ in
+ let $camlLocal_block_matched__const_block_0 = Block 0 (4, 5) in
+ let measure/102 = closure measure_0 @measure &toplevel in
+ (let Popaque/113 = %opaque (0) in
+  let Popaque/114 = %opaque (0) in
+  apply direct(measure_0 &toplevel)
+    (measure/102 : _ -> imm tagged)
+      (Popaque/114, Popaque/113)
+      -> k/36 * error)
+   where k/36 (apply_result/103 : imm tagged) =
+     ((let Popaque/111 = %opaque (0) in
+       let Popaque/112 = %opaque ($camlLocal_block_matched__const_block_0) in
+       apply direct(measure_0 &toplevel)
+         (measure/102 : _ -> imm tagged)
+           (Popaque/112, Popaque/111)
+           -> k/37 * error)
+        where k/37 (apply_result/104 : imm tagged) =
+          ((let Popaque/109 = %opaque (3) in
+            let Popaque/110 = %opaque (0) in
+            apply direct(measure_0 &toplevel)
+              (measure/102 : _ -> imm tagged)
+                (Popaque/110, Popaque/109)
+                -> k/38 * error)
+             where k/38 (apply_result/105 : imm tagged) =
+               let int_add/106 =
+                 %int_barith.add (apply_result/105, apply_result/104)
+               in
+               let result/107 =
+                 %int_barith.add (int_add/106, apply_result/103)
+               in
+               let Pmakeblock/108 = %block.[`0`].`toplevel` (result/107) in
+               cont k/27 (Pmakeblock/108))))
+  where k/27 define_root_symbol (module_block/77) =
+    let field_0/78 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/77)
+    in
+    let $camlLocal_block_matched = Block 0 (field_0/78) in
+    cont done ($camlLocal_block_matched)

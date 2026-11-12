@@ -1,0 +1,84 @@
+let $camlLoop_result_passed_round__first_const_0 = Block 0 () in
+(let code rec loopify(default tailrec) size(61)
+       settle_0 (n/79 : imm tagged, acc/80 : imm tagged)
+         my_closure/81 &my_alloc_region/82 my_depth/83
+         -> k/34 * k/35
+         : imm tagged =
+   let next_depth/84 = rec_info (succ my_depth/83) in
+   (let prim/105 = %int_comp.le (n/79, 0) in
+    let int_lessequal/106 = %tag_imm (prim/105) in
+    (let untagged/107 = %untag_imm (int_lessequal/106) in
+     switch untagged/107
+       | 0 -> k/46
+       | 1 -> k/34 (acc/80))
+      where k/46 =
+        cont k/36)
+     where k/36 =
+       ((let prim/102 = %int_comp.lt (acc/80, n/79) in
+         let int_lessthan/103 = %tag_imm (prim/102) in
+         (let untagged/104 = %untag_imm (int_lessthan/103) in
+          switch untagged/104
+            | 0 -> k/45
+            | 1 -> k/37 (n/79))
+           where k/45 =
+             cont k/38)
+          where k/38 =
+            (cont k/39 (0)
+               where k/39 (let_mutable/87 : imm tagged) =
+                 (cont k/40 (0, let_mutable/87)
+                    where k/40
+                            (let_mutable/88 : imm tagged,
+                             i_18_unboxed0/89 : imm tagged) =
+                      (cont k/42 (i_18_unboxed0/89, let_mutable/88)
+                         where rec k/42
+                                     (i_18_unboxed0/93 : imm tagged,
+                                      last_19_unboxed0/94 : imm tagged) =
+                           let Popaque/95 = %opaque (2) in
+                           let prim/96 =
+                             %int_comp.lt (i_18_unboxed0/93, Popaque/95)
+                           in
+                           let while_cond_result/97 = %tag_imm (prim/96) in
+                           ((let untagged/101 =
+                               %untag_imm (while_cond_result/97)
+                             in
+                             switch untagged/101
+                               | 0 ->
+                                 k/41
+                                   (0, i_18_unboxed0/93, last_19_unboxed0/94)
+                               | 1 -> k/44)
+                              where k/44 =
+                                cont k/43
+                                       (i_18_unboxed0/93, last_19_unboxed0/94)
+                              where k/43
+                                      (i_18_unboxed0/98 : imm tagged,
+                                       last_19_unboxed0/99 : imm tagged) =
+                                let int_add/100 =
+                                  %int_barith.add (i_18_unboxed0/98, 1)
+                                in
+                                cont k/42 (int_add/100, acc/80))
+                         where k/41
+                                 (staticcatch_result/90 : imm tagged,
+                                  i_18_unboxed0/91 : imm tagged,
+                                  last_19_unboxed0/92 : imm tagged) =
+                           cont k/37 (last_19_unboxed0/92))))
+          where k/37 (staticcatch_result/85 : imm tagged) =
+            let int_sub/86 = %int_barith.sub (n/79, 1) in
+            apply direct(settle_0 &my_alloc_region/82)
+              (my_closure/81 ~ depth my_depth/83 -> next_depth/84
+               : _ -> imm tagged)
+                (int_sub/86, staticcatch_result/85)
+                -> k/34 * k/35)
+ in
+ let settle/108 = closure settle_0 @settle &toplevel in
+ (let Popaque/111 = %opaque (6) in
+  let Popaque/112 = %opaque (3) in
+  apply direct(settle_0 &toplevel)
+    (settle/108 : _ -> imm tagged) (Popaque/112, Popaque/111) -> k/47 * error)
+   where k/47 (result/109 : imm tagged) =
+     let Pmakeblock/110 = %block.[`0`].`toplevel` (result/109) in
+     cont k/33 (Pmakeblock/110))
+  where k/33 define_root_symbol (module_block/77) =
+    let field_0/78 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/77)
+    in
+    let $camlLoop_result_passed_round = Block 0 (field_0/78) in
+    cont done ($camlLoop_result_passed_round)
