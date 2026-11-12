@@ -46,7 +46,7 @@ Files, in `middle_end/flambda2/types/rocq/`:
   (section 20).
 - `FlambdaMeetChoicesSpec.v`: the three places where the compiler's
   meet is not the meet that is proved; three definitions, two
-  examples and twelve statements, proved
+  examples and fourteen statements, proved
   (`FlambdaMeetChoicesProofs.v`). To be reviewed (section 21).
 
 The compiler read: `types/meet_and_n_way_join.ml` (lines 1 to 1883, the
@@ -1107,8 +1107,12 @@ compiler has it and the two others repaired (`only_get_tag_of_blocks`,
 1. The type of the scrutinee of `Get_tag` (T4-6).
    `get_tag_reduction_of_block`: the compiler's type is true of a
    value that the relation holds of exactly where the value is a
-   block. `only_get_tag_not_sound`: the example that was in the
-   tree, with this choice alone; what fails is `meet_sound`.
+   block. `example_get_tag_inputs`: the input of the example that
+   was in the tree is one that the contract speaks of, which the
+   statement there supposes. `only_get_tag_not_sound`: the meet with
+   this choice alone has not `meet_sound`, whatever the join;
+   `compiler_meet_not_sound_outright`: nor has the compiler's meet,
+   now with no premise.
 2. Defining again (T4-1). `define_in_types_choice`: the two choices
    do the same on a variable that the environment does not know; on
    one that it knows the repaired choice does nothing and the
