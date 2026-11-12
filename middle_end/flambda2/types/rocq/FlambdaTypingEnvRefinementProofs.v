@@ -357,6 +357,15 @@ Proof.
     | exact Hsat ].
 Qed.
 
+Theorem let_declared_refines_under : let_declared_refines_under_statement.
+Proof.
+  intros tenv x declared d body body' Hwf Hfresh Hbody vars conts statics
+    Hsat.
+  apply let_refines_step; [ reflexivity | intros v Hv Hkind ].
+  apply Hbody. apply add_variable_definition_env_satisfies_strictly;
+    [ exact Hwf | exact Hfresh | exact Hkind | exact Hsat ].
+Qed.
+
 Theorem let_typed_refines_under : let_typed_refines_under_statement.
 Proof.
   intros tenv x declared d body body' ty Hwf Hfresh Hfree Htype Hbody vars

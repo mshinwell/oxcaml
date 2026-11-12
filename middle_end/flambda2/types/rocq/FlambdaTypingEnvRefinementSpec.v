@@ -83,19 +83,23 @@
 
    Kinds. A [Let] gives the kind of its variable and a handler the
    kinds of its parameters (../../rocq/FlambdaModel.v), and the machine
-   looks at neither: it binds the value that it is given, of whatever
-   kind. So no statement here reads those kinds. The body of a [Let]
-   is rewritten under the environment with the variable defined at the
-   kind of the value that the defining expression gives, which is a
-   premise; a handler under the environments at every choice of kinds
-   for its parameters, since any values may be passed to it. Simplify
+   tests them where it binds: a [Let] has no step unless the value of
+   its defining expression is of the kind that the [Let] gives, and a
+   handler none unless the values that it is given are of the kinds of
+   its parameters (../../rocq/FlambdaWellKindedSpec.v,
+   [let_binds_at_kind_statement], [handler_binds_at_kinds_statement]).
+   Most statements here were made before the machine tested, and do
+   not read those kinds; they hold as they are, and ask more than they
+   need to. The body of a [Let] is rewritten under the environment
+   with the variable defined at the kind of the value that the
+   defining expression gives, which is a premise; a handler under the
+   environments at every choice of kinds for its parameters. Simplify
    defines a variable at the kind that its binder gives
-   ([Typing_env.add_variable_definition] is a fatal error otherwise):
-   that is the statement about a [Let] where the two kinds are the
-   same, and one of the choices for a handler. That the value bound is
-   of the kind that the binder gives is so in the runs of a term that
-   passes the check of ../../rocq/FlambdaWellKindedSpec.v; it is not
-   known of the terms of the compiler, and it is not a premise here.
+   ([Typing_env.add_variable_definition] is a fatal error otherwise).
+   For a [Let] that is [let_declared_refines_under_statement], which
+   has no premise on the defining expression: the test of the machine
+   gives the kind. For a handler it is one of the choices; the
+   statement at the kinds of the parameters alone is to come.
 
    The variable of a [Let] and the parameters of a handler are not to
    be bound in the environment: a binder that shadowed would invalidate
@@ -283,9 +287,9 @@ Definition simple_of_kind_value_statement : Prop :=
 
 (* Under a [Let] the body is rewritten with the variable defined, at
    the kind of the value that the defining expression gives. The kind
-   that the [Let] gives its variable, [declared], is not read: the
-   machine does not look at it. (Simplify defines the variable at that
-   kind: the case where [kind] is [declared].) *)
+   that the [Let] gives its variable, [declared], is not read here.
+   (Simplify defines the variable at that kind:
+   [let_declared_refines_under_statement], below, is that case.) *)
 Definition let_refines_under_statement : Prop :=
   ∀ (tenv : Typing_env.t) (x : variable) (declared : flambda_kind)
     (defining_expr : named) (body body' : expr) (kind : flambda_kind),
@@ -298,6 +302,21 @@ Definition let_refines_under_statement : Prop :=
     expr_refines_under
       (Typing_env.add_variable_definition tenv x kind Name_mode.normal) body
       body' ->
+    expr_refines_under tenv (Let x declared defining_expr body)
+      (Let x declared defining_expr body').
+
+(* At the kind that the [Let] declares, with no premise on the defining
+   expression: the machine has no step at a [Let] unless the value is
+   of that kind (../../rocq/FlambdaWellKindedSpec.v). This is what
+   Simplify does where it knows nothing of the defining expression. *)
+Definition let_declared_refines_under_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (x : variable) (declared : flambda_kind)
+    (defining_expr : named) (body body' : expr),
+    typing_env_well_formed tenv = true ->
+    Typing_env.mem None tenv (Name_var x) = false ->
+    expr_refines_under
+      (Typing_env.add_variable_definition tenv x declared Name_mode.normal)
+      body body' ->
     expr_refines_under tenv (Let x declared defining_expr body)
       (Let x declared defining_expr body').
 
@@ -332,7 +351,8 @@ Definition let_typed_refines_under_statement : Prop :=
    [Typing_env.add_alias] the canonical element of the [Simple]; the
    statement does not ask that the [Simple] is canonical, only that
    [add_alias] answers an environment. The kind that the [Let] gives,
-   [declared], is not read here either. *)
+   [declared], is not read here either: the variable is defined at the
+   kind at which the environment has the [Simple]. *)
 Definition let_simple_refines_under_statement : Prop :=
   ∀ (tenv : Typing_env.t) (x : variable) (declared : flambda_kind)
     (s : simple) (body body' : expr) (kind : flambda_kind)
@@ -372,8 +392,9 @@ Definition let_cont_recursive_body_refines_under_statement : Prop :=
    is is known in it, with its parameters defined; nothing is known of
    a parameter but its kind, which is that of the argument, whatever it
    is: the kinds that the handler gives its parameters, in [metadata],
-   are not read. (The types of the arguments at the uses are joined by
-   the join of environments, which is not here.) *)
+   are not read here, though the machine now applies a handler only to
+   values of those kinds. (The types of the arguments at the uses are
+   joined by the join of environments, which is not here.) *)
 Definition let_cont_handler_refines_under_statement : Prop :=
   ∀ (tenv : Typing_env.t) (k : continuation) (params : list variable)
     (metadata : handler_metadata) (handler handler' body : expr),
