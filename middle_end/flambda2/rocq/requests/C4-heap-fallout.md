@@ -434,7 +434,8 @@ section that is not run is admitted with the variables that Rocq says
 it uses on the tree before the sweep, so that the lemma is the same
 lemma after the section. Rules driven by the error message then edit
 a proof that fails and check it again, keeping an edit when the proof
-passes or its first error moves forward. They repair 339 proofs, and
+passes, or else when its first error moves beyond what the old error
+covered, or else forward. They repair 339 proofs, and
 make 562 edits. What the rules are:
 
 - the name of the heap after the name of a static environment, or of
@@ -498,6 +499,13 @@ One more since, on b859e1bdef: T2's `let_refines_value` of
 `types/rocq/FlambdaSimplifyPassProofs.v`, which is new there. Its
 statement has no state, and its proof runs a probe, which now starts
 from `empty_heap`; T2 has been told.
+
+The script and the rules as they are now were run once more with
+nothing taken from a rehearsal, on 8550ac6ab5 (407 files, 9,826
+proofs): the rules make 621 edits in 377 proofs and leave 22 proofs
+for a hand, all of them among those above. Two that were by hand are
+the rules' now: C3's `project_function_slot_let_closures` and V4's
+`applies_alike_carries`.
 
 ### The run of the day
 

@@ -988,11 +988,34 @@ def repair_proof(path, lines, proofs, idx, err):
                 chosen = (rule, edits, res)
                 break
         if chosen is None:
+            # first an edit after which the first error is beyond the
+            # whole of what the old error covered: an error inside it
+            # (a tactic with branches, over several lines) may only be
+            # the same failure seen elsewhere
             for (rule, edits), (res, dt) in zip(cands, results):
                 if res == "other":
                     continue
                 m2 = res[3]
-                if "Syntax error" in m2 or "already used" in m2:
+                if "Syntax error" in m2 or "already used" in m2 \
+                        or "used twice" in m2:
+                    continue
+                if "hp was not found" in m2 and written_at(
+                        text, edits, res[0], res[1]):
+                    continue
+                grown = sum(len(rep) - (end - start)
+                            for start, end, rep in edits if start <= e1)
+                new = apply_edits(text, edits)
+                off = char_offset(new, new.split("\n"), res[0], res[1])
+                if off >= e1 + grown:
+                    chosen = (rule, edits, res)
+                    break
+        if chosen is None:
+            for (rule, edits), (res, dt) in zip(cands, results):
+                if res == "other":
+                    continue
+                m2 = res[3]
+                if "Syntax error" in m2 or "already used" in m2 \
+                        or "used twice" in m2:
                     continue
                 if "hp was not found" in m2 and written_at(
                         text, edits, res[0], res[1]):
