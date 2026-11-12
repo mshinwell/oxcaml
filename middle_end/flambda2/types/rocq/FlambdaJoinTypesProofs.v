@@ -30,14 +30,17 @@
    needs review.
 
    The functions that call the join of types are proved sound once,
-   for two lists of [Simple]s with kinds at which the things given
-   and the answers are kinded ([kinds_with]): the aliases of a type,
-   and the aliases with the names that have equations inside the
-   type. The first gives the contract of the join of types
-   ([n_way_join_sound]); the second, at the environments that have
-   the names of the equations inside their types at their kinds,
-   gives the contract for those names
-   ([n_way_join_equations_kinded]). *)
+   for a list of [Simple]s with kinds at which the things given and
+   the answers are kinded ([kinds_with]): the aliases of a type, to
+   which are added, or not, the names that have equations inside the
+   type, and, or not, a [Simple] of no kind for each test of
+   well-formedness that the type fails. The aliases alone give the
+   contract of the join of types ([n_way_join_sound]). With the
+   names, at the environments that have the names of the equations
+   inside their types at their kinds, they give the contract for
+   those names ([n_way_join_equations_kinded]). With the checks, at
+   the environments whose types are well formed, they give the
+   well-formedness of the type answered ([n_way_join_well_formed]). *)
 
 From Stdlib Require Import ZArith List Bool PeanoNat Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
@@ -45,8 +48,10 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaSemanticsSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs
-  FlambdaTypeMeaningBoolSpec FlambdaTypeMeaningBoolProofs FlambdaBindingTime
+  FlambdaTypeMeaningBoolSpec FlambdaTypeMeaningBoolProofs
+  FlambdaTypeWellFormedSpec FlambdaTypeWellFormedProofs FlambdaBindingTime
   FlambdaEnvAliases FlambdaTypingEnv FlambdaTypingEnvSpec
+  FlambdaTypingEnvInvariantSpec
   FlambdaTypingEnvKindedSpec FlambdaJoinEnv FlambdaJoinTypes FlambdaJoinSpec
   FlambdaJoinProofs FlambdaJoinTypesSpec.
 Import ListNotations.
@@ -1559,32 +1564,94 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
-(* The aliases of a type, with or without the names of its equations        *)
+(* The lists at which types are kinded                                      *)
 (* ======================================================================== *)
 
-(* The functions that call the join of types are proved sound once for
-   two lists of [Simple]s with kinds: the aliases of a type
-   ([aliases_with_kinds]), and the aliases together with the names
-   that have equations inside the type, each at the kind of the type of
-   its equation ([equation_names_with_kinds]). The lists below are the
-   first if [with_equations] is false and the second if it is true;
-   they are defined as [aliases_with_kinds] is, but for the equations
-   of an environment extension. *)
+(* The functions that call the join of types are proved sound once,
+   for a list of [Simple]s with kinds at which the things given and
+   the answers are kinded. The list is the aliases of a type
+   ([aliases_with_kinds]), to which two things can be added.
+   - With [with_equations], the names that have equations inside the
+     type, each at the kind of the type of its equation
+     ([equation_names_with_kinds]).
+   - With [with_checks], for each test of the well-formedness of types
+     that the type fails, a [Simple] at a kind of which it is not
+     ([ill_formed]). A type is kinded at such a list, in an environment
+     or in the target, only if it is well formed.
+   The lists are defined as [aliases_with_kinds] is, and are
+   [aliases_with_kinds] by computation where nothing is added. *)
+
+(* A constant at a kind that is not its own. *)
+Definition ill_formed : simple * flambda_kind :=
+  (Const (Naked_immediate 0%Z), Value).
+
+(* The tests of the well-formedness of types that are about one
+   structure, and not about the types inside it: the cases of blocks
+   (conditions 6, 7 and 9), an entry of closures under an index and
+   the cases of closures (conditions 5, 8 and 9). *)
+Definition block_case_shape_ok (case : row_like_block_case) : bool :=
+  block_product_fits (case_index case) (case_maps_to case)
+  && block_shape_canonical_b (index_shape (case_index case)).
+
+Definition blocks_shape_ok
+    (known_tags : Keyed.finite_map Z (Or_unknown.t row_like_block_case))
+    (other_tags : Or_bottom.t row_like_block_case) : bool :=
+  Keyed.distinct Z.eqb (keys known_tags)
+  && Keyed.for_all_bindings_b Z.eqb
+       (fun _ case =>
+          match case with
+          | Or_unknown.Known case => block_case_shape_ok case
+          | Or_unknown.Unknown => true
+          end)
+       known_tags
+  && match other_tags with
+     | Or_bottom.Ok case => block_case_shape_ok case
+     | Or_bottom.Bottom => true
+     end.
+
+Definition closures_entry_shape_ok
+    (index : row_like_index set_of_closures_contents unit)
+    (entry : closures_entry) : bool :=
+  match entry with
+  | Closures_entry function_types closure_types value_slot_types =>
+    closures_entry_slots_fit index (domain function_types)
+      (domain closure_types) (domain value_slot_types)
+    && distinct (keys function_types)
+    && distinct (keys closure_types)
+    && distinct (keys value_slot_types)
+    && for_all_bindings_b (fun _ ty => kind_eqb (kind ty) Value) closure_types
+  end.
+
+Definition closures_shape_ok
+    (known_closures : finite_map row_like_closures_case) : bool :=
+  distinct (keys known_closures)
+  && for_all_bindings_b
+       (fun slot case =>
+          closures_index_has_slot slot (case_index case)
+          && closures_entry_shape_ok (case_index case) (case_maps_to case))
+       known_closures.
+
 Section Kinds.
 
 Variable with_equations : bool.
+Variable with_checks : bool.
 
 Definition kinds_of_equation (n : name) (ty : flambda_type)
     : list (simple * flambda_kind) :=
   if with_equations then [(simple_of_name n, kind ty)] else [].
 
+Definition check (test : bool) : list (simple * flambda_kind) :=
+  if with_checks then if test then [] else [ill_formed] else [].
+
 Fixpoint kinds_with (t : flambda_type) : list (simple * flambda_kind) :=
   match t with
   | Type_value ty => aliases_of_descr Value kinds_of_head_of_kind_value ty
   | Type_naked_immediate ty =>
-    aliases_of_descr (Naked_number Kind_naked_immediate) (fun _ => []) ty
+    check (descr_well_formed head_of_kind_naked_immediate_well_formed ty)
+    ++ aliases_of_descr (Naked_number Kind_naked_immediate) (fun _ => []) ty
   | Type_naked_number k ty =>
-    aliases_of_descr (Naked_number k) (fun _ => []) ty
+    check (has_naked_number_types k && descr_well_formed non_empty ty)
+    ++ aliases_of_descr (Naked_number k) (fun _ => []) ty
   | Type_rec_info ty => aliases_of_descr Rec_info (fun _ => []) ty
   | Type_region ty => aliases_of_descr Region (fun _ => []) ty
   end
@@ -1609,7 +1676,9 @@ with kinds_of_head_of_kind_value_non_null
   | Variant is_int immediates get_tag blocks extensions _ =>
     aliases_of_relation is_int
     ++ match immediates with
-       | Or_unknown.Known ty => kinds_with ty
+       | Or_unknown.Known ty =>
+         check (kind_eqb (kind ty) (Naked_number Kind_naked_immediate))
+         ++ kinds_with ty
        | Or_unknown.Unknown => []
        end
     ++ aliases_of_relation get_tag
@@ -1623,8 +1692,10 @@ with kinds_of_head_of_kind_value_non_null
          kinds_of_env_extension when_immediate
          ++ kinds_of_env_extension when_block
        end
-  | Mutable_block _ | String _ => []
-  | Boxed_number _ contents _ => kinds_with contents
+  | Mutable_block _ => []
+  | String strs => check (non_empty strs)
+  | Boxed_number k contents _ =>
+    check (kind_eqb (kind contents) (unboxed_kind k)) ++ kinds_with contents
   | Closures by_function_slot _ =>
     kinds_of_row_like_for_closures by_function_slot
   end
@@ -1633,14 +1704,15 @@ with kinds_of_row_like_for_blocks (blocks : row_like_for_blocks)
     : list (simple * flambda_kind) :=
   match blocks with
   | Row_like_for_blocks known_tags other_tags _ =>
-    flat_map
-      (fun case =>
-         match snd case with
-         | Or_unknown.Known case =>
-           aliases_of_block_case kinds_with kinds_of_env_extension case
-         | Or_unknown.Unknown => []
-         end)
-      known_tags
+    check (blocks_shape_ok known_tags other_tags)
+    ++ flat_map
+         (fun case =>
+            match snd case with
+            | Or_unknown.Known case =>
+              aliases_of_block_case kinds_with kinds_of_env_extension case
+            | Or_unknown.Unknown => []
+            end)
+         known_tags
     ++ match other_tags with
        | Or_bottom.Ok case =>
          aliases_of_block_case kinds_with kinds_of_env_extension case
@@ -1652,11 +1724,12 @@ with kinds_of_row_like_for_closures (closures : row_like_for_closures)
     : list (simple * flambda_kind) :=
   match closures with
   | Row_like_for_closures known_closures =>
-    flat_map
-      (fun case =>
-         kinds_of_closures_entry (case_maps_to (snd case))
-         ++ kinds_of_env_extension (case_env_extension (snd case)))
-      known_closures
+    check (closures_shape_ok known_closures)
+    ++ flat_map
+         (fun case =>
+            kinds_of_closures_entry (case_maps_to (snd case))
+            ++ kinds_of_env_extension (case_env_extension (snd case)))
+         known_closures
   end
 
 with kinds_of_closures_entry (entry : closures_entry)
@@ -1671,12 +1744,19 @@ with kinds_of_env_extension (extension : env_extension)
     : list (simple * flambda_kind) :=
   match extension with
   | Env_extension equations =>
-    flat_map
-      (fun binding =>
-         kinds_of_equation (fst binding) (snd binding)
-         ++ kinds_with (snd binding))
-      equations
+    check (Keyed.distinct name_eqb (keys equations))
+    ++ flat_map
+         (fun binding =>
+            kinds_of_equation (fst binding) (snd binding)
+            ++ kinds_with (snd binding))
+         equations
   end.
+
+(* A type in a place that asks for a kind (the immediates of a
+   variant, the contents of a boxed number). *)
+Definition kinds_at (k : flambda_kind) (ty : flambda_type)
+    : list (simple * flambda_kind) :=
+  check (kind_eqb (kind ty) k) ++ kinds_with ty.
 
 End Kinds.
 
@@ -1685,13 +1765,28 @@ Definition name_at_kind (binding : name * flambda_kind)
     : simple * flambda_kind :=
   (simple_of_name (fst binding), snd binding).
 
-Lemma flat_map_ext_in {A B : Type} (f g : A -> list B) (l : list A) :
-  (∀ a : A, a ∈ l -> f a = g a) -> flat_map f l = flat_map g l.
-Proof.
-  induction l as [ | a l IH]; intros H; [ reflexivity | ]. simpl.
-  rewrite (H a (or_introl eq_refl)), IH; [ reflexivity | ].
-  intros a' Hin. apply H. right. exact Hin.
-Qed.
+(* With nothing added, the lists are the aliases. *)
+Lemma kinds_alone :
+  (∀ t : flambda_type, kinds_with false false t = aliases_with_kinds t)
+  ∧ (∀ head : head_of_kind_value,
+       kinds_of_head_of_kind_value false false head
+       = aliases_of_head_of_kind_value head)
+  ∧ (∀ head : head_of_kind_value_non_null,
+       kinds_of_head_of_kind_value_non_null false false head
+       = aliases_of_head_of_kind_value_non_null head)
+  ∧ (∀ blocks : row_like_for_blocks,
+       kinds_of_row_like_for_blocks false false blocks
+       = aliases_of_row_like_for_blocks blocks)
+  ∧ (∀ closures : row_like_for_closures,
+       kinds_of_row_like_for_closures false false closures
+       = aliases_of_row_like_for_closures closures)
+  ∧ (∀ entry : closures_entry,
+       kinds_of_closures_entry false false entry
+       = aliases_of_closures_entry entry)
+  ∧ (∀ extension : env_extension,
+       kinds_of_env_extension false false extension
+       = aliases_of_env_extension extension).
+Proof. repeat split; reflexivity. Qed.
 
 (* Membership in two lists made by [flat_map] over one list. *)
 Lemma in_flat_map_split {A B C : Type} (f : A -> list B) (g : A -> list B)
@@ -1704,28 +1799,6 @@ Proof.
   intros a' Hin. apply H. right. exact Hin.
 Qed.
 
-(* Without the equations, the lists are the aliases. *)
-Lemma kinds_without_equations :
-  (∀ t : flambda_type, kinds_with false t = aliases_with_kinds t)
-  ∧ (∀ head : head_of_kind_value,
-       kinds_of_head_of_kind_value false head
-       = aliases_of_head_of_kind_value head)
-  ∧ (∀ head : head_of_kind_value_non_null,
-       kinds_of_head_of_kind_value_non_null false head
-       = aliases_of_head_of_kind_value_non_null head)
-  ∧ (∀ blocks : row_like_for_blocks,
-       kinds_of_row_like_for_blocks false blocks
-       = aliases_of_row_like_for_blocks blocks)
-  ∧ (∀ closures : row_like_for_closures,
-       kinds_of_row_like_for_closures false closures
-       = aliases_of_row_like_for_closures closures)
-  ∧ (∀ entry : closures_entry,
-       kinds_of_closures_entry false entry = aliases_of_closures_entry entry)
-  ∧ (∀ extension : env_extension,
-       kinds_of_env_extension false extension
-       = aliases_of_env_extension extension).
-Proof. repeat split; reflexivity. Qed.
-
 Lemma or_iff_split (A A1 A2 B B1 B2 : Prop) :
   (A <-> A1 ∨ A2) -> (B <-> B1 ∨ B2) -> (A ∨ B <-> (A1 ∨ B1) ∨ A2 ∨ B2).
 Proof. tauto. Qed.
@@ -1733,34 +1806,34 @@ Proof. tauto. Qed.
 (* With them, they are the aliases and the names of the equations. *)
 Lemma kinds_with_equations (p : simple * flambda_kind) :
   (∀ t : flambda_type,
-     p ∈ kinds_with true t
+     p ∈ kinds_with true false t
      <-> p ∈ aliases_with_kinds t
          ∨ p ∈ map name_at_kind (equation_names_with_kinds t))
   ∧ (∀ head : head_of_kind_value,
-       p ∈ kinds_of_head_of_kind_value true head
+       p ∈ kinds_of_head_of_kind_value true false head
        <-> p ∈ aliases_of_head_of_kind_value head
            ∨ p ∈ map name_at_kind (equation_names_of_head_of_kind_value head))
   ∧ (∀ head : head_of_kind_value_non_null,
-       p ∈ kinds_of_head_of_kind_value_non_null true head
+       p ∈ kinds_of_head_of_kind_value_non_null true false head
        <-> p ∈ aliases_of_head_of_kind_value_non_null head
            ∨ p ∈ map name_at_kind
                    (equation_names_of_head_of_kind_value_non_null head))
   ∧ (∀ blocks : row_like_for_blocks,
-       p ∈ kinds_of_row_like_for_blocks true blocks
+       p ∈ kinds_of_row_like_for_blocks true false blocks
        <-> p ∈ aliases_of_row_like_for_blocks blocks
            ∨ p ∈ map name_at_kind
                    (equation_names_of_row_like_for_blocks blocks))
   ∧ (∀ closures : row_like_for_closures,
-       p ∈ kinds_of_row_like_for_closures true closures
+       p ∈ kinds_of_row_like_for_closures true false closures
        <-> p ∈ aliases_of_row_like_for_closures closures
            ∨ p ∈ map name_at_kind
                    (equation_names_of_row_like_for_closures closures))
   ∧ (∀ entry : closures_entry,
-       p ∈ kinds_of_closures_entry true entry
+       p ∈ kinds_of_closures_entry true false entry
        <-> p ∈ aliases_of_closures_entry entry
            ∨ p ∈ map name_at_kind (equation_names_of_closures_entry entry))
   ∧ (∀ extension : env_extension,
-       p ∈ kinds_of_env_extension true extension
+       p ∈ kinds_of_env_extension true false extension
        <-> p ∈ aliases_of_env_extension extension
            ∨ p ∈ map name_at_kind
                    (equation_names_of_env_extension extension)).
@@ -1769,17 +1842,18 @@ Proof.
     ∀ case : row_like_block_case,
       P_block_case
         (fun t =>
-           p ∈ kinds_with true t
+           p ∈ kinds_with true false t
            <-> p ∈ aliases_with_kinds t
                ∨ p ∈ map name_at_kind (equation_names_with_kinds t))
         (fun extension =>
-           p ∈ kinds_of_env_extension true extension
+           p ∈ kinds_of_env_extension true false extension
            <-> p ∈ aliases_of_env_extension extension
                ∨ p ∈ map name_at_kind
                        (equation_names_of_env_extension extension))
         case ->
-      p ∈ aliases_of_block_case (kinds_with true) (kinds_of_env_extension true)
-            case
+      p
+      ∈ aliases_of_block_case (kinds_with true false)
+          (kinds_of_env_extension true false) case
       <-> p ∈ aliases_of_block_case aliases_with_kinds
                 aliases_of_env_extension case
           ∨ p ∈ map name_at_kind
@@ -1855,7 +1929,7 @@ Qed.
 Lemma kinds_with_equations_all (P : simple -> flambda_kind -> Prop)
     (t : flambda_type) :
   (∀ (simple : simple) (kind : flambda_kind),
-     (simple, kind) ∈ kinds_with true t -> P simple kind)
+     (simple, kind) ∈ kinds_with true false t -> P simple kind)
   <-> (∀ (simple : simple) (kind : flambda_kind),
          (simple, kind) ∈ aliases_with_kinds t -> P simple kind)
       ∧ ∀ (n : name) (kind : flambda_kind),
@@ -1868,7 +1942,8 @@ Qed.
 Lemma kinds_of_extension_all (P : simple -> flambda_kind -> Prop)
     (extension : env_extension) :
   (∀ (simple : simple) (kind : flambda_kind),
-     (simple, kind) ∈ kinds_of_env_extension true extension -> P simple kind)
+     (simple, kind) ∈ kinds_of_env_extension true false extension ->
+     P simple kind)
   <-> (∀ (simple : simple) (kind : flambda_kind),
          (simple, kind) ∈ aliases_of_env_extension extension ->
          P simple kind)
@@ -1881,36 +1956,510 @@ Proof.
            extension).
 Qed.
 
-(* The aliases are among them. *)
-Lemma aliases_among_kinds (with_equations : bool) (t : flambda_type)
-    (p : simple * flambda_kind) :
-  p ∈ aliases_with_kinds t -> p ∈ kinds_with with_equations t.
+(* ======================================================================== *)
+(* A type that is kinded at a list with the checks is well formed           *)
+(* ======================================================================== *)
+
+Arguments check : simpl never.
+
+Lemma check_off (test : bool) : check false test = [].
+Proof. reflexivity. Qed.
+
+Lemma lookup_of_distinct_in {K A : Type} (eqb : K -> K -> bool)
+    (Heqb : decides_equality eqb) (bindings : list (K * A)) :
+  Keyed.distinct eqb (map fst bindings) = true ->
+  ∀ (key : K) (a : A),
+    (key, a) ∈ bindings -> Keyed.lookup eqb key bindings = Some a.
 Proof.
-  destruct with_equations; intros H; [ | exact H ].
-  apply (proj1 (kinds_with_equations p)). left. exact H.
+  induction bindings as [ | [bound b] rest IH]; intros Hdistinct key a Hin;
+    [ destruct Hin | ].
+  cbn in Hdistinct. apply andb_true_iff in Hdistinct as [Hfresh Hdistinct].
+  rewrite keyed_lookup_cons. destruct Hin as [[= <- <-] | Hin].
+  - rewrite (keyed_eqb_refl eqb Heqb). reflexivity.
+  - destruct (eqb key bound) eqn:Hkey; [ | exact (IH Hdistinct key a Hin) ].
+    exfalso. apply Heqb in Hkey. subst bound.
+    apply negb_true_iff in Hfresh.
+    assert (Hamong : Keyed.among eqb key (map fst rest) = true).
+    { apply (keyed_among_in K eqb Heqb). apply in_map_iff.
+      exists (key, a). split; [ reflexivity | exact Hin ]. }
+    congruence.
 Qed.
 
-Lemma aliases_among_kinds_of_head (with_equations : bool)
-    (head : head_of_kind_value) (p : simple * flambda_kind) :
-  p ∈ aliases_of_head_of_kind_value head ->
-  p ∈ kinds_of_head_of_kind_value with_equations head.
+(* A test of the bindings of a map that binds a key once is a test of
+   the pairs of its list. *)
+Lemma for_all_bindings_b_in {K A : Type} (eqb : K -> K -> bool)
+    (Heqb : decides_equality eqb) (p : K -> A -> bool)
+    (bindings : Keyed.finite_map K A) :
+  Keyed.distinct eqb (keys bindings) = true ->
+  Keyed.for_all_bindings_b eqb p bindings = true
+  <-> ∀ (key : K) (a : A), (key, a) ∈ bindings -> p key a = true.
 Proof.
-  destruct with_equations; intros H; [ | exact H ].
-  apply (proj1 (proj2 (kinds_with_equations p))). left. exact H.
+  intros Hdistinct.
+  rewrite (keyed_for_all_bindings_b K eqb Heqb),
+    (keyed_for_all_bindings_lookup K eqb Heqb).
+  split; intros H key a Hin.
+  - exact (H key a
+             (lookup_of_distinct_in eqb Heqb bindings Hdistinct key a Hin)).
+  - exact (H key a (keyed_lookup_in eqb Heqb key a bindings Hin)).
 Qed.
 
-Lemma kinds_with_unknown (with_equations : bool) (k : flambda_kind) :
-  kinds_with with_equations (unknown k) = [].
-Proof. destruct k as [ | [] | | ]; reflexivity. Qed.
+(* The types of an entry of closures are well formed. *)
+Definition entry_types_well_formed (entry : closures_entry) : Prop :=
+  match entry with
+  | Closures_entry _ closure_types value_slot_types =>
+    (∀ (g : function_slot) (ty : flambda_type),
+       (g, ty) ∈ closure_types -> type_well_formed ty = true)
+    ∧ ∀ (w : value_slot) (ty : flambda_type),
+        (w, ty) ∈ value_slot_types -> type_well_formed ty = true
+  end.
 
-Lemma kinds_with_bottom (with_equations : bool) (k : flambda_kind) :
-  kinds_with with_equations (bottom k) = [].
-Proof. destruct k as [ | [] | | ]; reflexivity. Qed.
+Section Checked.
 
-Lemma kinds_with_alias (with_equations : bool) (k : flambda_kind)
+(* What it is to be of a kind, in an environment or in the target:
+   [ill_formed] is not. *)
+Variable P : simple -> flambda_kind -> Prop.
+
+Hypothesis Hill : ¬ P (fst ill_formed) (snd ill_formed).
+
+Definition all_at (l : list (simple * flambda_kind)) : Prop :=
+  ∀ (simple : simple) (kind : flambda_kind),
+    (simple, kind) ∈ l -> P simple kind.
+
+Lemma all_at_app (l l' : list (simple * flambda_kind)) :
+  all_at (l ++ l') <-> all_at l ∧ all_at l'.
+Proof.
+  unfold all_at. split.
+  - intros H. split; intros s k Hin; apply H, in_or_app; [ left | right ];
+      exact Hin.
+  - intros [H H'] s k Hin. apply in_app_or in Hin as [Hin | Hin]; auto.
+Qed.
+
+Lemma all_at_nil : all_at [] <-> True.
+Proof. split; [ intros _; exact I | intros _ s k [] ]. Qed.
+
+Lemma all_at_check (test : bool) : all_at (check true test) <-> test = true.
+Proof.
+  unfold check. destruct test; [ rewrite all_at_nil; tauto | ].
+  split; [ | discriminate ]. intros H. exfalso. apply Hill.
+  apply H. left. reflexivity.
+Qed.
+
+Lemma all_at_flat_map {A : Type} (f : A -> list (simple * flambda_kind))
+    (l : list A) :
+  all_at (flat_map f l) <-> ∀ a : A, a ∈ l -> all_at (f a).
+Proof.
+  unfold all_at. split.
+  - intros H a Ha s k Hin. apply H, in_flat_map. exists a. split; assumption.
+  - intros H s k Hin. apply in_flat_map in Hin as (a & Ha & Hin).
+    exact (H a Ha s k Hin).
+Qed.
+
+Variable e : bool.
+
+Lemma kinds_checked :
+  (∀ t : flambda_type,
+     all_at (kinds_with e true t)
+     <-> all_at (kinds_with e false t) ∧ type_well_formed t = true)
+  ∧ (∀ head : head_of_kind_value,
+       all_at (kinds_of_head_of_kind_value e true head)
+       <-> all_at (kinds_of_head_of_kind_value e false head)
+           ∧ head_of_kind_value_well_formed head = true)
+  ∧ (∀ head : head_of_kind_value_non_null,
+       all_at (kinds_of_head_of_kind_value_non_null e true head)
+       <-> all_at (kinds_of_head_of_kind_value_non_null e false head)
+           ∧ head_of_kind_value_non_null_well_formed head = true)
+  ∧ (∀ blocks : row_like_for_blocks,
+       all_at (kinds_of_row_like_for_blocks e true blocks)
+       <-> all_at (kinds_of_row_like_for_blocks e false blocks)
+           ∧ row_like_for_blocks_well_formed blocks = true)
+  ∧ (∀ closures : row_like_for_closures,
+       all_at (kinds_of_row_like_for_closures e true closures)
+       <-> all_at (kinds_of_row_like_for_closures e false closures)
+           ∧ row_like_for_closures_well_formed closures = true)
+  ∧ (∀ entry : closures_entry,
+       all_at (kinds_of_closures_entry e true entry)
+       <-> all_at (kinds_of_closures_entry e false entry)
+           ∧ entry_types_well_formed entry)
+  ∧ (∀ extension : env_extension,
+       all_at (kinds_of_env_extension e true extension)
+       <-> all_at (kinds_of_env_extension e false extension)
+           ∧ env_extension_well_formed extension = true).
+Proof.
+  assert (Hcase :
+    ∀ case : row_like_block_case,
+      P_block_case
+        (fun t =>
+           all_at (kinds_with e true t)
+           <-> all_at (kinds_with e false t) ∧ type_well_formed t = true)
+        (fun extension =>
+           all_at (kinds_of_env_extension e true extension)
+           <-> all_at (kinds_of_env_extension e false extension)
+               ∧ env_extension_well_formed extension = true)
+        case ->
+      all_at
+        (aliases_of_block_case (kinds_with e true)
+           (kinds_of_env_extension e true) case)
+      <-> all_at
+            (aliases_of_block_case (kinds_with e false)
+               (kinds_of_env_extension e false) case)
+          ∧ (∀ ty : flambda_type,
+               ty ∈ case_maps_to case -> type_well_formed ty = true)
+          ∧ env_extension_well_formed (case_env_extension case) = true).
+  { intros case [Htypes Hextension]. unfold aliases_of_block_case.
+    rewrite !all_at_app, !all_at_flat_map, Hextension. split.
+    - intros (Htys & Hext & Hwf). split; [ | split ].
+      + split; [ | exact Hext ].
+        intros ty Hin. exact (proj1 (proj1 (Htypes ty Hin) (Htys ty Hin))).
+      + intros ty Hin. exact (proj2 (proj1 (Htypes ty Hin) (Htys ty Hin))).
+      + exact Hwf.
+    - intros ((Htys & Hext) & Hwf_tys & Hwf). split; [ | split; assumption ].
+      intros ty Hin.
+      exact (proj2 (Htypes ty Hin) (conj (Htys ty Hin) (Hwf_tys ty Hin))). }
+  apply types_induction.
+  - intros [ | [head | s] | ] H; simpl; [ | exact H | | ];
+      intuition (auto; congruence).
+  - intros ty. simpl.
+    rewrite ?all_at_app, ?all_at_check, ?check_off, ?all_at_nil. tauto.
+  - intros k ty. simpl.
+    rewrite ?all_at_app, ?all_at_check, ?check_off, ?all_at_nil. tauto.
+  - intros [ | [head | s] | ]; simpl; intuition (auto; congruence).
+  - intros [ | [head | s] | ]; simpl; intuition (auto; congruence).
+  - intros [ | head | ] is_null H; simpl; rewrite ?all_at_app, ?H;
+      intuition (auto; congruence).
+  - intros is_int immediates get_tag blocks extensions is_unique Himmediates
+      Hblocks Hextensions. simpl.
+    destruct immediates as [ty | ], blocks as [blocks | ],
+      extensions as [ | when_immediate when_block ];
+      simpl;
+      rewrite ?all_at_app, ?all_at_check, ?check_off, ?all_at_nil,
+        ?andb_true_iff, ?Himmediates, ?Hblocks, ?(proj1 Hextensions),
+        ?(proj2 Hextensions);
+      intuition (auto; congruence).
+  - intros alloc_mode. simpl. intuition (auto; congruence).
+  - intros k contents alloc_mode H. simpl.
+    rewrite ?all_at_app, ?all_at_check, ?check_off, ?all_at_nil,
+      andb_true_iff, H.
+    tauto.
+  - intros by_function_slot alloc_mode H. exact H.
+  - intros strs. simpl.
+    rewrite ?all_at_check, ?check_off, ?all_at_nil. tauto.
+  - (* The cases of blocks. *)
+    intros known_tags other_tags alloc_mode Hknown Hother. simpl.
+    rewrite ?all_at_app, ?all_at_check, ?check_off, ?all_at_nil,
+      ?all_at_flat_map.
+    split.
+    + intros (Hshape & Hcases & Hother').
+      unfold blocks_shape_ok in Hshape.
+      apply andb_true_iff in Hshape as [Hshape Hother_shape].
+      apply andb_true_iff in Hshape as [Hdistinct Hshapes].
+      assert (Hshapes' :=
+        proj1 (for_all_bindings_b_in Z.eqb z_eqb_decides_equality _
+                 known_tags Hdistinct)
+          Hshapes).
+      clear Hshapes. rename Hshapes' into Hshapes.
+      split.
+      * split.
+        -- intros [tag [case | ]] Hin; [ | apply all_at_nil; exact I ].
+           exact (proj1 (proj1 (Hcase case (Hknown tag case Hin))
+                           (Hcases _ Hin))).
+        -- destruct other_tags as [case | ]; [ | exact Hother' ].
+           exact (proj1 (proj1 (Hcase case Hother) Hother')).
+      * apply (proj2 (row_like_for_blocks_well_formed_iff known_tags
+                        other_tags alloc_mode)).
+        split; [ exact Hdistinct | ]. split.
+        -- intros tag case Hlookup.
+           assert (Hin :=
+             keyed_lookup_in Z.eqb z_eqb_decides_equality tag _ known_tags
+               Hlookup).
+           apply (proj2 (row_like_block_case_well_formed_iff case)).
+           specialize (Hshapes tag _ Hin).
+           unfold block_case_shape_ok in Hshapes.
+           apply andb_true_iff in Hshapes as [Hfits Hcanonical].
+           destruct (proj1 (Hcase case (Hknown tag case Hin)) (Hcases _ Hin))
+             as (_ & Htys & Hext).
+           split; [ exact Hfits | ].
+           split; [ apply block_shape_canonical_b_iff; exact Hcanonical | ].
+           split; assumption.
+        -- destruct other_tags as [case | ]; [ | exact I ].
+           apply (proj2 (row_like_block_case_well_formed_iff case)).
+           unfold block_case_shape_ok in Hother_shape.
+           apply andb_true_iff in Hother_shape as [Hfits Hcanonical].
+           destruct (proj1 (Hcase case Hother) Hother') as (_ & Htys & Hext).
+           split; [ exact Hfits | ].
+           split; [ apply block_shape_canonical_b_iff; exact Hcanonical | ].
+           split; assumption.
+    + intros ((Hcases & Hother') & Hwf).
+      destruct (proj1 (row_like_for_blocks_well_formed_iff known_tags
+                         other_tags alloc_mode)
+                  Hwf)
+        as (Hdistinct & Hwf_cases & Hwf_other).
+      assert (Hshape_of :
+        ∀ case : row_like_block_case,
+          row_like_block_case_well_formed case = true ->
+          block_case_shape_ok case = true).
+      { intros case Hwf_case.
+        destruct (proj1 (row_like_block_case_well_formed_iff case) Hwf_case)
+          as (Hfits & Hcanonical & _).
+        unfold block_case_shape_ok. rewrite Hfits.
+        apply block_shape_canonical_b_iff in Hcanonical. rewrite Hcanonical.
+        reflexivity. }
+      assert (Hin_wf :
+        ∀ (tag : Z) (case : row_like_block_case),
+          (tag, Or_unknown.Known case) ∈ known_tags ->
+          row_like_block_case_well_formed case = true).
+      { intros tag case Hin. apply (Hwf_cases tag).
+        exact (lookup_of_distinct_in Z.eqb z_eqb_decides_equality known_tags
+                 Hdistinct tag _ Hin). }
+      split; [ | split ].
+      * unfold blocks_shape_ok. rewrite !andb_true_iff.
+        split; [ split; [ exact Hdistinct | ] | ].
+        -- apply (proj2 (for_all_bindings_b_in Z.eqb z_eqb_decides_equality _
+                            known_tags Hdistinct)).
+           intros tag [case | ] Hin; [ | reflexivity ].
+           exact (Hshape_of case (Hin_wf tag case Hin)).
+        -- destruct other_tags as [case | ]; [ | reflexivity ].
+           exact (Hshape_of case Hwf_other).
+      * intros [tag [case | ]] Hin; [ | apply all_at_nil; exact I ].
+        apply (Hcase case (Hknown tag case Hin)).
+        split; [ exact (Hcases _ Hin) | ].
+        destruct (proj1 (row_like_block_case_well_formed_iff case)
+                    (Hin_wf tag case Hin))
+          as (_ & _ & Htys & Hext).
+        split; assumption.
+      * destruct other_tags as [case | ]; [ | exact Hother' ].
+        apply (Hcase case Hother). split; [ exact Hother' | ].
+        destruct (proj1 (row_like_block_case_well_formed_iff case) Hwf_other)
+          as (_ & _ & Htys & Hext).
+        split; assumption.
+  - (* The cases of closures. *)
+    intros known_closures Hcases. simpl.
+    rewrite ?all_at_app, ?all_at_check, ?check_off, ?all_at_nil,
+      ?all_at_flat_map.
+    assert (Hcase_iff :
+      ∀ (slot : function_slot) (case : row_like_closures_case),
+        row_like_closures_case_well_formed slot case = true
+        <-> closures_index_has_slot slot (case_index case)
+            && closures_entry_shape_ok (case_index case) (case_maps_to case)
+            = true
+            ∧ entry_types_well_formed (case_maps_to case)
+            ∧ env_extension_well_formed (case_env_extension case) = true).
+    { intros slot [[function_types closure_types value_slot_types] index
+                     extension].
+      unfold row_like_closures_case_well_formed.
+      cbn [case_index case_maps_to case_env_extension].
+      rewrite !andb_true_iff,
+        (closures_entry_well_formed_iff index function_types closure_types
+           value_slot_types).
+      unfold closures_entry_shape_ok, entry_types_well_formed.
+      rewrite !andb_true_iff. split.
+      - intros [[Hslot (Hfit & (Hd1 & Hd2 & Hd3) & Hc & Hv)] Hext].
+        split; [ | split; [ split | exact Hext ] ].
+        + split; [ exact Hslot | ]. repeat split; try assumption.
+          apply (proj2 (for_all_bindings_b_in Pos.eqb pos_eqb_decides_equality
+                          _ closure_types Hd2)).
+          intros g ty Hin.
+          rewrite (proj1 (Hc g ty
+                            (lookup_of_distinct_in Pos.eqb
+                               pos_eqb_decides_equality closure_types Hd2 g
+                               ty Hin))).
+          reflexivity.
+        + intros g ty Hin.
+          exact (proj2 (Hc g ty
+                          (lookup_of_distinct_in Pos.eqb
+                             pos_eqb_decides_equality closure_types Hd2 g ty
+                             Hin))).
+        + intros w ty Hin.
+          exact (Hv w ty
+                   (lookup_of_distinct_in Pos.eqb pos_eqb_decides_equality
+                      value_slot_types Hd3 w ty Hin)).
+      - intros ([Hslot ((((Hfit & Hd1) & Hd2) & Hd3) & Hkinds)] & [Hc Hv]
+                & Hext).
+        split; [ split; [ exact Hslot | ] | exact Hext ].
+        split; [ exact Hfit | ]. split; [ auto | ]. split.
+        + intros g ty Hlookup.
+          assert (Hin :=
+            keyed_lookup_in Pos.eqb pos_eqb_decides_equality g ty
+              closure_types Hlookup).
+          split; [ | exact (Hc g ty Hin) ].
+          apply kind_eqb_true.
+          exact (proj1 (for_all_bindings_b_in Pos.eqb pos_eqb_decides_equality
+                          _ closure_types Hd2)
+                   Hkinds g ty Hin).
+        + intros w ty Hlookup.
+          exact (Hv w ty
+                   (keyed_lookup_in Pos.eqb pos_eqb_decides_equality w ty
+                      value_slot_types Hlookup)). }
+    split.
+    + intros [Hshape Hlists]. unfold closures_shape_ok in Hshape.
+      apply andb_true_iff in Hshape as [Hdistinct Hshapes].
+      assert (Hshapes' :=
+        proj1 (for_all_bindings_b_in Pos.eqb pos_eqb_decides_equality _
+                 known_closures Hdistinct)
+          Hshapes).
+      split.
+      * intros [slot case] Hin.
+        destruct (Hcases slot case Hin) as [Hentry Hext].
+        apply all_at_app.
+        destruct (proj1 (all_at_app _ _) (Hlists _ Hin)) as [He Hx].
+        split;
+          [ exact (proj1 (proj1 Hentry He)) | exact (proj1 (proj1 Hext Hx)) ].
+      * apply (proj2 (row_like_for_closures_well_formed_iff known_closures)).
+        split; [ exact Hdistinct | ]. intros slot case Hlookup.
+        assert (Hin :=
+          keyed_lookup_in Pos.eqb pos_eqb_decides_equality slot case
+            known_closures Hlookup).
+        destruct (Hcases slot case Hin) as [Hentry Hext].
+        destruct (proj1 (all_at_app _ _) (Hlists _ Hin)) as [He Hx].
+        apply (proj2 (Hcase_iff slot case)).
+        split; [ exact (Hshapes' slot case Hin) | ].
+        split;
+          [ exact (proj2 (proj1 Hentry He)) | exact (proj2 (proj1 Hext Hx)) ].
+    + intros [Hlists Hwf].
+      destruct (proj1 (row_like_for_closures_well_formed_iff known_closures)
+                  Hwf)
+        as [Hdistinct Hwf_cases].
+      assert (Hin_wf :
+        ∀ (slot : function_slot) (case : row_like_closures_case),
+          (slot, case) ∈ known_closures ->
+          row_like_closures_case_well_formed slot case = true).
+      { intros slot case Hin.
+        exact (Hwf_cases slot case
+                 (lookup_of_distinct_in Pos.eqb pos_eqb_decides_equality
+                    known_closures Hdistinct slot case Hin)). }
+      split.
+      * unfold closures_shape_ok. apply andb_true_iff.
+        split; [ exact Hdistinct | ].
+        apply (proj2 (for_all_bindings_b_in Pos.eqb pos_eqb_decides_equality _
+                        known_closures Hdistinct)).
+        intros slot case Hin.
+        exact (proj1 (proj1 (Hcase_iff slot case) (Hin_wf slot case Hin))).
+      * intros [slot case] Hin.
+        destruct (Hcases slot case Hin) as [Hentry Hext].
+        destruct (proj1 (Hcase_iff slot case) (Hin_wf slot case Hin))
+          as (_ & Htys & Hwf_ext).
+        apply all_at_app.
+        destruct (proj1 (all_at_app _ _) (Hlists _ Hin)) as [He Hx].
+        split;
+          [ exact (proj2 Hentry (conj He Htys))
+          | exact (proj2 Hext (conj Hx Hwf_ext)) ].
+  - (* An entry of closures. *)
+    intros function_types closure_types value_slot_types Hclosures Hslots.
+    simpl. rewrite !all_at_app, !all_at_flat_map. split.
+    + intros [Hc Hv]. split; [ split | split ].
+      * intros [g ty] Hin.
+        exact (proj1 (proj1 (Hclosures g ty Hin) (Hc _ Hin))).
+      * intros [w ty] Hin. exact (proj1 (proj1 (Hslots w ty Hin) (Hv _ Hin))).
+      * intros g ty Hin.
+        exact (proj2 (proj1 (Hclosures g ty Hin) (Hc _ Hin))).
+      * intros w ty Hin. exact (proj2 (proj1 (Hslots w ty Hin) (Hv _ Hin))).
+    + intros [[Hc Hv] [Hwc Hwv]]. split.
+      * intros [g ty] Hin.
+        exact (proj2 (Hclosures g ty Hin) (conj (Hc _ Hin) (Hwc g ty Hin))).
+      * intros [w ty] Hin.
+        exact (proj2 (Hslots w ty Hin) (conj (Hv _ Hin) (Hwv w ty Hin))).
+  - (* An environment extension. *)
+    intros equations Htypes. simpl.
+    rewrite ?all_at_app, ?all_at_check, ?check_off, ?all_at_nil,
+      ?all_at_flat_map.
+    split.
+    + intros [Hdistinct Heqs]. split.
+      * intros [n ty] Hin. apply all_at_app.
+        destruct (proj1 (all_at_app _ _) (Heqs _ Hin)) as [Hname Hty].
+        split; [ exact Hname | exact (proj1 (proj1 (Htypes n ty Hin) Hty)) ].
+      * apply (proj2 (env_extension_well_formed_iff equations)).
+        split; [ exact Hdistinct | ]. intros n ty Hlookup.
+        assert (Hin :=
+          keyed_lookup_in name_eqb name_eqb_eq n ty equations Hlookup).
+        destruct (proj1 (all_at_app _ _) (Heqs _ Hin)) as [_ Hty].
+        exact (proj2 (proj1 (Htypes n ty Hin) Hty)).
+    + intros [Heqs Hwf].
+      destruct (proj1 (env_extension_well_formed_iff equations) Hwf)
+        as [Hdistinct Hwf_tys].
+      split; [ exact Hdistinct | ]. intros [n ty] Hin. apply all_at_app.
+      destruct (proj1 (all_at_app _ _) (Heqs _ Hin)) as [Hname Hty].
+      split; [ exact Hname | ]. apply (Htypes n ty Hin).
+      split; [ exact Hty | ].
+      exact (Hwf_tys n ty
+               (lookup_of_distinct_in name_eqb name_eqb_eq equations Hdistinct
+                  n ty Hin)).
+Qed.
+
+End Checked.
+
+(* What is in a check: nothing, or [ill_formed] where the test fails. *)
+Lemma in_check (with_checks test : bool) (p : simple * flambda_kind) :
+  p ∈ check with_checks test ->
+  with_checks = true ∧ test = false ∧ p = ill_formed.
+Proof.
+  unfold check. destruct with_checks, test; simpl; intros H;
+    try contradiction.
+  destruct H as [<- | []]. repeat split.
+Qed.
+
+(* A check that is kinded passes. *)
+Lemma check_passes (P : simple -> flambda_kind -> Prop) (test : bool) :
+  ¬ P (fst ill_formed) (snd ill_formed) ->
+  all_at P (check true test) -> test = true.
+Proof. intros Hill H. exact (proj1 (all_at_check P Hill test) H). Qed.
+
+(* What a list with the equations or the checks asks, the aliases
+   ask. *)
+Lemma kinds_ask_aliases (P : simple -> flambda_kind -> Prop)
+    (with_equations with_checks : bool) (t : flambda_type) :
+  ¬ P (fst ill_formed) (snd ill_formed) ->
+  all_at P (kinds_with with_equations with_checks t) ->
+  all_at P (aliases_with_kinds t).
+Proof.
+  intros Hill H.
+  assert (H' : all_at P (kinds_with with_equations false t)).
+  { destruct with_checks; [ | exact H ].
+    exact (proj1 (proj1 (proj1 (kinds_checked P Hill with_equations) t) H)). }
+  destruct with_equations; [ | exact H' ].
+  exact (proj1 (proj1 (kinds_with_equations_all P t) H')).
+Qed.
+
+Lemma kinds_of_head_ask_aliases (P : simple -> flambda_kind -> Prop)
+    (with_equations with_checks : bool) (head : head_of_kind_value) :
+  ¬ P (fst ill_formed) (snd ill_formed) ->
+  all_at P (kinds_of_head_of_kind_value with_equations with_checks head) ->
+  all_at P (aliases_of_head_of_kind_value head).
+Proof.
+  intros Hill H.
+  assert (H' :
+    all_at P (kinds_of_head_of_kind_value with_equations false head)).
+  { destruct with_checks; [ | exact H ].
+    exact (proj1 (proj1 (proj1 (proj2 (kinds_checked P Hill with_equations))
+                           head)
+                    H)). }
+  destruct with_equations; [ | exact H' ].
+  exact (proj1
+           (proj1
+              (kinds_all (kinds_of_head_of_kind_value true false)
+                 aliases_of_head_of_kind_value
+                 equation_names_of_head_of_kind_value P head
+                 (fun p => proj1 (proj2 (kinds_with_equations p)) head))
+              H')).
+Qed.
+
+Lemma kinds_with_unknown (with_equations with_checks : bool)
+    (k : flambda_kind) :
+  kinds_with with_equations with_checks (unknown k) = [].
+Proof. destruct with_checks, k as [ | [] | | ]; reflexivity. Qed.
+
+Lemma kinds_with_bottom (with_equations with_checks : bool)
+    (k : flambda_kind) :
+  kinds_with with_equations with_checks (bottom k) = [].
+Proof. destruct with_checks, k as [ | [] | | ]; reflexivity. Qed.
+
+Lemma kinds_with_alias (with_equations with_checks : bool) (k : flambda_kind)
     (s : simple) :
-  kinds_with with_equations (alias_type_of k s) = [(s, k)].
-Proof. destruct k as [ | [] | | ]; reflexivity. Qed.
+  kinds_with with_equations with_checks (alias_type_of k s) = [(s, k)].
+Proof. destruct with_checks, k as [ | [] | | ]; reflexivity. Qed.
+
+(* [ill_formed] is of no kind in an environment. *)
+Lemma ill_formed_of_no_kind (tenv : Typing_env.t) :
+  ¬ simple_of_kind tenv (fst ill_formed) (snd ill_formed).
+Proof. intros H. cbn in H. discriminate H. Qed.
 
 (* ======================================================================== *)
 (* The interface: what a growing state keeps                                *)
@@ -2334,6 +2883,109 @@ Proof.
 Qed.
 
 End Merge_map_known.
+
+(* ======================================================================== *)
+(* The keys and the cases of the map that a merge answers                   *)
+(* ======================================================================== *)
+
+(* The keys that a fold answers are among those that it went through,
+   and it answers none twice. *)
+Lemma tabulate_fold_opt_keys {K A S : Type} (eqb : K -> K -> bool)
+    (f : K -> S -> option (option A * S)) (keys : list K) :
+  ∀ (s : S) (out : Keyed.finite_map K A) (s' : S),
+    Keyed.distinct eqb keys = true ->
+    Keyed.tabulate_fold_opt f keys s = Some (out, s') ->
+    Keyed.distinct eqb (map fst out) = true
+    ∧ ∀ key : K,
+        Keyed.among eqb key (map fst out) = true ->
+        Keyed.among eqb key keys = true.
+Proof.
+  induction keys as [ | key keys IH]; intros s out s' Hdistinct Hfold;
+    simpl in Hfold.
+  - injection Hfold as <- <-. split; [ reflexivity | intros key H; exact H ].
+  - destruct (f key s) as [[a s1] | ]; [ | discriminate ].
+    destruct (Keyed.tabulate_fold_opt f keys s1) as [[bindings s2] | ]
+      eqn:Hrest; [ | discriminate ].
+    injection Hfold as <- <-. simpl in Hdistinct.
+    apply andb_true_iff in Hdistinct as [Hfresh Hdistinct].
+    destruct (IH s1 bindings s2 Hdistinct Hrest) as [Hout Hsub].
+    destruct a as [a | ].
+    + split.
+      * simpl. rewrite Hout, andb_true_r. apply negb_true_iff.
+        destruct (Keyed.among eqb key (map fst bindings)) eqn:Hamong;
+          [ | reflexivity ].
+        rewrite (Hsub key Hamong) in Hfresh. discriminate Hfresh.
+      * intros key' Hamong. simpl in Hamong |- *.
+        apply orb_true_iff in Hamong as [H | H];
+          [ rewrite H; reflexivity | ].
+        rewrite (Hsub key' H). apply orb_true_r.
+    + split; [ exact Hout | ]. intros key' Hamong. simpl.
+      rewrite (Hsub key' Hamong). apply orb_true_r.
+Qed.
+
+Section Merge_shape.
+
+Context {K value other : Type} (eqb : K -> K -> bool)
+  (Heqb : decides_equality eqb) (of_other : other -> value)
+  (join :
+     state -> list (Index.t * value) -> option (Or_bottom.t (value * state)))
+  (Q : K -> value -> Prop).
+
+(* The map answered has no key twice, and what it binds a key to has a
+   property that the cases gathered for the key have and that the join
+   keeps. *)
+Lemma generic_merge_map_known_shape (s s' : state)
+    (maps : list (Index.t * (Keyed.finite_map K value * Or_bottom.t other)))
+    (joined : Keyed.finite_map K value) :
+  join_args_distinct maps ->
+  (∀ (key : K) (s1 s2 : state) (vals : list (Index.t * value)) (v : value),
+     join s1 vals = Some (Or_bottom.Ok (v, s2)) ->
+     (∀ (index : Index.t) (v0 : value), In (index, v0) vals -> Q key v0) ->
+     Q key v) ->
+  (∀ (index : Index.t) (m : Keyed.finite_map K value * Or_bottom.t other),
+     In (index, m) maps ->
+     (∀ (key : K) (v : value),
+        Keyed.lookup eqb key (fst m) = Some v -> Q key v)
+     ∧ ∀ (o : other) (key : K),
+         snd m = Or_bottom.Ok o -> Q key (of_other o)) ->
+  generic_merge_map_known eqb of_other join s maps = Some (joined, s') ->
+  Keyed.distinct eqb (map fst joined) = true
+  ∧ ∀ (key : K) (v : value),
+      Keyed.lookup eqb key joined = Some v -> Q key v.
+Proof.
+  intros Hdistinct Hjoin Hmaps Hmerge. unfold generic_merge_map_known in Hmerge.
+  destruct maps as [ | m0 maps0].
+  { injection Hmerge as <- <-.
+    split; [ reflexivity | intros key v H; discriminate H ]. }
+  set (maps := m0 :: maps0) in *.
+  match type of Hmerge with
+  | Keyed.filter_map_fold _ ?g0 _ _ = _ => set (g := g0) in Hmerge
+  end.
+  split.
+  - unfold Keyed.filter_map_fold, Keyed.filter_map_fold_on in Hmerge.
+    exact (proj1 (tabulate_fold_opt_keys eqb _ _ s joined s'
+                    (keyed_domain_distinct K eqb Heqb _ _) Hmerge)).
+  - intros key v Hv.
+    destruct
+      (filter_map_fold_spec eqb Heqb (fun _ : state => True)
+         (fun _ _ : state => True) (fun _ => I) (fun _ _ _ _ _ => I) g
+         (gather_known eqb of_other maps)
+         (fun _ _ _ _ _ _ _ _ => conj I I) s joined s' I Hmerge)
+      as (_ & _ & _ & Hfound & _).
+    destruct (Hfound key v Hv) as (vals & s1 & s2 & Hvals & _ & _ & Hg & _).
+    unfold g in Hg.
+    destruct (join s1 vals) as [[[v' s3] | ] | ] eqn:Hj; try discriminate.
+    injection Hg as <- <-. apply (Hjoin key s1 s3 vals v' Hj).
+    intros index v0 Hin.
+    destruct (gather_known_spec eqb Heqb of_other maps key vals Hdistinct Hvals)
+      as (_ & Hfrom & _).
+    destruct (Hfrom index v0 Hin)
+      as ([index' m] & Hi & _ & [Hl | (_ & o & Ho & ->)]).
+    + exact (proj1 (Hmaps index' m Hi) key v0 Hl).
+    + exact (proj2 (Hmaps index' m Hi) o key Ho).
+Qed.
+
+End Merge_shape.
 
 (* The contract of the join of types is that of a sound function. *)
 Definition type_bound :=
@@ -2901,22 +3553,62 @@ Hypothesis Heqb : type_eqb_sound type_eqb.
 Hypothesis Hshape : block_shape_eqb_sound block_shape_eqb.
 
 (* The lists at which the things given and the answers are kinded
-   ([kinds_with]): the aliases, without the names of the equations or
-   with them. *)
+   ([kinds_with]): the aliases, to which the names of the equations
+   and the checks of well-formedness are added or not. *)
 Variable with_equations : bool.
+Variable with_checks : bool.
 
-Local Abbreviation kinds := (kinds_with with_equations).
+Local Abbreviation kinds := (kinds_with with_equations with_checks).
 Local Abbreviation kinds_of_head :=
-  (kinds_of_head_of_kind_value with_equations).
+  (kinds_of_head_of_kind_value with_equations with_checks).
 Local Abbreviation kinds_of_non_null :=
-  (kinds_of_head_of_kind_value_non_null with_equations).
+  (kinds_of_head_of_kind_value_non_null with_equations with_checks).
 Local Abbreviation kinds_of_blocks :=
-  (kinds_of_row_like_for_blocks with_equations).
+  (kinds_of_row_like_for_blocks with_equations with_checks).
 Local Abbreviation kinds_of_closures :=
-  (kinds_of_row_like_for_closures with_equations).
-Local Abbreviation kinds_of_entry := (kinds_of_closures_entry with_equations).
+  (kinds_of_row_like_for_closures with_equations with_checks).
+Local Abbreviation kinds_of_entry :=
+  (kinds_of_closures_entry with_equations with_checks).
 Local Abbreviation kinds_of_extension :=
-  (kinds_of_env_extension with_equations).
+  (kinds_of_env_extension with_equations with_checks).
+Local Abbreviation kinds_of_type_at :=
+  (kinds_at with_equations with_checks).
+Local Abbreviation kinds_of_immediates :=
+  (kinds_of_type_at (Naked_number Kind_naked_immediate)).
+Local Abbreviation checked := (check with_checks).
+
+(* [ill_formed] is of no kind in the target. *)
+Lemma ill_formed_of_no_kind_in_target (s : state) :
+  ¬ of_kind_in_target s (fst ill_formed) (snd ill_formed).
+Proof. intros H. cbn in H. discriminate H. Qed.
+
+(* A check that an argument has passes; and a check of the answer
+   that passes asks nothing. *)
+Lemma arg_check_passes {X : Type} (variables_of : X -> list variable)
+    (kinds_of : X -> list (simple * flambda_kind)) (s : state)
+    (args : list (Index.t * X)) (index : Index.t) (x : X) (test : bool) :
+  args_in_scope (arg_ok variables_of kinds_of) s args ->
+  In (index, x) args ->
+  incl (checked test) (kinds_of x) ->
+  with_checks = true ->
+  test = true.
+Proof.
+  intros Hargs Hin Hincl Hchecks.
+  destruct (Hargs index x Hin) as (use & _ & _ & Hkinds).
+  destruct test; [ reflexivity | ]. exfalso.
+  apply (ill_formed_of_no_kind use). apply Hkinds, Hincl.
+  unfold check. rewrite Hchecks. left. reflexivity.
+Qed.
+
+Lemma answer_check_passes (s : state) (test : bool) (simple : simple)
+    (kind : flambda_kind) :
+  (with_checks = true -> test = true) ->
+  (simple, kind) ∈ checked test ->
+  of_kind_in_target s simple kind.
+Proof.
+  intros Htest Hin. apply in_check in Hin as (Hchecks & Hfalse & _).
+  rewrite (Htest Hchecks) in Hfalse. discriminate Hfalse.
+Qed.
 
 (* A type is kinded in an environment, at those lists. *)
 Definition kinded_with (tenv : Typing_env.t) (ty : flambda_type) : Prop :=
@@ -2926,13 +3618,15 @@ Definition kinded_with (tenv : Typing_env.t) (ty : flambda_type) : Prop :=
 Lemma kinded_with_aliases (tenv : Typing_env.t) (ty : flambda_type) :
   kinded_with tenv ty -> type_kinded tenv ty.
 Proof.
-  intros H simple kind Hin. apply H, aliases_among_kinds. exact Hin.
+  exact (kinds_ask_aliases (simple_of_kind tenv) with_equations with_checks
+           ty (ill_formed_of_no_kind tenv)).
 Qed.
 
 (* What is supposed at those lists of the import of a type, of the
-   join of extensions and of the expansion of a head. Without the
-   equations it is in the contracts above; with them, it is those and
-   the contracts of the names of the equations. *)
+   join of extensions and of the expansion of a head. With nothing
+   added it is in the contracts above; with the names of the
+   equations, it is those and the contracts of the names; with the
+   checks, those and what is supposed for well-formedness. *)
 Hypothesis Himport_kinds :
   ∀ (s s' : state) (ty : flambda_type),
     state_valid s -> envs_well_formed s -> envs_kinded s ->
@@ -3036,9 +3730,54 @@ Variable n_way_join_rec :
   state -> list (Index.t * flambda_type)
   -> option (Or_unknown.t flambda_type * state).
 
-Hypothesis Hrec :
+Hypothesis Hrec_sound : type_join_sound n_way_join_rec.
+Hypothesis Hrec_nil : ∀ s : state, n_way_join_rec s [] = None.
+
+Lemma Hrec :
   step_sound free_variables kinds (of_known free_variables)
     (of_known kinds) type_bound n_way_join_rec.
+Proof. exact (type_sound_step _ Hrec_sound). Qed.
+
+(* The same where a kind is asked of the types: the type answered is
+   of the kind of the types given. *)
+Lemma Hrec_at (k : flambda_kind) :
+  step_sound free_variables (kinds_of_type_at k) (of_known free_variables)
+    (of_known (kinds_of_type_at k)) type_bound n_way_join_rec.
+Proof.
+  intros s s' ts answer Hvalid Hwf Hkinded Hdistinct Hargs Hstep.
+  assert (Hargs' : args_in_scope (arg_ok free_variables kinds) s ts).
+  { apply (args_of_parts _ _ _ _ s ts ts Hargs). intros index t Hin.
+    exists t. split; [ exact Hin | ].
+    split; [ apply incl_refl | apply incl_appr, incl_refl ]. }
+  destruct (Hrec s s' ts answer Hvalid Hwf Hkinded Hdistinct Hargs' Hstep)
+    as (Hvalid' & Hgrows & Htarget & Hbound & Hkinds).
+  split; [ exact Hvalid' | ]. split; [ exact Hgrows | ].
+  split; [ exact Htarget | ]. split; [ exact Hbound | ].
+  intros Hk. destruct (Hkinds Hk) as [Hk' Hanswer]. split; [ exact Hk' | ].
+  destruct answer as [ty | ]; [ | intros simple kind [] ].
+  intros simple k' Hin. cbn [of_known] in Hin. unfold kinds_at in Hin.
+  apply in_app_or in Hin as [Hin | Hin]; [ | exact (Hanswer simple k' Hin) ].
+  apply (answer_check_passes s' (kind_eqb (kind ty) k) simple k');
+    [ | exact Hin ].
+  intros Hchecks.
+  destruct ts as [ | [index t] ts'];
+    [ rewrite Hrec_nil in Hstep; discriminate | ].
+  assert (Hscope : args_in_scope type_in_scope s ((index, t) :: ts')).
+  { intros index' t' Hin'.
+    destruct (Hargs' index' t' Hin') as (use & Huse & H & _).
+    exists use. split; [ exact Huse | exact H ]. }
+  assert (Hkinds_ts : args_in_scope kinded_with s ((index, t) :: ts')).
+  { intros index' t' Hin'.
+    destruct (Hargs' index' t' Hin') as (use & Huse & _ & H).
+    exists use. split; [ exact Huse | exact H ]. }
+  destruct
+    (Hrec_sound s s' ((index, t) :: ts') (Or_unknown.Known ty) Hvalid Hwf
+       Hkinded Hdistinct Hscope Hkinds_ts Hstep)
+    as (_ & _ & Hknown & _).
+  rewrite (proj1 (proj2 (Hknown ty eq_refl)) index t (or_introl eq_refl)).
+  exact (arg_check_passes _ _ s ((index, t) :: ts') index t _ Hargs
+           (or_introl eq_refl) (incl_appl _ (incl_refl _)) Hchecks).
+Qed.
 
 (* The invariant of a fold that threads the state from [s]. *)
 Definition threaded (s s1 : state) : Prop :=
@@ -4014,6 +4753,228 @@ Proof.
   exact (Hbound (fst w) (snd w) Hshape' Hfields).
 Qed.
 
+(* ------------------------------------------------------------------------ *)
+(* The shape of the cases of blocks that are answered                       *)
+(* ------------------------------------------------------------------------ *)
+
+Lemma join_fields_length (shape : block_shape)
+    (fields : list (Index.t * list flambda_type)) (count : nat) :
+  ∀ (index : nat) (s s' : state) (tys : list flambda_type),
+    join_fields n_way_join_rec s shape fields index count = Some (tys, s') ->
+    length tys = count.
+Proof.
+  induction count as [ | count IH]; intros index s s' tys Hjoin;
+    simpl in Hjoin.
+  - injection Hjoin as <- _. reflexivity.
+  - destruct (fields_at index fields) as [tys0 | ]; simpl in Hjoin;
+      [ | discriminate ].
+    destruct (n_way_join_rec s tys0) as [[joined s1] | ]; simpl in Hjoin;
+      [ | discriminate ].
+    destruct joined as [ty | ]; simpl in Hjoin;
+      [ | destruct (unknown_from_shape shape index) as [ty | ];
+          simpl in Hjoin; [ | discriminate ] ].
+    all: destruct (join_fields n_way_join_rec s1 shape fields (S index) count)
+           as [[tys1 s2] | ] eqn:Hrest; simpl in Hjoin; [ | discriminate ].
+    all: injection Hjoin as <- _; simpl; rewrite (IH _ _ _ _ Hrest);
+      reflexivity.
+Qed.
+
+(* The fields answered are as many as the shortest list given has. *)
+Lemma int_indexed_product_length (shape : block_shape) (s s' : state)
+    (id : Index.t) (first : list flambda_type)
+    (others : list (Index.t * list flambda_type)) (tys : list flambda_type) :
+  n_way_join_int_indexed_product import_type type_eqb n_way_join_rec s shape
+    ((id, first) :: others)
+  = Some (tys, s') ->
+  length tys
+  = List.fold_left
+      (fun least other => Nat.min least (length (snd other))) others
+      (length first).
+Proof.
+  unfold n_way_join_int_indexed_product. cbv zeta.
+  set (least := List.fold_left _ others (length first)).
+  destruct (forallb _ others).
+  - destruct (find _ _) as [[id' fields'] | ] eqn:Hfind; [ | discriminate ].
+    apply find_some in Hfind as [_ Hlength]. cbn [snd] in Hlength.
+    apply Nat.eqb_eq in Hlength.
+    destruct (import_types import_type s fields') as [s1 | ]; simpl;
+      [ | discriminate ].
+    intros [= <- _]. exact Hlength.
+  - intros Hjoin. exact (join_fields_length shape _ least 0 s s' tys Hjoin).
+Qed.
+
+Lemma block_case_fits_size (c : row_like_block_case) :
+  block_case_shape_ok c = true ->
+  length (case_maps_to c)
+  <= match index_domain (case_index c) with
+     | Row_like_index_domain.Known size
+     | Row_like_index_domain.At_least size => size
+     end.
+Proof.
+  unfold block_case_shape_ok, block_product_fits. intros H.
+  apply andb_true_iff in H as [H _].
+  destruct (index_domain (case_index c));
+    [ apply Nat.eqb_eq in H | apply Nat.leb_le in H ]; lia.
+Qed.
+
+(* The shortest product is no longer than the least size. *)
+Lemma least_length_fits (cases : list (Index.t * row_like_block_case)) :
+  (∀ (id : Index.t) (c : row_like_block_case),
+     In (id, c) cases -> block_case_shape_ok c = true) ->
+  ∀ length0 size0 : nat,
+    length0 <= size0 ->
+    List.fold_left (fun least other => Nat.min least (length (snd other)))
+      (map (fun case => (fst case, case_maps_to (snd case))) cases) length0
+    <= List.fold_left
+         (fun i1' i2 =>
+            match index_domain i2 with
+            | Row_like_index_domain.At_least i2'
+            | Row_like_index_domain.Known i2' => Nat.min i1' i2'
+            end)
+         (map (fun case => case_index (snd case)) cases) size0.
+Proof.
+  induction cases as [ | [id c] cases IH]; intros Hok length0 size0 Hle; simpl;
+    [ exact Hle | ].
+  apply IH; [ intros id' c' Hin; exact (Hok id' c' (or_intror Hin)) | ].
+  assert (Hc := block_case_fits_size c (Hok id c (or_introl eq_refl))).
+  destruct (index_domain (case_index c)); lia.
+Qed.
+
+(* Where every size is exact and the same, so is the shortest product. *)
+Lemma least_length_exact (cases : list (Index.t * row_like_block_case))
+    (size : nat) :
+  (∀ (id : Index.t) (c : row_like_block_case),
+     In (id, c) cases -> block_case_shape_ok c = true) ->
+  forallb
+    (fun i2 =>
+       match index_domain i2 with
+       | Row_like_index_domain.Known i2' => Nat.eqb size i2'
+       | Row_like_index_domain.At_least _ => false
+       end)
+    (map (fun case => case_index (snd case)) cases)
+  = true ->
+  List.fold_left (fun least other => Nat.min least (length (snd other)))
+    (map (fun case => (fst case, case_maps_to (snd case))) cases) size
+  = size.
+Proof.
+  induction cases as [ | [id c] cases IH]; intros Hok Hall; simpl;
+    [ reflexivity | ].
+  simpl in Hall. apply andb_true_iff in Hall as [Hc Hall].
+  assert (Hfits := Hok id c (or_introl eq_refl)).
+  unfold block_case_shape_ok, block_product_fits in Hfits.
+  apply andb_true_iff in Hfits as [Hfits _].
+  destruct (index_domain (case_index c)) as [n | n]; [ | discriminate Hc ].
+  apply Nat.eqb_eq in Hc, Hfits. subst n. rewrite Hfits, Nat.min_id.
+  apply IH; [ intros id' c' Hin; exact (Hok id' c' (or_intror Hin)) | ].
+  exact Hall.
+Qed.
+
+(* The case answered for cases whose products fit their indexes, and
+   whose shapes are written in the one way, is such a case. *)
+Lemma block_case_join_shape (s s' : state)
+    (cases : list (Index.t * row_like_block_case))
+    (c : row_like_block_case) :
+  (∀ (id : Index.t) (c0 : row_like_block_case),
+     In (id, c0) cases -> block_case_shape_ok c0 = true) ->
+  n_way_join_case join_env_n_way_join_env_extension
+    (n_way_join_int_indexed_product import_type type_eqb n_way_join_rec)
+    Nat.eqb Nat.min (n_way_join_block_shape block_shape_eqb) s cases
+  = Some (Or_bottom.Ok (Or_unknown.Known c, s')) ->
+  block_case_shape_ok c = true.
+Proof.
+  intros Hok Hjoin. unfold n_way_join_case in Hjoin.
+  destruct cases as [ | [id1 c1] rest]; [ discriminate Hjoin | ].
+  destruct
+    (n_way_join_index Nat.eqb Nat.min (n_way_join_block_shape block_shape_eqb)
+       (map (fun case => case_index (snd case)) ((id1, c1) :: rest)))
+    as [ | index | ] eqn:Hindex; try discriminate.
+  destruct
+    (n_way_join_int_indexed_product import_type type_eqb n_way_join_rec s
+       (index_shape index)
+       (map (fun case => (fst case, case_maps_to (snd case)))
+          ((id1, c1) :: rest)))
+    as [[m s1] | ] eqn:Hmaps; [ | discriminate ].
+  cbn in Hjoin.
+  destruct (n_way_join_env_extension join_env_n_way_join_env_extension s1 _)
+    as [[extension s2] | ]; [ | discriminate ].
+  cbn in Hjoin. injection Hjoin as <- _.
+  cbn [map fst snd] in Hmaps, Hindex.
+  apply int_indexed_product_length in Hmaps.
+  assert (Hok1 := Hok id1 c1 (or_introl eq_refl)).
+  assert (Hok_rest :
+    ∀ (id : Index.t) (c0 : row_like_block_case),
+      In (id, c0) rest -> block_case_shape_ok c0 = true).
+  { intros id c0 Hin. exact (Hok id c0 (or_intror Hin)). }
+  assert (Hsize1 := block_case_fits_size c1 Hok1).
+  unfold block_case_shape_ok in Hok1 |- *.
+  apply andb_true_iff in Hok1 as [Hfits1 Hcanonical1].
+  cbn [case_index case_maps_to].
+  unfold n_way_join_index, n_way_join_block_shape in Hindex.
+  cbn [map] in Hindex.
+  destruct (forallb (block_shape_eqb (index_shape (case_index c1))) _);
+    [ | discriminate Hindex ].
+  unfold block_product_fits in Hfits1 |- *.
+  assert (Hat_least :
+    Nat.leb (length m)
+      (List.fold_left
+         (fun i1' i2 =>
+            match index_domain i2 with
+            | Row_like_index_domain.At_least i2'
+            | Row_like_index_domain.Known i2' => Nat.min i1' i2'
+            end)
+         (map (fun case => case_index (snd case)) rest)
+         match index_domain (case_index c1) with
+         | Row_like_index_domain.Known size
+         | Row_like_index_domain.At_least size => size
+         end)
+    = true).
+  { apply Nat.leb_le. rewrite Hmaps.
+    exact (least_length_fits rest Hok_rest _ _ Hsize1). }
+  destruct (index_domain (case_index c1)) as [size1 | size1] eqn:Hdomain1.
+  - destruct (forallb _ (map (fun case => case_index (snd case)) rest))
+      eqn:Hall; injection Hindex as <-; cbn [index_domain index_shape].
+    + rewrite Hcanonical1, andb_true_r. apply Nat.eqb_eq.
+      apply Nat.eqb_eq in Hfits1. rewrite Hmaps, Hfits1.
+      exact (least_length_exact rest size1 Hok_rest Hall).
+    + rewrite Hat_least, Hcanonical1. reflexivity.
+  - injection Hindex as <-. cbn [index_domain index_shape].
+    rewrite Hat_least, Hcanonical1. reflexivity.
+Qed.
+
+Lemma block_knowns_join_shape (s s' : state)
+    (cases : list (Index.t * Or_unknown.t row_like_block_case))
+    (v : Or_unknown.t row_like_block_case) :
+  (∀ (id : Index.t) (v0 : Or_unknown.t row_like_block_case),
+     In (id, v0) cases ->
+     match v0 with
+     | Or_unknown.Known c0 => block_case_shape_ok c0 = true
+     | Or_unknown.Unknown => True
+     end) ->
+  n_way_join_knowns join_env_n_way_join_env_extension
+    (n_way_join_int_indexed_product import_type type_eqb n_way_join_rec)
+    Nat.eqb Nat.min (n_way_join_block_shape block_shape_eqb) s cases
+  = Some (Or_bottom.Ok (v, s')) ->
+  match v with
+  | Or_unknown.Known c => block_case_shape_ok c = true
+  | Or_unknown.Unknown => True
+  end.
+Proof.
+  intros Hok Hjoin. unfold n_way_join_knowns in Hjoin.
+  rewrite all_known_eq in Hjoin.
+  match type of Hjoin with
+  | context [indexed_map_opt ?f cases] =>
+    destruct (indexed_map_opt f cases) as [known | ] eqn:Hknown
+  end.
+  - destruct v as [c | ]; [ | exact I ].
+    apply (block_case_join_shape s s' known c); [ | exact Hjoin ].
+    intros id c0 Hin.
+    destruct (indexed_map_opt_spec _ _ known Hknown) as (_ & _ & Hfrom).
+    destruct (Hfrom id c0 Hin) as ([c' | ] & Heq & Hin');
+      [ injection Heq as <- | discriminate ].
+    exact (Hok id (Or_unknown.Known c') Hin').
+  - injection Hjoin as <- _. exact I.
+Qed.
+
 (* The cases of a row-like structure of blocks that is in scope and
    kinded are. *)
 Lemma blocks_parts_in_scope (use : Typing_env.t)
@@ -4036,13 +4997,14 @@ Proof.
     + intros y Hy. apply Hvariables. apply in_or_app. left.
       apply in_flat_map. exists (key, v). split; [ exact Hv | ].
       destruct v; exact Hy.
-    + intros simple kind Hsimple. apply Haliases. apply in_or_app. left.
+    + intros simple kind Hsimple. apply Haliases. apply in_or_app. right.
+      apply in_or_app. left.
       apply in_flat_map. exists (key, v). split; [ exact Hv | ].
       destruct v; exact Hsimple.
   - intros o ->. split.
     + intros y Hy. apply Hvariables. apply in_or_app. right. exact Hy.
     + intros simple kind Hsimple. apply Haliases. apply in_or_app. right.
-      exact Hsimple.
+      apply in_or_app. right. exact Hsimple.
 Qed.
 
 (* The row-like structures that are not bottom, as the fold of
@@ -4165,7 +5127,10 @@ Proof.
          + assert (Hin' : In (index, blocks) (non_bottom_blocks row_likes))
              by (apply Hkept; split; assumption).
            rewrite Hsplit in Hin'. destruct Hin'.
-       - intros Hk. split; [ exact Hk | intros simple kind [] ]. }
+       - intros Hk. split; [ exact Hk | ]. intros simple kind Hin.
+         simpl in Hin. apply in_app_or in Hin as [Hin | Hin];
+           [ | destruct Hin ].
+         exact (answer_check_passes s _ simple kind (fun _ => eq_refl) Hin). }
   destruct Hsplit as (Hne & -> & ->).
   set (kept := non_bottom_blocks row_likes) in *.
   set (knowns := rev (map known_of_blocks kept)) in *.
@@ -4254,10 +5219,76 @@ Proof.
        Hknowns_sound s s sa knowns known' Hwf Hkinded (grows_refl s) Hvalid
        Hknowns_distinct Hargs_knowns Hmerge)
     as (Hvalida & Hgrowsa & Hka & Hin_known & Hfound & Hnone).
+  assert (Hrow_shapes :
+    with_checks = true ->
+    ∀ (index : Index.t) (blocks : row_like_for_blocks),
+      In (index, blocks) kept ->
+      blocks_shape_ok (row_like_known_tags blocks)
+        (row_like_other_tags blocks)
+      = true).
+  { intros Hchecks index [known_tags other_tags mode] Hin.
+    apply Hkept in Hin as [Hin _].
+    exact (arg_check_passes _ _ s row_likes index
+             (Row_like_for_blocks known_tags other_tags mode) _ Hargs Hin
+             (incl_appl _ (incl_refl _)) Hchecks). }
+  assert (Hothers_shapes :
+    with_checks = true ->
+    ∀ (index : Index.t) (o : row_like_block_case),
+      In (index, o) (non_bottom [] others) -> block_case_shape_ok o = true).
+  { intros Hchecks index o Hin.
+    apply (proj2 (non_bottom_spec others Hothers_distinct)) in Hin.
+    unfold others in Hin. rewrite <- in_rev in Hin.
+    apply in_map_iff in Hin as ([index' blocks] & [= <- Ho] & Hin).
+    specialize (Hrow_shapes Hchecks index' blocks Hin).
+    unfold blocks_shape_ok in Hrow_shapes.
+    apply andb_true_iff in Hrow_shapes as [_ Hrow_shapes].
+    rewrite Ho in Hrow_shapes. exact Hrow_shapes. }
+  assert (Hknown_shape :
+    with_checks = true ->
+    Keyed.distinct Z.eqb (map fst known') = true
+    ∧ ∀ (tag : Z) (v : Or_unknown.t row_like_block_case),
+        Keyed.lookup Z.eqb tag known' = Some v ->
+        match v with
+        | Or_unknown.Known c => block_case_shape_ok c = true
+        | Or_unknown.Unknown => True
+        end).
+  { intros Hchecks.
+    refine
+      (generic_merge_map_known_shape Z.eqb z_eqb_decides_equality
+         Or_unknown.Known _
+         (fun (_ : Z) (v : Or_unknown.t row_like_block_case) =>
+            match v with
+            | Or_unknown.Known c => block_case_shape_ok c = true
+            | Or_unknown.Unknown => True
+            end)
+         s sa knowns known' Hknowns_distinct _ _ Hmerge).
+    - intros key s1 s2 vals v Hjoin Hvals.
+      exact (block_knowns_join_shape s1 s2 vals v Hvals Hjoin).
+    - intros index m Hin. unfold knowns in Hin. rewrite <- in_rev in Hin.
+      apply in_map_iff in Hin as ([index' blocks] & [= <- <-] & Hin).
+      specialize (Hrow_shapes Hchecks index' blocks Hin).
+      unfold blocks_shape_ok in Hrow_shapes.
+      apply andb_true_iff in Hrow_shapes as [Hrow_shapes Hother_ok].
+      apply andb_true_iff in Hrow_shapes as [_ Hcases_ok].
+      cbn [fst snd]. split.
+      + intros key v Hlookup.
+        apply (keyed_for_all_bindings_b Z Z.eqb z_eqb_decides_equality)
+          in Hcases_ok.
+        assert (Hv :=
+          proj1 (keyed_for_all_bindings_lookup Z Z.eqb z_eqb_decides_equality
+                   _ _ _)
+            Hcases_ok key v Hlookup).
+        destruct v; [ exact Hv | exact I ].
+      + intros o key Ho. rewrite Ho in Hother_ok. exact Hother_ok. }
   assert (Hfinal :
     ∀ (other' : Or_bottom.t row_like_block_case) (sb : state),
       state_valid sb -> grows sa sb ->
       (state_kinded sa -> state_kinded sb) ->
+      (with_checks = true ->
+       match other' with
+       | Or_bottom.Ok c => block_case_shape_ok c = true
+       | Or_bottom.Bottom => True
+       end) ->
       match other' with
       | Or_bottom.Ok c =>
         answer_holds_from (of_known block_case_variables)
@@ -4283,7 +5314,7 @@ Proof.
          ∧ kinded_in_target (of_known kinds_of_blocks) sb
              (Or_unknown.Known
                 (Row_like_for_blocks known' other' alloc_mode)))).
-  { intros other' sb Hvalidb Hgrowsb Hkb Hother'.
+  { intros other' sb Hvalidb Hgrowsb Hkb Hother_shape Hother'.
     split; [ exact Hvalidb | ].
     split; [ exact (grows_trans _ _ _ Hgrowsa Hgrowsb) | ].
     split; [ | split ].
@@ -4349,6 +5380,17 @@ Proof.
     - intros Hk. split; [ exact (Hkb (Hka Hk)) | ].
       intros simple kind Hsimple. cbn [of_known] in Hsimple.
       simpl in Hsimple. apply in_app_or in Hsimple as [Hsimple | Hsimple].
+      { refine (answer_check_passes sb _ simple kind _ Hsimple).
+        intros Hchecks. destruct (Hknown_shape Hchecks) as [Hdistinct' Hcases'].
+        unfold blocks_shape_ok. rewrite !andb_true_iff.
+        split; [ split; [ exact Hdistinct' | ] | ].
+        - apply (keyed_for_all_bindings_b Z Z.eqb z_eqb_decides_equality).
+          apply (keyed_for_all_bindings_lookup Z Z.eqb z_eqb_decides_equality).
+          intros tag v Hlookup. specialize (Hcases' tag v Hlookup).
+          destruct v; [ exact Hcases' | reflexivity ].
+        - specialize (Hother_shape Hchecks).
+          destruct other'; [ exact Hother_shape | reflexivity ]. }
+      apply in_app_or in Hsimple as [Hsimple | Hsimple].
       + apply in_flat_map in Hsimple as ([key y] & Hin & Hsimple).
         cbn [snd] in Hsimple.
         destruct (Hfound key y (Hin_known key y Hin)) as (vals & _ & Hholds).
@@ -4371,7 +5413,12 @@ Proof.
     unfold or_unknown_map in Hstep; cbn [fst snd] in Hstep.
   all: injection Hstep as <- <-.
   - destruct Hresult as (Hvalidb & Hgrowsb & Hkb & Hholds).
-    exact (Hfinal (Or_bottom.Ok c) sb Hvalidb Hgrowsb Hkb Hholds).
+    exact
+      (Hfinal (Or_bottom.Ok c) sb Hvalidb Hgrowsb Hkb
+         (fun Hchecks =>
+            block_case_join_shape sa sb (non_bottom [] others) c
+              (Hothers_shapes Hchecks) Hother)
+         Hholds).
   - destruct Hresult as (Hvalidb & Hgrowsb & Hkb & _).
     split; [ exact Hvalidb | ].
     split; [ exact (grows_trans _ _ _ Hgrowsa Hgrowsb) | ].
@@ -4379,12 +5426,533 @@ Proof.
     intros Hk. split; [ exact (Hkb (Hka Hk)) | intros simple kind [] ].
   - exact
       (Hfinal Or_bottom.Bottom sa Hvalida (grows_refl sa) (fun H => H)
-         Hresult).
+         (fun _ => I) Hresult).
 Qed.
 
 (* ------------------------------------------------------------------------ *)
 (* Row-like structures of closures                                          *)
 (* ------------------------------------------------------------------------ *)
+
+(* ------------------------------------------------------------------------ *)
+(* The shape of the cases of closures that are answered                     *)
+(* ------------------------------------------------------------------------ *)
+
+(* What is gathered binds a slot when every product does. *)
+Lemma gather_components_bound {A : Type} (g : positive)
+    (products : list (Index.t * finite_map A)) :
+  products <> [] ->
+  is_bound g (gather_components products) = true
+  <-> ∀ (id : Index.t) (product : finite_map A),
+        In (id, product) products -> is_bound g product = true.
+Proof.
+  destruct products as [ | [id1 p1] rest]; intros Hne;
+    [ destruct (Hne eq_refl) | clear Hne ].
+  unfold is_bound, gather_components.
+  rewrite gather_components_fold, lookup_map_values.
+  destruct (lookup g p1) as [v | ] eqn:Hv; cbn [option_map].
+  - assert (Hrest :
+      (∃ r, indexed_map_opt (fun _ product => lookup g product) rest = Some r)
+      <-> ∀ (id : Index.t) (product : finite_map A),
+            In (id, product) rest ->
+            match lookup g product with
+            | Some _ => true
+            | None => false
+            end
+            = true).
+    { clear Hv. induction rest as [ | [id2 p2] rest IH]; simpl.
+      - split; [ intros _ id product [] | intros _; exists []; reflexivity ].
+      - destruct (lookup g p2) as [v2 | ] eqn:Hv2.
+        + destruct (indexed_map_opt (fun _ product => lookup g product) rest)
+            as [r | ].
+          * split; [ | intros _; eexists; reflexivity ].
+            intros _ id product [[= <- <-] | Hin];
+              [ rewrite Hv2; reflexivity | ].
+            exact (proj1 IH (ex_intro _ r eq_refl) id product Hin).
+          * split; [ intros [r' [=]] | ]. intros Hall.
+            destruct (proj2 IH (fun id product Hin =>
+                                  Hall id product (or_intror Hin)))
+              as [r' [=]].
+        + split; [ intros [r' [=]] | ]. intros Hall.
+          specialize (Hall id2 p2 (or_introl eq_refl)). rewrite Hv2 in Hall.
+          discriminate Hall. }
+    destruct (indexed_map_opt (fun _ product => lookup g product) rest)
+      as [r | ].
+    + split; [ | reflexivity ].
+      intros _ id product [[= <- <-] | Hin]; [ rewrite Hv; reflexivity | ].
+      exact (proj1 Hrest (ex_intro _ r eq_refl) id product Hin).
+    + split; [ discriminate | ]. intros Hall.
+      destruct (proj2 Hrest (fun id product Hin =>
+                               Hall id product (or_intror Hin)))
+        as [r' [=]].
+  - split; [ discriminate | ]. intros Hall.
+    specialize (Hall id1 p1 (or_introl eq_refl)). rewrite Hv in Hall.
+    discriminate Hall.
+Qed.
+
+(* It binds no slot twice, if no product does. *)
+Lemma gather_components_keys {A : Type}
+    (products : list (Index.t * finite_map A)) :
+  (∀ (id : Index.t) (product : finite_map A),
+     In (id, product) products -> distinct (keys product) = true) ->
+  distinct (keys (gather_components products)) = true.
+Proof.
+  destruct products as [ | [id1 p1] rest]; intros Hdistinct; [ reflexivity | ].
+  unfold gather_components.
+  assert (Hfirst :
+    distinct (keys (map_values (fun val1 : A => [(id1, val1)]) p1)) = true).
+  { unfold keys, map_values. rewrite map_map.
+    exact (Hdistinct id1 p1 (or_introl eq_refl)). }
+  clear Hdistinct. revert Hfirst.
+  generalize (map_values (fun val1 : A => [(id1, val1)]) p1).
+  induction rest as [ | [id2 p2] rest IH]; intros acc Hacc; simpl;
+    [ exact Hacc | ].
+  apply IH. unfold merge, keys. apply tabulate_distinct. apply dedup_distinct.
+Qed.
+
+(* The product answered binds no slot twice, and the slots that it
+   binds, every product given binds. *)
+Lemma generic_product_keys (s s' : state)
+    (products : list (Index.t * finite_map flambda_type))
+    (out : finite_map flambda_type) :
+  n_way_join_generic_product n_way_join_rec s products = Some (out, s') ->
+  distinct (keys out) = true
+  ∧ ∀ g : positive,
+      is_bound g out = true ->
+      ∀ (id : Index.t) (product : finite_map flambda_type),
+        In (id, product) products -> is_bound g product = true.
+Proof.
+  unfold n_way_join_generic_product.
+  destruct products as [ | p0 rest] eqn:Hproducts.
+  - intros [= <- _]. split; [ reflexivity | intros g [=] ].
+  - rewrite <- Hproducts. intros Hfold.
+    unfold Keyed.filter_map_fold, Keyed.filter_map_fold_on in Hfold.
+    destruct
+      (tabulate_fold_opt_keys Pos.eqb _ _ s out s'
+         (keyed_domain_distinct positive Pos.eqb pos_eqb_decides_equality _ _)
+         Hfold)
+      as [Hdistinct Hsub].
+    split; [ exact Hdistinct | ].
+    intros g Hg. rewrite is_bound_among in Hg. specialize (Hsub g Hg).
+    rewrite (keyed_among_domain positive Pos.eqb pos_eqb_decides_equality)
+      in Hsub.
+    apply (gather_components_bound g products); [ | exact Hsub ].
+    rewrite Hproducts. discriminate.
+Qed.
+
+(* The contents that an intersection of indexes has. *)
+Lemma closures_inter_among (g : positive)
+    (rest : list (row_like_index set_of_closures_contents unit)) :
+  ∀ contents : set_of_closures_contents,
+    let inter :=
+      List.fold_left
+        (fun i1' i2 =>
+           match index_domain i2 with
+           | Row_like_index_domain.At_least i2'
+           | Row_like_index_domain.Known i2' =>
+             set_of_closures_contents_inter i1' i2'
+           end)
+        rest contents
+    in
+    among g (contents_closures inter)
+    = among g (contents_closures contents)
+      && forallb
+           (fun i => among g (contents_closures (closures_index_contents i)))
+           rest
+    ∧ among g (contents_value_slots inter)
+      = among g (contents_value_slots contents)
+        && forallb
+             (fun i =>
+                among g (contents_value_slots (closures_index_contents i)))
+             rest.
+Proof.
+  induction rest as [ | i rest IH]; intros contents; cbv zeta; simpl.
+  - rewrite !andb_true_r. split; reflexivity.
+  - destruct (IH (match index_domain i with
+                  | Row_like_index_domain.At_least i2'
+                  | Row_like_index_domain.Known i2' =>
+                    set_of_closures_contents_inter contents i2'
+                  end)) as [Hc Hv].
+    cbv zeta in Hc, Hv. rewrite Hc, Hv. unfold closures_index_contents.
+    destruct (index_domain i) as [c | c]; simpl;
+      rewrite !(keyed_among_inter positive Pos.eqb pos_eqb_decides_equality),
+        !andb_assoc;
+      split; reflexivity.
+Qed.
+
+(* The index answered for indexes of closures: its contents are those
+   that every index has, and if it is exact so is every index, with
+   the same closures. *)
+Lemma closures_index_join_shape
+    (i1 : row_like_index set_of_closures_contents unit)
+    (rest : list (row_like_index set_of_closures_contents unit))
+    (index : row_like_index set_of_closures_contents unit) :
+  n_way_join_index set_of_closures_contents_equal
+    set_of_closures_contents_inter (fun _ => Ok tt) (i1 :: rest)
+  = Ok index ->
+  (∀ g : positive,
+     (∀ i : row_like_index set_of_closures_contents unit,
+        In i (i1 :: rest) ->
+        among g (contents_closures (closures_index_contents i)) = true) ->
+     among g (contents_closures (closures_index_contents index)) = true)
+  ∧ (∀ g : positive,
+       (∀ i : row_like_index set_of_closures_contents unit,
+          In i (i1 :: rest) ->
+          among g (contents_value_slots (closures_index_contents i)) = true) ->
+       among g (contents_value_slots (closures_index_contents index)) = true)
+  ∧ ∀ contents : set_of_closures_contents,
+      index_domain index = Row_like_index_domain.Known contents ->
+      ∀ i : row_like_index set_of_closures_contents unit,
+        In i (i1 :: rest) ->
+        ∃ contents' : set_of_closures_contents,
+          index_domain i = Row_like_index_domain.Known contents'
+          ∧ same_names (contents_closures contents)
+              (contents_closures contents').
+Proof.
+  unfold n_way_join_index. cbv beta.
+  assert (Hat_least :
+    ∀ c1 : set_of_closures_contents,
+      closures_index_contents i1 = c1 ->
+      ∀ contents : set_of_closures_contents,
+        contents
+        = List.fold_left
+            (fun i1' i2 =>
+               match index_domain i2 with
+               | Row_like_index_domain.At_least i2'
+               | Row_like_index_domain.Known i2' =>
+                 set_of_closures_contents_inter i1' i2'
+               end)
+            rest c1 ->
+        (∀ g : positive,
+           (∀ i : row_like_index set_of_closures_contents unit,
+              In i (i1 :: rest) ->
+              among g (contents_closures (closures_index_contents i)) = true) ->
+           among g (contents_closures contents) = true)
+        ∧ (∀ g : positive,
+             (∀ i : row_like_index set_of_closures_contents unit,
+                In i (i1 :: rest) ->
+                among g (contents_value_slots (closures_index_contents i))
+                = true) ->
+             among g (contents_value_slots contents) = true)).
+  { intros c1 Hc1 contents ->.
+    split; intros g Hall;
+      [ rewrite (proj1 (closures_inter_among g rest c1))
+      | rewrite (proj2 (closures_inter_among g rest c1)) ];
+      apply andb_true_iff;
+      (split;
+       [ rewrite <- Hc1; exact (Hall i1 (or_introl eq_refl))
+       | apply forallb_forall; intros i Hi; exact (Hall i (or_intror Hi)) ]). }
+  destruct (index_domain i1) as [c1 | c1] eqn:H1.
+  - destruct (forallb _ rest) eqn:Hall; intros [= <-]; cbn [index_domain].
+    + unfold closures_index_contents at 2 4. cbn [index_domain].
+      split; [ | split ].
+      * intros g Hg. specialize (Hg i1 (or_introl eq_refl)).
+        unfold closures_index_contents in Hg. rewrite H1 in Hg. exact Hg.
+      * intros g Hg. specialize (Hg i1 (or_introl eq_refl)).
+        unfold closures_index_contents in Hg. rewrite H1 in Hg. exact Hg.
+      * intros contents [= <-] i [<- | Hi].
+        -- exists c1. split; [ exact H1 | intros name; reflexivity ].
+        -- rewrite forallb_forall in Hall. specialize (Hall i Hi).
+           destruct (index_domain i) as [c | c]; [ | discriminate Hall ].
+           exists c. split; [ reflexivity | ].
+           unfold set_of_closures_contents_equal in Hall.
+           apply andb_true_iff in Hall as [Hall _].
+           exact (proj1 (keyed_same_keys_b positive Pos.eqb
+                           pos_eqb_decides_equality _ _) Hall).
+    + destruct (Hat_least c1) with (contents := List.fold_left
+            (fun i1' i2 =>
+               match index_domain i2 with
+               | Row_like_index_domain.At_least i2'
+               | Row_like_index_domain.Known i2' =>
+                 set_of_closures_contents_inter i1' i2'
+               end)
+            rest c1) as [Hc Hv];
+        [ unfold closures_index_contents; rewrite H1; reflexivity
+        | reflexivity | ].
+      split; [ exact Hc | ]. split; [ exact Hv | intros contents [=] ].
+  - intros [= <-]. cbn [index_domain].
+    destruct (Hat_least c1) with (contents := List.fold_left
+            (fun i1' i2 =>
+               match index_domain i2 with
+               | Row_like_index_domain.At_least i2'
+               | Row_like_index_domain.Known i2' =>
+                 set_of_closures_contents_inter i1' i2'
+               end)
+            rest c1) as [Hc Hv];
+      [ unfold closures_index_contents; rewrite H1; reflexivity
+      | reflexivity | ].
+    split; [ exact Hc | ]. split; [ exact Hv | intros contents [=] ].
+Qed.
+
+(* The entry answered for entries: no map of it binds a slot twice,
+   its closure types are of kind value, and the slots that its maps
+   bind are bound by the same map of every entry. For the function
+   types, those are all of them. *)
+Lemma closures_entry_join_slots (s s' : state)
+    (entries : list (Index.t * closures_entry)) (entry : closures_entry) :
+  entries <> [] ->
+  n_way_join_closures_entry n_way_join_rec s entries = Some (entry, s') ->
+  (∀ (id : Index.t) (e : closures_entry),
+     In (id, e) entries ->
+     distinct (keys (closures_entry_function_types e)) = true) ->
+  distinct (keys (closures_entry_function_types entry)) = true
+  ∧ distinct (keys (closures_entry_closure_types entry)) = true
+  ∧ distinct (keys (closures_entry_value_slot_types entry)) = true
+  ∧ for_all_bindings_b (fun _ ty => kind_eqb (kind ty) Value)
+      (closures_entry_closure_types entry)
+    = true
+  ∧ (∀ g : function_slot,
+       is_bound g (closures_entry_function_types entry) = true
+       <-> ∀ (id : Index.t) (e : closures_entry),
+             In (id, e) entries ->
+             is_bound g (closures_entry_function_types e) = true)
+  ∧ (∀ g : function_slot,
+       is_bound g (closures_entry_closure_types entry) = true ->
+       ∀ (id : Index.t) (e : closures_entry),
+         In (id, e) entries ->
+         is_bound g (closures_entry_closure_types e) = true)
+  ∧ ∀ w : value_slot,
+      is_bound w (closures_entry_value_slot_types entry) = true ->
+      ∀ (id : Index.t) (e : closures_entry),
+        In (id, e) entries ->
+        is_bound w (closures_entry_value_slot_types e) = true.
+Proof.
+  intros Hne Hjoin Hdistinct. unfold n_way_join_closures_entry in Hjoin.
+  cbv zeta in Hjoin.
+  destruct (n_way_join_function_slot_indexed_product _ _ _)
+    as [[closure_types s1] | ] eqn:Hclosures; [ | discriminate ].
+  cbn in Hjoin.
+  destruct (n_way_join_value_slot_indexed_product _ _ _)
+    as [[value_slot_types s2] | ] eqn:Hvalue_slots; [ | discriminate ].
+  cbn in Hjoin. injection Hjoin as <- _.
+  cbn [closures_entry_function_types closures_entry_closure_types
+         closures_entry_value_slot_types].
+  unfold n_way_join_function_slot_indexed_product in Hclosures.
+  destruct (n_way_join_generic_product _ _ _) as [[components s3] | ]
+    eqn:Hcomponents; [ | discriminate ].
+  cbn in Hclosures.
+  destruct (for_all_bindings_b _ components) eqn:Hkinds; [ | discriminate ].
+  injection Hclosures as <- _.
+  unfold n_way_join_value_slot_indexed_product in Hvalue_slots.
+  destruct (generic_product_keys _ _ _ _ Hcomponents) as [Hdc Hbc].
+  destruct (generic_product_keys _ _ _ _ Hvalue_slots) as [Hdv Hbv].
+  split.
+  { unfold n_way_join_function_types, keys, map_values. rewrite map_map.
+    apply (gather_components_keys (A := Or_unknown.t function_type)).
+    intros id m Hin. apply in_map_iff in Hin as ([id' e] & [= <- <-] & Hin).
+    exact (Hdistinct id' e Hin). }
+  split; [ exact Hdc | ]. split; [ exact Hdv | ]. split; [ exact Hkinds | ].
+  split; [ | split ].
+  - intros g.
+    assert (Hbound :
+      is_bound g
+        (n_way_join_function_types
+           (map
+              (fun entry =>
+                 (fst entry, closures_entry_function_types (snd entry)))
+              entries))
+      = is_bound g
+          (gather_components
+             (map
+                (fun entry =>
+                   (fst entry, closures_entry_function_types (snd entry)))
+                entries))).
+    { unfold n_way_join_function_types, is_bound.
+      rewrite lookup_map_values.
+      change (gather_function_types ?l) with (gather_components l).
+      destruct (lookup g _); reflexivity. }
+    rewrite Hbound, gather_components_bound;
+      [ | destruct entries; [ destruct (Hne eq_refl) | discriminate ] ].
+    split.
+    + intros Hall id e Hin.
+      exact
+        (Hall id (closures_entry_function_types e)
+           (in_map
+              (fun entry =>
+                 (fst entry, closures_entry_function_types (snd entry)))
+              entries (id, e) Hin)).
+    + intros Hall id m Hin.
+      apply in_map_iff in Hin as ([id' e] & [= <- <-] & Hin).
+      exact (Hall id' e Hin).
+  - intros g Hg id e Hin. apply (Hbc g Hg id). rewrite <- in_rev.
+    exact
+      (in_map
+         (fun entry => (fst entry, closures_entry_closure_types (snd entry)))
+         entries (id, e) Hin).
+  - intros w Hw id e Hin. apply (Hbv w Hw id). rewrite <- in_rev.
+    exact
+      (in_map
+         (fun entry =>
+            (fst entry, closures_entry_value_slot_types (snd entry)))
+         entries (id, e) Hin).
+Qed.
+
+(* A case of closures under a function slot: conditions 5, 8 and 9. *)
+Definition closures_case_shape_ok (slot : function_slot)
+    (case : row_like_closures_case) : bool :=
+  closures_index_has_slot slot (case_index case)
+  && closures_entry_shape_ok (case_index case) (case_maps_to case).
+
+(* The case answered for such cases is such a case. *)
+Lemma closures_case_join_shape (slot : function_slot) (s s' : state)
+    (cases : list (Index.t * row_like_closures_case))
+    (c : row_like_closures_case) :
+  (∀ (id : Index.t) (c0 : row_like_closures_case),
+     In (id, c0) cases -> closures_case_shape_ok slot c0 = true) ->
+  n_way_join_case join_env_n_way_join_env_extension
+    (fun env (_ : unit) entries =>
+       n_way_join_closures_entry n_way_join_rec env entries)
+    set_of_closures_contents_equal set_of_closures_contents_inter
+    (fun _ => Ok tt) s cases
+  = Some (Or_bottom.Ok (Or_unknown.Known c, s')) ->
+  closures_case_shape_ok slot c = true.
+Proof.
+  intros Hok Hjoin. unfold n_way_join_case in Hjoin.
+  destruct cases as [ | [id1 c1] rest]; [ discriminate Hjoin | ].
+  set (cases := (id1, c1) :: rest) in *.
+  destruct
+    (n_way_join_index set_of_closures_contents_equal
+       set_of_closures_contents_inter (fun _ => Ok tt)
+       (map (fun case => case_index (snd case)) cases))
+    as [ | index | ] eqn:Hindex; try discriminate.
+  destruct
+    (n_way_join_closures_entry n_way_join_rec s
+       (map (fun case => (fst case, case_maps_to (snd case))) cases))
+    as [[entry s1] | ] eqn:Hentry; [ | discriminate ].
+  cbn in Hjoin.
+  destruct (n_way_join_env_extension join_env_n_way_join_env_extension s1 _)
+    as [[extension s2] | ]; [ | discriminate ].
+  cbn in Hjoin. injection Hjoin as <- _.
+  (* What the cases given have. *)
+  assert (Hcases :
+    ∀ (id : Index.t) (c0 : row_like_closures_case),
+      In (id, c0) cases ->
+      closures_index_has_slot slot (case_index c0) = true
+      ∧ closures_entry_slots_fit (case_index c0)
+          (domain (closures_entry_function_types (case_maps_to c0)))
+          (domain (closures_entry_closure_types (case_maps_to c0)))
+          (domain (closures_entry_value_slot_types (case_maps_to c0)))
+        = true
+      ∧ distinct (keys (closures_entry_function_types (case_maps_to c0)))
+        = true).
+  { intros id c0 Hin. specialize (Hok id c0 Hin).
+    unfold closures_case_shape_ok in Hok.
+    apply andb_true_iff in Hok as [Hslot Hentry0]. split; [ exact Hslot | ].
+    unfold closures_entry_shape_ok in Hentry0.
+    destruct (case_maps_to c0) as [ft ct vt].
+    rewrite !andb_true_iff in Hentry0.
+    destruct Hentry0 as [[[[Hfit Hd] _] _] _].
+    split; [ exact Hfit | exact Hd ]. }
+  assert (Hin_indexes :
+    ∀ i : row_like_index set_of_closures_contents unit,
+      In i (map (fun case => case_index (snd case)) cases) ->
+      ∃ (id : Index.t) (c0 : row_like_closures_case),
+        In (id, c0) cases ∧ i = case_index c0).
+  { intros i Hi. apply in_map_iff in Hi as ([id c0] & <- & Hin).
+    exists id, c0. split; [ exact Hin | reflexivity ]. }
+  assert (Hin_entries :
+    ∀ (id : Index.t) (c0 : row_like_closures_case),
+      In (id, c0) cases ->
+      In (id, case_maps_to c0)
+        (map (fun case => (fst case, case_maps_to (snd case))) cases)).
+  { intros id c0 Hin.
+    exact
+      (in_map (fun case => (fst case, case_maps_to (snd case))) cases
+         (id, c0) Hin). }
+  destruct (closures_index_join_shape _ _ _ Hindex)
+    as (Hclosures & Hvalue_slots & Hexact).
+  assert (Hne :
+    map (fun case => (fst case, case_maps_to (snd case))) cases <> []).
+  { unfold cases. discriminate. }
+  destruct (closures_entry_join_slots s s1 _ entry Hne Hentry)
+    as (Hdf & Hdc & Hdv & Hkinds & Hbf & Hbc & Hbv).
+  { intros id e Hin. apply in_map_iff in Hin as ([id' c0] & [= <- <-] & Hin).
+    exact (proj2 (proj2 (Hcases id' c0 Hin))). }
+  unfold closures_case_shape_ok. cbn [case_index case_maps_to].
+  apply andb_true_iff. split.
+  { unfold closures_index_has_slot.
+    destruct (index_domain index) as [contents | contents] eqn:Hdomain;
+      [ | reflexivity ].
+    destruct (Hexact contents eq_refl (case_index c1) (or_introl eq_refl))
+      as (contents1 & H1 & Hsame).
+    rewrite (Hsame slot).
+    assert (Hslot := proj1 (Hcases id1 c1 (or_introl eq_refl))).
+    unfold closures_index_has_slot in Hslot. rewrite H1 in Hslot.
+    exact Hslot. }
+  unfold closures_entry_shape_ok. destruct entry as [ft ct vt].
+  cbn [closures_entry_function_types closures_entry_closure_types
+         closures_entry_value_slot_types] in *.
+  rewrite Hdf, Hdc, Hdv, Hkinds, !andb_true_r.
+  unfold closures_entry_slots_fit. rewrite !andb_true_iff.
+  split; [ split; [ split | ] | ].
+  - apply all_among. intros g Hg. rewrite among_domain in Hg.
+    apply Hclosures. intros i Hi.
+    destruct (Hin_indexes i Hi) as (id & c0 & Hin & ->).
+    destruct (Hcases id c0 Hin) as (_ & Hfit & _).
+    unfold closures_entry_slots_fit in Hfit. rewrite !andb_true_iff in Hfit.
+    destruct Hfit as [[[Hfit _] _] _].
+    apply (proj1 (all_among _ _) Hfit g). rewrite among_domain.
+    exact (proj1 (Hbf g) Hg id (case_maps_to c0) (Hin_entries id c0 Hin)).
+  - apply all_among. intros g Hg. rewrite among_domain in Hg.
+    apply Hclosures. intros i Hi.
+    destruct (Hin_indexes i Hi) as (id & c0 & Hin & ->).
+    destruct (Hcases id c0 Hin) as (_ & Hfit & _).
+    unfold closures_entry_slots_fit in Hfit. rewrite !andb_true_iff in Hfit.
+    destruct Hfit as [[[_ Hfit] _] _].
+    apply (proj1 (all_among _ _) Hfit g). rewrite among_domain.
+    exact (Hbc g Hg id (case_maps_to c0) (Hin_entries id c0 Hin)).
+  - apply all_among. intros w Hw. rewrite among_domain in Hw.
+    apply Hvalue_slots. intros i Hi.
+    destruct (Hin_indexes i Hi) as (id & c0 & Hin & ->).
+    destruct (Hcases id c0 Hin) as (_ & Hfit & _).
+    unfold closures_entry_slots_fit in Hfit. rewrite !andb_true_iff in Hfit.
+    destruct Hfit as [[_ Hfit] _].
+    apply (proj1 (all_among _ _) Hfit w). rewrite among_domain.
+    exact (Hbv w Hw id (case_maps_to c0) (Hin_entries id c0 Hin)).
+  - destruct (index_domain index) as [contents | contents] eqn:Hdomain;
+      [ | reflexivity ].
+    apply all_among. intros g Hg. rewrite among_domain.
+    apply (proj2 (Hbf g)). intros id e Hin.
+    apply in_map_iff in Hin as ([id' c0] & [= <- <-] & Hin).
+    destruct
+      (Hexact contents eq_refl (case_index c0)
+         (in_map (fun case => case_index (snd case)) cases (id', c0) Hin))
+      as (contents0 & H0 & Hsame).
+    destruct (Hcases id' c0 Hin) as (_ & Hfit & _).
+    unfold closures_entry_slots_fit in Hfit. rewrite !andb_true_iff in Hfit.
+    destruct Hfit as [_ Hfit]. rewrite H0 in Hfit.
+    rewrite <- among_domain. apply (proj1 (all_among _ _) Hfit g).
+    rewrite <- (Hsame g). exact Hg.
+Qed.
+
+Lemma closures_knowns_join_shape (slot : function_slot) (s s' : state)
+    (cases : list (Index.t * row_like_closures_case))
+    (c : row_like_closures_case) :
+  (∀ (id : Index.t) (c0 : row_like_closures_case),
+     In (id, c0) cases -> closures_case_shape_ok slot c0 = true) ->
+  n_way_join_knowns join_env_n_way_join_env_extension
+    (fun env (_ : unit) entries =>
+       n_way_join_closures_entry n_way_join_rec env entries)
+    set_of_closures_contents_equal set_of_closures_contents_inter
+    (fun _ => Ok tt) s
+    (map (fun case => (fst case, Or_unknown.Known (snd case))) cases)
+  = Some (Or_bottom.Ok (Or_unknown.Known c, s')) ->
+  closures_case_shape_ok slot c = true.
+Proof.
+  intros Hok Hjoin. unfold n_way_join_knowns in Hjoin.
+  rewrite all_known_eq in Hjoin.
+  match type of Hjoin with
+  | context [indexed_map_opt ?f ?l] =>
+    destruct (indexed_map_opt f l) as [known | ] eqn:Hknown
+  end.
+  - apply (closures_case_join_shape slot s s' known c); [ | exact Hjoin ].
+    intros id c0 Hin.
+    destruct (indexed_map_opt_spec _ _ known Hknown) as (_ & _ & Hfrom).
+    destruct (Hfrom id c0 Hin) as ([c' | ] & Heq & Hin');
+      [ injection Heq as <- | discriminate ].
+    apply in_map_iff in Hin' as ([id' c0'] & [= <- <-] & Hin').
+    exact (Hok id' c0' Hin').
+  - discriminate Hjoin.
+Qed.
 
 Definition closures_index_holds (w : closure_and_set)
     (index : row_like_index set_of_closures_contents unit) : Prop :=
@@ -4594,8 +6162,47 @@ Proof.
     split.
     - intros y Hy. apply Hvariables. simpl. apply in_flat_map.
       exists (key, c). split; [ exact Hc | exact Hy ].
-    - intros simple kind Hsimple. apply Haliases. simpl. apply in_flat_map.
+    - intros simple kind Hsimple. apply Haliases. simpl. apply in_or_app.
+      right. apply in_flat_map.
       exists (key, c). split; [ exact Hc | exact Hsimple ]. }
+  assert (Hknown_shape :
+    with_checks = true ->
+    Keyed.distinct Pos.eqb (map fst known') = true
+    ∧ ∀ (slot : positive) (c : row_like_closures_case),
+        Keyed.lookup Pos.eqb slot known' = Some c ->
+        closures_case_shape_ok slot c = true).
+  { intros Hchecks.
+    refine
+      (generic_merge_map_known_shape Pos.eqb pos_eqb_decides_equality
+         (fun case : row_like_closures_case => case) join
+         (fun (slot : positive) (c : row_like_closures_case) =>
+            closures_case_shape_ok slot c = true)
+         s sa knowns known' Hknowns_distinct _ _ Hmerge).
+    - intros slot s1 s2 vals v Hjoin Hvals. unfold join in Hjoin.
+      cbv beta zeta in Hjoin.
+      match type of Hjoin with
+      | context [n_way_join_knowns ?a ?b ?c ?d ?e s1 ?l] =>
+        destruct (n_way_join_knowns a b c d e s1 l) as [[[[c0 | ] s3] | ] | ]
+          eqn:Hknowns; try discriminate
+      end.
+      cbv beta iota in Hjoin. injection Hjoin as <- _.
+      exact (closures_knowns_join_shape slot s1 s3 vals c0 Hvals Hknowns).
+    - intros index m Hin. unfold knowns in Hin. rewrite <- in_rev in Hin.
+      apply in_map_iff in Hin as ([index' [known_closures]] & [= <- <-] & Hin).
+      cbn [fst snd row_like_known_closures]. split; [ | intros o key [=] ].
+      intros slot c Hlookup.
+      assert (Hrow_shape :=
+        arg_check_passes _ _ s closures index'
+          (Row_like_for_closures known_closures) _ Hargs Hin
+          (incl_appl _ (incl_refl _)) Hchecks).
+      unfold closures_shape_ok in Hrow_shape.
+      apply andb_true_iff in Hrow_shape as [_ Hrow_shape].
+      apply (keyed_for_all_bindings_b positive Pos.eqb
+               pos_eqb_decides_equality) in Hrow_shape.
+      exact
+        (proj1 (keyed_for_all_bindings_lookup positive Pos.eqb
+                  pos_eqb_decides_equality _ _ _)
+           Hrow_shape slot c Hlookup). }
   destruct
     (generic_merge_map_known_is_sound Pos.eqb pos_eqb_decides_equality
        (fun case : row_like_closures_case => case) closures_case_variables
@@ -4643,6 +6250,16 @@ Proof.
       discriminate (eq_trans (eq_sym Hv) Hc).
   - intros Hk. split; [ exact (Hka Hk) | ].
     intros simple kind Hsimple. simpl in Hsimple.
+    apply in_app_or in Hsimple as [Hsimple | Hsimple].
+    { refine (answer_check_passes sa _ simple kind _ Hsimple).
+      intros Hchecks. destruct (Hknown_shape Hchecks) as [Hdistinct' Hcases'].
+      unfold closures_shape_ok. apply andb_true_iff.
+      split; [ exact Hdistinct' | ].
+      apply (keyed_for_all_bindings_b positive Pos.eqb
+               pos_eqb_decides_equality).
+      apply (keyed_for_all_bindings_lookup positive Pos.eqb
+               pos_eqb_decides_equality).
+      intros slot c Hlookup. exact (Hcases' slot c Hlookup). }
     apply in_flat_map in Hsimple as ([key y] & Hin & Hsimple).
     cbn [snd] in Hsimple.
     destruct (Hfound key y (Hin_known key y Hin)) as (vals & _ & Hholds).
@@ -4719,7 +6336,8 @@ Lemma n_way_join_variant_is_sound (s s1 s2 : state)
        (of_known kinds_of_blocks))
     s blocks ->
   args_in_scope
-    (arg_ok (of_known free_variables) (of_known kinds)) s imms ->
+    (arg_ok (of_known free_variables) (of_known kinds_of_immediates)) s
+    imms ->
   args_in_scope (arg_ok variables_of_extensions aliases_of_extensions) s
     extensions ->
   n_way_join_variant import_type join_env_n_way_join_env_extension type_eqb
@@ -4733,7 +6351,7 @@ Lemma n_way_join_variant_is_sound (s s1 s2 : state)
         (of_known kinds_of_blocks) blocks_bound s1 s2 blocks
         blocks'
       ∧ answer_holds_from (of_known free_variables)
-          (of_known kinds) immediates_bound s1 s2 imms imms'
+          (of_known kinds_of_immediates) immediates_bound s1 s2 imms imms'
       ∧ answer_holds_from variables_of_extensions aliases_of_extensions
           extensions_bound s1 s2 extensions extensions'.
 Proof.
@@ -4758,7 +6376,9 @@ Proof.
     as (Hvalida & Hgrowsa & Hka & Hholds_blocks).
   destruct
     (step_sound_at _ _ _ _ _ _
-       (n_way_join_unknown_is_sound _ _ _ _ _ _ _ _ Hrec) s sa sb imms imms'
+       (n_way_join_unknown_is_sound _ _ _ _ _ _ _ _
+          (Hrec_at (Naked_number Kind_naked_immediate)))
+       s sa sb imms imms'
        Hwf Hkinded (grows_trans _ _ _ Hgrows Hgrowsa) Hvalida Hd_imms
        Hargs_imms Himms)
     as (Hvalidb & Hgrowsb & Hkb & Hholds_imms).
@@ -4783,7 +6403,7 @@ Proof.
             (of_known kinds_of_blocks) blocks_bound s1 s2
             blocks blocks''
           ∧ answer_holds_from (of_known free_variables)
-              (of_known kinds) immediates_bound s1 s2 imms
+              (of_known kinds_of_immediates) immediates_bound s1 s2 imms
               imms''
           ∧ answer_holds_from variables_of_extensions aliases_of_extensions
               extensions_bound s1 s2 extensions extensions'').
@@ -5372,7 +6992,8 @@ Proof.
       [ | discriminate ].
     injection Hstep as <- <-.
     assert (Hargs_ns :
-      args_in_scope (arg_ok free_variables kinds) s ns).
+      args_in_scope
+        (arg_ok free_variables (kinds_of_type_at (unboxed_kind k))) s ns).
     { apply (args_of_parts _ _ _ _ s heads ns Hargs). intros index ty Hin.
       destruct (Hfrom index ty Hin)
         as [[-> ->] | (head & mode' & Hin' & Hread)].
@@ -5382,8 +7003,8 @@ Proof.
         rewrite (read_boxed_number_eq k head ty mode' Hread).
         split; apply incl_refl. }
     destruct
-      (step_sound_at _ _ _ _ _ _ Hrec s s s1 ns joined Hwf Hkinded
-         (grows_refl s) Hvalid Hd_ns Hargs_ns Hjoin)
+      (step_sound_at _ _ _ _ _ _ (Hrec_at (unboxed_kind k)) s s s1 ns joined
+         Hwf Hkinded (grows_refl s) Hvalid Hd_ns Hargs_ns Hjoin)
       as (Hvalid1 & Hgrows1 & Hk1 & Hholds).
     destruct (Hholds s1 (grows_refl s1)) as (Htarget & Hbound & Hkinds).
     split; [ exact Hvalid1 | ]. split; [ exact Hgrows1 | ].
@@ -5488,7 +7109,19 @@ Proof.
     destruct (indexed_map_opt_spec _ _ l Hl) as (_ & Hto & _).
     split; [ exact Hvalid | ]. split; [ apply grows_refl | ].
     split; [ intros x [] | ].
-    split; [ | intros Hk; split; [ exact Hk | intros simple kind [] ] ].
+    split; [ | intros Hk; split; [ exact Hk | ] ].
+    2: { intros simple kind Hin. cbn [of_known] in Hin. simpl in Hin.
+         refine (answer_check_passes s _ simple kind _ Hin). intros Hchecks.
+         assert (Hfirst_ok :=
+           arg_check_passes _ _ s heads first_id (String strs)
+             (non_empty strs) Hargs (or_introl eq_refl) (incl_refl _)
+             Hchecks).
+         destruct strs as [ | bytes strs0]; [ discriminate Hfirst_ok | ].
+         pose proof
+           (fold_strings_keeps l (bytes :: strs0) bytes (or_introl eq_refl))
+           as Hkeeps.
+         destruct (List.fold_right _ _ l);
+           [ destruct Hkeeps | reflexivity ]. }
     intros index head use statics valuation valuation' Hin _ _ _ v Hv.
     destruct Hin as [[= <- <-] | Hin].
     + destruct Hv as (bytes & Hstring & Hbytes). exists bytes.
@@ -5601,9 +7234,12 @@ Proof.
       (arg_ok free_variables_of_head_of_kind_value
          aliases_of_head_of_kind_value)
       s heads).
-  { apply (args_of_parts _ _ _ _ s heads heads Hargs). intros index head Hin.
-    exists head. split; [ exact Hin | ]. split; [ apply incl_refl | ].
-    intros p Hp. exact (aliases_among_kinds_of_head _ head p Hp). }
+  { intros index head Hin.
+    destruct (Hargs index head Hin) as (use & Huse & Hvariables & Hkinds).
+    exists use. split; [ exact Huse | ]. split; [ exact Hvariables | ].
+    exact
+      (kinds_of_head_ask_aliases (simple_of_kind use) with_equations
+         with_checks head (ill_formed_of_no_kind use) Hkinds). }
   destruct
     (step_sound_at _ _ _ _ _ _
        (n_way_join_is_null_is_sound n_way_join_simples Hsimples) s s sa heads
@@ -6014,6 +7650,96 @@ Proof.
          Hextends v Hv).
 Qed.
 
+(* A step that asks nothing of the aliases, with a check on what it is
+   given and one on what it answers: the check of the answer passes if
+   those of the things given do. *)
+Lemma step_sound_checked {X H : Type} (variables_of : X -> list variable)
+    (variables_of_answer : Or_unknown.t H -> list variable)
+    (test : X -> bool) (test_answer : H -> bool)
+    (bound : static_env -> env -> X -> env -> Or_unknown.t H -> Prop)
+    (step : state -> list (Index.t * X) -> option (Or_unknown.t H * state)) :
+  step_sound variables_of (fun _ => []) variables_of_answer (fun _ => [])
+    bound step ->
+  (∀ (s s' : state) (args : list (Index.t * X)) (h : H),
+     step s args = Some (Or_unknown.Known h, s') ->
+     (∀ (index : Index.t) (x : X), In (index, x) args -> test x = true) ->
+     test_answer h = true) ->
+  step_sound variables_of (fun x => checked (test x) ++ [])
+    variables_of_answer (of_known (fun h => checked (test_answer h) ++ []))
+    bound step.
+Proof.
+  intros Hsound Htest s s' args answer Hvalid Hwf Hkinded Hdistinct Hargs
+    Hstep.
+  assert (Hargs' : args_in_scope (arg_ok variables_of (fun _ => [])) s args).
+  { apply (args_of_parts _ _ _ _ s args args Hargs). intros index x Hin.
+    exists x. split; [ exact Hin | ].
+    split; [ apply incl_refl | intros p [] ]. }
+  destruct (Hsound s s' args answer Hvalid Hwf Hkinded Hdistinct Hargs' Hstep)
+    as (Hvalid' & Hgrows & Htarget & Hbound & Hkinds).
+  split; [ exact Hvalid' | ]. split; [ exact Hgrows | ].
+  split; [ exact Htarget | ]. split; [ exact Hbound | ].
+  intros Hk. split; [ exact (proj1 (Hkinds Hk)) | ].
+  destruct answer as [h | ]; [ | intros simple kind [] ].
+  intros simple kind Hin. cbn [of_known] in Hin. rewrite app_nil_r in Hin.
+  refine (answer_check_passes s' _ simple kind _ Hin). intros Hchecks.
+  apply (Htest s s' args h Hstep). intros index x Hin'.
+  exact
+    (arg_check_passes _ _ s args index x (test x) Hargs Hin'
+       (incl_appl _ (incl_refl _)) Hchecks).
+Qed.
+
+(* The head of naked immediates that is answered has a number. *)
+Lemma naked_immediate_join_well_formed (s s' : state)
+    (heads : list (Index.t * head_of_kind_naked_immediate))
+    (h : head_of_kind_naked_immediate) :
+  n_way_join_head_of_kind_naked_immediate joined_env
+    reduce_head_of_kind_naked_immediate s heads
+  = Some (Or_unknown.Known h, s') ->
+  (∀ (index : Index.t) (x : head_of_kind_naked_immediate),
+     In (index, x) heads ->
+     head_of_kind_naked_immediate_well_formed x = true) ->
+  head_of_kind_naked_immediate_well_formed h = true.
+Proof.
+  unfold n_way_join_head_of_kind_naked_immediate. intros Hstep _.
+  destruct (join_naked_immediates _ _ _ _ _) as [[imms | ] | ];
+    [ | discriminate | discriminate ].
+  cbv beta iota in Hstep.
+  destruct imms as [ | n imms]; [ discriminate | ].
+  injection Hstep as <- _. reflexivity.
+Qed.
+
+(* The set of naked numbers that is answered has a number, if the
+   first set given has. *)
+Lemma naked_numbers_join_well_formed (k : naked_number_kind) (s s' : state)
+    (heads : list (Index.t * list Z)) (h : list Z) :
+  match heads with
+  | [] => None
+  | (id1, head1) :: heads =>
+    n_way_join_head_of_kind_naked_numbers s (head1, id1) heads
+  end
+  = Some (Or_unknown.Known h, s') ->
+  (∀ (index : Index.t) (x : list Z),
+     In (index, x) heads -> has_naked_number_types k && non_empty x = true) ->
+  has_naked_number_types k && non_empty h = true.
+Proof.
+  intros Hstep Hall. destruct heads as [ | [id1 head1] heads];
+    [ discriminate | ].
+  specialize (Hall id1 head1 (or_introl eq_refl)).
+  apply andb_true_iff in Hall as [Hk Hne]. rewrite Hk. cbn [andb].
+  injection Hstep as <- _. cbn [fst].
+  destruct head1 as [ | n head1]; [ discriminate | ].
+  assert (Hin :
+    ∀ acc : list Z,
+      n ∈ acc ->
+      n ∈ List.fold_left (fun t1 t2 => numbers_union t1 (snd t2)) heads acc).
+  { induction heads as [ | t heads IH]; intros acc Hacc; simpl;
+      [ exact Hacc | ].
+    apply IH. apply numbers_union_in. left. exact Hacc. }
+  specialize (Hin (n :: head1) (or_introl eq_refl)).
+  destruct (List.fold_left _ heads (n :: head1));
+    [ destruct Hin | reflexivity ].
+Qed.
+
 (* A join of heads that answers a head of the first, whatever the
    heads: the heads of that sort say one thing. *)
 Lemma constant_head_join_sound {H : Type}
@@ -6143,14 +7869,22 @@ Proof.
               end)
            Expanded_type.create_naked_immediate
            (fun head => Type_naked_immediate (Ok (No_alias head)))
-           free_variables_of_naked_immediate (fun _ => [])
-           (of_known free_variables_of_naked_immediate) (fun _ => [])
+           free_variables_of_naked_immediate
+           (fun head =>
+              checked (head_of_kind_naked_immediate_well_formed head) ++ [])
+           (of_known free_variables_of_naked_immediate)
+           (of_known
+              (fun head =>
+                 checked (head_of_kind_naked_immediate_well_formed head)
+                 ++ []))
            head_of_kind_naked_immediate_satisfied
            (n_way_join_head_of_kind_naked_immediate joined_env
               reduce_head_of_kind_naked_immediate)
            kind s s1 s2' id1 expanded1 _ head1 rest heads_opt joined
-           (n_way_join_head_of_kind_naked_immediate_is_sound
-              reduce_head_of_kind_naked_immediate Hreduce)
+           (step_sound_checked _ _ _ _ _ _
+              (n_way_join_head_of_kind_naked_immediate_is_sound
+                 reduce_head_of_kind_naked_immediate Hreduce)
+              naked_immediate_join_well_formed)
            _ _ _ _ _ _ _ _ Hwf Hkinded Hgrows Hvalid Hdistinct Hargs Hkinds
            Hdescr1 eq_refl Hextract Hjoined);
         try (intros; reflexivity).
@@ -6170,7 +7904,13 @@ Proof.
               end)
            (Expanded_type.create_naked_number k)
            (fun head => Type_naked_number k (Ok (No_alias head)))
-           (fun _ => []) (fun _ => []) (fun _ => []) (fun _ => [])
+           (fun _ => [])
+           (fun head =>
+              checked (has_naked_number_types k && non_empty head) ++ [])
+           (fun _ => [])
+           (of_known
+              (fun head =>
+                 checked (has_naked_number_types k && non_empty head) ++ []))
            (fun _ _ v numbers => naked_numbers_satisfied k v numbers)
            (fun s heads =>
               match heads with
@@ -6179,7 +7919,10 @@ Proof.
                 n_way_join_head_of_kind_naked_numbers s (head1, id1) heads
               end)
            kind s s1 s2' id1 expanded1 _ head1 rest heads_opt joined
-           (n_way_join_head_of_kind_naked_numbers_is_sound k) _ _ _ _ _ _ _ _
+           (step_sound_checked _ _ _ _ _ _
+              (n_way_join_head_of_kind_naked_numbers_is_sound k)
+              (naked_numbers_join_well_formed k))
+           _ _ _ _ _ _ _ _
            Hwf Hkinded Hgrows Hvalid Hdistinct Hargs Hkinds Hdescr1 _ Hextract
            Hjoined);
         try (intros; reflexivity).
@@ -6287,12 +8030,13 @@ Qed.
 Lemma get_alias_opt_parts (ty : flambda_type) (simple : simple) :
   get_alias_opt ty = Some simple ->
   free_variables ty = free_variables_of_simple simple
-  ∧ kinds ty = [(simple, kind ty)].
+  ∧ (simple, kind ty) ∈ kinds ty.
 Proof.
   destruct ty
     as [[ | [head | s] | ] | [ | [head | s] | ] | k [ | [head | s] | ]
        | [ | [head | s] | ] | [ | [head | s] | ]];
-    try discriminate; intros [= ->]; split; reflexivity.
+    try discriminate; intros [= ->]; (split; [ reflexivity | ]); simpl;
+    try (apply in_or_app; right); left; reflexivity.
 Qed.
 
 (* The body of the join of types meets the contract of the join of
@@ -6356,8 +8100,7 @@ Proof.
       destruct (Hkinds index ty Hin') as (use & Huse & Hkinded_ty).
       exists use. split; [ exact Huse | ].
       rewrite <- (Hkind_ts index ty Hin'). apply Hkinded_ty.
-      rewrite (proj2 (get_alias_opt_parts ty simple Halias)). left.
-      reflexivity. }
+      exact (proj2 (get_alias_opt_parts ty simple Halias)). }
     destruct
       (Hsimples s s1 _ simples joined Hvalid Hwf Hkinded Hd_simples
          Hk_simples Hjoin)
@@ -6506,7 +8249,8 @@ Theorem n_way_join_is_sound (fuel : nat) :
 Proof.
   induction fuel as [ | fuel IH].
   - intros s s' ts result _ _ _ _ _ _ Hstep. discriminate.
-  - exact (n_way_join_body_is_sound _ (type_sound_step _ IH)).
+  - apply (n_way_join_body_is_sound _ IH). intros s.
+    destruct fuel; reflexivity.
 Qed.
 
 End Functions.
@@ -6547,7 +8291,7 @@ Proof.
     Hshape.
   refine
     (n_way_join_is_sound _ _ _ _ _ _ _ _ _ _ _ _ _ Hsimples Himport
-       Hconstants Hexpand Hreduce Heqb Hshape false _ _ _ fuel).
+       Hconstants Hexpand Hreduce Heqb Hshape false false _ _ _ fuel).
   - intros s s' ty Hvalid Hwf Hkinded Himported Hk Hty.
     exact
       (proj2 (proj2 (proj2 (Himport s s' ty Hvalid Hwf Hkinded Himported))) Hk
@@ -6636,7 +8380,7 @@ Proof.
     split; [ exact H3 | exact H4 ]. }
   assert (Hsound :
     type_join_sound wf joined_env definitions_of_existentials
-      kind_in_target_env state_valid state_kinded true
+      kind_in_target_env state_valid state_kinded true false
       (n_way_join joined_env n_way_join_simples import_type
          join_env_n_way_join_env_extension expand_head
          reduce_head_of_kind_naked_immediate type_eqb block_shape_eqb fuel)).
@@ -6718,7 +8462,8 @@ Proof.
   assert (Hwf' : joined_envs_well_formed wf joined_env s).
   { intros index use Huse.
     split; [ exact (Hwf index use Huse) | exact (Hequations index use Huse) ]. }
-  assert (Hargs : join_args_in_scope joined_env (kinded_with true) s ts).
+  assert (Hargs :
+    join_args_in_scope joined_env (kinded_with true false) s ts).
   { intros index t Hin. destruct (Hkinds index t Hin) as (use & Huse & Ha).
     destruct (Hnames index t Hin) as (use' & Huse' & Hn).
     rewrite Huse in Huse'. injection Huse' as <-. exists use.
@@ -6734,5 +8479,157 @@ Proof.
        (proj1
           (kinds_with_equations_all
              (simple_of_kind_in_target kind_in_target_env s') ty)
+          (proj2 (Hkinded' Hk) ty eq_refl))).
+Qed.
+
+(* The type that the join of types answers is well formed: the join of
+   types is sound at the lists that have the checks, for the
+   environments that are well formed and have well-formed types. *)
+Theorem n_way_join_well_formed : n_way_join_well_formed_statement.
+Proof.
+  intros typing_env_well_formed state joined_env definitions_of_existentials
+    kind_in_target_env state_valid state_kinded n_way_join_simples
+    import_type join_env_n_way_join_env_extension expand_head
+    reduce_head_of_kind_naked_immediate type_eqb block_shape_eqb fuel
+    (_ & Hsimples & Himport & Hextension) Hextension_wf Hconstants Hexpand
+    Hexpand_wf Hreduce Heqb Hshape.
+  set (wf :=
+    fun tenv : Typing_env.t =>
+      typing_env_well_formed tenv ∧ types_well_formed tenv).
+  assert (Hweaken :
+    ∀ s : state,
+      joined_envs_well_formed wf joined_env s ->
+      joined_envs_well_formed typing_env_well_formed joined_env s).
+  { intros s H index use Huse. exact (proj1 (H index use Huse)). }
+  assert (Hsimples' :
+    n_way_join_simples_sound wf joined_env definitions_of_existentials
+      kind_in_target_env state_valid state_kinded n_way_join_simples).
+  { intros s s' kind simples result Hvalid Hwf.
+    exact (Hsimples s s' kind simples result Hvalid (Hweaken s Hwf)). }
+  assert (Himport' :
+    import_type_sound wf joined_env definitions_of_existentials
+      kind_in_target_env state_valid state_kinded import_type).
+  { intros s s' ty Hvalid Hwf.
+    exact (Himport s s' ty Hvalid (Hweaken s Hwf)). }
+  assert (Hextension' :
+    n_way_join_env_extension_sound wf joined_env definitions_of_existentials
+      kind_in_target_env state_valid state_kinded
+      join_env_n_way_join_env_extension).
+  { intros s extensions result Hvalid Hwf.
+    exact (Hextension s extensions result Hvalid (Hweaken s Hwf)). }
+  assert (Hconstants' :
+    joined_envs_constants_of_kind wf joined_env state_valid).
+  { intros s index use Hvalid Hwf.
+    exact (Hconstants s index use Hvalid (Hweaken s Hwf)). }
+  assert (Hexpand' : expand_head_sound wf expand_head).
+  { intros tenv ty expanded He.
+    destruct (Hexpand tenv ty expanded He) as (H1 & H2 & H3 & H4).
+    split; [ exact H1 | ]. split; [ intros [Hwf _]; exact (H2 Hwf) | ].
+    split; [ exact H3 | exact H4 ]. }
+  (* What the lists with the checks say, in an environment and in the
+     target. *)
+  pose proof
+    (fun use : Typing_env.t =>
+       kinds_checked (simple_of_kind use) (ill_formed_of_no_kind use) false)
+    as Hchecked.
+  assert (Hill :
+    ∀ s : state,
+      ¬ simple_of_kind_in_target kind_in_target_env s (fst ill_formed)
+          (snd ill_formed)).
+  { intros s H. cbn in H. discriminate H. }
+  pose proof
+    (fun s : state =>
+       kinds_checked (simple_of_kind_in_target kind_in_target_env s) (Hill s)
+         false)
+    as Hchecked_target.
+  assert (Hsound :
+    type_join_sound wf joined_env definitions_of_existentials
+      kind_in_target_env state_valid state_kinded false true
+      (n_way_join joined_env n_way_join_simples import_type
+         join_env_n_way_join_env_extension expand_head
+         reduce_head_of_kind_naked_immediate type_eqb block_shape_eqb fuel)).
+  { apply n_way_join_is_sound; try assumption.
+    - (* The import of a type: the type is as it was. *)
+      intros s s' ty Hvalid Hwf Hkinded Himported Hk
+        (index & use & Huse & Hty).
+      destruct (proj1 (proj1 (Hchecked use) ty) Hty)
+        as [Haliases Hty_wf].
+      destruct
+        (proj2 (proj2 (proj2 (Himport' s s' ty Hvalid Hwf Hkinded Himported)))
+           Hk (ex_intro _ index (ex_intro _ use (conj Huse Haliases))))
+        as [Hk' Hkinded'].
+      split; [ exact Hk' | ].
+      exact (proj2 (proj1 (Hchecked_target s') ty) (conj Hkinded' Hty_wf)).
+    - (* The join of extensions. *)
+      intros s s' extensions answer Hvalid Hwf Hkinded Hdistinct Hargs Hstep.
+      assert (Hargs_aliases :
+        join_args_in_scope joined_env
+          (arg_in_scope_and_kinded free_variables_of_env_extension
+             aliases_of_env_extension)
+          s extensions).
+      { intros index extension Hin.
+        destruct (Hargs index extension Hin) as (use & Huse & Hknown & Hkinds).
+        exists use. split; [ exact Huse | ]. split; [ exact Hknown | ].
+        exact
+          (proj1
+             (proj1
+                (proj2 (proj2 (proj2 (proj2 (proj2 (proj2 (Hchecked use))))))
+                   extension)
+                Hkinds)). }
+      destruct
+        (n_way_join_env_extension_is_sound wf joined_env
+           definitions_of_existentials kind_in_target_env state_valid
+           state_kinded join_env_n_way_join_env_extension Hextension' s s'
+           extensions answer Hvalid Hwf Hkinded Hdistinct Hargs_aliases Hstep)
+        as (Hvalid' & Hgrows & Htarget & Hbound & Hkinds).
+      split; [ exact Hvalid' | ]. split; [ exact Hgrows | ].
+      split; [ exact Htarget | ]. split; [ exact Hbound | ].
+      intros Hk. destruct (Hkinds Hk) as [Hk' Haliases].
+      split; [ exact Hk' | ].
+      refine
+        (proj2
+           (proj2 (proj2 (proj2 (proj2 (proj2 (proj2 (Hchecked_target s'))))))
+              answer)
+           (conj Haliases _)).
+      unfold n_way_join_env_extension in Hstep.
+      destruct (join_env_n_way_join_env_extension s extensions)
+        as [[[joined s1] | ] | ] eqn:Hjoin; simpl in Hstep;
+        [ | | discriminate Hstep ]; injection Hstep as <- <-.
+      + apply (Hextension_wf s s1 extensions joined Hvalid); [ | exact Hjoin ].
+        intros index extension Hin.
+        destruct (Hargs index extension Hin) as (use & Huse & _ & Hkinds').
+        exact
+          (proj2
+             (proj1
+                (proj2 (proj2 (proj2 (proj2 (proj2 (proj2 (Hchecked use))))))
+                   extension)
+                Hkinds')).
+      + reflexivity.
+    - (* The expansion of a head. *)
+      intros tenv ty expanded He [Hwf Htypes] Hk Hty.
+      destruct (proj1 (proj1 (Hchecked tenv) ty) Hty) as [Haliases Hty_wf].
+      refine
+        (proj2 (proj1 (Hchecked tenv) (Expanded_type.to_type expanded))
+           (conj _ _)).
+      + exact (proj1 (proj2 (proj2 (Hexpand tenv ty expanded He))) Hk
+                 Haliases).
+      + exact (Hexpand_wf tenv ty expanded He Htypes Hty_wf). }
+  intros s s' ts ty Hvalid Hwf Hkinded Htypes Hdistinct Hscope Hkinds
+    Hts_wf Hk Hstep.
+  assert (Hwf' : joined_envs_well_formed wf joined_env s).
+  { intros index use Huse.
+    split; [ exact (Hwf index use Huse) | exact (Htypes index use Huse) ]. }
+  assert (Hargs :
+    join_args_in_scope joined_env (kinded_with false true) s ts).
+  { intros index t Hin. destruct (Hkinds index t Hin) as (use & Huse & Ha).
+    exists use. split; [ exact Huse | ].
+    exact (proj2 (proj1 (Hchecked use) t) (conj Ha (Hts_wf index t Hin))). }
+  destruct
+    (Hsound s s' ts (Or_unknown.Known ty) Hvalid Hwf' Hkinded Hdistinct Hscope
+       Hargs Hstep)
+    as (_ & _ & _ & Hkinded').
+  exact
+    (proj2
+       (proj1 (proj1 (Hchecked_target s') ty)
           (proj2 (Hkinded' Hk) ty eq_refl))).
 Qed.

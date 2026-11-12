@@ -58,6 +58,16 @@
    of extensions answered and in types that were imported as they
    stood.
 
+   Proved beside it too ([n_way_join_well_formed_statement]): the
+   type that the join of types answers is well formed
+   ([type_well_formed], FlambdaTypeWellFormedSpec.v) if the types
+   given are, the environments joined have well-formed types and the
+   state is kinded ([n_way_join_type_well_formed]). The join of
+   extensions is to answer a well-formed extension for well-formed
+   extensions. That the state is kinded is asked because the proof
+   goes by the kinds of the answer, which the contract gives of a
+   state that is kinded; it is not known to be needed.
+
    How it is stated. The functions of the traversal thread the state of
    the join of environments, of which this file knows what
    FlambdaJoinSpec.v says and no more: three readings, two invariants,
@@ -114,6 +124,16 @@
      that has its own at their kinds is expanded to one that has. (An
      expanded type is the type itself, an unknown type, the type of a
      constant or a type of the environment.)
+   - [expand_head_well_formed], for the statement about
+     well-formedness only: in an environment whose types are well
+     formed, a type that is well formed is expanded to one that is.
+   - [n_way_join_env_extension_well_formed], for the same statement
+     only: the extension that the join of extensions answers is well
+     formed if those given are. It is true of the join of extensions
+     of the join of environments, which answers an extension that it
+     was given or the empty one
+     ([n_way_join_env_extension_answers_given_statement],
+     FlambdaJoinEnvSpec.v).
    - [joined_envs_constants_of_kind]: in each environment joined, a
      constant that is the canonical element of a [Simple] of a kind is
      of that kind ([constants_of_kind]). It is a premise about kinds,
@@ -147,9 +167,10 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
-  FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaEnvAliases
-  FlambdaTypingEnv FlambdaTypingEnvSpec FlambdaTypingEnvKindedSpec
-  FlambdaJoinEnv FlambdaJoinTypes FlambdaJoinSpec.
+  FlambdaTypeWellFormedSpec FlambdaTypeMeaningSpec FlambdaBindingTime
+  FlambdaEnvAliases FlambdaTypingEnv FlambdaTypingEnvSpec
+  FlambdaTypingEnvInvariantSpec FlambdaTypingEnvKindedSpec FlambdaJoinEnv
+  FlambdaJoinTypes FlambdaJoinSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -320,6 +341,29 @@ Definition expand_head_equations_kinded : Prop :=
     types_equations_kinded tenv ->
     type_equations_kinded tenv ty ->
     type_equations_kinded tenv (Expanded_type.to_type expanded).
+
+(* What is assumed of [Expand_head.expand_head] for the well-formedness
+   of types: in an environment whose types are well formed, a type
+   that is well formed is expanded to one that is. *)
+Definition expand_head_well_formed : Prop :=
+  ∀ (tenv : Typing_env.t) (ty : flambda_type) (expanded : Expanded_type.t),
+    expand_head tenv ty = Some expanded ->
+    types_well_formed tenv ->
+    type_well_formed ty = true ->
+    type_well_formed (Expanded_type.to_type expanded) = true.
+
+(* What is assumed of the join of extensions for the same: the
+   extension that it answers is well formed if those given are. *)
+Definition n_way_join_env_extension_well_formed : Prop :=
+  ∀ (s s' : state) (extensions : list (Index.t * env_extension))
+    (joined : env_extension),
+    state_valid s ->
+    (∀ (index : Index.t) (extension : env_extension),
+       In (index, extension) extensions ->
+       env_extension_well_formed extension = true) ->
+    join_env_n_way_join_env_extension s extensions
+    = Some (Or_bottom.Ok (joined, s')) ->
+    env_extension_well_formed joined = true.
 
 (* What is assumed of the kinds of the environments joined, beside
    [joined_envs_kinded]: in each, a constant that is the canonical
@@ -539,6 +583,43 @@ Definition deduce_get_tag_simple_sound : Prop :=
     | Unknown => True
     end.
 
+(* ======================================================================== *)
+(* The type answered is well formed                                         *)
+(* ======================================================================== *)
+
+(* The environments joined have well-formed types. The join of types
+   needs it of the types that it expands in them. *)
+Definition joined_envs_types_well_formed (s : state) : Prop :=
+  ∀ (index : Index.t) (use : Typing_env.t),
+    joined_env s index = Some use -> types_well_formed use.
+
+(* The join of types, under the premises of [n_way_join_type_sound]: if
+   the types given are well formed, the type answered is. The state
+   is to be kinded, as for the names of the equations
+   ([n_way_join_type_equations_kinded], FlambdaJoinSpec.v). *)
+(* CR mshinwell: that the state is kinded is asked because the proof
+   goes by the kinds clause of the contract of the join of types,
+   which is under that premise. It is not known to be needed for
+   well-formedness; a proof without it would go through every
+   function of the traversal again. *)
+Definition n_way_join_type_well_formed
+    (n_way_join :
+       state -> list (Index.t * flambda_type)
+       -> option (Or_unknown.t flambda_type * state)) : Prop :=
+  ∀ (s s' : state) (ts : list (Index.t * flambda_type)) (ty : flambda_type),
+    state_valid s ->
+    joined_envs_well_formed typing_env_well_formed joined_env s ->
+    joined_envs_kinded joined_env s ->
+    joined_envs_types_well_formed s ->
+    join_args_distinct ts ->
+    join_args_in_scope joined_env type_in_scope s ts ->
+    join_args_in_scope joined_env type_kinded s ts ->
+    (∀ (index : Index.t) (t : flambda_type),
+       In (index, t) ts -> type_well_formed t = true) ->
+    state_kinded s ->
+    n_way_join s ts = Some (Or_unknown.Known ty, s') ->
+    type_well_formed ty = true.
+
 End Traversal.
 
 (* The functions that join heads with no types inside them are sound,
@@ -725,6 +806,51 @@ Definition n_way_join_equations_kinded_statement : Prop :=
     block_shape_eqb_sound block_shape_eqb ->
     n_way_join_type_equations_kinded typing_env_well_formed joined_env
       kind_in_target_env state_valid state_kinded
+      (n_way_join joined_env n_way_join_simples import_type
+         join_env_n_way_join_env_extension expand_head
+         reduce_head_of_kind_naked_immediate type_eqb block_shape_eqb fuel).
+
+(* The type that the join of types answers is well formed, whatever
+   bounds the depth of its calls to itself: if the types given are
+   well formed and the environments joined have well-formed types, so
+   is the type answered. The join of extensions is to answer a
+   well-formed extension for well-formed extensions, and the expansion
+   of a head a well-formed type for one. *)
+Definition n_way_join_well_formed_statement : Prop :=
+  ∀ (typing_env_well_formed : Typing_env.t -> Prop) (state : Type)
+    (joined_env : state -> Index.t -> option Typing_env.t)
+    (definitions_of_existentials :
+       state -> finite_map (Simples_in_joined_envs.t * flambda_kind))
+    (kind_in_target_env : state -> variable -> option flambda_kind)
+    (state_valid state_kinded : state -> Prop)
+    (n_way_join_simples :
+       state -> flambda_kind -> list (Index.t * simple)
+       -> option (Or_bottom.t simple * state))
+    (import_type : state -> flambda_type -> option state)
+    (join_env_n_way_join_env_extension :
+       state -> list (Index.t * env_extension)
+       -> option (Or_bottom.t (env_extension * state)))
+    (expand_head : Typing_env.t -> flambda_type -> option Expanded_type.t)
+    (reduce_head_of_kind_naked_immediate :
+       Typing_env.t -> head_of_kind_naked_immediate
+       -> Or_bottom.t head_of_kind_naked_immediate)
+    (type_eqb : flambda_type -> flambda_type -> bool)
+    (block_shape_eqb : block_shape -> block_shape -> bool) (fuel : nat),
+    environment_side_sound typing_env_well_formed joined_env
+      definitions_of_existentials kind_in_target_env state_valid state_kinded
+      n_way_join_simples import_type join_env_n_way_join_env_extension ->
+    n_way_join_env_extension_well_formed state_valid
+      join_env_n_way_join_env_extension ->
+    joined_envs_constants_of_kind typing_env_well_formed joined_env
+      state_valid ->
+    expand_head_sound typing_env_well_formed expand_head ->
+    expand_head_well_formed expand_head ->
+    reduce_head_of_kind_naked_immediate_sound
+      reduce_head_of_kind_naked_immediate ->
+    type_eqb_sound type_eqb ->
+    block_shape_eqb_sound block_shape_eqb ->
+    n_way_join_type_well_formed typing_env_well_formed joined_env state_valid
+      state_kinded
       (n_way_join joined_env n_way_join_simples import_type
          join_env_n_way_join_env_extension expand_head
          reduce_head_of_kind_naked_immediate type_eqb block_shape_eqb fuel).
