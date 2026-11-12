@@ -306,6 +306,16 @@ Proof.
       value_lifted_extend.
 Qed.
 
+(* The second static environment binds every symbol that the first
+   binds to the same thing, lifted. It may bind more symbols: those of
+   the [Let]s lifted. *)
+Definition symbols_lifted (statics statics' : static_env) : Prop :=
+  ∀ (s : symbol) (allocated : statically_allocated_value),
+    lookup s (static_values statics) = Some allocated ->
+    ∃ allocated' : statically_allocated_value,
+      lookup s (static_values statics') = Some allocated'
+      ∧ allocated_lifted statics' allocated allocated'.
+
 Section Known.
 
 (* The code ids whose code has [my_closure] bound to a symbol
@@ -313,18 +323,12 @@ Section Known.
 Variable known : list (code_id * symbol).
 
 (* The second static environment has the code of the first, with
-   [my_closure] bound where [known] says, and binds every symbol that
-   the first binds to the same thing, lifted. It may bind more symbols:
-   those of the [Let]s lifted. *)
+   [my_closure] bound where [known] says, and its symbols lifted. *)
 Definition statics_lifted (statics statics' : static_env) : Prop :=
   (∀ id : code_id,
     lookup id (static_code statics')
     = option_map (bind_my_closure known id) (lookup id (static_code statics)))
-  ∧ ∀ (s : symbol) (allocated : statically_allocated_value),
-      lookup s (static_values statics) = Some allocated ->
-      ∃ allocated' : statically_allocated_value,
-        lookup s (static_values statics') = Some allocated'
-        ∧ allocated_lifted statics' allocated allocated'.
+  ∧ symbols_lifted statics statics'.
 
 (* The second static environment may grow by symbols alone. *)
 Lemma statics_lifted_extend (statics statics' statics'' : static_env) :
@@ -349,7 +353,7 @@ Qed.
 Section Observations.
 
 Variables statics statics' : static_env.
-Hypothesis Hstatics : statics_lifted statics statics'.
+Hypothesis Hsymbols : symbols_lifted statics statics'.
 
 Lemma block_of_lifted (v v' : value) (block_tag : Z)
     (block_fields : list value) :
@@ -362,7 +366,7 @@ Proof.
   intros Hv. lifted_cases Hv; simpl; try discriminate.
   - destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hs;
       [ | discriminate ].
-    destruct (proj2 Hstatics s allocated Hs) as (allocated' & -> & Hallocated).
+    destruct (Hsymbols s allocated Hs) as (allocated' & -> & Hallocated).
     allocated_cases Hallocated; try discriminate.
     intros [= <- <-]. eauto.
   - intros [= <- <-]. eauto.
@@ -378,7 +382,7 @@ Proof.
     try exact (fun H => H).
   - destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hs;
       [ | discriminate ].
-    destruct (proj2 Hstatics s allocated Hs) as (allocated' & -> & Hallocated).
+    destruct (Hsymbols s allocated Hs) as (allocated' & -> & Hallocated).
     allocated_cases Hallocated; try discriminate.
     destruct av; try discriminate. inversion Hav. exact (fun H => H).
   - rewrite Hlookup. exact (fun H => H).
@@ -392,7 +396,7 @@ Proof.
   intros Hv. lifted_cases Hv; simpl; try discriminate.
   destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hs;
     [ | discriminate ].
-  destruct (proj2 Hstatics s allocated Hs) as (allocated' & -> & Hallocated).
+  destruct (Hsymbols s allocated Hs) as (allocated' & -> & Hallocated).
   allocated_cases Hallocated; try discriminate. exact (fun H => H).
 Qed.
 
@@ -408,7 +412,7 @@ Proof.
   intros Hv. lifted_cases Hv; simpl; try discriminate.
   - destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hs;
       [ | discriminate ].
-    destruct (proj2 Hstatics s allocated Hs) as (allocated' & -> & Hallocated).
+    destruct (Hsymbols s allocated Hs) as (allocated' & -> & Hallocated).
     allocated_cases Hallocated; try discriminate.
     + intros [= <- <- <-]. eauto.
     + destruct (lookup afslot adecls); [ | discriminate ]. simpl.
@@ -433,7 +437,7 @@ Proof.
   intros Hv. lifted_cases Hv; simpl; try discriminate.
   - destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hs;
       [ | discriminate ].
-    destruct (proj2 Hstatics s allocated Hs) as (allocated' & -> & Hallocated).
+    destruct (Hsymbols s allocated Hs) as (allocated' & -> & Hallocated).
     allocated_cases Hallocated; try discriminate.
     + intros [= <- <-]. eauto.
     + destruct (lookup afslot adecls); [ | discriminate ]. simpl.
@@ -477,7 +481,7 @@ Proof.
   - (* A symbol: bound alike in both runs. *)
     destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hs;
       [ | discriminate ].
-    destruct (proj2 Hstatics s allocated Hs) as (allocated' & -> & Hallocated).
+    destruct (Hsymbols s allocated Hs) as (allocated' & -> & Hallocated).
     allocated_cases Hallocated; try discriminate.
     + destruct (Pos.eqb move_from unnamed_function_slot); [ | discriminate ].
       destruct (Pos.eqb move_to unnamed_function_slot); [ | discriminate ].
@@ -548,7 +552,7 @@ Proof.
     + lifted_cases Hv; simpl; try reflexivity.
       * destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hs;
           [ | discriminate ].
-        destruct (proj2 Hstatics s allocated Hs) as (allocated' & -> & _).
+        destruct (Hsymbols s allocated Hs) as (allocated' & -> & _).
         reflexivity.
       * rewrite Hlookup. reflexivity.
       * rewrite Hlookup. reflexivity.
@@ -673,7 +677,7 @@ Qed.
    the second, lifted. *)
 Lemma eval_named_lifted (statics statics' : static_env) (vars vars' : env)
     (d : named) (v : value) :
-  statics_lifted statics statics' ->
+  symbols_lifted statics statics' ->
   env_lifted statics' vars vars' ->
   eval_named statics vars d = Some v ->
   ∃ v' : value,
@@ -958,7 +962,6 @@ Lemma lift_named_lifted (target : lift_to) (d : named)
     (bindings : list static_binding) (s : symbol)
     (statics statics' : static_env) (vars vars' : env) (v : value) :
   lift_named target d = Some (bindings, s) ->
-  statics_lifted statics statics' ->
   env_lifted statics' vars vars' ->
   eval_named statics vars d = Some v ->
   distinct (flat_map symbols_of_binding bindings) = true ->
@@ -970,7 +973,7 @@ Lemma lift_named_lifted (target : lift_to) (d : named)
     ∧ static_code extended' = static_code statics'
     ∧ value_lifted extended' v (Value_symbol s).
 Proof.
-  intros Hlift Hstatics Hvars Heval Hdistinct Hfresh.
+  intros Hlift Hvars Heval Hdistinct Hfresh.
   destruct target as [sym | syms].
   - destruct d as [ | p args | code slots | | | | ]; simpl in Hlift;
       try discriminate.
@@ -1447,7 +1450,7 @@ Proof.
   intros Hstatics Hclosure Hvs Hok Hfree. unfold shape_of_closure_call.
   destruct (closure_of statics closure) as [[called slots] | ] eqn:Hc;
     [ | discriminate ].
-  destruct (closure_of_lifted statics statics' Hstatics closure closure'
+  destruct (closure_of_lifted statics statics' (proj2 Hstatics) closure closure'
               called slots Hclosure Hc)
     as (slots' & Hc' & _).
   rewrite Hc'.
@@ -1830,8 +1833,8 @@ Proof.
            (bind_my_closures known
               (Let x xkind d (lift_expr lets (xO at_path) body)))
            vars' conts' statics')).
-    { destruct (eval_named_lifted statics statics' vars vars' d v Hstatics
-                  Hvars Hd)
+    { destruct (eval_named_lifted statics statics' vars vars' d v
+                  (proj2 Hstatics) Hvars Hd)
         as (v' & Hd' & Hv).
       exists 0, (State
                    (bind_my_closures known (lift_expr lets (xO at_path) body))
@@ -1855,7 +1858,7 @@ Proof.
     apply orb_false_iff in Hfault as [_ Hfault].
     destruct (no_rebinding statics' bindings Hfault) as [Hdistinct Hfresh].
     destruct (lift_named_lifted target d bindings s0 statics statics' vars
-                vars' v Hlift Hstatics Hvars Hd Hdistinct Hfresh)
+                vars' v Hlift Hvars Hd Hdistinct Hfresh)
       as (extended' & Hextended & Hcode & Hv).
     pose proof (eval_static_bindings_extend vars' bindings statics' extended'
       Hextended) as Hextend.
