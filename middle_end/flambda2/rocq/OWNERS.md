@@ -365,6 +365,9 @@ pass into the validator.
     one is made direct; same stream)
   - `middle_end/flambda2/rocq/FlambdaFloatCode*` (the bindings of code
     moved up to the head of what they are in; same stream)
+  - `middle_end/flambda2/rocq/FlambdaGroupsUp*` (a group of static
+    bindings at the head of the body of a continuation binding bound
+    before it; same stream)
   - `middle_end/flambda2/rocq/FlambdaHoistCode*` (all the code of a unit
     bound first, for a unit run on its own; same stream)
   - `middle_end/flambda2/rocq/FlambdaLiftFromCode*` (a closure or a block

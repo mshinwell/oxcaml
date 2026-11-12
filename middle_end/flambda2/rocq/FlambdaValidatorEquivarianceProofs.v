@@ -54,7 +54,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaUnusedSlotsSpec FlambdaUnusedSlotsProofs
   FlambdaKnownSymbolsSpec FlambdaKnownSymbolsProofs
   FlambdaKnownClosuresSpec FlambdaKnownClosuresProofs FlambdaFloatCodeSpec
-  FlambdaFloatCodeProofs FlambdaHoistCodeSpec FlambdaHoistCodeProofs
+  FlambdaFloatCodeProofs FlambdaGroupsUpSpec FlambdaGroupsUpProofs
+  FlambdaHoistCodeSpec FlambdaHoistCodeProofs
   FlambdaInlineFreshProofs FlambdaRecHandlersSpec
   FlambdaSinkContsSpec FlambdaSinkUsesSpec FlambdaShortcutSpec
   FlambdaUnusedParamsSpec
@@ -5270,9 +5271,10 @@ Qed.
 Theorem tidied_before_equivariant : tidied_before_equivariant_statement.
 Proof.
   intros rounds r e. unfold tidied_before. rewrite placed_equivariant.
-  exact
+  rewrite
     (iterate_equivariant rounds tidy_before_round
        tidy_before_round_equivariant r _).
+  symmetry. apply groups_up_equivariant.
 Qed.
 
 Lemma tidy_expr_after_equivariant : rewrite_equivariant tidy_expr_after.
@@ -5298,9 +5300,10 @@ Qed.
 Theorem tidied_after_equivariant : tidied_after_equivariant_statement.
 Proof.
   intros rounds r e. unfold tidied_after. rewrite placed_equivariant.
-  exact
+  rewrite
     (iterate_equivariant rounds tidy_after_round
        tidy_after_round_equivariant r _).
+  symmetry. apply groups_up_equivariant.
 Qed.
 
 Theorem without_statics_equivariant : without_statics_equivariant_statement.
@@ -7080,10 +7083,13 @@ Theorem tidied_before_keeps_scope : tidied_before_keeps_scope_statement.
 Proof.
   intros rounds.
   exact
-    (keeps_scope_compose placed (iterate rounds tidy_before_round)
-       placed_keeps_scope
-       (keeps_scope_iterate rounds tidy_before_round
-          tidy_before_round_keeps_scope)).
+    (keeps_scope_compose
+       (fun e => iterate rounds tidy_before_round (placed e)) groups_up
+       (keeps_scope_compose placed (iterate rounds tidy_before_round)
+          placed_keeps_scope
+          (keeps_scope_iterate rounds tidy_before_round
+             tidy_before_round_keeps_scope))
+       FlambdaStaticsScopeProofs.groups_up_keeps_scope).
 Qed.
 
 (* The term before normalised is, under the renaming, that term under a

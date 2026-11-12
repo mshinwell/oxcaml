@@ -65,7 +65,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaLiftFromArmsSpec FlambdaLiftFromArmsProofs
   FlambdaUnusedSlotsSpec FlambdaUnusedSlotsProofs FlambdaKnownSymbolsSpec
   FlambdaKnownSymbolsProofs FlambdaKnownClosuresSpec FlambdaKnownClosuresProofs
-  FlambdaFloatCodeSpec FlambdaFloatCodeProofs FlambdaHoistCodeSpec
+  FlambdaFloatCodeSpec FlambdaFloatCodeProofs FlambdaGroupsUpSpec
+  FlambdaGroupsUpProofs FlambdaHoistCodeSpec
   FlambdaHoistCodeProofs FlambdaLoopifySpec FlambdaLoopifyProofs
   FlambdaHoistStaticsSpec FlambdaGuardScopeSpec FlambdaGuardScopeProofs
   FlambdaValidateSpec.
@@ -372,8 +373,10 @@ Lemma tidied_before_refines (rounds : nat) (e : expr) :
 Proof.
   unfold tidied_before.
   exact (expr_refines_trans _ _ _
-    (expr_equivalent_refines _ _ (placed_equivalent e))
-    (iterate_refines _ tidy_before_round_refines rounds _)).
+    (expr_refines_trans _ _ _
+       (expr_equivalent_refines _ _ (placed_equivalent e))
+       (iterate_refines _ tidy_before_round_refines rounds _))
+    (expr_equivalent_refines _ _ (groups_up_equivalent _))).
 Qed.
 
 (* That of the term after is an equivalence. *)
@@ -407,6 +410,7 @@ Lemma tidied_after_equivalent (rounds : nat) :
   ∀ e : expr, expr_equivalent e (tidied_after rounds e).
 Proof.
   intros e. unfold tidied_after.
+  refine (expr_equivalent_trans _ _ _ _ (groups_up_equivalent _)).
   apply (expr_equivalent_trans _ _ _ (placed_equivalent e)).
   generalize (placed e). clear e.
   induction rounds as [ | rounds IH]; intros e; simpl;

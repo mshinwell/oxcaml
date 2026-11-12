@@ -9,6 +9,7 @@ open FlambdaDemoteSpec
 open FlambdaFloatCodeSpec
 open FlambdaForwardKindedSpec
 open FlambdaForwardSpec
+open FlambdaGroupsUpSpec
 open FlambdaGuardScopeSpec
 open FlambdaHoistCodeSpec
 open FlambdaHoistStaticsSpec
@@ -313,7 +314,8 @@ let tidy_before_round e = rewrite_code tidy_code_before (tidy_code_before e)
 
 (** val tidied_before : nat -> expr -> expr **)
 
-let tidied_before rounds e = iterate rounds tidy_before_round (placed e)
+let tidied_before rounds e =
+  groups_up (iterate rounds tidy_before_round (placed e))
 
 (** val tidy_expr_after : expr -> expr **)
 
@@ -335,7 +337,8 @@ let tidy_after_round e =
 
 (** val tidied_after : nat -> expr -> expr **)
 
-let tidied_after rounds e = iterate rounds tidy_after_round (placed e)
+let tidied_after rounds e =
+  groups_up (iterate rounds tidy_after_round (placed e))
 
 type validation =
   | Same_up_to_bound_names

@@ -112,6 +112,11 @@
      [Let]s and continuations. Closed code has no free variable and no
      free continuation, so none leaves the scope of its binder
      ([float_code_keeps_scope_statement]).
+   - FlambdaGroupsUpSpec.groups_up moves a group of static bindings
+     from the head of the body of a [Let_cont] to before it. A
+     [Let_cont] binds no variable in its body, and a group whose code
+     is closed mentions no continuation
+     ([groups_up_keeps_scope_statement]).
    - FlambdaHoistStaticsSpec.hoist_statics moves to the head of the
      unit the bindings of code, and the bindings of symbols whose
      constant has a value in the empty environment, which has no
@@ -142,7 +147,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaStaticsOrderSpec FlambdaMyClosureSpec FlambdaLiftSpec
   FlambdaLiftFromCodeSpec FlambdaLiftFromArmsSpec FlambdaUnusedSlotsSpec
   FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec FlambdaFloatCodeSpec
-  FlambdaKnownSlotsSpec FlambdaUnaliasParamsSpec FlambdaValidateSpec
+  FlambdaGroupsUpSpec FlambdaKnownSlotsSpec FlambdaUnaliasParamsSpec
+  FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec.
 Import ListNotations.
 
@@ -237,6 +243,12 @@ Definition use_known_closures_keeps_scope_statement : Prop :=
 (* ======================================================================== *)
 
 Definition float_code_keeps_scope_statement : Prop := keeps_scope float_code.
+
+(* ======================================================================== *)
+(* The groups moved above continuation bindings                             *)
+(* ======================================================================== *)
+
+Definition groups_up_keeps_scope_statement : Prop := keeps_scope groups_up.
 
 (* ======================================================================== *)
 (* The static bindings that need nothing bound first                        *)

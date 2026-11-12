@@ -189,7 +189,15 @@
    The tidying is not in a round of the normalisations for the reason
    that the placing is not: it needs the continuations placed, and
    the rewrites of a round that look at where a continuation is bound
-   follow Simplify on the term as the rounds leave it.
+   follow Simplify on the term as the rounds leave it. When its rounds
+   are over, outside the bodies of code and the handlers of recursive
+   continuations, a group of static bindings at the head of the body
+   of a [Let_cont] is bound before the [Let_cont] instead
+   (FlambdaGroupsUpSpec.groups_up, an equivalence), and groups that
+   then follow one another are made one: the two terms do not bind a
+   symbol in the same place among the continuations of a test, and a
+   round may remove a [Let] that stood between a [Let_cont] and a
+   group, or between two groups.
 
    The normalisation of the term before ends by making ordinary
    continuations of the exception handlers that no call can raise to,
@@ -254,7 +262,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec
   FlambdaFloatCodeSpec FlambdaHoistCodeSpec FlambdaLoopifySpec
   FlambdaLiftFromCodeSpec FlambdaLiftFromArmsSpec FlambdaHoistStaticsSpec
-  FlambdaGuardScopeSpec.
+  FlambdaGuardScopeSpec FlambdaGroupsUpSpec.
 From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
 From OxCamlFlambda2 Require Import FlambdaKnownSlotsSpec.
 From OxCamlFlambda2 Require Import FlambdaUnusedHeadStaticsSpec.
@@ -781,10 +789,12 @@ Definition tidy_before_round (e : expr) : expr :=
   rewrite_code tidy_code_before (tidy_code_before e).
 
 (* The term before as it is compared, when the rounds of the
-   normalisations are over: its continuations placed, and then the
-   rounds above. *)
+   normalisations are over: its continuations placed, then the
+   rounds above, and then its groups of static bindings bound before
+   the [Let_cont]s that they are at the head of
+   (FlambdaGroupsUpSpec.groups_up). *)
 Definition tidied_before (rounds : nat) (e : expr) : expr :=
-  iterate rounds tidy_before_round (placed e).
+  groups_up (iterate rounds tidy_before_round (placed e)).
 
 (* The same for the term after, with rewrites that are equivalences
    only: of the [Let]s left unused, those that are sure to have a
@@ -802,7 +812,7 @@ Definition tidy_after_round (e : expr) : expr :=
     (rewrite_code tidy_code_after (tidy_code_after e)).
 
 Definition tidied_after (rounds : nat) (e : expr) : expr :=
-  iterate rounds tidy_after_round (placed e).
+  groups_up (iterate rounds tidy_after_round (placed e)).
 
 (* ======================================================================== *)
 (* The check                                                                *)

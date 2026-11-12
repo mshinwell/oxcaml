@@ -46,7 +46,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaLiftFromCodeSpec FlambdaLiftFromArmsSpec FlambdaHoistStaticsSpec
   FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec
   FlambdaKnownSlotsSpec FlambdaStaticsInScopeSpec
-  FlambdaFloatCodeSpec FlambdaUnaliasParamsSpec FlambdaValidateSpec
+  FlambdaFloatCodeSpec FlambdaGroupsUpSpec FlambdaUnaliasParamsSpec
+  FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec FlambdaScopedProofs
   FlambdaKeepsScopeProofs FlambdaStaticsScopeSpec.
 From OxCamlFlambda2 Require FlambdaUnaliasParamsNamesProofs.
@@ -1230,6 +1231,85 @@ Qed.
 
 Theorem float_code_keeps_scope : float_code_keeps_scope_statement.
 Proof. apply keeps_scope_intro. exact float_code_scoped. Qed.
+
+(* ======================================================================== *)
+(* The groups moved above continuation bindings                             *)
+(* ======================================================================== *)
+
+(* A [Let_cont] binds no variable in its body, and a group whose code
+   is closed mentions no continuation. *)
+Lemma group_over_let_cont_scoped (k : continuation)
+    (h : continuation_handler) (inner : expr) :
+  scoped (Let_cont_non_recursive k h inner)
+    (group_over (Let_cont_non_recursive k h) inner).
+Proof.
+  destruct inner as [x kind d body | bindings body | k' h' body
+                    | handlers body | ap | ac | scrutinee arms | ];
+    cbn [group_over]; try apply scoped_refl.
+  intros Hclosed. scope_in Hclosed.
+  apply andb_true_iff in Hclosed. destruct Hclosed as [Hh Hinner].
+  apply andb_true_iff in Hinner. destruct Hinner as [Hbindings Hbody].
+  scope.
+  rewrite (bindings_closed_no_continuations bindings Hbindings), Hbindings,
+    Hh, Hbody.
+  split; [ reflexivity | ]. cbn [app].
+  split; [ | apply incl_refl ].
+  intros x Hx. rewrite !in_app_iff in *. tauto.
+Qed.
+
+Lemma group_over_let_cont_recursive_scoped
+    (handlers : list (continuation * continuation_handler)) (inner : expr) :
+  scoped (Let_cont_recursive handlers inner)
+    (group_over (Let_cont_recursive handlers) inner).
+Proof.
+  destruct inner as [x kind d body | bindings body | k' h' body
+                    | handlers' body | ap | ac | scrutinee arms | ];
+    cbn [group_over]; try apply scoped_refl.
+  intros Hclosed. scope_in Hclosed.
+  apply andb_true_iff in Hclosed. destruct Hclosed as [Hh Hinner].
+  apply andb_true_iff in Hinner. destruct Hinner as [Hbindings Hbody].
+  scope.
+  rewrite (bindings_closed_no_continuations bindings Hbindings), Hbindings,
+    Hh, Hbody.
+  split; [ reflexivity | ]. cbn [app].
+  split; [ | apply incl_refl ].
+  intros x Hx. rewrite !in_app_iff in *. tauto.
+Qed.
+
+Fixpoint groups_up_scoped (e : expr) : scoped e (groups_up e).
+Proof.
+  destruct e as [x kind d body | bindings body
+                | k [params metadata handler] body | handlers body | ap | ac
+                | scrutinee arms | ];
+    cbn [groups_up]; try apply scoped_refl.
+  - apply scoped_let; [ apply incl_refl | apply groups_up_scoped ].
+  - eapply scoped_trans;
+      [ apply scoped_let_static;
+        [ apply scoped_bindings_refl | apply (groups_up_scoped body) ]
+      | ].
+    destruct (groups_up body)
+      as [x' kind' d' body' | bindings' body' | k' h' body'
+         | handlers' body' | ap' | ac' | scrutinee' arms' | ];
+      try
+        (apply scoped_let_static;
+         [ apply scoped_bindings_code_first | apply scoped_refl ]).
+    eapply scoped_trans; [ apply scoped_let_static_merge | ].
+    apply scoped_let_static;
+      [ apply scoped_bindings_code_first | apply scoped_refl ].
+  - eapply scoped_trans;
+      [ apply scoped_let_cont;
+        [ apply scoped_handler_intro, groups_up_scoped
+        | apply groups_up_scoped ]
+      | apply group_over_let_cont_scoped ].
+  - eapply scoped_trans;
+      [ apply scoped_let_cont_recursive;
+        [ reflexivity | apply scoped_handlers_refl
+        | apply groups_up_scoped ]
+      | apply group_over_let_cont_recursive_scoped ].
+Qed.
+
+Theorem groups_up_keeps_scope : groups_up_keeps_scope_statement.
+Proof. apply keeps_scope_intro. exact groups_up_scoped. Qed.
 
 (* ======================================================================== *)
 (* The static bindings that need nothing bound first                        *)

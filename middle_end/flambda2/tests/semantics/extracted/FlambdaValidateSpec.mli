@@ -9,6 +9,7 @@ open FlambdaDemoteSpec
 open FlambdaFloatCodeSpec
 open FlambdaForwardKindedSpec
 open FlambdaForwardSpec
+open FlambdaGroupsUpSpec
 open FlambdaGuardScopeSpec
 open FlambdaHoistCodeSpec
 open FlambdaHoistStaticsSpec
