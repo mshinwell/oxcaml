@@ -1770,7 +1770,8 @@ type static_name =
   | Symbol_name of Model.symbol
   | Code_name of Model.code_id
 
-let unused_statics (e : Model.expr) : Unused_statics.dropped =
+let static_names (e : Model.expr) :
+    (static_name option * static_name) list * static_name list =
   (* What each binding refers to, and what the term refers to outside its
      bindings ([None]). *)
   let references : (static_name option * static_name) list ref = ref [] in
@@ -1852,6 +1853,10 @@ let unused_statics (e : Model.expr) : Unused_statics.dropped =
     | Invalid -> ()
   in
   in_expr None e;
+  !references, !bound
+
+let unused_statics (e : Model.expr) : Unused_statics.dropped =
+  let references, bound = static_names e in
   let rec live_from live =
     let live' =
       List.fold_left
@@ -1862,12 +1867,12 @@ let unused_statics (e : Model.expr) : Unused_statics.dropped =
           if owner_is_live && not (List.mem name live)
           then name :: live
           else live)
-        live !references
+        live references
     in
     if List.length live' = List.length live then live else live_from live'
   in
   let live = live_from [] in
-  let unused = List.filter (fun name -> not (List.mem name live)) !bound in
+  let unused = List.filter (fun name -> not (List.mem name live)) bound in
   { dropped_symbols =
       List.filter_map
         (function Symbol_name sym -> Some sym | Code_name _ -> None)
@@ -1913,6 +1918,17 @@ let unused_statics (e : Model.expr) : Unused_statics.dropped =
    same code) is given that symbol too: where inlining has made two [Let]s of
    one closure that captures nothing, Simplify has one symbol for both, and
    FlambdaLiftFromCodeSpec.once_each puts one binding for the two.
+
+   A closure outside code that no symbol of the term after fits, whose value
+   slots hold symbols, constants or variables that the guess has made aliases of
+   symbols, and that the term after does not make by a [Let] either, is given
+   symbols that neither of the two terms given here binds or mentions. The case
+   aimed at is a function of which Simplify has inlined every call and removed
+   the closure; where another closure holds it in a value slot and calls it
+   through the slot, the slot then holds a symbol, which the code that reads the
+   slot is given (FlambdaKnownClosuresSpec.use_known_closures), and the call is
+   direct and can be inlined. Once it is, nothing uses the symbols, and the
+   removal of unused static bindings takes them away.
 
    The guess also says in which code [my_closure] is a symbol: the code of each
    closure that the term after binds statically, if the term before, once
@@ -2003,6 +2019,59 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list) ~around
            | (Symbol _ | Const _), Var _ -> false
            | (Symbol _ | Const _), (Symbol _ | Const _) -> field = field')
          fields fields'
+  in
+  (* A symbol that neither [before] nor [after], as they are given here, binds
+     or mentions. *)
+  let next_symbol =
+    let greatest e =
+      let references, bound = static_names e in
+      List.fold_left
+        (fun n name ->
+          match name with
+          | Symbol_name sym -> max n (int_of_positive sym)
+          | Code_name _ -> n)
+        0
+        (bound @ List.map snd references)
+    in
+    ref (1 + max (greatest before) (greatest after))
+  in
+  let fresh_symbol () =
+    let sym = positive_of_int !next_symbol in
+    incr next_symbol;
+    sym
+  in
+  (* The function declarations of the closures that the term after makes by a
+     [Let], anywhere. *)
+  let made_after =
+    let made = ref [] in
+    let rec in_term (e : Model.expr) =
+      match e with
+      | Let (_, _, d, body) ->
+        (match d with
+        | Closure_of_set (_, decls, _) -> made := decls :: !made
+        | _ -> ());
+        in_term body
+      | Let_static (bindings, body) ->
+        List.iter
+          (fun (binding : Model.static_binding) ->
+            match binding with
+            | Bind_code (_, Code (_, _, _, _, _, code_body)) ->
+              in_term code_body
+            | Bind_deleted_code _ | Bind_symbol _ -> ())
+          bindings;
+        in_term body
+      | Let_cont_non_recursive (_, Handler (_, _, handler), body) ->
+        in_term handler;
+        in_term body
+      | Let_cont_recursive (handlers, body) ->
+        List.iter
+          (fun (_, Model.Handler (_, _, handler)) -> in_term handler)
+          handlers;
+        in_term body
+      | Apply _ | Apply_cont _ | Switch _ | Invalid -> ()
+    in
+    in_term after;
+    !made
   in
   let lets = ref [] in
   let lift x path (target : Lift.lift_to) =
@@ -2116,7 +2185,7 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list) ~around
         with
         | Some (sym, _) -> lift x path (Lift_to_symbol sym)
         | None -> ())
-      | Closure_of_set (slot, decls, _) -> (
+      | Closure_of_set (slot, decls, slots) -> (
         match
           take path (fun (const : Model.static_const) ->
               match const with
@@ -2134,7 +2203,31 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list) ~around
           | Some sym -> known_simples := (x, Model.Symbol sym) :: !known_simples
           | None -> ());
           lift x path (Lift_to_closure_symbols symbols)
-        | Some _ | None -> ())
+        | Some _ -> ()
+        | None ->
+          (* A closure whose value slots hold symbols, constants or variables
+             made aliases of symbols, and that the term after neither binds to a
+             symbol nor makes. The case aimed at is a function of which Simplify
+             has inlined every call. It is given symbols that neither of the two
+             terms given here has, so that a value slot that holds it holds a
+             symbol. *)
+          let known (s : Model.simple) =
+            match s with
+            | Symbol _ | Const _ -> true
+            | Var x -> List.mem_assoc x !known_simples
+          in
+          if
+            List.for_all (fun (_, s) -> known s) slots
+            && not (List.mem decls made_after)
+          then (
+            let symbols =
+              List.map (fun (slot, _) -> slot, fresh_symbol ()) decls
+            in
+            (match List.assoc_opt slot symbols with
+            | Some sym ->
+              known_simples := (x, Model.Symbol sym) :: !known_simples
+            | None -> ());
+            lift x path (Lift_to_closure_symbols symbols)))
       | Prim (Variadic (Make_block (Block_kind_values tag)), fields) -> (
         match
           take path (fun (const : Model.static_const) ->
