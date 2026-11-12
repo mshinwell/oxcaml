@@ -6,7 +6,8 @@ rewrites to the validator. The units are made by
 (`-drawfexpr`); each fragment below is what the front end prints.
 Ranked by how much OCaml each one blocks: the first ones are in almost
 every program. The state of each is in the last column (2026-11-12,
-after V4's second series and V3's sixth pass);
+after V4's validation of loops and the removal from the term after of
+the continuations that are applied once);
 `tests/semantics/ocaml/README.md` has the units and what stops
 each.
 
@@ -66,8 +67,8 @@ partial one, and these do run.)
 | 1 | Puts the handler of a continuation applied once where it is applied, when that is in the handler of another continuation | every unit whose top has an `if` or a `match` on a value that is not known (`if_unknown.ml`) | done: V4's `sink_let_conts` |
 | 2 | Lifts a closed closure, block or boxed number at toplevel to a symbol | any function that stays (recursive, not inlined, or exported), any block that stays | done: V3's lifting |
 | 3 | Leaves the calls of a recursive function | `factorial.ml`, `list_sum.ml` | done: the validator is told the recursive code and does not inline its calls (`kept`) |
-| 4 | Rewrites inside the handler of a recursive continuation; removes a parameter of a continuation that is not used; replaces a continuation that is one `Apply_cont` by it in a `Switch` arm; follows a constant bound outside a loop into it | `while` and `for` loops | done: V4's two series (the rewrites of a round inside loops; a parameter that every application gives the same thing; the unused parameters of loops). Left: a parameter that is only passed round the loop (`while_unused_counter.ml`), V4's next series |
-| 5 | Makes a self tail call a jump (loopify) | tail-recursive functions | V4: `loopify_unit` is proved; `validate_unit` is to take the code to loopify as one more guess, in the series after this one |
+| 4 | Rewrites inside the handler of a recursive continuation; removes a parameter of a continuation that is not used; replaces a continuation that is one `Apply_cont` by it in a `Switch` arm; follows a constant bound outside a loop into it | `while` and `for` loops | done: V4's series (the rewrites of a round inside loops; a parameter that every application gives the same thing; the unused parameters of loops; a parameter that is only passed round the loop, `FlambdaDeadParamsSpec.v`) |
+| 5 | Makes a self tail call a jump (loopify) | tail-recursive functions | done: V4's `loopify_unit`; `validate_unit` takes the code to loopify, with a name for each loop, as one more guess, and the tool gives the code that the front end marks (`tail_loop.ml`) |
 | 6 | Identities of arithmetic (`x + 0`, `x * 1`, `x land 0`, ...; not `x - x`) | `add_zero.ml` | done: P1's `FlambdaIdentitiesSpec.v`, wired |
 | 7 | Loads a field, the tag or `Is_int` of a known block | every unit (the module block), every match on a constructor just applied | done: `FlambdaBlockLoadSpec.v` |
 | 8 | Deletes a continuation that is not used | every match resolved | done: `FlambdaUnusedContsSpec.v` |
@@ -81,10 +82,13 @@ partial one, and these do run.)
 | 16 | Unboxes a value where two branches meet: passes the fields of a pair, or of a variant with `poison` for the fields a branch has not got | `pair_join.ml`, `option_join.ml` | T6: `unbox_variant_params` is proved, to be wired after this series |
 | 17 | Inlines a call that becomes direct in the body of code, of code bound in the same group | a local function given to a function that is inlined, in a function that stays (`closure_argument_exported.ml`) | done: `FlambdaInlineSiblingsSpec.v` |
 | 18 | Nothing: the compiler binds every closure of a set in one `Let`, and the model's `Let` of the ones that are not used is a projection that the term after keeps | `let rec g ... and h ... in g` (`returned_closure_of_pair.ml`) | done: `FlambdaUnusedProjectionsSpec.v`, for the term after |
-| 19 | Leaves a continuation that is applied once where the validator, which inlines more calls, has one in the term after only | units with inputs that are not known (50 of 600 generated units) | V4's `inline_tail_conts_kinded`, an equivalence, to be wired on the term after |
-| 20 | Makes a `Switch` whose two arms give one continuation 0 and 1 the tagging of what is tested | a boolean computed by a test and kept (15 of 600 generated units) | T1: the third slice of the `Switch` (`FlambdaSimplifySwitchMergeSpec.v`); a rewrite of a whole term that rebinds the variable tested, to be wired when it lands |
+| 19 | Leaves a continuation that is applied once where the validator, which inlines more calls, has one in the term after only | units with inputs that are not known (50 of 600 generated units) | done: `FlambdaValidateSpec.inline_once_applied_after`, by V4's `inline_tail_conts_kinded`, an equivalence |
+| 20 | Makes a `Switch` whose two arms give one continuation 0 and 1 the tagging of what is tested | a boolean computed by a test and kept (3 of 600 generated units have it; two of them validate with the rewrite, T1's measure) | T1's `FlambdaMergeSwitchesSpec.merge_switches`, merged; to be wired after this |
 | 21 | Makes of a partial application a wrapper that calls the function through a value slot of its own closure, and leaves the call indirect | `partial_exported.ml` | V3 |
 | 22 | Keeps a boolean untagged in a parameter of a loop | `while_flag.ml` | T6 |
+| 23 | Leaves, in the code of a function that it makes a loop of, a `Let` of a parameter of the code that nothing uses | a loop over a string in a function (`string_sum.ml`; 3 of 600 generated units) | done: V4's `FlambdaCodeLetsSpec.v`, for the term after |
+| 24 | Resolves a `Switch` on a variable that a `Switch` around it has tested | a condition used twice (generated units) | T2: `prune_by_types`, to be wired |
+| 25 | Makes a block a symbol when the handler that made it only made it and went on, and drops the handler | a constructor applied in one arm of a match, in a value that the unit keeps (generated units) | V3: the guess of what was lifted; and a round of clean-up after the unused static bindings are removed |
 
 ## 4. The printer and the parser of fexpr
 

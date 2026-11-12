@@ -1,6 +1,7 @@
 open Datatypes
 open FlambdaAliasesSpec
 open FlambdaBlockLoadSpec
+open FlambdaCodeLetsSpec
 open FlambdaCompareSpec
 open FlambdaCseSpec
 open FlambdaDeadParamsSpec
@@ -9,6 +10,7 @@ open FlambdaForwardSpec
 open FlambdaHoistCodeSpec
 open FlambdaIdentitiesSpec
 open FlambdaInlineSiblingsSpec
+open FlambdaInlineTailSpec
 open FlambdaKnownClosuresSpec
 open FlambdaKnownSymbolsSpec
 open FlambdaLiftFromCodeSpec
@@ -53,6 +55,8 @@ val normalise_code_params : expr -> expr
 val normalise_params_round : expr -> expr
 
 val normalise_before : nat -> code_id list -> expr -> expr
+
+val inline_once_applied_after : expr -> expr
 
 val normalise_expr_after : expr -> expr
 

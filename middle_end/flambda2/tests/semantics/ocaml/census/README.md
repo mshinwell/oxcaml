@@ -38,43 +38,55 @@ that the conversion refused.
 | Profile | Units | Validated | Not validated |
 |---------|-------|-----------|---------------|
 | `known_scalar` | 150 | 150 | 0 |
-| `unknown_scalar` | 150 | 124 | 26 |
-| `known` | 100 | 94 | 6 |
-| `unknown` | 100 | 76 | 24 |
-| `functions` | 100 | 65 | 35 |
+| `unknown_scalar` | 150 | 143 | 7 |
+| `known` | 100 | 98 | 2 |
+| `unknown` | 100 | 98 | 2 |
+| `functions` | 100 | 89 | 11 |
 
-509 of the 600 are validated. The day before, with the validator as it
-then was, 336 were, 256 were not and 8 were not checked; of the units
-that keep a function, none was.
+578 of the 600 are validated. On the same 600 terms, earlier the
+same day: 509 before the term after lost the continuations that are
+applied once (`FlambdaValidateSpec.inline_once_applied_after`); 555
+with that, and still 555 with the unused `Let`s of the parameters of
+code removed from the term after; 577 with the tool guessing again
+what was lifted where its first guess gave a symbol to a block that
+nothing uses, and with the lifting out of the code of functions; and
+one more at the second asking (`unknown`, seed 30). No unit that was
+validated at one of these points is not at a later one. The day
+before, 336 were validated, 256 were not and 8 were not checked; of
+the units that keep a function, none was.
 
-What the 91 units that are not validated lack, read off the two
+What the 22 units that are not validated lack, read off the two
 normalised terms by a script (a unit may lack more than one):
 
-| What is missing | `unknown_scalar` (26) | The other three (65) |
-|-----------------|-----------------------|----------------------|
-| The term after keeps a continuation that is applied once, which its normalisation does not inline | 20 | 30 |
-| A block with a field that is not known until the module runs, which Simplify makes a symbol: the guess of the tool gives the symbol to another `Let` of a block of the same shape | 2 | 35 |
-| A `Switch` whose two arms give one continuation 0 and 1, which Simplify makes the tagging of what is tested | 6 | 9 |
-| The term before keeps a continuation that the term after has not | 5 | 7 |
-| In the code of a function that stays, a `Let` of a parameter that nothing uses, left in the term after | 0 | 3 |
+| What is missing | `unknown_scalar` (7) | The other three (15) |
+|-----------------|----------------------|----------------------|
+| A block that Simplify makes a symbol and the term before still makes with a `Let`: the block is made in a handler and Simplify binds the symbol outside it, or the guess of the tool does not find it | 2 | 12 |
+| A `Switch` that Simplify removes with what it knows of the variable tested | 6 | 5 |
+| A `Let` on the other side of the binding of a continuation whose handler does not use it | 0 | 1 |
+| A constant block that the lifting binds in another group of static bindings than Simplify does | 0 | 1 |
 
-The first row is a rewrite that exists and is not in the
-normalisation of the term after yet
-(`FlambdaInlineTailSpec.inline_tail_conts_kinded`). The second is in
-the tool only: nothing is believed of its guesses, and a better one
-needs no proof. The last is the removal of a `Let` that is sure to
-have a value, which in the body of code does not know the kinds of
-the parameters.
+The second row is three things, which the script does not tell
+apart, and a unit may have more than one. Two arms that give one
+continuation 0 and 1 are made the tagging of what is tested (three
+units have a tagging in the term after that the term before has
+not). A `Switch` on a variable that a `Switch` around it has tested,
+or on the untagging of such a tagging, is resolved. A match on a
+variant that was made where two branches meet loses its tests:
+Simplify unboxes the variant there, as in `option_join.ml` of the
+directory above. Of the 22, eight have fewer tests of a tag in the
+term after; five of those have the constant `poison` after Simplify,
+which the conversion makes the poison of the model, so they are run
+and compared.
 
-In five units the term after Simplify has the constant `poison`
-(Simplify unboxes a variant where two branches meet, and gives the
-fields that a branch has not got that constant). The conversion makes
-it the poison of the model, so they are run and compared; none of the
-five is validated, each for one of the rows above as well.
+In 17 of the 22 the term before keeps a continuation that the term
+after has not: the 11 of the second row, five where a handler only
+makes a block and goes on (Simplify makes the block a symbol and has
+no use for the handler), and one where a variant is unboxed and no
+`Switch` is removed (`unknown_scalar`, seed 122).
+
+The first row is in the tool only: nothing is believed of its
+guesses, and a better one needs no proof.
 
 So, for units of this kind: when every input is known and the result
-is a number, all are validated. With unknown inputs, what stops a unit
-is, more than half the time, a continuation applied once that Simplify
-leaves and the validator inlines on one side only. A unit that keeps a
-block made of values that are not known waits for a better guess of
-what was lifted.
+is a number, all are validated; with unknown inputs and numbers, 143
+of 150; of the units that keep a function, 89 of 100.
