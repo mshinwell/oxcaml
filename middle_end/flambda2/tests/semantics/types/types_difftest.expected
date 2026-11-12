@@ -999,6 +999,92 @@ The meet of the model beside the n-way meet of the compiler, on the scenarios of
   T4-9
   With the variables of each scenario defined in the reverse order: 25 the same, 0 different (the compiler answers otherwise than in the order given on 1)
 
+A meet whose answer depends on the identifiers of its variables (T7-13, T4-10), run 240 times with new variables with each meet of the compiler, without and with its check for concrete types on canonical names only: what is answered, for each order of the identifiers
+  the binary meet, without the check:
+    v1 < v2 < v3: not bottom; v2 has a type that is no alias, and v1 for its canonical element
+    v1 < v3 < v2: not bottom; v2 has a type that is no alias, and v1 for its canonical element
+    v2 < v1 < v3: not bottom; v2 has a type that is no alias, and v1 for its canonical element
+    v2 < v3 < v1: bottom
+    v3 < v1 < v2: not bottom; v2 has a type that is no alias, and v1 for its canonical element
+    v3 < v2 < v1: not bottom; v2 has a type that is no alias, and v1 for its canonical element
+    each of the six orders is seen: yes
+    one answer in each order: yes
+    bottom in the order v2 < v3 < v1: yes
+    in every other order, not bottom, with a type that is no alias for a name that is not canonical: yes
+  the binary meet, with the check:
+    v1 < v2 < v3: the compiler stops: a concrete type is given to a name that is not canonical
+    v1 < v3 < v2: the compiler stops: a concrete type is given to a name that is not canonical
+    v2 < v1 < v3: the compiler stops: a concrete type is given to a name that is not canonical
+    v2 < v3 < v1: bottom
+    v3 < v1 < v2: the compiler stops: a concrete type is given to a name that is not canonical
+    v3 < v2 < v1: the compiler stops: a concrete type is given to a name that is not canonical
+    each of the six orders is seen: yes
+    one answer in each order: yes
+    bottom in the order v2 < v3 < v1: yes
+    in every other order, refused by the check: yes
+  the n-way meet, without the check:
+    v1 < v2 < v3: not bottom; v2 has a type that is no alias, and v1 for its canonical element
+    v1 < v3 < v2: not bottom; v2 has a type that is no alias, and v1 for its canonical element
+    v2 < v1 < v3: not bottom; v2 has a type that is no alias, and v1 for its canonical element
+    v2 < v3 < v1: bottom
+    v3 < v1 < v2: not bottom; v2 has a type that is no alias, and v1 for its canonical element
+    v3 < v2 < v1: not bottom; v2 has a type that is no alias, and v1 for its canonical element
+    each of the six orders is seen: yes
+    one answer in each order: yes
+    bottom in the order v2 < v3 < v1: yes
+    in every other order, not bottom, with a type that is no alias for a name that is not canonical: yes
+  the n-way meet, with the check:
+    v1 < v2 < v3: the compiler stops: a concrete type is given to a name that is not canonical
+    v1 < v3 < v2: the compiler stops: a concrete type is given to a name that is not canonical
+    v2 < v1 < v3: the compiler stops: a concrete type is given to a name that is not canonical
+    v2 < v3 < v1: bottom
+    v3 < v1 < v2: the compiler stops: a concrete type is given to a name that is not canonical
+    v3 < v2 < v1: the compiler stops: a concrete type is given to a name that is not canonical
+    each of the six orders is seen: yes
+    one answer in each order: yes
+    bottom in the order v2 < v3 < v1: yes
+    in every other order, refused by the check: yes
+  the model, with the compiler's choices: bottom: yes
+  the model, with the choices that are to be proved: bottom: yes
+  a control: the last block with three fields, which one case of v1 allows
+  the binary meet, without the check:
+    v1 < v2 < v3: not bottom; v2 has a type that is no alias, and v1 for its canonical element
+    v1 < v3 < v2: not bottom; v2 has a type that is no alias, and v1 for its canonical element
+    v2 < v1 < v3: not bottom; v2 has a type that is no alias, and v1 for its canonical element
+    v2 < v3 < v1: not bottom; v2 has a type that is no alias, and v1 for its canonical element
+    v3 < v1 < v2: not bottom; v2 has a type that is no alias, and v1 for its canonical element
+    v3 < v2 < v1: not bottom; v2 has a type that is no alias, and v1 for its canonical element
+    each of the six orders is seen: yes
+    in every order, not bottom, with a type that is no alias for a name that is not canonical: yes
+  the binary meet, with the check:
+    v1 < v2 < v3: the compiler stops: a concrete type is given to a name that is not canonical
+    v1 < v3 < v2: the compiler stops: a concrete type is given to a name that is not canonical
+    v2 < v1 < v3: the compiler stops: a concrete type is given to a name that is not canonical
+    v2 < v3 < v1: the compiler stops: a concrete type is given to a name that is not canonical
+    v3 < v1 < v2: the compiler stops: a concrete type is given to a name that is not canonical
+    v3 < v2 < v1: the compiler stops: a concrete type is given to a name that is not canonical
+    each of the six orders is seen: yes
+    in every order, refused by the check: yes
+  the n-way meet, without the check:
+    v1 < v2 < v3: not bottom; v2 has a type that is no alias, and v1 for its canonical element
+    v1 < v3 < v2: not bottom; v2 has a type that is no alias, and v1 for its canonical element
+    v2 < v1 < v3: not bottom; v2 has a type that is no alias, and v1 for its canonical element
+    v2 < v3 < v1: not bottom; v2 has a type that is no alias, and v1 for its canonical element
+    v3 < v1 < v2: not bottom; v2 has a type that is no alias, and v1 for its canonical element
+    v3 < v2 < v1: not bottom; v2 has a type that is no alias, and v1 for its canonical element
+    each of the six orders is seen: yes
+    in every order, not bottom, with a type that is no alias for a name that is not canonical: yes
+  the n-way meet, with the check:
+    v1 < v2 < v3: the compiler stops: a concrete type is given to a name that is not canonical
+    v1 < v3 < v2: the compiler stops: a concrete type is given to a name that is not canonical
+    v2 < v1 < v3: the compiler stops: a concrete type is given to a name that is not canonical
+    v2 < v3 < v1: the compiler stops: a concrete type is given to a name that is not canonical
+    v3 < v1 < v2: the compiler stops: a concrete type is given to a name that is not canonical
+    v3 < v2 < v1: the compiler stops: a concrete type is given to a name that is not canonical
+    each of the six orders is seen: yes
+    in every order, refused by the check: yes
+  the model, with the compiler's choices, on the control: not bottom: yes
+
 What is the same up to the alias that a name keeps (10 cases): 10 as expected
 
 Two types of kind value, for the meet of the model and the n-way meet of the compiler (1000 cases, seeds 90000 to 90999)

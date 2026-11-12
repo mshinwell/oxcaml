@@ -4927,6 +4927,307 @@ let scenarios_in_the_model () =
      given on %d)@."
     !same !different !moved
 
+(* ======================================================================== *)
+(* A meet whose answer depends on the identifiers of its variables          *)
+(* ======================================================================== *)
+
+(* A variant that is never an immediate, with blocks of the tags given, of
+   values, and no extension. *)
+let variant_of_blocks (cases : (int * MT.flambda_type list) list) :
+    MT.flambda_type =
+  MT.create_variant false
+    (Known (MT.bottom (Naked_number Kind_naked_immediate)))
+    (Known
+       (Row_like_for_blocks
+          ( List.map
+              (fun (tag, fields) : (_ * MT.row_like_block_case MT.Or_unknown.t)
+                 ->
+                ( N.z_of_int tag,
+                  Known
+                    { case_maps_to = fields;
+                      case_index =
+                        { index_domain =
+                            Known (N.nat_of_int (List.length fields));
+                          index_shape = Scannable Value_only
+                        };
+                      case_env_extension = MT.empty_env_extension
+                    } ))
+              cases,
+            Bottom,
+            Heap )))
+    No_extensions
+
+(* T7-13, which is T4-10 reached by a run. Three values, defined in the order of
+   their numbers. The variable 1 is a variant whose blocks, of tag 0 or 1, hold
+   the variable 3; and then one whose blocks hold a block of three fields, for
+   tag 0, or of one, for tag 1, that are the variable 2: each case of the
+   variable 1 then has an extension that gives the variable 3 that many fields.
+   The variable 2 is a variant whose blocks hold the variable 3. The meet is of
+   the variable 2 and a variant whose blocks, of tag 0, hold a block of two
+   fields that are the variable 1.
+
+   The meet of the field makes the variables 2 and 1 aliases while the equation
+   on the variable 2 is being added, and gives the variable 3 two fields, which
+   neither case of the variable 1 allows. The compiler then gives the variable 2
+   a type that is no alias, though it is no longer canonical
+   ([Meet_env.add_concrete_equation_on_canonical_name]), which its check for
+   concrete types on canonical names only refuses
+   ([Typing_env.replace_equation], under a debug flag that is off by default);
+   and whether it finds the meet bottom depends on the order of the identifiers
+   of the three variables, which are hashes.
+
+   So this is not one of [the_chosen_meets]: what a meet of the compiler answers
+   on it in one run is not what it answers in the next. It is run many times,
+   with new variables each time, with each meet of the compiler, without and
+   with that check, and what is answered is given for each order of the
+   identifiers. The model answers the same whatever its variables: once is
+   enough.
+
+   The number of fields of the last block is a parameter, for a control: with
+   three fields, which the case of tag 0 of the variable 1 allows, the meet is
+   bottom in no order. *)
+let the_meet_of_t7_13 ~(fields : int) : chosen_meet =
+  let alias i = MT.alias_type_of Value (Var (N.positive_of_int i)) in
+  let blocks = variant_of_blocks in
+  let last = blocks [0, List.init fields (fun _ -> alias 1)] in
+  { label = "T7-13";
+    kinds = [Value; Value; Value];
+    before =
+      [ Define 1;
+        Define 2;
+        Define 3;
+        Equation (1, blocks [0, [alias 3]; 1, [alias 3]]);
+        Equation
+          ( 1,
+            blocks
+              [ 0, [blocks [0, [alias 2; alias 2; alias 2]]];
+                1, [blocks [0, [alias 2]]] ] );
+        Equation (2, blocks [0, [alias 3]; 1, [alias 3]]) ];
+    met = alias 2, blocks [0, [last]];
+    given_to = None
+  }
+
+(* What a meet of the compiler answers on that scenario in one run. *)
+type answer_of_t7_13 =
+  | Is_bottom
+  | Is_not_bottom of
+      { (* Whether the variable 2 has, in the environment answered, a type that
+           is no alias and a canonical element that is not itself. *)
+        concrete_and_not_canonical : bool
+      }
+  | Is_refused_by_the_check
+  | Stops_otherwise of string
+  | Is_not_run of string
+
+let print_answer_of_t7_13 (answer : answer_of_t7_13) : string =
+  match answer with
+  | Is_bottom -> "bottom"
+  | Is_not_bottom { concrete_and_not_canonical = true } ->
+    "not bottom; v2 has a type that is no alias, and v1 for its canonical \
+     element"
+  | Is_not_bottom { concrete_and_not_canonical = false } -> "not bottom"
+  | Is_refused_by_the_check ->
+    "the compiler stops: a concrete type is given to a name that is not \
+     canonical"
+  | Stops_otherwise line -> "the compiler stops: " ^ general line
+  | Is_not_run why -> "not run: " ^ why
+
+(* One run, with new variables: the order of their identifiers, least first, and
+   the answer. *)
+let run_the_meet_of_t7_13 ~fields (implementation : implementation) :
+    string * answer_of_t7_13 =
+  let { label = _; kinds; before; met = first, second; given_to = _ } =
+    the_meet_of_t7_13 ~fields
+  in
+  (* The variables are made before anything can stop, so that the order is known
+     of every run. *)
+  let order = ref "" in
+  let answer =
+    or_fatal_error (fun () ->
+        let { numbering; variable; after_the_steps } =
+          scenario implementation kinds before
+        in
+        order
+          := String.concat " < "
+               (List.map
+                  (fun (i, (_ : Variable.t)) -> Printf.sprintf "v%d" i)
+                  (List.sort
+                     (fun ((_ : int), x) ((_ : int), y) -> Variable.compare x y)
+                     (List.map (fun i -> i, variable i) [1; 2; 3])));
+        let to_compiler = Converter.type_of_model numbering machine_width in
+        match after_the_steps with
+        | Error why -> Is_not_run why
+        | Ok env -> (
+          match
+            implementation.meet env (to_compiler first) (to_compiler second)
+          with
+          | Bottom -> Is_bottom
+          | Ok ((_ : TG.t), env) ->
+            let v2 = variable 2 in
+            let concrete =
+              Option.is_none
+                (TG.get_alias_opt (TE.find env (Name.var v2) (Some K.value)))
+            in
+            let canonical =
+              match
+                TE.get_canonical_simple_exn env
+                  ~min_name_mode:Name_mode.in_types (Simple.var v2)
+              with
+              | canonical -> Simple.equal canonical (Simple.var v2)
+              | exception Not_found -> true
+            in
+            Is_not_bottom
+              { concrete_and_not_canonical = concrete && not canonical }))
+  in
+  ( !order,
+    match answer with
+    | Ok answer -> answer
+    | Error line ->
+      let refused = "Trying to add equation giving concrete type on" in
+      if
+        String.length line >= String.length refused
+        && String.equal (String.sub line 0 (String.length refused)) refused
+      then Is_refused_by_the_check
+      else Stops_otherwise line )
+
+let the_meet_of_t7_13_in_every_order () =
+  let runs = 240 in
+  Format.printf
+    "@.A meet whose answer depends on the identifiers of its variables (T7-13, \
+     T4-10), run %d times with new variables with each meet of the compiler, \
+     without and with its check for concrete types on canonical names only: \
+     what is answered, for each order of the identifiers@."
+    runs;
+  let check what holds =
+    if holds
+    then Format.printf "  %s: yes@." what
+    else (
+      incr failures;
+      Format.printf "  %s: NO@." what)
+  in
+  let the_order_of_bottom = "v2 < v3 < v1" in
+  let overwritten : answer_of_t7_13 =
+    Is_not_bottom { concrete_and_not_canonical = true }
+  in
+  (* For each order seen, the answers seen in it. *)
+  let answers_by_order ~fields (implementation : implementation)
+      ~(with_the_check : bool) : (string * answer_of_t7_13 list) list =
+    let flag = Oxcaml_flags.Flambda2.Debug.concrete_types_only_on_canonicals in
+    let before = !flag in
+    flag := with_the_check;
+    let seen = ref [] in
+    for _ = 1 to runs do
+      let order, answer = run_the_meet_of_t7_13 ~fields implementation in
+      let answers = Option.value (List.assoc_opt order !seen) ~default:[] in
+      if not (List.mem answer answers)
+      then seen := (order, answer :: answers) :: List.remove_assoc order !seen
+    done;
+    flag := before;
+    List.sort
+      (fun (order, (_ : answer_of_t7_13 list)) (order', _) ->
+        String.compare order order')
+      !seen
+  in
+  List.iter
+    (fun ((implementation : implementation), with_the_check) ->
+      let by_order =
+        answers_by_order ~fields:2 implementation ~with_the_check
+      in
+      Format.printf "  the %s meet, %s the check:@."
+        implementation.implementation
+        (if with_the_check then "with" else "without");
+      List.iter
+        (fun (order, answers) ->
+          Format.printf "    %s: %s@." order
+            (String.concat " / " (List.map print_answer_of_t7_13 answers)))
+        by_order;
+      check "  each of the six orders is seen" (List.length by_order = 6);
+      check "  one answer in each order"
+        (List.for_all
+           (fun ((_ : string), answers) -> List.length answers = 1)
+           by_order);
+      let in_every_other_order (expected : answer_of_t7_13) =
+        List.for_all
+          (fun (order, answers) ->
+            String.equal order the_order_of_bottom
+            || List.equal ( = ) answers [expected])
+          by_order
+      in
+      check
+        (Printf.sprintf "  bottom in the order %s" the_order_of_bottom)
+        (Option.equal (List.equal ( = ))
+           (List.assoc_opt the_order_of_bottom by_order)
+           (Some [Is_bottom]));
+      if with_the_check
+      then
+        check "  in every other order, refused by the check"
+          (in_every_other_order Is_refused_by_the_check)
+      else
+        check
+          "  in every other order, not bottom, with a type that is no alias \
+           for a name that is not canonical"
+          (in_every_other_order overwritten))
+    [binary, false; binary, true; n_way, false; n_way, true];
+  List.iter
+    (fun (choices, name) ->
+      let { label = _; kinds; before; met = first, second; given_to = _ } =
+        the_meet_of_t7_13 ~fields:2
+      in
+      let model = the_model choices in
+      check
+        (Printf.sprintf "the model, with %s: bottom" name)
+        (match scenario_in_the_model model kinds before with
+        | Error (_ : string) -> false
+        | Ok env -> (
+          match model.meet_of_model env first second with
+          | Some Bottom -> true
+          | Some (Ok _) | None -> false)))
+    [ Of_the_compiler, "the compiler's choices";
+      To_be_proved, "the choices that are to be proved" ];
+  Format.printf
+    "  a control: the last block with three fields, which one case of v1 \
+     allows@.";
+  List.iter
+    (fun ((implementation : implementation), with_the_check) ->
+      let by_order =
+        answers_by_order ~fields:3 implementation ~with_the_check
+      in
+      Format.printf "  the %s meet, %s the check:@."
+        implementation.implementation
+        (if with_the_check then "with" else "without");
+      List.iter
+        (fun (order, answers) ->
+          Format.printf "    %s: %s@." order
+            (String.concat " / " (List.map print_answer_of_t7_13 answers)))
+        by_order;
+      check "  each of the six orders is seen" (List.length by_order = 6);
+      let in_every_order (expected : answer_of_t7_13) =
+        List.for_all
+          (fun ((_ : string), answers) -> List.equal ( = ) answers [expected])
+          by_order
+      in
+      if with_the_check
+      then
+        check "  in every order, refused by the check"
+          (in_every_order Is_refused_by_the_check)
+      else
+        check
+          "  in every order, not bottom, with a type that is no alias for a \
+           name that is not canonical"
+          (in_every_order overwritten))
+    [binary, false; binary, true; n_way, false; n_way, true];
+  let { label = _; kinds; before; met = first, second; given_to = _ } =
+    the_meet_of_t7_13 ~fields:3
+  in
+  let model = the_model Of_the_compiler in
+  check "the model, with the compiler's choices, on the control: not bottom"
+    (match scenario_in_the_model model kinds before with
+    | Error (_ : string) -> false
+    | Ok env -> (
+      match model.meet_of_model env first second with
+      | Some (Ok _) -> true
+      | Some Bottom | None -> false))
+
 (* The environment of the tests, in the model: the variables and the symbols
    that [names.env] defines, of which nothing is known. *)
 let env_of_model (names : names) : Model_env.t * MT.name list =
@@ -9135,6 +9436,7 @@ let () =
   run_examples_of_meets ();
   chosen_meets ();
   scenarios_in_the_model ();
+  the_meet_of_t7_13_in_every_order ();
   control_of_the_alias_kept ();
   let model_and_compiler ~title ~seed ~count ~equations:shape kind =
     run ~title ~seed ~count
