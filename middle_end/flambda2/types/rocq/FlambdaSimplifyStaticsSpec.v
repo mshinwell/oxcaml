@@ -36,8 +36,9 @@
    FlambdaSimplifyProjectionsSpec.v and FlambdaSimplifyBoxingSpec.v,
    which have the same for a block and a boxed number that a primitive
    makes, and FlambdaSimplifyPrimitivesSpec.v, which has the type of an
-   argument ([argument_type]) and what is assumed: strict satisfaction
-   of the environment.
+   argument ([argument_type]), the function that computes it
+   ([simplify_simples]) and what is assumed: strict satisfaction of the
+   environment.
 
    At a group of static bindings Simplify defines the symbols that the
    group binds, and gives each one that is not bound to a closure a
@@ -101,8 +102,6 @@
      statements about the types of closures.
 
    The statements:
-   - the function that reads the type of an argument is the relation
-     of FlambdaSimplifyPrimitivesSpec.v ([argument_type_of_statement]);
    - a symbol that the static environment binds to the value of a
      constant, as a group that binds it leaves it, has the type of the
      constant ([static_const_typed_statement]), and that type speaks
@@ -157,39 +156,6 @@ Local Open Scope Z_scope.
 (* The type of a static constant                                            *)
 (* ======================================================================== *)
 
-(* The type that Simplify has for an argument
-   ([Simplify_simple.simplify_simple] at the normal name mode), as a
-   function: the type of FlambdaSimplifyPrimitivesSpec.argument_type.
-   [None] where the environment does not know the [Simple] at that name
-   mode, which is a fatal error of the compiler. (It is the type that
-   [simplify_simple] of FlambdaSimplifyPassSpec.v answers; that file is
-   not imported here, as it is the one to use this.) *)
-Definition argument_type_of (tenv : Typing_env.t) (arg : simple)
-    : option flambda_type :=
-  if Typing_env.mem_simple (Some Name_mode.normal) tenv arg
-  then
-    match
-      Typing_env.type_simple_in_term_exn tenv (Some Name_mode.normal) arg
-    with
-    | Some (Some (ty, _)) => Some ty
-    | Some None | None => None
-    end
-  else None.
-
-Fixpoint argument_types_of (tenv : Typing_env.t) (args : list simple)
-    : option (list flambda_type) :=
-  match args with
-  | [] => Some []
-  | arg :: args =>
-    let* ty := argument_type_of tenv arg in
-    let* tys := argument_types_of tenv args in
-    Some (ty :: tys)
-  end.
-
-Definition argument_type_of_statement : Prop :=
-  ∀ (tenv : Typing_env.t) (arg : simple) (ty : flambda_type),
-    argument_type_of tenv arg = Some ty <-> argument_type tenv arg ty.
-
 (* The [Simple]s of a static constant whose types make the type of its
    symbol: the fields of a block, the contents of a boxed number. (Of a
    closure, the [Simple]s of its value slots: not used here.) *)
@@ -229,11 +195,16 @@ Definition static_const_type (const : static_const)
     None
   end.
 
-(* The same, the types read in the environment. *)
+(* The same, the types read in the environment
+   (FlambdaSimplifyPrimitivesSpec.simplify_simples, which is
+   [Simplify_simple.simplify_simple] at the normal name mode on each
+   [Simple]). [None] also where the environment does not know one of
+   the [Simple]s at that name mode, which is a fatal error of the
+   compiler. *)
 Definition static_const_type_in (tenv : Typing_env.t) (const : static_const)
     : option flambda_type :=
-  let* tys := argument_types_of tenv (static_const_simples const) in
-  static_const_type const tys.
+  let* answers := simplify_simples tenv (static_const_simples const) in
+  static_const_type const (map fst answers).
 
 (* A symbol bound to what the constant is, in a state that satisfies
    the environment in which the type was taken, has the type. The

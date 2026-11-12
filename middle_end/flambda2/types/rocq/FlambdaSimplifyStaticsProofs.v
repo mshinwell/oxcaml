@@ -43,48 +43,12 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeRenameSpec FlambdaTypeRenameProofs FlambdaEnvRenameSpec
   FlambdaEnvRenameProofs FlambdaProvers FlambdaProversSpec
   FlambdaSimplifyPrimitivesSpec FlambdaSimplifyPrimitivesProofs
+  FlambdaSimplifyPrimitivesRenamingSpec FlambdaSimplifyPrimitivesRenamingProofs
   FlambdaSimplifyProjectionsSpec FlambdaSimplifyProjectionsProofs
   FlambdaSimplifyBoxingProofs FlambdaSimplifyStaticsSpec.
 Import ListNotations.
 
 Local Open Scope Z_scope.
-
-(* ======================================================================== *)
-(* The type of an argument, as a function                                   *)
-(* ======================================================================== *)
-
-Theorem argument_type_of : argument_type_of_statement.
-Proof.
-  intros tenv arg ty. unfold FlambdaSimplifyStaticsSpec.argument_type_of,
-    argument_type.
-  destruct (Typing_env.mem_simple (Some Name_mode.normal) tenv arg).
-  - destruct (Typing_env.type_simple_in_term_exn tenv
-                (Some Name_mode.normal) arg)
-      as [[[ty' canonical] | ] | ].
-    + split.
-      * intros [= <-]. split; [ reflexivity | ]. exists canonical.
-        reflexivity.
-      * intros [_ [canonical' [= <- _]]]. reflexivity.
-    + split; [ discriminate | intros [_ [canonical' Heq]]; discriminate ].
-    + split; [ discriminate | intros [_ [canonical' Heq]]; discriminate ].
-  - split; [ discriminate | intros [Hmem _]; discriminate ].
-Qed.
-
-Lemma argument_types_of_typed (tenv : Typing_env.t) (args : list simple) :
-  ∀ tys : list flambda_type,
-    argument_types_of tenv args = Some tys ->
-    Forall2 (argument_type tenv) args tys.
-Proof.
-  induction args as [ | arg args IH]; intros tys; simpl.
-  - intros [= <-]. apply Forall2_nil.
-  - destruct (FlambdaSimplifyStaticsSpec.argument_type_of tenv arg)
-      as [ty | ] eqn:Hty; [ | discriminate ].
-    destruct (argument_types_of tenv args) as [tys' | ]; [ | discriminate ].
-    simpl. intros [= <-].
-    apply Forall2_cons;
-      [ exact (proj1 (argument_type_of tenv arg ty) Hty)
-      | exact (IH tys' eq_refl) ].
-Qed.
 
 (* ======================================================================== *)
 (* A symbol has the type of its constant                                    *)
@@ -136,9 +100,12 @@ Theorem static_const_typed : static_const_typed_statement.
 Proof.
   intros tenv statics vars s const ty allocated Hsat Htype Heval Hbound.
   unfold static_const_type_in in Htype.
-  destruct (argument_types_of tenv (static_const_simples const))
-    as [tys | ] eqn:Htys; [ | discriminate Htype ].
-  simpl in Htype. apply argument_types_of_typed in Htys.
+  destruct (simplify_simples tenv (static_const_simples const))
+    as [answers | ] eqn:Hanswers; [ | discriminate Htype ].
+  simpl in Htype.
+  destruct (simplify_simples_answers tenv _ answers Hanswers) as [Htys _].
+  clear Hanswers. remember (map fst answers) as tys eqn:Heqtys in *.
+  clear Heqtys answers.
   destruct const as [code slots | fslot syms decls slots | tag fields
     | contents | bytes];
     simpl in Htype, Htys, Heval; try discriminate Htype.
@@ -190,9 +157,12 @@ Theorem static_const_type_in_scope : static_const_type_in_scope_statement.
 Proof.
   intros tenv const ty y Htype Hy.
   unfold static_const_type_in in Htype.
-  destruct (argument_types_of tenv (static_const_simples const))
-    as [tys | ] eqn:Htys; [ | discriminate Htype ].
-  simpl in Htype. apply argument_types_of_typed in Htys.
+  destruct (simplify_simples tenv (static_const_simples const))
+    as [answers | ] eqn:Hanswers; [ | discriminate Htype ].
+  simpl in Htype.
+  destruct (simplify_simples_answers tenv _ answers Hanswers) as [Htys _].
+  clear Hanswers. remember (map fst answers) as tys eqn:Heqtys in *.
+  clear Heqtys answers.
   destruct const as [code slots | fslot syms decls slots | tag fields
     | contents | bytes];
     simpl in Htype, Htys; try discriminate Htype.
@@ -440,35 +410,6 @@ Qed.
 (* Renaming                                                                 *)
 (* ======================================================================== *)
 
-Lemma argument_type_of_renamed (r : renaming) (tenv : Typing_env.t)
-    (arg : simple) :
-  FlambdaSimplifyStaticsSpec.argument_type_of (rename_typing_env r tenv)
-    (rename_simple r arg)
-  = option_map (rename_type r)
-      (FlambdaSimplifyStaticsSpec.argument_type_of tenv arg).
-Proof.
-  unfold FlambdaSimplifyStaticsSpec.argument_type_of.
-  rewrite (mem_simple_equivariant r (Some Name_mode.normal) tenv arg),
-    (type_simple_in_term_exn_equivariant r tenv (Some Name_mode.normal) arg).
-  destruct (Typing_env.mem_simple (Some Name_mode.normal) tenv arg);
-    [ | reflexivity ].
-  destruct (Typing_env.type_simple_in_term_exn tenv (Some Name_mode.normal)
-              arg) as [[[ty canonical] | ] | ];
-    reflexivity.
-Qed.
-
-Lemma argument_types_of_renamed (r : renaming) (tenv : Typing_env.t)
-    (args : list simple) :
-  argument_types_of (rename_typing_env r tenv) (map (rename_simple r) args)
-  = option_map (map (rename_type r)) (argument_types_of tenv args).
-Proof.
-  induction args as [ | arg args IH]; simpl; [ reflexivity | ].
-  rewrite argument_type_of_renamed, IH.
-  destruct (FlambdaSimplifyStaticsSpec.argument_type_of tenv arg);
-    [ | reflexivity ].
-  destruct (argument_types_of tenv args); reflexivity.
-Qed.
-
 Lemma static_const_simples_renamed (r : renaming) (const : static_const) :
   static_const_simples (rename_static_const r const)
   = map (rename_simple r) (static_const_simples const).
@@ -507,10 +448,16 @@ Qed.
 Theorem static_const_type_in_rename : static_const_type_in_rename_statement.
 Proof.
   intros r tenv const. unfold static_const_type_in.
-  rewrite static_const_simples_renamed, argument_types_of_renamed.
-  destruct (argument_types_of tenv (static_const_simples const)) as [tys | ];
+  rewrite static_const_simples_renamed,
+    (simplify_simples_equivariant r tenv (static_const_simples const)).
+  destruct (simplify_simples tenv (static_const_simples const))
+    as [answers | ];
     [ | reflexivity ].
-  simpl. apply static_const_type_renamed.
+  simpl.
+  replace (map fst (map (rename_answer r) answers))
+    with (map (rename_type r) (map fst answers))
+    by (rewrite !map_map; reflexivity).
+  apply static_const_type_renamed.
 Qed.
 
 Lemma is_closure_const_renamed (r : renaming) (const : static_const) :
