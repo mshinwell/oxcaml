@@ -5907,19 +5907,30 @@ let join_in_the_compiler ?(read = fun _ _ _ -> ()) (names : names)
   | Ok seen -> seen
   | Error line -> Nothing_seen ("a fatal error: " ^ general line)
 
-(* A join in the model, and in the compiler with its n-way join, each with what
-   is read of the analysis that the join answers, where it answers. *)
+(* What becomes of the reading of the analysis of a join that answered a target:
+   what is read, or why a reader stopped. *)
+type analysis_reading =
+  | Read of analysis_read
+  | Reader_stopped of string
+
+(* A join in the model, and in the compiler with its n-way join, each with the
+   reading of the analysis that the join answers, where it answers a target. The
+   analysis of the compiler is read once the join has answered, apart from it: a
+   reader that stops with a fatal error does not take the target with it.
+   [reader] is the reader, which a control replaces. *)
 let join_and_analysis_in_the_model (names : names) (model : model)
-    (input : join_at_a_continuation) : seen * analysis_read option =
+    (input : join_at_a_continuation) : seen * analysis_reading option =
   let of_the_model = ref None in
   let seen =
     join_in_the_model names model input ~read:(fun asked seen target analysis ->
-        of_the_model := Some (analysis_of_the_model asked seen target analysis))
+        of_the_model
+          := Some (Read (analysis_of_the_model asked seen target analysis)))
   in
   seen, !of_the_model
 
-let join_and_analysis_in_the_compiler (names : names)
-    (input : join_at_a_continuation) : seen * analysis_read option =
+let join_and_analysis_in_the_compiler ?(reader = analysis_of_the_compiler)
+    (names : names) (input : join_at_a_continuation) :
+    seen * analysis_reading option =
   let analysis = ref None in
   let with_its_analysis : implementation =
     { n_way with
@@ -5935,16 +5946,22 @@ let join_and_analysis_in_the_compiler (names : names)
           target)
     }
   in
-  let of_the_compiler = ref None in
+  let answered = ref None in
   let seen =
     join_in_the_compiler names with_its_analysis input
-      ~read:(fun asked seen target ->
-        of_the_compiler
-          := Option.map
-               (analysis_of_the_compiler names asked seen target)
-               !analysis)
+      ~read:(fun asked seen target -> answered := Some (asked, seen, target))
   in
-  seen, !of_the_compiler
+  let reading =
+    match !answered, !analysis with
+    | Some (asked, seen, target), Some analysis -> (
+      match
+        or_fatal_error (fun () -> reader names asked seen target analysis)
+      with
+      | Ok read -> Some (Read read)
+      | Error line -> Some (Reader_stopped ("a fatal error: " ^ general line)))
+    | Some _, None | None, (Some _ | None) -> None
+  in
+  seen, reading
 
 let a_variable_is_created ({ created; refined = _ } : analysis_read) =
   match created with [] -> false | _ :: _ -> true
@@ -5956,6 +5973,86 @@ let a_name_is_refined ({ refined; created = _ } : analysis_read) =
       | Refined _ -> true
       | Not_refined | Invariant _ | No_reading -> false)
     refined
+
+let a_reader_has_no_answer ({ refined; created } : analysis_read) =
+  List.exists
+    (fun ((_ : MT.name), (refined : refined)) ->
+      match refined with
+      | No_reading -> true
+      | Not_refined | Invariant _ | Refined _ -> false)
+    refined
+  || List.exists
+       (fun ((_ : M.variable), definitions, (_ : MK.flambda_kind)) ->
+         Option.is_none definitions)
+       created
+
+(* The comparison of the readings of the two analyses of one join, in the model
+   and in the compiler, where both joins answer a target and what is seen of the
+   two targets is the same; elsewhere it is not this comparison, and that of the
+   targets has said what there is to say. With [only], the comparison is of the
+   joins whose reading, on one side or the other, [only] accepts.
+
+   Where the targets are the same, a reading that is missing on one side is a
+   disagreement: the reader of the compiler stopped where the model's has an
+   answer everywhere, or no analysis was read of a join that answered. Where the
+   reader of the compiler stops and a reader of the model has no answer, neither
+   reads, and the two reasons are shown. *)
+let compare_analyses ~threshold ?only
+    ((in_the_model : seen), (of_the_model : analysis_reading option))
+    ((in_the_compiler : seen), (of_the_compiler : analysis_reading option)) :
+    outcome =
+  let whole = Option.is_none only in
+  let wanted read = match only with None -> true | Some only -> only read in
+  let one_sided what = if whole then Disagree what else Not_this_comparison in
+  match in_the_model, in_the_compiler with
+  | Seen _, Seen _ -> (
+    if not (same_seen ~threshold in_the_model in_the_compiler)
+    then Not_this_comparison
+    else
+      match of_the_model, of_the_compiler with
+      | Some (Read of_the_model), Some (Read of_the_compiler) ->
+        if not (wanted of_the_model || wanted of_the_compiler)
+        then Not_this_comparison
+        else
+          let in_the_model =
+            print_analysis ~threshold in_the_model of_the_model
+          in
+          let in_the_compiler =
+            print_analysis ~threshold in_the_compiler of_the_compiler
+          in
+          if same_text in_the_model in_the_compiler
+          then Agree
+          else
+            Disagree
+              (Format.asprintf "@[<v>the model:@ %a@ the compiler:@ %a@]"
+                 print_lines in_the_model print_lines in_the_compiler)
+      | Some (Read of_the_model), Some (Reader_stopped why) ->
+        if not whole
+        then Not_this_comparison
+        else if a_reader_has_no_answer of_the_model
+        then
+          Not_run
+            (Printf.sprintf
+               "neither reads the analysis (the model: no answer of a reader; \
+                the compiler: %s)"
+               why)
+        else
+          Disagree
+            (Printf.sprintf
+               "the two targets are the same, and the reader of the compiler's \
+                analysis stops where the model's reads: %s"
+               why)
+      | Some (Reader_stopped why), (Some (Read _ | Reader_stopped _) | None) ->
+        one_sided
+          (Printf.sprintf
+             "the two targets are the same, and the reader of the model's \
+              analysis stops: %s"
+             why)
+      | Some (Read _), None | None, (Some (Read _ | Reader_stopped _) | None) ->
+        one_sided
+          "the two targets are the same, and no analysis was read of one of \
+           the two joins")
+  | (Nothing_seen _ | Bottom_seen | Seen _), _ -> Not_this_comparison
 
 let joins_in_the_model (names : names) ~title
     (joins : (string * join_at_a_continuation) list) =
@@ -6124,24 +6221,40 @@ let control_of_the_analysis (names : names) =
   let in_the_model numbers =
     join_and_analysis_in_the_model names model (join numbers)
   in
-  let both_read (_, read) (_, read')
+  let both_read ((_ : seen), read) ((_ : seen), read')
       ~(f : analysis_read -> analysis_read -> bool) =
     match read, read' with
-    | Some read, Some read' -> f read read'
-    | Some _, None | None, (Some _ | None) -> false
+    | Some (Read read), Some (Read read') -> f read read'
+    | Some (Read _), (Some (Reader_stopped _) | None)
+    | Some (Reader_stopped _), (Some (Read _ | Reader_stopped _) | None)
+    | None, (Some (Read _ | Reader_stopped _) | None) ->
+      false
   in
   let same_analysis (seen, read) (seen', read') =
-    match read, read' with
-    | Some read, Some read' ->
-      same_text
-        (print_analysis ~threshold seen read)
-        (print_analysis ~threshold seen' read')
-    | Some _, None | None, (Some _ | None) -> false
+    both_read (seen, read) (seen', read') ~f:(fun read read' ->
+        same_text
+          (print_analysis ~threshold seen read)
+          (print_analysis ~threshold seen' read'))
+  in
+  let answers ((seen : seen), (_ : analysis_reading option)) =
+    match seen with Seen _ -> true | Nothing_seen _ | Bottom_seen -> false
+  in
+  let is_a_disagreement (outcome : outcome) =
+    match outcome with
+    | Disagree _ -> true
+    | Agree | Not_run _ | Known_to_disagree _ | Not_this_comparison -> false
   in
   let compiler = in_the_compiler [4; 5] in
   let compiler' = in_the_compiler [5; 4] in
   let of_the_model = in_the_model [4; 5] in
   let of_the_model' = in_the_model [5; 4] in
+  check "the four joins answer a target"
+    (List.for_all answers [compiler; compiler'; of_the_model; of_the_model']);
+  check
+    "the targets of the model and of the compiler are the same, for the one \
+     and for the other"
+    (same_seen ~threshold (fst of_the_model) (fst compiler)
+    && same_seen ~threshold (fst of_the_model') (fst compiler'));
   check "the two targets of the compiler are the same"
     (same_seen ~threshold (fst compiler) (fst compiler'));
   check "a variable is created at the join and a name is refined at it"
@@ -6163,7 +6276,38 @@ let control_of_the_analysis (names : names) =
   check
     "what is read of the analyses of the model and of the compiler for the one \
      is the same"
-    (same_analysis of_the_model compiler)
+    (same_analysis of_the_model compiler);
+  (* A reader that stops, once the join has answered: the target is as it was,
+     and the comparison of the analyses says so, where a reading of the model
+     with no answer in it would make it one that neither reads. *)
+  let stopped =
+    join_and_analysis_in_the_compiler names
+      (join [4; 5])
+      ~reader:(fun _ _ _ _ _ ->
+        Misc.fatal_error "a reader of the analysis that stops, for a control")
+  in
+  check
+    "with a reader of the compiler's analysis that stops, the target of the \
+     compiler is as it was"
+    (answers stopped && same_seen ~threshold (fst stopped) (fst compiler));
+  check "and the comparison of the two analyses is a disagreement"
+    (is_a_disagreement (compare_analyses ~threshold of_the_model stopped));
+  check
+    "a reading of the model in which a reader has no answer, against what the \
+     compiler reads, is a disagreement too"
+    (is_a_disagreement
+       (compare_analyses ~threshold
+          ( fst of_the_model,
+            Some
+              (Read
+                 { refined =
+                     [ ( Name_var
+                           (names.numbering.variables.number
+                              (parameter names Value)),
+                         No_reading ) ];
+                   created = []
+                 }) )
+          compiler))
 
 let print_join_at_a_continuation ppf
     ({ kind_of_parameter; for_types_at_source = _; at_uses } :
@@ -6233,33 +6377,10 @@ let model_join_against_compiler (names : names) :
          print_lines
          (print_seen ~threshold in_the_compiler))
   in
-  let analyses (only : analysis_read -> bool) input =
-    let in_the_model, of_the_model =
-      join_and_analysis_in_the_model names model input
-    in
-    let in_the_compiler, of_the_compiler =
-      join_and_analysis_in_the_compiler names input
-    in
-    match of_the_model, of_the_compiler with
-    | Some of_the_model, Some of_the_compiler ->
-      if
-        (not (same_seen ~threshold in_the_model in_the_compiler))
-        || not (only of_the_model || only of_the_compiler)
-      then Not_this_comparison
-      else
-        let in_the_model =
-          print_analysis ~threshold in_the_model of_the_model
-        in
-        let in_the_compiler =
-          print_analysis ~threshold in_the_compiler of_the_compiler
-        in
-        if same_text in_the_model in_the_compiler
-        then Agree
-        else
-          Disagree
-            (Format.asprintf "@[<v>the model:@ %a@ the compiler:@ %a@]"
-               print_lines in_the_model print_lines in_the_compiler)
-    | Some _, None | None, (Some _ | None) -> Not_this_comparison
+  let analyses ?only input =
+    compare_analyses ~threshold ?only
+      (join_and_analysis_in_the_model names model input)
+      (join_and_analysis_in_the_compiler names input)
   in
   [ { name = "join: the model and the n-way join of the compiler";
       compare =
@@ -6299,13 +6420,13 @@ let model_join_against_compiler (names : names) :
        targets is the same; and the same again where a variable was created at
        the join, and where a name is refined at it. *)
     { name = "the analysis of the join, where the two targets are the same";
-      compare = analyses (fun (_ : analysis_read) -> true)
+      compare = (fun input -> analyses input)
     };
     { name = "of which those where a variable was created at the join";
-      compare = analyses a_variable_is_created
+      compare = analyses ~only:a_variable_is_created
     };
     { name = "of which those where a name is refined at the join";
-      compare = analyses a_name_is_refined
+      compare = analyses ~only:a_name_is_refined
     };
     (* The binary join is not what the model transcribes (T7-3): the comparison
        is shown to tell two answers apart. *)

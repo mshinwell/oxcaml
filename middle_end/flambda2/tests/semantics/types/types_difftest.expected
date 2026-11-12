@@ -1790,12 +1790,17 @@ A control: two joins that differ only in what a variable bound by one use is kno
   the targets of the model and of the compiler for the one are the same: yes
 
 A control: two joins that differ only in which of two uses passes which of two blocks (4 and 4, 5 and 5)
+  the four joins answer a target: yes
+  the targets of the model and of the compiler are the same, for the one and for the other: yes
   the two targets of the compiler are the same: yes
   a variable is created at the join and a name is refined at it: yes
   what is read of the two analyses of the compiler is told apart: yes
   what is read of the two analyses of the model is told apart: yes
   what is read of the analysis of the model for the one and of the compiler for the other is told apart: yes
   what is read of the analyses of the model and of the compiler for the one is the same: yes
+  with a reader of the compiler's analysis that stops, the target of the compiler is as it was: yes
+  and the comparison of the two analyses is a disagreement: yes
+  a reading of the model in which a reader has no answer, against what the compiler reads, is a disagreement too: yes
 
 Two or three types of kind value, for the join of the model and the n-way join of the compiler (1000 cases, seeds 100000 to 100999)
   1000 converted
