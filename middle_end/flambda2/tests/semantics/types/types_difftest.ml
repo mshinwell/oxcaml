@@ -8533,12 +8533,22 @@ type 'env side_of_joins =
     further_scope : 'env -> 'env;
     learns : 'env -> int -> MT.flambda_type -> 'env option;
     joins : source:'env -> 'env list -> 'env option;
+    (* Whether the environment is marked as one that no run reaches. Nothing
+       that is run depends on the answer: it is asked of each use of a join, for
+       what is told of a run. *)
+    is_bottom : 'env -> bool;
     looks : 'env -> seen
   }
 
 (* The environment that the steps make, if every step answers, and what was
-   looked at on the way, in order. *)
-let run_joined_steps (side : 'env side_of_joins) (steps : joined_step list) :
+   looked at on the way, in order.
+
+   A join is given every use, also one whose environment is bottom: the join of
+   the compiler leaves out the environments that are bottom
+   ([Join_env.cut_and_n_way_join_with_analysis]), and that of the model is to do
+   the same. [every_use_is_bottom] is told where every use of a join is. *)
+let run_joined_steps ?(every_use_is_bottom = fun () -> ())
+    (side : 'env side_of_joins) (steps : joined_step list) :
     'env option * (string * seen) list =
   let looked_at = ref [] in
   let rec run env (steps : joined_step list) : 'env option =
@@ -8554,9 +8564,10 @@ let run_joined_steps (side : 'env side_of_joins) (steps : joined_step list) :
       if List.exists Option.is_none uses
       then None
       else
-        Option.bind
-          (side.joins ~source:env (List.filter_map Fun.id uses))
-          (fun env -> run env steps)
+        let uses = List.filter_map Fun.id uses in
+        if List.for_all Fun.id (List.map side.is_bottom uses)
+        then every_use_is_bottom ();
+        Option.bind (side.joins ~source:env uses) (fun env -> run env steps)
     | Looked_at name :: steps ->
       looked_at := (name, side.looks env) :: !looked_at;
       run env steps
@@ -8571,10 +8582,34 @@ type names_avoided =
   | Every_variable_made
   | What_the_environments_know
 
+(* What the side of the model tells of a run: the variables that a meet of the
+   model made, where an equation was added; those that a join of the model made;
+   and that the environment of a use of a join is bottom. *)
+type events_of_joins =
+  { made_by_a_meet : M.variable list -> unit;
+    made_by_a_join : M.variable list -> unit;
+    bottom_use : unit -> unit
+  }
+
+let no_events : events_of_joins =
+  { made_by_a_meet = ignore; made_by_a_join = ignore; bottom_use = ignore }
+
 (* The two sides, for variables of the kinds given, numbered from 1. The
-   variables that the joins make are numbered after them. *)
-let sides_of_joins ?(avoid = Every_variable_made) (kinds : MK.flambda_kind list)
-    : (model -> Model_env.t side_of_joins) * TE.t side_of_joins =
+   variables that the joins make are numbered after them.
+
+   A meet of the model makes a variable one greater than those that its
+   environment knows, and takes no other names to avoid: two meets on two paths
+   make the same variable, which a join after them takes for one, or has no
+   answer for (T7-11, through the join that the meet calls). With
+   [a_variable_for_each_use], the first environment of the model, and its
+   environment at the start of each use, are given a variable of their own,
+   which nothing mentions and the compiler has not: the first is numbered 1000,
+   and each next one 1000 more, so that what a meet or a join makes on one path
+   is above everything made before on any path, as long as no path makes a
+   thousand. *)
+let sides_of_joins ?(avoid = Every_variable_made) ?(events = no_events)
+    ?(a_variable_for_each_use = false) (kinds : MK.flambda_kind list) :
+    (model -> Model_env.t side_of_joins) * TE.t side_of_joins =
   let numbering = Model_names.create () in
   let variables =
     List.map
@@ -8598,18 +8633,42 @@ let sides_of_joins ?(avoid = Every_variable_made) (kinds : MK.flambda_kind list)
        new variables differ from every other. So a join here avoids what every
        join before it made (T7-11), but where a control asks for the other. *)
     let made = ref [] in
-    { empty = Model_env.create;
+    let own_variables = ref 0 in
+    let with_a_variable_of_its_own env =
+      if a_variable_for_each_use
+      then (
+        incr own_variables;
+        Model_env.add_variable_definition env
+          (v (1000 * !own_variables))
+          Value Model_name_mode.in_types)
+      else env
+    in
+    (* The variables of an environment that none of the others has. *)
+    let new_in env (others : Model_env.t list) : M.variable list =
+      let known = List.concat_map Model_join_env.variables_of_env others in
+      List.filter
+        (fun x -> not (List.exists (fun y -> N.compare_positive x y = 0) known))
+        (Model_join_env.variables_of_env env)
+    in
+    { empty = with_a_variable_of_its_own Model_env.create;
       defines =
         (fun env i ->
           Model_env.add_variable_definition env (v i) (kind i)
             Model_name_mode.normal);
-      further_scope = Model_env.increment_scope;
+      further_scope =
+        (fun env -> with_a_variable_of_its_own (Model_env.increment_scope env));
       learns =
-        (fun env i t -> model.add_equation_of_model env (Name_var (v i)) t);
+        (fun env i t ->
+          let after = model.add_equation_of_model env (Name_var (v i)) t in
+          Option.iter
+            (fun after -> events.made_by_a_meet (new_in after [env]))
+            after;
+          after);
       joins =
         (fun ~source uses ->
           Option.map
             (fun (target, _) ->
+              events.made_by_a_join (new_in target (source :: uses));
               (match avoid with
               | Every_variable_made ->
                 made := Model_join_env.variables_of_env target @ !made
@@ -8623,6 +8682,11 @@ let sides_of_joins ?(avoid = Every_variable_made) (kinds : MK.flambda_kind list)
                  cut_after = Model_env.current_scope source;
                  uses = List.mapi (fun i use -> i, use) uses
                }));
+      is_bottom =
+        (fun env ->
+          let bottom = Model_env.is_bottom env in
+          if bottom then events.bottom_use ();
+          bottom);
       looks = (fun env -> seen_in_the_model ~threshold asked None env)
     }
   in
@@ -8653,6 +8717,7 @@ let sides_of_joins ?(avoid = Every_variable_made) (kinds : MK.flambda_kind list)
                   ~n_way_join_type:N_way.n_way_join source
                   ~cut_after:(TE.current_scope source)
                   (List.map (fun use -> (), use) uses))));
+      is_bottom = TE.is_bottom;
       looks =
         (fun env -> seen_in_the_compiler numbering ~threshold asked None env)
     }
@@ -9012,19 +9077,24 @@ let joined_steps_in_the_compiler (of_the_compiler : TE.t side_of_joins)
   | Ok (Error why) -> Error why
   | Error line -> Error ("a fatal error: " ^ general line)
 
-let joined_steps_in_the_model (of_the_model : Model_env.t side_of_joins)
-    (steps : joined_step list) : ((string * seen) list, string) result =
-  match run_joined_steps of_the_model steps with
+let joined_steps_in_the_model ?every_use_is_bottom
+    (of_the_model : Model_env.t side_of_joins) (steps : joined_step list) :
+    ((string * seen) list, string) result =
+  match run_joined_steps ?every_use_is_bottom of_the_model steps with
   | Some (_ : Model_env.t), looked_at -> Ok looked_at
   | None, (_ : (string * seen) list) -> Error "no answer of a step"
 
-(* A program run on both sides. *)
-let run_generated_joins ?avoid choices (steps : joined_step list) : joins_run =
+(* A program run on both sides. [every_use_is_bottom] is told where, in the
+   model, every use of a join is. *)
+let run_generated_joins ?avoid ?events ?a_variable_for_each_use
+    ?every_use_is_bottom choices (steps : joined_step list) : joins_run =
   let of_the_model, of_the_compiler =
-    sides_of_joins ?avoid kinds_of_generated_joins
+    sides_of_joins ?avoid ?events ?a_variable_for_each_use
+      kinds_of_generated_joins
   in
+  let of_the_model = of_the_model (the_model choices) in
   match
-    ( joined_steps_in_the_model (of_the_model (the_model choices)) steps,
+    ( joined_steps_in_the_model ?every_use_is_bottom of_the_model steps,
       joined_steps_in_the_compiler of_the_compiler steps )
   with
   | Error why, Error why' ->
