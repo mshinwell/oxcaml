@@ -63,6 +63,18 @@ Definition round_answered (result : step_result) (s' : state) : Prop :=
   | Step t => ∃ (m : nat) (t' : state), run (S m) s' = Step t' ∧ R t t'
   end.
 
+(* Two states that step together make a round of one step each. *)
+Lemma step_round (s s' : state) :
+  result_simulated R (step s) (step s') -> round_answered (run 1 s) s'.
+Proof.
+  unfold round_answered. rewrite run_succ.
+  destruct (step s) as [t | k vs | ], (step s') as [t' | k' vs' | ] eqn:Hstep';
+    cbn [result_simulated run]; try contradiction; try exact (fun _ => I).
+  - intros Hrel. exists 0, t'. split; [ | exact Hrel ].
+    cbn [run]. rewrite Hstep'. reflexivity.
+  - intros [<- <-]. exists 1. cbn [run]. rewrite Hstep'. reflexivity.
+Qed.
+
 Hypothesis R_round :
   ∀ s s' : state, R s s' -> ∃ n : nat, round_answered (run (S n) s) s'.
 

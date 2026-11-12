@@ -30,12 +30,17 @@
 
    The pass changes a binder and every application in its scope, so it
    is not a rewrite of two expressions on their own. The term and its
-   result are run side by side, step for step
-   (FlambdaSemanticsProofs.simulation_refines). The relation between the
-   two states ([state_drops]) is:
+   result are run side by side, by rounds
+   (FlambdaRoundsProofs.rounds_refines): step for step, but for the
+   [Let]s that the second has not got. The relation between the two
+   states ([state_drops]) is:
 
    - the second expression is the first with parameters and arguments
-     removed as some [masks] say ([drops]). This is a relation and not
+     removed as some [masks] say, and with some [Let]s removed whose
+     variables it does not use ([drops]). [drop_unused_params] removes
+     no [Let]; FlambdaDeadParamsSpec.drop_dead_params, which is proved
+     through the same relation (FlambdaDeadParamsProofs.v), does. This
+     is a relation and not
      the function: where a function is called the two runs go into the
      same body, which is related to itself with every parameter kept
      ([drops_refl]), and the pass run on the term is one way of choosing
@@ -67,7 +72,8 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaSemanticsSpec FlambdaSemanticsProofs
   FlambdaNominalSpec FlambdaCompareSpec FlambdaCompareProofs
-  FlambdaNormaliseSpec FlambdaNormaliseProofs FlambdaUnusedParamsSpec.
+  FlambdaNormaliseSpec FlambdaNormaliseProofs FlambdaRoundsProofs
+  FlambdaUnusedParamsSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -389,7 +395,9 @@ Definition handler_expr (h : continuation_handler) : expr :=
 (* The second expression is the first with, at each [Let_cont], some
    parameters removed that the second handler does not use, their kinds
    removed with them, and their arguments removed where the
-   continuation is applied. No [Apply]
+   continuation is applied; and with some [Let]s removed whose
+   variables are not free in what follows them in the second
+   ([Drops_let_unused]). No [Apply]
    returns to a continuation that has lost a parameter. The handlers of
    a recursive [Let_cont] are related one with one, each with its mask
    ([handlers_drop]). (The warning silenced is about induction schemes,
@@ -436,6 +444,11 @@ Inductive drops : masks -> expr -> expr -> Prop :=
       (Switch scrutinee
          (map (fun arm => (fst arm, drop_args known (snd arm))) arms))
   | Drops_invalid (known : masks) : drops known Invalid Invalid
+  | Drops_let_unused (known : masks) (x : variable) (kind : flambda_kind)
+      (d : named) (body e' : expr) :
+    drops known body e' ->
+    ~ var_free_in_expr x e' ->
+    drops known (Let x kind d body) e'
 (* The handlers of a recursive [Let_cont], one with one, under the masks
    [inside] of where their expressions are: the same names, the masks
    [loop] of the names in their order, the second handler with the
@@ -579,8 +592,9 @@ Qed.
 Lemma drops_let_inv (known : masks) (x : variable) (kind : flambda_kind)
     (d : named) (body e' : expr) :
   drops known (Let x kind d body) e' ->
-  ∃ body' : expr, e' = Let x kind d body' ∧ drops known body body'.
-Proof. intros Hdrops. inversion Hdrops; subst. eauto. Qed.
+  (∃ body' : expr, e' = Let x kind d body' ∧ drops known body body')
+  ∨ (drops known body e' ∧ ~ var_free_in_expr x e').
+Proof. intros Hdrops. inversion Hdrops; subst; eauto. Qed.
 
 Lemma drops_let_static_inv (known : masks) (bindings : list static_binding)
     (body e' : expr) :
@@ -665,9 +679,13 @@ Proof.
     as [ y kind d body | bindings body | k [params metadata handler] body
        | handlers body | ap | ac | scrutinee arms | ];
     intros known e' x Hdrops.
-  - destruct (drops_let_inv _ _ _ _ _ _ Hdrops) as (body' & -> & Hbody).
-    simpl. intros [Hd | [Hne Hfree]]; [ left; exact Hd | right ].
-    split; [ exact Hne | exact (drops_free body known body' x Hbody Hfree) ].
+  - destruct (drops_let_inv _ _ _ _ _ _ Hdrops)
+      as [(body' & -> & Hbody) | [Hbody Hunused]].
+    + simpl. intros [Hd | [Hne Hfree]]; [ left; exact Hd | right ].
+      split; [ exact Hne | exact (drops_free body known body' x Hbody Hfree) ].
+    + simpl. intros Hfree. right.
+      split; [ | exact (drops_free body known e' x Hbody Hfree) ].
+      intros ->. exact (Hunused Hfree).
   - destruct (drops_let_static_inv _ _ _ _ Hdrops) as (body' & -> & Hbody).
     simpl. intros [Hbindings | Hfree]; [ left; exact Hbindings | right ].
     exact (drops_free body known body' x Hbody Hfree).
@@ -1139,8 +1157,21 @@ Qed.
 (* The simulation                                                           *)
 (* ======================================================================== *)
 
+(* Two related states step together, unless the first is at a [Let]
+   that the second has not got. *)
 Lemma drops_step (s s' : state) :
-  state_drops s s' -> result_simulated state_drops (step s) (step s').
+  state_drops s s' ->
+  result_simulated state_drops (step s) (step s')
+  ∨ ∃ (known : masks) (x : variable) (kind : flambda_kind) (d : named)
+      (body e' : expr) (vars vars' : env) (conts conts' : cont_env)
+      (statics : static_env),
+      s = State (Let x kind d body) vars conts statics
+      ∧ s' = State e' vars' conts' statics
+      ∧ drops known body e'
+      ∧ ~ var_free_in_expr x e'
+      ∧ (∀ y : variable,
+          var_free_in_expr y e' -> lookup y vars = lookup y vars')
+      ∧ conts_drop known conts conts'.
 Proof.
   intros [known e e' vars vars' conts conts' statics Hdrops Hvars Hconts].
   destruct Hdrops
@@ -1148,7 +1179,10 @@ Proof.
        | known k params metadata metadata' handler handler' mask body body'
            Hhandler Hfits Hkinds Hbody
        | known loop handlers handlers' body body' Hhandlers Hbinds Hbody
-       | known ap Hret Hexn | known ac | known scrutinee arms | known ];
+       | known ap Hret Hexn | known ac | known scrutinee arms | known
+       | known x kind d body e' Hbody Hunused ];
+    [ left | left | left | left | left | left | left | left
+    | right; do 11 eexists; repeat split; eassumption ];
     autorewrite with step.
   - (* Let *)
     rewrite (eval_named_agree statics vars vars' d)
@@ -1228,10 +1262,54 @@ Proof.
     exact I.
 Qed.
 
+(* A round: the [Let]s that the second state has not got, then one step
+   of each. *)
+Lemma drops_round_expr (e : expr) :
+  ∀ (e' : expr) (vars vars' : env) (conts conts' : cont_env)
+    (statics statics' : static_env),
+    state_drops (State e vars conts statics)
+      (State e' vars' conts' statics') ->
+    ∃ n : nat,
+      round_answered state_drops (run (S n) (State e vars conts statics))
+        (State e' vars' conts' statics').
+Proof.
+  induction e
+    as [ x kind d body IH | bindings body _ | k h body _ | handlers body _
+       | ap | ac | scrutinee arms | ];
+    intros e' vars vars' conts conts' statics statics' Hrel;
+    (destruct (drops_step _ _ Hrel)
+       as [Hstep
+          | (known & x0 & kind0 & d0 & body0 & e0 & vars0 & vars0' & conts0
+             & conts0' & statics0 & Hs & Hs' & Hbody & Hunused & Hvars
+             & Hconts)];
+     [ exists 0; apply step_round; exact Hstep | ]);
+    try discriminate Hs.
+  injection Hs as <- <- <- <- <- <- <-. injection Hs' as <- <- <- ->.
+  destruct (eval_named statics vars d) as [v | ] eqn:Hd.
+  2: { exists 0. rewrite run_succ, step_let, Hd. exact I. }
+  destruct (kind_eqb (kind_of_value v) kind) eqn:Hkind.
+  2: { exists 0. rewrite run_succ, step_let, Hd, Hkind. exact I. }
+  destruct (IH e' ((x, v) :: vars) vars' conts conts' statics statics)
+    as [n Hn].
+  { apply (State_drops known); [ exact Hbody | | exact Hconts ].
+    intros y Hy. simpl.
+    destruct (Pos.eqb_spec y x) as [-> | Hne];
+      [ contradiction (Hunused Hy) | apply Hvars, Hy ]. }
+  exists (S n). rewrite run_succ, step_let, Hd, Hkind. exact Hn.
+Qed.
+
+Lemma drops_round (s s' : state) :
+  state_drops s s' ->
+  ∃ n : nat, round_answered state_drops (run (S n) s) s'.
+Proof.
+  destruct s as [e vars conts statics], s' as [e' vars' conts' statics'].
+  apply drops_round_expr.
+Qed.
+
 Theorem drop_unused_params_refines : drop_unused_params_refines_statement.
 Proof.
   intros e vars conts statics.
-  apply (simulation_refines state_drops drops_step).
+  apply (rounds_refines state_drops drops_round).
   apply (State_drops []);
     [ apply drop_params_drops; intros k mask Hmask; discriminate Hmask
     | reflexivity | intros k; apply Same_drops ].

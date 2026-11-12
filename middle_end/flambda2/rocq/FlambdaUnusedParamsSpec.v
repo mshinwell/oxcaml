@@ -79,7 +79,8 @@
      to pass it on, to itself or to another continuation whose handler
      does not use it, is kept. Simplify finds those too, by its data flow
      analysis ([decide_param_usage_recursive]), which this pass has not
-     got. A parameter that the handler binds again at once, as
+     got; FlambdaDeadParamsSpec.drop_dead_params is this pass with a
+     search for them. A parameter that the handler binds again at once, as
      FlambdaParamAliasesSpec.bind_aliased_params makes it do where every
      application gives the parameter the same thing, is one that the
      handler does not use;
