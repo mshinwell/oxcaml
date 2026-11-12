@@ -8912,14 +8912,28 @@ let joins_of_the_shape_of_t5_10 () =
    values that it is to give a type an alias of a value in scope or a block. So
    the tag of a value is often an immediate at every use of a join, which is
    where a join records a relation; and a use of the second join knows the
-   variables that the first brought in. *)
+   variables that the first brought in.
+
+   With [meets_of_cases], a use may also give a value two variants, as the two
+   types of the shape of T4-9 ([generate_meet_of_cases]), whose meet makes
+   variables: the blocks of the first, of tag 0 or 1, each hold one value, and
+   those of the second a block whose fields repeat one value, or a number. Six
+   of the values are kept for that and defined at the start: three for what the
+   blocks of a first variant hold, and three for what is repeated. The variants
+   mention no other name, and no step gives any of the six a type: so a variant
+   does not reach, through what it mentions, the value that it is given to, nor
+   any value that a step gives a type. Without the argument, the programs are
+   those that were generated before it was there. *)
 let kinds_of_generated_joins : MK.flambda_kind list =
   List.init 15 (fun i : MK.flambda_kind ->
       if i < 12 then Value else Naked_number Kind_naked_immediate)
 
-let generate_joined_steps r : joined_step list =
+let generate_joined_steps ?(meets_of_cases = false) r : joined_step list =
   let immediates = [13; 14; 15] in
-  let unused = ref [4; 5; 6; 7; 8; 9; 10; 11; 12] in
+  let held = [7; 8; 9] and repeated = [10; 11; 12] in
+  let unused =
+    ref (if meets_of_cases then [4; 5; 6] else [4; 5; 6; 7; 8; 9; 10; 11; 12])
+  in
   let fresh () =
     match !unused with
     | [] -> None
@@ -8971,22 +8985,40 @@ let generate_joined_steps r : joined_step list =
     in
     List.iter
       (fun target ->
-        match G.below r 4 with
-        | 0 -> ()
-        | 1 -> add (Learns (target, alias (G.pick r !in_scope)))
-        | _ -> (
-          match fresh () with
-          | None -> add (Learns (target, a_block ()))
-          | Some made ->
-            add (Defines_as (made, a_block ()));
-            in_scope := made :: !in_scope;
-            add (Learns (target, alias made))))
+        if meets_of_cases && G.chance r ~percent:50
+        then (
+          let held = alias (G.pick r held) in
+          let field () =
+            if G.chance r ~percent:20
+            then MT.this_tagged_immediate (G.small_number r)
+            else
+              let repeated = alias (G.pick r repeated) in
+              variant_of_blocks
+                [0, List.init (1 + G.below r 3) (fun _ -> repeated)]
+          in
+          let first = field () in
+          let second = field () in
+          add (Learns (target, variant_of_blocks [0, [held]; 1, [held]]));
+          add (Learns (target, variant_of_blocks [0, [first]; 1, [second]])))
+        else
+          match G.below r 4 with
+          | 0 -> ()
+          | 1 -> add (Learns (target, alias (G.pick r !in_scope)))
+          | _ -> (
+            match fresh () with
+            | None -> add (Learns (target, a_block ()))
+            | Some made ->
+              add (Defines_as (made, a_block ()));
+              in_scope := made :: !in_scope;
+              add (Learns (target, alias made))))
       targets;
     List.rev !steps
   in
   let first = Joins [use ~depth:1 [1; 2] [1; 2]; use ~depth:1 [1; 2] [1; 2]] in
   let second = Joins [use ~depth:0 [1; 2; 3] [3]; use ~depth:0 [1; 2; 3] [3]] in
-  List.map (fun i -> Defines i) ([1; 2] @ immediates)
+  List.map
+    (fun i -> Defines i)
+    ([1; 2] @ immediates @ if meets_of_cases then held @ repeated else [])
   @ [first; Looked_at "after the first join"; Defines 3; second]
   @ [Looked_at "after the second join"]
   @
@@ -9355,6 +9387,315 @@ let control_of_the_names_to_avoid () =
          two are not said to be told apart"
         (not_read (without last ~of_the_model:false)))
     [161196; 161457]
+
+(* Joins after meets that make variables: the programs generated with
+   [meets_of_cases]. *)
+
+(* A run of such a program, with what the side of the model told of it. *)
+type run_after_meets =
+  { run : joins_run;
+    a_meet_made_a_variable : bool;
+    (* A variable was made twice, by two meets or joins of the model. *)
+    a_variable_was_made_twice : bool;
+    (* The environment of a use of a join was bottom. *)
+    a_use_was_bottom : bool;
+    every_use_of_a_join_was_bottom : bool
+  }
+
+let run_after_meets ~(a_variable_for_each_use : bool) (steps : joined_step list)
+    : run_after_meets =
+  let made = ref [] in
+  let by_a_meet = ref false in
+  let twice = ref false in
+  let bottom = ref false in
+  let every_use = ref false in
+  let record (variables : M.variable list) =
+    if
+      List.exists
+        (fun x -> List.exists (fun y -> N.compare_positive x y = 0) !made)
+        variables
+    then twice := true;
+    made := variables @ !made
+  in
+  let events : events_of_joins =
+    { made_by_a_meet =
+        (fun variables ->
+          if not (List.is_empty variables) then by_a_meet := true;
+          record variables);
+      made_by_a_join = record;
+      bottom_use = (fun () -> bottom := true)
+    }
+  in
+  let run =
+    run_generated_joins ~events ~a_variable_for_each_use
+      ~every_use_is_bottom:(fun () -> every_use := true)
+      Of_the_compiler steps
+  in
+  { run;
+    a_meet_made_a_variable = !by_a_meet;
+    a_variable_was_made_twice = !twice;
+    a_use_was_bottom = !bottom;
+    every_use_of_a_join_was_bottom = !every_use
+  }
+
+(* What a run comes to where each use of the model has a variable of its own:
+   the model is to see what the compiler sees at every place, and no variable is
+   to be made twice. *)
+let outcome_with_a_variable_for_each_use (run : run_after_meets) : outcome =
+  if run.a_variable_was_made_twice
+  then
+    Disagree
+      "a variable is made twice by the model, though each use has a variable \
+       of its own"
+  else outcome_of_generated_joins run.run
+
+(* What a run comes to where the uses of the model have no variable of their
+   own. A difference, or a side that has no answer, is recorded under T7-11 only
+   where a variable was made twice in that run and the same program, run with a
+   variable for each use, comes to an agreement, which asks that no variable be
+   made twice there: it is a disagreement otherwise. That the two that made the
+   variable are on two paths is not looked into. *)
+let outcome_without_a_variable_for_each_use
+    ~(with_a_variable_for_each_use : outcome) (run : run_after_meets) : outcome
+    =
+  match outcome_of_generated_joins run.run with
+  | Disagree what -> (
+    match with_a_variable_for_each_use with
+    | Agree when run.a_variable_was_made_twice ->
+      Known_to_disagree
+        ( "T7-11, a variable is made twice by the meets and the joins of the \
+           model, which does not see what the compiler sees, or has no answer; \
+           with a variable of its own for each use none is made twice and the \
+           model sees what the compiler sees",
+          what )
+    | Agree | Disagree _ | Not_run _ | Not_this_comparison | Known_to_disagree _
+      ->
+      Disagree what)
+  | (Agree | Not_run _ | Not_this_comparison | Known_to_disagree _) as outcome
+    ->
+    outcome
+
+(* The compiler alone, with its debug check for concrete types on canonical
+   names only (T7-13): it is to stop on none of these programs. *)
+let the_check_of_the_compiler_passes (steps : joined_step list) : outcome =
+  let flag = Oxcaml_flags.Flambda2.Debug.concrete_types_only_on_canonicals in
+  let before = !flag in
+  flag := true;
+  Fun.protect
+    ~finally:(fun () -> flag := before)
+    (fun () ->
+      let (_ : model -> Model_env.t side_of_joins), of_the_compiler =
+        sides_of_joins kinds_of_generated_joins
+      in
+      match joined_steps_in_the_compiler of_the_compiler steps with
+      | Ok (_ : (string * seen) list) -> Agree
+      | Error why -> Disagree ("the compiler stops: " ^ why))
+
+let generated_joins_after_meets () : joined_step list comparison list =
+  (* The run of a program with a variable for each use, which five of the
+     comparisons ask for, is kept for the program as it is given, not for one
+     that is equal to it: each program is run so once. *)
+  let kept : (joined_step list * run_after_meets) list ref = ref [] in
+  let with_a_variable (steps : joined_step list) =
+    match List.assq_opt steps !kept with
+    | Some run -> run
+    | None ->
+      let run = run_after_meets ~a_variable_for_each_use:true steps in
+      kept := (steps, run) :: !kept;
+      run
+  in
+  let where (holds : run_after_meets -> bool) (steps : joined_step list) :
+      outcome =
+    let run = with_a_variable steps in
+    if holds run
+    then outcome_with_a_variable_for_each_use run
+    else Not_this_comparison
+  in
+  [ { name =
+        "joins after meets, each use of the model with a variable of its own: \
+         the model and the compiler";
+      compare = where (fun (_ : run_after_meets) -> true)
+    };
+    { name = "of which those where a meet of the model makes a variable";
+      compare = where (fun run -> run.a_meet_made_a_variable)
+    };
+    { name = "of which those where a use of a join is bottom";
+      compare = where (fun run -> run.a_use_was_bottom)
+    };
+    { name = "of which those where every use of a join is bottom";
+      compare = where (fun run -> run.every_use_of_a_join_was_bottom)
+    };
+    { name =
+        "the compiler alone, with its check for concrete types on canonical \
+         names only";
+      compare = the_check_of_the_compiler_passes
+    };
+    { name =
+        "joins after meets, the uses of the model with no variable of their \
+         own: the model and the compiler";
+      compare =
+        (fun steps ->
+          outcome_without_a_variable_for_each_use
+            ~with_a_variable_for_each_use:
+              (outcome_with_a_variable_for_each_use (with_a_variable steps))
+            (run_after_meets ~a_variable_for_each_use:false steps))
+    } ]
+
+(* A control of what a run without a variable for each use comes to
+   ([outcome_without_a_variable_for_each_use]), on the first two of the
+   generated programs on which the model then makes a variable twice and does
+   not see what the compiler sees: the first on which it has no answer, and the
+   first on which both answer. Each is recorded; and it is a disagreement where
+   no variable is said to be made twice, and where the run with a variable for
+   each use is said not to agree. *)
+let control_of_the_variables_of_the_meets ~seed ~count =
+  let check what holds =
+    if holds
+    then Format.printf "  %s: yes@." what
+    else (
+      incr failures;
+      Format.printf "  %s: NO@." what)
+  in
+  Format.printf
+    "@.A control: two of the generated programs of joins after meets, the uses \
+     of the model with and without a variable of their own (T7-11)@.";
+  let is_recorded (outcome : outcome) =
+    match outcome with
+    | Known_to_disagree _ -> true
+    | Agree | Disagree _ | Not_run _ | Not_this_comparison -> false
+  in
+  let agrees (outcome : outcome) =
+    match outcome with
+    | Agree -> true
+    | Known_to_disagree _ | Disagree _ | Not_run _ | Not_this_comparison ->
+      false
+  in
+  let is_a_disagreement (outcome : outcome) =
+    match outcome with
+    | Disagree _ -> true
+    | Agree | Known_to_disagree _ | Not_run _ | Not_this_comparison -> false
+  in
+  (* The first program, by its seed, whose run without a variable for each use
+     makes a variable twice, does not agree, and is of the sort asked. *)
+  let first_of (sort : joins_run -> bool) :
+      (int * joined_step list * run_after_meets) option =
+    let rec from case_seed =
+      if case_seed >= seed + count
+      then None
+      else
+        let steps =
+          generate_joined_steps ~meets_of_cases:true (Random.of_int case_seed)
+        in
+        let without = run_after_meets ~a_variable_for_each_use:false steps in
+        if
+          without.a_variable_was_made_twice
+          && is_a_disagreement (outcome_of_generated_joins without.run)
+          && sort without.run
+        then Some (case_seed, steps, without)
+        else from (case_seed + 1)
+    in
+    from seed
+  in
+  List.iter
+    (fun (sort, what) ->
+      match first_of sort with
+      | None -> check ("there is a program on which " ^ what) false
+      | Some (case_seed, steps, without) ->
+        Format.printf
+          "  the first program on which, with no variable for each use, a \
+           variable is made twice and %s: seed %d@."
+          what case_seed;
+        let with_one =
+          outcome_with_a_variable_for_each_use
+            (run_after_meets ~a_variable_for_each_use:true steps)
+        in
+        check
+          "with a variable for each use, the model sees what the compiler sees \
+           at every place looked at, and no variable is made twice"
+          (agrees with_one);
+        check "without, the run is recorded under T7-11"
+          (is_recorded
+             (outcome_without_a_variable_for_each_use
+                ~with_a_variable_for_each_use:with_one without));
+        check "said to have made no variable twice, it is a disagreement"
+          (is_a_disagreement
+             (outcome_without_a_variable_for_each_use
+                ~with_a_variable_for_each_use:with_one
+                { without with a_variable_was_made_twice = false }));
+        check
+          "with the run that has a variable for each use said to disagree, it \
+           is a disagreement"
+          (is_a_disagreement
+             (outcome_without_a_variable_for_each_use
+                ~with_a_variable_for_each_use:(Disagree "said so") without)))
+    [ ( (fun (run : joins_run) ->
+          match run with
+          | Only_one_answers _ -> true
+          | Neither_answers _ | Both_answer _ -> false),
+        "only one side answers" );
+      ( (fun (run : joins_run) ->
+          match run with
+          | Both_answer _ -> true
+          | Neither_answers _ | Only_one_answers _ -> false),
+        "both sides answer and do not see the same" ) ]
+
+(* A control of the comparison that runs the compiler alone with its check
+   ([the_check_of_the_compiler_passes]): the steps of the scenario of T7-13 with
+   three fields ([the_meet_of_t7_13]), on which the check stops the compiler in
+   every order of the identifiers. The meet of the scenario, of the alias of the
+   variable 2 and a type, is written as an equation on the variable 2. *)
+let control_of_the_check_of_the_compiler () =
+  let check what holds =
+    if holds
+    then Format.printf "  %s: yes@." what
+    else (
+      incr failures;
+      Format.printf "  %s: NO@." what)
+  in
+  Format.printf
+    "@.A control: the compiler alone with its check for concrete types on \
+     canonical names only, on the steps of T7-13 with three fields@.";
+  let { label = _; kinds = _; before; met = first, second; given_to = _ } =
+    the_meet_of_t7_13 ~fields:3
+  in
+  let steps : joined_step option list =
+    List.map
+      (fun (step : step) : joined_step option ->
+        match step with
+        | Define i -> Some (Defines i)
+        | Equation (i, t) -> Some (Learns (i, t))
+        | Relation _ | Meet_of _ -> None)
+      before
+  in
+  let the_meet : joined_step option =
+    match MT.get_alias_opt first with
+    | Some (Var x) ->
+      Option.map (fun i -> Learns (i, second)) (N.int_of_positive x)
+    | Some (Symbol _ | Const _) | None -> None
+  in
+  let steps = steps @ [the_meet] in
+  check
+    "the steps are those of the scenario, its meet written as an equation on \
+     the variable that is met"
+    (List.for_all Option.is_some steps);
+  let steps = List.filter_map Fun.id steps in
+  let flag = Oxcaml_flags.Flambda2.Debug.concrete_types_only_on_canonicals in
+  let as_it_was = !flag in
+  let (_ : model -> Model_env.t side_of_joins), of_the_compiler =
+    sides_of_joins kinds_of_generated_joins
+  in
+  check "without the check, the compiler does not stop on them"
+    (Result.is_ok (joined_steps_in_the_compiler of_the_compiler steps));
+  check "with the check, it is said to stop, with the fatal error of the check"
+    (match the_check_of_the_compiler_passes steps with
+    | Disagree what ->
+      String.starts_with
+        ~prefix:
+          "the compiler stops: a fatal error: Trying to add equation giving \
+           concrete type on"
+        what
+    | Agree | Not_run _ | Not_this_comparison | Known_to_disagree _ -> false);
+  check "and the check is as it was before" (Bool.equal !flag as_it_was)
 
 (* A control of what a run with the repaired test comes to
    ([outcome_of_the_repaired_test]), on a generated program on which the
@@ -9995,12 +10336,24 @@ let () =
       "Programs of two joins of two uses, of which a use of the first may have \
        a join of its own, for the join of the model and the n-way join of the \
        compiler"
-    ~seed:160000 ~count:1500 ~generate:generate_joined_steps
+    ~seed:160000 ~count:1500
+    ~generate:(fun r -> generate_joined_steps r)
     ~prepare:(fun steps -> steps)
     ~shrink:shrink_joined_steps ~print:print_joined_steps
     (generated_joins_after_joins ());
   control_of_the_names_to_avoid ();
   control_of_the_repaired_test ();
+  run
+    ~title:
+      "Programs of two joins of two uses, in which a use may give a value two \
+       variants whose meet makes variables, for the model and the compiler"
+    ~seed:170000 ~count:1500
+    ~generate:(generate_joined_steps ~meets_of_cases:true)
+    ~prepare:(fun steps -> steps)
+    ~shrink:shrink_joined_steps ~print:print_joined_steps
+    (generated_joins_after_meets ());
+  control_of_the_variables_of_the_meets ~seed:170000 ~count:1500;
+  control_of_the_check_of_the_compiler ();
   let symbols_of_groups = symbols_for_static_groups names in
   run
     ~title:
