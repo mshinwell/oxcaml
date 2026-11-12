@@ -1464,9 +1464,9 @@ let join (names : names) (implementation : implementation) ?known ?locals
   in
   joined_of_env names env parameter
 
-(* What is printed, with the variables that are not those of the tests named
-   [e0], [e1], ... in the order they come. *)
-let rename_own_variables (names : names) (printed : string) : string =
+(* What is printed, with the variables numbered above a threshold named [e0],
+   [e1], ... in the order they come. *)
+let rename_variables_above (threshold : int) (printed : string) : string =
   let own = Hashtbl.create 4 in
   let buffer = Buffer.create (String.length printed) in
   let is_digit c = c >= '0' && c <= '9' in
@@ -1487,7 +1487,7 @@ let rename_own_variables (names : names) (printed : string) : string =
         in
         let j = end_of_number (i + 1) in
         let number = int_of_string (String.sub printed (i + 1) (j - i - 1)) in
-        if number <= names.variables_with_a_name
+        if number <= threshold
         then Buffer.add_string buffer (String.sub printed i (j - i))
         else (
           if not (Hashtbl.mem own number)
@@ -1501,6 +1501,10 @@ let rename_own_variables (names : names) (printed : string) : string =
   in
   copy 0;
   Buffer.contents buffer
+
+(* The same for the variables that are not those of the tests. *)
+let rename_own_variables (names : names) (printed : string) : string =
+  rename_variables_above names.variables_with_a_name printed
 
 (* Whether two texts are the same but for how they are laid out. The lines of a
    text are broken before its variables are renamed, so where they are broken
@@ -4290,6 +4294,669 @@ let chosen_meets () =
     the_chosen_meets
 
 (* ======================================================================== *)
+(* The meet of the model beside the compiler's                              *)
+(* ======================================================================== *)
+
+(* The transcription of the meet (FlambdaMeet.v), given the transcription of the
+   n-way join for the join that it calls (FlambdaJoinMeet.v, in
+   middle_end/flambda2/types/rocq/), is extracted, and is run here beside the
+   n-way meet of the compiler: on the scenarios of the examples of the meet and
+   of the chosen meets, where it is the function that the statements are about
+   that is run and not an answer copied from them, and on generated pairs of
+   types.
+
+   The model is run with the choices that are the compiler's, with the depth of
+   joins that the compiler reads from its flag, and with fuel. It answers
+   nothing where the compiler stops with a fatal error, where the fuel is too
+   little, and at one state where the compiler goes on (T4-10).
+
+   What is compared is what can be seen of the two answers: whether the meet is
+   bottom, the type answered, and of the environment answered the type and the
+   canonical element of every name that the scenario defines, and the type of
+   every other variable that those types mention (the variables that the meet
+   and the joins inside it made). The two sides do not name such variables
+   alike: the two are compared as printed, with those variables renamed in the
+   order in which they come. *)
+module Model_env = Flambda2_rocq_semantics.FlambdaTypingEnv.Typing_env
+module Model_meet = Flambda2_rocq_semantics.FlambdaMeet
+module Model_join_meet = Flambda2_rocq_semantics.FlambdaJoinMeet
+module Model_join_env = Flambda2_rocq_semantics.FlambdaJoinEnv.Join_env
+module Model_name_mode = Flambda2_rocq_semantics.FlambdaBindingTime.Name_mode
+
+type model =
+  { meet_of_model :
+      Model_env.t ->
+      MT.flambda_type ->
+      MT.flambda_type ->
+      (MT.flambda_type * Model_env.t) MT.Or_bottom.t option;
+    add_equation_of_model :
+      Model_env.t -> MT.name -> MT.flambda_type -> Model_env.t option;
+    add_relation_of_model :
+      MT.Relation.t -> Model_env.t -> MT.name -> M.simple -> Model_env.t option
+  }
+
+(* The choices of the model: the compiler's, or those of the meet and of the
+   join of which the contracts are to be proved. *)
+type choices =
+  | Of_the_compiler
+  | To_be_proved
+
+let the_model (choices : choices) : model =
+  let fuel = N.nat_of_int 200 in
+  let fuels : Model_join_meet.fuels =
+    { fuel_of_env = fuel; fuel_of_types = fuel; fuel_of_meet = fuel }
+  in
+  let join_depth = N.nat_of_int (Flambda2_ui.Flambda_features.join_depth ()) in
+  let join_choices, meet_choices =
+    match choices with
+    | Of_the_compiler ->
+      Model_join_env.compiler_choices, Model_meet.compiler_choices
+    | To_be_proved ->
+      Model_join_env.repaired_choices, Model_meet.repaired_choices
+  in
+  let join =
+    Model_join_meet.model_join_scoped_envs join_choices join_depth fuels
+  in
+  { meet_of_model =
+      Model_join_meet.model_meet join_choices meet_choices join_depth fuels;
+    add_equation_of_model =
+      Model_join_meet.model_add_equation join_choices meet_choices join_depth
+        fuels;
+    add_relation_of_model =
+      (fun relation ->
+        let add =
+          match relation with
+          | Is_int -> Model_meet.Flambda2_types.add_is_int_relation
+          | Get_tag -> Model_meet.Flambda2_types.add_get_tag_relation
+          | Is_null -> Model_meet.Flambda2_types.add_is_null_relation
+        in
+        add join meet_choices fuel)
+  }
+
+(* The environment that the steps of a scenario make in the model. *)
+let scenario_in_the_model (model : model) (kinds : MK.flambda_kind list)
+    (steps : step list) : (Model_env.t, string) result =
+  let v = N.positive_of_int in
+  let rec go env steps : (Model_env.t, string) result =
+    match steps with
+    | [] -> Ok env
+    | Define i :: steps ->
+      go
+        (Model_env.add_variable_definition env (v i)
+           (List.nth kinds (i - 1))
+           Model_name_mode.normal)
+        steps
+    | Relation { relation; result; scrutinee } :: steps -> (
+      match
+        model.add_relation_of_model relation env
+          (Name_var (v result))
+          (Var (v scrutinee))
+      with
+      | Some env -> go env steps
+      | None -> Error "no answer where a relation is added")
+    | Equation (i, t) :: steps -> (
+      match model.add_equation_of_model env (Name_var (v i)) t with
+      | Some env -> go env steps
+      | None -> Error "no answer where an equation is added")
+    | Meet_of (t1, t2) :: steps -> (
+      match model.meet_of_model env t1 t2 with
+      | Some (Ok ((_ : MT.flambda_type), env)) -> go env steps
+      | Some Bottom -> Error "a meet on the way to the environment is bottom"
+      | None -> Error "no answer of a meet on the way to the environment")
+  in
+  go Model_env.create steps
+
+(* What is seen of a meet, or of an environment where no meet is asked. *)
+type seen =
+  | Nothing_seen of string
+  | Bottom_seen
+  | Seen of
+      { answer : MT.flambda_type option;
+        (* Whether the environment is marked as one that no run reaches. *)
+        env_is_bottom : bool;
+        (* The type and the canonical element of each name of the scenario. *)
+        of_names : (MT.name * MT.flambda_type option * M.simple option) list;
+        (* The other variables that these types reach, with their types. *)
+        of_others : (M.variable * MT.flambda_type option) list
+      }
+
+(* The variables numbered above [threshold] that the types reach, each with the
+   type that [type_of] gives it, in the order in which they are reached. *)
+let reached ~(threshold : int) ~(type_of : M.variable -> MT.flambda_type option)
+    (roots : MT.flambda_type list) : (M.variable * MT.flambda_type option) list
+    =
+  let is_other x =
+    match N.int_of_positive x with
+    | Some number -> number > threshold
+    | None -> true
+  in
+  let others_of t =
+    List.fold_left
+      (fun found x ->
+        if is_other x && not (List.mem x found) then found @ [x] else found)
+      []
+      (MT.free_variables (Model_type.normalise t))
+  in
+  let rec close found (pending : M.variable list) =
+    match pending with
+    | [] -> List.rev found
+    | x :: pending ->
+      if List.mem_assoc x found
+      then close found pending
+      else
+        let t = type_of x in
+        close ((x, t) :: found)
+          (pending @ match t with Some t -> others_of t | None -> [])
+  in
+  close [] (List.concat_map others_of roots)
+
+(* What is seen of the names given, where a name that the environment does not
+   define is asked nothing of. *)
+let sees ~threshold ~(env_is_bottom : bool) ~(defined : MT.name -> bool)
+    ~(type_of : MT.name -> MT.flambda_type option)
+    ~(canonical : MT.name -> M.simple option) (names : MT.name list)
+    (answer : MT.flambda_type option) : seen =
+  let of_names =
+    List.map
+      (fun (name : MT.name) ->
+        if defined name
+        then name, type_of name, canonical name
+        else name, None, None)
+      names
+  in
+  let roots =
+    Option.to_list answer @ List.filter_map (fun (_, t, _) -> t) of_names
+  in
+  Seen
+    { answer;
+      env_is_bottom;
+      of_names;
+      of_others =
+        reached ~threshold
+          ~type_of:(fun x ->
+            let name : MT.name = Name_var x in
+            if defined name then type_of name else None)
+          roots
+    }
+
+exception Model_has_no_answer of string
+
+(* What is seen in an environment of the model. *)
+let seen_in_the_model ~threshold (names : MT.name list)
+    (answer : MT.flambda_type option) (env : Model_env.t) : seen =
+  match
+    sees ~threshold ~env_is_bottom:(Model_env.is_bottom env)
+      ~defined:(Model_env.mem None env)
+      ~type_of:(fun name ->
+        match Model_env.find env name None with
+        | Some t -> Some t
+        | None -> raise (Model_has_no_answer "no type for a name"))
+      ~canonical:(fun name ->
+        match
+          Model_env.get_canonical_simple_exn env (Some Model_name_mode.in_types)
+            None (MT.simple_of_name name)
+        with
+        | Some canonical -> canonical
+        | None ->
+          raise (Model_has_no_answer "no answer for a canonical element"))
+      names answer
+  with
+  | seen -> seen
+  | exception Model_has_no_answer why -> Nothing_seen why
+
+(* What is seen in an environment of the compiler. *)
+let seen_in_the_compiler (numbering : Model_names.t) ~threshold
+    (names : MT.name list) (answer : TG.t option) (env : TE.t) : seen =
+  let to_model = Converter.type_to_model numbering in
+  let of_model = Converter.name_of_model numbering in
+  sees ~threshold ~env_is_bottom:(TE.is_bottom env)
+    ~defined:(fun name -> TE.mem env (of_model name))
+    ~type_of:(fun name ->
+      let name = of_model name in
+      let kind =
+        Name.pattern_match name ~var:Variable.kind ~symbol:(fun _ -> K.value)
+      in
+      Some (to_model (TE.find env name (Some kind))))
+    ~canonical:(fun name ->
+      match
+        TE.get_canonical_simple_exn env ~min_name_mode:Name_mode.in_types
+          (Simple.name (of_model name))
+      with
+      | canonical -> Some (Converter.simple_to_model numbering canonical)
+      | exception Not_found -> None)
+    names
+    (Option.map to_model answer)
+
+(* What is seen, as printed, with the variables numbered above the threshold
+   renamed in the order in which they come. *)
+let print_seen ~threshold (seen : seen) : string =
+  let print ppf t = Model_type.print ppf (Model_type.normalise t) in
+  let print_type ppf (t : MT.flambda_type option) =
+    match t with
+    | Some t -> print ppf t
+    | None -> Format.pp_print_string ppf "not defined"
+  in
+  match seen with
+  | Nothing_seen why -> "no answer: " ^ why
+  | Bottom_seen -> "the meet is bottom"
+  | Seen { answer; env_is_bottom; of_names; of_others } ->
+    rename_variables_above threshold
+      (Format.asprintf "@[<v>%a%s%a%a@]"
+         (fun ppf (answer : MT.flambda_type option) ->
+           match answer with
+           | Some t -> Format.fprintf ppf "the meet answers %a" print t
+           | None -> Format.pp_print_string ppf "after the steps")
+         answer
+         (if env_is_bottom then ", in an environment that is bottom" else "")
+         (fun ppf ->
+           List.iter (fun (name, t, (canonical : M.simple option)) ->
+               Format.fprintf ppf
+                 "@ %a : %a, of which the canonical element is %a"
+                 Model_type.print_name name print_type t
+                 (fun ppf (canonical : M.simple option) ->
+                   match canonical with
+                   | Some simple -> Model_type.print_simple ppf simple
+                   | None -> Format.pp_print_string ppf "not found")
+                 canonical))
+         of_names
+         (fun ppf ->
+           List.iter (fun (x, t) ->
+               Format.fprintf ppf "@ where %a : %a" Model_type.print_variable x
+                 print_type t))
+         of_others)
+
+(* The two say the same: both stop, both are bottom, or both see the same. *)
+let same_seen ~threshold (seen : seen) (seen' : seen) : bool =
+  match seen, seen' with
+  | Nothing_seen _, Nothing_seen _ | Bottom_seen, Bottom_seen -> true
+  | Seen _, Seen _ ->
+    same_text (print_seen ~threshold seen) (print_seen ~threshold seen')
+  | (Nothing_seen _ | Bottom_seen | Seen _), _ -> false
+
+(* A scenario and a meet in the model and in the compiler. *)
+let scenario_in_both (model : model) (kinds : MK.flambda_kind list)
+    (steps : step list) (meet : (MT.flambda_type * MT.flambda_type) option) :
+    seen * seen =
+  let threshold = List.length kinds in
+  let names : MT.name list =
+    List.mapi (fun i _ : MT.name -> Name_var (N.positive_of_int (i + 1))) kinds
+  in
+  let in_the_model =
+    match scenario_in_the_model model kinds steps with
+    | Error why -> Nothing_seen why
+    | Ok env -> (
+      match meet with
+      | None -> seen_in_the_model ~threshold names None env
+      | Some (t1, t2) -> (
+        match model.meet_of_model env t1 t2 with
+        | None -> Nothing_seen "no answer of the meet"
+        | Some Bottom -> Bottom_seen
+        | Some (Ok (t, env)) -> seen_in_the_model ~threshold names (Some t) env)
+      )
+  in
+  let in_the_compiler =
+    match
+      or_fatal_error (fun () ->
+          let { numbering; variable = _; after_the_steps } =
+            scenario n_way kinds steps
+          in
+          let to_compiler = Converter.type_of_model numbering machine_width in
+          match after_the_steps with
+          | Error why -> Nothing_seen why
+          | Ok env -> (
+            match meet with
+            | None -> seen_in_the_compiler numbering ~threshold names None env
+            | Some (t1, t2) -> (
+              match n_way.meet env (to_compiler t1) (to_compiler t2) with
+              | Bottom -> Bottom_seen
+              | Ok (t, env) ->
+                seen_in_the_compiler numbering ~threshold names (Some t) env)))
+    with
+    | Ok seen -> seen
+    | Error line -> Nothing_seen ("a fatal error: " ^ general line)
+  in
+  in_the_model, in_the_compiler
+
+let scenarios_in_the_model () =
+  Format.printf
+    "@.The meet of the model beside the n-way meet of the compiler, on the \
+     scenarios of the examples of the meet and of the chosen meets@.";
+  let model = the_model Of_the_compiler in
+  let same = ref 0 and different = ref 0 in
+  let scenarios =
+    List.map
+      (fun (example : example_of_meet) ->
+        ( example.statement,
+          example.variables,
+          example.steps,
+          Option.map (fun (t1, t2, (_ : stated)) -> t1, t2) example.meet ))
+      examples_of_meets
+    @ List.map
+        (fun (chosen : chosen_meet) ->
+          chosen.label, chosen.kinds, chosen.before, Some chosen.met)
+        the_chosen_meets
+  in
+  List.iter
+    (fun (name, kinds, steps, meet) ->
+      let threshold = List.length kinds in
+      let in_the_model, in_the_compiler =
+        scenario_in_both model kinds steps meet
+      in
+      if same_seen ~threshold in_the_model in_the_compiler
+      then (
+        incr same;
+        Format.printf "  %s: the same%s@." name
+          (match in_the_model with
+          | Nothing_seen why ->
+            Printf.sprintf " (neither answers: the model, %s; the compiler, %s)"
+              why
+              (print_seen ~threshold in_the_compiler)
+          | Bottom_seen -> " (bottom)"
+          | Seen _ -> ""))
+      else (
+        incr different;
+        Format.printf
+          "  @[<v>%s: DIFFERENT. The model:@ %a@ the compiler:@ %a@]@." name
+          print_lines
+          (print_seen ~threshold in_the_model)
+          print_lines
+          (print_seen ~threshold in_the_compiler)))
+    scenarios;
+  Format.printf "  Of %d scenarios: %d the same, %d different@."
+    (List.length scenarios) !same !different;
+  (* The same with the choices that are not the compiler's: where they make no
+     difference, and where they do. *)
+  let to_be_proved = the_model To_be_proved in
+  let differing =
+    List.filter_map
+      (fun (name, kinds, steps, meet) ->
+        let threshold = List.length kinds in
+        let in_the_model, in_the_compiler =
+          scenario_in_both to_be_proved kinds steps meet
+        in
+        if same_seen ~threshold in_the_model in_the_compiler
+        then None
+        else Some name)
+      scenarios
+  in
+  Format.printf
+    "  @[<v>With the choices of the meet and of the join that are to be \
+     proved, in place of the compiler's, the model differs from the compiler \
+     on %d of them:%a@]@."
+    (List.length differing)
+    (fun ppf -> List.iter (fun name -> Format.fprintf ppf "@ %s" name))
+    differing
+
+(* The environment of the tests, in the model: the variables and the symbols
+   that [names.env] defines, of which nothing is known. *)
+let env_of_model (names : names) : Model_env.t * MT.name list =
+  let defined =
+    List.map
+      (fun (name, kind) ->
+        ( Converter.name_to_model names.numbering name,
+          Converter.kind_to_model kind ))
+      names.defined
+  in
+  ( List.fold_left
+      (fun env ((name : MT.name), kind) ->
+        match name with
+        | Name_var x ->
+          Model_env.add_variable_definition env x kind Model_name_mode.normal
+        | Name_symbol symbol -> Model_env.add_symbol_definition env symbol)
+      Model_env.create defined,
+    List.map fst defined )
+
+(* Equations on variables of the tests, a variable having at most one, whose
+   type mentions no variable but those numbered after it: no type is reached
+   from itself. *)
+let generate_equations (names : names) r : (MT.name * MT.flambda_type) list =
+  let pool = names.pool in
+  let config : G.config = { well_formed = true; depth = 1 } in
+  let candidates =
+    List.map (fun x -> x, MK.Value) pool.value_variables
+    @ List.map
+        (fun x -> x, MK.Naked_number Kind_naked_immediate)
+        pool.naked_immediate_variables
+  in
+  List.filter_map
+    (fun (x, kind) ->
+      let rec attempt n : (MT.name * MT.flambda_type) option =
+        if n = 0
+        then None
+        else
+          let t = G.type_of_kind config r pool kind in
+          if
+            List.for_all
+              (fun y -> N.compare_positive x y < 0)
+              (MT.free_variables t)
+          then Some (Name_var x, t)
+          else attempt (n - 1)
+      in
+      if G.chance r ~percent:50 then attempt 5 else None)
+    candidates
+
+(* Equations that make aliases: a variable of kind value may be given an alias
+   to a variable of that kind numbered after it, an alias to a symbol, or a type
+   as above. *)
+let generate_aliases (names : names) r : (MT.name * MT.flambda_type) list =
+  let pool = names.pool in
+  let config : G.config = { well_formed = true; depth = 1 } in
+  List.filter_map
+    (fun x : (MT.name * MT.flambda_type) option ->
+      let later =
+        List.filter (fun y -> N.compare_positive x y < 0) pool.value_variables
+      in
+      match G.below r 4, later with
+      | 0, _ -> None
+      | 1, _ :: _ ->
+        Some (Name_var x, MT.alias_type_of Value (Var (G.pick r later)))
+      | (1 | 2), _ ->
+        Some
+          (Name_var x, MT.alias_type_of Value (Symbol (G.pick r pool.symbols)))
+      | _, _ ->
+        let t = G.type_of_kind config r pool MK.Value in
+        if
+          List.for_all
+            (fun y -> N.compare_positive x y < 0)
+            (MT.free_variables t)
+        then Some (Name_var x, t)
+        else None)
+    pool.value_variables
+
+(* Two types of the shape of T4-9, which the generator of types does not make: a
+   variant whose blocks, of two or three tags, each hold one variable, the same
+   for all; and a variant whose blocks of those tags each hold a block whose
+   fields repeat one variable, or a number. The meet of the fields of a case
+   gives the first variable a type in the extension of the case, and the join of
+   the cases makes variables where the fields repeat. Both may be the field of a
+   block. *)
+let generate_meet_of_cases (names : names) r : MT.flambda_type * MT.flambda_type
+    =
+  let pool = names.pool in
+  let alias x = MT.alias_type_of Value (Var x) in
+  let variant immediates cases : MT.flambda_type =
+    MT.create_variant false immediates
+      (Known
+         (Row_like_for_blocks
+            ( List.map
+                (fun (tag, fields) :
+                     (_ * MT.row_like_block_case MT.Or_unknown.t) ->
+                  ( N.z_of_int tag,
+                    Known
+                      { case_maps_to = fields;
+                        case_index =
+                          { index_domain =
+                              Known (N.nat_of_int (List.length fields));
+                            index_shape = Scannable Value_only
+                          };
+                        case_env_extension = MT.empty_env_extension
+                      } ))
+                cases,
+              Bottom,
+              Heap )))
+      No_extensions
+  in
+  let blocks =
+    variant (Known (MT.bottom (Naked_number Kind_naked_immediate)))
+  in
+  let immediates () : MT.flambda_type MT.Or_unknown.t =
+    if G.chance r ~percent:50
+    then Unknown
+    else Known (MT.bottom (Naked_number Kind_naked_immediate))
+  in
+  let tags = List.init (2 + G.below r 2) Fun.id in
+  let held = G.pick r pool.value_variables in
+  let field () =
+    if G.chance r ~percent:20
+    then MT.this_tagged_immediate (G.small_number r)
+    else
+      let repeated = G.pick r pool.value_variables in
+      blocks [0, List.init (1 + G.below r 3) (fun _ -> alias repeated)]
+  in
+  let one =
+    variant (immediates ()) (List.map (fun tag -> tag, [alias held]) tags)
+  in
+  let other =
+    variant (immediates ()) (List.map (fun tag -> tag, [field ()]) tags)
+  in
+  if G.chance r ~percent:50
+  then blocks [0, [one]], blocks [0, [other]]
+  else one, other
+
+type meet_in_an_environment =
+  { equations : (MT.name * MT.flambda_type) list;
+    met : MT.flambda_type * MT.flambda_type
+  }
+
+let print_meet_in_an_environment ppf { equations; met = m1, m2 } =
+  Format.fprintf ppf "@[<v>%a%a@ and@ %a@]"
+    (fun ppf ->
+      List.iter (fun (name, t) ->
+          Format.fprintf ppf "with %a : %a@ " Model_type.print_name name
+            Model_type.print t))
+    equations Model_type.print m1 Model_type.print m2
+
+let shrink_meet_in_an_environment ({ equations; met = m1, m2 } as input) =
+  List.mapi
+    (fun i _ ->
+      { input with equations = List.filteri (fun j _ -> i <> j) equations })
+    equations
+  @ List.map (fun m1 -> { input with met = m1, m2 }) (G.shrink m1)
+  @ List.map (fun m2 -> { input with met = m1, m2 }) (G.shrink m2)
+
+(* The meet of the model against the n-way meet of the compiler, on two types in
+   the environment of the tests, to which equations are added first: by
+   [add_equation] of the model, and by that of the compiler with its n-way
+   meet. *)
+let model_against_compiler (names : names) :
+    meet_in_an_environment comparison list =
+  let model = the_model Of_the_compiler in
+  let model_env, defined = env_of_model names in
+  (* The variables of the environment are the first of the numbering. *)
+  let threshold =
+    List.length
+      (List.filter
+         (fun (name : MT.name) ->
+           match name with Name_var _ -> true | Name_symbol _ -> false)
+         defined)
+  in
+  let both { equations; met = m1, m2 } =
+    let in_the_model =
+      let rec add env equations =
+        match equations with
+        | [] -> Some env
+        | (name, t) :: equations ->
+          Option.bind (model.add_equation_of_model env name t) (fun env ->
+              add env equations)
+      in
+      match add model_env equations with
+      | None -> Nothing_seen "no answer where an equation is added"
+      | Some env -> (
+        match model.meet_of_model env m1 m2 with
+        | None -> Nothing_seen "no answer of the meet"
+        | Some Bottom -> Bottom_seen
+        | Some (Ok (t, env)) ->
+          seen_in_the_model ~threshold defined (Some t) env)
+    in
+    let in_the_compiler =
+      match
+        or_fatal_error (fun () ->
+            let meet_expanded_head = n_way.meet_expanded_head in
+            let env =
+              List.fold_left
+                (fun env (name, t) ->
+                  ME.use_meet_env ~meet_expanded_head env ~f:(fun env ->
+                      ME.add_equation env
+                        (Converter.name_of_model names.numbering name)
+                        (to_compiler names t) ~meet_expanded_head))
+                names.env equations
+            in
+            match
+              n_way.meet env (to_compiler names m1) (to_compiler names m2)
+            with
+            | Bottom -> Bottom_seen
+            | Ok (t, env) ->
+              seen_in_the_compiler names.numbering ~threshold defined (Some t)
+                env)
+      with
+      | Ok seen -> seen
+      | Error line -> Nothing_seen ("a fatal error: " ^ general line)
+    in
+    in_the_model, in_the_compiler
+  in
+  let different in_the_model in_the_compiler =
+    Disagree
+      (Format.asprintf "@[<v>the model:@ %a@ the compiler:@ %a@]" print_lines
+         (print_seen ~threshold in_the_model)
+         print_lines
+         (print_seen ~threshold in_the_compiler))
+  in
+  [ { name = "meet: the model and the n-way meet of the compiler";
+      compare =
+        (fun input ->
+          let in_the_model, in_the_compiler = both input in
+          match in_the_model, in_the_compiler with
+          | Nothing_seen why, Nothing_seen why' ->
+            Not_run
+              (Printf.sprintf
+                 "neither answers (the model: %s; the compiler: %s)" why why')
+          | Nothing_seen why, (Bottom_seen | Seen _) ->
+            Known_to_disagree
+              ( "the model has no answer where the compiler answers (T4-10, or \
+                 the fuel)",
+                Format.asprintf "@[<v>the model: %s@ the compiler:@ %a@]" why
+                  print_lines
+                  (print_seen ~threshold in_the_compiler) )
+          | (Bottom_seen | Seen _), _ ->
+            if same_seen ~threshold in_the_model in_the_compiler
+            then Agree
+            else different in_the_model in_the_compiler)
+    };
+    { name = "of which those where the meet is not bottom";
+      compare =
+        (fun input ->
+          match both input with
+          | (Seen _ as in_the_model), (Seen _ as in_the_compiler) ->
+            if same_seen ~threshold in_the_model in_the_compiler
+            then Agree
+            else different in_the_model in_the_compiler
+          | (Nothing_seen _ | Bottom_seen | Seen _), _ -> Not_this_comparison)
+    };
+    { name = "of which those where a variable that was made is mentioned";
+      compare =
+        (fun input ->
+          match both input with
+          | ( (Seen { of_others = _ :: _; _ } as in_the_model),
+              (Seen _ as in_the_compiler) )
+          | ( (Seen _ as in_the_model),
+              (Seen { of_others = _ :: _; _ } as in_the_compiler) ) ->
+            if same_seen ~threshold in_the_model in_the_compiler
+            then Agree
+            else different in_the_model in_the_compiler
+          | (Nothing_seen _ | Bottom_seen | Seen _), _ -> Not_this_comparison)
+    } ]
+
+(* ======================================================================== *)
 (* The comparison by text                                                   *)
 (* ======================================================================== *)
 
@@ -4908,6 +5575,70 @@ let () =
   run_examples_of_joins names;
   run_examples_of_meets ();
   chosen_meets ();
+  scenarios_in_the_model ();
+  let model_and_compiler ~title ~seed ~count ~equations:shape kind =
+    run ~title ~seed ~count
+      ~generate:(fun r ->
+        let config : G.config = { well_formed = true; depth = 2 } in
+        let aliases, equations =
+          match shape with
+          | `None | `Cases -> false, []
+          | `Types -> false, generate_equations names r
+          | `Aliases -> true, generate_aliases names r
+        in
+        (* With the aliases, one of the two types is often an alias too. *)
+        let side () =
+          if aliases && G.chance r ~percent:50
+          then
+            MT.alias_type_of Value (Var (G.pick r names.pool.value_variables))
+          else G.type_of_kind config r names.pool kind
+        in
+        { equations;
+          met =
+            (match shape with
+            | `Cases -> generate_meet_of_cases names r
+            | `None | `Types | `Aliases -> side (), side ())
+        })
+      ~prepare:(fun ({ equations; met = m1, m2 } as input) ->
+        List.iter (fun (_, t) -> ignore (to_compiler names t : TG.t)) equations;
+        ignore (to_compiler names m1 : TG.t);
+        ignore (to_compiler names m2 : TG.t);
+        input)
+      ~shrink:shrink_meet_in_an_environment ~print:print_meet_in_an_environment
+      (model_against_compiler names)
+  in
+  model_and_compiler
+    ~title:
+      "Two types of kind value, for the meet of the model and the n-way meet \
+       of the compiler"
+    ~seed:90000 ~count:1000 ~equations:`None MK.Value;
+  model_and_compiler
+    ~title:
+      "Two types of naked immediates, for the meet of the model and the n-way \
+       meet of the compiler"
+    ~seed:92000 ~count:500 ~equations:`None
+    (MK.Naked_number Kind_naked_immediate);
+  model_and_compiler
+    ~title:
+      "Equations on variables and two types of kind value, for the meet of the \
+       model and the n-way meet of the compiler"
+    ~seed:94000 ~count:1000 ~equations:`Types MK.Value;
+  model_and_compiler
+    ~title:
+      "Equations on variables and two types of naked immediates, for the meet \
+       of the model and the n-way meet of the compiler"
+    ~seed:96000 ~count:500 ~equations:`Types
+    (MK.Naked_number Kind_naked_immediate);
+  model_and_compiler
+    ~title:
+      "Aliases between variables and symbols, and two types of kind value, for \
+       the meet of the model and the n-way meet of the compiler"
+    ~seed:98000 ~count:1000 ~equations:`Aliases MK.Value;
+  model_and_compiler
+    ~title:
+      "Two variants whose cases hold a variable and blocks of a repeated \
+       variable, for the meet of the model and the n-way meet of the compiler"
+    ~seed:99000 ~count:500 ~equations:`Cases MK.Value;
   let with_itself ~title sharing =
     run ~title ~seed:70000 ~count:1500
       ~generate:(fun r ->

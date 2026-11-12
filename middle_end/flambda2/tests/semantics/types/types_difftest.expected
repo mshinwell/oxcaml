@@ -966,6 +966,74 @@ Chosen meets
   the answer mentions v4, which the environment answered does not define
   type_well_formed is true of the answer
 
+The meet of the model beside the n-way meet of the compiler, on the scenarios of the examples of the meet and of the chosen meets
+  match_is_int: the same
+  match_arm_immediate: the same
+  match_arm_block: the same
+  match_no_other_arm: the same (bottom)
+  match_untag: the same
+  match_arm_constructor: the same
+  match_inner_arm: the same (bottom)
+  match_load: the same
+  match_load_of_immediate: the same (bottom)
+  example_get_tag_env_made: the same
+  tags_arm, of the meet that transcribes the compiler's: the same
+  tags_load, of the meet that transcribes the compiler's: the same
+  null_relation: the same
+  null_arm_null: the same
+  null_arm_value: the same
+  meet_through_poison: the same (bottom)
+  meet_closures_invalid_statics: the same (bottom)
+  pair_first_load: the same
+  pair_second_load: the same
+  float_boxed: the same
+  float_unboxed: the same
+  closure_first_slot: the same
+  closure_second_slot: the same
+  T7-2: the same
+  T4-9: the same
+  Of 25 scenarios: 25 the same, 0 different
+  With the choices of the meet and of the join that are to be proved, in place of the compiler's, the model differs from the compiler on 3 of them:
+  tags_arm, of the meet that transcribes the compiler's
+  T7-2
+  T4-9
+
+Two types of kind value, for the meet of the model and the n-way meet of the compiler (1000 cases, seeds 90000 to 90999)
+  1000 converted
+  meet: the model and the n-way meet of the compiler: 1000 agree
+  of which those where the meet is not bottom: 588 agree
+  of which those where a variable that was made is mentioned: 0 agree
+
+Two types of naked immediates, for the meet of the model and the n-way meet of the compiler (500 cases, seeds 92000 to 92499)
+  500 converted
+  meet: the model and the n-way meet of the compiler: 500 agree
+  of which those where the meet is not bottom: 272 agree
+  of which those where a variable that was made is mentioned: 0 agree
+
+Equations on variables and two types of kind value, for the meet of the model and the n-way meet of the compiler (1000 cases, seeds 94000 to 94999)
+  1000 converted
+  meet: the model and the n-way meet of the compiler: 1000 agree
+  of which those where the meet is not bottom: 402 agree
+  of which those where a variable that was made is mentioned: 0 agree
+
+Equations on variables and two types of naked immediates, for the meet of the model and the n-way meet of the compiler (500 cases, seeds 96000 to 96499)
+  500 converted
+  meet: the model and the n-way meet of the compiler: 500 agree
+  of which those where the meet is not bottom: 171 agree
+  of which those where a variable that was made is mentioned: 0 agree
+
+Aliases between variables and symbols, and two types of kind value, for the meet of the model and the n-way meet of the compiler (1000 cases, seeds 98000 to 98999)
+  1000 converted
+  meet: the model and the n-way meet of the compiler: 1000 agree
+  of which those where the meet is not bottom: 755 agree
+  of which those where a variable that was made is mentioned: 0 agree
+
+Two variants whose cases hold a variable and blocks of a repeated variable, for the meet of the model and the n-way meet of the compiler (500 cases, seeds 99000 to 99499)
+  500 converted
+  meet: the model and the n-way meet of the compiler: 500 agree
+  of which those where the meet is not bottom: 500 agree
+  of which those where a variable that was made is mentioned: 279 agree
+
 A type of kind value with itself, shared and not (1500 cases, seeds 70000 to 71499)
   1500 converted
   join (binary) of a type with itself: 1208 agree
