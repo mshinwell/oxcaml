@@ -4,9 +4,10 @@ The series is merged into the integration branch (the type
 traversal and the assembled conditional theorem; the reviewer's
 scope is those, not the join of environments end to end). What
 follows the merge is on `flambda2-rocq/T5b-join-types`, which is on
-T5's `flambda2-rocq/T5-join`. Not under it yet: T4's files. (My work
-on slices of the meet, for T4, is on `flambda2-rocq/T5b-meet`, with
-a status file of its own there.) Files, all in
+the integration branch. T4's files are under it now; the traversal
+does not use them yet ("What is left"). (My work on slices of the
+meet, for T4, is on `flambda2-rocq/T5b-meet`, with a status file of
+its own there.) Files, all in
 `middle_end/flambda2/types/rocq/`:
 
 - `FlambdaJoinTypes.v`: the join functions of
@@ -81,6 +82,22 @@ types, inside a join of environments". I do not change that file.
   `expand_head_equations_kinded` ("What is assumed"). T5 asked for
   it: the target of a join is to be an environment in which a meet
   may be made. How it is proved: "The shape of the proof".
+- `n_way_join_well_formed` (`FlambdaJoinTypesSpec.v`) and
+  `n_way_join_of_types_well_formed`
+  (`FlambdaJoinTypesWithEnvSpec.v`), after the merge: the type that
+  the join of types answers is well formed (T1's
+  `type_well_formed`) if the types given are, the environments
+  joined have well-formed types and the state is kinded
+  (`n_way_join_type_well_formed`, a contract of mine in
+  `FlambdaJoinTypesSpec.v`). The first is for any state and any
+  functions of the environment side whose join of extensions
+  answers a well-formed extension for well-formed ones; the second
+  is `n_way_join_of_types`, whose join of extensions T5 has proved
+  to answer an extension that it was given or the empty one. One
+  premise more than the soundness has, `expand_head_well_formed`
+  ("What is assumed"). T5 asked for it. No condition of the
+  well-formedness of types was found to fail of an answer. How it
+  is proved: "The shape of the proof".
 - Twenty-nine examples, each an equation proved by computation:
   unions of sets of numbers and of strings, constants and other
   aliases, unknown and bottom inputs, heads of two forms, blocks of
@@ -140,9 +157,17 @@ definition and the first two statements of
   environments: see "Decided overnight".
 - Signed after the merge, and merged: `n_way_join_of_types_true`,
   and the paragraph of the header of the examples about the run.
-- To be asked: `n_way_join_equations_kinded_statement` with the
-  premise `expand_head_equations_kinded`, and
+- Signed after the merge, not merged yet:
+  `n_way_join_equations_kinded_statement` with the premise
+  `expand_head_equations_kinded`, and
   `n_way_join_of_types_equations_kinded_statement`.
+- To be asked: the two premises, the contract and the statement of
+  `FlambdaJoinTypesSpec.v` for well-formedness
+  (`expand_head_well_formed`,
+  `n_way_join_env_extension_well_formed`,
+  `joined_envs_types_well_formed`, `n_way_join_type_well_formed`,
+  `n_way_join_well_formed_statement`), and
+  `n_way_join_of_types_well_formed_statement`.
 
 ## Stand-ins carried
 
@@ -297,26 +322,51 @@ three facts about the interface: `state_grows` is transitive,
 scope and kindedness of arguments do not depend on the state beyond
 `joined_env`.
 
-The lists of `Simple`s with kinds at which the things given and
-the answers are kinded are a parameter of the proofs, in two
-values (`kinds_with`): the aliases of a type (T1's
-`aliases_with_kinds`), and the aliases with the names that have
-equations inside the type (`equation_names_with_kinds`), each name
-at the kind of the type of its equation. The two lists are defined
-by one recursion, which differs only at the equations of an
-environment extension; without the names it is `aliases_with_kinds`
-by computation. Every function that calls the join of types is
-proved sound once, for either list. What is supposed of the three
-places where a type or an extension comes from outside the
-traversal (the import of a type, the join of extensions, the
-expansion of a head) is supposed at the list: without the names it
-is in the contracts of the environment side and in
-`expand_head_sound`; with them, in those and in the two contracts of
-the environment side for the names and `expand_head_equations_kinded`.
-The contract for the names needs that the environments joined have
-the names of the equations inside their types at their kinds; that
-is given to the proofs as part of the well-formedness of
-environments, which is a parameter of the interface.
+The list of `Simple`s with kinds at which the things given and
+the answers are kinded is a parameter of the proofs (`kinds_with`):
+the aliases of a type (T1's `aliases_with_kinds`), to which two
+things are added or not. The first is the names that have equations
+inside the type (`equation_names_with_kinds`), each at the kind of
+the type of its equation. The second is, for each test of the
+well-formedness of types that the type fails, a `Simple` at a kind
+of which it is not (`ill_formed`, a constant at a kind that is not
+its own): a type is kinded at such a list, in an environment or in
+the target, only if it passes every test, so it is kinded there
+when its aliases are and it is well formed (`kinds_checked`). The
+lists are defined by one recursion; with nothing added it is
+`aliases_with_kinds` by computation. Every function that calls the
+join of types is proved sound once, for any of the lists. What is
+supposed of the three places where a type or an extension comes
+from outside the traversal (the import of a type, the join of
+extensions, the expansion of a head) is supposed at the list: with
+nothing added it is in the contracts of the environment side and
+in `expand_head_sound`; with the names, in those and in the two
+contracts of the environment side for the names and
+`expand_head_equations_kinded`; with the checks, in those and in
+`n_way_join_env_extension_well_formed` and
+`expand_head_well_formed` (a type imported is the type as it
+stood). The contract for the names needs that the environments
+joined have the names of the equations inside their types at their
+kinds, and the well-formedness of the answer that they have
+well-formed types; each is given to the proofs as part of the
+well-formedness of environments, which is a parameter of the
+interface.
+
+With the checks, each function that builds a structure is shown to
+build one that passes the tests about that structure, from the
+tests that the structures given pass: the sizes and the shapes of
+the cases of blocks (the fields answered are as many as the
+shortest product given, against the least size); the slots of the
+entries of closures against the indexes (a slot is kept by the
+join of entries only if every entry has it, and the index answered
+has the slots that every index has; an exact index is answered
+only for exact indexes with the same slots); the maps that bind a
+key once (the folds go through a list of distinct keys); the kind
+of the closure types (the creation function tests it); the sets
+that are not empty (a union, or the test of the creation function).
+The types in the places that ask for a kind (the immediates of a
+variant, the contents of a boxed number) are of it because the
+join of types answers a type of the kind of the types given.
 
 Where the compiler's own structure is generic, so is the proof: the
 fold over a map that threads the state, `generic_merge_map_known`,
@@ -349,6 +399,8 @@ is on my base.
 | `environment_side_sound`: `n_way_join_simples_sound`, `import_type_sound`, `n_way_join_env_extension_sound`, `valid_states_have_witnesses` (`FlambdaJoinSpec.v`); the last is used by `n_way_join_bound_is_met` only | T5 has proved the four of the functions of `Join_env`, under `fresh_avoids p` and `env_extension_eqb_sound p`; those two are the premises of `n_way_join_of_types_sound` in its place |
 | `expand_head_sound`: a value of a type has the expanded type under a valuation that satisfies the environment strictly; the expansion is in scope and kinded where the type and the environment are; it is of the kind of the type where the type is kinded and the environment has `constants_of_kind` | T4; a premise of `n_way_join_of_types_sound` until T4's files are under this branch |
 | `expand_head_equations_kinded`: in an environment that has the names of the equations inside its types at their kinds, a type that has its own at their kinds expands to one that has | T4 (an expanded type is the type, an unknown type, the type of a constant or a type of the environment); a premise of the two statements about the names of equations only |
+| `expand_head_well_formed`: in an environment whose types are well formed, a type that is well formed expands to one that is | T4 has proved it of its function, as it is written here; a premise of the two statements about well-formedness only, until the traversal takes T4's function |
+| `n_way_join_env_extension_well_formed`: the extension that the join of extensions answers is well formed if those given are | discharged in `n_way_join_of_types_well_formed` with T5's `n_way_join_env_extension_answers_given` (the function answers an extension that it was given, or the empty one) |
 | `import_type_equations_kinded`, `n_way_join_env_extension_equations_kinded` (`FlambdaJoinSpec.v`) | T5 has proved both of the functions of `Join_env`, under `fresh_avoids p`; premises of `n_way_join_equations_kinded`, discharged in `n_way_join_of_types_equations_kinded` |
 | `joined_envs_constants_of_kind`: in each environment joined, a constant that is the canonical element of a `Simple` of a kind is of that kind | discharged in `n_way_join_of_types_sound`, from the contract's kinds premise and the invariant of typing environments (T2's `typing_env_kinded_constants_of_kind`) |
 | `reduce_head_of_kind_naked_immediate_sound`: a number that has a head, under a valuation that satisfies the environment strictly, has the reduced head, which is then not bottom | T4, who has proved it with no premise on its branch; a premise of `n_way_join_of_types_sound` until T4's files are under this branch |
@@ -380,6 +432,36 @@ is on my base.
   environment joined are of one kind" a premise of the contract;
   whether ill-kinded code that the compiler accepts can break it is
   not known (T5b-3).
+
+- What is assumed of `Expand_head` for the names of the equations.
+  The contract for those names needs that a type whose equations
+  are kinded expands to one whose equations are. Options: (a) wait
+  for T4 to state it of its function; (b) a named premise of my two
+  statements, `expand_head_equations_kinded`, in the form of the
+  other premises about `expand_head`. Chosen: (b). Why: the
+  statement did not wait, and the premise is what T4 would prove.
+  Where it stands: T4 has since proved it of its function. Cost to
+  change: none; the premise goes when the traversal takes T4's
+  function.
+
+- The well-formedness of the type answered: three choices.
+  (1) The state is asked to be kinded
+  (`n_way_join_type_well_formed`). The proof rides on the kinds
+  clause of the contract of the join of types, which is under that
+  premise; whether well-formedness needs it is not known. Options:
+  a proof of its own through every function (as long again as the
+  soundness), or the premise. Chosen: the premise; the join of
+  environments has it wherever it has the kinds of an answer. Cost
+  to change: a second traversal of the proofs.
+  (2) What is asked of the join of extensions is that it answers a
+  well-formed extension for well-formed ones
+  (`n_way_join_env_extension_well_formed`), not that it answers one
+  of those given: it is what the proof uses, and T5's statement
+  about its function gives it.
+  (3) What is asked of `Expand_head` is a new named premise,
+  `expand_head_well_formed`, with the well-formedness of the types
+  of the environment as its only premise on the environment. T4
+  has since proved it of its function as it is written.
 
 - What the examples run on. Options: (a) the join of environments
   itself, on typing environments built for each example: the
@@ -431,30 +513,20 @@ is on my base.
 
 ## What is left
 
-- For T5: that the type answered is well formed
-  (`type_well_formed`) where the types given are (conditions 5, 6,
-  8 and 8a of the well-formedness of types are the ones to look at).
-  Not started.
 - T4's `Expanded_type`, `expand_head` and
-  `reduce_head_of_kind_naked_immediate` and their theorems, when
-  T4's files are under this branch: a change of imports, two
-  arguments and two premises fewer in `n_way_join_of_types` and its
-  statement; no proof changes shape.
+  `reduce_head_of_kind_naked_immediate` and their theorems, now
+  that T4's files are under this branch: a change of imports, two
+  arguments fewer in `n_way_join_of_types`, and the premises about
+  the two functions gone from its statements (all but
+  `expand_head_well_formed`, until T4 proves it); no proof changes
+  shape. Not started.
 - Arrays, when the grammar has them (`Array`,
   `n_way_join_array_contents`, `join_array_element_kinds`).
 - Code age and `rec_info`, with the function types.
 
 ## Asked of me next
 
-- By T5, for the meet (T4): a fifth part of the kinds clause of the
-  contract, that the names of the equations of the extensions inside
-  the type answered are at the kinds of their types. It can hold of
-  the traversal: the extensions of an answer come from the join of
-  extensions of the environment side, from types imported as they
-  stand, or from an expansion, so it needs the same of those three
-  and a premise on the types given; here it is a third list threaded
-  beside the variables and the aliases through `join_step_sound`.
-  T5 writes the contract first.
+Nothing that is not under "What is left".
 
 ## Open questions
 
