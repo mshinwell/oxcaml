@@ -36,7 +36,12 @@
 
    What is stated. A type has no name inside, within a depth
    ([nameless_within]), if
-   - it is not an alias, and no type inside it is one;
+   - it is not an alias of a name, and no type inside it is one. An
+     alias of a constant is taken as the type that the constant
+     expands to ([Expanded_type.create_const]): the meet of such an
+     alias with a type that is not an alias is the meet of the head of
+     that type with the head of the expansion, and the meet of two
+     such aliases asks no meet;
    - no variable stands in it for the result of a relation: a variant
      has none for [Is_int] nor for [Get_tag], a head of values none
      for [Is_null], and a head of naked immediates has no inverse
@@ -50,7 +55,10 @@
    ones of FlambdaMeetTerminationSpec.v among them
    ([flat_nameless_statement]), and no type is so within depth 0. A
    type that is so within a depth is so within any greater
-   ([nameless_within_more_statement]).
+   ([nameless_within_more_statement]). The alias of a constant is so
+   within depth 2, and within depth 1 unless the constant is a tagged
+   immediate, which expands to a variant whose immediates are the
+   alias of a naked immediate ([const_nameless_statement]).
 
    For two expanded types that have no name inside within a depth,
    that many units of fuel are enough ([nameless_fuel_enough_statement]),
@@ -95,11 +103,13 @@
    environment: the functions of the meet read no type of the
    environment, as no name is met. What the join reads is not
    constrained: the hypothesis is on what it answers. A depth that is
-   less is not enough in general: an example is run
-   ([example_depth_fuel_statement]).
+   less is not enough in general: two examples are run, one with no
+   alias ([example_depth_fuel_statement]) and one with the alias of a
+   constant ([example_const_fuel_statement]).
 
-   What is not here: names. An alias, a variable for a relation, or an
-   extension makes the meet read the environment and add to it, and
+   What is not here: names. An alias of a name, a variable for a
+   relation, or an extension makes the meet read the environment and
+   add to it, and
    then the types that are met are those that the environment has,
    which the meet itself changes. FlambdaMeetTerminationSpec.v says
    what a bound would rest on there, and what is in its way. *)
@@ -217,6 +227,7 @@ Definition nameless_descr {head : Type} (nameless_head : head -> bool)
   | Ok (Equals _) => false
   end.
 
+(* Of a type that is not an alias. *)
 Definition nameless_type (ty : flambda_type) : bool :=
   match ty with
   | Type_value ty => nameless_descr nameless_value ty
@@ -226,6 +237,17 @@ Definition nameless_type (ty : flambda_type) : bool :=
   | Type_region ty => nameless_descr (fun _ => true) ty
   end.
 
+(* An alias of a constant is taken as the type that the constant
+   expands to, which is not an alias; an alias of a name is not
+   allowed. *)
+Definition nameless_or_const (ty : flambda_type) : bool :=
+  match get_alias_opt ty with
+  | None => nameless_type ty
+  | Some (Const c) =>
+    nameless_type (Expanded_type.to_type (Expanded_type.create_const c))
+  | Some (Var _ | Symbol _) => false
+  end.
+
 End Nameless.
 
 (* A type has no name inside, and what is inside it is no deeper than
@@ -233,7 +255,7 @@ End Nameless.
 Fixpoint nameless_within (depth : nat) (ty : flambda_type) : bool :=
   match depth with
   | O => false
-  | S depth => nameless_type (nameless_within depth) ty
+  | S depth => nameless_or_const (nameless_within depth) ty
   end.
 
 (* The same of an expanded type. *)
@@ -251,6 +273,18 @@ Definition nameless_within_more_statement : Prop :=
 Definition flat_nameless_statement : Prop :=
   ∀ expanded : Expanded_type.t,
     flat expanded = true -> nameless_expanded_within 1 expanded = true.
+
+(* An alias of a constant has no name inside within depth 2, and
+   within depth 1 unless the constant is a tagged immediate. *)
+Definition const_nameless_statement : Prop :=
+  ∀ (ty : flambda_type) (c : const),
+    get_alias_opt ty = Some (Const c) ->
+    nameless_within 2 ty = true
+    ∧ nameless_within 1 ty
+      = match c with
+        | Tagged_immediate _ => false
+        | _ => true
+        end.
 
 (* ======================================================================== *)
 (* The join of environments to which nothing was added                      *)
@@ -383,4 +417,28 @@ Definition example_depth_fuel_statement : Prop :=
       = Some (Or_bottom.Ok answer))
   ∧ meet_to_prove FlambdaMeetExamplesSpec.forgetful_join 1 Typing_env.create
       example_depth_block example_depth_block
+    = None.
+
+(* A block of one field that is the tagged immediate 3, an alias of
+   the constant, met with a block of one field that is the tagged
+   immediate 3 or 4, which is not an alias. Both have no name inside
+   within depth 3, and the first not within depth 2: the alias is
+   taken as the variant that the constant expands to, whose
+   immediates are the alias of the naked immediate 3. The meet answers
+   with three units of fuel and not with two. *)
+Definition example_const_block (field : flambda_type) : flambda_type :=
+  immutable_block false 0%Z (Scannable Value_only) Alloc_mode.Heap [field].
+
+Definition example_const_fuel_statement : Prop :=
+  let block1 := example_const_block (this_tagged_immediate 3) in
+  let block2 := example_const_block (these_tagged_immediates [3%Z; 4%Z]) in
+  nameless_within 3 block1 = true
+  ∧ nameless_within 3 block2 = true
+  ∧ nameless_within 2 block1 = false
+  ∧ (∃ answer : flambda_type * Typing_env.t,
+      meet_to_prove FlambdaMeetExamplesSpec.forgetful_join 3 Typing_env.create
+        block1 block2
+      = Some (Or_bottom.Ok answer))
+  ∧ meet_to_prove FlambdaMeetExamplesSpec.forgetful_join 2 Typing_env.create
+      block1 block2
     = None.

@@ -114,11 +114,21 @@ Proof.
   - apply Hclosures, Hnon_null.
 Qed.
 
+Lemma nameless_or_const_more (inside inside' : flambda_type -> bool)
+    (ty : flambda_type) :
+  (∀ ty : flambda_type, inside ty = true -> inside' ty = true) ->
+  nameless_or_const inside ty = true -> nameless_or_const inside' ty = true.
+Proof.
+  intros Hinside. unfold nameless_or_const.
+  destruct (get_alias_opt ty) as [[v | s | c] | ]; try discriminate;
+    apply nameless_type_more, Hinside.
+Qed.
+
 Lemma nameless_within_succ (depth : nat) (ty : flambda_type) :
   nameless_within depth ty = true -> nameless_within (S depth) ty = true.
 Proof.
   revert ty. induction depth as [ | depth IH]; intros ty; [ discriminate | ].
-  cbn [nameless_within]. apply nameless_type_more. exact IH.
+  cbn [nameless_within]. apply nameless_or_const_more. exact IH.
 Qed.
 
 Theorem nameless_within_more : nameless_within_more_statement.
@@ -137,6 +147,14 @@ Proof.
   - destruct head as [v | [imms relations] | k numbers | [] | []]; cbn;
       try discriminate; trivial.
   - intros _. destruct kind as [ | [] | | ]; reflexivity.
+Qed.
+
+Theorem const_nameless : const_nameless_statement.
+Proof.
+  intros ty c Halias. cbn [nameless_within]. unfold nameless_or_const.
+  rewrite Halias.
+  destruct c as [ | | | | | | | | | | | | | | k]; try (split; reflexivity).
+  destruct k as [ | [] | | ]; split; reflexivity.
 Qed.
 
 Theorem forgetful_join_of_nothing : forgetful_join_of_nothing_statement.
@@ -613,21 +631,165 @@ Proof.
     cbn. split; apply keyed_lookup_has; assumption.
 Qed.
 
-(* A type that has no name inside is not an alias, and its head has
-   none. *)
-Lemma nameless_expands (depth : nat) (ty : flambda_type) :
-  nameless_within depth ty = true ->
-  ∃ e : Expanded_type.t,
-    Expanded_type.of_non_alias_type ty = Some e
-    ∧ nameless_expanded_within depth e = true.
+(* The type of an expanded type is not an alias. *)
+Lemma to_type_not_alias (e : Expanded_type.t) :
+  get_alias_opt (Expanded_type.to_type e) = None.
 Proof.
-  unfold nameless_expanded_within.
+  destruct e as [kind descr]. unfold Expanded_type.to_type.
+  cbn [Expanded_type.descr Expanded_type.kind].
+  destruct descr as [ | head | ]; [ | destruct head; reflexivity | ];
+    destruct kind as [ | [] | | ]; reflexivity.
+Qed.
+
+Lemma nameless_expanded_succ (depth : nat) (e : Expanded_type.t) :
+  nameless_expanded_within (S depth) e
+  = nameless_type (nameless_within depth) (Expanded_type.to_type e).
+Proof.
+  unfold nameless_expanded_within. cbn [nameless_within].
+  unfold nameless_or_const. rewrite to_type_not_alias. reflexivity.
+Qed.
+
+(* A type that has no name inside is not an alias, and its head has
+   none; or it is an alias of a constant, and the head that the
+   constant expands to has none. *)
+Lemma nameless_cases (depth : nat) (ty : flambda_type) :
+  nameless_within depth ty = true ->
+  (∃ e : Expanded_type.t,
+    Expanded_type.of_non_alias_type ty = Some e
+    ∧ nameless_expanded_within depth e = true)
+  ∨ ∃ c : const,
+      get_alias_opt ty = Some (Const c)
+      ∧ nameless_expanded_within depth (Expanded_type.create_const c) = true.
+Proof.
   destruct depth as [ | d]; [ discriminate | ]. cbn [nameless_within].
-  destruct ty as [ty | ty | k ty | ty | ty];
-    destruct ty as [ | [head | s] | ]; cbn; try discriminate; intros Hty;
-    eexists; (split; [ reflexivity | ]); cbn; try exact Hty;
-    try reflexivity.
-  all: destruct k; reflexivity.
+  unfold nameless_or_const.
+  destruct (get_alias_opt ty) as [[v | s | c] | ] eqn:Halias;
+    try discriminate.
+  - intros Hc. right. exists c. split; [ reflexivity | ].
+    rewrite nameless_expanded_succ. exact Hc.
+  - intros Hty. left.
+    destruct ty as [ty | ty | k ty | ty | ty];
+      destruct ty as [ | [head | s] | ]; cbn in Halias;
+      try discriminate Halias; eexists; (split; [ reflexivity | ]);
+      rewrite nameless_expanded_succ; cbn; try exact Hty; try reflexivity.
+    all: destruct k; reflexivity.
+Qed.
+
+(* The canonical element of a constant is the constant. *)
+Lemma canonical_of_const_simple (tenv : Typing_env.t) (c : const) :
+  Typing_env.get_canonical_simple_exn tenv (Some Name_mode.in_types) None
+    (Const c)
+  = Some (Some (Const c)).
+Proof. reflexivity. Qed.
+
+(* Two constants are not made aliases: a constant is not demoted. *)
+Lemma aliases_add_constants {A : Type}
+    (resolver : name -> Binding_time.With_name_mode.t)
+    (types : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (c1 c2 : const) :
+  Aliases.add resolver types t (Const c1) (Const c2) = None
+  ∨ Aliases.add resolver types t (Const c1) (Const c2)
+    = Some Or_bottom.Bottom.
+Proof.
+  unfold Aliases.add.
+  destruct (Aliases.add0 _ _ _ _ _) as [[[t' which] | ] | ]; cbn;
+    [ | right; reflexivity | left; reflexivity ].
+  destruct which; cbn; left; reflexivity.
+Qed.
+
+Lemma add_alias_constants (tenv : Typing_env.t) (c1 c2 : const) :
+  Typing_env.add_alias tenv (Const c1) (Const c2) = None
+  ∨ Typing_env.add_alias tenv (Const c1) (Const c2) = Some Bottom.
+Proof.
+  unfold Typing_env.add_alias, Typing_env.aliases_add.
+  destruct
+    (aliases_add_constants (Typing_env.binding_time_resolver tenv)
+       (Typing_env.names_to_types tenv) (Typing_env.aliases tenv) c1 c2)
+    as [-> | ->]; [ left | right ]; reflexivity.
+Qed.
+
+(* The meet of two aliases of constants asks no meet. *)
+Lemma meet_type_constants (menv : Meet_env.t) (t1 t2 : flambda_type)
+    (c1 c2 : const) (mh : meet_expanded_head) :
+  get_alias_opt t1 = Some (Const c1) ->
+  get_alias_opt t2 = Some (Const c2) ->
+  Meet_env.meet_type menv t1 t2 mh
+  = if negb (kind_eqb (kind t1) (kind t2))
+    then None
+    else if simple_equal (Const c1) (Const c2)
+    then Some (Meet_result.Ok Both_inputs menv)
+    else
+      match
+        Typing_env.add_alias (Meet_env.typing_env menv) (Const c1) (Const c2)
+      with
+      | Some Bottom => Some (Meet_result.Bottom (New_result tt))
+      | _ => None
+      end.
+Proof.
+  intros H1 H2.
+  unfold Meet_env.meet_type, Meet_env.meet,
+    Typing_env.get_alias_then_canonical_simple_exn.
+  destruct (negb (kind_eqb (kind t1) (kind t2))); [ reflexivity | ].
+  rewrite H1, H2, !canonical_of_const_simple. cbn beta iota.
+  unfold Meet_env.add_alias_between_canonicals.
+  destruct (simple_equal (Const c1) (Const c2)); [ reflexivity | ].
+  destruct (add_alias_constants (Meet_env.typing_env menv) c1 c2)
+    as [-> | ->]; reflexivity.
+Qed.
+
+(* The meet of a type that is not an alias with an alias of a constant
+   asks one meet: that of the head of the type with the head that the
+   constant expands to. *)
+Lemma meet_type_constant_right (menv : Meet_env.t) (t1 t2 : flambda_type)
+    (e1 : Expanded_type.t) (c2 : const) (mh : meet_expanded_head) :
+  Expanded_type.of_non_alias_type t1 = Some e1 ->
+  get_alias_opt t2 = Some (Const c2) ->
+  Meet_env.meet_type menv t1 t2 mh
+  = if negb (kind_eqb (kind t1) (kind t2))
+    then None
+    else
+      match mh menv e1 (Expanded_type.create_const c2) with
+      | None => None
+      | Some (Meet_result.Ok _ env) => Some (Meet_result.Ok Right_input env)
+      | Some (Meet_result.Bottom _) =>
+        Some (Meet_result.Bottom (New_result tt))
+      end.
+Proof.
+  intros H1 H2.
+  unfold Meet_env.meet_type, Meet_env.meet,
+    Typing_env.get_alias_then_canonical_simple_exn, expand_head0.
+  destruct (negb (kind_eqb (kind t1) (kind t2))); [ reflexivity | ].
+  rewrite (of_non_alias_type_not_alias t1 e1 H1), H1, H2,
+    canonical_of_const_simple.
+  cbn. unfold Meet_env.add_concrete_equation_on_const.
+  destruct (mh menv e1 (Expanded_type.create_const c2)) as [[r | r env] | ];
+    reflexivity.
+Qed.
+
+Lemma meet_type_constant_left (menv : Meet_env.t) (t1 t2 : flambda_type)
+    (c1 : const) (e2 : Expanded_type.t) (mh : meet_expanded_head) :
+  get_alias_opt t1 = Some (Const c1) ->
+  Expanded_type.of_non_alias_type t2 = Some e2 ->
+  Meet_env.meet_type menv t1 t2 mh
+  = if negb (kind_eqb (kind t1) (kind t2))
+    then None
+    else
+      match mh menv e2 (Expanded_type.create_const c1) with
+      | None => None
+      | Some (Meet_result.Ok _ env) => Some (Meet_result.Ok Left_input env)
+      | Some (Meet_result.Bottom _) =>
+        Some (Meet_result.Bottom (New_result tt))
+      end.
+Proof.
+  intros H1 H2.
+  unfold Meet_env.meet_type, Meet_env.meet,
+    Typing_env.get_alias_then_canonical_simple_exn, expand_head0.
+  destruct (negb (kind_eqb (kind t1) (kind t2))); [ reflexivity | ].
+  rewrite (of_non_alias_type_not_alias t2 e2 H2), H1, H2,
+    canonical_of_const_simple.
+  cbn. unfold Meet_env.add_concrete_equation_on_const.
+  destruct (mh menv e2 (Expanded_type.create_const c1)) as [[r | r env] | ];
+    reflexivity.
 Qed.
 
 (* ======================================================================== *)
@@ -651,11 +813,34 @@ Definition inside (ty : flambda_type) : Prop :=
 Lemma meet_steady : steady inside (FlambdaMeet.meet mh) (FlambdaMeet.meet mh').
 Proof.
   intros env t1 t2 H1 H2. unfold FlambdaMeet.meet.
-  destruct (nameless_expands depth t1 H1) as (e1 & He1 & Hn1).
-  destruct (nameless_expands depth t2 H2) as (e2 & He2 & Hn2).
-  rewrite !(meet_type_non_alias env t1 t2 e1 e2 _ He1 He2).
-  destruct (negb (kind_eqb (kind t1) (kind t2))); [ apply same_kept_none | ].
-  apply same_kept_map, Hmh; assumption.
+  destruct (nameless_cases depth t1 H1)
+    as [(e1 & He1 & Hn1) | (c1 & Hc1 & Hn1)],
+      (nameless_cases depth t2 H2)
+    as [(e2 & He2 & Hn2) | (c2 & Hc2 & Hn2)].
+  - rewrite !(meet_type_non_alias env t1 t2 e1 e2 _ He1 He2).
+    destruct (negb (kind_eqb (kind t1) (kind t2)));
+      [ apply same_kept_none | ].
+    apply same_kept_map, Hmh; assumption.
+  - rewrite !(meet_type_constant_right env t1 t2 e1 c2 _ He1 Hc2).
+    destruct (negb (kind_eqb (kind t1) (kind t2)));
+      [ apply same_kept_none | ].
+    pose proof (Hmh env e1 (Expanded_type.create_const c2) Hn1 Hn2) as Hmeet.
+    kept_cases Hmeet env1 Henv1;
+      [ apply same_kept_none | apply same_kept_bottom
+      | apply same_kept_ok_at, Henv1 ].
+  - rewrite !(meet_type_constant_left env t1 t2 c1 e2 _ Hc1 He2).
+    destruct (negb (kind_eqb (kind t1) (kind t2)));
+      [ apply same_kept_none | ].
+    pose proof (Hmh env e2 (Expanded_type.create_const c1) Hn2 Hn1) as Hmeet.
+    kept_cases Hmeet env1 Henv1;
+      [ apply same_kept_none | apply same_kept_bottom
+      | apply same_kept_ok_at, Henv1 ].
+  - rewrite !(meet_type_constants env t1 t2 c1 c2 _ Hc1 Hc2).
+    destruct (negb (kind_eqb (kind t1) (kind t2)));
+      [ apply same_kept_none | ].
+    destruct (simple_equal (Const c1) (Const c2)); [ apply same_kept_ok | ].
+    destruct (Typing_env.add_alias _ _ _) as [[ | | ] | ];
+      first [ apply same_kept_none | apply same_kept_bottom ].
 Qed.
 
 (* Every type of a list has no name inside. *)
@@ -2196,11 +2381,12 @@ Qed.
 
 Theorem nameless_types_fuel_enough : nameless_types_fuel_enough_statement.
 Proof.
-  intros join choices depth tenv t1 t2 Hjoin H1 H2.
-  destruct (nameless_expands depth t1 H1) as (e1 & He1 & Hn1).
-  destruct (nameless_expands depth t2 H2) as (e2 & He2 & Hn2).
-  apply (non_alias_fuel_enough join choices depth tenv t1 t2 e1 e2 He1 He2).
-  apply nameless_fuel_enough; assumption.
+  intros join choices depth tenv t1 t2 Hjoin H1 H2 mh0.
+  exact
+    (proj1
+       (meet_steady depth _ _
+          (nameless_over_steady join choices mh0 depth Hjoin)
+          (Meet_env.create tenv) t1 t2 H1 H2)).
 Qed.
 
 Theorem nameless_types_meet_adds_nothing :
@@ -2208,19 +2394,18 @@ Theorem nameless_types_meet_adds_nothing :
 Proof.
   intros join choices depth tenv tenv' t1 t2 ty Hjoin H1 H2. unfold Meet.meet.
   destruct (Typing_env.is_bottom tenv); [ discriminate | ].
-  destruct (nameless_expands depth t1 H1) as (e1 & He1 & Hn1).
-  destruct (nameless_expands depth t2 H2) as (e2 & He2 & Hn2).
-  rewrite (meet_type_non_alias _ t1 t2 e1 e2 _ He1 He2).
-  destruct (negb (kind_eqb (kind t1) (kind t2))); [ discriminate | ].
   destruct
-    (Meet.meet_expanded_head join choices depth (Meet_env.create tenv) e1 e2)
-    as [[r | r env] | ] eqn:Hmeet; cbn [option_map]; try discriminate.
-  pose proof
-    (nameless_meet_adds_nothing join choices depth _ _ e1 e2 r Hjoin Hn1 Hn2
-       Hmeet) as Henv.
-  destruct r as [ | | | e]; cbn [map_result];
-    destruct (is_obviously_bottom _); try discriminate; cbn;
-    intros [= _ <-]; exact Henv.
+    (meet_steady depth _ _
+       (nameless_over_steady join choices (fun _ _ _ => None) depth Hjoin)
+       (Meet_env.create tenv) t1 t2 H1 H2) as [Hsame Hkept].
+  unfold FlambdaMeet.meet in Hsame, Hkept. rewrite Hsame in Hkept.
+  destruct
+    (Meet_env.meet_type (Meet_env.create tenv) t1 t2
+       (Meet.meet_expanded_head join choices depth))
+    as [[r | r env] | ]; cbv beta iota; try discriminate.
+  pose proof (Hkept r env eq_refl) as Henv.
+  destruct (is_obviously_bottom _); try discriminate. cbn.
+  intros [= _ <-]. exact Henv.
 Qed.
 
 (* ======================================================================== *)
@@ -2230,6 +2415,15 @@ Qed.
 Theorem example_depth_fuel : example_depth_fuel_statement.
 Proof.
   split; [ reflexivity | split; [ reflexivity | split ] ].
+  - eexists. vm_compute. reflexivity.
+  - vm_compute. reflexivity.
+Qed.
+
+Theorem example_const_fuel : example_const_fuel_statement.
+Proof.
+  cbv zeta.
+  split; [ reflexivity | split; [ reflexivity | split; [ reflexivity | ] ] ].
+  split.
   - eexists. vm_compute. reflexivity.
   - vm_compute. reflexivity.
 Qed.
