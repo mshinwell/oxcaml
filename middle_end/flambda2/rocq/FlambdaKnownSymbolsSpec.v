@@ -59,7 +59,13 @@
    replaces, in the whole unit, in code and in handlers too, the
    defining expression of a [Let] whose arguments are constants and
    such symbols, and which has under [known_statics] a value that is a
-   constant or a symbol, by that value ([fold_known_named]). The value
+   constant or a symbol, by that value ([fold_known_named]). Of a
+   closure of a static set whose value slots hold variables, less is
+   known, and it is known whatever they hold: its function slot, and
+   the symbols and the functions of the set ([known_sets]). That is
+   what the projection of a function slot reads, so one from such a
+   symbol is replaced by the symbol of the other closure
+   ([fold_function_slot]). The value
    is computed by the evaluation of the machine itself
    (FlambdaSemanticsSpec.eval_named), so there is no list of primitives
    here, and nothing to keep in step with them. The one primitive that
@@ -73,7 +79,8 @@
    is bound to that constant. Under other environments it may be bound
    to something else, so this is no rewrite under all environments. For
    a unit run on its own it is enough that every static binding of such
-   a symbol in the unit binds it to the one constant, which is what
+   a symbol in the unit binds it to the one constant (for a symbol of
+   [known_sets]: to a closure at that slot of that set), which is what
    [bound_as] checks; the symbol is then bound to it or to nothing, and
    where it is bound to nothing the defining expression has no value in
    the unit as it was (every operation on a symbol bound to nothing is
@@ -87,9 +94,9 @@
    run before this one, and again after it for the symbols and constants
    that it puts in place of projections.
 
-   What is not here: a symbol bound to a constant that has a variable in
-   it (a closure with a value slot computed when the unit runs); the
-   variable is in scope where the symbol is bound and not in code.
+   What is not here: what a value slot holds, of a closure one of whose
+   value slots holds a variable (a value computed when the unit runs);
+   the variable is in scope where the symbol is bound and not in code.
 
    The proofs are in FlambdaKnownSymbolsProofs.v, which needs no
    review. *)
@@ -172,6 +179,52 @@ Definition known_statics (known : list (symbol * static_const))
     : static_env :=
   Static_env [] (flat_map known_value known).
 
+(* What is known of a closure of a static set whatever its value slots
+   hold: the same closure with no value slot, which has a value if its
+   function slot is one of the set. *)
+Definition set_of_binding (binding : static_binding)
+    : list (symbol * static_const) :=
+  match binding with
+  | Bind_symbol s (Static_const_closure_of_set slot symbols decls _) =>
+    let set := Static_const_closure_of_set slot symbols decls [] in
+    match eval_static_const [] set with
+    | Some _ => [(s, set)]
+    | None => []
+    end
+  | Bind_symbol _ _ | Bind_code _ _ | Bind_deleted_code _ => []
+  end.
+
+(* The symbols that the expression binds to closures of static sets,
+   outside code, with that. *)
+Fixpoint known_sets (e : expr) : list (symbol * static_const) :=
+  match e with
+  | Let _ _ _ body => known_sets body
+  | Let_static bindings body =>
+    flat_map set_of_binding bindings ++ known_sets body
+  | Let_cont_non_recursive _ h body =>
+    known_sets_of_handler h ++ known_sets body
+  | Let_cont_recursive handlers body =>
+    flat_map (fun '(_, h) => known_sets_of_handler h) handlers
+    ++ known_sets body
+  | Apply _ | Apply_cont _ | Switch _ _ | Invalid => []
+  end
+with known_sets_of_handler (h : continuation_handler)
+    : list (symbol * static_const) :=
+  match h with
+  | Handler _ _ handler => known_sets handler
+  end.
+
+(* Two closures at one function slot of one static set, whatever their
+   value slots hold. *)
+Definition same_set (allocated allocated' : statically_allocated_value)
+    : Prop :=
+  match allocated, allocated' with
+  | Static_closure_of_set slot symbols decls _,
+    Static_closure_of_set slot' symbols' decls' _ =>
+    slot' = slot ∧ symbols' = symbols ∧ decls' = decls
+  | _, _ => False
+  end.
+
 (* ======================================================================== *)
 (* The rewrite                                                              *)
 (* ======================================================================== *)
@@ -207,40 +260,56 @@ Definition fold_known_named (statics : static_env) (d : named) : named :=
     end
   else d.
 
+(* The projection of a function slot from a symbol, or the symbol that
+   it gives under [sets]: the evaluation of the machine reads the
+   function slot, the functions and the symbols of the set, and no value
+   slot. *)
+Definition fold_function_slot (sets : static_env) (d : named) : named :=
+  match d with
+  | Project_function_slot _ _ (Symbol _) =>
+    match eval_named sets [] d with
+    | Some (Value_symbol s) => Simple (Symbol s)
+    | _ => d
+    end
+  | _ => d
+  end.
+
 (* Every [Let] of the expression, in handlers and in code too, with its
-   defining expression folded. *)
-Fixpoint fold_known (statics : static_env) (e : expr) : expr :=
+   defining expression folded: by what [statics] binds, and then, if it
+   is still the projection of a function slot, by what [sets] binds. *)
+Fixpoint fold_known (statics sets : static_env) (e : expr) : expr :=
   match e with
   | Let x kind d body =>
-    Let x kind (fold_known_named statics d) (fold_known statics body)
+    Let x kind (fold_function_slot sets (fold_known_named statics d))
+      (fold_known statics sets body)
   | Let_static bindings body =>
-    Let_static (map (fold_known_binding statics) bindings)
-      (fold_known statics body)
+    Let_static (map (fold_known_binding statics sets) bindings)
+      (fold_known statics sets body)
   | Let_cont_non_recursive k h body =>
-    Let_cont_non_recursive k (fold_known_handler statics h)
-      (fold_known statics body)
+    Let_cont_non_recursive k (fold_known_handler statics sets h)
+      (fold_known statics sets body)
   | Let_cont_recursive handlers body =>
     Let_cont_recursive
-      (map (fun '(k, h) => (k, fold_known_handler statics h)) handlers)
-      (fold_known statics body)
+      (map (fun '(k, h) => (k, fold_known_handler statics sets h)) handlers)
+      (fold_known statics sets body)
   | Apply _ | Apply_cont _ | Switch _ _ | Invalid => e
   end
-with fold_known_handler (statics : static_env) (h : continuation_handler)
-    : continuation_handler :=
+with fold_known_handler (statics sets : static_env)
+    (h : continuation_handler) : continuation_handler :=
   match h with
   | Handler params metadata handler =>
-    Handler params metadata (fold_known statics handler)
+    Handler params metadata (fold_known statics sets handler)
   end
-with fold_known_binding (statics : static_env) (binding : static_binding)
-    : static_binding :=
+with fold_known_binding (statics sets : static_env)
+    (binding : static_binding) : static_binding :=
   match binding with
-  | Bind_code id c => Bind_code id (fold_known_code statics c)
+  | Bind_code id c => Bind_code id (fold_known_code statics sets c)
   | Bind_deleted_code _ | Bind_symbol _ _ => binding
   end
-with fold_known_code (statics : static_env) (c : code) : code :=
+with fold_known_code (statics sets : static_env) (c : code) : code :=
   match c with
   | Code params my_closure ret exn metadata body =>
-    Code params my_closure ret exn metadata (fold_known statics body)
+    Code params my_closure ret exn metadata (fold_known statics sets body)
   end.
 
 (* ======================================================================== *)
@@ -248,8 +317,10 @@ with fold_known_code (statics : static_env) (c : code) : code :=
 (* ======================================================================== *)
 
 (* If [known] gives the symbol a constant, the binding binds it to that
-   constant, which has no variable in it. *)
-Definition binding_bound_as (known : list (symbol * static_const))
+   constant, which has no variable in it; and if [sets] gives it a
+   closure of a set, the binding binds it to a closure at that slot of
+   that set. *)
+Definition binding_bound_as (known sets : list (symbol * static_const))
     (binding : static_binding) : bool :=
   match binding with
   | Bind_symbol s const =>
@@ -259,46 +330,62 @@ Definition binding_bound_as (known : list (symbol * static_const))
       && if static_const_eq_dec const expected then true else false
     | None => true
     end
+    && match lookup s sets with
+       | Some expected =>
+         match set_of_binding binding with
+         | [(_, set)] =>
+           if static_const_eq_dec set expected then true else false
+         | _ => false
+         end
+       | None => true
+       end
   | Bind_code _ _ | Bind_deleted_code _ => true
   end.
 
 (* Every static binding of the expression, in handlers and in code too,
-   binds a symbol of [known] to the constant that [known] gives it. *)
-Fixpoint bound_as (known : list (symbol * static_const)) (e : expr) : bool :=
+   binds a symbol of [known] to the constant that [known] gives it, and
+   one of [sets] to a closure of the set that [sets] gives it. *)
+Fixpoint bound_as (known sets : list (symbol * static_const)) (e : expr)
+    : bool :=
   match e with
-  | Let _ _ _ body => bound_as known body
+  | Let _ _ _ body => bound_as known sets body
   | Let_static bindings body =>
-    forallb (binding_bound_as known) bindings
-    && forallb (code_of_binding_bound_as known) bindings
-    && bound_as known body
+    forallb (binding_bound_as known sets) bindings
+    && forallb (code_of_binding_bound_as known sets) bindings
+    && bound_as known sets body
   | Let_cont_non_recursive _ h body =>
-    handler_bound_as known h && bound_as known body
+    handler_bound_as known sets h && bound_as known sets body
   | Let_cont_recursive handlers body =>
-    forallb (fun '(_, h) => handler_bound_as known h) handlers
-    && bound_as known body
+    forallb (fun '(_, h) => handler_bound_as known sets h) handlers
+    && bound_as known sets body
   | Apply _ | Apply_cont _ | Switch _ _ | Invalid => true
   end
-with handler_bound_as (known : list (symbol * static_const))
+with handler_bound_as (known sets : list (symbol * static_const))
     (h : continuation_handler) : bool :=
   match h with
-  | Handler _ _ handler => bound_as known handler
+  | Handler _ _ handler => bound_as known sets handler
   end
-with code_of_binding_bound_as (known : list (symbol * static_const))
+with code_of_binding_bound_as (known sets : list (symbol * static_const))
     (binding : static_binding) : bool :=
   match binding with
-  | Bind_code _ c => code_bound_as known c
+  | Bind_code _ c => code_bound_as known sets c
   | Bind_deleted_code _ | Bind_symbol _ _ => true
   end
-with code_bound_as (known : list (symbol * static_const)) (c : code) : bool :=
+with code_bound_as (known sets : list (symbol * static_const)) (c : code)
+    : bool :=
   match c with
-  | Code _ _ _ _ _ body => bound_as known body
+  | Code _ _ _ _ _ body => bound_as known sets body
   end.
 
 (* The unit with what it binds its symbols to used wherever they are, if
-   it binds each of them to one constant. *)
+   it binds each of them to one constant, and each symbol of a closure
+   of a set to closures at one slot of one set. *)
 Definition fold_known_unit (e : expr) : option expr :=
   let known := known_bindings e in
-  if bound_as known e then Some (fold_known (known_statics known) e) else None.
+  let sets := known_sets e in
+  if bound_as known sets e
+  then Some (fold_known (known_statics known) (known_statics sets) e)
+  else None.
 
 (* ======================================================================== *)
 (* The statements                                                           *)
@@ -321,9 +408,23 @@ Definition fold_known_named_sound_statement : Prop :=
     eval_named run_statics vars d = Some v ->
     eval_named run_statics vars (fold_known_named statics d) = Some v.
 
+(* The projection of a function slot is folded to its value: in any
+   static environment in which each symbol that [sets] binds is bound
+   to a closure at the same slot of the same set or to nothing, if the
+   expression has a value, the expression folded has that value. *)
+Definition fold_function_slot_sound_statement : Prop :=
+  ∀ (sets run_statics : static_env) (vars : env) (d : named) (v : value),
+    (∀ (s : symbol) (allocated allocated' : statically_allocated_value),
+      lookup s (static_values sets) = Some allocated ->
+      lookup s (static_values run_statics) = Some allocated' ->
+      same_set allocated allocated') ->
+    eval_named run_statics vars d = Some v ->
+    eval_named run_statics vars (fold_function_slot sets d) = Some v.
+
 (* The rewrite commutes with renaming, which renames no symbol: what is
    known is the same, and an expression that is folded has no variable
    in it. *)
 Definition fold_known_equivariant_statement : Prop :=
-  ∀ (r : renaming) (statics : static_env) (e : expr),
-    rename_expr r (fold_known statics e) = fold_known statics (rename_expr r e).
+  ∀ (r : renaming) (statics sets : static_env) (e : expr),
+    rename_expr r (fold_known statics sets e)
+    = fold_known statics sets (rename_expr r e).

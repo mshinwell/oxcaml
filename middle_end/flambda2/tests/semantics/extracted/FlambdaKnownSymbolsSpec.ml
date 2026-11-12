@@ -72,6 +72,43 @@ let known_value binding =
 let known_statics known =
   { static_code = []; static_values = flat_map known_value known }
 
+(** val set_of_binding : static_binding -> (symbol * static_const) list **)
+
+let set_of_binding = function
+  | Bind_symbol (s, const) -> (
+    match const with
+    | Static_const_closure_of_set (slot, symbols, decls, _) -> (
+      let set = Static_const_closure_of_set (slot, symbols, decls, []) in
+      match eval_static_const [] set with
+      | Some _ -> (s, set) :: []
+      | None -> [])
+    | _ -> [])
+  | _ -> []
+
+(** val known_sets : expr -> (symbol * static_const) list **)
+
+let rec known_sets = function
+  | Let (_, _, _, body) -> known_sets body
+  | Let_static (bindings, body) ->
+    app (flat_map set_of_binding bindings) (known_sets body)
+  | Let_cont_non_recursive (_, h, body) ->
+    app (known_sets_of_handler h) (known_sets body)
+  | Let_cont_recursive (handlers, body) ->
+    app
+      (flat_map
+         (fun pat ->
+           let _, h = pat in
+           known_sets_of_handler h)
+         handlers)
+      (known_sets body)
+  | _ -> []
+
+(** val known_sets_of_handler : continuation_handler -> (symbol * static_const)
+    list **)
+
+and known_sets_of_handler = function
+  | Handler (_, _, handler) -> known_sets handler
+
 (** val simple_known : static_env -> simple -> bool **)
 
 let simple_known statics = function
@@ -102,99 +139,135 @@ let fold_known_named statics d =
     | None -> d
   else d
 
-(** val fold_known : static_env -> expr -> expr **)
+(** val fold_function_slot : static_env -> named -> named **)
 
-let rec fold_known statics e =
+let fold_function_slot sets d =
+  match d with
+  | Project_function_slot (_, _, closure) -> (
+    match closure with
+    | Symbol _ -> (
+      match eval_named sets [] d with
+      | Some v -> ( match v with Value_symbol s -> Simple (Symbol s) | _ -> d)
+      | None -> d)
+    | _ -> d)
+  | _ -> d
+
+(** val fold_known : static_env -> static_env -> expr -> expr **)
+
+let rec fold_known statics sets e =
   match e with
   | Let (x, kind, d, body) ->
-    Let (x, kind, fold_known_named statics d, fold_known statics body)
+    Let
+      ( x,
+        kind,
+        fold_function_slot sets (fold_known_named statics d),
+        fold_known statics sets body )
   | Let_static (bindings, body) ->
     Let_static
-      (map (fold_known_binding statics) bindings, fold_known statics body)
+      ( map (fold_known_binding statics sets) bindings,
+        fold_known statics sets body )
   | Let_cont_non_recursive (k, h, body) ->
     Let_cont_non_recursive
-      (k, fold_known_handler statics h, fold_known statics body)
+      (k, fold_known_handler statics sets h, fold_known statics sets body)
   | Let_cont_recursive (handlers, body) ->
     Let_cont_recursive
       ( map
           (fun pat ->
             let k, h = pat in
-            k, fold_known_handler statics h)
+            k, fold_known_handler statics sets h)
           handlers,
-        fold_known statics body )
+        fold_known statics sets body )
   | _ -> e
 
-(** val fold_known_handler : static_env -> continuation_handler ->
+(** val fold_known_handler : static_env -> static_env -> continuation_handler ->
     continuation_handler **)
 
-and fold_known_handler statics = function
+and fold_known_handler statics sets = function
   | Handler (params, metadata, handler) ->
-    Handler (params, metadata, fold_known statics handler)
+    Handler (params, metadata, fold_known statics sets handler)
 
-(** val fold_known_binding : static_env -> static_binding -> static_binding **)
+(** val fold_known_binding : static_env -> static_env -> static_binding ->
+    static_binding **)
 
-and fold_known_binding statics binding =
+and fold_known_binding statics sets binding =
   match binding with
-  | Bind_code (id, c) -> Bind_code (id, fold_known_code statics c)
+  | Bind_code (id, c) -> Bind_code (id, fold_known_code statics sets c)
   | _ -> binding
 
-(** val fold_known_code : static_env -> code -> code **)
+(** val fold_known_code : static_env -> static_env -> code -> code **)
 
-and fold_known_code statics = function
+and fold_known_code statics sets = function
   | Code (params, my_closure, ret, exn, metadata, body) ->
-    Code (params, my_closure, ret, exn, metadata, fold_known statics body)
+    Code (params, my_closure, ret, exn, metadata, fold_known statics sets body)
 
-(** val binding_bound_as : (symbol * static_const) list -> static_binding ->
-    bool **)
+(** val binding_bound_as : (symbol * static_const) list -> (symbol *
+    static_const) list -> static_binding -> bool **)
 
-let binding_bound_as known = function
+let binding_bound_as known sets binding =
+  match binding with
   | Bind_symbol (s, const) -> (
-    match lookup s known with
-    | Some expected ->
-      closed_static_const const
-      && if static_const_eq_dec const expected then true else false
+    (match lookup s known with
+      | Some expected ->
+        closed_static_const const
+        && if static_const_eq_dec const expected then true else false
+      | None -> true)
+    &&
+    match lookup s sets with
+    | Some expected -> (
+      match set_of_binding binding with
+      | [] -> false
+      | p :: l -> (
+        let _, set = p in
+        match l with
+        | [] -> if static_const_eq_dec set expected then true else false
+        | _ :: _ -> false))
     | None -> true)
   | _ -> true
 
-(** val bound_as : (symbol * static_const) list -> expr -> bool **)
+(** val bound_as : (symbol * static_const) list -> (symbol * static_const) list
+    -> expr -> bool **)
 
-let rec bound_as known = function
-  | Let (_, _, _, body) -> bound_as known body
+let rec bound_as known sets = function
+  | Let (_, _, _, body) -> bound_as known sets body
   | Let_static (bindings, body) ->
-    (forallb (binding_bound_as known) bindings
-    && forallb (code_of_binding_bound_as known) bindings)
-    && bound_as known body
+    (forallb (binding_bound_as known sets) bindings
+    && forallb (code_of_binding_bound_as known sets) bindings)
+    && bound_as known sets body
   | Let_cont_non_recursive (_, h, body) ->
-    handler_bound_as known h && bound_as known body
+    handler_bound_as known sets h && bound_as known sets body
   | Let_cont_recursive (handlers, body) ->
     forallb
       (fun pat ->
         let _, h = pat in
-        handler_bound_as known h)
+        handler_bound_as known sets h)
       handlers
-    && bound_as known body
+    && bound_as known sets body
   | _ -> true
 
-(** val handler_bound_as : (symbol * static_const) list -> continuation_handler
-    -> bool **)
+(** val handler_bound_as : (symbol * static_const) list -> (symbol *
+    static_const) list -> continuation_handler -> bool **)
 
-and handler_bound_as known = function
-  | Handler (_, _, handler) -> bound_as known handler
+and handler_bound_as known sets = function
+  | Handler (_, _, handler) -> bound_as known sets handler
 
-(** val code_of_binding_bound_as : (symbol * static_const) list ->
-    static_binding -> bool **)
+(** val code_of_binding_bound_as : (symbol * static_const) list -> (symbol *
+    static_const) list -> static_binding -> bool **)
 
-and code_of_binding_bound_as known = function
-  | Bind_code (_, c) -> code_bound_as known c
+and code_of_binding_bound_as known sets = function
+  | Bind_code (_, c) -> code_bound_as known sets c
   | _ -> true
 
-(** val code_bound_as : (symbol * static_const) list -> code -> bool **)
+(** val code_bound_as : (symbol * static_const) list -> (symbol * static_const)
+    list -> code -> bool **)
 
-and code_bound_as known = function
-  | Code (_, _, _, _, _, body) -> bound_as known body
+and code_bound_as known sets = function
+  | Code (_, _, _, _, _, body) -> bound_as known sets body
 
 (** val fold_known_unit : expr -> expr option **)
 
 let fold_known_unit e =
   let known = known_bindings e in
-  if bound_as known e then Some (fold_known (known_statics known) e) else None
+  let sets = known_sets e in
+  if bound_as known sets e
+  then Some (fold_known (known_statics known) (known_statics sets) e)
+  else None

@@ -405,19 +405,39 @@ Proof.
   destruct v; try apply incl_refl; apply incl_nil_l.
 Qed.
 
-Fixpoint fold_known_scoped (statics : static_env) (e : expr) {struct e} :
-  scoped e (fold_known statics e)
-with fold_known_handler_scoped (statics : static_env)
+Lemma fold_function_slot_free (sets : static_env) (d : named) :
+  incl (free_variables_of_named (fold_function_slot sets d))
+    (free_variables_of_named d).
+Proof.
+  unfold fold_function_slot.
+  destruct d as [s | p args | code slots | slot decls slots | slot closure
+                | pfrom slot closure | move_from move_to closure];
+    try apply incl_refl.
+  destruct closure as [x | sym | c]; try apply incl_refl.
+  match goal with
+  | |- context [eval_named ?sets ?vars ?d] =>
+    destruct (eval_named sets vars d) as [v | ]
+  end;
+    [ | apply incl_refl ].
+  destruct v; try apply incl_refl; apply incl_nil_l.
+Qed.
+
+Fixpoint fold_known_scoped (statics sets : static_env) (e : expr)
+    {struct e} :
+  scoped e (fold_known statics sets e)
+with fold_known_handler_scoped (statics sets : static_env)
     (h : continuation_handler) {struct h} :
-  scoped_handler h (fold_known_handler statics h)
-with fold_known_code_scoped (statics : static_env) (c : code) {struct c} :
-  scoped_code c (fold_known_code statics c).
+  scoped_handler h (fold_known_handler statics sets h)
+with fold_known_code_scoped (statics sets : static_env) (c : code)
+    {struct c} :
+  scoped_code c (fold_known_code statics sets c).
 Proof.
   - destruct e as [x kind d body | bindings body | k h body | handlers body
                   | ap | ac | scrutinee arms | ];
       cbn [fold_known]; try apply scoped_refl.
-    + apply scoped_let;
-        [ apply fold_known_named_free | apply fold_known_scoped ].
+    + apply scoped_let; [ | apply fold_known_scoped ].
+      exact (incl_tran (fold_function_slot_free sets _)
+               (fold_known_named_free statics d)).
     + apply scoped_let_static; [ | apply fold_known_scoped ].
       induction bindings as [ | binding bindings IH]; cbn [map];
         [ apply scoped_bindings_nil | ].
@@ -442,13 +462,14 @@ Qed.
 
 Theorem fold_known_keeps_scope : fold_known_keeps_scope_statement.
 Proof.
-  intros statics. apply keeps_scope_intro. intros e. apply fold_known_scoped.
+  intros statics sets. apply keeps_scope_intro. intros e.
+  apply fold_known_scoped.
 Qed.
 
 Theorem with_known_keeps_scope : with_known_keeps_scope_statement.
 Proof.
   apply keeps_scope_intro. intros e. unfold with_known, fold_known_unit.
-  cbv zeta. destruct (bound_as (known_bindings e) e);
+  cbv zeta. destruct (bound_as (known_bindings e) (known_sets e) e);
     [ apply fold_known_scoped | apply scoped_refl ].
 Qed.
 

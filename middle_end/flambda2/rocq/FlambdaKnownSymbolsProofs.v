@@ -205,6 +205,65 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
+(* The projection of a function slot is folded to its value                 *)
+(* ======================================================================== *)
+
+Section Folded_slot.
+
+Variables sets run_statics : static_env.
+
+(* Each symbol that [sets] binds is bound in [run_statics] to a closure
+   at the same slot of the same set, or to nothing. *)
+Hypothesis Hsets :
+  ∀ (s : symbol) (allocated allocated' : statically_allocated_value),
+    lookup s (static_values sets) = Some allocated ->
+    lookup s (static_values run_statics) = Some allocated' ->
+    same_set allocated allocated'.
+
+Lemma fold_function_slot_sound_here (vars : env) (d : named) (v : value) :
+  eval_named run_statics vars d = Some v ->
+  eval_named run_statics vars (fold_function_slot sets d) = Some v.
+Proof.
+  destruct d as [s | p args | code slots | fslot decls slots | slot closure
+    | pfrom slot closure | move_from move_to closure];
+    try exact (fun H => H).
+  destruct closure as [x | s | c]; try exact (fun H => H).
+  unfold fold_function_slot.
+  change
+    (eval_named sets [] (Project_function_slot move_from move_to (Symbol s)))
+    with (project_function_slot sets move_from move_to (Value_symbol s)).
+  change
+    (eval_named run_statics vars
+       (Project_function_slot move_from move_to (Symbol s)))
+    with (project_function_slot run_statics move_from move_to (Value_symbol s))
+    at 1.
+  intros Hrun.
+  destruct (project_function_slot sets move_from move_to (Value_symbol s))
+    as [w | ] eqn:Hknown;
+    [ | exact Hrun ].
+  destruct w; try exact Hrun.
+  change (Some (Value_symbol s0) = Some v).
+  unfold project_function_slot in Hrun, Hknown.
+  destruct (lookup s (static_values sets)) as [allocated | ] eqn:Hs;
+    [ | discriminate ].
+  destruct (lookup s (static_values run_statics)) as [allocated' | ] eqn:Hs';
+    [ | discriminate ].
+  pose proof (Hsets s allocated allocated' Hs Hs') as Hsame.
+  destruct allocated as [ | fslot syms decls slots | | | ],
+    allocated' as [ | fslot' syms' decls' slots' | | | ];
+    try contradiction.
+  destruct Hsame as (-> & -> & ->). rewrite Hknown in Hrun. exact Hrun.
+Qed.
+
+End Folded_slot.
+
+Theorem fold_function_slot_sound : fold_function_slot_sound_statement.
+Proof.
+  intros sets run_statics vars d v Hsets.
+  exact (fold_function_slot_sound_here sets run_statics Hsets vars d v).
+Qed.
+
+(* ======================================================================== *)
 (* What is known of a unit                                                  *)
 (* ======================================================================== *)
 
@@ -249,6 +308,49 @@ Proof.
     apply known_bindings_have_values.
 Qed.
 
+Lemma set_of_binding_have_values (binding : static_binding) :
+  all_have_values (set_of_binding binding).
+Proof.
+  destruct binding as [id c | id | s const]; try constructor.
+  destruct const
+    as [code slots | fslot syms decls slots | tag fields | contents | bytes];
+    try constructor.
+  unfold all_have_values, set_of_binding. cbv zeta.
+  destruct
+    (eval_static_const [] (Static_const_closure_of_set fslot syms decls []))
+    eqn:Hconst;
+    constructor; [ | constructor ].
+  cbn [snd]. rewrite Hconst. discriminate.
+Qed.
+
+Fixpoint known_sets_have_values (e : expr) {struct e} :
+  all_have_values (known_sets e)
+with known_sets_of_handler_have_values (h : continuation_handler)
+    {struct h} :
+  all_have_values (known_sets_of_handler h).
+Proof.
+  - destruct e
+      as [ x xkind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      simpl; try constructor.
+    + apply known_sets_have_values.
+    + apply Forall_app. split; [ | apply known_sets_have_values ].
+      induction bindings as [ | binding bindings IH]; simpl;
+        [ constructor | ].
+      apply Forall_app. split; [ apply set_of_binding_have_values | ].
+      exact IH.
+    + apply Forall_app.
+      split;
+        [ apply known_sets_of_handler_have_values
+        | apply known_sets_have_values ].
+    + apply Forall_app. split; [ | apply known_sets_have_values ].
+      induction handlers as [ | [k h] handlers IH]; simpl; [ constructor | ].
+      apply Forall_app.
+      split; [ apply known_sets_of_handler_have_values | exact IH ].
+  - destruct h as [params metadata handler]. simpl.
+    apply known_sets_have_values.
+Qed.
+
 (* What [known_statics] binds a symbol to is the value of the constant
    that is known of it. *)
 Lemma lookup_known_statics (known : list (symbol * static_const))
@@ -276,23 +378,37 @@ Section Unit.
 
 Variable known : list (symbol * static_const).
 Hypothesis Hknown : all_have_values known.
+Variable sets : list (symbol * static_const).
+Hypothesis Hsets : all_have_values sets.
 
 Let S : static_env := known_statics known.
+Let T : static_env := known_statics sets.
 
 (* What the run has bound of the known symbols is what is known. *)
-Definition agrees (run_statics : static_env) : Prop :=
+Definition agrees_known (run_statics : static_env) : Prop :=
   ∀ (s : symbol) (allocated allocated' : statically_allocated_value),
     lookup s (static_values S) = Some allocated ->
     lookup s (static_values run_statics) = Some allocated' ->
     allocated' = allocated.
 
-Lemma eval_static_bindings_agrees (vars : env)
+(* What it has bound of the symbols of closures of sets are closures at
+   the slots and of the sets that are known. *)
+Definition agrees_sets (run_statics : static_env) : Prop :=
+  ∀ (s : symbol) (allocated allocated' : statically_allocated_value),
+    lookup s (static_values T) = Some allocated ->
+    lookup s (static_values run_statics) = Some allocated' ->
+    same_set allocated allocated'.
+
+Definition agrees (run_statics : static_env) : Prop :=
+  agrees_known run_statics ∧ agrees_sets run_statics.
+
+Lemma eval_static_bindings_agrees_sets (vars : env)
     (bindings : list static_binding) :
-  forallb (binding_bound_as known) bindings = true ->
+  forallb (binding_bound_as known sets) bindings = true ->
   ∀ statics statics' : static_env,
-    agrees statics ->
+    agrees_sets statics ->
     eval_static_bindings vars bindings statics = Some statics' ->
-    agrees statics'.
+    agrees_sets statics'.
 Proof.
   induction bindings as [ | [id c | id | sym const] bindings IH]; simpl;
     intros Hbound statics statics' Hagrees.
@@ -301,6 +417,52 @@ Proof.
     apply IH; [ exact Hbound | ]. exact Hagrees.
   - apply IH; assumption.
   - apply andb_true_iff in Hbound as [Hsym Hbound].
+    apply andb_true_iff in Hsym as [_ Hsym].
+    destruct (lookup sym (static_values statics)); [ discriminate | ].
+    destruct (eval_static_const vars const) as [made | ] eqn:Hmade; simpl;
+      [ | discriminate ].
+    apply IH; [ exact Hbound | ].
+    intros s allocated allocated' Hs. simpl.
+    destruct (Pos.eqb_spec s sym) as [-> | _];
+      [ | exact (Hagrees s allocated allocated' Hs) ].
+    intros [= <-]. unfold T in Hs.
+    rewrite (lookup_known_statics sets sym Hsets) in Hs.
+    destruct (lookup sym sets) as [expected | ]; [ | discriminate ].
+    destruct const
+      as [code slots | fslot syms decls slots | tag fields | contents
+         | bytes];
+      try discriminate.
+    simpl in Hmade.
+    destruct (lookup fslot decls) as [code | ] eqn:Hcode;
+      cbn -[static_const_eq_dec] in Hsym, Hmade;
+      [ | discriminate ].
+    destruct
+      (static_const_eq_dec (Static_const_closure_of_set fslot syms decls [])
+         expected)
+      as [<- | ];
+      [ | discriminate ].
+    simpl in Hs. rewrite Hcode in Hs. simpl in Hs. injection Hs as <-.
+    destruct (eval_value_slots vars slots) as [vs | ]; simpl in Hmade;
+      [ | discriminate ].
+    injection Hmade as <-. simpl. auto.
+Qed.
+
+Lemma eval_static_bindings_agrees_known (vars : env)
+    (bindings : list static_binding) :
+  forallb (binding_bound_as known sets) bindings = true ->
+  ∀ statics statics' : static_env,
+    agrees_known statics ->
+    eval_static_bindings vars bindings statics = Some statics' ->
+    agrees_known statics'.
+Proof.
+  induction bindings as [ | [id c | id | sym const] bindings IH]; simpl;
+    intros Hbound statics statics' Hagrees.
+  - intros [= <-]. exact Hagrees.
+  - destruct (lookup id (static_code statics)); [ discriminate | ].
+    apply IH; [ exact Hbound | ]. exact Hagrees.
+  - apply IH; assumption.
+  - apply andb_true_iff in Hbound as [Hsym Hbound].
+    apply andb_true_iff in Hsym as [Hsym _].
     destruct (lookup sym (static_values statics)); [ discriminate | ].
     destruct (eval_static_const vars const) as [made | ] eqn:Hmade; simpl;
       [ | discriminate ].
@@ -318,19 +480,35 @@ Proof.
     congruence.
 Qed.
 
+Lemma eval_static_bindings_agrees (vars : env)
+    (bindings : list static_binding) :
+  forallb (binding_bound_as known sets) bindings = true ->
+  ∀ statics statics' : static_env,
+    agrees statics ->
+    eval_static_bindings vars bindings statics = Some statics' ->
+    agrees statics'.
+Proof.
+  intros Hbound statics statics' [Hknown_agrees Hsets_agrees] Heval.
+  split;
+    [ exact (eval_static_bindings_agrees_known vars bindings Hbound statics
+               statics' Hknown_agrees Heval)
+    | exact (eval_static_bindings_agrees_sets vars bindings Hbound statics
+               statics' Hsets_agrees Heval) ].
+Qed.
+
 (* The second state: the first with its terms folded. *)
 Definition fold_statics (statics : static_env) : static_env :=
   Static_env
-    (map (fun binding => (fst binding, fold_known_code S (snd binding)))
+    (map (fun binding => (fst binding, fold_known_code S T (snd binding)))
        (static_code statics))
     (static_values statics).
 
 Fixpoint fold_cont (c : cont_value) : cont_value :=
   match c with
   | Closure h vars conts recursive =>
-    Closure (fold_known_handler S h) vars
+    Closure (fold_known_handler S T h) vars
       (map (fun binding => (fst binding, fold_cont (snd binding))) conts)
-      (map (fun '(k, h) => (k, fold_known_handler S h)) recursive)
+      (map (fun '(k, h) => (k, fold_known_handler S T h)) recursive)
   | Outer k => Outer k
   | Extra_args c extra => Extra_args (fold_cont c) extra
   | Over_application remaining remaining_arity return_arity return_to exn_to =>
@@ -342,12 +520,12 @@ Definition fold_conts (conts : cont_env) : cont_env :=
   map (fun binding => (fst binding, fold_cont (snd binding))) conts.
 
 Definition fold_state (s : state) : state :=
-  State (fold_known S (state_expr s)) (state_vars s)
+  State (fold_known S T (state_expr s)) (state_vars s)
     (fold_conts (state_conts s)) (fold_statics (state_statics s)).
 
 Lemma lookup_fold_code (id : code_id) (statics : static_env) :
   lookup id (static_code (fold_statics statics))
-  = option_map (fold_known_code S) (lookup id (static_code statics)).
+  = option_map (fold_known_code S T) (lookup id (static_code statics)).
 Proof. unfold fold_statics. apply lookup_map_snd. Qed.
 
 (* The value of a defining expression does not depend on the code. *)
@@ -365,7 +543,7 @@ Lemma eval_static_bindings_fold (vars : env)
     (bindings : list static_binding) :
   ∀ statics statics' : static_env,
     eval_static_bindings vars bindings statics = Some statics' ->
-    eval_static_bindings vars (map (fold_known_binding S) bindings)
+    eval_static_bindings vars (map (fold_known_binding S T) bindings)
       (fold_statics statics)
     = Some (fold_statics statics').
 Proof.
@@ -384,10 +562,10 @@ Qed.
 
 (* The rewrite keeps whether a term binds something static. *)
 Fixpoint fold_known_binds_statics (e : expr) {struct e} :
-  binds_statics (fold_known S e) = binds_statics e
+  binds_statics (fold_known S T e) = binds_statics e
 with fold_known_handler_binds_statics (h : continuation_handler)
     {struct h} :
-  handler_binds_statics (fold_known_handler S h) = handler_binds_statics h.
+  handler_binds_statics (fold_known_handler S T h) = handler_binds_statics h.
 Proof.
   - destruct e
       as [ x xkind d body | bindings body | k h body | handlers body | ap | ac
@@ -409,7 +587,7 @@ Qed.
 Lemma fold_known_handlers_bind_statics
     (handlers : list (continuation * continuation_handler)) :
   handlers_bind_statics
-    (map (fun '(k, h) => (k, fold_known_handler S h)) handlers)
+    (map (fun '(k, h) => (k, fold_known_handler S T h)) handlers)
   = handlers_bind_statics handlers.
 Proof.
   unfold handlers_bind_statics.
@@ -427,7 +605,7 @@ Qed.
 Lemma rec_closures_fold
     (handlers : list (continuation * continuation_handler)) (vars : env)
     (conts : cont_env) :
-  rec_closures (map (fun '(k, h) => (k, fold_known_handler S h)) handlers)
+  rec_closures (map (fun '(k, h) => (k, fold_known_handler S T h)) handlers)
     vars (fold_conts conts)
   = fold_conts (rec_closures handlers vars conts).
 Proof.
@@ -440,14 +618,14 @@ Lemma with_extra_args_fold (c : cont_value) (extra : list value) :
 Proof. destruct extra; reflexivity. Qed.
 
 Lemma fold_known_code_parts (c : code) :
-  code_params (fold_known_code S c) = code_params c
-  ∧ code_my_closure (fold_known_code S c) = code_my_closure c
-  ∧ code_return_continuation (fold_known_code S c)
+  code_params (fold_known_code S T c) = code_params c
+  ∧ code_my_closure (fold_known_code S T c) = code_my_closure c
+  ∧ code_return_continuation (fold_known_code S T c)
     = code_return_continuation c
-  ∧ code_exn_continuation (fold_known_code S c) = code_exn_continuation c
-  ∧ code_params_arity (fold_known_code S c) = code_params_arity c
-  ∧ code_result_arity (fold_known_code S c) = code_result_arity c
-  ∧ code_body (fold_known_code S c) = fold_known S (code_body c).
+  ∧ code_exn_continuation (fold_known_code S T c) = code_exn_continuation c
+  ∧ code_params_arity (fold_known_code S T c) = code_params_arity c
+  ∧ code_result_arity (fold_known_code S T c) = code_result_arity c
+  ∧ code_body (fold_known_code S T c) = fold_known S T (code_body c).
 Proof. destruct c. simpl. auto 8. Qed.
 
 (* What the second run does where the first does something: the same
@@ -464,9 +642,9 @@ Definition result_folded (result result' : step_result) : Prop :=
 Definition fold_shape (shape : call_shape) : call_shape :=
   match shape with
   | Full_call closure c vs args_arity =>
-    Full_call closure (fold_known_code S c) vs args_arity
+    Full_call closure (fold_known_code S T c) vs args_arity
   | Over_call closure c vs remaining args_arity remaining_arity =>
-    Over_call closure (fold_known_code S c) vs remaining args_arity
+    Over_call closure (fold_known_code S T c) vs remaining args_arity
       remaining_arity
   | Partial_call partial => Partial_call partial
   end.
@@ -532,7 +710,7 @@ Lemma call_code_fold (closure : value) (c : code) (vs : list value)
     (statics : static_env) :
   result_folded
     (call_code closure c vs args_arity return_arity return_to exn_to statics)
-    (call_code closure (fold_known_code S c) vs args_arity return_arity
+    (call_code closure (fold_known_code S T c) vs args_arity return_arity
        (fold_cont return_to) (fold_cont exn_to) (fold_statics statics)).
 Proof.
   unfold result_folded, call_code.
@@ -645,15 +823,17 @@ Qed.
    the result, which has bound them so too. *)
 Lemma fold_step_components (e : expr) (vars : env) (conts : cont_env)
     (statics : static_env) :
-  bound_as known e = true ->
+  bound_as known sets e = true ->
   agrees statics ->
   match step (State e vars conts statics) with
   | Step t =>
-    step (State (fold_known S e) vars (fold_conts conts) (fold_statics statics))
+    step
+      (State (fold_known S T e) vars (fold_conts conts) (fold_statics statics))
     = Step (fold_state t)
     ∧ agrees (state_statics t)
   | Exit k vs =>
-    step (State (fold_known S e) vars (fold_conts conts) (fold_statics statics))
+    step
+      (State (fold_known S T e) vars (fold_conts conts) (fold_statics statics))
     = Exit k vs
   | Undefined => True
   end.
@@ -667,7 +847,9 @@ Proof.
     destruct (eval_named statics vars d) as [v | ] eqn:Hv; [ | exact I ].
     destruct (kind_eqb (kind_of_value v) xkind) eqn:Hkind; [ | exact I ].
     rewrite eval_named_fold_statics.
-    rewrite (fold_known_named_sound_here S statics Hagrees vars d v Hv),
+    rewrite (fold_function_slot_sound_here T statics (proj2 Hagrees) vars _ v
+               (fold_known_named_sound_here S statics (proj1 Hagrees) vars d
+                  v Hv)),
       Hkind.
     split; [ reflexivity | exact Hagrees ].
   - (* Let_static *)
@@ -729,7 +911,8 @@ Qed.
 
 (* The terms of a state bind the known symbols as is known. *)
 Definition bound_as_inv : state -> Prop :=
-  terms_inv (bound_as known) (handler_bound_as known) (code_bound_as known).
+  terms_inv (bound_as known sets) (handler_bound_as known sets)
+    (code_bound_as known sets).
 
 Lemma bound_as_inv_step (s s' : state) :
   bound_as_inv s -> step s = Step s' -> bound_as_inv s'.
@@ -775,14 +958,17 @@ Theorem fold_known_unit_program_refines :
   fold_known_unit_program_refines_statement.
 Proof.
   intros e e'. unfold fold_known_unit. cbv zeta.
-  destruct (bound_as (known_bindings e) e) eqn:Hbound; [ | discriminate ].
+  destruct (bound_as (known_bindings e) (known_sets e) e) eqn:Hbound;
+    [ | discriminate ].
   intros [= <-]. unfold program_refines.
-  apply (simulation_refines (folded_related (known_bindings e))
+  apply (simulation_refines
+           (folded_related (known_bindings e) (known_sets e))
            (folded_related_step (known_bindings e)
-              (known_bindings_have_values e))).
+              (known_bindings_have_values e) (known_sets e)
+              (known_sets_have_values e))).
   split; [ reflexivity | ].
   split; [ apply terms_inv_initial; exact Hbound | ].
-  intros s allocated allocated' _ [=].
+  split; intros s allocated allocated' _ [=].
 Qed.
 
 (* ======================================================================== *)
@@ -830,27 +1016,45 @@ Proof.
     exact (rename_known_named r statics d Hknown).
 Qed.
 
-Fixpoint fold_known_rename (r : renaming) (statics : static_env) (e : expr)
-    {struct e} :
-  rename_expr r (fold_known statics e) = fold_known statics (rename_expr r e)
-with fold_known_handler_rename (r : renaming) (statics : static_env)
+(* The projection of a function slot that is folded is from a symbol. *)
+Lemma fold_function_slot_rename (r : renaming) (sets : static_env)
+    (d : named) :
+  rename_named r (fold_function_slot sets d)
+  = fold_function_slot sets (rename_named r d).
+Proof.
+  destruct d as [s | p args | code slots | fslot decls slots | slot closure
+    | pfrom slot closure | move_from move_to closure];
+    try reflexivity.
+  destruct closure as [x | s | c]; try reflexivity.
+  unfold fold_function_slot. cbn [rename_named rename_simple].
+  destruct (eval_named sets [] _) as [w | ]; [ | reflexivity ].
+  destruct w; reflexivity.
+Qed.
+
+Fixpoint fold_known_rename (r : renaming) (statics sets : static_env)
+    (e : expr) {struct e} :
+  rename_expr r (fold_known statics sets e)
+  = fold_known statics sets (rename_expr r e)
+with fold_known_handler_rename (r : renaming) (statics sets : static_env)
     (h : continuation_handler) {struct h} :
-  rename_handler r (fold_known_handler statics h)
-  = fold_known_handler statics (rename_handler r h)
-with fold_known_binding_rename (r : renaming) (statics : static_env)
+  rename_handler r (fold_known_handler statics sets h)
+  = fold_known_handler statics sets (rename_handler r h)
+with fold_known_binding_rename (r : renaming) (statics sets : static_env)
     (binding : static_binding) {struct binding} :
-  rename_static_binding r (fold_known_binding statics binding)
-  = fold_known_binding statics (rename_static_binding r binding)
-with fold_known_code_rename (r : renaming) (statics : static_env) (c : code)
-    {struct c} :
-  rename_code r (fold_known_code statics c)
-  = fold_known_code statics (rename_code r c).
+  rename_static_binding r (fold_known_binding statics sets binding)
+  = fold_known_binding statics sets (rename_static_binding r binding)
+with fold_known_code_rename (r : renaming) (statics sets : static_env)
+    (c : code) {struct c} :
+  rename_code r (fold_known_code statics sets c)
+  = fold_known_code statics sets (rename_code r c).
 Proof.
   - destruct e
       as [ x xkind d body | bindings body | k h body | handlers body | ap | ac
          | scrutinee arms | ];
       simpl; try reflexivity.
-    + rewrite fold_known_named_rename, fold_known_rename. reflexivity.
+    + rewrite fold_function_slot_rename, fold_known_named_rename,
+        fold_known_rename.
+      reflexivity.
     + rewrite fold_known_rename. f_equal. rewrite !map_map.
       induction bindings as [ | binding bindings IH]; simpl; [ reflexivity | ].
       rewrite fold_known_binding_rename, IH. reflexivity.

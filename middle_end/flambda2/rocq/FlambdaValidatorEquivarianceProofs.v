@@ -4893,34 +4893,69 @@ Proof.
     apply known_bindings_renamed.
 Qed.
 
-Lemma binding_bound_as_renamed (r : renaming)
-    (known : list (symbol * static_const)) (binding : static_binding) :
-  binding_bound_as known (rename_static_binding r binding)
-  = binding_bound_as known binding.
+Lemma set_of_binding_renamed (r : renaming) (binding : static_binding) :
+  set_of_binding (rename_static_binding r binding) = set_of_binding binding.
 Proof.
   destruct binding as [id c | id | sym const]; try reflexivity.
-  cbn [rename_static_binding binding_bound_as].
-  destruct (lookup sym known) as [expected | ]; [ | reflexivity ].
-  rewrite closed_static_const_renamed.
-  destruct (closed_static_const const) eqn:Hclosed; [ | reflexivity ].
-  rewrite (rename_closed_static_const r const Hclosed). reflexivity.
+  destruct const; reflexivity.
+Qed.
+
+Fixpoint known_sets_renamed (r : renaming) (e : expr) {struct e} :
+  known_sets (rename_expr r e) = known_sets e
+with known_sets_of_handler_renamed (r : renaming)
+    (h : continuation_handler) {struct h} :
+  known_sets_of_handler (rename_handler r h) = known_sets_of_handler h.
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      simpl; try reflexivity.
+    + apply known_sets_renamed.
+    + rewrite known_sets_renamed. f_equal.
+      induction bindings as [ | binding bindings IH]; simpl; [ reflexivity | ].
+      rewrite set_of_binding_renamed, IH. reflexivity.
+    + rewrite known_sets_of_handler_renamed, known_sets_renamed.
+      reflexivity.
+    + rewrite known_sets_renamed. f_equal.
+      induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
+      rewrite known_sets_of_handler_renamed, IH. reflexivity.
+  - destruct h as [params metadata handler]. simpl.
+    apply known_sets_renamed.
+Qed.
+
+Lemma binding_bound_as_renamed (r : renaming)
+    (known sets : list (symbol * static_const)) (binding : static_binding) :
+  binding_bound_as known sets (rename_static_binding r binding)
+  = binding_bound_as known sets binding.
+Proof.
+  destruct binding as [id c | id | sym const]; try reflexivity.
+  cbn [rename_static_binding binding_bound_as]. f_equal.
+  - destruct (lookup sym known) as [expected | ]; [ | reflexivity ].
+    rewrite closed_static_const_renamed.
+    destruct (closed_static_const const) eqn:Hclosed; [ | reflexivity ].
+    rewrite (rename_closed_static_const r const Hclosed). reflexivity.
+  - destruct (lookup sym sets) as [expected | ]; [ | reflexivity ].
+    change (Bind_symbol sym (rename_static_const r const))
+      with (rename_static_binding r (Bind_symbol sym const)).
+    rewrite set_of_binding_renamed. reflexivity.
 Qed.
 
 Fixpoint bound_as_renamed (r : renaming)
-    (known : list (symbol * static_const)) (e : expr) {struct e} :
-  bound_as known (rename_expr r e) = bound_as known e
+    (known sets : list (symbol * static_const)) (e : expr) {struct e} :
+  bound_as known sets (rename_expr r e) = bound_as known sets e
 with handler_bound_as_renamed (r : renaming)
-    (known : list (symbol * static_const)) (h : continuation_handler)
+    (known sets : list (symbol * static_const)) (h : continuation_handler)
     {struct h} :
-  handler_bound_as known (rename_handler r h) = handler_bound_as known h
+  handler_bound_as known sets (rename_handler r h)
+  = handler_bound_as known sets h
 with code_of_binding_bound_as_renamed (r : renaming)
-    (known : list (symbol * static_const)) (binding : static_binding)
+    (known sets : list (symbol * static_const)) (binding : static_binding)
     {struct binding} :
-  code_of_binding_bound_as known (rename_static_binding r binding)
-  = code_of_binding_bound_as known binding
+  code_of_binding_bound_as known sets (rename_static_binding r binding)
+  = code_of_binding_bound_as known sets binding
 with code_bound_as_renamed (r : renaming)
-    (known : list (symbol * static_const)) (c : code) {struct c} :
-  code_bound_as known (rename_code r c) = code_bound_as known c.
+    (known sets : list (symbol * static_const)) (c : code) {struct c} :
+  code_bound_as known sets (rename_code r c) = code_bound_as known sets c.
 Proof.
   - destruct e
       as [ x kind d body | bindings body | k h body | handlers body | ap | ac
@@ -4948,8 +4983,8 @@ Qed.
 Lemma with_known_equivariant : rewrite_equivariant with_known.
 Proof.
   intros r e. unfold with_known, fold_known_unit. cbv zeta.
-  rewrite known_bindings_renamed, bound_as_renamed.
-  destruct (bound_as (known_bindings e) e); [ | reflexivity ].
+  rewrite known_bindings_renamed, known_sets_renamed, bound_as_renamed.
+  destruct (bound_as (known_bindings e) (known_sets e) e); [ | reflexivity ].
   symmetry. apply fold_known_equivariant.
 Qed.
 
