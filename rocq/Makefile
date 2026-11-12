@@ -322,6 +322,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaJoinNamesProofs.v \
   FlambdaJoinNamesSpec.v \
   FlambdaJoinProofs.v \
+  FlambdaJoinRepairProofs.v \
+  FlambdaJoinRepairSpec.v \
   FlambdaJoinSpec.v \
   FlambdaJoinStateProofs.v \
   FlambdaJoinStateSpec.v \
