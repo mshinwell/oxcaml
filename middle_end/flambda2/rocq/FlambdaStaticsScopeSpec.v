@@ -98,8 +98,10 @@
      ([read_known_slots_keeps_scope_statement]).
    - FlambdaUnusedSlotsSpec.drop_slots removes value slots from static
      sets of closures, and with them the variables they hold
-     ([drop_slots_keeps_scope_statement]); [without_slots] is that, or
-     the term as it is ([without_slots_keeps_scope_statement]).
+     ([drop_slots_keeps_scope_statement]); [without_slots] is that
+     followed by the removal of the [Let]s that nothing uses, in the
+     term and in its code, or the term as it is
+     ([without_slots_keeps_scope_statement]).
    - FlambdaKnownClosuresSpec.use_known_closures puts, for the
      projection of a value slot of a static closure in sight, what the
      slot holds, and makes a call of such a closure direct. A variable

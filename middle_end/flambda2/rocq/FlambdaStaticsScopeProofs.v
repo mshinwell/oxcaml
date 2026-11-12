@@ -919,8 +919,11 @@ Theorem without_slots_keeps_scope : without_slots_keeps_scope_statement.
 Proof.
   intros slots. apply keeps_scope_intro. intros e.
   unfold without_slots, drop_unused_slots.
-  destruct (slots_unused slots e);
-    [ apply drop_slots_scoped | apply scoped_refl ].
+  destruct (slots_unused slots e); [ | apply scoped_refl ].
+  apply (scoped_trans _ _ _ (drop_slots_scoped slots e)).
+  apply (scoped_trans _ _ _ (remove_unused_lets_scoped _)).
+  exact (rewrite_code_scoped remove_unused_lets
+           remove_unused_lets_keeps_scope _).
 Qed.
 
 (* ======================================================================== *)

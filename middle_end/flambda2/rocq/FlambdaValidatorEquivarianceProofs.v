@@ -5689,7 +5689,10 @@ Lemma without_slots_equivariant (slots : list value_slot) :
 Proof.
   intros r e. unfold without_slots, drop_unused_slots.
   rewrite slots_unused_equivariant, <- drop_slots_equivariant.
-  destruct (slots_unused slots e); reflexivity.
+  destruct (slots_unused slots e); [ | reflexivity ].
+  rewrite remove_unused_lets_equivariant.
+  exact (rewrite_code_equivariant remove_unused_lets
+           remove_unused_lets_equivariant r _).
 Qed.
 
 (* The folding on known symbols. What is known has no variable in it,

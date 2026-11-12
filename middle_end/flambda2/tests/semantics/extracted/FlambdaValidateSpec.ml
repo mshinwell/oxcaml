@@ -264,7 +264,9 @@ let rec lifted_in_turn rounds avoid ls kept e =
 (** val without_slots : value_slot list -> expr -> expr **)
 
 let without_slots slots e =
-  match drop_unused_slots slots e with Some e' -> e' | None -> e
+  match drop_unused_slots slots e with
+  | Some e' -> rewrite_code remove_unused_lets (remove_unused_lets e')
+  | None -> e
 
 (** val with_code_first : expr -> expr **)
 

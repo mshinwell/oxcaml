@@ -105,8 +105,10 @@
    normalised, so a binder made in a round must not take one of them.
    Then it removes from the static sets of closures the value slots
    given, if nothing projects them
-   (FlambdaUnusedSlotsSpec.drop_unused_slots), removes the static
-   bindings of the names given, and compares; in this comparison the
+   (FlambdaUnusedSlotsSpec.drop_unused_slots), and after them the
+   [Let]s that this leaves unused, in the term and in the bodies of
+   its code ([without_slots]); removes the static bindings of the
+   names given, and compares; in this comparison the
    bindings of code of both terms are first moved up to the head of
    what they are in (FlambdaFloatCodeSpec.float_code), as the two terms
    do not bind the code of a lifted closure in the same place; and
@@ -696,10 +698,19 @@ Fixpoint lifted_in_turn (rounds : nat) (avoid : list continuation)
   end.
 
 (* The value slots given removed from the static sets of closures, if
-   nothing projects them. *)
+   nothing projects them; and then the [Let]s that nothing uses, in the
+   term and in the bodies of its code
+   (FlambdaNormaliseSpec.remove_unused_lets). The slots are removed
+   after the last round, so a [Let] whose only use was a slot that is
+   removed here is one that no round has looked at since: the closure
+   of a function that was held in a slot of another closure and
+   called through it, once that call is inlined. Simplify removes the
+   slot, the closure and its code; with the [Let] gone, the code is a
+   static binding that nothing names, for [without_statics] to
+   remove. *)
 Definition without_slots (slots : list value_slot) (e : expr) : expr :=
   match drop_unused_slots slots e with
-  | Some e' => e'
+  | Some e' => rewrite_code remove_unused_lets (remove_unused_lets e')
   | None => e
   end.
 

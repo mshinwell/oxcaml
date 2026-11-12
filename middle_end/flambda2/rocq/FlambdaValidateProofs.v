@@ -588,7 +588,11 @@ Proof.
   unfold without_slots.
   destruct (drop_unused_slots slots e) as [e' | ] eqn:Hdrop;
     [ | apply refines_refl ].
-  exact (drop_unused_slots_program_refines slots e e' Hdrop).
+  apply (refines_trans _ _ _
+    (drop_unused_slots_program_refines slots e e' Hdrop)).
+  apply expr_refines_program.
+  eapply expr_refines_trans; [ apply remove_unused_lets_refines | ].
+  apply rewrite_code_refines, remove_unused_lets_refines.
 Qed.
 
 (* The term with its code first, run on its own, behaves as the
