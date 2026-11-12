@@ -533,7 +533,9 @@ says so. Only the labels that this tree cites are listed.
 - **T7-9.** The n-way meet of two variants drops what the extension of
   the one case of blocks left says of a symbol: the join that the meet
   of the cases ends with propagates no type of a symbol. The binary
-  meet keeps it. A loss of precision, shown on built types.
+  meet keeps it. Of two closure types with one case, the binary meet
+  puts such an equation in the environment and the n-way meet drops
+  it. A loss of precision, shown on built types.
 - **V2-2.** The fexpr printer drops the kinds of the fields of a
   `Make_block`, and the parser reads back `any_value` for each.
 - **V2-3.** The conversion gives a meaning to a local allocation read

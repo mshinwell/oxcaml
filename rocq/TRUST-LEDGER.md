@@ -422,7 +422,18 @@ it gave back.
   - the types that are alike (`generate_alike`): that the two are a
     type of the generator and, on either side, that type again or
     one of the types of the same kind that the shrinker gives for
-    it.
+    it;
+  - the types one step from a common type (`generate_siblings`):
+    that each of the three is one of the types of the same kind that
+    the shrinker gives for one type of the generator, or that type
+    where it gives none;
+  - the scenarios in the reverse order (`reversed`, in
+    `scenarios_in_the_model`): that the definitions of the variables
+    are moved before the other steps, in the reverse order, and
+    nothing else of the scenario changes;
+  - the inputs counted for T7-9 (`on_a_symbol`): that it says whether
+    an extension of one of the two types met has an equation on a
+    symbol of the tests (`has_an_extension_on`).
 
 Not trusted, though it is OCaml: what the tool proposes to
 `validate_unit`. Each proposal is checked by an extracted function, and
