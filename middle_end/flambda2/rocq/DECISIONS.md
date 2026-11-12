@@ -524,6 +524,8 @@ says so. Only the labels that this tree cites are listed.
 - **T7-8.** Types that Simplify computes mention variables of kind
   `Rec_info` (in the `rec_info` of function types and in `Rec_info`
   heads) that the model's types cannot.
+- **T7-9.** The n-way meet of two variants drops what a case's extension
+  says of a symbol; the binary meet keeps it.
 - **V2-2.** The fexpr printer drops the kinds of the fields of a
   `Make_block`, and the parser reads back `any_value` for each.
 - **V3-2.** Simplify lifts a closed constant out of a function or a

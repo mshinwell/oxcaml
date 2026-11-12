@@ -377,6 +377,10 @@ it gave back.
   - the generated environments: that `generate_equations` and
     `generate_aliases` give a variable at most one equation, whose
     type mentions only variables numbered after it.
+  - the types that are alike (`generate_alike`): that the two are a
+    type of the generator and, on either side, that type again or
+    one of the types of the same kind that the shrinker gives for
+    it.
 
 Not trusted, though it is OCaml: what the tool proposes to
 `validate_unit`. Each proposal is checked by an extracted function, and
