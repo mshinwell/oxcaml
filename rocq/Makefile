@@ -107,6 +107,7 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaCompareConverseSpec.v \
   FlambdaCompareProofs.v \
   FlambdaCompareSpec.v \
+  FlambdaContAlikeProofs.v \
   FlambdaContextProofs.v \
   FlambdaContextSpec.v \
   FlambdaContextWhereProofs.v \
@@ -138,6 +139,10 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaKnownSymbolsSpec.v \
   FlambdaLiftProofs.v \
   FlambdaLiftSpec.v \
+  FlambdaLoopAliasesProofs.v \
+  FlambdaLoopAliasesSpec.v \
+  FlambdaLoopifyProofs.v \
+  FlambdaLoopifySpec.v \
   FlambdaMapProofs.v \
   FlambdaMapSpec.v \
   FlambdaModel.v \
@@ -156,13 +161,19 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaPrimitiveSpec.v \
   FlambdaRangeProofs.v \
   FlambdaRangeSpec.v \
+  FlambdaRecHandlersProofs.v \
+  FlambdaRecHandlersSpec.v \
   FlambdaRenameApartProofs.v \
   FlambdaRenameApartSpec.v \
   FlambdaScopeProofs.v \
   FlambdaScopeSpec.v \
   FlambdaSemanticsProofs.v \
   FlambdaSemanticsSpec.v \
+  FlambdaShortcutProofs.v \
+  FlambdaShortcutSpec.v \
   FlambdaSimulationProofs.v \
+  FlambdaSinkContsProofs.v \
+  FlambdaSinkContsSpec.v \
   FlambdaStateSupportProofs.v \
   FlambdaStateSupportSpec.v \
   FlambdaStaticProofs.v \
@@ -175,6 +186,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaUnboxSpec.v \
   FlambdaUnusedContsProofs.v \
   FlambdaUnusedContsSpec.v \
+  FlambdaUnusedParamsProofs.v \
+  FlambdaUnusedParamsSpec.v \
   FlambdaUnusedSlotsProofs.v \
   FlambdaUnusedSlotsSpec.v \
   FlambdaUnusedStaticsProofs.v \

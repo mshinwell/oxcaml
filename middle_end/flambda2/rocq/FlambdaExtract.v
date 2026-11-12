@@ -54,12 +54,12 @@ From Stdlib Require Extraction.
 From Stdlib Require Import ExtrOcamlBasic.
 From OxCamlFlambda2 Require Import FlambdaMapSpec FlambdaModel
   FlambdaBindersSpec FlambdaSemanticsSpec FlambdaWellFormedSpec
-  FlambdaWellKindedSpec
-  FlambdaCompareSpec FlambdaNormaliseSpec FlambdaBlockLoadSpec
-  FlambdaCseSpec FlambdaIdentitiesSpec FlambdaRenameApartSpec
+  FlambdaWellKindedSpec FlambdaBlockLoadSpec FlambdaCompareSpec
+  FlambdaCseSpec FlambdaIdentitiesSpec FlambdaLoopAliasesSpec
+  FlambdaLoopifySpec FlambdaNormaliseSpec FlambdaRecHandlersSpec
+  FlambdaRenameApartSpec FlambdaShortcutSpec FlambdaSinkContsSpec
   FlambdaStaticsOrderSpec FlambdaUnboxSpec FlambdaUnusedContsSpec
-  FlambdaUnusedStaticsSpec
-  FlambdaValidateSpec.
+  FlambdaUnusedParamsSpec FlambdaUnusedStaticsSpec FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeEqualSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar.
@@ -147,11 +147,13 @@ Separate Extraction
   domain
   drop_deleted_code
   drop_statics
+  drop_unused_params
   empty_static_env
   expr_eqb
   filter_bindings
   fold_constants
   follow_aliases
+  follow_aliases_in_loops
   inline_calls
   inline_known_calls
   inline_tail_conts
@@ -162,6 +164,7 @@ Separate Extraction
   let_closures
   load_known_blocks
   lookup
+  loopify_unit
   make_code_metadata
   make_exn_handler_metadata
   make_handler_metadata
@@ -176,7 +179,10 @@ Separate Extraction
   remove_unused_lets
   remove_unused_total_lets
   rewrite_code
+  rewrite_rec_handlers
   run
+  shortcut_switches
+  sink_let_conts
   step
   traps_well_formed
   unarize
