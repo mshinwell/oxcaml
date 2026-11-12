@@ -53,10 +53,11 @@
    sense ([join_scoped_envs_equivariant]). The join that forgets
    (FlambdaMeetExamplesSpec.v) does. A join that makes new variables
    by a choice that looks at the names it is given has not that
-   property, and nothing here is stated of a meet that is given such
-   a join. A statement up to the choice of the new variables is not
-   made and not proved: it would need a contract of the join that
-   says which variables are new and where they may occur.
+   property: the second part of the file is for such a join, with
+   its source of new names renamed. A statement up to the choice of
+   the new variables, for one source of names, is not made and not
+   proved: it would need a contract of the join that says which
+   variables are new and where they may occur.
 
    The statements, proved in FlambdaMeetRenameProofs.v, which needs
    no review.
@@ -82,10 +83,36 @@
      meet of types does
      ([typing_env_functions_equivariant_statement]).
 
+   Two joins, two meets, one renaming (the second part). A join that
+   makes variables takes them from a source of new names. Of renamed
+   environments it answers the renamed answer only if the source is
+   renamed too, and it is then another function. So the second part
+   relates two functions by one renaming, the second being the one
+   that is given the renamed arguments: [meet_expanded_head_related],
+   [join_scoped_envs_related], [meet_function_related].
+   - The meets of two joins that a renaming relates are related by
+     it, at every fuel
+     ([meet_expanded_head_at_fuel_related_statement],
+     [meet_of_types_related_statement]), and so are the functions
+     that add to a typing environment
+     ([typing_env_functions_related_statement]).
+   - At one function the relations are the properties of the first
+     part ([meet_expanded_head_equivariant_iff_related_statement],
+     [meet_function_equivariant_iff_related_statement]). A join that
+     every renaming relates to itself commutes with renaming
+     ([join_related_gives_equivariant_statement]). The converse is
+     not stated and is not expected: to commute asks less of a join,
+     which is then asked only about a meet that commutes with every
+     renaming.
+   Nothing here says of a particular join that makes variables that
+   a renaming relates it to the join with the renamed source; that
+   is for the files of that join.
+
    What the statements do not say. Nothing of a meet that stops: where
    the one answers [None] the other does, and that is all. Nothing of
    the compiler's own join, which is not transcribed as a function
-   that commutes on the nose (FlambdaJoinSpec.v). And the fuel is the
+   that commutes on the nose (FlambdaJoinSpec.v). Nothing of how an
+   answer depends on the source of new names. And the fuel is the
    same on both sides: a renaming changes no depth. *)
 
 From Stdlib Require Import ZArith List Bool.
@@ -322,3 +349,69 @@ Definition meet_function_related (r : renaming) (meet meet' : meet_function)
              Or_bottom.Ok (rename_type r t, rename_typing_env r tenv')
            end)
         (meet tenv t1 t2).
+
+(* The relations, at one function, are the properties above; and a
+   join that every renaming relates to itself commutes with
+   renaming. *)
+Definition meet_expanded_head_equivariant_iff_related_statement : Prop :=
+  ∀ m : meet_expanded_head,
+    meet_expanded_head_equivariant m
+    <-> ∀ r : renaming, meet_expanded_head_related r m m.
+
+Definition meet_function_equivariant_iff_related_statement : Prop :=
+  ∀ meet : meet_function,
+    meet_function_equivariant meet
+    <-> ∀ r : renaming, meet_function_related r meet meet.
+
+Definition join_related_gives_equivariant_statement : Prop :=
+  ∀ join : join_scoped_envs,
+    (∀ r : renaming, join_scoped_envs_related r join join) ->
+    join_scoped_envs_equivariant join.
+
+(* The meets of expanded types of two joins that a renaming relates
+   are related by it, whatever the fuel, for choices that are fixed
+   by renaming. *)
+Definition meet_expanded_head_at_fuel_related_statement : Prop :=
+  ∀ (r : renaming) (join join' : join_scoped_envs) (choices : meet_choices)
+    (fuel : nat),
+    join_scoped_envs_related r join join' ->
+    meet_choices_closed choices ->
+    meet_expanded_head_related r (Meet.meet_expanded_head join choices fuel)
+      (Meet.meet_expanded_head join' choices fuel).
+
+(* So are the meets of types. *)
+Definition meet_of_types_related_statement : Prop :=
+  ∀ (r : renaming) (join join' : join_scoped_envs) (choices : meet_choices)
+    (fuel : nat),
+    join_scoped_envs_related r join join' ->
+    meet_choices_closed choices ->
+    meet_function_related r (Meet.meet join choices fuel)
+      (Meet.meet join' choices fuel).
+
+(* And the functions that add to a typing environment. *)
+Definition typing_env_functions_related_statement : Prop :=
+  ∀ (r : renaming) (join join' : join_scoped_envs) (choices : meet_choices)
+    (fuel : nat),
+    join_scoped_envs_related r join join' ->
+    meet_choices_closed choices ->
+    (∀ (tenv : Typing_env.t) (name : name) (ty : flambda_type),
+      Flambda2_types.add_equation join' choices fuel
+        (rename_typing_env r tenv) (rename_name r name) (rename_type r ty)
+      = option_map (rename_typing_env r)
+          (Flambda2_types.add_equation join choices fuel tenv name ty))
+    ∧ (∀ (tenv : Typing_env.t) (extension : env_extension),
+        Flambda2_types.add_env_extension join' choices fuel
+          (rename_typing_env r tenv) (rename_env_extension r extension)
+        = option_map (rename_typing_env r)
+            (Flambda2_types.add_env_extension join choices fuel tenv
+               extension))
+    ∧ ∀ (tenv : Typing_env.t) (params : list (variable * flambda_kind))
+        (param_types : list flambda_type),
+        Flambda2_types.add_equations_on_params join' choices fuel
+          (rename_typing_env r tenv)
+          (map (fun param => (rename_variable r (fst param), snd param))
+             params)
+          (map (rename_type r) param_types)
+        = option_map (rename_typing_env r)
+            (Flambda2_types.add_equations_on_params join choices fuel tenv
+               params param_types).
