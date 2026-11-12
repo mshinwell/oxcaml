@@ -5,19 +5,16 @@ Stream C5 of `PARALLEL-PLAN.md` (section 6): trap actions on
 From C5, for C0 (who applies it), R1 (who reviews the `Spec` diff and
 section 4) and the human (section 8).
 
-The prototype is the branch `flambda2-rocq/C5-exceptions`, on the
-integration branch at b134cfe0ca, before C2 and C3. It is whole: every
-`.v` file builds, `make -C rocq all` and `make -C rocq assumptions`
-pass, and the semantics tests pass with seven new examples. It is not
-for merging. Read the `Spec` diff there:
+The prototype is not in this tree. It was made on the integration
+branch at b134cfe0ca, before C2 and C3. It was whole: every `.v` file
+built, `make -C rocq all` and `make -C rocq assumptions` passed, and
+the semantics tests passed with seven new examples. It was not for
+merging; the reviewer read its diff of the `Spec` files and of the
+model.
 
-    git diff b134cfe0ca flambda2-rocq/C5-exceptions -- \
-      'middle_end/flambda2/**/*Spec.v' 'middle_end/flambda2/**/*Model.v'
-
-The series for the epoch is the branch `flambda2-rocq/C5-epoch`, over
-C3 and C2. Sections 1 to 9 describe the prototype and the plan as they
-were reviewed; section 10 says what the series is and where it differs
-from the prototype.
+The series for the epoch, over C3 and C2, is merged. Sections 1 to 9
+describe the prototype and the plan as they were reviewed; section 10
+says what the series is and where it differs from the prototype.
 
 Paths below are in `middle_end/flambda2/rocq/` unless they say
 otherwise; compiler files are in `middle_end/flambda2/`.
@@ -242,8 +239,8 @@ and the cases of the existing statements).
 
 ### The new file pair, `FlambdaTrapSpec.v` and `FlambdaTrapProofs.v`
 
-Mine. The first is to be reviewed; read it on the branch (its header
-says what is checked and against which OCaml). In outline:
+Mine. The first is to be reviewed; its header says what is checked
+and against which OCaml. In outline:
 
 - `trap_stack`: the handlers installed, as continuation names, the last
   installed first. `demands`: for each continuation an expression may
@@ -688,7 +685,7 @@ Leaf work after it:
 
 ## What the prototype proves, and what it leaves
 
-Run on the branch at its tip: `make -C rocq -j16 all` (the claims pass
+Run on the prototype at its tip: `make -C rocq -j16 all` (the claims pass
 and no statement is lost), `make -C rocq assumptions`,
 `make -s boot-compiler` and the semantics tests (34 examples).
 
@@ -722,8 +719,8 @@ have not been run on a unit that the compiler made from OCaml source.
 
 ## 10. The series for the epoch
 
-Branch `flambda2-rocq/C5-epoch`. Its base is the integration branch
-at c77399d527, which has C3's and C2's epochs, the conditions on names
+Merged. Its base was the integration branch at c77399d527, which
+has C3's and C2's epochs, the conditions on names
 in `well_formed_unit` and the renaming that enters code. The series
 was written on C2's series before those last two and replayed as the
 branch moved; in the last replay, by N1, the owners of the files that
@@ -854,5 +851,5 @@ Not in the series:
 - The leaf work of section 9. The first item of it, the machine with
   a stack and the statement that the two machines agree on a unit
   whose binders are distinct and that passes `traps_well_formed`, is
-  done since, on `flambda2-rocq/C5-stack` (`FlambdaTrapSpec.v`): so
+  done since (`FlambdaTrapSpec.v`): so
   the condition on the stack no longer has only examples for it.
