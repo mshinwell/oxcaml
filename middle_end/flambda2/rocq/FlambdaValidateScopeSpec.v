@@ -36,11 +36,21 @@
    them for the term before: a round for an expression
    ([normalise_expr_before]) and a round for the body of code
    ([normalise_code_before]), which is the first taken into the
-   handlers of the recursive continuations; and the same of the phase
-   that comes first, where the parameters of continuations are dealt
-   with and no call is inlined ([normalise_expr_params],
+   handlers of the recursive continuations; the same of the phase that
+   comes first, where the parameters of continuations are dealt with
+   and no call is inlined ([normalise_expr_params],
    [normalise_code_params]), with a round of that phase for the term as
-   a whole ([normalise_params_round]).
+   a whole ([normalise_params_round]); then what a round of the term is
+   made of in the phase that inlines ([normalise_before_round]): the
+   inlining of the calls of known code
+   (FlambdaNormaliseSpec.inline_calls) and of the calls of the other
+   code of a group (FlambdaInlineSiblingsSpec.inline_sibling_calls),
+   whatever the code whose calls are left, and the round that follows
+   the inlining ([normalise_before_inlined]). Where a round gives every
+   binder a name of its own between the two
+   (FlambdaRenameApartSpec.rename_apart), that keeps scope by
+   FlambdaKeepsScopeSpec.rename_apart_keeps_scope_statement, and these
+   are every rewrite of the round.
 
    The last section is about FlambdaGuardScopeSpec.guard_scope, which
    of a term whose code is closed gives what a rewrite gives only where
@@ -51,12 +61,6 @@
    beside the definition because [keeps_scope] and [rewrite_equivariant]
    are defined after the validation, which is to run [guard_scope].
 
-   What is not here yet: the inlining of the calls of known code, and
-   a round of the term as a whole in the phase that inlines. Their
-   statements are to come with
-   the change that makes the validation give every binder a name of its
-   own, which changes both.
-
    Closed code is all that is asked of a term, as [keeps_scope] asks
    it.
 
@@ -66,7 +70,8 @@
 From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaNominalSpec FlambdaGuardScopeSpec FlambdaValidateSpec
+  FlambdaNominalSpec FlambdaNormaliseSpec FlambdaInlineSiblingsSpec
+  FlambdaGuardScopeSpec FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec.
 Import ListNotations.
 
@@ -85,6 +90,25 @@ Definition normalise_code_params_keeps_scope_statement : Prop :=
 
 Definition normalise_params_round_keeps_scope_statement : Prop :=
   keeps_scope normalise_params_round.
+
+(* ======================================================================== *)
+(* A round of the term before                                               *)
+(* ======================================================================== *)
+
+(* The inlining of the calls of known code, as a round applies it: with
+   no code known to begin with, and whatever the code whose calls are
+   left. *)
+Definition inline_calls_keeps_scope_statement : Prop :=
+  ∀ kept : list code_id, keeps_scope (inline_calls kept []).
+
+(* The inlining, in the body of code, of the calls of the other code of
+   its group. *)
+Definition inline_sibling_calls_keeps_scope_statement : Prop :=
+  ∀ kept : list code_id, keeps_scope (inline_sibling_calls kept).
+
+(* A round of the term before, once its calls are inlined. *)
+Definition normalise_before_inlined_keeps_scope_statement : Prop :=
+  keeps_scope normalise_before_inlined.
 
 (* ======================================================================== *)
 (* A rewrite made to keep scope by a test                                   *)
