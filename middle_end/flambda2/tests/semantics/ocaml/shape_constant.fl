@@ -1,0 +1,33 @@
+(let $camlShape_constant__const_block_0 = Block 0 (8) in
+ (let Popaque/35 = %opaque (1) in
+  let untagged/36 = %untag_imm (Popaque/35) in
+  switch untagged/36
+    | 0 -> k/19 (0)
+    | 1 -> k/19 ($camlShape_constant__const_block_0))
+   where k/19 (v/29 : [ 0 |1 | 0 of imm tagged ]) =
+     ((let prim/32 = %is_int (v/29) in
+       let Pisint/33 = %tag_imm (prim/32) in
+       (let untagged/34 = %untag_imm (Pisint/33) in
+        switch untagged/34
+          | 0 -> k/22
+          | 1 -> k/23)
+         where k/23 =
+           cont k/20
+         where k/22 =
+           cont k/21)
+        where k/21 =
+          let Pfield/31 = %block_load.[`0`] (v/29) in
+          cont k/18 (Pfield/31)
+        where k/20 =
+          let untagged/30 = %untag_imm (v/29) in
+          switch untagged/30
+            | 0 -> k/18 (1)
+            | 1 -> k/18 (2))
+   where k/18 (result/27 : imm tagged) =
+     let Pmakeblock/28 = %block.[`0`].`toplevel` (result/27) in
+     cont k/17 (Pmakeblock/28))
+  where k/17 define_root_symbol (module_block/25) =
+    let field_0/26 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/25)
+    in
+    let $camlShape_constant = Block 0 (field_0/26) in
+    cont done ($camlShape_constant)

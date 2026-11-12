@@ -38,7 +38,8 @@ let no_value_on known p arg =
   | Untag_immediate -> (
     match arg with
     | Var y -> is_bound y known.facts_blocks.known_vars
-    | _ -> false)
+    | Symbol _ -> true
+    | Const _ -> false)
   | _ -> false
 
 (** val made_field : facts -> unary_primitive -> flambda_kind -> simple ->
