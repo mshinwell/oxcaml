@@ -72,7 +72,8 @@
    such; at the end of a run it is observed as a function is.
 
    Tupled functions are in the model, as code that is marked: every call of the
-   model gives such code one argument, the tuple, as a call of unknown arity
+   model gives such code its first argument as the tuple, and any arguments
+   after it as they are, for an over-application, as a call of unknown arity
    does in the compiler (FlambdaSemanticsSpec.shape_of_closure_call). The
    compiler's direct call and its call of known arity give code its arguments as
    the code takes them, and the model has not got that of tupled code yet. So a
@@ -960,9 +961,9 @@ and convert_static_const (const : Static_const.t) : Model.static_const =
 
 and convert_code (code : Flambda.Function_params_and_body.t Code0.t) :
     Model.code =
-  (* A call of unknown arity gives a tupled function one argument, the tuple,
-     whatever the arity of its code: the model's code says whether it is
-     tupled. *)
+  (* A call of unknown arity gives a tupled function the tuple as its first
+     argument, whatever the arity of its code: the model's code says whether it
+     is tupled. *)
   let is_tupled = Code0.is_tupled code in
   if is_tupled then tupled_code := Code0.code_id code :: !tupled_code;
   Flambda.Function_params_and_body.pattern_match (Code0.params_and_body code)

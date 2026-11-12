@@ -115,10 +115,12 @@ it gave back.
   `Flambda_arity.fold_per_parameter`.
 - **Tupled functions** are in the model as code that is marked
   (`FlambdaModel.cm_is_tupled`), and the converter gives code the mark
-  of `Code0.is_tupled`. Every call of the model gives tupled code one
-  argument, a tuple, which the machine takes apart
-  (`FlambdaSemanticsSpec.arguments_for_code`): that is the compiler's
-  call of unknown arity. The compiler's direct call and its call of
+  of `Code0.is_tupled`. Every call of the model gives tupled code its
+  first argument as a tuple, which the machine takes apart; any
+  arguments after it are given as they are, and make the call an
+  over-application (`FlambdaSemanticsSpec.arguments_for_code`): that
+  is the compiler's call of unknown arity. The compiler's direct call
+  and its call of
   known arity give code its arguments as the code takes them, and the
   model has not got that of tupled code. So the converter refuses
   (`Unsupported`) a direct call of tupled code that the unit binds, and
