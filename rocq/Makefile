@@ -337,6 +337,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaSimplifyPrimitivesSpec.v \
   FlambdaSimplifyProjectionsProofs.v \
   FlambdaSimplifyProjectionsSpec.v \
+  FlambdaSimplifyPruningProofs.v \
+  FlambdaSimplifyPruningSpec.v \
   FlambdaSimplifyStaticsProofs.v \
   FlambdaSimplifyStaticsSpec.v \
   FlambdaSimplifySwitchArmsProofs.v \
