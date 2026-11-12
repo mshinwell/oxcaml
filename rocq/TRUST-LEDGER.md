@@ -321,6 +321,30 @@ it gave back.
     reports to the observer where the types library says it does; and
     that the tool runs itself once for each unit listed and adds up
     what each run counted.
+  - the examples of the meet (`examples_of_meets`): that an example
+    has the name of a statement of FlambdaMeetMatchExamplesSpec.v,
+    FlambdaMeetTagExamplesSpec.v, FlambdaMeetProjectionExamplesSpec.v
+    or FlambdaMeetExamplesSpec.v
+    (`middle_end/flambda2/types/rocq/`), and the steps, the two types
+    and what that statement says of the type answered and of the
+    variables, as the file was when the example was written; that
+    where the statement speaks of two meets the example says which;
+    that `scenario` numbers the variables from 1 in the order given
+    and makes the environment by the calls of the steps, the
+    relations by `Flambda2_types.Typing_env` with the flag that
+    chooses the meet set to the implementation run; that the
+    environment read through the observer is the one those calls
+    made; a difference is printed and counted, and does not add to
+    the disagreements of the test;
+  - the chosen meets: nothing but that what is printed is what was
+    seen;
+  - the creation functions: that a call on which the model's function
+    answers `None` is counted as agreeing when the compiler's raises
+    a fatal error or `Invalid_argument`, whatever the message; that
+    `kind_for_const` is compared through the unknown type of the
+    kind;
+  - `must_be_singleton`: that the model's outer `None` is compared
+    with a fatal error of the compiler.
 
 Not trusted, though it is OCaml: which static bindings the tool proposes
 to remove as unused (`unused_statics`). The extracted `drop_statics`
