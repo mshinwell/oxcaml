@@ -251,6 +251,9 @@ says so. Only the labels that this tree cites are listed.
   return continuation of a call.
 - **C5-9.** `to_cmm` stops on a trap action of a jump that names the
   exception continuation of the function or of the unit.
+- **C5-10.** A `try` whose handler Simplify has demoted keeps the end of
+  its region, so the handler is never a shortcut and a branch that goes
+  nowhere else stays.
 - **N1-1.** `Compare` writes the reverse maps of function slots and
   value slots into the forward maps.
 - **N1-2.** `pattern_match_pair` on code and on recursive handlers stops
