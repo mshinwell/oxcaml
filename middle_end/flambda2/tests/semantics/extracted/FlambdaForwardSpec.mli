@@ -31,6 +31,16 @@ val forwarding :
   expr ->
   (variable list * apply_cont) option
 
+val given_one_inner_variable : continuation -> variable list -> expr -> bool
+
+val forward_entry :
+  continuation ->
+  variable list ->
+  handler_metadata ->
+  expr ->
+  expr ->
+  (variable list * apply_cont) option
+
 val forward_applications_under : forwards -> expr -> expr
 
 val forward_applications_in_handler :

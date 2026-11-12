@@ -4238,6 +4238,39 @@ Proof.
     rewrite among_rename_variable, binds_var_equivariant. reflexivity.
 Qed.
 
+Lemma given_one_inner_variable_equivariant (r : renaming) (k : continuation)
+    (params : list variable) (body : expr) :
+  given_one_inner_variable (rename_continuation r k)
+    (map (rename_variable r) params) (rename_expr r body)
+  = given_one_inner_variable k params body.
+Proof.
+  unfold given_one_inner_variable.
+  rewrite some_args_equivariant, length_map.
+  destruct (some_args k body) as [args | ]; cbn [option_map];
+    [ | reflexivity ].
+  induction (seq 0 (length params)) as [ | i positions IH];
+    [ reflexivity | ].
+  cbn [existsb]. rewrite IH. f_equal. rewrite nth_error_map.
+  destruct (nth_error args i) as [[x | sym | c] | ];
+    cbn [option_map rename_simple]; try reflexivity.
+  rewrite binds_var_equivariant,
+    (always_given_equivariant r k i (fun arg => simple_eqb arg (Var x)))
+    by (intros arg; exact (simple_eqb_renamed r arg (Var x))).
+  reflexivity.
+Qed.
+
+Lemma forward_entry_equivariant (r : renaming) (k : continuation)
+    (params : list variable) (metadata : handler_metadata)
+    (handler body : expr) :
+  forward_entry (rename_continuation r k) (map (rename_variable r) params)
+    metadata (rename_expr r handler) (rename_expr r body)
+  = rename_forward_entry r (forward_entry k params metadata handler body).
+Proof.
+  unfold forward_entry.
+  rewrite given_one_inner_variable_equivariant, forwarding_equivariant.
+  destruct (given_one_inner_variable k params body); reflexivity.
+Qed.
+
 Fixpoint forward_applications_under_equivariant (r : renaming) (e : expr) :
   ∀ F : forwards,
     forward_applications_under (rename_forwards r F) (rename_expr r e)
@@ -4259,17 +4292,17 @@ Proof.
       rewrite forward_applications_under_equivariant. reflexivity.
     + cbn [rename_expr rename_handler forward_applications_under]. cbv zeta.
       rewrite (forward_applications_under_equivariant r handler F),
-        forwarding_equivariant.
+        forward_entry_equivariant.
       change
         ((rename_continuation r k,
           rename_forward_entry r
-            (forwarding k params metadata
+            (forward_entry k params metadata
                (forward_applications_under F handler) body))
          :: rename_forwards r F)
         with
           (rename_forwards r
              ((k,
-               forwarding k params metadata
+               forward_entry k params metadata
                  (forward_applications_under F handler) body)
               :: F)).
       rewrite (forward_applications_under_equivariant r body). reflexivity.

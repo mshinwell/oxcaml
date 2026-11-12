@@ -1453,6 +1453,18 @@ Proof.
   intros Hsome. injection Hsome as <- <-. split; reflexivity.
 Qed.
 
+(* The entry that the pass makes is that of [forwarding], or none. *)
+Lemma forward_entry_some (k : continuation) (params params' : list variable)
+    (metadata : handler_metadata) (handler body : expr)
+    (target : apply_cont) :
+  forward_entry k params metadata handler body = Some (params', target) ->
+  params' = params ∧ handler = Apply_cont target.
+Proof.
+  unfold forward_entry.
+  destruct (given_one_inner_variable k params body); [ discriminate | ].
+  apply forwarding_some.
+Qed.
+
 Lemma forwards_none_variables
     (handlers : list (continuation * continuation_handler)) (F : forwards) :
   flat_map forward_variables (map (fun '(k, _) => (k, None)) handlers ++ F)
@@ -1493,8 +1505,8 @@ Proof.
     pose proof
       (forward_applications_scoped_among body
          ((k,
-           forwarding k params metadata (forward_applications_under F handler)
-             body)
+           forward_entry k params metadata
+             (forward_applications_under F handler) body)
           :: F))
       as Hbody.
     cbn [flat_map] in Hbody.
@@ -1503,20 +1515,20 @@ Proof.
          Hbody).
     + unfold forward_variables. cbn [snd].
       destruct
-        (forwarding k params metadata (forward_applications_under F handler)
-           body)
+        (forward_entry k params metadata
+           (forward_applications_under F handler) body)
         as [[params' target] | ] eqn:Hforwarding;
         [ | intros y [] ].
-      apply forwarding_some in Hforwarding.
+      apply forward_entry_some in Hforwarding.
       destruct Hforwarding as [-> Hhandler']. rewrite Hhandler'. scope.
       apply incl_refl.
     + unfold forward_continuations. cbn [snd].
       destruct
-        (forwarding k params metadata (forward_applications_under F handler)
-           body)
+        (forward_entry k params metadata
+           (forward_applications_under F handler) body)
         as [[params' target] | ] eqn:Hforwarding;
         [ | intros j [] ].
-      apply forwarding_some in Hforwarding.
+      apply forward_entry_some in Hforwarding.
       destruct Hforwarding as [_ Hhandler']. rewrite Hhandler'. scope.
       apply incl_refl.
   - apply scoped_among_let_cont_recursive.

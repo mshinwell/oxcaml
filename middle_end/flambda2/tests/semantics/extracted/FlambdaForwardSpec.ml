@@ -99,6 +99,33 @@ let forwarding k params metadata handler body =
     else Some (params, target)
   | _ -> None
 
+(** val given_one_inner_variable : continuation -> variable list -> expr -> bool
+    **)
+
+let given_one_inner_variable k params body =
+  match some_args k body with
+  | Some args ->
+    existsb
+      (fun i ->
+        match nth_error args i with
+        | Some s -> (
+          match s with
+          | Var x ->
+            binds_var x body
+            && always_given k i (fun arg -> simple_eqb arg (Var x)) body
+          | _ -> false)
+        | None -> false)
+      (seq O (length params))
+  | None -> false
+
+(** val forward_entry : continuation -> variable list -> handler_metadata ->
+    expr -> expr -> (variable list * apply_cont) option **)
+
+let forward_entry k params metadata handler body =
+  if given_one_inner_variable k params body
+  then None
+  else forwarding k params metadata handler body
+
 (** val forward_applications_under : forwards -> expr -> expr **)
 
 let rec forward_applications_under f e =
@@ -113,7 +140,7 @@ let rec forward_applications_under f e =
       ( k,
         Handler (params, metadata, handler1),
         forward_applications_under
-          ((k, forwarding k params metadata handler1 body) :: f)
+          ((k, forward_entry k params metadata handler1 body) :: f)
           body )
   | Let_cont_recursive (handlers, body) ->
     let f0 =
