@@ -3389,3 +3389,43 @@ Proof.
           [ discriminate | exact (IH Hfold) ].
   - injection Hjoin as _ <-. apply keeps_definitions_refl.
 Qed.
+
+(* ---------------------------------------------------------------------- *)
+(* Two facts for the others                                                *)
+(* ---------------------------------------------------------------------- *)
+
+Theorem variables_of_env_knows : variables_of_env_knows_statement.
+Proof.
+  intros tenv x. unfold Join_env.variables_of_env, knows.
+  rewrite mem_var_lookup. split.
+  - intros Hin. apply in_flat_map in Hin.
+    destruct Hin as [[n [ty btm]] [Hin Hx]]. cbn [fst] in Hx.
+    destruct n as [y | sym]; [ | destruct Hx ].
+    destruct Hx as [<- | []].
+    destruct (Keyed.lookup name_eqb (Name_var y)
+                (Typing_env.names_to_types tenv)) as [[ty' btm'] | ]
+      eqn:Hlookup.
+    + exists ty', btm'. reflexivity.
+    + exfalso.
+      apply (keyed_lookup_none_not_in name_eqb name_eqb_decides_equality _ _
+               Hlookup).
+      apply in_map_iff. exists (Name_var y, (ty, btm)).
+      split; [ reflexivity | exact Hin ].
+  - intros [ty [btm Hlookup]]. apply in_flat_map.
+    exists (Name_var x, (ty, btm)).
+    split; [ | left; reflexivity ].
+    exact (keyed_lookup_in name_eqb name_eqb_decides_equality _ _ _ Hlookup).
+Qed.
+
+Theorem n_way_join_env_extension_answers_given
+  : n_way_join_env_extension_answers_given_statement.
+Proof.
+  intros p fuel s s' extensions extension Hjoin.
+  unfold Join_env.n_way_join_env_extension in Hjoin.
+  destruct extensions as [ | [index0 first] others]; [ discriminate | ].
+  destruct (forallb _ others).
+  - destruct (List.fold_left _ (Join_env.equations_of first) (Some s))
+      as [s1 | ]; [ | discriminate ].
+    injection Hjoin as <- _. right. exists index0. left. reflexivity.
+  - injection Hjoin as <- _. left. reflexivity.
+Qed.

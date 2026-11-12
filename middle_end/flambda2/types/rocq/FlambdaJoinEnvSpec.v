@@ -895,3 +895,29 @@ Definition n_way_join_env_extension_keeps_definitions_statement : Prop :=
     Join_env.n_way_join_env_extension p fuel s extensions
     = Some (Or_bottom.Ok (joined, s')) ->
     keeps_definitions s s'.
+
+(* ======================================================================== *)
+(* Two facts for the others                                                 *)
+(* ======================================================================== *)
+
+(* The variables listed for an environment are those that it knows:
+   so the join that the meet calls ([Join_env.cut_and_n_way_join])
+   makes its variables outside what the environments it is given
+   know, as the join that Simplify calls is supposed to be told to
+   ([avoids_known], FlambdaJoinSpec.v). *)
+Definition variables_of_env_knows_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (x : variable),
+    x ∈ Join_env.variables_of_env tenv <-> knows tenv x.
+
+(* [Join_env.n_way_join_env_extension] answers one of the extensions
+   that it is given, or the empty one. (So what is true of each
+   extension given and of the empty one, and does not depend on the
+   state, is true of the one answered: the join of types uses it for
+   the well-formedness of what it answers.) *)
+Definition n_way_join_env_extension_answers_given_statement : Prop :=
+  ∀ (p : Join_env.parameters) (fuel : nat) (s s' : Join_env.t)
+    (extensions : list (Index.t * env_extension)) (extension : env_extension),
+    Join_env.n_way_join_env_extension p fuel s extensions
+    = Some (Or_bottom.Ok (extension, s')) ->
+    extension = empty_env_extension
+    ∨ ∃ index : Index.t, (index, extension) ∈ extensions.
