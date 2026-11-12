@@ -228,6 +228,10 @@ pass into the validator.
     arithmetic of tagged immediates replaced by a constant, by one of
     its arguments or by `Invalid`, and the types of its result; after
     `simplify/simplify_binary_primitive.ml`)
+  - `middle_end/flambda2/types/rocq/FlambdaSimplifyPass*` (one function
+    on terms that carries a typing environment down a term and applies
+    the rewrites of the files above, with the proof that its answer
+    refines the term; for the validator to run)
 - S2, switch. Owner of the first slice: T1, on
   `flambda2-rocq/T1-grammar`; the rest unassigned.
   - `middle_end/flambda2/types/rocq/FlambdaSimplifySwitch*` (the arms

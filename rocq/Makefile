@@ -271,6 +271,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaSimplifyArithSpec.v \
   FlambdaSimplifyBoxingProofs.v \
   FlambdaSimplifyBoxingSpec.v \
+  FlambdaSimplifyPassProofs.v \
+  FlambdaSimplifyPassSpec.v \
   FlambdaSimplifyPrimitivesProofs.v \
   FlambdaSimplifyPrimitivesSpec.v \
   FlambdaSimplifyProjectionsProofs.v \
