@@ -33,9 +33,9 @@ Summary.
   a constant constructor, a block of another tag. Seven bodies of code
   from OCaml sources are validated with it in Rocq, with Simplify's
   `poison` where the pass puts it, and are not without it. It has its
-  statements of renaming and of scope, so it can be wired. The test
-  tool converts a poison constant on V2's branch; such units run and
-  wait for the pass in the round (section 7).
+  statements of renaming and of scope, and the validation runs it, in
+  the first phase of the term before: nine units from OCaml sources
+  that were not validated are (sections 7 and 9).
 
 ## 1. What Simplify does
 
@@ -315,10 +315,9 @@ statements, proved: the pass commutes with a renaming
 the same with what is known renamed with the term), and it keeps scope
 (`unbox_known_params_keeps_scope_statement`).
 
-**Wiring.** The pass is not in `FlambdaValidateSpec.v`. The second
+**Wiring.** This pass is not in `FlambdaValidateSpec.v`. The second
 pass (section 7) validates the two bodies that this one validates and
-the seven of variants, and is the one to wire: V2 adds its line to the
-round (section 10).
+the seven of variants, and is the one that the validation runs.
 
 ## 5. The first thing asked: subkinds
 
@@ -589,10 +588,13 @@ Two things had to be got right, and are where to look.
   parameters, where Simplify has one. A pass that makes one of two
   parameters that every application gives the same argument would
   mend it.
-- It is not in a round of the validation yet. It has what the wiring
-  needs: `unbox_variant_params_equivariant` and
-  `unbox_variant_params_keeps_scope`
-  (`FlambdaUnboxVariantsRenameProofs.v`); it makes no name.
+- The validation runs it in the first phase of the term before
+  only (`FlambdaValidateSpec.normalise_expr_params`), once the
+  values are followed and before the passes that bind or remove
+  parameters. A join that is there only once a call is inlined is
+  seen if the code that is inlined had it, since the first phase
+  goes into code; `option_inlined` (section 9) is such a unit, and
+  is stopped by something else. It makes no name.
 
 ### The other way
 
@@ -610,8 +612,8 @@ names for the wrappers. Not built.
 
 The conversion of the test tool refused a poison constant, so a unit
 with an unboxed variant was "not checked". The model has the
-constant, and V2's series for the round has the case: such a unit
-then runs, and is validated once the pass is in the round.
+constant and the conversion has the case: such a unit runs, and with
+the pass in the validation it is validated (section 9).
 
 ## 8. What else is owed for pairs and numbers
 
@@ -748,33 +750,61 @@ the other units from OCaml.
       if n = 0 then fst acc else fib (n - 1) (snd acc, fst acc + snd acc)
     let result = fib 10 (0, 1)
 
-Measured with V2's trial tool (the validation of the integration
-branch with V2's and V4's series that were pending on 2026-11-12);
-steps are those of the machine before and after Simplify. V2 is adding
-the sources to `middle_end/flambda2/tests/semantics/ocaml/`.
+    (* result_join *)
+    type outcome = Done of int | Failed of int
+    let[@inline never] f : bool -> int -> int =
+     fun c x ->
+      let v = if c then Done (x + 1) else Failed x in
+      match v with Done y -> y + 2 | Failed e -> 0 - e
+    let result = f true 3 + f false 4
 
-| Source | What Simplify unboxes | Steps | Today | What it needs |
-|--------|-----------------------|-------|-------|---------------|
-| `pair_computed` | the pair of the join, computed on both paths; no block is left | 45, 29 | the same, not validated | `unbox_known_params`: with it the body in Rocq is validated |
-| `int64_built` | the boxed number of the join, boxed on both paths | 61, 43 | the same, not validated | `unbox_known_params`: likewise |
-| `pair_built` | as `pair_computed`, each branch left with a jump only, which Simplify shortcuts | 43, 21 | the same, not validated | `unbox_known_params`, and the forwarding of an arm through a continuation bound above a `Let` (V4's, in review) |
-| `int64_join` | the same, one path gives a parameter of the function: an unboxing is added at that use | 51, 41 | the same, not validated | a `Let` at the use, with a wrapper at the arm: section 8 |
-| `pair_join` | the pair, one path gives a parameter of the function: two loads with tag and size are added at that use | 31, 28 | the same, not validated | subkinds: section 5 |
-| `pair_kept` | as `pair_join`, the pair staying a parameter beside its fields | 35, 33 | the same, not validated | subkinds |
-| `pair_loop` | the accumulator of the loop; the entry loads the fields of the function's parameter | 192, 85 | the same, not validated | subkinds; loops |
-| `option_join` | the option: `is_int` and the field, `poison` for the field where the use gives `None` | | not checked: the model has no regions (the option is allocated in one) | regions |
-| `option_heap` | the same, the option on the heap | | not checked: the conversion refuses the poison constant | the conversion, and `unbox_variant_params`: with it the body in Rocq is validated |
-| `list_heap` | the list: `is_int` and the head, `poison` for the head where the use gives `[]` | | not checked, likewise | likewise |
-| `shape_heap` | two constant constructors and a pair: `is_int` and the two fields, `poison` for both where the use gives a constant constructor; the value stays a parameter | | not checked, likewise | likewise |
-| `shape2_heap` | the same with the two constant constructors told apart: the constant constructor, `is_int` and the two fields; 0 for the constant constructor where the use gives the pair | | not checked, likewise | likewise |
-| `nested_heap` | an option of a pair: `is_int` and the two fields of the pair, `poison` for both where the use gives `None` | | not checked, likewise | likewise |
-| `either_heap` | two constructors that hold fields: the tag and the fields of both, `poison` for the fields of the constructor that the use does not give | | not checked, likewise | likewise |
-| `int64_option_heap` | an option of a boxed number: `is_int` and the number unboxed, `poison` of the kind of the number where the use gives `None`; nothing is boxed on the way | | not checked, likewise | likewise |
+    (* option_inlined *)
+    external opaque : 'a -> 'a = "%opaque"
+    let[@inline] f : bool -> int -> int =
+     fun c x ->
+      let v = if c then Some (x + 1) else None in
+      match v with None -> 0 | Some y -> y + 2
+    let result = f (opaque true) 3
 
-Of V2's 172 sources, two unbox a pair and both validate already,
-because the pair is known on every path and the join is inlined away;
-fifteen have a loop over a `ref` (V4's). None is stopped by a join
-whose parameter was unboxed, so these eight are new coverage.
+The sources are in `middle_end/flambda2/tests/semantics/ocaml/`, but
+for `int64_join` as it is written here (the unit of that name there
+calls `f` once, so the call is inlined, and is validated). Measured
+with the test tool, built without the line that runs
+`unbox_variant_params` in the validation and with it (the validation
+and the units as they were before the lifting out of the arms of a
+test was added); steps are those of the machine before and after
+Simplify. In every unit the two runs
+give the same result.
+
+| Source | What Simplify unboxes | Steps | Without the pass | With it |
+|--------|-----------------------|-------|------------------|---------|
+| `pair_computed` | the pair of the join, computed on both paths; no block is left | 45, 29 | not validated | validated |
+| `int64_built` | the boxed number of the join, boxed on both paths | 61, 43 | not validated | validated |
+| `pair_built` | as `pair_computed`, each branch left with a jump only, which Simplify shortcuts | 43, 21 | not validated | validated |
+| `int64_join` | the same, one path gives a parameter of the function: an unboxing is added at that use | 51, 41 | not validated | not validated: a `Let` at the use, with a wrapper at the arm, section 8 |
+| `pair_join` | the pair, one path gives a parameter of the function: two loads with tag and size are added at that use | 31, 28 | not validated | not validated: subkinds, section 5 |
+| `pair_kept` | as `pair_join`, the pair staying a parameter beside its fields | 35, 33 | not validated | not validated: subkinds |
+| `pair_loop` | the accumulator of the loop; the entry loads the fields of the function's parameter | 192, 85 | not validated | not validated: subkinds; loops |
+| `option_join` | the option, allocated in a region: `is_int` and the field, `poison` for the field where the use gives `None` | 55, 29 | not validated | validated |
+| `option_heap` | the same, the option on the heap | 47, 29 | not validated | validated |
+| `list_heap` | the list: `is_int` and the head, `poison` for the head where the use gives `[]` | 54, 33 | not validated | validated |
+| `shape_heap` | two constant constructors and a pair: `is_int` and the two fields, `poison` for both where the use gives a constant constructor; the value stays a parameter | 54, 30 | not validated | validated |
+| `shape2_heap` | the same with the two constant constructors told apart: the constant constructor, `is_int` and the two fields; 0 for the constant constructor where the use gives the pair | 61, 36 | not validated | validated |
+| `nested_heap` | an option of a pair: `is_int` and the two fields of the pair, `poison` for both where the use gives `None` | 50, 29 | not validated | validated |
+| `either_heap` | two constructors that hold fields: the tag and the fields of both, `poison` for the fields of the constructor that the use does not give | 58, 37 | not validated | validated |
+| `int64_option_heap` | an option of a boxed number: `is_int` and the number unboxed, `poison` of the kind of the number where the use gives `None`; nothing is boxed on the way | 63, 38 | not validated | validated |
+| `result_join` | two constructors that hold a field, in a region: the tag and the field of each, `poison` for the field of the other | 64, 33 | not validated | validated |
+| `option_inlined` | the option of a function that is inlined where its condition is not known: `is_int` and the field, in the unit itself | 36, 12 | not validated | not validated: the pass unboxes the join; an arm of the term before then applies a continuation whose handler is one jump, which the second phase of the validation does not forward |
+
+Over all the units of that directory that were there before the last
+four, the line changes nine verdicts, those of the table, and nothing
+else in the output of any unit; over the units written by hand it
+changes none; of the 600 of `census/README.md` two more are validated
+(`c_functions_0055`, `c_unknown_scalar_0122`) and nothing else
+changes. `pair_built` needed,
+besides the pass, the forwarding of an arm through a continuation
+bound above a `Let`, which the first phase has
+(`forward_applications`).
 
 ## 10. Asked of others
 
@@ -782,21 +812,22 @@ whose parameter was unboxed, so these eight are new coverage.
   binder undefined (section 5). Recommended. Without it the unboxing of
   a block that is not built in the term cannot be validated, in a loop
   or out of one.
-- **V2** (agreed 2026-11-12): the line for `unbox_variant_params` in
-  the round of the term before, after `follow_aliases`, the loads of
-  known blocks and the unboxing of known numbers, and before the
-  passes that bind or remove parameters; in a commit of its own after
-  V2's series for the round. The wiring needs
-  `unbox_variant_params_refines` (`FlambdaUnboxVariantsProofs.v`),
-  `unbox_variant_params_equivariant` and
-  `unbox_variant_params_keeps_scope`
-  (`FlambdaUnboxVariantsRenameProofs.v`). `unbox_known_params` has
-  the same three; it need not be wired for the two bodies that it
-  validates (`pair_computed`, `int64_built`), which the second pass
-  validates too (`earlier_examples_validated_statement`), nor for the
-  seven bodies of variants. `pair_built` and the sources that wait for
-  subkinds are validated by neither. Also V2's: the conversion of the
-  poison constant; the sources above, with the seven of variants.
+- **V2**: to check the line for `unbox_variant_params` in the first
+  phase of the term before, which T6 wrote when the orchestrator
+  asked, with the units it turns, and to regenerate the tables of the
+  README of the units from OCaml. The line is after `follow_aliases`,
+  the following of aliases in loops, the loads of known blocks and
+  the unboxing of known numbers, and before the passes that bind or
+  remove parameters. It uses `unbox_variant_params_refines`
+  (`FlambdaUnboxVariantsProofs.v`) and the two facts of renaming and
+  of scope (`FlambdaUnboxParamsNamesProofs.v`). `unbox_known_params`
+  has the same three and is not run: the second pass validates the
+  two bodies that it validates
+  (`earlier_examples_validated_statement`). The sources that wait for
+  subkinds are validated by neither.
+- **V4, V2**: `option_inlined`. Whether the second phase of the term
+  before may forward an application through a handler that is one
+  jump, as the first does.
 - **V4**: nothing more; the place in the round is agreed.
 - **N1, N3**: nothing yet. The `Let` at a use under a `Switch`
   (section 8) and the copy of a handler (section 7) will need a fresh
