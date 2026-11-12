@@ -1823,6 +1823,18 @@ Proof.
     reflexivity.
 Qed.
 
+Theorem phys_equal_same : phys_equal_same_statement.
+Proof.
+  intros statics op v result. cbn [eval_binary_primitive].
+  unfold eval_phys_equal.
+  destruct (int_of_value Standard_tagged_immediate v) as [a | ].
+  - rewrite Z.eqb_refl. cbn. intros H. injection H as <-.
+    destruct op; reflexivity.
+  - destruct (identity_of statics v) as [s | ]; [ | discriminate ].
+    rewrite Pos.eqb_refl. cbn. intros H. injection H as <-.
+    destruct op; reflexivity.
+Qed.
+
 (* A tag is an immediate, so [Get_tag] returns one. *)
 Lemma tag_in_range_ocaml_int (tag : Z) :
   tag_in_range tag = true -> ocaml_int_in_range tag = true.

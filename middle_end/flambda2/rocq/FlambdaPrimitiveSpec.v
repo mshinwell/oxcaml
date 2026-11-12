@@ -1569,6 +1569,27 @@ Definition int_of_value_in_range_statement : Prop :=
     const_in_range (const_of_int kind i) = true ->
     int_of_value kind (Value_const (const_of_int kind i)) = Some i.
 
+(* [Phys_equal] of a value against itself: where it has an answer, the
+   answer is that the two are the same. Simplify folds the comparison
+   of two arguments that are one constant, one symbol or one variable
+   to that answer (types/provers.ml, [prove_physical_equality], its
+   last match). Here there is an answer on a tagged immediate and on
+   an identity only. So a term in which the comparison is folded
+   refines the term that has it: it is defined wherever that one is,
+   with the same answer. The converse fails, as the folded term is
+   defined where the comparison has no answer, and the fold is no
+   equivalence. *)
+Definition phys_equal_same_statement : Prop :=
+  ∀ (statics : static_env) (op : equality_comparison)
+    (v result : value),
+    eval_binary_primitive statics (Phys_equal op) v v = Some result ->
+    result
+    = naked_bool
+        match op with
+        | Phys_eq => true
+        | Phys_neq => false
+        end.
+
 (* What a primitive computes on its arguments it computes on values
    that the observations read alike. The premise is a relation between
    values, the first read under [statics] and the second under
