@@ -194,6 +194,29 @@ it gave back.
   of known arity in a unit that binds tupled code (the entry above);
   it is what keeps a call that gives code the components from being
   run as the model's call, which gives it the tuple.
+- **Calls that never return**, in the same file (`convert_apply`). A
+  call whose result continuation is `Never_returns`, whatever its call
+  kind among those that the conversion takes (a method call, a C call
+  and an effect are refused before that), is converted to a call that
+  returns to a continuation bound around it and used nowhere else,
+  whose handler is `Invalid` and whose parameters are of the kinds of
+  the return arity of the call, which the call keeps; the continuation
+  has a number that no continuation of the two units of the check has,
+  and its parameters have numbers that no variable of them has (a
+  number of one sort may be that of a name of another). The conversion
+  interprets
+  `Never_returns` as making a normal return undefined, and this
+  interpretation is trusted. The backend inserts no trap for it: it
+  emits the call with nothing after it, as it does a call in tail
+  position (`to_cmm/to_cmm_expr.ml`, `apply_expr`). Nothing is assumed
+  of the analysis by which Simplify finds that a callee never returns.
+  If a run of the converted term after returns from such a call, it
+  becomes undefined. Where the term before has a defined outcome,
+  completed executions then expose the difference, and a sound
+  validation cannot accept that pair. A validation is not a proof that
+  the callee does not return in native code. The term of the model has
+  a continuation that the compiler's term has not, and the round trip
+  of the conversion prints it.
 - **The conversion of primitives**, in the same file (the section
   "Primitives"): one function for each arity of primitive that the model
   has (`convert_unary_primitive`, `convert_binary_primitive` and, once

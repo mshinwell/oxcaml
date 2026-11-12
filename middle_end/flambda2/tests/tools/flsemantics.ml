@@ -80,6 +80,16 @@
    direct call of tupled code is reported as unsupported, and so is a call of
    known arity, which names no code, in a unit that has tupled code.
 
+   Calls that never return. A call whose result continuation is [Never_returns]
+   is converted to a call that returns to a continuation bound around it, whose
+   handler is [Invalid] ([convert_apply]). That reads [Never_returns] as making
+   a normal return undefined, which is trusted; the backend puts nothing after
+   such a call. Nothing is assumed of how Simplify finds that a callee never
+   returns: if a run of the term after returns from such a call it becomes
+   undefined, and where the term before has a defined outcome the two runs, once
+   completed, then differ. The term of the model has a continuation that the
+   compiler's term has not.
+
    Imports. The external symbols that the two units of a check mention, those of
    another compilation unit, the predefined exceptions among them, are listed
    once for both ([imports]), each with a class: an identity for a predefined
@@ -774,7 +784,7 @@ let rec convert_expr (e : Flambda.Expr.t) : Model.expr =
               Continuations.find k, convert_handler ~invariant_params handler)
         in
         Model.Let_cont_recursive (handlers, convert_expr body))
-  | Apply apply -> Model.Apply (convert_apply apply)
+  | Apply apply -> convert_apply apply
   | Apply_cont ac -> Model.Apply_cont (convert_apply_cont ac)
   | Switch switch ->
     let arms =
@@ -1042,7 +1052,7 @@ and convert_code (code : Flambda.Function_params_and_body.t Code0.t) :
            else Model.make_code_metadata params_arity result_arity),
           convert_expr body ))
 
-and convert_apply (apply : Apply_expr.t) : Model.apply_expr =
+and convert_apply (apply : Apply_expr.t) : Model.expr =
   let callee =
     match Apply_expr.callee apply with
     | Some callee -> convert_simple callee
@@ -1062,27 +1072,42 @@ and convert_apply (apply : Apply_expr.t) : Model.apply_expr =
     | Method _ | C_call _ | Effect _ ->
       unsupported "the call %a" Apply_expr.print apply
   in
-  let continuation =
-    match Apply_expr.continuation apply with
-    | Return k -> Continuations.find k
-    | Never_returns -> unsupported "a call that never returns"
-  in
   let exn_continuation = Apply_expr.exn_continuation apply in
-  { ap_callee = callee;
-    ap_call_kind = call_kind;
-    ap_args = convert_simples (Apply_expr.args apply);
-    ap_continuation = continuation;
-    ap_exn_continuation =
-      Continuations.find (Exn_continuation.exn_handler exn_continuation);
-    ap_exn_extra_args =
-      List.map
-        (fun (simple, kind) ->
-          ( convert_simple simple,
-            convert_kind (Flambda_kind.With_subkind.kind kind) ))
-        (Exn_continuation.extra_args exn_continuation);
-    ap_args_arity = args_arity;
-    ap_return_arity = return_arity
-  }
+  let returning_to continuation : Model.apply_expr =
+    { ap_callee = callee;
+      ap_call_kind = call_kind;
+      ap_args = convert_simples (Apply_expr.args apply);
+      ap_continuation = continuation;
+      ap_exn_continuation =
+        Continuations.find (Exn_continuation.exn_handler exn_continuation);
+      ap_exn_extra_args =
+        List.map
+          (fun (simple, kind) ->
+            ( convert_simple simple,
+              convert_kind (Flambda_kind.With_subkind.kind kind) ))
+          (Exn_continuation.extra_args exn_continuation);
+      ap_args_arity = args_arity;
+      ap_return_arity = return_arity
+    }
+  in
+  match Apply_expr.continuation apply with
+  | Return k -> Model.Apply (returning_to (Continuations.find k))
+  | Never_returns ->
+    (* CR mshinwell: a call that never returns, of whatever kind that is
+       converted (a method call, a C call and an effect are refused above), is
+       made a call that returns to a continuation bound around it and used
+       nowhere else, whose handler is [Invalid]: a return from the call is
+       undefined. The call keeps its return arity, and the parameters of the
+       continuation are of the kinds of that arity. The continuation has a
+       number that no continuation of the two units of the check has, and its
+       parameters have numbers that no variable of them has. See the header. *)
+    let k = Continuations.fresh () in
+    let kinds = Model.unarize return_arity in
+    let params = List.map (fun _ -> Variables.fresh ()) kinds in
+    let handler =
+      Model.Handler (params, Model.make_handler_metadata kinds, Model.Invalid)
+    in
+    Model.Let_cont_non_recursive (k, handler, Model.Apply (returning_to k))
 
 (* ---- Running ---------------------------------------------------------- *)
 

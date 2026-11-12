@@ -1,0 +1,42 @@
+let $camlNever_returns_twice__first_const_0 = Block 0 () in
+(let code inline(never) size(3)
+       fail_0 (param/36 : imm tagged)
+         my_closure/37 &my_alloc_region/38 my_depth/39
+         -> k/22 * k/23
+         : val =
+   let next_depth/40 = rec_info (succ my_depth/39) in
+   cont k/23 pop(regular k/23) ($`*predef*`.caml_exn_Not_found)
+ in
+ let fail/41 = closure fail_0 @fail &toplevel in
+ (let Popaque/48 = %opaque (0) in
+  (let untagged/49 = %untag_imm (Popaque/48) in
+   switch untagged/49
+     | 0 -> k/24 (4)
+     | 1 -> k/29)
+    where k/29 =
+      cont k/28)
+   where k/28 =
+     apply direct(fail_0 &toplevel)
+       (fail/41 : _ -> imm tagged) (0) -> k/24 * error
+   where k/24 (staticcatch_result/42 : imm tagged) =
+     ((let Popaque/46 = %opaque (0) in
+       (let untagged/47 = %untag_imm (Popaque/46) in
+        switch untagged/47
+          | 0 -> k/25 (3)
+          | 1 -> k/27)
+         where k/27 =
+           cont k/26)
+        where k/26 =
+          apply direct(fail_0 &toplevel)
+            (fail/41 : _ -> imm tagged) (0) -> k/25 * error
+        where k/25 (staticcatch_result/43 : imm tagged) =
+          let result/44 =
+            %int_barith.add (staticcatch_result/43, staticcatch_result/42)
+          in
+          let Pmakeblock/45 = %block.[`0`].`toplevel` (result/44) in
+          cont k/21 (Pmakeblock/45)))
+  where k/21 define_root_symbol (module_block/34) =
+    let field_0/35 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/34)
+    in
+    let $camlNever_returns_twice = Block 0 (field_0/35) in
+    cont done ($camlNever_returns_twice)
