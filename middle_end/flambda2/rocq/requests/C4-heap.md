@@ -130,8 +130,7 @@ finish it. Section 10 says what the prototype proves and leaves.
 
 ## What changed since the second version
 
-R2's review of the second version is in its review log. Its blocking
-findings:
+R2 reviewed the second version. Its blocking findings:
 
 - **B1: the relation with poison was not transitive** (an inline boxed
   poison, a symbol bound to a boxed poison, a symbol bound to a boxed
@@ -2334,7 +2333,7 @@ undefined without being forced to; the three are in
 
 ## Discrepancies recorded
 
-In the team's record of discrepancies. The first three each have an
+Each has its line in `DECISIONS.md`. The first three each have an
 fexpr term that was given to the real Simplify (not compiled and run):
 
 - C4-1: an `Immutable_unique` block with constant fields is lifted
