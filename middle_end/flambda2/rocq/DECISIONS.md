@@ -191,6 +191,9 @@ says so. Only the labels that this tree cites are listed.
 - **C2-13.** Nothing checks that a unit does not bind again the name of
   its return or exception continuation, and the model's reading of "at
   toplevel" goes by that name.
+- **C2-14.** The printer of fexpr writes the name of a poison constant
+  without quotes and the parser reads a string there, so the compiler's
+  own fexpr text of a term with poison is not read back.
 - **C3-1.** Simplify answers a projection that names the wrong function
   slot on one of its two paths and makes it `Invalid` on the other; the
   slot named is not checked where the term is built.
@@ -358,6 +361,9 @@ says so. Only the labels that this tree cites are listed.
   one of its inputs does not (with T1-4).
 - **R3-15.** In the model, the immediates of a type include raw integers
   that are out of range for the compiler.
+- **R6-1.** The printer of fexpr writes the naked kinds `int8`, `int16`
+  and `mask`, and the parser has no rule for them, so a poison constant
+  of one of those kinds that is printed is not read back.
 - **T1-1.** After unboxing, the compiler's own types say that the
   arguments passed for a constant constructor are impossible (the
   `Get_tag` reduction of meet).
