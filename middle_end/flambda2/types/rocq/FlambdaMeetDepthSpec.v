@@ -1,0 +1,386 @@
+(******************************************************************************
+ *                                  OxCaml                                    *
+ * -------------------------------------------------------------------------- *
+ *                               MIT License                                  *
+ *                                                                            *
+ * Copyright (c) 2026 Jane Street Group LLC                                   *
+ * opensource-contacts@janestreet.com                                         *
+ *                                                                            *
+ * Permission is hereby granted, free of charge, to any person obtaining a    *
+ * copy of this software and associated documentation files (the "Software"), *
+ * to deal in the Software without restriction, including without limitation  *
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,   *
+ * and/or sell copies of the Software, and to permit persons to whom the      *
+ * Software is furnished to do so, subject to the following conditions:       *
+ *                                                                            *
+ * The above copyright notice and this permission notice shall be included    *
+ * in all copies or substantial portions of the Software.                     *
+ *                                                                            *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR *
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   *
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL    *
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER *
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING    *
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER        *
+ * DEALINGS IN THE SOFTWARE.                                                  *
+ ******************************************************************************)
+
+(* The fuel of the meet of types that have no name inside: their depth
+   is enough.
+
+   This file is to be reviewed: the definitions and the statements.
+   They go on from FlambdaMeetTerminationSpec.v, whose header says what
+   the fuel is and what it is for it to be enough ([fuel_enough],
+   [meet_fuel_enough]); the functions are those of FlambdaMeet.v. The
+   proofs are in FlambdaMeetDepthProofs.v, which needs no review.
+
+   What is stated. A type has no name inside, within a depth
+   ([nameless_within]), if
+   - it is not an alias, and no type inside it is one;
+   - no variable stands in it for the result of a relation: a variant
+     has none for [Is_int] nor for [Get_tag], a head of values none
+     for [Is_null], and a head of naked immediates has no inverse
+     relation;
+   - it has no extension: a variant has [No_extensions], and a case of
+     a row-like structure the empty extension;
+   - the types inside it (the fields of a block, the immediates of a
+     variant, the contents of a boxed number, the closures and the
+     value slots of a set of closures) are so within one less.
+   So within depth 1 are the types that have no type inside, the flat
+   ones of FlambdaMeetTerminationSpec.v among them
+   ([flat_nameless_statement]), and no type is so within depth 0. A
+   type that is so within a depth is so within any greater
+   ([nameless_within_more_statement]).
+
+   For two expanded types that have no name inside within a depth,
+   that many units of fuel are enough ([nameless_fuel_enough_statement]),
+   whatever the environment and the choices of the meet. Enough is as
+   in FlambdaMeetTerminationSpec.v: the answer is the same whatever is
+   answered where the fuel runs out. That the meet answers is not
+   said: the answer that is the same may be none ([None]), as it is
+   for two heads of different kinds. And the meet adds nothing: where
+   it answers an environment, the typing environment of that one is
+   the typing environment of the one it was given
+   ([nameless_meet_adds_nothing_statement]). The same for the meet of
+   two types ([nameless_types_fuel_enough_statement],
+   [nameless_types_meet_adds_nothing_statement]).
+
+   What is supposed, of the join that the meet is given
+   ([join_of_nothing]): the join of environments that are each the
+   environment of the meet one scope further, with nothing added,
+   answers an environment that has the typing environment of the
+   environment of the meet, and answers that one environment whatever
+   meet the join is given. The join comes into it although the types
+   have no name: the meet of two variants, and of two row-like
+   structures with more cases than one, meets each alternative in a
+   scope of its own and joins the environments that result, which here
+   are the ones that were entered. The rest of the environment that
+   the join answers (the names to avoid, which are the model's own,
+   and the names that an equation is being added to) may be other than
+   it was given: so the meet is said to keep the typing environment,
+   and no more.
+
+   The join that forgets has the property
+   ([forgetful_join_of_nothing_statement]). The join of the model
+   (FlambdaJoinMeet.v) is not shown to have it, and does not have it
+   for every fuel: an example is run ([example_model_join_statement])
+   in which, with fuel, the environment that it answers has the typing
+   environment that it was given and is not the environment that it
+   was given, and with no fuel for the environment it answers nothing.
+   For the join of the model the property is then at most one of a
+   fuel that is enough; that is not stated here, and nothing is stated
+   of the compiler's join.
+
+   The bound is by the depth of the two types and not by that of the
+   environment: the functions of the meet read no type of the
+   environment, as no name is met. What the join reads is not
+   constrained: the hypothesis is on what it answers. A depth that is
+   less is not enough in general: an example is run
+   ([example_depth_fuel_statement]).
+
+   What is not here: names. An alias, a variable for a relation, or an
+   extension makes the meet read the environment and add to it, and
+   then the types that are met are those that the environment has,
+   which the meet itself changes. FlambdaMeetTerminationSpec.v says
+   what a bound would rest on there, and what is in its way. *)
+
+From Stdlib Require Import ZArith List Bool.
+From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec.
+From OxCamlFlambda2Types Require Import FlambdaTypeGrammar FlambdaBindingTime
+  FlambdaEnvAliases FlambdaTypingEnv FlambdaMeetGrammar FlambdaExpandHead
+  FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec FlambdaMeetTerminationSpec.
+From OxCamlFlambda2Types Require FlambdaMeetExamplesSpec FlambdaJoinEnv
+  FlambdaJoinMeet.
+Import ListNotations.
+
+(* ======================================================================== *)
+(* Types with no name inside                                                *)
+(* ======================================================================== *)
+
+Section Nameless.
+
+(* What is asked of the types inside. *)
+Variable inside : flambda_type -> bool.
+
+Definition no_variable (var : option variable) : bool :=
+  match var with
+  | None => true
+  | Some _ => false
+  end.
+
+Definition extension_is_empty (extension : env_extension) : bool :=
+  match extension with
+  | Env_extension equations => Keyed.is_empty equations
+  end.
+
+Definition nameless_block_case (case : row_like_block_case) : bool :=
+  forallb inside (case_maps_to case)
+  && extension_is_empty (case_env_extension case).
+
+Definition nameless_blocks (blocks : row_like_for_blocks) : bool :=
+  match blocks with
+  | Row_like_for_blocks known_tags other_tags _ =>
+    forallb
+      (fun known =>
+         match snd known with
+         | Or_unknown.Unknown => true
+         | Or_unknown.Known case => nameless_block_case case
+         end)
+      known_tags
+    && match other_tags with
+       | Or_bottom.Bottom => true
+       | Or_bottom.Ok case => nameless_block_case case
+       end
+  end.
+
+Definition nameless_closures_entry (entry : closures_entry) : bool :=
+  match entry with
+  | Closures_entry _ closure_types value_slot_types =>
+    forallb (fun closure => inside (snd closure)) closure_types
+    && forallb (fun slot => inside (snd slot)) value_slot_types
+  end.
+
+Definition nameless_closures (closures : row_like_for_closures) : bool :=
+  match closures with
+  | Row_like_for_closures known_closures =>
+    forallb
+      (fun known =>
+         nameless_closures_entry (case_maps_to (snd known))
+         && extension_is_empty (case_env_extension (snd known)))
+      known_closures
+  end.
+
+Definition nameless_non_null (head : head_of_kind_value_non_null) : bool :=
+  match head with
+  | Variant is_int immediates get_tag blocks extensions _ =>
+    no_variable is_int && no_variable get_tag
+    && match immediates with
+       | Or_unknown.Unknown => true
+       | Or_unknown.Known ty => inside ty
+       end
+    && match blocks with
+       | Or_unknown.Unknown => true
+       | Or_unknown.Known blocks => nameless_blocks blocks
+       end
+    && match extensions with
+       | No_extensions => true
+       | Ext _ _ => false
+       end
+  | Mutable_block _ | String _ => true
+  | Boxed_number _ contents _ => inside contents
+  | Closures by_function_slot _ => nameless_closures by_function_slot
+  end.
+
+Definition nameless_value (head : head_of_kind_value) : bool :=
+  match head with
+  | Head_of_kind_value non_null is_null =>
+    match non_null with
+    | Unknown | Bottom => true
+    | Ok non_null => nameless_non_null non_null
+    end
+    && match is_null with
+       | Not_null => true
+       | Maybe_null is_null => no_variable is_null
+       end
+  end.
+
+Definition nameless_naked_immediate (head : head_of_kind_naked_immediate)
+    : bool :=
+  Keyed.is_empty (inverse_relations head).
+
+Definition nameless_descr {head : Type} (nameless_head : head -> bool)
+    (ty : type_descr head) : bool :=
+  match ty with
+  | Unknown | Bottom => true
+  | Ok (No_alias head) => nameless_head head
+  | Ok (Equals _) => false
+  end.
+
+Definition nameless_type (ty : flambda_type) : bool :=
+  match ty with
+  | Type_value ty => nameless_descr nameless_value ty
+  | Type_naked_immediate ty => nameless_descr nameless_naked_immediate ty
+  | Type_naked_number _ ty => nameless_descr (fun _ => true) ty
+  | Type_rec_info ty => nameless_descr (fun _ => true) ty
+  | Type_region ty => nameless_descr (fun _ => true) ty
+  end.
+
+End Nameless.
+
+(* A type has no name inside, and what is inside it is no deeper than
+   [depth]. *)
+Fixpoint nameless_within (depth : nat) (ty : flambda_type) : bool :=
+  match depth with
+  | O => false
+  | S depth => nameless_type (nameless_within depth) ty
+  end.
+
+(* The same of an expanded type. *)
+Definition nameless_expanded_within (depth : nat) (expanded : Expanded_type.t)
+    : bool :=
+  nameless_within depth (Expanded_type.to_type expanded).
+
+Definition nameless_within_more_statement : Prop :=
+  ∀ (depth depth' : nat) (ty : flambda_type),
+    depth <= depth' ->
+    nameless_within depth ty = true ->
+    nameless_within depth' ty = true.
+
+(* The flat expanded types have no name inside, within depth 1. *)
+Definition flat_nameless_statement : Prop :=
+  ∀ expanded : Expanded_type.t,
+    flat expanded = true -> nameless_expanded_within 1 expanded = true.
+
+(* ======================================================================== *)
+(* The join of environments to which nothing was added                      *)
+(* ======================================================================== *)
+
+(* The join of environments, one at least, that are each the
+   environment of the meet one scope further with nothing added,
+   answers an environment that has the typing environment of the
+   environment of the meet; and it answers that one environment
+   whatever meet it is given. *)
+Definition join_of_nothing (join : join_scoped_envs) : Prop :=
+  ∀ (env : Meet_env.t) (scoped_envs : list Typing_env.t),
+    scoped_envs <> [] ->
+    (∀ scoped : Typing_env.t,
+      scoped ∈ scoped_envs ->
+      scoped = Typing_env.increment_scope (Meet_env.typing_env env)) ->
+    ∃ result : Meet_env.t,
+      Meet_env.typing_env result = Meet_env.typing_env env
+      ∧ ∀ mh : meet_expanded_head,
+          join mh (Typing_env.current_scope (Meet_env.typing_env env)) env
+            (Meet_env.typing_env env) scoped_envs
+          = Some result.
+
+Definition forgetful_join_of_nothing_statement : Prop :=
+  join_of_nothing FlambdaMeetExamplesSpec.forgetful_join.
+
+(* The join of the model, of one environment: that of one variable,
+   one scope further with nothing added. The meet that the join is
+   given is that of expanded types with the choices of the meet that
+   is to be proved, over the join that forgets. *)
+Definition example_join_env : Typing_env.t :=
+  Typing_env.add_variable_definition Typing_env.create 1%positive Value
+    Name_mode.normal.
+
+Definition example_model_join_answer (fuel : FlambdaJoinMeet.fuels)
+    : option Meet_env.t :=
+  FlambdaJoinMeet.model_join_scoped_envs
+    FlambdaJoinEnv.Join_env.compiler_choices 5 fuel
+    (Meet.meet_expanded_head FlambdaMeetExamplesSpec.forgetful_join
+       repaired_choices 3)
+    (Typing_env.current_scope example_join_env)
+    (Meet_env.create example_join_env) example_join_env
+    [Typing_env.increment_scope example_join_env].
+
+Definition example_join_fuel (fuel_of_env : nat) : FlambdaJoinMeet.fuels :=
+  {| FlambdaJoinMeet.fuel_of_env := fuel_of_env;
+     FlambdaJoinMeet.fuel_of_types := 8;
+     FlambdaJoinMeet.fuel_of_meet := 3 |}.
+
+(* With fuel, the environment that the join of the model answers has
+   the typing environment that the join was given, and is not the
+   environment that it was given; with no fuel for the environment the
+   join answers nothing, and so has not the property. *)
+Definition example_model_join_statement : Prop :=
+  option_map Meet_env.typing_env
+    (example_model_join_answer (example_join_fuel 8))
+  = Some example_join_env
+  ∧ example_model_join_answer (example_join_fuel 8)
+    <> Some (Meet_env.create example_join_env)
+  ∧ example_model_join_answer (example_join_fuel 0) = None
+  ∧ ¬ join_of_nothing
+        (FlambdaJoinMeet.model_join_scoped_envs
+           FlambdaJoinEnv.Join_env.compiler_choices 5 (example_join_fuel 0)).
+
+(* ======================================================================== *)
+(* The depth is enough                                                      *)
+(* ======================================================================== *)
+
+Definition nameless_fuel_enough_statement : Prop :=
+  ∀ (join : join_scoped_envs) (choices : meet_choices) (depth : nat)
+    (menv : Meet_env.t) (e1 e2 : Expanded_type.t),
+    join_of_nothing join ->
+    nameless_expanded_within depth e1 = true ->
+    nameless_expanded_within depth e2 = true ->
+    fuel_enough join choices depth menv e1 e2.
+
+(* The meet of two such types adds nothing to the typing environment:
+   where it answers an environment, that has the typing environment
+   that the meet was given. *)
+Definition nameless_meet_adds_nothing_statement : Prop :=
+  ∀ (join : join_scoped_envs) (choices : meet_choices) (depth : nat)
+    (menv menv' : Meet_env.t) (e1 e2 : Expanded_type.t)
+    (r : meet_return_value Expanded_type.t),
+    join_of_nothing join ->
+    nameless_expanded_within depth e1 = true ->
+    nameless_expanded_within depth e2 = true ->
+    Meet.meet_expanded_head join choices depth menv e1 e2
+    = Some (Meet_result.Ok r menv') ->
+    Meet_env.typing_env menv' = Meet_env.typing_env menv.
+
+(* The same for the meet of two types. *)
+Definition nameless_types_fuel_enough_statement : Prop :=
+  ∀ (join : join_scoped_envs) (choices : meet_choices) (depth : nat)
+    (tenv : Typing_env.t) (t1 t2 : flambda_type),
+    join_of_nothing join ->
+    nameless_within depth t1 = true ->
+    nameless_within depth t2 = true ->
+    meet_fuel_enough join choices depth tenv t1 t2.
+
+(* And the meet of two such types, as it is exposed, answers the
+   typing environment that it was given, where it answers one. *)
+Definition nameless_types_meet_adds_nothing_statement : Prop :=
+  ∀ (join : join_scoped_envs) (choices : meet_choices) (depth : nat)
+    (tenv tenv' : Typing_env.t) (t1 t2 ty : flambda_type),
+    join_of_nothing join ->
+    nameless_within depth t1 = true ->
+    nameless_within depth t2 = true ->
+    Meet.meet join choices depth tenv t1 t2 = Some (Or_bottom.Ok (ty, tenv')) ->
+    tenv' = tenv.
+
+(* ======================================================================== *)
+(* An example                                                               *)
+(* ======================================================================== *)
+
+(* A block of one field of which nothing is known, met with itself. It
+   has no name inside within depth 2, and not within depth 1. With the
+   meet that is to be proved and the join that forgets, the meet
+   answers with two units of fuel, and with one it does not: the meet
+   of the fields is then asked of a meet that has no fuel. *)
+Definition example_depth_block : flambda_type :=
+  immutable_block false 0%Z (Scannable Value_only) Alloc_mode.Heap
+    [unknown Value].
+
+Definition example_depth_fuel_statement : Prop :=
+  nameless_within 2 example_depth_block = true
+  ∧ nameless_within 1 example_depth_block = false
+  ∧ (∃ answer : flambda_type * Typing_env.t,
+      meet_to_prove FlambdaMeetExamplesSpec.forgetful_join 2 Typing_env.create
+        example_depth_block example_depth_block
+      = Some (Or_bottom.Ok answer))
+  ∧ meet_to_prove FlambdaMeetExamplesSpec.forgetful_join 1 Typing_env.create
+      example_depth_block example_depth_block
+    = None.

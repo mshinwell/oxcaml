@@ -185,6 +185,9 @@ All in `middle_end/flambda2/types/rocq/`, library `OxCamlFlambda2Types`.
     of the meet: more fuel changes no answer, and what it is for the
     fuel to be enough; T1's by agreement with T4, though the names
     match T4's pattern)
+  - `middle_end/flambda2/types/rocq/FlambdaMeetDepth*` (the fuel of
+    the meet of types with no name inside: their depth is enough;
+    T1's by the same agreement)
 - T2, typing environment. Owner: T2, on `flambda2-rocq/T2-env`.
   - `middle_end/flambda2/types/rocq/FlambdaBindingTime.v` (binding times
     and name modes, after `types/env/binding_time.ml` and

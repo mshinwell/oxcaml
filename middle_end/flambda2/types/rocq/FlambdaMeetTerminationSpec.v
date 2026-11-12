@@ -125,11 +125,12 @@
      example is run ([example_alias_const_fuel_statement]).
    These hold of every join and of every choice of the meet. They are
    the bottom of a bound by the depth of the types and no more than
-   that. They say nothing of a type of values with a block or a
-   closure in it, of two aliases of names, of an alias met with a type
-   that is not that of a constant, or of a naked immediate that is the
-   result of a relation: the types that Simplify meets at a [Switch]
-   on the tag of a variant are of those.
+   that (the bound by the depth, for the types with no name inside,
+   is in FlambdaMeetDepthSpec.v). They say nothing of a type of
+   values with a block or a closure in it, of two aliases of names, of
+   an alias met with a type that is not that of a constant, or of a
+   naked immediate that is the result of a relation: the types that
+   Simplify meets at a [Switch] on the tag of a variant are of those.
 
    What is not here: a bound for the other inputs. That is, a number
    computed from the environment and the two types at which the fuel
@@ -161,15 +162,12 @@
    that forgets defines none.
 
    What comes next, in the order of what it costs. For types with no
-   name inside and a join that does not ask the meet it is given, a
-   bound by the depth of the two types: it needs, of each function of
-   FlambdaMeet.v that is given a meet, that it asks that meet only of
-   parts of what it is given. That is the form of the lemmas by which
-   more fuel changes no answer, with a measure carried through; the
-   folds over the fields of a product and over the cases of a row-like
-   structure are where the work is. For types with names, the same
-   with the invariant on the environment that the paragraph above asks
-   for. For a join that defines variables, nothing is known. *)
+   name inside, the depth of the two types is fuel enough, with a join
+   that answers the typing environment of the meet where nothing was
+   added to the environments joined: that is stated and proved in
+   FlambdaMeetDepthSpec.v. For types with names, the same with the
+   invariant on the environment that the paragraph above asks for.
+   For a join that defines variables, nothing is known. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
