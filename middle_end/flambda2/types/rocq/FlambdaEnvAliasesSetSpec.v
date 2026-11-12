@@ -70,6 +70,14 @@
    - The functions on sets and [Aliases.add_alias_set] commute with
      renaming, with no premise (the renamings are in
      FlambdaEnvAliasesRenamingSpec.v); [filter] with the test renamed.
+   - The calls replayed (FlambdaEnvAliasesReplay.v, the model's side of
+     a test that compares the model with the compiler) commute with
+     renaming, with no premise: the answers of the renamed calls, for
+     the renamed typing environment, are the renamed answers. It is
+     stated here because it needs every function that a call may be,
+     [Aliases.add_alias_set] among them. Nothing is said of the
+     compiler's side: where the compiler chooses by its order on names,
+     renaming need not keep its choice.
 
    Differences from the OCaml, all deliberate.
    - The names of a set are a list where the OCaml has a map from names
@@ -108,7 +116,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec FlambdaNominalSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaTypeRenameSpec FlambdaBindingTime
-  FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaEnvAliasesRenamingSpec.
+  FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaEnvAliasesRenamingSpec
+  FlambdaEnvAliasesReplay.
 Import ListNotations.
 
 Local Open Scope Z_scope.
@@ -389,3 +398,105 @@ Definition rename_add_alias_set_statement : Prop :=
     = option_map (rename_aliases r)
         (Aliases.add_alias_set binding_time_resolver binding_times_and_modes
            t name aliases).
+
+(* ======================================================================== *)
+(* The calls replayed                                                       *)
+(* ======================================================================== *)
+
+(* A call of the replay (FlambdaEnvAliasesReplay.v), renamed: every name
+   among its arguments. Name modes and binding times have no names. *)
+Definition rename_call (r : renaming) (c : Aliases_replay.call)
+    : Aliases_replay.call :=
+  match c with
+  | Aliases_replay.Add canonical_element1 canonical_element2 =>
+    Aliases_replay.Add (rename_simple r canonical_element1)
+      (rename_simple r canonical_element2)
+  | Aliases_replay.Add_alias_set name aliases =>
+    Aliases_replay.Add_alias_set (rename_name r name)
+      (rename_alias_set r aliases)
+  | Aliases_replay.Get_canonical_ignoring_name_mode name =>
+    Aliases_replay.Get_canonical_ignoring_name_mode (rename_name r name)
+  | Aliases_replay.Get_canonical_element_exn element elt_name_mode
+      min_name_mode min_binding_time =>
+    Aliases_replay.Get_canonical_element_exn (rename_simple r element)
+      elt_name_mode min_name_mode min_binding_time
+  | Aliases_replay.Get_aliases element =>
+    Aliases_replay.Get_aliases (rename_simple r element)
+  | Aliases_replay.Invariant => Aliases_replay.Invariant
+  end.
+
+(* An answer, renamed: every name in it. What the compiler's checks
+   answer is a boolean and stays. *)
+Definition rename_answer (r : renaming) (a : Aliases_replay.answer)
+    : Aliases_replay.answer :=
+  match a with
+  | Aliases_replay.Added demoted_name canonical_element
+      invariant_add_result =>
+    Aliases_replay.Added (rename_name r demoted_name)
+      (rename_simple r canonical_element) invariant_add_result
+  | Aliases_replay.Added_bottom => Aliases_replay.Added_bottom
+  | Aliases_replay.Added_set => Aliases_replay.Added_set
+  | Aliases_replay.Fatal_error => Aliases_replay.Fatal_error
+  | Aliases_replay.Canonical_element element =>
+    Aliases_replay.Canonical_element (rename_simple r element)
+  | Aliases_replay.Not_found => Aliases_replay.Not_found
+  | Aliases_replay.Aliases_of aliases =>
+    Aliases_replay.Aliases_of (rename_alias_set r aliases)
+  | Aliases_replay.Invariant_holds holds =>
+    Aliases_replay.Invariant_holds holds
+  end.
+
+(* One call: the renamed call on the renamed structure, for the renamed
+   typing environment, gives the renamed structure and the renamed
+   answer. *)
+Definition rename_replay_one_statement : Prop :=
+  ∀ (A : Type) (r : renaming)
+    (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (c : Aliases_replay.call),
+    Aliases_replay.one (rename_resolver r binding_time_resolver)
+      (rename_binding_times r binding_times_and_modes) (rename_aliases r t)
+      (rename_call r c)
+    = (rename_aliases r
+         (fst
+            (Aliases_replay.one binding_time_resolver binding_times_and_modes
+               t c)),
+       rename_answer r
+         (snd
+            (Aliases_replay.one binding_time_resolver binding_times_and_modes
+               t c))).
+
+(* The calls in order from a structure. *)
+Definition rename_replay_from_statement : Prop :=
+  ∀ (A : Type) (r : renaming)
+    (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (calls : list Aliases_replay.call),
+    Aliases_replay.run_from (rename_resolver r binding_time_resolver)
+      (rename_binding_times r binding_times_and_modes) (rename_aliases r t)
+      (map (rename_call r) calls)
+    = (rename_aliases r
+         (fst
+            (Aliases_replay.run_from binding_time_resolver
+               binding_times_and_modes t calls)),
+       map (rename_answer r)
+         (snd
+            (Aliases_replay.run_from binding_time_resolver
+               binding_times_and_modes t calls))).
+
+(* The answers of the renamed calls, made from the structure that knows
+   nothing, are the renamed answers. *)
+Definition rename_replay_statement : Prop :=
+  ∀ (A : Type) (r : renaming)
+    (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (calls : list Aliases_replay.call),
+    Aliases_replay.run (rename_resolver r binding_time_resolver)
+      (rename_binding_times r binding_times_and_modes)
+      (map (rename_call r) calls)
+    = map (rename_answer r)
+        (Aliases_replay.run binding_time_resolver binding_times_and_modes
+           calls).

@@ -1326,6 +1326,81 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
+(* The calls replayed                                                       *)
+(* ======================================================================== *)
+
+Theorem rename_replay_one : rename_replay_one_statement.
+Proof.
+  intros A r binding_time_resolver binding_times_and_modes t c.
+  destruct c
+    as [canonical_element1 canonical_element2 | name aliases | name
+       | element elt_name_mode min_name_mode min_binding_time | element | ];
+    simpl.
+  - rewrite
+      (rename_add A r binding_time_resolver binding_times_and_modes t
+         canonical_element1 canonical_element2).
+    destruct
+      (Aliases.add binding_time_resolver binding_times_and_modes t
+         canonical_element1 canonical_element2)
+      as [[result | ] | ];
+      simpl; try reflexivity.
+    rewrite
+      (rename_invariant_add_result A r binding_time_resolver
+         binding_times_and_modes result).
+    reflexivity.
+  - rewrite
+      (rename_add_alias_set A r binding_time_resolver binding_times_and_modes
+         t name aliases).
+    destruct
+      (Aliases.add_alias_set binding_time_resolver binding_times_and_modes t
+         name aliases);
+      reflexivity.
+  - rewrite (rename_canonical r t name). reflexivity.
+  - rewrite
+      (rename_canonical_at_mode A r binding_time_resolver
+         binding_times_and_modes t element elt_name_mode min_name_mode
+         min_binding_time).
+    destruct
+      (Aliases.get_canonical_element_exn binding_time_resolver
+         binding_times_and_modes t element elt_name_mode min_name_mode
+         min_binding_time);
+      reflexivity.
+  - rewrite (rename_get_aliases r t element). reflexivity.
+  - rewrite
+      (rename_invariant A r binding_time_resolver binding_times_and_modes t).
+    reflexivity.
+Qed.
+
+Theorem rename_replay_from : rename_replay_from_statement.
+Proof.
+  intros A r binding_time_resolver binding_times_and_modes t calls.
+  revert t.
+  induction calls as [ | c calls IH]; intros t; simpl; [ reflexivity | ].
+  rewrite
+    (rename_replay_one A r binding_time_resolver binding_times_and_modes t c).
+  destruct
+    (Aliases_replay.one binding_time_resolver binding_times_and_modes t c)
+    as [t' a].
+  simpl. rewrite IH.
+  destruct
+    (Aliases_replay.run_from binding_time_resolver binding_times_and_modes t'
+       calls)
+    as [t'' answers].
+  reflexivity.
+Qed.
+
+Theorem rename_replay : rename_replay_statement.
+Proof.
+  intros A r binding_time_resolver binding_times_and_modes calls.
+  unfold Aliases_replay.run.
+  change Aliases.empty with (rename_aliases r Aliases.empty) at 1.
+  rewrite
+    (rename_replay_from A r binding_time_resolver binding_times_and_modes
+       Aliases.empty calls).
+  reflexivity.
+Qed.
+
+(* ======================================================================== *)
 (* Examples                                                                 *)
 (* ======================================================================== *)
 
