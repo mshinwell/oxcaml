@@ -111,8 +111,8 @@ What is undefined, by the standing rules:
 - an index that is not a tagged immediate, or is out of the bounds of
   the array: the load has no value. This is the CR that is at
   `array_index` already; the rewrite of section 4 is an equivalence
-  because of it, and stays a refinement if it is ever decided
-  otherwise;
+  because of it. If it is ever decided otherwise, one half is left
+  and not the other (section 4, "The direction");
 - an element that the load kind does not take (a symbol in the table
   read at `Immediates`): no value, where the load is executed;
 - an element that is not of kind value is never loaded, as no load
@@ -185,10 +185,41 @@ and they are not equally cheap.
   then gives `k` the same arguments; the test of the kind of `x` that
   the first `Let` makes is the condition on the constants. So it may
   be used on the term after, which has equivalences only. It makes no
-  name. It needs what the unit binds the symbol to, in the body of
-  code too, which the rewrites that follow known symbols have. The
-  binding of the table is then one of the unused static bindings that
-  the validation removes.
+  name. The binding of the table is then one of the unused static
+  bindings that the validation removes. Two conditions go with it,
+  both from the review of this request:
+  - *Where the table is bound.* The load has a value only where the
+    static environment binds the symbol to the table; the `Switch`
+    asks nothing of the static environment. Under an environment in
+    which the symbol is not bound to the table, the rewrite would
+    make a term that is defined of one that is not. So "what the unit
+    binds the symbol to", as the rewrites that follow known symbols
+    take it, is not enough: those are refinements of a unit run on
+    its own, and a normalisation of the term after is an equivalence
+    of terms under every environment. The rewrite is to fire only
+    where the term itself shows that the table is bound whenever the
+    load is executed: in the body of the `Let_static` that binds the
+    symbol, and in the code that this `Let_static`, or one inside its
+    body, binds; the facts are kept by scope, as the rewrite of the
+    loads from static blocks in scope keeps them. A symbol that the
+    unit imports, or one bound below the code that loads from it, is
+    left alone. The other way would be a guard, proved apart, that
+    the table is bound wherever the load is executed; I recommend the
+    facts by scope. What the proof needs of the machine is that a
+    static name, once bound, stays bound to the same thing in the
+    states reached from the binding; whether that holds of every term
+    or only of a well-formed one is to be settled when it is stated.
+  - *The direction.* If a load out of the bounds were given a value,
+    the term with the load would be defined where the term with the
+    `Switch` is not. The term with the load would still refine the
+    term with the `Switch`, which is the half that the validation
+    uses of a rewrite of the term after; the other half, that the
+    term with the `Switch` refines the term with the load, would
+    fail, and with it the equivalence. The normalisation of the term
+    after is stated as an equivalence today, so the rewrite would
+    then be withdrawn from it or that statement weakened; the second
+    rewrite below, on the term before, would be the one that stays a
+    refinement.
 - **From the `Switch` to the load, on the term before.** This is
   what Simplify does, beside the two ways that
   `FlambdaMergeSwitchesSpec.merge_switches` has. It has to bind a
