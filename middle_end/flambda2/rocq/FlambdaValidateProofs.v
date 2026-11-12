@@ -62,7 +62,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaKnownSymbolsProofs FlambdaKnownClosuresSpec FlambdaKnownClosuresProofs
   FlambdaFloatCodeSpec FlambdaFloatCodeProofs FlambdaHoistCodeSpec
   FlambdaHoistCodeProofs FlambdaLoopifySpec FlambdaLoopifyProofs
-  FlambdaHoistStaticsSpec FlambdaValidateSpec.
+  FlambdaHoistStaticsSpec FlambdaGuardScopeSpec FlambdaGuardScopeProofs
+  FlambdaValidateSpec.
 From OxCamlFlambda2 Require FlambdaHoistStaticsProofs.
 From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
 From OxCamlFlambda2 Require FlambdaDemoteProofs.
@@ -70,6 +71,8 @@ From OxCamlFlambda2 Require Import FlambdaKnownSlotsSpec
   FlambdaKnownSlotsProofs.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec
   FlambdaAliasesProofs.
+From OxCamlFlambda2Types Require FlambdaSimplifyPassSpec
+  FlambdaSimplifyPassProofs.
 Import ListNotations.
 
 Lemma expr_equivalent_refl (e : expr) : expr_equivalent e e.
@@ -250,6 +253,12 @@ Lemma normalise_before_refines (rounds : nat) (kept : list code_id) :
 Proof.
   intros e. unfold normalise_before.
   eapply expr_refines_trans; [ | apply demote_and_tidy_refines ].
+  eapply expr_refines_trans;
+    [ | exact (iterate_refines _ (normalise_before_round_refines kept)
+                 rounds _) ].
+  eapply expr_refines_trans;
+    [ | apply guard_scope_refines,
+          FlambdaSimplifyPassProofs.simplify_by_types_refines ].
   exact (expr_refines_trans _ _ _
     (iterate_refines _ normalise_params_round_refines rounds e)
     (iterate_refines _ (normalise_before_round_refines kept) rounds _)).

@@ -225,8 +225,16 @@
    FlambdaUnusedProjectionsSpec.remove_unused_projections, which
    carries what it knows of the variables that are sets of closures;
    the action of a renaming on that is in its file
-   ([rename_known_sets]). The code whose calls the check is told not
-   to inline is named by code ids, which no renaming changes.
+   ([rename_known_sets]). The rewrites from the types, which the
+   normalisation of the term before applies once, between the rounds
+   of its second phase and those rounds once more, commute with
+   renaming by the statement of the types library
+   (FlambdaSimplifyPassRenamingSpec.simplify_by_types_equivariant_statement);
+   they are applied under a test that what they give keeps scope
+   (FlambdaGuardScopeSpec.guard_scope), which keeps scope whatever
+   the rewrite is and commutes with renaming where the rewrite does
+   (FlambdaValidateScopeSpec.v). The code whose calls the check is
+   told not to inline is named by code ids, which no renaming changes.
 
    Rewrites that make names. A rewrite that makes names with
    FlambdaNameAbstractionSpec.fresh_name, outside the names of the term
@@ -1124,13 +1132,19 @@ Definition rename_apart_commutes_up_to_statement : Prop :=
 
 (* A round of the second phase of the term before keeps scope, and so
    does the normalisation of the term before, which is the rounds of
-   the first phase, then those of the second, then the demotion of
-   the exception handlers that no call can raise to and the rounds
+   the first phase, then those of the second, then the rewrites from
+   the types where what they give keeps scope
+   (FlambdaGuardScopeSpec.guard_scope of
+   FlambdaSimplifyPassSpec.simplify_by_types, of the types library),
+   then the rounds of the second phase once more, then the demotion
+   of the exception handlers that no call can raise to and the rounds
    that follow it (FlambdaValidateSpec.demote_and_tidy), which
    commutes with renaming and keeps scope: the rewrites that a
    round is made of keep scope (FlambdaKeepsScopeSpec.v,
-   FlambdaValidateScopeSpec.v), and so does a round of the first phase
-   (FlambdaValidateScopeSpec.normalise_params_round_keeps_scope_statement).
+   FlambdaValidateScopeSpec.v), so does a round of the first phase
+   (FlambdaValidateScopeSpec.normalise_params_round_keeps_scope_statement),
+   and so does a rewrite under that test, whatever the rewrite is
+   (FlambdaValidateScopeSpec.guard_scope_keeps_scope_statement).
    The code whose calls are not inlined is named by code ids, which no
    renaming changes. *)
 Definition normalise_before_round_keeps_scope_statement : Prop :=
@@ -1142,7 +1156,10 @@ Definition normalise_before_keeps_scope_statement : Prop :=
 
 (* A round of the second phase of the term before, and the
    normalisation of the term before, commute with renaming up to the
-   names that they make; the first phase commutes with renaming. These
+   names that they make; the first phase commutes with renaming, and
+   so do the rewrites from the types under their test of scope, which
+   make no name
+   (FlambdaValidateScopeSpec.guard_scope_equivariant_statement). These
    stand where this file stated that the normalisation of the term
    before commutes with renaming, which it did while no round made a
    name. *)

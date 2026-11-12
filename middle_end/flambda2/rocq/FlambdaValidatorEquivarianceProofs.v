@@ -78,6 +78,9 @@ From OxCamlFlambda2 Require FlambdaDemoteProofs.
 From OxCamlFlambda2 Require Import FlambdaKnownSlotsSpec.
 From OxCamlFlambda2 Require FlambdaKnownSlotsProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
+From OxCamlFlambda2 Require FlambdaGuardScopeSpec.
+From OxCamlFlambda2Types Require FlambdaSimplifyPassSpec
+  FlambdaSimplifyPassRenamingProofs.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -6211,12 +6214,80 @@ Proof.
           (normalise_before_round_equivariant_up_to kept))).
 Qed.
 
+(* The rewrites from the types, where what they give keeps scope, as
+   one rewrite: it commutes with renaming, since the function does and
+   the test reads the same of a renamed term. *)
+Definition by_types (e : expr) : expr :=
+  FlambdaGuardScopeSpec.guard_scope FlambdaSimplifyPassSpec.simplify_by_types
+    e.
+
+Lemma by_types_scope : keeps_scope by_types.
+Proof.
+  exact
+    (FlambdaValidateScopeProofs.guard_scope_keeps_scope
+       FlambdaSimplifyPassSpec.simplify_by_types).
+Qed.
+
+Lemma by_types_up_to : equivariant_up_to by_types.
+Proof.
+  exact
+    (rewrite_equivariant_up_to by_types
+       (FlambdaValidateScopeProofs.guard_scope_equivariant
+          FlambdaSimplifyPassSpec.simplify_by_types
+          FlambdaSimplifyPassRenamingProofs.simplify_by_types_equivariant)).
+Qed.
+
+(* The two phases, those rewrites, and the rounds of the second phase
+   once more. *)
+Definition phases_and_types (rounds : nat) (kept : list code_id) (e : expr)
+    : expr :=
+  iterate rounds (normalise_before_round kept)
+    (by_types (two_phases rounds kept e)).
+
+Lemma two_phases_typed_scope (rounds : nat) (kept : list code_id) :
+  keeps_scope (fun e => by_types (two_phases rounds kept e)).
+Proof.
+  exact
+    (keeps_scope_compose (two_phases rounds kept) by_types
+       (two_phases_scope rounds kept) by_types_scope).
+Qed.
+
+Lemma phases_and_types_scope (rounds : nat) (kept : list code_id) :
+  keeps_scope (phases_and_types rounds kept).
+Proof.
+  exact
+    (keeps_scope_compose (fun e => by_types (two_phases rounds kept e))
+       (iterate rounds (normalise_before_round kept))
+       (two_phases_typed_scope rounds kept)
+       (keeps_scope_iterate rounds (normalise_before_round kept)
+          (normalise_before_round_keeps_scope kept))).
+Qed.
+
+Lemma phases_and_types_up_to (rounds : nat) (kept : list code_id) :
+  equivariant_up_to (phases_and_types rounds kept).
+Proof.
+  exact
+    (equivariant_up_to_compose
+       (fun e => by_types (two_phases rounds kept e))
+       (iterate rounds (normalise_before_round kept))
+       (two_phases_typed_scope rounds kept)
+       (keeps_scope_iterate rounds (normalise_before_round kept)
+          (normalise_before_round_keeps_scope kept))
+       (equivariant_up_to_compose (two_phases rounds kept) by_types
+          (two_phases_scope rounds kept) by_types_scope
+          (two_phases_up_to rounds kept) by_types_up_to)
+       (equivariant_up_to_iterate rounds (normalise_before_round kept)
+          (normalise_before_round_keeps_scope kept)
+          (normalise_before_round_equivariant_up_to kept))).
+Qed.
+
 Theorem normalise_before_keeps_scope : normalise_before_keeps_scope_statement.
 Proof.
   intros rounds kept e.
   exact
-    (keeps_scope_compose (two_phases rounds kept) (demote_and_tidy rounds)
-       (two_phases_scope rounds kept) (demote_and_tidy_scope rounds) e).
+    (keeps_scope_compose (phases_and_types rounds kept)
+       (demote_and_tidy rounds) (phases_and_types_scope rounds kept)
+       (demote_and_tidy_scope rounds) e).
 Qed.
 
 Theorem normalise_before_equivariant_up_to :
@@ -6224,9 +6295,9 @@ Theorem normalise_before_equivariant_up_to :
 Proof.
   intros rounds kept r e.
   exact
-    (equivariant_up_to_compose (two_phases rounds kept)
-       (demote_and_tidy rounds) (two_phases_scope rounds kept)
-       (demote_and_tidy_scope rounds) (two_phases_up_to rounds kept)
+    (equivariant_up_to_compose (phases_and_types rounds kept)
+       (demote_and_tidy rounds) (phases_and_types_scope rounds kept)
+       (demote_and_tidy_scope rounds) (phases_and_types_up_to rounds kept)
        (demote_and_tidy_up_to rounds) r e).
 Qed.
 

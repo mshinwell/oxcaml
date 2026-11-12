@@ -186,10 +186,12 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaUnusedStaticsSpec FlambdaWellFormedSpec FlambdaLiftSpec
   FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec
   FlambdaFloatCodeSpec FlambdaHoistCodeSpec FlambdaLoopifySpec
-  FlambdaLiftFromCodeSpec FlambdaLiftFromArmsSpec FlambdaHoistStaticsSpec.
+  FlambdaLiftFromCodeSpec FlambdaLiftFromArmsSpec FlambdaHoistStaticsSpec
+  FlambdaGuardScopeSpec.
 From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
 From OxCamlFlambda2 Require Import FlambdaKnownSlotsSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
+From OxCamlFlambda2Types Require FlambdaSimplifyPassSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -375,12 +377,30 @@ Definition demote_and_tidy (rounds : nat) (e : expr) : expr :=
    that raises. Simplify, for which an application with a trap action
    is not one to inline, takes the arm to the handler and leaves the
    handler where it is bound; the rounds do the same while the handler
-   has its mark and the raise its trap action. *)
+   has its mark and the raise its trap action.
+
+   Between the rounds of the second phase and the same rounds once
+   more come the rewrites that Simplify makes from the types
+   (../types/rocq/FlambdaSimplifyPassSpec.simplify_by_types, which
+   goes down the whole term with a typing environment: into the
+   handlers of continuations, where a handler that is applied once is
+   rewritten under the environment of that application, and into the
+   bodies of code), under the test of
+   FlambdaGuardScopeSpec.guard_scope: of a term whose code is closed,
+   what they give is taken only if it keeps scope, and the term is
+   left as it was otherwise; of a term whose code is not closed the
+   test is not made and what they give is taken. They come once and
+   not in every round: after the rounds the term has the shape that
+   they read (the calls inlined, a continuation applied once where it
+   is applied), and the rounds that follow tidy what they leave, such
+   as a handler that has become one application. *)
 Definition normalise_before (rounds : nat) (kept : list code_id) (e : expr)
     : expr :=
   demote_and_tidy rounds
     (iterate rounds (normalise_before_round kept)
-       (iterate rounds normalise_params_round e)).
+       (guard_scope FlambdaSimplifyPassSpec.simplify_by_types
+          (iterate rounds (normalise_before_round kept)
+             (iterate rounds normalise_params_round e)))).
 
 (* For the term after, what [normalise_expr_before] does first for the
    term before, with rewrites that are equivalences. A continuation
