@@ -40,11 +40,11 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaBindersProofs FlambdaNominalSpec FlambdaAlphaProofs
   FlambdaEquivarianceProofs FlambdaFreeNamesProofs FlambdaGuardScopeSpec
   FlambdaNormaliseSpec FlambdaNormaliseProofs FlambdaBlockLoadSpec
-  FlambdaCseSpec
-  FlambdaIdentitiesSpec FlambdaRenameApartSpec FlambdaUnboxSpec
-  FlambdaUnusedContsSpec
-  FlambdaLoopAliasesSpec FlambdaRecHandlersSpec FlambdaShortcutSpec
-  FlambdaSinkContsSpec FlambdaUnusedParamsSpec FlambdaValidateSpec
+  FlambdaCseSpec FlambdaIdentitiesSpec FlambdaRenameApartSpec
+  FlambdaUnboxSpec FlambdaUnusedContsSpec FlambdaForwardSpec
+  FlambdaLoopAliasesSpec FlambdaLoopLetsSpec FlambdaParamAliasesSpec
+  FlambdaRecHandlersSpec FlambdaShortcutSpec FlambdaSinkContsSpec
+  FlambdaUnusedParamsSpec FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec FlambdaScopedProofs
   FlambdaKeepsScopeProofs FlambdaLoopsScopeSpec FlambdaLoopsScopeProofs
   FlambdaValidateScopeSpec.
@@ -72,6 +72,8 @@ Create HintDb scoped.
   share_known_primitives_scoped follow_aliases_scoped sink_let_conts_scoped
   shortcut_switches_scoped follow_aliases_in_loops_scoped
   drop_unused_params_scoped rewrite_rec_handlers_scoped
+  bind_aliased_params_scoped forward_applications_scoped
+  remove_unused_defined_lets_in_loops_scoped
   : scoped.
 
 (* A chain of rewrites, taken apart from the outside. *)
@@ -100,6 +102,36 @@ Proof. unfold normalise_code_before. scoped_chain. Qed.
 Theorem normalise_code_before_keeps_scope :
   normalise_code_before_keeps_scope_statement.
 Proof. apply keeps_scope_intro, normalise_code_before_scoped. Qed.
+
+Lemma normalise_expr_params_scoped (e : expr) :
+  scoped e (normalise_expr_params e).
+Proof. unfold normalise_expr_params. cbv zeta. scoped_chain. Qed.
+
+#[export] Hint Resolve normalise_expr_params_scoped : scoped.
+
+Theorem normalise_expr_params_keeps_scope :
+  normalise_expr_params_keeps_scope_statement.
+Proof. apply keeps_scope_intro, normalise_expr_params_scoped. Qed.
+
+Lemma normalise_code_params_scoped (e : expr) :
+  scoped e (normalise_code_params e).
+Proof. unfold normalise_code_params. scoped_chain. Qed.
+
+#[export] Hint Resolve normalise_code_params_scoped : scoped.
+
+Theorem normalise_code_params_keeps_scope :
+  normalise_code_params_keeps_scope_statement.
+Proof. apply keeps_scope_intro, normalise_code_params_scoped. Qed.
+
+Lemma normalise_params_round_scoped (e : expr) :
+  scoped e (normalise_params_round e).
+Proof. unfold normalise_params_round. scoped_chain. Qed.
+
+#[export] Hint Resolve normalise_params_round_scoped : scoped.
+
+Theorem normalise_params_round_keeps_scope :
+  normalise_params_round_keeps_scope_statement.
+Proof. apply keeps_scope_intro, normalise_params_round_scoped. Qed.
 
 (* ======================================================================== *)
 (* A rewrite made to keep scope by a test                                   *)

@@ -33,10 +33,15 @@
    (FlambdaValidatorEquivarianceSpec.keeps_scope), why it matters, and
    that the rewrites of a round do. This file says the same of the
    rewrites that were written for loops, one statement to a rewrite:
-   the three that a round applies as they are
+   those that a round applies as they are
    (FlambdaSinkContsSpec.sink_let_conts,
    FlambdaShortcutSpec.shortcut_switches,
-   FlambdaUnusedParamsSpec.drop_unused_params); the following of
+   FlambdaUnusedParamsSpec.drop_unused_params,
+   FlambdaParamAliasesSpec.bind_aliased_params,
+   FlambdaForwardSpec.forward_applications); the removal of the unused
+   [Let]s that have a value, in loops too
+   (FlambdaLoopLetsSpec.remove_unused_defined_lets_in_loops), whatever
+   is taken to be in scope; the following of
    aliases into the handlers of recursive continuations
    (FlambdaLoopAliasesSpec.follow_aliases_in_loops), with nothing known
    to begin with, as a round applies it; a rewrite that keeps scope,
@@ -47,7 +52,14 @@
 
    Closed code is all that is asked of a term, as [keeps_scope] asks
    it. Loopify binds a name that its caller gives: the code it makes is
-   closed whatever that name is, since the loop binds it.
+   closed whatever that name is, since the loop binds it. Two of the
+   rewrites put a variable where it was not: [bind_aliased_params]
+   binds a parameter, at the start of its handler, to what every
+   application gives it, and [forward_applications] gives an
+   application the arguments of the handler it goes to. Each keeps
+   scope because the variable was free already: in the body of the
+   [Let_cont], as an argument of an application there, or in the
+   handler.
 
    Nothing is trusted here. The proofs are in
    FlambdaLoopsScopeProofs.v, which needs no review. *)
@@ -56,7 +68,8 @@ From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec FlambdaBindersSpec FlambdaNormaliseSpec
-  FlambdaLoopAliasesSpec FlambdaLoopifySpec FlambdaRecHandlersSpec
+  FlambdaForwardSpec FlambdaLoopAliasesSpec FlambdaLoopLetsSpec
+  FlambdaLoopifySpec FlambdaParamAliasesSpec FlambdaRecHandlersSpec
   FlambdaShortcutSpec FlambdaSinkContsSpec FlambdaUnusedParamsSpec
   FlambdaValidatorEquivarianceSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
@@ -71,6 +84,18 @@ Definition shortcut_switches_keeps_scope_statement : Prop :=
 
 Definition drop_unused_params_keeps_scope_statement : Prop :=
   keeps_scope drop_unused_params.
+
+Definition bind_aliased_params_keeps_scope_statement : Prop :=
+  keeps_scope bind_aliased_params.
+
+Definition forward_applications_keeps_scope_statement : Prop :=
+  keeps_scope forward_applications.
+
+(* Whatever the variables that are taken to be in scope, and the kinds
+   they are taken to have. *)
+Definition remove_unused_defined_lets_in_loops_keeps_scope_statement : Prop :=
+  ∀ kinds : kinds_in_scope,
+    keeps_scope (remove_unused_defined_lets_in_loops kinds).
 
 (* As a round applies it: with nothing known to begin with. *)
 Definition follow_aliases_in_loops_keeps_scope_statement : Prop :=

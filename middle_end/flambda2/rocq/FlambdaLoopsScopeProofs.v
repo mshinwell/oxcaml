@@ -35,7 +35,8 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaSemanticsSpec FlambdaBindersSpec
   FlambdaNormaliseSpec FlambdaNormaliseProofs FlambdaUnusedContsSpec
-  FlambdaUnusedContsProofs FlambdaLoopAliasesSpec FlambdaLoopifySpec
+  FlambdaUnusedContsProofs FlambdaForwardSpec FlambdaLoopAliasesSpec
+  FlambdaLoopLetsSpec FlambdaLoopifySpec FlambdaParamAliasesSpec
   FlambdaRecHandlersSpec FlambdaShortcutSpec FlambdaSinkContsSpec
   FlambdaUnusedParamsSpec FlambdaValidatorEquivarianceSpec
   FlambdaScopedProofs FlambdaKeepsScopeProofs FlambdaLoopsScopeSpec.
@@ -687,6 +688,801 @@ Proof.
   apply keeps_scope_intro. intros e. unfold drop_unused_params.
   apply drop_params_scoped.
 Qed.
+
+(* The unused [Let]s that are sure to have a value removed, in the
+   handlers of recursive continuations too. *)
+
+Fixpoint remove_unused_defined_lets_in_loops_scoped (e : expr) :
+  ∀ kinds : kinds_in_scope,
+    scoped e (remove_unused_defined_lets_in_loops kinds e)
+with remove_unused_defined_lets_in_handler_scoped
+    (h : continuation_handler) :
+  ∀ kinds : kinds_in_scope,
+    scoped_handler h (remove_unused_defined_lets_in_handler kinds h).
+Proof.
+  - destruct e
+      as [x kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      intros kinds;
+      cbn [remove_unused_defined_lets_in_loops
+           remove_unused_defined_lets_in_handler].
+    + cbv zeta. destruct (named_defined kinds kind d); cbn [andb];
+        [ | apply scoped_let;
+            [ apply incl_refl
+            | apply remove_unused_defined_lets_in_loops_scoped ] ].
+      destruct
+        (var_free_b x
+           (remove_unused_defined_lets_in_loops ((x, kind) :: kinds) body))
+        eqn:Hfree; cbn [negb];
+        [ apply scoped_let;
+          [ apply incl_refl
+          | apply remove_unused_defined_lets_in_loops_scoped ]
+        | ].
+      apply scoped_let_unused;
+        [ apply remove_unused_defined_lets_in_loops_scoped | exact Hfree ].
+    + apply scoped_let_static;
+        [ apply scoped_bindings_refl
+        | apply remove_unused_defined_lets_in_loops_scoped ].
+    + apply scoped_let_cont;
+        [ apply remove_unused_defined_lets_in_handler_scoped
+        | apply remove_unused_defined_lets_in_loops_scoped ].
+    + apply scoped_let_cont_recursive;
+        [ | | apply remove_unused_defined_lets_in_loops_scoped ].
+      * rewrite map_map. apply map_ext. intros [k h]. reflexivity.
+      * induction handlers as [ | [k h] handlers IH]; cbn [map];
+          [ apply scoped_handlers_nil | ].
+        apply scoped_handlers_cons;
+          [ apply remove_unused_defined_lets_in_handler_scoped | exact IH ].
+    + apply scoped_refl.
+    + apply scoped_refl.
+    + apply scoped_refl.
+    + apply scoped_refl.
+  - destruct h as [params metadata handler]. intros kinds.
+    cbn [remove_unused_defined_lets_in_loops
+         remove_unused_defined_lets_in_handler].
+    apply scoped_handler_intro, remove_unused_defined_lets_in_loops_scoped.
+Qed.
+
+Theorem remove_unused_defined_lets_in_loops_keeps_scope :
+  remove_unused_defined_lets_in_loops_keeps_scope_statement.
+Proof.
+  intros kinds. apply keeps_scope_intro. intros e.
+  apply remove_unused_defined_lets_in_loops_scoped.
+Qed.
+
+(* A parameter that every application gives the same thing, bound to it
+   at the start of the handler. *)
+
+Definition alias_variables (alias : option simple) : list variable :=
+  match alias with
+  | Some s => free_variables_of_simple s
+  | None => []
+  end.
+
+(* The [Let]s that are put around a handler bring the variables of what
+   they bind, and nothing else. *)
+Lemma bind_aliases_scope (params : list variable) :
+  ∀ (kinds : list flambda_kind) (aliases : list (option simple))
+    (handler : expr),
+    code_closed (bind_aliases params kinds aliases handler)
+    = code_closed handler
+    ∧ incl (free_variables_of_expr (bind_aliases params kinds aliases handler))
+        (free_variables_of_expr handler ++ flat_map alias_variables aliases)
+    ∧ free_continuations_of_expr (bind_aliases params kinds aliases handler)
+      = free_continuations_of_expr handler.
+Proof.
+  induction params as [ | param params IH];
+    intros [ | kind kinds] [ | alias aliases] handler; cbn [bind_aliases];
+    try
+      (split; [ reflexivity | split; [ apply incl_appl, incl_refl | ] ];
+       reflexivity).
+  destruct (IH kinds aliases handler) as (Hc & Hv & Hk).
+  cbv zeta. destruct alias as [s | ]; cbn [flat_map alias_variables]; scope.
+  - split; [ exact Hc | split; [ | exact Hk ] ].
+    cbn [free_variables_of_named].
+    intros y Hy. apply in_app_or in Hy. apply in_or_app.
+    destruct Hy as [Hy | Hy]; [ right; apply in_or_app; left; exact Hy | ].
+    apply in_without in Hy. destruct Hy as [Hy _].
+    apply Hv, in_app_or in Hy.
+    destruct Hy as [Hy | Hy];
+      [ left; exact Hy | right; apply in_or_app; right; exact Hy ].
+  - split; [ exact Hc | split; [ exact Hv | exact Hk ] ].
+Qed.
+
+Lemma aliases_from_In (params : list variable) :
+  ∀ (i : nat) (alias_at : nat -> variable -> option simple) (s : simple),
+    In (Some s) (aliases_from i params alias_at) ->
+    ∃ (j : nat) (param : variable), alias_at j param = Some s.
+Proof.
+  induction params as [ | param params IH]; intros i alias_at s;
+    cbn [aliases_from]; [ intros [] | ].
+  intros [Hfirst | Hrest];
+    [ exists i, param; exact Hfirst | exact (IH (S i) alias_at s Hrest) ].
+Qed.
+
+(* What a parameter is bound to is an argument of an application in the
+   body of the [Let_cont], and no binder of the [Let_cont] binds it. *)
+Lemma aliases_of_from (k : continuation) (params : list variable)
+    (metadata : handler_metadata) (loop : option expr) (body whole : expr)
+    (s : simple) :
+  In (Some s) (aliases_of k params metadata loop body whole) ->
+  ∃ args : list simple,
+    some_args k body = Some args ∧ In s args ∧ stable s whole = true.
+Proof.
+  unfold aliases_of.
+  match goal with
+  | |- In _ (if ?test then _ else _) -> _ => destruct test; [ intros [] | ]
+  end.
+  destruct (some_args k body) as [args | ]; [ | intros [] ].
+  intros Hin. apply aliases_from_In in Hin.
+  destruct Hin as (j & param & Halias). exists args.
+  split; [ reflexivity | ].
+  cbv beta in Halias. revert Halias.
+  destruct (nth_error args j) as [s' | ] eqn:Hnth;
+    [ | intros Halias; discriminate Halias ].
+  match goal with
+  | |- (if ?test then _ else _) = _ -> _ =>
+    destruct test eqn:Htest; [ | intros Halias; discriminate Halias ]
+  end.
+  intros Halias. injection Halias as ->.
+  apply andb_true_iff in Htest. destruct Htest as [Htest _].
+  apply andb_true_iff in Htest. destruct Htest as [Hstable _].
+  split; [ exact (nth_error_In _ _ Hnth) | exact Hstable ].
+Qed.
+
+Lemma args_if_applies_args (k : continuation) (ac : apply_cont)
+    (args : list simple) :
+  args_if_applies k ac = Some args -> args = ac_args ac.
+Proof.
+  unfold args_if_applies.
+  destruct (Pos.eqb (ac_continuation ac) k); intros Hargs;
+    [ injection Hargs as <-; reflexivity | discriminate Hargs ].
+Qed.
+
+Lemma first_some_from {A : Type} (a b : option A) (x : A) :
+  first_some a b = Some x -> a = Some x ∨ b = Some x.
+Proof.
+  destruct a; cbn [first_some]; intros Hsome; [ left | right ]; exact Hsome.
+Qed.
+
+(* A variable of an argument of an application in an expression is free
+   in the expression, if the expression does not bind it. *)
+Fixpoint some_args_free (e : expr) :
+  ∀ (k : continuation) (args : list simple) (s : simple) (x : variable),
+    some_args k e = Some args ->
+    In s args ->
+    In x (free_variables_of_simple s) ->
+    binds_var x e = false ->
+    In x (free_variables_of_expr e)
+with some_args_in_handler_free (h : continuation_handler) :
+  ∀ (k : continuation) (args : list simple) (s : simple) (x : variable),
+    some_args_in_handler k h = Some args ->
+    In s args ->
+    In x (free_variables_of_simple s) ->
+    binds_var_in_handler x h = false ->
+    In x (free_variables_of_handler h).
+Proof.
+  - destruct e
+      as [y kind d body | bindings body | k' h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      intros k args s x;
+      cbn [some_args some_args_in_handler binds_var binds_var_in_handler];
+      scope; intros Hargs Hs Hx Hbinds; try discriminate Hargs.
+    + apply orb_false_iff in Hbinds. destruct Hbinds as [Hne Hbinds].
+      apply in_or_app. right. apply in_without. split.
+      * exact (some_args_free body k args s x Hargs Hs Hx Hbinds).
+      * intros [<- | []]. rewrite Pos.eqb_refl in Hne. discriminate Hne.
+    + apply in_or_app. right.
+      exact (some_args_free body k args s x Hargs Hs Hx Hbinds).
+    + apply orb_false_iff in Hbinds. destruct Hbinds as [Hh Hbody].
+      apply in_or_app. apply first_some_from in Hargs.
+      destruct Hargs as [Hargs | Hargs];
+        [ right; exact (some_args_free body k args s x Hargs Hs Hx Hbody)
+        | left;
+          exact (some_args_in_handler_free h k args s x Hargs Hs Hx Hh) ].
+    + apply orb_false_iff in Hbinds. destruct Hbinds as [Hgroup Hbody].
+      apply in_or_app. apply first_some_from in Hargs.
+      destruct Hargs as [Hargs | Hargs];
+        [ right; exact (some_args_free body k args s x Hargs Hs Hx Hbody)
+        | left ].
+      revert Hargs Hgroup.
+      induction handlers as [ | [k' h] handlers IH];
+        cbn [fold_right existsb flat_map]; intros Hargs Hgroup;
+        [ discriminate Hargs | ].
+      apply orb_false_iff in Hgroup. destruct Hgroup as [Hh Hrest].
+      apply in_or_app. apply first_some_from in Hargs.
+      destruct Hargs as [Hargs | Hargs];
+        [ left;
+          exact (some_args_in_handler_free h k args s x Hargs Hs Hx Hh)
+        | right; exact (IH Hargs Hrest) ].
+    + apply args_if_applies_args in Hargs. subst args.
+      unfold free_variables_of_apply_cont, free_variables_of_simples.
+      apply in_flat_map. exists s. split; assumption.
+    + apply in_or_app. right. revert Hargs.
+      induction arms as [ | arm arms IH]; cbn [fold_right flat_map];
+        intros Hargs; [ discriminate Hargs | ].
+      apply in_or_app. apply first_some_from in Hargs.
+      destruct Hargs as [Hargs | Hargs]; [ left | right; exact (IH Hargs) ].
+      apply args_if_applies_args in Hargs. subst args.
+      unfold free_variables_of_apply_cont, free_variables_of_simples.
+      apply in_flat_map. exists s. split; assumption.
+  - destruct h as [params metadata handler]. intros k args s x.
+    cbn [some_args some_args_in_handler binds_var binds_var_in_handler].
+    scope. intros Hargs Hs Hx Hbinds.
+    apply orb_false_iff in Hbinds. destruct Hbinds as [Hparams Hbinds].
+    apply in_without.
+    split; [ exact (some_args_free handler k args s x Hargs Hs Hx Hbinds) | ].
+    intros Hin. apply among_In in Hin. congruence.
+Qed.
+
+Lemma aliases_of_free (k : continuation) (params : list variable)
+    (metadata : handler_metadata) (loop : option expr) (body whole : expr)
+    (s : simple) :
+  (∀ x : variable, binds_var x whole = false -> binds_var x body = false) ->
+  In (Some s) (aliases_of k params metadata loop body whole) ->
+  incl (free_variables_of_simple s) (free_variables_of_expr body).
+Proof.
+  intros Hwhole Hin.
+  destruct (aliases_of_from _ _ _ _ _ _ _ Hin)
+    as (args & Hargs & Hs & Hstable).
+  intros x Hx. apply (some_args_free body k args s x Hargs Hs Hx), Hwhole.
+  destruct s as [y | sym | c]; cbn [free_variables_of_simple] in Hx;
+    [ | destruct Hx | destruct Hx ].
+  destruct Hx as [<- | []]. cbn [stable] in Hstable.
+  apply negb_true_iff in Hstable. exact Hstable.
+Qed.
+
+(* A handler whose parameters are bound again to variables among the
+   names given. *)
+Lemma scoped_handler_under_bound (names : list variable)
+    (params : list variable) (metadata : handler_metadata)
+    (kinds : list flambda_kind) (aliases : list (option simple))
+    (handler handler' : expr) :
+  (∀ s : simple,
+    In (Some s) aliases -> incl (free_variables_of_simple s) names) ->
+  scoped handler handler' ->
+  scoped_handler_under names (Handler params metadata handler)
+    (Handler params metadata (bind_aliases params kinds aliases handler')).
+Proof.
+  intros Haliases Hhandler Hclosed. scope_in Hclosed. scope.
+  destruct (Hhandler Hclosed) as (Hclosed' & Hv & Hk).
+  destruct (bind_aliases_scope params kinds aliases handler')
+    as (Hc & Hv' & Hk').
+  rewrite Hc, Hk'. split; [ exact Hclosed' | split; [ | exact Hk ] ].
+  intros y Hy. apply in_without in Hy. destruct Hy as [Hy Hparams].
+  apply Hv', in_app_or in Hy. apply in_or_app.
+  destruct Hy as [Hy | Hy].
+  - left. apply in_without. split; [ apply Hv, Hy | exact Hparams ].
+  - right. apply in_flat_map in Hy. destruct Hy as (alias & Halias & Hy).
+    destruct alias as [s | ]; [ | destruct Hy ].
+    exact (Haliases s Halias y Hy).
+Qed.
+
+(* A [Let_cont] whose handlers gain free variables of its body only. *)
+Lemma scoped_let_cont_handler_under (k : continuation)
+    (h h' : continuation_handler) (body body' : expr) :
+  scoped_handler_under (free_variables_of_expr body) h h' ->
+  scoped body body' ->
+  scoped (Let_cont_non_recursive k h body)
+    (Let_cont_non_recursive k h' body').
+Proof.
+  intros Hh Hbody Hclosed. scope_in Hclosed. scope.
+  apply andb_true_iff in Hclosed. destruct Hclosed as [Hfirst Hrest].
+  destruct (Hh Hfirst) as (Hfirst' & Hv & Hk).
+  destruct (Hbody Hrest) as (Hrest' & Hv' & Hk').
+  rewrite Hfirst', Hrest'. split; [ reflexivity | split ].
+  - intros y Hy. apply in_app_or in Hy.
+    destruct Hy as [Hy | Hy]; [ exact (Hv y Hy) | ].
+    apply in_or_app. right. exact (Hv' y Hy).
+  - apply incl_app_app; [ exact Hk | apply incl_without, Hk' ].
+Qed.
+
+Lemma scoped_let_cont_recursive_handlers_under
+    (handlers handlers' : list (continuation * continuation_handler))
+    (body body' : expr) :
+  map fst handlers' = map fst handlers ->
+  scoped_handlers_under (free_variables_of_expr body) handlers handlers' ->
+  scoped body body' ->
+  scoped (Let_cont_recursive handlers body)
+    (Let_cont_recursive handlers' body').
+Proof.
+  intros Hnames Hhandlers Hbody Hclosed. scope_in Hclosed. scope.
+  apply andb_true_iff in Hclosed. destruct Hclosed as [Hfirst Hrest].
+  destruct (Hhandlers Hfirst) as (Hfirst' & Hv & Hk).
+  destruct (Hbody Hrest) as (Hrest' & Hv' & Hk').
+  rewrite Hfirst', Hrest'. split; [ reflexivity | split ].
+  - intros y Hy. apply in_app_or in Hy.
+    destruct Hy as [Hy | Hy]; [ exact (Hv y Hy) | ].
+    apply in_or_app. right. exact (Hv' y Hy).
+  - rewrite Hnames. apply incl_without, incl_app_app; assumption.
+Qed.
+
+Fixpoint bind_aliased_params_scoped (e : expr) :
+  scoped e (bind_aliased_params e)
+with bind_aliased_params_in_loop_scoped (h : continuation_handler) :
+  ∀ (lone : bool) (k : continuation) (body whole : expr),
+    (∀ x : variable, binds_var x whole = false -> binds_var x body = false) ->
+    scoped_handler_under (free_variables_of_expr body) h
+      (bind_aliased_params_in_loop lone k body whole h).
+Proof.
+  - destruct e
+      as [x kind d body | bindings body | k [params metadata handler] body
+         | handlers body | ap | ac | scrutinee arms | ];
+      cbn [bind_aliased_params bind_aliased_params_in_loop].
+    + apply scoped_let; [ apply incl_refl | apply bind_aliased_params_scoped ].
+    + apply scoped_let_static;
+        [ apply scoped_bindings_refl | apply bind_aliased_params_scoped ].
+    + apply scoped_let_cont_handler_under;
+        [ | apply bind_aliased_params_scoped ].
+      apply scoped_handler_under_bound;
+        [ | apply bind_aliased_params_scoped ].
+      intros s. apply aliases_of_free. intros x Hbinds.
+      cbn [binds_var binds_var_in_handler] in Hbinds.
+      apply orb_false_iff in Hbinds. exact (proj2 Hbinds).
+    + apply scoped_let_cont_recursive_handlers_under;
+        [ | | apply bind_aliased_params_scoped ].
+      * rewrite map_map. apply map_ext. intros [k h]. reflexivity.
+      * assert (Hwhole :
+          ∀ x : variable,
+            binds_var x (Let_cont_recursive handlers body) = false ->
+            binds_var x body = false).
+        { intros x Hbinds. cbn [binds_var] in Hbinds.
+          apply orb_false_iff in Hbinds. exact (proj2 Hbinds). }
+        set (lone := alone handlers).
+        set (whole := Let_cont_recursive handlers body) in *.
+        clearbody lone whole.
+        induction handlers as [ | [k h] handlers IH]; cbn [map];
+          [ apply scoped_handlers_under_nil | ].
+        apply scoped_handlers_under_cons;
+          [ apply bind_aliased_params_in_loop_scoped, Hwhole | exact IH ].
+    + apply scoped_refl.
+    + apply scoped_refl.
+    + apply scoped_refl.
+    + apply scoped_refl.
+  - destruct h as [params metadata handler]. intros lone k body whole Hwhole.
+    cbn [bind_aliased_params bind_aliased_params_in_loop]. cbv zeta.
+    apply scoped_handler_under_bound; [ | apply bind_aliased_params_scoped ].
+    intros s Hs.
+    destruct lone;
+      [ exact (aliases_of_free _ _ _ _ _ _ _ Hwhole Hs) | destruct Hs ].
+Qed.
+
+Theorem bind_aliased_params_keeps_scope :
+  bind_aliased_params_keeps_scope_statement.
+Proof. apply keeps_scope_intro, bind_aliased_params_scoped. Qed.
+
+(* An application of a continuation whose handler only applies another,
+   made an application of that other. *)
+
+(* A term that keeps the scope of another, but for the variables and
+   the continuations given. *)
+Definition scoped_among (vs : list variable) (ks : list continuation)
+    (e e' : expr) : Prop :=
+  code_closed e = true ->
+  code_closed e' = true
+  ∧ incl (free_variables_of_expr e') (free_variables_of_expr e ++ vs)
+  ∧ incl (free_continuations_of_expr e')
+      (free_continuations_of_expr e ++ ks).
+
+Definition scoped_handlers_among (vs : list variable)
+    (ks : list continuation)
+    (handlers handlers' : list (continuation * continuation_handler))
+    : Prop :=
+  forallb (fun '(_, h) => handler_code_closed h) handlers = true ->
+  forallb (fun '(_, h) => handler_code_closed h) handlers' = true
+  ∧ incl (flat_map (fun '(_, h) => free_variables_of_handler h) handlers')
+      (flat_map (fun '(_, h) => free_variables_of_handler h) handlers ++ vs)
+  ∧ incl
+      (flat_map (fun '(_, h) => free_continuations_of_handler h) handlers')
+      (flat_map (fun '(_, h) => free_continuations_of_handler h) handlers
+       ++ ks).
+
+Lemma scoped_among_none (e e' : expr) :
+  scoped_among [] [] e e' -> scoped e e'.
+Proof.
+  intros Hamong Hclosed. destruct (Hamong Hclosed) as (Hclosed' & Hv & Hk).
+  rewrite app_nil_r in Hv, Hk. split; [ exact Hclosed' | split; assumption ].
+Qed.
+
+Lemma scoped_among_refl (vs : list variable) (ks : list continuation)
+    (e : expr) :
+  scoped_among vs ks e e.
+Proof.
+  intros Hclosed. split; [ exact Hclosed | split; apply incl_appl, incl_refl ].
+Qed.
+
+Lemma scoped_among_let (vs : list variable) (ks : list continuation)
+    (x : variable) (kind : flambda_kind) (d : named) (body body' : expr) :
+  scoped_among vs ks body body' ->
+  scoped_among vs ks (Let x kind d body) (Let x kind d body').
+Proof.
+  intros Hbody Hclosed. scope_in Hclosed. scope.
+  destruct (Hbody Hclosed) as (Hclosed' & Hv & Hk).
+  split; [ exact Hclosed' | split; [ | exact Hk ] ].
+  intros y Hy. apply in_app_or in Hy. apply in_or_app.
+  destruct Hy as [Hy | Hy]; [ left; apply in_or_app; left; exact Hy | ].
+  apply in_without in Hy. destruct Hy as [Hy Hx].
+  apply Hv, in_app_or in Hy.
+  destruct Hy as [Hy | Hy]; [ left | right; exact Hy ].
+  apply in_or_app. right. apply in_without. split; assumption.
+Qed.
+
+Lemma scoped_among_let_static (vs : list variable) (ks : list continuation)
+    (bindings : list static_binding) (body body' : expr) :
+  scoped_among vs ks body body' ->
+  scoped_among vs ks (Let_static bindings body) (Let_static bindings body').
+Proof.
+  intros Hbody Hclosed. scope_in Hclosed. scope.
+  apply andb_true_iff in Hclosed. destruct Hclosed as [Hgroup Hclosed].
+  destruct (Hbody Hclosed) as (Hclosed' & Hv & Hk).
+  rewrite Hgroup, Hclosed', <- !app_assoc.
+  split; [ reflexivity | ].
+  split; (apply incl_app_app; [ apply incl_refl | assumption ]).
+Qed.
+
+(* A [Let_cont] in whose body the variables and continuations of the
+   handler may come to be named. *)
+Lemma scoped_among_let_cont (vs vs' : list variable)
+    (ks ks' : list continuation) (k : continuation) (params : list variable)
+    (metadata : handler_metadata) (handler handler' body body' : expr) :
+  incl vs' (without params (free_variables_of_expr handler')) ->
+  incl ks' (free_continuations_of_expr handler') ->
+  scoped_among vs ks handler handler' ->
+  scoped_among (vs' ++ vs) (ks' ++ ks) body body' ->
+  scoped_among vs ks
+    (Let_cont_non_recursive k (Handler params metadata handler) body)
+    (Let_cont_non_recursive k (Handler params metadata handler') body').
+Proof.
+  intros Hvs' Hks' Hhandler Hbody Hclosed. scope_in Hclosed. scope.
+  apply andb_true_iff in Hclosed. destruct Hclosed as [Hfirst Hrest].
+  destruct (Hhandler Hfirst) as (Hfirst' & Hv & Hk).
+  destruct (Hbody Hrest) as (Hrest' & Hv' & Hk').
+  rewrite Hfirst', Hrest'. split; [ reflexivity | split ].
+  - assert (Hh :
+      incl (without params (free_variables_of_expr handler'))
+        ((without params (free_variables_of_expr handler)
+          ++ free_variables_of_expr body)
+         ++ vs)).
+    { intros y Hy. apply in_without in Hy. destruct Hy as [Hy Hparams].
+      apply Hv, in_app_or in Hy. apply in_or_app.
+      destruct Hy as [Hy | Hy]; [ left | right; exact Hy ].
+      apply in_or_app. left. apply in_without. split; assumption. }
+    intros y Hy. apply in_app_or in Hy.
+    destruct Hy as [Hy | Hy]; [ exact (Hh y Hy) | ].
+    apply Hv', in_app_or in Hy.
+    destruct Hy as [Hy | Hy];
+      [ apply in_or_app; left; apply in_or_app; right; exact Hy | ].
+    apply in_app_or in Hy.
+    destruct Hy as [Hy | Hy];
+      [ exact (Hh y (Hvs' y Hy)) | apply in_or_app; right; exact Hy ].
+  - assert (Hh :
+      incl (free_continuations_of_expr handler')
+        ((free_continuations_of_expr handler
+          ++ without [k] (free_continuations_of_expr body))
+         ++ ks)).
+    { intros j Hj. apply Hk, in_app_or in Hj. apply in_or_app.
+      destruct Hj as [Hj | Hj];
+        [ left; apply in_or_app; left; exact Hj | right; exact Hj ]. }
+    intros j Hj. apply in_app_or in Hj.
+    destruct Hj as [Hj | Hj]; [ exact (Hh j Hj) | ].
+    apply in_without in Hj. destruct Hj as [Hj Hout].
+    apply Hk', in_app_or in Hj. destruct Hj as [Hj | Hj].
+    + apply in_or_app. left. apply in_or_app. right. apply in_without.
+      split; assumption.
+    + apply in_app_or in Hj.
+      destruct Hj as [Hj | Hj];
+        [ exact (Hh j (Hks' j Hj)) | apply in_or_app; right; exact Hj ].
+Qed.
+
+Lemma scoped_handlers_among_nil (vs : list variable)
+    (ks : list continuation) :
+  scoped_handlers_among vs ks [] [].
+Proof.
+  intros Hclosed. split; [ exact Hclosed | split; apply incl_appl, incl_refl ].
+Qed.
+
+Lemma scoped_handlers_among_cons (vs : list variable)
+    (ks : list continuation) (k : continuation) (params : list variable)
+    (metadata : handler_metadata) (handler handler' : expr)
+    (handlers handlers' : list (continuation * continuation_handler)) :
+  scoped_among vs ks handler handler' ->
+  scoped_handlers_among vs ks handlers handlers' ->
+  scoped_handlers_among vs ks
+    ((k, Handler params metadata handler) :: handlers)
+    ((k, Handler params metadata handler') :: handlers').
+Proof.
+  intros Hhandler Hhandlers Hclosed. cbn [forallb flat_map] in Hclosed |- *.
+  scope_in Hclosed. scope.
+  apply andb_true_iff in Hclosed. destruct Hclosed as [Hfirst Hrest].
+  destruct (Hhandler Hfirst) as (Hfirst' & Hv & Hk).
+  destruct (Hhandlers Hrest) as (Hrest' & Hv' & Hk').
+  rewrite Hfirst', Hrest'. split; [ reflexivity | split ].
+  - apply incl_app_under; [ | exact Hv' ].
+    intros y Hy. apply in_without in Hy. destruct Hy as [Hy Hparams].
+    apply Hv, in_app_or in Hy. apply in_or_app.
+    destruct Hy as [Hy | Hy];
+      [ left; apply in_without; split; assumption | right; exact Hy ].
+  - apply incl_app_under; assumption.
+Qed.
+
+Lemma scoped_among_let_cont_recursive (vs : list variable)
+    (ks : list continuation)
+    (handlers handlers' : list (continuation * continuation_handler))
+    (body body' : expr) :
+  map fst handlers' = map fst handlers ->
+  scoped_handlers_among vs ks handlers handlers' ->
+  scoped_among vs ks body body' ->
+  scoped_among vs ks (Let_cont_recursive handlers body)
+    (Let_cont_recursive handlers' body').
+Proof.
+  intros Hnames Hhandlers Hbody Hclosed. scope_in Hclosed. scope.
+  apply andb_true_iff in Hclosed. destruct Hclosed as [Hfirst Hrest].
+  destruct (Hhandlers Hfirst) as (Hfirst' & Hv & Hk).
+  destruct (Hbody Hrest) as (Hrest' & Hv' & Hk').
+  rewrite Hfirst', Hrest'. split; [ reflexivity | split ].
+  - apply incl_app_under; assumption.
+  - rewrite Hnames. intros j Hj. apply in_without in Hj.
+    destruct Hj as [Hj Hout].
+    apply (incl_app_under _ _ _ _ _ Hk Hk'), in_app_or in Hj.
+    apply in_or_app.
+    destruct Hj as [Hj | Hj];
+      [ left; apply in_without; split; assumption | right; exact Hj ].
+Qed.
+
+(* The variables that an application may come to name where it is made
+   to go where a handler goes: those of the handler's application that
+   are not its parameters. And the continuations. *)
+Definition forward_variables
+    (entry : continuation * option (list variable * apply_cont))
+    : list variable :=
+  match snd entry with
+  | Some (params, target) =>
+    without params (free_variables_of_apply_cont target)
+  | None => []
+  end.
+
+Definition forward_continuations
+    (entry : continuation * option (list variable * apply_cont))
+    : list continuation :=
+  match snd entry with
+  | Some (_, target) => apply_cont_continuations target
+  | None => []
+  end.
+
+Lemma forward_of_In (F : forwards) (k : continuation)
+    (params : list variable) (target : apply_cont) :
+  forward_of F k = Some (params, target) ->
+  In (k, Some (params, target)) F.
+Proof.
+  unfold forward_of.
+  destruct (lookup k F) as [entry | ] eqn:Hlookup; [ | discriminate ].
+  intros ->. exact (lookup_in _ _ _ Hlookup).
+Qed.
+
+Lemma in_fst_combine (params : list variable) :
+  ∀ (args : list simple) (x : variable),
+    length args = length params ->
+    In x params ->
+    In x (map fst (combine params args)).
+Proof.
+  induction params as [ | param params IH]; intros [ | arg args] x Hlength;
+    try discriminate Hlength; cbn [combine map fst]; [ intros [] | ].
+  injection Hlength as Hlength.
+  intros [<- | Hx]; [ left; reflexivity | right; exact (IH args x Hlength Hx) ].
+Qed.
+
+Lemma subst_simple_free (params : list variable) (args : list simple)
+    (s : simple) :
+  length args = length params ->
+  incl (free_variables_of_simple (subst_simple params args s))
+    (free_variables_of_simples args
+     ++ without params (free_variables_of_simple s)).
+Proof.
+  intros Hlength. destruct s as [x | sym | c]; cbn [subst_simple];
+    try (intros y []).
+  destruct (lookup x (combine params args)) as [arg | ] eqn:Hlookup.
+  - intros y Hy. apply in_or_app. left.
+    unfold free_variables_of_simples. apply in_flat_map. exists arg.
+    split; [ | exact Hy ]. apply lookup_in in Hlookup.
+    exact (in_combine_r _ _ _ _ Hlookup).
+  - intros y Hy. apply in_or_app. right. apply in_without.
+    split; [ exact Hy | ].
+    cbn [free_variables_of_simple] in Hy. destruct Hy as [<- | []].
+    intros Hin. apply (lookup_none_not_in x (combine params args) Hlookup).
+    exact (in_fst_combine params args x Hlength Hin).
+Qed.
+
+Lemma forwarded_free (params : list variable) (args : list simple)
+    (target : apply_cont) :
+  length args = length params ->
+  incl (free_variables_of_apply_cont (forwarded params args target))
+    (free_variables_of_simples args
+     ++ without params (free_variables_of_apply_cont target)).
+Proof.
+  intros Hlength. unfold forwarded, free_variables_of_apply_cont.
+  cbn [ac_args]. intros y Hy.
+  unfold free_variables_of_simples in Hy. apply in_flat_map in Hy.
+  destruct Hy as (s' & Hs' & Hy). apply in_map_iff in Hs'.
+  destruct Hs' as (s & <- & Hs).
+  apply (subst_simple_free params args s Hlength), in_app_or in Hy.
+  apply in_or_app. destruct Hy as [Hy | Hy]; [ left; exact Hy | right ].
+  apply in_without in Hy. destruct Hy as [Hy Hparams].
+  apply in_without. split; [ | exact Hparams ].
+  unfold free_variables_of_simples. apply in_flat_map. exists s.
+  split; assumption.
+Qed.
+
+Lemma forward_apply_cont_scope (F : forwards) (ac : apply_cont) :
+  incl (free_variables_of_apply_cont (forward_apply_cont F ac))
+    (free_variables_of_apply_cont ac ++ flat_map forward_variables F)
+  ∧ incl (apply_cont_continuations (forward_apply_cont F ac))
+      (apply_cont_continuations ac ++ flat_map forward_continuations F).
+Proof.
+  unfold forward_apply_cont.
+  destruct (forward_of F (ac_continuation ac)) as [[params target] | ]
+    eqn:Hforward;
+    [ | split; apply incl_appl, incl_refl ].
+  match goal with
+  | |- context [if ?test then _ else _] => destruct test eqn:Htest
+  end;
+    [ | split; apply incl_appl, incl_refl ].
+  apply andb_true_iff in Htest. destruct Htest as [Htest _].
+  apply andb_true_iff in Htest. destruct Htest as [Hlength _].
+  apply Nat.eqb_eq in Hlength. apply forward_of_In in Hforward. split.
+  - intros y Hy.
+    apply (forwarded_free params (ac_args ac) target Hlength), in_app_or
+      in Hy.
+    apply in_or_app. destruct Hy as [Hy | Hy]; [ left; exact Hy | right ].
+    apply in_flat_map. exists (ac_continuation ac, Some (params, target)).
+    split; [ exact Hforward | exact Hy ].
+  - intros j Hj. apply in_or_app. right. apply in_flat_map.
+    exists (ac_continuation ac, Some (params, target)).
+    split; [ exact Hforward | exact Hj ].
+Qed.
+
+Lemma forward_arm_scope (F : forwards) (ac : apply_cont) :
+  incl (free_variables_of_apply_cont (forward_arm F ac))
+    (free_variables_of_apply_cont ac ++ flat_map forward_variables F)
+  ∧ incl (apply_cont_continuations (forward_arm F ac))
+      (apply_cont_continuations ac ++ flat_map forward_continuations F).
+Proof.
+  unfold forward_arm.
+  destruct (forward_of F (ac_continuation ac))
+    as [[[ | param params] target] | ] eqn:Hforward;
+    try apply forward_apply_cont_scope;
+    destruct (ac_args ac) as [ | arg args];
+    try apply forward_apply_cont_scope.
+  destruct (no_trap_action ac); [ | split; apply incl_appl, incl_refl ].
+  apply forward_of_In in Hforward. split.
+  - intros y Hy. apply (forwarded_free [] [] target eq_refl) in Hy.
+    apply in_or_app. right. apply in_flat_map.
+    exists (ac_continuation ac, Some ([], target)).
+    split; [ exact Hforward | exact Hy ].
+  - intros j Hj. apply in_or_app. right. apply in_flat_map.
+    exists (ac_continuation ac, Some ([], target)).
+    split; [ exact Hforward | exact Hj ].
+Qed.
+
+(* A continuation whose applications are forwarded has a handler that
+   is one application. *)
+Lemma forwarding_some (k : continuation) (params params' : list variable)
+    (metadata : handler_metadata) (handler body : expr)
+    (target : apply_cont) :
+  forwarding k params metadata handler body = Some (params', target) ->
+  params' = params ∧ handler = Apply_cont target.
+Proof.
+  unfold forwarding. destruct handler; try discriminate.
+  match goal with
+  | |- (if ?test then _ else _) = _ -> _ => destruct test; [ discriminate | ]
+  end.
+  intros Hsome. injection Hsome as <- <-. split; reflexivity.
+Qed.
+
+Lemma forwards_none_variables
+    (handlers : list (continuation * continuation_handler)) (F : forwards) :
+  flat_map forward_variables (map (fun '(k, _) => (k, None)) handlers ++ F)
+  = flat_map forward_variables F.
+Proof.
+  rewrite flat_map_app.
+  induction handlers as [ | [k h] handlers IH];
+    cbn [map flat_map forward_variables snd app];
+    [ reflexivity | exact IH ].
+Qed.
+
+Lemma forwards_none_continuations
+    (handlers : list (continuation * continuation_handler)) (F : forwards) :
+  flat_map forward_continuations
+    (map (fun '(k, _) => (k, None)) handlers ++ F)
+  = flat_map forward_continuations F.
+Proof.
+  rewrite flat_map_app.
+  induction handlers as [ | [k h] handlers IH];
+    cbn [map flat_map forward_continuations snd app];
+    [ reflexivity | exact IH ].
+Qed.
+
+Fixpoint forward_applications_scoped_among (e : expr) :
+  ∀ F : forwards,
+    scoped_among (flat_map forward_variables F)
+      (flat_map forward_continuations F) e (forward_applications_under F e).
+Proof.
+  destruct e
+    as [x kind d body | bindings body | k [params metadata handler] body
+       | handlers body | ap | ac | scrutinee arms | ];
+    intros F;
+    cbn [forward_applications_under forward_applications_in_handler];
+    cbv zeta.
+  - apply scoped_among_let, forward_applications_scoped_among.
+  - apply scoped_among_let_static, forward_applications_scoped_among.
+  - pose proof (forward_applications_scoped_among handler F) as Hhandler.
+    pose proof
+      (forward_applications_scoped_among body
+         ((k,
+           forwarding k params metadata (forward_applications_under F handler)
+             body)
+          :: F))
+      as Hbody.
+    cbn [flat_map] in Hbody.
+    refine
+      (scoped_among_let_cont _ _ _ _ k params metadata _ _ _ _ _ _ Hhandler
+         Hbody).
+    + unfold forward_variables. cbn [snd].
+      destruct
+        (forwarding k params metadata (forward_applications_under F handler)
+           body)
+        as [[params' target] | ] eqn:Hforwarding;
+        [ | intros y [] ].
+      apply forwarding_some in Hforwarding.
+      destruct Hforwarding as [-> Hhandler']. rewrite Hhandler'. scope.
+      apply incl_refl.
+    + unfold forward_continuations. cbn [snd].
+      destruct
+        (forwarding k params metadata (forward_applications_under F handler)
+           body)
+        as [[params' target] | ] eqn:Hforwarding;
+        [ | intros j [] ].
+      apply forwarding_some in Hforwarding.
+      destruct Hforwarding as [_ Hhandler']. rewrite Hhandler'. scope.
+      apply incl_refl.
+  - apply scoped_among_let_cont_recursive.
+    + rewrite map_map. apply map_ext. intros [k h]. reflexivity.
+    + rewrite <- (forwards_none_variables handlers F),
+        <- (forwards_none_continuations handlers F).
+      set (F' := _ ++ F). clearbody F'.
+      induction handlers as [ | [k [params metadata handler]] handlers IH];
+        cbn [map]; [ apply scoped_handlers_among_nil | ].
+      cbn [forward_applications_under forward_applications_in_handler].
+      apply scoped_handlers_among_cons;
+        [ apply forward_applications_scoped_among | exact IH ].
+    + rewrite <- (forwards_none_variables handlers F),
+        <- (forwards_none_continuations handlers F).
+      apply forward_applications_scoped_among.
+  - apply scoped_among_refl.
+  - intros _. scope. destruct (forward_apply_cont_scope F ac) as [Hv Hk].
+    split; [ reflexivity | split; assumption ].
+  - intros _. scope. split; [ reflexivity | split ].
+    + rewrite <- app_assoc. apply incl_app_app; [ apply incl_refl | ].
+      apply
+        (incl_flat_map_under
+           (fun arm => free_variables_of_apply_cont (snd arm))
+           (fun arm => free_variables_of_apply_cont (snd arm))).
+      intros arm. cbn [snd]. exact (proj1 (forward_arm_scope F (snd arm))).
+    + apply
+        (incl_flat_map_under (fun arm => apply_cont_continuations (snd arm))
+           (fun arm => apply_cont_continuations (snd arm))).
+      intros arm. cbn [snd]. exact (proj2 (forward_arm_scope F (snd arm))).
+  - apply scoped_among_refl.
+Qed.
+
+Lemma forward_applications_scoped (e : expr) :
+  scoped e (forward_applications e).
+Proof.
+  apply scoped_among_none. exact (forward_applications_scoped_among e []).
+Qed.
+
+Theorem forward_applications_keeps_scope :
+  forward_applications_keeps_scope_statement.
+Proof. apply keeps_scope_intro, forward_applications_scoped. Qed.
 
 (* Loopify. *)
 

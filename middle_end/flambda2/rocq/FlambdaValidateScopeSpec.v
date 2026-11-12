@@ -36,7 +36,11 @@
    them for the term before: a round for an expression
    ([normalise_expr_before]) and a round for the body of code
    ([normalise_code_before]), which is the first taken into the
-   handlers of the recursive continuations.
+   handlers of the recursive continuations; and the same of the phase
+   that comes first, where the parameters of continuations are dealt
+   with and no call is inlined ([normalise_expr_params],
+   [normalise_code_params]), with a round of that phase for the term as
+   a whole ([normalise_params_round]).
 
    The last section is about FlambdaGuardScopeSpec.guard_scope, which
    of a term whose code is closed gives what a rewrite gives only where
@@ -48,7 +52,8 @@
    are defined after the validation, which is to run [guard_scope].
 
    What is not here yet: the inlining of the calls of known code, and
-   a round of the term as a whole. Their statements are to come with
+   a round of the term as a whole in the phase that inlines. Their
+   statements are to come with
    the change that makes the validation give every binder a name of its
    own, which changes both.
 
@@ -70,6 +75,16 @@ Definition normalise_expr_before_keeps_scope_statement : Prop :=
 
 Definition normalise_code_before_keeps_scope_statement : Prop :=
   keeps_scope normalise_code_before.
+
+(* The phase that comes first, in which no call is inlined. *)
+Definition normalise_expr_params_keeps_scope_statement : Prop :=
+  keeps_scope normalise_expr_params.
+
+Definition normalise_code_params_keeps_scope_statement : Prop :=
+  keeps_scope normalise_code_params.
+
+Definition normalise_params_round_keeps_scope_statement : Prop :=
+  keeps_scope normalise_params_round.
 
 (* ======================================================================== *)
 (* A rewrite made to keep scope by a test                                   *)
