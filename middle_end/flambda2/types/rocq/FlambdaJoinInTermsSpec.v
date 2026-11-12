@@ -34,18 +34,22 @@
 
    What it is for. The contract of the join that Simplify calls
    ([sound_join_of_environments], FlambdaJoinSpec.v) is for every
-   valuation that satisfies a use and the source, and the transcribed
-   join has not that contract (FlambdaJoinEnvSpec.v, [Witness];
-   FlambdaJoinRepairSpec.v, [In_terms]). What is merged of its sixth
-   part ([join_admits_use]) is for the runs that have four conditions
+   valuation that satisfies a use and the source. Two instances of
+   the transcribed join, each with stand-ins for the join of types
+   and for the environment of the meet, have not that contract
+   (FlambdaJoinEnvSpec.v, [Witness], with the compiler's test for
+   recovering relations; FlambdaJoinRepairSpec.v, [In_terms], with
+   the repaired one). What is merged of its sixth part
+   ([join_admits_use]) is for the runs that have four conditions
    (FlambdaJoinMeetFitsSpec.v,
-   [model_join_with_admits_use_outright_statement]), which are stated
-   on the state of the join and so cannot be discharged by a caller.
-   A caller that rewrites the handler of a continuation under the join
-   of the environments of its applications (that statement is not in
-   this tree) has inputs of one shape and runs of one sort. This file
-   states the join for them, with premises that are about the inputs,
-   the answer and the run only.
+   [model_join_with_admits_use_outright_statement]). Those are
+   stated on the state of the join, and not on what a caller has:
+   its inputs, the answer and the run. A caller that rewrites the
+   handler of a continuation under the join of the environments of
+   its applications (that statement is not in this tree) has inputs
+   of one shape and runs of one sort. This file states the join for
+   them, with premises that are about the inputs, the answer and the
+   run only.
 
    The join. It is the transcribed join with a meet of expanded types
    that is given ([model_join_with], FlambdaJoinMeetSpec.v), which is
@@ -186,10 +190,11 @@
      [meet_env_add_env_extension_sound_statement]). For the same
      reason the test on the answer is needed: a variable kept whose
      definition has no [Simple] at the use has no value in that run,
-     and an equation is added on it. A statement that the meet's
-     environment may be given an equation on a variable that it has
-     just defined and that has no value would remove both; it is not
-     here.
+     and an equation is added on it. A possible way to remove both
+     is a statement that the meet's environment may be given an
+     equation on a variable that it has just defined and that has no
+     value. It is not formulated here, and that it would be enough
+     is not shown.
    - The range of the valuation that satisfies the target. It is the
      one that the meet's environment answers, and it is not said to
      be in range.
@@ -313,13 +318,13 @@ Definition known_in_terms_have_values_statement : Prop :=
 (* The sixth part                                                           *)
 (* ======================================================================== *)
 
-(* The join with the repaired test, on inputs of the shape, at a use
-   that is not bottom and at which the variables kept are defined,
-   for a run that has the conditions: a valuation that satisfies the
-   use and the source extends to one that satisfies the target, with
-   the rest of what [join_admits_use] concludes; and that one gives a
-   value to every variable that the source knows and to every
-   variable that the analysis has a definition for. *)
+(* The join, with any test for recovering relations, on inputs of the
+   shape, at a use that is not bottom and at which the variables kept
+   are defined, for a run that has the conditions: a valuation that
+   satisfies the use and the source extends to one that satisfies the
+   target, with the rest of what [join_admits_use] concludes; and
+   that one gives a value to every variable that the source knows
+   and to every variable that the analysis has a definition for. *)
 Definition model_join_with_admits_use_valued_statement : Prop :=
   ∀ (A : Type) (join_choices : Join_env.choices) (join_depth : nat)
     (fuel : fuels) (mh : meet_expanded_head) (avoid : list variable)
