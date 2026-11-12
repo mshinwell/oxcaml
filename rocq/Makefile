@@ -315,6 +315,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaJoinEquationNamesSpec.v \
   FlambdaJoinFitsProofs.v \
   FlambdaJoinFitsSpec.v \
+  FlambdaJoinInTermsProofs.v \
+  FlambdaJoinInTermsSpec.v \
   FlambdaJoinKindsProofs.v \
   FlambdaJoinKindsSpec.v \
   FlambdaJoinMeet.v \
