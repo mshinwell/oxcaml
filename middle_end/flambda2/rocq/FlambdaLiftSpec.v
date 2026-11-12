@@ -199,11 +199,38 @@ Inductive lift_to : Type :=
 
 (* Where a [Let] is in a term: [root] for the term itself, [p~0] for what
    follows the binding at [p], and [p~1] for the handler of the
-   non-recursive continuation bound at [p]. *)
+   non-recursive continuation bound at [p]. The handlers of the
+   recursive continuations bound at [p] are at [p~1~0], [p~1~1~0],
+   [p~1~1~1~0] and so on, in their order: [q~0] for a handler and
+   [q~1] in the place of [q] for the next, from [p~1]
+   ([rec_handlers_map]). A path under one of them is under no other
+   and not under [p~0], where their body is. *)
 Definition path : Type := positive.
 
 (* The path of the term itself. *)
 Definition root : path := 1%positive.
+
+(* The handlers of a group of recursive continuations each rewritten by
+   [f], which is given the path of the handler; [q] is [p~1] for the
+   group bound at [p]. *)
+Fixpoint rec_handlers_map
+    (f : path -> continuation_handler -> continuation_handler) (q : path)
+    (handlers : list (continuation * continuation_handler))
+    : list (continuation * continuation_handler) :=
+  match handlers with
+  | [] => []
+  | (k, h) :: rest => (k, f (xO q) h) :: rec_handlers_map f (xI q) rest
+  end.
+
+(* What [f] gives for each of the handlers, in their order. *)
+Fixpoint rec_handlers_bindings
+    (f : path -> continuation_handler -> list static_binding) (q : path)
+    (handlers : list (continuation * continuation_handler))
+    : list static_binding :=
+  match handlers with
+  | [] => []
+  | (_, h) :: rest => f (xO q) h ++ rec_handlers_bindings f (xI q) rest
+  end.
 
 (* The guess: the [Let]s to lift, by their paths; the code ids whose
    only closure is, once those are lifted, a symbol, with that symbol;
