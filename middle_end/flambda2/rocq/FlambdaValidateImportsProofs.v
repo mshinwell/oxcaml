@@ -27,8 +27,8 @@
 
 (* Proofs of the statements of FlambdaValidateImportsSpec.v. Nothing here
    needs review: the steps are those of FlambdaValidateProofs.v, each
-   taken at a static environment in which the names removed do not
-   occur; that of the imports is one. *)
+   taken at a static environment in whose code and values the names
+   removed do not occur; that of the imports is one. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
@@ -107,7 +107,8 @@ Proof.
           (without_statics_refines_from statics hp unused _ Hfree)).
         apply (expr_equivalent_refines _ _
           (ordered_same_equivalent rounds kept _ after Hremoved)).
-      * (* What is left lifts, or is not validated. *)
+      * (* What is left removes static bindings from the head of the
+           term after, lifts, or is not validated. *)
         repeat
           match goal with
           | |- context [if ?c then _ else _] => destruct c
@@ -137,8 +138,9 @@ Proof.
           after (normalise_after_round_equivalent kept)))).
 Qed.
 
-(* The static environment of the imports is one in which no name
-   occurs. *)
+(* The static environment of the imports holds no code and binds each
+   symbol to something that holds no value: the names removed occur in
+   none of its code and in none of its values. *)
 Lemma imports_statics_free (D : dropped)
     (imports : list (symbol * import_class)) :
   statics_free_of D (imports_statics imports) = true.

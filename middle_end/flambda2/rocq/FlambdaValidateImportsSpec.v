@@ -80,10 +80,13 @@
 
    [validate_unit_sound_from_statement] and
    [validate_unit_knowing_sound_from_statement] are the same two from
-   any static environment in which the names that the validation
-   removes from the term before do not occur, and from any heap. The
-   two above are these at the static environment of the imports, in
-   which no name occurs. They are of a unit run after other units have
+   any heap and from any static environment in whose code and in whose
+   values the names that the validation removes from the term before
+   do not occur (FlambdaUnusedStaticsSpec.statics_free_of; which
+   symbols and code ids the environment binds is not looked at). The
+   two above are these at the static environment of the imports, which
+   holds no code and binds each symbol to something that holds no
+   value. They are of a unit run after other units have
    bound code and symbols, as far as the model can say what those are:
    a call of code that the unit does not bind has there the meaning of
    the code that the environment binds. They say nothing of a call
@@ -155,14 +158,16 @@ Definition validate_unit_knowing_sound_imports_statement : Prop :=
     = true ->
     unit_refines imports before after.
 
-(* The same from any static environment in which the names that the
-   validation removes from the term before do not occur
-   (FlambdaUnusedStaticsSpec.statics_free_of), and from any heap. *)
+(* The same from any heap and from any static environment in whose
+   code and in whose values the names that the validation removes from
+   the term before do not occur
+   (FlambdaUnusedStaticsSpec.statics_free_of). *)
 (* CR mshinwell: the heap is any heap because no step of this machine
    reads or changes it. When a step runs the primitives of the heap,
-   the premise [heap_free_of unused hp = true]
-   (FlambdaHeapSpec.heap_free_of: the names removed occur in no value
-   of a cell of the heap) is to be added here, as it is to be added to
+   the premise [heap_free_of unused hp = true] (the names removed
+   occur in no value of a cell of the heap; FlambdaHeapSpec.heap_free_of
+   in this tree, which is to move beside [statics_free_of] with that
+   change) is to be added here, as it is to be added to
    FlambdaUnusedStaticsSpec.drop_statics_refines_statement: a symbol
    that only the heap names is otherwise removed from under a read. *)
 Definition validate_unit_sound_from_statement : Prop :=
