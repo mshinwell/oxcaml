@@ -176,7 +176,14 @@
    bindings of code commute with renaming by the statements of
    FlambdaLiftSpec.v, of FlambdaMyClosureSpec.v, of
    FlambdaUnusedSlotsSpec.v, of FlambdaKnownSymbolsSpec.v, of
-   FlambdaKnownClosuresSpec.v and of FlambdaFloatCodeSpec.v.
+   FlambdaKnownClosuresSpec.v and of FlambdaFloatCodeSpec.v. Three
+   more rewrites that the check applies are stated to commute with
+   renaming in their own files: FlambdaCseSpec.share_known_primitives
+   and FlambdaIdentitiesSpec.apply_identities, of a round of the term
+   before, and FlambdaStaticsOrderSpec.order_statics_as, which the
+   check applies to the term before with the term after as its
+   pattern. The code whose calls the check is told not to inline is
+   named by code ids, which no renaming changes.
 
    Rewrites that make names. A rewrite that makes names with
    FlambdaNameAbstractionSpec.fresh_name, outside the names of the term
@@ -283,13 +290,15 @@ Definition call_agrees_b_equivariant_statement : Prop :=
     call_agrees_b (rename_apply r ap) (rename_code r c) = call_agrees_b ap c.
 
 (* The code known is renamed with the term, as for [inline_calls]. What
-   is known of the symbols holds no variable and no continuation. *)
+   is known of the symbols holds no variable and no continuation, and
+   the code whose calls are left is named by code ids, which no renaming
+   changes. *)
 Definition inline_known_calls_equivariant_statement : Prop :=
-  ∀ (r : renaming) (known_code : list (code_id * code))
+  ∀ (r : renaming) (kept : list code_id) (known_code : list (code_id * code))
     (known_symbols : list (symbol * option code_id)) (e : expr),
-    inline_known_calls (map_values (rename_code r) known_code) known_symbols
-      (rename_expr r e)
-    = rename_expr r (inline_known_calls known_code known_symbols e).
+    inline_known_calls kept (map_values (rename_code r) known_code)
+      known_symbols (rename_expr r e)
+    = rename_expr r (inline_known_calls kept known_code known_symbols e).
 
 Definition merge_statics_equivariant_statement : Prop :=
   rewrite_equivariant merge_statics.
@@ -646,12 +655,15 @@ Definition iterate_equivariant_statement : Prop :=
 
 (* The normalisation of the term before Simplify, and that of the term
    after: each is made of the rewrites above, of [fold_constants] and of
-   [inline_calls]. *)
+   [inline_calls]. The code whose calls are not inlined is named by code
+   ids, which no renaming changes. *)
 Definition normalise_before_equivariant_statement : Prop :=
-  ∀ rounds : nat, rewrite_equivariant (normalise_before rounds).
+  ∀ (rounds : nat) (kept : list code_id),
+    rewrite_equivariant (normalise_before rounds kept).
 
 Definition normalise_after_equivariant_statement : Prop :=
-  ∀ rounds : nat, rewrite_equivariant (normalise_after rounds).
+  ∀ (rounds : nat) (kept : list code_id),
+    rewrite_equivariant (normalise_after rounds kept).
 
 (* The removal of the static bindings of the names given, where nothing
    refers to them. *)
@@ -757,14 +769,15 @@ Definition rename_lifting (r : renaming) (L : lifting) : lifting :=
 (* The validation answers the same, and for the same reason, on two
    terms and on the two renamed by one renaming, the liftings being
    renamed with them. The number of rounds, the names of the static
-   bindings to remove and the value slots to remove are as they
-   were. *)
+   bindings to remove, the value slots to remove and the code whose
+   calls are not inlined are as they were. *)
 Definition validate_unit_equivariant_statement : Prop :=
   ∀ (r : renaming) (rounds : nat) (unused : dropped)
-    (slots : list value_slot) (Ls : list lifting) (before after : expr),
-    validate_unit rounds unused slots (map (rename_lifting r) Ls)
+    (slots : list value_slot) (Ls : list lifting) (kept : list code_id)
+    (before after : expr),
+    validate_unit rounds unused slots (map (rename_lifting r) Ls) kept
       (rename_expr r before) (rename_expr r after)
-    = validate_unit rounds unused slots Ls before after.
+    = validate_unit rounds unused slots Ls kept before after.
 
 (* ======================================================================== *)
 (* Rewrites that make names                                                 *)

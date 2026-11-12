@@ -1203,10 +1203,10 @@ Proof.
     apply inline_renaming_conjugate.
 Qed.
 
-Lemma inline_apply_equivariant (r : renaming) (known : list (code_id * code))
-    (ap : apply_expr) :
-  inline_apply (map_values (rename_code r) known) (rename_apply r ap)
-  = rename_expr r (inline_apply known ap).
+Lemma inline_apply_equivariant (r : renaming) (kept : list code_id)
+    (known : list (code_id * code)) (ap : apply_expr) :
+  inline_apply kept (map_values (rename_code r) known) (rename_apply r ap)
+  = rename_expr r (inline_apply kept known ap).
 Proof.
   unfold inline_apply.
   replace (ap_call_kind (rename_apply r ap)) with (ap_call_kind ap)
@@ -1216,38 +1216,41 @@ Proof.
   destruct (lookup called known) as [c | ]; cbn [option_map];
     [ | reflexivity ].
   rewrite inlinable_b_equivariant.
-  destruct (inlinable_b ap c) eqn:Hinlinable; [ | reflexivity ].
+  destruct (negb (among called kept) && inlinable_b ap c) eqn:Hinlinable;
+    [ | reflexivity ].
   apply inlined_body_equivariant.
 Qed.
 
-Fixpoint inline_calls_equivariant_aux (r : renaming) (e : expr) :
+Fixpoint inline_calls_equivariant_aux (r : renaming) (kept : list code_id)
+    (e : expr) :
   ∀ known : list (code_id * code),
-    inline_calls (map_values (rename_code r) known)
+    inline_calls kept (map_values (rename_code r) known)
       (rename_expr r e)
-    = rename_expr r (inline_calls known e)
+    = rename_expr r (inline_calls kept known e)
 with inline_calls_in_handler_equivariant (r : renaming)
-    (h : continuation_handler) :
+    (kept : list code_id) (h : continuation_handler) :
   ∀ known : list (code_id * code),
-    inline_calls_in_handler (map_values (rename_code r) known)
+    inline_calls_in_handler kept (map_values (rename_code r) known)
       (rename_handler r h)
-    = rename_handler r (inline_calls_in_handler known h)
+    = rename_handler r (inline_calls_in_handler kept known h)
 with inline_calls_in_binding_equivariant (r : renaming)
-    (binding : static_binding) :
+    (kept : list code_id) (binding : static_binding) :
   ∀ known : list (code_id * code),
-    inline_calls_in_binding (map_values (rename_code r) known)
+    inline_calls_in_binding kept (map_values (rename_code r) known)
       (rename_static_binding r binding)
-    = rename_static_binding r (inline_calls_in_binding known binding)
-with inline_calls_in_code_equivariant (r : renaming) (c : code) :
+    = rename_static_binding r (inline_calls_in_binding kept known binding)
+with inline_calls_in_code_equivariant (r : renaming) (kept : list code_id)
+    (c : code) :
   ∀ known : list (code_id * code),
-    inline_calls_in_code (map_values (rename_code r) known)
+    inline_calls_in_code kept (map_values (rename_code r) known)
       (rename_code r c)
-    = rename_code r (inline_calls_in_code known c).
+    = rename_code r (inline_calls_in_code kept known c).
 Proof.
   - destruct e
       as [ x kind d body | bindings body | k h body | handlers body | ap | ac
          | scrutinee arms | ];
       intros known;
-      [ | | | | exact (inline_apply_equivariant r known ap) | | | ];
+      [ | | | | exact (inline_apply_equivariant r kept known ap) | | | ];
       simpl; try reflexivity.
     + (* Let *)
       rewrite inline_calls_equivariant_aux. reflexivity.
@@ -1255,13 +1258,13 @@ Proof.
          rewritten *)
       assert (Hbindings :
         map
-          (inline_calls_in_binding (map_values (rename_code r) known))
+          (inline_calls_in_binding kept (map_values (rename_code r) known))
           (map (rename_static_binding r) bindings)
         = map (rename_static_binding r)
-            (map (inline_calls_in_binding known) bindings)).
+            (map (inline_calls_in_binding kept known) bindings)).
       { induction bindings as [ | binding bindings IH]; simpl;
           [ reflexivity | ].
-        rewrite (inline_calls_in_binding_equivariant r binding), IH.
+        rewrite (inline_calls_in_binding_equivariant r kept binding), IH.
         reflexivity. }
       rewrite Hbindings, codes_of_equivariant,
         inline_calls_equivariant_aux.
@@ -1273,7 +1276,8 @@ Proof.
     + (* Let_cont_recursive *)
       rewrite inline_calls_equivariant_aux. f_equal.
       induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
-      rewrite (inline_calls_in_handler_equivariant r h), IH. reflexivity.
+      rewrite (inline_calls_in_handler_equivariant r kept h), IH.
+      reflexivity.
   - destruct h as [params metadata handler]. intros known. simpl.
     rewrite inline_calls_equivariant_aux. reflexivity.
   - destruct binding as [id c | id | sym const]; intros known; simpl;
@@ -1286,5 +1290,5 @@ Qed.
 
 Theorem inline_calls_equivariant : inline_calls_equivariant_statement.
 Proof.
-  intros r known e. apply inline_calls_equivariant_aux.
+  intros r kept known e. apply inline_calls_equivariant_aux.
 Qed.

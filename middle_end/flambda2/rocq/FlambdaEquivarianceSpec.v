@@ -233,8 +233,10 @@ Definition fold_constants_equivariant_statement : Prop :=
     fold_constants (rename_expr r e) = rename_expr r (fold_constants e).
 
 (* Inlining, which renames the continuations of the code it inlines. The
-   code known is renamed with the expression. *)
+   code known is renamed with the expression. The code whose calls are
+   left is named by code ids, which no renaming changes. *)
 Definition inline_calls_equivariant_statement : Prop :=
-  ∀ (r : renaming) (known : list (code_id * code)) (e : expr),
-    inline_calls (map_values (rename_code r) known) (rename_expr r e)
-    = rename_expr r (inline_calls known e).
+  ∀ (r : renaming) (kept : list code_id) (known : list (code_id * code))
+    (e : expr),
+    inline_calls kept (map_values (rename_code r) known) (rename_expr r e)
+    = rename_expr r (inline_calls kept known e).

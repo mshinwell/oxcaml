@@ -34,8 +34,10 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaSemanticsProofs FlambdaCompareSpec FlambdaCompareProofs
   FlambdaNormaliseSpec FlambdaNormaliseProofs FlambdaBlockLoadSpec
-  FlambdaBlockLoadProofs FlambdaForwardSpec FlambdaForwardProofs
-  FlambdaLoopAliasesSpec FlambdaLoopAliasesProofs
+  FlambdaBlockLoadProofs FlambdaCseSpec FlambdaCseProofs
+  FlambdaForwardSpec FlambdaForwardProofs
+  FlambdaIdentitiesSpec FlambdaIdentitiesProofs FlambdaStaticsOrderSpec
+  FlambdaStaticsOrderProofs FlambdaLoopAliasesSpec FlambdaLoopAliasesProofs
   FlambdaLoopLetsSpec FlambdaLoopLetsProofs FlambdaParamAliasesSpec
   FlambdaParamAliasesProofs FlambdaRecHandlersSpec FlambdaRecHandlersProofs
   FlambdaShortcutSpec FlambdaShortcutProofs FlambdaSinkContsSpec
@@ -86,6 +88,8 @@ Ltac refinement_step :=
     | apply drop_unused_params_refines
     | apply bind_aliased_params_refines
     | apply forward_applications_refines
+    | apply share_known_primitives_refines
+    | apply apply_identities_refines
     | apply expr_equivalent_refines; equivalence_step ].
 
 Lemma normalise_expr_before_refines (e : expr) :
@@ -104,14 +108,24 @@ Proof.
     (rewrite_rec_handlers_refines _ normalise_expr_before_refines _)).
 Qed.
 
-Lemma normalise_before_round_refines (e : expr) :
-  expr_refines e (normalise_before_round e).
+Lemma normalise_before_inlined_refines (e : expr) :
+  expr_refines e (normalise_before_inlined e).
 Proof.
-  unfold normalise_before_round.
+  unfold normalise_before_inlined.
   eapply expr_refines_trans;
     [ | apply rewrite_code_refines, normalise_code_before_refines ].
-  repeat (eapply expr_refines_trans; [ | solve [ refinement_step ] ]).
-  eapply expr_refines_trans; [ | apply normalise_code_before_refines ].
+  eapply expr_refines_trans;
+    [ | apply expr_equivalent_refines, merge_statics_equivalent ].
+  eapply expr_refines_trans;
+    [ | apply expr_equivalent_refines, drop_deleted_code_equivalent ].
+  apply normalise_code_before_refines.
+Qed.
+
+Lemma normalise_before_round_refines (kept : list code_id) (e : expr) :
+  expr_refines e (normalise_before_round kept e).
+Proof.
+  unfold normalise_before_round.
+  eapply expr_refines_trans; [ | apply normalise_before_inlined_refines ].
   apply inline_calls_refines.
 Qed.
 
@@ -168,8 +182,8 @@ Proof.
     (rewrite_rec_handlers_equivalent _ normalise_expr_after_equivalent _)).
 Qed.
 
-Lemma normalise_after_round_equivalent (e : expr) :
-  expr_equivalent e (normalise_after_round e).
+Lemma normalise_after_round_equivalent (kept : list code_id) (e : expr) :
+  expr_equivalent e (normalise_after_round kept e).
 Proof.
   unfold normalise_after_round.
   eapply expr_equivalent_trans;
@@ -182,38 +196,59 @@ Proof.
   apply expr_equivalent_refl.
 Qed.
 
-Lemma normalise_before_refines (rounds : nat) :
-  ∀ e : expr, expr_refines e (normalise_before rounds e).
+Lemma normalise_before_refines (rounds : nat) (kept : list code_id) :
+  ∀ e : expr, expr_refines e (normalise_before rounds kept e).
 Proof.
   intros e. unfold normalise_before.
   exact (expr_refines_trans _ _ _
     (iterate_refines _ normalise_params_round_refines rounds e)
-    (iterate_refines _ normalise_before_round_refines rounds _)).
+    (iterate_refines _ (normalise_before_round_refines kept) rounds _)).
 Qed.
 
-Lemma normalise_after_equivalent (rounds : nat) :
-  ∀ e : expr, expr_equivalent e (normalise_after rounds e).
+Lemma normalise_after_equivalent (rounds : nat) (kept : list code_id) :
+  ∀ e : expr, expr_equivalent e (normalise_after rounds kept e).
 Proof.
   unfold normalise_after.
   induction rounds as [ | rounds IH]; intros e; simpl;
     [ apply expr_equivalent_refl | ].
-  exact (expr_equivalent_trans _ _ _ (normalise_after_round_equivalent e)
+  exact (expr_equivalent_trans _ _ _ (normalise_after_round_equivalent kept e)
     (IH _)).
 Qed.
 
-(* The two normalised terms being the same up to bound names, the term
+(* A term that is, once its static bindings are in the order of the
+   term after normalised, the same as that term up to bound names: it
+   is equivalent to the term after. *)
+Lemma ordered_same_equivalent (rounds : nat) (kept : list code_id)
+    (e after : expr) :
+  expr_eqb [] [] (order_statics_as (normalise_after rounds kept after) e)
+    (normalise_after rounds kept after)
+  = true ->
+  expr_equivalent e after.
+Proof.
+  intros Heq.
+  apply (expr_equivalent_trans _ _ _
+    (order_statics_as_equivalent (normalise_after rounds kept after) e)).
+  apply (expr_equivalent_trans _ _ _ (expr_eqb_sound _ _ Heq)).
+  apply expr_equivalent_sym, normalise_after_equivalent.
+Qed.
+
+(* The two normalised terms being the same up to bound names, once the
+   static bindings of the first are in the order of the second, the term
    after refines the term before. *)
-Lemma normalised_refines (rounds : nat) (before after : expr) :
-  expr_eqb [] [] (normalise_before rounds before)
-    (normalise_after rounds after)
+Lemma normalised_refines (rounds : nat) (kept : list code_id)
+    (before after : expr) :
+  expr_eqb [] []
+    (order_statics_as (normalise_after rounds kept after)
+       (normalise_before rounds kept before))
+    (normalise_after rounds kept after)
   = true ->
   expr_refines before after.
 Proof.
   intros Heq.
-  apply (expr_refines_trans _ _ _ (normalise_before_refines rounds before)).
+  apply (expr_refines_trans _ _ _
+    (normalise_before_refines rounds kept before)).
   apply expr_equivalent_refines.
-  apply (expr_equivalent_trans _ _ _ (expr_eqb_sound _ _ Heq)).
-  apply expr_equivalent_sym, normalise_after_equivalent.
+  exact (ordered_same_equivalent rounds kept _ after Heq).
 Qed.
 
 Lemma expr_refines_program (source target : expr) :
@@ -247,35 +282,38 @@ Proof.
   exact (fold_known_unit_program_refines e e' Hfold).
 Qed.
 
-Lemma iterate_lifted_program_refines (rounds : nat) :
-  ∀ e : expr, program_refines e (iterate rounds normalise_lifted_round e).
+Lemma iterate_lifted_program_refines (rounds : nat) (kept : list code_id) :
+  ∀ e : expr,
+    program_refines e (iterate rounds (normalise_lifted_round kept) e).
 Proof.
   induction rounds as [ | rounds IH]; intros e; simpl;
     [ apply refines_refl | ].
   apply (refines_trans _ _ _
-    (expr_refines_program _ _ (normalise_before_round_refines e))).
+    (expr_refines_program _ _ (normalise_before_round_refines kept e))).
   apply (refines_trans _ _ _
     (expr_refines_program _ _ (use_known_closures_refines _))).
   apply (refines_trans _ _ _ (with_known_program_refines _)).
   apply IH.
 Qed.
 
-Lemma normalise_lifted_program_refines (rounds : nat) :
-  ∀ e : expr, program_refines e (normalise_lifted rounds e).
+Lemma normalise_lifted_program_refines (rounds : nat) (kept : list code_id) :
+  ∀ e : expr, program_refines e (normalise_lifted rounds kept e).
 Proof.
   intros e. unfold normalise_lifted.
   exact (refines_trans _ _ _
     (expr_refines_program _ _
        (iterate_refines _ normalise_params_round_refines rounds e))
-    (iterate_lifted_program_refines rounds _)).
+    (iterate_lifted_program_refines rounds kept _)).
 Qed.
 
-Lemma lifted_in_turn_program_refines (rounds : nat) (Ls : list lifting) :
-  ∀ e : expr, program_refines e (lifted_in_turn rounds Ls e).
+Lemma lifted_in_turn_program_refines (rounds : nat) (Ls : list lifting)
+    (kept : list code_id) :
+  ∀ e : expr, program_refines e (lifted_in_turn rounds Ls kept e).
 Proof.
   induction Ls as [ | L Ls IH]; intros e; simpl; [ apply refines_refl | ].
   apply (refines_trans _ _ _ (with_lifting_program_refines L _)).
-  apply (refines_trans _ _ _ (normalise_lifted_program_refines rounds _)).
+  apply (refines_trans _ _ _
+    (normalise_lifted_program_refines rounds kept _)).
   apply IH.
 Qed.
 
@@ -304,72 +342,83 @@ Qed.
 Theorem validate_unit_sound_everywhere :
   validate_unit_sound_everywhere_statement.
 Proof.
-  intros rounds unused slots Ls before after. unfold validate_unit.
+  intros rounds unused slots Ls kept before after. unfold validate_unit.
   destruct (expr_eqb [] [] before after) eqn:Hsame.
   - intros _. apply expr_equivalent_refines, expr_eqb_sound, Hsame.
-  - destruct (expr_eqb [] [] (normalise_before rounds before)
-                (normalise_after rounds after)) eqn:Hnormalised.
-    + intros _. exact (normalised_refines rounds before after Hnormalised).
+  - set (a := normalise_after rounds kept after).
+    destruct (expr_eqb [] []
+                (order_statics_as a (normalise_before rounds kept before)) a)
+      eqn:Hnormalised.
+    + intros _. exact (normalised_refines rounds kept before after Hnormalised).
     + destruct (expr_eqb [] []
-                  (without_statics unused (normalise_before rounds before))
-                  (normalise_after rounds after));
+                  (order_statics_as a
+                     (without_statics unused
+                        (normalise_before rounds kept before)))
+                  a);
         [ intros [H | H]; discriminate H | ].
       destruct
         (expr_eqb [] []
-           (float_code
-              (without_statics unused
-                 (without_slots slots (lifted_in_turn rounds Ls before))))
-           (float_code (with_code_first (normalise_after rounds after))));
+           (order_statics_as (float_code (with_code_first a))
+              (float_code
+                 (without_statics unused
+                    (without_slots slots
+                       (lifted_in_turn rounds Ls kept before)))))
+           (float_code (with_code_first a)));
         intros [H | H]; discriminate H.
 Qed.
 
 Theorem validate_unit_sound : validate_unit_sound_statement.
 Proof.
-  intros rounds unused slots Ls before after. unfold validate_unit.
+  intros rounds unused slots Ls kept before after. unfold validate_unit.
   destruct (expr_eqb [] [] before after) eqn:Hsame.
   - intros _.
     apply expr_refines_program, expr_equivalent_refines, expr_eqb_sound,
       Hsame.
-  - destruct (expr_eqb [] [] (normalise_before rounds before)
-                (normalise_after rounds after)) eqn:Hnormalised.
+  - set (a := normalise_after rounds kept after).
+    destruct (expr_eqb [] []
+                (order_statics_as a (normalise_before rounds kept before)) a)
+      eqn:Hnormalised.
     + intros _. apply expr_refines_program.
-      exact (normalised_refines rounds before after Hnormalised).
+      exact (normalised_refines rounds kept before after Hnormalised).
     + assert (Hbefore :
-        program_refines before (normalise_before rounds before))
+        program_refines before (normalise_before rounds kept before))
         by apply expr_refines_program, normalise_before_refines.
       destruct (expr_eqb [] []
-                  (without_statics unused (normalise_before rounds before))
-                  (normalise_after rounds after)) eqn:Hremoved.
+                  (order_statics_as a
+                     (without_statics unused
+                        (normalise_before rounds kept before)))
+                  a) eqn:Hremoved.
       * intros _. apply (refines_trans _ _ _ Hbefore).
         apply (refines_trans _ _ _
           (without_statics_program_refines unused _)).
         apply expr_refines_program, expr_equivalent_refines.
-        apply (expr_equivalent_trans _ _ _ (expr_eqb_sound _ _ Hremoved)).
-        apply expr_equivalent_sym, normalise_after_equivalent.
+        exact (ordered_same_equivalent rounds kept _ after Hremoved).
       * destruct
           (expr_eqb [] []
-             (float_code
-                (without_statics unused
-                   (without_slots slots
-                      (lifted_in_turn rounds Ls before))))
-             (float_code (with_code_first (normalise_after rounds after))))
-          eqn:Hlifted;
+             (order_statics_as (float_code (with_code_first a))
+                (float_code
+                   (without_statics unused
+                      (without_slots slots
+                         (lifted_in_turn rounds Ls kept before)))))
+             (float_code (with_code_first a))) eqn:Hlifted;
           [ intros _ | intros H; contradiction H; reflexivity ].
         apply (refines_trans _ _ _
-          (lifted_in_turn_program_refines rounds Ls _)).
+          (lifted_in_turn_program_refines rounds Ls kept _)).
         apply (refines_trans _ _ _ (without_slots_program_refines slots _)).
         apply (refines_trans _ _ _
           (without_statics_program_refines unused _)).
         apply (refines_trans _
-          (State (with_code_first (normalise_after rounds after)) [] []
-             empty_static_env)).
+          (State (with_code_first a) [] [] empty_static_env)).
         { apply expr_refines_program, expr_equivalent_refines.
           apply (expr_equivalent_trans _ _ _ (float_code_equivalent _)).
+          apply (expr_equivalent_trans _ _ _
+            (order_statics_as_equivalent
+               (float_code (with_code_first a)) _)).
           apply (expr_equivalent_trans _ _ _ (expr_eqb_sound _ _ Hlifted)).
           apply expr_equivalent_sym, float_code_equivalent. }
         apply equivalent_refines, equivalent_sym.
-        apply (equivalent_trans _
-          (State (normalise_after rounds after) [] [] empty_static_env)).
-        { apply normalise_after_equivalent. }
+        apply (equivalent_trans _ (State a [] [] empty_static_env)).
+        { exact (normalise_after_equivalent rounds kept after [] []
+                   empty_static_env). }
         apply with_code_first_program_equivalent.
 Qed.

@@ -83,6 +83,11 @@
    where it is read in turn, and inlines the other. The value slots
    come last because it is the normalisation that removes the
    projections which the code of a function makes and no longer needs.
+   Before each of the comparisons of normalised terms the bindings of
+   each group of static bindings of the term before are put in the
+   order that the term after has them in
+   (FlambdaStaticsOrderSpec.order_statics_as): Simplify builds the group
+   of a set of closures again, in an order of its own.
 
    What it accepts is correct for the unit run as a compilation unit is
    run, on its own from empty environments
@@ -94,9 +99,11 @@
    in which something was lifted exits with constants and symbols only:
    that is one of the conditions.
 
-   The number of rounds, the names and the value slots to remove and
-   what to lift are for the caller to choose; none is trusted. Fewer
-   rounds, the wrong names, the wrong value slots or the wrong [Let]s
+   The number of rounds, the names and the value slots to remove, what
+   to lift and the code whose calls are not to be inlined
+   (FlambdaNormaliseSpec.inline_calls; the same on the two sides) are
+   for the caller to choose; none is trusted. Fewer rounds, the wrong
+   names, the wrong value slots, the wrong [Let]s or the wrong code
    make the check fail, not accept what it should not. The names to
    remove are those of the term that is compared: of the term lifted,
    where something is lifted.
@@ -107,9 +114,10 @@ From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaCompareSpec FlambdaNormaliseSpec FlambdaBlockLoadSpec
-  FlambdaForwardSpec FlambdaLoopAliasesSpec FlambdaLoopLetsSpec
-  FlambdaParamAliasesSpec FlambdaRecHandlersSpec FlambdaShortcutSpec
-  FlambdaSinkContsSpec FlambdaUnboxSpec FlambdaUnusedContsSpec
+  FlambdaCseSpec FlambdaForwardSpec FlambdaIdentitiesSpec
+  FlambdaLoopAliasesSpec FlambdaLoopLetsSpec FlambdaParamAliasesSpec
+  FlambdaRecHandlersSpec FlambdaShortcutSpec FlambdaSinkContsSpec
+  FlambdaStaticsOrderSpec FlambdaUnboxSpec FlambdaUnusedContsSpec
   FlambdaUnusedParamsSpec FlambdaUnusedStaticsSpec FlambdaLiftSpec
   FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec
   FlambdaFloatCodeSpec FlambdaHoistCodeSpec.
@@ -147,8 +155,11 @@ Definition normalise_expr_before (e : expr) : expr :=
                (remove_unused_conts (collapse_switches (fold_constants e))))))
   in
   let e :=
-    follow_aliases_in_loops []
-      (follow_aliases [] (unbox_known_numbers (load_known_blocks e)))
+    apply_identities
+      (follow_aliases_in_loops []
+         (follow_aliases []
+            (share_known_primitives
+               (unbox_known_numbers (load_known_blocks e)))))
   in
   drop_unused_params
     (remove_unused_defined_lets [] (remove_unused_lets (fold_constants e))).
@@ -159,14 +170,18 @@ Definition normalise_expr_before (e : expr) : expr :=
 Definition normalise_code_before (body : expr) : expr :=
   rewrite_rec_handlers normalise_expr_before (normalise_expr_before body).
 
-(* One round for the term before: the calls of known code inlined; then
-   the round for the body of code, on the term itself; then the static
-   bindings tidied, and the round applied to the body of each piece of
-   code. Every rewrite refines. *)
-Definition normalise_before_round (e : expr) : expr :=
+(* One round for the term before, once its calls are inlined: the
+   round for the body of code, on the term itself; then the static
+   bindings tidied, and that round applied to the body of each piece of
+   code. None of these makes a name. *)
+Definition normalise_before_inlined (e : expr) : expr :=
   rewrite_code normalise_code_before
-    (merge_statics
-       (drop_deleted_code (normalise_code_before (inline_calls [] e)))).
+    (merge_statics (drop_deleted_code (normalise_code_before e))).
+
+(* One round for the term before: the calls of known code inlined, but
+   for the code given; then the round above. Every rewrite refines. *)
+Definition normalise_before_round (kept : list code_id) (e : expr) : expr :=
+  normalise_before_inlined (inline_calls kept [] e).
 
 (* One round of the first phase for an expression of the term before:
    [normalise_expr_before] with what Simplify does to the parameters of
@@ -224,8 +239,9 @@ Definition normalise_params_round (e : expr) : expr :=
    the call returned to becomes one that the inlined body applies, on
    both sides, and the term after has only equivalences to normalise it
    with, which the removal of a parameter is not. *)
-Definition normalise_before (rounds : nat) (e : expr) : expr :=
-  iterate rounds normalise_before_round
+Definition normalise_before (rounds : nat) (kept : list code_id) (e : expr)
+    : expr :=
+  iterate rounds (normalise_before_round kept)
     (iterate rounds normalise_params_round e).
 
 (* The same for the term after. Every rewrite is an equivalence. The
@@ -241,18 +257,19 @@ Definition normalise_expr_after (e : expr) : expr :=
 Definition normalise_code_after (body : expr) : expr :=
   rewrite_rec_handlers normalise_expr_after (normalise_expr_after body).
 
-Definition normalise_after_round (e : expr) : expr :=
+Definition normalise_after_round (kept : list code_id) (e : expr) : expr :=
   rewrite_code normalise_code_after
     (merge_statics
        (drop_deleted_code
           (rewrite_rec_handlers normalise_expr_after
              (remove_unused_defined_lets_in_loops []
                 (fold_constants
-                   (inline_known_calls [] []
+                   (inline_known_calls kept [] []
                       (follow_aliases_in_loops [] (follow_aliases [] e)))))))).
 
-Definition normalise_after (rounds : nat) (e : expr) : expr :=
-  iterate rounds normalise_after_round e.
+Definition normalise_after (rounds : nat) (kept : list code_id) (e : expr)
+    : expr :=
+  iterate rounds (normalise_after_round kept) e.
 
 (* The static bindings of the names given removed, if nothing refers to
    them, and the groups of bindings tidied again. *)
@@ -282,22 +299,24 @@ Definition with_known (e : expr) : expr :=
    phase of that of the term before, then its second phase with each
    round followed by the use of what is known of the static closures in
    sight, and of what the unit binds its symbols to. *)
-Definition normalise_lifted_round (e : expr) : expr :=
-  with_known (use_known_closures (normalise_before_round e)).
+Definition normalise_lifted_round (kept : list code_id) (e : expr) : expr :=
+  with_known (use_known_closures (normalise_before_round kept e)).
 
-Definition normalise_lifted (rounds : nat) (e : expr) : expr :=
-  iterate rounds normalise_lifted_round
+Definition normalise_lifted (rounds : nat) (kept : list code_id) (e : expr)
+    : expr :=
+  iterate rounds (normalise_lifted_round kept)
     (iterate rounds normalise_params_round e).
 
 (* The term with each of the liftings given applied in turn, each
    followed by that normalisation. A lifting after the first names
    [Let]s of the term that those before it give. *)
-Fixpoint lifted_in_turn (rounds : nat) (Ls : list lifting) (e : expr)
-    : expr :=
+Fixpoint lifted_in_turn (rounds : nat) (Ls : list lifting)
+    (kept : list code_id) (e : expr) : expr :=
   match Ls with
   | [] => e
   | L :: Ls =>
-    lifted_in_turn rounds Ls (normalise_lifted rounds (with_lifting L e))
+    lifted_in_turn rounds Ls kept
+      (normalise_lifted rounds kept (with_lifting L e))
   end.
 
 (* The value slots given removed from the static sets of closures, if
@@ -330,20 +349,25 @@ Inductive validation : Type :=
   | Not_validated.
 
 Definition validate_unit (rounds : nat) (unused : dropped)
-    (slots : list value_slot) (Ls : list lifting) (before after : expr)
-    : validation :=
+    (slots : list value_slot) (Ls : list lifting) (kept : list code_id)
+    (before after : expr) : validation :=
   if expr_eqb [] [] before after then Same_up_to_bound_names
   else
-    let normalised := normalise_before rounds before in
-    let after := normalise_after rounds after in
-    if expr_eqb [] [] normalised after then Same_once_normalised
-    else if expr_eqb [] [] (without_statics unused normalised) after
+    let normalised := normalise_before rounds kept before in
+    let after := normalise_after rounds kept after in
+    if expr_eqb [] [] (order_statics_as after normalised) after
+    then Same_once_normalised
+    else if
+      expr_eqb [] []
+        (order_statics_as after (without_statics unused normalised)) after
     then Same_once_unused_statics_removed
     else if
       expr_eqb [] []
-        (float_code
-           (without_statics unused
-              (without_slots slots (lifted_in_turn rounds Ls before))))
+        (order_statics_as (float_code (with_code_first after))
+           (float_code
+              (without_statics unused
+                 (without_slots slots
+                    (lifted_in_turn rounds Ls kept before)))))
         (float_code (with_code_first after))
     then Same_once_lifted
     else Not_validated.
@@ -356,17 +380,17 @@ Definition validate_unit (rounds : nat) (unused : dropped)
    from empty environments. *)
 Definition validate_unit_sound_statement : Prop :=
   ∀ (rounds : nat) (unused : dropped) (slots : list value_slot)
-    (Ls : list lifting) (before after : expr),
-    validate_unit rounds unused slots Ls before after <> Not_validated ->
+    (Ls : list lifting) (kept : list code_id) (before after : expr),
+    validate_unit rounds unused slots Ls kept before after <> Not_validated ->
     program_refines before after.
 
 (* It does so under all environments if no static binding was removed and
    nothing was lifted. *)
 Definition validate_unit_sound_everywhere_statement : Prop :=
   ∀ (rounds : nat) (unused : dropped) (slots : list value_slot)
-    (Ls : list lifting) (before after : expr),
-    validate_unit rounds unused slots Ls before after
+    (Ls : list lifting) (kept : list code_id) (before after : expr),
+    validate_unit rounds unused slots Ls kept before after
     = Same_up_to_bound_names
-    ∨ validate_unit rounds unused slots Ls before after
+    ∨ validate_unit rounds unused slots Ls kept before after
       = Same_once_normalised ->
     expr_refines before after.

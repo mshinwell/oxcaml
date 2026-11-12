@@ -56,7 +56,9 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSinkContsSpec FlambdaShortcutSpec FlambdaUnusedParamsSpec
   FlambdaLoopAliasesSpec FlambdaLoopLetsSpec FlambdaParamAliasesSpec
   FlambdaForwardSpec FlambdaInlineTailSpec FlambdaLoopifySpec
-  FlambdaValidateSpec
+  FlambdaCseSpec FlambdaCseProofs
+  FlambdaIdentitiesSpec FlambdaIdentitiesProofs FlambdaStaticsOrderSpec
+  FlambdaStaticsOrderProofs FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
@@ -564,12 +566,12 @@ Qed.
 Theorem call_agrees_b_equivariant : call_agrees_b_equivariant_statement.
 Proof. exact call_agrees_b_renamed. Qed.
 
-Lemma inline_known_apply_equivariant (r : renaming)
+Lemma inline_known_apply_equivariant (r : renaming) (kept : list code_id)
     (known_code : list (code_id * code))
     (known_symbols : list (symbol * option code_id)) (ap : apply_expr) :
-  inline_known_apply (map_values (rename_code r) known_code) known_symbols
-    (rename_apply r ap)
-  = rename_expr r (inline_known_apply known_code known_symbols ap).
+  inline_known_apply kept (map_values (rename_code r) known_code)
+    known_symbols (rename_apply r ap)
+  = rename_expr r (inline_known_apply kept known_code known_symbols ap).
 Proof.
   unfold inline_known_apply.
   replace (ap_callee (rename_apply r ap)) with (rename_simple r (ap_callee ap))
@@ -585,47 +587,52 @@ Proof.
     [ | reflexivity ].
   rewrite FlambdaEquivarianceProofs.inlinable_b_equivariant,
     call_agrees_b_renamed.
-  destruct (Pos.eqb code called && inlinable_b ap c && call_agrees_b ap c);
+  destruct
+    (negb (among called kept)
+     && (Pos.eqb code called && inlinable_b ap c && call_agrees_b ap c));
     [ | reflexivity ].
   apply inlined_body_equivariant.
 Qed.
 
 Fixpoint inline_known_calls_equivariant_aux (r : renaming)
-    (known_symbols : list (symbol * option code_id)) (e : expr) :
+    (kept : list code_id) (known_symbols : list (symbol * option code_id))
+    (e : expr) :
   ∀ known_code : list (code_id * code),
-    inline_known_calls (map_values (rename_code r) known_code) known_symbols
-      (rename_expr r e)
-    = rename_expr r (inline_known_calls known_code known_symbols e)
+    inline_known_calls kept (map_values (rename_code r) known_code)
+      known_symbols (rename_expr r e)
+    = rename_expr r (inline_known_calls kept known_code known_symbols e)
 with inline_known_calls_in_handler_equivariant (r : renaming)
-    (known_symbols : list (symbol * option code_id))
+    (kept : list code_id) (known_symbols : list (symbol * option code_id))
     (h : continuation_handler) :
   ∀ known_code : list (code_id * code),
-    inline_known_calls_in_handler (map_values (rename_code r) known_code)
+    inline_known_calls_in_handler kept (map_values (rename_code r) known_code)
       known_symbols (rename_handler r h)
     = rename_handler r
-        (inline_known_calls_in_handler known_code known_symbols h)
+        (inline_known_calls_in_handler kept known_code known_symbols h)
 with inline_known_calls_in_binding_equivariant (r : renaming)
-    (known_symbols : list (symbol * option code_id))
+    (kept : list code_id) (known_symbols : list (symbol * option code_id))
     (binding : static_binding) :
   ∀ known_code : list (code_id * code),
-    inline_known_calls_in_binding (map_values (rename_code r) known_code)
+    inline_known_calls_in_binding kept (map_values (rename_code r) known_code)
       known_symbols (rename_static_binding r binding)
     = rename_static_binding r
-        (inline_known_calls_in_binding known_code known_symbols binding)
+        (inline_known_calls_in_binding kept known_code known_symbols binding)
 with inline_known_calls_in_code_equivariant (r : renaming)
-    (known_symbols : list (symbol * option code_id)) (c : code) :
+    (kept : list code_id) (known_symbols : list (symbol * option code_id))
+    (c : code) :
   ∀ known_code : list (code_id * code),
-    inline_known_calls_in_code (map_values (rename_code r) known_code)
+    inline_known_calls_in_code kept (map_values (rename_code r) known_code)
       known_symbols (rename_code r c)
-    = rename_code r (inline_known_calls_in_code known_code known_symbols c).
+    = rename_code r
+        (inline_known_calls_in_code kept known_code known_symbols c).
 Proof.
   - destruct e
       as [ x kind d body | bindings body | k h body | handlers body | ap | ac
          | scrutinee arms | ];
       intros known_code;
       [ | | | | exact
-                  (inline_known_apply_equivariant r known_code known_symbols
-                     ap)
+                  (inline_known_apply_equivariant r kept known_code
+                     known_symbols ap)
       | | | ];
       simpl; try reflexivity.
     + rewrite inline_known_calls_equivariant_aux. reflexivity.
@@ -633,16 +640,16 @@ Proof.
          rewritten, makes known *)
       assert (Hbindings :
         map
-          (inline_known_calls_in_binding (map_values (rename_code r) known_code)
-             known_symbols)
+          (inline_known_calls_in_binding kept
+             (map_values (rename_code r) known_code) known_symbols)
           (map (rename_static_binding r) bindings)
         = map (rename_static_binding r)
-            (map (inline_known_calls_in_binding known_code known_symbols)
+            (map (inline_known_calls_in_binding kept known_code known_symbols)
                bindings)).
       { induction bindings as [ | binding bindings IH]; simpl;
           [ reflexivity | ].
-        rewrite (inline_known_calls_in_binding_equivariant r known_symbols
-                   binding), IH.
+        rewrite (inline_known_calls_in_binding_equivariant r kept
+                   known_symbols binding), IH.
         reflexivity. }
       rewrite Hbindings, codes_of_equivariant, symbols_of_renamed,
         inline_known_calls_equivariant_aux.
@@ -652,7 +659,8 @@ Proof.
       reflexivity.
     + rewrite inline_known_calls_equivariant_aux. f_equal.
       induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
-      rewrite (inline_known_calls_in_handler_equivariant r known_symbols h),
+      rewrite (inline_known_calls_in_handler_equivariant r kept known_symbols
+                 h),
         IH.
       reflexivity.
   - destruct h as [params metadata handler]. intros known_code. simpl.
@@ -668,7 +676,7 @@ Qed.
 Theorem inline_known_calls_equivariant :
   inline_known_calls_equivariant_statement.
 Proof.
-  intros r known_code known_symbols e.
+  intros r kept known_code known_symbols e.
   apply inline_known_calls_equivariant_aux.
 Qed.
 
@@ -4320,14 +4328,14 @@ Proof.
   exact (remove_unused_defined_lets_in_loops_equivariant_aux r e []).
 Qed.
 
-Lemma inline_calls_unknowing_equivariant :
-  rewrite_equivariant (inline_calls []).
-Proof. intros r e. exact (inline_calls_equivariant r [] e). Qed.
+Lemma inline_calls_unknowing_equivariant (kept : list code_id) :
+  rewrite_equivariant (inline_calls kept []).
+Proof. intros r e. exact (inline_calls_equivariant r kept [] e). Qed.
 
-Lemma inline_known_calls_unknowing_equivariant :
-  rewrite_equivariant (inline_known_calls [] []).
+Lemma inline_known_calls_unknowing_equivariant (kept : list code_id) :
+  rewrite_equivariant (inline_known_calls kept [] []).
 Proof.
-  intros r e. exact (inline_known_calls_equivariant_aux r [] e []).
+  intros r e. exact (inline_known_calls_equivariant_aux r kept [] e []).
 Qed.
 
 (* The renaming is taken out of each rewrite in turn, from the
@@ -4342,6 +4350,8 @@ Ltac rename_outwards :=
       | rewrite thread_switches_equivariant_aux
       | rewrite load_known_blocks_equivariant
       | rewrite unbox_known_numbers_equivariant
+      | rewrite share_known_primitives_equivariant
+      | rewrite apply_identities_equivariant
       | rewrite follow_aliases_unknowing_equivariant
       | rewrite remove_unused_lets_equivariant_aux
       | rewrite remove_unused_defined_lets_closed_equivariant
@@ -4372,10 +4382,11 @@ Proof.
   apply rewrite_rec_handlers_equivariant, normalise_expr_before_equivariant.
 Qed.
 
-Lemma normalise_before_round_equivariant :
-  rewrite_equivariant normalise_before_round.
+Lemma normalise_before_round_equivariant (kept : list code_id) :
+  rewrite_equivariant (normalise_before_round kept).
 Proof.
-  intros r e. unfold normalise_before_round. rename_outwards.
+  intros r e. unfold normalise_before_round, normalise_before_inlined.
+  rename_outwards.
   rewrite normalise_code_before_equivariant. rename_outwards.
   apply rewrite_code_equivariant, normalise_code_before_equivariant.
 Qed.
@@ -4409,7 +4420,7 @@ Qed.
 Theorem normalise_before_equivariant :
   normalise_before_equivariant_statement.
 Proof.
-  intros rounds r e. unfold normalise_before.
+  intros rounds kept r e. unfold normalise_before.
   rewrite
     (iterate_equivariant rounds _ normalise_params_round_equivariant r e).
   apply iterate_equivariant, normalise_before_round_equivariant.
@@ -4429,8 +4440,8 @@ Proof.
   apply rewrite_rec_handlers_equivariant, normalise_expr_after_equivariant.
 Qed.
 
-Lemma normalise_after_round_equivariant :
-  rewrite_equivariant normalise_after_round.
+Lemma normalise_after_round_equivariant (kept : list code_id) :
+  rewrite_equivariant (normalise_after_round kept).
 Proof.
   intros r e. unfold normalise_after_round. rename_outwards.
   rewrite
@@ -4442,7 +4453,8 @@ Qed.
 
 Theorem normalise_after_equivariant : normalise_after_equivariant_statement.
 Proof.
-  intros rounds. apply iterate_equivariant, normalise_after_round_equivariant.
+  intros rounds kept.
+  apply iterate_equivariant, normalise_after_round_equivariant.
 Qed.
 
 Theorem without_statics_equivariant : without_statics_equivariant_statement.
@@ -5032,8 +5044,8 @@ Qed.
 Lemma float_code_rewrite_equivariant : rewrite_equivariant float_code.
 Proof. intros r e. symmetry. apply float_code_equivariant. Qed.
 
-Lemma normalise_lifted_round_equivariant :
-  rewrite_equivariant normalise_lifted_round.
+Lemma normalise_lifted_round_equivariant (kept : list code_id) :
+  rewrite_equivariant (normalise_lifted_round kept).
 Proof.
   intros r e. unfold normalise_lifted_round.
   rewrite normalise_before_round_equivariant,
@@ -5041,8 +5053,8 @@ Proof.
   apply with_known_equivariant.
 Qed.
 
-Lemma normalise_lifted_equivariant (rounds : nat) :
-  rewrite_equivariant (normalise_lifted rounds).
+Lemma normalise_lifted_equivariant (rounds : nat) (kept : list code_id) :
+  rewrite_equivariant (normalise_lifted rounds kept).
 Proof.
   intros r e. unfold normalise_lifted.
   rewrite
@@ -5052,10 +5064,10 @@ Qed.
 
 (* The liftings in turn. *)
 Lemma lifted_in_turn_renamed (r : renaming) (rounds : nat)
-    (Ls : list lifting) :
+    (Ls : list lifting) (kept : list code_id) :
   ∀ e : expr,
-    lifted_in_turn rounds (map (rename_lifting r) Ls) (rename_expr r e)
-    = rename_expr r (lifted_in_turn rounds Ls e).
+    lifted_in_turn rounds (map (rename_lifting r) Ls) kept (rename_expr r e)
+    = rename_expr r (lifted_in_turn rounds Ls kept e).
 Proof.
   induction Ls as [ | L Ls IH]; intros e; cbn [map lifted_in_turn];
     [ reflexivity | ].
@@ -5064,11 +5076,12 @@ Qed.
 
 Theorem validate_unit_equivariant : validate_unit_equivariant_statement.
 Proof.
-  intros r rounds unused slots Ls before after. unfold validate_unit.
+  intros r rounds unused slots Ls kept before after. unfold validate_unit.
   rewrite lifted_in_turn_renamed.
   rewrite normalise_before_equivariant, normalise_after_equivariant,
     without_slots_equivariant, !without_statics_equivariant,
     with_code_first_equivariant, !float_code_rewrite_equivariant,
+    !order_statics_as_equivariant,
     !expr_eqb_renamed.
   reflexivity.
 Qed.

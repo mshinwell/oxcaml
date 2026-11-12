@@ -332,17 +332,24 @@ Proof.
       apply IH. exact Hknow.
 Qed.
 
+Section Kept.
+
+(* The code whose calls are left alone. *)
+Variable kept : list code_id.
+
 Lemma inline_apply_refines (known : list (code_id * code)) (ap : apply_expr)
     (vars : env) (conts : cont_env) (statics : static_env) :
   statics_know known statics ->
   refines (State (Apply ap) vars conts statics)
-    (State (inline_apply known ap) vars conts statics).
+    (State (inline_apply kept known ap) vars conts statics).
 Proof.
   intros Hknow. unfold inline_apply.
   destruct (ap_call_kind ap) as [called | ] eqn:Hkind; [ | apply refines_refl ].
   destruct (lookup called known) as [c | ] eqn:Hlookup;
     [ | apply refines_refl ].
-  destruct (inlinable_b ap c) eqn:Hinlinable; [ | apply refines_refl ].
+  destruct (negb (among called kept) && inlinable_b ap c) eqn:Hcheck;
+    [ | apply refines_refl ].
+  apply andb_true_iff in Hcheck as [_ Hinlinable].
   exact (inline ap called c _ vars conts statics Hkind
     (Hknow called c Hlookup) (inlinable_b_sound ap c Hinlinable)).
 Qed.
@@ -390,19 +397,21 @@ Qed.
 
 Lemma inline_apply_binds_statics (known : list (code_id * code))
     (ap : apply_expr) :
-  binds_statics (inline_apply known ap) = false.
+  binds_statics (inline_apply kept known ap) = false.
 Proof.
   unfold inline_apply.
   destruct (ap_call_kind ap) as [called | ]; [ | reflexivity ].
   destruct (lookup called known) as [c | ]; [ | reflexivity ].
-  destruct (inlinable_b ap c) eqn:Hinlinable; [ | reflexivity ].
+  destruct (negb (among called kept) && inlinable_b ap c) eqn:Hcheck;
+    [ | reflexivity ].
+  apply andb_true_iff in Hcheck as [_ Hinlinable].
   rewrite inlined_body_binds_statics.
   exact (inlinable_b_binds_statics ap c Hinlinable).
 Qed.
 
 Fixpoint inline_calls_binds_statics (e : expr) :
   ∀ known : list (code_id * code),
-    binds_statics (inline_calls known e) = binds_statics e.
+    binds_statics (inline_calls kept known e) = binds_statics e.
 Proof.
   destruct e
     as [ x kind d body | bindings body | k h body | handlers body
@@ -424,7 +433,7 @@ Qed.
 Lemma inline_calls_handlers_bind_statics (known : list (code_id * code))
     (handlers : list (continuation * continuation_handler)) :
   handlers_bind_statics
-    (map (fun '(k, h) => (k, inline_calls_in_handler known h)) handlers)
+    (map (fun '(k, h) => (k, inline_calls_in_handler kept known h)) handlers)
   = handlers_bind_statics handlers.
 Proof.
   unfold handlers_bind_statics.
@@ -451,7 +460,7 @@ Fixpoint inline_calls_refines_knowing (e : expr) :
     (statics : static_env),
     statics_know known statics ->
     refines (State e vars conts statics)
-      (State (inline_calls known e) vars conts statics).
+      (State (inline_calls kept known e) vars conts statics).
 Proof.
   - destruct e
       as [ x kind d body | bindings body | k h body | handlers body
@@ -465,7 +474,7 @@ Proof.
          body, the static environment binding the code as rewritten *)
       assert (Hrefine :
         bindings_refine (statics_know known) bindings
-          (map (inline_calls_in_binding known) bindings)).
+          (map (inline_calls_in_binding kept known) bindings)).
       { induction bindings
           as [ | [id [params my_closure ret exn metadata code_body] | id
                  | sym const]
@@ -484,7 +493,7 @@ Proof.
           split; (apply Forall2_cons; [ apply Binding_same | assumption ]).
         - destruct IH as [Hforwards Hbackwards].
           split; (apply Forall2_cons; [ apply Binding_same | assumption ]). }
-      remember (map (inline_calls_in_binding known) bindings) as bindings'
+      remember (map (inline_calls_in_binding kept known) bindings) as bindings'
         eqn:Hdef.
       clear Hdef. destruct Hrefine as [Hforwards Hbackwards].
       apply (fun H =>
@@ -512,7 +521,7 @@ Proof.
       apply (refines_trans _
         (State
            (Let_cont_non_recursive k
-              (Handler params metadata (inline_calls known handler)) body)
+              (Handler params metadata (inline_calls kept known handler)) body)
            vars conts statics)).
       * apply (let_cont_handler_refines_where (statics_know known)
           (statics_know_extend known)); [ exact Hknow | ].
@@ -523,13 +532,13 @@ Proof.
     + apply (refines_trans _
         (State
            (Let_cont_recursive
-              (map (fun '(k, h) => (k, inline_calls_in_handler known h))
+              (map (fun '(k, h) => (k, inline_calls_in_handler kept known h))
                  handlers)
               body)
            vars conts statics)).
       * assert (Hhandlers :
           handlers_refine (statics_know known) vars handlers
-            (map (fun '(k, h) => (k, inline_calls_in_handler known h))
+            (map (fun '(k, h) => (k, inline_calls_in_handler kept known h))
                handlers)).
         { induction handlers
             as [ | [k [params metadata handler]] handlers IH];
@@ -550,9 +559,11 @@ Proof.
     + apply inline_apply_refines, Hknow.
 Qed.
 
+End Kept.
+
 Theorem inline_calls_refines : inline_calls_refines_statement.
 Proof.
-  intros e vars conts statics. apply inline_calls_refines_knowing.
+  intros kept e vars conts statics. apply inline_calls_refines_knowing.
   intros id c Hlookup. discriminate Hlookup.
 Qed.
 
@@ -1411,13 +1422,18 @@ Proof.
       destruct (Pos.eqb s sym); [ discriminate | apply Hknow ].
 Qed.
 
+Section Kept.
+
+(* The code whose calls are left alone. *)
+Variable kept : list code_id.
+
 Lemma inline_known_apply_equivalent (known_code : list (code_id * code))
     (known_symbols : list (symbol * option code_id)) (ap : apply_expr)
     (vars : env) (conts : cont_env) (statics : static_env) :
   statics_know known_code statics ->
   statics_know_symbols known_symbols statics ->
   equivalent (State (Apply ap) vars conts statics)
-    (State (inline_known_apply known_code known_symbols ap) vars conts
+    (State (inline_known_apply kept known_code known_symbols ap) vars conts
        statics).
 Proof.
   intros Hcode Hsymbols. unfold inline_known_apply.
@@ -1429,9 +1445,12 @@ Proof.
     try apply equivalent_refl.
   destruct (lookup called known_code) as [c | ] eqn:Hc;
     [ | apply equivalent_refl ].
-  destruct (Pos.eqb code called && inlinable_b ap c && call_agrees_b ap c)
+  destruct
+    (negb (among called kept)
+     && (Pos.eqb code called && inlinable_b ap c && call_agrees_b ap c))
     eqn:Hcheck;
     [ | apply equivalent_refl ].
+  apply andb_true_iff in Hcheck as [_ Hcheck].
   apply andb_true_iff in Hcheck as [Hcheck Hagrees].
   apply andb_true_iff in Hcheck as [Hsame Hinlinable].
   apply Pos.eqb_eq in Hsame. subst code.
@@ -1474,16 +1493,19 @@ Qed.
 Lemma inline_known_apply_binds_statics
     (known_code : list (code_id * code))
     (known_symbols : list (symbol * option code_id)) (ap : apply_expr) :
-  binds_statics (inline_known_apply known_code known_symbols ap) = false.
+  binds_statics (inline_known_apply kept known_code known_symbols ap) = false.
 Proof.
   unfold inline_known_apply.
   destruct (ap_callee ap) as [x | s | const]; try reflexivity.
   destruct (ap_call_kind ap) as [called | ]; try reflexivity.
   destruct (lookup s known_symbols) as [[code | ] | ]; try reflexivity.
   destruct (lookup called known_code) as [c | ]; try reflexivity.
-  destruct (Pos.eqb code called && inlinable_b ap c && call_agrees_b ap c)
+  destruct
+    (negb (among called kept)
+     && (Pos.eqb code called && inlinable_b ap c && call_agrees_b ap c))
     eqn:Hcheck;
     [ | reflexivity ].
+  apply andb_true_iff in Hcheck as [_ Hcheck].
   apply andb_true_iff in Hcheck as [Hcheck _].
   apply andb_true_iff in Hcheck as [_ Hinlinable].
   rewrite inlined_body_binds_statics.
@@ -1493,7 +1515,7 @@ Qed.
 Fixpoint inline_known_calls_binds_statics (e : expr) :
   ∀ (known_code : list (code_id * code))
     (known_symbols : list (symbol * option code_id)),
-    binds_statics (inline_known_calls known_code known_symbols e)
+    binds_statics (inline_known_calls kept known_code known_symbols e)
     = binds_statics e.
 Proof.
   destruct e
@@ -1520,7 +1542,7 @@ Lemma inline_known_calls_handlers_bind_statics
   handlers_bind_statics
     (map
        (fun '(k, h) =>
-          (k, inline_known_calls_in_handler known_code known_symbols h))
+          (k, inline_known_calls_in_handler kept known_code known_symbols h))
        handlers)
   = handlers_bind_statics handlers.
 Proof.
@@ -1537,7 +1559,7 @@ Fixpoint inline_known_calls_equivalent_knowing (e : expr) :
     statics_know known_code statics ->
     statics_know_symbols known_symbols statics ->
     equivalent (State e vars conts statics)
-      (State (inline_known_calls known_code known_symbols e) vars conts
+      (State (inline_known_calls kept known_code known_symbols e) vars conts
          statics).
 Proof.
   - destruct e
@@ -1549,7 +1571,7 @@ Proof.
       apply inline_known_calls_equivalent_knowing; assumption.
     + assert (Hrefine :
         let bindings' :=
-          map (inline_known_calls_in_binding known_code known_symbols)
+          map (inline_known_calls_in_binding kept known_code known_symbols)
             bindings
         in
         bindings_refine (statics_know_both known_code known_symbols)
@@ -1581,7 +1603,7 @@ Proof.
           repeat split;
             (apply Forall2_cons; [ apply Binding_same | assumption ]). }
       remember
-        (map (inline_known_calls_in_binding known_code known_symbols)
+        (map (inline_known_calls_in_binding kept known_code known_symbols)
            bindings)
         as bindings' eqn:Hdef.
       clear Hdef. simpl in Hrefine.
@@ -1617,7 +1639,7 @@ Proof.
         (State
            (Let_cont_non_recursive k
               (Handler params metadata
-                 (inline_known_calls known_code known_symbols handler))
+                 (inline_known_calls kept known_code known_symbols handler))
               body)
            vars conts statics)).
       * apply refines_antisymmetric;
@@ -1636,7 +1658,7 @@ Proof.
               (map
                  (fun '(k, h) =>
                     (k,
-                     inline_known_calls_in_handler known_code known_symbols
+                     inline_known_calls_in_handler kept known_code known_symbols
                        h))
                  handlers)
               body)
@@ -1646,7 +1668,8 @@ Proof.
             map
               (fun '(k, h) =>
                  (k,
-                  inline_known_calls_in_handler known_code known_symbols h))
+                  inline_known_calls_in_handler kept known_code known_symbols
+                    h))
               handlers
           in
           handlers_refine (statics_know_both known_code known_symbols) vars
@@ -1680,10 +1703,13 @@ Proof.
     + apply inline_known_apply_equivalent; assumption.
 Qed.
 
+End Kept.
+
 Theorem inline_known_calls_equivalent :
   inline_known_calls_equivalent_statement.
 Proof.
-  intros e vars conts statics. apply inline_known_calls_equivalent_knowing.
+  intros kept e vars conts statics.
+  apply inline_known_calls_equivalent_knowing.
   - intros id c Hlookup. discriminate Hlookup.
   - intros s code Hlookup. discriminate Hlookup.
 Qed.

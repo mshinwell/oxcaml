@@ -31,11 +31,9 @@
    comparison of a variable with itself: a normalisation that refines.
 
    This file is to be reviewed: [apply_identities] and what it is made
-   of, and the statement. The pass is meant for the validation of
-   middle_end/flambda2/tests/semantics/, as one of the normalisations
-   of the term before Simplify (FlambdaValidateSpec.v). It is not yet
-   among them, and it is not yet extracted: until a later change puts
-   it there, nothing runs it.
+   of, which are extracted and run by the validation of
+   middle_end/flambda2/tests/semantics/ as one of the normalisations of
+   the term before Simplify (FlambdaValidateSpec.v), and the statement.
 
    Simplify computes an arithmetic operation or a shift of two integers
    that it knows. Where it knows one of the two only, it applies an

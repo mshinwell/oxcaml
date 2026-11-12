@@ -50,7 +50,13 @@
    code id is bound once (FlambdaWellFormedSpec.v). The body of code is
    rewritten with what was known before its group of bindings, so nothing
    is inlined into itself; and what a group makes known is its code as
-   rewritten.
+   rewritten. A call of code whose id is among those given ([kept]) is
+   left as it is. The caller chooses them, and they are not trusted:
+   leaving a call is always sound. They are there for the code that
+   Simplify does not inline, recursive functions above all: a call of
+   one, inlined, leaves a call of the same code to inline in the next
+   round, and so on for as many rounds as there are, where Simplify
+   leaves the first call alone.
 
    [expr_in_scope] is the check that code is closed. It is a sufficient
    condition, by its soundness (in the Proofs file); nothing is claimed
@@ -93,7 +99,8 @@
    arguments are not asked for: the call tests them, and so does the
    inlined body, where each parameter is bound by a [Let] at its kind.
    For the two to test the same, the code must give as many kinds as it
-   has parameters. It goes where [inline_calls] goes.
+   has parameters. It goes where [inline_calls] goes, and leaves the
+   same calls alone.
 
    [merge_statics], for either term, makes one group of [Let_static]s that
    follow one another, and puts the code of a group before its symbols.
@@ -244,13 +251,13 @@ Fixpoint codes_of (bindings : list static_binding)
     codes_of bindings known
   end.
 
-Definition inline_apply (known : list (code_id * code)) (ap : apply_expr)
-    : expr :=
+Definition inline_apply (kept : list code_id)
+    (known : list (code_id * code)) (ap : apply_expr) : expr :=
   match ap_call_kind ap with
   | Direct called =>
     match lookup called known with
     | Some c =>
-      if inlinable_b ap c
+      if negb (among called kept) && inlinable_b ap c
       then
         inlined_body c
           (inline_renaming (code_return_continuation c)
@@ -263,42 +270,47 @@ Definition inline_apply (known : list (code_id * code)) (ap : apply_expr)
   | Indirect => Apply ap
   end.
 
-Fixpoint inline_calls (known : list (code_id * code)) (e : expr) : expr :=
+Fixpoint inline_calls (kept : list code_id) (known : list (code_id * code))
+    (e : expr) : expr :=
   match e with
-  | Let x kind d body => Let x kind d (inline_calls known body)
+  | Let x kind d body => Let x kind d (inline_calls kept known body)
   | Let_static bindings body =>
-    let bindings := map (inline_calls_in_binding known) bindings in
-    Let_static bindings (inline_calls (codes_of bindings known) body)
+    let bindings := map (inline_calls_in_binding kept known) bindings in
+    Let_static bindings (inline_calls kept (codes_of bindings known) body)
   | Let_cont_non_recursive k h body =>
-    Let_cont_non_recursive k (inline_calls_in_handler known h)
-      (inline_calls known body)
+    Let_cont_non_recursive k (inline_calls_in_handler kept known h)
+      (inline_calls kept known body)
   | Let_cont_recursive handlers body =>
     Let_cont_recursive
-      (map (fun '(k, h) => (k, inline_calls_in_handler known h)) handlers)
-      (inline_calls known body)
-  | Apply ap => inline_apply known ap
+      (map (fun '(k, h) => (k, inline_calls_in_handler kept known h)) handlers)
+      (inline_calls kept known body)
+  | Apply ap => inline_apply kept known ap
   | Apply_cont _ | Switch _ _ | Invalid => e
   end
-with inline_calls_in_handler (known : list (code_id * code))
+with inline_calls_in_handler (kept : list code_id)
+    (known : list (code_id * code))
     (h : continuation_handler) : continuation_handler :=
   match h with
   | Handler params metadata handler =>
-    Handler params metadata (inline_calls known handler)
+    Handler params metadata (inline_calls kept known handler)
   end
-with inline_calls_in_binding (known : list (code_id * code))
+with inline_calls_in_binding (kept : list code_id)
+    (known : list (code_id * code))
     (binding : static_binding) : static_binding :=
   match binding with
-  | Bind_code id c => Bind_code id (inline_calls_in_code known c)
+  | Bind_code id c => Bind_code id (inline_calls_in_code kept known c)
   | Bind_deleted_code _ | Bind_symbol _ _ => binding
   end
-with inline_calls_in_code (known : list (code_id * code)) (c : code) : code :=
+with inline_calls_in_code (kept : list code_id)
+    (known : list (code_id * code)) (c : code) : code :=
   match c with
   | Code params my_closure ret exn metadata body =>
-    Code params my_closure ret exn metadata (inline_calls known body)
+    Code params my_closure ret exn metadata (inline_calls kept known body)
   end.
 
 Definition inline_calls_refines_statement : Prop :=
-  ∀ e : expr, expr_refines e (inline_calls [] e).
+  ∀ (kept : list code_id) (e : expr),
+    expr_refines e (inline_calls kept [] e).
 
 (* ======================================================================== *)
 (* Removing unused [Let]s                                                   *)
@@ -720,14 +732,16 @@ Definition call_agrees_b (ap : apply_expr) (c : code) : bool :=
   && arity_eqb (ap_return_arity ap) (code_result_arity c)
   && Nat.eqb (length (code_params c)) (length (code_params_kinds c)).
 
-Definition inline_known_apply (known_code : list (code_id * code))
+Definition inline_known_apply (kept : list code_id)
+    (known_code : list (code_id * code))
     (known_symbols : list (symbol * option code_id)) (ap : apply_expr)
     : expr :=
   match ap_callee ap, ap_call_kind ap with
   | Symbol s, Direct called =>
     match lookup s known_symbols, lookup called known_code with
     | Some (Some code), Some c =>
-      if Pos.eqb code called && inlinable_b ap c && call_agrees_b ap c
+      if negb (among called kept)
+         && (Pos.eqb code called && inlinable_b ap c && call_agrees_b ap c)
       then
         inlined_body c
           (inline_renaming (code_return_continuation c)
@@ -740,58 +754,63 @@ Definition inline_known_apply (known_code : list (code_id * code))
   | _, _ => Apply ap
   end.
 
-Fixpoint inline_known_calls (known_code : list (code_id * code))
+Fixpoint inline_known_calls (kept : list code_id)
+    (known_code : list (code_id * code))
     (known_symbols : list (symbol * option code_id)) (e : expr) : expr :=
   match e with
   | Let x kind d body =>
-    Let x kind d (inline_known_calls known_code known_symbols body)
+    Let x kind d (inline_known_calls kept known_code known_symbols body)
   | Let_static bindings body =>
     let bindings :=
-      map (inline_known_calls_in_binding known_code known_symbols) bindings
+      map (inline_known_calls_in_binding kept known_code known_symbols) bindings
     in
     Let_static bindings
-      (inline_known_calls (codes_of bindings known_code)
+      (inline_known_calls kept (codes_of bindings known_code)
          (symbols_of bindings known_symbols) body)
   | Let_cont_non_recursive k h body =>
     Let_cont_non_recursive k
-      (inline_known_calls_in_handler known_code known_symbols h)
-      (inline_known_calls known_code known_symbols body)
+      (inline_known_calls_in_handler kept known_code known_symbols h)
+      (inline_known_calls kept known_code known_symbols body)
   | Let_cont_recursive handlers body =>
     Let_cont_recursive
       (map
          (fun '(k, h) =>
-            (k, inline_known_calls_in_handler known_code known_symbols h))
+            (k, inline_known_calls_in_handler kept known_code known_symbols h))
          handlers)
-      (inline_known_calls known_code known_symbols body)
-  | Apply ap => inline_known_apply known_code known_symbols ap
+      (inline_known_calls kept known_code known_symbols body)
+  | Apply ap => inline_known_apply kept known_code known_symbols ap
   | Apply_cont _ | Switch _ _ | Invalid => e
   end
-with inline_known_calls_in_handler (known_code : list (code_id * code))
+with inline_known_calls_in_handler (kept : list code_id)
+    (known_code : list (code_id * code))
     (known_symbols : list (symbol * option code_id))
     (h : continuation_handler) : continuation_handler :=
   match h with
   | Handler params metadata handler =>
     Handler params metadata
-      (inline_known_calls known_code known_symbols handler)
+      (inline_known_calls kept known_code known_symbols handler)
   end
-with inline_known_calls_in_binding (known_code : list (code_id * code))
+with inline_known_calls_in_binding (kept : list code_id)
+    (known_code : list (code_id * code))
     (known_symbols : list (symbol * option code_id))
     (binding : static_binding) : static_binding :=
   match binding with
   | Bind_code id c =>
-    Bind_code id (inline_known_calls_in_code known_code known_symbols c)
+    Bind_code id (inline_known_calls_in_code kept known_code known_symbols c)
   | Bind_deleted_code _ | Bind_symbol _ _ => binding
   end
-with inline_known_calls_in_code (known_code : list (code_id * code))
+with inline_known_calls_in_code (kept : list code_id)
+    (known_code : list (code_id * code))
     (known_symbols : list (symbol * option code_id)) (c : code) : code :=
   match c with
   | Code params my_closure ret exn metadata body =>
     Code params my_closure ret exn metadata
-      (inline_known_calls known_code known_symbols body)
+      (inline_known_calls kept known_code known_symbols body)
   end.
 
 Definition inline_known_calls_equivalent_statement : Prop :=
-  ∀ e : expr, expr_equivalent e (inline_known_calls [] [] e).
+  ∀ (kept : list code_id) (e : expr),
+    expr_equivalent e (inline_known_calls kept [] [] e).
 
 (* ======================================================================== *)
 (* Groups of static bindings                                                *)
