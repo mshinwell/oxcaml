@@ -44,6 +44,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaUnusedStaticsSpec FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec FlambdaScopedProofs
   FlambdaKeepsScopeSpec.
+From OxCamlFlambda2 Require FlambdaCseProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -1108,8 +1109,11 @@ Proof.
         apply incl_tl, incl_appl, incl_refl).
   destruct d as [ | p args | | | | | ]; try exact Hforgot.
   destruct (shareable p && negb (var_in_simples x args)); [ | exact Hforgot ].
-  intros entry [<- | Hentry];
-    [ left; reflexivity | exact (Hforgot entry Hentry) ].
+  intros entry [<- | Hentry]; [ left; reflexivity | ].
+  apply in_app_or in Hentry as [Hagain | Hentry];
+    [ | exact (Hforgot entry Hentry) ].
+  right. apply in_or_app. right.
+  exact (FlambdaCseProofs.tagged_again_free x p args entry Hagain).
 Qed.
 
 Lemma computed_by_from (known : computed) (p : prim) (args : list simple)

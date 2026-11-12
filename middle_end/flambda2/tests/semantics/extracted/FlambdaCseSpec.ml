@@ -42,6 +42,25 @@ let rec forget_computed_vars xs known =
   | [] -> known
   | x :: xs0 -> forget_computed_vars xs0 (forget_computed x known)
 
+(** val tagged_again : variable -> prim -> simple list -> computed **)
+
+let tagged_again x p args =
+  match p with
+  | Unary p0 -> (
+    match p0 with
+    | Untag_immediate -> (
+      match args with
+      | [] -> []
+      | s :: l -> (
+        match s with
+        | Var t -> (
+          match l with
+          | [] -> (t, (Unary Tag_immediate, Var x :: [])) :: []
+          | _ :: _ -> [])
+        | _ -> []))
+    | _ -> [])
+  | _ -> []
+
 (** val computed_under_let : computed -> variable -> named -> computed **)
 
 let computed_under_let known x d =
@@ -49,7 +68,7 @@ let computed_under_let known x d =
   match d with
   | Prim (p, args) ->
     if shareable p && negb (var_in_simples x args)
-    then (x, (p, args)) :: known0
+    then (x, (p, args)) :: app (tagged_again x p args) known0
     else known0
   | _ -> known0
 

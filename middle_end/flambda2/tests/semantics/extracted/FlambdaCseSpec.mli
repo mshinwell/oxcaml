@@ -14,6 +14,8 @@ val forget_computed : variable -> computed -> computed
 
 val forget_computed_vars : variable list -> computed -> computed
 
+val tagged_again : variable -> prim -> simple list -> computed
+
 val computed_under_let : computed -> variable -> named -> computed
 
 val same_simples : simple list -> simple list -> bool

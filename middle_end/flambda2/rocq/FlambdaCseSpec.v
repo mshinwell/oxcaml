@@ -56,6 +56,20 @@
    is defined; the handlers of recursive ones and the bodies of code are
    left as they are.
 
+   One thing more is known under a [Let] of the untagging of a
+   variable: that the variable holds the tagging of what the [Let]
+   binds ([tagged_again]). A later [Let] of that tagging then becomes
+   a [Let] of the variable. Simplify records the same equation where
+   it simplifies an untagging
+   ([Simplify_unary_primitive.simplify_untag_immediate], the inverse
+   equation for its sharing). The front end untags a variant that is
+   not a block to test it, and tags the number again where an arm
+   gives the constructor its own number. The like for the boxing of
+   an unboxed number is not known here: Simplify records it only
+   where it has proved that the box is on the heap, and in the model
+   a boxed number that is a symbol and one that is made are not the
+   same value.
+
    What may be shared is a choice that is narrower than the compiler's.
    The primitives listed in [shareable] compute a number from numbers,
    or look at a value without reading memory that can change: the
@@ -142,17 +156,28 @@ Fixpoint forget_computed_vars (xs : list variable) (known : computed)
   | x :: xs => forget_computed_vars xs (forget_computed x known)
   end.
 
+(* What the untagging of a variable says of that variable: where [x]
+   is bound to [p] applied to [args] and that is the untagging of the
+   variable [t], [t] holds the tagging of [x]. Nothing of any other
+   primitive. *)
+Definition tagged_again (x : variable) (p : prim) (args : list simple)
+    : computed :=
+  match p, args with
+  | Unary Untag_immediate, [Var t] => [(t, (Unary Tag_immediate, [Var x]))]
+  | _, _ => []
+  end.
+
 (* What is known in the body of a [Let] of [x] to [d]: nothing that
    mentions the old [x], and that the new one is the result of [d], if
    that is a primitive that may be shared, applied to arguments that do
-   not mention the old [x]. *)
+   not mention the old [x]; and then what [tagged_again] adds. *)
 Definition computed_under_let (known : computed) (x : variable) (d : named)
     : computed :=
   let known := forget_computed x known in
   match d with
   | Prim p args =>
     if shareable p && negb (var_in_simples x args)
-    then (x, (p, args)) :: known
+    then (x, (p, args)) :: tagged_again x p args ++ known
     else known
   | _ => known
   end.

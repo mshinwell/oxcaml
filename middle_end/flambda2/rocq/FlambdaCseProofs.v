@@ -33,8 +33,8 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaKindModel FlambdaValueSpec FlambdaPrimitiveModel
   FlambdaPrimitiveSpec FlambdaPrimitiveProofs FlambdaSemanticsSpec
-  FlambdaSemanticsProofs FlambdaContextProofs FlambdaNominalSpec
-  FlambdaNominalProofs
+  FlambdaSemanticsProofs FlambdaContextProofs FlambdaBindersSpec
+  FlambdaNominalSpec FlambdaNominalProofs
   FlambdaApplyProofs FlambdaWellFormedSpec FlambdaWellFormedProofs
   FlambdaNormaliseSpec FlambdaNormaliseProofs FlambdaCseSpec.
 Import ListNotations.
@@ -91,6 +91,50 @@ Proof.
   intros s allocated _ Hs. apply Hvalues, Hs.
 Qed.
 
+(* Where an untagging has a value, the tagging of that value is what
+   was untagged. *)
+Lemma tag_of_untagged (statics : static_env) (tagged v : value) :
+  eval_prim statics (Unary Untag_immediate) [tagged] = Some v ->
+  eval_prim statics (Unary Tag_immediate) [v] = Some tagged.
+Proof.
+  rewrite !eval_prim_unary. unfold eval_unary_primitive, int_of_value.
+  destruct tagged; try discriminate.
+  match goal with c : const |- _ => destruct c; try discriminate end.
+  simpl.
+  match goal with
+  | |- context [in_range ?w ?i] =>
+    destruct (in_range w i) eqn:Hrange; [ | discriminate ]
+  end.
+  intros [= <-]. simpl. rewrite Hrange. reflexivity.
+Qed.
+
+(* What [tagged_again] adds is of the one form. *)
+Lemma tagged_again_spec (x : variable) (p : prim) (args : list simple)
+    (entry : variable * (prim * list simple)) :
+  In entry (tagged_again x p args) ->
+  ∃ t : variable,
+    p = Unary Untag_immediate
+    ∧ args = [Var t]
+    ∧ entry = (t, (Unary Tag_immediate, [Var x])).
+Proof.
+  unfold tagged_again.
+  destruct p as [u | | | ]; try contradiction.
+  destruct u; try contradiction.
+  destruct args as [ | [t | s | c] [ | arg args]]; try contradiction.
+  intros [<- | []]. exists t. auto.
+Qed.
+
+(* The variable that it says something of is one of the arguments. *)
+Lemma tagged_again_free (x : variable) (p : prim) (args : list simple)
+    (entry : variable * (prim * list simple)) :
+  In entry (tagged_again x p args) ->
+  In (fst entry) (free_variables_of_named (Prim p args)).
+Proof.
+  intros Hin.
+  destruct (tagged_again_spec x p args entry Hin) as (t & -> & -> & ->).
+  left. reflexivity.
+Qed.
+
 (* Under a [Let]. *)
 Lemma all_computed_under_let (known : computed) (x : variable) (d : named)
     (vars : env) (statics : static_env) (v : value) :
@@ -107,13 +151,28 @@ Proof.
     [ | exact Hforgot ].
   apply andb_true_iff in Hadd as [_ Hmention].
   apply negb_true_iff in Hmention.
-  intros entry [<- | Hin]; [ | exact (Hforgot entry Hin) ].
   simpl in Hd.
   destruct (eval_simples vars args) as [vs | ] eqn:Hvs; [ | discriminate ].
-  simpl in Hd. exists vs, v. simpl. split; [ | split; [ exact Hd | ] ].
-  - rewrite eval_simples_extend; [ exact Hvs | ].
-    intros Hfree. apply var_in_simples_sound in Hfree. congruence.
-  - rewrite Pos.eqb_refl. reflexivity.
+  simpl in Hd.
+  intros entry [<- | Hin].
+  - exists vs, v. simpl. split; [ | split; [ exact Hd | ] ].
+    + rewrite eval_simples_extend; [ exact Hvs | ].
+      intros Hfree. apply var_in_simples_sound in Hfree. congruence.
+    + rewrite Pos.eqb_refl. reflexivity.
+  - apply in_app_or in Hin as [Hagain | Hin]; [ | exact (Hforgot entry Hin) ].
+    destruct (tagged_again_spec x p args entry Hagain) as (t & -> & -> & ->).
+    assert (Hxt : Pos.eqb x t = false).
+    { cbn [var_in_simples var_in_simple existsb] in Hmention.
+      rewrite orb_false_r in Hmention. exact Hmention. }
+    cbn [eval_simples eval_simple] in Hvs.
+    destruct (lookup t vars) as [tagged | ] eqn:Ht; [ | discriminate ].
+    simpl in Hvs. injection Hvs as <-.
+    exists [v], tagged. cbn [fst snd].
+    split; [ | split ].
+    + cbn [eval_simples eval_simple lookup]. rewrite Pos.eqb_refl.
+      reflexivity.
+    + exact (tag_of_untagged statics tagged v Hd).
+    + cbn [lookup]. rewrite Pos.eqb_sym, Hxt. exact Ht.
 Qed.
 
 (* ======================================================================== *)
@@ -347,6 +406,21 @@ Proof.
   rewrite forget_computed_renamed. apply IH.
 Qed.
 
+Lemma tagged_again_renamed (r : renaming) (x : variable) (p : prim)
+    (args : list simple) :
+  tagged_again (rename_variable r x) p (map (rename_simple r) args)
+  = map
+      (fun entry =>
+         (rename_variable r (fst entry),
+          (fst (snd entry), map (rename_simple r) (snd (snd entry)))))
+      (tagged_again x p args).
+Proof.
+  unfold tagged_again.
+  destruct p as [u | | | ]; try reflexivity.
+  destruct u; try reflexivity.
+  destruct args as [ | [t | s | c] [ | arg args]]; reflexivity.
+Qed.
+
 Lemma computed_under_let_renamed (r : renaming) (known : computed)
     (x : variable) (d : named) :
   computed_under_let (rename_computed r known) (rename_variable r x)
@@ -356,7 +430,9 @@ Proof.
   unfold computed_under_let. rewrite forget_computed_renamed.
   destruct d as [s | p args | | | | | ]; try reflexivity.
   simpl. rewrite var_in_simples_renamed.
-  destruct (shareable p && negb (var_in_simples x args)); reflexivity.
+  destruct (shareable p && negb (var_in_simples x args)); [ | reflexivity ].
+  unfold rename_computed. rewrite map_cons, map_app. cbn [fst snd].
+  f_equal. f_equal. apply tagged_again_renamed.
 Qed.
 
 Fixpoint share_primitives_knowing_equivariant_aux (r : renaming) (e : expr) :
