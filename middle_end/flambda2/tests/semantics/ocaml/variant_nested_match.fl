@@ -1,0 +1,248 @@
+(let code size(256)
+       score_0
+         (shape/161 :
+            [ 0 |1 | 0 of imm tagged * imm tagged
+            |1 of imm tagged * imm tagged * imm tagged
+            |2 of [ 0 |1 | 0 of imm tagged * imm tagged
+                  |1 of imm tagged * imm tagged * imm tagged |2 of val * val
+                  ] *
+               [ 0 |1 | 0 of imm tagged * imm tagged
+               |1 of imm tagged * imm tagged * imm tagged |2 of val * val ] ])
+         my_closure/162 &my_alloc_region/163 my_depth/164
+         -> k/92 * k/93
+         : imm tagged =
+   let next_depth/165 = rec_info (succ my_depth/164) in
+   (let prim/219 = %is_int (shape/161) in
+    let is_scrutinee_int/220 = %tag_imm (prim/219) in
+    let untagged/221 = %untag_imm (is_scrutinee_int/220) in
+    switch untagged/221
+      | 0 -> k/128
+      | 1 -> k/129)
+     where k/129 =
+       let untagged/218 = %untag_imm (shape/161) in
+       switch untagged/218
+         | 0 -> k/92 (0)
+         | 1 -> k/92 (1)
+     where k/128 =
+       let prim/215 = %get_tag (shape/161) in
+       let scrutinee_tag/216 = %tag_imm (prim/215) in
+       let untagged/217 = %untag_imm (scrutinee_tag/216) in
+       switch untagged/217
+         | 0 -> k/100
+         | 1 -> k/105
+         | 2 -> k/110
+     where k/110 =
+       let s/187 = %block_load.[`0`] (shape/161) in
+       ((let prim/212 = %is_int (s/187) in
+         let is_scrutinee_int/213 = %tag_imm (prim/212) in
+         let untagged/214 = %untag_imm (is_scrutinee_int/213) in
+         switch untagged/214
+           | 0 -> k/126
+           | 1 -> k/127)
+          where k/127 =
+            let untagged/211 = %untag_imm (s/187) in
+            switch untagged/211
+              | 0 -> k/118
+              | 1 -> k/125
+          where k/126 =
+            let prim/207 = %get_tag (s/187) in
+            let scrutinee_tag/208 = %tag_imm (prim/207) in
+            let untagged/209 = %untag_imm (scrutinee_tag/208) in
+            let eq/210 = %int_comp.`imm`.eq (untagged/209, 0i) in
+            switch eq/210
+              | 0 -> k/125
+              | 1 -> k/119
+          where k/125 =
+            cont k/112
+          where k/119 =
+            let `*match*/194` = %block_load.[`1`] (shape/161) in
+            ((let prim/204 = %is_int (`*match*/194`) in
+              let is_scrutinee_int/205 = %tag_imm (prim/204) in
+              let untagged/206 = %untag_imm (is_scrutinee_int/205) in
+              switch untagged/206
+                | 0 -> k/123
+                | 1 -> k/124)
+               where k/124 =
+                 let untagged/203 = %untag_imm (`*match*/194`) in
+                 switch untagged/203
+                   | 0 -> k/120
+                   | 1 -> k/122
+               where k/123 =
+                 let prim/199 = %get_tag (`*match*/194`) in
+                 let scrutinee_tag/200 = %tag_imm (prim/199) in
+                 let untagged/201 = %untag_imm (scrutinee_tag/200) in
+                 let eq/202 = %int_comp.`imm`.eq (untagged/201, 0i) in
+                 switch eq/202
+                   | 0 -> k/122
+                   | 1 -> k/121
+               where k/122 =
+                 cont k/111
+               where k/121 =
+                 let Pfield/195 = %block_load.[`0`] (`*match*/194`) in
+                 let Pfield/196 = %block_load.[`0`] (s/187) in
+                 let int_add/197 = %int_barith.add (Pfield/196, Pfield/195)
+                 in
+                 let int_add/198 = %int_barith.add (int_add/197, 70) in
+                 cont k/92 (int_add/198)
+               where k/120 =
+                 cont k/112)
+          where k/118 =
+            let Pfield/193 = %block_load.[`1`] (shape/161) in
+            cont k/94 (Pfield/193)
+          where k/112 =
+            let `*match*/188` = %block_load.[`1`] (shape/161) in
+            ((let prim/190 = %is_int (`*match*/188`) in
+              let Pisint/191 = %tag_imm (prim/190) in
+              (let untagged/192 = %untag_imm (Pisint/191) in
+               switch untagged/192
+                 | 0 -> k/116
+                 | 1 -> k/117)
+                where k/117 =
+                  cont k/113
+                where k/116 =
+                  cont k/111)
+               where k/113 =
+                 ((let untagged/189 = %untag_imm (`*match*/188`) in
+                   switch untagged/189
+                     | 0 -> k/114
+                     | 1 -> k/115)
+                    where k/115 =
+                      cont k/111
+                    where k/114 =
+                      cont k/94 (s/187)))
+          where k/111 =
+            cont k/92 (80))
+     where k/105 =
+       let w/178 = %block_load.[`0`] (shape/161) in
+       ((let Pfield/183 = %block_load.[`2`] (shape/161) in
+         let prim/184 = %int_comp.ge (Pfield/183, 2) in
+         let int_greaterequal/185 = %tag_imm (prim/184) in
+         (let untagged/186 = %untag_imm (int_greaterequal/185) in
+          switch untagged/186
+            | 0 -> k/108
+            | 1 -> k/109)
+           where k/109 =
+             cont k/106
+           where k/108 =
+             cont k/107)
+          where k/107 =
+            let int_add/182 = %int_barith.add (w/178, 40) in
+            cont k/92 (int_add/182)
+          where k/106 =
+            let Pfield/179 = %block_load.[`1`] (shape/161) in
+            let int_add/180 = %int_barith.add (w/178, Pfield/179) in
+            let int_add/181 = %int_barith.add (int_add/180, 30) in
+            cont k/92 (int_add/181))
+     where k/100 =
+       let r/171 = %block_load.[`0`] (shape/161) in
+       ((let Pfield/174 = %block_load.[`1`] (shape/161) in
+         let prim/175 = %int_comp.ne (Pfield/174, 0) in
+         let int_notequal/176 = %tag_imm (prim/175) in
+         (let untagged/177 = %untag_imm (int_notequal/176) in
+          switch untagged/177
+            | 0 -> k/103
+            | 1 -> k/104)
+           where k/104 =
+             cont k/101
+           where k/103 =
+             cont k/102)
+          where k/102 =
+            let int_add/173 = %int_barith.add (r/171, 10) in
+            cont k/92 (int_add/173)
+          where k/101 =
+            let int_add/172 = %int_barith.add (r/171, 20) in
+            cont k/92 (int_add/172))
+     where k/94
+             (s/166 :
+                [ 0 |1 | 0 of imm tagged * imm tagged
+                |1 of imm tagged * imm tagged * imm tagged
+                |2 of [ 0 |1 | 0 of imm tagged * imm tagged
+                      |1 of imm tagged * imm tagged * imm tagged
+                      |2 of val * val ] *
+                   [ 0 |1 | 0 of imm tagged * imm tagged
+                   |1 of imm tagged * imm tagged * imm tagged |2 of val * val
+                   ] ]) =
+       ((let prim/168 = %is_int (s/166) in
+         let Pisint/169 = %tag_imm (prim/168) in
+         (let untagged/170 = %untag_imm (Pisint/169) in
+          switch untagged/170
+            | 0 -> k/98
+            | 1 -> k/99)
+           where k/99 =
+             cont k/96
+           where k/98 =
+             cont k/95)
+          where k/96 =
+            ((let untagged/167 = %untag_imm (s/166) in
+              switch untagged/167
+                | 0 -> k/97
+                | 1 -> k/92 (50))
+               where k/97 =
+                 cont k/95)
+          where k/95 =
+            cont k/92 (60))
+ in
+ let $camlVariant_nested_match__const_block_5 = Block 0 (1, 1) in
+ let $camlVariant_nested_match__const_block_4 = Block 1 (2, 3, 2) in
+ let $camlVariant_nested_match__const_block_3 = Block 2 (0, 1) in
+ let $camlVariant_nested_match__const_block_0 = Block 0 (4, 0) in
+ let $camlVariant_nested_match__const_block_1 = Block 0 (5, 2) in
+ let $camlVariant_nested_match__const_block_2 =
+   Block 2 ($camlVariant_nested_match__const_block_0,
+            $camlVariant_nested_match__const_block_1)
+ in
+ let score/222 = closure score_0 @score &toplevel in
+ (let Popaque/237 = %opaque (1) in
+  apply direct(score_0 &toplevel)
+    (score/222 : _ -> imm tagged) (Popaque/237) -> k/130 * error)
+   where k/130 (apply_result/223 : imm tagged) =
+     ((let Popaque/236 = %opaque ($camlVariant_nested_match__const_block_2)
+       in
+       apply direct(score_0 &toplevel)
+         (score/222 : _ -> imm tagged) (Popaque/236) -> k/131 * error)
+        where k/131 (apply_result/224 : imm tagged) =
+          ((let Popaque/235 =
+              %opaque ($camlVariant_nested_match__const_block_3)
+            in
+            apply direct(score_0 &toplevel)
+              (score/222 : _ -> imm tagged) (Popaque/235) -> k/132 * error)
+             where k/132 (apply_result/225 : imm tagged) =
+               ((let Popaque/234 =
+                   %opaque ($camlVariant_nested_match__const_block_4)
+                 in
+                 apply direct(score_0 &toplevel)
+                   (score/222 : _ -> imm tagged)
+                     (Popaque/234)
+                     -> k/133 * error)
+                  where k/133 (apply_result/226 : imm tagged) =
+                    ((let Popaque/233 =
+                        %opaque ($camlVariant_nested_match__const_block_5)
+                      in
+                      apply direct(score_0 &toplevel)
+                        (score/222 : _ -> imm tagged)
+                          (Popaque/233)
+                          -> k/134 * error)
+                       where k/134 (apply_result/227 : imm tagged) =
+                         let int_add/228 =
+                           %int_barith.add
+                             (apply_result/227, apply_result/226)
+                         in
+                         let int_add/229 =
+                           %int_barith.add (int_add/228, apply_result/225)
+                         in
+                         let int_add/230 =
+                           %int_barith.add (int_add/229, apply_result/224)
+                         in
+                         let result/231 =
+                           %int_barith.add (int_add/230, apply_result/223)
+                         in
+                         let Pmakeblock/232 =
+                           %block.[`0`].`toplevel` (result/231)
+                         in
+                         cont k/91 (Pmakeblock/232))))))
+  where k/91 define_root_symbol (module_block/159) =
+    let field_0/160 =
+      %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/159)
+    in
+    let $camlVariant_nested_match = Block 0 (field_0/160) in
+    cont done ($camlVariant_nested_match)

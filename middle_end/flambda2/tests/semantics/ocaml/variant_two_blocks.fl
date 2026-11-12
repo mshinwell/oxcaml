@@ -1,0 +1,51 @@
+(let code inline(never) size(46)
+       f_0 (t/51 : [ 0 |1 | 0 of imm tagged |1 of imm tagged * imm tagged ])
+         my_closure/52 &my_alloc_region/53 my_depth/54
+         -> k/22 * k/23
+         : imm tagged =
+   let next_depth/55 = rec_info (succ my_depth/54) in
+   (let prim/63 = %is_int (t/51) in
+    let is_scrutinee_int/64 = %tag_imm (prim/63) in
+    let untagged/65 = %untag_imm (is_scrutinee_int/64) in
+    switch untagged/65
+      | 0 -> k/26
+      | 1 -> k/27)
+     where k/27 =
+       let untagged/62 = %untag_imm (t/51) in
+       switch untagged/62
+         | 0 -> k/22 (0)
+         | 1 -> k/22 (1)
+     where k/26 =
+       let prim/59 = %get_tag (t/51) in
+       let scrutinee_tag/60 = %tag_imm (prim/59) in
+       let untagged/61 = %untag_imm (scrutinee_tag/60) in
+       switch untagged/61
+         | 0 -> k/24
+         | 1 -> k/25
+     where k/25 =
+       let Pfield/58 = %block_load.[`0`] (t/51) in
+       cont k/22 (Pfield/58)
+     where k/24 =
+       let Pfield/56 = %block_load.[`0`] (t/51) in
+       let int_add/57 = %int_barith.add (Pfield/56, 2) in
+       cont k/22 (int_add/57)
+ in
+ let $camlVariant_two_blocks__const_block_0 = Block 0 (3) in
+ let f/66 = closure f_0 @f &toplevel in
+ (let Popaque/72 = %opaque ($camlVariant_two_blocks__const_block_0) in
+  apply direct(f_0 &toplevel)
+    (f/66 : _ -> imm tagged) (Popaque/72) -> k/28 * error)
+   where k/28 (apply_result/67 : imm tagged) =
+     ((let Popaque/71 = %opaque (1) in
+       apply direct(f_0 &toplevel)
+         (f/66 : _ -> imm tagged) (Popaque/71) -> k/29 * error)
+        where k/29 (apply_result/68 : imm tagged) =
+          let result/69 = %int_barith.add (apply_result/68, apply_result/67)
+          in
+          let Pmakeblock/70 = %block.[`0`].`toplevel` (result/69) in
+          cont k/21 (Pmakeblock/70)))
+  where k/21 define_root_symbol (module_block/49) =
+    let field_0/50 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/49)
+    in
+    let $camlVariant_two_blocks = Block 0 (field_0/50) in
+    cont done ($camlVariant_two_blocks)
