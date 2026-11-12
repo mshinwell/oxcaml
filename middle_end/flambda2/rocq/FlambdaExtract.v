@@ -266,6 +266,7 @@ Separate Extraction
   static_names_apart
   statics_in_scope
   step
+  stub_code_metadata
   traps_well_formed
   unarize
   unbind
