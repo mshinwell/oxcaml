@@ -36,8 +36,8 @@ Files, in `middle_end/flambda2/types/rocq/`:
   renaming relates, proved (`FlambdaMeetRenameProofs.v`). To be
   reviewed (sections 16 and 17).
 - `FlambdaMeetKeepsSpec.v`: what a meet keeps, for a join that has
-  the half of its contract that is not about values; one definition
-  and six statements, proved (`FlambdaMeetKeepsProofs.v`). To be
+  the half of its contract that is not about values; two definitions
+  and seven statements, proved (`FlambdaMeetKeepsProofs.v`). To be
   reviewed (section 18). `FlambdaMeetValidity.v`: the device of the
   proof; definitions and a tactic, no statement.
 
@@ -946,12 +946,34 @@ What is stated and proved:
   are not about values, `meet_kinds` and `meet_bottom_env`, hold of
   `Meet.meet join choices fuel` whatever the join, the choices and
   the fuel.
+- `typing_env_functions_keep`: the half that is not about values of
+  the three functions that add to a typing environment
+  (`Flambda2_types.add_equation`, `add_env_extension`,
+  `add_equations_on_params`), for a meet of expanded types that has
+  `meet_expanded_head_keeps`. The signed contracts
+  (`add_equation_sound` and the two others) say that the environment
+  answered is satisfied and not that it fits, which they suppose
+  of the environment given; so they alone do not give what is
+  needed to use them again of an environment answered (this is
+  about what can be proved from the contracts, not about whether a
+  second call answers). Here: the
+  environment answered fits, and what fitted the first, was of a
+  kind in it or was known to it is so in the second
+  (`typing_env_kept`, the second definition of the file). The
+  premises are those of the functions of `Meet_env` that the three
+  are made of: what is added fits, and the name of an equation is of
+  the kind of its type (`simple_of_kind`, `env_extension_kinded`),
+  which the contracts about values have from the value that the
+  name holds. The proof is the three signed statements of
+  `FlambdaMeetEnvSpec.v` about those functions, read of the typing
+  environments.
 
 What is not stated: nothing about values; nothing that is kept for
 `compiler_choices` (of the meet with those choices only
 `meet_of_types_kinds`, which is for any choices, says anything);
-nothing of the functions that add to a typing environment, whose
-contracts are about values throughout; and neither of
+nothing of the functions that add a relation
+(`Flambda2_types.add_relation` and the three made of it); and
+neither of
 `join_scoped_envs_sound` and `join_scoped_envs_keeps` is shown to
 imply the other (the first gives its conclusions only for a meet
 that loses no value).
