@@ -1,0 +1,57 @@
+let $camlClosure_in_arm_of_unknown__first_const_0 = Block 0 () in
+(let code size(1)
+       `fn[closure_in_arm_of_unknown.ml:13,68--78]_0` (p/50 : imm tagged)
+         my_closure/51 &my_alloc_region/52 my_depth/53
+         -> k/24 * k/25
+         : imm tagged =
+   let next_depth/54 = rec_info (succ my_depth/53) in
+   cont k/24 (p/50)
+ in
+ let code size(4)
+       `fn[closure_in_arm_of_unknown.ml:13,31--62]_1`
+         (position/55 : imm tagged)
+         my_closure/56 &my_alloc_region/57 my_depth/58
+         -> k/26 * k/27
+         : imm tagged =
+   let next_depth/59 = rec_info (succ my_depth/58) in
+   let step/60 =
+     %project_value_slot.[`fn[closure_in_arm_of_unknown.ml:13,31--62]`].[step]
+       (my_closure/56)
+   in
+   let int_add/61 = %int_barith.add (position/55, step/60) in
+   cont k/26 (int_add/61)
+ in
+ let step/62 = %opaque (3) in
+ (let prim/67 = %int_comp.gt (step/62, 2) in
+  let int_greaterthan/68 = %tag_imm (prim/67) in
+  (let untagged/69 = %untag_imm (int_greaterthan/68) in
+   switch untagged/69
+     | 0 -> k/31
+     | 1 -> k/32)
+    where k/32 =
+      cont k/29
+    where k/31 =
+      cont k/30)
+   where k/30 =
+     let `fn[closure_in_arm_of_unknown.ml:13,68--78]/66` =
+       closure `fn[closure_in_arm_of_unknown.ml:13,68--78]_0`
+         @`fn[closure_in_arm_of_unknown.ml:13,68--78]` &toplevel
+     in
+     cont k/28 (`fn[closure_in_arm_of_unknown.ml:13,68--78]/66`)
+   where k/29 =
+     let `fn[closure_in_arm_of_unknown.ml:13,31--62]/65` =
+       closure `fn[closure_in_arm_of_unknown.ml:13,31--62]_1`
+         @`fn[closure_in_arm_of_unknown.ml:13,31--62]` &toplevel
+     with { step = step/62 }
+     in
+     cont k/28 (`fn[closure_in_arm_of_unknown.ml:13,31--62]/65`)
+   where k/28 (advance/63 : val) =
+     let Pmakeblock/64 = %block.[`0`].`toplevel` (step/62, advance/63) in
+     cont k/23 (Pmakeblock/64))
+  where k/23 define_root_symbol (module_block/47) =
+    let field_0/48 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/47)
+    in
+    let field_1/49 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/47)
+    in
+    let $camlClosure_in_arm_of_unknown = Block 0 (field_0/48, field_1/49) in
+    cont done ($camlClosure_in_arm_of_unknown)

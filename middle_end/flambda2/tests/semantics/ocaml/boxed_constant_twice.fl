@@ -1,0 +1,21 @@
+(let $camlBoxed_constant_twice__int64_1 = 2L in
+ let $camlBoxed_constant_twice__int64_0 = 1L in
+ let prim/28 = %unbox_num.`int64` ($camlBoxed_constant_twice__int64_1) in
+ let prim/29 = %unbox_num.`int64` ($camlBoxed_constant_twice__int64_0) in
+ let prim/30 = %int_barith.`int64`.add (prim/29, prim/28) in
+ let one_plus_two/31 = %box_num.`int64`.`toplevel` (prim/30) in
+ let prim/32 = %unbox_num.`int64` ($camlBoxed_constant_twice__int64_0) in
+ let prim/33 = %unbox_num.`int64` ($camlBoxed_constant_twice__int64_1) in
+ let prim/34 = %int_barith.`int64`.add (prim/33, prim/32) in
+ let two_plus_one/35 = %box_num.`int64`.`toplevel` (prim/34) in
+ let Pmakeblock/36 =
+   %block.[`0`].`toplevel` (one_plus_two/31, two_plus_one/35)
+ in
+ cont k/5 (Pmakeblock/36))
+  where k/5 define_root_symbol (module_block/25) =
+    let field_0/26 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/25)
+    in
+    let field_1/27 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/25)
+    in
+    let $camlBoxed_constant_twice = Block 0 (field_0/26, field_1/27) in
+    cont done ($camlBoxed_constant_twice)
