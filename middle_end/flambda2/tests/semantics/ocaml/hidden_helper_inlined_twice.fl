@@ -1,0 +1,76 @@
+let $camlHidden_helper_inlined_twice__first_const_0 = Block 0 () in
+(let code size(5)
+       square_0 (x/85 : imm tagged)
+         my_closure/86 &my_alloc_region/87 my_depth/88
+         -> k/32 * k/33
+         : imm tagged =
+   let next_depth/89 = rec_info (succ my_depth/88) in
+   let int_mul/90 = %int_barith.mul (x/85, x/85) in
+   cont k/32 (int_mul/90)
+ in
+ let code inline(never) size(12)
+       sum_1 (a/91 : imm tagged, b/92 : imm tagged)
+         my_closure/93 &my_alloc_region/94 my_depth/95
+         -> k/34 * k/35
+         : imm tagged =
+   let next_depth/96 = rec_info (succ my_depth/95) in
+   let square/97 = %project_value_slot.[sum].[square] (my_closure/93) in
+   apply direct(square_0 &my_alloc_region/94)
+     (square/97 : _ -> imm tagged) (b/92) -> k/36 * k/35
+     where k/36 (apply_result/98 : imm tagged) =
+       (apply direct(square_0 &my_alloc_region/94)
+          (square/97 : _ -> imm tagged) (a/91) -> k/37 * k/35
+          where k/37 (apply_result/99 : imm tagged) =
+            let int_add/100 =
+              %int_barith.add (apply_result/99, apply_result/98)
+            in
+            cont k/34 (int_add/100))
+ in
+ let code inline(never) size(12)
+       difference_2 (a/101 : imm tagged, b/102 : imm tagged)
+         my_closure/103 &my_alloc_region/104 my_depth/105
+         -> k/38 * k/39
+         : imm tagged =
+   let next_depth/106 = rec_info (succ my_depth/105) in
+   let square/107 =
+     %project_value_slot.[difference].[square_1] (my_closure/103)
+   in
+   apply direct(square_0 &my_alloc_region/104)
+     (square/107 : _ -> imm tagged) (b/102) -> k/40 * k/39
+     where k/40 (apply_result/108 : imm tagged) =
+       (apply direct(square_0 &my_alloc_region/104)
+          (square/107 : _ -> imm tagged) (a/101) -> k/41 * k/39
+          where k/41 (apply_result/109 : imm tagged) =
+            let int_sub/110 =
+              %int_barith.sub (apply_result/109, apply_result/108)
+            in
+            cont k/38 (int_sub/110))
+ in
+ (let square/120 = closure square_0 @square &toplevel in
+  let sum/121 = closure sum_1 @sum &toplevel with { square = square/120 } in
+  let difference/122 = closure difference_2 @difference &toplevel
+  with { square_1 = square/120 }
+  in
+  let Pmakeblock/123 = %block.[`0`].`toplevel` (sum/121, difference/122) in
+  cont k/42 (Pmakeblock/123))
+   where k/42 (Squares/111 : val) =
+     ((let Popaque/118 = %opaque (2) in
+       let Pfield/119 = %block_load.[`1`] (Squares/111) in
+       apply direct(difference_2 &toplevel)
+         (Pfield/119 : _ -> imm tagged) (5, Popaque/118) -> k/43 * error)
+        where k/43 (apply_result/112 : imm tagged) =
+          ((let Popaque/116 = %opaque (3) in
+            let Pfield/117 = %block_load.[`0`] (Squares/111) in
+            apply direct(sum_1 &toplevel)
+              (Pfield/117 : _ -> imm tagged) (Popaque/116, 4) -> k/44 * error)
+             where k/44 (apply_result/113 : imm tagged) =
+               let result/114 =
+                 %int_barith.add (apply_result/113, apply_result/112)
+               in
+               let Pmakeblock/115 = %block.[`0`].`toplevel` (result/114) in
+               cont k/31 (Pmakeblock/115))))
+  where k/31 define_root_symbol (module_block/83) =
+    let field_0/84 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/83)
+    in
+    let $camlHidden_helper_inlined_twice = Block 0 (field_0/84) in
+    cont done ($camlHidden_helper_inlined_twice)

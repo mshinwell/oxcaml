@@ -1,0 +1,39 @@
+let $camlHelper_inlined_in_closure__first_const_0 = Block 0 () in
+(let code size(5)
+       double_0 (y/49 : imm tagged)
+         my_closure/50 &my_alloc_region/51 my_depth/52
+         -> k/18 * k/19
+         : imm tagged =
+   let next_depth/53 = rec_info (succ my_depth/52) in
+   let int_mul/54 = %int_barith.mul (y/49, 2) in
+   cont k/18 (int_mul/54)
+ in
+ let code inline(never) size(8)
+       g_1 (x/55 : imm tagged)
+         my_closure/56 &my_alloc_region/57 my_depth/58
+         -> k/20 * k/21
+         : imm tagged =
+   let next_depth/59 = rec_info (succ my_depth/58) in
+   let n/60 = %project_value_slot.[g].[n] (my_closure/56) in
+   let double/61 = %project_value_slot.[g].[double] (my_closure/56) in
+   let int_add/62 = %int_barith.add (x/55, n/60) in
+   apply direct(double_0 &my_alloc_region/57)
+     (double/61 : _ -> imm tagged) (int_add/62) -> k/20 * k/21
+ in
+ let n/63 = %opaque (1) in
+ let double/64 = closure double_0 @double &toplevel in
+ let g/65 = closure g_1 @g &toplevel with { n = n/63; double = double/64 } in
+ apply direct(g_1 &toplevel) (g/65 : _ -> imm tagged) (7) -> k/22 * error
+   where k/22 (apply_result/66 : imm tagged) =
+     (apply direct(g_1 &toplevel)
+        (g/65 : _ -> imm tagged) (2) -> k/23 * error
+        where k/23 (apply_result/67 : imm tagged) =
+          let result/68 = %int_barith.add (apply_result/67, apply_result/66)
+          in
+          let Pmakeblock/69 = %block.[`0`].`toplevel` (result/68) in
+          cont k/17 (Pmakeblock/69)))
+  where k/17 define_root_symbol (module_block/47) =
+    let field_0/48 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/47)
+    in
+    let $camlHelper_inlined_in_closure = Block 0 (field_0/48) in
+    cont done ($camlHelper_inlined_in_closure)
