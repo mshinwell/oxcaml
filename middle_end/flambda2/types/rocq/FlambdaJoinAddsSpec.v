@@ -80,8 +80,11 @@
    - The variables of the equations
      ([last_phase_adds_in_scope_statement]): the conclusion of
      [define_variables_in_scope_statement], of these equations.
+   - The definitions answered are of variables that the target is to
+     have ([last_phase_adds_definitions_statement]).
 
-   The last two are those statements at the functions that record. *)
+   The two before the last are those statements at the functions that
+   record. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
@@ -348,3 +351,21 @@ Definition last_phase_adds_in_scope_statement : Prop :=
       definitions ->
     equations_in_final_target s kept equations
     ∧ equations_in_final_target s kept relation_equations.
+
+(* The definitions that the last phase answers are of variables that
+   the target is to have ([in_final_target], FlambdaJoinFitsSpec.v):
+   a definition is that of a variable that the join has made and the
+   phase defines, or has been moved to the variable of the target
+   that stands for one that it removes. *)
+Definition last_phase_adds_definitions_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (fuel : nat) (source : Typing_env.t)
+    (s : Join_env.t) (relations : Join_env.inverse_relations)
+    (kept : list (variable * flambda_kind))
+    (equations relation_equations : list (name * flambda_type))
+    (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind)),
+    state_true source s ->
+    aliases_not_made s ->
+    last_phase_adds tenv fuel s relations kept equations relation_equations
+      definitions ->
+    ∀ (x : variable) (definition : Simples_in_joined_envs.t * flambda_kind),
+      lookup x definitions = Some definition -> in_final_target s kept x.

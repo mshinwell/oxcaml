@@ -579,3 +579,132 @@ Proof.
   split; [ exact Hloop | ]. split; [ reflexivity | ].
   split; [ exact Hadds | ]. split; [ exact Hadd1 | exact Hadd2 ].
 Qed.
+
+(* The definitions, through the fold of the last phase: each is of a
+   variable of the target so far that is not being removed; and the
+   variables that are being removed are variables that the join has
+   made. *)
+Definition definitions_invariant {meet_env : Type} (s : Join_env.t)
+    (acc : define_acc meet_env) : Prop :=
+  let '(_, to_expand, _, _, definitions) := acc in
+  (∀ (e : variable) (ty : flambda_type),
+     lookup e to_expand = Some ty -> is_existential s e)
+  ∧ ∀ (x : variable) (definition : Simples_in_joined_envs.t * flambda_kind),
+      lookup x definitions = Some definition ->
+      exists_in_target s x = true ∧ is_bound x to_expand = false.
+
+Lemma define_step_definitions {meet_env meet_expanded_head : Type}
+    (ops : Join_env.meet_env_functions meet_env meet_expanded_head)
+    (source : Typing_env.t) (s : Join_env.t) (tenv_of_aliases : Typing_env.t)
+    (unique : variable -> bool) (acc acc' : define_acc meet_env)
+    (binding : variable * flambda_kind) :
+  state_true source s ->
+  aliases_not_made s ->
+  binding
+  ∈ Bindings_in_target_env.existential_variables_in_order (Join_env.bindings s)
+  ->
+  definitions_invariant s acc ->
+  define_step ops s tenv_of_aliases unique (Some acc) binding = Some acc' ->
+  definitions_invariant s acc'.
+Proof.
+  intros Htrue Hnot_made Hbinding Hinv Hstep.
+  destruct acc as [[[[menv to_expand] equations] relations] definitions].
+  destruct binding as [var var_kind]. cbn [define_step fst snd] in Hstep.
+  destruct Hinv as [Hexpand Hdefs].
+  assert (Hvar : is_existential s var).
+  { apply is_bound_lookup. exists var_kind.
+    exact (in_order_lookup _ _ _ Hbinding). }
+  assert (Hnot_expanded :
+            ∀ x : variable,
+              ~ is_existential s x -> is_bound x to_expand = false).
+  { intros x Hx. destruct (is_bound x to_expand) eqn:Hb; [ | reflexivity ].
+    apply is_bound_lookup in Hb. destruct Hb as [ty Hty].
+    exfalso. exact (Hx (Hexpand x ty Hty)). }
+  assert (Hne : ∀ x : variable, ~ is_existential s x -> Pos.eqb x var = false).
+  { intros x Hx. destruct (Pos.eqb x var) eqn:Heq; [ | reflexivity ].
+    apply Pos.eqb_eq in Heq. subst x. exfalso. exact (Hx Hvar). }
+  assert (Hexpand1 :
+            ∀ (ty0 : flambda_type) (e : variable) (ty : flambda_type),
+              lookup e ((var, ty0) :: to_expand) = Some ty ->
+              is_existential s e).
+  { intros ty0 e ty He. rewrite lookup_cons in He.
+    destruct (Pos.eqb e var) eqn:Heq; [ | exact (Hexpand e ty He) ].
+    apply Pos.eqb_eq in Heq. subst e. exact Hvar. }
+  assert (Hremoved :
+            ∀ (ty0 : flambda_type) (x : variable)
+              (definition : Simples_in_joined_envs.t * flambda_kind),
+              lookup x (unbind var definitions) = Some definition ->
+              exists_in_target s x = true
+              ∧ is_bound x ((var, ty0) :: to_expand) = false).
+  { intros ty0 x d Hx. rewrite lookup_unbind in Hx.
+    destruct (Pos.eqb x var) eqn:Hxv; [ discriminate | ].
+    destruct (Hdefs x d Hx) as [Hb Hn]. split; [ exact Hb | ].
+    rewrite is_bound_cons, Hxv, Hn. reflexivity. }
+  destruct (Join_env.choose_alias tenv_of_aliases _) as [[canon_var | ] | ]
+    eqn:Hchoose; [ | | discriminate ].
+  - (* an alias in the target stands for the variable *)
+    destruct (Join_env.move_equation equations var canon_var)
+      as [equations1 | ] eqn:Hmove; [ | discriminate ].
+    injection Hstep as <-.
+    pose proof (choose_alias_in _ _ _ Hchoose) as Hcanon_in.
+    assert (Hcanon_base : exists_in_target s canon_var = true).
+    { destruct Htrue as [_ [[_ [_ [Haliases _]]] _]].
+      exact (proj1 (Haliases var canon_var Hcanon_in)). }
+    pose proof (Hnot_made var canon_var Hcanon_in) as Hcanon_not.
+    split; [ exact (Hexpand1 _) | ].
+    intros x d Hx. unfold Join_env.move_definition in Hx.
+    destruct (lookup var definitions) as [defn | ] eqn:Hvar_def.
+    + rewrite lookup_cons in Hx. destruct (Pos.eqb x canon_var) eqn:Heq.
+      * apply Pos.eqb_eq in Heq. subst x. split; [ exact Hcanon_base | ].
+        rewrite is_bound_cons, (Hne _ Hcanon_not),
+          (Hnot_expanded _ Hcanon_not). reflexivity.
+      * exact (Hremoved _ x d Hx).
+    + destruct (Hdefs x d Hx) as [Hb Hn]. split; [ exact Hb | ].
+      rewrite is_bound_cons, Hn.
+      destruct (Pos.eqb x var) eqn:Hxv; [ | reflexivity ].
+      apply Pos.eqb_eq in Hxv. subst x. rewrite Hvar_def in Hx.
+      discriminate Hx.
+  - destruct (unique var).
+    + injection Hstep as <-.
+      split; [ exact (Hexpand1 _) | exact (Hremoved _) ].
+    + injection Hstep as <-. split; [ exact Hexpand | exact Hdefs ].
+Qed.
+
+Theorem last_phase_adds_definitions : last_phase_adds_definitions_statement.
+Proof.
+  intros tenv fuel source s relations kept equations relation_equations
+    definitions Htrue Hnot_made Hadds x definition Hx.
+  destruct (last_phase_adds_parts tenv fuel s relations _ definitions Hadds)
+    as [r1 [to_expand [equations1 [relations1 [kept' [equations'
+          [relation_equations' [Hfold [Hvars [_ [_ [_ [_ [_ Hr]]]]]]]]]]]]]].
+  injection Hr as Hkept _ _. apply app_inv_head in Hkept. subst kept'.
+  destruct (define_fold_kept (recording tenv) s tenv (unique_of s relations)
+              _ _ _ Hfold) as [kept' [_ [Henv [_ Hall]]]].
+  unfold acc_env in Henv. cbn [fst] in Henv.
+  rewrite recording_defined in Henv. rewrite Henv in Hvars.
+  cbn [recorded_variables] in Hvars. apply app_inv_head in Hvars.
+  subst kept'.
+  assert (Hinv :
+            definitions_invariant s
+              (r1, to_expand, equations1, relations1, definitions)).
+  { refine (fold_left_invariant
+              (define_step (recording tenv) s tenv (unique_of s relations))
+              (definitions_invariant s) (fun b => eq_refl) _ _ _ _ _ Hfold).
+    - intros a a' b Hb Ha Hstep.
+      exact (define_step_definitions (recording tenv) source s tenv
+               (unique_of s relations) a a' b Htrue Hnot_made Hb Ha Hstep).
+    - split; [ intros e ty He; discriminate He | ].
+      intros y d Hy. split; [ | reflexivity ].
+      destruct Htrue as [[_ [Hnew [[Hrecorded _] _]]] _].
+      destruct d as [simples k].
+      pose proof (Hrecorded y simples k Hy) as He.
+      unfold exists_in_target_env, kind_in_target_env.
+      destruct (Keyed.lookup name_eqb (Name_var y)
+                  (Typing_env.names_to_types
+                     (Bindings_in_target_env.source_env
+                        (Join_env.bindings s)))) as [[ty btm] | ];
+        [ reflexivity | ].
+      rewrite He. reflexivity. }
+  destruct Hinv as [_ Hdefs]. destruct (Hdefs x definition Hx) as [Hb Hn].
+  exact (base_in_final_target s to_expand kept Hall x Hb Hn).
+Qed.

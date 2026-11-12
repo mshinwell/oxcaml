@@ -167,13 +167,15 @@
      use that is not bottom, on a run that has the conditions of the
      item before, a valuation that satisfies the use and the source
      extends to one that satisfies the target and agrees with it on
-     what the use knows and on what the source knows:
-     [join_admits_use] without its two parts on the definitions of
-     the analysis. Not here: [analysis_describes_uses]; that the
-     definitions of the analysis hold in the valuation answered
-     (they hold in the valuation of the state,
-     [model_join_true_statement]); and the conditions on runs read
-     as those of the contract ([values_are_read]).
+     what the use knows and on what the source knows, and in which
+     the definitions of the analysis hold: the conclusion of
+     [join_admits_use], on those runs. (The definitions hold in the
+     valuation of the state, [model_join_true_statement], and each
+     is of a variable that the target has,
+     [last_phase_adds_definitions_statement] of
+     FlambdaJoinAddsSpec.v.) Not here: [analysis_describes_uses],
+     and the conditions on runs read as those of the contract
+     ([values_are_read]).
 
    Examples of what [model_join] computes are in
    FlambdaJoinMeetExamplesSpec.v. *)
@@ -592,7 +594,8 @@ Definition model_join_scoped_envs_keeps_statement : Prop :=
    that have one in the valuation answered
    ([keeps_equations_valued], FlambdaMeetSpec.v). The valuation
    answered also has what the valuation given has for each variable
-   that the source knows. *)
+   that the source knows, and the definitions that the last phase
+   answers hold in it ([definitions_hold], FlambdaJoinSpec.v). *)
 Definition last_phase_satisfied_statement : Prop :=
   ∀ (tenv : Typing_env.t) (fuel : nat) (source : Typing_env.t)
     (s : Join_env.t) (relations : Join_env.inverse_relations)
@@ -650,7 +653,8 @@ Definition last_phase_satisfied_statement : Prop :=
           (Meet_env.typing_env target)
       ∧ keeps_equations_valued source (Meet_env.typing_env target) valuation
           valuation'
-      ∧ extended_from source valuation valuation'.
+      ∧ extended_from source valuation valuation'
+      ∧ definitions_hold definitions index valuation valuation'.
 
 (* The same of the join that the meet calls, under the premises of
    the contract that the meet has for its join
@@ -852,9 +856,9 @@ Definition model_join_keeps_statement : Prop :=
    it on values ([meet_expanded_head_sound]): a valuation that
    satisfies the use and the source extends to one that satisfies the
    target and has what it has for the variables that the use knows
-   and for those that the source knows. This is [join_admits_use]
-   (FlambdaJoinSpec.v) on those runs, without its two parts on the
-   definitions of the analysis. *)
+   and for those that the source knows, and the definitions of the
+   two maps of the analysis hold in it. This is the conclusion of
+   [join_admits_use] (FlambdaJoinSpec.v), on those runs. *)
 Definition model_join_admits_use_statement : Prop :=
   ∀ (A : Type) (join_choices : Join_env.choices) (meet_choices : meet_choices)
     (join_depth : nat) (fuel : fuels) (avoid : list variable)
@@ -896,4 +900,9 @@ Definition model_join_admits_use_statement : Prop :=
     ∃ valuation' : env,
       typing_env_satisfied_strictly statics valuation' target
       ∧ agrees_on_known use valuation valuation'
-      ∧ agrees_on_known (source inputs) valuation valuation'.
+      ∧ agrees_on_known (source inputs) valuation valuation'
+      ∧ definitions_hold (Analysis.definitions_in_joined_envs analysis) index
+          valuation valuation'
+      ∧ definitions_hold
+          (Analysis.canonical_definitions_at_normal_mode analysis) index
+          valuation valuation'.

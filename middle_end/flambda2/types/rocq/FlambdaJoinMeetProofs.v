@@ -697,8 +697,8 @@ Proof.
   destruct (last_phase_adds_true tenv fuel source s relations kept equations
               relation_equations definitions Htrue Hstate Henvs Hrelations
               Hnonempty Hadds index use statics valuation Huse Hsat_use Htags
-              Haliases Hscrutinees) as [Htrue1 [Htrue2 _]].
-  fold tv in Htrue1, Htrue2.
+              Haliases Hscrutinees) as [Htrue1 [Htrue2 Hdefs_tv]].
+  fold tv in Htrue1, Htrue2, Hdefs_tv.
   (* The extensions fit. *)
   destruct (last_phase_kept tenv fuel source s relations mh menv menv1 target
               kept equations relation_equations definitions Htrue Hrelations
@@ -841,7 +841,7 @@ Proof.
      elsewhere. *)
   set (tenv2 := Meet_env.typing_env target) in *.
   exists (patched tenv2 valuation2 valuation).
-  split; [ | split; [ | split ] ].
+  split; [ | split; [ | split; [ | split ] ] ].
   - intros x Hx. rewrite lookup_patched.
     destruct (Typing_env.mem None tenv2 (Name_var x)) eqn:H2;
       [ | reflexivity ].
@@ -898,6 +898,25 @@ Proof.
       as H2.
     change (Typing_env.mem None tenv2 (Name_var x) = true) in H2.
     rewrite H2, (Hfrom2 x H1), (Hfrom1 x H0). exact (Hagrees x Hx).
+  - (* The definitions: each is of a variable that the environment in
+       which the variables are defined knows. *)
+    intros x simples kind simple v Hx Hfind Hv. rewrite lookup_patched.
+    pose proof (last_phase_adds_definitions tenv fuel source s relations kept
+                  equations relation_equations definitions Htrue
+                  (scoped_aliases_not_made s (proj1 Htrue) (proj2 Hscoped))
+                  Hadds x _ Hx) as Hfinal.
+    destruct (target_variables_defined s menv kept (proj1 Htrue)
+                (eq_trans Hsource (eq_sym (proj2 (proj2 Htrue)))) Hfits Hkept
+                Hdistinct) as [_ [Hmem0 _]].
+    fold menv0 in Hmem0.
+    pose proof (proj1 (Hmem0 x) Hfinal) as H0.
+    pose proof (tenv_extends_mem _ _ _ Hextends1 H0) as H1.
+    pose proof (tenv_extends_mem _ _ _
+                  (meet_env_extends_tenv _ _ (proj1 (proj1 Hstep2))) H1)
+      as H2.
+    change (Typing_env.mem None tenv2 (Name_var x) = true) in H2.
+    rewrite H2, (Hfrom2 x H1), (Hfrom1 x H0).
+    exact (Hdefs_tv x simples kind simple v Hx Hfind Hv).
 Qed.
 
 (* ---------------------------------------------------------------------- *)
@@ -1764,6 +1783,50 @@ Proof.
   exists menv_t, definitions, names. split; reflexivity.
 Qed.
 
+(* The two maps of the analysis that the join that Simplify calls
+   answers: the definitions that the join up to what it adds answers,
+   and those of them at the normal mode. *)
+Lemma model_join_analysis {A : Type} (join_choices : Join_env.choices)
+    (meet_choices : meet_choices) (join_depth : nat) (fuel : fuels)
+    (avoid : list variable) (inputs : join_inputs A) (target : Typing_env.t)
+    (analysis : Analysis.t A) (envs : Joined_envs.t) (target_env : Meet_env.t)
+    (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind))
+    (names : list variable) :
+  model_join join_choices meet_choices join_depth fuel avoid inputs
+  = Some (target, analysis) ->
+  Join_env.cut_for_joins (cut_after inputs) (numbered_uses inputs)
+  = Some envs ->
+  Join_env.cut_and_n_way_join0 meet_env_functions
+    (join_parameters join_depth) (fuel_of_env fuel) join_choices
+    (model_join_of_types join_depth fuel)
+    (model_meet_expanded_head join_choices meet_choices join_depth fuel)
+    avoid (Meet_env.create (source inputs)) (source inputs) envs
+  = Some (target_env, definitions, names) ->
+  ∃ at_normal_mode : finite_map (Simples_in_joined_envs.t * flambda_kind),
+    Analysis.definitions_at_normal_mode envs (compact definitions)
+    = Some at_normal_mode
+    ∧ Analysis.definitions_in_joined_envs analysis = definitions
+    ∧ Analysis.canonical_definitions_at_normal_mode analysis = at_normal_mode.
+Proof.
+  intros Hjoin.
+  unfold model_join, join_with, cut_and_n_way_join_with_analysis in Hjoin.
+  cbv zeta in Hjoin.
+  destruct (Join_env.cut_for_joins _ _) as [envs' | ] eqn:Hcut';
+    [ | discriminate ].
+  intros Hcut. injection Hcut as ->.
+  destruct (Join_env.cut_and_n_way_join0 _ _ _ _ _ _ _ _ _ _)
+    as [[[menv_t definitions'] names'] | ] eqn:Hjoin0'; [ | discriminate ].
+  intros Hjoin0. injection Hjoin0 as -> -> ->.
+  destruct (Analysis.create _ envs definitions) as [analysis' | ]
+    eqn:Hanalysis; [ | discriminate ].
+  injection Hjoin as _ <-.
+  unfold Analysis.create in Hanalysis.
+  destruct (Analysis.definitions_at_normal_mode envs (compact definitions))
+    as [at_normal_mode | ] eqn:Hnormal; [ | discriminate ].
+  injection Hanalysis as <-.
+  exists at_normal_mode. split; [ reflexivity | ]. split; reflexivity.
+Qed.
+
 (* The join that Simplify calls, where there is an environment to
    join: its target is what the two additions answer. *)
 Lemma model_join_replayed {A : Type} (join_choices : Join_env.choices)
@@ -1788,7 +1851,13 @@ Lemma model_join_replayed {A : Type} (join_choices : Join_env.choices)
     = Some menv1
     ∧ Meet_env.add_env_extension menv1 (Env_extension relation_equations) mh
       = Some target_env
-    ∧ target = Meet_env.typing_env target_env.
+    ∧ target = Meet_env.typing_env target_env
+    ∧ ∃ at_normal_mode : finite_map (Simples_in_joined_envs.t * flambda_kind),
+        Analysis.definitions_at_normal_mode envs (compact definitions)
+        = Some at_normal_mode
+        ∧ Analysis.definitions_in_joined_envs analysis = definitions
+        ∧ Analysis.canonical_definitions_at_normal_mode analysis
+          = at_normal_mode.
 Proof.
   intros mh Hjoin
     [s1 [s2 [relations2 [Hcut [Haliases [Hdelayed [Hloop Hadds]]]]]]] Hempty.
@@ -1796,7 +1865,11 @@ Proof.
           = Some envs) in Hcut.
   destruct (model_join_unfold join_choices meet_choices join_depth fuel avoid
               inputs target analysis envs Hjoin Hcut)
-    as [target_env [definitions' [names [Hjoin0 ->]]]].
+    as [target_env [definitions' [names [Hjoin0 Htarget]]]].
+  pose proof (model_join_analysis join_choices meet_choices join_depth fuel
+                avoid inputs target analysis envs target_env definitions'
+                names Hjoin Hcut Hjoin0) as Hanalysis.
+  subst target.
   fold mh in Hjoin0.
   set (p := join_parameters join_depth) in *.
   set (jt := model_join_of_types join_depth fuel) in *.
@@ -1818,7 +1891,8 @@ Proof.
   destruct (last_phase_adds_functional _ _ _ _ _ _ _ _ _ _ _ _ Hadds Hadds')
     as (-> & -> & -> & ->).
   exists menv1, target_env.
-  split; [ exact Hadd1 | ]. split; [ exact Hadd2 | reflexivity ].
+  split; [ exact Hadd1 | ]. split; [ exact Hadd2 | ].
+  split; [ reflexivity | exact Hanalysis ].
 Qed.
 
 Theorem model_join_keeps : model_join_keeps_statement.
@@ -1849,7 +1923,7 @@ Proof.
   destruct (model_join_replayed join_choices meet_choices join_depth fuel
               avoid inputs target analysis envs s3 relations3 kept equations
               relation_equations definitions Hjoin Hrun Hempty)
-    as [menv1 [target_env [Hadd1 [Hadd2 ->]]]].
+    as [menv1 [target_env [Hadd1 [Hadd2 [-> _]]]]].
   fold mh in Hadd1, Hadd2.
   unfold model_join_defined in Hrest, Hadd1. fold initial_env in Hrest, Hadd1.
   set (names :=
@@ -1967,7 +2041,8 @@ Proof.
   destruct (model_join_replayed join_choices meet_choices join_depth fuel
               avoid inputs target analysis envs s3 relations3 kept equations
               relation_equations definitions Hjoin Hrun Hempty)
-    as [menv1 [target_env [Hadd1 [Hadd2 ->]]]].
+    as [menv1 [target_env [Hadd1 [Hadd2 [-> [at_normal_mode [Hnormal
+          [Hdefinitions Hat_normal]]]]]]]].
   unfold model_join_defined in Hrest, Hadd1.
   set (mh :=
          model_meet_expanded_head join_choices meet_choices join_depth fuel)
@@ -1984,7 +2059,12 @@ Proof.
               (fun x Hx => proj2 (among_In _ _) Hx) Hadds Hrest Hmh Hsound
               Hadd1 Hadd2 Huse Hstatics Hsat_source Hsat_use Htags Haliases_v
               Hscrutinees Hvalued)
-    as [valuation' [Hfrom [Hsat [_ Hfrom_source]]]].
+    as [valuation' [Hfrom [Hsat [_ [Hfrom_source Hdefs]]]]].
   exists valuation'. split; [ exact Hsat | ].
-  split; [ exact Hfrom | exact Hfrom_source ].
+  split; [ exact Hfrom | ]. split; [ exact Hfrom_source | ].
+  rewrite Hdefinitions, Hat_normal. split; [ exact Hdefs | ].
+  apply (definitions_at_normal_mode_hold envs definitions at_normal_mode index
+           use statics valuation valuation' Hnormal); [ | exact Hsat_use
+                                                        | exact Hdefs ].
+  rewrite (proj1 Hgrows3) in Huse. exact Huse.
 Qed.
