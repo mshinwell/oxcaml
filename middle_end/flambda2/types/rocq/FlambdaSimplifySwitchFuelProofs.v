@@ -26,7 +26,12 @@
  ******************************************************************************)
 
 (* Proofs of the statements of FlambdaSimplifySwitchFuelSpec.v. Nothing
-   here needs review. *)
+   here needs review.
+
+   Four statements that the Spec had, and that supposed something of
+   the scrutinee, are kept here with their names and texts, as cases
+   of the three that have their conclusions without it: see "The
+   statements that asked something of the scrutinee". *)
 
 From Stdlib Require Import ZArith List Bool Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
@@ -163,6 +168,144 @@ Proof.
     (proj2
        (meet_fuel_enough_stable join choices 1 fuel tenv scrutinee_ty
           (this_const (Naked_immediate i)) Henough Hfuel)).
+Qed.
+
+(* ======================================================================== *)
+(* The statements that asked something of the scrutinee                     *)
+(* ======================================================================== *)
+
+(* Four statements of FlambdaSimplifySwitchFuelSpec.v supposed of the
+   scrutinee that the meet reads a canonical name for it, and that
+   the type which the environment has for the name is a head of naked
+   immediates ([scrutinee_has] of [relation_type]). The Spec now has
+   three statements with their conclusions and without that
+   hypothesis. The four are kept here, with their names and their
+   texts and with [relation_type], each as a case of the statement
+   that has its conclusion:
+   - [relation_switch_fuel] of [switch_fuel];
+   - [relation_switch_arm_keeps] and
+     [relation_switch_arm_keeps_aliases] of the two parts of
+     [switch_arm_keeps];
+   - [model_relation_switch_fuel] of [model_switch_fuel].
+   ([switch_slices_fuel] is not one of the three: it is [switch_fuel]
+   with [slices_of_agreeing_meets].) *)
+
+(* The type of the scrutinee is that of the result of relations: a
+   head of naked immediates, with the inverse relations that it
+   has. *)
+Definition relation_type (ty : flambda_type) : Prop :=
+  ∃ head : head_of_kind_naked_immediate,
+    ty = Type_naked_immediate (Ok (No_alias head)).
+
+(* From two units on, for a scrutinee that is the result of
+   relations. *)
+Definition relation_switch_fuel_statement : Prop :=
+  ∀ (join : join_scoped_envs) (choices : meet_choices) (tenv : Typing_env.t)
+    (scrutinee : simple) (fuel : nat),
+    join_of_nothing join ->
+    get_tag_shapes choices ->
+    values_extension_free tenv ->
+    aliases_consistent (Typing_env.aliases tenv) ->
+    scrutinee_has relation_type tenv scrutinee ->
+    2 <= fuel ->
+    arm_meets_agree (Meet.meet join choices fuel) (Meet.meet join choices 2)
+      tenv scrutinee.
+
+Theorem relation_switch_fuel : relation_switch_fuel_statement.
+Proof.
+  intros join choices tenv scrutinee fuel Hjoin Hshapes Hfree Hconsistent _
+    Hfuel.
+  exact
+    (switch_fuel join choices tenv scrutinee fuel Hjoin Hshapes Hfree
+       Hconsistent Hfuel).
+Qed.
+
+(* The environment that the meet for an arm answers has
+   [values_extension_free], as the environment of the [Switch] has.
+   Nothing is said of another scrutinee in it. *)
+Definition relation_switch_arm_keeps_statement : Prop :=
+  ∀ (join : join_scoped_envs) (choices : meet_choices)
+    (tenv tenv' : Typing_env.t) (scrutinee : simple) (fuel : nat)
+    (scrutinee_ty ty : flambda_type) (canonical : simple) (i : Z),
+    join_of_nothing join ->
+    get_tag_shapes choices ->
+    values_extension_free tenv ->
+    aliases_consistent (Typing_env.aliases tenv) ->
+    scrutinee_has relation_type tenv scrutinee ->
+    2 <= fuel ->
+    Typing_env.type_simple_in_term_exn tenv (Some Name_mode.normal) scrutinee
+    = Some (Some (scrutinee_ty, canonical)) ->
+    Meet.meet join choices fuel tenv scrutinee_ty (this_naked_immediate i)
+    = Some (Or_bottom.Ok (ty, tenv')) ->
+    values_extension_free tenv'.
+
+Theorem relation_switch_arm_keeps : relation_switch_arm_keeps_statement.
+Proof.
+  intros join choices tenv tenv' scrutinee fuel scrutinee_ty ty canonical i
+    Hjoin Hshapes Hfree Hconsistent _ Hfuel Hty Hmeet.
+  exact
+    (proj1
+       (switch_arm_keeps join choices tenv tenv' scrutinee fuel scrutinee_ty
+          ty canonical i Hjoin Hshapes Hfree Hconsistent Hfuel Hty Hmeet)).
+Qed.
+
+(* And its aliases are consistent. *)
+Definition relation_switch_arm_keeps_aliases_statement : Prop :=
+  ∀ (join : join_scoped_envs) (choices : meet_choices)
+    (tenv tenv' : Typing_env.t) (scrutinee : simple) (fuel : nat)
+    (scrutinee_ty ty : flambda_type) (canonical : simple) (i : Z),
+    join_of_nothing join ->
+    get_tag_shapes choices ->
+    values_extension_free tenv ->
+    aliases_consistent (Typing_env.aliases tenv) ->
+    scrutinee_has relation_type tenv scrutinee ->
+    2 <= fuel ->
+    Typing_env.type_simple_in_term_exn tenv (Some Name_mode.normal) scrutinee
+    = Some (Some (scrutinee_ty, canonical)) ->
+    Meet.meet join choices fuel tenv scrutinee_ty (this_naked_immediate i)
+    = Some (Or_bottom.Ok (ty, tenv')) ->
+    aliases_consistent (Typing_env.aliases tenv').
+
+Theorem relation_switch_arm_keeps_aliases :
+  relation_switch_arm_keeps_aliases_statement.
+Proof.
+  intros join choices tenv tenv' scrutinee fuel scrutinee_ty ty canonical i
+    Hjoin Hshapes Hfree Hconsistent _ Hfuel Hty Hmeet.
+  exact
+    (proj2
+       (switch_arm_keeps join choices tenv tenv' scrutinee fuel scrutinee_ty
+          ty canonical i Hjoin Hshapes Hfree Hconsistent Hfuel Hty Hmeet)).
+Qed.
+
+(* The same of the meet of the model, where there is fuel for the join
+   of environments: two meets of the model that differ in the fuel of
+   the meet only, two units or more in both, answer the same for the
+   arms. *)
+Definition model_relation_switch_fuel_statement : Prop :=
+  ∀ (join_choices : FlambdaJoinEnv.Join_env.choices) (choices : meet_choices)
+    (join_depth : nat) (fuel fuel' : FlambdaJoinMeet.fuels)
+    (tenv : Typing_env.t) (scrutinee : simple),
+    FlambdaJoinMeet.fuel_of_env fuel <> 0%nat ->
+    FlambdaJoinMeet.fuel_of_env fuel' = FlambdaJoinMeet.fuel_of_env fuel ->
+    FlambdaJoinMeet.fuel_of_types fuel' = FlambdaJoinMeet.fuel_of_types fuel ->
+    2 <= FlambdaJoinMeet.fuel_of_meet fuel ->
+    2 <= FlambdaJoinMeet.fuel_of_meet fuel' ->
+    get_tag_shapes choices ->
+    values_extension_free tenv ->
+    aliases_consistent (Typing_env.aliases tenv) ->
+    scrutinee_has relation_type tenv scrutinee ->
+    arm_meets_agree
+      (FlambdaJoinMeet.model_meet join_choices choices join_depth fuel)
+      (FlambdaJoinMeet.model_meet join_choices choices join_depth fuel')
+      tenv scrutinee.
+
+Theorem model_relation_switch_fuel : model_relation_switch_fuel_statement.
+Proof.
+  intros join_choices choices join_depth fuel fuel' tenv scrutinee Hfuel
+    Henv Htypes Hmeet Hmeet' Hchoices Hvalues Haliases _.
+  exact
+    (model_switch_fuel join_choices choices join_depth fuel fuel' tenv
+       scrutinee Hfuel Henv Htypes Hmeet Hmeet' Hchoices Hvalues Haliases).
 Qed.
 
 Theorem example_switch_fuel : example_switch_fuel_statement.

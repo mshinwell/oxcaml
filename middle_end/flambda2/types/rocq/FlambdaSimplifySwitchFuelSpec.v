@@ -101,6 +101,16 @@
    said, and where it answers none the slices answer nothing, whatever
    the meet.
 
+   Four statements that were here supposed of the scrutinee that the
+   meet reads a canonical name for it, whose type is a head of naked
+   immediates. [switch_fuel_statement], [switch_arm_keeps_statement]
+   and [model_switch_fuel_statement] have their conclusions without
+   that hypothesis. FlambdaSimplifySwitchFuelProofs.v keeps the four,
+   with their texts, as cases of these: [relation_switch_fuel] of the
+   first, [relation_switch_arm_keeps] and
+   [relation_switch_arm_keeps_aliases] of the two parts of the
+   second, [model_relation_switch_fuel] of the third.
+
    What [flat_switch_fuel_statement] supposes of the scrutinee
    ([scrutinee_has] of [flat_type]): the type that the environment
    answers for it is an alias whose canonical element, as the meet
