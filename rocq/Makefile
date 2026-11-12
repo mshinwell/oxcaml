@@ -310,6 +310,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaJoinMeetFitsProofs.v \
   FlambdaJoinMeetFitsSpec.v \
   FlambdaJoinMeetProofs.v \
+  FlambdaJoinMeetRenameExampleProofs.v \
+  FlambdaJoinMeetRenameExampleSpec.v \
   FlambdaJoinMeetRenameProofs.v \
   FlambdaJoinMeetRenameSpec.v \
   FlambdaJoinMeetSpec.v \
