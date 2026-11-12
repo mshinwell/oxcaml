@@ -215,6 +215,10 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaScopedProofs.v \
   FlambdaSemanticsProofs.v \
   FlambdaSemanticsSpec.v \
+  FlambdaShareProjectionsProofs.v \
+  FlambdaShareProjectionsScopeProofs.v \
+  FlambdaShareProjectionsScopeSpec.v \
+  FlambdaShareProjectionsSpec.v \
   FlambdaShortcutProofs.v \
   FlambdaShortcutSpec.v \
   FlambdaSimulationProofs.v \
