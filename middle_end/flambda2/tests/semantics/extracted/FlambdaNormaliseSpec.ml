@@ -789,7 +789,8 @@ let thread_arm k inner arm =
       if Pos.eqb ac.ac_continuation k && no_trap_action ac
       then
         match find_arm i inner with
-        | Some ac' -> if Pos.eqb ac'.ac_continuation k then arm else i, ac'
+        | Some ac' ->
+          if among k (apply_cont_continuations ac') then arm else i, ac'
         | None -> arm
       else arm
     | _ :: _ -> arm)

@@ -894,11 +894,23 @@ Definition rewrite_code_equivalent_statement : Prop :=
    that applies the continuation may go at once where the arm of the
    handler for the same value goes: the handler runs under the variables
    of the [Let_cont], so the scrutinee has the same value in it. The arm
-   of the handler must not be to a continuation of the name being bound,
-   which in the handler is another one. An arm that has a trap action
-   stays as it is. The [Let_cont] goes if no arm names its continuation
-   any more. Simplify does as much from what an arm tells it of the
-   scrutinee. *)
+   of the handler must not name the continuation being bound, which in
+   the handler is another one: neither as the continuation that it
+   applies nor in its trap action. An arm of the body that has a trap
+   action stays as it is. The [Let_cont] goes if no arm names its
+   continuation any more. Simplify does as much from what an arm tells
+   it of the scrutinee. *)
+(* CR mshinwell: an arm of the handler whose trap action names [k] is
+   left where it is. Until this was repaired only the continuation that
+   the arm applies was compared with [k], so an arm of the handler that
+   installed or removed an outer exception handler of the name [k] was
+   taken into the body, where [k] is the continuation being bound: its
+   trap action was captured. The machine of FlambdaSemanticsSpec.v has
+   no stack of handlers and does not read a trap action, so
+   [thread_switches_equivalent_statement] held of the rewrite as it
+   was; it says nothing of the machine of FlambdaTrapSpec.v, which has
+   one. Simplify does not meet the case: the names it binds are
+   fresh. *)
 Definition thread_arm (k : continuation) (inner : list (Z * apply_cont))
     (arm : Z * apply_cont) : Z * apply_cont :=
   let (i, ac) := arm in
@@ -907,7 +919,8 @@ Definition thread_arm (k : continuation) (inner : list (Z * apply_cont))
     if Pos.eqb (ac_continuation ac) k && no_trap_action ac
     then
       match find_arm i inner with
-      | Some ac' => if Pos.eqb (ac_continuation ac') k then arm else (i, ac')
+      | Some ac' =>
+        if among k (apply_cont_continuations ac') then arm else (i, ac')
       | None => arm
       end
     else arm

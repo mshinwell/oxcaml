@@ -701,8 +701,8 @@ Proof.
   rewrite find_arm_renamed.
   destruct (find_arm i inner) as [ac' | ]; cbn [option_map];
     [ | reflexivity ].
-  cbn [rename_apply_cont ac_continuation]. rewrite rename_continuation_eqb.
-  destruct (Pos.eqb (ac_continuation ac') k); reflexivity.
+  rewrite among_apply_cont_continuations_renamed.
+  destruct (among k (apply_cont_continuations ac')); reflexivity.
 Qed.
 
 Lemma arms_apply_equivariant (r : renaming) (k : continuation)

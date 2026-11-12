@@ -2062,7 +2062,7 @@ Proof.
   destruct (Pos.eqb (ac_continuation ac) k && no_trap_action ac);
     [ | reflexivity ].
   destruct (find_arm i inner) as [ac' | ]; [ | reflexivity ].
-  destruct (Pos.eqb (ac_continuation ac') k); reflexivity.
+  destruct (among k (apply_cont_continuations ac')); reflexivity.
 Qed.
 
 Lemma find_arm_thread (k : continuation) (inner : list (Z * apply_cont))
@@ -2115,8 +2115,13 @@ Proof.
   unfold no_trap_action. simpl.
   destruct (find_arm i inner) as [ac' | ] eqn:Hinner;
     [ | apply equivalent_refl ].
-  destruct (Pos.eqb_spec (ac_continuation ac') k) as [ | Hother];
-    [ apply equivalent_refl | ].
+  match goal with
+  | |- context [if ?names then _ else _] =>
+    destruct names eqn:Hnames; [ apply equivalent_refl | ]
+  end.
+  assert (Hother : ac_continuation ac' <> k).
+  { apply orb_false_iff in Hnames. destruct Hnames as [Hhead _].
+    apply Pos.eqb_neq in Hhead. congruence. }
   simpl.
   apply (equivalent_trans _ (State (Apply_cont ac') vars conts statics)).
   - eapply equivalent_trans;
