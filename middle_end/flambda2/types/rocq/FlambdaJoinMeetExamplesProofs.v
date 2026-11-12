@@ -80,3 +80,16 @@ Proof. vm_compute. reflexivity. Qed.
 
 Theorem example_join_env_no_use : example_join_env_no_use_statement.
 Proof. vm_compute. reflexivity. Qed.
+
+Theorem example_recovered_first_join : example_recovered_first_join_statement.
+Proof. vm_compute. reflexivity. Qed.
+
+Theorem example_recovered_second_join
+  : example_recovered_second_join_statement.
+Proof. vm_compute. reflexivity. Qed.
+
+Theorem example_recovered_third_join : example_recovered_third_join_statement.
+Proof. vm_compute. reflexivity. Qed.
+
+Theorem example_recovered_bottom : example_recovered_bottom_statement.
+Proof. vm_compute. repeat split. Qed.

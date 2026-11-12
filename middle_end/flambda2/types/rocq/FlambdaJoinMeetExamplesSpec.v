@@ -46,11 +46,19 @@
    meet stops and the compiler does not (FlambdaJoinMeet.v says
    which): there is none.
 
-   What they are not. No answer here was read off a run of the
-   compiler: each is what the model computes, and was compared with
-   the compiler's code by reading. They are written so that the
-   workstream of the differential tests can run them, as it ran the
-   examples of the join of types (FlambdaJoinTypesExamplesSpec.v).
+   What they are not. But for the last section, no answer here was
+   read off a run of the compiler: each is what the model computes,
+   and was compared with the compiler's code by reading. They are
+   written so that the workstream of the differential tests can run
+   them, as it ran the examples of the join of types
+   (FlambdaJoinTypesExamplesSpec.v).
+
+   The last section is three joins in a row, of the shape of the
+   program of discrepancy T5-10. Its answers were compared with what
+   the compiler prints for the three joins of that program (run by
+   the workstream that demonstrated the discrepancy, with the n-way
+   join and the types of the joins printed): on the variables that
+   the example keeps, the equations are the same.
 
    The inputs. The source environment knows three variables of kind
    value that may occur in terms: [y], [z] and the parameter [p]. A
@@ -357,3 +365,239 @@ Definition example_join_env_no_use_statement : Prop :=
          definitions := [];
          definitions_at_normal_mode := [];
          type_of_a := None |}.
+
+(* ======================================================================== *)
+(* A relation recovered on a variable that has no value at a use            *)
+(* ======================================================================== *)
+
+(* Three joins, one after another, as Simplify makes them for a
+   function of this shape, where [t0] is a naked immediate and [n] a
+   value, both known before:
+
+     if c then
+       (switch t0 with
+        | 0 -> b0 = block of tag 0 (n); kx (b0)
+        | 1 -> b1 = block of tag 1 (n); kx (b1))
+       where kx (x) = pa = block of tag 0 (x); k0 (pa)
+     else pb = block of tag 1 (n); k0 (pb)
+     where k0 (p) =
+       if g then k2 (p)
+       else (switch t0 with
+             | 0 -> z = block of tag 0 (n);
+                    pd = block of tag 0 (z); k2 (pd))
+       where k2 (s) = switch t0 with 0 -> .. | 1 -> .. | 2 -> ..
+
+   It is the shape of the program of discrepancy T5-10 (which has two
+   more parameters, left out here), for which the compiler prints the
+   types after each of its three joins, and deletes the last arm,
+   which a run through [pb] and [k2 (p)] with [t0] equal to 2
+   reaches. The model answers the same equations on these variables,
+   and the same bottom:
+   - at [kx], the tag of [x] is 0 at a use and 1 at the other, as
+     [t0] is, so the join names it [t0], and records that [t0] is the
+     tag of [x];
+   - at [k0], [x] is a variable of the first use only; the join brings
+     it into the target under its own name, with the type that it has
+     at that use, which says that its tag is [t0]. On a run through
+     the second use, [x] has no value and [t0] is any number;
+   - at [k2], the field of the block is [x] at a use and [z] at the
+     other; the join makes a variable for it, whose tag is [t0] at
+     both ([z] is made where [t0] is 0), and records that [t0] is the
+     tag of that variable. Its test for recording it is that every
+     use has a type for the variable, and the first has one for [x];
+   - in the arm where [t0] is 2, the meet reads the relation: the
+     variable would be a block of tag 2, and its type has the tags 0
+     and 1. The environment of the arm is bottom.
+   This does not contradict [model_join_true_statement]: what it
+   concludes is about the runs on which the scrutinees of the
+   relations that the join adds have values
+   ([relation_scrutinees_have_values]). At [k2], on the run through
+   the second use of [k0] and the first of [k2], the new variable
+   stands for [x], which has no value, while [t0] has one. (At [k0]
+   nothing fails: the second use does not know [x], and nothing is
+   asked or said of a variable brought in at a use that does not know
+   it.) The statements here are computations; they prove nothing of
+   runs. *)
+
+Module Recovered.
+
+  Definition n : variable := 1%positive.
+  Definition t0 : variable := 2%positive.
+  Definition x : variable := 3%positive.
+  Definition p : variable := 4%positive.
+  Definition s : variable := 5%positive.
+  Definition b0 : variable := 6%positive.
+  Definition b1 : variable := 7%positive.
+  Definition pa : variable := 8%positive.
+  Definition pb : variable := 9%positive.
+  Definition z : variable := 10%positive.
+  Definition pd : variable := 11%positive.
+
+  (* The variables that the second join and the third make. *)
+  Definition tag_of_p : variable := 12%positive.
+  Definition tag_of_s : variable := 13%positive.
+  Definition field_of_s : variable := 14%positive.
+
+  Definition define (tenv : Typing_env.t) (var : variable)
+      (kind : flambda_kind) : Typing_env.t :=
+    Typing_env.add_variable_definition tenv var kind Name_mode.normal.
+
+  Definition alias (var : variable) : flambda_type :=
+    alias_type_of Value (Var var).
+
+  (* A join after the scope of the source; [made] is the variables
+     that the joins before have made. *)
+  Definition join (made : list variable) (source : Typing_env.t)
+      (uses : list Typing_env.t) : option Typing_env.t :=
+    let* '(target, _) :=
+      model_join Join_env.compiler_choices compiler_choices 5 example_fuel
+        ([n; t0; x; p; s; b0; b1; pa; pb; z; pd] ++ made)
+        {| source := source;
+           cut_after := Typing_env.current_scope source;
+           uses := map (fun use => (tt, use)) uses |}
+    in
+    Some target.
+
+  (* A variable that may occur in terms, defined with a type. *)
+  Definition with_variable (tenv : Typing_env.t) (var : variable)
+      (ty : flambda_type) : option Typing_env.t :=
+    example_with_variables tenv [(var, Name_mode.normal, ty)].
+
+  (* Where [k0] is defined. *)
+  Definition at_k0 : Typing_env.t :=
+    define
+      (define (define Typing_env.create n Value) t0
+         (Naked_number Kind_naked_immediate))
+      p Value.
+
+  (* Where [kx] is defined. *)
+  Definition at_kx : Typing_env.t :=
+    define (Typing_env.increment_scope at_k0) x Value.
+
+  (* The use of [kx] in the arm of [t0] for a number. *)
+  Definition use_of_kx (tag : Z) (block : variable) : option Typing_env.t :=
+    let* tenv :=
+      example_add_equation (Typing_env.increment_scope at_kx) (Name_var t0)
+        (this_naked_immediate tag)
+    in
+    let* tenv := with_variable tenv block (example_join_block tag [alias n]) in
+    example_add_equation tenv (Name_var x) (alias block).
+
+  Definition after_kx : option Typing_env.t :=
+    let* use0 := use_of_kx 0 b0 in
+    let* use1 := use_of_kx 1 b1 in
+    join [] at_kx [use0; use1].
+
+  (* The two uses of [k0]. *)
+  Definition first_use_of_k0 : option Typing_env.t :=
+    let* tenv := after_kx in
+    let* tenv := with_variable tenv pa (example_join_block 0 [alias x]) in
+    example_add_equation tenv (Name_var p) (alias pa).
+
+  Definition second_use_of_k0 : option Typing_env.t :=
+    let* tenv :=
+      with_variable (Typing_env.increment_scope at_k0) pb
+        (example_join_block 1 [alias n])
+    in
+    example_add_equation tenv (Name_var p) (alias pb).
+
+  Definition after_k0 : option Typing_env.t :=
+    let* use0 := first_use_of_k0 in
+    let* use1 := second_use_of_k0 in
+    join [] at_k0 [use0; use1].
+
+  (* Where [k2] is defined, and its two uses. *)
+  Definition at_k2 : option Typing_env.t :=
+    let* tenv := after_k0 in
+    Some (define tenv s Value).
+
+  Definition first_use_of_k2 : option Typing_env.t :=
+    let* tenv := at_k2 in
+    example_add_equation (Typing_env.increment_scope tenv) (Name_var s)
+      (alias p).
+
+  Definition second_use_of_k2 : option Typing_env.t :=
+    let* tenv := at_k2 in
+    let* tenv :=
+      example_add_equation (Typing_env.increment_scope tenv) (Name_var t0)
+        (this_naked_immediate 0)
+    in
+    let* tenv := with_variable tenv z (example_join_block 0 [alias n]) in
+    let* tenv := with_variable tenv pd (example_join_block 0 [alias z]) in
+    example_add_equation tenv (Name_var s) (alias pd).
+
+  Definition after_k2 : option Typing_env.t :=
+    let* source := at_k2 in
+    let* use0 := first_use_of_k2 in
+    let* use1 := second_use_of_k2 in
+    join [tag_of_p] source [use0; use1].
+
+  (* The arm of the last switch where [t0] is 2. *)
+  Definition arm_two : option Typing_env.t :=
+    let* tenv := after_k2 in
+    example_add_equation tenv (Name_var t0) (this_naked_immediate 2).
+
+  (* The types that an environment has for some variables. *)
+  Definition types_of (tenv : option Typing_env.t) (vars : list variable)
+      : option (list (option flambda_type)) :=
+    let* tenv := tenv in
+    Some (map (fun var => Typing_env.find tenv (Name_var var) None) vars).
+
+  (* A block of tag 0 or 1 with one field: the variable given if the
+     tag is 0, [n] if it is 1; its tag is held by a variable. *)
+  Definition block_with_tag_in (tag : variable) (field : variable)
+      : flambda_type :=
+    example_join_variant None (bottom (Naked_number Kind_naked_immediate))
+      (Some tag) [(0, [alias field]); (1, [alias n])].
+
+  (* A naked immediate that is the tag of a variable. *)
+  Definition tag_of (numbers : Or_unknown.t (list Z)) (block : variable)
+      : flambda_type :=
+    Type_naked_immediate
+      (Ok
+         (No_alias
+            (Head_of_kind_naked_immediate numbers
+               [(Relation.Get_tag, Name_var block)]))).
+
+End Recovered.
+
+(* After the join at [kx]: the tag of [x] is [t0], and [t0] is 0 or 1
+   and the tag of [x]. *)
+Definition example_recovered_first_join_statement : Prop :=
+  Recovered.types_of Recovered.after_kx [Recovered.x; Recovered.t0]
+  = Some
+      [Some (Recovered.block_with_tag_in Recovered.t0 Recovered.n);
+       Some (Recovered.tag_of (Or_unknown.Known [0; 1]) Recovered.x)].
+
+(* After the join at [k0]: the field of [p] is [x] if its tag is 0;
+   [x] has the type that it had; nothing is known of [t0]. *)
+Definition example_recovered_second_join_statement : Prop :=
+  Recovered.types_of Recovered.after_k0
+    [Recovered.p; Recovered.x; Recovered.t0; Recovered.tag_of_p]
+  = Some
+      [Some (Recovered.block_with_tag_in Recovered.tag_of_p Recovered.x);
+       Some (Recovered.block_with_tag_in Recovered.t0 Recovered.n);
+       Some (unknown (Naked_number Kind_naked_immediate));
+       Some (Recovered.tag_of (Or_unknown.Known [0; 1]) Recovered.p)].
+
+(* After the join at [k2]: the field of [s] is a new variable if its
+   tag is 0; the tag of that variable is [t0]; and [t0] is any number,
+   and the tag of that variable. *)
+Definition example_recovered_third_join_statement : Prop :=
+  Recovered.types_of Recovered.after_k2
+    [Recovered.s; Recovered.field_of_s; Recovered.t0; Recovered.tag_of_s]
+  = Some
+      [Some
+         (Recovered.block_with_tag_in Recovered.tag_of_s
+            Recovered.field_of_s);
+       Some (Recovered.block_with_tag_in Recovered.t0 Recovered.n);
+       Some (Recovered.tag_of Or_unknown.Unknown Recovered.field_of_s);
+       Some (Recovered.tag_of (Or_unknown.Known [0; 1]) Recovered.s)].
+
+(* None of the three targets is bottom, and the environment in which
+   [t0] is 2 after the third is. *)
+Definition example_recovered_bottom_statement : Prop :=
+  option_map Typing_env.is_bottom Recovered.after_kx = Some false
+  ∧ option_map Typing_env.is_bottom Recovered.after_k0 = Some false
+  ∧ option_map Typing_env.is_bottom Recovered.after_k2 = Some false
+  ∧ option_map Typing_env.is_bottom Recovered.arm_two = Some true.
