@@ -73,7 +73,9 @@
    the kind of each extra argument of its exception continuation. Code
    also says whether it is tupled ([cm_is_tupled], the compiler's
    [Code_metadata.is_tupled]): whether a call that does not know the
-   code gives it one argument, a tuple, for all its parameters. An
+   code gives it one argument, a tuple, for all its parameters. It
+   says whether it is a stub too ([cm_is_stub], the compiler's
+   [Code.stub]), which is no kind and which execution does not read. An
    arity ([arity]) is the compiler's [Flambda_arity.t]: it keeps how the
    parameters are grouped into unboxed products, which the compiler
    compares at a call, while the parameters and the arguments themselves
@@ -535,7 +537,8 @@ Definition handler_metadata_eqb (m m' : handler_metadata) : bool :=
    parameters ([params_arity]; unarized, it gives the kinds of the
    parameters themselves) and that of its results ([result_arity];
    unarized, it gives the kinds of the parameters of its return
-   continuation), and whether it is tupled ([is_tupled]).
+   continuation), whether it is tupled ([is_tupled]) and whether it is
+   a stub ([stub]).
 
    Tupled code is what the compiler makes of a function whose one
    parameter is a tuple pattern, as in [let f (x, y) = ...]
@@ -543,31 +546,55 @@ Definition handler_metadata_eqb (m m' : handler_metadata) : bool :=
    parameter for each component of the tuple. A call that goes by the
    code gives it the components. A call that does not know the code
    gives the function one argument, the tuple
-   (FlambdaSemanticsSpec.shape_of_closure_call). *)
+   (FlambdaSemanticsSpec.shape_of_closure_call).
+
+   A stub is code that the compiler makes and the program does not
+   write, such as the function that a partial application of a known
+   function becomes, which keeps the function and the arguments given
+   and calls the one with the others and its own
+   (from_lambda/closure_conversion.ml, [wrap_partial_application]).
+   [cm_is_stub] is the compiler's [Code.stub], as it is in the term.
+   The machine (FlambdaSemanticsSpec.v) does not read it, and neither
+   does FlambdaWellFormedSpec.well_formed_unit. Nothing is believed of
+   it: it may be set on any code, and what a term means is the same
+   whatever it says. The comparison of two terms reads it
+   ([code_metadata_eqb]): two terms that differ in it are not the
+   same. *)
 Record code_metadata : Type := Code_metadata {
   cm_params_arity : arity;
   cm_result_arity : arity;
-  cm_is_tupled : bool
+  cm_is_tupled : bool;
+  cm_is_stub : bool
 }.
 
-(* The metadata of code that is not tupled. *)
+(* The metadata of code that is not tupled, and is not a stub. *)
 Definition make_code_metadata (params_arity result_arity : arity)
     : code_metadata :=
   {| cm_params_arity := params_arity;
      cm_result_arity := result_arity;
-     cm_is_tupled := false |}.
+     cm_is_tupled := false;
+     cm_is_stub := false |}.
 
-(* The metadata of tupled code. *)
+(* The metadata of tupled code, which is not a stub. *)
 Definition make_tupled_code_metadata (params_arity result_arity : arity)
     : code_metadata :=
   {| cm_params_arity := params_arity;
      cm_result_arity := result_arity;
-     cm_is_tupled := true |}.
+     cm_is_tupled := true;
+     cm_is_stub := false |}.
+
+(* The same metadata, of code that is a stub. *)
+Definition stub_code_metadata (m : code_metadata) : code_metadata :=
+  {| cm_params_arity := cm_params_arity m;
+     cm_result_arity := cm_result_arity m;
+     cm_is_tupled := cm_is_tupled m;
+     cm_is_stub := true |}.
 
 Definition code_metadata_eqb (m m' : code_metadata) : bool :=
   arity_eqb (cm_params_arity m) (cm_params_arity m')
   && arity_eqb (cm_result_arity m) (cm_result_arity m')
-  && Bool.eqb (cm_is_tupled m) (cm_is_tupled m').
+  && Bool.eqb (cm_is_tupled m) (cm_is_tupled m')
+  && Bool.eqb (cm_is_stub m) (cm_is_stub m').
 
 (* [Flambda.expr], [Flambda.continuation_handler],
    [Flambda.static_const_or_code] with the name it is bound to, and
@@ -639,6 +666,10 @@ Definition code_result_arity (c : code) : arity :=
 (* Whether code is tupled. *)
 Definition code_is_tupled (c : code) : bool :=
   match c with Code _ _ _ _ metadata _ => cm_is_tupled metadata end.
+
+(* Whether code is a stub. *)
+Definition code_is_stub (c : code) : bool :=
+  match c with Code _ _ _ _ metadata _ => cm_is_stub metadata end.
 
 (* The kinds of the parameters of code, and of the parameters of its
    return continuation. *)

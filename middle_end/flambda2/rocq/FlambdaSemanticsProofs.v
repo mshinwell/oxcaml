@@ -1248,9 +1248,9 @@ Lemma code_metadata_eqb_eq (m m' : code_metadata) :
   code_metadata_eqb m m' = true <-> m = m'.
 Proof.
   unfold code_metadata_eqb.
-  rewrite !andb_true_iff, !arity_eqb_eq, Bool.eqb_true_iff.
+  rewrite !andb_true_iff, !arity_eqb_eq, !Bool.eqb_true_iff.
   destruct m, m'; simpl.
-  split; [ intros [[-> ->] ->] | intros [= -> -> ->] ]; auto.
+  split; [ intros [[[-> ->] ->] ->] | intros [= -> -> -> ->] ]; auto.
 Qed.
 
 Lemma kinds_eqb_refl (kinds : list flambda_kind) :
