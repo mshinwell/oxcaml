@@ -113,9 +113,10 @@
    ([merge_switches_equivariant_statement]): it makes no name, and it
    looks at names only to compare them, which a renaming, being
    injective, keeps true or false. That it keeps scope, which is that
-   a variable or a continuation that is free in the result is free in
-   the term, is stated with the same of the other rewrites of a round
-   (FlambdaKeepsScopeSpec.merge_switches_keeps_scope_statement).
+   on a term whose code is closed the code of the result is closed and
+   every variable or continuation that is free in the result is free
+   in the term, is stated with the same of the other rewrites of a
+   round (FlambdaKeepsScopeSpec.merge_switches_keeps_scope_statement).
 
    Two terms as checks of the definitions
    ([merge_switches_tagging_example_statement],
