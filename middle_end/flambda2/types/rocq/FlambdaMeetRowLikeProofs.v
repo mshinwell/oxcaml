@@ -1092,7 +1092,8 @@ Proof.
       rewrite Hamong in Hnot. discriminate Hnot.
     + intros stenv x Hin Hx Hold. rewrite Henvs in Hin. rewrite Havoid1.
       destruct Hin as [ <- | Hin ].
-      * destruct (Hnames x Hx Hold) as [Hnot Hyes]. split; [ | exact Hyes ].
+      * destruct (Hnames x Hx Hold) as (Hnot & Hyes & _).
+        split; [ | exact Hyes ].
         change (among x (avoid state) = false) in Hnot.
         destruct (among x (Meet_env.names_to_avoid menv)) eqn:Hmenv;
           [ | reflexivity ].
@@ -2114,7 +2115,7 @@ Proof.
         discriminate Hknown. }
   destruct (Hjoin mh joining joined scoped_envs Hsound Hkeeps Hfits Hscoped_of
               Hagree Hjoined)
-    as (Jsound & Jextends & Jfits & Jnew & Jkinds).
+    as (Jsound & Jextends & Jfits & Jnew & Jterms & Jkinds).
   assert (Hdefined :=
     define_all_defined choices Hdefine kind_of (map fst extra) joined
       env_final Jfits Hall).
@@ -2137,8 +2138,25 @@ Proof.
   { intros y k Hk. exact (Hextra y k Hk). }
   split; [ exact (meet_env_extends_trans _ _ _ Hextends0 Dextends) | ].
   split; [ exact Dfits | ]. split; [ | split ].
-  - (* The variables that are new. *)
+  - (* The variables that are new. They may not occur in terms: not
+       in the result of the join, and the extra variables are defined
+       after it in the name mode of types. *)
     intros x Hknown Hunknown. rewrite Dnames.
+    assert (Hterms :
+      Typing_env.mem (Some Name_mode.normal) (Meet_env.typing_env env_final)
+        (Name_var x)
+      = false).
+    { apply (define_all_not_in_terms choices kind_of (map fst extra) x joined
+               env_final Hall).
+      destruct (Typing_env.mem None (Meet_env.typing_env joined) (Name_var x))
+        eqn:Hjoined_x;
+        [ exact (Jterms x Hjoined_x Hunknown)
+        | exact (unknown_not_in_terms _ x Hjoined_x) ]. }
+    enough (Htwo :
+      among x (Meet_env.names_to_avoid menv) = false
+      ∧ among x (Meet_env.names_to_avoid joined) = true)
+      by (destruct Htwo as [Hfresh Hamong];
+          split; [ exact Hfresh | split; [ exact Hamong | exact Hterms ] ]).
     assert (Hsome :
       ∀ e : Typing_env.t,
         e ∈ scoped_envs ->

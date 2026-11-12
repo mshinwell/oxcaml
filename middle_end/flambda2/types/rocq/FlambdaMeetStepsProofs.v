@@ -266,6 +266,36 @@ Proof.
   discriminate Hunknown.
 Qed.
 
+(* A variable that the first environment knows has in the second the
+   name mode that it had there, where the least binding time is the
+   same. *)
+Lemma keeps_names_mode (tenv tenv' : Typing_env.t)
+    (mode : option Name_mode.t) (x : variable) :
+  keeps_names tenv tenv' ->
+  Typing_env.min_binding_time tenv' = Typing_env.min_binding_time tenv ->
+  Typing_env.mem None tenv (Name_var x) = true ->
+  Typing_env.mem mode tenv' (Name_var x)
+  = Typing_env.mem mode tenv (Name_var x).
+Proof.
+  intros Hkeeps Hmin Hknown. unfold Typing_env.mem in *.
+  destruct
+    (Keyed.lookup name_eqb (Name_var x) (Typing_env.names_to_types tenv))
+    as [[ty binding_time_and_mode] | ] eqn:Hlookup; [ | discriminate Hknown ].
+  destruct (Hkeeps _ _ _ Hlookup) as (ty' & Hlookup' & _).
+  rewrite Hlookup', Hmin. reflexivity.
+Qed.
+
+Lemma meet_env_extends_mode (menv menv' : Meet_env.t)
+    (mode : option Name_mode.t) (x : variable) :
+  meet_env_extends menv menv' ->
+  Typing_env.mem None (Meet_env.typing_env menv) (Name_var x) = true ->
+  Typing_env.mem mode (Meet_env.typing_env menv') (Name_var x)
+  = Typing_env.mem mode (Meet_env.typing_env menv) (Name_var x).
+Proof.
+  intros (_ & _ & Hmin & _ & _ & _ & _ & Hkeeps).
+  exact (keeps_names_mode _ _ mode x Hkeeps Hmin).
+Qed.
+
 Lemma new_names_avoided_trans (menv1 menv2 menv3 : Meet_env.t) :
   meet_env_extends menv1 menv2 ->
   meet_env_extends menv2 menv3 ->
@@ -273,15 +303,16 @@ Lemma new_names_avoided_trans (menv1 menv2 menv3 : Meet_env.t) :
   new_names_avoided menv2 menv3 ->
   new_names_avoided menv1 menv3.
 Proof.
-  intros (_ & _ & _ & _ & _ & _ & Havoid12 & _)
-    (_ & _ & _ & _ & _ & _ & Havoid23 & _) Hnames12 Hnames23 x Hknown3
-    Hunknown1.
+  intros (_ & _ & _ & _ & _ & _ & Havoid12 & _) Hextends23 Hnames12 Hnames23
+    x Hknown3 Hunknown1.
+  pose proof Hextends23 as (_ & _ & _ & _ & _ & _ & Havoid23 & _).
   destruct (Typing_env.mem None (Meet_env.typing_env menv2) (Name_var x))
     eqn:Hknown2.
-  - destruct (Hnames12 x Hknown2 Hunknown1) as [Hnot Hin].
-    split; [ exact Hnot | exact (Havoid23 x Hin) ].
-  - destruct (Hnames23 x Hknown3 Hknown2) as [Hnot Hin].
-    split; [ | exact Hin ].
+  - destruct (Hnames12 x Hknown2 Hunknown1) as (Hnot & Hin & Hterms).
+    split; [ exact Hnot | ]. split; [ exact (Havoid23 x Hin) | ].
+    rewrite (meet_env_extends_mode _ _ _ x Hextends23 Hknown2). exact Hterms.
+  - destruct (Hnames23 x Hknown3 Hknown2) as (Hnot & Hin & Hterms).
+    split; [ | split; [ exact Hin | exact Hterms ] ].
     destruct (among x (Meet_env.names_to_avoid menv1)) eqn:Havoided;
       [ | reflexivity ].
     rewrite (Havoid12 x Havoided) in Hnot. discriminate Hnot.

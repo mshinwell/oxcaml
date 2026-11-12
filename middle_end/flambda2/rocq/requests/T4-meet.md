@@ -292,7 +292,11 @@ scoped environments have one simple at two kinds
   result;
 - J4: the result fits;
 - J5: a simple that the result knows is, in the result, of the kind
-  that a scoped environment has it at.
+  that a scoped environment has it at;
+- J6: a variable of the result that `initial_tenv` does not know may
+  not occur in terms (`Typing_env.mem` with the normal name mode for
+  the least is false of it in the result), whether or not a scoped
+  environment knows it.
 
 J5 and the premise `scoped_envs_agree` are new, and so is the last
 clause of `meet_expanded_head_keeps` (`new_names_avoided`: a variable
@@ -308,6 +312,18 @@ second alternative is given the names to avoid of the first, so
 join kept of them is to be at the kinds of the alternatives (J5).
 Agreed with T5, which needs `new_names_avoided` of the meet for J3.
 `forgetful_join_sound` is proved of the contract as it now is.
+
+J6 was added on 2026-11-12, after the contract was signed, with a
+third conjunct of `new_names_avoided` (a variable that a meet has
+defined may not occur in terms), by T5b for T1's rewrite of the
+`Switch`. With them a meet adds no variable that may occur in terms
+(`meet_to_prove_keeps_terms`, `FlambdaMeetTermsSpec.v`); nothing in
+the contract said the name mode of a new variable before. The meet
+defines its variables in the name mode of the variables that exist
+only in types (`define_in_types`), and so does the compiler's join
+(`define_or_eliminate_variables_and_add_equations` of
+`types/env/join_env.ml`). It asks one thing more of the join;
+`forgetful_join_sound` is proved of the contract with J6.
 
 J1 has one more conclusion since the second review, and one more
 premise: no equation is added on a name that has no value

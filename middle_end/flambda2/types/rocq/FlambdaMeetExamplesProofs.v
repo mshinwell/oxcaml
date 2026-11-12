@@ -153,7 +153,8 @@ Theorem forgetful_join_sound : forgetful_join_sound_statement.
 Proof.
   intros meet_head initial_env result scoped_envs initial_tenv Hsound Hkeeps
     Hfits Hscoped Hagree Hjoin.
-  injection Hjoin as <-. split; [ | split; [ | split; [ | split ] ] ].
+  injection Hjoin as <-.
+  split; [ | split; [ | split; [ | split; [ | split ] ] ] ].
   - intros scoped_env statics valuation Hin _ Hinitial Hscoped_env _.
     exists valuation. split; [ intros x _; reflexivity | ].
     split; [ exact Hinitial | ]. intros cut_after Hvalued. exact Hvalued.
@@ -163,6 +164,8 @@ Proof.
     + intros n ty binding_time_and_mode Hlookup. exists ty.
       split; [ exact Hlookup | reflexivity ].
   - exact Hfits.
+  - intros x Hknown Hunknown. unfold initial_tenv in Hunknown.
+    rewrite Hknown in Hunknown. discriminate Hunknown.
   - intros x Hknown Hunknown. unfold initial_tenv in Hunknown.
     rewrite Hknown in Hunknown. discriminate Hunknown.
   - intros scoped_env s kind Hin Hknown Hkind.

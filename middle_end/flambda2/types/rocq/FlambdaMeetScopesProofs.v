@@ -538,6 +538,88 @@ Proof.
            (Hvalued valuation)).
 Qed.
 
+(* A variable that the environment does not know may not occur in
+   terms there. *)
+Lemma unknown_not_in_terms (tenv : Typing_env.t) (y : variable) :
+  Typing_env.mem None tenv (Name_var y) = false ->
+  Typing_env.mem (Some Name_mode.normal) tenv (Name_var y) = false.
+Proof.
+  unfold Typing_env.mem.
+  destruct (Keyed.lookup name_eqb (Name_var y) (Typing_env.names_to_types tenv))
+    as [[ty binding_time_and_mode] | ]; [ discriminate | reflexivity ].
+Qed.
+
+(* Defining keeps a variable out of terms: a variable is defined in
+   the name mode of the variables that exist only in types, and the
+   others are as they were. This is so whatever [define_again] is. *)
+Lemma define_in_types_not_in_terms (menv menv' : Meet_env.t) (x : variable)
+    (k : flambda_kind) (y : variable) :
+  define_in_types choices menv x k = Some menv' ->
+  Typing_env.mem (Some Name_mode.normal) (Meet_env.typing_env menv)
+    (Name_var y)
+  = false ->
+  Typing_env.mem (Some Name_mode.normal) (Meet_env.typing_env menv')
+    (Name_var y)
+  = false.
+Proof.
+  unfold define_in_types.
+  destruct (define_again choices
+            || negb (Typing_env.mem None (Meet_env.typing_env menv)
+                       (Name_var x)));
+    [ | intros [= <-] Hy; exact Hy ].
+  unfold Meet_env.add_definition, Typing_env.add_definition.
+  cbv beta iota. intros [= <-] Hy.
+  cbn [Meet_env.typing_env Meet_env.with_typing_env].
+  unfold Typing_env.mem in *. rewrite add_variable_definition_names.
+  rewrite keyed_lookup_cons.
+  destruct (name_eqb (Name_var y) (Name_var x)); [ | exact Hy ].
+  unfold Binding_time.With_name_mode.scoped_name_mode. cbn.
+  destruct (_ || _); reflexivity.
+Qed.
+
+Lemma define_all_not_in_terms (kind_of : variable -> option flambda_kind)
+    (vars : list variable) (y : variable) :
+  ∀ menv menv' : Meet_env.t,
+    define_all kind_of vars (Some menv) = Some menv' ->
+    Typing_env.mem (Some Name_mode.normal) (Meet_env.typing_env menv)
+      (Name_var y)
+    = false ->
+    Typing_env.mem (Some Name_mode.normal) (Meet_env.typing_env menv')
+      (Name_var y)
+    = false.
+Proof.
+  induction vars as [ | x vars IH ]; intros menv menv' Hall Hy;
+    cbn [define_all List.fold_left] in Hall.
+  - injection Hall as <-. exact Hy.
+  - destruct (kind_of x) as [ k | ]; [ | exact (IH menv menv' Hall Hy) ].
+    cbv beta iota in Hall.
+    destruct (define_in_types choices menv x k) as [ menv1 | ] eqn:Hdefined.
+    + exact (IH menv1 menv' Hall
+               (define_in_types_not_in_terms menv menv1 x k y Hdefined Hy)).
+    + change (define_all kind_of vars None = Some menv') in Hall.
+      rewrite define_all_none in Hall. discriminate Hall.
+Qed.
+
+(* [add_defined_vars] keeps a variable out of terms; in particular the
+   variables that it defines may not occur in terms. *)
+Lemma add_defined_vars_not_in_terms (menv menv' : Meet_env.t)
+    (level : Typing_env_level.t) (y : variable) :
+  level_indexed level ->
+  add_defined_vars choices menv level = Some menv' ->
+  Typing_env.mem (Some Name_mode.normal) (Meet_env.typing_env menv)
+    (Name_var y)
+  = false ->
+  Typing_env.mem (Some Name_mode.normal) (Meet_env.typing_env menv')
+    (Name_var y)
+  = false.
+Proof.
+  intros Hindexed Hadd. unfold add_defined_vars in Hadd.
+  rewrite (fold_on_defined_vars_defined _ _ level (Some menv) Hindexed)
+    in Hadd.
+  cbv beta iota in Hadd.
+  exact (define_all_not_in_terms _ _ y menv menv' Hadd).
+Qed.
+
 (* [add_defined_vars], on a level that has its index. *)
 Lemma add_defined_vars_defined (menv menv' : Meet_env.t)
     (level : Typing_env_level.t) :
@@ -1242,7 +1324,8 @@ Lemma alternative_new_avoided (x : variable) :
   Typing_env.mem None stenv (Name_var x) = true ->
   Typing_env.mem None tenv (Name_var x) = false ->
   among x (Meet_env.names_to_avoid base) = false
-  ∧ among x (Meet_env.names_to_avoid scoped) = true.
+  ∧ among x (Meet_env.names_to_avoid scoped) = true
+  ∧ Typing_env.mem (Some Name_mode.normal) stenv (Name_var x) = false.
 Proof.
   intros Hknown Hunknown. apply (Hnames x Hknown). rewrite Hbase.
   exact Hunknown.
@@ -1326,15 +1409,21 @@ Proof.
       destruct (alternative_new_avoided x
                   (scoped_in_order_known tenv stenv Hscoped_fits
                      alternative_scoped x k Hk)
-                  Hunknown) as [Hnot Hamong].
-      split.
+                  Hunknown) as (Hnot & Hamong & _).
+      split; [ | split ].
       * destruct (among x (Meet_env.names_to_avoid initial_env)) eqn:Ha;
           [ | reflexivity ].
         rewrite (Hbase_avoid x Ha) in Hnot. discriminate Hnot.
       * apply (meet_env_extends_avoid _ _ Hextends12). rewrite Havoid01.
         exact Hamong.
-    + destruct (Hnames12 x Hknown Hx) as [Hnot Hamong].
-      split; [ | exact Hamong ].
+      * rewrite (meet_env_extends_mode _ _ _ x Hextends12 Hx).
+        apply (add_defined_vars_not_in_terms choices menv0 menv1 level x
+                 (scoped_level_indexed tenv stenv Hscoped_fits
+                    alternative_scoped)
+                 Hdefined).
+        exact (unknown_not_in_terms tenv x Hunknown).
+    + destruct (Hnames12 x Hknown Hx) as (Hnot & Hamong & Hterms).
+      split; [ | split; [ exact Hamong | exact Hterms ] ].
       destruct (among x (Meet_env.names_to_avoid initial_env)) eqn:Ha;
         [ | reflexivity ].
       rewrite Havoid01 in Hnot.
@@ -1506,7 +1595,7 @@ Proof.
   destruct (Typing_env.mem None tenv (Name_var x)) eqn:Hx; [ reflexivity | ].
   exfalso.
   destruct (alternative_new_avoided initial_env base_a env_a Hbase_a Hnames_a
-              x Ha Hx) as [_ Hamong].
+              x Ha Hx) as (_ & Hamong & _).
   destruct (alternative_new_avoided initial_env base_b env_b Hbase_b Hnames_b
               x Hb Hx) as [Hnot _].
   rewrite (Hbase_b_avoid x Hamong) in Hnot. discriminate Hnot.
@@ -1610,9 +1699,24 @@ Lemma joined_kinds (scoped_env : Typing_env.t) (s : simple)
   simple_of_kind scoped_env s kind ->
   simple_of_kind rtenv s kind.
 Proof.
-  exact (proj2 (proj2 (proj2 (proj2
+  exact (proj2 (proj2 (proj2 (proj2 (proj2
            (Hjoin mh joining result_env [tenv_a; tenv_b] Hsound Hkeeps Hfits
-              joined_envs_of joined_envs_agree Hjoined)))) scoped_env s kind).
+              joined_envs_of joined_envs_agree Hjoined))))) scoped_env s kind).
+Qed.
+
+(* A variable of the result that the first environment does not know
+   may not occur in terms. *)
+Lemma joined_not_in_terms (x : variable) :
+  Typing_env.mem None tenv (Name_var x) = false ->
+  Typing_env.mem (Some Name_mode.normal) rtenv (Name_var x) = false.
+Proof.
+  intros Hunknown.
+  destruct (Typing_env.mem None rtenv (Name_var x)) eqn:Hknown;
+    [ | exact (unknown_not_in_terms rtenv x Hknown) ].
+  exact (proj1 (proj2 (proj2 (proj2 (proj2
+           (Hjoin mh joining result_env [tenv_a; tenv_b] Hsound Hkeeps Hfits
+              joined_envs_of joined_envs_agree Hjoined))))) x Hknown
+           Hunknown).
 Qed.
 
 Lemma joined_sound (scoped_env : Typing_env.t) (statics : static_env)
@@ -1725,10 +1829,24 @@ Proof.
     among x (Meet_env.names_to_avoid menv2) = true).
   { intros Hb. rewrite Havoid2, Havoid1.
     exact (meet_env_extends_avoid _ _ joined_extends x Hb). }
+  (* The variable may not occur in terms: not in the result of the
+     join, and the variables defined after it are defined in the name
+     mode of types. *)
+  assert (Hterms :
+    Typing_env.mem (Some Name_mode.normal) (Meet_env.typing_env menv2)
+      (Name_var x)
+    = false).
+  { apply (add_defined_vars_not_in_terms choices menv1 menv2 level_b x
+             (scoped_level_indexed tenv tenv_b Hfits_b joined_scoped_b)
+             Hdefined_b).
+    apply (add_defined_vars_not_in_terms choices result_env menv1 level_a x
+             (scoped_level_indexed tenv tenv_a Hfits_a joined_scoped_a)
+             Hdefined_a).
+    exact (joined_not_in_terms x Hunknown). }
   destruct (Typing_env.mem None tenv_a (Name_var x)) eqn:Ha.
   { destruct (alternative_new_avoided initial_env base_a env_a Hbase_a
-                Hnames_a x Ha Hunknown) as [Hnot Hamong].
-    split.
+                Hnames_a x Ha Hunknown) as (Hnot & Hamong & _).
+    split; [ | split; [ | exact Hterms ] ].
     - destruct (among x (Meet_env.names_to_avoid initial_env)) eqn:Hi;
         [ | reflexivity ].
       rewrite (Hbase_a_avoid x Hi) in Hnot. discriminate Hnot.
@@ -1737,8 +1855,8 @@ Proof.
                (Hbase_b_avoid x Hamong)). }
   destruct (Typing_env.mem None tenv_b (Name_var x)) eqn:Hb.
   { destruct (alternative_new_avoided initial_env base_b env_b Hbase_b
-                Hnames_b x Hb Hunknown) as [Hnot Hamong].
-    split; [ | exact (Hfinal Hamong) ].
+                Hnames_b x Hb Hunknown) as (Hnot & Hamong & _).
+    split; [ | split; [ exact (Hfinal Hamong) | exact Hterms ] ].
     destruct (among x (Meet_env.names_to_avoid initial_env)) eqn:Hi;
       [ | reflexivity ].
     rewrite (joined_avoid_b_initial x Hi) in Hnot. discriminate Hnot. }
@@ -1758,7 +1876,7 @@ Proof.
                  Hk) in Hb.
       discriminate Hb. }
   destruct (joined_new x Hresult Hunknown Ha Hb) as [Hnot Hamong].
-  split.
+  split; [ | split; [ | exact Hterms ] ].
   - destruct (among x (Meet_env.names_to_avoid initial_env)) eqn:Hi;
       [ | reflexivity ].
     rewrite (meet_env_extends_avoid _ _ Hextends_b x

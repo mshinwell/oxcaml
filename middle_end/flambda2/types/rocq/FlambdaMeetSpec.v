@@ -320,10 +320,13 @@
    - a variable that the result knows and that none of the environments
      given knows is new: it is not among the names to avoid
      ([Meet_env.names_to_avoid]) of the environment given, and is
-     among those of the result. Nothing else is said of the variables
-     made: not which, nor in what order. Meet itself makes no variable;
-     it defines again, in the result, the variables that the
-     alternatives defined (see "Known differences");
+     among those of the result. And it may not occur in terms: the
+     result has it at a name mode that is not the normal one. Nothing
+     else is said of the variables made: not which, nor in what order.
+     Meet itself makes no variable; it defines again, in the result,
+     the variables that the alternatives defined (see "Known
+     differences"), in the name mode of the variables that exist only
+     in types;
    - the result is well formed, and kinded;
    - a [Simple] that the result knows is, in the result, of the kind
      that an environment joined has it at. After the join the meet
@@ -338,7 +341,10 @@
    the second alternative is given the names to avoid of the first,
    and a meet has its new variables among the names to avoid that it
    answers and not among those that it was given
-   ([new_names_avoided], a clause of [meet_expanded_head_keeps]).
+   ([new_names_avoided], a clause of [meet_expanded_head_keeps]). The
+   same clause says that the new variables of a meet may not occur in
+   terms; so a meet adds no variable that may
+   ([meet_to_prove_keeps_terms_statement], FlambdaMeetTermsSpec.v).
 
    The compiler's n-way join. It has not the first clause as it is
    stated (discrepancy T5-10; FlambdaJoinSpec.v states what it has).
@@ -979,13 +985,18 @@ Definition meet_expanded_head_sound (meet_head : meet_expanded_head) : Prop :=
    join makes its variables outside the names to avoid and adds them;
    so the variables that the meets of two alternatives define, the
    second being given the names to avoid of the first, are different
-   variables. *)
+   variables. And such a variable may not occur in terms: the second
+   environment has it at a name mode that is not the normal one
+   ([Typing_env.mem] with the normal name mode for the least). *)
 Definition new_names_avoided (menv menv' : Meet_env.t) : Prop :=
   ∀ x : variable,
     Typing_env.mem None (Meet_env.typing_env menv') (Name_var x) = true ->
     Typing_env.mem None (Meet_env.typing_env menv) (Name_var x) = false ->
     among x (Meet_env.names_to_avoid menv) = false
-    ∧ among x (Meet_env.names_to_avoid menv') = true.
+    ∧ among x (Meet_env.names_to_avoid menv') = true
+    ∧ Typing_env.mem (Some Name_mode.normal) (Meet_env.typing_env menv')
+        (Name_var x)
+      = false.
 
 (* What the meet of expanded types keeps, whatever the values:
    [meet_keeps_well_formed] for it. The environment answered is the
@@ -1088,6 +1099,33 @@ Definition join_scoped_envs_sound (join : join_scoped_envs) : Prop :=
           Typing_env.mem None scoped_env (Name_var x) = false) ->
         among x (Meet_env.names_to_avoid initial_env) = false
         ∧ among x (Meet_env.names_to_avoid result) = true)
+    (* A variable of the result that the first environment does not
+       know may not occur in terms, whether or not an environment
+       joined knows it. *)
+    (* CR mshinwell: this clause was added on 2026-11-12, after the
+       contract was signed, for the rewrite of the [Switch]: Simplify
+       goes on, in the environment that a meet answers, with terms
+       that mention the variables that it had, and the machine binds
+       no other ([meet_to_prove_keeps_terms_statement],
+       FlambdaMeetTermsSpec.v). It asks one thing more of the join.
+       The join that forgets has it, since it makes no variable. The
+       compiler's join defines the variables of its target with the
+       name mode of the variables that exist only in types
+       ([define_or_eliminate_variables_and_add_equations] of
+       types/env/join_env.ml, the two calls of
+       [ME.add_variable_definition]), and so does the meet where it
+       defines variables after a join ([add_defined_vars] and the
+       fold over the extra variables in
+       types/meet_and_n_way_join.ml). No place was found in types/
+       where a meet or a join defines a variable with the normal name
+       mode. *)
+    ∧ (∀ x : variable,
+        Typing_env.mem None (Meet_env.typing_env result) (Name_var x)
+        = true ->
+        Typing_env.mem None initial_tenv (Name_var x) = false ->
+        Typing_env.mem (Some Name_mode.normal) (Meet_env.typing_env result)
+          (Name_var x)
+        = false)
     (* A [Simple] that the result knows is of the kind that an
        environment joined has it at. *)
     ∧ ∀ (scoped_env : Typing_env.t) (s : simple) (kind : flambda_kind),
