@@ -408,6 +408,21 @@ says so. Only the labels that this tree cites are listed.
   proved absent when some environment respects the structure and gives
   the elements of the set the value of the name. Not reproduced from
   source.
+- **T3-10.** Simplify stops with a fatal error on a static boxed number
+  whose contents are a variable: `simplify_or_variable`
+  (`simplify/simplify_static_const.ml`) asks for the type of the
+  variable at the kind value, and the variable holds the naked number.
+  Run from an fexpr at default flags; nothing in the compiler makes such
+  a constant today. The model gives the symbol the type of the boxed
+  number.
+- **T3-11.** In the model a static constant that is not a closure may
+  name itself, or a symbol that its group binds later to such a constant
+  (the group may be recursive); Simplify stops there with a fatal error,
+  the symbol not being bound in the typing environment
+  (`simplify/simplify_static_const.ml`, `simplify_static_consts`:
+  closure symbols are defined first, the others in order, each after its
+  own constant). Run from fexprs at default flags. The model is wider
+  than what the compiler accepts; no bug of the compiler is claimed.
 - **T4-1.** After the n-way join, the meet defines a second time the
   variables that the join imported from a branch.
 - **T4-2.** A meet that reads the type of a name holding poison can
