@@ -1,0 +1,63 @@
+let $camlWhile_then_constant__first_const_0 = Block 0 () in
+(let n/64 = %opaque (4) in
+ cont k/23 (3)
+   where k/23 (let_mutable/65 : imm tagged) =
+     (cont k/24 (0, let_mutable/65)
+        where k/24
+                (let_mutable/66 : imm tagged, k_21_unboxed0/67 : imm tagged) =
+          (cont k/25 (0, k_21_unboxed0/67, let_mutable/66)
+             where k/25
+                     (let_mutable/68 : imm tagged,
+                      k_21_unboxed0/69 : imm tagged,
+                      i_22_unboxed0/70 : imm tagged) =
+               (cont k/27
+                       (k_21_unboxed0/69, i_22_unboxed0/70, let_mutable/68)
+                  where rec k/27
+                              (k_21_unboxed0/76 : imm tagged,
+                               i_22_unboxed0/77 : imm tagged,
+                               s_23_unboxed0/78 : imm tagged) =
+                    let prim/79 = %int_comp.lt (i_22_unboxed0/77, n/64) in
+                    let while_cond_result/80 = %tag_imm (prim/79) in
+                    ((let untagged/86 = %untag_imm (while_cond_result/80) in
+                      switch untagged/86
+                        | 0 ->
+                          k/26
+                            (0,
+                             k_21_unboxed0/76,
+                             i_22_unboxed0/77,
+                             s_23_unboxed0/78)
+                        | 1 -> k/29)
+                       where k/29 =
+                         cont k/28
+                                (k_21_unboxed0/76,
+                                 i_22_unboxed0/77,
+                                 s_23_unboxed0/78)
+                       where k/28
+                               (k_21_unboxed0/81 : imm tagged,
+                                i_22_unboxed0/82 : imm tagged,
+                                s_23_unboxed0/83 : imm tagged) =
+                         let int_add/84 =
+                           %int_barith.add
+                             (s_23_unboxed0/83, k_21_unboxed0/81)
+                         in
+                         let int_add/85 =
+                           %int_barith.add (i_22_unboxed0/82, 1)
+                         in
+                         cont k/27 (k_21_unboxed0/81, int_add/85, int_add/84))
+                  where k/26
+                          (staticcatch_result/71 : imm tagged,
+                           k_21_unboxed0/72 : imm tagged,
+                           i_22_unboxed0/73 : imm tagged,
+                           s_23_unboxed0/74 : imm tagged) =
+                    let int_add/75 =
+                      %int_barith.add (s_23_unboxed0/74, k_21_unboxed0/72)
+                    in
+                    cont k/22 (int_add/75)))))
+  where k/22 (result/62 : imm tagged) =
+    let Pmakeblock/63 = %block.[`0`].`toplevel` (result/62) in
+    cont k/21 (Pmakeblock/63)
+  where k/21 define_root_symbol (module_block/60) =
+    let field_0/61 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/60)
+    in
+    let $camlWhile_then_constant = Block 0 (field_0/61) in
+    cont done ($camlWhile_then_constant)

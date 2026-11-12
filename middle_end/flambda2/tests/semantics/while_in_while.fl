@@ -1,0 +1,94 @@
+let $camlWhile_in_while__first_const_0 = Block 0 () in
+(let n/85 = %opaque (3) in
+ cont k/31 (0)
+   where k/31 (let_mutable/86 : imm tagged) =
+     (cont k/32 (0, let_mutable/86)
+        where k/32
+                (let_mutable/87 : imm tagged,
+                 total_21_unboxed0/88 : imm tagged) =
+          (cont k/34 (total_21_unboxed0/88, let_mutable/87)
+             where rec k/34
+                         (total_21_unboxed0/92 : imm tagged,
+                          i_22_unboxed0/93 : imm tagged) =
+               let prim/94 = %int_comp.lt (i_22_unboxed0/93, n/85) in
+               let while_cond_result/95 = %tag_imm (prim/94) in
+               ((let untagged/117 = %untag_imm (while_cond_result/95) in
+                 switch untagged/117
+                   | 0 -> k/33 (0, total_21_unboxed0/92, i_22_unboxed0/93)
+                   | 1 -> k/41)
+                  where k/41 =
+                    cont k/35 (total_21_unboxed0/92, i_22_unboxed0/93)
+                  where k/35
+                          (total_21_unboxed0/96 : imm tagged,
+                           i_22_unboxed0/97 : imm tagged) =
+                    (cont k/36 (0, total_21_unboxed0/96, i_22_unboxed0/97)
+                       where k/36
+                               (let_mutable/98 : imm tagged,
+                                total_21_unboxed0/99 : imm tagged,
+                                i_22_unboxed0/100 : imm tagged) =
+                         (cont k/38
+                                 (total_21_unboxed0/99,
+                                  i_22_unboxed0/100,
+                                  let_mutable/98)
+                            where rec k/38
+                                        (total_21_unboxed0/106 : imm tagged,
+                                         i_22_unboxed0/107 : imm tagged,
+                                         j_23_unboxed0/108 : imm tagged) =
+                              let prim/109 =
+                                %int_comp.lt (j_23_unboxed0/108, n/85)
+                              in
+                              let while_cond_result/110 = %tag_imm (prim/109)
+                              in
+                              ((let untagged/116 =
+                                  %untag_imm (while_cond_result/110)
+                                in
+                                switch untagged/116
+                                  | 0 ->
+                                    k/37
+                                      (0,
+                                       total_21_unboxed0/106,
+                                       i_22_unboxed0/107,
+                                       j_23_unboxed0/108)
+                                  | 1 -> k/40)
+                                 where k/40 =
+                                   cont k/39
+                                          (total_21_unboxed0/106,
+                                           i_22_unboxed0/107,
+                                           j_23_unboxed0/108)
+                                 where k/39
+                                         (total_21_unboxed0/111 : imm tagged,
+                                          i_22_unboxed0/112 : imm tagged,
+                                          j_23_unboxed0/113 : imm tagged) =
+                                   let int_add/114 =
+                                     %int_barith.add
+                                       (total_21_unboxed0/111, 1)
+                                   in
+                                   let int_add/115 =
+                                     %int_barith.add (j_23_unboxed0/113, 1)
+                                   in
+                                   cont k/38
+                                          (int_add/114,
+                                           i_22_unboxed0/112,
+                                           int_add/115))
+                            where k/37
+                                    (staticcatch_result/101 : imm tagged,
+                                     total_21_unboxed0/102 : imm tagged,
+                                     i_22_unboxed0/103 : imm tagged,
+                                     j_23_unboxed0/104 : imm tagged) =
+                              let int_add/105 =
+                                %int_barith.add (i_22_unboxed0/103, 1)
+                              in
+                              cont k/34 (total_21_unboxed0/102, int_add/105))))
+             where k/33
+                     (staticcatch_result/89 : imm tagged,
+                      total_21_unboxed0/90 : imm tagged,
+                      i_22_unboxed0/91 : imm tagged) =
+               cont k/30 (total_21_unboxed0/90))))
+  where k/30 (result/83 : imm tagged) =
+    let Pmakeblock/84 = %block.[`0`].`toplevel` (result/83) in
+    cont k/29 (Pmakeblock/84)
+  where k/29 define_root_symbol (module_block/81) =
+    let field_0/82 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/81)
+    in
+    let $camlWhile_in_while = Block 0 (field_0/82) in
+    cont done ($camlWhile_in_while)
