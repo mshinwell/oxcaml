@@ -402,6 +402,7 @@ Owner: unassigned. The only stream besides C0 that edits these.
 - `middle_end/flambda2/rocq/FlambdaNormalise*`
 - `middle_end/flambda2/rocq/FlambdaUnusedStatics*`
 - `middle_end/flambda2/rocq/FlambdaUnusedHeadStatics*`
+- `middle_end/flambda2/rocq/FlambdaSameComparison*`
 
 ## V2: corpus and harness
 
