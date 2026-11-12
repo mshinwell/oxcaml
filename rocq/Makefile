@@ -134,6 +134,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaIdentitiesSpec.v \
   FlambdaInlineFreshProofs.v \
   FlambdaInlineFreshSpec.v \
+  FlambdaKeepsScopeProofs.v \
+  FlambdaKeepsScopeSpec.v \
   FlambdaKindModel.v \
   FlambdaKnownSymbolsProofs.v \
   FlambdaKnownSymbolsSpec.v \
@@ -167,6 +169,7 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaRenameApartSpec.v \
   FlambdaScopeProofs.v \
   FlambdaScopeSpec.v \
+  FlambdaScopedProofs.v \
   FlambdaSemanticsProofs.v \
   FlambdaSemanticsSpec.v \
   FlambdaShortcutProofs.v \
