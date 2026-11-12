@@ -65,10 +65,10 @@ with the applications of a continuation of no parameters whose
 handler is one jump forwarded in the term after
 (`FlambdaForwardJumpsSpec.forward_jumps`; `functions`, seeds 14, 27
 and 72, the last at the second asking, and `unknown_scalar`, seed
-100). No unit that was validated at one of these points is not at a
-later one. The day before, 336
-were validated, 256 were not and 8 were not checked; of the units
-that keep a function, none was.
+100). Sharing the projections of value slots changes none. No unit
+that was validated at one of these points is not at a later one. The
+day before, 336 were validated, 256 were not and 8 were not checked;
+of the units that keep a function, none was.
 
 What the 12 units that are not validated lack, read off the two
 terms that the tool shows of each:

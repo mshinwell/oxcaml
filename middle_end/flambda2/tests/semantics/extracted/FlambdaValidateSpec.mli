@@ -28,6 +28,7 @@ open FlambdaNormaliseSpec
 open FlambdaParamAliasesSpec
 open FlambdaRecHandlersSpec
 open FlambdaRenameApartSpec
+open FlambdaShareProjectionsSpec
 open FlambdaShortcutSpec
 open FlambdaSinkContsSpec
 open FlambdaStaticsOrderSpec
