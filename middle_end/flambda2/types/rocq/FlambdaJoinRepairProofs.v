@@ -146,6 +146,270 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
+(* The premise on the variables that may occur in terms is needed           *)
+(* ======================================================================== *)
+
+Definition in_terms_source_entries : Keyed.finite_map name _ :=
+  Eval vm_compute in Typing_env.names_to_types In_terms.source_env.
+
+Definition in_terms_use_entries : Keyed.finite_map name _ :=
+  Eval vm_compute in Typing_env.names_to_types In_terms.use_env.
+
+Definition in_terms_use_null_entries : Keyed.finite_map name _ :=
+  Eval vm_compute in Typing_env.names_to_types In_terms.use_env_null.
+
+Lemma in_terms_source_names_to_types :
+  Typing_env.names_to_types In_terms.source_env = in_terms_source_entries.
+Proof. vm_compute. reflexivity. Qed.
+
+Lemma in_terms_use_names_to_types :
+  Typing_env.names_to_types In_terms.use_env = in_terms_use_entries.
+Proof. vm_compute. reflexivity. Qed.
+
+Lemma in_terms_use_null_names_to_types :
+  Typing_env.names_to_types In_terms.use_env_null
+  = in_terms_use_null_entries.
+Proof. vm_compute. reflexivity. Qed.
+
+Lemma in_terms_use_at (index : Index.t) (use : Typing_env.t) :
+  use_at In_terms.inputs index use ->
+  use = In_terms.use_env ∨ use = In_terms.use_env_null.
+Proof.
+  intros [id Hnth]. cbn in Hnth.
+  destruct index as [ | [ | index]]; cbn in Hnth.
+  - injection Hnth as _ <-. left. reflexivity.
+  - injection Hnth as _ <-. right. reflexivity.
+  - destruct index; discriminate.
+Qed.
+
+Lemma in_terms_source_invariant : typing_env_invariant In_terms.source_env.
+Proof.
+  apply add_variable_definition_invariant; [ | reflexivity ].
+  apply add_variable_definition_invariant; [ | reflexivity ].
+  exact create_invariant.
+Qed.
+
+Lemma in_terms_use_invariant : typing_env_invariant In_terms.use_env.
+Proof.
+  apply replace_equation_invariant.
+  - apply increment_scope_invariant. exact in_terms_source_invariant.
+  - reflexivity.
+  - intros y [<- | []]. reflexivity.
+  - intros ty' binding_time_and_mode Hlookup. vm_compute in Hlookup.
+    injection Hlookup as <- _. reflexivity.
+  - intros alias Halias. discriminate.
+  - left. reflexivity.
+Qed.
+
+Lemma in_terms_use_null_invariant :
+  typing_env_invariant In_terms.use_env_null.
+Proof.
+  apply replace_equation_invariant.
+  - apply increment_scope_invariant. exact in_terms_source_invariant.
+  - reflexivity.
+  - intros y [<- | []]. reflexivity.
+  - intros ty' binding_time_and_mode Hlookup. vm_compute in Hlookup.
+    injection Hlookup as <- _. reflexivity.
+  - intros alias Halias. discriminate.
+  - left. reflexivity.
+Qed.
+
+(* The cases of a lookup in the entries of an environment of this
+   instance: the variable is [x], [r], or neither. *)
+Ltac in_terms_cases Hlookup n :=
+  destruct n as [y | sym]; cbn [Keyed.lookup name_eqb fst snd] in Hlookup;
+  [ destruct (Pos.eqb y 2%positive) eqn:Hx;
+    [ apply Pos.eqb_eq in Hx; subst y
+    | destruct (Pos.eqb y 1%positive) eqn:Hr;
+      [ apply Pos.eqb_eq in Hr; subst y | ] ]
+  | ].
+
+Lemma in_terms_source_no_bottom_types : no_bottom_types In_terms.source_env.
+Proof.
+  intros _ n ty binding_time_and_mode Hlookup.
+  rewrite in_terms_source_names_to_types in Hlookup.
+  unfold in_terms_source_entries in Hlookup.
+  in_terms_cases Hlookup n; try discriminate;
+    injection Hlookup as <- _; reflexivity.
+Qed.
+
+Lemma in_terms_use_no_bottom_types : no_bottom_types In_terms.use_env.
+Proof.
+  intros _ n ty binding_time_and_mode Hlookup.
+  rewrite in_terms_use_names_to_types in Hlookup.
+  unfold in_terms_use_entries in Hlookup.
+  in_terms_cases Hlookup n; try discriminate;
+    injection Hlookup as <- _; reflexivity.
+Qed.
+
+Lemma in_terms_use_null_no_bottom_types :
+  no_bottom_types In_terms.use_env_null.
+Proof.
+  intros _ n ty binding_time_and_mode Hlookup.
+  rewrite in_terms_use_null_names_to_types in Hlookup.
+  unfold in_terms_use_null_entries in Hlookup.
+  in_terms_cases Hlookup n; try discriminate;
+    injection Hlookup as <- _; reflexivity.
+Qed.
+
+Lemma in_terms_source_kinded : typing_env_kinded In_terms.source_env.
+Proof.
+  apply add_variable_definition_kinded; [ reflexivity | reflexivity | ].
+  apply add_variable_definition_kinded; [ reflexivity | reflexivity | ].
+  exact create_kinded.
+Qed.
+
+Lemma in_terms_use_kinded : typing_env_kinded In_terms.use_env.
+Proof.
+  apply replace_equation_kinded.
+  - eexists. vm_compute. reflexivity.
+  - intros simple kind [Heq | []]. injection Heq as <- <-.
+    eexists. vm_compute. reflexivity.
+  - apply increment_scope_kinded. exact in_terms_source_kinded.
+Qed.
+
+Lemma in_terms_use_null_kinded : typing_env_kinded In_terms.use_env_null.
+Proof.
+  apply replace_equation_kinded.
+  - eexists. vm_compute. reflexivity.
+  - intros simple kind [Heq | []]. injection Heq as <- <-.
+    eexists. vm_compute. reflexivity.
+  - apply increment_scope_kinded. exact in_terms_source_kinded.
+Qed.
+
+Theorem in_terms_inputs_well_formed : in_terms_inputs_well_formed_statement.
+Proof.
+  split; [ split; [ | split; [ | split; [ | split ] ] ] | ].
+  - split; [ exact in_terms_source_invariant | ].
+    intros index use Huse.
+    destruct (in_terms_use_at _ _ Huse); subst use;
+      [ exact in_terms_use_invariant | exact in_terms_use_null_invariant ].
+  - split; [ exact in_terms_source_no_bottom_types | ].
+    intros index use Huse.
+    destruct (in_terms_use_at _ _ Huse); subst use;
+      [ exact in_terms_use_no_bottom_types
+      | exact in_terms_use_null_no_bottom_types ].
+  - intros index use Huse _.
+    destruct (in_terms_use_at _ _ Huse); subst use;
+      eexists; vm_compute; reflexivity.
+  - intros index use sym Huse Hdefined.
+    destruct (in_terms_use_at _ _ Huse); subst use; discriminate.
+  - split.
+    + intros y Hknown. unfold knows, Typing_env.mem in Hknown.
+      change (source In_terms.inputs) with In_terms.source_env in Hknown.
+      rewrite in_terms_source_names_to_types in Hknown.
+      unfold in_terms_source_entries in Hknown.
+      cbn [Keyed.lookup name_eqb fst snd] in Hknown.
+      destruct (Pos.eqb y 2%positive) eqn:Hx;
+        [ apply Pos.eqb_eq in Hx; subst y; reflexivity | ].
+      destruct (Pos.eqb y 1%positive) eqn:Hr;
+        [ apply Pos.eqb_eq in Hr; subst y; reflexivity | discriminate ].
+    + intros index use y Huse Hknown.
+      unfold knows, Typing_env.mem in Hknown.
+      destruct (in_terms_use_at _ _ Huse); subst use;
+        [ rewrite in_terms_use_names_to_types in Hknown;
+          unfold in_terms_use_entries in Hknown
+        | rewrite in_terms_use_null_names_to_types in Hknown;
+          unfold in_terms_use_null_entries in Hknown ];
+        cbn [Keyed.lookup name_eqb fst snd] in Hknown;
+        (destruct (Pos.eqb y 2%positive) eqn:Hx;
+           [ apply Pos.eqb_eq in Hx; subst y; reflexivity | ]);
+        (destruct (Pos.eqb y 1%positive) eqn:Hr;
+           [ apply Pos.eqb_eq in Hr; subst y; reflexivity
+           | discriminate ]).
+  - intros index use Huse.
+    destruct (in_terms_use_at _ _ Huse); subst use;
+      [ exact in_terms_use_kinded | exact in_terms_use_null_kinded ].
+Qed.
+
+Lemma in_terms_satisfied (statics : static_env) :
+  typing_env_satisfied_strictly statics Witness.valuation In_terms.use_env
+  ∧ typing_env_satisfied_strictly statics Witness.valuation
+      In_terms.source_env.
+Proof.
+  split.
+  - split; [ reflexivity | ]. split.
+    + intros n ty binding_time_and_mode v Hlookup Hvalue.
+      rewrite in_terms_use_names_to_types in Hlookup.
+      unfold in_terms_use_entries in Hlookup.
+      in_terms_cases Hlookup n; try discriminate.
+      injection Hlookup as <- _. injection Hvalue as <-.
+      right. rewrite type_satisfied_naked_immediate. reflexivity.
+    + change (aliases_respected Aliases.empty Witness.valuation).
+      apply empty_respected.
+  - split; [ reflexivity | ]. split.
+    + intros n ty binding_time_and_mode v Hlookup Hvalue.
+      rewrite in_terms_source_names_to_types in Hlookup.
+      unfold in_terms_source_entries in Hlookup.
+      in_terms_cases Hlookup n; try discriminate.
+      injection Hlookup as <- _. injection Hvalue as <-.
+      right. rewrite type_satisfied_naked_immediate. reflexivity.
+    + change (aliases_respected Aliases.empty Witness.valuation).
+      apply empty_respected.
+Qed.
+
+Theorem in_terms_run : in_terms_run_statement.
+Proof.
+  split; [ exact in_terms_satisfied | ].
+  intros Hbound. destruct (Hbound Witness.x eq_refl) as [v Hv].
+  discriminate Hv.
+Qed.
+
+Definition in_terms_target : Typing_env.t :=
+  Eval vm_compute in
+    match In_terms.join [Witness.r; Witness.x] In_terms.inputs with
+    | Some (target, _) => target
+    | None => Typing_env.create
+    end.
+
+Definition in_terms_analysis : Analysis.t unit :=
+  Eval vm_compute in
+    match In_terms.join [Witness.r; Witness.x] In_terms.inputs with
+    | Some (_, analysis) => analysis
+    | None => Analysis.empty
+    end.
+
+Lemma in_terms_join_result :
+  In_terms.join [Witness.r; Witness.x] In_terms.inputs
+  = Some (in_terms_target, in_terms_analysis).
+Proof. vm_compute. reflexivity. Qed.
+
+Theorem in_terms_use_not_admitted : in_terms_use_not_admitted_statement.
+Proof.
+  exists in_terms_target, in_terms_analysis.
+  split; [ exact in_terms_join_result | ].
+  intros Hadmits.
+  destruct (in_terms_satisfied (Static_env [] [])) as [Huse Hsource].
+  destruct (Hadmits _ _ Huse Hsource)
+    as [valuation' [[_ [Htypes _]] [Hagrees _]]].
+  assert (Hr : value_of_name valuation' (Name_var Witness.r)
+               = Some (Value_const (Naked_immediate 0))).
+  { cbn. rewrite (Hagrees Witness.r eq_refl). reflexivity. }
+  assert (Hx : lookup Witness.x valuation' = None).
+  { rewrite (Hagrees Witness.x eq_refl). reflexivity. }
+  destruct (Htypes (Name_var Witness.r) _ _ _ eq_refl Hr)
+    as [[[] _] | Hsatisfied].
+  rewrite type_satisfied_naked_immediate in Hsatisfied.
+  destruct Hsatisfied as [i [_ [_ Hrelations]]].
+  destruct
+    (Hrelations Relation.Is_null (Name_var Witness.x) (or_introl eq_refl))
+    as [w [Hw _]].
+  cbn in Hw. rewrite Hx in Hw. discriminate.
+Qed.
+
+Theorem repaired_join_not_strict : repaired_join_not_strict_statement.
+Proof.
+  intros Hsound.
+  destruct in_terms_inputs_well_formed as [Hwell_formed Hkinded].
+  destruct in_terms_use_not_admitted
+    as [target [analysis [Hjoin Hnot_admitted]]].
+  destruct (Hsound _ _ _ _ Hwell_formed Hkinded Hjoin)
+    as [_ [_ [_ [_ [_ Hadmits]]]]].
+  apply Hnot_admitted. apply (Hadmits 0 In_terms.use_env).
+  exists tt. reflexivity.
+Qed.
+
+(* ======================================================================== *)
 (* The three joins of discrepancy T5-10                                     *)
 (* ======================================================================== *)
 

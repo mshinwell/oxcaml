@@ -86,6 +86,22 @@
    FlambdaJoinMeetFitsSpec.v, where the premise about the types that
    the join adds is discharged, with one premise replaced).
 
+   With nothing supposed of the run, one instance of the transcribed
+   join with the repaired test has not the strict contract
+   ([sound_join_of_environments], FlambdaJoinSpec.v, which is for
+   every valuation that satisfies a use and the source): the
+   instance of FlambdaJoinEnvSpec.v ([Witness]) with its variable
+   [x] made a variable that may occur in terms, and with the
+   stand-ins of [Witness] for the join of types and for the
+   environment of the meet ([In_terms],
+   [repaired_join_not_strict_statement]). The valuation gives [x]
+   no value. This is of that instance and those stand-ins: nothing
+   is shown here of the join of types and the meet of the model, nor
+   of the compiler's. Such a valuation is not one that
+   [env_satisfies_strictly] (FlambdaTypingEnvSpec.v) relates to a
+   machine, since that asks [bound_in_terms] of the machine and
+   that the valuation agrees with it.
+
    On the three joins of the shape of the program of discrepancy T5-10
    (FlambdaJoinMeetExamplesSpec.v, [Recovered]), by computation
    ([Three_joins], [three_joins_compiler_statement],
@@ -376,6 +392,73 @@ Definition repaired_join_with_admits_use_statement : Prop :=
       ∧ definitions_hold
           (Analysis.canonical_definitions_at_normal_mode analysis) index
           valuation valuation'.
+
+(* ======================================================================== *)
+(* The strict contract, the repaired test and stand-ins: an instance        *)
+(* ======================================================================== *)
+
+(* The instance [Witness] of FlambdaJoinEnvSpec.v, with [x] defined
+   as a variable that may occur in terms, and the join with the
+   repaired test. The types, the stand-ins and the run are those of
+   [Witness]: [r] holds 0 and [x] has no value. *)
+Module In_terms.
+
+  Definition source_env : Typing_env.t :=
+    Typing_env.add_variable_definition
+      (Typing_env.add_variable_definition Typing_env.create Witness.r
+         (Naked_number Kind_naked_immediate) Name_mode.normal)
+      Witness.x Value Name_mode.normal.
+
+  Definition use_env : Typing_env.t :=
+    Typing_env.replace_equation (Typing_env.increment_scope source_env)
+      (Name_var Witness.x) Witness.type_of_x.
+
+  Definition use_env_null : Typing_env.t :=
+    Typing_env.replace_equation (Typing_env.increment_scope source_env)
+      (Name_var Witness.x) Witness.type_of_x_null.
+
+  Definition inputs : join_inputs unit :=
+    {| source := source_env;
+       cut_after := Typing_env.current_scope source_env;
+       uses := [(tt, use_env); (tt, use_env_null)] |}.
+
+  Definition join : join_of_environments unit :=
+    FlambdaJoinEnvSpec.repaired_join Witness.ops Witness.parameters 10
+      Witness.join_of_types tt.
+
+End In_terms.
+
+(* The inputs are what the contract asks. *)
+Definition in_terms_inputs_well_formed_statement : Prop :=
+  join_inputs_well_formed typing_env_invariant [Witness.r; Witness.x]
+    In_terms.inputs
+  ∧ uses_kinded In_terms.inputs.
+
+(* The run satisfies the first use and the source, strictly; and it
+   gives no value to [x], which may occur in terms at that use. *)
+Definition in_terms_run_statement : Prop :=
+  (∀ statics : static_env,
+     typing_env_satisfied_strictly statics Witness.valuation
+       In_terms.use_env
+     ∧ typing_env_satisfied_strictly statics Witness.valuation
+         In_terms.source_env)
+  ∧ ~ bound_in_terms In_terms.use_env Witness.valuation.
+
+(* The join with the repaired test answers, and its target does not
+   admit the first use: the relation on [r] is recovered, since [x]
+   may occur in terms, and the run gives [x] no value. *)
+Definition in_terms_use_not_admitted_statement : Prop :=
+  ∃ (target : Typing_env.t) (analysis : Analysis.t unit),
+    In_terms.join [Witness.r; Witness.x] In_terms.inputs
+    = Some (target, analysis)
+    ∧ ~ join_admits_use In_terms.source_env In_terms.use_env target
+          (Analysis.definitions_in_joined_envs analysis)
+          (Analysis.canonical_definitions_at_normal_mode analysis) 0.
+
+(* So the join with the repaired test, with these stand-ins, has not
+   the strict contract. *)
+Definition repaired_join_not_strict_statement : Prop :=
+  ~ sound_join_of_environments typing_env_invariant In_terms.join.
 
 (* ======================================================================== *)
 (* The three joins of discrepancy T5-10, with either test                   *)
