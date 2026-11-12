@@ -78,15 +78,41 @@
    environments). Nothing of FlambdaValidateSpec.v changes, and what it
    validates today it validates still.
 
-   The rounds are arguments. They are to be
-   FlambdaValidateSpec.normalise_before_round, which refines
-   (FlambdaValidateProofs.normalise_before_round_refines), and
-   FlambdaValidateSpec.normalise_after_round, which is an equivalence
-   (normalise_after_round_equivalent). They are not named here so
-   that the statements stay as they are when those two take an
-   argument more (the list of code whose calls are left, which is on
-   its way). For the same reason the statements do not name
-   [validate_unit]: they say what follows from what it concludes.
+   In those statements the rounds are arguments, and [validate_unit]
+   is not named: they say what follows from what it concludes, for any
+   round that refines and any round that is an equivalence.
+
+   The second asking itself is [validate_unit_knowing]: [validate_unit]
+   of the two terms so normalised, the term before with
+   FlambdaValidateSpec.normalise_before_round_avoiding, which refines
+   (FlambdaValidateProofs.normalise_before_round_avoiding_refines), and
+   the term after with FlambdaValidateSpec.normalise_after_round, which
+   is an equivalence (normalise_after_round_equivalent). The round of
+   the term before makes names, and is told not to make one that is a
+   continuation of the unit of a lifting
+   (FlambdaValidateSpec.unit_continuations) or the continuation given
+   for a loop. It is the means that [validate_unit] uses for its
+   rounds after a lifting, which are told to avoid the continuations
+   of the units of the liftings: a lifting is made only if what it
+   makes is a well-formed unit, which goes by the names of the
+   continuations of its unit. Those rounds are not told the
+   continuations of the loops, since inside [validate_unit] the loops
+   are made before any round. Here they are still to be made
+   (FlambdaLoopifySpec.loopify_unit, which binds the continuation of
+   each loop, runs inside [validate_unit], after this normalisation),
+   so the round avoids those continuations too. What it accepts is
+   correct of the two terms as they were given
+   ([validate_unit_knowing_sound_statement],
+   [validate_unit_knowing_sound_everywhere_statement]). So what the
+   test tool reports as validated at the second asking is correct by
+   one theorem, as what it reports at the first is, and not by how the
+   tool puts proved pieces together: the tool calls
+   [validate_unit_knowing] on the two terms as it converted them. The
+   guesses that it passes (the static bindings to remove, the loops,
+   the liftings, the value slots) are not trusted, here as there. The
+   function takes the arguments of [validate_unit] and of the two
+   rounds; whoever gives one of those an argument more gives it here
+   too.
 
    Renaming and scope. The validation is stated of terms up to their
    bound names, so a function on terms that it runs is to commute with
@@ -94,12 +120,19 @@
    (FlambdaValidatorEquivarianceSpec.v). [normalise_knowing] does, for
    a round that does: [normalise_knowing_keeps_scope_statement],
    [normalise_knowing_equivariant_statement] and
-   [normalise_knowing_equivariant_up_to_statement]. At one round they
-   are the same of [knowing_round]. They rest on the laws of the
-   function that follows aliases
+   [normalise_knowing_equivariant_up_to_statement]; and, for a round
+   that is given continuations that the names it makes are to avoid,
+   [normalise_knowing_equivariant_up_to_avoiding_statement]. At one
+   round they are the same of [knowing_round]. They rest on the laws
+   of the function that follows aliases
    (FlambdaEnvAliasesFollowSpec.rename_follow_aliases_empty_statement,
    FlambdaEnvAliasesFollowScopeSpec.v) and on those of composition and
-   iteration of FlambdaValidatorEquivarianceSpec.v.
+   iteration of FlambdaValidatorEquivarianceSpec.v. They are laws of
+   the normalisation. What follows from them for the second asking is
+   that its verdict does not depend on the names of the unit, where
+   the code of the term before is closed
+   ([validate_unit_knowing_equivariant_statement]); the round of the
+   term before avoids the continuations named above for that.
 
    The proofs are in FlambdaValidateKnowingProofs.v, which needs no
    review. *)
@@ -120,7 +153,8 @@
 From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaUnusedStaticsSpec FlambdaValidateSpec
+  FlambdaNominalSpec FlambdaBindersSpec FlambdaUnusedStaticsSpec
+  FlambdaLiftSpec FlambdaLoopifySpec FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec.
 From OxCamlFlambda2Types Require FlambdaEnvAliasesFollowSpec.
 Import ListNotations.
@@ -174,6 +208,73 @@ Definition validate_knowing_sound_everywhere_statement : Prop :=
     expr_refines before after.
 
 (* ======================================================================== *)
+(* The second asking                                                        *)
+(* ======================================================================== *)
+
+(* The validation asked the second time: [validate_unit], with the same
+   arguments, of the two terms normalised as above, the term before
+   with the round of the term before and the term after with the round
+   of the term after. The round of the term before avoids, for the
+   names that it makes, the continuations of the units of the liftings
+   and those given for the loops. *)
+Definition validate_unit_knowing (rounds : nat) (unused : dropped)
+    (slots : list value_slot) (G : loopified) (Ls : list lifting)
+    (kept : list code_id) (before after : expr) : validation :=
+  validate_unit rounds unused slots G Ls kept
+    (normalise_knowing
+       (normalise_before_round_avoiding
+          (unit_continuations Ls ++ map snd G) kept)
+       rounds before)
+    (normalise_knowing (normalise_after_round kept) rounds after).
+
+(* A unit that it validates refines the unit it came from, run on its
+   own from empty environments. *)
+Definition validate_unit_knowing_sound_statement : Prop :=
+  ∀ (rounds : nat) (unused : dropped) (slots : list value_slot)
+    (G : loopified) (Ls : list lifting) (kept : list code_id)
+    (before after : expr),
+    validate_unit_knowing rounds unused slots G Ls kept before after
+    <> Not_validated ->
+    program_refines before after.
+
+(* It does so under all environments if no static binding was removed
+   and nothing was lifted. *)
+Definition validate_unit_knowing_sound_everywhere_statement : Prop :=
+  ∀ (rounds : nat) (unused : dropped) (slots : list value_slot)
+    (G : loopified) (Ls : list lifting) (kept : list code_id)
+    (before after : expr),
+    validate_unit_knowing rounds unused slots G Ls kept before after
+    = Same_up_to_bound_names
+    ∨ validate_unit_knowing rounds unused slots G Ls kept before after
+      = Same_once_normalised ->
+    expr_refines before after.
+
+(* It answers the same on a pair of terms and on the pair renamed, the
+   names given for the loops and the liftings being renamed with them,
+   where the code of the term before is closed: what
+   FlambdaValidatorEquivarianceSpec.validate_unit_equivariant_statement
+   says of [validate_unit]. The round of the term before makes names,
+   so the term that [validate_unit] is given here is, for a renamed
+   pair, the renamed one only up to those names; and the liftings and
+   the loops speak of continuations that the term need not mention.
+   The round is told to avoid those continuations, so the renaming
+   that [normalise_knowing_equivariant_up_to_avoiding_statement] gives
+   does to them what the first does, which is what
+   FlambdaValidatorEquivarianceSpec.validate_unit_renamed_alike_statement
+   asks. The round of the term after makes no name. Nothing is said of
+   a term before with open code. The two statements above do not rest
+   on this one: a unit validated at the second asking is correct. *)
+Definition validate_unit_knowing_equivariant_statement : Prop :=
+  ∀ (r : renaming) (rounds : nat) (unused : dropped)
+    (slots : list value_slot) (G : loopified) (Ls : list lifting)
+    (kept : list code_id) (before after : expr),
+    code_closed before = true ->
+    validate_unit_knowing rounds unused slots (rename_loopified r G)
+      (map (rename_lifting r) Ls) kept (rename_expr r before)
+      (rename_expr r after)
+    = validate_unit_knowing rounds unused slots G Ls kept before after.
+
+(* ======================================================================== *)
 (* Renaming and scope                                                       *)
 (* ======================================================================== *)
 
@@ -197,3 +298,17 @@ Definition normalise_knowing_equivariant_up_to_statement : Prop :=
     keeps_scope round ->
     equivariant_up_to round ->
     equivariant_up_to (normalise_knowing round rounds).
+
+(* The same of a round that is given continuations that the names it
+   makes are to avoid
+   (FlambdaValidatorEquivarianceSpec.equivariant_up_to_avoiding): with
+   a round that keeps scope whatever it is given and commutes with
+   renaming up to the names that it makes, the rounds do, given the
+   same continuations at every round, and the second renaming does to
+   those continuations what the first does. *)
+Definition normalise_knowing_equivariant_up_to_avoiding_statement : Prop :=
+  ∀ (round : list continuation -> expr -> expr) (rounds : nat),
+    (∀ avoid : list continuation, keeps_scope (round avoid)) ->
+    equivariant_up_to_avoiding round ->
+    equivariant_up_to_avoiding
+      (fun avoid => normalise_knowing (round avoid) rounds).

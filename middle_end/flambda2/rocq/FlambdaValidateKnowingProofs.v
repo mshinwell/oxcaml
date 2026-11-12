@@ -87,6 +87,38 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
+(* The second asking                                                        *)
+(* ======================================================================== *)
+
+Theorem validate_unit_knowing_sound : validate_unit_knowing_sound_statement.
+Proof.
+  intros rounds unused slots G Ls kept before after Hvalidated.
+  apply (validate_knowing_sound
+           (normalise_before_round_avoiding
+              (unit_continuations Ls ++ map snd G) kept)
+           (normalise_after_round kept) rounds before after
+           (normalise_before_round_avoiding_refines
+              (unit_continuations Ls ++ map snd G) kept)
+           (normalise_after_round_equivalent kept)).
+  exact (validate_unit_sound rounds unused slots G Ls kept _ _ Hvalidated).
+Qed.
+
+Theorem validate_unit_knowing_sound_everywhere
+    : validate_unit_knowing_sound_everywhere_statement.
+Proof.
+  intros rounds unused slots G Ls kept before after Hvalidated.
+  apply (validate_knowing_sound_everywhere
+           (normalise_before_round_avoiding
+              (unit_continuations Ls ++ map snd G) kept)
+           (normalise_after_round kept) rounds before after
+           (normalise_before_round_avoiding_refines
+              (unit_continuations Ls ++ map snd G) kept)
+           (normalise_after_round_equivalent kept)).
+  exact (validate_unit_sound_everywhere rounds unused slots G Ls kept _ _
+           Hvalidated).
+Qed.
+
+(* ======================================================================== *)
 (* Renaming and scope                                                       *)
 (* ======================================================================== *)
 
@@ -129,4 +161,55 @@ Proof.
     [ | exact Hround ].
   apply rewrite_equivariant_up_to.
   exact FlambdaEnvAliasesFollowProofs.rename_follow_aliases_empty.
+Qed.
+
+(* The following of aliases comes before the round and commutes with
+   renaming, so the renaming that the round gives is kept; the rounds
+   are given the same continuations. *)
+Theorem normalise_knowing_equivariant_up_to_avoiding
+    : normalise_knowing_equivariant_up_to_avoiding_statement.
+Proof.
+  intros round rounds Hscope Hround.
+  exact
+    (equivariant_up_to_avoiding_iterate rounds
+       (fun avoid => knowing_round (round avoid))
+       (fun avoid => knowing_round_keeps_scope (round avoid) (Hscope avoid))
+       (equivariant_up_to_avoiding_before round _
+          follow_aliases_knowing_nothing_keeps_scope
+          FlambdaEnvAliasesFollowProofs.rename_follow_aliases_empty Hround)).
+Qed.
+
+(* The second asking on renamed terms. The continuations that the round
+   of the term before is given for the renamed arguments are those for
+   the arguments, renamed. That round gives its result under a second
+   renaming, which does to the free names of the result and to those
+   continuations what the first does; the round of the term after
+   commutes with the renaming; and [validate_unit] answers the same of
+   a term before that is under such a second renaming. *)
+Theorem validate_unit_knowing_equivariant
+    : validate_unit_knowing_equivariant_statement.
+Proof.
+  intros r rounds unused slots G Ls kept before after Hclosed.
+  unfold validate_unit_knowing.
+  rewrite unit_continuations_renamed, loop_continuations_renamed, <- map_app.
+  set (avoid := unit_continuations Ls ++ map snd G).
+  destruct
+    (normalise_knowing_equivariant_up_to_avoiding
+       (fun avoid => normalise_before_round_avoiding avoid kept) rounds
+       (fun avoid => normalise_before_round_avoiding_scope avoid kept)
+       (normalise_before_round_avoiding_up_to kept) r avoid before Hclosed)
+    as (r1 & Halike & Havoid & Heq).
+  cbv beta in Halike, Heq. rewrite Heq.
+  rewrite
+    (normalise_knowing_equivariant (normalise_after_round kept) rounds
+       (normalise_after_round_equivariant kept) r after).
+  apply validate_unit_renamed_alike.
+  - exact
+      (proj1
+         (normalise_knowing_keeps_scope
+            (normalise_before_round_avoiding avoid kept) rounds
+            (normalise_before_round_avoiding_scope avoid kept) before
+            Hclosed)).
+  - exact Halike.
+  - exact Havoid.
 Qed.
