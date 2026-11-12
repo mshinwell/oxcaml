@@ -297,10 +297,12 @@ place). The statements are computed:
   builds; Simplify unboxes there too in every example measured.
 
 **Renaming.** The functions compare names by equality and bind no name
-that the term has not. The statement that the pass commutes with a
-renaming, and that it keeps scope, is owed in
-`FlambdaUnboxParamsRenameSpec.v` (next commit), in the form of
-`FlambdaValidatorEquivarianceSpec.rewrite_equivariant`.
+that the term has not. `FlambdaUnboxParamsRenameSpec.v` has the
+statements, proved: the pass commutes with a renaming
+(`unbox_known_params_equivariant_statement`, which is
+`FlambdaValidatorEquivarianceSpec.rewrite_equivariant` of the pass; and
+the same with what is known renamed with the term), and it keeps scope
+(`unbox_known_params_keeps_scope_statement`).
 
 **Wiring.** The pass is not in `FlambdaValidateSpec.v`. V4 is
 rewriting that part of the round and will add the line, given the
@@ -562,7 +564,10 @@ whose parameter was unboxed, so these eight are new coverage.
   or out of one.
 - **V4** (or the owner of the validator's wiring): the line for
   `unbox_known_params` in the round of the term before, after
-  `follow_aliases` and before `drop_unused_params`.
+  `follow_aliases` and before `drop_unused_params`. The two lemmas the
+  wiring needs are `unbox_known_params_equivariant` and
+  `unbox_known_params_keeps_scope`
+  (`FlambdaUnboxParamsRenameProofs.v`).
 - **V2**: the conversion of the poison constant; the sources above.
 - **N1, N3**: nothing yet. The `Let` at a use under a `Switch`
   (section 8) and the copy of a handler (section 7) will need a fresh
