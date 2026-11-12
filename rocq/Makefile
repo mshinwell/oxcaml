@@ -261,6 +261,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaEnvAliasesSetProofs.v \
   FlambdaEnvAliasesSetSpec.v \
   FlambdaEnvAliasesSpec.v \
+  FlambdaEnvRenameJoinProofs.v \
+  FlambdaEnvRenameJoinSpec.v \
   FlambdaEnvRenameMeetPartsProofs.v \
   FlambdaEnvRenameMeetProductsProofs.v \
   FlambdaEnvRenameMeetProofs.v \
@@ -289,6 +291,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaJoinMeetFitsProofs.v \
   FlambdaJoinMeetFitsSpec.v \
   FlambdaJoinMeetProofs.v \
+  FlambdaJoinMeetRenameProofs.v \
+  FlambdaJoinMeetRenameSpec.v \
   FlambdaJoinMeetSpec.v \
   FlambdaJoinNamesProofs.v \
   FlambdaJoinNamesSpec.v \
@@ -409,6 +413,7 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaTypeNominalProofs.v \
   FlambdaTypeNominalSpec.v \
   FlambdaTypeProject.v \
+  FlambdaTypeProjectRenameProofs.v \
   FlambdaTypeRenameProofs.v \
   FlambdaTypeRenameSpec.v \
   FlambdaTypeWellFormedProofs.v \
