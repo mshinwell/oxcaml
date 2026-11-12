@@ -36,7 +36,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
   FlambdaMapSpec FlambdaMapProofs FlambdaPrimitiveModel FlambdaPrimitiveSpec
   FlambdaSemanticsSpec FlambdaNominalSpec FlambdaNominalProofs
   FlambdaAlphaSpec FlambdaAlphaProofs FlambdaEquivarianceSpec
-  FlambdaEquivarianceProofs FlambdaValidatorEquivarianceSpec.
+  FlambdaEquivarianceProofs FlambdaNormaliseSpec FlambdaUnusedContsSpec
+  FlambdaValidatorEquivarianceSpec FlambdaValidatorEquivarianceProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeWellFormedSpec FlambdaBindingTime FlambdaEnvAliases
   FlambdaTypingEnv FlambdaTypingEnvInvariantSpec FlambdaTypeRenameSpec
@@ -514,6 +515,197 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
+(* Where a continuation is applied                                          *)
+(* ======================================================================== *)
+
+Theorem arm_env_equivariant : arm_env_equivariant_statement.
+Proof.
+  intros r tenv scrutinee d. unfold arm_env.
+  rewrite simplify_simple_equivariant.
+  destruct (simplify_simple tenv scrutinee) as [[ty [c | sym | const]] | ];
+    cbn [option_map rename_answer fst snd rename_simple]; try reflexivity.
+  change (Var (rename_variable r c)) with (rename_simple r (Var c)).
+  rewrite simple_in_terms_b_renamed, simple_of_kind_b_renamed.
+  destruct (simple_in_terms_b tenv (Var c)
+            && simple_of_kind_b tenv (Var c) naked_immediate_kind);
+    [ | reflexivity ].
+  change (Const (Naked_immediate d))
+    with (rename_simple r (Const (Naked_immediate d))) at 1.
+  rewrite add_alias_equivariant.
+  destruct (Typing_env.add_alias tenv (Var c) (Const (Naked_immediate d)))
+    as [[ | result | ] | ];
+    reflexivity.
+Qed.
+
+Lemma not_among_renamed (r : renaming) (xs : list variable) (s : simple) :
+  not_among (map (rename_variable r) xs) (rename_simple r s)
+  = not_among xs s.
+Proof.
+  destruct s as [x | sym | c]; cbn [rename_simple not_among];
+    [ rewrite among_rename_variable | | ]; reflexivity.
+Qed.
+
+(* A binding of a parameter, renamed. *)
+Definition rename_param_binding (r : renaming)
+    (binding : variable * flambda_kind * simple)
+    : variable * flambda_kind * simple :=
+  (rename_variable r (fst (fst binding)), snd (fst binding),
+   rename_simple r (snd binding)).
+
+Lemma bind_params_to_args_equivariant (r : renaming)
+    (aliased aliased' : simple -> bool)
+    (bindings : list (variable * flambda_kind * simple)) :
+  (∀ s : simple, aliased' (rename_simple r s) = aliased s) ->
+  ∀ tenv : Typing_env.t,
+    bind_params_to_args aliased' (rename_typing_env r tenv)
+      (map (rename_param_binding r) bindings)
+    = option_map (rename_typing_env r)
+        (bind_params_to_args aliased tenv bindings).
+Proof.
+  intros Haliased.
+  induction bindings as [ | [[x kind] canonical] bindings IH]; intros tenv;
+    [ reflexivity | ].
+  cbn [map rename_param_binding fst snd bind_params_to_args].
+  rewrite typing_env_well_formed_rename, mem_variable_renamed.
+  destruct (typing_env_well_formed tenv
+            && negb (Typing_env.mem None tenv (Name_var x)));
+    [ | reflexivity ].
+  rewrite Haliased, simple_in_terms_b_renamed, simple_of_kind_b_renamed,
+    add_variable_definition_equivariant.
+  destruct (aliased canonical && simple_in_terms_b tenv canonical
+            && simple_of_kind_b tenv canonical kind);
+    [ | apply IH ].
+  change (Var (rename_variable r x)) with (rename_simple r (Var x)).
+  rewrite add_alias_equivariant.
+  destruct (Typing_env.add_alias
+              (Typing_env.add_variable_definition tenv x kind
+                 Name_mode.normal)
+              (Var x) canonical)
+    as [[ | result | ] | ];
+    cbn [option_map or_unknown_or_bottom_map rename_add_alias_result
+           Typing_env.add_alias_result_t];
+    apply IH.
+Qed.
+
+Lemma bindings_renamed (r : renaming) (params : list variable) :
+  ∀ (kinds : list flambda_kind) (canonicals : list simple),
+    combine (combine (map (rename_variable r) params) kinds)
+      (map (rename_simple r) canonicals)
+    = map (rename_param_binding r) (combine (combine params kinds) canonicals).
+Proof.
+  induction params as [ | x params IH];
+    intros [ | kind kinds] [ | canonical canonicals]; try reflexivity.
+  cbn [map combine]. rewrite IH. reflexivity.
+Qed.
+
+Theorem use_env_equivariant : use_env_equivariant_statement.
+Proof.
+  intros r scope tenv params metadata args. unfold use_env.
+  rewrite simplify_simples_equivariant.
+  destruct (simplify_simples tenv args) as [answers | ]; cbn [option_map];
+    [ | reflexivity ].
+  rewrite !length_map.
+  destruct (Nat.eqb (length (hm_params_kinds metadata)) (length params)
+            && Nat.eqb (length answers) (length params));
+    [ | reflexivity ].
+  assert (Hcanonicals :
+    map snd (map (rename_answer r) answers)
+    = map (rename_simple r) (map snd answers)).
+  { rewrite !map_map. reflexivity. }
+  rewrite Hcanonicals, bindings_renamed.
+  apply bind_params_to_args_equivariant.
+  intros s. rewrite simple_in_terms_b_renamed, not_among_renamed.
+  reflexivity.
+Qed.
+
+Theorem leaf_uses_equivariant : leaf_uses_equivariant_statement.
+Proof.
+  intros r tenv k e.
+  destruct e
+    as [x declared d body | bindings body | k' h body | handlers body | ap
+        | ac | scrutinee arms | ];
+    cbn [rename_expr leaf_uses option_map]; try reflexivity.
+  - cbn [rename_apply_cont ac_continuation ac_args].
+    rewrite rename_continuation_eqb.
+    destruct (Pos.eqb (ac_continuation ac) k); reflexivity.
+  - f_equal.
+    induction arms as [ | [d ac] arms IH]; [ reflexivity | ].
+    cbn [map flat_map fst snd rename_apply_cont ac_continuation ac_args].
+    rewrite rename_continuation_eqb, map_app, <- IH.
+    destruct (Pos.eqb (ac_continuation ac) k); [ | reflexivity ].
+    cbn [map app rename_application fst snd].
+    rewrite arm_env_equivariant. reflexivity.
+Qed.
+
+Theorem let_env_equivariant : let_env_equivariant_statement.
+Proof.
+  intros r tenv x declared d. unfold let_env.
+  rewrite resolve_value_slot_equivariant, simplify_let_equivariant.
+  destruct (simplify_let tenv x (resolve_value_slot tenv declared d))
+    as [ | d' tenv' | ];
+    cbn [rename_let_step option_map]; try reflexivity.
+  apply declare_variable_equivariant.
+Qed.
+
+Theorem find_use_equivariant : find_use_equivariant_statement.
+Proof.
+  intros r scope tenv k h body. revert tenv.
+  induction body
+    as [x declared d rest IH | bindings rest _ | k' h' rest IH
+        | handlers rest _ | ap | ac | scrutinee arms | ];
+    intros tenv; cbn [rename_expr find_use option_map]; try reflexivity.
+  - rewrite var_free_in_handler_b_equivariant.
+    destruct (var_free_in_handler_b x h); [ reflexivity | ].
+    rewrite let_env_equivariant.
+    destruct (let_env tenv x declared d) as [tenv' | ]; cbn [option_map];
+      [ | reflexivity ].
+    rewrite IH.
+    destruct (find_use scope tenv' k h rest) as [[[target xs] ks] | ];
+      reflexivity.
+  - rewrite rename_continuation_eqb, !cont_free_in_handler_b_equivariant.
+    destruct (negb (Pos.eqb k k') && negb (cont_free_in_handler_b k h')
+              && negb (cont_free_in_handler_b k' h));
+      [ | reflexivity ].
+    rewrite IH.
+    destruct (find_use scope tenv k h rest) as [[[target xs] ks] | ];
+      reflexivity.
+  - destruct h as [params metadata handler]. cbn [rename_handler].
+    change (Apply_cont (rename_apply_cont r ac))
+      with (rename_expr r (Apply_cont ac)).
+    rewrite leaf_uses_equivariant.
+    destruct (leaf_uses tenv k (Apply_cont ac))
+      as [[ | [tenv_use args] [ | second others]] | ];
+      cbn [option_map map rename_application fst snd]; try reflexivity.
+    rewrite use_env_equivariant.
+    destruct (use_env scope tenv_use params metadata args) as [target | ];
+      reflexivity.
+  - destruct h as [params metadata handler]. cbn [rename_handler].
+    change (Switch (rename_simple r scrutinee)
+              (map (fun arm => (fst arm, rename_apply_cont r (snd arm)))
+                 arms))
+      with (rename_expr r (Switch scrutinee arms)).
+    rewrite leaf_uses_equivariant.
+    destruct (leaf_uses tenv k (Switch scrutinee arms))
+      as [[ | [tenv_use args] [ | second others]] | ];
+      cbn [option_map map rename_application fst snd]; try reflexivity.
+    rewrite use_env_equivariant.
+    destruct (use_env scope tenv_use params metadata args) as [target | ];
+      reflexivity.
+Qed.
+
+Theorem binders_not_free_equivariant
+    : binders_not_free_equivariant_statement.
+Proof.
+  intros r xs ks h. unfold binders_not_free. f_equal.
+  - induction xs as [ | x xs IH]; [ reflexivity | ].
+    cbn [map forallb]. rewrite var_free_in_handler_b_equivariant, IH.
+    reflexivity.
+  - induction ks as [ | k ks IH]; [ reflexivity | ].
+    cbn [map forallb]. rewrite cont_free_in_handler_b_equivariant, IH.
+    reflexivity.
+Qed.
+
+(* ======================================================================== *)
 (* The function                                                             *)
 (* ======================================================================== *)
 
@@ -607,4 +799,27 @@ Theorem simplify_by_types_equivariant
 Proof.
   intros r e. unfold simplify_by_types.
   rewrite <- (create_equivariant r) at 1. apply simplify_expr_equivariant.
+Qed.
+
+Theorem rewrite_handler_at_use_equivariant
+    : rewrite_handler_at_use_equivariant_statement.
+Proof.
+  intros r tenv k [params metadata handler] body.
+  unfold rewrite_handler_at_use. cbn [rename_handler].
+  change (Handler (map (rename_variable r) params) metadata
+            (rename_expr r handler))
+    with (rename_handler r (Handler params metadata handler)).
+  rewrite find_use_equivariant.
+  destruct (find_use tenv tenv k (Handler params metadata handler) body)
+    as [[[target xs] ks] | ];
+    cbn [option_map rename_use fst snd]; [ | reflexivity ].
+  cbv zeta. rewrite simplify_expr_equivariant.
+  change (Handler (map (rename_variable r) params) metadata
+            (rename_expr r (simplify_expr target handler)))
+    with (rename_handler r
+            (Handler params metadata (simplify_expr target handler))).
+  rewrite binders_not_free_equivariant.
+  destruct (binders_not_free xs ks
+              (Handler params metadata (simplify_expr target handler)));
+    reflexivity.
 Qed.

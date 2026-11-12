@@ -122,9 +122,9 @@
      subkinds of the parameters are not modelled.
 
    Renaming. That [arm_env], [use_env] and [leaf_uses] commute with
-   renaming is not stated: it is owed, with the equations of the other
-   functions of that section of FlambdaSimplifyPassSpec.v, before any
-   of them is run by the validation.
+   renaming is in FlambdaSimplifyPassRenamingSpec.v, with the
+   equations of the other functions of that section of
+   FlambdaSimplifyPassSpec.v.
 
    Nothing is assumed beyond the premises of each statement.
 

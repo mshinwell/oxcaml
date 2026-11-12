@@ -70,7 +70,21 @@
    - [simplify_let]: the step is renamed ([rename_let_step]: the
      defining expression and the environment that it holds);
    - [resolve_value_slot], [declare_variable], [simplify_apply_cont]
-     and [simplify_switch].
+     and [simplify_switch];
+   - the functions of the section "Where a continuation is applied"
+     of FlambdaSimplifyPassSpec.v: [arm_env], [use_env], [leaf_uses]
+     (each application is renamed with its environment:
+     [rename_application]), [let_env], [find_use] (the environment
+     and the binders passed are renamed: [rename_use]) and
+     [binders_not_free]; and, after the function,
+     [rewrite_handler_at_use]. The two tests of free names that
+     [find_use] and [binders_not_free] make are the validator's, and
+     that they commute with renaming is proved in the validator's
+     proof file (../../rocq/FlambdaValidatorEquivarianceProofs.v),
+     which the proof file of this one imports. Those lemmas are to
+     move to a proof file below both before the validation runs the
+     function: the validator's proof file will then import this
+     one's.
 
    Nothing is trusted here. The proofs are in
    FlambdaSimplifyPassRenamingProofs.v, which needs no review. *)
@@ -155,6 +169,68 @@ Definition simplify_switch_equivariant_statement : Prop :=
     = rename_expr r (simplify_switch tenv scrutinee arms).
 
 (* ======================================================================== *)
+(* Where a continuation is applied                                          *)
+(* ======================================================================== *)
+
+(* The discriminant of an arm holds no name. *)
+Definition arm_env_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (scrutinee : simple) (d : Z),
+    arm_env (rename_typing_env r tenv) (rename_simple r scrutinee) d
+    = rename_typing_env r (arm_env tenv scrutinee d).
+
+(* The metadata of a handler holds no name. *)
+Definition use_env_equivariant_statement : Prop :=
+  ∀ (r : renaming) (scope tenv : Typing_env.t) (params : list variable)
+    (metadata : handler_metadata) (args : list simple),
+    use_env (rename_typing_env r scope) (rename_typing_env r tenv)
+      (map (rename_variable r) params) metadata (map (rename_simple r) args)
+    = option_map (rename_typing_env r)
+        (use_env scope tenv params metadata args).
+
+(* An application with its environment: both are renamed. *)
+Definition rename_application (r : renaming)
+    (application : Typing_env.t * list simple) : Typing_env.t * list simple :=
+  (rename_typing_env r (fst application),
+   map (rename_simple r) (snd application)).
+
+Definition leaf_uses_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (k : continuation) (e : expr),
+    leaf_uses (rename_typing_env r tenv) (rename_continuation r k)
+      (rename_expr r e)
+    = option_map (map (rename_application r)) (leaf_uses tenv k e).
+
+Definition let_env_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (x : variable)
+    (declared : flambda_kind) (defining_expr : named),
+    let_env (rename_typing_env r tenv) (rename_variable r x) declared
+      (rename_named r defining_expr)
+    = option_map (rename_typing_env r)
+        (let_env tenv x declared defining_expr).
+
+(* What [find_use] answers: the environment and the binders passed on
+   the way are renamed. *)
+Definition rename_use (r : renaming)
+    (use : Typing_env.t * list variable * list continuation)
+    : Typing_env.t * list variable * list continuation :=
+  (rename_typing_env r (fst (fst use)),
+   map (rename_variable r) (snd (fst use)),
+   map (rename_continuation r) (snd use)).
+
+Definition find_use_equivariant_statement : Prop :=
+  ∀ (r : renaming) (scope tenv : Typing_env.t) (k : continuation)
+    (h : continuation_handler) (body : expr),
+    find_use (rename_typing_env r scope) (rename_typing_env r tenv)
+      (rename_continuation r k) (rename_handler r h) (rename_expr r body)
+    = option_map (rename_use r) (find_use scope tenv k h body).
+
+Definition binders_not_free_equivariant_statement : Prop :=
+  ∀ (r : renaming) (xs : list variable) (ks : list continuation)
+    (h : continuation_handler),
+    binders_not_free (map (rename_variable r) xs)
+      (map (rename_continuation r) ks) (rename_handler r h)
+    = binders_not_free xs ks h.
+
+(* ======================================================================== *)
 (* The function                                                             *)
 (* ======================================================================== *)
 
@@ -167,3 +243,13 @@ Definition simplify_expr_equivariant_statement : Prop :=
    that commutes with renaming. *)
 Definition simplify_by_types_equivariant_statement : Prop :=
   rewrite_equivariant simplify_by_types.
+
+(* The handler rewritten under the environment of its one
+   application: that of the renamed handler and body, under the
+   renamed environment, is the renamed handler. *)
+Definition rewrite_handler_at_use_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (k : continuation)
+    (h : continuation_handler) (body : expr),
+    rewrite_handler_at_use (rename_typing_env r tenv)
+      (rename_continuation r k) (rename_handler r h) (rename_expr r body)
+    = option_map (rename_handler r) (rewrite_handler_at_use tenv k h body).

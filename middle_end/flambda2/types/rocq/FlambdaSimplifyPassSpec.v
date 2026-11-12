@@ -215,12 +215,10 @@
    renamed environment and the renamed term is the renamed answer),
    as the other rewrites of the validation do
    (../../rocq/FlambdaValidatorEquivarianceSpec.v), is in
-   FlambdaSimplifyPassRenamingSpec.v. That is the equation of
-   [simplify_expr] and of its parts. The functions of the section
-   "Where a continuation is applied" and [rewrite_handler_at_use] have
-   no such equation yet: it is owed, and the equation of
-   [simplify_expr] does not give it. They are not to be run by the
-   validation, nor called by [simplify_expr], before it is proved.
+   FlambdaSimplifyPassRenamingSpec.v, with the equations of its
+   parts. The functions of the section "Where a continuation is
+   applied" and [rewrite_handler_at_use] have equations of their own
+   there: that of [simplify_expr] does not give them.
 
    Nothing is assumed: the two statements of [simplify_expr] have no
    premise, and the others none but what they say.
