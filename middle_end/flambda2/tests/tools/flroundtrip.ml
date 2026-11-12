@@ -37,7 +37,9 @@
    code ids and slots to be the same; so the symbols, code ids and slots of the
    second term are first given the numbers they had in the first, which are read
    off the names that the printer gave them. A name is read as a number only if
-   it is exactly what the printer makes of that number.
+   it is exactly what the printer makes of that number. And the value slots of
+   each set of closures are put, in both terms, in the order of their numbers
+   ([slots_in_order] says why).
 
    The same is done of the unit that Simplify makes of the one in the file,
    whose conversion is trusted as much, and which has what the parser of fexpr
@@ -59,8 +61,9 @@
    unit read back, and is a mistake of the printer.
 
    What this does not check: the kinds of the value slots, which are not in the
-   term; what the conversion does to the two units of a check together (the
-   numbers it gives the code ids of the unit after: flsemantics.ml,
+   term; the order of the value slots of a set of closures, which the text
+   cannot keep; what the conversion does to the two units of a check together
+   (the numbers it gives the code ids of the unit after: flsemantics.ml,
    [convert_both]); and what the conversion drops, when the printer puts nothing
    in its place: a mistake by which both terms lack the same thing is not seen.
    So it is a check that what the conversion makes of each example is stable
@@ -212,6 +215,73 @@ and rename_binding r (binding : Model.static_binding) : Model.static_binding =
   | Bind_deleted_code id -> Bind_deleted_code (r.code_id id)
   | Bind_symbol (s, const) ->
     Bind_symbol (r.symbol s, rename_static_const r const)
+
+(* ---- The value slots of a set, in the order of their numbers ----------- *)
+
+(* The model keeps the value slots of a set of closures as a list, in the order
+   of the compiler's map of value slots, which is the order in which the
+   compiler made the slots (flsemantics.ml, [convert_value_slots]). The text
+   cannot keep that order: the parser of fexpr makes a slot where the text first
+   names it, and that may be in the code of a function, before the set, where
+   the code projects some of the slots and not others. The machine does not read
+   the order: it looks a slot up by its name. So the two terms are compared with
+   the slots of each set in the order of their numbers; what each slot holds is
+   compared as before. *)
+let sort_value_slots slots =
+  List.stable_sort
+    (fun (slot, _) (slot', _) ->
+      Int.compare (Printer.int_of_positive slot) (Printer.int_of_positive slot'))
+    slots
+
+let slots_in_order_named (d : Model.named) : Model.named =
+  match d with
+  | Set_of_closures (code, slots) ->
+    Set_of_closures (code, sort_value_slots slots)
+  | Closure_of_set (slot, function_decls, slots) ->
+    Closure_of_set (slot, function_decls, sort_value_slots slots)
+  | Simple _ | Prim _ | Project_value_slot _ | Project_value_slot_from _
+  | Project_function_slot _ ->
+    d
+
+let slots_in_order_static_const (const : Model.static_const) :
+    Model.static_const =
+  match const with
+  | Static_const_set_of_closures (code, slots) ->
+    Static_const_set_of_closures (code, sort_value_slots slots)
+  | Static_const_closure_of_set (slot, closure_symbols, function_decls, slots)
+    ->
+    Static_const_closure_of_set
+      (slot, closure_symbols, function_decls, sort_value_slots slots)
+  | Static_const_block _ | Static_const_boxed_number _
+  | Static_const_immutable_string _ ->
+    const
+
+let rec slots_in_order (e : Model.expr) : Model.expr =
+  match e with
+  | Let (x, k, d, body) ->
+    Let (x, k, slots_in_order_named d, slots_in_order body)
+  | Let_static (bindings, body) ->
+    Let_static (List.map slots_in_order_binding bindings, slots_in_order body)
+  | Let_cont_non_recursive (k, h, body) ->
+    Let_cont_non_recursive (k, slots_in_order_handler h, slots_in_order body)
+  | Let_cont_recursive (handlers, body) ->
+    Let_cont_recursive
+      ( List.map (fun (k, h) -> k, slots_in_order_handler h) handlers,
+        slots_in_order body )
+  | Apply _ | Apply_cont _ | Switch _ | Invalid -> e
+
+and slots_in_order_handler (Model.Handler (params, metadata, handler)) :
+    Model.continuation_handler =
+  Handler (params, metadata, slots_in_order handler)
+
+and slots_in_order_binding (binding : Model.static_binding) :
+    Model.static_binding =
+  match binding with
+  | Bind_code (id, Code (params, my_closure, ret, exn, metadata, body)) ->
+    Bind_code
+      (id, Code (params, my_closure, ret, exn, metadata, slots_in_order body))
+  | Bind_deleted_code _ -> binding
+  | Bind_symbol (s, const) -> Bind_symbol (s, slots_in_order_static_const const)
 
 exception Names_not_read_back of string
 
@@ -381,7 +451,8 @@ let round_trip (conversion : conversion) ~comp_unit (unit : Flambda_unit.t) :
           match rename_expr (renaming_of conversion) second.body with
           | exception Names_not_read_back reason -> Names_not_read_back reason
           | body ->
-            let second = { second with body } in
+            let first = { first with body = slots_in_order first.body } in
+            let second = { second with body = slots_in_order body } in
             let continuations_of_the_units =
               [ first.return_continuation, second.return_continuation;
                 first.exn_continuation, second.exn_continuation ]

@@ -15,6 +15,16 @@ check that the two agree on every example: a case that the conversion
 gets wrong in a way that is not the same both times is found. It does
 not find what the conversion drops and the printer does not put back.
 
+The two terms are compared with the value slots of each set of
+closures in the order of their numbers. The model keeps them as a list
+in the order of the compiler's map, which is the order in which the
+compiler made the slots, and the text cannot keep that order: the
+parser makes a slot where the text first names it, which may be in the
+code of a function that projects only some of the slots, before the
+set. After Simplify a closure that keeps a function of its module and
+an argument is such a case. The machine looks a slot up by its name,
+so the order says nothing; what each slot holds is compared.
+
 ## Answers that are not "round trip the same"
 
 Each has a file here with what the tool prints, and its reason below.
