@@ -53,11 +53,12 @@
    code, or for a recursive [Let_cont], that binds something static.
 
    This is no equivalence under all environments, and not one of every
-   unit run on its own. With its code bound first a unit is defined
+   unit run on its own. With its code bound first a unit may be defined
    where it was not: where a closure is called before its code is
-   bound, and where a code id is bound a second time. So three things
-   are checked of the unit, and no code is moved if one fails
-   ([hoist_code] answers [None]).
+   bound. And it may be undefined where it was defined: a code id that
+   is bound a second time in a handler that is never entered is bound
+   twice in the one group. So three things are checked of the unit,
+   and no code is moved if one fails ([hoist_code] answers [None]).
    - Its static bindings are at toplevel
      (FlambdaWellFormedSpec.statics_at_toplevel, for one of its free
      continuations as the exception continuation of the unit), and bind
