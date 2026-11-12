@@ -616,6 +616,46 @@ with an unboxed variant was "not checked". The model has the
 constant and the conversion has the case: such a unit runs, and with
 the pass in the validation it is validated (section 9).
 
+### In code and in loops: the static blocks in scope
+
+Down a term the pass learns the static blocks and boxed numbers of
+each `Let_static` that it goes under, so a join under the binding of
+a symbol, which one path gives it, is unboxed (`shape_constant`). The
+rewrites that take a round into the bodies of code and into the
+handlers of recursive continuations gave the round the body or the
+handler alone: in a function, and in a loop, nothing was known of a
+symbol. Simplify knows it there. A symbol has its type from where it
+is bound, the code of a function is simplified under the types of the
+symbols bound by then, and the unboxing reads the type of each
+argument where it is applied. A constant block of the source
+(`Some 8`) is a symbol of the unit after closure conversion, bound at
+its head, so `let v = if c then Some 8 else None in match v with ...`
+in a function was not validated.
+
+`FlambdaUnboxInScopeSpec.v` has the two rewrites for a round that
+takes what is known of symbols: `rewrite_code_in_scope` gives the
+round, at the body of code, the static blocks and boxed numbers of
+the `Let_static`s that the binding of the code is under and of its
+own group; `rewrite_rec_handlers_in_scope` gives it, at the handler
+of a recursive continuation, those of the `Let_static`s that the
+`Let_cont` is under. A field that holds a variable is forgotten: no
+variable of the unit is in scope in code. The first phase of the
+validation uses both (`FlambdaValidateSpec.normalise_params_round`),
+with the unboxing given what is known at its place in the round.
+
+A fact about a symbol is used only where the symbol is bound. A
+`Let_static` binds its group in one step, and a symbol or a code id
+that is bound is not bound again; so when code runs, the symbols of
+its group and of the `Let_static`s above it are bound to what those
+bind them to, whatever the environments were. The round therefore
+still refines under all environments, and the proof is by the lemmas
+of contexts for a condition on the static environment that its
+extensions keep. Not known in code or in a loop: a symbol bound
+further down the unit, which may be bound by the time the code runs
+(that would be a statement about a unit run on its own, as
+`FlambdaKnownSymbolsSpec.fold_known_unit` has); and a symbol that the
+unit imports, which no `Let_static` of the unit binds.
+
 ## 8. What else is owed for pairs and numbers
 
 - **A number that one use is given** (`int64_join`): Simplify binds
@@ -806,6 +846,16 @@ changes. `pair_built` needed,
 besides the pass, the forwarding of an arm through a continuation
 bound above a `Let`, which the first phase has
 (`forward_applications`).
+
+With the static blocks in scope known in code and in loops (section
+7), six more sources are validated that were not: `option_constant`,
+`list_constant`, `variant_constants`, `pair_constants` (a function
+that is not inlined, in which one path, or each, gives a join a
+constant block), `option_constant_loop` (the join in a loop of the
+unit) and `option_constant_loop_fun` (in a loop of a function). Over
+the other units of the directory, the units written by hand, the 600
+of `census/README.md` and 240 generated units with exceptions and
+with loops, the change moves no verdict and no line of any output.
 
 ## 10. Asked of others
 

@@ -258,10 +258,12 @@ All in `middle_end/flambda2/types/rocq/`, library `OxCamlFlambda2Types`.
   - `middle_end/flambda2/types/rocq/FlambdaReify*` (reification, after
     `types/reify.ml`)
   - `middle_end/flambda2/rocq/requests/T6-unboxing.md`,
-    `middle_end/flambda2/rocq/FlambdaUnboxParams*` and
-    `middle_end/flambda2/rocq/FlambdaUnboxVariants*` (S6, the unboxing
+    `middle_end/flambda2/rocq/FlambdaUnboxParams*`,
+    `middle_end/flambda2/rocq/FlambdaUnboxVariants*` and
+    `middle_end/flambda2/rocq/FlambdaUnboxInScope*` (S6, the unboxing
     of continuation parameters on the validator's side, after
-    `simplify/unboxing/`; not `FlambdaUnboxSpec.v` and
+    `simplify/unboxing/`, and its use in code and in loops with the
+    static blocks in scope known; not `FlambdaUnboxSpec.v` and
     `FlambdaUnboxProofs.v`, which are the validator's)
 - T7, differential testing of types, and the converter between the
   compiler's types and the model's. Owner: T7, on
