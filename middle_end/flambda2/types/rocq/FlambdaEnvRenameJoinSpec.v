@@ -53,11 +53,18 @@
 
    No function from lists of variables to variables commutes with
    every renaming ([no_source_commutes_statement]): the empty list is
-   left as it is by every renaming, and no variable is. So the join
-   with one source of new names does not commute with every renaming,
-   whatever the source is. This is not a defect of the source that the
-   model uses (FlambdaNameAbstractionSpec.fresh_name), and another
-   would not do better.
+   left as it is by every renaming, and no variable is. This is a fact
+   about the source alone. What follows from it is that no source is
+   related to itself by every renaming, so the equation below cannot
+   be had with one source on both of its sides in the way it is proved
+   here, function by function down to the call of the source. Nothing
+   here proves that the join as a whole, with one source, fails to
+   commute with some renaming: a join that does not call the source,
+   or that fails, does not show the source in its answer, and of one
+   that calls it an example would be needed; none is given. It is not
+   a defect of the source that the model uses
+   (FlambdaNameAbstractionSpec.fresh_name): no other is related to
+   itself by every renaming either.
 
    What is stated instead: a renaming acts on the source of new names
    too, and the join with the renamed source, of the renamed

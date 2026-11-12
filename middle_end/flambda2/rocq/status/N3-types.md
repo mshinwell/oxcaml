@@ -233,11 +233,16 @@ renaming of the variables made.
 
 ## Found
 
-- **The join cannot commute with every renaming**, whatever source of
-  new names it is given (`no_source_commutes`: the empty list of names
-  to avoid is fixed by every renaming, and no variable is). Not a
-  discrepancy with the compiler, whose join is never given renamed
-  environments. Nothing else in the join goes by the number or the
+- **No source of new names commutes with every renaming**
+  (`no_source_commutes`: the empty list of names to avoid is fixed by
+  every renaming, and no variable is). So the equation of the join
+  cannot be proved with one source on both of its sides in the way
+  used here, function by function down to the call of the source.
+  That the join as a whole, with one source, fails to commute with
+  some renaming is not proved: it would take an example of a join
+  that calls the source, and none is given. Not a discrepancy with
+  the compiler, whose join is never given renamed environments.
+  Nothing else in the join goes by the number or the
   order of a name: variables are compared by equality and by binding
   time, and the one call of the source is in
   `existential_for_these_simples`.
