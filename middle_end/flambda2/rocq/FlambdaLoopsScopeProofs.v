@@ -35,11 +35,12 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaSemanticsSpec FlambdaBindersSpec
   FlambdaNormaliseSpec FlambdaNormaliseProofs FlambdaUnusedContsSpec
-  FlambdaUnusedContsProofs FlambdaForwardSpec FlambdaLoopAliasesSpec
-  FlambdaLoopLetsSpec FlambdaLoopifySpec FlambdaParamAliasesSpec
-  FlambdaRecHandlersSpec FlambdaShortcutSpec FlambdaSinkContsSpec
-  FlambdaUnusedParamsSpec FlambdaValidatorEquivarianceSpec
-  FlambdaScopedProofs FlambdaKeepsScopeProofs FlambdaLoopsScopeSpec.
+  FlambdaUnusedContsProofs FlambdaDeadParamsSpec FlambdaForwardSpec
+  FlambdaLoopAliasesSpec FlambdaLoopLetsSpec FlambdaLoopifySpec
+  FlambdaParamAliasesSpec FlambdaRecHandlersSpec FlambdaShortcutSpec
+  FlambdaSinkContsSpec FlambdaUnusedParamsSpec
+  FlambdaValidatorEquivarianceSpec FlambdaScopedProofs
+  FlambdaKeepsScopeProofs FlambdaLoopsScopeSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -688,6 +689,80 @@ Proof.
   apply keeps_scope_intro. intros e. unfold drop_unused_params.
   apply drop_params_scoped.
 Qed.
+
+(* The parameters that a loop only passes round removed, with the
+   [Let]s that are left unused. Whatever the masks of a loop are, a
+   handler loses only parameters that it does not use once it is
+   rewritten, so how the masks are found is not looked at. *)
+
+Fixpoint drop_dead_scoped (e : expr) :
+  ∀ known : masks, scoped e (drop_dead known e)
+with drop_dead_in_loop_scoped (h : continuation_handler) :
+  ∀ (inside : masks) (kept : bool),
+    scoped_handler h (drop_dead_in_loop inside kept h).
+Proof.
+  - destruct e
+      as [x kind d body | bindings body | k [params metadata handler] body
+         | handlers body | ap | ac | scrutinee arms | ];
+      intros known; cbn [drop_dead drop_dead_in_loop]; cbv zeta.
+    + destruct (var_free_b x (drop_dead known body)) eqn:Hfree; cbn [orb];
+        [ apply scoped_let; [ apply incl_refl | apply drop_dead_scoped ] | ].
+      destruct (named_may_go d); cbn [negb];
+        [ | apply scoped_let; [ apply incl_refl | apply drop_dead_scoped ] ].
+      apply scoped_let_unused; [ apply drop_dead_scoped | exact Hfree ].
+    + apply scoped_let_static;
+        [ apply scoped_bindings_refl | apply drop_dead_scoped ].
+    + apply scoped_let_cont; [ | apply drop_dead_scoped ].
+      apply
+        (scoped_handler_unused_params (hm_is_exn_handler metadata) _ _ _ _ _
+           (drop_dead known handler));
+        [ destruct (returned_to k body); [ left | right ]; reflexivity
+        | right; reflexivity | apply drop_dead_scoped ].
+    + assert
+        (Hhandlers :
+          ∀ (inside : masks) (kept : continuation -> bool),
+            scoped_handlers handlers
+              (map
+                 (fun '(k, h) => (k, drop_dead_in_loop inside (kept k) h))
+                 handlers)).
+      { intros inside kept.
+        induction handlers as [ | [k h] handlers IH]; cbn [map];
+          [ apply scoped_handlers_nil | ].
+        apply scoped_handlers_cons;
+          [ apply drop_dead_in_loop_scoped | exact IH ]. }
+      apply scoped_let_cont_recursive;
+        [ | apply Hhandlers | apply drop_dead_scoped ].
+      rewrite map_map. apply map_ext. intros [k h]. reflexivity.
+    + apply scoped_refl.
+    + intros _. scope.
+      split; [ reflexivity | split; [ apply drop_args_free | ] ].
+      apply incl_refl.
+    + intros _. scope. split; [ reflexivity | split ].
+      * apply incl_app_app; [ apply incl_refl | ].
+        intros x Hx. apply in_flat_map in Hx.
+        destruct Hx as (arm' & Harm' & Hx). apply in_map_iff in Harm'.
+        destruct Harm' as (arm & <- & Harm). apply in_flat_map. exists arm.
+        split; [ exact Harm | exact (drop_args_free known (snd arm) x Hx) ].
+      * rewrite
+          (flat_map_map_same (fun arm => apply_cont_continuations (snd arm))
+             (fun arm => apply_cont_continuations (snd arm)));
+          [ apply incl_refl | intros arm; reflexivity ].
+    + apply scoped_refl.
+  - destruct h as [params metadata handler]. intros inside kept.
+    cbn [drop_dead drop_dead_in_loop]. cbv zeta.
+    apply
+      (scoped_handler_unused_params (hm_is_exn_handler metadata) _ _ _ _ _
+         (drop_dead inside handler));
+      [ destruct kept; [ left | right ]; reflexivity
+      | right; reflexivity | apply drop_dead_scoped ].
+Qed.
+
+Lemma drop_dead_params_scoped (e : expr) : scoped e (drop_dead_params e).
+Proof. unfold drop_dead_params. apply drop_dead_scoped. Qed.
+
+Theorem drop_dead_params_keeps_scope :
+  drop_dead_params_keeps_scope_statement.
+Proof. apply keeps_scope_intro, drop_dead_params_scoped. Qed.
 
 (* The unused [Let]s that are sure to have a value removed, in the
    handlers of recursive continuations too. *)

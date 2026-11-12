@@ -37,6 +37,7 @@
    (FlambdaSinkContsSpec.sink_let_conts,
    FlambdaShortcutSpec.shortcut_switches,
    FlambdaUnusedParamsSpec.drop_unused_params,
+   FlambdaDeadParamsSpec.drop_dead_params,
    FlambdaParamAliasesSpec.bind_aliased_params,
    FlambdaForwardSpec.forward_applications); the removal of the unused
    [Let]s that have a value, in loops too
@@ -68,10 +69,10 @@ From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec FlambdaBindersSpec FlambdaNormaliseSpec
-  FlambdaForwardSpec FlambdaLoopAliasesSpec FlambdaLoopLetsSpec
-  FlambdaLoopifySpec FlambdaParamAliasesSpec FlambdaRecHandlersSpec
-  FlambdaShortcutSpec FlambdaSinkContsSpec FlambdaUnusedParamsSpec
-  FlambdaValidatorEquivarianceSpec.
+  FlambdaDeadParamsSpec FlambdaForwardSpec FlambdaLoopAliasesSpec
+  FlambdaLoopLetsSpec FlambdaLoopifySpec FlambdaParamAliasesSpec
+  FlambdaRecHandlersSpec FlambdaShortcutSpec FlambdaSinkContsSpec
+  FlambdaUnusedParamsSpec FlambdaValidatorEquivarianceSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -84,6 +85,9 @@ Definition shortcut_switches_keeps_scope_statement : Prop :=
 
 Definition drop_unused_params_keeps_scope_statement : Prop :=
   keeps_scope drop_unused_params.
+
+Definition drop_dead_params_keeps_scope_statement : Prop :=
+  keeps_scope drop_dead_params.
 
 Definition bind_aliased_params_keeps_scope_statement : Prop :=
   keeps_scope bind_aliased_params.
