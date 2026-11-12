@@ -51,6 +51,14 @@
      after its body, and Simplify makes such terms, placing in the body
      a constant that it lifted while it simplified the body and that the
      handler knows;
+   - what the body of a [Let_cont] binds on its spine is in scope in its
+     handlers, at toplevel or not. The spine is what the body reaches
+     through [Let]s, [Let_static]s and the bodies of [Let_cont]s, in no
+     handler: the machine runs down it, and binds all of it, before the
+     body applies a continuation. Simplify makes such terms too: it
+     places the constants that it lifts out of the arms of a test under
+     the last [Let] before the test, and the handler of a test inside
+     that one is defined above that place and mentions them;
    - the body of code sees what is in scope where the code is bound;
    - a code id that is declared deleted is in scope, and is not code:
      [Bind_deleted_code] binds nothing, and a call of a closure of it
@@ -197,6 +205,20 @@ Fixpoint group_consts_in_scope (before all : list symbol)
 (* A unit                                                                   *)
 (* ======================================================================== *)
 
+(* The static names that an expression binds on its spine: by the
+   [Let_static]s that it reaches through [Let]s, [Let_static]s and the
+   bodies of [Let_cont]s, and by none that is in a handler. *)
+Fixpoint spine_static_names (names_of : static_binding -> list positive)
+    (e : expr) : list positive :=
+  match e with
+  | Let _ _ _ body => spine_static_names names_of body
+  | Let_static bindings body =>
+    flat_map names_of bindings ++ spine_static_names names_of body
+  | Let_cont_non_recursive _ _ body | Let_cont_recursive _ body =>
+    spine_static_names names_of body
+  | Apply _ | Apply_cont _ | Switch _ _ | Invalid => []
+  end.
+
 (* Every symbol and every code id that the expression mentions is in
    scope, given those in scope around it, whether the expression is at
    toplevel, and the exception continuation of the unit (for what
@@ -205,7 +227,8 @@ Fixpoint group_consts_in_scope (before all : list symbol)
    the group binds. The handler of a non-recursive continuation that is
    at toplevel is checked with, in scope, what its body binds: the
    static names of the body, which in a unit that passes row 1 are all
-   at toplevel in it. *)
+   at toplevel in it. Any other handler of a [Let_cont] is checked with,
+   in scope, what the body binds on its spine. *)
 Fixpoint expr_statics_in_scope (unit_exn : continuation) (toplevel : bool)
     (syms : list symbol) (ids : list code_id) (e : expr) {struct e} : bool :=
   match e with
@@ -225,11 +248,17 @@ Fixpoint expr_statics_in_scope (unit_exn : continuation) (toplevel : bool)
        handler_statics_in_scope unit_exn true
          (static_names symbols_of_binding body ++ syms)
          (static_names declared_code_ids_of_binding body ++ ids) h
-     else handler_statics_in_scope unit_exn false syms ids h)
+     else
+       handler_statics_in_scope unit_exn false
+         (spine_static_names symbols_of_binding body ++ syms)
+         (spine_static_names declared_code_ids_of_binding body ++ ids) h)
     && expr_statics_in_scope unit_exn toplevel syms ids body
   | Let_cont_recursive handlers body =>
     forallb
-      (fun '(_, h) => handler_statics_in_scope unit_exn false syms ids h)
+      (fun '(_, h) =>
+         handler_statics_in_scope unit_exn false
+           (spine_static_names symbols_of_binding body ++ syms)
+           (spine_static_names declared_code_ids_of_binding body ++ ids) h)
       handlers
     && expr_statics_in_scope unit_exn toplevel syms ids body
   | Apply ap => apply_statics_in_scope syms ids ap

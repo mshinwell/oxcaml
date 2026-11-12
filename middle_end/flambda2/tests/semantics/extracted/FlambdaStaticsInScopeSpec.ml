@@ -1,3 +1,4 @@
+open BinNums
 open Datatypes
 open FlambdaMapSpec
 open FlambdaModel
@@ -107,6 +108,17 @@ let rec group_consts_in_scope before all ids = function
         && group_consts_in_scope (s :: before) all ids bindings0
     | _ -> group_consts_in_scope before all ids bindings0)
 
+(** val spine_static_names : (static_binding -> positive list) -> expr ->
+    positive list **)
+
+let rec spine_static_names names_of = function
+  | Let (_, _, _, body) -> spine_static_names names_of body
+  | Let_static (bindings, body) ->
+    app (flat_map names_of bindings) (spine_static_names names_of body)
+  | Let_cont_non_recursive (_, _, body) -> spine_static_names names_of body
+  | Let_cont_recursive (_, body) -> spine_static_names names_of body
+  | _ -> []
+
 (** val expr_statics_in_scope : continuation -> bool -> symbol list -> code_id
     list -> expr -> bool **)
 
@@ -129,13 +141,20 @@ let rec expr_statics_in_scope unit_exn0 toplevel syms ids = function
          (app (static_names symbols_of_binding body) syms)
          (app (static_names declared_code_ids_of_binding body) ids)
          h
-     else handler_statics_in_scope unit_exn0 false syms ids h)
+     else
+       handler_statics_in_scope unit_exn0 false
+         (app (spine_static_names symbols_of_binding body) syms)
+         (app (spine_static_names declared_code_ids_of_binding body) ids)
+         h)
     && expr_statics_in_scope unit_exn0 toplevel syms ids body
   | Let_cont_recursive (handlers, body) ->
     forallb
       (fun pat ->
         let _, h = pat in
-        handler_statics_in_scope unit_exn0 false syms ids h)
+        handler_statics_in_scope unit_exn0 false
+          (app (spine_static_names symbols_of_binding body) syms)
+          (app (spine_static_names declared_code_ids_of_binding body) ids)
+          h)
       handlers
     && expr_statics_in_scope unit_exn0 toplevel syms ids body
   | Apply ap -> apply_statics_in_scope syms ids ap
