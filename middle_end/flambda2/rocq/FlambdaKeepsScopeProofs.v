@@ -323,16 +323,248 @@ Proof.
         apply bind_arithmetic_binds_again.
 Qed.
 
-Fixpoint merge_switches_scoped (e : expr) : scoped e (merge_switches e).
+(* The ways chosen for each argument. A variable is bound to something
+   computed from the scrutinee, which is not bound again; the
+   variables are those that the rewrite is given, and what is under
+   their [Let]s mentions them where an argument is computed. *)
+Definition binds_from (v x : variable) (wrap : expr -> expr) : Prop :=
+  ∀ body : expr,
+    code_closed (wrap body) = code_closed body
+    ∧ (∀ y : variable,
+         In y (free_variables_of_expr (wrap body)) ->
+         y = v ∨ (In y (free_variables_of_expr body) ∧ y <> x))
+    ∧ free_continuations_of_expr (wrap body)
+      = free_continuations_of_expr body.
+
+Lemma bind_tagged_to_binds_from (v x : variable) :
+  binds_from v x (bind_tagged_to v x).
+Proof.
+  intros body. split; [ reflexivity | split; [ | reflexivity ] ].
+  unfold bind_tagged_to. scope. simpl.
+  intros y [<- | Hy]; [ left; reflexivity | right ].
+  apply in_without in Hy. destruct Hy as [Hy Hne].
+  split; [ exact Hy | ]. intros ->. apply Hne. left. reflexivity.
+Qed.
+
+Lemma bind_same_to_binds_from (v x : variable) :
+  binds_from v x (bind_same_to v x).
+Proof.
+  intros body. split; [ reflexivity | split; [ | reflexivity ] ].
+  unfold bind_same_to. scope. simpl.
+  intros y [<- | Hy]; [ left; reflexivity | right ].
+  apply in_without in Hy. destruct Hy as [Hy Hne].
+  split; [ exact Hy | ]. intros ->. apply Hne. left. reflexivity.
+Qed.
+
+Lemma binds_from_then (v x : variable) (wrap wrap' : expr -> expr) :
+  binds_from v x wrap -> binds_again x wrap' ->
+  binds_from v x (fun body => wrap (wrap' body)).
+Proof.
+  intros Hwrap Hwrap' body.
+  destruct (Hwrap (wrap' body)) as (Hclosed & Hv & Hk).
+  destruct (Hwrap' body) as (Hclosed' & Hv' & Hk').
+  split; [ congruence | split; [ | congruence ] ].
+  intros y Hy. apply Hv in Hy.
+  destruct Hy as [-> | [Hy Hne]]; [ left; reflexivity | right ].
+  split; [ | exact Hne ].
+  apply Hv' in Hy. destruct Hy as [Heq | Hy]; [ | exact Hy ].
+  elim Hne. symmetry. exact Heq.
+Qed.
+
+Lemma bind_way_binds_from (how : merge_by) (v x : variable) :
+  how <> As_it_is -> binds_from v x (bind_way how v x).
+Proof.
+  destruct how as [ | | | [ | ] offset slope]; intros Hhow.
+  - apply bind_tagged_to_binds_from.
+  - exact
+      (binds_from_then v x _ _ (bind_tagged_to_binds_from v x)
+         (bind_negated_binds_again x)).
+  - elim Hhow. reflexivity.
+  - exact
+      (binds_from_then v x _ _ (bind_tagged_to_binds_from v x)
+         (bind_arithmetic_steps_binds_again Standard_tagged_immediate x
+            (arithmetic_steps (int_width Standard_tagged_immediate) offset
+               slope))).
+  - exact
+      (binds_from_then v x _ _ (bind_same_to_binds_from v x)
+         (bind_arithmetic_steps_binds_again Standard_naked_immediate x
+            (arithmetic_steps (int_width Standard_naked_immediate) offset
+               slope))).
+Qed.
+
+(* The names that the [Let]s of the ways bind. *)
+Fixpoint names_bound (names : list variable) (ways : list argument_way)
+    : list variable :=
+  match names, ways with
+  | x :: names, way :: ways =>
+    match way with
+    | Same_in_every_arm _ | Computed As_it_is => names_bound names ways
+    | Computed (By_tagging | By_tagging_and_negating | By_arithmetic _ _ _) =>
+      x :: names_bound names ways
+    end
+  | _, _ => []
+  end.
+
+Lemma bind_ways_scope (v : variable) (body : expr) (names : list variable) :
+  ∀ ways : list argument_way,
+    code_closed (bind_ways v names ways body) = code_closed body
+    ∧ (∀ y : variable,
+         In y (free_variables_of_expr (bind_ways v names ways body)) ->
+         y = v
+         ∨ (In y (free_variables_of_expr body)
+            ∧ ~ In y (names_bound names ways)))
+    ∧ free_continuations_of_expr (bind_ways v names ways body)
+      = free_continuations_of_expr body.
+Proof.
+  induction names as [ | x names IH]; intros [ | way ways];
+    cbn [bind_ways names_bound];
+    try
+      (split; [ reflexivity | split; [ | reflexivity ] ];
+       intros y Hy; right; split; [ exact Hy | intros [] ]).
+  destruct (IH ways) as (Hclosed & Hv & Hk).
+  assert
+    (Hbinds :
+      ∀ how : merge_by,
+        how <> As_it_is ->
+        code_closed (bind_way how v x (bind_ways v names ways body))
+        = code_closed body
+        ∧ (∀ y : variable,
+             In y
+               (free_variables_of_expr
+                  (bind_way how v x (bind_ways v names ways body))) ->
+             y = v
+             ∨ (In y (free_variables_of_expr body)
+                ∧ ~ In y (x :: names_bound names ways)))
+        ∧ free_continuations_of_expr
+            (bind_way how v x (bind_ways v names ways body))
+          = free_continuations_of_expr body).
+  { intros how Hhow.
+    destruct (bind_way_binds_from how v x Hhow (bind_ways v names ways body))
+      as (Hclosed' & Hv' & Hk').
+    split; [ congruence | split; [ | congruence ] ].
+    intros y Hy. apply Hv' in Hy.
+    destruct Hy as [-> | [Hy Hne]]; [ left; reflexivity | ].
+    apply Hv in Hy.
+    destruct Hy as [-> | [Hy Hbound]]; [ left; reflexivity | right ].
+    split; [ exact Hy | ].
+    intros [Heq | Hin]; [ apply Hne; symmetry; exact Heq | exact (Hbound Hin) ].
+  }
+  destruct way as [s | [ | | | kind offset slope]];
+    first
+      [ apply Hbinds; discriminate
+      | split; [ exact Hclosed | split; [ exact Hv | exact Hk ] ] ].
+Qed.
+
+(* The merged arguments are the scrutinee, the names that are bound,
+   and what the arguments of an arm mention. *)
+Lemma merged_by_ways_free (v : variable) (i : Z) (names : list variable) :
+  ∀ (ways : list argument_way) (args : list simple),
+    arguments_in_arm i ways = Some args ->
+    ∀ y : variable,
+      In y (free_variables_of_simples (merged_by_ways v names ways)) ->
+      y = v
+      ∨ In y (names_bound names ways)
+      ∨ In y (free_variables_of_simples args).
+Proof.
+  induction names as [ | x names IH]; intros [ | way ways] args Hargs y Hy;
+    cbn [merged_by_ways] in Hy; try (destruct Hy).
+  cbn [arguments_in_arm] in Hargs.
+  destruct (argument_in_arm i way) as [s0 | ] eqn:Hs0; [ | discriminate ].
+  destruct (arguments_in_arm i ways) as [args0 | ] eqn:Hargs0;
+    [ | discriminate ].
+  injection Hargs as <-.
+  unfold free_variables_of_simples in Hy. cbn [flat_map] in Hy.
+  apply in_app_or in Hy.
+  unfold free_variables_of_simples. cbn [flat_map names_bound].
+  destruct Hy as [Hy | Hy].
+  - destruct way as [s | how]; cbn [argument_in_arm] in Hs0.
+    + injection Hs0 as <-. right. right. apply in_or_app. left. exact Hy.
+    + destruct how; simpl in Hy; destruct Hy as [<- | []];
+        first [ left; reflexivity | right; left; left; reflexivity ].
+  - destruct (IH ways args0 Hargs0 y Hy) as [-> | [Hin | Hin]].
+    + left. reflexivity.
+    + right. left.
+      destruct way as [s | [ | | | kind offset slope]];
+        first [ exact Hin | right; exact Hin ].
+    + right. right. apply in_or_app. right. exact Hin.
+Qed.
+
+Lemma merge_switch_by_arguments_scoped (names : list variable)
+    (scrutinee : simple) (arms : list (Z * apply_cont)) (merged : expr) :
+  merge_switch_by_arguments names scrutinee arms = Some merged ->
+  scoped (Switch scrutinee arms) merged.
+Proof.
+  unfold merge_switch_by_arguments.
+  destruct scrutinee as [v | sym | c]; try discriminate.
+  destruct arms as [ | [i0 [k0 args trap]] [ | arm1 others]];
+    try discriminate.
+  cbv zeta. cbn [ac_continuation ac_args].
+  destruct (ways_of_arguments _ _) as [ways | ]; [ | discriminate ].
+  destruct (names_usable v names ways && _) eqn:Hok; [ | discriminate ].
+  intros [= <-] _.
+  apply andb_prop in Hok as [_ Hall].
+  cbn [forallb] in Hall. apply andb_prop in Hall as [Hfirst _].
+  unfold arm_has_ways in Hfirst. cbn [fst snd] in Hfirst.
+  destruct (arguments_in_arm i0 ways) as [args0 | ] eqn:Hargs0;
+    [ | discriminate ].
+  destruct (apply_cont_eq_dec _ _) as [Heq | ]; [ | discriminate ].
+  injection Heq as -> ->.
+  destruct
+    (bind_ways_scope v
+       (Apply_cont (Apply_cont_expr k0 (merged_by_ways v names ways) None))
+       names ways)
+    as (Hclosed & Hv & Hk).
+  rewrite Hclosed, Hk. split; [ reflexivity | split ].
+  - assert
+      (Hswitch :
+        ∀ y : variable,
+          y = v ∨ In y (free_variables_of_simples args0) ->
+          In y
+            (free_variables_of_expr
+               (Switch (Var v)
+                  ((i0, Apply_cont_expr k0 args0 None) :: arm1 :: others)))).
+    { intros y [-> | Hy]; scope; simpl;
+        [ left; reflexivity | right; apply in_or_app; left; exact Hy ]. }
+    intros y Hy. apply Hswitch. apply Hv in Hy.
+    destruct Hy as [-> | [Hy Hbound]]; [ left; reflexivity | ].
+    scope_in Hy.
+    destruct (merged_by_ways_free v i0 names ways args0 Hargs0 y Hy)
+      as [-> | [Hin | Hin]];
+      [ left; reflexivity | contradiction | right; exact Hin ].
+  - scope. simpl. intros k [<- | []]. left. reflexivity.
+Qed.
+
+Lemma merge_switch_knowing_scoped (known : known_continuations)
+    (scrutinee : simple) (arms : list (Z * apply_cont)) :
+  scoped (Switch scrutinee arms) (merge_switch_knowing known scrutinee arms).
+Proof.
+  unfold merge_switch_knowing.
+  pose proof (merge_switch_scoped scrutinee arms) as Hone.
+  destruct (merge_switch scrutinee arms); try exact Hone.
+  destruct arms as [ | [i ac] others]; [ apply scoped_refl | ].
+  destruct (lookup (ac_continuation ac) known) as [names | ];
+    [ | apply scoped_refl ].
+  destruct (merge_switch_by_arguments names scrutinee ((i, ac) :: others))
+    as [merged | ] eqn:Hmerged;
+    [ exact (merge_switch_by_arguments_scoped _ _ _ _ Hmerged)
+    | apply scoped_refl ].
+Qed.
+
+Fixpoint merge_switches_knowing_scoped (known : known_continuations)
+    (e : expr) {struct e} :
+  scoped e (merge_switches_knowing known e).
 Proof.
   destruct e
     as [x kind d body | bindings body | k [params metadata handler] body
        | handlers body | ap | ac | scrutinee arms | ];
-    cbn [merge_switches];
+    cbn [merge_switches_knowing];
     first
-      [ apply merge_switch_scoped
-      | scoped_under_binders merge_switches_scoped ].
+      [ apply merge_switch_knowing_scoped
+      | scoped_under_binders merge_switches_knowing_scoped ].
 Qed.
+
+Lemma merge_switches_scoped (e : expr) : scoped e (merge_switches e).
+Proof. exact (merge_switches_knowing_scoped [] e). Qed.
 
 Theorem merge_switches_keeps_scope : merge_switches_keeps_scope_statement.
 Proof. apply keeps_scope_intro, merge_switches_scoped. Qed.

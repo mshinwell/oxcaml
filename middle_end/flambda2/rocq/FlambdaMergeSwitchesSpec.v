@@ -70,13 +70,19 @@
      the offset ([By_arithmetic]; [Affine_argument] and
      [enough_arms] of Simplify). The slope and the offset are those
      of the line through the first two arms.
-   The arguments that differ from arm to arm are all computed in the
-   same one of these four ways, and for the fourth with one slope and
-   one offset. Simplify decides for each argument, so it also merges
-   arms whose arguments are computed in several ways, which are not
-   merged here. Nor are the arms an argument of which Simplify loads
-   from a table of the constants of the arms
-   ([Lookup_table_argument]).
+   Simplify decides for each argument, so the arguments of one
+   [Switch] may be computed in several of these ways, or by
+   arithmetic with several slopes. Here there are two cases. Where
+   the arguments that differ from arm to arm are all computed in the
+   same one of the four ways, and for the fourth with one slope and
+   one offset, the variable of the scrutinee is bound again and holds
+   what is computed ([merge_switch]). Otherwise, where the
+   continuation that the arms apply is bound by a [Let_cont] around
+   the [Switch], a way is chosen for each argument, and each argument
+   that is computed is bound to the parameter of that continuation at
+   its position ([merge_switch_by_arguments]). The arms an argument
+   of which Simplify loads from a table of the constants of the arms
+   ([Lookup_table_argument]) are not merged.
 
    How it decides ([merge_switch]). The scrutinee must be a variable
    and there must be two arms or more. The application that the
@@ -129,6 +135,44 @@
    too, as [Int_arith] has no value on a constant that is not an
    integer of its kind.
 
+   The ways chosen for each argument ([merge_switch_knowing]). The
+   rewrite carries, on its way down, the continuations that are bound
+   around where it is, each with its parameters
+   ([merge_switches_knowing], [known_continuations]): that of a
+   non-recursive [Let_cont] in its body, those of a recursive one in
+   its body. Where [merge_switch] leaves a [Switch] and the
+   continuation of its first arm is one of those, a way is looked for
+   for each argument, across the arms ([way_of_column]): the same in
+   every arm, or else the first of the four ways that gives the
+   argument of every arm, in the order in which [merge_switch] tries
+   them, the arithmetic being that of the first two arms and for three
+   arms or more. Every arm must then apply the continuation of the
+   first, with no trap action, to the arguments that the ways give for
+   its number ([arm_has_ways]); as for the slope and the offset, how
+   the ways were found is not a premise of the refinement. The
+   [Switch] becomes the application under the [Let]s of the ways, the
+   first argument outermost ([bind_ways]). An argument that is
+   computed is bound to the parameter of the continuation at its
+   position, by the primitives of its way, the first of which reads
+   the scrutinee and the others that parameter ([bind_way]); the
+   scrutinee is not bound again. An argument that is the scrutinee as
+   it is, is the scrutinee, with no [Let], and one that is the same in
+   every arm stays. The parameters must be as many as the arguments,
+   no two the same, none the scrutinee, and none may occur in an
+   argument that is the same in every arm ([names_usable]): a
+   parameter bound so hides a variable of the same name, and under
+   the new [Let]s there is only the application. So the rewrite still
+   makes no name. The refinement holds whatever the names are, under
+   those tests; that they are read off the term is what makes the
+   rewrite commute with renaming. Simplify computes once a primitive
+   that two arguments share (the tagging of the scrutinee, the
+   multiplication by one slope); here each argument has its own, and
+   the sharing is left to the rewrite of the validation that shares
+   primitives (FlambdaCseSpec.share_known_primitives). Where the
+   continuation is not bound in sight (the return continuation of
+   code, a continuation bound outside a handler that the rewrite is
+   applied to on its own), only [merge_switch] applies.
+
    [merge_switches] goes where
    FlambdaNormaliseSpec.collapse_switches goes: into the bodies of
    [Let]s, of static bindings and of the bindings of continuations,
@@ -137,39 +181,44 @@
    they are: a round of the validation takes it there as it takes
    the other rewrites of the round, with
    FlambdaRecHandlersSpec.rewrite_rec_handlers and
-   FlambdaNormaliseSpec.rewrite_code. A [Switch] whose arms are all the
-   same is left to [collapse_switches].
+   FlambdaNormaliseSpec.rewrite_code, and there it starts with no
+   continuation known. A [Switch] whose arms are all the same is left
+   to [collapse_switches].
 
    The result refines the term ([merge_switches_refines_statement]).
    Where the scrutinee is the number of an arm, the [Switch] goes to
    that arm, and the merged term binds the variable to the constant
    of that arm, in a step for each of its [Let]s (for the third way
    the variable holds it already), and applies the continuation to
-   the same values. It is not an equivalence: the [Switch] is
+   the same values; with a way for each argument it binds each
+   parameter to the constant that the arm has there. It is not an
+   equivalence: the [Switch] is
    undefined where the scrutinee is not the number of an arm, and the
    merged term is not.
 
    The rewrite commutes with renaming
-   ([merge_switches_equivariant_statement]): it makes no name, and it
-   looks at names only to compare them, which a renaming, being
-   injective, keeps true or false. That it keeps scope, which is that
+   ([merge_switches_equivariant_statement]): it makes no name, the
+   names that it binds are the scrutinee or parameters of the term,
+   and it looks at names only to compare them, which a renaming,
+   being injective, keeps true or false. That it keeps scope, which is that
    on a term whose code is closed the code of the result is closed and
    every variable or continuation that is free in the result is free
    in the term, is stated with the same of the other rewrites of a
    round (FlambdaKeepsScopeSpec.merge_switches_keeps_scope_statement).
 
-   Four terms as checks of the definitions
+   Five terms as checks of the definitions
    ([merge_switches_tagging_example_statement],
    [merge_switches_negating_example_statement],
    [merge_switches_as_it_is_example_statement],
-   [merge_switches_arithmetic_example_statement]).
+   [merge_switches_arithmetic_example_statement],
+   [merge_switches_two_ways_example_statement]).
 
    The proofs are in FlambdaMergeSwitchesProofs.v, which needs no
    review. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
-From OxCamlFlambda2 Require Import FlambdaKindModel FlambdaModel
+From OxCamlFlambda2 Require Import FlambdaKindModel FlambdaModel FlambdaMapSpec
   FlambdaPrimitiveModel FlambdaPrimitiveSpec FlambdaSemanticsSpec
   FlambdaNominalSpec FlambdaNormaliseSpec.
 Import ListNotations.
@@ -398,7 +447,7 @@ Definition line_through (width i a i' a' : Z) : option (Z * Z) :=
     let slope := wrap width (Z.quot rise run) in
     Some (wrap width (a - slope * i), slope).
 
-Definition arithmetic_of_arms (i i' : Z) (args args' : list simple)
+Definition arithmetic_of_constants (i i' : Z) (c c' : const)
     : option (arithmetic_kind * Z * Z) :=
   let line (kind : arithmetic_kind) (a a' : Z)
       : option (arithmetic_kind * Z * Z) :=
@@ -406,12 +455,16 @@ Definition arithmetic_of_arms (i i' : Z) (args args' : list simple)
     let* '(offset, slope) := line_through width i a i' a' in
     Some (kind, offset, slope)
   in
-  let* '(c, c') := first_difference args args' in
   match c, c' with
   | Tagged_immediate a, Tagged_immediate a' => line Arithmetic_tagged a a'
   | Naked_immediate a, Naked_immediate a' => line Arithmetic_naked a a'
   | _, _ => None
   end.
+
+Definition arithmetic_of_arms (i i' : Z) (args args' : list simple)
+    : option (arithmetic_kind * Z * Z) :=
+  let* '(c, c') := first_difference args args' in
+  arithmetic_of_constants i i' c c'.
 
 (* ======================================================================== *)
 (* The rewrite                                                              *)
@@ -448,19 +501,268 @@ Definition merge_switch (scrutinee : simple) (arms : list (Z * apply_cont))
   | _, _ => Switch scrutinee arms
   end.
 
-Fixpoint merge_switches (e : expr) : expr :=
+(* ======================================================================== *)
+(* The ways chosen for each argument                                        *)
+(* ======================================================================== *)
+
+(* How one argument of the arms is had: it is the same in every arm,
+   or it is computed from the scrutinee in one of the four ways. *)
+Inductive argument_way : Type :=
+  | Same_in_every_arm (s : simple)
+  | Computed (how : merge_by).
+
+(* What such an argument is in the arm of number [i], and the
+   arguments of that arm for a way for each. *)
+Definition argument_in_arm (i : Z) (way : argument_way) : option simple :=
+  match way with
+  | Same_in_every_arm s => Some s
+  | Computed how => option_map Const (constant_of_arm how i)
+  end.
+
+Fixpoint arguments_in_arm (i : Z) (ways : list argument_way)
+    : option (list simple) :=
+  match ways with
+  | [] => Some []
+  | way :: ways =>
+    let* s := argument_in_arm i way in
+    let* args := arguments_in_arm i ways in
+    Some (s :: args)
+  end.
+
+(* An arm applies the continuation, with no trap action, to the
+   arguments that the ways give for its number. *)
+Definition arm_has_ways (k : continuation) (ways : list argument_way)
+    (arm : Z * apply_cont) : bool :=
+  match arguments_in_arm (fst arm) ways with
+  | Some args =>
+    if apply_cont_eq_dec (snd arm) (Apply_cont_expr k args None)
+    then true
+    else false
+  | None => false
+  end.
+
+(* Finding the ways. One argument across the arms, in their order:
+   the number of each arm with the argument there. *)
+Fixpoint column_of_arms (rows : list (Z * list simple))
+    : option (list (Z * simple)) :=
+  match rows with
+  | [] => Some []
+  | (_, []) :: _ => None
+  | (i, s :: _) :: rows =>
+    let* column := column_of_arms rows in
+    Some ((i, s) :: column)
+  end.
+
+Definition rest_of_arms (rows : list (Z * list simple))
+    : list (Z * list simple) :=
+  map (fun row => (fst row, tl (snd row))) rows.
+
+Definition column_is_computed (how : merge_by) (column : list (Z * simple))
+    : bool :=
+  forallb
+    (fun entry =>
+       match constant_of_arm how (fst entry) with
+       | Some c => if simple_eq_dec (snd entry) (Const c) then true else false
+       | None => false
+       end)
+    column.
+
+(* The way for one argument: the same in every arm; else the first of
+   the four that gives the argument of every arm, in the order in
+   which [merge_switch] tries them, the arithmetic being that of the
+   first two arms and for three arms or more
+   ([recognize_mergeable_argument] of simplify_switch_expr.ml, which
+   decides for each argument). *)
+Definition way_of_column (column : list (Z * simple)) : option argument_way :=
+  match column with
+  | (i, s) :: (i', s') :: _ =>
+    if forallb
+         (fun entry => if simple_eq_dec s (snd entry) then true else false)
+         column
+    then Some (Same_in_every_arm s)
+    else if column_is_computed By_tagging column
+    then Some (Computed By_tagging)
+    else if column_is_computed By_tagging_and_negating column
+    then Some (Computed By_tagging_and_negating)
+    else if column_is_computed As_it_is column
+    then Some (Computed As_it_is)
+    else
+      match s, s' with
+      | Const c, Const c' =>
+        match arithmetic_of_constants i i' c c' with
+        | Some (kind, offset, slope) =>
+          if (3 <=? length column)%nat
+             && column_is_computed (By_arithmetic kind offset slope) column
+          then Some (Computed (By_arithmetic kind offset slope))
+          else None
+        | None => None
+        end
+      | _, _ => None
+      end
+  | _ => None
+  end.
+
+Fixpoint ways_of_arguments (count : nat) (rows : list (Z * list simple))
+    : option (list argument_way) :=
+  match count with
+  | O => Some []
+  | S count =>
+    let* column := column_of_arms rows in
+    let* way := way_of_column column in
+    let* ways := ways_of_arguments count (rest_of_arms rows) in
+    Some (way :: ways)
+  end.
+
+(* A variable bound to another that holds a naked immediate: to that
+   one tagged, or to that one. *)
+Definition bind_tagged_to (v x : variable) (body : expr) : expr :=
+  Let x Value (Prim (Unary Tag_immediate) [Var v]) body.
+
+Definition bind_same_to (v x : variable) (body : expr) : expr :=
+  Let x naked_immediate_kind (Simple (Var v)) body.
+
+(* The variable [x] bound to what a way computes of the scrutinee
+   [v], which is not bound again: the primitives are those of the
+   four ways, the first of them reading [v] and the others [x]. The
+   arithmetic on naked immediates has no first primitive that reads
+   [v], so [x] is bound to [v] first. *)
+Definition bind_way (how : merge_by) (v x : variable) (body : expr) : expr :=
+  match how with
+  | By_tagging => bind_tagged_to v x body
+  | By_tagging_and_negating => bind_tagged_to v x (bind_negated x body)
+  | As_it_is => body
+  | By_arithmetic kind offset slope =>
+    let standard := standard_int_of_arithmetic_kind kind in
+    let body :=
+      bind_arithmetic_steps standard x
+        (arithmetic_steps (int_width standard) offset slope) body
+    in
+    match kind with
+    | Arithmetic_tagged => bind_tagged_to v x body
+    | Arithmetic_naked => bind_same_to v x body
+    end
+  end.
+
+(* The [Let]s for the arguments, the first argument outermost, each
+   argument that is computed in the variable of the same position in
+   [names]; and the arguments of the application under them. An
+   argument that is the scrutinee as it is, is the scrutinee. *)
+Fixpoint bind_ways (v : variable) (names : list variable)
+    (ways : list argument_way) (body : expr) : expr :=
+  match names, ways with
+  | x :: names, way :: ways =>
+    let body := bind_ways v names ways body in
+    match way with
+    | Same_in_every_arm _ => body
+    | Computed how => bind_way how v x body
+    end
+  | _, _ => body
+  end.
+
+Fixpoint merged_by_ways (v : variable) (names : list variable)
+    (ways : list argument_way) : list simple :=
+  match names, ways with
+  | x :: names, way :: ways =>
+    match way with
+    | Same_in_every_arm s => s
+    | Computed As_it_is => Var v
+    | Computed (By_tagging | By_tagging_and_negating | By_arithmetic _ _ _) =>
+      Var x
+    end
+    :: merged_by_ways v names ways
+  | _, _ => []
+  end.
+
+(* The names can be bound: there is one for each argument, no two are
+   the same, none is the scrutinee, and none occurs in an argument
+   that is the same in every arm. *)
+Definition names_usable (v : variable) (names : list variable)
+    (ways : list argument_way) : bool :=
+  Nat.eqb (length names) (length ways)
+  && distinct names
+  && negb (among v names)
+  && forallb
+       (fun way =>
+          match way with
+          | Same_in_every_arm s =>
+            negb (existsb (fun x => var_in_simple x s) names)
+          | Computed _ => true
+          end)
+       ways.
+
+(* The [Switch] merged with a way for each argument, the arguments
+   that are computed bound to the names given. *)
+Definition merge_switch_by_arguments (names : list variable)
+    (scrutinee : simple) (arms : list (Z * apply_cont)) : option expr :=
+  match scrutinee, arms with
+  | Var v, (_, ac) :: _ :: _ =>
+    let k := ac_continuation ac in
+    let* ways :=
+      ways_of_arguments (length (ac_args ac))
+        (map (fun arm => (fst arm, ac_args (snd arm))) arms)
+    in
+    if names_usable v names ways && forallb (arm_has_ways k ways) arms
+    then
+      Some
+        (bind_ways v names ways
+           (Apply_cont (Apply_cont_expr k (merged_by_ways v names ways) None)))
+    else None
+  | _, _ => None
+  end.
+
+(* The continuations that are bound around where the rewrite is, each
+   with its parameters. *)
+Definition known_continuations : Type := list (continuation * list variable).
+
+Definition parameters_of_handler (h : continuation_handler) : list variable :=
+  match h with Handler params _ _ => params end.
+
+(* A [Switch] where the continuations around are known: merged in one
+   way as [merge_switch] does; where that leaves it, and the
+   continuation that its first arm applies is one of those bound
+   around, merged with a way for each argument, the names being the
+   parameters of that continuation. *)
+Definition merge_switch_knowing (known : known_continuations)
+    (scrutinee : simple) (arms : list (Z * apply_cont)) : expr :=
+  match merge_switch scrutinee arms with
+  | Switch _ _ =>
+    match arms with
+    | (_, ac) :: _ =>
+      match lookup (ac_continuation ac) known with
+      | Some names =>
+        match merge_switch_by_arguments names scrutinee arms with
+        | Some merged => merged
+        | None => Switch scrutinee arms
+        end
+      | None => Switch scrutinee arms
+      end
+    | [] => Switch scrutinee arms
+    end
+  | merged => merged
+  end.
+
+Fixpoint merge_switches_knowing (known : known_continuations) (e : expr)
+    : expr :=
   match e with
-  | Let x kind d body => Let x kind d (merge_switches body)
-  | Let_static bindings body => Let_static bindings (merge_switches body)
+  | Let x kind d body => Let x kind d (merge_switches_knowing known body)
+  | Let_static bindings body =>
+    Let_static bindings (merge_switches_knowing known body)
   | Let_cont_non_recursive k (Handler params metadata handler) body =>
     Let_cont_non_recursive k
-      (Handler params metadata (merge_switches handler))
-      (merge_switches body)
+      (Handler params metadata (merge_switches_knowing known handler))
+      (merge_switches_knowing ((k, params) :: known) body)
   | Let_cont_recursive handlers body =>
-    Let_cont_recursive handlers (merge_switches body)
-  | Switch scrutinee arms => merge_switch scrutinee arms
+    Let_cont_recursive handlers
+      (merge_switches_knowing
+         (map (fun entry => (fst entry, parameters_of_handler (snd entry)))
+            handlers
+          ++ known)
+         body)
+  | Switch scrutinee arms => merge_switch_knowing known scrutinee arms
   | Apply _ | Apply_cont _ | Invalid => e
   end.
+
+Definition merge_switches (e : expr) : expr := merge_switches_knowing [] e.
 
 (* ======================================================================== *)
 (* The statements                                                           *)
@@ -474,7 +776,7 @@ Definition merge_switches_equivariant_statement : Prop :=
     merge_switches (rename_expr r e) = rename_expr r (merge_switches e).
 
 (* ======================================================================== *)
-(* Four terms                                                               *)
+(* Five terms                                                               *)
 (* ======================================================================== *)
 
 Module Merge_examples.
@@ -533,6 +835,47 @@ Definition merged_arithmetic : expr :=
              [constant 5; Var i])
           (Apply_cont (apply_k (Var i))))).
 
+(* [let_cont k (a, b) = cont r (a, b) in
+    switch i with 0 -> k 1t 10t | 1 -> k 3t 20t | 2 -> k 5t 30t] and
+   the same [let_cont] around
+   [let a = Tag_immediate i in let a = a * 2t in let a = 1t + a in
+    let b = Tag_immediate i in let b = b * 10t in let b = 10t + b in
+    k a b]: two arguments computed with two slopes, in the parameters
+   of the continuation. *)
+Definition a : variable := 3%positive.
+Definition b : variable := 4%positive.
+Definition r : continuation := 2%positive.
+
+Definition under_join (body : expr) : expr :=
+  Let_cont_non_recursive k
+    (Handler [a; b] (make_handler_metadata [Value; Value])
+       (Apply_cont (Apply_cont_expr r [Var a; Var b] None)))
+    body.
+
+Definition apply_join (s s' : simple) : apply_cont :=
+  Apply_cont_expr k [s; s'] None.
+
+Definition switch_two_ways : expr :=
+  under_join
+    (Switch (Var i)
+       [(0, apply_join (constant 1) (constant 10));
+        (1, apply_join (constant 3) (constant 20));
+        (2, apply_join (constant 5) (constant 30))]).
+
+Definition tagged_line (x : variable) (slope offset : Z) (body : expr)
+    : expr :=
+  let arith (op : binary_int_arith_op) (args : list simple) : named :=
+    Prim (Binary (Int_arith Standard_tagged_immediate op)) args
+  in
+  Let x Value (Prim (Unary Tag_immediate) [Var i])
+    (Let x Value (arith Mul [Var x; constant slope])
+       (Let x Value (arith Add [constant offset; Var x]) body)).
+
+Definition merged_two_ways : expr :=
+  under_join
+    (tagged_line a 2 1
+       (tagged_line b 10 10 (Apply_cont (apply_join (Var a) (Var b))))).
+
 End Merge_examples.
 
 Definition merge_switches_tagging_example_statement : Prop :=
@@ -550,3 +893,7 @@ Definition merge_switches_as_it_is_example_statement : Prop :=
 Definition merge_switches_arithmetic_example_statement : Prop :=
   merge_switches Merge_examples.switch_arithmetic
   = Merge_examples.merged_arithmetic.
+
+Definition merge_switches_two_ways_example_statement : Prop :=
+  merge_switches Merge_examples.switch_two_ways
+  = Merge_examples.merged_two_ways.

@@ -3,6 +3,7 @@ open BinNums
 open BinPos
 open Datatypes
 open FlambdaKindModel
+open FlambdaMapSpec
 open FlambdaModel
 open FlambdaNormaliseSpec
 open FlambdaPrimitiveModel
@@ -204,10 +205,10 @@ let line_through width i a i' a' =
     let slope = wrap width (Z.quot rise run) in
     Some (wrap width (Z.sub a (Z.mul slope i)), slope)
 
-(** val arithmetic_of_arms : coq_Z -> coq_Z -> simple list -> simple list ->
+(** val arithmetic_of_constants : coq_Z -> coq_Z -> const -> const ->
     ((arithmetic_kind * coq_Z) * coq_Z) option **)
 
-let arithmetic_of_arms i i' args args' =
+let arithmetic_of_constants i i' c c' =
   let line =
    fun kind a a' ->
     let width = int_width (standard_int_of_arithmetic_kind kind) in
@@ -217,19 +218,23 @@ let arithmetic_of_arms i i' args args' =
       Some ((kind, offset), slope)
     | None -> None
   in
-  match first_difference args args' with
-  | Some p -> (
-    let c, c' = p in
-    match c with
-    | Naked_immediate a -> (
-      match c' with
-      | Naked_immediate a' -> line Arithmetic_naked a a'
-      | _ -> None)
-    | Tagged_immediate a -> (
-      match c' with
-      | Tagged_immediate a' -> line Arithmetic_tagged a a'
-      | _ -> None)
+  match c with
+  | Naked_immediate a -> (
+    match c' with Naked_immediate a' -> line Arithmetic_naked a a' | _ -> None)
+  | Tagged_immediate a -> (
+    match c' with
+    | Tagged_immediate a' -> line Arithmetic_tagged a a'
     | _ -> None)
+  | _ -> None
+
+(** val arithmetic_of_arms : coq_Z -> coq_Z -> simple list -> simple list ->
+    ((arithmetic_kind * coq_Z) * coq_Z) option **)
+
+let arithmetic_of_arms i i' args args' =
+  match first_difference args args' with
+  | Some p ->
+    let c, c' = p in
+    arithmetic_of_constants i i' c c'
   | None -> None
 
 (** val merge_switch : simple -> (coq_Z * apply_cont) list -> expr **)
@@ -277,19 +282,281 @@ let merge_switch scrutinee arms =
         else Switch (scrutinee, arms)))
   | _ -> Switch (scrutinee, arms)
 
-(** val merge_switches : expr -> expr **)
+type argument_way =
+  | Same_in_every_arm of simple
+  | Computed of merge_by
 
-let rec merge_switches e =
+(** val argument_in_arm : coq_Z -> argument_way -> simple option **)
+
+let argument_in_arm i = function
+  | Same_in_every_arm s -> Some s
+  | Computed how -> option_map (fun x -> Const x) (constant_of_arm how i)
+
+(** val arguments_in_arm : coq_Z -> argument_way list -> simple list option **)
+
+let rec arguments_in_arm i = function
+  | [] -> Some []
+  | way :: ways0 -> (
+    match argument_in_arm i way with
+    | Some s -> (
+      match arguments_in_arm i ways0 with
+      | Some args -> Some (s :: args)
+      | None -> None)
+    | None -> None)
+
+(** val arm_has_ways : continuation -> argument_way list -> (coq_Z * apply_cont)
+    -> bool **)
+
+let arm_has_ways k ways arm =
+  match arguments_in_arm (fst arm) ways with
+  | Some args ->
+    if
+      apply_cont_eq_dec (snd arm)
+        { ac_continuation = k; ac_args = args; ac_trap_action = None }
+    then true
+    else false
+  | None -> false
+
+(** val column_of_arms : (coq_Z * simple list) list -> (coq_Z * simple) list
+    option **)
+
+let rec column_of_arms = function
+  | [] -> Some []
+  | p :: rows0 -> (
+    let i, l = p in
+    match l with
+    | [] -> None
+    | s :: _ -> (
+      match column_of_arms rows0 with
+      | Some column -> Some ((i, s) :: column)
+      | None -> None))
+
+(** val rest_of_arms : (coq_Z * simple list) list -> (coq_Z * simple list) list
+    **)
+
+let rest_of_arms rows = map (fun row -> fst row, tl (snd row)) rows
+
+(** val column_is_computed : merge_by -> (coq_Z * simple) list -> bool **)
+
+let column_is_computed how column =
+  forallb
+    (fun entry ->
+      match constant_of_arm how (fst entry) with
+      | Some c -> if simple_eq_dec (snd entry) (Const c) then true else false
+      | None -> false)
+    column
+
+(** val way_of_column : (coq_Z * simple) list -> argument_way option **)
+
+let way_of_column column =
+  match column with
+  | [] -> None
+  | p :: l -> (
+    let i, s = p in
+    match l with
+    | [] -> None
+    | p0 :: _ -> (
+      let i', s' = p0 in
+      if
+        forallb
+          (fun entry -> if simple_eq_dec s (snd entry) then true else false)
+          column
+      then Some (Same_in_every_arm s)
+      else if column_is_computed By_tagging column
+      then Some (Computed By_tagging)
+      else if column_is_computed By_tagging_and_negating column
+      then Some (Computed By_tagging_and_negating)
+      else if column_is_computed As_it_is column
+      then Some (Computed As_it_is)
+      else
+        match s with
+        | Const c -> (
+          match s' with
+          | Const c' -> (
+            match arithmetic_of_constants i i' c c' with
+            | Some p1 ->
+              let p2, slope = p1 in
+              let kind, offset = p2 in
+              if
+                Nat.leb (S (S (S O))) (length column)
+                && column_is_computed
+                     (By_arithmetic (kind, offset, slope))
+                     column
+              then Some (Computed (By_arithmetic (kind, offset, slope)))
+              else None
+            | None -> None)
+          | _ -> None)
+        | _ -> None))
+
+(** val ways_of_arguments : nat -> (coq_Z * simple list) list -> argument_way
+    list option **)
+
+let rec ways_of_arguments count rows =
+  match count with
+  | O -> Some []
+  | S count0 -> (
+    match column_of_arms rows with
+    | Some column -> (
+      match way_of_column column with
+      | Some way -> (
+        match ways_of_arguments count0 (rest_of_arms rows) with
+        | Some ways -> Some (way :: ways)
+        | None -> None)
+      | None -> None)
+    | None -> None)
+
+(** val bind_tagged_to : variable -> variable -> expr -> expr **)
+
+let bind_tagged_to v x body =
+  Let (x, Value, Prim (Unary Tag_immediate, Var v :: []), body)
+
+(** val bind_same_to : variable -> variable -> expr -> expr **)
+
+let bind_same_to v x body = Let (x, naked_immediate_kind, Simple (Var v), body)
+
+(** val bind_way : merge_by -> variable -> variable -> expr -> expr **)
+
+let bind_way how v x body =
+  match how with
+  | By_tagging -> bind_tagged_to v x body
+  | By_tagging_and_negating -> bind_tagged_to v x (bind_negated x body)
+  | As_it_is -> body
+  | By_arithmetic (kind, offset, slope) -> (
+    let standard = standard_int_of_arithmetic_kind kind in
+    let body0 =
+      bind_arithmetic_steps standard x
+        (arithmetic_steps (int_width standard) offset slope)
+        body
+    in
+    match kind with
+    | Arithmetic_tagged -> bind_tagged_to v x body0
+    | Arithmetic_naked -> bind_same_to v x body0)
+
+(** val bind_ways : variable -> variable list -> argument_way list -> expr ->
+    expr **)
+
+let rec bind_ways v names ways body =
+  match names with
+  | [] -> body
+  | x :: names0 -> (
+    match ways with
+    | [] -> body
+    | way :: ways0 -> (
+      let body0 = bind_ways v names0 ways0 body in
+      match way with
+      | Same_in_every_arm _ -> body0
+      | Computed how -> bind_way how v x body0))
+
+(** val merged_by_ways : variable -> variable list -> argument_way list ->
+    simple list **)
+
+let rec merged_by_ways v names ways =
+  match names with
+  | [] -> []
+  | x :: names0 -> (
+    match ways with
+    | [] -> []
+    | way :: ways0 ->
+      (match way with
+      | Same_in_every_arm s -> s
+      | Computed how -> ( match how with As_it_is -> Var v | _ -> Var x))
+      :: merged_by_ways v names0 ways0)
+
+(** val names_usable : variable -> variable list -> argument_way list -> bool **)
+
+let names_usable v names ways =
+  ((Nat.eqb (length names) (length ways) && distinct names)
+  && negb (among v names))
+  && forallb
+       (fun way ->
+         match way with
+         | Same_in_every_arm s ->
+           negb (existsb (fun x -> var_in_simple x s) names)
+         | Computed _ -> true)
+       ways
+
+(** val merge_switch_by_arguments : variable list -> simple -> (coq_Z *
+    apply_cont) list -> expr option **)
+
+let merge_switch_by_arguments names scrutinee arms =
+  match scrutinee with
+  | Var v -> (
+    match arms with
+    | [] -> None
+    | p :: l -> (
+      let _, ac = p in
+      match l with
+      | [] -> None
+      | _ :: _ -> (
+        let k = ac.ac_continuation in
+        match
+          ways_of_arguments (length ac.ac_args)
+            (map (fun arm -> fst arm, (snd arm).ac_args) arms)
+        with
+        | Some ways ->
+          if names_usable v names ways && forallb (arm_has_ways k ways) arms
+          then
+            Some
+              (bind_ways v names ways
+                 (Apply_cont
+                    { ac_continuation = k;
+                      ac_args = merged_by_ways v names ways;
+                      ac_trap_action = None
+                    }))
+          else None
+        | None -> None)))
+  | _ -> None
+
+type known_continuations = (continuation * variable list) list
+
+(** val parameters_of_handler : continuation_handler -> variable list **)
+
+let parameters_of_handler = function Handler (params, _, _) -> params
+
+(** val merge_switch_knowing : known_continuations -> simple -> (coq_Z *
+    apply_cont) list -> expr **)
+
+let merge_switch_knowing known scrutinee arms =
+  match merge_switch scrutinee arms with
+  | Switch (_, _) -> (
+    match arms with
+    | [] -> Switch (scrutinee, arms)
+    | p :: _ -> (
+      let _, ac = p in
+      match lookup ac.ac_continuation known with
+      | Some names -> (
+        match merge_switch_by_arguments names scrutinee arms with
+        | Some merged -> merged
+        | None -> Switch (scrutinee, arms))
+      | None -> Switch (scrutinee, arms)))
+  | x -> x
+
+(** val merge_switches_knowing : known_continuations -> expr -> expr **)
+
+let rec merge_switches_knowing known e =
   match e with
-  | Let (x, kind, d, body) -> Let (x, kind, d, merge_switches body)
-  | Let_static (bindings, body) -> Let_static (bindings, merge_switches body)
+  | Let (x, kind, d, body) -> Let (x, kind, d, merge_switches_knowing known body)
+  | Let_static (bindings, body) ->
+    Let_static (bindings, merge_switches_knowing known body)
   | Let_cont_non_recursive (k, handler0, body) ->
     let (Handler (params, metadata, handler)) = handler0 in
     Let_cont_non_recursive
       ( k,
-        Handler (params, metadata, merge_switches handler),
-        merge_switches body )
+        Handler (params, metadata, merge_switches_knowing known handler),
+        merge_switches_knowing ((k, params) :: known) body )
   | Let_cont_recursive (handlers, body) ->
-    Let_cont_recursive (handlers, merge_switches body)
-  | Switch (scrutinee, arms) -> merge_switch scrutinee arms
+    Let_cont_recursive
+      ( handlers,
+        merge_switches_knowing
+          (app
+             (map
+                (fun entry -> fst entry, parameters_of_handler (snd entry))
+                handlers)
+             known)
+          body )
+  | Switch (scrutinee, arms) -> merge_switch_knowing known scrutinee arms
   | _ -> e
+
+(** val merge_switches : expr -> expr **)
+
+let merge_switches e = merge_switches_knowing [] e

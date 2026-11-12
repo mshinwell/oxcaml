@@ -3,6 +3,7 @@ open BinNums
 open BinPos
 open Datatypes
 open FlambdaKindModel
+open FlambdaMapSpec
 open FlambdaModel
 open FlambdaNormaliseSpec
 open FlambdaPrimitiveModel
@@ -61,6 +62,9 @@ val first_difference : simple list -> simple list -> (const * const) option
 val line_through :
   coq_Z -> coq_Z -> coq_Z -> coq_Z -> coq_Z -> (coq_Z * coq_Z) option
 
+val arithmetic_of_constants :
+  coq_Z -> coq_Z -> const -> const -> ((arithmetic_kind * coq_Z) * coq_Z) option
+
 val arithmetic_of_arms :
   coq_Z ->
   coq_Z ->
@@ -69,5 +73,52 @@ val arithmetic_of_arms :
   ((arithmetic_kind * coq_Z) * coq_Z) option
 
 val merge_switch : simple -> (coq_Z * apply_cont) list -> expr
+
+type argument_way =
+  | Same_in_every_arm of simple
+  | Computed of merge_by
+
+val argument_in_arm : coq_Z -> argument_way -> simple option
+
+val arguments_in_arm : coq_Z -> argument_way list -> simple list option
+
+val arm_has_ways :
+  continuation -> argument_way list -> coq_Z * apply_cont -> bool
+
+val column_of_arms : (coq_Z * simple list) list -> (coq_Z * simple) list option
+
+val rest_of_arms : (coq_Z * simple list) list -> (coq_Z * simple list) list
+
+val column_is_computed : merge_by -> (coq_Z * simple) list -> bool
+
+val way_of_column : (coq_Z * simple) list -> argument_way option
+
+val ways_of_arguments :
+  nat -> (coq_Z * simple list) list -> argument_way list option
+
+val bind_tagged_to : variable -> variable -> expr -> expr
+
+val bind_same_to : variable -> variable -> expr -> expr
+
+val bind_way : merge_by -> variable -> variable -> expr -> expr
+
+val bind_ways : variable -> variable list -> argument_way list -> expr -> expr
+
+val merged_by_ways :
+  variable -> variable list -> argument_way list -> simple list
+
+val names_usable : variable -> variable list -> argument_way list -> bool
+
+val merge_switch_by_arguments :
+  variable list -> simple -> (coq_Z * apply_cont) list -> expr option
+
+type known_continuations = (continuation * variable list) list
+
+val parameters_of_handler : continuation_handler -> variable list
+
+val merge_switch_knowing :
+  known_continuations -> simple -> (coq_Z * apply_cont) list -> expr
+
+val merge_switches_knowing : known_continuations -> expr -> expr
 
 val merge_switches : expr -> expr
