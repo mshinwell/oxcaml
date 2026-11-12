@@ -46,10 +46,12 @@
    stated on the state of the join, and not on what a caller has:
    its inputs, the answer and the run. A caller that rewrites the
    handler of a continuation under the join of the environments of
-   its applications (that statement is not in this tree) has inputs
-   of one shape and runs of one sort. This file states the join for
-   them, with premises that are about the inputs, the answer and the
-   run only.
+   its applications (FlambdaSimplifyUsesSpec.v,
+   [let_cont_handler_joined_statement], which supposes
+   [join_guarantees] of an environment) has runs of one sort, and
+   can make inputs of one shape. This file states the join for such
+   inputs and runs, with premises that are about the inputs, the
+   answer and the run only.
 
    The join. It is the transcribed join with a meet of expanded types
    that is given ([model_join_with], FlambdaJoinMeetSpec.v), which is
