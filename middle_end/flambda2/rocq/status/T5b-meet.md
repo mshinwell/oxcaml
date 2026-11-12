@@ -1,17 +1,19 @@
 # T5b on the meet: slices of the proof of the contract of meet
 
-Branch `flambda2-rocq/T5b-meet`, on T4's `flambda2-rocq/T4-meet`. T4
-owns the meet, its contract and its statements, and leads; I prove
-slices of the traversal that T4 has cut loose, in files of my own, to
-statements that T4 fixes. Reviewer of the meet: R1. (My own stream,
-the type traversal of the n-way join, is `status/T5b.md` on
-`flambda2-rocq/T5b-join-types`.)
+Branch `flambda2-rocq/T5b-meet`, on the integration branch (the
+slices are merged). T4 owns the meet, its contract and its
+statements, and leads; I prove slices of the traversal that T4 has
+cut loose, in files of my own, to statements that T4 fixes. Reviewer
+of the meet: R1. (My own stream, the type traversal of the n-way
+join, is `status/T5b.md` on `flambda2-rocq/T5b-join-types`.)
 
 Files, in `middle_end/flambda2/types/rocq/`:
 
 - `FlambdaMeetProductsSpec.v`, `FlambdaMeetProductsProofs.v`: slice 1.
 - `FlambdaMeetHeadsSpec.v`, `FlambdaMeetHeadsProofs.v`: slice 3.
 - `FlambdaMeetRowLikeSpec.v`, `FlambdaMeetRowLikeProofs.v`: slice 2.
+- `FlambdaMeetTermsSpec.v`, `FlambdaMeetTermsProofs.v`: a meet adds
+  no variable that may occur in terms (after the slices; below).
 
 ## The cut, as agreed with T4
 
@@ -237,6 +239,95 @@ pass it on. T1 adds `well_formed_closures_case_closure_type`: with a
 valid static environment, a well-formed case that is satisfied gives
 the projection at each slot that has a closure type, and its type.
 That is the bridge for slice 2.
+
+## After the slices: a meet adds no variable that may occur in terms
+
+Asked by T1, for the second slice of the rewrite of the `Switch`,
+through the orchestrator. Not merged; for T4 and R1 to read.
+
+- `meet_keeps_terms meet` (`FlambdaMeetTermsSpec.v`): a variable that
+  may occur in terms under the environment that a meet answers
+  (`in_scope_in_terms`) may occur in terms under the environment
+  given. T1's definition, moved to a file of the meet at T1's
+  request.
+- `meet_to_prove_keeps_terms` (statement
+  `meet_to_prove_keeps_terms_statement`), proved:
+  `meet_keeps_terms (meet_to_prove join fuel)` for every fuel and
+  every `join` with `join_scoped_envs_sound join`. The join that
+  forgets has that contract (`forgetful_join_sound`, proved again),
+  so there is an instance with no premise.
+
+It did not follow from the contract as it was: for the steps of a
+meet that define no variable it follows from what T4 proves (the
+names known keep their name modes), but nothing said the name mode
+of a variable that is new, and a new variable comes from
+`define_in_types` or from the join. So the contract has two clauses
+more, in T4's `FlambdaMeetSpec.v`, with T4's agreement:
+
+- `new_names_avoided`, a clause of `meet_expanded_head_keeps`, has a
+  third conjunct: a variable that the environment answered knows and
+  the first does not may not occur in terms there.
+- `join_scoped_envs_sound` has a conclusion more (J6 in T4's request
+  document): a variable of the result that the first environment
+  does not know may not occur in terms, whether or not an
+  environment joined knows it. It is a clause of its own, and not a
+  conjunct of the one about the variables that no environment given
+  knows, because the join brings into its result variables of the
+  environments joined, and their name mode there does not carry
+  over (T5 pointed it out).
+
+What was proved again: `new_names_avoided_trans` (with
+`keeps_names_mode`: a known name keeps its name mode where the least
+binding time is the same); in `FlambdaMeetScopesProofs.v`, the two
+places where variables are defined after an alternative or a join
+(`direct_return_keeps`, `join_return_env_keeps`), with
+`add_defined_vars_not_in_terms` (defining keeps a variable out of
+terms, whatever `define_again` is); in my `FlambdaMeetRowLikeProofs.v`,
+the join of the environments kept and the definition of the extra
+variables (`row_join_all_spec`); `forgetful_join_sound`. No proof
+leans on `define_again = false` for the new clause.
+
+Checked against the compiler (`types/`): the meet defines variables
+in `add_defined_vars` and in the fold over the extra variables after
+the join (`meet_and_n_way_join.ml`), the join in
+`define_or_eliminate_variables_and_add_equations` (`env/join_env.ml`),
+and `Meet_env` in `add_env_extension_with_extra_variables` and
+`add_env_extension_from_level` (`env/meet_env.ml`): all with
+`Name_mode.in_types`. No place was found where a meet or a join
+defines a variable with the normal name mode.
+
+In the same series, asked by T5 through T4: `scoped_env_of` (what
+the meet gives the join of each environment joined) has a fourth
+conjunct, that the environment joined knows no symbol that the
+first does not. A meet defines no symbol (`meet_env_extends` keeps
+the defined symbols), so it costs one line (`scoped_scoped_env_of`).
+
+Validation at the tip: `make -C rocq -j8 all`,
+`make -C rocq assumptions`.
+
+## Decided overnight
+
+- A change to a signed contract, to have `meet_keeps_terms`. The
+  question: T1's rewrite needs that a meet adds no variable that may
+  occur in terms, and the contract of the meet did not give it.
+  Options: (a) a named premise on the join beside the contract, and
+  a second traversal of every function of the meet to carry the name
+  modes (days: `meet_disjunction`, `meet_row_like`, the folds,
+  `Meet_env`); (b) one conjunct more in `new_names_avoided` and one
+  conclusion more in `join_scoped_envs_sound`, so that the traversal
+  that exists carries it. Chosen: (b), with T4 (owner), T5 (whose
+  join is to have the contract) and the orchestrator; R1 to review.
+  Why: it is where the contract speaks of the new variables, the
+  proofs change in five places, and both clauses are true of the
+  compiler's functions as read. What it costs: the join's contract
+  asks one thing more (T5 has not proved the contract of its join
+  yet, and says the clause holds of it); `transcription_sound` has
+  that stronger premise. `meet_contract`, `meet_sound`,
+  `meet_keeps_well_formed` and `transcription_sound` are word for
+  word as they were. Cost to change back: the two clauses and the
+  five proofs, and T1's hypothesis returns.
+- The fourth conjunct of `scoped_env_of`: T5's request, T4's
+  decision; made here because the files were open.
 
 ## Found
 
