@@ -438,6 +438,46 @@ Not measured: how many of the 102 real units would be validated.
 That needs the conversion of section 3, and those units need the
 heap and C calls as well; 20 need only this.
 
+Measured since, by X5, in the compiler's own run, where Simplify
+reads the `.cmx` files: 124 real units, 45 tests that use the
+standard library and 79 modules of it, at the default flags, of
+which 119 compile and have both terms. The units and the counts are
+not in this tree.
+
+- 102 units name another unit before Simplify, each by a load from a
+  symbol of it (5 also pass a module block as a value), and 81 do
+  after. After Simplify a symbol of another unit is a value in 70
+  units, is called in 54, and is loaded from in 31; another unit's
+  code is called directly in 54; a function slot of another unit is
+  projected in 35, and a value slot in the same 35; a static constant
+  bound by the unit names a symbol of another unit in 26; code is a
+  newer version of another unit's code in 9; a set of closures is of
+  another unit's code in 7.
+- Of the 970 symbols of other units that the terms after name,
+  counted once for each unit, the files say a closure whose code has
+  a body of 627, a closure whose code has none of 150, a block of
+  128, and nothing of 65. The 65 are constants that the reduction
+  has no case for (strings, the empty array, boxed numbers), and not
+  fields computed at initialisation. Of 317 code ids, 192 have a
+  body. Of the 54 units that call another unit's code directly, 9
+  have a body for every code id called, 22 for none.
+- The value slots projected in the 35 units hold what the other unit
+  computes when it is initialised (an output channel, the function
+  to run at exit). The projection is in the unit's term only where a
+  body of the other unit is, inlined or copied as a newer version,
+  and in the term after it is applied to the closure symbol of the
+  other unit. A closure of the prefix has no value slot, so such a
+  run is undefined in both terms: through the body in the prefix
+  before, at the projection after. The verdict is empty for that
+  run. To say more needs the slots of the closure, from the types,
+  together with a value of which nothing is known.
+- Of the 1,423 fields of the 47 module blocks that the terms name,
+  the files say nothing of 17, in 7 blocks. `Stdlib` is one of the 7
+  (4 of its 105 fields), and every test that prints loads from it:
+  the third class is for few fields, and for many units.
+- What stops most of these units is not the imports: 92 of the 119
+  are not converted, for a C call first and then for the heap.
+
 ## 5. What it leaves undefined, and what it does not cover
 
 - A run that calls code of another unit which has no body in the
