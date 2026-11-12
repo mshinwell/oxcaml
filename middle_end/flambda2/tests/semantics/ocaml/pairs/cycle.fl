@@ -1,0 +1,29 @@
+let $camlCycle__first_const_0 = Block 0 () in
+apply ccall ($`*extern*`.caml_alloc_dummy : val -> val) (2) -> k/14 * error
+  where k/14 (ones/28) =
+    (apply ccall
+       ($`*extern*`.caml_alloc_dummy : val -> val) (2) -> k/15 * error
+       where k/15 (twos/29) =
+         let Pmakeblock/30 = %block.[`0`].`toplevel` (1, twos/29) in
+         (apply ccall
+            ($`*extern*`.caml_update_dummy : val * val -> val)
+              (ones/28, Pmakeblock/30)
+              -> k/16 * error
+            where k/16 (Pccall/31) =
+              let Pmakeblock/32 = %block.[`0`].`toplevel` (2, ones/28) in
+              (apply ccall
+                 ($`*extern*`.caml_update_dummy : val * val -> val)
+                   (twos/29, Pmakeblock/32)
+                   -> k/17 * error
+                 where k/17 (Pccall/33) =
+                   let Pmakeblock/34 =
+                     %block.[`0`].`toplevel` (ones/28, twos/29)
+                   in
+                   cont k/13 (Pmakeblock/34))))
+  where k/13 define_root_symbol (module_block/25) =
+    let field_0/26 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/25)
+    in
+    let field_1/27 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/25)
+    in
+    let $camlCycle = Block 0 (field_0/26, field_1/27) in
+    cont done ($camlCycle)

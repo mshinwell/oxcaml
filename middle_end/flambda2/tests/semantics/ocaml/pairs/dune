@@ -1,0 +1,27 @@
+;; Pairs of units: a first unit, and a second unit that uses it, checked
+;; against the Rocq semantics of Flambda 2 with the .cmx of the first at
+;; hand for the tool's Simplify (see README.md).
+;;
+;; A unit X.ml here is the second unit of a pair if another unit F.ml is
+;; here and X is F followed by an underscore and more: F is then its first
+;; unit. As in the directory above, X.fl is the term that the compiler gives
+;; to Simplify and X.expected is what the test tool prints of it, and both
+;; are kept. The rules, which gen_rules.sh writes from the files that are
+;; here, compile each unit, a second unit against the .cmi and the .cmx of
+;; its first, make X.fl again and compare, and run the tool on X.fl with the
+;; directory of the .cmx as its load path and compare. `dune promote`
+;; updates either. A unit with no X.expected is compiled and its term
+;; compared; the tool is not run on it.
+;;
+;; To add a pair, add F.ml and F_more.ml, with their .fl and .expected, and
+;; nothing else. The rules are included by run/dune and not by this file.
+
+(rule
+ (deps
+  (glob_files *.ml)
+  (glob_files *.fl)
+  (glob_files *.expected))
+ (action
+  (with-stdout-to
+   dune.inc
+   (run sh %{dep:gen_rules.sh} %{deps}))))

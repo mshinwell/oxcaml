@@ -1,0 +1,9 @@
+hidden_read.fl:
+  the tool's Simplify read the .cmx of: Hidden
+  before Simplify, with its import (2 steps): undefined
+  after Simplify, with its import (0 steps): undefined
+  the check of kinds: passes before, passes after
+  calls outside code: 0 before, 0 after
+  anything goes, as the run before is undefined
+  calls outside code once those of known code are inlined: 0
+  nothing to validate, as the term before is undefined

@@ -1,0 +1,26 @@
+let $camlNever_called__first_const_0 = Block 0 () in
+(let code size(14)
+       add_two_0 (x/37 : imm tagged)
+         my_closure/38 &my_alloc_region/39 my_depth/40
+         -> k/14 * k/15
+         : imm tagged =
+   let next_depth/41 = rec_info (succ my_depth/40) in
+   (let Pfield/44 = %block_load.[`0`] ($Never.camlNever) in
+    apply &my_alloc_region/39 Pfield/44 (x/37) -> k/16 * k/15)
+     where k/16 (apply_result/42 : imm tagged) =
+       let Pfield/43 = %block_load.[`0`] ($Never.camlNever) in
+       apply &my_alloc_region/39 Pfield/43 (apply_result/42) -> k/14 * k/15
+ in
+ let add_two/45 = closure add_two_0 @add_two &toplevel in
+ (let Pfield/48 = %block_load.[`0`] ($Never.camlNever) in
+  apply &toplevel Pfield/48 (1) -> k/17 * error)
+   where k/17 (two/46 : imm tagged) =
+     let Pmakeblock/47 = %block.[`0`].`toplevel` (add_two/45, two/46) in
+     cont k/13 (Pmakeblock/47))
+  where k/13 define_root_symbol (module_block/34) =
+    let field_0/35 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/34)
+    in
+    let field_1/36 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/34)
+    in
+    let $camlNever_called = Block 0 (field_0/35, field_1/36) in
+    cont done ($camlNever_called)

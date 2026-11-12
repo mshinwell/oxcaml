@@ -1,0 +1,24 @@
+let $camlLengths_called_in_function__first_const_0 = Block 0 () in
+(let code size(10)
+       length_plus_one_0
+         (l/28 : [ 0 | 0 of imm tagged * [ 0 | 0 of imm tagged * val ] ])
+         my_closure/29 &my_alloc_region/30 my_depth/31
+         -> k/12 * k/13
+         : imm tagged =
+   let next_depth/32 = rec_info (succ my_depth/31) in
+   (let Pfield/35 = %block_load.[`1`] ($Lengths.camlLengths) in
+    apply &my_alloc_region/30 Pfield/35 (l/28) -> k/14 * k/13)
+     where k/14 (apply_result/33 : imm tagged) =
+       let int_add/34 = %int_barith.add (apply_result/33, 1) in
+       cont k/12 (int_add/34)
+ in
+ let length_plus_one/36 =
+   closure length_plus_one_0 @length_plus_one &toplevel
+ in
+ let Pmakeblock/37 = %block.[`0`].`toplevel` (length_plus_one/36) in
+ cont k/11 (Pmakeblock/37))
+  where k/11 define_root_symbol (module_block/26) =
+    let field_0/27 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/26)
+    in
+    let $camlLengths_called_in_function = Block 0 (field_0/27) in
+    cont done ($camlLengths_called_in_function)

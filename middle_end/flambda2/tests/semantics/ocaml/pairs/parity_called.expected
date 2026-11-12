@@ -1,0 +1,9 @@
+parity_called.fl:
+  the tool's Simplify read the .cmx of: Parity
+  before Simplify, with its 2 imports (5 steps): undefined
+  after Simplify, with its 2 imports (4 steps): undefined
+  the check of kinds: passes before, passes after
+  calls outside code: 1 before, 1 after
+  anything goes, as the run before is undefined
+  calls outside code once those of known code are inlined: 1
+  nothing to validate, as the term before is undefined

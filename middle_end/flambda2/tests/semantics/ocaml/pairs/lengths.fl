@@ -1,0 +1,52 @@
+let $camlLengths__first_const_0 = Block 0 () in
+(let code rec loopify(default tailrec) size(22)
+       length_from_0
+         (n/50 : imm tagged,
+          param/51 : [ 0 | 0 of imm tagged * [ 0 | 0 of imm tagged * val ] ])
+         my_closure/52 &my_alloc_region/53 my_depth/54
+         -> k/18 * k/19
+         : imm tagged =
+   let next_depth/55 = rec_info (succ my_depth/54) in
+   (let prim/58 = %is_int (param/51) in
+    let Pisint/59 = %tag_imm (prim/58) in
+    (let untagged/60 = %untag_imm (Pisint/59) in
+     switch untagged/60
+       | 0 -> k/21
+       | 1 -> k/18 (n/50))
+      where k/21 =
+        cont k/20)
+     where k/20 =
+       let Pfield/56 = %block_load.[`1`] (param/51) in
+       let int_add/57 = %int_barith.add (n/50, 1) in
+       apply direct(length_from_0 &my_alloc_region/53)
+         (my_closure/52 ~ depth my_depth/54 -> next_depth/55
+          : _ -> imm tagged)
+           (int_add/57, Pfield/56)
+           -> k/18 * k/19
+ in
+ let code size(5)
+       length_1
+         (l/61 : [ 0 | 0 of imm tagged * [ 0 | 0 of imm tagged * val ] ])
+         my_closure/62 &my_alloc_region/63 my_depth/64
+         -> k/22 * k/23
+         : imm tagged =
+   let next_depth/65 = rec_info (succ my_depth/64) in
+   let length_from/66 =
+     %project_value_slot.[length].[length_from] (my_closure/62)
+   in
+   apply direct(length_from_0 &my_alloc_region/63)
+     (length_from/66 : _ -> imm tagged) (0, l/61) -> k/22 * k/23
+ in
+ let length_from/67 = closure length_from_0 @length_from &toplevel in
+ let length/68 = closure length_1 @length &toplevel
+ with { length_from = length_from/67 }
+ in
+ let Pmakeblock/69 = %block.[`0`].`toplevel` (length_from/67, length/68) in
+ cont k/17 (Pmakeblock/69))
+  where k/17 define_root_symbol (module_block/47) =
+    let field_0/48 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/47)
+    in
+    let field_1/49 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/47)
+    in
+    let $camlLengths = Block 0 (field_0/48, field_1/49) in
+    cont done ($camlLengths)

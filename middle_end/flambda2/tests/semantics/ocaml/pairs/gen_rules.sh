@@ -1,0 +1,98 @@
+#!/bin/sh
+
+# Writes the dune rules for the pairs of units of this directory, for
+# run/dune to include (see dune). The arguments are the .ml, .fl and
+# .expected files that are here. The rules are for run/, so they name the
+# files here with ../ .
+
+set -eu
+
+units=" "
+checked=" "
+for file in "$@"; do
+  case "$file" in
+  *.ml) units="$units$(basename "$file" .ml) " ;;
+  *.expected) checked="$checked$(basename "$file" .expected) " ;;
+  esac
+done
+
+# The first unit of a unit: the longest name of another unit that, followed
+# by an underscore, begins its name. Nothing for a unit that has none.
+first_of() {
+  found=
+  for candidate in $units; do
+    case "$1" in
+    "$candidate"_*)
+      if [ ${#candidate} -gt ${#found} ]; then found=$candidate; fi
+      ;;
+    esac
+  done
+  echo "$found"
+}
+
+for name in $units; do
+  first=$(first_of "$name")
+  needs=
+  against=
+  if [ -n "$first" ]; then
+    needs="
+ (deps $first.cmi $first.cmx)"
+    against=" $first"
+  fi
+  cat <<RULES
+(rule
+ (targets $name.fl.made $name.cmi $name.cmx)$needs
+ (action
+  (run sh %{dep:../from_ocaml.sh} %{ocamlopt} %{dep:../$name.ml}
+   $name$against)))
+
+(rule
+ (alias runtest)
+ (action
+  (diff ../$name.fl $name.fl.made)))
+
+RULES
+  # A unit with no expected file is compiled, for the unit that uses it,
+  # and its term is compared; the tool is not run on it.
+  case "$checked" in
+  *" $name "*)
+    cat <<RULES
+(rule$needs
+ (action
+  (with-stdout-to
+   $name.output
+   (run ../../../../tools/flsemantics.exe -I . %{dep:../$name.fl}))))
+
+(rule
+ (alias runtest)
+ (action
+  (diff ../$name.expected $name.output)))
+
+RULES
+    ;;
+  esac
+done
+
+# A term or an expected file whose source is gone would never be looked at.
+for file in "$@"; do
+  case "$file" in
+  *.fl | *.expected)
+    name=$(basename "$file")
+    name=${name%.*}
+    case "$units" in
+    *" $name "*) ;;
+    *)
+      cat <<RULES
+(rule
+ (alias runtest)
+ (action
+  (progn
+   (echo "$(basename "$file") has no $name.ml beside it\n")
+   (run false))))
+
+RULES
+      ;;
+    esac
+    ;;
+  esac
+done

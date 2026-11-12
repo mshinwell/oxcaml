@@ -1,0 +1,12 @@
+lengths_included.fl:
+  the tool's Simplify read the .cmx of: Lengths
+  before Simplify, with its 3 imports (2 steps): undefined
+  after Simplify, with its 3 imports (1 steps): returns
+                                                  [0:
+                                                   <imported camlLengths__length_from_0_1>;
+                                                   <imported camlLengths__length_1_2>]
+  the check of kinds: passes before, passes after
+  calls outside code: 0 before, 0 after
+  anything goes, as the run before is undefined
+  calls outside code once those of known code are inlined: 0
+  nothing to validate, as the term before is undefined

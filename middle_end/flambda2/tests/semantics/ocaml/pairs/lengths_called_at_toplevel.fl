@@ -1,0 +1,18 @@
+(let $camlLengths_called_at_toplevel__const_block_0 = Block 0 (3, 0) in
+ let $camlLengths_called_at_toplevel__const_block_1 =
+   Block 0 (2, $camlLengths_called_at_toplevel__const_block_0)
+ in
+ let $camlLengths_called_at_toplevel__const_block_2 =
+   Block 0 (1, $camlLengths_called_at_toplevel__const_block_1)
+ in
+ (let Pfield/16 = %block_load.[`1`] ($Lengths.camlLengths) in
+  apply &toplevel
+    Pfield/16 ($camlLengths_called_at_toplevel__const_block_2) -> k/8 * error)
+   where k/8 (three/14 : imm tagged) =
+     let Pmakeblock/15 = %block.[`0`].`toplevel` (three/14) in
+     cont k/7 (Pmakeblock/15))
+  where k/7 define_root_symbol (module_block/12) =
+    let field_0/13 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/12)
+    in
+    let $camlLengths_called_at_toplevel = Block 0 (field_0/13) in
+    cont done ($camlLengths_called_at_toplevel)

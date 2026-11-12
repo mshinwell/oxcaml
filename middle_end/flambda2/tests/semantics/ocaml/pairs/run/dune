@@ -1,0 +1,5 @@
+;; The rules that compile the pairs of units of the directory above, make
+;; their terms, run them and compare what the tool prints with their
+;; expected files. They are generated: see ../dune.
+
+(dynamic_include ../dune.inc)
