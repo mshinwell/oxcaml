@@ -254,6 +254,8 @@ says so. Only the labels that this tree cites are listed.
 - **C5-10.** A `try` whose handler Simplify has demoted keeps the end of
   its region, so the handler is never a shortcut and a branch that goes
   nowhere else stays.
+- **C5-11.** Simplify's output can bind a symbol inside an exception
+  handler, which Simplify refuses as input.
 - **N1-1.** `Compare` writes the reverse maps of function slots and
   value slots into the forward maps.
 - **N1-2.** `pattern_match_pair` on code and on recursive handlers stops
