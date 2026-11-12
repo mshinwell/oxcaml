@@ -223,6 +223,7 @@ Separate Extraction
   make_code_metadata
   make_exn_handler_metadata
   make_handler_metadata
+  make_tupled_code_metadata
   map_values
   merge
   merge_statics

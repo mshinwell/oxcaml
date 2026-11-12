@@ -5,6 +5,7 @@ open Datatypes
 open FlambdaKindModel
 open FlambdaMapSpec
 open FlambdaModel
+open FlambdaPrimitiveModel
 open FlambdaPrimitiveSpec
 open FlambdaValueSpec
 open List
@@ -87,6 +88,22 @@ type call_shape =
   | Full_call of value * code * value list * arity
   | Over_call of value * code * value list * value list * arity * arity
   | Partial_call of value
+
+val tuple_access : nat -> block_access_kind
+
+val tuple_fields_from :
+  static_env -> nat -> value -> nat -> nat -> value list option
+
+val tuple_fields : static_env -> nat -> value -> value list option
+
+val detuple :
+  static_env -> nat -> value list -> arity -> (value list * arity) option
+
+val arguments_for_code :
+  static_env -> code -> value list -> arity -> (value list * arity) option
+
+val shape_of_code_call :
+  value -> code -> value list -> arity -> arity -> call_shape option
 
 val shape_of_closure_call :
   static_env ->

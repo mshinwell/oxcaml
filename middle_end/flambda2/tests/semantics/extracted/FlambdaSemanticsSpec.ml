@@ -5,6 +5,7 @@ open Datatypes
 open FlambdaKindModel
 open FlambdaMapSpec
 open FlambdaModel
+open FlambdaPrimitiveModel
 open FlambdaPrimitiveSpec
 open FlambdaValueSpec
 open List
@@ -274,6 +275,93 @@ type call_shape =
   | Over_call of value * code * value list * value list * arity * arity
   | Partial_call of value
 
+(** val tuple_access : nat -> block_access_kind **)
+
+let tuple_access size =
+  Block_access_values (Some Z0, Some (Z.of_nat size), Any_value)
+
+(** val tuple_fields_from : static_env -> nat -> value -> nat -> nat -> value
+    list option **)
+
+let rec tuple_fields_from statics size tuple field = function
+  | O -> Some []
+  | S count0 -> (
+    match
+      eval_prim statics
+        (Unary (Block_load (tuple_access size, Immutable, Z.of_nat field)))
+        (tuple :: [])
+    with
+    | Some v -> (
+      match tuple_fields_from statics size tuple (S field) count0 with
+      | Some vs -> Some (v :: vs)
+      | None -> None)
+    | None -> None)
+
+(** val tuple_fields : static_env -> nat -> value -> value list option **)
+
+let tuple_fields statics size tuple =
+  tuple_fields_from statics size tuple O size
+
+(** val detuple : static_env -> nat -> value list -> arity -> (value list *
+    arity) option **)
+
+let detuple statics size vs args_arity =
+  match vs with
+  | [] -> None
+  | tuple :: rest -> (
+    match args_arity with
+    | [] -> None
+    | first :: rest_arity -> (
+      if
+        negb
+          (kinds_eqb (map kind_of_value vs) (unarize args_arity)
+          && kinds_eqb (unarize_component first) (Value :: []))
+      then None
+      else
+        match tuple_fields statics size tuple with
+        | Some fields ->
+          Some
+            ( app fields rest,
+              app (arity_of_kinds (repeat Value size)) rest_arity )
+        | None -> None))
+
+(** val arguments_for_code : static_env -> code -> value list -> arity -> (value
+    list * arity) option **)
+
+let arguments_for_code statics c vs args_arity =
+  if code_is_tupled c
+  then detuple statics (cardinal_unarized (code_params_arity c)) vs args_arity
+  else Some (vs, args_arity)
+
+(** val shape_of_code_call : value -> code -> value list -> arity -> arity ->
+    call_shape option **)
+
+let shape_of_code_call closure c vs args_arity return_arity =
+  let provided = length args_arity in
+  let params = length (code_params_arity c) in
+  if Nat.eqb provided params
+  then Some (Full_call (closure, c, vs, args_arity))
+  else if
+    negb
+      (kinds_eqb (map kind_of_value vs) (unarize args_arity)
+      && partial_or_over_application args_arity return_arity
+           (code_params_arity c) (code_result_arity c))
+  then None
+  else if Nat.ltb params provided
+  then
+    let size = cardinal_unarized (code_params_arity c) in
+    Some
+      (Over_call
+         ( closure,
+           c,
+           firstn size vs,
+           skipn size vs,
+           firstn params args_arity,
+           partially_apply args_arity params ))
+  else if code_is_tupled c
+  then None
+  else Some (Partial_call (Value_partial_application (closure, vs, args_arity)))
+
 (** val shape_of_closure_call : static_env -> value -> call_kind -> value list
     -> arity -> arity -> call_shape option **)
 
@@ -289,31 +377,12 @@ let shape_of_closure_call statics closure kind vs args_arity return_arity =
     if expected
     then
       match lookup called statics.static_code with
-      | Some c ->
-        let provided = length args_arity in
-        let params = length (code_params_arity c) in
-        if Nat.eqb provided params
-        then Some (Full_call (closure, c, vs, args_arity))
-        else if
-          negb
-            (kinds_eqb (map kind_of_value vs) (unarize args_arity)
-            && partial_or_over_application args_arity return_arity
-                 (code_params_arity c) (code_result_arity c))
-        then None
-        else if Nat.ltb params provided
-        then
-          let size = cardinal_unarized (code_params_arity c) in
-          Some
-            (Over_call
-               ( closure,
-                 c,
-                 firstn size vs,
-                 skipn size vs,
-                 firstn params args_arity,
-                 partially_apply args_arity params ))
-        else
-          Some
-            (Partial_call (Value_partial_application (closure, vs, args_arity)))
+      | Some c -> (
+        match arguments_for_code statics c vs args_arity with
+        | Some p0 ->
+          let vs', args_arity' = p0 in
+          shape_of_code_call closure c vs' args_arity' return_arity
+        | None -> None)
       | None -> None
     else None
   | None -> None

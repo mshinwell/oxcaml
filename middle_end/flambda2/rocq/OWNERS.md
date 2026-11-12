@@ -117,14 +117,17 @@ design out; that is the request, not the change.
 - C3, sets of closures. Owner: C3, on `flambda2-rocq/C3-closures`.
   - `middle_end/flambda2/rocq/requests/C3-closures.md`
   - `middle_end/flambda2/rocq/requests/C3-partial-application.md`
+  - `middle_end/flambda2/rocq/requests/C3-tupled-functions.md`
   - `middle_end/flambda2/rocq/FlambdaClosures*` (first facts about sets
     of closures; S4's once it is staffed)
   - `middle_end/flambda2/rocq/FlambdaPartialApplication*` (what a call
     with fewer or more arguments than parameters comes to)
+  - `middle_end/flambda2/rocq/FlambdaTupled*` (what a call that gives
+    tupled code a tuple comes to)
   - `middle_end/flambda2/rocq/status/C3.md`
   - the examples `middle_end/flambda2/tests/semantics/set_*.fl`,
-    `apply_partial*.fl` and `apply_over*.fl` there, with their
-    `.expected` files
+    `apply_partial*.fl`, `apply_over*.fl` and `tupled_apply*.fl` there,
+    with their `.expected` files
 - C4, heap. Owner: C4, on `flambda2-rocq/C4-heap`.
   - `middle_end/flambda2/rocq/requests/C4-heap.md` (the request) and
     `requests/C4-heap-fallout.md` (what each step costs the other

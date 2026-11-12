@@ -129,14 +129,15 @@ let loopable self c =
       (code_return_continuation c)
       (code_exn_continuation c) self (code_body c)
   in
-  ((((negb (among (code_my_closure c) (code_params c))
-     && distinct (code_params c))
-    && negb (Pos.eqb self (code_return_continuation c)))
-   && negb (Pos.eqb self (code_exn_continuation c)))
-  && loop_safe (code_my_closure c)
-       (code_return_continuation c)
-       (code_exn_continuation c) self (code_body c))
-  && cont_free_b self looped
+  (((((negb (among (code_my_closure c) (code_params c))
+      && distinct (code_params c))
+     && negb (Pos.eqb self (code_return_continuation c)))
+    && negb (Pos.eqb self (code_exn_continuation c)))
+   && loop_safe (code_my_closure c)
+        (code_return_continuation c)
+        (code_exn_continuation c) self (code_body c))
+  && cont_free_b self looped)
+  && negb (code_is_tupled c)
 
 (** val loopify_code : continuation -> code -> code **)
 

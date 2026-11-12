@@ -1,0 +1,10 @@
+let code size(1) tupled first (x, y) my_closure &my_region my_depth -> k * e =
+  cont k (x)
+in
+let $First = closure first &toplevel in
+let $Pair = Block 0 (1, 2) in
+let f = %opaque ($First) in
+apply &toplevel f ($Pair) -> k1 * error
+  where k1 (r) =
+    let $camlTupled_apply = Block 0 (r) in
+    cont done ($camlTupled_apply)

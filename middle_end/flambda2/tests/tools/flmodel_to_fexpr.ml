@@ -45,10 +45,10 @@
 
    What the model has not got is given the value that says least: no
    continuation sort but that of an exception handler, no inlining attribute,
-   size 0 for code, code that is neither recursive nor a stub nor tupled,
-   allocation on the heap, no subkinds. Code gets a region variable and a depth
-   variable of its own, as the syntax asks for them; a call or an allocation in
-   code names that region.
+   size 0 for code, code that is neither recursive nor a stub, allocation on the
+   heap, no subkinds. Code gets a region variable and a depth variable of its
+   own, as the syntax asks for them; a call or an allocation in code names that
+   region.
 
    What is covered: the terms that the conversion makes today. A term that is
    outside them, or that fexpr has no way to write, raises [Not_printable] with
@@ -66,7 +66,14 @@
    its arity; - a static boxed number whose contents are not a number that can
    be boxed, or are a variable whose binder is not in sight (the model does not
    say which number a boxed number holds; it is read off the kind of the
-   variable); - a value slot of kind [Region] or [Rec_info].
+   variable); - a value slot of kind [Region] or [Rec_info]; - in a unit that
+   binds tupled code, a direct call of that code, and an indirect call at other
+   arities than those that the parser gives a call written without any. A call
+   of the model gives tupled code a tuple. A direct call of fexpr, and an
+   indirect call written with its arities, which is of known arity, give code
+   its arguments as the code takes them: neither is the model's call. So in such
+   a unit an indirect call is written without its arities, as a call of unknown
+   arity, and the model's direct call of tupled code is not written at all.
 
    What fexpr can write and its parser reads differently is written all the
    same, so that the check shows it: the arity of the arguments of a direct
@@ -532,7 +539,9 @@ type env =
     (* The variables in scope, with the kinds of their binders. *)
     kinds : (Model.variable * Kinds.flambda_kind) list;
     (* The kinds of the value slots, which the model keeps beside the term. *)
-    value_slot_kind : Model.value_slot -> Kinds.flambda_kind option
+    value_slot_kind : Model.value_slot -> Kinds.flambda_kind option;
+    (* The code of the unit that is tupled. *)
+    tupled_code : Model.code_id list
   }
 
 let bind env x kind = { env with kinds = (x, kind) :: env.kinds }
@@ -767,8 +776,33 @@ let rec expr env (e : Model.expr) : F.expr =
     in
     let call_kind : F.function_call =
       match ap.ap_call_kind with
-      | Direct code -> Direct { code_id = code_id code; function_slot = None }
+      | Direct code ->
+        if List.mem code env.tupled_code
+        then
+          not_printable
+            "a direct call of tupled code, which the model gives a tuple";
+        Direct { code_id = code_id code; function_slot = None }
       | Indirect -> Indirect
+    in
+    (* In a unit that binds tupled code an indirect call is written without its
+       arities: with them it would be read as a call of known arity. The parser
+       then gives it one value for each argument and one value returned. *)
+    let without_arities =
+      match ap.ap_call_kind, env.tupled_code with
+      | Indirect, _ :: _ ->
+        let one_value : Model.arity = [Singleton Kinds.Value] in
+        if
+          ap.ap_args_arity
+          <> List.map
+               (fun _ : Model.arity_component -> Singleton Kinds.Value)
+               ap.ap_args
+          || ap.ap_return_arity <> one_value
+        then
+          not_printable
+            "an indirect call, in a unit that binds tupled code, at other \
+             arities than one value for each argument and one value returned";
+        true
+      | Indirect, [] | Direct _, _ -> false
     in
     F.Apply
       { func = Some (simple ap.ap_callee);
@@ -780,11 +814,14 @@ let rec expr env (e : Model.expr) : F.expr =
         call_kind = Function call_kind;
         alloc_mode = Not_alloc_stack { alloc_region = env.region };
         arities =
-          Some
-            { params_arity = Some params_arity;
-              ret_arity =
-                arity ~of_what:"the results of a call" ap.ap_return_arity
-            };
+          (if without_arities
+           then None
+           else
+             Some
+               { params_arity = Some params_arity;
+                 ret_arity =
+                   arity ~of_what:"the results of a call" ap.ap_return_arity
+               });
         inlined = None;
         inlining_state = None
       }
@@ -957,11 +994,31 @@ and code env id (Model.Code (params, my_closure, ret, exn, metadata, body)) :
         body = expr env_of_body body
       };
     code_size = 0;
-    is_tupled = false;
+    is_tupled = metadata.cm_is_tupled;
     stub = false;
     loopify = None;
     result_mode = Not_alloc_stack
   }
+
+(* The code ids that a term binds to tupled code, wherever the binding is. *)
+let rec tupled_code_of (e : Model.expr) : Model.code_id list =
+  let of_handler (Model.Handler (_, _, handler)) = tupled_code_of handler in
+  match e with
+  | Let (_, _, _, body) -> tupled_code_of body
+  | Let_static (bindings, body) ->
+    List.concat_map
+      (fun (binding : Model.static_binding) ->
+        match binding with
+        | Bind_code (id, Code (_, _, _, _, metadata, code_body)) ->
+          (if metadata.cm_is_tupled then [id] else [])
+          @ tupled_code_of code_body
+        | Bind_deleted_code _ | Bind_symbol _ -> [])
+      bindings
+    @ tupled_code_of body
+  | Let_cont_non_recursive (_, h, body) -> of_handler h @ tupled_code_of body
+  | Let_cont_recursive (handlers, body) ->
+    List.concat_map (fun (_, h) -> of_handler h) handlers @ tupled_code_of body
+  | Apply _ | Apply_cont _ | Switch _ | Invalid -> []
 
 (* A unit of the model: its body and its two continuations. *)
 let unit ~value_slot_kind ~return_continuation ~exn_continuation
@@ -971,7 +1028,8 @@ let unit ~value_slot_kind ~return_continuation ~exn_continuation
       unit_exn = exn_continuation;
       region = Toplevel_alloc_region;
       kinds = [];
-      value_slot_kind
+      value_slot_kind;
+      tupled_code = tupled_code_of body
     }
   in
   { body = expr env body }

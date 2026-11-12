@@ -76,6 +76,10 @@ let unarize a = flat_map unarize_component a
 
 let unarize_per_parameter a = map unarize_component a
 
+(** val arity_of_kinds : flambda_kind list -> arity **)
+
+let arity_of_kinds kinds = map (fun x -> Singleton x) kinds
+
 (** val arity_component_eq_dec : arity_component -> arity_component -> bool **)
 
 let rec arity_component_eq_dec c c' =
@@ -416,19 +420,32 @@ let handler_metadata_eqb m m' =
 
 type code_metadata =
   { cm_params_arity : arity;
-    cm_result_arity : arity
+    cm_result_arity : arity;
+    cm_is_tupled : bool
   }
 
 (** val make_code_metadata : arity -> arity -> code_metadata **)
 
 let make_code_metadata params_arity result_arity =
-  { cm_params_arity = params_arity; cm_result_arity = result_arity }
+  { cm_params_arity = params_arity;
+    cm_result_arity = result_arity;
+    cm_is_tupled = false
+  }
+
+(** val make_tupled_code_metadata : arity -> arity -> code_metadata **)
+
+let make_tupled_code_metadata params_arity result_arity =
+  { cm_params_arity = params_arity;
+    cm_result_arity = result_arity;
+    cm_is_tupled = true
+  }
 
 (** val code_metadata_eqb : code_metadata -> code_metadata -> bool **)
 
 let code_metadata_eqb m m' =
-  arity_eqb m.cm_params_arity m'.cm_params_arity
-  && arity_eqb m.cm_result_arity m'.cm_result_arity
+  (arity_eqb m.cm_params_arity m'.cm_params_arity
+  && arity_eqb m.cm_result_arity m'.cm_result_arity)
+  && eqb m.cm_is_tupled m'.cm_is_tupled
 
 type expr =
   | Let of variable * flambda_kind * named * expr
@@ -493,6 +510,11 @@ let code_params_arity = function
 
 let code_result_arity = function
   | Code (_, _, _, _, metadata, _) -> metadata.cm_result_arity
+
+(** val code_is_tupled : code -> bool **)
+
+let code_is_tupled = function
+  | Code (_, _, _, _, metadata, _) -> metadata.cm_is_tupled
 
 (** val code_params_kinds : code -> flambda_kind list **)
 

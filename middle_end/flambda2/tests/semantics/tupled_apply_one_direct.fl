@@ -1,0 +1,8 @@
+let code size(1) tupled only (x) my_closure &my_region my_depth -> k * e =
+  cont k (x)
+in
+let $Only = closure only &toplevel in
+apply direct(only &toplevel) $Only (5) -> k1 * error
+  where k1 (r) =
+    let $camlTupled_apply_one_direct = Block 0 (r) in
+    cont done ($camlTupled_apply_one_direct)

@@ -69,10 +69,15 @@
    whatever its kind (FlambdaSemanticsSpec.shape_of_closure_call), and an
    application is converted with its arguments and its arities as they are. A
    partial application is a value of the model that the compiler has not got as
-   such; at the end of a run it is observed as a function is. Tupled functions,
-   which a call of unknown arity applies to one argument that is the tuple, are
-   not in the model: a unit that has code that is tupled and a call that is not
-   direct is reported as unsupported ([tupled_code_seen]). *)
+   such; at the end of a run it is observed as a function is.
+
+   Tupled functions are in the model, as code that is marked: every call of the
+   model gives such code one argument, the tuple, as a call of unknown arity
+   does in the compiler (FlambdaSemanticsSpec.shape_of_closure_call). The
+   compiler's direct call and its call of known arity give code its arguments as
+   the code takes them, and the model has not got that of tupled code yet. So a
+   direct call of tupled code is reported as unsupported, and so is a call of
+   known arity, which names no code, in a unit that has tupled code. *)
 
 (* The matches below name the few constructs and primitives the model has and
    send every other to [unsupported]; they are meant to stay as they are when
@@ -636,18 +641,17 @@ let convert_trap_action (action : Trap_action.t) : Model.trap_action =
       (Continuations.find exn_handler, Option.map convert_raise_kind raise_kind)
 
 (* Tupled code ([let f (a, b) = ...]) has one parameter for each component of
-   the tuple. A direct call, and a call of known arity, give it the components.
-   A call of unknown arity gives it the tuple, which the compiler takes apart on
-   the way in. The model has not got that: there such a call has fewer arguments
-   than the code has parameters and is a partial application; or, where the
-   tuple has one component, it has the right number and the wrong argument.
-   Either way it is defined and wrong. So a unit that has both tupled code and a
-   call that is not direct is refused ([convert_unit]), whatever that call is
-   of. This refuses more than it need: a call of known arity counts, and so does
-   a call that cannot be of the tupled code. *)
-let tupled_code_seen = ref false
+   the tuple. A call of unknown arity gives it the tuple, which the compiler
+   takes apart on the way in, and so does every call of the model. A direct
+   call, and a call of known arity, give it the components, and the model has
+   not got that. What is noted of the conventions of calls as a unit is
+   converted: the code that is tupled, the code that a direct call names, and
+   whether a call of known arity was met ([check_calls_of_tupled_code]). *)
+let tupled_code : Code_id.t list ref = ref []
 
-let indirect_call_seen = ref false
+let directly_called_code : Code_id.t list ref = ref []
+
+let known_arity_call_met : bool ref = ref false
 
 let convert_apply_cont (ac : Apply_cont_expr.t) : Model.apply_cont =
   { ac_continuation = Continuations.find (Apply_cont_expr.continuation ac);
@@ -708,8 +712,9 @@ let reset_conversion () =
   superseded_code := [];
   loopify_marked := [];
   region_variables := Variable.Set.empty;
-  tupled_code_seen := false;
-  indirect_call_seen := false
+  tupled_code := [];
+  directly_called_code := [];
+  known_arity_call_met := false
 
 let rec convert_expr (e : Flambda.Expr.t) : Model.expr =
   match Flambda.Expr.descr e with
@@ -955,7 +960,11 @@ and convert_static_const (const : Static_const.t) : Model.static_const =
 
 and convert_code (code : Flambda.Function_params_and_body.t Code0.t) :
     Model.code =
-  if Code0.is_tupled code then tupled_code_seen := true;
+  (* A call of unknown arity gives a tupled function one argument, the tuple,
+     whatever the arity of its code: the model's code says whether it is
+     tupled. *)
+  let is_tupled = Code0.is_tupled code in
+  if is_tupled then tupled_code := Code0.code_id code :: !tupled_code;
   Flambda.Function_params_and_body.pattern_match (Code0.params_and_body code)
     ~f:(fun
         ~return_continuation
@@ -990,7 +999,9 @@ and convert_code (code : Flambda.Function_params_and_body.t Code0.t) :
           Variables.find my_closure,
           Continuations.find return_continuation,
           Continuations.find exn_continuation,
-          Model.make_code_metadata params_arity result_arity,
+          (if is_tupled
+           then Model.make_tupled_code_metadata params_arity result_arity
+           else Model.make_code_metadata params_arity result_arity),
           convert_expr body ))
 
 and convert_apply (apply : Apply_expr.t) : Model.apply_expr =
@@ -1004,12 +1015,12 @@ and convert_apply (apply : Apply_expr.t) : Model.apply_expr =
   let call_kind : Model.call_kind =
     match Apply_expr.call_kind apply with
     | Function { function_call = Direct code_id; _ } ->
+      directly_called_code := code_id :: !directly_called_code;
       Direct (Code_ids.find code_id)
-    | Function
-        { function_call = Indirect_unknown_arity | Indirect_known_arity _; _ }
-      ->
-      indirect_call_seen := true;
+    | Function { function_call = Indirect_known_arity _; _ } ->
+      known_arity_call_met := true;
       Indirect
+    | Function { function_call = Indirect_unknown_arity; _ } -> Indirect
     | Method _ | C_call _ | Effect _ ->
       unsupported "the call %a" Apply_expr.print apply
   in
@@ -1219,14 +1230,31 @@ type converted =
     exn_continuation : Model.continuation
   }
 
+(* The model's calls give tupled code a tuple. The compiler's direct call, and
+   its call of known arity, give code its arguments as the code takes them: for
+   tupled code that is another call, which the model has not got. A direct call
+   names its code. A call of known arity does not, so it is refused wherever the
+   unit has tupled code at all. Code that the unit does not bind cannot be run
+   by the model, tupled or not, so a direct call of it stays. *)
+let check_calls_of_tupled_code () =
+  let is_tupled code_id = List.exists (Code_id.equal code_id) !tupled_code in
+  if List.exists is_tupled !directly_called_code
+  then unsupported "a direct call of a tupled function";
+  match !tupled_code with
+  | [] -> ()
+  | _ :: _ ->
+    if !known_arity_call_met
+    then
+      unsupported "a call of known arity in a unit that has a tupled function"
+
 let convert_unit (unit : Flambda_unit.t) : converted =
-  tupled_code_seen := false;
-  indirect_call_seen := false;
+  tupled_code := [];
+  directly_called_code := [];
+  known_arity_call_met := false;
   (* CR mshinwell: the region of the unit is dropped; see [region_variables]. *)
   drop_region_variable (Flambda_unit.toplevel_my_alloc_region unit);
   let body = convert_expr (Flambda_unit.body unit) in
-  if !tupled_code_seen && !indirect_call_seen
-  then unsupported "a tupled function in a unit with a call that is not direct";
+  check_calls_of_tupled_code ();
   { body;
     return_continuation =
       Continuations.find (Flambda_unit.return_continuation unit);
@@ -1487,10 +1515,12 @@ and print_handler ppf (Model.Handler (params, metadata, handler)) =
 
 and print_binding ppf (binding : Model.static_binding) =
   match binding with
-  | Bind_code (id, Code (params, my_closure, ret, exn, _, body)) ->
-    Format.fprintf ppf "@[<v 2>code%d (%a) %a -> %a * %a =@ %a@]"
-      (int_of_positive id) (print_list print_var) params print_var my_closure
-      print_cont ret print_cont exn print_expr body
+  | Bind_code (id, Code (params, my_closure, ret, exn, metadata, body)) ->
+    Format.fprintf ppf "@[<v 2>code%d%s (%a) %a -> %a * %a =@ %a@]"
+      (int_of_positive id)
+      (if metadata.cm_is_tupled then " tupled" else "")
+      (print_list print_var) params print_var my_closure print_cont ret
+      print_cont exn print_expr body
   | Bind_deleted_code id ->
     Format.fprintf ppf "code%d deleted" (int_of_positive id)
   | Bind_symbol (sym, Static_const_set_of_closures (code, slots)) ->

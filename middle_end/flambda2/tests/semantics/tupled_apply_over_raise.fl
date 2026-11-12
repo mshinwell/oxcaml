@@ -1,0 +1,19 @@
+let code size(1) tupled raises (x, y) my_closure &my_region my_depth
+      -> k * e =
+  let bucket = %block.[`0`].my_region (y, x) in
+  cont e pop(regular e) (bucket)
+in
+let $Raises = closure raises &toplevel in
+let $Pair = Block 0 (1, 2) in
+let f = %opaque ($Raises) in
+cont body push(handler)
+  where body =
+    (apply &toplevel f ($Pair, 3) -> returned * handler
+       where returned (r) =
+         cont leave pop(handler) (r))
+  where handler exn (e : val) =
+    let payload = %block_load.[`0`] (e) in
+    cont leave (payload)
+  where leave (r) =
+    let $camlTupled_apply_over_raise = Block 0 (r) in
+    cont done ($camlTupled_apply_over_raise)

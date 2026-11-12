@@ -81,11 +81,15 @@ unit made from OCaml.
   and compared like any other (`option_join.ml`).
 - **Tupled functions.** `let f (a, b) = ...` may be compiled as code
   that takes the two components, with a mark that says a call of
-  unknown arity gives it the pair. The model has not got the mark. A
-  unit that has such code and a call that is not direct is refused
-  (`tupled_function.ml`), which is more than is needed; one whose calls
-  are all direct is converted, as they give the components
-  (`nested_tuple.ml`).
+  unknown arity gives it the pair. The model's code has the mark, and
+  every call of the model gives such code the pair
+  (`FlambdaSemanticsSpec.arguments_for_code`), so a call of unknown
+  arity is converted as it is (`tupled_function.ml`). A direct call,
+  and a call of known arity, give the code the components, which the
+  model has not got yet: a direct call of tupled code that the unit
+  binds is refused, and so is a call of known arity in a unit that
+  binds tupled code. The code that `nested_tuple.ml` makes is not
+  tupled.
 
 ## What the verdicts mean
 
@@ -127,8 +131,8 @@ Simplify does to it. Steps are those of the machine, before and after
 Simplify. The names in brackets are the streams whose work in progress
 is the rewrite that is missing.
 
-230 sources: 190 validated, 34 compared on one run and not validated, 2
-undefined in the model, 4 not checked.
+230 sources: 190 validated, 35 compared on one run and not validated, 2
+undefined in the model, 3 not checked.
 
 ### Validated
 
@@ -320,6 +324,7 @@ before. What each shows, and what its validation uses besides:
 | `try_no_raise.ml` | 14, 5 | an exception: the handler of a `try` that nothing raises to any more is made an ordinary continuation and its trap actions dropped, which the validator does not follow (C5) |
 | `try_reraise.ml` | 29, 14 | an exception: the handler of a `try` that nothing raises to any more is made an ordinary continuation and its trap actions dropped, which the validator does not follow (C5) |
 | `try_result_unused.ml` | 13, 3 | an exception: the handler of a `try` that nothing raises to any more is made an ordinary continuation and its trap actions dropped, which the validator does not follow (C5) |
+| `tupled_function.ml` | 21, 2 | two calls that give a tupled function its pair, which Simplify inlines: the validator does not inline a call of tupled code (C3) |
 | `while_flag.ml` | 150, 75 | a boolean that Simplify keeps untagged in a parameter of the loop (T6) |
 | `while_unused_counter.ml` | 78, 40 | a parameter of a loop that is only passed round the loop, which Simplify removes (V4) |
 
@@ -337,7 +342,6 @@ before. What each shows, and what its validation uses besides:
 | `array_literal.ml` | arrays: `Array_load` |
 | `float_add.ml` | floating-point arithmetic |
 | `ref_counter.ml` | mutable fields: `Block_set` (C4) |
-| `tupled_function.ml` | a tupled function in a unit with a call that is not direct |
 
 ## What stops a unit from validating, most common first
 
@@ -373,11 +377,14 @@ before. What each shows, and what its validation uses besides:
    twice leaves in the term before and Simplify makes once
    (`exported_branch_calls_twice.ml`): the sharing of primitives does
    not cover projections yet.
+8. A call that gives a tupled function its tuple, inlined by Simplify
+   (`tupled_function.ml`): the inlining of the validator asks that the
+   code is not tupled (`FlambdaApplySpec.inlinable`), as the call takes
+   its first argument apart.
 
 What the model has not got, and the conversion refuses: floating-point
-arithmetic (`float_add.ml`), arrays (`array_literal.ml`), mutable
-fields (`ref_counter.ml`), and a tupled function called indirectly
-(`tupled_function.ml`).
+arithmetic (`float_add.ml`), arrays (`array_literal.ml`) and mutable
+fields (`ref_counter.ml`).
 
 Two units are undefined in the model before Simplify
 (`try_not_found.ml`, `exn_with_argument.ml`): a handler that catches an

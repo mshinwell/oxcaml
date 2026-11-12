@@ -52,6 +52,8 @@ val unarize : arity -> flambda_kind list
 
 val unarize_per_parameter : arity -> flambda_kind list list
 
+val arity_of_kinds : flambda_kind list -> arity
+
 val arity_component_eq_dec : arity_component -> arity_component -> bool
 
 val arity_eqb : arity -> arity -> bool
@@ -159,10 +161,13 @@ val handler_metadata_eqb : handler_metadata -> handler_metadata -> bool
 
 type code_metadata =
   { cm_params_arity : arity;
-    cm_result_arity : arity
+    cm_result_arity : arity;
+    cm_is_tupled : bool
   }
 
 val make_code_metadata : arity -> arity -> code_metadata
+
+val make_tupled_code_metadata : arity -> arity -> code_metadata
 
 val code_metadata_eqb : code_metadata -> code_metadata -> bool
 
@@ -207,6 +212,8 @@ val code_exn_continuation : code -> continuation
 val code_params_arity : code -> arity
 
 val code_result_arity : code -> arity
+
+val code_is_tupled : code -> bool
 
 val code_params_kinds : code -> flambda_kind list
 

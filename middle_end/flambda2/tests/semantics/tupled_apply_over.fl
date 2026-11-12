@@ -1,0 +1,14 @@
+let code size(1) identity (x) my_closure &my_region my_depth -> k * e =
+  cont k (x)
+in
+let $Identity = closure identity &toplevel in
+let code size(1) tupled pick (x, y) my_closure &my_region my_depth -> k * e =
+  cont k ($Identity)
+in
+let $Pick = closure pick &toplevel in
+let $Pair = Block 0 (1, 2) in
+let f = %opaque ($Pick) in
+apply &toplevel f ($Pair, 3) -> k1 * error
+  where k1 (r) =
+    let $camlTupled_apply_over = Block 0 (r) in
+    cont done ($camlTupled_apply_over)
