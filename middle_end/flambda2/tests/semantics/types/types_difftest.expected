@@ -2913,7 +2913,7 @@ Programs of two joins of two uses, in which a use may give a value two variants 
   of which those where every use of a join is bottom: 4 agree
   the compiler alone, with its check for concrete types on canonical names only: 1500 agree
   joins after meets, the uses of the model with no variable of their own: the model and the compiler: 1366 agree, 134 disagree as recorded
-    recorded as T7-11, a variable is made twice by the meets and the joins of the model, which does not see what the compiler sees, or has no answer; with a variable of its own for each use none is made twice and the model sees what the compiler sees (seed 170021): only one answers (the model: no answer of a step)
+    recorded as T7-11, a variable is made twice by the meets and the joins of the model, and the model does not see what the compiler sees, or only one of the two answers; with a variable of its own for each use none is made twice and the model sees what the compiler sees (seed 170021): only one answers (the model: no answer of a step)
     on the shrunk input:
     v2 is defined
     v7 is defined
@@ -3056,11 +3056,13 @@ A control: two of the generated programs of joins after meets, the uses of the m
   without, the run is recorded under T7-11: yes
   said to have made no variable twice, it is a disagreement: yes
   with the run that has a variable for each use said to disagree, it is a disagreement: yes
+  with neither side said to answer, it is not run: yes
   the first program on which, with no variable for each use, a variable is made twice and both sides answer and do not see the same: seed 170060
   with a variable for each use, the model sees what the compiler sees at every place looked at, and no variable is made twice: yes
   without, the run is recorded under T7-11: yes
   said to have made no variable twice, it is a disagreement: yes
   with the run that has a variable for each use said to disagree, it is a disagreement: yes
+  with neither side said to answer, it is not run: yes
 
 A control: the compiler alone with its check for concrete types on canonical names only, on the steps of T7-13 with three fields
   the steps are those of the scenario, its meet written as an equation on the variable that is met: yes

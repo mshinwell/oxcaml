@@ -9450,11 +9450,13 @@ let outcome_with_a_variable_for_each_use (run : run_after_meets) : outcome =
   else outcome_of_generated_joins run.run
 
 (* What a run comes to where the uses of the model have no variable of their
-   own. A difference, or a side that has no answer, is recorded under T7-11 only
-   where a variable was made twice in that run and the same program, run with a
-   variable for each use, comes to an agreement, which asks that no variable be
-   made twice there: it is a disagreement otherwise. That the two that made the
-   variable are on two paths is not looked into. *)
+   own. A run in which the two do not see the same, or in which only one of the
+   two answers, is recorded under T7-11 only where a variable was made twice in
+   that run and the same program, run with a variable for each use, comes to an
+   agreement, which asks that no variable be made twice there: it is a
+   disagreement otherwise. A run in which neither answers is not run, as for the
+   other comparisons of these programs, whatever was made in it. That the two
+   that made the variable are on two paths is not looked into. *)
 let outcome_without_a_variable_for_each_use
     ~(with_a_variable_for_each_use : outcome) (run : run_after_meets) : outcome
     =
@@ -9464,9 +9466,9 @@ let outcome_without_a_variable_for_each_use
     | Agree when run.a_variable_was_made_twice ->
       Known_to_disagree
         ( "T7-11, a variable is made twice by the meets and the joins of the \
-           model, which does not see what the compiler sees, or has no answer; \
-           with a variable of its own for each use none is made twice and the \
-           model sees what the compiler sees",
+           model, and the model does not see what the compiler sees, or only \
+           one of the two answers; with a variable of its own for each use \
+           none is made twice and the model sees what the compiler sees",
           what )
     | Agree | Disagree _ | Not_run _ | Not_this_comparison | Known_to_disagree _
       ->
@@ -9545,9 +9547,10 @@ let generated_joins_after_meets () : joined_step list comparison list =
    ([outcome_without_a_variable_for_each_use]), on the first two of the
    generated programs on which the model then makes a variable twice and does
    not see what the compiler sees: the first on which it has no answer, and the
-   first on which both answer. Each is recorded; and it is a disagreement where
-   no variable is said to be made twice, and where the run with a variable for
-   each use is said not to agree. *)
+   first on which both answer. Each is recorded; it is a disagreement where no
+   variable is said to be made twice, and where the run with a variable for each
+   use is said not to agree; and it is not run where neither side is said to
+   answer. *)
 let control_of_the_variables_of_the_meets ~seed ~count =
   let check what holds =
     if holds
@@ -9574,6 +9577,11 @@ let control_of_the_variables_of_the_meets ~seed ~count =
     match outcome with
     | Disagree _ -> true
     | Agree | Known_to_disagree _ | Not_run _ | Not_this_comparison -> false
+  in
+  let is_not_run (outcome : outcome) =
+    match outcome with
+    | Not_run _ -> true
+    | Agree | Known_to_disagree _ | Disagree _ | Not_this_comparison -> false
   in
   (* The first program, by its seed, whose run without a variable for each use
      makes a variable twice, does not agree, and is of the sort asked. *)
@@ -9627,7 +9635,12 @@ let control_of_the_variables_of_the_meets ~seed ~count =
            is a disagreement"
           (is_a_disagreement
              (outcome_without_a_variable_for_each_use
-                ~with_a_variable_for_each_use:(Disagree "said so") without)))
+                ~with_a_variable_for_each_use:(Disagree "said so") without));
+        check "with neither side said to answer, it is not run"
+          (is_not_run
+             (outcome_without_a_variable_for_each_use
+                ~with_a_variable_for_each_use:with_one
+                { without with run = Neither_answers "said so" })))
     [ ( (fun (run : joins_run) ->
           match run with
           | Only_one_answers _ -> true
@@ -9684,8 +9697,14 @@ let control_of_the_check_of_the_compiler () =
   let (_ : model -> Model_env.t side_of_joins), of_the_compiler =
     sides_of_joins kinds_of_generated_joins
   in
+  let without_the_check =
+    flag := false;
+    Fun.protect
+      ~finally:(fun () -> flag := as_it_was)
+      (fun () -> joined_steps_in_the_compiler of_the_compiler steps)
+  in
   check "without the check, the compiler does not stop on them"
-    (Result.is_ok (joined_steps_in_the_compiler of_the_compiler steps));
+    (Result.is_ok without_the_check);
   check "with the check, it is said to stop, with the fatal error of the check"
     (match the_check_of_the_compiler_passes steps with
     | Disagree what ->
