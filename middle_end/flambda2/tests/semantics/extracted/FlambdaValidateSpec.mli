@@ -2,6 +2,7 @@ open Datatypes
 open FlambdaAliasesSpec
 open FlambdaBlockLoadSpec
 open FlambdaCompareSpec
+open FlambdaLiftSpec
 open FlambdaModel
 open FlambdaNormaliseSpec
 open FlambdaUnboxSpec
@@ -24,10 +25,13 @@ val normalise_after : nat -> expr -> expr
 
 val without_statics : dropped -> expr -> expr
 
+val with_lifting : lifting -> expr -> expr
+
 type validation =
   | Same_up_to_bound_names
   | Same_once_normalised
   | Same_once_unused_statics_removed
+  | Same_once_lifted
   | Not_validated
 
-val validate_unit : nat -> dropped -> expr -> expr -> validation
+val validate_unit : nat -> dropped -> lifting -> expr -> expr -> validation

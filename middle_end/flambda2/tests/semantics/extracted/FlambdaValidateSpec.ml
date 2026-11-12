@@ -2,6 +2,7 @@ open Datatypes
 open FlambdaAliasesSpec
 open FlambdaBlockLoadSpec
 open FlambdaCompareSpec
+open FlambdaLiftSpec
 open FlambdaModel
 open FlambdaNormaliseSpec
 open FlambdaUnboxSpec
@@ -74,22 +75,34 @@ let without_statics d e =
   | Some e' -> merge_statics (drop_deleted_code e')
   | None -> e
 
+(** val with_lifting : lifting -> expr -> expr **)
+
+let with_lifting l e = match lift_unit l e with Some e' -> e' | None -> e
+
 type validation =
   | Same_up_to_bound_names
   | Same_once_normalised
   | Same_once_unused_statics_removed
+  | Same_once_lifted
   | Not_validated
 
-(** val validate_unit : nat -> dropped -> expr -> expr -> validation **)
+(** val validate_unit : nat -> dropped -> lifting -> expr -> expr -> validation
+    **)
 
-let validate_unit rounds unused before after =
+let validate_unit rounds unused l before after =
   if expr_eqb [] [] before after
   then Same_up_to_bound_names
   else
-    let before0 = normalise_before rounds before in
+    let normalised = normalise_before rounds before in
     let after0 = normalise_after rounds after in
-    if expr_eqb [] [] before0 after0
+    if expr_eqb [] [] normalised after0
     then Same_once_normalised
-    else if expr_eqb [] [] (without_statics unused before0) after0
+    else if expr_eqb [] [] (without_statics unused normalised) after0
     then Same_once_unused_statics_removed
+    else if
+      expr_eqb [] []
+        (without_statics unused
+           (normalise_before rounds (with_lifting l before)))
+        after0
+    then Same_once_lifted
     else Not_validated

@@ -98,6 +98,8 @@ module Well_formed = Flambda2_rocq_semantics.FlambdaWellFormedSpec
 module Well_kinded = Flambda2_rocq_semantics.FlambdaWellKindedSpec
 module Binders = Flambda2_rocq_semantics.FlambdaBindersSpec
 module Validate = Flambda2_rocq_semantics.FlambdaValidateSpec
+module Lift = Flambda2_rocq_semantics.FlambdaLiftSpec
+module My_closure = Flambda2_rocq_semantics.FlambdaMyClosureSpec
 module Numbers = Flambda2_rocq_semantics.BinNums
 module P = Flambda_primitive
 
@@ -1397,6 +1399,147 @@ let unused_statics (e : Model.expr) : Unused_statics.dropped =
         unused
   }
 
+(* ---- Lets that Simplify made static bindings --------------------------- *)
+
+(* Which [Let]s of the term before to make static bindings, and of which
+   symbols. This is only a guess, read off the term after:
+   FlambdaLiftSpec.lift_unit checks what it needs of it, and the comparison of
+   the two terms the rest. The symbols to give are those that the term after
+   binds and the term before does not. Each goes to the first [Let] that makes
+   what the symbol is bound to: a closure of the same code, a block of the same
+   tag whose fields agree where both are symbols or constants, a boxed number. A
+   [Let] is named by its path, as FlambdaLiftSpec.lift_expr counts it.
+
+   The guess also says in which code [my_closure] is a symbol: the code of each
+   closure that the term after binds statically, if the term before, once
+   lifted, makes no other closure of that code
+   (FlambdaMyClosureSpec.only_closure_of). *)
+let lifting_guess ~unit (before : Model.expr) (after : Model.expr) :
+    Lift.lifting =
+  (* The symbols bound outside code, in the order in which they are bound when
+     the term runs: the body of a [Let_cont] before its handler. *)
+  let rec bound_symbols (e : Model.expr) =
+    match e with
+    | Let (_, _, _, body) -> bound_symbols body
+    | Let_static (bindings, body) ->
+      List.filter_map
+        (fun (binding : Model.static_binding) ->
+          match binding with
+          | Bind_symbol (sym, const) -> Some (sym, const)
+          | Bind_code _ | Bind_deleted_code _ -> None)
+        bindings
+      @ bound_symbols body
+    | Let_cont_non_recursive (_, Handler (_, _, handler), body) ->
+      bound_symbols body @ bound_symbols handler
+    | Let_cont_recursive (_, body) -> bound_symbols body
+    | Apply _ | Apply_cont _ | Switch _ | Invalid -> []
+  in
+  let bound_before = List.map fst (bound_symbols before) in
+  let to_give =
+    ref
+      (List.filter
+         (fun (sym, _) -> not (List.mem sym bound_before))
+         (bound_symbols after))
+  in
+  let take matches =
+    match List.find_opt (fun (_, const) -> matches const) !to_give with
+    | None -> None
+    | Some (sym, const) ->
+      to_give := List.filter (fun (sym', _) -> sym' <> sym) !to_give;
+      Some (sym, const)
+  in
+  let fields_agree fields fields' =
+    List.length fields = List.length fields'
+    && List.for_all2
+         (fun (field : Model.simple) (field' : Model.simple) ->
+           match field, field' with
+           | Var _, _ | _, Var _ -> true
+           | (Symbol _ | Const _), (Symbol _ | Const _) -> field = field')
+         fields fields'
+  in
+  let lets = ref [] in
+  let lift path (target : Lift.lift_to) = lets := (path, target) :: !lets in
+  let rec in_expr (path : Numbers.positive) (e : Model.expr) =
+    match e with
+    | Let (_, _, d, body) ->
+      (match d with
+      | Set_of_closures (code, _) -> (
+        match
+          take (fun (const : Model.static_const) ->
+              match const with
+              | Static_const_set_of_closures (code', _) -> code = code'
+              | _ -> false)
+        with
+        | Some (sym, _) -> lift path (Lift_to_symbol sym)
+        | None -> ())
+      | Closure_of_set (_, decls, _) -> (
+        match
+          take (fun (const : Model.static_const) ->
+              match const with
+              | Static_const_closure_of_set (_, _, decls', _) -> decls = decls'
+              | _ -> false)
+        with
+        | Some (_, Static_const_closure_of_set (_, symbols, _, _)) ->
+          (* The symbols of the other closures of the set go with it. *)
+          to_give
+            := List.filter
+                 (fun (sym, _) ->
+                   not (List.exists (fun (_, sym') -> sym = sym') symbols))
+                 !to_give;
+          lift path (Lift_to_closure_symbols symbols)
+        | Some _ | None -> ())
+      | Prim (Variadic (Make_block (Block_kind_values tag)), fields) -> (
+        match
+          take (fun (const : Model.static_const) ->
+              match const with
+              | Static_const_block (tag', fields') ->
+                tag = tag' && fields_agree fields fields'
+              | _ -> false)
+        with
+        | Some (sym, _) -> lift path (Lift_to_symbol sym)
+        | None -> ())
+      | Prim (Unary (Box_number _), [contents]) -> (
+        match
+          take (fun (const : Model.static_const) ->
+              match const with
+              | Static_const_boxed_number contents' ->
+                fields_agree [contents] [contents']
+              | _ -> false)
+        with
+        | Some (sym, _) -> lift path (Lift_to_symbol sym)
+        | None -> ())
+      | _ -> ());
+      in_expr (Numbers.Coq_xO path) body
+    | Let_static (_, body) -> in_expr (Numbers.Coq_xO path) body
+    | Let_cont_non_recursive (_, Handler (_, _, handler), body) ->
+      in_expr (Numbers.Coq_xO path) body;
+      in_expr (Numbers.Coq_xI path) handler
+    | Let_cont_recursive (_, body) -> in_expr (Numbers.Coq_xO path) body
+    | Apply _ | Apply_cont _ | Switch _ | Invalid -> ()
+  in
+  in_expr Lift.root before;
+  let lets = List.rev !lets in
+  let lifted = Lift.lift_expr lets Lift.root before in
+  let my_closures =
+    List.filter_map
+      (fun (sym, (const : Model.static_const)) ->
+        let code =
+          match const with
+          | Static_const_set_of_closures (code, _) -> Some code
+          | Static_const_closure_of_set (slot, _, decls, _) ->
+            List.assoc_opt slot decls
+          | Static_const_block _ | Static_const_boxed_number _
+          | Static_const_immutable_string _ ->
+            None
+        in
+        match code with
+        | Some code when My_closure.only_closure_of code sym lifted ->
+          Some (code, sym)
+        | Some _ | None -> None)
+      (bound_symbols after)
+  in
+  { lifting_unit = unit; lifted_lets = lets; lifted_my_closures = my_closures }
+
 (* ---- The check -------------------------------------------------------- *)
 
 (* Whether a code id is used: called, made a closure of, or bound to code. Being
@@ -1531,6 +1674,11 @@ let why_not_well_formed (unit : converted) =
      installed last, or a continuation entered with two stacks of handlers"
   else "a static binding that is not at toplevel, or a name bound twice"
 
+(* What a unit is given by where it is run: the continuation that it returns to
+   and its exception continuation. *)
+let interface (unit : converted) : Well_formed.unit_interface =
+  { unit_return = unit.return_continuation; unit_exn = unit.exn_continuation }
+
 (* The term before is checked before Simplify sees it, which is entitled to fail
    on one that is not well-formed. *)
 let well_formed_before ~filename (before : Flambda_unit.t) =
@@ -1551,7 +1699,10 @@ let well_formed_before ~filename (before : Flambda_unit.t) =
    empty environments. It normalises the two terms, compares them up to bound
    names and, failing that, removes from the term before the static bindings
    named here and compares again. Which names those are is a guess that it
-   checks. *)
+   checks. Failing that too, it is asked again, with the [Let]s that Simplify
+   seems to have made static bindings: it lifts them in the term before as it
+   was given, if it may, normalises the result and compares again. That is a
+   guess too. *)
 let validate ~(outcome_before : outcome) (before : converted)
     (after : converted) =
   let inlined = Normalise.inline_calls [] before.body in
@@ -1560,9 +1711,44 @@ let validate ~(outcome_before : outcome) (before : converted)
     (calls_outside_code inlined);
   let rounds = nat_of_int 50 in
   let normalised_before = Validate.normalise_before rounds before.body in
+  let normalised_after = Validate.normalise_after rounds after.body in
   let unused = unused_statics normalised_before in
+  let nothing_lifted : Lift.lifting =
+    { lifting_unit = interface before;
+      lifted_lets = [];
+      lifted_my_closures = []
+    }
+  in
   let validation =
-    Validate.validate_unit rounds unused before.body after.body
+    Validate.validate_unit rounds unused nothing_lifted before.body after.body
+  in
+  (* The term before that was compared last, and how it was made. *)
+  let validation, compared, how =
+    let not_lifted =
+      ( validation,
+        Validate.without_statics unused normalised_before,
+        "normalised" )
+    in
+    match validation with
+    | Not_validated -> (
+      let lifting =
+        lifting_guess ~unit:(interface before) before.body normalised_after
+      in
+      match
+        ( lifting.lifted_lets,
+          lifting.lifted_my_closures,
+          Lift.lift_unit lifting before.body )
+      with
+      | [], [], _ | _, _, None -> not_lifted
+      | _, _, Some lifted ->
+        let lifted = Validate.normalise_before rounds lifted in
+        let unused = unused_statics lifted in
+        ( Validate.validate_unit rounds unused lifting before.body after.body,
+          Validate.without_statics unused lifted,
+          "lifted and normalised" ))
+    | Same_up_to_bound_names | Same_once_normalised
+    | Same_once_unused_statics_removed | Same_once_lifted ->
+      not_lifted
   in
   Format.printf "  %s@."
     (match validation with
@@ -1570,6 +1756,9 @@ let validate ~(outcome_before : outcome) (before : converted)
     | Same_once_normalised -> "validated: the same once normalised"
     | Same_once_unused_statics_removed ->
       "validated: the same once normalised and unused static bindings removed"
+    | Same_once_lifted ->
+      "validated: the same once closures and blocks are lifted to symbols and \
+       the terms normalised"
     | Not_validated ->
       if outcome_before = Undefined
       then "nothing to validate, as the term before is undefined"
@@ -1577,14 +1766,11 @@ let validate ~(outcome_before : outcome) (before : converted)
   match validation with
   | Not_validated when Sys.getenv_opt "FLSEMANTICS_PRINT_TERMS" <> None ->
     Format.printf
-      "@[<v 2>  the term before, normalised:@ %a@]@.@[<v 2>  the term after, \
+      "@[<v 2>  the term before, %s:@ %a@]@.@[<v 2>  the term after, \
        normalised:@ %a@]@."
-      print_expr
-      (Validate.without_statics unused normalised_before)
-      print_expr
-      (Validate.normalise_after rounds after.body)
+      how print_expr compared print_expr normalised_after
   | Not_validated | Same_up_to_bound_names | Same_once_normalised
-  | Same_once_unused_statics_removed ->
+  | Same_once_unused_statics_removed | Same_once_lifted ->
     ()
 
 let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =

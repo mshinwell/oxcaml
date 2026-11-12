@@ -37,8 +37,9 @@ compare the term made with `X.fl` and what the tool prints with
   int = "%addint"`). This changes nothing in what the front end makes of
   an expression.
 - `X.mli` exports `result` only. A function that the unit exports is a
-  field of the module block, and Simplify makes its closure a symbol,
-  which the validator does not follow yet (`exported_function.ml`).
+  field of the module block, and Simplify makes its closure a symbol.
+  The validator follows that by making the closure a symbol in the term
+  before (`exported_function.ml`, which has no interface file).
 - A function whose inlining an example is about has `[@inline]`: with
   the default flags Simplify inlines only the smallest functions.
 - A type annotation on a function (`let area : shape -> int = fun ...`)
@@ -86,5 +87,5 @@ Steps are those of the machine, before and after Simplify.
 | `tail_loop.ml` | makes the tail call of `sum` a jump, and the closure of `sum` a symbol | 128, 83 | the same, not validated: lifting to a symbol, and the loop |
 | `factorial.ml` | makes the closure of `factorial` a symbol | 70, 46 | the same, not validated: lifting to a symbol |
 | `mutual_recursion.ml` | makes the set of two closures static | 130, 70 | the same, not validated: lifting to symbols |
-| `exported_function.ml` | inlines the call; the exported closure becomes a symbol | 14, 6 | the same, not validated: lifting to a symbol |
+| `exported_function.ml` | inlines the call; the exported closure becomes a symbol | 14, 6 | validated, the closure lifted to a symbol in the term before |
 | `match_variant_local.ml` | | | not checked: `Begin_region`, `End_region` and a local allocation |
