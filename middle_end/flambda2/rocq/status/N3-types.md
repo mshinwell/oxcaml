@@ -114,9 +114,10 @@ function gives the renamed answer.
   of `Rec_info` and of regions. Where the function is a meet of two
   parts the lemma is `meet_of_parts_equivariant` of it, which is what
   the owner's lemma for a row-like structure takes. The two for naked
-  immediates need that the type that the choices give a name of which
-  a number is the tag holds no name; that is a hypothesis, and it is
-  shown of the compiler's choices and of the repaired ones.
+  immediates need that a renaming of variables fixes the type that the
+  choices give a name of which a number is the tag; that is a
+  hypothesis, and it is shown of the compiler's choices and of the
+  repaired ones.
 - **`FlambdaEnvRenameMeetValuesProofs.v`** (seven lemmas). The meets
   of the heads of values: `meet_variant`,
   `meet_head_of_kind_value_non_null` and `meet_head_of_kind_value`,
