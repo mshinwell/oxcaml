@@ -268,6 +268,15 @@ says so. Only the labels that this tree cites are listed.
 - **P1-4.** The fexpr parser reads `%bytes_length` as `String_length
   String`, and the printer writes `String_length Bytes` as
   `%bytes_length`.
+- **P1-5.** An unsafe load of several bytes at the end of a string reads
+  the byte after the last, which is 0 on the machine and which the model
+  has not got; the model is stricter.
+- **P1-6.** Simplify makes `x *. 1.` and `x /. 1.` into `x`, which for a
+  signalling NaN is not the machine's result.
+- **P1-7.** Simplify makes `x *. -1.` and `x /. -1.` into the negation
+  of `x`, which flips the sign of a NaN where the machine keeps it.
+- **P1-8.** Which NaN a folded operation returns is the host's. Not
+  reproduced on x86-64 for x86-64; open for cross compilation.
 - **R1-1.** Unboxing records `Get_tag` on the paths where the value is
   an immediate, and supplies a dummy tag of zero.
 - **R1-2.** The types library evaluates `Is_null` of poison as false.
@@ -481,6 +490,9 @@ says so. Only the labels that this tree cites are listed.
 - **T7-7.** With the default setting of `-flambda2-join-sharing`, a join
   depends on whether equal types, or parts of them, are one value in
   memory; with the structural setting it does not.
+- **T7-8.** Types that Simplify computes mention variables of kind
+  `Rec_info` (in the `rec_info` of function types and in `Rec_info`
+  heads) that the model's types cannot.
 - **V2-2.** The fexpr printer drops the kinds of the fields of a
   `Make_block`, and the parser reads back `any_value` for each.
 - **V3-2.** Simplify lifts a closed constant out of a function or a

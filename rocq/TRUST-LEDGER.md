@@ -211,6 +211,17 @@ it gave back.
   and made faithfully through `Row_like_for_blocks.get_singleton` and
   `create`; and that the names `Flambda2_types__...` of the build are the
   modules of the types library.
+  Also trusted, of the two functions that the round trip from the
+  compiler uses: that `type_to_model_with_what_is_dropped` is
+  `type_to_model` and gives besides the `rec_info` of every function
+  type of the type, with the code id of that function type, and the
+  variables that those and the expressions of the `Rec_info` heads of
+  the type mention; that `type_of_model_with_rec_infos` is
+  `type_of_model` but that a function type gets the first `rec_info`
+  listed for its code id, if there is one; and that the two references
+  through which they work are as they were when either returns or
+  raises, so that `type_to_model` and `type_of_model` are the
+  conversions described above.
 - **The tests of types**, in the same directory (`model_type.ml`,
   `type_generator.ml`, `types_difftest.ml`). No theorem rests on them;
   what a reader of their output trusts:
@@ -273,6 +284,43 @@ it gave back.
     any other disagreement makes the test fail;
   - the chosen joins: that the values shown are tried as the lines say;
     nothing is concluded from "not for the values tried".
+  - the files `type_comparisons.ml` and `types_of_compilations.ml`
+    beside those named;
+  - `same_text`: two printed answers are taken to be the same when
+    they have the same words in the same order. Trusted: that the
+    printer of `model_type.ml` brackets every part of a type and
+    writes a string as its bytes, so that where its lines are broken
+    says nothing;
+  - the examples of the join (`examples_of_joins`): that an example
+    marked with the name of a statement has the inputs and the answer
+    of that statement of
+    `middle_end/flambda2/types/rocq/FlambdaJoinTypesExamplesSpec.v` as
+    the file was when the example was written (the variables, slots
+    and code ids are those of the tests); that one marked as having
+    another answer has the inputs of the statement; a difference is
+    shown and does not fail the test;
+  - the equality and the predicate: that `Type_equal.type_eqb` and
+    `Well_formed.type_well_formed` are the extracted functions, and
+    that the predicate is asked of the type with its maps written in
+    one way where a map of the input may bind a key twice;
+  - the round trip from the compiler: that the type which comes back
+    is made with the `rec_info`s that the conversion to the model
+    recorded, and only when no code id has two that differ for
+    `Type_grammar.equal`; that the two types are then compared whole,
+    as printed, by `Equal_types_for_debug.equal_type` and by
+    `Type_grammar.equal`;
+  - the free variables: that where what the converter dropped mentions
+    no variable the two sets are compared as they are, and that the
+    other comparison adds exactly the variables recorded as dropped;
+  - the types of compilations: that `names_of` lists the variables
+    that the levels of an environment define after the initial scope
+    and the symbols that it defines (names of other units are not gone
+    through); that the type compared is `Typing_env.find` of the name;
+    that a type of a name is left out only if `Type_grammar.equal`
+    says it is one already compared for that name; that Simplify
+    reports to the observer where the types library says it does; and
+    that the tool runs itself once for each unit listed and adds up
+    what each run counted.
 
 Not trusted, though it is OCaml: which static bindings the tool proposes
 to remove as unused (`unused_statics`). The extracted `drop_statics`
