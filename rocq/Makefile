@@ -122,6 +122,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaExtcallSpec.v \
   FlambdaFloatCodeProofs.v \
   FlambdaFloatCodeSpec.v \
+  FlambdaForwardProofs.v \
+  FlambdaForwardSpec.v \
   FlambdaFreeNamesProofs.v \
   FlambdaFreeNamesSpec.v \
   FlambdaFreshAbstractionProofs.v \
@@ -140,6 +142,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaIdentitiesSpec.v \
   FlambdaInlineFreshProofs.v \
   FlambdaInlineFreshSpec.v \
+  FlambdaInlineTailProofs.v \
+  FlambdaInlineTailSpec.v \
   FlambdaKeepsScopeProofs.v \
   FlambdaKeepsScopeSpec.v \
   FlambdaKindModel.v \
@@ -151,6 +155,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaLiftSpec.v \
   FlambdaLoopAliasesProofs.v \
   FlambdaLoopAliasesSpec.v \
+  FlambdaLoopLetsProofs.v \
+  FlambdaLoopLetsSpec.v \
   FlambdaLoopifyProofs.v \
   FlambdaLoopifySpec.v \
   FlambdaLoopsScopeProofs.v \
@@ -168,6 +174,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaNominalSpec.v \
   FlambdaNormaliseProofs.v \
   FlambdaNormaliseSpec.v \
+  FlambdaParamAliasesProofs.v \
+  FlambdaParamAliasesSpec.v \
   FlambdaPartialApplicationProofs.v \
   FlambdaPartialApplicationSpec.v \
   FlambdaPrimitiveModel.v \
@@ -179,6 +187,7 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaRecHandlersSpec.v \
   FlambdaRenameApartProofs.v \
   FlambdaRenameApartSpec.v \
+  FlambdaRoundsProofs.v \
   FlambdaScopeProofs.v \
   FlambdaScopeSpec.v \
   FlambdaScopedProofs.v \

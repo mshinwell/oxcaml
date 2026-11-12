@@ -55,8 +55,9 @@ From Stdlib Require Import ExtrOcamlBasic.
 From OxCamlFlambda2 Require Import FlambdaMapSpec FlambdaModel
   FlambdaBindersSpec FlambdaSemanticsSpec FlambdaWellFormedSpec
   FlambdaWellKindedSpec FlambdaBlockLoadSpec FlambdaCompareSpec
-  FlambdaCseSpec FlambdaIdentitiesSpec FlambdaLoopAliasesSpec
-  FlambdaLoopifySpec FlambdaNormaliseSpec FlambdaRecHandlersSpec
+  FlambdaCseSpec FlambdaForwardSpec FlambdaIdentitiesSpec
+  FlambdaLoopAliasesSpec FlambdaLoopLetsSpec FlambdaLoopifySpec
+  FlambdaNormaliseSpec FlambdaParamAliasesSpec FlambdaRecHandlersSpec
   FlambdaRenameApartSpec FlambdaShortcutSpec FlambdaSinkContsSpec
   FlambdaStaticsOrderSpec FlambdaUnboxSpec FlambdaUnusedContsSpec
   FlambdaUnusedParamsSpec FlambdaUnusedStaticsSpec FlambdaValidateSpec.
@@ -158,6 +159,7 @@ Separate Extraction
   FlambdaTypeWellFormedSpec.type_well_formed
   all_among
   among
+  bind_aliased_params
   bind_closures
   binders_distinct
   code_closed
@@ -175,6 +177,7 @@ Separate Extraction
   fold_constants
   follow_aliases
   follow_aliases_in_loops
+  forward_applications
   inline_calls
   inline_known_calls
   inline_tail_conts
@@ -197,6 +200,7 @@ Separate Extraction
   partial_or_over_application
   remove_unused_conts
   remove_unused_defined_lets
+  remove_unused_defined_lets_in_loops
   remove_unused_lets
   remove_unused_total_lets
   rewrite_code
