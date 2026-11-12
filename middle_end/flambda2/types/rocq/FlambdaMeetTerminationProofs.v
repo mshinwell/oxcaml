@@ -965,3 +965,111 @@ Proof.
     exact (flambda2_types_add_relation_mono join choices fuel fuel' Hjoin
              Hfuel tenv n scrutinee name_ty scrutinee_head tenv').
 Qed.
+
+Theorem meet_answer_unique : meet_answer_unique_statement.
+Proof.
+  intros join choices fuel fuel' tenv t1 t2 result result' Hjoin Hresult
+    Hresult'.
+  pose proof (meet_fuel_monotone join choices fuel (Nat.max fuel fuel') tenv
+                t1 t2 result Hjoin (Nat.le_max_l fuel fuel') Hresult)
+    as Hmax.
+  pose proof (meet_fuel_monotone join choices fuel' (Nat.max fuel fuel') tenv
+                t1 t2 result' Hjoin (Nat.le_max_r fuel fuel') Hresult')
+    as Hmax'.
+  congruence.
+Qed.
+
+(* ======================================================================== *)
+(* A fuel that is enough                                                    *)
+(* ======================================================================== *)
+
+Theorem meet_expanded_head_over_none : meet_expanded_head_over_none_statement.
+Proof.
+  intros join choices fuel. induction fuel as [ | fuel IH];
+    [ reflexivity | ].
+  simpl. rewrite IH. reflexivity.
+Qed.
+
+(* The meet over [mh0] with the fuel [n + k] is the meet with the fuel
+   [n] over the meet over [mh0] with the fuel [k]. *)
+Lemma meet_expanded_head_over_add (join : join_scoped_envs)
+    (choices : meet_choices) (mh0 : meet_expanded_head) (n k : nat) :
+  meet_expanded_head_over join choices mh0 (n + k)
+  = meet_expanded_head_over join choices
+      (meet_expanded_head_over join choices mh0 k) n.
+Proof.
+  induction n as [ | n IH]; [ reflexivity | ].
+  simpl. rewrite IH. reflexivity.
+Qed.
+
+(* The meet with the fuel [n + k] is the meet with the fuel [n] over
+   the meet with the fuel [k]. *)
+Lemma meet_expanded_head_add (join : join_scoped_envs)
+    (choices : meet_choices) (n k : nat) :
+  Meet.meet_expanded_head join choices (n + k)
+  = meet_expanded_head_over join choices
+      (Meet.meet_expanded_head join choices k) n.
+Proof.
+  rewrite <- (meet_expanded_head_over_none join choices (n + k)),
+    meet_expanded_head_over_add, meet_expanded_head_over_none.
+  reflexivity.
+Qed.
+
+Theorem fuel_enough_stable : fuel_enough_stable_statement.
+Proof.
+  intros join choices fuel fuel' menv e1 e2 Henough Hfuel.
+  replace fuel' with (fuel + (fuel' - fuel)) by lia.
+  assert (Hanswer :
+    Meet.meet_expanded_head join choices (fuel + (fuel' - fuel)) menv e1 e2
+    = Meet.meet_expanded_head join choices fuel menv e1 e2).
+  { rewrite meet_expanded_head_add. apply Henough. }
+  split; [ | exact Hanswer ].
+  intros mh0. rewrite meet_expanded_head_over_add, Hanswer. apply Henough.
+Qed.
+
+Theorem meet_fuel_enough_stable : meet_fuel_enough_stable_statement.
+Proof.
+  intros join choices fuel fuel' tenv t1 t2 Henough Hfuel.
+  replace fuel' with (fuel + (fuel' - fuel)) by lia.
+  assert (Hanswer :
+    Meet_env.meet_type (Meet_env.create tenv) t1 t2
+      (Meet.meet_expanded_head join choices (fuel + (fuel' - fuel)))
+    = Meet_env.meet_type (Meet_env.create tenv) t1 t2
+        (Meet.meet_expanded_head join choices fuel)).
+  { rewrite meet_expanded_head_add. apply Henough. }
+  split.
+  - intros mh0. rewrite meet_expanded_head_over_add, Hanswer. apply Henough.
+  - unfold Meet.meet. rewrite Hanswer. reflexivity.
+Qed.
+
+(* The meet answers no more than the meet over any meet. *)
+Lemma meet_expanded_head_le_over (join : join_scoped_envs)
+    (choices : meet_choices) (mh0 : meet_expanded_head) (fuel : nat) :
+  join_monotone join ->
+  meet_head_le (Meet.meet_expanded_head join choices fuel)
+    (meet_expanded_head_over join choices mh0 fuel).
+Proof.
+  intros Hjoin. induction fuel as [ | fuel IH].
+  - intros env e1 e2 result Hresult. discriminate.
+  - exact (meet_expanded_head_step_mono join choices _ _ Hjoin IH).
+Qed.
+
+Theorem answer_fuel_enough : answer_fuel_enough_statement.
+Proof.
+  intros join choices fuel menv e1 e2 result Hjoin Hresult mh0.
+  rewrite Hresult.
+  exact (meet_expanded_head_le_over join choices mh0 fuel Hjoin menv e1 e2
+           result Hresult).
+Qed.
+
+Theorem meet_answer_fuel_enough : meet_answer_fuel_enough_statement.
+Proof.
+  intros join choices fuel tenv t1 t2 result Hjoin Hbottom Hresult mh0.
+  unfold Meet.meet in Hresult. rewrite Hbottom in Hresult.
+  destruct (Meet_env.meet_type (Meet_env.create tenv) t1 t2
+              (Meet.meet_expanded_head join choices fuel))
+    as [answer | ] eqn:Hanswer; [ | discriminate ].
+  exact (meet_type_mono _ _
+           (meet_expanded_head_le_over join choices mh0 fuel Hjoin)
+           (Meet_env.create tenv) t1 t2 answer Hanswer).
+Qed.
