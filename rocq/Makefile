@@ -208,6 +208,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaStateSupportSpec.v \
   FlambdaStaticProofs.v \
   FlambdaStaticSpec.v \
+  FlambdaStaticsInScopeProofs.v \
+  FlambdaStaticsInScopeSpec.v \
   FlambdaStaticsOrderProofs.v \
   FlambdaStaticsOrderSpec.v \
   FlambdaStaticsScopeProofs.v \

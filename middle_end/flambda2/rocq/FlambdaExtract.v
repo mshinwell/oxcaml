@@ -59,8 +59,9 @@ From OxCamlFlambda2 Require Import FlambdaMapSpec FlambdaModel
   FlambdaLoopAliasesSpec FlambdaLoopLetsSpec FlambdaLoopifySpec
   FlambdaNormaliseSpec FlambdaParamAliasesSpec FlambdaRecHandlersSpec
   FlambdaRenameApartSpec FlambdaShortcutSpec FlambdaSinkContsSpec
-  FlambdaStaticsOrderSpec FlambdaUnboxSpec FlambdaUnusedContsSpec
-  FlambdaUnusedParamsSpec FlambdaUnusedStaticsSpec FlambdaValidateSpec.
+  FlambdaStaticsInScopeSpec FlambdaStaticsOrderSpec FlambdaUnboxSpec
+  FlambdaUnusedContsSpec FlambdaUnusedParamsSpec FlambdaUnusedStaticsSpec
+  FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
 From OxCamlFlambda2Types Require Import FlambdaBindingTime.
 From OxCamlFlambda2Types Require Import FlambdaJoinEnv.
@@ -188,6 +189,7 @@ Separate Extraction
   bind_aliased_params
   bind_closures
   binders_distinct
+  bound_continuations
   code_closed
   collapse_switches
   compact
@@ -209,6 +211,7 @@ Separate Extraction
   inline_tail_conts
   inter
   inter_with
+  interface_conts_not_rebound
   is_bound
   kind_of_const
   let_closures
@@ -234,6 +237,8 @@ Separate Extraction
   run
   shortcut_switches
   sink_let_conts
+  static_names_apart
+  statics_in_scope
   step
   traps_well_formed
   unarize
