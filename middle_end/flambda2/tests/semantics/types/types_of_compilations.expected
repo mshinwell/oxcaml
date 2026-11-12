@@ -108,22 +108,25 @@ In all:
   5628 names in the environments
   3690 different types of a name
   3690 in the model
-  3690 the round trip from the model (to the compiler and back): agree
+  61 the round trip from the model (to the compiler and back): not run, not in the compiler: a Rec_info type given by its head: the model has not got the expression
   3690 kind: agree
   3690 get_alias_opt: agree
   3690 is_obviously_bottom: agree
   3690 is_obviously_unknown: agree
   3681 free_variables against free_names, without shadowed bindings: agree
   3681 free_variables includes free_names, with shadowed bindings: agree
+  3690 free_variables, with the variables of what the converter drops, against free_names: agree
   61 the round trip from the compiler, as printed: not run, not in the compiler: a Rec_info type given by its head: the model has not got the expression
   61 the round trip from the compiler, for the compiler's equality: not run, not in the compiler: a Rec_info type given by its head: the model has not got the expression
+  61 the round trip from the compiler, for Type_grammar.equal: not run, not in the compiler: a Rec_info type given by its head: the model has not got the expression
   3690 type_well_formed: agree
-  3567 the round trip from the compiler, as printed: agree
-  3567 the round trip from the compiler, for the compiler's equality: agree
-  62 the round trip from the compiler, as printed: not run, the type has a function type with a rec_info, which the model has not got
-  62 the round trip from the compiler, for the compiler's equality: not run, the type has a function type with a rec_info, which the model has not got
-  9 free_variables against free_names, without shadowed bindings: not run, the compiler's type mentions a variable of kind Rec_info where the model has not got the expression
-  9 free_variables includes free_names, with shadowed bindings: not run, the compiler's type mentions a variable of kind Rec_info where the model has not got the expression
+  3629 the round trip from the model (to the compiler and back): agree
+  3629 the round trip from the compiler, as printed: agree
+  3629 the round trip from the compiler, for the compiler's equality: agree
+  3629 the round trip from the compiler, for Type_grammar.equal: agree
+  62 with a function type that has a rec_info, which is put back for the round trip from the compiler
+  9 free_variables against free_names, without shadowed bindings: not run, what the converter dropped of Rec_info mentions variables, which the model has not got
+  9 free_variables includes free_names, with shadowed bindings: not run, what the converter dropped of Rec_info mentions variables, which the model has not got
   5 units not simplified
 
 No disagreement.

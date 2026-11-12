@@ -46,15 +46,17 @@
    the expression of a [Rec_info] head, the string of a [Poison] constant, the
    cache of free names of a type. On the way back a function type gets the
    unknown [rec_info]; a [Rec_info] head is refused, as the model does not say
-   which expression it was. - The maps of the model are association lists of
-   which the first binding of a key counts, and its sets are lists. A map of the
-   compiler becomes the list of its bindings and a set the list of its elements,
-   in the order of the compiler's maps and sets, which means nothing. A list of
-   the model becomes a map by adding its bindings from the last to the first, so
-   that the first binding of a key is the one kept ([Map.of_list] would keep the
-   last). - The names are numbered by the [Model_names.t] given
-   (model_names.ml), and the numbers converted by model_numbers.ml; both are
-   trusted with this file.
+   which expression it was. (For the tests that compare a type of the compiler
+   with what comes back, two conversions at the end of this file say what was
+   dropped of [Rec_info] and put the [rec_info] of function types back.) - The
+   maps of the model are association lists of which the first binding of a key
+   counts, and its sets are lists. A map of the compiler becomes the list of its
+   bindings and a set the list of its elements, in the order of the compiler's
+   maps and sets, which means nothing. A list of the model becomes a map by
+   adding its bindings from the last to the first, so that the first binding of
+   a key is the one kept ([Map.of_list] would keep the last). - The names are
+   numbered by the [Model_names.t] given (model_names.ml), and the numbers
+   converted by model_numbers.ml; both are trusted with this file.
 
    The types of the compiler are abstract outside its types library, and
    [Type_grammar] is not exported by it. This file reaches the modules of the
@@ -70,6 +72,7 @@ open Flambda2_numbers
 open Flambda2_term_basics
 open Flambda2_bound_identifiers
 open Flambda2_lattices
+open Flambda2_nominal
 module K = Flambda_kind
 module TG = Flambda2_types__Type_grammar
 module TD = Flambda2_types__Type_descr
@@ -102,6 +105,60 @@ let not_in_the_compiler fmt =
   Format.kasprintf (fun what -> raise (Not_in_the_compiler what)) fmt
 
 type machine_width = Target_system.Machine_width.t
+
+(* ======================================================================== *)
+(* What is dropped of [Rec_info]                                            *)
+(* ======================================================================== *)
+
+(* The model has not got the [rec_info] of a function type nor the expression of
+   a [Rec_info] head, and the conversion to the model drops them. A test that
+   compares a type of the compiler with what comes back from the model needs to
+   know what was dropped, and to have it put back:
+   [type_to_model_with_what_is_dropped] and [type_of_model_with_rec_infos], at
+   the end of this file, are the conversions with that. They work through the
+   two references below, which the conversions consult and which are as they are
+   here but during a call of one of those two functions: nothing is recorded,
+   and a function type gets the unknown [rec_info]. *)
+type dropped =
+  { rec_infos : (Code_id.t * TG.t) list;
+        (** The [rec_info] of each function type, the unknown one too, with the
+            code id of the function type, in the order of the conversion. *)
+    variables : Variable.t list
+        (** The variables that those [rec_info]s mention, and those that the
+            expressions of the [Rec_info] heads dropped mention. *)
+  }
+
+let recording : dropped option ref = ref None
+
+let record_rec_info code_id rec_info =
+  match !recording with
+  | None -> ()
+  | Some dropped ->
+    recording
+      := Some
+           { rec_infos = (code_id, rec_info) :: dropped.rec_infos;
+             variables =
+               Name_occurrences.fold_variables (TG.free_names rec_info)
+                 ~init:dropped.variables ~f:(fun variables variable ->
+                   variable :: variables)
+           }
+
+let record_rec_info_expr (expr : Rec_info_expr.t) =
+  match !recording with
+  | None -> ()
+  | Some dropped ->
+    recording
+      := Some
+           { dropped with
+             variables =
+               Name_occurrences.fold_variables (Rec_info_expr.free_names expr)
+                 ~init:dropped.variables ~f:(fun variables variable ->
+                   variable :: variables)
+           }
+
+(* The [rec_info] that a function type made from the model gets. *)
+let rec_info_of_code : (Code_id.t -> TG.t) ref =
+  ref (fun (_ : Code_id.t) -> TG.any_rec_info)
 
 (* ======================================================================== *)
 (* Numbers                                                                  *)
@@ -788,7 +845,10 @@ let rec type_to_model (names : Model_names.t) (t : TG.t) : MT.flambda_type =
         Mask.Set.elements (head :> Mask.Set.t))
       z_of_mask ty
   | Rec_info ty ->
-    Type_rec_info (descr_to_model names (fun (_ : Rec_info_expr.t) -> ()) ty)
+    Type_rec_info
+      (descr_to_model names
+         (fun (expr : Rec_info_expr.t) -> record_rec_info_expr expr)
+         ty)
   | Region ty -> Type_region (descr_to_model names (fun () -> ()) ty)
 
 (* [head_of_kind_value]: its two fields. *)
@@ -908,10 +968,10 @@ and closures_entry_to_model (names : Model_names.t) (entry : TG.closures_entry)
           ( function_slot_to_model names slot,
             or_unknown_to_model
               (fun (function_type : TG.function_type) : MT.function_type ->
-                { function_type_code_id =
-                    code_id_to_model names
-                      (TG.Function_type.code_id function_type)
-                })
+                let code_id = TG.Function_type.code_id function_type in
+                record_rec_info code_id
+                  (TG.Function_type.rec_info function_type);
+                { function_type_code_id = code_id_to_model names code_id })
               function_type ))
         (Function_slot.Map.bindings entry.function_types),
       List.map
@@ -1198,7 +1258,8 @@ and row_like_for_closures_of_model (names : Model_names.t)
          known_closures)
 
 (* A function type of the model is a code id; the compiler's gets the unknown
-   [rec_info], of which the model says nothing. *)
+   [rec_info], of which the model says nothing ([rec_info_of_code], which is
+   another function only during [type_of_model_with_rec_infos]). *)
 and closures_entry_of_model (names : Model_names.t)
     (machine_width : machine_width)
     (Closures_entry (function_types, closure_types, value_slot_types) :
@@ -1226,9 +1287,9 @@ and closures_entry_of_model (names : Model_names.t)
          (function_slot_of_model names)
          (or_unknown_of_model
             (fun ({ function_type_code_id = code_id } : MT.function_type) ->
-              TG.Function_type.create
-                (code_id_of_model names code_id)
-                ~rec_info:TG.any_rec_info))
+              let code_id = code_id_of_model names code_id in
+              TG.Function_type.create code_id
+                ~rec_info:(!rec_info_of_code code_id)))
          function_types)
     ~closure_types:(TG.Product.Function_slot_indexed.create closure_types)
     ~value_slot_types:
@@ -1278,3 +1339,42 @@ let of_model (names : Model_names.t) (machine_width : machine_width)
   match type_of_model names machine_width t with
   | t -> Converted t
   | exception Not_in_the_compiler what -> Refused what
+
+(* ======================================================================== *)
+(* The conversions with what is dropped of [Rec_info]                       *)
+(* ======================================================================== *)
+
+(* [type_to_model], with what it dropped of the [rec_info] of function types and
+   of the expressions of [Rec_info] heads. *)
+let type_to_model_with_what_is_dropped (names : Model_names.t) (t : TG.t) :
+    MT.flambda_type * dropped =
+  let before = !recording in
+  recording := Some { rec_infos = []; variables = [] };
+  Fun.protect
+    ~finally:(fun () -> recording := before)
+    (fun () ->
+      let m = type_to_model names t in
+      match !recording with
+      | Some { rec_infos; variables } ->
+        m, { rec_infos = List.rev rec_infos; variables }
+      | None -> assert false)
+
+(* [type_of_model], where a function type whose code id is in the list gets the
+   [rec_info] given with it (the first, if there are several), and not the
+   unknown one. *)
+let type_of_model_with_rec_infos (names : Model_names.t)
+    (machine_width : machine_width) ~(rec_infos : (Code_id.t * TG.t) list)
+    (m : MT.flambda_type) : TG.t =
+  let before = !rec_info_of_code in
+  (rec_info_of_code
+     := fun code_id ->
+          match
+            List.find_opt
+              (fun (code_id', (_ : TG.t)) -> Code_id.equal code_id code_id')
+              rec_infos
+          with
+          | Some ((_ : Code_id.t), rec_info) -> rec_info
+          | None -> TG.any_rec_info);
+  Fun.protect
+    ~finally:(fun () -> rec_info_of_code := before)
+    (fun () -> type_of_model names machine_width m)

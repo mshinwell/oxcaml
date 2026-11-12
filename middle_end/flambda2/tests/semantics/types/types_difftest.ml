@@ -3047,6 +3047,191 @@ let comparison_by_text (names : names) =
   failures := !failures + List.length wrong
 
 (* ======================================================================== *)
+(* What the model has not got of [Rec_info]                                 *)
+(* ======================================================================== *)
+
+(* The comparisons of one type leave out what the converter drops of [Rec_info]
+   (the [rec_info] of a function type, the expression of a [Rec_info] head), and
+   nothing else. These are cases made by hand, each with the outcome that a
+   comparison is to have on it: - an alias to a variable of kind [Rec_info],
+   which the model has, against a type of the model without it: the free
+   variables differ, and that is a disagreement; - a function type whose
+   [rec_info] mentions a variable: the free variables are not compared as they
+   are, they agree once the variables of what was dropped are added, and the
+   type comes back the same with the [rec_info] put back; - a [Rec_info] head,
+   the successor of a variable: the same for the free variables, and the type
+   does not come back; - two closures that differ in the last byte of a long
+   string and in the [rec_info]: with the [rec_info] of the first put into the
+   second, the compiler's two equalities tell the two apart, though they are
+   printed alike (the printer of the compiler shows the start of a long string);
+   - a type in which one code id has a [rec_info] in one function type and the
+   unknown one in another: the [rec_info]s cannot be put back by code id, and
+   the type is not compared. *)
+let rec_info_cases (names : names) =
+  let numbering = names.numbering in
+  let depth_of_model = List.hd names.pool.rec_info_variables in
+  let depth = Converter.variable_of_model numbering depth_of_model in
+  let slot_of_model = List.hd names.pool.function_slots in
+  let value_slot_of_model = List.hd names.pool.value_slots in
+  let code_of_model = List.hd names.pool.code_ids in
+  let code = Converter.code_id_of_model numbering code_of_model in
+  let rec_info = TG.this_rec_info (Rec_info_expr.var depth) in
+  (* A closure of the model whose value slot holds a string. *)
+  let closure (bytes : string) : MT.flambda_type =
+    MT.exactly_this_closure slot_of_model
+      [ ( slot_of_model,
+          MT.Or_unknown.Known
+            ({ function_type_code_id = code_of_model } : MT.function_type) ) ]
+      []
+      [ ( value_slot_of_model,
+          MT.this_immutable_string
+            (List.map
+               (fun c -> N.z_of_int (Char.code c))
+               (List.of_seq (String.to_seq bytes))) ) ]
+      Heap
+  in
+  let with_rec_info m =
+    Converter.type_of_model_with_rec_infos numbering machine_width
+      ~rec_infos:[code, rec_info]
+      m
+  in
+  let comparisons =
+    Type_comparisons.comparisons_of_one_type numbering
+    @ comparisons_of_what_is_dropped numbering
+    @ Type_comparisons.round_trip_from_the_compiler numbering names.env
+  in
+  let outcome name (both : both) =
+    let comparison =
+      List.find
+        (fun { name = name'; compare = _ } -> String.equal name name')
+        comparisons
+    in
+    match guarded comparison.compare both with
+    | Agree -> "agree"
+    | Not_run _ -> "not run"
+    | Disagree _ -> "disagree"
+    | Known_to_disagree _ -> "recorded"
+    | Not_this_comparison -> "not this comparison"
+  in
+  let of_compiler compiler : both =
+    { model = to_model names compiler; compiler }
+  in
+  let exact = "free_variables against free_names, without shadowed bindings" in
+  let with_dropped =
+    "free_variables, with the variables of what the converter drops, against \
+     free_names"
+  in
+  let as_printed = "the round trip from the compiler, as printed" in
+  let for_equal_types =
+    "the round trip from the compiler, for the compiler's equality"
+  in
+  let for_equal = "the round trip from the compiler, for Type_grammar.equal" in
+  let alias_without : both =
+    { model = MT.unknown Rec_info;
+      compiler = TG.alias_type_of K.rec_info (Simple.var depth)
+    }
+  in
+  let function_type = of_compiler (with_rec_info (closure "abc")) in
+  (* [this_rec_info] of a variable alone is an alias to it, which the model has:
+     a head is an expression that is more than a variable. *)
+  let head =
+    of_compiler
+      (TG.this_rec_info (Rec_info_expr.succ (Rec_info_expr.var depth)))
+  in
+  (* The second closure, with the [rec_info] of the first put into it. *)
+  let first = with_rec_info (closure "aaaaaaaaaaaaX") in
+  let second_with_the_rec_info_of_the_first =
+    let (_ : MT.flambda_type), (dropped : Converter.dropped) =
+      Converter.type_to_model_with_what_is_dropped numbering first
+    in
+    Converter.type_of_model_with_rec_infos numbering machine_width
+      ~rec_infos:dropped.rec_infos (closure "aaaaaaaaaaaaY")
+  in
+  (* A closure whose function type has the [rec_info], and whose value slot
+     holds a closure of the same code with the unknown one. *)
+  let two_rec_infos_for_one_code =
+    let slot = Converter.function_slot_of_model numbering slot_of_model in
+    let value_slot =
+      Converter.value_slot_of_model numbering value_slot_of_model
+    in
+    let closure rec_info value_slots =
+      MTC.exactly_this_closure slot
+        ~all_function_slots_in_set:
+          (Function_slot.Map.singleton slot
+             (Or_unknown.Known (TG.Function_type.create code ~rec_info)))
+        ~all_closure_types_in_set:Function_slot.Map.empty
+        ~all_value_slots_in_set:value_slots
+        (Converter.alloc_mode_of_model Heap)
+    in
+    of_compiler
+      (closure rec_info
+         (Value_slot.Map.singleton value_slot
+            (closure TG.any_rec_info Value_slot.Map.empty)))
+  in
+  let expect what expected actual = what, String.equal expected actual in
+  let cases =
+    [ expect "an alias to a variable that the model's type has not: exact"
+        "disagree"
+        (outcome exact alias_without);
+      expect
+        "an alias to a variable that the model's type has not: with what is \
+         dropped"
+        "disagree"
+        (outcome with_dropped alias_without);
+      expect "a function type with a rec_info of a variable: exact" "not run"
+        (outcome exact function_type);
+      expect
+        "a function type with a rec_info of a variable: with what is dropped"
+        "agree"
+        (outcome with_dropped function_type);
+      expect "a function type with a rec_info of a variable: as printed" "agree"
+        (outcome as_printed function_type);
+      expect
+        "a function type with a rec_info of a variable: the compiler's equality"
+        "agree"
+        (outcome for_equal_types function_type);
+      expect "a function type with a rec_info of a variable: Type_grammar.equal"
+        "agree"
+        (outcome for_equal function_type);
+      expect "a Rec_info head that mentions a variable: exact" "not run"
+        (outcome exact head);
+      expect "a Rec_info head that mentions a variable: with what is dropped"
+        "agree"
+        (outcome with_dropped head);
+      expect "a Rec_info head that mentions a variable: as printed" "not run"
+        (outcome as_printed head);
+      ( "two closures that differ in the end of a long string: printed alike",
+        String.equal
+          (print_compiler_type first)
+          (print_compiler_type second_with_the_rec_info_of_the_first) );
+      ( "two closures that differ in the end of a long string: not the same \
+         for Type_grammar.equal",
+        not (TG.equal first second_with_the_rec_info_of_the_first) );
+      ( "two closures that differ in the end of a long string: not the same \
+         for the compiler's equality",
+        not
+          (Equal.equal_type
+             ~config:(Equal.create_config ~ignore_alloc_mode:false ())
+             ~meet_expanded_head:binary.meet_expanded_head names.env first
+             second_with_the_rec_info_of_the_first) );
+      expect "one code id with a rec_info and with the unknown one: as printed"
+        "not run"
+        (outcome as_printed two_rec_infos_for_one_code);
+      expect
+        "one code id with a rec_info and with the unknown one: \
+         Type_grammar.equal"
+        "not run"
+        (outcome for_equal two_rec_infos_for_one_code) ]
+  in
+  let wrong = List.filter (fun (_, as_expected) -> not as_expected) cases in
+  Format.printf
+    "@.What the model has not got of Rec_info (%d cases): %d as expected@."
+    (List.length cases)
+    (List.length cases - List.length wrong);
+  List.iter (fun (what, _) -> Format.printf "  WRONG: %s@." what) wrong;
+  failures := !failures + List.length wrong
+
+(* ======================================================================== *)
 (* The ranges of numbers                                                    *)
 (* ======================================================================== *)
 
@@ -3198,6 +3383,7 @@ let () =
      else "disabled");
   ranges_of_numbers ();
   comparison_by_text names;
+  rec_info_cases names;
   run ~title:"Raw types of the model" ~seed:1000 ~count:3000
     ~generate:(fun r ->
       G.flambda_type { well_formed = false; depth = 3 } r names.pool)

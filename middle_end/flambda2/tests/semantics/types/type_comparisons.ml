@@ -36,7 +36,6 @@
    calls the comparisons itself. *)
 
 open Flambda2_identifiers
-open Flambda2_kinds
 open Flambda2_nominal
 module TG = Flambda2_types__Type_grammar
 module TE = Flambda2_types__Typing_env
@@ -303,50 +302,14 @@ let free_variables_of_compiler (numbering : Model_names.t) (t : TG.t) :
     ~f:(fun variables var ->
       Converter.variable_to_model numbering var :: variables)
 
-(* Those of kind [Rec_info]. The model has not got the expression of a
-   [Rec_info] head nor the [rec_info] of a function type, so a variable of that
-   kind that the compiler's type mentions there is not in the model's type. *)
-let free_depth_variables_of_compiler (numbering : Model_names.t) (t : TG.t) :
-    M.variable list =
-  Name_occurrences.fold_variables (TG.free_names t) ~init:[]
-    ~f:(fun variables var ->
-      if Flambda_kind.equal (Variable.kind var) Flambda_kind.rec_info
-      then Converter.variable_to_model numbering var :: variables
-      else variables)
-
-(* A printed type of the compiler without the [rec_info] of its function types,
-   which the model has not got: each is shown as [(rec_info _)]. *)
-let without_rec_info (printed : string) : string =
-  let opening = "(rec_info " in
-  let length = String.length printed in
-  let buffer = Buffer.create length in
-  let starts_at i =
-    i + String.length opening <= length
-    && String.equal (String.sub printed i (String.length opening)) opening
+(* The variables of what the converter drops of a type of the compiler (the
+   [rec_info] of its function types, the expressions of its [Rec_info] heads),
+   as numbers. *)
+let variables_dropped (numbering : Model_names.t) (t : TG.t) : M.variable list =
+  let (_ : MT.flambda_type), (dropped : Converter.dropped) =
+    Converter.type_to_model_with_what_is_dropped numbering t
   in
-  (* The position after the bracket that closes the one opened at [i]. *)
-  let rec closing i depth =
-    if i >= length
-    then length
-    else
-      match printed.[i] with
-      | '(' -> closing (i + 1) (depth + 1)
-      | ')' -> if depth = 1 then i + 1 else closing (i + 1) (depth - 1)
-      | _ -> closing (i + 1) depth
-  in
-  let rec copy i =
-    if i < length
-    then
-      if starts_at i
-      then (
-        Buffer.add_string buffer "(rec_info _)";
-        copy (closing i 0))
-      else (
-        Buffer.add_char buffer printed.[i];
-        copy (i + 1))
-  in
-  copy 0;
-  Buffer.contents buffer
+  List.map (Converter.variable_to_model numbering) dropped.variables
 
 (* A type of the model with the type of the compiler made from it. *)
 type both =
@@ -378,46 +341,41 @@ let comparisons_of_one_type (numbering : Model_names.t) : both comparison list =
       (Model_type.set N.compare_positive variables)
   in
   (* The variables of the model's type against those of the compiler's: the same
-     ones, or if not [exact] at least those of the compiler's. A variable of
-     kind [Rec_info] that only the compiler's type has is in what the model has
-     not got: the case is then not run, and counted so. *)
+     ones, or if not [exact] at least those of the compiler's. Where the
+     converter dropped something that mentions variables (the [rec_info] of a
+     function type, the expression of a [Rec_info] head), the two cannot be the
+     same: the case is not run here, and [comparisons_of_what_is_dropped] has
+     the comparison that takes those variables in. *)
   let free_variables name of_model ~exact =
     { name;
       compare =
         (fun { model; compiler } ->
-          let of_model = of_model model in
-          let of_compiler = free_variables_of_compiler numbering compiler in
-          let only_of_compiler =
-            List.filter (fun x -> not (List.mem x of_model)) of_compiler
-          in
-          let only_of_model =
-            List.filter (fun x -> not (List.mem x of_compiler)) of_model
-          in
-          let depth_variables =
-            free_depth_variables_of_compiler numbering compiler
-          in
-          match only_of_compiler, only_of_model with
-          | [], [] -> Agree
-          | [], _ :: _ when not exact -> Agree
-          | _ :: _, ([] | _ :: _)
-            when List.for_all
-                   (fun x -> List.mem x depth_variables)
-                   only_of_compiler
-                 && ((not exact)
-                    || match only_of_model with [] -> true | _ :: _ -> false) ->
+          match variables_dropped numbering compiler with
+          | _ :: _ ->
             Not_run
-              "the compiler's type mentions a variable of kind Rec_info where \
-               the model has not got the expression"
-          | ([] | _ :: _), ([] | _ :: _) ->
-            Disagree
+              "what the converter dropped of Rec_info mentions variables, \
+               which the model has not got"
+          | [] ->
+            let of_model = of_model model in
+            let of_compiler = free_variables_of_compiler numbering compiler in
+            agree_if
+              (if exact
+               then Model_type.same_variables of_model of_compiler
+               else List.for_all (fun x -> List.mem x of_model) of_compiler)
               (Format.asprintf "the model answers %a, the compiler %a"
                  print_variables of_model print_variables of_compiler))
     }
   in
   [ { name = "the round trip from the model (to the compiler and back)";
       compare =
-        (fun { model; compiler } ->
-          let back = Converter.type_to_model numbering compiler in
+        (fun { model; compiler = _ } ->
+          (* The type of the compiler is made from the model's here, and not
+             taken from the input: where the input's was given and the model's
+             made from it, this is still a round trip from the model. *)
+          let back =
+            Converter.type_to_model numbering
+              (Converter.type_of_model numbering machine_width model)
+          in
           agree_if
             (Model_type.same model back)
             (Format.asprintf "the type comes back as %a" Model_type.print back))
@@ -444,6 +402,32 @@ let comparisons_of_one_type (numbering : Model_names.t) : both comparison list =
       ~exact:true;
     free_variables "free_variables includes free_names, with shadowed bindings"
       MT.free_variables ~exact:false ]
+
+(* For a type of the compiler that has what the converter drops of [Rec_info]:
+   the variables of the model's type, with those of what was dropped, are the
+   free names of the compiler's type, and no others. *)
+let comparisons_of_what_is_dropped (numbering : Model_names.t) :
+    both comparison list =
+  [ { name =
+        "free_variables, with the variables of what the converter drops, \
+         against free_names";
+      compare =
+        (fun { model; compiler } ->
+          let of_model =
+            MT.free_variables (Model_type.normalise model)
+            @ variables_dropped numbering compiler
+          in
+          let of_compiler = free_variables_of_compiler numbering compiler in
+          let print ppf variables =
+            Model_type.print_list Model_type.print_variable ppf
+              (Model_type.set N.compare_positive variables)
+          in
+          agree_if
+            (Model_type.same_variables of_model of_compiler)
+            (Format.asprintf
+               "the model and what is dropped give %a, the compiler %a" print
+               of_model print of_compiler))
+    } ]
 
 (* [type_well_formed] of FlambdaTypeWellFormedSpec.v is meant to be true of
    every type that the compiler builds, whatever the program. Whether it is true
@@ -494,41 +478,57 @@ let well_formed_types (numbering : Model_names.t) : both comparison list =
 (* The round trip from the compiler: a type of the compiler, to the model and
    back, is the same type for the compiler's own equality
    ([Equal_types_for_debug], allocation modes included) and is printed the same.
-   Where the two differ only in the [rec_info] of a function type, which the
-   converter drops and makes unknown on the way back, the case is not run, and
-   counted so: a type made from a type of the model never has one, and a type
-   that Simplify computes may. *)
+
+   The converter drops the [rec_info] of a function type, which the model has
+   not got, and a type that Simplify computes may have one. So the type that
+   comes back is made with the [rec_info] of each function type put back, by the
+   code id of the function type ([Converter.type_of_model_with_rec_infos]): it
+   is then to be the type that was given, and what is compared is the whole of
+   the two types. A type in which one code id has two different [rec_info]s
+   cannot be put back so, and is not compared. A type made from a type of the
+   model has no [rec_info] to put back. *)
 let round_trip_from_the_compiler (numbering : Model_names.t) (env : TE.t) :
     both comparison list =
-  let back t =
-    Converter.type_of_model numbering machine_width
-      (Converter.type_to_model numbering t)
-  in
-  let differ_in_rec_info_only t t' =
-    let printed = print_compiler_type t and printed' = print_compiler_type t' in
-    (not (String.equal printed printed'))
-    && String.equal (without_rec_info printed) (without_rec_info printed')
-  in
-  let differs_in_rec_info =
-    "the type has a function type with a rec_info, which the model has not got"
+  let ambiguous = "one code id has two rec_infos in the type" in
+  (* The type that comes back, or [None] if the [rec_info]s cannot be put
+     back. *)
+  let back t : TG.t option =
+    let model, (dropped : Converter.dropped) =
+      Converter.type_to_model_with_what_is_dropped numbering t
+    in
+    let rec one_for_each_code (rec_infos : (Code_id.t * TG.t) list) =
+      match rec_infos with
+      | [] -> true
+      | (code_id, rec_info) :: rec_infos ->
+        List.for_all
+          (fun (code_id', rec_info') ->
+            (not (Code_id.equal code_id code_id'))
+            || TG.equal rec_info rec_info')
+          rec_infos
+        && one_for_each_code rec_infos
+    in
+    if one_for_each_code dropped.rec_infos
+    then
+      Some
+        (Converter.type_of_model_with_rec_infos numbering machine_width
+           ~rec_infos:dropped.rec_infos model)
+    else None
   in
   [ { name = "the round trip from the compiler, as printed";
       compare =
         (fun { model = _; compiler } ->
-          let back = back compiler in
-          if
-            String.equal
-              (print_compiler_type compiler)
-              (print_compiler_type back)
-          then Agree
-          else if differ_in_rec_info_only compiler back
-          then Not_run differs_in_rec_info
-          else Disagree ("the type comes back as " ^ print_compiler_type back))
+          match back compiler with
+          | None -> Not_run ambiguous
+          | Some back ->
+            agree_if
+              (String.equal
+                 (print_compiler_type compiler)
+                 (print_compiler_type back))
+              ("the type comes back as " ^ print_compiler_type back))
     };
     { name = "the round trip from the compiler, for the compiler's equality";
       compare =
         (fun { model; compiler } ->
-          let back = back compiler in
           (* On a type with an extension within an extension the compiler's
              equality may overflow the stack (T7-2: an extension that gives a
              name a type with an extension on that name). The compiler built
@@ -543,16 +543,24 @@ let round_trip_from_the_compiler (numbering : Model_names.t) (env : TE.t) :
                 "the compiler's equality is not asked: it may overflow the \
                  stack on a type with an extension within an extension" )
           else
-            let equal =
-              Equal.equal_type
-                ~config:(Equal.create_config ~ignore_alloc_mode:false ())
-                ~meet_expanded_head:Binary.meet_expanded_head env compiler back
-            in
-            if equal
-            then Agree
-            else if differ_in_rec_info_only compiler back
-            then Not_run differs_in_rec_info
-            else
+            match back compiler with
+            | None -> Not_run ambiguous
+            | Some back ->
+              let equal =
+                Equal.equal_type
+                  ~config:(Equal.create_config ~ignore_alloc_mode:false ())
+                  ~meet_expanded_head:Binary.meet_expanded_head env compiler
+                  back
+              in
               let back = print_compiler_type back in
-              Disagree ("the type comes back as " ^ back))
+              agree_if equal ("the type comes back as " ^ back))
+    };
+    { name = "the round trip from the compiler, for Type_grammar.equal";
+      compare =
+        (fun { model = _; compiler } ->
+          match back compiler with
+          | None -> Not_run ambiguous
+          | Some back ->
+            agree_if (TG.equal compiler back)
+              ("the type comes back as " ^ print_compiler_type back))
     } ]

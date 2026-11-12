@@ -7,6 +7,8 @@ Constants of the compiler with the top bit set (12): 12 in the range of the mode
 
 The comparison by text (6 cases): 6 as expected
 
+What the model has not got of Rec_info (15 cases): 15 as expected
+
 Raw types of the model (3000 cases, seeds 1000 to 3999)
   28 not converted: not in the compiler: a Rec_info type given by its head: the model has not got the expression
   5 not converted: not in the compiler: a closure type that is not of kind value, in a closures entry
@@ -67,6 +69,7 @@ Types of the model that the compiler's functions make (3000 cases, seeds 5000 to
                          (other_tags Bottom) (alloc_mode Heap))))
                (extensions No_extensions) (is_unique false)) Not_null))])]
        Heap) Not_null))
+  the round trip from the compiler, for Type_grammar.equal: 2966 agree
   type_well_formed of a type, and of what the compiler makes of it: 2966 agree
   the types of which type_well_formed is true: 2714 agree
     252 not run: it is false of the type

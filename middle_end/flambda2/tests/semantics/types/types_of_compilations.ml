@@ -32,12 +32,14 @@
    from a .fl file and simplified, and every typing environment that Simplify
    reports to the observer of the types library (at the start of each
    continuation handler that it simplifies, and at the end of the unit) is gone
-   through, each name that it knows with its type. Each such type is taken to
-   the model by the converter, and the comparisons of one type are run on it
-   (type_comparisons.ml): each function that the model has of a type against the
-   compiler's, the type there and back, and whether the type is well formed
-   ([type_well_formed] of FlambdaTypeWellFormedSpec.v, which is meant to be true
-   of every type that the compiler builds).
+   through, each name that it knows with its type. Each such type, unless it is
+   one already seen for the name (for [Type_grammar.equal], the compiler's
+   structural equality), is taken to the model by the converter, and the
+   comparisons of one type are run on it (type_comparisons.ml): each function
+   that the model has of a type against the compiler's, the type there and back,
+   and whether the type is well formed ([type_well_formed] of
+   FlambdaTypeWellFormedSpec.v, which is meant to be true of every type that the
+   compiler builds).
 
    What is printed for a file is a line: the environments, the names, the
    different types and those that the model has; and at the end, for all the
@@ -269,12 +271,23 @@ let check_file filename : counts * int =
       (fun _ -> count "environments at the start of a handler")
       at_handlers;
     List.iter (fun _ -> count "environments at the end of a unit") at_end;
-    let seen = Hashtbl.create 64 in
+    (* The types of each name that were compared already. Two types are the same
+       one for the compiler's structural equality, and not for how they are
+       printed, which leaves things out. *)
+    let seen : TG.t list Name.Map.t ref = ref Name.Map.empty in
+    let seen_already name t =
+      let types = Option.value (Name.Map.find_opt name !seen) ~default:[] in
+      List.exists (TG.equal t) types
+      ||
+      (seen := Name.Map.add name (t :: types) !seen;
+       false)
+    in
     let disagreements_of_the_file = ref [] in
     List.iter
       (fun (env, _) ->
         let comparisons =
           comparisons_of_one_type numbering
+          @ comparisons_of_what_is_dropped numbering
           @ round_trip_from_the_compiler numbering env
           @ [ { name = "type_well_formed";
                 compare = (fun { model; compiler = _ } -> well_formed [model])
@@ -284,18 +297,25 @@ let check_file filename : counts * int =
           (fun (name, kind) ->
             count "names in the environments";
             let t = TE.find env name (Some kind) in
-            let printed =
-              Format.asprintf "%a : %a" Name.print name TG.print t
-            in
-            if not (Hashtbl.mem seen printed)
+            if not (seen_already name t)
             then (
-              Hashtbl.replace seen printed ();
               count "different types of a name";
-              match Converter.type_to_model numbering t with
+              match
+                Converter.type_to_model_with_what_is_dropped numbering t
+              with
               | exception Converter.Not_in_the_model what ->
                 count ("not in the model: " ^ general what)
-              | model ->
+              | model, (dropped : Converter.dropped) ->
                 count "in the model";
+                if
+                  List.exists
+                    (fun ((_ : Code_id.t), rec_info) ->
+                      not (TG.is_obviously_unknown rec_info))
+                    dropped.rec_infos
+                then
+                  count
+                    "with a function type that has a rec_info, which is put \
+                     back for the round trip from the compiler";
                 (match Model_type.extension_depth model with
                 | 0 -> ()
                 | 1 -> count "with an extension"
