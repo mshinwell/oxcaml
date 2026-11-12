@@ -75,8 +75,9 @@
    arithmetic with several slopes. Here there are two cases. Where
    the arguments that differ from arm to arm are all computed in the
    same one of the four ways, and for the fourth with one slope and
-   one offset, the variable of the scrutinee is bound again and holds
-   what is computed ([merge_switch]). Otherwise, where the
+   one offset, the variable of the scrutinee holds what is computed:
+   the ways that apply a primitive bind it again, and the third
+   passes it as it is ([merge_switch]). Otherwise, where the
    continuation that the arms apply is bound by a [Let_cont] around
    the [Switch], a way is chosen for each argument, and each argument
    that is computed is bound to the parameter of that continuation at
@@ -153,25 +154,28 @@
    [Switch] becomes the application under the [Let]s of the ways, the
    first argument outermost ([bind_ways]). An argument that is
    computed is bound to the parameter of the continuation at its
-   position, by the primitives of its way, the first of which reads
-   the scrutinee and the others that parameter ([bind_way]); the
-   scrutinee is not bound again. An argument that is the scrutinee as
-   it is, is the scrutinee, with no [Let], and one that is the same in
-   every arm stays. The parameters must be as many as the arguments,
-   no two the same, none the scrutinee, and none may occur in an
-   argument that is the same in every arm ([names_usable]): a
-   parameter bound so hides a variable of the same name, and under
-   the new [Let]s there is only the application. So the rewrite still
-   makes no name. The refinement holds whatever the names are, under
-   those tests; that they are read off the term is what makes the
-   rewrite commute with renaming. Simplify computes once a primitive
-   that two arguments share (the tagging of the scrutinee, the
-   multiplication by one slope); here each argument has its own, and
-   the sharing is left to the rewrite of the validation that shares
-   primitives (FlambdaCseSpec.share_known_primitives). Where the
-   continuation is not bound in sight (the return continuation of
-   code, a continuation bound outside a handler that the rewrite is
-   applied to on its own), only [merge_switch] applies.
+   position, by the [Let]s of its way ([bind_way]). The first reads
+   the scrutinee: it is the tagging, or, for the arithmetic on naked
+   immediates, which has no tagging, a [Let] of the parameter as the
+   scrutinee itself. The others are the primitives that follow, and
+   read the parameter. The scrutinee is not bound again. An argument
+   that is the scrutinee as it is, is the scrutinee, with no [Let],
+   and one that is the same in every arm stays. The parameters must
+   be as many as the arguments, no two the same, none the scrutinee,
+   and none may occur in an argument that is the same in every arm
+   ([names_usable]): a parameter bound so hides a variable of the
+   same name, and under the new [Let]s there is only the application.
+   So the rewrite still makes no name. The refinement holds whatever
+   the names are, under those tests; that they are read off the term
+   is what makes the rewrite commute with renaming. Simplify computes
+   once a primitive that two arguments share (the tagging of the
+   scrutinee, the multiplication by one slope); here each argument
+   has its own, and the sharing is left to the rewrite of the
+   validation that shares primitives
+   (FlambdaCseSpec.share_known_primitives). Where the continuation is
+   not bound in sight (the return continuation of code, a
+   continuation bound outside a handler that the rewrite is applied
+   to on its own), only [merge_switch] applies.
 
    [merge_switches] goes where
    FlambdaNormaliseSpec.collapse_switches goes: into the bodies of
@@ -182,8 +186,13 @@
    the other rewrites of the round, with
    FlambdaRecHandlersSpec.rewrite_rec_handlers and
    FlambdaNormaliseSpec.rewrite_code, and there it starts with no
-   continuation known. A [Switch] whose arms are all the same is left
-   to [collapse_switches].
+   continuation known. [merge_switch] leaves a [Switch] whose arms
+   are all the same, which [collapse_switches] has made one
+   application before it in a round. Such a [Switch], if one is met
+   with its continuation bound around it, is merged with a way for
+   each argument: every argument is the same in every arm (there may
+   be none), no [Let] is made, and the result is the application of
+   the arms.
 
    The result refines the term ([merge_switches_refines_statement]).
    Where the scrutinee is the number of an arm, the [Switch] goes to
