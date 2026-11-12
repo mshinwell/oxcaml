@@ -62,10 +62,15 @@ From OxCamlFlambda2 Require Import FlambdaMapSpec FlambdaModel
   FlambdaStaticsOrderSpec FlambdaUnboxSpec FlambdaUnusedContsSpec
   FlambdaUnusedParamsSpec FlambdaUnusedStaticsSpec FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
+From OxCamlFlambda2Types Require Import FlambdaBindingTime.
+From OxCamlFlambda2Types Require Import FlambdaJoinEnv.
+From OxCamlFlambda2Types Require Import FlambdaJoinMeet.
+From OxCamlFlambda2Types Require Import FlambdaMeet.
 From OxCamlFlambda2Types Require Import FlambdaTypeEqualSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar.
 From OxCamlFlambda2Types Require Import FlambdaTypeMeaningBoolSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeWellFormedSpec.
+From OxCamlFlambda2Types Require Import FlambdaTypingEnv.
 
 Extraction Language OCaml.
 
@@ -82,6 +87,19 @@ Set Extraction Output Directory ".".
    nothing, and the closing full stop has a line of its own for the same
    reason. *)
 Separate Extraction
+  FlambdaBindingTime.Name_mode.in_types
+  FlambdaBindingTime.Name_mode.normal
+  FlambdaJoinEnv.Join_env.compiler_choices
+  FlambdaJoinEnv.Join_env.repaired_choices
+  FlambdaJoinMeet.model_add_equation
+  FlambdaJoinMeet.model_join
+  FlambdaJoinMeet.model_join_scoped_envs
+  FlambdaJoinMeet.model_meet
+  FlambdaMeet.Flambda2_types.add_get_tag_relation
+  FlambdaMeet.Flambda2_types.add_is_int_relation
+  FlambdaMeet.Flambda2_types.add_is_null_relation
+  FlambdaMeet.compiler_choices
+  FlambdaMeet.repaired_choices
   FlambdaTypeEqualSpec.type_eqb
   FlambdaTypeGrammar.Relation.of_const
   FlambdaTypeGrammar.alias_type_of
@@ -157,6 +175,14 @@ Separate Extraction
   FlambdaTypeMeaningBoolSpec.type_satisfied_b
   FlambdaTypeMeaningBoolSpec.value_eqb
   FlambdaTypeWellFormedSpec.type_well_formed
+  FlambdaTypingEnv.Typing_env.add_symbol_definition
+  FlambdaTypingEnv.Typing_env.add_variable_definition
+  FlambdaTypingEnv.Typing_env.create
+  FlambdaTypingEnv.Typing_env.current_scope
+  FlambdaTypingEnv.Typing_env.find
+  FlambdaTypingEnv.Typing_env.get_canonical_simple_exn
+  FlambdaTypingEnv.Typing_env.increment_scope
+  FlambdaTypingEnv.Typing_env.mem
   all_among
   among
   bind_aliased_params

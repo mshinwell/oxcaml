@@ -316,6 +316,26 @@ val simple_must_be_const : simple -> const option
 
 val must_be_singleton : flambda_type -> const option option
 
+val head_of_kind_value_null : head_of_kind_value
+
+val head_of_kind_value_tagged_immediate : coq_Z -> head_of_kind_value
+
+val set_of_closures_contents_equal :
+  set_of_closures_contents -> set_of_closures_contents -> bool
+
+val set_of_closures_contents_subset :
+  set_of_closures_contents -> set_of_closures_contents -> bool
+
+val set_of_closures_contents_union :
+  set_of_closures_contents ->
+  set_of_closures_contents ->
+  set_of_closures_contents
+
+val set_of_closures_contents_inter :
+  set_of_closures_contents ->
+  set_of_closures_contents ->
+  set_of_closures_contents
+
 val unknown_like : flambda_type -> flambda_type
 
 val bottom_like : flambda_type -> flambda_type

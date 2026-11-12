@@ -18,6 +18,10 @@ let rec nth_error l = function
 
 let rec rev = function [] -> [] | x :: l' -> app (rev l') (x :: [])
 
+(** val concat : 'a1 list list -> 'a1 list **)
+
+let rec concat = function [] -> [] | x :: l0 -> app x (concat l0)
+
 (** val list_eq_dec : ('a1 -> 'a1 -> bool) -> 'a1 list -> 'a1 list -> bool **)
 
 let rec list_eq_dec eq_dec l l' =
@@ -56,6 +60,12 @@ let rec forallb f = function [] -> true | a :: l0 -> f a && forallb f l0
 let rec filter f = function
   | [] -> []
   | x :: l0 -> if f x then x :: filter f l0 else filter f l0
+
+(** val find : ('a1 -> bool) -> 'a1 list -> 'a1 option **)
+
+let rec find f = function
+  | [] -> None
+  | x :: tl0 -> if f x then Some x else find f tl0
 
 (** val combine : 'a1 list -> 'a2 list -> ('a1 * 'a2) list **)
 

@@ -811,6 +811,61 @@ let rec must_be_singleton = function
     | _ -> Some None)
   | _ -> Some None
 
+(** val head_of_kind_value_null : head_of_kind_value **)
+
+let head_of_kind_value_null = Head_of_kind_value (Bottom, Maybe_null None)
+
+(** val head_of_kind_value_tagged_immediate : coq_Z -> head_of_kind_value **)
+
+let head_of_kind_value_tagged_immediate imm =
+  Head_of_kind_value
+    ( Ok
+        (Variant
+           ( None,
+             Or_unknown.Known (this_naked_immediate imm),
+             None,
+             Or_unknown.Known row_like_for_blocks_bottom,
+             No_extensions,
+             false )),
+      Not_null )
+
+(** val set_of_closures_contents_equal : set_of_closures_contents ->
+    set_of_closures_contents -> bool **)
+
+let set_of_closures_contents_equal contents contents' =
+  Keyed.same_keys_b Pos.eqb contents.contents_closures
+    contents'.contents_closures
+  && Keyed.same_keys_b Pos.eqb contents.contents_value_slots
+       contents'.contents_value_slots
+
+(** val set_of_closures_contents_subset : set_of_closures_contents ->
+    set_of_closures_contents -> bool **)
+
+let set_of_closures_contents_subset contents contents' =
+  all_among contents.contents_closures contents'.contents_closures
+  && all_among contents.contents_value_slots contents'.contents_value_slots
+
+(** val set_of_closures_contents_union : set_of_closures_contents ->
+    set_of_closures_contents -> set_of_closures_contents **)
+
+let set_of_closures_contents_union contents contents' =
+  { contents_closures =
+      dedup (app contents.contents_closures contents'.contents_closures);
+    contents_value_slots =
+      dedup (app contents.contents_value_slots contents'.contents_value_slots)
+  }
+
+(** val set_of_closures_contents_inter : set_of_closures_contents ->
+    set_of_closures_contents -> set_of_closures_contents **)
+
+let set_of_closures_contents_inter contents contents' =
+  { contents_closures =
+      Keyed.inter Pos.eqb contents.contents_closures contents'.contents_closures;
+    contents_value_slots =
+      Keyed.inter Pos.eqb contents.contents_value_slots
+        contents'.contents_value_slots
+  }
+
 (** val unknown_like : flambda_type -> flambda_type **)
 
 let unknown_like t0 = unknown (kind t0)

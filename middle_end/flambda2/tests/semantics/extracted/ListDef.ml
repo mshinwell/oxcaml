@@ -4,6 +4,10 @@ open Datatypes
 
 let rec map f = function [] -> [] | a :: l0 -> f a :: map f l0
 
+(** val seq : nat -> nat -> nat list **)
+
+let rec seq start = function O -> [] | S len0 -> start :: seq (S start) len0
+
 (** val repeat : 'a1 -> nat -> 'a1 list **)
 
 let rec repeat x = function O -> [] | S k -> x :: repeat x k
