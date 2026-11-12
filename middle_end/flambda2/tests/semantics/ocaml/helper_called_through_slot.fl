@@ -1,0 +1,59 @@
+(let code inline(always) size(9) tupled 
+       swap_0 (param/70 : val, param/71 : val)
+         my_closure/72 &my_alloc_region/73 my_depth/74
+         -> k/24 * k/25
+         : [ 0 of val * val ] =
+   let next_depth/75 = rec_info (succ my_depth/74) in
+   let swap/76 = %project_function_slot.[swap].[swap] (my_closure/72) in
+   let Pmakeblock/77 = %block.[`0`].my_alloc_region/73 (param/71, param/70)
+   in
+   cont k/24 (Pmakeblock/77)
+ in
+ let code inline(always) size(2)
+       first_1 (pair/78 : [ 0 of val * val ])
+         my_closure/79 &my_alloc_region/80 my_depth/81
+         -> k/26 * k/27
+         : val =
+   let next_depth/82 = rec_info (succ my_depth/81) in
+   let Pfield/83 = %block_load.[`0`] (pair/78) in
+   cont k/26 (Pfield/83)
+ in
+ let code inline(never) size(18)
+       back_2 (pair/84 : [ 0 of val * val ])
+         my_closure/85 &my_alloc_region/86 my_depth/87
+         -> k/28 * k/29
+         : val =
+   let next_depth/88 = rec_info (succ my_depth/87) in
+   let swap/89 = %project_value_slot.[back].[swap] (my_closure/85) in
+   let first/90 = %project_value_slot.[back].[first] (my_closure/85) in
+   apply &my_alloc_region/86 swap/89 (pair/84) -> k/31 * k/29
+     where k/31 (apply_result/92 : [ 0 of val * val ]) =
+       apply &my_alloc_region/86 swap/89 (apply_result/92) -> k/30 * k/29
+     where k/30 (apply_result/91 : [ 0 of val * val ]) =
+       apply direct(first_1 &my_alloc_region/86)
+         (first/90 : _ -> val) (apply_result/91) -> k/28 * k/29
+ in
+ let $camlHelper_called_through_slot__immstring_1 = "two" in
+ let $camlHelper_called_through_slot__immstring_0 = "one" in
+ let swap/93 = closure swap_0 @swap &toplevel in
+ let first/94 = closure first_1 @first &toplevel in
+ let back/95 = closure back_2 @back &toplevel
+ with { swap = swap/93; first = first/94 }
+ in
+ (let Popaque/98 = %opaque ($camlHelper_called_through_slot__immstring_0) in
+  let Pmakeblock/99 =
+    %block.[`0`].`toplevel`
+      (Popaque/98, $camlHelper_called_through_slot__immstring_1)
+  in
+  apply direct(back_2 &toplevel)
+    (back/95 : _ -> val) (Pmakeblock/99) -> k/32 * error)
+   where k/32 (result/96 : val) =
+     let Pmakeblock/97 = %block.[`0`].`toplevel` (back/95, result/96) in
+     cont k/23 (Pmakeblock/97))
+  where k/23 define_root_symbol (module_block/67) =
+    let field_0/68 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/67)
+    in
+    let field_1/69 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/67)
+    in
+    let $camlHelper_called_through_slot = Block 0 (field_0/68, field_1/69) in
+    cont done ($camlHelper_called_through_slot)
