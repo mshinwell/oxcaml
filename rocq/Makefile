@@ -163,6 +163,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaKnownClosuresSpec.v \
   FlambdaKnownSymbolsProofs.v \
   FlambdaKnownSymbolsSpec.v \
+  FlambdaLiftFromArmsProofs.v \
+  FlambdaLiftFromArmsSpec.v \
   FlambdaLiftFromCodeProofs.v \
   FlambdaLiftFromCodeSpec.v \
   FlambdaLiftProofs.v \
