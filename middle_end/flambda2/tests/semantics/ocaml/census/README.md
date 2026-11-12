@@ -88,7 +88,12 @@ tidying of each term once its continuations are placed
 scope known where a parameter is unboxed
 (`FlambdaUnboxInScopeSpec.v`), nor the second asking following
 aliases in the bodies of code. These 600 units import nothing, so
-the tool prints of each what it printed. No unit
+the tool prints of each what it printed. Nor does the removal of
+unused static bindings from the head of the term after
+(`FlambdaUnusedHeadStaticsSpec.v`), the liftings going into the
+handlers of recursive continuations, the unboxing of a join going by
+the box that each arm has, or the conversion of a call that never
+returns: of each of the 600 the tool prints what it printed. No unit
 that was validated at one of these points is not at a later one. The
 day before, 336 were validated, 256 were not and 8 were not checked;
 of the units that keep a function, none was.
@@ -145,14 +150,18 @@ function that the unit exports takes any number.
 
 Seeds 1 to 60 of each, 240 units, on 2026-11-12. No unit on which the
 two runs differ, none undefined before Simplify, none on which the
-tool gave no answer.
+tool gave no answer once one of them was given more time: of
+`loops_scalar`, seed 55, the tool says nothing within the 60 seconds
+that `run.sh` allows a unit. Run alone it answers in 65 to 85
+seconds, 16 of them of processor time of its own, and the unit is
+not validated; it is counted so below.
 
 | Profile | Units | Validated | Validated with its imports | Validated with nothing imported only | Not validated | Not checked |
 |---------|-------|-----------|----------------------------|--------------------------------------|---------------|-------------|
 | `exceptions` | 60 | 33 | 13 | 14 | 0 | 0 |
 | `exceptions_scalar` | 60 | 34 | 23 | 0 | 3 | 0 |
-| `loops` | 60 | 36 | 0 | 0 | 22 | 2 |
-| `loops_scalar` | 60 | 36 | 0 | 0 | 24 | 0 |
+| `loops` | 60 | 40 | 0 | 0 | 18 | 2 |
+| `loops_scalar` | 60 | 38 | 0 | 0 | 22 | 0 |
 
 A unit that names a predefined exception has an import, and the
 tool runs it from its imports (`../README.md`, "What the verdicts
@@ -163,8 +172,16 @@ imports. The other 14, all in the profile that keeps a function,
 are accepted once closures are lifted, which is proved of the two
 units run with nothing imported only: they are not validated with
 their imports. One of the three units that are not validated has an
-import. The validator accepts 189 of the 240, as it did; 139 of
-them import nothing.
+import. The validator accepts 195 of the 240; 145 of them import
+nothing. It accepted 189 before the liftings went into the handlers
+of recursive continuations (`FlambdaLiftFromCodeSpec.v`, V3's): six
+units with loops, in which a local function that captures nothing
+is made in a loop and is a symbol in the term after, are validated
+since (`loops`, seeds 23, 29, 44 and 50; `loops_scalar`, seeds 15
+and 38). Of the other 234 units the tool prints what it printed,
+with the removal of unused static bindings from the head of the term
+after, the unboxing of a join going by the box that each arm has,
+and the conversion of a call that never returns as well.
 
 The two that are not checked have a reference that a local function
 captures: it stays a block with a field that is written
@@ -187,9 +204,13 @@ the continuation at the call, below the `Let`s of the arguments,
 and the handler, which is then applied once, ends up there. The
 placing moves the continuation of the term before down to the call.
 
-What the 46 units with loops that are not validated lack. One unit
-of each kind was read; the counts are of the units whose two terms,
-as the tool shows them, differ by the same kinds of line.
+What the 46 units with loops that were not validated lacked, before
+the liftings went into the handlers of recursive continuations. One
+unit of each kind was read; the counts are of the units whose two
+terms, as the tool showed them, differed by the same kinds of line.
+The six units that are validated since are of the first kind; 40
+units with loops are not validated now, and the eleven others of the
+first kind were not read again.
 
 - A closure of no value slot that the term before makes by a `Let`
   and the term after has as a symbol (17 units). A local recursive
