@@ -30,7 +30,7 @@ Summary.
   parameter of a read that is under a test, and gives a constant that
   nothing reads at an application that the term shows not to come to
   the read, or on whose argument the read has no value: `None`, `[]`,
-  a constant constructor, a block of another tag. Six bodies of code
+  a constant constructor, a block of another tag. Seven bodies of code
   from OCaml sources are validated with it in Rocq, with Simplify's
   `poison` where the pass puts it, and are not without it. It has its
   statements of renaming and of scope, so it can be wired. The test
@@ -438,9 +438,11 @@ does, and three things more.
    not come to the read (`never_reads`, below); a constant that the
    term shows the primitive to give, if it is of the kind of the
    `Let`; the field of a block that a `Let` in scope made, for a load
-   at the kind of values; or, where the term shows that the primitive
-   has no value on the argument for the parameter read, the constant
-   that nothing reads again. The primitive is known to have no value
+   at the kind of values; the number in a box that a `Let` in scope
+   made, for the unboxing of such a box at the kind of the number
+   (`made_number`); or, where the term shows that the primitive has no
+   value on the argument for the parameter read, the constant that
+   nothing reads again. The primitive is known to have no value
    (`no_value_on`) where it is a load or `Get_tag` of a constant, and
    where it is `Untag_immediate` of a variable that a `Let` in scope
    made a block.
@@ -539,13 +541,15 @@ Two things had to be got right, and are where to look.
   itself (the `Let` tests the same value at once). Under a test it
   does not. So the constant is made of the kind of the `Let`
   (`dummy_of`); a constant that the term shows is taken only at that
-  kind; and a field is taken only of a block that `Make_block` made
-  in scope, whose fields the primitive tested to be of the kind of
+  kind; a field is taken only of a block that `Make_block` made in
+  scope, whose fields the primitive tested to be of the kind of
   values when it made the block (the proof carries that:
-  `fields_valued`). A field of a static block is not taken under a
-  test, because nothing tests the kind of what a static block holds;
-  nor is the content of a boxed number. Both could be, with the same
-  kind of fact carried for them.
+  `fields_valued`); and the content of a boxed number is taken only
+  of a box that `Box_number` made in scope, which tested the number
+  to be of the kind of the box (`numbers_kinded`). A field of a
+  static block is not taken under a test, because nothing tests the
+  kind of what a static block holds. It could be, with the same kind
+  of fact carried for it.
 - **Scope.** The new parameter is in scope in all of the handler, so
   its name must not be free there (`var_free_b`), and no binder
   between the top of the handler and the `Let` may bind it or the
@@ -563,7 +567,7 @@ Two things had to be got right, and are where to look.
 - It stops at the first read that cannot be made a parameter.
 - Among the loads, the order of the new parameters is the order in
   which the handler has them, the body of a `Let_cont` before its
-  handler. In the six examples that is Simplify's (the front end
+  handler. In the seven examples that is Simplify's (the front end
   reads the fields last to first, and puts the continuation of the
   first arm outermost).
 - A field that the handler reads in two places becomes two
@@ -716,6 +720,13 @@ the other units from OCaml.
       match on_heap v with Left y -> y + 3 | Right (y, z) -> y + z
     let result = f true 3 + f false 4
 
+    (* int64_option_heap *)
+    let[@inline never] f : bool -> int64 -> int64 =
+     fun c x ->
+      let v = if c then Some (add x 1L) else None in
+      match on_heap v with None -> 0L | Some y -> add y 2L
+    let result = to_int (add (f true 3L) (f false 4L))
+
     (* pair_loop *)
     let rec fib : int -> int * int -> int =
      fun n acc ->
@@ -743,6 +754,7 @@ the sources to `middle_end/flambda2/tests/semantics/ocaml/`.
 | `shape2_heap` | the same with the two constant constructors told apart: the constant constructor, `is_int` and the two fields; 0 for the constant constructor where the use gives the pair | | not checked, likewise | likewise |
 | `nested_heap` | an option of a pair: `is_int` and the two fields of the pair, `poison` for both where the use gives `None` | | not checked, likewise | likewise |
 | `either_heap` | two constructors that hold fields: the tag and the fields of both, `poison` for the fields of the constructor that the use does not give | | not checked, likewise | likewise |
+| `int64_option_heap` | an option of a boxed number: `is_int` and the number unboxed, `poison` of the kind of the number where the use gives `None`; nothing is boxed on the way | | not checked, likewise | likewise |
 
 Of V2's 172 sources, two unbox a pair and both validate already,
 because the pair is known on every path and the join is inlined away;
@@ -766,7 +778,7 @@ whose parameter was unboxed, so these eight are new coverage.
   (`FlambdaUnboxVariantsRenameProofs.v`). `unbox_known_params` has
   the same three and need not be wired: the second pass does all that
   it does. Also V2's: the conversion of the poison constant; the
-  sources above, with the six of variants.
+  sources above, with the seven of variants.
 - **V4**: nothing more; the place in the round is agreed.
 - **N1, N3**: nothing yet. The `Let` at a use under a `Switch`
   (section 8) and the copy of a handler (section 7) will need a fresh
