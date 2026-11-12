@@ -82,7 +82,10 @@ Lemma reach_grows (s s' : Join_env.t) (simple : simple)
 Proof.
   intros [Henvs [_ Hkinds]] [H | [index [use [Huse H]]]].
   - left. destruct simple as [x | sym | c];
-      [ exact (Hkinds x kind H) | exact H | exact H ].
+      [ exact (Hkinds x kind H) | | exact H ].
+    destruct H as [Hkind [index [use [Huse Hmem]]]].
+    split; [ exact Hkind | ]. exists index, use. rewrite Henvs.
+    split; assumption.
   - right. exists index, use. rewrite Henvs. split; assumption.
 Qed.
 
@@ -1367,7 +1370,7 @@ Lemma join_call_kinds (s s0 : Join_env.t) (var : variable)
     joined = Or_unknown.Known ty ->
     (∀ (index : Index.t) (t : flambda_type),
        Keyed.lookup Index.equal index types = Some t -> kind ty = kind t)
-    ∧ type_kinded_in_target kind_in_target_env s0 ty.
+    ∧ type_kinded_in_target Join_env.joined_env kind_in_target_env s0 ty.
 Proof.
   intros Htrue Hinvariant Hkinded [Hvar [Hfound _]] Hstate Hjoin.
   assert (Hscope :
@@ -1873,11 +1876,12 @@ Qed.
 
 Theorem scoped_equations_kinded : scoped_equations_kinded_statement.
 Proof.
-  intros s Hvalid Hstate Henvs Hscope Hreach x ty Hx simple kind Hin.
+  intros s Hvalid Hstate Hinvariant Henvs Hscope Hreach x ty Hx simple kind
+    Hin.
   destruct (Hreach x ty Hx simple kind Hin) as [H | [index [use [Huse H]]]];
     [ exact H | ].
   apply (simple_kind_in_target_of_use s index use simple kind Hvalid Hstate
-           Henvs Huse H).
+           Hinvariant Henvs Huse H).
   intros y Hy. apply (Hscope x ty Hx).
   exact (proj1 aliases_free_variables ty simple kind y Hin Hy).
 Qed.
@@ -1907,7 +1911,7 @@ Hypothesis aliases_kinds : aliases_of_kinds s.
    the aliases of the type are of their kinds, in the target. *)
 Definition typed (x : variable) (ty : flambda_type) : Prop :=
   kind_in_target_env s x = Some (kind ty)
-  ∧ type_kinded_in_target kind_in_target_env s ty.
+  ∧ type_kinded_in_target Join_env.joined_env kind_in_target_env s ty.
 
 Definition kinds_invariant (acc : define_acc meet_env) : Prop :=
   let '(_, to_expand, equations, relations, _) := acc in
@@ -2043,11 +2047,11 @@ Lemma aliases_before_of (to_project : list variable)
     (expand : variable -> option flambda_type) (t : flambda_type) :
   (∀ (e : variable) (ty : flambda_type),
      expand e = Some ty -> kind_in_target_env s e = Some (kind ty)) ->
-  type_kinded_in_target kind_in_target_env s t ->
+  type_kinded_in_target Join_env.joined_env kind_in_target_env s t ->
   ∀ alias : simple * flambda_kind,
     alias ∈ aliases_with_kinds t ->
     alias_before to_project expand
-      (simple_of_kind_in_target kind_in_target_env s) alias.
+      (simple_of_kind_in_target Join_env.joined_env kind_in_target_env s) alias.
 Proof.
   intros Hexpand Ht [simple k] Hin. unfold alias_before. cbn [fst snd].
   pose proof (Ht simple k Hin) as HK.
@@ -2085,7 +2089,8 @@ Proof.
     + rewrite (project_variables_out_kind _ _ _ _ Hexpand). exact Hkind0.
     + destruct (project_variables_out_kinded (domain to_expand)
                   (Join_env.expand_variable fuel to_expand)
-                  (simple_of_kind_in_target kind_in_target_env s))
+                  (simple_of_kind_in_target Join_env.joined_env
+                     kind_in_target_env s))
         as [Htype _].
       * intros e' ty' simple k _ He' Hin.
         exact (proj2 (IH e' ty' He') simple k Hin).
@@ -2125,18 +2130,22 @@ Proof.
   pose proof (expand_variable_kinds s to_expand Hexpand_inv) as Hexp.
   destruct (project_variables_out_kinded (domain to_expand)
               (Join_env.expand_variable fuel to_expand)
-              (simple_of_kind_in_target kind_in_target_env s)
+              (simple_of_kind_in_target Join_env.joined_env
+                 kind_in_target_env s)
               (fun e ty0 simple k _ He Hin0 =>
                  proj2 (Hexp fuel e ty0 He) simple k Hin0))
     as [Htype _].
   assert (Hbefore :
             ∀ t : flambda_type,
-              type_kinded_in_target kind_in_target_env s t ->
+              type_kinded_in_target Join_env.joined_env kind_in_target_env s
+                t ->
               ∀ alias : simple * flambda_kind,
                 alias ∈ aliases_with_kinds t ->
                 alias_before (domain to_expand)
                   (Join_env.expand_variable fuel to_expand)
-                  (simple_of_kind_in_target kind_in_target_env s) alias).
+                  (simple_of_kind_in_target Join_env.joined_env
+                     kind_in_target_env s)
+                  alias).
   { intros t Ht. apply aliases_before_of; [ | exact Ht ].
     intros e ty0 He. exact (proj1 (Hexp fuel e ty0 He)). }
   apply in_app_or in Hin. destruct Hin as [Hin | Hin].

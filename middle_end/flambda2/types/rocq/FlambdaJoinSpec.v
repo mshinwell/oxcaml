@@ -1233,13 +1233,37 @@ Definition env_extension_in_target (s : state) (extension : env_extension)
     exists_in_target_env s x = true.
 
 (* A [Simple] is of a kind in the target so far, as [simple_of_kind]
-   is for an environment. A symbol is a value. *)
+   is for an environment. A symbol is a value, and is one that an
+   environment joined knows. *)
+(* CR mshinwell: 2026-11-12. The case of a symbol said only that the
+   kind is that of values. That was not enough to add what a join
+   answers to an environment: [simple_of_kind] of a symbol in an
+   environment says also that the environment knows the symbol, and
+   the meet's environment asks it of every alias of a type that it is
+   given ([type_kinded], through [type_fits] of FlambdaMeetSpec.v).
+   The symbols of the target are those of the source. The contract
+   of the join that Simplify calls supposes that a symbol that a use
+   knows is known to the source ([symbols_of_uses_in_source] above),
+   so "known to an environment joined" is "known to the target"
+   there. The contract that the meet has for its join does not
+   suppose it yet (a fourth conjunct of [scoped_env_of],
+   FlambdaMeetSpec.v, is in review and not merged); until it does,
+   the statements about that join have it as a premise of their own
+   (FlambdaJoinMeetSpec.v). The state has no reading for the source,
+   which is why the clause is about the environments joined. A change
+   to a reviewed definition, made overnight with the agreement of the
+   owner of the join of types, whose statements about that join take
+   this reading. *)
 Definition simple_of_kind_in_target (s : state) (simple : simple)
     (kind : flambda_kind) : Prop :=
   match simple with
   | Const c => FlambdaTypeGrammar.kind (type_for_const c) = kind
   | Var x => kind_in_target_env s x = Some kind
-  | Symbol _ => kind = Value
+  | Symbol sym =>
+    kind = Value
+    ∧ ∃ (index : Index.t) (use : Typing_env.t),
+        joined_env s index = Some use
+        ∧ Typing_env.mem None use (Name_symbol sym) = true
   end.
 
 (* What is answered is kinded in the target so far, as [type_kinded]

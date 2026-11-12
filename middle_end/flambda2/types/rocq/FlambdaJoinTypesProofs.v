@@ -2489,9 +2489,9 @@ Local Abbreviation exists_in_target :=
   (exists_in_target_env kind_in_target_env).
 Local Abbreviation in_target := (answer_in_target kind_in_target_env).
 Local Abbreviation kinded_in_target :=
-  (answer_kinded_in_target kind_in_target_env).
+  (answer_kinded_in_target joined_env kind_in_target_env).
 Local Abbreviation of_kind_in_target :=
-  (simple_of_kind_in_target kind_in_target_env).
+  (simple_of_kind_in_target joined_env kind_in_target_env).
 Local Abbreviation step_sound :=
   (join_step_sound typing_env_well_formed joined_env
      definitions_of_existentials kind_in_target_env state_valid state_kinded).
@@ -2571,7 +2571,9 @@ Lemma grows_of_kind_in_target (s s' : state) (simple : simple)
   grows s s' ->
   of_kind_in_target s simple kind -> of_kind_in_target s' simple kind.
 Proof.
-  intros (_ & _ & Hkinds). destruct simple as [x | sym | c]; simpl; auto.
+  intros (Henv & _ & Hkinds). destruct simple as [x | sym | c]; simpl; auto.
+  intros [Hk (index & use & Huse & Hmem)]. split; [ exact Hk | ].
+  exists index, use. rewrite Henv. split; assumption.
 Qed.
 
 Lemma grows_kinded_in_target {Y : Type}
@@ -8398,7 +8400,7 @@ Proof.
       refine
         (proj2
            (kinds_with_equations_all
-              (simple_of_kind_in_target kind_in_target_env s') ty)
+              (simple_of_kind_in_target joined_env kind_in_target_env s') ty)
            (conj Hkinded' _)).
       exact
         (Himport_equations s s' ty Hvalid (Hweaken s Hwf) Hkinded Hk
@@ -8429,7 +8431,8 @@ Proof.
       refine
         (proj2
            (kinds_of_extension_all
-              (simple_of_kind_in_target kind_in_target_env s') answer)
+              (simple_of_kind_in_target joined_env kind_in_target_env s')
+              answer)
            (conj Haliases _)).
       unfold n_way_join_env_extension in Hstep.
       destruct (join_env_n_way_join_env_extension s extensions)
@@ -8478,7 +8481,7 @@ Proof.
     (proj2
        (proj1
           (kinds_with_equations_all
-             (simple_of_kind_in_target kind_in_target_env s') ty)
+             (simple_of_kind_in_target joined_env kind_in_target_env s') ty)
           (proj2 (Hkinded' Hk) ty eq_refl))).
 Qed.
 
@@ -8534,13 +8537,13 @@ Proof.
     as Hchecked.
   assert (Hill :
     ∀ s : state,
-      ¬ simple_of_kind_in_target kind_in_target_env s (fst ill_formed)
-          (snd ill_formed)).
+      ¬ simple_of_kind_in_target joined_env kind_in_target_env s
+          (fst ill_formed) (snd ill_formed)).
   { intros s H. cbn in H. discriminate H. }
   pose proof
     (fun s : state =>
-       kinds_checked (simple_of_kind_in_target kind_in_target_env s) (Hill s)
-         false)
+       kinds_checked (simple_of_kind_in_target joined_env kind_in_target_env s)
+         (Hill s) false)
     as Hchecked_target.
   assert (Hsound :
     type_join_sound wf joined_env definitions_of_existentials

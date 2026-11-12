@@ -76,12 +76,14 @@
      and well-formedness too), which is not shown yet.
    - And their kinds are known to it
      ([last_phase_kinds_known_statement]): the name of each equation
-     is of the kind of its type there, and each alias of the type is
-     of the kind at which it stands, by
+     is of the kind of its type there, and the type is kinded there
+     (each alias of the type is of the kind at which it stands), by
      [last_phase_adds_kinded_statement] of FlambdaJoinKindsSpec.v.
-     For an alias that is a symbol this has as a premise that the
-     environment knows the symbol: what is shown of the state says
-     of a symbol only that it stands at kind [Value].
+     For an alias that is a symbol: the state says that an
+     environment joined knows it (FlambdaJoinSpec.v,
+     [simple_of_kind_in_target]), and the statement supposes that
+     the source knows every symbol that an environment joined knows
+     ([symbols_of_joined_envs_in_source]).
    - So the two extensions are added as the statements about the
      meet's environment suppose (FlambdaMeetEnvSpec.v,
      [add_env_extension_keeps_statement]), and each environment on
@@ -89,9 +91,9 @@
      which a meet may be made ([last_phase_kept_statement]). This
      has a premise that is not shown yet of the join
      ([types_fit_otherwise]): the types of the equations are well
-     formed, the names of the equations inside them are of the kinds
-     of their types, and the symbols that they have aliases to are
-     known. The rest of what an extension must have to fit
+     formed, and the names of the equations inside them are of the
+     kinds of their types. The rest of what an extension must have
+     to fit
      ([env_extension_fits], [env_extension_kinded]) is from the
      statements above: the names and the variables are known, the
      names are of the kinds of their types, the aliases are of their
@@ -271,12 +273,25 @@ Definition last_phase_names_known_statement : Prop :=
             Typing_env.mem None (Meet_env.typing_env menv') (Name_var x)
             = true.
 
+(* A symbol that an environment joined knows is known to the source.
+   (The contract of the join that Simplify calls supposes it,
+   [symbols_of_uses_in_source] of FlambdaJoinSpec.v; the contract
+   that the meet has for its join is to suppose it of the
+   environments that it joins.) *)
+Definition symbols_of_joined_envs_in_source (source : Typing_env.t)
+    (s : Join_env.t) : Prop :=
+  ∀ (index : Index.t) (use : Typing_env.t) (sym : symbol),
+    Join_env.joined_env s index = Some use ->
+    Typing_env.mem None use (Name_symbol sym) = true ->
+    Typing_env.mem None source (Name_symbol sym) = true.
+
 (* The kinds of the equations that the last phase adds are known to
    the environment in which the variables are defined: the name of
-   each is of the kind of its type, and each alias of its type is of
-   the kind at which it stands ([aliases_with_kinds],
-   FlambdaTypeAliasKindsSpec.v). For an alias that is a symbol, if
-   the environment knows the symbol. *)
+   each is of the kind of its type, and its type is kinded there
+   ([type_kinded], FlambdaTypingEnvKindedSpec.v: each alias of the
+   type is of the kind at which it stands). The environments joined
+   have their invariant, and know no symbol that the source does
+   not. *)
 Definition last_phase_kinds_known_statement : Prop :=
   ∀ (tenv : Typing_env.t) (fuel : nat) (source : Typing_env.t)
     (s : Join_env.t) (relations : Join_env.inverse_relations)
@@ -288,7 +303,9 @@ Definition last_phase_kinds_known_statement : Prop :=
     relations_nonempty relations ->
     state_scoped s ->
     state_kinded s ->
+    joined_envs_are typing_env_invariant s ->
     joined_envs_are typing_env_kinded s ->
+    symbols_of_joined_envs_in_source source s ->
     equations_kinded s ->
     relations_kinded s relations ->
     Meet_env.typing_env menv = source ->
@@ -304,27 +321,16 @@ Definition last_phase_kinds_known_statement : Prop :=
     ∀ (n : name) (ty : flambda_type),
       (n, ty) ∈ equations ++ relation_equations ->
       simple_of_kind (Meet_env.typing_env menv') (simple_of_name n) (kind ty)
-      ∧ ∀ (simple : simple) (k : flambda_kind),
-          (simple, k) ∈ aliases_with_kinds ty ->
-          (∀ sym : symbol,
-             simple = Symbol sym ->
-             Typing_env.mem None (Meet_env.typing_env menv') (Name_symbol sym)
-             = true) ->
-          simple_of_kind (Meet_env.typing_env menv') simple k.
+      ∧ type_kinded (Meet_env.typing_env menv') ty.
 
 (* What is not shown yet of the types of equations that the join
-   adds: each is well formed, the names of the equations inside it are
-   of the kinds of their types in the environment, and the symbols
-   that it has aliases to are known there. *)
+   adds: each is well formed, and the names of the equations inside
+   it are of the kinds of their types in the environment. *)
 Definition types_fit_otherwise (tenv : Typing_env.t)
     (equations : list (name * flambda_type)) : Prop :=
   ∀ (n : name) (ty : flambda_type),
     (n, ty) ∈ equations ->
-    type_well_formed ty = true
-    ∧ type_equations_kinded tenv ty
-    ∧ ∀ (sym : symbol) (k : flambda_kind),
-        (Symbol sym, k) ∈ aliases_with_kinds ty ->
-        Typing_env.mem None tenv (Name_symbol sym) = true.
+    type_well_formed ty = true ∧ type_equations_kinded tenv ty.
 
 (* The last phase in the environment of the meet, given a meet of
    expanded types that has what the meet's contract for its join
@@ -349,7 +355,9 @@ Definition last_phase_kept_statement : Prop :=
     relations_nonempty relations ->
     state_scoped s ->
     state_kinded s ->
+    joined_envs_are typing_env_invariant s ->
     joined_envs_are typing_env_kinded s ->
+    symbols_of_joined_envs_in_source source s ->
     equations_kinded s ->
     relations_kinded s relations ->
     Meet_env.typing_env menv = source ->
@@ -381,7 +389,12 @@ Definition last_phase_kept_statement : Prop :=
    ([join_scoped_envs_sound], FlambdaMeetSpec.v) that are not about
    values, under its premises but the one about the values that the
    meet of expanded types keeps ([meet_expanded_head_sound]), which
-   they do not need. *)
+   they do not need; and one more, that the first environment knows
+   every symbol that an environment joined knows. *)
+(* CR mshinwell: 2026-11-12. The premise on symbols is not in the
+   contract as it is merged. It is on its way there as a fourth
+   conjunct of [scoped_env_of] (agreed with the owner of the meet; in
+   review). When it is merged the premise here goes. *)
 Definition join_scoped_envs_keeps (join : join_scoped_envs) : Prop :=
   ∀ (meet_head : meet_expanded_head) (initial_env result : Meet_env.t)
     (scoped_envs : list Typing_env.t),
@@ -390,6 +403,10 @@ Definition join_scoped_envs_keeps (join : join_scoped_envs) : Prop :=
     typing_env_fits initial_tenv ->
     (∀ scoped_env : Typing_env.t,
       scoped_env ∈ scoped_envs -> scoped_env_of initial_tenv scoped_env) ->
+    (∀ (scoped_env : Typing_env.t) (sym : symbol),
+      scoped_env ∈ scoped_envs ->
+      Typing_env.mem None scoped_env (Name_symbol sym) = true ->
+      Typing_env.mem None initial_tenv (Name_symbol sym) = true) ->
     scoped_envs_agree scoped_envs ->
     join meet_head (Typing_env.current_scope initial_tenv) initial_env
       initial_tenv scoped_envs
@@ -442,6 +459,10 @@ Definition join_adds_types_that_fit_otherwise
     typing_env_fits initial_tenv ->
     (∀ scoped_env : Typing_env.t,
       scoped_env ∈ scoped_envs -> scoped_env_of initial_tenv scoped_env) ->
+    (∀ (scoped_env : Typing_env.t) (sym : symbol),
+      scoped_env ∈ scoped_envs ->
+      Typing_env.mem None scoped_env (Name_symbol sym) = true ->
+      Typing_env.mem None initial_tenv (Name_symbol sym) = true) ->
     scoped_envs_agree scoped_envs ->
     Join_env.cut_for_joins (Typing_env.current_scope initial_tenv)
       (Index.number scoped_envs)

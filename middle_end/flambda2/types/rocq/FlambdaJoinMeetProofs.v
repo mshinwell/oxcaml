@@ -336,8 +336,8 @@ Qed.
 Theorem last_phase_kinds_known : last_phase_kinds_known_statement.
 Proof.
   intros tenv fuel source s relations menv kept equations relation_equations
-    definitions Htrue Hrelations Hnonempty Hscoped Hstate Henvs HX HR Hsource
-    Hfits Hadds menv' n ty Hin.
+    definitions Htrue Hrelations Hnonempty Hscoped Hstate Hinvariant Henvs
+    Hsymbols HX HR Hsource Hfits Hadds menv' n ty Hin.
   destruct (last_phase_adds_kept tenv fuel s relations kept equations
               relation_equations definitions Hadds) as [Hdistinct Hkept].
   destruct (last_phase_adds_in_scope tenv fuel source s relations kept
@@ -351,7 +351,7 @@ Proof.
               Hkept Hdistinct) as [Hkept' [_ [Hkinds _]]].
   fold menv' in Hkept', Hkinds.
   destruct HX as [H1 [H4 [_ [H5 _]]]].
-  pose proof (scoped_equations_kinded s (proj1 Htrue) Hstate Henvs
+  pose proof (scoped_equations_kinded s (proj1 Htrue) Hstate Hinvariant Henvs
                 (proj1 Hscoped) H1) as Hkinded.
   destruct (last_phase_adds_kinded tenv fuel s relations kept equations
               relation_equations definitions (proj1 Htrue) Hkinded H4 H5 HR
@@ -366,15 +366,22 @@ Proof.
       [ exact (Hscope1 _ _ Hin) | exact (Hscope2 _ _ Hin) ]. }
   split.
   - exact (Hkinds x (kind ty) (proj1 Hboth x (or_introl eq_refl)) Hx).
-  - intros simple k Hmember Hsymbol.
+  - intros simple k Hmember.
     pose proof (Haliases simple k Hmember) as HK.
     destruct simple as [y | sym | c].
     + apply (Hkinds y k); [ | exact HK ].
       apply (proj2 Hboth).
       exact (proj1 aliases_free_variables ty (Var y) k y Hmember
                (or_introl eq_refl)).
-    + cbn in HK. subst k.
-      destruct (bound_has_kind _ _ (Hsymbol sym eq_refl)) as [k' Hk'].
+    + destruct HK as [-> [index [use [Huse Hmem]]]].
+      assert (Hknown :
+                Typing_env.mem None (Meet_env.typing_env menv')
+                  (Name_symbol sym)
+                = true).
+      { apply (tenv_extends_mem _ _ _
+                 (meet_env_extends_tenv _ _ (proj1 Hkept'))).
+        rewrite Hsource. exact (Hsymbols index use sym Huse Hmem). }
+      destruct (bound_has_kind _ _ Hknown) as [k' Hk'].
       cbn [simple_of_name] in Hk'.
       rewrite (symbol_kinded _ _ _ (proj1 (proj2 (proj2 (proj2 Hkept'))))
                  Hk') in Hk'.
@@ -392,14 +399,16 @@ Theorem last_phase_kept : last_phase_kept_statement.
 Proof.
   intros tenv fuel source s relations mh menv menv1 target kept equations
     relation_equations definitions Htrue Hrelations Hnonempty Hscoped Hstate
-    Henvs HX HR Hsource Hfits Hadds menv0 Hrest Hmh Hadd1 Hadd2.
+    Hinvariant Henvs Hsymbols HX HR Hsource Hfits Hadds menv0 Hrest Hmh Hadd1
+    Hadd2.
   destruct (last_phase_names_known tenv fuel source s relations menv kept
               equations relation_equations definitions Htrue Hrelations
               Hnonempty Hscoped Hsource Hfits Hadds) as [Hkept0 Hnames].
   fold menv0 in Hkept0, Hnames.
   pose proof (last_phase_kinds_known tenv fuel source s relations menv kept
                 equations relation_equations definitions Htrue Hrelations
-                Hnonempty Hscoped Hstate Henvs HX HR Hsource Hfits Hadds)
+                Hnonempty Hscoped Hstate Hinvariant Henvs Hsymbols HX HR
+                Hsource Hfits Hadds)
     as Hkinds.
   cbv zeta in Hkinds. fold menv0 in Hkinds.
   assert (Hall :
@@ -411,13 +420,11 @@ Proof.
                   (kind ty)).
   { intros n ty Hin.
     destruct (Hnames n ty Hin) as [Hn Hvars].
-    destruct (Hkinds n ty Hin) as [Hkind Haliases].
-    destruct (Hrest n ty Hin) as [Hwf [Heqs Hsyms]].
+    destruct (Hkinds n ty Hin) as [Hkind Hkinded].
+    destruct (Hrest n ty Hin) as [Hwf Heqs].
     split; [ exact Hn | ]. split; [ | exact Hkind ].
     split; [ exact Hwf | ]. split; [ exact Hvars | ].
-    split; [ | exact Heqs ].
-    intros simple k Hmember. apply (Haliases simple k Hmember).
-    intros sym ->. exact (Hsyms sym k Hmember). }
+    split; [ exact Hkinded | exact Heqs ]. }
   split; [ exact Hkept0 | ].
   assert (Hstep1 : meet_env_kept_by_meet menv0 menv1).
   { apply (add_env_extension_keeps mh menv0 menv1 (Env_extension equations)
@@ -483,7 +490,7 @@ Proof. intros (_ & _ & _ & _ & H & _). exact (H s kind). Qed.
 Theorem model_join_scoped_envs_keeps : model_join_scoped_envs_keeps_statement.
 Proof.
   intros join_choices join_depth fuel Hrest mh initial_env result scoped_envs
-    initial_tenv Hmh Hfits Hscoped Hagree Hjoin.
+    initial_tenv Hmh Hfits Hscoped Hsymbols Hagree Hjoin.
   unfold model_join_scoped_envs, Join_env.cut_and_n_way_join in Hjoin.
   cbv zeta in Hjoin.
   destruct (Join_env.cut_for_joins _ _) as [envs | ] eqn:Hcut;
@@ -692,17 +699,24 @@ Proof.
               Join_env.joined_env s3 index = Some use -> use ∈ scoped_envs).
   { intros index use Huse. rewrite (proj1 Hgrows3) in Huse.
     exact (Hfound index use Huse). }
+  assert (Hinvariant3 : joined_envs_are typing_env_invariant s3).
+  { intros index use Huse. rewrite (proj1 Hgrows3) in Huse.
+    exact (Hinvariant index use Huse). }
   assert (Hkinded3 : joined_envs_are typing_env_kinded s3).
   { intros index use Huse. rewrite (proj1 Hgrows3) in Huse.
     exact (Hkinded_envs index use Huse). }
+  assert (Hsymbols3 : symbols_of_joined_envs_in_source initial_tenv s3).
+  { intros index use sym Huse Hmem.
+    exact (Hsymbols use sym (Hjoined index use Huse) Hmem). }
   (* The last phase. *)
   destruct (last_phase_kept _ (fuel_of_env fuel) initial_tenv s3 relations3
               mh menv_a menv1 target kept equations relation_equations
               definitions Htrue3 Hrelations3 Hnonempty3 Hscoped3 Hstate3
-              Hkinded3 HX HR eq_refl Hfits Hadds
+              Hinvariant3 Hkinded3 Hsymbols3 HX HR eq_refl Hfits Hadds
               (Hrest initial_env scoped_envs envs s1 s2 s3 relations2
                  relations3 _ kept equations relation_equations definitions
-                 Hfits Hscoped Hagree Hcut Haliases Hdelayed Hloop Hadds)
+                 Hfits Hscoped Hsymbols Hagree Hcut Haliases Hdelayed Hloop
+                 Hadds)
               Hmh Hadd1 Hadd2) as [Hkept0 [Hstep1 Hstep2]].
   fold menv0 in Hkept0, Hstep1.
   assert (Hextends_a : meet_env_extends initial_env menv_a).

@@ -423,7 +423,7 @@ Definition answer_kinded_in_target {Y : Type}
     : Prop :=
   ∀ (simple : simple) (kind : flambda_kind),
     (simple, kind) ∈ aliases_of y ->
-    simple_of_kind_in_target kind_in_target_env s simple kind.
+    simple_of_kind_in_target joined_env kind_in_target_env s simple kind.
 
 (* A function of the traversal is sound. It is given, at a state that
    is valid, things at distinct indices, each in scope and kinded in

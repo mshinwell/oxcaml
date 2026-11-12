@@ -111,7 +111,7 @@ Import ListNotations.
    of the joined environments. *)
 Definition simple_of_kind_in_reach (s : Join_env.t) (simple : simple)
     (kind : flambda_kind) : Prop :=
-  simple_of_kind_in_target kind_in_target_env s simple kind
+  simple_of_kind_in_target Join_env.joined_env kind_in_target_env s simple kind
   ∨ ∃ (index : Index.t) (use : Typing_env.t),
       Join_env.joined_env s index = Some use ∧ simple_of_kind use simple kind.
 
@@ -184,17 +184,22 @@ Definition relations_kinded (s : Join_env.t)
 Definition equations_kinded_in_target (s : Join_env.t) : Prop :=
   ∀ (x : variable) (ty : flambda_type),
     lookup x (Join_env.types_in_target_env s) = Some ty ->
-    type_kinded_in_target kind_in_target_env s ty.
+    type_kinded_in_target Join_env.joined_env kind_in_target_env s ty.
 
 (* Where the types of the equations mention only variables of the
    target, "in reach" is "in the target": a [Simple] that a joined
    environment has at a kind, and whose variable the target has, is
    of that kind in the target, at a state that is valid and kinded
-   with joined environments that are kinded. *)
+   with joined environments that have their invariant and are kinded.
+   (The invariant is for the symbols: a symbol is of its kind in the
+   target if an environment joined knows it, FlambdaJoinSpec.v, and
+   one that has a type in an environment is known to it by the
+   invariant.) *)
 Definition scoped_equations_kinded_statement : Prop :=
   ∀ s : Join_env.t,
     state_valid s ->
     state_kinded s ->
+    joined_envs_are typing_env_invariant s ->
     joined_envs_are typing_env_kinded s ->
     equations_in_target s ->
     equations_kinded_in_reach s ->
@@ -329,6 +334,6 @@ Definition last_phase_adds_kinded_statement : Prop :=
       definitions ->
     ∀ (n : name) (ty : flambda_type),
       (n, ty) ∈ equations ++ relation_equations ->
-      type_kinded_in_target kind_in_target_env s ty
+      type_kinded_in_target Join_env.joined_env kind_in_target_env s ty
       ∧ ∃ x : variable,
           n = Name_var x ∧ kind_in_target_env s x = Some (kind ty).

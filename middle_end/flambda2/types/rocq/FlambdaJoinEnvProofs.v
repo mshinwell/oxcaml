@@ -2269,6 +2269,22 @@ Proof.
   exact (symbol_of_kind_value tenv s kind Hsymbols Hkind).
 Qed.
 
+(* A symbol that is of a kind in an environment that has its
+   invariant is known to it: one that has a type is defined. *)
+Lemma symbol_of_kind_known (tenv : Typing_env.t) (s : symbol)
+    (kind : flambda_kind) :
+  typing_env_invariant tenv ->
+  simple_of_kind tenv (Symbol s) kind ->
+  Typing_env.mem None tenv (Name_symbol s) = true.
+Proof.
+  intros [Hwf _] Hkind. apply typing_env_well_formed_iff in Hwf.
+  destruct Hwf as [[_ [_ [_ [_ [Hsymbols _]]]]] _].
+  change (Symbol s) with (simple_of_name (Name_symbol s)) in Hkind.
+  apply simple_of_kind_name in Hkind.
+  destruct Hkind as [[ty [btm [Hlookup _]]] | [_ [Hmem _]]];
+    [ exact (Hsymbols s ty btm Hlookup) | exact Hmem ].
+Qed.
+
 Lemma find_kinded_in (tenv : Typing_env.t) (n : name)
     (kind : option flambda_kind) (ty : flambda_type) :
   typing_env_kinded tenv -> Typing_env.find tenv n kind = Some ty ->
@@ -2632,17 +2648,22 @@ Lemma simple_kind_in_target_of_use (s : Join_env.t) (index : Index.t)
     (use : Typing_env.t) (simple : simple) (kind : flambda_kind) :
   state_valid s ->
   state_kinded s ->
+  envs_invariant s ->
   envs_kinded s ->
   Join_env.joined_env s index = Some use ->
   simple_of_kind use simple kind ->
   simple_in_target kind_in_target_env s simple ->
-  simple_of_kind_in_target kind_in_target_env s simple kind.
+  simple_of_kind_in_target Join_env.joined_env kind_in_target_env s simple
+    kind.
 Proof.
-  intros Hvalid Hkinded Henvs Huse Hkind Hin.
+  intros Hvalid Hkinded Hinvariant Henvs Huse Hkind Hin.
   destruct simple as [x | sym | c].
   - apply (kind_in_target_of_use s index use x kind Hvalid Hkinded Huse Hkind).
     apply Hin. left. reflexivity.
-  - exact (symbol_kinded _ _ _ (Henvs _ _ Huse) Hkind).
+  - split; [ exact (symbol_kinded _ _ _ (Henvs _ _ Huse) Hkind) | ].
+    exists index, use.
+    split; [ exact Huse | ].
+    exact (symbol_of_kind_known use sym kind (Hinvariant _ _ Huse) Hkind).
   - exact Hkind.
 Qed.
 
@@ -2758,7 +2779,8 @@ Lemma n_way_join_simples_kinds_in :
        state_kinded s'
        ∧ ∀ joined : simple,
            result = Or_bottom.Ok joined ->
-           simple_of_kind_in_target kind_in_target_env s' joined kind).
+           simple_of_kind_in_target Join_env.joined_env kind_in_target_env
+             s' joined kind).
 Proof.
   intros p fuel s s' kind simples result Hfresh Hvalid Hinvariant Henvs
     Hdistinct Hscope Hjoin.
@@ -2828,7 +2850,7 @@ Proof.
     + intros Hkinded. split; [ exact Hkinded | ].
       intros joined Heq. injection Heq as <-.
       apply (simple_kind_in_target_of_use s index0 use0 joined0 kind Hvalid
-               Hkinded Henvs Huse0 Hkind).
+               Hkinded Hinvariant Henvs Huse0 Hkind).
       intros x Hx. rewrite kind_in_target_env_exists.
       unfold Bindings_in_target_env.exists_in_target_env.
       pose proof (Hsource x Hx) as Hexists.
@@ -2909,7 +2931,8 @@ Lemma import_type_kinds_in :
     state_kinded s ->
     (∃ (index : Index.t) (use : Typing_env.t),
        Join_env.joined_env s index = Some use ∧ type_kinded use ty) ->
-    state_kinded s' ∧ type_kinded_in_target kind_in_target_env s' ty.
+    state_kinded s'
+    ∧ type_kinded_in_target Join_env.joined_env kind_in_target_env s' ty.
 Proof.
   intros p fuel s s' ty Hfresh Hvalid Hinvariant Henvs Himport Hkinded
     [index [use [Huse Hty]]].
@@ -2925,8 +2948,8 @@ Proof.
   assert (Huse' : Join_env.joined_env s' index = Some use).
   { destruct Hgrows' as [Henvs' _]. rewrite Henvs'. exact Huse. }
   apply (simple_kind_in_target_of_use s' index use simple kind Hvalid'
-           Hkinded' (grows_envs_kinded _ _ Hgrows' Henvs) Huse'
-           (Hty _ _ Hmember)).
+           Hkinded' (grows_envs_invariant _ _ Hgrows' Hinvariant)
+           (grows_envs_kinded _ _ Hgrows' Henvs) Huse' (Hty _ _ Hmember)).
   intros x Hx. apply Htarget. exact (aliases_free _ _ _ _ Hmember Hx).
 Qed.
 
@@ -3012,7 +3035,8 @@ Lemma n_way_join_env_extension_kinds_in :
     ∀ (joined : env_extension) (s' : Join_env.t),
       result = Or_bottom.Ok (joined, s') ->
       state_kinded s'
-      ∧ env_extension_kinded_in_target kind_in_target_env s' joined.
+      ∧ env_extension_kinded_in_target Join_env.joined_env
+          kind_in_target_env s' joined.
 Proof.
   intros p fuel s extensions result Hfresh Hvalid Hinvariant Henvs Hjoin
     Hkinded Hscope joined s' Hresult.
@@ -3035,7 +3059,8 @@ Proof.
     assert (Huse1 : Join_env.joined_env s1 index0 = Some use0).
     { destruct Hgrows1 as [Henvs1 _]. rewrite Henvs1. exact Huse0. }
     apply (simple_kind_in_target_of_use s1 index0 use0 simple kind Hvalid1
-             Hkinded1 (grows_envs_kinded _ _ Hgrows1 Henvs) Huse1
+             Hkinded1 (grows_envs_invariant _ _ Hgrows1 Hinvariant)
+             (grows_envs_kinded _ _ Hgrows1 Henvs) Huse1
              (Hfirst _ _ Hmember)).
     intros x Hx. apply Hexists1.
     exact (aliases_free_extension _ _ _ _ Hmember Hx).
@@ -3127,8 +3152,8 @@ Proof.
   assert (Huse' : Join_env.joined_env s' index = Some use).
   { destruct Hgrows' as [Henvs' _]. rewrite Henvs'. exact Huse. }
   apply (simple_kind_in_target_of_use s' index use (simple_of_name n) kind
-           Hvalid' Hkinded' (grows_envs_kinded _ _ Hgrows' Henvs) Huse'
-           (Hty _ _ Hmember)).
+           Hvalid' Hkinded' (grows_envs_invariant _ _ Hgrows' Hinvariant)
+           (grows_envs_kinded _ _ Hgrows' Henvs) Huse' (Hty _ _ Hmember)).
   intros x Hx. apply Htarget.
   exact (proj1 equation_names_free_variables ty n kind x Hmember Hx).
 Qed.
@@ -3156,7 +3181,8 @@ Proof.
     assert (Huse1 : Join_env.joined_env s1 index0 = Some use0).
     { destruct Hgrows1 as [Henvs1 _]. rewrite Henvs1. exact Huse0. }
     apply (simple_kind_in_target_of_use s1 index0 use0 (simple_of_name n)
-             kind Hvalid1 Hkinded1 (grows_envs_kinded _ _ Hgrows1 Henvs) Huse1
+             kind Hvalid1 Hkinded1 (grows_envs_invariant _ _ Hgrows1 Hinvariant)
+             (grows_envs_kinded _ _ Hgrows1 Henvs) Huse1
              (Hfirst _ _ Hmember)).
     intros x Hx. apply Hexists1.
     exact (proj2 equation_names_free_variables _ n kind x Hmember Hx).
