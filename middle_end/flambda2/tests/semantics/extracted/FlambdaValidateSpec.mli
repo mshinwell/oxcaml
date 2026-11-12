@@ -4,20 +4,29 @@ open FlambdaBlockLoadSpec
 open FlambdaCompareSpec
 open FlambdaKnownSymbolsSpec
 open FlambdaLiftSpec
+open FlambdaLoopAliasesSpec
 open FlambdaModel
 open FlambdaNormaliseSpec
+open FlambdaRecHandlersSpec
+open FlambdaShortcutSpec
+open FlambdaSinkContsSpec
 open FlambdaUnboxSpec
 open FlambdaUnusedContsSpec
+open FlambdaUnusedParamsSpec
 open FlambdaUnusedSlotsSpec
 open FlambdaUnusedStaticsSpec
 
 val iterate : nat -> (expr -> expr) -> expr -> expr
+
+val normalise_expr_before : expr -> expr
 
 val normalise_code_before : expr -> expr
 
 val normalise_before_round : expr -> expr
 
 val normalise_before : nat -> expr -> expr
+
+val normalise_expr_after : expr -> expr
 
 val normalise_code_after : expr -> expr
 

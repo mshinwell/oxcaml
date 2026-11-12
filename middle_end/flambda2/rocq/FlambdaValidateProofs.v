@@ -34,8 +34,12 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaSemanticsProofs FlambdaCompareSpec FlambdaCompareProofs
   FlambdaNormaliseSpec FlambdaNormaliseProofs FlambdaBlockLoadSpec
-  FlambdaBlockLoadProofs FlambdaUnboxSpec FlambdaUnboxProofs
-  FlambdaUnusedContsSpec FlambdaUnusedContsProofs FlambdaUnusedStaticsSpec
+  FlambdaBlockLoadProofs FlambdaLoopAliasesSpec FlambdaLoopAliasesProofs
+  FlambdaRecHandlersSpec FlambdaRecHandlersProofs
+  FlambdaShortcutSpec FlambdaShortcutProofs FlambdaSinkContsSpec
+  FlambdaSinkContsProofs FlambdaUnboxSpec FlambdaUnboxProofs
+  FlambdaUnusedContsSpec FlambdaUnusedContsProofs FlambdaUnusedParamsSpec
+  FlambdaUnusedParamsProofs FlambdaUnusedStaticsSpec
   FlambdaUnusedStaticsProofs FlambdaLiftSpec FlambdaLiftProofs
   FlambdaUnusedSlotsSpec FlambdaUnusedSlotsProofs FlambdaKnownSymbolsSpec
   FlambdaKnownSymbolsProofs FlambdaValidateSpec.
@@ -61,7 +65,10 @@ Ltac equivalence_step :=
     | apply merge_statics_equivalent
     | apply inline_known_calls_equivalent
     | apply thread_switches_equivalent
-    | apply remove_unused_conts_equivalent ].
+    | apply remove_unused_conts_equivalent
+    | apply sink_let_conts_equivalent
+    | apply follow_aliases_in_loops_equivalent
+    | apply shortcut_switches_equivalent ].
 
 Ltac refinement_step :=
   first
@@ -71,14 +78,23 @@ Ltac refinement_step :=
     | apply remove_unused_lets_refines
     | apply load_known_blocks_refines
     | apply unbox_known_numbers_refines
+    | apply drop_unused_params_refines
     | apply expr_equivalent_refines; equivalence_step ].
+
+Lemma normalise_expr_before_refines (e : expr) :
+  expr_refines e (normalise_expr_before e).
+Proof.
+  unfold normalise_expr_before. cbv zeta.
+  repeat (eapply expr_refines_trans; [ | solve [ refinement_step ] ]).
+  apply expr_refines_refl.
+Qed.
 
 Lemma normalise_code_before_refines (body : expr) :
   expr_refines body (normalise_code_before body).
 Proof.
   unfold normalise_code_before.
-  repeat (eapply expr_refines_trans; [ | solve [ refinement_step ] ]).
-  apply expr_refines_refl.
+  exact (expr_refines_trans _ _ _ (normalise_expr_before_refines body)
+    (rewrite_rec_handlers_refines _ normalise_expr_before_refines _)).
 Qed.
 
 Lemma normalise_before_round_refines (e : expr) :
@@ -88,15 +104,24 @@ Proof.
   eapply expr_refines_trans;
     [ | apply rewrite_code_refines, normalise_code_before_refines ].
   repeat (eapply expr_refines_trans; [ | solve [ refinement_step ] ]).
-  apply expr_refines_refl.
+  eapply expr_refines_trans; [ | apply normalise_code_before_refines ].
+  apply inline_calls_refines.
+Qed.
+
+Lemma normalise_expr_after_equivalent (e : expr) :
+  expr_equivalent e (normalise_expr_after e).
+Proof.
+  unfold normalise_expr_after.
+  repeat (eapply expr_equivalent_trans; [ | solve [ equivalence_step ] ]).
+  apply expr_equivalent_refl.
 Qed.
 
 Lemma normalise_code_after_equivalent (body : expr) :
   expr_equivalent body (normalise_code_after body).
 Proof.
   unfold normalise_code_after.
-  repeat (eapply expr_equivalent_trans; [ | solve [ equivalence_step ] ]).
-  apply expr_equivalent_refl.
+  exact (expr_equivalent_trans _ _ _ (normalise_expr_after_equivalent body)
+    (rewrite_rec_handlers_equivalent _ normalise_expr_after_equivalent _)).
 Qed.
 
 Lemma normalise_after_round_equivalent (e : expr) :
@@ -105,6 +130,10 @@ Proof.
   unfold normalise_after_round.
   eapply expr_equivalent_trans;
     [ | apply rewrite_code_equivalent, normalise_code_after_equivalent ].
+  repeat (eapply expr_equivalent_trans; [ | solve [ equivalence_step ] ]).
+  eapply expr_equivalent_trans;
+    [ | apply rewrite_rec_handlers_equivalent,
+          normalise_expr_after_equivalent ].
   repeat (eapply expr_equivalent_trans; [ | solve [ equivalence_step ] ]).
   apply expr_equivalent_refl.
 Qed.

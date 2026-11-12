@@ -85,8 +85,10 @@ From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaCompareSpec FlambdaNormaliseSpec FlambdaBlockLoadSpec
-  FlambdaUnboxSpec FlambdaUnusedContsSpec FlambdaUnusedStaticsSpec
-  FlambdaLiftSpec FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec.
+  FlambdaLoopAliasesSpec FlambdaRecHandlersSpec FlambdaShortcutSpec
+  FlambdaSinkContsSpec FlambdaUnboxSpec FlambdaUnusedContsSpec
+  FlambdaUnusedParamsSpec FlambdaUnusedStaticsSpec FlambdaLiftSpec
+  FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -100,52 +102,68 @@ Fixpoint iterate (rounds : nat) (f : expr -> expr) (e : expr) : expr :=
   | S rounds => iterate rounds f (f e)
   end.
 
-(* One round for the body of code in the term before: the rewrites that
-   need to know nothing of where they are applied. *)
-Definition normalise_code_before (body : expr) : expr :=
-  remove_unused_defined_lets []
-    (remove_unused_lets
-       (fold_constants
-          (follow_aliases []
-             (unbox_known_numbers
-                (load_known_blocks
-                   (thread_switches
-                      (inline_tail_conts
-                         (remove_unused_conts
-                            (collapse_switches (fold_constants body)))))))))).
+(* One round for an expression of the term before: the rewrites that
+   need to know nothing of where they are applied, and that go into the
+   handlers of the non-recursive continuations but not into those of the
+   recursive ones, nor into code. First what makes the control flow
+   simpler: a continuation that is applied once is moved to where it is
+   applied and inlined there ([sink_let_conts], then [inline_tail_conts]),
+   before an arm of a [Switch] is made to go where its continuation
+   goes ([shortcut_switches]), as Simplify makes no shortcut to a
+   continuation that it inlines. Then what follows the values, into the
+   handlers of the recursive continuations too for what is known where
+   they are defined ([follow_aliases_in_loops]); then what removes the
+   bindings and the parameters that are left unused. *)
+Definition normalise_expr_before (e : expr) : expr :=
+  let e :=
+    shortcut_switches
+      (thread_switches
+         (inline_tail_conts
+            (sink_let_conts
+               (remove_unused_conts (collapse_switches (fold_constants e))))))
+  in
+  let e :=
+    follow_aliases_in_loops []
+      (follow_aliases [] (unbox_known_numbers (load_known_blocks e)))
+  in
+  drop_unused_params
+    (remove_unused_defined_lets [] (remove_unused_lets (fold_constants e))).
 
-(* One round for the term before. Every rewrite refines. *)
+(* One round for the body of code in the term before: the round for an
+   expression, and the same for the handler of each of its recursive
+   continuations, a loop in a loop included. *)
+Definition normalise_code_before (body : expr) : expr :=
+  rewrite_rec_handlers normalise_expr_before (normalise_expr_before body).
+
+(* One round for the term before: the calls of known code inlined; then
+   the round for the body of code, on the term itself; then the static
+   bindings tidied, and the round applied to the body of each piece of
+   code. Every rewrite refines. *)
 Definition normalise_before_round (e : expr) : expr :=
   rewrite_code normalise_code_before
     (merge_statics
-       (drop_deleted_code
-          (remove_unused_defined_lets []
-             (remove_unused_lets
-                (fold_constants
-                   (follow_aliases []
-                      (unbox_known_numbers
-                         (load_known_blocks
-                            (thread_switches
-                               (inline_tail_conts
-                                  (remove_unused_conts
-                                     (collapse_switches
-                                        (fold_constants
-                                           (inline_calls [] e)))))))))))))).
+       (drop_deleted_code (normalise_code_before (inline_calls [] e)))).
 
 Definition normalise_before (rounds : nat) (e : expr) : expr :=
   iterate rounds normalise_before_round e.
 
 (* The same for the term after. Every rewrite is an equivalence. *)
+Definition normalise_expr_after (e : expr) : expr :=
+  remove_unused_defined_lets []
+    (fold_constants (follow_aliases_in_loops [] (follow_aliases [] e))).
+
 Definition normalise_code_after (body : expr) : expr :=
-  remove_unused_defined_lets [] (fold_constants (follow_aliases [] body)).
+  rewrite_rec_handlers normalise_expr_after (normalise_expr_after body).
 
 Definition normalise_after_round (e : expr) : expr :=
   rewrite_code normalise_code_after
     (merge_statics
        (drop_deleted_code
-          (remove_unused_defined_lets []
-             (fold_constants
-                (inline_known_calls [] [] (follow_aliases [] e)))))).
+          (rewrite_rec_handlers normalise_expr_after
+             (remove_unused_defined_lets []
+                (fold_constants
+                   (inline_known_calls [] []
+                      (follow_aliases_in_loops [] (follow_aliases [] e)))))))).
 
 Definition normalise_after (rounds : nat) (e : expr) : expr :=
   iterate rounds normalise_after_round e.

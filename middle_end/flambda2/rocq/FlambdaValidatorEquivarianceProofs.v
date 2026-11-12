@@ -3692,18 +3692,32 @@ Ltac rename_outwards :=
       | rewrite inline_calls_unknowing_equivariant
       | rewrite inline_known_calls_unknowing_equivariant
       | rewrite drop_deleted_code_equivariant_aux
-      | rewrite merge_statics_equivariant_aux ].
+      | rewrite merge_statics_equivariant_aux
+      | rewrite sink_let_conts_equivariant_aux
+      | rewrite shortcut_switches_equivariant_aux
+      | rewrite follow_aliases_in_loops_unknowing_equivariant
+      | rewrite drop_unused_params_equivariant ].
+
+Lemma normalise_expr_before_equivariant :
+  rewrite_equivariant normalise_expr_before.
+Proof.
+  intros r e. unfold normalise_expr_before. cbv zeta. rename_outwards.
+  reflexivity.
+Qed.
 
 Lemma normalise_code_before_equivariant :
   rewrite_equivariant normalise_code_before.
 Proof.
-  intros r e. unfold normalise_code_before. rename_outwards. reflexivity.
+  intros r e. unfold normalise_code_before.
+  rewrite normalise_expr_before_equivariant.
+  apply rewrite_rec_handlers_equivariant, normalise_expr_before_equivariant.
 Qed.
 
 Lemma normalise_before_round_equivariant :
   rewrite_equivariant normalise_before_round.
 Proof.
   intros r e. unfold normalise_before_round. rename_outwards.
+  rewrite normalise_code_before_equivariant. rename_outwards.
   apply rewrite_code_equivariant, normalise_code_before_equivariant.
 Qed.
 
@@ -3713,16 +3727,28 @@ Proof.
   intros rounds. apply iterate_equivariant, normalise_before_round_equivariant.
 Qed.
 
+Lemma normalise_expr_after_equivariant :
+  rewrite_equivariant normalise_expr_after.
+Proof.
+  intros r e. unfold normalise_expr_after. rename_outwards. reflexivity.
+Qed.
+
 Lemma normalise_code_after_equivariant :
   rewrite_equivariant normalise_code_after.
 Proof.
-  intros r e. unfold normalise_code_after. rename_outwards. reflexivity.
+  intros r e. unfold normalise_code_after.
+  rewrite normalise_expr_after_equivariant.
+  apply rewrite_rec_handlers_equivariant, normalise_expr_after_equivariant.
 Qed.
 
 Lemma normalise_after_round_equivariant :
   rewrite_equivariant normalise_after_round.
 Proof.
   intros r e. unfold normalise_after_round. rename_outwards.
+  rewrite
+    (rewrite_rec_handlers_equivariant normalise_expr_after
+       normalise_expr_after_equivariant).
+  rename_outwards.
   apply rewrite_code_equivariant, normalise_code_after_equivariant.
 Qed.
 
