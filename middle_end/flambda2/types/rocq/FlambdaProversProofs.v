@@ -3908,6 +3908,59 @@ Theorem prove_physical_equality_sound
   : prove_physical_equality_sound_statement.
 Proof. exact prove_physical_equality_sound_proof. Qed.
 
+(* A value that [Phys_equal] reads as a tagged immediate is that
+   constant. *)
+Lemma tagged_immediate_of_int (v : value) (a : Z) :
+  int_of_value Standard_tagged_immediate v = Some a ->
+  v = Value_const (Tagged_immediate a).
+Proof.
+  destruct v; try discriminate.
+  match goal with c : const |- _ => destruct c; try discriminate end.
+  simpl. destruct (in_range _ _); [ | discriminate ].
+  intros H. inversion H. reflexivity.
+Qed.
+
+(* Where [Phys_equal] has a value, it is whether the two are the same
+   value. *)
+Lemma eval_phys_equal_same (statics : static_env) (v1 v2 : value)
+    (same : bool) :
+  eval_phys_equal statics v1 v2 = Some same -> (same = true <-> v1 = v2).
+Proof.
+  unfold eval_phys_equal.
+  destruct (int_of_value Standard_tagged_immediate v1) as [a | ] eqn:H1;
+    destruct (int_of_value Standard_tagged_immediate v2) as [b | ] eqn:H2.
+  - intros H. inversion H. apply tagged_immediate_of_int in H1, H2.
+    subst v1 v2. rewrite Z.eqb_eq.
+    split; [ intros ->; reflexivity | intros Heq; inversion Heq; reflexivity ].
+  - destruct (is_allocated statics v2); [ | discriminate ].
+    intros H. inversion H. split; [ discriminate | ].
+    intros Heq. subst v2. rewrite H1 in H2. discriminate.
+  - destruct (is_allocated statics v1); [ | discriminate ].
+    intros H. inversion H. split; [ discriminate | ].
+    intros Heq. subst v2. rewrite H1 in H2. discriminate.
+  - discriminate.
+Qed.
+
+Theorem prove_physical_equality_phys_equal :
+  prove_physical_equality_phys_equal_statement.
+Proof.
+  intros statics valuation tenv t1 t2 b op v1 v2 r Hsat Hwf1 Hwf2 Hv1 Hv2
+    Hprove Heval.
+  pose proof
+    (prove_physical_equality_sound statics valuation tenv t1 t2 b v1 v2 Hsat
+       Hwf1 Hwf2 Hv1 Hv2 Hprove)
+    as Hsound.
+  rewrite eval_prim_binary in Heval. simpl in Heval.
+  destruct (eval_phys_equal statics v1 v2) as [same | ] eqn:Hsame;
+    [ | discriminate ].
+  inversion Heval. apply eval_phys_equal_same in Hsame.
+  assert (Hb : same = b).
+  { destruct b, same; try reflexivity.
+    - apply (proj2 Hsame), Hsound.
+    - exfalso. apply Hsound, (proj1 Hsame). reflexivity. }
+  rewrite Hb. reflexivity.
+Qed.
+
 Theorem sound_where_no_poison : sound_where_no_poison_statement.
 Proof.
   split.

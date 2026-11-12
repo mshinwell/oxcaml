@@ -1112,6 +1112,31 @@ Definition prove_physical_equality_sound_statement : Prop :=
     = Some (Proof_of_property.Proved b) ->
     if b then v1 = v2 else v1 <> v2.
 
+(* The primitive [Phys_equal] against that answer: where it has a
+   value on a value of each of the two types, its value is the answer
+   of the prover, 1 or 0 for [Phys_eq] as the answer is [true] or
+   [false], and the other way round for [Phys_neq]. That is the
+   constant that Simplify puts for the primitive
+   ([Simplify_binary_primitive.simplify_phys_equal]). The primitive
+   has a value on two tagged immediates, and on a tagged immediate
+   against an allocated value (FlambdaPrimitiveSpec.v); of two such
+   values, being the same value is being physically equal. Where the
+   primitive has no value (two allocated values, null, poison) this
+   says nothing of the answer of the prover. *)
+Definition prove_physical_equality_phys_equal_statement : Prop :=
+  ∀ (statics : static_env) (valuation : env) (tenv : Typing_env.t)
+    (t1 t2 : flambda_type) (b : bool) (op : equality_comparison)
+    (v1 v2 r : value),
+    typing_env_satisfied_strictly statics valuation tenv ->
+    well_formed_input tenv t1 ->
+    well_formed_input tenv t2 ->
+    type_satisfied statics valuation v1 t1 ->
+    type_satisfied statics valuation v2 t2 ->
+    Provers.prove_physical_equality tenv t1 t2
+    = Some (Proof_of_property.Proved b) ->
+    eval_prim statics (Binary (Phys_equal op)) [v1; v2] = Some r ->
+    r = naked_bool match op with Phys_eq => b | Phys_neq => negb b end.
+
 (* ======================================================================== *)
 (* Where no name holds poison                                               *)
 (* ======================================================================== *)
