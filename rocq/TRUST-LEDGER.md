@@ -171,8 +171,25 @@ it gave back.
   `End_try_region`) are dropped in the same way. There a region also
   ends when a raise leaves it open and the handler ends it, and the
   same is trusted of both units on that way out: nothing allocated in
-  such a region is used in the handler after that, or later. A region
-  variable used as a value is refused. *Tupled functions*: a direct
+  such a region is used in the handler after that, or later. One thing
+  is kept of the region of a handler: the `Let` of its `End_try_region`
+  (the one that is not a ghost) binds `Opaque_identity` of the unit
+  value, where that of an `End_region` binds the unit value. The value
+  bound is the same, so the unit means in the model what it meant;
+  what changes is that the normalisations of the validator do not
+  fold that `Let`, nor remove it for being unused
+  (`FlambdaNormaliseSpec.prim_may_fold`), in either term, as Simplify
+  does not delete the primitive for being unused (its effects are
+  arbitrary, and `Flambda_primitive.is_end_region`, by which the end
+  of an unused region is deleted, is of `End_region` alone). In the
+  model as in the compiler it still goes with a handler or with code
+  that is removed whole. It is a mark that something is done there,
+  not a model of what is released. Without it the handler of a `try`
+  that Simplify has demoted was, in the term before, a continuation
+  that only applies another, and the validator forwarded to it where
+  the compiler, whose handler ends the region first, has no shortcut
+  (discrepancy C5-10).
+  A region variable used as a value is refused. *Tupled functions*: a direct
   call of tupled code that the unit binds is refused, and so is a call
   of known arity in a unit that binds tupled code (the entry above);
   it is what keeps a call that gives code the components from being

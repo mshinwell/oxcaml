@@ -68,6 +68,11 @@ unit made from OCaml.
   V2-3). The regions around a `try` are dropped in the same way: the
   handler ends the regions that the body had open when it raised, and
   nothing allocated in one of them is assumed to be used after that.
+  The `Let` by which the handler ends the region is kept, bound to
+  `%opaque` of the unit value: Simplify does not delete that primitive
+  for being unused, so a handler that begins with it is not a
+  continuation that only applies another, and the validator must not
+  take it for one.
   `match_variant_local.ml` is `match_variant.ml` without the type
   annotation that keeps the argument of its function on the heap; both
   are validated. Other early examples have such an annotation for the

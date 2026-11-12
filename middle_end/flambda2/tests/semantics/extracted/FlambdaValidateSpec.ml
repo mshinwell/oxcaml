@@ -5,6 +5,7 @@ open FlambdaCodeLetsSpec
 open FlambdaCompareSpec
 open FlambdaCseSpec
 open FlambdaDeadParamsSpec
+open FlambdaDemoteSpec
 open FlambdaFloatCodeSpec
 open FlambdaForwardSpec
 open FlambdaHoistCodeSpec
@@ -116,12 +117,19 @@ let normalise_code_params body =
 let normalise_params_round e =
   rewrite_code normalise_code_params (normalise_code_params e)
 
+(** val demote_and_tidy : nat -> expr -> expr **)
+
+let demote_and_tidy rounds e =
+  iterate rounds normalise_before_inlined
+    (iterate rounds normalise_params_round (demote_handlers [] e))
+
 (** val normalise_before : nat -> code_id list -> expr -> expr **)
 
 let normalise_before rounds kept e =
-  iterate rounds
-    (normalise_before_round kept)
-    (iterate rounds normalise_params_round e)
+  demote_and_tidy rounds
+    (iterate rounds
+       (normalise_before_round kept)
+       (iterate rounds normalise_params_round e))
 
 (** val inline_once_applied_after : expr -> expr **)
 
@@ -212,7 +220,7 @@ let unit_continuations ls =
 
 let rec lifted_in_turn rounds avoid ls kept e =
   match ls with
-  | [] -> e
+  | [] -> demote_and_tidy rounds e
   | l :: ls0 ->
     lifted_in_turn rounds avoid ls0 kept
       (normalise_lifted rounds avoid kept (with_lifting l e))

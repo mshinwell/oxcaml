@@ -5,6 +5,7 @@ open FlambdaCodeLetsSpec
 open FlambdaCompareSpec
 open FlambdaCseSpec
 open FlambdaDeadParamsSpec
+open FlambdaDemoteSpec
 open FlambdaFloatCodeSpec
 open FlambdaForwardSpec
 open FlambdaHoistCodeSpec
@@ -56,6 +57,8 @@ val normalise_expr_params : expr -> expr
 val normalise_code_params : expr -> expr
 
 val normalise_params_round : expr -> expr
+
+val demote_and_tidy : nat -> expr -> expr
 
 val normalise_before : nat -> code_id list -> expr -> expr
 

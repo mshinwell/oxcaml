@@ -549,7 +549,16 @@ let drop_depth_variable var =
    wider: nothing allocated in a region is used after the region has ended,
    whether it ends at its [End_region] or because a raise left it open and the
    handler ended it; and a validation says nothing about whether Simplify keeps
-   it so on either way out. To be replaced if the model gains regions. *)
+   it so on either way out. One thing is kept of the region of a handler: the
+   [Let] of its [End_try_region] (the one that is not a ghost) binds
+   [Opaque_identity] of the unit value, and not the unit value. The value is the
+   same; but the normalisations of the validator do not fold [Opaque_identity],
+   nor remove its [Let] for being unused, as Simplify does not delete an
+   [End_try_region] for being unused ([Flambda_primitive.is_end_region] is of
+   [End_region] alone); the one and the other still go with a handler or with
+   code that is removed whole. So a handler that Simplify has demoted is not, in
+   the model, a continuation that only applies another, which it is not for
+   Simplify. To be replaced if the model gains regions. *)
 let region_variables : Variable.Set.t ref = ref Variable.Set.empty
 
 let drop_region_variable var =
@@ -789,7 +798,8 @@ and convert_let (pattern : Bound_pattern.t) (defining_expr : Flambda.Named.t)
             ((End_region { ghost = _ } | End_try_region { ghost = _ }), region),
           _ ) ) ->
     (* CR mshinwell: the end of a region does nothing but return the unit value;
-       see [region_variables]. *)
+       that of the region of a handler returns it through [Opaque_identity], to
+       be left where it is. See [region_variables]. *)
     let is_region =
       Simple.pattern_match' region
         ~var:(fun var ~coercion:_ -> Variable.Set.mem var !region_variables)
@@ -799,11 +809,14 @@ and convert_let (pattern : Bound_pattern.t) (defining_expr : Flambda.Named.t)
     if not is_region
     then unsupported "the end of %a, which is not a region" Simple.print region;
     let var, kind = convert_bound_var bound_var in
-    Model.Let
-      ( var,
-        kind,
-        Simple (Const (Tagged_immediate (z_of_int 0))),
-        convert_expr body )
+    let unit : Model.simple = Const (Tagged_immediate (z_of_int 0)) in
+    let defining_expr : Model.named =
+      match defining_expr with
+      | Prim (Unary (End_try_region { ghost = false }, _), _) ->
+        Prim (Unary (Opaque_identity (convert_kind Flambda_kind.value)), [unit])
+      | _ -> Simple unit
+    in
+    Model.Let (var, kind, defining_expr, convert_expr body)
   | Singleton bound_var, Prim (prim, _) ->
     let var, kind = convert_bound_var bound_var in
     Model.Let (var, kind, convert_prim prim, convert_expr body)
@@ -2322,6 +2335,9 @@ let validate ~(outcome_before : outcome) (before : converted)
          few times at most. *)
       let rec guessed banned again =
         let liftings, lifted = liftings_from banned 0 [] looped 3 in
+        (* After the last lifting [validate_unit] demotes the exception handlers
+           that no call can raise to. *)
+        let lifted = Validate.demote_and_tidy rounds lifted in
         let slots = unused_slots_guess lifted normalised_after in
         let lifted = Validate.without_slots slots lifted in
         let unused = unused_statics lifted in
