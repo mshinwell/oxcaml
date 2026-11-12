@@ -2320,6 +2320,41 @@ Proof.
     destruct op; reflexivity.
 Qed.
 
+(* The identity of a symbol is that symbol. *)
+Lemma identity_of_symbol (statics : static_env) (s s' : symbol) :
+  identity_of statics (Value_symbol s) = Some s' -> s' = s.
+Proof.
+  unfold identity_of, imported_of.
+  destruct (lookup s (static_values statics)) as [allocated | ];
+    [ | discriminate ].
+  destruct allocated; try discriminate.
+  match goal with
+  | c : import_class |- _ => destruct c
+  end;
+    try discriminate.
+  intros H. injection H as <-. reflexivity.
+Qed.
+
+Theorem phys_equal_symbols : phys_equal_symbols_statement.
+Proof.
+  intros statics op s1 s2 result Hne. cbn [eval_binary_primitive].
+  unfold eval_phys_equal. cbn [int_of_value].
+  destruct (identity_of statics (Value_symbol s1)) as [s1' | ] eqn:H1;
+    destruct (identity_of statics (Value_symbol s2)) as [s2' | ] eqn:H2.
+  - apply identity_of_symbol in H1, H2. subst s1' s2'.
+    destruct (Pos.eqb_spec s1 s2) as [Heq | _]; [ contradiction | ].
+    cbn. intros H. injection H as <-. destruct op; reflexivity.
+  - destruct (is_allocated statics (Value_symbol s2)
+              || is_imported statics (Value_symbol s2));
+      [ | discriminate ].
+    cbn. intros H. injection H as <-. destruct op; reflexivity.
+  - destruct (is_allocated statics (Value_symbol s1)
+              || is_imported statics (Value_symbol s1));
+      [ | discriminate ].
+    cbn. intros H. injection H as <-. destruct op; reflexivity.
+  - discriminate.
+Qed.
+
 (* A tag is an immediate, so [Get_tag] returns one. *)
 Lemma tag_in_range_ocaml_int (tag : Z) :
   tag_in_range tag = true -> ocaml_int_in_range tag = true.

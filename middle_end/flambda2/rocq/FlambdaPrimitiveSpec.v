@@ -1643,6 +1643,30 @@ Definition phys_equal_same_statement : Prop :=
         | Phys_neq => false
         end.
 
+(* [Phys_equal] of two different symbols: where it has an answer, the
+   answer is that the two differ. Simplify folds the comparison of two
+   symbols that are not the same to that answer (types/provers.ml,
+   [prove_physical_equality], its last match). Here there is an answer
+   only where one of the two is an identity
+   (FlambdaValueSpec.identity_of: an imported symbol of the class of
+   exceptions), and the other is an identity, an allocated value or an
+   import. So, as for a value against itself, a term in which the
+   comparison is folded refines the term that has it, and the fold is
+   no equivalence. *)
+Definition phys_equal_symbols_statement : Prop :=
+  ∀ (statics : static_env) (op : equality_comparison) (s1 s2 : symbol)
+    (result : value),
+    s1 <> s2 ->
+    eval_binary_primitive statics (Phys_equal op) (Value_symbol s1)
+      (Value_symbol s2)
+    = Some result ->
+    result
+    = naked_bool
+        match op with
+        | Phys_eq => false
+        | Phys_neq => true
+        end.
+
 (* What a primitive computes on its arguments it computes on values
    that the observations read alike. The premise is a relation between
    values, the first read under [statics] and the second under
