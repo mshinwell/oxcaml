@@ -1,10 +1,11 @@
 # N1: the statements about names, with the one function for free names
 
-Branch `flambda2-rocq/N1-one-free-names`, cut from the integration
-branch after the first step of the heap and the passes for loops. It
-is not to be merged while the epochs that change the machine are
-moving; it is replayed and merged at the first quiet point, or on the
-human's word.
+The series was prepared after the first step of the heap and the
+passes for loops, and held while the epochs that change the machine
+were moving. It was replayed over the validation that renames binders
+apart, with no proof repaired, and is in. This is the request as it
+was made, with the counts of the replay and with what has changed
+since marked as such.
 
 The decision to replace was the human's to take. He was away, and the
 orchestrator took it overnight, for his review, as recommended in
@@ -78,7 +79,7 @@ the code is closed.
 - The relations stay defined, in `FlambdaNominalSpec.v`, under a
   heading that says what they are for (section 7).
 
-The claims that `make claims` checks go from 1608 to 1595: fourteen
+The claims that `make claims` checks go from 2126 to 2113: fourteen
 statements leave the `Spec` files (the six, the two, the five forms
 of the rules, and the second prover's one) and one enters.
 
@@ -705,26 +706,30 @@ say the same.
 |------|-------|-----|
 | The three statements about a binding that is not used (`FlambdaNominalSpec.v`) | N1 | On purpose: section 6. They are the laws that the rewrites which remove bindings need, of every term |
 | The three statements about the relations themselves (`FlambdaAlphaSpec.v`) | N1 | They say that the premise of the three above is kept by renaming and by alpha-equivalence. Where code is not closed the statements about the functions do not give them |
-| The relations `var_free_in_expr`, `cont_free_in_expr` and those beside them, as definitions of `FlambdaNominalSpec.v` | N1 | For the six statements above, the rows below, and the proofs of eighteen files |
+| The relations `var_free_in_expr`, `cont_free_in_expr` and those beside them, as definitions of `FlambdaNominalSpec.v` | N1 | For the six statements above, the rows below, and the proofs that use them |
 | `FlambdaApplySpec.inlinable`, which says that the code inlined is closed and that the bindings do not capture | the integrator | It asks that the body of the code binds nothing static, so there is no code in it and the two accounts cannot differ. The definition is unfolded by proofs of the integrator, of N2 and of the types. To be restated at a quiet point |
 | `FlambdaNormaliseSpec.expr_in_scope`, the check of scope in the test of inlining | the integrator | It is a check that runs, inside `inline_calls`, and is extracted. It agrees with `names_among` where code is closed (`FlambdaFreeNamesSpec.expr_in_scope_agrees_statement`). Replacing it changes the function, and replays every proof about `inline_calls` |
 | `FlambdaWellFormedSpec.free_continuations`, by which a handler is found to be at toplevel and the exception handlers are checked | the integrator | A check that runs, a part of `well_formed_unit`, extracted. It agrees with the one function where code is closed (`free_continuations_agree_statement`), and `well_formed_unit` asks that it is |
 | `var_free_b`, `cont_free_b`, the tests of freedom of the rewrites that remove bindings | the integrator (V4's passes use them) | They do not go into code, and need not: section 6. With the one function the rewrites would remove less of a term whose code is not closed and the same of a well-formed one |
-| `rename_apart_equivariant_up_to_statement` (`FlambdaRenameApartSpec.v`) | V2's file, N2's statement | A series on that file is in flight. It is to be restated with the one function, or deleted if the statement beside it, of all the names of the term, is proved to give it |
 | `var_free_in_simple` in the first model of the types (`types/rocq/FlambdaTypesSpec.v`) | the types | It says that a variable is a given simple. There is no code and no binder in a simple |
+| `var_free_in_simples` in two statements of `FlambdaPartialApplicationSpec.v`, written since the request was made | C3 | They say that a variable is not one of a list of simples, where there is no code and no binder |
 | The suffix `_canonical`, and `FlambdaCanonicalFreeNamesSpec.v` as the place of the statements that rename | N1 | The names without the suffix are those of the older lemmas, which proofs use |
+
+`rename_apart_equivariant_up_to_statement`
+(`FlambdaRenameApartSpec.v`) was a row of this table when the request
+was made. Its owner has restated it with the one function since, so
+it is not one.
 
 ## 8. Going back, and going on
 
-Going back: the definitions of the eight older statements are in the
+Going back: the definitions of the nine older statements are in the
 `Proofs` files with their text unchanged, and the rules in their older
 form are lemmas. Restoring them to the `Spec` files is a move, and no
 proof changes.
 
 Going on, each at a quiet point:
 
-1. `inlinable` and the statement of `FlambdaRenameApartSpec.v` are
-   restated, by or with their owners.
+1. `inlinable` is restated, by or with its owner.
 2. The two checks are replaced by `names_among` and
    `free_continuations_of_expr`, with the semantics tests run, since
    they are extracted. Their statements of equivariance
@@ -739,8 +744,8 @@ Going on, each at a quiet point:
 
 ## 9. Validation
 
-On the branch, from the root of the worktree: `make -C rocq -j8 all`
-passes with 1595 claims, and `make -C rocq assumptions` passes. No
+At the replay, from the root of the worktree: `make -C rocq -j8 all`
+passes with 2113 claims, and `make -C rocq assumptions` passes. No
 definition that is extracted changes, and the extracted files are as
 they were after `make -C rocq all`, so the semantics tests were not
 run again.
@@ -755,9 +760,9 @@ were found, neither a discrepancy with the compiler:
   replaced them by the weaker forms and kept the older as lemmas; the
   reviewer and the orchestrator ruled that no statement gets weaker,
   and they are statements as they were;
-- `rename_apart_equivariant_up_to_statement` says that the second
+- `rename_apart_equivariant_up_to_statement` said that the second
   renaming agrees with the first on the names that are free by the
-  relations, and asks nothing of the code. So of a term whose code is
-  not closed it lets the two differ on a name that only code mentions.
-  The statement beside it is of all the names of the term. It is its
-  owner's to restate or, with the implication proved, to delete.
+  relations, and asked nothing of the code. So of a term whose code
+  is not closed it let the two differ on a name that only code
+  mentions. Its owner has restated it since: the two agree on the
+  free names by the one function, those in code included.

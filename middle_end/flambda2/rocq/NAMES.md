@@ -13,21 +13,17 @@ each thing in full.
 
 **One account of the free names.** The free names of a term are one
 function for each sort (`FlambdaBindersSpec.v`), which goes into code.
-Written with it: the three conditions on binders of well-formedness,
-and what a rewrite that makes names owes. An older account, relations
-that do not go into code, is what the statements about binders
-(`FlambdaNominalSpec.v`) and the rules of `alpha_equivalent` are
-still written with; `FlambdaCanonicalFreeNamesSpec.v` has each of
-them with the one function, proved beside the older one. A series
-that makes those the statements, wherever the two forms say the same,
-is prepared on the branch `flambda2-rocq/N1-one-free-names` and is
-under review; it is to be merged when the epochs that change the
-machine have landed. `requests/N1-one-free-names.md` has each
-statement before and after. The statements that a binding not used
-may be removed stay written with the relations, on purpose: they ask
-nothing of the code, a name that occurs only in code does not stop a
-binding from being removed, and the rewrites of the validator that
-remove bindings are proved from them.
+Written with it: the three conditions on binders of well-formedness;
+the statements that the names a binder binds may be renamed
+(`FlambdaCanonicalFreeNamesSpec.v`); the rules of `alpha_equivalent`;
+what a rewrite that makes names owes. An older account, relations
+that do not go into code, is still defined. The statements that a
+binding not used may be removed are written with it on purpose
+(`FlambdaNominalSpec.v`): they ask nothing of the code, a name that
+occurs only in code does not stop a binding from being removed, and
+the rewrites of the validator that remove bindings are proved from
+them. The other places where it is still used are in the last table
+here.
 
 **What commutes with renaming.**
 
@@ -83,18 +79,16 @@ continuations given what the first does
 (`equivariant_up_to_avoiding`).
 
 **Still written in the older style.** `requests/N1-one-free-names.md`,
-section 7, has the reason for each and what it would take, as things
-will be once the series of that request is merged.
+section 7, has the reason for each and what it would take.
 
 | What | Whose |
 |------|-------|
-| The six statements that a bound name may be renamed, the rules of `alpha_equivalent` and two statements beside them: replaced on the branch | N1 |
 | The three statements that a binding not used may be removed, and three that say that their premise is kept by renaming and by alpha-equivalence: on purpose | N1 |
-| The relations `var_free_in_expr` and `cont_free_in_expr`, as definitions: for those statements, the rows below and the proofs | N1 |
+| The relations `var_free_in_expr` and `cont_free_in_expr`, as definitions: for those six statements, the rows below and the proofs | N1 |
 | `FlambdaApplySpec.inlinable` | the integrator |
 | The checks `FlambdaNormaliseSpec.expr_in_scope` and `FlambdaWellFormedSpec.free_continuations`, which run | the integrator |
 | The tests of freedom `var_free_b` and `cont_free_b` of the rewrites that remove bindings | the integrator |
-| One statement of `FlambdaRenameApartSpec.v` | the corpus stream, N2 |
+| The older forms of the statements that rename, as lemmas of `FlambdaNominalProofs.v` and `FlambdaAlphaProofs.v`, for the proofs that use them | N1 |
 
 **Owed.** That the join of typing environments, with one source of
 new names, answers the renamed answer up to the variables that it
@@ -124,14 +118,14 @@ which gives a name outside a list of names.
 |------|-------------|
 | `FlambdaBindersSpec.v` | What each binder binds and where; the free variables and free continuations of a term, as one function for each (they go into code); the three conditions on binders: `names_in_scope`, `binders_distinct`, `code_closed` |
 | `FlambdaScopeSpec.v` | `state_in_scope`: what a run keeps of scope; a state in scope reads no variable without a value and leaves only by a continuation it was given |
-| `FlambdaNominalSpec.v` | Permutations and renamings; the action on terms, `rename_expr`, code included; the free names as relations; that each binder may be renamed |
+| `FlambdaNominalSpec.v` | Permutations and renamings; the action on terms, `rename_expr`, code included; that the binders of code may be renamed; the older relations of free names, and with them that a binding which is not used may be removed |
 | `FlambdaAlphaSpec.v` | The action is that of a group; the free names and the three conditions are equivariant; `alpha_equivalent`, by its generators, is equivariant, keeps the free names and the three conditions, and is sound for the semantics |
 | `FlambdaCompareAlphaSpec.v` | The comparison `expr_eqb` is an equivalence relation, contains `alpha_equivalent` and does not depend on the names; two pairs of terms that it accepts outside well-formed terms |
 | `FlambdaEquivarianceSpec.v` | The action on states; a step, a run and a behaviour commute with it; two rewrites commute with it |
 | `FlambdaNameAbstractionSpec.v` | The interface of `nominal/`: things that contain names, bindable names, name abstractions, `pattern_match`, with their laws; `fresh_name` |
 | `FlambdaNominalInstancesSpec.v` | The terms as instances of the interface; each binder as a name abstraction |
 | `FlambdaFreeNamesSpec.v` | The older accounts of free names agree with the one function where code is closed, and what is free by them is among the free names on every term |
-| `FlambdaCanonicalFreeNamesSpec.v` | The statements about binders, and the rules of `alpha_equivalent`, written with the one function for the free names |
+| `FlambdaCanonicalFreeNamesSpec.v` | The names that a `Let`, a `Let_cont` or a handler binds may be renamed; corollaries, with the one function, of the statements about a binding that is not used |
 | `FlambdaStateSupportSpec.v` | Every expression and every state has a finite support: with the action, the states are a nominal set |
 | `FlambdaHeapEquivarianceSpec.v` | The action on the states of the machine with a heap, which leaves the heap alone; a step, a run and a behaviour of that machine commute with it; its refinements are preserved by renaming; its states have a finite support |
 | `FlambdaFreshQuantifierSpec.v`, `FlambdaFreshAbstractionSpec.v` | The quantifier "for all but finitely many names"; `fresh_names`; equal abstractions of one name and of a list of distinct names, said with the quantifier |
@@ -270,13 +264,12 @@ Two pairs of terms are accepted and proved not alpha-equivalent:
 
 Every statement that a bound name may be renamed has the premise that
 the code in what is renamed is closed. The comparison, from which
-they are proved, treats code as closed, and the relations of free
-names do not look into code. Where code is not closed the comparison
-and the rules part: `expr_eqb_open_code_statement` is a pair that the
-comparison accepts and that is not alpha-equivalent. No more than
-that is shown: the statements about behaviour are not proved of terms
-whose code is not closed, and no such term is known to refute them.
-Well-formedness admits none.
+they are proved, treats code as closed. Where code is not closed the
+comparison and the rules part: `expr_eqb_open_code_statement` is a
+pair that the comparison accepts and that is not alpha-equivalent. No
+more than that is shown: the statements about behaviour are not
+proved of terms whose code is not closed, and no such term is known
+to refute them. Well-formedness admits none.
 
 ## 6. The interface
 
@@ -562,17 +555,13 @@ Owed:
 
 ## 9. Not done
 
-- The older accounts of free names (`var_free_in_expr`,
-  `cont_free_in_expr`, `FlambdaWellFormedSpec.free_continuations`,
-  `FlambdaNormaliseSpec.expr_in_scope`) are still what many statements
-  are written with. `FlambdaCanonicalFreeNamesSpec.v` has the
-  statements about binders and the rules of `alpha_equivalent` in the
-  form they take with the one function, each proved from the older
-  one. The replacement of the older ones where the two forms say the
-  same is prepared and under review, on a branch
-  (`requests/N1-one-free-names.md`); the orchestrator took that
-  decision for the human, who is to review it. "Where it stands" has
-  what is left after it.
+- The older accounts of free names are not gone. The statements that
+  a bound name may be renamed and the rules of `alpha_equivalent` are
+  written with the one function, and their older forms are lemmas
+  that proofs still use. What is left in the older style is in the
+  last table of "Where it stands"; `requests/N1-one-free-names.md`
+  says, statement by statement, what was replaced, what is left and
+  why, and how to go back.
 - The functions listed as owed in section 7.
 
 ## 10. The compiler's side
