@@ -8148,10 +8148,17 @@ let run_joined_steps (side : 'env side_of_joins) (steps : joined_step list) :
   let env = run side.empty steps in
   env, List.rev !looked_at
 
+(* The names that a join of the model is told to avoid, beside the variables of
+   the program and those that its source and its uses know: the variables of the
+   targets of every join run before it, or nothing more. *)
+type names_avoided =
+  | Every_variable_made
+  | What_the_environments_know
+
 (* The two sides, for variables of the kinds given, numbered from 1. The
    variables that the joins make are numbered after them. *)
-let sides_of_joins (kinds : MK.flambda_kind list) :
-    (model -> Model_env.t side_of_joins) * TE.t side_of_joins =
+let sides_of_joins ?(avoid = Every_variable_made) (kinds : MK.flambda_kind list)
+    : (model -> Model_env.t side_of_joins) * TE.t side_of_joins =
   let numbering = Model_names.create () in
   let variables =
     List.map
@@ -8173,7 +8180,7 @@ let sides_of_joins (kinds : MK.flambda_kind list) :
        that each have a join of their own would each be given the same new
        variable, which the join after them would take for one. The compiler's
        new variables differ from every other. So a join here avoids what every
-       join before it made (T7-11). *)
+       join before it made (T7-11), but where a control asks for the other. *)
     let made = ref [] in
     { empty = Model_env.create;
       defines =
@@ -8187,7 +8194,10 @@ let sides_of_joins (kinds : MK.flambda_kind list) :
         (fun ~source uses ->
           Option.map
             (fun (target, _) ->
-              made := Model_join_env.variables_of_env target @ !made;
+              (match avoid with
+              | Every_variable_made ->
+                made := Model_join_env.variables_of_env target @ !made
+              | What_the_environments_know -> ());
               target)
             (model.join_of_model
                (names_for_a_join_to_avoid
@@ -8592,39 +8602,44 @@ let joined_steps_in_the_model (of_the_model : Model_env.t side_of_joins)
   | Some (_ : Model_env.t), looked_at -> Ok looked_at
   | None, (_ : (string * seen) list) -> Error "no answer of a step"
 
-let generated_joins_after_joins () : joined_step list comparison list =
-  let kinds = kinds_of_generated_joins in
-  let threshold = List.length kinds in
-  let run choices (steps : joined_step list) : joins_run =
-    let of_the_model, of_the_compiler = sides_of_joins kinds in
-    match
-      ( joined_steps_in_the_model (of_the_model (the_model choices)) steps,
-        joined_steps_in_the_compiler of_the_compiler steps )
-    with
-    | Error why, Error why' ->
-      Neither_answers
-        (Printf.sprintf "the model: %s; the compiler: %s" why why')
-    | Error why, Ok _ -> Only_one_answers ("the model: " ^ why)
-    | Ok _, Error why -> Only_one_answers ("the compiler: " ^ why)
-    | Ok of_model, Ok of_compiler ->
-      Both_answer
-        (List.map2
-           (fun (name, seen) ((_ : string), seen') -> name, seen, seen')
-           of_model of_compiler)
+(* A program run on both sides. *)
+let run_generated_joins ?avoid choices (steps : joined_step list) : joins_run =
+  let of_the_model, of_the_compiler =
+    sides_of_joins ?avoid kinds_of_generated_joins
   in
-  let is_seen (seen : seen) =
-    match seen with Seen _ -> true | Nothing_seen _ | Bottom_seen -> false
-  in
-  (* The first place at which the two do not see the same. *)
-  let first_difference (places : (string * seen * seen) list) :
-      (string * seen * seen) option =
-    List.find_opt
-      (fun ((_ : string), seen, seen') ->
-        not (is_seen seen && is_seen seen' && same_seen ~threshold seen seen'))
-      places
-  in
-  (* A difference is shown without the variables that are not in scope at the
-     place, of which nothing is seen on either side. *)
+  match
+    ( joined_steps_in_the_model (of_the_model (the_model choices)) steps,
+      joined_steps_in_the_compiler of_the_compiler steps )
+  with
+  | Error why, Error why' ->
+    Neither_answers (Printf.sprintf "the model: %s; the compiler: %s" why why')
+  | Error why, Ok _ -> Only_one_answers ("the model: " ^ why)
+  | Ok _, Error why -> Only_one_answers ("the compiler: " ^ why)
+  | Ok of_model, Ok of_compiler ->
+    Both_answer
+      (List.map2
+         (fun (name, seen) ((_ : string), seen') -> name, seen, seen')
+         of_model of_compiler)
+
+let seen_is_read (seen : seen) =
+  match seen with Seen _ -> true | Nothing_seen _ | Bottom_seen -> false
+
+(* The first place at which the two do not see the same. A place at which one of
+   the two is not read is one. *)
+let first_difference_of_joins (places : (string * seen * seen) list) :
+    (string * seen * seen) option =
+  let threshold = List.length kinds_of_generated_joins in
+  List.find_opt
+    (fun ((_ : string), seen, seen') ->
+      not
+        (seen_is_read seen && seen_is_read seen'
+        && same_seen ~threshold seen seen'))
+    places
+
+(* A difference is shown without the variables that are not in scope at the
+   place, of which nothing is seen on either side. *)
+let print_difference_of_joins (name, seen, seen') : string =
+  let threshold = List.length kinds_of_generated_joins in
   let in_scope (seen : seen) : seen =
     match seen with
     | Nothing_seen _ | Bottom_seen -> seen
@@ -8640,21 +8655,65 @@ let generated_joins_after_joins () : joined_step list comparison list =
           of_others
         }
   in
-  let print_difference (name, seen, seen') =
-    Format.asprintf "@[<v>%s, the model:@ %a@ the compiler:@ %a@]" name
-      print_lines
-      (print_seen ~threshold (in_scope seen))
-      print_lines
-      (print_seen ~threshold (in_scope seen'))
-  in
-  let with_the_test_of_the_compiler (steps : joined_step list) : outcome =
-    match run Of_the_compiler steps with
-    | Neither_answers why -> Not_run ("neither answers (" ^ why ^ ")")
-    | Only_one_answers why -> Disagree ("only one answers (" ^ why ^ ")")
-    | Both_answer places -> (
-      match first_difference places with
+  Format.asprintf "@[<v>%s, the model:@ %a@ the compiler:@ %a@]" name
+    print_lines
+    (print_seen ~threshold (in_scope seen))
+    print_lines
+    (print_seen ~threshold (in_scope seen'))
+
+(* What a run of the model with the compiler's test comes to: the two are to see
+   the same at every place looked at. *)
+let outcome_of_generated_joins (run : joins_run) : outcome =
+  match run with
+  | Neither_answers why -> Not_run ("neither answers (" ^ why ^ ")")
+  | Only_one_answers why -> Disagree ("only one answers (" ^ why ^ ")")
+  | Both_answer places -> (
+    match first_difference_of_joins places with
+    | None -> Agree
+    | Some difference -> Disagree (print_difference_of_joins difference))
+
+(* What a run of the model with the repaired test comes to, given the run of the
+   model with the compiler's test on the same program. The repaired test is not
+   the compiler's. A difference is recorded (T5-10), and is not a disagreement,
+   only where both sides are read at every place looked at and the model with
+   the compiler's test sees what the compiler sees at every place: then the
+   choice of the test is all that differs between the two runs of the model.
+   What the difference is, is not looked into. A place that is not read is a
+   disagreement. *)
+let outcome_of_the_repaired_test ~(with_the_test_of_the_compiler : joins_run)
+    (with_the_repaired_test : joins_run) : outcome =
+  match with_the_repaired_test with
+  | Neither_answers why -> Not_run ("neither answers (" ^ why ^ ")")
+  | Only_one_answers why -> Disagree ("only one answers (" ^ why ^ ")")
+  | Both_answer places -> (
+    match
+      List.find_opt
+        (fun ((_ : string), seen, seen') ->
+          not (seen_is_read seen && seen_is_read seen'))
+        places
+    with
+    | Some unread ->
+      Disagree
+        ("what is seen is not read on both sides: "
+        ^ print_difference_of_joins unread)
+    | None -> (
+      match first_difference_of_joins places with
       | None -> Agree
-      | Some difference -> Disagree (print_difference difference))
+      | Some difference -> (
+        match outcome_of_generated_joins with_the_test_of_the_compiler with
+        | Agree ->
+          Known_to_disagree
+            ( "T5-10, the model with the repaired test for recovering \
+               relations, which the compiler has not, sees otherwise than the \
+               compiler where the model with the compiler's test sees what the \
+               compiler sees",
+              print_difference_of_joins difference )
+        | Not_this_comparison | Not_run _ | Disagree _ | Known_to_disagree _ ->
+          Disagree (print_difference_of_joins difference))))
+
+let generated_joins_after_joins () : joined_step list comparison list =
+  let with_the_test_of_the_compiler (steps : joined_step list) : outcome =
+    outcome_of_generated_joins (run_generated_joins Of_the_compiler steps)
   in
   let a_use_after_a_join (steps : joined_step list) =
     List.exists
@@ -8684,33 +8743,153 @@ let generated_joins_after_joins () : joined_step list comparison list =
           then with_the_test_of_the_compiler steps
           else Not_this_comparison)
     };
-    (* The repaired test is not the compiler's: where the model with it sees
-       otherwise than the compiler, and the model with the compiler's test sees
-       what the compiler sees, the repair is what makes the difference. *)
     { name =
         "joins after joins: the model with the repaired test for recovering \
          relations, and the compiler";
       compare =
         (fun steps ->
-          match run With_the_repaired_test_of_the_join steps with
-          | Neither_answers why -> Not_run ("neither answers (" ^ why ^ ")")
-          | Only_one_answers why -> Disagree ("only one answers (" ^ why ^ ")")
-          | Both_answer places -> (
-            match first_difference places with
-            | None -> Agree
-            | Some difference -> (
-              match with_the_test_of_the_compiler steps with
-              | Agree ->
-                Known_to_disagree
-                  ( "T5-10, the repaired test, which the compiler has not, \
-                     records no relation where the compiler's records one: the \
-                     model with the compiler's test sees what the compiler \
-                     sees",
-                    print_difference difference )
-              | Not_this_comparison | Not_run _ | Disagree _
-              | Known_to_disagree _ ->
-                Disagree (print_difference difference))))
+          outcome_of_the_repaired_test
+            ~with_the_test_of_the_compiler:
+              (run_generated_joins Of_the_compiler steps)
+            (run_generated_joins With_the_repaired_test_of_the_join steps))
     } ]
+
+(* A control of the names that a join of the model is told to avoid (T7-11), on
+   two of the generated programs in which two uses of the first join each have a
+   join of their own. Told to avoid every variable made so far, the model sees
+   what the compiler sees. Told only of the variables that its environments
+   know, it does not: the two inner joins are each given the same new variable.
+   That run is not one of the comparisons above: it shows what they leave
+   out. *)
+let control_of_the_names_to_avoid () =
+  let check what holds =
+    if holds
+    then Format.printf "  %s: yes@." what
+    else (
+      incr failures;
+      Format.printf "  %s: NO@." what)
+  in
+  Format.printf
+    "@.A control: two generated programs of joins after joins, with the joins \
+     of the model told to avoid every variable made so far, and told only of \
+     the variables that their environments know (T7-11)@.";
+  List.iter
+    (fun seed ->
+      let steps = generate_joined_steps (Random.of_int seed) in
+      let difference avoid : (string * seen * seen) option option =
+        match run_generated_joins ~avoid Of_the_compiler steps with
+        | Both_answer places -> Some (first_difference_of_joins places)
+        | Neither_answers _ | Only_one_answers _ -> None
+      in
+      check
+        (Printf.sprintf
+           "seed %d, every variable made so far avoided: the model sees what \
+            the compiler sees at every place looked at"
+           seed)
+        (match difference Every_variable_made with
+        | Some None -> true
+        | Some (Some _) | None -> false);
+      match difference What_the_environments_know with
+      | Some (Some (place, (_ : seen), (_ : seen))) ->
+        check
+          (Printf.sprintf
+             "seed %d, only the variables that the environments know avoided: \
+              the model and the compiler are told apart, first %s"
+             seed place)
+          true
+      | Some None | None ->
+        check
+          (Printf.sprintf
+             "seed %d, only the variables that the environments know avoided: \
+              the model and the compiler are told apart"
+             seed)
+          false)
+    [161196; 161457]
+
+(* A control of what a run with the repaired test comes to
+   ([outcome_of_the_repaired_test]), on a generated program on which the
+   repaired test changes what is seen and on one on which it does not: with one
+   reading taken away, on either side, it is a disagreement, and is neither
+   recorded nor counted as agreeing. *)
+let control_of_the_repaired_test () =
+  let check what holds =
+    if holds
+    then Format.printf "  %s: yes@." what
+    else (
+      incr failures;
+      Format.printf "  %s: NO@." what)
+  in
+  Format.printf
+    "@.A control: what a run of the model with the repaired test comes to, \
+     with a reading taken away@.";
+  let is_recorded (outcome : outcome) =
+    match outcome with
+    | Known_to_disagree _ -> true
+    | Agree | Disagree _ | Not_run _ | Not_this_comparison -> false
+  in
+  let agrees (outcome : outcome) =
+    match outcome with
+    | Agree -> true
+    | Known_to_disagree _ | Disagree _ | Not_run _ | Not_this_comparison ->
+      false
+  in
+  let is_a_disagreement (outcome : outcome) =
+    match outcome with
+    | Disagree _ -> true
+    | Agree | Known_to_disagree _ | Not_run _ | Not_this_comparison -> false
+  in
+  (* A run with, at the place of a position, what the model sees or what the
+     compiler sees replaced. *)
+  let with_at position ~of_the_model (taken : seen) (run : joins_run) :
+      joins_run =
+    match run with
+    | Both_answer places ->
+      Both_answer
+        (List.mapi
+           (fun i ((name, seen, seen') as place) ->
+             if i <> position
+             then place
+             else if of_the_model
+             then name, taken, seen'
+             else name, seen, taken)
+           places)
+    | (Neither_answers _ | Only_one_answers _) as unchanged -> unchanged
+  in
+  List.iter
+    (fun (seed, changed) ->
+      let steps = generate_joined_steps (Random.of_int seed) in
+      let baseline = run_generated_joins Of_the_compiler steps in
+      let repaired =
+        run_generated_joins With_the_repaired_test_of_the_join steps
+      in
+      let outcome =
+        outcome_of_the_repaired_test ~with_the_test_of_the_compiler:baseline
+      in
+      let nothing : seen = Nothing_seen "taken away" in
+      check
+        (Printf.sprintf
+           "seed %d: the model with the compiler's test sees what the compiler \
+            sees"
+           seed)
+        (agrees (outcome_of_generated_joins baseline));
+      if changed
+      then
+        check "the run with the repaired test is recorded under T5-10"
+          (is_recorded (outcome repaired))
+      else
+        check "the run with the repaired test agrees"
+          (agrees (outcome repaired));
+      check "with nothing read of the model at the first place: a disagreement"
+        (is_a_disagreement
+           (outcome (with_at 0 ~of_the_model:true nothing repaired)));
+      check "with bottom for the model at the second place: a disagreement"
+        (is_a_disagreement
+           (outcome (with_at 1 ~of_the_model:true Bottom_seen repaired)));
+      check
+        "with nothing read of the compiler at the second place: a disagreement"
+        (is_a_disagreement
+           (outcome (with_at 1 ~of_the_model:false nothing repaired))))
+    [160037, true; 160000, false]
 
 (* ======================================================================== *)
 (* The tests                                                                *)
@@ -9285,6 +9464,8 @@ let () =
     ~prepare:(fun steps -> steps)
     ~shrink:shrink_joined_steps ~print:print_joined_steps
     (generated_joins_after_joins ());
+  control_of_the_names_to_avoid ();
+  control_of_the_repaired_test ();
   let symbols_of_groups = symbols_for_static_groups names in
   run
     ~title:

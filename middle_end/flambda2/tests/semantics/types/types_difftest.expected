@@ -2640,7 +2640,7 @@ Programs of two joins of two uses, of which a use of the first may have a join o
   joins after joins: the model and the n-way join of the compiler: 1500 agree
   of which those where a use of the first join has a join of its own: 1116 agree
   joins after joins: the model with the repaired test for recovering relations, and the compiler: 1488 agree, 12 disagree as recorded
-    recorded as T5-10, the repaired test, which the compiler has not, records no relation where the compiler's records one: the model with the compiler's test sees what the compiler sees (seed 160037): after the second join, the model:
+    recorded as T5-10, the model with the repaired test for recovering relations, which the compiler has not, sees otherwise than the compiler where the model with the compiler's test sees what the compiler sees (seed 160037): after the second join, the model:
 the environment
 v1 : (Value Unknown), of which the canonical element is v1
 v2 : (Value
@@ -2796,6 +2796,24 @@ where e1 : (Naked_immediate ((Known [0; 1]) [Is_int e0]))
            (is_unique false)) Not_null))
       v3 : (Value (= v10))
     (looked at: after the second join)
+
+A control: two generated programs of joins after joins, with the joins of the model told to avoid every variable made so far, and told only of the variables that their environments know (T7-11)
+  seed 161196, every variable made so far avoided: the model sees what the compiler sees at every place looked at: yes
+  seed 161196, only the variables that the environments know avoided: the model and the compiler are told apart, first after the first join: yes
+  seed 161457, every variable made so far avoided: the model sees what the compiler sees at every place looked at: yes
+  seed 161457, only the variables that the environments know avoided: the model and the compiler are told apart, first after the first join: yes
+
+A control: what a run of the model with the repaired test comes to, with a reading taken away
+  seed 160037: the model with the compiler's test sees what the compiler sees: yes
+  the run with the repaired test is recorded under T5-10: yes
+  with nothing read of the model at the first place: a disagreement: yes
+  with bottom for the model at the second place: a disagreement: yes
+  with nothing read of the compiler at the second place: a disagreement: yes
+  seed 160000: the model with the compiler's test sees what the compiler sees: yes
+  the run with the repaired test agrees: yes
+  with nothing read of the model at the first place: a disagreement: yes
+  with bottom for the model at the second place: a disagreement: yes
+  with nothing read of the compiler at the second place: a disagreement: yes
 
 Groups of one to three static constants that are not closures, for the types that the model and Simplify give their symbols (2000 cases, seeds 150000 to 151999)
   2000 converted
