@@ -185,6 +185,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaStaticSpec.v \
   FlambdaStaticsOrderProofs.v \
   FlambdaStaticsOrderSpec.v \
+  FlambdaStaticsScopeProofs.v \
+  FlambdaStaticsScopeSpec.v \
   FlambdaTrapProofs.v \
   FlambdaTrapSpec.v \
   FlambdaUnboxProofs.v \
