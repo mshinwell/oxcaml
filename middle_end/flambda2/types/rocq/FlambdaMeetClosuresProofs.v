@@ -1029,3 +1029,13 @@ Proof.
               fuel) as [Hkeeps Hsound].
   exact (typing_env_functions_sound join repaired_choices fuel Hkeeps Hsound).
 Qed.
+
+Theorem meet_to_prove_expanded_heads
+  : meet_to_prove_expanded_heads_statement.
+Proof.
+  intros join fuel Hjoin.
+  exact (meet_expanded_head_fuel_ok join repaired_choices eq_refl
+           (fun mh Hkeeps Hsound _ =>
+              value_heads_of_join join mh Hjoin Hkeeps Hsound)
+           fuel).
+Qed.

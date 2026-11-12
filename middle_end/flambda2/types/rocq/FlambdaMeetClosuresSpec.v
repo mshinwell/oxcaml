@@ -61,6 +61,14 @@
      [Typing_env.add_equations_on_params] for parameters that the
      environment knows (FlambdaMeetFuelSpec.v says why).
 
+   - And the meet of expanded types that it is made of has its two
+     contracts at every fuel
+     ([meet_to_prove_expanded_heads_statement]). They are the
+     premises of the statements of FlambdaMeetFuelSpec.v about the
+     meet of types and the functions that add to a typing
+     environment; the two statements above are those statements with
+     this premise discharged.
+
    What these do not say. The contracts say nothing of a meet that
    does not answer: the fuel may run out, and it is not shown that
    some fuel is enough. The meet is the one with the choices that are
@@ -113,3 +121,14 @@ Definition typing_env_functions_of_meet_to_prove_statement : Prop :=
         (Flambda2_types.add_env_extension join repaired_choices fuel)
     ∧ add_equations_on_params_sound_where_known
         (Flambda2_types.add_equations_on_params join repaired_choices fuel).
+
+(* The meet of expanded types that the meet that is to be proved is
+   made of has its two contracts, with a join that has its own,
+   whatever the fuel. *)
+Definition meet_to_prove_expanded_heads_statement : Prop :=
+  ∀ (join : join_scoped_envs) (fuel : nat),
+    join_scoped_envs_sound join ->
+    meet_expanded_head_keeps
+      (Meet.meet_expanded_head join repaired_choices fuel)
+    ∧ meet_expanded_head_sound
+        (Meet.meet_expanded_head join repaired_choices fuel).
