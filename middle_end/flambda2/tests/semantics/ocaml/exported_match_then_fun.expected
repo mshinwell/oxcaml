@@ -1,0 +1,8 @@
+exported_match_then_fun.fl:
+  before Simplify (21 steps): returns [0: 3; <fun>]
+  after Simplify (12 steps): returns [0: 3; <fun>]
+  the check of kinds: passes before, passes after
+  calls outside code: 0 before, 0 after
+  the same
+  calls outside code once those of known code are inlined: 0
+  validated: the same once closures and blocks are lifted to symbols and the terms normalised

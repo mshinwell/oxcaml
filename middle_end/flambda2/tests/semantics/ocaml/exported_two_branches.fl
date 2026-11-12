@@ -1,0 +1,58 @@
+let $camlExported_two_branches__first_const_0 = Block 0 () in
+(let code size(4)
+       add_a_0 (x/66 : imm tagged)
+         my_closure/67 &my_alloc_region/68 my_depth/69
+         -> k/20 * k/21
+         : imm tagged =
+   let next_depth/70 = rec_info (succ my_depth/69) in
+   let a/71 = %project_value_slot.[add_a].[a] (my_closure/67) in
+   let int_add/72 = %int_barith.add (x/66, a/71) in
+   cont k/20 (int_add/72)
+ in
+ let code size(9)
+       add_b_1 (x/73 : imm tagged)
+         my_closure/74 &my_alloc_region/75 my_depth/76
+         -> k/22 * k/23
+         : imm tagged =
+   let next_depth/77 = rec_info (succ my_depth/76) in
+   let add_a/78 = %project_value_slot.[add_b].[add_a] (my_closure/74) in
+   let b/79 = %project_value_slot.[add_b].[b] (my_closure/74) in
+   apply direct(add_a_0 &my_alloc_region/75)
+     (add_a/78 : _ -> imm tagged) (x/73) -> k/24 * k/23
+     where k/24 (apply_result/80 : imm tagged) =
+       let int_add/81 = %int_barith.add (apply_result/80, b/79) in
+       cont k/22 (int_add/81)
+ in
+ (let Popaque/89 = %opaque (1) in
+  let untagged/90 = %untag_imm (Popaque/89) in
+  switch untagged/90
+    | 0 -> k/25 (2)
+    | 1 -> k/25 (1))
+   where k/25 (a/82 : imm tagged) =
+     let add_a/83 = closure add_a_0 @add_a &toplevel with { a = a/82 } in
+     ((let Popaque/87 = %opaque (0) in
+       let untagged/88 = %untag_imm (Popaque/87) in
+       switch untagged/88
+         | 0 -> k/26 (4)
+         | 1 -> k/26 (3))
+        where k/26 (b/84 : imm tagged) =
+          let add_b/85 = closure add_b_1 @add_b &toplevel
+          with { add_a = add_a/83; b = b/84 }
+          in
+          let Pmakeblock/86 =
+            %block.[`0`].`toplevel` (a/82, add_a/83, b/84, add_b/85)
+          in
+          cont k/19 (Pmakeblock/86)))
+  where k/19 define_root_symbol (module_block/61) =
+    let field_0/62 = %block_load.tag[`0`].`size`[`4`].[`0`] (module_block/61)
+    in
+    let field_1/63 = %block_load.tag[`0`].`size`[`4`].[`1`] (module_block/61)
+    in
+    let field_2/64 = %block_load.tag[`0`].`size`[`4`].[`2`] (module_block/61)
+    in
+    let field_3/65 = %block_load.tag[`0`].`size`[`4`].[`3`] (module_block/61)
+    in
+    let $camlExported_two_branches =
+      Block 0 (field_0/62, field_1/63, field_2/64, field_3/65)
+    in
+    cont done ($camlExported_two_branches)

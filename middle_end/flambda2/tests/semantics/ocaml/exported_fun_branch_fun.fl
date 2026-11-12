@@ -1,0 +1,49 @@
+let $camlExported_fun_branch_fun__first_const_0 = Block 0 () in
+(let code size(3)
+       double_0 (x/55 : imm tagged)
+         my_closure/56 &my_alloc_region/57 my_depth/58
+         -> k/18 * k/19
+         : imm tagged =
+   let next_depth/59 = rec_info (succ my_depth/58) in
+   let int_add/60 = %int_barith.add (x/55, x/55) in
+   cont k/18 (int_add/60)
+ in
+ let code size(9)
+       shifted_1 (x/61 : imm tagged)
+         my_closure/62 &my_alloc_region/63 my_depth/64
+         -> k/20 * k/21
+         : imm tagged =
+   let next_depth/65 = rec_info (succ my_depth/64) in
+   let double/66 = %project_value_slot.[shifted].[double] (my_closure/62) in
+   let offset/67 = %project_value_slot.[shifted].[offset] (my_closure/62) in
+   apply direct(double_0 &my_alloc_region/63)
+     (double/66 : _ -> imm tagged) (x/61) -> k/22 * k/21
+     where k/22 (apply_result/68 : imm tagged) =
+       let int_add/69 = %int_barith.add (apply_result/68, offset/67) in
+       cont k/20 (int_add/69)
+ in
+ let double/70 = closure double_0 @double &toplevel in
+ (let Popaque/74 = %opaque (1) in
+  let untagged/75 = %untag_imm (Popaque/74) in
+  switch untagged/75
+    | 0 -> k/23 (2)
+    | 1 -> k/23 (1))
+   where k/23 (offset/71 : imm tagged) =
+     let shifted/72 = closure shifted_1 @shifted &toplevel
+     with { double = double/70; offset = offset/71 }
+     in
+     let Pmakeblock/73 =
+       %block.[`0`].`toplevel` (double/70, offset/71, shifted/72)
+     in
+     cont k/17 (Pmakeblock/73))
+  where k/17 define_root_symbol (module_block/51) =
+    let field_0/52 = %block_load.tag[`0`].`size`[`3`].[`0`] (module_block/51)
+    in
+    let field_1/53 = %block_load.tag[`0`].`size`[`3`].[`1`] (module_block/51)
+    in
+    let field_2/54 = %block_load.tag[`0`].`size`[`3`].[`2`] (module_block/51)
+    in
+    let $camlExported_fun_branch_fun =
+      Block 0 (field_0/52, field_1/53, field_2/54)
+    in
+    cont done ($camlExported_fun_branch_fun)

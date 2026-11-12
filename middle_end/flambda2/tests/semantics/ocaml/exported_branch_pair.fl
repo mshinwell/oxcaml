@@ -1,0 +1,30 @@
+(let code size(6)
+       sum_0 (param/38 : imm tagged)
+         my_closure/39 &my_alloc_region/40 my_depth/41
+         -> k/12 * k/13
+         : imm tagged =
+   let next_depth/42 = rec_info (succ my_depth/41) in
+   let p/43 = %project_value_slot.[sum].[p] (my_closure/39) in
+   let Pmixedfield/44 = %block_load.[`1`] (p/43) in
+   let Pmixedfield/45 = %block_load.[`0`] (p/43) in
+   let int_add/46 = %int_barith.add (Pmixedfield/45, Pmixedfield/44) in
+   cont k/12 (int_add/46)
+ in
+ let $camlExported_branch_pair__const_block_1 = Block 0 (1, 2) in
+ let $camlExported_branch_pair__const_block_0 = Block 0 (3, 4) in
+ (let Popaque/50 = %opaque (1) in
+  let untagged/51 = %untag_imm (Popaque/50) in
+  switch untagged/51
+    | 0 -> k/14 ($camlExported_branch_pair__const_block_0)
+    | 1 -> k/14 ($camlExported_branch_pair__const_block_1))
+   where k/14 (p/47 : [ 0 of imm tagged * imm tagged ]) =
+     let sum/48 = closure sum_0 @sum &toplevel with { p = p/47 } in
+     let Pmakeblock/49 = %block.[`0`].`toplevel` (p/47, sum/48) in
+     cont k/11 (Pmakeblock/49))
+  where k/11 define_root_symbol (module_block/35) =
+    let field_0/36 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/35)
+    in
+    let field_1/37 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/35)
+    in
+    let $camlExported_branch_pair = Block 0 (field_0/36, field_1/37) in
+    cont done ($camlExported_branch_pair)
