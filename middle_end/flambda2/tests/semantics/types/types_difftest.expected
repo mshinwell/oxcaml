@@ -1006,6 +1006,7 @@ Two types of kind value, for the meet of the model and the n-way meet of the com
   of which those where a variable that was made is mentioned: 0 agree
   meet: the model and the binary meet of the compiler: 1000 agree
   of which those where an extension of the types met has an equation on a symbol: 79 agree
+  of which those where a part of the types met, or of the equations before, is an alias of a symbol: 166 agree
 
 Two types of naked immediates, for the meet of the model and the n-way meet of the compiler (500 cases, seeds 92000 to 92499)
   500 converted
@@ -1014,6 +1015,7 @@ Two types of naked immediates, for the meet of the model and the n-way meet of t
   of which those where a variable that was made is mentioned: 0 agree
   meet: the model and the binary meet of the compiler: 500 agree
   of which those where an extension of the types met has an equation on a symbol: 0 agree
+  of which those where a part of the types met, or of the equations before, is an alias of a symbol: 0 agree
 
 Equations on variables and two types of kind value, for the meet of the model and the n-way meet of the compiler (1000 cases, seeds 94000 to 94999)
   1000 converted
@@ -1022,6 +1024,7 @@ Equations on variables and two types of kind value, for the meet of the model an
   of which those where a variable that was made is mentioned: 0 agree
   meet: the model and the binary meet of the compiler: 1000 agree
   of which those where an extension of the types met has an equation on a symbol: 73 agree
+  of which those where a part of the types met, or of the equations before, is an alias of a symbol: 276 agree
 
 Equations on variables and two types of naked immediates, for the meet of the model and the n-way meet of the compiler (500 cases, seeds 96000 to 96499)
   500 converted
@@ -1030,6 +1033,7 @@ Equations on variables and two types of naked immediates, for the meet of the mo
   of which those where a variable that was made is mentioned: 0 agree
   meet: the model and the binary meet of the compiler: 500 agree
   of which those where an extension of the types met has an equation on a symbol: 0 agree
+  of which those where a part of the types met, or of the equations before, is an alias of a symbol: 53 agree
 
 Aliases between variables and symbols, and two types of kind value, for the meet of the model and the n-way meet of the compiler (1000 cases, seeds 98000 to 98999)
   1000 converted
@@ -1038,6 +1042,7 @@ Aliases between variables and symbols, and two types of kind value, for the meet
   of which those where a variable that was made is mentioned: 0 agree
   meet: the model and the binary meet of the compiler: 1000 agree
   of which those where an extension of the types met has an equation on a symbol: 29 agree
+  of which those where a part of the types met, or of the equations before, is an alias of a symbol: 762 agree
 
 Two variants whose cases hold a variable and blocks of a repeated variable, for the meet of the model and the n-way meet of the compiler (500 cases, seeds 99000 to 99499)
   500 converted
@@ -1136,6 +1141,7 @@ Two variants whose cases hold a variable and blocks of a repeated variable, for 
                  (other_tags Bottom) (alloc_mode Heap))))
        (extensions No_extensions) (is_unique false)) Not_null))
   of which those where an extension of the types met has an equation on a symbol: 0 agree
+  of which those where a part of the types met, or of the equations before, is an alias of a symbol: 0 agree
 
 A type of kind value and a smaller type made from it, for the meet of the model and the n-way meet of the compiler (1500 cases, seeds 112000 to 113499)
   2 not converted: not in the compiler: a head of naked immediates with no number
@@ -1170,6 +1176,26 @@ A type of kind value and a smaller type made from it, for the meet of the model 
        (is_unique false)) Not_null))
   of which those where an extension of the types met has an equation on a symbol: 46 agree, 2 disagree as recorded
     recorded as an input selected for T7-9 by its text (an extension has an equation on a symbol; the cause is not checked), on which the binary meet answers otherwise (seed 112297): what is seen of the two answers is not the same
+    on the shrunk input:
+    (Value
+     ((Variant (is_int None) (immediates Unknown) (get_tag None)
+       (blocks (Known
+                ((known_tags [])
+                 (other_tags (Ok ((At_least 2) Value_only [] [])))
+                 (alloc_mode Heap_or_local)))) (extensions No_extensions)
+       (is_unique false)) Not_null))
+    and
+    (Value
+     ((Variant (is_int None) (immediates Unknown) (get_tag None)
+       (blocks (Known
+                ((known_tags [])
+                 (other_tags (Ok
+                              ((At_least 2) Value_only []
+                               [$2 -> (Value (= $1))])))
+                 (alloc_mode Heap_or_local)))) (extensions No_extensions)
+       (is_unique false)) Not_null))
+  of which those where a part of the types met, or of the equations before, is an alias of a symbol: 159 agree, 1 disagree as recorded
+    recorded as an input selected for T7-9 by its text (a part is an alias of a symbol; the cause is not checked), on which the binary meet answers otherwise (seed 112297): what is seen of the two answers is not the same
     on the shrunk input:
     (Value
      ((Variant (is_int None) (immediates Unknown) (get_tag None)
@@ -1250,6 +1276,34 @@ Equations on variables, then a type of kind value and a smaller type made from i
                                     (is_unique false)) Not_null))])))
                  (alloc_mode Heap)))) (extensions No_extensions)
        (is_unique false)) Not_null))
+  of which those where a part of the types met, or of the equations before, is an alias of a symbol: 189 agree, 2 disagree as recorded
+    1 not run: neither answers
+    recorded as an input selected for T7-9 by its text (a part is an alias of a symbol; the cause is not checked), on which the binary meet answers otherwise (seed 114112): what is seen of the two answers is not the same
+    on the shrunk input:
+    (Value
+     ((Variant (is_int None) (immediates Unknown) (get_tag None)
+       (blocks (Known
+                ((known_tags [])
+                 (other_tags (Ok ((Known 1) Value_only [] [])))
+                 (alloc_mode Heap)))) (extensions No_extensions)
+       (is_unique false)) Not_null))
+    and
+    (Value
+     ((Variant (is_int None) (immediates Unknown) (get_tag None)
+       (blocks (Known
+                ((known_tags [])
+                 (other_tags (Ok
+                              ((Known 1) Value_only []
+                               [v2 -> (Value (= $1));
+                                $2 ->
+                                 (Value
+                                  ((Variant (is_int None)
+                                    (immediates Unknown) (get_tag None)
+                                    (blocks Unknown)
+                                    (extensions No_extensions)
+                                    (is_unique false)) Not_null))])))
+                 (alloc_mode Heap)))) (extensions No_extensions)
+       (is_unique false)) Not_null))
 
 A type of naked immediates and a smaller type made from it, for the meet of the model and the n-way meet of the compiler (500 cases, seeds 116000 to 116499)
   17 not converted: not in the compiler: a head of naked immediates with no number
@@ -1259,6 +1313,7 @@ A type of naked immediates and a smaller type made from it, for the meet of the 
   of which those where a variable that was made is mentioned: 0 agree
   meet: the model and the binary meet of the compiler: 483 agree
   of which those where an extension of the types met has an equation on a symbol: 0 agree
+  of which those where a part of the types met, or of the equations before, is an alias of a symbol: 0 agree
 
 Two smaller types made from one type of kind value, for the meet of the model and the n-way meet of the compiler (1000 cases, seeds 122000 to 122999)
   2 not converted: not in the compiler: a head of naked immediates with no number
@@ -1319,6 +1374,7 @@ Two smaller types made from one type of kind value, for the meet of the model an
                 ((known_tags [1 -> Unknown]) (other_tags Bottom)
                  (alloc_mode Heap_or_local)))) (extensions No_extensions)
        (is_unique false)) Not_null))
+  of which those where a part of the types met, or of the equations before, is an alias of a symbol: 29 agree
 
 Equations on variables, then two smaller types made from one type of kind value, for the meet of the model and the n-way meet of the compiler (1000 cases, seeds 124000 to 124999)
   5 not converted: not in the compiler: a head of naked immediates with no number
@@ -1370,6 +1426,30 @@ Equations on variables, then two smaller types made from one type of kind value,
              ((Variant (is_int None) (immediates Unknown) (get_tag None)
                (blocks Unknown) (extensions No_extensions) (is_unique false))
               Not_null))])] Heap_or_local) Not_null))
+  of which those where a part of the types met, or of the equations before, is an alias of a symbol: 130 agree, 1 disagree as recorded
+    recorded as an input selected for T7-9 by its text (a part is an alias of a symbol; the cause is not checked), on which the binary meet answers otherwise (seed 124361): what is seen of the two answers is not the same
+    on the shrunk input:
+    (Value
+     ((Closures
+       [2 ->
+         ((At_least (closures [2; 1] value_slots [2]))
+          ((function_types []) (closure_types []) (value_slot_types [])) 
+          [])] Heap_or_local) Not_null))
+    and
+    (Value
+     ((Closures
+       [2 ->
+         ((At_least (closures [2; 1] value_slots [2]))
+          ((function_types []) (closure_types []) (value_slot_types []))
+          [$2 ->
+            (Value
+             ((Variant (is_int None) (immediates Unknown) (get_tag None)
+               (blocks Unknown) (extensions No_extensions) (is_unique false))
+              Not_null))]);
+        2 ->
+         ((Known (closures [1] value_slots []))
+          ((function_types []) (closure_types [1 -> (Value (= $2))])
+           (value_slot_types [])) [])] Heap_or_local) Not_null))
 
 Two variants with variables of relations, for the meet of the model and the n-way meet of the compiler (1000 cases, seeds 132000 to 132999)
   1000 converted
@@ -1420,6 +1500,7 @@ Two variants with variables of relations, for the meet of the model and the n-wa
                 ((known_tags []) (other_tags Bottom) (alloc_mode Heap))))
        (extensions No_extensions) (is_unique false)) Not_null))
   of which those where an extension of the types met has an equation on a symbol: 112 agree
+  of which those where a part of the types met, or of the equations before, is an alias of a symbol: 63 agree
 
 Equations on variables, then two variants with variables of relations, for the meet of the model and the n-way meet of the compiler (1000 cases, seeds 134000 to 134999)
   1000 converted
@@ -1467,6 +1548,21 @@ Equations on variables, then two variants with variables of relations, for the m
        (blocks Unknown) (extensions No_extensions) (is_unique false))
       Not_null))
   of which those where an extension of the types met has an equation on a symbol: 102 agree
+  of which those where a part of the types met, or of the equations before, is an alias of a symbol: 178 agree, 2 disagree as recorded
+    recorded as an input selected for T7-9 by its text (a part is an alias of a symbol; the cause is not checked), on which the binary meet answers otherwise (seed 134184): what is seen of the two answers is not the same
+    on the shrunk input:
+    with v1 : (Value (= $1))
+    with v4 : (Naked_immediate ((Known [3; 2]) []))
+    with v5 : (Naked_immediate ((Known [-1; 2; 0]) []))
+    (Value
+     ((Variant (is_int (Some v4)) (immediates Unknown) (get_tag None)
+       (blocks Unknown) (extensions No_extensions) (is_unique false))
+      Not_null))
+    and
+    (Value
+     ((Variant (is_int (Some v5)) (immediates Unknown) (get_tag None)
+       (blocks Unknown) (extensions No_extensions) (is_unique false))
+      Not_null))
 
 Two closure types of one set of closures with two function slots, for the meet of the model and the n-way meet of the compiler (1000 cases, seeds 136000 to 136999)
   1000 converted
@@ -1527,6 +1623,29 @@ Two closure types of one set of closures with two function slots, for the meet o
                                (extensions No_extensions) (is_unique false))
                               Not_null))]) (value_slot_types [])) [])]
        Heap_or_local) Not_null))
+  of which those where a part of the types met, or of the equations before, is an alias of a symbol: 114 agree, 14 disagree as recorded
+    recorded as an input selected for T7-9 by its text (a part is an alias of a symbol; the cause is not checked), on which the binary meet answers otherwise (seed 136020): what is seen of the two answers is not the same
+    on the shrunk input:
+    (Value
+     ((Closures
+       [1 ->
+         ((At_least (closures [1; 2] value_slots [1]))
+          ((function_types []) (closure_types [])
+           (value_slot_types [1 -> (Value (= $1))])) [])] Heap_or_local)
+      Not_null))
+    and
+    (Value
+     ((Closures
+       [1 ->
+         ((At_least (closures [1; 2] value_slots [1; 2]))
+          ((function_types []) (closure_types [])
+           (value_slot_types [1 ->
+                               (Value
+                                ((Variant (is_int None) (immediates Unknown)
+                                  (get_tag None) (blocks Unknown)
+                                  (extensions No_extensions)
+                                  (is_unique false)) Not_null))])) [])]
+       Heap_or_local) Not_null))
 
 Equations on variables, then two closure types of one set of closures with two function slots, for the meet of the model and the n-way meet of the compiler (1000 cases, seeds 138000 to 138999)
   1000 converted
@@ -1582,6 +1701,30 @@ Equations on variables, then two closure types of one set of closures with two f
          ((Known (closures [1; 2] value_slots [1; 2]))
           ((function_types []) (closure_types [])
            (value_slot_types [2 -> (Value (= v1))])) [])] Heap_or_local)
+      Not_null))
+  of which those where a part of the types met, or of the equations before, is an alias of a symbol: 203 agree, 14 disagree as recorded
+    recorded as an input selected for T7-9 by its text (a part is an alias of a symbol; the cause is not checked), on which the binary meet answers otherwise (seed 138181): what is seen of the two answers is not the same
+    on the shrunk input:
+    with v3 : (Value (= $1))
+    (Value
+     ((Closures
+       [2 ->
+         ((At_least (closures [1; 2] value_slots [1]))
+          ((function_types []) (closure_types [])
+           (value_slot_types [1 ->
+                               (Value
+                                ((Variant (is_int None) (immediates Unknown)
+                                  (get_tag None) (blocks Unknown)
+                                  (extensions No_extensions)
+                                  (is_unique false)) Not_null))])) [])]
+       Heap_or_local) Not_null))
+    and
+    (Value
+     ((Closures
+       [2 ->
+         ((At_least (closures [1; 2] value_slots [1]))
+          ((function_types []) (closure_types [])
+           (value_slot_types [1 -> (Value (= v3))])) [])] Heap_or_local)
       Not_null))
 
 The join of the model beside the n-way join of the compiler, on the inputs of the examples of the join

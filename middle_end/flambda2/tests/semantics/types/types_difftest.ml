@@ -4130,24 +4130,24 @@ let the_chosen_meets : chosen_meet list =
       given_to = None
     } ]
 
-(* Whether a type has, in an extension, an equation on a name. *)
-let rec has_an_extension_on (name : MT.name) (t : MT.flambda_type) : bool =
+(* Whether a type is, or has within it, a type that [part] accepts, or has, in
+   an extension, an equation on a name that [equation_on] accepts. *)
+let rec has_a_part ~(part : MT.flambda_type -> bool)
+    ~(equation_on : MT.name -> bool) (t : MT.flambda_type) : bool =
+  let within = has_a_part ~part ~equation_on in
   let in_extension (Env_extension equations : MT.env_extension) =
-    List.exists
-      (fun (name', t) -> MT.name_eqb name name' || has_an_extension_on name t)
-      equations
+    List.exists (fun (name, t) -> equation_on name || within t) equations
   in
   let in_block_case (case : MT.row_like_block_case) =
-    in_extension case.case_env_extension
-    || List.exists (has_an_extension_on name) case.case_maps_to
+    in_extension case.case_env_extension || List.exists within case.case_maps_to
   in
+  part t
+  ||
   match t with
   | Type_value (Ok (No_alias (Head_of_kind_value (Ok head, _)))) -> (
     match head with
     | Variant (_, immediates, _, blocks, extensions, _) -> (
-      (match immediates with
-        | Known t -> has_an_extension_on name t
-        | Unknown -> false)
+      (match immediates with Known t -> within t | Unknown -> false)
       || (match blocks with
         | Known (Row_like_for_blocks (known, other, _)) -> (
           List.exists
@@ -4163,7 +4163,7 @@ let rec has_an_extension_on (name : MT.name) (t : MT.flambda_type) : bool =
       | No_extensions -> false
       | Ext (when_immediate, when_block) ->
         in_extension when_immediate || in_extension when_block)
-    | Boxed_number (_, contents, _) -> has_an_extension_on name contents
+    | Boxed_number (_, contents, _) -> within contents
     | Closures (Row_like_for_closures known, _) ->
       let in_case (case : MT.row_like_closures_case) =
         in_extension case.case_env_extension
@@ -4172,7 +4172,7 @@ let rec has_an_extension_on (name : MT.name) (t : MT.flambda_type) : bool =
           case.case_maps_to
         in
         List.exists
-          (fun ((_ : N.positive), t) -> has_an_extension_on name t)
+          (fun ((_ : N.positive), t) -> within t)
           (closure_types @ value_slot_types)
       in
       List.exists (fun ((_ : N.positive), case) -> in_case case) known
@@ -4184,6 +4184,22 @@ let rec has_an_extension_on (name : MT.name) (t : MT.flambda_type) : bool =
   | Type_naked_immediate _ | Type_naked_number _ | Type_rec_info _
   | Type_region _ ->
     false
+
+(* Whether a type has, in an extension, an equation on a name. *)
+let has_an_extension_on (name : MT.name) (t : MT.flambda_type) : bool =
+  has_a_part
+    ~part:(fun (_ : MT.flambda_type) -> false)
+    ~equation_on:(MT.name_eqb name) t
+
+(* Whether a type is, or has within it, an alias of a symbol. *)
+let has_an_alias_of_a_symbol (t : MT.flambda_type) : bool =
+  has_a_part
+    ~part:(fun t ->
+      match MT.get_alias_opt t with
+      | Some (Symbol _) -> true
+      | Some (Var _ | Const _) | None -> false)
+    ~equation_on:(fun (_ : MT.name) -> false)
+    t
 
 let chosen_meets () =
   Format.printf "@.Chosen meets@.";
@@ -5214,6 +5230,13 @@ let model_against_compiler (names : names) :
         has_an_extension_on name m1 || has_an_extension_on name m2)
       names.pool.symbols
   in
+  let an_alias_of_a_symbol { equations; met = m1, m2 } =
+    has_an_alias_of_a_symbol m1
+    || has_an_alias_of_a_symbol m2
+    || List.exists
+         (fun ((_ : MT.name), t) -> has_an_alias_of_a_symbol t)
+         equations
+  in
   [ { name = "meet: the model and the n-way meet of the compiler";
       compare =
         (fun input ->
@@ -5285,6 +5308,25 @@ let model_against_compiler (names : names) :
                 "an input selected for T7-9 by its text (an extension has an \
                  equation on a symbol; the cause is not checked), on which the \
                  binary meet answers otherwise"
+              input
+          else Not_this_comparison)
+    };
+    (* And on the inputs where one of the two types, or a type that an equation
+       before the meet gives a name, is or has within it an alias of a symbol: a
+       meet with what the alias is met with may make an equation on the symbol,
+       which is forgotten in the same way. Told by the text again. *)
+    { name =
+        "of which those where a part of the types met, or of the equations \
+         before, is an alias of a symbol";
+      compare =
+        (fun input ->
+          if an_alias_of_a_symbol input
+          then
+            against_the_binary_meet
+              ~label:
+                "an input selected for T7-9 by its text (a part is an alias of \
+                 a symbol; the cause is not checked), on which the binary meet \
+                 answers otherwise"
               input
           else Not_this_comparison)
     } ]
