@@ -1007,3 +1007,20 @@ the section at `statics_valid`. So:
 Three of the nine files are T5b's (`FlambdaMeetProductsProofs.v`,
 `FlambdaMeetHeadsProofs.v`, `FlambdaMeetRowLikeProofs.v`); T5b
 agreed to the change being made in this series.
+
+## 19. The meet of expanded types of the meet that is proved (2026-11-12)
+
+For review: one statement added to `FlambdaMeetClosuresSpec.v`,
+`meet_to_prove_expanded_heads_statement`: for every join that has
+`join_scoped_envs_sound` and every fuel, `Meet.meet_expanded_head
+join repaired_choices fuel` has `meet_expanded_head_keeps` and
+`meet_expanded_head_sound`.
+
+The need. These two are the premises of `meet_of_fuel_contract`
+and `typing_env_functions_sound` (`FlambdaMeetFuelSpec.v`) and of
+`typing_env_functions_keep` (section 18). Until now a file that
+wanted them for a join that has its contract took them from a lemma
+of `FlambdaMeetClosuresProofs.v` (`value_heads_of_join`) and
+`meet_expanded_head_fuel_ok`; two files of the join's side do. The
+statement says nothing new: its proof is the first three lines of
+the proof of `typing_env_functions_of_meet_to_prove`.
