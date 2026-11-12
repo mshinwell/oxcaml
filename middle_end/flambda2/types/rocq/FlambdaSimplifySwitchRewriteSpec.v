@@ -57,6 +57,16 @@
      with a join that has the contract of a join
      ([switch_arms_of_meet_to_prove_rewrite_sound_statement],
      [switch_merging_of_meet_to_prove_rewrite_sound_statement]).
+   - [simplify_switch_arms_rewrite_equivariant_statement]: the second
+     slice commutes with renaming in the form that
+     FlambdaSimplifyPruningRenamingSpec.v asks of a rewrite of a
+     [Switch] ([switch_rewrite_equivariant]), for a meet and a rewrite
+     of [Apply_cont]s that do; at the transcribed meet, for a join
+     that does
+     ([switch_arms_of_meet_to_prove_rewrite_equivariant_statement]).
+     So the function that simplifies a whole term by types, given the
+     second slice, is a rewrite of terms that commutes with renaming
+     ([simplify_by_types_with_switch_arms_equivariant_statement]).
    - [simplify_switch_merging_fixed_names_rename_statement]: the third
      slice with given names commutes with a renaming that fixes those
      names. That is less than to commute with every renaming, which
@@ -84,7 +94,9 @@
    Renaming. The second slice commutes with a renaming for a meet and
    a rewrite that do: that is [simplify_switch_arms_rename_statement]
    of its file, which has the form that is asked of a rewrite of a
-   [Switch]. The third slice takes the names for the variables that
+   [Switch] ([switch_rewrite_equivariant],
+   FlambdaSimplifyPruningRenamingSpec.v), and is stated here in that
+   form. The third slice takes the names for the variables that
    it binds, and commutes with a renaming when they are renamed with
    the term ([simplify_switch_merging_rename_statement]). As a rewrite
    of a [Switch] its names are fixed, and then it commutes with the
@@ -108,7 +120,9 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeRenameSpec FlambdaTypingEnv FlambdaEnvRenameSpec FlambdaMeet
   FlambdaMeetSpec FlambdaMeetTermsSpec FlambdaMeetRenameSpec
   FlambdaSimplifySwitchSpec FlambdaSimplifySwitchArmsSpec
-  FlambdaSimplifySwitchMergeSpec FlambdaSimplifyPruningSpec.
+  FlambdaSimplifySwitchMergeSpec FlambdaSimplifyPruningSpec
+  FlambdaSimplifyPruningRenamingSpec.
+From OxCamlFlambda2 Require FlambdaValidatorEquivarianceSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -145,6 +159,38 @@ Definition switch_merging_of_meet_to_prove_rewrite_sound_statement : Prop :=
     apply_cont_rewrite_sound rewrite ->
     switch_rewrite_sound
       (simplify_switch_merging (meet_to_prove join fuel) rewrite [] fresh).
+
+(* ======================================================================== *)
+(* Renaming: the second slice                                               *)
+(* ======================================================================== *)
+
+(* The second slice commutes with renaming in the form that is asked
+   of a rewrite of a [Switch], for a meet and a rewrite of
+   [Apply_cont]s that do. *)
+Definition simplify_switch_arms_rewrite_equivariant_statement : Prop :=
+  ∀ (meet : meet_function) (rewrite : apply_cont_rewrite),
+    meet_function_equivariant meet ->
+    apply_cont_rewrite_equivariant rewrite ->
+    switch_rewrite_equivariant (simplify_switch_arms meet rewrite).
+
+(* At the transcribed meet that the contract is proved of, with a join
+   that commutes with renaming. *)
+Definition switch_arms_of_meet_to_prove_rewrite_equivariant_statement : Prop :=
+  ∀ (join : join_scoped_envs) (fuel : nat) (rewrite : apply_cont_rewrite),
+    join_scoped_envs_equivariant join ->
+    apply_cont_rewrite_equivariant rewrite ->
+    switch_rewrite_equivariant
+      (simplify_switch_arms (meet_to_prove join fuel) rewrite).
+
+(* So the function that simplifies a whole term by types, from the
+   environment that knows nothing, given the second slice, is a
+   rewrite of terms that commutes with renaming. *)
+Definition simplify_by_types_with_switch_arms_equivariant_statement : Prop :=
+  ∀ (meet : meet_function) (rewrite : apply_cont_rewrite),
+    meet_function_equivariant meet ->
+    apply_cont_rewrite_equivariant rewrite ->
+    FlambdaValidatorEquivarianceSpec.rewrite_equivariant
+      (simplify_by_types_pruning (simplify_switch_arms meet rewrite)).
 
 (* ======================================================================== *)
 (* Renaming, with names that are fixed                                      *)

@@ -41,7 +41,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaSimplifySwitchSpec FlambdaSimplifySwitchProofs
   FlambdaSimplifySwitchArmsSpec FlambdaSimplifySwitchArmsProofs
   FlambdaSimplifySwitchMergeSpec FlambdaSimplifySwitchMergeProofs
-  FlambdaSimplifyPruningSpec FlambdaSimplifySwitchRewriteSpec.
+  FlambdaSimplifyPruningSpec FlambdaSimplifyPruningRenamingSpec
+  FlambdaSimplifyPruningRenamingProofs FlambdaSimplifySwitchRewriteSpec.
 From OxCamlFlambda2Types Require FlambdaMeetClosuresProofs
   FlambdaMeetTermsProofs.
 Import ListNotations.
@@ -156,6 +157,36 @@ Proof.
   apply simplify_switch_merging_rewrite_sound; [ | | exact Hrewrite ].
   - exact (proj1 (FlambdaMeetClosuresProofs.meet_to_prove_sound _ _ Hjoin)).
   - exact (FlambdaMeetTermsProofs.meet_to_prove_keeps_terms _ _ Hjoin).
+Qed.
+
+(* ======================================================================== *)
+(* Renaming: the second slice                                               *)
+(* ======================================================================== *)
+
+Theorem simplify_switch_arms_rewrite_equivariant :
+  simplify_switch_arms_rewrite_equivariant_statement.
+Proof.
+  intros meet rewrite Hmeet Hrewrite r tenv scrutinee arms.
+  exact
+    (simplify_switch_arms_rename meet rewrite r tenv scrutinee arms Hmeet
+       Hrewrite).
+Qed.
+
+Theorem switch_arms_of_meet_to_prove_rewrite_equivariant :
+  switch_arms_of_meet_to_prove_rewrite_equivariant_statement.
+Proof.
+  intros join fuel rewrite Hjoin Hrewrite r tenv scrutinee arms.
+  exact
+    (simplify_switch_arms_of_meet_to_prove_rename join fuel rewrite r tenv
+       scrutinee arms Hjoin Hrewrite).
+Qed.
+
+Theorem simplify_by_types_with_switch_arms_equivariant :
+  simplify_by_types_with_switch_arms_equivariant_statement.
+Proof.
+  intros meet rewrite Hmeet Hrewrite.
+  apply simplify_by_types_pruning_equivariant.
+  exact (simplify_switch_arms_rewrite_equivariant meet rewrite Hmeet Hrewrite).
 Qed.
 
 (* ======================================================================== *)
