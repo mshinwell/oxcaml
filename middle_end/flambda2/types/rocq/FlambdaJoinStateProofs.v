@@ -2406,7 +2406,10 @@ Proof.
   cbn [Join_env.add_or_replace_equation Join_env.equations_of] in *.
   apply env_extension_lookup. intros m ty Hm.
   rewrite keyed_lookup_cons in Hm.
-  destruct (name_eqb m n') eqn:Heq; [ | exact (Hold m ty Hm) ].
+  destruct (name_eqb m n') eqn:Heq.
+  2:{ rewrite (keyed_lookup_unbind name name_eqb name_eqb_decides_equality),
+        Heq in Hm.
+      exact (Hold m ty Hm). }
   apply name_eqb_decides_equality in Heq. subst m. injection Hm as <-.
   exists (Value_const (Naked_immediate i)). split; [ exact Hn' | ].
   assert (Hhead' :
@@ -2455,8 +2458,11 @@ Proof.
   { destruct extension as [equations].
     cbn [Join_env.add_or_replace_equation free_variables_of_env_extension
            flat_map fst snd] in Hy.
-    apply in_app_or in Hy. destruct Hy as [Hy | Hy];
-      [ | right; right; right; exact Hy ].
+    apply in_app_or in Hy. destruct Hy as [Hy | Hy].
+    2:{ right. right. right. apply in_flat_map in Hy.
+        destruct Hy as [binding [Hbinding Hy]]. apply filter_In in Hbinding.
+        apply in_flat_map. exists binding.
+        split; [ exact (proj1 Hbinding) | exact Hy ]. }
     apply in_app_or in Hy. destruct Hy as [Hy | Hy]; [ left; exact Hy | ].
     right. unfold Join_env.with_inverse_relation in Hy.
     cbn [free_variables free_variables_of_descr

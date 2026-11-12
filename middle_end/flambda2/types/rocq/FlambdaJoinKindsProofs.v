@@ -961,27 +961,49 @@ Proof.
           [when_block [-> [_ ->]]]]]]]]]]; reflexivity.
 Qed.
 
+Lemma in_app_tail {A : Type} (x : A) (l m m' : list A) :
+  (x ∈ m -> x ∈ m') -> x ∈ l ++ m -> x ∈ l ++ m'.
+Proof.
+  intros Htail H. apply in_app_or in H. apply in_or_app.
+  destruct H as [H | H]; [ left; exact H | right; exact (Htail H) ].
+Qed.
+
+(* The aliases of the type answered are aliases of the type given. (The
+   equation that is added has no alias; the equation that it replaces
+   is no longer there.) *)
 Lemma recover_aliases (relations relations' : Join_env.inverse_relations)
     (n : name) (ty ty' : flambda_type) :
   Join_env.recover_inverse_relations relations n ty = Some (ty', relations')
   ->
-  aliases_with_kinds ty' = aliases_with_kinds ty.
+  ∀ alias : simple * flambda_kind,
+    alias ∈ aliases_with_kinds ty' -> alias ∈ aliases_with_kinds ty.
 Proof.
-  intros Hrecover.
+  intros Hrecover alias.
   destruct (recover_type_cases _ _ _ _ _ Hrecover)
     as [-> | [is_int [immediates [g [blocks [extensions [is_unique
-          [when_block [-> [Hadd ->]]]]]]]]]]; [ reflexivity | ].
+          [when_block [-> [Hadd ->]]]]]]]]]]; [ intros H; exact H | ].
   assert (Hext :
-            aliases_of_env_extension when_block
-            = aliases_of_env_extension (snd (extensions_pair extensions))).
+            alias ∈ aliases_of_env_extension when_block ->
+            alias
+            ∈ aliases_of_env_extension (snd (extensions_pair extensions))).
   { destruct (add_inverse_relation_spec _ _ _ _ _ _ _ Hadd)
-      as [-> | [n' [head [_ [_ ->]]]]]; [ reflexivity | ].
+      as [-> | [n' [head [_ [_ ->]]]]]; [ intros H; exact H | ].
     destruct (snd (extensions_pair extensions)) as [equations].
-    reflexivity. }
+    cbn [Join_env.add_or_replace_equation aliases_of_env_extension flat_map
+           snd].
+    intros H. apply in_app_or in H. destruct H as [[] | H].
+    apply in_flat_map in H. destruct H as [binding [Hbinding H]].
+    apply filter_In in Hbinding. apply in_flat_map. exists binding.
+    split; [ exact (proj1 Hbinding) | exact H ]. }
   unfold variant_type.
   cbn [aliases_with_kinds aliases_of_descr aliases_of_head_of_kind_value
          aliases_of_head_of_kind_value_non_null].
-  rewrite Hext. destruct extensions as [ | a b]; reflexivity.
+  rewrite !app_nil_r. do 4 apply in_app_tail.
+  destruct extensions as [ | a b]; cbn [extensions_pair fst snd] in Hext;
+    intros H.
+  - apply in_app_or in H. destruct H as [H | H]; [ exact H | exact (Hext H) ].
+  - apply in_app_or in H. apply in_or_app.
+    destruct H as [H | H]; [ left; exact H | right; exact (Hext H) ].
 Qed.
 
 Lemma recover_relations_results
@@ -1449,7 +1471,7 @@ Proof.
           - apply (add_equation_keeps_kinds _ _ _ _ Hadd); [ | | exact HX0 ].
             + intros simple k Hin. left. apply Hkinded_ty.
               destruct Hcase as [[-> _] | Hrecover]; [ exact Hin | ].
-              rewrite <- (recover_aliases _ _ _ _ _ Hrecover). exact Hin.
+              exact (recover_aliases _ _ _ _ _ Hrecover _ Hin).
             + destruct Hcase as [[-> _] | Hrecover]; [ exact Hvar0 | ].
               rewrite (recover_kind _ _ _ _ _ Hrecover). exact Hvar0.
           - intros r names Hr. apply Hkinds2.

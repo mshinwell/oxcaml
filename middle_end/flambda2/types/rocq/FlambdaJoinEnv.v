@@ -1080,10 +1080,15 @@ Module Join_env.
   Definition empty_naked_immediate_head : head_of_kind_naked_immediate :=
     Head_of_kind_naked_immediate Or_unknown.Unknown [].
 
+  (* [TEE.add_or_replace_equation], which is [Name.Map.add]: the
+     equation that the name had, if any, is replaced, so that a name
+     has one equation at most (the well-formedness of types asks it of
+     an extension). *)
   Definition add_or_replace_equation (extension : env_extension) (name : name)
       (ty : flambda_type) : env_extension :=
     match extension with
-    | Env_extension equations => Env_extension ((name, ty) :: equations)
+    | Env_extension equations =>
+      Env_extension ((name, ty) :: Keyed.unbind name_eqb name equations)
     end.
 
   Definition equations_of (extension : env_extension)
