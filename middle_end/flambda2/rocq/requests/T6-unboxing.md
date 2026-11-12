@@ -586,10 +586,11 @@ Two things had to be got right, and are where to look.
   handler, but that a load of the same box at a greater field, found
   below a load, is taken before it. That is Simplify's order where
   the front end puts the continuation of the first arm outermost.
-- A load that no test of the tag guards, where two applications give
-  blocks of different tags, is made a parameter; Simplify keeps the
-  block there (its parameters for the fields are by the tag). The
-  validation fails on such a join. Owed.
+- A load that no test of the tag guards, where the applications give
+  blocks of more than one tag, is left, with its box, and the pass
+  stops for that handler (below, "A load of two tags"). A read that
+  comes after it in the order of the pass is then not made a
+  parameter.
 - A field that the handler reads in two places becomes two
   parameters, where Simplify has one. A pass that makes one of two
   parameters that every application gives the same argument would
@@ -709,6 +710,51 @@ of another tag are in other arms and are not below.
 
 `pair_constant`, `option_pair` and `option_fields` of
 `FlambdaUnboxVariantsExamplesSpec.v` are the three, computed.
+
+### A load of two tags
+
+For
+
+    type side = Left of int | Right of int | Neither
+
+    match if c then Left x else Right x with
+    | Left v | Right v -> v + 1
+    | Neither -> 0
+
+both arms give the join a block, of two tags, and the handler loads
+the field that the two constructors share without going by the tag.
+Simplify unboxes a variant with a parameter for each field of each
+tag (`fields_by_tag`), and gives the parameter unboxed the type of a
+variant that has, at each tag, the parameters of that tag
+(`Build_unboxing_denv.denv_of_decision`). A load in the handler is
+replaced by one of them only where that type gives one, which it
+does once a `Switch` on the tag has been gone through. Here none
+has: the load stays, so the box stays a parameter and the two blocks
+are still made, and the parameters for the fields, which nothing
+reads, go. The pass took the load as any other: both arms could
+give it `x`, so it made the load a parameter, and the term before
+had no block where the term after has two. That is a better term
+than Simplify's, and not the one to compare with.
+
+`unbox_reads` now stops at a load where the applications of the
+continuation that may come to it give, for the parameter read,
+blocks that are not all of one tag (`loads_of_two_tags`). The tags
+are read off the term, as the model has no types: `tags_given` goes
+through the applications that `extend_applications_by` extends, with
+what is known at each, and `tag_read` gives the tag of an argument
+that a `Let` in scope or a `Let_static` made a block, unless the
+tests of the box that the application gives keep it from the load
+(`never_reads`, as for the constant that is given where there is
+nothing to read). So the loads of a variant that the handler takes
+apart by the tag are made parameters as before: one tag comes to
+each. Where the pass stops the term is as it was, so nothing is
+added to the argument for the refinement; the equation of renaming
+needs that the tags found in a renamed term are those found in the
+term, which holds as the tags are numbers and every test on the way
+is one that already commuted with renaming.
+
+`two_tags` of `FlambdaUnboxVariantsExamplesSpec.v` is this body,
+computed.
 
 ## 8. What else is owed for pairs and numbers
 
@@ -920,6 +966,15 @@ of a pair: the fields from the last). Over the units that were in
 the directory (296), the units written by hand (111), the 600 of
 `census/README.md` and the 240 generated units, the change moves no
 verdict and no line of any output.
+
+With a load of two tags left (section 7), two more sources are
+validated that were not: `join_tags_then_shared_field` (T2's: the
+two arms are a function that is inlined into the function that
+matches) and `two_tags_shared_field` (the `if` is in the function
+that matches). Over the units that were in the directory (305), the
+units written by hand (111), the 600 of `census/README.md` and the
+240 generated units, the change moves no verdict and no line of any
+output.
 
 ## 10. Asked of others
 
