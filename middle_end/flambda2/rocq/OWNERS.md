@@ -354,6 +354,9 @@ pass into the validator.
   - `middle_end/flambda2/rocq/FlambdaLiftFromArms*` (a closure or a block
     that mentions no variable lifted out of the arm of a toplevel test,
     to the head of the unit; same stream)
+  - `middle_end/flambda2/rocq/FlambdaHoistStatics*` (the static bindings
+    that need nothing from around them bound first, for a unit run on
+    its own; same stream)
   - `middle_end/flambda2/rocq/FlambdaSimulationProofs.v` (simulations in
     which one step is answered by one or more; same stream, and used by
     the loops of V4)

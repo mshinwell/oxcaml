@@ -1119,17 +1119,17 @@ Fixpoint hoist_cont (c : cont_value) : cont_value :=
 Definition hoist_conts (conts : cont_env) : cont_env :=
   map (fun binding => (fst binding, hoist_cont (snd binding))) conts.
 
-Definition hoist_statics (statics : static_env) : static_env :=
+Definition code_first_env (statics : static_env) : static_env :=
   Static_env src (static_values statics).
 
 Definition hoist_state (s : state) : state :=
   State (without_code (state_expr s)) (state_vars s)
-    (hoist_conts (state_conts s)) (hoist_statics (state_statics s)).
+    (hoist_conts (state_conts s)) (code_first_env (state_statics s)).
 
 (* The value of a defining expression does not depend on the code. *)
 Lemma eval_named_hoist_statics (statics : static_env) (vars : env)
     (d : named) :
-  eval_named (hoist_statics statics) vars d = eval_named statics vars d.
+  eval_named (code_first_env statics) vars d = eval_named statics vars d.
 Proof.
   destruct d; simpl; try reflexivity.
   all:
@@ -1399,8 +1399,8 @@ Lemma eval_static_bindings_hoist (vars : env)
     rebinds code_ids_of_binding (code_id_bound statics) bindings = false ->
     eval_static_bindings vars
       (filter (fun binding => negb (is_code binding)) bindings)
-      (hoist_statics statics)
-    = option_map hoist_statics (eval_static_bindings vars bindings statics).
+      (code_first_env statics)
+    = option_map code_first_env (eval_static_bindings vars bindings statics).
 Proof.
   induction bindings as [ | [id c | id | sym const] bindings IH];
     intros statics Hrebinds; cbn [filter is_code negb eval_static_bindings].
@@ -1429,7 +1429,7 @@ Proof.
         by (apply existsb_exists; exists n; split; assumption).
       exact (diff_true_false (eq_trans (eq_sym Hold) Hrest)).
   - exact (IH statics Hrebinds).
-  - cbn [hoist_statics static_values static_code].
+  - cbn [code_first_env static_values static_code].
     destruct (lookup sym (static_values statics)); [ reflexivity | ].
     destruct (eval_static_const vars const) as [allocated | ]; simpl;
       [ | reflexivity ].
@@ -1446,7 +1446,7 @@ Lemma call_code_hoist (closure : value) (c : code) (vs : list value)
   result_hoisted
     (call_code closure c vs args_arity return_arity return_to exn_to statics)
     (call_code closure c vs args_arity return_arity (hoist_cont return_to)
-       (hoist_cont exn_to) (hoist_statics statics)).
+       (hoist_cont exn_to) (code_first_env statics)).
 Proof.
   unfold result_hoisted, call_code.
   destruct (binds_statics (code_body c)) eqn:Hbinds; [ reflexivity | ].
@@ -1482,7 +1482,7 @@ Lemma codes_agree_hoist (closure : value) (called : code_id)
     (slots : list (value_slot * value)) :
   ok closure ->
   closure_of statics closure = Some (called, slots) ->
-  codes_agree eq statics (hoist_statics statics) called.
+  codes_agree eq statics (code_first_env statics) called.
 Proof.
   intros Hclosure Hcalled.
   destruct (closure_of_ok (code_id_bound statics) statics statics_bound
@@ -1491,7 +1491,7 @@ Proof.
   unfold codes_agree. unfold code_id_bound in Hbound.
   destruct (lookup called (static_code statics)) as [c | ] eqn:Hlookup;
     [ | discriminate ].
-  cbn [hoist_statics static_code]. rewrite (statics_known called c Hlookup).
+  cbn [code_first_env static_code]. rewrite (statics_known called c Hlookup).
   auto.
 Qed.
 
@@ -1500,7 +1500,7 @@ Lemma shape_of_call_hoist (callee : value) (kind : call_kind)
   ok callee ->
   shapes_related eq
     (shape_of_call statics callee kind vs args_arity return_arity)
-    (shape_of_call (hoist_statics statics) callee kind vs args_arity
+    (shape_of_call (code_first_env statics) callee kind vs args_arity
        return_arity).
 Proof.
   intros Hcallee. apply shape_of_call_related; [ reflexivity | | ].
@@ -1524,7 +1524,7 @@ Lemma run_call_hoist (return_partial return_partial' : value -> step_result)
   result_hoisted
     (run_call return_partial shape return_arity return_to exn_to statics)
     (run_call return_partial' shape' return_arity (hoist_cont return_to)
-       (hoist_cont exn_to) (hoist_statics statics)).
+       (hoist_cont exn_to) (code_first_env statics)).
 Proof.
   intros Hshapes Hvalues Hpartial.
   destruct Hshapes
@@ -1550,12 +1550,12 @@ Lemma call_function_hoist_from (callee : value) (kind : call_kind)
     ok partial ->
     result_hoisted (apply_cont_value return_to [partial] statics)
       (apply_cont_value (hoist_cont return_to) [partial]
-         (hoist_statics statics))) ->
+         (code_first_env statics))) ->
   result_hoisted
     (call_function callee kind vs args_arity return_arity return_to exn_to
        statics)
     (call_function callee kind vs args_arity return_arity
-       (hoist_cont return_to) (hoist_cont exn_to) (hoist_statics statics)).
+       (hoist_cont return_to) (hoist_cont exn_to) (code_first_env statics)).
 Proof.
   intros Hcallee Hvs Hpartial. unfold call_function.
   apply run_call_hoist.
@@ -1575,7 +1575,7 @@ Lemma apply_cont_value_hoist (c : cont_value) :
     cont_values_all ok c ->
     Forall ok vs ->
     result_hoisted (apply_cont_value c vs statics)
-      (apply_cont_value (hoist_cont c) vs (hoist_statics statics)).
+      (apply_cont_value (hoist_cont c) vs (code_first_env statics)).
 Proof.
   induction c
     as [[params metadata handler] def_vars def_conts recursive | k
@@ -1619,7 +1619,7 @@ Lemma call_function_hoist (callee : value) (kind : call_kind)
     (call_function callee kind vs args_arity return_arity return_to exn_to
        statics)
     (call_function callee kind vs args_arity return_arity
-       (hoist_cont return_to) (hoist_cont exn_to) (hoist_statics statics)).
+       (hoist_cont return_to) (hoist_cont exn_to) (code_first_env statics)).
 Proof.
   intros Hcallee Hvs Kreturn Vreturn.
   apply call_function_hoist_from; [ exact Hcallee | exact Hvs | ].
@@ -1638,7 +1638,7 @@ Lemma hoist_step_components (e : expr) (vars : env) (conts : cont_env)
   result_hoisted (step (State e vars conts statics))
     (step
        (State (without_code e) vars (hoist_conts conts)
-          (hoist_statics statics))).
+          (code_first_env statics))).
 Proof.
   intros (W & ((_ & _ & _) & (Vvars & Vconts & Vstatics)) & (_ & K & S)).
   simpl_state.
