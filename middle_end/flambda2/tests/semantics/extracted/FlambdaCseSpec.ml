@@ -11,7 +11,7 @@ open List
 let shareable = function
   | Unary p0 -> (
     match p0 with
-    | Block_load (_, _, _) -> false
+    | Block_load (_, mut, _) -> ( match mut with Mutable -> false | _ -> true)
     | Is_null -> false
     | Array_length _ -> false
     | Opaque_identity _ -> false
