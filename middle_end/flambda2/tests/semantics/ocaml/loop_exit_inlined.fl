@@ -1,0 +1,81 @@
+let $camlLoop_exit_inlined__first_const_0 = Block 0 () in
+(let code inline(always) size(57)
+       sum_or_zero_0 (b/77 : imm tagged)
+         my_closure/78 &my_alloc_region/79 my_depth/80
+         -> k/30 * k/31
+         : imm tagged =
+   let next_depth/81 = rec_info (succ my_depth/80) in
+   (let untagged/106 = %untag_imm (b/77) in
+    switch untagged/106
+      | 0 -> k/32 (0)
+      | 1 -> k/40)
+     where k/40 =
+       cont k/33
+     where k/33 =
+       ((let Popaque/105 = %opaque (9) in
+         cont k/34 (Popaque/105))
+          where k/34 (let_mutable/85 : imm tagged) =
+            ((let prim/102 = %int_comp.le (0, 3) in
+              let int_lessequal/103 = %tag_imm (prim/102) in
+              (let untagged/104 = %untag_imm (int_lessequal/103) in
+               switch untagged/104
+                 | 0 -> k/35 (0, let_mutable/85)
+                 | 1 -> k/39)
+                where k/39 =
+                  cont k/36 (let_mutable/85))
+               where k/36 (acc_16_unboxed0/88 : imm tagged) =
+                 let prim/89 = %untag_imm (0) in
+                 let for_start_naked/90 =
+                   %num_conv.[`imm`].[`int64`] (prim/89)
+                 in
+                 let prim/91 = %untag_imm (3) in
+                 let for_stop_naked/92 =
+                   %num_conv.[`imm`].[`int64`] (prim/91)
+                 in
+                 (cont k/37 (for_start_naked/90, acc_16_unboxed0/88)
+                    where rec k/37
+                                (for_counter_naked/93 : int64,
+                                 acc_16_unboxed0/94 : imm tagged) =
+                      let prim/95 =
+                        %num_conv.[`int64`].[`imm`] (for_counter_naked/93)
+                      in
+                      let i/96 = %tag_imm (prim/95) in
+                      let int_add/97 =
+                        %int_barith.add (acc_16_unboxed0/94, i/96)
+                      in
+                      let for_next_naked/98 =
+                        %int_barith.`int64`.add (for_counter_naked/93, 1L)
+                      in
+                      let prim/99 =
+                        %int_comp.`int64`.le
+                          (for_next_naked/98, for_stop_naked/92)
+                      in
+                      let `int64#_lessequal/100` = %tag_imm (prim/99) in
+                      ((let untagged/101 =
+                          %untag_imm (`int64#_lessequal/100`)
+                        in
+                        switch untagged/101
+                          | 0 -> k/35 (0, int_add/97)
+                          | 1 -> k/38)
+                         where k/38 =
+                           cont k/37 (for_next_naked/98, int_add/97)))
+               where k/35
+                       (staticcatch_result/86 : imm tagged,
+                        acc_16_unboxed0/87 : imm tagged) =
+                 cont k/32 (acc_16_unboxed0/87)))
+     where k/32 (r/82 : imm tagged) =
+       let Popaque/83 = %opaque (1) in
+       let int_add/84 = %int_barith.add (r/82, Popaque/83) in
+       cont k/30 (int_add/84)
+ in
+ let sum_or_zero/107 = closure sum_or_zero_0 @sum_or_zero &toplevel in
+ apply direct(sum_or_zero_0 &toplevel)
+   (sum_or_zero/107 : _ -> imm tagged) (1) -> k/41 * error
+   where k/41 (result/108 : imm tagged) =
+     let Pmakeblock/109 = %block.[`0`].`toplevel` (result/108) in
+     cont k/29 (Pmakeblock/109))
+  where k/29 define_root_symbol (module_block/75) =
+    let field_0/76 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/75)
+    in
+    let $camlLoop_exit_inlined = Block 0 (field_0/76) in
+    cont done ($camlLoop_exit_inlined)
