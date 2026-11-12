@@ -49,6 +49,15 @@
    ([flat_heads_sound_statement]); the same of every other function of
    the traversal is proved on the way, and stated with its proof.
 
+   Proved beside it ([n_way_join_equations_kinded_statement]): the
+   join of types meets the contract for the names of the equations
+   inside the type that it answers
+   ([n_way_join_type_equations_kinded], FlambdaJoinSpec.v), if the
+   import of a type and the join of extensions meet theirs. A type
+   answered has equations inside it only in extensions that the join
+   of extensions answered and in types that were imported as they
+   stood.
+
    How it is stated. The functions of the traversal thread the state of
    the join of environments, of which this file knows what
    FlambdaJoinSpec.v says and no more: three readings, two invariants,
@@ -99,6 +108,12 @@
      kind of the type, if the type is kinded and the environment has
      [constants_of_kind] (FlambdaTypingEnvKindedSpec.v). The owner of
      the meet proves it.
+   - [expand_head_equations_kinded], for the statement about the
+     names of the equations only: in an environment that has the
+     names of the equations inside its types at their kinds, a type
+     that has its own at their kinds is expanded to one that has. (An
+     expanded type is the type itself, an unknown type, the type of a
+     constant or a type of the environment.)
    - [joined_envs_constants_of_kind]: in each environment joined, a
      constant that is the canonical element of a [Simple] of a kind is
      of that kind ([constants_of_kind]). It is a premise about kinds,
@@ -294,6 +309,17 @@ Definition expand_head_sound : Prop :=
        type_kinded tenv ty ->
        Expanded_type.kind expanded = kind ty
        ∧ kind (Expanded_type.to_type expanded) = kind ty).
+
+(* What is assumed of [Expand_head.expand_head] for the names that
+   have equations inside a type: in an environment that has those of
+   its types at their kinds, the expanded type has its own at their
+   kinds, if the type has. *)
+Definition expand_head_equations_kinded : Prop :=
+  ∀ (tenv : Typing_env.t) (ty : flambda_type) (expanded : Expanded_type.t),
+    expand_head tenv ty = Some expanded ->
+    types_equations_kinded tenv ->
+    type_equations_kinded tenv ty ->
+    type_equations_kinded tenv (Expanded_type.to_type expanded).
 
 (* What is assumed of the kinds of the environments joined, beside
    [joined_envs_kinded]: in each, a constant that is the canonical
@@ -652,3 +678,53 @@ Definition n_way_join_bound_is_met_statement : Prop :=
           extends_input joined_env definitions_of_existentials s' index
             valuation valuation'
           ∧ type_satisfied statics valuation' v ty.
+
+(* The join of types meets the contract for the names of the equations
+   inside the type that it answers, whatever bounds the depth of its
+   calls to itself: if the types given have the names of their
+   equations at their kinds, each in the environment of its index, and
+   the environments joined have those of their types, the type
+   answered has its own at their kinds in the target. The import of a
+   type and the join of extensions are to meet their contracts for
+   those names too. *)
+Definition n_way_join_equations_kinded_statement : Prop :=
+  ∀ (typing_env_well_formed : Typing_env.t -> Prop) (state : Type)
+    (joined_env : state -> Index.t -> option Typing_env.t)
+    (definitions_of_existentials :
+       state -> finite_map (Simples_in_joined_envs.t * flambda_kind))
+    (kind_in_target_env : state -> variable -> option flambda_kind)
+    (state_valid state_kinded : state -> Prop)
+    (n_way_join_simples :
+       state -> flambda_kind -> list (Index.t * simple)
+       -> option (Or_bottom.t simple * state))
+    (import_type : state -> flambda_type -> option state)
+    (join_env_n_way_join_env_extension :
+       state -> list (Index.t * env_extension)
+       -> option (Or_bottom.t (env_extension * state)))
+    (expand_head : Typing_env.t -> flambda_type -> option Expanded_type.t)
+    (reduce_head_of_kind_naked_immediate :
+       Typing_env.t -> head_of_kind_naked_immediate
+       -> Or_bottom.t head_of_kind_naked_immediate)
+    (type_eqb : flambda_type -> flambda_type -> bool)
+    (block_shape_eqb : block_shape -> block_shape -> bool) (fuel : nat),
+    environment_side_sound typing_env_well_formed joined_env
+      definitions_of_existentials kind_in_target_env state_valid state_kinded
+      n_way_join_simples import_type join_env_n_way_join_env_extension ->
+    import_type_equations_kinded typing_env_well_formed joined_env
+      kind_in_target_env state_valid state_kinded import_type ->
+    n_way_join_env_extension_equations_kinded typing_env_well_formed
+      joined_env kind_in_target_env state_valid state_kinded
+      join_env_n_way_join_env_extension ->
+    joined_envs_constants_of_kind typing_env_well_formed joined_env
+      state_valid ->
+    expand_head_sound typing_env_well_formed expand_head ->
+    expand_head_equations_kinded expand_head ->
+    reduce_head_of_kind_naked_immediate_sound
+      reduce_head_of_kind_naked_immediate ->
+    type_eqb_sound type_eqb ->
+    block_shape_eqb_sound block_shape_eqb ->
+    n_way_join_type_equations_kinded typing_env_well_formed joined_env
+      kind_in_target_env state_valid state_kinded
+      (n_way_join joined_env n_way_join_simples import_type
+         join_env_n_way_join_env_extension expand_head
+         reduce_head_of_kind_naked_immediate type_eqb block_shape_eqb fuel).
