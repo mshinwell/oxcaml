@@ -225,6 +225,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaJoinTypesWithEnvProofs.v \
   FlambdaJoinTypesWithEnvSpec.v \
   FlambdaMeet.v \
+  FlambdaMeetClosuresProofs.v \
+  FlambdaMeetClosuresSpec.v \
   FlambdaMeetEnv.v \
   FlambdaMeetEnvProofs.v \
   FlambdaMeetEnvSpec.v \
