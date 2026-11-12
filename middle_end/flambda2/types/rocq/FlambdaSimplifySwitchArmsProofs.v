@@ -49,11 +49,11 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec FlambdaMeetProofs
   FlambdaMeetEnvProofs FlambdaTypeCreatorsSpec FlambdaTypeCreatorsProofs
   FlambdaTypeRenameSpec FlambdaTypeRenameProofs FlambdaEnvRenameSpec
-  FlambdaEnvRenameProofs FlambdaSimplifySwitchSpec FlambdaSimplifySwitchProofs
-  FlambdaSimplifySwitchArmsSpec.
+  FlambdaEnvRenameProofs FlambdaMeetTermsSpec FlambdaSimplifySwitchSpec
+  FlambdaSimplifySwitchProofs FlambdaSimplifySwitchArmsSpec.
 From OxCamlFlambda2Types Require FlambdaMeetExamplesProofs
-  FlambdaMeetClosuresProofs FlambdaSimplifyPassSpec FlambdaSimplifyPassProofs
-  FlambdaSimplifyPassRenamingProofs.
+  FlambdaMeetClosuresProofs FlambdaMeetTermsProofs FlambdaSimplifyPassSpec
+  FlambdaSimplifyPassProofs FlambdaSimplifyPassRenamingProofs.
 Import ListNotations.
 
 Local Open Scope Z_scope.
@@ -299,7 +299,9 @@ Theorem simplify_switch_arms_of_meet_to_prove_refines :
 Proof.
   intros join fuel rewrite tenv scrutinee arms e Hjoin.
   apply simplify_switch_arms_refines.
-  exact (proj1 (FlambdaMeetClosuresProofs.meet_to_prove_sound join fuel Hjoin)).
+  - exact (proj1
+             (FlambdaMeetClosuresProofs.meet_to_prove_sound join fuel Hjoin)).
+  - exact (FlambdaMeetTermsProofs.meet_to_prove_keeps_terms join fuel Hjoin).
 Qed.
 
 (* ======================================================================== *)
@@ -358,7 +360,7 @@ Qed.
 
 Theorem example_switch_arms : example_switch_arms_statement.
 Proof.
-  intros Hkeeps k0 k1 k2.
+  intros k0 k1 k2.
   apply (let_typed_refines_under_valid _ example_i _ _ _ _ any_naked_bool).
   - vm_compute. reflexivity.
   - reflexivity.
@@ -371,7 +373,8 @@ Proof.
              FlambdaSimplifyPassSpec.simplify_apply_cont).
     + exact (proj1 (FlambdaMeetClosuresProofs.meet_to_prove_sound _ _
                       FlambdaMeetExamplesProofs.forgetful_join_sound)).
-    + exact Hkeeps.
+    + exact (FlambdaMeetTermsProofs.meet_to_prove_keeps_terms _ _
+               FlambdaMeetExamplesProofs.forgetful_join_sound).
     + exact simplify_apply_cont_sound.
     + exact example_comparison_env_fits.
     + reflexivity.

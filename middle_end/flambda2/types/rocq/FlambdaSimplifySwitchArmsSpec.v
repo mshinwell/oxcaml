@@ -99,25 +99,20 @@
      contract is proved of has it, with a join that has the contract
      of a join ([meet_to_prove_sound_statement],
      FlambdaMeetClosuresSpec.v).
-   - Of the meet, [meet_keeps_terms meet]: a variable that may occur
-     in terms under the environment that a meet answers may occur in
-     terms under the environment that it was given. The contract of
-     the meet does not say it. [meet_sound] gives a valuation that
+   - Of the meet, [meet_keeps_terms meet] (FlambdaMeetTermsSpec.v): a
+     variable that may occur in terms under the environment that a
+     meet answers may occur in terms under the environment that it was
+     given. [meet_sound] does not give it: it gives a valuation that
      satisfies the environment answered and agrees with the first on
      the names that the first environment knew; the machine binds the
      variables that may occur in terms under the first environment,
-     and nothing says that it binds a variable that the meet has made.
-     (The hypothesis also excludes that a variable which the first
-     environment had at another name mode, or out of scope, comes to
-     be in scope in terms.)
-     In the compiler a meet makes variables only in the join of the
-     environments of a disjunction, and makes them at the name mode
-     [In_types], so they may not occur in terms. Nothing in the files
-     of the meet or of the join says so of the transcribed functions:
-     it is a hypothesis here, with its name, for the owners of the
-     meet to prove of [meet_to_prove] (with what is to be asked of the
-     join). Until then the statements that have it, and the example,
-     discharge nothing of the transcribed meet.
+     and nothing there says that it binds a variable that the meet has
+     made. (The hypothesis also excludes that a variable which the
+     first environment had at another name mode, or out of scope,
+     comes to be in scope in terms.) The transcribed meet that the
+     contract is proved of has it, with a join that has the contract
+     of a join ([meet_to_prove_keeps_terms_statement], in that file),
+     so the statement at that meet and the example do not suppose it.
    - Of the rewrite of an [Apply_cont], that it is right under every
      environment, in the states whose static environment is valid
      ([apply_cont_rewrite_sound]). It is asked under the environment
@@ -169,7 +164,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypingEnvSpec FlambdaTypingEnvExamplesSpec
   FlambdaTypingEnvRefinementSpec FlambdaEnvRenameSpec FlambdaMeetGrammar
   FlambdaExpandHead FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec
-  FlambdaSimplifySwitchSpec.
+  FlambdaMeetTermsSpec FlambdaSimplifySwitchSpec.
 From OxCamlFlambda2Types Require FlambdaSimplifyPassSpec.
 Import ListNotations.
 
@@ -178,22 +173,6 @@ Local Open Scope Z_scope.
 (* ======================================================================== *)
 (* What an arm knows                                                        *)
 (* ======================================================================== *)
-
-(* A meet makes no variable that may occur in terms: a variable that
-   may occur in terms under the environment that it answers may occur
-   in terms under the environment that it was given. *)
-(* CR mshinwell: a hypothesis of this file that the contract of the
-   meet does not have. In the compiler the variables that a meet makes
-   are those of the join of the environments of a disjunction, made at
-   the name mode [In_types]. It is to be proved of the transcribed
-   meet, with a condition on the join that it is given; if a case is
-   found in which the compiler's meet has it not, that is a
-   discrepancy. *)
-Definition meet_keeps_terms (meet : meet_function) : Prop :=
-  ∀ (tenv tenv' : Typing_env.t) (t1 t2 t : flambda_type),
-    meet_inputs_well_formed tenv t1 t2 ->
-    meet tenv t1 t2 = Some (Or_bottom.Ok (t, tenv')) ->
-    ∀ x : variable, in_scope_in_terms tenv' x -> in_scope_in_terms tenv x.
 
 (* A state that satisfies the environment of a [Switch], in which the
    scrutinee is the number of an arm, satisfies the environment that
@@ -369,14 +348,12 @@ Definition simplify_arms_identity_statement : Prop :=
 
 (* The statement for a pass over terms, at the transcribed meet that
    the contract is proved of: the contract of the join is where
-   [meet_sound] was. That this meet makes no variable that may occur
-   in terms stays a premise. *)
+   [meet_sound] and [meet_keeps_terms] were. *)
 Definition simplify_switch_arms_of_meet_to_prove_refines_statement : Prop :=
   ∀ (join : join_scoped_envs) (fuel : nat) (rewrite : apply_cont_rewrite)
     (tenv : Typing_env.t) (scrutinee : simple) (arms : list (Z * apply_cont))
     (e : expr),
     join_scoped_envs_sound join ->
-    meet_keeps_terms (meet_to_prove join fuel) ->
     apply_cont_rewrite_sound rewrite ->
     typing_env_fits tenv ->
     Typing_env.mem_simple (Some Name_mode.normal) tenv scrutinee = true ->
@@ -445,13 +422,11 @@ Definition simplify_apply_cont_rewrite_equivariant_statement : Prop :=
    dropped. The meet of the type of [i] with 0 answers an environment
    in which [i] is 0, and there the canonical element of the argument
    [i] is the constant: the arm for 0 passes 0, and the arm for 1
-   passes 1. The hypothesis is the one that the contract of the meet
-   does not give. *)
+   passes 1. *)
 Definition example_arm (k : continuation) (arg : simple) : apply_cont :=
   Apply_cont_expr k [arg] None.
 
 Definition example_switch_arms_statement : Prop :=
-  meet_keeps_terms example_meet ->
   ∀ k0 k1 k2 : continuation,
     expr_refines_under_valid
       (Typing_env.add_variable_definition Typing_env.create example_x Value
