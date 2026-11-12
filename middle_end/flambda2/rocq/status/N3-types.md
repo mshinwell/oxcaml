@@ -11,7 +11,11 @@ functions commute with renaming. The owner of the environment had none
 of it and left it to this stream.
 
 Files (new, mine): `middle_end/flambda2/types/rocq/FlambdaEnvRenameSpec.v`
-and `FlambdaEnvRenameProofs.v`. No file of another owner is edited.
+and `FlambdaEnvRenameProofs.v`; for the meet, four files of lemmas,
+`FlambdaEnvRenameMeetProofs.v`, `FlambdaEnvRenameMeetPartsProofs.v`,
+`FlambdaEnvRenameMeetProductsProofs.v` and
+`FlambdaEnvRenameMeetValuesProofs.v` (below). No file of another
+owner is edited.
 
 ## Done
 
@@ -68,10 +72,74 @@ Each statement about a function is an equation with no premise on the
 environment; one has a premise on an argument that is a function
 (`fold_on_defined_vars`).
 
+## The meet: lemmas for its owner
+
+The owner of the meet states that the meet commutes with renaming
+(`FlambdaMeetRenameSpec.v`, with the action on an environment of the
+meet and on what a meet answers). Four files of mine hold lemmas
+that its proof needs. They have no
+statement: each lemma is named after a function, `<function>_renamed`,
+and says that on the renamed environment and renamed arguments the
+function gives the renamed answer.
+
+- **`FlambdaEnvRenameMeetProofs.v`** (fifty-six lemmas). Every function
+  of the module `Meet_env` of `FlambdaMeetEnv.v`, with `map_result`
+  and `extract_value`; `kind_of_simple`; `expand_head0`. A function
+  that is given the meet of expanded types commutes if that meet does
+  (`meet_expanded_head_equivariant`, a hypothesis of a section). Then,
+  for a join, choices and a fuel at which the meet of expanded types
+  commutes: `Meet.meet` (which is `meet_function_equivariant` of it)
+  and `Meet.meet_shape`, and the functions that add to a typing
+  environment (`Flambda2_types.add_equation`,
+  `add_equations_on_params`, `add_env_extension`, `add_relation` and
+  the three relations).
+- **`FlambdaEnvRenameMeetPartsProofs.v`** (seventeen lemmas). The
+  functions of `FlambdaMeet.v` that put a meet together from the meets
+  of parts (`map_return_value`, `combine_meet_return_values`,
+  `sequence_return_value`, `set_meet`, `meet_mapping`, `map_meet`,
+  `combine_results2`, `combine_results3`, `meet_code_id`,
+  `meet_alloc_mode`, `meet_unknown`, `meet_or_unknown_or_bottom`) and
+  those of the relations of naked immediates
+  (`head_of_kind_naked_immediate_from_descr` and the one beside it,
+  `reduce_head_of_kind_naked_immediate`, `meet_inverse_relations`).
+  A function that is given the meet of a part is given, on the renamed
+  side, a meet that answers the renamed answer of renamed parts. The
+  keys of a map and the numbers of a set are not renamed.
+- **`FlambdaEnvRenameMeetProductsProofs.v`** (nineteen lemmas). For a
+  meet of less fuel that commutes: `meet_relation`,
+  `meet_function_type`, `meet_array_of_types`,
+  `meet_int_indexed_product`, the two products indexed by slots and
+  `meet_closures_entry`; then `reduce_inverse_relations` and
+  `meet_head_of_kind_naked_immediate`, and the meets of naked numbers,
+  of `Rec_info` and of regions. Where the function is a meet of two
+  parts the lemma is `meet_of_parts_equivariant` of it, which is what
+  the owner's lemma for a row-like structure takes. The two for naked
+  immediates need that the type that the choices give a name of which
+  a number is the tag holds no name; that is a hypothesis, and it is
+  shown of the compiler's choices and of the repaired ones.
+- **`FlambdaEnvRenameMeetValuesProofs.v`** (seven lemmas). The meets
+  of the heads of values: `meet_variant`,
+  `meet_head_of_kind_value_non_null` and `meet_head_of_kind_value`,
+  with the four meets of alternatives that they give
+  `meet_disjunction`. They take a join and a meet of less fuel that
+  commute, and the meets of the two row-like structures, which are
+  the owner's to prove; the law of `meet_disjunction` is the owner's
+  too (`FlambdaMeetRenameScopesProofs.v`).
+
+What is left to the owner of the meet: the join inside
+`meet_disjunction` and `meet_row_like`, the two rows, the meet of
+expanded heads, the induction on the fuel, and the statements.
+
+Six definitions are in these files, for the statements of the
+lemmas: the renaming of a list of equations and of a list of
+parameters, of the state of two folds, and of what `meet_variant`
+answers. If a statement to review comes to need one, it moves to the
+`Spec` file of that statement.
+
 ## To do
 
-- The functions added to the environment since (the operations of the
-  meet on an environment, the extensions).
+- The extensions, and what the join does to an environment, when its
+  owner asks.
 
 ## Decided overnight
 
@@ -108,7 +176,8 @@ environment; one has a premise on an argument that is a function
 - Nothing that is not equivariant. No function of the environment makes
   a name or goes by the order of names: the order of binding is read
   from binding times, which a name keeps, and a tie is settled by the
-  order of a list of the model.
+  order of a list of the model. The same of the environment of the
+  meet and of the functions that put a meet together.
 - The functions of the aliases take the environment's map from names to
   types and read only its binding times; their statements under
   renaming keep the types of that map as they are. The action here
