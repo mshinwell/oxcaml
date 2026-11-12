@@ -57,9 +57,12 @@
 
    What may be shared is a choice that is narrower than the compiler's.
    The primitives listed in [shareable] compute a number from numbers,
-   or look at a value without reading memory that can change. Left out:
-   [Opaque_identity], which Simplify never shares; [Block_load], until
-   the model says which loads read a field that cannot change; and the
+   or look at a value without reading memory that can change: the
+   length of a string is among them, as the compiler shares it too
+   ([String_length] has no effects and no coeffects in
+   [Flambda_primitive]). Left out: [Opaque_identity], which Simplify
+   never shares; [Block_load] and [String_or_bigstring_load], until the
+   model says which loads read memory that cannot change; and the
    primitives that allocate ([Box_number], [Make_block]), which the
    compiler does share where what is allocated is immutable.
 
@@ -99,7 +102,8 @@ Definition shareable (p : prim) : bool :=
   match p with
   | Unary
       (Is_int _ | Get_tag | Num_conv _ _ | Boolean_not | Unbox_number _
-      | Untag_immediate | Tag_immediate) =>
+      | Untag_immediate | Tag_immediate | String_length
+      | Unary_int_arith _ _) =>
     true
   | Binary (Phys_equal _ | Int_arith _ _ | Int_shift _ _ | Int_comp _ _) =>
     true
