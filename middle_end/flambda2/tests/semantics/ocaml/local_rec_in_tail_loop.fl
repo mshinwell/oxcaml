@@ -1,0 +1,74 @@
+let $camlLocal_rec_in_tail_loop__first_const_0 = Block 0 () in
+(let code rec size(25)
+       depth_1 (k/77 : imm tagged)
+         my_closure/78 &my_alloc_region/79 my_depth/80
+         -> k/30 * k/31
+         : imm tagged =
+   let next_depth/81 = rec_info (succ my_depth/80) in
+   (let prim/85 = %int_comp.le (k/77, 0) in
+    let int_lessequal/86 = %tag_imm (prim/85) in
+    (let untagged/87 = %untag_imm (int_lessequal/86) in
+     switch untagged/87
+       | 0 -> k/34
+       | 1 -> k/30 (0))
+      where k/34 =
+        cont k/32)
+     where k/32 =
+       ((let int_sub/84 = %int_barith.sub (k/77, 1) in
+         apply direct(depth_1 &my_alloc_region/79)
+           (my_closure/78 ~ depth my_depth/80 -> next_depth/81
+            : _ -> imm tagged)
+             (int_sub/84)
+             -> k/33 * k/31)
+          where k/33 (apply_result/82 : imm tagged) =
+            let int_add/83 = %int_barith.add (1, apply_result/82) in
+            cont k/30 (int_add/83))
+ in
+ let code rec loopify(default tailrec) size(64)
+       walk_0 (n/88 : imm tagged, acc/89 : imm tagged)
+         my_closure/90 &my_alloc_region/91 my_depth/92
+         -> k/35 * k/36
+         : imm tagged =
+   let next_depth/93 = rec_info (succ my_depth/92) in
+   let region/94 = %begin_region () in
+   let ghost_region/95 = %begin_ghost_region () in
+   (let prim/105 = %int_comp.le (n/88, 0) in
+    let int_lessequal/106 = %tag_imm (prim/105) in
+    (let untagged/107 = %untag_imm (int_lessequal/106) in
+     switch untagged/107
+       | 0 -> k/40
+       | 1 -> k/37 (acc/89))
+      where k/40 =
+        cont k/38)
+     where k/38 =
+       let depth/99 = closure depth_1 @`depth` &my_alloc_region/91 &region/94
+       in
+       (apply direct(depth_1 &my_alloc_region/91)
+          (depth/99 : _ -> imm tagged) (2) -> k/39 * k/36
+          where k/39 (apply_result/100 : imm tagged) =
+            let int_add/101 = %int_barith.add (acc/89, apply_result/100) in
+            let int_sub/102 = %int_barith.sub (n/88, 1) in
+            let unit/103 = %end_region (region/94) in
+            let unit/104 = %end_ghost_region (ghost_region/95) in
+            apply direct(walk_0 &my_alloc_region/91)
+              (my_closure/90 ~ depth my_depth/92 -> next_depth/93
+               : _ -> imm tagged)
+                (int_sub/102, int_add/101)
+                -> k/35 * k/36)
+     where k/37 (region_return/96 : imm tagged) =
+       let unit/97 = %end_region (region/94) in
+       let unit/98 = %end_ghost_region (ghost_region/95) in
+       cont k/35 (region_return/96)
+ in
+ let walk/108 = closure walk_0 @walk &toplevel in
+ (let Popaque/111 = %opaque (3) in
+  apply direct(walk_0 &toplevel)
+    (walk/108 : _ -> imm tagged) (Popaque/111, 0) -> k/41 * error)
+   where k/41 (result/109 : imm tagged) =
+     let Pmakeblock/110 = %block.[`0`].`toplevel` (result/109) in
+     cont k/29 (Pmakeblock/110))
+  where k/29 define_root_symbol (module_block/75) =
+    let field_0/76 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/75)
+    in
+    let $camlLocal_rec_in_tail_loop = Block 0 (field_0/76) in
+    cont done ($camlLocal_rec_in_tail_loop)

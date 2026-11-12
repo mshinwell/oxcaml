@@ -1,0 +1,88 @@
+let $camlLoop_function_in_kept__first_const_0 = Block 0 () in
+(let code size(3)
+       `fn[loop_function_in_kept.ml:21,22--38]_0` (x/82 : imm tagged)
+         my_closure/83 &my_alloc_region/84 my_depth/85
+         -> k/30 * k/31
+         : imm tagged =
+   let next_depth/86 = rec_info (succ my_depth/85) in
+   let int_add/87 = %int_barith.add (x/82, 1) in
+   cont k/30 (int_add/87)
+ in
+ (let n/90 = %opaque (3) in
+  cont k/33 (0)
+    where k/33 (let_mutable/91 : imm tagged) =
+      (cont k/34 (n/90, let_mutable/91)
+         where k/34 (for_stop/92 : imm tagged, s_15_unboxed0/93 : imm tagged) =
+           ((let prim/115 = %int_comp.le (1, for_stop/92) in
+             let int_lessequal/116 = %tag_imm (prim/115) in
+             (let untagged/117 = %untag_imm (int_lessequal/116) in
+              switch untagged/117
+                | 0 -> k/35 (0, s_15_unboxed0/93)
+                | 1 -> k/41)
+               where k/41 =
+                 cont k/36 (s_15_unboxed0/93))
+              where k/36 (s_15_unboxed0/96 : imm tagged) =
+                let prim/97 = %untag_imm (1) in
+                let for_start_naked/98 =
+                  %num_conv.[`imm`].[`int64`] (prim/97)
+                in
+                let prim/99 = %untag_imm (for_stop/92) in
+                let for_stop_naked/100 =
+                  %num_conv.[`imm`].[`int64`] (prim/99)
+                in
+                (cont k/37 (for_start_naked/98, s_15_unboxed0/96)
+                   where rec k/37
+                               (for_counter_naked/101 : int64,
+                                s_15_unboxed0/102 : imm tagged) =
+                     let prim/103 =
+                       %num_conv.[`int64`].[`imm`] (for_counter_naked/101)
+                     in
+                     let i/104 = %tag_imm (prim/103) in
+                     ((let `fn[loop_function_in_kept.ml:21,22--38]/112` =
+                         closure `fn[loop_function_in_kept.ml:21,22--38]_0`
+                           @`fn[loop_function_in_kept.ml:21,22--38]`
+                           &toplevel
+                       in
+                       let Popaque/113 =
+                         %opaque
+                           (`fn[loop_function_in_kept.ml:21,22--38]/112`)
+                       in
+                       apply &toplevel Popaque/113 (i/104) -> k/40 * error
+                         where k/40 (return_val0/114 : imm tagged) =
+                           cont k/38 (return_val0/114, s_15_unboxed0/102))
+                        where k/38
+                                (apply_result/105 : imm tagged,
+                                 s_15_unboxed0/106 : imm tagged) =
+                          let int_add/107 =
+                            %int_barith.add
+                              (s_15_unboxed0/106, apply_result/105)
+                          in
+                          let for_next_naked/108 =
+                            %int_barith.`int64`.add
+                              (for_counter_naked/101, 1L)
+                          in
+                          let prim/109 =
+                            %int_comp.`int64`.le
+                              (for_next_naked/108, for_stop_naked/100)
+                          in
+                          let `int64#_lessequal/110` = %tag_imm (prim/109) in
+                          ((let untagged/111 =
+                              %untag_imm (`int64#_lessequal/110`)
+                            in
+                            switch untagged/111
+                              | 0 -> k/35 (0, int_add/107)
+                              | 1 -> k/39)
+                             where k/39 =
+                               cont k/37 (for_next_naked/108, int_add/107))))
+              where k/35
+                      (staticcatch_result/94 : imm tagged,
+                       s_15_unboxed0/95 : imm tagged) =
+                cont k/32 (s_15_unboxed0/95))))
+   where k/32 (result/88 : imm tagged) =
+     let Pmakeblock/89 = %block.[`0`].`toplevel` (result/88) in
+     cont k/29 (Pmakeblock/89))
+  where k/29 define_root_symbol (module_block/80) =
+    let field_0/81 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/80)
+    in
+    let $camlLoop_function_in_kept = Block 0 (field_0/81) in
+    cont done ($camlLoop_function_in_kept)
