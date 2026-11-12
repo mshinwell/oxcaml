@@ -207,6 +207,14 @@ says so. Only the labels that this tree cites are listed.
 - **C3-8.** The model can write a set of closures in which a value slot
   is given twice; the compiler cannot, and the fexpr parser accepts one
   and keeps the second value.
+- **C4-1.** Simplify lifts an `Immutable_unique` block out of a function
+  to one symbol.
+- **C4-2.** Nothing checks that a field loaded as immutable is never
+  written.
+- **C4-3.** A comment says that physical equality is referential on
+  immutable blocks; CSE and sharing do not keep it.
+- **C4-4.** The copy of a large record stores, with `Assignment`, into
+  fields that are then read as immutable.
 - **C5-1.** Nothing in Flambda 2 checks that trap actions, raises and
   calls name the handler that is installed last; the backend goes by the
   stack and Simplify by the names.
@@ -308,6 +316,14 @@ says so. Only the labels that this tree cites are listed.
   parameter, not only its variable.
 - **R2-17.** A recursive group of continuations must be non-empty in the
   compiler; the model can write an empty one.
+- **R2-18.** Tail-modulo-cons initialises blocks made `Mutable` that are
+  later read as immutable lists.
+- **R2-19.** An `Immutable_unique` block is lifted also where the
+  function binds an allocation region.
+- **R2-20.** A load marked immutable is reused across a write to the
+  same field.
+- **R2-21.** Sharing immutable allocations changes the result of a raw
+  physical comparison.
 - **R3-2.** The reverse reduction of `Get_tag` discards the possibility
   of an immediate.
 - **R3-7.** The n-way join can say what the code of a closure is when
@@ -473,6 +489,9 @@ says so. Only the labels that this tree cites are listed.
   answers unknown and drops the relation it has just joined.
 - **X4-1.** The output of Simplify binds the same variable in two
   places: the names stored in a term are not unique.
+- **X5-2.** The fields of a recursive module are read by immutable
+  loads, and `CamlinternalMod.update_mod` overwrites them; a read from
+  before the write is reused after it.
 - **X5-3.** A load from a string has no coeffect,
   `Bytes.unsafe_to_string` is erased, and `to_cmm` moves the load after
   a write to the bytes.
