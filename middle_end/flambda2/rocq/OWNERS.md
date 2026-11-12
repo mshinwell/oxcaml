@@ -256,11 +256,12 @@ pass into the validator.
   - `middle_end/flambda2/types/rocq/FlambdaSimplifyPrimitivesRenaming*`
     and `middle_end/flambda2/types/rocq/FlambdaSimplifyPassRenaming*`
     (that function and its parts commute with renaming)
-- S2, switch. Owner of the first slice: T1, on
+- S2, switch. Owner of the first two slices: T1, on
   `flambda2-rocq/T1-grammar`; the rest unassigned.
   - `middle_end/flambda2/types/rocq/FlambdaSimplifySwitch*` (the arms
-    of a `Switch` that the type of its scrutinee excludes are removed;
-    after `simplify/simplify_switch_expr.ml`)
+    of a `Switch` that the type of its scrutinee excludes are removed,
+    and those that are kept are rewritten in the environment that the
+    meet answers for each; after `simplify/simplify_switch_expr.ml`)
 - S3, continuations. Owner: unassigned.
 - S4, calls. Owner of the first slice: T4, on
   `flambda2-rocq/T4-meet-rename`; the rest unassigned.
