@@ -8604,9 +8604,15 @@ let no_events : events_of_joins =
    [a_variable_for_each_use], the first environment of the model, and its
    environment at the start of each use, are given a variable of their own,
    which nothing mentions and the compiler has not: the first is numbered 1000,
-   and each next one 1000 more, so that what a meet or a join makes on one path
-   is above everything made before on any path, as long as no path makes a
-   thousand. *)
+   and each next one 1000 more. The uses of a join are run one after the other.
+   So the variable of a use is above everything that was made before the use
+   began, on any path, as long as nothing was made a thousand above the variable
+   then given last; and what a meet or a join makes in a use is above the
+   variable of that use. A use then makes no variable that was made before it
+   began. It does not follow that what is made later is above what was made
+   earlier: once a join of its own is done, a use may make a variable below
+   those that the uses of that join made, which are out of scope by then. The
+   comparisons run with the argument ask that no variable is made twice. *)
 let sides_of_joins ?(avoid = Every_variable_made) ?(events = no_events)
     ?(a_variable_for_each_use = false) (kinds : MK.flambda_kind list) :
     (model -> Model_env.t side_of_joins) * TE.t side_of_joins =
