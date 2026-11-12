@@ -138,6 +138,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaHeapEquivarianceSpec.v \
   FlambdaHeapProofs.v \
   FlambdaHeapSpec.v \
+  FlambdaHoistCodeProofs.v \
+  FlambdaHoistCodeSpec.v \
   FlambdaIdentitiesProofs.v \
   FlambdaIdentitiesSpec.v \
   FlambdaInlineFreshProofs.v \
