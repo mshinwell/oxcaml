@@ -749,8 +749,9 @@ which the binders now guarantee. Where the test fails the pass leaves
 the term as it is.
 
 Statements whose text changes: three in `FlambdaControlFlowSpec.v`,
-each by one premise, and one of N3's in
-`FlambdaValidatorEquivarianceSpec.v`, where another goes.
+each by one premise, one of N3's in
+`FlambdaValidatorEquivarianceSpec.v`, where another goes, and one of
+N2's in `FlambdaKeepsScopeSpec.v`.
 
 | Statement | The change |
 |---|---|
@@ -758,6 +759,7 @@ each by one premise, and one of N3's in
 | `let_cont_recursive_apply_cont` | new premise `map kind_of_value vs = hm_params_kinds metadata` |
 | `let_cont_apply_cont_one_param` | new premise `hm_params_kinds metadata = [kind]` |
 | `remove_unused_defined_lets_equivariant` | about `kinds_in_scope` in place of a list of variables |
+| `remove_unused_defined_lets_keeps_scope` | about `kinds_in_scope` in place of a list of variables |
 | `simple_has_kind_b_equivariant` | removed with its function |
 
 - `let_cont_apply_cont`: its premises now say when the application has
@@ -779,6 +781,10 @@ each by one premise, and one of N3's in
   `kinds_in_scope` in `FlambdaNormaliseSpec.v`). The same shape as
   before. `call_agrees_b_equivariant` keeps its text. N3 was told
   before the change.
+- `remove_unused_defined_lets_keeps_scope`: the function keeps scope
+  whatever it is given as the variables in scope, which are now given
+  with their kinds. It says what it said: nothing is asked of what is
+  given.
 
 Statements whose text is the same and whose function changes: four,
 all in `FlambdaNormaliseSpec.v`. Each is still an equivalence.
@@ -841,11 +847,9 @@ about a `Let` or a handler in `FlambdaTypesSpec.v`,
 `FlambdaAliasesSpec.v` and `FlambdaTypingEnvRefinementSpec.v`; the
 other statements of `FlambdaValidatorEquivarianceSpec.v`.
 
-Not in this tree, and their owners' to carry (told, and agreed): V3's
-statements are refinements on the term before. Of V4's,
-`shortcut_switches` needs the test of `thread_switch`,
-`drop_unused_params` drops the kind at the position of the parameter
-it drops, and `loopify` compares the return arity.
+V3's statements are refinements on the term before, and keep their
+text. V4's passes for loops are in "Over the passes for loops" below:
+two of their definitions gain a test.
 
 ### Measured
 
@@ -974,6 +978,53 @@ folding what a unit binds its symbols to, the arms of a `Switch` that
 a type excludes, a primitive replaced by a constant or by a `Simple`
 from the types. In each the `Let` is kept at its kind with the same
 value, so the two sides test alike.
+
+### Over the passes for loops
+
+The six passes that normalise loops landed before the series, which
+is replayed over them. Two definitions under their statements change,
+and the two statements keep their text:
+
+- `FlambdaShortcutSpec.shortcut_switch` asks, as `thread_switch`
+  does, that the handler whose `Apply_cont` it puts in an arm give no
+  kinds. A handler of no parameters that gives a kind never runs, so
+  an arm that applies it is undefined, and the arm made of its
+  `Apply_cont` would not be: without the test
+  `shortcut_switches_equivalent_statement` is false.
+- `FlambdaLoopifySpec.loopable` asks that no name be two of the
+  parameters of the code (`FlambdaMapSpec.distinct`). The looped code
+  enters its loop by a jump to `self` with the parameters as its
+  arguments, and the handler of `self` gives the kinds of the
+  parameters. Were one name two parameters of different kinds, both
+  would have the value of the second at the jump, which would have no
+  step where the call had one: without the test
+  `loopify_unit_refines_statement` is false. The compiler binds no
+  name twice in one list of parameters, so no code that it makes is
+  left alone for this.
+
+`FlambdaUnusedParamsSpec.drop_unused_params` already removed the kind
+of a parameter with the parameter (`keep_kinds`): the values kept are
+of the kinds kept, and it needs no change. A self tail call that
+`loopify_unit` makes a jump is a call that has a step, so its
+arguments are of the kinds of the parameters of the code, which are
+those that the handler of `self` gives.
+
+Proofs of these passes repaired, statements unchanged. The relation
+of the proof of `drop_unused_params` says that the second handler
+gives the kinds kept. The proof of `loopify_unit` has two lemmas more
+(distinct parameters, once bound, have the values they were bound to;
+a call that agrees with its code gives values of the kinds of its
+parameters). Two continuations that are alike, the handlers of a
+recursive `Let_cont` rewritten one by one, a `Let_cont` sunk, the
+aliases of a loop: the same case splits, and an argument more to an
+`intros`. The proofs that `shortcut_switch` and `loopable` commute
+with renaming have a line more each.
+
+The statements that the rewrites of a round keep scope
+(`FlambdaKeepsScopeSpec.v`) landed with them. One changes its text,
+in the table above; the proof that `thread_switch` keeps scope has a
+case split more. The other fifteen go through the rewrites and not
+through the step, and are untouched.
 
 ### For a pass that is being written now
 
