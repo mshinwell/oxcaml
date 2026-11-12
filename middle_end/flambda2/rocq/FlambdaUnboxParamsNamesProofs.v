@@ -635,14 +635,18 @@ Lemma made_number_equivariant (r : renaming) (known : facts)
   = option_map (rename_simple r) (made_number known p kind arg).
 Proof.
   destruct p as [ | | | | | | | | | | boxed | | | | ];
-    try reflexivity; try (destruct arg; reflexivity).
-  destruct arg as [y | sym | c]; try reflexivity.
-  unfold made_number. cbn [rename_facts facts_numbers rename_simple].
-  change (Var (rename_variable r y)) with (rename_simple r (Var y)).
-  rewrite unwrapped_equivariant.
-  destruct (unwrapped (facts_numbers known) (Boxed boxed) (Var y)); simpl;
-    [ | reflexivity ].
-  destruct (kind_eqb kind (unboxed_kind boxed)); reflexivity.
+    try reflexivity; try (destruct arg; reflexivity);
+    (destruct arg as [y | sym | c]; try reflexivity);
+    unfold made_number; cbn [rename_facts facts_numbers rename_simple];
+    change (Var (rename_variable r y)) with (rename_simple r (Var y));
+    rewrite unwrapped_equivariant.
+  - destruct (unwrapped (facts_numbers known) (Boxed boxed) (Var y)); simpl;
+      [ | reflexivity ].
+    destruct (kind_eqb kind (unboxed_kind boxed)); reflexivity.
+  - destruct (unwrapped (facts_numbers known) Tagged (Var y)); simpl;
+      [ | reflexivity ].
+    destruct (kind_eqb kind (Naked_number Kind_naked_immediate));
+      reflexivity.
 Qed.
 
 Lemma certain_projection_equivariant (r : renaming) (known : facts)
@@ -1763,15 +1767,23 @@ Lemma made_number_free (names : list variable) (known : facts)
   incl (free_variables_of_simple projection) names.
 Proof.
   intros [_ Hnumbers] Hmade. unfold made_number in Hmade.
-  destruct p as [ | | | | | | | | | | boxed | | | | ]; try discriminate Hmade.
-  destruct arg as [y | sym | c]; try discriminate Hmade.
-  destruct (unwrapped (facts_numbers known) (Boxed boxed) (Var y))
-    as [contents | ] eqn:Hunwrapped; [ | discriminate ].
-  simpl in Hmade.
-  destruct (kind_eqb kind (unboxed_kind boxed)); [ | discriminate ].
-  injection Hmade as <-.
-  exact (unwrapped_free names (facts_numbers known) _ _ _ Hnumbers
-    Hunwrapped).
+  destruct p as [ | | | | | | | | | | boxed | | | | ]; try discriminate Hmade;
+    (destruct arg as [y | sym | c]; try discriminate Hmade).
+  - destruct (unwrapped (facts_numbers known) (Boxed boxed) (Var y))
+      as [contents | ] eqn:Hunwrapped; [ | discriminate ].
+    simpl in Hmade.
+    destruct (kind_eqb kind (unboxed_kind boxed)); [ | discriminate ].
+    injection Hmade as <-.
+    exact (unwrapped_free names (facts_numbers known) _ _ _ Hnumbers
+      Hunwrapped).
+  - destruct (unwrapped (facts_numbers known) Tagged (Var y))
+      as [contents | ] eqn:Hunwrapped; [ | discriminate ].
+    simpl in Hmade.
+    destruct (kind_eqb kind (Naked_number Kind_naked_immediate));
+      [ | discriminate ].
+    injection Hmade as <-.
+    exact (unwrapped_free names (facts_numbers known) _ _ _ Hnumbers
+      Hunwrapped).
 Qed.
 
 Lemma extend_args_certain_free (params : list variable)

@@ -90,7 +90,9 @@
      if that is of the kind of the [Let]; or the field of a block that
      a [Let] in scope made, for a load at the kind of values; or the
      number in a box that a [Let] in scope made, for the unboxing of
-     such a box at the kind of the number ([certain_projection]); or,
+     such a box at the kind of the number; or the number that a [Let]
+     in scope tagged, for the untagging at the kind of naked
+     immediates ([certain_projection]); or,
      where the primitive has no value on the argument for the
      parameter read, that constant again. The
      primitive is known to have no value ([no_value_on]) where it is a
@@ -140,11 +142,12 @@
    there. That is also why, under a test, the argument given must be
    known to be of the kind of the [Let] whether or not the primitive
    has a value on the box: the field of a block that [Make_block]
-   made is of the kind of values, and the number in a box that
-   [Box_number] made is of the kind of the box, as each primitive
-   tested when it made the block or the box; of a field of a static
-   block nothing is tested, so a symbol is not taken as a known block
-   here.
+   made is of the kind of values, the number in a box that
+   [Box_number] made is of the kind of the box, and the number that
+   [Tag_immediate] tagged is a naked immediate, as each primitive
+   tested when it made the block, the box or the tagged immediate; of
+   a field of a static block nothing is tested, so a symbol is not
+   taken as a known block here.
 
    What stops it for a parameter: what stops the other pass; and,
    under a test, an application that may come to the read and whose
@@ -213,20 +216,27 @@ Definition made_field (known : facts) (p : unary_primitive)
   end.
 
 (* The number in a box that a [Let] in scope made, for the unboxing of
-   a box of that sort, at the kind of the number. *)
+   a box of that sort, at the kind of the number; and the number that
+   a [Let] in scope tagged, for the untagging, at the kind of naked
+   immediates. *)
 Definition made_number (known : facts) (p : unary_primitive)
     (kind : flambda_kind) (arg : simple) : option simple :=
   match p, arg with
   | Unbox_number boxed, Var y =>
     let* contents := unwrapped (facts_numbers known) (Boxed boxed) (Var y) in
     if kind_eqb kind (unboxed_kind boxed) then Some contents else None
+  | Untag_immediate, Var y =>
+    let* contents := unwrapped (facts_numbers known) Tagged (Var y) in
+    if kind_eqb kind (Naked_number Kind_naked_immediate)
+    then Some contents
+    else None
   | _, _ => None
   end.
 
 (* What the primitive gives of the argument, where the term shows it and
    shows that it is of the kind given: a constant of that kind, the
-   field of a block that was made, or the number in a box that was
-   made. *)
+   field of a block that was made, or the number that was put in a box
+   or tagged. *)
 Definition certain_projection (known : facts) (p : unary_primitive)
     (kind : flambda_kind) (arg : simple) : option simple :=
   match projection_of known p arg with

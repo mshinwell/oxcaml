@@ -164,31 +164,50 @@ Lemma made_number_gives (known : facts) (vars : env) (statics : static_env)
     ∧ gives p v u statics.
 Proof.
   intros (_ & Hnumbers & _ & Hkinded) Hmade Harg. unfold made_number in Hmade.
-  destruct p as [ | | | | | | | | | | boxed | | | | ]; try discriminate Hmade.
-  destruct arg as [y | sym | c]; try discriminate Hmade.
-  destruct (unwrapped (facts_numbers known) (Boxed boxed) (Var y))
-    as [contents | ] eqn:Hunwrapped; [ | discriminate ].
-  simpl in Hmade.
-  destruct (kind_eqb kind (unboxed_kind boxed)) eqn:Hkind; [ | discriminate ].
-  injection Hmade as <-. apply kind_eqb_eq in Hkind. subst kind.
-  destruct (unwrapped_var_sound _ _ _ _ _ _ Hnumbers Hunwrapped)
-    as (number & box & Hcontents & Hy & c & -> & ->).
-  assert (Hin :
-    (y, (Boxed boxed, contents)) ∈ known_wrapped_vars (facts_numbers known)).
-  { simpl in Hunwrapped.
-    destruct (lookup y (known_wrapped_vars (facts_numbers known)))
-      as [[how' contents'] | ] eqn:Hlookup; [ | discriminate ].
-    destruct (wrapping_eqb (Boxed boxed) how') eqn:Hhow; [ | discriminate ].
-    apply wrapping_eqb_eq in Hhow. subst how'.
-    injection Hunwrapped as ->. exact (lookup_in _ _ _ Hlookup). }
-  pose proof (Hkinded y boxed contents c Hin Hy) as Hnumber.
-  simpl in Harg. rewrite Hy in Harg. injection Harg as <-.
-  exists (Value_const c). split; [ exact Hcontents | split ].
-  - exact (is_number_of_kind_kind boxed c Hnumber).
-  - intros statics' _ w. rewrite eval_prim_unary. simpl.
-    unfold boxable_contents.
-    destruct (boxable_number_of_const c); [ | discriminate ].
-    simpl. rewrite Hnumber. intros [= <-]. reflexivity.
+  destruct p as [ | | | | | | | | | | boxed | | | | ]; try discriminate Hmade;
+    (destruct arg as [y | sym | c]; try discriminate Hmade).
+  - (* The number in a box. *)
+    destruct (unwrapped (facts_numbers known) (Boxed boxed) (Var y))
+      as [contents | ] eqn:Hunwrapped; [ | discriminate ].
+    simpl in Hmade.
+    destruct (kind_eqb kind (unboxed_kind boxed)) eqn:Hkind;
+      [ | discriminate ].
+    injection Hmade as <-. apply kind_eqb_eq in Hkind. subst kind.
+    destruct (unwrapped_var_sound _ _ _ _ _ _ Hnumbers Hunwrapped)
+      as (number & box & Hcontents & Hy & c & -> & ->).
+    assert (Hin :
+      (y, (Boxed boxed, contents))
+      ∈ known_wrapped_vars (facts_numbers known)).
+    { simpl in Hunwrapped.
+      destruct (lookup y (known_wrapped_vars (facts_numbers known)))
+        as [[how' contents'] | ] eqn:Hlookup; [ | discriminate ].
+      destruct (wrapping_eqb (Boxed boxed) how') eqn:Hhow; [ | discriminate ].
+      apply wrapping_eqb_eq in Hhow. subst how'.
+      injection Hunwrapped as ->. exact (lookup_in _ _ _ Hlookup). }
+    pose proof (Hkinded y boxed contents c Hin Hy) as Hnumber.
+    simpl in Harg. rewrite Hy in Harg. injection Harg as <-.
+    exists (Value_const c). split; [ exact Hcontents | split ].
+    + exact (is_number_of_kind_kind boxed c Hnumber).
+    + intros statics' _ w. rewrite eval_prim_unary. simpl.
+      unfold boxable_contents.
+      destruct (boxable_number_of_const c); [ | discriminate ].
+      simpl. rewrite Hnumber. intros [= <-]. reflexivity.
+  - (* The number that was tagged: what is known of the variable says
+       that it holds a tagged immediate. *)
+    destruct (unwrapped (facts_numbers known) Tagged (Var y))
+      as [contents | ] eqn:Hunwrapped; [ | discriminate ].
+    simpl in Hmade.
+    destruct (kind_eqb kind (Naked_number Kind_naked_immediate)) eqn:Hkind;
+      [ | discriminate ].
+    injection Hmade as <-. apply kind_eqb_eq in Hkind. subst kind.
+    destruct (unwrapped_var_sound _ _ _ _ _ _ Hnumbers Hunwrapped)
+      as (number & tagged & Hcontents & Hy & i & -> & ->).
+    simpl in Harg. rewrite Hy in Harg. injection Harg as <-.
+    exists (Value_const (Naked_immediate i)).
+    split; [ exact Hcontents | split; [ reflexivity | ] ].
+    intros statics' _ w. rewrite eval_prim_unary. simpl.
+    destruct (in_range _ i); [ | discriminate ].
+    intros [= <-]. reflexivity.
 Qed.
 
 (* ======================================================================== *)
