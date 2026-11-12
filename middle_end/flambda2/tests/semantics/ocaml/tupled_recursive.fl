@@ -1,0 +1,39 @@
+let $camlTupled_recursive__first_const_0 = Block 0 () in
+(let code rec size(34) tupled 
+       sum_0 (param/43 : imm tagged, param/44 : imm tagged)
+         my_closure/45 &my_alloc_region/46 my_depth/47
+         -> k/16 * k/17
+         : imm tagged =
+   let next_depth/48 = rec_info (succ my_depth/47) in
+   let sum/49 = %project_function_slot.[sum].[sum] (my_closure/45) in
+   (let prim/53 = %int_comp.le (param/43, 0) in
+    let int_lessequal/54 = %tag_imm (prim/53) in
+    (let untagged/55 = %untag_imm (int_lessequal/54) in
+     switch untagged/55
+       | 0 -> k/19
+       | 1 -> k/16 (param/44))
+      where k/19 =
+        cont k/18)
+     where k/18 =
+       let int_add/50 = %int_barith.add (param/44, param/43) in
+       let int_sub/51 = %int_barith.sub (param/43, 1) in
+       let Pmakeblock/52 =
+         %block.[`0`].my_alloc_region/46 (int_sub/51, int_add/50)
+       in
+       apply &my_alloc_region/46
+         sum/49 ~ depth my_depth/47 -> next_depth/48
+           (Pmakeblock/52)
+           -> k/16 * k/17
+ in
+ let sum/56 = closure sum_0 @sum &toplevel in
+ (let Popaque/59 = %opaque (10) in
+  let Pmakeblock/60 = %block.[`0`].`toplevel` (Popaque/59, 0) in
+  apply &toplevel sum/56 (Pmakeblock/60) -> k/20 * error)
+   where k/20 (result/57 : imm tagged) =
+     let Pmakeblock/58 = %block.[`0`].`toplevel` (result/57) in
+     cont k/15 (Pmakeblock/58))
+  where k/15 define_root_symbol (module_block/41) =
+    let field_0/42 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/41)
+    in
+    let $camlTupled_recursive = Block 0 (field_0/42) in
+    cont done ($camlTupled_recursive)
