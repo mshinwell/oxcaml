@@ -5,8 +5,8 @@ on kinds and arities it is written over, and whose check it touches)
 and the human (section 7: the choices taken while he was away).
 
 It was written as a request and a design, with the definitions
-compiled on a prototype branch, before the series. The series has since
-been made, on the branch `flambda2-rocq/C3-partial`. Section 9 says
+compiled in a prototype that is not in this tree, before the series.
+The series has since been made and merged. Section 9 says
 where it differs from sections 2 to 5, which are left as they were
 written: the definitions have another shape; a direct call is a generic
 application too (choice 1 of section 7 was first taken the other way);
@@ -121,7 +121,8 @@ the arguments and what the two continuations of the `Apply` stand for.
 
 ## 3. The definitions
 
-Over C2's series. They compile on the prototype branch.
+Over C2's series. They compiled in the prototype, which is not in
+this tree.
 
 ### `FlambdaModel.v`
 

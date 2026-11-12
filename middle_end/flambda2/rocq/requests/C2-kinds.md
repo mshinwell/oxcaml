@@ -2,8 +2,7 @@
 
 Owner: C2. Branch `flambda2-rocq/C2-epoch`: the whole repair, as a series
 that C0 can apply. This is the third version of the request and replaces
-the two before it (on `flambda2-rocq/C2-kinds`, which keeps the
-prototype and the experiments on the compiler). The series is rebased
+the two before it. The series is rebased
 over C3's epoch (sets of closures of several functions) and has the
 cases for its forms; the text is revised for that, and for the review of
 the series (section 10).
@@ -270,14 +269,10 @@ given for what the body returns (section 1, the end of step B).
 
 ## 4. What GADTs and layout `any` put into Flambda 2
 
-The experiments are X2's, on the branch `flambda2-rocq/X2-repro` (the
-programs, a script that compiles each at six settings, what it printed,
-and a note on each), with three programs of mine and one of the
-reviewer's on the prototype branch `flambda2-rocq/C2-kinds`. None of
-this is in the tree: the table says what the programs show. Every
-program is accepted by the type checker and compiled by the real
-compiler with its default flags and five other settings; none stops the
-compiler.
+The experiments are not in this tree; the table says what the programs
+show. Every program is accepted by the type checker and compiled by
+the real compiler with its default flags and five other settings; none
+stops the compiler.
 
 Two ways of making the mismatch: a GADT indexed at layout `any`, matched
 in a function that is inlined where the index is known; and an equality
@@ -302,8 +297,7 @@ kind its own arity gives (test 1; the conversion from Lambda takes the
 arity from the arguments); a primitive given an argument of another
 kind; a `Let`, a continuation parameter, an `Apply_cont` argument, a
 `Switch` scrutinee, a block field or a value slot at another kind. For
-the last group the type checker refused each of eight attempts (X2
-kept the programs and the messages).
+the last group the type checker refused each of eight attempts.
 
 So every form found is undefined on the machine, by the three tests or
 by C1's primitives, and the forms that the check answers no to were not
@@ -587,7 +581,7 @@ the fragment is the repair; it is not in this request.
 - N1 (`let_params` total on malformed annotations): done in step A.
 - N2: the comment on `kind_of_value` is C1's now; the count of
   statements with hypotheses about primitives is none; the prototype
-  directory and its README are not in the series.
+  is not in this tree.
 - For the types: section 3, last paragraph.
 - C3's forms: done in the rebase over C3's epoch. The check has cases
   for `Closure_of_set` and `Project_function_slot` (a `Value`),
@@ -1104,9 +1098,8 @@ what each rebase changed.
   purpose, and V2's fifteen small units made from OCaml sources, which
   pass.
 - The compiler's hardcoded checks were exercised by hand-written terms
-  on the prototype branch, kept there with what the tool printed; they
-  are not in the series, as the test tool does not catch a fatal error
-  of the compiler.
+  that are not in this tree, as the test tool does not catch a fatal
+  error of the compiler.
 - The cases for C5's forms wait for its epoch.
 - Partial applications, over-applications and tupled functions are not
   in the fragment (section 8).

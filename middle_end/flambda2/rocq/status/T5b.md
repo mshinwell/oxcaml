@@ -6,8 +6,8 @@ scope is those, not the join of environments end to end). What
 follows the merge is on `flambda2-rocq/T5b-join-types`, which is on
 the integration branch. T4's files are under it now; the traversal
 does not use them yet ("What is left"). (My work on slices of the
-meet, for T4, is on `flambda2-rocq/T5b-meet`, with a status file of
-its own there.) Files, all in
+meet, for T4, has a status file of its own,
+`status/T5b-meet.md`.) Files, all in
 `middle_end/flambda2/types/rocq/`:
 
 - `FlambdaJoinTypes.v`: the join functions of
@@ -39,11 +39,10 @@ its own there.) Files, all in
 The last three pairs are about T5's join of environments
 (`FlambdaJoinEnv.v`) and stand on T5's files; T5 handed the two
 open points over (the orchestrator's item of the night). They are
-on `flambda2-rocq/T5b-join-types`. What is about the join that
-Simplify calls, and the join and the meet together, is on
-`flambda2-rocq/T5b-loop`, which stands on that series, on T5's
-later commits for that join and on T4's series of what a meet
-keeps; it goes after the three are merged.
+merged. What is about the join that
+Simplify calls, and the join and the meet together, stands on that
+series, on T5's later commits for that join and on T4's series of
+what a meet keeps, and is merged too.
 
 The interface is T5's `FlambdaJoinSpec.v`, section "The join of
 types, inside a join of environments". I do not change that file.

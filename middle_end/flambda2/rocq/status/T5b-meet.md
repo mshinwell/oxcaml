@@ -5,7 +5,7 @@ slices are merged). T4 owns the meet, its contract and its
 statements, and leads; I prove slices of the traversal that T4 has
 cut loose, in files of my own, to statements that T4 fixes. Reviewer
 of the meet: R1. (My own stream, the type traversal of the n-way
-join, is `status/T5b.md` on `flambda2-rocq/T5b-join-types`.)
+join, is `status/T5b.md`.)
 
 Files, in `middle_end/flambda2/types/rocq/`:
 
