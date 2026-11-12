@@ -3,6 +3,7 @@ open FlambdaAliasesSpec
 open FlambdaBlockLoadSpec
 open FlambdaCompareSpec
 open FlambdaCseSpec
+open FlambdaDeadParamsSpec
 open FlambdaFloatCodeSpec
 open FlambdaForwardSpec
 open FlambdaHoistCodeSpec
