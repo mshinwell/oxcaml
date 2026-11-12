@@ -63,6 +63,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaUnusedProjectionsSpec FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec.
 From OxCamlFlambda2 Require FlambdaKeepsScopeProofs FlambdaValidateScopeProofs
+  FlambdaLoopsScopeProofs
   FlambdaStaticsScopeProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
@@ -5721,7 +5722,14 @@ Qed.
    normalisation and the putting of its code first commute with it. *)
 Theorem validate_unit_equivariant : validate_unit_equivariant_statement.
 Proof.
-  intros r rounds unused slots Ls kept before after Hclosed.
+  intros r rounds unused slots G Ls kept before after Hclosed.
+  unfold validate_unit. rewrite expr_eqb_renamed.
+  destruct (expr_eqb [] [] before after); [ reflexivity | ].
+  cbv zeta. rewrite loopify_unit_equivariant.
+  destruct (FlambdaLoopsScopeProofs.loopify_unit_scoped G before Hclosed)
+    as [Hclosed' _].
+  clear Hclosed. revert Hclosed'.
+  generalize (loopify_unit G before). clear before. intros before Hclosed.
   destruct (normalise_before_equivariant_up_to rounds kept r before Hclosed)
     as (r' & Halike & Heq).
   destruct (normalise_before_keeps_scope rounds kept before Hclosed)
@@ -5738,9 +5746,8 @@ Proof.
     (lifted_in_turn_scope rounds (unit_continuations Ls) kept Ls before
        Hclosed)
     as (Hclosed_l & _ & _).
-  unfold validate_unit. cbv zeta.
   rewrite unit_continuations_renamed.
-  rewrite expr_eqb_renamed, Heq, Heq', normalise_after_equivariant,
+  rewrite Heq, Heq', normalise_after_equivariant,
     without_slots_equivariant, !without_statics_equivariant,
     with_code_first_equivariant, !float_code_rewrite_equivariant,
     !order_statics_as_equivariant.

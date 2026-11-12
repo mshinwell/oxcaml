@@ -52,7 +52,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaUnusedSlotsSpec FlambdaUnusedSlotsProofs FlambdaKnownSymbolsSpec
   FlambdaKnownSymbolsProofs FlambdaKnownClosuresSpec FlambdaKnownClosuresProofs
   FlambdaFloatCodeSpec FlambdaFloatCodeProofs FlambdaHoistCodeSpec
-  FlambdaHoistCodeProofs FlambdaValidateSpec.
+  FlambdaHoistCodeProofs FlambdaLoopifySpec FlambdaLoopifyProofs
+  FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec
   FlambdaAliasesProofs.
 Import ListNotations.
@@ -358,10 +359,14 @@ Qed.
 Theorem validate_unit_sound_everywhere :
   validate_unit_sound_everywhere_statement.
 Proof.
-  intros rounds unused slots Ls kept before after. unfold validate_unit.
+  intros rounds unused slots G Ls kept before after. unfold validate_unit.
   destruct (expr_eqb [] [] before after) eqn:Hsame.
   - intros _. apply expr_equivalent_refines, expr_eqb_sound, Hsame.
-  - set (a := normalise_after rounds kept after).
+  - cbv zeta. intros Hvalidated.
+    apply (expr_refines_trans _ _ _ (loopify_unit_refines G before)).
+    revert Hvalidated. clear Hsame.
+    generalize (loopify_unit G before). clear before. intros before.
+    set (a := normalise_after rounds kept after).
     destruct (expr_eqb [] []
                 (order_statics_as a (normalise_before rounds kept before)) a)
       eqn:Hnormalised.
@@ -386,12 +391,17 @@ Qed.
 
 Theorem validate_unit_sound : validate_unit_sound_statement.
 Proof.
-  intros rounds unused slots Ls kept before after. unfold validate_unit.
+  intros rounds unused slots G Ls kept before after. unfold validate_unit.
   destruct (expr_eqb [] [] before after) eqn:Hsame.
   - intros _.
     apply expr_refines_program, expr_equivalent_refines, expr_eqb_sound,
       Hsame.
-  - set (a := normalise_after rounds kept after).
+  - cbv zeta. intros Hvalidated.
+    apply (refines_trans _ _ _
+      (expr_refines_program _ _ (loopify_unit_refines G before))).
+    revert Hvalidated. clear Hsame.
+    generalize (loopify_unit G before). clear before. intros before.
+    set (a := normalise_after rounds kept after).
     destruct (expr_eqb [] []
                 (order_statics_as a (normalise_before rounds kept before)) a)
       eqn:Hnormalised.

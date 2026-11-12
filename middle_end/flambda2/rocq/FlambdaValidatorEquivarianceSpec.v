@@ -183,9 +183,10 @@
    FlambdaForwardSpec.forward_applications; and
    FlambdaInlineTailSpec.inline_tail_conts_kinded, which the
    validation does not apply yet. And
-   FlambdaLoopifySpec.loopify_unit, which the validation does not
-   apply: it is given, for the code ids to make loops of, the
-   continuation of each loop, and a renaming acts on those
+   FlambdaLoopifySpec.loopify_unit, which the validation applies to
+   the term before, after the first comparison and before any rewrite
+   that makes names: it is given, for the code ids to make loops of,
+   the continuation of each loop, and a renaming acts on those
    continuations ([rename_loopified], which is to be reviewed).
 
    The normalisations of FlambdaValidateSpec.v: [iterate] of a rewrite
@@ -1130,7 +1131,12 @@ Definition normalise_lifted_equivariant_up_to_statement : Prop :=
    ([with_code_first_equivariant_statement]).
 
    The first comparison is of the two terms as they are, and answers
-   the same of the two renamed. The next two are of the term before
+   the same of the two renamed. After it the self tail calls of the
+   code named are made jumps (FlambdaLoopifySpec.loopify_unit), which
+   commutes with the renaming, the names given for the loops being
+   renamed with the term ([rename_loopified]), and keeps the code
+   closed; what follows is said of the term that this gives. The next
+   two are of the term before
    normalised, which under the renaming is that term under a second
    renaming that does to its free names what the first does. The last
    is of the term before with the liftings made in turn, each followed
@@ -1160,9 +1166,10 @@ Definition normalise_lifted_equivariant_up_to_statement : Prop :=
    premise now. *)
 Definition validate_unit_equivariant_statement : Prop :=
   ∀ (r : renaming) (rounds : nat) (unused : dropped)
-    (slots : list value_slot) (Ls : list lifting) (kept : list code_id)
-    (before after : expr),
+    (slots : list value_slot) (G : loopified) (Ls : list lifting)
+    (kept : list code_id) (before after : expr),
     code_closed before = true ->
-    validate_unit rounds unused slots (map (rename_lifting r) Ls) kept
-      (rename_expr r before) (rename_expr r after)
-    = validate_unit rounds unused slots Ls kept before after.
+    validate_unit rounds unused slots (rename_loopified r G)
+      (map (rename_lifting r) Ls) kept (rename_expr r before)
+      (rename_expr r after)
+    = validate_unit rounds unused slots G Ls kept before after.

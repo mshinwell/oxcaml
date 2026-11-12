@@ -34,11 +34,18 @@
 
    [validate_unit] is the whole check, so that what it accepts is correct
    by one theorem and not by how a tool puts the proved pieces together.
-   It normalises the term before by rewrites that refine it
+   It compares the two terms as they are given, up to bound names
+   (FlambdaCompareSpec.expr_eqb). Failing that, it makes jumps of the
+   self tail calls of the code named, each with the name given for its
+   loop (FlambdaLoopifySpec.loopify_unit, which says what a self tail
+   call is and leaves alone the code that it may not change), as
+   Simplify does for the code that the front end marks; the result is
+   the term before for all that follows. It normalises that term by
+   rewrites that refine it
    ([normalise_before]) and the term after by rewrites that are
    equivalences ([normalise_after]), each gone round a number of times as
-   they enable one another, and compares the results up to bound names
-   (FlambdaCompareSpec.expr_eqb). The term before is normalised in two
+   they enable one another, and compares the results up to bound
+   names. The term before is normalised in two
    phases: first what Simplify does to the parameters of the
    continuations of the term as it is ([normalise_params_round]), then
    the rounds that inline the calls of known code
@@ -108,14 +115,15 @@
    in which something was lifted exits with constants and symbols only:
    that is one of the conditions.
 
-   The number of rounds, the names and the value slots to remove, what
-   to lift and the code whose calls are not to be inlined
+   The number of rounds, the names and the value slots to remove, the
+   code to loopify with the names of its loops, what to lift and the
+   code whose calls are not to be inlined
    (FlambdaNormaliseSpec.inline_calls; the same on the two sides) are
    for the caller to choose; none is trusted. Fewer rounds, the wrong
-   names, the wrong value slots, the wrong [Let]s or the wrong code
-   make the check fail, not accept what it should not. The names to
-   remove are those of the term that is compared: of the term lifted,
-   where something is lifted.
+   names, the wrong value slots, the wrong loops, the wrong [Let]s or
+   the wrong code make the check fail, not accept what it should not.
+   The names to remove are those of the term that is compared: of the
+   term lifted, where something is lifted.
 
    The proofs are in FlambdaValidateProofs.v, which needs no review. *)
 
@@ -131,7 +139,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaUnusedParamsSpec FlambdaUnusedProjectionsSpec
   FlambdaUnusedStaticsSpec FlambdaWellFormedSpec FlambdaLiftSpec
   FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec
-  FlambdaFloatCodeSpec FlambdaHoistCodeSpec.
+  FlambdaFloatCodeSpec FlambdaHoistCodeSpec FlambdaLoopifySpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -398,10 +406,11 @@ Inductive validation : Type :=
   | Not_validated.
 
 Definition validate_unit (rounds : nat) (unused : dropped)
-    (slots : list value_slot) (Ls : list lifting) (kept : list code_id)
-    (before after : expr) : validation :=
+    (slots : list value_slot) (G : loopified) (Ls : list lifting)
+    (kept : list code_id) (before after : expr) : validation :=
   if expr_eqb [] [] before after then Same_up_to_bound_names
   else
+    let before := loopify_unit G before in
     let normalised := normalise_before rounds kept before in
     let after := normalise_after rounds kept after in
     if expr_eqb [] [] (order_statics_as after normalised) after
@@ -430,17 +439,20 @@ Definition validate_unit (rounds : nat) (unused : dropped)
    from empty environments. *)
 Definition validate_unit_sound_statement : Prop :=
   ∀ (rounds : nat) (unused : dropped) (slots : list value_slot)
-    (Ls : list lifting) (kept : list code_id) (before after : expr),
-    validate_unit rounds unused slots Ls kept before after <> Not_validated ->
+    (G : loopified) (Ls : list lifting) (kept : list code_id)
+    (before after : expr),
+    validate_unit rounds unused slots G Ls kept before after
+    <> Not_validated ->
     program_refines before after.
 
 (* It does so under all environments if no static binding was removed and
    nothing was lifted. *)
 Definition validate_unit_sound_everywhere_statement : Prop :=
   ∀ (rounds : nat) (unused : dropped) (slots : list value_slot)
-    (Ls : list lifting) (kept : list code_id) (before after : expr),
-    validate_unit rounds unused slots Ls kept before after
+    (G : loopified) (Ls : list lifting) (kept : list code_id)
+    (before after : expr),
+    validate_unit rounds unused slots G Ls kept before after
     = Same_up_to_bound_names
-    ∨ validate_unit rounds unused slots Ls kept before after
+    ∨ validate_unit rounds unused slots G Ls kept before after
       = Same_once_normalised ->
     expr_refines before after.
