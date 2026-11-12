@@ -6121,11 +6121,11 @@ let () =
         let config : G.config = { well_formed = true; depth = 2 } in
         let shallow : G.config = { well_formed = true; depth = 1 } in
         (* The types passed, where they are to be alike: the two of
-           [generate_alike] at the first two uses, and at a third use one step
-           of the shrinker from the first of the two, which is a second step
-           from the type generated where that first is the shrunk one. Nothing
-           is generated for them otherwise, so that the other runs have the
-           inputs that they had. *)
+           [generate_alike] at the first two uses, and at a third use one
+           further step of the shrinker from the first of the two, or that first
+           type again where the shrinker gives none of its kind. The first of
+           the two may already be the shrunk one. Nothing is generated for them
+           otherwise, so that the other runs have the inputs that they had. *)
         let alike_types =
           if alike then Some (generate_alike names r kind) else None
         in
