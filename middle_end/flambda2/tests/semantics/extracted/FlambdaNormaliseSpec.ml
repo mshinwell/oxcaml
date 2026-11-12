@@ -261,6 +261,7 @@ and var_free_in_handler_b x = function
 
 let prim_may_fold = function
   | Unary p0 -> ( match p0 with Opaque_identity _ -> false | _ -> true)
+  | Heap _ -> false
   | _ -> true
 
 (** val named_may_go : named -> bool **)

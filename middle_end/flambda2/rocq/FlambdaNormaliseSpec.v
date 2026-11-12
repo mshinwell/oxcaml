@@ -367,11 +367,15 @@ with var_free_in_handler_b (x : variable) (h : continuation_handler) : bool :=
 
 (* Which primitives the normalisation may fold, and remove when unused:
    all but [Opaque_identity], which is meant to hide a value from the
-   simplifier and which Simplify leaves alone. Any choice is sound. *)
+   simplifier and which Simplify leaves alone, and the primitives of the
+   heap, which make an object with an identity or write to one. The
+   machine gives those of the heap no value yet, so any choice is sound
+   today; they are left out so that, when it runs them, no allocation
+   or store is among what may be removed. *)
 Definition prim_may_fold (p : prim) : bool :=
   match p with
-  | Unary (Opaque_identity _) => false
-  | _ => true
+  | Unary (Opaque_identity _) | Heap _ => false
+  | Unary _ | Binary _ | Variadic _ => true
   end.
 
 Definition named_may_go (d : named) : bool :=
