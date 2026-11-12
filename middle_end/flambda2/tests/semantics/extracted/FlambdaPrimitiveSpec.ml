@@ -671,6 +671,20 @@ let prim_in_range = function
 
 let naked_immediate_kind = Naked_number Kind_naked_immediate
 
+(** val arg_kind_of_unary_primitive : unary_primitive -> flambda_kind **)
+
+let arg_kind_of_unary_primitive = function
+  | Opaque_identity kind -> kind
+  | Unary_int_arith (kind, _) -> kind_of_standard_int kind
+  | Num_conv (src, _) -> kind_of_standard_int src
+  | Box_number kind -> unboxed_kind kind
+  | Tag_immediate -> naked_immediate_kind
+  | Reinterpret_64_bit_word reinterpret -> (
+    match reinterpret with
+    | Tagged_int63_as_unboxed_int64 -> Value
+    | Unboxed_int64_as_tagged_int63 -> Naked_number Kind_naked_int64)
+  | _ -> Value
+
 (** val result_kind_of_unary_primitive : unary_primitive -> flambda_kind **)
 
 let result_kind_of_unary_primitive = function
@@ -689,6 +703,16 @@ let result_kind_of_unary_primitive = function
     | Unboxed_int64_as_tagged_int63 -> Value)
   | _ -> naked_immediate_kind
 
+(** val args_kind_of_binary_primitive : binary_primitive -> flambda_kind *
+    flambda_kind **)
+
+let args_kind_of_binary_primitive = function
+  | String_or_bigstring_load _ -> Value, Naked_number Kind_naked_nativeint
+  | Int_arith (kind, _) -> kind_of_standard_int kind, kind_of_standard_int kind
+  | Int_shift (kind, _) -> kind_of_standard_int kind, naked_immediate_kind
+  | Int_comp (kind, _) -> kind_of_standard_int kind, kind_of_standard_int kind
+  | _ -> Value, Value
+
 (** val result_kind_of_binary_primitive : binary_primitive -> flambda_kind **)
 
 let result_kind_of_binary_primitive = function
@@ -703,6 +727,10 @@ let result_kind_of_binary_primitive = function
   | Int_arith (kind, _) -> kind_of_standard_int kind
   | Int_shift (kind, _) -> kind_of_standard_int kind
   | _ -> naked_immediate_kind
+
+(** val args_kind_of_variadic_primitive : variadic_primitive -> flambda_kind **)
+
+let args_kind_of_variadic_primitive _ = Value
 
 (** val result_kind_of_variadic_primitive : variadic_primitive -> flambda_kind **)
 
@@ -719,6 +747,35 @@ let prim_result_kind = function
   | Binary p0 -> result_kind_of_binary_primitive p0
   | Variadic p0 -> result_kind_of_variadic_primitive p0
   | Heap p0 -> result_kind_of_heap_primitive p0
+
+(** val prim_args_well_kinded : prim -> flambda_kind list -> bool **)
+
+let prim_args_well_kinded p kinds =
+  match p with
+  | Unary p0 -> (
+    match kinds with
+    | [] -> false
+    | kind :: l -> (
+      match l with
+      | [] -> kind_eqb kind (arg_kind_of_unary_primitive p0)
+      | _ :: _ -> false))
+  | Binary p0 -> (
+    match kinds with
+    | [] -> false
+    | kind1 :: l -> (
+      match l with
+      | [] -> false
+      | kind2 :: l0 -> (
+        match l0 with
+        | [] ->
+          kind_eqb kind1 (fst (args_kind_of_binary_primitive p0))
+          && kind_eqb kind2 (snd (args_kind_of_binary_primitive p0))
+        | _ :: _ -> false)))
+  | Variadic p0 ->
+    forallb
+      (fun kind -> kind_eqb kind (args_kind_of_variadic_primitive p0))
+      kinds
+  | Heap _ -> false
 
 (** val prim_eq_dec : prim -> prim -> bool **)
 

@@ -69,5 +69,7 @@ module Z : sig
 
   val eq_dec : coq_Z -> coq_Z -> bool
 
+  val b2z : bool -> coq_Z
+
   val lnot : coq_Z -> coq_Z
 end

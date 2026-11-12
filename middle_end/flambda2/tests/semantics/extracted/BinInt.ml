@@ -299,6 +299,10 @@ module Z = struct
     | Zpos p -> ( match y with Zpos p0 -> BinPos.Pos.eq_dec p p0 | _ -> false)
     | Zneg p -> ( match y with Zneg p0 -> BinPos.Pos.eq_dec p p0 | _ -> false)
 
+  (** val b2z : bool -> coq_Z **)
+
+  let b2z = function true -> Zpos Coq_xH | false -> Z0
+
   (** val lnot : coq_Z -> coq_Z **)
 
   let lnot a = pred (opp a)

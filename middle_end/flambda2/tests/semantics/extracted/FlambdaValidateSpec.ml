@@ -9,6 +9,7 @@ open FlambdaDemoteSpec
 open FlambdaFloatCodeSpec
 open FlambdaForwardJumpsSpec
 open FlambdaForwardSpec
+open FlambdaGuardScopeSpec
 open FlambdaHoistCodeSpec
 open FlambdaHoistStaticsSpec
 open FlambdaIdentitiesSpec
@@ -31,6 +32,7 @@ open FlambdaRecHandlersSpec
 open FlambdaRenameApartSpec
 open FlambdaShareProjectionsSpec
 open FlambdaShortcutSpec
+open FlambdaSimplifyPassSpec
 open FlambdaSinkContsSpec
 open FlambdaStaticsOrderSpec
 open FlambdaUnboxSpec
@@ -136,7 +138,10 @@ let normalise_before rounds kept e =
   demote_and_tidy rounds
     (iterate rounds
        (normalise_before_round kept)
-       (iterate rounds normalise_params_round e))
+       (guard_scope simplify_by_types
+          (iterate rounds
+             (normalise_before_round kept)
+             (iterate rounds normalise_params_round e))))
 
 (** val inline_once_applied_after : expr -> expr **)
 

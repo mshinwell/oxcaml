@@ -105,15 +105,24 @@ val prim_in_range : prim -> bool
 
 val naked_immediate_kind : flambda_kind
 
+val arg_kind_of_unary_primitive : unary_primitive -> flambda_kind
+
 val result_kind_of_unary_primitive : unary_primitive -> flambda_kind
 
+val args_kind_of_binary_primitive :
+  binary_primitive -> flambda_kind * flambda_kind
+
 val result_kind_of_binary_primitive : binary_primitive -> flambda_kind
+
+val args_kind_of_variadic_primitive : variadic_primitive -> flambda_kind
 
 val result_kind_of_variadic_primitive : variadic_primitive -> flambda_kind
 
 val result_kind_of_heap_primitive : heap_primitive -> flambda_kind
 
 val prim_result_kind : prim -> flambda_kind
+
+val prim_args_well_kinded : prim -> flambda_kind list -> bool
 
 val prim_eq_dec : prim -> prim -> bool
 

@@ -1,7 +1,9 @@
 open FlambdaBindingTime
 open FlambdaModel
 open FlambdaTypeGrammar
+open FlambdaTypeWellFormedSpec
 open FlambdaTypingEnv
+open FlambdaTypingEnvInvariantSpec
 
 (** val simplify_simple : Typing_env.t -> simple -> (flambda_type * simple)
     option **)
@@ -26,3 +28,8 @@ let rec simplify_simples tenv = function
       | Some answers -> Some (answer :: answers)
       | None -> None)
     | None -> None)
+
+(** val well_formed_input_b : Typing_env.t -> flambda_type -> bool **)
+
+let well_formed_input_b tenv ty =
+  types_well_formed_b tenv && type_well_formed ty

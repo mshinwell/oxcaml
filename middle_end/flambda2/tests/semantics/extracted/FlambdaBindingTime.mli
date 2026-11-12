@@ -56,5 +56,7 @@ module Binding_time : sig
     val imported_variables : t
 
     val scoped_name_mode : t -> Coq__1.t -> Name_mode.t
+
+    val equal : t -> t -> bool
   end
 end

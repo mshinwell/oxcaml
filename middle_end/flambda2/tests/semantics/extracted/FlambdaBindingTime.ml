@@ -107,5 +107,11 @@ module Binding_time = struct
         || Z.leb min_binding_time t0.binding_time
       then t0.name_mode
       else Name_mode.in_types
+
+    (** val equal : t -> t -> bool **)
+
+    let equal t1 t2 =
+      equal t1.binding_time t2.binding_time
+      && Name_mode.equal t1.name_mode t2.name_mode
   end
 end

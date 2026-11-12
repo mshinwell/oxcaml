@@ -678,4 +678,17 @@ module Typing_env = struct
       get_canonical_simple_exn tenv min_name_mode name_mode_of_existing_simple
         simple0
     | None -> Some None
+
+  (** val closure_env : t -> t **)
+
+  let closure_env tenv =
+    increment_scope
+      { defined_symbols = tenv.defined_symbols;
+        prev_levels = tenv.prev_levels;
+        current_level = tenv.current_level;
+        just_after_level = tenv.just_after_level;
+        next_binding_time = tenv.next_binding_time;
+        min_binding_time = tenv.next_binding_time;
+        is_bottom = tenv.is_bottom
+      }
 end

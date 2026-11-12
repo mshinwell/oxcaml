@@ -221,4 +221,6 @@ module Typing_env : sig
     Name_mode.t option ->
     flambda_type ->
     simple option option
+
+  val closure_env : t -> t
 end

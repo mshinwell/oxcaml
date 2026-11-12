@@ -9,6 +9,7 @@ open FlambdaDemoteSpec
 open FlambdaFloatCodeSpec
 open FlambdaForwardJumpsSpec
 open FlambdaForwardSpec
+open FlambdaGuardScopeSpec
 open FlambdaHoistCodeSpec
 open FlambdaHoistStaticsSpec
 open FlambdaIdentitiesSpec
@@ -31,6 +32,7 @@ open FlambdaRecHandlersSpec
 open FlambdaRenameApartSpec
 open FlambdaShareProjectionsSpec
 open FlambdaShortcutSpec
+open FlambdaSimplifyPassSpec
 open FlambdaSinkContsSpec
 open FlambdaStaticsOrderSpec
 open FlambdaUnboxSpec
