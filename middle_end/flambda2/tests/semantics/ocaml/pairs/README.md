@@ -10,11 +10,12 @@ uses the first, and the test tool is given the directory that has the
 `.cmx` of the first, so that its Simplify does what the compiler's
 does.
 
-This is the first step of
+These are the first two steps of
 `middle_end/flambda2/rocq/requests/C5-imports-with-contents.md`
-(section 6, item 1): the option of the tool and the pairs. It claims
-nothing that the directory above does not claim; see "What is
-claimed".
+(section 6, items 1 and 2): the option of the tool and the pairs,
+and the prefix of static bindings by which the model is told what
+the `.cmx` of the first unit says. A verdict here may rest on that
+file; see "What is claimed".
 
 ## The files
 
@@ -69,87 +70,128 @@ The alias of `tests/semantics/` runs these rules with the others.
 
 ## What is claimed
 
-Where its Simplify read a `.cmx`, the tool prints one line more,
-after the name of the term:
+Where its Simplify read a `.cmx`, the tool tells the model what the
+file says. It makes one prefix of static bindings and puts it in
+front of the term before and of the term after; the two terms so made
+are the ones that are run and validated. The prefix binds, of the
+first unit (`make_prefix` in `../../../tools/flsemantics.ml` has the
+rule):
 
-    the tool's Simplify read the .cmx of: F
+- the blocks that the two terms ask for, and the data that the file
+  reaches from them through fields: a block of values whose fields
+  are constants and symbols, and, for a symbol of a closure, the
+  closure at its function slot, alone in its set and with no value
+  slot;
+- the code that the two terms ask for, and the code that such code
+  asks for in turn, where the file has its body.
 
-Every other line is a line of the directory above, and means what it
-means there (`../README.md`, "What the verdicts mean"). Nothing is
-said of the first unit, and nothing rests on what its `.cmx` says:
+The tool prints the prefix after the name of the term, to be read
+against `F.ml`:
 
-- The model is told nothing of what a `.cmx` says. A symbol of the
-  first unit is an import whose contents are unknown, the symbol of
-  its module block and the symbols of its closures alike, and a code
-  id of the first unit is bound to nothing. So a load of a field of
-  the first unit has no value, a call of one of its functions is
-  undefined when it runs, and a second unit that does either as it
-  is initialised is undefined in the model.
-- A unit that has an import is run from its imports, and the tool
-  ends with one of the outcomes of such a unit in the directory
-  above: "validated with its imports", which is the theorem from the
-  imports (`FlambdaValidateImportsSpec.v`), whatever the imports are;
-  "validated with nothing imported", followed by "not validated with
-  its imports"; "not validated"; or, where the term before is
-  undefined and the validator does not accept the pair, "nothing to
-  validate, as the term before is undefined". Where the term before
-  is undefined and the validator accepts the pair, a line after the
-  verdict says that the validation says nothing of the unit. No line
-  begins "validated:". That the term after is the one that the
-  compiler makes with the `.cmx` at hand adds nothing to these and
-  takes nothing from them: the validator is given the two terms and
-  no `.cmx`.
-- In the pairs that are here, wherever Simplify used what the `.cmx`
-  says the two terms differ by it and the validator does not accept
-  the pair: one such unit is not validated, and five, which are
-  undefined before Simplify, have nothing to validate. That is what
-  these seven pairs show, and no consequence of the `.cmx` being
-  unknown to the model: a difference that the rounds of the
-  validator remove would be accepted.
+    given the .cmx of F, a prefix of N static bindings:
 
-What the request goes on to, and is not here: a prefix of static
-bindings, in front of both terms, that says of the symbols and the
-code of the first unit what its `.cmx` says, with an entry of the
-trust ledger for it; a verdict that rests on a prefix says so and is
-counted apart.
+then the bindings, with the names that the compiler gives; what is
+bound without being asked for is counted on one line. The runs are
+then "after the prefix".
+
+- **validated with its imports, given the .cmx of N of them**: the
+  validator accepted the two terms with the prefix in front, and its
+  theorem is of those two terms: with no import left, the theorem of
+  a unit run on its own; with imports left, the theorem from the
+  imports, for the verdicts that it has (`../README.md`, "What the
+  verdicts mean"). It is a statement about the unit as it is linked
+  only if the `.cmx` is right about the unit that the program is
+  linked with, and if the prefix says nothing that the file does not
+  say. Both are trusted; the header of the tool says what the second
+  is trusted with. The tool checks, before it uses a prefix, that it
+  binds each name once, none that the unit binds and none that is
+  still an import, and that it evaluates from the imports.
+- **validated with nothing else imported, given the .cmx of N**,
+  followed by **not validated with its imports**: the validator
+  accepted the two terms with the prefix in front by a comparison
+  that has no theorem from the imports, and an import is left. What
+  is proved is of the two terms run with no import at all.
+- The other outcomes are those of the directory above, of the two
+  terms with the prefix in front: "not validated"; "nothing to
+  validate, as the term before is undefined", where the term before
+  is undefined and the validator does not accept the pair; and,
+  where it is undefined and the validator accepts the pair, a line
+  after the verdict which says that the validation says nothing of
+  the unit. No line begins "validated:" for a unit that has a
+  prefix.
+- What the prefix leaves out is not said to be absent. Code that has
+  no body in the file is bound to nothing, and a call of it is
+  undefined when it runs. A module block with a field of which the
+  file says nothing is not bound: its symbol stays an import, a load
+  from it has no value, and where nothing of the file can be bound
+  there is no prefix and the tool prints
+
+      the tool's Simplify read the .cmx of: F
+
+  in its place, as it does where the prefix is made from fewer units
+  than were read.
+- Nothing is said of the first unit itself: its initialisation is
+  not run, and what its `.cmx` says of it is taken as it is.
 
 The units of this directory are in none of the tables and counts of
 `../README.md` and of `../census/README.md`, which are of units that
-use no other unit.
+use no other unit. A verdict that is given a `.cmx` is counted apart
+from the others.
 
 ## The pairs
 
 | Second unit | First unit | What the second unit does | What the tool says of it |
 |-------------|------------|---------------------------|--------------------------|
-| `lengths_called_in_function.ml` | `lengths.ml` | a function calls a function of the first unit | both runs return the module block; the same; not validated |
-| `lengths_called_at_toplevel.ml` | `lengths.ml` | a toplevel calls one | undefined before and after; nothing to validate |
-| `lengths_included.ml` | `lengths.ml` | a toplevel reads the fields of the first unit and keeps them (`include`) | undefined before; after, returns a block of two imports; nothing to validate |
-| `never_called.ml` | `never.ml` | calls a function that is never inlined, whose code has no body in the `.cmx`, in a function and at toplevel | undefined before and after; nothing to validate |
-| `hidden_read.ml` | `hidden.ml` | a toplevel reads a field of which the `.cmx` says nothing, beside one that it knows | undefined before and after; nothing to validate |
-| `parity_called.ml` | `parity.ml` | calls a function that is one of a set of two, in a function and at toplevel | undefined before and after; nothing to validate |
-| `cycle_read.ml` | `cycle.ml` | a toplevel reads a block that the first unit made by calls of the runtime | undefined before and after; validated with its imports, with the line that says the validation says nothing of a unit whose term before is undefined |
+| `lengths_called_in_function.ml` | `lengths.ml` | a function calls a function of the first unit | a prefix of four bindings; both runs return the module block; the same; validated with its imports, given the `.cmx` |
+| `lengths_called_at_toplevel.ml` | `lengths.ml` | a toplevel calls one | the same prefix; undefined before and after; validated, with the line that says the validation says nothing of a unit whose term before is undefined |
+| `lengths_included.ml` | `lengths.ml` | a toplevel reads the fields of the first unit and keeps them (`include`) | the same prefix; both runs return a block of the two closures; the same; validated with its imports, given the `.cmx` |
+| `never_called.ml` | `never.ml` | calls a function that is never inlined, whose code has no body in the `.cmx`, in a function and at toplevel | a prefix of two bindings; undefined before and after; validated, with the line that says the validation says nothing |
+| `hidden_read.ml` | `hidden.ml` | a toplevel reads a field of which the `.cmx` says nothing, beside one that it knows | no prefix; undefined before and after; nothing to validate |
+| `parity_called.ml` | `parity.ml` | calls a function that is one of a set of two, in a function and at toplevel | a prefix of three bindings; undefined before and after; validated, with the line that says the validation says nothing |
+| `cycle_read.ml` | `cycle.ml` | a toplevel reads a block that the first unit made by calls of the runtime | no prefix; undefined before and after; validated with its imports, with the line that says the validation says nothing |
+
+The prefix of the three units that use `lengths.ml` is the same: the
+module block, the closures of `length_from` and of `length`, and the
+code of `length`, whose body the `.cmx` has. That body calls the code
+of `length_from` directly; `length_from` is recursive, its code has
+no body in the `.cmx`, and so its code id is bound to nothing. No
+import is left.
 
 In `lengths_called_in_function.ml` the unit only makes its closure, so
 both runs are defined. The term before loads `length` from the module
 block of the first unit and calls what it loaded. In the term after,
-Simplify has inlined `length`, whose body the `.cmx` has, and left a
-direct call of the code of `length_from`, which is recursive and has
-no body there, with the symbol of its closure as the callee. The
-validator sees a load and an indirect call on one side and a direct
-call of code that nothing binds on the other.
+Simplify has inlined `length` and left a direct call of the code of
+`length_from`, with the symbol of its closure as the callee. With the
+prefix in front the validator reads the load from the block, makes
+the call direct, inlines the body of `length`, and finds the two
+terms the same once the closure of the unit is lifted.
 
-The five units that have nothing to validate load from the module
-block of the first unit, or call a function of it, as they are
-initialised: the load has no value on an import. In
-`lengths_included.ml` Simplify has put the symbols of the two
-closures in the place of the loads, so the term after is defined and
-returns them; in the four others the term after still loads a field
-or calls code that nothing binds.
+In `lengths_included.ml` the term before loads the two fields of the
+module block and the term after names the two closure symbols; with
+the prefix both runs are defined and return the block of the two.
 
-Of `cycle.ml` the `.cmx` says nothing that Simplify can use, so the
-term after of `cycle_read.ml` is the term before simplified as a unit
-of the directory above is, and the validator accepts the pair; the
-unit is undefined all the same, as it loads from an import.
+`lengths_called_at_toplevel.ml`, `never_called.ml` and
+`parity_called.ml` call, as they are initialised, code that has no
+body in the `.cmx`: `length_from` through `length`, a function that
+is never inlined, a function of a recursive set. The call is
+undefined in the model, before Simplify and after, and a validation
+of a unit whose term before is undefined says nothing of it; the two
+terms are compared all the same, and are accepted. The prefix of
+`parity_called.ml` binds the closure of `odd`, which the unit does
+not ask for, as it is a field of the module block: each of the two
+closures is bound alone in a set of its own, which is less than the
+`.cmx` says of them.
+
+In `hidden_read.ml` the module block of the first unit has a field of
+which the `.cmx` says nothing, so the block is not bound, the unit has
+no prefix, and the load from the block has no value: the unit is as
+it was when the model was told nothing of a `.cmx`.
+
+Of `cycle.ml` the `.cmx` says nothing that Simplify can use, and
+nothing that the prefix can bind: the term after of `cycle_read.ml`
+is the term before simplified as a unit of the directory above is,
+and the validator accepts the pair; the unit is undefined all the
+same, as it loads from an import.
 
 The first units `lengths.ml`, `never.ml`, `hidden.ml` and
 `parity.ml` use no other unit; the tool says of each what it says of

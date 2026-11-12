@@ -126,13 +126,31 @@
    the tests give none, but for the pairs of units of
    tests/semantics/ocaml/pairs/. Given none, it reads no .cmx and knows nothing
    of another unit, so the term after that is checked, of a unit that uses
-   another unit, is then not the one that the compiler makes. Given some, the
-   tool names, on a line before the runs, the units whose .cmx its Simplify read
-   ([units_read]). Nothing else changes: the model is told nothing of what a
-   .cmx says. A symbol of another unit is an import whose contents are unknown,
-   the symbol of a closure included, and a code id of another unit is bound to
-   nothing, so that a call of it is undefined when it runs. The verdicts, and
-   what each claims, are those of the paragraph above.
+   another unit, is then not the one that the compiler makes; and the model is
+   told nothing of another unit either: a symbol of one is an import whose
+   contents are unknown, the symbol of a closure included, and a code id of one
+   is bound to nothing, so that a call of it is undefined when it runs.
+
+   What the .cmx files say. Where the tool's Simplify read the .cmx of another
+   unit ([units_read]), the model is told what the files say: the two units of a
+   check are given one prefix of static bindings, the same in front of both,
+   which says of the symbols and the code that the two units ask for what those
+   files say ([make_prefix] has the rule). The two terms run and validated are
+   the prefix followed by each unit, and a symbol that the prefix binds is not
+   an import. So the verdict is of the unit run from the static environment that
+   the files describe, and it is right of the linked program only if they are
+   right about the units that the program is linked with: that, and
+   [make_prefix], which says in static bindings what the compiler's reduction of
+   the files says, are trusted. The prefix is printed before the two runs, with
+   the units whose files it was made from, and the line of the verdict says of
+   how many units they are: "validated with its imports, given the .cmx of N of
+   them", where the theorems apply to the two runs shown (the prefix leaves no
+   import, or the verdict is one of those that hold from the imports), and
+   otherwise "validated with nothing else imported, given the .cmx of N",
+   followed by the line that begins "not validated with its imports". Where
+   there is no prefix, as nothing that the files say can be bound, or where it
+   is made from fewer units than were read, a line names the units read. A unit
+   for which no .cmx was read has no prefix and no such line.
 
    Stubs. The conversion gives code the compiler's flag that says whether it is
    a stub ([Code.stub]). The machine does not read it and the checks of
@@ -175,6 +193,7 @@ module Statics_order = Flambda2_rocq_semantics.FlambdaStaticsOrderSpec
 module Lift_from_code = Flambda2_rocq_semantics.FlambdaLiftFromCodeSpec
 module Lift_from_arms = Flambda2_rocq_semantics.FlambdaLiftFromArmsSpec
 module Numbers = Flambda2_rocq_semantics.BinNums
+module Value_approximation = Flambda2_classic_mode_types.Value_approximation
 module P = Flambda_primitive
 
 exception Unsupported of (Format.formatter -> unit)
@@ -253,6 +272,9 @@ struct
 
   let next = ref 1
 
+  (* The name that each number was first given to. *)
+  let named : (int, Id.t) Hashtbl.t = Hashtbl.create 64
+
   let find id =
     match Map.find_opt id !numbers with
     | Some n -> positive_of_int n
@@ -260,7 +282,12 @@ struct
       let n = !next in
       incr next;
       numbers := Map.add id n !numbers;
+      Hashtbl.replace named n id;
       positive_of_int n
+
+  (* The name that has a number: the first, where [alias] gave the number to a
+     second; none for a number that [fresh] made. *)
+  let name_of number = Hashtbl.find_opt named (int_of_positive number)
 
   (* A number that no name has, or will have. *)
   let fresh () =
@@ -276,7 +303,8 @@ struct
   (* Forgets every name numbered so far. *)
   let reset () =
     numbers := Map.empty;
-    next := 1
+    next := 1;
+    Hashtbl.reset named
 
   (* The names numbered so far, each with its number. *)
   let bindings () =
@@ -1486,11 +1514,21 @@ let run ~(statics : Values.static_env) (unit : converted) : outcome * int =
    does not define is not one, and stays bound to nothing. The two units of a
    check are converted with one numbering of symbols, so this is one list for
    both. A predefined exception is an identity, and anything else is data: the
-   conversion cannot tell an exception that another unit declares from data. *)
-let imports () : (Model.symbol * Values.import_class) list =
+   conversion cannot tell an exception that another unit declares from data. A
+   symbol that the prefix binds is not an import, and nor is one that got its
+   number from a body which the prefix did not bind in the end ([~bound],
+   [~unmentioned]; see [make_prefix]). *)
+let imports ~(bound : Model.symbol list) ~(unmentioned : Model.symbol list) :
+    (Model.symbol * Values.import_class) list =
+  let left_out : (int, unit) Hashtbl.t = Hashtbl.create 64 in
+  List.iter
+    (fun number -> Hashtbl.replace left_out (int_of_positive number) ())
+    (bound @ unmentioned);
   List.filter_map
     (fun (symbol, number) ->
-      if Current_unit.is_current (Symbol.compilation_unit symbol)
+      if
+        Current_unit.is_current (Symbol.compilation_unit symbol)
+        || Hashtbl.mem left_out (int_of_positive number)
       then None
       else
         Some
@@ -1509,12 +1547,71 @@ let print_list print ppf items =
     ~pp_sep:(fun ppf () -> Format.fprintf ppf ",@ ")
     print ppf items
 
-let print_var ppf x = Format.fprintf ppf "v%d" (int_of_positive x)
+(* A name is printed as its number. Where [names_shown] is set, a symbol, a code
+   id and a slot are printed as the compiler's name of them, and a variable and
+   a continuation as the number of its first appearance since
+   [forget_shown_names]: what is printed then does not depend on the numbers
+   that the conversion gave. That is for the prefix ([print_prefix]). *)
+let names_shown = ref false
+
+let shown_variables : (int, int) Hashtbl.t = Hashtbl.create 64
+
+let shown_continuations : (int, int) Hashtbl.t = Hashtbl.create 16
+
+let forget_shown_names () =
+  Hashtbl.reset shown_variables;
+  Hashtbl.reset shown_continuations
+
+let shown_number table n =
+  let n = int_of_positive n in
+  if not !names_shown
+  then n
+  else
+    match Hashtbl.find_opt table n with
+    | Some shown -> shown
+    | None ->
+      let shown = Hashtbl.length table + 1 in
+      Hashtbl.replace table n shown;
+      shown
+
+let name_in_unit unit name = Compilation_unit.name_as_string unit ^ "." ^ name
+
+let shown_symbol sym =
+  match Symbols.name_of sym with
+  | Some symbol when !names_shown ->
+    Linkage_name.to_string (Symbol.linkage_name symbol)
+  | Some _ | None -> Printf.sprintf "$%d" (int_of_positive sym)
+
+let shown_code_id id =
+  match Code_ids.name_of id with
+  | Some code_id when !names_shown ->
+    Linkage_name.to_string (Code_id.linkage_name code_id)
+  | Some _ | None -> Printf.sprintf "code%d" (int_of_positive id)
+
+let shown_function_slot slot =
+  match Function_slots.name_of slot with
+  | Some function_slot when !names_shown ->
+    name_in_unit
+      (Function_slot.get_compilation_unit function_slot)
+      (Function_slot.to_string function_slot)
+  | Some _ | None -> Printf.sprintf "f%d" (int_of_positive slot)
+
+(* A value slot, where it is given a value and where it is projected. *)
+let shown_value_slot ~projected slot =
+  match Value_slots.name_of slot with
+  | Some value_slot when !names_shown ->
+    name_in_unit
+      (Value_slot.get_compilation_unit value_slot)
+      (Value_slot.to_string value_slot)
+  | Some _ | None ->
+    Printf.sprintf (if projected then "slot%d" else "%d") (int_of_positive slot)
+
+let print_var ppf x = Format.fprintf ppf "v%d" (shown_number shown_variables x)
 
 let print_simple ppf (s : Model.simple) =
   match s with
   | Var x -> print_var ppf x
-  | Symbol sym -> Format.fprintf ppf "$%d" (int_of_positive sym)
+  | Symbol sym -> Format.pp_print_string ppf (shown_symbol sym)
   | Const (Tagged_immediate i) -> Format.fprintf ppf "%d" (int_of_z i)
   | Const (Naked_immediate i) -> Format.fprintf ppf "#%d" (int_of_z i)
   | Const Null -> Format.fprintf ppf "null"
@@ -1522,19 +1619,22 @@ let print_simple ppf (s : Model.simple) =
 
 let print_simples = print_list print_simple
 
-let print_cont ppf k = Format.fprintf ppf "k%d" (int_of_positive k)
+let print_cont ppf k =
+  Format.fprintf ppf "k%d" (shown_number shown_continuations k)
 
 let print_value_slots ppf slots =
   print_list
     (fun ppf (slot, s) ->
-      Format.fprintf ppf "%d = %a" (int_of_positive slot) print_simple s)
+      Format.fprintf ppf "%s = %a"
+        (shown_value_slot ~projected:false slot)
+        print_simple s)
     ppf slots
 
 let print_function_decls ppf function_decls =
   print_list
     (fun ppf (slot, code) ->
-      Format.fprintf ppf "f%d = code%d" (int_of_positive slot)
-        (int_of_positive code))
+      Format.fprintf ppf "%s = %s" (shown_function_slot slot)
+        (shown_code_id code))
     ppf function_decls
 
 let string_of_standard_int (kind : Kinds.standard_int) =
@@ -1652,22 +1752,23 @@ let print_named ppf (d : Model.named) =
   | Prim (p, args) ->
     Format.fprintf ppf "@[<hov 2>%a@ (%a)@]" print_prim p print_simples args
   | Set_of_closures (code, slots) ->
-    Format.fprintf ppf "@[<hov 2>closure code%d@ {%a}@]" (int_of_positive code)
+    Format.fprintf ppf "@[<hov 2>closure %s@ {%a}@]" (shown_code_id code)
       print_value_slots slots
   | Closure_of_set (slot, function_decls, slots) ->
-    Format.fprintf ppf "@[<hov 2>closure f%d of@ {%a}@ {%a}@]"
-      (int_of_positive slot) print_function_decls function_decls
+    Format.fprintf ppf "@[<hov 2>closure %s of@ {%a}@ {%a}@]"
+      (shown_function_slot slot) print_function_decls function_decls
       print_value_slots slots
   | Project_value_slot (slot, closure) ->
-    Format.fprintf ppf "%a.slot%d" print_simple closure (int_of_positive slot)
+    Format.fprintf ppf "%a.%s" print_simple closure
+      (shown_value_slot ~projected:true slot)
   | Project_value_slot_from (project_from, slot, closure) ->
-    Format.fprintf ppf "%a.(f%d).slot%d" print_simple closure
-      (int_of_positive project_from)
-      (int_of_positive slot)
+    Format.fprintf ppf "%a.(%s).%s" print_simple closure
+      (shown_function_slot project_from)
+      (shown_value_slot ~projected:true slot)
   | Project_function_slot (move_from, move_to, closure) ->
-    Format.fprintf ppf "%a.(f%d -> f%d)" print_simple closure
-      (int_of_positive move_from)
-      (int_of_positive move_to)
+    Format.fprintf ppf "%a.(%s -> %s)" print_simple closure
+      (shown_function_slot move_from)
+      (shown_function_slot move_to)
 
 let print_trap_action ppf (action : Model.trap_action option) =
   match action with
@@ -1706,7 +1807,7 @@ let rec print_expr ppf (e : Model.expr) =
   | Apply ap ->
     Format.fprintf ppf "@[<hov 2>apply%s %a@ (%a)@ -> %a * %a%a@]"
       (match ap.ap_call_kind with
-      | Direct code -> Printf.sprintf " direct(code%d)" (int_of_positive code)
+      | Direct code -> Printf.sprintf " direct(%s)" (shown_code_id code)
       | Indirect -> "")
       print_simple ap.ap_callee print_simples ap.ap_args print_cont
       ap.ap_continuation print_cont ap.ap_exn_continuation
@@ -1731,37 +1832,35 @@ and print_handler ppf (Model.Handler (params, metadata, handler)) =
 and print_binding ppf (binding : Model.static_binding) =
   match binding with
   | Bind_code (id, Code (params, my_closure, ret, exn, metadata, body)) ->
-    Format.fprintf ppf "@[<v 2>code%d%s%s (%a) %a -> %a * %a =@ %a@]"
-      (int_of_positive id)
+    Format.fprintf ppf "@[<v 2>%s%s%s (%a) %a -> %a * %a =@ %a@]"
+      (shown_code_id id)
       (if metadata.cm_is_tupled then " tupled" else "")
       (if metadata.cm_is_stub then " stub" else "")
       (print_list print_var) params print_var my_closure print_cont ret
       print_cont exn print_expr body
-  | Bind_deleted_code id ->
-    Format.fprintf ppf "code%d deleted" (int_of_positive id)
+  | Bind_deleted_code id -> Format.fprintf ppf "%s deleted" (shown_code_id id)
   | Bind_symbol (sym, Static_const_set_of_closures (code, slots)) ->
-    Format.fprintf ppf "@[<hov 2>$%d = closure code%d@ {%a}@]"
-      (int_of_positive sym) (int_of_positive code) print_value_slots slots
+    Format.fprintf ppf "@[<hov 2>%s = closure %s@ {%a}@]" (shown_symbol sym)
+      (shown_code_id code) print_value_slots slots
   | Bind_symbol
       (sym, Static_const_closure_of_set (slot, symbols, function_decls, slots))
     ->
-    Format.fprintf ppf "@[<hov 2>$%d = closure f%d of@ {%a}@ at {%a}@ {%a}@]"
-      (int_of_positive sym) (int_of_positive slot) print_function_decls
+    Format.fprintf ppf "@[<hov 2>%s = closure %s of@ {%a}@ at {%a}@ {%a}@]"
+      (shown_symbol sym) (shown_function_slot slot) print_function_decls
       function_decls
       (print_list (fun ppf (slot, sym) ->
-           Format.fprintf ppf "f%d = $%d" (int_of_positive slot)
-             (int_of_positive sym)))
+           Format.fprintf ppf "%s = %s" (shown_function_slot slot)
+             (shown_symbol sym)))
       symbols print_value_slots slots
   | Bind_symbol (sym, Static_const_block (tag, fields)) ->
-    Format.fprintf ppf "@[<hov 2>$%d = Block %d@ (%a)@]" (int_of_positive sym)
+    Format.fprintf ppf "@[<hov 2>%s = Block %d@ (%a)@]" (shown_symbol sym)
       (int_of_z tag) print_simples fields
   | Bind_symbol (sym, Static_const_boxed_number contents) ->
-    Format.fprintf ppf "$%d = boxed %a" (int_of_positive sym) print_simple
-      contents
+    Format.fprintf ppf "%s = boxed %a" (shown_symbol sym) print_simple contents
   | Bind_symbol (sym, Static_const_immutable_string _) ->
-    Format.fprintf ppf "$%d = <string>" (int_of_positive sym)
+    Format.fprintf ppf "%s = <string>" (shown_symbol sym)
   | Bind_symbol (sym, Static_const_immutable_value_array elements) ->
-    Format.fprintf ppf "@[<hov 2>$%d = Array@ (%a)@]" (int_of_positive sym)
+    Format.fprintf ppf "@[<hov 2>%s = Array@ (%a)@]" (shown_symbol sym)
       print_simples elements
 
 (* ---- Static bindings that are not used --------------------------------- *)
@@ -2545,6 +2644,731 @@ let rec code_id_used (id : Model.code_id) (e : Model.expr) =
   | Apply { ap_call_kind = Indirect; _ } | Apply_cont _ | Switch _ | Invalid ->
     false
 
+(* ---- What the .cmx files say of other units ---------------------------- *)
+
+(* The names of units, in order. *)
+let unit_names (units : (Compilation_unit.t * Digest.t) list) =
+  List.sort String.compare
+    (List.map (fun (unit, _) -> Compilation_unit.name_as_string unit) units)
+
+(* The prefix: static bindings that say, of symbols and code of other units,
+   what the [.cmx] files of those units say. It is put in front of both terms of
+   a check ([with_prefix]), which are then run and validated as they are: a
+   verdict is of the unit run from the static environment that the prefix makes.
+   What is trusted of it, beyond that the [.cmx] files are right about the units
+   that the program is linked with: that the prefix says nothing that the files
+   do not say, and that whatever it leaves out can make a run undefined or a
+   unit refused, and never gives a run a defined answer that the linked unit
+   would not give. The round trip of the conversion does not reach it; it is
+   printed for each unit that has one ([print_prefix]), to be read against the
+   other unit.
+
+   What the files say is read through the compiler: its loader of [.cmx] files
+   ([Flambda_cmx]), and its own reduction of the type of a symbol to what a
+   static binding can say ([Flambda_cmx.load_symbol_approx], which classic mode
+   uses). Nothing that Simplify concluded is used. The loader is a second one,
+   made here as that of Simplify is made, since that one cannot be reached. It
+   is asked only about the units that the run of Simplify read ([units_read]),
+   whose descriptions it has from the tables of the compiler: a unit that the
+   run did not read is never asked about, so making the prefix opens no file
+   that the run did not read. Of a file that the run read it may read more: the
+   compiler reads the body of code from the file when the body is first looked
+   at, and the prefix may bind code that Simplify did not look at. The loader
+   renames the variables and the continuations of the code that it imports, and
+   opening a binder of the compiler makes fresh names, so the prefix is
+   converted once and is the same term in front of both terms.
+
+   What is bound, for a symbol or a code id whose unit was read, is one of four
+   things.
+
+   A symbol that is an immutable block of values, each of whose fields is a
+   constant or a symbol, where it is asked for or is a field of a block that is
+   bound: the block. A field that is a symbol is that symbol, whether or not it
+   is bound in turn. A block with any other field is not bound: the model has no
+   way yet to say that nothing is known of a field. Nor is a block with a field
+   that is a symbol which its own file says is another symbol or a constant.
+
+   A symbol that is a closure, where it is asked for or is a field of a block
+   that is bound: the closure, at its function slot, of a set that has this one
+   function and no value slot, in the presentation of sets that the two terms
+   have ([named_function_slots]). The reduction gives no more of a closure. A
+   projection of a value slot of it, or to another function of its set, has no
+   value in the model, so a run that needs what is left out is undefined.
+
+   A code id that is asked for and whose code has a body in the file: the code,
+   converted as the code of a unit is. Code that has its metadata only is not
+   bound, and neither is code whose body the model has not got, tupled code (no
+   direct call of tupled code is in the model, see [tupled_code]), or code with
+   a call of known arity where one of the two units has tupled code. A call of
+   code that is not bound is undefined.
+
+   A symbol of which the file says nothing: nothing.
+
+   A symbol that is asked for and that the file says is another symbol, or a
+   constant, is refused, and the unit is not checked: no static binding says
+   either, and the class of data could be wrong of the first. What is not bound
+   stays as it was: a symbol is an import ([imports]), and a code id is bound to
+   nothing.
+
+   What is asked for is the least set of names that has: (a) every symbol and
+   every code id that either term names; (b) the code id of a closure that is
+   asked for; (c) every symbol and every code id that a body which the prefix
+   binds names; (d) the symbol at a field of a block that the prefix binds,
+   where either term, or a body that the prefix binds, loads that field from
+   something that stands for the block. What stands for a block: its symbol; a
+   variable that a [Let] binds to its symbol; and a variable that a [Let] binds
+   to a load, of a field that is a symbol, from something that stands for a
+   block that the prefix binds, which stands for that symbol. A parameter stands
+   for nothing, and neither does a variable that a [Let] binds to another
+   variable.
+
+   So what the prefix binds is the data that the files reach, through fields,
+   from the blocks that are asked for, and the bodies of the code that is asked
+   for: a unit that names the module block of a large unit has in front of it
+   the blocks and the closures reached from that block, each closure with no
+   code, and the bodies of the functions that the two terms reach, and not the
+   bodies of the whole unit. The data is bound without being asked for because a
+   run reads it through names that the rule above does not follow (a list of the
+   other unit, through the parameter of the loop that goes down it), and because
+   a symbol left an import is one more import: a verdict holds of a unit with
+   imports for fewer of the comparisons of the validator. Being asked for
+   matters for code alone.
+
+   The bindings are in groups ([Let_static]), to be well-formed
+   (FlambdaWellFormedSpec.sets_well_formed): two closures of the same code are
+   not bound by one group. The first group has the code, a closure of each code,
+   and the blocks, each after those of its fields that are blocks where the
+   blocks are not cyclic; the closures left are in groups after it. The machine
+   looks up neither a field that is a symbol when it binds a block, nor code
+   when it binds a closure, so the groups make the same static environment in
+   any order. *)
+type prefix =
+  { prefix_groups : Model.static_binding list list;
+    (* The units from whose [.cmx] files something is bound, with the digests of
+       the files. *)
+    prefix_units : (Compilation_unit.t * Digest.t) list;
+    (* The symbols that the prefix binds. *)
+    prefix_symbols : Model.symbol list;
+    (* The closures and the blocks bound that nothing asks for, each with the
+       block that is asked for from which it is reached. *)
+    prefix_unasked : (Model.symbol * Model.symbol) list;
+    (* The symbols that have a number and that neither the two terms nor the
+       prefix mention: those of a body that was not bound in the end. *)
+    prefix_unmentioned : Model.symbol list
+  }
+
+let no_prefix =
+  { prefix_groups = [];
+    prefix_units = [];
+    prefix_symbols = [];
+    prefix_unasked = [];
+    prefix_unmentioned = []
+  }
+
+(* What the [.cmx] file of its unit says of a symbol. *)
+type approximation = Code_or_metadata.t Value_approximation.t
+
+let make_prefix ~(units : (Compilation_unit.t * Digest.t) list)
+    ~(loader : Flambda_cmx.loader Lazy.t) ~units_have_tupled_code
+    (terms : Model.expr list) : prefix =
+  (* The unit whose file the loader reads for a name of [unit], if the run read
+     it. *)
+  let read unit =
+    let file =
+      Compilation_unit.which_cmx_file unit
+        ~accessed_by:(Current_unit.get_cu_exn ())
+    in
+    List.find_opt (fun (read, _) -> Compilation_unit.equal read file) units
+  in
+  (* What the file of its unit says of a symbol, with the unit: nothing for a
+     symbol whose unit was not read. *)
+  let approximations :
+      ((Compilation_unit.t * Digest.t) * approximation) option Symbol.Map.t ref
+      =
+    ref Symbol.Map.empty
+  in
+  let approximation symbol :
+      ((Compilation_unit.t * Digest.t) * approximation) option =
+    match Symbol.Map.find_opt symbol !approximations with
+    | Some approx -> approx
+    | None ->
+      let approx =
+        Option.map
+          (fun unit ->
+            unit, Flambda_cmx.load_symbol_approx (Lazy.force loader) symbol)
+          (read (Symbol.compilation_unit symbol))
+      in
+      approximations := Symbol.Map.add symbol approx !approximations;
+      approx
+  in
+  let asked_symbols : (int, unit) Hashtbl.t = Hashtbl.create 64 in
+  let asked_code : (int, unit) Hashtbl.t = Hashtbl.create 64 in
+  (* The blocks bound, by the numbers of their symbols, with their fields. *)
+  let blocks : (int, Model.simple list) Hashtbl.t = Hashtbl.create 16 in
+  (* The closures bound, by the numbers of their symbols, with their code. *)
+  let closures : (int, Model.code_id) Hashtbl.t = Hashtbl.create 64 in
+  (* The symbols that are fields of the blocks bound. *)
+  let fields_of_blocks : (int, unit) Hashtbl.t = Hashtbl.create 64 in
+  let block_bindings = ref [] in
+  let closure_bindings = ref [] in
+  let code_bindings = ref [] in
+  let bodies = ref [] in
+  let used = ref [] in
+  let changed = ref false in
+  let use ((unit, _) as read) =
+    if not (List.exists (fun (u, _) -> Compilation_unit.equal u unit) !used)
+    then used := read :: !used
+  in
+  let bind_code unit id code_id =
+    let loader = Lazy.force loader in
+    ignore
+      (Flambda_cmx.load_cmx_file_contents loader
+         (Code_id.get_compilation_unit code_id)
+        : _ option);
+    match
+      Exported_code.find (Flambda_cmx.get_imported_code loader ()) code_id
+    with
+    | None -> ()
+    | Some code -> (
+      match Code_or_metadata.view code with
+      | Metadata_only _ -> ()
+      | Code_present code -> (
+        tupled_code := [];
+        directly_called_code := [];
+        known_arity_call_met := false;
+        match convert_code code with
+        | exception Unsupported _ -> ()
+        | Model.Code (_, _, _, _, _, body) as converted ->
+          let is_tupled = match !tupled_code with [] -> false | _ -> true in
+          if
+            (not is_tupled)
+            && not (!known_arity_call_met && units_have_tupled_code)
+          then (
+            code_bindings := Model.Bind_code (id, converted) :: !code_bindings;
+            bodies := body :: !bodies;
+            use unit)))
+  in
+  let ask_code id =
+    let n = int_of_positive id in
+    if not (Hashtbl.mem asked_code n)
+    then (
+      Hashtbl.replace asked_code n ();
+      changed := true;
+      match Code_ids.name_of id with
+      | None -> ()
+      | Some code_id -> (
+        match read (Code_id.get_compilation_unit code_id) with
+        | None -> ()
+        | Some unit -> bind_code unit id code_id))
+  in
+  (* Binds a closure, if it is not bound yet, and gives its code. *)
+  let bind_closure unit sym ~function_slot ~code_id =
+    match Hashtbl.find_opt closures (int_of_positive sym) with
+    | Some code -> code
+    | None ->
+      let slot = Function_slots.find function_slot in
+      let code = Code_ids.find code_id in
+      let const : Model.static_const =
+        match only_function [slot, code] with
+        | Some code -> Static_const_set_of_closures (code, [])
+        | None ->
+          Static_const_closure_of_set (slot, [slot, sym], [slot, code], [])
+      in
+      Hashtbl.replace closures (int_of_positive sym) code;
+      closure_bindings
+        := (code, Model.Bind_symbol (sym, const)) :: !closure_bindings;
+      use unit;
+      code
+  in
+  (* Whether a field is one that a static block can have. *)
+  let said (field : approximation) =
+    match field with
+    | Value_const c -> (
+      match convert_const c with
+      | exception Unsupported _ -> false
+      | (_ : Model.const) -> true)
+    | Value_symbol symbol -> (
+      match Option.map snd (approximation symbol) with
+      | None -> true
+      | Some (Unknown _ | Closure_approximation _ | Block_approximation _) ->
+        true
+      | Some (Value_symbol _ | Value_const _) -> false)
+    | Unknown _ | Closure_approximation _ | Block_approximation _ -> false
+  in
+  (* The blocks that are fields of the blocks bound and are still to be looked
+     at, and the symbols of the blocks looked at so far: a block is looked at
+     once, however many fields reach it, so the walk ends on data that is shared
+     or cyclic. *)
+  let blocks_to_bind = Queue.create () in
+  let blocks_seen : (int, unit) Hashtbl.t = Hashtbl.create 16 in
+  let bind_one_block unit sym tag (fields : approximation list) =
+    let n = int_of_positive sym in
+    if (not (Hashtbl.mem blocks_seen n)) && List.for_all said fields
+    then (
+      let fields =
+        List.map
+          (fun (field : approximation) : Model.simple ->
+            match field with
+            | Value_const c -> Const (convert_const c)
+            | Value_symbol symbol ->
+              let field = Symbols.find symbol in
+              Hashtbl.replace fields_of_blocks (int_of_positive field) ();
+              (* A field that is a closure or a block is bound, asked for or
+                 not. *)
+              (match approximation symbol with
+              | Some
+                  ( unit,
+                    Closure_approximation
+                      { code_id; function_slot; code = _; symbol = _ } ) ->
+                ignore
+                  (bind_closure unit field ~function_slot ~code_id
+                    : Model.code_id)
+              | Some (unit, Block_approximation (tag, Value_only, fields, _)) ->
+                Queue.add
+                  (unit, field, tag, Array.to_list fields)
+                  blocks_to_bind
+              | None
+              | Some
+                  ( _,
+                    ( Unknown _ | Value_symbol _ | Value_const _
+                    | Block_approximation (_, Mixed_record _, _, _) ) ) ->
+                ());
+              Symbol field
+            | Unknown _ | Closure_approximation _ | Block_approximation _ ->
+              assert false)
+          fields
+      in
+      Hashtbl.replace blocks n fields;
+      let tag = z_of_int (Tag.Scannable.to_int tag) in
+      block_bindings
+        := ( sym,
+             fields,
+             Model.Bind_symbol (sym, Static_const_block (tag, fields)) )
+           :: !block_bindings;
+      use unit);
+    Hashtbl.replace blocks_seen n ()
+  in
+  let bind_block unit sym tag fields =
+    bind_one_block unit sym tag fields;
+    while not (Queue.is_empty blocks_to_bind) do
+      let unit, sym, tag, fields = Queue.pop blocks_to_bind in
+      bind_one_block unit sym tag fields
+    done
+  in
+  let ask_symbol sym =
+    let n = int_of_positive sym in
+    if not (Hashtbl.mem asked_symbols n)
+    then (
+      Hashtbl.replace asked_symbols n ();
+      changed := true;
+      match Option.bind (Symbols.name_of sym) approximation with
+      | None | Some (_, Unknown _) -> ()
+      | Some (_, Value_symbol _) ->
+        unsupported
+          "the symbol %s, which the .cmx file of its unit says is another \
+           symbol"
+          (shown_symbol sym)
+      | Some (_, Value_const _) ->
+        unsupported
+          "the symbol %s, which the .cmx file of its unit says is a constant"
+          (shown_symbol sym)
+      | Some
+          ( unit,
+            Closure_approximation
+              { code_id; function_slot; code = _; symbol = _ } ) ->
+        ask_code (bind_closure unit sym ~function_slot ~code_id)
+      | Some (unit, Block_approximation (tag, Value_only, fields, _alloc_mode))
+        ->
+        bind_block unit sym tag (Array.to_list fields)
+      | Some (_, Block_approximation (_, Mixed_record _, _, _)) -> ())
+  in
+  (* What the variables bound by the [Let]s around stand for. *)
+  let stands_for : (int, Model.symbol) Hashtbl.t = Hashtbl.create 64 in
+  let in_simple (s : Model.simple) =
+    match s with Symbol sym -> ask_symbol sym | Var _ | Const _ -> ()
+  in
+  let in_simples = List.iter in_simple in
+  let in_slots slots = List.iter (fun (_, s) -> in_simple s) slots in
+  let in_function_decls = List.iter (fun (_, code) -> ask_code code) in
+  let rec in_expr (e : Model.expr) =
+    match e with
+    | Let (x, _, d, body) ->
+      (match d with
+      | Simple s -> (
+        in_simple s;
+        match s with
+        | Symbol sym -> Hashtbl.replace stands_for (int_of_positive x) sym
+        | Var _ | Const _ -> ())
+      | Prim (Unary (Block_load (_, _, field)), [arg]) -> (
+        in_simple arg;
+        let block =
+          match arg with
+          | Symbol sym -> Some sym
+          | Var y -> Hashtbl.find_opt stands_for (int_of_positive y)
+          | Const _ -> None
+        in
+        let fields =
+          Option.bind block (fun block ->
+              Hashtbl.find_opt blocks (int_of_positive block))
+        in
+        let field = int_of_z field in
+        match fields with
+        | Some fields when field >= 0 -> (
+          match List.nth_opt fields field with
+          | Some (Symbol sym) ->
+            ask_symbol sym;
+            Hashtbl.replace stands_for (int_of_positive x) sym
+          | Some (Var _ | Const _) | None -> ())
+        | Some _ | None -> ())
+      | Prim (_, args) -> in_simples args
+      | Project_value_slot (_, s)
+      | Project_value_slot_from (_, _, s)
+      | Project_function_slot (_, _, s) ->
+        in_simple s
+      | Set_of_closures (code, slots) ->
+        ask_code code;
+        in_slots slots
+      | Closure_of_set (_, function_decls, slots) ->
+        in_function_decls function_decls;
+        in_slots slots);
+      in_expr body
+    | Let_static (bindings, body) ->
+      List.iter
+        (fun (binding : Model.static_binding) ->
+          match binding with
+          | Bind_code (_, Code (_, _, _, _, _, body)) -> in_expr body
+          | Bind_deleted_code _ -> ()
+          | Bind_symbol (_, Static_const_set_of_closures (code, slots)) ->
+            ask_code code;
+            in_slots slots
+          | Bind_symbol
+              ( _,
+                Static_const_closure_of_set (_, symbols, function_decls, slots)
+              ) ->
+            List.iter (fun (_, sym) -> ask_symbol sym) symbols;
+            in_function_decls function_decls;
+            in_slots slots
+          | Bind_symbol (_, Static_const_block (_, fields)) -> in_simples fields
+          | Bind_symbol (_, Static_const_boxed_number contents) ->
+            in_simple contents
+          | Bind_symbol (_, Static_const_immutable_string _) -> ()
+          | Bind_symbol (_, Static_const_immutable_value_array elements) ->
+            in_simples elements)
+        bindings;
+      in_expr body
+    | Let_cont_non_recursive (_, Handler (_, _, handler), body) ->
+      in_expr handler;
+      in_expr body
+    | Let_cont_recursive (handlers, body) ->
+      List.iter
+        (fun (_, Model.Handler (_, _, handler)) -> in_expr handler)
+        handlers;
+      in_expr body
+    | Apply ap -> (
+      in_simple ap.ap_callee;
+      in_simples ap.ap_args;
+      in_simples (List.map fst ap.ap_exn_extra_args);
+      match ap.ap_call_kind with Direct code -> ask_code code | Indirect -> ())
+    | Apply_cont ac -> in_simples ac.ac_args
+    | Switch (scrutinee, arms) ->
+      in_simple scrutinee;
+      List.iter (fun (_, (ac : Model.apply_cont)) -> in_simples ac.ac_args) arms
+    | Invalid -> ()
+  in
+  (* The two terms and the bodies bound so far are gone through until nothing
+     more is asked for: each time round the blocks that the loads are read
+     against are those bound so far. *)
+  let rec settle () =
+    changed := false;
+    List.iter
+      (fun e ->
+        Hashtbl.reset stands_for;
+        in_expr e)
+      (terms @ List.rev !bodies);
+    if !changed then settle ()
+  in
+  match units with
+  | [] -> no_prefix
+  | _ :: _ ->
+    settle ();
+    (* The closures, by groups in none of which two are of the same code. *)
+    let closure_groups =
+      List.fold_left
+        (fun groups (code, binding) ->
+          let rec place groups =
+            match groups with
+            | [] -> [[code, binding]]
+            | group :: groups ->
+              if List.mem_assoc code group
+              then group :: place groups
+              else (group @ [code, binding]) :: groups
+          in
+          place groups)
+        []
+        (List.rev !closure_bindings)
+      |> List.map (List.map snd)
+    in
+    (* The blocks, each after those of its fields that are blocks. *)
+    let all_blocks = List.rev !block_bindings in
+    let ordered_blocks =
+      let bound : (int, Model.simple list * Model.static_binding) Hashtbl.t =
+        Hashtbl.create 16
+      in
+      List.iter
+        (fun (sym, fields, binding) ->
+          Hashtbl.replace bound (int_of_positive sym) (fields, binding))
+        all_blocks;
+      let placed : (int, unit) Hashtbl.t = Hashtbl.create 16 in
+      let ordered = ref [] in
+      (* The blocks whose fields are being gone through, the innermost first,
+         each with the fields still to go. *)
+      let entered = Stack.create () in
+      let enter sym =
+        let n = int_of_positive sym in
+        if not (Hashtbl.mem placed n)
+        then
+          match Hashtbl.find_opt bound n with
+          | Some (fields, binding) ->
+            Hashtbl.replace placed n ();
+            Stack.push (binding, ref fields) entered
+          | None -> ()
+      in
+      List.iter
+        (fun (sym, _, _) ->
+          enter sym;
+          while not (Stack.is_empty entered) do
+            let binding, fields = Stack.top entered in
+            match !fields with
+            | [] ->
+              ignore (Stack.pop entered : _ * _);
+              ordered := binding :: !ordered
+            | field :: rest -> (
+              fields := rest;
+              match (field : Model.simple) with
+              | Symbol field -> enter field
+              | Var _ | Const _ -> ())
+          done)
+        all_blocks;
+      List.rev !ordered
+    in
+    let first_closures, later_closures =
+      match closure_groups with [] -> [], [] | first :: later -> first, later
+    in
+    let groups =
+      List.filter
+        (fun group -> match group with [] -> false | _ :: _ -> true)
+        ((List.rev !code_bindings @ first_closures @ ordered_blocks)
+        :: later_closures)
+    in
+    let symbols =
+      List.concat_map (List.concat_map Well_formed.symbols_of_binding) groups
+    in
+    let asked sym = Hashtbl.mem asked_symbols (int_of_positive sym) in
+    (* What is bound and not asked for, with the block asked for from which it
+       is reached through blocks that are not asked for. *)
+    let unasked =
+      let reached : (int, unit) Hashtbl.t = Hashtbl.create 64 in
+      let unasked = ref [] in
+      List.iter
+        (fun (root, fields, _) ->
+          if asked root
+          then (
+            let to_visit = Stack.create () in
+            Stack.push fields to_visit;
+            while not (Stack.is_empty to_visit) do
+              List.iter
+                (fun (field : Model.simple) ->
+                  match field with
+                  | Symbol sym ->
+                    let n = int_of_positive sym in
+                    let fields = Hashtbl.find_opt blocks n in
+                    if
+                      (Option.is_some fields || Hashtbl.mem closures n)
+                      && (not (asked sym))
+                      && not (Hashtbl.mem reached n)
+                    then (
+                      Hashtbl.replace reached n ();
+                      unasked := (sym, root) :: !unasked;
+                      Option.iter
+                        (fun fields -> Stack.push fields to_visit)
+                        fields)
+                  | Var _ | Const _ -> ())
+                (Stack.pop to_visit)
+            done))
+        all_blocks;
+      List.rev !unasked
+    in
+    { prefix_groups = groups;
+      prefix_units =
+        List.sort
+          (fun (unit, _) (unit', _) ->
+            String.compare
+              (Compilation_unit.name_as_string unit)
+              (Compilation_unit.name_as_string unit'))
+          !used;
+      prefix_symbols = symbols;
+      prefix_unasked = unasked;
+      prefix_unmentioned =
+        List.filter_map
+          (fun (_, sym) ->
+            if asked sym || Hashtbl.mem fields_of_blocks (int_of_positive sym)
+            then None
+            else Some sym)
+          (Symbols.bindings ())
+    }
+
+(* A unit with the prefix in front of it. *)
+let with_prefix (prefix : prefix) (unit : converted) : converted =
+  { unit with
+    body =
+      List.fold_right
+        (fun group body -> Model.Let_static (group, body))
+        prefix.prefix_groups unit.body
+  }
+
+(* What is wrong with a prefix, if something is, given the imports that are left
+   and the two units that it goes in front of: it must bind each symbol and each
+   code id once, none that either unit binds and none that is still an import,
+   and it must evaluate from the static environment of the imports. Each of
+   these fails only where [make_prefix] is wrong, as no source makes a unit that
+   binds a name of another unit. *)
+let prefix_fault (prefix : prefix)
+    ~(imports : (Model.symbol * Values.import_class) list) (before : converted)
+    (after : converted) : string option =
+  let names_of names =
+    List.concat_map (List.concat_map names) prefix.prefix_groups
+  in
+  let symbols = names_of Well_formed.symbols_of_binding in
+  let code = names_of Well_formed.code_ids_of_binding in
+  let set_of names =
+    let set : (int, unit) Hashtbl.t = Hashtbl.create 64 in
+    List.iter (fun name -> Hashtbl.replace set (int_of_positive name) ()) names;
+    set
+  in
+  let twice names = Hashtbl.length (set_of names) < List.length names in
+  let of_units names =
+    set_of
+      (Well_formed.static_names names before.body
+      @ Well_formed.static_names names after.body)
+  in
+  let among set name = Hashtbl.mem set (int_of_positive name) in
+  if twice symbols || twice code
+  then Some "binds a symbol or a code id twice"
+  else if
+    List.exists (among (of_units Well_formed.symbols_of_binding)) symbols
+    || List.exists (among (of_units Well_formed.code_ids_of_binding)) code
+  then Some "binds a symbol or a code id that the unit binds"
+  else if List.exists (among (set_of (List.map fst imports))) symbols
+  then Some "binds a symbol that is still among the imports"
+  else
+    match
+      List.fold_left
+        (fun statics group ->
+          Option.bind statics (Semantics.eval_static_bindings [] group))
+        (Some (Imports.imports_statics imports))
+        prefix.prefix_groups
+    with
+    | Some (_ : Values.static_env) -> None
+    | None ->
+      Some "does not evaluate from the static environment of the imports"
+
+(* The prefix, for reading it against the units that it is made from: the units,
+   and the bindings with the names that the compiler gives ([names_shown]). The
+   closures and the blocks that are bound without being asked for are counted,
+   by the block asked for from which they are reached, on one line after the
+   group that binds them; they are printed one by one, with the rest, where
+   FLSEMANTICS_PRINT_TERMS is set. The digests of the [.cmx] files are printed
+   only where FLSEMANTICS_PRINT_DIGESTS is set: the file of a test is made by
+   the build, and its digest moves with the compiler. *)
+let print_prefix (prefix : prefix) =
+  match prefix.prefix_groups with
+  | [] -> ()
+  | _ :: _ ->
+    let digests = Sys.getenv_opt "FLSEMANTICS_PRINT_DIGESTS" <> None in
+    let every_binding = Sys.getenv_opt "FLSEMANTICS_PRINT_TERMS" <> None in
+    let bindings = List.length (List.concat prefix.prefix_groups) in
+    Format.printf "  given the .cmx of %s, a prefix of %d static binding%s:@."
+      (String.concat ", "
+         (List.map
+            (fun (unit, digest) ->
+              Compilation_unit.name_as_string unit
+              ^ if digests then " (" ^ Digest.to_hex digest ^ ")" else "")
+            prefix.prefix_units))
+      bindings
+      (if bindings = 1 then "" else "s");
+    let unasked : (int, Model.symbol) Hashtbl.t = Hashtbl.create 64 in
+    if not every_binding
+    then
+      List.iter
+        (fun (sym, block) ->
+          Hashtbl.replace unasked (int_of_positive sym) block)
+        prefix.prefix_unasked;
+    let number n what =
+      Printf.sprintf "%d %s%s" n what (if n = 1 then "" else "s")
+    in
+    names_shown := true;
+    Fun.protect
+      ~finally:(fun () -> names_shown := false)
+      (fun () ->
+        List.iteri
+          (fun i group ->
+            if i > 0 then Format.printf "    and then@.";
+            (* The blocks asked for from which something of this group that
+               nothing asks for is reached, in the order of the first such
+               binding of each, with the numbers of closures and of blocks so
+               reached. *)
+            let counted : (int, int ref * int ref) Hashtbl.t =
+              Hashtbl.create 16
+            in
+            let blocks = ref [] in
+            List.iter
+              (fun (binding : Model.static_binding) ->
+                let unasked =
+                  match binding with
+                  | Bind_symbol (sym, const) ->
+                    Option.map
+                      (fun block -> block, const)
+                      (Hashtbl.find_opt unasked (int_of_positive sym))
+                  | Bind_code _ | Bind_deleted_code _ -> None
+                in
+                match unasked with
+                | Some (block, const) -> (
+                  let closures, others =
+                    match Hashtbl.find_opt counted (int_of_positive block) with
+                    | Some counts -> counts
+                    | None ->
+                      let counts = ref 0, ref 0 in
+                      Hashtbl.replace counted (int_of_positive block) counts;
+                      blocks := block :: !blocks;
+                      counts
+                  in
+                  match const with
+                  | Static_const_set_of_closures _
+                  | Static_const_closure_of_set _ ->
+                    incr closures
+                  | Static_const_block _ | Static_const_boxed_number _
+                  | Static_const_immutable_string _
+                  | Static_const_immutable_value_array _ ->
+                    incr others)
+                | None ->
+                  forget_shown_names ();
+                  Format.printf "    @[<v>%a@]@." print_binding binding)
+              group;
+            List.iter
+              (fun block ->
+                let closures, others =
+                  Hashtbl.find counted (int_of_positive block)
+                in
+                Format.printf "    and %s of %s that nothing asks for@."
+                  (String.concat " and "
+                     ((if !closures > 0
+                       then [number !closures "closure"]
+                       else [])
+                     @ if !others > 0 then [number !others "block"] else []))
+                  (shown_symbol block))
+              (List.rev !blocks))
+          prefix.prefix_groups)
+
 (* The two units are converted with one numbering of names, the continuations of
    the second unit standing for those of the first, so that the verified
    comparison can be made of the two bodies as they are.
@@ -2557,15 +3381,25 @@ let rec code_id_used (id : Model.code_id) (e : Model.expr) =
    numbers settled; the second time, the declaration that such an old one is
    deleted is left out, as its number now stands for the new code.
 
+   The prefix is made last, of what the two terms as converted ask for, and with
+   their numbering ([make_prefix]); [units] are the units whose [.cmx] file the
+   run of Simplify read. The two units are given back without it.
+
    CR mshinwell: This identification is part of what is trusted, and will most
    likely not be enough: it does nothing for code that has no older version, or
    whose older version is still used. The comparison should relate code ids
    itself; see the CR in middle_end/flambda2/rocq/FlambdaCompareSpec.v for what
    that takes. *)
-let convert_both (before : Flambda_unit.t) (after : Flambda_unit.t) =
+let convert_both ~(units : (Compilation_unit.t * Digest.t) list)
+    (before : Flambda_unit.t) (after : Flambda_unit.t) =
+  let loader =
+    lazy (Flambda_cmx.create_loader ~get_module_info:Flambda2.get_module_info)
+  in
   with_function_slots @@ fun () ->
   superseded_code := [];
+  let has_tupled_code () = match !tupled_code with [] -> false | _ -> true in
   let before_converted = convert_unit before in
+  let before_has_tupled_code = has_tupled_code () in
   Continuations.alias
     (Flambda_unit.return_continuation after)
     ~same_as:(Flambda_unit.return_continuation before);
@@ -2590,7 +3424,12 @@ let convert_both (before : Flambda_unit.t) (after : Flambda_unit.t) =
       ~finally:(fun () -> superseded_code := [])
       (fun () -> convert_unit after)
   in
-  before_converted, after_converted
+  let prefix =
+    make_prefix ~units ~loader
+      ~units_have_tupled_code:(before_has_tupled_code || has_tupled_code ())
+      [before_converted.body; after_converted.body]
+  in
+  before_converted, after_converted, prefix
 
 (* What the check of kinds answers for a unit (FlambdaWellKindedSpec.v), given
    the kinds of the value slots met in the two units. *)
@@ -2708,7 +3547,8 @@ let loopify_guess () =
     (List.sort_uniq Code_id.compare !loopify_marked)
 
 let validate ~(imports : (Model.symbol * Values.import_class) list)
-    ~(outcome_before : outcome) (before : converted) (after : converted) =
+    ~(prefix_units : int) ~(outcome_before : outcome) (before : converted)
+    (after : converted) =
   let recursive = recursive_code before.body @ recursive_code after.body in
   let inlined = Normalise.inline_calls recursive [] before.body in
   Format.printf
@@ -3028,19 +3868,31 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
      that imports nothing. For a unit that has imports it is where the model
      says that the verdict holds of the unit run from its imports; where it does
      not, and the validator accepts, what is validated is the unit with nothing
-     imported. No line begins "validated:" for a unit that has imports. *)
+     imported. No line begins "validated:" for a unit that has imports. Where
+     the two terms have a prefix in front of them, made from the [.cmx] files of
+     [prefix_units] units, the verdict is of the two terms with it, and the line
+     says of how many units the files were used: it rests on those files being
+     right, so such a unit is counted apart whatever imports it has left. *)
   let of_the_runs_shown =
     match imports with
     | [] -> true
     | _ :: _ -> Validate_imports.holds_from_imports validation
   in
   let validated =
-    match imports with
-    | [] -> "validated"
-    | _ :: _ ->
+    match prefix_units, imports with
+    | 0, [] -> "validated"
+    | 0, _ :: _ ->
       if of_the_runs_shown
       then "validated with its imports"
       else "validated with nothing imported"
+    | n, _ ->
+      if of_the_runs_shown
+      then
+        Printf.sprintf
+          "validated with its imports, given the .cmx of %d of them" n
+      else
+        Printf.sprintf
+          "validated with nothing else imported, given the .cmx of %d" n
   in
   (* The run of the term before that the validation is of. *)
   let outcome_before =
@@ -3171,22 +4023,53 @@ let units_read () : (Compilation_unit.t * Digest.t) list =
       | None -> None)
     infos.Cmx_format.ui_imports_cmx
 
-let check ~filename ~units (before : Flambda_unit.t) (after : Flambda_unit.t) =
-  match convert_both before after with
+let check ~filename ~(units : (Compilation_unit.t * Digest.t) list)
+    (before : Flambda_unit.t) (after : Flambda_unit.t) =
+  match convert_both ~units before after with
   | exception Unsupported what ->
     Format.printf "%s: not checked: the model has not got %s@." filename
       (Format.asprintf "%t" what)
-  | _, after when not (well_formed after) ->
+  | _, after, _ when not (well_formed after) ->
     Format.printf "%s: the term after Simplify is NOT WELL-FORMED (%s)@."
       filename
       (why_not_well_formed after);
     exit 1
-  | before, after ->
-    let imports = imports () in
+  | before, after, prefix ->
+    let imports =
+      imports ~bound:prefix.prefix_symbols
+        ~unmentioned:prefix.prefix_unmentioned
+    in
+    (* The prefix is checked before it is used: a fault here is one of the
+       conversion, and neither of the unit nor of Simplify. *)
+    (match prefix_fault prefix ~imports before after with
+    | Some fault ->
+      Format.printf
+        "%s: not checked: the prefix made from the .cmx files %s, which is a \
+         fault of the conversion@."
+        filename fault;
+      exit 1
+    | None -> ());
+    let before = with_prefix prefix before in
+    let after = with_prefix prefix after in
+    (match prefix.prefix_groups with
+    | [] -> ()
+    | _ :: _ ->
+      if not (well_formed after)
+      then (
+        Format.printf
+          "%s: not checked: with the prefix made from the .cmx files in front \
+           of it the term after Simplify is not well-formed (%s)@."
+          filename
+          (why_not_well_formed after);
+        exit 1));
     let statics = Imports.imports_statics imports in
     let outcome_before, steps_before = run ~statics before in
     let outcome_after, steps_after = run ~statics after in
     let with_imports =
+      (match prefix.prefix_groups with
+        | [] -> ""
+        | _ :: _ -> ", after the prefix")
+      ^
       match imports with
       | [] -> ""
       | [_] -> ", with its import"
@@ -3194,15 +4077,16 @@ let check ~filename ~units (before : Flambda_unit.t) (after : Flambda_unit.t) =
         Printf.sprintf ", with its %d imports" (List.length imports)
     in
     Format.printf "%s:@." filename;
+    (* The units read are named on a line of their own, unless the line of the
+       prefix names them all. *)
     (match units with
     | [] -> ()
     | _ :: _ ->
-      Format.printf "  the tool's Simplify read the .cmx of: %s@."
-        (String.concat ", "
-           (List.sort String.compare
-              (List.map
-                 (fun (unit, _) -> Compilation_unit.name_as_string unit)
-                 units))));
+      if unit_names units <> unit_names prefix.prefix_units
+      then
+        Format.printf "  the tool's Simplify read the .cmx of: %s@."
+          (String.concat ", " (unit_names units)));
+    print_prefix prefix;
     Format.printf "  before Simplify%s (%d steps): %a@." with_imports
       steps_before print_outcome outcome_before;
     Format.printf "  after Simplify%s (%d steps): %a@." with_imports steps_after
@@ -3224,7 +4108,9 @@ let check ~filename ~units (before : Flambda_unit.t) (after : Flambda_unit.t) =
         else "DIFFERENT", false
     in
     Format.printf "  %s@." verdict;
-    validate ~imports ~outcome_before before after;
+    validate ~imports
+      ~prefix_units:(List.length prefix.prefix_units)
+      ~outcome_before before after;
     if not ok then exit 1
 
 (* The text of fexpr has no syntax for the mode of a parameter of code, and the
