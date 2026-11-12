@@ -1,5 +1,44 @@
 # T5b, the type traversal of the n-way join: status
 
+## A leaf among the rewrites of the validation (2026-11-12)
+
+Not part of the join. `FlambdaRecoverComparison*`, in
+`middle_end/flambda2/rocq/`: `recover_known_comparisons` makes a
+test against the tagged immediate 0 of the tagged result of a
+three-way `Int_comp` the comparison of its two operands, as
+`Simplify_binary_primitive.recover_comparison_primitive` does
+(`compare a b < 0` becomes `a < b`), at every kind of integer and
+with the compiler's table for the six comparisons. Four files: the
+definitions and the statements (`FlambdaRecoverComparisonSpec.v`),
+their proofs, the statement that the pass keeps scope, and its
+proof.
+
+- Proved: the result refines the term
+  (`recover_known_comparisons_refines`); the pass commutes with
+  renaming (`recover_comparisons_knowing_equivariant`,
+  `recover_known_comparisons_equivariant`); it keeps scope
+  (`recover_known_comparisons_keeps_scope`).
+- Nothing applies it yet. The owner of `FlambdaValidateSpec.v`
+  wires it; the place agreed is innermost of the rewrites that
+  follow the values in `normalise_expr_before`, under
+  `share_known_primitives`, on the term before only.
+- Measured before the proofs, with the definitions applied in that
+  place in a build that is not in this tree: of 1356 units (the 370
+  of the corpus, 840 generated ones, and 146 written to probe the
+  validation, which are not in this tree), seven more are
+  validated, each a unit that tests the result of `compare`
+  against zero; none is lost, no output moves, and no expected
+  file of the corpus changes.
+- It reads what `FlambdaCseSpec.share_primitives_knowing` keeps
+  (`computed`) and changes nothing there. It goes through every
+  entry for a variable, so the entry that the untagging of a
+  variable adds for that variable (`tagged_again`) hides nothing
+  from it. One lemma of the scope proof
+  (`computed_under_let_operands_within`) goes by the definition of
+  `computed_under_let`, with a case for that entry, and needs a
+  case more if the definition gains another.
+- Reviewer: R5.
+
 The series is merged into the integration branch (the type
 traversal and the assembled conditional theorem; the reviewer's
 scope is those, not the join of environments end to end). What
