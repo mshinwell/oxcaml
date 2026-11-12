@@ -54,7 +54,12 @@
      forgets the environments joined and answers the environment of
      the meet ([forgetful_join_sound_statement]). The contract asks
      for no precision, and this shows that it asks for nothing that
-     cannot be had. It is not the compiler's join.
+     cannot be had. It is not the compiler's join. With it the meet
+     that is to be proved has its contract with no premise left,
+     whatever the fuel ([meet_with_forgetful_join_contract_statement],
+     from the theorem of FlambdaMeetClosuresSpec.v), and so have the
+     functions that add to a typing environment
+     ([typing_env_functions_with_forgetful_join_statement]).
    - Adding an equation can forget ("The join that meet is given"):
      the environment answered has a valuation that the first has not
      ([add_equation_forgets_statement]). This is the compiler's
@@ -87,7 +92,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaEnvAliases
   FlambdaEnvAliasesSpec FlambdaTypingEnv FlambdaTypingEnvSpec
   FlambdaMeetGrammar FlambdaExpandHead FlambdaMeetEnv FlambdaMeet
-  FlambdaMeetSpec.
+  FlambdaMeetSpec FlambdaMeetFuelSpec.
 Import ListNotations.
 
 Local Open Scope Z_scope.
@@ -191,6 +196,24 @@ Definition forgetful_join : join_scoped_envs :=
 
 Definition forgetful_join_sound_statement : Prop :=
   join_scoped_envs_sound forgetful_join.
+
+(* So the meet that is to be proved, with that join, has its contract:
+   the premise of [transcription_sound] is one that a join has. *)
+Definition meet_with_forgetful_join_contract_statement : Prop :=
+  ∀ fuel : nat, meet_contract (meet_to_prove forgetful_join fuel).
+
+(* The same of the functions that add to a typing environment, made of
+   that meet. *)
+Definition typing_env_functions_with_forgetful_join_statement : Prop :=
+  ∀ fuel : nat,
+    add_equation_sound
+      (Flambda2_types.add_equation forgetful_join repaired_choices fuel)
+    ∧ add_env_extension_sound
+        (Flambda2_types.add_env_extension forgetful_join repaired_choices
+           fuel)
+    ∧ add_equations_on_params_sound_where_known
+        (Flambda2_types.add_equations_on_params forgetful_join
+           repaired_choices fuel).
 
 (* With that join, the meet that is to be proved answers, on the input
    above, an environment that the run satisfies, and a type that the

@@ -42,7 +42,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypingEnvInvariantSpec FlambdaTypingEnvInvariantProofs
   FlambdaTypingEnvKindedSpec FlambdaTypingEnvKindedProofs FlambdaMeetGrammar
   FlambdaExpandHead FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec
-  FlambdaMeetProofs FlambdaMeetEnvProofs FlambdaMeetExamplesSpec.
+  FlambdaMeetProofs FlambdaMeetEnvProofs FlambdaMeetFuelSpec
+  FlambdaMeetClosuresSpec FlambdaMeetClosuresProofs FlambdaMeetExamplesSpec.
 Import ListNotations.
 
 Local Open Scope Z_scope.
@@ -167,6 +168,21 @@ Proof.
   - intros scoped_env s kind Hin Hknown Hkind.
     exact (scoped_env_of_kind initial_tenv scoped_env s kind
              (Hscoped scoped_env Hin) Hknown Hkind).
+Qed.
+
+Theorem meet_with_forgetful_join_contract
+  : meet_with_forgetful_join_contract_statement.
+Proof.
+  intros fuel.
+  exact (meet_to_prove_sound forgetful_join fuel forgetful_join_sound).
+Qed.
+
+Theorem typing_env_functions_with_forgetful_join
+  : typing_env_functions_with_forgetful_join_statement.
+Proof.
+  intros fuel.
+  exact (typing_env_functions_of_meet_to_prove forgetful_join fuel
+           forgetful_join_sound).
 Qed.
 
 Theorem meet_to_prove_get_tag : meet_to_prove_get_tag_statement.
