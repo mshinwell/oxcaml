@@ -200,6 +200,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaUnusedStaticsProofs.v \
   FlambdaUnusedStaticsSpec.v \
   FlambdaValidateProofs.v \
+  FlambdaValidateScopeProofs.v \
+  FlambdaValidateScopeSpec.v \
   FlambdaValidateSpec.v \
   FlambdaValidatorEquivarianceProofs.v \
   FlambdaValidatorEquivarianceSpec.v \
