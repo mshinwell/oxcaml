@@ -15,7 +15,7 @@ front end has been read for decision 4, which the human has ruled on
 in part.
 
 Paths are in `middle_end/flambda2/` unless they say otherwise. The base
-is the integration branch at f97c8c5c65: C1's epoch, with its law that
+is the integration branch at fcd6e9c15c: C1's epoch, with its law that
 no primitive has a value on a symbol bound to nothing, and its numbers
 in range; C3's epoch, sets of closures of several functions, and valid
 values; C2's epoch, in which terms carry kinds and arities and a call
@@ -26,13 +26,14 @@ an `Apply_cont` has a trap action; P1's primitives, among them
 lifting on today's model; C0's well-formedness; N1's names; and the
 types, T1's to T6's. It is read together with C0's note on
 well-formedness (`requests/C0-well-formed.md`). The prototype was
-written on 0a2933e7c9 and has been rebased on f97c8c5c65; what that
+written on 0a2933e7c9 and has been rebased on fcd6e9c15c; what that
 cost each owner, and what changed in the prototype, is in
 `requests/C4-heap-fallout.md`.
 
-The prototype is on the branch `flambda2-rocq/C4-heap`. It builds
-(`make -C rocq -j16 all`, `make -C rocq assumptions`), and has no
-`Admitted`, axiom or `Parameter`. It is in two parts:
+The prototype is on the integration branch (515a6a2b8f to
+7a02e0326d). It builds (`make -C rocq -j16 all`, `make -C rocq
+assumptions`), and has no `Admitted`, axiom or `Parameter`. It is in
+two parts:
 
 - edits to four existing files, to measure what a new form of value
   and new primitives cost: `FlambdaValueSpec.v` (locations, cells, the
@@ -1633,10 +1634,10 @@ such a use.
 ### 7.1 Measured on the prototype
 
 **A new form of value, and the primitives under one constructor.**
-Measured on the integration branch at f97c8c5c65, file by file and
+Measured on the integration branch at fcd6e9c15c, file by file and
 owner by owner, in `requests/C4-heap-fallout.md`: `Value_location`
 with the types of the heap, the primitives under `Heap`, and the
-repairs that they force, in twenty-four files, most of them one more
+repairs that they force, in twenty-five files, most of them one more
 name in a pattern. The types library is among them (four of its
 files, T1's and T6's). No statement of an existing `Spec` file
 changes.
@@ -2095,7 +2096,7 @@ Left:
   no existing theorem has been re-proved with a heap, and the claim
   that each carries over rests on `heap_step_agrees` and on the
   counts of 7.1, not on a build.
-- The prototype is on f97c8c5c65. It has met P1's primitives (section
+- The prototype is on fcd6e9c15c. It has met P1's primitives (section
   2.5: its own `mutability`, `equality_comparison` and `Phys_equal`,
   and its second constructor for a load, are gone, and it says what
   P1's `Block_load` and `Phys_equal` do on a location), C5's

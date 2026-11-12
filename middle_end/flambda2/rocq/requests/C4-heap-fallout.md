@@ -1,21 +1,21 @@
 # C4, the heap: what the prototype costs on the integration branch
 
-The prototype was written on the integration branch at 0a2933e7c9. It is
-rebased here on f97c8c5c65, after C1's law that no primitive has a value
+The prototype was written on the integration branch at 0a2933e7c9. It
+was merged on fcd6e9c15c, after C1's law that no primitive has a value
 on a symbol bound to nothing and its numbers in range, C3's sets of
 closures and valid values, C2's kinds on terms, C5's exceptions, P1's
 primitives, V3's lifting, C0's well-formedness, N1's names, V2's
-normalisations, and the types, T1's to T6's. This note
-says what applying its edits to the model costs each owner there, and
-what changed in the prototype's own two files. Paths are in
+normalisations, and the types, T1's to T6's. This note says what
+applying its edits to the model cost each owner there, and what
+changed in the prototype's own two files. Paths are in
 `middle_end/flambda2/` unless they say otherwise. The counts are on
-f97c8c5c65. Of what came to the integration branch after C3's epoch,
-nine files needed an edit (two of C2's, one of T6's, one of N3's,
-one of P1's, three of V3's and one more function of C3's, below); the
-rest did not (T2's typing environments, T3's aliases, T4's meet, T5's
-joins, N1's renamings, N2's binders, N3's rewrites up to renaming,
-C5's exceptions and its second machine, more of C1's laws, V3's known
-symbols).
+fcd6e9c15c. Of what came to the integration branch after C3's epoch,
+eleven files needed an edit (two of C2's, one of T6's, one of N3's,
+one of P1's, three of V3's, one of V2's, one of T7's and one more
+function of C3's, below); the rest did not (T2's typing environments,
+T3's aliases, T4's meet, T5's joins, N1's renamings, N2's binders,
+N3's rewrites up to renaming, C5's exceptions and its second machine,
+more of C1's laws, V3's known symbols).
 
 ## The edits to existing files, by owner
 
@@ -43,6 +43,7 @@ added and removed.
 | `rocq/FlambdaLiftProofs.v` | V3 | +4 -4 | `lift_named_lifted`, `lift_named_no_code`, `lift_named_rename`: a fourth pattern in the destruct on `prim`; in the first, one more pattern in a destruct on `value`. |
 | `rocq/FlambdaMyClosureProofs.v` | V3 | +5 -4 | `value_free` (a definition of the proofs: a value free of a code id): a location is free of it, as a constant is. `closure_of_free`, `closure_in_set_free`, `project_function_slot_free`: one more name in the pattern of the destruct on `value`. |
 | `rocq/FlambdaUnusedSlotsProofs.v` | V3 | +4 -2 | `closure_of_drop`, `closure_in_set_drop`: one more name in the pattern of the destruct on `value`. |
+| `rocq/FlambdaStaticsOrderProofs.v` | V2 | +2 -1 | `value_avoids_nothing`: one more name in the pattern of the destruct on `value`. C0 made this repair when it merged the series: the file came to the integration branch after the series was cut. |
 | `rocq/FlambdaUnusedStaticsSpec.v` | V1 (unassigned) | +1 | `value_avoids`: a location avoids every name. |
 | `rocq/FlambdaUnusedStaticsProofs.v` | V1 (unassigned) | +6 -3 | `closure_of_erased`, `closure_in_set_erased`, `project_function_slot_erased`: one more name in the pattern, and one more branch, that of a boxed number (no closure, nothing erased). |
 | `types/rocq/FlambdaTypeMeaningBoolSpec.v` | T1 | +1 | `value_eqb`: two locations are equal when they are the same location. Without it `value_eqb_decides_equality_statement` would be false: a location would not be equal to itself. |
@@ -241,7 +242,7 @@ statements are proved, and there is no conjecture.
   not add its heap there; its own invariant (`state_closed`) walks the
   heap and the static environment. Putting the heap in `state` adds the
   cells to `state_values_all`.
-- The cost to the other owners is small: twenty-four files, most of
+- The cost to the other owners is small: twenty-five files, most of
   them a name in a pattern. The work is in the prototype's own proofs,
   which gain the lemmas on closures of a set (a closure of a set is a
   closure; what a closure that is not a symbol projects; a projection
