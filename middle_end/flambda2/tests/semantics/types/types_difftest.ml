@@ -4690,7 +4690,52 @@ let scenarios_in_the_model () =
      on %d of them:%a@]@."
     (List.length differing)
     (fun ppf -> List.iter (fun name -> Format.fprintf ppf "@ %s" name))
-    differing
+    differing;
+  (* The same scenarios with their variables defined in the reverse order, and
+     before every other step: the variables have the numbers that they had and
+     other binding times, so that the canonical element of a class of aliases
+     may be another. It is also counted on how many the compiler then answers
+     otherwise than in the order given. *)
+  let reversed steps =
+    let defines, others =
+      List.partition
+        (fun (step : step) ->
+          match step with
+          | Define _ -> true
+          | Relation _ | Equation _ | Meet_of _ -> false)
+        steps
+    in
+    List.rev defines @ others
+  in
+  let same = ref 0 and different = ref 0 and moved = ref 0 in
+  List.iter
+    (fun (name, kinds, steps, meet) ->
+      let threshold = List.length kinds in
+      let in_the_model, in_the_compiler =
+        scenario_in_both model kinds (reversed steps) meet
+      in
+      let (_ : seen), in_the_order_given =
+        scenario_in_both model kinds steps meet
+      in
+      if not (same_seen ~threshold in_the_compiler in_the_order_given)
+      then incr moved;
+      if same_seen ~threshold in_the_model in_the_compiler
+      then incr same
+      else (
+        incr different;
+        Format.printf
+          "  @[<v>%s, the variables defined in the reverse order: DIFFERENT. \
+           The model:@ %a@ the compiler:@ %a@]@."
+          name print_lines
+          (print_seen ~threshold in_the_model)
+          print_lines
+          (print_seen ~threshold in_the_compiler)))
+    scenarios;
+  Format.printf
+    "  With the variables of each scenario defined in the reverse order: %d \
+     the same, %d different (the compiler answers otherwise than in the order \
+     given on %d)@."
+    !same !different !moved
 
 (* The environment of the tests, in the model: the variables and the symbols
    that [names.env] defines, of which nothing is known. *)
