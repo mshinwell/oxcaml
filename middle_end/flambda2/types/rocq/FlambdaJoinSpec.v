@@ -1241,15 +1241,13 @@ Definition env_extension_in_target (s : state) (extension : env_extension)
    environment says also that the environment knows the symbol, and
    the meet's environment asks it of every alias of a type that it is
    given ([type_kinded], through [type_fits] of FlambdaMeetSpec.v).
-   The symbols of the target are those of the source. The contract
-   of the join that Simplify calls supposes that a symbol that a use
-   knows is known to the source ([symbols_of_uses_in_source] above),
-   so "known to an environment joined" is "known to the target"
-   there. The contract that the meet has for its join does not
-   suppose it yet (a fourth conjunct of [scoped_env_of],
-   FlambdaMeetSpec.v, is in review and not merged); until it does,
-   the statements about that join have it as a premise of their own
-   (FlambdaJoinMeetSpec.v). The state has no reading for the source,
+   The symbols of the target are those of the source, and the
+   premises of the two contracts for a join of environments say that
+   a symbol that a use knows is known to the source
+   ([symbols_of_uses_in_source] above; the fourth conjunct of
+   [scoped_env_of], FlambdaMeetSpec.v, for the join that the meet
+   calls). So "known to an environment joined" is "known to the
+   target" there. The state has no reading for the source,
    which is why the clause is about the environments joined. A change
    to a reviewed definition, made overnight with the agreement of the
    owner of the join of types, whose statements about that join take

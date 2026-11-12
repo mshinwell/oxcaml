@@ -108,7 +108,11 @@
      environment given, extended; a meet may be made in it; a
      variable of the result that no environment given knows is none
      of the names to avoid of the environment given and is among
-     those of the result; and a [Simple] that the result knows is of
+     those of the result; a variable of the result that the
+     environment given does not know may not occur in a term (the
+     join defines its variables at the mode of the variables that
+     exist only in types, and so do the meets that it calls); and a
+     [Simple] that the result knows is of
      the kind that an environment joined has it at. The premises are
      those of the contract, and one more that is not shown yet of
      the join ([join_adds_types_that_fit_otherwise]: the premise
@@ -319,8 +323,9 @@ Definition last_phase_names_known_statement : Prop :=
 (* A symbol that an environment joined knows is known to the source.
    (The contract of the join that Simplify calls supposes it,
    [symbols_of_uses_in_source] of FlambdaJoinSpec.v; the contract
-   that the meet has for its join is to suppose it of the
-   environments that it joins.) *)
+   that the meet has for its join supposes it of the environments
+   that it joins, in the fourth clause of [scoped_env_of],
+   FlambdaMeetSpec.v.) *)
 Definition symbols_of_joined_envs_in_source (source : Typing_env.t)
     (s : Join_env.t) : Prop :=
   ∀ (index : Index.t) (use : Typing_env.t) (sym : symbol),
@@ -432,12 +437,7 @@ Definition last_phase_kept_statement : Prop :=
    ([join_scoped_envs_sound], FlambdaMeetSpec.v) that are not about
    values, under its premises but the one about the values that the
    meet of expanded types keeps ([meet_expanded_head_sound]), which
-   they do not need; and one more, that the first environment knows
-   every symbol that an environment joined knows. *)
-(* CR mshinwell: 2026-11-12. The premise on symbols is not in the
-   contract as it is merged. It is on its way there as a fourth
-   conjunct of [scoped_env_of] (agreed with the owner of the meet; in
-   review). When it is merged the premise here goes. *)
+   they do not need. *)
 Definition join_scoped_envs_keeps (join : join_scoped_envs) : Prop :=
   ∀ (meet_head : meet_expanded_head) (initial_env result : Meet_env.t)
     (scoped_envs : list Typing_env.t),
@@ -446,10 +446,6 @@ Definition join_scoped_envs_keeps (join : join_scoped_envs) : Prop :=
     typing_env_fits initial_tenv ->
     (∀ scoped_env : Typing_env.t,
       scoped_env ∈ scoped_envs -> scoped_env_of initial_tenv scoped_env) ->
-    (∀ (scoped_env : Typing_env.t) (sym : symbol),
-      scoped_env ∈ scoped_envs ->
-      Typing_env.mem None scoped_env (Name_symbol sym) = true ->
-      Typing_env.mem None initial_tenv (Name_symbol sym) = true) ->
     scoped_envs_agree scoped_envs ->
     join meet_head (Typing_env.current_scope initial_tenv) initial_env
       initial_tenv scoped_envs
@@ -465,6 +461,13 @@ Definition join_scoped_envs_keeps (join : join_scoped_envs) : Prop :=
           Typing_env.mem None scoped_env (Name_var x) = false) ->
         among x (Meet_env.names_to_avoid initial_env) = false
         ∧ among x (Meet_env.names_to_avoid result) = true)
+    ∧ (∀ x : variable,
+        Typing_env.mem None (Meet_env.typing_env result) (Name_var x)
+        = true ->
+        Typing_env.mem None initial_tenv (Name_var x) = false ->
+        Typing_env.mem (Some Name_mode.normal) (Meet_env.typing_env result)
+          (Name_var x)
+        = false)
     ∧ ∀ (scoped_env : Typing_env.t) (s : simple) (kind : flambda_kind),
         scoped_env ∈ scoped_envs ->
         Typing_env.mem_simple None (Meet_env.typing_env result) s = true ->
@@ -502,10 +505,6 @@ Definition join_adds_types_that_fit_otherwise
     typing_env_fits initial_tenv ->
     (∀ scoped_env : Typing_env.t,
       scoped_env ∈ scoped_envs -> scoped_env_of initial_tenv scoped_env) ->
-    (∀ (scoped_env : Typing_env.t) (sym : symbol),
-      scoped_env ∈ scoped_envs ->
-      Typing_env.mem None scoped_env (Name_symbol sym) = true ->
-      Typing_env.mem None initial_tenv (Name_symbol sym) = true) ->
     scoped_envs_agree scoped_envs ->
     Join_env.cut_for_joins (Typing_env.current_scope initial_tenv)
       (Index.number scoped_envs)
@@ -620,7 +619,7 @@ Definition last_phase_satisfied_statement : Prop :=
 
 (* The same of the join that the meet calls, under the premises of
    the contract that the meet has for its join
-   ([join_scoped_envs_sound], FlambdaMeetSpec.v) and the two more of
+   ([join_scoped_envs_sound], FlambdaMeetSpec.v) and the one more of
    [model_join_scoped_envs_keeps_statement]: at an environment
    joined, on a run that has the conditions, a valuation that
    satisfies the first environment and that one extends to one that
@@ -670,10 +669,6 @@ Definition model_join_scoped_envs_satisfied_statement : Prop :=
       typing_env_fits initial_tenv ->
       (∀ scoped_env : Typing_env.t,
         scoped_env ∈ scoped_envs -> scoped_env_of initial_tenv scoped_env) ->
-      (∀ (scoped_env : Typing_env.t) (sym : symbol),
-        scoped_env ∈ scoped_envs ->
-        Typing_env.mem None scoped_env (Name_symbol sym) = true ->
-        Typing_env.mem None initial_tenv (Name_symbol sym) = true) ->
       scoped_envs_agree scoped_envs ->
       model_join_scoped_envs join_choices join_depth fuel meet_head
         (Typing_env.current_scope initial_tenv) initial_env initial_tenv

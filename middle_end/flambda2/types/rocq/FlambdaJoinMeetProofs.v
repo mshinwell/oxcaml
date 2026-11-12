@@ -892,6 +892,65 @@ Qed.
 (* The contract that the meet has for its join, but for the values         *)
 (* ---------------------------------------------------------------------- *)
 
+(* A variable of the target of the last phase that the environment
+   given does not know may not occur in a term, if the variables that
+   the meets of the two additions define may not. *)
+Lemma last_phase_not_in_terms (tenv : Typing_env.t) (fuel : nat)
+    (s : Join_env.t) (relations : Join_env.inverse_relations)
+    (menv menv1 target : Meet_env.t) (kept : list (variable * flambda_kind))
+    (equations relation_equations : list (name * flambda_type))
+    (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind)) :
+  state_valid s ->
+  Meet_env.typing_env menv = Join_env.source_env s ->
+  typing_env_fits (Meet_env.typing_env menv) ->
+  last_phase_adds tenv fuel s relations kept equations relation_equations
+    definitions ->
+  let menv0 :=
+    variables_defined meet_env_functions menv
+      (Bindings_in_target_env.imported_variables_in_order (Join_env.bindings s)
+       ++ kept)
+  in
+  meet_env_extends menv0 menv1 ->
+  meet_env_extends menv1 target ->
+  (∀ x : variable,
+     Typing_env.mem None (Meet_env.typing_env menv1) (Name_var x) = true ->
+     Typing_env.mem None (Meet_env.typing_env menv0) (Name_var x) = false ->
+     Typing_env.mem (Some Name_mode.normal) (Meet_env.typing_env menv1)
+       (Name_var x)
+     = false) ->
+  (∀ x : variable,
+     Typing_env.mem None (Meet_env.typing_env target) (Name_var x) = true ->
+     Typing_env.mem None (Meet_env.typing_env menv1) (Name_var x) = false ->
+     Typing_env.mem (Some Name_mode.normal) (Meet_env.typing_env target)
+       (Name_var x)
+     = false) ->
+  ∀ x : variable,
+    Typing_env.mem None (Meet_env.typing_env target) (Name_var x) = true ->
+    Typing_env.mem None (Meet_env.typing_env menv) (Name_var x) = false ->
+    Typing_env.mem (Some Name_mode.normal) (Meet_env.typing_env target)
+      (Name_var x)
+    = false.
+Proof.
+  intros Hvalid Hsource Hfits Hadds menv0 Hextends1 Hextends2 Hnew1 Hnew2 x Hx
+    Hnot.
+  destruct (last_phase_adds_kept tenv fuel s relations kept equations
+              relation_equations definitions Hadds) as [Hdistinct Hkept].
+  destruct (target_variables_fresh s menv kept Hvalid Hsource Hkept Hdistinct)
+    as [Hnodup Hfresh].
+  destruct (variables_defined_kept _ menv Hfits Hnodup Hfresh)
+    as [_ [_ [Hmem _]]].
+  fold menv0 in Hmem.
+  destruct (Typing_env.mem None (Meet_env.typing_env menv1) (Name_var x))
+    eqn:H1; [ | exact (Hnew2 x Hx H1) ].
+  rewrite (extends_mode menv1 target x Name_mode.normal Hextends2 H1).
+  destruct (Typing_env.mem None (Meet_env.typing_env menv0) (Name_var x))
+    eqn:H0; [ | exact (Hnew1 x H1 H0) ].
+  rewrite (extends_mode menv0 menv1 x Name_mode.normal Hextends1 H0).
+  apply (variables_defined_not_in_terms _ menv x Hfits Hnodup Hfresh).
+  apply Hmem in H0. destruct H0 as [H0 | H0]; [ | exact H0 ].
+  rewrite H0 in Hnot. discriminate Hnot.
+Qed.
+
 (* The environment of a meet with more names to avoid. *)
 Lemma with_names_extends (menv : Meet_env.t) (names : list variable) :
   (∀ x : variable,
@@ -940,10 +999,6 @@ Lemma scoped_envs_first_phases (join_choices : Join_env.choices)
   typing_env_fits initial_tenv ->
   (∀ scoped_env : Typing_env.t,
     scoped_env ∈ scoped_envs -> scoped_env_of initial_tenv scoped_env) ->
-  (∀ (scoped_env : Typing_env.t) (sym : symbol),
-    scoped_env ∈ scoped_envs ->
-    Typing_env.mem None scoped_env (Name_symbol sym) = true ->
-    Typing_env.mem None initial_tenv (Name_symbol sym) = true) ->
   Join_env.cut_for_joins (Typing_env.current_scope initial_tenv)
     (Index.number scoped_envs)
   = Some envs ->
@@ -971,8 +1026,8 @@ Lemma scoped_envs_first_phases (join_choices : Join_env.choices)
   ∧ joined_envs_are typing_env_kinded s3
   ∧ symbols_of_joined_envs_in_source initial_tenv s3.
 Proof.
-  intros initial_tenv p jt avoid s0 Hfits Hscoped Hsymbols Hcut Haliases
-    Hdelayed Hloop.
+  intros initial_tenv p jt avoid s0 Hfits Hscoped Hcut Haliases Hdelayed
+    Hloop.
   (* The environments joined. *)
   assert (Hfound :
             ∀ (index : Index.t) (use : Typing_env.t),
@@ -1103,14 +1158,15 @@ Proof.
     exact (Hkinded_envs index use Huse). }
   assert (Hsymbols3 : symbols_of_joined_envs_in_source initial_tenv s3).
   { intros index use sym Huse Hmem.
-    exact (Hsymbols use sym (Hjoined index use Huse) Hmem). }
+    exact (proj2 (proj2 (proj2 (Hscoped use (Hjoined index use Huse)))) sym
+             Hmem). }
   repeat (split; [ assumption | ]). exact Hsymbols3.
 Qed.
 
 Theorem model_join_scoped_envs_keeps : model_join_scoped_envs_keeps_statement.
 Proof.
   intros join_choices join_depth fuel Hrest mh initial_env result scoped_envs
-    initial_tenv Hmh Hfits Hscoped Hsymbols Hagree Hjoin.
+    initial_tenv Hmh Hfits Hscoped Hagree Hjoin.
   unfold model_join_scoped_envs, Join_env.cut_and_n_way_join in Hjoin.
   cbv zeta in Hjoin.
   destruct (Join_env.cut_for_joins _ _) as [envs | ] eqn:Hcut;
@@ -1186,8 +1242,12 @@ Proof.
     injection Hjoin0 as <- _ _.
     cbn [Join_env.make_bottom meet_env_functions].
     destruct (make_bottom_keeps initial_env Hfits) as [Hextends Hfits'].
-    split; [ exact Hextends | ]. split; [ exact Hfits' | ]. split.
+    split; [ exact Hextends | ]. split; [ exact Hfits' | ].
+    split; [ | split ].
     - intros x Hx Hnot _.
+      change (Typing_env.mem None initial_tenv (Name_var x) = true) in Hx.
+      rewrite Hx in Hnot. discriminate Hnot.
+    - intros x Hx Hnot.
       change (Typing_env.mem None initial_tenv (Name_var x) = true) in Hx.
       rewrite Hx in Hnot. discriminate Hnot.
     - intros scoped_env s kind Hin Hknown Hk.
@@ -1217,7 +1277,7 @@ Proof.
             ++ kept)) in *.
   destruct (scoped_envs_first_phases join_choices join_depth fuel initial_env
               scoped_envs envs s1 s2 s3 relations2 relations3 Hfits Hscoped
-              Hsymbols Hcut Haliases Hdelayed Hloop)
+              Hcut Haliases Hdelayed Hloop)
     as (Htrue3 & Hrelations3 & Hgrows3 & Hstate3 & Hnonempty3 & Hscoped3 & HX
         & HR & Hnames_kept & Hmade & Hjoined & Hinvariant3 & Hkinded3
         & Hsymbols3).
@@ -1230,8 +1290,7 @@ Proof.
               Hinvariant3 Hkinded3 Hsymbols3 HX HR eq_refl Hfits Hadds
               (Hrest initial_env scoped_envs envs s1 s2 s3 relations2
                  relations3 _ kept equations relation_equations definitions
-                 Hfits Hscoped Hsymbols Hagree Hcut Haliases Hdelayed Hloop
-                 Hadds)
+                 Hfits Hscoped Hagree Hcut Haliases Hdelayed Hloop Hadds)
               Hmh Hadd1 Hadd2) as [Hkept0 [Hstep1 Hstep2]].
   fold menv0 in Hkept0, Hstep1.
   assert (Hextends_a : meet_env_extends initial_env menv_a).
@@ -1279,7 +1338,7 @@ Proof.
     - right. split; [ exact (Hkept_made x Hx) | exact Hx ]. }
   split; [ exact Hextends2 | ].
   split; [ exact (proj2 (proj1 Hstep2)) | ].
-  split.
+  split; [ | split ].
   - (* The variables that are new. *)
     intros x Hx Hnot_initial Hnot_scoped.
     destruct (Typing_env.mem None (Meet_env.typing_env menv0) (Name_var x))
@@ -1314,6 +1373,15 @@ Proof.
           [ | reflexivity ].
         rewrite (extends_avoids initial_env menv1 x Hextends1 Hav) in Hnew.
         discriminate Hnew.
+  - (* The variables that the first environment does not know may not
+       occur in terms. *)
+    intros x Hx Hnot.
+    exact (last_phase_not_in_terms _ (fuel_of_env fuel) s3 relations3 menv_a
+             menv1 target kept equations relation_equations definitions
+             (proj1 Htrue3) Hsource3 Hfits Hadds (proj1 (proj1 Hstep1))
+             (proj1 (proj1 Hstep2))
+             (fun y H1 H0 => proj2 (proj2 (proj2 Hstep1 y H1 H0)))
+             (fun y H2 H1 => proj2 (proj2 (proj2 Hstep2 y H2 H1))) x Hx Hnot).
   - (* The kinds. *)
     intros scoped_env s kind Hin Hknown Hk.
     destruct s as [x | sym | c];
@@ -1388,12 +1456,12 @@ Proof.
   intros join_choices join_depth fuel Hrest mh initial_env result scoped_envs
     envs s1 s2 s3 relations2 relations3 kept equations relation_equations
     definitions index scoped_env statics valuation initial_tenv p jt avoid s0
-    menv Hsound Hmh Hfits Hscoped Hsymbols Hagree Hjoin Hcut Haliases Hdelayed
-    Hloop Hadds Huse Hstatics Hsat_initial Hsat_use Htags Haliases_v
-    Hscrutinees Hvalued.
+    menv Hsound Hmh Hfits Hscoped Hagree Hjoin Hcut Haliases Hdelayed Hloop
+    Hadds Huse Hstatics Hsat_initial Hsat_use Htags Haliases_v Hscrutinees
+    Hvalued.
   destruct (scoped_envs_first_phases join_choices join_depth fuel initial_env
               scoped_envs envs s1 s2 s3 relations2 relations3 Hfits Hscoped
-              Hsymbols Hcut Haliases Hdelayed Hloop)
+              Hcut Haliases Hdelayed Hloop)
     as (Htrue3 & Hrelations3 & Hgrows3 & Hstate3 & Hnonempty3 & Hscoped3 & HX
         & HR & Hnames_kept & Hmade & Hjoined & Hinvariant3 & Hkinded3
         & Hsymbols3).
@@ -1435,7 +1503,7 @@ Proof.
            (fun x Hx => proj2 (among_In _ _) Hx) Hadds
            (Hrest initial_env scoped_envs envs s1 s2 s3 relations2 relations3
               _ kept equations relation_equations definitions Hfits Hscoped
-              Hsymbols Hagree Hcut Haliases Hdelayed Hloop Hadds)
+              Hagree Hcut Haliases Hdelayed Hloop Hadds)
            Hmh Hsound Hadd1 Hadd2 Huse Hstatics Hsat_initial Hsat_use Htags
            Haliases_v Hscrutinees Hvalued).
 Qed.
