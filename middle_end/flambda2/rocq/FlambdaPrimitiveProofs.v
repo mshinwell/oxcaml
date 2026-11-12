@@ -916,9 +916,7 @@ Proof.
       [ | discriminate ].
     rewrite (string_of_kind statics arg1 bytes Hstring),
       (int_of_value_kind _ _ _ Hindex).
-    destruct (0 <=? index); [ | discriminate ].
-    destruct (nth_error bytes (Z.to_nat index)) as [byte | ];
-      [ | discriminate ].
+    cbv zeta. destruct (_ && _); [ | discriminate ].
     destruct width; intros [= <-]; auto.
   - (* [Phys_equal] *)
     destruct (eval_phys_equal statics arg1 arg2) as [same | ] eqn:Hsame;
@@ -1090,9 +1088,7 @@ Proof.
     destruct (string_of statics arg1) as [bytes | ]; [ | discriminate ].
     destruct (int_of_value Standard_naked_nativeint arg2) as [index | ];
       [ | discriminate ].
-    destruct (0 <=? index); [ | discriminate ].
-    destruct (nth_error bytes (Z.to_nat index)) as [byte | ];
-      [ | discriminate ].
+    cbv zeta. destruct (_ && _); [ | discriminate ].
     destruct width; intros [= <-]; apply Hnumbers.
   - (* [Phys_equal] *)
     destruct (eval_phys_equal statics arg1 arg2); [ | discriminate ].
@@ -1443,15 +1439,40 @@ Proof.
   - destruct (reading width s a ?= reading width s b); reflexivity.
 Qed.
 
-(* The low eight bits of an integer are an immediate. *)
-Lemma low_byte_in_range (byte : Z) :
-  ocaml_int_in_range (byte mod 256) = true.
+(* An integer of two bytes without a sign is an immediate. *)
+Lemma two_bytes_in_range (z : Z) :
+  0 <= z < 65536 -> ocaml_int_in_range z = true.
 Proof.
-  unfold ocaml_int_in_range, in_range.
+  intros Hz. unfold ocaml_int_in_range, in_range.
   change (2 ^ (int_width Standard_tagged_immediate - 1))
     with 4611686018427387904.
-  pose proof (Z.mod_pos_bound byte 256 eq_refl) as Hbyte.
   apply andb_true_iff. split; [ apply Z.leb_le | apply Z.ltb_lt ]; lia.
+Qed.
+
+(* The integer that some bytes make is at least 0, and below the first
+   that needs one more byte. *)
+Lemma little_endian_bound (bytes : list Z) :
+  0 <= little_endian bytes < 256 ^ Z.of_nat (length bytes).
+Proof.
+  induction bytes as [ | byte rest IH]; [ simpl; lia | ].
+  cbn [little_endian length].
+  rewrite Nat2Z.inj_succ, Z.pow_succ_r by lia.
+  pose proof (Z.mod_pos_bound byte 256 eq_refl) as Hbyte. lia.
+Qed.
+
+(* So is what a load reads: at most as many bytes as its width has. *)
+Lemma little_endian_read_bound (bytes : list Z) (index count : nat) :
+  0 <= little_endian (firstn count (skipn index bytes))
+  < 256 ^ Z.of_nat count.
+Proof.
+  pose proof (little_endian_bound (firstn count (skipn index bytes)))
+    as Hbound.
+  pose proof (firstn_le_length count (skipn index bytes)) as Hlength.
+  assert (Hpow :
+    256 ^ Z.of_nat (length (firstn count (skipn index bytes)))
+    <= 256 ^ Z.of_nat count)
+    by (apply Z.pow_le_mono_r; lia).
+  lia.
 Qed.
 
 Section In_range.
@@ -1615,12 +1636,14 @@ Proof.
     destruct (string_of statics arg1) as [bytes | ]; [ | discriminate ].
     destruct (int_of_value Standard_naked_nativeint arg2) as [index | ];
       [ | discriminate ].
-    destruct (0 <=? index); [ | discriminate ].
-    destruct (nth_error bytes (Z.to_nat index)) as [byte | ];
-      [ | discriminate ].
-    destruct width; intros [= <-]; cbn [value_in_range const_in_range].
-    + apply low_byte_in_range.
-    + apply wrap_in_range. lia.
+    cbv zeta. destruct (_ && _); [ | discriminate ].
+    pose proof
+      (little_endian_read_bound bytes (Z.to_nat index)
+         (byte_width_of_string_accessor_width width))
+      as Hread.
+    destruct width; intros [= <-]; cbn [value_in_range const_in_range];
+      try (apply wrap_in_range; lia);
+      apply two_bytes_in_range; cbn in Hread; lia.
   - (* [Phys_equal] *)
     destruct (eval_phys_equal statics arg1 arg2); [ | discriminate ].
     intros [= <-]. apply naked_bool_in_range.
@@ -2019,9 +2042,7 @@ Proof.
       eqn:Hv2;
       [ | discriminate ].
     rewrite (related_int _ v2 v2' index Hr2 Hv2), Hv2.
-    destruct (0 <=? index); [ | discriminate ].
-    destruct (nth_error bytes (Z.to_nat index)) as [byte | ];
-      [ | discriminate ].
+    cbv zeta. destruct (_ && _); [ | discriminate ].
     destruct width; intros [= <-]; eexists;
       (split; [ reflexivity | apply Hnumber ]).
   - (* [Phys_equal] *)
@@ -2685,6 +2706,86 @@ Proof. reflexivity. Qed.
 Example string_load_tagged_index :
   eval_prim a_string (Binary (String_or_bigstring_load Eight))
     [Value_symbol 1%positive; tagged 1]
+  = None.
+Proof. reflexivity. Qed.
+
+(* The loads of more than one byte: the least significant byte is the
+   first. The values are those that [Bytes.get_uint16_le] and the like
+   give on the same bytes. *)
+Example string_load_two_bytes :
+  string_load a_string Sixteen (Value_symbol 1%positive) 1
+  = Some (naked 27749).
+Proof. reflexivity. Qed.
+
+Example string_load_last_two_bytes :
+  string_load a_string Sixteen (Value_symbol 1%positive) 3
+  = Some (naked 28524).
+Proof. reflexivity. Qed.
+
+Example string_load_two_bytes_past_the_end :
+  string_load a_string Sixteen (Value_symbol 1%positive) 4 = None.
+Proof. reflexivity. Qed.
+
+Example string_load_four_bytes :
+  string_load a_string Thirty_two (Value_symbol 1%positive) 1
+  = Some (Value_const (Naked_int32 1869376613)).
+Proof. reflexivity. Qed.
+
+Example string_load_eight_bytes_of_five :
+  string_load a_string Sixty_four (Value_symbol 1%positive) 0 = None.
+Proof. reflexivity. Qed.
+
+Definition some_bytes : static_env :=
+  Static_env []
+    [(1%positive,
+      Static_string
+        [0; 128; 255; 255; 255; 255; 255; 255; 255; 127; 1; 2; 3; 4; 5; 6;
+         7; 200])].
+
+Example string_load_two_bytes_unsigned :
+  string_load some_bytes Sixteen (Value_symbol 1%positive) 0
+  = Some (naked 32768).
+Proof. reflexivity. Qed.
+
+Example string_load_two_bytes_signed :
+  string_load some_bytes Sixteen_signed (Value_symbol 1%positive) 0
+  = Some (Value_const (Naked_int16 (-32768))).
+Proof. reflexivity. Qed.
+
+Example string_load_four_bytes_negative :
+  string_load some_bytes Thirty_two (Value_symbol 1%positive) 2
+  = Some (Value_const (Naked_int32 (-1))).
+Proof. reflexivity. Qed.
+
+Example string_load_last_four_bytes :
+  string_load some_bytes Thirty_two (Value_symbol 1%positive) 14
+  = Some (Value_const (Naked_int32 (-939063803))).
+Proof. reflexivity. Qed.
+
+Example string_load_eight_bytes :
+  string_load some_bytes Sixty_four (Value_symbol 1%positive) 2
+  = Some (Value_const (Naked_int64 9223372036854775807)).
+Proof. reflexivity. Qed.
+
+Example string_load_eight_bytes_negative :
+  string_load some_bytes Sixty_four (Value_symbol 1%positive) 1
+  = Some (Value_const (Naked_int64 (-128))).
+Proof. reflexivity. Qed.
+
+Example string_load_last_eight_bytes :
+  string_load some_bytes Sixty_four (Value_symbol 1%positive) 10
+  = Some (Value_const (Naked_int64 (-4033248322675080703))).
+Proof. reflexivity. Qed.
+
+Example string_load_eight_bytes_past_the_end :
+  string_load some_bytes Sixty_four (Value_symbol 1%positive) 11 = None.
+Proof. reflexivity. Qed.
+
+(* An index that no string has, however long: the test of the index is
+   on integers, so that nothing is counted up to it. *)
+Example string_load_far_past_the_end :
+  string_load a_string Sixteen (Value_symbol 1%positive)
+    4611686018427387904
   = None.
 Proof. reflexivity. Qed.
 

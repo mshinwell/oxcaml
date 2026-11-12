@@ -562,18 +562,51 @@ Definition eval_unary_primitive (statics : static_env) (p : unary_primitive)
     Some (Value_const (Tagged_immediate i))
   end.
 
-(* [String_or_bigstring_load] of one byte from an immutable string: the
-   byte at an index, the first being at index 0. The index is a naked
-   nativeint. With [Eight] the result is the byte as a naked immediate,
-   from 0 to 255; with [Eight_signed], the naked int8 that has the same
-   eight bits. (Of what the string holds at the index only the low
-   eight bits are taken, which changes nothing of a byte.) It has no
-   value on what is not a string, or on an index that the string has
-   not got: the machine would read whatever is there
-   ([To_cmm_primitive.string_like_load]), and the front end makes such
-   a load after a test of the index, or for [String.unsafe_get].
-   Simplify does not compute it
+(* [Flambda_primitive.byte_width_of_string_accessor_width]: how many
+   bytes a load reads. *)
+Definition byte_width_of_string_accessor_width
+    (width : string_accessor_width) : nat :=
+  match width with
+  | Eight | Eight_signed => 1%nat
+  | Sixteen | Sixteen_signed => 2%nat
+  | Thirty_two => 4%nat
+  | Sixty_four => 8%nat
+  end.
+
+(* The integer whose bytes are those of a list, the least significant
+   first. Of each element of the list only the low eight bits are
+   taken, which changes nothing of a byte. It is at least 0. *)
+Fixpoint little_endian (bytes : list Z) : Z :=
+  match bytes with
+  | [] => 0
+  | byte :: rest => byte mod 256 + 256 * little_endian rest
+  end.
+
+(* [String_or_bigstring_load] of an integer from an immutable string.
+   The index is a naked nativeint, and is that of a byte, the first
+   being at index 0, whatever the width. The load reads as many bytes as
+   the width has, from the one at the index on, the least significant
+   first: the model is of a little-endian target, as the two 64-bit
+   targets of the compiler are ([Arch.big_endian] is [false] for both).
+   With [Eight] and [Sixteen] the result is a naked immediate, of what
+   was read without a sign, from 0 to 255 and to 65535. With the others
+   it is the integer of the width that has the bits read: a naked int8
+   for [Eight_signed], a naked int16 for [Sixteen_signed], a naked int32
+   for [Thirty_two] and a naked int64 for [Sixty_four]. This is
+   [To_cmm_primitive.string_like_load], with the loads of
+   [Cmm_helpers.unaligned_load_16] and the like, and the kinds are those
+   of [Flambda_primitive.result_kind_of_binary_primitive'].
+   It has no value on what is not a string, or unless the string has
+   every byte that is read: the machine would read whatever is there,
+   and the front end makes such a load after a test of the index
+   ([Lambda_to_flambda_primitives.string_like_load]), or without one
+   for [String.unsafe_get] and the like. Simplify does not compute it
    ([Simplify_binary_primitive.simplify_string_or_bigstring_load]). *)
+(* CR mshinwell: the byte after the last of a string is one of the
+   string's block in the compiler, and is 0, so that a load of two bytes
+   from the last index has a value on the machine. It has none here:
+   the front end's test refuses it, and an unsafe load that reads it is
+   taken to be a mistake of the program. Should it be 0? *)
 (* CR mshinwell: a string of the model is an immutable value, so this
    load gives the byte the string was made with, whenever it is done.
    The compiler erases the conversions between bytes and strings before
@@ -589,13 +622,21 @@ Definition eval_string_load (statics : static_env)
     (width : string_accessor_width) (v1 v2 : value) : option value :=
   let* bytes := string_of statics v1 in
   let* index := int_of_value Standard_naked_nativeint v2 in
-  if 0 <=? index
+  let count := byte_width_of_string_accessor_width width in
+  if (0 <=? index) && (index + Z.of_nat count <=? Z.of_nat (length bytes))
   then
-    let* byte := nth_error bytes (Z.to_nat index) in
-    match width with
-    | Eight => Some (Value_const (Naked_immediate (byte mod 256)))
-    | Eight_signed => Some (Value_const (Naked_int8 (wrap 8 byte)))
-    end
+    let read :=
+      little_endian (firstn count (skipn (Z.to_nat index) bytes))
+    in
+    Some
+      (Value_const
+         match width with
+         | Eight | Sixteen => Naked_immediate read
+         | Eight_signed => Naked_int8 (wrap 8 read)
+         | Sixteen_signed => Naked_int16 (wrap 16 read)
+         | Thirty_two => Naked_int32 (wrap 32 read)
+         | Sixty_four => Naked_int64 (wrap 64 read)
+         end)
   else None.
 
 (* [Phys_equal]: whether two values of kind [Value] are the same value.
@@ -916,9 +957,14 @@ Definition result_kind_of_binary_primitive (p : binary_primitive)
     : flambda_kind :=
   match p with
   | Int_arith kind _ | Int_shift kind _ => kind_of_standard_int kind
-  | String_or_bigstring_load Eight | Phys_equal _ | Int_comp _ _ =>
+  | String_or_bigstring_load (Eight | Sixteen) | Phys_equal _
+  | Int_comp _ _ =>
     naked_immediate_kind
   | String_or_bigstring_load Eight_signed => Naked_number Kind_naked_int8
+  | String_or_bigstring_load Sixteen_signed =>
+    Naked_number Kind_naked_int16
+  | String_or_bigstring_load Thirty_two => Naked_number Kind_naked_int32
+  | String_or_bigstring_load Sixty_four => Naked_number Kind_naked_int64
   end.
 
 (* [Flambda_primitive.args_kind_of_variadic_primitive]: the kind that
