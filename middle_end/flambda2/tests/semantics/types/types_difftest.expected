@@ -885,6 +885,32 @@ where e0 : (Naked_immediate ((Known [0; 1]) [Is_int v9]))
   two closures whose closure types join to a type of another kind [closure_types_of_another_kind]: the compiler stops, where the transcription has no answer: a fatal error: Function-slot-indexed products can only hold types of kind [Value]:
   Of 32: 23 as written down, and 5 more with the compiler's variables for those written down; 2 where the compiler stops and the transcription has no answer; 1 not compared; 1 not run; 0 different
 
+Examples of the meet, written down from a transcription: the two meets of the compiler on the same calls
+  match_is_int: as stated, with each of the two meets
+  match_arm_immediate: as stated, with each of the two meets
+  match_arm_block: as stated, with each of the two meets
+  match_no_other_arm: as stated, with each of the two meets
+  match_untag: as stated, with each of the two meets
+  match_arm_constructor: as stated, with each of the two meets
+  match_inner_arm: as stated, with each of the two meets
+  match_load: as stated, with each of the two meets
+  match_load_of_immediate: as stated, with each of the two meets
+  example_get_tag_env_made: as stated, with each of the two meets
+  tags_arm, of the meet that transcribes the compiler's: as stated, with each of the two meets
+  tags_load, of the meet that transcribes the compiler's: as stated, with each of the two meets
+  null_relation: as stated, with each of the two meets
+  null_arm_null: as stated, with each of the two meets
+  null_arm_value: as stated, with each of the two meets
+  meet_through_poison: as stated, with each of the two meets
+  meet_closures_invalid_statics: as stated, with each of the two meets
+  pair_first_load: as stated, with each of the two meets
+  pair_second_load: as stated, with each of the two meets
+  float_boxed: as stated, with each of the two meets
+  float_unboxed: as stated, with each of the two meets
+  closure_first_slot: as stated, with each of the two meets
+  closure_second_slot: as stated, with each of the two meets
+  Of 23 statements, each with the two meets: 46 runs as stated, 0 different, 0 not run
+
 A type of kind value with itself, shared and not (1500 cases, seeds 70000 to 71499)
   1500 converted
   join (binary) of a type with itself: 1208 agree

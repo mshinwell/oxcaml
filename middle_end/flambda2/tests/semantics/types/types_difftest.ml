@@ -3045,6 +3045,519 @@ let run_examples_of_joins (names : names) =
     !stops_as_thought !shown !not_run !different
 
 (* ======================================================================== *)
+(* Examples of the meet                                                     *)
+(* ======================================================================== *)
+
+(* Meets whose answers were written down from a transcription of the meet into
+   the model, without running the compiler: scenarios made by hand from the
+   calls of the types library that Simplify makes for a match on a variant, a
+   match on the tag of a block, a match on a value that may be null, two loads
+   from a pair, the boxing and unboxing of a float, and two projections of value
+   slots (FlambdaMeetMatchExamplesSpec.v, FlambdaMeetTagExamplesSpec.v,
+   FlambdaMeetProjectionExamplesSpec.v and three statements of
+   FlambdaMeetExamplesSpec.v, in middle_end/flambda2/types/rocq/). Each is run
+   here, with each of the two meets of the compiler: the environment is built by
+   the same calls, the meet is called on the two types of the statement, and
+   what is compared with the statement is whether the meet is bottom, the type
+   answered, the type that the environment answered has for the variables that
+   the statement names ([Typing_env.find]), and their canonical elements.
+
+   An example is named as its statement is, without [_statement]. The statements
+   are about two meets of the model, the one that transcribes the compiler's and
+   one that is to be proved, which answer alike but at one step: the two
+   examples that are marked say what the statement says of the first. Where the
+   meet of the model calls a join, the statement is with a join that forgets;
+   what is compared here is what such a statement says of the type answered and
+   of the variables.
+
+   The variables of a scenario are numbered from 1 in the order given, as in the
+   statements, and so are its two function slots and its two value slots; the
+   shapes are made by the model's creation functions and converted. The
+   relations of [Is_int], [Get_tag] and [Is_null] are added with the functions
+   of the library that Simplify calls ([Flambda2_types.Typing_env]), which are
+   of the interface that the library exports and take the meet from the flag of
+   the compiler: the environment is built through that interface as far as the
+   last relation, and read through the observer of typing environments from
+   there.
+
+   A difference does not fail the test: it is shown, for the owner of the
+   transcription to say which side is wrong. *)
+type step =
+  | Define of int  (** The variable of that number is defined. *)
+  | Relation of
+      { relation : MT.Relation.t;
+        result : int;
+        scrutinee : int
+      }
+  | Equation of int * MT.flambda_type
+  | Meet_of of MT.flambda_type * MT.flambda_type
+      (** The environment that the meet answers is the one to go on in. *)
+
+type stated =
+  | Is_bottom
+  | Answers_type of MT.flambda_type
+
+type example_of_meet =
+  { statement : string;
+    (* The kinds of the variables 1, 2, ... *)
+    variables : MK.flambda_kind list;
+    steps : step list;
+    (* The meet that the statement is about, in the environment of the steps;
+       [None] where the statement is about the steps alone. *)
+    meet : (MT.flambda_type * MT.flambda_type * stated) option;
+    (* What the statement says of the environment answered. *)
+    finds : (int * MK.flambda_kind * MT.flambda_type) list;
+    canonicals : (int * M.simple) list
+  }
+
+let examples_of_meets : example_of_meet list =
+  let v = N.positive_of_int in
+  let z = N.z_of_int in
+  let naked_immediate : MK.flambda_kind = Naked_number Kind_naked_immediate in
+  let naked_float : MK.flambda_kind = Naked_number Kind_naked_float in
+  let alias kind i = MT.alias_type_of kind (Var (v i)) in
+  let number i = MT.this_naked_immediate (z i) in
+  let constant i : M.simple = Const (Naked_immediate (z i)) in
+  let no_blocks = MT.Or_unknown.Known MT.row_like_for_blocks_bottom in
+  let no_immediates = MT.Or_unknown.Known (MT.bottom naked_immediate) in
+  (* The blocks of tag 0 that have at least the fields given. *)
+  let blocks fields : MT.row_like_for_blocks MT.Or_unknown.t =
+    Known
+      (Row_like_for_blocks
+         ( [ ( z 0,
+               Known
+                 { case_maps_to = fields;
+                   case_index =
+                     { index_domain =
+                         At_least (N.nat_of_int (List.length fields));
+                       index_shape = Scannable Value_only
+                     };
+                   case_env_extension = MT.empty_env_extension
+                 } ) ],
+           Bottom,
+           Heap_or_local ))
+  in
+  (* The blocks of tag 0, of which nothing more is known. *)
+  let blocks_of_tag_0 : MT.row_like_for_blocks MT.Or_unknown.t =
+    Known (Row_like_for_blocks ([z 0, Unknown], Bottom, Heap_or_local))
+  in
+  let value non_null is_null : MT.flambda_type =
+    Type_value (Ok (No_alias (Head_of_kind_value (non_null, is_null))))
+  in
+  let variant ?is_int ?get_tag immediates blocks : MT.flambda_type =
+    value
+      (Ok (Variant (is_int, immediates, get_tag, blocks, No_extensions, false)))
+      Not_null
+  in
+  (* The shape of a load of the field at [n - 1] of a block of tag 0 into a
+     variable. *)
+  let load_shape n result =
+    match
+      MT.immutable_block_with_size_at_least
+        (Known (z 0))
+        (N.nat_of_int n) (Scannable Value_only) (v result)
+    with
+    | Some shape -> shape
+    | None -> MT.bottom Value
+  in
+  let example statement variables steps ?meet ?(finds = []) ?(canonicals = [])
+      () =
+    { statement; variables; steps; meet; finds; canonicals }
+  in
+  (* A scrutinee (1) and the result of a relation to it (2). *)
+  let related relation =
+    [Define 1; Define 2; Relation { relation; result = 2; scrutinee = 1 }]
+  in
+  let result = alias naked_immediate 2 in
+  let x = alias Value 1 in
+  (* The match: the parameter (1), the result of [Is_int] (2), the result of
+     [Untag_immediate] (3) and the result of the load (4). *)
+  let of_the_match = [MK.Value; naked_immediate; naked_immediate; MK.Value] in
+  let match_variant = variant ~is_int:(v 2) in
+  let start = related Is_int in
+  let untagged = alias naked_immediate 3 in
+  let in_the_immediates = start @ [Meet_of (result, number 1)] in
+  let in_the_blocks = start @ [Meet_of (result, number 0)] in
+  let untag = MT.tagged_immediate_alias_to (v 3) in
+  let after_untag = in_the_immediates @ [Define 3; Meet_of (x, untag)] in
+  let x_untagged = match_variant (Known untagged) no_blocks in
+  (* The tag: the parameter (1), the result of [Get_tag] (2) and the result of
+     the load (3). *)
+  let of_the_tag = [MK.Value; naked_immediate; MK.Value] in
+  let tags_variant = variant ~get_tag:(v 2) in
+  (* Null: the parameter (1) and the result of [Is_null] (2). *)
+  let of_null = [MK.Value; naked_immediate] in
+  let maybe_null : MT.is_null = Maybe_null (Some (v 2)) in
+  (* The pair: the parameter (1) and the results of the two loads (2, 3). *)
+  let of_the_pair = [MK.Value; MK.Value; MK.Value] in
+  let pair fields = variant no_immediates (blocks fields) in
+  (* The float: the sum (1), its box (2), the result of the unboxing (3). *)
+  let of_the_float = [naked_float; MK.Value; naked_float] in
+  let box_type = MT.box_number Boxable_naked_float (alias naked_float 1) Heap in
+  let boxed = [Define 1; Define 2; Equation (2, box_type)] in
+  (* The closure (1) and the results of the two projections (2, 3). *)
+  let of_the_closure = [MK.Value; MK.Value; MK.Value] in
+  let slot_shape value_slot result =
+    MT.closure_with_at_least_this_value_slot (v 1) (v value_slot) (v result)
+      Value
+  in
+  (* A closure at the first function slot of a set that has at least the two, in
+     which the closure at the second is a number. *)
+  let closures_type n =
+    MT.at_least_this_closure (v 1)
+      [v 1, Unknown; v 2, Unknown]
+      [v 2, MT.this_tagged_immediate (z n)]
+      [] Heap
+  in
+  [ example "match_is_int" of_the_match start
+      ~finds:
+        [ 2, naked_immediate, MT.is_int_for_scrutinee (Name_var (v 1));
+          1, Value, match_variant Unknown Unknown ]
+      ();
+    example "match_arm_immediate" of_the_match start
+      ~meet:(result, number 1, Answers_type result)
+      ~canonicals:[2, constant 1]
+      ~finds:[1, Value, match_variant Unknown no_blocks]
+      ();
+    example "match_arm_block" of_the_match start
+      ~meet:(result, number 0, Answers_type result)
+      ~canonicals:[2, constant 0]
+      ~finds:[1, Value, match_variant no_immediates Unknown]
+      ();
+    example "match_no_other_arm" of_the_match start
+      ~meet:(result, number 2, Is_bottom)
+      ();
+    example "match_untag" of_the_match
+      (in_the_immediates @ [Define 3])
+      ~meet:(x, untag, Answers_type x)
+      ~finds:
+        [1, Value, x_untagged; 3, naked_immediate, MT.unknown naked_immediate]
+      ();
+    example "match_arm_constructor" of_the_match after_untag
+      ~meet:(untagged, number 0, Answers_type untagged)
+      ~canonicals:[3, constant 0]
+      ~finds:[1, Value, x_untagged]
+      ();
+    example "match_inner_arm" of_the_match
+      (after_untag @ [Meet_of (untagged, number 0)])
+      ~meet:(untagged, number 1, Is_bottom)
+      ();
+    example "match_load" of_the_match
+      (in_the_blocks @ [Define 4])
+      ~meet:(x, load_shape 1 4, Answers_type x)
+      ~finds:
+        [ 1, Value, match_variant no_immediates (blocks [alias Value 4]);
+          4, Value, MT.unknown Value ]
+      ();
+    example "match_load_of_immediate" of_the_match
+      (in_the_immediates @ [Define 4])
+      ~meet:(x, load_shape 1 4, Is_bottom)
+      ();
+    example "example_get_tag_env_made" of_the_tag (related Get_tag)
+      ~finds:
+        [ 2, naked_immediate, MT.get_tag_for_block (Name_var (v 1));
+          1, Value, tags_variant Unknown Unknown ]
+      ();
+    example "tags_arm, of the meet that transcribes the compiler's" of_the_tag
+      (related Get_tag)
+      ~meet:(result, number 0, Answers_type result)
+      ~finds:[1, Value, tags_variant no_immediates blocks_of_tag_0]
+      ();
+    example "tags_load, of the meet that transcribes the compiler's" of_the_tag
+      (related Get_tag @ [Meet_of (result, number 0); Define 3])
+      ~meet:(x, load_shape 1 3, Answers_type x)
+      ~finds:[1, Value, tags_variant no_immediates (blocks [alias Value 3])]
+      ();
+    example "null_relation" of_null (related Is_null)
+      ~finds:
+        [ 2, naked_immediate, MT.is_null_for_scrutinee (Name_var (v 1));
+          1, Value, value Unknown maybe_null ]
+      ();
+    example "null_arm_null" of_null (related Is_null)
+      ~meet:(result, number 1, Answers_type result)
+      ~canonicals:[2, constant 1]
+      ~finds:[1, Value, value Bottom maybe_null]
+      ();
+    example "null_arm_value" of_null (related Is_null)
+      ~meet:(result, number 0, Answers_type result)
+      ~canonicals:[2, constant 0]
+      ~finds:[1, Value, MT.any_non_null_value]
+      ();
+    example "meet_through_poison" [MK.Value]
+      [Define 1; Equation (1, MT.null)]
+      ~meet:(x, MT.any_non_null_value, Is_bottom)
+      ();
+    example "meet_closures_invalid_statics" [] []
+      ~meet:(closures_type 0, closures_type 1, Is_bottom)
+      ();
+    example "pair_first_load" of_the_pair [Define 1; Define 2]
+      ~meet:(x, load_shape 1 2, Answers_type x)
+      ~finds:[1, Value, pair [alias Value 2]]
+      ();
+    example "pair_second_load" of_the_pair
+      [Define 1; Define 2; Meet_of (x, load_shape 1 2); Define 3]
+      ~meet:(x, load_shape 2 3, Answers_type x)
+      ~finds:[1, Value, pair [alias Value 2; alias Value 3]]
+      ();
+    example "float_boxed" of_the_float boxed ~finds:[2, Value, box_type] ();
+    example "float_unboxed" of_the_float (boxed @ [Define 3])
+      ~meet:
+        ( alias Value 2,
+          MT.boxed_number_alias_to Boxable_naked_float (v 3) Heap_or_local,
+          Answers_type (alias Value 2) )
+      ~canonicals:[3, Var (v 1)]
+      ~finds:[2, Value, box_type]
+      ();
+    example "closure_first_slot" of_the_closure [Define 1; Define 2]
+      ~meet:(x, slot_shape 1 2, Answers_type x)
+      ~finds:[1, Value, slot_shape 1 2]
+      ();
+    example "closure_second_slot" of_the_closure
+      [Define 1; Define 2; Meet_of (x, slot_shape 1 2); Define 3]
+      ~meet:(x, slot_shape 2 3, Answers_type x)
+      ~finds:
+        [ ( 1,
+            Value,
+            MT.closure_with_at_least_these_value_slots (v 1)
+              [v 2, (v 3, Value); v 1, (v 2, Value)] ) ]
+      () ]
+
+(* What differs from the statement when an example is run with one of the two
+   meets; nothing if the list is empty. *)
+let run_example_of_meet (implementation : implementation)
+    (example : example_of_meet) : string list =
+  let numbering = Model_names.create () in
+  let unit = Current_unit.get_cu_exn () in
+  let variables =
+    List.map
+      (fun kind ->
+        let variable = Variable.create "v" (Converter.kind_of_model kind) in
+        ignore (numbering.variables.number variable : N.positive);
+        variable)
+      example.variables
+  in
+  List.iter
+    (fun name ->
+      ignore
+        (numbering.function_slots.number
+           (Function_slot.create unit ~name ~size:2)
+          : N.positive))
+    ["f"; "g"];
+  List.iter
+    (fun name ->
+      ignore
+        (numbering.value_slots.number
+           (Value_slot.create unit ~name ~is_always_immediate:false K.value)
+          : N.positive))
+    ["a"; "b"];
+  let variable i = List.nth variables (i - 1) in
+  let bound i =
+    Bound_name.create_var
+      (Bound_var.create (variable i) Flambda_debug_uid.none Name_mode.normal)
+  in
+  let to_compiler = Converter.type_of_model numbering machine_width in
+  let to_model = Converter.type_to_model numbering in
+  let meet_expanded_head = implementation.meet_expanded_head in
+  (* The steps as far as the last relation, through the interface that the
+     library exports, with the meet of the implementation chosen by the flag
+     that the library reads. *)
+  let module Exported = Flambda2_types.Typing_env in
+  let rec exported env steps =
+    match steps with
+    | Define i :: steps ->
+      exported
+        (Exported.add_definition env (bound i) (Variable.kind (variable i)))
+        steps
+    | Relation { relation; result; scrutinee } :: steps ->
+      let add =
+        match relation with
+        | Is_int -> Exported.add_is_int_relation
+        | Get_tag -> Exported.add_get_tag_relation
+        | Is_null -> Exported.add_is_null_relation
+      in
+      exported
+        (add env
+           (Name.var (variable result))
+           ~scrutinee:(Simple.var (variable scrutinee)))
+        steps
+    | (Equation _ | Meet_of _) :: _ | [] -> env, steps
+  in
+  let algorithm : Oxcaml_flags.join_algorithm =
+    if String.equal implementation.implementation n_way.implementation
+    then N_way
+    else Binary
+  in
+  let before = !Oxcaml_flags.Flambda2.join_algorithm in
+  Oxcaml_flags.Flambda2.join_algorithm := Oxcaml_flags.Set algorithm;
+  let env, steps =
+    Fun.protect
+      ~finally:(fun () -> Oxcaml_flags.Flambda2.join_algorithm := before)
+      (fun () ->
+        exported
+          (Exported.create ~machine_width ~resolver:(fun _ -> None))
+          example.steps)
+  in
+  (* The same environment, as the modules of the library have it. *)
+  let observed = ref None in
+  TE.For_testing.set_observer
+    (Some (fun env (_ : Continuation.t) -> observed := Some env));
+  Exported.notify_test_observer env ~at_handler:(Continuation.create ());
+  TE.For_testing.set_observer None;
+  let env = match !observed with Some env -> env | None -> assert false in
+  let rec go env steps : (TE.t, string) result =
+    match steps with
+    | [] -> Ok env
+    | Define i :: steps ->
+      go (TE.add_definition env (bound i) (Variable.kind (variable i))) steps
+    | Equation (i, t) :: steps ->
+      go
+        (ME.use_meet_env ~meet_expanded_head env ~f:(fun env ->
+             ME.add_equation env
+               (Name.var (variable i))
+               (to_compiler t) ~meet_expanded_head))
+        steps
+    | Meet_of (t1, t2) :: steps -> (
+      match implementation.meet env (to_compiler t1) (to_compiler t2) with
+      | Bottom -> Error "a meet on the way to the environment is bottom"
+      | Ok ((_ : TG.t), env) -> go env steps)
+    | Relation _ :: _ ->
+      Error "a relation after a step that is not a definition"
+  in
+  let differences = ref [] in
+  let differs fmt =
+    Format.kasprintf (fun what -> differences := what :: !differences) fmt
+  in
+  let print ppf t = Model_type.print ppf (Model_type.normalise t) in
+  let check env =
+    List.iter
+      (fun (i, kind, stated) ->
+        let found =
+          to_model
+            (TE.find env
+               (Name.var (variable i))
+               (Some (Converter.kind_of_model kind)))
+        in
+        if not (Model_type.same found stated)
+        then
+          differs "@[<v>the type of v%d is@ %a@ and is stated to be@ %a@]" i
+            print found print stated)
+      example.finds;
+    List.iter
+      (fun (i, stated) ->
+        match
+          TE.get_canonical_simple_exn env ~min_name_mode:Name_mode.in_types
+            (Simple.var (variable i))
+        with
+        | canonical ->
+          let found = Converter.simple_to_model numbering canonical in
+          if not (Stdlib.( = ) found stated)
+          then
+            differs "the canonical element of v%d is %a and is stated to be %a"
+              i Model_type.print_simple found Model_type.print_simple stated
+        | exception Not_found -> differs "v%d has no canonical element" i)
+      example.canonicals
+  in
+  (match go env steps with
+  | Error why -> differs "%s" why
+  | Ok env -> (
+    match example.meet with
+    | None -> check env
+    | Some (t1, t2, stated) -> (
+      match
+        implementation.meet env (to_compiler t1) (to_compiler t2), stated
+      with
+      | Bottom, Is_bottom -> ()
+      | Bottom, Answers_type _ -> differs "the meet is bottom"
+      | Ok (t, (_ : TE.t)), Is_bottom ->
+        differs "@[<v>the meet is stated to be bottom, and answers@ %a@]" print
+          (to_model t)
+      | Ok (t, env), Answers_type stated ->
+        let answered = to_model t in
+        if not (Model_type.same answered stated)
+        then
+          differs "@[<v>the meet answers@ %a@ and is stated to answer@ %a@]"
+            print answered print stated;
+        check env)));
+  List.rev !differences
+
+(* What running an example with one of the two meets comes to. *)
+type run_of_meet =
+  | As_stated
+  | Differs of string list
+  | Stops_at of string
+  | Is_not_run of string
+
+let run_examples_of_meets () =
+  Format.printf
+    "@.Examples of the meet, written down from a transcription: the two meets \
+     of the compiler on the same calls@.";
+  let as_stated = ref 0 and different = ref 0 and not_run = ref 0 in
+  let implementations = [binary; n_way] in
+  List.iter
+    (fun (example : example_of_meet) ->
+      let runs =
+        List.map
+          (fun (implementation : implementation) ->
+            let run =
+              match
+                or_fatal_error (fun () ->
+                    match run_example_of_meet implementation example with
+                    | [] -> As_stated
+                    | _ :: _ as differences -> Differs differences
+                    | exception Assert_failure (file, _, _) ->
+                      Stops_at
+                        ("an assertion of " ^ Filename.basename file ^ " fails")
+                    | exception Converter.Not_in_the_compiler what ->
+                      Is_not_run ("not in the compiler: " ^ what)
+                    | exception Converter.Not_in_the_model what ->
+                      Differs ["an answer is not in the model: " ^ what])
+              with
+              | Ok run -> run
+              | Error line -> Stops_at ("a fatal error: " ^ general line)
+            in
+            (match run with
+            | As_stated -> incr as_stated
+            | Differs _ | Stops_at _ -> incr different
+            | Is_not_run _ -> incr not_run);
+            implementation.implementation, run)
+          implementations
+      in
+      if
+        List.for_all
+          (fun (_, run) ->
+            match run with
+            | As_stated -> true
+            | Differs _ | Stops_at _ | Is_not_run _ -> false)
+          runs
+      then
+        Format.printf "  %s: as stated, with each of the two meets@."
+          example.statement
+      else
+        List.iter
+          (fun (implementation, run) ->
+            let name =
+              Printf.sprintf "%s (%s)" example.statement implementation
+            in
+            match run with
+            | As_stated -> Format.printf "  %s: as stated@." name
+            | Differs differences ->
+              Format.printf "  @[<v>%s: DIFFERENT.%a@]@." name
+                (fun ppf ->
+                  List.iter (fun what ->
+                      Format.fprintf ppf "@ %a" print_lines what))
+                differences
+            | Stops_at why ->
+              Format.printf "  %s: DIFFERENT. The compiler stops: %s@." name why
+            | Is_not_run why -> Format.printf "  %s: not run, %s@." name why)
+          runs)
+    examples_of_meets;
+  Format.printf
+    "  Of %d statements, each with the two meets: %d runs as stated, %d \
+     different, %d not run@."
+    (List.length examples_of_meets)
+    !as_stated !different !not_run
+
+(* ======================================================================== *)
 (* The comparison by text                                                   *)
 (* ======================================================================== *)
 
@@ -3661,6 +4174,7 @@ let () =
     (semantic_comparisons names);
   chosen_joins names (the_chosen_joins names);
   run_examples_of_joins names;
+  run_examples_of_meets ();
   let with_itself ~title sharing =
     run ~title ~seed:70000 ~count:1500
       ~generate:(fun r ->
