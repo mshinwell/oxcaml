@@ -52,8 +52,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaSimplifyStaticsSpec FlambdaSimplifyStaticsProofs
   FlambdaSimplifyCodeEnvSpec FlambdaSimplifyCodeEnvProofs
   FlambdaSimplifyHandlersSpec FlambdaSimplifyHandlersProofs
-  FlambdaSimplifyPassSpec FlambdaSimplifyPassProofs
-  FlambdaSimplifyPruningSpec.
+  FlambdaSimplifyPassSpec FlambdaSimplifyUsesProofs
+  FlambdaSimplifyPassProofs FlambdaSimplifyPruningSpec.
 From OxCamlFlambda2Types Require FlambdaMeetExamplesSpec
   FlambdaMeetExamplesProofs FlambdaSimplifySwitchSpec
   FlambdaSimplifySwitchProofs.

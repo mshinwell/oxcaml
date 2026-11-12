@@ -30,7 +30,7 @@
    and rewrites it from the types: the rewrites of primitives, put
    together.
 
-   This file is to be reviewed: every definition, and the two
+   This file is to be reviewed: every definition, and the
    statements. The function is meant to be extracted and run by the
    validation of middle_end/flambda2/tests/semantics/; nothing runs it
    yet, and it has not been extracted.
@@ -123,12 +123,29 @@
      environment fails its test of well-formedness, it leaves the term
      from there down as it is.
 
+   The handler of a continuation under what is known where the
+   continuation is applied. Another function is here, with a theorem
+   of its own and one example: [rewrite_handler_at_use] rewrites the
+   handler of a non-recursive [Let_cont] under the environment of the
+   one application of its continuation, where the body applies it at
+   one place ([find_use]). That is the environment at the
+   application ([let_env] at each [Let] on the way, [arm_env] where
+   the application is an arm of a [Switch]) with the parameters
+   defined and made aliases of the arguments ([use_env]).
+   FlambdaSimplifyUsesSpec.v says what Simplify does there, where the
+   model parts from it, and has the statements for a [Let_cont] whose
+   body is the application; [find_use_refines_statement] here is for
+   one whose body binds something first. [simplify_expr] does not
+   call [rewrite_handler_at_use]: the function that prunes
+   (FlambdaSimplifyPruningSpec.v) is stated to be [simplify_expr]
+   where nothing is pruned, and has not this rewrite yet.
+
    What Simplify does and this does not:
-   - In the handler of a continuation nothing is known of a
-     parameter but its kind: there are no joins of the environments
-     at the uses of a continuation, which Simplify has for the
-     parameters of a non-recursive [Let_cont] and for the invariant
-     parameters of a recursive one, and no subkinds
+   - In the handler of a continuation [simplify_expr] knows nothing
+     of a parameter but its kind: there are no joins of the
+     environments at the uses of a continuation, which Simplify has
+     for the parameters of a non-recursive [Let_cont] and for the
+     invariant parameters of a recursive one, and no subkinds
      (FlambdaSimplifyHandlersSpec.v says where the two part).
    - In the body of code nothing is known of a parameter but its
      kind, nor of [my_closure] but that it is a value: Simplify gives
@@ -191,15 +208,22 @@
      are all different, is not stated here.
 
    Eighteen terms on which the function is computed are at the end:
-   what it answers is stated as an equation, with no premise.
+   what it answers is stated as an equation, with no premise. A
+   nineteenth is for [rewrite_handler_at_use].
 
    That the function commutes with renaming ([simplify_expr] of the
    renamed environment and the renamed term is the renamed answer),
    as the other rewrites of the validation do
    (../../rocq/FlambdaValidatorEquivarianceSpec.v), is in
-   FlambdaSimplifyPassRenamingSpec.v.
+   FlambdaSimplifyPassRenamingSpec.v. That is the equation of
+   [simplify_expr] and of its parts. The functions of the section
+   "Where a continuation is applied" and [rewrite_handler_at_use] have
+   no such equation yet: it is owed, and the equation of
+   [simplify_expr] does not give it. They are not to be run by the
+   validation, nor called by [simplify_expr], before it is proved.
 
-   Nothing is assumed: the two statements have no premise.
+   Nothing is assumed: the two statements of [simplify_expr] have no
+   premise, and the others none but what they say.
 
    The proofs are in FlambdaSimplifyPassProofs.v, which needs no
    review. *)
@@ -208,7 +232,7 @@ From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
   FlambdaMapSpec FlambdaValueSpec FlambdaPrimitiveModel FlambdaPrimitiveSpec
-  FlambdaSemanticsSpec.
+  FlambdaSemanticsSpec FlambdaNormaliseSpec FlambdaUnusedContsSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaTypeWellFormedSpec FlambdaBindingTime
   FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaTypingEnv
@@ -811,6 +835,188 @@ Definition simplify_switch (tenv : Typing_env.t) (scrutinee : simple)
   end.
 
 (* ======================================================================== *)
+(* Where a continuation is applied                                          *)
+(* ======================================================================== *)
+
+(* The environment in the arm of discriminant [d] of a [Switch]. Where
+   the canonical element of the scrutinee is a variable that may occur
+   in terms and is a naked immediate, that variable is made an alias of
+   the constant [d]; elsewhere the environment is as it was. *)
+Definition arm_env (tenv : Typing_env.t) (scrutinee : simple) (d : Z)
+    : Typing_env.t :=
+  match simplify_simple tenv scrutinee with
+  | Some (_, Var c) =>
+    if simple_in_terms_b tenv (Var c)
+       && simple_of_kind_b tenv (Var c) naked_immediate_kind
+    then
+      match Typing_env.add_alias tenv (Var c) (Const (Naked_immediate d)) with
+      | Some (Ok result) => Typing_env.add_alias_result_t result
+      | Some Unknown | Some Bottom | None => tenv
+      end
+    else tenv
+  | Some (_, (Const _ | Symbol _)) | None => tenv
+  end.
+
+(* Parameters are defined in order at their kinds, each after the two
+   tests of [declare_variable], and each is made an alias of the
+   [Simple] given with it where [aliased] says so and that [Simple] may
+   occur in terms and is of the kind. [None] where a test fails. *)
+Fixpoint bind_params_to_args (aliased : simple -> bool) (tenv : Typing_env.t)
+    (bindings : list (variable * flambda_kind * simple))
+    : option Typing_env.t :=
+  match bindings with
+  | [] => Some tenv
+  | (x, kind, canonical) :: bindings =>
+    if
+      typing_env_well_formed tenv
+      && negb (Typing_env.mem None tenv (Name_var x))
+    then
+      let defined :=
+        Typing_env.add_variable_definition tenv x kind Name_mode.normal
+      in
+      bind_params_to_args aliased
+        (if
+           aliased canonical && simple_in_terms_b tenv canonical
+           && simple_of_kind_b tenv canonical kind
+         then
+           match Typing_env.add_alias defined (Var x) canonical with
+           | Some (Ok result) => Typing_env.add_alias_result_t result
+           | Some Unknown | Some Bottom | None => defined
+           end
+         else defined)
+        bindings
+    else None
+  end.
+
+(* A [Simple] is none of the variables given. *)
+Definition not_among (xs : list variable) (s : simple) : bool :=
+  match s with
+  | Var x => negb (among x xs)
+  | Symbol _ | Const _ => true
+  end.
+
+(* The environment in which a handler runs when it is applied to
+   [args] from a place whose environment is [tenv]: the parameters are
+   defined at the kinds that the handler gives them, and each is made
+   an alias of the canonical element of its argument, if that element
+   may occur in terms under [scope] (the environment of the place
+   where the handler is defined) and is of the kind of the parameter.
+   [None] where the environment does not know an argument, the handler
+   has not as many kinds as parameters or the application as many
+   arguments, or a test of [bind_params_to_args] fails. *)
+Definition use_env (scope tenv : Typing_env.t) (params : list variable)
+    (metadata : handler_metadata) (args : list simple)
+    : option Typing_env.t :=
+  let kinds := hm_params_kinds metadata in
+  match simplify_simples tenv args with
+  | Some answers =>
+    if
+      Nat.eqb (length kinds) (length params)
+      && Nat.eqb (length answers) (length params)
+    then
+      bind_params_to_args
+        (fun canonical =>
+           simple_in_terms_b scope canonical && not_among params canonical)
+        tenv
+        (combine (combine params kinds) (map snd answers))
+    else None
+  | None => None
+  end.
+
+(* The applications of the continuation [k] that an [Apply_cont] or a
+   [Switch] may come to, each with the environment at that application:
+   that of the arm, for an arm of a [Switch]. [None] of any other
+   expression. *)
+Definition leaf_uses (tenv : Typing_env.t) (k : continuation) (e : expr)
+    : option (list (Typing_env.t * list simple)) :=
+  match e with
+  | Apply_cont ac =>
+    Some (if Pos.eqb (ac_continuation ac) k then [(tenv, ac_args ac)] else [])
+  | Switch scrutinee arms =>
+    Some
+      (flat_map
+         (fun arm =>
+            if Pos.eqb (ac_continuation (snd arm)) k
+            then [(arm_env tenv scrutinee (fst arm), ac_args (snd arm))]
+            else [])
+         arms)
+  | Let _ _ _ _ | Let_static _ _ | Let_cont_non_recursive _ _ _
+  | Let_cont_recursive _ _ | Apply _ | Invalid =>
+    None
+  end.
+
+(* The environment under which the body of a [Let] is rewritten:
+   that of [simplify_let], or of [declare_variable] where
+   [simplify_let] stops. [None] where the [Let] is [Invalid] or the
+   term is left as it is from there down. *)
+Definition let_env (tenv : Typing_env.t) (x : variable)
+    (declared : flambda_kind) (defining_expr : named)
+    : option Typing_env.t :=
+  match
+    simplify_let tenv x (resolve_value_slot tenv declared defining_expr)
+  with
+  | Step_let _ tenv' => Some tenv'
+  | Step_invalid => None
+  | Step_stop => declare_variable tenv x declared
+  end.
+
+(* Where the one application of the continuation [k], of handler [h],
+   is, in the body of its [Let_cont]: the environment in which the
+   handler runs there ([use_env]), with the variables of the [Let]s
+   and the continuations of the [Let_cont]s that are bound between the
+   [Let_cont] of [k] and that application. The application is looked
+   for under [Let]s whose variable is not free in [h] and under
+   non-recursive [Let_cont]s of another name whose handler does not
+   mention [k] and whose name [h] does not mention, down to an
+   [Apply_cont] or a [Switch] that applies [k] once. [None] where
+   there is no such application. [scope] is the environment of the
+   [Let_cont] of [k], and [tenv] that of [body]. *)
+Fixpoint find_use (scope tenv : Typing_env.t) (k : continuation)
+    (h : continuation_handler) (body : expr)
+    : option (Typing_env.t * list variable * list continuation) :=
+  match body with
+  | Let x declared defining_expr rest =>
+    if var_free_in_handler_b x h then None
+    else
+      match let_env tenv x declared defining_expr with
+      | Some tenv' =>
+        match find_use scope tenv' k h rest with
+        | Some (target, xs, ks) => Some (target, x :: xs, ks)
+        | None => None
+        end
+      | None => None
+      end
+  | Let_cont_non_recursive k' h' rest =>
+    if
+      negb (Pos.eqb k k')
+      && negb (cont_free_in_handler_b k h')
+      && negb (cont_free_in_handler_b k' h)
+    then
+      match find_use scope tenv k h rest with
+      | Some (target, xs, ks) => Some (target, xs, k' :: ks)
+      | None => None
+      end
+    else None
+  | Apply_cont _ | Switch _ _ =>
+    match h, leaf_uses tenv k body with
+    | Handler params metadata _, Some [(tenv_use, args)] =>
+      match use_env scope tenv_use params metadata args with
+      | Some target => Some (target, [], [])
+      | None => None
+      end
+    | Handler _ _ _, (Some ([] | _ :: _ :: _) | None) => None
+    end
+  | Let_static _ _ | Let_cont_recursive _ _ | Apply _ | Invalid => None
+  end.
+
+(* None of the variables and none of the continuations given is free
+   in the handler. *)
+Definition binders_not_free (xs : list variable) (ks : list continuation)
+    (h : continuation_handler) : bool :=
+  forallb (fun x => negb (var_free_in_handler_b x h)) xs
+  && forallb (fun k => negb (cont_free_in_handler_b k h)) ks.
+
+(* ======================================================================== *)
 (* A term                                                                   *)
 (* ======================================================================== *)
 
@@ -895,6 +1101,26 @@ with simplify_code (tenv : Typing_env.t) (c : code) : code :=
 Definition simplify_by_types (e : expr) : expr :=
   simplify_expr Typing_env.create e.
 
+(* The handler [h] of the continuation [k] rewritten under the
+   environment of the one application of [k] in [body] ([find_use]),
+   where [tenv] is the environment of the [Let_cont]. [None] where
+   there is no such application, or where what the handler becomes
+   mentions one of the binders between the [Let_cont] and the
+   application: it could not then stay where the handler is. *)
+Definition rewrite_handler_at_use (tenv : Typing_env.t) (k : continuation)
+    (h : continuation_handler) (body : expr) : option continuation_handler :=
+  match h with
+  | Handler params metadata handler =>
+    match find_use tenv tenv k h body with
+    | Some (target, xs, ks) =>
+      let rewritten :=
+        Handler params metadata (simplify_expr target handler)
+      in
+      if binders_not_free xs ks rewritten then Some rewritten else None
+    | None => None
+    end
+  end.
+
 (* ======================================================================== *)
 (* The statements                                                           *)
 (* ======================================================================== *)
@@ -908,6 +1134,44 @@ Definition simplify_expr_refines_under_statement : Prop :=
 (* From the environment that knows nothing, it refines the term. *)
 Definition simplify_by_types_refines_statement : Prop :=
   ∀ e : expr, expr_refines e (simplify_by_types e).
+
+(* The environment of the body of a [Let] holds once the [Let] has
+   taken its step: the variable is bound to the value of the defining
+   expression, as it was written, which is of the kind that the [Let]
+   declares. *)
+Definition let_env_satisfied_statement : Prop :=
+  ∀ (tenv tenv' : Typing_env.t) (x : variable) (declared : flambda_kind)
+    (defining_expr : named) (statics : static_env) (vars : env) (v : value),
+    let_env tenv x declared defining_expr = Some tenv' ->
+    env_satisfies_strictly tenv statics vars ->
+    eval_named statics vars defining_expr = Some v ->
+    kind_of_value v = declared ->
+    env_satisfies_strictly tenv' statics ((x, v) :: vars).
+
+(* The handler of a continuation may be rewritten under the
+   environment that [find_use] answers, if what it becomes mentions
+   none of the binders between the [Let_cont] and the application.
+   The body is left as it is. *)
+Definition find_use_refines_statement : Prop :=
+  ∀ (scope tenv : Typing_env.t) (k : continuation) (params : list variable)
+    (metadata : handler_metadata) (handler handler' body : expr)
+    (target : Typing_env.t) (xs : list variable) (ks : list continuation),
+    find_use scope tenv k (Handler params metadata handler) body
+    = Some (target, xs, ks) ->
+    binders_not_free xs ks (Handler params metadata handler') = true ->
+    expr_refines_under target handler handler' ->
+    expr_refines_under tenv
+      (Let_cont_non_recursive k (Handler params metadata handler) body)
+      (Let_cont_non_recursive k (Handler params metadata handler') body).
+
+(* So the handler that [rewrite_handler_at_use] answers may take the
+   place of the handler. *)
+Definition rewrite_handler_at_use_refines_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (k : continuation) (h h' : continuation_handler)
+    (body : expr),
+    rewrite_handler_at_use tenv k h body = Some h' ->
+    expr_refines_under tenv (Let_cont_non_recursive k h body)
+      (Let_cont_non_recursive k h' body).
 
 (* ======================================================================== *)
 (* Examples                                                                 *)
@@ -1363,3 +1627,32 @@ Definition example_pass_loop_statement : Prop :=
          (example_tagged_add (Var example_p) (Const (Tagged_immediate 0)))
          (Var example_q))
     = loop (Simple (Var example_p)) (Var example_p).
+
+(* A handler under the environment of its one application.
+   [let x = opaque 0 in let_cont k1 () = (switch x | 0 -> k3 | 1 -> k4)
+   in let_cont k2 () = apply_cont k4 in switch x | 0 -> k1 | 1 -> k2],
+   where nothing is known of the naked immediate [x]: [k1] is applied
+   from the arm of 0 only, where [x] is 0, so its handler is
+   [apply_cont k3]. The continuations are the numbers 1 to 4. *)
+Definition example_handler_at_use_statement : Prop :=
+  let k1 : continuation := 1%positive in
+  let k2 : continuation := 2%positive in
+  let k3 : continuation := 3%positive in
+  let k4 : continuation := 4%positive in
+  let goto (k : continuation) : apply_cont := Apply_cont_expr k [] None in
+  let switch (on_0 on_1 : continuation) : expr :=
+    Switch (Var example_x) [(0, goto on_0); (1, goto on_1)]
+  in
+  let no_params : handler_metadata := make_handler_metadata [] in
+  match
+    let_env Typing_env.create example_x naked_immediate_kind
+      (example_opaque naked_immediate_kind (Naked_immediate 0))
+  with
+  | Some tenv =>
+    rewrite_handler_at_use tenv k1 (Handler [] no_params (switch k3 k4))
+      (Let_cont_non_recursive k2
+         (Handler [] no_params (Apply_cont (goto k4)))
+         (switch k1 k2))
+  | None => None
+  end
+  = Some (Handler [] no_params (Apply_cont (goto k3))).

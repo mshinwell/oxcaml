@@ -35,7 +35,9 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
   FlambdaMapSpec FlambdaMapProofs FlambdaValueSpec FlambdaPrimitiveModel
   FlambdaPrimitiveSpec FlambdaPrimitiveProofs FlambdaSemanticsSpec
   FlambdaSemanticsProofs FlambdaWellFormedSpec FlambdaWellFormedProofs
-  FlambdaContextWhereSpec FlambdaContextWhereProofs.
+  FlambdaContextWhereSpec FlambdaContextWhereProofs FlambdaNormaliseSpec
+  FlambdaNormaliseProofs FlambdaUnusedContsSpec FlambdaUnusedContsProofs
+  FlambdaSinkContsProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs
   FlambdaTypeWellFormedSpec FlambdaTypeWellFormedProofs
@@ -56,7 +58,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaSimplifyStaticsSpec FlambdaSimplifyStaticsProofs
   FlambdaSimplifyCodeEnvSpec FlambdaSimplifyCodeEnvProofs
   FlambdaSimplifyHandlersSpec FlambdaSimplifyHandlersProofs
-  FlambdaSimplifyPassSpec.
+  FlambdaSimplifyPassSpec FlambdaSimplifyUsesSpec FlambdaSimplifyUsesProofs.
 Import ListNotations.
 
 Local Open Scope Z_scope.
@@ -793,23 +795,8 @@ Qed.
 (* A [Let]                                                                  *)
 (* ======================================================================== *)
 
-Lemma simple_in_terms_b_sound (tenv : Typing_env.t) (s : simple) :
-  simple_in_terms_b tenv s = true -> simple_in_terms tenv s.
-Proof. intros Hb x ->. exact Hb. Qed.
-
-Lemma simple_of_kind_b_sound (tenv : Typing_env.t) (s : simple)
-    (kind : flambda_kind) :
-  simple_of_kind_b tenv s kind = true -> simple_of_kind tenv s kind.
-Proof.
-  destruct s as [x | sym | c]; simpl.
-  - destruct (Typing_env.find tenv (Name_var x) (Some kind)) as [ty | ];
-      [ | discriminate ].
-    intros _. exists ty. reflexivity.
-  - destruct (Typing_env.find tenv (Name_symbol sym) (Some kind))
-      as [ty | ]; [ | discriminate ].
-    intros _. exists ty. reflexivity.
-  - intros Hkind. exact (proj1 (kind_eqb_eq _ _) Hkind).
-Qed.
+(* [simple_in_terms_b_sound] and [simple_of_kind_b_sound] are in
+   FlambdaSimplifyUsesProofs.v. *)
 
 Lemma bind_simple_sound (tenv tenv' : Typing_env.t) (x : variable)
     (s : simple) (d' : named) :
@@ -1031,6 +1018,304 @@ Proof.
              slot declared closure ty s body Hty Hslot).
 Qed.
 
+(* ======================================================================== *)
+(* Where a continuation is applied                                          *)
+(* ======================================================================== *)
+
+(* A [Let] that refines the same [Let] of another defining expression,
+   whatever the body: the other defining expression has the value of
+   the first, where that is of the kind of the [Let]. The body that
+   shows it gives the variable to a way out of the term. *)
+Lemma let_refines_value (tenv : Typing_env.t) (x : variable)
+    (declared : flambda_kind) (d d' : named) :
+  (∀ body : expr,
+    expr_refines_under tenv (Let x declared d body) (Let x declared d' body))
+  ->
+  ∀ (statics : static_env) (vars : env) (v : value),
+    env_satisfies_strictly tenv statics vars ->
+    eval_named statics vars d = Some v ->
+    kind_of_value v = declared ->
+    eval_named statics vars d' = Some v.
+Proof.
+  intros Hrefines statics vars v Hsat Hd Hkind.
+  set (probe := Apply_cont (Apply_cont_expr 1%positive [Var x] None)).
+  assert (Hprobe :
+    ∀ w : value,
+      behaves (State probe ((x, w) :: vars) [] statics)
+        (Exits 1%positive [w])).
+  { intros w. apply step_behaves. unfold probe. rewrite step_apply_cont.
+    cbn [ac_args eval_simples eval_simple]. rewrite lookup_head.
+    reflexivity. }
+  destruct (Hrefines probe vars [] statics Hsat) as [Hexits _].
+  assert (Hsource :
+    behaves (State (Let x declared d probe) vars [] statics)
+      (Exits 1%positive [v])).
+  { apply step_behaves. rewrite step_let, Hd.
+    rewrite (proj2 (kind_eqb_eq _ _) Hkind). exact (Hprobe v). }
+  apply Hexits in Hsource. apply step_behaves in Hsource.
+  rewrite step_let in Hsource.
+  destruct (eval_named statics vars d') as [v' | ]; [ | discriminate ].
+  destruct (kind_eqb (kind_of_value v') declared); [ | discriminate ].
+  simpl in Hsource.
+  pose proof (behaviour_unique (State probe ((x, v') :: vars) [] statics)
+                (Exits 1%positive [v]) (Exits 1%positive [v']) Hsource
+                (Hprobe v'))
+    as Heq.
+  injection Heq as <-. reflexivity.
+Qed.
+
+Lemma bind_simple_satisfied (tenv tenv' : Typing_env.t) (x : variable)
+    (s : simple) (d' : named) (statics : static_env) (vars : env)
+    (v : value) :
+  typing_env_well_formed tenv = true ->
+  Typing_env.mem None tenv (Name_var x) = false ->
+  bind_simple tenv x s = Step_let d' tenv' ->
+  env_satisfies_strictly tenv statics vars ->
+  eval_simple vars s = Some v ->
+  env_satisfies_strictly tenv' statics ((x, v) :: vars).
+Proof.
+  intros Hwf Hfresh. unfold bind_simple.
+  destruct (simplify_simple tenv s) as [[ty canonical] | ] eqn:Hs;
+    [ | discriminate ].
+  destruct (simplify_simple_answer tenv s canonical ty Hs)
+    as [_ Hcanonical].
+  destruct (simple_in_terms_b tenv canonical
+            && simple_of_kind_b tenv canonical (FlambdaTypeGrammar.kind ty))
+    eqn:Htests; [ | discriminate ].
+  apply andb_true_iff in Htests. destruct Htests as [Hterms Hkind].
+  destruct (Typing_env.add_alias _ _ _) as [[ | result | ] | ] eqn:Hadd;
+    try discriminate.
+  intros [= <- <-] Hsat Hv.
+  pose proof (simple_in_terms_b_sound tenv canonical Hterms) as Hscope.
+  assert (Hcanonical_value : eval_simple vars canonical = Some v).
+  { rewrite (canonical_in_terms_sound tenv statics vars s canonical Hsat
+               Hcanonical).
+    exact Hv. }
+  assert (Hother :
+    eval_simple ((x, v) :: vars) canonical = eval_simple vars canonical).
+  { destruct canonical as [y | sym | c]; [ | reflexivity.. ]. simpl.
+    apply lookup_other.
+    exact (not_bound_not_in_scope tenv x y Hfresh (Hscope y eq_refl)). }
+  apply (add_alias_env_satisfies_strictly
+           (Typing_env.add_variable_definition tenv x
+              (FlambdaTypeGrammar.kind ty) Name_mode.normal)
+           statics ((x, v) :: vars) (Var x) canonical result).
+  - intros y [[= <-] | ->];
+      apply (add_variable_definition_in_scope tenv x _ _ Hwf);
+      [ left; reflexivity | right ].
+    split; [ | exact (Hscope y eq_refl) ].
+    exact (not_bound_not_in_scope tenv x y Hfresh (Hscope y eq_refl)).
+  - exact Hadd.
+  - rewrite Hother, Hcanonical_value. simpl. apply lookup_head.
+  - apply add_variable_definition_env_satisfies_strictly;
+      [ exact Hwf | exact Hfresh | | exact Hsat ].
+    apply (simple_of_kind_value tenv statics vars canonical _ v);
+      [ | exact Hscope | exact (simple_of_kind_b_sound tenv canonical _ Hkind)
+        | exact Hcanonical_value ].
+    apply env_satisfies_strictly_env_satisfies. exact Hsat.
+Qed.
+
+Lemma simplify_let_satisfied (tenv tenv' : Typing_env.t) (x : variable)
+    (d d' : named) (statics : static_env) (vars : env) (v : value) :
+  simplify_let tenv x d = Step_let d' tenv' ->
+  env_satisfies_strictly tenv statics vars ->
+  eval_named statics vars d = Some v ->
+  env_satisfies_strictly tenv' statics ((x, v) :: vars).
+Proof.
+  unfold simplify_let.
+  destruct (typing_env_well_formed tenv
+            && negb (Typing_env.mem None tenv (Name_var x))) eqn:Htests;
+    [ | discriminate ].
+  apply andb_true_iff in Htests. destruct Htests as [Hwf Hfresh].
+  apply negb_true_iff in Hfresh.
+  pose proof (simplify_named_sound tenv d) as Hsound.
+  destruct (simplify_named tenv d) as [ | s | ty | kind | ]; simpl in Hsound;
+    try discriminate.
+  - intros Hbind Hsat Hv.
+    apply (bind_simple_satisfied tenv tenv' x s d' statics vars v Hwf Hfresh
+             Hbind Hsat).
+    exact (let_refines_value tenv x (kind_of_value v) d (Simple s)
+             (fun body => Hsound x (kind_of_value v) body) statics vars v
+             Hsat Hv eq_refl).
+  - destruct (type_in_scope_b tenv ty) eqn:Hscope; [ | discriminate ].
+    intros [= _ <-] Hsat Hv.
+    pose proof (Hsound statics vars v Hsat Hv) as Hty.
+    assert (Hfree :
+      ∀ y : variable, y ∈ free_variables ty -> in_scope_in_terms tenv y).
+    { intros y Hy. unfold type_in_scope_b in Hscope.
+      rewrite forallb_forall in Hscope. exact (Hscope y Hy). }
+    apply replace_equation_env_satisfies_strictly.
+    + apply (add_variable_definition_in_scope tenv x _ x Hwf). left.
+      reflexivity.
+    + intros y Hin. apply (add_variable_definition_in_scope tenv x _ y Hwf).
+      right. split; [ | exact (Hfree y Hin) ].
+      exact (not_bound_not_in_scope tenv x y Hfresh (Hfree y Hin)).
+    + intros v' Hlookup.
+      pose proof (eq_trans (eq_sym Hlookup) (lookup_head x v vars)) as Heq.
+      injection Heq as ->.
+      apply (type_satisfied_coincide statics vars ((x, v) :: vars) v ty);
+        [ | exact Hty ].
+      intros y Hin. symmetry. apply lookup_other.
+      exact (not_bound_not_in_scope tenv x y Hfresh (Hfree y Hin)).
+    + apply add_variable_definition_env_satisfies_strictly;
+        [ exact Hwf | exact Hfresh | | exact Hsat ].
+      exact (type_satisfied_kind statics vars v ty Hty).
+  - intros [= _ <-] Hsat Hv.
+    apply add_variable_definition_env_satisfies_strictly;
+      [ exact Hwf | exact Hfresh | exact (Hsound statics vars v Hsat Hv)
+      | exact Hsat ].
+Qed.
+
+Theorem let_env_satisfied : let_env_satisfied_statement.
+Proof.
+  intros tenv tenv' x declared d statics vars v Henv Hsat Hv Hkind.
+  unfold let_env in Henv.
+  pose proof (let_refines_value tenv x declared d _
+                (resolve_value_slot_refines tenv x declared d) statics vars v
+                Hsat Hv Hkind)
+    as Hresolved.
+  destruct (simplify_let tenv x (resolve_value_slot tenv declared d))
+    as [ | d' tenv'' | ] eqn:Hlet; [ discriminate | | ].
+  - injection Henv as <-.
+    exact (simplify_let_satisfied tenv tenv'' x _ d' statics vars v Hlet Hsat
+             Hresolved).
+  - unfold declare_variable in Henv.
+    destruct (typing_env_well_formed tenv
+              && negb (Typing_env.mem None tenv (Name_var x))) eqn:Htests;
+      [ | discriminate ].
+    injection Henv as <-. apply andb_true_iff in Htests.
+    destruct Htests as [Hwf Hfresh]. apply negb_true_iff in Hfresh.
+    apply add_variable_definition_env_satisfies_strictly;
+      [ exact Hwf | exact Hfresh | exact Hkind | exact Hsat ].
+Qed.
+
+(* By recursion on the body: the [Let_cont] is moved down past each
+   binder, to the application (FlambdaSinkContsProofs.v), the handler
+   is rewritten there, and the [Let_cont] is moved back. *)
+Fixpoint find_use_refines_aux (body : expr) {struct body} :
+  ∀ (scope tenv : Typing_env.t) (k : continuation) (params : list variable)
+    (metadata : handler_metadata) (handler handler' : expr)
+    (target : Typing_env.t) (xs : list variable) (ks : list continuation),
+    find_use scope tenv k (Handler params metadata handler) body
+    = Some (target, xs, ks) ->
+    binders_not_free xs ks (Handler params metadata handler') = true ->
+    expr_refines_under target handler handler' ->
+    expr_refines_under tenv
+      (Let_cont_non_recursive k (Handler params metadata handler) body)
+      (Let_cont_non_recursive k (Handler params metadata handler') body).
+Proof.
+  destruct body
+    as [x declared d rest | bindings rest | k' h' rest | handlers rest | ap
+        | ac | scrutinee arms | ];
+    intros scope tenv k params metadata handler handler' target xs ks Hfind
+      Hfree Hhandler;
+    cbn [find_use] in Hfind; try discriminate.
+  - destruct (var_free_in_handler_b x (Handler params metadata handler))
+      eqn:Hx; [ discriminate | ].
+    destruct (let_env tenv x declared d) as [tenv' | ] eqn:Henv;
+      [ | discriminate ].
+    destruct (find_use scope tenv' k (Handler params metadata handler) rest)
+      as [[[target' xs'] ks'] | ] eqn:Hrest; [ | discriminate ].
+    injection Hfind as <- <- <-.
+    unfold binders_not_free in Hfree. cbn [forallb] in Hfree.
+    apply andb_true_iff in Hfree. destruct Hfree as [Hxs Hks].
+    apply andb_true_iff in Hxs. destruct Hxs as [Hx' Hxs].
+    apply negb_true_iff in Hx'.
+    assert (Hrest_free :
+      binders_not_free xs' ks' (Handler params metadata handler') = true).
+    { unfold binders_not_free. rewrite Hxs, Hks. reflexivity. }
+    pose proof (find_use_refines_aux rest scope tenv' k params metadata
+                  handler handler' target' xs' ks' Hrest Hrest_free Hhandler)
+      as IH.
+    intros vars conts statics Hsat.
+    apply (refines_trans _
+             (State
+                (Let x declared d
+                   (Let_cont_non_recursive k
+                      (Handler params metadata handler) rest))
+                vars conts statics)).
+    { apply equivalent_refines, let_cont_past_let. intros Hfree'.
+      apply var_free_in_handler_b_sound in Hfree'. congruence. }
+    apply (refines_trans _
+             (State
+                (Let x declared d
+                   (Let_cont_non_recursive k
+                      (Handler params metadata handler') rest))
+                vars conts statics)).
+    { apply let_refines_step; [ reflexivity | intros v Hv Hkind ].
+      apply IH.
+      exact (let_env_satisfied tenv tenv' x declared d statics vars v Henv
+               Hsat Hv Hkind). }
+    apply equivalent_refines, equivalent_sym, let_cont_past_let.
+    intros Hfree'. apply var_free_in_handler_b_sound in Hfree'. congruence.
+  - destruct (negb (Pos.eqb k k') && negb (cont_free_in_handler_b k h')
+              && negb
+                   (cont_free_in_handler_b k'
+                      (Handler params metadata handler)))
+      eqn:Htests; [ | discriminate ].
+    apply andb_true_iff in Htests. destruct Htests as [Htests Hk'].
+    apply andb_true_iff in Htests. destruct Htests as [Hne Hk].
+    apply negb_true_iff in Hne, Hk, Hk'. apply Pos.eqb_neq in Hne.
+    destruct (find_use scope tenv k (Handler params metadata handler) rest)
+      as [[[target' xs'] ks'] | ] eqn:Hrest; [ | discriminate ].
+    injection Hfind as <- <- <-.
+    unfold binders_not_free in Hfree. cbn [forallb] in Hfree.
+    apply andb_true_iff in Hfree. destruct Hfree as [Hxs Hks].
+    apply andb_true_iff in Hks. destruct Hks as [Hk'' Hks].
+    apply negb_true_iff in Hk''.
+    assert (Hrest_free :
+      binders_not_free xs' ks' (Handler params metadata handler') = true).
+    { unfold binders_not_free. rewrite Hxs, Hks. reflexivity. }
+    pose proof (find_use_refines_aux rest scope tenv k params metadata
+                  handler handler' target' xs' ks' Hrest Hrest_free Hhandler)
+      as IH.
+    intros vars conts statics Hsat.
+    apply (refines_trans _
+             (State
+                (Let_cont_non_recursive k' h'
+                   (Let_cont_non_recursive k
+                      (Handler params metadata handler) rest))
+                vars conts statics)).
+    { apply equivalent_refines, let_cont_past_let_cont; [ exact Hne | | ];
+        intros Hfree'; apply cont_free_in_handler_b_sound in Hfree';
+        congruence. }
+    apply (refines_trans _
+             (State
+                (Let_cont_non_recursive k' h'
+                   (Let_cont_non_recursive k
+                      (Handler params metadata handler') rest))
+                vars conts statics)).
+    { exact (let_cont_body_refines_under tenv k' h' _ _ IH vars conts statics
+               Hsat). }
+    apply equivalent_refines, equivalent_sym, let_cont_past_let_cont;
+      [ exact Hne | | ];
+      intros Hfree'; apply cont_free_in_handler_b_sound in Hfree';
+      congruence.
+  - destruct (leaf_uses tenv k (Apply_cont ac))
+      as [[ | [tenv_use args] [ | second others]] | ] eqn:Hleaf;
+      try discriminate.
+    destruct (use_env scope tenv_use params metadata args) as [target' | ]
+      eqn:Huse; [ | discriminate ].
+    injection Hfind as <- _ _.
+    exact (let_cont_handler_at_use scope tenv k params metadata handler
+             handler' _ tenv_use args target' Hleaf Huse Hhandler).
+  - destruct (leaf_uses tenv k (Switch scrutinee arms))
+      as [[ | [tenv_use args] [ | second others]] | ] eqn:Hleaf;
+      try discriminate.
+    destruct (use_env scope tenv_use params metadata args) as [target' | ]
+      eqn:Huse; [ | discriminate ].
+    injection Hfind as <- _ _.
+    exact (let_cont_handler_at_use scope tenv k params metadata handler
+             handler' _ tenv_use args target' Hleaf Huse Hhandler).
+Qed.
+
+Theorem find_use_refines : find_use_refines_statement.
+Proof.
+  intros scope tenv k params metadata handler handler' body.
+  exact (find_use_refines_aux body scope tenv k params metadata handler
+           handler').
+Qed.
+
 (* By recursion on the term: the bodies of the code that a [Let_static]
    binds are inside its list of bindings, which the induction principle
    of terms does not go into. The bodies are rewritten one binding at a
@@ -1159,6 +1444,22 @@ Qed.
 Theorem simplify_expr_refines_under : simplify_expr_refines_under_statement.
 Proof. intros tenv e. apply simplify_expr_sound. Qed.
 
+Theorem rewrite_handler_at_use_refines
+    : rewrite_handler_at_use_refines_statement.
+Proof.
+  intros tenv k [params metadata handler] h' body.
+  unfold rewrite_handler_at_use.
+  destruct (find_use tenv tenv k (Handler params metadata handler) body)
+    as [[[target xs] ks] | ] eqn:Hfind; [ | discriminate ].
+  cbv zeta.
+  destruct (binders_not_free xs ks
+              (Handler params metadata (simplify_expr target handler)))
+    eqn:Hfree; [ | discriminate ].
+  intros [= <-].
+  exact (find_use_refines tenv tenv k params metadata handler _ body target
+           xs ks Hfind Hfree (simplify_expr_sound handler target)).
+Qed.
+
 Theorem simplify_by_types_refines : simplify_by_types_refines_statement.
 Proof.
   intros e. apply expr_refines_under_create.
@@ -1224,3 +1525,6 @@ Proof. intros k exn ret exn'. vm_compute. reflexivity. Qed.
 
 Theorem example_pass_loop : example_pass_loop_statement.
 Proof. intros k. vm_compute. reflexivity. Qed.
+
+Theorem example_handler_at_use : example_handler_at_use_statement.
+Proof. vm_compute. reflexivity. Qed.
