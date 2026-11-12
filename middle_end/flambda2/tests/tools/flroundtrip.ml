@@ -521,7 +521,8 @@ let check_file (conversion : conversion)
   | Ok fexpr -> (
     let unit_info = Parse_flambda.make_unit_info ~filename in
     let comp_unit = Unit_info.modname unit_info in
-    Env.set_current_unit unit_info;
+    (* As the check of a unit sets it (flsemantics.ml, [check_file]). *)
+    Compilenv.reset unit_info;
     let parsed = Fexpr_to_flambda.conv comp_unit fexpr in
     let filename = Filename.basename filename in
     let check ~filename unit =

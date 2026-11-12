@@ -85,19 +85,27 @@ said of the first unit, and nothing rests on what its `.cmx` says:
   the first unit has no value, a call of one of its functions is
   undefined when it runs, and a second unit that does either as it
   is initialised is undefined in the model.
-- A unit that has an import is run from its imports, and its verdict
-  is one of the three labels of such a unit: "validated with its
-  imports", which is the theorem from the imports
-  (`FlambdaValidateImportsSpec.v`), whatever the imports are;
+- A unit that has an import is run from its imports, and the tool
+  ends with one of the outcomes of such a unit in the directory
+  above: "validated with its imports", which is the theorem from the
+  imports (`FlambdaValidateImportsSpec.v`), whatever the imports are;
   "validated with nothing imported", followed by "not validated with
-  its imports"; or "not validated". No line begins "validated:".
-  That the term after is the one that the compiler makes with the
-  `.cmx` at hand adds nothing to these and takes nothing from them:
-  the validator is given the two terms and no `.cmx`.
-- Where Simplify used what the `.cmx` says, the two terms differ by
-  it, and the validator, which does not know it, does not accept the
-  pair; where the unit is undefined before Simplify there is nothing
-  to validate. That is what the pairs show today.
+  its imports"; "not validated"; or, where the term before is
+  undefined and the validator does not accept the pair, "nothing to
+  validate, as the term before is undefined". Where the term before
+  is undefined and the validator accepts the pair, a line after the
+  verdict says that the validation says nothing of the unit. No line
+  begins "validated:". That the term after is the one that the
+  compiler makes with the `.cmx` at hand adds nothing to these and
+  takes nothing from them: the validator is given the two terms and
+  no `.cmx`.
+- In the pairs that are here, wherever Simplify used what the `.cmx`
+  says the two terms differ by it and the validator does not accept
+  the pair: one such unit is not validated, and five, which are
+  undefined before Simplify, have nothing to validate. That is what
+  these seven pairs show, and no consequence of the `.cmx` being
+  unknown to the model: a difference that the rounds of the
+  validator remove would be accepted.
 
 What the request goes on to, and is not here: a prefix of static
 bindings, in front of both terms, that says of the symbols and the

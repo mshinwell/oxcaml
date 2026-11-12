@@ -113,8 +113,9 @@
    unit when it meets a symbol of that unit, and uses what the file says: it
    puts a closure symbol in the place of a load from the module block of the
    unit, makes a call direct, inlines a body. The tool's Simplify looks for a
-   .cmx in the directories given with [-I] and in no other ([init_load_path]).
-   The rules of the tests give none, but for the pairs of units of
+   .cmx in the directories given with [-I] and in no other, whatever other
+   options of the compiler the tool is given ([init_load_path]). The rules of
+   the tests give none, but for the pairs of units of
    tests/semantics/ocaml/pairs/. Given none, it reads no .cmx and knows nothing
    of another unit, so the term after that is checked, of a unit that uses
    another unit, is then not the one that the compiler makes. Given some, the
@@ -2871,12 +2872,18 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
 (* ---- The .cmx of other units ------------------------------------------- *)
 
 (* Where the tool's Simplify looks for the .cmx of another unit: the directories
-   given with [-I] and no other, neither the standard library nor the current
-   directory. *)
+   given with [-I] (or [-Ix], which is [-I] with a promise about the .cmx
+   files), in the order they are given, each as it is written (a [+dir] is not
+   made a directory of the standard library), and no other. The load path is set
+   here and not by [Compmisc.init_path], which the driver uses: that one adds
+   the standard library, the current directory, the directories of [-H] and of
+   [-thread], and those that OCAMLPARAM gives. The tool accepts the options of
+   the compiler, and none of those is to reach the load path. *)
 let init_load_path () =
-  Clflags.no_std_include := true;
-  Clflags.no_cwd := true;
-  Compmisc.init_path ()
+  Load_path.init ~auto_include:Load_path.no_auto_include
+    ~visible:(List.rev !Clflags.include_dirs)
+    ~hidden:[];
+  Env.reset_cache ~preserve_persistent_env:false
 
 (* The units whose .cmx file the compilation has read so far, each with the
    digest of the file. They are what the compiler would record as the imports of
