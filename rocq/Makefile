@@ -271,6 +271,7 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaValidateScopeProofs.v \
   FlambdaValidateScopeSpec.v \
   FlambdaValidateSpec.v \
+  FlambdaValidatorEquivarianceBaseProofs.v \
   FlambdaValidatorEquivarianceProofs.v \
   FlambdaValidatorEquivarianceSpec.v \
   FlambdaValueProofs.v \
