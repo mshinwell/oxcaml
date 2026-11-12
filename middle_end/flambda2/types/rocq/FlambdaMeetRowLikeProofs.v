@@ -86,6 +86,29 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaMeetRowLikeSpec.
 Import ListNotations.
 
+(* The proofs below, as far as the end of the section, are for any
+   predicate on static environments that implies validity
+   (FlambdaMeetValidity.v): in them the names of the four contracts
+   that suppose a valid static environment stand for the same with
+   that predicate. The theorems of the signed statements are after the
+   section, at validity itself. *)
+From OxCamlFlambda2Types Require Import FlambdaMeetValidity.
+
+Section Validity.
+
+Context {V : validity}.
+
+Abbreviation statics_valid := valid.
+Abbreviation meet_expanded_head_sound := meet_expanded_head_sound_for.
+Abbreviation join_scoped_envs_sound := join_scoped_envs_sound_for.
+Abbreviation meet_call_ok := meet_call_ok_for.
+Abbreviation part_meet_ok := part_meet_ok_for.
+Abbreviation meet_disjunction_right := meet_disjunction_right_for.
+Abbreviation type_part_meet_ok := type_part_meet_ok_for.
+Abbreviation meet_row_like_for_closures_right :=
+  meet_row_like_for_closures_right_for.
+Abbreviation value_heads_right := value_heads_right_for.
+
 (* ======================================================================== *)
 (* The extra variables                                                      *)
 (* ======================================================================== *)
@@ -2665,7 +2688,7 @@ Lemma block_fields_hold (tag : Z) (fields : list value) (statics : static_env)
   block_fields_true fields statics valuation tys ->
   product_satisfied fields statics valuation tys.
 Proof.
-  intros [Hfits _] [Hsize _] Hs. apply product_satisfied_fields.
+  intros [Hfits _] [Hsize _] Hs. apply product_satisfied_fields_for.
   split; [ | exact Hs ]. unfold block_product_fits in Hfits.
   destruct (index_domain i) as [ size | size ].
   - apply Nat.eqb_eq in Hfits. lia.
@@ -2688,8 +2711,8 @@ Lemma block_index_ok_meet (mh : meet_expanded_head) (o : option Z)
 Proof.
   intros [Hf1 Hc1] [Hf2 Hc2] Hindex Hmeet.
   assert (Hlength :=
-    meet_int_indexed_product_length mh menv1 menv2 m1 m2 _ rm Hmeet
-      (extract_value_answer _ rm m1 m2)).
+    meet_int_indexed_product_length_for mh menv1 menv2 m1 m2 _ rm Hmeet
+      (extract_value_answer_for _ rm m1 m2)).
   unfold block_index_ok, block_product_fits in *. rewrite Hlength.
   unfold row_meet_index, block_meet_shape in Hindex.
   destruct (block_shape_eqb (index_shape i1) (index_shape i2)) eqn:Hshape;
@@ -3083,7 +3106,7 @@ Proof.
             (block_index_satisfied tag fields) (block_fields_true fields)
             (product_satisfied fields) (product_part_stable fields)
             product_fits_by_kinds (block_fields_true_stable fields)
-            (meet_int_indexed_product_ok mh fields Hkeeps Hsound) _ _ _ _ _
+            (meet_int_indexed_product_ok_for mh fields Hkeeps Hsound) _ _ _ _ _
             menv Henv _ Keyed.is_empty block_merge_map_known block_find
             block_known_ok _ block_merge_map_known_spec tag known1 known2
             other1 other2 result H1 H2 Hmeet).
@@ -3091,7 +3114,8 @@ Proof.
     exact (block_fields_hold tag fields statics valuation o i m Hindex Htrue
              Hm).
   - intros statics valuation m Hm.
-    exact (proj2 (proj1 (product_satisfied_fields fields statics valuation m)
+    exact (proj2 (proj1 (product_satisfied_fields_for fields statics valuation
+                    m)
                     Hm)).
   - intros tag' i m H. exact H.
   - intros o menv0 menv1 menv2 i1 i2 m1 m2 ri rm.
@@ -3115,7 +3139,7 @@ Proof.
     Henv H1 H2 Hmeet.
   unfold meet_row_like_for_blocks in Hmeet. cbv zeta in Hmeet.
   assert (Hinvariant := proj1 Henv).
-  refine (combine_results2_ok _ _ _ block_row_fits
+  refine (combine_results2_ok_for _ _ _ block_row_fits
             (block_row_true tag fields)
             (fun (_ : Typing_env.t) (_ : Alloc_mode.t) => True)
             (fun (_ : static_env) (_ : env) (_ : Alloc_mode.t) => True)
@@ -3145,8 +3169,8 @@ End Blocks.
 (* [meet_row_like_for_blocks] is right, for any value: the block in
    hand is the one that the value is, which the static environment
    says. *)
-Theorem meet_row_like_for_blocks_ok
-  : meet_row_like_for_blocks_ok_statement.
+Lemma meet_row_like_for_blocks_ok_for :
+  for_validity meet_row_like_for_blocks_ok_statement.
 Proof.
   intros join choices mh v Hjoin Hdefine Hlift Hkeeps Hsound.
   set (choose :=
@@ -3185,4 +3209,14 @@ Proof.
   - intros statics valuation. apply Hiff.
   - intros statics valuation. apply Hiff.
   - intros r statics valuation. apply Hiff.
+Qed.
+
+End Validity.
+
+Theorem meet_row_like_for_blocks_ok :
+  meet_row_like_for_blocks_ok_statement.
+Proof.
+  first
+    [ exact (@meet_row_like_for_blocks_ok_for standard_validity)
+    | exact meet_row_like_for_blocks_ok_for ].
 Qed.
