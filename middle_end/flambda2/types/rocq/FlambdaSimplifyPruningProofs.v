@@ -48,6 +48,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypingEnvExamplesSpec FlambdaTypingEnvRefinementSpec
   FlambdaTypingEnvRefinementProofs FlambdaMeet FlambdaMeetSpec
   FlambdaSimplifyPrimitivesSpec FlambdaSimplifyPrimitivesProofs
+  FlambdaSimplifyApplySpec FlambdaSimplifyApplyProofs
   FlambdaSimplifyPassSpec FlambdaSimplifyPassProofs
   FlambdaSimplifyPruningSpec.
 From OxCamlFlambda2Types Require FlambdaMeetExamplesSpec
@@ -1064,7 +1065,7 @@ Proof.
     + exact (let_cont_recursive_body_refines_valid tenv handlers body _ Hsets
                Hrefines).
   - split; [ reflexivity | ].
-    apply refines_under_valid, expr_refines_under_refl.
+    apply refines_under_valid, simplify_apply_refines_under.
   - split; [ reflexivity | ].
     apply refines_under_valid, expr_equivalent_under_refines.
     apply simplify_apply_cont_equivalent.

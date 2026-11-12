@@ -157,7 +157,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypingEnv FlambdaTypingEnvSpec FlambdaTypingEnvInvariantSpec
   FlambdaTypingEnvKindedSpec FlambdaTypingEnvExamplesSpec
   FlambdaTypingEnvRefinementSpec FlambdaMeet FlambdaMeetSpec
-  FlambdaSimplifyPrimitivesSpec FlambdaSimplifyPassSpec.
+  FlambdaSimplifyPrimitivesSpec FlambdaSimplifyApplySpec
+  FlambdaSimplifyPassSpec.
 From OxCamlFlambda2Types Require FlambdaMeetExamplesSpec
   FlambdaSimplifySwitchSpec.
 Import ListNotations.
@@ -508,7 +509,7 @@ Fixpoint simplify_expr_pruning (prune : switch_rewrite) (tenv : Typing_env.t)
       (simplify_expr_pruning prune tenv fit body)
   | Let_cont_recursive handlers body =>
     Let_cont_recursive handlers (simplify_expr_pruning prune tenv fit body)
-  | Apply _ => e
+  | Apply ap => simplify_apply tenv ap
   | Apply_cont ac => Apply_cont (simplify_apply_cont tenv ac)
   | Switch scrutinee arms =>
     simplify_switch_pruning prune tenv fit scrutinee arms

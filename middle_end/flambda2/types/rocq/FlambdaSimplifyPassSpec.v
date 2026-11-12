@@ -67,10 +67,19 @@
      [Box_number], the arithmetic of tagged immediates) or with the
      kind of its result and nothing more.
    - At a [Let] of a projection of a function slot: the same, with
-     the prover of that projection. At a [Let] of a set of closures
-     the variable is defined at the kind value. At a [Let] of the
-     projection of a value slot it stops (the model's value slots
-     have no kind).
+     the prover of that projection. At a [Let] of a set of closures,
+     or of a closure of a set, the variable is defined with the type
+     of the closure ([set_of_closures_type], [closure_of_set_type],
+     FlambdaSimplifyApplySpec.v): its code ids, and for each value
+     slot the type of the [Simple] that it holds; or at the kind
+     value, where a value slot holds a [Simple] that the environment
+     does not know. At a [Let] of the projection of a value slot it
+     stops (the model's value slots have no kind).
+   - A call is given to [simplify_apply] (FlambdaSimplifyApplySpec.v):
+     an indirect call whose callee is proved, from its type, to be a
+     closure of one piece of code becomes a direct call of that code,
+     and the callee and the arguments are replaced by their canonical
+     elements.
    - Under a [Let_static] its symbols are defined, with no types.
      The body of each piece of code that it binds is rewritten too
      ([simplify_code]), under an environment of its own ([code_env]):
@@ -109,8 +118,9 @@
      only. No arm of a [Switch] is removed from the type of the
      scrutinee.
    - Symbols have no types; nothing is lifted; there are no common
-     subexpressions, no inlining, no unboxing of parameters; a call
-     is left as it is.
+     subexpressions, no inlining, no unboxing of parameters. The
+     value slots of a set of closures are left as they are written
+     (Simplify replaces them by their canonical elements).
    - Of the unary primitives, [Is_int], [Is_null], [Get_tag], a
      [Block_load] that is not marked [Mutable], and the tagging,
      untagging, boxing and unboxing of a number are looked at; of the
@@ -140,7 +150,7 @@
      on the environments that the function builds, for a term whose
      binders are all different, is not stated here.
 
-   Ten terms on which the function is computed are at the end:
+   Twelve terms on which the function is computed are at the end:
    what it answers is stated as an equation, with no premise.
 
    That the function commutes with renaming ([simplify_expr] of the
@@ -166,7 +176,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypingEnvExamplesSpec FlambdaTypingEnvRefinementSpec
   FlambdaProvers FlambdaProversSpec FlambdaSimplifyPrimitivesSpec
   FlambdaSimplifyProjectionsSpec FlambdaSimplifyBoxingSpec
-  FlambdaSimplifyArithSpec.
+  FlambdaSimplifyArithSpec FlambdaSimplifyApplySpec.
 Import ListNotations.
 
 Local Open Scope Z_scope.
@@ -548,7 +558,21 @@ Definition simplify_named (tenv : Typing_env.t) (defining_expr : named)
         end
       else Becomes_invalid
     end
-  | Set_of_closures _ _ | Closure_of_set _ _ _ => Stays_with_kind Value
+  | Set_of_closures code value_slots =>
+    match simplify_simples tenv (map snd value_slots) with
+    | Some answers =>
+      Stays_with_type
+        (set_of_closures_type code (map fst value_slots) (map fst answers))
+    | None => Stays_with_kind Value
+    end
+  | Closure_of_set slot function_decls value_slots =>
+    match simplify_simples tenv (map snd value_slots) with
+    | Some answers =>
+      Stays_with_type
+        (closure_of_set_type slot function_decls (map fst value_slots)
+           (map fst answers))
+    | None => Stays_with_kind Value
+    end
   | Project_function_slot _ move_to closure =>
     match simplify_simple tenv closure with
     | Some (ty, _) =>
@@ -755,7 +779,7 @@ Fixpoint simplify_expr (tenv : Typing_env.t) (e : expr) : expr :=
     Let_cont_non_recursive k handler (simplify_expr tenv body)
   | Let_cont_recursive handlers body =>
     Let_cont_recursive handlers (simplify_expr tenv body)
-  | Apply _ => e
+  | Apply ap => simplify_apply tenv ap
   | Apply_cont ac => Apply_cont (simplify_apply_cont tenv ac)
   | Switch scrutinee arms => simplify_switch tenv scrutinee arms
   | Invalid => Invalid
@@ -1030,3 +1054,60 @@ Definition example_pass_phys_equal_statement : Prop :=
         (Let example_i naked_immediate_kind
            (Simple (Const (Naked_immediate 1)))
            (Apply_cont (Apply_cont_expr k1 [] None))).
+
+(* A call of a local function. [let x = opaque in let g = closure of
+   [example_f] with [x] in its value slot in g x]: [g] is given the
+   type of the closure, and the call through [g] is a direct call of
+   [example_f]. *)
+Definition example_pass_call_statement : Prop :=
+  ∀ k exn : continuation,
+    let unknown (body : expr) : expr :=
+      Let example_x Value (example_opaque Value (Tagged_immediate 5)) body
+    in
+    let closure := Set_of_closures example_f [(example_w, Var example_x)] in
+    let call (callee : simple) (kind : call_kind) : expr :=
+      Apply
+        (Apply_expr callee kind [Var example_x] k exn [] [Singleton Value]
+           [Singleton Value])
+    in
+    simplify_by_types
+      (unknown (Let example_c Value closure (call (Var example_c) Indirect)))
+    = unknown
+        (Let example_c Value closure
+           (call (Var example_c) (Direct example_f))).
+
+(* The same closure read back from a pair: [let p = Make_block 0 [g; x]
+   in let q = Block_load p 0 in q x]. The load is [g], and the call
+   through [q] is a direct call of [example_f] through [g]. *)
+Definition example_pass_call_from_pair_statement : Prop :=
+  ∀ k exn : continuation,
+    let unknown (body : expr) : expr :=
+      Let example_x Value (example_opaque Value (Tagged_immediate 5)) body
+    in
+    let closure := Set_of_closures example_f [(example_w, Var example_x)] in
+    let pair :=
+      Prim (Variadic (Make_block (Block_kind_values 0)))
+        [Var example_c; Var example_x]
+    in
+    let load :=
+      Prim
+        (Unary
+           (Block_load (Block_access_values (Some 0) (Some 2) Any_value)
+              Immutable 0))
+        [Var example_p]
+    in
+    let call (callee : simple) (kind : call_kind) : expr :=
+      Apply
+        (Apply_expr callee kind [Var example_x] k exn [] [Singleton Value]
+           [Singleton Value])
+    in
+    simplify_by_types
+      (unknown
+         (Let example_c Value closure
+            (Let example_p Value pair
+               (Let example_q Value load (call (Var example_q) Indirect)))))
+    = unknown
+        (Let example_c Value closure
+           (Let example_p Value pair
+              (Let example_q Value (Simple (Var example_c))
+                 (call (Var example_c) (Direct example_f))))).

@@ -49,7 +49,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaSimplifyPrimitivesSpec FlambdaSimplifyPrimitivesProofs
   FlambdaSimplifyProjectionsSpec FlambdaSimplifyProjectionsProofs
   FlambdaSimplifyBoxingSpec FlambdaSimplifyBoxingProofs
-  FlambdaSimplifyArithSpec FlambdaSimplifyArithProofs FlambdaSimplifyPassSpec.
+  FlambdaSimplifyArithSpec FlambdaSimplifyArithProofs
+  FlambdaSimplifyApplySpec FlambdaSimplifyApplyProofs FlambdaSimplifyPassSpec.
 Import ListNotations.
 
 Local Open Scope Z_scope.
@@ -660,14 +661,32 @@ Proof.
     + intros x declared body.
       exact (let_prim_kind_mismatch tenv x declared p args (map fst answers)
                body Htys Hkinds).
-  - intros statics vars v _ Hnamed. simpl in Hnamed.
-    destruct (eval_value_slots vars value_slots); [ | discriminate ].
-    injection Hnamed as <-. reflexivity.
-  - intros statics vars v _ Hnamed. simpl in Hnamed.
-    destruct (lookup slot function_decls); [ | discriminate ].
-    simpl in Hnamed.
-    destruct (eval_value_slots vars value_slots); [ | discriminate ].
-    injection Hnamed as <-. reflexivity.
+  - destruct (simplify_simples tenv (map snd value_slots))
+      as [answers | ] eqn:Hslots.
+    + destruct (simplify_simples_answers tenv _ answers Hslots)
+        as [Htys _].
+      intros statics vars v Hsat Hnamed.
+      exact (set_of_closures_typed tenv statics vars code value_slots
+               (map fst answers) v
+               (env_satisfies_strictly_env_satisfies tenv statics vars Hsat)
+               Htys Hnamed).
+    + intros statics vars v _ Hnamed. simpl in Hnamed.
+      destruct (eval_value_slots vars value_slots); [ | discriminate ].
+      injection Hnamed as <-. reflexivity.
+  - destruct (simplify_simples tenv (map snd value_slots))
+      as [answers | ] eqn:Hslots.
+    + destruct (simplify_simples_answers tenv _ answers Hslots)
+        as [Htys _].
+      intros statics vars v Hsat Hnamed.
+      exact (closure_of_set_typed tenv statics vars slot function_decls
+               value_slots (map fst answers) v
+               (env_satisfies_strictly_env_satisfies tenv statics vars Hsat)
+               Htys Hnamed).
+    + intros statics vars v _ Hnamed. simpl in Hnamed.
+      destruct (lookup slot function_decls); [ | discriminate ].
+      simpl in Hnamed.
+      destruct (eval_value_slots vars value_slots); [ | discriminate ].
+      injection Hnamed as <-. reflexivity.
   - exact I.
   - exact I.
   - destruct (simplify_simple tenv closure) as [[ty canonical] | ]
@@ -1031,7 +1050,7 @@ Proof.
       apply simplify_expr_sound.
   - apply let_cont_body_refines_under. apply simplify_expr_sound.
   - apply let_cont_recursive_body_refines_under. apply simplify_expr_sound.
-  - apply expr_refines_under_refl.
+  - apply simplify_apply_refines_under.
   - apply expr_equivalent_under_refines. apply simplify_apply_cont_equivalent.
   - apply simplify_switch_refines.
   - apply expr_refines_under_refl.
@@ -1079,3 +1098,9 @@ Proof. intros k ret exn. vm_compute. reflexivity. Qed.
 
 Theorem example_pass_phys_equal : example_pass_phys_equal_statement.
 Proof. intros k0 k1. vm_compute. reflexivity. Qed.
+
+Theorem example_pass_call : example_pass_call_statement.
+Proof. intros k exn. vm_compute. reflexivity. Qed.
+
+Theorem example_pass_call_from_pair : example_pass_call_from_pair_statement.
+Proof. intros k exn. vm_compute. reflexivity. Qed.

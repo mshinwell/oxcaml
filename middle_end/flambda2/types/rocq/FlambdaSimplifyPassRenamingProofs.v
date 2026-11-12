@@ -46,7 +46,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaSimplifyPrimitivesRenamingSpec
   FlambdaSimplifyPrimitivesRenamingProofs
   FlambdaSimplifyProjectionsSpec FlambdaSimplifyBoxingSpec
-  FlambdaSimplifyArithSpec FlambdaSimplifyPassSpec
+  FlambdaSimplifyArithSpec FlambdaSimplifyApplySpec
+  FlambdaSimplifyApplyProofs FlambdaSimplifyPassSpec
   FlambdaSimplifyPassRenamingSpec.
 Import ListNotations.
 
@@ -264,6 +265,18 @@ Qed.
 (* A defining expression                                                    *)
 (* ======================================================================== *)
 
+(* The value slots of a set of closures, renamed: the same slots, and
+   the [Simple]s renamed. *)
+Lemma value_slots_renamed (r : renaming)
+    (value_slots : list (value_slot * simple)) :
+  map fst
+    (map (fun slot => (fst slot, rename_simple r (snd slot))) value_slots)
+  = map fst value_slots
+  ∧ map snd
+      (map (fun slot => (fst slot, rename_simple r (snd slot))) value_slots)
+    = map (rename_simple r) (map snd value_slots).
+Proof. rewrite !map_map. split; reflexivity. Qed.
+
 Theorem simplify_named_equivariant : simplify_named_equivariant_statement.
 Proof.
   intros r tenv d.
@@ -271,7 +284,14 @@ Proof.
     as [s | p args | code value_slots | slot function_decls value_slots
         | slot closure | project_from slot closure
         | move_from move_to closure];
-    cbn [rename_named simplify_named]; try reflexivity.
+    cbn [rename_named simplify_named]; try reflexivity;
+    try (destruct (value_slots_renamed r value_slots) as [Hslots Hsimples];
+         rewrite Hslots, Hsimples, simplify_simples_equivariant;
+         destruct (simplify_simples tenv (map snd value_slots))
+           as [answers | ];
+         cbn [option_map rename_outcome]; [ | reflexivity ];
+         rewrite map_fst_rename_answer; unfold set_of_closures_type;
+         rewrite closure_of_set_type_rename; reflexivity).
   - rewrite simplify_simples_equivariant.
     destruct (simplify_simples tenv args) as [answers | ];
       cbn [option_map]; [ | reflexivity ].
@@ -558,7 +578,7 @@ Proof.
       reflexivity.
     + rewrite (simplify_expr_equivariant_aux r body). reflexivity.
     + rewrite (simplify_expr_equivariant_aux r body). reflexivity.
-    + reflexivity.
+    + apply simplify_apply_rename.
     + rewrite simplify_apply_cont_equivariant. reflexivity.
     + apply simplify_switch_equivariant.
     + reflexivity.
