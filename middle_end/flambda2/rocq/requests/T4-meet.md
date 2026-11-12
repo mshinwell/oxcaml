@@ -40,6 +40,14 @@ Files, in `middle_end/flambda2/types/rocq/`:
   and seven statements, proved (`FlambdaMeetKeepsProofs.v`). To be
   reviewed (section 18). `FlambdaMeetValidity.v`: the device of the
   proof; definitions and a tactic, no statement.
+- `FlambdaMeetParamsSpec.v`: the equations on parameters that the
+  environment does not know; three definitions, an example and six
+  statements, proved (`FlambdaMeetParamsProofs.v`). To be reviewed
+  (section 20).
+- `FlambdaMeetChoicesSpec.v`: the three places where the compiler's
+  meet is not the meet that is proved; three definitions, two
+  examples and twelve statements, proved
+  (`FlambdaMeetChoicesProofs.v`). To be reviewed (section 21).
 
 The compiler read: `types/meet_and_n_way_join.ml` (lines 1 to 1883, the
 meet), `types/meet.ml`, `types/env/meet_env.ml`, `types/expand_head.ml`,
@@ -1024,3 +1032,119 @@ of `FlambdaMeetClosuresProofs.v` (`value_heads_of_join`) and
 `meet_expanded_head_fuel_ok`; two files of the join's side do. The
 statement says nothing new: its proof is the first three lines of
 the proof of `typing_env_functions_of_meet_to_prove`.
+
+## 20. Parameters that the environment does not know (2026-11-12)
+
+For review: `FlambdaMeetParamsSpec.v`.
+
+The question was whether `add_equations_on_params_sound`, as agreed
+without a premise on the parameters, is true of the model's
+function (discrepancy T4-11; "Decided overnight", 16, proved it for
+parameters that the environment knows).
+
+It is false, for a join that has `join_scoped_envs_sound`:
+
+- `naming_join q`: the join that forgets, and that makes the
+  variable `q` with the type of the naked immediates 5 and 6 if no
+  environment that it is given knows `q` and `q` is not to be
+  avoided. `naming_join_sound`: it has the contract of the join.
+- The example: an environment that knows the first of two
+  parameters (a value that is an immediate or a block) and not the
+  second; the first is given the type "an immediate or a block of
+  tag 0", whose meet with what the environment has calls the join
+  once; the second holds 7 and is given the type of 7 and 8.
+  `example_params_premises`: every premise of the contract holds.
+  `example_params_answer`: the function answers the bottom
+  environment. `add_equations_on_params_not_sound`: so it has not
+  the contract.
+
+It is a fault of the model's supply of names and not of the
+compiler, whose variables differ from every variable that exists.
+
+The premise under which the contract holds:
+
+- `meet_env_add_equations_on_params_avoided`: for
+  `Meet_env.add_equations_on_params`, every parameter that the
+  environment does not know is among the names that the meet is to
+  avoid. Then such a parameter stays unknown (a variable that a meet
+  defines is not among the names to avoid) and its equation adds
+  nothing.
+- For the function as transcribed, which starts with no name to
+  avoid, this is that every parameter is known: the statement that
+  was proved.
+- `add_equations_on_params_avoiding`: the function that starts with
+  the parameters as names to avoid. It is not the transcription.
+  `add_equations_on_params_avoiding_sound`: it has the contract as
+  agreed, for a join that has its own.
+
+A premise on the join alone is not stated; the header says why, and
+what the join of the model does (it makes the variable one greater
+than every name it is to avoid and every variable its environments
+know, so it can make a parameter that the environment does not
+know; with the parameters to avoid it cannot).
+
+What to check: that `naming_join` is a fair instance of the
+contract (it is `forgetful_join` plus one definition and one
+equation, and its proof uses nothing but the laws of the typing
+environment); that the example's input is built by the model's own
+functions; that `add_equations_on_params_avoiding` differs from
+`Flambda2_types.add_equations_on_params` only in the names to avoid
+of the environment it starts with.
+
+Which of the two the model should have (the contract with its
+premise, or the function that avoids the parameters) is for the
+human: status, "Decided overnight", 21.
+
+## 21. The compiler's three choices (2026-11-12)
+
+For review: `FlambdaMeetChoicesSpec.v`.
+
+The main theorem is for `repaired_choices`. For each of the three
+places where `compiler_choices` differs, with that one choice as the
+compiler has it and the two others repaired (`only_get_tag_of_blocks`,
+`only_defining_again`, `only_not_lifting`):
+
+1. The type of the scrutinee of `Get_tag` (T4-6).
+   `get_tag_reduction_of_block`: the compiler's type is true of a
+   value that the relation holds of exactly where the value is a
+   block. `only_get_tag_not_sound`: the example that was in the
+   tree, with this choice alone; what fails is `meet_sound`.
+2. Defining again (T4-1). `define_in_types_choice`: the two choices
+   do the same on a variable that the environment does not know; on
+   one that it knows the repaired choice does nothing and the
+   compiler's defines it. `example_rebind`,
+   `defining_again_not_keeps`: with the join of the model as the
+   compiler has it, on the input of the demonstration made with the
+   compiler's library of types, the environment answered is not well
+   formed (a variable at two binding times); what fails is
+   `meet_keeps_well_formed`. `example_rebind_inputs`: the input is
+   one that the contract speaks of. `example_rebind_repaired`: with
+   the repaired choice the environment answered is well formed.
+3. Lifting the variables of a case that is alone (T4-9).
+   `union_extra_variables_same`: recording the variables of the
+   case's environment changes nothing exactly where each is recorded
+   already. `example_unbound`, `not_lifting_not_keeps`: on the input
+   of the differential test's scenario, the type answered mentions
+   a variable that the environment answered does not know.
+   `example_unbound_inputs`, `example_unbound_repaired` as above.
+
+The comments of the statements say which faults the compiler shows
+only with types built by hand (the second and the third).
+
+Not stated, and the header says why: one theorem "on inputs with P
+the compiler's meet has the contract". For the second and the third
+place the condition is about what the join makes or brings in at
+each call, not about the types met. Nothing either for the state at
+which the model stops and the compiler does not (T4-10): what would
+exclude it is that the name is still canonical after the meet, and
+to state that the function then answers needs that adding an alias
+of a canonical name to a constant answers, which no statement about
+aliases says yet.
+
+What to check: that each `only_` record differs from
+`repaired_choices` in one field; that the third statement of each
+group follows from the second and the inputs statement and says
+"not `meet_keeps_well_formed`" of the meet with the model's join,
+of which nothing is supposed; that the example of the second group
+is the input of the demonstration (two variables that are tagged
+immediates, tags 0 and 1 against tags 0 and 2).
