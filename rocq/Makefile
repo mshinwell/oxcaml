@@ -285,6 +285,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaProvers.v \
   FlambdaProversExamplesProofs.v \
   FlambdaProversExamplesSpec.v \
+  FlambdaProversPoisonProofs.v \
+  FlambdaProversPoisonSpec.v \
   FlambdaProversProofs.v \
   FlambdaProversRenameProofs.v \
   FlambdaProversRenameSpec.v \
