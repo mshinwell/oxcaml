@@ -1,0 +1,588 @@
+(******************************************************************************
+ *                                  OxCaml                                    *
+ * -------------------------------------------------------------------------- *
+ *                               MIT License                                  *
+ *                                                                            *
+ * Copyright (c) 2026 Jane Street Group LLC                                   *
+ * opensource-contacts@janestreet.com                                         *
+ *                                                                            *
+ * Permission is hereby granted, free of charge, to any person obtaining a    *
+ * copy of this software and associated documentation files (the "Software"), *
+ * to deal in the Software without restriction, including without limitation  *
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,   *
+ * and/or sell copies of the Software, and to permit persons to whom the      *
+ * Software is furnished to do so, subject to the following conditions:       *
+ *                                                                            *
+ * The above copyright notice and this permission notice shall be included    *
+ * in all copies or substantial portions of the Software.                     *
+ *                                                                            *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR *
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   *
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL    *
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER *
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING    *
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER        *
+ * DEALINGS IN THE SOFTWARE.                                                  *
+ ******************************************************************************)
+
+
+(* The function that rewrites a term from the types, with the arms of a
+   [Switch] removed that the type of the scrutinee excludes: a second
+   function, whose theorem is about the states of the run of a unit
+   whose sets of closures are well formed.
+
+   This file is to be reviewed: every definition and every statement.
+   The function is meant to be extracted and run by the validation of
+   middle_end/flambda2/tests/semantics/; nothing runs it yet.
+
+   Why a second function. [simplify_by_types]
+   (FlambdaSimplifyPassSpec.v) refines the term in every state, and
+   removes no arm of a [Switch] by a meet: where the scrutinee has a
+   constant for canonical element it takes the arm of the constant,
+   and that is all. The law by which Simplify removes the
+   arms that the type of the scrutinee excludes
+   (FlambdaSimplifySwitchSpec.v) rests on the meet, whose contract
+   supposes that the static environment is valid
+   (../../rocq/FlambdaClosuresSpec.statics_valid): it holds in the
+   states that have a valid static environment and not in every state.
+   A step keeps no such thing by itself: a [Let_static] of a term that
+   is not well formed can bind what is not valid. What a step keeps is
+   [run_valid]: every value that the state holds is valid
+   ([state_valid], ../../rocq/FlambdaClosuresSpec.v), and the sets of
+   closures of every term that it holds are well formed (its
+   expression, the handlers that its continuations keep, the code that
+   is bound). The state that a unit starts in has it as soon as the
+   sets of the unit are well formed
+   (../../rocq/FlambdaWellFormedSpec.sets_well_formed, a test, and one
+   of the conditions of a well-formed unit).
+
+   What is stated.
+   - Of [run_valid]: a step keeps it ([run_valid_kept_statement]); the
+     state that a unit with well-formed sets starts in has it
+     ([run_valid_initial_statement]); its static environment is valid
+     ([run_valid_statics_statement]); and it reads the expression of
+     the state through the test of its sets only
+     ([run_valid_expr_statement]).
+   - Refinement under a typing environment from the states that have
+     [run_valid] ([expr_refines_from_valid]): it follows from
+     refinement in every state that satisfies the environment, and
+     from refinement in those whose static environment is valid
+     ([from_valid_weaken_statement]); two steps make one where the
+     term between has well-formed sets
+     ([expr_refines_from_valid_trans_statement]); from the environment
+     that knows nothing it is refinement of the two terms run on their
+     own, if the sets of the first are well formed
+     ([from_valid_program_statement]).
+   - The function: [simplify_expr_pruning prune tenv fit e] is
+     [simplify_expr tenv e] (FlambdaSimplifyPassSpec.v), with one more
+     argument, [prune], a function that may rewrite a [Switch] from
+     the environment, and a boolean, [fit], that says whether meets
+     may be made in the environment (below). What [prune] is asked is
+     [switch_rewrite_sound]; the function of
+     FlambdaSimplifySwitchSpec.v that removes arms has it, for a meet
+     that has [meet_bottom_sound]
+     ([simplify_switch_rewrite_sound_statement]). What the function
+     answers has well-formed sets if the term has
+     ([simplify_expr_pruning_sets_statement]) and refines the term
+     from the states that have [run_valid]
+     ([simplify_expr_pruning_refines_statement]); from the environment
+     that knows nothing, a unit with well-formed sets refines what the
+     function makes of it
+     ([simplify_by_types_pruning_refines_statement]). With a [prune]
+     that answers nothing it is the first function
+     ([simplify_expr_no_pruning_statement]).
+   - One term on which it is computed, with the transcribed meet, and
+     what the first function answers on it
+     ([example_pruning_no_arm_statement]).
+
+   Where a meet may be made. The law of the pruning asks
+   [typing_env_fits] of the environment (FlambdaMeetSpec.v). Two of
+   its conditions have no test: [levels_agree] (in
+   [typing_env_invariant]) and [aliases_kinded]. The function carries
+   a boolean for them, [fit]: it is true where the two are known of
+   the environment ([known_to_fit]). It is true of the environment
+   that knows nothing and of the environment of the body of code
+   ([code_env_known_to_fit_statement]); defining symbols keeps it;
+   and at a [Let] it stays true if the premises of the statements by
+   which the function that extends the environment keeps the two
+   conditions pass as tests ([let_keeps_fit],
+   [let_keeps_fit_sound_statement]). At a [Switch] the rest of
+   [typing_env_fits] is tested ([types_fit_b],
+   [types_fit_b_fits_statement]), and that the scrutinee may occur in
+   terms. Where [fit] is false or a test fails nothing is pruned: a
+   failure costs rewrites and not correctness. None of these tests is
+   Simplify's (the CR at [known_to_fit]).
+
+   What is assumed. The theorem from the environment that knows
+   nothing ([simplify_by_types_pruning_refines_statement]) has two
+   premises: [switch_rewrite_sound prune], which for the pruning of
+   FlambdaSimplifySwitchSpec.v is [meet_bottom_sound meet] (that file
+   says what is and is not known of it for the transcribed meet); and
+   that the sets of the term are well formed, which is a test. The two
+   statements about any environment
+   ([simplify_expr_pruning_sets_statement],
+   [simplify_expr_pruning_refines_statement]) ask [known_to_fit tenv
+   fit] as well: whoever calls the function with [fit] true owes the
+   two conditions of the environment.
+
+   Not here. The arms that are kept are not rewritten with what the
+   meet finds of them, and the environment that the meet answers for
+   an arm is not kept. The function does nothing in the handler of a
+   continuation, as the first does not. That it commutes with
+   renaming, and that it keeps scope
+   (../../rocq/FlambdaValidatorEquivarianceSpec.v), are to come.
+
+   The proofs are in FlambdaSimplifyPruningProofs.v, which needs no
+   review. *)
+
+From Stdlib Require Import ZArith List Bool.
+From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
+  FlambdaMapSpec FlambdaValueSpec FlambdaSemanticsSpec FlambdaWellFormedSpec
+  FlambdaClosuresSpec FlambdaContextWhereSpec FlambdaUnusedStaticsSpec.
+From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
+  FlambdaTypeMeaningSpec FlambdaTypeWellFormedSpec FlambdaBindingTime
+  FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaEnvAliasesInvariantSpec
+  FlambdaTypingEnv FlambdaTypingEnvSpec FlambdaTypingEnvInvariantSpec
+  FlambdaTypingEnvKindedSpec FlambdaTypingEnvExamplesSpec
+  FlambdaTypingEnvRefinementSpec FlambdaMeet FlambdaMeetSpec
+  FlambdaSimplifyPrimitivesSpec FlambdaSimplifyPassSpec.
+From OxCamlFlambda2Types Require FlambdaSimplifySwitchSpec.
+Import ListNotations.
+
+Local Open Scope Z_scope.
+
+(* ======================================================================== *)
+(* The states of the run of a unit whose sets are well formed               *)
+(* ======================================================================== *)
+
+(* The handlers that a continuation keeps, and those of the
+   continuations that it keeps, have well-formed sets. *)
+(* CR mshinwell: [cont_sets_well_formed], [conts_sets_well_formed] and
+   [code_sets_well_formed_in] are copies of [cont_sets_ok],
+   [conts_sets_ok] and [code_sets_ok] of
+   ../../rocq/FlambdaClosuresProofs.v, and the first conjunct of
+   [run_valid] is [sets_inv] of that file. They are copied because a
+   statement may not name a definition of a file of proofs. They are
+   to go when those definitions are moved to
+   ../../rocq/FlambdaClosuresSpec.v, which its owner has been asked
+   for. *)
+Fixpoint cont_sets_well_formed (c : cont_value) : Prop :=
+  match c with
+  | Outer _ => True
+  | Extra_args c' _ => cont_sets_well_formed c'
+  | Closure h _ conts recursive =>
+    handler_sets_well_formed h = true
+    ∧ forallb (fun '(_, h) => handler_sets_well_formed h) recursive = true
+    ∧ fold_right (fun kc acc => cont_sets_well_formed (snd kc) ∧ acc) True
+        conts
+  end.
+
+Definition conts_sets_well_formed (conts : cont_env) : Prop :=
+  fold_right (fun kc acc => cont_sets_well_formed (snd kc) ∧ acc) True conts.
+
+(* The code that is bound has well-formed sets. *)
+Definition code_sets_well_formed_in (statics : static_env) : Prop :=
+  ∀ (id : code_id) (c : code),
+    lookup id (static_code statics) = Some c ->
+    code_sets_well_formed c = true.
+
+(* What holds of every state of the run of a unit whose sets are well
+   formed: the sets of every term that the state holds are well formed,
+   the static sets are bound ([static_sets_bound],
+   ../../rocq/FlambdaClosuresSpec.v), and every value that it holds is
+   valid. *)
+Definition run_valid (s : state) : Prop :=
+  (sets_well_formed (state_expr s) = true
+   ∧ conts_sets_well_formed (state_conts s)
+   ∧ code_sets_well_formed_in (state_statics s)
+   ∧ static_sets_bound (state_statics s))
+  ∧ state_valid s.
+
+(* A step keeps it. *)
+Definition run_valid_kept_statement : Prop := kept_by_step run_valid.
+
+(* The state that a unit starts in has it, if the sets of the unit are
+   well formed. *)
+Definition run_valid_initial_statement : Prop :=
+  ∀ e : expr,
+    sets_well_formed e = true ->
+    run_valid (State e [] [] empty_static_env).
+
+(* Its static environment is valid. *)
+Definition run_valid_statics_statement : Prop :=
+  ∀ s : state, run_valid s -> statics_valid (state_statics s).
+
+(* It reads the expression through the test of its sets only: a state
+   that has it has it with any expression whose sets are well formed. *)
+Definition run_valid_expr_statement : Prop :=
+  ∀ (e e' : expr) (vars : env) (conts : cont_env) (statics : static_env),
+    sets_well_formed e' = true ->
+    run_valid (State e vars conts statics) ->
+    run_valid (State e' vars conts statics).
+
+(* ======================================================================== *)
+(* Refinement from those states                                             *)
+(* ======================================================================== *)
+
+(* [expr_refines_under] (FlambdaTypingEnvRefinementSpec.v), from the
+   states that have [run_valid]. The premise is on the state of the
+   first expression. *)
+Definition expr_refines_from_valid (tenv : Typing_env.t)
+    (source target : expr) : Prop :=
+  ∀ (vars : env) (conts : cont_env) (statics : static_env),
+    run_valid (State source vars conts statics) ->
+    env_satisfies_strictly tenv statics vars ->
+    refines (State source vars conts statics)
+      (State target vars conts statics).
+
+(* What holds in every state that satisfies the environment, and what
+   holds in those whose static environment is valid, holds from the
+   states that have [run_valid]. *)
+Definition from_valid_weaken_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (e e' : expr),
+    (expr_refines_under tenv e e' -> expr_refines_from_valid tenv e e')
+    ∧ (FlambdaSimplifySwitchSpec.expr_refines_under_valid tenv e e' ->
+       expr_refines_from_valid tenv e e').
+
+(* Two steps make one, where the sets of the term between are well
+   formed. *)
+Definition expr_refines_from_valid_trans_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (e e' e'' : expr),
+    sets_well_formed e' = true ->
+    expr_refines_from_valid tenv e e' ->
+    expr_refines_from_valid tenv e' e'' ->
+    expr_refines_from_valid tenv e e''.
+
+(* From the environment that knows nothing, a term whose sets are well
+   formed refines the other, the two run on their own. *)
+Definition from_valid_program_statement : Prop :=
+  ∀ e e' : expr,
+    sets_well_formed e = true ->
+    expr_refines_from_valid Typing_env.create e e' ->
+    program_refines e e'.
+
+(* ======================================================================== *)
+(* A function that rewrites a [Switch]                                      *)
+(* ======================================================================== *)
+
+(* A function that may rewrite a [Switch] from a typing environment,
+   given the scrutinee and the arms. [None]: it does not. *)
+Definition switch_rewrite : Type :=
+  Typing_env.t -> simple -> list (Z * apply_cont) -> option expr.
+
+(* What is asked of one: the sets of what it answers are well formed;
+   and what it answers refines the [Switch] in the states that satisfy
+   the environment and have a valid static environment, where meets
+   may be made in the environment and the scrutinee may occur in
+   terms. *)
+Definition switch_rewrite_sound (prune : switch_rewrite) : Prop :=
+  ∀ (tenv : Typing_env.t) (scrutinee : simple)
+    (arms : list (Z * apply_cont)) (e : expr),
+    prune tenv scrutinee arms = Some e ->
+    sets_well_formed e = true
+    ∧ (typing_env_fits tenv ->
+       Typing_env.mem_simple (Some Name_mode.normal) tenv scrutinee = true ->
+       FlambdaSimplifySwitchSpec.expr_refines_under_valid tenv
+         (Switch scrutinee arms) e).
+
+(* The function that removes the arms which a meet excludes has it. *)
+Definition simplify_switch_rewrite_sound_statement : Prop :=
+  ∀ meet : meet_function,
+    meet_bottom_sound meet ->
+    switch_rewrite_sound (FlambdaSimplifySwitchSpec.simplify_switch meet).
+
+(* The function that rewrites no [Switch]. *)
+Definition no_pruning : switch_rewrite := fun _ _ _ => None.
+
+(* ======================================================================== *)
+(* Where a meet may be made                                                 *)
+(* ======================================================================== *)
+
+(* What the boolean that the function carries stands for: where it is
+   true, the environment has the two conditions of [typing_env_fits]
+   that have no test. *)
+(* CR mshinwell: the boolean and the tests of this section are not
+   Simplify's, as the tests of the first function are not. They are
+   the premises of the statements by which the pruning is right,
+   tested so that the theorem of the function needs none. That they
+   pass on the environments that the function builds is not stated;
+   the example at the end is one where they do. The other choice is
+   to prove [typing_env_fits] of every environment that the function
+   builds, which needs each type that a rewrite gives a variable to
+   be shown to fit. *)
+Definition known_to_fit (tenv : Typing_env.t) (fit : bool) : Prop :=
+  fit = true -> typing_env_invariant tenv ∧ aliases_kinded tenv.
+
+(* A test of a type that the environment has for a name: it is well
+   formed; each of its aliases, and each name that has an equation
+   inside it, is of the kind at which the type has it; it is not
+   obviously bottom; and the type of a symbol is of the kind of
+   values. *)
+Definition type_fits_b (tenv : Typing_env.t) (n : name)
+    (entry : flambda_type * Binding_time.With_name_mode.t) : bool :=
+  type_well_formed (fst entry)
+  && forallb (fun alias => simple_of_kind_b tenv (fst alias) (snd alias))
+       (aliases_with_kinds (fst entry))
+  && forallb
+       (fun equation =>
+          simple_of_kind_b tenv (simple_of_name (fst equation))
+            (snd equation))
+       (equation_names_with_kinds (fst entry))
+  && negb (is_obviously_bottom (fst entry))
+  && match n with
+     | Name_var _ => true
+     | Name_symbol _ => kind_eqb (kind (fst entry)) Value
+     end.
+
+Definition types_fit_b (tenv : Typing_env.t) : bool :=
+  Keyed.for_all_bindings_b name_eqb (type_fits_b tenv)
+    (Typing_env.names_to_types tenv).
+
+(* With the two conditions that have no test, the test is enough for
+   meets to be made in the environment. *)
+Definition types_fit_b_fits_statement : Prop :=
+  ∀ tenv : Typing_env.t,
+    typing_env_invariant tenv ->
+    aliases_kinded tenv ->
+    types_fit_b tenv = true ->
+    typing_env_fits tenv.
+
+(* The premises of [add_alias_invariant_statement]
+   (FlambdaTypingEnvInvariantSpec.v) and of
+   [add_alias_aliases_kinded_statement] (FlambdaTypingEnvKindedSpec.v),
+   as a test: the two [Simple]s are canonical, bound, and of the kind
+   given. *)
+Definition alias_keeps_fit (tenv : Typing_env.t) (e1 e2 : simple)
+    (kind : flambda_kind) : bool :=
+  is_canonical_b (Typing_env.aliases tenv) e1
+  && is_canonical_b (Typing_env.aliases tenv) e2
+  && Typing_env.mem_simple None tenv e1
+  && Typing_env.mem_simple None tenv e2
+  && simple_of_kind_b tenv e1 kind
+  && simple_of_kind_b tenv e2 kind.
+
+(* The premises of [replace_equation_invariant_statement] and of
+   [replace_equation_aliases_kinded_statement], as a test: the name is
+   bound; the variables of the type are bound; the type is of the kind
+   of the one that the name had, which is the kind of the name; if the
+   type is an alias the name is not canonical; and either the type is
+   not obviously unknown or no level before the current one has an
+   equation on the name. *)
+Definition equation_keeps_fit (tenv : Typing_env.t) (n : name)
+    (ty : flambda_type) : bool :=
+  Typing_env.mem None tenv n
+  && forallb (fun y => Typing_env.mem None tenv (Name_var y))
+       (free_variables ty)
+  && match Keyed.lookup name_eqb n (Typing_env.names_to_types tenv) with
+     | Some entry => kind_eqb (kind ty) (kind (fst entry))
+     | None => true
+     end
+  && match get_alias_opt ty with
+     | Some _ =>
+       negb (is_canonical_b (Typing_env.aliases tenv) (simple_of_name n))
+     | None => true
+     end
+  && (negb (is_obviously_unknown ty)
+      || negb
+           (is_some
+              (Keyed.lookup name_eqb n
+                 (flat_map Typing_env_level.equations
+                    (map Typing_env.One_level.level
+                       (Typing_env.prev_levels tenv))))))
+  && simple_of_kind_b tenv (simple_of_name n) (kind ty).
+
+(* Whether the environment that [simplify_let] answers is known to keep
+   the two conditions, by the cases of [simplify_let]: a variable that
+   is defined keeps them; one that is made an alias, or given a type,
+   keeps them if the test above passes in the environment where the
+   variable has been defined. *)
+Definition let_keeps_fit (tenv : Typing_env.t) (x : variable)
+    (defining_expr : named) : bool :=
+  match simplify_named tenv defining_expr with
+  | Becomes_simple s =>
+    match simplify_simple tenv s with
+    | Some (ty, canonical) =>
+      alias_keeps_fit
+        (Typing_env.add_variable_definition tenv x (kind ty)
+           Name_mode.normal)
+        (Var x) canonical (kind ty)
+    | None => false
+    end
+  | Stays_with_type ty =>
+    equation_keeps_fit
+      (Typing_env.add_variable_definition tenv x (kind ty) Name_mode.normal)
+      (Name_var x) ty
+  | Stays_with_kind _ => true
+  | Becomes_invalid | Not_known => false
+  end.
+
+Definition let_keeps_fit_sound_statement : Prop :=
+  ∀ (tenv tenv' : Typing_env.t) (fit : bool) (x : variable)
+    (defining_expr defining_expr' : named),
+    known_to_fit tenv fit ->
+    simplify_let tenv x defining_expr = Step_let defining_expr' tenv' ->
+    known_to_fit tenv' (fit && let_keeps_fit tenv x defining_expr).
+
+(* The environment of the body of code has the two conditions. *)
+Definition code_env_known_to_fit_statement : Prop :=
+  ∀ (syms : list symbol) (params : list variable) (my_closure : variable)
+    (metadata : code_metadata) (tenv : Typing_env.t),
+    code_env syms params my_closure metadata = Some tenv ->
+    known_to_fit tenv true.
+
+(* ======================================================================== *)
+(* The function                                                             *)
+(* ======================================================================== *)
+
+(* What is left of a [Switch] is treated as the first function treats
+   it: a [Switch] whose scrutinee has a constant for canonical element
+   is the [Apply_cont] of its arm, and the arguments of an [Apply_cont]
+   are replaced by their canonical elements. *)
+Definition after_pruning (tenv : Typing_env.t) (e : expr) : expr :=
+  match e with
+  | Switch scrutinee arms => simplify_switch tenv scrutinee arms
+  | Apply_cont ac => Apply_cont (simplify_apply_cont tenv ac)
+  | Let _ _ _ _ | Let_static _ _ | Let_cont_non_recursive _ _ _
+  | Let_cont_recursive _ _ | Apply _ | Invalid =>
+    e
+  end.
+
+(* A [Switch]: [prune] is asked where meets may be made in the
+   environment and the scrutinee may occur in terms; where it is not
+   asked, or does not answer, the [Switch] is treated as the first
+   function treats it. *)
+Definition simplify_switch_pruning (prune : switch_rewrite)
+    (tenv : Typing_env.t) (fit : bool) (scrutinee : simple)
+    (arms : list (Z * apply_cont)) : expr :=
+  match
+    if fit && types_fit_b tenv
+       && Typing_env.mem_simple (Some Name_mode.normal) tenv scrutinee
+    then prune tenv scrutinee arms
+    else None
+  with
+  | Some e => after_pruning tenv e
+  | None => simplify_switch tenv scrutinee arms
+  end.
+
+(* [simplify_expr] of FlambdaSimplifyPassSpec.v, with [prune] and the
+   boolean. *)
+Fixpoint simplify_expr_pruning (prune : switch_rewrite) (tenv : Typing_env.t)
+    (fit : bool) (e : expr) : expr :=
+  match e with
+  | Let x declared defining_expr body =>
+    match simplify_let tenv x defining_expr with
+    | Step_invalid => Invalid
+    | Step_let defining_expr' tenv' =>
+      Let x declared defining_expr'
+        (simplify_expr_pruning prune tenv'
+           (fit && let_keeps_fit tenv x defining_expr) body)
+    | Step_stop => e
+    end
+  | Let_static bindings body =>
+    let tenv' :=
+      Typing_env.add_symbol_definitions tenv (bound_symbols bindings)
+    in
+    Let_static
+      (map
+         (simplify_static_binding_pruning prune
+            (Typing_env.defined_symbols tenv'))
+         bindings)
+      (simplify_expr_pruning prune tenv' fit body)
+  | Let_cont_non_recursive k handler body =>
+    Let_cont_non_recursive k handler
+      (simplify_expr_pruning prune tenv fit body)
+  | Let_cont_recursive handlers body =>
+    Let_cont_recursive handlers (simplify_expr_pruning prune tenv fit body)
+  | Apply _ => e
+  | Apply_cont ac => Apply_cont (simplify_apply_cont tenv ac)
+  | Switch scrutinee arms =>
+    simplify_switch_pruning prune tenv fit scrutinee arms
+  | Invalid => Invalid
+  end
+
+with simplify_static_binding_pruning (prune : switch_rewrite)
+    (syms : list symbol) (binding : static_binding) : static_binding :=
+  match binding with
+  | Bind_code id c => Bind_code id (simplify_code_pruning prune syms c)
+  | Bind_deleted_code _ | Bind_symbol _ _ => binding
+  end
+
+with simplify_code_pruning (prune : switch_rewrite) (syms : list symbol)
+    (c : code) : code :=
+  match c with
+  | Code params my_closure ret exn metadata body =>
+    match code_env syms params my_closure metadata with
+    | Some tenv =>
+      let body' := simplify_expr_pruning prune tenv true body in
+      if Bool.eqb (binds_statics body) (binds_statics body')
+      then Code params my_closure ret exn metadata body'
+      else c
+    | None => c
+    end
+  end.
+
+(* From the environment that knows nothing. *)
+Definition simplify_by_types_pruning (prune : switch_rewrite) (e : expr)
+    : expr :=
+  simplify_expr_pruning prune Typing_env.create true e.
+
+(* ======================================================================== *)
+(* The statements                                                           *)
+(* ======================================================================== *)
+
+(* What the function answers has well-formed sets, if the term has. *)
+Definition simplify_expr_pruning_sets_statement : Prop :=
+  ∀ (prune : switch_rewrite) (tenv : Typing_env.t) (fit : bool) (e : expr),
+    switch_rewrite_sound prune ->
+    known_to_fit tenv fit ->
+    sets_well_formed e = true ->
+    sets_well_formed (simplify_expr_pruning prune tenv fit e) = true.
+
+(* It refines the term from the states that have [run_valid] and
+   satisfy the environment. *)
+Definition simplify_expr_pruning_refines_statement : Prop :=
+  ∀ (prune : switch_rewrite) (tenv : Typing_env.t) (fit : bool) (e : expr),
+    switch_rewrite_sound prune ->
+    known_to_fit tenv fit ->
+    expr_refines_from_valid tenv e (simplify_expr_pruning prune tenv fit e).
+
+(* From the environment that knows nothing: a unit whose sets are well
+   formed refines what the function makes of it, the two run on their
+   own. *)
+Definition simplify_by_types_pruning_refines_statement : Prop :=
+  ∀ (prune : switch_rewrite) (e : expr),
+    switch_rewrite_sound prune ->
+    sets_well_formed e = true ->
+    program_refines e (simplify_by_types_pruning prune e).
+
+(* With a [prune] that answers nothing it is the first function,
+   whatever the boolean. *)
+Definition simplify_expr_no_pruning_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (fit : bool) (e : expr),
+    simplify_expr_pruning no_pruning tenv fit e = simplify_expr tenv e.
+
+(* ======================================================================== *)
+(* An example                                                               *)
+(* ======================================================================== *)
+
+(* [let i = 5 in switch i with 0 -> k0 | 1 -> k1], with the transcribed
+   meet that FlambdaSimplifySwitchSpec.v runs: the scrutinee is the
+   constant, the meet of its type with the number of each arm is
+   bottom, and no arm is left. The first function leaves the [Switch],
+   which has no arm for the constant. *)
+Definition example_pruning_no_arm_term (k0 k1 : continuation) : expr :=
+  Let example_i naked_immediate_kind (Simple (Const (Naked_immediate 5)))
+    (Switch (Var example_i)
+       [(0, Apply_cont_expr k0 [] None); (1, Apply_cont_expr k1 [] None)]).
+
+Definition example_pruning_no_arm_statement : Prop :=
+  ∀ k0 k1 : continuation,
+    simplify_by_types_pruning
+      (FlambdaSimplifySwitchSpec.simplify_switch
+         FlambdaSimplifySwitchSpec.example_meet)
+      (example_pruning_no_arm_term k0 k1)
+    = Let example_i naked_immediate_kind
+        (Simple (Const (Naked_immediate 5))) Invalid
+    ∧ simplify_by_types (example_pruning_no_arm_term k0 k1)
+      = example_pruning_no_arm_term k0 k1.
