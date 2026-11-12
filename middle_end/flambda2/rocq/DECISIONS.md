@@ -485,6 +485,11 @@ says so. Only the labels that this tree cites are listed.
   `Make_block`, and the parser reads back `any_value` for each.
 - **V3-2.** Simplify lifts a closed constant out of a function or a
   loop, and shares equal constants: the number of allocations changes.
+- **V4-1.** Loopify makes a self tail call a jump without comparing the
+  call's return mode and position with the function's.
+- **V4-3.** Simplify makes no shortcut through an exception handler and
+  keeps its exception parameter though unused, where the machine would
+  allow both.
 - **X3-5.** The n-way join of two variants that carry only a relation
   answers unknown and drops the relation it has just joined.
 - **X4-1.** The output of Simplify binds the same variable in two
