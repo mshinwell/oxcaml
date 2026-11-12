@@ -2251,28 +2251,30 @@ let validate ~(outcome_before : outcome) (before : converted)
      unused static bindings removed); where something is lifted and nothing to
      the head of the unit, that of the fourth (the bindings of code of both
      terms moved up); where something is lifted to the head, that of the fifth,
-     which is the last. Each term shown has its continuations placed, as
-     [validate_unit] places them in each term that it compares after the first
-     comparison. The liftings are guessed from the terms as the rounds leave
-     them; the value slots and the static bindings to remove from a lifted term
-     are guessed from that term placed. *)
+     which is the last. Each term shown has its continuations placed and is
+     tidied, as [validate_unit] does to each term that it compares after the
+     first comparison ([tidied_before], [tidied_after]). The liftings are
+     guessed from the terms as the rounds leave them; the value slots and the
+     static bindings to remove from a lifted term are guessed from that term
+     placed and tidied. *)
   let ask validate_unit (before : converted) (after : converted) kept =
     (* The term before with its self tail calls made jumps: the term that the
        function asked normalises and lifts in. *)
     let looped = Loopify.loopify_unit loops before.body in
     let normalised_before = Validate.normalise_before rounds kept looped in
     let normalised_after = Validate.normalise_after rounds kept after.body in
-    let placed_after = Validate.placed normalised_after in
+    let tidied_after = Validate.tidied_after rounds normalised_after in
     let unused = unused_statics normalised_before in
     let validation : Validate.validation =
       validate_unit unused [] [nothing_lifted]
     in
     let not_lifted =
       ( validation,
-        Validate.without_statics unused (Validate.placed normalised_before),
+        Validate.without_statics unused
+          (Validate.tidied_before rounds normalised_before),
         "normalised",
         false,
-        placed_after )
+        tidied_after )
     in
     match validation with
     | Not_validated -> (
@@ -2345,8 +2347,11 @@ let validate ~(outcome_before : outcome) (before : converted)
       let rec guessed banned again =
         let liftings, lifted = liftings_from banned 0 [] looped 3 in
         (* After the last lifting [validate_unit] demotes the exception handlers
-           that no call can raise to, and then places the continuations. *)
-        let lifted = Validate.placed (Validate.demote_and_tidy rounds lifted) in
+           that no call can raise to, and then places the continuations and
+           tidies. *)
+        let lifted =
+          Validate.tidied_before rounds (Validate.demote_and_tidy rounds lifted)
+        in
         let slots = unused_slots_guess lifted normalised_after in
         let lifted = Validate.without_slots slots lifted in
         let unused = unused_statics lifted in
@@ -2390,7 +2395,7 @@ let validate ~(outcome_before : outcome) (before : converted)
             "lifted and normalised, with the static bindings that mention no \
              variable first",
             slots_removed,
-            Validate.with_statics_first liftings placed_after )
+            Validate.with_statics_first liftings tidied_after )
         else
           ( (* The pair shown is that of the fourth comparison: the bindings of
                code of both terms are moved up. *)
@@ -2398,7 +2403,7 @@ let validate ~(outcome_before : outcome) (before : converted)
             Float_code.float_code (Validate.without_statics unused lifted),
             "lifted and normalised",
             slots_removed,
-            Float_code.float_code (Validate.with_code_first placed_after) ))
+            Float_code.float_code (Validate.with_code_first tidied_after) ))
     | Same_up_to_bound_names | Same_once_normalised
     | Same_once_unused_statics_removed | Same_once_lifted ->
       not_lifted
