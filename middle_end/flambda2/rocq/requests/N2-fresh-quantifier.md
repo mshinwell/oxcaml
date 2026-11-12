@@ -1,9 +1,7 @@
 # N2: the freshness quantifier. Answer, survey and recommendation
 
-Branch `flambda2-rocq/N2-fresh-quantifier`, in new files only, on the
-integration branch after C2's epoch and N1's step 3b (in which the
-renaming enters code) with the statements on the classes that follow
-it. The question was the human's: can the
+The work is merged, in new files only. The question was the human's:
+can the
 quantifier of the papers on nominal sets be used here, the reversed N
 that reads "for all but finitely many names"; would it make statements
 easier; and it would be good to have.
@@ -572,7 +570,7 @@ from here only that its test gives `inlinable_at_fresh`.
 
 ### 4.7 The join
 
-T5's contract (`flambda2-rocq/T5-join`, `FlambdaJoinSpec.v`) is about
+T5's contract (`FlambdaJoinSpec.v`) is about
 a function `join avoid inputs`. `avoids_known` asks that `avoid`
 contain every variable that the source or a use knows, and
 `join_introduces` promises that a variable of the target that the
