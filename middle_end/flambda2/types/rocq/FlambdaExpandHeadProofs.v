@@ -306,6 +306,28 @@ Proof.
     exact (find_kinded _ _ _ _ Hkinded Hfind s' kind' Hin).
 Qed.
 
+Theorem expand_head_equations_kinded
+  : expand_head_equations_kinded_statement.
+Proof.
+  intros tenv ty expanded Hkinded Hty Hexpand.
+  destruct (expand_head_cases tenv ty expanded Hexpand)
+    as [[_ Hexpanded]
+       | [s [Halias [[_ Hexpanded]
+                    | [[c [Hcanonical ->]]
+                      | [n [ty' [Hcanonical [Hfind Hexpanded]]]]]]]]].
+  - intros n kind Hin.
+    rewrite (of_non_alias_type_equation_names _ _ Hexpanded) in Hin.
+    exact (Hty n kind Hin).
+  - intros n kind' Hin.
+    rewrite (of_non_alias_type_equation_names _ _ Hexpanded) in Hin.
+    destruct (kind ty) as [ | [] | | ]; destruct Hin.
+  - intros n kind Hin. rewrite create_const_equation_names in Hin.
+    destruct Hin.
+  - intros m kind' Hin.
+    rewrite (of_non_alias_type_equation_names _ _ Hexpanded) in Hin.
+    exact (find_equations_kinded _ _ _ _ Hkinded Hfind m kind' Hin).
+Qed.
+
 (* The alias that a type is, is among its aliases, at its kind. *)
 Lemma alias_among_aliases (ty : flambda_type) (s : simple) :
   get_alias_opt ty = Some s -> (s, kind ty) ∈ aliases_with_kinds ty.

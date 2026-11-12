@@ -51,6 +51,9 @@
    - kinds of aliases ([expand_head_kinded_statement]): if the types
      of the environment and the type are kinded
      (FlambdaTypingEnvKindedSpec.v), so is the type expanded;
+   - kinds of equations ([expand_head_equations_kinded_statement]):
+     the same of the names that have an equation in an extension
+     inside the types ([type_equations_kinded] of that file);
    - the kind ([expand_head_kind_statement]): the type expanded is of
      the kind of the type, if the type is kinded and the environment
      has [constants_of_kind]. The compiler does not check this where
@@ -122,6 +125,14 @@ Definition expand_head_kinded_statement : Prop :=
     type_kinded tenv ty ->
     expand_head tenv ty = Some expanded ->
     type_kinded tenv (Expanded_type.to_type expanded).
+
+(* The equations inside the type expanded are kinded. *)
+Definition expand_head_equations_kinded_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (ty : flambda_type) (expanded : Expanded_type.t),
+    types_equations_kinded tenv ->
+    type_equations_kinded tenv ty ->
+    expand_head tenv ty = Some expanded ->
+    type_equations_kinded tenv (Expanded_type.to_type expanded).
 
 (* The type expanded is of the kind of the type. *)
 Definition expand_head_kind_statement : Prop :=
