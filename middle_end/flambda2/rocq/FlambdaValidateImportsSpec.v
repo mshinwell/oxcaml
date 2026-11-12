@@ -55,10 +55,12 @@
      they occur nowhere in the static environment of the imports, which
      has no code and binds each symbol to something that holds no
      value.
-   Nothing else is asked of the list of imports. A list that binds a
-   symbol which the unit before binds too makes the run before
-   undefined (a static binding of a name that is bound has no step),
-   and the statement then holds of it for nothing.
+   Nothing else is asked of the list of imports. A list may bind a
+   symbol which the unit before binds too. A run of the unit before
+   that reaches that binding is then undefined (a static binding of a
+   name that is bound has no step), and the statement holds of such a
+   run for nothing; a binding that is not reached, in a handler that
+   is not applied, changes nothing.
 
    The removal is from the term before only, and that is why it needs
    no condition: removing a binding from the term before can only take
@@ -72,8 +74,9 @@
    [validate_unit_knowing_sound_imports_statement] is the same of the
    second asking (FlambdaValidateKnowingSpec.validate_unit_knowing),
    which is [validate_unit] of the two terms normalised with what is
-   known of their variables: those normalisations are under all
-   environments too.
+   known of their names (the aliases of variables, what symbols are
+   bound to, the closures that a [Let] binds): those normalisations
+   are under all environments too.
 
    What it is not of:
    - a unit validated once something is lifted
