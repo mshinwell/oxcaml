@@ -352,6 +352,10 @@ units with loops (`while`, `for`, tail-recursive functions).
   applies a continuation which only applies another)
 - `middle_end/flambda2/rocq/FlambdaUnusedParams*` (removing the
   parameters of a continuation that its handler does not use)
+- `middle_end/flambda2/rocq/FlambdaLoopAliases*` (following, inside a
+  loop, the aliases and constants bound outside it)
+- `middle_end/flambda2/rocq/FlambdaLoopify*` (loopify: the self tail
+  calls of a function become jumps to a recursive continuation)
 
 ## N1: nominal loose ends
 
