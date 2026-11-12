@@ -283,12 +283,14 @@ pass into the validator.
     of the scrutinee excludes; its theorem is of the states of the run
     of a unit whose sets of closures are well formed; and that it
     commutes with renaming, `FlambdaSimplifyPruningRenaming*`)
-- S2, switch. Owner of the first two slices: T1, on
+- S2, switch. Owner of the first three slices: T1, on
   `flambda2-rocq/T1-grammar`; the rest unassigned.
   - `middle_end/flambda2/types/rocq/FlambdaSimplifySwitch*` (the arms
     of a `Switch` that the type of its scrutinee excludes are removed,
-    and those that are kept are rewritten in the environment that the
-    meet answers for each; after `simplify/simplify_switch_expr.ml`)
+    those that are kept are rewritten in the environment that the
+    meet answers for each, and arms that all apply one continuation
+    are merged into that application, with arguments computed from
+    the scrutinee; after `simplify/simplify_switch_expr.ml`)
 - S3, continuations. Owner: unassigned.
 - S4, calls. Owner of the first slice: T4, on
   `flambda2-rocq/T4-meet-rename`; the rest unassigned.
