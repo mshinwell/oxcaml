@@ -761,12 +761,11 @@ compared.
   V2-6). For code with `[@inline]` or `[@inline never]` that
   decision does not look at the mark of a functor; the other marks
   are lost for such code as for any other.
-- The printed term loses kinds, and the mark of a cold handler, as
-  well (found by X5, who compared the term in the compiler's memory
-  with the term read back; nothing in the tree makes that
-  comparison). Four of the losses are of something that Simplify
-  reads, and with each the tool's Simplify knows less than the
-  compiler's:
+- The printed term loses kinds and marks as well (found by X5, who
+  compared the term in the compiler's memory with the term read
+  back; nothing in the tree makes that comparison). Three of the
+  losses are of something that Simplify reads, and with each the
+  tool's Simplify knows less than the compiler's:
   - the kind of the result of an application, where the arity of the
     result is not written: the subkind is lost and the result is read
     as one that may be null, and the type of the result of a call
@@ -780,17 +779,16 @@ compared.
     (`simplify_make_block` in
     `middle_end/flambda2/simplify/simplify_variadic_primitive.ml`);
     `exported_list.ml`;
-  - the kind of a value slot that the text first names at a
-    projection, which is then read as any value where the compiler
-    has an immediate (a slot that the text has defined before keeps
-    the kind of its definition): it is the kind of a projection of
-    the slot
-    (`middle_end/flambda2/simplify/simplify_unary_primitive.ml`);
-    `add3_exported.ml`;
   - the mark `[cold]` of a continuation handler, such as the handler
     of a failed bounds check, which is dropped (`DE.mark_as_cold` in
     `middle_end/flambda2/simplify/simplify_let_cont_expr.ml`);
     `string_get_checked.ml`.
+
+  One more loss is of something that Simplify does not read: whether
+  a value slot always holds an immediate, which the parser reads as
+  false (`add3_exported.ml`). The kind of the slot is kept.
+  `middle_end/flambda2/to_cmm/to_cmm_set_of_closures.ml` reads the
+  mark, and the tool does not run that pass.
 
   With one more the tool's Simplify is told more than the compiler's:
   a value that may be null is read as one that never is, wherever the
