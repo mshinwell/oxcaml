@@ -362,6 +362,30 @@ variable, and the renaming that exchanges it with a variable which is
 nowhere in the inputs leaves the inputs as they are and changes the
 answer. It is not proved of every source.
 
+**What the caller of such a function owes.** `fresh_name` gives a
+name outside the names that it is given, and no more. A name that a
+function makes and leaves in its answer is a binder of that answer.
+Two answers that were made apart may each hold a made name that is
+spelt as the other's is, and whatever then reads the two side by side
+takes the two for one name. The compiler does not meet this: its
+names are distinct on every path. The model met it in the tests of
+types, at joins of environments that joins had made. So the names to
+avoid are every name that the answer may later stand beside, not only
+the names of the arguments.
+
+For the join of typing environments the premise is `avoids_known`
+(`types/rocq/FlambdaJoinSpec.v`): the variables to avoid include
+every variable that the source or a use knows. It is enough where
+every use knows exactly the variables of the source
+(`uses_know_the_source`, `types/rocq/FlambdaJoinInTermsSpec.v`): no
+variable is then known to two uses without being one variable of the
+source. Of inputs in which a use knows a variable that the source
+does not, the part about valuations is not stated: the join takes a
+variable that two uses know for one variable, and a caller that gives
+it such inputs owes that it is one. The same is owed for the join
+that the meet calls, by whoever shows of the model's meet what the
+statements suppose of a meet.
+
 **What such a function owes instead.** One of two things.
 
 - *With the source renamed.* The source is an argument of the
