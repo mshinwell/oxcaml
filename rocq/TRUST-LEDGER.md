@@ -344,6 +344,39 @@ it gave back.
     kind;
   - `must_be_singleton`: that the model's outer `None` is compared
     with a fatal error of the compiler.
+  - the model run: that `the_model` is the extracted
+    `FlambdaJoinMeet.model_meet`, `model_add_equation`, `model_join`
+    and the three functions of `FlambdaMeet.Flambda2_types` that add
+    a relation, given the records of choices named, the depth of
+    joins of the compiler's flag and fuel 200; that
+    `scenario_in_the_model`, `env_of_model` and `join_in_the_model`
+    make in the model the environments that `scenario`,
+    `create_names` and `join_env` make in the compiler, call for
+    call, the variables having the numbers of the numbering, but
+    that the model adds each equation by a call of its own where
+    `join_env` adds those of a use inside one `use_meet_env`, which
+    is the same with the compiler's default strategy for the
+    environment of a meet and is not claimed for the others;
+  - what is seen (`seen_in_the_model`, `seen_in_the_compiler`,
+    `print_seen`, `same_seen`): that the names asked are those that
+    the scenario defines, and the parameter of a join; that a name
+    is asked nothing of unless the environment defines it; that the
+    type is `find` and the canonical element
+    `get_canonical_simple_exn` at the name mode of types; that the
+    other variables are those that the type answered and the types
+    of those names reach, of which only the type is asked; that the
+    variables numbered above the threshold are
+    renamed in the order in which the text comes to them, and two
+    texts are the same if `same_text` says so; that two sides which
+    both give no answer are counted as the same whatever their
+    reasons;
+  - the names asked of a join (`names_asked_of_a_join`): that they
+    are, on both sides, the names of the tests, the variables that
+    the source defines for types only, each variable that a use
+    binds, once, and the parameter;
+  - the generated environments: that `generate_equations` and
+    `generate_aliases` give a variable at most one equation, whose
+    type mentions only variables numbered after it.
 
 Not trusted, though it is OCaml: what the tool proposes to
 `validate_unit`. Each proposal is checked by an extracted function, and
