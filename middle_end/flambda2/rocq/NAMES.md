@@ -36,14 +36,17 @@ here.
 | The comparison `expr_eqb` | `FlambdaCompareAlphaSpec.v` | N1 |
 | The rewrites of the normalisation, the passes for loops, the checks of well-formedness (exception handlers and trap actions among them), the check of kinds, the normalisation of the term after and the first phase of that of the term before | `FlambdaValidatorEquivarianceSpec.v` | N3 |
 | The normalisation of the term before and that of a term in which something was lifted: up to the names that a round makes. `validate_unit`: where the code of the term before is closed | `FlambdaValidatorEquivarianceSpec.v` | N3 |
-| Identities of primitives, lifting, lifting out of code, the binding of `my_closure`, ranges, sharing of primitives, folding at known symbols, unused value slots, the order of static bindings, the static closures in sight, code moved up, the demotion of exception handlers | the `Spec` file of each pass | the owner of each |
+| Identities of primitives, lifting, lifting out of code, the binding of `my_closure`, ranges, sharing of primitives, folding at known symbols, unused value slots, the order of static bindings, the static closures in sight, code moved up, code and static bindings bound first, lifting out of the arms of a test, inlining within a group of code, the unboxing of parameters, the merging of the arms of a `Switch`, the demotion of exception handlers | the `Spec` file of each pass | the owner of each |
+| The second asking of the validation, `validate_unit_knowing`: where the code of the term before is closed | `FlambdaValidateKnowingSpec.v` | the owner of that file, N3 |
 | Typing environments and their levels, extensions, aliases, types, provers | the types library (`FlambdaEnvRenameSpec.v`, `FlambdaTypeRenameSpec.v`, `FlambdaEnvAliasesRenamingSpec.v`, `FlambdaTypingEnvExtensionSpec.v`, `FlambdaProversRenameSpec.v`) | N3 and the owners |
+| The model of Simplify: the function that rewrites a term from the types, the same with pruning, the rewrites of a `Switch`, following aliases with the aliases of the library | the types library (section 7 has the files) | the owners of those files |
 | The meet of types and of expanded types, and the functions that add to a typing environment, given a join that commutes with renaming; with the join that forgets, with no premise | the types library (`FlambdaMeetRenameSpec.v`) | the owner of the meet, N3 |
 | The join of typing environments and the join that Simplify calls, with the source of new names renamed; with them, the meet of the model with its own join | the types library (`FlambdaEnvRenameJoinSpec.v`, `FlambdaJoinMeetRenameSpec.v`; the traversal of types, as lemmas of `FlambdaEnvRenameJoinTypesProofs.v`) | N3; N1 for the traversal |
 
 Those of the machines, and of the rewrites and checks of the first
 six rows, are equations that hold of every state and of every term.
-The seventh row is not: a round of the term before makes names.
+The seventh row is not, nor the second asking of the validation: a
+round of the term before makes names.
 
 **What has a finite support.** Every expression and every state
 (`FlambdaStateSupportSpec.v`); a state with a stack (the same file); a
@@ -66,7 +69,8 @@ renamed term is the result under a renaming that agrees with the
 first on the names of the term). The validation applies the second
 in each round of the term before. Every rewrite of a round keeps
 scope (`FlambdaKeepsScopeSpec.v`, `FlambdaValidateScopeSpec.v`,
-`FlambdaStaticsScopeSpec.v`), so the normalisation of the term before
+`FlambdaLoopsScopeSpec.v`, `FlambdaStaticsScopeSpec.v`), so the
+normalisation of the term before
 commutes with renaming up to the names that it makes, and
 `validate_unit` answers the same on a pair of terms and on the pair
 renamed where the code of the term before is closed. A lifting holds
@@ -460,9 +464,13 @@ actions among them; the check of kinds; the passes for loops
 `FlambdaLoopAliasesSpec.v`, `FlambdaLoopifySpec.v`, those of the
 second series, `FlambdaParamAliasesSpec.v`, `FlambdaForwardSpec.v`,
 `FlambdaInlineTailSpec.v`, `FlambdaLoopLetsSpec.v`, and that of the
-third, `FlambdaDeadParamsSpec.v`); the
-normalisation of the term after and the first phase of that of the
-term before. Every one is an equation that holds of every term. By
+third, `FlambdaDeadParamsSpec.v`); the removal, in the body of code,
+of the unused `Let`s of its parameters (`FlambdaCodeLetsSpec.v`); the
+test for inlining a call that gives tupled code a tuple; the demotion
+of exception handlers with the rounds that tidy after it
+(`demote_and_tidy`); the normalisation of the term after and the
+first phase of that of the term before. Every one is an equation
+that holds of every term. By
 the same prover, in the types library (`FlambdaEnvRenameSpec.v`): the
 functions of typing environments.
 
@@ -470,6 +478,7 @@ The validation applies one rewrite that makes names, `rename_apart`,
 in each round of the second phase of the term before. In the fourth
 form, by the second and third provers: each rewrite of a round keeps
 scope (`FlambdaKeepsScopeSpec.v`, `FlambdaValidateScopeSpec.v`,
+`FlambdaLoopsScopeSpec.v` for the passes for loops,
 `FlambdaStaticsScopeSpec.v`); a round, the normalisation of the term
 before and that of a term in which something was lifted keep scope
 and commute with renaming up to the names that they make; and
@@ -509,6 +518,18 @@ names, ahead of a function that reads names which its caller holds,
 gives the rewrite those names to avoid, and the law of the function
 is stated with a second renaming that agrees with the first on them.
 
+The second asking of the validation is such a caller
+(`FlambdaValidateKnowingSpec.validate_unit_knowing`): it gives
+`validate_unit` the two terms normalised by rounds in front of each
+of which aliases are followed by a function that knows what symbols
+are bound to. The rounds of the term before make names, and are given
+the continuations of the units of the liftings and those given for
+the loops to avoid. It answers the same on a pair of terms and on the
+pair renamed where the code of the term before is closed
+(`validate_unit_knowing_equivariant_statement`), by the statement
+with a second renaming. That a unit validated at the second asking is
+correct does not rest on this.
+
 Proved by the owner of the meet and the third prover, in the types
 library (`FlambdaMeetRenameSpec.v`): the meet of types, of expanded
 types at every fuel, and the functions that add to a typing
@@ -532,12 +553,62 @@ symbols (`FlambdaKnownSymbolsSpec.v`), the removal of unused value
 slots (`FlambdaUnusedSlotsSpec.v`), the order of static bindings
 (`FlambdaStaticsOrderSpec.v`), the use of the static closures in
 sight (`FlambdaKnownClosuresSpec.v`), the move of code to the head of
-what it is in (`FlambdaFloatCodeSpec.v`), the demotion of the
+what it is in (`FlambdaFloatCodeSpec.v`), the binding first of the
+code of a unit (`FlambdaHoistCodeSpec.v`) and of its static bindings
+that need nothing from around them (`FlambdaHoistStaticsSpec.v`), the
+lifting out of the arms of a test (`FlambdaLiftFromArmsSpec.v`), the
+inlining, in the body of code, of the calls of the other code of its
+group (`FlambdaInlineSiblingsSpec.v`), the unboxing of the parameters
+of continuations and of variants (`FlambdaUnboxParamsRenameSpec.v`,
+`FlambdaUnboxVariantsRenameSpec.v`, each with the statement that the
+pass keeps scope), the merging of the arms of a `Switch` that apply
+one continuation (`FlambdaMergeSwitchesSpec.v`), the demotion of the
 exception handlers that no call names (`FlambdaDemoteSpec.v`, with
 the list of continuations that it is given renamed; that it keeps
 scope is `FlambdaDemoteScopeSpec.v`), and the machine with a stack of
 exception handlers (`FlambdaTrapSpec.v`). In the fourth form: giving
 every binder a name of its own (`FlambdaRenameApartSpec.v`).
+
+Proved by the owners of the model of Simplify, in the types library.
+Each is an equation: on the renamed typing environment and the
+renamed arguments the function gives the renamed answer. Some take a
+function as a parameter and ask that it commutes with renaming. Where
+that is asked of a join, it is in the sense of the paragraph on the
+meet above: the join that forgets is such a join, and the join of
+the model, which makes variables, is not.
+
+- The function that rewrites a term from the types, and its parts
+  (`FlambdaSimplifyPassRenamingSpec.v`,
+  `FlambdaSimplifyPrimitivesRenamingSpec.v`,
+  `FlambdaSimplifyHandlersSpec.v`, `FlambdaSimplifyApplySpec.v`,
+  `FlambdaSimplifyStaticsSpec.v`, `FlambdaSimplifyCodeEnvSpec.v`,
+  `FlambdaSimplifyValueSlotsSpec.v`), with no premise. From the
+  environment that knows nothing it is a rewrite in the form of those
+  of the validation.
+- The same function with pruning
+  (`FlambdaSimplifyPruningRenamingSpec.v`): for a rewrite of a
+  `Switch` that commutes with renaming; with the meet that the
+  contract is proved of, for a join that does; and with the join that
+  forgets, with no premise.
+- The rewrites of a `Switch` (`FlambdaSimplifySwitchSpec.v`,
+  `FlambdaSimplifySwitchArmsSpec.v`, `FlambdaSimplifySwitchMergeSpec.v`):
+  for a meet, and for a rewrite of an `Apply_cont` where one is
+  taken, that commute with renaming; with the meet that the contract
+  is proved of, for a join that does. The rewrite that merges the
+  arms binds variables. It does not make them: they are an argument,
+  and are renamed with the term. `FlambdaSimplifySwitchRewriteSpec.v`
+  has the same with the variables kept as they are, for a renaming
+  that fixes them, which is less.
+- Following aliases in a term with the aliases of the library
+  (`FlambdaEnvAliasesFollowSpec.v`; that it keeps scope,
+  `FlambdaEnvAliasesFollowScopeSpec.v`), and the sets of aliases
+  (`FlambdaEnvAliasesSetSpec.v`), with no premise. What is renamed
+  with the term there is what is known of the names where a subterm
+  is, not a typing environment; and a function that one of these is
+  given (a filter, the binding times of names) is renamed with the
+  other arguments.
+- The accessors and the creators of types (`FlambdaTypeAccessSpec.v`,
+  `FlambdaTypeCreatorsSpec.v`), with no premise.
 
 Owed:
 
@@ -548,6 +619,14 @@ Owed:
   its equation: a round makes names, and `validate_unit` answers the
   same on renamed terms only because every rewrite of a round keeps
   scope;
+- statements for five functions of `FlambdaValidateSpec.v` that the
+  check applies, whose laws are proved as lemmas of
+  `FlambdaValidatorEquivarianceProofs.v` and are not yet stated in a
+  `Spec` file (N3): `with_lifting`, `without_slots` and `with_known`,
+  each an equation; `lifted_in_turn`, up to the names made, with the
+  continuations to avoid; and `with_statics_first`, which reads the
+  continuations of the units, for a second renaming that does to
+  them what the first does;
 - by their owners, the functions on types that have no such statement
   yet.
 
