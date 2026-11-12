@@ -531,12 +531,15 @@ removed it:
   of the primitives that are not computed twice (`FlambdaCseSpec.v`).
 - The tagging of a number that is the untagging of a variable
   (`variant_two_blocks.ml`, `variant_nested_match.ml`). A match on a
-  variant gives a constant constructor its own number: the front end
-  untags the scrutinee to test it, and the arm tags the number
-  again, where Simplify makes the arm give the scrutinee. The
-  sharing of primitives knows, under the `Let` of an untagging, that
-  the variable untagged is the tagging of the result
-  (`FlambdaCseSpec.computed_under_let`), so the tagging becomes that
+  variant gives each constant constructor its own number: the front
+  end untags the scrutinee to test it, and the arms of those
+  constructors pass their numbers as tagged constants, where
+  Simplify makes them pass the scrutinee. The merging of the arms of
+  a `Switch` makes of those arms the tagging of what is tested
+  (`FlambdaMergeSwitchesSpec.merge_switches`). The sharing of
+  primitives knows, under the `Let` of an untagging, that the
+  variable untagged is the tagging of the result
+  (`FlambdaCseSpec.computed_under_let`), so that tagging becomes the
   variable.
 - Two equal projections of a value slot, which a function inlined
   twice leaves in the term before (`exported_branch_calls_twice.ml`):
