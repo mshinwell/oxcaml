@@ -63,13 +63,18 @@ Qed.
 (* Every binder given a name of its own                                     *)
 (* ======================================================================== *)
 
-Theorem rename_apart_keeps_scope : rename_apart_keeps_scope_statement.
+Theorem rename_apart_avoiding_keeps_scope :
+  rename_apart_avoiding_keeps_scope_statement.
 Proof.
-  intros e Hclosed. unfold rename_apart. cbv zeta.
-  destruct (expr_eqb [] [] e (renamed_apart e)) eqn:Hsame.
-  - exact (expr_eqb_keeps_scope e (renamed_apart e) Hclosed Hsame).
+  intros avoid e Hclosed. unfold rename_apart_avoiding. cbv zeta.
+  destruct (expr_eqb [] [] e (renamed_apart_avoiding avoid e)) eqn:Hsame.
+  - exact
+      (expr_eqb_keeps_scope e (renamed_apart_avoiding avoid e) Hclosed Hsame).
   - split; [ exact Hclosed | split; intros name Hname; exact Hname ].
 Qed.
+
+Theorem rename_apart_keeps_scope : rename_apart_keeps_scope_statement.
+Proof. exact (rename_apart_avoiding_keeps_scope []). Qed.
 
 (* ======================================================================== *)
 (* The rewrites that need to know nothing of where they are applied         *)

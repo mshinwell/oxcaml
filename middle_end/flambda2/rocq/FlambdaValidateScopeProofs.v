@@ -56,6 +56,10 @@ Import ListNotations.
 Lemma rename_apart_scoped (e : expr) : scoped e (rename_apart e).
 Proof. apply keeps_scope_scoped, rename_apart_keeps_scope. Qed.
 
+Lemma rename_apart_avoiding_scoped (avoid : list continuation) (e : expr) :
+  scoped e (rename_apart_avoiding avoid e).
+Proof. apply keeps_scope_scoped, rename_apart_avoiding_keeps_scope. Qed.
+
 Lemma drop_unused_params_scoped (e : expr) : scoped e (drop_unused_params e).
 Proof. apply keeps_scope_scoped, drop_unused_params_keeps_scope. Qed.
 
@@ -66,6 +70,7 @@ Proof. apply keeps_scope_scoped, drop_unused_params_keeps_scope. Qed.
 Create HintDb scoped.
 
 #[export] Hint Resolve keeps_scope_intro rename_apart_scoped
+  rename_apart_avoiding_scoped
   fold_constants_scoped collapse_switches_scoped remove_unused_conts_scoped
   remove_unused_lets_scoped remove_unused_defined_lets_scoped
   apply_identities_scoped inline_tail_conts_scoped thread_switches_scoped

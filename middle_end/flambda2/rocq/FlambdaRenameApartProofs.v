@@ -41,15 +41,19 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaRenameApartSpec.
 Import ListNotations.
 
-(* What [rename_apart] gives is the term, or is the same as it up to
-   bound names. *)
-Theorem rename_apart_equivalent : rename_apart_equivalent_statement.
+(* What [rename_apart_avoiding] gives is the term, or is the same as it
+   up to bound names. *)
+Theorem rename_apart_avoiding_equivalent :
+  rename_apart_avoiding_equivalent_statement.
 Proof.
-  intros e. unfold rename_apart.
-  destruct (expr_eqb [] [] e (renamed_apart e)) eqn:Hsame.
+  intros avoid e. unfold rename_apart_avoiding.
+  destruct (expr_eqb [] [] e (renamed_apart_avoiding avoid e)) eqn:Hsame.
   - exact (expr_eqb_sound _ _ Hsame).
   - intros vars conts statics. apply equivalent_refl.
 Qed.
+
+Theorem rename_apart_equivalent : rename_apart_equivalent_statement.
+Proof. intros e. apply rename_apart_avoiding_equivalent. Qed.
 
 (* ======================================================================== *)
 (* Lists of new names                                                       *)
@@ -1310,38 +1314,59 @@ Proof.
   destruct Ha as [-> | Ha]; [ exact Hhead | exact (IH Htail a Ha) ].
 Qed.
 
-Theorem rename_apart_equivariant_up_to_names :
-  rename_apart_equivariant_up_to_names_statement.
+(* For a renaming of the term there is one that does to every name of
+   the term, and to every continuation to avoid, what it does, with
+   which the result for the renamed term is the renamed result. *)
+Lemma rename_apart_avoiding_equivariant_up_to_names (r : renaming)
+    (avoid : list continuation) (e : expr) :
+  ∃ r' : renaming,
+    (∀ x : variable,
+      among x (variables_of e) = true ->
+      rename_variable r' x = rename_variable r x)
+    ∧ (∀ k : continuation,
+        among k (continuations_of e) = true ->
+        rename_continuation r' k = rename_continuation r k)
+    ∧ (∀ k : continuation,
+        among k avoid = true ->
+        rename_continuation r' k = rename_continuation r k)
+    ∧ rename_apart_avoiding (map (rename_continuation r) avoid)
+        (rename_expr r e)
+      = rename_expr r' (rename_apart_avoiding avoid e).
 Proof.
-  intros r e.
-  pose proof (fresh_names_length (binders e) (names_of e)) as Hlength.
-  destruct (fresh_names_outside (binders e) (names_of e))
+  pose proof (fresh_names_length (binders e) (avoid ++ names_of e))
+    as Hlength.
+  destruct (fresh_names_outside (binders e) (avoid ++ names_of e))
     as [Hdistinct Houtside].
   pose proof
     (fresh_names_length (binders (rename_expr r e))
-       (names_of (rename_expr r e)))
+       (map (rename_continuation r) avoid ++ names_of (rename_expr r e)))
     as Hlength'.
   destruct
     (fresh_names_outside (binders (rename_expr r e))
-       (names_of (rename_expr r e)))
+       (map (rename_continuation r) avoid ++ names_of (rename_expr r e)))
     as [Hdistinct' Houtside'].
   assert (Hcandidate :
-    renamed_apart e
-    = snd (apart identity_renaming (fresh_names (binders e) (names_of e)) e))
+    renamed_apart_avoiding avoid e
+    = snd
+        (apart identity_renaming
+           (fresh_names (binders e) (avoid ++ names_of e)) e))
     by reflexivity.
   assert (Hcandidate' :
-    renamed_apart (rename_expr r e)
+    renamed_apart_avoiding (map (rename_continuation r) avoid)
+      (rename_expr r e)
     = snd
         (apart identity_renaming
            (fresh_names (binders (rename_expr r e))
-              (names_of (rename_expr r e)))
+              (map (rename_continuation r) avoid
+               ++ names_of (rename_expr r e)))
            (rename_expr r e)))
     by reflexivity.
   revert Hlength Hdistinct Houtside Hlength' Hdistinct' Houtside' Hcandidate
     Hcandidate'.
-  generalize (fresh_names (binders e) (names_of e)) as news.
+  generalize (fresh_names (binders e) (avoid ++ names_of e)) as news.
   generalize
-    (fresh_names (binders (rename_expr r e)) (names_of (rename_expr r e)))
+    (fresh_names (binders (rename_expr r e))
+       (map (rename_continuation r) avoid ++ names_of (rename_expr r e)))
     as news'.
   intros news' news Hlength Hdistinct Houtside Hlength' Hdistinct' Houtside'
     Hcandidate Hcandidate'.
@@ -1361,12 +1386,14 @@ Proof.
   { intros name Hname. apply among_In, in_map_iff in Hname.
     destruct Hname as (a & <- & Ha).
     rewrite (among_map_injective _ (rename_variable_eqb r)).
-    apply among_In, Houtside, among_app_false in Ha. exact (proj1 Ha). }
+    apply among_In, Houtside, among_app_false in Ha.
+    destruct Ha as [_ Ha]. apply among_app_false in Ha. exact (proj1 Ha). }
   { intros name Hname. apply Houtside', among_app_false in Hname.
+    destruct Hname as [_ Hname]. apply among_app_false in Hname.
     exact (proj1 Hname). }
-  (* The continuations. *)
+  (* The continuations, those to avoid among them. *)
   destruct
-    (exchange (map (rename_continuation r) (continuations_of e))
+    (exchange (map (rename_continuation r) (avoid ++ continuations_of e))
        (map (rename_continuation r) news) news')
     as (swaps_k & Hfixes_k & Hmoves_k).
   { rewrite length_map.
@@ -1377,9 +1404,13 @@ Proof.
   { intros name Hname. apply among_In, in_map_iff in Hname.
     destruct Hname as (a & <- & Ha).
     rewrite (among_map_injective _ (rename_continuation_eqb r)).
-    apply among_In, Houtside, among_app_false in Ha. exact (proj2 Ha). }
+    apply among_In, Houtside, among_app_false in Ha.
+    destruct Ha as [Havoid Ha]. apply among_app_false in Ha.
+    apply among_app_false. split; [ exact Havoid | exact (proj2 Ha) ]. }
   { intros name Hname. apply Houtside', among_app_false in Hname.
-    exact (proj2 Hname). }
+    destruct Hname as [Havoid Hname]. apply among_app_false in Hname.
+    rewrite map_app. apply among_app_false.
+    split; [ exact Havoid | exact (proj2 Hname) ]. }
   (* The renaming: [r], then the swaps. *)
   set (s :=
     Renaming (swaps_v ++ variable_permutation r)
@@ -1397,12 +1428,17 @@ Proof.
       In x (variables_of e) -> rename_variable r x = rename_variable s x).
   { intros x Hx. rewrite Hs_v. symmetry. apply Hfixes_v, among_In, in_map, Hx.
   }
-  assert (Hsame_k :
+  assert (Hsame_fixed :
     ∀ k : continuation,
-      In k (continuations_of e) ->
+      In k (avoid ++ continuations_of e) ->
       rename_continuation r k = rename_continuation s k).
   { intros k Hk. rewrite Hs_k. symmetry.
     apply Hfixes_k, among_In, in_map, Hk. }
+  assert (Hsame_k :
+    ∀ k : continuation,
+      In k (continuations_of e) ->
+      rename_continuation r k = rename_continuation s k)
+    by (intros k Hk; apply Hsame_fixed, in_or_app; right; exact Hk).
   assert (Hnews_v : map (rename_variable s) news = news').
   { rewrite (map_ext _ _ Hs_v),
       <- (map_map (rename_variable r) (permute swaps_v)).
@@ -1418,19 +1454,35 @@ Proof.
          (eq_trans Hnews_v (eq_sym Hnews_k)) a Ha). }
   pose proof (rename_expr_agree r s e Hsame_v Hsame_k) as Hsame.
   assert (Hrenamed :
-    renamed_apart (rename_expr r e) = rename_expr s (renamed_apart e)).
+    renamed_apart_avoiding (map (rename_continuation r) avoid)
+      (rename_expr r e)
+    = rename_expr s (renamed_apart_avoiding avoid e)).
   { rewrite Hcandidate', Hcandidate, <- Hnews_v, Hsame.
     rewrite
       (apart_renamed s e identity_renaming identity_renaming news
          (carries_identity s) Hagree).
     reflexivity. }
-  exists s. split; [ | split ].
+  exists s. split; [ | split; [ | split ] ].
   - intros x Hx. symmetry. apply Hsame_v, among_In, Hx.
   - intros k Hk. symmetry. apply Hsame_k, among_In, Hk.
-  - unfold rename_apart. cbv zeta. rewrite Hrenamed, Hsame.
-    pose proof (expr_eqb_equivariant s [] [] e (renamed_apart e)) as Hguard.
+  - intros k Hk. symmetry. apply Hsame_fixed, in_or_app. left.
+    apply among_In, Hk.
+  - unfold rename_apart_avoiding. cbv zeta. rewrite Hrenamed, Hsame.
+    pose proof
+      (expr_eqb_equivariant s [] [] e (renamed_apart_avoiding avoid e))
+      as Hguard.
     unfold rename_name_map in Hguard. cbn [map] in Hguard. rewrite Hguard.
-    destruct (expr_eqb [] [] e (renamed_apart e)); reflexivity.
+    destruct (expr_eqb [] [] e (renamed_apart_avoiding avoid e));
+      reflexivity.
+Qed.
+
+Theorem rename_apart_equivariant_up_to_names :
+  rename_apart_equivariant_up_to_names_statement.
+Proof.
+  intros r e.
+  destruct (rename_apart_avoiding_equivariant_up_to_names r [] e)
+    as (r' & Hv & Hk & _ & Hrenamed).
+  exists r'. split; [ exact Hv | split; [ exact Hk | exact Hrenamed ] ].
 Qed.
 
 (* ======================================================================== *)
@@ -1741,6 +1793,21 @@ Proof.
   destruct (rename_apart_equivariant_up_to_names r e)
     as (r' & Hv & Hk & Hrenamed).
   exists r'. split; [ | split ]; [ | | exact Hrenamed ].
+  - intros x Hx.
+    apply Hv, among_In, free_variables_in_variables_of, among_In, Hx.
+  - intros k Hfree.
+    apply Hk, among_In, free_continuations_in_continuations_of, among_In,
+      Hfree.
+Qed.
+
+Theorem rename_apart_avoiding_equivariant_up_to :
+  rename_apart_avoiding_equivariant_up_to_statement.
+Proof.
+  intros r avoid e.
+  destruct (rename_apart_avoiding_equivariant_up_to_names r avoid e)
+    as (r' & Hv & Hk & Havoid & Hrenamed).
+  exists r'. split; [ | split; [ | split ] ];
+    [ | | exact Havoid | exact Hrenamed ].
   - intros x Hx.
     apply Hv, among_In, free_variables_in_variables_of, among_In, Hx.
   - intros k Hfree.

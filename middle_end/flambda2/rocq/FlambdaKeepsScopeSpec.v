@@ -52,8 +52,9 @@
    if the code of the first is closed, the code of the second is, and
    every free variable or continuation of the second is free in the
    first. A normalisation that keeps its candidate only where the
-   comparison accepts it (FlambdaRenameApartSpec.rename_apart) keeps
-   scope for that reason alone.
+   comparison accepts it (FlambdaRenameApartSpec.rename_apart_avoiding,
+   and so FlambdaRenameApartSpec.rename_apart) keeps scope for that
+   reason alone.
 
    Nothing is asked of a term but that its code is closed, which
    [keeps_scope] itself asks. Without it the comparison accepts two
@@ -95,7 +96,11 @@ Definition expr_eqb_keeps_scope_statement : Prop :=
 (* The rewrites of a round of the term before                               *)
 (* ======================================================================== *)
 
-(* Every binder given a name of its own. *)
+(* Every binder given a name of its own, whatever the continuations
+   that the new names are to avoid, and with none to avoid. *)
+Definition rename_apart_avoiding_keeps_scope_statement : Prop :=
+  ∀ avoid : list continuation, keeps_scope (rename_apart_avoiding avoid).
+
 Definition rename_apart_keeps_scope_statement : Prop :=
   keeps_scope rename_apart.
 
