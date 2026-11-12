@@ -60,6 +60,8 @@ From OxCamlFlambda2 Require Import FlambdaShareProjectionsSpec
   FlambdaShareProjectionsScopeProofs.
 From OxCamlFlambda2 Require Import FlambdaRecoverComparisonSpec
   FlambdaRecoverComparisonScopeProofs.
+From OxCamlFlambda2 Require Import FlambdaSameComparisonSpec
+  FlambdaSameComparisonScopeProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -100,7 +102,7 @@ Create HintDb scoped.
   rewrite_rec_handlers_scoped bind_aliased_params_scoped
   forward_applications_scoped remove_unused_defined_lets_in_loops_scoped
   unbox_variant_params_scoped share_known_projections_scoped
-  recover_known_comparisons_scoped
+  recover_known_comparisons_scoped fold_same_comparisons_scoped
   : scoped.
 
 (* A chain of rewrites, taken apart from the outside. *)

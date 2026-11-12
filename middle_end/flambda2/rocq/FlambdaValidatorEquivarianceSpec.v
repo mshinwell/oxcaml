@@ -237,6 +237,7 @@
    of the term before and of the liftings made in turn,
    FlambdaCseSpec.share_known_primitives,
    FlambdaRecoverComparisonSpec.recover_known_comparisons,
+   FlambdaSameComparisonSpec.fold_same_comparisons,
    FlambdaShareProjectionsSpec.share_known_projections,
    FlambdaIdentitiesSpec.apply_identities,
    FlambdaMergeSwitchesSpec.merge_switches and

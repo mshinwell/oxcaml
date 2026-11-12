@@ -32,6 +32,7 @@ open FlambdaParamAliasesSpec
 open FlambdaRecHandlersSpec
 open FlambdaRecoverComparisonSpec
 open FlambdaRenameApartSpec
+open FlambdaSameComparisonSpec
 open FlambdaShareProjectionsSpec
 open FlambdaShortcutSpec
 open FlambdaSimplifyPassSpec
