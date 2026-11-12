@@ -38,12 +38,12 @@ that the conversion refused.
 | Profile | Units | Validated | Not validated |
 |---------|-------|-----------|---------------|
 | `known_scalar` | 150 | 150 | 0 |
-| `unknown_scalar` | 150 | 144 | 6 |
+| `unknown_scalar` | 150 | 146 | 4 |
 | `known` | 100 | 98 | 2 |
 | `unknown` | 100 | 98 | 2 |
-| `functions` | 100 | 92 | 8 |
+| `functions` | 100 | 96 | 4 |
 
-582 of the 600 are validated. On the same 600 terms, earlier the
+588 of the 600 are validated. On the same 600 terms, earlier the
 same day: 509 before the term after lost the continuations that are
 applied once (`FlambdaValidateSpec.inline_once_applied_after`); 555
 with that, and still 555 with the unused `Let`s of the parameters of
@@ -57,44 +57,50 @@ and 69; `unknown_scalar`, seed 122). Sharing the loads marked
 immutable changes none, and nor does the demotion of exception
 handlers, which the generated units have not got; with the rounds
 gone through again after it, the two units that were validated at the
-second asking are validated at the first. No unit that was validated
-at one of these points is not at a later one. The day before, 336
+second asking are validated at the first. Two more with two arms of
+a `Switch` that give one continuation 0 and 1 made the tagging of
+what is tested (`FlambdaMergeSwitchesSpec.merge_switches`;
+`functions`, seed 5, and `unknown_scalar`, seed 38), and four more
+with the applications of a continuation of no parameters whose
+handler is one jump forwarded in the term after
+(`FlambdaForwardJumpsSpec.forward_jumps`; `functions`, seeds 14, 27
+and 72, the last at the second asking, and `unknown_scalar`, seed
+100). No unit that was validated at one of these points is not at a
+later one. The day before, 336
 were validated, 256 were not and 8 were not checked; of the units
 that keep a function, none was.
 
-What the 18 units that are not validated lack, read off the two
-terms that the tool shows of each (a unit may lack more than one):
+What the 12 units that are not validated lack, read off the two
+terms that the tool shows of each:
 
-| What is missing | `unknown_scalar` (6) | The other three (12) |
-|-----------------|----------------------|----------------------|
+| What is missing | `unknown_scalar` (4) | The other three (8) |
+|-----------------|----------------------|---------------------|
 | A block that Simplify makes a symbol and the term before still makes with a `Let`: the block is made in a handler and Simplify binds the symbol outside it, or the guess of the tool does not find it | 0 | 7 |
-| A `Switch` that Simplify removes with what it knows of the variable tested | 5 | 1 |
-| A continuation whose handler is one jump, applied by an arm of a `Switch` and by another handler: Simplify keeps it, and the first phase of the term before sends each application where the jump goes | 1 | 3 |
-| A `Let` on the other side of the binding of a continuation whose handler does not use it | 0 | 3 |
+| A `Switch` that Simplify removes with what it knows of the variable tested | 4 | 0 |
+| A `Let` on the other side of the binding of a continuation whose handler does not use it | 0 | 1 |
 
-The second row is three things, and a unit may have more than one.
-Two arms that give one continuation 0 and 1 are made the tagging of
-what is tested (three units have a tagging in the term after that the
-term before has not). A `Switch` on a variable that a `Switch` around
-it has tested, or on the untagging of such a tagging, is resolved. A
-match on a variant that was made where two branches meet loses its
-tests where one branch gives a symbol of a static block, which the
-unboxing of the validator does not read under a test (two units).
+The second row is two things, and a unit may have both. A `Switch`
+on a variable that a `Switch` around it has tested is resolved
+(seeds 57, 61 and 144). A match on a variant that was made where two
+branches meet loses its tests where one branch gives a symbol of a
+static block, which the unboxing of the validator does not read
+under a test (seeds 1 and 144).
 
 Five of the 600 have the constant `poison` after Simplify, which
 unboxes a variant where two branches meet and gives the fields that a
 branch has not got that constant. The conversion makes it the poison
-of the model, so they are run and compared; one is validated
-(`functions`, seed 55), and the other four are in the rows above.
+of the model, so they are run and compared; three are validated
+(`functions`, seeds 27 and 55; `unknown_scalar`, seed 100), and the
+other two are in the second row.
 
-In ten of the 18 the term before keeps a continuation that the term
-after has not: the six of the second row, and four where a handler
-only makes a block and goes on (Simplify makes the block a symbol and
-has no use for the handler).
+In eight of the 12 the term before keeps a continuation that the
+term after has not: the four of the second row, and four where a
+handler only makes a block and goes on (Simplify makes the block a
+symbol and has no use for the handler).
 
 The first row is in the tool only: nothing is believed of its
 guesses, and a better one needs no proof.
 
 So, for units of this kind: when every input is known and the result
-is a number, all are validated; with unknown inputs and numbers, 144
-of 150; of the units that keep a function, 92 of 100.
+is a number, all are validated; with unknown inputs and numbers, 146
+of 150; of the units that keep a function, 96 of 100.
