@@ -66,6 +66,21 @@ types, inside a join of environments". I do not change that file.
   means, for every `source`; one premise more,
   `parameters_type_eqb_sound p`. It is the hypothesis of T5's
   statements about the rounds (`first_phases_true`).
+- `n_way_join_equations_kinded` (`FlambdaJoinTypesSpec.v`) and
+  `n_way_join_of_types_equations_kinded`
+  (`FlambdaJoinTypesWithEnvSpec.v`), after the merge: the join of
+  types meets T5's contract for the names that have equations inside
+  the type answered (`n_way_join_type_equations_kinded`): they are at
+  the kinds of the types of their equations in the target, if those
+  of the types given are in the environments of their indices and
+  those of the types of the environments joined are. The first is
+  for any state and any functions of the environment side that meet
+  their two contracts for those names; the second is
+  `n_way_join_of_types` with T5's functions, which T5 has proved to
+  meet them. One premise more than the soundness has,
+  `expand_head_equations_kinded` ("What is assumed"). T5 asked for
+  it: the target of a join is to be an environment in which a meet
+  may be made. How it is proved: "The shape of the proof".
 - Twenty-nine examples, each an equation proved by computation:
   unions of sets of numbers and of strings, constants and other
   aliases, unknown and bottom inputs, heads of two forms, blocks of
@@ -123,8 +138,11 @@ definition and the first two statements of
 - R4 asked where the kind of an expansion comes from, and that no
   condition on kinds be hidden in the well-formedness of
   environments: see "Decided overnight".
-- To be asked: `n_way_join_of_types_true_statement`, and the
-  paragraph of the header of the examples about the run.
+- Signed after the merge, and merged: `n_way_join_of_types_true`,
+  and the paragraph of the header of the examples about the run.
+- To be asked: `n_way_join_equations_kinded_statement` with the
+  premise `expand_head_equations_kinded`, and
+  `n_way_join_of_types_equations_kinded_statement`.
 
 ## Stand-ins carried
 
@@ -279,6 +297,27 @@ three facts about the interface: `state_grows` is transitive,
 scope and kindedness of arguments do not depend on the state beyond
 `joined_env`.
 
+The lists of `Simple`s with kinds at which the things given and
+the answers are kinded are a parameter of the proofs, in two
+values (`kinds_with`): the aliases of a type (T1's
+`aliases_with_kinds`), and the aliases with the names that have
+equations inside the type (`equation_names_with_kinds`), each name
+at the kind of the type of its equation. The two lists are defined
+by one recursion, which differs only at the equations of an
+environment extension; without the names it is `aliases_with_kinds`
+by computation. Every function that calls the join of types is
+proved sound once, for either list. What is supposed of the three
+places where a type or an extension comes from outside the
+traversal (the import of a type, the join of extensions, the
+expansion of a head) is supposed at the list: without the names it
+is in the contracts of the environment side and in
+`expand_head_sound`; with them, in those and in the two contracts of
+the environment side for the names and `expand_head_equations_kinded`.
+The contract for the names needs that the environments joined have
+the names of the equations inside their types at their kinds; that
+is given to the proofs as part of the well-formedness of
+environments, which is a parameter of the interface.
+
 Where the compiler's own structure is generic, so is the proof: the
 fold over a map that threads the state, `generic_merge_map_known`,
 and the join of cases and of their indices are proved once, for any
@@ -309,6 +348,8 @@ is on my base.
 |---------|-----------------|
 | `environment_side_sound`: `n_way_join_simples_sound`, `import_type_sound`, `n_way_join_env_extension_sound`, `valid_states_have_witnesses` (`FlambdaJoinSpec.v`); the last is used by `n_way_join_bound_is_met` only | T5 has proved the four of the functions of `Join_env`, under `fresh_avoids p` and `env_extension_eqb_sound p`; those two are the premises of `n_way_join_of_types_sound` in its place |
 | `expand_head_sound`: a value of a type has the expanded type under a valuation that satisfies the environment strictly; the expansion is in scope and kinded where the type and the environment are; it is of the kind of the type where the type is kinded and the environment has `constants_of_kind` | T4; a premise of `n_way_join_of_types_sound` until T4's files are under this branch |
+| `expand_head_equations_kinded`: in an environment that has the names of the equations inside its types at their kinds, a type that has its own at their kinds expands to one that has | T4 (an expanded type is the type, an unknown type, the type of a constant or a type of the environment); a premise of the two statements about the names of equations only |
+| `import_type_equations_kinded`, `n_way_join_env_extension_equations_kinded` (`FlambdaJoinSpec.v`) | T5 has proved both of the functions of `Join_env`, under `fresh_avoids p`; premises of `n_way_join_equations_kinded`, discharged in `n_way_join_of_types_equations_kinded` |
 | `joined_envs_constants_of_kind`: in each environment joined, a constant that is the canonical element of a `Simple` of a kind is of that kind | discharged in `n_way_join_of_types_sound`, from the contract's kinds premise and the invariant of typing environments (T2's `typing_env_kinded_constants_of_kind`) |
 | `reduce_head_of_kind_naked_immediate_sound`: a number that has a head, under a valuation that satisfies the environment strictly, has the reduced head, which is then not bottom | T4, who has proved it with no premise on its branch; a premise of `n_way_join_of_types_sound` until T4's files are under this branch |
 | `type_eqb_sound`: types that the test identifies have the same values | discharged with T1's `type_eqb` (`type_equal_satisfied`) |
@@ -390,6 +431,10 @@ is on my base.
 
 ## What is left
 
+- For T5: that the type answered is well formed
+  (`type_well_formed`) where the types given are (conditions 5, 6,
+  8 and 8a of the well-formedness of types are the ones to look at).
+  Not started.
 - T4's `Expanded_type`, `expand_head` and
   `reduce_head_of_kind_naked_immediate` and their theorems, when
   T4's files are under this branch: a change of imports, two
