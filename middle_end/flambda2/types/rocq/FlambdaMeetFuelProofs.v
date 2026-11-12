@@ -50,6 +50,29 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaMeetFuelSpec.
 Import ListNotations.
 
+(* The proofs below, as far as the end of the section, are for any
+   predicate on static environments that implies validity
+   (FlambdaMeetValidity.v): in them the names of the four contracts
+   that suppose a valid static environment stand for the same with
+   that predicate. The theorems of the signed statements are after the
+   section, at validity itself. *)
+From OxCamlFlambda2Types Require Import FlambdaMeetValidity.
+
+Section Validity.
+
+Context {V : validity}.
+
+Abbreviation statics_valid := valid.
+Abbreviation meet_expanded_head_sound := meet_expanded_head_sound_for.
+Abbreviation join_scoped_envs_sound := join_scoped_envs_sound_for.
+Abbreviation meet_call_ok := meet_call_ok_for.
+Abbreviation part_meet_ok := part_meet_ok_for.
+Abbreviation meet_disjunction_right := meet_disjunction_right_for.
+Abbreviation type_part_meet_ok := type_part_meet_ok_for.
+Abbreviation meet_row_like_for_closures_right :=
+  meet_row_like_for_closures_right_for.
+Abbreviation value_heads_right := value_heads_right_for.
+
 (* ======================================================================== *)
 (* An expanded type as a part                                               *)
 (* ======================================================================== *)
@@ -132,7 +155,7 @@ Proof.
              (Expanded_type.create_value head1)
              (Expanded_type.create_value head2));
       [ reflexivity | reflexivity | ].
-    apply (map_result_ok _ _
+    apply (map_result_ok_for _ _
              (fun (tenv : Typing_env.t) (head : head_of_kind_value) =>
                 type_fits tenv (Type_value (Ok (No_alias head))))
              (fun (statics : static_env) (valuation : env)
@@ -152,7 +175,7 @@ Proof.
              (Expanded_type.create_naked_immediate head1)
              (Expanded_type.create_naked_immediate head2));
       [ reflexivity | reflexivity | ].
-    apply (map_result_ok _ _
+    apply (map_result_ok_for _ _
              (fun (tenv : Typing_env.t)
                   (head : head_of_kind_naked_immediate) =>
                 type_fits tenv (naked_immediate_head_type head))
@@ -164,7 +187,8 @@ Proof.
              Expanded_type.create_naked_immediate).
     + intros tenv0 head Hhead. exact Hhead.
     + intros statics valuation head. reflexivity.
-    + exact (meet_head_of_kind_naked_immediate_ok choices mh v Hchoice Hkeeps
+    + exact (meet_head_of_kind_naked_immediate_ok_for choices mh v Hchoice
+               Hkeeps
                Hsound Hother menv head1 head2 result0 Hfits Hfits1 Hfits2
                Hheads).
   - (* Naked numbers of another kind. *)
@@ -187,7 +211,7 @@ Proof.
              (Expanded_type.create_naked_number n1 head1)
              (Expanded_type.create_naked_number n1 head2));
       [ reflexivity | reflexivity | ].
-    apply (map_result_ok _ _
+    apply (map_result_ok_for _ _
              (fun (_ : Typing_env.t) (numbers : list Z) => numbers <> [])
              (fun (_ : static_env) (_ : env) (numbers : list Z) =>
                 naked_numbers_satisfied n1 v numbers)
@@ -198,7 +222,8 @@ Proof.
       cbn. rewrite Hhas. destruct numbers; [ destruct (Hnon_empty eq_refl) | ].
       reflexivity.
     + intros statics valuation numbers. reflexivity.
-    + exact (naked_number_meet_ok n1 v menv head1 head2 _ Hfits Hhead1 Hhead2
+    + exact (naked_number_meet_ok_for n1 v menv head1 head2 _ Hfits Hhead1
+               Hhead2
                eq_refl).
   - (* Rec_info. *)
     injection Hmeet as <-. cbn.
@@ -431,7 +456,8 @@ Qed.
 
 End Step.
 
-Theorem meet_expanded_head_step_ok : meet_expanded_head_step_ok_statement.
+Lemma meet_expanded_head_step_ok_for :
+  for_validity meet_expanded_head_step_ok_statement.
 Proof.
   intros join choices mh Hchoice Hkeeps Hsound Hother Hvalue. split.
   - apply step_keeps; assumption.
@@ -442,7 +468,8 @@ Qed.
 (* Every fuel                                                               *)
 (* ======================================================================== *)
 
-Theorem meet_expanded_head_fuel_ok : meet_expanded_head_fuel_ok_statement.
+Lemma meet_expanded_head_fuel_ok_for :
+  for_validity meet_expanded_head_fuel_ok_statement.
 Proof.
   intros join choices Hchoice Hvalue fuel.
   induction fuel as [ | fuel [Hkeeps Hsound] ].
@@ -454,14 +481,32 @@ Proof.
       discriminate Hmeet.
   - cbn [Meet.meet_expanded_head].
     assert (Hother :=
-      meet_expanded_head_fuel_other_kinds join choices fuel).
-    exact (meet_expanded_head_step_ok join choices _ Hchoice Hkeeps Hsound
+      meet_expanded_head_fuel_other_kinds_for join choices fuel).
+    exact (meet_expanded_head_step_ok_for join choices _ Hchoice Hkeeps Hsound
              Hother (Hvalue _ Hkeeps Hsound Hother)).
 Qed.
 
 (* ======================================================================== *)
 (* The meet of types                                                        *)
 (* ======================================================================== *)
+
+End Validity.
+
+Theorem meet_expanded_head_step_ok :
+  meet_expanded_head_step_ok_statement.
+Proof.
+  first
+    [ exact (@meet_expanded_head_step_ok_for standard_validity)
+    | exact meet_expanded_head_step_ok_for ].
+Qed.
+
+Theorem meet_expanded_head_fuel_ok :
+  meet_expanded_head_fuel_ok_statement.
+Proof.
+  first
+    [ exact (@meet_expanded_head_fuel_ok_for standard_validity)
+    | exact meet_expanded_head_fuel_ok_for ].
+Qed.
 
 Theorem meet_of_fuel_contract : meet_of_fuel_contract_statement.
 Proof.

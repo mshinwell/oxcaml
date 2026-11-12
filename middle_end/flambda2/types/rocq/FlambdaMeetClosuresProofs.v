@@ -51,6 +51,29 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaMeetFuelProofs FlambdaMeetClosuresSpec.
 Import ListNotations.
 
+(* The proofs below, as far as the end of the section, are for any
+   predicate on static environments that implies validity
+   (FlambdaMeetValidity.v): in them the names of the four contracts
+   that suppose a valid static environment stand for the same with
+   that predicate. The theorems of the signed statements are after the
+   section, at validity itself. *)
+From OxCamlFlambda2Types Require Import FlambdaMeetValidity.
+
+Section Validity.
+
+Context {V : validity}.
+
+Abbreviation statics_valid := valid.
+Abbreviation meet_expanded_head_sound := meet_expanded_head_sound_for.
+Abbreviation join_scoped_envs_sound := join_scoped_envs_sound_for.
+Abbreviation meet_call_ok := meet_call_ok_for.
+Abbreviation part_meet_ok := part_meet_ok_for.
+Abbreviation meet_disjunction_right := meet_disjunction_right_for.
+Abbreviation type_part_meet_ok := type_part_meet_ok_for.
+Abbreviation meet_row_like_for_closures_right :=
+  meet_row_like_for_closures_right_for.
+Abbreviation value_heads_right := value_heads_right_for.
+
 (* ======================================================================== *)
 (* What the indexes say that a set of closures has                          *)
 (* ======================================================================== *)
@@ -301,8 +324,9 @@ Proof.
   destruct (closures_meet_index_cases menv0 menv1 i1 i2 ri Hindex)
     as (Hw1 & Hw2 & Hwhich).
   assert (Hslots :=
-    meet_closures_entry_slots mh menv1 menv2 m1 m2 (extract_value rm m1 m2) rm
-      Hmeet (extract_value_answer _ rm m1 m2)).
+    meet_closures_entry_slots_for mh menv1 menv2 m1 m2 (extract_value rm m1 m2)
+      rm
+      Hmeet (extract_value_answer_for _ rm m1 m2)).
   remember (extract_value ri i1 i2) as answered eqn:Hanswered.
   remember (extract_value rm m1 m2) as entry eqn:Hentry.
   clear Hanswered Hentry Hindex Hmeet.
@@ -425,7 +449,7 @@ Proof.
   - intros g Hg. rewrite <- Hdomain. exact (Hclosures g (Hf g Hg)).
   - intros g Hg.
     apply (project_function_slot_valid statics slot g v functions value_slots
-             Hstatics Hfact).
+             (valid_statics _ Hstatics) Hfact).
     rewrite <- Hdomain. exact (Hclosures g (Hc g Hg)).
   - intros w Hw. rewrite <- Hdomain. exact (Hvalue_slots w (Hv w Hw)).
 Qed.
@@ -820,7 +844,8 @@ Proof.
                (closures_entry_holds v slot functions value_slots)
                (closure_fact v slot functions value_slots)
                (meet_closures_entry mh)
-               (meet_closures_entry_ok mh v slot functions value_slots Hkeeps
+               (meet_closures_entry_ok_for mh v slot functions value_slots
+                  Hkeeps
                   Hsound))
             _ _ _ _ _ menv Henv _ Keyed.is_empty closures_merge_map_known
             closures_find closures_known_ok _ closures_merge_map_known_spec
@@ -889,8 +914,8 @@ End Closures.
 (* [meet_row_like_for_closures] is right, for any value: the closure
    in hand is the one that the value is, which the static environment
    says. *)
-Theorem meet_row_like_for_closures_ok
-  : meet_row_like_for_closures_ok_statement.
+Lemma meet_row_like_for_closures_ok_for :
+  for_validity meet_row_like_for_closures_ok_statement.
 Proof.
   intros join choices mh v Hjoin Hdefine Hlift Hkeeps Hsound.
   set (choose :=
@@ -957,7 +982,7 @@ Qed.
 (* With a join that has its contract, the meet of two heads of kind
    value is right for every meet of expanded types that has its
    own. *)
-Lemma value_heads_of_join (join : join_scoped_envs)
+Lemma value_heads_of_join_for (join : join_scoped_envs)
     (mh : meet_expanded_head) :
   join_scoped_envs_sound join ->
   meet_expanded_head_keeps mh ->
@@ -965,13 +990,27 @@ Lemma value_heads_of_join (join : join_scoped_envs)
   value_heads_right join repaired_choices mh.
 Proof.
   intros Hjoin Hkeeps Hsound v.
-  exact (meet_value_heads_ok join repaired_choices mh v Hjoin eq_refl Hkeeps
+  exact (meet_value_heads_ok_for join repaired_choices mh v Hjoin eq_refl Hkeeps
            Hsound
-           (meet_row_like_for_blocks_ok join repaired_choices mh v Hjoin
+           (meet_row_like_for_blocks_ok_for join repaired_choices mh v Hjoin
               eq_refl eq_refl Hkeeps Hsound)
-           (meet_row_like_for_closures_ok join repaired_choices mh v Hjoin
+           (meet_row_like_for_closures_ok_for join repaired_choices mh v Hjoin
               eq_refl eq_refl Hkeeps Hsound)).
 Qed.
+
+End Validity.
+
+Theorem meet_row_like_for_closures_ok :
+  meet_row_like_for_closures_ok_statement.
+Proof.
+  first
+    [ exact (@meet_row_like_for_closures_ok_for standard_validity)
+    | exact meet_row_like_for_closures_ok_for ].
+Qed.
+
+(* [value_heads_of_join_for], at validity itself. *)
+Definition value_heads_of_join :=
+  @value_heads_of_join_for standard_validity.
 
 Theorem meet_to_prove_sound : meet_to_prove_sound_statement.
 Proof.
