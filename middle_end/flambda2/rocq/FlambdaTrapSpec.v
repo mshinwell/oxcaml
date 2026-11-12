@@ -79,10 +79,15 @@
      returns, its result is called with those, under the stack as it
      was at the call, for the return continuation and with the extra
      arguments of the whole call. So a raise in either of the two calls
-     goes to the caller's handler with the extra arguments: the
-     compiled program makes the two calls in one generic application
+     goes to the caller's handler with the extra arguments. That is the
+     backend's path for an indirect call of unknown arity: the compiled
+     program makes the two calls in one generic application
      (caml_applyN), inside the handler that To_cmm_expr.translate_apply
-     wraps it in;
+     wraps it in. The machine reads a direct call and a call of known
+     arity in the same way, which the backend does not: it refuses the
+     one and compiles the other as a full call (discrepancy C3-9), and
+     nothing is said here of what the compiled program does with
+     those;
    - a unit starts with one handler installed, which stands for its
      exception continuation, and ends when it applies a continuation it
      does not bind.
