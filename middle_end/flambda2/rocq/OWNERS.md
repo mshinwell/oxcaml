@@ -144,6 +144,10 @@ design out; that is the request, not the change.
     `middle_end/flambda2/rocq/FlambdaHeapProofs.v` (the prototype: a
     machine with a heap beside the machine that exists;
     `FlambdaHeapEquivariance*` are N1's)
+  - `middle_end/flambda2/rocq/FlambdaExitWorldSpec.v` and
+    `middle_end/flambda2/rocq/FlambdaExitWorldProofs.v` (what a run
+    leaves at an exit, with the static environment of its last state,
+    and refinement with two such worlds related)
   - `middle_end/flambda2/rocq/status/C4.md`
 - C5, exceptions. Owner: C5, on `flambda2-rocq/C5-epoch`.
   - `middle_end/flambda2/rocq/requests/C5-exceptions.md` (the request)
