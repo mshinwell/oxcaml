@@ -1,0 +1,12 @@
+let x = %opaque (5) in
+let a = %reinterpret_64_bit_word.int63_as_int64 (x) in
+let b = %num_conv.[`int64`].[`tagged_imm`] (a) in
+let c = %reinterpret_64_bit_word.int63_as_int64 (-1) in
+let d = %num_conv.[`int64`].[`tagged_imm`] (c) in
+let y = %opaque (11) in
+let e = %num_conv.[`tagged_imm`].[`int64`] (y) in
+let f = %reinterpret_64_bit_word.int64_as_int63 (e) in
+let g = %reinterpret_64_bit_word.int64_as_int63 (10L) in
+let h = %reinterpret_64_bit_word.int64_as_int63 (-3L) in
+let $camlReinterpret_int63_int64 = Block 0 (b, d, f, g, h) in
+cont done ($camlReinterpret_int63_int64)
