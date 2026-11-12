@@ -633,9 +633,9 @@ the reports of partial applications are not).
 This section is the second series, on `flambda2-rocq/C2-binders`. It is
 not in the series above, which landed with the machine testing kinds at
 a call only. It is rebased over C5's exceptions ("Over the epoch of
-exceptions", below), and is to land after C4's heap and the
-generalisation of `transfer` in `FlambdaContextProofs.v`, over which it
-is to be rebased first. It is built: every file of the two Flambda 2
+exceptions" and the section after it, below), and is to land after
+the first step of C4's heap, over which it is to be rebased first. It
+is built: every file of the two Flambda 2
 libraries is repaired, `make all` and the trust check pass, and the
 examples are run again (below).
 
@@ -861,14 +861,13 @@ choice to put to the human there. None gained one either: as section
 call of a symbol whose arguments are not all constants or symbols,
 which is what the guard of `inline_known_calls` refused.
 
-Over the epoch of exceptions there are 55 and 16 examples, and two of
-the new ones are such: `raise_in_call.fl` and `try_in_code.fl` call
-known code with a variable as the argument. They go from "not
-validated" to "validated: the same once normalised", as the call is
-now inlined on the two sides; their expected files change, in the last
-commit of the series. The other 69 print what they printed. In all: 35
-validated, 18 not validated, 7 with nothing to validate as the term
-before is undefined, 11 not checked.
+Among the examples added since, two are such: `raise_in_call.fl` and
+`try_in_code.fl` call known code with a variable as the argument. They
+go from "not validated" to "validated: the same once normalised", as
+the call is now inlined on the two sides; their expected files change,
+in the last commit of the series. Every other example prints what it
+printed: 97 of the 99 that there are now (82 in `tests/semantics/`
+and 17 in `tests/semantics/ocaml/`).
 
 No example runs a `Let` or a handler on a value of another kind: the
 compiler stops on such a term where Simplify visits it, so the test
@@ -905,6 +904,49 @@ The series is replayed over C5's epoch. What that changed:
   `FlambdaClosuresProofs.v`, `FlambdaWellFormedProofs.v`,
   `FlambdaWellKindedProofs.v`, `FlambdaContextProofs.v` and
   `FlambdaTrapProofs.v`.
+
+### Over the generalised `transfer`, lifting, and the primitives added
+
+The series is replayed again, over what landed after the epoch of
+exceptions. Definitions and statements of others that change:
+
+- `FlambdaContextWhereSpec.handler_refines_from` takes the kinds that
+  the handler gives its parameters, and hands its premise
+  `map kind_of_value vs = kinds` before `bind_params`, as
+  `handler_refines_where` and `handler_refines_at` do. The two
+  statements about a handler replaced
+  (`let_cont_handler_refines_from_statement`,
+  `let_cont_recursive_handler_refines_from_statement`) ask it at
+  `hm_params_kinds metadata`. The three statements that the premises
+  can be met give the fact to their hypothesis on the handler
+  (`handler_refines_from_always_statement`,
+  `handler_refines_from_in_range_statement`,
+  `let_cont_handler_refines_in_range_statement`): each asks less of
+  the handler than before. The paragraph of the header that said that
+  nothing is given about the kinds of the parameters of a handler now
+  says what is given. The owner of the file agreed to the change
+  beforehand and reads it.
+- In `FlambdaContextProofs.v`, the relation of `transfer` between
+  handlers carries the kinds, and its two hypotheses about related
+  handlers have the fact (`inv_related`, `carried_related`); so do the
+  relations `forwards` and `backwards` of the lemmas from a predicate.
+
+Proofs of others repaired, statements unchanged: lifting a `Let` to a
+static binding (a lifted value has the kind of the value, which the
+proof had as a lemma: the `Let` that is left is of a symbol, of kind
+`Value`, and tests what the `Let` of the block tested), `my_closure`
+bound to a symbol, the removal of unused value slots, the identities
+of arithmetic (the `Let` is kept at its kind, with the same value),
+following aliases under a typing environment: the same case splits,
+and an argument more to an `intros` where a lemma hands the fact.
+
+Still to come: the first step of the heap. Its machine with a heap is
+a copy of `step` with one component more, so the two tests go into
+`heap_step` and `heap_apply_cont_value`, without which
+`heap_step_agrees_statement` is false. Rehearsed on the staged
+version: its eight statements about rewrites keep their text (related
+values have the same kind; a lifted block and its symbol are both of
+kind `Value`), and about forty lines of its proofs change.
 
 ### For a pass that is being written now
 
@@ -958,11 +1000,8 @@ handler), between the plan and this document. 27 files change, about
 branch as it is with C5's epoch of exceptions. The reviewer has read
 the three new statements, the changed ones and the four functions of
 `FlambdaNormaliseSpec.v` on the version before that rebase, and reads
-what the rebase changed. Before it lands: the rebase over C4's heap
-and over the generalisation of `transfer`, whose new proofs get the
-same case splits, and whose relation between handlers
-(`FlambdaContextWhereSpec.handler_refines_from`) is to hand over the
-kinds of the handler as `handler_refines_where` does.
+what each rebase changed. Before it lands: the rebase over the first
+step of C4's heap ("Still to come", above).
 
 ## What is unfinished
 
