@@ -75,11 +75,21 @@
    are single values, as many as it has variables for them: so are
    those of the compiler's tupled code, each the component of a tuple.
 
+   - A direct call that gives tupled code a tuple is refined by the body
+     of the code with its parameters bound to the fields of the tuple,
+     each by the projection that Simplify makes
+     ([inline_tupled_statement]), and the two are equivalent where the
+     callee is a closure of that code and the call returns at the result
+     arity of the code ([inline_tupled_equivalent_statement]).
+     FlambdaApplySpec.inlinable excludes tupled code, as its bindings
+     are of the parameters to the arguments; these are the bindings for
+     tupled code.
+
    What is not here: the direct call of tupled code as the compiler has
    it, which gives the code the components (the review comment at
    FlambdaSemanticsSpec.shape_of_closure_call), and so the statement
-   that such a call is the call with the tuple; inlining of tupled
-   code, which FlambdaApplySpec.inlinable excludes.
+   that such a call is the call with the tuple; and the inlining of a
+   call that gives tupled code a tuple and more arguments.
 
    The proofs are in FlambdaTupledProofs.v, which needs no review. *)
 
@@ -87,7 +97,7 @@ From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaPrimitiveModel FlambdaValueSpec FlambdaSemanticsSpec
-  FlambdaWellFormedSpec FlambdaWellKindedSpec.
+  FlambdaNominalSpec FlambdaWellFormedSpec FlambdaWellKindedSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -325,3 +335,96 @@ Definition wrong_tuple_undefined_statement : Prop :=
     behaves (State e [] [] empty_static_env) Goes_wrong.
 
 End Examples.
+
+
+(* ======================================================================== *)
+(* Inlining a call of tupled code                                           *)
+(* ======================================================================== *)
+
+(* The parameters bound to the fields of a tuple, one [Let] each, around
+   a body: the projections that Simplify makes of a call that gives
+   tupled code a tuple ([Simplify_common.project_tuple]), with the
+   parameters of the code for the variables that it binds. *)
+Fixpoint let_tuple_fields (params : list variable) (size field : nat)
+    (tuple : simple) (body : expr) : expr :=
+  match params with
+  | [] => body
+  | param :: params =>
+    Let param Value
+      (Prim
+         (Unary (Block_load (tuple_access size) Immutable (Z.of_nat field)))
+         [tuple])
+      (let_tuple_fields params size (S field) tuple body)
+  end.
+
+(* A call that gives the tupled code [c] the tuple [tuple], inlined: [r]
+   renames the continuations of the code to those of the call. *)
+Definition inlined_tupled_body (c : code) (r : renaming) (ap : apply_expr)
+    (tuple : simple) : expr :=
+  Let (code_my_closure c) Value (Simple (ap_callee ap))
+    (let_tuple_fields (code_params c) (length (code_params c)) 0 tuple
+       (rename_expr r (code_body c))).
+
+(* What makes that sound. The conditions are those of
+   FlambdaApplySpec.inlinable, but for the arguments: the call gives one
+   argument, the tuple, at the arity of one [Value]; the code is tupled,
+   and its parameters are single values, at least one. *)
+Definition tupled_inlinable (ap : apply_expr) (c : code) (r : renaming)
+    (tuple : simple) : Prop :=
+  (* the code is closed *)
+  (∀ x : variable,
+    var_free_in_expr x (code_body c) ->
+    x = code_my_closure c ∨ x ∈ code_params c)
+  ∧ (∀ k : continuation,
+      cont_free_in_expr k (code_body c) ->
+      k = code_return_continuation c ∨ k = code_exn_continuation c)
+  (* the renaming *)
+  ∧ (∀ x : variable, rename_variable r x = x)
+  ∧ rename_continuation r (code_return_continuation c) = ap_continuation ap
+  ∧ rename_continuation r (code_exn_continuation c) = ap_exn_continuation ap
+  (* the exception continuation of the call takes the exception alone *)
+  ∧ ap_exn_extra_args ap = []
+  (* the call gives the tuple and nothing else *)
+  ∧ ap_args ap = [tuple]
+  ∧ ap_args_arity ap = [Singleton Value]
+  (* the bindings do not capture the tuple *)
+  ∧ ~ var_free_in_simple (code_my_closure c) tuple
+  ∧ (∀ param : variable,
+      param ∈ code_params c -> ~ var_free_in_simple param tuple)
+  (* the code *)
+  ∧ code_is_tupled c = true
+  ∧ params_are_values c
+  ∧ code_params c <> []
+  ∧ binds_statics (code_body c) = false.
+
+(* Where the code id of a direct call is bound to tupled code [c], the
+   call refines [c] inlined with its parameters bound to the fields of
+   the tuple. Nothing is asked of the tuple: where it is not one of as
+   many fields as the code has parameters, the call is undefined. *)
+Definition inline_tupled_statement : Prop :=
+  ∀ (ap : apply_expr) (called : code_id) (c : code) (r : renaming)
+    (tuple : simple) (vars : env) (conts : cont_env) (statics : static_env),
+    ap_call_kind ap = Direct called ->
+    lookup called (static_code statics) = Some c ->
+    tupled_inlinable ap c r tuple ->
+    refines (State (Apply ap) vars conts statics)
+      (State (inlined_tupled_body c r ap tuple) vars conts statics).
+
+(* Where the callee is a closure of the code called, and the call
+   returns at the result arity of the code, the two are equivalent,
+   which is what a rewrite of the term after Simplify needs. If the
+   tuple has the fields, the two meet as for the refinement. If it has
+   not, the call is undefined and so is one of the projections. If the
+   argument has no value both go wrong. *)
+Definition inline_tupled_equivalent_statement : Prop :=
+  ∀ (ap : apply_expr) (called : code_id) (c : code) (r : renaming)
+    (tuple : simple) (callee : value) (slots : list (value_slot * value))
+    (vars : env) (conts : cont_env) (statics : static_env),
+    ap_call_kind ap = Direct called ->
+    eval_simple vars (ap_callee ap) = Some callee ->
+    closure_of statics callee = Some (called, slots) ->
+    lookup called (static_code statics) = Some c ->
+    tupled_inlinable ap c r tuple ->
+    ap_return_arity ap = code_result_arity c ->
+    equivalent (State (Apply ap) vars conts statics)
+      (State (inlined_tupled_body c r ap tuple) vars conts statics).

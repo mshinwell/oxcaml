@@ -297,10 +297,24 @@ Second series, with `Detupled`:
 - `apply_detupled_partial_undefined_statement`: a `Detupled` call of
   tupled code with fewer arguments than parameters is undefined.
 
-Third series, with the owners of the validator: the inlining of a call
-that gives tupled code a tuple (the parameters bound to the
-projections of the tuple), which is what the units of the corpus with
-a tupled function need in order to validate.
+Third series: the inlining of a call that gives tupled code a tuple.
+Its statements are proved, as leaf work after the first series. A
+direct call that gives tupled code a tuple and nothing else is
+refined by the body of the code with its parameters bound to the
+fields of the tuple, each by the projection that Simplify makes
+(`inline_tupled_statement`; `inlined_tupled_body`, under the
+conditions `tupled_inlinable`, which are those of `inlinable` but for
+the arguments); and the two are equivalent where the callee is a
+closure of that code and the call returns at the result arity of the
+code (`inline_tupled_equivalent_statement`), which is the form that a
+rewrite of the term after Simplify needs. What is left is with the
+owners of the validator: a test
+for `tupled_inlinable`, and the case in the normalisation that inlines
+calls of known code, with the statements that a change of that
+function owes (that it commutes with renaming and keeps scope). It is
+what the units in which Simplify inlines a tupled function need in
+order to validate (`tests/semantics/tupled_apply_inlined.fl`,
+`kinds_tupled.fl`).
 
 ## 6. Fallout
 
@@ -468,7 +482,9 @@ B. The call kind `Detupled`, `detuple_statement`, and the converter's
    human's word on choice 1 of section 7, since the other choice
    needs no third kind.
 C. The inlining of a call that gives tupled code a tuple, for the
-   validator.
+   validator. The statements are proved (`inline_tupled_statement`,
+   `inline_tupled_equivalent_statement`, after the first series); the
+   case in the validator's normalisation is left.
 
 What the first series gives on its own: a unit that binds tupled code
 is run and compared where Simplify leaves the calls of that code as
