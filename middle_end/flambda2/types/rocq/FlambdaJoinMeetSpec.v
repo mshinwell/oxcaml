@@ -82,6 +82,20 @@
      For an alias that is a symbol this has as a premise that the
      environment knows the symbol: what is shown of the state says
      of a symbol only that it stands at kind [Value].
+   - So the two extensions are added as the statements about the
+     meet's environment suppose (FlambdaMeetEnvSpec.v,
+     [add_env_extension_keeps_statement]), and each environment on
+     the way to the target is the one before, extended, and one in
+     which a meet may be made ([last_phase_kept_statement]). This
+     has a premise that is not shown yet of the join
+     ([types_fit_otherwise]): the types of the equations are well
+     formed, the names of the equations inside them are of the kinds
+     of their types, and the symbols that they have aliases to are
+     known. The rest of what an extension must have to fit
+     ([env_extension_fits], [env_extension_kinded]) is from the
+     statements above: the names and the variables are known, the
+     names are of the kinds of their types, the aliases are of their
+     kinds.
 
    Examples of what [model_join] computes are in
    FlambdaJoinMeetExamplesSpec.v. *)
@@ -91,7 +105,8 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
-  FlambdaTypeMeaningSpec FlambdaTypingEnv FlambdaTypingEnvSpec
+  FlambdaTypeMeaningSpec FlambdaTypeWellFormedSpec FlambdaTypingEnv
+  FlambdaTypingEnvSpec
   FlambdaTypingEnvInvariantSpec FlambdaTypingEnvKindedSpec FlambdaJoinEnv
   FlambdaJoinSpec FlambdaJoinEnvSpec FlambdaJoinStateSpec
   FlambdaJoinDefineSpec FlambdaJoinFitsSpec FlambdaJoinAddsSpec
@@ -282,3 +297,64 @@ Definition last_phase_kinds_known_statement : Prop :=
              Typing_env.mem None (Meet_env.typing_env menv') (Name_symbol sym)
              = true) ->
           simple_of_kind (Meet_env.typing_env menv') simple k.
+
+(* What is not shown yet of the types of equations that the join
+   adds: each is well formed, the names of the equations inside it are
+   of the kinds of their types in the environment, and the symbols
+   that it has aliases to are known there. *)
+Definition types_fit_otherwise (tenv : Typing_env.t)
+    (equations : list (name * flambda_type)) : Prop :=
+  ∀ (n : name) (ty : flambda_type),
+    (n, ty) ∈ equations ->
+    type_well_formed ty = true
+    ∧ type_equations_kinded tenv ty
+    ∧ ∀ (sym : symbol) (k : flambda_kind),
+        (Symbol sym, k) ∈ aliases_with_kinds ty ->
+        Typing_env.mem None tenv (Name_symbol sym) = true.
+
+(* The last phase in the environment of the meet, given a meet of
+   expanded types that has what the meet's contract for its join
+   supposes of it ([meet_expanded_head_keeps]) and types that fit
+   otherwise: the environment in which the variables are defined is
+   the one given, extended, and a meet may be made in it; so is the
+   environment after the first extension, and the variables that the
+   meets of that extension define are new; and so is the target,
+   after the second. The premises on the state are those of
+   [last_phase_kinds_known_statement]: what the first phases answer
+   ([first_phases_true_statement], [first_phases_scoped_statement],
+   [first_phases_kinded_statement], [first_phases_kinds_statement]). *)
+Definition last_phase_kept_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (fuel : nat) (source : Typing_env.t)
+    (s : Join_env.t) (relations : Join_env.inverse_relations)
+    (mh : meet_expanded_head) (menv menv1 target : Meet_env.t)
+    (kept : list (variable * flambda_kind))
+    (equations relation_equations : list (name * flambda_type))
+    (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind)),
+    state_true source s ->
+    relations_hold s relations ->
+    relations_nonempty relations ->
+    state_scoped s ->
+    state_kinded s ->
+    joined_envs_are typing_env_kinded s ->
+    equations_kinded s ->
+    relations_kinded s relations ->
+    Meet_env.typing_env menv = source ->
+    typing_env_fits (Meet_env.typing_env menv) ->
+    last_phase_adds tenv fuel s relations kept equations relation_equations
+      definitions ->
+    let menv0 :=
+      variables_defined meet_env_functions menv
+        (Bindings_in_target_env.imported_variables_in_order
+           (Join_env.bindings s)
+         ++ kept)
+    in
+    types_fit_otherwise (Meet_env.typing_env menv0)
+      (equations ++ relation_equations) ->
+    meet_expanded_head_keeps mh ->
+    Meet_env.add_env_extension menv0 (Env_extension equations) mh
+    = Some menv1 ->
+    Meet_env.add_env_extension menv1 (Env_extension relation_equations) mh
+    = Some target ->
+    meet_env_kept menv menv0
+    ∧ meet_env_kept_by_meet menv0 menv1
+    ∧ meet_env_kept_by_meet menv1 target.

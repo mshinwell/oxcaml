@@ -35,6 +35,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
   FlambdaMapSpec FlambdaMapProofs FlambdaSemanticsSpec
   FlambdaNameAbstractionSpec FlambdaNameAbstractionProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
+  FlambdaTypeGrammarProofs FlambdaTypeWellFormedSpec
   FlambdaTypeMeaningSpec FlambdaTypeEqualSpec FlambdaTypeEqualProofs
   FlambdaBindingTime FlambdaTypingEnv FlambdaTypingEnvSpec
   FlambdaTypingEnvInvariantSpec FlambdaTypingEnvInvariantProofs
@@ -378,4 +379,72 @@ Proof.
                  Hk') in Hk'.
       exact Hk'.
     + exact HK.
+Qed.
+
+(* An equation that is found is one of the list. *)
+Lemma lookup_among (n : name) (ty : flambda_type)
+    (equations : list (name * flambda_type)) :
+  Keyed.lookup name_eqb n equations = Some ty -> (n, ty) ∈ equations.
+Proof. exact (keyed_lookup_in name_eqb name_eqb_eq n ty equations). Qed.
+
+Theorem last_phase_kept : last_phase_kept_statement.
+Proof.
+  intros tenv fuel source s relations mh menv menv1 target kept equations
+    relation_equations definitions Htrue Hrelations Hnonempty Hscoped Hstate
+    Henvs HX HR Hsource Hfits Hadds menv0 Hrest Hmh Hadd1 Hadd2.
+  destruct (last_phase_names_known tenv fuel source s relations menv kept
+              equations relation_equations definitions Htrue Hrelations
+              Hnonempty Hscoped Hsource Hfits Hadds) as [Hkept0 Hnames].
+  fold menv0 in Hkept0, Hnames.
+  pose proof (last_phase_kinds_known tenv fuel source s relations menv kept
+                equations relation_equations definitions Htrue Hrelations
+                Hnonempty Hscoped Hstate Henvs HX HR Hsource Hfits Hadds)
+    as Hkinds.
+  cbv zeta in Hkinds. fold menv0 in Hkinds.
+  assert (Hall :
+            ∀ (n : name) (ty : flambda_type),
+              (n, ty) ∈ equations ++ relation_equations ->
+              Typing_env.mem None (Meet_env.typing_env menv0) n = true
+              ∧ type_fits (Meet_env.typing_env menv0) ty
+              ∧ simple_of_kind (Meet_env.typing_env menv0) (simple_of_name n)
+                  (kind ty)).
+  { intros n ty Hin.
+    destruct (Hnames n ty Hin) as [Hn Hvars].
+    destruct (Hkinds n ty Hin) as [Hkind Haliases].
+    destruct (Hrest n ty Hin) as [Hwf [Heqs Hsyms]].
+    split; [ exact Hn | ]. split; [ | exact Hkind ].
+    split; [ exact Hwf | ]. split; [ exact Hvars | ].
+    split; [ | exact Heqs ].
+    intros simple k Hmember. apply (Haliases simple k Hmember).
+    intros sym ->. exact (Hsyms sym k Hmember). }
+  split; [ exact Hkept0 | ].
+  assert (Hstep1 : meet_env_kept_by_meet menv0 menv1).
+  { apply (add_env_extension_keeps mh menv0 menv1 (Env_extension equations)
+             Hmh (proj2 Hkept0)); [ | | exact Hadd1 ].
+    - intros n ty Hlookup.
+      destruct (Hall n ty
+                  (in_or_app _ _ _ (or_introl (lookup_among _ _ _ Hlookup))))
+        as [Hn [Hty _]].
+      split; assumption.
+    - intros n ty Hlookup.
+      exact (proj2 (proj2 (Hall n ty
+                             (in_or_app _ _ _
+                                (or_introl (lookup_among _ _ _ Hlookup)))))). }
+  split; [ exact Hstep1 | ].
+  pose proof (meet_env_extends_tenv _ _ (proj1 (proj1 Hstep1))) as Hextends.
+  apply (add_env_extension_keeps mh menv1 target
+           (Env_extension relation_equations) Hmh (proj2 (proj1 Hstep1)));
+    [ | | exact Hadd2 ].
+  - intros n ty Hlookup.
+    destruct (Hall n ty
+                (in_or_app _ _ _ (or_intror (lookup_among _ _ _ Hlookup))))
+      as [Hn [Hty _]].
+    split.
+    + exact (tenv_extends_mem _ _ _ Hextends Hn).
+    + exact (tenv_extends_type_fits _ _ _ Hextends Hty).
+  - intros n ty Hlookup.
+    apply (proj1 (proj2 (proj2 (proj2 (proj2 Hextends))))).
+    exact (proj2 (proj2 (Hall n ty
+                           (in_or_app _ _ _
+                              (or_intror (lookup_among _ _ _ Hlookup)))))).
 Qed.
