@@ -3783,7 +3783,8 @@ type scenario =
     after_the_steps : (TE.t, string) result
   }
 
-let scenario (implementation : implementation) (kinds : MK.flambda_kind list)
+let scenario ?(made = fun (_ : int -> Variable.t) -> ())
+    (implementation : implementation) (kinds : MK.flambda_kind list)
     (steps : step list) : scenario =
   let numbering = Model_names.create () in
   let unit = Current_unit.get_cu_exn () in
@@ -3810,6 +3811,8 @@ let scenario (implementation : implementation) (kinds : MK.flambda_kind list)
           : N.positive))
     ["a"; "b"];
   let variable i = List.nth variables (i - 1) in
+  (* The variables are told before any step is run: a step may stop. *)
+  made variable;
   let bound i =
     Bound_name.create_var
       (Bound_var.create (variable i) Flambda_debug_uid.none Name_mode.normal)
@@ -5012,8 +5015,8 @@ type answer_of_t7_13 =
   | Is_bottom
   | Is_not_bottom of
       { (* Whether the variable 2 has, in the environment answered, a type that
-           is no alias and a canonical element that is not itself. *)
-        concrete_and_not_canonical : bool
+           is no alias, and the variable 1 for its canonical element. *)
+        concrete_and_an_alias_of_v1 : bool
       }
   | Is_refused_by_the_check
   | Stops_otherwise of string
@@ -5022,38 +5025,50 @@ type answer_of_t7_13 =
 let print_answer_of_t7_13 (answer : answer_of_t7_13) : string =
   match answer with
   | Is_bottom -> "bottom"
-  | Is_not_bottom { concrete_and_not_canonical = true } ->
+  | Is_not_bottom { concrete_and_an_alias_of_v1 = true } ->
     "not bottom; v2 has a type that is no alias, and v1 for its canonical \
      element"
-  | Is_not_bottom { concrete_and_not_canonical = false } -> "not bottom"
+  | Is_not_bottom { concrete_and_an_alias_of_v1 = false } -> "not bottom"
   | Is_refused_by_the_check ->
     "the compiler stops: a concrete type is given to a name that is not \
      canonical"
   | Stops_otherwise line -> "the compiler stops: " ^ general line
   | Is_not_run why -> "not run: " ^ why
 
+(* The six orders of the identifiers of the three variables, least first. *)
+let the_orders_of_t7_13 : string list =
+  [ "v1 < v2 < v3";
+    "v1 < v3 < v2";
+    "v2 < v1 < v3";
+    "v2 < v3 < v1";
+    "v3 < v1 < v2";
+    "v3 < v2 < v1" ]
+
 (* One run, with new variables: the order of their identifiers, least first, and
-   the answer. *)
+   the answer. The scenario tells its variables before it runs a step, so that
+   the order is known of a run that a step stops; where it is not told them, the
+   run has no order, and is in none of the six. *)
 let run_the_meet_of_t7_13 ~fields (implementation : implementation) :
-    string * answer_of_t7_13 =
+    string option * answer_of_t7_13 =
   let { label = _; kinds; before; met = first, second; given_to = _ } =
     the_meet_of_t7_13 ~fields
   in
-  (* The variables are made before anything can stop, so that the order is known
-     of every run. *)
-  let order = ref "" in
+  let order = ref None in
+  let made (variable : int -> Variable.t) =
+    order
+      := Some
+           (String.concat " < "
+              (List.map
+                 (fun (i, (_ : Variable.t)) -> Printf.sprintf "v%d" i)
+                 (List.sort
+                    (fun ((_ : int), x) ((_ : int), y) -> Variable.compare x y)
+                    (List.map (fun i -> i, variable i) [1; 2; 3]))))
+  in
   let answer =
     or_fatal_error (fun () ->
         let { numbering; variable; after_the_steps } =
-          scenario implementation kinds before
+          scenario ~made implementation kinds before
         in
-        order
-          := String.concat " < "
-               (List.map
-                  (fun (i, (_ : Variable.t)) -> Printf.sprintf "v%d" i)
-                  (List.sort
-                     (fun ((_ : int), x) ((_ : int), y) -> Variable.compare x y)
-                     (List.map (fun i -> i, variable i) [1; 2; 3])));
         let to_compiler = Converter.type_of_model numbering machine_width in
         match after_the_steps with
         | Error why -> Is_not_run why
@@ -5063,21 +5078,21 @@ let run_the_meet_of_t7_13 ~fields (implementation : implementation) :
           with
           | Bottom -> Is_bottom
           | Ok ((_ : TG.t), env) ->
-            let v2 = variable 2 in
+            let v1 = variable 1 and v2 = variable 2 in
             let concrete =
               Option.is_none
                 (TG.get_alias_opt (TE.find env (Name.var v2) (Some K.value)))
             in
-            let canonical =
+            let an_alias_of_v1 =
               match
                 TE.get_canonical_simple_exn env
                   ~min_name_mode:Name_mode.in_types (Simple.var v2)
               with
-              | canonical -> Simple.equal canonical (Simple.var v2)
-              | exception Not_found -> true
+              | canonical -> Simple.equal canonical (Simple.var v1)
+              | exception Not_found -> false
             in
             Is_not_bottom
-              { concrete_and_not_canonical = concrete && not canonical }))
+              { concrete_and_an_alias_of_v1 = concrete && an_alias_of_v1 }))
   in
   ( !order,
     match answer with
@@ -5107,26 +5122,40 @@ let the_meet_of_t7_13_in_every_order () =
   in
   let the_order_of_bottom = "v2 < v3 < v1" in
   let overwritten : answer_of_t7_13 =
-    Is_not_bottom { concrete_and_not_canonical = true }
+    Is_not_bottom { concrete_and_an_alias_of_v1 = true }
   in
-  (* For each order seen, the answers seen in it. *)
+  (* For each order seen, the answers seen in it. A run of which the order is
+     not known is under a name that is none of the six. The check of the
+     compiler is put back whatever happens. *)
   let answers_by_order ~fields (implementation : implementation)
       ~(with_the_check : bool) : (string * answer_of_t7_13 list) list =
     let flag = Oxcaml_flags.Flambda2.Debug.concrete_types_only_on_canonicals in
     let before = !flag in
     flag := with_the_check;
     let seen = ref [] in
-    for _ = 1 to runs do
-      let order, answer = run_the_meet_of_t7_13 ~fields implementation in
-      let answers = Option.value (List.assoc_opt order !seen) ~default:[] in
-      if not (List.mem answer answers)
-      then seen := (order, answer :: answers) :: List.remove_assoc order !seen
-    done;
-    flag := before;
+    Fun.protect
+      ~finally:(fun () -> flag := before)
+      (fun () ->
+        for _ = 1 to runs do
+          let order, answer = run_the_meet_of_t7_13 ~fields implementation in
+          let order =
+            Option.value order ~default:"the variables were not made"
+          in
+          let answers = Option.value (List.assoc_opt order !seen) ~default:[] in
+          if not (List.mem answer answers)
+          then
+            seen := (order, answer :: answers) :: List.remove_assoc order !seen
+        done);
     List.sort
       (fun (order, (_ : answer_of_t7_13 list)) (order', _) ->
         String.compare order order')
       !seen
+  in
+  let the_six_orders_and_no_other
+      (by_order : (string * answer_of_t7_13 list) list) =
+    List.equal String.equal
+      (List.map (fun (order, (_ : answer_of_t7_13 list)) -> order) by_order)
+      the_orders_of_t7_13
   in
   List.iter
     (fun ((implementation : implementation), with_the_check) ->
@@ -5141,7 +5170,8 @@ let the_meet_of_t7_13_in_every_order () =
           Format.printf "    %s: %s@." order
             (String.concat " / " (List.map print_answer_of_t7_13 answers)))
         by_order;
-      check "  each of the six orders is seen" (List.length by_order = 6);
+      check "  each of the six orders is seen, and no run is without one"
+        (the_six_orders_and_no_other by_order);
       check "  one answer in each order"
         (List.for_all
            (fun ((_ : string), answers) -> List.length answers = 1)
@@ -5200,7 +5230,8 @@ let the_meet_of_t7_13_in_every_order () =
           Format.printf "    %s: %s@." order
             (String.concat " / " (List.map print_answer_of_t7_13 answers)))
         by_order;
-      check "  each of the six orders is seen" (List.length by_order = 6);
+      check "  each of the six orders is seen, and no run is without one"
+        (the_six_orders_and_no_other by_order);
       let in_every_order (expected : answer_of_t7_13) =
         List.for_all
           (fun ((_ : string), answers) -> List.equal ( = ) answers [expected])
