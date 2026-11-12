@@ -36,10 +36,13 @@
    statements at the end. A contract here is a proposition about a
    function of the type that the compiler's function has. The
    functions are FlambdaMeet.v, with FlambdaMeetEnv.v and
-   FlambdaExpandHead.v. That they have their contracts is not proved
-   yet: what is to be proved is [transcription_sound] of
-   [meet_to_prove], and it is not among the statements of this file
-   until it is. The statements that are here are proved in
+   FlambdaExpandHead.v. That they have their contracts is
+   [transcription_sound] of [meet_to_prove], below. It is not among
+   the statements of this file, because its proof needs the files
+   that come after this one: it is stated and proved in
+   FlambdaMeetClosuresSpec.v ([meet_to_prove_sound_statement]), for
+   every join that has [join_scoped_envs_sound] and every fuel. The
+   statements that are here are proved in
    FlambdaMeetProofs.v. FlambdaMeetExamplesSpec.v has the examples of
    this header, run on the functions: the input on which the
    compiler's meet is not sound, a join that has the contract asked of
@@ -1122,8 +1125,9 @@ Definition compiler_meet (join : join_scoped_envs) (fuel : nat)
 (* The meet that the contract is to be proved of ([repaired_choices]):
    the step for [Get_tag] adds [immediate_or_blocks_with_these_tags],
    a variable that the environment knows is not defined again, and the
-   variables of a single case are lifted. The statement to come is
-   [transcription_sound meet_to_prove]. *)
+   variables of a single case are lifted. [transcription_sound
+   meet_to_prove] is proved ([meet_to_prove_sound_statement],
+   FlambdaMeetClosuresSpec.v). *)
 Definition meet_to_prove (join : join_scoped_envs) (fuel : nat)
     : meet_function :=
   Meet.meet join repaired_choices fuel.

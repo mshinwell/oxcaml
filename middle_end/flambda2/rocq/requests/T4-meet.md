@@ -52,7 +52,8 @@ the model does not, whatever the fuel and whatever the choices of
 section 11. What is to be proved of
 the transcribed meet is `transcription_sound meet_to_prove`: for every
 join that has `join_scoped_envs_sound` and every fuel, `meet_contract`.
-It is not proved yet, and is not among the statements of the file.
+It is proved (`meet_to_prove_sound`, `FlambdaMeetClosuresSpec.v`;
+section 15).
 
 `meet_sound`: if
 
@@ -677,9 +678,15 @@ strict satisfaction, with no other premise), `expand_head_closed`,
 
 ## 15. Next
 
-- The proofs of the contract for `meet_to_prove`, with the join's
-  contract as a hypothesis; then that some fuel is enough. Proved so
-  far, beside the parts that need no environment: the functions of
+- The contract for `meet_to_prove`, with the join's contract as a
+  hypothesis, is proved: `meet_to_prove_sound`
+  (`FlambdaMeetClosuresSpec.v`) is `transcription_sound
+  meet_to_prove`. The last pieces were T5b's (products, heads of
+  kind value, `meet_row_like` and the rows of blocks) and the rows
+  of closures. What is not proved: that some fuel is enough (T1 has
+  taken it), and that the compiler's own join has the contract (it
+  has it only for the runs that T5's conditions describe). The
+  pieces, as they came: the functions of
   `Meet_env` (`FlambdaMeetEnvSpec.v`), and the meet of the two sides
   of a variant or of a value that may be null, each met in a scope of
   its own, with the join of the two environments
