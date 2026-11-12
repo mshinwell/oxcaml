@@ -90,10 +90,45 @@
      ([answer_fuel_enough_statement], [meet_answer_fuel_enough_statement]),
      for a join that is monotone.
 
-   What is not here: a bound. That is, a number computed from the
-   environment and the two types at which the fuel is enough,
-   [meet_fuel_enough join choices (bound tenv t1 t2) tenv t1 t2], for
-   the inputs that a meet may be given. With it and
+   Third, the inputs for which a fuel is known, which are few. An
+   expanded type is flat ([flat]) if it has no type and no name
+   inside: it says nothing, or has no value, or is a set of numbers,
+   with no relation if they are naked immediates.
+   - The meet of two flat expanded types asks for no other meet, so
+     one unit of fuel is enough ([flat_fuel_enough_statement]); and so
+     is it where one of the two says nothing or has no value, whatever
+     the other is ([unknown_or_bottom_fuel_enough_statement]).
+   - For two types that are not aliases the environment is not read,
+     and a fuel that is enough for the meet of their heads is enough
+     for the meet of the types ([non_alias_fuel_enough_statement]). So
+     one unit is enough for two flat types that are not aliases
+     ([flat_types_fuel_enough_statement]).
+   - A type that is not an alias, met with the type of a constant,
+     which is an alias of the constant: the one meet that is asked for
+     is that of the head of the type with the head of the constant
+     ([const_fuel_enough_statement]).
+   - An alias of a name, met with the type of a constant, where the
+     name is canonical: the name is demoted, and the one meet that is
+     asked for is that of the type that the environment had for the
+     name with the head of the constant
+     ([alias_const_fuel_enough_statement]). So one unit is enough
+     where that type is flat and the constant is a naked number
+     ([alias_flat_const_fuel_enough_statement]). That is the meet
+     that Simplify makes for an arm of a [Switch] on a variable whose
+     type is a set of numbers, as the result of a comparison is; an
+     example is run ([example_alias_const_fuel_statement]).
+   These hold of every join and of every choice of the meet. They are
+   the bottom of a bound by the depth of the types and no more than
+   that. They say nothing of a type of values with a block or a
+   closure in it, of two aliases of names, of an alias met with a type
+   that is not that of a constant, or of a naked immediate that is the
+   result of a relation: the types that Simplify meets at a [Switch]
+   on the tag of a variant are of those.
+
+   What is not here: a bound for the other inputs. That is, a number
+   computed from the environment and the two types at which the fuel
+   is enough, [meet_fuel_enough join choices (bound tenv t1 t2) tenv
+   t1 t2], for the inputs that a meet may be given. With it and
    [meet_fuel_enough_stable_statement] the answer of the meet does not
    change from the bound on. No argument for it is written down in the
    compiler, and nothing here proves any part of what follows.
@@ -117,14 +152,25 @@
    and that type holds the extensions made from the equations added in
    the scopes of a disjunction, so it can be deeper than the two types
    met. And a join may define variables, which are new names; the join
-   that forgets defines none. *)
+   that forgets defines none.
+
+   What comes next, in the order of what it costs. For types with no
+   name inside and a join that does not ask the meet it is given, a
+   bound by the depth of the two types: it needs, of each function of
+   FlambdaMeet.v that is given a meet, that it asks that meet only of
+   parts of what it is given. That is the form of the lemmas by which
+   more fuel changes no answer, with a measure carried through; the
+   folds over the fields of a product and over the cases of a row-like
+   structure are where the work is. For types with names, the same
+   with the invariant on the environment that the paragraph above asks
+   for. For a join that defines variables, nothing is known. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar FlambdaBindingTime
-  FlambdaEnvAliases FlambdaTypingEnv FlambdaMeetGrammar FlambdaExpandHead
-  FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec.
+  FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaTypingEnv FlambdaMeetGrammar
+  FlambdaExpandHead FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec.
 From OxCamlFlambda2Types Require FlambdaMeetExamplesSpec.
 Import ListNotations.
 
@@ -313,3 +359,148 @@ Definition meet_answer_fuel_enough_statement : Prop :=
     Typing_env.is_bottom tenv = false ->
     Meet.meet join choices fuel tenv t1 t2 = Some result ->
     meet_fuel_enough join choices fuel tenv t1 t2.
+
+(* ======================================================================== *)
+(* Inputs for which a fuel is known                                         *)
+(* ======================================================================== *)
+
+(* An expanded type that has no type and no name inside: one that says
+   nothing or has no value, or a set of numbers, with no relation if
+   they are naked immediates. (A head of [Rec_info] or of a region has
+   nothing in it in the model.) *)
+Definition flat_head (head : Expanded_type.head) : bool :=
+  match head with
+  | Expanded_type.Head_value _ => false
+  | Expanded_type.Head_naked_immediate head =>
+    Keyed.is_empty (inverse_relations head)
+  | Expanded_type.Head_naked_number _ _ | Expanded_type.Head_rec_info _
+  | Expanded_type.Head_region _ => true
+  end.
+
+Definition flat (expanded : Expanded_type.t) : bool :=
+  match Expanded_type.descr expanded with
+  | Unknown | Bottom => true
+  | Ok head => flat_head head
+  end.
+
+(* The meet of two flat expanded types asks for no other meet: one
+   unit of fuel is enough, whatever the environment, the join and the
+   choices. *)
+Definition flat_fuel_enough_statement : Prop :=
+  ∀ (join : join_scoped_envs) (choices : meet_choices) (menv : Meet_env.t)
+    (e1 e2 : Expanded_type.t),
+    flat e1 = true ->
+    flat e2 = true ->
+    fuel_enough join choices 1 menv e1 e2.
+
+(* So is it where one of the two says nothing or has no value,
+   whatever the other is. *)
+Definition unknown_or_bottom_fuel_enough_statement : Prop :=
+  ∀ (join : join_scoped_envs) (choices : meet_choices) (menv : Meet_env.t)
+    (e1 e2 : Expanded_type.t),
+    Expanded_type.is_unknown e1 || Expanded_type.is_bottom e1
+    || Expanded_type.is_unknown e2 || Expanded_type.is_bottom e2
+    = true ->
+    fuel_enough join choices 1 menv e1 e2.
+
+(* For two types that are not aliases, a fuel that is enough for the
+   meet of their heads is enough for the meet of the types: the
+   environment is not read. *)
+Definition non_alias_fuel_enough_statement : Prop :=
+  ∀ (join : join_scoped_envs) (choices : meet_choices) (fuel : nat)
+    (tenv : Typing_env.t) (t1 t2 : flambda_type) (e1 e2 : Expanded_type.t),
+    Expanded_type.of_non_alias_type t1 = Some e1 ->
+    Expanded_type.of_non_alias_type t2 = Some e2 ->
+    fuel_enough join choices fuel (Meet_env.create tenv) e1 e2 ->
+    meet_fuel_enough join choices fuel tenv t1 t2.
+
+(* So one unit of fuel is enough for the meet of two types that are
+   not aliases and are flat. *)
+Definition flat_types_fuel_enough_statement : Prop :=
+  ∀ (join : join_scoped_envs) (choices : meet_choices) (tenv : Typing_env.t)
+    (t1 t2 : flambda_type) (e1 e2 : Expanded_type.t),
+    Expanded_type.of_non_alias_type t1 = Some e1 ->
+    Expanded_type.of_non_alias_type t2 = Some e2 ->
+    flat e1 = true ->
+    flat e2 = true ->
+    meet_fuel_enough join choices 1 tenv t1 t2.
+
+(* A type that is not an alias, met with the type of a constant, on
+   either side: the one meet that is asked for is that of the head of
+   the type with the head of the constant. *)
+Definition const_fuel_enough_statement : Prop :=
+  ∀ (join : join_scoped_envs) (choices : meet_choices) (fuel : nat)
+    (tenv : Typing_env.t) (t : flambda_type) (e : Expanded_type.t)
+    (c : const),
+    Expanded_type.of_non_alias_type t = Some e ->
+    fuel_enough join choices fuel (Meet_env.create tenv) e
+      (Expanded_type.create_const c) ->
+    meet_fuel_enough join choices fuel tenv t (this_const c)
+    ∧ meet_fuel_enough join choices fuel tenv (this_const c) t.
+
+(* A type that is an alias, met with the type of a constant, where the
+   canonical element that the meet reads for the alias is a name: the
+   name is demoted to the constant, and the one meet that is asked for
+   is that of the type that the environment has for the name with the
+   head of the constant, in an environment that the demotion has
+   changed. (For each arm of a [Switch] whose scrutinee is a variable,
+   Simplify makes such a meet.) What is supposed of the aliases of the
+   environment is part of the invariant of typing environments
+   (FlambdaTypingEnvInvariantSpec.v). *)
+Definition alias_const_fuel_enough_statement : Prop :=
+  ∀ (join : join_scoped_envs) (choices : meet_choices) (fuel : nat)
+    (tenv : Typing_env.t) (t ty : flambda_type) (n : name)
+    (e : Expanded_type.t) (c : const),
+    aliases_consistent (Typing_env.aliases tenv) ->
+    is_canonical (Typing_env.aliases tenv) (simple_of_name n) ->
+    Typing_env.get_alias_then_canonical_simple_exn tenv
+      (Some Name_mode.in_types) None t
+    = Some (Some (simple_of_name n)) ->
+    Typing_env.find tenv n (Some (kind t)) = Some ty ->
+    Expanded_type.of_non_alias_type ty = Some e ->
+    (∀ menv : Meet_env.t,
+      fuel_enough join choices fuel menv e (Expanded_type.create_const c)) ->
+    meet_fuel_enough join choices fuel tenv t (this_const c).
+
+(* So one unit of fuel is enough for it where the type that the
+   environment has for the name is flat and the constant is a naked
+   number or poison (the head of a tagged immediate and that of null
+   are heads of values, which are not flat). *)
+Definition alias_flat_const_fuel_enough_statement : Prop :=
+  ∀ (join : join_scoped_envs) (choices : meet_choices) (tenv : Typing_env.t)
+    (t ty : flambda_type) (n : name) (e : Expanded_type.t) (c : const),
+    aliases_consistent (Typing_env.aliases tenv) ->
+    is_canonical (Typing_env.aliases tenv) (simple_of_name n) ->
+    Typing_env.get_alias_then_canonical_simple_exn tenv
+      (Some Name_mode.in_types) None t
+    = Some (Some (simple_of_name n)) ->
+    Typing_env.find tenv n (Some (kind t)) = Some ty ->
+    Expanded_type.of_non_alias_type ty = Some e ->
+    flat e = true ->
+    flat (Expanded_type.create_const c) = true ->
+    meet_fuel_enough join choices 1 tenv t (this_const c).
+
+(* An example: a variable of which nothing is known but that it is a
+   naked immediate, and the type that is an alias of it, met with the
+   type of the number 0, as for an arm of a [Switch]. One unit of fuel
+   is enough, whatever the join and the choices. And with the meet
+   that is to be proved and the join that forgets, the meet answers
+   with one unit, and with none it does not. *)
+Definition example_fuel_env : Typing_env.t :=
+  Typing_env.add_variable_definition Typing_env.create 1%positive
+    (Naked_number Kind_naked_immediate) Name_mode.normal.
+
+Definition example_fuel_alias : flambda_type :=
+  alias_type_of (Naked_number Kind_naked_immediate) (Var 1%positive).
+
+Definition example_alias_const_fuel_statement : Prop :=
+  (∀ (join : join_scoped_envs) (choices : meet_choices),
+    meet_fuel_enough join choices 1 example_fuel_env example_fuel_alias
+      (this_const (Naked_immediate 0%Z)))
+  ∧ (∃ answer : flambda_type * Typing_env.t,
+      meet_to_prove FlambdaMeetExamplesSpec.forgetful_join 1 example_fuel_env
+        example_fuel_alias (this_const (Naked_immediate 0%Z))
+      = Some (Or_bottom.Ok answer))
+  ∧ meet_to_prove FlambdaMeetExamplesSpec.forgetful_join 0 example_fuel_env
+      example_fuel_alias (this_const (Naked_immediate 0%Z))
+    = None.

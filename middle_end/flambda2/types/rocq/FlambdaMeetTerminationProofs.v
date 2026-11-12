@@ -33,9 +33,12 @@ From Stdlib Require Import ZArith List Bool Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar FlambdaBindingTime
-  FlambdaEnvAliases FlambdaTypingEnv FlambdaMeetGrammar FlambdaExpandHead
-  FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec FlambdaMeetTerminationSpec.
-From OxCamlFlambda2Types Require FlambdaMeetExamplesSpec.
+  FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaTypingEnv FlambdaMeetGrammar
+  FlambdaExpandHead FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec
+  FlambdaMeetTerminationSpec.
+From OxCamlFlambda2Types Require FlambdaMeetExamplesSpec
+  FlambdaEnvAliasesProofs FlambdaTypingEnvInvariantSpec
+  FlambdaTypingEnvInvariantProofs.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -1072,4 +1075,255 @@ Proof.
   exact (meet_type_mono _ _
            (meet_expanded_head_le_over join choices mh0 fuel Hjoin)
            (Meet_env.create tenv) t1 t2 answer Hanswer).
+Qed.
+
+(* ======================================================================== *)
+(* Inputs for which a fuel is known                                         *)
+(* ======================================================================== *)
+
+(* The step of the meet of two flat expanded types does not depend on
+   the meet that it is given. *)
+Lemma flat_step_any (join : join_scoped_envs) (choices : meet_choices)
+    (mh mh' : meet_expanded_head) (menv : Meet_env.t)
+    (e1 e2 : Expanded_type.t) :
+  flat e1 = true ->
+  flat e2 = true ->
+  meet_expanded_head_step join choices mh menv e1 e2
+  = meet_expanded_head_step join choices mh' menv e1 e2.
+Proof.
+  unfold flat, meet_expanded_head_step, meet_or_unknown_or_bottom.
+  destruct (Expanded_type.descr e1) as [ | head1 | ];
+    destruct (Expanded_type.descr e2) as [ | head2 | ]; try reflexivity.
+  intros Hflat1 Hflat2.
+  destruct head1 as [v1 | [imms1 relations1] | k1 numbers1 | [] | []];
+    destruct head2 as [v2 | [imms2 relations2] | k2 numbers2 | [] | []];
+    try discriminate; try reflexivity.
+  cbn in Hflat1, Hflat2.
+  destruct relations1; [ | discriminate ].
+  destruct relations2; [ | discriminate ].
+  cbn.
+  destruct imms1 as [imms1 | ]; destruct imms2 as [imms2 | ]; cbn;
+    try reflexivity.
+Qed.
+
+Lemma unknown_or_bottom_step_any (join : join_scoped_envs)
+    (choices : meet_choices) (mh mh' : meet_expanded_head) (menv : Meet_env.t)
+    (e1 e2 : Expanded_type.t) :
+  Expanded_type.is_unknown e1 || Expanded_type.is_bottom e1
+  || Expanded_type.is_unknown e2 || Expanded_type.is_bottom e2
+  = true ->
+  meet_expanded_head_step join choices mh menv e1 e2
+  = meet_expanded_head_step join choices mh' menv e1 e2.
+Proof.
+  unfold Expanded_type.is_unknown, Expanded_type.is_bottom,
+    meet_expanded_head_step, meet_or_unknown_or_bottom.
+  destruct (Expanded_type.descr e1) as [ | head1 | ];
+    destruct (Expanded_type.descr e2) as [ | head2 | ]; try reflexivity.
+  discriminate.
+Qed.
+
+Theorem flat_fuel_enough : flat_fuel_enough_statement.
+Proof.
+  intros join choices menv e1 e2 Hflat1 Hflat2 mh0.
+  exact (flat_step_any join choices _ _ menv e1 e2 Hflat1 Hflat2).
+Qed.
+
+Theorem unknown_or_bottom_fuel_enough :
+  unknown_or_bottom_fuel_enough_statement.
+Proof.
+  intros join choices menv e1 e2 Hone mh0.
+  exact (unknown_or_bottom_step_any join choices _ _ menv e1 e2 Hone).
+Qed.
+
+(* A type that has a head is not an alias. *)
+Lemma of_non_alias_type_not_alias (t : flambda_type) (e : Expanded_type.t) :
+  Expanded_type.of_non_alias_type t = Some e -> get_alias_opt t = None.
+Proof.
+  destruct t as [ty | ty | k ty | ty | ty];
+    destruct ty as [ | [h | s] | ]; cbn; try discriminate; reflexivity.
+Qed.
+
+(* The meet of two types that are not aliases is the meet of their
+   heads. *)
+Lemma meet_type_non_alias (menv : Meet_env.t) (t1 t2 : flambda_type)
+    (e1 e2 : Expanded_type.t) (mh : meet_expanded_head) :
+  Expanded_type.of_non_alias_type t1 = Some e1 ->
+  Expanded_type.of_non_alias_type t2 = Some e2 ->
+  Meet_env.meet_type menv t1 t2 mh
+  = if negb (kind_eqb (kind t1) (kind t2))
+    then None
+    else option_map (map_result Expanded_type.to_type) (mh menv e1 e2).
+Proof.
+  intros He1 He2.
+  unfold Meet_env.meet_type, Meet_env.meet,
+    Typing_env.get_alias_then_canonical_simple_exn, expand_head0.
+  rewrite (of_non_alias_type_not_alias t1 e1 He1),
+    (of_non_alias_type_not_alias t2 e2 He2), He1, He2.
+  destruct (negb (kind_eqb (kind t1) (kind t2))); reflexivity.
+Qed.
+
+Theorem non_alias_fuel_enough : non_alias_fuel_enough_statement.
+Proof.
+  intros join choices fuel tenv t1 t2 e1 e2 He1 He2 Henough mh0.
+  rewrite !(meet_type_non_alias _ t1 t2 e1 e2 _ He1 He2), Henough.
+  reflexivity.
+Qed.
+
+Theorem flat_types_fuel_enough : flat_types_fuel_enough_statement.
+Proof.
+  intros join choices tenv t1 t2 e1 e2 He1 He2 Hflat1 Hflat2.
+  apply (non_alias_fuel_enough join choices 1 tenv t1 t2 e1 e2 He1 He2).
+  apply flat_fuel_enough; assumption.
+Qed.
+
+(* The canonical element of a constant is the constant. *)
+Lemma canonical_of_const (tenv : Typing_env.t) (c : const) :
+  Typing_env.get_alias_then_canonical_simple_exn tenv
+    (Some Name_mode.in_types) None (this_const c)
+  = Some (Some (Const c)).
+Proof.
+  destruct c as [ | | | | | | | | | | | | | | k]; try reflexivity.
+  destruct k as [ | [] | | ]; reflexivity.
+Qed.
+
+(* The meet of a type that is not an alias with the type of a constant
+   is the meet of the head of the type with the head of the constant,
+   and what [Meet_env] makes of its answer. *)
+Lemma meet_type_const_right (menv : Meet_env.t) (t : flambda_type)
+    (e : Expanded_type.t) (c : const) (mh mh' : meet_expanded_head) :
+  Expanded_type.of_non_alias_type t = Some e ->
+  mh menv e (Expanded_type.create_const c)
+  = mh' menv e (Expanded_type.create_const c) ->
+  Meet_env.meet_type menv t (this_const c) mh
+  = Meet_env.meet_type menv t (this_const c) mh'.
+Proof.
+  intros He Hagree.
+  unfold Meet_env.meet_type, Meet_env.meet.
+  destruct (negb (kind_eqb (kind t) (kind (this_const c)))); [ reflexivity | ].
+  rewrite canonical_of_const.
+  unfold Typing_env.get_alias_then_canonical_simple_exn, expand_head0.
+  rewrite (of_non_alias_type_not_alias t e He), He. cbn.
+  unfold Meet_env.add_concrete_equation_on_const. rewrite Hagree.
+  reflexivity.
+Qed.
+
+Lemma meet_type_const_left (menv : Meet_env.t) (t : flambda_type)
+    (e : Expanded_type.t) (c : const) (mh mh' : meet_expanded_head) :
+  Expanded_type.of_non_alias_type t = Some e ->
+  mh menv e (Expanded_type.create_const c)
+  = mh' menv e (Expanded_type.create_const c) ->
+  Meet_env.meet_type menv (this_const c) t mh
+  = Meet_env.meet_type menv (this_const c) t mh'.
+Proof.
+  intros He Hagree.
+  unfold Meet_env.meet_type, Meet_env.meet.
+  destruct (negb (kind_eqb (kind (this_const c)) (kind t))); [ reflexivity | ].
+  rewrite canonical_of_const.
+  unfold Typing_env.get_alias_then_canonical_simple_exn, expand_head0.
+  rewrite (of_non_alias_type_not_alias t e He), He. cbn.
+  unfold Meet_env.add_concrete_equation_on_const. rewrite Hagree.
+  reflexivity.
+Qed.
+
+Theorem const_fuel_enough : const_fuel_enough_statement.
+Proof.
+  intros join choices fuel tenv t e c He Henough.
+  split; intros mh0.
+  - exact (meet_type_const_right _ t e c _ _ He (Henough mh0)).
+  - exact (meet_type_const_left _ t e c _ _ He (Henough mh0)).
+Qed.
+
+(* Giving an environment other aliases changes no type. *)
+Lemma find_with_aliases (tenv : Typing_env.t) (aliases : Aliases.t) (n : name)
+    (kind : option flambda_kind) :
+  Typing_env.find (Typing_env.with_aliases tenv aliases) n kind
+  = Typing_env.find tenv n kind.
+Proof. reflexivity. Qed.
+
+(* The meet of an alias of a canonical name with the type of a constant
+   asks one meet: that of the type of the name with the head of the
+   constant. *)
+Lemma meet_type_alias_const (menv : Meet_env.t) (t ty : flambda_type)
+    (n : name) (e : Expanded_type.t) (c : const)
+    (mh mh' : meet_expanded_head) :
+  aliases_consistent (Typing_env.aliases (Meet_env.typing_env menv)) ->
+  is_canonical (Typing_env.aliases (Meet_env.typing_env menv))
+    (simple_of_name n) ->
+  Typing_env.get_alias_then_canonical_simple_exn (Meet_env.typing_env menv)
+    (Some Name_mode.in_types) None t
+  = Some (Some (simple_of_name n)) ->
+  Typing_env.find (Meet_env.typing_env menv) n (Some (kind t)) = Some ty ->
+  Expanded_type.of_non_alias_type ty = Some e ->
+  (∀ menv' : Meet_env.t,
+    mh menv' e (Expanded_type.create_const c)
+    = mh' menv' e (Expanded_type.create_const c)) ->
+  Meet_env.meet_type menv t (this_const c) mh
+  = Meet_env.meet_type menv t (this_const c) mh'.
+Proof.
+  intros Hconsistent Hcanonical Hsimple Hfind He Hagree.
+  unfold Meet_env.meet_type, Meet_env.meet.
+  destruct (negb (kind_eqb (kind t) (kind (this_const c)))); [ reflexivity | ].
+  rewrite Hsimple, canonical_of_const.
+  cbn beta iota.
+  unfold Meet_env.add_alias_between_canonicals.
+  assert (Hne : simple_equal (simple_of_name n) (Const c) = false)
+    by (destruct n; reflexivity).
+  rewrite Hne.
+  unfold Typing_env.add_alias, Typing_env.aliases_add.
+  destruct (FlambdaEnvAliasesProofs.add_name_constant _
+              (Typing_env.binding_time_resolver (Meet_env.typing_env menv))
+              (Typing_env.names_to_types (Meet_env.typing_env menv))
+              (Typing_env.aliases (Meet_env.typing_env menv)) n c Hconsistent
+              Hcanonical) as [[result [Hadd [Hdemoted Hcanon]]] _].
+  rewrite Hadd.
+  cbn [Typing_env.add_alias_result_t Typing_env.demoted_name
+       Typing_env.canonical_element].
+  rewrite Hdemoted, Hcanon.
+  unfold Meet_env.record_demotion.
+  cbn [Meet_env.typing_env Meet_env.with_typing_env Meet_env.map_typing_env].
+  rewrite find_with_aliases, Hfind.
+  cbn beta iota.
+  unfold expand_head0.
+  rewrite (of_non_alias_type_not_alias ty e He), He.
+  cbn beta iota delta [Meet_env.add_or_delay_concrete_equation_on_canonical].
+  unfold Meet_env.add_concrete_equation_on_const.
+  rewrite Hagree.
+  reflexivity.
+Qed.
+
+Theorem alias_const_fuel_enough : alias_const_fuel_enough_statement.
+Proof.
+  intros join choices fuel tenv t ty n e c Hconsistent Hcanonical Hsimple Hfind
+    He Henough mh0.
+  apply (meet_type_alias_const (Meet_env.create tenv) t ty n e c);
+    try assumption.
+  intros menv'. exact (Henough menv' mh0).
+Qed.
+
+Theorem alias_flat_const_fuel_enough : alias_flat_const_fuel_enough_statement.
+Proof.
+  intros join choices tenv t ty n e c Hconsistent Hcanonical Hsimple Hfind He
+    Hflat Hconst.
+  apply (alias_const_fuel_enough join choices 1 tenv t ty n e c);
+    try assumption.
+  intros menv. apply flat_fuel_enough; assumption.
+Qed.
+
+Theorem example_alias_const_fuel : example_alias_const_fuel_statement.
+Proof.
+  split; [ | split; [ eexists; vm_compute; reflexivity | reflexivity ] ].
+  intros join choices.
+  assert (Hwf :
+    FlambdaTypingEnvInvariantSpec.typing_env_well_formed example_fuel_env
+    = true) by (vm_compute; reflexivity).
+  pose proof
+    (proj1 (FlambdaTypingEnvInvariantProofs.typing_env_well_formed_iff _) Hwf)
+    as Hconditions.
+  destruct Hconditions as [_ [_ [Hconsistent _]]].
+  apply (alias_flat_const_fuel_enough join choices example_fuel_env
+           example_fuel_alias
+           (Type_naked_immediate Unknown) (Name_var 1%positive)
+           (Expanded_type.create_unknown (Naked_number Kind_naked_immediate))
+           (Naked_immediate 0%Z) Hconsistent);
+    reflexivity.
 Qed.
