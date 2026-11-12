@@ -112,7 +112,9 @@ Proof.
   { rewrite <- Honly. reflexivity. }
   assert (Hwrapped : known_wrapped_vars (facts_numbers known) = []).
   { rewrite <- Honly. reflexivity. }
-  split; [ split | split; [ split | split ] ].
+  assert (Hreads : facts_reads known = []).
+  { rewrite <- Honly. reflexivity. }
+  split; [ split | split; [ split | split; [ | split ] ] ].
   - intros entry Hentry. rewrite Hvars in Hentry. destruct Hentry.
   - intros [s [tag fields]] Hentry.
     destruct (Hblocks s tag fields Hentry) as (vs & Hfields & Hlookup).
@@ -127,6 +129,7 @@ Proof.
   - intros y block tag vs Hentry. rewrite Hvars in Hentry. destruct Hentry.
   - intros y kind contents c Hentry. rewrite Hwrapped in Hentry.
     destruct Hentry.
+  - intros entry Hentry. rewrite Hreads in Hentry. destruct Hentry.
 Qed.
 
 (* What holds, made of symbols alone, is how the static environment

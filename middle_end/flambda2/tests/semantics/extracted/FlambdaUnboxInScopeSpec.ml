@@ -27,7 +27,8 @@ let facts_of_symbols known =
     facts_numbers =
       { known_wrapped_vars = [];
         known_boxed_symbols = known.facts_numbers.known_boxed_symbols
-      }
+      };
+    facts_reads = []
   }
 
 (** val symbols_under_statics : facts -> static_binding list -> facts **)

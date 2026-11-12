@@ -2,6 +2,7 @@ open BinNums
 open BinPos
 open Datatypes
 open FlambdaBlockLoadSpec
+open FlambdaCseSpec
 open FlambdaKindModel
 open FlambdaMapSpec
 open FlambdaModel
@@ -12,36 +13,6 @@ open List
 open ListDef
 open PeanoNat
 
-type facts =
-  { facts_blocks : known_blocks;
-    facts_numbers : known_numbers
-  }
-
-(** val no_facts : facts **)
-
-let no_facts = { facts_blocks = no_blocks; facts_numbers = no_numbers }
-
-(** val facts_under_let : facts -> variable -> named -> facts **)
-
-let facts_under_let known x d =
-  { facts_blocks = known_under_let known.facts_blocks x d;
-    facts_numbers = numbers_under_let known.facts_numbers x d
-  }
-
-(** val facts_under_statics : facts -> static_binding list -> facts **)
-
-let facts_under_statics known bindings =
-  { facts_blocks = known_under_statics known.facts_blocks bindings;
-    facts_numbers = numbers_under_statics known.facts_numbers bindings
-  }
-
-(** val facts_under_params : facts -> variable list -> facts **)
-
-let facts_under_params known params =
-  { facts_blocks = forget_vars params known.facts_blocks;
-    facts_numbers = forget_wrapped_vars params known.facts_numbers
-  }
-
 (** val reads_a_box : unary_primitive -> bool **)
 
 let reads_a_box = function
@@ -51,6 +22,64 @@ let reads_a_box = function
   | Unbox_number _ -> true
   | Untag_immediate -> true
   | _ -> false
+
+type facts =
+  { facts_blocks : known_blocks;
+    facts_numbers : known_numbers;
+    facts_reads : computed
+  }
+
+(** val no_facts : facts **)
+
+let no_facts =
+  { facts_blocks = no_blocks; facts_numbers = no_numbers; facts_reads = [] }
+
+(** val reads_under_let : computed -> variable -> named -> computed **)
+
+let reads_under_let known x d =
+  let known0 = forget_computed x known in
+  match d with
+  | Prim (p0, args) -> (
+    match p0 with
+    | Unary p -> (
+      match args with
+      | [] -> known0
+      | s :: l -> (
+        match s with
+        | Var y -> (
+          match l with
+          | [] ->
+            if reads_a_box p && negb (Pos.eqb x y)
+            then (x, (Unary p, Var y :: [])) :: known0
+            else known0
+          | _ :: _ -> known0)
+        | _ -> known0))
+    | _ -> known0)
+  | _ -> known0
+
+(** val facts_under_let : facts -> variable -> named -> facts **)
+
+let facts_under_let known x d =
+  { facts_blocks = known_under_let known.facts_blocks x d;
+    facts_numbers = numbers_under_let known.facts_numbers x d;
+    facts_reads = reads_under_let known.facts_reads x d
+  }
+
+(** val facts_under_statics : facts -> static_binding list -> facts **)
+
+let facts_under_statics known bindings =
+  { facts_blocks = known_under_statics known.facts_blocks bindings;
+    facts_numbers = numbers_under_statics known.facts_numbers bindings;
+    facts_reads = known.facts_reads
+  }
+
+(** val facts_under_params : facts -> variable list -> facts **)
+
+let facts_under_params known params =
+  { facts_blocks = forget_vars params known.facts_blocks;
+    facts_numbers = forget_wrapped_vars params known.facts_numbers;
+    facts_reads = forget_computed_vars params known.facts_reads
+  }
 
 (** val projection_of : facts -> unary_primitive -> simple -> simple option **)
 
@@ -66,7 +95,10 @@ let projection_of known p arg =
       | _ -> (
         match unbox_known_named known.facts_numbers d with
         | Simple s -> Some s
-        | _ -> None))
+        | _ ->
+          option_map
+            (fun x -> Var x)
+            (computed_by known.facts_reads (Unary p) (arg :: []))))
   else None
 
 (** val extend_args : facts -> nat -> unary_primitive -> simple list -> simple

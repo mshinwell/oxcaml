@@ -109,7 +109,8 @@
    variable of the unit is in scope, and a variable of the unit may be
    bound again in a handler. So of a static block whose field is a
    variable, that field is forgotten; the tag and the fields that are
-   symbols and constants are kept. What is left mentions no variable
+   symbols and constants are kept. A read that a [Let] has made is of
+   variables, and none is kept. What is left mentions no variable
    ([symbols_only]), holds under any variables, and is not changed by a
    renaming.
 
@@ -151,8 +152,8 @@ Definition closed_field (field : option simple) : option simple :=
   end.
 
 (* What is known of symbols, with no variable in it: nothing of a
-   variable, and of the block of a symbol its tag and the fields that
-   hold symbols and constants. *)
+   variable, no read, and of the block of a symbol its tag and the
+   fields that hold symbols and constants. *)
 Definition facts_of_symbols (known : facts) : facts :=
   Facts
     (Known_blocks []
@@ -161,7 +162,8 @@ Definition facts_of_symbols (known : facts) : facts :=
              (fst entry,
               (fst (snd entry), map closed_field (snd (snd entry)))))
           (known_symbols (facts_blocks known))))
-    (Known_numbers [] (known_boxed_symbols (facts_numbers known))).
+    (Known_numbers [] (known_boxed_symbols (facts_numbers known)))
+    [].
 
 (* What is known is of symbols alone. *)
 Definition symbols_only (known : facts) : Prop :=

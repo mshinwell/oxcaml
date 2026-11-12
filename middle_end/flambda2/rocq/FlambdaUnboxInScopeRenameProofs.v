@@ -372,7 +372,7 @@ Lemma symbols_only_within (known : facts) :
   symbols_only known ->
   FlambdaUnboxParamsNamesProofs.facts_within [] known.
 Proof.
-  intros Honly. rewrite <- Honly. split; [ split | ].
+  intros Honly. rewrite <- Honly. split; [ split | split ].
   - intros entry [].
   - intros entry Hentry s Hs.
     cbn [facts_of_symbols facts_blocks known_symbols] in Hentry.
@@ -380,6 +380,7 @@ Proof.
     cbn [fst snd] in Hs. apply in_map_iff in Hs as (field & Hfield & _).
     destruct field as [[x | s'' | c] | ]; try discriminate Hfield;
       injection Hfield as <-; apply incl_refl.
+  - intros entry [].
   - intros entry [].
 Qed.
 

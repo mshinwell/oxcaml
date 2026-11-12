@@ -55,7 +55,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaWellFormedProofs FlambdaNormaliseSpec FlambdaNormaliseProofs
   FlambdaBlockLoadSpec FlambdaBlockLoadProofs FlambdaUnboxSpec
   FlambdaUnboxProofs FlambdaNominalSpec FlambdaNominalProofs
-  FlambdaUnboxParamsSpec.
+  FlambdaCseSpec FlambdaCseProofs FlambdaUnboxParamsSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -174,14 +174,16 @@ Definition facts_hold (known : facts) (vars : env) (statics : static_env)
   blocks_hold (facts_blocks known) vars statics
   ∧ numbers_hold (facts_numbers known) vars statics
   ∧ fields_valued (facts_blocks known) vars
-  ∧ numbers_kinded (facts_numbers known) vars.
+  ∧ numbers_kinded (facts_numbers known) vars
+  ∧ all_computed (facts_reads known) vars statics.
 
 Lemma no_facts_hold (vars : env) (statics : static_env) :
   facts_hold no_facts vars statics.
 Proof.
   split; [ split; intros entry [] | ].
   split; [ split; intros entry [] | ].
-  split; [ intros y block tag vs [] | intros y kind contents c [] ].
+  split; [ intros y block tag vs [] | ].
+  split; [ intros y kind contents c [] | intros entry [] ].
 Qed.
 
 Lemma fields_valued_forget_var (known : known_blocks) (vars : env)
@@ -290,18 +292,48 @@ Proof.
   - apply IH, numbers_kinded_forget_var, Hkinded.
 Qed.
 
+(* A read that a [Let] makes is known in its body: the variable is
+   bound to the value of the primitive on the value of the variable
+   read, which the [Let] does not bind. *)
+Lemma reads_hold_under_let (known : computed) (x : variable) (d : named)
+    (vars : env) (statics : static_env) (v : value) :
+  all_computed known vars statics ->
+  eval_named statics vars d = Some v ->
+  all_computed (reads_under_let known x d) ((x, v) :: vars) statics.
+Proof.
+  intros Hhold Hd. unfold reads_under_let.
+  pose proof (all_computed_forget known vars statics x v Hhold) as Hforgot.
+  destruct d as [s | p args | | | | | ]; try exact Hforgot.
+  destruct p as [p | | | ]; try exact Hforgot.
+  destruct args as [ | [y | sym | c] [ | arg args]]; try exact Hforgot.
+  destruct (reads_a_box p && negb (Pos.eqb x y)) eqn:Hread;
+    [ | exact Hforgot ].
+  apply andb_true_iff in Hread as [_ Hne].
+  apply negb_true_iff, Pos.eqb_neq in Hne.
+  intros entry [<- | Hin]; [ | exact (Hforgot entry Hin) ].
+  simpl in Hd.
+  destruct (lookup y vars) as [w | ] eqn:Hy; [ | discriminate ].
+  simpl in Hd.
+  exists [w], v. cbn [fst snd]. split; [ | split; [ exact Hd | ] ].
+  - assert (Hlookup : lookup y ((x, v) :: vars) = Some w)
+      by (rewrite lookup_other by congruence; exact Hy).
+    simpl. simpl in Hlookup. rewrite Hlookup. reflexivity.
+  - apply lookup_head.
+Qed.
+
 Lemma facts_hold_under_let (known : facts) (x : variable) (d : named)
     (vars : env) (statics : static_env) (v : value) :
   facts_hold known vars statics ->
   eval_named statics vars d = Some v ->
   facts_hold (facts_under_let known x d) ((x, v) :: vars) statics.
 Proof.
-  intros (Hblocks & Hnumbers & Hvalued & Hkinded) Hd.
-  split; [ | split; [ | split ] ].
+  intros (Hblocks & Hnumbers & Hvalued & Hkinded & Hreads) Hd.
+  split; [ | split; [ | split; [ | split ] ] ].
   - exact (blocks_hold_under_let _ x d vars statics v Hblocks Hd).
   - exact (numbers_hold_under_let _ x d vars statics v Hnumbers Hd).
   - exact (fields_valued_under_let _ x d vars statics v Hvalued Hd).
   - exact (numbers_kinded_under_let _ x d vars statics v Hkinded Hd).
+  - exact (reads_hold_under_let _ x d vars statics v Hreads Hd).
 Qed.
 
 Lemma facts_hold_under_statics (known : facts) (vars : env)
@@ -311,14 +343,16 @@ Lemma facts_hold_under_statics (known : facts) (vars : env)
   eval_static_bindings vars bindings statics = Some extended ->
   facts_hold (facts_under_statics known bindings) vars extended.
 Proof.
-  intros (Hblocks & Hnumbers & Hvalued & Hkinded) Heval.
-  split; [ | split; [ | split ] ].
+  intros (Hblocks & Hnumbers & Hvalued & Hkinded & Hreads) Heval.
+  split; [ | split; [ | split; [ | split ] ] ].
   - exact (blocks_hold_under_statics _ vars statics bindings extended
       Hblocks Heval).
   - exact (numbers_hold_under_statics _ vars statics bindings extended
       Hnumbers Heval).
   - exact Hvalued.
   - exact Hkinded.
+  - exact (all_computed_extend _ vars statics extended Hreads
+      (eval_static_bindings_extend vars bindings _ _ Heval)).
 Qed.
 
 Lemma facts_hold_bind_params (statics : static_env)
@@ -328,8 +362,8 @@ Lemma facts_hold_bind_params (statics : static_env)
   bind_params params vs vars = Some handler_vars ->
   facts_hold (facts_under_params known params) handler_vars statics.
 Proof.
-  intros (Hblocks & Hnumbers & Hvalued & Hkinded) Hbind.
-  split; [ | split; [ | split ] ].
+  intros (Hblocks & Hnumbers & Hvalued & Hkinded & Hreads) Hbind.
+  split; [ | split; [ | split; [ | split ] ] ].
   - exact (blocks_hold_bind_params statics params _ vs vars handler_vars
       Hblocks Hbind).
   - exact (numbers_hold_bind_params statics params _ vs vars handler_vars
@@ -338,6 +372,8 @@ Proof.
       Hbind).
   - exact (numbers_kinded_bind_params params _ vs vars handler_vars Hkinded
       Hbind).
+  - exact (all_computed_bind_params statics params _ vs vars handler_vars
+      Hreads Hbind).
 Qed.
 
 Lemma facts_hold_extend (known : facts) (vars : env)
@@ -347,18 +383,41 @@ Lemma facts_hold_extend (known : facts) (vars : env)
   facts_hold known vars statics'.
 Proof.
   intros ([Hblock_vars Hblock_symbols] & [Hnumber_vars Hnumber_symbols]
-          & Hvalued) Hmore.
-  split; [ split | split; [ split | exact Hvalued ] ].
+          & Hvalued & Hkinded & Hreads) Hmore.
+  split; [ split | split; [ split | split; [ | split ] ] ].
   - exact Hblock_vars.
   - exact (symbols_hold_extend _ vars statics statics' Hblock_symbols Hmore).
   - exact Hnumber_vars.
   - exact (symbol_numbers_hold_extend _ statics statics' Hnumber_symbols
       Hmore).
+  - exact Hvalued.
+  - exact Hkinded.
+  - exact (all_computed_extend _ vars statics statics' Hreads Hmore).
 Qed.
 
 (* ======================================================================== *)
 (* What reading a box gives                                                 *)
 (* ======================================================================== *)
+
+(* The variable that a [Let] in scope bound to the primitive applied to
+   the argument holds the value of the primitive on the value of the
+   argument. *)
+Lemma read_in_scope_sound (known : computed) (vars : env)
+    (statics : static_env) (p : unary_primitive) (arg : simple)
+    (x : variable) (v w : value) :
+  all_computed known vars statics ->
+  computed_by known (Unary p) [arg] = Some x ->
+  eval_simple vars arg = Some v ->
+  eval_prim statics (Unary p) [v] = Some w ->
+  eval_simple vars (Var x) = Some w.
+Proof.
+  intros Hhold Hby Harg Hprim.
+  destruct (Hhold _ (computed_by_sound _ _ _ _ Hby))
+    as (vs & r & Hvs & Hr & Hlookup).
+  cbn [fst snd] in Hvs, Hr, Hlookup. simpl in Hvs. rewrite Harg in Hvs.
+  simpl in Hvs. injection Hvs as <-. rewrite Hprim in Hr.
+  injection Hr as <-. exact Hlookup.
+Qed.
 
 (* Where the primitive has a value on the argument, it is the value of
    what [projection_of] gives. *)
@@ -371,9 +430,16 @@ Lemma projection_of_sound (known : facts) (vars : env)
   eval_prim statics (Unary p) [v] = Some w ->
   eval_simple vars projection = Some w.
 Proof.
-  intros (Hblocks & Hnumbers & _) Hprojection Harg Hprim.
+  intros (Hblocks & Hnumbers & _ & _ & Hreads) Hprojection Harg Hprim.
   assert (Hd : eval_named statics vars (Prim (Unary p) [arg]) = Some w)
     by (simpl; rewrite Harg; simpl; exact Hprim).
+  assert (Hread :
+    ∀ x : variable,
+      computed_by (facts_reads known) (Unary p) [arg] = Some x ->
+      eval_simple vars (Var x) = Some w).
+  { intros x Hby.
+    exact (read_in_scope_sound _ vars statics p arg x v w Hreads Hby Harg
+      Hprim). }
   unfold projection_of in Hprojection.
   destruct (reads_a_box p); [ | discriminate ].
   pose proof (fold_named_sound statics vars (Prim (Unary p) [arg])) as Hfold.
@@ -388,7 +454,12 @@ Proof.
      [ injection Hprojection as <-; exact Hload | .. ];
      (destruct
         (unbox_known_named (facts_numbers known) (Prim (Unary p) [arg]));
-      [ injection Hprojection as <-; exact Hunbox | discriminate .. ])).
+      [ injection Hprojection as <-; exact Hunbox | .. ];
+      (destruct (computed_by (facts_reads known) (Unary p) [arg])
+         as [x | ] eqn:Hby;
+       [ injection Hprojection as <-;
+         first [ exact (Hread x Hby) | exact (Hread x eq_refl) ]
+       | discriminate ]))).
 Qed.
 
 (* ======================================================================== *)

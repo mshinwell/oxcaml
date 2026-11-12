@@ -166,7 +166,8 @@ Lemma made_number_gives (known : facts) (vars : env) (statics : static_env)
     ∧ kind_of_value u = kind
     ∧ gives p v u statics.
 Proof.
-  intros (_ & Hnumbers & _ & Hkinded) Hmade Harg. unfold made_number in Hmade.
+  intros (_ & Hnumbers & _ & Hkinded & _) Hmade Harg.
+  unfold made_number in Hmade.
   destruct p as [ | | | | | | | | | | boxed | | | | ]; try discriminate Hmade;
     (destruct arg as [y | sym | c]; try discriminate Hmade).
   - (* The number in a box. *)

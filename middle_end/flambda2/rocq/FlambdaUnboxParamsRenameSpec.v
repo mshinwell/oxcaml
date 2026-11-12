@@ -33,7 +33,8 @@
 
    FlambdaUnboxParamsSpec.unbox_known_params goes through a term
    carrying what is known of its variables (the blocks and the wrapped
-   numbers of FlambdaBlockLoadSpec.v and FlambdaUnboxSpec.v), compares
+   numbers of FlambdaBlockLoadSpec.v and FlambdaUnboxSpec.v, and the
+   reads of boxes in the form of FlambdaCseSpec.v), compares
    names by equality only, and binds no name that the term has not got:
    the variable that becomes a parameter was bound by the [Let] that
    goes. So it commutes with the renamings of FlambdaNominalSpec.v, in
@@ -72,15 +73,15 @@
 From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaPrimitiveModel
-  FlambdaNominalSpec FlambdaBlockLoadSpec FlambdaUnboxSpec
+  FlambdaNominalSpec FlambdaBlockLoadSpec FlambdaUnboxSpec FlambdaCseSpec
   FlambdaValidatorEquivarianceSpec FlambdaUnboxParamsSpec.
 Import ListNotations.
 
-(* What is known is renamed as the two passes that keep it rename
-   it. *)
+(* What is known is renamed as the passes that keep it rename it. *)
 Definition rename_facts (r : renaming) (known : facts) : facts :=
   Facts (rename_known_blocks r (facts_blocks known))
-    (rename_known_numbers r (facts_numbers known)).
+    (rename_known_numbers r (facts_numbers known))
+    (rename_computed r (facts_reads known)).
 
 Definition projection_of_equivariant_statement : Prop :=
   ∀ (r : renaming) (known : facts) (p : unary_primitive) (arg : simple),

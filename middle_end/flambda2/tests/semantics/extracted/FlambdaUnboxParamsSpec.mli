@@ -2,6 +2,7 @@ open BinNums
 open BinPos
 open Datatypes
 open FlambdaBlockLoadSpec
+open FlambdaCseSpec
 open FlambdaKindModel
 open FlambdaMapSpec
 open FlambdaModel
@@ -12,20 +13,23 @@ open List
 open ListDef
 open PeanoNat
 
+val reads_a_box : unary_primitive -> bool
+
 type facts =
   { facts_blocks : known_blocks;
-    facts_numbers : known_numbers
+    facts_numbers : known_numbers;
+    facts_reads : computed
   }
 
 val no_facts : facts
+
+val reads_under_let : computed -> variable -> named -> computed
 
 val facts_under_let : facts -> variable -> named -> facts
 
 val facts_under_statics : facts -> static_binding list -> facts
 
 val facts_under_params : facts -> variable list -> facts
-
-val reads_a_box : unary_primitive -> bool
 
 val projection_of : facts -> unary_primitive -> simple -> simple option
 

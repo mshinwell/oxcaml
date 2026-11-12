@@ -51,7 +51,8 @@ From OxCamlFlambda2 Require Import FlambdaKindModel FlambdaModel FlambdaMapSpec
   FlambdaBlockLoadProofs FlambdaUnboxSpec FlambdaValidatorEquivarianceSpec
   FlambdaScopedProofs FlambdaKeepsScopeProofs FlambdaSemanticsSpec
   FlambdaUnusedContsSpec FlambdaCompareSpec FlambdaCompareAlphaSpec
-  FlambdaCompareAlphaProofs FlambdaUnboxParamsSpec FlambdaUnboxParamsProofs
+  FlambdaCompareAlphaProofs FlambdaCseSpec FlambdaCseProofs
+  FlambdaUnboxParamsSpec FlambdaUnboxParamsProofs
   FlambdaUnboxParamsRenameSpec FlambdaUnboxVariantsSpec
   FlambdaUnboxVariantsProofs FlambdaUnboxVariantsRenameSpec.
 Import ListNotations.
@@ -142,14 +143,31 @@ Hypothesis unbox_known_named_equivariant :
 (* What is known                                                            *)
 (* ======================================================================== *)
 
+(* The reads known under a [Let] are renamed with it. *)
+Lemma reads_under_let_renamed (r : renaming) (known : computed)
+    (x : variable) (d : named) :
+  reads_under_let (rename_computed r known) (rename_variable r x)
+    (rename_named r d)
+  = rename_computed r (reads_under_let known x d).
+Proof.
+  unfold reads_under_let. rewrite forget_computed_renamed.
+  destruct d as [s | p args | | | | | ]; try reflexivity.
+  destruct p as [p | | | ]; try reflexivity.
+  destruct args as [ | [y | sym | c] [ | arg args]]; try reflexivity.
+  cbn [rename_named map rename_simple]. rewrite rename_variable_eqb.
+  destruct (reads_a_box p && negb (Pos.eqb x y)); reflexivity.
+Qed.
+
 Lemma facts_under_let_equivariant (r : renaming) (known : facts)
     (x : variable) (d : named) :
   facts_under_let (rename_facts r known) (rename_variable r x)
     (rename_named r d)
   = rename_facts r (facts_under_let known x d).
 Proof.
-  unfold facts_under_let, rename_facts. simpl.
-  rewrite known_under_let_equivariant, numbers_under_let_equivariant.
+  unfold facts_under_let, rename_facts.
+  cbn [facts_blocks facts_numbers facts_reads].
+  rewrite known_under_let_equivariant, numbers_under_let_equivariant,
+    reads_under_let_renamed.
   reflexivity.
 Qed.
 
@@ -159,7 +177,8 @@ Lemma facts_under_statics_equivariant (r : renaming) (known : facts)
     (map (rename_static_binding r) bindings)
   = rename_facts r (facts_under_statics known bindings).
 Proof.
-  unfold facts_under_statics, rename_facts. simpl.
+  unfold facts_under_statics, rename_facts.
+  cbn [facts_blocks facts_numbers facts_reads].
   rewrite known_under_statics_equivariant, numbers_under_statics_equivariant.
   reflexivity.
 Qed.
@@ -169,8 +188,10 @@ Lemma facts_under_params_equivariant (r : renaming) (known : facts)
   facts_under_params (rename_facts r known) (map (rename_variable r) params)
   = rename_facts r (facts_under_params known params).
 Proof.
-  unfold facts_under_params, rename_facts. simpl.
-  rewrite forget_vars_equivariant, forget_wrapped_vars_equivariant.
+  unfold facts_under_params, rename_facts.
+  cbn [facts_blocks facts_numbers facts_reads].
+  rewrite forget_vars_equivariant, forget_wrapped_vars_equivariant,
+    forget_computed_vars_renamed.
   reflexivity.
 Qed.
 
@@ -184,15 +205,21 @@ Proof.
   destruct (reads_a_box p); [ | reflexivity ].
   change (Prim (Unary p) [rename_simple r arg])
     with (rename_named r (Prim (Unary p) [arg])).
-  cbn [rename_facts facts_blocks facts_numbers].
+  cbn [rename_facts facts_blocks facts_numbers facts_reads].
   rewrite fold_named_equivariant, load_known_named_equivariant,
     unbox_known_named_equivariant.
+  pose proof (computed_by_renamed r (facts_reads known) (Unary p) [arg])
+    as Hby.
+  cbn [map] in Hby.
   destruct (fold_named (Prim (Unary p) [arg])); try reflexivity;
     (destruct (load_known_named (facts_blocks known) (Prim (Unary p) [arg]));
      try reflexivity;
      (destruct
         (unbox_known_named (facts_numbers known) (Prim (Unary p) [arg]));
-      reflexivity)).
+      try reflexivity;
+      (cbn [rename_named]; rewrite Hby;
+       destruct (computed_by (facts_reads known) (Unary p) [arg]);
+       reflexivity))).
 Qed.
 
 Lemma extend_args_equivariant (r : renaming) (known : facts) (i : nat)
@@ -1277,9 +1304,53 @@ End Renamed.
 
 (* What is known holds variables that are free in the term or bound
    around the subterm. *)
+Definition reads_within (names : list variable) (known : computed)
+    : Prop :=
+  ∀ entry : variable * (prim * list simple),
+    entry ∈ known -> fst entry ∈ names.
+
 Definition facts_within (names : list variable) (known : facts) : Prop :=
   blocks_within names (facts_blocks known)
-  ∧ numbers_within names (facts_numbers known).
+  ∧ numbers_within names (facts_numbers known)
+  ∧ reads_within names (facts_reads known).
+
+Lemma forget_computed_within (names : list variable) (x : variable)
+    (known : computed) :
+  reads_within names known -> reads_within names (forget_computed x known).
+Proof.
+  intros Hreads entry Hin. unfold forget_computed in Hin.
+  apply filter_In in Hin. exact (Hreads entry (proj1 Hin)).
+Qed.
+
+Lemma forget_computed_vars_within (names : list variable)
+    (xs : list variable) :
+  ∀ known : computed,
+    reads_within names known ->
+    reads_within names (forget_computed_vars xs known).
+Proof.
+  induction xs as [ | x xs IH]; intros known Hreads; simpl;
+    [ exact Hreads | apply IH, forget_computed_within, Hreads ].
+Qed.
+
+Lemma reads_under_let_within (names : list variable) (known : computed)
+    (x : variable) (d : named) :
+  reads_within names known ->
+  reads_within (x :: names ++ free_variables_of_named d)
+    (reads_under_let known x d).
+Proof.
+  intros Hreads.
+  assert (Hforgot :
+    reads_within (x :: names ++ free_variables_of_named d)
+      (forget_computed x known)).
+  { intros entry Hin. right. apply in_or_app. left.
+    exact (forget_computed_within names x known Hreads entry Hin). }
+  unfold reads_under_let.
+  destruct d as [s | p args | | | | | ]; try exact Hforgot.
+  destruct p as [p | | | ]; try exact Hforgot.
+  destruct args as [ | [y | sym | c] [ | arg args]]; try exact Hforgot.
+  destruct (reads_a_box p && negb (Pos.eqb x y)); [ | exact Hforgot ].
+  intros entry [<- | Hin]; [ left; reflexivity | exact (Hforgot entry Hin) ].
+Qed.
 
 Lemma facts_under_let_within (names : list variable) (known : facts)
     (x : variable) (d : named) :
@@ -1287,10 +1358,11 @@ Lemma facts_under_let_within (names : list variable) (known : facts)
   facts_within (x :: names ++ free_variables_of_named d)
     (facts_under_let known x d).
 Proof.
-  intros [Hblocks Hnumbers].
+  intros (Hblocks & Hnumbers & Hreads).
+  split; [ apply known_under_let_within, Hblocks | ].
   split;
-    [ apply known_under_let_within, Hblocks
-    | apply numbers_under_let_within, Hnumbers ].
+    [ apply numbers_under_let_within, Hnumbers
+    | apply reads_under_let_within, Hreads ].
 Qed.
 
 Lemma facts_under_statics_within (names : list variable) (known : facts)
@@ -1299,11 +1371,12 @@ Lemma facts_under_statics_within (names : list variable) (known : facts)
   facts_within (names ++ flat_map free_variables_of_binding bindings)
     (facts_under_statics known bindings).
 Proof.
-  intros [Hblocks Hnumbers].
-  split; [ apply known_under_statics_within, Hblocks | ].
-  intros entry Hentry.
-  eapply incl_tran; [ exact (Hnumbers entry Hentry) | ].
-  apply incl_appl, incl_refl.
+  intros (Hblocks & Hnumbers & Hreads).
+  split; [ apply known_under_statics_within, Hblocks | split ].
+  - intros entry Hentry.
+    eapply incl_tran; [ exact (Hnumbers entry Hentry) | ].
+    apply incl_appl, incl_refl.
+  - intros entry Hentry. apply in_or_app. left. exact (Hreads entry Hentry).
 Qed.
 
 Lemma facts_under_params_within (names : list variable) (known : facts)
@@ -1311,10 +1384,11 @@ Lemma facts_under_params_within (names : list variable) (known : facts)
   facts_within names known ->
   facts_within names (facts_under_params known params).
 Proof.
-  intros [Hblocks Hnumbers].
+  intros (Hblocks & Hnumbers & Hreads).
+  split; [ apply forget_vars_within, Hblocks | ].
   split;
-    [ apply forget_vars_within, Hblocks
-    | apply forget_wrapped_vars_within, Hnumbers ].
+    [ apply forget_wrapped_vars_within, Hnumbers
+    | apply forget_computed_vars_within, Hreads ].
 Qed.
 
 (* What an application is given is of the argument or of what is
@@ -1326,7 +1400,7 @@ Lemma projection_of_free (names : list variable) (known : facts)
   incl (free_variables_of_simple projection)
     (free_variables_of_simple arg ++ names).
 Proof.
-  intros [Hblocks Hnumbers]. unfold projection_of. cbv zeta.
+  intros (Hblocks & Hnumbers & Hreads). unfold projection_of. cbv zeta.
   destruct (reads_a_box p); [ | discriminate ].
   remember (Prim (Unary p) [arg]) as d eqn:Hd.
   assert (Hfree : free_variables_of_named d = free_variables_of_simple arg).
@@ -1343,7 +1417,12 @@ Proof.
     (destruct (load_known_named (facts_blocks known) d);
      [ intros [= <-]; exact Hload | .. ];
      (destruct (unbox_known_named (facts_numbers known) d);
-      [ intros [= <-]; exact Hunbox | discriminate .. ])).
+      [ intros [= <-]; exact Hunbox | .. ];
+      (destruct (computed_by (facts_reads known) (Unary p) [arg])
+         as [x | ] eqn:Hby;
+       [ intros [= <-] z [<- | []]; apply in_or_app; right;
+         exact (Hreads _ (computed_by_sound _ _ _ _ Hby))
+       | discriminate ]))).
 Qed.
 
 Lemma extend_apply_cont_free (names : list variable) (known : facts)
@@ -1675,7 +1754,7 @@ Theorem unbox_known_params_keeps_scope :
 Proof.
   apply keeps_scope_intro. intros e.
   apply scoped_under_none, unbox_params_knowing_scoped.
-  split; [ split; intros entry [] | intros entry [] ].
+  split; [ split; intros entry [] | split; intros entry [] ].
 Qed.
 
 (* ======================================================================== *)
@@ -1981,7 +2060,7 @@ Lemma made_number_free (names : list variable) (known : facts)
   made_number known p kind arg = Some projection ->
   incl (free_variables_of_simple projection) names.
 Proof.
-  intros [_ Hnumbers] Hmade. unfold made_number in Hmade.
+  intros (_ & Hnumbers & _) Hmade. unfold made_number in Hmade.
   destruct p as [ | | | | | | | | | | boxed | | | | ]; try discriminate Hmade;
     (destruct arg as [y | sym | c]; try discriminate Hmade).
   - destruct (unwrapped (facts_numbers known) (Boxed boxed) (Var y))
@@ -2266,5 +2345,5 @@ Theorem unbox_variant_params_keeps_scope :
 Proof.
   apply keeps_scope_intro. intros e.
   apply scoped_under_none, unbox_variants_knowing_scoped.
-  split; [ split; intros entry [] | intros entry [] ].
+  split; [ split; intros entry [] | split; intros entry [] ].
 Qed.

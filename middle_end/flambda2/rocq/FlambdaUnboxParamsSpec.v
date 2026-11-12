@@ -64,8 +64,8 @@
    last; and it gives every application of the continuation in the
    body of the [Let_cont] one more argument, the last: what the
    primitive is known to give of the argument that the application has
-   for [x] ([projection_of]). That is known in three ways, each a
-   function of another file, where the conditions are:
+   for [x] ([projection_of]). That is known in four ways, the first
+   three each a function of another file, where the conditions are:
    - the argument is a variable bound by a [Let] to a [Make_block], or
      a symbol bound to a static block
      (FlambdaBlockLoadSpec.load_known_named): a load gives what the
@@ -76,7 +76,19 @@
      untagging gives what was wrapped;
    - the argument is a constant on which the primitive has a value
      that is a constant (FlambdaNormaliseSpec.fold_named): [Is_int] of
-     a tagged immediate, an untagging.
+     a tagged immediate, an untagging;
+   - the argument is a variable, and a [Let] in scope has bound a
+     variable to the same primitive applied to it, neither having been
+     bound again since ([reads_under_let], looked up by
+     FlambdaCseSpec.computed_by): the argument given is that variable.
+     So an application that gives a box which the term has already
+     read, a parameter of the function that it has unboxed for a
+     comparison, gives what was read. Simplify does the same: where it
+     simplifies the read it makes the type of the box say what was
+     read ([Simplify_unary_primitive.simplify_unbox_number] and the
+     others, by [Simplify_common.simplify_projection]), and the
+     argument for the new parameter is then in scope
+     ([Unboxing_epa.unbox_arg], [Known_result]).
    Then it does the same for the [Let] that the handler now begins
    with ([unbox_heads]), so a handler that begins by reading several
    fields of a parameter, or a field of a field, has them all made
@@ -86,7 +98,7 @@
 
    What stops it, for one [Let] and those after it:
    - an application of the continuation whose argument is not known in
-     one of the three ways. No [Let] is added at an application: the
+     one of the four ways. No [Let] is added at an application: the
      pass makes no name, and an arm of a [Switch] has no place for
      one. So a parameter that some application gives a value from
      elsewhere (a parameter of the function, the result of a call) is
@@ -113,8 +125,8 @@
    name by another [Let_cont] is an application of that other
    continuation and is left alone ([extend_applications] stops there).
    What is known of a variable is forgotten under a binder of it, as in
-   the two files that say what is known. Nothing is asked of the names
-   of the term.
+   the files that say what is known. Nothing is asked of the names of
+   the term.
 
    The result refines the term ([unbox_known_params_refines_statement]),
    under all environments. It is not claimed to be equivalent to it,
@@ -154,41 +166,11 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaKindModel FlambdaModel
   FlambdaMapSpec FlambdaPrimitiveModel FlambdaPrimitiveSpec
   FlambdaSemanticsSpec FlambdaNormaliseSpec FlambdaBlockLoadSpec
-  FlambdaUnboxSpec.
+  FlambdaUnboxSpec FlambdaCseSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
 (* What is known                                                            *)
-(* ======================================================================== *)
-
-(* What is known from the term of the blocks and of the wrapped numbers
-   in scope: what FlambdaBlockLoadSpec.v and FlambdaUnboxSpec.v keep. *)
-Record facts : Type := Facts {
-  facts_blocks : known_blocks;
-  facts_numbers : known_numbers
-}.
-
-Definition no_facts : facts := Facts no_blocks no_numbers.
-
-(* What is known in the body of a [Let], in that of a [Let_static], and
-   in a handler, whose parameters are binders. *)
-Definition facts_under_let (known : facts) (x : variable) (d : named)
-    : facts :=
-  Facts (known_under_let (facts_blocks known) x d)
-    (numbers_under_let (facts_numbers known) x d).
-
-Definition facts_under_statics (known : facts)
-    (bindings : list static_binding) : facts :=
-  Facts (known_under_statics (facts_blocks known) bindings)
-    (numbers_under_statics (facts_numbers known) bindings).
-
-Definition facts_under_params (known : facts) (params : list variable)
-    : facts :=
-  Facts (forget_vars params (facts_blocks known))
-    (forget_wrapped_vars params (facts_numbers known)).
-
-(* ======================================================================== *)
-(* What reading a box gives                                                 *)
 (* ======================================================================== *)
 
 (* The primitives by which a handler reads a parameter that Simplify
@@ -205,9 +187,64 @@ Definition reads_a_box (p : unary_primitive) : bool :=
     false
   end.
 
+(* What is known from the term of the blocks and of the wrapped numbers
+   in scope: what FlambdaBlockLoadSpec.v and FlambdaUnboxSpec.v keep;
+   and the reads of boxes that the [Let]s in scope have made: the
+   variables bound to a primitive that reads a box, applied to a
+   variable, each with the primitive and that variable, in the form in
+   which FlambdaCseSpec.v keeps what is computed. *)
+Record facts : Type := Facts {
+  facts_blocks : known_blocks;
+  facts_numbers : known_numbers;
+  facts_reads : computed
+}.
+
+Definition no_facts : facts := Facts no_blocks no_numbers [].
+
+(* The reads known in the body of a [Let] of [x] to [d]: none that
+   mentions the old [x], and that the new one is the read that [d]
+   makes, if [d] is a primitive that reads a box applied to a variable
+   other than [x]. *)
+Definition reads_under_let (known : computed) (x : variable) (d : named)
+    : computed :=
+  let known := forget_computed x known in
+  match d with
+  | Prim (Unary p) [Var y] =>
+    if reads_a_box p && negb (Pos.eqb x y)
+    then (x, (Unary p, [Var y])) :: known
+    else known
+  | _ => known
+  end.
+
+(* What is known in the body of a [Let], in that of a [Let_static], and
+   in a handler, whose parameters are binders. *)
+Definition facts_under_let (known : facts) (x : variable) (d : named)
+    : facts :=
+  Facts (known_under_let (facts_blocks known) x d)
+    (numbers_under_let (facts_numbers known) x d)
+    (reads_under_let (facts_reads known) x d).
+
+Definition facts_under_statics (known : facts)
+    (bindings : list static_binding) : facts :=
+  Facts (known_under_statics (facts_blocks known) bindings)
+    (numbers_under_statics (facts_numbers known) bindings)
+    (facts_reads known).
+
+Definition facts_under_params (known : facts) (params : list variable)
+    : facts :=
+  Facts (forget_vars params (facts_blocks known))
+    (forget_wrapped_vars params (facts_numbers known))
+    (forget_computed_vars params (facts_reads known)).
+
+(* ======================================================================== *)
+(* What reading a box gives                                                 *)
+(* ======================================================================== *)
+
 (* What such a primitive applied to an argument is known to give, where
-   the term alone says it: by a constant argument, by a known block, or
-   by a known wrapped number. *)
+   the term alone says it: by a constant argument, by a known block, by
+   a known wrapped number, or, where none of these says, by a [Let] in
+   scope that has made the same read of the argument, whose variable is
+   then given. *)
 Definition projection_of (known : facts) (p : unary_primitive)
     (arg : simple) : option simple :=
   if reads_a_box p
@@ -221,7 +258,8 @@ Definition projection_of (known : facts) (p : unary_primitive)
       | _ =>
         match unbox_known_named (facts_numbers known) d with
         | Simple s => Some s
-        | _ => None
+        | _ =>
+          option_map Var (computed_by (facts_reads known) (Unary p) [arg])
         end
       end
     end
