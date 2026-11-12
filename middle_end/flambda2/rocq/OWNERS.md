@@ -457,6 +457,11 @@ Owner: N1.
 - `middle_end/flambda2/rocq/FlambdaHeapEquivariance*` (N1's, though the
   name matches the pattern of the heap's files: the renamings of
   variables and continuations on the machine with a heap)
+- `middle_end/flambda2/types/rocq/FlambdaEnvRenameJoinTypesProofs.v`
+  (N1's, though it is in the types library and its name matches the
+  pattern of N3's files on the join under renaming: lemmas only, the
+  traversal of types of the join on renamed arguments, which N3's
+  proofs of the join of environments import)
 - `middle_end/flambda2/rocq/NAMES.md`
 
 ## N2: the freshness quantifier
