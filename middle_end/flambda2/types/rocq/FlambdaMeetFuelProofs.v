@@ -524,6 +524,215 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
+(* A name that the environment does not know                                *)
+(* ======================================================================== *)
+
+Lemma mem_same (tenv tenv' : Typing_env.t) (n : name) :
+  Keyed.lookup name_eqb n (Typing_env.names_to_types tenv')
+  = Keyed.lookup name_eqb n (Typing_env.names_to_types tenv) ->
+  Typing_env.defined_symbols tenv' = Typing_env.defined_symbols tenv ->
+  Typing_env.mem None tenv' n = Typing_env.mem None tenv n.
+Proof.
+  intros Hlookup Hsymbols. unfold Typing_env.mem. destruct n as [ x | sym ].
+  - rewrite Hlookup.
+    destruct (Keyed.lookup name_eqb (Name_var x)
+                (Typing_env.names_to_types tenv))
+      as [ [ty binding_time_and_mode] | ]; reflexivity.
+  - rewrite Hsymbols. reflexivity.
+Qed.
+
+(* The type of a name that an environment does not know cannot be
+   read, there or in an environment that has the same for the name. *)
+Lemma find_unknown (tenv tenv' : Typing_env.t) (n : name) (k : flambda_kind) :
+  typing_env_invariant tenv ->
+  Typing_env.mem None tenv n = false ->
+  Keyed.lookup name_eqb n (Typing_env.names_to_types tenv')
+  = Keyed.lookup name_eqb n (Typing_env.names_to_types tenv) ->
+  Typing_env.defined_symbols tenv' = Typing_env.defined_symbols tenv ->
+  Typing_env.find tenv' n (Some k) = None.
+Proof.
+  intros Hinvariant Hunknown Hlookup Hsymbols.
+  destruct (Typing_env.find tenv' n (Some k)) as [ ty | ] eqn:Hfind;
+    [ | reflexivity ].
+  exfalso.
+  assert (Hkind := simple_of_kind_of_find tenv' n k ty Hfind).
+  apply simple_of_kind_name in Hkind.
+  destruct Hkind as [ (ty0 & binding_time_and_mode & Hfound & _)
+                    | (_ & Hmem & _) ].
+  - rewrite Hlookup in Hfound.
+    assert (Hkind0 : simple_of_kind tenv (simple_of_name n) (kind ty0)).
+    { apply simple_of_kind_name. left. exists ty0, binding_time_and_mode.
+      split; [ exact Hfound | reflexivity ]. }
+    rewrite (simple_of_kind_mem tenv n _ Hinvariant Hkind0) in Hunknown.
+    discriminate Hunknown.
+  - rewrite (mem_same tenv tenv' n Hlookup Hsymbols) in Hmem.
+    rewrite Hmem in Hunknown. discriminate Hunknown.
+Qed.
+
+(* A name that the environment does not know is canonical. *)
+Lemma unknown_canonical (tenv : Typing_env.t) (n : name) :
+  typing_env_invariant tenv ->
+  Typing_env.mem None tenv n = false ->
+  is_canonical (Typing_env.aliases tenv) (simple_of_name n).
+Proof.
+  intros Hinvariant Hunknown.
+  destruct (canonical_cases (Typing_env.aliases tenv) (simple_of_name n))
+    as [ [H _] | (n' & canonical_element & Heq & Hdemoted & _) ];
+    [ exact H | ].
+  apply simple_of_name_inj in Heq. subst n'.
+  rewrite (proj1 (invariant_aliases_known tenv Hinvariant n canonical_element
+                    Hdemoted)) in Hunknown.
+  discriminate Hunknown.
+Qed.
+
+Section Unknown.
+
+Variable mh : meet_expanded_head.
+
+(* No equation is added to a canonical name that the environment does
+   not know: the type of the name cannot be read. *)
+Lemma add_or_delay_on_unknown (tenv : Typing_env.t) (menv : Meet_env.t)
+    (n : name) (expanded : Expanded_type.t) :
+  typing_env_invariant tenv ->
+  Typing_env.mem None tenv n = false ->
+  Keyed.among name_eqb n (Meet_env.adding_equations_for_names menv) = false ->
+  Keyed.lookup name_eqb n
+    (Typing_env.names_to_types (Meet_env.typing_env menv))
+  = Keyed.lookup name_eqb n (Typing_env.names_to_types tenv) ->
+  Typing_env.defined_symbols (Meet_env.typing_env menv)
+  = Typing_env.defined_symbols tenv ->
+  Meet_env.add_or_delay_concrete_equation_on_canonical true menv
+    (simple_of_name n) expanded mh
+  = None.
+Proof.
+  intros Hinvariant Hunknown Hnot_adding Hlookup Hsymbols.
+  assert (Hname :
+    Meet_env.add_or_delay_concrete_equation_on_canonical_name true menv n
+      expanded mh
+    = None).
+  { unfold Meet_env.add_or_delay_concrete_equation_on_canonical_name.
+    rewrite Hnot_adding.
+    unfold Meet_env.adding_equation_for_name,
+      Meet_env.add_concrete_equation_on_canonical_name.
+    cbn [Meet_env.typing_env].
+    rewrite (find_unknown tenv _ n _ Hinvariant Hunknown Hlookup Hsymbols).
+    reflexivity. }
+  destruct n as [ x | sym ]; exact Hname.
+Qed.
+
+(* Making a name that the environment does not know an alias of a
+   canonical element: nothing is done, or the two are different
+   constants, which they are not. *)
+Lemma add_alias_between_canonicals_unknown (menv : Meet_env.t)
+    (k : flambda_kind) (n : name) (c2 : simple)
+    (result : Or_bottom.t Meet_env.t) :
+  let tenv := Meet_env.typing_env menv in
+  typing_env_invariant tenv ->
+  Typing_env.mem None tenv n = false ->
+  Keyed.among name_eqb n (Meet_env.adding_equations_for_names menv) = false ->
+  is_canonical (Typing_env.aliases tenv) c2 ->
+  Meet_env.add_alias_between_canonicals true menv k (simple_of_name n) c2 mh
+  = Some result ->
+  result = Or_bottom.Ok menv
+  ∨ (result = Or_bottom.Bottom
+     ∧ Typing_env.add_alias tenv (simple_of_name n) c2 = Some Bottom).
+Proof.
+  intros tenv Hinvariant Hunknown Hnot_adding Hc2 Hadd.
+  unfold Meet_env.add_alias_between_canonicals in Hadd. fold tenv in Hadd.
+  destruct (simple_equal (simple_of_name n) c2) eqn:Hsame.
+  { left. injection Hadd as <-. reflexivity. }
+  destruct (Typing_env.add_alias tenv (simple_of_name n) c2)
+    as [ [ | result0 | ] | ] eqn:Halias; [ | | | discriminate Hadd ].
+  - left. injection Hadd as <-. reflexivity.
+  - exfalso. cbv beta iota in Hadd.
+    assert (Hc1 := unknown_canonical tenv n Hinvariant Hunknown).
+    assert (Hdifferent : simple_of_name n <> c2).
+    { intros Heq. apply simple_equal_eq in Heq. rewrite Heq in Hsame.
+      discriminate Hsame. }
+    destruct (add_alias_demoted tenv _ _ result0 Halias Hinvariant Hc1 Hc2
+                Hdifferent) as [Hwhich _].
+    destruct (add_alias_frame tenv _ _ result0 Halias)
+      as (_ & Hsymbols & _ & _ & Hnames & _).
+    set (tenv1 := Typing_env.add_alias_result_t result0) in *.
+    unfold Meet_env.record_demotion in Hadd.
+    cbn [Meet_env.typing_env Meet_env.with_typing_env] in Hadd.
+    destruct Hwhich as [ [Hcanonical Hdemoted] | [Hcanonical Hdemoted] ].
+    + destruct (Typing_env.find tenv1 (Typing_env.demoted_name result0)
+                  (Some k)) as [ ty_of_demoted | ];
+        [ | discriminate Hadd ].
+      cbv beta iota zeta in Hadd.
+      destruct (expand_head0 _ ty_of_demoted _) as [ expanded | ];
+        [ | discriminate Hadd ].
+      cbv beta iota in Hadd. rewrite Hcanonical in Hadd.
+      rewrite (add_or_delay_on_unknown tenv _ n expanded Hinvariant Hunknown)
+        in Hadd; [ discriminate Hadd | exact Hnot_adding | | ].
+      * cbn [Meet_env.typing_env Meet_env.map_typing_env
+               Meet_env.with_typing_env].
+        rewrite replace_equation_lookup_other;
+          [ rewrite Hnames; reflexivity | ].
+        intros Heq. apply Hdifferent. rewrite Heq. exact Hdemoted.
+      * cbn [Meet_env.typing_env Meet_env.map_typing_env
+               Meet_env.with_typing_env].
+        rewrite (proj1 (replace_equation_frame tenv1 _ _)). exact Hsymbols.
+    + apply simple_of_name_inj in Hdemoted. rewrite Hdemoted in Hadd.
+      rewrite (find_unknown tenv tenv1 n k Hinvariant Hunknown
+                 (f_equal (Keyed.lookup name_eqb n) Hnames) Hsymbols)
+        in Hadd.
+      discriminate Hadd.
+  - right. injection Hadd as <-. split; reflexivity.
+Qed.
+
+(* Adding an equation on a name that the environment does not know:
+   nothing is done, or the type is an alias and the name and what it
+   is an alias of are different constants. *)
+Lemma add_equation0_unknown (menv : Meet_env.t) (n : name)
+    (ty : flambda_type) (result : Or_bottom.t Meet_env.t) :
+  let tenv := Meet_env.typing_env menv in
+  meet_expanded_head_other_kinds mh ->
+  typing_env_fits tenv ->
+  type_fits tenv ty ->
+  Typing_env.mem None tenv n = false ->
+  Keyed.among name_eqb n (Meet_env.adding_equations_for_names menv) = false ->
+  Meet_env.add_equation0 true menv n ty mh = Some result ->
+  result = Or_bottom.Ok menv
+  ∨ (result = Or_bottom.Bottom
+     ∧ ∃ alias : simple,
+         get_alias_opt ty = Some alias
+         ∧ Typing_env.add_alias tenv (simple_of_name n)
+             (Typing_env.get_canonical_simple_ignoring_name_mode tenv alias)
+           = Some Bottom).
+Proof.
+  intros tenv Hother Hfits Hty Hunknown Hnot_adding Hadd.
+  assert (Hinvariant := proj1 Hfits).
+  assert (Hcanonical :
+    Typing_env.get_canonical_simple_ignoring_name_mode tenv (simple_of_name n)
+    = simple_of_name n).
+  { rewrite get_canonical_simple_ignoring_name_mode_eq.
+    apply canonical_element_of_canonical.
+    exact (unknown_canonical tenv n Hinvariant Hunknown). }
+  destruct (get_alias_opt ty) as [ alias | ] eqn:Halias.
+  - unfold Meet_env.add_equation0, Meet_env.add_equation_on_simple0 in Hadd.
+    rewrite Halias in Hadd. fold tenv in Hadd. rewrite Hcanonical in Hadd.
+    destruct (alias_canonical_of_kind tenv ty alias Hfits Hty Halias)
+      as [Hc2 _].
+    destruct (add_alias_between_canonicals_unknown menv (kind ty) n _ result
+                Hinvariant Hunknown Hnot_adding Hc2 Hadd)
+      as [ -> | [-> Hbottom] ].
+    + left. reflexivity.
+    + right. split; [ reflexivity | ]. exists alias.
+      split; [ reflexivity | exact Hbottom ].
+  - destruct (add_equation0_kind_cases mh Hother menv n ty result Hfits Halias
+                Hadd) as [ Hkind | [ -> | (_ & c & Hcan & _) ] ].
+    + rewrite (simple_of_kind_mem tenv n _ Hinvariant Hkind) in Hunknown.
+      discriminate Hunknown.
+    + left. reflexivity.
+    + fold tenv in Hcan. rewrite Hcanonical in Hcan.
+      destruct n; discriminate Hcan.
+Qed.
+
+End Unknown.
+
+(* ======================================================================== *)
 (* Adding to a typing environment                                           *)
 (* ======================================================================== *)
 
@@ -560,19 +769,34 @@ Proof.
   intros join choices fuel Hkeeps Hsound.
   set (mh := Meet.meet_expanded_head join choices fuel) in *.
   split; [ | split ].
-  - intros statics valuation tenv tenv' n ty v Hfits Hty Hmem Hstatics
-      Hsatisfied Hvalue Hv Hadd.
+  - intros statics valuation tenv tenv' n ty v Hfits Hty Hstatics Hsatisfied
+      Hvalue Hv Hadd.
     unfold Flambda2_types.add_equation, Meet_env.use_meet_env in Hadd.
     fold mh in Hadd.
     destruct (Meet_env.add_equation (Meet_env.create tenv) n ty mh)
       as [ menv' | ] eqn:Hadd'; [ | discriminate Hadd ].
     cbn in Hadd. injection Hadd as <-.
-    assert (Hkind :=
-      known_name_of_kind statics valuation tenv n ty v Hsatisfied Hmem Hvalue
-        Hv).
-    exact (meet_env_add_equation_sound mh statics valuation
-             (Meet_env.create tenv) menv' n ty v Hkeeps Hsound Hfits Hty Hkind
-             Hstatics Hsatisfied Hvalue Hv Hadd').
+    destruct (Typing_env.mem None tenv n) eqn:Hmem.
+    + assert (Hkind :=
+        known_name_of_kind statics valuation tenv n ty v Hsatisfied Hmem
+          Hvalue Hv).
+      exact (meet_env_add_equation_sound mh statics valuation
+               (Meet_env.create tenv) menv' n ty v Hkeeps Hsound Hfits Hty
+               Hkind Hstatics Hsatisfied Hvalue Hv Hadd').
+    + unfold Meet_env.add_equation in Hadd'.
+      destruct (Meet_env.add_equation0 true (Meet_env.create tenv) n ty mh)
+        as [ result | ] eqn:Hadd0; [ | discriminate Hadd' ].
+      destruct (add_equation0_unknown mh (Meet_env.create tenv) n ty result
+                  (meet_expanded_head_fuel_other_kinds join choices fuel)
+                  Hfits Hty Hmem eq_refl Hadd0)
+        as [ -> | (-> & alias & Halias & Hbottom) ].
+      * cbn in Hadd'. injection Hadd' as <-.
+        exact (meet_env_added_refl statics valuation (Meet_env.create tenv)
+                 Hsatisfied).
+      * exfalso. apply (add_alias_bottom valuation tenv _ _ Hbottom).
+        transitivity (Some v); [ exact Hvalue | ]. symmetry.
+        exact (alias_canonical_value statics tenv ty alias valuation v
+                 Hsatisfied Halias Hv).
   - intros statics valuation tenv tenv' extension Hfits Hextension Hstatics
       Hsatisfied Htrue Hadd.
     unfold Flambda2_types.add_env_extension, Meet_env.use_meet_env in Hadd.

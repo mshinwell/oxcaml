@@ -701,10 +701,11 @@ strict satisfaction, with no other premise), `expand_head_closed`,
   `meet_contract`: done, given that the meet of two heads of kind
   value is right (`value_heads_right`: variants, row-like structures
   and closures, with the join; stated and proved apart).
+  `Typing_env.add_equation` has `add_equation_sound` and
   `Typing_env.add_env_extension` has `add_env_extension_sound`;
-  `Typing_env.add_equation` and `add_equations_on_params` have their
-  contracts for names that the environment knows, which the
-  contracts of section 2 do not suppose (there is a `CR mshinwell`).
+  `add_equations_on_params` has its contract for parameters that the
+  environment knows, which the contract of section 2 does not
+  suppose (there is a `CR mshinwell` that says why it is needed).
 - The two parameters are replaced by T1's and T2's predicates: done.
 
 For reviewers: whether a precision statement is wanted.

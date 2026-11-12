@@ -58,11 +58,12 @@
 
    - The functions that add to a typing environment
      ([typing_env_functions_sound_statement]): at such a fuel,
-     [Typing_env.add_env_extension] of flambda2_types.ml has its
-     contract of FlambdaMeetSpec.v, and [Typing_env.add_equation] and
-     [Typing_env.add_equations_on_params] have theirs for names that
-     the environment knows. The contracts of FlambdaMeetSpec.v do not
-     suppose that the name is known; what is missing is said below.
+     [Typing_env.add_equation] and [Typing_env.add_env_extension] of
+     flambda2_types.ml have their contracts of FlambdaMeetSpec.v, and
+     [Typing_env.add_equations_on_params] has its own for parameters
+     that the environment knows. The contract of FlambdaMeetSpec.v
+     does not suppose that they are known; why it is needed is said
+     below.
 
    What is not here: that some fuel is enough (a meet that runs out
    of fuel answers nothing, and the contracts say nothing of it). *)
@@ -143,39 +144,22 @@ Definition meet_to_prove_contract_statement : Prop :=
 (* Adding to a typing environment                                           *)
 (* ======================================================================== *)
 
-(* [add_equation_sound] (FlambdaMeetSpec.v) for a name that the
-   environment knows. *)
-(* CR mshinwell: the contract of FlambdaMeetSpec.v does not suppose
-   that the environment knows the name, and what is proved supposes
-   it. The statements about [Meet_env.add_equation]
-   (FlambdaMeetEnvSpec.v) suppose that the name is of the kind of the
-   type. For a name that the environment knows that follows from the
-   other premises: the name has a value, of the type given and of the
-   type that the environment has for it. For a name that it does not
-   know it does not, and the proof would be that the function does
-   not answer (it reads the type of the name); that is done where the
-   type is not an alias (FlambdaMeetImmediateProofs.v) and not where
-   it is one. Simplify adds equations on names that it has defined.
-   Either the contract takes the premise, or the case is proved. *)
-Definition add_equation_sound_where_known
-    (add_equation : add_equation_function) : Prop :=
-  ∀ (statics : static_env) (valuation : env) (tenv tenv' : Typing_env.t)
-    (n : name) (ty : flambda_type) (v : value),
-    typing_env_fits tenv ->
-    type_fits tenv ty ->
-    Typing_env.mem None tenv n = true ->
-    statics_valid statics ->
-    typing_env_satisfied_strictly statics valuation tenv ->
-    value_of_name valuation n = Some v ->
-    type_satisfied statics valuation v ty ->
-    add_equation tenv n ty = Some tenv' ->
-    ∃ valuation' : env,
-      extended_from tenv valuation valuation'
-      ∧ typing_env_satisfied_strictly statics valuation' tenv'
-      ∧ keeps_equations_valued tenv tenv' valuation valuation'.
-
 (* [add_equations_on_params_sound] (FlambdaMeetSpec.v) for parameters
    that the environment knows. *)
+(* CR mshinwell: the contract of FlambdaMeetSpec.v does not suppose
+   that the environment knows the parameters, and what is proved
+   supposes it. Without it the contract is in doubt, and not only
+   unproved: the equations are added one parameter after the other,
+   and the meet for one parameter may define a variable (the join
+   makes variables); nothing keeps it from being a later parameter
+   that the environment did not know, which then has in the valuation
+   answered the value that the join's contract gives it, and not the
+   value that the premise speaks of. Simplify defines the parameters
+   before it adds their equations. Either the contract takes the
+   premise, or it is shown that no such variable is made. For one
+   name ([Typing_env.add_equation]) the contract is proved as it is:
+   on a name that the environment does not know the function does
+   nothing, or does not answer. *)
 Definition add_equations_on_params_sound_where_known
     (add_equations_on_params : add_equations_on_params_function) : Prop :=
   ∀ (statics : static_env) (valuation : env) (tenv tenv' : Typing_env.t)
@@ -206,8 +190,7 @@ Definition typing_env_functions_sound_statement : Prop :=
   ∀ (join : join_scoped_envs) (choices : meet_choices) (fuel : nat),
     meet_expanded_head_keeps (Meet.meet_expanded_head join choices fuel) ->
     meet_expanded_head_sound (Meet.meet_expanded_head join choices fuel) ->
-    add_equation_sound_where_known
-      (Flambda2_types.add_equation join choices fuel)
+    add_equation_sound (Flambda2_types.add_equation join choices fuel)
     ∧ add_env_extension_sound
         (Flambda2_types.add_env_extension join choices fuel)
     ∧ add_equations_on_params_sound_where_known
