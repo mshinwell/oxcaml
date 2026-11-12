@@ -77,9 +77,12 @@
 
    What is said of [pair_computed] and of [int64_built]: the body
    before, after five such rounds, is the body after up to bound names
-   ([..._validated_statement]); after five rounds of today it is not
-   ([..._not_validated_today_statement]), so the pass is what was
-   missing; and the body after refines the body before, under all
+   ([..._validated_statement]); after five rounds of
+   FlambdaValidateSpec.normalise_expr_before, which has no unboxing of
+   parameters, it is not ([..._not_validated_today_statement]: the
+   statements were written before the validation ran such a pass, and
+   their names are kept), so the pass is what was missing; and the
+   body after refines the body before, under all
    environments ([..._refines_statement]), which follows from the first
    by the theorems of the passes and of the comparison.
 

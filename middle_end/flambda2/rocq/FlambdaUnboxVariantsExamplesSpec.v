@@ -131,9 +131,11 @@
    The bodies are those of the function of each source: the body
    before Simplify and the body after. They are written by hand from
    the two terms that the compiler prints ([-drawfexpr-to] and
-   [-dfexpr-to]), because the test tool does not convert the constant
-   [poison] yet. The binding of the depth variable of the code, which
+   [-dfexpr-to]). The binding of the depth variable of the code, which
    has nothing in the model, is left out; the names are numbered here.
+   The units themselves are in
+   middle_end/flambda2/tests/semantics/ocaml/ ([option_heap.ml] and the
+   others), where the validation is run on the whole of each.
 
    [round_with_variants] is
    FlambdaUnboxParamsExamplesSpec.round_with_unboxing with
@@ -142,8 +144,11 @@
 
    What is said of each body: the body before, after five such rounds,
    is the body after up to bound names ([..._validated_statement]);
-   after five rounds of today it is not
-   ([..._not_validated_today_statement]); and the body after refines
+   after five rounds of FlambdaValidateSpec.normalise_expr_before,
+   which has no unboxing of parameters, it is not
+   ([..._not_validated_today_statement]: the statements were written
+   before the validation ran the pass, and their names are kept); and
+   the body after refines
    the body before, under all environments ([..._refines_statement]),
    which follows from the first by the theorems of the passes and of
    the comparison. So the constant [poison] that Simplify gives where
@@ -156,6 +161,14 @@
    The two bodies that FlambdaUnboxParamsExamplesSpec.v validates with
    its round are validated with this one too
    ([earlier_examples_validated_statement]).
+
+   The validation runs the pass in the first phase of its
+   normalisation of the term before
+   (FlambdaValidateSpec.normalise_expr_params). Five rounds of that
+   phase take each of the seven bodies of this file to the body after,
+   and the three of the other file too, [pair_built] among them, which
+   the round of that file does not validate
+   ([bodies_validated_by_first_phase_statement]).
 
    The proofs are in FlambdaUnboxVariantsExamplesProofs.v, which needs
    no review. *)
@@ -730,3 +743,24 @@ Definition earlier_examples_validated_statement : Prop :=
   ∧ expr_eqb [] [] (iterate 5 round_with_variants int64_built_before)
       int64_built_after
     = true.
+
+(* ======================================================================== *)
+(* The round of the validation                                              *)
+(* ======================================================================== *)
+
+(* Five rounds of the first phase of the validation, which has the
+   pass, take the body before to the body after, up to bound names. *)
+Definition validated_by_first_phase (before after : expr) : Prop :=
+  expr_eqb [] [] (iterate 5 normalise_expr_params before) after = true.
+
+Definition bodies_validated_by_first_phase_statement : Prop :=
+  validated_by_first_phase option_heap_before option_heap_after
+  ∧ validated_by_first_phase list_heap_before list_heap_after
+  ∧ validated_by_first_phase shape_heap_before shape_heap_after
+  ∧ validated_by_first_phase shape2_heap_before shape2_heap_after
+  ∧ validated_by_first_phase nested_heap_before nested_heap_after
+  ∧ validated_by_first_phase either_heap_before either_heap_after
+  ∧ validated_by_first_phase int64_option_heap_before int64_option_heap_after
+  ∧ validated_by_first_phase pair_computed_before pair_computed_after
+  ∧ validated_by_first_phase int64_built_before int64_built_after
+  ∧ validated_by_first_phase pair_built_before pair_built_after.

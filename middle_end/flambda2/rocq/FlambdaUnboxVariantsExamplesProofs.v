@@ -150,3 +150,7 @@ Proof. exact (validated_refines 5 _ _ int64_option_heap_validated). Qed.
 
 Theorem earlier_examples_validated : earlier_examples_validated_statement.
 Proof. split; vm_compute; reflexivity. Qed.
+
+Theorem bodies_validated_by_first_phase :
+  bodies_validated_by_first_phase_statement.
+Proof. repeat split; vm_compute; reflexivity. Qed.
