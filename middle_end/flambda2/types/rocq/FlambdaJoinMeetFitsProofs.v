@@ -54,7 +54,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaJoinMeetSpec FlambdaJoinMeetProofs FlambdaJoinWellFormedSpec
   FlambdaJoinWellFormedProofs FlambdaJoinEquationNamesSpec
   FlambdaJoinEquationNamesProofs FlambdaMeetKeepsSpec FlambdaMeetKeepsProofs
-  FlambdaJoinMeetFitsSpec.
+  FlambdaMeetTermsSpec FlambdaMeetTermsProofs FlambdaJoinMeetFitsSpec.
 Import ListNotations.
 
 Theorem expand_head_for_join_equations_kinded
@@ -642,6 +642,16 @@ Proof.
            (model_join_scoped_envs_keeps_outright join_choices join_depth
               fuel)
            Htag Hagain Hlift).
+Qed.
+
+Theorem model_meet_keeps_terms : model_meet_keeps_terms_statement.
+Proof.
+  intros join_choices meet_choices join_depth fuel Htag Hagain Hlift.
+  exact (meet_of_fuel_keeps_terms
+           (model_join_scoped_envs join_choices join_depth fuel) meet_choices
+           (fuel_of_meet fuel)
+           (model_meet_expanded_head_keeps join_choices meet_choices
+              join_depth fuel Htag Hagain Hlift)).
 Qed.
 
 Theorem model_join_guarantees_on_inputs

@@ -100,7 +100,12 @@
    calls has those five parts of [join_guarantees] under premises
    about its inputs and the choices of the meet only
    ([model_join_guarantees_on_inputs_statement]): nothing is supposed
-   of a function of the model. *)
+   of a function of the model. And the meet of the model, with
+   such choices, adds no variable that may occur in terms
+   ([model_meet_keeps_terms_statement]: [meet_keeps_terms],
+   FlambdaMeetTermsSpec.v, which is what the simplification of a
+   [Switch] supposes of the meet that it is given,
+   FlambdaSimplifySwitchArmsSpec.v). *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
@@ -114,7 +119,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaJoinFitsSpec FlambdaJoinAddsSpec FlambdaJoinKindsSpec
   FlambdaJoinTypes FlambdaJoinTypesSpec FlambdaMeetGrammar FlambdaMeetEnv
   FlambdaMeet FlambdaMeetSpec FlambdaMeetStepsSpec FlambdaMeetEnvSpec
-  FlambdaJoinMeet FlambdaJoinMeetSpec FlambdaJoinEquationNamesSpec.
+  FlambdaJoinMeet FlambdaJoinMeetSpec FlambdaJoinEquationNamesSpec
+  FlambdaMeetTermsSpec.
 Import ListNotations.
 
 (* The expansion of heads that the join of types is given in
@@ -418,7 +424,19 @@ Definition model_meet_expanded_head_keeps_statement : Prop :=
     meet_expanded_head_keeps
       (model_meet_expanded_head join_choices meet_choices join_depth fuel).
 
-(* So the join that Simplify calls, with such choices of the meet,
+(* So the meet of the model, with such choices, adds no variable
+   that may occur in terms ([meet_keeps_terms],
+   FlambdaMeetTermsSpec.v). *)
+Definition model_meet_keeps_terms_statement : Prop :=
+  ∀ (join_choices : Join_env.choices) (meet_choices : meet_choices)
+    (join_depth : nat) (fuel : fuels),
+    type_of_get_tag_scrutinee meet_choices
+    = immediate_or_blocks_with_these_tags ->
+    define_again meet_choices = false ->
+    lift_variables_of_single_case meet_choices = true ->
+    meet_keeps_terms (model_meet join_choices meet_choices join_depth fuel).
+
+(* And the join that Simplify calls, with such choices of the meet,
    has five of the six parts of [join_guarantees] (FlambdaJoinSpec.v)
    under premises about its inputs only: the conclusions of
    [model_join_keeps_outright_statement] and of

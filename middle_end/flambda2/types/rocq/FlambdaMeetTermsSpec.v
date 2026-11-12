@@ -66,6 +66,19 @@
    ([forgetful_join_sound_statement], FlambdaMeetExamplesSpec.v), so
    the statement has an instance with no premise.
 
+   The same conclusion under another hypothesis on the join
+   ([meet_to_prove_keeps_terms_of_keeps_statement]): that it has
+   the conclusions of its contract that are not about values, with
+   every meet of expanded types that keeps what a meet keeps
+   ([join_scoped_envs_keeps], FlambdaMeetKeepsSpec.v). It is not a
+   weaker hypothesis than the contract, nor a stronger one: the
+   contract gives its conclusions only with a meet that loses no
+   value, and this one gives fewer conclusions with more meets. The
+   two clauses that the statement follows from are in the half of
+   the meet's contract that such a join gives it. It is the
+   hypothesis that the join of the model has
+   (FlambdaJoinMeetFitsSpec.v).
+
    The compiler. The meet defines variables in two places, both with
    the name mode of the variables that exist only in types
    ([Name_mode.in_types]): [add_defined_vars], and the fold over the
@@ -80,7 +93,8 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar FlambdaTypingEnv
-  FlambdaTypingEnvSpec FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec.
+  FlambdaTypingEnvSpec FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec
+  FlambdaMeetKeepsSpec.
 Import ListNotations.
 
 (* A meet adds no variable that may occur in terms: a variable that
@@ -97,3 +111,12 @@ Definition meet_keeps_terms (meet : meet_function) : Prop :=
 Definition meet_to_prove_keeps_terms_statement : Prop :=
   ∀ (join : join_scoped_envs) (fuel : nat),
     join_scoped_envs_sound join -> meet_keeps_terms (meet_to_prove join fuel).
+
+(* The same conclusion, with a join that has the conclusions of its
+   contract that are not about values with every meet that keeps
+   ([join_scoped_envs_keeps]): another hypothesis than
+   [join_scoped_envs_sound], which neither implies nor is implied by
+   it. *)
+Definition meet_to_prove_keeps_terms_of_keeps_statement : Prop :=
+  ∀ (join : join_scoped_envs) (fuel : nat),
+    join_scoped_envs_keeps join -> meet_keeps_terms (meet_to_prove join fuel).

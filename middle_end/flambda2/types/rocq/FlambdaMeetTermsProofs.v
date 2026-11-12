@@ -38,7 +38,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar FlambdaBindingTime
   FlambdaMeetStepsProofs FlambdaMeetEnvSpec FlambdaMeetEnvProofs
   FlambdaMeetScopesSpec FlambdaMeetScopesProofs FlambdaMeetImmediateSpec
   FlambdaMeetImmediateProofs FlambdaMeetFuelSpec FlambdaMeetFuelProofs
-  FlambdaMeetClosuresSpec FlambdaMeetClosuresProofs FlambdaMeetTermsSpec.
+  FlambdaMeetClosuresSpec FlambdaMeetClosuresProofs FlambdaMeetKeepsSpec
+  FlambdaMeetKeepsProofs FlambdaMeetTermsSpec.
 Import ListNotations.
 
 (* The meet of types of a fuel at which the meet of expanded types
@@ -88,4 +89,12 @@ Proof.
                  value_heads_of_join join mh Hjoin Hkeeps Hsound)
               fuel) as [Hkeeps _].
   exact (meet_of_fuel_keeps_terms join repaired_choices fuel Hkeeps).
+Qed.
+
+Theorem meet_to_prove_keeps_terms_of_keeps
+  : meet_to_prove_keeps_terms_of_keeps_statement.
+Proof.
+  intros join fuel Hjoin. unfold meet_to_prove.
+  exact (meet_of_fuel_keeps_terms join repaired_choices fuel
+           (meet_expanded_head_repaired_keeps join fuel Hjoin)).
 Qed.
