@@ -1,0 +1,79 @@
+let $camlFunction_with_while__first_const_0 = Block 0 () in
+(let code size(52)
+       steps_0 (n/84 : imm tagged)
+         my_closure/85 &my_alloc_region/86 my_depth/87
+         -> k/32 * k/33
+         : imm tagged =
+   let next_depth/88 = rec_info (succ my_depth/87) in
+   cont k/34 (n/84)
+     where k/34 (let_mutable/89 : imm tagged) =
+       (cont k/35 (0, let_mutable/89)
+          where k/35
+                  (let_mutable/90 : imm tagged, m_29_unboxed0/91 : imm tagged) =
+            (cont k/37 (m_29_unboxed0/91, let_mutable/90)
+               where rec k/37
+                           (m_29_unboxed0/95 : imm tagged,
+                            c_30_unboxed0/96 : imm tagged) =
+                 let prim/97 = %phys_ne (m_29_unboxed0/95, 1) in
+                 let while_cond_result/98 = %tag_imm (prim/97) in
+                 ((let untagged/117 = %untag_imm (while_cond_result/98) in
+                   switch untagged/117
+                     | 0 -> k/36 (0, m_29_unboxed0/95, c_30_unboxed0/96)
+                     | 1 -> k/44)
+                    where k/44 =
+                      cont k/38 (m_29_unboxed0/95, c_30_unboxed0/96)
+                    where k/38
+                            (m_29_unboxed0/99 : imm tagged,
+                             c_30_unboxed0/100 : imm tagged) =
+                      ((let int_and/113 =
+                          %int_barith.`and` (m_29_unboxed0/99, 1)
+                        in
+                        let prim/114 = %phys_eq (int_and/113, 0) in
+                        let eq/115 = %tag_imm (prim/114) in
+                        (let untagged/116 = %untag_imm (eq/115) in
+                         switch untagged/116
+                           | 0 -> k/42
+                           | 1 -> k/43)
+                          where k/43 =
+                            cont k/40 (m_29_unboxed0/99, c_30_unboxed0/100)
+                          where k/42 =
+                            cont k/41 (m_29_unboxed0/99, c_30_unboxed0/100))
+                         where k/41
+                                 (m_29_unboxed0/109 : imm tagged,
+                                  c_30_unboxed0/110 : imm tagged) =
+                           let int_mul/111 =
+                             %int_barith.mul (3, m_29_unboxed0/109)
+                           in
+                           let int_add/112 = %int_barith.add (int_mul/111, 1)
+                           in
+                           cont k/39 (0, int_add/112, c_30_unboxed0/110)
+                         where k/40
+                                 (m_29_unboxed0/105 : imm tagged,
+                                  c_30_unboxed0/106 : imm tagged) =
+                           let prim/107 = %untag_imm (1) in
+                           let int_lsr/108 =
+                             %int_shift.lsr (m_29_unboxed0/105, prim/107)
+                           in
+                           cont k/39 (0, int_lsr/108, c_30_unboxed0/106)
+                         where k/39
+                                 (staticcatch_result/101 : imm tagged,
+                                  m_29_unboxed0/102 : imm tagged,
+                                  c_30_unboxed0/103 : imm tagged) =
+                           let int_add/104 =
+                             %int_barith.add (c_30_unboxed0/103, 1)
+                           in
+                           cont k/37 (m_29_unboxed0/102, int_add/104)))
+               where k/36
+                       (staticcatch_result/92 : imm tagged,
+                        m_29_unboxed0/93 : imm tagged,
+                        c_30_unboxed0/94 : imm tagged) =
+                 cont k/32 (c_30_unboxed0/94)))
+ in
+ let steps/118 = closure steps_0 @steps &toplevel in
+ let Pmakeblock/119 = %block.[`0`].`toplevel` (steps/118) in
+ cont k/31 (Pmakeblock/119))
+  where k/31 define_root_symbol (module_block/82) =
+    let field_0/83 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/82)
+    in
+    let $camlFunction_with_while = Block 0 (field_0/83) in
+    cont done ($camlFunction_with_while)
