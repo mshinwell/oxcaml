@@ -49,7 +49,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec FlambdaMeetProofs
   FlambdaMeetEnvProofs FlambdaTypeCreatorsSpec FlambdaTypeCreatorsProofs
   FlambdaTypeRenameSpec FlambdaTypeRenameProofs FlambdaEnvRenameSpec
-  FlambdaEnvRenameProofs FlambdaSimplifySwitchSpec.
+  FlambdaEnvRenameProofs FlambdaMeetRenameSpec FlambdaMeetRenameProofs
+  FlambdaSimplifySwitchSpec.
 From OxCamlFlambda2Types Require FlambdaMeetExamplesProofs
   FlambdaMeetClosuresProofs.
 Import ListNotations.
@@ -423,6 +424,13 @@ Proof.
   rewrite (prune_arms_rename meet r tenv ty arms Hmeet).
   destruct (prune_arms meet tenv ty arms) as [arms' | ]; [ | reflexivity ].
   cbn [option_map]. rewrite switch_of_arms_rename. reflexivity.
+Qed.
+
+Theorem simplify_switch_of_meet_to_prove_rename :
+  simplify_switch_of_meet_to_prove_rename_statement.
+Proof.
+  intros join fuel r tenv s arms Hjoin.
+  apply simplify_switch_rename, meet_to_prove_equivariant, Hjoin.
 Qed.
 
 (* ======================================================================== *)

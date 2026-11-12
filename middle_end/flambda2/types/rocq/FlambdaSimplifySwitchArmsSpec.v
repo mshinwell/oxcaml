@@ -85,7 +85,10 @@
      ([simplify_arm_rename_statement], [simplify_arms_rename_statement],
      [simplify_switch_arms_rename_statement]), for a meet and a rewrite
      that do; the rewrite of FlambdaSimplifyPassSpec.v does
-     ([simplify_apply_cont_rewrite_equivariant_statement]).
+     ([simplify_apply_cont_rewrite_equivariant_statement]), and so
+     does the transcribed meet that the contract is proved of, with a
+     join that does
+     ([simplify_switch_arms_of_meet_to_prove_rename_statement]).
    - One term ([example_switch_arms_statement]).
 
    What is assumed. What the first slice assumes, and its header says
@@ -120,13 +123,19 @@
      [arm_env_satisfied_statement] is what the slice rests on.
 
    Renaming. As in the first slice, the three statements suppose
-   [meet_equivariant meet], which no file of the meet states yet, and
+   [meet_function_equivariant meet] (FlambdaMeetRenameSpec.v), and
    here also that the rewrite commutes with the renaming of its
    environment and of the [Apply_cont]
    ([apply_cont_rewrite_equivariant]). The function of
    FlambdaSimplifyPassSpec.v does: that is
    [simplify_apply_cont_equivariant_statement] of
-   FlambdaSimplifyPassRenamingSpec.v. What is owed is the meet's half.
+   FlambdaSimplifyPassRenamingSpec.v. The transcribed meet that the
+   contract is proved of does, with a join that commutes with
+   renaming ([meet_to_prove_equivariant_statement],
+   FlambdaMeetRenameSpec.v): at that meet the equation of
+   [simplify_switch_arms] has a premise on the join where it had one
+   on the meet
+   ([simplify_switch_arms_of_meet_to_prove_rename_statement]).
 
    Where the model answers nothing. As in the first slice:
    [simplify_switch_arms] is [None] where the scrutinee has no type or
@@ -164,7 +173,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypingEnvSpec FlambdaTypingEnvExamplesSpec
   FlambdaTypingEnvRefinementSpec FlambdaEnvRenameSpec FlambdaMeetGrammar
   FlambdaExpandHead FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec
-  FlambdaMeetTermsSpec FlambdaSimplifySwitchSpec.
+  FlambdaMeetTermsSpec FlambdaMeetRenameSpec FlambdaSimplifySwitchSpec.
 From OxCamlFlambda2Types Require FlambdaSimplifyPassSpec.
 Import ListNotations.
 
@@ -376,7 +385,7 @@ Definition simplify_arm_rename_statement : Prop :=
   ∀ (meet : meet_function) (rewrite : apply_cont_rewrite) (r : renaming)
     (tenv : Typing_env.t) (scrutinee_ty : flambda_type) (i : Z)
     (ac : apply_cont),
-    meet_equivariant meet ->
+    meet_function_equivariant meet ->
     apply_cont_rewrite_equivariant rewrite ->
     simplify_arm meet rewrite (rename_typing_env r tenv)
       (rename_type r scrutinee_ty) i (rename_apply_cont r ac)
@@ -387,7 +396,7 @@ Definition simplify_arms_rename_statement : Prop :=
   ∀ (meet : meet_function) (rewrite : apply_cont_rewrite) (r : renaming)
     (tenv : Typing_env.t) (scrutinee_ty : flambda_type)
     (arms : list (Z * apply_cont)),
-    meet_equivariant meet ->
+    meet_function_equivariant meet ->
     apply_cont_rewrite_equivariant rewrite ->
     simplify_arms meet rewrite (rename_typing_env r tenv)
       (rename_type r scrutinee_ty) (rename_arms r arms)
@@ -397,12 +406,28 @@ Definition simplify_arms_rename_statement : Prop :=
 Definition simplify_switch_arms_rename_statement : Prop :=
   ∀ (meet : meet_function) (rewrite : apply_cont_rewrite) (r : renaming)
     (tenv : Typing_env.t) (scrutinee : simple) (arms : list (Z * apply_cont)),
-    meet_equivariant meet ->
+    meet_function_equivariant meet ->
     apply_cont_rewrite_equivariant rewrite ->
     simplify_switch_arms meet rewrite (rename_typing_env r tenv)
       (rename_simple r scrutinee) (rename_arms r arms)
     = option_map (rename_expr r)
         (simplify_switch_arms meet rewrite tenv scrutinee arms).
+
+(* At the transcribed meet that the contract is proved of, with a join
+   that commutes with renaming
+   ([meet_to_prove_equivariant_statement], FlambdaMeetRenameSpec.v). *)
+Definition simplify_switch_arms_of_meet_to_prove_rename_statement : Prop :=
+  ∀ (join : join_scoped_envs) (fuel : nat) (rewrite : apply_cont_rewrite)
+    (r : renaming) (tenv : Typing_env.t) (scrutinee : simple)
+    (arms : list (Z * apply_cont)),
+    join_scoped_envs_equivariant join ->
+    apply_cont_rewrite_equivariant rewrite ->
+    simplify_switch_arms (meet_to_prove join fuel) rewrite
+      (rename_typing_env r tenv) (rename_simple r scrutinee)
+      (rename_arms r arms)
+    = option_map (rename_expr r)
+        (simplify_switch_arms (meet_to_prove join fuel) rewrite tenv scrutinee
+           arms).
 
 (* The rewrite of FlambdaSimplifyPassSpec.v commutes with a renaming
    ([simplify_apply_cont_equivariant_statement],

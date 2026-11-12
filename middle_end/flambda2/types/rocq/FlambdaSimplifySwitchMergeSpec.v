@@ -98,7 +98,11 @@
    - The functions commute with a renaming of variables
      ([merge_arms_rename_statement], [rebuild_switch_rename_statement],
      [simplify_switch_merging_rename_statement]): what is known and
-     the names that are given are renamed with the term.
+     the names that are given are renamed with the term. The first
+     two have no premise; the third has those of the second slice, on
+     the meet and the rewrite, or on the join where the meet is the
+     transcribed one that the contract is proved of
+     ([simplify_switch_merging_of_meet_to_prove_rename_statement]).
    - Two terms from OCaml sources ([example_switch_index_statement],
      [example_switch_negate_statement]).
 
@@ -187,7 +191,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypingEnvSpec FlambdaTypingEnvExamplesSpec
   FlambdaTypingEnvRefinementSpec FlambdaEnvRenameSpec FlambdaMeetGrammar
   FlambdaExpandHead FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec
-  FlambdaMeetTermsSpec FlambdaSimplifySwitchSpec
+  FlambdaMeetTermsSpec FlambdaMeetRenameSpec FlambdaSimplifySwitchSpec
   FlambdaSimplifySwitchArmsSpec.
 From OxCamlFlambda2Types Require FlambdaSimplifyPassSpec.
 Import ListNotations.
@@ -730,13 +734,30 @@ Definition simplify_switch_merging_rename_statement : Prop :=
   ∀ (meet : meet_function) (rewrite : apply_cont_rewrite) (r : renaming)
     (known : computed) (fresh : list variable) (tenv : Typing_env.t)
     (scrutinee : simple) (arms : list (Z * apply_cont)),
-    meet_equivariant meet ->
+    meet_function_equivariant meet ->
     apply_cont_rewrite_equivariant rewrite ->
     simplify_switch_merging meet rewrite (rename_computed r known)
       (map (rename_variable r) fresh) (rename_typing_env r tenv)
       (rename_simple r scrutinee) (rename_arms r arms)
     = option_map (rename_expr r)
         (simplify_switch_merging meet rewrite known fresh tenv scrutinee arms).
+
+(* At the transcribed meet that the contract is proved of, with a join
+   that commutes with renaming
+   ([meet_to_prove_equivariant_statement], FlambdaMeetRenameSpec.v). *)
+Definition simplify_switch_merging_of_meet_to_prove_rename_statement : Prop :=
+  ∀ (join : join_scoped_envs) (fuel : nat) (rewrite : apply_cont_rewrite)
+    (r : renaming) (known : computed) (fresh : list variable)
+    (tenv : Typing_env.t) (scrutinee : simple) (arms : list (Z * apply_cont)),
+    join_scoped_envs_equivariant join ->
+    apply_cont_rewrite_equivariant rewrite ->
+    simplify_switch_merging (meet_to_prove join fuel) rewrite
+      (rename_computed r known) (map (rename_variable r) fresh)
+      (rename_typing_env r tenv) (rename_simple r scrutinee)
+      (rename_arms r arms)
+    = option_map (rename_expr r)
+        (simplify_switch_merging (meet_to_prove join fuel) rewrite known fresh
+           tenv scrutinee arms).
 
 (* ======================================================================== *)
 (* Examples                                                                 *)

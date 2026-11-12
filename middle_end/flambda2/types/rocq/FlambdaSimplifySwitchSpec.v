@@ -84,7 +84,9 @@
    - The functions commute with a renaming of variables
      ([arm_kept_rename_statement], [prune_arms_rename_statement],
      [simplify_switch_rename_statement]), for a meet that does
-     ([meet_equivariant]).
+     ([meet_function_equivariant], FlambdaMeetRenameSpec.v). The
+     transcribed meet that the contract is proved of does, with a join
+     that does ([simplify_switch_of_meet_to_prove_rename_statement]).
    - Two small terms ([example_switch_no_arm_statement],
      [example_switch_comparison_statement]).
 
@@ -143,14 +145,17 @@
    Renaming. What is stated of [arm_kept], [prune_arms] and
    [simplify_switch] under a renaming supposes that the meet commutes
    with the renaming of its environment and of its two types
-   ([meet_equivariant]). That is a hypothesis here, as the contract of
-   the meet is: nothing in this file, and nothing yet in the files of
-   the meet, says that the transcribed meet has it, and it is for the
-   owner of the meet to state and prove. Until then the three
-   statements discharge nothing for a pass that needs its functions
-   to be equivariant. The renaming of typing environments and what it
-   does to [Typing_env.type_simple_in_term_exn] are
-   FlambdaEnvRenameSpec.v.
+   ([meet_function_equivariant], FlambdaMeetRenameSpec.v). The
+   transcribed meet that the contract is proved of has it, whatever
+   the fuel, with a join that commutes with renaming
+   ([meet_to_prove_equivariant_statement], in that file,
+   [join_scoped_envs_equivariant]); the join that forgets, which the
+   examples run, is such a join
+   ([forgetful_join_equivariant_statement], there). So at that meet
+   the equation of [simplify_switch] has one premise, on the join
+   ([simplify_switch_of_meet_to_prove_rename_statement]). The renaming
+   of typing environments and what it does to
+   [Typing_env.type_simple_in_term_exn] are FlambdaEnvRenameSpec.v.
 
    The arms. In the compiler the arms are a map from numbers; here
    they are a list, and the machine takes the first arm for a number
@@ -191,7 +196,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaTypingEnv
   FlambdaTypingEnvSpec FlambdaTypingEnvExamplesSpec
   FlambdaTypingEnvRefinementSpec FlambdaEnvRenameSpec FlambdaMeetGrammar
-  FlambdaExpandHead FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec.
+  FlambdaExpandHead FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec
+  FlambdaMeetRenameSpec.
 From OxCamlFlambda2Types Require FlambdaMeetExamplesSpec.
 Import ListNotations.
 
@@ -245,13 +251,18 @@ Definition switch_of_arms_refines_statement : Prop :=
    Decided with the owner of the function that simplifies a whole term
    by types: the pruning does not go into that function, whose theorem
    is about every state and is what the validator's rests on. It goes
-   into a second function, with a theorem of its own about the states
-   whose static environment is valid; the premise is not carried
-   through the first. ../../rocq/FlambdaContextWhereSpec.v has the
-   form for a rewrite that is sound only from the states that have a
-   predicate which a step keeps; a valid static environment is not
-   such a predicate by itself, and which predicate the second theorem
-   is made of is not decided. *)
+   into a second function, with a theorem of its own; the premise is
+   not carried through the first. The second function is that of
+   FlambdaSimplifyPruningSpec.v, which takes a function that may
+   rewrite a [Switch] and asks of it the notion that is here
+   ([switch_rewrite_sound], there); [simplify_switch] is such a
+   function ([simplify_switch_rewrite_sound_statement], there). Its
+   theorem is from the states of the run of a unit whose sets of
+   closures are well formed ([run_valid], there). A step keeps
+   [run_valid], which is not so of a valid static environment by
+   itself, and the static environment of a state that has it is
+   valid; so what holds here holds from those states
+   ([from_valid_weaken_statement], there). *)
 Definition expr_refines_under_valid (tenv : Typing_env.t)
     (source target : expr) : Prop :=
   ∀ (vars : env) (conts : cont_env) (statics : static_env),
@@ -429,19 +440,9 @@ Definition simplify_switch_of_meet_to_prove_refines_statement : Prop :=
 (* Renaming                                                                 *)
 (* ======================================================================== *)
 
-(* A meet commutes with a renaming of the variables: of a renamed
-   environment and renamed types it answers the renamed answer. *)
-Definition meet_equivariant (meet : meet_function) : Prop :=
-  ∀ (r : renaming) (tenv : Typing_env.t) (t1 t2 : flambda_type),
-    meet (rename_typing_env r tenv) (rename_type r t1) (rename_type r t2)
-    = option_map
-        (fun result =>
-           match result with
-           | Or_bottom.Bottom => Or_bottom.Bottom
-           | Or_bottom.Ok (t, tenv') =>
-             Or_bottom.Ok (rename_type r t, rename_typing_env r tenv')
-           end)
-        (meet tenv t1 t2).
+(* That a meet commutes with a renaming of the variables (of a renamed
+   environment and renamed types it answers the renamed answer) is
+   [meet_function_equivariant], FlambdaMeetRenameSpec.v. *)
 
 (* The arms of a [Switch], renamed ([rename_expr],
    ../../rocq/FlambdaNominalSpec.v). *)
@@ -452,14 +453,14 @@ Definition rename_arms (r : renaming) (arms : list (Z * apply_cont))
 Definition arm_kept_rename_statement : Prop :=
   ∀ (meet : meet_function) (r : renaming) (tenv : Typing_env.t)
     (scrutinee_ty : flambda_type) (i : Z),
-    meet_equivariant meet ->
+    meet_function_equivariant meet ->
     arm_kept meet (rename_typing_env r tenv) (rename_type r scrutinee_ty) i
     = arm_kept meet tenv scrutinee_ty i.
 
 Definition prune_arms_rename_statement : Prop :=
   ∀ (meet : meet_function) (r : renaming) (tenv : Typing_env.t)
     (scrutinee_ty : flambda_type) (arms : list (Z * apply_cont)),
-    meet_equivariant meet ->
+    meet_function_equivariant meet ->
     prune_arms meet (rename_typing_env r tenv) (rename_type r scrutinee_ty)
       (rename_arms r arms)
     = option_map (rename_arms r) (prune_arms meet tenv scrutinee_ty arms).
@@ -467,10 +468,22 @@ Definition prune_arms_rename_statement : Prop :=
 Definition simplify_switch_rename_statement : Prop :=
   ∀ (meet : meet_function) (r : renaming) (tenv : Typing_env.t)
     (scrutinee : simple) (arms : list (Z * apply_cont)),
-    meet_equivariant meet ->
+    meet_function_equivariant meet ->
     simplify_switch meet (rename_typing_env r tenv) (rename_simple r scrutinee)
       (rename_arms r arms)
     = option_map (rename_expr r) (simplify_switch meet tenv scrutinee arms).
+
+(* At the transcribed meet that the contract is proved of, with a join
+   that commutes with renaming
+   ([meet_to_prove_equivariant_statement], FlambdaMeetRenameSpec.v). *)
+Definition simplify_switch_of_meet_to_prove_rename_statement : Prop :=
+  ∀ (join : join_scoped_envs) (fuel : nat) (r : renaming)
+    (tenv : Typing_env.t) (scrutinee : simple) (arms : list (Z * apply_cont)),
+    join_scoped_envs_equivariant join ->
+    simplify_switch (meet_to_prove join fuel) (rename_typing_env r tenv)
+      (rename_simple r scrutinee) (rename_arms r arms)
+    = option_map (rename_expr r)
+        (simplify_switch (meet_to_prove join fuel) tenv scrutinee arms).
 
 (* ======================================================================== *)
 (* Examples                                                                 *)
