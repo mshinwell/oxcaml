@@ -1,0 +1,38 @@
+let $camlTry_in_function__first_const_0 = Block 0 () in
+(let code inline(always) size(26)
+       f_0 (x/40 : imm tagged)
+         my_closure/41 &my_alloc_region/42 my_depth/43
+         -> k/22 * k/23
+         : imm tagged =
+   let next_depth/44 = rec_info (succ my_depth/43) in
+   let try_region/45 = %begin_try_region () in
+   let try_ghost_region/46 = %begin_try_ghost_region () in
+   cont k/26 push(k/24)
+     where k/26 =
+       ((let untagged/51 = %untag_imm (x/40) in
+         switch untagged/51
+           | 0 -> k/25 (1)
+           | 1 -> k/28)
+          where k/28 =
+            cont k/27
+          where k/27 =
+            cont k/24 pop(notrace k/24) ($`*predef*`.caml_exn_Not_found))
+     where k/25 (body_result/50 : imm tagged) =
+       cont k/22 pop(k/24) (body_result/50)
+     where k/24 exn (exn/47 : val) =
+       let unit/48 = %end_try_region (try_region/45) in
+       let unit/49 = %end_try_ghost_region (try_ghost_region/46) in
+       cont k/22 (2)
+ in
+ let f/52 = closure f_0 @f &toplevel in
+ (let Popaque/55 = %opaque (1) in
+  apply direct(f_0 &toplevel)
+    (f/52 : _ -> imm tagged) (Popaque/55) -> k/29 * error)
+   where k/29 (result/53 : imm tagged) =
+     let Pmakeblock/54 = %block.[`0`].`toplevel` (result/53) in
+     cont k/21 (Pmakeblock/54))
+  where k/21 define_root_symbol (module_block/38) =
+    let field_0/39 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/38)
+    in
+    let $camlTry_in_function = Block 0 (field_0/39) in
+    cont done ($camlTry_in_function)

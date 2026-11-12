@@ -1,0 +1,8 @@
+try_in_function.fl:
+  before Simplify (25 steps): returns [0: 2]
+  after Simplify (10 steps): returns [0: 2]
+  the check of kinds: passes before, passes after
+  calls outside code: 1 before, 0 after
+  the same
+  calls outside code once those of known code are inlined: 0
+  validated: the same once normalised and unused static bindings removed
