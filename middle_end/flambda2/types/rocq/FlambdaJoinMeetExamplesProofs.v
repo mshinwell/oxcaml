@@ -93,3 +93,15 @@ Proof. vm_compute. reflexivity. Qed.
 
 Theorem example_recovered_bottom : example_recovered_bottom_statement.
 Proof. vm_compute. repeat split. Qed.
+
+Theorem example_meet_joins_alternatives
+  : example_meet_joins_alternatives_statement.
+Proof. vm_compute. reflexivity. Qed.
+
+Theorem example_meet_immediate_alternative
+  : example_meet_immediate_alternative_statement.
+Proof. vm_compute. reflexivity. Qed.
+
+Theorem example_meet_block_alternative
+  : example_meet_block_alternative_statement.
+Proof. vm_compute. reflexivity. Qed.

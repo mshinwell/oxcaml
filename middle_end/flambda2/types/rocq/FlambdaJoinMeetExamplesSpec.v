@@ -612,3 +612,96 @@ Definition example_recovered_bottom_statement : Prop :=
   ∧ option_map Typing_env.is_bottom Recovered.after_k0 = Some false
   ∧ option_map Typing_env.is_bottom Recovered.after_k2 = Some false
   ∧ option_map Typing_env.is_bottom Recovered.arm_two = Some true.
+
+(* ======================================================================== *)
+(* A meet that joins                                                        *)
+(* ======================================================================== *)
+
+(* The meet of the model calls the join of the model
+   ([Join_env.cut_and_n_way_join], through [model_join_scoped_envs])
+   where the two types met may each be an immediate or a block: it
+   meets the immediates in one environment and the blocks in another,
+   each one scope further and with the extension that the type has
+   for that alternative, and if neither is bottom it joins the two
+   environments.
+
+   Here a type says that [z] is 7 if the value is an immediate and 8
+   if it is a block. The types are met in the source of the examples
+   above; what is shown is the type answered and the type that the
+   environment answered has for [z].
+
+   These were not compared with the compiler. They were the first
+   runs of the model's meet through the model's join, and before them
+   that join took its names to avoid from the meet's environment
+   alone, which has none when a meet begins: the first example then
+   answered [None], the join having made a variable that the
+   environment knew. It now avoids the variables that the
+   environments it is given know ([Join_env.variables_of_env]). *)
+
+(* An immediate that is 0 or 1, or a block of tag 0 with one field,
+   with extensions for the two alternatives. *)
+Definition example_immediate_or_block (extensions : variant_extensions)
+    : flambda_type :=
+  non_null_value
+    (Variant None (Or_unknown.Known (these_naked_immediates [0; 1])) None
+       (Or_unknown.Known
+          (Row_like_for_blocks
+             [(0,
+               Or_unknown.Known
+                 (Row_like_case [unknown Value]
+                    (Row_like_index (Row_like_index_domain.Known 1%nat)
+                       (Scannable Value_only))
+                    empty_env_extension))]
+             Or_bottom.Bottom Alloc_mode.Heap))
+       extensions false).
+
+(* [z] is one number if the value is an immediate, another if it is a
+   block. *)
+Definition example_z_is (when_immediate when_block : Z)
+    : variant_extensions :=
+  Ext
+    (Env_extension
+       [(Name_var example_z, this_tagged_immediate when_immediate)])
+    (Env_extension [(Name_var example_z, this_tagged_immediate when_block)]).
+
+(* The meet of two types in the source: the type answered, and the
+   type of [z] in the environment answered; or bottom. *)
+Definition example_meet (ty1 ty2 : flambda_type)
+    : option (Or_bottom.t (flambda_type * option flambda_type)) :=
+  let* answer :=
+    model_meet Join_env.compiler_choices compiler_choices 5 example_fuel
+      example_source_env ty1 ty2
+  in
+  match answer with
+  | Or_bottom.Bottom => Some Or_bottom.Bottom
+  | Or_bottom.Ok (ty, tenv) =>
+    Some (Or_bottom.Ok (ty, Typing_env.find tenv (Name_var example_z) None))
+  end.
+
+(* Both alternatives are left: the type keeps the two extensions, and
+   the environments of the two alternatives are joined, so that [z] is
+   7 or 8. *)
+Definition example_meet_joins_alternatives_statement : Prop :=
+  example_meet (example_immediate_or_block (example_z_is 7 8))
+    (example_immediate_or_block No_extensions)
+  = Some
+      (Or_bottom.Ok
+         (example_immediate_or_block (example_z_is 7 8),
+          Some (these_tagged_immediates [7; 8]))).
+
+(* Only the immediates are left: no join, and [z] is 7. *)
+Definition example_meet_immediate_alternative_statement : Prop :=
+  example_meet (example_immediate_or_block (example_z_is 7 8))
+    (these_tagged_immediates [0; 1])
+  = Some
+      (Or_bottom.Ok
+         (these_tagged_immediates [0; 1], Some (this_tagged_immediate 7))).
+
+(* Only the blocks are left: [z] is 8. *)
+Definition example_meet_block_alternative_statement : Prop :=
+  example_meet (example_immediate_or_block (example_z_is 7 8))
+    (example_join_block 0 [unknown Value])
+  = Some
+      (Or_bottom.Ok
+         (example_join_block 0 [unknown Value],
+          Some (this_tagged_immediate 8))).
