@@ -29,7 +29,7 @@
 (* The n-way join of types with the functions of the join of
    environments: the two halves of the n-way join put together.
 
-   To be reviewed: the definition and the four statements of this
+   To be reviewed: the definition and the five statements of this
    file.
 
    FlambdaJoinTypesSpec.v says what the type traversal guarantees
@@ -69,6 +69,15 @@
    [expand_head_equations_kinded] (FlambdaJoinTypesSpec.v). The
    invariant of the state is only a premise of that contract, so the
    statement gives the same at [state_true source].
+   The fifth is that the type that the function answers is well
+   formed ([n_way_join_type_well_formed], FlambdaJoinTypesSpec.v). It
+   has the premises of the first and one more,
+   [expand_head_well_formed] (FlambdaJoinTypesSpec.v). What that file
+   assumes of the join of extensions is true of the function of the
+   join of environments, which answers an extension that it was
+   given or the empty one
+   ([n_way_join_env_extension_answers_given_statement],
+   FlambdaJoinEnvSpec.v).
 
    What is still assumed, each a premise of the first statement:
    - of [Expand_head] and of the reduction of heads of naked
@@ -195,5 +204,25 @@ Definition n_way_join_of_types_equations_kinded_statement : Prop :=
       reduce_head_of_kind_naked_immediate ->
     n_way_join_type_equations_kinded typing_env_invariant Join_env.joined_env
       kind_in_target_env state_valid state_kinded
+      (n_way_join_of_types p fuel_of_env expand_head
+         reduce_head_of_kind_naked_immediate fuel).
+
+(* The type that it answers is well formed, if the types given are
+   and the environments joined have well-formed types. *)
+Definition n_way_join_of_types_well_formed_statement : Prop :=
+  ∀ (p : Join_env.parameters) (fuel_of_env : nat)
+    (expand_head : Typing_env.t -> flambda_type -> option Expanded_type.t)
+    (reduce_head_of_kind_naked_immediate :
+       Typing_env.t -> head_of_kind_naked_immediate
+       -> Or_bottom.t head_of_kind_naked_immediate)
+    (fuel : nat),
+    fresh_avoids p ->
+    env_extension_eqb_sound p ->
+    expand_head_sound typing_env_invariant expand_head ->
+    expand_head_well_formed expand_head ->
+    reduce_head_of_kind_naked_immediate_sound
+      reduce_head_of_kind_naked_immediate ->
+    n_way_join_type_well_formed typing_env_invariant Join_env.joined_env
+      state_valid state_kinded
       (n_way_join_of_types p fuel_of_env expand_head
          reduce_head_of_kind_naked_immediate fuel).
