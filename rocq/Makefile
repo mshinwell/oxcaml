@@ -222,6 +222,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaStaticsScopeSpec.v \
   FlambdaTrapProofs.v \
   FlambdaTrapSpec.v \
+  FlambdaTupledProofs.v \
+  FlambdaTupledSpec.v \
   FlambdaUnboxParamsExamplesProofs.v \
   FlambdaUnboxParamsExamplesSpec.v \
   FlambdaUnboxParamsProofs.v \
