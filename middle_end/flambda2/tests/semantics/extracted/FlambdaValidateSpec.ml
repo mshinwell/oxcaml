@@ -7,6 +7,7 @@ open FlambdaCseSpec
 open FlambdaDeadParamsSpec
 open FlambdaDemoteSpec
 open FlambdaFloatCodeSpec
+open FlambdaForwardJumpsSpec
 open FlambdaForwardSpec
 open FlambdaHoistCodeSpec
 open FlambdaHoistStaticsSpec
@@ -137,7 +138,9 @@ let normalise_before rounds kept e =
 (** val inline_once_applied_after : expr -> expr **)
 
 let inline_once_applied_after e =
-  inline_tail_conts_kinded (sink_let_conts (remove_unused_conts e))
+  remove_unused_conts
+    (forward_jumps
+       (inline_tail_conts_kinded (sink_let_conts (remove_unused_conts e))))
 
 (** val normalise_expr_after : expr -> expr **)
 

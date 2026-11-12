@@ -38,6 +38,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaCseSpec FlambdaCseProofs
   FlambdaDeadParamsSpec FlambdaDeadParamsProofs
   FlambdaForwardSpec FlambdaForwardProofs
+  FlambdaForwardJumpsSpec FlambdaForwardJumpsProofs
   FlambdaIdentitiesSpec FlambdaIdentitiesProofs
   FlambdaMergeSwitchesSpec FlambdaMergeSwitchesProofs
   FlambdaInlineSiblingsSpec FlambdaInlineSiblingsProofs
@@ -92,7 +93,8 @@ Ltac equivalence_step :=
     | apply follow_aliases_in_loops_equivalent
     | apply shortcut_switches_equivalent
     | apply remove_unused_defined_lets_in_loops_equivalent
-    | apply inline_tail_conts_kinded_equivalent ].
+    | apply inline_tail_conts_kinded_equivalent
+    | apply forward_jumps_equivalent ].
 
 Ltac refinement_step :=
   first

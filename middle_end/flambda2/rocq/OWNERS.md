@@ -474,7 +474,9 @@ units with loops (`while`, `for`, tail-recursive functions).
   of a handler, a parameter that every application gives the same
   thing)
 - `middle_end/flambda2/rocq/FlambdaForward*` (an application of a
-  continuation whose handler only applies another)
+  continuation whose handler only applies another;
+  `FlambdaForwardJumps*` is the case of no parameters, which is an
+  equivalence)
 - `middle_end/flambda2/rocq/FlambdaRoundsProofs.v` (a tool of proof:
   simulations by rounds of one or more steps of each run)
 - `middle_end/flambda2/rocq/FlambdaInlineTail*` (that

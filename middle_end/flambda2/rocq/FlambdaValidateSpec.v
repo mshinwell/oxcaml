@@ -168,6 +168,7 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaCompareSpec FlambdaNormaliseSpec FlambdaBlockLoadSpec
   FlambdaCodeLetsSpec FlambdaCseSpec FlambdaDeadParamsSpec FlambdaForwardSpec
+  FlambdaForwardJumpsSpec
   FlambdaIdentitiesSpec FlambdaMergeSwitchesSpec
   FlambdaInlineSiblingsSpec FlambdaInlineTailSpec FlambdaLoopAliasesSpec
   FlambdaLoopLetsSpec
@@ -384,9 +385,26 @@ Definition normalise_before (rounds : nat) (kept : list code_id) (e : expr)
    Simplify leaves some continuations that are applied once, the one
    whose handler binds the symbols of the unit among them. The term
    before can have lost both: its rounds have [sink_let_conts] and
-   FlambdaNormaliseSpec.inline_tail_conts. *)
+   FlambdaNormaliseSpec.inline_tail_conts.
+
+   Then an application of a continuation of no parameters whose handler
+   is one [Apply_cont] becomes that [Apply_cont], where
+   FlambdaForwardJumpsSpec.forward_jumps allows: among its conditions,
+   the handler gives no kinds, neither [Apply_cont] has a trap action,
+   and nothing that the [Apply_cont] of the handler names is bound
+   again in the body of the [Let_cont]. It is an equivalence. A
+   continuation that this leaves unused is removed. Simplify leaves
+   such an application where the handler was a [Switch] on a
+   parameter that it removed, every application giving it the same
+   constant: the handler it has is that [Switch] under the [Let] of
+   the parameter. The fold of the round before has made the handler
+   one [Apply_cont], in the term before too, where
+   FlambdaForwardSpec.forward_applications has then forwarded the
+   applications. *)
 Definition inline_once_applied_after (e : expr) : expr :=
-  inline_tail_conts_kinded (sink_let_conts (remove_unused_conts e)).
+  remove_unused_conts
+    (forward_jumps
+       (inline_tail_conts_kinded (sink_let_conts (remove_unused_conts e)))).
 
 (* The same for the term after. Every rewrite is an equivalence. The
    unused [Let]s that are sure to have a value are removed in the

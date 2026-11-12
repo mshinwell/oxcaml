@@ -57,7 +57,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaInlineFreshProofs FlambdaRecHandlersSpec
   FlambdaSinkContsSpec FlambdaShortcutSpec FlambdaUnusedParamsSpec
   FlambdaLoopAliasesSpec FlambdaLoopLetsSpec FlambdaParamAliasesSpec
-  FlambdaForwardSpec FlambdaInlineTailSpec FlambdaDeadParamsSpec
+  FlambdaForwardSpec FlambdaForwardJumpsSpec FlambdaInlineTailSpec
+  FlambdaDeadParamsSpec
   FlambdaCodeLetsSpec
   FlambdaLoopifySpec
   FlambdaCseSpec FlambdaCseProofs
@@ -4405,6 +4406,90 @@ Proof.
   intros r e. exact (forward_applications_under_equivariant r e []).
 Qed.
 
+(* The same for the continuations of no parameters
+   (FlambdaForwardJumpsSpec.v): the entry is that of [forwarding] or
+   none, by tests that a renaming does not change. *)
+Lemma jump_entry_equivariant (r : renaming) (k : continuation)
+    (params : list variable) (metadata : handler_metadata)
+    (handler body : expr) :
+  jump_entry (rename_continuation r k) (map (rename_variable r) params)
+    metadata (rename_expr r handler) (rename_expr r body)
+  = rename_forward_entry r (jump_entry k params metadata handler body).
+Proof.
+  unfold jump_entry.
+  destruct params as [ | p params]; [ | reflexivity ].
+  destruct (hm_params_kinds metadata); [ | reflexivity ].
+  exact (forwarding_equivariant r k [] metadata handler body).
+Qed.
+
+Fixpoint forward_jumps_under_equivariant (r : renaming) (e : expr) :
+  ∀ F : forwards,
+    forward_jumps_under (rename_forwards r F) (rename_expr r e)
+    = rename_expr r (forward_jumps_under F e)
+with forward_jumps_in_handler_equivariant (r : renaming)
+    (h : continuation_handler) :
+  ∀ F : forwards,
+    forward_jumps_in_handler (rename_forwards r F)
+      (rename_handler r h)
+    = rename_handler r (forward_jumps_in_handler F h).
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k [params metadata handler] body
+         | handlers body | ap | ac | scrutinee arms | ];
+      intros F; try reflexivity.
+    + cbn [rename_expr forward_jumps_under].
+      rewrite forward_jumps_under_equivariant. reflexivity.
+    + cbn [rename_expr forward_jumps_under].
+      rewrite forward_jumps_under_equivariant. reflexivity.
+    + cbn [rename_expr rename_handler forward_jumps_under]. cbv zeta.
+      rewrite (forward_jumps_under_equivariant r handler F),
+        jump_entry_equivariant.
+      change
+        ((rename_continuation r k,
+          rename_forward_entry r
+            (jump_entry k params metadata
+               (forward_jumps_under F handler) body))
+         :: rename_forwards r F)
+        with
+          (rename_forwards r
+             ((k,
+               jump_entry k params metadata
+                 (forward_jumps_under F handler) body)
+              :: F)).
+      rewrite (forward_jumps_under_equivariant r body). reflexivity.
+    + cbn [rename_expr forward_jumps_under]. cbv zeta.
+      assert (Hscope :
+        map (fun '(k, _) => (k, None))
+          (map (fun '(k, h) => (rename_continuation r k, rename_handler r h))
+             handlers)
+        ++ rename_forwards r F
+        = rename_forwards r
+            (map (fun '(k, _) => (k, None)) handlers ++ F)).
+      { unfold rename_forwards. rewrite map_app, !map_map. f_equal.
+        apply map_ext. intros [k h]. reflexivity. }
+      rewrite Hscope. clear Hscope.
+      rewrite (forward_jumps_under_equivariant r body). f_equal.
+      generalize (map (fun '(k, _) => (k, @None (list variable * apply_cont)))
+                    handlers ++ F).
+      intros F'.
+      induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
+      rewrite (forward_jumps_in_handler_equivariant r h F'), IH.
+      reflexivity.
+    + cbn [rename_expr forward_jumps_under].
+      rewrite forward_apply_cont_equivariant. reflexivity.
+    + cbn [rename_expr forward_jumps_under]. f_equal.
+      rewrite !map_map. apply map_ext. intros [i ac]. cbn [fst snd].
+      rewrite forward_apply_cont_equivariant. reflexivity.
+  - destruct h as [params metadata handler]. intros F.
+    cbn [rename_handler forward_jumps_in_handler].
+    rewrite forward_jumps_under_equivariant. reflexivity.
+Qed.
+
+Lemma forward_jumps_equivariant : rewrite_equivariant forward_jumps.
+Proof.
+  intros r e. exact (forward_jumps_under_equivariant r e []).
+Qed.
+
 (* Inlining a continuation at the end of its scope, where its handler
    gives one kind for each parameter. *)
 Fixpoint inline_tail_conts_kinded_equivariant_aux (r : renaming) (e : expr) :
@@ -4755,6 +4840,7 @@ Ltac rename_outwards :=
       | rewrite drop_dead_params_equivariant
       | rewrite bind_aliased_params_equivariant
       | rewrite forward_applications_equivariant
+      | rewrite forward_jumps_equivariant
       | rewrite unbox_variant_params_renamed
       | rewrite remove_unused_defined_lets_in_loops_closed_equivariant
       | rewrite inline_tail_conts_kinded_equivariant_aux ].

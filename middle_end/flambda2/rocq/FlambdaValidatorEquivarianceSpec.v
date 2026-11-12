@@ -184,8 +184,9 @@
    starts that pass in the body of each piece of code;
    FlambdaParamAliasesSpec.bind_aliased_params;
    FlambdaForwardSpec.forward_applications; and
-   FlambdaInlineTailSpec.inline_tail_conts_kinded, which the
-   validation applies to the term after. And
+   FlambdaInlineTailSpec.inline_tail_conts_kinded and
+   FlambdaForwardJumpsSpec.forward_jumps, which the validation
+   applies to the term after. And
    FlambdaLoopifySpec.loopify_unit, which the validation applies to
    the term before, after the first comparison and before any rewrite
    that makes names: it is given, for the code ids to make loops of,
@@ -290,7 +291,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSinkContsSpec FlambdaShortcutSpec FlambdaUnusedParamsSpec
   FlambdaLoopAliasesSpec FlambdaLoopLetsSpec FlambdaCodeLetsSpec
   FlambdaParamAliasesSpec
-  FlambdaForwardSpec FlambdaInlineTailSpec FlambdaLoopifySpec
+  FlambdaForwardSpec FlambdaForwardJumpsSpec FlambdaInlineTailSpec
+  FlambdaLoopifySpec
   FlambdaDeadParamsSpec FlambdaRenameApartSpec FlambdaUnusedProjectionsSpec
   FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
@@ -758,6 +760,11 @@ Definition bind_aliased_params_equivariant_statement : Prop :=
    (FlambdaForwardSpec.v). *)
 Definition forward_applications_equivariant_statement : Prop :=
   rewrite_equivariant forward_applications.
+
+(* The same for the continuations of no parameters, where it is an
+   equivalence (FlambdaForwardJumpsSpec.v). *)
+Definition forward_jumps_equivariant_statement : Prop :=
+  rewrite_equivariant forward_jumps.
 
 (* Inlining a continuation at the end of its scope, where its handler
    gives one kind for each parameter (FlambdaInlineTailSpec.v). *)
