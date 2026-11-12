@@ -154,3 +154,55 @@ Proof.
   - intros tenv t1 t2 Hbottom. unfold Meet.meet. rewrite Hbottom.
     reflexivity.
 Qed.
+
+(* What a function of [Meet_env] keeps, read of the typing
+   environments. *)
+Lemma typing_env_kept_of_meet_env (tenv : Typing_env.t)
+    (menv' : Meet_env.t) :
+  meet_env_kept_by_meet (Meet_env.create tenv) menv' ->
+  typing_env_kept tenv (Meet_env.final_typing_env menv').
+Proof.
+  intros [[Hextends Hfits'] _].
+  assert (Htenv := meet_env_extends_tenv _ _ Hextends).
+  change (Meet_env.typing_env (Meet_env.create tenv)) with tenv in Htenv.
+  split; [ exact Hfits' | ]. split; [ | split ].
+  - intros ty Hty. exact (tenv_extends_type_fits _ _ ty Htenv Hty).
+  - exact (proj1 (proj2 (proj2 (proj2 (proj2 Htenv))))).
+  - intros n Hmem. exact (tenv_extends_mem _ _ n Htenv Hmem).
+Qed.
+
+Theorem typing_env_functions_keep : typing_env_functions_keep_statement.
+Proof.
+  intros join choices fuel Hkeeps.
+  set (mh := Meet.meet_expanded_head join choices fuel) in *.
+  split; [ | split ].
+  - intros tenv tenv' n ty Hfits Hty Hkind Hadd.
+    unfold Flambda2_types.add_equation, Meet_env.use_meet_env in Hadd.
+    fold mh in Hadd.
+    destruct (Meet_env.add_equation (Meet_env.create tenv) n ty mh)
+      as [ menv' | ] eqn:Hadd'; [ | discriminate Hadd ].
+    cbn in Hadd. injection Hadd as <-.
+    apply typing_env_kept_of_meet_env.
+    exact (add_equation_keeps mh (Meet_env.create tenv) menv' n ty Hkeeps
+             Hfits Hty Hkind Hadd').
+  - intros tenv tenv' extension Hfits Hextension Hkinded Hadd.
+    unfold Flambda2_types.add_env_extension, Meet_env.use_meet_env in Hadd.
+    fold mh in Hadd.
+    destruct (Meet_env.add_env_extension (Meet_env.create tenv) extension mh)
+      as [ menv' | ] eqn:Hadd'; [ | discriminate Hadd ].
+    cbn in Hadd. injection Hadd as <-.
+    apply typing_env_kept_of_meet_env.
+    exact (add_env_extension_keeps mh (Meet_env.create tenv) menv' extension
+             Hkeeps Hfits Hextension Hkinded Hadd').
+  - intros tenv tenv' params param_types Hfits Hparams Hadd.
+    unfold Flambda2_types.add_equations_on_params, Meet_env.use_meet_env
+      in Hadd.
+    fold mh in Hadd.
+    destruct (Meet_env.add_equations_on_params (Meet_env.create tenv) params
+                param_types mh) as [ menv' | ] eqn:Hadd';
+      [ | discriminate Hadd ].
+    cbn in Hadd. injection Hadd as <-.
+    apply typing_env_kept_of_meet_env.
+    exact (add_equations_on_params_keeps mh (Meet_env.create tenv) menv'
+             params param_types Hkeeps Hfits Hparams Hadd').
+Qed.

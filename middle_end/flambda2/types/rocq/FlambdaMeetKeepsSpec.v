@@ -29,7 +29,7 @@
 (* What a meet keeps, for a join that has the half of its contract
    that is not about values.
 
-   This file is to be reviewed: one definition and six statements.
+   This file is to be reviewed: two definitions and seven statements.
    The proofs are in FlambdaMeetKeepsProofs.v, which needs no review.
 
    The contract of the meet (FlambdaMeetSpec.v) has two halves. One
@@ -83,15 +83,32 @@
    bottom environment, need no premise at all
    ([meet_of_types_kinds_statement]).
 
+   The functions that add to a typing environment
+   ([Flambda2_types.add_equation], [add_env_extension],
+   [add_equations_on_params], FlambdaMeet.v). Their contracts in
+   FlambdaMeetSpec.v ([add_equation_sound] and the two others) are
+   about values throughout: they say that the environment answered
+   is satisfied, and not that it fits, which they suppose of the
+   environment given. So they alone do not give what is needed to
+   use them again of an environment answered; this is about what
+   can be proved from the contracts, not about whether a second
+   call answers. The half that is not about values is
+   [typing_env_functions_keep_statement]: the
+   environment answered fits, and what fitted the first, was of a
+   kind in it or was known to it is so in the second
+   ([typing_env_kept]). Its premise is that the meet of expanded
+   types keeps, which [meet_expanded_head_fuel_keeps_statement]
+   gives for a join that has [join_scoped_envs_keeps] and choices as
+   the main theorem has them.
+
    What is not stated. Nothing about values, by construction.
    Nothing that is kept for the choices of the compiler
    ([compiler_choices]), which the main theorem does not cover
    either: of the meet with those choices only
    [meet_of_types_kinds_statement], which is for any choices, says
-   anything. Nothing of the functions that add to a typing
-   environment: their contracts are about values throughout, and no
-   keeps-only form of them is defined. A join that has
-   [join_scoped_envs_sound] is not thereby shown to have
+   anything. Nothing of the functions that add a relation
+   ([Flambda2_types.add_relation] and the three made of it). A join
+   that has [join_scoped_envs_sound] is not thereby shown to have
    [join_scoped_envs_keeps]: the first gives its conclusions only for
    a meet that loses no value, the second for any meet that keeps;
    neither definition implies the other. The join that forgets has
@@ -104,7 +121,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaBindingTime FlambdaTypingEnv FlambdaTypingEnvSpec
   FlambdaTypingEnvKindedSpec FlambdaMeetGrammar FlambdaExpandHead
-  FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec FlambdaMeetExamplesSpec.
+  FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec FlambdaMeetEnvSpec
+  FlambdaMeetExamplesSpec.
 Import ListNotations.
 
 (* The conclusions of the contract that the meet has for its join
@@ -197,3 +215,59 @@ Definition meet_of_types_kinds_statement : Prop :=
   ∀ (join : join_scoped_envs) (choices : meet_choices) (fuel : nat),
     meet_kinds (Meet.meet join choices fuel)
     ∧ meet_bottom_env (Meet.meet join choices fuel).
+
+(* ======================================================================== *)
+(* Adding to a typing environment                                           *)
+(* ======================================================================== *)
+
+(* What the environment answered keeps of the environment given: it
+   fits, and what fitted the first, was of a kind in it or was known
+   to it is so in the second. So the premises about fitting, kinds
+   and names of a further addition, if they held of the first
+   environment, hold of the second. Nothing is said of whether that
+   further addition answers. *)
+Definition typing_env_kept (tenv tenv' : Typing_env.t) : Prop :=
+  typing_env_fits tenv'
+  ∧ (∀ ty : flambda_type, type_fits tenv ty -> type_fits tenv' ty)
+  ∧ (∀ (s : simple) (kind : flambda_kind),
+      simple_of_kind tenv s kind -> simple_of_kind tenv' s kind)
+  ∧ ∀ n : name,
+      Typing_env.mem None tenv n = true ->
+      Typing_env.mem None tenv' n = true.
+
+(* The three functions that add to a typing environment, made of a
+   meet of expanded types that keeps. The premises are those of the
+   functions of [Meet_env] that they are made of
+   (FlambdaMeetEnvSpec.v): what is added fits, and the name of an
+   equation is of the kind of its type ([simple_of_kind],
+   [env_extension_kinded]), which the contracts about values have
+   from the value that the name holds. *)
+Definition typing_env_functions_keep_statement : Prop :=
+  ∀ (join : join_scoped_envs) (choices : meet_choices) (fuel : nat),
+    meet_expanded_head_keeps (Meet.meet_expanded_head join choices fuel) ->
+    (∀ (tenv tenv' : Typing_env.t) (n : name) (ty : flambda_type),
+       typing_env_fits tenv ->
+       type_fits tenv ty ->
+       simple_of_kind tenv (simple_of_name n) (kind ty) ->
+       Flambda2_types.add_equation join choices fuel tenv n ty = Some tenv' ->
+       typing_env_kept tenv tenv')
+    ∧ (∀ (tenv tenv' : Typing_env.t) (extension : env_extension),
+         typing_env_fits tenv ->
+         env_extension_fits tenv extension ->
+         env_extension_kinded tenv extension ->
+         Flambda2_types.add_env_extension join choices fuel tenv extension
+         = Some tenv' ->
+         typing_env_kept tenv tenv')
+    ∧ (∀ (tenv tenv' : Typing_env.t)
+         (params : list (variable * flambda_kind))
+         (param_types : list flambda_type),
+         typing_env_fits tenv ->
+         Forall2
+           (fun (param : variable * flambda_kind) (ty : flambda_type) =>
+              type_fits tenv ty
+              ∧ simple_of_kind tenv (Var (fst param)) (kind ty))
+           params param_types ->
+         Flambda2_types.add_equations_on_params join choices fuel tenv
+           params param_types
+         = Some tenv' ->
+         typing_env_kept tenv tenv').
