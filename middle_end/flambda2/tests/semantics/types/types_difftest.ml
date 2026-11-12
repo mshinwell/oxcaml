@@ -4828,10 +4828,20 @@ let generate_meet_of_cases (names : names) r : MT.flambda_type * MT.flambda_type
   then blocks [0, [one]], blocks [0, [other]]
   else one, other
 
-(* Two types that are alike: a type, and one of the smaller types that the
-   shrinker gives for it, or the type again. Two types generated apart seldom
-   have a part in common, and their meet or join then stops at the top; these
-   have the same cases, slots and extensions but for one place. *)
+(* Two types that are alike: a type and, on either side, one of the types that
+   one step of the shrinker gives for it; or the type again, where the shrinker
+   gives none, and 15 times in 100 where it gives some. Two types generated
+   apart seldom have a part in common, and their meet or join then stops at the
+   top. A step of the shrinker changes the text in one place: a part, which may
+   be the whole type or its head, becomes the unknown type; or one thing is
+   removed: a case, a field, a slot, a number of a set, a string of a set or a
+   character of a string, an equation of an extension, the variable of a
+   relation. That is no order between types, and nothing is claimed of how the
+   two compare: with a case or a number removed a type most often says more,
+   with a part unknown it says less, with a character removed from a string each
+   of the two has values that the other has not, with a field removed the fields
+   after it are in other places; the second need not keep the structure of the
+   first. "Smaller", in the titles of the runs, is in that sense only. *)
 let generate_alike (names : names) r (kind : MK.flambda_kind) :
     MT.flambda_type * MT.flambda_type =
   let config : G.config = { well_formed = true; depth = 3 } in
@@ -6110,9 +6120,12 @@ let () =
       ~generate:(fun r ->
         let config : G.config = { well_formed = true; depth = 2 } in
         let shallow : G.config = { well_formed = true; depth = 1 } in
-        (* The types passed, where they are to be alike: a type and smaller
-           types made from it. Nothing is generated for them otherwise, so that
-           the other runs have the inputs that they had. *)
+        (* The types passed, where they are to be alike: the two of
+           [generate_alike] at the first two uses, and at a third use one step
+           of the shrinker from the first of the two, which is a second step
+           from the type generated where that first is the shrunk one. Nothing
+           is generated for them otherwise, so that the other runs have the
+           inputs that they had. *)
         let alike_types =
           if alike then Some (generate_alike names r kind) else None
         in
