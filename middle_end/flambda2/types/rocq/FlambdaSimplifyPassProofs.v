@@ -54,10 +54,17 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaSimplifyApplySpec FlambdaSimplifyApplyProofs
   FlambdaSimplifyValueSlotsSpec FlambdaSimplifyValueSlotsProofs
   FlambdaSimplifyStaticsSpec FlambdaSimplifyStaticsProofs
+  FlambdaSimplifyCodeEnvSpec FlambdaSimplifyCodeEnvProofs
   FlambdaSimplifyPassSpec.
 Import ListNotations.
 
 Local Open Scope Z_scope.
+
+(* [code_env_in] is the function of FlambdaSimplifyCodeEnvSpec.v. The
+   theorem of that name in FlambdaSimplifyCodeEnvProofs.v is not used
+   here. *)
+Local Abbreviation code_env_in :=
+  FlambdaSimplifyCodeEnvSpec.code_env_in.
 
 (* ======================================================================== *)
 (* What an outcome says                                                     *)
@@ -984,73 +991,9 @@ Proof.
   cbv zeta. rewrite Hclosures, Hblocks. apply Hlast.
 Qed.
 
-(* ======================================================================== *)
-(* The body of code                                                         *)
-(* ======================================================================== *)
-
-Lemma add_symbol_definitions_invariant (tenv : Typing_env.t)
-    (syms : list symbol) :
-  typing_env_invariant tenv ->
-  typing_env_invariant (Typing_env.add_symbol_definitions tenv syms).
-Proof.
-  intros Hinvariant. induction syms as [ | sym syms IH].
-  - destruct tenv. exact Hinvariant.
-  - exact (add_symbol_definition_invariant
-             (Typing_env.add_symbol_definitions tenv syms) sym IH).
-Qed.
-
-(* The environment of the body of code is satisfied where the machine
-   runs the body: at a call, whatever the static environment. *)
-Lemma code_env_satisfied (syms : list symbol) (params : list variable)
-    (my_closure : variable) (metadata : code_metadata) (tenv : Typing_env.t)
-    (vs : list value) (callee : value) (callee_vars : env)
-    (statics : static_env) :
-  code_env syms params my_closure metadata = Some tenv ->
-  map kind_of_value vs = unarize (cm_params_arity metadata) ->
-  kind_of_value callee = Value ->
-  bind_params params vs [(my_closure, callee)] = Some callee_vars ->
-  env_satisfies_strictly tenv statics callee_vars.
-Proof.
-  unfold code_env. intros Henv Hkinds Hcallee Hbind.
-  set (symbols := Typing_env.add_symbol_definitions Typing_env.create syms)
-    in *.
-  set (closure :=
-         Typing_env.add_variable_definition symbols my_closure Value
-           Name_mode.normal) in *.
-  match type of Henv with
-  | (if ?tests then _ else _) = _ =>
-    destruct tests eqn:Htests; [ | discriminate ]
-  end.
-  injection Henv as <-.
-  apply andb_prop in Htests as [Htests Hfresh].
-  apply andb_prop in Htests as [Hlength Hdistinct].
-  apply Nat.eqb_eq in Hlength.
-  assert (Hsymbols : typing_env_invariant symbols).
-  { apply add_symbol_definitions_invariant, create_invariant. }
-  assert (Hmem : Typing_env.mem None symbols (Name_var my_closure) = false).
-  { reflexivity. }
-  assert (Hclosure : typing_env_invariant closure).
-  { exact (add_variable_definition_invariant symbols my_closure Value
-             Name_mode.normal Hsymbols Hmem). }
-  apply (add_definitions_of_params_env_satisfies_strictly closure statics
-           [(my_closure, callee)] callee_vars
-           (combine params (unarize (cm_params_arity metadata))) vs
-           Hclosure).
-  - rewrite (map_fst_combine params _ Hlength). exact Hdistinct.
-  - rewrite (map_fst_combine params _ Hlength). intros x Hin.
-    rewrite forallb_forall in Hfresh. apply negb_true_iff.
-    exact (Hfresh x Hin).
-  - rewrite <- Hkinds. apply kinds_of_values.
-    exact (bind_params_length params vs _ callee_vars Hbind).
-  - rewrite (map_fst_combine params _ Hlength). exact Hbind.
-  - apply (add_variable_definition_env_satisfies_strictly symbols statics []
-             my_closure Value callee (proj1 Hsymbols) Hmem Hcallee).
-    apply add_symbol_definitions_env_satisfies_strictly, create_satisfied.
-Qed.
-
-Lemma add_static_bindings_simplify (tenv : Typing_env.t)
-    (syms : list symbol) (bindings : list static_binding) :
-  add_static_bindings tenv (map (simplify_static_binding syms) bindings)
+Lemma add_static_bindings_simplify (tenv tenv' : Typing_env.t)
+    (bindings : list static_binding) :
+  add_static_bindings tenv (map (simplify_static_binding tenv') bindings)
   = add_static_bindings tenv bindings.
 Proof.
   apply add_static_bindings_same_symbols.
@@ -1119,51 +1062,47 @@ Proof.
       destruct Htests as [Hwf Hfresh]. apply negb_true_iff in Hfresh.
       apply (let_declared_refines_under tenv x declared d body _ Hwf Hfresh).
       apply simplify_expr_sound.
-  - generalize
-      (Typing_env.defined_symbols (add_static_bindings tenv bindings)).
-    intros syms.
+  - cbv zeta.
     assert (Hbindings :
-      ∀ (before : list static_binding) (vars : env) (conts : cont_env)
-        (statics : static_env),
-        refines
-          (State (Let_static (before ++ bindings) body) vars conts statics)
-          (State
-             (Let_static
-                (before ++ map (simplify_static_binding syms) bindings) body)
-             vars conts statics)).
-    { induction bindings as [ | binding bindings IH];
-        intros before vars conts statics; [ apply refines_refl | ].
+      ∀ (tenv' : Typing_env.t) (before : list static_binding),
+        add_static_bindings tenv (before ++ bindings) = tenv' ->
+        expr_refines_under tenv (Let_static (before ++ bindings) body)
+          (Let_static
+             (before ++ map (simplify_static_binding tenv') bindings) body)).
+    { intros tenv'.
+      induction bindings as [ | binding bindings IH]; intros before Henv;
+        [ apply expr_refines_under_refl | ].
       cbn [map].
-      refine
-        (refines_trans _
-           (State
-              (Let_static
-                 (before ++ simplify_static_binding syms binding :: bindings)
-                 body)
-              vars conts statics)
-           _ _ _).
+      apply (expr_refines_under_trans tenv _
+               (Let_static
+                  (before ++ simplify_static_binding tenv' binding :: bindings)
+                  body)
+               _).
       - destruct binding as [id c | id | sym const];
-          cbn [simplify_static_binding]; try apply refines_refl.
+          cbn [simplify_static_binding]; try apply expr_refines_under_refl.
         destruct c as [params my_closure ret exn metadata code_body].
         cbn [simplify_code].
-        destruct (code_env syms params my_closure metadata)
-          as [tenv_code | ] eqn:Henv; [ | apply refines_refl ].
-        destruct (Bool.eqb (binds_statics code_body)
-                    (binds_statics (simplify_expr tenv_code code_body)))
-          eqn:Hbinds; [ | apply refines_refl ].
-        apply (FlambdaContextWhereProofs.let_static_code_refines_where
-                 (fun _ => True));
-          [ intros; exact I | exact I | apply eqb_prop; exact Hbinds | ].
-        intros vs callee callee_vars conts' statics' _ Hkinds Hcallee Hbind.
+        destruct (code_env_in tenv' params my_closure metadata)
+          as [tenv_code | ] eqn:Hcode; [ | apply expr_refines_under_refl ].
+        cbv zeta.
+        destruct (binds_statics code_body) eqn:Hsource; cbn [negb andb];
+          [ apply expr_refines_under_refl | ].
+        destruct (binds_statics (simplify_expr tenv_code code_body))
+          eqn:Htarget; cbn [negb];
+          [ apply expr_refines_under_refl | ].
+        apply (let_static_code_typed tenv before id params my_closure ret exn
+                 metadata code_body _ bindings body tenv_code);
+          [ rewrite Henv; exact Hcode | exact Hsource | exact Htarget | ].
         apply (simplify_expr_sound code_body tenv_code).
-        exact (code_env_satisfied syms params my_closure metadata tenv_code
-                 vs callee callee_vars statics' Henv Hkinds Hcallee Hbind).
       - specialize
-          (IH (before ++ [simplify_static_binding syms binding]) vars conts
-             statics).
-        rewrite <- !app_assoc in IH. exact IH. }
+          (IH (before ++ [simplify_static_binding tenv' binding])).
+        rewrite <- !app_assoc in IH. cbn [app] in IH. apply IH.
+        rewrite <- Henv.
+        destruct binding as [id c | id | sym const];
+          cbn [simplify_static_binding]; try reflexivity.
+        apply add_static_bindings_code. }
     eapply expr_refines_under_trans.
-    + intros vars conts statics _. exact (Hbindings [] vars conts statics).
+    + exact (Hbindings (add_static_bindings tenv bindings) [] eq_refl).
     + apply let_static_typed. rewrite add_static_bindings_simplify.
       apply simplify_expr_sound.
   - apply let_cont_body_refines_under. apply simplify_expr_sound.
@@ -1231,3 +1170,11 @@ Proof. intros k. vm_compute. reflexivity. Qed.
 
 Theorem example_pass_unknown_let : example_pass_unknown_let_statement.
 Proof. intros k. vm_compute. reflexivity. Qed.
+
+Theorem example_pass_static_in_code
+    : example_pass_static_in_code_statement.
+Proof. intros k ret exn. vm_compute. reflexivity. Qed.
+
+Theorem example_pass_static_closure
+    : example_pass_static_closure_statement.
+Proof. intros k exn ret exn'. vm_compute. reflexivity. Qed.

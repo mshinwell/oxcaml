@@ -50,7 +50,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaSimplifyPrimitivesRenamingSpec
   FlambdaSimplifyPrimitivesRenamingProofs FlambdaSimplifyApplySpec
   FlambdaSimplifyApplyProofs FlambdaSimplifyStaticsSpec
-  FlambdaSimplifyStaticsProofs FlambdaSimplifyPassSpec
+  FlambdaSimplifyStaticsProofs FlambdaSimplifyCodeEnvSpec
+  FlambdaSimplifyCodeEnvProofs FlambdaSimplifyPassSpec
   FlambdaSimplifyPassRenamingSpec FlambdaSimplifyPassRenamingProofs
   FlambdaSimplifyPruningSpec FlambdaSimplifyPruningRenamingSpec.
 From OxCamlFlambda2Types Require FlambdaMeetExamplesSpec
@@ -58,6 +59,12 @@ From OxCamlFlambda2Types Require FlambdaMeetExamplesSpec
 Import ListNotations.
 
 Local Open Scope Z_scope.
+
+(* [code_env_in] is the function of FlambdaSimplifyCodeEnvSpec.v. The
+   theorem of that name in FlambdaSimplifyCodeEnvProofs.v is not used
+   here. *)
+Local Abbreviation code_env_in :=
+  FlambdaSimplifyCodeEnvSpec.code_env_in.
 
 (* ======================================================================== *)
 (* A function that rewrites a [Switch]                                      *)
@@ -318,17 +325,18 @@ Fixpoint simplify_expr_pruning_equivariant_aux (prune : switch_rewrite)
 with simplify_static_binding_pruning_equivariant (prune : switch_rewrite)
     (Hprune : switch_rewrite_equivariant prune) (r : renaming)
     (binding : static_binding) {struct binding} :
-  ∀ syms : list symbol,
-    simplify_static_binding_pruning prune syms
+  ∀ (tenv : Typing_env.t) (fit : bool),
+    simplify_static_binding_pruning prune (rename_typing_env r tenv) fit
       (rename_static_binding r binding)
     = rename_static_binding r
-        (simplify_static_binding_pruning prune syms binding)
+        (simplify_static_binding_pruning prune tenv fit binding)
 with simplify_code_pruning_equivariant (prune : switch_rewrite)
     (Hprune : switch_rewrite_equivariant prune) (r : renaming) (c : code)
     {struct c} :
-  ∀ syms : list symbol,
-    simplify_code_pruning prune syms (rename_code r c)
-    = rename_code r (simplify_code_pruning prune syms c).
+  ∀ (tenv : Typing_env.t) (fit : bool),
+    simplify_code_pruning prune (rename_typing_env r tenv) fit
+      (rename_code r c)
+    = rename_code r (simplify_code_pruning prune tenv fit c).
 Proof.
   - destruct e
       as [x declared d body | bindings body | k handler body
@@ -350,18 +358,17 @@ Proof.
           (simplify_expr_pruning_equivariant_aux prune Hprune r body tenv').
         reflexivity.
     + cbv zeta.
-      rewrite add_static_bindings_rename, defined_symbols_renamed,
-        statics_keep_fit_equivariant.
+      rewrite add_static_bindings_rename, statics_keep_fit_equivariant.
       rewrite (simplify_expr_pruning_equivariant_aux prune Hprune r body).
       f_equal.
-      generalize
-        (Typing_env.defined_symbols (add_static_bindings tenv bindings)).
-      intros syms.
+      generalize (add_static_bindings tenv bindings).
+      generalize (fit && statics_keep_fit tenv bindings).
+      intros fit' tenv'.
       induction bindings as [ | binding bindings IH]; cbn [map];
         [ reflexivity | ].
       rewrite
         (simplify_static_binding_pruning_equivariant prune Hprune r binding
-           syms),
+           tenv' fit'),
         IH.
       reflexivity.
     + rewrite (simplify_expr_pruning_equivariant_aux prune Hprune r body).
@@ -373,22 +380,27 @@ Proof.
     + exact (simplify_switch_pruning_equivariant prune r tenv fit scrutinee
                arms Hprune).
     + reflexivity.
-  - destruct binding as [id c | id | sym const]; intros syms;
+  - destruct binding as [id c | id | sym const]; intros tenv fit;
       cbn [rename_static_binding simplify_static_binding_pruning];
-      [ rewrite (simplify_code_pruning_equivariant prune Hprune r c syms)
+      [ rewrite
+          (simplify_code_pruning_equivariant prune Hprune r c tenv fit)
       | | ];
       reflexivity.
-  - destruct c as [params my_closure ret exn metadata body]; intros syms;
-      cbn [rename_code simplify_code_pruning].
-    rewrite code_env_equivariant.
-    destruct (code_env syms params my_closure metadata) as [tenv | ];
+  - destruct c as [params my_closure ret exn metadata body];
+      intros tenv fit; cbn [rename_code simplify_code_pruning].
+    rewrite code_env_in_rename.
+    destruct (code_env_in tenv params my_closure metadata)
+      as [tenv_code | ];
       cbn [option_map]; [ | reflexivity ].
     cbv zeta.
     rewrite
-      (simplify_expr_pruning_equivariant_aux prune Hprune r body tenv true),
+      (simplify_expr_pruning_equivariant_aux prune Hprune r body tenv_code
+         fit),
       !rename_binds_statics.
-    destruct (Bool.eqb (binds_statics body)
-                (binds_statics (simplify_expr_pruning prune tenv true body)));
+    destruct (negb (binds_statics body)
+              && negb
+                   (binds_statics
+                      (simplify_expr_pruning prune tenv_code fit body)));
       reflexivity.
 Qed.
 

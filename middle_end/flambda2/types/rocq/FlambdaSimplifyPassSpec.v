@@ -92,13 +92,15 @@
      of their constants: a block, a boxed number, a string, a closure
      ([add_static_bindings], FlambdaSimplifyStaticsSpec.v). The body
      of each piece of code that it binds is rewritten too
-     ([simplify_code]), under an environment of its own ([code_env]):
-     the symbols that the environment has and those of the
-     [Let_static], with no types; [my_closure] at the kind value; the
-     parameters at the kinds of the arity of the code. No variable of
-     the place where the code is bound is in it. The body is kept as
-     it was if the rewrite would change whether it binds something
-     static, as the body of code may bind nothing static
+     ([simplify_code]), under the environment of the body of the
+     [Let_static] with its variables out of scope, [my_closure]
+     defined at the kind value and the parameters at the kinds of the
+     arity of the code ([code_env_in], FlambdaSimplifyCodeEnvSpec.v).
+     The symbols keep their types there, those of the group included;
+     a variable of the place where the code is bound stays known to
+     the types and is not put into the body. The body is rewritten
+     only if neither it nor what it becomes binds something static: a
+     call of code whose body does is undefined
      (FlambdaSemanticsSpec.binds_statics).
    - The body of a [Let_cont] is gone into.
    - The arguments of an [Apply_cont] are replaced by their canonical
@@ -121,8 +123,10 @@
      of a continuation.
    - In the body of code nothing is known of a parameter but its
      kind, nor of [my_closure] but that it is a value: Simplify gives
-     [my_closure] the type of the closure, and has the types of the
-     symbols.
+     [my_closure] the type of the closure. The code is rewritten
+     where it is bound, under what is known just after its group;
+     Simplify rewrites it where a set of closures uses it
+     (FlambdaSimplifyCodeEnvSpec.v says where the two part).
    - Nothing goes through the meet. Where Simplify meets the type of
      an argument with a shape ([Simplify_common.simplify_projection]:
      the unboxing primitives, the loads and projections that a prover
@@ -132,11 +136,10 @@
      before the [Let], and otherwise records the kind of the result
      only. No arm of a [Switch] is removed from the type of the
      scrutinee.
-   - In the body of code no symbol has a type; nothing is lifted;
-     there are no common subexpressions, no inlining, no unboxing of
-     parameters. The value slots of a set of closures are left as
-     they are written (Simplify replaces them by their canonical
-     elements).
+   - Nothing is lifted; there are no common subexpressions, no
+     inlining, no unboxing of parameters. The value slots of a set of
+     closures are left as they are written (Simplify replaces them by
+     their canonical elements).
    - Of the unary primitives, [Is_int], [Is_null], [Get_tag], a
      [Block_load] that is not marked [Mutable], and the tagging,
      untagging, boxing and unboxing of a number are looked at; of the
@@ -164,17 +167,19 @@
      asked about are well formed where a prover of tagged immediates
      or the prover of physical equality is asked) are not Simplify's:
      they are the premises of the statements, tested so that the
-     function needs none. The same of the tests of [code_env]: the
-     arity of the code has as many kinds as the code has parameters,
-     the parameters are different variables, and none is
-     [my_closure]. Where a test fails the rewrite that it guards is
+     function needs none. The same of the tests of [code_env_in]:
+     the arity of the code has as many kinds as the code has
+     parameters, and [my_closure] and the parameters are different
+     variables that the environment does not have, each defined in
+     an environment that is well formed. Where a test fails the
+     rewrite that it guards is
      not made: the function goes on knowing less, or leaves the term
      from there down, or the code, as it is. So a failure costs
      rewrites and not correctness; that the tests pass on the
      environments that the function builds, for a term whose binders
      are all different, is not stated here.
 
-   Fifteen terms on which the function is computed are at the end:
+   Seventeen terms on which the function is computed are at the end:
    what it answers is stated as an equation, with no premise.
 
    That the function commutes with renaming ([simplify_expr] of the
@@ -201,7 +206,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaProvers FlambdaProversSpec FlambdaSimplifyPrimitivesSpec
   FlambdaSimplifyProjectionsSpec FlambdaSimplifyBoxingSpec
   FlambdaSimplifyArithSpec FlambdaSimplifyApplySpec
-  FlambdaSimplifyValueSlotsSpec FlambdaSimplifyStaticsSpec.
+  FlambdaSimplifyValueSlotsSpec FlambdaSimplifyStaticsSpec
+  FlambdaSimplifyCodeEnvSpec.
 Import ListNotations.
 
 Local Open Scope Z_scope.
@@ -777,8 +783,9 @@ Definition simplify_apply_cont (tenv : Typing_env.t) (ac : apply_cont)
    environment is valid; the theorem of this function is of every
    state, which is what the validation asks of a rewrite of the term
    before. The choice made: the pruning stays out of this function,
-   and goes into a second one with a theorem about valid static
-   environments, which is to come. The other choice is to carry the
+   and is in a second one with a theorem about valid static
+   environments (FlambdaSimplifyPruningSpec.v). The other choice is
+   to carry the
    premise into [simplify_by_types_refines_statement], and so into the
    theorem of the validation. *)
 Definition simplify_switch (tenv : Typing_env.t) (scrutinee : simple)
@@ -791,34 +798,6 @@ Definition simplify_switch (tenv : Typing_env.t) (scrutinee : simple)
     end
   | Some (_, (Const _ | Var _ | Symbol _)) | None => Switch scrutinee arms
   end.
-
-(* ======================================================================== *)
-(* The body of code                                                         *)
-(* ======================================================================== *)
-
-(* The environment under which the body of code is rewritten: the
-   symbols [syms], with no types; [my_closure], a value; the parameters,
-   at the kinds of the arity of the code. This is what the machine
-   binds at a call (FlambdaSemanticsSpec.step, at an [Apply]): the
-   callee and the arguments, which a call that has a step gives the
-   kinds of the arity. [None] where the arity has not as many kinds as
-   there are parameters, or the parameters are not different variables
-   that the environment does not have yet. *)
-Definition code_env (syms : list symbol) (params : list variable)
-    (my_closure : variable) (metadata : code_metadata)
-    : option Typing_env.t :=
-  let kinds := unarize (cm_params_arity metadata) in
-  let tenv :=
-    Typing_env.add_variable_definition
-      (Typing_env.add_symbol_definitions Typing_env.create syms) my_closure
-      Value Name_mode.normal
-  in
-  if Nat.eqb (length kinds) (length params)
-     && distinct params
-     && forallb
-          (fun x => negb (Typing_env.mem None tenv (Name_var x))) params
-  then Some (Typing_env.add_definitions_of_params tenv (combine params kinds))
-  else None.
 
 (* ======================================================================== *)
 (* A term                                                                   *)
@@ -841,9 +820,7 @@ Fixpoint simplify_expr (tenv : Typing_env.t) (e : expr) : expr :=
     end
   | Let_static bindings body =>
     let tenv' := add_static_bindings tenv bindings in
-    Let_static
-      (map (simplify_static_binding (Typing_env.defined_symbols tenv'))
-         bindings)
+    Let_static (map (simplify_static_binding tenv') bindings)
       (simplify_expr tenv' body)
   | Let_cont_non_recursive k handler body =>
     Let_cont_non_recursive k handler (simplify_expr tenv body)
@@ -855,22 +832,25 @@ Fixpoint simplify_expr (tenv : Typing_env.t) (e : expr) : expr :=
   | Invalid => Invalid
   end
 
-(* The code that a static binding binds, where the symbols [syms] are
-   defined. *)
-with simplify_static_binding (syms : list symbol) (binding : static_binding)
+(* The code that a static binding binds, where [tenv] is the
+   environment of the body of the [Let_static]. *)
+with simplify_static_binding (tenv : Typing_env.t) (binding : static_binding)
     : static_binding :=
   match binding with
-  | Bind_code id c => Bind_code id (simplify_code syms c)
+  | Bind_code id c => Bind_code id (simplify_code tenv c)
   | Bind_deleted_code _ | Bind_symbol _ _ => binding
   end
 
-with simplify_code (syms : list symbol) (c : code) : code :=
+(* The body of code is rewritten under the environment of the code
+   made from [tenv] ([code_env_in], FlambdaSimplifyCodeEnvSpec.v), if
+   neither it nor what it becomes binds something static. *)
+with simplify_code (tenv : Typing_env.t) (c : code) : code :=
   match c with
   | Code params my_closure ret exn metadata body =>
-    match code_env syms params my_closure metadata with
-    | Some tenv =>
-      let body' := simplify_expr tenv body in
-      if Bool.eqb (binds_statics body) (binds_statics body')
+    match code_env_in tenv params my_closure metadata with
+    | Some tenv_code =>
+      let body' := simplify_expr tenv_code body in
+      if negb (binds_statics body) && negb (binds_statics body')
       then Code params my_closure ret exn metadata body'
       else c
     | None => c
@@ -1263,3 +1243,64 @@ Definition example_pass_unknown_let_statement : Prop :=
            (Let example_p Value pair
               (Let example_q Value (Simple (Var example_y))
                  (Apply_cont (Apply_cont_expr k [Var example_y] None))))).
+
+(* In the body of code a symbol has its type. [let_static s = Block 0
+   (7) and code f (x) = (let q = Block_load s 0 in apply_cont ret q) in
+   apply_cont k]: in the code the load from the symbol, which the group
+   of the code binds, is the constant. *)
+Definition example_pass_static_in_code_statement : Prop :=
+  ∀ k ret exn : continuation,
+    let bindings (code_body : expr) : list static_binding :=
+      [Bind_symbol example_s
+         (Static_const_block 0 [Const (Tagged_immediate 7)]);
+       Bind_code example_f
+         (Code [example_x] example_p ret exn
+            (make_code_metadata [Singleton Value] [Singleton Value])
+            code_body)]
+    in
+    let load :=
+      Prim
+        (Unary
+           (Block_load (Block_access_values (Some 0) (Some 1) Any_value)
+              Immutable 0))
+        [Symbol example_s]
+    in
+    simplify_by_types
+      (Let_static
+         (bindings
+            (Let example_q Value load
+               (Apply_cont (Apply_cont_expr ret [Var example_q] None))))
+         (Apply_cont (Apply_cont_expr k [] None)))
+    = Let_static
+        (bindings
+           (Let example_q Value (Simple (Const (Tagged_immediate 7)))
+              (Apply_cont
+                 (Apply_cont_expr ret [Const (Tagged_immediate 7)] None))))
+        (Apply_cont (Apply_cont_expr k [] None)).
+
+(* A function that calls itself, and a call of it. [let_static s = the
+   closure of the code f and code f (x) = (apply s x) in apply s 7],
+   the two calls indirect: the symbol is given the type of the
+   closures of the code, and each call is the direct call of the
+   code, the one in the body of the [Let_static] and the one in the
+   code. *)
+Definition example_pass_static_closure_statement : Prop :=
+  ∀ k exn ret exn' : continuation,
+    let call (kind : call_kind) (arg : simple) (k exn : continuation)
+        : expr :=
+      Apply
+        (Apply_expr (Symbol example_s) kind [arg] k exn []
+           [Singleton Value] [Singleton Value])
+    in
+    let bindings (kind : call_kind) : list static_binding :=
+      [Bind_symbol example_s (Static_const_set_of_closures example_f []);
+       Bind_code example_f
+         (Code [example_x] example_p ret exn'
+            (make_code_metadata [Singleton Value] [Singleton Value])
+            (call kind (Var example_x) ret exn'))]
+    in
+    simplify_by_types
+      (Let_static (bindings Indirect)
+         (call Indirect (Const (Tagged_immediate 7)) k exn))
+    = Let_static (bindings (Direct example_f))
+        (call (Direct example_f) (Const (Tagged_immediate 7)) k exn).

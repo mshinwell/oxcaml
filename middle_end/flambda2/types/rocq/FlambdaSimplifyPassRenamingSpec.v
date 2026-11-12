@@ -56,8 +56,8 @@
    that it makes answers the same of the renamed environment and
    term: the tests of the invariant and of the well-formed types,
    that a variable is new, that a type speaks of variables in scope,
-   and those of [code_env], which reads only whether the parameters
-   are different variables.
+   and those of the environment of the body of code
+   (FlambdaSimplifyCodeEnvSpec.code_env_in_rename_statement).
 
    The statements for the parts of the function are here too, since
    each is a function that reads names and owes the same equation
@@ -67,11 +67,8 @@
      [Simple] or the type that it holds);
    - [simplify_let]: the step is renamed ([rename_let_step]: the
      defining expression and the environment that it holds);
-   - [resolve_value_slot], [simplify_apply_cont] and
-     [simplify_switch];
-   - [code_env]: the symbols are not renamed, and the environment of
-     the renamed parameters and closure variable is the renamed
-     environment.
+   - [resolve_value_slot], [declare_variable], [simplify_apply_cont]
+     and [simplify_switch].
 
    Nothing is trusted here. The proofs are in
    FlambdaSimplifyPassRenamingProofs.v, which needs no review. *)
@@ -154,16 +151,6 @@ Definition simplify_switch_equivariant_statement : Prop :=
     simplify_switch (rename_typing_env r tenv) (rename_simple r scrutinee)
       (map (fun arm => (fst arm, rename_apply_cont r (snd arm))) arms)
     = rename_expr r (simplify_switch tenv scrutinee arms).
-
-(* The environment of the body of code. Symbols and metadata hold no
-   variable. *)
-Definition code_env_equivariant_statement : Prop :=
-  ∀ (r : renaming) (syms : list symbol) (params : list variable)
-    (my_closure : variable) (metadata : code_metadata),
-    code_env syms (map (rename_variable r) params)
-      (rename_variable r my_closure) metadata
-    = option_map (rename_typing_env r)
-        (code_env syms params my_closure metadata).
 
 (* ======================================================================== *)
 (* The function                                                             *)

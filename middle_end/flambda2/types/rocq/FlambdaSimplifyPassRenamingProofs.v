@@ -49,11 +49,18 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaSimplifyArithSpec FlambdaSimplifyApplySpec
   FlambdaSimplifyApplyProofs FlambdaSimplifyValueSlotsSpec
   FlambdaSimplifyValueSlotsProofs FlambdaSimplifyStaticsSpec
-  FlambdaSimplifyStaticsProofs FlambdaSimplifyPassSpec
+  FlambdaSimplifyStaticsProofs FlambdaSimplifyCodeEnvSpec
+  FlambdaSimplifyCodeEnvProofs FlambdaSimplifyPassSpec
   FlambdaSimplifyPassRenamingSpec.
 Import ListNotations.
 
 Local Open Scope Z_scope.
+
+(* [code_env_in] is the function of FlambdaSimplifyCodeEnvSpec.v. The
+   theorem of that name in FlambdaSimplifyCodeEnvProofs.v is not used
+   here. *)
+Local Abbreviation code_env_in :=
+  FlambdaSimplifyCodeEnvSpec.code_env_in.
 
 (* An equation of the provers, with the redexes of its statement
    reduced, used from left to right. *)
@@ -506,72 +513,8 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
-(* The body of code                                                         *)
-(* ======================================================================== *)
-
-Lemma distinct_renamed_variables (r : renaming) (xs : list variable) :
-  distinct (map (rename_variable r) xs) = distinct xs.
-Proof.
-  induction xs as [ | x xs IH]; cbn [map distinct]; [ reflexivity | ].
-  rewrite among_rename_variable, IH. reflexivity.
-Qed.
-
-Lemma combine_renamed (r : renaming) (params : list variable) :
-  ∀ kinds : list flambda_kind,
-    combine (map (rename_variable r) params) kinds
-    = map (fun param => (rename_variable r (fst param), snd param))
-        (combine params kinds).
-Proof.
-  induction params as [ | x params IH]; intros [ | kind kinds];
-    cbn [map combine fst snd]; try reflexivity.
-  rewrite IH. reflexivity.
-Qed.
-
-Theorem code_env_equivariant : code_env_equivariant_statement.
-Proof.
-  intros r syms params my_closure metadata. unfold code_env.
-  set (symbols := Typing_env.add_symbol_definitions Typing_env.create syms).
-  assert (Hsymbols : rename_typing_env r symbols = symbols).
-  { unfold symbols.
-    rewrite <- add_symbol_definitions_equivariant, create_equivariant.
-    reflexivity. }
-  set (closure :=
-         Typing_env.add_variable_definition symbols my_closure Value
-           Name_mode.normal).
-  assert (Hclosure :
-    Typing_env.add_variable_definition symbols (rename_variable r my_closure)
-      Value Name_mode.normal
-    = rename_typing_env r closure).
-  { unfold closure.
-    rewrite <- add_variable_definition_equivariant, Hsymbols. reflexivity. }
-  rewrite Hclosure, length_map, distinct_renamed_variables.
-  assert (Hfresh :
-    forallb
-      (fun x =>
-         negb (Typing_env.mem None (rename_typing_env r closure) (Name_var x)))
-      (map (rename_variable r) params)
-    = forallb (fun x => negb (Typing_env.mem None closure (Name_var x)))
-        params).
-  { induction params as [ | x params IH]; cbn [map forallb];
-      [ reflexivity | ].
-    rewrite IH, mem_variable_renamed. reflexivity. }
-  rewrite Hfresh.
-  match goal with
-  | |- context [if ?tests then _ else _] => destruct tests
-  end;
-    [ | reflexivity ].
-  cbn [option_map]. f_equal.
-  rewrite combine_renamed. apply add_definitions_of_params_equivariant.
-Qed.
-
-(* ======================================================================== *)
 (* The function                                                             *)
 (* ======================================================================== *)
-
-Lemma defined_symbols_renamed (r : renaming) (tenv : Typing_env.t) :
-  Typing_env.defined_symbols (rename_typing_env r tenv)
-  = Typing_env.defined_symbols tenv.
-Proof. reflexivity. Qed.
 
 Fixpoint simplify_expr_equivariant_aux (r : renaming) (e : expr) {struct e} :
   ∀ tenv : Typing_env.t,
@@ -579,13 +522,14 @@ Fixpoint simplify_expr_equivariant_aux (r : renaming) (e : expr) {struct e} :
     = rename_expr r (simplify_expr tenv e)
 with simplify_static_binding_equivariant (r : renaming)
     (binding : static_binding) {struct binding} :
-  ∀ syms : list symbol,
-    simplify_static_binding syms (rename_static_binding r binding)
-    = rename_static_binding r (simplify_static_binding syms binding)
+  ∀ tenv : Typing_env.t,
+    simplify_static_binding (rename_typing_env r tenv)
+      (rename_static_binding r binding)
+    = rename_static_binding r (simplify_static_binding tenv binding)
 with simplify_code_equivariant (r : renaming) (c : code) {struct c} :
-  ∀ syms : list symbol,
-    simplify_code syms (rename_code r c)
-    = rename_code r (simplify_code syms c).
+  ∀ tenv : Typing_env.t,
+    simplify_code (rename_typing_env r tenv) (rename_code r c)
+    = rename_code r (simplify_code tenv c).
 Proof.
   - destruct e
       as [x declared d body | bindings body | k handler body
@@ -600,14 +544,12 @@ Proof.
         destruct (declare_variable tenv x declared) as [tenv' | ];
           cbn [option_map rename_expr]; [ | reflexivity ].
         rewrite (simplify_expr_equivariant_aux r body tenv'). reflexivity.
-    + rewrite add_static_bindings_rename, defined_symbols_renamed.
+    + cbv zeta. rewrite add_static_bindings_rename.
       rewrite (simplify_expr_equivariant_aux r body). f_equal.
-      generalize
-        (Typing_env.defined_symbols (add_static_bindings tenv bindings)).
-      intros syms.
+      generalize (add_static_bindings tenv bindings). intros tenv'.
       induction bindings as [ | binding bindings IH]; cbn [map];
         [ reflexivity | ].
-      rewrite (simplify_static_binding_equivariant r binding syms), IH.
+      rewrite (simplify_static_binding_equivariant r binding tenv'), IH.
       reflexivity.
     + rewrite (simplify_expr_equivariant_aux r body). reflexivity.
     + rewrite (simplify_expr_equivariant_aux r body). reflexivity.
@@ -615,18 +557,20 @@ Proof.
     + rewrite simplify_apply_cont_equivariant. reflexivity.
     + apply simplify_switch_equivariant.
     + reflexivity.
-  - destruct binding as [id c | id | sym const]; intros syms;
+  - destruct binding as [id c | id | sym const]; intros tenv;
       cbn [rename_static_binding simplify_static_binding];
-      [ rewrite (simplify_code_equivariant r c syms) | | ]; reflexivity.
-  - destruct c as [params my_closure ret exn metadata body]; intros syms;
+      [ rewrite (simplify_code_equivariant r c tenv) | | ]; reflexivity.
+  - destruct c as [params my_closure ret exn metadata body]; intros tenv;
       cbn [rename_code simplify_code].
-    rewrite code_env_equivariant.
-    destruct (code_env syms params my_closure metadata) as [tenv | ];
+    rewrite code_env_in_rename.
+    destruct (code_env_in tenv params my_closure metadata)
+      as [tenv_code | ];
       cbn [option_map]; [ | reflexivity ].
-    rewrite (simplify_expr_equivariant_aux r body tenv),
+    cbv zeta.
+    rewrite (simplify_expr_equivariant_aux r body tenv_code),
       !rename_binds_statics.
-    destruct (Bool.eqb (binds_statics body)
-                (binds_statics (simplify_expr tenv body)));
+    destruct (negb (binds_statics body)
+              && negb (binds_statics (simplify_expr tenv_code body)));
       reflexivity.
 Qed.
 

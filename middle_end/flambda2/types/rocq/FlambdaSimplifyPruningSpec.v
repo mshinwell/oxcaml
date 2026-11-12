@@ -113,8 +113,11 @@
    [typing_env_invariant]) and [aliases_kinded]. The function carries
    a boolean for them, [fit]: it is true where the two are known of
    the environment ([known_to_fit]). It is true of the environment
-   that knows nothing and of the environment of the body of code
-   ([code_env_known_to_fit_statement]); and at a [Let], and at a
+   that knows nothing; the environment of the body of code has the
+   two conditions if the environment after the group that binds the
+   code has them ([code_env_in_known_to_fit_statement]), so the
+   boolean in the code is the one after the group; and at a [Let], and
+   at a
    [Let_static] for the types that its symbols are given, it stays
    true if the premises of the statements by which the function that
    extends the environment keeps the two conditions pass as tests
@@ -164,7 +167,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypingEnvKindedSpec FlambdaTypingEnvExamplesSpec
   FlambdaTypingEnvRefinementSpec FlambdaMeet FlambdaMeetSpec
   FlambdaSimplifyPrimitivesSpec FlambdaSimplifyApplySpec
-  FlambdaSimplifyStaticsSpec FlambdaSimplifyPassSpec.
+  FlambdaSimplifyStaticsSpec FlambdaSimplifyCodeEnvSpec
+  FlambdaSimplifyPassSpec.
 From OxCamlFlambda2Types Require FlambdaMeetExamplesSpec
   FlambdaSimplifySwitchSpec.
 Import ListNotations.
@@ -510,12 +514,16 @@ Definition statics_keep_fit_sound_statement : Prop :=
     known_to_fit (add_static_bindings tenv bindings)
       (fit && statics_keep_fit tenv bindings).
 
-(* The environment of the body of code has the two conditions. *)
-Definition code_env_known_to_fit_statement : Prop :=
-  ∀ (syms : list symbol) (params : list variable) (my_closure : variable)
-    (metadata : code_metadata) (tenv : Typing_env.t),
-    code_env syms params my_closure metadata = Some tenv ->
-    known_to_fit tenv true.
+(* The environment of the body of code
+   (FlambdaSimplifyCodeEnvSpec.code_env_in) has the two conditions if
+   the environment that it is made from has them. *)
+Definition code_env_in_known_to_fit_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (fit : bool) (params : list variable)
+    (my_closure : variable) (metadata : code_metadata)
+    (tenv_code : Typing_env.t),
+    known_to_fit tenv fit ->
+    code_env_in tenv params my_closure metadata = Some tenv_code ->
+    known_to_fit tenv_code fit.
 
 (* ======================================================================== *)
 (* The function                                                             *)
@@ -574,13 +582,10 @@ Fixpoint simplify_expr_pruning (prune : switch_rewrite) (tenv : Typing_env.t)
     end
   | Let_static bindings body =>
     let tenv' := add_static_bindings tenv bindings in
+    let fit' := fit && statics_keep_fit tenv bindings in
     Let_static
-      (map
-         (simplify_static_binding_pruning prune
-            (Typing_env.defined_symbols tenv'))
-         bindings)
-      (simplify_expr_pruning prune tenv'
-         (fit && statics_keep_fit tenv bindings) body)
+      (map (simplify_static_binding_pruning prune tenv' fit') bindings)
+      (simplify_expr_pruning prune tenv' fit' body)
   | Let_cont_non_recursive k handler body =>
     Let_cont_non_recursive k handler
       (simplify_expr_pruning prune tenv fit body)
@@ -593,21 +598,25 @@ Fixpoint simplify_expr_pruning (prune : switch_rewrite) (tenv : Typing_env.t)
   | Invalid => Invalid
   end
 
+(* The code that a static binding binds, where [tenv] is the
+   environment of the body of the [Let_static] and [fit] its
+   boolean. *)
 with simplify_static_binding_pruning (prune : switch_rewrite)
-    (syms : list symbol) (binding : static_binding) : static_binding :=
+    (tenv : Typing_env.t) (fit : bool) (binding : static_binding)
+    : static_binding :=
   match binding with
-  | Bind_code id c => Bind_code id (simplify_code_pruning prune syms c)
+  | Bind_code id c => Bind_code id (simplify_code_pruning prune tenv fit c)
   | Bind_deleted_code _ | Bind_symbol _ _ => binding
   end
 
-with simplify_code_pruning (prune : switch_rewrite) (syms : list symbol)
-    (c : code) : code :=
+with simplify_code_pruning (prune : switch_rewrite) (tenv : Typing_env.t)
+    (fit : bool) (c : code) : code :=
   match c with
   | Code params my_closure ret exn metadata body =>
-    match code_env syms params my_closure metadata with
-    | Some tenv =>
-      let body' := simplify_expr_pruning prune tenv true body in
-      if Bool.eqb (binds_statics body) (binds_statics body')
+    match code_env_in tenv params my_closure metadata with
+    | Some tenv_code =>
+      let body' := simplify_expr_pruning prune tenv_code fit body in
+      if negb (binds_statics body) && negb (binds_statics body')
       then Code params my_closure ret exn metadata body'
       else c
     | None => c

@@ -49,13 +49,12 @@
 
    The function that puts the rewrites together
    (FlambdaSimplifyPassSpec.v) rewrites the body of code where a
-   [Let_static] binds the code, under an environment made from
-   nothing, in which the symbols are defined and have no types: inside
-   a function, a load from a symbol bound to a block is not answered.
-   Here is the environment to use instead ([code_env_in]):
-   [Typing_env.closure_env] of the environment of the body of the
-   [Let_static] (FlambdaSimplifyStaticsSpec.add_static_bindings), then
-   [my_closure] and the parameters.
+   [Let_static] binds the code, under this environment
+   ([code_env_in]): [Typing_env.closure_env] of the environment of the
+   body of the [Let_static]
+   (FlambdaSimplifyStaticsSpec.add_static_bindings), then [my_closure]
+   and the parameters. So inside a function a load from a symbol bound
+   to a block is answered.
 
    Where the model and the compiler part:
    - The compiler rewrites the body of code that is not a stub where
@@ -77,10 +76,9 @@
      after the code to constants that are not closures.
    - The compiler defines the parameters and then [my_closure]; here
      [my_closure] is first, as the machine binds it
-     (FlambdaSemanticsSpec.step, at an [Apply]) and as [code_env] of
-     FlambdaSimplifyPassSpec.v has it. The compiler's code has region
-     and depth variables too, which it defines after; the model's code
-     has none.
+     (FlambdaSemanticsSpec.step, at an [Apply]). The compiler's code
+     has region and depth variables too, which it defines after; the
+     model's code has none.
    - [my_closure] gets no type here. The compiler gives it the type of
      the closure; that is for the statements about the types of
      closures.
