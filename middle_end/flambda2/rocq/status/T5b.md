@@ -225,6 +225,26 @@ types, inside a join of environments". I do not change that file.
   implies the other). T4 proposed it.
 - Validation of these two sections, at the tip that was merged:
   `make -C rocq -j8 all`, `make -C rocq assumptions`.
+- A variant of the join of types with a bound on its expansions
+  (`n_way_join_bounded`, `FlambdaJoinTypes.v`; it is not the
+  compiler's function, and nothing else in the model uses it).
+  Where a call would expand an alias to join it with a type that
+  is not an alias, a count is taken down; at 0 it answers the
+  unknown type of the kind of the types, in the state given.
+  `n_way_join_bounded_sound` (`FlambdaJoinTypesSpec.v`): the
+  variant meets `n_way_join_type_sound` for every bound, under the
+  premises of `n_way_join_sound`. That is a statement about this
+  variant of the model, and the contract is the one about values
+  that the join of environments supposes; the change proposed
+  for the compiler ("Decided") is not transcribed, and that it
+  computes what the variant computes is not checked. Not
+  established of the variant: the two other contracts (the names
+  of equations, the well-formedness of the type answered), for
+  which proofs like those of `n_way_join` are expected; and that
+  it ends: the first bound is still there for the definition to
+  be accepted, no statement says that some value of it is
+  enough, and what is in "Decided" on that is an argument, not a
+  proof.
 - `Expanded_type` is T4's module: `FlambdaJoinTypes.v` names it
   (`Module Expanded_type := FlambdaExpandHead.Expanded_type`) where
   it had a copy. Nothing else changed, in my files or in T5's: the
@@ -714,14 +734,48 @@ functions (`FlambdaJoinMeet.v`), by T5's statements and mine there.
   is in my file because T5's proofs file cannot import mine
   without a cycle. T5 may move it.
 
+## Decided
+
+- The repair proposed for T5b-1 (2026-11-12; a candidate change of
+  the compiler, not in this tree, for the human to judge). The
+  question: how the two joins of types are to end where an alias
+  is joined with a type that is not one. Options: (a) a bound on
+  the depth of such expansions; (b) a test for a cycle (the names
+  expanded on the way are remembered, and one met again stops the
+  join); (c) both. Chosen: (a). In the binary join the depth that
+  is already counted where both types are aliases is counted also
+  where one is, with the same bound (the join depth, 5 unless a
+  flag says otherwise). In the n-way join a count of its own in
+  the join environment, with the same bound, is taken up before
+  the heads are joined and down after. At the bound the join
+  answers the unknown type, as it does today at the bound for two
+  aliases. Where all the types are aliases, or none is, nothing
+  changes. Why (a): it is the smaller change; in the model, the
+  variant with such a bound keeps the contract about values
+  (`n_way_join_bounded_sound`); the join is expected to end with
+  it (argued, not proved: a call either takes the count down or
+  is on types that are parts of the types that it was given);
+  and (b) alone does not bound the work, since a way through the
+  names may go through each of them once. What (a) can lose: where a join goes
+  today, and ends, through more such expansions than the bound,
+  one inside another, the part below the bound becomes unknown;
+  in the binary join also where the expansions of the two sorts
+  together exceed it. Types that are not aliases, one inside
+  another, are needed on one side for that, and the census made
+  with the reproduction found them rare. Cost to change to (c):
+  a set of names in each join environment and one test.
+
 ## Found so far
 
 - T5b-1: `n_way_join` has no bound on its depth and no test for a
   cycle (the binary join has one); on two inputs that are an alias
   and a type in turn it does not terminate. Shown by T7 with a test
   of the types library on two such environments (the stack
-  overflows, in the n-way and in the binary join); not shown from a
-  source program.
+  overflows, in the n-way and in the binary join), and since from
+  OCaml source for both joins: the compiler's stack overflows at
+  `-O3` on one file with the default join, and with the n-way join
+  on a unit compiled against one that the default join compiled.
+  A repair is proposed ("Decided").
 - T5b-2: the join gives an `is_null` variable to a join one of whose
   inputs is `Not_null`, which says `Is_null` is 0 of a poison value
   of that input. An unchecked assumption; it is why D26 was amended.
@@ -774,7 +828,15 @@ functions (`FlambdaJoinMeet.v`), by T5's statements and mine there.
   the conclusion about values only on some runs (the item
   before). So the sixth part of `join_guarantees` is stated of
   the join made with a meet that has both contracts, not with
-  the model's.
+  the model's. I was asked to tie the two for that half as for
+  the other, once the join has the value clause of its contract
+  with no condition on runs. T5 has since found, by computing an
+  instance, that the join of the model has not that clause with
+  either of its choices (a variable brought in from one
+  environment joined with a type that no value has on the run),
+  and T4 that no premise that the meet can carry gives it. So
+  there is nothing to tie for that half with the join as it is,
+  and I have written nothing for it.
 - The same for the choices of the compiler (`compiler_choices`):
   T4's theorems are for the choices that have the three
   conditions.
