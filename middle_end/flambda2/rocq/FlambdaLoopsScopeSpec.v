@@ -47,9 +47,14 @@
    (FlambdaLoopAliasesSpec.follow_aliases_in_loops), with nothing known
    to begin with, as a round applies it; a rewrite that keeps scope,
    taken into the handlers of the recursive continuations
-   (FlambdaRecHandlersSpec.rewrite_rec_handlers); and loopify
-   (FlambdaLoopifySpec.loopify_unit), which the validation does not
-   apply and its caller may.
+   (FlambdaRecHandlersSpec.rewrite_rec_handlers); the moving of a
+   continuation down to the call or the test that uses it
+   (FlambdaSinkUsesSpec.sink_conts_to_uses), which the validation
+   applies once, when the rounds are over, to each term that it then
+   compares; and loopify (FlambdaLoopifySpec.loopify_unit), which
+   the validation applies to the term before after its first
+   comparison fails, for the code and the names of loops that it is
+   given.
 
    Closed code is all that is asked of a term, as [keeps_scope] asks
    it. Loopify binds a name that its caller gives: the code it makes is
@@ -72,6 +77,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaDeadParamsSpec FlambdaForwardSpec FlambdaLoopAliasesSpec
   FlambdaLoopLetsSpec FlambdaLoopifySpec FlambdaParamAliasesSpec
   FlambdaRecHandlersSpec FlambdaShortcutSpec FlambdaSinkContsSpec
+  FlambdaSinkUsesSpec
   FlambdaUnusedParamsSpec FlambdaValidatorEquivarianceSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
 Import ListNotations.
@@ -109,6 +115,10 @@ Definition follow_aliases_in_loops_keeps_scope_statement : Prop :=
    continuations. *)
 Definition rewrite_rec_handlers_keeps_scope_statement : Prop :=
   ∀ f : expr -> expr, keeps_scope f -> keeps_scope (rewrite_rec_handlers f).
+
+(* What the validation applies once, when the rounds are over. *)
+Definition sink_conts_to_uses_keeps_scope_statement : Prop :=
+  keeps_scope sink_conts_to_uses.
 
 (* Loopify, whatever the code that is to be made a loop and the names
    given for the loops. *)
