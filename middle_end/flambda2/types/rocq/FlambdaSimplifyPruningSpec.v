@@ -113,11 +113,13 @@
    a boolean for them, [fit]: it is true where the two are known of
    the environment ([known_to_fit]). It is true of the environment
    that knows nothing and of the environment of the body of code
-   ([code_env_known_to_fit_statement]); defining symbols keeps it;
-   and at a [Let] it stays true if the premises of the statements by
-   which the function that extends the environment keeps the two
-   conditions pass as tests ([let_keeps_fit],
-   [let_keeps_fit_sound_statement]). At a [Switch] the rest of
+   ([code_env_known_to_fit_statement]); and at a [Let], and at a
+   [Let_static] for the types that its symbols are given, it stays
+   true if the premises of the statements by which the function that
+   extends the environment keeps the two conditions pass as tests
+   ([let_keeps_fit], [let_keeps_fit_sound_statement];
+   [statics_keep_fit], [statics_keep_fit_sound_statement]). At a
+   [Switch] the rest of
    [typing_env_fits] is tested ([types_fit_b],
    [types_fit_b_fits_statement]), and that the scrutinee may occur in
    terms. Where [fit] is false or a test fails nothing is pruned: a
@@ -158,7 +160,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypingEnvKindedSpec FlambdaTypingEnvExamplesSpec
   FlambdaTypingEnvRefinementSpec FlambdaMeet FlambdaMeetSpec
   FlambdaSimplifyPrimitivesSpec FlambdaSimplifyApplySpec
-  FlambdaSimplifyPassSpec.
+  FlambdaSimplifyStaticsSpec FlambdaSimplifyPassSpec.
 From OxCamlFlambda2Types Require FlambdaMeetExamplesSpec
   FlambdaSimplifySwitchSpec.
 Import ListNotations.
@@ -439,6 +441,71 @@ Definition let_keeps_fit_sound_statement : Prop :=
     simplify_let tenv x defining_expr = Step_let defining_expr' tenv' ->
     known_to_fit tenv' (fit && let_keeps_fit tenv x defining_expr).
 
+(* The same for the symbols of a [Let_static], by the cases of
+   [add_static_bindings] (FlambdaSimplifyStaticsSpec.v): a symbol that
+   is defined keeps the two conditions; one that is given the type of
+   its constant keeps them if the test of [equation_keeps_fit] passes
+   in the environment where the symbol has been defined. *)
+Fixpoint block_like_bindings_keep_fit (tenv : Typing_env.t)
+    (bindings : list static_binding) : bool :=
+  match bindings with
+  | [] => true
+  | Bind_symbol s const :: bindings =>
+    if is_closure_const const
+    then block_like_bindings_keep_fit tenv bindings
+    else
+      match static_const_type_in tenv const with
+      | Some ty =>
+        equation_keeps_fit (Typing_env.add_symbol_definition tenv s)
+          (Name_symbol s) ty
+        && block_like_bindings_keep_fit (define_symbol_with_type tenv s ty)
+             bindings
+      | None =>
+        block_like_bindings_keep_fit
+          (Typing_env.add_symbol_definition tenv s) bindings
+      end
+  | (Bind_code _ _ | Bind_deleted_code _) :: bindings =>
+    block_like_bindings_keep_fit tenv bindings
+  end.
+
+(* The same for the last pass of [add_static_bindings], which gives
+   the symbols bound to closures their types: each symbol is defined
+   already, and the test is made in the environment as it is when the
+   symbol is given its type. *)
+Fixpoint closure_bindings_keep_fit (prior tenv : Typing_env.t)
+    (bindings : list static_binding) : bool :=
+  match bindings with
+  | [] => true
+  | Bind_symbol s const :: bindings =>
+    if is_closure_const const
+    then
+      match static_const_type_in prior const with
+      | Some ty =>
+        equation_keeps_fit tenv (Name_symbol s) ty
+        && closure_bindings_keep_fit prior
+             (Typing_env.replace_equation tenv (Name_symbol s) ty) bindings
+      | None => closure_bindings_keep_fit prior tenv bindings
+      end
+    else closure_bindings_keep_fit prior tenv bindings
+  | (Bind_code _ _ | Bind_deleted_code _) :: bindings =>
+    closure_bindings_keep_fit prior tenv bindings
+  end.
+
+Definition statics_keep_fit (tenv : Typing_env.t)
+    (bindings : list static_binding) : bool :=
+  let defined :=
+    Typing_env.add_symbol_definitions tenv (closure_symbols_of bindings)
+  in
+  let prior := add_block_like_bindings defined bindings in
+  block_like_bindings_keep_fit defined bindings
+  && closure_bindings_keep_fit prior prior bindings.
+
+Definition statics_keep_fit_sound_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (fit : bool) (bindings : list static_binding),
+    known_to_fit tenv fit ->
+    known_to_fit (add_static_bindings tenv bindings)
+      (fit && statics_keep_fit tenv bindings).
+
 (* The environment of the body of code has the two conditions. *)
 Definition code_env_known_to_fit_statement : Prop :=
   ∀ (syms : list symbol) (params : list variable) (my_closure : variable)
@@ -496,15 +563,14 @@ Fixpoint simplify_expr_pruning (prune : switch_rewrite) (tenv : Typing_env.t)
     | Step_stop => e
     end
   | Let_static bindings body =>
-    let tenv' :=
-      Typing_env.add_symbol_definitions tenv (bound_symbols bindings)
-    in
+    let tenv' := add_static_bindings tenv bindings in
     Let_static
       (map
          (simplify_static_binding_pruning prune
             (Typing_env.defined_symbols tenv'))
          bindings)
-      (simplify_expr_pruning prune tenv' fit body)
+      (simplify_expr_pruning prune tenv'
+         (fit && statics_keep_fit tenv bindings) body)
   | Let_cont_non_recursive k handler body =>
     Let_cont_non_recursive k handler
       (simplify_expr_pruning prune tenv fit body)

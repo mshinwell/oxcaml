@@ -49,6 +49,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypingEnvRefinementProofs FlambdaMeet FlambdaMeetSpec
   FlambdaSimplifyPrimitivesSpec FlambdaSimplifyPrimitivesProofs
   FlambdaSimplifyApplySpec FlambdaSimplifyApplyProofs
+  FlambdaSimplifyStaticsSpec FlambdaSimplifyStaticsProofs
   FlambdaSimplifyPassSpec FlambdaSimplifyPassProofs
   FlambdaSimplifyPruningSpec.
 From OxCamlFlambda2Types Require FlambdaMeetExamplesSpec
@@ -368,6 +369,102 @@ Proof.
                (proj1 Hinvariant) Haliases).
 Qed.
 
+Lemma add_symbol_definition_carried (tenv : Typing_env.t) (sym : symbol) :
+  carried tenv -> carried (Typing_env.add_symbol_definition tenv sym).
+Proof.
+  intros [Hinvariant Haliases]. split.
+  - exact (add_symbol_definition_invariant tenv sym Hinvariant).
+  - exact (add_symbol_definition_aliases_kinded tenv sym (proj1 Hinvariant)
+             Haliases).
+Qed.
+
+(* A name that is given a type, where the test passes. *)
+Lemma equation_keeps_fit_carried (tenv : Typing_env.t) (n : name)
+    (ty : flambda_type) :
+  carried tenv ->
+  equation_keeps_fit tenv n ty = true ->
+  carried (Typing_env.replace_equation tenv n ty).
+Proof.
+  intros [Hinvariant Haliases] Hkeeps. unfold equation_keeps_fit in Hkeeps.
+  rewrite !andb_true_iff in Hkeeps.
+  destruct Hkeeps as [[[[[Hmem Hfree] Hkind] Halias] Hunknown] Hof_kind].
+  split.
+  - apply (replace_equation_invariant tenv n ty Hinvariant Hmem).
+    + intros y Hin. rewrite forallb_forall in Hfree. exact (Hfree y Hin).
+    + intros ty' btm Hlookup. rewrite Hlookup in Hkind.
+      apply kind_eqb_eq. exact Hkind.
+    + intros alias Halias' Hcanonical. rewrite Halias' in Halias.
+      apply is_canonical_b_iff in Hcanonical. rewrite Hcanonical in Halias.
+      discriminate.
+    + apply orb_true_iff in Hunknown. destruct Hunknown as [H | H].
+      * left. apply negb_true_iff. exact H.
+      * right.
+        match goal with
+        | |- ?found = None =>
+          destruct found eqn:Hlookup;
+            [ try rewrite Hlookup in H; cbn in H; discriminate H
+            | reflexivity ]
+        end.
+  - exact (replace_equation_aliases_kinded tenv n ty
+             (simple_of_kind_b_sound tenv _ _ Hof_kind) Haliases).
+Qed.
+
+Lemma block_like_bindings_keep_fit_carried (bindings : list static_binding) :
+  ∀ tenv : Typing_env.t,
+    carried tenv ->
+    block_like_bindings_keep_fit tenv bindings = true ->
+    carried (add_block_like_bindings tenv bindings).
+Proof.
+  induction bindings as [ | [id c | id | s const] bindings IH];
+    intros tenv Hcarried;
+    cbn [block_like_bindings_keep_fit add_block_like_bindings];
+    try (intros Hkeeps; exact (IH tenv Hcarried Hkeeps));
+    [ intros _; exact Hcarried | ].
+  destruct (is_closure_const const);
+    [ intros Hkeeps; exact (IH tenv Hcarried Hkeeps) | ].
+  pose proof (add_symbol_definition_carried tenv s Hcarried) as Hdefined.
+  destruct (static_const_type_in tenv const) as [ty | ].
+  - intros Hkeeps. apply andb_true_iff in Hkeeps.
+    destruct Hkeeps as [Hequation Hrest]. apply IH; [ | exact Hrest ].
+    exact (equation_keeps_fit_carried _ (Name_symbol s) ty Hdefined
+             Hequation).
+  - intros Hkeeps. exact (IH _ Hdefined Hkeeps).
+Qed.
+
+Lemma closure_bindings_keep_fit_carried (prior : Typing_env.t)
+    (bindings : list static_binding) :
+  ∀ tenv : Typing_env.t,
+    carried tenv ->
+    closure_bindings_keep_fit prior tenv bindings = true ->
+    carried (add_closure_bindings prior tenv bindings).
+Proof.
+  induction bindings as [ | [id c | id | s const] bindings IH];
+    intros tenv Hcarried;
+    cbn [closure_bindings_keep_fit add_closure_bindings];
+    try (intros Hkeeps; exact (IH tenv Hcarried Hkeeps));
+    [ intros _; exact Hcarried | ].
+  destruct (is_closure_const const);
+    [ | intros Hkeeps; exact (IH tenv Hcarried Hkeeps) ].
+  destruct (static_const_type_in prior const) as [ty | ];
+    [ | intros Hkeeps; exact (IH tenv Hcarried Hkeeps) ].
+  intros Hkeeps. apply andb_true_iff in Hkeeps.
+  destruct Hkeeps as [Hequation Hrest]. apply IH; [ | exact Hrest ].
+  exact (equation_keeps_fit_carried tenv (Name_symbol s) ty Hcarried
+           Hequation).
+Qed.
+
+Theorem statics_keep_fit_sound : statics_keep_fit_sound_statement.
+Proof.
+  intros tenv fit bindings Hknown Hfit.
+  apply andb_true_iff in Hfit. destruct Hfit as [Hfit Hkeeps].
+  unfold statics_keep_fit in Hkeeps. cbv zeta in Hkeeps.
+  apply andb_true_iff in Hkeeps. destruct Hkeeps as [Hblocks Hclosures].
+  unfold add_static_bindings. cbv zeta.
+  apply closure_bindings_keep_fit_carried; [ | exact Hclosures ].
+  apply block_like_bindings_keep_fit_carried; [ | exact Hblocks ].
+  exact (add_symbol_definitions_carried tenv _ (Hknown Hfit)).
+Qed.
+
 Lemma add_definitions_of_params_carried
     (params : list (variable * flambda_kind)) :
   ∀ tenv : Typing_env.t,
@@ -469,30 +566,9 @@ Proof.
     set (tenv1 :=
            Typing_env.add_variable_definition tenv x
              (FlambdaTypeGrammar.kind ty) Name_mode.normal) in *.
-    intros [= _ <-] Hkeeps. unfold equation_keeps_fit in Hkeeps.
-    rewrite !andb_true_iff in Hkeeps.
-    destruct Hkeeps as [[[[[Hmem Hfree] Hkind] Halias] Hunknown] Hof_kind].
-    destruct Hcarried1 as [Hinvariant1 Haliases1].
-    split.
-    + apply (replace_equation_invariant tenv1 (Name_var x) ty Hinvariant1
-               Hmem).
-      * intros y Hin. rewrite forallb_forall in Hfree. exact (Hfree y Hin).
-      * intros ty' btm Hlookup. rewrite Hlookup in Hkind.
-        apply kind_eqb_eq. exact Hkind.
-      * intros alias Halias' Hcanonical. rewrite Halias' in Halias.
-        apply is_canonical_b_iff in Hcanonical. rewrite Hcanonical in Halias.
-        discriminate.
-      * apply orb_true_iff in Hunknown. destruct Hunknown as [H | H].
-        -- left. apply negb_true_iff. exact H.
-        -- right.
-           match goal with
-           | |- ?found = None =>
-             destruct found eqn:Hlookup;
-               [ try rewrite Hlookup in H; cbn in H; discriminate H
-               | reflexivity ]
-           end.
-    + exact (replace_equation_aliases_kinded tenv1 (Name_var x) ty
-               (simple_of_kind_b_sound tenv1 _ _ Hof_kind) Haliases1).
+    intros [= _ <-] Hkeeps.
+    exact (equation_keeps_fit_carried tenv1 (Name_var x) ty Hcarried1
+             Hkeeps).
   - intros [= _ <-] _.
     exact (add_variable_definition_carried tenv x kind Hcarried Hfresh).
 Qed.
@@ -827,9 +903,7 @@ Qed.
 Lemma let_static_body_refines_valid (tenv : Typing_env.t)
     (bindings : list static_binding) (body body' : expr) :
   sets_well_formed (Let_static bindings body) = true ->
-  refines_valid
-    (Typing_env.add_symbol_definitions tenv (bound_symbols bindings)) body
-    body' ->
+  refines_valid (add_static_bindings tenv bindings) body body' ->
   refines_valid tenv (Let_static bindings body) (Let_static bindings body').
 Proof.
   intros Hsets Hbody vars conts statics Hvalid Hsat.
@@ -844,10 +918,8 @@ Proof.
     apply Hbody.
     + exact (rest_valid_step _ body vars _ conts _ statics _ Hsets Hvalid
                (Hstep body)).
-    + apply add_symbol_definitions_env_satisfies_strictly.
-      refine (env_satisfies_strictly_statics_extend tenv statics statics'
-                vars _ Hsat).
-      exact (step_extends_statics _ _ (Hstep body)).
+    + exact (add_static_bindings_env_satisfies tenv statics statics' vars
+               bindings Hbindings Hsat).
   - apply step_undefined_refines. rewrite step_let_static, Hbindings.
     reflexivity.
 Qed.
@@ -864,13 +936,17 @@ Proof.
   destruct (Bool.eqb _ _); reflexivity.
 Qed.
 
-Lemma bound_symbols_simplify_pruning (prune : switch_rewrite)
-    (syms : list symbol) (bindings : list static_binding) :
-  bound_symbols (map (simplify_static_binding_pruning prune syms) bindings)
-  = bound_symbols bindings.
+Lemma add_static_bindings_simplify_pruning (prune : switch_rewrite)
+    (tenv : Typing_env.t) (syms : list symbol)
+    (bindings : list static_binding) :
+  add_static_bindings tenv
+    (map (simplify_static_binding_pruning prune syms) bindings)
+  = add_static_bindings tenv bindings.
 Proof.
-  induction bindings as [ | [id c | id | sym const] bindings IH];
-    cbn [map simplify_static_binding_pruning bound_symbols]; congruence.
+  apply add_static_bindings_same_symbols.
+  - intros s const. reflexivity.
+  - intros id c. eexists. reflexivity.
+  - intros id. reflexivity.
 Qed.
 
 (* ======================================================================== *)
@@ -927,7 +1003,7 @@ Proof.
       apply andb_true_iff in H. exact (proj2 H). }
     generalize
       (Typing_env.defined_symbols
-         (Typing_env.add_symbol_definitions tenv (bound_symbols bindings))).
+         (add_static_bindings tenv bindings)).
     intros syms.
     assert (Hbindings :
       ∀ before : list static_binding,
@@ -1052,14 +1128,8 @@ Proof.
       exact (refines_valid_trans tenv _ _ _ Hrefines1 Hrefines2). }
     destruct (Hbindings [] Hsets) as [Hsets1 Hrefines1].
     cbn [app] in Hsets1, Hrefines1.
-    assert (Hknown' :
-      known_to_fit
-        (Typing_env.add_symbol_definitions tenv (bound_symbols bindings))
-        fit).
-    { intros Hfit.
-      exact (add_symbol_definitions_carried tenv _ (Hknown Hfit)). }
-    destruct (simplify_expr_pruning_sound prune Hprune body _ fit Hknown'
-                Hbody)
+    destruct (simplify_expr_pruning_sound prune Hprune body _ _
+                (statics_keep_fit_sound tenv fit bindings Hknown) Hbody)
       as [Hbody' Hbody_refines].
     split.
     + pose proof Hsets1 as H. cbn [sets_well_formed] in H |- *.
@@ -1067,7 +1137,7 @@ Proof.
       exact (conj H Hbody').
     + eapply refines_valid_trans; [ exact Hrefines1 | ].
       apply let_static_body_refines_valid; [ exact Hsets1 | ].
-      rewrite bound_symbols_simplify_pruning. exact Hbody_refines.
+      rewrite add_static_bindings_simplify_pruning. exact Hbody_refines.
   - pose proof Hsets as H. cbn [sets_well_formed] in H.
     apply andb_true_iff in H. destruct H as [Hhandler Hbody].
     destruct (simplify_expr_pruning_sound prune Hprune body tenv fit Hknown
@@ -1138,8 +1208,7 @@ Proof.
     f_equal. apply simplify_expr_no_pruning_eq.
   - f_equal; [ | apply simplify_expr_no_pruning_eq ].
     generalize
-      (Typing_env.defined_symbols
-         (Typing_env.add_symbol_definitions tenv (bound_symbols bindings))).
+      (Typing_env.defined_symbols (add_static_bindings tenv bindings)).
     intros syms.
     induction bindings as [ | binding bindings IH]; [ reflexivity | ].
     cbn [map]. f_equal; [ | exact IH ].

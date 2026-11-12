@@ -87,8 +87,10 @@
      closure of one piece of code becomes a direct call of that code,
      and the callee and the arguments are replaced by their canonical
      elements.
-   - Under a [Let_static] its symbols are defined, with no types.
-     The body of each piece of code that it binds is rewritten too
+   - Under a [Let_static] its symbols are defined and given the types
+     of their constants: a block, a boxed number, a string, a closure
+     ([add_static_bindings], FlambdaSimplifyStaticsSpec.v). The body
+     of each piece of code that it binds is rewritten too
      ([simplify_code]), under an environment of its own ([code_env]):
      the symbols that the environment has and those of the
      [Let_static], with no types; [my_closure] at the kind value; the
@@ -124,10 +126,11 @@
      before the [Let], and otherwise records the kind of the result
      only. No arm of a [Switch] is removed from the type of the
      scrutinee.
-   - Symbols have no types; nothing is lifted; there are no common
-     subexpressions, no inlining, no unboxing of parameters. The
-     value slots of a set of closures are left as they are written
-     (Simplify replaces them by their canonical elements).
+   - In the body of code no symbol has a type; nothing is lifted;
+     there are no common subexpressions, no inlining, no unboxing of
+     parameters. The value slots of a set of closures are left as
+     they are written (Simplify replaces them by their canonical
+     elements).
    - Of the unary primitives, [Is_int], [Is_null], [Get_tag], a
      [Block_load] that is not marked [Mutable], and the tagging,
      untagging, boxing and unboxing of a number are looked at; of the
@@ -157,7 +160,7 @@
      on the environments that the function builds, for a term whose
      binders are all different, is not stated here.
 
-   Thirteen terms on which the function is computed are at the end:
+   Fourteen terms on which the function is computed are at the end:
    what it answers is stated as an equation, with no premise.
 
    That the function commutes with renaming ([simplify_expr] of the
@@ -184,7 +187,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaProvers FlambdaProversSpec FlambdaSimplifyPrimitivesSpec
   FlambdaSimplifyProjectionsSpec FlambdaSimplifyBoxingSpec
   FlambdaSimplifyArithSpec FlambdaSimplifyApplySpec
-  FlambdaSimplifyValueSlotsSpec.
+  FlambdaSimplifyValueSlotsSpec FlambdaSimplifyStaticsSpec.
 Import ListNotations.
 
 Local Open Scope Z_scope.
@@ -715,15 +718,6 @@ Definition resolve_value_slot (tenv : Typing_env.t) (declared : flambda_kind)
 (* The other expressions                                                    *)
 (* ======================================================================== *)
 
-(* The symbols that static bindings bind. *)
-Fixpoint bound_symbols (bindings : list static_binding) : list symbol :=
-  match bindings with
-  | [] => []
-  | Bind_symbol s _ :: bindings => s :: bound_symbols bindings
-  | (Bind_code _ _ | Bind_deleted_code _) :: bindings =>
-    bound_symbols bindings
-  end.
-
 Definition simplify_apply_cont (tenv : Typing_env.t) (ac : apply_cont)
     : apply_cont :=
   match simplify_simples tenv (ac_args ac) with
@@ -801,9 +795,7 @@ Fixpoint simplify_expr (tenv : Typing_env.t) (e : expr) : expr :=
     | Step_stop => e
     end
   | Let_static bindings body =>
-    let tenv' :=
-      Typing_env.add_symbol_definitions tenv (bound_symbols bindings)
-    in
+    let tenv' := add_static_bindings tenv bindings in
     Let_static
       (map (simplify_static_binding (Typing_env.defined_symbols tenv'))
          bindings)
@@ -1162,4 +1154,33 @@ Definition example_pass_value_slot_statement : Prop :=
     = unknown
         (Let example_c Value closure
            (Let example_y Value (Simple (Var example_x))
+              (Apply_cont (Apply_cont_expr k [Var example_x] None)))).
+
+(* A load from a static block. [let x = opaque in let_static s = Block
+   0 (x, 7) in let q = Block_load s 0 in apply_cont k q]: the symbol is
+   given the type of the block, and the load is [x]. *)
+Definition example_pass_static_block_statement : Prop :=
+  ∀ k : continuation,
+    let unknown (body : expr) : expr :=
+      Let example_x Value (example_opaque Value (Tagged_immediate 5)) body
+    in
+    let bindings :=
+      [Bind_symbol example_s
+         (Static_const_block 0 [Var example_x; Const (Tagged_immediate 7)])]
+    in
+    let load :=
+      Prim
+        (Unary
+           (Block_load (Block_access_values (Some 0) (Some 2) Any_value)
+              Immutable 0))
+        [Symbol example_s]
+    in
+    simplify_by_types
+      (unknown
+         (Let_static bindings
+            (Let example_q Value load
+               (Apply_cont (Apply_cont_expr k [Var example_q] None)))))
+    = unknown
+        (Let_static bindings
+           (Let example_q Value (Simple (Var example_x))
               (Apply_cont (Apply_cont_expr k [Var example_x] None)))).

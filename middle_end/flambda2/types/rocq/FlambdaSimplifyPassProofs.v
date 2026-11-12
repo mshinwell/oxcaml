@@ -52,6 +52,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaSimplifyArithSpec FlambdaSimplifyArithProofs
   FlambdaSimplifyApplySpec FlambdaSimplifyApplyProofs
   FlambdaSimplifyValueSlotsSpec FlambdaSimplifyValueSlotsProofs
+  FlambdaSimplifyStaticsSpec FlambdaSimplifyStaticsProofs
   FlambdaSimplifyPassSpec.
 Import ListNotations.
 
@@ -883,29 +884,48 @@ Proof.
                     (Typing_env.add_symbol_definitions tenv syms) sym) IH).
 Qed.
 
-Lemma let_static_body_refines_under (tenv : Typing_env.t)
-    (bindings : list static_binding) (body body' : expr) :
-  expr_refines_under
-    (Typing_env.add_symbol_definitions tenv (bound_symbols bindings)) body
-    body' ->
-  expr_refines_under tenv (Let_static bindings body)
-    (Let_static bindings body').
+(* A group of static bindings whose code is rewritten gives the
+   symbols the same types: the environment reads the symbols only. *)
+Lemma add_static_bindings_same_symbols
+    (g : static_binding -> static_binding) :
+  (∀ (s : symbol) (const : static_const),
+    g (Bind_symbol s const) = Bind_symbol s const) ->
+  (∀ (id : code_id) (c : code),
+    ∃ c' : code, g (Bind_code id c) = Bind_code id c') ->
+  (∀ id : code_id, g (Bind_deleted_code id) = Bind_deleted_code id) ->
+  ∀ (tenv : Typing_env.t) (bindings : list static_binding),
+    add_static_bindings tenv (map g bindings)
+    = add_static_bindings tenv bindings.
 Proof.
-  intros Hbody vars conts statics Hsat.
-  destruct (eval_static_bindings vars bindings statics) as [statics' | ]
-    eqn:Hbindings.
-  - assert (Hstep :
-      ∀ b : expr,
-        step (State (Let_static bindings b) vars conts statics)
-        = Step (State b vars conts statics')).
-    { intros b. rewrite step_let_static, Hbindings. reflexivity. }
-    eapply refines_step; [ apply Hstep | apply Hstep | ].
-    apply Hbody. apply add_symbol_definitions_env_satisfies_strictly.
-    refine (env_satisfies_strictly_statics_extend tenv statics statics' vars
-              _ Hsat).
-    exact (step_extends_statics _ _ (Hstep body)).
-  - apply step_undefined_refines. rewrite step_let_static, Hbindings.
-    reflexivity.
+  intros Hsymbol Hcode Hdeleted tenv bindings. unfold add_static_bindings.
+  assert (Hclosures :
+    closure_symbols_of (map g bindings) = closure_symbols_of bindings).
+  { induction bindings as [ | [id c | id | s const] bindings IH];
+      cbn [map]; [ reflexivity | | | ].
+    - destruct (Hcode id c) as [c' ->]. exact IH.
+    - rewrite Hdeleted. exact IH.
+    - rewrite Hsymbol. cbn [closure_symbols_of]. rewrite IH. reflexivity. }
+  assert (Hblocks :
+    ∀ tenv : Typing_env.t,
+      add_block_like_bindings tenv (map g bindings)
+      = add_block_like_bindings tenv bindings).
+  { clear Hclosures tenv.
+    induction bindings as [ | [id c | id | s const] bindings IH];
+      intros tenv; cbn [map]; [ reflexivity | | | ].
+    - destruct (Hcode id c) as [c' ->]. exact (IH tenv).
+    - rewrite Hdeleted. exact (IH tenv).
+    - rewrite Hsymbol. cbn [add_block_like_bindings]. apply IH. }
+  assert (Hlast :
+    ∀ prior tenv : Typing_env.t,
+      add_closure_bindings prior tenv (map g bindings)
+      = add_closure_bindings prior tenv bindings).
+  { clear Hclosures Hblocks tenv.
+    induction bindings as [ | [id c | id | s const] bindings IH];
+      intros prior tenv; cbn [map]; [ reflexivity | | | ].
+    - destruct (Hcode id c) as [c' ->]. exact (IH prior tenv).
+    - rewrite Hdeleted. exact (IH prior tenv).
+    - rewrite Hsymbol. cbn [add_closure_bindings]. apply IH. }
+  cbv zeta. rewrite Hclosures, Hblocks. apply Hlast.
 Qed.
 
 (* ======================================================================== *)
@@ -972,13 +992,15 @@ Proof.
     apply add_symbol_definitions_env_satisfies_strictly, create_satisfied.
 Qed.
 
-Lemma bound_symbols_simplify (syms : list symbol)
-    (bindings : list static_binding) :
-  bound_symbols (map (simplify_static_binding syms) bindings)
-  = bound_symbols bindings.
+Lemma add_static_bindings_simplify (tenv : Typing_env.t)
+    (syms : list symbol) (bindings : list static_binding) :
+  add_static_bindings tenv (map (simplify_static_binding syms) bindings)
+  = add_static_bindings tenv bindings.
 Proof.
-  induction bindings as [ | [id c | id | sym const] bindings IH];
-    cbn [map simplify_static_binding bound_symbols]; congruence.
+  apply add_static_bindings_same_symbols.
+  - intros s const. reflexivity.
+  - intros id c. eexists. reflexivity.
+  - intros id. reflexivity.
 Qed.
 
 (* ======================================================================== *)
@@ -1033,8 +1055,7 @@ Proof.
                (simplify_expr_sound body tenv')).
     + apply expr_refines_under_refl.
   - generalize
-      (Typing_env.defined_symbols
-         (Typing_env.add_symbol_definitions tenv (bound_symbols bindings))).
+      (Typing_env.defined_symbols (add_static_bindings tenv bindings)).
     intros syms.
     assert (Hbindings :
       ∀ (before : list static_binding) (vars : env) (conts : cont_env)
@@ -1078,7 +1099,7 @@ Proof.
         rewrite <- !app_assoc in IH. exact IH. }
     eapply expr_refines_under_trans.
     + intros vars conts statics _. exact (Hbindings [] vars conts statics).
-    + apply let_static_body_refines_under. rewrite bound_symbols_simplify.
+    + apply let_static_typed. rewrite add_static_bindings_simplify.
       apply simplify_expr_sound.
   - apply let_cont_body_refines_under. apply simplify_expr_sound.
   - apply let_cont_recursive_body_refines_under. apply simplify_expr_sound.
@@ -1138,4 +1159,7 @@ Theorem example_pass_call_from_pair : example_pass_call_from_pair_statement.
 Proof. intros k exn. vm_compute. reflexivity. Qed.
 
 Theorem example_pass_value_slot : example_pass_value_slot_statement.
+Proof. intros k. vm_compute. reflexivity. Qed.
+
+Theorem example_pass_static_block : example_pass_static_block_statement.
 Proof. intros k. vm_compute. reflexivity. Qed.

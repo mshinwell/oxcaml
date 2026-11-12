@@ -48,7 +48,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaSimplifyProjectionsSpec FlambdaSimplifyBoxingSpec
   FlambdaSimplifyArithSpec FlambdaSimplifyApplySpec
   FlambdaSimplifyApplyProofs FlambdaSimplifyValueSlotsSpec
-  FlambdaSimplifyValueSlotsProofs FlambdaSimplifyPassSpec
+  FlambdaSimplifyValueSlotsProofs FlambdaSimplifyStaticsSpec
+  FlambdaSimplifyStaticsProofs FlambdaSimplifyPassSpec
   FlambdaSimplifyPassRenamingSpec.
 Import ListNotations.
 
@@ -548,14 +549,6 @@ Qed.
 (* The function                                                             *)
 (* ======================================================================== *)
 
-Lemma bound_symbols_renamed (r : renaming) (bindings : list static_binding) :
-  bound_symbols (map (rename_static_binding r) bindings)
-  = bound_symbols bindings.
-Proof.
-  induction bindings as [ | [id c | id | sym const] bindings IH];
-    cbn [map rename_static_binding bound_symbols]; congruence.
-Qed.
-
 Lemma defined_symbols_renamed (r : renaming) (tenv : Typing_env.t) :
   Typing_env.defined_symbols (rename_typing_env r tenv)
   = Typing_env.defined_symbols tenv.
@@ -584,12 +577,10 @@ Proof.
         as [ | d' tenv' | ];
         cbn [rename_let_step rename_expr]; try reflexivity.
       rewrite (simplify_expr_equivariant_aux r body tenv'). reflexivity.
-    + rewrite bound_symbols_renamed, add_symbol_definitions_equivariant,
-        defined_symbols_renamed.
+    + rewrite add_static_bindings_rename, defined_symbols_renamed.
       rewrite (simplify_expr_equivariant_aux r body). f_equal.
       generalize
-        (Typing_env.defined_symbols
-           (Typing_env.add_symbol_definitions tenv (bound_symbols bindings))).
+        (Typing_env.defined_symbols (add_static_bindings tenv bindings)).
       intros syms.
       induction bindings as [ | binding bindings IH]; cbn [map];
         [ reflexivity | ].
