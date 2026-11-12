@@ -1,42 +1,48 @@
 # C4, the heap: what the prototype costs on the integration branch
 
 The prototype was written on the integration branch at 0a2933e7c9. It is
-rebased here on 66bbc6b1be, after C1's law that no primitive has a value
+rebased here on f97c8c5c65, after C1's law that no primitive has a value
 on a symbol bound to nothing and its numbers in range, C3's sets of
-closures and valid values, C2's kinds on terms, C5's exceptions, C0's
-well-formedness, N1's names, V2's normalisations, and the types, T1's
-to T6's. This note
+closures and valid values, C2's kinds on terms, C5's exceptions, P1's
+primitives, V3's lifting, C0's well-formedness, N1's names, V2's
+normalisations, and the types, T1's to T6's. This note
 says what applying its edits to the model costs each owner there, and
 what changed in the prototype's own two files. Paths are in
 `middle_end/flambda2/` unless they say otherwise. The counts are on
-66bbc6b1be. Of what came to the integration branch after C3's epoch,
-five files needed an edit (two of C2's, one of T6's, one of N3's and
-one more function of C3's, below); the rest did not (T2's typing
-environments, T3's aliases, T4's meet, T5's joins, N1's renamings,
-N2's binders, C5's exceptions and its second machine, more of C1's
-laws).
+f97c8c5c65. Of what came to the integration branch after C3's epoch,
+nine files needed an edit (two of C2's, one of T6's, one of N3's,
+one of P1's, three of V3's and one more function of C3's, below); the
+rest did not (T2's typing environments, T3's aliases, T4's meet, T5's
+joins, N1's renamings, N2's binders, N3's rewrites up to renaming,
+C5's exceptions and its second machine, more of C1's laws, V3's known
+symbols).
 
 ## The edits to existing files, by owner
 
 The prototype's edits are: a value `Value_location` and the types
-`location`, `cell` and `heap` in `FlambdaValueSpec.v`; the primitives of
-the heap under one new constructor `Heap` of `prim` in
-`FlambdaPrimitiveModel.v`; and the kind of their results in
-`FlambdaPrimitiveSpec.v`. Everything else in the table is a repair that
-they force: a case where a match or a proof by cases had none for the
-new constructor. "+a -b" counts lines added and removed.
+`location`, `cell` and `heap` in `FlambdaValueSpec.v`; the two
+primitives that only the heap has, under one new constructor `Heap` of
+`prim` in `FlambdaPrimitiveModel.v`; and the kind of their results and
+the test of their numbers in `FlambdaPrimitiveSpec.v`. Everything else
+in the table is a repair that they force: a case where a match or a
+proof by cases had none for the new constructor. "+a -b" counts lines
+added and removed.
 
 | File | Owner | Lines | What changes |
 |------|-------|-------|--------------|
 | `rocq/FlambdaValueSpec.v` | C0 | +29 -1 | `location`; `Value_location` in `value`; `cell`, `heap`, `empty_heap`, `cell_of`. No observation changes: each has a wildcard, so a location is no closure, block, boxed number or string, and is not allocated. |
-| `rocq/FlambdaPrimitiveModel.v` | C1 | +36 -1 | `cell_mutability`, `init_or_assign`, `equality_comparison`, `heap_primitive`, and `Heap` in `prim`. |
-| `rocq/FlambdaPrimitiveSpec.v` | C1 (the signature of `eval_prim` and the laws are C0's; neither changes) | +31 -1 | `result_kind_of_heap_primitive`, and a case of `prim_result_kind`. `access_in_range` and `heap_primitive_in_range`, and a case of `prim_in_range`: a primitive of the heap carries the numbers of the `Make_block` or `Block_load` that it stands for. `value_in_range`: a location is in range (it holds no number). `eval_prim` has a wildcard already: it has no value on `Heap _`, and treats a location as any value that no observation reads. |
+| `rocq/FlambdaPrimitiveModel.v` | C1 (P1 adds to it) | +30 -1 | `cell_mutability`, `init_or_assign`, `heap_primitive` (two constructors, `Make_block_with_identity` and `Block_set`), and `Heap` in `prim`. `mutability`, `equality_comparison`, `Block_load` with its mutability and `Phys_equal` are P1's, and are used as they are. |
+| `rocq/FlambdaPrimitiveSpec.v` | C1 (the signature of `eval_prim` and the laws are C0's; neither changes) | +27 -1 | `result_kind_of_heap_primitive`, and a case of `prim_result_kind`. `access_in_range` and `heap_primitive_in_range`, and a case of `prim_in_range`: a primitive of the heap carries the numbers of the `Make_block` or the access that it stands for. `value_in_range`: a location is in range (it holds no number). `eval_prim` has a wildcard already: it has no value on `Heap _`, and treats a location as any value that no observation reads. |
 | `rocq/FlambdaPrimitiveProofs.v` | C1 | +8 -6 | `eval_prim_arity`: a fourth branch (`Heap`: no value). `eval_prim_static_values`, `eval_prim_statics_extend`: a fourth pattern in the destruct on `prim`. `eval_is_null_statics_extend`: a seventh pattern in the destruct on `value`. |
 | `rocq/FlambdaSemanticsProofs.v` | C0 | +3 -3 | `closure_in_set_of`, `closure_in_set_slot`, `project_function_slot_defined`: one more name in the pattern of the destruct on `value`; the existing catch-all branches take it. |
 | `rocq/FlambdaClosuresSpec.v` | C3 | +5 -2 | `value_valid`: a location is valid (there is nothing in it). `value_sets_are`: a location holds no closure, so the property of the closures in a value holds of it. |
 | `rocq/FlambdaClosuresProofs.v` | C3 | +6 -6 | Six destructs on `value` (among them `closure_in_set_valid`): one more name in the pattern; the existing catch-all branches take it. |
 | `rocq/FlambdaValidatorEquivarianceProofs.v` | N3 | +1 -1 | `block_made_equivariant`: a fourth pattern in the destruct on `prim`. |
 | `rocq/FlambdaBlockLoadProofs.v` | V2 | +2 -2 | `block_made_spec`, `unary_applied_spec`: a fourth pattern in the destruct on `prim`. |
+| `rocq/FlambdaIdentitiesProofs.v` | P1 | +2 -2 | `binary_applied_spec`, `identity_named_equivariant`: a fourth pattern in the destruct on `prim`. |
+| `rocq/FlambdaLiftProofs.v` | V3 | +4 -4 | `lift_named_lifted`, `lift_named_no_code`, `lift_named_rename`: a fourth pattern in the destruct on `prim`; in the first, one more pattern in a destruct on `value`. |
+| `rocq/FlambdaMyClosureProofs.v` | V3 | +5 -4 | `value_free` (a definition of the proofs: a value free of a code id): a location is free of it, as a constant is. `closure_of_free`, `closure_in_set_free`, `project_function_slot_free`: one more name in the pattern of the destruct on `value`. |
+| `rocq/FlambdaUnusedSlotsProofs.v` | V3 | +4 -2 | `closure_of_drop`, `closure_in_set_drop`: one more name in the pattern of the destruct on `value`. |
 | `rocq/FlambdaUnusedStaticsSpec.v` | V1 (unassigned) | +1 | `value_avoids`: a location avoids every name. |
 | `rocq/FlambdaUnusedStaticsProofs.v` | V1 (unassigned) | +6 -3 | `closure_of_erased`, `closure_in_set_erased`, `project_function_slot_erased`: one more name in the pattern, and one more branch, that of a boxed number (no closure, nothing erased). |
 | `types/rocq/FlambdaTypeMeaningBoolSpec.v` | T1 | +1 | `value_eqb`: two locations are equal when they are the same location. Without it `value_eqb_decides_equality_statement` would be false: a location would not be equal to itself. |
@@ -47,6 +53,7 @@ new constructor. "+a -b" counts lines added and removed.
 | `types/rocq/FlambdaProversProofs.v` | T6 | +3 -3 | `tagged_immediate_of_value`, `eval_is_null_cases`: one more pattern in three destructs on `value`. |
 | `rocq/Makefile` | C0 | +2 | `FlambdaHeapProofs.v` and `FlambdaHeapSpec.v` in `FLAMBDA2` (the commit of lines for the shared lists). |
 | `tests/tools/flsemantics.ml` | C0 (the tool stays C0's for now) | +6 | An observation `Location`, printed `<location n>`; a case of `print_prim` for `Heap`, which the converter never makes. No expected output changes. |
+| `tests/semantics/types/types_difftest.ml` | T7 | +5 -3 | Four matches on a value of the model. A location is no tagged immediate and not the contents of a boxed number, so the generator of values for a type makes none from it; it has no parts; it is printed `<location n>`. The tests make no location, and no expected output changes. |
 
 Nothing else matches on `value` or `prim` without a wildcard. T1's
 meaning of types needed no case beyond `value_eqb`: it reads a value
@@ -72,11 +79,9 @@ follows `step` again: `heap_step` ignores the kind of a `Let`,
 unless the call agrees with the code called, as `call_function` is.
 Two related lists of arguments have the same kinds, so the relation on
 states is kept. Each statement about a `Let` has the kind of its
-variable as one more variable. `exec_prim` is unchanged: its
-test `forallb (argument_bound statics h) vs` and `exec_bound_prim` are
-as they were, and `eval_prim` takes the same arguments.
-`equality_comparison` and `Phys_equal` are not in the integration
-branch's primitives, so the prototype's are kept, under `Heap`.
+variable as one more variable. `exec_prim` was not changed by
+that: its test `forallb (argument_bound statics h) vs` is as it was,
+and `eval_prim` takes the same arguments.
 
 On C5's epoch the machine follows `step` once more. `heap_step`
 evaluates the extra arguments of the exception continuation of a call
@@ -93,6 +98,48 @@ was said of the application of a continuation by cases is now three
 lemmas by induction on the continuation (the heap is left as it is;
 the state after is closed; its handlers name no symbol left out), and
 the simulation has the case.
+
+On P1's primitives the prototype loses what P1 defines, and keeps what
+it says of a location. Gone: its `mutability` and
+`equality_comparison`; `Phys_equal` and `Block_load_mutable` under
+`Heap`; `immediate_or_null` and its own `eval_phys_equal`. Two
+primitives are left under `Heap`, `Make_block_with_identity` and
+`Block_set`. `exec_bound_prim` has three cases before `eval_prim`: a
+primitive under `Heap`; a unary primitive of a location, which reads
+the cell (`exec_unary_on_cell`); and `Phys_equal` with a location
+among its two arguments (`eval_phys_equal_location`). What changed in
+what the machine does:
+
+- A `Block_load` of a location reads the field where its mark allows
+  (`load_allowed`): a load marked `Mutable` reads any cell, and one
+  marked `Immutable` or `Immutable_unique` a cell made
+  `Immutable_unique`. That is what the two constructors of before
+  did; the load marked `Immutable_unique` is new, and is treated as
+  the one marked `Immutable`. A `Block_load` of a value that is not a
+  location is P1's, whatever its mark.
+- `exec_unary_on_cell` ends in a wildcard: P1's unary primitives on
+  numbers and on strings have no value on a location.
+- `Phys_equal` without a location is P1's `eval_phys_equal`, which has
+  no value on null. The prototype's own had one: two nulls were
+  equal, and null differed from an allocated value and from a
+  location. Now a location against null has no value either. This
+  narrows what is defined, and follows the CR that is in the tree
+  (the request, section 2.6 and decision 3).
+- `coeffects_of_prim`: the load with coeffects is `Block_load` marked
+  `Mutable`. `effects_of_prim` has no effects on every unary primitive
+  but `Opaque_identity` and `Box_number`, and on every binary one,
+  which is what the compiler says of P1's (`String_or_bigstring_load`
+  here is a load from a string, which is immutable).
+
+Statements: `load_known_field_statement` is now of a load with any
+mark, where it was of the load marked `Immutable`; a load from an
+immutable block does not look at its mark. No other statement changed
+text. In the proofs, what was proved of each primitive of `eval_prim`
+by cases now comes from its laws: `eval_prim_related` (V3's: no
+primitive tells apart values that the observations read alike) for
+related arguments, and `eval_prim_preserves` for closedness. So no
+proof lists the unary or the binary primitives, and one that P1 adds
+needs no case in the heap's files unless it reads a cell.
 
 Definitions:
 
@@ -144,8 +191,9 @@ Definitions:
   `Step_same_boxed_number`; without the rule a closed outcome that holds
   one would not be related to itself.
 
-Statements: no text changed in the adaptation. The 25 statements that
-the prototype proved on the old base are proved with the same text, and
+Statements: no text changed in the adaptation to the three epochs (one
+changed on P1's primitives, above). The 25 statements that the
+prototype proved on the old base are proved with the same text, and
 so are the three that C4 proved since (`heap_step_closed_statement`,
 `exchange_lets_statement`, `cse_adjacent_statement`), which needed only
 extra cases. Since the rebase `lift_block` is proved, with three
@@ -193,9 +241,9 @@ statements are proved, and there is no conjecture.
   not add its heap there; its own invariant (`state_closed`) walks the
   heap and the static environment. Putting the heap in `state` adds the
   cells to `state_values_all`.
-- The cost to the other owners is small: nineteen files, most of them
-  a name in a pattern. The work is in the prototype's own proofs, which
-  gain the lemmas on closures of a set (a closure of a set is a closure;
-  what a closure that is not a symbol projects; a projection does not
-  change as the static environment grows) and a case in each proof by
-  cases on the relation.
+- The cost to the other owners is small: twenty-four files, most of
+  them a name in a pattern. The work is in the prototype's own proofs,
+  which gain the lemmas on closures of a set (a closure of a set is a
+  closure; what a closure that is not a symbol projects; a projection
+  does not change as the static environment grows) and a case in each
+  proof by cases on the relation.

@@ -15,16 +15,18 @@ front end has been read for decision 4, which the human has ruled on
 in part.
 
 Paths are in `middle_end/flambda2/` unless they say otherwise. The base
-is the integration branch at 66bbc6b1be: C1's epoch, with its law that
+is the integration branch at f97c8c5c65: C1's epoch, with its law that
 no primitive has a value on a symbol bound to nothing, and its numbers
 in range; C3's epoch, sets of closures of several functions, and valid
 values; C2's epoch, in which terms carry kinds and arities and a call
 is undefined unless it agrees with the code called; C5's epoch, in
 which a call gives extra arguments to its exception continuation and
-an `Apply_cont` has a trap action; C0's well-formedness; N1's names;
-and the types, T1's to T6's. It is read together with C0's note on
+an `Apply_cont` has a trap action; P1's primitives, among them
+`Phys_equal` on immediates and `Block_load` with its mutability; V3's
+lifting on today's model; C0's well-formedness; N1's names; and the
+types, T1's to T6's. It is read together with C0's note on
 well-formedness (`requests/C0-well-formed.md`). The prototype was
-written on 0a2933e7c9 and has been rebased on 66bbc6b1be; what that
+written on 0a2933e7c9 and has been rebased on f97c8c5c65; what that
 cost each owner, and what changed in the prototype, is in
 `requests/C4-heap-fallout.md`.
 
@@ -104,10 +106,10 @@ finish it. Section 10 says what the prototype proves and leaves.
   relation on states to let the second state bind symbols that the
   first neither binds nor names (`states_related_except`, section
   4.2).
-- **Staging.** `Phys_equal` on immediates lands now, as a pure
+- **Staging.** `Phys_equal` on immediates has landed, as a pure
   primitive in the primitives' files (integer `=` and `<>` reach
   Flambda 2 as `Phys_equal`, so no source program with an integer
-  equality can be checked without it); P1 is doing it. Then three
+  equality can be checked without it); it is P1's. Then three
   epochs: the heap in the state and the memory in `Exit`, with nothing
   using them (a sweep of 188 applications of `State`, mechanical);
   then cells and the primitives, exits compared as they are, which is
@@ -714,7 +716,7 @@ are as they are.
 Options:
 
 - (a) **Two layers.** `eval_prim statics p vs : option value` is
-  unchanged, with its four laws, for the primitives that neither read
+  unchanged, with its laws, for the primitives that neither read
   nor write the heap. Over it,
   `exec_prim statics heap p vs : option (value * heap)`: on a primitive
   of the heap (and on `Get_tag` and the like applied to a location) it
@@ -788,19 +790,27 @@ The primitives of the first version. "No value" is undefined.
   itself.
 - `Phys_equal`: section 2.6.
 
-`Make_block` and `Block_load` gain the argument `mut`, which C1's
-stage 3 left out by refusing every mutability but `Immutable`. That
-changes two constructors of the primitives' own files; only the
-conversion in the test tool uses them. The owner of the primitives
-agrees to both, and to `exec_prim` being `eval_prim` by definition on
-everything else, so that the laws of `eval_prim` (five now) carry over
-by rewriting.
+`Block_load` has the argument `mut` on the integration branch (P1's;
+`eval_prim` does not look at it, so the load of an immutable block is
+C1's whatever the mark). `Make_block` is to gain it: C1's stage 3
+left it out by refusing every mutability but `Immutable`. That
+changes one constructor of the primitives' own files; only the
+conversion in the test tool uses it. The owner of the primitives
+agrees, and to `exec_prim` being `eval_prim` by definition on
+everything else, so that the laws of `eval_prim` (seven now) carry
+over by rewriting.
 
-In the prototype the four new primitives are under one extra
-constructor of `prim`, `Heap`, so that no existing constructor
-changes; that is for the prototype only. `Phys_equal` on immediates
-needs no heap and is being added to the primitives' files now
-(section 2.6).
+In the prototype the two primitives that the integration branch has
+not, the `Make_block` of a block with an identity and `Block_set`,
+are under one extra constructor of `prim`, `Heap`, so that no
+existing constructor changes; that is for the prototype only.
+`Block_load` and `Phys_equal` are the constructors of the primitives'
+files, and the prototype says what they do on a location
+(`exec_unary_on_cell`, `eval_phys_equal_location`). No definition and
+no proof of the prototype has a case for each unary or each binary
+primitive: one that is added there costs the heap nothing unless it
+reads a cell, and then it has its case in `exec_unary_on_cell` or
+beside it.
 
 ### 2.6 `Phys_equal`
 
@@ -871,17 +881,23 @@ The CR that (b) carries is in the list of decisions. The owner of the
 primitives, who wrote D19's recommendation before there were
 locations, agrees with (b).
 
-**On immediates, now.** Integer `=` and `<>` reach Flambda 2 as
+**On immediates: landed.** Integer `=` and `<>` reach Flambda 2 as
 `Phys_equal` (V2's examples from OCaml), so no source program with an
 integer equality can be checked until it has a value on immediates.
 That part needs no heap and no decision: on two tagged immediates it
 is equality, and an immediate against an allocated value is false
-under every option but (a). P1 is adding it to the primitives' files
-now, as a binary primitive of `eval_prim`, with the prototype's names
-(`equality_comparison`, `Phys_eq`, `Phys_neq`) and a CR naming D19.
-The heap then adds, in `exec_prim`, the cases with a location; the
-case of two immutable allocated values stays without a value until
-decision 3 is taken.
+under every option but (a). P1 has added it to the primitives' files,
+as a binary primitive of `eval_prim`
+(`FlambdaPrimitiveSpec.eval_phys_equal`), with a CR naming D19. It
+has no value on two allocated values, and none on null or on poison
+either, each for a reason that its CR gives. So what is in the tree
+is narrower than (b) above, which answers of null; the prototype
+follows the tree. The heap adds, in `exec_prim`, the cases with a
+location (`eval_phys_equal_location`): two locations are compared by
+name; a location against a tagged immediate or an immutable allocated
+value is false; a location against null or poison has no value, as
+P1's comparison has none on them. The case of two immutable allocated
+values stays without a value until decision 3 is taken.
 
 Under every option but (a) the answer on two locations is by their
 names, so it is the same on both sides of a correspondence: this is
@@ -1150,8 +1166,8 @@ item is proved.
     identity on the symbols kept, which their premise `envs_free_of`
     supplies.
   - Lifting, as V3 validates it on today's model (`lift_unit`, with
-    `lift_unit_program_refines`; on V3's branch as this is written,
-    and approved by R2 for today's exits). Its target binds more
+    `lift_unit_program_refines`, in `FlambdaLiftSpec.v`; approved
+    by R2 for today's exits). Its target binds more
     symbols. Today an exit is compared by its values as they are, and
     what a symbol is bound to is not compared, so V3's check need not
     ask that the unit never names the symbol that it lifts to. Under
@@ -1617,10 +1633,10 @@ such a use.
 ### 7.1 Measured on the prototype
 
 **A new form of value, and the primitives under one constructor.**
-Measured on the integration branch at 66bbc6b1be, file by file and
+Measured on the integration branch at f97c8c5c65, file by file and
 owner by owner, in `requests/C4-heap-fallout.md`: `Value_location`
 with the types of the heap, the primitives under `Heap`, and the
-repairs that they force, in nineteen files, most of them one more
+repairs that they force, in twenty-four files, most of them one more
 name in a pattern. The types library is among them (four of its
 files, T1's and T6's). No statement of an existing `Spec` file
 changes.
@@ -1755,20 +1771,15 @@ Definition location : Type := positive.
 +Definition cell_of (h : heap) (v : value) : option cell := ...
 ```
 
-`FlambdaPrimitiveModel.v` (in the prototype these are under `Heap`):
+`FlambdaPrimitiveModel.v` (in the prototype these are under `Heap`;
+`mutability`, `Block_load` with its mutability, `equality_comparison`
+and `Phys_equal` are there already, P1's):
 
 ```coq
-+Inductive mutability : Type := Mutable | Immutable | Immutable_unique.
 +Inductive init_or_assign : Type := Initialization | Assignment.
-+Inductive equality_comparison : Type := Phys_eq | Phys_neq.
 
- Inductive unary_primitive : Type :=
--  | Block_load (kind : block_access_kind) (field : Z)
-+  | Block_load (kind : block_access_kind) (mut : mutability) (field : Z)
-   ...
  Inductive binary_primitive : Type :=
 +  | Block_set (kind : block_access_kind) (init : init_or_assign) (field : Z)
-+  | Phys_equal (op : equality_comparison)
    ...
  Inductive variadic_primitive : Type :=
 -  | Make_block (kind : block_kind).
@@ -1887,8 +1898,8 @@ on the effects of the defining expression (section 8.2).
     relation.
   - `plug_refines`, `plug_equivalent`: same text, new proof.
   - `validate_unit_sound`: as section 3.4 says.
-  - Lifting on today's model (V3's `lift_unit`, when it is on the
-    integration branch): the checked function gains a test, that the
+  - Lifting on today's model (V3's `lift_unit`, in
+    `FlambdaLiftSpec.v`): the checked function gains a test, that the
     unit does not name a symbol that it lifts to, and
     `lift_unit_program_refines` is proved again for the relation
     (section 3.3). Without the test the theorem would be false of the
@@ -1907,7 +1918,7 @@ on the effects of the defining expression (section 8.2).
 ### 8.3 The epochs
 
 0. **Before the heap: `Phys_equal` on immediates.** Leaf work in the
-   primitives' files, under way (P1): the
+   primitives' files, done (P1): the
    constructor, with a value on two tagged immediates and on an
    immediate against an allocated value. It is what lets programs
    with an integer `=` be checked (section 2.6).
@@ -2084,8 +2095,11 @@ Left:
   no existing theorem has been re-proved with a heap, and the claim
   that each carries over rests on `heap_step_agrees` and on the
   counts of 7.1, not on a build.
-- The prototype is on 66bbc6b1be. It has met C5's exceptions (section
-  7.2), C2's kinds (its machine
+- The prototype is on f97c8c5c65. It has met P1's primitives (section
+  2.5: its own `mutability`, `equality_comparison` and `Phys_equal`,
+  and its second constructor for a load, are gone, and it says what
+  P1's `Block_load` and `Phys_equal` do on a location), C5's
+  exceptions (section 7.2), C2's kinds (its machine
   follows `step`: a `Let` carries a kind that is not looked at, and a
   call is undefined unless it agrees with the code called; each
   statement about a `Let` has its kind), C3's closures of a set
@@ -2105,22 +2119,22 @@ Left:
   three are owed at the epoch of the primitives (section 7.2).
 - Decision 4 is at its first stage: field stability (section 8.4) is
   not in the prototype.
-- The primitives are under one constructor; `Block_load` with its
-  mutability is two constructors (`Block_load` for the load marked
-  `Immutable`, `Block_load_mutable`). `block_or_cell_of` is not
-  defined.
+- The two primitives that only the heap has are under one
+  constructor. `block_or_cell_of` is not defined.
 - No conversion, no example in `tests/semantics/`: the test tool does
   not know the heap. The extracted files are regenerated and not
   committed.
-- `make -s fmt` and `make -s test` were not run: no OCaml or dune file
-  is changed.
+- `make -s test` was not run. One OCaml file is changed, the test
+  tool, which prints a location; `make -s fmt` and the tests of
+  `tests/semantics/` pass (the status says at which commit).
 
 ## Decisions for the human
 
 Each has the option the prototype takes meanwhile. A CR is the text
 at the place in the `Spec` file where the model makes something
-undefined without being forced to; the three are in
-`FlambdaHeapSpec.v`, at the definitions.
+undefined without being forced to. Those of decisions 4 and 5 are in
+`FlambdaHeapSpec.v`, at the definitions; that of decision 3 is in
+`FlambdaPrimitiveSpec.v`, before `eval_phys_equal`, and is P1's.
 
 1. **What has an identity** (section 2.1; D2). Recommendation: blocks
    made `Mutable` or `Immutable_unique`, and nothing else. Immutable
@@ -2133,21 +2147,15 @@ undefined without being forced to; the three are in
    not a faithful account: Simplify does decide some of those
    comparisons, and under (b) nothing is proved of a program from the
    first of them on. Prototype: so. The owner of the primitives
-   agrees. On immediates it lands now, whatever is decided here. The
-   CR, as it is in `FlambdaHeapSpec.v`:
-
-       (* CR mshinwell: [Phys_equal] has no value on two immutable
-          allocated values (blocks, boxed numbers, closures, strings).
-          This is a limit of the model, not what the compiler does:
-          the compiled comparison answers, and Simplify decides some
-          of these (the same alias is equal, two different symbols are
-          not: [Provers.prove_physical_equality]), while the sharing
-          of immutable values ([Mutability.Immutable]; CSE of
-          [Make_block] and [Box_number]; lifted constants) changes the
-          answer that the machine would give. A program that makes
-          such a comparison is undefined from there on, and the
-          theorems do not cover it. Decision 3 of
-          requests/C4-heap.md; discrepancies C4-3 and R2-21. *)
+   agrees. On immediates it has landed, whatever is decided here,
+   and with no value on null or on poison (section 2.6). The CR is
+   the one before `FlambdaPrimitiveSpec.eval_phys_equal`. It says
+   that the comparison has no value on two allocated values, on null
+   or on poison, what the machine and Simplify answer on each, and
+   that nothing is then proved of a program that compares such
+   values; it names D19. The comment before
+   `FlambdaHeapSpec.eval_phys_equal_location` points to it, and names
+   this decision and the discrepancies C4-3 and R2-21.
 
 4. **A load marked `Immutable` from a block made `Mutable`** (1.4,
    8.4). In ordinary code this is the read of an immutable field of a
@@ -2322,9 +2330,10 @@ undefined without being forced to; the three are in
     that a program declares for itself (V2's probe). The standard
     library's `fst` and `snd` are `%field0_immut` and `%field1_immut`
     (`stdlib/stdlib.ml:245-246`), an immutable load, and `!` is a
-    mutable load from a mutable block. Prototype: so
-    (`Block_load_mutable` on a value that is not a location is
-    `eval_block_load`).
+    mutable load from a mutable block. Prototype: so (a `Block_load`
+    of a value that is not a location is
+    `FlambdaPrimitiveSpec.eval_block_load`, which does not look at
+    the mark).
 12. **A primitive applied to a location that is not bound** has no
     value. This is D8 for locations, and no state reached from a term
     has such a location; I take it as ruled and put no CR. Prototype:
