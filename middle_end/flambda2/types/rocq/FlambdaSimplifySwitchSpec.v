@@ -76,6 +76,10 @@
      is the statement for a pass over terms to use: its premises are
      the two on the meet and its environment below, and that the
      scrutinee may occur in terms, which is a test.
+   - The functions commute with a renaming of variables
+     ([arm_kept_rename_statement], [prune_arms_rename_statement],
+     [simplify_switch_rename_statement]), for a meet that does
+     ([meet_equivariant]).
    - Two small terms ([example_switch_no_arm_statement],
      [example_switch_comparison_statement]).
 
@@ -125,13 +129,17 @@
      makes the value that the machine has for the scrutinee the one
      that a valuation has.
 
-   Renaming. Nothing here says that [arm_kept], [prune_arms] and
-   [simplify_switch] commute with a renaming of variables. That is
-   owed by the owner of this file, for a meet that commutes with the
-   renaming of its environment and of its two types; that the
-   transcribed meet does is for the owner of the meet to state and
-   prove. The statements here are of soundness only: a pass that needs
-   its functions to be equivariant cannot cite this file for it.
+   Renaming. What is stated of [arm_kept], [prune_arms] and
+   [simplify_switch] under a renaming supposes that the meet commutes
+   with the renaming of its environment and of its two types
+   ([meet_equivariant]). That is a hypothesis here, as the contract of
+   the meet is: nothing in this file, and nothing yet in the files of
+   the meet, says that the transcribed meet has it, and it is for the
+   owner of the meet to state and prove. Until then the three
+   statements discharge nothing for a pass that needs its functions
+   to be equivariant. The renaming of typing environments and what it
+   does to [Typing_env.type_simple_in_term_exn] are
+   FlambdaEnvRenameSpec.v.
 
    The arms. In the compiler the arms are a map from numbers; here
    they are a list, and the machine takes the first arm for a number
@@ -165,13 +173,14 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaPrimitiveModel FlambdaSemanticsSpec FlambdaClosuresSpec.
+  FlambdaPrimitiveModel FlambdaSemanticsSpec FlambdaClosuresSpec
+  FlambdaNominalSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
-  FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaEnvAliases
-  FlambdaEnvAliasesSpec FlambdaTypingEnv FlambdaTypingEnvSpec
-  FlambdaTypingEnvExamplesSpec FlambdaTypingEnvRefinementSpec
-  FlambdaMeetGrammar FlambdaExpandHead FlambdaMeetEnv FlambdaMeet
-  FlambdaMeetSpec.
+  FlambdaTypeMeaningSpec FlambdaTypeRenameSpec FlambdaBindingTime
+  FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaTypingEnv
+  FlambdaTypingEnvSpec FlambdaTypingEnvExamplesSpec
+  FlambdaTypingEnvRefinementSpec FlambdaEnvRenameSpec FlambdaMeetGrammar
+  FlambdaExpandHead FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec.
 From OxCamlFlambda2Types Require FlambdaMeetExamplesSpec.
 Import ListNotations.
 
@@ -381,6 +390,53 @@ Definition simplify_switch_refines_statement : Prop :=
     Typing_env.mem_simple (Some Name_mode.normal) tenv scrutinee = true ->
     simplify_switch meet tenv scrutinee arms = Some e ->
     expr_refines_under_valid tenv (Switch scrutinee arms) e.
+
+(* ======================================================================== *)
+(* Renaming                                                                 *)
+(* ======================================================================== *)
+
+(* A meet commutes with a renaming of the variables: of a renamed
+   environment and renamed types it answers the renamed answer. *)
+Definition meet_equivariant (meet : meet_function) : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (t1 t2 : flambda_type),
+    meet (rename_typing_env r tenv) (rename_type r t1) (rename_type r t2)
+    = option_map
+        (fun result =>
+           match result with
+           | Or_bottom.Bottom => Or_bottom.Bottom
+           | Or_bottom.Ok (t, tenv') =>
+             Or_bottom.Ok (rename_type r t, rename_typing_env r tenv')
+           end)
+        (meet tenv t1 t2).
+
+(* The arms of a [Switch], renamed ([rename_expr],
+   ../../rocq/FlambdaNominalSpec.v). *)
+Definition rename_arms (r : renaming) (arms : list (Z * apply_cont))
+    : list (Z * apply_cont) :=
+  map (fun arm => (fst arm, rename_apply_cont r (snd arm))) arms.
+
+Definition arm_kept_rename_statement : Prop :=
+  ∀ (meet : meet_function) (r : renaming) (tenv : Typing_env.t)
+    (scrutinee_ty : flambda_type) (i : Z),
+    meet_equivariant meet ->
+    arm_kept meet (rename_typing_env r tenv) (rename_type r scrutinee_ty) i
+    = arm_kept meet tenv scrutinee_ty i.
+
+Definition prune_arms_rename_statement : Prop :=
+  ∀ (meet : meet_function) (r : renaming) (tenv : Typing_env.t)
+    (scrutinee_ty : flambda_type) (arms : list (Z * apply_cont)),
+    meet_equivariant meet ->
+    prune_arms meet (rename_typing_env r tenv) (rename_type r scrutinee_ty)
+      (rename_arms r arms)
+    = option_map (rename_arms r) (prune_arms meet tenv scrutinee_ty arms).
+
+Definition simplify_switch_rename_statement : Prop :=
+  ∀ (meet : meet_function) (r : renaming) (tenv : Typing_env.t)
+    (scrutinee : simple) (arms : list (Z * apply_cont)),
+    meet_equivariant meet ->
+    simplify_switch meet (rename_typing_env r tenv) (rename_simple r scrutinee)
+      (rename_arms r arms)
+    = option_map (rename_expr r) (simplify_switch meet tenv scrutinee arms).
 
 (* ======================================================================== *)
 (* Examples                                                                 *)

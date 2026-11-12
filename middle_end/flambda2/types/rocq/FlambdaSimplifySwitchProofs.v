@@ -34,7 +34,8 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaPrimitiveModel FlambdaPrimitiveSpec
   FlambdaPrimitiveProofs FlambdaSemanticsSpec FlambdaSemanticsProofs
-  FlambdaControlFlowSpec FlambdaControlFlowProofs FlambdaClosuresSpec.
+  FlambdaControlFlowSpec FlambdaControlFlowProofs FlambdaClosuresSpec
+  FlambdaNominalSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs
   FlambdaTypeWellFormedSpec FlambdaTypeWellFormedProofs FlambdaBindingTime
@@ -47,7 +48,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypingEnvRefinementProofs FlambdaMeetGrammar FlambdaExpandHead
   FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec FlambdaMeetProofs
   FlambdaMeetEnvProofs FlambdaTypeCreatorsSpec FlambdaTypeCreatorsProofs
-  FlambdaSimplifySwitchSpec.
+  FlambdaTypeRenameSpec FlambdaTypeRenameProofs FlambdaEnvRenameSpec
+  FlambdaEnvRenameProofs FlambdaSimplifySwitchSpec.
 Import ListNotations.
 
 Local Open Scope Z_scope.
@@ -357,6 +359,51 @@ Proof.
     apply switch_canonical.
     split; [ exact Hmem | exists ty; exact Htype ]. }
   apply refines_under_valid, expr_refines_under_weaken, switch_of_arms_refines.
+Qed.
+
+(* ======================================================================== *)
+(* Renaming                                                                 *)
+(* ======================================================================== *)
+
+Theorem arm_kept_rename : arm_kept_rename_statement.
+Proof.
+  intros meet r tenv ty i Hmeet. unfold arm_kept.
+  rewrite <- (rename_type_this_const r (Naked_immediate i)) at 1.
+  unfold this_naked_immediate. rewrite Hmeet.
+  destruct (meet tenv ty (this_const (Naked_immediate i)))
+    as [[[t tenv'] | ] | ]; reflexivity.
+Qed.
+
+Theorem prune_arms_rename : prune_arms_rename_statement.
+Proof.
+  intros meet r tenv ty arms Hmeet.
+  induction arms as [ | [i ac] arms IH]; [ reflexivity | ].
+  cbn [rename_arms map fst snd prune_arms].
+  rewrite (arm_kept_rename meet r tenv ty i Hmeet).
+  destruct (arm_kept meet tenv ty i) as [kept | ]; [ | reflexivity ].
+  change (map (fun arm => (fst arm, rename_apply_cont r (snd arm))) arms)
+    with (rename_arms r arms).
+  rewrite IH.
+  destruct (prune_arms meet tenv ty arms) as [rest | ]; [ | reflexivity ].
+  destruct kept; reflexivity.
+Qed.
+
+Lemma switch_of_arms_rename (r : renaming) (scrutinee : simple)
+    (arms : list (Z * apply_cont)) :
+  switch_of_arms (rename_simple r scrutinee) (rename_arms r arms)
+  = rename_expr r (switch_of_arms scrutinee arms).
+Proof. destruct arms as [ | [i ac] [ | arm arms]]; reflexivity. Qed.
+
+Theorem simplify_switch_rename : simplify_switch_rename_statement.
+Proof.
+  intros meet r tenv s arms Hmeet. unfold simplify_switch.
+  rewrite type_simple_in_term_exn_equivariant.
+  destruct (Typing_env.type_simple_in_term_exn tenv (Some Name_mode.normal) s)
+    as [[[ty canonical] | ] | ]; try reflexivity.
+  cbn [option_map fst snd].
+  rewrite (prune_arms_rename meet r tenv ty arms Hmeet).
+  destruct (prune_arms meet tenv ty arms) as [arms' | ]; [ | reflexivity ].
+  cbn [option_map]. rewrite switch_of_arms_rename. reflexivity.
 Qed.
 
 (* ======================================================================== *)
