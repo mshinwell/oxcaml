@@ -58,10 +58,11 @@ Import ListNotations.
 (* The argument for a parameter that is read under a test                   *)
 (* ======================================================================== *)
 
-Lemma dummy_of_kind (p : unary_primitive) (kind : flambda_kind) :
-  kind_of_const (dummy_of p kind) = kind.
+Lemma dummy_of_kind (variant : bool) (p : unary_primitive)
+    (kind : flambda_kind) :
+  kind_of_const (dummy_of variant p kind) = kind.
 Proof.
-  destruct p; simpl; try reflexivity;
+  destruct p, variant; simpl; try reflexivity;
     (destruct (kind_eqb kind (Naked_number Kind_naked_immediate)) eqn:Hkind;
      [ apply kind_eqb_eq in Hkind; subst kind | ]; reflexivity).
 Qed.
@@ -418,6 +419,25 @@ Proof.
   - intros k _. apply conts_agree_same. reflexivity.
 Qed.
 
+(* What is known of some of the variables is known. *)
+Lemma lookup_only_of (tests : list variable) (t : variable) (c : Z) :
+  ∀ consts : list (variable * Z),
+    lookup t (only_of tests consts) = Some c -> lookup t consts = Some c.
+Proof.
+  unfold only_of.
+  induction consts as [ | [t' c'] consts IH]; [ discriminate | ].
+  cbn [filter fst].
+  destruct (among t' tests) eqn:Hamong; cbn [lookup].
+  - destruct (Pos.eqb t t'); [ intros H; exact H | exact IH ].
+  - destruct (Pos.eqb_spec t t') as [-> | _]; [ | exact IH ].
+    intros Hlookup. exfalso. clear IH. revert Hlookup.
+    induction consts as [ | [t'' c''] consts IH]; [ discriminate | ].
+    cbn [filter fst].
+    destruct (among t'' tests) eqn:Hamong''; [ | exact IH ].
+    cbn [lookup].
+    destruct (Pos.eqb_spec t' t'') as [-> | _]; [ congruence | exact IH ].
+Qed.
+
 (* What is asked of the value that [extend_args_certain] gives for the
    new parameter: it is what the primitive gives of the parameter
    read; or the application does not come to the read, by the numbers
@@ -436,13 +456,15 @@ Definition certain_fits (params : list variable) (handler without : expr)
 
 (* The argument that [extend_args_certain] gives has a value of the
    kind given, which is as asked. *)
-Lemma extend_args_certain_gives (params : list variable)
+Lemma extend_args_certain_gives (variant : bool)
+    (tests params : list variable)
     (handler without : expr) (i : nat) (p : unary_primitive)
     (kind : flambda_kind) (known : facts) (vars : env)
     (statics : static_env) (args args' : list simple) (vs : list value)
     (v : value) :
   facts_hold known vars statics ->
-  extend_args_certain params handler without known i p kind args
+  extend_args_certain variant tests params handler without known i p kind
+    args
   = Some args' ->
   eval_simples vars args = Some vs ->
   nth_error vs i = Some v ->
@@ -457,16 +479,18 @@ Proof.
   destruct (eval_simples_nth vars args vs i arg Hvs Hnth)
     as (v' & Hv' & Harg).
   rewrite Hv in Hv'. injection Hv' as <-.
-  destruct (never_reads (known_immediates params args) handler without)
+  destruct
+    (never_reads (only_of tests (known_immediates params args)) handler
+       without)
     eqn:Hnever.
   { injection Hextend as <-.
-    exists (Value_const (dummy_of p kind)). split; [ | split ].
-    - exact (eval_simples_snoc vars args (Const (dummy_of p kind))
-        (Value_const (dummy_of p kind)) vs Hvs eq_refl).
+    exists (Value_const (dummy_of variant p kind)). split; [ | split ].
+    - exact (eval_simples_snoc vars args (Const (dummy_of variant p kind))
+        (Value_const (dummy_of variant p kind)) vs Hvs eq_refl).
     - apply dummy_of_kind.
-    - right. exists (known_immediates params args).
+    - right. exists (only_of tests (known_immediates params args)).
       split; [ exact Hnever | ].
-      intros t c Ht.
+      intros t c Ht. apply lookup_only_of in Ht.
       destruct (known_immediates_spec params args t c Ht)
         as (j & Hparam & Hgiven).
       exists j. split; [ exact Hparam | ].
@@ -517,9 +541,9 @@ Proof.
     + left. exists v. auto.
   - destruct (no_value_on known p arg) eqn:Hnone; [ | discriminate ].
     injection Hextend as <-.
-    exists (Value_const (dummy_of p kind)). split; [ | split ].
-    + exact (eval_simples_snoc vars args (Const (dummy_of p kind))
-        (Value_const (dummy_of p kind)) vs Hvs eq_refl).
+    exists (Value_const (dummy_of variant p kind)). split; [ | split ].
+    + exact (eval_simples_snoc vars args (Const (dummy_of variant p kind))
+        (Value_const (dummy_of variant p kind)) vs Hvs eq_refl).
     + apply dummy_of_kind.
     + left. exists v. split; [ exact Hv | ].
       intros statics' _ w Hprim. exfalso.
@@ -558,12 +582,24 @@ Proof.
   simpl. intros [= <- <-]. exists x. auto.
 Qed.
 
+(* What [load_read] gives is the variable read. *)
+Lemma load_read_spec (p : unary_primitive) (x x0 : variable) (field : Z) :
+  load_read (Prim (Unary p) [Var x]) = Some (x0, field) -> x0 = x.
+Proof. destruct p; simpl; try discriminate. intros [= <- _]. reflexivity. Qed.
+
+Lemma position_single (x y : variable) (i : nat) :
+  position x [y] = Some i -> x = y.
+Proof.
+  simpl. destruct (Pos.eqb_spec x y) as [-> | _]; [ reflexivity | ].
+  discriminate.
+Qed.
+
 (* What [first_read] finds is a [Let] of the expression that reads a
    parameter which nothing on the way binds, and the expression without
    it. *)
-Fixpoint first_read_removes (wanted : unary_primitive -> bool)
-    (params : list variable) (e : expr) :
-  ∀ (bound : list variable) (r : read),
+Fixpoint first_read_removes (e : expr) :
+  ∀ (wanted : unary_primitive -> bool) (params bound : list variable)
+    (r : read),
     first_read wanted params bound e = Some r ->
     ∃ x : variable,
       position x params = Some (read_position r)
@@ -576,17 +612,37 @@ Proof.
     as [ y kind d body | bindings body | k [handler_params metadata handler]
            body
        | handlers body | ap | ac | scrutinee arms | ];
-    intros bound r; simpl; try discriminate.
+    intros wanted params bound r; simpl; try discriminate.
   - destruct (param_read wanted params bound y d) as [[p i] | ] eqn:Hread.
-    + intros [= <-]. simpl.
-      destruct (param_read_spec wanted params bound y d p i Hread)
+    + destruct (param_read_spec wanted params bound y d p i Hread)
         as (x & -> & Hposition & Hx & Hy).
-      exists x. split; [ exact Hposition | split; [ exact Hx | ] ].
-      split; [ exact Hy | apply Removes_here ].
+      destruct (load_read (Prim (Unary p) [Var x])) as [[x0 field] | ]
+        eqn:Hload; simpl.
+      * apply load_read_spec in Hload. subst x0.
+        destruct (first_read (loads_above field) [x] (y :: bound) body)
+          as [r0 | ] eqn:Hbelow.
+        -- intros [= <-]. simpl.
+           destruct
+             (first_read_removes body (loads_above field) [x] (y :: bound)
+                r0 Hbelow)
+             as (x' & Hposition' & Hx' & Hf' & Hremoves).
+           apply position_single in Hposition'. subst x'.
+           rewrite among_cons in Hx', Hf'.
+           apply orb_false_iff in Hx' as [Hxy _].
+           apply orb_false_iff in Hf' as [Hfy Hf].
+           exists x. split; [ exact Hposition | split; [ exact Hx | ] ].
+           split; [ exact Hf | ].
+           apply Removes_under_let; assumption.
+        -- intros [= <-]. simpl.
+           exists x. split; [ exact Hposition | split; [ exact Hx | ] ].
+           split; [ exact Hy | apply Removes_here ].
+      * intros [= <-]. simpl.
+        exists x. split; [ exact Hposition | split; [ exact Hx | ] ].
+        split; [ exact Hy | apply Removes_here ].
     + destruct (first_read wanted params (y :: bound) body) as [r0 | ]
         eqn:Hbody; [ | discriminate ].
       intros [= <-]. simpl.
-      destruct (first_read_removes wanted params body (y :: bound) r0 Hbody)
+      destruct (first_read_removes body wanted params (y :: bound) r0 Hbody)
         as (x & Hposition & Hx & Hf & Hremoves).
       rewrite among_cons in Hx, Hf.
       apply orb_false_iff in Hx as [Hxy Hx].
@@ -596,7 +652,7 @@ Proof.
       apply Removes_under_let; assumption.
   - destruct (first_read wanted params bound body) as [r0 | ] eqn:Hbody.
     + intros [= <-]. simpl.
-      destruct (first_read_removes wanted params body bound r0 Hbody)
+      destruct (first_read_removes body wanted params bound r0 Hbody)
         as (x & Hposition & Hx & Hf & Hremoves).
       exists x. split; [ exact Hposition | split; [ exact Hx | ] ].
       split; [ exact Hf | ].
@@ -605,7 +661,7 @@ Proof.
         as [r0 | ] eqn:Hhandler; [ | discriminate ].
       intros [= <-]. simpl.
       destruct
-        (first_read_removes wanted params handler (handler_params ++ bound)
+        (first_read_removes handler wanted params (handler_params ++ bound)
            r0 Hhandler)
         as (x & Hposition & Hx & Hf & Hremoves).
       rewrite among_app in Hx, Hf.
@@ -751,12 +807,13 @@ Qed.
 Lemma certain_step_refines (known : facts) (k : continuation)
     (params params' : list variable) (metadata metadata' : handler_metadata)
     (handler handler' body body' : expr) (r : read) (vars : env)
-    (conts : cont_env) (statics : static_env) (hp : heap) :
+    (conts : cont_env) (statics : static_env) (hp : heap) (variant : bool)
+    (tests : list variable) :
   next_read params handler = Some r ->
   unbox_read
     (fun known =>
-       extend_args_certain params handler (read_without r) known
-         (read_position r) (read_primitive r) (read_kind r))
+       extend_args_certain variant tests params handler (read_without r)
+         known (read_position r) (read_primitive r) (read_kind r))
     known k params metadata handler body r
   = Some (params', metadata', handler', body') ->
   facts_hold known vars statics ->
@@ -769,7 +826,7 @@ Lemma certain_step_refines (known : facts) (k : continuation)
 Proof.
   intros Hnext Hstep Hfacts.
   destruct (next_read_first params handler r Hnext) as [wanted Hfirst].
-  destruct (first_read_removes wanted params handler [] r Hfirst)
+  destruct (first_read_removes handler wanted params [] r Hfirst)
     as (x & Hposition & _ & _ & Hremoves).
   apply (unbox_read_refines _
     (certain_fits params handler (read_without r) (read_position r)
@@ -779,9 +836,9 @@ Proof.
     [ | | exact Hfacts ].
   - intros known0 vars0 statics0 hp' args args' vs v Hfacts0 Hextend Hvs Hv.
     left.
-    exact (extend_args_certain_gives params handler (read_without r)
-      (read_position r) (read_primitive r) (read_kind r) known0 vars0
-      statics0 args args' vs v Hfacts0 Hextend Hvs Hv).
+    exact (extend_args_certain_gives variant tests params handler
+      (read_without r) (read_position r) (read_primitive r) (read_kind r)
+      known0 vars0 statics0 args args' vs v Hfacts0 Hextend Hvs Hv).
   - intros Hfree Hne Hdistinct Hfresh def_vars bound conts0 statics0 hp' vs
       u Hbind [Hfits | (consts & Hnever & Hvalues)].
     + exact (read_fits_refines (read_variable r) (read_kind r)
@@ -802,21 +859,32 @@ Qed.
 
 (* The reads of a handler, one after the other. *)
 Lemma unbox_reads_refines (fuel : nat) :
-  ∀ (known : facts) (k : continuation) (params : list variable)
+  ∀ (known : facts) (k : continuation) (made : list (variable * nat))
+    (above : list (nat * list nat)) (params : list variable)
     (metadata : handler_metadata) (handler body : expr) (vars : env)
     (conts : cont_env) (statics : static_env) (hp : heap),
     facts_hold known vars statics ->
     refines
       (State (Let_cont_non_recursive k (Handler params metadata handler) body)
          vars conts statics hp)
-      (State (unbox_reads fuel known k params metadata handler body) vars
-         conts statics hp).
+      (State (unbox_reads fuel known k made above params metadata handler body)
+         vars conts statics hp).
 Proof.
   induction fuel as [ | fuel IH];
-    intros known k params metadata handler body vars conts statics hp Hfacts;
+    intros known k made above params metadata handler body vars conts statics
+      hp Hfacts;
     simpl; [ apply refines_refl | ].
   destruct (next_read params handler) as [r | ] eqn:Hnext; simpl;
     [ | apply refines_refl ].
+  set (made' :=
+    if reads_test (read_primitive r)
+    then (read_variable r, read_position r) :: made
+    else made).
+  set (above' :=
+    (length params, length params :: boxes_of (read_position r) above)
+    :: above).
+  set (variant := tested_is_int params (read_position r) handler).
+  set (tests := tests_of (read_position r) made above).
   assert (Hcertain :
     refines
       (State (Let_cont_non_recursive k (Handler params metadata handler) body)
@@ -825,12 +893,14 @@ Proof.
          match
            unbox_read
              (fun known =>
-                extend_args_certain params handler (read_without r) known
-                  (read_position r) (read_primitive r) (read_kind r))
+                extend_args_certain variant tests params handler
+                  (read_without r) known (read_position r) (read_primitive r)
+                  (read_kind r))
              known k params metadata handler body r
          with
          | Some (params0, metadata0, handler0, body0) =>
-           unbox_reads fuel known k params0 metadata0 handler0 body0
+           unbox_reads fuel known k made' above' params0 metadata0 handler0
+             body0
          | None =>
            Let_cont_non_recursive k (Handler params metadata handler) body
          end
@@ -838,14 +908,15 @@ Proof.
   { destruct
       (unbox_read
          (fun known =>
-            extend_args_certain params handler (read_without r) known
-              (read_position r) (read_primitive r) (read_kind r))
+            extend_args_certain variant tests params handler (read_without r)
+              known (read_position r) (read_primitive r) (read_kind r))
          known k params metadata handler body r)
       as [[[[params' metadata'] handler'] body'] | ] eqn:Hstep;
       [ | apply refines_refl ].
     eapply refines_trans; [ | apply IH; exact Hfacts ].
     exact (certain_step_refines known k params params' metadata metadata'
-      handler handler' body body' r vars conts statics _ Hnext Hstep Hfacts). }
+      handler handler' body body' r vars conts statics _ variant tests Hnext
+      Hstep Hfacts). }
   destruct (head_read params handler) as [head | ] eqn:Hhead;
     [ | exact Hcertain ].
   destruct (Pos.eqb (read_variable head) (read_variable r));

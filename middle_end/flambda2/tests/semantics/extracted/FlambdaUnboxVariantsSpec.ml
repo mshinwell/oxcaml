@@ -1,3 +1,4 @@
+open BinInt
 open BinNums
 open BinPos
 open Datatypes
@@ -13,18 +14,24 @@ open FlambdaUnboxParamsSpec
 open FlambdaUnboxSpec
 open FlambdaUnusedContsSpec
 open List
+open ListDef
 open Nat
+open OxCamlOption
 
-(** val dummy_of : unary_primitive -> flambda_kind -> const **)
+(** val dummy_of : bool -> unary_primitive -> flambda_kind -> const **)
 
-let dummy_of p kind =
+let dummy_of variant p kind =
   match p with
+  | Is_int _ ->
+    if kind_eqb kind (Naked_number Kind_naked_immediate)
+    then Naked_immediate Z0
+    else Poison kind
   | Get_tag ->
     if kind_eqb kind (Naked_number Kind_naked_immediate)
     then Naked_immediate Z0
     else Poison kind
   | Untag_immediate ->
-    if kind_eqb kind (Naked_number Kind_naked_immediate)
+    if variant && kind_eqb kind (Naked_number Kind_naked_immediate)
     then Naked_immediate Z0
     else Poison kind
   | _ -> Poison kind
@@ -163,20 +170,28 @@ let never_reads consts handler without =
     (remove_unused_conts (take_arms consts handler))
     (remove_unused_conts (take_arms consts without))
 
-(** val extend_args_certain : variable list -> expr -> expr -> facts -> nat ->
-    unary_primitive -> flambda_kind -> simple list -> simple list option **)
+(** val only_of : variable list -> (variable * coq_Z) list -> (variable * coq_Z)
+    list **)
 
-let extend_args_certain params handler without known i p kind args =
+let only_of tests consts = filter (fun entry -> among (fst entry) tests) consts
+
+(** val extend_args_certain : bool -> variable list -> variable list -> expr ->
+    expr -> facts -> nat -> unary_primitive -> flambda_kind -> simple list ->
+    simple list option **)
+
+let extend_args_certain variant tests params handler without known i p kind args
+    =
   match nth_error args i with
   | Some arg -> (
-    if never_reads (known_immediates params args) handler without
-    then Some (app args (Const (dummy_of p kind) :: []))
+    if
+      never_reads (only_of tests (known_immediates params args)) handler without
+    then Some (app args (Const (dummy_of variant p kind) :: []))
     else
       match certain_projection known p kind arg with
       | Some projection -> Some (app args (projection :: []))
       | None ->
         if no_value_on known p arg
-        then Some (app args (Const (dummy_of p kind) :: []))
+        then Some (app args (Const (dummy_of variant p kind) :: []))
         else None)
   | None -> None
 
@@ -252,21 +267,61 @@ let head_read params = function
     | None -> None)
   | _ -> None
 
+(** val load_read : named -> (variable * coq_Z) option **)
+
+let load_read = function
+  | Prim (p, args) -> (
+    match p with
+    | Unary p0 -> (
+      match p0 with
+      | Block_load (_, _, field) -> (
+        match args with
+        | [] -> None
+        | s :: l -> (
+          match s with
+          | Var x -> ( match l with [] -> Some (x, field) | _ :: _ -> None)
+          | _ -> None))
+      | _ -> None)
+    | _ -> None)
+  | _ -> None
+
+(** val loads_above : coq_Z -> unary_primitive -> bool **)
+
+let loads_above field = function
+  | Block_load (_, _, field') -> Z.ltb field field'
+  | _ -> false
+
 (** val first_read : (unary_primitive -> bool) -> variable list -> variable list
     -> expr -> read option **)
 
 let rec first_read wanted params bound = function
   | Let (y, kind, d, body) -> (
     match param_read wanted params bound y d with
-    | Some p0 ->
+    | Some p0 -> (
       let p, i = p0 in
-      Some
-        { read_variable = y;
-          read_kind = kind;
-          read_primitive = p;
-          read_position = i;
-          read_without = body
-        }
+      match
+        match load_read d with
+        | Some p1 ->
+          let x, field = p1 in
+          first_read (loads_above field) (x :: []) (y :: bound) body
+        | None -> None
+      with
+      | Some r ->
+        Some
+          { read_variable = r.read_variable;
+            read_kind = r.read_kind;
+            read_primitive = r.read_primitive;
+            read_position = i;
+            read_without = Let (y, kind, d, r.read_without)
+          }
+      | None ->
+        Some
+          { read_variable = y;
+            read_kind = kind;
+            read_primitive = p;
+            read_position = i;
+            read_without = body
+          })
     | None -> (
       match first_read wanted params (y :: bound) body with
       | Some r ->
@@ -347,10 +402,40 @@ let unbox_read extend known k params metadata handler body r =
     | None -> None
   else None
 
-(** val unbox_reads : nat -> facts -> continuation -> variable list ->
-    handler_metadata -> expr -> expr -> expr **)
+(** val tested_is_int : variable list -> nat -> expr -> bool **)
 
-let rec unbox_reads fuel known k params metadata handler body =
+let tested_is_int params i handler =
+  match nth_error params i with
+  | Some param -> is_some (first_read reads_is_int (param :: []) [] handler)
+  | None -> false
+
+(** val reads_test : unary_primitive -> bool **)
+
+let reads_test p =
+  (reads_tag p || reads_constant_constructor p) || reads_is_int p
+
+(** val boxes_of : nat -> (nat * nat list) list -> nat list **)
+
+let rec boxes_of i = function
+  | [] -> i :: []
+  | p :: above0 ->
+    let j, boxes = p in
+    if PeanoNat.Nat.eqb i j then boxes else boxes_of i above0
+
+(** val tests_of : nat -> (variable * nat) list -> (nat * nat list) list ->
+    variable list **)
+
+let tests_of i made above =
+  map fst
+    (filter
+       (fun entry -> existsb (PeanoNat.Nat.eqb (snd entry)) (boxes_of i above))
+       made)
+
+(** val unbox_reads : nat -> facts -> continuation -> (variable * nat) list ->
+    (nat * nat list) list -> variable list -> handler_metadata -> expr -> expr
+    -> expr **)
+
+let rec unbox_reads fuel known k made above params metadata handler body =
   let unchanged =
     Let_cont_non_recursive (k, Handler (params, metadata, handler), body)
   in
@@ -361,13 +446,16 @@ let rec unbox_reads fuel known k params metadata handler body =
      fun r ->
       unbox_read
         (fun known0 ->
-          extend_args_certain params handler r.read_without known0
-            r.read_position r.read_primitive r.read_kind)
+          extend_args_certain
+            (tested_is_int params r.read_position handler)
+            (tests_of r.read_position made above)
+            params handler r.read_without known0 r.read_position
+            r.read_primitive r.read_kind)
         known k params metadata handler body r
     in
-    let step =
-      match next_read params handler with
-      | Some r -> (
+    match next_read params handler with
+    | Some r -> (
+      let step =
         match head_read params handler with
         | Some head ->
           if Pos.eqb head.read_variable r.read_variable
@@ -377,15 +465,21 @@ let rec unbox_reads fuel known k params metadata handler body =
                 extend_args known0 head.read_position head.read_primitive)
               known k params metadata handler body head
           else certain r
-        | None -> certain r)
-      | None -> None
-    in
-    match step with
-    | Some p ->
-      let p0, body0 = p in
-      let p1, handler0 = p0 in
-      let params0, metadata0 = p1 in
-      unbox_reads fuel0 known k params0 metadata0 handler0 body0
+        | None -> certain r
+      in
+      match step with
+      | Some p ->
+        let p0, body0 = p in
+        let p1, handler0 = p0 in
+        let params', metadata0 = p1 in
+        unbox_reads fuel0 known k
+          (if reads_test r.read_primitive
+           then (r.read_variable, r.read_position) :: made
+           else made)
+          ((length params, length params :: boxes_of r.read_position above)
+          :: above)
+          params' metadata0 handler0 body0
+      | None -> unchanged)
     | None -> unchanged)
 
 (** val unbox_variants_knowing : facts -> expr -> expr **)
@@ -403,7 +497,7 @@ let rec unbox_variants_knowing known e =
     let handler1 =
       unbox_variants_knowing (facts_under_params known params) handler
     in
-    unbox_reads (lets_in handler1) known k params metadata handler1
+    unbox_reads (lets_in handler1) known k [] [] params metadata handler1
       (unbox_variants_knowing known body)
   | Let_cont_recursive (handlers, body) ->
     Let_cont_recursive (handlers, unbox_variants_knowing known body)

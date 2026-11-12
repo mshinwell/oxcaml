@@ -77,15 +77,23 @@
      body of a [Let_cont] is gone into before its handler: the front
      end puts the continuation of the first arm of a match outermost,
      and Simplify's parameters for the fields are those of the last
-     tag first.
+     tag first. Below a load, a load of the same box at a greater
+     field is taken before it ([first_read], with [loads_above]):
+     Simplify's parameters for the fields of a block are those of the
+     last field first, and the front end loads the fields of a
+     constructor from the first.
 
    - Where the [Let] is not the first thing in the handler
      ([extend_args_certain]), an application gets as its new argument:
      a constant of the kind of the [Let] in place of what the read
-     would give ([dummy_of]: [poison], or 0 for [Get_tag] and
-     [Untag_immediate] at the kind of naked immediates, as Simplify
-     gives), if the application does not come to the read
-     ([never_reads], below);
+     would give ([dummy_of], as Simplify gives: [poison]; or, at the
+     kind of naked immediates, 0 for [Get_tag], for [Is_int], and
+     for the [Untag_immediate] of a box of which the handler also
+     reads [Is_int], which is the constant constructor of a variant
+     ([extra_arg_for_ctor], [extra_arg_for_is_int]); a box that is
+     untagged and not so tested is a number, for which Simplify gives
+     [poison], [Unboxers.Immediate]), if the application does not
+     come to the read ([never_reads], below);
      otherwise the constant that the term shows the primitive to give,
      if that is of the kind of the [Let]; or the field of a block that
      a [Let] in scope made, for a load at the kind of values; or the
@@ -107,8 +115,18 @@
    term shows it by the constants that the application gives. The
    parameters that it gives a constant naked immediate are known
    ([known_immediates]): whether the value is an immediate and its
-   tag, once those are parameters. In the handler each [Switch] on one
-   of them is replaced by the arm that it goes to ([take_arms]), and
+   tag, once those are parameters. Of them, only the tests of the box
+   read are used ([tests_of]): the parameters that the pass itself
+   made from [Get_tag], [Is_int] or [Untag_immediate] of the
+   parameter read, or of a parameter that the parameter read was
+   itself read from. Simplify gives [poison] for the fields of a
+   block of another tag and for everything under a value that is not
+   there, and the field itself wherever the block is there, whatever
+   else the application shows of the path that the handler takes: a
+   pair [(0, false)] given to a handler that reads the first field
+   only where the second is [true] is given 0 for it. In the handler
+   each [Switch] on one of them is replaced by the arm that it goes
+   to ([take_arms]), and
    the continuations that nothing then applies are removed
    (FlambdaUnusedContsSpec.remove_unused_conts); if what is left of
    the handler is what is left of the handler without the read, up to
@@ -154,7 +172,10 @@
    under a test, an application that may come to the read and whose
    argument is neither known in one of these ways nor one on which
    the primitive has no value. It stops at the first read that it
-   cannot make a parameter, and does not look for another. So where
+   cannot make a parameter, and does not look for another. A load
+   that is taken before the load that the handler begins with is not
+   the first thing in the handler, and is given arguments that are
+   certain. So where
    a handler begins with the load of a field of one parameter and
    then reads the tag of another, and an application gives a block
    that is known for the first and nothing that is known for the
@@ -183,11 +204,19 @@ Import ListNotations.
 (* ======================================================================== *)
 
 (* The constant given where there is nothing to read, of the kind of
-   the [Let] that read: what Simplify gives. *)
-Definition dummy_of (p : unary_primitive) (kind : flambda_kind) : const :=
+   the [Let] that read: what Simplify gives. [variant] says whether
+   the box read is also tested by [Is_int]: its untagging is then the
+   constant constructor of a variant, and otherwise that of a
+   number. *)
+Definition dummy_of (variant : bool) (p : unary_primitive)
+    (kind : flambda_kind) : const :=
   match p with
-  | Get_tag | Untag_immediate =>
+  | Get_tag | Is_int _ =>
     if kind_eqb kind (Naked_number Kind_naked_immediate)
+    then Naked_immediate 0
+    else Poison kind
+  | Untag_immediate =>
+    if variant && kind_eqb kind (Naked_number Kind_naked_immediate)
     then Naked_immediate 0
     else Poison kind
   | _ => Poison kind
@@ -303,23 +332,31 @@ Definition never_reads (consts : list (variable * Z))
     (remove_unused_conts (take_arms consts handler))
     (remove_unused_conts (take_arms consts without)).
 
+(* What is known of the variables given, and of no other. *)
+Definition only_of (tests : list variable) (consts : list (variable * Z))
+    : list (variable * Z) :=
+  filter (fun entry => among (fst entry) tests) consts.
+
 (* The arguments of an application with one more, the last: the
    constant of [dummy_of], if the application does not come to the
-   read, given the handler and the handler without the read; otherwise
+   read, given the handler and the handler without the read, by the
+   constants that it gives to the parameters [tests]; otherwise
    what [p] certainly gives of the argument at position [i]; or, if it
    has no value on it, the constant again. *)
-Definition extend_args_certain (params : list variable)
-    (handler without : expr) (known : facts) (i : nat) (p : unary_primitive)
-    (kind : flambda_kind) (args : list simple) : option (list simple) :=
+Definition extend_args_certain (variant : bool)
+    (tests params : list variable) (handler without : expr) (known : facts)
+    (i : nat) (p : unary_primitive) (kind : flambda_kind)
+    (args : list simple) : option (list simple) :=
   let* arg := nth_error args i in
-  if never_reads (known_immediates params args) handler without
-  then Some (args ++ [Const (dummy_of p kind)])
+  if never_reads (only_of tests (known_immediates params args)) handler
+       without
+  then Some (args ++ [Const (dummy_of variant p kind)])
   else
     match certain_projection known p kind arg with
     | Some projection => Some (args ++ [projection])
     | None =>
       if no_value_on known p arg
-      then Some (args ++ [Const (dummy_of p kind)])
+      then Some (args ++ [Const (dummy_of variant p kind)])
       else None
     end.
 
@@ -391,16 +428,43 @@ Definition head_read (params : list variable) (e : expr) : option read :=
   | _ => None
   end.
 
+(* The variable that a load reads, and the field. *)
+Definition load_read (d : named) : option (variable * Z) :=
+  match d with
+  | Prim (Unary (Block_load _ _ field)) [Var x] => Some (x, field)
+  | _ => None
+  end.
+
+(* Whether a primitive is a load of a field above the one given. *)
+Definition loads_above (field : Z) (p : unary_primitive) : bool :=
+  match p with
+  | Block_load _ _ field' => (field <? field')%Z
+  | _ => false
+  end.
+
 (* The first [Let] that reads a parameter by a primitive that is
    wanted, going down the expression through the bodies of [Let]s and
    through the bodies, then the handlers, of non-recursive [Let_cont]s;
-   [bound] is what the binders passed on the way bind. *)
+   [bound] is what the binders passed on the way bind. Where that
+   [Let] is a load, the first load of the same parameter at a greater
+   field that is found in the same way below it is taken in its
+   place, and so on down. *)
 Fixpoint first_read (wanted : unary_primitive -> bool)
     (params bound : list variable) (e : expr) : option read :=
   match e with
   | Let y kind d body =>
     match param_read wanted params bound y d with
-    | Some (p, i) => Some (Read y kind p i body)
+    | Some (p, i) =>
+      match
+        (let* '(x, field) := load_read d in
+         first_read (loads_above field) [x] (y :: bound) body)
+      with
+      | Some r =>
+        Some
+          (Read (read_variable r) (read_kind r) (read_primitive r) i
+             (Let y kind d (read_without r)))
+      | None => Some (Read y kind p i body)
+      end
     | None =>
       let* r := first_read wanted params (y :: bound) body in
       Some
@@ -480,12 +544,48 @@ Definition unbox_read
        read_without r, body)
   else None.
 
+(* Whether the handler reads [Is_int] of the parameter at position
+   [i]. *)
+Definition tested_is_int (params : list variable) (i : nat) (handler : expr)
+    : bool :=
+  match nth_error params i with
+  | Some param => is_some (first_read reads_is_int [param] [] handler)
+  | None => false
+  end.
+
+(* The reads that are tests of a box. *)
+Definition reads_test (p : unary_primitive) : bool :=
+  reads_tag p || reads_constant_constructor p || reads_is_int p.
+
+(* The positions of the parameter at position [i] and of the
+   parameters that it was read from, one after the other, given for
+   each parameter that the pass made the positions of its own. *)
+Fixpoint boxes_of (i : nat) (above : list (nat * list nat)) : list nat :=
+  match above with
+  | [] => [i]
+  | (j, boxes) :: above => if Nat.eqb i j then boxes else boxes_of i above
+  end.
+
+(* The tests of the parameter at position [i], and of the parameters
+   that it was read from: of the parameters that the pass made from a
+   test, each with the position that it read, those that read one of
+   those positions. *)
+Definition tests_of (i : nat) (made : list (variable * nat))
+    (above : list (nat * list nat)) : list variable :=
+  map fst
+    (filter (fun entry => existsb (Nat.eqb (snd entry)) (boxes_of i above))
+       made).
+
 (* The [Let_cont] of [k], with the reads of its parameters made
    parameters one after the other, in the order of [next_read], as
    long as each can be: if it is the [Let] that the handler begins
    with, as FlambdaUnboxParamsSpec.unbox_heads does it; otherwise with
-   arguments that are certain. *)
+   arguments that are certain. [made] is the tests made parameters so
+   far, each with the position that it read, and [above], for each
+   parameter made so far, its position and those of the parameters
+   that it was read from. *)
 Fixpoint unbox_reads (fuel : nat) (known : facts) (k : continuation)
+    (made : list (variable * nat)) (above : list (nat * list nat))
     (params : list variable) (metadata : handler_metadata)
     (handler body : expr) : expr :=
   let unchanged :=
@@ -497,27 +597,41 @@ Fixpoint unbox_reads (fuel : nat) (known : facts) (k : continuation)
     let certain (r : read) :=
       unbox_read
         (fun known =>
-           extend_args_certain params handler (read_without r) known
+           extend_args_certain
+             (tested_is_int params (read_position r) handler)
+             (tests_of (read_position r) made above)
+             params handler (read_without r) known
              (read_position r) (read_primitive r) (read_kind r))
         known k params metadata handler body r
     in
-    let step :=
-      let* r := next_read params handler in
-      match head_read params handler with
-      | Some head =>
-        if Pos.eqb (read_variable head) (read_variable r)
-        then
-          unbox_read
-            (fun known =>
-               extend_args known (read_position head) (read_primitive head))
-            known k params metadata handler body head
-        else certain r
-      | None => certain r
+    match next_read params handler with
+    | Some r =>
+      let step :=
+        match head_read params handler with
+        | Some head =>
+          if Pos.eqb (read_variable head) (read_variable r)
+          then
+            unbox_read
+              (fun known =>
+                 extend_args known (read_position head)
+                   (read_primitive head))
+              known k params metadata handler body head
+          else certain r
+        | None => certain r
+        end
+      in
+      match step with
+      | Some (params', metadata, handler, body) =>
+        unbox_reads fuel known k
+          (if reads_test (read_primitive r)
+           then (read_variable r, read_position r) :: made
+           else made)
+          ((length params,
+            length params :: boxes_of (read_position r) above)
+           :: above)
+          params' metadata handler body
+      | None => unchanged
       end
-    in
-    match step with
-    | Some (params, metadata, handler, body) =>
-      unbox_reads fuel known k params metadata handler body
     | None => unchanged
     end
   end.
@@ -533,7 +647,7 @@ Fixpoint unbox_variants_knowing (known : facts) (e : expr) : expr :=
     let handler :=
       unbox_variants_knowing (facts_under_params known params) handler
     in
-    unbox_reads (lets_in handler) known k params metadata handler
+    unbox_reads (lets_in handler) known k [] [] params metadata handler
       (unbox_variants_knowing known body)
   | Let_cont_recursive handlers body =>
     Let_cont_recursive handlers (unbox_variants_knowing known body)

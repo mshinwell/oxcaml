@@ -1,3 +1,4 @@
+open BinInt
 open BinNums
 open BinPos
 open Datatypes
@@ -13,9 +14,11 @@ open FlambdaUnboxParamsSpec
 open FlambdaUnboxSpec
 open FlambdaUnusedContsSpec
 open List
+open ListDef
 open Nat
+open OxCamlOption
 
-val dummy_of : unary_primitive -> flambda_kind -> const
+val dummy_of : bool -> unary_primitive -> flambda_kind -> const
 
 val no_value_on : facts -> unary_primitive -> simple -> bool
 
@@ -37,7 +40,12 @@ val take_arms : (variable * coq_Z) list -> expr -> expr
 
 val never_reads : (variable * coq_Z) list -> expr -> expr -> bool
 
+val only_of :
+  variable list -> (variable * coq_Z) list -> (variable * coq_Z) list
+
 val extend_args_certain :
+  bool ->
+  variable list ->
   variable list ->
   expr ->
   expr ->
@@ -76,6 +84,10 @@ val param_read :
 
 val head_read : variable list -> expr -> read option
 
+val load_read : named -> (variable * coq_Z) option
+
+val loads_above : coq_Z -> unary_primitive -> bool
+
 val first_read :
   (unary_primitive -> bool) ->
   variable list ->
@@ -98,10 +110,21 @@ val unbox_read :
   read ->
   (((variable list * handler_metadata) * expr) * expr) option
 
+val tested_is_int : variable list -> nat -> expr -> bool
+
+val reads_test : unary_primitive -> bool
+
+val boxes_of : nat -> (nat * nat list) list -> nat list
+
+val tests_of :
+  nat -> (variable * nat) list -> (nat * nat list) list -> variable list
+
 val unbox_reads :
   nat ->
   facts ->
   continuation ->
+  (variable * nat) list ->
+  (nat * nat list) list ->
   variable list ->
   handler_metadata ->
   expr ->

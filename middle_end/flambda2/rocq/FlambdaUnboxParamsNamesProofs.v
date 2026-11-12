@@ -695,6 +695,18 @@ Proof.
   destruct (among t0 bound); reflexivity.
 Qed.
 
+Lemma only_of_equivariant (r : renaming) (tests : list variable)
+    (consts : list (variable * Z)) :
+  only_of (map (rename_variable r) tests) (rename_immediates r consts)
+  = rename_immediates r (only_of tests consts).
+Proof.
+  unfold only_of, rename_immediates.
+  induction consts as [ | [t0 i0] consts IH]; cbn [map filter fst snd];
+    [ reflexivity | ].
+  rewrite among_rename_variable, IH.
+  destruct (among t0 tests); reflexivity.
+Qed.
+
 Fixpoint take_arms_equivariant_aux (r : renaming) (e : expr) :
   ∀ consts : list (variable * Z),
     take_arms (rename_immediates r consts) (rename_expr r e)
@@ -752,13 +764,15 @@ Qed.
 Theorem extend_args_certain_equivariant :
   extend_args_certain_equivariant_statement.
 Proof.
-  intros r params handler without known i p kind args.
+  intros r variant tests params handler without known i p kind args.
   unfold extend_args_certain. rewrite nth_error_map.
   destruct (nth_error args i) as [arg | ]; [ | reflexivity ].
   cbn [option_map]. cbv beta iota.
-  rewrite known_immediates_equivariant, never_reads_renamed,
-    certain_projection_equivariant, no_value_on_renamed.
-  destruct (never_reads (known_immediates params args) handler without);
+  rewrite known_immediates_equivariant, only_of_equivariant,
+    never_reads_renamed, certain_projection_equivariant, no_value_on_renamed.
+  destruct
+    (never_reads (only_of tests (known_immediates params args)) handler
+       without);
     cbn [option_map]; [ rewrite map_app; reflexivity | ].
   destruct (certain_projection known p kind arg); cbn [option_map];
     [ rewrite map_app; reflexivity | ].
@@ -783,9 +797,19 @@ Proof.
   rewrite !among_rename_variable, position_renamed. reflexivity.
 Qed.
 
-Fixpoint first_read_equivariant_aux (r : renaming)
-    (wanted : unary_primitive -> bool) (params : list variable) (e : expr) :
-  ∀ bound : list variable,
+Lemma load_read_renamed (r : renaming) (d : named) :
+  load_read (rename_named r d)
+  = option_map (fun found => (rename_variable r (fst found), snd found))
+      (load_read d).
+Proof.
+  destruct d as [s | pr args | | | | | ]; try reflexivity.
+  destruct pr as [p | b | v | hp]; try reflexivity.
+  destruct p; try reflexivity.
+  destruct args as [ | [x | sym | c] [ | arg args]]; reflexivity.
+Qed.
+
+Fixpoint first_read_equivariant_aux (r : renaming) (e : expr) :
+  ∀ (wanted : unary_primitive -> bool) (params bound : list variable),
     first_read wanted (map (rename_variable r) params)
       (map (rename_variable r) bound) (rename_expr r e)
     = option_map (rename_read r) (first_read wanted params bound e).
@@ -794,15 +818,21 @@ Proof.
     as [ y kind d body | bindings body | k [handler_params metadata handler]
            body
        | handlers body | ap | ac | scrutinee arms | ];
-    intros bound; cbn [rename_expr rename_handler first_read];
+    intros wanted params bound; cbn [rename_expr rename_handler first_read];
     try reflexivity.
   - rewrite param_read_renamed.
-    destruct (param_read wanted params bound y d) as [[p i] | ];
-      [ reflexivity | ].
     change (rename_variable r y :: map (rename_variable r) bound)
       with (map (rename_variable r) (y :: bound)).
-    rewrite first_read_equivariant_aux.
-    destruct (first_read wanted params (y :: bound) body); reflexivity.
+    destruct (param_read wanted params bound y d) as [[p i] | ].
+    + rewrite load_read_renamed.
+      destruct (load_read d) as [[x field] | ]; cbn [option_map fst snd];
+        [ | reflexivity ].
+      change [rename_variable r x] with (map (rename_variable r) [x]).
+      rewrite first_read_equivariant_aux.
+      destruct (first_read (loads_above field) [x] (y :: bound) body);
+        reflexivity.
+    + rewrite first_read_equivariant_aux.
+      destruct (first_read wanted params (y :: bound) body); reflexivity.
   - rewrite first_read_equivariant_aux.
     destruct (first_read wanted params bound body); [ reflexivity | ].
     cbn [option_map]. rewrite <- map_app, first_read_equivariant_aux.
@@ -820,7 +850,7 @@ Lemma next_read_equivariant (r : renaming) (params : list variable)
 Proof.
   unfold next_read.
   pose proof
-    (fun wanted => first_read_equivariant_aux r wanted params handler [])
+    (fun wanted => first_read_equivariant_aux r handler wanted params [])
     as Hfirst.
   cbn [map] in Hfirst. rewrite !Hfirst.
   destruct (first_read reads_tag params [] handler); [ reflexivity | ].
@@ -839,6 +869,37 @@ Proof.
   pose proof (param_read_renamed r reads_any params [] f d) as Hread.
   cbn [map] in Hread. rewrite Hread.
   destruct (param_read reads_any params [] f d) as [[p i] | ]; reflexivity.
+Qed.
+
+Lemma tested_is_int_renamed (r : renaming) (params : list variable)
+    (i : nat) (handler : expr) :
+  tested_is_int (map (rename_variable r) params) i (rename_expr r handler)
+  = tested_is_int params i handler.
+Proof.
+  unfold tested_is_int. rewrite nth_error_map.
+  destruct (nth_error params i) as [param | ]; [ | reflexivity ].
+  cbn [option_map].
+  pose proof (first_read_equivariant_aux r handler reads_is_int [param] [])
+    as Hfirst.
+  cbn [map] in Hfirst. rewrite Hfirst.
+  destruct (first_read reads_is_int [param] [] handler); reflexivity.
+Qed.
+
+(* The tests that the pass made, with their variables renamed. *)
+Definition rename_made (r : renaming) (made : list (variable * nat))
+    : list (variable * nat) :=
+  map (fun entry => (rename_variable r (fst entry), snd entry)) made.
+
+Lemma tests_of_renamed (r : renaming) (i : nat)
+    (made : list (variable * nat)) (above : list (nat * list nat)) :
+  tests_of i (rename_made r made) above
+  = map (rename_variable r) (tests_of i made above).
+Proof.
+  unfold tests_of, rename_made.
+  induction made as [ | [x j] made IH]; cbn [map filter fst snd];
+    [ reflexivity | ].
+  destruct (existsb (Nat.eqb j) (boxes_of i above)); cbn [map fst];
+    rewrite IH; reflexivity.
 Qed.
 
 Fixpoint lets_in_renamed (r : renaming) (e : expr) :
@@ -916,11 +977,13 @@ Qed.
 
 Lemma certain_step_equivariant (r : renaming) (known : facts)
     (k : continuation) (params : list variable) (metadata : handler_metadata)
-    (handler body : expr) (found : read) :
+    (handler body : expr) (found : read) (variant : bool)
+    (tests : list variable) :
   unbox_read
     (fun known =>
-       extend_args_certain (map (rename_variable r) params)
-         (rename_expr r handler) (read_without (rename_read r found)) known
+       extend_args_certain variant (map (rename_variable r) tests)
+         (map (rename_variable r) params) (rename_expr r handler)
+         (read_without (rename_read r found)) known
          (read_position (rename_read r found))
          (read_primitive (rename_read r found))
          (read_kind (rename_read r found)))
@@ -930,49 +993,74 @@ Lemma certain_step_equivariant (r : renaming) (known : facts)
   = option_map (rename_step r)
       (unbox_read
          (fun known =>
-            extend_args_certain params handler (read_without found) known
-              (read_position found) (read_primitive found) (read_kind found))
+            extend_args_certain variant tests params handler
+              (read_without found) known (read_position found)
+              (read_primitive found) (read_kind found))
          known k params metadata handler body found).
 Proof.
   exact (unbox_read_equivariant r _ _ known k params metadata handler body
     found
     (fun known args =>
-       extend_args_certain_equivariant r params handler (read_without found)
-         known (read_position found) (read_primitive found) (read_kind found)
-         args)).
+       extend_args_certain_equivariant r variant tests params handler
+         (read_without found) known (read_position found)
+         (read_primitive found) (read_kind found) args)).
 Qed.
 
 Lemma unbox_reads_equivariant (r : renaming) (fuel : nat) :
-  ∀ (known : facts) (k : continuation) (params : list variable)
+  ∀ (known : facts) (k : continuation) (made : list (variable * nat))
+    (above : list (nat * list nat)) (params : list variable)
     (metadata : handler_metadata) (handler body : expr),
     unbox_reads fuel (rename_facts r known) (rename_continuation r k)
-      (map (rename_variable r) params) metadata (rename_expr r handler)
-      (rename_expr r body)
-    = rename_expr r (unbox_reads fuel known k params metadata handler body).
+      (rename_made r made) above (map (rename_variable r) params) metadata
+      (rename_expr r handler) (rename_expr r body)
+    = rename_expr r
+        (unbox_reads fuel known k made above params metadata handler body).
 Proof.
   induction fuel as [ | fuel IH];
-    intros known k params metadata handler body; cbn [unbox_reads];
-    [ reflexivity | ].
+    intros known k made above params metadata handler body;
+    cbn [unbox_reads]; [ reflexivity | ].
   rewrite next_read_equivariant, head_read_equivariant.
   destruct (next_read params handler) as [found | ]; cbn [option_map];
     [ | reflexivity ].
-  simpl.
+  change (read_position (rename_read r found)) with (read_position found).
+  change (read_primitive (rename_read r found)) with (read_primitive found).
+  change (read_kind (rename_read r found)) with (read_kind found).
+  change (read_variable (rename_read r found))
+    with (rename_variable r (read_variable found)).
+  rewrite tested_is_int_renamed, tests_of_renamed, length_map.
+  set (made' :=
+    if reads_test (read_primitive found)
+    then (read_variable found, read_position found) :: made
+    else made).
+  assert (Hmade :
+    (if reads_test (read_primitive found)
+     then
+       (rename_variable r (read_variable found), read_position found)
+       :: rename_made r made
+     else rename_made r made)
+    = rename_made r made').
+  { unfold made'. destruct (reads_test (read_primitive found)); reflexivity. }
+  rewrite Hmade. clear Hmade.
+  set (above' :=
+    (length params, length params :: boxes_of (read_position found) above)
+    :: above).
+  set (variant := tested_is_int params (read_position found) handler).
+  set (tests := tests_of (read_position found) made above).
   assert (Hcertain :
     match
       unbox_read
         (fun known =>
-           extend_args_certain (map (rename_variable r) params)
-             (rename_expr r handler) (read_without (rename_read r found))
-             known (read_position (rename_read r found))
-             (read_primitive (rename_read r found))
-             (read_kind (rename_read r found)))
+           extend_args_certain variant (map (rename_variable r) tests)
+             (map (rename_variable r) params) (rename_expr r handler)
+             (read_without (rename_read r found)) known
+             (read_position found) (read_primitive found) (read_kind found))
         (rename_facts r known) (rename_continuation r k)
         (map (rename_variable r) params) metadata (rename_expr r handler)
         (rename_expr r body) (rename_read r found)
     with
     | Some (params0, metadata0, handler0, body0) =>
       unbox_reads fuel (rename_facts r known) (rename_continuation r k)
-        params0 metadata0 handler0 body0
+        (rename_made r made') above' params0 metadata0 handler0 body0
     | None =>
       Let_cont_non_recursive (rename_continuation r k)
         (Handler (map (rename_variable r) params) metadata
@@ -983,22 +1071,33 @@ Proof.
         match
           unbox_read
             (fun known =>
-               extend_args_certain params handler (read_without found)
-                 known (read_position found) (read_primitive found)
-                 (read_kind found))
+               extend_args_certain variant tests params handler
+                 (read_without found) known (read_position found)
+                 (read_primitive found) (read_kind found))
             known k params metadata handler body found
         with
         | Some (params0, metadata0, handler0, body0) =>
-          unbox_reads fuel known k params0 metadata0 handler0 body0
+          unbox_reads fuel known k made' above' params0 metadata0 handler0
+            body0
         | None =>
           Let_cont_non_recursive k (Handler params metadata handler) body
         end).
-  { rewrite certain_step_equivariant.
+  { pose proof
+      (certain_step_equivariant r known k params metadata handler body found
+         variant tests)
+      as Hstep.
+    change (read_position (rename_read r found)) with (read_position found)
+      in Hstep.
+    change (read_primitive (rename_read r found))
+      with (read_primitive found) in Hstep.
+    change (read_kind (rename_read r found)) with (read_kind found) in Hstep.
+    rewrite Hstep.
     destruct
       (unbox_read
          (fun known =>
-            extend_args_certain params handler (read_without found) known
-              (read_position found) (read_primitive found) (read_kind found))
+            extend_args_certain variant tests params handler
+              (read_without found) known (read_position found)
+              (read_primitive found) (read_kind found))
          known k params metadata handler body found)
       as [[[[params' metadata'] handler'] body'] | ];
       cbn [option_map rename_step]; [ apply IH | reflexivity ]. }
@@ -1006,8 +1105,6 @@ Proof.
     [ | exact Hcertain ].
   change (read_variable (rename_read r head))
     with (rename_variable r (read_variable head)).
-  change (read_variable (rename_read r found))
-    with (rename_variable r (read_variable found)).
   rewrite rename_variable_eqb.
   destruct (Pos.eqb (read_variable head) (read_variable found));
     [ | exact Hcertain ].
@@ -1040,7 +1137,7 @@ Proof.
     cbn [rename_handler unbox_variants_knowing].
     rewrite facts_under_params_equivariant,
       !unbox_variants_knowing_equivariant_aux, lets_in_renamed.
-    apply unbox_reads_equivariant.
+    exact (unbox_reads_equivariant r _ _ _ [] [] _ _ _ _).
   - rewrite unbox_variants_knowing_equivariant_aux. reflexivity.
 Qed.
 
@@ -1786,12 +1883,14 @@ Proof.
       Hunwrapped).
 Qed.
 
-Lemma extend_args_certain_free (params : list variable)
+Lemma extend_args_certain_free (variant : bool)
+    (tests params : list variable)
     (handler without : expr) (i : nat) (p : unary_primitive)
     (kind : flambda_kind) (names : list variable) (known : facts)
     (args args' : list simple) :
   facts_within names known ->
-  extend_args_certain params handler without known i p kind args
+  extend_args_certain variant tests params handler without known i p kind
+    args
   = Some args' ->
   incl (free_variables_of_simples args')
     (free_variables_of_simples args ++ names).
@@ -1807,7 +1906,9 @@ Proof.
   { intros last Hlast. unfold free_variables_of_simples.
     rewrite flat_map_app. cbn [flat_map]. rewrite app_nil_r.
     apply incl_app_app; [ apply incl_refl | exact Hlast ]. }
-  destruct (never_reads (known_immediates params args) handler without);
+  destruct
+    (never_reads (only_of tests (known_immediates params args)) handler
+       without);
     [ intros [= <-]; apply Hlast; intros z [] | ].
   destruct (certain_projection known p kind arg) as [projection | ]
     eqn:Hcertain.
@@ -1933,52 +2034,65 @@ Qed.
 
 Lemma unbox_reads_scoped (fuel : nat) :
   ∀ (names : list variable) (known : facts) (k : continuation)
+    (made : list (variable * nat)) (above : list (nat * list nat))
     (params : list variable) (metadata : handler_metadata)
     (handler body : expr),
     facts_within names known ->
     scoped_under names
       (Let_cont_non_recursive k (Handler params metadata handler) body)
-      (unbox_reads fuel known k params metadata handler body).
+      (unbox_reads fuel known k made above params metadata handler body).
 Proof.
   induction fuel as [ | fuel IH];
-    intros names known k params metadata handler body Hknown;
+    intros names known k made above params metadata handler body Hknown;
     cbn [unbox_reads]; [ apply scoped_under_refl | ].
   destruct (next_read params handler) as [found | ] eqn:Hnext;
     [ | apply scoped_under_refl ].
   simpl.
+  set (made' :=
+    if reads_test (read_primitive found)
+    then (read_variable found, read_position found) :: made
+    else made).
+  set (above' :=
+    (length params, length params :: boxes_of (read_position found) above)
+    :: above).
+  set (variant := tested_is_int params (read_position found) handler).
+  set (tests := tests_of (read_position found) made above).
   assert (Hcertain :
     scoped_under names
       (Let_cont_non_recursive k (Handler params metadata handler) body)
       match
         unbox_read
           (fun known =>
-             extend_args_certain params handler (read_without found) known
-               (read_position found) (read_primitive found)
-               (read_kind found))
+             extend_args_certain variant tests params handler
+               (read_without found) known (read_position found)
+               (read_primitive found) (read_kind found))
           known k params metadata handler body found
       with
       | Some (params0, metadata0, handler0, body0) =>
-        unbox_reads fuel known k params0 metadata0 handler0 body0
+        unbox_reads fuel known k made' above' params0 metadata0 handler0
+          body0
       | None =>
         Let_cont_non_recursive k (Handler params metadata handler) body
       end).
   { destruct
       (unbox_read
          (fun known =>
-            extend_args_certain params handler (read_without found) known
-              (read_position found) (read_primitive found) (read_kind found))
+            extend_args_certain variant tests params handler
+              (read_without found) known (read_position found)
+              (read_primitive found) (read_kind found))
          known k params metadata handler body found)
       as [[[[params' metadata'] handler'] body'] | ] eqn:Hstep;
       [ | apply scoped_under_refl ].
     eapply scoped_under_trans; [ | apply IH; exact Hknown ].
     destruct (next_read_first params handler found Hnext)
       as [wanted Hfirst].
-    destruct (first_read_removes wanted params handler [] found Hfirst)
+    destruct (first_read_removes handler wanted params [] found Hfirst)
       as (x & _ & _ & _ & Hremoves).
     exact (unbox_read_scoped _ names known k params params' metadata
       metadata' handler handler' body body' found x
-      (extend_args_certain_free params handler (read_without found)
-         (read_position found) (read_primitive found) (read_kind found))
+      (extend_args_certain_free variant tests params handler
+         (read_without found) (read_position found) (read_primitive found)
+         (read_kind found))
       Hknown Hstep Hremoves). }
   destruct (head_read params handler) as [head | ] eqn:Hhead;
     [ | exact Hcertain ].

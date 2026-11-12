@@ -46,8 +46,10 @@
      ([take_arms]) is renamed when the variables of which the numbers
      are known ([rename_immediates]) and the expression are;
    - the arguments that [extend_args_certain] gives are renamed when
-     the parameters, the two handlers, what is known and the arguments
-     are; the test that an application does not come to a read answers
+     the tests, the parameters, the two handlers, what is known and
+     the arguments are, whichever constant an untagging is given where
+     there is nothing to read; the test that an application does not
+     come to a read answers
      the same, as the removal of unused continuations and the
      comparison commute with renaming;
    - the first read of a parameter by a primitive that is wanted
@@ -116,14 +118,16 @@ Definition take_arms_equivariant_statement : Prop :=
     = rename_expr r (take_arms consts e).
 
 Definition extend_args_certain_equivariant_statement : Prop :=
-  ∀ (r : renaming) (params : list variable) (handler without : expr)
-    (known : facts) (i : nat) (p : unary_primitive) (kind : flambda_kind)
-    (args : list simple),
-    extend_args_certain (map (rename_variable r) params)
-      (rename_expr r handler) (rename_expr r without) (rename_facts r known)
-      i p kind (map (rename_simple r) args)
+  ∀ (r : renaming) (variant : bool) (tests params : list variable)
+    (handler without : expr) (known : facts) (i : nat) (p : unary_primitive)
+    (kind : flambda_kind) (args : list simple),
+    extend_args_certain variant (map (rename_variable r) tests)
+      (map (rename_variable r) params) (rename_expr r handler)
+      (rename_expr r without) (rename_facts r known) i p kind
+      (map (rename_simple r) args)
     = option_map (map (rename_simple r))
-        (extend_args_certain params handler without known i p kind args).
+        (extend_args_certain variant tests params handler without known i p
+           kind args).
 
 Definition first_read_equivariant_statement : Prop :=
   ∀ (r : renaming) (wanted : unary_primitive -> bool)
