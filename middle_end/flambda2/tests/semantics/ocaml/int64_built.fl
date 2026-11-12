@@ -1,0 +1,63 @@
+(let $camlInt64_built__int64_0 = 1L in
+ let code inline(never) size(46)
+       f_0 (c/71 : imm tagged, a/72 : int64 boxed, b/73 : int64 boxed)
+         my_closure/74 &my_alloc_region/75 my_depth/76
+         -> k/24 * k/25
+         : int64 boxed =
+   let next_depth/77 = rec_info (succ my_depth/76) in
+   (let untagged/91 = %untag_imm (c/71) in
+    switch untagged/91
+      | 0 -> k/29
+      | 1 -> k/30)
+     where k/30 =
+       cont k/27
+     where k/29 =
+       cont k/28
+     where k/28 =
+       let prim/87 = %unbox_num.`int64` (b/73) in
+       let prim/88 = %unbox_num.`int64` (a/72) in
+       let prim/89 = %int_barith.`int64`.sub (prim/88, prim/87) in
+       let int64_sub/90 = %box_num.`int64`.my_alloc_region/75 (prim/89) in
+       cont k/26 (int64_sub/90)
+     where k/27 =
+       let prim/83 = %unbox_num.`int64` (b/73) in
+       let prim/84 = %unbox_num.`int64` (a/72) in
+       let prim/85 = %int_barith.`int64`.add (prim/84, prim/83) in
+       let int64_add/86 = %box_num.`int64`.my_alloc_region/75 (prim/85) in
+       cont k/26 (int64_add/86)
+     where k/26 (x/78 : int64 boxed) =
+       let prim/79 = %unbox_num.`int64` ($camlInt64_built__int64_0) in
+       let prim/80 = %unbox_num.`int64` (x/78) in
+       let prim/81 = %int_barith.`int64`.add (prim/80, prim/79) in
+       let int64_add/82 = %box_num.`int64`.my_alloc_region/75 (prim/81) in
+       cont k/24 (int64_add/82)
+ in
+ let $camlInt64_built__int64_4 = 4L in
+ let $camlInt64_built__int64_3 = 3L in
+ let $camlInt64_built__int64_2 = 6L in
+ let $camlInt64_built__int64_1 = 5L in
+ let f/92 = closure f_0 @f &toplevel in
+ apply direct(f_0 &toplevel)
+   (f/92 : _ -> int64 boxed)
+     (0, $camlInt64_built__int64_1, $camlInt64_built__int64_2)
+     -> k/31 * error
+   where k/31 (apply_result/93 : int64 boxed) =
+     (apply direct(f_0 &toplevel)
+        (f/92 : _ -> int64 boxed)
+          (1, $camlInt64_built__int64_3, $camlInt64_built__int64_4)
+          -> k/32 * error
+        where k/32 (apply_result/94 : int64 boxed) =
+          let prim/95 = %unbox_num.`int64` (apply_result/93) in
+          let prim/96 = %unbox_num.`int64` (apply_result/94) in
+          let prim/97 = %int_barith.`int64`.add (prim/96, prim/95) in
+          let int64_add/98 = %box_num.`int64`.`toplevel` (prim/97) in
+          let prim/99 = %unbox_num.`int64` (int64_add/98) in
+          let prim/100 = %num_conv.[`int64`].[`imm`] (prim/99) in
+          let result/101 = %tag_imm (prim/100) in
+          let Pmakeblock/102 = %block.[`0`].`toplevel` (result/101) in
+          cont k/23 (Pmakeblock/102)))
+  where k/23 define_root_symbol (module_block/69) =
+    let field_0/70 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/69)
+    in
+    let $camlInt64_built = Block 0 (field_0/70) in
+    cont done ($camlInt64_built)

@@ -29,6 +29,7 @@ open FlambdaShortcutSpec
 open FlambdaSinkContsSpec
 open FlambdaStaticsOrderSpec
 open FlambdaUnboxSpec
+open FlambdaUnboxVariantsSpec
 open FlambdaUnusedContsSpec
 open FlambdaUnusedParamsSpec
 open FlambdaUnusedProjectionsSpec

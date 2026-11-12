@@ -29,6 +29,7 @@ open FlambdaShortcutSpec
 open FlambdaSinkContsSpec
 open FlambdaStaticsOrderSpec
 open FlambdaUnboxSpec
+open FlambdaUnboxVariantsSpec
 open FlambdaUnusedContsSpec
 open FlambdaUnusedParamsSpec
 open FlambdaUnusedProjectionsSpec
@@ -97,8 +98,9 @@ let normalise_expr_params e =
   in
   let e1 = remove_unused_conts (forward_applications e0) in
   let e2 =
-    follow_aliases_in_loops []
-      (follow_aliases [] (unbox_known_numbers (load_known_blocks e1)))
+    unbox_variant_params
+      (follow_aliases_in_loops []
+         (follow_aliases [] (unbox_known_numbers (load_known_blocks e1))))
   in
   drop_dead_params
     (bind_aliased_params
