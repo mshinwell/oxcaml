@@ -457,9 +457,10 @@ the other rewrites of `FlambdaNormaliseSpec.v`,
 actions among them; the check of kinds; the passes for loops
 (`FlambdaRecHandlersSpec.v`, `FlambdaSinkContsSpec.v`,
 `FlambdaShortcutSpec.v`, `FlambdaUnusedParamsSpec.v`,
-`FlambdaLoopAliasesSpec.v`, `FlambdaLoopifySpec.v`, and those of the
+`FlambdaLoopAliasesSpec.v`, `FlambdaLoopifySpec.v`, those of the
 second series, `FlambdaParamAliasesSpec.v`, `FlambdaForwardSpec.v`,
-`FlambdaInlineTailSpec.v`, `FlambdaLoopLetsSpec.v`); the
+`FlambdaInlineTailSpec.v`, `FlambdaLoopLetsSpec.v`, and that of the
+third, `FlambdaDeadParamsSpec.v`); the
 normalisation of the term after and the first phase of that of the
 term before. Every one is an equation that holds of every term. By
 the same prover, in the types library (`FlambdaEnvRenameSpec.v`): the
@@ -475,7 +476,11 @@ and commute with renaming up to the names that they make; and
 `validate_unit` answers the same on a pair of terms and on the pair
 renamed (`validate_unit_equivariant_statement`) where the code of the
 term before is closed. Nothing is said of a term before whose code
-is not closed.
+is not closed. What the validation is given that holds continuations
+is renamed with the terms: the liftings, and the continuation given
+for each loop that it makes of the self tail calls of a function
+(`FlambdaLoopifySpec.loopify_unit`, which it applies to the term
+before ahead of every rewrite that makes names).
 
 The liftings are made in turn, each followed by a normalisation, and
 each holds the two continuations of its unit. The term that a later
@@ -492,6 +497,17 @@ which is `rename_apart` when it is given none), and it is stated with
 were not given those continuations the statement of `validate_unit`
 had a second premise, on the terms that the liftings after the first
 are applied to; it has none now.
+
+The same holds where the term before is under a second renaming,
+which does to its free names, and to the continuations that the
+validation is given, what the first does
+(`validate_unit_renamed_alike_statement`); the statement above is its
+case of one renaming. That is the form for a caller that rewrites the
+term before, ahead of the validation, with a rewrite that makes
+names. In general: whoever rewrites a term with a rewrite that makes
+names, ahead of a function that reads names which its caller holds,
+gives the rewrite those names to avoid, and the law of the function
+is stated with a second renaming that agrees with the first on them.
 
 Proved by the owner of the meet and the third prover, in the types
 library (`FlambdaMeetRenameSpec.v`): the meet of types, of expanded
