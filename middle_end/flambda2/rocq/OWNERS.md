@@ -411,6 +411,8 @@ Owner: N2.
   about V1's and V2's rewrites: each keeps scope, which the statements
   of N3's `FlambdaValidatorEquivarianceSpec.v` about rewrites that make
   names ask of a rewrite)
+- `middle_end/flambda2/rocq/FlambdaLoopsScope*` (N2's, though it is
+  about V4's rewrites for loops: each keeps scope)
 - `middle_end/flambda2/rocq/FlambdaScopedProofs.v` (N2's, though it
   matches the pattern of N1's section, N1 agreeing: lemmas only, about
   a term that keeps the scope of another, for the proofs that a rewrite
