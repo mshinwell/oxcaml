@@ -109,7 +109,7 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaSemanticsSpec.
+  FlambdaSemanticsSpec FlambdaWellFormedSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -135,6 +135,20 @@ Definition unit_refines (imports : list (symbol * import_class))
 Definition expr_refines_unit_refines_statement : Prop :=
   ∀ (imports : list (symbol * import_class)) (source target : expr),
     expr_refines source target -> unit_refines imports source target.
+
+(* The static environment binds no symbol and no code id that the term
+   binds: the names of its static bindings, wherever they are but in
+   code (FlambdaWellFormedSpec.static_names, which does not look into
+   code; the code of a well-formed unit binds nothing static). It is
+   for a law of a unit run from a static environment that binds
+   something, where the law moves a static binding or reads what one
+   binds: a binding of a name that is bound already is undefined, and
+   a unit may hold one that its run never reaches. *)
+Definition static_names_free_in (statics : static_env) (e : expr) : bool :=
+  forallb (fun s => negb (is_bound s (static_values statics)))
+    (static_names symbols_of_binding e)
+  && forallb (fun id => negb (is_bound id (static_code statics)))
+       (static_names code_ids_of_binding e).
 
 (* ======================================================================== *)
 (* A prefix of static bindings                                              *)

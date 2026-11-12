@@ -33,7 +33,8 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaSemanticsProofs FlambdaCompareSpec FlambdaCompareProofs
+  FlambdaSemanticsProofs FlambdaWellFormedSpec FlambdaCompareSpec
+  FlambdaCompareProofs
   FlambdaNormaliseSpec FlambdaNormaliseProofs FlambdaStaticsOrderSpec
   FlambdaStaticsOrderProofs FlambdaUnusedStaticsSpec
   FlambdaUnusedStaticsProofs FlambdaUnusedHeadStaticsSpec
@@ -195,6 +196,26 @@ Proof.
     (expr_equivalent_sym _ _
        (expr_equivalent_trans _ _ _ (drop_deleted_code_equivalent e')
           (merge_statics_equivalent _)))).
+Qed.
+
+Theorem static_names_free_in_head : static_names_free_in_head_statement.
+Proof.
+  intros statics e. unfold static_names_free_in, head_free_in.
+  assert (Hsub : ∀ (names_of : static_binding -> list positive)
+                   (bound : positive -> bool),
+            forallb bound (static_names names_of e) = true ->
+            forallb bound (flat_map names_of (head_bindings e)) = true).
+  { intros names_of bound.
+    induction e as [ | bindings body IH | | | | | | ];
+      try (intros _; reflexivity).
+    cbn [static_names head_bindings]. rewrite flat_map_app.
+    rewrite !forallb_app. intros H.
+    apply andb_true_iff in H as [Hbindings Hbody].
+    rewrite Hbindings. exact (IH Hbody). }
+  intros H. apply andb_true_iff in H as [Hsymbols Hcode].
+  apply andb_true_iff. split.
+  - exact (Hsub symbols_of_binding _ Hsymbols).
+  - exact (Hsub code_ids_of_binding _ Hcode).
 Qed.
 
 Theorem validate_unit_sound_head_from

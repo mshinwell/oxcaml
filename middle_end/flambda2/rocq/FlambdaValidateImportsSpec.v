@@ -230,6 +230,13 @@ Definition holds_from (statics : static_env) (rounds : nat)
   | Same_once_lifted | Not_validated => false
   end.
 
+(* A static environment that binds no name that a term binds
+   (FlambdaImportsSpec.static_names_free_in) binds none that the
+   groups at its head bind. *)
+Definition static_names_free_in_head_statement : Prop :=
+  ∀ (statics : static_env) (e : expr),
+    static_names_free_in statics e = true -> head_free_in statics e = true.
+
 (* A unit that is validated in one of the ways that [holds_from]
    accepts refines the unit it came from, each run from a static
    environment in whose code and in whose values the names removed do
