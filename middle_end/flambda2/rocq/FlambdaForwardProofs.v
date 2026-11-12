@@ -1,0 +1,1255 @@
+(******************************************************************************
+ *                                  OxCaml                                    *
+ * -------------------------------------------------------------------------- *
+ *                               MIT License                                  *
+ *                                                                            *
+ * Copyright (c) 2026 Jane Street Group LLC                                   *
+ * opensource-contacts@janestreet.com                                         *
+ *                                                                            *
+ * Permission is hereby granted, free of charge, to any person obtaining a    *
+ * copy of this software and associated documentation files (the "Software"), *
+ * to deal in the Software without restriction, including without limitation  *
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,   *
+ * and/or sell copies of the Software, and to permit persons to whom the      *
+ * Software is furnished to do so, subject to the following conditions:       *
+ *                                                                            *
+ * The above copyright notice and this permission notice shall be included    *
+ * in all copies or substantial portions of the Software.                     *
+ *                                                                            *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR *
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   *
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL    *
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER *
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING    *
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER        *
+ * DEALINGS IN THE SOFTWARE.                                                  *
+ ******************************************************************************)
+
+(* Proofs of the statements of FlambdaForwardSpec.v. Nothing here needs
+   review.
+
+   The pass changes the applications of a continuation on the strength
+   of its handler, so it is not a rewrite of two expressions on their
+   own; and where the first term applies a continuation whose handler
+   applies another, the second applies that other at once. The term and
+   its result are run side by side by rounds
+   (FlambdaRoundsProofs.rounds_refines): a round is one step of each,
+   but for such an application, where the first run takes the steps
+   through the handlers and the second one step. The relation between
+   the two states ([state_fwd]) is:
+
+   - the second expression is the first with some applications replaced
+     by the [Apply_cont] of the handler of their continuation, the
+     arguments put for the parameters ([fwd], [goes]), as the entries of
+     some [forwards] say; no binder in scope binds a name that an entry
+     depends on;
+   - the variables of the two states are the same;
+   - each continuation name stands, in the two states, for the same
+     thing or for closures whose handlers are so related, under the same
+     variables and continuations in turn so related ([cont_fwd]);
+   - for each entry, the name stands in the second state for a closure
+     whose handler is the [Apply_cont] of the entry; the variables of the
+     state agree with those of that closure on the variables that the
+     [Apply_cont] reads, and the continuation that it applies is the same
+     in the state as in the closure ([held]).
+
+   The round at an application that goes on ([cont_fwd_rounds]) is by
+   induction on how the closures are related: the handler of the first
+   closure is an application that the handler of the second is related
+   to, itself the same or one that goes on. *)
+
+From Stdlib Require Import ZArith List Bool Lia.
+From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
+  FlambdaMapProofs FlambdaSemanticsSpec FlambdaSemanticsProofs
+  FlambdaNominalSpec FlambdaCompareSpec FlambdaCompareProofs
+  FlambdaNormaliseSpec FlambdaNormaliseProofs FlambdaRoundsProofs
+  FlambdaSinkContsProofs FlambdaUnusedParamsSpec FlambdaUnusedParamsProofs
+  FlambdaParamAliasesSpec FlambdaParamAliasesProofs FlambdaForwardSpec.
+Import ListNotations.
+
+(* ======================================================================== *)
+(* What is known of the continuations in scope                              *)
+(* ======================================================================== *)
+
+Definition entry : Type := option (list variable * apply_cont).
+
+Lemma forward_of_head (F : forwards) (k : continuation) (e : entry) :
+  forward_of ((k, e) :: F) k = e.
+Proof. unfold forward_of. simpl. rewrite Pos.eqb_refl. reflexivity. Qed.
+
+Lemma forward_of_other (F : forwards) (k k' : continuation) (e : entry) :
+  k' <> k -> forward_of ((k, e) :: F) k' = forward_of F k'.
+Proof.
+  intros Hne. unfold forward_of. simpl.
+  destruct (Pos.eqb_spec k' k); [ contradiction | reflexivity ].
+Qed.
+
+(* The entries that the handlers of a recursive [Let_cont] add. *)
+Definition plain_forwards
+    (handlers : list (continuation * continuation_handler)) : forwards :=
+  map (fun '(k, _) => (k, None)) handlers.
+
+Lemma forward_of_plain (handlers : list (continuation * continuation_handler))
+    (F : forwards) (k : continuation) :
+  forward_of (plain_forwards handlers ++ F) k
+  = match lookup k handlers with
+    | Some _ => None
+    | None => forward_of F k
+    end.
+Proof.
+  unfold forward_of.
+  induction handlers as [ | [k' h] handlers IH]; simpl; [ reflexivity | ].
+  destruct (Pos.eqb k k'); [ reflexivity | exact IH ].
+Qed.
+
+(* The names that an entry depends on: the variables that its
+   [Apply_cont] reads and that are not its parameters, and the
+   continuation that it applies. *)
+Definition frozen_var (e : entry) (x : variable) : Prop :=
+  ∃ (params : list variable) (target : apply_cont),
+    e = Some (params, target)
+    ∧ x ∉ params
+    ∧ var_free_in_simples x (ac_args target).
+
+Definition frozen_cont (e : entry) (k : continuation) : Prop :=
+  ∃ (params : list variable) (target : apply_cont),
+    e = Some (params, target) ∧ ac_continuation target = k.
+
+Definition var_unfrozen (F : forwards) (x : variable) : Prop :=
+  ∀ k : continuation, ~ frozen_var (forward_of F k) x.
+
+Definition cont_unfrozen (F : forwards) (k : continuation) : Prop :=
+  ∀ k' : continuation, ~ frozen_cont (forward_of F k') k.
+
+Lemma var_unfrozen_none (F : forwards) (x : variable) :
+  (∀ k : continuation, forward_of F k = None) -> var_unfrozen F x.
+Proof.
+  intros Hnone k (params & target & Hsome & _). rewrite Hnone in Hsome.
+  discriminate Hsome.
+Qed.
+
+Lemma cont_unfrozen_none (F : forwards) (k : continuation) :
+  (∀ k' : continuation, forward_of F k' = None) -> cont_unfrozen F k.
+Proof.
+  intros Hnone k' (params & target & Hsome & _). rewrite Hnone in Hsome.
+  discriminate Hsome.
+Qed.
+
+(* ======================================================================== *)
+(* Putting the arguments for the parameters                                 *)
+(* ======================================================================== *)
+
+(* What is put for a variable has, under the variables of the
+   application, the value that the variable has once the parameters are
+   bound; a variable for which nothing is put is not a parameter. *)
+Lemma lookup_combine_params (params : list variable) :
+  ∀ (args : list simple) (vs : list value) (vars def_vars bound : env)
+    (x : variable),
+    NoDup params ->
+    eval_simples vars args = Some vs ->
+    bind_params params vs def_vars = Some bound ->
+    match lookup x (combine params args) with
+    | Some arg => eval_simple vars arg = lookup x bound
+    | None => x ∉ params
+    end.
+Proof.
+  induction params as [ | p params IH];
+    intros args vs vars def_vars bound x Hnodup Hargs Hbind;
+    [ simpl; auto | ].
+  inversion Hnodup as [ | p0 rest Hnotin Hnodup']. subst p0 rest.
+  destruct args as [ | a args].
+  { simpl in Hargs. injection Hargs as <-. discriminate Hbind. }
+  simpl in Hargs.
+  destruct (eval_simple vars a) as [v | ] eqn:Ha; [ | discriminate ].
+  destruct (eval_simples vars args) as [rest | ] eqn:Hrest;
+    [ | discriminate ].
+  injection Hargs as <-. simpl in Hbind. simpl.
+  destruct (Pos.eqb_spec x p) as [-> | Hne].
+  - rewrite (lookup_bind_params_other params rest _ bound p Hbind Hnotin),
+      lookup_head.
+    exact Ha.
+  - specialize (IH args rest vars ((p, v) :: def_vars) bound x Hnodup' Hrest
+      Hbind).
+    destruct (lookup x (combine params args)); [ exact IH | ].
+    intros [Heq | Hin]; [ congruence | exact (IH Hin) ].
+Qed.
+
+Lemma eval_subst_simple (params : list variable) (args : list simple)
+    (vs : list value) (vars def_vars bound : env) (s : simple) :
+  NoDup params ->
+  eval_simples vars args = Some vs ->
+  bind_params params vs def_vars = Some bound ->
+  (∀ x : variable,
+    x ∉ params -> var_free_in_simple x s -> lookup x vars = lookup x def_vars)
+  ->
+  eval_simple vars (subst_simple params args s) = eval_simple bound s.
+Proof.
+  intros Hnodup Hargs Hbind Hfrozen.
+  destruct s as [x | sym | c]; simpl; try reflexivity.
+  pose proof (lookup_combine_params params args vs vars def_vars bound x
+    Hnodup Hargs Hbind) as Hlookup.
+  destruct (lookup x (combine params args)) as [arg | ]; [ exact Hlookup | ].
+  simpl. rewrite (Hfrozen x Hlookup eq_refl). symmetry.
+  exact (lookup_bind_params_other params vs def_vars bound x Hbind Hlookup).
+Qed.
+
+Lemma eval_subst_simples (params : list variable) (args : list simple)
+    (vs : list value) (vars def_vars bound : env) (l : list simple) :
+  NoDup params ->
+  eval_simples vars args = Some vs ->
+  bind_params params vs def_vars = Some bound ->
+  (∀ x : variable,
+    x ∉ params -> var_free_in_simples x l -> lookup x vars = lookup x def_vars)
+  ->
+  eval_simples vars (map (subst_simple params args) l) = eval_simples bound l.
+Proof.
+  intros Hnodup Hargs Hbind. unfold var_free_in_simples.
+  induction l as [ | s l IH]; intros Hfrozen; simpl; [ reflexivity | ].
+  rewrite (eval_subst_simple params args vs vars def_vars bound s Hnodup Hargs
+    Hbind), IH;
+    [ reflexivity | | ].
+  - intros x Hnotin Hx. apply Hfrozen; [ exact Hnotin | ].
+    apply Exists_cons_tl, Hx.
+  - intros x Hnotin Hx. apply Hfrozen; [ exact Hnotin | ].
+    apply Exists_cons_hd, Hx.
+Qed.
+
+(* ======================================================================== *)
+(* An expression with applications that go on                               *)
+(* ======================================================================== *)
+
+(* The second application is the first, or the [Apply_cont] of the
+   handler of its continuation, as the entry of that says. *)
+Inductive goes (F : forwards) : apply_cont -> apply_cont -> Prop :=
+  | Goes_same (ac : apply_cont) : goes F ac ac
+  | Goes_on (ac : apply_cont) (params : list variable) (target : apply_cont) :
+    forward_of F (ac_continuation ac) = Some (params, target) ->
+    length (ac_args ac) = length params ->
+    goes F ac (forwarded params (ac_args ac) target).
+
+(* What an entry for [k] says of a handler with these parameters, as the
+   second term has it. *)
+Definition entry_fits (k : continuation) (params : list variable)
+    (handler' : expr) (e : entry) : Prop :=
+  match e with
+  | None => True
+  | Some (params0, target) =>
+    params0 = params
+    ∧ handler' = Apply_cont target
+    ∧ NoDup params
+    ∧ ac_continuation target <> k
+  end.
+
+(* The second expression is the first with applications that go on. No
+   binder binds a name that an entry in scope depends on. (The warning
+   silenced is about induction schemes, which nothing uses.) *)
+#[local] Set Warnings "-register-all".
+Inductive fwd : forwards -> expr -> expr -> Prop :=
+  | Fwd_let (F : forwards) (x : variable) (kind : flambda_kind) (d : named)
+      (body body' : expr) :
+    var_unfrozen F x ->
+    fwd F body body' ->
+    fwd F (Let x kind d body) (Let x kind d body')
+  | Fwd_let_static (F : forwards) (bindings : list static_binding)
+      (body body' : expr) :
+    fwd F body body' ->
+    fwd F (Let_static bindings body) (Let_static bindings body')
+  | Fwd_let_cont (F : forwards) (k : continuation) (params : list variable)
+      (metadata metadata' : handler_metadata) (handler handler' : expr)
+      (e : entry) (body body' : expr) :
+    fwd F handler handler' ->
+    hm_params_kinds metadata' = hm_params_kinds metadata ->
+    (∀ p : variable, p ∈ params -> var_unfrozen F p) ->
+    cont_unfrozen F k ->
+    entry_fits k params handler' e ->
+    fwd ((k, e) :: F) body body' ->
+    fwd F
+      (Let_cont_non_recursive k (Handler params metadata handler) body)
+      (Let_cont_non_recursive k (Handler params metadata' handler') body')
+  | Fwd_let_cont_recursive (F : forwards)
+      (handlers handlers' : list (continuation * continuation_handler))
+      (body body' : expr) :
+    Forall2
+      (fun kh kh' =>
+         fst kh = fst kh'
+         ∧ handler_params (snd kh) = handler_params (snd kh')
+         ∧ handler_kinds (snd kh') = handler_kinds (snd kh)
+         ∧ fwd (plain_forwards handlers ++ F) (handler_expr (snd kh))
+             (handler_expr (snd kh'))
+         ∧ (∀ p : variable, p ∈ handler_params (snd kh) -> var_unfrozen F p)
+         ∧ cont_unfrozen F (fst kh))
+      handlers handlers' ->
+    handlers_bind_statics handlers' = handlers_bind_statics handlers ->
+    fwd (plain_forwards handlers ++ F) body body' ->
+    fwd F (Let_cont_recursive handlers body)
+      (Let_cont_recursive handlers' body')
+  | Fwd_apply (F : forwards) (ap : apply_expr) : fwd F (Apply ap) (Apply ap)
+  | Fwd_apply_cont (F : forwards) (ac ac' : apply_cont) :
+    goes F ac ac' -> fwd F (Apply_cont ac) (Apply_cont ac')
+  | Fwd_switch (F : forwards) (scrutinee : simple)
+      (arms arms' : list (Z * apply_cont)) :
+    Forall2 (fun arm arm' => fst arm = fst arm' ∧ goes F (snd arm) (snd arm'))
+      arms arms' ->
+    fwd F (Switch scrutinee arms) (Switch scrutinee arms')
+  | Fwd_invalid (F : forwards) : fwd F Invalid Invalid.
+
+(* The handlers of a recursive [Let_cont], one with one. *)
+Definition handlers_fwd (inside F : forwards)
+    (handlers handlers' : list (continuation * continuation_handler)) : Prop :=
+  Forall2
+    (fun kh kh' =>
+       fst kh = fst kh'
+       ∧ handler_params (snd kh) = handler_params (snd kh')
+       ∧ handler_kinds (snd kh') = handler_kinds (snd kh)
+       ∧ fwd inside (handler_expr (snd kh)) (handler_expr (snd kh'))
+       ∧ (∀ p : variable, p ∈ handler_params (snd kh) -> var_unfrozen F p)
+       ∧ cont_unfrozen F (fst kh))
+    handlers handlers'.
+
+Lemma handlers_fwd_lookup (inside F : forwards) (k : continuation)
+    (handlers handlers' : list (continuation * continuation_handler)) :
+  handlers_fwd inside F handlers handlers' ->
+  match lookup k handlers, lookup k handlers' with
+  | Some h, Some h' =>
+    handler_params h = handler_params h'
+    ∧ handler_kinds h' = handler_kinds h
+    ∧ fwd inside (handler_expr h) (handler_expr h')
+    ∧ (∀ p : variable, p ∈ handler_params h -> var_unfrozen F p)
+  | None, None => True
+  | _, _ => False
+  end.
+Proof.
+  induction 1 as [ | [k1 h] [k1' h'] handlers handlers' (Hk & Hh) _ IH];
+    simpl; [ exact I | ].
+  simpl in Hk, Hh. subst k1'.
+  destruct (Pos.eqb k k1); [ | exact IH ].
+  destruct Hh as (Hparams & Hmeta & Hexpr & Hunfrozen & _). auto.
+Qed.
+
+(* The names of related handlers are not names that an entry depends
+   on, and are the same. *)
+Lemma handlers_fwd_names (inside F : forwards) (k : continuation)
+    (handlers handlers' : list (continuation * continuation_handler)) :
+  handlers_fwd inside F handlers handlers' ->
+  lookup k handlers <> None ->
+  cont_unfrozen F k.
+Proof.
+  induction 1 as [ | [k1 h] [k1' h'] handlers handlers' (Hk & Hh) _ IH];
+    simpl; [ congruence | ].
+  destruct (Pos.eqb_spec k k1) as [-> | _]; [ intros _ | exact IH ].
+  simpl in Hh. apply Hh.
+Qed.
+
+Lemma find_arm_goes (F : forwards) (i : Z)
+    (arms arms' : list (Z * apply_cont)) :
+  Forall2 (fun arm arm' => fst arm = fst arm' ∧ goes F (snd arm) (snd arm'))
+    arms arms' ->
+  match find_arm i arms, find_arm i arms' with
+  | Some ac, Some ac' => goes F ac ac'
+  | None, None => True
+  | _, _ => False
+  end.
+Proof.
+  induction 1 as [ | [d ac] [d' ac'] arms arms' [Hd Hgoes] _ IH]; simpl;
+    [ exact I | ].
+  simpl in Hd, Hgoes. subst d'.
+  destruct (Z.eqb i d); [ exact Hgoes | exact IH ].
+Qed.
+
+(* Every expression is related to itself, where no entry says anything. *)
+Fixpoint fwd_refl (e : expr) :
+  ∀ F : forwards, (∀ k : continuation, forward_of F k = None) -> fwd F e e.
+Proof.
+  destruct e
+    as [ x kind d body | bindings body | k [params metadata handler] body
+       | handlers body | ap | ac | scrutinee arms | ];
+    intros F Hnone.
+  - apply Fwd_let; [ apply var_unfrozen_none, Hnone | apply fwd_refl, Hnone ].
+  - apply Fwd_let_static, fwd_refl, Hnone.
+  - apply (Fwd_let_cont F k params metadata metadata handler handler None);
+      [ apply fwd_refl, Hnone | reflexivity
+      | intros p _; apply var_unfrozen_none, Hnone
+      | apply cont_unfrozen_none, Hnone | exact I | ].
+    apply fwd_refl. intros k'.
+    destruct (Pos.eq_dec k' k) as [-> | Hne];
+      [ apply forward_of_head
+      | rewrite forward_of_other by exact Hne; apply Hnone ].
+  - assert (Hnone' :
+      ∀ k : continuation, forward_of (plain_forwards handlers ++ F) k = None).
+    { intros k. rewrite forward_of_plain.
+      destruct (lookup k handlers); [ reflexivity | apply Hnone ]. }
+    apply Fwd_let_cont_recursive; [ | reflexivity | apply fwd_refl, Hnone' ].
+    revert Hnone'. generalize (plain_forwards handlers ++ F).
+    intros F' Hnone'.
+    induction handlers as [ | [k [params metadata handler]] handlers IH];
+      [ apply Forall2_nil | ].
+    apply Forall2_cons; [ | exact IH ].
+    simpl. split; [ reflexivity | ]. split; [ reflexivity | ].
+    split; [ reflexivity | ]. split; [ apply fwd_refl, Hnone' | ].
+    split; [ intros p _; apply var_unfrozen_none, Hnone
+           | apply cont_unfrozen_none, Hnone ].
+  - apply Fwd_apply.
+  - apply Fwd_apply_cont, Goes_same.
+  - apply Fwd_switch.
+    induction arms as [ | arm arms IH]; [ apply Forall2_nil | ].
+    apply Forall2_cons; [ split; [ reflexivity | apply Goes_same ] | exact IH ].
+  - apply Fwd_invalid.
+Qed.
+
+(* ======================================================================== *)
+(* Continuations and states                                                 *)
+(* ======================================================================== *)
+
+(* For each entry, the name stands in the second state for a closure
+   whose handler is the [Apply_cont] of the entry; the variables agree
+   with those of the closure on what that [Apply_cont] reads, and the
+   continuation that it applies is the same in the state as in the
+   closure. *)
+Definition held (F : forwards) (vars : env) (conts' : cont_env) : Prop :=
+  ∀ (k : continuation) (params : list variable) (target : apply_cont),
+    forward_of F k = Some (params, target) ->
+    NoDup params
+    ∧ ∃ (metadata' : handler_metadata) (def_vars : env) (def_conts' : cont_env),
+        resolve k conts'
+        = Closure (Handler params metadata' (Apply_cont target)) def_vars
+            def_conts' []
+        ∧ (∀ x : variable,
+            x ∉ params ->
+            var_free_in_simples x (ac_args target) ->
+            lookup x vars = lookup x def_vars)
+        ∧ resolve (ac_continuation target) conts'
+          = resolve (ac_continuation target) def_conts'.
+
+(* What a continuation name stands for in the two runs: the same thing;
+   or closures whose handlers are related under the entries of where
+   they were defined, under the same variables, and continuations that
+   are in turn so related and for which those entries hold, the second
+   handler giving the kinds of the first; or two that are related, with
+   the same extra arguments; or what is left of the same
+   over-application, to return and to raise to two that are related. *)
+Inductive cont_fwd : cont_value -> cont_value -> Prop :=
+  | Same_fwd (c : cont_value) : cont_fwd c c
+  | Closure_fwd (F : forwards) (params : list variable)
+      (metadata metadata' : handler_metadata) (handler handler' : expr)
+      (def_vars : env) (def_conts def_conts' : cont_env)
+      (recursive recursive' : list (continuation * continuation_handler)) :
+    handlers_fwd (plain_forwards recursive ++ F) F recursive recursive' ->
+    fwd (plain_forwards recursive ++ F) handler handler' ->
+    hm_params_kinds metadata' = hm_params_kinds metadata ->
+    (∀ p : variable, p ∈ params -> var_unfrozen F p) ->
+    (∀ k : continuation,
+      cont_fwd (resolve k def_conts) (resolve k def_conts')) ->
+    held F def_vars def_conts' ->
+    cont_fwd
+      (Closure (Handler params metadata handler) def_vars def_conts recursive)
+      (Closure (Handler params metadata' handler') def_vars def_conts'
+         recursive')
+  | Extra_args_fwd (c c' : cont_value) (extra : list value) :
+    cont_fwd c c' -> cont_fwd (Extra_args c extra) (Extra_args c' extra)
+  | Over_fwd (remaining : list value) (remaining_arity return_arity : arity)
+      (return_to return_to' exn_to exn_to' : cont_value) :
+    cont_fwd return_to return_to' ->
+    cont_fwd exn_to exn_to' ->
+    cont_fwd
+      (Over_application remaining remaining_arity return_arity return_to
+         exn_to)
+      (Over_application remaining remaining_arity return_arity return_to'
+         exn_to').
+
+Inductive state_fwd : state -> state -> Prop :=
+  | State_fwd (F : forwards) (e e' : expr) (vars : env)
+      (conts conts' : cont_env) (statics : static_env) :
+    fwd F e e' ->
+    (∀ k : continuation, cont_fwd (resolve k conts) (resolve k conts')) ->
+    held F vars conts' ->
+    state_fwd (State e vars conts statics) (State e' vars conts' statics).
+
+Lemma held_nil (vars : env) (conts' : cont_env) : held [] vars conts'.
+Proof. intros k params target Hsome. discriminate Hsome. Qed.
+
+Lemma state_fwd_refl (s : state) : state_fwd s s.
+Proof.
+  destruct s as [e vars conts statics].
+  apply (State_fwd []);
+    [ apply fwd_refl; reflexivity | intros k; apply Same_fwd | apply held_nil ].
+Qed.
+
+(* Binding a variable that no entry depends on. *)
+Lemma held_var (F : forwards) (vars : env) (conts' : cont_env) (x : variable)
+    (v : value) :
+  var_unfrozen F x -> held F vars conts' -> held F ((x, v) :: vars) conts'.
+Proof.
+  intros Hx Hheld k params target Hsome.
+  destruct (Hheld k params target Hsome)
+    as (Hnodup & metadata' & def_vars & def_conts' & Hk & Hvars & Hcont).
+  split; [ exact Hnodup | ]. exists metadata', def_vars, def_conts'.
+  split; [ exact Hk | ]. split; [ | exact Hcont ].
+  intros y Hnotin Hfree. rewrite <- (Hvars y Hnotin Hfree). simpl.
+  destruct (Pos.eqb_spec y x) as [-> | _]; [ | reflexivity ].
+  exfalso. apply (Hx k). exists params, target. auto.
+Qed.
+
+(* Binding parameters that no entry depends on. *)
+Lemma held_bind (F : forwards) (params : list variable) (vs : list value)
+    (vars bound : env) (conts' : cont_env) :
+  (∀ p : variable, p ∈ params -> var_unfrozen F p) ->
+  bind_params params vs vars = Some bound ->
+  held F vars conts' ->
+  held F bound conts'.
+Proof.
+  intros Hparams Hbind Hheld k params0 target Hsome.
+  destruct (Hheld k params0 target Hsome)
+    as (Hnodup & metadata' & def_vars & def_conts' & Hk & Hvars & Hcont).
+  split; [ exact Hnodup | ]. exists metadata', def_vars, def_conts'.
+  split; [ exact Hk | ]. split; [ | exact Hcont ].
+  intros y Hnotin Hfree. rewrite <- (Hvars y Hnotin Hfree).
+  apply (lookup_bind_params_other params vs vars bound y Hbind).
+  intros Hin. apply (Hparams y Hin k). exists params0, target. auto.
+Qed.
+
+(* The closures of the handlers of a recursive [Let_cont], whose names no
+   entry depends on. *)
+Lemma held_rec (F : forwards)
+    (handlers handlers' : list (continuation * continuation_handler))
+    (vars def_vars : env) (def_conts' : cont_env) :
+  handlers_fwd (plain_forwards handlers ++ F) F handlers handlers' ->
+  held F vars def_conts' ->
+  held (plain_forwards handlers ++ F) vars
+    (rec_closures handlers' def_vars def_conts' ++ def_conts').
+Proof.
+  intros Hhandlers Hheld k params target Hsome.
+  rewrite forward_of_plain in Hsome.
+  pose proof (handlers_fwd_lookup _ _ k _ _ Hhandlers) as Hlookup.
+  destruct (lookup k handlers) eqn:Hk; [ discriminate Hsome | ].
+  destruct (lookup k handlers') eqn:Hk'; [ contradiction | ].
+  destruct (Hheld k params target Hsome)
+    as (Hnodup & metadata' & def_vars0 & def_conts0 & Hresolve & Hvars
+        & Hcont).
+  split; [ exact Hnodup | ]. exists metadata', def_vars0, def_conts0.
+  rewrite resolve_rec_closures, Hk'. split; [ exact Hresolve | ].
+  split; [ exact Hvars | ].
+  rewrite resolve_rec_closures.
+  pose proof (handlers_fwd_lookup _ _ (ac_continuation target) _ _ Hhandlers)
+    as Htarget.
+  destruct (lookup (ac_continuation target) handlers') eqn:Ht';
+    [ | exact Hcont ].
+  destruct (lookup (ac_continuation target) handlers) eqn:Ht;
+    [ | contradiction ].
+  exfalso.
+  apply (handlers_fwd_names _ _ (ac_continuation target) _ _ Hhandlers
+    ltac:(rewrite Ht; discriminate) k).
+  exists params, target. auto.
+Qed.
+
+Lemma rec_conts_fwd (F : forwards)
+    (handlers handlers' : list (continuation * continuation_handler))
+    (def_vars : env) (def_conts def_conts' : cont_env) :
+  handlers_fwd (plain_forwards handlers ++ F) F handlers handlers' ->
+  (∀ k : continuation, cont_fwd (resolve k def_conts) (resolve k def_conts')) ->
+  held F def_vars def_conts' ->
+  ∀ k : continuation,
+    cont_fwd (resolve k (rec_closures handlers def_vars def_conts ++ def_conts))
+      (resolve k (rec_closures handlers' def_vars def_conts' ++ def_conts')).
+Proof.
+  intros Hhandlers Hconts Hheld k. rewrite !resolve_rec_closures.
+  pose proof (handlers_fwd_lookup _ _ k _ _ Hhandlers) as Hlookup.
+  destruct (lookup k handlers) as [[params metadata handler] | ],
+    (lookup k handlers') as [[params' metadata' handler'] | ];
+    try contradiction; [ | apply Hconts ].
+  destruct Hlookup as (Hparams & Hmeta & Hhandler & Hunfrozen).
+  simpl in Hparams, Hmeta, Hhandler, Hunfrozen. subst params'.
+  apply (Closure_fwd F); assumption.
+Qed.
+
+(* ======================================================================== *)
+(* Applying related continuations                                           *)
+(* ======================================================================== *)
+
+(* What the first run comes to is answered by what one step of the
+   second comes to. *)
+Definition answer (result result' : step_result) : Prop :=
+  match result with
+  | Undefined => True
+  | Exit k vs => result' = Exit k vs
+  | Step t => ∃ t' : state, result' = Step t' ∧ state_fwd t t'
+  end.
+
+Lemma answer_refl (result : step_result) : answer result result.
+Proof.
+  destruct result as [t | k vs | ]; simpl; [ | reflexivity | exact I ].
+  exists t. split; [ reflexivity | apply state_fwd_refl ].
+Qed.
+
+(* What a result comes to after some more steps. *)
+Definition run_on (n : nat) (result : step_result) : step_result :=
+  match result with
+  | Step s => run n s
+  | Exit k vs => Exit k vs
+  | Undefined => Undefined
+  end.
+
+Lemma run_one (s : state) : run 1 s = step s.
+Proof. simpl. destruct (step s); reflexivity. Qed.
+
+Lemma run_succ_on (n : nat) (s : state) : run (S n) s = run_on n (step s).
+Proof. reflexivity. Qed.
+
+(* What the relation says of a handler that has become one [Apply_cont],
+   and of the two applications. *)
+Lemma fwd_apply_cont_inv (F : forwards) (e : expr) (target : apply_cont) :
+  fwd F e (Apply_cont target) ->
+  ∃ b : apply_cont, e = Apply_cont b ∧ goes F b target.
+Proof. intros Hfwd. inversion Hfwd; subst. eauto. Qed.
+
+Lemma goes_inv (F : forwards) (b target : apply_cont) :
+  goes F b target ->
+  target = b
+  ∨ ∃ (params_b : list variable) (target_b : apply_cont),
+      forward_of F (ac_continuation b) = Some (params_b, target_b)
+      ∧ length (ac_args b) = length params_b
+      ∧ target = forwarded params_b (ac_args b) target_b.
+Proof.
+  intros [ac | ac params_b target_b Hentry Hlength];
+    [ left; reflexivity | right; eauto ].
+Qed.
+
+(* The step of an [Apply_cont] that goes on is that of the [Apply_cont]
+   of the handler under the variables of the closure with the parameters
+   bound, and the continuations of the closure. *)
+Lemma step_forwarded (params : list variable) (args : list simple)
+    (target : apply_cont) (vs : list value) (vars def_vars bound : env)
+    (conts' def_conts' : cont_env) (statics : static_env) :
+  NoDup params ->
+  eval_simples vars args = Some vs ->
+  bind_params params vs def_vars = Some bound ->
+  (∀ x : variable,
+    x ∉ params ->
+    var_free_in_simples x (ac_args target) ->
+    lookup x vars = lookup x def_vars) ->
+  resolve (ac_continuation target) conts'
+  = resolve (ac_continuation target) def_conts' ->
+  step (State (Apply_cont (forwarded params args target)) vars conts' statics)
+  = step (State (Apply_cont target) bound def_conts' statics).
+Proof.
+  intros Hnodup Hargs Hbind Hvars Hcont. rewrite !step_apply_cont.
+  unfold forwarded. cbn [ac_args ac_continuation].
+  rewrite (eval_subst_simples params args vs vars def_vars bound
+    (ac_args target) Hnodup Hargs Hbind Hvars).
+  unfold apply_continuation. rewrite Hcont. reflexivity.
+Qed.
+
+(* The same full call, returning and raising to related continuations. *)
+Lemma call_code_fwd (closure : value) (c : code) (vs : list value)
+    (args_arity return_arity : arity)
+    (return_to return_to' exn_to exn_to' : cont_value)
+    (statics : static_env) :
+  cont_fwd return_to return_to' ->
+  cont_fwd exn_to exn_to' ->
+  answer
+    (call_code closure c vs args_arity return_arity return_to exn_to statics)
+    (call_code closure c vs args_arity return_arity return_to' exn_to'
+       statics).
+Proof.
+  intros Hreturn Hraise.
+  destruct (call_code_cases closure c vs args_arity return_arity statics)
+    as [Hundefined | (callee_vars & Hcall)].
+  - rewrite Hundefined. exact I.
+  - rewrite !Hcall. cbn [answer]. eexists. split; [ reflexivity | ].
+    apply (State_fwd []);
+      [ apply fwd_refl; reflexivity | | apply held_nil ].
+    intros k'. unfold resolve. simpl.
+    destruct (Pos.eqb k' (code_return_continuation c)); [ exact Hreturn | ].
+    destruct (Pos.eqb k' (code_exn_continuation c));
+      [ exact Hraise | apply Same_fwd ].
+Qed.
+
+(* The same call of any shape, where the two return continuations take
+   a partial application to results of which one answers the other. *)
+Lemma run_call_fwd (shape : option call_shape) (return_arity : arity)
+    (return_to return_to' exn_to exn_to' : cont_value)
+    (statics : static_env) :
+  cont_fwd return_to return_to' ->
+  cont_fwd exn_to exn_to' ->
+  (∀ partial : value,
+    answer (apply_cont_value return_to [partial] statics)
+      (apply_cont_value return_to' [partial] statics)) ->
+  answer
+    (run_call (fun partial => apply_cont_value return_to [partial] statics)
+       shape return_arity return_to exn_to statics)
+    (run_call (fun partial => apply_cont_value return_to' [partial] statics)
+       shape return_arity return_to' exn_to' statics).
+Proof.
+  intros Hreturn Hraise Hpartial.
+  destruct shape
+    as [[closure c vs args_arity
+        | closure c vs remaining args_arity remaining_arity | partial] | ];
+    cbn [run_call].
+  - apply call_code_fwd; assumption.
+  - apply call_code_fwd; [ apply Over_fwd; assumption | exact Hraise ].
+  - apply Hpartial.
+  - exact I.
+Qed.
+
+(* Related continuations applied to the same values: what the first
+   comes to is answered by what the second comes to. And where the
+   second is the closure of an entry, the first applied to the values
+   of some arguments comes, after some steps, to what answers one step
+   of the [Apply_cont] of the entry with those arguments put for the
+   parameters. *)
+Lemma cont_fwd_rounds (c c' : cont_value) :
+  cont_fwd c c' ->
+  (∀ (vs : list value) (statics : static_env),
+    answer (apply_cont_value c vs statics) (apply_cont_value c' vs statics))
+  ∧ ∀ (params : list variable) (target : apply_cont)
+      (metadata' : handler_metadata) (def_vars0 : env) (def_conts0 : cont_env)
+      (args : list simple) (vs : list value) (vars : env) (conts' : cont_env)
+      (statics : static_env),
+      c'
+      = Closure (Handler params metadata' (Apply_cont target)) def_vars0
+          def_conts0 [] ->
+      NoDup params ->
+      eval_simples vars args = Some vs ->
+      (∀ x : variable,
+        x ∉ params ->
+        var_free_in_simples x (ac_args target) ->
+        lookup x vars = lookup x def_vars0) ->
+      resolve (ac_continuation target) conts'
+      = resolve (ac_continuation target) def_conts0 ->
+      ∃ n : nat,
+        answer (run_on n (apply_cont_value c vs statics))
+          (step
+             (State (Apply_cont (forwarded params args target)) vars conts'
+                statics)).
+Proof.
+  induction 1
+    as [ c
+       | F params metadata metadata' handler handler' def_vars def_conts
+           def_conts' recursive recursive' Hrecursive Hhandler Hmeta Hparams
+           Hdef_conts IHdef_conts Hheld
+       | c c' extra Hc [IHsame _]
+       | remaining remaining_arity return_arity return_to return_to' exn_to
+           exn_to' Hreturn [IHreturn _] Hraise _ ].
+  - (* the same continuation *)
+    split; [ intros vs statics; apply answer_refl | ].
+    intros params target metadata' def_vars0 def_conts0 args vs vars conts'
+      statics -> Hnodup Hargs Hvars Hcont.
+    simpl.
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata'));
+      [ | exists 0; exact I ].
+    destruct (bind_params params vs def_vars0) as [bound | ] eqn:Hbind;
+      [ | exists 0; exact I ].
+    exists 1. unfold run_on.
+    rewrite run_one,
+      (step_forwarded params args target vs vars def_vars0 bound conts'
+         def_conts0 statics Hnodup Hargs Hbind Hvars Hcont).
+    apply answer_refl.
+  - (* related closures *)
+    split.
+    + intros vs statics. simpl. rewrite Hmeta.
+      destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+        [ | exact I ].
+      destruct (bind_params params vs def_vars) as [bound | ] eqn:Hbind;
+        [ | exact I ].
+      eexists. split; [ reflexivity | ].
+      apply (State_fwd (plain_forwards recursive ++ F));
+        [ exact Hhandler | | ].
+      * apply (rec_conts_fwd F); assumption.
+      * apply held_rec; [ exact Hrecursive | ].
+        exact (held_bind F params vs def_vars bound def_conts' Hparams Hbind
+          Hheld).
+    + intros params0 target metadata0 def_vars0 def_conts0 args vs vars conts'
+        statics Hc' Hnodup Hargs Hvars Hcont.
+      injection Hc' as Heq_params Heq_metadata Heq_handler Heq_vars Heq_conts
+        Heq_recursive.
+      subst params0 metadata0 handler' def_vars0 def_conts0 recursive'.
+      unfold handlers_fwd in Hrecursive.
+      destruct recursive as [ | kh rest]; [ | inversion Hrecursive ].
+      simpl in Hhandler.
+      destruct (fwd_apply_cont_inv F handler target Hhandler)
+        as (b & -> & Hgoes).
+      simpl.
+      destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+        [ | exists 0; exact I ].
+      destruct (bind_params params vs def_vars) as [bound | ] eqn:Hbind;
+        [ | exists 0; exact I ].
+      rewrite (step_forwarded params args target vs vars def_vars bound conts'
+        def_conts' statics Hnodup Hargs Hbind Hvars Hcont).
+      assert (Hheld_bound : held F bound def_conts')
+        by exact (held_bind F params vs def_vars bound def_conts' Hparams Hbind
+             Hheld).
+      destruct (goes_inv F b target Hgoes)
+        as [-> | (params_b & target_b & Hentry & Hlength & Htarget)].
+      * (* the handler of the first closure is the same application *)
+        destruct (IHdef_conts (ac_continuation b)) as [IHapply _].
+        exists 1. unfold run_on. rewrite run_one, !step_apply_cont.
+        destruct (eval_simples bound (ac_args b)) as [vt | ]; [ | exact I ].
+        unfold apply_continuation. apply IHapply.
+      * (* it goes on in its turn *)
+        destruct (Hheld_bound (ac_continuation b) params_b target_b Hentry)
+          as (Hnodup_b & metadata_b & def_vars_b & def_conts_b & Hresolve_b
+              & Hvars_b & Hcont_b).
+        destruct (IHdef_conts (ac_continuation b)) as [_ IHon].
+        destruct (eval_simples bound (ac_args b)) as [vb | ] eqn:Hargs_b.
+        -- destruct (IHon params_b target_b metadata_b def_vars_b def_conts_b
+                       (ac_args b) vb bound def_conts' statics Hresolve_b
+                       Hnodup_b Hargs_b Hvars_b Hcont_b)
+             as [n Hanswer].
+           exists (S n). unfold run_on at 1.
+           rewrite run_succ_on, step_apply_cont, Hargs_b.
+           unfold apply_continuation. rewrite Htarget. exact Hanswer.
+        -- exists 1. unfold run_on.
+           rewrite run_one, step_apply_cont, Hargs_b. exact I.
+  - (* the same extra arguments *)
+    split; [ intros vs statics; simpl; apply IHsame | ].
+    intros params target metadata' def_vars0 def_conts0 args vs vars conts'
+      statics Hc'.
+    discriminate Hc'.
+  - (* what is left of the same over-application *)
+    split.
+    + intros vs statics. rewrite !apply_cont_value_over_application.
+      destruct vs as [ | v [ | v' vs]]; try exact I.
+      unfold call_function.
+      apply run_call_fwd; [ exact Hreturn | exact Hraise | ].
+      intros partial. apply IHreturn.
+    + intros params target metadata' def_vars0 def_conts0 args vs vars conts'
+        statics Hc'.
+      discriminate Hc'.
+Qed.
+
+(* ======================================================================== *)
+(* The simulation                                                           *)
+(* ======================================================================== *)
+
+Lemma answered_step (result : step_result) (s' : state) :
+  answer result (step s') -> round_answered state_fwd result s'.
+Proof.
+  destruct result as [t | k vs | ]; unfold answer, round_answered;
+    [ | | exact (fun _ => I) ].
+  - intros (t' & Hstep & Hrel). exists 0, t'.
+    split; [ rewrite run_one; exact Hstep | exact Hrel ].
+  - intros Hstep. exists 1. rewrite run_one. exact Hstep.
+Qed.
+
+Lemma fwd_round (st st' : state) :
+  state_fwd st st' ->
+  ∃ n : nat, round_answered state_fwd (run (S n) st) st'.
+Proof.
+  intros [F e e' vars conts conts' statics Hfwd Hconts Hheld].
+  destruct Hfwd
+    as [ F x kind d body body' Hx Hbody | F bindings body body' Hbody
+       | F k params metadata metadata' handler handler' entry body body'
+           Hhandler Hmeta Hparams Hk Hfits Hbody
+       | F handlers handlers' body body' Hhandlers Hbinds Hbody
+       | F ap | F ac ac' Hgoes | F scrutinee arms arms' Harms | F ].
+  - (* Let *)
+    exists 0. rewrite run_one. apply answered_step. rewrite !step_let.
+    destruct (eval_named statics vars d) as [v | ]; [ | exact I ].
+    destruct (kind_eqb (kind_of_value v) kind); [ | exact I ].
+    eexists. split; [ reflexivity | ].
+    apply (State_fwd F); [ exact Hbody | exact Hconts | ].
+    apply held_var; assumption.
+  - (* Let_static *)
+    exists 0. rewrite run_one. apply answered_step. rewrite !step_let_static.
+    destruct (eval_static_bindings vars bindings statics) as [extended | ];
+      [ | exact I ].
+    eexists. split; [ reflexivity | ].
+    apply (State_fwd F); assumption.
+  - (* Let_cont_non_recursive *)
+    exists 0. rewrite run_one. apply answered_step.
+    rewrite !step_let_cont_non_recursive.
+    eexists. split; [ reflexivity | ].
+    apply (State_fwd ((k, entry) :: F)); [ exact Hbody | | ].
+    + intros k'. destruct (Pos.eq_dec k' k) as [-> | Hne].
+      * rewrite !resolve_head.
+        apply (Closure_fwd F params metadata metadata' handler handler' vars
+          conts conts' [] []);
+          [ apply Forall2_nil | exact Hhandler | exact Hmeta | exact Hparams
+          | exact Hconts | exact Hheld ].
+      * rewrite !resolve_other by exact Hne. apply Hconts.
+    + intros k' params0 target Hsome.
+      destruct (Pos.eq_dec k' k) as [-> | Hne].
+      * rewrite forward_of_head in Hsome. subst entry.
+        destruct Hfits as (-> & -> & Hnodup & Htarget).
+        split; [ exact Hnodup | ]. exists metadata', vars, conts'.
+        rewrite resolve_head. split; [ reflexivity | ].
+        split; [ reflexivity | ].
+        apply resolve_other. exact Htarget.
+      * rewrite forward_of_other in Hsome by exact Hne.
+        destruct (Hheld k' params0 target Hsome)
+          as (Hnodup & metadata0 & def_vars & def_conts' & Hresolve & Hvars
+              & Hcont).
+        split; [ exact Hnodup | ]. exists metadata0, def_vars, def_conts'.
+        rewrite (resolve_other k' k) by exact Hne.
+        split; [ exact Hresolve | ]. split; [ exact Hvars | ].
+        rewrite resolve_other; [ exact Hcont | ].
+        intros Heq. apply (Hk k'). exists params0, target. auto.
+  - (* Let_cont_recursive *)
+    exists 0. rewrite run_one. apply answered_step.
+    rewrite !step_let_cont_recursive, Hbinds.
+    destruct (handlers_bind_statics handlers); [ exact I | ].
+    eexists. split; [ reflexivity | ].
+    apply (State_fwd (plain_forwards handlers ++ F)); [ exact Hbody | | ].
+    + apply (rec_conts_fwd F); assumption.
+    + apply held_rec; assumption.
+  - (* Apply: the same call, returning to related continuations *)
+    exists 0. rewrite run_one. apply answered_step. rewrite !step_apply.
+    destruct (eval_simple vars (ap_callee ap)) as [callee | ]; [ | exact I ].
+    destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | exact I ].
+    destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
+      [ | exact I ].
+    unfold call_function.
+    apply run_call_fwd.
+    + apply Hconts.
+    + destruct extra as [ | v extra]; simpl;
+        [ apply Hconts | apply Extra_args_fwd, Hconts ].
+    + intros partial.
+      exact
+        (proj1 (cont_fwd_rounds _ _ (Hconts (ap_continuation ap))) [partial]
+           statics).
+  - (* Apply_cont *)
+    destruct (cont_fwd_rounds _ _ (Hconts (ac_continuation ac)))
+      as [Hsame Hon].
+    destruct (goes_inv F ac ac' Hgoes)
+      as [-> | (params & target & Hentry & Hlength & ->)].
+    + exists 0. rewrite run_one. apply answered_step.
+      rewrite !step_apply_cont.
+      destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | exact I ].
+      unfold apply_continuation. apply Hsame.
+    + destruct (Hheld (ac_continuation ac) params target Hentry)
+        as (Hnodup & metadata' & def_vars & def_conts' & Hresolve & Hvars
+            & Hcont).
+      destruct (eval_simples vars (ac_args ac)) as [vs | ] eqn:Hargs.
+      * destruct (Hon params target metadata' def_vars def_conts' (ac_args ac)
+                    vs vars conts' statics Hresolve Hnodup Hargs Hvars Hcont)
+          as [n Hanswer].
+        exists n. apply answered_step.
+        rewrite run_succ_on, step_apply_cont, Hargs. exact Hanswer.
+      * exists 0. rewrite run_one, step_apply_cont, Hargs. exact I.
+  - (* Switch *)
+    exists 0. rewrite run_one. apply answered_step. rewrite !step_switch.
+    destruct (eval_simple vars scrutinee) as [v | ]; [ | exact I ].
+    destruct (naked_immediate_of_value v) as [i | ]; [ | exact I ].
+    pose proof (find_arm_goes F i arms arms' Harms) as Harm.
+    destruct (find_arm i arms) as [ac | ], (find_arm i arms') as [ac' | ];
+      try contradiction; [ | exact I ].
+    eexists. split; [ reflexivity | ].
+    apply (State_fwd F);
+      [ apply Fwd_apply_cont, Harm | exact Hconts | exact Hheld ].
+  - (* Invalid *)
+    exists 0. rewrite run_one, step_invalid. exact I.
+Qed.
+
+(* ======================================================================== *)
+(* The pass relates a term to its result                                    *)
+(* ======================================================================== *)
+
+Fixpoint forward_applications_binds_statics (e : expr) :
+  ∀ F : forwards,
+    binds_statics (forward_applications_under F e) = binds_statics e.
+Proof.
+  destruct e
+    as [ x kind d body | bindings body | k [params metadata handler] body
+       | handlers body | ap | ac | scrutinee arms | ];
+    intros F; simpl; try reflexivity.
+  - apply forward_applications_binds_statics.
+  - rewrite forward_applications_binds_statics. reflexivity.
+  - rewrite !forward_applications_binds_statics. reflexivity.
+  - rewrite forward_applications_binds_statics. f_equal.
+    generalize (map (fun '(k, _) => (k, @None (list variable * apply_cont)))
+                  handlers
+                ++ F).
+    intros F'.
+    induction handlers as [ | [k [params metadata handler]] handlers IH];
+      simpl; [ reflexivity | ].
+    rewrite forward_applications_binds_statics, IH. reflexivity.
+Qed.
+
+Lemma goes_forward_apply_cont (F : forwards) (ac : apply_cont) :
+  goes F ac (forward_apply_cont F ac).
+Proof.
+  unfold forward_apply_cont.
+  destruct (forward_of F (ac_continuation ac)) as [[params target] | ] eqn:Hk;
+    [ | apply Goes_same ].
+  destruct
+    (Nat.eqb (length (ac_args ac)) (length params) && no_trap_action ac
+     && no_trap_action target)
+    eqn:Hcheck; [ | apply Goes_same ].
+  apply andb_true_iff in Hcheck as [Hcheck _].
+  apply andb_true_iff in Hcheck as [Hlength _].
+  apply Nat.eqb_eq in Hlength. apply Goes_on; assumption.
+Qed.
+
+Lemma goes_forward_arm (F : forwards) (ac : apply_cont) :
+  goes F ac (forward_arm F ac).
+Proof.
+  unfold forward_arm.
+  destruct (forward_of F (ac_continuation ac)) as [[params target] | ] eqn:Hk;
+    [ | apply goes_forward_apply_cont ].
+  destruct params as [ | p params]; [ | apply goes_forward_apply_cont ].
+  destruct (ac_args ac) as [ | arg args] eqn:Hargs;
+    [ | apply goes_forward_apply_cont ].
+  destruct (no_trap_action ac); [ | apply Goes_same ].
+  pose proof (Goes_on F ac [] target Hk) as Hgoes.
+  rewrite Hargs in Hgoes. apply Hgoes. reflexivity.
+Qed.
+
+(* What the relation asks of an expression under the entries [F], as the
+   pass can check it: the expression binds no name that an entry
+   depends on. *)
+Definition safe (F : forwards) (e : expr) : Prop :=
+  ∀ k : continuation,
+    (∀ x : variable, frozen_var (forward_of F k) x -> binds_var x e = false)
+    ∧ (∀ k0 : continuation,
+        frozen_cont (forward_of F k) k0 -> binds_cont k0 e = false).
+
+Lemma safe_none (F : forwards) (e : expr) :
+  (∀ k : continuation, forward_of F k = None) -> safe F e.
+Proof.
+  intros Hnone k. rewrite Hnone.
+  split; [ intros x (params & target & Hsome & _)
+         | intros k0 (params & target & Hsome & _) ];
+    discriminate Hsome.
+Qed.
+
+Lemma safe_cons (F : forwards) (k0 : continuation) (e0 : entry) (e : expr) :
+  safe F e ->
+  (∀ x : variable, frozen_var e0 x -> binds_var x e = false) ->
+  (∀ k1 : continuation, frozen_cont e0 k1 -> binds_cont k1 e = false) ->
+  safe ((k0, e0) :: F) e.
+Proof.
+  intros Hsafe Hvars Hconts k.
+  destruct (Pos.eq_dec k k0) as [-> | Hne];
+    [ rewrite forward_of_head; auto
+    | rewrite forward_of_other by exact Hne; apply Hsafe ].
+Qed.
+
+Lemma safe_plain (F : forwards)
+    (handlers : list (continuation * continuation_handler)) (e : expr) :
+  safe F e -> safe (plain_forwards handlers ++ F) e.
+Proof.
+  intros Hsafe k. rewrite forward_of_plain.
+  destruct (lookup k handlers); [ | apply Hsafe ].
+  split; [ intros x (params & target & Hsome & _)
+         | intros k0 (params & target & Hsome & _) ];
+    discriminate Hsome.
+Qed.
+
+(* What [forwarding] answers is an entry for the handler, which the body
+   leaves alone. *)
+Lemma forwarding_fits (k : continuation) (params : list variable)
+    (metadata : handler_metadata) (handler' body : expr) :
+  entry_fits k params handler' (forwarding k params metadata handler' body)
+  ∧ (∀ x : variable,
+      frozen_var (forwarding k params metadata handler' body) x ->
+      binds_var x body = false)
+  ∧ (∀ k0 : continuation,
+      frozen_cont (forwarding k params metadata handler' body) k0 ->
+      binds_cont k0 body = false).
+Proof.
+  unfold forwarding.
+  assert (Hnone :
+    entry_fits k params handler' None
+    ∧ (∀ x : variable, frozen_var None x -> binds_var x body = false)
+    ∧ (∀ k0 : continuation, frozen_cont None k0 -> binds_cont k0 body = false)).
+  { split; [ exact I | ].
+    split; [ intros x (params0 & target & Hsome & _)
+           | intros k0 (params0 & target & Hsome & _) ];
+      discriminate Hsome. }
+  destruct handler' as [ | | | | | target | | ]; try exact Hnone.
+  match goal with
+  | |- context [if ?check then None else _] =>
+    destruct check eqn:Hcheck; [ exact Hnone | ]
+  end.
+  apply orb_false_iff in Hcheck as [Hcheck Hvars].
+  apply orb_false_iff in Hcheck as [Hcheck Hcont].
+  apply orb_false_iff in Hcheck as [Hcheck Hdistinct].
+  apply orb_false_iff in Hcheck as [_ Hself].
+  apply negb_false_iff in Hdistinct.
+  unfold among, apply_cont_continuations in Hself. simpl in Hself.
+  apply orb_false_iff in Hself as [Hself _]. apply Pos.eqb_neq in Hself.
+  unfold apply_cont_continuations in Hcont. simpl in Hcont.
+  apply orb_false_iff in Hcont as [Hcont _].
+  split; [ | split ].
+  - split; [ reflexivity | ]. split; [ reflexivity | ].
+    split; [ apply distinct_NoDup, Hdistinct | exact (not_eq_sym Hself) ].
+  - intros x (params0 & target0 & Hsome & Hnotin & Hfree).
+    injection Hsome as <- <-.
+    unfold var_free_in_simples in Hfree.
+    apply Exists_exists in Hfree as (s & Hin & Hs).
+    pose proof (existsb_false_in _ _ s Hvars Hin) as Hbound.
+    destruct s as [y | sym | c]; simpl in Hs; try contradiction. subst y.
+    simpl in Hbound. apply andb_false_iff in Hbound as [Hamong | Hbound];
+      [ | exact Hbound ].
+    apply negb_false_iff, among_In in Hamong. contradiction.
+  - intros k0 (params0 & target0 & Hsome & <-). injection Hsome as <- <-.
+    exact Hcont.
+Qed.
+
+Lemma safe_let (F : forwards) (x : variable) (kind : flambda_kind) (d : named)
+    (body : expr) :
+  safe F (Let x kind d body) -> safe F body ∧ var_unfrozen F x.
+Proof.
+  intros Hsafe. split.
+  - intros k. destruct (Hsafe k) as [Hvars Hconts].
+    split; [ | exact Hconts ].
+    intros y Hy. specialize (Hvars y Hy). simpl in Hvars.
+    apply orb_false_iff in Hvars. apply Hvars.
+  - intros k Hx. destruct (Hsafe k) as [Hvars _].
+    specialize (Hvars x Hx). simpl in Hvars.
+    rewrite Pos.eqb_refl in Hvars. discriminate Hvars.
+Qed.
+
+Lemma safe_let_cont (F : forwards) (k0 : continuation)
+    (params : list variable) (metadata : handler_metadata)
+    (handler body : expr) :
+  safe F (Let_cont_non_recursive k0 (Handler params metadata handler) body) ->
+  safe F handler ∧ safe F body
+  ∧ (∀ p : variable, p ∈ params -> var_unfrozen F p)
+  ∧ cont_unfrozen F k0.
+Proof.
+  intros Hsafe. split; [ | split; [ | split ] ].
+  - intros k. destruct (Hsafe k) as [Hvars Hconts]. split.
+    + intros x Hx. specialize (Hvars x Hx). simpl in Hvars.
+      apply orb_false_iff in Hvars as [Hhandler _].
+      apply orb_false_iff in Hhandler. apply Hhandler.
+    + intros k1 Hk1. specialize (Hconts k1 Hk1). simpl in Hconts.
+      apply orb_false_iff in Hconts as [Hhandler _].
+      apply orb_false_iff in Hhandler. apply Hhandler.
+  - intros k. destruct (Hsafe k) as [Hvars Hconts]. split.
+    + intros x Hx. specialize (Hvars x Hx). simpl in Hvars.
+      apply orb_false_iff in Hvars. apply Hvars.
+    + intros k1 Hk1. specialize (Hconts k1 Hk1). simpl in Hconts.
+      apply orb_false_iff in Hconts. apply Hconts.
+  - intros p Hin k Hp. destruct (Hsafe k) as [Hvars _].
+    specialize (Hvars p Hp). simpl in Hvars.
+    apply orb_false_iff in Hvars as [Hhandler _].
+    apply orb_false_iff in Hhandler as [Hamong _].
+    apply among_In in Hin. congruence.
+  - intros k Hk0. destruct (Hsafe k) as [_ Hconts].
+    specialize (Hconts k0 Hk0). simpl in Hconts.
+    rewrite Pos.eqb_refl in Hconts. discriminate Hconts.
+Qed.
+
+Lemma safe_let_cont_recursive (F : forwards)
+    (handlers : list (continuation * continuation_handler)) (body : expr) :
+  safe F (Let_cont_recursive handlers body) ->
+  safe F body
+  ∧ ∀ (k0 : continuation) (params : list variable)
+      (metadata : handler_metadata) (handler : expr),
+      (k0, Handler params metadata handler) ∈ handlers ->
+      safe F handler
+      ∧ (∀ p : variable, p ∈ params -> var_unfrozen F p)
+      ∧ cont_unfrozen F k0.
+Proof.
+  intros Hsafe. split.
+  - intros k. destruct (Hsafe k) as [Hvars Hconts]. split.
+    + intros x Hx. specialize (Hvars x Hx). simpl in Hvars.
+      apply orb_false_iff in Hvars. apply Hvars.
+    + intros k1 Hk1. specialize (Hconts k1 Hk1). simpl in Hconts.
+      apply orb_false_iff in Hconts. apply Hconts.
+  - intros k0 params metadata handler Hin.
+    assert (Hvars_handler :
+      ∀ (k : continuation) (x : variable),
+        frozen_var (forward_of F k) x ->
+        among x params = false ∧ binds_var x handler = false).
+    { intros k x Hx. destruct (Hsafe k) as [Hvars _].
+      specialize (Hvars x Hx). simpl in Hvars.
+      apply orb_false_iff in Hvars as [Hhandlers _].
+      pose proof (existsb_false_in _ _ _ Hhandlers Hin) as Hhandler.
+      simpl in Hhandler. apply orb_false_iff in Hhandler. exact Hhandler. }
+    assert (Hconts_handler :
+      ∀ k k1 : continuation,
+        frozen_cont (forward_of F k) k1 ->
+        Pos.eqb k1 k0 = false ∧ binds_cont k1 handler = false).
+    { intros k k1 Hk1. destruct (Hsafe k) as [_ Hconts].
+      specialize (Hconts k1 Hk1). simpl in Hconts.
+      apply orb_false_iff in Hconts as [Hhandlers _].
+      pose proof (existsb_false_in _ _ _ Hhandlers Hin) as Hhandler.
+      simpl in Hhandler. apply orb_false_iff in Hhandler. exact Hhandler. }
+    split; [ | split ].
+    + intros k. split.
+      * intros x Hx. exact (proj2 (Hvars_handler k x Hx)).
+      * intros k1 Hk1. exact (proj2 (Hconts_handler k k1 Hk1)).
+    + intros p Hp k Hfrozen.
+      destruct (Hvars_handler k p Hfrozen) as [Hamong _].
+      apply among_In in Hp. congruence.
+    + intros k Hfrozen.
+      destruct (Hconts_handler k k0 Hfrozen) as [Hself _].
+      rewrite Pos.eqb_refl in Hself. discriminate Hself.
+Qed.
+
+Fixpoint forward_applications_fwd (e : expr) :
+  ∀ F : forwards, safe F e -> fwd F e (forward_applications_under F e).
+Proof.
+  destruct e
+    as [ x kind d body | bindings body | k [params metadata handler] body
+       | handlers body | ap | ac | scrutinee arms | ];
+    intros F Hsafe; simpl.
+  - destruct (safe_let F x kind d body Hsafe) as [Hbody Hx].
+    apply Fwd_let; [ exact Hx | apply forward_applications_fwd, Hbody ].
+  - apply Fwd_let_static, forward_applications_fwd. exact Hsafe.
+  - destruct (safe_let_cont F k params metadata handler body Hsafe)
+      as (Hhandler & Hbody & Hparams & Hk).
+    destruct
+      (forwarding_fits k params metadata
+         (forward_applications_under F handler) body)
+      as (Hfits & Hvars & Hconts).
+    apply (Fwd_let_cont F k params metadata metadata handler
+      (forward_applications_under F handler)
+      (forwarding k params metadata (forward_applications_under F handler)
+         body));
+      [ apply forward_applications_fwd, Hhandler | reflexivity
+      | exact Hparams | exact Hk | exact Hfits | ].
+    apply forward_applications_fwd, safe_cons; assumption.
+  - destruct (safe_let_cont_recursive F handlers body Hsafe)
+      as [Hbody Hhandlers].
+    change (map (fun '(k, _) => (k, @None (list variable * apply_cont)))
+              handlers)
+      with (plain_forwards handlers).
+    assert (Hall :
+      Forall
+        (fun kh =>
+           safe (plain_forwards handlers ++ F) (handler_expr (snd kh))
+           ∧ (∀ p : variable, p ∈ handler_params (snd kh) -> var_unfrozen F p)
+           ∧ cont_unfrozen F (fst kh))
+        handlers).
+    { apply Forall_forall. intros [k [params metadata handler]] Hin.
+      destruct (Hhandlers k params metadata handler Hin)
+        as (Hhandler & Hparams & Hk).
+      split; [ apply safe_plain, Hhandler | split; assumption ]. }
+    apply Fwd_let_cont_recursive.
+    + clear Hsafe Hhandlers. revert Hall.
+      generalize (plain_forwards handlers ++ F). intros F' Hall.
+      induction handlers as [ | [k [params metadata handler]] handlers IH];
+        [ apply Forall2_nil | ].
+      inversion Hall as [ | kh rest (Hhandler & Hparams & Hk) Hrest].
+      subst kh rest.
+      apply Forall2_cons; [ | exact (IH Hrest) ].
+      simpl. split; [ reflexivity | ]. split; [ reflexivity | ].
+      split; [ reflexivity | ].
+      split; [ apply forward_applications_fwd, Hhandler | ].
+      split; assumption.
+    + clear. unfold handlers_bind_statics.
+      generalize (plain_forwards handlers ++ F). intros F'.
+      induction handlers as [ | [k [params metadata handler]] handlers IH];
+        simpl; [ reflexivity | ].
+      rewrite forward_applications_binds_statics, IH. reflexivity.
+    + apply forward_applications_fwd, safe_plain, Hbody.
+  - apply Fwd_apply.
+  - apply Fwd_apply_cont, goes_forward_apply_cont.
+  - apply Fwd_switch. clear Hsafe.
+    induction arms as [ | arm arms IH]; simpl; [ apply Forall2_nil | ].
+    apply Forall2_cons; [ | exact IH ].
+    split; [ reflexivity | apply goes_forward_arm ].
+  - apply Fwd_invalid.
+Qed.
+
+Theorem forward_applications_refines : forward_applications_refines_statement.
+Proof.
+  intros e vars conts statics.
+  apply (rounds_refines state_fwd fwd_round).
+  apply (State_fwd []);
+    [ apply forward_applications_fwd, safe_none; reflexivity
+    | intros k; apply Same_fwd | apply held_nil ].
+Qed.
