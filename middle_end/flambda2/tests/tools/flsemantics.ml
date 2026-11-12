@@ -100,6 +100,7 @@ module Lift = Flambda2_rocq_semantics.FlambdaLiftSpec
 module My_closure = Flambda2_rocq_semantics.FlambdaMyClosureSpec
 module Unused_slots = Flambda2_rocq_semantics.FlambdaUnusedSlotsSpec
 module Float_code = Flambda2_rocq_semantics.FlambdaFloatCodeSpec
+module Loopify = Flambda2_rocq_semantics.FlambdaLoopifySpec
 module Statics_order = Flambda2_rocq_semantics.FlambdaStaticsOrderSpec
 module Numbers = Flambda2_rocq_semantics.BinNums
 module P = Flambda_primitive
@@ -188,6 +189,12 @@ struct
       incr next;
       numbers := Map.add id n !numbers;
       positive_of_int n
+
+  (* A number that no name has, or will have. *)
+  let fresh () =
+    let n = !next in
+    incr next;
+    positive_of_int n
 
   (* Gives [id] the number of [same_as]. *)
   let alias id ~same_as =
@@ -677,6 +684,10 @@ let deleted_code : Code_id.t list ref = ref []
    conversion leaves a declaration out. *)
 let superseded_code : Code_id.t list ref = ref []
 
+(* The code that the front end marks for loopify
+   ([Loopify_attribute.should_loopify]), noted as a unit is converted. *)
+let loopify_marked : Code_id.t list ref = ref []
+
 (* Forgets everything that the conversion has noted so far, so that a unit is
    converted as if it were the first: the numbers given to names and what is
    kept beside the terms. Whoever gives the conversion more state adds it
@@ -694,6 +705,7 @@ let reset_conversion () =
   newer_versions := [];
   deleted_code := [];
   superseded_code := [];
+  loopify_marked := [];
   region_variables := Variable.Set.empty;
   tupled_code_seen := false;
   indirect_call_seen := false
@@ -818,6 +830,8 @@ and convert_let (pattern : Bound_pattern.t) (defining_expr : Flambda.Named.t)
           (match Code0.newer_version_of code with
           | Some older -> newer_versions := (code_id, older) :: !newer_versions
           | None -> ());
+          if Loopify_attribute.should_loopify (Code0.loopify code)
+          then loopify_marked := code_id :: !loopify_marked;
           let id = Code_ids.find code_id in
           Model.Bind_code (id, convert_code code) :: bindings)
         ~deleted_code:(fun bindings code_id ->
@@ -1994,7 +2008,20 @@ let well_formed_before ~filename (before : Flambda_unit.t) =
    value slots of static closures and uses what the unit binds its symbols to,
    removes the value slots of its static sets of closures that the term after
    has not got, moves the bindings of code of both terms up, and compares again.
-   What is lifted and which slots are guesses too. *)
+   What is lifted and which slots are guesses too. Before any of this, where the
+   two terms are not the same as they are given, [validate_unit] makes jumps of
+   the self tail calls of the code named here, as Simplify does for the code
+   that the front end marks for loopify; which code that is, with a name for
+   each loop, is a guess again, and the guesses above are made of the term that
+   this gives. *)
+
+(* The code that the front end marks for loopify, each with a name for its loop
+   that no continuation of the two units has. *)
+let loopify_guess () =
+  List.map
+    (fun code_id -> Code_ids.find code_id, Continuations.fresh ())
+    (List.sort_uniq Code_id.compare !loopify_marked)
+
 let validate ~(outcome_before : outcome) (before : converted)
     (after : converted) =
   let recursive = recursive_code before.body @ recursive_code after.body in
@@ -2009,17 +2036,21 @@ let validate ~(outcome_before : outcome) (before : converted)
       lifted_my_closures = []
     }
   in
+  (* The code to loopify, and the term before with its self tail calls made
+     jumps: the term that [validate_unit] normalises and lifts in. *)
+  let loops = loopify_guess () in
+  let looped = Loopify.loopify_unit loops before.body in
   (* One attempt, with the code whose calls the validation is told to leave. It
      gives the verdict, the term before that was compared last, how it was made,
      whether value slots were removed from it, and the term after as it was
      compared. *)
   let attempt kept =
-    let normalised_before = Validate.normalise_before rounds kept before.body in
+    let normalised_before = Validate.normalise_before rounds kept looped in
     let normalised_after = Validate.normalise_after rounds kept after.body in
     let unused = unused_statics normalised_before in
     let validation =
-      Validate.validate_unit rounds unused [] [nothing_lifted] kept before.body
-        after.body
+      Validate.validate_unit rounds unused [] loops [nothing_lifted] kept
+        before.body after.body
     in
     let not_lifted =
       ( validation,
@@ -2068,7 +2099,7 @@ let validate ~(outcome_before : outcome) (before : converted)
               (Validate.normalise_lifted rounds avoid kept lifted)
               (remaining - 1)
       in
-      match liftings_from [] before.body 3 with
+      match liftings_from [] looped 3 with
       | [], _ -> not_lifted
       | (_ :: _ as liftings), lifted ->
         (* The bindings of code of both terms are moved up before the
@@ -2076,8 +2107,8 @@ let validate ~(outcome_before : outcome) (before : converted)
         let slots = unused_slots_guess lifted normalised_after in
         let lifted = Validate.without_slots slots lifted in
         let unused = unused_statics lifted in
-        ( Validate.validate_unit rounds unused slots liftings kept before.body
-            after.body,
+        ( Validate.validate_unit rounds unused slots loops liftings kept
+            before.body after.body,
           Float_code.float_code (Validate.without_statics unused lifted),
           "lifted and normalised",
           (match slots with [] -> false | _ :: _ -> true),

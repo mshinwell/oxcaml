@@ -445,6 +445,10 @@ Not trusted, though it is OCaml: what the tool proposes to
   each lifting of the list): checked by `lift_unit`.
 - Which value slots Simplify removed from the static sets of closures
   (`unused_slots_guess`): checked by `drop_unused_slots`.
+- Which code Simplify made a loop of, with a name for the loop of each
+  (`loopify_guess`: the code that the front end marks for loopify, as
+  the conversion notes it): checked by `loopify_unit`, which leaves
+  alone the code that is not `loopable` with the name given.
 
 The guesses are made from the two terms as `convert_both` gives them,
 so a code id or a symbol of the term after that a guess names is named

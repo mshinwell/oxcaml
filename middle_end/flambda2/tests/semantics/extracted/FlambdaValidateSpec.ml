@@ -13,6 +13,7 @@ open FlambdaKnownSymbolsSpec
 open FlambdaLiftSpec
 open FlambdaLoopAliasesSpec
 open FlambdaLoopLetsSpec
+open FlambdaLoopifySpec
 open FlambdaModel
 open FlambdaNormaliseSpec
 open FlambdaParamAliasesSpec
@@ -207,14 +208,15 @@ type validation =
   | Same_once_lifted
   | Not_validated
 
-(** val validate_unit : nat -> dropped -> value_slot list -> lifting list ->
-    code_id list -> expr -> expr -> validation **)
+(** val validate_unit : nat -> dropped -> value_slot list -> loopified ->
+    lifting list -> code_id list -> expr -> expr -> validation **)
 
-let validate_unit rounds unused slots ls kept before after =
+let validate_unit rounds unused slots g ls kept before after =
   if expr_eqb [] [] before after
   then Same_up_to_bound_names
   else
-    let normalised = normalise_before rounds kept before in
+    let before0 = loopify_unit g before in
+    let normalised = normalise_before rounds kept before0 in
     let after0 = normalise_after rounds kept after in
     if expr_eqb [] [] (order_statics_as after0 normalised) after0
     then Same_once_normalised
@@ -231,7 +233,7 @@ let validate_unit rounds unused slots ls kept before after =
               (without_statics unused
                  (without_slots slots
                     (lifted_in_turn rounds (unit_continuations ls) ls kept
-                       before)))))
+                       before0)))))
         (float_code (with_code_first after0))
     then Same_once_lifted
     else Not_validated

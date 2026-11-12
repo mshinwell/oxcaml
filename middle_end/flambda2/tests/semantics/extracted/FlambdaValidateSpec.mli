@@ -13,6 +13,7 @@ open FlambdaKnownSymbolsSpec
 open FlambdaLiftSpec
 open FlambdaLoopAliasesSpec
 open FlambdaLoopLetsSpec
+open FlambdaLoopifySpec
 open FlambdaModel
 open FlambdaNormaliseSpec
 open FlambdaParamAliasesSpec
@@ -89,6 +90,7 @@ val validate_unit :
   nat ->
   dropped ->
   value_slot list ->
+  loopified ->
   lifting list ->
   code_id list ->
   expr ->
