@@ -174,6 +174,7 @@
    rewrite does; FlambdaSinkContsSpec.sink_let_conts;
    FlambdaShortcutSpec.shortcut_switches;
    FlambdaUnusedParamsSpec.drop_unused_params;
+   FlambdaDeadParamsSpec.drop_dead_params;
    FlambdaLoopAliasesSpec.follow_aliases_in_loops, which carries a
    typing environment as [follow_aliases] does;
    FlambdaLoopLetsSpec.remove_unused_defined_lets_in_loops, which
@@ -281,7 +282,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSinkContsSpec FlambdaShortcutSpec FlambdaUnusedParamsSpec
   FlambdaLoopAliasesSpec FlambdaLoopLetsSpec FlambdaParamAliasesSpec
   FlambdaForwardSpec FlambdaInlineTailSpec FlambdaLoopifySpec
-  FlambdaRenameApartSpec FlambdaUnusedProjectionsSpec FlambdaValidateSpec.
+  FlambdaDeadParamsSpec FlambdaRenameApartSpec FlambdaUnusedProjectionsSpec
+  FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -697,6 +699,11 @@ Definition shortcut_switches_equivariant_statement : Prop :=
    use (FlambdaUnusedParamsSpec.v). *)
 Definition drop_unused_params_equivariant_statement : Prop :=
   rewrite_equivariant drop_unused_params.
+
+(* Removing the parameters of a loop that are only passed round it, and
+   the [Let]s that only they need (FlambdaDeadParamsSpec.v). *)
+Definition drop_dead_params_equivariant_statement : Prop :=
+  rewrite_equivariant drop_dead_params.
 
 (* Following aliases into the handlers of recursive continuations
    (FlambdaLoopAliasesSpec.v), with the action on the typing
