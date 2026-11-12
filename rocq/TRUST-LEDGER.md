@@ -218,8 +218,11 @@ it gave back.
   continuations of the unit after standing for those of the unit before.
   And Simplify gives a new code id to each new version of code: the tool
   gives the new id the number of the old one where the old one is bound
-  as deleted and not otherwise used. Trusted: that this identifies only
-  what is the same continuation and the same function. The second part
+  as deleted and not otherwise used, and then leaves out the
+  declaration that the old one is deleted, so that the term of the
+  model does not declare deleted a code id that it binds. Trusted: that
+  this identifies only what is the same continuation and the same
+  function. The second part
   goes when the comparison relates code ids itself (workstream S4; there
   are notes in `flsemantics.ml` and `FlambdaCompareSpec.v`).
 - **The extraction**: Rocq's extraction to OCaml, by

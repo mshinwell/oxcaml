@@ -669,6 +669,14 @@ let newer_versions : (Code_id.t * Code_id.t) list ref = ref []
 
 let deleted_code : Code_id.t list ref = ref []
 
+(* The code ids, declared deleted, whose number has been given to a newer
+   version of the code ([convert_both]). The number then stands for the code
+   that the unit binds, so the declaration is left out: the term of the model
+   does not declare deleted a code id that it binds. It is empty except while
+   [convert_both] converts the unit after for the second time, so that no other
+   conversion leaves a declaration out. *)
+let superseded_code : Code_id.t list ref = ref []
+
 (* Forgets everything that the conversion has noted so far, so that a unit is
    converted as if it were the first: the numbers given to names and what is
    kept beside the terms. Whoever gives the conversion more state adds it
@@ -685,6 +693,7 @@ let reset_conversion () =
   named_function_slots := false;
   newer_versions := [];
   deleted_code := [];
+  superseded_code := [];
   region_variables := Variable.Set.empty;
   tupled_code_seen := false;
   indirect_call_seen := false
@@ -813,7 +822,9 @@ and convert_let (pattern : Bound_pattern.t) (defining_expr : Flambda.Named.t)
           Model.Bind_code (id, convert_code code) :: bindings)
         ~deleted_code:(fun bindings code_id ->
           deleted_code := code_id :: !deleted_code;
-          Model.Bind_deleted_code (Code_ids.find code_id) :: bindings)
+          if List.exists (Code_id.equal code_id) !superseded_code
+          then bindings
+          else Model.Bind_deleted_code (Code_ids.find code_id) :: bindings)
         ~set_of_closures:(fun bindings ~closure_symbols set ->
           let function_decls, slots = convert_set_of_closures set in
           let closure_symbols =
@@ -1861,7 +1872,8 @@ let rec code_id_used (id : Model.code_id) (e : Model.expr) =
    so the new id is given the number of the old where that changes nothing:
    where the unit after binds the old one as deleted and does not otherwise use
    it. The unit after is converted once to find that out, and again with the
-   numbers settled.
+   numbers settled; the second time, the declaration that such an old one is
+   deleted is left out, as its number now stands for the new code.
 
    CR mshinwell: This identification is part of what is trusted, and will most
    likely not be enough: it does nothing for code that has no older version, or
@@ -1870,6 +1882,7 @@ let rec code_id_used (id : Model.code_id) (e : Model.expr) =
    that takes. *)
 let convert_both (before : Flambda_unit.t) (after : Flambda_unit.t) =
   with_function_slots @@ fun () ->
+  superseded_code := [];
   let before_converted = convert_unit before in
   Continuations.alias
     (Flambda_unit.return_continuation after)
@@ -1879,15 +1892,23 @@ let convert_both (before : Flambda_unit.t) (after : Flambda_unit.t) =
     ~same_as:(Flambda_unit.exn_continuation before);
   newer_versions := [];
   deleted_code := [];
+  superseded_code := [];
   let first_pass = convert_unit after in
   List.iter
     (fun (newer, older) ->
       if
         List.exists (Code_id.equal older) !deleted_code
         && not (code_id_used (Code_ids.find older) first_pass.body)
-      then Code_ids.alias newer ~same_as:older)
+      then (
+        Code_ids.alias newer ~same_as:older;
+        superseded_code := older :: !superseded_code))
     !newer_versions;
-  before_converted, convert_unit after
+  let after_converted =
+    Fun.protect
+      ~finally:(fun () -> superseded_code := [])
+      (fun () -> convert_unit after)
+  in
+  before_converted, after_converted
 
 (* What the check of kinds answers for a unit (FlambdaWellKindedSpec.v), given
    the kinds of the value slots met in the two units. *)
