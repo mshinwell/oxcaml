@@ -5,6 +5,86 @@ change to the model owes. Owner: N1. The compiler's side is
 `middle_end/flambda2/nominal/`; section 10 says what it would take
 for it to obey the same laws.
 
+## Where it stands
+
+As of the tree that has the first step of the heap and the passes for
+loops. The sections below say each thing in full.
+
+**One account of the free names.** The free names of a term are one
+function for each sort (`FlambdaBindersSpec.v`), which goes into code.
+Written with it: the three conditions on binders of well-formedness,
+and what a rewrite that makes names owes. An older account, relations
+that do not go into code, is what the statements about binders
+(`FlambdaNominalSpec.v`) and the rules of `alpha_equivalent` are
+still written with; `FlambdaCanonicalFreeNamesSpec.v` has each of
+them with the one function, proved beside the older one. A series
+that makes those the statements, wherever the two forms say the same,
+is prepared on the branch `flambda2-rocq/N1-one-free-names` and is
+under review; it is to be merged when the epochs that change the
+machine have landed. `requests/N1-one-free-names.md` has each
+statement before and after. The statements that a binding not used
+may be removed stay written with the relations, on purpose: they ask
+nothing of the code, a name that occurs only in code does not stop a
+binding from being removed, and the rewrites of the validator that
+remove bindings are proved from them.
+
+**What commutes with renaming.**
+
+| What | Where | By |
+|------|-------|----|
+| The machine: a step, a run, a behaviour; equivalence and refinement, of states and of expressions | `FlambdaEquivarianceSpec.v` | N1 |
+| The machine with a stack of exception handlers and of calls | `FlambdaTrapSpec.v` | the owner of exceptions |
+| The machine with a heap, and its refinements; the heap is left as it is | `FlambdaHeapEquivarianceSpec.v` | N1 |
+| The free names; the three conditions on binders; `alpha_equivalent` | `FlambdaAlphaSpec.v` | N1 |
+| The comparison `expr_eqb` | `FlambdaCompareAlphaSpec.v` | N1 |
+| The rewrites of the normalisation, the checks of well-formedness (exception handlers and trap actions among them), the check of kinds, the normalisations and `validate_unit` | `FlambdaValidatorEquivarianceSpec.v` | N3 |
+| Identities of primitives, lifting, the binding of `my_closure`, ranges, sharing of primitives, folding at known symbols, unused value slots, the order of static bindings | the `Spec` file of each pass | the owner of each |
+| The passes for loops | proved, as lemmas of `FlambdaValidatorEquivarianceProofs.v`; not yet statements | the owner of loops, N3 |
+| Typing environments and their levels, extensions, aliases, types, provers | the types library (`FlambdaEnvRenameSpec.v`, `FlambdaTypeRenameSpec.v`, `FlambdaEnvAliasesRenamingSpec.v`, `FlambdaTypingEnvExtensionSpec.v`, `FlambdaProversRenameSpec.v`) | N3 and the owners |
+
+Those of the machines, and of the rewrites and checks of the first
+six rows, are equations that hold of every state and of every term.
+
+**What has a finite support.** Every expression and every state
+(`FlambdaStateSupportSpec.v`); a state with a stack (the same file); a
+state with a heap (`FlambdaHeapEquivarianceSpec.v`). So what each of
+the three machines runs is a nominal set, and its execution is an
+equivariant function. None of the three is an instance of the
+interface; section 6 says why. The locations of the heap are a sort
+of names of their own; their permutations are not defined yet (they
+are owed when the heap is in the state of the machine).
+
+**A rewrite that makes names** does not commute with renaming. It
+owes two things, defined in `FlambdaValidatorEquivarianceSpec.v`:
+that it commutes up to the names that it makes (`equivariant_up_to`),
+and that it keeps scope (`keeps_scope`). Rewrites that have both
+compose, and the comparison answers the same on their results. Two
+are in the tree: inlining at fresh names (`FlambdaInlineFreshSpec.v`:
+two choices of names give alpha-equivalent terms) and giving every
+binder a name of its own (`FlambdaRenameApartSpec.v`: the result on a
+renamed term is the result under a renaming that agrees with the
+first on the names of the term). The validation does not apply the
+second yet.
+
+**Still written in the older style.** `requests/N1-one-free-names.md`,
+section 7, has the reason for each and what it would take, as things
+will be once the series of that request is merged.
+
+| What | Whose |
+|------|-------|
+| The six statements that a bound name may be renamed, the rules of `alpha_equivalent` and two statements beside them: replaced on the branch | N1 |
+| The three statements that a binding not used may be removed, and three that say that their premise is kept by renaming and by alpha-equivalence: on purpose | N1 |
+| The relations `var_free_in_expr` and `cont_free_in_expr`, as definitions: for those statements, the rows below and the proofs | N1 |
+| `FlambdaApplySpec.inlinable` | the integrator |
+| The checks `FlambdaNormaliseSpec.expr_in_scope` and `FlambdaWellFormedSpec.free_continuations`, which run | the integrator |
+| The tests of freedom `var_free_b` and `cont_free_b` of the rewrites that remove bindings | the integrator |
+| One statement of `FlambdaRenameApartSpec.v` | the corpus stream, N2 |
+
+**Owed.** The statements for the passes for loops; `validate_unit`
+again when the validation gives binders names of their own; the
+permutations of locations; the functions on types that have no
+statement yet; and the rows of the table above.
+
 ## 1. The names
 
 Two sorts of name are bound by terms and moved by renamings: variables
@@ -277,11 +357,18 @@ Proved by the owners of the passes, each in the file of its pass: the
 identities of primitives (`FlambdaIdentitiesSpec.v`), the lifting of
 constants (`FlambdaLiftSpec.v`), the binding of `my_closure`
 (`FlambdaMyClosureSpec.v`), the check of ranges (`FlambdaRangeSpec.v`),
-and the machine with a stack of exception handlers
-(`FlambdaTrapSpec.v`).
+the sharing of primitives (`FlambdaCseSpec.v`), the folding at known
+symbols (`FlambdaKnownSymbolsSpec.v`), the removal of unused value
+slots (`FlambdaUnusedSlotsSpec.v`), the order of static bindings
+(`FlambdaStaticsOrderSpec.v`), and the machine with a stack of
+exception handlers (`FlambdaTrapSpec.v`). In the fourth form: giving
+every binder a name of its own (`FlambdaRenameApartSpec.v`).
 
 Owed:
 
+- the passes for loops: they are proved to commute with renaming, as
+  lemmas of `FlambdaValidatorEquivarianceProofs.v`, and are not yet
+  statements;
 - each pass of the validator that is merged after this was written,
   by its owner or by the third prover, and `validate_unit` again with
   it;
@@ -319,10 +406,11 @@ Owed:
   are written with. `FlambdaCanonicalFreeNamesSpec.v` has the
   statements about binders and the rules of `alpha_equivalent` in the
   form they take with the one function, each proved from the older
-  one; the older ones and the relations are still there. Whether they
-  are replaced, and the bridges of `FlambdaFreeNamesSpec.v` deleted, is
-  for the human to say: the status of this stream lists what would
-  change, owner by owner.
+  one. The replacement of the older ones where the two forms say the
+  same is prepared and under review, on a branch
+  (`requests/N1-one-free-names.md`); the orchestrator took that
+  decision for the human, who is to review it. "Where it stands" has
+  what is left after it.
 - The functions listed as owed in section 7.
 
 ## 10. The compiler's side
