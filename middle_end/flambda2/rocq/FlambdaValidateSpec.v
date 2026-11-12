@@ -35,7 +35,11 @@
    [validate_unit] is the whole check, so that what it accepts is correct
    by one theorem and not by how a tool puts the proved pieces together.
    It compares the two terms as they are given, up to bound names
-   (FlambdaCompareSpec.expr_eqb). Failing that, it makes jumps of the
+   (FlambdaCompareSpec.expr_eqb). Failing that, it makes indirect, in
+   the code of each stub of the term before, the direct calls of code
+   of the unit that is not a stub, as Simplify does where it
+   simplifies the code of a stub
+   (FlambdaStubCallsSpec.demote_stub_calls), and it makes jumps of the
    self tail calls of the code named, each with the name given for its
    loop (FlambdaLoopifySpec.loopify_unit, which says what a self tail
    call is and leaves alone the code that it may not change), as
@@ -90,7 +94,8 @@
    their values (FlambdaKnownSymbolsSpec.fold_known_unit), and by
    replacing the projection of a value slot that every set of
    closures of the unit gives the same symbol or constant by that
-   symbol or constant, where the symbol is in scope
+   symbol or constant, where the symbol is in scope and the code is
+   not that of a stub
    (FlambdaKnownSlotsSpec.read_known_slots; [normalise_lifted]): in
    the code of a closure that a function makes, the slot that holds a
    function of the unit is the symbol of that function once the
@@ -265,6 +270,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaGuardScopeSpec FlambdaGroupsUpSpec.
 From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
 From OxCamlFlambda2 Require Import FlambdaKnownSlotsSpec.
+From OxCamlFlambda2 Require Import FlambdaStubCallsSpec.
 From OxCamlFlambda2 Require Import FlambdaUnusedHeadStaticsSpec.
 From OxCamlFlambda2 Require Import FlambdaUnboxParamsSpec
   FlambdaUnboxInScopeSpec.
@@ -853,7 +859,7 @@ Definition validate_unit (rounds : nat) (unused : dropped)
     (kept : list code_id) (before after : expr) : validation :=
   if expr_eqb [] [] before after then Same_up_to_bound_names
   else
-    let before := loopify_unit G before in
+    let before := loopify_unit G (demote_stub_calls before) in
     let normalised :=
       tidied_before rounds (normalise_before rounds kept before)
     in

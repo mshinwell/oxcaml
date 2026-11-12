@@ -559,7 +559,11 @@ Definition handler_metadata_eqb (m m' : handler_metadata) : bool :=
    it: it may be set on any code, and what a term means is the same
    whatever it says. The comparison of two terms reads it
    ([code_metadata_eqb]): two terms that differ in it are not the
-   same. *)
+   same. Two rewrites of the validation read it, to leave the code of
+   a stub as Simplify leaves it: FlambdaKnownSlotsSpec.read_slots reads
+   no value slot there, and FlambdaStubCallsSpec.demote_stub_calls
+   makes its direct calls indirect. Each refines whatever the flag
+   says. *)
 Record code_metadata : Type := Code_metadata {
   cm_params_arity : arity;
   cm_result_arity : arity;

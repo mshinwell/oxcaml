@@ -45,7 +45,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMyClosureSpec FlambdaWellFormedSpec FlambdaLiftSpec
   FlambdaLiftFromCodeSpec FlambdaLiftFromArmsSpec FlambdaHoistStaticsSpec
   FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec
-  FlambdaKnownSlotsSpec FlambdaStaticsInScopeSpec
+  FlambdaKnownSlotsSpec FlambdaStubCallsSpec FlambdaStaticsInScopeSpec
   FlambdaFloatCodeSpec FlambdaGroupsUpSpec FlambdaUnaliasParamsSpec
   FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec FlambdaScopedProofs
@@ -860,6 +860,92 @@ Proof.
     cbn [andb]; [ | apply scoped_refl ].
   destruct (slots_as (slots_known (slots_made e)) e);
     [ apply read_slots_scoped, Hclosed | apply scoped_refl ].
+Qed.
+
+(* ======================================================================== *)
+(* The direct calls of the code of a stub                                   *)
+(* ======================================================================== *)
+
+Lemma demote_call_scoped (ids : list code_id) (ap : apply_expr) :
+  scoped (Apply ap) (Apply (demote_call ids ap)).
+Proof.
+  destruct ap as [callee call_kind args k exn extra args_arity return_arity].
+  unfold demote_call. cbn [ap_call_kind].
+  destruct call_kind as [code | ]; [ | apply scoped_refl ].
+  destruct (among code ids); [ | apply scoped_refl ].
+  intros Hclosed. split; [ exact Hclosed | split; apply incl_refl ].
+Qed.
+
+Fixpoint demote_calls_scoped (ids : list code_id) (e : expr) {struct e} :
+  scoped e (demote_calls ids e)
+with demote_calls_in_handler_scoped (ids : list code_id)
+    (h : continuation_handler) {struct h} :
+  scoped_handler h (demote_calls_in_handler ids h).
+Proof.
+  - destruct e as [x kind d body | bindings body | k h body | handlers body
+                  | ap | ac | scrutinee arms | ];
+      cbn [demote_calls]; try apply scoped_refl.
+    + apply scoped_let; [ apply incl_refl | apply demote_calls_scoped ].
+    + apply scoped_let_static; [ | apply demote_calls_scoped ].
+      induction bindings as [ | binding bindings IH];
+        [ apply scoped_bindings_nil | apply scoped_bindings_cons_same, IH ].
+    + apply scoped_let_cont;
+        [ apply demote_calls_in_handler_scoped | apply demote_calls_scoped ].
+    + apply scoped_let_cont_recursive; [ | | apply demote_calls_scoped ].
+      * rewrite map_map. apply map_ext. intros [k h]. reflexivity.
+      * induction handlers as [ | [k h] handlers IH]; cbn [map];
+          [ apply scoped_handlers_nil | ].
+        apply scoped_handlers_cons;
+          [ apply demote_calls_in_handler_scoped | exact IH ].
+    + apply demote_call_scoped.
+  - destruct h as [params metadata handler].
+    cbn [demote_calls_in_handler].
+    apply scoped_handler_intro, demote_calls_scoped.
+Qed.
+
+Fixpoint demote_in_stubs_scoped (ids : list code_id) (e : expr) {struct e} :
+  scoped e (demote_in_stubs ids e)
+with demote_in_stubs_of_handler_scoped (ids : list code_id)
+    (h : continuation_handler) {struct h} :
+  scoped_handler h (demote_in_stubs_of_handler ids h).
+Proof.
+  - destruct e as [x kind d body | bindings body | k h body | handlers body
+                  | ap | ac | scrutinee arms | ];
+      cbn [demote_in_stubs]; try apply scoped_refl.
+    + apply scoped_let; [ apply incl_refl | apply demote_in_stubs_scoped ].
+    + apply scoped_let_static; [ | apply demote_in_stubs_scoped ].
+      induction bindings
+        as [ | [id [params my_closure ret exn metadata code_body] | id
+               | sym const]
+               bindings IH];
+        cbn [map]; [ apply scoped_bindings_nil | | | ].
+      * cbn [demote_in_stub_binding code_is_stub].
+        destruct (cm_is_stub metadata);
+          [ | apply scoped_bindings_cons_same, IH ].
+        cbn [demote_calls_in_code].
+        apply scoped_bindings_cons_code; [ | exact IH ].
+        apply scoped_code_intro, demote_calls_scoped.
+      * apply scoped_bindings_cons_same, IH.
+      * apply scoped_bindings_cons_same, IH.
+    + apply scoped_let_cont;
+        [ apply demote_in_stubs_of_handler_scoped
+        | apply demote_in_stubs_scoped ].
+    + apply scoped_let_cont_recursive; [ | | apply demote_in_stubs_scoped ].
+      * rewrite map_map. apply map_ext. intros [k h]. reflexivity.
+      * induction handlers as [ | [k h] handlers IH]; cbn [map];
+          [ apply scoped_handlers_nil | ].
+        apply scoped_handlers_cons;
+          [ apply demote_in_stubs_of_handler_scoped | exact IH ].
+  - destruct h as [params metadata handler].
+    cbn [demote_in_stubs_of_handler].
+    apply scoped_handler_intro, demote_in_stubs_scoped.
+Qed.
+
+Theorem demote_stub_calls_keeps_scope :
+  demote_stub_calls_keeps_scope_statement.
+Proof.
+  apply keeps_scope_intro. intros e. unfold demote_stub_calls.
+  apply demote_in_stubs_scoped.
 Qed.
 
 (* ======================================================================== *)

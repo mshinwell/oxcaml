@@ -96,6 +96,10 @@
      ([read_slots_keeps_scope_statement]); [read_known_slots] is that,
      with what it has checked, or the term as it is
      ([read_known_slots_keeps_scope_statement]).
+   - FlambdaStubCallsSpec.demote_stub_calls makes, in the code of the
+     stubs of a unit, a direct call an indirect call of the same
+     callee with the same arguments
+     ([demote_stub_calls_keeps_scope_statement]).
    - FlambdaUnusedSlotsSpec.drop_slots removes value slots from static
      sets of closures, and with them the variables they hold
      ([drop_slots_keeps_scope_statement]); [without_slots] is that
@@ -147,7 +151,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaStaticsOrderSpec FlambdaMyClosureSpec FlambdaLiftSpec
   FlambdaLiftFromCodeSpec FlambdaLiftFromArmsSpec FlambdaUnusedSlotsSpec
   FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec FlambdaFloatCodeSpec
-  FlambdaGroupsUpSpec FlambdaKnownSlotsSpec FlambdaUnaliasParamsSpec
+  FlambdaGroupsUpSpec FlambdaKnownSlotsSpec FlambdaStubCallsSpec
+  FlambdaUnaliasParamsSpec
   FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec.
 Import ListNotations.
@@ -220,6 +225,13 @@ Definition read_slots_keeps_scope_statement : Prop :=
 
 Definition read_known_slots_keeps_scope_statement : Prop :=
   keeps_scope read_known_slots.
+
+(* ======================================================================== *)
+(* The direct calls of the code of a stub                                   *)
+(* ======================================================================== *)
+
+Definition demote_stub_calls_keeps_scope_statement : Prop :=
+  keeps_scope demote_stub_calls.
 
 (* ======================================================================== *)
 (* The removal of value slots                                               *)

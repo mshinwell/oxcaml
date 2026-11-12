@@ -1381,16 +1381,20 @@ Definition with_statics_first_renamed_alike_statement : Prop :=
    [with_code_first_equivariant_statement]).
 
    The first comparison is of the two terms as they are, and answers
-   the same of the two renamed. After it the self tail calls of the
-   code named are made jumps (FlambdaLoopifySpec.loopify_unit), which
-   commutes with the renaming, the names given for the loops being
-   renamed with the term ([rename_loopified]), and keeps the code
-   closed; what follows is said of the term that this gives. The next
-   three are of the term before
-   normalised, which under the renaming is that term under a second
-   renaming that does to its free names what the first does; for the
-   third of them, and for the two comparisons after it, the term after
-   has the unused static bindings of its head removed
+   the same of the two renamed. After it the direct calls of the code
+   of the stubs of the term before are made indirect
+   (FlambdaStubCallsSpec.demote_stub_calls), which commutes with the
+   renaming, as that renames no code id and keeps what code is
+   annotated with, and keeps the code closed; and the self tail calls
+   of the code named are made jumps (FlambdaLoopifySpec.loopify_unit),
+   which commutes with the renaming, the names given for the loops
+   being renamed with the term ([rename_loopified]), and keeps the
+   code closed; what follows is said of the term that this gives. The
+   next three are of the term before normalised, which under the
+   renaming is that term under a second renaming that does to its
+   free names what the first does; for the third of them, and for the
+   two comparisons after it, the term after has the unused static
+   bindings of its head removed
    (FlambdaValidateSpec.without_head_statics). The last
    two are of the term before with the liftings made in turn, each
    followed by a normalisation

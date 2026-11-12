@@ -83,6 +83,8 @@ From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
 From OxCamlFlambda2 Require FlambdaDemoteProofs.
 From OxCamlFlambda2 Require Import FlambdaKnownSlotsSpec.
 From OxCamlFlambda2 Require FlambdaKnownSlotsProofs.
+From OxCamlFlambda2 Require Import FlambdaStubCallsSpec.
+From OxCamlFlambda2 Require FlambdaStubCallsProofs.
 From OxCamlFlambda2 Require Import FlambdaUnboxParamsSpec
   FlambdaUnboxVariantsSpec FlambdaUnboxInScopeSpec FlambdaUnboxInScopeProofs
   FlambdaUnboxInScopeRenameSpec FlambdaUnboxInScopeRenameProofs.
@@ -7119,13 +7121,20 @@ Proof.
   { intros k Hk. apply Hheld. rewrite among_app, Hk. reflexivity. }
   assert (Hloops : rename_conts_alike r r1 (map snd G)).
   { intros k Hk. apply Hheld. rewrite among_app, Hk. apply orb_true_r. }
-  rewrite (rename_loopified_alike r r1 G Hloops), loopify_unit_equivariant.
+  rewrite FlambdaStubCallsProofs.demote_stub_calls_equivariant,
+    (rename_loopified_alike r r1 G Hloops), loopify_unit_equivariant.
   destruct
-    (renames_alike_kept (loopify_unit G) r r1 before
-       (FlambdaLoopsScopeProofs.loopify_unit_keeps_scope G) Hclosed Halike1)
+    (renames_alike_kept demote_stub_calls r r1 before
+       FlambdaStaticsScopeProofs.demote_stub_calls_keeps_scope Hclosed
+       Halike1)
+    as (Hclosed0 & Halike0).
+  destruct
+    (renames_alike_kept (loopify_unit G) r r1 (demote_stub_calls before)
+       (FlambdaLoopsScopeProofs.loopify_unit_keeps_scope G) Hclosed0 Halike0)
     as (Hclosed' & Halike1').
-  clear Hclosed Halike1 Hheld Hloops. revert Hclosed' Halike1'.
-  generalize (loopify_unit G before). clear before.
+  clear Hclosed Halike1 Hheld Hloops Hclosed0 Halike0.
+  revert Hclosed' Halike1'.
+  generalize (loopify_unit G (demote_stub_calls before)). clear before.
   intros before Hclosed Halike1.
   destruct (normalise_before_equivariant_up_to rounds kept r1 before Hclosed)
     as (r' & Halike_b & Heq).
