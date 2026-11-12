@@ -1,9 +1,9 @@
 # N3, on the side of the types: status
 
-Owner: N3, on `flambda2-rocq/N3-types`. The status of the validator's
-side of the same stream is `status/N3.md`. N1 leads the work on names.
+Owner: N3. The status of the validator's side of the same stream is
+`status/N3.md`. N1 leads the work on names.
 
-This branch is on the integration branch.
+What this file describes is merged.
 
 The task: what the work on names asks of everything that holds names,
 for the typing environment: its renaming, its free names, and that its
@@ -16,9 +16,11 @@ and `FlambdaEnvRenameProofs.v`; for the meet, four files of lemmas,
 `FlambdaEnvRenameMeetProductsProofs.v` and
 `FlambdaEnvRenameMeetValuesProofs.v` (below); for the join,
 `FlambdaEnvRenameJoinSpec.v` and `FlambdaEnvRenameJoinProofs.v`,
-`FlambdaTypeProjectRenameProofs.v`, and `FlambdaJoinMeetRenameSpec.v`
-and `FlambdaJoinMeetRenameProofs.v` (below). No file of another owner
-is edited.
+`FlambdaTypeProjectRenameProofs.v`, `FlambdaJoinMeetRenameSpec.v`
+and `FlambdaJoinMeetRenameProofs.v`, and an example,
+`FlambdaJoinMeetRenameExampleSpec.v` and
+`FlambdaJoinMeetRenameExampleProofs.v` (below). No file of another
+owner is edited.
 
 ## Done
 
@@ -149,8 +151,12 @@ a join.
 
 - **The source of new names.** The join makes variables with a source
   that is one of its parameters. No function from the names to avoid
-  to a name commutes with every renaming (`no_source_commutes`), so
-  the join with one source cannot. What is stated: a renaming acts on
+  to a name commutes with every renaming (`no_source_commutes`),
+  which is a fact about the source alone: the equation of the join
+  cannot be proved with one source on both of its sides, function by
+  function. That the model's join with its one source does not answer
+  the renamed answer is shown by an example (below). What is stated:
+  a renaming acts on
   the source too (`rename_fresh`: the renaming undone on the names to
   avoid, the source asked, its answer renamed), and the join with the
   renamed source, of renamed arguments, answers the renamed answer.
@@ -190,6 +196,12 @@ a join.
   renamed source, of a renamed environment and renamed types, answers
   the renamed answer (`model_meet_related`); the same of the join
   that Simplify calls (`model_join_related`).
+- **`FlambdaJoinMeetRenameExampleSpec.v`** (three statements, each a
+  computation): a join of the model that makes a variable; with the
+  model's source, its answer of the inputs renamed by an exchange of
+  that variable with one that is nowhere in them is not the renamed
+  answer; with the source renamed it is. Nothing is proved of another
+  source.
 
 Not stated: that the join or the meet with ONE source answers, of
 renamed arguments, the answer renamed up to the variables made. It
@@ -222,8 +234,7 @@ renaming of the variables made.
    `FlambdaTypingEnv*` are patterns of other owners in `OWNERS.md`.
 3. **The base was at first the series with the renaming of types**,
    not the integration tip of that time: the action on an environment
-   needs that renaming. That series is merged, and the branch is on
-   the integration branch.
+   needs that renaming. That series is merged.
 4. **Statements are written with the renaming of a name of the types'
    file** (`FlambdaTypeRenameSpec.rename_name`). The file of the
    aliases had the same function under the same name; its owner has
@@ -289,6 +300,12 @@ signed them, and asked for two repairs of comments (the file cited for
 compiler's two structures with a renaming). They are folded into the
 commits they belong to. The statement about `types_well_formed_b` was
 added after that and is to be read.
+
+The reviewer read and signed the twenty-three statements of the join
+under renaming, after one repair of the header (what the theorem on
+sources of new names does and does not say of the join as a whole),
+and found the example of the join with one source, which it then
+read and signed as three statements.
 
 ## Obstacles
 
