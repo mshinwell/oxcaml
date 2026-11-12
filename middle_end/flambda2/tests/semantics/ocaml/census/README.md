@@ -150,13 +150,14 @@ function that the unit exports takes any number.
 
 Seeds 1 to 60 of each, 240 units, on 2026-11-12. No unit on which the
 two runs differ, none undefined before Simplify, none on which the
-tool gave no answer once two of them were run again alone. Of
-`loops_scalar`, seed 55, the tool says nothing within the 60 seconds
-that `run.sh` allows a unit: alone it answers in about 70 seconds,
-16 of them of processor time of its own. Of `loops`, seed 40, it
-answers in 50 seconds alone, and said nothing within 60 where eight
-units were run at a time. Neither is validated, with the output
-that each had before; they are counted so below.
+tool gave no answer after two units that timed out were run again.
+Of `loops_scalar`, seed 55, the tool says nothing within the 60
+seconds that `run.sh` allows a unit: run on its own it answers in
+about 70 seconds, 16 of them of processor time of its own. Of
+`loops`, seed 40, it said nothing within 60 seconds where eight
+units were run at a time, and answered in 50 when the two units
+that had timed out were run again together. Neither is validated,
+with the output that each had before; they are counted so below.
 
 | Profile | Units | Validated | Validated with its imports | Validated with nothing imported only | Not validated | Not checked |
 |---------|-------|-----------|----------------------------|--------------------------------------|---------------|-------------|
