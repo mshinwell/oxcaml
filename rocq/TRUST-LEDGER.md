@@ -718,12 +718,16 @@ checked by an extracted function, and `validate_unit_sound` and
   the conversion notes it): checked by `loopify_unit`, which leaves
   alone the code that is not `loopable` with the name given.
 
-The guesses are made from the two terms as `convert_both` gives them
-(for `validate_unit_knowing`, from those two terms normalised by
-`normalise_knowing`, which the tool computes again for the purpose),
-so a code id or a symbol of the term after that a guess names is named
-by the numbering above. That identification of names is trusted, as
-said there; a guess adds nothing to it.
+The guesses are made from the two terms as `convert_both` gives them,
+or from what extracted functions of the validation make of them, which
+the tool computes again for the purpose: the term before with its loops
+made, normalised, with the liftings made so far, and with its
+continuations placed and tidied; the term after normalised; and for
+`validate_unit_knowing` the same of the two terms normalised by
+`normalise_knowing`. A symbol or a code id taken from the term after is
+used in a guess with the number assigned by the conversion above. That
+identification of names is trusted, as said there; a guess adds nothing
+to it.
 
 ## The SSA loop passes
 
