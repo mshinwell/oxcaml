@@ -163,12 +163,15 @@ val handler_metadata_eqb : handler_metadata -> handler_metadata -> bool
 type code_metadata =
   { cm_params_arity : arity;
     cm_result_arity : arity;
-    cm_is_tupled : bool
+    cm_is_tupled : bool;
+    cm_is_stub : bool
   }
 
 val make_code_metadata : arity -> arity -> code_metadata
 
 val make_tupled_code_metadata : arity -> arity -> code_metadata
+
+val stub_code_metadata : code_metadata -> code_metadata
 
 val code_metadata_eqb : code_metadata -> code_metadata -> bool
 

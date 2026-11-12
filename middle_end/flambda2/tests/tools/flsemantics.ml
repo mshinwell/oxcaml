@@ -108,7 +108,12 @@
    imports"; the comparison of the two runs shown is then a test and no more,
    and the unit before is run from the empty static environment as well, to say
    whether the validation with nothing imported is of a term that is
-   undefined. *)
+   undefined.
+
+   Stubs. The conversion gives code the compiler's flag that says whether it is
+   a stub ([Code.stub]). The machine does not read it and the checks of
+   well-formedness do not; the comparison of the validator does, so two terms
+   that differ in it are not the same. *)
 
 (* The matches below name the few constructs and primitives the model has and
    send every other to [unsupported]; they are meant to stay as they are when
@@ -1096,9 +1101,14 @@ and convert_code (code : Flambda.Function_params_and_body.t Code0.t) :
           Variables.find my_closure,
           Continuations.find return_continuation,
           Continuations.find exn_continuation,
-          (if is_tupled
-           then Model.make_tupled_code_metadata params_arity result_arity
-           else Model.make_code_metadata params_arity result_arity),
+          (let metadata =
+             if is_tupled
+             then Model.make_tupled_code_metadata params_arity result_arity
+             else Model.make_code_metadata params_arity result_arity
+           in
+           if Code0.stub code
+           then Model.stub_code_metadata metadata
+           else metadata),
           convert_expr body ))
 
 and convert_apply (apply : Apply_expr.t) : Model.expr =
@@ -1674,9 +1684,10 @@ and print_handler ppf (Model.Handler (params, metadata, handler)) =
 and print_binding ppf (binding : Model.static_binding) =
   match binding with
   | Bind_code (id, Code (params, my_closure, ret, exn, metadata, body)) ->
-    Format.fprintf ppf "@[<v 2>code%d%s (%a) %a -> %a * %a =@ %a@]"
+    Format.fprintf ppf "@[<v 2>code%d%s%s (%a) %a -> %a * %a =@ %a@]"
       (int_of_positive id)
       (if metadata.cm_is_tupled then " tupled" else "")
+      (if metadata.cm_is_stub then " stub" else "")
       (print_list print_var) params print_var my_closure print_cont ret
       print_cont exn print_expr body
   | Bind_deleted_code id ->

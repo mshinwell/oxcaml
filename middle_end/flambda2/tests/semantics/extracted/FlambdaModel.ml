@@ -427,7 +427,8 @@ let handler_metadata_eqb m m' =
 type code_metadata =
   { cm_params_arity : arity;
     cm_result_arity : arity;
-    cm_is_tupled : bool
+    cm_is_tupled : bool;
+    cm_is_stub : bool
   }
 
 (** val make_code_metadata : arity -> arity -> code_metadata **)
@@ -435,7 +436,8 @@ type code_metadata =
 let make_code_metadata params_arity result_arity =
   { cm_params_arity = params_arity;
     cm_result_arity = result_arity;
-    cm_is_tupled = false
+    cm_is_tupled = false;
+    cm_is_stub = false
   }
 
 (** val make_tupled_code_metadata : arity -> arity -> code_metadata **)
@@ -443,15 +445,26 @@ let make_code_metadata params_arity result_arity =
 let make_tupled_code_metadata params_arity result_arity =
   { cm_params_arity = params_arity;
     cm_result_arity = result_arity;
-    cm_is_tupled = true
+    cm_is_tupled = true;
+    cm_is_stub = false
+  }
+
+(** val stub_code_metadata : code_metadata -> code_metadata **)
+
+let stub_code_metadata m =
+  { cm_params_arity = m.cm_params_arity;
+    cm_result_arity = m.cm_result_arity;
+    cm_is_tupled = m.cm_is_tupled;
+    cm_is_stub = true
   }
 
 (** val code_metadata_eqb : code_metadata -> code_metadata -> bool **)
 
 let code_metadata_eqb m m' =
-  (arity_eqb m.cm_params_arity m'.cm_params_arity
-  && arity_eqb m.cm_result_arity m'.cm_result_arity)
-  && eqb m.cm_is_tupled m'.cm_is_tupled
+  ((arity_eqb m.cm_params_arity m'.cm_params_arity
+   && arity_eqb m.cm_result_arity m'.cm_result_arity)
+  && eqb m.cm_is_tupled m'.cm_is_tupled)
+  && eqb m.cm_is_stub m'.cm_is_stub
 
 type expr =
   | Let of variable * flambda_kind * named * expr

@@ -45,10 +45,9 @@
 
    What the model has not got is given the value that says least: no
    continuation sort but that of an exception handler, no inlining attribute,
-   size 0 for code, code that is neither recursive nor a stub, allocation on the
-   heap, no subkinds. Code gets a region variable and a depth variable of its
-   own, as the syntax asks for them; a call or an allocation in code names that
-   region.
+   size 0 for code, code that is not recursive, allocation on the heap, no
+   subkinds. Code gets a region variable and a depth variable of its own, as the
+   syntax asks for them; a call or an allocation in code names that region.
 
    What is covered: the terms that the conversion makes today. A term that is
    outside them, or that fexpr has no way to write, raises [Not_printable] with
@@ -1001,7 +1000,7 @@ and code env id (Model.Code (params, my_closure, ret, exn, metadata, body)) :
       };
     code_size = 0;
     is_tupled = metadata.cm_is_tupled;
-    stub = false;
+    stub = metadata.cm_is_stub;
     loopify = None;
     result_mode = Not_alloc_stack
   }
