@@ -947,12 +947,14 @@ What is stated and proved:
   `Meet.meet join choices fuel` whatever the join, the choices and
   the fuel.
 
-What is not stated: nothing about values; nothing for
-`compiler_choices`; nothing of the functions that add to a typing
-environment, whose contracts are about values throughout;
-and neither of `join_scoped_envs_sound` and `join_scoped_envs_keeps`
-is shown to imply the other (the first gives its conclusions only
-for a meet that loses no value).
+What is not stated: nothing about values; nothing that is kept for
+`compiler_choices` (of the meet with those choices only
+`meet_of_types_kinds`, which is for any choices, says anything);
+nothing of the functions that add to a typing environment, whose
+contracts are about values throughout; and neither of
+`join_scoped_envs_sound` and `join_scoped_envs_keeps` is shown to
+imply the other (the first gives its conclusions only for a meet
+that loses no value).
 
 How it is proved, which a reviewer of the signed statements may
 want to check. Above the layer of `Meet_env`, the statements of the

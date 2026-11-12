@@ -84,11 +84,13 @@
    ([meet_of_types_kinds_statement]).
 
    What is not stated. Nothing about values, by construction.
-   Nothing for the choices of the compiler ([compiler_choices]),
-   which the main theorem does not cover either. Nothing of the
-   functions that add to a typing environment: their contracts are
-   about values throughout, and no keeps-only form of them is
-   defined. A join that has
+   Nothing that is kept for the choices of the compiler
+   ([compiler_choices]), which the main theorem does not cover
+   either: of the meet with those choices only
+   [meet_of_types_kinds_statement], which is for any choices, says
+   anything. Nothing of the functions that add to a typing
+   environment: their contracts are about values throughout, and no
+   keeps-only form of them is defined. A join that has
    [join_scoped_envs_sound] is not thereby shown to have
    [join_scoped_envs_keeps]: the first gives its conclusions only for
    a meet that loses no value, the second for any meet that keeps;
