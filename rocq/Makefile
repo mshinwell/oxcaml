@@ -134,6 +134,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaFloatCodeSpec.v \
   FlambdaForwardJumpsProofs.v \
   FlambdaForwardJumpsSpec.v \
+  FlambdaForwardKindedProofs.v \
+  FlambdaForwardKindedSpec.v \
   FlambdaForwardProofs.v \
   FlambdaForwardSpec.v \
   FlambdaFreeNamesProofs.v \
