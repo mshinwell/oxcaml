@@ -33,9 +33,10 @@
    [read_slot], the rewrite, against the rule of scope of
    FlambdaStaticsInScopeSpec.v; [read_known_slots], which is extracted
    and run by the validation of middle_end/flambda2/tests/semantics/;
-   and the statements, the last three of which are the rewrite
-   computed on three small units: a slot read, a slot that one set
-   gives a variable, a symbol that is not in scope.
+   and the statements, the last five of which are the rewrite
+   computed on small units: a slot read, a slot that one set gives a
+   variable, a symbol that is not in scope, a projection in the code
+   of a stub, a set that the code of a stub makes.
 
    What Simplify does. It simplifies the code of a function where it
    simplifies the set of closures that the function is of, and gives
@@ -108,6 +109,22 @@
    (../types/rocq/FlambdaAliasesSpec.follow_aliases) and remove
    (FlambdaNormaliseSpec.remove_unused_lets). The set of closures keeps
    the slot.
+
+   The code of a stub is left as it is (FlambdaModel.code_is_stub, the
+   compiler's [Code.stub]). Unless [-flambda2-simplify-stubs] is
+   given, and by default it is not (driver/oxcaml_flags.ml), Simplify
+   does not simplify the code of a stub where it simplifies the set of
+   closures that the code is of (simplify/simplify_set_of_closures.ml,
+   [simplify_function]). It simplifies that code where it is bound
+   (simplify/simplify_static_const.ml, by
+   [Simplify_set_of_closures.simplify_static_stub_function]), and
+   there [my_closure] has an unknown type ([dacc_inside_function], the
+   case of no function slot): a projection from it stays a projection.
+   The sets of closures that the code of a stub makes are read with
+   all the others, for what is known and for the check: a closure that
+   a stub makes may reach code that is no stub, which reads its slots.
+   Nothing is believed of the flag: leaving a projection where it is
+   refines whatever code the flag is set on (discrepancy C3-11).
 
    The unit rewritten refines the unit, run on its own
    ([read_known_slots_program_refines_statement]). It is not an
@@ -287,11 +304,11 @@ Definition read_slot (known : known_slots) (syms : list symbol) (d : named)
     d
   end.
 
-(* Every [Let] of the expression, in handlers and in code too. The
-   symbols in scope are those of
-   FlambdaStaticsInScopeSpec.expr_statics_in_scope: in the code and in
-   the body of a group, all that the group binds; in a handler of a
-   [Let_cont], what the body of the [Let_cont] binds. *)
+(* Every [Let] of the expression, in handlers and in code too, but for
+   the code of a stub, which is left as it is. The symbols in scope
+   are those of FlambdaStaticsInScopeSpec.expr_statics_in_scope: in
+   the code and in the body of a group, all that the group binds; in a
+   handler of a [Let_cont], what the body of the [Let_cont] binds. *)
 Fixpoint read_slots (known : known_slots) (syms : list symbol) (e : expr)
     {struct e} : expr :=
   match e with
@@ -326,7 +343,9 @@ with read_slots_in_handler (known : known_slots) (syms : list symbol)
 with read_slots_in_binding (known : known_slots) (syms : list symbol)
     (binding : static_binding) {struct binding} : static_binding :=
   match binding with
-  | Bind_code id c => Bind_code id (read_slots_in_code known syms c)
+  | Bind_code id c =>
+    if code_is_stub c then binding
+    else Bind_code id (read_slots_in_code known syms c)
   | Bind_deleted_code _ | Bind_symbol _ _ => binding
   end
 with read_slots_in_code (known : known_slots) (syms : list symbol) (c : code)
@@ -479,10 +498,10 @@ Definition read_known_slots_equivariant_statement : Prop :=
     read_known_slots (rename_expr r e) = rename_expr r (read_known_slots e).
 
 (* ======================================================================== *)
-(* Three units                                                              *)
+(* Five units                                                               *)
 (* ======================================================================== *)
 
-(* What the rewrite makes of three small units, computed. In each, the
+(* What the rewrite makes of five small units, computed. In each, the
    code [reader] is that of a closure with two value slots, which it
    projects from [my_closure]; the code [maker] makes that closure,
    with what it is given in the first slot and its parameter in the
@@ -574,5 +593,45 @@ Definition read_known_slots_variable_statement : Prop :=
 Definition read_known_slots_out_of_scope_statement : Prop :=
   statics_in_scope [] example_out_of_scope = true
   ∧ read_known_slots example_out_of_scope = example_out_of_scope.
+
+(* The same code, marked as a stub. *)
+Definition example_stub (c : code) : code :=
+  match c with
+  | Code params my_closure ret exn metadata body =>
+    Code params my_closure ret exn (stub_code_metadata metadata) body
+  end.
+
+(* The first unit, with the code of the closure a stub. *)
+Definition example_stub_reads : expr :=
+  Let_static
+    [Bind_code reader
+       (example_stub
+          (example_reader (Project_value_slot first_slot (Var my_closure))));
+     Bind_code maker (example_maker (Symbol held));
+     Bind_symbol held example_block]
+    (Apply_cont (Apply_cont_expr done [Symbol held] None)).
+
+(* Where the code that projects the slot is a stub, the projection is
+   left, though every set gives the slot the symbol and the symbol is
+   in scope. *)
+Definition read_known_slots_in_stub_statement : Prop :=
+  read_known_slots example_stub_reads = example_stub_reads.
+
+(* The second unit, with the code that gives the slot a variable a
+   stub. *)
+Definition example_stub_makes : expr :=
+  Let_static
+    [Bind_code reader
+       (example_reader (Project_value_slot first_slot (Var my_closure)));
+     Bind_code maker (example_maker (Symbol held));
+     Bind_code other_maker (example_stub (example_maker (Var x)));
+     Bind_symbol held example_block]
+    (Apply_cont (Apply_cont_expr done [Symbol held] None)).
+
+(* A set that the code of a stub makes counts as any other: where it
+   gives the slot a variable, nothing is read, in code that is no stub
+   either. *)
+Definition read_known_slots_stub_makes_statement : Prop :=
+  read_known_slots example_stub_makes = example_stub_makes.
 
 End Examples.

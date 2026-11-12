@@ -645,8 +645,9 @@ Proof.
                | sym const]
                bindings IH];
         cbn [map forallb]; [ reflexivity | | | ].
-      * cbn [read_slots_in_binding read_slots_in_code binding_slots_as
-               code_slots_as].
+      * cbn [read_slots_in_binding code_is_stub].
+        destruct (cm_is_stub metadata); [ rewrite IH; reflexivity | ].
+        cbn [read_slots_in_code binding_slots_as code_slots_as].
         rewrite (read_slots_slots_as_expr known known' code_body), IH.
         reflexivity.
       * cbn [read_slots_in_binding]. rewrite IH. reflexivity.
@@ -681,8 +682,9 @@ Proof.
            | sym const]
            bindings IH];
     cbn [map forallb]; [ reflexivity | | | ].
-  - cbn [read_slots_in_binding read_slots_in_code binding_slots_as
-           code_slots_as].
+  - cbn [read_slots_in_binding code_is_stub].
+    destruct (cm_is_stub metadata); [ rewrite IH; reflexivity | ].
+    cbn [read_slots_in_code binding_slots_as code_slots_as].
     rewrite read_slots_slots_as_expr, IH. reflexivity.
   - cbn [read_slots_in_binding]. rewrite IH. reflexivity.
   - cbn [read_slots_in_binding]. rewrite IH. reflexivity.
@@ -701,8 +703,8 @@ Proof.
   - rewrite (read_slots_binds_statics known body). f_equal.
     generalize (flat_map symbols_of_binding bindings ++ syms). intros all.
     induction bindings as [ | [id c | id | sym const] bindings IH];
-      cbn [map existsb read_slots_in_binding binding_binds];
-      congruence.
+      cbn [map existsb read_slots_in_binding];
+      try destruct (code_is_stub c); cbn [binding_binds]; congruence.
   - destruct h as [params metadata handler].
     cbn [read_slots_in_handler handler_binds_statics].
     rewrite !read_slots_binds_statics. reflexivity.
@@ -842,7 +844,16 @@ Proof.
                  | sym const]
                  bindings IH];
           intros done Hdone; cbn [map]; [ apply refines_refl | | | ].
-        - cbn [read_slots_in_binding read_slots_in_code].
+        - cbn [read_slots_in_binding code_is_stub].
+          destruct (cm_is_stub metadata).
+          { (* The code of a stub is left. *)
+            specialize
+              (IH
+                 (done
+                  ++ [Bind_code id
+                        (Code params my_closure ret exn metadata code_body)])).
+            rewrite <- !app_assoc in IH. cbn [app] in IH. exact (IH Hdone). }
+          cbn [read_slots_in_code].
           pose proof
             (slots_inv_let_static_code done bindings id params my_closure ret
                exn metadata code_body all body vars conts statics _ Hdone)
@@ -1050,7 +1061,8 @@ Lemma read_slots_binding_names (known : known_slots) (syms : list symbol)
   names_of (read_slots_in_binding known syms binding) = names_of binding.
 Proof.
   destruct binding as [id c | id | sym const]; cbn [read_slots_in_binding];
-    [ apply names_of_code | reflexivity | reflexivity ].
+    [ destruct (code_is_stub c); [ reflexivity | apply names_of_code ]
+    | reflexivity | reflexivity ].
 Qed.
 
 Lemma read_slots_bindings_names (known : known_slots) (syms : list symbol)
@@ -1106,9 +1118,9 @@ Lemma read_slots_group_consts (known : known_slots) (syms : list symbol)
     = group_consts_in_scope before all ids bindings.
 Proof.
   induction bindings as [ | [id c | id | sym const] bindings IH];
-    intros before;
-    cbn [map read_slots_in_binding group_consts_in_scope];
-    [ reflexivity | apply IH | apply IH | ].
+    intros before; cbn [map read_slots_in_binding];
+    try destruct (code_is_stub c); cbn [group_consts_in_scope];
+    [ reflexivity | apply IH | apply IH | apply IH | ].
   destruct (is_closure_const const); rewrite IH; reflexivity.
 Qed.
 
@@ -1151,8 +1163,10 @@ Proof.
           cbn [map forallb]; [ reflexivity | | | ]; intros Hcode;
           apply andb_true_iff in Hcode as [Hc Hrest];
           apply andb_true_iff; (split; [ | exact (IH Hrest) ]).
-        - cbn [read_slots_in_binding read_slots_in_code
-                 binding_statics_in_scope code_statics_in_scope] in Hc |- *.
+        - cbn [read_slots_in_binding code_is_stub].
+          destruct (cm_is_stub metadata); [ exact Hc | ].
+          cbn [read_slots_in_code binding_statics_in_scope
+                 code_statics_in_scope] in Hc |- *.
           exact (read_slots_in_scope_expr known code_body all all' ids' Hall
                    Hc).
         - reflexivity.
@@ -1539,7 +1553,9 @@ Proof.
                  bindings IH];
           cbn [map]; [ reflexivity | | | ]; rewrite IH; f_equal.
         cbn [rename_static_binding rename_code read_slots_in_binding
-               read_slots_in_code].
+               code_is_stub].
+        destruct (cm_is_stub metadata); [ reflexivity | ].
+        cbn [rename_static_binding rename_code read_slots_in_code].
         rewrite (read_slots_renamed r known Hclosed code_body).
         reflexivity. }
       rewrite
@@ -1590,7 +1606,7 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
-(* Three units                                                              *)
+(* Five units                                                               *)
 (* ======================================================================== *)
 
 Theorem read_known_slots_reads : read_known_slots_reads_statement.
@@ -1602,3 +1618,9 @@ Proof. reflexivity. Qed.
 Theorem read_known_slots_out_of_scope :
   read_known_slots_out_of_scope_statement.
 Proof. split; reflexivity. Qed.
+
+Theorem read_known_slots_in_stub : read_known_slots_in_stub_statement.
+Proof. reflexivity. Qed.
+
+Theorem read_known_slots_stub_makes : read_known_slots_stub_makes_statement.
+Proof. reflexivity. Qed.

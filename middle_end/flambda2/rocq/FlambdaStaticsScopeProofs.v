@@ -817,7 +817,10 @@ Proof.
                | sym const]
                bindings IH];
         cbn [map]; [ apply scoped_bindings_nil | | | ].
-      * cbn [read_slots_in_binding read_slots_in_code].
+      * cbn [read_slots_in_binding code_is_stub].
+        destruct (cm_is_stub metadata);
+          [ apply scoped_bindings_cons_same, IH | ].
+        cbn [read_slots_in_code].
         apply scoped_bindings_cons_code; [ | exact IH ].
         apply scoped_code_intro, read_slots_scoped, Hclosed.
       * apply scoped_bindings_cons_same, IH.
