@@ -4856,6 +4856,22 @@ let generate_alike (names : names) r (kind : MK.flambda_kind) :
   in
   if G.chance r ~percent:50 then t, other else other, t
 
+(* Types that are alike in another way: each is one of the smaller types that
+   the shrinker gives for one type, so that each may say something that the
+   others do not. *)
+let generate_siblings (names : names) r (kind : MK.flambda_kind) :
+    MT.flambda_type * MT.flambda_type * MT.flambda_type =
+  let config : G.config = { well_formed = true; depth = 3 } in
+  let t = G.type_of_kind config r names.pool kind in
+  let smaller =
+    List.filter (fun t' -> Stdlib.( = ) (MT.kind t') kind) (G.shrink t)
+  in
+  let one () = match smaller with [] -> t | _ :: _ -> G.pick r smaller in
+  let first = one () in
+  let second = one () in
+  let third = one () in
+  first, second, third
+
 type meet_in_an_environment =
   { equations : (MT.name * MT.flambda_type) list;
     met : MT.flambda_type * MT.flambda_type
@@ -6035,8 +6051,9 @@ let () =
         let config : G.config = { well_formed = true; depth = 2 } in
         let aliases, equations =
           match shape with
-          | `None | `Cases | `Alike -> false, []
-          | `Types | `Alike_with_equations -> false, generate_equations names r
+          | `None | `Cases | `Alike | `Siblings -> false, []
+          | `Types | `Alike_with_equations | `Siblings_with_equations ->
+            false, generate_equations names r
           | `Aliases -> true, generate_aliases names r
         in
         (* With the aliases, one of the two types is often an alias too. *)
@@ -6051,6 +6068,11 @@ let () =
             (match shape with
             | `Cases -> generate_meet_of_cases names r
             | `Alike | `Alike_with_equations -> generate_alike names r kind
+            | `Siblings | `Siblings_with_equations ->
+              let first, second, (_ : MT.flambda_type) =
+                generate_siblings names r kind
+              in
+              first, second
             | `None | `Types | `Aliases -> side (), side ())
         })
       ~prepare:(fun ({ equations; met = m1, m2 } as input) ->
@@ -6110,11 +6132,22 @@ let () =
        meet of the model and the n-way meet of the compiler"
     ~seed:116000 ~count:500 ~equations:`Alike
     (MK.Naked_number Kind_naked_immediate);
+  model_and_compiler
+    ~title:
+      "Two smaller types made from one type of kind value, for the meet of the \
+       model and the n-way meet of the compiler"
+    ~seed:122000 ~count:1000 ~equations:`Siblings MK.Value;
+  model_and_compiler
+    ~title:
+      "Equations on variables, then two smaller types made from one type of \
+       kind value, for the meet of the model and the n-way meet of the \
+       compiler"
+    ~seed:124000 ~count:1000 ~equations:`Siblings_with_equations MK.Value;
   examples_of_joins_in_the_model names;
   chosen_joins_in_the_model names;
   control_of_the_joins names;
   let model_join_and_compiler ~title ~seed ~count ~known ?(binds = false)
-      ?(alike = false) kind =
+      ?(alike = false) ?(siblings = false) kind =
     let local = Converter.variable_to_model names.numbering names.local in
     run ~title ~seed ~count
       ~generate:(fun r ->
@@ -6129,10 +6162,15 @@ let () =
         let alike_types =
           if alike then Some (generate_alike names r kind) else None
         in
+        let sibling_types =
+          if siblings then Some (generate_siblings names r kind) else None
+        in
         let passed i =
-          match alike_types with
-          | None -> G.type_of_kind config r names.pool kind
-          | Some (one, other) -> (
+          match sibling_types, alike_types with
+          | Some (first, second, third), _ ->
+            if i = 0 then first else if i = 1 then second else third
+          | None, None -> G.type_of_kind config r names.pool kind
+          | None, Some (one, other) -> (
             if i = 0
             then one
             else if i = 1
@@ -6225,6 +6263,17 @@ let () =
       "The same with uses that know equations on variables, for the join of \
        the model and the n-way join of the compiler"
     ~seed:120000 ~count:1000 ~known:true ~alike:true MK.Value;
+  model_join_and_compiler
+    ~title:
+      "Two or three uses that each pass a smaller type made from one type of \
+       kind value, for the join of the model and the n-way join of the \
+       compiler"
+    ~seed:128000 ~count:1000 ~known:false ~siblings:true MK.Value;
+  model_join_and_compiler
+    ~title:
+      "The same with uses that know equations on variables, for the join of \
+       the model and the n-way join of the compiler"
+    ~seed:130000 ~count:1000 ~known:true ~siblings:true MK.Value;
   let with_itself ~title sharing =
     run ~title ~seed:70000 ~count:1500
       ~generate:(fun r ->

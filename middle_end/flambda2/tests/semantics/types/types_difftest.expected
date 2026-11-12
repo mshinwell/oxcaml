@@ -1206,6 +1206,72 @@ A type of naked immediates and a smaller type made from it, for the meet of the 
   of which those where a variable that was made is mentioned: 0 agree
   meet: the model and the binary meet of the compiler: 483 agree
 
+Two smaller types made from one type of kind value, for the meet of the model and the n-way meet of the compiler (1000 cases, seeds 122000 to 122999)
+  2 not converted: not in the compiler: a head of naked immediates with no number
+  1 not converted: not in the compiler: a head with no number (a nativeint)
+  1 not converted: not in the compiler: a head with no number (the bits of a mask)
+  1 not converted: not in the compiler: a head with no number (the bits of a vecN)
+  995 converted
+  meet: the model and the n-way meet of the compiler: 995 agree
+  of which those where the meet is not bottom: 976 agree
+  of which those where a variable that was made is mentioned: 0 agree
+  meet: the model and the binary meet of the compiler: 992 agree, 3 disagree as recorded
+    recorded as the binary meet, which the model does not transcribe, answers otherwise (seed 122061): what is seen of the two answers is not the same
+    on the shrunk input:
+    (Value
+     ((Variant (is_int None) (immediates Unknown) (get_tag None)
+       (blocks (Known
+                ((known_tags [1 ->
+                               (Known
+                                ((At_least 2) Value_only []
+                                 [$1 ->
+                                   (Value
+                                    ((Variant (is_int None)
+                                      (immediates Unknown) (get_tag None)
+                                      (blocks Unknown)
+                                      (extensions No_extensions)
+                                      (is_unique false)) Not_null))]))])
+                 (other_tags Bottom) (alloc_mode Heap_or_local))))
+       (extensions No_extensions) (is_unique false)) Not_null))
+    and
+    (Value
+     ((Variant (is_int None) (immediates Unknown) (get_tag None)
+       (blocks (Known
+                ((known_tags [1 -> Unknown]) (other_tags Bottom)
+                 (alloc_mode Heap_or_local)))) (extensions No_extensions)
+       (is_unique false)) Not_null))
+
+Equations on variables, then two smaller types made from one type of kind value, for the meet of the model and the n-way meet of the compiler (1000 cases, seeds 124000 to 124999)
+  5 not converted: not in the compiler: a head of naked immediates with no number
+  1 not converted: not in the compiler: a head with no number (a nativeint)
+  3 not converted: not in the compiler: a head with no number (an intN)
+  1 not converted: not in the compiler: a head with no number (the bits of a floatN)
+  1 not converted: not in the compiler: a head with no number (the bits of a vecN)
+  989 converted
+  meet: the model and the n-way meet of the compiler: 989 agree
+  of which those where the meet is not bottom: 671 agree
+  of which those where a variable that was made is mentioned: 0 agree
+  meet: the model and the binary meet of the compiler: 988 agree, 1 disagree as recorded
+    recorded as the binary meet, which the model does not transcribe, answers otherwise (seed 124361): what is seen of the two answers is not the same
+    on the shrunk input:
+    (Value
+     ((Closures
+       [2 ->
+         ((At_least (closures [2; 1] value_slots [2]))
+          ((function_types []) (closure_types []) (value_slot_types [])) 
+          [])] Heap_or_local) Not_null))
+    and
+    (Value
+     ((Closures
+       [2 ->
+         ((At_least (closures [2; 1] value_slots [2]))
+          ((function_types []) (closure_types []) (value_slot_types []))
+          [$2 ->
+            (Value
+             ((Variant (is_int None) (immediates Unknown) (get_tag None)
+               (blocks Unknown) (extensions No_extensions) (is_unique false))
+              Not_null))])] Heap_or_local) Not_null))
+
 The join of the model beside the n-way join of the compiler, on the inputs of the examples of the join
   two sets of naked immediates: the same
   two sets of tagged immediates: the same
@@ -1399,6 +1465,59 @@ The same with uses that know equations on variables, for the join of the model a
                                   (other_tags Bottom) (alloc_mode Heap))))
                         (extensions No_extensions) (is_unique true))
                        (Maybe_null (Some v4))))
+
+Two or three uses that each pass a smaller type made from one type of kind value, for the join of the model and the n-way join of the compiler (1000 cases, seeds 128000 to 128999)
+  3 not converted: not in the compiler: a head of naked immediates with no number
+  2 not converted: not in the compiler: a head with no number (an intN)
+  2 not converted: not in the compiler: a head with no number (the bits of a floatN)
+  1 not converted: not in the compiler: a head with no number (the bits of a mask)
+  1 not converted: not in the compiler: a head with no number (the bits of a vecN)
+  991 converted
+  join: the model and the n-way join of the compiler: 991 agree
+  of which those where a variable that was made is mentioned: 5 agree
+  join: the model and the binary join of the compiler: 871 agree, 120 disagree as recorded
+    recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 128002): what is seen of the two answers is not the same
+    on the shrunk input:
+    a parameter of kind value
+    a use that passes (Value
+                       ((Variant (is_int None) (immediates Unknown)
+                         (get_tag None)
+                         (blocks (Known
+                                  ((known_tags []) (other_tags Bottom)
+                                   (alloc_mode Heap_or_local))))
+                         (extensions No_extensions) (is_unique false))
+                        Not_null))
+    a use that passes (Value
+                       ((Variant (is_int None) (immediates Unknown)
+                         (get_tag None)
+                         (blocks (Known
+                                  ((known_tags [3 ->
+                                                 (Known
+                                                  ((At_least 1) Value_only 
+                                                   [] [$1 -> (Value (= $1))]))])
+                                   (other_tags Bottom)
+                                   (alloc_mode Heap_or_local))))
+                         (extensions No_extensions) (is_unique false))
+                        Not_null))
+
+The same with uses that know equations on variables, for the join of the model and the n-way join of the compiler (1000 cases, seeds 130000 to 130999)
+  7 not converted: not in the compiler: a head of naked immediates with no number
+  1 not converted: not in the compiler: a head with no number (the bits of a floatN)
+  5 not converted: not in the compiler: a head with no number (the bits of a vecN)
+  987 converted
+  join: the model and the n-way join of the compiler: 986 agree
+    1 not run: neither answers (the model: no answer of the join; the compiler: a fatal error: Kind mismatch upon join: (Naked_float ([Nm[N;N;N;Nm=[Nm [Nm[N;N;N;Nmf/NN[Nm)) versus)
+  of which those where a variable that was made is mentioned: 56 agree
+  join: the model and the binary join of the compiler: 645 agree, 341 disagree as recorded
+    1 not run: neither answers
+    recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 130001): what is seen of the two answers is not the same
+    on the shrunk input:
+    a parameter of kind value
+    a use that passes (Value (Unknown (Maybe_null (Some v5))))
+    a use that passes (Value
+                       ((Boxed_number naked_float
+                         (Naked_number naked_float Unknown) Heap)
+                        (Maybe_null (Some v5))))
 
 A type of kind value with itself, shared and not (1500 cases, seeds 70000 to 71499)
   1500 converted
