@@ -431,6 +431,8 @@ Owner: N2.
   matches the pattern of N1's section, N1 agreeing: lemmas only, about
   a term that keeps the scope of another, for the proofs that a rewrite
   of the validation keeps scope)
+- `middle_end/flambda2/rocq/FlambdaValidateScope*` (N2's, though it is
+  about the rounds of `FlambdaValidateSpec.v`: each keeps scope)
 - `middle_end/flambda2/rocq/requests/N2-fresh-quantifier.md`
 
 ## N3: what commutes with renaming
