@@ -570,8 +570,11 @@ $(FLAMBDA2_EXTRACT:.v=.vo): $(FLAMBDA2_EXTRACT)
 # written to another file, which is renamed when rocq dep has succeeded:
 # a run that fails (rocq is not on the path, say) must not leave an empty
 # file that is newer than the sources, as later builds would take it for
-# the dependencies and rebuild nothing.
-$(DEPS): $(SOURCES)
+# the dependencies and rebuild nothing. They depend on this file too: a
+# file added to one of the lists above may be older than the dependencies
+# computed before it was listed, and would then be compiled without its
+# own.
+$(DEPS): $(SOURCES) $(firstword $(MAKEFILE_LIST))
 	$(ROCQ) dep $(FLAGS) $(SOURCES) > $@.tmp || { rm -f $@.tmp; exit 1; }
 	mv $@.tmp $@
 
