@@ -1917,8 +1917,22 @@ let unused_statics (e : Model.expr) : Unused_statics.dropped =
    The guess also says in which code [my_closure] is a symbol: the code of each
    closure that the term after binds statically, if the term before, once
    lifted, makes no other closure of that code
-   (FlambdaMyClosureSpec.only_closure_of). *)
-let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list)
+   (FlambdaMyClosureSpec.only_closure_of).
+
+   With [around], it also says which [Let]s outside code to make aliases of
+   symbols that a group of static bindings around them binds
+   (FlambdaLiftAroundSpec.lift_around_unit), in the term that the liftings above
+   give. A [Let] that makes just what a symbol bound around it is bound to, with
+   no variable of the constant bound since, is made an alias of that symbol: so
+   two [Let]s of one constant, or a [Let] and a constant that the unit binds
+   already, are one symbol. And in a handler that is not at toplevel, or the
+   handler of a recursive continuation, a symbol that is still to give goes to
+   the first [Let] that makes what the symbol is bound to and mentions no
+   variable bound in the handler: its binding is put before the [Let_cont] of
+   the outermost such handler around the [Let]. A group is given by the paths of
+   the [Let]s whose bindings make it. The caller asks for this from the second
+   lifting on, where the term is normalised. *)
+let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list) ~around
     (before : Model.expr) (after : Model.expr) : Lift.lifting =
   (* The symbols bound outside code, in the order in which they are bound when
      the term runs: the body of a [Let_cont] before its handler. *)
@@ -2219,12 +2233,138 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list)
         | Some _ | None -> None)
       (bound_symbols after)
   in
-  { lifting_unit = unit;
-    lifted_lets = lets;
-    lifted_my_closures = my_closures;
-    lifted_out_of_code = out_of_code;
-    lifted_to_head = to_head
-  }
+  let first : Lift.lifting =
+    { lifting_unit = unit;
+      lifted_lets = lets;
+      lifted_my_closures = my_closures;
+      lifted_out_of_code = out_of_code;
+      lifted_to_head = to_head;
+      lifted_around = [];
+      groups_put = []
+    }
+  in
+  (* [known] has the symbols that the groups around a place bind, each with its
+     constant, less those whose constant mentions a variable bound since. [arm]
+     is the path of the [Let_cont] of the outermost handler around the place
+     that is not at toplevel, with the variables bound since. *)
+  let lifted = Validate.with_lifting first before in
+  let bound_lifted = List.map fst (bound_symbols lifted) in
+  let left =
+    ref (List.filter (fun (sym, _) -> not (List.mem sym bound_lifted)) !to_give)
+  in
+  let aliases = ref [] in
+  let places : (Lift.path * Lift.path list) list ref = ref [] in
+  let put at_path let_path =
+    let before_it =
+      match List.assoc_opt at_path !places with
+      | Some paths -> paths
+      | None -> []
+    in
+    places
+      := (at_path, before_it @ [let_path])
+         :: List.filter (fun (path', _) -> path' <> at_path) !places
+  in
+  let mentions bound (const : Model.static_const) =
+    List.exists
+      (fun x -> List.mem x bound)
+      (Binders.free_variables_of_static_const const)
+  in
+  let forget bound known =
+    List.filter (fun (_, const) -> not (mentions bound const)) known
+  in
+  let const_of (d : Model.named) sym =
+    match Lift.lift_named (Lift_to_symbol sym) d with
+    | Some ([Bind_symbol (_, const)], _) -> Some const
+    | Some _ | None -> None
+  in
+  let makes (d : Model.named) (const : Model.static_const) =
+    match d, const with
+    | ( Prim (Variadic (Make_block (Block_kind_values tag)), fields),
+        Static_const_block (tag', fields') ) ->
+      tag = tag' && fields_agree fields fields'
+    | ( Prim (Unary (Box_number _), [contents]),
+        Static_const_boxed_number contents' ) ->
+      fields_agree [contents] [contents']
+    | Set_of_closures (code, slots), Static_const_set_of_closures (code', slots')
+      ->
+      code = code'
+      && List.map fst slots = List.map fst slots'
+      && fields_agree (List.map snd slots) (List.map snd slots')
+    | _ -> false
+  in
+  let rec scan known arm (path : Numbers.positive) (e : Model.expr) =
+    match e with
+    | Let (x, _, d, body) ->
+      let known =
+        match
+          List.find_opt (fun (sym, const) -> const_of d sym = Some const) known
+        with
+        | Some (sym, _) ->
+          aliases := (path, Lift.Lift_to_symbol sym) :: !aliases;
+          known
+        | None -> (
+          match arm with
+          | Some (arm_path, bound)
+            when not
+                   (List.exists
+                      (fun x -> List.mem x bound)
+                      (Binders.free_variables_of_named d)) -> (
+            match List.find_opt (fun (_, const) -> makes d const) !left with
+            | Some (sym, _) -> (
+              match const_of d sym with
+              | Some const ->
+                left := List.filter (fun (sym', _) -> sym' <> sym) !left;
+                aliases := (path, Lift.Lift_to_symbol sym) :: !aliases;
+                put arm_path path;
+                (sym, const) :: known
+              | None -> known)
+            | None -> known)
+          | Some _ | None -> known)
+      in
+      let arm =
+        Option.map (fun (arm_path, bound) -> arm_path, x :: bound) arm
+      in
+      scan (forget [x] known) arm (Numbers.Coq_xO path) body
+    | Let_static (bindings, body) ->
+      let known =
+        List.filter_map
+          (fun (binding : Model.static_binding) ->
+            match binding with
+            | Bind_symbol (sym, const) -> Some (sym, const)
+            | Bind_code _ | Bind_deleted_code _ -> None)
+          bindings
+        @ known
+      in
+      scan known arm (Numbers.Coq_xO path) body
+    | Let_cont_non_recursive (k, (Handler (params, _, handler) as h), body) ->
+      let arm' =
+        match arm with
+        | Some (arm_path, bound) -> Some (arm_path, params @ bound)
+        | None ->
+          if Well_formed.handler_at_toplevel unit.Well_formed.unit_exn k h body
+          then None
+          else Some (path, params)
+      in
+      scan (forget params known) arm' (Numbers.Coq_xI path) handler;
+      scan known arm (Numbers.Coq_xO path) body
+    | Let_cont_recursive (handlers, body) ->
+      scan known arm (Numbers.Coq_xO path) body;
+      ignore
+        (List.fold_left
+           (fun q (_, Model.Handler (params, _, handler)) ->
+             let arm' =
+               match arm with
+               | Some (arm_path, bound) -> Some (arm_path, params @ bound)
+               | None -> Some (path, params)
+             in
+             scan (forget params known) arm' (Numbers.Coq_xO q) handler;
+             Numbers.Coq_xI q)
+           (Numbers.Coq_xI path) handlers
+          : Numbers.positive)
+    | Apply _ | Apply_cont _ | Switch _ | Invalid -> ()
+  in
+  if around then scan [] None Lift.root lifted;
+  { first with lifted_around = List.rev !aliases; groups_put = !places }
 
 (* ---- Value slots that Simplify removed --------------------------------- *)
 
@@ -2483,7 +2623,9 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
       lifted_lets = [];
       lifted_my_closures = [];
       lifted_out_of_code = [];
-      lifted_to_head = []
+      lifted_to_head = [];
+      lifted_around = [];
+      groups_put = []
     }
   in
   (* The code to loopify. *)
@@ -2564,18 +2706,19 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
       (* The liftings, in turn, as [validate_unit] makes them. The first is
          guessed from the term before after its self tail calls are made jumps;
          each one after it from the term that those before it give, normalised:
-         for the [Let]s that inlining a call has brought out of a function. One
-         is tried after the first only if it lifts something, and there are
-         three at most. After each, as [validate_unit] does, the value slots of
-         static closures are read and what the unit binds its symbols to is used
-         in every round of the normalisation. The rounds are told, as
-         [validate_unit] tells them, not to make a name that is one of the two
-         continuations of the unit: every lifting has the unit of the term
-         before, and a name made is the one after the greatest of those to avoid
-         and of the term, so the names made here are those that [validate_unit]
-         makes whatever the number of liftings it is given. [banned] has, for
-         the liftings by their place in the sequence, the [Let]s that a symbol
-         is not to go to. *)
+         for the [Let]s that inlining a call has brought out of a function, and
+         for those to make aliases of symbols bound around them, which are
+         guessed from the second lifting on. A second is always tried; one after
+         it only if it lifts something; and there are four at most. After each,
+         as [validate_unit] does, the value slots of static closures are read
+         and what the unit binds its symbols to is used in every round of the
+         normalisation. The rounds are told, as [validate_unit] tells them, not
+         to make a name that is one of the two continuations of the unit: every
+         lifting has the unit of the term before, and a name made is the one
+         after the greatest of those to avoid and of the term, so the names made
+         here are those that [validate_unit] makes whatever the number of
+         liftings it is given. [banned] has, for the liftings by their place in
+         the sequence, the [Let]s that a symbol is not to go to. *)
       let avoid =
         let unit = interface before in
         [unit.unit_return; unit.unit_exn]
@@ -2588,6 +2731,7 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
                  (fun (stage', path, sym) ->
                    if stage' = stage then Some (path, sym) else None)
                  banned)
+            ~around:(match made with [] -> false | _ :: _ -> true)
             lifted normalised_after
         in
         let stop =
@@ -2597,23 +2741,25 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
               lifting.lifted_lets,
               lifting.lifted_my_closures,
               lifting.lifted_out_of_code,
-              lifting.lifted_to_head )
+              lifting.lifted_to_head,
+              lifting.lifted_around )
           with
-          | 0, _, _, _, _, _ | _, _ :: _, [], [], [], [] -> true
-          | _, _, _, _, _, _ -> false
+          | 0, _, _, _, _, _, _ | _, _ :: _, [], [], [], [], [] -> true
+          | _, _, _, _, _, _, _ -> false
         in
         if stop
         then List.rev made, lifted
         else
           (* As [validate_unit] applies a lifting: to the head of the unit, out
-             of code, then where the [Let]s stand. The sequence ends here if the
-             term comes back as the same value in memory. That comparison of two
-             pointers is a shortcut of this search, which is bounded and not
-             trusted. It says nothing of the checks of a lifting: a lifting
-             whose checks pass may give the same term back, and then the search
-             stops; one that gives a term rebuilt but equal may continue. *)
+             of code, where the [Let]s stand, then to groups around them. After
+             the first lifting, the sequence ends here if the term comes back as
+             the same value in memory. That comparison of two pointers is a
+             shortcut of this search, which is bounded and not trusted. It says
+             nothing of the checks of a lifting: a lifting whose checks pass may
+             give the same term back, and then the search stops; one that gives
+             a term rebuilt but equal may continue. *)
           let lifted' = Validate.with_lifting lifting lifted in
-          if lifted' == lifted
+          if lifted' == lifted && match made with [] -> false | _ :: _ -> true
           then List.rev made, lifted
           else
             liftings_from banned (stage + 1) (lifting :: made)
@@ -2628,7 +2774,7 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
          lifted: the sequence is guessed again with that [Let] banned for it, a
          few times at most. *)
       let rec guessed banned again =
-        let liftings, lifted = liftings_from banned 0 [] looped 3 in
+        let liftings, lifted = liftings_from banned 0 [] looped 4 in
         (* After the last lifting [validate_unit] demotes the exception handlers
            that no call can raise to, and then places the continuations and
            tidies. *)
@@ -2666,14 +2812,16 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
         if
           List.exists
             (fun (lifting : Lift.lifting) ->
-              match lifting.lifted_to_head with [] -> false | _ :: _ -> true)
+              match lifting.lifted_to_head, lifting.lifted_around with
+              | [], [] -> false
+              | _ :: _, _ | _, _ :: _ -> true)
             liftings
         then
-          (* Something was lifted to the head of the unit: the pair shown is
-             that of the last comparison, of the two terms with their static
-             bindings that mention no variable bound first. An earlier
-             comparison may be the one that holds: the verdict is that of the
-             function asked alone. *)
+          (* Something was lifted to the head of the unit or to a group around:
+             the pair shown is that of the last comparison, of the two terms
+             with their static bindings that mention no variable bound first. An
+             earlier comparison may be the one that holds: the verdict is that
+             of the function asked alone. *)
           ( validation,
             Validate.with_statics_first liftings
               (Validate.without_statics unused lifted),
