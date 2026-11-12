@@ -39,8 +39,8 @@ remove bindings are proved from them.
 | The free names; the three conditions on binders; `alpha_equivalent` | `FlambdaAlphaSpec.v` | N1 |
 | The comparison `expr_eqb` | `FlambdaCompareAlphaSpec.v` | N1 |
 | The rewrites of the normalisation, the passes for loops, the checks of well-formedness (exception handlers and trap actions among them), the check of kinds, the normalisation of the term after and the first phase of that of the term before | `FlambdaValidatorEquivarianceSpec.v` | N3 |
-| The normalisation of the term before and that of a term in which something was lifted: up to the names that a round makes. `validate_unit`: where the code of the term before is closed and each lifting after the first is applied to a term that mentions the two continuations of its unit | `FlambdaValidatorEquivarianceSpec.v` | N3 |
-| Identities of primitives, lifting, the binding of `my_closure`, ranges, sharing of primitives, folding at known symbols, unused value slots, the order of static bindings, the static closures in sight, code moved up, the demotion of exception handlers | the `Spec` file of each pass | the owner of each |
+| The normalisation of the term before and that of a term in which something was lifted: up to the names that a round makes. `validate_unit`: where the code of the term before is closed | `FlambdaValidatorEquivarianceSpec.v` | N3 |
+| Identities of primitives, lifting, lifting out of code, the binding of `my_closure`, ranges, sharing of primitives, folding at known symbols, unused value slots, the order of static bindings, the static closures in sight, code moved up, the demotion of exception handlers | the `Spec` file of each pass | the owner of each |
 | Typing environments and their levels, extensions, aliases, types, provers | the types library (`FlambdaEnvRenameSpec.v`, `FlambdaTypeRenameSpec.v`, `FlambdaEnvAliasesRenamingSpec.v`, `FlambdaTypingEnvExtensionSpec.v`, `FlambdaProversRenameSpec.v`) | N3 and the owners |
 | The meet of types and of expanded types, and the functions that add to a typing environment, given a join that commutes with renaming; with the join that forgets, with no premise | the types library (`FlambdaMeetRenameSpec.v`) | the owner of the meet, N3 |
 | The join of typing environments and the join that Simplify calls, with the source of new names renamed; with them, the meet of the model with its own join | the types library (`FlambdaEnvRenameJoinSpec.v`, `FlambdaJoinMeetRenameSpec.v`; the traversal of types, as lemmas of `FlambdaEnvRenameJoinTypesProofs.v`) | N3; N1 for the traversal |
@@ -73,11 +73,14 @@ scope (`FlambdaKeepsScopeSpec.v`, `FlambdaValidateScopeSpec.v`,
 `FlambdaStaticsScopeSpec.v`), so the normalisation of the term before
 commutes with renaming up to the names that it makes, and
 `validate_unit` answers the same on a pair of terms and on the pair
-renamed under two conditions: the code of the term before is closed,
-and each lifting after the first is applied to a term that mentions
-the two continuations of its unit. The second is there because a
-round is not told those two names and may make one of them; it goes
-when the round is given them to avoid.
+renamed where the code of the term before is closed. A lifting holds
+the two continuations of its unit, which the term may no longer
+mention when the lifting is made. So the rounds after a lifting are
+given those continuations, make no name that is one of them
+(`rename_apart_avoiding`), and are stated up to the names that they
+make with one clause more: the second renaming does to the
+continuations given what the first does
+(`equivariant_up_to_avoiding`).
 
 **Still written in the older style.** `requests/N1-one-free-names.md`,
 section 7, has the reason for each and what it would take, as things
@@ -93,10 +96,9 @@ will be once the series of that request is merged.
 | The tests of freedom `var_free_b` and `cont_free_b` of the rewrites that remove bindings | the integrator |
 | One statement of `FlambdaRenameApartSpec.v` | the corpus stream, N2 |
 
-**Owed.** `validate_unit` without its second condition, by a round
-that is given the continuations of the unit to avoid; that the join
-of typing environments, with one source of new names, answers the
-renamed answer up to the variables that it makes (section 7); the
+**Owed.** That the join of typing environments, with one source of
+new names, answers the renamed answer up to the variables that it
+makes (section 7); the
 permutations of locations; the functions on types that have no
 statement yet; and the rows of the table above.
 
@@ -356,7 +358,12 @@ Of this, what is a theorem is the first part, of the source alone
 (`no_source_commutes_statement`, in
 `types/rocq/FlambdaEnvRenameJoinSpec.v`). That the join of typing
 environments with one source does not commute with every renaming is
-the argument above applied to it, and is not proved.
+the argument above applied to it. It is proved of one join of the
+model, by computation
+(`types/rocq/FlambdaJoinMeetRenameExampleSpec.v`): the join makes a
+variable, and the renaming that exchanges it with a variable which is
+nowhere in the inputs leaves the inputs as they are and changes the
+answer. It is not proved of every source.
 
 **What such a function owes instead.** One of two things.
 
@@ -404,6 +411,17 @@ commutes with renaming where the rewrite does
 Rewrites that have both compose and iterate, a rewrite that commutes
 with renaming has the first, and the comparison answers the same on
 the results (`expr_eqb_up_to_statement`).
+
+A caller may hold names that the term does not mention, and need the
+second renaming to do to them what the first does: `equivariant_up_to`
+says nothing of a name that is not free in the result. Such a rewrite
+is given those names to avoid, and owes `equivariant_up_to_avoiding`
+(the same file, for continuations): the names given are renamed with
+the term, the second renaming renames the free names of the result as
+the first does, and it does to the names given what the first does.
+It is kept by a rewrite that commutes with renaming and keeps scope,
+applied before or after, and by the rewrite applied a number of times
+with the same names; with no name given it is `equivariant_up_to`.
 
 Where the names made stay free in the answer, the second is about
 answers up to a renaming of the names made, and says less. The join
@@ -463,12 +481,24 @@ before and that of a term in which something was lifted keep scope
 and commute with renaming up to the names that they make; and
 `validate_unit` answers the same on a pair of terms and on the pair
 renamed (`validate_unit_equivariant_statement`) where the code of the
-term before is closed and each lifting after the first is applied to
-a term in which the two continuations of its unit are free
-(`later_liftings_use_unit`). The second condition narrows that
-statement only: what the validation accepts, and that it is right to
-accept it, do not change. Whether the statement fails without it is
-not established.
+term before is closed. Nothing is said of a term before whose code
+is not closed.
+
+The liftings are made in turn, each followed by a normalisation, and
+each holds the two continuations of its unit. The term that a later
+lifting is applied to need not mention them. The normalisation before
+it commutes with renaming up to the names that it makes, and that
+alone does not say that the lifting renamed by the first renaming is
+the lifting renamed by the second. So each of those normalisations is
+given the continuations of the units of all the liftings
+(`FlambdaValidateSpec.unit_continuations`), its rounds make no name
+that is one of them (`FlambdaRenameApartSpec.rename_apart_avoiding`,
+which is `rename_apart` when it is given none), and it is stated with
+`equivariant_up_to_avoiding`
+(`normalise_lifted_equivariant_up_to_statement`). While the rounds
+were not given those continuations the statement of `validate_unit`
+had a second premise, on the terms that the liftings after the first
+are applied to; it has none now.
 
 Proved by the owner of the meet and the third prover, in the types
 library (`FlambdaMeetRenameSpec.v`): the meet of types, of expanded
@@ -485,7 +515,8 @@ two such (above).
 
 Proved by the owners of the passes, each in the file of its pass: the
 identities of primitives (`FlambdaIdentitiesSpec.v`), the lifting of
-constants (`FlambdaLiftSpec.v`), the binding of `my_closure`
+constants (`FlambdaLiftSpec.v`) and out of the code of a function
+(`FlambdaLiftFromCodeSpec.v`), the binding of `my_closure`
 (`FlambdaMyClosureSpec.v`), the check of ranges (`FlambdaRangeSpec.v`),
 the sharing of primitives (`FlambdaCseSpec.v`), the folding at known
 symbols (`FlambdaKnownSymbolsSpec.v`), the removal of unused value
@@ -508,9 +539,6 @@ Owed:
   its equation: a round makes names, and `validate_unit` answers the
   same on renamed terms only because every rewrite of a round keeps
   scope;
-- `validate_unit` without its second condition: `rename_apart` is to
-  take names to avoid, as the fourth form above asks, and be given
-  the two continuations of the unit;
 - by their owners, the functions on types that have no such statement
   yet.
 
