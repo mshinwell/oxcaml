@@ -1,0 +1,45 @@
+(let $camlVariant_constants__const_block_0 = Block 1 (2, 3) in
+ let $camlVariant_constants__const_block_1 = Block 0 (1) in
+ let code inline(never) size(37)
+       f_0 (c/51 : imm tagged, x/52 : imm tagged)
+         my_closure/53 &my_alloc_region/54 my_depth/55
+         -> k/20 * k/21
+         : imm tagged =
+   let next_depth/56 = rec_info (succ my_depth/55) in
+   (let untagged/67 = %untag_imm (c/51) in
+    switch untagged/67
+      | 0 -> k/22 ($camlVariant_constants__const_block_0)
+      | 1 -> k/22 ($camlVariant_constants__const_block_1))
+     where k/22 (v/57 : [ 0 of imm tagged |1 of imm tagged * imm tagged ]) =
+       ((let prim/64 = %get_tag (v/57) in
+         let scrutinee_tag/65 = %tag_imm (prim/64) in
+         let untagged/66 = %untag_imm (scrutinee_tag/65) in
+         switch untagged/66
+           | 0 -> k/23
+           | 1 -> k/24)
+          where k/24 =
+            let Pfield/60 = %block_load.[`1`] (v/57) in
+            let Pfield/61 = %block_load.[`0`] (v/57) in
+            let int_add/62 = %int_barith.add (x/52, Pfield/61) in
+            let int_add/63 = %int_barith.add (int_add/62, Pfield/60) in
+            cont k/20 (int_add/63)
+          where k/23 =
+            let Pfield/58 = %block_load.[`0`] (v/57) in
+            let int_add/59 = %int_barith.add (x/52, Pfield/58) in
+            cont k/20 (int_add/59))
+ in
+ let f/68 = closure f_0 @f &toplevel in
+ apply direct(f_0 &toplevel) (f/68 : _ -> imm tagged) (0, 4) -> k/25 * error
+   where k/25 (apply_result/69 : imm tagged) =
+     (apply direct(f_0 &toplevel)
+        (f/68 : _ -> imm tagged) (1, 3) -> k/26 * error
+        where k/26 (apply_result/70 : imm tagged) =
+          let result/71 = %int_barith.add (apply_result/70, apply_result/69)
+          in
+          let Pmakeblock/72 = %block.[`0`].`toplevel` (result/71) in
+          cont k/19 (Pmakeblock/72)))
+  where k/19 define_root_symbol (module_block/49) =
+    let field_0/50 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/49)
+    in
+    let $camlVariant_constants = Block 0 (field_0/50) in
+    cont done ($camlVariant_constants)

@@ -1,0 +1,104 @@
+(let $camlOption_constant_loop_fun__const_block_0 = Block 0 (8) in
+ let code inline(never) size(62)
+       f_0 (n/100 : imm tagged)
+         my_closure/101 &my_alloc_region/102 my_depth/103
+         -> k/38 * k/39
+         : imm tagged =
+   let next_depth/104 = rec_info (succ my_depth/103) in
+   cont k/40 (0)
+     where k/40 (let_mutable/105 : imm tagged) =
+       (cont k/41 (0, let_mutable/105)
+          where k/41
+                  (let_mutable/106 : imm tagged,
+                   s_17_unboxed0/107 : imm tagged) =
+            (cont k/43 (s_17_unboxed0/107, let_mutable/106)
+               where rec k/43
+                           (s_17_unboxed0/111 : imm tagged,
+                            i_18_unboxed0/112 : imm tagged) =
+                 let prim/113 = %int_comp.lt (i_18_unboxed0/112, n/100) in
+                 let while_cond_result/114 = %tag_imm (prim/113) in
+                 ((let untagged/138 = %untag_imm (while_cond_result/114) in
+                   switch untagged/138
+                     | 0 -> k/42 (0, s_17_unboxed0/111, i_18_unboxed0/112)
+                     | 1 -> k/51)
+                    where k/51 =
+                      cont k/44 (s_17_unboxed0/111, i_18_unboxed0/112)
+                    where k/44
+                            (s_17_unboxed0/115 : imm tagged,
+                             i_18_unboxed0/116 : imm tagged) =
+                      ((let int_and/134 =
+                          %int_barith.`and` (i_18_unboxed0/116, 1)
+                        in
+                        let prim/135 = %phys_eq (int_and/134, 0) in
+                        let eq/136 = %tag_imm (prim/135) in
+                        let untagged/137 = %untag_imm (eq/136) in
+                        switch untagged/137
+                          | 0 ->
+                            k/45 (0, s_17_unboxed0/115, i_18_unboxed0/116)
+                          | 1 ->
+                            k/45
+                              ($camlOption_constant_loop_fun__const_block_0,
+                               s_17_unboxed0/115,
+                               i_18_unboxed0/116))
+                         where k/45
+                                 (v/117 : [ 0 | 0 of imm tagged ],
+                                  s_17_unboxed0/118 : imm tagged,
+                                  i_18_unboxed0/119 : imm tagged) =
+                           ((let prim/131 = %is_int (v/117) in
+                             let Pisint/132 = %tag_imm (prim/131) in
+                             (let untagged/133 = %untag_imm (Pisint/132) in
+                              switch untagged/133
+                                | 0 -> k/49
+                                | 1 -> k/50)
+                               where k/50 =
+                                 cont k/47
+                                        (s_17_unboxed0/118, i_18_unboxed0/119)
+                               where k/49 =
+                                 cont k/48
+                                        (s_17_unboxed0/118, i_18_unboxed0/119))
+                              where k/48
+                                      (s_17_unboxed0/127 : imm tagged,
+                                       i_18_unboxed0/128 : imm tagged) =
+                                let Pfield/129 = %block_load.[`0`] (v/117) in
+                                let int_add/130 =
+                                  %int_barith.add
+                                    (s_17_unboxed0/127, Pfield/129)
+                                in
+                                cont k/46 (0, int_add/130, i_18_unboxed0/128)
+                              where k/47
+                                      (s_17_unboxed0/124 : imm tagged,
+                                       i_18_unboxed0/125 : imm tagged) =
+                                let int_add/126 =
+                                  %int_barith.add (s_17_unboxed0/124, 1)
+                                in
+                                cont k/46 (0, int_add/126, i_18_unboxed0/125)
+                              where k/46
+                                      (staticcatch_result/120 : imm tagged,
+                                       s_17_unboxed0/121 : imm tagged,
+                                       i_18_unboxed0/122 : imm tagged) =
+                                let int_add/123 =
+                                  %int_barith.add (i_18_unboxed0/122, 1)
+                                in
+                                cont k/43 (s_17_unboxed0/121, int_add/123))))
+               where k/42
+                       (staticcatch_result/108 : imm tagged,
+                        s_17_unboxed0/109 : imm tagged,
+                        i_18_unboxed0/110 : imm tagged) =
+                 cont k/38 (s_17_unboxed0/109)))
+ in
+ let f/139 = closure f_0 @f &toplevel in
+ apply direct(f_0 &toplevel) (f/139 : _ -> imm tagged) (6) -> k/52 * error
+   where k/52 (apply_result/140 : imm tagged) =
+     (apply direct(f_0 &toplevel)
+        (f/139 : _ -> imm tagged) (5) -> k/53 * error
+        where k/53 (apply_result/141 : imm tagged) =
+          let result/142 =
+            %int_barith.add (apply_result/141, apply_result/140)
+          in
+          let Pmakeblock/143 = %block.[`0`].`toplevel` (result/142) in
+          cont k/37 (Pmakeblock/143)))
+  where k/37 define_root_symbol (module_block/98) =
+    let field_0/99 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/98)
+    in
+    let $camlOption_constant_loop_fun = Block 0 (field_0/99) in
+    cont done ($camlOption_constant_loop_fun)
