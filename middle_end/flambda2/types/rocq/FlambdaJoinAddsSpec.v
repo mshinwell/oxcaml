@@ -212,7 +212,9 @@ Definition last_phase_replayed_statement : Prop :=
 
 (* The same for the join up to what it adds, where there is an
    environment to join. The states and the relations that the first
-   phases answer are named by the equations that determine them. *)
+   phases answer are named by the equations that determine them. The
+   environment that the last phase is given is the one given to the
+   join with the names of the last state for names to avoid. *)
 Definition cut_and_n_way_join0_replayed_statement : Prop :=
   ∀ (meet_env meet_expanded_head : Type)
     (ops : Join_env.meet_env_functions meet_env meet_expanded_head)
@@ -250,12 +252,13 @@ Definition cut_and_n_way_join0_replayed_statement : Prop :=
       ∧ names = Bindings_in_target_env.names_to_avoid (Join_env.bindings s3)
       ∧ last_phase_adds
           (Join_env.current_typing_env ops
-             (variables_defined ops menv
+             (variables_defined ops
+                (Join_env.with_names_to_avoid ops menv names)
                 (Bindings_in_target_env.imported_variables_in_order
                    (Join_env.bindings s3))))
           fuel s3 relations3 kept equations relation_equations definitions
       ∧ Join_env.add_env_extension ops
-          (variables_defined ops menv
+          (variables_defined ops (Join_env.with_names_to_avoid ops menv names)
              (Bindings_in_target_env.imported_variables_in_order
                 (Join_env.bindings s3)
               ++ kept))

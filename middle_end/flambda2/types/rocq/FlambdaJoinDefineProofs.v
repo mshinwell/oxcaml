@@ -2311,7 +2311,7 @@ Proof.
               (Join_env.new_definitions_of_existentials s2 s0))
     as [[relations3 s3] | ] eqn:Hloop; [ | discriminate ].
   destruct (Join_env.define_or_eliminate_variables_and_add_equations ops fuel
-              mh s3 menv relations3) as [[target' definitions'] | ]
+              mh s3 _ relations3) as [[target' definitions'] | ]
     eqn:Hdefine; [ | discriminate ].
   injection Hjoin as <- <- <-.
   destruct (first_phases_true source jt choices p fuel avoid envs s1 s2 s3
@@ -2332,7 +2332,7 @@ Proof.
   { intros index use Huse. rewrite (proj1 Hgrows3) in Huse.
     exact (Hkinded index use Huse). }
   destruct (define_variables_true meet_env meet_expanded_head ops fuel mh
-              source s3 menv target' relations3 definitions' Htrue3 Hstate3
+              source s3 _ target' relations3 definitions' Htrue3 Hstate3
               Hkinded3 Hrelations3 Hnonempty3 Hdefine)
     as [kept [equations [relation_equations [menv' [Hkept [Hadd1 [Hadd2
           Hruns]]]]]]].
@@ -2939,8 +2939,7 @@ Proof.
               (Join_env.new_definitions_of_existentials s2 s0))
     as [[relations3 s3] | ] eqn:Hloop; [ | discriminate ].
   destruct (Join_env.define_or_eliminate_variables_and_add_equations ops fuel
-              mh s3 (Join_env.create_meet_env ops (source inputs))
-              relations3) as [[target' definitions'] | ]
+              mh s3 _ relations3) as [[target' definitions'] | ]
     eqn:Hdefine; [ | discriminate ].
   injection Hjoin0 as <- <- _.
   destruct (first_phases_true (source inputs) jt choices p fuel avoid envs s1

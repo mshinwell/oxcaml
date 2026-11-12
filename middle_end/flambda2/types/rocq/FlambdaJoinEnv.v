@@ -107,10 +107,16 @@
      them. Which variable is made is not specified
      (FlambdaJoinSpec.v). The join that Simplify calls is given the
      names to avoid; the one that the meet calls takes them from the
-     environment of the meet, adds the variables that the environments
-     it is given know, and gives the environment of the target all of
-     them and those that it made, so that the joins of two branches
-     of a meet do not make one variable twice.
+     environment of the meet and adds the variables that the
+     environments it is given know. Either way the last phase, which
+     adds equations to the target through the meet, is given the
+     environment of the meet with the names of the join for names to
+     avoid: those that it was given and the variables that it made.
+     So a join that one of those meets calls makes no variable that
+     the outer join made or that an environment joined knows; and the
+     target answered has for names to avoid those of the join and
+     those that the meets added, so that the joins of two branches of
+     a meet do not make one variable twice.
    - The environment of the meet. Its functions are given to the join
      in a record ([meet_env_functions]), with the meet of expanded
      types that they take; the model's are in the files of the meet.
@@ -1755,8 +1761,11 @@ Module Join_env.
 
   (* [cut_and_n_way_join0]: the target, the definitions of the
      variables that the join made, and (not in the compiler) the names
-     that a later join must avoid. If no environment is joined, the
-     target is bottom. *)
+     of the join: those that it was given to avoid and the variables
+     that it made. The last phase is given the environment of the
+     meet with those names to avoid (not in the compiler either: see
+     the header). If no environment is joined, the target is
+     bottom. *)
   Definition cut_and_n_way_join0 {meet_env meet_expanded_head : Type}
       (ops : meet_env_functions meet_env meet_expanded_head) (p : parameters)
       (fuel : nat) (choices : choices) (n_way_join_type : n_way_join_type)
@@ -1784,13 +1793,13 @@ Module Join_env.
         n_way_join_loop (join_depth p) p fuel choices n_way_join_type env
           relations (new_definitions_of_existentials env empty_env)
       in
+      let names := Bindings_in_target_env.names_to_avoid (bindings env) in
       let* '(target_env, definitions) :=
         define_or_eliminate_variables_and_add_equations ops fuel
-          meet_expanded_head_fn env source_env relations
+          meet_expanded_head_fn env
+          (with_names_to_avoid ops source_env names) relations
       in
-      Some
-        (target_env, definitions,
-         Bindings_in_target_env.names_to_avoid (bindings env)).
+      Some (target_env, definitions, names).
 
   (* The variables that an environment has a type for: those that it
      knows. *)
@@ -1806,8 +1815,10 @@ Module Join_env.
   (* [Join_env.cut_and_n_way_join]: the join that the meet calls. The
      names to avoid are those of the environment of the meet and the
      variables that the environments given know (the compiler's new
-     variables differ from all of them by construction), and the
-     target has those and the ones that the join made. *)
+     variables differ from all of them by construction). The target
+     is answered as the last phase leaves it: its names to avoid are
+     those, the variables that the join made, and what the meets of
+     the last phase added. *)
   Definition cut_and_n_way_join {meet_env meet_expanded_head : Type}
       (ops : meet_env_functions meet_env meet_expanded_head) (p : parameters)
       (fuel : nat) (choices : choices) (n_way_join_type : n_way_join_type)
@@ -1821,11 +1832,11 @@ Module Join_env.
       names_to_avoid ops source_env ++ variables_of_env source_tenv
       ++ flat_map variables_of_env joined_envs
     in
-    let* '(target_env, _, names) :=
+    let* '(target_env, _, _) :=
       cut_and_n_way_join0 ops p fuel choices n_way_join_type
         meet_expanded_head_fn avoid source_env source_tenv equations_to_join
     in
-    Some (with_names_to_avoid ops target_env names).
+    Some target_env.
 
 End Join_env.
 

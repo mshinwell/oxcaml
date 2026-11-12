@@ -52,7 +52,8 @@
 
    They have since been compared with the compiler by running, by the
    workstream of the differential tests of the types library, for
-   every section but the last. The inputs were made in the compiler
+   every section on the join that Simplify calls but the one with
+   three joins in a row. The inputs were made in the compiler
    as they are here ([increment_scope], a definition and
    [Meet_env.add_equation] for each variable, then for [p]), and
    joined both by [Join_env.cut_and_n_way_join_with_analysis] and by
@@ -64,12 +65,17 @@
    [Get_tag], it has a type in the target, the numbers 0 and 1 with
    the relation on [p].
 
-   The last section is three joins in a row, of the shape of the
+   The section with three joins in a row is of the shape of the
    program of discrepancy T5-10. Its answers were compared with what
    the compiler prints for the three joins of that program (run by
    the workstream that demonstrated the discrepancy, with the n-way
    join and the types of the joins printed): on the variables that
    the example keeps, the equations are the same.
+
+   The last two sections are not about the join that Simplify calls,
+   and were not compared with the compiler: a meet that calls the
+   join, and a join whose last phase runs a meet that calls the
+   join. Each says what it is for.
 
    The inputs. The source environment knows three variables of kind
    value that may occur in terms: [y], [z] and the parameter [p]. A
@@ -705,3 +711,137 @@ Definition example_meet_block_alternative_statement : Prop :=
       (Or_bottom.Ok
          (example_join_block 0 [unknown Value],
           Some (this_tagged_immediate 8))).
+
+(* ======================================================================== *)
+(* A join in a meet in a join, and the names that it avoids                 *)
+(* ======================================================================== *)
+
+(* The last phase of a join adds its equations to the target through
+   the meet, and that meet may call the join. These are two runs of
+   the join that the meet calls ([model_join_scoped_envs]) where it
+   does.
+
+   The source has [y], [z], [p] and [a], and [p] may be an immediate
+   or a block: [z] is a pair of [y] and [y] if it is an immediate,
+   and a pair of [a] and [a] if it is a block. Two environments are
+   joined, both one scope further, in which [p] may be an immediate
+   or a block and nothing more is said (they are the same; they are
+   made with [Typing_env.replace_equation], with no meet). The join
+   adds the type that [p] has in them to the target, where it is met
+   with the type that [p] has there. Both alternatives are left, so
+   the environments of the two are joined, and that join makes a
+   variable for [y] and [a], of which [z] is then a pair. The
+   variable is mentioned twice, so it is kept.
+
+   What is shown: whether the environment answered knows the
+   variables 5 and 6, whether each is among its names to avoid, and
+   the type that it has for [z].
+
+   These runs showed a fault of the model, which is corrected; they
+   are here so that it does not come back. The compiler's new
+   variables differ from every other variable by construction. The
+   model's are made outside the names to avoid that the environment
+   of the meet carries (FlambdaJoinEnv.v, "New names"). Before the
+   correction the last phase ran its meets in the environment that
+   the join was given, whose names to avoid had not what the join
+   knew, and the join answered the target with the names of its own
+   state, forgetting what those meets had added. So:
+   - in the first run the answer knew 5, which the inner join had
+     made, and 5 was not among its names to avoid: the contract that
+     the meet has for its join ([join_scoped_envs_sound],
+     FlambdaMeetSpec.v) says that it is;
+   - in the second run, where the environments joined know 5 as a
+     naked immediate and the target does not bring it in, the inner
+     join made 5 again, and the answer knew 5 as a value: the same
+     contract says that a variable that the answer knows is there of
+     the kind that an environment joined has it at.
+   Now the inner join makes 5 in the first run and 6 in the second,
+   and each is among the names to avoid of the answer. (That the
+   inputs have what that contract supposes is not proved; and the
+   runs were not compared with the compiler, which has no names to
+   avoid.) *)
+
+Definition example_b : variable := 5%positive.
+
+(* A block with two fields that are both the variable. *)
+Definition example_pair_of (x : variable) : flambda_type :=
+  example_join_block 0
+    [alias_type_of Value (Var x); alias_type_of Value (Var x)].
+
+(* The source: [a] is defined, and [p] has the type described. *)
+Definition example_nested_source : Typing_env.t :=
+  Typing_env.replace_equation
+    (Typing_env.add_variable_definition example_source_env example_a Value
+       Name_mode.normal)
+    (Name_var example_p)
+    (example_immediate_or_block
+       (Ext
+          (Env_extension [(Name_var example_z, example_pair_of example_y)])
+          (Env_extension [(Name_var example_z, example_pair_of example_a)]))).
+
+(* An environment joined: the source one scope further, with the
+   variables given defined, at the mode of the variables that exist
+   only in types, and [p] an immediate or a block. *)
+Definition example_nested_use (variables : list (variable * flambda_kind))
+    : Typing_env.t :=
+  Typing_env.replace_equation
+    (List.fold_left
+       (fun tenv binding =>
+          Typing_env.add_variable_definition tenv (fst binding)
+            (snd binding) Name_mode.in_types)
+       variables (Typing_env.increment_scope example_nested_source))
+    (Name_var example_p) (example_immediate_or_block No_extensions).
+
+(* What is shown of the environment answered. *)
+Record example_nested_answer : Type := Example_nested_answer {
+  knows_5 : bool;
+  avoids_5 : bool;
+  knows_6 : bool;
+  avoids_6 : bool;
+  type_of_z : option flambda_type
+}.
+
+(* The join of that environment with itself, as the meet calls it:
+   after the scope of the source, in the environment of a meet that
+   begins there. *)
+Definition example_nested_join (variables : list (variable * flambda_kind))
+    : option example_nested_answer :=
+  let use := example_nested_use variables in
+  let* result :=
+    model_join_scoped_envs Join_env.compiler_choices 5 example_fuel
+      (model_meet_expanded_head Join_env.compiler_choices compiler_choices 5
+         example_fuel)
+      (Typing_env.current_scope example_nested_source)
+      (Meet_env.create example_nested_source) example_nested_source
+      [use; use]
+  in
+  let tenv := Meet_env.typing_env result in
+  Some
+    {| knows_5 := Typing_env.mem None tenv (Name_var 5%positive);
+       avoids_5 := among 5%positive (Meet_env.names_to_avoid result);
+       knows_6 := Typing_env.mem None tenv (Name_var 6%positive);
+       avoids_6 := among 6%positive (Meet_env.names_to_avoid result);
+       type_of_z := Typing_env.find tenv (Name_var example_z) None |}.
+
+(* The variable that the inner join makes is among the names to avoid
+   of the answer. *)
+Definition example_nested_join_names_statement : Prop :=
+  example_nested_join []
+  = Some
+      {| knows_5 := true;
+         avoids_5 := true;
+         knows_6 := false;
+         avoids_6 := false;
+         type_of_z := Some (example_pair_of 5%positive) |}.
+
+(* The environments joined know 5, as a naked immediate; the target
+   does not bring it in. The inner join does not make it again: it
+   makes 6. *)
+Definition example_nested_join_avoids_statement : Prop :=
+  example_nested_join [(example_b, Naked_number Kind_naked_immediate)]
+  = Some
+      {| knows_5 := false;
+         avoids_5 := true;
+         knows_6 := true;
+         avoids_6 := true;
+         type_of_z := Some (example_pair_of 6%positive) |}.

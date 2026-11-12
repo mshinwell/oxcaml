@@ -105,3 +105,9 @@ Proof. vm_compute. reflexivity. Qed.
 Theorem example_meet_block_alternative
   : example_meet_block_alternative_statement.
 Proof. vm_compute. reflexivity. Qed.
+
+Theorem example_nested_join_names : example_nested_join_names_statement.
+Proof. vm_compute. reflexivity. Qed.
+
+Theorem example_nested_join_avoids : example_nested_join_avoids_statement.
+Proof. vm_compute. reflexivity. Qed.

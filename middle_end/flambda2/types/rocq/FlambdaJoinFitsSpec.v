@@ -498,9 +498,10 @@ Definition first_phases_scoped_statement : Prop :=
    (FlambdaJoinDefineSpec.v) and with a join of types that keeps the
    two properties: there is a state that has the invariant, whose
    names to avoid are the names answered, such that the target
-   answered is the environment given with the variables brought in
-   and some of the variables made defined in it and two extensions
-   added; and the equations of the two extensions are on variables
+   answered is the environment given with those names for names to
+   avoid, the variables brought in and some of the variables made
+   defined in it, and two extensions added; and the equations of the
+   two extensions are on variables
    that the target is to have, and mention only such variables. *)
 Definition cut_and_n_way_join0_in_scope_statement : Prop :=
   ∀ (meet_env meet_expanded_head : Type)
@@ -553,7 +554,7 @@ Definition cut_and_n_way_join0_in_scope_statement : Prop :=
            ∈ Bindings_in_target_env.existential_variables_in_order
                (Join_env.bindings s))
       ∧ Join_env.add_env_extension ops
-          (variables_defined ops menv
+          (variables_defined ops (Join_env.with_names_to_avoid ops menv names)
              (Bindings_in_target_env.imported_variables_in_order
                 (Join_env.bindings s)
               ++ kept))

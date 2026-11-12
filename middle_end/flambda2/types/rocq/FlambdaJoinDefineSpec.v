@@ -455,9 +455,12 @@ Definition first_phases_kinded_statement : Prop :=
    a state that has the invariant, is kinded, and has grown from the
    state that the join starts from, and relations that are true of
    it, such that: the names answered are the names to avoid of that
-   state; the target answered is the environment given, with the
-   variables brought in and some of the variables made defined in it,
-   and two extensions added; and at the run of an input that has the
+   state; the target answered is the environment given, with those
+   names for names to avoid (so that a join that the meets of the
+   two extensions call makes none of them: FlambdaJoinEnv.v, "New
+   names"), with the variables brought in and some of the variables
+   made defined in it, and two extensions added; and at the run of an
+   input that has the
    two conditions, and whose blocks have tags in range, the equations
    of the two extensions are true where their variables have values,
    and the definitions answered hold, in the valuation of the target
@@ -521,7 +524,7 @@ Definition cut_and_n_way_join0_true_statement : Prop :=
            ∈ Bindings_in_target_env.existential_variables_in_order
                (Join_env.bindings s))
       ∧ Join_env.add_env_extension ops
-          (variables_defined ops menv
+          (variables_defined ops (Join_env.with_names_to_avoid ops menv names)
              (Bindings_in_target_env.imported_variables_in_order
                 (Join_env.bindings s)
               ++ kept))
@@ -604,8 +607,9 @@ Definition n_way_join_keeps_envs_statement : Prop :=
    invariant, kinded, whose joined environments are the uses that are
    not bottom, each at its index, and relations true of it, such that
    the target answered is the final environment of the meet's
-   environment made from the source by defining variables and adding
-   two extensions; and at the run of a use that is not bottom, the
+   environment made from the source, with the names to avoid of the
+   state, by defining variables and adding two extensions; and at
+   the run of a use that is not bottom, the
    equations of the two extensions are true where their variables
    have values, and the two maps of definitions of the analysis hold,
    in the valuation of the target that the state gives.
@@ -644,7 +648,10 @@ Definition join_adds_true {A meet_env meet_expanded_head : Type}
          ∈ Bindings_in_target_env.existential_variables_in_order
              (Join_env.bindings s))
     ∧ Join_env.add_env_extension ops
-        (variables_defined ops (Join_env.create_meet_env ops (source inputs))
+        (variables_defined ops
+           (Join_env.with_names_to_avoid ops
+              (Join_env.create_meet_env ops (source inputs))
+              (Bindings_in_target_env.names_to_avoid (Join_env.bindings s)))
            (Bindings_in_target_env.imported_variables_in_order
               (Join_env.bindings s)
             ++ kept))

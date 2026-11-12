@@ -567,11 +567,11 @@ Proof.
               (Join_env.new_definitions_of_existentials s2 s0))
     as [[relations3 s3] | ] eqn:Hloop; [ | discriminate ].
   destruct (Join_env.define_or_eliminate_variables_and_add_equations ops fuel
-              mh s3 menv relations3) as [[target' definitions'] | ]
+              mh s3 _ relations3) as [[target' definitions'] | ]
     eqn:Hdefine; [ | discriminate ].
   injection Hjoin as <- <- <-.
   destruct (last_phase_replayed meet_env meet_expanded_head ops fuel mh s3
-              menv target' relations3 definitions' Hdefine)
+              _ target' relations3 definitions' Hdefine)
     as [kept [equations [relation_equations [menv' [Hadds [Hadd1 Hadd2]]]]]].
   exists s1, s2, s3, relations2, relations3, kept, equations,
     relation_equations, menv'.
