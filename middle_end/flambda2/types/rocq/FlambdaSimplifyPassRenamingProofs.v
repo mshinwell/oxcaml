@@ -37,7 +37,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
   FlambdaSemanticsSpec FlambdaNominalSpec FlambdaNominalProofs
   FlambdaAlphaSpec FlambdaAlphaProofs FlambdaEquivarianceSpec
   FlambdaEquivarianceProofs FlambdaNormaliseSpec FlambdaUnusedContsSpec
-  FlambdaValidatorEquivarianceSpec FlambdaValidatorEquivarianceProofs.
+  FlambdaValidatorEquivarianceSpec FlambdaValidatorEquivarianceBaseProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeWellFormedSpec FlambdaBindingTime FlambdaEnvAliases
   FlambdaTypingEnv FlambdaTypingEnvInvariantSpec FlambdaTypeRenameSpec
