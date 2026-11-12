@@ -364,22 +364,43 @@ Qed.
 (* Several fresh names                                                      *)
 (* ======================================================================== *)
 
-Lemma fresh_names_length (count : nat) (avoid : list positive) :
-  length (fresh_names count avoid) = count.
+(* The name made for a list with the name made for it is the next
+   one. *)
+Lemma fresh_name_after_fresh_name (avoid : list positive) :
+  fresh_name (fresh_name avoid :: avoid) = Pos.succ (fresh_name avoid).
+Proof.
+  unfold fresh_name. cbn [fold_right]. f_equal.
+  apply Pos.max_l, Pos.lt_le_incl, Pos.lt_succ_diag_r.
+Qed.
+
+Lemma fresh_names_as_in_turn (count : nat) (avoid : list positive) :
+  fresh_names count avoid = fresh_names_in_turn count avoid.
+Proof.
+  unfold fresh_names. revert avoid.
+  induction count as [ | count IH]; intros avoid; [ reflexivity | ].
+  cbn [names_from fresh_names_in_turn]. f_equal.
+  rewrite <- IH, fresh_name_after_fresh_name. reflexivity.
+Qed.
+
+Theorem fresh_names_equal_in_turn : fresh_names_equal_in_turn_statement.
+Proof. exact fresh_names_as_in_turn. Qed.
+
+Lemma fresh_names_in_turn_length (count : nat) (avoid : list positive) :
+  length (fresh_names_in_turn count avoid) = count.
 Proof.
   revert avoid. induction count as [ | count IH]; intros avoid; simpl;
     [ reflexivity | rewrite IH; reflexivity ].
 Qed.
 
-Lemma fresh_names_outside (count : nat) (avoid : list positive) :
-  distinct_outside avoid (fresh_names count avoid).
+Lemma fresh_names_in_turn_outside (count : nat) (avoid : list positive) :
+  distinct_outside avoid (fresh_names_in_turn count avoid).
 Proof.
   revert avoid. induction count as [ | count IH]; intros avoid.
   - split; [ reflexivity | intros name Hname; discriminate ].
-  - cbn [fresh_names]. set (first := fresh_name avoid).
+  - cbn [fresh_names_in_turn]. set (first := fresh_name avoid).
     destruct (IH (first :: avoid)) as [Hdistinct Houtside]. split.
     + cbn [distinct]. rewrite Hdistinct, andb_true_r.
-      destruct (among first (fresh_names count (first :: avoid)))
+      destruct (among first (fresh_names_in_turn count (first :: avoid)))
         eqn:Hamong; [ | reflexivity ].
       apply Houtside, among_cons_false in Hamong as [Hfirst _].
       contradiction.
@@ -388,6 +409,18 @@ Proof.
       * apply Pos.eqb_eq in Hname. subst name. apply fresh_name_fresh.
       * apply Houtside, among_cons_false in Hname as [_ Hname].
         exact Hname.
+Qed.
+
+Lemma fresh_names_length (count : nat) (avoid : list positive) :
+  length (fresh_names count avoid) = count.
+Proof.
+  rewrite fresh_names_as_in_turn. apply fresh_names_in_turn_length.
+Qed.
+
+Lemma fresh_names_outside (count : nat) (avoid : list positive) :
+  distinct_outside avoid (fresh_names count avoid).
+Proof.
+  rewrite fresh_names_as_in_turn. apply fresh_names_in_turn_outside.
 Qed.
 
 Theorem fresh_names_fresh : fresh_names_fresh_statement.

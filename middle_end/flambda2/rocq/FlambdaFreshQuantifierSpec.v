@@ -28,13 +28,14 @@
 (* The freshness quantifier: "for all but finitely many names".
 
    This file is to be reviewed: [for_fresh] and its notation, [supports],
-   [propositions], [fresh_names], and the statements. The compiler has
-   nothing to check it against: it makes a fresh name from a counter and
-   states nothing of it. The definition and the laws are those of the
-   literature on nominal sets, where the quantifier is written with a
-   reversed N: Gabbay and Pitts, "A new approach to abstract syntax with
-   variable binding" (2002), and Pitts, "Nominal Sets: Names and
-   Symmetry in Computer Science" (2013), section 3.2.
+   [propositions], [names_from], [fresh_names], [fresh_names_in_turn],
+   and the statements. The compiler has nothing to check it against: it
+   makes a fresh name from a counter and states nothing of it. The
+   definition and the laws are those of the literature on nominal sets,
+   where the quantifier is written with a reversed N: Gabbay and Pitts,
+   "A new approach to abstract syntax with variable binding" (2002), and
+   Pitts, "Nominal Sets: Names and Symmetry in Computer Science" (2013),
+   section 3.2.
 
    [И a, P a] says that [P a] holds of all but finitely many names [a].
    It is the way to say "for a fresh [a]" without saying what [a] must be
@@ -109,7 +110,10 @@
    predicate with a support ([for_fresh_names_iterated_statement]); the
    three readings agree for it too ([some_any_names_statement]).
    [fresh_names] makes such a list from the names to avoid
-   ([fresh_names_fresh_statement]).
+   ([fresh_names_fresh_statement]): the name that [fresh_name] makes for
+   them and the names that follow it, which are the names that
+   [fresh_name] makes one at a time, each avoiding those made before
+   ([fresh_names_equal_in_turn_statement]).
 
    Nothing here mentions the terms of Flambda 2. Nothing is trusted. The
    proofs are in FlambdaFreshQuantifierProofs.v, which needs no review. *)
@@ -293,22 +297,45 @@ Definition distinct_outside (avoid names : list positive) : Prop :=
   distinct names = true
   ∧ ∀ name : positive, among name names = true -> among name avoid = false.
 
-(* As many names as asked for, different from one another and outside a
-   list: [fresh_name] (FlambdaNameAbstractionSpec.v) again and again,
-   each name made being one that the next avoids. A function that makes
-   several names takes the names to avoid and calls this. *)
-Fixpoint fresh_names (count : nat) (avoid : list positive) : list positive :=
+(* A name and those that follow it, as many as asked for. *)
+Fixpoint names_from (count : nat) (first : positive) : list positive :=
   match count with
   | O => []
-  | S count =>
-    let name := fresh_name avoid in
-    name :: fresh_names count (name :: avoid)
+  | S count => first :: names_from count (Pos.succ first)
   end.
+
+(* As many names as asked for, different from one another and outside a
+   list: the name that [fresh_name] (FlambdaNameAbstractionSpec.v) makes
+   for the list, and those that follow it. A function that makes several
+   names takes the names to avoid and calls this. The greatest of the
+   names to avoid is looked for once, whatever the number of names
+   asked for. *)
+Definition fresh_names (count : nat) (avoid : list positive)
+    : list positive :=
+  names_from count (fresh_name avoid).
 
 Definition fresh_names_fresh_statement : Prop :=
   ∀ (count : nat) (avoid : list positive),
     length (fresh_names count avoid) = count
     ∧ distinct_outside avoid (fresh_names count avoid).
+
+(* The same names made one at a time: [fresh_name] again and again, each
+   name made being one that the next avoids. It goes through the whole
+   list to avoid, which grows by each name made, once for each name
+   that it makes; it is here to say what [fresh_names] computes, and no
+   function calls it. *)
+Fixpoint fresh_names_in_turn (count : nat) (avoid : list positive)
+    : list positive :=
+  match count with
+  | O => []
+  | S count =>
+    let name := fresh_name avoid in
+    name :: fresh_names_in_turn count (name :: avoid)
+  end.
+
+Definition fresh_names_equal_in_turn_statement : Prop :=
+  ∀ (count : nat) (avoid : list positive),
+    fresh_names count avoid = fresh_names_in_turn count avoid.
 
 (* [P] holds of every list of [count] different names outside a finite
    set. *)
