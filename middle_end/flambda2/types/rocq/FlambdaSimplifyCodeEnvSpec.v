@@ -115,10 +115,13 @@
      of a body that can run is lost;
    - [code_env_in] commutes with renaming
      ([code_env_in_rename_statement]).
-   - An example: in the body of code, the field of a static block that
-     the group of the code binds, loaded from its symbol, is the
+   - Two examples. In the body of code, the field of a static block
+     that the group of the code binds, loaded from its symbol, is the
      constant that the field was given
-     ([example_load_in_code_statement]).
+     ([example_load_in_code_statement]). A call of a symbol that the
+     group binds to a closure is the direct call of its code, in the
+     body of the [Let_static] and in the code, where the function
+     calls itself ([example_call_of_static_closure_statement]).
 
    Why the types of the symbols of the group hold in the code: the
    code runs at a call, a call is after the [Let_static] has been
@@ -127,8 +130,7 @@
    the values that they had at the [Let_static]; the code cannot name
    them.
 
-   Not here: the type of [my_closure]; the types of the symbols bound
-   to closures.
+   Not here: the type of [my_closure].
 
    Nothing else is assumed of the term or of the environment than
    what the statements say: [code_env_in] answers, so that its tests
@@ -337,3 +339,36 @@ Definition example_load_in_code_statement : Prop :=
                (Apply_cont
                   (Apply_cont_expr ret [Const (Tagged_immediate 7)] None))))
          body).
+
+(* A call of [callee] with one argument, that takes one value and
+   returns one. *)
+Definition example_call (callee : simple) (kind : call_kind) (arg : simple)
+    (k exn : continuation) : expr :=
+  Apply
+    (Apply_expr callee kind [arg] k exn [] [Singleton Value]
+       [Singleton Value]).
+
+(* [let rec f x = f x] at toplevel, and a call of it:
+   [let_static s = the closure of the code f and code f (x) = (apply s
+   x) in apply s 7], the two calls indirect. The symbol [s] is given
+   the type of the closures of the code [f]; of that type the prover
+   proves the entry
+   (FlambdaSimplifyApplySpec.simplify_apply_refines_under_statement);
+   the call in the body is the direct call of the code, and so is the
+   call in the code. *)
+Definition example_call_of_static_closure_statement : Prop :=
+  ∀ (k exn ret exn' : continuation),
+    let bindings (kind : call_kind) : list static_binding :=
+      [Bind_symbol example_s (Static_const_set_of_closures example_f []);
+       Bind_code example_f
+         (Code [example_x] example_my_closure ret exn'
+            (make_code_metadata [Singleton Value] [Singleton Value])
+            (example_call (Symbol example_s) kind (Var example_x) ret exn'))]
+    in
+    expr_refines_under Typing_env.create
+      (Let_static (bindings Indirect)
+         (example_call (Symbol example_s) Indirect
+            (Const (Tagged_immediate 7)) k exn))
+      (Let_static (bindings (Direct example_f))
+         (example_call (Symbol example_s) (Direct example_f)
+            (Const (Tagged_immediate 7)) k exn)).

@@ -45,7 +45,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaSimplifyPrimitivesSpec FlambdaSimplifyPrimitivesProofs
   FlambdaSimplifyPrimitivesRenamingSpec FlambdaSimplifyPrimitivesRenamingProofs
   FlambdaSimplifyProjectionsSpec FlambdaSimplifyProjectionsProofs
-  FlambdaSimplifyBoxingProofs FlambdaSimplifyStaticsSpec.
+  FlambdaSimplifyBoxingProofs FlambdaSimplifyApplySpec
+  FlambdaSimplifyApplyProofs FlambdaSimplifyStaticsSpec.
 Import ListNotations.
 
 Local Open Scope Z_scope.
@@ -108,7 +109,30 @@ Proof.
   clear Heqtys answers.
   destruct const as [code slots | fslot syms decls slots | tag fields
     | contents | bytes];
-    simpl in Htype, Htys, Heval; try discriminate Htype.
+    [ | | simpl in Htype, Htys, Heval | simpl in Htype, Htys, Heval
+    | simpl in Htype, Htys, Heval ].
+  - (* A closure that is the only one of its set. *)
+    cbn [static_const_type] in Htype. injection Htype as <-.
+    cbn [static_const_simples] in Htys. cbn [eval_static_const] in Heval.
+    destruct (eval_value_slots vars slots) as [vs | ] eqn:Hvs;
+      [ | discriminate Heval ].
+    simpl in Heval. injection Heval as <-.
+    apply (closure_of_set_type_satisfied tenv statics vars
+             unnamed_function_slot [(unnamed_function_slot, code)] slots tys
+             vs (Value_symbol s) Hsat Htys Hvs).
+    cbn [closure_in_set]. rewrite Hbound. reflexivity.
+  - (* A closure of a set. *)
+    cbn [static_const_type] in Htype. injection Htype as <-.
+    cbn [static_const_simples] in Htys. cbn [eval_static_const] in Heval.
+    destruct (lookup fslot decls) as [code | ] eqn:Hslot;
+      [ | discriminate Heval ].
+    simpl in Heval.
+    destruct (eval_value_slots vars slots) as [vs | ] eqn:Hvs;
+      [ | discriminate Heval ].
+    simpl in Heval. injection Heval as <-.
+    apply (closure_of_set_type_satisfied tenv statics vars fslot decls slots
+             tys vs (Value_symbol s) Hsat Htys Hvs).
+    cbn [closure_in_set]. rewrite Hbound. simpl. rewrite Hslot. reflexivity.
   - (* A block. *)
     destruct ((tag <? no_scan_tag)
               && forallb
@@ -153,6 +177,20 @@ Proof.
     rewrite Hbound. reflexivity.
 Qed.
 
+(* A variable of one of the types of arguments is in scope. *)
+Lemma argument_types_in_scope (tenv : Typing_env.t) (args : list simple)
+    (tys : list flambda_type) (y : variable) :
+  Forall2 (argument_type tenv) args tys ->
+  ∀ ty : flambda_type,
+    ty ∈ tys -> y ∈ free_variables ty -> in_scope_in_terms tenv y.
+Proof.
+  intros Htys ty Hin Hfree.
+  induction Htys as [ | arg ty' args tys Hty Htys IH]; [ contradiction | ].
+  destruct Hin as [<- | Hin];
+    [ exact (argument_type_in_scope tenv arg ty' y Hty Hfree)
+    | exact (IH Hin) ].
+Qed.
+
 Theorem static_const_type_in_scope : static_const_type_in_scope_statement.
 Proof.
   intros tenv const ty y Htype Hy.
@@ -165,7 +203,22 @@ Proof.
   clear Heqtys answers.
   destruct const as [code slots | fslot syms decls slots | tag fields
     | contents | bytes];
-    simpl in Htype, Htys; try discriminate Htype.
+    [ | | simpl in Htype, Htys | simpl in Htype, Htys
+    | simpl in Htype, Htys ].
+  - cbn [static_const_type] in Htype. injection Htype as <-.
+    cbn [static_const_simples] in Htys.
+    destruct
+      (closure_of_set_type_free_variables unnamed_function_slot
+         [(unnamed_function_slot, code)] (map fst slots) tys y Hy)
+      as [ty [Hin Hfree]].
+    exact (argument_types_in_scope tenv _ tys y Htys ty Hin Hfree).
+  - cbn [static_const_type] in Htype. injection Htype as <-.
+    cbn [static_const_simples] in Htys.
+    destruct
+      (closure_of_set_type_free_variables fslot decls (map fst slots) tys y
+         Hy)
+      as [ty [Hin Hfree]].
+    exact (argument_types_in_scope tenv _ tys y Htys ty Hin Hfree).
   - destruct ((tag <? no_scan_tag) && _); [ | discriminate Htype ].
     injection Htype as <-.
     destruct (free_variables_make_block_type tag tys y Hy)
@@ -297,11 +350,69 @@ Proof.
       Htype Hconst Hbound Hsat).
 Qed.
 
+(* The symbols of a group that are bound to closures, in a static
+   environment that has the whole group bound. The types are taken in
+   an environment that the state satisfies and that has the same
+   variables in scope. *)
+Lemma add_closure_bindings_env_satisfies (statics extended : static_env)
+    (vars : env) (all : list static_binding) (prior : Typing_env.t) :
+  eval_static_bindings vars all statics = Some extended ->
+  env_satisfies_strictly prior extended vars ->
+  ∀ (bindings : list static_binding) (tenv : Typing_env.t),
+    (∀ binding : static_binding, binding ∈ bindings -> binding ∈ all) ->
+    (∀ y : variable, in_scope_in_terms prior y -> in_scope_in_terms tenv y) ->
+    env_satisfies_strictly tenv extended vars ->
+    env_satisfies_strictly (add_closure_bindings prior tenv bindings)
+      extended vars.
+Proof.
+  intros Heval Hprior.
+  induction bindings as [ | [id c | id | s const] bindings IH];
+    intros tenv Hall Hscope Hsat; cbn [add_closure_bindings].
+  - exact Hsat.
+  - apply IH;
+      [ intros b Hb; apply Hall; right; exact Hb | exact Hscope | exact Hsat ].
+  - apply IH;
+      [ intros b Hb; apply Hall; right; exact Hb | exact Hscope | exact Hsat ].
+  - destruct (is_closure_const const);
+      [ | apply IH;
+          [ intros b Hb; apply Hall; right; exact Hb | exact Hscope
+          | exact Hsat ] ].
+    destruct (static_const_type_in prior const) as [ty | ] eqn:Htype;
+      [ | apply IH;
+          [ intros b Hb; apply Hall; right; exact Hb | exact Hscope
+          | exact Hsat ] ].
+    destruct
+      (eval_static_bindings_binds vars all statics extended s const Heval
+         (Hall _ (or_introl eq_refl)))
+      as (allocated & Hconst & Hbound).
+    apply IH; [ intros b Hb; apply Hall; right; exact Hb | | ].
+    + intros y Hy.
+      apply (replace_symbol_equation_in_scope tenv s ty y).
+      exact (Hscope y Hy).
+    + apply replace_symbol_equation_env_satisfies_strictly;
+        [ | | exact Hsat ].
+      * intros y Hy. apply Hscope.
+        exact (static_const_type_in_scope prior const ty y Htype Hy).
+      * exact (static_const_typed prior extended vars s const ty allocated
+          (env_satisfies_strictly_env_satisfies prior extended vars Hprior)
+          Htype Hconst Hbound).
+Qed.
+
 Theorem add_static_bindings_env_satisfies :
   add_static_bindings_env_satisfies_statement.
 Proof.
   intros tenv statics extended vars bindings Heval Hsat.
-  unfold add_static_bindings.
+  unfold add_static_bindings. cbv zeta.
+  assert (Hprior :
+    env_satisfies_strictly
+      (add_block_like_bindings
+         (Typing_env.add_symbol_definitions tenv
+            (closure_symbols_of bindings))
+         bindings)
+      extended vars);
+    [ | exact (add_closure_bindings_env_satisfies statics extended vars
+                 bindings _ Heval Hprior bindings _
+                 (fun binding Hin => Hin) (fun y Hy => Hy) Hprior) ].
   apply (add_block_like_bindings_env_satisfies statics extended vars bindings
            Heval);
     [ intros binding Hin; exact Hin | ].
@@ -388,11 +499,25 @@ Proof.
           [ auto | auto | right; exists const'; auto ].
 Qed.
 
+(* Giving the closures their types defines no symbol. *)
+Lemma defined_symbols_closure (prior : Typing_env.t)
+    (bindings : list static_binding) :
+  ∀ tenv : Typing_env.t,
+    Typing_env.defined_symbols (add_closure_bindings prior tenv bindings)
+    = Typing_env.defined_symbols tenv.
+Proof.
+  induction bindings as [ | [id c | id | s const] bindings IH]; intros tenv;
+    cbn [add_closure_bindings]; [ reflexivity | apply IH | apply IH | ].
+  rewrite IH.
+  destruct (is_closure_const const); [ | reflexivity ].
+  destruct (static_const_type_in prior const); reflexivity.
+Qed.
+
 Theorem add_static_bindings_defined_symbols :
   add_static_bindings_defined_symbols_statement.
 Proof.
-  intros tenv bindings s. unfold add_static_bindings.
-  rewrite defined_symbols_block_like.
+  intros tenv bindings s. unfold add_static_bindings. cbv zeta.
+  rewrite defined_symbols_closure, defined_symbols_block_like.
   change
     (Typing_env.defined_symbols
        (Typing_env.add_symbol_definitions tenv (closure_symbols_of bindings)))
@@ -419,6 +544,12 @@ Proof.
     simpl; try reflexivity; rewrite !map_map; reflexivity.
 Qed.
 
+Lemma map_fst_renamed_slots (r : renaming)
+    (slots : list (value_slot * simple)) :
+  map fst (map (fun slot => (fst slot, rename_simple r (snd slot))) slots)
+  = map fst slots.
+Proof. rewrite map_map. reflexivity. Qed.
+
 Lemma static_const_type_renamed (r : renaming) (const : static_const)
     (tys : list flambda_type) :
   static_const_type (rename_static_const r const) (map (rename_type r) tys)
@@ -427,6 +558,11 @@ Proof.
   destruct const as [code slots | fslot syms decls slots | tag fields
     | contents | bytes];
     cbn [static_const_type rename_static_const]; try reflexivity.
+  - rewrite map_fst_renamed_slots. cbn [option_map]. f_equal. symmetry.
+    exact (closure_of_set_type_rename r unnamed_function_slot
+             [(unnamed_function_slot, code)] (map fst slots) tys).
+  - rewrite map_fst_renamed_slots. cbn [option_map]. f_equal. symmetry.
+    exact (closure_of_set_type_rename r fslot decls (map fst slots) tys).
   - assert (Hkinds :
       forallb (fun ty => kind_eqb (FlambdaTypeGrammar.kind ty) Value)
         (map (rename_type r) tys)
@@ -495,12 +631,33 @@ Proof.
   - rewrite (add_symbol_definition_equivariant r tenv s). apply IH.
 Qed.
 
+Lemma add_closure_bindings_renamed (r : renaming) (prior : Typing_env.t)
+    (bindings : list static_binding) :
+  ∀ tenv : Typing_env.t,
+    add_closure_bindings (rename_typing_env r prior)
+      (rename_typing_env r tenv) (map (rename_static_binding r) bindings)
+    = rename_typing_env r (add_closure_bindings prior tenv bindings).
+Proof.
+  induction bindings as [ | [id c | id | s const] bindings IH]; intros tenv;
+    cbn [map rename_static_binding add_closure_bindings];
+    [ reflexivity | apply IH | apply IH | ].
+  rewrite is_closure_const_renamed.
+  destruct (is_closure_const const); [ | apply IH ].
+  rewrite (static_const_type_in_rename r prior const).
+  destruct (static_const_type_in prior const) as [ty | ]; cbn [option_map];
+    [ | apply IH ].
+  change (Name_symbol s) with (rename_name r (Name_symbol s)) at 1.
+  rewrite (replace_equation_equivariant r tenv (Name_symbol s) ty).
+  apply IH.
+Qed.
+
 Theorem add_static_bindings_rename : add_static_bindings_rename_statement.
 Proof.
-  intros r tenv bindings. unfold add_static_bindings.
+  intros r tenv bindings. unfold add_static_bindings. cbv zeta.
   rewrite closure_symbols_of_renamed,
-    (add_symbol_definitions_equivariant r tenv (closure_symbols_of bindings)).
-  apply add_block_like_bindings_renamed.
+    (add_symbol_definitions_equivariant r tenv (closure_symbols_of bindings)),
+    add_block_like_bindings_renamed.
+  apply add_closure_bindings_renamed.
 Qed.
 
 (* ======================================================================== *)

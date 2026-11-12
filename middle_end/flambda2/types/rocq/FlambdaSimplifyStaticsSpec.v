@@ -32,22 +32,26 @@
    against middle_end/flambda2/simplify/simplify_static_const.ml
    ([simplify_static_consts], [simplify_static_const_of_kind_value],
    [simplify_field_of_block], [simplify_or_variable],
-   [simplify_static_const_block_type]). It follows
+   [simplify_static_const_block_type]) and, for the closures,
+   middle_end/flambda2/simplify/simplify_set_of_closures.ml
+   ([simplify_lifted_sets_of_closures]). It follows
    FlambdaSimplifyProjectionsSpec.v and FlambdaSimplifyBoxingSpec.v,
    which have the same for a block and a boxed number that a primitive
-   makes, and FlambdaSimplifyPrimitivesSpec.v, which has the type of an
-   argument ([argument_type]), the function that computes it
-   ([simplify_simples]) and what is assumed: strict satisfaction of the
-   environment.
+   makes, FlambdaSimplifyApplySpec.v, which has the type of a closure
+   that a [Let] makes, and FlambdaSimplifyPrimitivesSpec.v, which has
+   the type of an argument ([argument_type]), the function that
+   computes it ([simplify_simples]) and what is assumed: strict
+   satisfaction of the environment.
 
    At a group of static bindings Simplify defines the symbols that the
-   group binds, and gives each one that is not bound to a closure a
-   type made from the types of the [Simple]s of its constant
-   ([bind_result_sym]: [DE.define_symbol], then
-   [DE.add_equation_on_symbol]). The body is simplified with those
-   types: of a load from a symbol bound to a block, or of the unboxing
-   of a symbol bound to a boxed number, the provers answer as they do
-   of a variable. The function that puts the rewrites together
+   group binds, and gives each one a type made from the types of the
+   [Simple]s of its constant ([bind_result_sym]: [DE.define_symbol],
+   then [DE.add_equation_on_symbol]; for a closure, when the set is
+   simplified). The body is simplified with those types: of a load
+   from a symbol bound to a block, of the unboxing of a symbol bound
+   to a boxed number, or of the callee of a call that is a symbol
+   bound to a closure, the provers answer as they do of a variable.
+   The function that puts the rewrites together
    (FlambdaSimplifyPassSpec.v) defines the symbols with no types; here
    is what it needs to give them their types.
 
@@ -64,7 +68,13 @@
    typing environment (discrepancy T3-11: the model's group may be
    recursive, and such a constant has a value). A constant that names
    a symbol that the group binds to a closure, later or not, does get
-   its type: that symbol is defined by then.
+   its type: that symbol is defined by then. Last, the symbols bound
+   to closures are given their types
+   ([simplify_lifted_sets_of_closures]). The types of the value slots
+   of all of them are taken first, in the environment in which the
+   other symbols of the group have their types and no closure of the
+   group has ([add_closure_bindings], whose first argument is that
+   environment).
 
    The types ([static_const_type], from the types of the [Simple]s of
    the constant, [static_const_simples]):
@@ -95,11 +105,17 @@
      value there, and this is the type of that value.
    - an immutable string: the type of that string
      ([T.this_immutable_string]).
-   - a closure: no type here. Simplify gives the symbols of a static
-     set of closures their types when it simplifies the set
-     ([Simplify_set_of_closures.simplify_lifted_sets_of_closures]),
-     after the other constants of the group; that is for the
-     statements about the types of closures.
+   - a closure: the type of the closures at its function slot of a
+     set that has exactly the functions of the constant, each of the
+     code named, and its value slots, each of the type of its
+     [Simple]: FlambdaSimplifyApplySpec.closure_of_set_type and
+     set_of_closures_type, the types that a closure made by a [Let]
+     gets there. Simplify gives more: the types of the other closures
+     of the set, each an alias of its symbol, and the mode of the
+     allocation, which for a static closure is the heap. A constant
+     whose function slot is not among the functions of its set gets a
+     type that nothing has; such a constant has no value
+     (FlambdaSemanticsSpec.eval_static_const).
 
    The statements:
    - a symbol that the static environment binds to the value of a
@@ -125,11 +141,12 @@
      symbol, is the [Simple] that the field was given
      ([example_load_of_static_block_statement]).
 
-   Not here: the types of the symbols bound to closures; that the
-   environment made passes the test of well-formedness that the
-   function which puts the rewrites together makes before it rewrites;
-   the types of the symbols as they are seen in the body of code, which
-   runs later and under other variables.
+   Not here: that the environment made passes the test of
+   well-formedness that the function which puts the rewrites together
+   makes before it rewrites. The types of the symbols as they are
+   seen in the body of code, which runs later and under other
+   variables, are in FlambdaSimplifyCodeEnvSpec.v, with an example of
+   a call of a symbol bound to a closure.
 
    Nothing is assumed of the term: where a symbol is bound twice, or a
    constant has no value, the [Let_static] is undefined and anything
@@ -147,7 +164,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaTypingEnv
   FlambdaTypingEnvSpec FlambdaTypingEnvExamplesSpec
   FlambdaTypingEnvRefinementSpec FlambdaTypeRenameSpec FlambdaEnvRenameSpec
-  FlambdaSimplifyPrimitivesSpec FlambdaSimplifyProjectionsSpec.
+  FlambdaSimplifyPrimitivesSpec FlambdaSimplifyProjectionsSpec
+  FlambdaSimplifyApplySpec.
 Import ListNotations.
 
 Local Open Scope Z_scope.
@@ -157,8 +175,8 @@ Local Open Scope Z_scope.
 (* ======================================================================== *)
 
 (* The [Simple]s of a static constant whose types make the type of its
-   symbol: the fields of a block, the contents of a boxed number. (Of a
-   closure, the [Simple]s of its value slots: not used here.) *)
+   symbol: the fields of a block, the contents of a boxed number, the
+   [Simple]s of the value slots of a closure. *)
 Definition static_const_simples (const : static_const) : list simple :=
   match const with
   | Static_const_block _ fields => fields
@@ -170,10 +188,10 @@ Definition static_const_simples (const : static_const) : list simple :=
   end.
 
 (* The type that Simplify gives the symbol of a static constant, from
-   the types of those [Simple]s. [None]: a closure, which gets its type
-   elsewhere; a block whose tag is not one of a block that is scanned,
-   or one of whose fields is not of the kind value; a boxed number
-   whose contents are not of a kind of number that has a boxed form. *)
+   the types of those [Simple]s. [None]: a block whose tag is not one
+   of a block that is scanned, or one of whose fields is not of the
+   kind value; a boxed number whose contents are not of a kind of
+   number that has a boxed form. *)
 Definition static_const_type (const : static_const)
     (tys : list flambda_type) : option flambda_type :=
   match const with
@@ -191,8 +209,10 @@ Definition static_const_type (const : static_const)
     | [] | _ :: _ :: _ => None
     end
   | Static_const_immutable_string bytes => Some (this_immutable_string bytes)
-  | Static_const_set_of_closures _ _ | Static_const_closure_of_set _ _ _ _ =>
-    None
+  | Static_const_set_of_closures code value_slots =>
+    Some (set_of_closures_type code (map fst value_slots) tys)
+  | Static_const_closure_of_set slot _ function_decls value_slots =>
+    Some (closure_of_set_type slot function_decls (map fst value_slots) tys)
   end.
 
 (* The same, the types read in the environment
@@ -294,14 +314,39 @@ Fixpoint add_block_like_bindings (tenv : Typing_env.t)
     add_block_like_bindings tenv bindings
   end.
 
+(* The symbols that a group binds to closures, which are defined
+   already, are given the types of their constants. The types are
+   taken in [prior]: the environment in which the other symbols of the
+   group have their types, and no closure of the group has. *)
+Fixpoint add_closure_bindings (prior tenv : Typing_env.t)
+    (bindings : list static_binding) : Typing_env.t :=
+  match bindings with
+  | [] => tenv
+  | Bind_symbol s const :: bindings =>
+    let tenv :=
+      if is_closure_const const
+      then
+        match static_const_type_in prior const with
+        | Some ty => Typing_env.replace_equation tenv (Name_symbol s) ty
+        | None => tenv
+        end
+      else tenv
+    in
+    add_closure_bindings prior tenv bindings
+  | (Bind_code _ _ | Bind_deleted_code _) :: bindings =>
+    add_closure_bindings prior tenv bindings
+  end.
+
 (* The environment in the body of a [Let_static]
-   ([Simplify_static_const.simplify_static_consts], without the types
-   of the closures). *)
+   ([Simplify_static_const.simplify_static_consts]). *)
 Definition add_static_bindings (tenv : Typing_env.t)
     (bindings : list static_binding) : Typing_env.t :=
-  add_block_like_bindings
-    (Typing_env.add_symbol_definitions tenv (closure_symbols_of bindings))
-    bindings.
+  let prior :=
+    add_block_like_bindings
+      (Typing_env.add_symbol_definitions tenv (closure_symbols_of bindings))
+      bindings
+  in
+  add_closure_bindings prior prior bindings.
 
 (* It is satisfied by the static environment that the group makes. *)
 Definition add_static_bindings_env_satisfies_statement : Prop :=

@@ -46,6 +46,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaEnvRenameProofs FlambdaProvers FlambdaProversSpec
   FlambdaSimplifyPrimitivesSpec FlambdaSimplifyPrimitivesProofs
   FlambdaSimplifyProjectionsSpec FlambdaSimplifyProjectionsProofs
+  FlambdaSimplifyApplySpec FlambdaSimplifyApplyProofs
   FlambdaSimplifyStaticsSpec FlambdaSimplifyStaticsProofs
   FlambdaSimplifyCodeEnvSpec.
 Import ListNotations.
@@ -242,11 +243,24 @@ Proof.
     [ reflexivity | apply IH | apply IH | apply IH ].
 Qed.
 
+Lemma add_closure_bindings_code (prior : Typing_env.t)
+    (before : list static_binding) (id : code_id) (c c' : code)
+    (after : list static_binding) :
+  ∀ tenv : Typing_env.t,
+    add_closure_bindings prior tenv (before ++ Bind_code id c :: after)
+    = add_closure_bindings prior tenv (before ++ Bind_code id c' :: after).
+Proof.
+  induction before as [ | [id0 c0 | id0 | s const] before IH]; intros tenv;
+    cbn [app add_closure_bindings];
+    [ reflexivity | apply IH | apply IH | apply IH ].
+Qed.
+
 Theorem add_static_bindings_code : add_static_bindings_code_statement.
 Proof.
-  intros tenv before id c c' after. unfold add_static_bindings.
-  rewrite (closure_symbols_of_code before id c c' after).
-  apply add_block_like_bindings_code.
+  intros tenv before id c c' after. unfold add_static_bindings. cbv zeta.
+  rewrite (closure_symbols_of_code before id c c' after),
+    (add_block_like_bindings_code before id c c' after).
+  apply add_closure_bindings_code.
 Qed.
 
 Theorem let_static_code_typed : let_static_code_typed_statement.
@@ -445,4 +459,45 @@ Proof.
       | vm_compute; reflexivity
       | apply expr_equivalent_under_refines; apply apply_cont_canonical;
         apply Forall2_cons; [ canonical_computed | apply Forall2_nil ] ].
+Qed.
+
+(* The call is what the function of FlambdaSimplifyApplySpec.v answers,
+   computed. *)
+Local Ltac call_computed :=
+  match goal with
+  | |- expr_refines_under ?tenv (Apply ?ap) _ =>
+    pose proof (simplify_apply_refines_under tenv ap) as Hcall;
+    match type of Hcall with
+    | expr_refines_under _ _ ?answer =>
+      let computed := eval vm_compute in answer in
+      replace answer with computed in Hcall by (vm_compute; reflexivity)
+    end;
+    exact Hcall
+  end.
+
+Theorem example_call_of_static_closure
+    : example_call_of_static_closure_statement.
+Proof.
+  intros k exn ret exn' bindings. subst bindings. cbv beta.
+  set (metadata := make_code_metadata [Singleton Value] [Singleton Value]).
+  set (closure :=
+         Bind_symbol example_s (Static_const_set_of_closures example_f [])).
+  eapply expr_refines_under_trans.
+  - (* The call in the code. *)
+    pose (tenv_code :=
+            Typing_env.add_definitions_of_params
+              (Typing_env.add_variable_definition
+                 (Typing_env.closure_env
+                    (add_static_bindings Typing_env.create [closure]))
+                 example_my_closure Value Name_mode.normal)
+              [(example_x, Value)]).
+    apply (let_static_code_typed Typing_env.create [closure] example_f
+             [example_x] example_my_closure ret exn' metadata _
+             (example_call (Symbol example_s) (Direct example_f)
+                (Var example_x) ret exn')
+             [] _ tenv_code);
+      [ vm_compute; reflexivity | reflexivity | reflexivity | ].
+    subst tenv_code. unfold example_call. call_computed.
+  - (* The call in the body. *)
+    apply let_static_typed. unfold example_call. call_computed.
 Qed.
