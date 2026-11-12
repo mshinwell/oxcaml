@@ -96,6 +96,20 @@
      statements above: the names and the variables are known, the
      names are of the kinds of their types, the aliases are of their
      kinds.
+   - So the join that the meet calls ([model_join_scoped_envs]) has
+     the conclusions of the contract that the meet has for its join
+     ([join_scoped_envs_sound], FlambdaMeetSpec.v) that are not about
+     values ([join_scoped_envs_keeps],
+     [model_join_scoped_envs_keeps_statement]): the result is the
+     environment given, extended; a meet may be made in it; a
+     variable of the result that no environment given knows is none
+     of the names to avoid of the environment given and is among
+     those of the result; and a [Simple] that the result knows is of
+     the kind that an environment joined has it at. The premises are
+     those of the contract, and one more that is not shown yet of
+     the join ([join_adds_types_that_fit_otherwise]: the premise
+     [types_fit_otherwise] of the statement before, for the join's
+     own run). Not here: the conclusion about values.
 
    Examples of what [model_join] computes are in
    FlambdaJoinMeetExamplesSpec.v. *)
@@ -110,7 +124,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypingEnvInvariantSpec FlambdaTypingEnvKindedSpec FlambdaJoinEnv
   FlambdaJoinSpec FlambdaJoinEnvSpec FlambdaJoinStateSpec
   FlambdaJoinDefineSpec FlambdaJoinFitsSpec FlambdaJoinAddsSpec
-  FlambdaJoinKindsSpec FlambdaTypeAliasKindsSpec
+  FlambdaJoinKindsSpec FlambdaJoinNamesSpec FlambdaTypeAliasKindsSpec
   FlambdaJoinTypes FlambdaJoinTypesSpec FlambdaMeetGrammar FlambdaExpandHead
   FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec FlambdaMeetStepsSpec
   FlambdaMeetEnvSpec FlambdaJoinMeet.
@@ -358,3 +372,102 @@ Definition last_phase_kept_statement : Prop :=
     meet_env_kept menv menv0
     ∧ meet_env_kept_by_meet menv0 menv1
     ∧ meet_env_kept_by_meet menv1 target.
+
+(* ======================================================================== *)
+(* The contract that the meet has for its join, but for the values          *)
+(* ======================================================================== *)
+
+(* The conclusions of the contract that the meet has for its join
+   ([join_scoped_envs_sound], FlambdaMeetSpec.v) that are not about
+   values, under its premises but the one about the values that the
+   meet of expanded types keeps ([meet_expanded_head_sound]), which
+   they do not need. *)
+Definition join_scoped_envs_keeps (join : join_scoped_envs) : Prop :=
+  ∀ (meet_head : meet_expanded_head) (initial_env result : Meet_env.t)
+    (scoped_envs : list Typing_env.t),
+    let initial_tenv := Meet_env.typing_env initial_env in
+    meet_expanded_head_keeps meet_head ->
+    typing_env_fits initial_tenv ->
+    (∀ scoped_env : Typing_env.t,
+      scoped_env ∈ scoped_envs -> scoped_env_of initial_tenv scoped_env) ->
+    scoped_envs_agree scoped_envs ->
+    join meet_head (Typing_env.current_scope initial_tenv) initial_env
+      initial_tenv scoped_envs
+    = Some result ->
+    meet_env_extends initial_env result
+    ∧ typing_env_fits (Meet_env.typing_env result)
+    ∧ (∀ x : variable,
+        Typing_env.mem None (Meet_env.typing_env result) (Name_var x)
+        = true ->
+        Typing_env.mem None initial_tenv (Name_var x) = false ->
+        (∀ scoped_env : Typing_env.t,
+          scoped_env ∈ scoped_envs ->
+          Typing_env.mem None scoped_env (Name_var x) = false) ->
+        among x (Meet_env.names_to_avoid initial_env) = false
+        ∧ among x (Meet_env.names_to_avoid result) = true)
+    ∧ ∀ (scoped_env : Typing_env.t) (s : simple) (kind : flambda_kind),
+        scoped_env ∈ scoped_envs ->
+        Typing_env.mem_simple None (Meet_env.typing_env result) s = true ->
+        simple_of_kind scoped_env s kind ->
+        simple_of_kind (Meet_env.typing_env result) s kind.
+
+(* What is not shown yet of the model's join, as the meet calls it on
+   inputs that have what the contract supposes: the types of the
+   equations that its last phase adds fit otherwise
+   ([types_fit_otherwise]), in the environment in which its variables
+   are defined. The states are named by the equations of the first
+   phases, as in [cut_and_n_way_join0_replayed_statement]
+   (FlambdaJoinAddsSpec.v). *)
+Definition join_adds_types_that_fit_otherwise
+    (join_choices : Join_env.choices) (join_depth : nat) (fuel : fuels)
+    : Prop :=
+  ∀ (initial_env : Meet_env.t) (scoped_envs : list Typing_env.t)
+    (envs : Joined_envs.t) (s1 s2 s3 : Join_env.t)
+    (relations2 relations3 : Join_env.inverse_relations)
+    (tenv : Typing_env.t) (kept : list (variable * flambda_kind))
+    (equations relation_equations : list (name * flambda_type))
+    (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind)),
+    let initial_tenv := Meet_env.typing_env initial_env in
+    let p := join_parameters join_depth in
+    let jt := model_join_of_types join_depth fuel in
+    let avoid :=
+      Meet_env.names_to_avoid initial_env
+      ++ Join_env.variables_of_env initial_tenv
+      ++ flat_map Join_env.variables_of_env scoped_envs
+    in
+    let s0 :=
+      Join_env.create envs
+        (Bindings_in_target_env.from_source_env avoid initial_tenv)
+    in
+    typing_env_fits initial_tenv ->
+    (∀ scoped_env : Typing_env.t,
+      scoped_env ∈ scoped_envs -> scoped_env_of initial_tenv scoped_env) ->
+    scoped_envs_agree scoped_envs ->
+    Join_env.cut_for_joins (Typing_env.current_scope initial_tenv)
+      (Index.number scoped_envs)
+    = Some envs ->
+    Join_env.join_aliases_into_bindings p (fuel_of_env fuel) s0 envs
+    = Some s1 ->
+    Join_env.n_way_join_delayed_equations (fuel_of_env fuel) join_choices jt
+      s1 [] (Join_env.new_equations_in_joined_envs s1 s0)
+    = Some (relations2, s2) ->
+    Join_env.n_way_join_loop join_depth p (fuel_of_env fuel) join_choices jt
+      s2 relations2 (Join_env.new_definitions_of_existentials s2 s0)
+    = Some (relations3, s3) ->
+    last_phase_adds tenv (fuel_of_env fuel) s3 relations3 kept equations
+      relation_equations definitions ->
+    types_fit_otherwise
+      (Meet_env.typing_env
+         (variables_defined meet_env_functions
+            (Meet_env.with_names_to_avoid initial_env
+               (Bindings_in_target_env.names_to_avoid (Join_env.bindings s3)))
+            (Bindings_in_target_env.imported_variables_in_order
+               (Join_env.bindings s3)
+             ++ kept)))
+      (equations ++ relation_equations).
+
+Definition model_join_scoped_envs_keeps_statement : Prop :=
+  ∀ (join_choices : Join_env.choices) (join_depth : nat) (fuel : fuels),
+    join_adds_types_that_fit_otherwise join_choices join_depth fuel ->
+    join_scoped_envs_keeps
+      (model_join_scoped_envs join_choices join_depth fuel).
