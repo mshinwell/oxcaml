@@ -240,6 +240,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaMeetProductsProofs.v \
   FlambdaMeetProductsSpec.v \
   FlambdaMeetProofs.v \
+  FlambdaMeetRowLikeProofs.v \
+  FlambdaMeetRowLikeSpec.v \
   FlambdaMeetScopesProofs.v \
   FlambdaMeetScopesSpec.v \
   FlambdaMeetSpec.v \
