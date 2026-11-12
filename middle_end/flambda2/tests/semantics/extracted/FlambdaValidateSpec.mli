@@ -3,12 +3,15 @@ open FlambdaAliasesSpec
 open FlambdaBlockLoadSpec
 open FlambdaCompareSpec
 open FlambdaFloatCodeSpec
+open FlambdaForwardSpec
 open FlambdaKnownClosuresSpec
 open FlambdaKnownSymbolsSpec
 open FlambdaLiftSpec
 open FlambdaLoopAliasesSpec
+open FlambdaLoopLetsSpec
 open FlambdaModel
 open FlambdaNormaliseSpec
+open FlambdaParamAliasesSpec
 open FlambdaRecHandlersSpec
 open FlambdaShortcutSpec
 open FlambdaSinkContsSpec
@@ -25,6 +28,12 @@ val normalise_expr_before : expr -> expr
 val normalise_code_before : expr -> expr
 
 val normalise_before_round : expr -> expr
+
+val normalise_expr_params : expr -> expr
+
+val normalise_code_params : expr -> expr
+
+val normalise_params_round : expr -> expr
 
 val normalise_before : nat -> expr -> expr
 

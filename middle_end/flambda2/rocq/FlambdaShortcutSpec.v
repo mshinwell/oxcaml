@@ -52,9 +52,14 @@
    the handler runs under the variables of the [Let_cont], which are
    those of the [Switch]. The [Apply_cont] of the handler must not be of
    the name being bound, which in the handler is another continuation.
-   Simplify makes no shortcut of an exception handler, nor of a handler
-   whose [Apply_cont] has a trap action; so neither does this pass, and
-   an arm that has a trap action of its own stays as it is. The handler
+   Simplify records no shortcut for an exception handler, nor for a
+   handler whose [Apply_cont] has a trap action
+   (simplify/simplify_let_cont_expr.ml); so this pass makes none, and an
+   arm that has a trap action of its own stays as it is. (A goto arm of
+   a [Switch] does take the [Apply_cont] of a handler of no parameters
+   with its trap action, by another route:
+   simplify/simplify_switch_expr.ml, [rebuild_arm]. This pass does not;
+   FlambdaForwardSpec.forward_applications does.) The handler
    must give no kinds of parameters either: one that has no parameters
    and gives a kind never runs (FlambdaSemanticsSpec.apply_cont_value),
    so an arm that applies it is undefined, and the arm made of its

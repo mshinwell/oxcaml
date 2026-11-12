@@ -38,7 +38,12 @@
    ([normalise_before]) and the term after by rewrites that are
    equivalences ([normalise_after]), each gone round a number of times as
    they enable one another, and compares the results up to bound names
-   (FlambdaCompareSpec.expr_eqb). Failing that, it removes from the term
+   (FlambdaCompareSpec.expr_eqb). The term before is normalised in two
+   phases: first what Simplify does to the parameters of the
+   continuations of the term as it is ([normalise_params_round]), then
+   the rounds that inline the calls of known code
+   ([normalise_before_round]), which the term after has too. Failing
+   that, it removes from the term
    before the static bindings of the names given
    (FlambdaUnusedStaticsSpec.drop_statics) and compares again. Failing
    that too, it starts again from the term before as it was given. For
@@ -96,7 +101,8 @@ From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaCompareSpec FlambdaNormaliseSpec FlambdaBlockLoadSpec
-  FlambdaLoopAliasesSpec FlambdaRecHandlersSpec FlambdaShortcutSpec
+  FlambdaForwardSpec FlambdaLoopAliasesSpec FlambdaLoopLetsSpec
+  FlambdaParamAliasesSpec FlambdaRecHandlersSpec FlambdaShortcutSpec
   FlambdaSinkContsSpec FlambdaUnboxSpec FlambdaUnusedContsSpec
   FlambdaUnusedParamsSpec FlambdaUnusedStaticsSpec FlambdaLiftSpec
   FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec
@@ -156,12 +162,74 @@ Definition normalise_before_round (e : expr) : expr :=
     (merge_statics
        (drop_deleted_code (normalise_code_before (inline_calls [] e)))).
 
-Definition normalise_before (rounds : nat) (e : expr) : expr :=
-  iterate rounds normalise_before_round e.
+(* One round of the first phase for an expression of the term before:
+   [normalise_expr_before] with what Simplify does to the parameters of
+   continuations. After an arm of a [Switch] is made to go where its
+   continuation goes, every application of a continuation whose handler
+   only applies another is, wherever it is ([forward_applications]; the
+   continuations that this leaves unused are removed). After the
+   bindings that are left unused are removed, a parameter that every
+   application gives the same thing is bound to it at the start of the
+   handler ([bind_aliased_params]), which leaves it unused as a
+   parameter, and the unused ones are removed, those of loops too
+   ([drop_unused_params]). The next round follows the new [Let]s and
+   removes them. *)
+Definition normalise_expr_params (e : expr) : expr :=
+  let e :=
+    shortcut_switches
+      (thread_switches
+         (inline_tail_conts
+            (sink_let_conts
+               (remove_unused_conts (collapse_switches (fold_constants e))))))
+  in
+  let e := remove_unused_conts (forward_applications e) in
+  let e :=
+    follow_aliases_in_loops []
+      (follow_aliases [] (unbox_known_numbers (load_known_blocks e)))
+  in
+  drop_unused_params
+    (bind_aliased_params
+       (remove_unused_defined_lets [] (remove_unused_lets (fold_constants e)))).
 
-(* The same for the term after. Every rewrite is an equivalence. *)
+(* The same for the body of code: the round for the handler of each of
+   its recursive continuations, a loop in a loop included, and then for
+   the body itself. The handlers come first: [forward_applications] goes
+   into the handler of a loop for the continuations bound outside it,
+   and must find those bound inside as [sink_let_conts] and
+   [inline_tail_conts] leave them there. *)
+Definition normalise_code_params (body : expr) : expr :=
+  normalise_expr_params (rewrite_rec_handlers normalise_expr_params body).
+
+(* One round of the first phase for the term before: the round above on
+   the term itself and on the body of each piece of code. No call is
+   inlined. *)
+Definition normalise_params_round (e : expr) : expr :=
+  rewrite_code normalise_code_params (normalise_code_params e).
+
+(* The term before is normalised in two phases. The first is what
+   Simplify does to the continuations of the term as it is: the front
+   end makes every mutable variable in scope a parameter of a loop and
+   of the continuation after an [if], and Simplify removes those that
+   are always given the same thing. The second inlines the calls of
+   known code, and the term after has that phase too
+   ([normalise_after_round]), also for the calls that Simplify did not
+   inline. The work on parameters is not in the second phase: where the
+   validation inlines a call that Simplify left, the continuation that
+   the call returned to becomes one that the inlined body applies, on
+   both sides, and the term after has only equivalences to normalise it
+   with, which the removal of a parameter is not. *)
+Definition normalise_before (rounds : nat) (e : expr) : expr :=
+  iterate rounds normalise_before_round
+    (iterate rounds normalise_params_round e).
+
+(* The same for the term after. Every rewrite is an equivalence. The
+   unused [Let]s that are sure to have a value are removed in the
+   handlers of recursive continuations too, with what is in scope there
+   ([remove_unused_defined_lets_in_loops]): Simplify leaves such a [Let]
+   where it has removed a parameter that every application gave the same
+   thing. *)
 Definition normalise_expr_after (e : expr) : expr :=
-  remove_unused_defined_lets []
+  remove_unused_defined_lets_in_loops []
     (fold_constants (follow_aliases_in_loops [] (follow_aliases [] e))).
 
 Definition normalise_code_after (body : expr) : expr :=
@@ -172,7 +240,7 @@ Definition normalise_after_round (e : expr) : expr :=
     (merge_statics
        (drop_deleted_code
           (rewrite_rec_handlers normalise_expr_after
-             (remove_unused_defined_lets []
+             (remove_unused_defined_lets_in_loops []
                 (fold_constants
                    (inline_known_calls [] []
                       (follow_aliases_in_loops [] (follow_aliases [] e)))))))).
@@ -204,15 +272,16 @@ Definition with_known (e : expr) : expr :=
   | None => e
   end.
 
-(* The normalisation of a term in which something was lifted: each round
-   of that of the term before is followed by the use of what is known
-   of the static closures in sight, and of what the unit binds its
-   symbols to. *)
+(* The normalisation of a term in which something was lifted: the first
+   phase of that of the term before, then its second phase with each
+   round followed by the use of what is known of the static closures in
+   sight, and of what the unit binds its symbols to. *)
 Definition normalise_lifted_round (e : expr) : expr :=
   with_known (use_known_closures (normalise_before_round e)).
 
 Definition normalise_lifted (rounds : nat) (e : expr) : expr :=
-  iterate rounds normalise_lifted_round e.
+  iterate rounds normalise_lifted_round
+    (iterate rounds normalise_params_round e).
 
 (* The term with each of the liftings given applied in turn, each
    followed by that normalisation. A lifting after the first names

@@ -80,6 +80,15 @@ let keep_kinds mask metadata =
     else make_handler_metadata kinds
   | None -> metadata
 
+(** val used_params_in_loop : continuation -> continuation_handler -> expr ->
+    bool list option **)
+
+let used_params_in_loop k h whole =
+  let (Handler (params, metadata, handler)) = h in
+  if returned_to k whole
+  then None
+  else used_params metadata.hm_is_exn_handler params handler
+
 (** val drop_params : masks -> expr -> expr **)
 
 let rec drop_params known e =
@@ -103,8 +112,8 @@ let rec drop_params known e =
       app
         (map
            (fun pat ->
-             let k, _ = pat in
-             k, None)
+             let k, h = pat in
+             k, used_params_in_loop k h e)
            handlers)
         known
     in
@@ -112,7 +121,7 @@ let rec drop_params known e =
       ( map
           (fun pat ->
             let k, h = pat in
-            k, drop_params_in_handler known0 h)
+            k, drop_params_in_loop known0 (used_params_in_loop k h e) h)
           handlers,
         drop_params known0 body )
   | Apply_cont ac -> Apply_cont (drop_args known ac)
@@ -120,12 +129,15 @@ let rec drop_params known e =
     Switch (scrutinee, map (fun arm -> fst arm, drop_args known (snd arm)) arms)
   | _ -> e
 
-(** val drop_params_in_handler : masks -> continuation_handler ->
-    continuation_handler **)
+(** val drop_params_in_loop : masks -> bool list option -> continuation_handler
+    -> continuation_handler **)
 
-and drop_params_in_handler known = function
+and drop_params_in_loop known mask = function
   | Handler (params, metadata, handler) ->
-    Handler (params, metadata, drop_params known handler)
+    Handler
+      ( keep_all_or mask params,
+        keep_kinds mask metadata,
+        drop_params known handler )
 
 (** val drop_unused_params : expr -> expr **)
 

@@ -24,9 +24,12 @@ val used_params : bool -> variable list -> expr -> bool list option
 
 val keep_kinds : bool list option -> handler_metadata -> handler_metadata
 
+val used_params_in_loop :
+  continuation -> continuation_handler -> expr -> bool list option
+
 val drop_params : masks -> expr -> expr
 
-val drop_params_in_handler :
-  masks -> continuation_handler -> continuation_handler
+val drop_params_in_loop :
+  masks -> bool list option -> continuation_handler -> continuation_handler
 
 val drop_unused_params : expr -> expr

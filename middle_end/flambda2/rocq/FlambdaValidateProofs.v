@@ -34,8 +34,10 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaSemanticsProofs FlambdaCompareSpec FlambdaCompareProofs
   FlambdaNormaliseSpec FlambdaNormaliseProofs FlambdaBlockLoadSpec
-  FlambdaBlockLoadProofs FlambdaLoopAliasesSpec FlambdaLoopAliasesProofs
-  FlambdaRecHandlersSpec FlambdaRecHandlersProofs
+  FlambdaBlockLoadProofs FlambdaForwardSpec FlambdaForwardProofs
+  FlambdaLoopAliasesSpec FlambdaLoopAliasesProofs
+  FlambdaLoopLetsSpec FlambdaLoopLetsProofs FlambdaParamAliasesSpec
+  FlambdaParamAliasesProofs FlambdaRecHandlersSpec FlambdaRecHandlersProofs
   FlambdaShortcutSpec FlambdaShortcutProofs FlambdaSinkContsSpec
   FlambdaSinkContsProofs FlambdaUnboxSpec FlambdaUnboxProofs
   FlambdaUnusedContsSpec FlambdaUnusedContsProofs FlambdaUnusedParamsSpec
@@ -69,7 +71,8 @@ Ltac equivalence_step :=
     | apply remove_unused_conts_equivalent
     | apply sink_let_conts_equivalent
     | apply follow_aliases_in_loops_equivalent
-    | apply shortcut_switches_equivalent ].
+    | apply shortcut_switches_equivalent
+    | apply remove_unused_defined_lets_in_loops_equivalent ].
 
 Ltac refinement_step :=
   first
@@ -80,6 +83,8 @@ Ltac refinement_step :=
     | apply load_known_blocks_refines
     | apply unbox_known_numbers_refines
     | apply drop_unused_params_refines
+    | apply bind_aliased_params_refines
+    | apply forward_applications_refines
     | apply expr_equivalent_refines; equivalence_step ].
 
 Lemma normalise_expr_before_refines (e : expr) :
@@ -107,6 +112,43 @@ Proof.
   repeat (eapply expr_refines_trans; [ | solve [ refinement_step ] ]).
   eapply expr_refines_trans; [ | apply normalise_code_before_refines ].
   apply inline_calls_refines.
+Qed.
+
+(* The first phase of the term before. *)
+Lemma normalise_expr_params_refines (e : expr) :
+  expr_refines e (normalise_expr_params e).
+Proof.
+  unfold normalise_expr_params. cbv zeta.
+  repeat (eapply expr_refines_trans; [ | solve [ refinement_step ] ]).
+  apply expr_refines_refl.
+Qed.
+
+Lemma normalise_code_params_refines (body : expr) :
+  expr_refines body (normalise_code_params body).
+Proof.
+  unfold normalise_code_params.
+  exact (expr_refines_trans _ _ _
+    (rewrite_rec_handlers_refines _ normalise_expr_params_refines body)
+    (normalise_expr_params_refines _)).
+Qed.
+
+Lemma normalise_params_round_refines (e : expr) :
+  expr_refines e (normalise_params_round e).
+Proof.
+  unfold normalise_params_round.
+  eapply expr_refines_trans;
+    [ | apply rewrite_code_refines, normalise_code_params_refines ].
+  apply normalise_code_params_refines.
+Qed.
+
+Lemma iterate_refines (f : expr -> expr) :
+  (∀ e : expr, expr_refines e (f e)) ->
+  ∀ (rounds : nat) (e : expr), expr_refines e (iterate rounds f e).
+Proof.
+  intros Hf rounds.
+  induction rounds as [ | rounds IH]; intros e; simpl;
+    [ apply expr_refines_refl | ].
+  exact (expr_refines_trans _ _ _ (Hf e) (IH _)).
 Qed.
 
 Lemma normalise_expr_after_equivalent (e : expr) :
@@ -142,11 +184,10 @@ Qed.
 Lemma normalise_before_refines (rounds : nat) :
   ∀ e : expr, expr_refines e (normalise_before rounds e).
 Proof.
-  unfold normalise_before.
-  induction rounds as [ | rounds IH]; intros e; simpl;
-    [ apply expr_refines_refl | ].
-  exact (expr_refines_trans _ _ _ (normalise_before_round_refines e)
-    (IH _)).
+  intros e. unfold normalise_before.
+  exact (expr_refines_trans _ _ _
+    (iterate_refines _ normalise_params_round_refines rounds e)
+    (iterate_refines _ normalise_before_round_refines rounds _)).
 Qed.
 
 Lemma normalise_after_equivalent (rounds : nat) :
@@ -205,10 +246,9 @@ Proof.
   exact (fold_known_unit_program_refines e e' Hfold).
 Qed.
 
-Lemma normalise_lifted_program_refines (rounds : nat) :
-  ∀ e : expr, program_refines e (normalise_lifted rounds e).
+Lemma iterate_lifted_program_refines (rounds : nat) :
+  ∀ e : expr, program_refines e (iterate rounds normalise_lifted_round e).
 Proof.
-  unfold normalise_lifted.
   induction rounds as [ | rounds IH]; intros e; simpl;
     [ apply refines_refl | ].
   apply (refines_trans _ _ _
@@ -217,6 +257,16 @@ Proof.
     (expr_refines_program _ _ (use_known_closures_refines _))).
   apply (refines_trans _ _ _ (with_known_program_refines _)).
   apply IH.
+Qed.
+
+Lemma normalise_lifted_program_refines (rounds : nat) :
+  ∀ e : expr, program_refines e (normalise_lifted rounds e).
+Proof.
+  intros e. unfold normalise_lifted.
+  exact (refines_trans _ _ _
+    (expr_refines_program _ _
+       (iterate_refines _ normalise_params_round_refines rounds e))
+    (iterate_lifted_program_refines rounds _)).
 Qed.
 
 Lemma lifted_in_turn_program_refines (rounds : nat) (Ls : list lifting) :

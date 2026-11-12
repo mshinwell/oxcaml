@@ -4351,10 +4351,39 @@ Proof.
   apply rewrite_code_equivariant, normalise_code_before_equivariant.
 Qed.
 
+(* The first phase of the term before. *)
+Lemma normalise_expr_params_equivariant :
+  rewrite_equivariant normalise_expr_params.
+Proof.
+  intros r e. unfold normalise_expr_params. cbv zeta. rename_outwards.
+  reflexivity.
+Qed.
+
+Lemma normalise_code_params_equivariant :
+  rewrite_equivariant normalise_code_params.
+Proof.
+  intros r e. unfold normalise_code_params.
+  rewrite
+    (rewrite_rec_handlers_equivariant normalise_expr_params
+       normalise_expr_params_equivariant).
+  apply normalise_expr_params_equivariant.
+Qed.
+
+Lemma normalise_params_round_equivariant :
+  rewrite_equivariant normalise_params_round.
+Proof.
+  intros r e. unfold normalise_params_round.
+  rewrite normalise_code_params_equivariant.
+  apply rewrite_code_equivariant, normalise_code_params_equivariant.
+Qed.
+
 Theorem normalise_before_equivariant :
   normalise_before_equivariant_statement.
 Proof.
-  intros rounds. apply iterate_equivariant, normalise_before_round_equivariant.
+  intros rounds r e. unfold normalise_before.
+  rewrite
+    (iterate_equivariant rounds _ normalise_params_round_equivariant r e).
+  apply iterate_equivariant, normalise_before_round_equivariant.
 Qed.
 
 Lemma normalise_expr_after_equivariant :
@@ -4916,7 +4945,12 @@ Qed.
 
 Lemma normalise_lifted_equivariant (rounds : nat) :
   rewrite_equivariant (normalise_lifted rounds).
-Proof. apply iterate_equivariant, normalise_lifted_round_equivariant. Qed.
+Proof.
+  intros r e. unfold normalise_lifted.
+  rewrite
+    (iterate_equivariant rounds _ normalise_params_round_equivariant r e).
+  apply iterate_equivariant, normalise_lifted_round_equivariant.
+Qed.
 
 (* The liftings in turn. *)
 Lemma lifted_in_turn_renamed (r : renaming) (rounds : nat)

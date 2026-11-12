@@ -3,12 +3,15 @@ open FlambdaAliasesSpec
 open FlambdaBlockLoadSpec
 open FlambdaCompareSpec
 open FlambdaFloatCodeSpec
+open FlambdaForwardSpec
 open FlambdaKnownClosuresSpec
 open FlambdaKnownSymbolsSpec
 open FlambdaLiftSpec
 open FlambdaLoopAliasesSpec
+open FlambdaLoopLetsSpec
 open FlambdaModel
 open FlambdaNormaliseSpec
+open FlambdaParamAliasesSpec
 open FlambdaRecHandlersSpec
 open FlambdaShortcutSpec
 open FlambdaSinkContsSpec
@@ -52,14 +55,45 @@ let normalise_before_round e =
     (merge_statics
        (drop_deleted_code (normalise_code_before (inline_calls [] e))))
 
+(** val normalise_expr_params : expr -> expr **)
+
+let normalise_expr_params e =
+  let e0 =
+    shortcut_switches
+      (thread_switches
+         (inline_tail_conts
+            (sink_let_conts
+               (remove_unused_conts (collapse_switches (fold_constants e))))))
+  in
+  let e1 = remove_unused_conts (forward_applications e0) in
+  let e2 =
+    follow_aliases_in_loops []
+      (follow_aliases [] (unbox_known_numbers (load_known_blocks e1)))
+  in
+  drop_unused_params
+    (bind_aliased_params
+       (remove_unused_defined_lets [] (remove_unused_lets (fold_constants e2))))
+
+(** val normalise_code_params : expr -> expr **)
+
+let normalise_code_params body =
+  normalise_expr_params (rewrite_rec_handlers normalise_expr_params body)
+
+(** val normalise_params_round : expr -> expr **)
+
+let normalise_params_round e =
+  rewrite_code normalise_code_params (normalise_code_params e)
+
 (** val normalise_before : nat -> expr -> expr **)
 
-let normalise_before rounds e = iterate rounds normalise_before_round e
+let normalise_before rounds e =
+  iterate rounds normalise_before_round
+    (iterate rounds normalise_params_round e)
 
 (** val normalise_expr_after : expr -> expr **)
 
 let normalise_expr_after e =
-  remove_unused_defined_lets []
+  remove_unused_defined_lets_in_loops []
     (fold_constants (follow_aliases_in_loops [] (follow_aliases [] e)))
 
 (** val normalise_code_after : expr -> expr **)
@@ -74,7 +108,7 @@ let normalise_after_round e =
     (merge_statics
        (drop_deleted_code
           (rewrite_rec_handlers normalise_expr_after
-             (remove_unused_defined_lets []
+             (remove_unused_defined_lets_in_loops []
                 (fold_constants
                    (inline_known_calls [] []
                       (follow_aliases_in_loops [] (follow_aliases [] e))))))))
@@ -105,7 +139,9 @@ let normalise_lifted_round e =
 
 (** val normalise_lifted : nat -> expr -> expr **)
 
-let normalise_lifted rounds e = iterate rounds normalise_lifted_round e
+let normalise_lifted rounds e =
+  iterate rounds normalise_lifted_round
+    (iterate rounds normalise_params_round e)
 
 (** val lifted_in_turn : nat -> lifting list -> expr -> expr **)
 
