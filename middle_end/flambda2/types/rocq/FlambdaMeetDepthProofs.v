@@ -119,7 +119,10 @@ Proof.
   - rewrite !andb_true_iff in Hnon_null |- *.
     destruct Hnon_null as [[[[His_int Hget_tag] Himmediates] Hblocks'] Hext].
     repeat split; try assumption.
-    + destruct immediates as [ty | ]; [ apply Hinside, Himmediates | trivial ].
+    + destruct immediates as [ty | ]; [ | trivial ].
+      apply orb_true_iff in Himmediates. apply orb_true_iff.
+      destruct Himmediates as [Hty | Hbottom];
+        [ left; apply Hinside, Hty | right; exact Hbottom ].
     + destruct blocks as [blocks | ]; [ apply Hblocks, Hblocks' | trivial ].
   - apply Hinside, Hnon_null.
   - apply Hclosures, Hnon_null.
@@ -390,6 +393,33 @@ Proof.
     cbn in H1, H2.
   - destruct (contents_is_bottom a1), (contents_is_bottom a2); cbn;
       try apply same_kept_bottom.
+    apply same_kept_map, Hcontents; assumption.
+  - destruct (contents_is_bottom a1);
+      [ apply same_kept_bottom | apply same_kept_ok ].
+  - destruct (contents_is_bottom a2);
+      [ apply same_kept_bottom | apply same_kept_ok ].
+  - apply same_kept_ok.
+Qed.
+
+(* The same where what is known may also be bottom, for the test of
+   bottom that [meet_unknown] is given: it then asks no meet. *)
+Lemma meet_unknown_or_bottom_steady {A : Type} (P1 P2 : A -> Prop)
+    (meet_contents meet_contents' :
+      Meet_env.t -> A -> A -> option (Meet_result.t A))
+    (contents_is_bottom : A -> bool) :
+  steady P1 P2 meet_contents meet_contents' ->
+  steady (known_has (fun a => P1 a ∨ contents_is_bottom a = true))
+    (known_has (fun a => P2 a ∨ contents_is_bottom a = true))
+    (meet_unknown meet_contents contents_is_bottom)
+    (meet_unknown meet_contents' contents_is_bottom).
+Proof.
+  intros Hcontents env [a1 | ] [a2 | ] H1 H2; unfold meet_unknown;
+    cbn in H1, H2.
+  - destruct (contents_is_bottom a1) eqn:Hbottom1,
+      (contents_is_bottom a2) eqn:Hbottom2;
+      cbn; try apply same_kept_bottom.
+    destruct H1 as [H1 | H1]; [ | discriminate H1 ].
+    destruct H2 as [H2 | H2]; [ | discriminate H2 ].
     apply same_kept_map, Hcontents; assumption.
   - destruct (contents_is_bottom a1);
       [ apply same_kept_bottom | apply same_kept_ok ].
@@ -2197,14 +2227,22 @@ Definition blocks_have (inside : flambda_type -> bool)
     (blocks : row_like_for_blocks) : Prop :=
   plain_blocks inside blocks = true.
 
+(* What is asked of the immediates of a variant: of a type inside, or
+   that they have no value. *)
+Definition has_or_bottom (inside : flambda_type -> bool) (ty : flambda_type)
+    : Prop :=
+  has inside ty ∨ is_obviously_bottom ty = true.
+
 Lemma meet_variant_steady (env : Meet_env.t)
     (is_int1 get_tag1 is_int2 get_tag2 : option variable)
     (blocks1 blocks2 : Or_unknown.t row_like_for_blocks)
     (imms1 imms2 : Or_unknown.t flambda_type) :
   allowed relations1 is_int1 -> allowed relations1 get_tag1 ->
   allowed relations2 is_int2 -> allowed relations2 get_tag2 ->
-  known_has (blocks_have inside1) blocks1 -> known_has (has inside1) imms1 ->
-  known_has (blocks_have inside2) blocks2 -> known_has (has inside2) imms2 ->
+  known_has (blocks_have inside1) blocks1 ->
+  known_has (has_or_bottom inside1) imms1 ->
+  known_has (blocks_have inside2) blocks2 ->
+  known_has (has_or_bottom inside2) imms2 ->
   same_kept env
     (meet_variant join choices mh env is_int1 get_tag1 blocks1 imms1 is_int2
        get_tag2 blocks2 imms2 No_extensions No_extensions)
@@ -2220,13 +2258,15 @@ Proof.
               * Or_unknown.t flambda_type * variant_extensions =>
           let '(get_tag, blocks, imms, extensions) := rest in
           allowed relations1 get_tag ∧ known_has (blocks_have inside1) blocks
-          ∧ known_has (has inside1) imms ∧ extensions = No_extensions)
+          ∧ known_has (has_or_bottom inside1) imms
+          ∧ extensions = No_extensions)
        (fun rest :
               option variable * Or_unknown.t row_like_for_blocks
               * Or_unknown.t flambda_type * variant_extensions =>
           let '(get_tag, blocks, imms, extensions) := rest in
           allowed relations2 get_tag ∧ known_has (blocks_have inside2) blocks
-          ∧ known_has (has inside2) imms ∧ extensions = No_extensions));
+          ∧ known_has (has_or_bottom inside2) imms
+          ∧ extensions = No_extensions));
     try assumption; try (repeat split; assumption).
   - exact meet_relation_steady.
   - intros env' [[[get_tag1' blocks1'] imms1'] extensions1]
@@ -2234,8 +2274,8 @@ Proof.
       (Hg1 & Hb1 & Hi1 & ->) (Hg2 & Hb2 & Hi2 & ->).
     apply same_kept_map.
     apply
-      (meet_disjunction_steady (known_has (has inside1))
-         (known_has (has inside2))
+      (meet_disjunction_steady (known_has (has_or_bottom inside1))
+         (known_has (has_or_bottom inside2))
          (fun tagged : option variable * Or_unknown.t row_like_for_blocks =>
             allowed relations1 (fst tagged)
             ∧ known_has (blocks_have inside1) (snd tagged))
@@ -2243,7 +2283,7 @@ Proof.
             allowed relations2 (fst tagged)
             ∧ known_has (blocks_have inside2) (snd tagged)));
       try assumption; try (split; assumption).
-    + apply meet_unknown_steady, Hinside.
+    + exact (meet_unknown_or_bottom_steady _ _ _ _ _ Hinside).
     + intros env'' [g1 b1] [g2 b2] [Hg1' Hbb1] [Hg2' Hbb2].
       cbn [fst snd] in *.
       apply
@@ -2276,9 +2316,9 @@ Proof.
     destruct extensions2; [ | discriminate ].
     apply same_kept_map, meet_variant_steady; try assumption.
     + destruct blocks1; [ exact Hblocks1 | exact I ].
-    + destruct imms1; [ exact Himms1 | exact I ].
+    + destruct imms1; [ apply orb_true_iff, Himms1 | exact I ].
     + destruct blocks2; [ exact Hblocks2 | exact I ].
-    + destruct imms2; [ exact Himms2 | exact I ].
+    + destruct imms2; [ apply orb_true_iff, Himms2 | exact I ].
   - destruct blocks1 as [[known other alloc_mode] | ]; [ | apply same_kept_ok ].
     destruct alloc_mode, alloc_mode2; apply same_kept_ok.
   - destruct blocks2 as [[known other alloc_mode] | ]; [ | apply same_kept_ok ].
@@ -2778,18 +2818,82 @@ Proof.
     exact (Hkept r menv' Hmeet).
 Qed.
 
+(* One step of the meet, on a bare shape and a type that has no
+   extension, in either order: no meet of types is asked. *)
+Lemma bare_step_steady (join : join_scoped_envs) (choices : meet_choices)
+    (m m' : meet_expanded_head) :
+  join_of_nothing join ->
+  steady (expanded_plain false (fun _ => false))
+    (expanded_plain true (fun _ => true))
+    (meet_expanded_head_step join choices m)
+    (meet_expanded_head_step join choices m').
+Proof.
+  intros Hjoin.
+  apply
+    (meet_expanded_head_step_steady join choices m m' false true _ _ Hjoin
+       eq_refl).
+  intros env t1 t2 H1. discriminate H1.
+Qed.
+
+Lemma step_bare_steady (join : join_scoped_envs) (choices : meet_choices)
+    (m m' : meet_expanded_head) :
+  join_of_nothing join ->
+  steady (expanded_plain true (fun _ => true))
+    (expanded_plain false (fun _ => false))
+    (meet_expanded_head_step join choices m)
+    (meet_expanded_head_step join choices m').
+Proof.
+  intros Hjoin.
+  apply
+    (meet_expanded_head_step_steady join choices m m' true false _ _ Hjoin
+       eq_refl).
+  intros env t1 t2 _ H2. discriminate H2.
+Qed.
+
+Theorem bare_shape_shape : bare_shape_shape_statement.
+Proof.
+  intros ty. apply plain_type_more. intros ty' Hnone. discriminate Hnone.
+Qed.
+
+Theorem bare_shape_fuel_enough : bare_shape_fuel_enough_statement.
+Proof.
+  intros join choices menv e1 e2 Hjoin H1 H2. split; intros mh0.
+  - exact
+      (proj1
+         (bare_step_steady join choices mh0 (fun _ _ _ => None) Hjoin menv e1
+            e2 H1 H2)).
+  - exact
+      (proj1
+         (step_bare_steady join choices mh0 (fun _ _ _ => None) Hjoin menv e2
+            e1 H2 H1)).
+Qed.
+
+Theorem bare_shape_meet_adds_nothing : bare_shape_meet_adds_nothing_statement.
+Proof.
+  intros join choices menv menv' e1 e2 r Hjoin H1 H2. split; intros Hmeet.
+  - destruct
+      (bare_step_steady join choices (fun _ _ _ => None) (fun _ _ _ => None)
+         Hjoin menv e1 e2 H1 H2) as [_ Hkept].
+    exact (Hkept r menv' Hmeet).
+  - destruct
+      (step_bare_steady join choices (fun _ _ _ => None) (fun _ _ _ => None)
+         Hjoin menv e2 e1 H2 H1) as [_ Hkept].
+    exact (Hkept r menv' Hmeet).
+Qed.
+
 Theorem relation_shapes : relation_shapes_statement.
 Proof.
   repeat (split; [ reflexivity | ]).
   intros tags alloc_mode.
   assert (Hblocks :
-    plain_blocks says_nothing_or_no_value
+    plain_blocks (fun _ => false)
       (Row_like_for_blocks (map (fun tag : Z => (tag, Or_unknown.Unknown)) tags)
          Or_bottom.Bottom alloc_mode)
     = true).
   { cbn [plain_blocks]. apply andb_true_iff. split; [ | reflexivity ].
     induction tags as [ | tag tags IH]; [ reflexivity | exact IH ]. }
-  split; unfold shape; cbn -[plain_blocks]; rewrite Hblocks; reflexivity.
+  split; unfold bare_shape; cbn -[plain_blocks]; rewrite Hblocks;
+    reflexivity.
 Qed.
 
 (* ======================================================================== *)

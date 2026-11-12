@@ -51,7 +51,10 @@
      a row-like structure the empty extension;
    - the types inside it (the fields of a block, the immediates of a
      variant, the contents of a boxed number, the closures and the
-     value slots of a set of closures) are so within one less.
+     value slots of a set of closures) are so within one less. The
+     immediates of a variant are not counted if they have no value:
+     the meet of two variants then answers that the immediates have
+     none without a meet of types ([meet_unknown]).
    So within depth 1 are the types that have no type inside, the flat
    ones of FlambdaMeetTerminationSpec.v among them
    ([flat_nameless_statement]), and no type is so within depth 0. A
@@ -113,9 +116,9 @@
    [any_tagged_immediate], [null], [any_non_null_value], or the blocks
    of some tags. Such a type is a shape ([shape]): it has no name
    inside, and the types inside it each say nothing or have no value;
-   those five are shapes ([relation_shapes_statement]). The type that
-   a shape is met with is one that the environment has for a name,
-   and has names inside in general. What is asked of it is that it
+   those five are shapes. The type that a shape is met with is one
+   that the environment has for a name, and has names inside in
+   general. What is asked of it is that it
    has no extension ([extension_free]): it is not an alias; a variant
    in it has [No_extensions], and a case of a row-like structure the
    empty extension; and if it is a head of naked immediates it has no
@@ -133,15 +136,25 @@
    or bottom. Two units are reached: an example is run
    ([example_shape_fuel_statement]), with a shape that has a type
    inside which says nothing. The shapes that the relations give have
-   no such type; that one unit is enough for them is not stated.
+   no type inside, but for immediates that have no value: they are
+   bare shapes ([bare_shape], [relation_shapes_statement]; a bare
+   shape is a shape, [bare_shape_shape_statement]). For a bare shape
+   and a type that has no extension, in either order, one unit is
+   enough, and the meet adds nothing to the typing environment
+   ([bare_shape_fuel_enough_statement],
+   [bare_shape_meet_adds_nothing_statement]): no meet of types is
+   asked, so the functions of the meet read no type of the
+   environment.
 
    The two classes are one test ([plain_type]) with two parameters:
    whether a head of values may have variables for relations, and
    what is asked of the types inside. A type with no name inside
    allows no variable and asks the same of the types inside, one
    level less ([nameless_type]); a shape allows no variable and asks
-   that the types inside say nothing or have no value; a type with no
-   extension allows variables and asks nothing of the types inside.
+   that the types inside say nothing or have no value; a bare shape
+   allows no variable and no type inside; a type with no extension
+   allows variables and asks nothing of the types inside. In all of
+   them the immediates of a variant may have no value.
 
    What is not here: names, but for the meet with a shape. An alias of
    a name, a variable for a relation on both sides, or an extension
@@ -227,7 +240,7 @@ Definition plain_non_null (head : head_of_kind_value_non_null) : bool :=
     relation_variable_allowed is_int && relation_variable_allowed get_tag
     && match immediates with
        | Or_unknown.Unknown => true
-       | Or_unknown.Known ty => inside ty
+       | Or_unknown.Known ty => inside ty || is_obviously_bottom ty
        end
     && match blocks with
        | Or_unknown.Unknown => true
@@ -471,6 +484,14 @@ Definition shape (ty : flambda_type) : bool :=
 Definition extension_free (ty : flambda_type) : bool :=
   plain_type true (fun _ => true) ty.
 
+(* A bare shape: a shape with no type inside, but for immediates that
+   have no value. *)
+Definition bare_shape (ty : flambda_type) : bool :=
+  plain_type false (fun _ => false) ty.
+
+Definition bare_shape_shape_statement : Prop :=
+  ∀ ty : flambda_type, bare_shape ty = true -> shape ty = true.
+
 (* Two units of fuel are enough for the meet of a shape with a type
    that has no extension, in either order. *)
 Definition shape_fuel_enough_statement : Prop :=
@@ -497,18 +518,43 @@ Definition shape_meet_adds_nothing_statement : Prop :=
        = Some (Meet_result.Ok r menv') ->
        Meet_env.typing_env menv' = Meet_env.typing_env menv).
 
+(* One unit is enough where the shape is bare. *)
+Definition bare_shape_fuel_enough_statement : Prop :=
+  ∀ (join : join_scoped_envs) (choices : meet_choices) (menv : Meet_env.t)
+    (e1 e2 : Expanded_type.t),
+    join_of_nothing join ->
+    bare_shape (Expanded_type.to_type e1) = true ->
+    extension_free (Expanded_type.to_type e2) = true ->
+    fuel_enough join choices 1 menv e1 e2
+    ∧ fuel_enough join choices 1 menv e2 e1.
+
+Definition bare_shape_meet_adds_nothing_statement : Prop :=
+  ∀ (join : join_scoped_envs) (choices : meet_choices)
+    (menv menv' : Meet_env.t) (e1 e2 : Expanded_type.t)
+    (r : meet_return_value Expanded_type.t),
+    join_of_nothing join ->
+    bare_shape (Expanded_type.to_type e1) = true ->
+    extension_free (Expanded_type.to_type e2) = true ->
+    (Meet.meet_expanded_head join choices 1 menv e1 e2
+     = Some (Meet_result.Ok r menv') ->
+     Meet_env.typing_env menv' = Meet_env.typing_env menv)
+    ∧ (Meet.meet_expanded_head join choices 1 menv e2 e1
+       = Some (Meet_result.Ok r menv') ->
+       Meet_env.typing_env menv' = Meet_env.typing_env menv).
+
 (* The types that a relation gives the name it is a relation of
-   ([reduce_inverse_relations], FlambdaMeet.v) are shapes; the last
-   two are what the compiler's choice and the repaired choice give
-   for [Get_tag]. *)
+   ([reduce_inverse_relations], FlambdaMeet.v) are bare shapes; the
+   last two are what the compiler's choice and the repaired choice
+   give for [Get_tag]. *)
 Definition relation_shapes_statement : Prop :=
-  shape any_non_null_value = true
-  ∧ shape null = true
-  ∧ shape any_block = true
-  ∧ shape any_tagged_immediate = true
+  bare_shape any_non_null_value = true
+  ∧ bare_shape null = true
+  ∧ bare_shape any_block = true
+  ∧ bare_shape any_tagged_immediate = true
   ∧ ∀ (tags : list Z) (alloc_mode : Alloc_mode.t),
-      shape (blocks_with_these_tags tags alloc_mode) = true
-      ∧ shape (immediate_or_blocks_with_these_tags tags alloc_mode) = true.
+      bare_shape (blocks_with_these_tags tags alloc_mode) = true
+      ∧ bare_shape (immediate_or_blocks_with_these_tags tags alloc_mode)
+        = true.
 
 (* ======================================================================== *)
 (* An example                                                               *)
