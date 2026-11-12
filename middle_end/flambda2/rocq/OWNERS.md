@@ -532,8 +532,9 @@ Owner: N1.
   name matches the pattern of the heap's files: the renamings of
   variables and continuations on the machine with a heap)
 - `middle_end/flambda2/rocq/FlambdaLocations*` (the locations of the
-  heap as a sort of names: the action of their permutations; by
-  agreement with the heap's owner)
+  heap as a sort of names: the action of their permutations, and the
+  primitives and the machine under it; by agreement with the heap's
+  owner)
 - `middle_end/flambda2/types/rocq/FlambdaEnvRenameJoinTypesProofs.v`
   (N1's, though it is in the types library and its name matches the
   pattern of N3's files on the join under renaming: lemmas only, the
