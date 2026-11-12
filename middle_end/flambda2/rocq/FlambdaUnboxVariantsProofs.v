@@ -90,6 +90,8 @@ Proof.
     destruct (Hvars (y, block) (lookup_in _ _ _ Hblock)) as (vs & _ & Hy).
     simpl in Harg, Hy. rewrite Hy in Harg. injection Harg as <-.
     discriminate.
+  - (* the untagging of a symbol *)
+    injection Harg as <-. discriminate.
 Qed.
 
 (* The field of a block that was made: it has a value of the kind of

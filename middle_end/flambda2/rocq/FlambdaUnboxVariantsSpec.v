@@ -98,7 +98,8 @@
      primitive is known to have no value ([no_value_on]) where it is a
      load or [Get_tag] and the argument is a constant, and where it is
      [Untag_immediate] and the argument is a variable that a [Let] in
-     scope made a block. Where the [Let] is the first thing in the
+     scope made a block, or a symbol, which is never an immediate.
+     Where the [Let] is the first thing in the
      handler ([head_read]) the argument is the one of the other pass
      ([extend_args]).
 
@@ -194,12 +195,13 @@ Definition dummy_of (p : unary_primitive) (kind : flambda_kind) : const :=
 
 (* Whether the term shows that the primitive has no value on the
    argument: a load or [Get_tag] of a constant, the untagging of what a
-   [Let] in scope made a block. *)
+   [Let] in scope made a block, or of a symbol. *)
 Definition no_value_on (known : facts) (p : unary_primitive) (arg : simple)
     : bool :=
   match p, arg with
   | (Block_load _ _ _ | Get_tag), Const _ => true
   | Untag_immediate, Var y => is_bound y (known_vars (facts_blocks known))
+  | Untag_immediate, Symbol _ => true
   | _, _ => false
   end.
 
