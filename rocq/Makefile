@@ -101,6 +101,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaCanonicalFreeNamesSpec.v \
   FlambdaClosuresProofs.v \
   FlambdaClosuresSpec.v \
+  FlambdaCodeLetsProofs.v \
+  FlambdaCodeLetsSpec.v \
   FlambdaCompareAlphaProofs.v \
   FlambdaCompareAlphaSpec.v \
   FlambdaCompareConverseProofs.v \

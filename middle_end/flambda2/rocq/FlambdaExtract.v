@@ -54,7 +54,8 @@ From Stdlib Require Extraction.
 From Stdlib Require Import ExtrOcamlBasic.
 From OxCamlFlambda2 Require Import FlambdaMapSpec FlambdaModel
   FlambdaBindersSpec FlambdaSemanticsSpec FlambdaWellFormedSpec
-  FlambdaWellKindedSpec FlambdaBlockLoadSpec FlambdaCompareSpec
+  FlambdaWellKindedSpec FlambdaBlockLoadSpec FlambdaCodeLetsSpec
+  FlambdaCompareSpec
   FlambdaCseSpec FlambdaDeadParamsSpec FlambdaForwardSpec
   FlambdaIdentitiesSpec FlambdaLoopAliasesSpec FlambdaLoopLetsSpec
   FlambdaLoopifySpec FlambdaNormaliseSpec FlambdaParamAliasesSpec
@@ -233,6 +234,7 @@ Separate Extraction
   partial_or_over_application
   remove_unused_conts
   remove_unused_defined_lets
+  remove_unused_defined_lets_in_code
   remove_unused_defined_lets_in_loops
   remove_unused_lets
   remove_unused_total_lets
