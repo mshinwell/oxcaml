@@ -396,6 +396,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaSimplifySwitchMergeProofs.v \
   FlambdaSimplifySwitchMergeSpec.v \
   FlambdaSimplifySwitchProofs.v \
+  FlambdaSimplifySwitchRewriteProofs.v \
+  FlambdaSimplifySwitchRewriteSpec.v \
   FlambdaSimplifySwitchSpec.v \
   FlambdaSimplifyValueSlotsProofs.v \
   FlambdaSimplifyValueSlotsSpec.v \
