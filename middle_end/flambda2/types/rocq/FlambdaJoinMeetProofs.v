@@ -32,7 +32,7 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
-  FlambdaMapSpec FlambdaMapProofs FlambdaSemanticsSpec
+  FlambdaMapSpec FlambdaMapProofs FlambdaSemanticsSpec FlambdaClosuresSpec
   FlambdaNameAbstractionSpec FlambdaNameAbstractionProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeWellFormedSpec
@@ -51,8 +51,11 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaJoinTypesWithEnvProofs FlambdaMeetGrammar FlambdaExpandHead
   FlambdaExpandHeadSpec FlambdaExpandHeadProofs FlambdaMeetEnv FlambdaMeet
   FlambdaMeetSpec FlambdaMeetStepsSpec FlambdaMeetStepsProofs
-  FlambdaMeetEnvSpec FlambdaMeetEnvProofs FlambdaJoinMeet
-  FlambdaJoinMeetSpec.
+  FlambdaMeetEnvSpec FlambdaMeetEnvProofs FlambdaMeetScopesProofs
+  FlambdaJoinMeet
+  FlambdaJoinMeetSpec FlambdaTypingEnvOperationsSpec
+  FlambdaTypingEnvOperationsProofs FlambdaTypingEnvProofs
+  FlambdaTypeMeaningProofs.
 Import ListNotations.
 
 Theorem join_expanded_to_type : join_expanded_to_type_statement.
@@ -201,6 +204,83 @@ Proof.
           [ left; exact H | congruence | right; exact H ].
 Qed.
 
+(* A variable that an environment knows is known at the same modes to
+   an environment that extends it. *)
+Lemma extends_mode (menv menv' : Meet_env.t) (x : variable)
+    (mode : Name_mode.t) :
+  meet_env_extends menv menv' ->
+  Typing_env.mem None (Meet_env.typing_env menv) (Name_var x) = true ->
+  Typing_env.mem (Some mode) (Meet_env.typing_env menv') (Name_var x)
+  = Typing_env.mem (Some mode) (Meet_env.typing_env menv) (Name_var x).
+Proof.
+  intros (_ & _ & Hmin & _ & _ & _ & _ & Hkeeps) Hmem.
+  apply mem_var_lookup in Hmem. destruct Hmem as [ty [btm Hlookup]].
+  destruct (Hkeeps _ _ _ Hlookup) as [ty' [Hlookup' _]].
+  unfold Typing_env.mem. rewrite Hlookup, Hlookup', Hmin. reflexivity.
+Qed.
+
+Lemma defined_in_types (tenv : Typing_env.t) (x : variable)
+    (k : flambda_kind) :
+  Typing_env.mem (Some Name_mode.normal)
+    (Typing_env.add_variable_definition tenv x k Name_mode.in_types)
+    (Name_var x)
+  = false.
+Proof.
+  unfold Typing_env.mem. rewrite add_variable_definition_lookup.
+  rewrite (proj2 (name_eqb_eq (Name_var x) (Name_var x)) eq_refl).
+  unfold Binding_time.With_name_mode.scoped_name_mode.
+  cbn [Binding_time.With_name_mode.name_mode].
+  destruct (_ || _); reflexivity.
+Qed.
+
+Theorem variables_defined_not_in_terms
+  : variables_defined_not_in_terms_statement.
+Proof.
+  intros vars.
+  induction vars as [ | [y k] vars IH];
+    intros menv x Hfits Hdistinct Hfresh Hx; [ destruct Hx | ].
+  change (variables_defined meet_env_functions menv ((y, k) :: vars))
+    with (variables_defined meet_env_functions
+            (Meet_env.add_variable_definition menv y k Name_mode.in_types)
+            vars).
+  set (menv1 := Meet_env.add_variable_definition menv y k Name_mode.in_types).
+  assert (Hy : Typing_env.mem None (Meet_env.typing_env menv) (Name_var y)
+               = false).
+  { apply Hfresh. left. reflexivity. }
+  destruct (add_variable_definition_keeps menv y k Name_mode.in_types Hfits
+              Hy) as [Hextends1 Hfits1].
+  fold menv1 in Hextends1, Hfits1.
+  cbn [map fst] in Hdistinct. apply NoDup_cons_iff in Hdistinct.
+  destruct Hdistinct as [Hnotin Hdistinct].
+  assert (Hfresh1 :
+            ∀ z : variable,
+              z ∈ map fst vars ->
+              Typing_env.mem None (Meet_env.typing_env menv1) (Name_var z)
+              = false).
+  { intros z Hz.
+    assert (Hne : z <> y) by (intros ->; exact (Hnotin Hz)).
+    pose proof (mem_add_variable_definition (Meet_env.typing_env menv) y k
+                  Name_mode.in_types z Hne) as Hsame.
+    change (Typing_env.mem None (Meet_env.typing_env menv1) (Name_var z)
+            = Typing_env.mem None (Meet_env.typing_env menv) (Name_var z))
+      in Hsame.
+    rewrite Hsame. apply Hfresh. right. exact Hz. }
+  destruct Hx as [Heq | Hx];
+    [ | exact (IH menv1 x Hfits1 Hdistinct Hfresh1 Hx) ].
+  cbn in Heq. subst y.
+  destruct (variables_defined_kept vars menv1 Hfits1 Hdistinct Hfresh1)
+    as [[Hextends _] _].
+  rewrite (extends_mode menv1 _ x Name_mode.normal Hextends).
+  - exact (defined_in_types (Meet_env.typing_env menv) x k).
+  - assert (Hkind1 : simple_of_kind (Meet_env.typing_env menv1) (Var x) k).
+    { apply (proj2 (add_variable_definition_simple_of_kind
+                      (Meet_env.typing_env menv) x k Name_mode.in_types
+                      (Var x) k)).
+      left. split; reflexivity. }
+    exact (simple_of_kind_mem (Meet_env.typing_env menv1) (Name_var x) k
+             (proj1 Hfits1) Hkind1).
+Qed.
+
 Lemma in_order_keys {A : Type} (m : finite_map A) (x : variable) :
   x ∈ map fst (rev (compact m)) <-> is_bound x m = true.
 Proof.
@@ -213,9 +293,66 @@ Proof.
     split; [ reflexivity | apply in_compact; exact Ha ].
 Qed.
 
+(* The variables brought in and variables that the join has made,
+   each once: no variable twice, and none that the source knows. *)
+Lemma target_variables_fresh (s : Join_env.t) (menv : Meet_env.t)
+    (kept : list (variable * flambda_kind)) :
+  state_valid s ->
+  Meet_env.typing_env menv = Join_env.source_env s ->
+  (∀ binding : variable * flambda_kind,
+     binding ∈ kept ->
+     binding
+     ∈ Bindings_in_target_env.existential_variables_in_order
+         (Join_env.bindings s)) ->
+  NoDup (map fst kept) ->
+  let vars :=
+    Bindings_in_target_env.imported_variables_in_order (Join_env.bindings s)
+    ++ kept
+  in
+  NoDup (map fst vars)
+  ∧ ∀ x : variable,
+      x ∈ map fst vars ->
+      Typing_env.mem None (Meet_env.typing_env menv) (Name_var x) = false.
+Proof.
+  intros Hvalid Hsource Hkept Hdistinct.
+  destruct Hvalid as [_ [Hnew [_ [_ Himports]]]].
+  set (imported :=
+         Bindings_in_target_env.imported_variables_in_order
+           (Join_env.bindings s)) in *.
+  cbv zeta.
+  assert (Himported_keys :
+            ∀ x : variable, x ∈ map fst imported <-> is_imported s x).
+  { intros x. exact (in_order_keys _ x). }
+  assert (Hkept_existential :
+            ∀ x : variable, x ∈ map fst kept -> is_existential s x).
+  { intros x Hx. apply in_map_iff in Hx. destruct Hx as [[y k] [Heq Hin]].
+    cbn in Heq. subst y. apply is_bound_lookup. exists k.
+    exact (in_order_lookup _ _ _ (Hkept _ Hin)). }
+  assert (Hapart :
+            ∀ x : variable, is_imported s x -> is_existential s x -> False).
+  { intros x Hi He. destruct (Hnew x He) as [_ Huses].
+    destruct (Himports x Hi) as [_ [index [use [Huse Hknows]]]].
+    exact (Huses index use Huse Hknows). }
+  split.
+  - rewrite map_app. apply NoDup_app.
+    + apply in_order_distinct.
+    + exact Hdistinct.
+    + intros x Hi Hk.
+      exact (Hapart x (proj1 (Himported_keys x) Hi)
+               (Hkept_existential x Hk)).
+  - intros x Hx. rewrite Hsource. rewrite map_app in Hx.
+    apply in_app_or in Hx.
+    destruct (Typing_env.mem None (Join_env.source_env s) (Name_var x))
+      eqn:Hmem; [ exfalso | reflexivity ].
+    destruct Hx as [Hx | Hx].
+    + exact (proj1 (Himports x (proj1 (Himported_keys x) Hx)) Hmem).
+    + exact (proj1 (Hnew x (Hkept_existential x Hx)) Hmem).
+Qed.
+
 Theorem target_variables_defined : target_variables_defined_statement.
 Proof.
   intros s menv kept Hvalid Hsource Hfits Hkept Hdistinct menv'.
+  pose proof Hvalid as Hvalid0.
   destruct Hvalid as [_ [Hnew [_ [_ Himports]]]].
   set (imported :=
          Bindings_in_target_env.imported_variables_in_order
@@ -233,25 +370,9 @@ Proof.
   { intros x Hi He. destruct (Hnew x He) as [_ Huses].
     destruct (Himports x Hi) as [_ [index [use [Huse Hknows]]]].
     exact (Huses index use Huse Hknows). }
-  assert (Hnodup : NoDup (map fst (imported ++ kept))).
-  { rewrite map_app. apply NoDup_app.
-    - apply in_order_distinct.
-    - exact Hdistinct.
-    - intros x Hi Hk.
-      exact (Hapart x (proj1 (Himported_keys x) Hi)
-               (Hkept_existential x Hk)). }
-  assert (Hfresh :
-            ∀ x : variable,
-              x ∈ map fst (imported ++ kept) ->
-              Typing_env.mem None (Meet_env.typing_env menv) (Name_var x)
-              = false).
-  { intros x Hx. rewrite Hsource. rewrite map_app in Hx.
-    apply in_app_or in Hx.
-    destruct (Typing_env.mem None (Join_env.source_env s) (Name_var x))
-      eqn:Hmem; [ exfalso | reflexivity ].
-    destruct Hx as [Hx | Hx].
-    - exact (proj1 (Himports x (proj1 (Himported_keys x) Hx)) Hmem).
-    - exact (proj1 (Hnew x (Hkept_existential x Hx)) Hmem). }
+  destruct (target_variables_fresh s menv kept Hvalid0 Hsource Hkept
+              Hdistinct) as [Hnodup Hfresh].
+  fold imported in Hnodup, Hfresh.
   destruct (variables_defined_kept (imported ++ kept) menv Hfits Hnodup
               Hfresh) as [Hkept' [Hkinds [Hmem Hnames]]].
   fold menv' in Hkept', Hkinds, Hmem, Hnames.
@@ -458,6 +579,316 @@ Proof.
 Qed.
 
 (* ---------------------------------------------------------------------- *)
+(* The target is satisfied, on the runs that have the conditions           *)
+(* ---------------------------------------------------------------------- *)
+
+(* A variable that an environment mentions is one that it knows. *)
+Lemma mentions_known (tenv : Typing_env.t) (x : variable) :
+  typing_env_invariant tenv ->
+  typing_env_mentions tenv x ->
+  Typing_env.mem None tenv (Name_var x) = true.
+Proof.
+  intros [Hwf _] [[ty [btm Hlookup]] | [[n [ty [btm [Hlookup Hx]]]] | Hx]].
+  - apply mem_var_lookup. exists ty, btm. exact Hlookup.
+  - pose proof Hwf as Hconditions.
+    apply typing_env_well_formed_iff in Hconditions.
+    destruct Hconditions as [[_ [_ [_ [Hclosed _]]]] _].
+    rewrite mem_var_is_bound. exact (Hclosed n ty btm x Hlookup Hx).
+  - exact (well_formed_mentioned_known tenv (Name_var x) Hwf Hx).
+Qed.
+
+(* A valuation that satisfies the environment of a meet satisfies it
+   with variables defined, if the values that it has for them are of
+   their kinds. *)
+Lemma variables_defined_satisfied (statics : static_env) (valuation : env) :
+  ∀ (vars : list (variable * flambda_kind)) (menv : Meet_env.t),
+    typing_env_satisfied_strictly statics valuation (Meet_env.typing_env menv)
+    ->
+    (∀ (x : variable) (k : flambda_kind) (v : value),
+       (x, k) ∈ vars -> lookup x valuation = Some v -> kind_of_value v = k) ->
+    typing_env_satisfied_strictly statics valuation
+      (Meet_env.typing_env (variables_defined meet_env_functions menv vars)).
+Proof.
+  induction vars as [ | [x k] vars IH]; intros menv Hsatisfied Hkinds;
+    [ exact Hsatisfied | ].
+  change (variables_defined meet_env_functions menv ((x, k) :: vars))
+    with (variables_defined meet_env_functions
+            (Meet_env.add_variable_definition menv x k Name_mode.in_types)
+            vars).
+  apply IH.
+  - exact (add_variable_definition_satisfied (fun _ => False) statics
+             valuation (Meet_env.typing_env menv) x k Name_mode.in_types
+             Hsatisfied
+             (fun v Hv => Hkinds x k v (or_introl eq_refl) Hv)).
+  - intros y k' v Hin Hv. exact (Hkinds y k' v (or_intror Hin) Hv).
+Qed.
+
+(* A valuation that has what one has for the variables that an
+   environment knows, and what another has for the others. *)
+Definition patched (tenv : Typing_env.t) (inside outside : env) : env :=
+  filter_bindings (fun x _ => Typing_env.mem None tenv (Name_var x)) inside
+  ++ filter_bindings (fun x _ => negb (Typing_env.mem None tenv (Name_var x)))
+       outside.
+
+Lemma lookup_patched (tenv : Typing_env.t) (inside outside : env)
+    (x : variable) :
+  lookup x (patched tenv inside outside)
+  = if Typing_env.mem None tenv (Name_var x)
+    then lookup x inside
+    else lookup x outside.
+Proof.
+  unfold patched. rewrite lookup_app, !lookup_filter_bindings.
+  destruct (Typing_env.mem None tenv (Name_var x)); cbn [negb].
+  - destruct (lookup x inside); [ reflexivity | ].
+    destruct (lookup x outside); reflexivity.
+  - destruct (lookup x inside); destruct (lookup x outside); reflexivity.
+Qed.
+
+(* Defining variables that the environment does not know, each once,
+   adds no equation. *)
+Lemma variables_defined_valued (valuation : env) :
+  ∀ (vars : list (variable * flambda_kind)) (menv : Meet_env.t),
+    typing_env_fits (Meet_env.typing_env menv) ->
+    NoDup (map fst vars) ->
+    (∀ x : variable,
+       x ∈ map fst vars ->
+       Typing_env.mem None (Meet_env.typing_env menv) (Name_var x) = false) ->
+    keeps_equations_valued (Meet_env.typing_env menv)
+      (Meet_env.typing_env (variables_defined meet_env_functions menv vars))
+      valuation valuation.
+Proof.
+  induction vars as [ | [y k] vars IH]; intros menv Hfits Hdistinct Hfresh;
+    [ apply keeps_equations_valued_refl | ].
+  change (variables_defined meet_env_functions menv ((y, k) :: vars))
+    with (variables_defined meet_env_functions
+            (Meet_env.add_variable_definition menv y k Name_mode.in_types)
+            vars).
+  assert (Hy : Typing_env.mem None (Meet_env.typing_env menv) (Name_var y)
+               = false).
+  { apply Hfresh. left. reflexivity. }
+  destruct (define_fresh menv y k Hfits Hy)
+    as [[_ Hfits1] [_ [_ [_ Hvalued1]]]].
+  cbn [map fst] in Hdistinct. apply NoDup_cons_iff in Hdistinct.
+  destruct Hdistinct as [Hnotin Hdistinct].
+  apply (keeps_equations_valued_trans _ _ _ _ _ _ (Hvalued1 valuation)).
+  apply IH; [ exact Hfits1 | exact Hdistinct | ].
+  intros z Hz.
+  assert (Hne : z <> y) by (intros ->; exact (Hnotin Hz)).
+  pose proof (mem_add_variable_definition (Meet_env.typing_env menv) y k
+                Name_mode.in_types z Hne) as Hsame.
+  change (Typing_env.mem None
+            (Meet_env.typing_env
+               (Meet_env.add_variable_definition menv y k Name_mode.in_types))
+            (Name_var z)
+          = Typing_env.mem None (Meet_env.typing_env menv) (Name_var z))
+    in Hsame.
+  rewrite Hsame. apply Hfresh. right. exact Hz.
+Qed.
+
+Theorem last_phase_satisfied : last_phase_satisfied_statement.
+Proof.
+  intros tenv fuel source s relations mh menv menv1 target kept equations
+    relation_equations definitions index use statics valuation Htrue
+    Hrelations Hnonempty Hscoped Hstate Hinvariant Henvs Hsymbols HX HR
+    Hsource Hfits Hnames Hadds menv0 Hrest Hmh Hsound Hadd1 Hadd2 Huse
+    Hstatics Hsat_source Hsat_use Htags Haliases Hscrutinees tv Hvalued.
+  pose proof (proj1 Htrue) as Hvalid.
+  (* The equations are true. *)
+  destruct (last_phase_adds_true tenv fuel source s relations kept equations
+              relation_equations definitions Htrue Hstate Henvs Hrelations
+              Hnonempty Hadds index use statics valuation Huse Hsat_use Htags
+              Haliases Hscrutinees) as [Htrue1 [Htrue2 _]].
+  fold tv in Htrue1, Htrue2.
+  (* The extensions fit. *)
+  destruct (last_phase_kept tenv fuel source s relations mh menv menv1 target
+              kept equations relation_equations definitions Htrue Hrelations
+              Hnonempty Hscoped Hstate Hinvariant Henvs Hsymbols HX HR Hsource
+              Hfits Hadds Hrest Hmh Hadd1 Hadd2) as [Hkept0 [Hstep1 Hstep2]].
+  fold menv0 in Hkept0, Hstep1.
+  destruct (last_phase_names_known tenv fuel source s relations menv kept
+              equations relation_equations definitions Htrue Hrelations
+              Hnonempty Hscoped Hsource Hfits Hadds) as [_ Hknown].
+  fold menv0 in Hknown.
+  pose proof (last_phase_kinds_known tenv fuel source s relations menv kept
+                equations relation_equations definitions Htrue Hrelations
+                Hnonempty Hscoped Hstate Hinvariant Henvs Hsymbols HX HR
+                Hsource Hfits Hadds) as Hkinds.
+  cbv zeta in Hkinds. fold menv0 in Hkinds.
+  assert (Hall :
+            ∀ (n : name) (ty : flambda_type),
+              (n, ty) ∈ equations ++ relation_equations ->
+              Typing_env.mem None (Meet_env.typing_env menv0) n = true
+              ∧ type_fits (Meet_env.typing_env menv0) ty
+              ∧ simple_of_kind (Meet_env.typing_env menv0) (simple_of_name n)
+                  (kind ty)).
+  { intros n ty Hin.
+    destruct (Hknown n ty Hin) as [Hn Hvars].
+    destruct (Hkinds n ty Hin) as [Hkind Hkinded].
+    destruct (Hrest n ty Hin) as [Hwf Heqs].
+    split; [ exact Hn | ]. split; [ | exact Hkind ].
+    split; [ exact Hwf | ]. split; [ exact Hvars | ].
+    split; [ exact Hkinded | exact Heqs ]. }
+  pose proof (meet_env_extends_tenv _ _ (proj1 (proj1 Hstep1))) as Hextends1.
+  (* The valuation of the target satisfies the source. *)
+  destruct (target_valuation_extends_at s index use valuation Hvalid Huse)
+    as [_ Hagrees].
+  rewrite (proj2 (proj2 Htrue)) in Hagrees. fold tv in Hagrees.
+  assert (Hsat_tv : typing_env_satisfied_strictly statics tv source).
+  { apply (satisfied_but_coincide (fun _ => False) statics valuation tv source);
+      [ | exact Hsat_source ].
+    intros x Hx. symmetry. apply Hagrees.
+    apply mentions_known; [ | exact Hx ].
+    rewrite <- Hsource. exact (proj1 Hfits). }
+  (* And the environment with the variables defined. *)
+  destruct (last_phase_adds_kept tenv fuel s relations kept equations
+              relation_equations definitions Hadds) as [Hdistinct Hkept].
+  destruct Hvalid
+    as [[_ [Hknown_avoided _]] [Hnew [[Hrecorded _] [_ Himports]]]].
+  assert (Hsat0 :
+            typing_env_satisfied_strictly statics tv
+              (Meet_env.typing_env menv0)).
+  { apply variables_defined_satisfied.
+    - rewrite Hsource. exact Hsat_tv.
+    - intros x k v Hin Hv. apply in_app_or in Hin.
+      destruct Hin as [Hin | Hin].
+      + (* A variable brought in. *)
+        pose proof (in_order_lookup _ _ _ Hin) as Himported.
+        assert (Hi : is_imported s x).
+        { apply is_bound_lookup. exists k. exact Himported. }
+        destruct (Himports x Hi) as [Hunknown _].
+        unfold tv in Hv. rewrite lookup_target_valuation in Hv.
+        destruct (value_of_definition s index valuation x) as [w | ]
+          eqn:Hdefinition.
+        { exfalso. unfold value_of_definition in Hdefinition.
+          destruct (lookup x (Join_env.definitions_of_existentials s))
+            as [[simples k'] | ] eqn:Hd; [ | discriminate ].
+          pose proof (Hrecorded x simples k' Hd) as He.
+          destruct (Hnew x (proj2 (is_bound_lookup _ _) (ex_intro _ k' He)))
+            as [_ Huses].
+          destruct (Himports x Hi) as [_ [index' [use' [Huse' Hknows']]]].
+          exact (Huses index' use' Huse' Hknows'). }
+        destruct (known_to s use x) eqn:Hknown_to; [ | discriminate ].
+        unfold known_to in Hknown_to. apply orb_true_iff in Hknown_to.
+        destruct Hknown_to as [Hk | Hk]; [ | exfalso; exact (Hunknown Hk) ].
+        exact (simple_of_kind_value statics valuation use (Var x) k v
+                 (Henvs index use Huse) Hsat_use
+                 (proj1 (proj2 Hstate) x k index use Himported Huse Hk) Hv).
+      + (* A variable made. *)
+        exact (existential_value_kind s x k index use statics valuation v
+                 (proj1 Htrue) Hstate Henvs
+                 (in_order_lookup _ _ _ (Hkept _ Hin)) Huse Hsat_use Hv). }
+  (* The first extension. *)
+  assert (Hext1 :
+            env_extension_fits (Meet_env.typing_env menv0)
+              (Env_extension equations)
+            ∧ env_extension_kinded (Meet_env.typing_env menv0)
+                (Env_extension equations)).
+  { split; intros n ty Hlookup;
+      destruct (Hall n ty
+                  (in_or_app _ _ _ (or_introl (lookup_among _ _ _ Hlookup))))
+      as [Hn [Hty Hk]]; [ split; assumption | exact Hk ]. }
+  destruct (meet_env_add_env_extension_sound mh statics tv menv0 menv1
+              (Env_extension equations) Hmh Hsound (proj2 Hkept0)
+              (proj1 Hext1) (proj2 Hext1) Hstatics Hsat0
+              (equations_true_with_values statics tv equations Htrue1
+                 (fun n ty Hin =>
+                    Hvalued n ty (in_or_app _ _ _ (or_introl Hin))))
+              Hadd1)
+    as [valuation1 [Hfrom1 [Hsat1 Hvalued1]]].
+  (* The second. *)
+  assert (Hext2 :
+            env_extension_fits (Meet_env.typing_env menv1)
+              (Env_extension relation_equations)
+            ∧ env_extension_kinded (Meet_env.typing_env menv1)
+                (Env_extension relation_equations)).
+  { split; intros n ty Hlookup;
+      destruct (Hall n ty
+                  (in_or_app _ _ _ (or_intror (lookup_among _ _ _ Hlookup))))
+      as [Hn [Hty Hk]].
+    - split; [ exact (tenv_extends_mem _ _ _ Hextends1 Hn)
+             | exact (tenv_extends_type_fits _ _ _ Hextends1 Hty) ].
+    - exact (proj1 (proj2 (proj2 (proj2 (proj2 Hextends1)))) _ _ Hk). }
+  assert (Hsatisfied2 :
+            env_extension_satisfied statics valuation1
+              (Env_extension relation_equations)).
+  { assert (Hcoincide :
+              ∀ x : variable,
+                x
+                ∈ free_variables_of_env_extension
+                    (Env_extension relation_equations) ->
+                lookup x tv = lookup x valuation1).
+    { intros x Hx. symmetry. apply Hfrom1.
+      cbn [free_variables_of_env_extension] in Hx.
+      apply in_flat_map in Hx. destruct Hx as [[n ty] [Hin Hx]].
+      cbn [fst snd] in Hx.
+      destruct (Hall n ty (in_or_app _ _ _ (or_intror Hin)))
+        as [Hn [[_ [Hvars _]] _]].
+      apply in_app_or in Hx. destruct Hx as [Hx | Hx].
+      - destruct n as [y | sym]; [ | destruct Hx ].
+        destruct Hx as [<- | []]. exact Hn.
+      - exact (Hvars x Hx). }
+    apply (proj1 (env_extension_satisfied_coincide statics tv valuation1
+                    (Env_extension relation_equations) Hcoincide)).
+    exact (equations_true_with_values statics tv relation_equations Htrue2
+             (fun n ty Hin =>
+                Hvalued n ty (in_or_app _ _ _ (or_intror Hin)))). }
+  destruct (meet_env_add_env_extension_sound mh statics valuation1 menv1
+              target (Env_extension relation_equations) Hmh Hsound
+              (proj2 (proj1 Hstep1)) (proj1 Hext2) (proj2 Hext2) Hstatics
+              Hsat1 Hsatisfied2 Hadd2)
+    as [valuation2 [Hfrom2 [Hsat2 Hvalued2]]].
+  (* The valuation: that one on what the target knows, the one given
+     elsewhere. *)
+  set (tenv2 := Meet_env.typing_env target) in *.
+  exists (patched tenv2 valuation2 valuation).
+  split.
+  - intros x Hx. rewrite lookup_patched.
+    destruct (Typing_env.mem None tenv2 (Name_var x)) eqn:H2;
+      [ | reflexivity ].
+    assert (Hnames_x : among x (Meet_env.names_to_avoid menv0) = true).
+    { destruct (target_variables_defined s menv kept (proj1 Htrue)
+                  (eq_trans Hsource (eq_sym (proj2 (proj2 Htrue)))) Hfits
+                  Hkept Hdistinct) as [_ [_ [_ Hnames0]]].
+      fold menv0 in Hnames0. rewrite Hnames0. apply Hnames.
+      exact (Hknown_avoided index use x Huse Hx). }
+    destruct (Typing_env.mem None (Meet_env.typing_env menv0) (Name_var x))
+      eqn:H0.
+    + rewrite (Hfrom2 x (tenv_extends_mem _ _ _ Hextends1 H0)).
+      rewrite (Hfrom1 x H0).
+      apply (target_valuation_known s index use valuation x (proj1 Htrue)
+               Huse).
+      unfold known_to. rewrite Hx. reflexivity.
+    + exfalso.
+      destruct (Typing_env.mem None (Meet_env.typing_env menv1) (Name_var x))
+        eqn:H1.
+      * destruct (proj2 Hstep1 x H1 H0) as [Hnew1 _].
+        rewrite Hnames_x in Hnew1. discriminate Hnew1.
+      * destruct (proj2 Hstep2 x H2 H1) as [Hnew2 _].
+        destruct (proj1 (proj1 Hstep1)) as (_ & _ & _ & _ & _ & _ & Hav & _).
+        rewrite (Hav x Hnames_x) in Hnew2. discriminate Hnew2.
+  - split.
+    + apply (satisfied_but_coincide (fun _ => False) statics valuation2
+               (patched tenv2 valuation2 valuation) tenv2); [ | exact Hsat2 ].
+      intros x Hx. rewrite lookup_patched.
+      rewrite (mentions_known tenv2 x (proj1 (proj2 (proj1 Hstep2))) Hx).
+      reflexivity.
+    + (* The equations are on names that have values. *)
+      intros cut_after Hcut.
+      apply (equations_valued_extended tenv2 cut_after valuation2);
+        [ exact (proj1 (proj2 (proj1 Hstep2))) | | ].
+      { intros x Hx. rewrite lookup_patched, Hx. reflexivity. }
+      apply Hvalued2. apply Hvalued1.
+      destruct (target_variables_fresh s menv kept (proj1 Htrue)
+                  (eq_trans Hsource (eq_sym (proj2 (proj2 Htrue)))) Hkept
+                  Hdistinct) as [Hnodup Hfresh].
+      apply (variables_defined_valued tv _ menv Hfits Hnodup Hfresh).
+      rewrite Hsource.
+      apply (equations_valued_extended source cut_after valuation tv);
+        [ rewrite <- Hsource; exact (proj1 Hfits) | | exact Hcut ].
+      intros x Hx. exact (Hagrees x Hx).
+Qed.
+
+(* ---------------------------------------------------------------------- *)
 (* The contract that the meet has for its join, but for the values         *)
 (* ---------------------------------------------------------------------- *)
 
@@ -487,25 +918,61 @@ Lemma extends_kinds (menv menv' : Meet_env.t) (s : simple)
   simple_of_kind (Meet_env.typing_env menv') s kind.
 Proof. intros (_ & _ & _ & _ & H & _). exact (H s kind). Qed.
 
-Theorem model_join_scoped_envs_keeps : model_join_scoped_envs_keeps_statement.
+(* The first phases of the join that the meet calls, on inputs that
+   have what the contract supposes. *)
+Lemma scoped_envs_first_phases (join_choices : Join_env.choices)
+    (join_depth : nat) (fuel : fuels) (initial_env : Meet_env.t)
+    (scoped_envs : list Typing_env.t) (envs : Joined_envs.t)
+    (s1 s2 s3 : Join_env.t)
+    (relations2 relations3 : Join_env.inverse_relations) :
+  let initial_tenv := Meet_env.typing_env initial_env in
+  let p := join_parameters join_depth in
+  let jt := model_join_of_types join_depth fuel in
+  let avoid :=
+    Meet_env.names_to_avoid initial_env
+    ++ Join_env.variables_of_env initial_tenv
+    ++ flat_map Join_env.variables_of_env scoped_envs
+  in
+  let s0 :=
+    Join_env.create envs
+      (Bindings_in_target_env.from_source_env avoid initial_tenv)
+  in
+  typing_env_fits initial_tenv ->
+  (∀ scoped_env : Typing_env.t,
+    scoped_env ∈ scoped_envs -> scoped_env_of initial_tenv scoped_env) ->
+  (∀ (scoped_env : Typing_env.t) (sym : symbol),
+    scoped_env ∈ scoped_envs ->
+    Typing_env.mem None scoped_env (Name_symbol sym) = true ->
+    Typing_env.mem None initial_tenv (Name_symbol sym) = true) ->
+  Join_env.cut_for_joins (Typing_env.current_scope initial_tenv)
+    (Index.number scoped_envs)
+  = Some envs ->
+  Join_env.join_aliases_into_bindings p (fuel_of_env fuel) s0 envs
+  = Some s1 ->
+  Join_env.n_way_join_delayed_equations (fuel_of_env fuel) join_choices jt
+    s1 [] (Join_env.new_equations_in_joined_envs s1 s0)
+  = Some (relations2, s2) ->
+  Join_env.n_way_join_loop join_depth p (fuel_of_env fuel) join_choices jt
+    s2 relations2 (Join_env.new_definitions_of_existentials s2 s0)
+  = Some (relations3, s3) ->
+  state_true initial_tenv s3
+  ∧ relations_hold s3 relations3
+  ∧ grows s0 s3
+  ∧ state_kinded s3
+  ∧ relations_nonempty relations3
+  ∧ state_scoped s3
+  ∧ equations_kinded s3
+  ∧ relations_kinded s3 relations3
+  ∧ (∀ x : variable, x ∈ avoid -> x ∈ names_to_avoid s3)
+  ∧ (∀ x : variable, is_existential s3 x -> x ∉ avoid)
+  ∧ (∀ (index : Index.t) (use : Typing_env.t),
+       Join_env.joined_env s3 index = Some use -> use ∈ scoped_envs)
+  ∧ joined_envs_are typing_env_invariant s3
+  ∧ joined_envs_are typing_env_kinded s3
+  ∧ symbols_of_joined_envs_in_source initial_tenv s3.
 Proof.
-  intros join_choices join_depth fuel Hrest mh initial_env result scoped_envs
-    initial_tenv Hmh Hfits Hscoped Hsymbols Hagree Hjoin.
-  unfold model_join_scoped_envs, Join_env.cut_and_n_way_join in Hjoin.
-  cbv zeta in Hjoin.
-  destruct (Join_env.cut_for_joins _ _) as [envs | ] eqn:Hcut;
-    [ | discriminate ].
-  cbn [Join_env.names_to_avoid meet_env_functions] in Hjoin.
-  fold initial_tenv in Hjoin, Hcut.
-  set (avoid :=
-         Meet_env.names_to_avoid initial_env
-         ++ Join_env.variables_of_env initial_tenv
-         ++ flat_map Join_env.variables_of_env scoped_envs) in *.
-  set (p := join_parameters join_depth) in *.
-  set (jt := model_join_of_types join_depth fuel) in *.
-  destruct (Join_env.cut_and_n_way_join0 _ _ _ _ _ _ _ _ _ _)
-    as [[[target definitions] names] | ] eqn:Hjoin0; [ | discriminate ].
-  injection Hjoin as <-.
+  intros initial_tenv p jt avoid s0 Hfits Hscoped Hsymbols Hcut Haliases
+    Hdelayed Hloop.
   (* The environments joined. *)
   assert (Hfound :
             ∀ (index : Index.t) (use : Typing_env.t),
@@ -515,11 +982,6 @@ Proof.
     destruct Huse as [equations0 Hlookup].
     destruct (cut_for_joins_found _ _ _ Hcut _ _ _ Hlookup) as [Hin _].
     apply number_in in Hin. exact (nth_error_In _ _ Hin). }
-  assert (Havoid_initial :
-            ∀ x : variable,
-              among x (Meet_env.names_to_avoid initial_env) = true ->
-              x ∈ avoid).
-  { intros x Hx. apply in_or_app. left. apply among_In. exact Hx. }
   assert (Hsource : ∀ x : variable, knows initial_tenv x -> x ∈ avoid).
   { intros x Hx. apply in_or_app. right. apply in_or_app. left.
     apply variables_of_env_knows. exact Hx. }
@@ -529,72 +991,6 @@ Proof.
   { intros scoped_env x Hin Hx. apply in_or_app. right. apply in_or_app.
     right. apply in_flat_map. exists scoped_env.
     split; [ exact Hin | apply variables_of_env_knows; exact Hx ]. }
-  (* What the result knows of a simple that the first environment
-     knows. *)
-  assert (Hkind_initial :
-            ∀ (menv : Meet_env.t) (scoped_env : Typing_env.t) (s : simple)
-              (kind : flambda_kind),
-              meet_env_extends initial_env menv ->
-              scoped_env ∈ scoped_envs ->
-              Typing_env.mem_simple None initial_tenv s = true ->
-              simple_of_kind scoped_env s kind ->
-              simple_of_kind (Meet_env.typing_env menv) s kind).
-  { intros menv scoped_env s kind Hextends Hin Hknown Hk.
-    apply (extends_kinds initial_env menv s kind Hextends).
-    exact (scoped_env_of_kind initial_tenv scoped_env s kind
-             (Hscoped scoped_env Hin) Hknown Hk). }
-  assert (Hkind_symbol :
-            ∀ (menv : Meet_env.t) (scoped_env : Typing_env.t) (sym : symbol)
-              (kind : flambda_kind),
-              typing_env_fits (Meet_env.typing_env menv) ->
-              scoped_env ∈ scoped_envs ->
-              Typing_env.mem_simple None (Meet_env.typing_env menv)
-                (Symbol sym)
-              = true ->
-              simple_of_kind scoped_env (Symbol sym) kind ->
-              simple_of_kind (Meet_env.typing_env menv) (Symbol sym) kind).
-  { intros menv scoped_env sym kind Hfits_menv Hin Hknown Hk.
-    destruct (mem_simple_of_some_kind _ _ Hknown) as [kind' Hk'].
-    rewrite (symbol_kinded scoped_env sym kind
-               (proj1 (proj2 (proj2 (proj1 (Hscoped scoped_env Hin))))) Hk).
-    rewrite (symbol_kinded _ sym kind' (proj1 (proj2 (proj2 Hfits_menv)))
-               Hk') in Hk'.
-    exact Hk'. }
-  destruct (Keyed.is_empty envs) eqn:Hempty.
-  { (* No environment to join: the target is bottom. *)
-    unfold Join_env.cut_and_n_way_join0 in Hjoin0. rewrite Hempty in Hjoin0.
-    injection Hjoin0 as <- _ _.
-    cbn [Join_env.make_bottom meet_env_functions].
-    destruct (make_bottom_keeps initial_env Hfits) as [Hextends Hfits'].
-    split; [ exact Hextends | ]. split; [ exact Hfits' | ]. split.
-    - intros x Hx Hnot _.
-      change (Typing_env.mem None initial_tenv (Name_var x) = true) in Hx.
-      rewrite Hx in Hnot. discriminate Hnot.
-    - intros scoped_env s kind Hin Hknown Hk.
-      destruct s as [x | sym | c].
-      + exact (Hkind_initial _ scoped_env (Var x) kind Hextends Hin Hknown
-                 Hk).
-      + exact (Hkind_symbol _ scoped_env sym kind Hfits' Hin Hknown Hk).
-      + exact Hk. }
-  (* The first phases. *)
-  destruct (cut_and_n_way_join0_replayed Meet_env.t meet_expanded_head
-              meet_env_functions p (fuel_of_env fuel) join_choices jt mh avoid
-              initial_env target initial_tenv envs definitions names Hempty
-              Hjoin0)
-    as [s1 [s2 [s3 [relations2 [relations3 [kept [equations
-          [relation_equations [menv1 [Haliases [Hdelayed [Hloop [Hnames
-            [Hadds [Hadd1 Hadd2]]]]]]]]]]]]]]].
-  subst names.
-  set (names :=
-         Bindings_in_target_env.names_to_avoid (Join_env.bindings s3)) in *.
-  cbn [Join_env.with_names_to_avoid Join_env.add_env_extension
-         meet_env_functions] in Hadd1, Hadd2.
-  set (menv_a := Meet_env.with_names_to_avoid initial_env names) in *.
-  set (menv0 :=
-         variables_defined meet_env_functions menv_a
-           (Bindings_in_target_env.imported_variables_in_order
-              (Join_env.bindings s3)
-            ++ kept)) in *.
   destruct (join_parameters_sound join_depth)
     as [Hfresh [Heqb [Hextension Hconst]]].
   fold p in Hfresh, Heqb, Hextension, Hconst.
@@ -708,6 +1104,125 @@ Proof.
   assert (Hsymbols3 : symbols_of_joined_envs_in_source initial_tenv s3).
   { intros index use sym Huse Hmem.
     exact (Hsymbols use sym (Hjoined index use Huse) Hmem). }
+  repeat (split; [ assumption | ]). exact Hsymbols3.
+Qed.
+
+Theorem model_join_scoped_envs_keeps : model_join_scoped_envs_keeps_statement.
+Proof.
+  intros join_choices join_depth fuel Hrest mh initial_env result scoped_envs
+    initial_tenv Hmh Hfits Hscoped Hsymbols Hagree Hjoin.
+  unfold model_join_scoped_envs, Join_env.cut_and_n_way_join in Hjoin.
+  cbv zeta in Hjoin.
+  destruct (Join_env.cut_for_joins _ _) as [envs | ] eqn:Hcut;
+    [ | discriminate ].
+  cbn [Join_env.names_to_avoid meet_env_functions] in Hjoin.
+  fold initial_tenv in Hjoin, Hcut.
+  set (avoid :=
+         Meet_env.names_to_avoid initial_env
+         ++ Join_env.variables_of_env initial_tenv
+         ++ flat_map Join_env.variables_of_env scoped_envs) in *.
+  set (p := join_parameters join_depth) in *.
+  set (jt := model_join_of_types join_depth fuel) in *.
+  destruct (Join_env.cut_and_n_way_join0 _ _ _ _ _ _ _ _ _ _)
+    as [[[target definitions] names] | ] eqn:Hjoin0; [ | discriminate ].
+  injection Hjoin as <-.
+  (* The environments joined. *)
+  assert (Hfound :
+            ∀ (index : Index.t) (use : Typing_env.t),
+              Joined_envs.get_nth_joined_env envs index = Some use ->
+              use ∈ scoped_envs).
+  { intros index use Huse. apply get_nth_lookup in Huse.
+    destruct Huse as [equations0 Hlookup].
+    destruct (cut_for_joins_found _ _ _ Hcut _ _ _ Hlookup) as [Hin _].
+    apply number_in in Hin. exact (nth_error_In _ _ Hin). }
+  assert (Havoid_initial :
+            ∀ x : variable,
+              among x (Meet_env.names_to_avoid initial_env) = true ->
+              x ∈ avoid).
+  { intros x Hx. apply in_or_app. left. apply among_In. exact Hx. }
+  assert (Hsource : ∀ x : variable, knows initial_tenv x -> x ∈ avoid).
+  { intros x Hx. apply in_or_app. right. apply in_or_app. left.
+    apply variables_of_env_knows. exact Hx. }
+  assert (Havoid_scoped :
+            ∀ (scoped_env : Typing_env.t) (x : variable),
+              scoped_env ∈ scoped_envs -> knows scoped_env x -> x ∈ avoid).
+  { intros scoped_env x Hin Hx. apply in_or_app. right. apply in_or_app.
+    right. apply in_flat_map. exists scoped_env.
+    split; [ exact Hin | apply variables_of_env_knows; exact Hx ]. }
+  (* What the result knows of a simple that the first environment
+     knows. *)
+  assert (Hkind_initial :
+            ∀ (menv : Meet_env.t) (scoped_env : Typing_env.t) (s : simple)
+              (kind : flambda_kind),
+              meet_env_extends initial_env menv ->
+              scoped_env ∈ scoped_envs ->
+              Typing_env.mem_simple None initial_tenv s = true ->
+              simple_of_kind scoped_env s kind ->
+              simple_of_kind (Meet_env.typing_env menv) s kind).
+  { intros menv scoped_env s kind Hextends Hin Hknown Hk.
+    apply (extends_kinds initial_env menv s kind Hextends).
+    exact (scoped_env_of_kind initial_tenv scoped_env s kind
+             (Hscoped scoped_env Hin) Hknown Hk). }
+  assert (Hkind_symbol :
+            ∀ (menv : Meet_env.t) (scoped_env : Typing_env.t) (sym : symbol)
+              (kind : flambda_kind),
+              typing_env_fits (Meet_env.typing_env menv) ->
+              scoped_env ∈ scoped_envs ->
+              Typing_env.mem_simple None (Meet_env.typing_env menv)
+                (Symbol sym)
+              = true ->
+              simple_of_kind scoped_env (Symbol sym) kind ->
+              simple_of_kind (Meet_env.typing_env menv) (Symbol sym) kind).
+  { intros menv scoped_env sym kind Hfits_menv Hin Hknown Hk.
+    destruct (mem_simple_of_some_kind _ _ Hknown) as [kind' Hk'].
+    rewrite (symbol_kinded scoped_env sym kind
+               (proj1 (proj2 (proj2 (proj1 (Hscoped scoped_env Hin))))) Hk).
+    rewrite (symbol_kinded _ sym kind' (proj1 (proj2 (proj2 Hfits_menv)))
+               Hk') in Hk'.
+    exact Hk'. }
+  destruct (Keyed.is_empty envs) eqn:Hempty.
+  { (* No environment to join: the target is bottom. *)
+    unfold Join_env.cut_and_n_way_join0 in Hjoin0. rewrite Hempty in Hjoin0.
+    injection Hjoin0 as <- _ _.
+    cbn [Join_env.make_bottom meet_env_functions].
+    destruct (make_bottom_keeps initial_env Hfits) as [Hextends Hfits'].
+    split; [ exact Hextends | ]. split; [ exact Hfits' | ]. split.
+    - intros x Hx Hnot _.
+      change (Typing_env.mem None initial_tenv (Name_var x) = true) in Hx.
+      rewrite Hx in Hnot. discriminate Hnot.
+    - intros scoped_env s kind Hin Hknown Hk.
+      destruct s as [x | sym | c].
+      + exact (Hkind_initial _ scoped_env (Var x) kind Hextends Hin Hknown
+                 Hk).
+      + exact (Hkind_symbol _ scoped_env sym kind Hfits' Hin Hknown Hk).
+      + exact Hk. }
+  (* The first phases. *)
+  destruct (cut_and_n_way_join0_replayed Meet_env.t meet_expanded_head
+              meet_env_functions p (fuel_of_env fuel) join_choices jt mh avoid
+              initial_env target initial_tenv envs definitions names Hempty
+              Hjoin0)
+    as [s1 [s2 [s3 [relations2 [relations3 [kept [equations
+          [relation_equations [menv1 [Haliases [Hdelayed [Hloop [Hnames
+            [Hadds [Hadd1 Hadd2]]]]]]]]]]]]]]].
+  subst names.
+  set (names :=
+         Bindings_in_target_env.names_to_avoid (Join_env.bindings s3)) in *.
+  cbn [Join_env.with_names_to_avoid Join_env.add_env_extension
+         meet_env_functions] in Hadd1, Hadd2.
+  set (menv_a := Meet_env.with_names_to_avoid initial_env names) in *.
+  set (menv0 :=
+         variables_defined meet_env_functions menv_a
+           (Bindings_in_target_env.imported_variables_in_order
+              (Join_env.bindings s3)
+            ++ kept)) in *.
+  destruct (scoped_envs_first_phases join_choices join_depth fuel initial_env
+              scoped_envs envs s1 s2 s3 relations2 relations3 Hfits Hscoped
+              Hsymbols Hcut Haliases Hdelayed Hloop)
+    as (Htrue3 & Hrelations3 & Hgrows3 & Hstate3 & Hnonempty3 & Hscoped3 & HX
+        & HR & Hnames_kept & Hmade & Hjoined & Hinvariant3 & Hkinded3
+        & Hsymbols3).
+  fold initial_tenv p jt avoid in Htrue3, Hrelations3, Hgrows3, Hnames_kept,
+    Hmade, Hsymbols3.
   (* The last phase. *)
   destruct (last_phase_kept _ (fuel_of_env fuel) initial_tenv s3 relations3
               mh menv_a menv1 target kept equations relation_equations
@@ -865,4 +1380,62 @@ Proof.
         rewrite (extends_avoids menv0 menv1 x (proj1 (proj1 Hstep1))
                    Hnames_x) in Hnew.
         discriminate Hnew.
+Qed.
+
+Theorem model_join_scoped_envs_satisfied
+  : model_join_scoped_envs_satisfied_statement.
+Proof.
+  intros join_choices join_depth fuel Hrest mh initial_env result scoped_envs
+    envs s1 s2 s3 relations2 relations3 kept equations relation_equations
+    definitions index scoped_env statics valuation initial_tenv p jt avoid s0
+    menv Hsound Hmh Hfits Hscoped Hsymbols Hagree Hjoin Hcut Haliases Hdelayed
+    Hloop Hadds Huse Hstatics Hsat_initial Hsat_use Htags Haliases_v
+    Hscrutinees Hvalued.
+  destruct (scoped_envs_first_phases join_choices join_depth fuel initial_env
+              scoped_envs envs s1 s2 s3 relations2 relations3 Hfits Hscoped
+              Hsymbols Hcut Haliases Hdelayed Hloop)
+    as (Htrue3 & Hrelations3 & Hgrows3 & Hstate3 & Hnonempty3 & Hscoped3 & HX
+        & HR & Hnames_kept & Hmade & Hjoined & Hinvariant3 & Hkinded3
+        & Hsymbols3).
+  fold initial_tenv p jt avoid s0 in Htrue3, Hrelations3, Hgrows3, Hnames_kept,
+    Hmade, Hsymbols3.
+  unfold model_join_scoped_envs, Join_env.cut_and_n_way_join in Hjoin.
+  cbv zeta in Hjoin. fold initial_tenv in Hjoin. rewrite Hcut in Hjoin.
+  cbn [Join_env.names_to_avoid meet_env_functions] in Hjoin.
+  fold avoid p jt in Hjoin.
+  destruct (Join_env.cut_and_n_way_join0 _ _ _ _ _ _ _ _ _ _)
+    as [[[target definitions'] names] | ] eqn:Hjoin0; [ | discriminate ].
+  injection Hjoin as <-.
+  assert (Hempty : Keyed.is_empty envs = false).
+  { pose proof Huse as Huse0. rewrite (proj1 Hgrows3) in Huse0.
+    destruct envs; [ discriminate Huse0 | reflexivity ]. }
+  destruct (cut_and_n_way_join0_replayed Meet_env.t meet_expanded_head
+              meet_env_functions p (fuel_of_env fuel) join_choices jt mh avoid
+              initial_env target initial_tenv envs definitions' names Hempty
+              Hjoin0)
+    as [s1' [s2' [s3' [relations2' [relations3' [kept' [equations'
+          [relation_equations' [menv1 [Haliases' [Hdelayed' [Hloop' [Hnames
+            [Hadds' [Hadd1 Hadd2]]]]]]]]]]]]]]].
+  fold s0 in Haliases', Hdelayed', Hloop'.
+  rewrite Haliases in Haliases'. injection Haliases' as <-.
+  rewrite Hdelayed in Hdelayed'. injection Hdelayed' as <- <-.
+  change (Join_env.join_depth p) with join_depth in Hloop'.
+  rewrite Hloop in Hloop'. injection Hloop' as <- <-.
+  subst names.
+  cbn [Join_env.with_names_to_avoid Join_env.add_env_extension
+         Join_env.current_typing_env meet_env_functions] in Hadds', Hadd1,
+    Hadd2.
+  fold menv in Hadds', Hadd1, Hadd2.
+  destruct (last_phase_adds_functional _ _ _ _ _ _ _ _ _ _ _ _ Hadds Hadds')
+    as (-> & -> & -> & ->).
+  apply (last_phase_satisfied _ (fuel_of_env fuel) initial_tenv s3 relations3
+           mh menv menv1 target kept equations relation_equations definitions
+           index scoped_env statics valuation Htrue3 Hrelations3 Hnonempty3
+           Hscoped3 Hstate3 Hinvariant3 Hkinded3 Hsymbols3 HX HR eq_refl Hfits
+           (fun x Hx => proj2 (among_In _ _) Hx) Hadds
+           (Hrest initial_env scoped_envs envs s1 s2 s3 relations2 relations3
+              _ kept equations relation_equations definitions Hfits Hscoped
+              Hsymbols Hagree Hcut Haliases Hdelayed Hloop Hadds)
+           Hmh Hsound Hadd1 Hadd2 Huse Hstatics Hsat_initial Hsat_use Htags
+           Haliases_v Hscrutinees Hvalued).
 Qed.
