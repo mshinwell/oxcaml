@@ -109,6 +109,11 @@ a `CR` at the place in the `Spec` file.
 - **D37.** Regions and local allocations. Proposed: the conversion
   drops regions and reads a local allocation as an ordinary one.
   Open.
+- **D38.** `Boolean_not` of a tagged immediate other than 0 and 1 is
+  undefined. Simplify makes it `Invalid` where the argument cannot be 0
+  or 1, the backend flips the low bit of any integer, and nothing checks
+  that the front end gives it a boolean. Decided overnight, for the
+  review of the human; forced by the `Invalid` of Simplify.
 - **D39.** The freshness quantifier of nominal sets is a derived layer;
   the explicit forms stay primary. Decided.
 
@@ -246,6 +251,15 @@ says so. Only the labels that this tree cites are listed.
 - **P1-1.** Simplify folds `Phys_equal` of a poison against another
   constant to 0, and the backend makes a poison of kind `Value` a tagged
   immediate.
+- **P1-2.** Simplify makes `Boolean_not` of a tagged immediate other
+  than 0 and 1 `Invalid`; the backend flips a bit of whatever it is
+  given.
+- **P1-3.** Outside the amounts it computes, Simplify folds a shift to
+  zero while calling it undefined, and the backend shifts by the amount
+  modulo 64.
+- **P1-4.** The fexpr parser reads `%bytes_length` as `String_length
+  String`, and the printer writes `String_length Bytes` as
+  `%bytes_length`.
 - **R1-1.** Unboxing records `Get_tag` on the paths where the value is
   an immediate, and supplies a dummy tag of zero.
 - **R1-2.** The types library evaluates `Is_null` of poison as false.
@@ -362,6 +376,11 @@ says so. Only the labels that this tree cites are listed.
 - **T3-8.** The extra variables of an extension with extra variables are
   not a binding site in the compiler: `With_extra_variables.free_names`
   lists them and `apply_renaming` renames them.
+- **T3-9.** `Aliases.add_alias_set` stops with a fatal error where two
+  different constants come into one class; in the model that is `None`,
+  proved absent when some environment respects the structure and gives
+  the elements of the set the value of the name. Not reproduced from
+  source.
 - **T4-1.** After the n-way join, the meet defines a second time the
   variables that the join imported from a branch.
 - **T4-2.** A meet that reads the type of a name holding poison can
@@ -383,6 +402,9 @@ says so. Only the labels that this tree cites are listed.
   define in its result the variables that the meet of that case defined.
 - **T4-10.** `add_concrete_equation_on_canonical_name` takes the name to
   be canonical after the meet that it runs in between.
+- **T4-11.** In the model, `Typing_env.add_equations_on_params` may give
+  a later parameter that the environment does not know a variable that
+  the join made; whether the compiler can is not settled.
 - **T5-1.** The assumption stated by the n-way join, that every name of
   the source is defined in every joined environment, is false of its
   callers, and nothing checks it.
@@ -428,7 +450,12 @@ says so. Only the labels that this tree cites are listed.
   that settles it forgets the variable.
 - **V2-2.** The fexpr printer drops the kinds of the fields of a
   `Make_block`, and the parser reads back `any_value` for each.
+- **V3-2.** Simplify lifts a closed constant out of a function or a
+  loop, and shares equal constants: the number of allocations changes.
 - **X3-5.** The n-way join of two variants that carry only a relation
   answers unknown and drops the relation it has just joined.
 - **X4-1.** The output of Simplify binds the same variable in two
   places: the names stored in a term are not unique.
+- **X5-3.** A load from a string has no coeffect,
+  `Bytes.unsafe_to_string` is erased, and `to_cmm` moves the load after
+  a write to the bytes.
