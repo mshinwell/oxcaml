@@ -188,6 +188,10 @@ All in `middle_end/flambda2/types/rocq/`, library `OxCamlFlambda2Types`.
   - `middle_end/flambda2/types/rocq/FlambdaSimplifyStatics*` (the
     types that Simplify gives the symbols of a `Let_static`, after
     `simplify/simplify_static_const.ml`; the same agreement)
+  - `middle_end/flambda2/types/rocq/FlambdaSimplifyCodeEnv*` (the
+    environment in which the body of code is rewritten, with the
+    types of the symbols, after `Typing_env.closure_env`; the same
+    agreement)
 - T4, meet. Owner: T4, on `flambda2-rocq/T4-meet`.
   - `middle_end/flambda2/types/rocq/FlambdaExpandHead*` (expanded
     types and `expand_head`, after `types/expand_head.ml`, and what
