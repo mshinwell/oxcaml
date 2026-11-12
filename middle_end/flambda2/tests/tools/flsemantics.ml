@@ -1751,17 +1751,24 @@ let unused_statics (e : Model.expr) : Unused_statics.dropped =
    symbol went to a [Let] whose block nothing uses in the end.
 
    In a handler that is not at toplevel
-   (FlambdaWellFormedSpec.handler_at_toplevel: the arm of a test, say), where no
-   static binding may stand, a symbol goes to the first [Let] that makes just
-   what the symbol is bound to and mentions no variable:
-   FlambdaLiftFromArmsSpec.lift_to_head binds it at the head of the unit. That
-   puts the unit under a group of static bindings, and the validation makes it
-   first, so the paths of the other [Let]s outside code are then given as they
-   are under that group.
+   (FlambdaWellFormedSpec.handler_at_toplevel: the arm of a test, say) and in
+   the handler of a recursive continuation, where no static binding may stand, a
+   symbol goes to the first [Let] that makes just what the symbol is bound to
+   and mentions no variable: FlambdaLiftFromArmsSpec.lift_to_head binds it at
+   the head of the unit. That puts the unit under a group of static bindings,
+   and the validation makes it first, so the paths of the other [Let]s outside
+   code are then given as they are under that group.
 
    A symbol that no [Let] outside code takes goes to the first [Let] in the body
-   of code that makes just what the symbol is bound to and mentions no variable:
+   of code that makes just what the symbol is bound to and mentions no variable,
+   in the handler of a recursive continuation too:
    FlambdaLiftFromCodeSpec.lift_from_code lifts it out of the code.
+
+   In both of these, a later [Let] that makes just what a symbol given earlier
+   in the same place is bound to (at the head of the unit, or in the body of the
+   same code) is given that symbol too: where inlining has made two [Let]s of
+   one closure that captures nothing, Simplify has one symbol for both, and
+   FlambdaLiftFromCodeSpec.once_each puts one binding for the two.
 
    The guess also says in which code [my_closure] is a symbol: the code of each
    closure that the term after binds statically, if the term before, once
@@ -1848,15 +1855,26 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list)
     | Lift_to_closure_symbols _ -> ()
   in
   (* The [Let]s that mention no variable, in the body of code or in a handler
-     that is not at toplevel. *)
+     that is not at toplevel. [given] has the symbols given in the same place,
+     each with its constant: a [Let] that no symbol is left for takes one of
+     those, if it makes just that constant. The handlers of a group of recursive
+     continuations have the paths of FlambdaLiftSpec.rec_handlers_map. *)
   let plain (s : Model.simple) =
     match s with Symbol _ | Const _ -> true | Var _ -> false
   in
   let plain_slots slots = List.for_all (fun (_, s) -> plain s) slots in
-  let rec in_code code_lets (path : Numbers.positive) (e : Model.expr) =
+  let rec in_code ((code_lets, given) as where) (path : Numbers.positive)
+      (e : Model.expr) =
     match e with
     | Let (_, _, d, body) ->
       let lift_out target = code_lets := (path, target) :: !code_lets in
+      let take path matches : (Model.symbol * Model.static_const) option =
+        match take path matches with
+        | Some (sym, const) ->
+          given := (sym, const) :: !given;
+          Some (sym, const)
+        | None -> List.find_opt (fun (_, const) -> matches const) !given
+      in
       (match d with
       | Set_of_closures (code, slots) when plain_slots slots -> (
         match
@@ -1905,16 +1923,26 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list)
         | Some (sym, _) -> lift_out (Lift.Lift_to_symbol sym)
         | None -> ())
       | _ -> ());
-      in_code code_lets (Numbers.Coq_xO path) body
-    | Let_static (_, body) -> in_code code_lets (Numbers.Coq_xO path) body
+      in_code where (Numbers.Coq_xO path) body
+    | Let_static (_, body) -> in_code where (Numbers.Coq_xO path) body
     | Let_cont_non_recursive (_, Handler (_, _, handler), body) ->
-      in_code code_lets (Numbers.Coq_xO path) body;
-      in_code code_lets (Numbers.Coq_xI path) handler
-    | Let_cont_recursive (_, body) ->
-      in_code code_lets (Numbers.Coq_xO path) body
+      in_code where (Numbers.Coq_xO path) body;
+      in_code where (Numbers.Coq_xI path) handler
+    | Let_cont_recursive (handlers, body) ->
+      in_code where (Numbers.Coq_xO path) body;
+      in_rec_handlers where path handlers
     | Apply _ | Apply_cont _ | Switch _ | Invalid -> ()
+  and in_rec_handlers where (path : Numbers.positive) handlers =
+    ignore
+      (List.fold_left
+         (fun q (_, Model.Handler (_, _, handler)) ->
+           in_code where (Numbers.Coq_xO q) handler;
+           Numbers.Coq_xI q)
+         (Numbers.Coq_xI path) handlers
+        : Numbers.positive)
   in
   let to_head = ref [] in
+  let to_head_given = ref [] in
   let rec in_expr (path : Numbers.positive) (e : Model.expr) =
     match e with
     | Let (x, _, d, body) ->
@@ -1976,8 +2004,10 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list)
       in_expr (Numbers.Coq_xO path) body;
       if Well_formed.handler_at_toplevel unit.Well_formed.unit_exn k h body
       then in_expr (Numbers.Coq_xI path) handler
-      else in_code to_head (Numbers.Coq_xI path) handler
-    | Let_cont_recursive (_, body) -> in_expr (Numbers.Coq_xO path) body
+      else in_code (to_head, to_head_given) (Numbers.Coq_xI path) handler
+    | Let_cont_recursive (handlers, body) ->
+      in_expr (Numbers.Coq_xO path) body;
+      in_rec_handlers (to_head, to_head_given) path handlers
     | Apply _ | Apply_cont _ | Switch _ | Invalid -> ()
   in
   in_expr Lift.root before;
@@ -1998,7 +2028,7 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list)
           match binding with
           | Bind_code (id, Code (_, _, _, _, _, code_body)) -> (
             let code_lets = ref [] in
-            in_code code_lets Lift.root code_body;
+            in_code (code_lets, ref []) Lift.root code_body;
             match !code_lets with
             | [] -> ()
             | _ :: _ -> out_of_code := (id, List.rev !code_lets) :: !out_of_code
