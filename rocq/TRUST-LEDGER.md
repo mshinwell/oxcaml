@@ -548,6 +548,47 @@ it gave back.
   - `control_of_the_static_groups`: that its groups are what its
     lines say, and that where a line says so one side of a verdict
     is put there by hand.
+  - what is seen, as text (`print_seen`, with
+    `Model_type.normalise_by`): that the variables numbered above
+    the threshold are named in the order in which a first text
+    comes to them, and that the text answered has the sets of names
+    and the maps keyed by names in the order of those names, and
+    the lines of those variables in that order; that
+    `normalise_by` differs from `normalise` only in the order of
+    the variables;
+  - the names to avoid (`names_for_a_join_to_avoid`, and `made` in
+    `sides_of_joins`): that a join of the model is told to avoid
+    the variables of the test, those that its source and its uses
+    know and, in the joins after joins, those of the targets of
+    every join run before it;
+  - the joins after joins (`joined_step`, `run_joined_steps`,
+    `sides_of_joins`): that the two sides run the same steps, a
+    definition at the normal name mode, one scope further, an
+    equation added by `add_equation` with the n-way meet, and a
+    join after the scope of the environment so far of the
+    environments that the lists of steps make from it, the uses
+    numbered by their positions; that what is looked at is what is
+    seen of the variables of the program;
+  - the three joins of the shape of T5-10
+    (`joins_of_the_shape_of_t5_10`): that its steps are those of
+    `Recovered` of FlambdaJoinMeetExamplesSpec.v as that file was
+    when it was written;
+  - the generated programs (`generate_joined_steps`,
+    `generated_joins_after_joins`): that the generator is what the
+    comment at its definition says; that a difference of the model
+    with the repaired test is recorded under T5-10 only where the
+    model with the compiler's test sees what the compiler sees at
+    every place looked at, and both sides of the run with the
+    repaired test are read at every place
+    (`outcome_of_the_repaired_test`);
+  - the two controls (`control_of_the_names_to_avoid`,
+    `control_of_the_repaired_test`): that their programs are those
+    that the generator makes from the seeds named, and that where a
+    line says so a reading of a run is replaced by hand
+    (`with_a_reading_replaced`); that the model and the compiler
+    are said to be told apart by a run only where both answer and
+    every place looked at is read on both sides
+    (`told_apart_where_read`).
 
 Not trusted, though it is OCaml: what the tool proposes to
 `validate_unit` and to `validate_unit_knowing`. Each proposal is

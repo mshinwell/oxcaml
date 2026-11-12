@@ -553,6 +553,12 @@ says so. Only the labels that this tree cites are listed.
   again in the order of `Name.Map`. The model adds them in the order in
   which they were made. The type answered and the canonical elements are
   the same.
+- **T7-11.** The model's join of environments takes for one two
+  variables that sibling joins made: it makes a variable one greater
+  than the names that it is told to avoid, and two environments built
+  apart may each have been given the same one. The compiler's variables
+  are distinct on every path. A hole in the contract of the model's
+  join, not a difference with the compiler.
 - **V2-2.** The fexpr printer drops the kinds of the fields of a
   `Make_block`, and the parser reads back `any_value` for each.
 - **V2-3.** The conversion gives a meaning to a local allocation read
