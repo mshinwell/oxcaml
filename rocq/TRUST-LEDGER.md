@@ -113,15 +113,21 @@ it gave back.
   compiler checks that where code is made). Not cross-checked: how an
   arity is grouped into unboxed products, which is rebuilt through
   `Flambda_arity.fold_per_parameter`.
-- **Tupled functions**, which the model has not got: code has no mark
-  that it is tupled. The converter refuses (`Unsupported`) a unit that
-  has code that is tupled (`Code0.is_tupled`) and a call that is not
-  direct, whatever that call is of; that is OCaml, in the same file,
-  and is trusted. A direct call, and a call of known arity, give tupled
-  code the components, which is the arity of the code; only a call of
-  unknown arity gives it the tuple, so this refuses more than is
-  needed, and a unit whose calls are all direct is converted. This
-  goes when the fragment has them.
+- **Tupled functions** are in the model as code that is marked
+  (`FlambdaModel.cm_is_tupled`), and the converter gives code the mark
+  of `Code0.is_tupled`. Every call of the model gives tupled code one
+  argument, a tuple, which the machine takes apart
+  (`FlambdaSemanticsSpec.arguments_for_code`): that is the compiler's
+  call of unknown arity. The compiler's direct call and its call of
+  known arity give code its arguments as the code takes them, and the
+  model has not got that of tupled code. So the converter refuses
+  (`Unsupported`) a direct call of tupled code that the unit binds, and
+  a call of known arity in a unit that binds tupled code; that is
+  OCaml, in the same file, and is trusted. Trusted too: that a tuple
+  given to tupled code has the tag 0 and as many fields as the code has
+  parameters. The machine makes any other call undefined; the run time
+  reads the first fields of whatever it is given (the review comment at
+  `FlambdaSemanticsSpec.tuple_fields`).
 - **Partial applications and over-applications** are in the model
   (`FlambdaSemanticsSpec.shape_of_closure_call`), and the converter
   gives a call its arguments and its two arities as they are, whatever
@@ -159,11 +165,11 @@ it gave back.
   ends when a raise leaves it open and the handler ends it, and the
   same is trusted of both units on that way out: nothing allocated in
   such a region is used in the handler after that, or later. A region
-  variable used as a value is refused. *Tupled functions*: a unit
-  that has tupled code and a call that is not direct is refused; this
-  is more than is needed (only a call of unknown arity gives tupled
-  code the tuple), and it is what keeps such a call from being run at
-  the arity of the code.
+  variable used as a value is refused. *Tupled functions*: a direct
+  call of tupled code that the unit binds is refused, and so is a call
+  of known arity in a unit that binds tupled code (the entry above);
+  it is what keeps a call that gives code the components from being
+  run as the model's call, which gives it the tuple.
 - **The conversion of primitives**, in the same file (the section
   "Primitives"): one function for each arity of primitive that the model
   has (`convert_unary_primitive`, `convert_binary_primitive` and, once
