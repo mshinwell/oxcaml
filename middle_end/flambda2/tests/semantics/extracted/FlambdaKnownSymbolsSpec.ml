@@ -2,6 +2,7 @@ open Datatypes
 open FlambdaMapSpec
 open FlambdaModel
 open FlambdaNormaliseSpec
+open FlambdaPrimitiveModel
 open FlambdaSemanticsSpec
 open FlambdaValueSpec
 open List
@@ -120,10 +121,19 @@ let simple_known statics = function
   | Symbol sym -> is_some (lookup sym statics.static_values)
   | Const _ -> true
 
+(** val reads_string : prim -> bool **)
+
+let reads_string = function
+  | Binary p0 -> (
+    match p0 with String_or_bigstring_load _ -> true | _ -> false)
+  | _ -> false
+
 (** val named_known : static_env -> named -> bool **)
 
 let named_known statics = function
-  | Prim (p, args) -> prim_may_fold p && forallb (simple_known statics) args
+  | Prim (p, args) ->
+    (prim_may_fold p && negb (reads_string p))
+    && forallb (simple_known statics) args
   | Project_value_slot (_, closure) -> simple_known statics closure
   | Project_value_slot_from (_, _, closure) -> simple_known statics closure
   | Project_function_slot (_, _, closure) -> simple_known statics closure

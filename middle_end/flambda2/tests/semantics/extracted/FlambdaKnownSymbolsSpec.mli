@@ -2,6 +2,7 @@ open Datatypes
 open FlambdaMapSpec
 open FlambdaModel
 open FlambdaNormaliseSpec
+open FlambdaPrimitiveModel
 open FlambdaSemanticsSpec
 open FlambdaValueSpec
 open List
@@ -31,6 +32,8 @@ val known_sets : expr -> (symbol * static_const) list
 val known_sets_of_handler : continuation_handler -> (symbol * static_const) list
 
 val simple_known : static_env -> simple -> bool
+
+val reads_string : prim -> bool
 
 val named_known : static_env -> named -> bool
 

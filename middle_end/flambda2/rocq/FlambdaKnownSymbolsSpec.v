@@ -79,7 +79,11 @@
    here, and nothing to keep in step with them. The one primitive that
    the normalisation never folds is not folded here either
    (FlambdaNormaliseSpec.prim_may_fold: [Opaque_identity], which
-   Simplify leaves alone). No primitive of the model has an effect;
+   Simplify leaves alone). Nor is the load of bytes from a string
+   ([reads_string]): Simplify does not compute it
+   ([Simplify_binary_primitive.simplify_string_or_bigstring_load]), so
+   the term after keeps the load, and with the load kept here the two
+   terms have it. No primitive of the model has an effect;
    one that allocates something with an identity, or reads what may
    change, must be left out too when the model has them.
 
@@ -251,11 +255,21 @@ Definition simple_known (statics : static_env) (s : simple) : bool :=
   | Var _ => false
   end.
 
+(* The load of bytes from a string, which Simplify does not compute
+   even where the string and the index are known. *)
+Definition reads_string (p : prim) : bool :=
+  match p with
+  | Binary (String_or_bigstring_load _) => true
+  | Unary _ | Binary _ | Variadic _ | Heap _ => false
+  end.
+
 (* A primitive that may be folded, or a projection, all of whose
    arguments are such. *)
 Definition named_known (statics : static_env) (d : named) : bool :=
   match d with
-  | Prim p args => prim_may_fold p && forallb (simple_known statics) args
+  | Prim p args =>
+    prim_may_fold p && negb (reads_string p)
+    && forallb (simple_known statics) args
   | Project_value_slot _ closure | Project_value_slot_from _ _ closure
   | Project_function_slot _ _ closure =>
     simple_known statics closure
