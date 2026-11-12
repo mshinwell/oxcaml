@@ -283,29 +283,34 @@ the two prefixed terms as they are, and no statement changes:
   closures are lifted: for those the liftings are to be stated from
   the imports, which their owners already owe.
 
-The first runs of the prefix show what the second case costs. Of
-the units run so far with a prefix, none of which is in this tree
-yet, each one that is validated is so through the removal of unused
-static bindings from the head of the term after, or through a
-lifting: the prefix is in front of both terms, the term after does
-not use all of it, and the term before, once normalised, uses less.
-That is what those units show, and not a law: two terms that are the
-same up to bound names are validated by the first comparison, prefix
-and all. Neither of the two is one of the three. So such a unit,
-with an import left, for which a predefined exception is enough,
-prints the second of the lines below: validated with nothing else
-imported, and not validated with its imports. The removal from the
-head is V2's law (`FlambdaUnusedHeadStaticsSpec.v`), stated of a
-unit run from the empty static environment because a binding of a
-name that is bound already is undefined. From a static environment
-that binds none of the names at the head it is expected to hold, and
-the tool checks that neither the unit nor the prefix binds an
-import. That
+The first runs of the prefix, on units that are not in this tree,
+showed what the second case costs. Each unit that was validated in
+them was so through the removal of unused static bindings from the
+head of the term after, or through a lifting: the prefix is in
+front of both terms, the term after does not use all of it, and the
+term before, once normalised, uses less. That is what those units
+showed, and not a law: two terms that are the same up to bound names
+are validated by the first comparison, prefix and all, and a unit
+with a prefix may be validated once normalised. Neither a removal
+from the head nor a lifting is one of the three. So a unit that
+needs one, with an import left, for which a predefined exception is
+enough, prints the second of the lines below: validated with nothing
+else imported, and not validated with its imports. The removal from
+the head is V2's law (`FlambdaUnusedHeadStaticsSpec.v`), first
+stated of a unit run from the empty static environment because a
+binding of a name that is bound already is undefined. It holds too
+from a static environment that binds none of the names at the head
+and in whose code and values the names removed do not occur
+(`drop_head_statics_refines_from_statement`, in the same file, with
+the premises `head_free_in` and `statics_free_of`), and the tool
+checks that neither the unit nor the prefix binds an import. That
 statement, and a test that takes the verdict where the head of the
-term after binds no import, come before the liftings: they are
-smaller, and the units run so far all need them. Each is a
-statement of its own, with its own premise, to be reviewed as such:
-nothing agreed here, and none of the three verdicts, covers it.
+term after binds no import (`FlambdaValidateImportsSpec.holds_from`,
+which tests the first premise and not the second), come before the
+liftings: they are smaller, and those first units all needed them.
+Each is a statement of its own, with its own premises, reviewed as
+such: nothing agreed here, and none of the three verdicts, covers
+it.
 
 One small statement is mine to add, so that the ledger can say the
 thing in its own terms. It has a condition: that the prefix
