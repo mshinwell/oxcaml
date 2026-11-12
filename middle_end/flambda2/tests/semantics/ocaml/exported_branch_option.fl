@@ -1,0 +1,38 @@
+(let code size(18)
+       get_0 (param/40 : imm tagged)
+         my_closure/41 &my_alloc_region/42 my_depth/43
+         -> k/16 * k/17
+         : imm tagged =
+   let next_depth/44 = rec_info (succ my_depth/43) in
+   let setting/45 = %project_value_slot.[get].[setting] (my_closure/41) in
+   (let prim/47 = %is_int (setting/45) in
+    let Pisint/48 = %tag_imm (prim/47) in
+    (let untagged/49 = %untag_imm (Pisint/48) in
+     switch untagged/49
+       | 0 -> k/19
+       | 1 -> k/16 (0))
+      where k/19 =
+        cont k/18)
+     where k/18 =
+       let Pfield/46 = %block_load.[`0`] (setting/45) in
+       cont k/16 (Pfield/46)
+ in
+ let $camlExported_branch_option__const_block_0 = Block 0 (5) in
+ (let Popaque/53 = %opaque (1) in
+  let untagged/54 = %untag_imm (Popaque/53) in
+  switch untagged/54
+    | 0 -> k/20 (0)
+    | 1 -> k/20 ($camlExported_branch_option__const_block_0))
+   where k/20 (setting/50 : [ 0 | 0 of imm tagged ]) =
+     let get/51 = closure get_0 @get &toplevel
+     with { setting = setting/50 }
+     in
+     let Pmakeblock/52 = %block.[`0`].`toplevel` (setting/50, get/51) in
+     cont k/15 (Pmakeblock/52))
+  where k/15 define_root_symbol (module_block/37) =
+    let field_0/38 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/37)
+    in
+    let field_1/39 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/37)
+    in
+    let $camlExported_branch_option = Block 0 (field_0/38, field_1/39) in
+    cont done ($camlExported_branch_option)

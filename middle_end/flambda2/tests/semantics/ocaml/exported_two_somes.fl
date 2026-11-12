@@ -1,0 +1,14 @@
+let $camlExported_two_somes__first_const_0 = Block 0 () in
+(let Popaque/20 = %opaque (1) in
+ let a/21 = %block.[`0`].`toplevel` (Popaque/20) in
+ let Popaque/22 = %opaque (2) in
+ let b/23 = %block.[`0`].`toplevel` (Popaque/22) in
+ let Pmakeblock/24 = %block.[`0`].`toplevel` (a/21, b/23) in
+ cont k/5 (Pmakeblock/24))
+  where k/5 define_root_symbol (module_block/17) =
+    let field_0/18 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/17)
+    in
+    let field_1/19 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/17)
+    in
+    let $camlExported_two_somes = Block 0 (field_0/18, field_1/19) in
+    cont done ($camlExported_two_somes)

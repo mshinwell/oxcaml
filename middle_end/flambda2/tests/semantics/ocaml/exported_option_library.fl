@@ -1,0 +1,70 @@
+let $camlExported_option_library__first_const_0 = Block 0 () in
+(let code size(29)
+       map_0 (f/81 : val, o/82 : [ 0 | 0 of val ])
+         my_closure/83 &my_alloc_region/84 my_depth/85
+         -> k/28 * k/29
+         : [ 0 | 0 of val ] =
+   let next_depth/86 = rec_info (succ my_depth/85) in
+   (let prim/90 = %is_int (o/82) in
+    let Pisint/91 = %tag_imm (prim/90) in
+    (let untagged/92 = %untag_imm (Pisint/91) in
+     switch untagged/92
+       | 0 -> k/32
+       | 1 -> k/28 (0))
+      where k/32 =
+        cont k/30)
+     where k/30 =
+       ((let Pfield/89 = %block_load.[`0`] (o/82) in
+         apply &my_alloc_region/84 f/81 (Pfield/89) -> k/31 * k/29)
+          where k/31 (apply_result/87) =
+            let Pmakeblock/88 =
+              %block.[`0`].my_alloc_region/84 (apply_result/87)
+            in
+            cont k/28 (Pmakeblock/88))
+ in
+ let code size(17)
+       default_1 (d/93, o/94 : [ 0 | 0 of val ])
+         my_closure/95 &my_alloc_region/96 my_depth/97
+         -> k/33 * k/34 =
+   let next_depth/98 = rec_info (succ my_depth/97) in
+   (let prim/100 = %is_int (o/94) in
+    let Pisint/101 = %tag_imm (prim/100) in
+    (let untagged/102 = %untag_imm (Pisint/101) in
+     switch untagged/102
+       | 0 -> k/36
+       | 1 -> k/33 (d/93))
+      where k/36 =
+        cont k/35)
+     where k/35 =
+       let Pfield/99 = %block_load.[`0`] (o/94) in
+       cont k/33 (Pfield/99)
+ in
+ let code size(5)
+       is_some_2 (o/103 : [ 0 | 0 of val ])
+         my_closure/104 &my_alloc_region/105 my_depth/106
+         -> k/37 * k/38
+         : imm tagged =
+   let next_depth/107 = rec_info (succ my_depth/106) in
+   let prim/108 = %is_int (o/103) in
+   let Pisint/109 = %tag_imm (prim/108) in
+   let Pnot/110 = %boolean_not (Pisint/109) in
+   cont k/37 (Pnot/110)
+ in
+ let map/111 = closure map_0 @map &toplevel in
+ let default/112 = closure default_1 @`default` &toplevel in
+ let is_some/113 = closure is_some_2 @is_some &toplevel in
+ let Pmakeblock/114 =
+   %block.[`0`].`toplevel` (map/111, default/112, is_some/113)
+ in
+ cont k/27 (Pmakeblock/114))
+  where k/27 define_root_symbol (module_block/77) =
+    let field_0/78 = %block_load.tag[`0`].`size`[`3`].[`0`] (module_block/77)
+    in
+    let field_1/79 = %block_load.tag[`0`].`size`[`3`].[`1`] (module_block/77)
+    in
+    let field_2/80 = %block_load.tag[`0`].`size`[`3`].[`2`] (module_block/77)
+    in
+    let $camlExported_option_library =
+      Block 0 (field_0/78, field_1/79, field_2/80)
+    in
+    cont done ($camlExported_option_library)

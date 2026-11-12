@@ -1,0 +1,47 @@
+let $camlExported_branch_fun_const__first_const_0 = Block 0 () in
+(let code size(3)
+       succ_0 (x/51 : imm tagged)
+         my_closure/52 &my_alloc_region/53 my_depth/54
+         -> k/18 * k/19
+         : imm tagged =
+   let next_depth/55 = rec_info (succ my_depth/54) in
+   let int_add/56 = %int_barith.add (x/51, 1) in
+   cont k/18 (int_add/56)
+ in
+ let code size(9)
+       succ2_1 (x/57 : imm tagged)
+         my_closure/58 &my_alloc_region/59 my_depth/60
+         -> k/20 * k/21
+         : imm tagged =
+   let next_depth/61 = rec_info (succ my_depth/60) in
+   let succ/62 = %project_value_slot.[succ2].[`succ`] (my_closure/58) in
+   apply direct(succ_0 &my_alloc_region/59)
+     (succ/62 : _ -> imm tagged) (x/57) -> k/22 * k/21
+     where k/22 (apply_result/63 : imm tagged) =
+       apply direct(succ_0 &my_alloc_region/59)
+         (succ/62 : _ -> imm tagged) (apply_result/63) -> k/20 * k/21
+ in
+ (let Popaque/68 = %opaque (1) in
+  let untagged/69 = %untag_imm (Popaque/68) in
+  switch untagged/69
+    | 0 -> k/23 (2)
+    | 1 -> k/23 (1))
+   where k/23 (flag/64 : imm tagged) =
+     let succ/65 = closure succ_0 @`succ` &toplevel in
+     let succ2/66 = closure succ2_1 @succ2 &toplevel
+     with { `succ` = succ/65 }
+     in
+     let Pmakeblock/67 = %block.[`0`].`toplevel` (flag/64, succ/65, succ2/66)
+     in
+     cont k/17 (Pmakeblock/67))
+  where k/17 define_root_symbol (module_block/47) =
+    let field_0/48 = %block_load.tag[`0`].`size`[`3`].[`0`] (module_block/47)
+    in
+    let field_1/49 = %block_load.tag[`0`].`size`[`3`].[`1`] (module_block/47)
+    in
+    let field_2/50 = %block_load.tag[`0`].`size`[`3`].[`2`] (module_block/47)
+    in
+    let $camlExported_branch_fun_const =
+      Block 0 (field_0/48, field_1/49, field_2/50)
+    in
+    cont done ($camlExported_branch_fun_const)

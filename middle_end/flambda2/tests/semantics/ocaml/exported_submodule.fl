@@ -1,0 +1,41 @@
+let $camlExported_submodule__first_const_0 = Block 0 () in
+(let code size(3)
+       forward_0 (x/51 : imm tagged)
+         my_closure/52 &my_alloc_region/53 my_depth/54
+         -> k/18 * k/19
+         : imm tagged =
+   let next_depth/55 = rec_info (succ my_depth/54) in
+   let int_add/56 = %int_barith.add (x/51, 2) in
+   cont k/18 (int_add/56)
+ in
+ let code size(11)
+       twice_1 (x/57 : imm tagged)
+         my_closure/58 &my_alloc_region/59 my_depth/60
+         -> k/20 * k/21
+         : imm tagged =
+   let next_depth/61 = rec_info (succ my_depth/60) in
+   let Step/62 = %project_value_slot.[twice].[Step] (my_closure/58) in
+   (let Pfield/65 = %block_load.[`1`] (Step/62) in
+    apply direct(forward_0 &my_alloc_region/59)
+      (Pfield/65 : _ -> imm tagged) (x/57) -> k/22 * k/21)
+     where k/22 (apply_result/63 : imm tagged) =
+       let Pfield/64 = %block_load.[`1`] (Step/62) in
+       apply direct(forward_0 &my_alloc_region/59)
+         (Pfield/64 : _ -> imm tagged) (apply_result/63) -> k/20 * k/21
+ in
+ (let forward/69 = closure forward_0 @forward &toplevel in
+  let Pmakeblock/70 = %block.[`0`].`toplevel` (2, forward/69) in
+  cont k/23 (Pmakeblock/70))
+   where k/23 (Step/66 : val) =
+     let twice/67 = closure twice_1 @twice &toplevel
+     with { Step = Step/66 }
+     in
+     let Pmakeblock/68 = %block.[`0`].`toplevel` (Step/66, twice/67) in
+     cont k/17 (Pmakeblock/68))
+  where k/17 define_root_symbol (module_block/48) =
+    let field_0/49 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/48)
+    in
+    let field_1/50 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/48)
+    in
+    let $camlExported_submodule = Block 0 (field_0/49, field_1/50) in
+    cont done ($camlExported_submodule)

@@ -1,0 +1,37 @@
+let $camlExported_nested_branch__first_const_0 = Block 0 () in
+(let code size(4)
+       raise_by_0 (x/38 : imm tagged)
+         my_closure/39 &my_alloc_region/40 my_depth/41
+         -> k/16 * k/17
+         : imm tagged =
+   let next_depth/42 = rec_info (succ my_depth/41) in
+   let level/43 = %project_value_slot.[raise_by].[level] (my_closure/39) in
+   let int_add/44 = %int_barith.add (x/38, level/43) in
+   cont k/16 (int_add/44)
+ in
+ (let Popaque/50 = %opaque (1) in
+  (let untagged/51 = %untag_imm (Popaque/50) in
+   switch untagged/51
+     | 0 -> k/18 (3)
+     | 1 -> k/20)
+    where k/20 =
+      cont k/19)
+   where k/19 =
+     let Popaque/48 = %opaque (0) in
+     let untagged/49 = %untag_imm (Popaque/48) in
+     switch untagged/49
+       | 0 -> k/18 (2)
+       | 1 -> k/18 (1)
+   where k/18 (level/45 : imm tagged) =
+     let raise_by/46 = closure raise_by_0 @raise_by &toplevel
+     with { level = level/45 }
+     in
+     let Pmakeblock/47 = %block.[`0`].`toplevel` (level/45, raise_by/46) in
+     cont k/15 (Pmakeblock/47))
+  where k/15 define_root_symbol (module_block/35) =
+    let field_0/36 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/35)
+    in
+    let field_1/37 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/35)
+    in
+    let $camlExported_nested_branch = Block 0 (field_0/36, field_1/37) in
+    cont done ($camlExported_nested_branch)

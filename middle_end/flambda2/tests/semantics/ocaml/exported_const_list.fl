@@ -1,0 +1,37 @@
+(let $camlExported_const_list__const_block_0 = Block 0 (5, 0) in
+ let $camlExported_const_list__const_block_1 =
+   Block 0 (3, $camlExported_const_list__const_block_0)
+ in
+ let $camlExported_const_list__const_block_2 =
+   Block 0 (2, $camlExported_const_list__const_block_1)
+ in
+ let code size(16)
+       first_prime_0 (param/29 : imm tagged)
+         my_closure/30 &my_alloc_region/31 my_depth/32
+         -> k/14 * k/15
+         : imm tagged =
+   let next_depth/33 = rec_info (succ my_depth/32) in
+   (let prim/34 = %is_int ($camlExported_const_list__const_block_2) in
+    let Pisint/35 = %tag_imm (prim/34) in
+    (let untagged/36 = %untag_imm (Pisint/35) in
+     switch untagged/36
+       | 0 -> k/17
+       | 1 -> k/14 (0))
+      where k/17 =
+        cont k/16)
+     where k/16 =
+       cont k/14 (2)
+ in
+ let first_prime/37 = closure first_prime_0 @first_prime &toplevel in
+ let Pmakeblock/38 =
+   %block.[`0`].`toplevel`
+     ($camlExported_const_list__const_block_2, first_prime/37)
+ in
+ cont k/13 (Pmakeblock/38))
+  where k/13 define_root_symbol (module_block/27) =
+    let field_1/28 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/27)
+    in
+    let $camlExported_const_list =
+      Block 0 ($camlExported_const_list__const_block_2, field_1/28)
+    in
+    cont done ($camlExported_const_list)

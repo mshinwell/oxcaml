@@ -1,0 +1,37 @@
+(let code size(6)
+       total_0 (param/39 : imm tagged)
+         my_closure/40 &my_alloc_region/41 my_depth/42
+         -> k/12 * k/13
+         : imm tagged =
+   let next_depth/43 = rec_info (succ my_depth/42) in
+   let base/44 = %project_value_slot.[total].[base] (my_closure/40) in
+   let int_add/45 = %int_barith.add (10, 20) in
+   let int_add/46 = %int_barith.add (int_add/45, base/44) in
+   cont k/12 (int_add/46)
+ in
+ let $camlExported_branch_then_const__const_block_0 = Block 0 (10, 20) in
+ (let Popaque/50 = %opaque (1) in
+  let untagged/51 = %untag_imm (Popaque/50) in
+  switch untagged/51
+    | 0 -> k/14 (2)
+    | 1 -> k/14 (1))
+   where k/14 (base/47 : imm tagged) =
+     let total/48 = closure total_0 @total &toplevel
+     with { base = base/47 }
+     in
+     let Pmakeblock/49 =
+       %block.[`0`].`toplevel`
+         (base/47, $camlExported_branch_then_const__const_block_0, total/48)
+     in
+     cont k/11 (Pmakeblock/49))
+  where k/11 define_root_symbol (module_block/36) =
+    let field_0/37 = %block_load.tag[`0`].`size`[`3`].[`0`] (module_block/36)
+    in
+    let field_2/38 = %block_load.tag[`0`].`size`[`3`].[`2`] (module_block/36)
+    in
+    let $camlExported_branch_then_const =
+      Block 0 (field_0/37,
+               $camlExported_branch_then_const__const_block_0,
+               field_2/38)
+    in
+    cont done ($camlExported_branch_then_const)
