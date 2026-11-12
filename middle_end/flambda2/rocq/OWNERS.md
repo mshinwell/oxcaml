@@ -298,6 +298,11 @@ pass into the validator.
     environment under which the handler of a continuation is
     rewritten, at the kinds that the handler gives its parameters;
     after `simplify/simplify_let_cont_expr.ml`)
+  - `middle_end/flambda2/types/rocq/FlambdaSimplifyUses*` (the handler
+    of a continuation rewritten under the environment of its one
+    application, and under any environment that has the guarantees of
+    the join of the environments of its applications; after
+    `simplify/join_points.ml`)
   - `middle_end/flambda2/types/rocq/FlambdaSimplifyPruning*` (a second
     function, which also removes the arms of a `Switch` that the type
     of the scrutinee excludes; its theorem is of the states of the run

@@ -437,6 +437,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaSimplifySwitchRewriteProofs.v \
   FlambdaSimplifySwitchRewriteSpec.v \
   FlambdaSimplifySwitchSpec.v \
+  FlambdaSimplifyUsesProofs.v \
+  FlambdaSimplifyUsesSpec.v \
   FlambdaSimplifyValueSlotsProofs.v \
   FlambdaSimplifyValueSlotsSpec.v \
   FlambdaTypeAccessProofs.v \
