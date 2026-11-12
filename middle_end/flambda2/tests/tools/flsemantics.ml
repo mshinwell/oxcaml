@@ -2874,15 +2874,21 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
 (* Where the tool's Simplify looks for the .cmx of another unit: the directories
    given with [-I] (or [-Ix], which is [-I] with a promise about the .cmx
    files), in the order they are given, each as it is written (a [+dir] is not
-   made a directory of the standard library), and no other. The load path is set
-   here and not by [Compmisc.init_path], which the driver uses: that one adds
-   the standard library, the current directory, the directories of [-H] and of
-   [-thread], and those that OCAMLPARAM gives. The tool accepts the options of
-   the compiler, and none of those is to reach the load path. *)
+   made a directory of the standard library), and no other directory and no
+   other file. The load path is emptied and those directories are added to it
+   one by one. It is set neither by [Compmisc.init_path], which the driver uses,
+   nor by [Load_path.init]. The first adds the standard library, the current
+   directory, the directories of [-H] and of [-thread], and those that
+   OCAMLPARAM gives. The second reads, whatever directories it is given, the
+   files of [-H-file] and [-Hx-file] and the manifests of [-I-manifest] and
+   [-H-manifest]. The tool accepts the options of the compiler, and none of
+   those is to reach the load path. *)
 let init_load_path () =
-  Load_path.init ~auto_include:Load_path.no_auto_include
-    ~visible:(List.rev !Clflags.include_dirs)
-    ~hidden:[];
+  Load_path.reset ();
+  List.iter
+    (fun ({ path; cmx_guaranteed } : Clflags.visible_include) ->
+      Load_path.add_dir (Visible { cmx_guaranteed }) path)
+    (List.rev !Clflags.include_dirs);
   Env.reset_cache ~preserve_persistent_env:false
 
 (* The units whose .cmx file the compilation has read so far, each with the
