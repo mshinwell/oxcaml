@@ -27,15 +27,18 @@
 
 
 (* The kinds of the equations that the state of an n-way join of
-   environments holds, through its first phases.
+   environments holds, through its first phases, and of those that
+   its last phase adds.
 
    This file is to be reviewed: the definitions and the statements.
    The proofs are in FlambdaJoinKindsProofs.v, which needs no review.
 
-   The meet's environment adds an extension only if its types are
-   kinded in it and each name of an equation is of the kind of its
-   type ([env_extension_fits], [env_extension_kinded],
-   FlambdaMeetSpec.v and FlambdaMeetEnvSpec.v). The equations of the
+   What is stated of adding an extension to the meet's environment
+   supposes that its types are kinded in it and that each name of an
+   equation is of the kind of its type ([env_extension_fits],
+   [env_extension_kinded], FlambdaMeetSpec.v and
+   FlambdaMeetEnvSpec.v; these are premises of statements, and not
+   tests that the function makes). The equations of the
    two extensions that the join adds are made, by its last phase,
    from the equations that its state holds. This file says what the
    first phases keep of the kinds of those:
@@ -65,10 +68,8 @@
    - the first phases answer a state that has these, and relations
      that have theirs ([first_phases_kinds_statement]), under the
      premises of [first_phases_true_statement] (FlambdaJoinStateSpec.v)
-     and two more: the join of types keeps [equations_kinded]
-     ([join_of_types_keeps_kinds]), and the type that a constant is
-     expanded to is of the kind of the constant
-     ([expand_const_of_kind]);
+     and one more: the join of types keeps [equations_kinded]
+     ([join_of_types_keeps_kinds]);
    - the join of types of FlambdaJoinTypes.v, given the three
      functions of the join of environments, keeps [equations_kinded]
      ([n_way_join_keeps_kinds_statement]);
@@ -84,9 +85,12 @@
    those of a later state do, and the rounds have [state_kinded] of
    the state answered from the contract of the join of types.
 
-   Not here: the last phase (the kinds of the equations of the two
-   extensions), and the kinds of the names of the equations inside
-   types. *)
+   And the last phase: each equation of the two extensions that it
+   adds is on a variable that the target has at the kind of the type
+   of the equation, and the aliases of that type are of their kinds
+   in the target ([last_phase_adds_kinded_statement]).
+
+   Not here: the kinds of the names of the equations inside types. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
@@ -96,7 +100,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaBindingTime FlambdaTypingEnv FlambdaTypingEnvInvariantSpec
   FlambdaTypingEnvKindedSpec FlambdaJoinEnv FlambdaJoinSpec
   FlambdaJoinEnvSpec FlambdaJoinStateSpec FlambdaJoinDefineSpec
-  FlambdaJoinFitsSpec FlambdaJoinTypes.
+  FlambdaJoinFitsSpec FlambdaJoinAddsSpec FlambdaJoinTypes.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -233,17 +237,10 @@ Definition n_way_join_keeps_kinds_statement : Prop :=
          (Join_env.n_way_join_env_extension p fuel_of_env) expand_head
          reduce_head_of_kind_naked_immediate type_eqb block_shape_eqb fuel).
 
-(* What is asked of the parameters: the type that a constant is
-   expanded to is of the kind of the constant. *)
-Definition expand_const_of_kind (p : Join_env.parameters) : Prop :=
-  ∀ c : const,
-    kind (Join_env.expand_const p c) = kind (type_for_const c).
-
 (* The first phases answer a state whose equations are kinded, and
    relations that are: under the premises of
    [first_phases_true_statement] (FlambdaJoinStateSpec.v), with a join
-   of types that keeps [equations_kinded] and parameters that expand
-   a constant to a type of its kind. *)
+   of types that keeps [equations_kinded]. *)
 Definition first_phases_kinds_statement : Prop :=
   ∀ (source : Typing_env.t) (jt : Join_env.n_way_join_type)
     (choices : Join_env.choices) (p : Join_env.parameters) (fuel : nat)
@@ -256,7 +253,6 @@ Definition first_phases_kinds_statement : Prop :=
     fresh_avoids p ->
     parameters_type_eqb_sound p ->
     expand_const_sound p ->
-    expand_const_of_kind p ->
     (∀ x : variable, knows source x -> x ∈ avoid) ->
     (∀ (index : Index.t) (use : Typing_env.t) (x : variable),
        Joined_envs.get_nth_joined_env envs index = Some use ->
@@ -294,3 +290,45 @@ Definition first_phases_kinds_statement : Prop :=
             (Bindings_in_target_env.from_source_env avoid source)))
     = Some (relations3, s3) ->
     equations_kinded s3 ∧ relations_kinded s3 relations3.
+
+(* ======================================================================== *)
+(* The last phase                                                           *)
+(* ======================================================================== *)
+
+(* What the last phase adds ([last_phase_adds], FlambdaJoinAddsSpec.v)
+   is kinded in the target: each equation of the two extensions is on
+   a variable that the target has at the kind of the type of the
+   equation, and each alias of that type, with the kind at which it
+   stands, is of that kind in the target.
+
+   The premises are of the state that the first phases answer:
+   [first_phases_kinds_statement] has [equations_of_kinds],
+   [aliases_of_kinds] and [relations_kinded] of it, and
+   [scoped_equations_kinded_statement] has
+   [equations_kinded_in_target].
+
+   "In the target" is by the kinds that the bindings of the state
+   record ([kind_in_target_env]), which has every variable that the
+   join has made. Those that the last phase does not keep are not in
+   the types of the equations
+   ([last_phase_adds_in_scope_statement]); what the environment of
+   the meet then knows of the kinds is
+   [last_phase_kinds_known_statement] of FlambdaJoinMeetSpec.v. *)
+Definition last_phase_adds_kinded_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (fuel : nat) (s : Join_env.t)
+    (relations : Join_env.inverse_relations)
+    (kept : list (variable * flambda_kind))
+    (equations relation_equations : list (name * flambda_type))
+    (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind)),
+    state_valid s ->
+    equations_kinded_in_target s ->
+    equations_of_kinds s ->
+    aliases_of_kinds s ->
+    relations_kinded s relations ->
+    last_phase_adds tenv fuel s relations kept equations relation_equations
+      definitions ->
+    ∀ (n : name) (ty : flambda_type),
+      (n, ty) ∈ equations ++ relation_equations ->
+      type_kinded_in_target kind_in_target_env s ty
+      ∧ ∃ x : variable,
+          n = Name_var x ∧ kind_in_target_env s x = Some (kind ty).

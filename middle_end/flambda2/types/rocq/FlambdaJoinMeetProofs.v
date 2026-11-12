@@ -42,7 +42,9 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaJoinSpec FlambdaJoinEnvSpec FlambdaJoinEnvProofs
   FlambdaJoinStateSpec FlambdaJoinStateProofs FlambdaJoinDefineSpec
   FlambdaJoinDefineProofs FlambdaJoinFitsSpec FlambdaJoinFitsProofs
-  FlambdaJoinAddsSpec FlambdaJoinAddsProofs FlambdaJoinTypes
+  FlambdaJoinAddsSpec FlambdaJoinAddsProofs FlambdaJoinKindsSpec
+  FlambdaJoinKindsProofs FlambdaTypeAliasKindsSpec
+  FlambdaTypeAliasKindsProofs FlambdaJoinTypes
   FlambdaJoinTypesSpec FlambdaJoinTypesWithEnvSpec
   FlambdaJoinTypesWithEnvProofs FlambdaMeetGrammar FlambdaExpandHead
   FlambdaExpandHeadSpec FlambdaExpandHeadProofs FlambdaMeetEnv FlambdaMeet
@@ -327,4 +329,53 @@ Proof.
   split.
   - apply Hmem. apply (proj1 Hboth). left. reflexivity.
   - intros y Hy. apply Hmem. exact (proj2 Hboth y Hy).
+Qed.
+
+Theorem last_phase_kinds_known : last_phase_kinds_known_statement.
+Proof.
+  intros tenv fuel source s relations menv kept equations relation_equations
+    definitions Htrue Hrelations Hnonempty Hscoped Hstate Henvs HX HR Hsource
+    Hfits Hadds menv' n ty Hin.
+  destruct (last_phase_adds_kept tenv fuel s relations kept equations
+              relation_equations definitions Hadds) as [Hdistinct Hkept].
+  destruct (last_phase_adds_in_scope tenv fuel source s relations kept
+              equations relation_equations definitions Htrue Hrelations
+              Hnonempty (proj1 Hscoped)
+              (scoped_aliases_not_made s (proj1 Htrue) (proj2 Hscoped)) Hadds)
+    as [Hscope1 Hscope2].
+  assert (Hsource' : Meet_env.typing_env menv = Join_env.source_env s).
+  { rewrite (proj2 (proj2 Htrue)). exact Hsource. }
+  destruct (target_variables_defined s menv kept (proj1 Htrue) Hsource' Hfits
+              Hkept Hdistinct) as [Hkept' [_ [Hkinds _]]].
+  fold menv' in Hkept', Hkinds.
+  destruct HX as [H1 [H4 [_ [H5 _]]]].
+  pose proof (scoped_equations_kinded s (proj1 Htrue) Hstate Henvs
+                (proj1 Hscoped) H1) as Hkinded.
+  destruct (last_phase_adds_kinded tenv fuel s relations kept equations
+              relation_equations definitions (proj1 Htrue) Hkinded H4 H5 HR
+              Hadds n ty Hin) as [Haliases [x [-> Hx]]].
+  assert (Hboth :
+            (∀ y : variable,
+               y ∈ free_variables_of_name (Name_var x) ->
+               in_final_target s kept y)
+            ∧ ∀ y : variable,
+                y ∈ free_variables ty -> in_final_target s kept y).
+  { apply in_app_or in Hin. destruct Hin as [Hin | Hin];
+      [ exact (Hscope1 _ _ Hin) | exact (Hscope2 _ _ Hin) ]. }
+  split.
+  - exact (Hkinds x (kind ty) (proj1 Hboth x (or_introl eq_refl)) Hx).
+  - intros simple k Hmember Hsymbol.
+    pose proof (Haliases simple k Hmember) as HK.
+    destruct simple as [y | sym | c].
+    + apply (Hkinds y k); [ | exact HK ].
+      apply (proj2 Hboth).
+      exact (proj1 aliases_free_variables ty (Var y) k y Hmember
+               (or_introl eq_refl)).
+    + cbn in HK. subst k.
+      destruct (bound_has_kind _ _ (Hsymbol sym eq_refl)) as [k' Hk'].
+      cbn [simple_of_name] in Hk'.
+      rewrite (symbol_kinded _ _ _ (proj1 (proj2 (proj2 (proj2 Hkept'))))
+                 Hk') in Hk'.
+      exact Hk'.
+    + exact HK.
 Qed.

@@ -41,17 +41,38 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
   FlambdaMapSpec FlambdaMapProofs FlambdaSemanticsSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
-  FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeAliasKindsSpec
-  FlambdaTypeAliasKindsProofs FlambdaTypeProject FlambdaBindingTime
+  FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs
+  FlambdaTypeAliasKindsSpec FlambdaTypeAliasKindsProofs FlambdaTypeProject
+  FlambdaBindingTime
   FlambdaTypingEnv FlambdaTypingEnvSpec FlambdaTypingEnvProofs
   FlambdaTypingEnvInvariantSpec FlambdaTypingEnvInvariantProofs
   FlambdaTypingEnvKindedSpec FlambdaTypingEnvKindedProofs FlambdaJoinEnv
   FlambdaJoinSpec FlambdaJoinEnvSpec FlambdaJoinEnvProofs
   FlambdaJoinStateSpec FlambdaJoinStateProofs FlambdaJoinDefineSpec
   FlambdaJoinDefineProofs FlambdaJoinFitsSpec FlambdaJoinFitsProofs
-  FlambdaJoinTypes FlambdaJoinTypesKeepsSpec FlambdaJoinTypesKeepsProofs
+  FlambdaJoinAddsSpec FlambdaJoinAddsProofs FlambdaJoinTypes
+  FlambdaJoinTypesKeepsSpec FlambdaJoinTypesKeepsProofs
   FlambdaJoinKindsSpec.
 Import ListNotations.
+
+(* The type that a constant is expanded to is of the kind of the
+   constant: it follows from what is asked of the parameters
+   ([expand_const_sound]), since the constant has the type. *)
+Definition expand_const_of_kind (p : Join_env.parameters) : Prop :=
+  ∀ c : const,
+    kind (Join_env.expand_const p c) = kind (type_for_const c).
+
+Lemma expand_const_sound_of_kind (p : Join_env.parameters) :
+  expand_const_sound p -> expand_const_of_kind p.
+Proof.
+  intros Hconst c.
+  destruct (Hconst c) as [_ [_ Hsatisfied]].
+  rewrite <- (type_satisfied_kind empty_static_env [] (Value_const c) _
+                (Hsatisfied empty_static_env [])).
+  exact (type_satisfied_kind empty_static_env [] (Value_const c)
+           (type_for_const c)
+           (type_for_const_satisfied empty_static_env [] c)).
+Qed.
 
 Lemma reach_grows (s s' : Join_env.t) (simple : simple)
     (kind : flambda_kind) :
@@ -1820,12 +1841,12 @@ End Rounds_kinds.
 Theorem first_phases_kinds : first_phases_kinds_statement.
 Proof.
   intros source jt choices p fuel avoid envs s1 s2 s3 relations2 relations3
-    Hjt Hkeeps Hfresh Heqb Hconst Hconst_kind Hsource Huses Hinvariant
-    Hkinded Hlevels Hkinds Haliases Hdelayed Hloop.
+    Hjt Hkeeps Hfresh Heqb Hconst Hsource Huses Hinvariant Hkinded Hlevels
+    Hkinds Haliases Hdelayed Hloop.
   exact (first_phases_kinds_lemma source jt choices Hjt Hkeeps p fuel avoid
-           envs s1 s2 s3 relations2 relations3 Hfresh Heqb Hconst Hconst_kind
-           Hsource Huses Hinvariant Hkinded Hlevels Hkinds Haliases Hdelayed
-           Hloop).
+           envs s1 s2 s3 relations2 relations3 Hfresh Heqb Hconst
+           (expand_const_sound_of_kind p Hconst) Hsource Huses Hinvariant
+           Hkinded Hlevels Hkinds Haliases Hdelayed Hloop).
 Qed.
 
 Theorem scoped_equations_kinded : scoped_equations_kinded_statement.
@@ -1837,4 +1858,290 @@ Proof.
            Henvs Huse H).
   intros y Hy. apply (Hscope x ty Hx).
   exact (proj1 aliases_free_variables ty simple kind y Hin Hy).
+Qed.
+
+(* ======================================================================== *)
+(* The last phase                                                           *)
+(* ======================================================================== *)
+
+Lemma kind_of_unknown (k : flambda_kind) : kind (unknown k) = k.
+Proof. destruct k as [ | [] | | ]; reflexivity. Qed.
+
+Lemma aliases_of_unknown (k : flambda_kind) :
+  aliases_with_kinds (unknown k) = [].
+Proof. destruct k as [ | [] | | ]; reflexivity. Qed.
+
+Section Define_kinds.
+
+Context {meet_env meet_expanded_head : Type}
+  (ops : Join_env.meet_env_functions meet_env meet_expanded_head)
+  (s : Join_env.t) (tenv_of_aliases : Typing_env.t)
+  (unique : variable -> bool).
+
+Hypothesis s_valid : state_valid s.
+Hypothesis aliases_kinds : aliases_of_kinds s.
+
+(* A variable and a type: the variable is of the kind of the type, and
+   the aliases of the type are of their kinds, in the target. *)
+Definition typed (x : variable) (ty : flambda_type) : Prop :=
+  kind_in_target_env s x = Some (kind ty)
+  ∧ type_kinded_in_target kind_in_target_env s ty.
+
+Definition kinds_invariant (acc : define_acc meet_env) : Prop :=
+  let '(_, to_expand, equations, relations, _) := acc in
+  (∀ (x : variable) (ty : flambda_type),
+     lookup x equations = Some ty -> typed x ty)
+  ∧ (∀ (e : variable) (ty : flambda_type),
+       lookup e to_expand = Some ty -> typed e ty)
+  ∧ ∀ (r : variable) (names : list (Relation.t * name)),
+      lookup r relations = Some names ->
+      kind_in_target_env s r = Some (Naked_number Kind_naked_immediate).
+
+Lemma define_step_kinds (acc acc' : define_acc meet_env)
+    (binding : variable * flambda_kind) :
+  binding
+  ∈ Bindings_in_target_env.existential_variables_in_order (Join_env.bindings s)
+  ->
+  kinds_invariant acc ->
+  define_step ops s tenv_of_aliases unique (Some acc) binding = Some acc' ->
+  kinds_invariant acc'.
+Proof.
+  intros Hbinding Hinv Hstep.
+  destruct acc as [[[[menv to_expand] equations] relations] definitions].
+  destruct binding as [var var_kind]. cbn [define_step fst snd] in Hstep.
+  destruct Hinv as [Hequations [Hexpand Hrelations]].
+  assert (Hvar : kind_in_target_env s var = Some var_kind).
+  { pose proof (in_order_lookup _ _ _ Hbinding) as Hlookup.
+    assert (Hex : is_existential s var).
+    { apply is_bound_lookup. exists var_kind. exact Hlookup. }
+    destruct s_valid as [_ [Hnew _]].
+    destruct (Hnew var Hex) as [Hunknown _].
+    unfold kind_in_target_env.
+    unfold knows, Typing_env.mem, Join_env.source_env in Hunknown.
+    destruct (Keyed.lookup name_eqb (Name_var var)
+                (Typing_env.names_to_types
+                   (Bindings_in_target_env.source_env (Join_env.bindings s))))
+      as [[ty time] | ]; [ exfalso; apply Hunknown; reflexivity | ].
+    rewrite Hlookup. reflexivity. }
+  destruct (Join_env.choose_alias tenv_of_aliases _) as [[canon_var | ] | ]
+    eqn:Hchoose; [ | | discriminate ].
+  - destruct (Join_env.move_equation equations var canon_var)
+      as [equations1 | ] eqn:Hmove; [ | discriminate ].
+    injection Hstep as <-.
+    pose proof (choose_alias_in _ _ _ Hchoose) as Hcanon_in.
+    assert (Halias_kind :
+              ∀ x : variable,
+                x
+                ∈ Aliases_of_existentials.aliases_of_existential_var
+                    (Join_env.aliases_of_existentials s) var ->
+                kind_in_target_env s x = Some var_kind).
+    { intros x Hx. destruct (aliases_kinds var x Hx) as [k [Hk Hk']].
+      rewrite Hvar in Hk'. injection Hk' as <-. exact Hk. }
+    pose proof (Halias_kind canon_var Hcanon_in) as Hcanon.
+    assert (Htyped_alias :
+              ∀ x : variable,
+                kind_in_target_env s x = Some var_kind ->
+                typed x (alias_type_of var_kind (Var canon_var))).
+    { intros x Hx. split; [ rewrite kind_of_alias_type; exact Hx | ].
+      intros simple k Hin. rewrite aliases_alias_type_of in Hin.
+      destruct Hin as [Heq | []]. injection Heq as <- <-. exact Hcanon. }
+    assert (Hequations1 :
+              ∀ (x : variable) (ty : flambda_type),
+                lookup x equations1 = Some ty -> typed x ty).
+    { unfold Join_env.move_equation in Hmove.
+      destruct (is_bound canon_var equations); [ discriminate | ].
+      destruct (lookup var equations) as [ty_var | ] eqn:Hlookup_var.
+      - injection Hmove as <-. intros x ty Hx. rewrite lookup_cons in Hx.
+        destruct (Pos.eqb x canon_var) eqn:Heq.
+        + apply Pos.eqb_eq in Heq. subst x. injection Hx as <-.
+          destruct (Hequations var ty_var Hlookup_var) as [Hk Ha].
+          split; [ | exact Ha ]. rewrite Hvar in Hk. injection Hk as Hk.
+          rewrite <- Hk. exact Hcanon.
+        + rewrite lookup_unbind in Hx.
+          destruct (Pos.eqb x var); [ discriminate | ].
+          exact (Hequations x ty Hx).
+      - injection Hmove as <-. exact Hequations. }
+    split; [ | split ].
+    + intros x ty Hx.
+      destruct (lookup_fold_cons _ _ _ _ _ Hx) as [[Hin ->] | Hlookup].
+      * apply filter_In in Hin. destruct Hin as [Hin _].
+        exact (Htyped_alias x (Halias_kind x Hin)).
+      * exact (Hequations1 x ty Hlookup).
+    + intros e ty He. rewrite lookup_cons in He.
+      destruct (Pos.eqb e var) eqn:Heq.
+      * apply Pos.eqb_eq in Heq. subst e. injection He as <-.
+        exact (Htyped_alias var Hvar).
+      * exact (Hexpand e ty He).
+    + intros r names Hr. unfold Join_env.move_inverse_relation in Hr.
+      destruct (lookup var relations) as [names_var | ] eqn:Hlookup_var.
+      * rewrite lookup_cons in Hr. destruct (Pos.eqb r canon_var) eqn:Heq.
+        -- apply Pos.eqb_eq in Heq. subst r.
+           pose proof (Hrelations var names_var Hlookup_var) as Hk.
+           rewrite Hvar in Hk. injection Hk as Hk. rewrite <- Hk.
+           exact Hcanon.
+        -- rewrite lookup_unbind in Hr.
+           destruct (Pos.eqb r var); [ discriminate | ].
+           exact (Hrelations r names Hr).
+      * exact (Hrelations r names Hr).
+  - destruct (unique var).
+    + injection Hstep as <-. split; [ | split; [ | exact Hrelations ] ].
+      * intros x ty Hx. rewrite lookup_unbind in Hx.
+        destruct (Pos.eqb x var); [ discriminate | ].
+        exact (Hequations x ty Hx).
+      * intros e ty He. rewrite lookup_cons in He.
+        destruct (Pos.eqb e var) eqn:Heq; [ | exact (Hexpand e ty He) ].
+        apply Pos.eqb_eq in Heq. subst e. injection He as <-.
+        destruct (lookup var equations) as [ty_var | ] eqn:Hlookup_var.
+        -- exact (Hequations var ty_var Hlookup_var).
+        -- split; [ rewrite kind_of_unknown; exact Hvar | ].
+           intros simple k Hin. rewrite aliases_of_unknown in Hin.
+           destruct Hin.
+    + injection Hstep as <-.
+      split; [ exact Hequations | split; [ exact Hexpand | exact Hrelations ] ].
+Qed.
+
+Lemma define_fold_kinds (acc acc' : define_acc meet_env) :
+  kinds_invariant acc ->
+  List.fold_left (define_step ops s tenv_of_aliases unique)
+    (Bindings_in_target_env.existential_variables_in_order
+       (Join_env.bindings s))
+    (Some acc)
+  = Some acc' ->
+  kinds_invariant acc'.
+Proof.
+  apply (fold_left_invariant (define_step ops s tenv_of_aliases unique)
+           kinds_invariant (fun b => eq_refl)).
+  intros a a' b Hb Ha Hstep.
+  exact (define_step_kinds a a' b Hb Ha Hstep).
+Qed.
+
+(* What is supposed of the aliases of a type that is projected, from
+   the kinds of the types put. *)
+Lemma aliases_before_of (to_project : list variable)
+    (expand : variable -> option flambda_type) (t : flambda_type) :
+  (∀ (e : variable) (ty : flambda_type),
+     expand e = Some ty -> kind_in_target_env s e = Some (kind ty)) ->
+  type_kinded_in_target kind_in_target_env s t ->
+  ∀ alias : simple * flambda_kind,
+    alias ∈ aliases_with_kinds t ->
+    alias_before to_project expand
+      (simple_of_kind_in_target kind_in_target_env s) alias.
+Proof.
+  intros Hexpand Ht [simple k] Hin. unfold alias_before. cbn [fst snd].
+  pose proof (Ht simple k Hin) as HK.
+  destruct simple as [x | sym | c]; [ | exact HK | exact HK ].
+  destruct (among x to_project); [ | exact HK ].
+  intros ty1 H1. pose proof (Hexpand x ty1 H1) as Hk1.
+  change (kind_in_target_env s x = Some k) in HK.
+  rewrite Hk1 in HK. injection HK as HK. exact HK.
+Qed.
+
+Lemma expand_variable_kinds (to_expand : finite_map flambda_type) :
+  (∀ (e : variable) (ty : flambda_type),
+     lookup e to_expand = Some ty -> typed e ty) ->
+  ∀ (fuel : nat) (e : variable) (ty : flambda_type),
+    Join_env.expand_variable fuel to_expand e = Some ty -> typed e ty.
+Proof.
+  intros Hbase.
+  induction fuel as [ | fuel IH]; intros e ty Hexpand; [ discriminate | ].
+  cbn [Join_env.expand_variable] in Hexpand.
+  destruct (lookup e to_expand) as [ty0 | ] eqn:Hlookup; [ | discriminate ].
+  cbn in Hexpand.
+  destruct (Hbase e ty0 Hlookup) as [Hkind0 Haliases0].
+  destruct (get_alias_opt ty0) as [[y | sym | c] | ] eqn:Halias.
+  - destruct (among y (domain to_expand)) eqn:Hy.
+    + destruct (IH y ty Hexpand) as [Hkind_y Haliases_y].
+      split; [ | exact Haliases_y ].
+      pose proof (Haliases0 _ _ (get_alias_in_aliases _ _ Halias)) as Hy_kind.
+      change (kind_in_target_env s y = Some (kind ty0)) in Hy_kind.
+      rewrite Hkind_y in Hy_kind. injection Hy_kind as Heq.
+      rewrite Heq. exact Hkind0.
+    + injection Hexpand as <-. split; assumption.
+  - injection Hexpand as <-. split; assumption.
+  - injection Hexpand as <-. split; assumption.
+  - split.
+    + rewrite (project_variables_out_kind _ _ _ _ Hexpand). exact Hkind0.
+    + destruct (project_variables_out_kinded (domain to_expand)
+                  (Join_env.expand_variable fuel to_expand)
+                  (simple_of_kind_in_target kind_in_target_env s))
+        as [Htype _].
+      * intros e' ty' simple k _ He' Hin.
+        exact (proj2 (IH e' ty' He') simple k Hin).
+      * intros simple k Hin. apply (Htype ty0 ty Hexpand); [ | exact Hin ].
+        apply aliases_before_of; [ | exact Haliases0 ].
+        intros e' ty' He'. exact (proj1 (IH e' ty' He')).
+Qed.
+
+End Define_kinds.
+
+Theorem last_phase_adds_kinded : last_phase_adds_kinded_statement.
+Proof.
+  intros tenv fuel s relations kept equations relation_equations definitions
+    Hvalid Hkinded Hkinds Haliases Hrelations Hadds n ty Hin.
+  destruct (last_phase_adds_parts tenv fuel s relations _ definitions Hadds)
+    as [r1 [to_expand [equations1 [relations1 [kept0 [equations0
+          [relation_equations0
+             [Hfold [_ [_ [_ [_ [Hequations [Hrelation_equations
+                                              Heq]]]]]]]]]]]]]].
+  injection Heq as _ -> ->.
+  assert (Hstart :
+            kinds_invariant s
+              ({| recorded_variables :=
+                    Bindings_in_target_env.imported_variables_in_order
+                      (Join_env.bindings s);
+                  recorded_extensions := [] |},
+               [], Join_env.types_in_target_env s, relations,
+               Join_env.definitions_of_existentials s)).
+  { split; [ | split ].
+    - intros x ty0 Hx. split; [ exact (Hkinds x ty0 Hx) | ].
+      exact (Hkinded x ty0 Hx).
+    - intros e ty0 He. discriminate.
+    - exact Hrelations. }
+  destruct (define_fold_kinds (recording tenv) s tenv (unique_of s relations)
+              Hvalid Haliases _ _ Hstart Hfold)
+    as [Hequations_inv [Hexpand_inv Hrelations_inv]].
+  pose proof (expand_variable_kinds s to_expand Hexpand_inv) as Hexp.
+  destruct (project_variables_out_kinded (domain to_expand)
+              (Join_env.expand_variable fuel to_expand)
+              (simple_of_kind_in_target kind_in_target_env s)
+              (fun e ty0 simple k _ He Hin0 =>
+                 proj2 (Hexp fuel e ty0 He) simple k Hin0))
+    as [Htype _].
+  assert (Hbefore :
+            ∀ t : flambda_type,
+              type_kinded_in_target kind_in_target_env s t ->
+              ∀ alias : simple * flambda_kind,
+                alias ∈ aliases_with_kinds t ->
+                alias_before (domain to_expand)
+                  (Join_env.expand_variable fuel to_expand)
+                  (simple_of_kind_in_target kind_in_target_env s) alias).
+  { intros t Ht. apply aliases_before_of; [ | exact Ht ].
+    intros e ty0 He. exact (proj1 (Hexp fuel e ty0 He)). }
+  apply in_app_or in Hin. destruct Hin as [Hin | Hin].
+  - destruct (traverse_in _ _ _ Hequations (n, ty) Hin)
+      as [[x ty0] [Hbinding Hf]].
+    cbn [fst snd] in Hf.
+    destruct (project_variables_out (domain to_expand)
+                (Join_env.expand_variable fuel to_expand) ty0) as [ty1 | ]
+      eqn:Hty; [ | discriminate ].
+    injection Hf as <- <-. apply in_compact in Hbinding.
+    destruct (Hequations_inv x ty0 Hbinding) as [Hkind0 Haliases0].
+    split.
+    + exact (Htype ty0 ty1 Hty (Hbefore ty0 Haliases0)).
+    + exists x. split; [ reflexivity | ].
+      rewrite (project_variables_out_kind _ _ _ _ Hty). exact Hkind0.
+  - destruct (traverse_in _ _ _ Hrelation_equations (n, ty) Hin)
+      as [[r names] [Hbinding Hf]].
+    cbn [fst snd] in Hf.
+    match type of Hf with
+    | context [project_variables_out ?to_project ?expand ?ty0] =>
+      destruct (project_variables_out to_project expand ty0) as [ty1 | ]
+        eqn:Hty; [ | discriminate ]
+    end.
+    injection Hf as <- <-. apply in_compact in Hbinding.
+    split.
+    + refine (Htype _ ty1 Hty (Hbefore _ _)). intros simple k [].
+    + exists r. split; [ reflexivity | ].
+      rewrite (project_variables_out_kind _ _ _ _ Hty).
+      exact (Hrelations_inv r names Hbinding).
 Qed.

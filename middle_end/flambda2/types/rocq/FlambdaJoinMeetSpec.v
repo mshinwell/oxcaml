@@ -74,6 +74,14 @@
      added: that the second extension is added to an environment
      that still knows them needs the first to fit entirely (kinds
      and well-formedness too), which is not shown yet.
+   - And their kinds are known to it
+     ([last_phase_kinds_known_statement]): the name of each equation
+     is of the kind of its type there, and each alias of the type is
+     of the kind at which it stands, by
+     [last_phase_adds_kinded_statement] of FlambdaJoinKindsSpec.v.
+     For an alias that is a symbol this has as a premise that the
+     environment knows the symbol: what is shown of the state says
+     of a symbol only that it stands at kind [Value].
 
    Examples of what [model_join] computes are in
    FlambdaJoinMeetExamplesSpec.v. *)
@@ -87,6 +95,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypingEnvInvariantSpec FlambdaTypingEnvKindedSpec FlambdaJoinEnv
   FlambdaJoinSpec FlambdaJoinEnvSpec FlambdaJoinStateSpec
   FlambdaJoinDefineSpec FlambdaJoinFitsSpec FlambdaJoinAddsSpec
+  FlambdaJoinKindsSpec FlambdaTypeAliasKindsSpec
   FlambdaJoinTypes FlambdaJoinTypesSpec FlambdaMeetGrammar FlambdaExpandHead
   FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec FlambdaMeetStepsSpec
   FlambdaMeetEnvSpec FlambdaJoinMeet.
@@ -232,3 +241,44 @@ Definition last_phase_names_known_statement : Prop :=
             x ∈ free_variables ty ->
             Typing_env.mem None (Meet_env.typing_env menv') (Name_var x)
             = true.
+
+(* The kinds of the equations that the last phase adds are known to
+   the environment in which the variables are defined: the name of
+   each is of the kind of its type, and each alias of its type is of
+   the kind at which it stands ([aliases_with_kinds],
+   FlambdaTypeAliasKindsSpec.v). For an alias that is a symbol, if
+   the environment knows the symbol. *)
+Definition last_phase_kinds_known_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (fuel : nat) (source : Typing_env.t)
+    (s : Join_env.t) (relations : Join_env.inverse_relations)
+    (menv : Meet_env.t) (kept : list (variable * flambda_kind))
+    (equations relation_equations : list (name * flambda_type))
+    (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind)),
+    state_true source s ->
+    relations_hold s relations ->
+    relations_nonempty relations ->
+    state_scoped s ->
+    state_kinded s ->
+    joined_envs_are typing_env_kinded s ->
+    equations_kinded s ->
+    relations_kinded s relations ->
+    Meet_env.typing_env menv = source ->
+    typing_env_fits (Meet_env.typing_env menv) ->
+    last_phase_adds tenv fuel s relations kept equations relation_equations
+      definitions ->
+    let menv' :=
+      variables_defined meet_env_functions menv
+        (Bindings_in_target_env.imported_variables_in_order
+           (Join_env.bindings s)
+         ++ kept)
+    in
+    ∀ (n : name) (ty : flambda_type),
+      (n, ty) ∈ equations ++ relation_equations ->
+      simple_of_kind (Meet_env.typing_env menv') (simple_of_name n) (kind ty)
+      ∧ ∀ (simple : simple) (k : flambda_kind),
+          (simple, k) ∈ aliases_with_kinds ty ->
+          (∀ sym : symbol,
+             simple = Symbol sym ->
+             Typing_env.mem None (Meet_env.typing_env menv') (Name_symbol sym)
+             = true) ->
+          simple_of_kind (Meet_env.typing_env menv') simple k.
