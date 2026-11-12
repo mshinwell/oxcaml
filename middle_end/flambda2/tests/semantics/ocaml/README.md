@@ -133,13 +133,17 @@ unit made from OCaml.
   writes a kind, which it does in a field of the shape of a block
   and in an arity of more than one component: the parser reads every
   kind of values that is written as one that is never null
-  (`middle_end/flambda2/parser/fexpr_to_flambda.ml`). The model's
-  term before is the compiler's all the same, as the conversion
-  drops these kinds. Only the term after can differ from the
-  compiler's, and only where Simplify used the kind: told that a
-  value is never null, the tool's Simplify can remove a test of null
-  that the compiler's keeps. So what is validated is the tool's
-  Simplify of the term as read. Nothing in the tree finds these
+  (`middle_end/flambda2/parser/fexpr_to_flambda.ml`). As far as
+  this loss goes, the model's term before is the compiler's all the
+  same, as the conversion drops these kinds, and it is the term
+  after that can differ from the compiler's, where Simplify used
+  the kind: told that a value is never null, the tool's Simplify
+  can remove a test of null that the compiler's keeps. (The other
+  things that the printed term loses are under "What a validation
+  does not say".) So what is validated is the tool's Simplify of
+  the term as read. That a unit is in this row does not say that
+  its term after differs from the compiler's: it says that nothing
+  in the tree shows that it does not. Nothing in the tree finds these
   units, as the text is where the kind is lost: the list was made
   twice outside it, by compiling each unit with a compiler whose
   printer writes the mark (T4) and by comparing the term in the
@@ -757,25 +761,30 @@ compared.
   V2-6). For code with `[@inline]` or `[@inline never]` that
   decision does not look at the mark of a functor; the other marks
   are lost for such code as for any other.
-- The printed term loses kinds as well (found by X5, who compared
-  the term in the compiler's memory with the term read back; nothing
-  in the tree makes that comparison). Four of the losses are of
-  something that Simplify reads, and with each the tool's Simplify
-  knows less than the compiler's:
+- The printed term loses kinds, and the mark of a cold handler, as
+  well (found by X5, who compared the term in the compiler's memory
+  with the term read back; nothing in the tree makes that
+  comparison). Four of the losses are of something that Simplify
+  reads, and with each the tool's Simplify knows less than the
+  compiler's:
   - the kind of the result of an application, where the arity of the
     result is not written: the subkind is lost and the result is read
     as one that may be null, and the type of the result of a call
-    that is not inlined comes from that arity
-    (`T.unknown_types_from_arity` in
+    that is not inlined comes from that arity where nothing more
+    precise is known of the result (`T.unknown_types_from_arity` in
     `middle_end/flambda2/simplify/simplify_apply_expr.ml`);
     `identity.ml` has it;
   - the kinds of the fields of a `Make_block`, whose subkinds are
     lost (discrepancy V2-2): Simplify meets the type of each argument
-    with the kind of its field (`simplify_make_block` in
+    that is a variable with the kind of its field
+    (`simplify_make_block` in
     `middle_end/flambda2/simplify/simplify_variadic_primitive.ml`);
     `exported_list.ml`;
-  - the kind of a value slot, an immediate being read as any value:
-    it is the kind of a projection of the slot
+  - the kind of a value slot that the text first names at a
+    projection, which is then read as any value where the compiler
+    has an immediate (a slot that the text has defined before keeps
+    the kind of its definition): it is the kind of a projection of
+    the slot
     (`middle_end/flambda2/simplify/simplify_unary_primitive.ml`);
     `add3_exported.ml`;
   - the mark `[cold]` of a continuation handler, such as the handler
