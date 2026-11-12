@@ -14,6 +14,10 @@ let rec nth_error l = function
   | O -> ( match l with [] -> None | x :: _ -> Some x)
   | S n0 -> ( match l with [] -> None | _ :: l' -> nth_error l' n0)
 
+(** val rev : 'a1 list -> 'a1 list **)
+
+let rec rev = function [] -> [] | x :: l' -> app (rev l') (x :: [])
+
 (** val list_eq_dec : ('a1 -> 'a1 -> bool) -> 'a1 list -> 'a1 list -> bool **)
 
 let rec list_eq_dec eq_dec l l' =

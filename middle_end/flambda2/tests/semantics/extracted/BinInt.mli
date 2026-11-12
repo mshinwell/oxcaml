@@ -43,6 +43,8 @@ module Z : sig
 
   val div_eucl : coq_Z -> coq_Z -> coq_Z * coq_Z
 
+  val div : coq_Z -> coq_Z -> coq_Z
+
   val modulo : coq_Z -> coq_Z -> coq_Z
 
   val quotrem : coq_Z -> coq_Z -> coq_Z * coq_Z

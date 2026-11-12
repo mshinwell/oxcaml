@@ -346,7 +346,11 @@ let unary_primitive (p : Primitives.unary_primitive) : P.unary_primitive =
   | Is_null -> Is_null
   | Get_tag -> Get_tag
   | String_length -> String_length String
-  | Unary_int_arith (kind, Not) -> Int_arith (standard_int kind, Not)
+  | Unary_int_arith (kind, op) ->
+    let op : P.unary_int_arith_op =
+      match op with Not -> Not | Swap_byte_endianness -> Swap_byte_endianness
+    in
+    Int_arith (standard_int kind, op)
   | Num_conv (src, dst) ->
     Num_conv
       { src = standard_int_or_float src; dst = standard_int_or_float dst }
@@ -362,7 +366,13 @@ let binary_primitive (p : Primitives.binary_primitive) : P.binary_primitive =
   match p with
   | String_or_bigstring_load width ->
     let width : P.string_accessor_width =
-      match width with Eight -> Eight | Eight_signed -> Eight_signed
+      match width with
+      | Eight -> Eight
+      | Eight_signed -> Eight_signed
+      | Sixteen -> Sixteen
+      | Sixteen_signed -> Sixteen_signed
+      | Thirty_two -> Thirty_two
+      | Sixty_four -> Sixty_four
     in
     String_or_bigstring_load (String, width)
   | Phys_equal op ->

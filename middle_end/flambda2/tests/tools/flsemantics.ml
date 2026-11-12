@@ -359,7 +359,8 @@ let convert_unary_primitive (p : P.unary_primitive) :
     Some (Opaque_identity (convert_kind kind))
   | Int_arith (kind, Not) ->
     Some (Unary_int_arith (convert_standard_int kind, Not))
-  | Int_arith (_, Swap_byte_endianness) -> None
+  | Int_arith (kind, Swap_byte_endianness) ->
+    Some (Unary_int_arith (convert_standard_int kind, Swap_byte_endianness))
   | Num_conv { src; dst } -> (
     match
       convert_standard_int_or_float src, convert_standard_int_or_float dst
@@ -402,11 +403,18 @@ let convert_int_comparison (cmp : P.signed_or_unsigned P.comparison) :
 let convert_binary_primitive (p : P.binary_primitive) :
     Primitives.binary_primitive option =
   match p with
-  | String_or_bigstring_load (String, Eight) ->
-    Some (String_or_bigstring_load Eight)
-  | String_or_bigstring_load (String, Eight_signed) ->
-    Some (String_or_bigstring_load Eight_signed)
-  | String_or_bigstring_load _ -> None
+  | String_or_bigstring_load (String, width) -> (
+    (* The loads of an integer; not that of a float, nor those of vectors. *)
+    match width with
+    | Eight -> Some (String_or_bigstring_load Eight)
+    | Eight_signed -> Some (String_or_bigstring_load Eight_signed)
+    | Sixteen -> Some (String_or_bigstring_load Sixteen)
+    | Sixteen_signed -> Some (String_or_bigstring_load Sixteen_signed)
+    | Thirty_two -> Some (String_or_bigstring_load Thirty_two)
+    | Sixty_four -> Some (String_or_bigstring_load Sixty_four)
+    | Single | One_twenty_eight _ | Two_fifty_six _ | Five_twelve _ | Mask ->
+      None)
+  | String_or_bigstring_load ((Bytes | Bigstring), _) -> None
   | Phys_equal Eq -> Some (Phys_equal Phys_eq)
   | Phys_equal Neq -> Some (Phys_equal Phys_neq)
   | Int_arith (kind, op) ->
@@ -1141,8 +1149,10 @@ let print_prim ppf (p : Primitives.prim) =
     | Get_tag -> "Get_tag"
     | String_length -> "String_length"
     | Opaque_identity _ -> "Opaque_identity"
-    | Unary_int_arith (kind, Not) ->
-      Printf.sprintf "Int_arith %s not" (string_of_standard_int kind)
+    | Unary_int_arith (kind, op) ->
+      Printf.sprintf "Int_arith %s %s"
+        (string_of_standard_int kind)
+        (match op with Not -> "not" | Swap_byte_endianness -> "bswap")
     | Num_conv (src, dst) ->
       Printf.sprintf "Num_conv %s %s"
         (string_of_standard_int src)
@@ -1181,10 +1191,15 @@ let print_prim ppf (p : Primitives.prim) =
   in
   match p with
   | Unary p -> Format.pp_print_string ppf (unary p)
-  | Binary (String_or_bigstring_load Eight) ->
-    Format.pp_print_string ppf "String_load 8"
-  | Binary (String_or_bigstring_load Eight_signed) ->
-    Format.pp_print_string ppf "String_load 8s"
+  | Binary (String_or_bigstring_load width) ->
+    Format.fprintf ppf "String_load %s"
+      (match width with
+      | Eight -> "8"
+      | Eight_signed -> "8s"
+      | Sixteen -> "16"
+      | Sixteen_signed -> "16s"
+      | Thirty_two -> "32"
+      | Sixty_four -> "64")
   | Binary (Phys_equal Phys_eq) -> Format.pp_print_string ppf "Phys_equal eq"
   | Binary (Phys_equal Phys_neq) -> Format.pp_print_string ppf "Phys_equal neq"
   | Binary (Int_arith (kind, op)) ->

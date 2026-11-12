@@ -175,6 +175,12 @@ module Z = struct
         let q, r = pos_div_eucl a' (Zpos b') in
         q, opp r)
 
+  (** val div : coq_Z -> coq_Z -> coq_Z **)
+
+  let div a b =
+    let q, _ = div_eucl a b in
+    q
+
   (** val modulo : coq_Z -> coq_Z -> coq_Z **)
 
   let modulo a b =

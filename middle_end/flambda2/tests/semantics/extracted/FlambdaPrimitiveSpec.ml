@@ -7,6 +7,7 @@ open FlambdaModel
 open FlambdaPrimitiveModel
 open FlambdaValueSpec
 open List
+open ListDef
 open OxCamlOption
 
 (** val in_range : coq_Z -> coq_Z -> bool **)
@@ -136,9 +137,65 @@ let eval_int_arith width op a b =
   | Or -> Some (wrap width (Z.coq_lor a b))
   | Xor -> Some (wrap width (Z.coq_lxor a b))
 
-(** val eval_unary_int_arith : coq_Z -> unary_int_arith_op -> coq_Z -> coq_Z **)
+(** val little_endian : coq_Z list -> coq_Z **)
 
-let eval_unary_int_arith width _ a = wrap width (Z.lnot a)
+let rec little_endian = function
+  | [] -> Z0
+  | byte :: rest ->
+    Z.add
+      (Z.modulo byte
+         (Zpos
+            (Coq_xO
+               (Coq_xO
+                  (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO Coq_xH))))))))))
+      (Z.mul
+         (Zpos
+            (Coq_xO
+               (Coq_xO
+                  (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO Coq_xH)))))))))
+         (little_endian rest))
+
+(** val bytes_of : nat -> coq_Z -> coq_Z list **)
+
+let rec bytes_of count z =
+  match count with
+  | O -> []
+  | S count0 ->
+    Z.modulo z
+      (Zpos
+         (Coq_xO
+            (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO Coq_xH)))))))))
+    :: bytes_of count0
+         (Z.div z
+            (Zpos
+               (Coq_xO
+                  (Coq_xO
+                     (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO Coq_xH))))))))))
+
+(** val swap_bytes : nat -> coq_Z -> coq_Z **)
+
+let swap_bytes count z = little_endian (rev (bytes_of count z))
+
+(** val eval_unary_int_arith : standard_int -> unary_int_arith_op -> coq_Z ->
+    coq_Z **)
+
+let eval_unary_int_arith kind op a =
+  match op with
+  | Not -> wrap (int_width kind) (Z.lnot a)
+  | Swap_byte_endianness -> (
+    match kind with
+    | Standard_tagged_immediate -> swap_bytes (S (S O)) a
+    | Standard_naked_immediate -> swap_bytes (S (S O)) a
+    | Standard_naked_int8 -> wrap (Zpos (Coq_xO (Coq_xO (Coq_xO Coq_xH)))) a
+    | Standard_naked_int16 ->
+      wrap (Zpos (Coq_xO (Coq_xO (Coq_xO (Coq_xO Coq_xH)))))
+        (swap_bytes (S (S O)) a)
+    | Standard_naked_int32 ->
+      wrap (Zpos (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO Coq_xH))))))
+        (swap_bytes (S (S (S (S O)))) a)
+    | _ ->
+      wrap (Zpos (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO Coq_xH)))))))
+        (swap_bytes (S (S (S (S (S (S (S (S O)))))))) a))
 
 (** val shift_bound : standard_int -> coq_Z **)
 
@@ -299,9 +356,7 @@ let eval_unary_primitive statics p v =
   | Unary_int_arith (kind, op) -> (
     match int_of_value kind v with
     | Some a ->
-      Some
-        (Value_const
-           (const_of_int kind (eval_unary_int_arith (int_width kind) op a)))
+      Some (Value_const (const_of_int kind (eval_unary_int_arith kind op a)))
     | None -> None)
   | Num_conv (src, dst) -> (
     match int_of_value src v with
@@ -334,6 +389,15 @@ let eval_unary_primitive statics p v =
     | Some i -> Some (Value_const (Tagged_immediate i))
     | None -> None)
 
+(** val byte_width_of_string_accessor_width : string_accessor_width -> nat **)
+
+let byte_width_of_string_accessor_width = function
+  | Eight -> S O
+  | Eight_signed -> S O
+  | Thirty_two -> S (S (S (S O)))
+  | Sixty_four -> S (S (S (S (S (S (S (S O)))))))
+  | _ -> S (S O)
+
 (** val eval_string_load : static_env -> string_accessor_width -> value -> value
     -> value option **)
 
@@ -342,28 +406,35 @@ let eval_string_load statics width v1 v2 =
   | Some bytes -> (
     match int_of_value Standard_naked_nativeint v2 with
     | Some index ->
-      if Z.leb Z0 index
+      let count = byte_width_of_string_accessor_width width in
+      if
+        Z.leb Z0 index
+        && Z.leb (Z.add index (Z.of_nat count)) (Z.of_nat (length bytes))
       then
-        match nth_error bytes (Z.to_nat index) with
-        | Some byte -> (
-          match width with
-          | Eight ->
-            Some
-              (Value_const
-                 (Naked_immediate
-                    (Z.modulo byte
-                       (Zpos
-                          (Coq_xO
-                             (Coq_xO
-                                (Coq_xO
-                                   (Coq_xO
-                                      (Coq_xO (Coq_xO (Coq_xO (Coq_xO Coq_xH))))))))))))
-          | Eight_signed ->
-            Some
-              (Value_const
-                 (Naked_int8
-                    (wrap (Zpos (Coq_xO (Coq_xO (Coq_xO Coq_xH)))) byte))))
-        | None -> None
+        let read =
+          little_endian (firstn count (skipn (Z.to_nat index) bytes))
+        in
+        Some
+          (Value_const
+             (match width with
+             | Eight_signed ->
+               Naked_int8 (wrap (Zpos (Coq_xO (Coq_xO (Coq_xO Coq_xH)))) read)
+             | Sixteen_signed ->
+               Naked_int16
+                 (wrap (Zpos (Coq_xO (Coq_xO (Coq_xO (Coq_xO Coq_xH))))) read)
+             | Thirty_two ->
+               Naked_int32
+                 (wrap
+                    (Zpos (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO Coq_xH))))))
+                    read)
+             | Sixty_four ->
+               Naked_int64
+                 (wrap
+                    (Zpos
+                       (Coq_xO
+                          (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO Coq_xH)))))))
+                    read)
+             | _ -> Naked_immediate read))
       else None
     | None -> None)
   | None -> None
@@ -595,8 +666,11 @@ let result_kind_of_unary_primitive = function
 let result_kind_of_binary_primitive = function
   | String_or_bigstring_load width -> (
     match width with
-    | Eight -> naked_immediate_kind
-    | Eight_signed -> Naked_number Kind_naked_int8)
+    | Eight_signed -> Naked_number Kind_naked_int8
+    | Sixteen_signed -> Naked_number Kind_naked_int16
+    | Thirty_two -> Naked_number Kind_naked_int32
+    | Sixty_four -> Naked_number Kind_naked_int64
+    | _ -> naked_immediate_kind)
   | Int_arith (kind, _) -> kind_of_standard_int kind
   | Int_shift (kind, _) -> kind_of_standard_int kind
   | _ -> naked_immediate_kind
@@ -971,24 +1045,73 @@ let prim_eq_dec p p' =
           | Region -> ( match kind0 with Region -> true | _ -> false)
           | Rec_info -> ( match kind0 with Rec_info -> true | _ -> false))
         | _ -> false)
-      | Unary_int_arith (kind, _) -> (
+      | Unary_int_arith (kind, op) -> (
         match p1 with
-        | Unary_int_arith (kind0, _) -> (
+        | Unary_int_arith (kind0, op0) -> (
           match kind with
           | Standard_tagged_immediate -> (
-            match kind0 with Standard_tagged_immediate -> true | _ -> false)
+            match kind0 with
+            | Standard_tagged_immediate -> (
+              match op with
+              | Not -> (
+                match op0 with Not -> true | Swap_byte_endianness -> false)
+              | Swap_byte_endianness -> (
+                match op0 with Not -> false | Swap_byte_endianness -> true))
+            | _ -> false)
           | Standard_naked_immediate -> (
-            match kind0 with Standard_naked_immediate -> true | _ -> false)
+            match kind0 with
+            | Standard_naked_immediate -> (
+              match op with
+              | Not -> (
+                match op0 with Not -> true | Swap_byte_endianness -> false)
+              | Swap_byte_endianness -> (
+                match op0 with Not -> false | Swap_byte_endianness -> true))
+            | _ -> false)
           | Standard_naked_int8 -> (
-            match kind0 with Standard_naked_int8 -> true | _ -> false)
+            match kind0 with
+            | Standard_naked_int8 -> (
+              match op with
+              | Not -> (
+                match op0 with Not -> true | Swap_byte_endianness -> false)
+              | Swap_byte_endianness -> (
+                match op0 with Not -> false | Swap_byte_endianness -> true))
+            | _ -> false)
           | Standard_naked_int16 -> (
-            match kind0 with Standard_naked_int16 -> true | _ -> false)
+            match kind0 with
+            | Standard_naked_int16 -> (
+              match op with
+              | Not -> (
+                match op0 with Not -> true | Swap_byte_endianness -> false)
+              | Swap_byte_endianness -> (
+                match op0 with Not -> false | Swap_byte_endianness -> true))
+            | _ -> false)
           | Standard_naked_int32 -> (
-            match kind0 with Standard_naked_int32 -> true | _ -> false)
+            match kind0 with
+            | Standard_naked_int32 -> (
+              match op with
+              | Not -> (
+                match op0 with Not -> true | Swap_byte_endianness -> false)
+              | Swap_byte_endianness -> (
+                match op0 with Not -> false | Swap_byte_endianness -> true))
+            | _ -> false)
           | Standard_naked_int64 -> (
-            match kind0 with Standard_naked_int64 -> true | _ -> false)
+            match kind0 with
+            | Standard_naked_int64 -> (
+              match op with
+              | Not -> (
+                match op0 with Not -> true | Swap_byte_endianness -> false)
+              | Swap_byte_endianness -> (
+                match op0 with Not -> false | Swap_byte_endianness -> true))
+            | _ -> false)
           | Standard_naked_nativeint -> (
-            match kind0 with Standard_naked_nativeint -> true | _ -> false))
+            match kind0 with
+            | Standard_naked_nativeint -> (
+              match op with
+              | Not -> (
+                match op0 with Not -> true | Swap_byte_endianness -> false)
+              | Swap_byte_endianness -> (
+                match op0 with Not -> false | Swap_byte_endianness -> true))
+            | _ -> false))
         | _ -> false)
       | Num_conv (src, dst) -> (
         match p1 with
@@ -1187,10 +1310,14 @@ let prim_eq_dec p p' =
         match p1 with
         | String_or_bigstring_load width0 -> (
           match width with
-          | Eight -> (
-            match width0 with Eight -> true | Eight_signed -> false)
+          | Eight -> ( match width0 with Eight -> true | _ -> false)
           | Eight_signed -> (
-            match width0 with Eight -> false | Eight_signed -> true))
+            match width0 with Eight_signed -> true | _ -> false)
+          | Sixteen -> ( match width0 with Sixteen -> true | _ -> false)
+          | Sixteen_signed -> (
+            match width0 with Sixteen_signed -> true | _ -> false)
+          | Thirty_two -> ( match width0 with Thirty_two -> true | _ -> false)
+          | Sixty_four -> ( match width0 with Sixty_four -> true | _ -> false))
         | _ -> false)
       | Phys_equal op -> (
         match p1 with

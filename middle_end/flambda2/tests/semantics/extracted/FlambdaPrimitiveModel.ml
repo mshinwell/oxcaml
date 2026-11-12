@@ -17,7 +17,9 @@ type mutability =
   | Immutable
   | Immutable_unique
 
-type unary_int_arith_op = Not
+type unary_int_arith_op =
+  | Not
+  | Swap_byte_endianness
 
 type unary_primitive =
   | Block_load of block_access_kind * mutability * coq_Z
@@ -64,6 +66,10 @@ type int_comparison_behaviour =
 type string_accessor_width =
   | Eight
   | Eight_signed
+  | Sixteen
+  | Sixteen_signed
+  | Thirty_two
+  | Sixty_four
 
 type equality_comparison =
   | Phys_eq

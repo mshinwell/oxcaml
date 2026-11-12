@@ -7,6 +7,7 @@ open FlambdaModel
 open FlambdaPrimitiveModel
 open FlambdaValueSpec
 open List
+open ListDef
 open OxCamlOption
 
 val in_range : coq_Z -> coq_Z -> bool
@@ -26,7 +27,13 @@ val int_of_value : standard_int -> value -> coq_Z option
 val eval_int_arith :
   coq_Z -> binary_int_arith_op -> coq_Z -> coq_Z -> coq_Z option
 
-val eval_unary_int_arith : coq_Z -> unary_int_arith_op -> coq_Z -> coq_Z
+val little_endian : coq_Z list -> coq_Z
+
+val bytes_of : nat -> coq_Z -> coq_Z list
+
+val swap_bytes : nat -> coq_Z -> coq_Z
+
+val eval_unary_int_arith : standard_int -> unary_int_arith_op -> coq_Z -> coq_Z
 
 val shift_bound : standard_int -> coq_Z
 
@@ -55,6 +62,8 @@ val eval_block_load :
 
 val eval_unary_primitive :
   static_env -> unary_primitive -> value -> value option
+
+val byte_width_of_string_accessor_width : string_accessor_width -> nat
 
 val eval_string_load :
   static_env -> string_accessor_width -> value -> value -> value option
