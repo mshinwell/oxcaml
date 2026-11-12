@@ -1,3 +1,4 @@
+open BinInt
 open BinNums
 open BinPos
 open Datatypes
@@ -6,6 +7,7 @@ open FlambdaMapSpec
 open FlambdaModel
 open List
 open ListDef
+open Nat
 
 type name =
   | Name_var of variable
@@ -305,3 +307,80 @@ val free_variables_of_row_like_for_closures :
 val free_variables_of_closures_entry : closures_entry -> variable list
 
 val free_variables_of_env_extension : env_extension -> variable list
+
+val block_shape_element_kind : block_shape -> nat -> flambda_kind option
+
+val const_of_naked_number : naked_number_kind -> coq_Z -> const
+
+val simple_must_be_const : simple -> const option
+
+val must_be_singleton : flambda_type -> const option option
+
+val unknown_like : flambda_type -> flambda_type
+
+val bottom_like : flambda_type -> flambda_type
+
+val unknown_from_shape : block_shape -> nat -> flambda_type option
+
+val unknown_with_subkind : flambda_kind -> flambda_type
+
+val kind_for_const : const -> flambda_kind
+
+val is_alias_of_name : flambda_type -> name -> bool
+
+val these_naked_numbers : naked_number_kind -> coq_Z list -> flambda_type
+
+val all_bools : coq_Z list
+
+val any_tagged_bool : flambda_type
+
+val any_naked_bool : flambda_type
+
+val any_tagged_immediate_or_null : flambda_type
+
+val tagged_immediate_alias_to : variable -> flambda_type
+
+val unboxed_number_kind : boxable_number -> naked_number_kind
+
+val boxed_number_alias_to :
+  boxable_number -> variable -> Alloc_mode.t -> flambda_type
+
+val this_boxed_number : boxable_number -> coq_Z -> Alloc_mode.t -> flambda_type
+
+val these_boxed_numbers :
+  boxable_number -> coq_Z list -> Alloc_mode.t -> flambda_type
+
+val any_boxed_number : boxable_number -> flambda_type
+
+module Open_or_closed : sig
+  type t =
+    | Open of coq_Z Or_unknown.t
+    | Closed of coq_Z
+end
+
+val row_like_for_blocks_create :
+  block_shape ->
+  flambda_type list ->
+  Open_or_closed.t ->
+  Alloc_mode.t ->
+  row_like_for_blocks option
+
+val unknown_types_from_shape : block_shape -> nat -> flambda_type list option
+
+val size_at_least_field_tys :
+  block_shape -> variable -> nat -> flambda_type list option
+
+val immutable_block_with_size_at_least :
+  coq_Z Or_unknown.t -> nat -> block_shape -> variable -> flambda_type option
+
+val closure_with_at_least_these_function_slots :
+  function_slot -> simple finite_map -> flambda_type
+
+val static_closure_with_this_code :
+  function_slot -> symbol option -> code_id -> flambda_type
+
+val closure_with_at_least_these_value_slots :
+  function_slot -> (variable * flambda_kind) finite_map -> flambda_type
+
+val closure_with_at_least_this_value_slot :
+  function_slot -> value_slot -> variable -> flambda_kind -> flambda_type

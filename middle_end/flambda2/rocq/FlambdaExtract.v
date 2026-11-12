@@ -85,12 +85,21 @@ Separate Extraction
   FlambdaTypeGrammar.Relation.of_const
   FlambdaTypeGrammar.alias_type_of
   FlambdaTypeGrammar.any_block
+  FlambdaTypeGrammar.any_boxed_number
+  FlambdaTypeGrammar.any_naked_bool
   FlambdaTypeGrammar.any_non_null_value
+  FlambdaTypeGrammar.any_tagged_bool
   FlambdaTypeGrammar.any_tagged_immediate
+  FlambdaTypeGrammar.any_tagged_immediate_or_null
   FlambdaTypeGrammar.at_least_this_closure
   FlambdaTypeGrammar.blocks_with_these_tags
   FlambdaTypeGrammar.bottom
+  FlambdaTypeGrammar.bottom_like
   FlambdaTypeGrammar.box_number
+  FlambdaTypeGrammar.boxed_number_alias_to
+  FlambdaTypeGrammar.closure_with_at_least_these_function_slots
+  FlambdaTypeGrammar.closure_with_at_least_these_value_slots
+  FlambdaTypeGrammar.closure_with_at_least_this_value_slot
   FlambdaTypeGrammar.create_closures
   FlambdaTypeGrammar.create_variant
   FlambdaTypeGrammar.double_array_tag
@@ -101,31 +110,44 @@ Separate Extraction
   FlambdaTypeGrammar.get_alias_opt
   FlambdaTypeGrammar.get_tag_for_block
   FlambdaTypeGrammar.immutable_block
+  FlambdaTypeGrammar.immutable_block_with_size_at_least
+  FlambdaTypeGrammar.is_alias_of_name
   FlambdaTypeGrammar.is_int_for_scrutinee
   FlambdaTypeGrammar.is_null_for_scrutinee
   FlambdaTypeGrammar.is_obviously_bottom
   FlambdaTypeGrammar.is_obviously_unknown
   FlambdaTypeGrammar.kind
+  FlambdaTypeGrammar.kind_for_const
+  FlambdaTypeGrammar.must_be_singleton
   FlambdaTypeGrammar.mutable_block
   FlambdaTypeGrammar.name_eqb
   FlambdaTypeGrammar.no_scan_tag
   FlambdaTypeGrammar.non_null_value
   FlambdaTypeGrammar.null
   FlambdaTypeGrammar.row_like_for_blocks_bottom
+  FlambdaTypeGrammar.row_like_for_blocks_create
   FlambdaTypeGrammar.row_like_for_blocks_create_at_least
   FlambdaTypeGrammar.row_like_for_blocks_create_at_least_unknown_tag
   FlambdaTypeGrammar.row_like_for_blocks_create_exactly
   FlambdaTypeGrammar.row_like_for_blocks_is_bottom
   FlambdaTypeGrammar.simple_of_name
+  FlambdaTypeGrammar.static_closure_with_this_code
   FlambdaTypeGrammar.tag_immediate
+  FlambdaTypeGrammar.tagged_immediate_alias_to
+  FlambdaTypeGrammar.these_boxed_numbers
   FlambdaTypeGrammar.these_naked_immediates
+  FlambdaTypeGrammar.these_naked_numbers
   FlambdaTypeGrammar.these_tagged_immediates
+  FlambdaTypeGrammar.this_boxed_number
   FlambdaTypeGrammar.this_const
   FlambdaTypeGrammar.this_immutable_string
   FlambdaTypeGrammar.this_naked_immediate
   FlambdaTypeGrammar.this_tagged_immediate
   FlambdaTypeGrammar.type_for_const
   FlambdaTypeGrammar.unknown
+  FlambdaTypeGrammar.unknown_from_shape
+  FlambdaTypeGrammar.unknown_like
+  FlambdaTypeGrammar.unknown_with_subkind
   FlambdaTypeMeaningBoolSpec.env_extension_satisfied_b
   FlambdaTypeMeaningBoolSpec.is_poison_b
   FlambdaTypeMeaningBoolSpec.relation_holds_b

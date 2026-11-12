@@ -1,3 +1,4 @@
+open BinInt
 open BinNums
 open BinPos
 open Datatypes
@@ -6,6 +7,7 @@ open FlambdaMapSpec
 open FlambdaModel
 open List
 open ListDef
+open Nat
 
 type name =
   | Name_var of variable
@@ -700,3 +702,375 @@ and free_variables_of_env_extension = function
           (free_variables_of_name (fst binding))
           (free_variables (snd binding)))
       equations
+
+(** val block_shape_element_kind : block_shape -> nat -> flambda_kind option **)
+
+let block_shape_element_kind shape index =
+  match shape with
+  | Scannable shape0 -> (
+    match shape0 with
+    | Value_only -> Some Value
+    | Mixed_record (value_prefix_size, flat_suffix) ->
+      if PeanoNat.Nat.ltb index value_prefix_size
+      then Some Value
+      else
+        option_map
+          (fun x -> Naked_number x)
+          (nth_error flat_suffix (sub index value_prefix_size)))
+  | Float_record -> Some (Naked_number Kind_naked_float)
+
+(** val const_of_naked_number : naked_number_kind -> coq_Z -> const **)
+
+let const_of_naked_number k i =
+  match k with
+  | Kind_naked_immediate -> Naked_immediate i
+  | Kind_naked_float32 -> Naked_float32 i
+  | Kind_naked_float -> Naked_float i
+  | Kind_naked_int8 -> Naked_int8 i
+  | Kind_naked_int16 -> Naked_int16 i
+  | Kind_naked_int32 -> Naked_int32 i
+  | Kind_naked_int64 -> Naked_int64 i
+  | Kind_naked_nativeint -> Naked_nativeint i
+  | Kind_naked_vec128 -> Naked_vec128 i
+  | Kind_naked_vec256 -> Naked_vec256 i
+  | Kind_naked_vec512 -> Naked_vec512 i
+  | Kind_naked_mask -> Naked_mask i
+
+(** val simple_must_be_const : simple -> const option **)
+
+let simple_must_be_const = function Const c -> Some c | _ -> None
+
+(** val must_be_singleton : flambda_type -> const option option **)
+
+let rec must_be_singleton = function
+  | Type_value ty -> (
+    match ty with
+    | Ok a -> (
+      match a with
+      | No_alias h -> (
+        let (Head_of_kind_value (non_null, is_null0)) = h in
+        match non_null with
+        | Ok a0 -> (
+          match a0 with
+          | Variant (_, immediates, _, blocks, _, _) -> (
+            match is_null0 with
+            | Not_null -> (
+              match blocks with
+              | Or_unknown.Known blocks0 -> (
+                if negb (row_like_for_blocks_is_bottom blocks0)
+                then Some None
+                else
+                  match immediates with
+                  | Or_unknown.Known immediates0 -> (
+                    match must_be_singleton immediates0 with
+                    | Some o -> (
+                      match o with
+                      | Some c -> (
+                        match c with
+                        | Naked_immediate i -> Some (Some (Tagged_immediate i))
+                        | Poison kind0 -> (
+                          match kind0 with
+                          | Naked_number k -> (
+                            match k with
+                            | Kind_naked_immediate -> Some (Some (Poison Value))
+                            | _ -> None)
+                          | _ -> None)
+                        | _ -> None)
+                      | None -> Some None)
+                    | None -> None)
+                  | Or_unknown.Unknown -> Some None)
+              | Or_unknown.Unknown -> Some None)
+            | Maybe_null _ -> Some None)
+          | _ -> Some None)
+        | _ -> Some None)
+      | Equals simple0 -> Some (simple_must_be_const simple0))
+    | _ -> Some None)
+  | Type_naked_immediate ty -> (
+    match ty with
+    | Ok a -> (
+      match a with
+      | No_alias head -> (
+        match head.naked_immediates with
+        | Or_unknown.Known numbers ->
+          Some
+            (option_map
+               (fun x -> Naked_immediate x)
+               (Keyed.get_singleton Z.eqb numbers))
+        | Or_unknown.Unknown -> Some None)
+      | Equals simple0 -> Some (simple_must_be_const simple0))
+    | _ -> Some None)
+  | Type_naked_number (k, ty) -> (
+    match ty with
+    | Ok a -> (
+      match a with
+      | No_alias numbers ->
+        Some
+          (option_map (const_of_naked_number k)
+             (Keyed.get_singleton Z.eqb numbers))
+      | Equals simple0 -> Some (simple_must_be_const simple0))
+    | _ -> Some None)
+  | _ -> Some None
+
+(** val unknown_like : flambda_type -> flambda_type **)
+
+let unknown_like t0 = unknown (kind t0)
+
+(** val bottom_like : flambda_type -> flambda_type **)
+
+let bottom_like t0 = bottom (kind t0)
+
+(** val unknown_from_shape : block_shape -> nat -> flambda_type option **)
+
+let unknown_from_shape shape index =
+  option_map unknown (block_shape_element_kind shape index)
+
+(** val unknown_with_subkind : flambda_kind -> flambda_type **)
+
+let unknown_with_subkind k =
+  match k with
+  | Value ->
+    Type_value (Ok (No_alias (Head_of_kind_value (Unknown, Maybe_null None))))
+  | _ -> unknown k
+
+(** val kind_for_const : const -> flambda_kind **)
+
+let kind_for_const c = kind (type_for_const c)
+
+(** val is_alias_of_name : flambda_type -> name -> bool **)
+
+let is_alias_of_name t0 n =
+  match get_alias_opt t0 with
+  | Some s0 -> (
+    match s0 with
+    | Var x -> name_eqb (Name_var x) n
+    | Symbol s -> name_eqb (Name_symbol s) n
+    | Const _ -> false)
+  | None -> false
+
+(** val these_naked_numbers : naked_number_kind -> coq_Z list -> flambda_type **)
+
+let these_naked_numbers k numbers =
+  match k with
+  | Kind_naked_immediate -> these_naked_immediates numbers
+  | _ -> (
+    match numbers with
+    | [] -> bottom (Naked_number k)
+    | i :: l -> (
+      match l with
+      | [] -> this_const (const_of_naked_number k i)
+      | _ :: _ -> Type_naked_number (k, Ok (No_alias numbers))))
+
+(** val all_bools : coq_Z list **)
+
+let all_bools = [Z0; Zpos Coq_xH]
+
+(** val any_tagged_bool : flambda_type **)
+
+let any_tagged_bool = these_tagged_immediates all_bools
+
+(** val any_naked_bool : flambda_type **)
+
+let any_naked_bool = these_naked_immediates all_bools
+
+(** val any_tagged_immediate_or_null : flambda_type **)
+
+let any_tagged_immediate_or_null =
+  Type_value
+    (Ok
+       (No_alias
+          (Head_of_kind_value
+             ( Ok
+                 (Variant
+                    ( None,
+                      Or_unknown.Unknown,
+                      None,
+                      Or_unknown.Known row_like_for_blocks_bottom,
+                      No_extensions,
+                      false )),
+               Maybe_null None ))))
+
+(** val tagged_immediate_alias_to : variable -> flambda_type **)
+
+let tagged_immediate_alias_to naked_immediate =
+  tag_immediate
+    (alias_type_of (Naked_number Kind_naked_immediate) (Var naked_immediate))
+
+(** val unboxed_number_kind : boxable_number -> naked_number_kind **)
+
+let unboxed_number_kind = function
+  | Boxable_naked_float32 -> Kind_naked_float32
+  | Boxable_naked_float -> Kind_naked_float
+  | Boxable_naked_int32 -> Kind_naked_int32
+  | Boxable_naked_int64 -> Kind_naked_int64
+  | Boxable_naked_nativeint -> Kind_naked_nativeint
+  | Boxable_naked_vec128 -> Kind_naked_vec128
+  | Boxable_naked_vec256 -> Kind_naked_vec256
+  | Boxable_naked_vec512 -> Kind_naked_vec512
+  | Boxable_naked_mask -> Kind_naked_mask
+
+(** val boxed_number_alias_to : boxable_number -> variable -> Alloc_mode.t ->
+    flambda_type **)
+
+let boxed_number_alias_to k naked_number alloc_mode =
+  box_number k (alias_type_of (unboxed_kind k) (Var naked_number)) alloc_mode
+
+(** val this_boxed_number : boxable_number -> coq_Z -> Alloc_mode.t ->
+    flambda_type **)
+
+let this_boxed_number k i alloc_mode =
+  box_number k
+    (this_const (const_of_naked_number (unboxed_number_kind k) i))
+    alloc_mode
+
+(** val these_boxed_numbers : boxable_number -> coq_Z list -> Alloc_mode.t ->
+    flambda_type **)
+
+let these_boxed_numbers k numbers alloc_mode =
+  box_number k (these_naked_numbers (unboxed_number_kind k) numbers) alloc_mode
+
+(** val any_boxed_number : boxable_number -> flambda_type **)
+
+let any_boxed_number k =
+  box_number k (unknown (unboxed_kind k)) Alloc_mode.Heap_or_local
+
+module Open_or_closed = struct
+  type t =
+    | Open of coq_Z Or_unknown.t
+    | Closed of coq_Z
+end
+
+(** val row_like_for_blocks_create : block_shape -> flambda_type list ->
+    Open_or_closed.t -> Alloc_mode.t -> row_like_for_blocks option **)
+
+let row_like_for_blocks_create shape field_tys open_or_closed alloc_mode =
+  let tag =
+    match open_or_closed with
+    | Open_or_closed.Open tag -> tag
+    | Open_or_closed.Closed tag -> Or_unknown.Known tag
+  in
+  let tag0 =
+    match tag with
+    | Or_unknown.Known tag0 -> (
+      match shape with
+      | Scannable _ ->
+        if Z.ltb tag0 no_scan_tag then Some (Or_unknown.Known tag0) else None
+      | Float_record ->
+        if Z.eqb tag0 double_array_tag
+        then Some (Or_unknown.Known tag0)
+        else None)
+    | Or_unknown.Unknown -> (
+      match shape with
+      | Scannable _ -> Some Or_unknown.Unknown
+      | Float_record -> Some (Or_unknown.Known double_array_tag))
+  in
+  let size = length field_tys in
+  match tag0 with
+  | Some t0 -> (
+    match t0 with
+    | Or_unknown.Known tag1 -> (
+      match open_or_closed with
+      | Open_or_closed.Open _ ->
+        Some
+          (row_like_for_blocks_create_at_least tag1 size shape field_tys
+             alloc_mode)
+      | Open_or_closed.Closed _ ->
+        Some
+          (row_like_for_blocks_create_exactly tag1 size shape field_tys
+             alloc_mode))
+    | Or_unknown.Unknown -> (
+      match open_or_closed with
+      | Open_or_closed.Open _ ->
+        Some
+          (row_like_for_blocks_create_at_least_unknown_tag size shape field_tys
+             alloc_mode)
+      | Open_or_closed.Closed _ -> None))
+  | None -> None
+
+(** val unknown_types_from_shape : block_shape -> nat -> flambda_type list
+    option **)
+
+let rec unknown_types_from_shape shape = function
+  | O -> Some []
+  | S index -> (
+    match unknown_types_from_shape shape index with
+    | Some before -> (
+      match unknown_from_shape shape index with
+      | Some ty -> Some (app before (ty :: []))
+      | None -> None)
+    | None -> None)
+
+(** val size_at_least_field_tys : block_shape -> variable -> nat -> flambda_type
+    list option **)
+
+let size_at_least_field_tys shape field_n_minus_one = function
+  | O -> Some []
+  | S index -> (
+    match unknown_types_from_shape shape index with
+    | Some before -> (
+      match block_shape_element_kind shape index with
+      | Some field_kind ->
+        Some
+          (app before (alias_type_of field_kind (Var field_n_minus_one) :: []))
+      | None -> None)
+    | None -> None)
+
+(** val immutable_block_with_size_at_least : coq_Z Or_unknown.t -> nat ->
+    block_shape -> variable -> flambda_type option **)
+
+let immutable_block_with_size_at_least tag n shape field_n_minus_one =
+  match size_at_least_field_tys shape field_n_minus_one n with
+  | Some field_tys -> (
+    match
+      row_like_for_blocks_create shape field_tys (Open_or_closed.Open tag)
+        Alloc_mode.Heap_or_local
+    with
+    | Some blocks ->
+      Some
+        (create_variant false
+           (Or_unknown.Known (bottom (Naked_number Kind_naked_immediate)))
+           (Or_unknown.Known blocks) No_extensions)
+    | None -> None)
+  | None -> None
+
+(** val closure_with_at_least_these_function_slots : function_slot -> simple
+    finite_map -> flambda_type **)
+
+let closure_with_at_least_these_function_slots this_function_slot
+    function_slots_and_bindings =
+  at_least_this_closure this_function_slot
+    (map_values (fun _ -> Or_unknown.Unknown) function_slots_and_bindings)
+    (map_values (alias_type_of Value) function_slots_and_bindings)
+    [] Alloc_mode.Heap_or_local
+
+(** val static_closure_with_this_code : function_slot -> symbol option ->
+    code_id -> flambda_type **)
+
+let static_closure_with_this_code this_function_slot closure_symbol code =
+  at_least_this_closure this_function_slot
+    ((this_function_slot, Or_unknown.Known { function_type_code_id = code })
+    :: [])
+    (( this_function_slot,
+       match closure_symbol with
+       | Some closure_symbol0 -> alias_type_of Value (Symbol closure_symbol0)
+       | None -> unknown Value )
+    :: [])
+    [] Alloc_mode.Heap_or_local
+
+(** val closure_with_at_least_these_value_slots : function_slot -> (variable *
+    flambda_kind) finite_map -> flambda_type **)
+
+let closure_with_at_least_these_value_slots this_function_slot value_slots =
+  at_least_this_closure this_function_slot [] []
+    (map_values
+       (fun value_slot0 ->
+         alias_type_of (snd value_slot0) (Var (fst value_slot0)))
+       value_slots)
+    Alloc_mode.Heap_or_local
+
+(** val closure_with_at_least_this_value_slot : function_slot -> value_slot ->
+    variable -> flambda_kind -> flambda_type **)
+
+let closure_with_at_least_this_value_slot this_function_slot value_slot0
+    value_slot_var value_slot_kind =
+  closure_with_at_least_these_value_slots this_function_slot
+    ((value_slot0, (value_slot_var, value_slot_kind)) :: [])

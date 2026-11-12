@@ -54,11 +54,17 @@ module Keyed : sig
 
   val all_among : ('a1 -> 'a1 -> bool) -> 'a1 list -> 'a1 list -> bool
 
+  val without : ('a1 -> 'a1 -> bool) -> 'a1 list -> 'a1 list -> 'a1 list
+
   val distinct : ('a1 -> 'a1 -> bool) -> 'a1 list -> bool
+
+  val dedup : ('a1 -> 'a1 -> bool) -> 'a1 list -> 'a1 list
 
   val same_keys_b : ('a1 -> 'a1 -> bool) -> 'a1 list -> 'a1 list -> bool
 
   val is_empty : 'a1 list -> bool
+
+  val get_singleton : ('a1 -> 'a1 -> bool) -> 'a1 list -> 'a1 option
 
   val lookup : ('a1 -> 'a1 -> bool) -> 'a1 -> ('a1 * 'a2) list -> 'a2 option
 

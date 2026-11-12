@@ -127,11 +127,22 @@ module Keyed = struct
   let all_among eqb0 keys allowed =
     forallb (fun key -> among eqb0 key allowed) keys
 
+  (** val without : ('a1 -> 'a1 -> bool) -> 'a1 list -> 'a1 list -> 'a1 list **)
+
+  let without eqb0 removed keys =
+    filter (fun key -> negb (among eqb0 key removed)) keys
+
   (** val distinct : ('a1 -> 'a1 -> bool) -> 'a1 list -> bool **)
 
   let rec distinct eqb0 = function
     | [] -> true
     | key :: keys0 -> negb (among eqb0 key keys0) && distinct eqb0 keys0
+
+  (** val dedup : ('a1 -> 'a1 -> bool) -> 'a1 list -> 'a1 list **)
+
+  let rec dedup eqb0 = function
+    | [] -> []
+    | key :: keys0 -> key :: without eqb0 (key :: []) (dedup eqb0 keys0)
 
   (** val same_keys_b : ('a1 -> 'a1 -> bool) -> 'a1 list -> 'a1 list -> bool **)
 
@@ -141,6 +152,13 @@ module Keyed = struct
   (** val is_empty : 'a1 list -> bool **)
 
   let is_empty = function [] -> true | _ :: _ -> false
+
+  (** val get_singleton : ('a1 -> 'a1 -> bool) -> 'a1 list -> 'a1 option **)
+
+  let get_singleton eqb0 keys =
+    match dedup eqb0 keys with
+    | [] -> None
+    | key :: l -> ( match l with [] -> Some key | _ :: _ -> None)
 
   (** val lookup : ('a1 -> 'a1 -> bool) -> 'a1 -> ('a1 * 'a2) list -> 'a2 option
       **)
