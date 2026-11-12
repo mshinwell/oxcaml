@@ -613,11 +613,15 @@ removed it:
   `if` tests is untagged), the call can no longer return to it:
   Simplify makes the call return to a new continuation, bound at the
   call, that applies the old one. The comparison is of the bindings
-  in their order. So each term that is compared, the first
-  comparison apart, has its continuations placed once the rounds are
-  over: a `Let_cont` that is not recursive goes down to the call
-  that returns to its continuation, or to the test of which an arm
-  names it, past the `Let`s between the two
+  in their order. The first comparison is of the two terms as they
+  are given. Each term of the later comparisons has its
+  continuations placed once the rounds are over: a `Let_cont` that
+  is not recursive goes down to the call that returns to its
+  continuation, or to the test of which an arm names it, where the
+  guards of the pass permit. It passes a `Let` whose variable its
+  handler does not use, a static binding, and the binding of another
+  continuation that is not recursive if neither handler names the
+  other; anything else between the two leaves it where it was
   (`FlambdaSinkUsesSpec.sink_conts_to_uses`, an equivalence, in
   `FlambdaValidateSpec.placed`).
 
@@ -680,13 +684,20 @@ compared.
   parser gives each a default
   (`middle_end/flambda2/parser/fexpr_to_flambda.ml`). Simplify reads
   them. So the tool's Simplify can decide otherwise than the
-  compiler's on the same unit: the compiler inlines the application
-  of a functor that is under its size for functors
-  (`middle_end/flambda2/simplify_shared/function_decl_inlining_decision.ml`),
-  and the tool, to which the functor is a function, may leave the
-  call. The pair validated is then not the pair that the compiler
-  made (discrepancy V2-6). A functor marked `[@inline]` or
-  `[@inline never]` is treated alike by both.
+  compiler's on the same unit. One case is known. For code with no
+  inlining attribute, the decision made at its declaration
+  (`make_decision0` of
+  `middle_end/flambda2/simplify_shared/function_decl_inlining_decision.ml`)
+  compares the size of the code with the thresholds for functors
+  (`small_functor_size`, `large_functor_size`) if the code is marked
+  as a functor, and with those for functions if not; a functor no
+  larger than `small_functor_size` is to be inlined. The tool's
+  Simplify, to which the functor is a function, compares it with
+  the thresholds for functions and may leave the call. The pair
+  validated is then not the pair that the compiler made (discrepancy
+  V2-6). For code with `[@inline]` or `[@inline never]` that
+  decision does not look at the mark of a functor; the other marks
+  are lost for such code as for any other.
 
 What no example here validates, because the model has not got it:
 mutable fields and arrays, arithmetic on floats, calls of C functions
