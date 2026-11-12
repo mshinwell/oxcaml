@@ -270,6 +270,49 @@
    matter. The term with the loop applies its handler, which returns
    [x], or [x] and 8 added, to the continuation 1.
 
+   Three bodies more, for what the pass gives where Simplify's rule
+   is by the box and not by the path that the handler takes:
+   - [pair_constant] is the body of
+
+       fun c x ->
+        match if c then x, true else 0, false with
+        | v, true -> v
+        | _, false -> -7
+
+     The handler of the join reads the first field only where the
+     second is [true], and the arm of the constant pair gives
+     [false]. Simplify gives that arm the first field of its pair, 0:
+     a pair has one tag, and its fields are given wherever the pair
+     is. The second field is no test of the pair, so the pass does
+     not take it to show that the arm does not come to the read
+     ([pair_constant_validated_statement],
+     [pair_constant_refines_statement]).
+   - [option_pair] is the body of
+
+       fun c x ->
+        match if c then Some (x, true) else None with
+        | Some (n, b) -> if b then n else 0
+        | None -> -1
+
+     The arm of [None] gives [poison] for the untagging of the
+     boolean, as for the fields: the boolean is a number, not the
+     constant constructor of a variant, of which nothing tests
+     [Is_int] ([option_pair_validated_statement],
+     [option_pair_refines_statement]).
+   - [option_fields] is the body of
+
+       fun c x ->
+        match if c then Some (3, x) else None with
+        | Some (low, high) -> high + low
+        | None -> 0
+
+     The handler loads the first field of the pair, then the second;
+     the new parameters are the second, then the first, as Simplify
+     has them ([option_fields_validated_statement],
+     [option_fields_refines_statement]).
+   In the three the continuation of the join is 2 and its parameter
+   is 3.
+
    The proofs are in FlambdaUnboxVariantsExamplesProofs.v, which needs
    no review. *)
 
@@ -1069,3 +1112,142 @@ Definition constant_in_loop_validated_statement : Prop :=
 
 Definition constant_in_loop_refines_statement : Prop :=
   expr_refines constant_in_loop_before constant_in_loop_after.
+
+(* ======================================================================== *)
+(* Given by the box, not by the path                                        *)
+(* ======================================================================== *)
+
+Definition pair_of (first second : simple) : named :=
+  Prim (Variadic (Make_block (Block_kind_values 0))) [first; second].
+
+Definition poison_immediate : simple := Const (Poison naked_immediate).
+
+(* The continuation that loads the first field is 3; 4 and 5 are those
+   of the two arms. *)
+Definition pair_constant_before : expr :=
+  Let_cont_non_recursive 2
+    (Handler [3] (make_handler_metadata [Value])
+       (Let 4 Value (field 1 3)
+          (Let 5 naked_immediate (untag (Var 4))
+             (Let_cont_non_recursive 3
+                (Handler [] (make_handler_metadata [])
+                   (Let 6 Value (field 0 3) (Apply_cont (jump 1 [Var 6]))))
+                (Switch (Var 5)
+                   [(0%Z, jump 1 [tagged (-7)]); (1%Z, jump 3 [])])))))
+    (Let_cont_non_recursive 4
+       (Handler [] (make_handler_metadata [])
+          (Let 9 Value (pair_of (Var 2) (tagged 1))
+             (Apply_cont (jump 2 [Var 9]))))
+       (Let_cont_non_recursive 5
+          (Handler [] (make_handler_metadata [])
+             (Let 10 Value (pair_of (tagged 0) (tagged 0))
+                (Apply_cont (jump 2 [Var 10]))))
+          (Let 11 naked_immediate (untag (Var 1))
+             (Switch (Var 11) [(0%Z, jump 5 []); (1%Z, jump 4 [])])))).
+
+Definition pair_constant_after : expr :=
+  Let_cont_non_recursive 2
+    (Handler [5; 6] (make_handler_metadata [naked_immediate; Value])
+       (Switch (Var 5)
+          [(0%Z, jump 1 [tagged (-7)]); (1%Z, jump 1 [Var 6])]))
+    (Let 11 naked_immediate (untag (Var 1))
+       (Switch (Var 11)
+          [(0%Z, jump 2 [naked 0; tagged 0]);
+           (1%Z, jump 2 [naked 1; Var 2])])).
+
+Definition pair_constant_validated_statement : Prop :=
+  validated_by_first_phase pair_constant_before pair_constant_after.
+
+Definition pair_constant_refines_statement : Prop :=
+  expr_refines pair_constant_before pair_constant_after.
+
+(* The continuation of the arm of [Some] in the handler is 3, and 4 the
+   one that loads the first field of the pair; 5 makes the option. *)
+Definition option_pair_before : expr :=
+  Let_cont_non_recursive 2
+    (Handler [3] (make_handler_metadata [Value])
+       (Let 6 naked_immediate (is_int (Var 3))
+          (Let_cont_non_recursive 3
+             (Handler [] (make_handler_metadata [])
+                (Let 4 Value (field 0 3)
+                   (Let 7 Value (field 1 4)
+                      (Let 8 naked_immediate (untag (Var 7))
+                         (Let_cont_non_recursive 4
+                            (Handler [] (make_handler_metadata [])
+                               (Let 9 Value (field 0 4)
+                                  (Apply_cont (jump 1 [Var 9]))))
+                            (Switch (Var 8)
+                               [(0%Z, jump 1 [tagged 0]);
+                                (1%Z, jump 4 [])]))))))
+             (Switch (Var 6)
+                [(0%Z, jump 3 []); (1%Z, jump 1 [tagged (-1)])]))))
+    (Let_cont_non_recursive 5
+       (Handler [] (make_handler_metadata [])
+          (Let 10 Value (pair_of (Var 2) (tagged 1))
+             (Let 11 Value (block_of_one (Var 10))
+                (Apply_cont (jump 2 [Var 11])))))
+       (Let 12 naked_immediate (untag (Var 1))
+          (Switch (Var 12) [(0%Z, jump 2 [tagged 0]); (1%Z, jump 5 [])]))).
+
+Definition option_pair_after : expr :=
+  Let_cont_non_recursive 2
+    (Handler [6; 8; 9]
+       (make_handler_metadata [naked_immediate; naked_immediate; Value])
+       (Let_cont_non_recursive 3
+          (Handler [] (make_handler_metadata [])
+             (Switch (Var 8)
+                [(0%Z, jump 1 [tagged 0]); (1%Z, jump 1 [Var 9])]))
+          (Switch (Var 6)
+             [(0%Z, jump 3 []); (1%Z, jump 1 [tagged (-1)])])))
+    (Let 12 naked_immediate (untag (Var 1))
+       (Switch (Var 12)
+          [(0%Z, jump 2 [naked 1; poison_immediate; poison_value]);
+           (1%Z, jump 2 [naked 0; naked 1; Var 2])])).
+
+Definition option_pair_validated_statement : Prop :=
+  validated_by_first_phase option_pair_before option_pair_after.
+
+Definition option_pair_refines_statement : Prop :=
+  expr_refines option_pair_before option_pair_after.
+
+(* The continuation of the arm of [Some] in the handler is 3; 5 makes
+   the option. *)
+Definition option_fields_before : expr :=
+  Let_cont_non_recursive 2
+    (Handler [3] (make_handler_metadata [Value])
+       (Let 6 naked_immediate (is_int (Var 3))
+          (Let_cont_non_recursive 3
+             (Handler [] (make_handler_metadata [])
+                (Let 4 Value (field 0 3)
+                   (Let 7 Value (field 0 4)
+                      (Let 8 Value (field 1 4)
+                         (Let 9 Value (add_tagged (Var 8) (Var 7))
+                            (Apply_cont (jump 1 [Var 9])))))))
+             (Switch (Var 6)
+                [(0%Z, jump 3 []); (1%Z, jump 1 [tagged 0])]))))
+    (Let_cont_non_recursive 5
+       (Handler [] (make_handler_metadata [])
+          (Let 10 Value (pair_of (tagged 3) (Var 2))
+             (Let 11 Value (block_of_one (Var 10))
+                (Apply_cont (jump 2 [Var 11])))))
+       (Let 12 naked_immediate (untag (Var 1))
+          (Switch (Var 12) [(0%Z, jump 2 [tagged 0]); (1%Z, jump 5 [])]))).
+
+Definition option_fields_after : expr :=
+  Let_cont_non_recursive 2
+    (Handler [6; 8; 7] (make_handler_metadata [naked_immediate; Value; Value])
+       (Let_cont_non_recursive 3
+          (Handler [] (make_handler_metadata [])
+             (Let 9 Value (add_tagged (Var 8) (Var 7))
+                (Apply_cont (jump 1 [Var 9]))))
+          (Switch (Var 6) [(0%Z, jump 3 []); (1%Z, jump 1 [tagged 0])])))
+    (Let 12 naked_immediate (untag (Var 1))
+       (Switch (Var 12)
+          [(0%Z, jump 2 [naked 1; poison_value; poison_value]);
+           (1%Z, jump 2 [naked 0; Var 2; tagged 3])])).
+
+Definition option_fields_validated_statement : Prop :=
+  validated_by_first_phase option_fields_before option_fields_after.
+
+Definition option_fields_refines_statement : Prop :=
+  expr_refines option_fields_before option_fields_after.

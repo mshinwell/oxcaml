@@ -219,3 +219,27 @@ Theorem constant_in_loop_refines : constant_in_loop_refines_statement.
 Proof.
   exact (validated_by_rounds_refines _ _ constant_in_loop_validated).
 Qed.
+
+Theorem pair_constant_validated : pair_constant_validated_statement.
+Proof. vm_compute. reflexivity. Qed.
+
+Theorem pair_constant_refines : pair_constant_refines_statement.
+Proof.
+  exact (validated_by_first_phase_refines _ _ pair_constant_validated).
+Qed.
+
+Theorem option_pair_validated : option_pair_validated_statement.
+Proof. vm_compute. reflexivity. Qed.
+
+Theorem option_pair_refines : option_pair_refines_statement.
+Proof.
+  exact (validated_by_first_phase_refines _ _ option_pair_validated).
+Qed.
+
+Theorem option_fields_validated : option_fields_validated_statement.
+Proof. vm_compute. reflexivity. Qed.
+
+Theorem option_fields_refines : option_fields_refines_statement.
+Proof.
+  exact (validated_by_first_phase_refines _ _ option_fields_validated).
+Qed.
