@@ -1748,4 +1748,82 @@ Fixpoint n_way_join (fuel : nat)
   | S fuel => n_way_join_body (n_way_join fuel)
   end.
 
+(* ------------------------------------------------------------------------ *)
+(* The join of types with a bound on its expansions                         *)
+(* ------------------------------------------------------------------------ *)
+
+(* A variant of [n_way_join] that is not the compiler's: the
+   transcribed function with a bound on the recursion that goes
+   through the expansion of an alias (discrepancy T5b-1: the
+   compiler's function has none, and does not end on types that go
+   round a cycle out of step). *)
+(* CR mshinwell: nothing else in the model uses this variant. It is
+   here so that the model says of a join with such a bound what it
+   says of the join without one: to answer the unknown type at the
+   bound keeps the contract ([n_way_join_bounded_sound_statement],
+   FlambdaJoinTypesSpec.v). It is transcribed from no compiler: that
+   a change of the compiler computes what this variant computes
+   would have to be checked against that change. Whether the
+   compiler is to have the bound, and which one, is yours to
+   decide; if it has it, its function is to be transcribed and
+   [n_way_join] goes. *)
+
+(* Whether the join of these types expands an alias: the types that
+   are not obviously bottom are not all aliases, and one of them is.
+   (If all are aliases the join of their [Simple]s is taken, and no
+   type is expanded. If none is, the heads joined are parts of the
+   types given.) *)
+Definition expands_an_alias (ts : list (Index.t * flambda_type)) : bool :=
+  let ts := filter (fun t => negb (is_obviously_bottom (snd t))) ts in
+  match alias_simples ts with
+  | Some _ => false
+  | None =>
+    existsb
+      (fun t =>
+         match get_alias_opt (snd t) with
+         | Some _ => true
+         | None => false
+         end)
+      ts
+  end.
+
+(* What is answered at the bound: the unknown type of the kind of the
+   types given, in the state given, after the two tests with which
+   [n_way_join_body] begins. *)
+Definition unknown_at_bound (env : state)
+    (ts : list (Index.t * flambda_type)) : n_way_join_result flambda_type :=
+  match ts with
+  | [] => None
+  | (_, t1) :: others =>
+    let kind := kind t1 in
+    if negb
+         (forallb
+            (fun t => kind_eqb kind (FlambdaTypeGrammar.kind (snd t)))
+            others)
+    then None
+    else Some (Or_unknown.Known (unknown kind), env)
+  end.
+
+(* [n_way_join], with [depth] the number of expansions of an alias
+   that the calls of the function to itself may still go through, one
+   inside another: at 0, a join that would expand an alias answers
+   the unknown type. The first argument bounds the depth of all the
+   calls, as it does for [n_way_join]; it is there for the definition
+   to be accepted, and [None] is also that bound reached. *)
+Fixpoint n_way_join_bounded (fuel depth : nat)
+    : state -> list (Index.t * flambda_type) -> n_way_join_result flambda_type
+    :=
+  match fuel with
+  | O => fun _ _ => None
+  | S fuel =>
+    fun env ts =>
+      if expands_an_alias ts
+      then
+        match depth with
+        | O => unknown_at_bound env ts
+        | S depth => n_way_join_body (n_way_join_bounded fuel depth) env ts
+        end
+      else n_way_join_body (n_way_join_bounded fuel depth) env ts
+  end.
+
 End Traversal.

@@ -704,6 +704,48 @@ Definition n_way_join_sound_statement : Prop :=
          join_env_n_way_join_env_extension expand_head
          reduce_head_of_kind_naked_immediate type_eqb block_shape_eqb fuel).
 
+(* The same of the join of types with a bound on its expansions
+   ([n_way_join_bounded], FlambdaJoinTypes.v), whatever the bound: to
+   answer the unknown type where the bound is reached keeps the
+   contract. *)
+Definition n_way_join_bounded_sound_statement : Prop :=
+  ∀ (typing_env_well_formed : Typing_env.t -> Prop) (state : Type)
+    (joined_env : state -> Index.t -> option Typing_env.t)
+    (definitions_of_existentials :
+       state -> finite_map (Simples_in_joined_envs.t * flambda_kind))
+    (kind_in_target_env : state -> variable -> option flambda_kind)
+    (state_valid state_kinded : state -> Prop)
+    (n_way_join_simples :
+       state -> flambda_kind -> list (Index.t * simple)
+       -> option (Or_bottom.t simple * state))
+    (import_type : state -> flambda_type -> option state)
+    (join_env_n_way_join_env_extension :
+       state -> list (Index.t * env_extension)
+       -> option (Or_bottom.t (env_extension * state)))
+    (expand_head : Typing_env.t -> flambda_type -> option Expanded_type.t)
+    (reduce_head_of_kind_naked_immediate :
+       Typing_env.t -> head_of_kind_naked_immediate
+       -> Or_bottom.t head_of_kind_naked_immediate)
+    (type_eqb : flambda_type -> flambda_type -> bool)
+    (block_shape_eqb : block_shape -> block_shape -> bool)
+    (fuel depth : nat),
+    environment_side_sound typing_env_well_formed joined_env
+      definitions_of_existentials kind_in_target_env state_valid state_kinded
+      n_way_join_simples import_type join_env_n_way_join_env_extension ->
+    joined_envs_constants_of_kind typing_env_well_formed joined_env
+      state_valid ->
+    expand_head_sound typing_env_well_formed expand_head ->
+    reduce_head_of_kind_naked_immediate_sound
+      reduce_head_of_kind_naked_immediate ->
+    type_eqb_sound type_eqb ->
+    block_shape_eqb_sound block_shape_eqb ->
+    n_way_join_type_sound typing_env_well_formed joined_env
+      definitions_of_existentials kind_in_target_env state_valid state_kinded
+      (n_way_join_bounded joined_env n_way_join_simples import_type
+         join_env_n_way_join_env_extension expand_head
+         reduce_head_of_kind_naked_immediate type_eqb block_shape_eqb fuel
+         depth).
+
 (* The upper bound is met: where the join answers a type, a value of a
    type given, under a valuation that satisfies its input, has the type
    answered under a valuation of the target that extends that one. *)

@@ -8255,6 +8255,71 @@ Proof.
     destruct fuel; reflexivity.
 Qed.
 
+(* The unknown type, answered at the bound on the expansions, meets
+   the contract. *)
+Lemma unknown_at_bound_is_sound : type_join_sound unknown_at_bound.
+Proof.
+  intros s s' ts result Hvalid Hwf Hkinded Hdistinct Hscope Hkinds Hstep.
+  unfold unknown_at_bound in Hstep.
+  destruct ts as [ | [id1 t1] others]; [ discriminate | ].
+  cbv zeta in Hstep.
+  destruct
+    (forallb (fun t => kind_eqb (kind t1) (kind (snd t))) others) eqn:Hall;
+    cbn [negb] in Hstep; [ | discriminate ].
+  injection Hstep as <- <-.
+  assert (Hkind_ts :
+    ∀ (index : Index.t) (t : flambda_type),
+      In (index, t) ((id1, t1) :: others) -> kind t = kind t1).
+  { intros index t [[= <- <-] | Hin]; [ reflexivity | ].
+    rewrite forallb_forall in Hall. symmetry.
+    exact (kind_eqb_true _ _ (Hall (index, t) Hin)). }
+  split; [ exact Hvalid | ]. split; [ apply grows_refl | ]. split.
+  - intros ty [= <-]. split.
+    { intros x Hx. rewrite free_variables_unknown in Hx. destruct Hx. }
+    split.
+    { intros index t Hin. rewrite kind_unknown. symmetry.
+      exact (Hkind_ts index t Hin). }
+    intros index t use statics valuation valuation' v Hin _ _ _ Hv.
+    apply unknown_satisfied. rewrite (type_satisfied_kind _ _ _ _ Hv).
+    exact (Hkind_ts index t Hin).
+  - intros Hk. split; [ exact Hk | ].
+    intros ty [= <-] simple kind' Hsimple.
+    rewrite kinds_with_unknown in Hsimple. destruct Hsimple.
+Qed.
+
+(* The join of types with a bound on its expansions answers nothing
+   for no type. *)
+Lemma n_way_join_bounded_nil (fuel depth : nat) (s : state) :
+  n_way_join_bounded joined_env n_way_join_simples import_type
+    join_env_n_way_join_env_extension expand_head
+    reduce_head_of_kind_naked_immediate type_eqb block_shape_eqb fuel depth
+    s []
+  = None.
+Proof. destruct fuel; reflexivity. Qed.
+
+(* It meets its contract, whatever the two bounds. *)
+Theorem n_way_join_bounded_is_sound (fuel depth : nat) :
+  type_join_sound
+    (n_way_join_bounded joined_env n_way_join_simples import_type
+       join_env_n_way_join_env_extension expand_head
+       reduce_head_of_kind_naked_immediate type_eqb block_shape_eqb fuel
+       depth).
+Proof.
+  revert depth. induction fuel as [ | fuel IH]; intros depth.
+  - intros s s' ts result _ _ _ _ _ _ Hstep. discriminate.
+  - intros s s' ts result Hvalid Hwf Hkinded Hdistinct Hscope Hkinds Hstep.
+    cbn [n_way_join_bounded] in Hstep.
+    destruct (expands_an_alias ts); [ destruct depth as [ | depth] | ].
+    + exact (unknown_at_bound_is_sound s s' ts result Hvalid Hwf Hkinded
+               Hdistinct Hscope Hkinds Hstep).
+    + exact (n_way_join_body_is_sound _ (IH depth)
+               (n_way_join_bounded_nil fuel depth) s s' ts result Hvalid Hwf
+               Hkinded Hdistinct Hscope Hkinds Hstep).
+    + exact (n_way_join_body_is_sound _ (IH depth)
+               (n_way_join_bounded_nil fuel depth) s s' ts result Hvalid Hwf
+               Hkinded Hdistinct Hscope Hkinds Hstep).
+Qed.
+
 End Functions.
 
 End Traversal.
@@ -8294,6 +8359,29 @@ Proof.
   refine
     (n_way_join_is_sound _ _ _ _ _ _ _ _ _ _ _ _ _ Hsimples Himport
        Hconstants Hexpand Hreduce Heqb Hshape false false _ _ _ fuel).
+  - intros s s' ty Hvalid Hwf Hkinded Himported Hk Hty.
+    exact
+      (proj2 (proj2 (proj2 (Himport s s' ty Hvalid Hwf Hkinded Himported))) Hk
+         Hty).
+  - exact
+      (n_way_join_env_extension_is_sound typing_env_well_formed joined_env
+         definitions_of_existentials kind_in_target_env state_valid
+         state_kinded join_env_n_way_join_env_extension Hextension).
+  - intros tenv ty expanded He _ Hk Hty.
+    exact (proj1 (proj2 (proj2 (Hexpand tenv ty expanded He))) Hk Hty).
+Qed.
+
+Theorem n_way_join_bounded_sound : n_way_join_bounded_sound_statement.
+Proof.
+  intros typing_env_well_formed state joined_env definitions_of_existentials
+    kind_in_target_env state_valid state_kinded n_way_join_simples
+    import_type join_env_n_way_join_env_extension expand_head
+    reduce_head_of_kind_naked_immediate type_eqb block_shape_eqb fuel depth
+    (_ & Hsimples & Himport & Hextension) Hconstants Hexpand Hreduce Heqb
+    Hshape.
+  refine
+    (n_way_join_bounded_is_sound _ _ _ _ _ _ _ _ _ _ _ _ _ Hsimples Himport
+       Hconstants Hexpand Hreduce Heqb Hshape false false _ _ _ fuel depth).
   - intros s s' ty Hvalid Hwf Hkinded Himported Hk Hty.
     exact
       (proj2 (proj2 (proj2 (Himport s s' ty Hvalid Hwf Hkinded Himported))) Hk
