@@ -40,24 +40,6 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
 Import ListNotations.
 
 (* ======================================================================== *)
-(* What it means for what is known to hold                                  *)
-(* ======================================================================== *)
-
-(* A variable known to hold the result of a primitive is bound to the
-   value of the primitive applied to the values of its arguments. *)
-Definition computed_holds (statics : static_env) (vars : env)
-    (entry : variable * (prim * list simple)) : Prop :=
-  ∃ (vs : list value) (v : value),
-    eval_simples vars (snd (snd entry)) = Some vs
-    ∧ eval_prim statics (fst (snd entry)) vs = Some v
-    ∧ lookup (fst entry) vars = Some v.
-
-Definition all_computed (known : computed) (vars : env)
-    (statics : static_env) : Prop :=
-  ∀ entry : variable * (prim * list simple),
-    entry ∈ known -> computed_holds statics vars entry.
-
-(* ======================================================================== *)
 (* What is known stays so                                                   *)
 (* ======================================================================== *)
 

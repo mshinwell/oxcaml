@@ -30,7 +30,8 @@
 
    This file is to be reviewed: [share_known_primitives] and what it is
    made of, which are extracted and run by the validation of
-   middle_end/flambda2/tests/semantics/; the action of a renaming on
+   middle_end/flambda2/tests/semantics/; what it means for what the
+   pass knows to hold ([all_computed]); the action of a renaming on
    what the pass knows ([rename_computed]); and the statements.
 
    Simplify keeps the primitives it has seen applied, each with the
@@ -60,11 +61,21 @@
    or look at a value without reading memory that can change: the
    length of a string is among them, as the compiler shares it too
    ([String_length] has no effects and no coeffects in
-   [Flambda_primitive]). Left out: [Opaque_identity], which Simplify
-   never shares; [Block_load] and [String_or_bigstring_load], until the
-   model says which loads read memory that cannot change; and the
-   primitives that allocate ([Box_number], [Make_block]), which the
-   compiler does share where what is allocated is immutable.
+   [Flambda_primitive]), and so is a [Block_load] marked [Immutable]
+   or [Immutable_unique], a load of a field that is not written
+   (FlambdaPrimitiveSpec.v says what the mark is for). The compiler
+   has the second of two such loads stand for the first by another
+   road: [Flambda_primitive.unary_primitive_eligible_for_cse] says no
+   of every [Block_load], and a load from an immutable block leaves
+   in the typing environment what the type of the block and the shape
+   that names the variable of the load have in common
+   ([Simplify_common.simplify_projection]), where a later load of the
+   field finds that variable. Left out: [Opaque_identity], which
+   Simplify never shares; a [Block_load] marked [Mutable], which is
+   not shared; [String_or_bigstring_load], until the model says
+   which strings cannot change; and the primitives that allocate
+   ([Box_number], [Make_block]), which the compiler does share where
+   what is allocated is immutable.
 
    CR mshinwell: sharing an allocation makes two values one, which
    physical equality can tell apart. The compiler shares immutable
@@ -103,7 +114,8 @@ Definition shareable (p : prim) : bool :=
   | Unary
       (Is_int _ | Get_tag | Num_conv _ _ | Boolean_not | Unbox_number _
       | Untag_immediate | Tag_immediate | String_length
-      | Unary_int_arith _ _) =>
+      | Unary_int_arith _ _
+      | Block_load _ (Immutable | Immutable_unique) _) =>
     true
   | Binary (Phys_equal _ | Int_arith _ _ | Int_shift _ _ | Int_comp _ _) =>
     true
@@ -144,6 +156,21 @@ Definition computed_under_let (known : computed) (x : variable) (d : named)
     else known
   | _ => known
   end.
+
+(* What it means for what is known to hold where a term runs: a
+   variable known to hold the result of a primitive is bound to the
+   value of the primitive applied to the values of its arguments. *)
+Definition computed_holds (statics : static_env) (vars : env)
+    (entry : variable * (prim * list simple)) : Prop :=
+  ∃ (vs : list value) (v : value),
+    eval_simples vars (snd (snd entry)) = Some vs
+    ∧ eval_prim statics (fst (snd entry)) vs = Some v
+    ∧ lookup (fst entry) vars = Some v.
+
+Definition all_computed (known : computed) (vars : env)
+    (statics : static_env) : Prop :=
+  ∀ entry : variable * (prim * list simple),
+    entry ∈ known -> computed_holds statics vars entry.
 
 (* ======================================================================== *)
 (* Sharing                                                                  *)
