@@ -1,0 +1,38 @@
+(let $camlPair_two_constants__const_block_0 = Block 0 (0, 0) in
+ let $camlPair_two_constants__const_block_1 = Block 0 (4, 1) in
+ let code inline(always) size(11)
+       f_0 (x/35 : imm tagged)
+         my_closure/36 &my_alloc_region/37 my_depth/38
+         -> k/18 * k/19
+         : [ 0 of imm tagged * imm tagged ] =
+   let next_depth/39 = rec_info (succ my_depth/38) in
+   let untagged/40 = %untag_imm (x/35) in
+   switch untagged/40
+     | 0 -> k/18 ($camlPair_two_constants__const_block_0)
+     | 1 -> k/18 ($camlPair_two_constants__const_block_1)
+ in
+ let f/41 = closure f_0 @f &toplevel in
+ (let Popaque/48 = %opaque (1) in
+  apply direct(f_0 &toplevel)
+    (f/41 : _ -> [ 0 of imm tagged * imm tagged ])
+      (Popaque/48)
+      -> k/21 * error)
+   where k/21 (`*match*/44` : [ 0 of imm tagged * imm tagged ]) =
+     ((let Pmixedfield/46 = %block_load.[`1`] (`*match*/44`) in
+       (let untagged/47 = %untag_imm (Pmixedfield/46) in
+        switch untagged/47
+          | 0 -> k/20 (7)
+          | 1 -> k/23)
+         where k/23 =
+           cont k/22)
+        where k/22 =
+          let Pmixedfield/45 = %block_load.[`0`] (`*match*/44`) in
+          cont k/20 (Pmixedfield/45))
+   where k/20 (result/42 : imm tagged) =
+     let Pmakeblock/43 = %block.[`0`].`toplevel` (result/42) in
+     cont k/17 (Pmakeblock/43))
+  where k/17 define_root_symbol (module_block/33) =
+    let field_0/34 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/33)
+    in
+    let $camlPair_two_constants = Block 0 (field_0/34) in
+    cont done ($camlPair_two_constants)

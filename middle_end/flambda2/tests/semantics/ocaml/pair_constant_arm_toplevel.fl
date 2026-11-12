@@ -1,0 +1,39 @@
+(let $camlPair_constant_arm_toplevel__const_block_0 = Block 0 (0, 0) in
+ (let region/39 = %begin_region () in
+  let ghost_region/40 = %begin_ghost_region () in
+  (let Popaque/50 = %opaque (1) in
+   (let untagged/51 = %untag_imm (Popaque/50) in
+    switch untagged/51
+      | 0 -> k/22 ($camlPair_constant_arm_toplevel__const_block_0)
+      | 1 -> k/26)
+     where k/26 =
+       cont k/25)
+    where k/25 =
+      let Popaque/48 = %opaque (3) in
+      let Pmakeblock/49 =
+        %block.[`0`].`toplevel`.local[region/39] (Popaque/48, 1)
+      in
+      cont k/22 (Pmakeblock/49)
+    where k/22 (`*match*/44` : [ 0 of imm tagged * imm tagged ]) =
+      ((let Pmixedfield/46 = %block_load.[`1`] (`*match*/44`) in
+        (let untagged/47 = %untag_imm (Pmixedfield/46) in
+         switch untagged/47
+           | 0 -> k/21 (-7)
+           | 1 -> k/24)
+          where k/24 =
+            cont k/23)
+         where k/23 =
+           let Pmixedfield/45 = %block_load.[`0`] (`*match*/44`) in
+           cont k/21 (Pmixedfield/45))
+    where k/21 (region_return/41 : imm tagged) =
+      let unit/42 = %end_region (region/39) in
+      let unit/43 = %end_ghost_region (ghost_region/40) in
+      cont k/20 (region_return/41))
+   where k/20 (result/37 : imm tagged) =
+     let Pmakeblock/38 = %block.[`0`].`toplevel` (result/37) in
+     cont k/19 (Pmakeblock/38))
+  where k/19 define_root_symbol (module_block/35) =
+    let field_0/36 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/35)
+    in
+    let $camlPair_constant_arm_toplevel = Block 0 (field_0/36) in
+    cont done ($camlPair_constant_arm_toplevel)
