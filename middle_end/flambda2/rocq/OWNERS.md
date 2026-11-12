@@ -241,6 +241,9 @@ pass into the validator.
     on terms that carries a typing environment down a term and applies
     the rewrites of the files above, with the proof that its answer
     refines the term; for the validator to run)
+  - `middle_end/flambda2/types/rocq/FlambdaSimplifyPrimitivesRenaming*`
+    and `middle_end/flambda2/types/rocq/FlambdaSimplifyPassRenaming*`
+    (that function and its parts commute with renaming)
 - S2, switch. Owner of the first slice: T1, on
   `flambda2-rocq/T1-grammar`; the rest unassigned.
   - `middle_end/flambda2/types/rocq/FlambdaSimplifySwitch*` (the arms
