@@ -1117,9 +1117,11 @@ Definition join_scoped_envs_sound (join : join_scoped_envs) : Prop :=
        joined knows it. *)
     (* CR mshinwell: this clause was added on 2026-11-12, after the
        contract was signed, for the rewrite of the [Switch]: Simplify
-       goes on, in the environment that a meet answers, with terms
-       that mention the variables that it had, and the machine binds
-       no other ([meet_to_prove_keeps_terms_statement],
+       goes on, in the environment that a meet answers, with the
+       terms that it had; a meet gives the machine no binding, and
+       what satisfied the environment given is known to bind the
+       variables that could occur in terms under it, not one that
+       newly could ([meet_to_prove_keeps_terms_statement],
        FlambdaMeetTermsSpec.v). It asks one thing more of the join.
        The join that forgets has it, since it makes no variable. The
        compiler's join defines the variables of its target with the

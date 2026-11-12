@@ -33,11 +33,16 @@
    What it is for. After a meet, Simplify goes on in the environment
    that the meet answers, with the terms that it had before: so in a
    [Switch] that it prunes with the type of the scrutinee
-   (FlambdaSimplifySwitchSpec.v). The machine binds the variables
-   that may occur in terms under the environment given
-   ([in_scope_in_terms] and [bound_in_terms], FlambdaTypingEnvSpec.v),
-   and no other. So the environment answered must have no variable
-   that may occur in terms and that the environment given has not.
+   (FlambdaSimplifySwitchSpec.v). A meet runs nothing: it gives the
+   machine no binding. What satisfies the environment given is known
+   to bind the variables that may occur in terms under it
+   ([in_scope_in_terms] and [bound_in_terms], FlambdaTypingEnvSpec.v);
+   of a variable that could newly occur in terms nothing would say
+   that it is bound. So the environment answered must have no
+   variable that may occur in terms and that the environment given
+   has not. That is an inclusion of the variables that may occur in
+   terms, and all that is stated: nothing is said of what the machine
+   binds beside them.
 
    The definition ([meet_keeps_terms]) is of any function of the type
    of the meet, as the contracts of FlambdaMeetSpec.v are: a variable
