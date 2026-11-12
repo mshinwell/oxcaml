@@ -50,6 +50,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaMeetEnvProofs FlambdaTypeCreatorsSpec FlambdaTypeCreatorsProofs
   FlambdaTypeRenameSpec FlambdaTypeRenameProofs FlambdaEnvRenameSpec
   FlambdaEnvRenameProofs FlambdaSimplifySwitchSpec.
+From OxCamlFlambda2Types Require FlambdaMeetExamplesProofs
+  FlambdaMeetClosuresProofs.
 Import ListNotations.
 
 Local Open Scope Z_scope.
@@ -362,6 +364,23 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
+(* With the meet that the contract is proved of                             *)
+(* ======================================================================== *)
+
+Theorem meet_to_prove_bottom_sound : meet_to_prove_bottom_sound_statement.
+Proof.
+  intros join fuel Hjoin. apply meet_answers_bottom.
+  exact (proj1 (FlambdaMeetClosuresProofs.meet_to_prove_sound join fuel Hjoin)).
+Qed.
+
+Theorem simplify_switch_of_meet_to_prove_refines :
+  simplify_switch_of_meet_to_prove_refines_statement.
+Proof.
+  intros join fuel tenv scrutinee arms e Hjoin.
+  apply simplify_switch_refines, meet_to_prove_bottom_sound, Hjoin.
+Qed.
+
+(* ======================================================================== *)
 (* Renaming                                                                 *)
 (* ======================================================================== *)
 
@@ -571,6 +590,13 @@ Proof.
     apply env_satisfies_strictly_env_satisfies. exact Hsat.
 Qed.
 
+(* The meet that the examples run has what is asked of a meet. *)
+Lemma example_meet_bottom_sound : meet_bottom_sound example_meet.
+Proof.
+  apply meet_to_prove_bottom_sound.
+  exact FlambdaMeetExamplesProofs.forgetful_join_sound.
+Qed.
+
 (* The environment of the first example: [i] defined and made equal to
    the constant. *)
 Lemma example_no_arm_env_fits (result : Typing_env.add_alias_result) :
@@ -610,7 +636,7 @@ Qed.
 
 Theorem example_switch_no_arm : example_switch_no_arm_statement.
 Proof.
-  intros Hmeet k0 k1.
+  intros k0 k1.
   eapply (let_simple_refines_under_valid Typing_env.create example_i
             (Naked_number Kind_naked_immediate) (Const (Naked_immediate 5))
             _ _ (Naked_number Kind_naked_immediate)).
@@ -619,7 +645,8 @@ Proof.
   - intros y [=].
   - reflexivity.
   - vm_compute. reflexivity.
-  - apply (simplify_switch_refines example_meet); [ exact Hmeet | | | ].
+  - apply (simplify_switch_refines example_meet);
+      [ exact example_meet_bottom_sound | | | ].
     + apply example_no_arm_env_fits. vm_compute. reflexivity.
     + reflexivity.
     + vm_compute. reflexivity.
@@ -671,7 +698,7 @@ Qed.
 
 Theorem example_switch_comparison : example_switch_comparison_statement.
 Proof.
-  intros Hmeet k0 k1 k2.
+  intros k0 k1 k2.
   apply (let_typed_refines_under_valid _ example_i _ _ _ _ any_naked_bool).
   - vm_compute. reflexivity.
   - reflexivity.
@@ -680,7 +707,8 @@ Proof.
     cbn [eval_named] in Hv.
     destruct (eval_simples vars _) as [vs | ]; [ | discriminate ].
     exact (int_comp_bool statics _ _ vs v Hv).
-  - apply (simplify_switch_refines example_meet); [ exact Hmeet | | | ].
+  - apply (simplify_switch_refines example_meet);
+      [ exact example_meet_bottom_sound | | | ].
     + exact example_comparison_env_fits.
     + reflexivity.
     + vm_compute. reflexivity.

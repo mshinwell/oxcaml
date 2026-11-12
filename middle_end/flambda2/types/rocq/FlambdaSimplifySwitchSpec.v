@@ -76,6 +76,11 @@
      is the statement for a pass over terms to use: its premises are
      the two on the meet and its environment below, and that the
      scrutinee may occur in terms, which is a test.
+   - Of the transcribed meet that the contract is proved of
+     ([meet_to_prove], FlambdaMeetSpec.v): it has what is asked of a
+     meet here ([meet_to_prove_bottom_sound_statement]), so with it
+     the statement for a pass has no premise on the meet, and one on
+     the join ([simplify_switch_of_meet_to_prove_refines_statement]).
    - The functions commute with a renaming of variables
      ([arm_kept_rename_statement], [prune_arms_rename_statement],
      [simplify_switch_rename_statement]), for a meet that does
@@ -87,17 +92,23 @@
    - The contract of the meet, as far as it is needed:
      [meet_bottom_sound meet] (FlambdaMeetSpec.v), which says that
      where a meet answers bottom no value has both types. The
-     statements are about any function [meet] that has it. It is a
-     hypothesis here, to be discharged by the proof that the
-     transcribed meet has its contract ([transcription_sound], which
-     gives [meet_sound], from which [meet_bottom_sound] follows:
-     [meet_answers_bottom_statement]). The statements are not made at a
-     prover: Simplify asks the meet here, not a prover, and what is
-     stated is about the test that it makes. The two examples run the
-     transcribed meet that the contract is to be proved of
-     ([meet_to_prove]), with the join that forgets ([forgetful_join],
-     FlambdaMeetExamplesSpec.v), and have the hypothesis of that
-     function.
+     statements are about any function [meet] that has it. The
+     transcribed meet that the contract is proved of ([meet_to_prove])
+     has it, whatever the fuel, with any join that has the contract
+     of a join ([join_scoped_envs_sound]): that is
+     [meet_to_prove_sound_statement] of FlambdaMeetClosuresSpec.v,
+     which gives [meet_sound], from which [meet_bottom_sound] follows
+     ([meet_answers_bottom_statement]). What that leaves, as that file
+     says: [meet_to_prove] is not the compiler's meet ([compiler_meet],
+     FlambdaMeetSpec.v, says where the two differ, and the compiler's
+     has not [meet_sound]); that the compiler's join has the contract
+     of a join is not shown; and nothing is said where the fuel runs
+     out, where [simplify_switch] answers nothing. The statements are
+     not made at a prover: Simplify asks the meet here, not a prover,
+     and what is stated is about the test that it makes. The two
+     examples run [meet_to_prove] with the join that forgets
+     ([forgetful_join], FlambdaMeetExamplesSpec.v), which has the
+     contract of a join, and have no hypothesis.
    - What the contract asks of the environment of a meet:
      [typing_env_fits tenv] (FlambdaMeetSpec.v, which says what in it
      is not known of the environments of the compiler). The two types
@@ -392,6 +403,29 @@ Definition simplify_switch_refines_statement : Prop :=
     expr_refines_under_valid tenv (Switch scrutinee arms) e.
 
 (* ======================================================================== *)
+(* With the meet that the contract is proved of                             *)
+(* ======================================================================== *)
+
+(* The transcribed meet that the contract is proved of has what the
+   statements above ask of a meet, with a join that has the contract
+   of a join and whatever the fuel. *)
+Definition meet_to_prove_bottom_sound_statement : Prop :=
+  ∀ (join : join_scoped_envs) (fuel : nat),
+    join_scoped_envs_sound join ->
+    meet_bottom_sound (meet_to_prove join fuel).
+
+(* So what [simplify_switch] answers with that meet refines the
+   [Switch]. Where the fuel runs out in a meet it answers nothing. *)
+Definition simplify_switch_of_meet_to_prove_refines_statement : Prop :=
+  ∀ (join : join_scoped_envs) (fuel : nat) (tenv : Typing_env.t)
+    (scrutinee : simple) (arms : list (Z * apply_cont)) (e : expr),
+    join_scoped_envs_sound join ->
+    typing_env_fits tenv ->
+    Typing_env.mem_simple (Some Name_mode.normal) tenv scrutinee = true ->
+    simplify_switch (meet_to_prove join fuel) tenv scrutinee arms = Some e ->
+    expr_refines_under_valid tenv (Switch scrutinee arms) e.
+
+(* ======================================================================== *)
 (* Renaming                                                                 *)
 (* ======================================================================== *)
 
@@ -449,10 +483,12 @@ Definition simplify_switch_rename_statement : Prop :=
    (FlambdaTypingEnvRefinementSpec.v), and that the transcribed meet,
    when it is run, drops the arms that are said. *)
 
-(* The meet that is run: the transcribed meet that the contract is to
-   be proved of, with the join that forgets, which has the contract of
-   a join ([forgetful_join_sound_statement],
-   FlambdaMeetExamplesSpec.v), and fuel enough for these meets. *)
+(* The meet that is run: the transcribed meet that the contract is
+   proved of, with the join that forgets, which has the contract of a
+   join ([forgetful_join_sound_statement], FlambdaMeetExamplesSpec.v),
+   and fuel enough for these meets. So it has [meet_bottom_sound]
+   ([meet_to_prove_bottom_sound_statement]), and the examples have no
+   hypothesis. *)
 Definition example_meet : meet_function :=
   meet_to_prove FlambdaMeetExamplesSpec.forgetful_join 10.
 
@@ -463,7 +499,6 @@ Definition example_meet : meet_function :=
    meet with the number of each arm is bottom, no arm is left, and the
    [Switch] is [Invalid]. *)
 Definition example_switch_no_arm_statement : Prop :=
-  meet_bottom_sound example_meet ->
   ∀ k0 k1 : continuation,
     expr_refines_under_valid Typing_env.create
       (Let example_i (Naked_number Kind_naked_immediate)
@@ -493,7 +528,6 @@ Definition example_switch_comparison (arms : list (Z * apply_cont)) : expr :=
     (Switch (Var example_i) arms).
 
 Definition example_switch_comparison_statement : Prop :=
-  meet_bottom_sound example_meet ->
   ∀ k0 k1 k2 : continuation,
     expr_refines_under_valid
       (Typing_env.add_variable_definition Typing_env.create example_x Value
