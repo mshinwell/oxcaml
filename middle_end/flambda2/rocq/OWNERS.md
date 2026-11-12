@@ -421,6 +421,8 @@ Owner: N2.
   body of code from the states that have a predicate that a step
   keeps. Its lemmas are in C0's `FlambdaContextProofs.v`, which N2
   changed for it by C0's leave; that file stays C0's)
+- `middle_end/flambda2/rocq/FlambdaGuardScope*` (N2's, though it is
+  run by the validation: a rewrite made to keep scope by a test)
 - `middle_end/flambda2/rocq/FlambdaKeepsScope*` (N2's, though it is
   about V1's and V2's rewrites: each keeps scope, which the statements
   of N3's `FlambdaValidatorEquivarianceSpec.v` about rewrites that make
