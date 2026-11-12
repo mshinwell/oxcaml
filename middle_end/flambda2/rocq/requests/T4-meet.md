@@ -32,8 +32,9 @@ Files, in `middle_end/flambda2/types/rocq/`:
 - `FlambdaExpandHeadSpec.v`, `FlambdaExpandHeadProofs.v`: what
   `expand_head` keeps, eight statements, proved.
 - `FlambdaMeetRenameSpec.v`: the meet commutes with a renaming of
-  variables; nine statements, proved (`FlambdaMeetRenameProofs.v`).
-  To be reviewed (section 16).
+  variables; nine statements, and six more for two joins that one
+  renaming relates, proved (`FlambdaMeetRenameProofs.v`). To be
+  reviewed (sections 16 and 17).
 
 The compiler read: `types/meet_and_n_way_join.ml` (lines 1 to 1883, the
 meet), `types/meet.ml`, `types/env/meet_env.ml`, `types/expand_head.ml`,
@@ -828,16 +829,14 @@ the join, which makes variables: hence the premise.
 
 What is not stated.
 
-- Nothing for a join that does not commute on the nose. T5's join
-  picks its new variables outside the names to avoid by a choice
-  that reads those names, so it has not the premise, and no
-  statement here applies to a meet that is given it. A statement up
-  to the choice of the new variables (N1's form) is not made and
-  not proved, for the join or for the meet. It is future work: it
-  needs a contract of the join that says which variables are new
-  and where they may occur, and the proofs here, which are for one
-  renaming throughout, would have to carry a renaming that changes
-  at each join.
+- Nothing, in this section, for a join that does not commute on
+  the nose. T5's join picks its new variables outside the names to
+  avoid by a choice that reads those names, so it has not the
+  premise. Section 17 is for such a join, with its source of new
+  names renamed. A statement up to the choice of the new variables
+  for one source of names (N1's form) is not made and not proved,
+  for the join or for the meet: it needs a contract of the join
+  that says which variables are new and where they may occur.
 - Nothing of `Meet.meet_shape` and of the relations that
   `Flambda2_types` adds (`add_is_int_relation` and the others):
   the lemmas are there (N3's files) and no statement asks for them
@@ -852,3 +851,53 @@ and the heads of kind value given the rows
 parts that T5b's proof of its contract cuts it into, the rows of
 blocks and of closures, the meet of expanded heads and the induction
 on fuel (`FlambdaMeetRename*Proofs.v`). No proof needs review.
+
+## 17. Two joins, two meets, one renaming (2026-11-12)
+
+For review: the second part of `FlambdaMeetRenameSpec.v`. Ruled by
+the orchestrator after section 16: the model's own join makes
+variables, so it cannot commute with every renaming, and the
+statements of section 16 say nothing of the meet that is given it.
+
+The join of the model takes its new variables from a source of new
+names, a function from the names to avoid to a variable
+(`Join_env.fresh`, `FlambdaJoinEnv.v`). Of renamed environments it
+answers the renamed answer if the source is renamed too: the
+variable that the renamed source gives for renamed names is the
+renamed variable. The join with the renamed source is another
+function. So the relations are between two functions, for one
+renaming, the second being given the renamed arguments:
+`meet_of_parts_related`, `meet_expanded_head_related`,
+`join_related_at` (two joins, each given its meet),
+`join_scoped_envs_related` (two joins, for every two meets that the
+renaming relates), `meet_function_related`.
+
+Stated and proved:
+
+- `meet_expanded_head_at_fuel_related`, `meet_of_types_related`,
+  `typing_env_functions_related`: for two joins that a renaming
+  relates, and choices as in section 16, the meets of expanded
+  types, the meets of types and the functions that add to a typing
+  environment are related by it, at every fuel.
+- `meet_expanded_head_equivariant_iff_related`,
+  `meet_function_equivariant_iff_related`: at one function, the
+  relations are the properties of section 16.
+- `join_related_gives_equivariant`: a join that every renaming
+  relates to itself commutes with renaming. The converse is not
+  stated: `join_scoped_envs_equivariant` asks the join only about a
+  meet that commutes with every renaming, the relation asks it about
+  every two meets that the one renaming relates.
+
+The nine statements of section 16 keep their text. Their proofs and
+those of the new statements come from the same lemmas, which are now
+all for two meets and two joins (N3's four files and my four).
+
+What is not stated.
+
+- That a renaming relates the model's join to the same join with
+  the renamed source of names. That is for the files of the join
+  (N3 has started it).
+- That an answer does not depend on the source of new names, up to
+  the names made. Without it, the statements compare the meet on
+  renamed inputs with a renamed source to the renamed answer; they
+  do not compare two runs with one source.
