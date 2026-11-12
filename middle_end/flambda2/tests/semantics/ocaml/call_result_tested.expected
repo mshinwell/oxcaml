@@ -1,0 +1,8 @@
+call_result_tested.fl:
+  before Simplify (78 steps): returns [0: 1]
+  after Simplify (73 steps): returns [0: 1]
+  the check of kinds: passes before, passes after
+  calls outside code: 1 before, 1 after
+  the same
+  calls outside code once those of known code are inlined: 1
+  validated: the same once closures and blocks are lifted to symbols and the terms normalised
