@@ -51,6 +51,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaKeepsScopeProofs FlambdaLoopsScopeSpec FlambdaLoopsScopeProofs
   FlambdaUnboxVariantsSpec FlambdaValidateScopeSpec.
 From OxCamlFlambda2 Require FlambdaUnboxParamsNamesProofs.
+From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
+From OxCamlFlambda2 Require FlambdaDemoteScopeProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -148,6 +150,17 @@ Proof. unfold normalise_params_round. scoped_chain. Qed.
 Theorem normalise_params_round_keeps_scope :
   normalise_params_round_keeps_scope_statement.
 Proof. apply keeps_scope_intro, normalise_params_round_scoped. Qed.
+
+(* The demotion of exception handlers, with whatever names in scope
+   (FlambdaDemoteScopeProofs), and as the validation applies it. *)
+Lemma demote_handlers_scoped (scope : list continuation) (e : expr) :
+  scoped e (demote_handlers scope e).
+Proof. apply FlambdaDemoteScopeProofs.scoped_demote_handlers. Qed.
+
+#[export] Hint Resolve demote_handlers_scoped : scoped.
+
+Lemma demote_handlers_closed_keeps_scope : keeps_scope (demote_handlers []).
+Proof. apply keeps_scope_intro, demote_handlers_scoped. Qed.
 
 (* ======================================================================== *)
 (* A round of the term before                                               *)

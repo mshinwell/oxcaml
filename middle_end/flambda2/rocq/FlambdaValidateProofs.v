@@ -61,6 +61,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaHoistCodeProofs FlambdaLoopifySpec FlambdaLoopifyProofs
   FlambdaHoistStaticsSpec FlambdaValidateSpec.
 From OxCamlFlambda2 Require FlambdaHoistStaticsProofs.
+From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
+From OxCamlFlambda2 Require FlambdaDemoteProofs.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec
   FlambdaAliasesProofs.
 Import ListNotations.
@@ -190,6 +192,19 @@ Proof.
   exact (expr_refines_trans _ _ _ (Hf e) (IH _)).
 Qed.
 
+(* The demotion of exception handlers and the rounds after it. *)
+Lemma demote_and_tidy_refines (rounds : nat) (e : expr) :
+  expr_refines e (demote_and_tidy rounds e).
+Proof.
+  unfold demote_and_tidy.
+  eapply expr_refines_trans;
+    [ | apply iterate_refines, normalise_before_inlined_refines ].
+  eapply expr_refines_trans;
+    [ | apply iterate_refines, normalise_params_round_refines ].
+  apply expr_equivalent_refines,
+    FlambdaDemoteProofs.demote_handlers_equivalent.
+Qed.
+
 Lemma normalise_expr_after_equivalent (e : expr) :
   expr_equivalent e (normalise_expr_after e).
 Proof.
@@ -226,6 +241,7 @@ Lemma normalise_before_refines (rounds : nat) (kept : list code_id) :
   ∀ e : expr, expr_refines e (normalise_before rounds kept e).
 Proof.
   intros e. unfold normalise_before.
+  eapply expr_refines_trans; [ | apply demote_and_tidy_refines ].
   exact (expr_refines_trans _ _ _
     (iterate_refines _ normalise_params_round_refines rounds e)
     (iterate_refines _ (normalise_before_round_refines kept) rounds _)).
@@ -365,7 +381,8 @@ Lemma lifted_in_turn_program_refines (rounds : nat)
     (avoid : list continuation) (Ls : list lifting) (kept : list code_id) :
   ∀ e : expr, program_refines e (lifted_in_turn rounds avoid Ls kept e).
 Proof.
-  induction Ls as [ | L Ls IH]; intros e; simpl; [ apply refines_refl | ].
+  induction Ls as [ | L Ls IH]; intros e; cbn [lifted_in_turn];
+    [ apply expr_refines_program, demote_and_tidy_refines | ].
   apply (refines_trans _ _ _ (with_lifting_program_refines L _)).
   apply (refines_trans _ _ _
     (normalise_lifted_program_refines rounds avoid kept _)).

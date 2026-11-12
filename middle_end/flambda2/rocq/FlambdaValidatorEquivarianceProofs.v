@@ -70,6 +70,8 @@ From OxCamlFlambda2 Require FlambdaKeepsScopeProofs FlambdaValidateScopeProofs
   FlambdaLoopsScopeProofs
   FlambdaStaticsScopeProofs FlambdaLiftFromArmsProofs
   FlambdaHoistStaticsProofs FlambdaUnboxParamsNamesProofs.
+From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
+From OxCamlFlambda2 Require FlambdaDemoteProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -4804,6 +4806,27 @@ Proof.
   apply rewrite_code_equivariant, normalise_code_params_equivariant.
 Qed.
 
+(* The demotion of exception handlers, as the validation applies it:
+   with no name in scope; and with the rounds that follow it. *)
+Lemma demote_handlers_closed_equivariant :
+  rewrite_equivariant (demote_handlers []).
+Proof.
+  intros r e.
+  exact (FlambdaDemoteProofs.demote_handlers_equivariant r [] e).
+Qed.
+
+Theorem demote_and_tidy_equivariant : demote_and_tidy_equivariant_statement.
+Proof.
+  intros rounds r e. unfold demote_and_tidy.
+  rewrite demote_handlers_closed_equivariant.
+  rewrite
+    (iterate_equivariant rounds normalise_params_round
+       normalise_params_round_equivariant).
+  exact
+    (iterate_equivariant rounds normalise_before_inlined
+       normalise_before_inlined_equivariant r _).
+Qed.
+
 Lemma normalise_expr_after_equivariant :
   rewrite_equivariant normalise_expr_after.
 Proof.
@@ -6152,22 +6175,55 @@ Proof.
        (params_phase_equivariant rounds)).
 Qed.
 
-Theorem normalise_before_keeps_scope : normalise_before_keeps_scope_statement.
+(* The demotion of exception handlers and the rounds after it, which
+   end the normalisation of the term before: they keep scope, by the
+   scope law of the demotion (FlambdaDemoteScopeProofs, through
+   FlambdaValidateScopeProofs) and those of the rounds, and they
+   commute with renaming. *)
+Lemma demote_and_tidy_scope (rounds : nat) :
+  keeps_scope (demote_and_tidy rounds).
 Proof.
-  intros rounds kept e.
+  exact
+    (keeps_scope_compose
+       (fun e => iterate rounds normalise_params_round (demote_handlers [] e))
+       (iterate rounds normalise_before_inlined)
+       (keeps_scope_compose (demote_handlers [])
+          (iterate rounds normalise_params_round)
+          FlambdaValidateScopeProofs.demote_handlers_closed_keeps_scope
+          (params_phase_scope rounds))
+       (keeps_scope_iterate rounds normalise_before_inlined
+          normalise_before_inlined_scope)).
+Qed.
+
+Lemma demote_and_tidy_up_to (rounds : nat) :
+  equivariant_up_to (demote_and_tidy rounds).
+Proof.
+  exact
+    (rewrite_equivariant_up_to (demote_and_tidy rounds)
+       (demote_and_tidy_equivariant rounds)).
+Qed.
+
+(* The two phases of the term before, without what ends its
+   normalisation. *)
+Definition two_phases (rounds : nat) (kept : list code_id) (e : expr)
+    : expr :=
+  iterate rounds (normalise_before_round kept)
+    (iterate rounds normalise_params_round e).
+
+Lemma two_phases_scope (rounds : nat) (kept : list code_id) :
+  keeps_scope (two_phases rounds kept).
+Proof.
   exact
     (keeps_scope_compose (iterate rounds normalise_params_round)
        (iterate rounds (normalise_before_round kept))
        (params_phase_scope rounds)
        (keeps_scope_iterate rounds (normalise_before_round kept)
-          (normalise_before_round_keeps_scope kept))
-       e).
+          (normalise_before_round_keeps_scope kept))).
 Qed.
 
-Theorem normalise_before_equivariant_up_to :
-  normalise_before_equivariant_up_to_statement.
+Lemma two_phases_up_to (rounds : nat) (kept : list code_id) :
+  equivariant_up_to (two_phases rounds kept).
 Proof.
-  intros rounds kept r e.
   exact
     (equivariant_up_to_compose (iterate rounds normalise_params_round)
        (iterate rounds (normalise_before_round kept))
@@ -6177,8 +6233,26 @@ Proof.
        (params_phase_up_to rounds)
        (equivariant_up_to_iterate rounds (normalise_before_round kept)
           (normalise_before_round_keeps_scope kept)
-          (normalise_before_round_equivariant_up_to kept))
-       r e).
+          (normalise_before_round_equivariant_up_to kept))).
+Qed.
+
+Theorem normalise_before_keeps_scope : normalise_before_keeps_scope_statement.
+Proof.
+  intros rounds kept e.
+  exact
+    (keeps_scope_compose (two_phases rounds kept) (demote_and_tidy rounds)
+       (two_phases_scope rounds kept) (demote_and_tidy_scope rounds) e).
+Qed.
+
+Theorem normalise_before_equivariant_up_to :
+  normalise_before_equivariant_up_to_statement.
+Proof.
+  intros rounds kept r e.
+  exact
+    (equivariant_up_to_compose (two_phases rounds kept)
+       (demote_and_tidy rounds) (two_phases_scope rounds kept)
+       (demote_and_tidy_scope rounds) (two_phases_up_to rounds kept)
+       (demote_and_tidy_up_to rounds) r e).
 Qed.
 
 (* The use of what is known of the static closures in sight and of
@@ -6260,7 +6334,7 @@ Lemma lifted_in_turn_scope (rounds : nat) (avoid : list continuation)
   keeps_scope (lifted_in_turn rounds avoid Ls kept).
 Proof.
   induction Ls as [ | L Ls IH]; intros e Hclosed; cbn [lifted_in_turn].
-  - split; [ exact Hclosed | split; intros name Hname; exact Hname ].
+  - exact (demote_and_tidy_scope rounds e Hclosed).
   - destruct (with_lifting_scope L e Hclosed) as (Hclosed1 & Hv1 & Hk1).
     destruct
       (normalise_lifted_keeps_scope rounds avoid kept (with_lifting L e)
@@ -6308,7 +6382,12 @@ Lemma lifted_in_turn_up_to (r : renaming) (rounds : nat)
 Proof.
   induction Ls as [ | L Ls IH]; intros Hunits r1 e Hclosed Halike Havoid;
     cbn [map lifted_in_turn].
-  - exists r1. split; [ exact Halike | split; [ exact Havoid | reflexivity ] ].
+  - exists r1. split; [ | split; [ exact Havoid | ] ].
+    + exact
+        (proj2
+           (renames_alike_kept (demote_and_tidy rounds) r r1 e
+              (demote_and_tidy_scope rounds) Hclosed Halike)).
+    + apply demote_and_tidy_equivariant.
   - destruct (Hunits L (or_introl eq_refl)) as [Hret Hexn].
     rewrite (rename_lifting_alike r r1 L avoid Havoid Hret Hexn),
       with_lifting_renamed.

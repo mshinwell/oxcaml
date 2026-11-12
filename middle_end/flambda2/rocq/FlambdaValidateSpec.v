@@ -120,6 +120,27 @@
    (FlambdaStaticsOrderSpec.order_statics_as): Simplify builds the group
    of a set of closures again, in an order of its own.
 
+   The normalisation of the term before ends by making ordinary
+   continuations of the exception handlers that no call can raise to,
+   and removing the trap actions that name them
+   (FlambdaDemoteSpec.demote_handlers), as Simplify does to a [try]
+   all of whose raises it sees, and then going through its rounds
+   again ([demote_and_tidy]): the term after has a jump where the term
+   before has a raise, and the comparison tells a trap action from
+   none. The same is done after the last of the liftings. The rewrite
+   is applied with no name in scope. It takes the names in scope so as
+   to leave alone a handler whose name is also that of a continuation
+   around the term, and a term that passes the checks of exception
+   handlers and of trap actions then still passes them; nothing here
+   asks those checks of a normalised term, and the rewrite is an
+   equivalence whatever names it is given
+   (FlambdaDemoteSpec.demote_handlers_equivalent_statement), which is
+   all that the two statements below use. It does not look at the
+   kind of a raise. On a unit compiled with debugging information
+   Simplify keeps the handler that a raise with a backtrace reaches,
+   and the rewrite demotes it: that can leave the two normalised terms
+   different, and prevent the validation.
+
    What it accepts is correct for the unit run as a compilation unit is
    run, on its own from empty environments
    ([validate_unit_sound_statement]): if the term before exits, the term
@@ -159,6 +180,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec
   FlambdaFloatCodeSpec FlambdaHoistCodeSpec FlambdaLoopifySpec
   FlambdaLiftFromCodeSpec FlambdaLiftFromArmsSpec FlambdaHoistStaticsSpec.
+From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -293,6 +315,25 @@ Definition normalise_code_params (body : expr) : expr :=
 Definition normalise_params_round (e : expr) : expr :=
   rewrite_code normalise_code_params (normalise_code_params e).
 
+(* What ends the normalisation of the term before. The exception
+   handlers that no call can raise to are made ordinary continuations
+   and the trap actions that name them removed, in the term, its
+   handlers and its code (FlambdaDemoteSpec.demote_handlers, with no
+   name in scope: see the header). Then the rounds of the first phase
+   and those of the second, without the inlining of calls, are gone
+   through again. They do to what was a [try] what Simplify does on
+   its way up, once it has found that the handler can be demoted. The
+   continuation of the body, which was applied with the trap action
+   that installed the handler, is put where it is applied. A handler
+   that nothing raises to is removed. The exception is no longer a
+   parameter of a handler that does not read it, and the [Let]s that
+   made it go. The continuation by which the body left the [try],
+   which only applies another now that its trap action is gone, is a
+   shortcut; so is the handler, if it only applies another. *)
+Definition demote_and_tidy (rounds : nat) (e : expr) : expr :=
+  iterate rounds normalise_before_inlined
+    (iterate rounds normalise_params_round (demote_handlers [] e)).
+
 (* The term before is normalised in two phases. The first is what
    Simplify does to the continuations of the term as it is: the front
    end makes every mutable variable in scope a parameter of a loop and
@@ -304,11 +345,21 @@ Definition normalise_params_round (e : expr) : expr :=
    validation inlines a call that Simplify left, the continuation that
    the call returned to becomes one that the inlined body applies, on
    both sides, and the term after has only equivalences to normalise it
-   with, which the removal of a parameter is not. *)
+   with, which the removal of a parameter is not. The demotion of
+   exception handlers comes after both ([demote_and_tidy]). In a round
+   it would come too soon. A round first inlines a continuation that
+   is applied once, and then takes an arm of a [Switch] to where its
+   continuation goes; so a handler demoted before the raises to it
+   have been taken to the arms would be inlined in the continuation
+   that raises. Simplify, for which an application with a trap action
+   is not one to inline, takes the arm to the handler and leaves the
+   handler where it is bound; the rounds do the same while the handler
+   has its mark and the raise its trap action. *)
 Definition normalise_before (rounds : nat) (kept : list code_id) (e : expr)
     : expr :=
-  iterate rounds (normalise_before_round kept)
-    (iterate rounds normalise_params_round e).
+  demote_and_tidy rounds
+    (iterate rounds (normalise_before_round kept)
+       (iterate rounds normalise_params_round e)).
 
 (* For the term after, what [normalise_expr_before] does first for the
    term before, with rewrites that are equivalences. A continuation
@@ -443,11 +494,14 @@ Definition unit_continuations (Ls : list lifting) : list continuation :=
    [Let]s of the term that those before it give. The continuations to
    avoid are the same at every step: [validate_unit] gives those of
    the units of all the liftings, so that no round, before or after
-   any of them, makes one. *)
+   any of them, makes one. After the last, the exception handlers are
+   demoted, as at the end of [normalise_before]; the rounds that
+   follow the demotion inline no call and rename nothing apart, so
+   they make no name. *)
 Fixpoint lifted_in_turn (rounds : nat) (avoid : list continuation)
     (Ls : list lifting) (kept : list code_id) (e : expr) : expr :=
   match Ls with
-  | [] => e
+  | [] => demote_and_tidy rounds e
   | L :: Ls =>
     lifted_in_turn rounds avoid Ls kept
       (normalise_lifted rounds avoid kept (with_lifting L e))

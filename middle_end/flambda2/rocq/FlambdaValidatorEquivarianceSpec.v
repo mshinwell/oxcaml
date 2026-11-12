@@ -194,9 +194,9 @@
 
    The normalisations of FlambdaValidateSpec.v: [iterate] of a rewrite
    that commutes, [normalise_before_inlined], [normalise_after],
-   [without_statics] and [with_code_first], which the check applies
-   to the term after. The check, [validate_unit], is in the last
-   section. It is given the liftings to make
+   [without_statics], [demote_and_tidy], and [with_code_first], which
+   the check applies to the term after. The check, [validate_unit], is
+   in the last section. It is given the liftings to make
    (FlambdaLiftSpec.lifting), each of which holds the two
    continuations of the unit, so a renaming acts on it
    ([rename_lifting], which is to be reviewed); the lifting, the
@@ -208,6 +208,8 @@
    FlambdaKnownClosuresSpec.v and of FlambdaFloatCodeSpec.v. Other
    rewrites that the check applies are stated to commute with
    renaming in their own files:
+   FlambdaDemoteSpec.demote_handlers, of the end of the normalisation
+   of the term before and of the liftings made in turn,
    FlambdaCseSpec.share_known_primitives,
    FlambdaIdentitiesSpec.apply_identities and
    FlambdaInlineSiblingsSpec.inline_sibling_calls, of a round of the
@@ -814,6 +816,13 @@ Definition normalise_after_equivariant_statement : Prop :=
 Definition without_statics_equivariant_statement : Prop :=
   ∀ D : dropped, rewrite_equivariant (without_statics D).
 
+(* The demotion of the exception handlers that no call can raise to,
+   and the rounds that follow it, with which the normalisation of the
+   term before and the liftings made in turn end
+   (FlambdaValidateSpec.demote_and_tidy): they make no name. *)
+Definition demote_and_tidy_equivariant_statement : Prop :=
+  ∀ rounds : nat, rewrite_equivariant (demote_and_tidy rounds).
+
 (* The unit with all its code bound first, which the check applies to
    the term after: the conditions of FlambdaHoistCodeSpec.hoist_code
    hold of the renamed term where they hold of the term (they go by
@@ -1106,7 +1115,10 @@ Definition rename_apart_commutes_up_to_statement : Prop :=
 
 (* A round of the second phase of the term before keeps scope, and so
    does the normalisation of the term before, which is the rounds of
-   the first phase and then those of the second: the rewrites that a
+   the first phase, then those of the second, then the demotion of
+   the exception handlers that no call can raise to and the rounds
+   that follow it (FlambdaValidateSpec.demote_and_tidy), which
+   commutes with renaming and keeps scope: the rewrites that a
    round is made of keep scope (FlambdaKeepsScopeSpec.v,
    FlambdaValidateScopeSpec.v), and so does a round of the first phase
    (FlambdaValidateScopeSpec.normalise_params_round_keeps_scope_statement).
