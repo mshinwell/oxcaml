@@ -633,9 +633,8 @@ the reports of partial applications are not).
 This section is the second series, on `flambda2-rocq/C2-binders`. It is
 not in the series above, which landed with the machine testing kinds at
 a call only. It is rebased over C5's exceptions ("Over the epoch of
-exceptions" and the section after it, below), and is to land after
-the first step of C4's heap, over which it is to be rebased first. It
-is built: every file of the two Flambda 2
+exceptions" and the two sections after it, below), the first step of
+C4's heap included. It is built: every file of the two Flambda 2
 libraries is repaired, `make all` and the trust check pass, and the
 examples are run again (below).
 
@@ -940,13 +939,41 @@ of arithmetic (the `Let` is kept at its kind, with the same value),
 following aliases under a typing environment: the same case splits,
 and an argument more to an `intros` where a lemma hands the fact.
 
-Still to come: the first step of the heap. Its machine with a heap is
-a copy of `step` with one component more, so the two tests go into
-`heap_step` and `heap_apply_cont_value`, without which
-`heap_step_agrees_statement` is false. Rehearsed on the staged
-version: its eight statements about rewrites keep their text (related
-values have the same kind; a lifted block and its symbol are both of
-kind `Value`), and about forty lines of its proofs change.
+### Over the first step of the heap
+
+The first step of the heap has a machine of its own beside `step`
+(`FlambdaHeapSpec.heap_step`): a copy of it with one component more.
+The two tests go into the copy, in two definitions of that file:
+
+- `heap_apply_cont_value`, in its case of a handler: no step unless
+  `kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata)`;
+- `heap_step`, in its case of a `Let`: no step unless
+  `kind_eqb (kind_of_value v) kind`, of the value that the defining
+  expression has.
+
+Without them `heap_step_agrees_statement`, which says that the two
+machines step alike where no primitive of the heap runs, is false.
+With them every statement of that file keeps its text. The relation
+between two runs relates values of the same kind (the file had the
+lemma, for the test of a call), so the two sides test alike. The eight
+statements about rewrites need no premise more:
+`delete_unused_let` (a `Let` whose test fails is undefined, which any
+term refines), `exchange_lets` and `cse_adjacent` (the same values are
+tested on the two sides), `load_known_field` (the same value at the
+same kind), and the three liftings (a block or a closure and the
+symbol it is lifted to are both of kind `Value`, so the `Let` of the
+symbol tests what the `Let` of the allocation tested);
+`delete_write_wrong` keeps its witness. About forty-five lines of its
+proofs change, and four of the proofs that the machine with a heap
+commutes with renaming. The owner of the file agreed to the change
+beforehand; the reviewer reads the two definitions.
+
+Proofs of others repaired with their statements unchanged, in what
+landed between the two replays: sharing a primitive already computed,
+folding what a unit binds its symbols to, the arms of a `Switch` that
+a type excludes, a primitive replaced by a constant or by a `Simple`
+from the types. In each the `Let` is kept at its kind with the same
+value, so the two sides test alike.
 
 ### For a pass that is being written now
 
@@ -1000,8 +1027,7 @@ handler), between the plan and this document. 27 files change, about
 branch as it is with C5's epoch of exceptions. The reviewer has read
 the three new statements, the changed ones and the four functions of
 `FlambdaNormaliseSpec.v` on the version before that rebase, and reads
-what each rebase changed. Before it lands: the rebase over the first
-step of C4's heap ("Still to come", above).
+what each rebase changed.
 
 ## What is unfinished
 
@@ -1020,5 +1046,5 @@ step of C4's heap ("Still to come", above).
   sketch) is not built; section 7 says what is lost without it. The
   second series (section 12) makes it unnecessary: the inlined body
   tests what the call tested.
-- The second series is not rebased over C4's heap, and V2's newer
-  units made from OCaml sources have not been run on it.
+- V2's newer units made from OCaml sources have not been run on the
+  second series.
