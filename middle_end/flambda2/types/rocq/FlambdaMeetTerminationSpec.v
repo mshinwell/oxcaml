@@ -91,17 +91,23 @@
      for a join that is monotone.
 
    Third, the inputs for which a fuel is known, which are few. An
-   expanded type is flat ([flat]) if it has no type and no name
-   inside: it says nothing, or has no value, or is a set of numbers,
-   with no relation if they are naked immediates.
+   expanded type is flat ([flat]) if it says nothing, or has no value,
+   or is a set of numbers, with no relation if they are naked
+   immediates. A flat type has no type and no name inside. Not every
+   type of which that is so is flat: no head of values is, not even
+   that of null or of a string.
    - The meet of two flat expanded types asks for no other meet, so
      one unit of fuel is enough ([flat_fuel_enough_statement]); and so
      is it where one of the two says nothing or has no value, whatever
      the other is ([unknown_or_bottom_fuel_enough_statement]).
-   - For two types that are not aliases the environment is not read,
-     and a fuel that is enough for the meet of their heads is enough
-     for the meet of the types ([non_alias_fuel_enough_statement]). So
-     one unit is enough for two flat types that are not aliases
+   - For two types that are not aliases, the meet of types reads
+     nothing of the environment before it asks the meet of their
+     heads, in the environment as it was given: a fuel that is enough
+     for that meet is enough for the meet of the types
+     ([non_alias_fuel_enough_statement]). (The meet of the heads is
+     given the environment and may read it: a head that is not an
+     alias may have aliases inside.) So one unit is enough for two
+     flat types that are not aliases
      ([flat_types_fuel_enough_statement]).
    - A type that is not an alias, met with the type of a constant,
      which is an alias of the constant: the one meet that is asked for
@@ -364,10 +370,13 @@ Definition meet_answer_fuel_enough_statement : Prop :=
 (* Inputs for which a fuel is known                                         *)
 (* ======================================================================== *)
 
-(* An expanded type that has no type and no name inside: one that says
-   nothing or has no value, or a set of numbers, with no relation if
-   they are naked immediates. (A head of [Rec_info] or of a region has
-   nothing in it in the model.) *)
+(* The expanded types of which the statements below are made: one that
+   says nothing or has no value, or a set of numbers, with no relation
+   if they are naked immediates. (A head of [Rec_info] or of a region
+   has nothing in it in the model.) They have no type and no name
+   inside. They are not all the types of which that is so: every head
+   of values is left out, that of null and that of a string among
+   them. *)
 Definition flat_head (head : Expanded_type.head) : bool :=
   match head with
   | Expanded_type.Head_value _ => false
@@ -404,8 +413,9 @@ Definition unknown_or_bottom_fuel_enough_statement : Prop :=
     fuel_enough join choices 1 menv e1 e2.
 
 (* For two types that are not aliases, a fuel that is enough for the
-   meet of their heads is enough for the meet of the types: the
-   environment is not read. *)
+   meet of their heads, in the environment as the meet of types was
+   given it, is enough for the meet of the types: the meet of types
+   reads nothing of the environment before it asks that meet. *)
 Definition non_alias_fuel_enough_statement : Prop :=
   ∀ (join : join_scoped_envs) (choices : meet_choices) (fuel : nat)
     (tenv : Typing_env.t) (t1 t2 : flambda_type) (e1 e2 : Expanded_type.t),
