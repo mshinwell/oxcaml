@@ -46,12 +46,23 @@
    meet stops and the compiler does not (FlambdaJoinMeet.v says
    which): there is none.
 
-   What they are not. But for the last section, no answer here was
-   read off a run of the compiler: each is what the model computes,
-   and was compared with the compiler's code by reading. They are
-   written so that the workstream of the differential tests can run
-   them, as it ran the examples of the join of types
-   (FlambdaJoinTypesExamplesSpec.v).
+   What they are not. No answer here was read off a run of the
+   compiler: each is what the model computes, and was compared with
+   the compiler's code by reading.
+
+   They have since been compared with the compiler by running, by the
+   workstream of the differential tests of the types library, for
+   every section but the last. The inputs were made in the compiler
+   as they are here ([increment_scope], a definition and
+   [Meet_env.add_equation] for each variable, then for [p]), and
+   joined both by [Join_env.cut_and_n_way_join_with_analysis] and by
+   [Join_levels.cut_and_n_way_join] with the n-way join chosen. The
+   twelve agree with the statements: the type of [p], whether the
+   target is bottom, the type of [a], and the two maps of
+   definitions, sets compared as sets. What the compiler shows and
+   the statements do not: where a variable is made for [Is_int] or
+   [Get_tag], it has a type in the target, the numbers 0 and 1 with
+   the relation on [p].
 
    The last section is three joins in a row, of the shape of the
    program of discrepancy T5-10. Its answers were compared with what
