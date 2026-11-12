@@ -53,9 +53,9 @@
      alias of a variable that is removed is supposed to be at the
      kind of the type put for it. (An alias is replaced by that type
      only if the kinds agree; but a variable that holds the result of
-     [Is_int], [Get_tag] or [Is_null] is replaced by the variable
-     that the type put for it is an alias of, whatever the kind of
-     that type.)
+     [Is_int], [Get_tag] or [Is_null], and a variable that an inverse
+     relation is on, are replaced by what the type put for them is an
+     alias of, whatever the kind of that type.)
    - the names of the equations inside the type
      ([project_variables_out_equations_kinded_statement]): the same
      of [equation_names_with_kinds]. An equation on a variable that
@@ -78,17 +78,33 @@
    and the type is well formed if the types kept are
    ([expand_variable_well_formed_statement]).
 
-   Not here yet: the kinds of what [Join_env.expand_variable] answers;
-   and these properties of the equations that the state of a join
-   holds, through the phases of the join, which is what would give
-   them of the two extensions. *)
+   And about the last phase itself, the variables
+   ([define_variables_in_scope_statement]): the equations of the two
+   extensions that it adds are on variables of the target that it
+   answers, and their types mention only such variables: those that
+   the source knows, those brought in, and those of the variables
+   that the join has made that the phase defines. This is of a state
+   whose equations mention only variables of the target so far
+   ([equations_in_target]), and where no variable that is to be an
+   alias of one that the join has made is itself one that the join
+   has made ([aliases_not_made]).
+
+   Not here yet: that the state that the first phases of a join
+   answer has those two properties; the kinds of what
+   [Join_env.expand_variable] answers; and the kinds and the
+   well-formedness of the equations that the state of a join holds,
+   through the phases of the join, which is what would give them of
+   the two extensions. A symbol of an equation is said nothing of
+   (the target is to know it too). *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
   FlambdaMapSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
-  FlambdaTypeWellFormedSpec FlambdaTypeProject FlambdaTypingEnv FlambdaJoinEnv.
+  FlambdaTypeWellFormedSpec FlambdaTypeProject FlambdaTypingEnv FlambdaJoinEnv
+  FlambdaJoinSpec FlambdaJoinEnvSpec FlambdaJoinStateSpec
+  FlambdaJoinDefineSpec.
 Import ListNotations.
 
 (* The type answered is of the kind of the type given. *)
@@ -241,3 +257,86 @@ Definition expand_variable_well_formed_statement : Prop :=
     ∀ (fuel : nat) (e : variable) (ty : flambda_type),
       Join_env.expand_variable fuel to_expand e = Some ty ->
       type_well_formed ty = true.
+
+(* ======================================================================== *)
+(* The variables of the two extensions that the last phase adds             *)
+(* ======================================================================== *)
+
+(* The types of the equations that the state holds mention only
+   variables of the target so far. (The invariant of the state asks
+   less: a variable of such a type may be one that only a joined
+   environment knows, as it is between the adding of an equation and
+   the bringing in of the variables of its type.) *)
+Definition equations_in_target (s : Join_env.t) : Prop :=
+  ∀ (x : variable) (ty : flambda_type),
+    lookup x (Join_env.types_in_target_env s) = Some ty ->
+    type_in_target kind_in_target_env s ty.
+
+(* No variable that is to be an alias of a variable that the join has
+   made is itself one that the join has made. *)
+Definition aliases_not_made (s : Join_env.t) : Prop :=
+  ∀ e x : variable,
+    x
+    ∈ Aliases_of_existentials.aliases_of_existential_var
+        (Join_env.aliases_of_existentials s) e ->
+    ~ is_existential s x.
+
+(* A variable of the target that the last phase answers, given the
+   variables that the join has made that the phase defines: one that
+   the source knows, one brought in, or one of those. *)
+Definition in_final_target (s : Join_env.t)
+    (kept : list (variable * flambda_kind)) (x : variable) : Prop :=
+  knows (Join_env.source_env s) x ∨ is_imported s x ∨ x ∈ map fst kept.
+
+(* The equations of an extension are on such variables, and their
+   types mention only such variables. *)
+Definition equations_in_final_target (s : Join_env.t)
+    (kept : list (variable * flambda_kind))
+    (equations : list (name * flambda_type)) : Prop :=
+  ∀ (n : name) (ty : flambda_type),
+    (n, ty) ∈ equations ->
+    (∀ x : variable,
+       x ∈ free_variables_of_name n -> in_final_target s kept x)
+    ∧ ∀ x : variable, x ∈ free_variables ty -> in_final_target s kept x.
+
+(* The last phase, at a state that has the invariant and the two
+   properties above, with relations that are true of it: the target
+   is as [define_variables_true_statement] (FlambdaJoinDefineSpec.v)
+   has it, the environment given with the variables brought in and
+   some of the variables made defined in it and two extensions added;
+   and the equations of the two extensions are in that target. *)
+Definition define_variables_in_scope_statement : Prop :=
+  ∀ (meet_env meet_expanded_head : Type)
+    (ops : Join_env.meet_env_functions meet_env meet_expanded_head)
+    (fuel : nat) (mh : meet_expanded_head) (source : Typing_env.t)
+    (s : Join_env.t) (menv target : meet_env)
+    (relations : Join_env.inverse_relations)
+    (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind)),
+    state_true source s ->
+    relations_hold s relations ->
+    relations_nonempty relations ->
+    equations_in_target s ->
+    aliases_not_made s ->
+    Join_env.define_or_eliminate_variables_and_add_equations ops fuel mh s
+      menv relations
+    = Some (target, definitions) ->
+    ∃ (kept : list (variable * flambda_kind))
+      (equations relation_equations : list (name * flambda_type))
+      (menv' : meet_env),
+      (∀ binding : variable * flambda_kind,
+         binding ∈ kept ->
+         binding
+         ∈ Bindings_in_target_env.existential_variables_in_order
+             (Join_env.bindings s))
+      ∧ Join_env.add_env_extension ops
+          (variables_defined ops menv
+             (Bindings_in_target_env.imported_variables_in_order
+                (Join_env.bindings s)
+              ++ kept))
+          (Env_extension equations) mh
+        = Some menv'
+      ∧ Join_env.add_env_extension ops menv' (Env_extension relation_equations)
+          mh
+        = Some target
+      ∧ equations_in_final_target s kept equations
+      ∧ equations_in_final_target s kept relation_equations.
