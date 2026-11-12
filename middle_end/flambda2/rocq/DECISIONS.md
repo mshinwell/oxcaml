@@ -188,6 +188,9 @@ says so. Only the labels that this tree cites are listed.
 - **C2-9.** An indirect call of a tupled function is made at one
   argument, the tuple, whatever the arity of the code; the model has no
   such mark on code.
+- **C2-13.** Nothing checks that a unit does not bind again the name of
+  its return or exception continuation, and the model's reading of "at
+  toplevel" goes by that name.
 - **C3-1.** Simplify answers a projection that names the wrong function
   slot on one of its two paths and makes it `Invalid` on the other; the
   slot named is not checked where the term is built.
@@ -504,6 +507,9 @@ says so. Only the labels that this tree cites are listed.
 - **T6-4.** A value slot of the model has no kind;
   `meet_project_value_slot_simple` answers `Invalid` where the type of
   the slot is of another kind than that of the slot.
+- **T6-7.** Unboxing a continuation parameter adds, at a use, a load
+  that names the tag and the size, justified only by the subkind of a
+  binder.
 - **T7-1.** No function of the compiler makes the allocation mode
   `Local` of a type; the converter of types refuses it.
 - **T7-2.** `Equal_types_for_debug.equal_type` overflows the stack on a
@@ -524,8 +530,10 @@ says so. Only the labels that this tree cites are listed.
 - **T7-8.** Types that Simplify computes mention variables of kind
   `Rec_info` (in the `rec_info` of function types and in `Rec_info`
   heads) that the model's types cannot.
-- **T7-9.** The n-way meet of two variants drops what a case's extension
-  says of a symbol; the binary meet keeps it.
+- **T7-9.** The n-way meet of two variants drops what the extension of
+  the one case of blocks left says of a symbol: the join that the meet
+  of the cases ends with propagates no type of a symbol. The binary
+  meet keeps it. A loss of precision, shown on built types.
 - **V2-2.** The fexpr printer drops the kinds of the fields of a
   `Make_block`, and the parser reads back `any_value` for each.
 - **V3-2.** Simplify lifts a closed constant out of a function or a
