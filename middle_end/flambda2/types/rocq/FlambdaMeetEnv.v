@@ -126,10 +126,11 @@
      fuel: on an input that reaches it the compiler answers and the
      model does not. No choice of [meet_choices] (FlambdaMeet.v)
      governs it, so the meet with the compiler's choices has it too.
-     It is not shown that no input reaches it; a comparison of the
-     model with the compiler is to account for such an input, and a
-     statement that the model answers what the compiler answers is to
-     exclude it or to show that there is none.
+     There are such inputs among types built by hand with the
+     compiler's library of types; whether Simplify reaches one is not
+     known. A comparison of the model with the compiler is to account
+     for such an input, and a statement that the model answers what
+     the compiler answers is to exclude it.
    - [add_alias] reads the kind of a [Simple] from the environment
      ([kind_of_simple], FlambdaMeetGrammar.v): a variable of the model
      does not carry its kind.

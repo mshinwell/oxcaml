@@ -1116,8 +1116,9 @@ Definition transcription_sound
    meet on every input: where an equation is being added to a name,
    the meet in between has demoted the name, and the type answered
    has one constant for only value, the compiler goes on and this
-   function answers [None] (FlambdaMeetEnv.v; discrepancy T4-10). No
-   such input is known, and it is not shown that there is none. *)
+   function answers [None] (FlambdaMeetEnv.v; discrepancy T4-10).
+   There are such inputs among types built by hand with the compiler's
+   library of types. Whether Simplify reaches one is not known. *)
 Definition compiler_meet (join : join_scoped_envs) (fuel : nat)
     : meet_function :=
   Meet.meet join compiler_choices fuel.

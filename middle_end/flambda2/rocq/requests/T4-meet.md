@@ -616,9 +616,10 @@ The entries of this stream:
   compiler then calls `Typing_env.add_alias` on a name that is not
   canonical, which `Aliases.add` forbids and does not check. The
   model answers `None` there (a `CR mshinwell` at the test,
-  `replace_concrete_equation` in `FlambdaMeetEnv.v`); it is not shown
-  that no input reaches it. Candidate; whether an environment that
-  Simplify builds can reach it is not known.
+  `replace_concrete_equation` in `FlambdaMeetEnv.v`). X5 reproduced
+  it with types built by hand on the compiler's own library of types;
+  whether an environment that Simplify builds can reach it is not
+  known (from source it was not reached).
 
 ## 13. The questions of the first request, as answered
 
