@@ -6493,6 +6493,76 @@ Proof.
   exists r'. split; [ exact Halike | exact Heq ].
 Qed.
 
+(* The comparison answers the same of two terms in either order. *)
+Lemma expr_eqb_swap (e e' : expr) :
+  expr_eqb [] [] e e' = expr_eqb [] [] e' e.
+Proof.
+  destruct (expr_eqb [] [] e e') eqn:He.
+  - symmetry. exact (expr_eqb_symmetric _ _ He).
+  - destruct (expr_eqb [] [] e' e) eqn:He'; [ | reflexivity ].
+    rewrite (expr_eqb_symmetric _ _ He') in He. discriminate.
+Qed.
+
+Theorem keeps_scope_unless_same : keeps_scope_unless_same_statement.
+Proof.
+  intros f g h Kf Kg Kh e Hclosed. cbv beta.
+  destruct (expr_eqb [] [] (f e) (g (f e))).
+  - exact (Kf e Hclosed).
+  - exact
+      (keeps_scope_compose (fun e => g (f e)) h (keeps_scope_compose f g Kf Kg)
+         Kh e Hclosed).
+Qed.
+
+(* The second renaming of the first rewrite and that of the second
+   rename alike the free names of what the second gives, so the
+   comparison takes the same branch for the renamed term. *)
+Theorem equivariant_up_to_unless_same :
+  equivariant_up_to_unless_same_statement.
+Proof.
+  intros f g h Kf Kg Kh Hf Hg Hh r e Hclosed. cbv beta.
+  destruct (Hf r e Hclosed) as (r1 & Halike1 & Heq1).
+  destruct (Kf e Hclosed) as (Hclosed_f & _ & _).
+  destruct (Hg r1 (f e) Hclosed_f) as (r2 & Halike2 & Heq2).
+  destruct (Kg (f e) Hclosed_f) as (Hclosed_g & _ & _).
+  rewrite Heq1, Heq2.
+  rewrite (expr_eqb_swap (rename_expr r1 (f e))),
+    (expr_eqb_renamed_alike r1 r2 (g (f e)) (f e) Hclosed_g Halike2),
+    (expr_eqb_swap (g (f e))).
+  destruct (expr_eqb [] [] (f e) (g (f e))).
+  - exists r1. split; [ exact Halike1 | reflexivity ].
+  - destruct (Hh r2 (g (f e)) Hclosed_g) as (r3 & Halike3 & Heq3).
+    exists r3. split; [ | exact Heq3 ].
+    exact
+      (renames_alike_then h r r2 r3 (g (f e)) Kh Hclosed_g
+         (renames_alike_then g r r1 r2 (f e) Kg Hclosed_f Halike1 Halike2)
+         Halike3).
+Qed.
+
+Theorem equivariant_up_to_avoiding_unless_same :
+  equivariant_up_to_avoiding_unless_same_statement.
+Proof.
+  intros f h g Kf Kg Kh Hf Hg Hh r avoid e Hclosed. cbv beta.
+  destruct (Hf r avoid e Hclosed) as (r1 & Halike1 & Havoid1 & Heq1).
+  destruct (Kf avoid e Hclosed) as (Hclosed_f & _ & _).
+  destruct (Kg (f avoid e) Hclosed_f) as (Hclosed_g & _ & _).
+  rewrite Heq1, (Hg r1 (f avoid e)), expr_eqb_renamed.
+  destruct (expr_eqb [] [] (f avoid e) (g (f avoid e))).
+  - exists r1. split; [ exact Halike1 | split; [ exact Havoid1 | ] ].
+    reflexivity.
+  - destruct (Hh r1 avoid (g (f avoid e)) Hclosed_g)
+      as (r2 & Halike2 & Havoid2 & Heq2).
+    rewrite (map_rename_conts_alike r r1 avoid Havoid1) in Heq2.
+    exists r2. split; [ | split ].
+    + exact
+        (renames_alike_then (h avoid) r r1 r2 (g (f avoid e)) (Kh avoid)
+           Hclosed_g
+           (proj2
+              (renames_alike_kept g r r1 (f avoid e) Kg Hclosed_f Halike1))
+           Halike2).
+    + intros k Hk. rewrite (Havoid2 k Hk). apply Havoid1, Hk.
+    + exact Heq2.
+Qed.
+
 (* ======================================================================== *)
 (* The validation, one of whose rewrites makes names                        *)
 (* ======================================================================== *)

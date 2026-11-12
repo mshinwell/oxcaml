@@ -1223,6 +1223,47 @@ Definition equivariant_up_to_avoiding_nothing_statement : Prop :=
   ∀ f : list continuation -> expr -> expr,
     equivariant_up_to_avoiding f -> equivariant_up_to (f []).
 
+(* A rewrite [f], then a second one [g], and then a third [h] only
+   where [g] changed the term: where the comparison finds what [f]
+   gave and what [g] made of it the same up to bound names, the result
+   is what [f] gave. A normalisation that has rounds, a rewrite that
+   is applied once and the rounds again may be given this form, so
+   that the second rounds are run only where the rewrite gave them
+   something new. It keeps scope where the three do. And it commutes
+   with renaming up to the names that it makes where the three do:
+   the second renaming of [f] and that of [g] rename alike the free
+   names of what [g] gives, so the comparison answers of the two
+   results for the renamed term what it answers of the two results
+   for the term, and the same branch is taken. *)
+Definition keeps_scope_unless_same_statement : Prop :=
+  ∀ f g h : expr -> expr,
+    keeps_scope f -> keeps_scope g -> keeps_scope h ->
+    keeps_scope
+      (fun e => if expr_eqb [] [] (f e) (g (f e)) then f e else h (g (f e))).
+
+Definition equivariant_up_to_unless_same_statement : Prop :=
+  ∀ f g h : expr -> expr,
+    keeps_scope f -> keeps_scope g -> keeps_scope h ->
+    equivariant_up_to f -> equivariant_up_to g -> equivariant_up_to h ->
+    equivariant_up_to
+      (fun e => if expr_eqb [] [] (f e) (g (f e)) then f e else h (g (f e))).
+
+(* The same where the first and the third are given continuations to
+   avoid, the same ones, and the second commutes with renaming and is
+   given none. *)
+Definition equivariant_up_to_avoiding_unless_same_statement : Prop :=
+  ∀ (f h : list continuation -> expr -> expr) (g : expr -> expr),
+    (∀ avoid : list continuation, keeps_scope (f avoid)) ->
+    keeps_scope g ->
+    (∀ avoid : list continuation, keeps_scope (h avoid)) ->
+    equivariant_up_to_avoiding f ->
+    rewrite_equivariant g ->
+    equivariant_up_to_avoiding h ->
+    equivariant_up_to_avoiding
+      (fun avoid e =>
+         if expr_eqb [] [] (f avoid e) (g (f avoid e)) then f avoid e
+         else h avoid (g (f avoid e))).
+
 (* ======================================================================== *)
 (* The validation, one of whose rewrites makes names                        *)
 (* ======================================================================== *)
