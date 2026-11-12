@@ -240,6 +240,10 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaEnvAliasesSetProofs.v \
   FlambdaEnvAliasesSetSpec.v \
   FlambdaEnvAliasesSpec.v \
+  FlambdaEnvRenameMeetPartsProofs.v \
+  FlambdaEnvRenameMeetProductsProofs.v \
+  FlambdaEnvRenameMeetProofs.v \
+  FlambdaEnvRenameMeetValuesProofs.v \
   FlambdaEnvRenameProofs.v \
   FlambdaEnvRenameSpec.v \
   FlambdaExpandHead.v \
@@ -296,6 +300,11 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaMeetProjectionExamplesProofs.v \
   FlambdaMeetProjectionExamplesSpec.v \
   FlambdaMeetProofs.v \
+  FlambdaMeetRenameHeadsProofs.v \
+  FlambdaMeetRenameProofs.v \
+  FlambdaMeetRenameRowLikeProofs.v \
+  FlambdaMeetRenameScopesProofs.v \
+  FlambdaMeetRenameSpec.v \
   FlambdaMeetRowLikeProofs.v \
   FlambdaMeetRowLikeSpec.v \
   FlambdaMeetScopesProofs.v \
