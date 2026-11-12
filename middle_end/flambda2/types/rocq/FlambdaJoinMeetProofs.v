@@ -53,7 +53,9 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaMeetSpec FlambdaMeetStepsSpec FlambdaMeetStepsProofs
   FlambdaMeetEnvSpec FlambdaMeetEnvProofs FlambdaMeetScopesProofs
   FlambdaJoinMeet
-  FlambdaJoinMeetSpec FlambdaEnvAliases FlambdaEnvAliasesSpec
+  FlambdaJoinMeetSpec FlambdaMeetFuelSpec FlambdaMeetFuelProofs
+  FlambdaMeetClosuresSpec FlambdaMeetClosuresProofs FlambdaMeetExamplesSpec
+  FlambdaMeetExamplesProofs FlambdaEnvAliases FlambdaEnvAliasesSpec
   FlambdaEnvAliasesProofs FlambdaTypingEnvOperationsSpec
   FlambdaTypingEnvOperationsProofs FlambdaTypingEnvProofs
   FlambdaTypeMeaningProofs.
@@ -2351,4 +2353,212 @@ Proof.
     exact (canonical_at_mode_kinded use Name_mode.normal simple canonical kind
              (Hinvariant3 index use Huse) (Hkinded3 index use Huse) Hk
              Hcanonical).
+Qed.
+
+(* ---------------------------------------------------------------------- *)
+(* The same join, with a meet of expanded types that is given              *)
+(* ---------------------------------------------------------------------- *)
+
+(* The join with a meet of expanded types that is given, unfolded. *)
+Lemma join_with_unfold {A : Type} (join_choices : Join_env.choices)
+    (join_depth : nat) (fuel : fuels) (mh : meet_expanded_head)
+    (avoid : list variable) (inputs : join_inputs A) (target : Typing_env.t)
+    (analysis : Analysis.t A) (envs : Joined_envs.t) :
+  model_join_with join_choices join_depth fuel mh avoid inputs
+  = Some (target, analysis) ->
+  Join_env.cut_for_joins (cut_after inputs) (numbered_uses inputs)
+  = Some envs ->
+  ∃ (target_env : Meet_env.t)
+    (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind))
+    (names : list variable),
+    Join_env.cut_and_n_way_join0 meet_env_functions
+      (join_parameters join_depth) (fuel_of_env fuel) join_choices
+      (model_join_of_types join_depth fuel)
+      mh
+      avoid (Meet_env.create (source inputs)) (source inputs) envs
+    = Some (target_env, definitions, names)
+    ∧ target = Meet_env.typing_env target_env.
+Proof.
+  intros Hjoin.
+  unfold model_join_with, join_with, cut_and_n_way_join_with_analysis in Hjoin.
+  cbv zeta in Hjoin.
+  destruct (Join_env.cut_for_joins _ _) as [envs' | ] eqn:Hcut';
+    [ | discriminate ].
+  intros Hcut. injection Hcut as ->.
+  destruct (Join_env.cut_and_n_way_join0 _ _ _ _ _ _ _ _ _ _)
+    as [[[menv_t definitions] names] | ] eqn:Hjoin0; [ | discriminate ].
+  destruct (Analysis.create _ envs definitions) as [analysis' | ]
+    eqn:Hanalysis; [ | discriminate ].
+  injection Hjoin as <- <-.
+  exists menv_t, definitions, names. split; reflexivity.
+Qed.
+
+(* The two maps of the analysis that the join with a meet that is
+   given answers: the definitions that the join up to what it adds answers,
+   and those of them at the normal mode. *)
+Lemma join_with_analysis {A : Type} (join_choices : Join_env.choices)
+    (join_depth : nat) (fuel : fuels) (mh : meet_expanded_head)
+    (avoid : list variable) (inputs : join_inputs A) (target : Typing_env.t)
+    (analysis : Analysis.t A) (envs : Joined_envs.t) (target_env : Meet_env.t)
+    (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind))
+    (names : list variable) :
+  model_join_with join_choices join_depth fuel mh avoid inputs
+  = Some (target, analysis) ->
+  Join_env.cut_for_joins (cut_after inputs) (numbered_uses inputs)
+  = Some envs ->
+  Join_env.cut_and_n_way_join0 meet_env_functions
+    (join_parameters join_depth) (fuel_of_env fuel) join_choices
+    (model_join_of_types join_depth fuel)
+    mh
+    avoid (Meet_env.create (source inputs)) (source inputs) envs
+  = Some (target_env, definitions, names) ->
+  ∃ at_normal_mode : finite_map (Simples_in_joined_envs.t * flambda_kind),
+    Analysis.definitions_at_normal_mode envs (compact definitions)
+    = Some at_normal_mode
+    ∧ Analysis.definitions_in_joined_envs analysis = definitions
+    ∧ Analysis.canonical_definitions_at_normal_mode analysis = at_normal_mode.
+Proof.
+  intros Hjoin.
+  unfold model_join_with, join_with, cut_and_n_way_join_with_analysis in Hjoin.
+  cbv zeta in Hjoin.
+  destruct (Join_env.cut_for_joins _ _) as [envs' | ] eqn:Hcut';
+    [ | discriminate ].
+  intros Hcut. injection Hcut as ->.
+  destruct (Join_env.cut_and_n_way_join0 _ _ _ _ _ _ _ _ _ _)
+    as [[[menv_t definitions'] names'] | ] eqn:Hjoin0'; [ | discriminate ].
+  intros Hjoin0. injection Hjoin0 as -> -> ->.
+  destruct (Analysis.create _ envs definitions) as [analysis' | ]
+    eqn:Hanalysis; [ | discriminate ].
+  injection Hjoin as _ <-.
+  unfold Analysis.create in Hanalysis.
+  destruct (Analysis.definitions_at_normal_mode envs (compact definitions))
+    as [at_normal_mode | ] eqn:Hnormal; [ | discriminate ].
+  injection Hanalysis as <-.
+  exists at_normal_mode. split; [ reflexivity | ]. split; reflexivity.
+Qed.
+
+(* The join with a meet that is given, where there is an environment
+   to join: its target is what the two additions answer. *)
+Lemma join_with_replayed {A : Type} (join_choices : Join_env.choices)
+    (join_depth : nat) (fuel : fuels) (mh : meet_expanded_head)
+    (avoid : list variable) (inputs : join_inputs A) (target : Typing_env.t)
+    (analysis : Analysis.t A) (envs : Joined_envs.t) (s3 : Join_env.t)
+    (relations3 : Join_env.inverse_relations)
+    (kept : list (variable * flambda_kind))
+    (equations relation_equations : list (name * flambda_type))
+    (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind)) :
+  model_join_with join_choices join_depth fuel mh avoid inputs
+  = Some (target, analysis) ->
+  model_join_run join_choices join_depth fuel avoid inputs envs s3 relations3
+    kept equations relation_equations definitions ->
+  Keyed.is_empty envs = false ->
+  ∃ menv1 target_env : Meet_env.t,
+    Meet_env.add_env_extension (model_join_defined inputs s3 kept)
+      (Env_extension equations) mh
+    = Some menv1
+    ∧ Meet_env.add_env_extension menv1 (Env_extension relation_equations) mh
+      = Some target_env
+    ∧ target = Meet_env.typing_env target_env
+    ∧ ∃ at_normal_mode : finite_map (Simples_in_joined_envs.t * flambda_kind),
+        Analysis.definitions_at_normal_mode envs (compact definitions)
+        = Some at_normal_mode
+        ∧ Analysis.definitions_in_joined_envs analysis = definitions
+        ∧ Analysis.canonical_definitions_at_normal_mode analysis
+          = at_normal_mode.
+Proof.
+  intros Hjoin
+    [s1 [s2 [relations2 [Hcut [Haliases [Hdelayed [Hloop Hadds]]]]]]] Hempty.
+  change (Join_env.cut_for_joins (cut_after inputs) (numbered_uses inputs)
+          = Some envs) in Hcut.
+  destruct (join_with_unfold join_choices join_depth fuel mh avoid
+              inputs target analysis envs Hjoin Hcut)
+    as [target_env [definitions' [names [Hjoin0 Htarget]]]].
+  pose proof (join_with_analysis join_choices join_depth fuel mh
+                avoid inputs target analysis envs target_env definitions'
+                names Hjoin Hcut Hjoin0) as Hanalysis.
+  subst target.
+  set (p := join_parameters join_depth) in *.
+  set (jt := model_join_of_types join_depth fuel) in *.
+  destruct (cut_and_n_way_join0_replayed Meet_env.t meet_expanded_head
+              meet_env_functions p (fuel_of_env fuel) join_choices jt mh avoid
+              (Meet_env.create (source inputs)) target_env (source inputs)
+              envs definitions' names Hempty Hjoin0)
+    as [s1' [s2' [s3' [relations2' [relations3' [kept' [equations'
+          [relation_equations' [menv1 [Haliases' [Hdelayed' [Hloop' [Hnames
+            [Hadds' [Hadd1 Hadd2]]]]]]]]]]]]]]].
+  rewrite Haliases in Haliases'. injection Haliases' as <-.
+  rewrite Hdelayed in Hdelayed'. injection Hdelayed' as <- <-.
+  change (Join_env.join_depth p) with join_depth in Hloop'.
+  rewrite Hloop in Hloop'. injection Hloop' as <- <-.
+  subst names.
+  cbn [Join_env.with_names_to_avoid Join_env.add_env_extension
+         Join_env.current_typing_env meet_env_functions] in Hadds', Hadd1,
+    Hadd2.
+  destruct (last_phase_adds_functional _ _ _ _ _ _ _ _ _ _ _ _ Hadds Hadds')
+    as (-> & -> & -> & ->).
+  exists menv1, target_env.
+  split; [ exact Hadd1 | ]. split; [ exact Hadd2 | ].
+  split; [ reflexivity | exact Hanalysis ].
+Qed.
+
+Theorem model_join_with_admits_use
+  : model_join_with_admits_use_statement.
+Proof.
+  intros A join_choices join_depth fuel mh avoid inputs target
+    analysis envs s3 relations3 kept equations relation_equations definitions
+    index use statics valuation Hmh Hsound Hinputs Hkinded Hagree Hfits Hjoin
+    Hrun Hrest Hat Hbottom Hstatics Hsat_use Hsat_source Htags Haliases_v
+    Hscrutinees Hvalued.
+  pose proof Hrun
+    as [s1 [s2 [relations2 [Hcut [Haliases [Hdelayed [Hloop Hadds]]]]]]].
+  change (Join_env.cut_for_joins (cut_after inputs) (numbered_uses inputs)
+          = Some envs) in Hcut.
+  destruct (inputs_first_phases join_choices join_depth fuel avoid inputs envs
+              s1 s2 s3 relations2 relations3 Hinputs Hkinded Hagree Hcut
+              Haliases Hdelayed Hloop)
+    as (Htrue3 & Hrelations3 & Hgrows3 & Hstate3 & Hnonempty3 & Hscoped3 & HX
+        & HR & Hnames_kept & Hmade & Huse3 & Hinvariant3 & Hkinded3
+        & Hsymbols3).
+  assert (Huse : Join_env.joined_env s3 index = Some use).
+  { apply Huse3. split; [ exact Hat | exact Hbottom ]. }
+  assert (Hempty : Keyed.is_empty envs = false).
+  { pose proof Huse as Huse0. rewrite (proj1 Hgrows3) in Huse0.
+    destruct envs; [ discriminate Huse0 | reflexivity ]. }
+  destruct (join_with_replayed join_choices join_depth fuel mh
+              avoid inputs target analysis envs s3 relations3 kept equations
+              relation_equations definitions Hjoin Hrun Hempty)
+    as [menv1 [target_env [Hadd1 [Hadd2 [-> [at_normal_mode [Hnormal
+          [Hdefinitions Hat_normal]]]]]]]].
+  unfold model_join_defined in Hrest, Hadd1.
+  set (menv_a :=
+         Meet_env.with_names_to_avoid (Meet_env.create (source inputs))
+           (Bindings_in_target_env.names_to_avoid (Join_env.bindings s3)))
+    in *.
+  destruct (last_phase_satisfied _ (fuel_of_env fuel) (source inputs) s3
+              relations3 mh menv_a menv1 target_env kept equations
+              relation_equations definitions index use statics valuation
+              Htrue3 Hrelations3 Hnonempty3 Hscoped3 Hstate3 Hinvariant3
+              Hkinded3 Hsymbols3 HX HR eq_refl Hfits
+              (fun x Hx => proj2 (among_In _ _) Hx) Hadds Hrest Hmh Hsound
+              Hadd1 Hadd2 Huse Hstatics Hsat_source Hsat_use Htags Haliases_v
+              Hscrutinees Hvalued)
+    as [valuation' [Hfrom [Hsat [_ [Hfrom_source Hdefs]]]]].
+  exists valuation'. split; [ exact Hsat | ].
+  split; [ exact Hfrom | ]. split; [ exact Hfrom_source | ].
+  rewrite Hdefinitions, Hat_normal. split; [ exact Hdefs | ].
+  apply (definitions_at_normal_mode_hold envs definitions at_normal_mode index
+           use statics valuation valuation' Hnormal); [ | exact Hsat_use
+                                                        | exact Hdefs ].
+  rewrite (proj1 Hgrows3) in Huse. exact Huse.
+Qed.
+
+Theorem meet_with_forgetful_join_has_contracts
+  : meet_with_forgetful_join_has_contracts_statement.
+Proof.
+  intros fuel.
+  exact (meet_expanded_head_fuel_ok forgetful_join repaired_choices eq_refl
+           (fun mh Hkeeps Hsound _ =>
+              value_heads_of_join forgetful_join mh forgetful_join_sound
+                Hkeeps Hsound)
+           fuel).
 Qed.

@@ -75,7 +75,7 @@
      This is about that environment, before the first extension is
      added: that the second extension is added to an environment
      that still knows them needs the first to fit entirely (kinds
-     and well-formedness too), which is not shown yet.
+     and well-formedness too): [last_phase_kept_statement], below.
    - And their kinds are known to it
      ([last_phase_kinds_known_statement]): the name of each equation
      is of the kind of its type there, and the type is kinded there
@@ -91,10 +91,12 @@
      [add_env_extension_keeps_statement]), and each environment on
      the way to the target is the one before, extended, and one in
      which a meet may be made ([last_phase_kept_statement]). This
-     has a premise that is not shown yet of the join
+     has a premise that this file does not show of the join
      ([types_fit_otherwise]): the types of the equations are well
      formed, and the names of the equations inside them are of the
-     kinds of their types. The rest of what an extension must have
+     kinds of their types. (For the join that the meet calls it is
+     shown in FlambdaJoinMeetFitsSpec.v.) The rest of what an
+     extension must have
      to fit
      ([env_extension_fits], [env_extension_kinded]) is from the
      statements above: the names and the variables are known, the
@@ -114,10 +116,14 @@
      exist only in types, and so do the meets that it calls); and a
      [Simple] that the result knows is of
      the kind that an environment joined has it at. The premises are
-     those of the contract, and one more that is not shown yet of
-     the join ([join_adds_types_that_fit_otherwise]: the premise
+     those of the contract, and one more
+     ([join_adds_types_that_fit_otherwise]: the premise
      [types_fit_otherwise] of the statement before, for the join's
-     own run).
+     own run), which is shown of this join in
+     FlambdaJoinMeetFitsSpec.v
+     ([model_join_adds_types_that_fit_otherwise_statement]); that
+     file has this statement, and the next about values, without
+     the premise.
    - The conclusion of the contract about values, on the runs that
      have conditions. For the last phase
      ([last_phase_satisfied_statement]): given also a meet of
@@ -182,7 +188,14 @@
      is of a variable that the target has,
      [last_phase_adds_definitions_statement] of
      FlambdaJoinAddsSpec.v.) Not here: the conditions on runs read
-     as those of the contract ([values_are_read]).
+     as those of the contract ([values_are_read]). The statement
+     about valuations is also made for any meet of expanded types
+     that has the two contracts, in the place of the model's
+     ([model_join_with], [model_join_with_admits_use_statement]):
+     the model's meet is not shown to have the second, and may not
+     have it, and then the statement at the model's meet says
+     nothing. A meet that has both is the one made with the join
+     that forgets ([meet_with_forgetful_join_has_contracts_statement]).
 
    Examples of what [model_join] computes are in
    FlambdaJoinMeetExamplesSpec.v. *)
@@ -200,7 +213,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaJoinKindsSpec FlambdaJoinNamesSpec FlambdaTypeAliasKindsSpec
   FlambdaJoinTypes FlambdaJoinTypesSpec FlambdaMeetGrammar FlambdaExpandHead
   FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec FlambdaMeetStepsSpec
-  FlambdaMeetEnvSpec FlambdaJoinMeet.
+  FlambdaMeetEnvSpec FlambdaMeetExamplesSpec FlambdaJoinMeet.
 Import ListNotations.
 
 (* An expanded type and its conversion are the same type, of the same
@@ -412,9 +425,9 @@ Definition last_phase_kinds_known_statement : Prop :=
       simple_of_kind (Meet_env.typing_env menv') (simple_of_name n) (kind ty)
       ∧ type_kinded (Meet_env.typing_env menv') ty.
 
-(* What is not shown yet of the types of equations that the join
-   adds: each is well formed, and the names of the equations inside
-   it are of the kinds of their types in the environment. *)
+(* What this file does not show of the types of equations that the
+   join adds: each is well formed, and the names of the equations
+   inside it are of the kinds of their types in the environment. *)
 Definition types_fit_otherwise (tenv : Typing_env.t)
     (equations : list (name * flambda_type)) : Prop :=
   ∀ (n : name) (ty : flambda_type),
@@ -515,13 +528,14 @@ Definition join_scoped_envs_keeps (join : join_scoped_envs) : Prop :=
         simple_of_kind scoped_env s kind ->
         simple_of_kind (Meet_env.typing_env result) s kind.
 
-(* What is not shown yet of the model's join, as the meet calls it on
-   inputs that have what the contract supposes: the types of the
-   equations that its last phase adds fit otherwise
+(* What this file does not show of the model's join, as the meet
+   calls it on inputs that have what the contract supposes: the types
+   of the equations that its last phase adds fit otherwise
    ([types_fit_otherwise]), in the environment in which its variables
    are defined. The states are named by the equations of the first
    phases, as in [cut_and_n_way_join0_replayed_statement]
-   (FlambdaJoinAddsSpec.v). *)
+   (FlambdaJoinAddsSpec.v). It is shown in FlambdaJoinMeetFitsSpec.v
+   ([model_join_adds_types_that_fit_otherwise_statement]). *)
 Definition join_adds_types_that_fit_otherwise
     (join_choices : Join_env.choices) (join_depth : nat) (fuel : fuels)
     : Prop :=
@@ -953,3 +967,86 @@ Definition model_join_admits_use_statement : Prop :=
       ∧ definitions_hold
           (Analysis.canonical_definitions_at_normal_mode analysis) index
           valuation valuation'.
+
+(* The same for any meet of expanded types that has the two
+   contracts, in the place of that of the model. *)
+(* The join of environments with the join of types of the model, the
+   functions of the meet's environment, and a meet of expanded types
+   that is given. The join that Simplify calls ([model_join],
+   FlambdaJoinMeet.v) is this one at the meet of expanded types of the
+   model. *)
+Definition model_join_with {A : Type} (join_choices : Join_env.choices)
+    (join_depth : nat) (fuel : fuels) (mh : meet_expanded_head)
+    : join_of_environments A :=
+  join_with join_choices meet_env_functions (join_parameters join_depth)
+    (fuel_of_env fuel) (model_join_of_types join_depth fuel) mh.
+
+(* The statement before is this one at the meet of expanded types of
+   the model. This one does not depend on whether that meet has
+   [meet_expanded_head_sound], which is not shown, and which may not
+   hold: that meet calls the join of the model, which has the value
+   clause of its contract only on the runs that have the conditions.
+   Where it does not hold the statement before says nothing; this
+   one says what the join does with a meet that has its contracts.
+   (There is such a meet:
+   [meet_with_forgetful_join_has_contracts_statement], below.) *)
+Definition model_join_with_admits_use_statement : Prop :=
+  ∀ (A : Type) (join_choices : Join_env.choices) (join_depth : nat)
+    (fuel : fuels) (mh : meet_expanded_head) (avoid : list variable)
+    (inputs : join_inputs A) (target : Typing_env.t) (analysis : Analysis.t A)
+    (envs : Joined_envs.t) (s3 : Join_env.t)
+    (relations3 : Join_env.inverse_relations)
+    (kept : list (variable * flambda_kind))
+    (equations relation_equations : list (name * flambda_type))
+    (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind))
+    (index : Index.t) (use : Typing_env.t) (statics : static_env)
+    (valuation : env),
+    meet_expanded_head_keeps mh ->
+    meet_expanded_head_sound mh ->
+    join_inputs_well_formed typing_env_invariant avoid inputs ->
+    uses_kinded inputs ->
+    uses_agree_with_source_on_kinds inputs ->
+    typing_env_fits (source inputs) ->
+    model_join_with join_choices join_depth fuel mh avoid inputs
+    = Some (target, analysis) ->
+    model_join_run join_choices join_depth fuel avoid inputs envs s3
+      relations3 kept equations relation_equations definitions ->
+    types_fit_otherwise
+      (Meet_env.typing_env (model_join_defined inputs s3 kept))
+      (equations ++ relation_equations) ->
+    use_at inputs index use ->
+    Typing_env.is_bottom use = false ->
+    statics_valid statics ->
+    typing_env_satisfied_strictly statics valuation use ->
+    typing_env_satisfied_strictly statics valuation (source inputs) ->
+    tags_at s3 use statics valuation ->
+    aliases_have_values s3 index use valuation ->
+    relation_scrutinees_have_values s3 relations3 index use valuation ->
+    (∀ (n : name) (ty : flambda_type),
+       (n, ty) ∈ equations ++ relation_equations ->
+       ∃ v : value,
+         value_of_name (target_valuation s3 index use valuation) n = Some v) ->
+    ∃ valuation' : env,
+      typing_env_satisfied_strictly statics valuation' target
+      ∧ agrees_on_known use valuation valuation'
+      ∧ agrees_on_known (source inputs) valuation valuation'
+      ∧ definitions_hold (Analysis.definitions_in_joined_envs analysis) index
+          valuation valuation'
+      ∧ definitions_hold
+          (Analysis.canonical_definitions_at_normal_mode analysis) index
+          valuation valuation'.
+
+(* A meet of expanded types that has the two contracts: the one made
+   with the join that forgets ([forgetful_join],
+   FlambdaMeetExamplesSpec.v) and the repaired choices of the meet, at
+   any fuel. (From the contract of that join, by the statements of
+   FlambdaMeetFuelSpec.v and of FlambdaMeetClosuresSpec.v.) So the
+   statement before is not empty for want of a meet that has them. It
+   is another meet than the model's: nothing is shown by it of the
+   meet that calls the join of the model. *)
+Definition meet_with_forgetful_join_has_contracts_statement : Prop :=
+  ∀ fuel : nat,
+    meet_expanded_head_keeps
+      (Meet.meet_expanded_head forgetful_join repaired_choices fuel)
+    ∧ meet_expanded_head_sound
+        (Meet.meet_expanded_head forgetful_join repaired_choices fuel).
