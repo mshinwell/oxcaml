@@ -31,6 +31,9 @@ Files, in `middle_end/flambda2/types/rocq/`:
   15).
 - `FlambdaExpandHeadSpec.v`, `FlambdaExpandHeadProofs.v`: what
   `expand_head` keeps, eight statements, proved.
+- `FlambdaMeetRenameSpec.v`: the meet commutes with a renaming of
+  variables; nine statements, proved (`FlambdaMeetRenameProofs.v`).
+  To be reviewed (section 16).
 
 The compiler read: `types/meet_and_n_way_join.ml` (lines 1 to 1883, the
 meet), `types/meet.ml`, `types/env/meet_env.ml`, `types/expand_head.ml`,
@@ -425,7 +428,10 @@ and meet hands it from one branch to the next so that two branches do
 not make the same variable (the compiler's variables are globally
 fresh). N1 asks that equivariance be stated up to a permutation of the
 names created; that statement needs the renamings of types (T1),
-environments (T2) and aliases (T3), and is not in this request.
+environments (T2) and aliases (T3). Since 2026-11-12 an exact
+statement is made and proved for a join that commutes with renaming
+on the nose (section 16). Nothing is stated for a join that picks
+new variables by looking at the names it is given.
 
 ## 7. Kinds, code ids, modes, physical equality
 
@@ -768,3 +774,81 @@ strict satisfaction, with no other premise), `expand_head_closed`,
   been compared with the compiler yet.
 
 For reviewers: whether a precision statement is wanted.
+
+## 16. The meet under renaming (2026-11-12)
+
+For review: `FlambdaMeetRenameSpec.v`. Asked by T1: its rewrite of
+the `Switch` asks the meet, and is to commute with renaming for the
+validation to use it; it took the property of the meet as a
+hypothesis (`meet_equivariant`, `FlambdaSimplifySwitchSpec.v`).
+`meet_function_equivariant` is that property, word for word.
+
+What is defined. The action of a renaming on an environment of the
+meet (`rename_meet_env`: the typing environment by
+`rename_typing_env`, the names that an equation is being added to
+and the names to avoid by the renaming of names), on what a meet
+returns (`rename_return_value`: a new result is renamed, "the left
+input" is not) and on its result (`rename_meet_result`). Then what
+it is to commute: for a meet of two parts of a type
+(`meet_of_parts_equivariant`), for a meet of expanded types
+(`meet_expanded_head_equivariant`), for the join that the meet is
+given (`join_scoped_envs_equivariant`: given a meet of expanded types
+that commutes, of renamed environments it answers the renamed
+answer; the scope is not renamed) and for a meet of types
+(`meet_function_equivariant`). Each is an equation between two
+options: where one side stops the other does.
+
+What is stated, and proved.
+
+- `meet_expanded_head_at_fuel_equivariant`: the meet of expanded
+  types commutes at every fuel, for a join that commutes and choices
+  whose type for the scrutinee of a tag every renaming of variables
+  fixes (`meet_choices_closed`; it says nothing of symbols, code ids
+  or slots, which a renaming does not touch).
+- `meet_of_types_equivariant`: so `Meet.meet` does.
+- `compiler_choices_closed`, `repaired_choices_closed`; so
+  `meet_to_prove_equivariant` and `compiler_meet_equivariant`: the
+  two meets of `FlambdaMeetSpec.v` commute, for a join that does.
+- `forgetful_join_equivariant`, and
+  `meet_with_forgetful_join_equivariant`: the meet that T1's rewrite
+  is stated for commutes with no premise.
+- `typing_env_functions_equivariant`: `add_equation`,
+  `add_env_extension` and `add_equations_on_params` of
+  `Flambda2_types` commute.
+
+Why it holds, for a reader who checks the definitions against the
+meet. The meet makes no variable. It compares names for equality
+and reads binding times, which `rename_typing_env` keeps; it never
+orders two names by their numbers. The maps of a type are keyed by
+tags and slots, which a renaming leaves. The variables that it
+defines again after a join are those of the level that
+`Typing_env.cut` answers, in the order of that level, which
+`rename_level` keeps. The one place where a renaming could show is
+the join, which makes variables: hence the premise.
+
+What is not stated.
+
+- Nothing for a join that does not commute on the nose. T5's join
+  picks its new variables outside the names to avoid by a choice
+  that reads those names, so it has not the premise, and no
+  statement here applies to a meet that is given it. A statement up
+  to the choice of the new variables (N1's form) is not made and
+  not proved, for the join or for the meet. It is future work: it
+  needs a contract of the join that says which variables are new
+  and where they may occur, and the proofs here, which are for one
+  renaming throughout, would have to carry a renaming that changes
+  at each join.
+- Nothing of `Meet.meet_shape` and of the relations that
+  `Flambda2_types` adds (`add_is_int_relation` and the others):
+  the lemmas are there (N3's files) and no statement asks for them
+  yet.
+
+How it is proved, and by whom. N3 proved the laws of every function
+of `Meet_env`, of the combinators of results, of the products, of
+the entries of closures, of the naked immediates, and of the variant
+and the heads of kind value given the rows
+(`FlambdaEnvRenameMeet*Proofs.v`); mine are the scopes
+(`add_defined_vars`, `meet_disjunction`), `meet_row_like` by the
+parts that T5b's proof of its contract cuts it into, the rows of
+blocks and of closures, the meet of expanded heads and the induction
+on fuel (`FlambdaMeetRename*Proofs.v`). No proof needs review.
