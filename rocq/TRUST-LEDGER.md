@@ -126,10 +126,15 @@ it gave back.
   (`Unsupported`) a direct call of tupled code that the unit binds, and
   a call of known arity in a unit that binds tupled code; that is
   OCaml, in the same file, and is trusted. Trusted too: that a tuple
-  given to tupled code has the tag 0 and as many fields as the code has
-  parameters. The machine makes any other call undefined; the run time
-  reads the first fields of whatever it is given (the review comment at
-  `FlambdaSemanticsSpec.tuple_fields`).
+  given to tupled code that has parameters has the tag 0 and as many
+  fields as the code has parameters. The machine makes any other call
+  of such code undefined; the run time reads the first fields of
+  whatever it is given (the review comment at
+  `FlambdaSemanticsSpec.tuple_fields`). Tupled code with no parameter
+  reads no field: its first argument is evaluated, and its kind is
+  tested as that of any argument is, but neither its tag nor its
+  fields are looked at
+  (`middle_end/flambda2/tests/semantics/tupled_apply_zero.fl`).
 - **Partial applications and over-applications** are in the model
   (`FlambdaSemanticsSpec.shape_of_closure_call`), and the converter
   gives a call its arguments and its two arities as they are, whatever
