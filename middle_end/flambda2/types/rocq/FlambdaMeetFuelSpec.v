@@ -45,9 +45,12 @@
      the one that is true (FlambdaMeetSpec.v). And the meet of two
      heads of kind value is right ([value_heads_right]): that is the
      part of the meet that goes through variants, row-like structures
-     and closures, with the join of scoped environments; it is stated
-     and proved apart, from the join's contract, and is a hypothesis
-     here.
+     and closures, with the join of scoped environments. It is a
+     hypothesis here, and nothing in this file proves it. It is to
+     follow from the join's contract; what is proved of it so far,
+     apart, is that it holds if the meets of the rows of blocks and
+     of the rows of closures are right, and those two are not both
+     proved yet.
    - Every fuel ([meet_expanded_head_fuel_ok_statement]): if every
      meet that has its contracts makes the meet of two heads of kind
      value right, the meet of expanded types has its contracts at
