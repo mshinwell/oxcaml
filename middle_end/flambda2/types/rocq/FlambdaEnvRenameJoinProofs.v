@@ -43,12 +43,17 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaNominalSpec FlambdaNominalProofs FlambdaAlphaSpec
   FlambdaAlphaProofs FlambdaNameAbstractionSpec FlambdaNameAbstractionProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
-  FlambdaTypeRenameSpec FlambdaTypeRenameProofs FlambdaBindingTime
+  FlambdaTypeEqualSpec FlambdaTypeRenameSpec FlambdaTypeRenameProofs
+  FlambdaBindingTime
   FlambdaEnvAliases FlambdaEnvAliasesRenamingSpec
   FlambdaEnvAliasesRenamingProofs FlambdaTypingEnv FlambdaEnvRenameSpec
   FlambdaEnvRenameProofs FlambdaExpandHead FlambdaTypeProject
   FlambdaTypeProjectRenameProofs FlambdaJoinEnv FlambdaJoinEnvSpec
-  FlambdaJoinMeet FlambdaEnvRenameJoinSpec.
+  FlambdaJoinTypesWithEnvSpec FlambdaMeet FlambdaJoinMeet
+  FlambdaEnvRenameJoinSpec.
+From OxCamlFlambda2Types Require FlambdaProversRenameSpec
+  FlambdaProversRenameProofs FlambdaEnvRenameMeetPartsProofs
+  FlambdaEnvRenameJoinTypesProofs.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -2700,5 +2705,301 @@ Proof.
         ++ flat_map Join_env.variables_of_env joined_envs)
        source_env source_tenv equations_to_join)
     as [[[target_env definitions] names] | ];
+    reflexivity.
+Qed.
+
+(* ======================================================================== *)
+(* The join of types of the model                                           *)
+(* ======================================================================== *)
+
+Module Meet_parts := FlambdaEnvRenameMeetPartsProofs.
+
+Lemma join_expanded_renamed (r : renaming)
+    (expanded : FlambdaExpandHead.Expanded_type.t) :
+  join_expanded (FlambdaProversRenameSpec.rename_expanded r expanded)
+  = FlambdaEnvRenameJoinTypesProofs.rename_expanded r
+      (join_expanded expanded).
+Proof.
+  destruct expanded as [kind [ | [head | head | k head | head | head] | ]];
+    reflexivity.
+Qed.
+
+Lemma expand_head_for_join_renamed (r : renaming) (tenv : Typing_env.t)
+    (t : flambda_type) :
+  expand_head_for_join (rename_typing_env r tenv) (rename_type r t)
+  = option_map (FlambdaEnvRenameJoinTypesProofs.rename_expanded r)
+      (expand_head_for_join tenv t).
+Proof.
+  unfold expand_head_for_join.
+  rewrite FlambdaProversRenameProofs.expand_head_rename.
+  destruct (FlambdaExpandHead.expand_head tenv t) as [expanded | ];
+    cbn [option_map]; [ | reflexivity ].
+  rewrite join_expanded_renamed. reflexivity.
+Qed.
+
+Theorem n_way_join_of_types_related : n_way_join_of_types_related_statement.
+Proof.
+  intros r p p' fuel_of_env fuel Hp env types.
+  unfold n_way_join_of_types.
+  exact
+    (FlambdaEnvRenameJoinTypesProofs.n_way_join_renamed r (rename_join_env r)
+       Join_env.joined_env Join_env.joined_env
+       (Join_env.n_way_join_simples p fuel_of_env)
+       (Join_env.n_way_join_simples p' fuel_of_env)
+       (Join_env.import_type p fuel_of_env)
+       (Join_env.import_type p' fuel_of_env)
+       (Join_env.n_way_join_env_extension p fuel_of_env)
+       (Join_env.n_way_join_env_extension p' fuel_of_env)
+       expand_head_for_join expand_head_for_join
+       reduce_head_of_kind_naked_immediate
+       reduce_head_of_kind_naked_immediate type_eqb type_eqb block_shape_eqb
+       (joined_env_renamed r)
+       (fun env kind simples =>
+          n_way_join_simples_renamed r p p' fuel_of_env env kind simples Hp)
+       (fun env ty => import_type_renamed r p p' fuel_of_env env ty Hp)
+       (fun env extensions =>
+          n_way_join_env_extension_renamed r p p' fuel_of_env env extensions
+            Hp)
+       (expand_head_for_join_renamed r)
+       (Meet_parts.reduce_head_of_kind_naked_immediate_renamed r)
+       (proj1 type_eqb_rename r) fuel env types).
+Qed.
+
+(* ======================================================================== *)
+(* The join that Simplify calls                                             *)
+(* ======================================================================== *)
+
+Lemma simples_at_normal_mode_renamed (r : renaming) (envs : Joined_envs.t)
+    (simples : list (Index.t * simple)) :
+  Analysis.simples_at_normal_mode (rename_joined_envs r envs)
+    (Keyed.map_values (rename_simple r) simples)
+  = option_map (option_map (rename_simples_in_joined_envs r))
+      (Analysis.simples_at_normal_mode envs simples).
+Proof.
+  unfold rename_simples_in_joined_envs, Keyed.map_values.
+  induction simples as [ | [index simple] simples IH]; [ reflexivity | ].
+  cbn [map fst snd Analysis.simples_at_normal_mode] in *.
+  rewrite get_nth_joined_env_renamed.
+  destruct (Joined_envs.get_nth_joined_env envs index) as [tenv | ];
+    cbn [option_map]; [ | reflexivity ].
+  rewrite get_canonical_simple_exn_equivariant.
+  destruct
+    (Typing_env.get_canonical_simple_exn tenv (Some Name_mode.normal) None
+       simple)
+    as [canonical | ];
+    cbn [option_map]; [ | reflexivity ].
+  rewrite IH.
+  destruct (Analysis.simples_at_normal_mode envs simples) as [rest | ];
+    cbn [option_map]; [ | reflexivity ].
+  destruct canonical as [canonical | ], rest as [rest | ]; reflexivity.
+Qed.
+
+Lemma definitions_at_normal_mode_renamed (r : renaming)
+    (envs : Joined_envs.t)
+    (definitions :
+       list (variable * (Simples_in_joined_envs.t * flambda_kind))) :
+  Analysis.definitions_at_normal_mode (rename_joined_envs r envs)
+    (Keyed.map_bindings (rename_variable r) (rename_definition r)
+       definitions)
+  = option_map
+      (Keyed.map_bindings (rename_variable r) (rename_definition r))
+      (Analysis.definitions_at_normal_mode envs definitions).
+Proof.
+  unfold Keyed.map_bindings.
+  induction definitions as [ | [var [simples kind]] definitions IH];
+    [ reflexivity | ].
+  cbn [map fst snd Analysis.definitions_at_normal_mode] in *.
+  change (rename_simples_in_joined_envs r simples)
+    with (Keyed.map_values (rename_simple r) simples).
+  rewrite compact_map_values, simples_at_normal_mode_renamed.
+  destruct
+    (Analysis.simples_at_normal_mode envs
+       (Keyed.compact Index.equal simples))
+    as [at_normal_mode | ];
+    cbn [option_map]; [ | reflexivity ].
+  rewrite IH.
+  destruct (Analysis.definitions_at_normal_mode envs definitions)
+    as [rest | ];
+    cbn [option_map]; [ | reflexivity ].
+  destruct at_normal_mode as [simples' | ]; reflexivity.
+Qed.
+
+Lemma analysis_create_renamed {A : Type} (r : renaming)
+    (external_ids : Keyed.finite_map Index.t A) (envs : Joined_envs.t)
+    (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind)) :
+  Analysis.create external_ids (rename_joined_envs r envs)
+    (Keyed.map_bindings (rename_variable r) (rename_definition r)
+       definitions)
+  = option_map (rename_analysis r)
+      (Analysis.create external_ids envs definitions).
+Proof.
+  unfold Analysis.create.
+  rewrite compact_renamed_keys, definitions_at_normal_mode_renamed.
+  destruct (Analysis.definitions_at_normal_mode envs (compact definitions));
+    reflexivity.
+Qed.
+
+(* The identifiers of the environments that are not bottom. *)
+Lemma external_ids_renamed {A : Type} (r : renaming)
+    (numbered : list (Index.t * (A * Typing_env.t))) :
+  flat_map
+    (fun binding : Index.t * (A * Typing_env.t) =>
+       if Typing_env.is_bottom (snd (snd binding))
+       then []
+       else [(fst binding, fst (snd binding))])
+    (Keyed.map_values
+       (fun use : A * Typing_env.t =>
+          (fst use, rename_typing_env r (snd use)))
+       numbered)
+  = flat_map
+      (fun binding : Index.t * (A * Typing_env.t) =>
+         if Typing_env.is_bottom (snd (snd binding))
+         then []
+         else [(fst binding, fst (snd binding))])
+      numbered.
+Proof.
+  unfold Keyed.map_values.
+  induction numbered as [ | [index [id tenv]] numbered IH];
+    [ reflexivity | ].
+  cbn [map flat_map fst snd]. rewrite IH. reflexivity.
+Qed.
+
+Theorem cut_and_n_way_join_with_analysis_related :
+  cut_and_n_way_join_with_analysis_related_statement.
+Proof.
+  intros A meet_env meet_expanded_head r rename_env heads_related ops ops' p
+    p' fuel choices choices' join_type join_type' m m' avoid cut_after
+    source_tenv joined_envs Hops Hp Hchoices Hjoin Hm.
+  pose proof Hops
+    as (Hcreate & Hcurrent & Hadd_var & Hadd_ext & Hbottom & Hfinal & Hnames
+        & Hwith).
+  unfold cut_and_n_way_join_with_analysis. cbv zeta.
+  rewrite number_renamed.
+  match goal with
+  | |- context [flat_map ?h (Keyed.map_values ?g ?numbered)] =>
+    replace (flat_map h (Keyed.map_values g numbered))
+      with (flat_map h numbered)
+      by (symmetry; apply external_ids_renamed)
+  end.
+  match goal with
+  | |- context
+         [Join_env.cut_for_joins cut_after
+            (map ?proj (Keyed.map_values ?g ?numbered))] =>
+    replace (map proj (Keyed.map_values g numbered))
+      with (Keyed.map_values (rename_typing_env r) (map proj numbered))
+      by (unfold Keyed.map_values; rewrite !map_map; reflexivity)
+  end.
+  rewrite cut_for_joins_renamed.
+  match goal with
+  | |- context [match option_map _ ?x with _ => _ end] =>
+    destruct x as [equations_to_join | ]
+  end;
+    cbn [option_map]; [ | reflexivity ].
+  rewrite Hcreate,
+    (cut_and_n_way_join0_renamed r rename_env heads_related ops ops' p p'
+       fuel choices choices' join_type join_type' m m' avoid
+       (Join_env.create_meet_env ops source_tenv) source_tenv
+       equations_to_join Hops Hp Hchoices Hjoin Hm).
+  match goal with
+  | |- context [match option_map _ ?x with _ => _ end] =>
+    destruct x as [[[target_env definitions] names] | ]
+  end;
+    cbn [option_map rename_join_result fst snd]; [ | reflexivity ].
+  rewrite Hfinal, analysis_create_renamed.
+  match goal with
+  | |- context [match option_map _ ?x with _ => _ end] => destruct x
+  end;
+    reflexivity.
+Qed.
+
+Theorem join_levels_cut_and_n_way_join_related :
+  join_levels_cut_and_n_way_join_related_statement.
+Proof.
+  intros A meet_env meet_expanded_head r rename_env heads_related ops ops' p
+    p' fuel choices choices' join_type join_type' m m' avoid
+    definition_typing_env ts_and_use_ids params cut_after extra Hops Hp
+    Hchoices Hjoin Hm.
+  unfold join_levels_cut_and_n_way_join.
+  rewrite
+    (forallb_renamed (rename_variable r)
+       (fun param : variable =>
+          Typing_env.mem None definition_typing_env (Name_var param)))
+    by (intros param;
+        exact
+          (mem_equivariant r None definition_typing_env (Name_var param))).
+  assert (Hsymbols :
+    forallb
+      (fun symbol : symbol =>
+         Typing_env.mem None (rename_typing_env r definition_typing_env)
+           (Name_symbol symbol))
+      extra
+    = forallb
+        (fun symbol : symbol =>
+           Typing_env.mem None definition_typing_env (Name_symbol symbol))
+        extra).
+  { induction extra as [ | symbol extra IH]; cbn [forallb];
+      [ reflexivity | ].
+    rewrite IH. f_equal;
+      exact
+        (mem_equivariant r None definition_typing_env (Name_symbol symbol)). }
+  rewrite Hsymbols. clear Hsymbols.
+  match goal with
+  | |- (if ?c then _ else _) = _ => destruct c
+  end;
+    [ | reflexivity ].
+  match goal with
+  | |- context [rev (map ?swap (map ?renamed ts_and_use_ids))] =>
+    replace (rev (map swap (map renamed ts_and_use_ids)))
+      with (map
+              (fun use : A * Typing_env.t =>
+                 (fst use, rename_typing_env r (snd use)))
+              (rev (map swap ts_and_use_ids)))
+      by (rewrite map_rev, !map_map; reflexivity)
+  end.
+  exact
+    (cut_and_n_way_join_with_analysis_related A meet_env meet_expanded_head r
+       rename_env heads_related ops ops' p p' fuel choices choices' join_type
+       join_type' m m' avoid cut_after definition_typing_env _ Hops Hp
+       Hchoices Hjoin Hm).
+Qed.
+
+Theorem analysis_read_renamed : analysis_read_renamed_statement.
+Proof.
+  intros A r. repeat split.
+  - intros analysis env simple. unfold Analysis.simple_refined_at_join_of.
+    rewrite get_canonical_ignoring_name_mode_equivariant.
+    destruct (Typing_env.get_canonical_simple_ignoring_name_mode env simple)
+      as [var | sym | c];
+      cbn [rename_simple]; try reflexivity.
+    cbn [rename_analysis Analysis.definitions_in_joined_envs].
+    unfold rename_definitions. rewrite lookup_renamed_keys.
+    destruct (lookup var (Analysis.definitions_in_joined_envs analysis))
+      as [[canonicals kind] | ];
+      reflexivity.
+  - intros external_ids canonicals.
+    unfold Analysis.values_at_uses, rename_simples_in_joined_envs.
+    rewrite compact_map_values. unfold Keyed.map_values.
+    induction (Keyed.compact Index.equal canonicals)
+      as [ | [index simple] bindings IH];
+      [ reflexivity | ].
+    cbn [map fst snd Analysis.values_of_bindings]. rewrite IH.
+    destruct simple; reflexivity.
+  - intros external_ids canonicals.
+    unfold Analysis.definitions_at_uses, rename_simples_in_joined_envs.
+    rewrite compact_map_values. unfold Keyed.map_values.
+    induction (Keyed.compact Index.equal canonicals)
+      as [ | [index simple] bindings IH];
+      [ reflexivity | ].
+    cbn [map fst snd Analysis.definitions_of_bindings]. rewrite IH.
+    destruct (Keyed.lookup Index.equal index external_ids)
+      as [external_id | ];
+      [ | reflexivity ].
+    destruct (Analysis.definitions_of_bindings external_ids bindings);
+      reflexivity.
+  - intros analysis. unfold Analysis.variables_created_at_join.
+    cbn [rename_analysis Analysis.canonical_definitions_at_normal_mode].
+    unfold rename_definitions.
+    rewrite compact_renamed_keys. unfold Keyed.map_bindings.
+    rewrite !map_map. apply map_ext. intros [var [simples kind]].
     reflexivity.
 Qed.

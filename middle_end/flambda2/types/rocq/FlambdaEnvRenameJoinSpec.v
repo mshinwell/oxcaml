@@ -113,9 +113,12 @@
    ([n_way_join_type_related], [choices_related]), and the choices
    that the model has, the compiler's and the repaired ones, are
    related to themselves ([compiler_choices_related_statement],
-   [repaired_choices_related_statement]). That the model's join of
-   types is related to itself with the renamed source is for the
-   traversal of types (FlambdaJoinTypes.v), and is not stated here.
+   [repaired_choices_related_statement]). The join of types that the
+   model gives the join of environments is related to itself where
+   the parameters are related
+   ([n_way_join_of_types_related_statement]): the traversal of types
+   (FlambdaJoinTypes.v) makes no variable, and what it calls of the
+   state does as the statements above say.
 
    The equation of the join as a whole is the last statement
    ([cut_and_n_way_join_related_statement]): the join that the meet
@@ -128,9 +131,18 @@
    two meets of expanded types under which the functions are related
    ([meet_env_functions_related], which is to be reviewed). That the
    functions of the model's meet are so related, at the action and the
-   relation of FlambdaMeetRenameSpec.v, is not stated here; nor is the
-   equation of the join that Simplify calls, which answers an analysis
-   as well.
+   relation of FlambdaMeetRenameSpec.v, is not stated here.
+
+   The join that Simplify calls answers an analysis as well: the
+   definitions of the variables that the join made, and the
+   identifiers that the caller gave the environments. A renaming acts
+   on the definitions and keeps the identifiers ([rename_analysis],
+   which is to be reviewed). The same equation is stated of that join
+   ([cut_and_n_way_join_with_analysis_related_statement]) and of the
+   function of types/join_levels.ml that Simplify calls
+   ([join_levels_cut_and_n_way_join_related_statement]), and what
+   Simplify reads of an analysis is read renamed of the renamed
+   analysis ([analysis_read_renamed_statement]).
 
    What this does not say: that the join with one source of new names
    answers, of renamed arguments, the answer renamed up to the
@@ -149,7 +161,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeRenameSpec FlambdaBindingTime FlambdaEnvAliases
   FlambdaTypingEnv FlambdaEnvRenameSpec FlambdaJoinEnv FlambdaJoinEnvSpec
-  FlambdaJoinMeet.
+  FlambdaJoinTypesWithEnvSpec FlambdaMeet FlambdaJoinMeet.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -406,6 +418,23 @@ Definition repaired_choices_related_statement : Prop :=
   ∀ r : renaming,
     choices_related r Join_env.repaired_choices Join_env.repaired_choices.
 
+(* The join of types that the model gives the join of environments
+   (FlambdaJoinTypesWithEnvSpec.n_way_join_of_types, with the
+   expansion of heads and the reduction of the heads of naked
+   immediates that FlambdaJoinMeet.v gives it): with related
+   parameters, a renaming relates the two. The traversal of the types
+   makes no variable and compares variables by equality only; the
+   variables are made by the functions of the state that it calls,
+   with the source of the parameters. *)
+Definition n_way_join_of_types_related_statement : Prop :=
+  ∀ (r : renaming) (p p' : Join_env.parameters) (fuel_of_env fuel : nat),
+    parameters_related r p p' ->
+    n_way_join_type_related r
+      (n_way_join_of_types p fuel_of_env expand_head_for_join
+         reduce_head_of_kind_naked_immediate fuel)
+      (n_way_join_of_types p' fuel_of_env expand_head_for_join
+         reduce_head_of_kind_naked_immediate fuel).
+
 (* ======================================================================== *)
 (* The join that the meet calls                                             *)
 (* ======================================================================== *)
@@ -483,3 +512,146 @@ Definition cut_and_n_way_join_related_statement : Prop :=
     = option_map rename_env
         (Join_env.cut_and_n_way_join ops p fuel choices join_type m cut_after
            source_env source_tenv joined_envs).
+
+(* ======================================================================== *)
+(* The join that Simplify calls                                             *)
+(* ======================================================================== *)
+
+(* The definitions of the variables that a join made: each variable,
+   and the vector that it stands for; the kinds are kept. *)
+Definition rename_definitions (r : renaming)
+    (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind))
+    : finite_map (Simples_in_joined_envs.t * flambda_kind) :=
+  Keyed.map_bindings (rename_variable r)
+    (fun definition : Simples_in_joined_envs.t * flambda_kind =>
+       (rename_simples_in_joined_envs r (fst definition), snd definition))
+    definitions.
+
+(* The analysis of a join: its two maps of definitions. The
+   identifiers that the caller gave the environments joined are
+   kept. *)
+Definition rename_analysis {A : Type} (r : renaming)
+    (analysis : Analysis.t A) : Analysis.t A :=
+  {| Analysis.definitions_in_joined_envs :=
+       rename_definitions r (Analysis.definitions_in_joined_envs analysis);
+     Analysis.canonical_definitions_at_normal_mode :=
+       rename_definitions r
+         (Analysis.canonical_definitions_at_normal_mode analysis);
+     Analysis.external_ids := Analysis.external_ids analysis |}.
+
+(* What the join did to a [Simple]. *)
+Definition rename_simple_refined_at_join (r : renaming)
+    (refined : Analysis.simple_refined_at_join)
+    : Analysis.simple_refined_at_join :=
+  match refined with
+  | Analysis.Not_refined_at_join => Analysis.Not_refined_at_join
+  | Analysis.Invariant_in_all_uses simple =>
+    Analysis.Invariant_in_all_uses (rename_simple r simple)
+  | Analysis.Variable_refined_at_these_uses canonicals kind =>
+    Analysis.Variable_refined_at_these_uses
+      (rename_simples_in_joined_envs r canonicals) kind
+  end.
+
+(* The join that Simplify calls, which answers the joined environment
+   and an analysis: where everything that it is given is related, the
+   second join answers, of the renamed names to avoid and the renamed
+   environments, the renamed environment and the renamed analysis. The
+   scope and the identifiers of the environments are not renamed. *)
+Definition cut_and_n_way_join_with_analysis_related_statement : Prop :=
+  ∀ (A meet_env meet_expanded_head : Type) (r : renaming)
+    (rename_env : meet_env -> meet_env)
+    (heads_related : meet_expanded_head -> meet_expanded_head -> Prop)
+    (ops ops' : Join_env.meet_env_functions meet_env meet_expanded_head)
+    (p p' : Join_env.parameters) (fuel : nat)
+    (choices choices' : Join_env.choices)
+    (join_type join_type' : Join_env.n_way_join_type)
+    (m m' : meet_expanded_head) (avoid : list variable) (cut_after : Scope.t)
+    (source_tenv : Typing_env.t) (joined_envs : list (A * Typing_env.t)),
+    meet_env_functions_related r rename_env heads_related ops ops' ->
+    parameters_related r p p' ->
+    choices_related r choices choices' ->
+    n_way_join_type_related r join_type join_type' ->
+    heads_related m m' ->
+    cut_and_n_way_join_with_analysis ops' p' fuel choices' join_type' m'
+      (map (rename_variable r) avoid) cut_after
+      (rename_typing_env r source_tenv)
+      (map
+         (fun use : A * Typing_env.t =>
+            (fst use, rename_typing_env r (snd use)))
+         joined_envs)
+    = option_map
+        (fun result : Typing_env.t * Analysis.t A =>
+           (rename_typing_env r (fst result), rename_analysis r (snd result)))
+        (cut_and_n_way_join_with_analysis ops p fuel choices join_type m
+           avoid cut_after source_tenv joined_envs).
+
+(* The same of the function of types/join_levels.ml, which checks
+   first that the parameters of the continuation and the symbols
+   lifted are defined at the fork. The parameters are renamed; the
+   symbols are not. *)
+Definition join_levels_cut_and_n_way_join_related_statement : Prop :=
+  ∀ (A meet_env meet_expanded_head : Type) (r : renaming)
+    (rename_env : meet_env -> meet_env)
+    (heads_related : meet_expanded_head -> meet_expanded_head -> Prop)
+    (ops ops' : Join_env.meet_env_functions meet_env meet_expanded_head)
+    (p p' : Join_env.parameters) (fuel : nat)
+    (choices choices' : Join_env.choices)
+    (join_type join_type' : Join_env.n_way_join_type)
+    (m m' : meet_expanded_head) (avoid : list variable)
+    (definition_typing_env : Typing_env.t)
+    (ts_and_use_ids : list (Typing_env.t * A)) (params : list variable)
+    (cut_after : Scope.t) (extra_lifted_consts_in_use_envs : list symbol),
+    meet_env_functions_related r rename_env heads_related ops ops' ->
+    parameters_related r p p' ->
+    choices_related r choices choices' ->
+    n_way_join_type_related r join_type join_type' ->
+    heads_related m m' ->
+    join_levels_cut_and_n_way_join ops' p' fuel choices' join_type' m'
+      (map (rename_variable r) avoid)
+      (rename_typing_env r definition_typing_env)
+      (map
+         (fun use : Typing_env.t * A =>
+            (rename_typing_env r (fst use), snd use))
+         ts_and_use_ids)
+      (map (rename_variable r) params) cut_after
+      extra_lifted_consts_in_use_envs
+    = option_map
+        (fun result : Typing_env.t * Analysis.t A =>
+           (rename_typing_env r (fst result), rename_analysis r (snd result)))
+        (join_levels_cut_and_n_way_join ops p fuel choices join_type m avoid
+           definition_typing_env ts_and_use_ids params cut_after
+           extra_lifted_consts_in_use_envs).
+
+(* What Simplify reads of an analysis: of the renamed analysis it reads
+   the renamed answer. A value at a use is a constant or unknown, and
+   is the same. *)
+Definition analysis_read_renamed_statement : Prop :=
+  ∀ (A : Type) (r : renaming),
+    (∀ (analysis : Analysis.t A) (env : Typing_env.t) (simple : simple),
+      Analysis.simple_refined_at_join_of (rename_analysis r analysis)
+        (rename_typing_env r env) (rename_simple r simple)
+      = rename_simple_refined_at_join r
+          (Analysis.simple_refined_at_join_of analysis env simple))
+    ∧ (∀ (external_ids : Keyed.finite_map Index.t A)
+         (canonicals : Simples_in_joined_envs.t),
+        Analysis.values_at_uses external_ids
+          (rename_simples_in_joined_envs r canonicals)
+        = Analysis.values_at_uses external_ids canonicals)
+    ∧ (∀ (external_ids : Keyed.finite_map Index.t A)
+         (canonicals : Simples_in_joined_envs.t),
+        Analysis.definitions_at_uses external_ids
+          (rename_simples_in_joined_envs r canonicals)
+        = option_map
+            (map
+               (fun definition : A * simple =>
+                  (fst definition, rename_simple r (snd definition))))
+            (Analysis.definitions_at_uses external_ids canonicals))
+    ∧ ∀ analysis : Analysis.t A,
+        Analysis.variables_created_at_join (rename_analysis r analysis)
+        = map
+            (fun created : variable * Simples_in_joined_envs.t * flambda_kind
+             =>
+               (rename_variable r (fst (fst created)),
+                rename_simples_in_joined_envs r (snd (fst created)),
+                snd created))
+            (Analysis.variables_created_at_join analysis).
