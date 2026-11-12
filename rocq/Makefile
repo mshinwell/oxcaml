@@ -297,6 +297,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaMeetStepsSpec.v \
   FlambdaMeetTagExamplesProofs.v \
   FlambdaMeetTagExamplesSpec.v \
+  FlambdaMeetTermsProofs.v \
+  FlambdaMeetTermsSpec.v \
   FlambdaMeetTerminationProofs.v \
   FlambdaMeetTerminationSpec.v \
   FlambdaProvers.v \
