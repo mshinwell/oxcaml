@@ -35,7 +35,9 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
   FlambdaMapSpec FlambdaMapProofs FlambdaValueSpec FlambdaSemanticsSpec
   FlambdaSemanticsProofs FlambdaWellFormedSpec FlambdaWellFormedProofs
   FlambdaClosuresSpec FlambdaClosuresProofs FlambdaContextWhereSpec
-  FlambdaContextWhereProofs FlambdaUnusedStaticsSpec.
+  FlambdaContextWhereProofs FlambdaUnusedStaticsSpec FlambdaNormaliseSpec
+  FlambdaNormaliseProofs FlambdaUnusedContsSpec FlambdaUnusedContsProofs
+  FlambdaSinkContsProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs
   FlambdaTypeWellFormedSpec FlambdaTypeWellFormedProofs FlambdaBindingTime
@@ -1217,6 +1219,393 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
+(* Where a continuation is applied                                          *)
+(* ======================================================================== *)
+
+Lemma alias_keeps_fit_carried (tenv : Typing_env.t) (e1 e2 : simple)
+    (kind : flambda_kind) (result : Typing_env.add_alias_result) :
+  carried tenv ->
+  alias_keeps_fit tenv e1 e2 kind = true ->
+  Typing_env.add_alias tenv e1 e2 = Some (Ok result) ->
+  carried (Typing_env.add_alias_result_t result).
+Proof.
+  intros [Hinvariant Haliases] Hkeeps Hadd.
+  unfold alias_keeps_fit in Hkeeps. rewrite !andb_true_iff in Hkeeps.
+  destruct Hkeeps as [[[[[Hc1 Hc2] Hm1] Hm2] Hk1] Hk2].
+  apply is_canonical_b_iff in Hc1. apply is_canonical_b_iff in Hc2.
+  pose proof (proj1 (typing_env_well_formed_iff _) (proj1 Hinvariant))
+    as Hconditions.
+  destruct Hconditions as [_ [_ [Hconsistent _]]].
+  split.
+  - exact (add_alias_invariant tenv e1 e2 result Hinvariant Hc1 Hc2 Hm1 Hm2
+             Hadd).
+  - exact (add_alias_aliases_kinded tenv e1 e2 result kind Hconsistent Hc1
+             Hc2 (simple_of_kind_b_sound tenv _ _ Hk1)
+             (simple_of_kind_b_sound tenv _ _ Hk2) Hadd Haliases).
+Qed.
+
+Lemma arm_env_carried (tenv : Typing_env.t) (scrutinee : simple) (d : Z) :
+  carried tenv ->
+  arm_env_keeps_fit tenv scrutinee d = true ->
+  carried (arm_env tenv scrutinee d).
+Proof.
+  intros Hcarried. unfold arm_env_keeps_fit, arm_env.
+  destruct (simplify_simple tenv scrutinee) as [[ty [c | sym | const]] | ];
+    try (intros _; exact Hcarried).
+  destruct (simple_in_terms_b tenv (Var c)
+            && simple_of_kind_b tenv (Var c) naked_immediate_kind);
+    [ | intros _; exact Hcarried ].
+  destruct (Typing_env.add_alias tenv (Var c) (Const (Naked_immediate d)))
+    as [[ | result | ] | ] eqn:Hadd; try (intros _; exact Hcarried).
+  intros Hkeeps.
+  exact (alias_keeps_fit_carried tenv _ _ _ result Hcarried Hkeeps Hadd).
+Qed.
+
+Lemma bind_params_to_args_carried (aliased : simple -> bool)
+    (bindings : list (variable * flambda_kind * simple)) :
+  ∀ tenv target : Typing_env.t,
+    carried tenv ->
+    bind_params_to_args aliased tenv bindings = Some target ->
+    bind_params_to_args_keep_fit aliased tenv bindings = true ->
+    carried target.
+Proof.
+  induction bindings as [ | [[x kind] canonical] bindings IH];
+    intros tenv target Hcarried Hbind Hkeeps.
+  - simpl in Hbind. injection Hbind as <-. exact Hcarried.
+  - cbn [bind_params_to_args] in Hbind.
+    cbn [bind_params_to_args_keep_fit] in Hkeeps.
+    destruct (typing_env_well_formed tenv
+              && negb (Typing_env.mem None tenv (Name_var x))) eqn:Htests;
+      [ | discriminate ].
+    apply andb_prop in Htests. destruct Htests as [_ Hfresh].
+    apply negb_true_iff in Hfresh.
+    pose proof (add_variable_definition_carried tenv x kind Hcarried Hfresh)
+      as Hdefined.
+    destruct (aliased canonical && simple_in_terms_b tenv canonical
+              && simple_of_kind_b tenv canonical kind);
+      [ | exact (IH _ target Hdefined Hbind Hkeeps) ].
+    destruct (Typing_env.add_alias
+                (Typing_env.add_variable_definition tenv x kind
+                   Name_mode.normal)
+                (Var x) canonical)
+      as [[ | result | ] | ] eqn:Hadd;
+      try exact (IH _ target Hdefined Hbind Hkeeps).
+    apply andb_true_iff in Hkeeps. destruct Hkeeps as [Halias Hrest].
+    exact (IH _ target
+             (alias_keeps_fit_carried _ _ _ _ result Hdefined Halias Hadd)
+             Hbind Hrest).
+Qed.
+
+Lemma use_env_carried (scope tenv : Typing_env.t) (params : list variable)
+    (metadata : handler_metadata) (args : list simple)
+    (target : Typing_env.t) :
+  carried tenv ->
+  use_env scope tenv params metadata args = Some target ->
+  use_env_keeps_fit scope tenv params metadata args = true ->
+  carried target.
+Proof.
+  intros Hcarried. unfold use_env, use_env_keeps_fit.
+  destruct (simplify_simples tenv args) as [answers | ]; [ | discriminate ].
+  destruct (Nat.eqb (length (hm_params_kinds metadata)) (length params)
+            && Nat.eqb (length answers) (length params));
+    [ | discriminate ].
+  exact (bind_params_to_args_carried _ _ tenv target Hcarried).
+Qed.
+
+Lemma leaf_uses_carried (tenv : Typing_env.t) (k : continuation) (e : expr)
+    (applications : list (Typing_env.t * list simple))
+    (tenv_use : Typing_env.t) (args : list simple) :
+  carried tenv ->
+  leaf_uses tenv k e = Some applications ->
+  leaf_uses_keep_fit tenv k e = true ->
+  (tenv_use, args) ∈ applications ->
+  carried tenv_use.
+Proof.
+  intros Hcarried.
+  destruct e
+    as [x declared d body | bindings body | k' h body | handlers body | ap
+        | ac | scrutinee arms | ];
+    simpl; try discriminate.
+  - intros [= <-] _. destruct (Pos.eqb (ac_continuation ac) k);
+      [ | intros [] ].
+    intros [[= <- _] | []]. exact Hcarried.
+  - intros [= <-] Hkeeps Hin. apply in_flat_map in Hin.
+    destruct Hin as [[d ac] [Harm Hin]]. cbn [fst snd] in Hin.
+    rewrite forallb_forall in Hkeeps. specialize (Hkeeps (d, ac) Harm).
+    cbn [fst snd] in Hkeeps.
+    destruct (Pos.eqb (ac_continuation ac) k); [ | destruct Hin ].
+    destruct Hin as [[= <- _] | []]. cbn [negb orb] in Hkeeps.
+    exact (arm_env_carried tenv scrutinee d Hcarried Hkeeps).
+Qed.
+
+Lemma let_env_known_to_fit (tenv tenv' : Typing_env.t) (fit : bool)
+    (x : variable) (declared : flambda_kind) (d : named) :
+  known_to_fit tenv fit ->
+  let_env tenv x declared d = Some tenv' ->
+  known_to_fit tenv' (fit && let_env_keeps_fit tenv x declared d).
+Proof.
+  intros Hknown. unfold let_env, let_env_keeps_fit. cbv zeta.
+  destruct (simplify_let tenv x (resolve_value_slot tenv declared d))
+    as [ | d' tenv'' | ] eqn:Hlet; [ discriminate | | ].
+  - intros [= <-].
+    exact (let_keeps_fit_sound tenv tenv'' fit x _ d' Hknown Hlet).
+  - unfold declare_variable.
+    destruct (typing_env_well_formed tenv
+              && negb (Typing_env.mem None tenv (Name_var x))) eqn:Htests;
+      [ | discriminate ].
+    intros [= <-] Hfit. apply andb_true_iff in Hfit.
+    destruct Hfit as [Hfit _]. apply andb_prop in Htests.
+    destruct Htests as [_ Hfresh]. apply negb_true_iff in Hfresh.
+    exact (add_variable_definition_carried tenv x declared (Hknown Hfit)
+             Hfresh).
+Qed.
+
+Fixpoint find_use_known_to_fit_aux (body : expr) {struct body} :
+  ∀ (scope tenv : Typing_env.t) (fit : bool) (k : continuation)
+    (h : continuation_handler) (target : Typing_env.t) (xs : list variable)
+    (ks : list continuation),
+    known_to_fit tenv fit ->
+    find_use scope tenv k h body = Some (target, xs, ks) ->
+    known_to_fit target (fit && find_use_keeps_fit scope tenv k h body).
+Proof.
+  destruct body
+    as [x declared d rest | bindings rest | k' h' rest | handlers rest | ap
+        | ac | scrutinee arms | ];
+    intros scope tenv fit k h target xs ks Hknown Hfind;
+    cbn [find_use] in Hfind; cbn [find_use_keeps_fit]; try discriminate.
+  - destruct (var_free_in_handler_b x h); [ discriminate | ].
+    destruct (let_env tenv x declared d) as [tenv' | ] eqn:Henv;
+      [ | discriminate ].
+    destruct (find_use scope tenv' k h rest) as [[[target' xs'] ks'] | ]
+      eqn:Hrest; [ | discriminate ].
+    injection Hfind as <- _ _.
+    pose proof (find_use_known_to_fit_aux rest scope tenv'
+                  (fit && let_env_keeps_fit tenv x declared d) k h target'
+                  xs' ks'
+                  (let_env_known_to_fit tenv tenv' fit x declared d Hknown
+                     Henv)
+                  Hrest)
+      as IH.
+    rewrite andb_assoc. exact IH.
+  - destruct (negb (Pos.eqb k k') && negb (cont_free_in_handler_b k h')
+              && negb (cont_free_in_handler_b k' h));
+      [ | discriminate ].
+    destruct (find_use scope tenv k h rest) as [[[target' xs'] ks'] | ]
+      eqn:Hrest; [ | discriminate ].
+    injection Hfind as <- _ _.
+    exact (find_use_known_to_fit_aux rest scope tenv fit k h target' xs' ks'
+             Hknown Hrest).
+  - destruct h as [params metadata handler].
+    destruct (leaf_uses tenv k (Apply_cont ac))
+      as [[ | [tenv_use args] [ | second others]] | ] eqn:Hleaf;
+      try discriminate.
+    destruct (use_env scope tenv_use params metadata args) as [target' | ]
+      eqn:Huse; [ | discriminate ].
+    injection Hfind as <- _ _. intros Hfit.
+    apply andb_true_iff in Hfit. destruct Hfit as [Hfit Hkeeps].
+    apply andb_true_iff in Hkeeps. destruct Hkeeps as [Hleaf_fit Huse_fit].
+    apply (use_env_carried scope tenv_use params metadata args target');
+      [ | exact Huse | exact Huse_fit ].
+    apply (leaf_uses_carried tenv k (Apply_cont ac) _ tenv_use args
+             (Hknown Hfit) Hleaf Hleaf_fit).
+    left. reflexivity.
+  - destruct h as [params metadata handler].
+    destruct (leaf_uses tenv k (Switch scrutinee arms))
+      as [[ | [tenv_use args] [ | second others]] | ] eqn:Hleaf;
+      try discriminate.
+    destruct (use_env scope tenv_use params metadata args) as [target' | ]
+      eqn:Huse; [ | discriminate ].
+    injection Hfind as <- _ _. intros Hfit.
+    apply andb_true_iff in Hfit. destruct Hfit as [Hfit Hkeeps].
+    apply andb_true_iff in Hkeeps. destruct Hkeeps as [Hleaf_fit Huse_fit].
+    apply (use_env_carried scope tenv_use params metadata args target');
+      [ | exact Huse | exact Huse_fit ].
+    apply (leaf_uses_carried tenv k (Switch scrutinee arms) _ tenv_use args
+             (Hknown Hfit) Hleaf Hleaf_fit).
+    left. reflexivity.
+Qed.
+
+Theorem find_use_known_to_fit : find_use_known_to_fit_statement.
+Proof.
+  intros scope tenv fit k h body.
+  exact (find_use_known_to_fit_aux body scope tenv fit k h).
+Qed.
+
+(* [FlambdaSimplifyPassProofs.find_use_refines_aux], from the states
+   that have [run_valid] but for the test of the expression. *)
+Fixpoint find_use_refines_valid (body : expr) {struct body} :
+  ∀ (scope tenv : Typing_env.t) (k : continuation) (params : list variable)
+    (metadata : handler_metadata) (handler handler' : expr)
+    (target : Typing_env.t) (xs : list variable) (ks : list continuation),
+    find_use scope tenv k (Handler params metadata handler) body
+    = Some (target, xs, ks) ->
+    binders_not_free xs ks (Handler params metadata handler') = true ->
+    sets_well_formed handler = true ->
+    sets_well_formed body = true ->
+    refines_valid target handler handler' ->
+    refines_valid tenv
+      (Let_cont_non_recursive k (Handler params metadata handler) body)
+      (Let_cont_non_recursive k (Handler params metadata handler') body).
+Proof.
+  destruct body
+    as [x declared d rest | bindings rest | k' h' rest | handlers rest | ap
+        | ac | scrutinee arms | ];
+    intros scope tenv k params metadata handler handler' target xs ks Hfind
+      Hfree Hhandler_sets Hbody_sets Hhandler;
+    cbn [find_use] in Hfind; try discriminate.
+  - destruct (var_free_in_handler_b x (Handler params metadata handler))
+      eqn:Hx; [ discriminate | ].
+    destruct (let_env tenv x declared d) as [tenv' | ] eqn:Henv;
+      [ | discriminate ].
+    destruct (find_use scope tenv' k (Handler params metadata handler) rest)
+      as [[[target' xs'] ks'] | ] eqn:Hrest; [ | discriminate ].
+    injection Hfind as <- <- <-.
+    unfold binders_not_free in Hfree. cbn [forallb] in Hfree.
+    apply andb_true_iff in Hfree. destruct Hfree as [Hxs Hks].
+    apply andb_true_iff in Hxs. destruct Hxs as [Hx' Hxs].
+    apply negb_true_iff in Hx'.
+    assert (Hrest_free :
+      binders_not_free xs' ks' (Handler params metadata handler') = true).
+    { unfold binders_not_free. rewrite Hxs, Hks. reflexivity. }
+    cbn [sets_well_formed] in Hbody_sets.
+    apply andb_true_iff in Hbody_sets. destruct Hbody_sets as [Hd Hrest_sets].
+    pose proof (find_use_refines_valid rest scope tenv' k params metadata
+                  handler handler' target' xs' ks' Hrest Hrest_free
+                  Hhandler_sets Hrest_sets Hhandler)
+      as IH.
+    intros vars conts statics Hvalid Hsat.
+    apply (refines_trans _
+             (State
+                (Let x declared d
+                   (Let_cont_non_recursive k
+                      (Handler params metadata handler) rest))
+                vars conts statics)).
+    { apply equivalent_refines, let_cont_past_let. intros Hfree'.
+      apply var_free_in_handler_b_sound in Hfree'. congruence. }
+    apply (refines_trans _
+             (State
+                (Let x declared d
+                   (Let_cont_non_recursive k
+                      (Handler params metadata handler') rest))
+                vars conts statics)).
+    { apply let_refines_step; [ reflexivity | intros v Hv Hkind ].
+      apply IH.
+      - eapply (rest_valid_step
+                  (Let x declared d
+                     (Let_cont_non_recursive k
+                        (Handler params metadata handler) rest)));
+          [ | exact Hvalid | ].
+        + cbn [sets_well_formed handler_sets_well_formed].
+          rewrite Hd, Hhandler_sets, Hrest_sets. reflexivity.
+        + rewrite step_let, Hv, (proj2 (kind_eqb_eq _ _) Hkind).
+          reflexivity.
+      - exact (let_env_satisfied tenv tenv' x declared d statics vars v Henv
+                 Hsat Hv Hkind). }
+    apply equivalent_refines, equivalent_sym, let_cont_past_let.
+    intros Hfree'. apply var_free_in_handler_b_sound in Hfree'. congruence.
+  - destruct (negb (Pos.eqb k k') && negb (cont_free_in_handler_b k h')
+              && negb
+                   (cont_free_in_handler_b k'
+                      (Handler params metadata handler)))
+      eqn:Htests; [ | discriminate ].
+    apply andb_true_iff in Htests. destruct Htests as [Htests Hk'].
+    apply andb_true_iff in Htests. destruct Htests as [Hne Hk].
+    apply negb_true_iff in Hne, Hk, Hk'. apply Pos.eqb_neq in Hne.
+    destruct (find_use scope tenv k (Handler params metadata handler) rest)
+      as [[[target' xs'] ks'] | ] eqn:Hrest; [ | discriminate ].
+    injection Hfind as <- <- <-.
+    unfold binders_not_free in Hfree. cbn [forallb] in Hfree.
+    apply andb_true_iff in Hfree. destruct Hfree as [Hxs Hks].
+    apply andb_true_iff in Hks. destruct Hks as [Hk'' Hks].
+    apply negb_true_iff in Hk''.
+    assert (Hrest_free :
+      binders_not_free xs' ks' (Handler params metadata handler') = true).
+    { unfold binders_not_free. rewrite Hxs, Hks. reflexivity. }
+    cbn [sets_well_formed] in Hbody_sets.
+    apply andb_true_iff in Hbody_sets.
+    destruct Hbody_sets as [Hh' Hrest_sets].
+    pose proof (find_use_refines_valid rest scope tenv k params metadata
+                  handler handler' target' xs' ks' Hrest Hrest_free
+                  Hhandler_sets Hrest_sets Hhandler)
+      as IH.
+    intros vars conts statics Hvalid Hsat.
+    apply (refines_trans _
+             (State
+                (Let_cont_non_recursive k' h'
+                   (Let_cont_non_recursive k
+                      (Handler params metadata handler) rest))
+                vars conts statics)).
+    { apply equivalent_refines, let_cont_past_let_cont; [ exact Hne | | ];
+        intros Hfree'; apply cont_free_in_handler_b_sound in Hfree';
+        congruence. }
+    apply (refines_trans _
+             (State
+                (Let_cont_non_recursive k' h'
+                   (Let_cont_non_recursive k
+                      (Handler params metadata handler') rest))
+                vars conts statics)).
+    { apply let_cont_non_recursive_refines_step. apply IH; [ | exact Hsat ].
+      eapply (rest_valid_step
+                (Let_cont_non_recursive k' h'
+                   (Let_cont_non_recursive k
+                      (Handler params metadata handler) rest)));
+        [ | exact Hvalid | apply step_let_cont_non_recursive ].
+      cbn [sets_well_formed handler_sets_well_formed].
+      rewrite Hh', Hhandler_sets, Hrest_sets. reflexivity. }
+    apply equivalent_refines, equivalent_sym, let_cont_past_let_cont;
+      [ exact Hne | | ];
+      intros Hfree'; apply cont_free_in_handler_b_sound in Hfree';
+      congruence.
+  - destruct (leaf_uses tenv k (Apply_cont ac))
+      as [[ | [tenv_use args] [ | second others]] | ] eqn:Hleaf;
+      try discriminate.
+    destruct (use_env scope tenv_use params metadata args) as [target' | ]
+      eqn:Huse; [ | discriminate ].
+    injection Hfind as <- _ _.
+    intros vars conts statics Hvalid Hsat.
+    apply (let_cont_handler_at_use_from run_valid scope tenv k params
+             metadata handler handler' _ tenv_use args target'
+             run_valid_kept Hleaf Huse);
+      [ | | exact Hsat ].
+    + intros vars' conts' statics' Hrun Hsat'.
+      apply Hhandler; [ | exact Hsat' ].
+      exact (run_valid_rest handler vars' conts' statics' Hrun).
+    + apply rest_valid_run; [ | exact Hvalid ].
+      cbn [sets_well_formed handler_sets_well_formed].
+      rewrite Hhandler_sets. reflexivity.
+  - destruct (leaf_uses tenv k (Switch scrutinee arms))
+      as [[ | [tenv_use args] [ | second others]] | ] eqn:Hleaf;
+      try discriminate.
+    destruct (use_env scope tenv_use params metadata args) as [target' | ]
+      eqn:Huse; [ | discriminate ].
+    injection Hfind as <- _ _.
+    intros vars conts statics Hvalid Hsat.
+    apply (let_cont_handler_at_use_from run_valid scope tenv k params
+             metadata handler handler' _ tenv_use args target'
+             run_valid_kept Hleaf Huse);
+      [ | | exact Hsat ].
+    + intros vars' conts' statics' Hrun Hsat'.
+      apply Hhandler; [ | exact Hsat' ].
+      exact (run_valid_rest handler vars' conts' statics' Hrun).
+    + apply rest_valid_run; [ | exact Hvalid ].
+      cbn [sets_well_formed handler_sets_well_formed].
+      rewrite Hhandler_sets. reflexivity.
+Qed.
+
+Theorem find_use_refines_from_valid : find_use_refines_from_valid_statement.
+Proof.
+  intros scope tenv k params metadata handler handler' body target xs ks
+    Hfind Hfree Hsets Hhandler.
+  cbn [sets_well_formed handler_sets_well_formed] in Hsets.
+  apply andb_true_iff in Hsets. destruct Hsets as [Hhandler_sets Hbody_sets].
+  apply refines_valid_from.
+  apply (find_use_refines_valid body scope tenv k params metadata handler
+           handler' target xs ks Hfind Hfree Hhandler_sets Hbody_sets).
+  exact (from_valid_refines_valid target handler handler' Hhandler_sets
+           Hhandler).
+Qed.
+
+(* ======================================================================== *)
 (* A term                                                                   *)
 (* ======================================================================== *)
 
@@ -1439,27 +1828,67 @@ Proof.
                   Hrefines)
       as Hfirst.
     destruct handler as [params metadata handler].
-    cbn [handler_sets_well_formed] in Hhandler.
-    cbn [simplify_handler_pruning].
-    destruct (handler_env tenv params metadata) as [tenv_handler | ]
-      eqn:Henv.
-    + cbv zeta. cbn [negb orb].
-      destruct (simplify_expr_pruning_sound prune Hprune handler
-                  tenv_handler fit
-                  (handler_env_known_to_fit tenv fit params metadata
-                     tenv_handler Hknown Henv)
-                  Hhandler)
-        as [Hhandler' Hhandler_refines].
-      split.
-      * cbn [sets_well_formed handler_sets_well_formed].
-        rewrite Hhandler', Hbody'. reflexivity.
-      * eapply refines_valid_trans; [ exact Hfirst | ].
-        exact (let_cont_handler_typed_valid tenv k params metadata handler
-                 _ _ tenv_handler Henv Hhandler Hhandler' Hbody'
-                 Hhandler_refines).
-    + split; [ | exact Hfirst ].
-      cbn [sets_well_formed handler_sets_well_formed].
-      rewrite Hhandler, Hbody'. reflexivity.
+    cbn [handler_sets_well_formed] in Hhandler. cbv zeta.
+    revert Hbody' Hrefines Hfirst.
+    generalize (simplify_expr_pruning prune tenv fit body).
+    intros body' Hbody' Hrefines Hfirst.
+    assert (Hdefault :
+      sets_well_formed
+        (Let_cont_non_recursive k
+           (simplify_handler_pruning prune false tenv fit
+              (Handler params metadata handler))
+           body')
+      = true
+      ∧ refines_valid tenv
+          (Let_cont_non_recursive k (Handler params metadata handler) body)
+          (Let_cont_non_recursive k
+             (simplify_handler_pruning prune false tenv fit
+                (Handler params metadata handler))
+             body')).
+    { cbn [simplify_handler_pruning].
+      destruct (handler_env tenv params metadata) as [tenv_handler | ]
+        eqn:Henv.
+      + cbv zeta. cbn [negb orb].
+        destruct (simplify_expr_pruning_sound prune Hprune handler
+                    tenv_handler fit
+                    (handler_env_known_to_fit tenv fit params metadata
+                       tenv_handler Hknown Henv)
+                    Hhandler)
+          as [Hhandler' Hhandler_refines].
+        split.
+        * cbn [sets_well_formed handler_sets_well_formed].
+          rewrite Hhandler', Hbody'. reflexivity.
+        * eapply refines_valid_trans; [ exact Hfirst | ].
+          exact (let_cont_handler_typed_valid tenv k params metadata handler
+                   _ _ tenv_handler Henv Hhandler Hhandler' Hbody'
+                   Hhandler_refines).
+      + split; [ | exact Hfirst ].
+        cbn [sets_well_formed handler_sets_well_formed].
+        rewrite Hhandler, Hbody'. reflexivity. }
+    destruct (find_use tenv tenv k (Handler params metadata handler) body')
+      as [[[target xs] ks] | ] eqn:Hfind; [ | exact Hdefault ].
+    destruct (simplify_expr_pruning_sound prune Hprune handler target
+                (fit
+                 && find_use_keeps_fit tenv tenv k
+                      (Handler params metadata handler) body')
+                (find_use_known_to_fit_aux body' tenv tenv fit k _ target xs
+                   ks Hknown Hfind)
+                Hhandler)
+      as [Hhandler' Hhandler_refines].
+    destruct (binders_not_free xs ks
+                (Handler params metadata
+                   (simplify_expr_pruning prune target
+                      (fit
+                       && find_use_keeps_fit tenv tenv k
+                            (Handler params metadata handler) body')
+                      handler)))
+      eqn:Hfree; [ | exact Hdefault ].
+    split.
+    + cbn [sets_well_formed handler_sets_well_formed].
+      rewrite Hhandler', Hbody'. reflexivity.
+    + eapply refines_valid_trans; [ exact Hfirst | ].
+      exact (find_use_refines_valid body' tenv tenv k params metadata handler
+               _ target xs ks Hfind Hfree Hhandler Hbody' Hhandler_refines).
   - pose proof Hsets as H. cbn [sets_well_formed] in H.
     apply andb_true_iff in H. destruct H as [Hhandlers Hbody].
     destruct (simplify_expr_pruning_sound prune Hprune body tenv fit Hknown
@@ -1648,13 +2077,22 @@ Proof.
       [ | reflexivity ].
     cbv zeta. rewrite (simplify_expr_no_pruning_eq code_body tenv_code fit').
     reflexivity.
-  - f_equal; [ | apply simplify_expr_no_pruning_eq ].
-    destruct handler as [params metadata handler].
-    cbn [simplify_handler_pruning simplify_handler].
-    destruct (handler_env tenv params metadata) as [tenv_handler | ];
-      [ | reflexivity ].
-    cbv zeta.
-    rewrite (simplify_expr_no_pruning_eq handler tenv_handler fit).
+  - cbv zeta. rewrite (simplify_expr_no_pruning_eq body tenv fit).
+    destruct handler as [params metadata handler]. f_equal.
+    assert (Hdefault :
+      simplify_handler_pruning no_pruning false tenv fit
+        (Handler params metadata handler)
+      = simplify_handler false tenv (Handler params metadata handler)).
+    { cbn [simplify_handler_pruning simplify_handler].
+      destruct (handler_env tenv params metadata) as [tenv_handler | ];
+        [ | reflexivity ].
+      cbv zeta.
+      rewrite (simplify_expr_no_pruning_eq handler tenv_handler fit).
+      reflexivity. }
+    destruct (find_use tenv tenv k (Handler params metadata handler)
+                (simplify_expr tenv body))
+      as [[[target xs] ks] | ]; [ | exact Hdefault ].
+    rewrite (simplify_expr_no_pruning_eq handler target), Hdefault.
     reflexivity.
   - f_equal; [ | apply simplify_expr_no_pruning_eq ].
     induction handlers as [ | [k h] handlers IH]; [ reflexivity | ].

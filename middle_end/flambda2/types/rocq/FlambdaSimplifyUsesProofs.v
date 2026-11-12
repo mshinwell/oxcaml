@@ -33,7 +33,7 @@ From Stdlib Require Import ZArith List Bool Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
   FlambdaMapSpec FlambdaMapProofs FlambdaValueSpec FlambdaPrimitiveModel
-  FlambdaSemanticsSpec FlambdaSemanticsProofs.
+  FlambdaSemanticsSpec FlambdaSemanticsProofs FlambdaContextWhereSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaTypingEnv
   FlambdaTypingEnvSpec FlambdaTypingEnvProofs FlambdaTypingEnvInvariantSpec
@@ -642,15 +642,24 @@ Qed.
 (* An [Apply_cont] under the closures of two handlers of [k], defined
    where it is: it applies [k], and the two handlers run under the
    same variables; or it applies another continuation, which is the
-   same in the two. *)
-Lemma apply_cont_leaf (k : continuation) (params : list variable)
-    (metadata : handler_metadata) (handler handler' : expr) (ac : apply_cont)
-    (vars : env) (conts : cont_env) (statics : static_env) :
+   same in the two. [inv] is a predicate that a step keeps: the state
+   in which the first handler is entered has it if the state of the
+   [Apply_cont] has. *)
+Lemma apply_cont_leaf_from (inv : state -> Prop) (k : continuation)
+    (params : list variable) (metadata : handler_metadata)
+    (handler handler' : expr) (ac : apply_cont) (vars : env)
+    (conts : cont_env) (statics : static_env) :
+  kept_by_step inv ->
+  inv
+    (State (Apply_cont ac) vars
+       ((k, Closure (Handler params metadata handler) vars conts []) :: conts)
+       statics) ->
   (ac_continuation ac = k ->
    ∀ (vs : list value) (handler_vars : env),
      eval_simples vars (ac_args ac) = Some vs ->
      map kind_of_value vs = hm_params_kinds metadata ->
      bind_params params vs vars = Some handler_vars ->
+     inv (State handler handler_vars conts statics) ->
      refines (State handler handler_vars conts statics)
        (State handler' handler_vars conts statics)) ->
   refines
@@ -662,7 +671,7 @@ Lemma apply_cont_leaf (k : continuation) (params : list variable)
         :: conts)
        statics).
 Proof.
-  intros Hhandler.
+  intros Hkept Hinv Hhandler.
   destruct (eval_simples vars (ac_args ac)) as [vs | ] eqn:Hargs.
   2: { apply step_undefined_refines. rewrite step_apply_cont, Hargs.
        reflexivity. }
@@ -676,30 +685,41 @@ Proof.
     2: { apply step_undefined_refines. rewrite step_apply_cont, Hargs.
          unfold apply_continuation. rewrite Hk, resolve_head. simpl.
          rewrite Hkinds, Hbind. reflexivity. }
-    eapply refines_step.
-    + apply (step_apply_cont_handler ac vars _ statics vs params metadata
+    assert (Hstep :
+      step
+        (State (Apply_cont ac) vars
+           ((k, Closure (Handler params metadata handler) vars conts [])
+            :: conts)
+           statics)
+      = Step (State handler handler_vars conts statics)).
+    { apply (step_apply_cont_handler ac vars _ statics vs params metadata
                handler vars conts [] handler_vars Hargs);
-        [ rewrite Hk; apply resolve_head | exact Hkinds | exact Hbind ].
+        [ rewrite Hk; apply resolve_head | exact Hkinds | exact Hbind ]. }
+    eapply refines_step.
+    + exact Hstep.
     + apply (step_apply_cont_handler ac vars _ statics vs params metadata
                handler' vars conts [] handler_vars Hargs);
         [ rewrite Hk; apply resolve_head | exact Hkinds | exact Hbind ].
     + exact (Hhandler Hk vs handler_vars eq_refl
-               (proj1 (kinds_eqb_eq _ _) Hkinds) Hbind).
+               (proj1 (kinds_eqb_eq _ _) Hkinds) Hbind
+               (Hkept _ _ Hinv Hstep)).
   - apply equivalent_refines, step_eq_equivalent.
     rewrite !step_apply_cont, Hargs. unfold apply_continuation.
     rewrite !(resolve_other (ac_continuation ac) k) by exact Hne.
     reflexivity.
 Qed.
 
-(* A [Let_cont] whose body is an [Apply_cont] or a [Switch]: the
-   handler is replaced by one that refines it in the states in which
-   an application of the body enters it. Such a state satisfies the
-   environment of the [Let_cont] and the environment of the
-   application, with one valuation. *)
-Lemma leaf_refines (tenv : Typing_env.t) (k : continuation)
-    (params : list variable) (metadata : handler_metadata)
+(* A [Let_cont] whose body is an [Apply_cont] or a [Switch], from the
+   states that have a predicate that a step keeps: the handler is
+   replaced by one that refines it in the states in which an
+   application of the body enters it. Such a state has the predicate,
+   and satisfies the environment of the [Let_cont] and the
+   environment of the application, with one valuation. *)
+Lemma leaf_refines_from (inv : state -> Prop) (tenv : Typing_env.t)
+    (k : continuation) (params : list variable) (metadata : handler_metadata)
     (handler handler' body : expr)
     (applications : list (Typing_env.t * list simple)) :
+  kept_by_step inv ->
   leaf_uses tenv k body = Some applications ->
   (∀ (index : nat) (tenv_use : Typing_env.t) (args : list simple)
      (statics : static_env) (valuation vars : env) (conts : cont_env)
@@ -710,21 +730,38 @@ Lemma leaf_refines (tenv : Typing_env.t) (k : continuation)
      eval_simples vars args = Some vs ->
      map kind_of_value vs = hm_params_kinds metadata ->
      bind_params params vs vars = Some handler_vars ->
+     inv (State handler handler_vars conts statics) ->
      refines (State handler handler_vars conts statics)
        (State handler' handler_vars conts statics)) ->
-  expr_refines_under tenv
-    (Let_cont_non_recursive k (Handler params metadata handler) body)
-    (Let_cont_non_recursive k (Handler params metadata handler') body).
+  ∀ (vars : env) (conts : cont_env) (statics : static_env),
+    inv
+      (State
+         (Let_cont_non_recursive k (Handler params metadata handler) body)
+         vars conts statics) ->
+    env_satisfies_strictly tenv statics vars ->
+    refines
+      (State
+         (Let_cont_non_recursive k (Handler params metadata handler) body)
+         vars conts statics)
+      (State
+         (Let_cont_non_recursive k (Handler params metadata handler') body)
+         vars conts statics).
 Proof.
-  intros Hleaf Hhandler vars conts statics Hsat.
+  intros Hkept Hleaf Hhandler vars conts statics Hinv Hsat.
   destruct (satisfies_shows tenv statics vars Hsat) as [valuation Hshows].
+  pose proof (Hkept _ _ Hinv
+                (step_let_cont_non_recursive k
+                   (Handler params metadata handler) body vars conts
+                   statics))
+    as Hinv_body.
   apply let_cont_non_recursive_refines_step.
   destruct body
     as [x declared d body | bindings body | k' h body | handlers body | ap
         | ac | scrutinee arms | ];
     simpl in Hleaf; try discriminate.
-  - injection Hleaf as <-. apply apply_cont_leaf.
-    intros Hk vs handler_vars Hargs Hkinds Hbind.
+  - injection Hleaf as <-.
+    apply (apply_cont_leaf_from inv); [ exact Hkept | exact Hinv_body | ].
+    intros Hk vs handler_vars Hargs Hkinds Hbind Hinv_handler.
     apply (Hhandler 0%nat tenv (ac_args ac) statics valuation vars conts vs
              handler_vars);
       try assumption.
@@ -739,10 +776,23 @@ Proof.
     destruct (find_arm i arms) as [ac | ] eqn:Hfind.
     2: { apply step_undefined_refines. rewrite step_switch, Hv, Hi, Hfind.
          reflexivity. }
+    assert (Hstep :
+      step
+        (State (Switch scrutinee arms) vars
+           ((k, Closure (Handler params metadata handler) vars conts [])
+            :: conts)
+           statics)
+      = Step
+          (State (Apply_cont ac) vars
+             ((k, Closure (Handler params metadata handler) vars conts [])
+              :: conts)
+             statics)).
+    { rewrite step_switch, Hv, Hi, Hfind. reflexivity. }
     eapply refines_step;
-      [ rewrite step_switch, Hv, Hi, Hfind; reflexivity
-      | rewrite step_switch, Hv, Hi, Hfind; reflexivity | ].
-    apply apply_cont_leaf. intros Hk vs handler_vars Hargs Hkinds Hbind.
+      [ exact Hstep | rewrite step_switch, Hv, Hi, Hfind; reflexivity | ].
+    apply (apply_cont_leaf_from inv);
+      [ exact Hkept | exact (Hkept _ _ Hinv_body Hstep) | ].
+    intros Hk vs handler_vars Hargs Hkinds Hbind Hinv_handler.
     assert (Hvalue : v = Value_const (Naked_immediate i)).
     { unfold naked_immediate_of_value in Hi.
       destruct v as [c | | | | | | | ]; try discriminate Hi.
@@ -764,6 +814,79 @@ Proof.
              valuation vars conts vs handler_vars Hnth Hshows);
       try assumption.
     apply arm_env_shows; [ exact Hshows | ]. rewrite Hv, Hvalue. reflexivity.
+Qed.
+
+(* The same from every state. *)
+Lemma leaf_refines (tenv : Typing_env.t) (k : continuation)
+    (params : list variable) (metadata : handler_metadata)
+    (handler handler' body : expr)
+    (applications : list (Typing_env.t * list simple)) :
+  leaf_uses tenv k body = Some applications ->
+  (∀ (index : nat) (tenv_use : Typing_env.t) (args : list simple)
+     (statics : static_env) (valuation vars : env) (conts : cont_env)
+     (vs : list value) (handler_vars : env),
+     nth_error applications index = Some (tenv_use, args) ->
+     shows tenv statics valuation vars ->
+     shows tenv_use statics valuation vars ->
+     eval_simples vars args = Some vs ->
+     map kind_of_value vs = hm_params_kinds metadata ->
+     bind_params params vs vars = Some handler_vars ->
+     refines (State handler handler_vars conts statics)
+       (State handler' handler_vars conts statics)) ->
+  expr_refines_under tenv
+    (Let_cont_non_recursive k (Handler params metadata handler) body)
+    (Let_cont_non_recursive k (Handler params metadata handler') body).
+Proof.
+  intros Hleaf Hhandler vars conts statics Hsat.
+  apply (leaf_refines_from (fun _ => True) tenv k params metadata handler
+           handler' body applications);
+    [ intros s s' _ _; exact I | exact Hleaf | | exact I | exact Hsat ].
+  intros index tenv_use args statics' valuation vars' conts' vs handler_vars
+    Hnth Hshows Hshows_use Hargs Hkinds Hbind _.
+  exact (Hhandler index tenv_use args statics' valuation vars' conts' vs
+           handler_vars Hnth Hshows Hshows_use Hargs Hkinds Hbind).
+Qed.
+
+(* One application, from the states that have a predicate that a step
+   keeps: the form that the function which prunes uses. *)
+Lemma let_cont_handler_at_use_from (inv : state -> Prop)
+    (scope tenv : Typing_env.t) (k : continuation) (params : list variable)
+    (metadata : handler_metadata) (handler handler' body : expr)
+    (tenv_use : Typing_env.t) (args : list simple) (target : Typing_env.t) :
+  kept_by_step inv ->
+  leaf_uses tenv k body = Some [(tenv_use, args)] ->
+  use_env scope tenv_use params metadata args = Some target ->
+  (∀ (vars : env) (conts : cont_env) (statics : static_env),
+     inv (State handler vars conts statics) ->
+     env_satisfies_strictly target statics vars ->
+     refines (State handler vars conts statics)
+       (State handler' vars conts statics)) ->
+  ∀ (vars : env) (conts : cont_env) (statics : static_env),
+    inv
+      (State
+         (Let_cont_non_recursive k (Handler params metadata handler) body)
+         vars conts statics) ->
+    env_satisfies_strictly tenv statics vars ->
+    refines
+      (State
+         (Let_cont_non_recursive k (Handler params metadata handler) body)
+         vars conts statics)
+      (State
+         (Let_cont_non_recursive k (Handler params metadata handler') body)
+         vars conts statics).
+Proof.
+  intros Hkept Hleaf Huse Hhandler.
+  apply (leaf_refines_from inv tenv k params metadata handler handler' body
+           [(tenv_use, args)] Hkept Hleaf).
+  intros index tenv_use' args' statics valuation vars conts vs handler_vars
+    Hnth _ Hshows Hargs Hkinds Hbind Hinv.
+  destruct index as [ | index];
+    [ | simpl in Hnth; destruct index; discriminate Hnth ].
+  injection Hnth as <- <-. apply Hhandler; [ exact Hinv | ].
+  destruct (use_env_shows scope tenv_use params metadata args target statics
+              valuation vars vs handler_vars Huse Hshows Hargs Hkinds Hbind)
+    as [valuation' [_ Hshows']].
+  exact (shows_satisfies target statics valuation' handler_vars Hshows').
 Qed.
 
 (* ======================================================================== *)

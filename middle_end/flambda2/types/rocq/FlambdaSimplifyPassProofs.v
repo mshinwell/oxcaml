@@ -1391,15 +1391,31 @@ Proof.
     + exact (Hbindings (add_static_bindings tenv bindings) [] eq_refl).
     + apply let_static_typed. rewrite add_static_bindings_simplify.
       apply simplify_expr_sound.
-  - eapply expr_refines_under_trans.
+  - cbv zeta. eapply expr_refines_under_trans.
     + apply let_cont_body_refines_under. apply (simplify_expr_sound body).
     + destruct handler as [params metadata handler].
-      cbn [simplify_handler].
-      destruct (handler_env tenv params metadata) as [tenv_handler | ]
-        eqn:Henv; [ | apply expr_refines_under_refl ].
-      cbv zeta. cbn [negb orb].
-      exact (let_cont_handler_typed tenv k params metadata handler _ _
-               tenv_handler Henv (simplify_expr_sound handler tenv_handler)).
+      generalize (simplify_expr tenv body). intros body'.
+      assert (Hdefault :
+        expr_refines_under tenv
+          (Let_cont_non_recursive k (Handler params metadata handler) body')
+          (Let_cont_non_recursive k
+             (simplify_handler false tenv (Handler params metadata handler))
+             body')).
+      { cbn [simplify_handler].
+        destruct (handler_env tenv params metadata) as [tenv_handler | ]
+          eqn:Henv; [ | apply expr_refines_under_refl ].
+        cbv zeta. cbn [negb orb].
+        exact (let_cont_handler_typed tenv k params metadata handler _ _
+                 tenv_handler Henv
+                 (simplify_expr_sound handler tenv_handler)). }
+      destruct (find_use tenv tenv k (Handler params metadata handler) body')
+        as [[[target xs] ks] | ] eqn:Hfind; [ | exact Hdefault ].
+      destruct (binders_not_free xs ks
+                  (Handler params metadata (simplify_expr target handler)))
+        eqn:Hfree; [ | exact Hdefault ].
+      exact (find_use_refines_aux body' tenv tenv k params metadata handler
+               _ target xs ks Hfind Hfree
+               (simplify_expr_sound handler target)).
   - eapply expr_refines_under_trans.
     + apply let_cont_recursive_body_refines_under.
       apply (simplify_expr_sound body).
@@ -1489,7 +1505,7 @@ Theorem example_pass_untag_of_tag : example_pass_untag_of_tag_statement.
 Proof. intros k. vm_compute. reflexivity. Qed.
 
 Theorem example_pass_under_binders : example_pass_under_binders_statement.
-Proof. intros k k'. vm_compute. reflexivity. Qed.
+Proof. vm_compute. reflexivity. Qed.
 
 Theorem example_pass_in_code : example_pass_in_code_statement.
 Proof. intros k ret exn. vm_compute. reflexivity. Qed.

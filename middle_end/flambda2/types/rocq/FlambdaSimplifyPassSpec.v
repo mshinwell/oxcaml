@@ -109,7 +109,9 @@
      FlambdaSimplifyHandlersSpec.v). A handler of a recursive
      [Let_cont] is kept as it was if the rewrite would change whether
      it binds something static, as such a handler may bind nothing
-     static.
+     static. The handler of a non-recursive [Let_cont] is rewritten
+     after the body, and under more where what the body has become
+     applies the continuation at one place (below).
    - The arguments of an [Apply_cont] are replaced by their canonical
      elements. A [Switch] whose scrutinee has a constant for
      canonical element becomes the [Apply_cont] of its arm.
@@ -124,29 +126,39 @@
      from there down as it is.
 
    The handler of a continuation under what is known where the
-   continuation is applied. Another function is here, with a theorem
-   of its own and one example: [rewrite_handler_at_use] rewrites the
-   handler of a non-recursive [Let_cont] under the environment of the
-   one application of its continuation, where the body applies it at
-   one place ([find_use]). That is the environment at the
+   continuation is applied. At a non-recursive [Let_cont] the body is
+   rewritten first. Where what it has become applies the continuation
+   at one place ([find_use]: at the end of the [Let]s and the
+   non-recursive [Let_cont]s that it begins with, by an [Apply_cont]
+   or by one arm of a [Switch]), the handler is rewritten under the
+   environment of that application: the environment at the
    application ([let_env] at each [Let] on the way, [arm_env] where
    the application is an arm of a [Switch]) with the parameters
-   defined and made aliases of the arguments ([use_env]).
-   FlambdaSimplifyUsesSpec.v says what Simplify does there, where the
-   model parts from it, and has the statements for a [Let_cont] whose
-   body is the application; [find_use_refines_statement] here is for
-   one whose body binds something first. [simplify_expr] does not
-   call [rewrite_handler_at_use]: the function that prunes
-   (FlambdaSimplifyPruningSpec.v) is stated to be [simplify_expr]
-   where nothing is pruned, and has not this rewrite yet.
+   defined and made aliases of the arguments ([use_env]). What the
+   handler becomes is kept if it mentions none of the binders between
+   the [Let_cont] and the application ([binders_not_free]); if it
+   mentions one, and where there is no such application, the handler
+   is rewritten as the bullet above says, with nothing known of its
+   parameters but their kinds. FlambdaSimplifyUsesSpec.v says what
+   Simplify does there, where the model parts from it, and has the
+   statements for a [Let_cont] whose body is the application;
+   [find_use_refines_statement] here is for one whose body binds
+   something first. [rewrite_handler_at_use] is that step alone, with
+   a theorem of its own and one example. The function that prunes
+   (FlambdaSimplifyPruningSpec.v) makes the same step.
 
    What Simplify does and this does not:
-   - In the handler of a continuation [simplify_expr] knows nothing
-     of a parameter but its kind: there are no joins of the
-     environments at the uses of a continuation, which Simplify has
-     for the parameters of a non-recursive [Let_cont] and for the
-     invariant parameters of a recursive one, and no subkinds
-     (FlambdaSimplifyHandlersSpec.v says where the two part).
+   - There are no joins of the environments at the uses of a
+     continuation, which Simplify has for the parameters of a
+     non-recursive [Let_cont] and for the invariant parameters of a
+     recursive one, and no subkinds (FlambdaSimplifyHandlersSpec.v
+     says where the two part). So [simplify_expr] knows nothing of a
+     parameter but its kind in every handler of a recursive
+     [Let_cont], and in the handler of a non-recursive one whose
+     continuation is applied at more than one place, or at a place
+     that [find_use] does not reach: under a handler, under a
+     [Let_static] or a recursive [Let_cont], or by a call that returns
+     or raises to it.
    - In the body of code nothing is known of a parameter but its
      kind, nor of [my_closure] but that it is a value: Simplify gives
      [my_closure] the type of the closure. The code is rewritten
@@ -218,7 +230,7 @@
    FlambdaSimplifyPassRenamingSpec.v, with the equations of its
    parts. The functions of the section "Where a continuation is
    applied" and [rewrite_handler_at_use] have equations of their own
-   there: that of [simplify_expr] does not give them.
+   there.
 
    Nothing is assumed: the two statements of [simplify_expr] have no
    premise, and the others none but what they say.
@@ -1038,8 +1050,21 @@ Fixpoint simplify_expr (tenv : Typing_env.t) (e : expr) : expr :=
     Let_static (map (simplify_static_binding tenv') bindings)
       (simplify_expr tenv' body)
   | Let_cont_non_recursive k handler body =>
-    Let_cont_non_recursive k (simplify_handler false tenv handler)
-      (simplify_expr tenv body)
+    let body' := simplify_expr tenv body in
+    Let_cont_non_recursive k
+      (match handler with
+       | Handler params metadata handler_body =>
+         match find_use tenv tenv k handler body' with
+         | Some (target, xs, ks) =>
+           let rewritten :=
+             Handler params metadata (simplify_expr target handler_body)
+           in
+           if binders_not_free xs ks rewritten then rewritten
+           else simplify_handler false tenv handler
+         | None => simplify_handler false tenv handler
+         end
+       end)
+      body'
   | Let_cont_recursive handlers body =>
     Let_cont_recursive
       (map (fun '(k, h) => (k, simplify_handler true tenv h)) handlers)
@@ -1300,10 +1325,13 @@ Definition example_pass_untag_of_tag_statement : Prop :=
               (Apply_cont (Apply_cont_expr k [Var example_x] None)))).
 
 (* Under a [Let_static], in the body of a [Let_cont] and in its
-   handler: the symbol is known to the environment; in the handler,
-   whose parameter [p] is of kind value, [q] is [p]. *)
+   handler: the symbol is known to the environment; the handler is
+   rewritten under the environment of the one application of its
+   continuation, where its parameter [p] is 3, so [q] is 3. The
+   continuations are the numbers 1 and 2. *)
 Definition example_pass_under_binders_statement : Prop :=
-  ∀ k k' : continuation,
+  let k : continuation := 1%positive in
+  let k' : continuation := 2%positive in
     let handler (defining_expr : named) (result : simple)
         : continuation_handler :=
       Handler [example_p] (make_handler_metadata [Value])
@@ -1329,7 +1357,8 @@ Definition example_pass_under_binders_statement : Prop :=
                      (Apply_cont_expr k' [Var example_y] None))))))
     = Let_static bindings
         (Let_cont_non_recursive k'
-           (handler (Simple (Var example_p)) (Var example_p))
+           (handler (Simple (Const (Tagged_immediate 3)))
+              (Const (Tagged_immediate 3)))
            (Let example_x Value (Simple (Symbol example_s))
               (Let example_y Value (Simple (Const (Tagged_immediate 3)))
                  (Apply_cont

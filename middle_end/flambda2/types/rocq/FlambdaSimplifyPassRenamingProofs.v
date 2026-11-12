@@ -750,9 +750,30 @@ Proof.
         [ reflexivity | ].
       rewrite (simplify_static_binding_equivariant r binding tenv'), IH.
       reflexivity.
-    + rewrite (simplify_handler_equivariant r handler false tenv),
-        (simplify_expr_equivariant_aux r body).
-      reflexivity.
+    + pose proof (simplify_handler_equivariant r handler false tenv)
+        as Hdefault.
+      rewrite (simplify_expr_equivariant_aux r body tenv).
+      destruct handler as [params metadata handler].
+      cbn [rename_handler].
+      change (Handler (map (rename_variable r) params) metadata
+                (rename_expr r handler))
+        with (rename_handler r (Handler params metadata handler)).
+      rewrite find_use_equivariant.
+      destruct (find_use tenv tenv k (Handler params metadata handler)
+                  (simplify_expr tenv body))
+        as [[[target xs] ks] | ];
+        cbn [option_map rename_use fst snd];
+        [ | rewrite Hdefault; reflexivity ].
+      rewrite (simplify_expr_equivariant_aux r handler target).
+      change (Handler (map (rename_variable r) params) metadata
+                (rename_expr r (simplify_expr target handler)))
+        with (rename_handler r
+                (Handler params metadata (simplify_expr target handler))).
+      rewrite binders_not_free_equivariant.
+      destruct (binders_not_free xs ks
+                  (Handler params metadata (simplify_expr target handler)));
+        [ reflexivity | ].
+      rewrite Hdefault. reflexivity.
     + rewrite (simplify_expr_equivariant_aux r body). f_equal.
       induction handlers as [ | [k h] handlers IH]; cbn [map];
         [ reflexivity | ].

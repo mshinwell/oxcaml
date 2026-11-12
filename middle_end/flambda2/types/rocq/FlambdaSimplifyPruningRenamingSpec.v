@@ -67,6 +67,19 @@
    is unknown or is bottom, and none of these changes when variables
    are permuted.
 
+   Where the function rewrites the handler of a continuation under
+   the environment of its one application, its boolean stays true by
+   the tests of the section "Where a continuation is applied" of
+   FlambdaSimplifyPruningSpec.v, one for each function that builds
+   that environment. Each answers the same of the renamed
+   environments and terms ([arm_env_keeps_fit_equivariant_statement],
+   [use_env_keeps_fit_equivariant_statement],
+   [leaf_uses_keep_fit_equivariant_statement],
+   [let_env_keeps_fit_equivariant_statement],
+   [find_use_keeps_fit_equivariant_statement]); that the functions
+   themselves commute with renaming is in
+   FlambdaSimplifyPassRenamingSpec.v.
+
    Nothing is trusted here. The proofs are in
    FlambdaSimplifyPruningRenamingProofs.v, which needs no review. *)
 
@@ -142,6 +155,46 @@ Definition statics_keep_fit_equivariant_statement : Prop :=
     statics_keep_fit (rename_typing_env r tenv)
       (map (rename_static_binding r) bindings)
     = statics_keep_fit tenv bindings.
+
+(* ======================================================================== *)
+(* Where a continuation is applied                                          *)
+(* ======================================================================== *)
+
+(* The tests of the section "Where a continuation is applied" of
+   FlambdaSimplifyPruningSpec.v answer the same of the renamed
+   environments and terms. *)
+
+Definition arm_env_keeps_fit_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (scrutinee : simple) (d : Z),
+    arm_env_keeps_fit (rename_typing_env r tenv) (rename_simple r scrutinee) d
+    = arm_env_keeps_fit tenv scrutinee d.
+
+Definition use_env_keeps_fit_equivariant_statement : Prop :=
+  ∀ (r : renaming) (scope tenv : Typing_env.t) (params : list variable)
+    (metadata : handler_metadata) (args : list simple),
+    use_env_keeps_fit (rename_typing_env r scope) (rename_typing_env r tenv)
+      (map (rename_variable r) params) metadata (map (rename_simple r) args)
+    = use_env_keeps_fit scope tenv params metadata args.
+
+Definition leaf_uses_keep_fit_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (k : continuation) (e : expr),
+    leaf_uses_keep_fit (rename_typing_env r tenv) (rename_continuation r k)
+      (rename_expr r e)
+    = leaf_uses_keep_fit tenv k e.
+
+Definition let_env_keeps_fit_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (x : variable)
+    (declared : flambda_kind) (defining_expr : named),
+    let_env_keeps_fit (rename_typing_env r tenv) (rename_variable r x)
+      declared (rename_named r defining_expr)
+    = let_env_keeps_fit tenv x declared defining_expr.
+
+Definition find_use_keeps_fit_equivariant_statement : Prop :=
+  ∀ (r : renaming) (scope tenv : Typing_env.t) (k : continuation)
+    (h : continuation_handler) (body : expr),
+    find_use_keeps_fit (rename_typing_env r scope) (rename_typing_env r tenv)
+      (rename_continuation r k) (rename_handler r h) (rename_expr r body)
+    = find_use_keeps_fit scope tenv k h body.
 
 (* ======================================================================== *)
 (* The function                                                             *)

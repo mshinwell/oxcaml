@@ -91,6 +91,12 @@
      ([simplify_by_types_pruning_refines_statement]). With a [prune]
      that answers nothing it is the first function
      ([simplify_expr_no_pruning_statement]).
+   - The step by which the function, as the first, rewrites the
+     handler of a continuation under the environment of its one
+     application: it is right from the states that have [run_valid]
+     for a rewrite of the handler that is right from them
+     ([find_use_refines_from_valid_statement]; the statement for every
+     state is FlambdaSimplifyPassSpec.find_use_refines_statement).
    - With the transcribed meet that the contract is proved of
      ([meet_to_prove], FlambdaMeetSpec.v):
      [simplify_by_types_pruning_with join fuel] refines a unit with
@@ -118,7 +124,11 @@
    code has them ([code_env_in_known_to_fit_statement]), so the
    boolean in the code is the one after the group; the same of the
    environment of a handler and the environment of its [Let_cont]
-   ([handler_env_known_to_fit_statement]); and at a [Let], and at a
+   ([handler_env_known_to_fit_statement]); where a handler is
+   rewritten under the environment of the one application of its
+   continuation, it stays true if each [Let] passed on the way and
+   each alias added there has its test ([find_use_keeps_fit],
+   [find_use_known_to_fit_statement]); and at a [Let], and at a
    [Let_static] for the types that its symbols are given, it stays
    true if the premises of the statements by which the function that
    extends the environment keeps the two conditions pass as tests
@@ -145,9 +155,10 @@
 
    Not here. The arms that are kept are not rewritten with what the
    meet finds of them, and the environment that the meet answers for
-   an arm is not kept. In the handler of a continuation nothing is
-   known of a parameter but its kind, as in the first function. That
-   it commutes with
+   an arm is not kept. In the handler of a continuation what is
+   known is what the first function knows: the environment of the one
+   application, where there is one that it finds, and otherwise
+   nothing of a parameter but its kind. That it commutes with
    renaming is in FlambdaSimplifyPruningRenamingSpec.v. That it keeps
    scope (../../rocq/FlambdaValidatorEquivarianceSpec.v) is not
    stated: the validation can have it by the test of
@@ -499,6 +510,160 @@ Definition handler_env_known_to_fit_statement : Prop :=
     known_to_fit tenv_handler fit.
 
 (* ======================================================================== *)
+(* Where a continuation is applied                                          *)
+(* ======================================================================== *)
+
+(* Whether the environments that the functions of the section "Where a
+   continuation is applied" of FlambdaSimplifyPassSpec.v answer are
+   known to keep the two conditions: each alias that they add passes
+   the test of [alias_keeps_fit] in the environment where it is
+   added, and each [Let] on the way to the application passes the
+   test of [let_keeps_fit]. The tests are sufficient, and no more is
+   claimed of them: each follows the cases of its function in which
+   an environment is answered, and where the function answers none
+   (the lengths of the parameters and the arguments differ, a binder
+   on the way is free in the handler) a test may still look at what
+   the function did not, and answer false. A false answer costs
+   pruning under the handler and nothing else. *)
+
+(* [arm_env]. *)
+Definition arm_env_keeps_fit (tenv : Typing_env.t) (scrutinee : simple)
+    (d : Z) : bool :=
+  match simplify_simple tenv scrutinee with
+  | Some (_, Var c) =>
+    if simple_in_terms_b tenv (Var c)
+       && simple_of_kind_b tenv (Var c) naked_immediate_kind
+    then
+      match Typing_env.add_alias tenv (Var c) (Const (Naked_immediate d)) with
+      | Some (Ok _) =>
+        alias_keeps_fit tenv (Var c) (Const (Naked_immediate d))
+          naked_immediate_kind
+      | Some Unknown | Some Bottom | None => true
+      end
+    else true
+  | Some (_, (Const _ | Symbol _)) | None => true
+  end.
+
+(* [bind_params_to_args]. *)
+Fixpoint bind_params_to_args_keep_fit (aliased : simple -> bool)
+    (tenv : Typing_env.t)
+    (bindings : list (variable * flambda_kind * simple)) : bool :=
+  match bindings with
+  | [] => true
+  | (x, kind, canonical) :: bindings =>
+    if
+      typing_env_well_formed tenv
+      && negb (Typing_env.mem None tenv (Name_var x))
+    then
+      let defined :=
+        Typing_env.add_variable_definition tenv x kind Name_mode.normal
+      in
+      if
+        aliased canonical && simple_in_terms_b tenv canonical
+        && simple_of_kind_b tenv canonical kind
+      then
+        match Typing_env.add_alias defined (Var x) canonical with
+        | Some (Ok result) =>
+          alias_keeps_fit defined (Var x) canonical kind
+          && bind_params_to_args_keep_fit aliased
+               (Typing_env.add_alias_result_t result) bindings
+        | Some Unknown | Some Bottom | None =>
+          bind_params_to_args_keep_fit aliased defined bindings
+        end
+      else bind_params_to_args_keep_fit aliased defined bindings
+    else true
+  end.
+
+(* [use_env]. *)
+Definition use_env_keeps_fit (scope tenv : Typing_env.t)
+    (params : list variable) (metadata : handler_metadata)
+    (args : list simple) : bool :=
+  match simplify_simples tenv args with
+  | Some answers =>
+    bind_params_to_args_keep_fit
+      (fun canonical =>
+         simple_in_terms_b scope canonical && not_among params canonical)
+      tenv
+      (combine (combine params (hm_params_kinds metadata)) (map snd answers))
+  | None => true
+  end.
+
+(* [leaf_uses]: the environment of each arm that applies [k]. *)
+Definition leaf_uses_keep_fit (tenv : Typing_env.t) (k : continuation)
+    (e : expr) : bool :=
+  match e with
+  | Switch scrutinee arms =>
+    forallb
+      (fun arm =>
+         negb (Pos.eqb (ac_continuation (snd arm)) k)
+         || arm_env_keeps_fit tenv scrutinee (fst arm))
+      arms
+  | Let _ _ _ _ | Let_static _ _ | Let_cont_non_recursive _ _ _
+  | Let_cont_recursive _ _ | Apply _ | Apply_cont _ | Invalid =>
+    true
+  end.
+
+(* [let_env]. *)
+Definition let_env_keeps_fit (tenv : Typing_env.t) (x : variable)
+    (declared : flambda_kind) (defining_expr : named) : bool :=
+  let resolved := resolve_value_slot tenv declared defining_expr in
+  match simplify_let tenv x resolved with
+  | Step_let _ _ => let_keeps_fit tenv x resolved
+  | Step_invalid | Step_stop => true
+  end.
+
+(* [find_use]. *)
+Fixpoint find_use_keeps_fit (scope tenv : Typing_env.t) (k : continuation)
+    (h : continuation_handler) (body : expr) : bool :=
+  match body with
+  | Let x declared defining_expr rest =>
+    match let_env tenv x declared defining_expr with
+    | Some tenv' =>
+      let_env_keeps_fit tenv x declared defining_expr
+      && find_use_keeps_fit scope tenv' k h rest
+    | None => true
+    end
+  | Let_cont_non_recursive _ _ rest => find_use_keeps_fit scope tenv k h rest
+  | Apply_cont _ | Switch _ _ =>
+    match h, leaf_uses tenv k body with
+    | Handler params metadata _, Some [(tenv_use, args)] =>
+      leaf_uses_keep_fit tenv k body
+      && use_env_keeps_fit scope tenv_use params metadata args
+    | Handler _ _ _, (Some ([] | _ :: _ :: _) | None) => true
+    end
+  | Let_static _ _ | Let_cont_recursive _ _ | Apply _ | Invalid => true
+  end.
+
+(* The environment that [find_use] answers has the two conditions if
+   the environment of the body has them and the test passes. *)
+Definition find_use_known_to_fit_statement : Prop :=
+  ∀ (scope tenv : Typing_env.t) (fit : bool) (k : continuation)
+    (h : continuation_handler) (body : expr) (target : Typing_env.t)
+    (xs : list variable) (ks : list continuation),
+    known_to_fit tenv fit ->
+    find_use scope tenv k h body = Some (target, xs, ks) ->
+    known_to_fit target (fit && find_use_keeps_fit scope tenv k h body).
+
+(* FlambdaSimplifyPassSpec.find_use_refines_statement, from the states
+   that have [run_valid]: the handler may be rewritten under the
+   environment that [find_use] answers, by a rewrite that is right
+   from those states. *)
+Definition find_use_refines_from_valid_statement : Prop :=
+  ∀ (scope tenv : Typing_env.t) (k : continuation) (params : list variable)
+    (metadata : handler_metadata) (handler handler' body : expr)
+    (target : Typing_env.t) (xs : list variable) (ks : list continuation),
+    find_use scope tenv k (Handler params metadata handler) body
+    = Some (target, xs, ks) ->
+    binders_not_free xs ks (Handler params metadata handler') = true ->
+    sets_well_formed
+      (Let_cont_non_recursive k (Handler params metadata handler) body)
+    = true ->
+    expr_refines_from_valid target handler handler' ->
+    expr_refines_from_valid tenv
+      (Let_cont_non_recursive k (Handler params metadata handler) body)
+      (Let_cont_non_recursive k (Handler params metadata handler') body).
+
+(* ======================================================================== *)
 (* The function                                                             *)
 (* ======================================================================== *)
 
@@ -560,9 +725,24 @@ Fixpoint simplify_expr_pruning (prune : switch_rewrite) (tenv : Typing_env.t)
       (map (simplify_static_binding_pruning prune tenv' fit') bindings)
       (simplify_expr_pruning prune tenv' fit' body)
   | Let_cont_non_recursive k handler body =>
+    let body' := simplify_expr_pruning prune tenv fit body in
     Let_cont_non_recursive k
-      (simplify_handler_pruning prune false tenv fit handler)
-      (simplify_expr_pruning prune tenv fit body)
+      (match handler with
+       | Handler params metadata handler_body =>
+         match find_use tenv tenv k handler body' with
+         | Some (target, xs, ks) =>
+           let rewritten :=
+             Handler params metadata
+               (simplify_expr_pruning prune target
+                  (fit && find_use_keeps_fit tenv tenv k handler body')
+                  handler_body)
+           in
+           if binders_not_free xs ks rewritten then rewritten
+           else simplify_handler_pruning prune false tenv fit handler
+         | None => simplify_handler_pruning prune false tenv fit handler
+         end
+       end)
+      body'
   | Let_cont_recursive handlers body =>
     Let_cont_recursive
       (map (fun '(k, h) => (k, simplify_handler_pruning prune true tenv fit h))
