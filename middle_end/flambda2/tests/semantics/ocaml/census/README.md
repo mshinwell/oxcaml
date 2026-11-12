@@ -78,10 +78,11 @@ unit gives one symbol changes none. One more with the
 continuations of each term placed once the rounds are over
 (`FlambdaValidateSpec.placed`; `functions`, seed 65), and the unit
 that was validated at the second asking is validated at the first.
-No unit that was validated at one of these points is not at a later
-one. The day before, 336 were
-validated, 256 were not and 8 were not checked; of the units that
-keep a function, none was.
+The sharing of primitives knowing, under an untagging, that the
+variable untagged is the tagging of the result changes none. No unit
+that was validated at one of these points is not at a later one. The
+day before, 336 were validated, 256 were not and 8 were not checked;
+of the units that keep a function, none was.
 
 What the 8 units that are not validated lack, read off the two
 terms that the tool shows of each:
