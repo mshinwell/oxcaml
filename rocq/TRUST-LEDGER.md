@@ -617,6 +617,23 @@ it gave back.
     lines say; that the three files are made as the rules say, by
     the compiler of the context, the second with `-opaque`, and the
     third by writing a line of text.
+  - the meet of T7-13 (`the_meet_of_t7_13`,
+    `run_the_meet_of_t7_13`, `the_meet_of_t7_13_in_every_order`):
+    that the scenario is what the comment at its definition says,
+    with the number of fields of the last block a parameter; that
+    each run makes new variables, and that the order given is that
+    of `Variable.compare` on the three of that run, taken when the
+    scenario tells them, before its first step (`?made` of
+    `scenario`); that the
+    compiler's check is the flag
+    `Oxcaml_flags.Flambda2.Debug.concrete_types_only_on_canonicals`,
+    set for the runs that say so and put back; that a run is read
+    as refused by the check where the compiler stops with a fatal
+    error whose first words are those of
+    `Typing_env.replace_equation`; that `v2` is said to have a type
+    that is no alias and `v1` for its canonical element by
+    `Typing_env.find` and `get_canonical_simple_exn` on the
+    environment answered.
 
 Not trusted, though it is OCaml: what the tool proposes to
 `validate_unit` and to `validate_unit_knowing`. Each proposal is

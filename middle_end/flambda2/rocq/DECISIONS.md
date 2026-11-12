@@ -568,6 +568,14 @@ says so. Only the labels that this tree cites are listed.
   turn that head into `Unknown`; `is_obviously_unknown` is false of it,
   so a level keeps an equation that says nothing. The two mean the same;
   no wrong result is known.
+- **T7-13.** A meet gives a type that is no alias to a name that the
+  same meet has just made an alias
+  (`Meet_env.add_concrete_equation_on_canonical_name`), which the
+  compiler's debug check for concrete types on canonical names only
+  refuses; whether the answer is bottom then depends on the order of the
+  identifiers of the variables, which are hashes. The binary meet and
+  the n-way meet alike; the model is bottom. T4-10, found by proof,
+  reached by a run.
 - **V2-2.** The fexpr printer drops the kinds of the fields of a
   `Make_block`, and the parser reads back `any_value` for each.
 - **V2-3.** The conversion gives a meaning to a local allocation read
