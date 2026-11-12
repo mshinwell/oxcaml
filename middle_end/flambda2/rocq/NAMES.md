@@ -39,7 +39,7 @@ remove bindings are proved from them.
 | The free names; the three conditions on binders; `alpha_equivalent` | `FlambdaAlphaSpec.v` | N1 |
 | The comparison `expr_eqb` | `FlambdaCompareAlphaSpec.v` | N1 |
 | The rewrites of the normalisation, the passes for loops, the checks of well-formedness (exception handlers and trap actions among them), the check of kinds, the normalisations and `validate_unit` | `FlambdaValidatorEquivarianceSpec.v` | N3 |
-| Identities of primitives, lifting, the binding of `my_closure`, ranges, sharing of primitives, folding at known symbols, unused value slots, the order of static bindings, the static closures in sight, code moved up | the `Spec` file of each pass | the owner of each |
+| Identities of primitives, lifting, the binding of `my_closure`, ranges, sharing of primitives, folding at known symbols, unused value slots, the order of static bindings, the static closures in sight, code moved up, the demotion of exception handlers | the `Spec` file of each pass | the owner of each |
 | The second series of passes for loops | proved, as lemmas of `FlambdaValidatorEquivarianceProofs.v`; not yet statements | the owner of loops |
 | Typing environments and their levels, extensions, aliases, types, provers | the types library (`FlambdaEnvRenameSpec.v`, `FlambdaTypeRenameSpec.v`, `FlambdaEnvAliasesRenamingSpec.v`, `FlambdaTypingEnvExtensionSpec.v`, `FlambdaProversRenameSpec.v`) | N3 and the owners |
 | The meet of types and of expanded types, and the functions that add to a typing environment, given a join that commutes with renaming; with the join that forgets, with no premise | the types library (`FlambdaMeetRenameSpec.v`) | the owner of the meet, N3 |
@@ -436,8 +436,11 @@ symbols (`FlambdaKnownSymbolsSpec.v`), the removal of unused value
 slots (`FlambdaUnusedSlotsSpec.v`), the order of static bindings
 (`FlambdaStaticsOrderSpec.v`), the use of the static closures in
 sight (`FlambdaKnownClosuresSpec.v`), the move of code to the head of
-what it is in (`FlambdaFloatCodeSpec.v`), and the machine with a
-stack of exception handlers (`FlambdaTrapSpec.v`). In the fourth form: giving
+what it is in (`FlambdaFloatCodeSpec.v`), the demotion of the
+exception handlers that no call names (`FlambdaDemoteSpec.v`, with
+the list of continuations that it is given renamed; that it keeps
+scope is `FlambdaDemoteScopeSpec.v`), and the machine with a stack of
+exception handlers (`FlambdaTrapSpec.v`). In the fourth form: giving
 every binder a name of its own (`FlambdaRenameApartSpec.v`).
 
 Owed:
