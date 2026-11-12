@@ -1724,7 +1724,7 @@ Proof.
   intros vars conts statics. unfold example_switch_index.
   apply let_refines_step; [ reflexivity | intros v Hv _ ].
   rewrite <- Hrebuilt. apply rebuild_switch_refines.
-  intros entry [<- | []]. cbn [fst snd].
+  intros entry [<- | []]. unfold computed_holds. cbn [fst snd].
   cbn [eval_named eval_simples eval_simple] in Hv.
   destruct (lookup example_x vars) as [w | ] eqn:Hx; [ | discriminate ].
   cbn [eval_prim eval_unary_primitive] in Hv.

@@ -78,7 +78,8 @@
    What is stated.
    - Of the machine ([merge_arms_refines_statement]): what
      [merge_arms] answers refines the [Switch], in every state in
-     which what is known holds ([known_holds]). So does what
+     which what is known holds ([all_computed],
+     ../../rocq/FlambdaCseSpec.v). So does what
      [rebuild_switch] answers, which is [Invalid] for no arm, the
      merged term where there is one, and otherwise what the first
      slice makes of the arms ([rebuild_switch_refines_statement]); with
@@ -110,8 +111,10 @@
    - That what is known holds: each variable that is known to hold
      the result of a primitive is bound, in the state, to the value of
      that primitive applied to the values of its arguments
-     ([known_holds]; under a typing environment,
-     [known_holds_under]). It is a hypothesis about the caller, as the
+     ([all_computed], ../../rocq/FlambdaCseSpec.v, where it is what
+     it means for what the pass that shares primitives knows to hold;
+     under a typing environment, [known_holds_under]). It is a
+     hypothesis about the caller, as the
      soundness of the meet is in the first slice. Nothing here says
      that what Simplify knows has it. With nothing known it holds, and
      then nothing from before the [Switch] is used: a primitive is
@@ -615,18 +618,9 @@ Definition rebuild_switch (known : computed) (fresh : list variable)
 (* Of the machine                                                           *)
 (* ======================================================================== *)
 
-(* What is known holds in a state: each variable is bound to the value
-   of its primitive applied to the values of its arguments. (It is what
-   the proofs of ../../rocq/FlambdaCseSpec.v keep of [computed]:
-   [all_computed], ../../rocq/FlambdaCseProofs.v.) *)
-Definition known_holds (known : computed) (statics : static_env) (vars : env)
-    : Prop :=
-  ∀ entry : variable * (prim * list simple),
-    entry ∈ known ->
-    ∃ (vs : list value) (v : value),
-      eval_simples vars (snd (snd entry)) = Some vs
-      ∧ eval_prim statics (fst (snd entry)) vs = Some v
-      ∧ lookup (fst entry) vars = Some v.
+(* That what is known holds in a state is [all_computed] of
+   ../../rocq/FlambdaCseSpec.v: each variable is bound to the value of
+   its primitive applied to the values of its arguments. *)
 
 (* The merged term refines the [Switch]. *)
 Definition merge_arms_refines_statement : Prop :=
@@ -634,7 +628,7 @@ Definition merge_arms_refines_statement : Prop :=
     (arms : list (Z * apply_cont)) (e : expr) (vars : env) (conts : cont_env)
     (statics : static_env),
     merge_arms known fresh scrutinee arms = Some e ->
-    known_holds known statics vars ->
+    all_computed known vars statics ->
     refines (State (Switch scrutinee arms) vars conts statics)
       (State e vars conts statics).
 
@@ -642,7 +636,7 @@ Definition rebuild_switch_refines_statement : Prop :=
   ∀ (known : computed) (fresh : list variable) (scrutinee : simple)
     (arms : list (Z * apply_cont)) (vars : env) (conts : cont_env)
     (statics : static_env),
-    known_holds known statics vars ->
+    all_computed known vars statics ->
     refines (State (Switch scrutinee arms) vars conts statics)
       (State (rebuild_switch known fresh scrutinee arms) vars conts statics).
 
@@ -663,7 +657,7 @@ Definition known_holds_under (tenv : Typing_env.t) (known : computed) : Prop :=
   ∀ (statics : static_env) (vars : env),
     statics_valid statics ->
     env_satisfies_strictly tenv statics vars ->
-    known_holds known statics vars.
+    all_computed known vars statics.
 
 (* [simplify_switch] with [rebuild_switch]: the arms are pruned and
    simplified as in the second slice ([simplify_arms]), and what is
