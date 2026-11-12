@@ -495,17 +495,28 @@ Proof.
   simpl option_map. cbv iota zeta.
   destruct (drop_slots_code_parts c)
     as (_ & _ & _ & _ & Hparams_arity & Hresult_arity & _).
-  rewrite Hparams_arity, Hresult_arity.
-  destruct (Nat.eqb (length args_arity) (length (code_params_arity c)));
+  assert (Htupled : code_is_tupled (drop_slots_code D c) = code_is_tupled c)
+    by (destruct c; reflexivity).
+  destruct (arguments_for_code statics c vs args_arity)
+    as [[vs' args_arity'] | ] eqn:Hargs; [ | discriminate ].
+  rewrite (arguments_for_code_mono statics (trim_statics statics) c
+             (drop_slots_code D c) vs args_arity _ Htupled Hparams_arity
+             (fun tuple rest p v _ => eval_prim_drop statics p [tuple] v)
+             Hargs).
+  simpl. unfold shape_of_code_call. cbv zeta.
+  rewrite Hparams_arity, Hresult_arity, Htupled.
+  destruct (Nat.eqb (length args_arity') (length (code_params_arity c)));
     [ intros [= <-]; reflexivity | ].
   destruct
     (negb
-       (kinds_eqb (map kind_of_value vs) (unarize args_arity)
-        && partial_or_over_application args_arity return_arity
+       (kinds_eqb (map kind_of_value vs') (unarize args_arity')
+        && partial_or_over_application args_arity' return_arity
              (code_params_arity c) (code_result_arity c)));
     [ discriminate | ].
-  destruct (Nat.ltb (length (code_params_arity c)) (length args_arity));
-    intros [= <-]; reflexivity.
+  destruct (Nat.ltb (length (code_params_arity c)) (length args_arity'));
+    [ intros [= <-]; reflexivity | ].
+  destruct (code_is_tupled c); [ discriminate | ].
+  intros [= <-]. reflexivity.
 Qed.
 
 Lemma shape_of_call_drop (statics : static_env) (callee : value)

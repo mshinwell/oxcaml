@@ -227,7 +227,8 @@ Definition var_in_simples (x : variable) (args : list simple) : bool :=
 
 (* Decides FlambdaApplySpec.inlinable, for [inline_renaming]. *)
 Definition inlinable_b (ap : apply_expr) (c : code) : bool :=
-  expr_in_scope (code_my_closure c :: code_params c)
+  negb (code_is_tupled c)
+  && expr_in_scope (code_my_closure c :: code_params c)
     [code_return_continuation c; code_exn_continuation c] (code_body c)
   && negb (Pos.eqb (code_return_continuation c) (code_exn_continuation c))
   && negb (Pos.eqb (ap_continuation ap) (ap_exn_continuation ap))

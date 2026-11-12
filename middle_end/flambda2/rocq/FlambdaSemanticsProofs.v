@@ -330,6 +330,16 @@ Proof.
   destruct kind; reflexivity.
 Qed.
 
+(* The arguments as the code takes them are those of the call, for code
+   that is not tupled. *)
+Lemma arguments_for_code_not_tupled (statics : static_env) (c : code)
+    (vs : list value) (args_arity : arity) :
+  code_is_tupled c = false ->
+  arguments_for_code statics c vs args_arity = Some (vs, args_arity).
+Proof.
+  intros Htupled. unfold arguments_for_code. rewrite Htupled. reflexivity.
+Qed.
+
 (* The call of a closure of code that is bound, the code named if the
    call is direct: full where the arguments are as many as the
    parameters, and otherwise what the tests of arities say. A direct
@@ -340,11 +350,12 @@ Lemma shape_of_closure_call_full (statics : static_env) (closure : value)
   closure_of statics closure = Some (called, slots) ->
   kind = Indirect ∨ kind = Direct called ->
   lookup called (static_code statics) = Some c ->
+  code_is_tupled c = false ->
   length args_arity = length (code_params_arity c) ->
   shape_of_closure_call statics closure kind vs args_arity return_arity
   = Some (Full_call closure c vs args_arity).
 Proof.
-  intros Hclosure Hkind Hcode Hfull. unfold shape_of_closure_call.
+  intros Hclosure Hkind Hcode Htupled Hfull. unfold shape_of_closure_call.
   rewrite Hclosure.
   assert (Hexpected :
     match kind with
@@ -352,7 +363,8 @@ Proof.
     | Indirect => true
     end = true)
     by (destruct Hkind as [-> | ->]; [ reflexivity | apply Pos.eqb_refl ]).
-  rewrite Hexpected, Hcode, Hfull, Nat.eqb_refl. reflexivity.
+  rewrite Hexpected, Hcode, (arguments_for_code_not_tupled _ _ _ _ Htupled).
+  simpl. unfold shape_of_code_call. rewrite Hfull, Nat.eqb_refl. reflexivity.
 Qed.
 
 Lemma shape_of_closure_call_not_full (statics : static_env)
@@ -362,6 +374,7 @@ Lemma shape_of_closure_call_not_full (statics : static_env)
   closure_of statics closure = Some (called, slots) ->
   kind = Indirect ∨ kind = Direct called ->
   lookup called (static_code statics) = Some c ->
+  code_is_tupled c = false ->
   length args_arity <> length (code_params_arity c) ->
   shape_of_closure_call statics closure kind vs args_arity return_arity
   = if
@@ -380,7 +393,7 @@ Lemma shape_of_closure_call_not_full (statics : static_env)
            (partially_apply args_arity (length (code_params_arity c))))
     else Some (Partial_call (Value_partial_application closure vs args_arity)).
 Proof.
-  intros Hclosure Hkind Hcode Hcount. unfold shape_of_closure_call.
+  intros Hclosure Hkind Hcode Htupled Hcount. unfold shape_of_closure_call.
   rewrite Hclosure.
   assert (Hexpected :
     match kind with
@@ -388,7 +401,9 @@ Proof.
     | Indirect => true
     end = true)
     by (destruct Hkind as [-> | ->]; [ reflexivity | apply Pos.eqb_refl ]).
-  apply Nat.eqb_neq in Hcount. rewrite Hexpected, Hcode, Hcount. reflexivity.
+  apply Nat.eqb_neq in Hcount.
+  rewrite Hexpected, Hcode, (arguments_for_code_not_tupled _ _ _ _ Htupled).
+  simpl. unfold shape_of_code_call. rewrite Hcount, Htupled. reflexivity.
 Qed.
 
 Lemma shape_of_closure_call_kind (statics : static_env) (closure : value)
@@ -444,6 +459,7 @@ Lemma step_apply_closure (ap : apply_expr) (vars : env) (conts : cont_env)
   closure_of statics callee = Some (called, slots) ->
   ap_call_kind ap = Indirect ∨ ap_call_kind ap = Direct called ->
   lookup called (static_code statics) = Some c ->
+  code_is_tupled c = false ->
   binds_statics (code_body c) = false ->
   kinds_eqb (map kind_of_value vs) (unarize (ap_args_arity ap)) = true ->
   kinds_per_parameter_eqb (unarize_per_parameter (ap_args_arity ap))
@@ -460,8 +476,8 @@ Lemma step_apply_closure (ap : apply_expr) (vars : env) (conts : cont_env)
            with_extra_args (resolve (ap_exn_continuation ap) conts) extra)]
          statics).
 Proof.
-  intros Hcallee Hargs Hextra Hclosure Hkind Hcode Hbinds Hkinds Hparams
-    Hresult Hbind.
+  intros Hcallee Hargs Hextra Hclosure Hkind Hcode Htupled Hbinds Hkinds
+    Hparams Hresult Hbind.
   rewrite step_apply, Hcallee, Hargs, Hextra. unfold call_function.
   rewrite (shape_of_call_closure statics callee _ _ _ _
              (closure_not_partial statics callee _ Hclosure)).
@@ -472,7 +488,8 @@ Proof.
     | Indirect => true
     end = true)
     by (destruct Hkind as [-> | ->]; [ reflexivity | apply Pos.eqb_refl ]).
-  rewrite Hexpected, Hcode.
+  rewrite Hexpected, Hcode, (arguments_for_code_not_tupled _ _ _ _ Htupled).
+  simpl. unfold shape_of_code_call.
   assert (Hcount :
     Nat.eqb (length (ap_args_arity ap)) (length (code_params_arity c)) = true).
   { apply Nat.eqb_eq. pose proof Hparams as Hsame.
@@ -1223,8 +1240,10 @@ Qed.
 Lemma code_metadata_eqb_eq (m m' : code_metadata) :
   code_metadata_eqb m m' = true <-> m = m'.
 Proof.
-  unfold code_metadata_eqb. rewrite andb_true_iff, !arity_eqb_eq.
-  destruct m, m'; simpl. split; [ intros [-> ->] | intros [= -> ->] ]; auto.
+  unfold code_metadata_eqb.
+  rewrite !andb_true_iff, !arity_eqb_eq, Bool.eqb_true_iff.
+  destruct m, m'; simpl.
+  split; [ intros [[-> ->] ->] | intros [= -> -> ->] ]; auto.
 Qed.
 
 Lemma kinds_eqb_refl (kinds : list flambda_kind) :
@@ -1275,6 +1294,414 @@ Lemma closure_of_kind (statics : static_env) (v : value) (code : code_id)
     (vs : list (value_slot * value)) :
   closure_of statics v = Some (code, vs) -> kind_of_value v = Value.
 Proof. destruct v; try discriminate; reflexivity. Qed.
+
+(* The fields of a tuple are values of the projections, as many as the
+   size asked for. *)
+Lemma tuple_fields_from_forall (P : value -> Prop) (statics : static_env)
+    (size : nat) (tuple : value) :
+  (∀ (field : Z) (v : value),
+    eval_prim statics
+      (Unary (Block_load (tuple_access size) Immutable field)) [tuple]
+    = Some v ->
+    P v) ->
+  ∀ (count field : nat) (fields : list value),
+    tuple_fields_from statics size tuple field count = Some fields ->
+    Forall P fields ∧ length fields = count.
+Proof.
+  intros Hprim. induction count as [ | count IH]; intros field fields.
+  - intros [= <-]. split; [ apply Forall_nil | reflexivity ].
+  - cbn [tuple_fields_from].
+    destruct
+      (eval_prim statics
+         (Unary (Block_load (tuple_access size) Immutable (Z.of_nat field)))
+         [tuple])
+      as [v | ] eqn:Hv; [ | discriminate ].
+    destruct (tuple_fields_from statics size tuple (S field) count)
+      as [vs | ] eqn:Hvs; [ | discriminate ].
+    intros [= <-]. destruct (IH _ _ Hvs) as [Hall Hlength].
+    split; [ | simpl; rewrite Hlength; reflexivity ].
+    apply Forall_cons; [ exact (Hprim _ _ Hv) | exact Hall ].
+Qed.
+
+Lemma tuple_fields_forall (P : value -> Prop) (statics : static_env)
+    (size : nat) (tuple : value) (fields : list value) :
+  (∀ (field : Z) (v : value),
+    eval_prim statics
+      (Unary (Block_load (tuple_access size) Immutable field)) [tuple]
+    = Some v ->
+    P v) ->
+  tuple_fields statics size tuple = Some fields ->
+  Forall P fields.
+Proof.
+  intros Hprim Hfields.
+  exact (proj1 (tuple_fields_from_forall P statics size tuple Hprim _ _ _
+                  Hfields)).
+Qed.
+
+Lemma tuple_fields_length (statics : static_env) (size : nat) (tuple : value)
+    (fields : list value) :
+  tuple_fields statics size tuple = Some fields -> length fields = size.
+Proof.
+  intros Hfields.
+  exact (proj2 (tuple_fields_from_forall (fun _ => True) statics size tuple
+                  (fun _ _ _ => I) _ _ _ Hfields)).
+Qed.
+
+Lemma map_all_repeat {A B : Type} (g : A -> B) (b : B) (l : list A) :
+  Forall (fun a => g a = b) l -> map g l = repeat b (length l).
+Proof.
+  induction 1 as [ | a l Ha _ IH]; simpl; [ reflexivity | ].
+  rewrite Ha, IH. reflexivity.
+Qed.
+
+(* The fields of a tuple are of kind [Value]. *)
+Lemma tuple_fields_kinds (statics : static_env) (size : nat) (tuple : value)
+    (fields : list value) :
+  tuple_fields statics size tuple = Some fields ->
+  map kind_of_value fields = repeat Value size.
+Proof.
+  intros Hfields.
+  rewrite <- (tuple_fields_length _ _ _ _ Hfields). apply map_all_repeat.
+  apply (tuple_fields_forall _ statics size tuple fields); [ | exact Hfields ].
+  intros field v Hv. exact (proj2 (eval_prim_kinds _ _ _ _ Hv)).
+Qed.
+
+(* What a projection of a tuple reads: the tuple is a block of tag 0
+   with as many fields as the size, and the value is the field. *)
+Lemma eval_tuple_field (statics : static_env) (size : nat) (tuple : value)
+    (field : nat) (v : value) :
+  eval_prim statics
+    (Unary (Block_load (tuple_access size) Immutable (Z.of_nat field)))
+    [tuple]
+  = Some v ->
+  ∃ fields : list value,
+    block_of statics tuple = Some (0%Z, fields)
+    ∧ length fields = size
+    ∧ nth_error fields field = Some v.
+Proof.
+  cbn [eval_prim eval_unary_primitive]. unfold eval_block_load, tuple_access.
+  destruct (block_of statics tuple) as [[tag fields] | ]; [ | discriminate ].
+  cbn [known_is].
+  destruct (0 =? tag)%Z eqn:Htag; [ | discriminate ].
+  destruct (Z.of_nat size =? Z.of_nat (length fields))%Z eqn:Hsize;
+    [ | discriminate ].
+  destruct (0 <=? Z.of_nat field)%Z; [ | discriminate ].
+  cbn [andb]. rewrite Nat2Z.id.
+  destruct (nth_error fields field) as [loaded | ] eqn:Hnth;
+    [ | discriminate ].
+  destruct (kind_eqb (kind_of_value loaded) Value); [ | discriminate ].
+  intros [= <-]. apply Z.eqb_eq in Htag, Hsize. subst tag.
+  exists fields. split; [ reflexivity | ]. split; [ lia | exact Hnth ].
+Qed.
+
+(* The fields that [tuple_fields_from] reads, one by one. *)
+Lemma tuple_fields_from_nth (statics : static_env) (size : nat)
+    (tuple : value) :
+  ∀ (count field : nat) (fields : list value),
+    tuple_fields_from statics size tuple field count = Some fields ->
+    length fields = count
+    ∧ ∀ i : nat,
+        i < count ->
+        eval_prim statics
+          (Unary
+             (Block_load (tuple_access size) Immutable (Z.of_nat (field + i))))
+          [tuple]
+        = nth_error fields i.
+Proof.
+  induction count as [ | count IH]; intros field fields.
+  - intros [= <-]. split; [ reflexivity | intros i Hi; lia ].
+  - cbn [tuple_fields_from].
+    destruct
+      (eval_prim statics
+         (Unary (Block_load (tuple_access size) Immutable (Z.of_nat field)))
+         [tuple])
+      as [v | ] eqn:Hv; [ | discriminate ].
+    destruct (tuple_fields_from statics size tuple (S field) count)
+      as [vs | ] eqn:Hvs; [ | discriminate ].
+    intros [= <-]. destruct (IH _ _ Hvs) as [Hlength Hnth].
+    split; [ simpl; rewrite Hlength; reflexivity | ].
+    intros [ | i] Hi; simpl.
+    + rewrite Nat.add_0_r. exact Hv.
+    + replace (field + S i) with (S field + i) by lia. apply Hnth. lia.
+Qed.
+
+Lemma nth_error_same {A : Type} (l : list A) :
+  ∀ l' : list A, (∀ i : nat, nth_error l i = nth_error l' i) -> l = l'.
+Proof.
+  induction l as [ | a l IH]; intros [ | a' l'] Hnth.
+  - reflexivity.
+  - discriminate (Hnth 0).
+  - discriminate (Hnth 0).
+  - pose proof (Hnth 0) as Hhead. injection Hhead as <-. f_equal.
+    apply IH. intros i. exact (Hnth (S i)).
+Qed.
+
+(* The fields of a tuple are those of a block of tag 0: the tuple is
+   that block, or a symbol bound to it. A tuple of no component is not
+   looked at. *)
+Lemma tuple_fields_block (statics : static_env) (size : nat) (tuple : value)
+    (fields : list value) :
+  tuple_fields statics size tuple = Some fields ->
+  fields = [] ∨ block_of statics tuple = Some (0%Z, fields).
+Proof.
+  unfold tuple_fields. intros Hfields.
+  destruct (tuple_fields_from_nth statics size tuple size 0 fields Hfields)
+    as [Hlength Hnth].
+  destruct fields as [ | v fields]; [ left; reflexivity | right ].
+  assert (Hpositive : 0 < size) by (simpl in Hlength; lia).
+  pose proof (Hnth 0 Hpositive) as Hfirst. simpl in Hfirst.
+  destruct (eval_tuple_field statics size tuple 0 v Hfirst)
+    as (block & Hblock & Hblock_length & _).
+  rewrite Hblock. f_equal. f_equal. apply nth_error_same. intros i.
+  destruct (Nat.lt_ge_cases i size) as [Hi | Hi].
+  - pose proof (Hnth i Hi) as Hfield. simpl in Hfield.
+    destruct (nth_error (v :: fields) i) as [w | ] eqn:Hw.
+    + destruct (eval_tuple_field statics size tuple i w Hfield)
+        as (block' & Hblock' & _ & Hnth').
+      rewrite Hblock in Hblock'. injection Hblock' as <-. exact Hnth'.
+    + apply nth_error_None in Hw. lia.
+  - rewrite (proj2 (nth_error_None block i)) by lia.
+    symmetry. apply nth_error_None. lia.
+Qed.
+
+(* A value read as a block is one, or a symbol bound to one. *)
+Lemma block_of_cases (statics : static_env) (v : value) (tag : Z)
+    (fields : list value) :
+  block_of statics v = Some (tag, fields) ->
+  v = Value_block tag fields
+  ∨ ∃ s : symbol,
+      v = Value_symbol s
+      ∧ lookup s (static_values statics) = Some (Static_block tag fields).
+Proof.
+  destruct v as [c | code slots | slot decls slots | s | tag' fields'
+    | contents | l | callee args args_arity];
+    simpl; try discriminate.
+  - destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hs;
+      [ | discriminate ].
+    destruct allocated; try discriminate.
+    intros [= <- <-]. right. exists s. split; [ reflexivity | exact Hs ].
+  - intros [= <- <-]. left. reflexivity.
+Qed.
+
+(* A property that the fields of a block have is one that the fields of
+   a tuple have. *)
+Lemma tuple_fields_of_blocks (P : value -> Prop) (statics : static_env)
+    (size : nat) (tuple : value) (fields : list value) :
+  (∀ (tag : Z) (block : list value),
+    block_of statics tuple = Some (tag, block) -> Forall P block) ->
+  tuple_fields statics size tuple = Some fields ->
+  Forall P fields.
+Proof.
+  intros Hblock Hfields.
+  destruct (tuple_fields_block _ _ _ _ Hfields) as [-> | Hb];
+    [ apply Forall_nil | exact (Hblock _ _ Hb) ].
+Qed.
+
+(* Two static environments under which the primitives read a value alike
+   give it the same fields. *)
+Lemma tuple_fields_agree (statics statics' : static_env) (size : nat)
+    (tuple : value) :
+  (∀ p : prim, eval_prim statics' p [tuple] = eval_prim statics p [tuple]) ->
+  tuple_fields statics' size tuple = tuple_fields statics size tuple.
+Proof.
+  intros Hprim. unfold tuple_fields. generalize 0 as field.
+  generalize size at 2 4 as count.
+  induction count as [ | count IH]; intros field; [ reflexivity | ].
+  cbn [tuple_fields_from]. rewrite Hprim, IH. reflexivity.
+Qed.
+
+(* What [detuple] gives, where it gives something. *)
+Lemma detuple_cases (statics : static_env) (size : nat) (vs : list value)
+    (args_arity : arity) (vs' : list value) (args_arity' : arity) :
+  detuple statics size vs args_arity = Some (vs', args_arity') ->
+  ∃ (tuple : value) (rest : list value) (first : arity_component)
+    (rest_arity : arity) (fields : list value),
+    vs = tuple :: rest
+    ∧ args_arity = first :: rest_arity
+    ∧ map kind_of_value vs = unarize args_arity
+    ∧ unarize_component first = [Value]
+    ∧ tuple_fields statics size tuple = Some fields
+    ∧ vs' = fields ++ rest
+    ∧ args_arity' = arity_of_kinds (repeat Value size) ++ rest_arity.
+Proof.
+  unfold detuple.
+  destruct vs as [ | tuple rest]; [ discriminate | ].
+  destruct args_arity as [ | first rest_arity]; [ discriminate | ].
+  match goal with
+  | |- context [negb ?tests] => destruct tests eqn:Htests
+  end; cbn [negb]; [ | discriminate ].
+  apply andb_true_iff in Htests as [Hkinds Hfirst].
+  apply kinds_eqb_eq in Hkinds, Hfirst.
+  destruct (tuple_fields statics size tuple) as [fields | ] eqn:Hfields;
+    [ | discriminate ].
+  intros [= <- <-]. exists tuple, rest, first, rest_arity, fields. auto 8.
+Qed.
+
+(* A property of the arguments of a call that the fields of a tuple
+   have when the tuple has it holds of the arguments as the code takes
+   them. *)
+Lemma arguments_for_code_forall (P : value -> Prop) (statics : static_env)
+    (c : code) (vs : list value) (args_arity : arity) (vs' : list value)
+    (args_arity' : arity) :
+  (∀ (size : nat) (tuple : value) (fields : list value),
+    P tuple -> tuple_fields statics size tuple = Some fields ->
+    Forall P fields) ->
+  Forall P vs ->
+  arguments_for_code statics c vs args_arity = Some (vs', args_arity') ->
+  Forall P vs'.
+Proof.
+  intros Hfields Hvs. unfold arguments_for_code.
+  destruct (code_is_tupled c); [ | intros [= <- _]; exact Hvs ].
+  intros Hdetuple.
+  destruct (detuple_cases _ _ _ _ _ _ Hdetuple)
+    as (tuple & rest & first & rest_arity & fields & -> & _ & _ & _ & Htuple
+        & -> & _).
+  apply Forall_app.
+  split; [ | exact (Forall_inv_tail Hvs) ].
+  exact (Hfields _ tuple fields (Forall_inv Hvs) Htuple).
+Qed.
+
+(* The arguments as the code takes them, under two static environments
+   under which the primitives read the first of them alike. *)
+Lemma arguments_for_code_agree (statics statics' : static_env) (c : code)
+    (vs : list value) (args_arity : arity) :
+  (∀ (tuple : value) (rest : list value) (p : prim),
+    vs = tuple :: rest ->
+    eval_prim statics' p [tuple] = eval_prim statics p [tuple]) ->
+  arguments_for_code statics' c vs args_arity
+  = arguments_for_code statics c vs args_arity.
+Proof.
+  intros Hprim. unfold arguments_for_code.
+  destruct (code_is_tupled c); [ | reflexivity ].
+  unfold detuple. destruct vs as [ | tuple rest]; [ reflexivity | ].
+  destruct args_arity as [ | first rest_arity]; [ reflexivity | ].
+  rewrite (tuple_fields_agree statics statics' _ tuple
+             (fun p => Hprim tuple rest p eq_refl)).
+  reflexivity.
+Qed.
+
+(* The fields of a tuple are the same under a static environment under
+   which the primitives that have a value keep it. *)
+Lemma tuple_fields_from_mono (statics statics' : static_env) (size : nat)
+    (tuple : value) :
+  (∀ (p : prim) (v : value),
+    eval_prim statics p [tuple] = Some v ->
+    eval_prim statics' p [tuple] = Some v) ->
+  ∀ (count field : nat) (fields : list value),
+    tuple_fields_from statics size tuple field count = Some fields ->
+    tuple_fields_from statics' size tuple field count = Some fields.
+Proof.
+  intros Hprim. induction count as [ | count IH]; intros field fields;
+    [ exact (fun H => H) | ].
+  cbn [tuple_fields_from].
+  destruct
+    (eval_prim statics
+       (Unary (Block_load (tuple_access size) Immutable (Z.of_nat field)))
+       [tuple])
+    as [v | ] eqn:Hv; [ | discriminate ].
+  rewrite (Hprim _ _ Hv).
+  destruct (tuple_fields_from statics size tuple (S field) count)
+    as [vs | ] eqn:Hvs; [ | discriminate ].
+  rewrite (IH _ _ Hvs). exact (fun H => H).
+Qed.
+
+(* So are the arguments as the code takes them, for code with the same
+   mark and the same arity of parameters. *)
+Lemma arguments_for_code_mono (statics statics' : static_env) (c c' : code)
+    (vs : list value) (args_arity : arity) (result : list value * arity) :
+  code_is_tupled c' = code_is_tupled c ->
+  code_params_arity c' = code_params_arity c ->
+  (∀ (tuple : value) (rest : list value) (p : prim) (v : value),
+    vs = tuple :: rest ->
+    eval_prim statics p [tuple] = Some v ->
+    eval_prim statics' p [tuple] = Some v) ->
+  arguments_for_code statics c vs args_arity = Some result ->
+  arguments_for_code statics' c' vs args_arity = Some result.
+Proof.
+  intros Htupled Hparams Hprim. unfold arguments_for_code.
+  rewrite Htupled, Hparams.
+  destruct (code_is_tupled c); [ | exact (fun H => H) ].
+  unfold detuple. destruct vs as [ | tuple rest]; [ discriminate | ].
+  destruct args_arity as [ | first rest_arity]; [ discriminate | ].
+  destruct (negb _); [ discriminate | ].
+  unfold tuple_fields.
+  destruct
+    (tuple_fields_from statics (cardinal_unarized (code_params_arity c))
+       tuple 0 (cardinal_unarized (code_params_arity c)))
+    as [fields | ] eqn:Hfields; [ | discriminate ].
+  rewrite (tuple_fields_from_mono statics statics' _ tuple
+             (fun p v => Hprim tuple rest p v eq_refl) _ _ _ Hfields).
+  exact (fun H => H).
+Qed.
+
+(* Two tuples related by a relation that the observations respect have
+   related fields. *)
+Lemma tuple_fields_from_related (R : value -> value -> Prop)
+    (statics statics' : static_env) (size : nat) (tuple tuple' : value) :
+  respects_observations R statics statics' ->
+  R tuple tuple' ->
+  ∀ (count field : nat) (fields : list value),
+    tuple_fields_from statics size tuple field count = Some fields ->
+    ∃ fields' : list value,
+      tuple_fields_from statics' size tuple' field count = Some fields'
+      ∧ Forall2 R fields fields'.
+Proof.
+  intros Hrespects Htuple.
+  induction count as [ | count IH]; intros field fields.
+  - intros [= <-]. exists []. split; [ reflexivity | apply Forall2_nil ].
+  - cbn [tuple_fields_from].
+    destruct
+      (eval_prim statics
+         (Unary (Block_load (tuple_access size) Immutable (Z.of_nat field)))
+         [tuple])
+      as [v | ] eqn:Hv; [ | discriminate ].
+    destruct
+      (eval_prim_related R statics statics' _ [tuple] [tuple'] v Hrespects
+         (Forall2_cons _ _ Htuple (Forall2_nil R)) Hv)
+      as (v' & -> & Hv').
+    destruct (tuple_fields_from statics size tuple (S field) count)
+      as [vs | ] eqn:Hvs; [ | discriminate ].
+    destruct (IH _ _ Hvs) as (vs' & -> & Hvs').
+    intros [= <-]. exists (v' :: vs').
+    split; [ reflexivity | apply Forall2_cons; assumption ].
+Qed.
+
+(* So the arguments as the code takes them are related, for two lists
+   of related arguments of the same kinds and code with the same mark
+   and the same arity of parameters. *)
+Lemma arguments_for_code_related (R : value -> value -> Prop)
+    (statics statics' : static_env) (c c' : code) (vs vs' : list value)
+    (args_arity : arity) (ws : list value) (args_arity' : arity) :
+  respects_observations R statics statics' ->
+  code_is_tupled c' = code_is_tupled c ->
+  code_params_arity c' = code_params_arity c ->
+  Forall2 R vs vs' ->
+  map kind_of_value vs' = map kind_of_value vs ->
+  arguments_for_code statics c vs args_arity = Some (ws, args_arity') ->
+  ∃ ws' : list value,
+    arguments_for_code statics' c' vs' args_arity = Some (ws', args_arity')
+    ∧ Forall2 R ws ws'.
+Proof.
+  intros Hrespects Htupled Hparams Hvs Hkinds. unfold arguments_for_code.
+  rewrite Htupled, Hparams.
+  destruct (code_is_tupled c);
+    [ | intros [= <- <-]; exists vs'; split; [ reflexivity | exact Hvs ] ].
+  unfold detuple.
+  destruct Hvs as [ | tuple tuple' rest rest' Htuple Hrest]; [ discriminate | ].
+  destruct args_arity as [ | first rest_arity]; [ discriminate | ].
+  rewrite Hkinds. destruct (negb _); [ discriminate | ].
+  unfold tuple_fields.
+  destruct
+    (tuple_fields_from statics (cardinal_unarized (code_params_arity c))
+       tuple 0 (cardinal_unarized (code_params_arity c)))
+    as [fields | ] eqn:Hfields; [ | discriminate ].
+  destruct
+    (tuple_fields_from_related R statics statics' _ tuple tuple' Hrespects
+       Htuple _ _ _ Hfields)
+    as (fields' & -> & Hfields').
+  intros [= <- <-]. exists (fields' ++ rest').
+  split; [ reflexivity | apply Forall2_app; assumption ].
+Qed.
 
 (* What is left of an over-application, applied: an indirect call of the
    one value it is given, with the arguments that remain. *)
@@ -1390,54 +1817,34 @@ Proof.
   right. eauto.
 Qed.
 
-(* What the call of a closure is, where it is something: the closure is
-   one of code that is bound, the code named if the call is direct, and
-   the call is full, or an over-application, or a partial application,
-   by the number of its arguments. *)
-Lemma shape_of_closure_call_cases (statics : static_env) (closure : value)
-    (kind : call_kind) (vs : list value) (args_arity return_arity : arity)
-    (shape : call_shape) :
-  shape_of_closure_call statics closure kind vs args_arity return_arity
-  = Some shape ->
-  ∃ (called : code_id) (slots : list (value_slot * value)) (c : code),
-    closure_of statics closure = Some (called, slots)
-    ∧ lookup called (static_code statics) = Some c
-    ∧ (∀ named : code_id, kind = Direct named -> called = named)
-    ∧ (length args_arity = length (code_params_arity c)
-       ∧ shape = Full_call closure c vs args_arity
-       ∨ length (code_params_arity c) < length args_arity
-         ∧ map kind_of_value vs = unarize args_arity
-         ∧ partial_or_over_application args_arity return_arity
-             (code_params_arity c) (code_result_arity c)
-           = true
-         ∧ shape
-           = Over_call closure c
-               (firstn (cardinal_unarized (code_params_arity c)) vs)
-               (skipn (cardinal_unarized (code_params_arity c)) vs)
-               (firstn (length (code_params_arity c)) args_arity)
-               (partially_apply args_arity (length (code_params_arity c)))
-       ∨ length args_arity < length (code_params_arity c)
-         ∧ map kind_of_value vs = unarize args_arity
-         ∧ partial_or_over_application args_arity return_arity
-             (code_params_arity c) (code_result_arity c)
-           = true
-         ∧ shape
-           = Partial_call (Value_partial_application closure vs args_arity)).
+(* What the call of a closure of code is, given the arguments as the
+   code takes them, where it is something: full, or an over-application,
+   or a partial application, by the number of its arguments. *)
+Lemma shape_of_code_call_cases (closure : value) (c : code) (vs : list value)
+    (args_arity return_arity : arity) (shape : call_shape) :
+  shape_of_code_call closure c vs args_arity return_arity = Some shape ->
+  length args_arity = length (code_params_arity c)
+  ∧ shape = Full_call closure c vs args_arity
+  ∨ length (code_params_arity c) < length args_arity
+    ∧ map kind_of_value vs = unarize args_arity
+    ∧ partial_or_over_application args_arity return_arity
+        (code_params_arity c) (code_result_arity c)
+      = true
+    ∧ shape
+      = Over_call closure c
+          (firstn (cardinal_unarized (code_params_arity c)) vs)
+          (skipn (cardinal_unarized (code_params_arity c)) vs)
+          (firstn (length (code_params_arity c)) args_arity)
+          (partially_apply args_arity (length (code_params_arity c)))
+  ∨ length args_arity < length (code_params_arity c)
+    ∧ map kind_of_value vs = unarize args_arity
+    ∧ partial_or_over_application args_arity return_arity
+        (code_params_arity c) (code_result_arity c)
+      = true
+    ∧ code_is_tupled c = false
+    ∧ shape = Partial_call (Value_partial_application closure vs args_arity).
 Proof.
-  unfold shape_of_closure_call.
-  destruct (closure_of statics closure) as [[called slots] | ] eqn:Hclosure;
-    [ | discriminate ].
-  destruct
-    (match kind with
-     | Direct named => Pos.eqb called named
-     | Indirect => true
-     end)
-    eqn:Hexpected; [ | discriminate ].
-  destruct (lookup called (static_code statics)) as [c | ] eqn:Hcode;
-    [ | discriminate ].
-  intros Hshape. exists called, slots, c.
-  split; [ reflexivity | ]. split; [ exact Hcode | ].
-  split; [ intros named ->; apply Pos.eqb_eq; exact Hexpected | ].
+  unfold shape_of_code_call. cbv zeta. intros Hshape.
   destruct (Nat.eqb (length args_arity) (length (code_params_arity c)))
     eqn:Hcount.
   - left. injection Hshape as <-.
@@ -1451,10 +1858,47 @@ Proof.
     apply andb_true_iff in Htests as [Hkinds Htest].
     apply kinds_eqb_eq in Hkinds.
     destruct (Nat.ltb (length (code_params_arity c)) (length args_arity))
-      eqn:Hover; injection Hshape as <-.
-    + apply Nat.ltb_lt in Hover. right. left. auto.
-    + apply Nat.ltb_ge in Hover. right. right.
+      eqn:Hover.
+    + injection Hshape as <-. apply Nat.ltb_lt in Hover. right. left. auto.
+    + destruct (code_is_tupled c) eqn:Htupled; [ discriminate | ].
+      injection Hshape as <-. apply Nat.ltb_ge in Hover. right. right.
       split; [ lia | auto ].
+Qed.
+
+(* What the call of a closure is, where it is something: the closure is
+   one of code that is bound, the code named if the call is direct, and
+   the call is what [shape_of_code_call] says of the arguments as the
+   code takes them. *)
+Lemma shape_of_closure_call_cases (statics : static_env) (closure : value)
+    (kind : call_kind) (vs : list value) (args_arity return_arity : arity)
+    (shape : call_shape) :
+  shape_of_closure_call statics closure kind vs args_arity return_arity
+  = Some shape ->
+  ∃ (called : code_id) (slots : list (value_slot * value)) (c : code)
+    (vs' : list value) (args_arity' : arity),
+    closure_of statics closure = Some (called, slots)
+    ∧ lookup called (static_code statics) = Some c
+    ∧ (∀ named : code_id, kind = Direct named -> called = named)
+    ∧ arguments_for_code statics c vs args_arity = Some (vs', args_arity')
+    ∧ shape_of_code_call closure c vs' args_arity' return_arity = Some shape.
+Proof.
+  unfold shape_of_closure_call.
+  destruct (closure_of statics closure) as [[called slots] | ] eqn:Hclosure;
+    [ | discriminate ].
+  destruct
+    (match kind with
+     | Direct named => Pos.eqb called named
+     | Indirect => true
+     end)
+    eqn:Hexpected; [ | discriminate ].
+  destruct (lookup called (static_code statics)) as [c | ] eqn:Hcode;
+    [ | discriminate ].
+  destruct (arguments_for_code statics c vs args_arity)
+    as [[vs' args_arity'] | ] eqn:Hargs; [ | discriminate ].
+  intros Hshape. exists called, slots, c, vs', args_arity'.
+  split; [ reflexivity | ]. split; [ exact Hcode | ].
+  split; [ intros named ->; apply Pos.eqb_eq; exact Hexpected | ].
+  split; [ exact Hargs | exact Hshape ].
 Qed.
 
 (* What a call is, where it is something: the call of the callee, a
@@ -1511,8 +1955,10 @@ Proof.
     (shape_of_closure_call statics closure kind vs args_arity return_arity)
     as [shape | ] eqn:Hshape; [ | exact I ].
   destruct (shape_of_closure_call_cases _ _ _ _ _ _ _ Hshape)
-    as (called & slots & c & Hcode & Hlookup & Hnamed
-        & [[_ ->] | [(_ & _ & _ & ->) | (_ & _ & _ & ->)]]);
+    as (called & slots & c & vs' & args_arity' & Hcode & Hlookup & Hnamed
+        & _ & Hcall).
+  destruct (shape_of_code_call_cases _ _ _ _ _ _ Hcall)
+    as [[_ ->] | [(_ & _ & _ & ->) | (_ & _ & _ & _ & ->)]];
     simpl; [ | | exact I ]; exists called, slots; auto.
 Qed.
 
@@ -1557,15 +2003,16 @@ Proof.
     (shape_of_closure_call statics closure kind vs args_arity return_arity)
     as [shape | ] eqn:Hshape; [ | exact I ].
   destruct (shape_of_closure_call_cases _ _ _ _ _ _ _ Hshape)
-    as (called & slots & c & _ & _ & _
-        & [[_ ->] | [(Hlt & _ & Htest & ->) | (Hlt & _ & Htest & ->)]]);
+    as (called & slots & c & vs' & args_arity' & _ & _ & _ & _ & Hcall).
+  destruct (shape_of_code_call_cases _ _ _ _ _ _ Hcall)
+    as [[_ ->] | [(Hlt & _ & Htest & ->) | (Hlt & _ & Htest & _ & ->)]];
     simpl; [ exact I | | ];
     unfold partial_or_over_application in Htest; cbv zeta in Htest;
     apply andb_true_iff in Htest as [_ Htest].
   - apply Nat.ltb_lt in Hlt. rewrite Hlt in Htest.
     exact (is_one_param_of_kind_value_eq _ Htest).
   - assert (Hge :
-      Nat.ltb (length (code_params_arity c)) (length args_arity) = false)
+      Nat.ltb (length (code_params_arity c)) (length args_arity') = false)
       by (apply Nat.ltb_ge; lia).
     rewrite Hge in Htest. apply andb_true_iff in Htest as [_ Htest].
     split; [ exact (is_one_param_of_kind_value_eq _ Htest) | reflexivity ].
@@ -1793,6 +2240,14 @@ Definition called_closure (callee : value) : value :=
   | None => callee
   end.
 
+(* The arguments that the closure of a call is called with: those of the
+   call, after those that a partial application keeps. *)
+Definition called_arguments (callee : value) (vs : list value) : list value :=
+  match partial_application_of callee with
+  | Some (_, applied, _) => applied ++ vs
+  | None => vs
+  end.
+
 (* Two calls have the same shape, with the same values, of code related
    by [R]. *)
 Inductive shapes_related (R : code -> code -> Prop)
@@ -1814,7 +2269,7 @@ Inductive shapes_related (R : code -> code -> Prop)
       (Some (Partial_call partial)).
 
 (* Two static environments bind a code id alike: to code related by [R]
-   with the same arities, or not at all. *)
+   with the same arities and the same mark, or not at all. *)
 Definition codes_agree (R : code -> code -> Prop)
     (statics statics' : static_env) (called : code_id) : Prop :=
   match
@@ -1824,6 +2279,7 @@ Definition codes_agree (R : code -> code -> Prop)
     R c c'
     ∧ code_params_arity c' = code_params_arity c
     ∧ code_result_arity c' = code_result_arity c
+    ∧ code_is_tupled c' = code_is_tupled c
   | None, None => True
   | _, _ => False
   end.
@@ -1835,11 +2291,15 @@ Lemma shape_of_closure_call_related (R : code -> code -> Prop)
   (∀ (called : code_id) (slots : list (value_slot * value)),
     closure_of statics closure = Some (called, slots) ->
     codes_agree R statics statics' called) ->
+  (∀ (tuple : value) (rest : list value) (p : prim),
+    vs = tuple :: rest ->
+    eval_prim statics' p [tuple] = eval_prim statics p [tuple]) ->
   shapes_related R
     (shape_of_closure_call statics closure kind vs args_arity return_arity)
     (shape_of_closure_call statics' closure kind vs args_arity return_arity).
 Proof.
-  intros Hclosure Hcodes. unfold shape_of_closure_call. rewrite Hclosure.
+  intros Hclosure Hcodes Hprim. unfold shape_of_closure_call.
+  rewrite Hclosure.
   destruct (closure_of statics closure) as [[called slots] | ];
     [ | apply Shapes_none ].
   specialize (Hcodes called slots eq_refl). unfold codes_agree in Hcodes.
@@ -1852,17 +2312,28 @@ Proof.
   destruct (lookup called (static_code statics)) as [c | ],
     (lookup called (static_code statics')) as [c' | ];
     try contradiction; [ | apply Shapes_none ].
-  destruct Hcodes as (Hc & Hparams & Hresult). rewrite Hparams, Hresult.
-  destruct (Nat.eqb (length args_arity) (length (code_params_arity c)));
+  destruct Hcodes as (Hc & Hparams & Hresult & Htupled).
+  assert (Hargs :
+    arguments_for_code statics' c' vs args_arity
+    = arguments_for_code statics c vs args_arity).
+  { rewrite (arguments_for_code_agree statics statics' c' vs args_arity Hprim).
+    unfold arguments_for_code. rewrite Htupled, Hparams. reflexivity. }
+  rewrite Hargs.
+  destruct (arguments_for_code statics c vs args_arity)
+    as [[vs' args_arity'] | ]; [ | apply Shapes_none ].
+  cbv beta iota. unfold shape_of_code_call.
+  rewrite Hparams, Hresult, Htupled.
+  destruct (Nat.eqb (length args_arity') (length (code_params_arity c)));
     [ apply Shapes_full; exact Hc | ].
   destruct
     (negb
-       (kinds_eqb (map kind_of_value vs) (unarize args_arity)
-        && partial_or_over_application args_arity return_arity
+       (kinds_eqb (map kind_of_value vs') (unarize args_arity')
+        && partial_or_over_application args_arity' return_arity
              (code_params_arity c) (code_result_arity c)));
     [ apply Shapes_none | ].
-  destruct (Nat.ltb (length (code_params_arity c)) (length args_arity));
-    [ apply Shapes_over; exact Hc | apply Shapes_partial ].
+  destruct (Nat.ltb (length (code_params_arity c)) (length args_arity'));
+    [ apply Shapes_over; exact Hc | ].
+  destruct (code_is_tupled c); [ apply Shapes_none | apply Shapes_partial ].
 Qed.
 
 Lemma shape_of_call_related (R : code -> code -> Prop)
@@ -1873,16 +2344,19 @@ Lemma shape_of_call_related (R : code -> code -> Prop)
   (∀ (called : code_id) (slots : list (value_slot * value)),
     closure_of statics (called_closure callee) = Some (called, slots) ->
     codes_agree R statics statics' called) ->
+  (∀ (tuple : value) (rest : list value) (p : prim),
+    called_arguments callee vs = tuple :: rest ->
+    eval_prim statics' p [tuple] = eval_prim statics p [tuple]) ->
   shapes_related R
     (shape_of_call statics callee kind vs args_arity return_arity)
     (shape_of_call statics' callee kind vs args_arity return_arity).
 Proof.
-  intros Hclosure Hcodes. unfold shape_of_call.
+  intros Hclosure Hcodes Hprim. unfold shape_of_call.
   destruct kind as [named | ];
     destruct callee
       as [k | code slots | slot decls slots | s | tag fields | contents
          | l | closure applied applied_arity];
-    simpl in Hclosure, Hcodes |- *;
+    simpl in Hclosure, Hcodes, Hprim |- *;
     try (apply shape_of_closure_call_related; assumption).
   - apply Shapes_none.
   - destruct args_arity as [ | component args_arity];
@@ -2315,6 +2789,13 @@ Hypothesis P_partial :
     P (Value_partial_application callee args args_arity)
     <-> P callee ∧ Forall P args.
 
+(* [P] of the fields of a tuple of which it holds, under a static
+   environment. *)
+Definition P_fields (statics : static_env) : Prop :=
+  ∀ (size : nat) (tuple : value) (fields : list value),
+    P tuple -> tuple_fields statics size tuple = Some fields ->
+    Forall P fields.
+
 (* [P] of the values of a call of a given shape. *)
 Definition shape_values_all (shape : option call_shape) : Prop :=
   match shape with
@@ -2328,32 +2809,37 @@ Definition shape_values_all (shape : option call_shape) : Prop :=
 Lemma shape_of_closure_call_values_all (statics : static_env)
     (closure : value) (kind : call_kind) (vs : list value)
     (args_arity return_arity : arity) :
+  P_fields statics ->
   P closure -> Forall P vs ->
   shape_values_all
     (shape_of_closure_call statics closure kind vs args_arity return_arity).
 Proof.
-  intros Hclosure Hvs.
+  intros Hfields Hclosure Hvs.
   destruct
     (shape_of_closure_call statics closure kind vs args_arity return_arity)
     as [shape | ] eqn:Hshape; [ | exact I ].
   destruct (shape_of_closure_call_cases _ _ _ _ _ _ _ Hshape)
-    as (called & slots & c & _ & _ & _
-        & [[_ ->] | [(_ & _ & _ & ->) | (_ & _ & _ & ->)]]);
+    as (called & slots & c & vs' & args_arity' & _ & _ & _ & Hargs & Hcall).
+  pose proof (arguments_for_code_forall P _ _ _ _ _ _ Hfields Hvs Hargs)
+    as Hvs'.
+  destruct (shape_of_code_call_cases _ _ _ _ _ _ Hcall)
+    as [[_ ->] | [(_ & _ & _ & ->) | (_ & _ & _ & _ & ->)]];
     simpl.
   - split; assumption.
-  - rewrite <- (firstn_skipn (cardinal_unarized (code_params_arity c)) vs)
-      in Hvs.
-    apply Forall_app in Hvs. split; [ exact Hclosure | exact Hvs ].
+  - rewrite <- (firstn_skipn (cardinal_unarized (code_params_arity c)) vs')
+      in Hvs'.
+    apply Forall_app in Hvs'. split; [ exact Hclosure | exact Hvs' ].
   - apply P_partial. split; assumption.
 Qed.
 
 Lemma shape_of_call_values_all (statics : static_env) (callee : value)
     (kind : call_kind) (vs : list value) (args_arity return_arity : arity) :
+  P_fields statics ->
   P callee -> Forall P vs ->
   shape_values_all
     (shape_of_call statics callee kind vs args_arity return_arity).
 Proof.
-  intros Hcallee Hvs.
+  intros Hfields Hcallee Hvs.
   destruct (shape_of_call statics callee kind vs args_arity return_arity)
     as [shape | ] eqn:Hshape; [ | exact I ].
   destruct (shape_of_call_cases _ _ _ _ _ _ _ Hshape)
@@ -2361,7 +2847,8 @@ Proof.
     rewrite <- H.
   - apply shape_of_closure_call_values_all; assumption.
   - apply P_partial in Hcallee as [Hclosure Happlied].
-    apply shape_of_closure_call_values_all; [ exact Hclosure | ].
+    apply shape_of_closure_call_values_all;
+      [ exact Hfields | exact Hclosure | ].
     apply Forall_app. split; assumption.
 Qed.
 
@@ -2446,6 +2933,7 @@ Qed.
 (* Applying a continuation whose values satisfy [P] to values that do. *)
 Lemma apply_cont_value_values_all (Q : state -> Prop) (c : cont_value)
     (vs : list value) (statics : static_env) :
+  P_fields statics ->
   cont_values_all P c ->
   Forall P vs ->
   (∀ (e : expr) (vars : env) (conts : cont_env),
@@ -2457,7 +2945,7 @@ Lemma apply_cont_value_values_all (Q : state -> Prop) (c : cont_value)
   | Undefined => True
   end.
 Proof.
-  intros Hc Hvs Hstate. revert vs Hc Hvs.
+  intros Hfields Hc Hvs Hstate. revert vs Hc Hvs.
   induction c
     as [[params metadata handler] def_vars def_conts recursive | k
        | c IH extra
@@ -2482,7 +2970,7 @@ Proof.
     destruct Hc as (Hremaining & Hreturn & Hexn).
     unfold call_function. apply run_call_values_all; try assumption.
     + apply shape_of_call_values_all;
-        [ exact (Forall_inv Hvs) | exact Hremaining ].
+        [ exact Hfields | exact (Forall_inv Hvs) | exact Hremaining ].
     + intros partial Hpartial.
       apply IHreturn; [ exact Hreturn | ].
       apply Forall_cons; [ exact Hpartial | apply Forall_nil ].
@@ -2503,6 +2991,7 @@ Qed.
 Lemma call_function_values_all (Q : state -> Prop) (callee : value)
     (kind : call_kind) (vs : list value) (args_arity return_arity : arity)
     (return_to exn_to : cont_value) (statics : static_env) :
+  P_fields statics ->
   P callee ->
   Forall P vs ->
   cont_values_all P return_to ->
@@ -2519,11 +3008,12 @@ Lemma call_function_values_all (Q : state -> Prop) (callee : value)
   | Undefined => True
   end.
 Proof.
-  intros Hcallee Hvs Hreturn Hexn Hstate. unfold call_function.
+  intros Hfields Hcallee Hvs Hreturn Hexn Hstate. unfold call_function.
   apply run_call_values_all; try assumption.
   - apply shape_of_call_values_all; assumption.
   - intros partial Hpartial.
-    apply apply_cont_value_values_all; [ exact Hreturn | | exact Hstate ].
+    apply apply_cont_value_values_all;
+      [ exact Hfields | exact Hreturn | | exact Hstate ].
     apply Forall_cons; [ exact Hpartial | apply Forall_nil ].
 Qed.
 
@@ -2567,7 +3057,7 @@ Qed.
 Theorem step_values_all : step_values_all_statement.
 Proof.
   intros P Q [e vars conts statics] Hpartial (Hvars & Hconts & Hstatics)
-    Hlet Hlet_static Happly Happly_cont.
+    Hfields Hlet Hlet_static Happly Happly_cont.
   simpl in *.
   assert (Hstate :
     ∀ (e' : expr) (vars' : env) (conts' : cont_env),
@@ -2612,7 +3102,8 @@ Proof.
       as (Hcallee_ok & Hvs & Hextra_ok).
     apply (call_function_values_all (P statics) (Hpartial statics)
              (state_values_all P Q));
-      [ exact Hcallee_ok | exact Hvs | apply resolve_values_all, Hconts
+      [ exact Hfields | exact Hcallee_ok | exact Hvs
+      | apply resolve_values_all, Hconts
       | apply with_extra_args_values_all;
         [ apply resolve_values_all, Hconts | exact Hextra_ok ]
       | exact Hstate ].
@@ -2622,7 +3113,7 @@ Proof.
     unfold apply_continuation.
     apply (apply_cont_value_values_all (P statics) (Hpartial statics)
              (state_values_all P Q));
-      [ apply resolve_values_all, Hconts | | exact Hstate ].
+      [ exact Hfields | apply resolve_values_all, Hconts | | exact Hstate ].
     exact (Happly_cont ac vs eq_refl Hargs).
   - (* Switch *)
     destruct (eval_simple vars scrutinee) as [v | ]; [ | exact I ].

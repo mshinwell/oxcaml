@@ -4539,7 +4539,7 @@ Proof.
   destruct c as [params my_closure ret exn metadata body].
   unfold loopable.
   cbn [rename_code code_params code_my_closure code_return_continuation
-       code_exn_continuation code_body code_params_arity].
+       code_exn_continuation code_body code_params_arity code_is_tupled].
   rewrite among_rename_variable,
     (distinct_map_injective _ (rename_variable_eqb r)),
     !rename_continuation_eqb, loop_safe_equivariant, loop_calls_equivariant,

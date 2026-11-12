@@ -83,7 +83,14 @@
    - [self] is neither of those two, and does not occur in the body,
      bound or applied ([loop_safe]);
    - some call was made a jump (FlambdaUnusedContsSpec.cont_free_b of
-     [self]): Simplify does not keep a loop that nothing jumps to.
+     [self]): Simplify does not keep a loop that nothing jumps to;
+   - the code is not tupled (FlambdaModel.code_is_tupled). A call of
+     this fragment gives tupled code one argument, a tuple, which the
+     machine takes apart (FlambdaSemanticsSpec.arguments_for_code); a
+     jump binds the parameters to the arguments as they are, so it would
+     not refine the call. The compiler's self tail call of tupled code is
+     a direct call, which gives the code its arguments as the code takes
+     them, and this fragment has not got that call yet.
    A self tail call ([is_self_tail_call]) is an [Apply] whose callee is
    [Var my_closure], whose two continuations are those of the code, the
    exception continuation with no extra arguments, and which is made at
@@ -286,7 +293,8 @@ Definition loopable (self : continuation) (c : code) : bool :=
   && negb (Pos.eqb self (code_exn_continuation c))
   && loop_safe (code_my_closure c) (code_return_continuation c)
        (code_exn_continuation c) self (code_body c)
-  && cont_free_b self looped.
+  && cont_free_b self looped
+  && negb (code_is_tupled c).
 
 Definition loopify_code (self : continuation) (c : code) : code :=
   if loopable self c then looped_code self c else c.

@@ -336,6 +336,7 @@ Definition identity_code (x my_closure : variable) (ret exn : continuation)
    (FlambdaApplySpec.v). The call is taken to give the code as many
    arguments as it has parameters, counted by parameter: with another
    number it may be a partial application or an over-application.
+   The code is taken not to be tupled: a call gives tupled code a tuple.
    Whatever else the code and the call are annotated with. *)
 Definition inline_identity_statement : Prop :=
   ∀ (called : code_id) (x my_closure : variable) (ret exn : continuation)
@@ -346,6 +347,7 @@ Definition inline_identity_statement : Prop :=
     ~ var_free_in_simple x arg ->
     ~ var_free_in_simple my_closure arg ->
     length args_arity = length (cm_params_arity metadata) ->
+    cm_is_tupled metadata = false ->
     expr_refines
       (Let_static
          [Bind_code called (identity_code x my_closure ret exn metadata)]

@@ -1604,9 +1604,17 @@ Proof.
   pose proof Hvalues as (Hvars & Hconts & Hstatics).
   apply (step_values_all (value_statics_bound deleted)
            (allocated_statics_bound deleted) s);
-    [ | exact Hvalues | | | | ].
+    [ | exact Hvalues | | | | | ].
   - intros statics callee args arity. unfold value_statics_bound. simpl.
     rewrite andb_true_iff, forallb_Forall_among. reflexivity.
+  - (* the fields of a tuple: of a block, or of a symbol bound to one *)
+    intros size tuple fields Htuple Hfields.
+    apply (tuple_fields_of_blocks _ (state_statics s) size tuple fields);
+      [ | exact Hfields ].
+    intros tag block Hblock. apply forallb_Forall_among.
+    destruct (block_of_cases _ _ _ _ Hblock) as [-> | (sym & -> & Hs)].
+    + exact Htuple.
+    + exact (statics_among_lookup _ _ (state_statics s) sym _ Hstatics Hs).
   - intros x kind d body v He Heval. rewrite He in S. simpl in S.
     apply andb_true_iff in S as [S _].
     exact (eval_named_among _ _ (state_statics s) (state_vars s) d v Hstatics
@@ -1728,17 +1736,44 @@ Proof.
 Qed.
 
 Lemma called_by_cont_bound (P : value -> Prop) (c : cont_value) :
-  ∀ (vs : list value) (v : value),
-    cont_values_all P c -> Forall P vs -> called_by_cont c vs = Some v -> P v.
+  ∀ (vs : list value) (v : value) (remaining : list value),
+    cont_values_all P c -> Forall P vs ->
+    called_by_cont c vs = Some (v, remaining) ->
+    P v ∧ Forall P remaining.
 Proof.
   induction c
     as [ h vars conts recursive | k | c IH extra
-       | remaining remaining_arity return_arity return_to _ exn_to _];
-    intros vs v; simpl; try discriminate.
+       | kept remaining_arity return_arity return_to _ exn_to _];
+    intros vs v remaining; simpl; try discriminate.
   - intros [Hextra Hc] Hvs. apply IH; [ exact Hc | ].
     apply Forall_app. auto.
-  - intros _ Hvs. destruct vs as [ | v' [ | v'' vs]]; try discriminate.
-    intros [= <-]. exact (Forall_inv Hvs).
+  - intros (Hkept & _) Hvs.
+    destruct vs as [ | v' [ | v'' vs]]; try discriminate.
+    intros [= <- <-]. split; [ exact (Forall_inv Hvs) | exact Hkept ].
+Qed.
+
+(* The tuple that a call reads is one of the values that the call has in
+   hand: an argument, or an argument that a partial application kept. *)
+Lemma reads_bound_tuple (deleted : list code_id) (statics : static_env)
+    (callee : value) (vs : list value) :
+  value_statics_bound deleted statics callee ->
+  Forall (value_statics_bound deleted statics) vs ->
+  reads_unbound_tuple statics callee vs = false.
+Proof.
+  intros Hcallee Hvs. unfold reads_unbound_tuple, tuple_read.
+  destruct (closure_of statics (closure_called callee)) as [[called slots] | ];
+    [ | reflexivity ].
+  destruct (lookup called (static_code statics)) as [c | ]; [ | reflexivity ].
+  destruct (code_is_tupled c); [ | reflexivity ].
+  assert (Hall :
+    Forall (value_statics_bound deleted statics) (arguments_called callee vs)).
+  { unfold arguments_called. destruct callee; simpl; try exact Hvs.
+    apply Forall_app. split; [ | exact Hvs ].
+    unfold value_statics_bound in Hcallee. simpl in Hcallee.
+    apply andb_true_iff in Hcallee as [_ Hkept].
+    apply forallb_Forall_among. exact Hkept. }
+  destruct (arguments_called callee vs) as [ | tuple rest]; [ reflexivity | ].
+  simpl. exact (bound_not_unbound deleted statics tuple (Forall_inv Hall)).
 Qed.
 
 Lemma existsb_unbound_false (deleted : list code_id) (statics : static_env)
@@ -1788,22 +1823,30 @@ Proof.
       exact (eval_simple_among _ _ _ _ _ Hvars S Heval).
   - cbn [expr_statics_in_scope] in S. unfold apply_statics_in_scope in S.
     apply andb_true_iff in S as [S _].
-    apply andb_true_iff in S as [S _].
+    apply andb_true_iff in S as [S Sargs].
     apply andb_true_iff in S as [Scallee _].
     destruct (eval_simple (state_vars s) (ap_callee ap)) as [callee | ]
       eqn:Heval; [ | reflexivity ].
-    apply calls_bound; [ exact Hstatics | ].
-    exact (eval_simple_among _ _ _ _ _ Hvars Scallee Heval).
+    pose proof (eval_simple_among _ _ _ _ _ Hvars Scallee Heval) as Hcallee.
+    rewrite (calls_bound deleted _ callee Hstatics Hcallee). simpl.
+    destruct (eval_simples (state_vars s) (ap_args ap)) as [vs | ] eqn:Hargs;
+      [ | reflexivity ].
+    apply (reads_bound_tuple deleted); [ exact Hcallee | ].
+    apply forallb_Forall_among.
+    exact (eval_simples_among _ _ _ _ Hvars vs Sargs Hargs).
   - cbn [expr_statics_in_scope] in S.
     destruct (eval_simples (state_vars s) (ac_args ac)) as [vs | ] eqn:Heval;
       [ | reflexivity ].
     destruct (called_by_cont (resolve (ac_continuation ac) (state_conts s)) vs)
-      as [v | ] eqn:Hcalled; [ | reflexivity ].
-    apply calls_bound; [ exact Hstatics | ].
-    refine (called_by_cont_bound _ _ vs v _ _ Hcalled).
-    + apply resolve_values_all, Hconts.
-    + apply forallb_Forall_among.
-      exact (eval_simples_among _ _ _ _ Hvars vs S Heval).
+      as [[v remaining] | ] eqn:Hcalled; [ | reflexivity ].
+    destruct (called_by_cont_bound _ _ vs v remaining
+                (resolve_values_all _ _ _ Hconts)
+                (proj1 (forallb_Forall_among _ _ _)
+                   (eval_simples_among _ _ _ _ Hvars vs S Heval))
+                Hcalled)
+      as [Hv Hremaining].
+    rewrite (calls_bound deleted _ v Hstatics Hv). simpl.
+    exact (reads_bound_tuple deleted _ v remaining Hv Hremaining).
 Qed.
 
 End Fault.

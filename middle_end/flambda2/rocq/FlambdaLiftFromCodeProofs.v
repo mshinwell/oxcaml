@@ -997,9 +997,23 @@ Proof.
   simpl option_map. cbv iota zeta.
   destruct (code_lifted_out_parts called c)
     as (_ & _ & _ & _ & Hparams_arity & Hresult_arity & _).
-  rewrite Hparams_arity, Hresult_arity,
-    (kinds_of_values_lifted statics' vs vs' Hvs).
+  assert (Htupled :
+    code_is_tupled (code_lifted_out called c) = code_is_tupled c)
+    by (destruct c; reflexivity).
+  destruct (arguments_for_code statics c vs args_arity)
+    as [[ws taken_arity] | ] eqn:Hargs; [ | discriminate ].
+  destruct
+    (arguments_for_code_related (value_lifted statics') statics statics' c
+       (code_lifted_out called c) vs vs' args_arity ws taken_arity
+       (value_lifted_respects statics statics' Hsymbols) Htupled
+       Hparams_arity Hvs (kinds_of_values_lifted statics' vs vs' Hvs) Hargs)
+    as (ws' & -> & Hws).
+  simpl. unfold shape_of_code_call. cbv zeta.
+  rewrite Hparams_arity, Hresult_arity, Htupled,
+    (kinds_of_values_lifted statics' ws ws' Hws).
   pose proof (Haliases called c Hcalled) as Hbound.
+  clear Hargs Hvs vs vs'. rename ws into vs, ws' into vs', Hws into Hvs.
+  rename args_arity into call_arity, taken_arity into args_arity.
   destruct (Nat.eqb (length args_arity) (length (code_params_arity c))).
   - intros [= <-]. eexists. split; [ reflexivity | ].
     apply Full_call_lifted_out; assumption.
@@ -1014,9 +1028,12 @@ Proof.
          (cardinal_unarized (code_params_arity c)) vs vs' Hvs)
       as [Hfirst Hrest].
     destruct (Nat.ltb (length (code_params_arity c)) (length args_arity));
-      intros [= <-]; eexists; (split; [ reflexivity | ]).
-    + apply Over_call_lifted_out; assumption.
-    + apply Partial_call_lifted_out, Lifted_partial_application; assumption.
+      [ intros [= <-]; eexists; (split; [ reflexivity | ]);
+        apply Over_call_lifted_out; assumption
+      | ].
+    destruct (code_is_tupled c); [ discriminate | ].
+    intros [= <-]. eexists. split; [ reflexivity | ].
+    apply Partial_call_lifted_out, Lifted_partial_application; assumption.
 Qed.
 
 (* The same of a call: the closure that a partial application keeps is

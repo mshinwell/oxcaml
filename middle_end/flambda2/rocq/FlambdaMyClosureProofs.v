@@ -490,6 +490,21 @@ Lemma value_free_partial (callee : value) (args : list value)
   <-> value_free callee = true ∧ Forall (fun v => value_free v = true) args.
 Proof. simpl. rewrite andb_true_iff, forallb_Forall. reflexivity. Qed.
 
+(* The fields of a tuple that holds no such closure hold none. *)
+Lemma tuple_fields_free (statics : static_env) :
+  statics_ok statics ->
+  P_fields (fun v => value_free v = true) statics.
+Proof.
+  intros Hstatics size tuple fields Htuple Hfields.
+  apply (tuple_fields_forall _ statics size tuple fields);
+    [ | exact Hfields ].
+  intros field v Hv.
+  apply (eval_prim_free statics
+           (Unary (Block_load (tuple_access size) Immutable field)) [tuple] v
+           Hstatics);
+    [ simpl; rewrite Htuple; reflexivity | exact Hv ].
+Qed.
+
 (* A full call keeps the invariant. *)
 Lemma call_code_ok (closure : value) (called : code_id) (c : code)
     (vs : list value) (args_arity return_arity : arity)
@@ -587,7 +602,8 @@ Proof.
              (shape_of_call_calls _ _ _ _ _ _));
       [ | exact Hreturn | exact Hexn | ].
     + apply (shape_of_call_values_all _ value_free_partial);
-        [ exact Hvs | apply forallb_Forall; exact Hremaining ].
+        [ exact (tuple_fields_free statics Hstatics) | exact Hvs
+        | apply forallb_Forall; exact Hremaining ].
     + intros partial Hpartial. apply IHreturn; [ | exact Hstatics ].
       simpl. rewrite Hpartial. reflexivity.
 Qed.
@@ -661,7 +677,8 @@ Proof.
              (shape_of_call_calls _ _ _ _ _ _));
       [ | exact Hreturn | exact Hexn | ].
     + apply (shape_of_call_values_all _ value_free_partial);
-        [ exact (eval_simple_free vars _ callee Hvars Hcallee) | ].
+        [ exact (tuple_fields_free statics Hstatics)
+        | exact (eval_simple_free vars _ callee Hvars Hcallee) | ].
       apply forallb_Forall. exact (eval_simples_free vars _ Hvars vs Hargs).
     + intros partial Hpartial.
       apply (apply_cont_value_ok _ Hreturn); [ | exact Hstatics ].

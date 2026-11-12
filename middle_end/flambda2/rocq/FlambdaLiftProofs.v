@@ -1463,9 +1463,26 @@ Proof.
   rewrite (proj1 Hstatics called).
   destruct (lookup called (static_code statics)) as [c | ]; [ | discriminate ].
   simpl option_map. cbv iota zeta.
+  assert (Htupled :
+    code_is_tupled (bind_my_closure known called c) = code_is_tupled c).
+  { destruct c as [params my_closure ret exn metadata body]. simpl.
+    destruct (lookup called known); [ destruct (among my_closure params) | ];
+      reflexivity. }
+  destruct (arguments_for_code statics c vs args_arity)
+    as [[ws args_arity'] | ] eqn:Hargs; [ | discriminate ].
+  destruct
+    (arguments_for_code_related (value_lifted statics') statics statics' c
+       (bind_my_closure known called c) vs vs' args_arity ws args_arity'
+       (value_lifted_respects statics statics' (proj2 Hstatics)) Htupled
+       (bind_my_closure_params_arity called c) Hvs
+       (kinds_of_values_lifted statics' vs vs' Hvs) Hargs)
+    as (ws' & -> & Hws).
+  simpl. unfold shape_of_code_call. cbv zeta.
   rewrite (bind_my_closure_params_arity called c),
     (bind_my_closure_result_arity called c),
-    (kinds_of_values_lifted statics' vs vs' Hvs).
+    (kinds_of_values_lifted statics' ws ws' Hws), Htupled.
+  clear Hargs Hvs vs vs'. rename ws into vs, ws' into vs', Hws into Hvs.
+  rename args_arity into call_arity, args_arity' into args_arity.
   assert (Hcalled : called_lifted statics' closure closure' called).
   { split; [ exact Hclosure | ]. intros sym Hsym.
     exact (proj2
@@ -1486,9 +1503,12 @@ Proof.
          (cardinal_unarized (code_params_arity c)) vs vs' Hvs)
       as [Hfirst Hrest].
     destruct (Nat.ltb (length (code_params_arity c)) (length args_arity));
-      intros [= <-]; eexists; (split; [ reflexivity | ]).
-    + apply Over_call_lifted; assumption.
-    + apply Partial_call_lifted, Lifted_partial_application; assumption.
+      [ intros [= <-]; eexists; (split; [ reflexivity | ]);
+        apply Over_call_lifted; assumption
+      | ].
+    destruct (code_is_tupled c); [ discriminate | ].
+    intros [= <-]. eexists. split; [ reflexivity | ].
+    apply Partial_call_lifted, Lifted_partial_application; assumption.
 Qed.
 
 (* The same of a call: the closure that a partial application keeps is
@@ -1685,9 +1705,17 @@ Proof.
               args_arity return_arity shape Hstatics Hcallee Hvs Hok Hfree
               Hshape)
     as (shape' & Hshape' & Hshapes).
+  assert (Hfields : P_fields known_free statics').
+  { intros size tuple fields Htuple Htuple_fields.
+    apply Forall_forall. intros v Hv id sym Hsym.
+    pose proof
+      (tuple_fields_free id sym statics' (Hok id sym Hsym) size tuple fields
+         (Htuple id sym Hsym) Htuple_fields)
+      as Hall.
+    rewrite Forall_forall in Hall. exact (Hall v Hv). }
   pose proof
     (shape_of_call_values_all known_free known_free_partial statics' callee'
-       kind vs' args_arity return_arity Hfree Hvs_free)
+       kind vs' args_arity return_arity Hfields Hfree Hvs_free)
     as Hvalues.
   rewrite Hshape' in Hvalues |- *.
   exact (run_call_lifted _ _ shape shape' return_arity _ _ _ _ statics

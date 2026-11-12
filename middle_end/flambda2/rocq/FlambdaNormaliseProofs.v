@@ -279,7 +279,9 @@ Proof.
   apply andb_true_iff in Hb as [Hb Hextra].
   apply no_exn_extra_args_nil in Hextra.
   apply andb_true_iff in Hb as [Hb Hcall].
-  apply andb_true_iff in Hb as [Hscope Hcode].
+  apply andb_true_iff in Hb as [Hb Hcode].
+  apply andb_true_iff in Hb as [Htupled Hscope].
+  apply negb_true_iff in Htupled.
   apply negb_true_iff, Pos.eqb_neq in Hcode.
   apply negb_true_iff, Pos.eqb_neq in Hcall.
   destruct (expr_in_scope_sound _ _ _ Hscope) as [Hvars Hconts].
@@ -293,7 +295,9 @@ Proof.
              (conj Hret
                 (conj Hexn
                    (conj Hextra
-                      (conj _ (conj _ (conj _ (conj _ Hstatic)))))))))).
+                      (conj _
+                         (conj _
+                            (conj _ (conj _ (conj Hstatic Htupled))))))))))).
   - intros x Hx. destruct (Hvars x Hx) as [<- | Hin]; auto.
   - intros k Hk. destruct (Hconts k Hk) as [<- | [<- | []]]; auto.
   - intros Hfree. apply var_in_simples_sound in Hfree.

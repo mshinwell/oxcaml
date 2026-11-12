@@ -780,6 +780,52 @@ Lemma value_avoids_partial (callee : value) (args : list value)
       ∧ Forall (fun v => value_avoids D v = true) args.
 Proof. simpl. rewrite andb_true_iff, forallb_Forall. reflexivity. Qed.
 
+(* The arguments that the closure of a call is called with avoid the
+   names removed, where the callee and the arguments of the call do. *)
+Lemma called_arguments_avoid (callee : value) (vs : list value) :
+  value_avoids D callee = true ->
+  forallb (value_avoids D) vs = true ->
+  forallb (value_avoids D) (called_arguments callee vs) = true.
+Proof.
+  unfold called_arguments.
+  destruct callee; simpl; try (intros _ H; exact H).
+  intros Hcallee Hvs. apply andb_true_iff in Hcallee as [_ Hargs].
+  rewrite forallb_app, Hargs, Hvs. reflexivity.
+Qed.
+
+(* Under the two static environments the primitives read alike the
+   first of those arguments, which a call of tupled code takes apart. *)
+Lemma called_tuple_erased (statics statics' : static_env) (callee : value)
+    (vs : list value) (tuple : value) (rest : list value) (p : prim) :
+  statics_erased statics statics' ->
+  value_avoids D callee = true ->
+  forallb (value_avoids D) vs = true ->
+  called_arguments callee vs = tuple :: rest ->
+  eval_prim statics' p [tuple] = eval_prim statics p [tuple].
+Proof.
+  intros Hstatics Hcallee Hvs Hcalled.
+  pose proof (called_arguments_avoid callee vs Hcallee Hvs) as Havoid.
+  rewrite Hcalled in Havoid. simpl in Havoid.
+  apply andb_true_iff in Havoid as [Htuple _].
+  apply (eval_prim_erased statics statics' p [tuple] Hstatics).
+  simpl. rewrite Htuple. reflexivity.
+Qed.
+
+(* The fields of a tuple that avoids the names removed avoid them. *)
+Lemma tuple_fields_avoid (statics statics' : static_env) :
+  statics_erased statics statics' ->
+  P_fields (fun v => value_avoids D v = true) statics.
+Proof.
+  intros Hstatics size tuple fields Htuple Hfields.
+  apply (tuple_fields_forall _ statics size tuple fields);
+    [ | exact Hfields ].
+  intros field v Hv.
+  apply (eval_prim_avoids statics statics'
+           (Unary (Block_load (tuple_access size) Immutable field)) [tuple] v
+           Hstatics);
+    [ simpl; rewrite Htuple; reflexivity | exact Hv ].
+Qed.
+
 Lemma called_closure_avoids (callee : value) :
   value_avoids D callee = true ->
   value_avoids D (called_closure callee) = true.
@@ -808,7 +854,7 @@ Proof.
     simpl; [ | exact I ].
   split; [ split; [ reflexivity | exact (Hcode_avoids called c Hkept Hlookup) ]
          | ].
-  destruct c. split; reflexivity.
+  destruct c. repeat split.
 Qed.
 
 Lemma call_code_erased (closure : value) (c : code) (vs : list value)
@@ -926,8 +972,12 @@ Proof.
       * intros called slots.
         exact (codes_agree_erased statics statics' _ called slots Hstatics
                  (called_closure_avoids v Hvs)).
+      * intros tuple rest p.
+        exact (called_tuple_erased statics statics' v remaining tuple rest p
+                 Hstatics Hvs Hremaining).
     + apply (shape_of_call_values_all _ value_avoids_partial);
-        [ exact Hvs | apply forallb_Forall; exact Hremaining ].
+        [ exact (tuple_fields_avoid statics statics' Hstatics) | exact Hvs
+        | apply forallb_Forall; exact Hremaining ].
     + intros partial Hpartial. apply IHreturn. simpl.
       rewrite Hpartial. reflexivity.
 Qed.
@@ -955,8 +1005,12 @@ Proof.
     + intros called slots.
       exact (codes_agree_erased statics statics' _ called slots Hstatics
                (called_closure_avoids callee Hcallee)).
+    + intros tuple rest p.
+      exact (called_tuple_erased statics statics' callee vs tuple rest p
+               Hstatics Hcallee Hvs).
   - apply (shape_of_call_values_all _ value_avoids_partial);
-      [ exact Hcallee | apply forallb_Forall; exact Hvs ].
+      [ exact (tuple_fields_avoid statics statics' Hstatics) | exact Hcallee
+      | apply forallb_Forall; exact Hvs ].
   - intros partial Hpartial.
     apply apply_cont_value_erased; [ exact Hreturn | | exact Hstatics ].
     simpl. rewrite Hpartial. reflexivity.

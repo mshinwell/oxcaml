@@ -160,7 +160,11 @@ Definition inlinable (ap : apply_expr) (c : code) (r : renaming) : Prop :=
   ∧ length (ap_args_arity ap) = length (code_params_arity c)
   (* the body binds nothing static: inlined, it could come to be at
      toplevel, where it would be allowed to *)
-  ∧ binds_statics (code_body c) = false.
+  ∧ binds_statics (code_body c) = false
+  (* the code is not tupled: a call gives tupled code a tuple, and the
+     bindings of the inlined body bind the parameters to the arguments
+     as they are *)
+  ∧ code_is_tupled c = false.
 
 (* Where the code id of a direct call is bound to code [c], the call
    refines [c] inlined. *)

@@ -77,6 +77,11 @@
      not step for step the same: where the machine applies what is left
      of the application, the term applies a handler, which takes one
      step more.
+   - These statements are about code that is not tupled. A call of
+     tupled code takes its first argument apart before it counts its
+     arguments (FlambdaTupledSpec.v), so that it is never a partial
+     application, and is an over-application where it has a second
+     argument.
    - Two units run as they should, one with a partial application that
      is then applied and one with an over-application; they are
      well-formed, and pass the check of kinds
@@ -129,6 +134,7 @@ Definition apply_partial_statement : Prop :=
     closure_of statics callee = Some (called, slots) ->
     ap_call_kind ap = Indirect ∨ ap_call_kind ap = Direct called ->
     lookup called (static_code statics) = Some c ->
+    code_is_tupled c = false ->
     length (ap_args_arity ap) < length (code_params_arity c) ->
     map kind_of_value vs = unarize (ap_args_arity ap) ->
     partial_or_over_application (ap_args_arity ap) (ap_return_arity ap)
@@ -212,6 +218,7 @@ Definition partial_then_apply_statement : Prop :=
     closure_of statics callee = Some (called, slots) ->
     kind = Indirect ∨ kind = Direct called ->
     lookup called (static_code statics) = Some c ->
+    code_is_tupled c = false ->
     length args_arity < length (code_params_arity c) ->
     args_arity' <> [] ->
     ~ var_free_in_simples p args' ->
@@ -256,6 +263,7 @@ Definition apply_over_statement : Prop :=
     closure_of statics callee = Some (called, slots) ->
     ap_call_kind ap = Indirect ∨ ap_call_kind ap = Direct called ->
     lookup called (static_code statics) = Some c ->
+    code_is_tupled c = false ->
     length (code_params_arity c) < length (ap_args_arity ap) ->
     map kind_of_value vs = unarize (ap_args_arity ap) ->
     partial_or_over_application (ap_args_arity ap) (ap_return_arity ap)
@@ -322,6 +330,7 @@ Definition over_application_split_statement : Prop :=
     eval_simple vars f = Some callee ->
     closure_of statics callee = Some (called, slots) ->
     lookup called (static_code statics) = Some c ->
+    code_is_tupled c = false ->
     length args_arity = length (code_params_arity c) ->
     length args = cardinal_unarized (code_params_arity c) ->
     args_arity' <> [] ->

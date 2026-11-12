@@ -30,7 +30,8 @@
 
    This file is to be reviewed: [closure_of], [closure_in_set],
    [project_value_slot], [project_function_slot], [eval_named],
-   [eval_static_bindings], [call_code], [shape_of_closure_call],
+   [eval_static_bindings], [call_code], [tuple_fields], [detuple],
+   [arguments_for_code], [shape_of_code_call], [shape_of_closure_call],
    [shape_of_call], [run_call], [apply_cont_value], [with_extra_args],
    [call_function] and the rules of [step], then [behaves],
    [equivalent] and [refines]. The values, the static
@@ -91,6 +92,15 @@
    function it knows into a closure of new code, and at run time one of
    a function it does not know is a closure of [caml_curryN]. The
    machine cannot make code, and its one value stands for both.
+
+   Tupled code (FlambdaModel.code_is_tupled) has a parameter for each
+   component of a tuple, and a call gives its closure one argument, the
+   tuple, in place of them ([detuple]): the machine reads the fields of
+   the tuple as Simplify's projections do ([tuple_fields]) and goes on
+   with them as the arguments, followed by any others that the call
+   gives. Every call of this fragment does so, a direct one too; the
+   compiler's direct call of tupled code, which gives the code the
+   components themselves, is not in the fragment.
 
    Exceptions. An exception handler is a continuation; a raise is an
    [Apply_cont] of it, the exception being the first argument; and a call
@@ -178,7 +188,9 @@
    arguments at arities that the compiler does not take for a partial
    application or an over-application, or with arguments that are not
    of the kinds of the call's arity, at a call of a partial application
-   that is direct or gives it no argument,
+   that is direct or gives it no argument, at a call of tupled code
+   whose first argument is not a tuple with one field of kind [Value]
+   for each parameter of the code,
    at a [Let] whose defining expression has a value of another kind than
    the [Let] gives its variable, at a handler applied to values of other
    kinds than it gives its parameters,
@@ -662,8 +674,85 @@ Inductive call_shape : Type :=
       (args_arity remaining_arity : arity)
   | Partial_call (partial : value).
 
-(* What the call of a closure is; [None] where it is undefined. A direct
-   call must be to a closure of the code named.
+(* The access kind at which Simplify reads the fields of the tuple that
+   a call gives tupled code ([Simplify_common.project_tuple]): a block
+   of values of tag 0 with as many fields as the code has parameters. *)
+Definition tuple_access (size : nat) : block_access_kind :=
+  Block_access_values (Some 0%Z) (Some (Z.of_nat size)) Any_value.
+
+(* The fields [field], [field + 1], ... of a tuple of [size]
+   components, [count] of them: what the projections that
+   [simplify_direct_tuple_application] makes read, each an immutable
+   [Block_load] at [tuple_access]. Nothing if one of them has no
+   value. *)
+Fixpoint tuple_fields_from (statics : static_env) (size : nat)
+    (tuple : value) (field count : nat) : option (list value) :=
+  match count with
+  | O => Some []
+  | S count =>
+    let* v :=
+      eval_prim statics
+        (Unary (Block_load (tuple_access size) Immutable (Z.of_nat field)))
+        [tuple]
+    in
+    let* vs := tuple_fields_from statics size tuple (S field) count in
+    Some (v :: vs)
+  end.
+
+(* The fields of a tuple of [size] components. So the tuple is an
+   immutable block of tag 0 that has exactly [size] fields, all of kind
+   [Value], or a symbol bound to one
+   (FlambdaTupledSpec.tuple_is_block_statement). A tuple of no component
+   is not looked at. *)
+(* CR mshinwell: a tuple given to tupled code must have the tag 0 and
+   exactly as many fields as the code has parameters, each of kind
+   [Value]: otherwise the call is undefined. That is what the access
+   kind of Simplify's projections says, as this fragment reads an
+   access kind (the review comment at
+   FlambdaPrimitiveSpec.eval_block_load). At run time [caml_tuplifyN]
+   (backend/cmm_helpers.ml, [tuplify_function]) reads the first fields
+   of whatever it is given and tests nothing. It would be wrong if the
+   compiler gives a tupled function a block of another tag or with more
+   fields. Decisions D15 and D22. *)
+Definition tuple_fields (statics : static_env) (size : nat) (tuple : value)
+    : option (list value) :=
+  tuple_fields_from statics size tuple 0 size.
+
+(* The arguments of a call of tupled code as the code takes them, with
+   their arity: the fields of the first argument, the tuple, then the
+   arguments that remain. [size] is the number of parameters of the
+   code, unarized. The arguments must be of the kinds of the arity of
+   the call, as for every call, and the first parameter of that arity
+   must be one [Value]. The arity that results is that of
+   [simplify_direct_tuple_application]: [size] values, then the arity of
+   the call less its first parameter. With no argument the call is
+   undefined: the compiler stops on one. *)
+Definition detuple (statics : static_env) (size : nat) (vs : list value)
+    (args_arity : arity) : option (list value * arity) :=
+  match vs, args_arity with
+  | tuple :: rest, first :: rest_arity =>
+    if
+      negb
+        (kinds_eqb (map kind_of_value vs) (unarize args_arity)
+         && kinds_eqb (unarize_component first) [Value])
+    then None
+    else
+      let* fields := tuple_fields statics size tuple in
+      Some (fields ++ rest, arity_of_kinds (repeat Value size) ++ rest_arity)
+  | _, _ => None
+  end.
+
+(* The arguments of a call of a closure of the code [c] as the code
+   takes them, with their arity: as the call gives them, unless the code
+   is tupled. *)
+Definition arguments_for_code (statics : static_env) (c : code)
+    (vs : list value) (args_arity : arity) : option (list value * arity) :=
+  if code_is_tupled c
+  then detuple statics (cardinal_unarized (code_params_arity c)) vs args_arity
+  else Some (vs, args_arity).
+
+(* What the call of a closure of the code [c] is, given the arguments
+   as the code takes them; [None] where it is undefined.
 
    A call is the generic application of the compiler, which tells the
    three shapes apart by the number of arguments, counted by parameter
@@ -684,6 +773,47 @@ Inductive call_shape : Type :=
    with the return arity of the call, until the result is called. A call
    with no argument of code that has parameters is undefined: the
    compiler stops on one. *)
+(* CR mshinwell: fewer arguments than parameters, of tupled code, is
+   undefined. A partial application keeps the closure and the
+   arguments, and is called later as its closure is with all the
+   arguments ([shape_of_call]); for a closure of tupled code that call
+   would take the first of them for a tuple. It cannot come about in
+   this fragment for code whose parameters are single values, as the
+   compiler's tupled code is: a tuple has a field for each. Simplify
+   would make a wrapper of a direct call of tupled code with too few
+   arguments ([simplify_direct_partial_application]); the compiler is
+   not known to make such a call. *)
+Definition shape_of_code_call (closure : value) (c : code) (vs : list value)
+    (args_arity return_arity : arity) : option call_shape :=
+  let provided := length args_arity in
+  let params := length (code_params_arity c) in
+  if Nat.eqb provided params
+  then Some (Full_call closure c vs args_arity)
+  else if
+    negb
+      (kinds_eqb (map kind_of_value vs) (unarize args_arity)
+       && partial_or_over_application args_arity return_arity
+            (code_params_arity c) (code_result_arity c))
+  then None
+  else if Nat.ltb params provided
+  then
+    let size := cardinal_unarized (code_params_arity c) in
+    Some
+      (Over_call closure c (firstn size vs) (skipn size vs)
+         (firstn params args_arity) (partially_apply args_arity params))
+  else if code_is_tupled c
+  then None
+  else Some (Partial_call (Value_partial_application closure vs args_arity)).
+
+(* What the call of a closure is; [None] where it is undefined. A direct
+   call must be to a closure of the code named. The code takes the
+   arguments as they are, unless it is tupled: then the first argument
+   is a tuple, and the code takes its fields followed by the other
+   arguments ([arguments_for_code]). That is the rewrite of
+   [simplify_direct_tuple_application], made by the machine: the
+   compiler gives a tupled function a tuple wherever the call does not
+   go by the code (a call of unknown arity), and at run time the
+   closure's own entry point takes the tuple apart ([caml_tuplifyN]). *)
 
 (* CR mshinwell: two calls are undefined in [shape_of_closure_call] on
    trust.
@@ -727,6 +857,21 @@ Inductive call_shape : Type :=
    either afterwards. Whether such a call should be undefined, or ruled
    out by well-formedness where the code is named, is not decided.
    Discrepancy C3-9. *)
+(* CR mshinwell: a direct call of tupled code gives it a tuple here, as
+   an indirect one does. In the compiler a direct call is in the
+   convention of the code: it gives tupled code the components
+   ([simplify_function_call], the comment at [call_must_be_detupled]).
+   So the compiler's direct calls of tupled code are not in this
+   fragment (the test tool refuses them), and the [Direct] of this
+   fragment says of tupled code what the compiler has no call kind for:
+   the code is known and the argument is still the tuple. It is so in
+   order that an indirect call of a known closure is a direct call of
+   its code whatever the code
+   (FlambdaApplySpec.apply_indirect_known_statement), which the
+   canonicalisation of a term by aliases relies on under every static
+   environment. The other choice is a [Direct] in the convention of the
+   code, as in the compiler, and a premise that the code is not tupled
+   on that statement and on what is built on it. *)
 Definition shape_of_closure_call (statics : static_env) (closure : value)
     (kind : call_kind) (vs : list value) (args_arity return_arity : arity)
     : option call_shape :=
@@ -740,23 +885,8 @@ Definition shape_of_closure_call (statics : static_env) (closure : value)
     in
     match expected, lookup called (static_code statics) with
     | true, Some c =>
-      let provided := length args_arity in
-      let params := length (code_params_arity c) in
-      if Nat.eqb provided params
-      then Some (Full_call closure c vs args_arity)
-      else if
-        negb
-          (kinds_eqb (map kind_of_value vs) (unarize args_arity)
-           && partial_or_over_application args_arity return_arity
-                (code_params_arity c) (code_result_arity c))
-      then None
-      else if Nat.ltb params provided
-      then
-        let size := cardinal_unarized (code_params_arity c) in
-        Some
-          (Over_call closure c (firstn size vs) (skipn size vs)
-             (firstn params args_arity) (partially_apply args_arity params))
-      else Some (Partial_call (Value_partial_application closure vs args_arity))
+      let* '(vs', args_arity') := arguments_for_code statics c vs args_arity in
+      shape_of_code_call closure c vs' args_arity' return_arity
     | _, _ => None
     end
   | None => None
@@ -1029,7 +1159,10 @@ Definition state_values_all (P : static_env -> value -> Prop)
    partial application out of its callee and its arguments, or call one
    that an argument or a continuation holds: so [P] of a partial
    application is to be [P] of the value it calls and of its
-   arguments. *)
+   arguments. And a call of tupled code binds the fields of the tuple
+   that it is given, by an argument or by a continuation: so [P] is to
+   hold of the fields of a tuple of which it holds, under the static
+   environment of the state. *)
 Definition step_values_all_statement : Prop :=
   ∀ (P : static_env -> value -> Prop)
     (Q : static_env -> statically_allocated_value -> Prop) (s : state),
@@ -1038,6 +1171,10 @@ Definition step_values_all_statement : Prop :=
       P statics (Value_partial_application callee args args_arity)
       <-> P statics callee ∧ Forall (P statics) args) ->
     state_values_all P Q s ->
+    (∀ (size : nat) (tuple : value) (fields : list value),
+      P (state_statics s) tuple ->
+      tuple_fields (state_statics s) size tuple = Some fields ->
+      Forall (P (state_statics s)) fields) ->
     (∀ (x : variable) (kind : flambda_kind) (defining_expr : named)
        (body : expr) (v : value),
       state_expr s = Let x kind defining_expr body ->

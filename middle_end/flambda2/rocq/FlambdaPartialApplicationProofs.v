@@ -40,12 +40,12 @@ Import ListNotations.
 Theorem apply_partial : apply_partial_statement.
 Proof.
   intros ap vars conts statics callee vs extra called slots c Hcallee Hargs
-    Hextra Hclosure Hkind Hcode Hcount Hkinds Htest.
+    Hextra Hclosure Hkind Hcode Htupled Hcount Hkinds Htest.
   rewrite step_apply, Hcallee, Hargs, Hextra. unfold call_function.
   rewrite (shape_of_call_closure statics callee _ _ _ _
              (closure_not_partial statics callee _ Hclosure)).
   rewrite (shape_of_closure_call_not_full statics callee _ vs _ _ called
-             slots c Hclosure Hkind Hcode);
+             slots c Hclosure Hkind Hcode Htupled);
     [ | intros Heq; rewrite Heq in Hcount; exact (Nat.lt_irrefl _ Hcount) ].
   rewrite Hkinds, kinds_eqb_refl, Htest. cbn [andb negb].
   assert (Hnot_over :
@@ -152,7 +152,8 @@ Theorem partial_then_apply : partial_then_apply_statement.
 Proof.
   intros f kind args args' k k' exn exn' extra extra' p metadata args_arity
     args_arity' partial_arity return_arity vars conts statics callee called
-    slots c Hf Hclosure Hkind Hcode Hcount Hnonempty Hfresh Hfresh'.
+    slots c Hf Hclosure Hkind Hcode Htupled Hcount Hnonempty Hfresh
+    Hfresh'.
   (* the continuation is bound *)
   eapply refines_trans;
     [ apply equivalent_refines; eapply step_equivalent;
@@ -181,7 +182,7 @@ Proof.
        rewrite (shape_of_call_closure statics callee _ _ _ _
                   (closure_not_partial statics callee _ Hclosure)),
          (shape_of_closure_call_not_full statics callee _ vs _ _ called
-            slots c Hclosure Hkind Hcode Hnot_full),
+            slots c Hclosure Hkind Hcode Htupled Hnot_full),
          Htests.
        reflexivity. }
   apply andb_true_iff in Htests as [Hkinds Htest].
@@ -193,7 +194,7 @@ Proof.
          (apply_partial
             (Apply_expr f kind args k exn extra args_arity partial_arity)
             vars _ statics callee vs extra_vs called slots c Hf Hargs Hextra
-            Hclosure Hkind Hcode Hcount Hkinds Htest).
+            Hclosure Hkind Hcode Htupled Hcount Hkinds Htest).
        unfold apply_continuation. simpl ap_continuation.
        rewrite resolve_head. cbn [apply_cont_value map kind_of_value].
        rewrite Hmetadata. reflexivity. }
@@ -203,7 +204,7 @@ Proof.
       (apply_partial
          (Apply_expr f kind args k exn extra args_arity partial_arity) vars _
          statics callee vs extra_vs called slots c Hf Hargs Hextra Hclosure
-         Hkind Hcode Hcount Hkinds Htest).
+         Hkind Hcode Htupled Hcount Hkinds Htest).
     unfold apply_continuation. simpl ap_continuation. rewrite resolve_head.
     cbn [apply_cont_value map kind_of_value]. rewrite Hmetadata.
     reflexivity. }
@@ -266,12 +267,12 @@ Qed.
 Theorem apply_over : apply_over_statement.
 Proof.
   intros ap vars conts statics callee vs extra called slots c Hcallee Hargs
-    Hextra Hclosure Hkind Hcode Hcount Hkinds Htest.
+    Hextra Hclosure Hkind Hcode Htupled Hcount Hkinds Htest.
   rewrite step_apply, Hcallee, Hargs, Hextra. unfold call_function.
   rewrite (shape_of_call_closure statics callee _ _ _ _
              (closure_not_partial statics callee _ Hclosure)).
   rewrite (shape_of_closure_call_not_full statics callee _ vs _ _ called
-             slots c Hclosure Hkind Hcode);
+             slots c Hclosure Hkind Hcode Htupled);
     [ | intros Heq; rewrite Heq in Hcount; exact (Nat.lt_irrefl _ Hcount) ].
   rewrite Hkinds, kinds_eqb_refl, Htest. cbn [andb negb].
   apply Nat.ltb_lt in Hcount. rewrite Hcount. reflexivity.
@@ -775,7 +776,7 @@ Theorem over_application_split : over_application_split_statement.
 Proof.
   intros f kind args args' k k' exn' extra p args_arity args_arity'
     return_arity vars conts statics callee called slots c Hf Hclosure Hcode
-    Hcount Hsize Hnonempty Hdistinct Hfresh Hfresh'.
+    Htupled Hcount Hsize Hnonempty Hdistinct Hfresh Hfresh'.
   (* the term binds its continuation *)
   eapply refines_trans;
     [ | apply equivalent_refines, equivalent_sym; eapply step_equivalent;
@@ -804,7 +805,7 @@ Proof.
   rewrite !(shape_of_call_closure statics callee _ _ _ _
               (closure_not_partial statics callee _ Hclosure)),
     (shape_of_closure_call_full statics callee (Direct called) vs _ _ called
-       slots c Hclosure (or_intror eq_refl) Hcode eq_refl).
+       slots c Hclosure (or_intror eq_refl) Hcode Htupled eq_refl).
   (* a direct call of other code is undefined *)
   assert (Hkind :
     (kind = Indirect ∨ kind = Direct called)
@@ -820,7 +821,7 @@ Proof.
   { rewrite length_app, Hcount.
     destruct args_arity'; [ destruct (Hnonempty eq_refl) | simpl; lia ]. }
   rewrite (shape_of_closure_call_not_full statics callee kind _ _ _ called
-             slots c Hclosure Hkind Hcode)
+             slots c Hclosure Hkind Hcode Htupled)
     by (intros Heq; rewrite Heq in Hlonger; exact (Nat.lt_irrefl _ Hlonger)).
   destruct (negb _); [ exact I | ].
   apply Nat.ltb_lt in Hlonger. rewrite Hlonger. cbn [run_call].

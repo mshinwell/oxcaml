@@ -870,6 +870,27 @@ Lemma value_well_kinded_partial (callee : value) (args : list value)
   <-> value_wk callee = true ∧ Forall (fun v => value_wk v = true) args.
 Proof. simpl. rewrite andb_true_iff, forallb_Forall. reflexivity. Qed.
 
+(* The fields of a well-kinded tuple are well-kinded, where what the
+   symbols are bound to is. *)
+Lemma tuple_fields_well_kinded (statics : static_env) :
+  statics_wk statics = true ->
+  P_fields (fun v => value_wk v = true) statics.
+Proof.
+  intros Hstatics size tuple fields Htuple Hfields.
+  apply (tuple_fields_of_blocks _ statics size tuple fields);
+    [ | exact Hfields ].
+  intros tag block Hblock. apply forallb_Forall.
+  destruct (block_of_cases _ _ _ _ Hblock) as [-> | (s & -> & Hs)].
+  - exact Htuple.
+  - apply andb_true_iff in Hstatics as [_ Hvalues].
+    pose proof
+      (lookup_forallb (allocated_well_kinded slots) s _ _ Hvalues Hs)
+      as Hallocated.
+    simpl in Hallocated. rewrite forallb_forall in Hallocated |- *.
+    intros v Hin. specialize (Hallocated v Hin).
+    apply andb_true_iff in Hallocated as [_ Hv]. exact Hv.
+Qed.
+
 (* What a call, or the application of a continuation, comes to in a
    well-kinded state: a well-kinded state, or an exit by a continuation
    of [outer] with well-kinded values of the kinds of its parameters. *)
@@ -1047,7 +1068,8 @@ Proof.
     apply (run_call_well_kinded _ Indirect); try assumption.
     + apply shape_of_call_calls.
     + apply (shape_of_call_values_all _ value_well_kinded_partial);
-        [ exact Hvs_wk | apply forallb_Forall; exact Hremaining ].
+        [ exact (tuple_fields_well_kinded statics Hstatics) | exact Hvs_wk
+        | apply forallb_Forall; exact Hremaining ].
     + apply shape_of_call_arities.
     + intros partial Hpartial Hkind Hreturn_arity.
       apply IHreturn; [ exact Hreturn_wk | | | exact Hstatics ].
@@ -1076,7 +1098,8 @@ Proof.
   apply (run_call_well_kinded _ kind); try assumption.
   - apply shape_of_call_calls.
   - apply (shape_of_call_values_all _ value_well_kinded_partial);
-      [ exact Hcallee_wk | apply forallb_Forall; exact Hvs_wk ].
+      [ exact (tuple_fields_well_kinded statics Hstatics) | exact Hcallee_wk
+      | apply forallb_Forall; exact Hvs_wk ].
   - apply shape_of_call_arities.
   - intros partial Hpartial Hkind Hreturn_arity.
     apply apply_cont_value_well_kinded;
@@ -1543,7 +1566,21 @@ Proof.
      | Indirect => true
      end);
     [ | reflexivity ].
-  rewrite Hcode. cbv zeta.
+  rewrite Hcode.
+  destruct (code_is_tupled c) eqn:Htupled.
+  { (* Tupled code: the arguments are not of the kinds of the arity. *)
+    unfold arguments_for_code. rewrite Htupled. unfold detuple.
+    destruct vs as [ | tuple rest]; [ reflexivity | ].
+    destruct (ap_args_arity ap) as [ | first rest_arity] eqn:Harity;
+      [ reflexivity | ].
+    destruct
+      (kinds_eqb (map kind_of_value (tuple :: rest))
+         (unarize (first :: rest_arity)))
+      eqn:Hkinds; [ | reflexivity ].
+    exfalso. apply kinds_eqb_eq in Hkinds.
+    destruct Hmismatch as [H | [Hfalse _]]; [ contradiction | discriminate ]. }
+  rewrite (arguments_for_code_not_tupled _ _ _ _ Htupled). cbv beta iota.
+  unfold shape_of_code_call. cbv zeta.
   destruct
     (Nat.eqb (length (ap_args_arity ap)) (length (code_params_arity c)))
     eqn:Hcount.
@@ -1560,7 +1597,7 @@ Proof.
     apply andb_true_iff in Hagree as [Hkinds Hargs].
     apply kinds_eqb_eq in Hkinds. apply kinds_per_parameter_eqb_eq in Hargs.
     apply arity_eqb_eq in Hreturn. apply Nat.eqb_eq in Hcount.
-    destruct Hmismatch as [H | [[_ [H | H]] | [H _]]]; contradiction.
+    destruct Hmismatch as [H | [_ [[_ [H | H]] | [H _]]]]; contradiction.
   - destruct
       (kinds_eqb (map kind_of_value vs) (unarize (ap_args_arity ap))
        && partial_or_over_application (ap_args_arity ap) (ap_return_arity ap)
@@ -1569,7 +1606,7 @@ Proof.
     exfalso.
     apply andb_true_iff in Htests as [Hkinds Htest].
     apply kinds_eqb_eq in Hkinds. apply Nat.eqb_neq in Hcount.
-    destruct Hmismatch as [H | [[H _] | [_ H]]];
+    destruct Hmismatch as [H | [_ [[H _] | [_ H]]]];
       [ contradiction | contradiction | congruence ].
 Qed.
 

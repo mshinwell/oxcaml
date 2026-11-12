@@ -415,6 +415,24 @@ Lemma value_in_range_partial (callee : value) (args : list value)
       ∧ Forall (fun v => value_in_range v = true) args.
 Proof. simpl. rewrite andb_true_iff, forallb_Forall. reflexivity. Qed.
 
+(* The fields of a tuple in range are in range, where what the symbols
+   are bound to is. *)
+Lemma tuple_fields_in_range (statics : static_env) :
+  statics_in_range statics ->
+  P_fields (fun v => value_in_range v = true) statics.
+Proof.
+  intros Hstatics size tuple fields Htuple Hfields.
+  apply (tuple_fields_of_blocks _ statics size tuple fields);
+    [ | exact Hfields ].
+  intros tag block Hblock. apply forallb_Forall.
+  destruct (block_of_cases _ _ _ _ Hblock) as [-> | (s & -> & Hs)].
+  - simpl in Htuple. apply andb_true_iff in Htuple as [_ Htuple].
+    exact Htuple.
+  - pose proof (proj2 Hstatics s _ (lookup_in _ _ _ Hs)) as Hallocated.
+    simpl in Hallocated. apply andb_true_iff in Hallocated as [_ Hallocated].
+    exact Hallocated.
+Qed.
+
 Lemma call_code_in_range (closure : value) (called : code_id) (c : code)
     (vs : list value) (args_arity return_arity : arity)
     (return_to exn_to : cont_value) (statics : static_env) :
@@ -519,7 +537,8 @@ Proof.
     apply (run_call_in_range _ Indirect); try assumption.
     + apply shape_of_call_calls.
     + apply (shape_of_call_values_all _ value_in_range_partial);
-        [ exact Hvs | apply forallb_Forall; exact Hremaining ].
+        [ exact (tuple_fields_in_range statics Hstatics) | exact Hvs
+        | apply forallb_Forall; exact Hremaining ].
     + intros partial Hpartial. apply IHreturn. simpl.
       rewrite Hpartial. reflexivity.
 Qed.
@@ -549,7 +568,8 @@ Proof.
   apply (run_call_in_range _ kind); try assumption.
   - apply shape_of_call_calls.
   - apply (shape_of_call_values_all _ value_in_range_partial);
-      [ exact Hcallee | apply forallb_Forall; exact Hvs ].
+      [ exact (tuple_fields_in_range statics Hstatics) | exact Hcallee
+      | apply forallb_Forall; exact Hvs ].
   - intros partial Hpartial.
     apply apply_cont_value_in_range; [ exact Hreturn | | exact Hstatics ].
     simpl. rewrite Hpartial. reflexivity.

@@ -907,7 +907,7 @@ Proof.
     [ | discriminate ].
   apply andb_true_iff in Hc as [Hmetadata _].
   apply code_metadata_eqb_eq in Hmetadata. subst metadata'.
-  split; reflexivity.
+  repeat split.
 Qed.
 
 (* The same full call of codes that are the same up to bound names,
@@ -1087,8 +1087,10 @@ Proof.
     destruct vs as [ | v [ | v' vs]]; [ exact I | | exact I ].
     unfold call_function. apply run_call_match; try assumption.
     - apply shape_of_call_related;
-        [ symmetry; apply closure_of_match; exact Hstatics | ].
-      intros called slots _. apply codes_agree_match. exact Hstatics.
+        [ symmetry; apply closure_of_match; exact Hstatics | | ].
+      + intros called slots _. apply codes_agree_match. exact Hstatics.
+      + intros tuple rest p _. symmetry.
+        exact (eval_prim_same_static_values _ _ p [tuple] (proj2 Hstatics)).
     - intros partial. apply IHreturn. exact Hreturn. }
   induction c
     as [h vars conts recursive | exit | c IHc extra
@@ -1136,8 +1138,10 @@ Proof.
   intros Hstatics Hreturn Hexn. unfold call_function.
   apply run_call_match; try assumption.
   - apply shape_of_call_related;
-      [ symmetry; apply closure_of_match; exact Hstatics | ].
-    intros called slots _. apply codes_agree_match. exact Hstatics.
+      [ symmetry; apply closure_of_match; exact Hstatics | | ].
+    + intros called slots _. apply codes_agree_match. exact Hstatics.
+    + intros tuple rest p _. symmetry.
+      exact (eval_prim_same_static_values _ _ p [tuple] (proj2 Hstatics)).
   - intros partial. apply apply_cont_value_match; assumption.
 Qed.
 

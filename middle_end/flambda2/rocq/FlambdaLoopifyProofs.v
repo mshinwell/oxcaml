@@ -518,6 +518,7 @@ Lemma frame_wf_facts (F : frame) :
 Proof.
   intros (Hloopable & _ & Hentry). unfold loopable in Hloopable.
   apply andb_true_iff in Hloopable as [Hloopable _].
+  apply andb_true_iff in Hloopable as [Hloopable _].
   apply andb_true_iff in Hloopable as [Hloopable Hsafe].
   apply andb_true_iff in Hloopable as [Hloopable Hexn].
   apply andb_true_iff in Hloopable as [Hloopable Hret].
@@ -540,7 +541,17 @@ Proof.
   apply andb_true_iff in Hloopable as [Hloopable _].
   apply andb_true_iff in Hloopable as [Hloopable _].
   apply andb_true_iff in Hloopable as [Hloopable _].
+  apply andb_true_iff in Hloopable as [Hloopable _].
   apply andb_true_iff in Hloopable as [_ Hdistinct]. exact Hdistinct.
+Qed.
+
+(* And is not tupled. *)
+Lemma loopable_not_tupled (self : continuation) (c : code) :
+  loopable self c = true -> code_is_tupled c = false.
+Proof.
+  unfold loopable. intros Hloopable.
+  apply andb_true_iff in Hloopable as [_ Htupled].
+  apply negb_true_iff in Htupled. exact Htupled.
 Qed.
 
 (* The variables of the two runs inside the loop: every name has the same
@@ -914,10 +925,13 @@ Proof.
       (lookup called (static_code statics')) as [c' | ];
       try contradiction; [ | exact I ].
     split; [ exact Hcode | ].
-    destruct Hcode as [-> | (self & _ & ->)]; [ split; reflexivity | ].
+    destruct Hcode as [-> | (self & _ & ->)]; [ repeat split | ].
     destruct (looped_code_fields self c)
       as (_ & _ & _ & _ & Hparams & Hresult).
-    split; assumption.
+    split; [ exact Hparams | ]. split; [ exact Hresult | ].
+    destruct c; reflexivity.
+  - intros tuple rest p _. destruct Hstatics as [_ Hvalues].
+    symmetry. exact (eval_prim_same_static_values _ _ p [tuple] Hvalues).
 Qed.
 
 (* Calls of the same shape under the two static environments, returning
@@ -1136,7 +1150,10 @@ Proof.
      | Indirect => true
      end);
     [ | exact I ].
-  rewrite Hid. cbv zeta. rewrite Hfull, Nat.eqb_refl. cbn [run_call].
+  rewrite Hid. unfold arguments_for_code.
+  rewrite (loopable_not_tupled _ _ Hloopable). cbv beta iota.
+  unfold shape_of_code_call. cbv zeta.
+  rewrite Hfull, Nat.eqb_refl. cbn [run_call].
   unfold call_code. rewrite Hbinds.
   match goal with
   | |- context [if negb ?agrees then _ else _] =>

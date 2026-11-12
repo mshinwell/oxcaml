@@ -608,12 +608,26 @@ Proof.
      | Indirect => true
      end);
     [ | reflexivity ].
-  destruct (lookup called (static_code statics))
-    as [[params my_closure ret exn metadata body] | ];
-    simpl; [ | reflexivity ].
+  destruct (lookup called (static_code statics)) as [c | ];
+    cbn [option_map]; [ | reflexivity ].
+  assert (Hargs :
+    arguments_for_code (rename_static_env r statics) (rename_code r c) vs
+      args_arity
+    = arguments_for_code statics c vs args_arity).
+  { rewrite (arguments_for_code_agree statics (rename_static_env r statics)
+               (rename_code r c) vs args_arity)
+      by (intros tuple rest p _; symmetry;
+          apply eval_prim_same_static_values; destruct statics; reflexivity).
+    unfold arguments_for_code. destruct c; reflexivity. }
+  rewrite Hargs.
+  destruct (arguments_for_code statics c vs args_arity)
+    as [[vs' args_arity'] | ]; [ | reflexivity ].
+  cbv beta iota. unfold shape_of_code_call.
+  destruct c as [params my_closure ret exn metadata body]. simpl.
   destruct (Nat.eqb _ _); [ reflexivity | ].
   destruct (negb _); [ reflexivity | ].
-  destruct (Nat.ltb _ _); reflexivity.
+  destruct (Nat.ltb _ _); [ reflexivity | ].
+  destruct (cm_is_tupled metadata); reflexivity.
 Qed.
 
 Lemma shape_of_call_equivariant (r : renaming) (statics : static_env)

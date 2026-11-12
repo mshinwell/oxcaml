@@ -4915,15 +4915,29 @@ Proof.
     end;
     [ | exact I ].
   destruct (lookup called (static_code st)) as [c | ]; [ | exact I ].
-  destruct (Nat.eqb (length args_arity) (length (code_params_arity c))).
+  (* The arguments as the code takes them: for tupled code, the fields
+     of two related tuples, which are related. *)
+  destruct (arguments_for_code st c vs args_arity)
+    as [[ws taken_arity] | ] eqn:Hargs; [ | exact I ].
+  destruct
+    (FlambdaSemanticsProofs.arguments_for_code_related
+       (value_related false r st st') st st' c c vs vs' args_arity ws
+       taken_arity (related_respects_observations D r st st' h h' Hmemories)
+       eq_refl eq_refl Hvs
+       (related_kinds D r st st' h h' _ _ Hmemories Hvs) Hargs)
+    as (ws' & -> & Hws).
+  cbv beta iota. unfold shape_of_code_call. cbv zeta.
+  destruct (Nat.eqb (length taken_arity) (length (code_params_arity c))).
   { simpl. auto. }
-  rewrite (related_kinds D r st st' h h' _ _ Hmemories Hvs).
+  rewrite (related_kinds D r st st' h h' _ _ Hmemories Hws).
   destruct (negb _); [ exact I | ].
-  destruct (Nat.ltb (length (code_params_arity c)) (length args_arity)); simpl.
+  destruct (Nat.ltb (length (code_params_arity c)) (length taken_arity));
+    simpl.
   - split; [ exact Hclosure | ]. split; [ reflexivity | ].
-    split; [ apply Forall2_firstn; exact Hvs | ].
-    split; [ apply Forall2_skipn; exact Hvs | auto ].
-  - apply Related_step, Step_partial_application; assumption.
+    split; [ apply Forall2_firstn; exact Hws | ].
+    split; [ apply Forall2_skipn; exact Hws | auto ].
+  - destruct (code_is_tupled c); [ exact I | ]. simpl.
+    apply Related_step, Step_partial_application; assumption.
 Qed.
 
 Lemma related_shape_of_call (D : dropped) (r : correspondence)
@@ -6098,6 +6112,19 @@ Proof.
   - intros s tag fields _ Hs v Hv. exact (proj2 Hmemory s _ v Hs Hv).
 Qed.
 
+(* The fields of a closed tuple are closed. *)
+Lemma tuple_fields_closed (st : static_env) (h : heap) :
+  memory_closed st h ->
+  FlambdaSemanticsProofs.P_fields (value_closed h) st.
+Proof.
+  intros Hmemory size tuple fields Htuple Hfields.
+  apply (FlambdaSemanticsProofs.tuple_fields_forall _ st size tuple fields);
+    [ | exact Hfields ].
+  intros field v Hv.
+  refine (eval_prim_closed st h _ [tuple] v Hmemory _ Hv).
+  intros w [<- | [ ]]. exact Htuple.
+Qed.
+
 Lemma store_field_in (kind : block_access_kind) (field : Z) (new : value)
     (tag : Z) (fields fields1 : list value) :
   store_field kind field new tag fields = Some fields1 ->
@@ -6630,6 +6657,7 @@ Proof.
       intros w [<- | [ ]]. exact Hpartial.
     - apply FlambdaSemanticsProofs.shape_of_call_values_all.
       + exact (value_closed_partial_application h).
+      + exact (tuple_fields_closed st h Hmemory).
       + apply Hvs. left. reflexivity.
       + apply Forall_forall. exact Hremaining. }
   - destruct handler as [params metadata handler]. simpl.
@@ -6703,6 +6731,7 @@ Proof.
       intros w [<- | [ ]]. exact Hpartial.
     + apply FlambdaSemanticsProofs.shape_of_call_values_all.
       * exact (value_closed_partial_application h).
+      * exact (tuple_fields_closed st h Hmemory).
       * exact (eval_simple_closed _ _ _ _ Hvars Hcallee).
       * apply Forall_forall. exact (eval_simples_closed _ _ _ _ Hvars Hvs).
     + apply resolve_closed. exact Hconts.

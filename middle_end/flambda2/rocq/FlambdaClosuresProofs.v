@@ -1287,6 +1287,17 @@ Proof.
   apply (step_values_all (fun _ v => value_valid v = true)
            (fun _ allocated => allocated_valid allocated = true) s
            (fun _ => value_valid_partial) Hvalid).
+  - intros size tuple fields Htuple Hfields.
+    destruct Hvalid as (_ & _ & Hstatics).
+    apply (tuple_fields_forall _ (state_statics s) size tuple fields);
+      [ | exact Hfields ].
+    intros field v Hprim.
+    refine (eval_prim_preserves (fun v => value_valid v = true)
+              (state_statics s) _ [tuple] v value_valid_of_numbers
+              value_valid_of_blocks
+              (value_valid_in_static_blocks (state_statics s) Hstatics) _
+              Hprim).
+    intros w [<- | []]. exact Htuple.
   - intros x kind d body v Hexpr Heval. rewrite Hexpr in P. simpl in P.
     apply andb_true_iff in P as [Pd _].
     destruct Hvalid as (Hvars & _ & Hstatics).
@@ -1401,15 +1412,15 @@ Proof.
   rewrite (shape_of_call_closure statics callee _ _ _ _
              (closure_not_partial statics callee _ Hclosure))
     in Hcall.
-  unfold shape_of_closure_call in Hcall. rewrite Hclosure in Hcall.
-  cbv beta iota zeta in Hcall.
   destruct
-    (match kind with
-     | Direct named => Pos.eqb called named
-     | Indirect => true
-     end);
+    (shape_of_closure_call statics callee kind vs args_arity return_arity)
+    as [shape | ] eqn:Hshape;
     [ | discriminate ].
-  rewrite Hcode in Hcall. cbv beta iota zeta in Hcall.
+  apply shape_of_closure_call_cases in Hshape
+    as (called' & slots' & c' & vs' & args_arity' & Hclosure' & Hcode' & _
+        & Hargs & Hshape).
+  rewrite Hclosure in Hclosure'. injection Hclosure' as <- <-.
+  rewrite Hcode in Hcode'. injection Hcode' as <-.
   assert (Hbody :
     ∀ (args : list value) (at_arity result : arity) (k : cont_value),
       call_code callee c args at_arity result k exn_to statics = Step s ->
@@ -1421,20 +1432,15 @@ Proof.
     simpl. split; [ reflexivity | ].
     rewrite (bind_params_lookup_other _ _ args _ callee_vars Hfresh Hbind).
     simpl. rewrite Pos.eqb_refl. reflexivity. }
-  destruct (Nat.eqb (length args_arity) (length (code_params_arity c)))
-    eqn:Hfull.
+  apply shape_of_code_call_cases in Hshape
+    as [[_ ->] | [(_ & _ & _ & ->) | (Hfewer & _ & _ & Htupled & ->)]];
+    cbn [run_call] in Hcall.
   - exact (Hbody _ _ _ _ Hcall).
-  - destruct
-      (negb
-         (kinds_eqb (map kind_of_value vs) (unarize args_arity)
-          && partial_or_over_application args_arity return_arity
-               (code_params_arity c) (code_result_arity c)));
-      [ discriminate | ].
-    destruct (Nat.ltb (length (code_params_arity c)) (length args_arity))
-      eqn:Hover.
-    + exact (Hbody _ _ _ _ Hcall).
-    + exfalso. apply Nat.ltb_ge in Hover. apply Nat.eqb_neq in Hfull.
-      apply Hfull. apply Nat.le_antisymm; assumption.
+  - exact (Hbody _ _ _ _ Hcall).
+  - exfalso.
+    rewrite (arguments_for_code_not_tupled _ _ _ _ Htupled) in Hargs.
+    injection Hargs as <- <-.
+    exact (Nat.lt_irrefl _ (Nat.lt_le_trans _ _ _ Hfewer Hcount)).
 Qed.
 
 (* ======================================================================== *)
@@ -2148,6 +2154,16 @@ Proof.
               allocated_sets_are c function_decls closure_symbols allocated
               = true)
            s (fun _ => value_sets_are_partial) Hvalid).
+  - intros size tuple fields Htuple Hfields.
+    destruct Hvalid as (_ & _ & Hstatics).
+    apply (tuple_fields_forall _ (state_statics s) size tuple fields);
+      [ | exact Hfields ].
+    intros field v Hprim.
+    refine (eval_prim_preserves Pv (state_statics s) _ [tuple] v
+              value_sets_are_of_numbers value_sets_are_of_blocks
+              (value_sets_are_in_static_blocks (state_statics s) Hstatics) _
+              Hprim).
+    intros w [<- | []]. exact Htuple.
   - intros x kind d body v Hexpr Heval. rewrite Hexpr in P. simpl in P.
     apply andb_true_iff in P as [Pd _].
     destruct Hvalid as (Hvars & _ & Hstatics).

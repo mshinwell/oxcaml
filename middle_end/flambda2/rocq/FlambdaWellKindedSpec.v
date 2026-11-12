@@ -776,7 +776,10 @@ End Checker.
    made at; a call with as many arguments as the code has parameters
    that is not made at the arities of the code; and a call with fewer or
    more arguments whose arities fail the test for a partial application
-   or an over-application. Nothing is asked of the state. *)
+   or an over-application. The last two are of code that is not tupled,
+   which the call gives its arguments as they are: a call of tupled code
+   is compared with the code once the tuple that it gives has been
+   taken apart (FlambdaTupledSpec.v). Nothing is asked of the state. *)
 Definition call_at_wrong_kinds_undefined_statement : Prop :=
   ∀ (ap : apply_expr) (vars : env) (conts : cont_env) (statics : static_env)
     (callee : value) (vs : list value) (called : code_id)
@@ -786,14 +789,16 @@ Definition call_at_wrong_kinds_undefined_statement : Prop :=
     closure_of statics callee = Some (called, value_slots) ->
     lookup called (static_code statics) = Some c ->
     map kind_of_value vs <> unarize (ap_args_arity ap)
-    ∨ length (ap_args_arity ap) = length (code_params_arity c)
-      ∧ (unarize_per_parameter (ap_args_arity ap)
-         <> unarize_per_parameter (code_params_arity c)
-         ∨ ap_return_arity ap <> code_result_arity c)
-    ∨ length (ap_args_arity ap) <> length (code_params_arity c)
-      ∧ partial_or_over_application (ap_args_arity ap) (ap_return_arity ap)
-          (code_params_arity c) (code_result_arity c)
-        = false ->
+    ∨ code_is_tupled c = false
+      ∧ (length (ap_args_arity ap) = length (code_params_arity c)
+         ∧ (unarize_per_parameter (ap_args_arity ap)
+            <> unarize_per_parameter (code_params_arity c)
+            ∨ ap_return_arity ap <> code_result_arity c)
+         ∨ length (ap_args_arity ap) <> length (code_params_arity c)
+           ∧ partial_or_over_application (ap_args_arity ap)
+               (ap_return_arity ap) (code_params_arity c)
+               (code_result_arity c)
+             = false) ->
     step (State (Apply ap) vars conts statics) = Undefined.
 
 (* What a binder gives, whatever the state: the step that binds a

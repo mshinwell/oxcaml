@@ -497,13 +497,53 @@ Definition calls_unbound (deleted : list code_id) (statics : static_env)
      | None => false
      end.
 
-(* The value that the application of a continuation calls: the one
-   value given to what is left of an over-application. *)
-Fixpoint called_by_cont (c : cont_value) (vs : list value) : option value :=
+(* The arguments that the closure called is given by a call of the
+   value with the arguments [vs]: those that a partial application
+   kept, then [vs]. *)
+Definition arguments_called (callee : value) (vs : list value)
+    : list value :=
+  match partial_application_of callee with
+  | Some (_, applied, _) => applied ++ vs
+  | None => vs
+  end.
+
+(* The tuple that such a call reads: the first of those arguments, where
+   the code of the closure called is bound and is tupled
+   (FlambdaSemanticsSpec.arguments_for_code). No call makes a partial
+   application of a closure of tupled code, but a state may hold one
+   that no call made, and a call of it reads the first argument that it
+   kept. *)
+Definition tuple_read (statics : static_env) (callee : value)
+    (vs : list value) : option value :=
+  match closure_of statics (closure_called callee) with
+  | Some (called, _) =>
+    match lookup called (static_code statics) with
+    | Some c =>
+      if code_is_tupled c then hd_error (arguments_called callee vs)
+      else None
+    | None => None
+    end
+  | None => None
+  end.
+
+(* A call of the value with the arguments reads, as the tuple that it
+   gives tupled code, a symbol that is not bound. *)
+Definition reads_unbound_tuple (statics : static_env) (callee : value)
+    (vs : list value) : bool :=
+  match tuple_read statics callee vs with
+  | Some tuple => unbound_symbol statics tuple
+  | None => false
+  end.
+
+(* The value that the application of a continuation calls, and the
+   arguments that it calls it with: the one value given to what is left
+   of an over-application, and the arguments that remain. *)
+Fixpoint called_by_cont (c : cont_value) (vs : list value)
+    : option (value * list value) :=
   match c with
-  | Over_application _ _ _ _ _ =>
+  | Over_application remaining _ _ _ _ =>
     match vs with
-    | [v] => Some v
+    | [v] => Some (v, remaining)
     | _ => None
     end
   | Extra_args c extra => called_by_cont c (vs ++ extra)
@@ -513,9 +553,10 @@ Fixpoint called_by_cont (c : cont_value) (vs : list value) : option value :=
 (* The step of the state looks up a symbol that is not bound, or code
    that is neither bound nor declared deleted. The machine looks a
    symbol up where it reads an allocated value: an argument of a
-   primitive, the closure that a projection is from, and the closure
-   that a call is of; and it looks code up at a call, which an [Apply]
-   makes, and the application of what is left of an over-application.
+   primitive, the closure that a projection is from, the closure that a
+   call is of, and the tuple that a call gives tupled code; and it looks
+   code up at a call, which an [Apply] makes, and the application of
+   what is left of an over-application.
    A [Let_static] looks its own names up to see that they are not bound
    yet; that is [FlambdaWellFormedSpec.static_fault].
 
@@ -541,7 +582,12 @@ Definition statics_scope_fault (deleted : list code_id) (s : state) : bool :=
     end
   | Apply ap =>
     match eval_simple (state_vars s) (ap_callee ap) with
-    | Some callee => calls_unbound deleted (state_statics s) callee
+    | Some callee =>
+      calls_unbound deleted (state_statics s) callee
+      || match eval_simples (state_vars s) (ap_args ap) with
+         | Some vs => reads_unbound_tuple (state_statics s) callee vs
+         | None => false
+         end
     | None => false
     end
   | Apply_cont ac =>
@@ -550,7 +596,9 @@ Definition statics_scope_fault (deleted : list code_id) (s : state) : bool :=
       match
         called_by_cont (resolve (ac_continuation ac) (state_conts s)) vs
       with
-      | Some v => calls_unbound deleted (state_statics s) v
+      | Some (v, remaining) =>
+        calls_unbound deleted (state_statics s) v
+        || reads_unbound_tuple (state_statics s) v remaining
       | None => false
       end
     | None => false

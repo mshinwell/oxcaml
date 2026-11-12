@@ -446,6 +446,23 @@ Proof.
   rewrite forallb_forall in Hfields. exact (Hfields v Hin).
 Qed.
 
+(* The fields of a tuple whose closures are of bound code are so too:
+   they are read by a primitive. *)
+Lemma tuple_fields_ok (size : nat) (tuple : value) (fields : list value) :
+  value_ok tuple ->
+  tuple_fields statics size tuple = Some fields ->
+  Forall value_ok fields.
+Proof.
+  intros Htuple Hfields.
+  apply (tuple_fields_forall _ statics size tuple fields);
+    [ | exact Hfields ].
+  intros field v Hv.
+  refine
+    (eval_prim_preserves value_ok statics _ [tuple] v value_ok_of_numbers
+       value_ok_of_blocks value_ok_in_static_blocks _ Hv).
+  intros w [<- | [ ]]. exact Htuple.
+Qed.
+
 Lemma closure_in_set_ok (v : value) (slot : function_slot)
     (decls : list (function_slot * code_id))
     (slots : list (value_slot * value)) :
@@ -861,6 +878,10 @@ Proof.
               allocated_closures_bound (code_id_bound statics) allocated
               = true)
            s closures_bound_partial V).
+  - intros size tuple fields Htuple Hfields.
+    destruct V as (_ & _ & Hstatics).
+    exact (tuple_fields_ok (code_id_bound (state_statics s))
+             (state_statics s) Hstatics size tuple fields Htuple Hfields).
   - intros x kind d body v Hexpr Heval. rewrite Hexpr in P.
     cbn [closures_in_scope] in P. apply andb_true_iff in P as [Pd _].
     destruct V as (Hvars & _ & Hstatics).
@@ -1482,10 +1503,12 @@ Lemma shape_of_call_hoist (callee : value) (kind : call_kind)
     (shape_of_call (hoist_statics statics) callee kind vs args_arity
        return_arity).
 Proof.
-  intros Hcallee. apply shape_of_call_related; [ reflexivity | ].
-  intros called slots.
-  exact (codes_agree_hoist (called_closure callee) called slots
-           (called_closure_ok _ callee Hcallee)).
+  intros Hcallee. apply shape_of_call_related; [ reflexivity | | ].
+  - intros called slots.
+    exact (codes_agree_hoist (called_closure callee) called slots
+             (called_closure_ok _ callee Hcallee)).
+  - intros tuple rest p _. apply eval_prim_static_values.
+    intros sym _. reflexivity.
 Qed.
 
 (* A call of a given shape, given what the two runs do with a partial
@@ -1539,7 +1562,10 @@ Proof.
   - apply shape_of_call_hoist, Hcallee.
   - apply (shape_of_call_values_all _
              (value_ok_partial (code_id_bound statics)));
-      assumption.
+      [ | assumption | assumption ].
+    intros size tuple fields.
+    exact (tuple_fields_ok (code_id_bound statics) statics statics_bound
+             size tuple fields).
   - exact Hpartial.
 Qed.
 

@@ -68,7 +68,10 @@
    continuation handler gives the kinds of its parameters; code gives the
    arity of its parameters and that of its results, and an [Apply] the
    two arities it calls at ([Apply_expr.args_arity], [return_arity]) and
-   the kind of each extra argument of its exception continuation. An
+   the kind of each extra argument of its exception continuation. Code
+   also says whether it is tupled ([cm_is_tupled], the compiler's
+   [Code_metadata.is_tupled]): whether a call that does not know the
+   code gives it one argument, a tuple, for all its parameters. An
    arity ([arity]) is the compiler's [Flambda_arity.t]: it keeps how the
    parameters are grouped into unboxed products, which the compiler
    compares at a call, while the parameters and the arguments themselves
@@ -322,8 +325,10 @@ Definition is_one_param_of_kind_value (a : arity) : bool :=
    to it with a call whose arguments have the kinds of [args_arity]: one
    whose arguments have not is [Invalid] already
    ([simplify_apply_shared]), whatever this test says of its arities;
-   the machine asks that too. And it comes to it for code that is not
-   tupled, which this fragment has not got.
+   the machine asks that too. And it comes to it with the arguments as
+   the code takes them: for tupled code, after the tuple that a call of
+   unknown arity gives has been taken apart
+   ([simplify_direct_tuple_application]), as the machine does.
 
    Of the calls with more or fewer arguments than parameters that fail
    the test, Simplify replaces by [Invalid] those whose arguments do not
@@ -525,19 +530,39 @@ Definition handler_metadata_eqb (m m' : handler_metadata) : bool :=
    parameters ([params_arity]; unarized, it gives the kinds of the
    parameters themselves) and that of its results ([result_arity];
    unarized, it gives the kinds of the parameters of its return
-   continuation). *)
+   continuation), and whether it is tupled ([is_tupled]).
+
+   Tupled code is what the compiler makes of a function whose one
+   parameter is a tuple pattern, as in [let f (x, y) = ...]
+   (lambda/translcore.ml, [transl_tupled_function]): the code has one
+   parameter for each component of the tuple. A call that goes by the
+   code gives it the components. A call that does not know the code
+   gives the function one argument, the tuple
+   (FlambdaSemanticsSpec.shape_of_closure_call). *)
 Record code_metadata : Type := Code_metadata {
   cm_params_arity : arity;
-  cm_result_arity : arity
+  cm_result_arity : arity;
+  cm_is_tupled : bool
 }.
 
+(* The metadata of code that is not tupled. *)
 Definition make_code_metadata (params_arity result_arity : arity)
     : code_metadata :=
-  {| cm_params_arity := params_arity; cm_result_arity := result_arity |}.
+  {| cm_params_arity := params_arity;
+     cm_result_arity := result_arity;
+     cm_is_tupled := false |}.
+
+(* The metadata of tupled code. *)
+Definition make_tupled_code_metadata (params_arity result_arity : arity)
+    : code_metadata :=
+  {| cm_params_arity := params_arity;
+     cm_result_arity := result_arity;
+     cm_is_tupled := true |}.
 
 Definition code_metadata_eqb (m m' : code_metadata) : bool :=
   arity_eqb (cm_params_arity m) (cm_params_arity m')
-  && arity_eqb (cm_result_arity m) (cm_result_arity m').
+  && arity_eqb (cm_result_arity m) (cm_result_arity m')
+  && Bool.eqb (cm_is_tupled m) (cm_is_tupled m').
 
 (* [Flambda.expr], [Flambda.continuation_handler],
    [Flambda.static_const_or_code] with the name it is bound to, and
@@ -605,6 +630,10 @@ Definition code_params_arity (c : code) : arity :=
 
 Definition code_result_arity (c : code) : arity :=
   match c with Code _ _ _ _ metadata _ => cm_result_arity metadata end.
+
+(* Whether code is tupled. *)
+Definition code_is_tupled (c : code) : bool :=
+  match c with Code _ _ _ _ metadata _ => cm_is_tupled metadata end.
 
 (* The kinds of the parameters of code, and of the parameters of its
    return continuation. *)

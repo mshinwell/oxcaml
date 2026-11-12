@@ -418,7 +418,7 @@ Proof.
   destruct (lookup called (static_code statics)) as [c | ],
     (lookup called (static_code statics')) as [c' | ];
     try contradiction; [ | exact I ].
-  split; [ exact Hc | ]. destruct Hc; split; reflexivity.
+  split; [ exact Hc | ]. destruct Hc; repeat split.
 Qed.
 
 (* ======================================================================== *)
@@ -769,8 +769,10 @@ Proof.
          (shape_of_call_closure_value _ _ _ _ _ _) Hreturn Hexn Hstatics
          Hinv _ Hended).
     + apply shape_of_call_related;
-        [ symmetry; apply closure_of_related; exact Hstatics | ].
-      intros called slots _. apply codes_agree_related. exact Hstatics.
+        [ symmetry; apply closure_of_related; exact Hstatics | | ].
+      * intros called slots _. apply codes_agree_related. exact Hstatics.
+      * intros tuple rest p _. symmetry.
+        exact (eval_prim_same_static_values _ _ p [tuple] (proj2 Hstatics)).
     + intros partial Hinv' Hpartial.
       exact (IHreturn return_to' [partial] statics statics' b Hreturn
                Hstatics Hinv' Hpartial).
@@ -806,8 +808,10 @@ Proof.
        (shape_of_call_closure_value _ _ _ _ _ _) Hreturn Hexn Hstatics Hinv
        _ Hended).
   - apply shape_of_call_related;
-      [ symmetry; apply closure_of_related; exact Hstatics | ].
-    intros called slots _. apply codes_agree_related. exact Hstatics.
+      [ symmetry; apply closure_of_related; exact Hstatics | | ].
+    + intros called slots _. apply codes_agree_related. exact Hstatics.
+    + intros tuple rest p _. symmetry.
+      exact (eval_prim_same_static_values _ _ p [tuple] (proj2 Hstatics)).
   - intros partial Hinv' Hpartial.
     exact (apply_cont_value_transfer n return_to IH return_to' [partial]
              statics statics' b Hreturn Hstatics Hinv' Hpartial).
