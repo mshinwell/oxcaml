@@ -316,6 +316,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaMeetHeadsSpec.v \
   FlambdaMeetImmediateProofs.v \
   FlambdaMeetImmediateSpec.v \
+  FlambdaMeetKeepsProofs.v \
+  FlambdaMeetKeepsSpec.v \
   FlambdaMeetMatchExamplesProofs.v \
   FlambdaMeetMatchExamplesSpec.v \
   FlambdaMeetProductsProofs.v \
@@ -341,6 +343,7 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaMeetTermsSpec.v \
   FlambdaMeetTerminationProofs.v \
   FlambdaMeetTerminationSpec.v \
+  FlambdaMeetValidity.v \
   FlambdaProvers.v \
   FlambdaProversExamplesProofs.v \
   FlambdaProversExamplesSpec.v \
