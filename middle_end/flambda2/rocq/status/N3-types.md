@@ -239,9 +239,15 @@ renaming of the variables made.
   cannot be proved with one source on both of its sides in the way
   used here, function by function down to the call of the source.
   That the join as a whole, with one source, fails to commute with
-  some renaming is not proved: it would take an example of a join
-  that calls the source, and none is given. Not a discrepancy with
-  the compiler, whose join is never given renamed environments.
+  some renaming does not follow from that: it takes an example of a
+  join that calls the source. There is one for the model's join and
+  the model's source (`FlambdaJoinMeetRenameExampleSpec.v`, three
+  statements, each a computation: a join that makes a variable; with
+  the model's source, its answer of the inputs renamed by an exchange
+  of that variable with one that is nowhere in them is not the
+  renamed answer; with the source renamed it is). The reviewer found
+  the example; nothing is proved of another source. Not a discrepancy
+  with the compiler, whose join is never given renamed environments.
   Nothing else in the join goes by the number or the
   order of a name: variables are compared by equality and by binding
   time, and the one call of the source is in

@@ -61,10 +61,11 @@
    here proves that the join as a whole, with one source, fails to
    commute with some renaming: a join that does not call the source,
    or that fails, does not show the source in its answer, and of one
-   that calls it an example would be needed; none is given. It is not
-   a defect of the source that the model uses
-   (FlambdaNameAbstractionSpec.fresh_name): no other is related to
-   itself by every renaming either.
+   that calls it an example is needed. There is one, of the model's
+   join with the source that the model uses, in
+   FlambdaJoinMeetRenameExampleSpec.v. It is not a defect of that
+   source (FlambdaNameAbstractionSpec.fresh_name): no other is related
+   to itself by every renaming either.
 
    What is stated instead: a renaming acts on the source of new names
    too, and the join with the renamed source, of the renamed

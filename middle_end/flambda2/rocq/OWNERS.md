@@ -534,6 +534,13 @@ Owner: N3, on `flambda2-rocq/N3-equivariance` for the validator and on
   renaming on a typing environment and on its levels, their free
   variables, and that the functions of `FlambdaTypingEnv.v` commute
   with it; the file of the environment and its statements stay T2's)
+- `middle_end/flambda2/types/rocq/FlambdaJoinMeetRename*` (the join
+  that Simplify calls and the meet of the model with its own join, on
+  renamed arguments with the source of new names renamed; and an
+  example in which the join with the one source of the model does not
+  answer the renamed answer)
+- `middle_end/flambda2/types/rocq/FlambdaTypeProjectRenameProofs.v`
+  (lemmas only: the removal of variables from a type under renaming)
 
 ## R1, R2: reviewers
 
