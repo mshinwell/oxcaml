@@ -1,0 +1,18 @@
+let $camlExported_local_fun__first_const_0 = Block 0 () in
+(let code size(3)
+       f_0 (x/24 : imm tagged)
+         my_closure/25 &my_alloc_region/26 my_depth/27
+         -> k/10 * k/11
+         : imm tagged =
+   let next_depth/28 = rec_info (succ my_depth/27) in
+   let int_add/29 = %int_barith.add (1, x/24) in
+   cont k/10 (int_add/29)
+ in
+ let f/30 = closure f_0 @f &toplevel in
+ let Pmakeblock/31 = %block.[`0`].`toplevel` (f/30) in
+ cont k/9 (Pmakeblock/31))
+  where k/9 define_root_symbol (module_block/22) =
+    let field_0/23 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/22)
+    in
+    let $camlExported_local_fun = Block 0 (field_0/23) in
+    cont done ($camlExported_local_fun)

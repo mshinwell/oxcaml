@@ -1,0 +1,26 @@
+(let code size(1)
+       get_0 (param/24 : imm tagged)
+         my_closure/25 &my_alloc_region/26 my_depth/27
+         -> k/10 * k/11
+         : imm tagged =
+   let next_depth/28 = rec_info (succ my_depth/27) in
+   cont k/10 (3)
+ in
+ let $camlExported_nested_pair__const_block_0 = Block 0 (1, 2) in
+ let $camlExported_nested_pair__const_block_1 = Block 0 (3, 4) in
+ let $camlExported_nested_pair__const_block_2 =
+   Block 0 ($camlExported_nested_pair__const_block_0,
+            $camlExported_nested_pair__const_block_1)
+ in
+ let get/29 = closure get_0 @get &toplevel in
+ let Pmakeblock/30 =
+   %block.[`0`].`toplevel` ($camlExported_nested_pair__const_block_2, get/29)
+ in
+ cont k/9 (Pmakeblock/30))
+  where k/9 define_root_symbol (module_block/22) =
+    let field_1/23 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/22)
+    in
+    let $camlExported_nested_pair =
+      Block 0 ($camlExported_nested_pair__const_block_2, field_1/23)
+    in
+    cont done ($camlExported_nested_pair)

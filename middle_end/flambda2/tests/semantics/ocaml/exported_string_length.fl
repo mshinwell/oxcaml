@@ -1,0 +1,24 @@
+(let $camlExported_string_length__immstring_0 = "hello" in
+ let code size(8)
+       size_0 (param/26 : imm tagged)
+         my_closure/27 &my_alloc_region/28 my_depth/29
+         -> k/10 * k/11
+         : imm tagged =
+   let next_depth/30 = rec_info (succ my_depth/29) in
+   let prim/31 = %string_length ($camlExported_string_length__immstring_0) in
+   let Pstringlength/32 = %tag_imm (prim/31) in
+   cont k/10 (Pstringlength/32)
+ in
+ let size/33 = closure size_0 @`size` &toplevel in
+ let Pmakeblock/34 =
+   %block.[`0`].`toplevel`
+     ($camlExported_string_length__immstring_0, size/33)
+ in
+ cont k/9 (Pmakeblock/34))
+  where k/9 define_root_symbol (module_block/24) =
+    let field_1/25 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/24)
+    in
+    let $camlExported_string_length =
+      Block 0 ($camlExported_string_length__immstring_0, field_1/25)
+    in
+    cont done ($camlExported_string_length)

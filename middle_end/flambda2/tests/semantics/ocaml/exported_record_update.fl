@@ -1,0 +1,33 @@
+(let code size(9)
+       move_x_0 (t/33 : [ 0 of imm tagged * imm tagged ], dx/34 : imm tagged)
+         my_closure/35 &my_alloc_region/36 my_depth/37
+         -> k/12 * k/13
+         : [ 0 of imm tagged * imm tagged ] =
+   let next_depth/38 = rec_info (succ my_depth/37) in
+   let Pfield/39 = %block_load.[`1`] (t/33) in
+   let Pmakeblock/40 = %block.[`0`].my_alloc_region/36 (dx/34, Pfield/39) in
+   cont k/12 (Pmakeblock/40)
+ in
+ let $camlExported_record_update__const_block_0 = Block 0 (0, 0) in
+ let move_x/41 = closure move_x_0 @move_x &toplevel in
+ apply direct(move_x_0 &toplevel)
+   (move_x/41 : _ -> [ 0 of imm tagged * imm tagged ])
+     ($camlExported_record_update__const_block_0, 5)
+     -> k/14 * error
+   where k/14 (p/42 : [ 0 of imm tagged * imm tagged ]) =
+     let Pmakeblock/43 =
+       %block.[`0`].`toplevel`
+         ($camlExported_record_update__const_block_0, move_x/41, p/42)
+     in
+     cont k/11 (Pmakeblock/43))
+  where k/11 define_root_symbol (module_block/30) =
+    let field_1/31 = %block_load.tag[`0`].`size`[`3`].[`1`] (module_block/30)
+    in
+    let field_2/32 = %block_load.tag[`0`].`size`[`3`].[`2`] (module_block/30)
+    in
+    let $camlExported_record_update =
+      Block 0 ($camlExported_record_update__const_block_0,
+               field_1/31,
+               field_2/32)
+    in
+    cont done ($camlExported_record_update)

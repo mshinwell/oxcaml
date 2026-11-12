@@ -1,0 +1,42 @@
+let $camlExported_bool__first_const_0 = Block 0 () in
+(let code size(5)
+       is_pos_0 (x/48 : imm tagged)
+         my_closure/49 &my_alloc_region/50 my_depth/51
+         -> k/20 * k/21
+         : imm tagged =
+   let next_depth/52 = rec_info (succ my_depth/51) in
+   let prim/53 = %int_comp.gt (x/48, 0) in
+   let int_greaterthan/54 = %tag_imm (prim/53) in
+   cont k/20 (int_greaterthan/54)
+ in
+ let code size(21)
+       both_1 (x/55 : imm tagged, y/56 : imm tagged)
+         my_closure/57 &my_alloc_region/58 my_depth/59
+         -> k/22 * k/23
+         : imm tagged =
+   let next_depth/60 = rec_info (succ my_depth/59) in
+   let is_pos/61 = %project_value_slot.[both].[is_pos] (my_closure/57) in
+   apply direct(is_pos_0 &my_alloc_region/58)
+     (is_pos/61 : _ -> imm tagged) (x/55) -> k/25 * k/23
+     where k/25 (apply_result/62 : imm tagged) =
+       ((let untagged/63 = %untag_imm (apply_result/62) in
+         switch untagged/63
+           | 0 -> k/22 (0)
+           | 1 -> k/26)
+          where k/26 =
+            cont k/24)
+     where k/24 =
+       apply direct(is_pos_0 &my_alloc_region/58)
+         (is_pos/61 : _ -> imm tagged) (y/56) -> k/22 * k/23
+ in
+ let is_pos/64 = closure is_pos_0 @is_pos &toplevel in
+ let both/65 = closure both_1 @both &toplevel with { is_pos = is_pos/64 } in
+ let Pmakeblock/66 = %block.[`0`].`toplevel` (is_pos/64, both/65) in
+ cont k/19 (Pmakeblock/66))
+  where k/19 define_root_symbol (module_block/45) =
+    let field_0/46 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/45)
+    in
+    let field_1/47 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/45)
+    in
+    let $camlExported_bool = Block 0 (field_0/46, field_1/47) in
+    cont done ($camlExported_bool)

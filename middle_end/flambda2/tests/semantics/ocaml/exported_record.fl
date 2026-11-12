@@ -1,0 +1,45 @@
+let $camlExported_record__first_const_0 = Block 0 () in
+(let code size(8)
+       make_0 (x/55 : imm tagged, y/56 : imm tagged)
+         my_closure/57 &my_alloc_region/58 my_depth/59
+         -> k/18 * k/19
+         : [ 0 of imm tagged * imm tagged ] =
+   let next_depth/60 = rec_info (succ my_depth/59) in
+   let Pmakeblock/61 = %block.[`0`].my_alloc_region/58 (x/55, y/56) in
+   cont k/18 (Pmakeblock/61)
+ in
+ let code size(5)
+       sum_1 (t/62 : [ 0 of imm tagged * imm tagged ])
+         my_closure/63 &my_alloc_region/64 my_depth/65
+         -> k/20 * k/21
+         : imm tagged =
+   let next_depth/66 = rec_info (succ my_depth/65) in
+   let Pfield/67 = %block_load.[`1`] (t/62) in
+   let Pfield/68 = %block_load.[`0`] (t/62) in
+   let int_add/69 = %int_barith.add (Pfield/68, Pfield/67) in
+   cont k/20 (int_add/69)
+ in
+ let make/70 = closure make_0 @make &toplevel in
+ let sum/71 = closure sum_1 @sum &toplevel in
+ (let Popaque/75 = %opaque (1) in
+  apply direct(make_0 &toplevel)
+    (make/70 : _ -> [ 0 of imm tagged * imm tagged ])
+      (Popaque/75, 2)
+      -> k/23 * error)
+   where k/23 (apply_result/74 : [ 0 of imm tagged * imm tagged ]) =
+     apply direct(sum_1 &toplevel)
+       (sum/71 : _ -> imm tagged) (apply_result/74) -> k/22 * error
+   where k/22 (result/72 : imm tagged) =
+     let Pmakeblock/73 = %block.[`0`].`toplevel` (make/70, sum/71, result/72)
+     in
+     cont k/17 (Pmakeblock/73))
+  where k/17 define_root_symbol (module_block/51) =
+    let field_0/52 = %block_load.tag[`0`].`size`[`3`].[`0`] (module_block/51)
+    in
+    let field_1/53 = %block_load.tag[`0`].`size`[`3`].[`1`] (module_block/51)
+    in
+    let field_2/54 = %block_load.tag[`0`].`size`[`3`].[`2`] (module_block/51)
+    in
+    let $camlExported_record = Block 0 (field_0/52, field_1/53, field_2/54)
+    in
+    cont done ($camlExported_record)

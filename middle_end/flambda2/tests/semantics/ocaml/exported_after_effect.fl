@@ -1,0 +1,27 @@
+let $camlExported_after_effect__first_const_0 = Block 0 () in
+(let code size(3)
+       f_0 (y/33 : imm tagged)
+         my_closure/34 &my_alloc_region/35 my_depth/36
+         -> k/12 * k/13
+         : imm tagged =
+   let next_depth/37 = rec_info (succ my_depth/36) in
+   let int_add/38 = %int_barith.add (y/33, 1) in
+   cont k/12 (int_add/38)
+ in
+ let x/39 = %opaque (1) in
+ let f/40 = closure f_0 @f &toplevel in
+ apply direct(f_0 &toplevel) (f/40 : _ -> imm tagged) (x/39) -> k/14 * error
+   where k/14 (z/41 : imm tagged) =
+     let Pmakeblock/42 = %block.[`0`].`toplevel` (x/39, f/40, z/41) in
+     cont k/11 (Pmakeblock/42))
+  where k/11 define_root_symbol (module_block/29) =
+    let field_0/30 = %block_load.tag[`0`].`size`[`3`].[`0`] (module_block/29)
+    in
+    let field_1/31 = %block_load.tag[`0`].`size`[`3`].[`1`] (module_block/29)
+    in
+    let field_2/32 = %block_load.tag[`0`].`size`[`3`].[`2`] (module_block/29)
+    in
+    let $camlExported_after_effect =
+      Block 0 (field_0/30, field_1/31, field_2/32)
+    in
+    cont done ($camlExported_after_effect)

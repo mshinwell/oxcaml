@@ -1,0 +1,48 @@
+let $camlExported_twice_kept__first_const_0 = Block 0 () in
+(let code inline(always) size(12)
+       twice_0 (f/61 : val, x/62)
+         my_closure/63 &my_alloc_region/64 my_depth/65
+         -> k/20 * k/21 =
+   let next_depth/66 = rec_info (succ my_depth/65) in
+   apply &my_alloc_region/64 f/61 (x/62) -> k/22 * k/21
+     where k/22 (apply_result/67) =
+       apply &my_alloc_region/64 f/61 (apply_result/67) -> k/20 * k/21
+ in
+ let code inline(never) size(3)
+       succ_1 (x/68 : imm tagged)
+         my_closure/69 &my_alloc_region/70 my_depth/71
+         -> k/23 * k/24
+         : imm tagged =
+   let next_depth/72 = rec_info (succ my_depth/71) in
+   let int_add/73 = %int_barith.add (x/68, 1) in
+   cont k/23 (int_add/73)
+ in
+ let code size(6)
+       add2_2 (x/74 : imm tagged)
+         my_closure/75 &my_alloc_region/76 my_depth/77
+         -> k/25 * k/26
+         : imm tagged =
+   let next_depth/78 = rec_info (succ my_depth/77) in
+   let twice/79 = %project_value_slot.[add2].[twice] (my_closure/75) in
+   let succ/80 = %project_value_slot.[add2].[`succ`] (my_closure/75) in
+   apply direct(twice_0 &my_alloc_region/76)
+     (twice/79 : _ -> imm tagged) (succ/80, x/74) -> k/25 * k/26
+ in
+ let twice/81 = closure twice_0 @twice &toplevel in
+ let succ/82 = closure succ_1 @`succ` &toplevel in
+ let add2/83 = closure add2_2 @add2 &toplevel
+ with { twice = twice/81; `succ` = succ/82 }
+ in
+ let Pmakeblock/84 = %block.[`0`].`toplevel` (twice/81, succ/82, add2/83) in
+ cont k/19 (Pmakeblock/84))
+  where k/19 define_root_symbol (module_block/57) =
+    let field_0/58 = %block_load.tag[`0`].`size`[`3`].[`0`] (module_block/57)
+    in
+    let field_1/59 = %block_load.tag[`0`].`size`[`3`].[`1`] (module_block/57)
+    in
+    let field_2/60 = %block_load.tag[`0`].`size`[`3`].[`2`] (module_block/57)
+    in
+    let $camlExported_twice_kept =
+      Block 0 (field_0/58, field_1/59, field_2/60)
+    in
+    cont done ($camlExported_twice_kept)

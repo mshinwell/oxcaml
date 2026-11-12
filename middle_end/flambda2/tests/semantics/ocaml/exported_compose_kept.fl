@@ -1,0 +1,72 @@
+let $camlExported_compose_kept__first_const_0 = Block 0 () in
+(let code inline(always) size(12)
+       compose_0 (f/82 : val, g/83 : val, x/84)
+         my_closure/85 &my_alloc_region/86 my_depth/87
+         -> k/24 * k/25 =
+   let next_depth/88 = rec_info (succ my_depth/87) in
+   apply &my_alloc_region/86 g/83 (x/84) -> k/26 * k/25
+     where k/26 (apply_result/89) =
+       apply &my_alloc_region/86 f/82 (apply_result/89) -> k/24 * k/25
+ in
+ let code inline(never) size(3)
+       succ_1 (x/90 : imm tagged)
+         my_closure/91 &my_alloc_region/92 my_depth/93
+         -> k/27 * k/28
+         : imm tagged =
+   let next_depth/94 = rec_info (succ my_depth/93) in
+   let int_add/95 = %int_barith.add (x/90, 1) in
+   cont k/27 (int_add/95)
+ in
+ let code inline(never) size(5)
+       double_2 (x/96 : imm tagged)
+         my_closure/97 &my_alloc_region/98 my_depth/99
+         -> k/29 * k/30
+         : imm tagged =
+   let next_depth/100 = rec_info (succ my_depth/99) in
+   let int_mul/101 = %int_barith.mul (x/96, 2) in
+   cont k/29 (int_mul/101)
+ in
+ let code size(7)
+       succ_of_double_3 (x/102 : imm tagged)
+         my_closure/103 &my_alloc_region/104 my_depth/105
+         -> k/31 * k/32
+         : imm tagged =
+   let next_depth/106 = rec_info (succ my_depth/105) in
+   let compose/107 =
+     %project_value_slot.[succ_of_double].[compose] (my_closure/103)
+   in
+   let succ/108 =
+     %project_value_slot.[succ_of_double].[`succ`] (my_closure/103)
+   in
+   let double/109 =
+     %project_value_slot.[succ_of_double].[double] (my_closure/103)
+   in
+   apply direct(compose_0 &my_alloc_region/104)
+     (compose/107 : _ -> imm tagged)
+       (succ/108, double/109, x/102)
+       -> k/31 * k/32
+ in
+ let compose/110 = closure compose_0 @compose &toplevel in
+ let succ/111 = closure succ_1 @`succ` &toplevel in
+ let double/112 = closure double_2 @double &toplevel in
+ let succ_of_double/113 = closure succ_of_double_3 @succ_of_double &toplevel
+ with { compose = compose/110; `succ` = succ/111; double = double/112 }
+ in
+ let Pmakeblock/114 =
+   %block.[`0`].`toplevel`
+     (compose/110, succ/111, double/112, succ_of_double/113)
+ in
+ cont k/23 (Pmakeblock/114))
+  where k/23 define_root_symbol (module_block/77) =
+    let field_0/78 = %block_load.tag[`0`].`size`[`4`].[`0`] (module_block/77)
+    in
+    let field_1/79 = %block_load.tag[`0`].`size`[`4`].[`1`] (module_block/77)
+    in
+    let field_2/80 = %block_load.tag[`0`].`size`[`4`].[`2`] (module_block/77)
+    in
+    let field_3/81 = %block_load.tag[`0`].`size`[`4`].[`3`] (module_block/77)
+    in
+    let $camlExported_compose_kept =
+      Block 0 (field_0/78, field_1/79, field_2/80, field_3/81)
+    in
+    cont done ($camlExported_compose_kept)

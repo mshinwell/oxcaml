@@ -1,0 +1,8 @@
+exported_compose_kept.fl:
+  before Simplify (17 steps): returns [0: <fun>; <fun>; <fun>; <fun>]
+  after Simplify (13 steps): returns [0: <fun>; <fun>; <fun>; <fun>]
+  the check of kinds: passes before, passes after
+  calls outside code: 0 before, 0 after
+  the same
+  calls outside code once those of known code are inlined: 0
+  not validated

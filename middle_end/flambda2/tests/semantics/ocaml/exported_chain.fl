@@ -1,0 +1,50 @@
+let $camlExported_chain__first_const_0 = Block 0 () in
+(let code size(3)
+       f_0 (x/61 : imm tagged)
+         my_closure/62 &my_alloc_region/63 my_depth/64
+         -> k/22 * k/23
+         : imm tagged =
+   let next_depth/65 = rec_info (succ my_depth/64) in
+   let int_add/66 = %int_barith.add (x/61, 1) in
+   cont k/22 (int_add/66)
+ in
+ let code size(9)
+       g_1 (x/67 : imm tagged)
+         my_closure/68 &my_alloc_region/69 my_depth/70
+         -> k/24 * k/25
+         : imm tagged =
+   let next_depth/71 = rec_info (succ my_depth/70) in
+   let f/72 = %project_value_slot.[g].[f] (my_closure/68) in
+   apply direct(f_0 &my_alloc_region/69)
+     (f/72 : _ -> imm tagged) (x/67) -> k/26 * k/25
+     where k/26 (apply_result/73 : imm tagged) =
+       apply direct(f_0 &my_alloc_region/69)
+         (f/72 : _ -> imm tagged) (apply_result/73) -> k/24 * k/25
+ in
+ let code size(9)
+       h_2 (x/74 : imm tagged)
+         my_closure/75 &my_alloc_region/76 my_depth/77
+         -> k/27 * k/28
+         : imm tagged =
+   let next_depth/78 = rec_info (succ my_depth/77) in
+   let g/79 = %project_value_slot.[h].[g] (my_closure/75) in
+   apply direct(g_1 &my_alloc_region/76)
+     (g/79 : _ -> imm tagged) (x/74) -> k/29 * k/28
+     where k/29 (apply_result/80 : imm tagged) =
+       apply direct(g_1 &my_alloc_region/76)
+         (g/79 : _ -> imm tagged) (apply_result/80) -> k/27 * k/28
+ in
+ let f/81 = closure f_0 @f &toplevel in
+ let g/82 = closure g_1 @g &toplevel with { f = f/81 } in
+ let h/83 = closure h_2 @h &toplevel with { g = g/82 } in
+ let Pmakeblock/84 = %block.[`0`].`toplevel` (f/81, g/82, h/83) in
+ cont k/21 (Pmakeblock/84))
+  where k/21 define_root_symbol (module_block/57) =
+    let field_0/58 = %block_load.tag[`0`].`size`[`3`].[`0`] (module_block/57)
+    in
+    let field_1/59 = %block_load.tag[`0`].`size`[`3`].[`1`] (module_block/57)
+    in
+    let field_2/60 = %block_load.tag[`0`].`size`[`3`].[`2`] (module_block/57)
+    in
+    let $camlExported_chain = Block 0 (field_0/58, field_1/59, field_2/60) in
+    cont done ($camlExported_chain)

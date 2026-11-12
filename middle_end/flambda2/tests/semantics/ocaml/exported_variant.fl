@@ -1,0 +1,30 @@
+let $camlExported_variant__first_const_0 = Block 0 () in
+(let code size(4)
+       is_a_0 (x/37 : [ 0 | 0 of imm tagged ])
+         my_closure/38 &my_alloc_region/39 my_depth/40
+         -> k/12 * k/13
+         : imm tagged =
+   let next_depth/41 = rec_info (succ my_depth/40) in
+   let prim/42 = %is_int (x/37) in
+   let Pisint/43 = %tag_imm (prim/42) in
+   cont k/12 (Pisint/43)
+ in
+ let Popaque/44 = %opaque (1) in
+ let b/45 = %block.[`0`].`toplevel` (Popaque/44) in
+ let is_a/46 = closure is_a_0 @is_a &toplevel in
+ apply direct(is_a_0 &toplevel)
+   (is_a/46 : _ -> imm tagged) (b/45) -> k/14 * error
+   where k/14 (result/47 : imm tagged) =
+     let Pmakeblock/48 = %block.[`0`].`toplevel` (b/45, is_a/46, result/47)
+     in
+     cont k/11 (Pmakeblock/48))
+  where k/11 define_root_symbol (module_block/33) =
+    let field_0/34 = %block_load.tag[`0`].`size`[`3`].[`0`] (module_block/33)
+    in
+    let field_1/35 = %block_load.tag[`0`].`size`[`3`].[`1`] (module_block/33)
+    in
+    let field_2/36 = %block_load.tag[`0`].`size`[`3`].[`2`] (module_block/33)
+    in
+    let $camlExported_variant = Block 0 (field_0/34, field_1/35, field_2/36)
+    in
+    cont done ($camlExported_variant)
