@@ -176,6 +176,87 @@ it gave back.
   `observe`): that it calls `validate_unit` on the two terms converted,
   and prints its answer as it is. The comparison of the two runs that it
   also prints is a test of one run, and no theorem is about it.
+- **The conversion of types**, in
+  `middle_end/flambda2/tests/semantics/types/type_converter.ml` with
+  `model_numbers.ml` and `model_names.ml`: between `Type_grammar.t` and
+  `flambda_type`, both ways. Trusted: that each case is the
+  correspondence its comment states; that it refuses what one side lacks
+  and never approximates; that on the way to the model it drops only the
+  `rec_info` of a function type, the expression of a `Rec_info` head,
+  the string of `Poison`, the cache of free names, and a relation that
+  the compiler's map binds to the empty set of names (so the round trip
+  from the compiler is the identity only up to these); that a numbering
+  is one-to-one for each sort of name; that a number is read as the file
+  says (an integer by its signed value, and the bits of a float, a mask
+  or a vector as an integer in two's complement of as many bits, which
+  is the reading of `const_in_range` in FlambdaPrimitiveSpec.v and of
+  the converter of terms) and one out of range is refused; that the
+  size of a case of blocks is read
+  and made faithfully through `Row_like_for_blocks.get_singleton` and
+  `create`; and that the names `Flambda2_types__...` of the build are the
+  modules of the types library.
+- **The tests of types**, in the same directory (`model_type.ml`,
+  `type_generator.ml`, `types_difftest.ml`). No theorem rests on them;
+  what a reader of their output trusts:
+  - `Model_type.normalise` and `same`: that two types of the model are
+    identified only up to how maps and sets are written;
+  - the comparison of what two joins give (the binary and the n-way; one
+    join on arguments that are one value and on two copies), and of two
+    meets with what they teach in the shared and unshared comparison:
+    it is of text, not `Model_type.same`. `print_joined` (the type of
+    the parameter and what the join says of each variable of its own
+    that this type reaches; nothing of what the joined environment says
+    of the names of the tests, so two joins that differ only there
+    print alike), `print_joined_with_names` (the same with the types of
+    the names of the tests and every variable of the join's own that
+    any of these reaches; the shared parts use it) and
+    `print_with_own_variables` (the types of an answer) print the result
+    written in one way, and `rename_own_variables` names the variables
+    that are not of the tests `e0`, `e1`, ... in the order in which the
+    whole text mentions them, once for the whole text.
+    Trusted: that the printer of `model_type.ml` shows every part of a
+    type, and that the renaming touches nothing but those variables, so
+    that equal text is the same type up to the names of those variables.
+    Unequal text may be two writings of one type: it is then counted as
+    a difference, never as agreement;
+  - the adapters that call the compiler: that `call_in_the_compiler`
+    calls the function named with the arguments converted; that `binary`
+    and `n_way` are the two implementations; that `join_env` is the join
+    at a continuation of one parameter of the kind given with one use
+    for each type, each use knowing besides what `known` says and
+    binding the variables of `locals`; that `joined_of_env` reads from
+    the joined environment the type of the parameter and of each
+    variable not of the tests that this type reaches, or that the types
+    given as `reached_from` reach; that
+    `types_of_names` reads what an environment says of each name; that
+    `or_fatal_error` reports the first line that the compiler wrote
+    before it stopped; that the structural setting of the flag for the
+    sharing of joins is set before any join is run, and that
+    `with_join_sharing` puts the compiler's default in its place only
+    for the two runs whose titles name it; that `shared_parts` builds
+    its types with the compiler's `More_type_creators.immutable_block`,
+    `Type_grammar.create_variant` and `Env_extension.create` around
+    parts that the converter made, and calls a case not shared only
+    where the two copies are not one value;
+  - the semantic checks: that they ask `type_satisfied_b` (extracted,
+    proved to decide `type_satisfied`) and nothing else whether a value
+    has a type; the generators of values and worlds are trusted for
+    nothing;
+  - the variables that a join makes of its own (`has_joined`): a value
+    is said to have what a join gives only when, with the parameter
+    holding the value, each such variable is given a value that has the
+    type the joined environment gives it, or no value, and the value has
+    the type of the parameter. The search is finite: when it finds
+    nothing the case is reported as not run, never as a failure. What
+    the joined environment says of other names and of aliases is not
+    checked. A failure is reported only when there is no such variable;
+  - the reporting: a comparison counts as agreeing only cases that were
+    run and whose premise some value tried satisfies; a failure of the
+    compiler or a refusal of the converter is "not run"; a disagreement
+    that is recorded is shown with its label and does not fail the test;
+    any other disagreement makes the test fail;
+  - the chosen joins: that the values shown are tried as the lines say;
+    nothing is concluded from "not for the values tried".
 
 Not trusted, though it is OCaml: which static bindings the tool proposes
 to remove as unused (`unused_statics`). The extracted `drop_statics`

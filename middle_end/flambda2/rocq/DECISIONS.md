@@ -283,6 +283,8 @@ says so. Only the labels that this tree cites are listed.
   differs between the types (T1) and the primitives (C1).
 - **R1-12.** The conversion of static constants discards the shape of a
   mixed block.
+- **R1-15.** The n-way join drops a conditional extension of a variant
+  that the binary join keeps.
 - **R1-16.** The n-way join of immediates gives an empty set to
   `create_naked_immediates_non_empty` when every head reduces to bottom;
   traced, not shown reachable.
@@ -446,8 +448,23 @@ says so. Only the labels that this tree cites are listed.
 - **T6-4.** A value slot of the model has no kind;
   `meet_project_value_slot_simple` answers `Invalid` where the type of
   the slot is of another kind than that of the slot.
+- **T7-1.** No function of the compiler makes the allocation mode
+  `Local` of a type; the converter of types refuses it.
+- **T7-2.** `Equal_types_for_debug.equal_type` overflows the stack on a
+  type and itself when an extension on a name gives it a type with an
+  extension on that name; the tests do not call it on such types.
+- **T7-3.** The binary and the n-way join of two types keep different
+  things (aliases, relations, extensions); neither is always the more
+  precise.
 - **T7-4.** The meet of a type with an `is_null` variable and a type
   that settles it forgets the variable.
+- **T7-5.** The meet of a variant with a mutable block keeps the
+  immediates. A loss of precision.
+- **T7-6.** A meet forgets an inverse relation of a naked immediate. A
+  loss of precision.
+- **T7-7.** With the default setting of `-flambda2-join-sharing`, a join
+  depends on whether equal types, or parts of them, are one value in
+  memory; with the structural setting it does not.
 - **V2-2.** The fexpr printer drops the kinds of the fields of a
   `Make_block`, and the parser reads back `any_value` for each.
 - **V3-2.** Simplify lifts a closed constant out of a function or a
