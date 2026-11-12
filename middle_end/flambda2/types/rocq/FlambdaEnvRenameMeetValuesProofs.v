@@ -33,14 +33,15 @@
    [meet_head_of_kind_value] of FlambdaMeet.v, a lemma named after the
    function says that on the renamed environment and renamed arguments
    it gives the renamed answer. For the two meets of heads the lemma
-   is [meet_of_parts_equivariant] of the function
-   (FlambdaMeetRenameSpec.v). They are given: a join and a meet of
-   less fuel that commute with renaming, and the meets of the two
-   row-like structures, which commute too. Those are hypotheses of the
-   section; the owner of the meet proves them of its meets. The meet
-   of two alternatives is FlambdaMeetRenameScopesProofs.v, the meets
-   of the parts that are not values
-   FlambdaEnvRenameMeetProductsProofs.v. *)
+   is [meet_of_parts_related] of the function
+   (FlambdaMeetRenameSpec.v). There are two joins and two meets of
+   less fuel, one with the arguments and one with the renamed
+   arguments, which the renaming relates, and the meets of the two
+   row-like structures with each, which it relates too. Those are
+   hypotheses of the section; the owner of the meet proves them of its
+   meets. The meet of two alternatives is
+   FlambdaMeetRenameScopesProofs.v, the meets of the parts that are
+   not values FlambdaEnvRenameMeetProductsProofs.v. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
@@ -74,20 +75,24 @@ Definition rename_variant_parts (r : renaming)
 
 Section Values.
 
-Variable join : join_scoped_envs.
+Variable r : renaming.
+Variables join join' : join_scoped_envs.
 Variable choices : meet_choices.
-Variable m : meet_expanded_head.
+Variables m m' : meet_expanded_head.
 
-Hypothesis Hjoin : join_scoped_envs_equivariant join.
-Hypothesis Hm : meet_expanded_head_equivariant m.
+Hypothesis Hjoin : join_related_at r join join' m m'.
+Hypothesis Hm : meet_expanded_head_related r m m'.
 
-(* The meets of the two row-like structures commute with renaming. *)
+(* The renaming relates the meets of the two row-like structures. *)
 Hypothesis Hblocks :
-  meet_of_parts_equivariant rename_row_like_for_blocks
-    rename_row_like_for_blocks (meet_row_like_for_blocks join choices m).
+  meet_of_parts_related r (rename_row_like_for_blocks r)
+    (rename_row_like_for_blocks r) (meet_row_like_for_blocks join choices m)
+    (meet_row_like_for_blocks join' choices m').
 Hypothesis Hclosures :
-  meet_of_parts_equivariant rename_row_like_for_closures
-    rename_row_like_for_closures (meet_row_like_for_closures join choices m).
+  meet_of_parts_related r (rename_row_like_for_closures r)
+    (rename_row_like_for_closures r)
+    (meet_row_like_for_closures join choices m)
+    (meet_row_like_for_closures join' choices m').
 
 (* ======================================================================== *)
 (* Variants                                                                 *)
@@ -97,22 +102,23 @@ Hypothesis Hclosures :
    with the variable for their tag. *)
 
 Lemma meet_immediates_renamed :
-  meet_of_parts_equivariant (fun r => or_unknown_map (rename_type r))
-    (fun r => or_unknown_map (rename_type r))
-    (meet_unknown (meet m) is_obviously_bottom).
+  meet_of_parts_related r (or_unknown_map (rename_type r))
+    (or_unknown_map (rename_type r))
+    (meet_unknown (meet m) is_obviously_bottom)
+    (meet_unknown (meet m') is_obviously_bottom).
 Proof.
-  intros r env imms1 imms2.
+  intros env imms1 imms2.
   apply meet_unknown_renamed;
-    [ exact (meet_of_types_renamed m Hm r)
+    [ exact (meet_of_types_renamed r m m' Hm)
     | exact (is_obviously_bottom_renamed r) ].
 Qed.
 
 Lemma meet_tag_and_blocks_renamed :
-  meet_of_parts_equivariant
-    (fun r (x : option variable * Or_unknown.t row_like_for_blocks) =>
+  meet_of_parts_related r
+    (fun x : option variable * Or_unknown.t row_like_for_blocks =>
        (option_map (rename_variable r) (fst x),
         or_unknown_map (rename_row_like_for_blocks r) (snd x)))
-    (fun r (x : option variable * Or_unknown.t row_like_for_blocks) =>
+    (fun x : option variable * Or_unknown.t row_like_for_blocks =>
        (option_map (rename_variable r) (fst x),
         or_unknown_map (rename_row_like_for_blocks r) (snd x)))
     (fun env left right =>
@@ -120,30 +126,36 @@ Lemma meet_tag_and_blocks_renamed :
          (meet_unknown (meet_row_like_for_blocks join choices m)
             row_like_for_blocks_is_bottom)
          (fst left) (fst right) (snd left) (snd right)
+         (fun get_tag blocks => (get_tag, blocks)))
+    (fun env left right =>
+       combine_results2 env (meet_relation m')
+         (meet_unknown (meet_row_like_for_blocks join' choices m')
+            row_like_for_blocks_is_bottom)
+         (fst left) (fst right) (snd left) (snd right)
          (fun get_tag blocks => (get_tag, blocks))).
 Proof.
-  intros r env [get_tag1 blocks1] [get_tag2 blocks2]. cbn [fst snd].
+  intros env [get_tag1 blocks1] [get_tag2 blocks2]. cbn [fst snd].
   apply
     (combine_results2_renamed r (option_map (rename_variable r))
        (or_unknown_map (rename_row_like_for_blocks r))
        (fun x : option variable * Or_unknown.t row_like_for_blocks =>
           (option_map (rename_variable r) (fst x),
            or_unknown_map (rename_row_like_for_blocks r) (snd x)))).
-  - exact (meet_relation_renamed m Hm r).
+  - exact (meet_relation_renamed r m m' Hm).
   - intros env' blocks blocks'.
     apply meet_unknown_renamed;
-      [ exact (Hblocks r) | exact (row_like_for_blocks_is_bottom_renamed r) ].
+      [ exact Hblocks | exact (row_like_for_blocks_is_bottom_renamed r) ].
   - reflexivity.
 Qed.
 
-Lemma meet_variant_renamed (r : renaming) (env : Meet_env.t)
+Lemma meet_variant_renamed (env : Meet_env.t)
     (is_int1 get_tag1 : option variable)
     (blocks1 : Or_unknown.t row_like_for_blocks)
     (imms1 : Or_unknown.t flambda_type) (is_int2 get_tag2 : option variable)
     (blocks2 : Or_unknown.t row_like_for_blocks)
     (imms2 : Or_unknown.t flambda_type)
     (extensions1 extensions2 : variant_extensions) :
-  meet_variant join choices m (rename_meet_env r env)
+  meet_variant join' choices m' (rename_meet_env r env)
     (option_map (rename_variable r) is_int1)
     (option_map (rename_variable r) get_tag1)
     (or_unknown_map (rename_row_like_for_blocks r) blocks1)
@@ -172,15 +184,19 @@ Proof.
        (rename_variant_parts r) env _ _ _ _ is_int1 is_int2
        (get_tag1, blocks1, imms1, extensions1)
        (get_tag2, blocks2, imms2, extensions2)).
-  - exact (meet_relation_renamed m Hm r).
+  - exact (meet_relation_renamed r m m' Hm).
   - intros env' [[[get_tag blocks] imms] extensions]
       [[[get_tag' blocks'] imms'] extensions'].
     cbn [fst snd].
     rewrite
-      (meet_disjunction_renamed join choices m Hjoin Hm _ _ _ _ _ _
-         meet_immediates_renamed meet_tag_and_blocks_renamed
-         (fun _ => eq_refl) (fun _ => eq_refl) r env' imms
-         (get_tag, blocks) extensions imms' (get_tag', blocks') extensions').
+      (meet_disjunction_renamed r join join' choices m m' Hjoin Hm
+         (fun r => or_unknown_map (rename_type r))
+         (fun r (x : option variable * Or_unknown.t row_like_for_blocks) =>
+            (option_map (rename_variable r) (fst x),
+             or_unknown_map (rename_row_like_for_blocks r) (snd x)))
+         _ _ _ _ _ _ meet_immediates_renamed meet_tag_and_blocks_renamed
+         eq_refl eq_refl env' imms (get_tag, blocks) extensions imms'
+         (get_tag', blocks') extensions').
     match goal with
     | |- option_map _ (option_map _ ?call) = _ =>
       destruct call as [result | ]
@@ -196,11 +212,12 @@ Qed.
 (* ======================================================================== *)
 
 Lemma meet_head_of_kind_value_non_null_renamed :
-  meet_of_parts_equivariant rename_head_of_kind_value_non_null
-    rename_head_of_kind_value_non_null
-    (meet_head_of_kind_value_non_null join choices m).
+  meet_of_parts_related r (rename_head_of_kind_value_non_null r)
+    (rename_head_of_kind_value_non_null r)
+    (meet_head_of_kind_value_non_null join choices m)
+    (meet_head_of_kind_value_non_null join' choices m').
 Proof.
-  intros r env head1 head2.
+  intros env head1 head2.
   destruct head1
     as [is_int1 imms1 get_tag1 blocks1 extensions1 is_unique1 | alloc_mode1
        | k1 n1 alloc_mode1 | by_function_slot1 alloc_mode1 | strs1],
@@ -249,7 +266,7 @@ Proof.
       (combine_results2_renamed r (rename_type r)
          (fun alloc_mode : Alloc_mode.t => alloc_mode)
          (rename_head_of_kind_value_non_null r)).
-    + exact (meet_of_types_renamed m Hm r).
+    + exact (meet_of_types_renamed r m m' Hm).
     + intros env' mode mode'. cbn [option_map]. f_equal.
       apply meet_alloc_mode_renamed.
     + reflexivity.
@@ -258,7 +275,7 @@ Proof.
       (combine_results2_renamed r (rename_row_like_for_closures r)
          (fun alloc_mode : Alloc_mode.t => alloc_mode)
          (rename_head_of_kind_value_non_null r)).
-    + exact (Hclosures r).
+    + exact Hclosures.
     + intros env' mode mode'. cbn [option_map]. f_equal.
       apply meet_alloc_mode_renamed.
     + reflexivity.
@@ -274,18 +291,26 @@ Qed.
 (* The two alternatives of a value: it is not null, or it is null. *)
 
 Lemma meet_non_null_renamed :
-  meet_of_parts_equivariant
-    (fun r => or_unknown_or_bottom_map (rename_head_of_kind_value_non_null r))
-    (fun r => or_unknown_or_bottom_map (rename_head_of_kind_value_non_null r))
+  meet_of_parts_related r
+    (or_unknown_or_bottom_map (rename_head_of_kind_value_non_null r))
+    (or_unknown_or_bottom_map (rename_head_of_kind_value_non_null r))
     (meet_or_unknown_or_bottom
        (fun env elt1 elt2 =>
           option_map
             (map_result
                (fun x : head_of_kind_value_non_null =>
                   @Ok head_of_kind_value_non_null x))
-            (meet_head_of_kind_value_non_null join choices m env elt1 elt2))).
+            (meet_head_of_kind_value_non_null join choices m env elt1 elt2)))
+    (meet_or_unknown_or_bottom
+       (fun env elt1 elt2 =>
+          option_map
+            (map_result
+               (fun x : head_of_kind_value_non_null =>
+                  @Ok head_of_kind_value_non_null x))
+            (meet_head_of_kind_value_non_null join' choices m' env elt1
+               elt2))).
 Proof.
-  intros r env non_null1 non_null2.
+  intros env non_null1 non_null2.
   apply meet_or_unknown_or_bottom_renamed. intros env' elt1 elt2.
   rewrite meet_head_of_kind_value_non_null_renamed.
   destruct (meet_head_of_kind_value_non_null join choices m env' elt1 elt2)
@@ -295,7 +320,7 @@ Proof.
 Qed.
 
 Lemma meet_is_null_renamed :
-  meet_of_parts_equivariant rename_is_null rename_is_null
+  meet_of_parts_related r (rename_is_null r) (rename_is_null r)
     (fun env is_null1 is_null2 =>
        match is_null1, is_null2 with
        | Not_null, Not_null => Some (Meet_result.Bottom Both_inputs)
@@ -304,27 +329,40 @@ Lemma meet_is_null_renamed :
        | Maybe_null is_null1, Maybe_null is_null2 =>
          option_map (map_result Maybe_null)
            (meet_relation m env is_null1 is_null2)
+       end)
+    (fun env is_null1 is_null2 =>
+       match is_null1, is_null2 with
+       | Not_null, Not_null => Some (Meet_result.Bottom Both_inputs)
+       | Not_null, Maybe_null _ => Some (Meet_result.Bottom Left_input)
+       | Maybe_null _, Not_null => Some (Meet_result.Bottom Right_input)
+       | Maybe_null is_null1, Maybe_null is_null2 =>
+         option_map (map_result Maybe_null)
+           (meet_relation m' env is_null1 is_null2)
        end).
 Proof.
-  intros r env [ | var1] [ | var2]; cbn [rename_is_null]; try reflexivity.
-  rewrite (meet_relation_renamed m Hm r).
+  intros env [ | var1] [ | var2]; cbn [rename_is_null]; try reflexivity.
+  rewrite (meet_relation_renamed r m m' Hm).
   destruct (meet_relation m env var1 var2) as [result | ];
     cbn [option_map]; [ | reflexivity ].
   f_equal. apply map_result_renamed. intros var. reflexivity.
 Qed.
 
 Lemma meet_head_of_kind_value_renamed :
-  meet_of_parts_equivariant rename_head_of_kind_value
-    rename_head_of_kind_value (meet_head_of_kind_value join choices m).
+  meet_of_parts_related r (rename_head_of_kind_value r)
+    (rename_head_of_kind_value r) (meet_head_of_kind_value join choices m)
+    (meet_head_of_kind_value join' choices m').
 Proof.
-  intros r env [non_null1 is_null1] [non_null2 is_null2].
+  intros env [non_null1 is_null1] [non_null2 is_null2].
   cbn [rename_head_of_kind_value meet_head_of_kind_value]. cbv zeta.
   pose proof
-    (meet_disjunction_renamed join choices m Hjoin Hm _ _ _ _
+    (meet_disjunction_renamed r join join' choices m m' Hjoin Hm
+       (fun r =>
+          or_unknown_or_bottom_map (rename_head_of_kind_value_non_null r))
+       rename_is_null _ _ _ _
        (fun _ : unit => @Bottom head_of_kind_value_non_null)
        (fun _ : unit => Not_null) meet_non_null_renamed meet_is_null_renamed
-       (fun _ => eq_refl) (fun _ => eq_refl) r env non_null1 is_null1
-       No_extensions non_null2 is_null2 No_extensions)
+       eq_refl eq_refl env non_null1 is_null1 No_extensions non_null2
+       is_null2 No_extensions)
     as Hdisjunction.
   cbn [rename_variant_extensions] in Hdisjunction.
   rewrite Hdisjunction.
