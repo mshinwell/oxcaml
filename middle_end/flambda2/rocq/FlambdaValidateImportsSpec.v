@@ -28,8 +28,9 @@
 (* The validation, of a unit that imports symbols.
 
    This file is to be reviewed: [holds_from_imports], which is extracted
-   and read by the test tool of middle_end/flambda2/tests/semantics/,
-   and the four statements.
+   and read by the test tool of middle_end/flambda2/tests/semantics/;
+   [holds_from], which that tool is to read in its place; and the
+   eight statements.
 
    FlambdaValidateSpec.validate_unit_sound_statement is of the two
    units run from the empty static environment
@@ -69,7 +70,18 @@
    the imports as it stands: a term after that binds an imported
    symbol, and does not use it, is undefined from the imports, and is
    the same as the term before once the binding is removed. A verdict
-   that rests on such a removal is not one of the three.
+   that rests on such a removal is not one of the three. It holds
+   under the condition that this asks for: the static environment
+   binds none of the names that the groups at the head of the term
+   after bind (FlambdaUnusedHeadStaticsSpec.head_free_in, the premise
+   of FlambdaUnusedHeadStaticsSpec.drop_head_statics_refines_from_statement).
+   [holds_from] is [holds_from_imports] with that verdict taken under
+   that test, and [validate_unit_sound_head_from_statement], the same
+   of the second asking, and the two at the static environment of the
+   imports, are the statements of the section above with [holds_from]
+   in the place of [holds_from_imports]. The test is of the term that
+   the validation removes the bindings from: the term after,
+   normalised and tidied.
 
    [validate_unit_knowing_sound_imports_statement] is the same of the
    second asking (FlambdaValidateKnowingSpec.validate_unit_knowing),
@@ -95,9 +107,9 @@
    What it is not of:
    - a unit validated once unused static bindings are removed from the
      head of the term after as well
-     ([Same_once_head_statics_removed]): that removal is the one of
-     the paragraph above, a law of a unit run from the empty static
-     environment (FlambdaUnusedHeadStaticsSpec.v);
+     ([Same_once_head_statics_removed]), where the static environment
+     binds a name that the groups at the head of that term bind: that
+     removal is the one of the paragraph above;
    - a unit validated once something is lifted
      ([Same_once_lifted]). The liftings, and what is done to a lifted
      term (FlambdaLiftSpec, FlambdaLiftFromCodeSpec,
@@ -119,8 +131,9 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaUnusedStaticsSpec FlambdaLoopifySpec FlambdaLiftSpec
-  FlambdaValidateSpec FlambdaValidateKnowingSpec FlambdaImportsSpec.
+  FlambdaUnusedStaticsSpec FlambdaUnusedHeadStaticsSpec FlambdaLoopifySpec
+  FlambdaLiftSpec FlambdaValidateSpec FlambdaValidateKnowingSpec
+  FlambdaImportsSpec.
 Import ListNotations.
 
 (* Whether a verdict of [validate_unit] is one that holds of the unit
@@ -190,3 +203,81 @@ Definition validate_unit_knowing_sound_from_statement : Prop :=
     = true ->
     statics_free_of unused statics = true ->
     refines (State before [] [] statics hp) (State after [] [] statics hp).
+
+(* ======================================================================== *)
+(* The verdict that removes static bindings from the head of the term after *)
+(* ======================================================================== *)
+
+(* Whether a verdict of [validate_unit] is one that holds of the unit
+   run from the static environment [statics]: the three of
+   [holds_from_imports], and the one that removes static bindings from
+   the head of the term after, where [statics] binds no symbol and no
+   code id that the groups at the head of that term bind
+   (FlambdaUnusedHeadStaticsSpec.head_free_in). The term is the one
+   that [validate_unit] removes them from: [after], normalised and
+   tidied. *)
+Definition holds_from (statics : static_env) (rounds : nat)
+    (kept : list code_id) (after : expr) (v : validation) : bool :=
+  match v with
+  | Same_up_to_bound_names | Same_once_normalised
+  | Same_once_unused_statics_removed =>
+    true
+  | Same_once_head_statics_removed =>
+    head_free_in statics
+      (tidied_after rounds (normalise_after rounds kept after))
+  | Same_once_lifted | Not_validated => false
+  end.
+
+(* A unit that is validated in one of the ways that [holds_from]
+   accepts refines the unit it came from, each run from a static
+   environment in whose code and in whose values the names removed do
+   not occur, and from any heap. *)
+(* CR mshinwell: as at [validate_unit_sound_from_statement], and at
+   FlambdaUnusedHeadStaticsSpec.drop_head_statics_refines_from_statement:
+   the heap is any heap because no step of this machine reads or
+   changes it, and the premise [heap_free_of unused hp = true] is to
+   be added when a step runs the primitives of the heap. *)
+Definition validate_unit_sound_head_from_statement : Prop :=
+  ∀ (statics : static_env) (hp : heap) (rounds : nat) (unused : dropped)
+    (slots : list value_slot) (G : loopified) (Ls : list lifting)
+    (kept : list code_id) (before after : expr),
+    holds_from statics rounds kept after
+      (validate_unit rounds unused slots G Ls kept before after)
+    = true ->
+    statics_free_of unused statics = true ->
+    refines (State before [] [] statics hp) (State after [] [] statics hp).
+
+(* The same of the second asking. The term after that it gives
+   [validate_unit] is the term after normalised with what is known of
+   its names. *)
+Definition validate_unit_knowing_sound_head_from_statement : Prop :=
+  ∀ (statics : static_env) (hp : heap) (rounds : nat) (unused : dropped)
+    (slots : list value_slot) (G : loopified) (Ls : list lifting)
+    (kept : list code_id) (before after : expr),
+    holds_from statics rounds kept
+      (normalise_knowing (normalise_after_round kept) rounds after)
+      (validate_unit_knowing rounds unused slots G Ls kept before after)
+    = true ->
+    statics_free_of unused statics = true ->
+    refines (State before [] [] statics hp) (State after [] [] statics hp).
+
+(* The two at the static environment of the imports: the test is that
+   the groups at the head of the term after bind no imported symbol. *)
+Definition validate_unit_sound_head_imports_statement : Prop :=
+  ∀ (imports : list (symbol * import_class)) (rounds : nat)
+    (unused : dropped) (slots : list value_slot) (G : loopified)
+    (Ls : list lifting) (kept : list code_id) (before after : expr),
+    holds_from (imports_statics imports) rounds kept after
+      (validate_unit rounds unused slots G Ls kept before after)
+    = true ->
+    unit_refines imports before after.
+
+Definition validate_unit_knowing_sound_head_imports_statement : Prop :=
+  ∀ (imports : list (symbol * import_class)) (rounds : nat)
+    (unused : dropped) (slots : list value_slot) (G : loopified)
+    (Ls : list lifting) (kept : list code_id) (before after : expr),
+    holds_from (imports_statics imports) rounds kept
+      (normalise_knowing (normalise_after_round kept) rounds after)
+      (validate_unit_knowing rounds unused slots G Ls kept before after)
+    = true ->
+    unit_refines imports before after.

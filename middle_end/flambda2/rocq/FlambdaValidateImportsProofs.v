@@ -36,7 +36,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaSemanticsProofs FlambdaCompareSpec FlambdaCompareProofs
   FlambdaNormaliseSpec FlambdaNormaliseProofs FlambdaStaticsOrderSpec
   FlambdaStaticsOrderProofs FlambdaUnusedStaticsSpec
-  FlambdaUnusedStaticsProofs FlambdaLoopifySpec FlambdaLoopifyProofs
+  FlambdaUnusedStaticsProofs FlambdaUnusedHeadStaticsSpec
+  FlambdaUnusedHeadStaticsProofs FlambdaLoopifySpec FlambdaLoopifyProofs
   FlambdaLiftSpec FlambdaValidateSpec FlambdaValidateProofs
   FlambdaValidateKnowingSpec FlambdaValidateKnowingProofs
   FlambdaImportsSpec FlambdaImportsProofs FlambdaValidateImportsSpec.
@@ -162,6 +163,145 @@ Theorem validate_unit_knowing_sound_imports
 Proof.
   intros imports rounds unused slots G Ls kept before after Hvalidated.
   exact (validate_unit_knowing_sound_from (imports_statics imports)
+           empty_heap rounds unused slots G Ls kept before after Hvalidated
+           (imports_statics_free unused imports)).
+Qed.
+
+(* ======================================================================== *)
+(* The verdict that removes static bindings from the head of the term after *)
+(* ======================================================================== *)
+
+(* The term refines the term without the unused static bindings of its
+   head, from a static environment that binds none of the names at its
+   head and in which the names removed do not occur: the steps of
+   FlambdaValidateProofs.without_head_statics_program_refines. *)
+Lemma without_head_statics_refines_from (statics : static_env) (hp : heap)
+    (D : dropped) (e : expr) :
+  statics_free_of D statics = true ->
+  head_free_in statics e = true ->
+  refines (State (without_head_statics D e) [] [] statics hp)
+    (State e [] [] statics hp).
+Proof.
+  intros Hfree Hhead. unfold without_head_statics.
+  destruct (head_statics_removable D e) eqn:Hchecks; [ | apply refines_refl ].
+  unfold without_statics.
+  destruct (drop_statics D e) as [e' | ] eqn:Hdrop; [ | apply refines_refl ].
+  assert (Hdropped : drop_head_statics D e = Some e')
+    by (unfold drop_head_statics; rewrite Hchecks; exact Hdrop).
+  apply (refines_trans _ (State e' [] [] statics hp));
+    [ | exact (drop_head_statics_refines_from D e e' statics hp Hdropped
+                 Hfree Hhead) ].
+  apply (expr_equivalent_refines _ _
+    (expr_equivalent_sym _ _
+       (expr_equivalent_trans _ _ _ (drop_deleted_code_equivalent e')
+          (merge_statics_equivalent _)))).
+Qed.
+
+Theorem validate_unit_sound_head_from
+    : validate_unit_sound_head_from_statement.
+Proof.
+  intros statics hp rounds unused slots G Ls kept before after Hvalidated
+    Hfree.
+  destruct (validate_unit rounds unused slots G Ls kept before after)
+    eqn:Hverdict;
+    cbn [holds_from] in Hvalidated; try discriminate;
+    try (apply (validate_unit_sound_from statics hp rounds unused slots G Ls
+                  kept before after);
+         [ rewrite Hverdict; reflexivity | exact Hfree ]).
+  revert Hverdict. unfold validate_unit.
+  destruct (expr_eqb [] [] before after) eqn:Hsame; [ discriminate | ].
+  cbv zeta. intros Hverdict.
+  apply (refines_trans _ _ _
+    (demote_stub_calls_refines before [] [] statics hp)).
+  apply (refines_trans _ _ _
+    (loopify_unit_refines G (demote_stub_calls before) [] [] statics hp)).
+  revert Hverdict. clear Hsame.
+  generalize (loopify_unit G (demote_stub_calls before)). clear before.
+  intros before.
+  set (a := tidied_after rounds (normalise_after rounds kept after)) in *.
+  destruct (expr_eqb [] []
+              (order_statics_as a
+                 (tidied_before rounds
+                    (normalise_before rounds kept before)))
+              a);
+    [ discriminate | ].
+  destruct (expr_eqb [] []
+              (order_statics_as a
+                 (without_statics unused
+                    (tidied_before rounds
+                       (normalise_before rounds kept before))))
+              a);
+    [ discriminate | ].
+  set (c := without_head_statics unused a).
+  destruct (expr_eqb [] []
+              (order_statics_as c
+                 (without_statics unused
+                    (tidied_before rounds
+                       (normalise_before rounds kept before))))
+              c) eqn:Hremoved_head.
+  - intros _.
+    apply (refines_trans _
+      (State (tidied_before rounds (normalise_before rounds kept before))
+         [] [] statics hp)).
+    { apply (expr_refines_trans _ _ _
+        (normalise_before_refines rounds kept before)
+        (tidied_before_refines rounds _)). }
+    apply (refines_trans _ _ _
+      (without_statics_refines_from statics hp unused _ Hfree)).
+    apply (refines_trans _ (State c [] [] statics hp)).
+    { apply (expr_equivalent_refines _ _
+        (expr_equivalent_trans _ _ _ (order_statics_as_equivalent c _)
+           (expr_eqb_sound _ _ Hremoved_head))). }
+    apply (refines_trans _ _ _
+      (without_head_statics_refines_from statics hp unused a Hfree
+         Hvalidated)).
+    apply equivalent_refines, equivalent_sym.
+    exact (tidied_after_normalised_equivalent rounds kept after [] []
+             statics hp).
+  - (* What is left lifts, or is not validated. *)
+    repeat
+      match goal with
+      | |- context [if ?c then _ else _] => destruct c
+      end;
+      discriminate.
+Qed.
+
+Theorem validate_unit_knowing_sound_head_from
+    : validate_unit_knowing_sound_head_from_statement.
+Proof.
+  intros statics hp rounds unused slots G Ls kept before after Hvalidated
+    Hfree.
+  apply (refines_trans _ _ _
+    (normalise_knowing_refines
+       (normalise_before_round_avoiding
+          (unit_continuations Ls ++ map snd G) kept)
+       rounds before
+       (normalise_before_round_avoiding_refines
+          (unit_continuations Ls ++ map snd G) kept)
+       [] [] statics hp)).
+  apply (refines_trans _ _ _
+    (validate_unit_sound_head_from statics hp rounds unused slots G Ls kept
+       _ _ Hvalidated Hfree)).
+  apply (expr_equivalent_refines _ _
+    (expr_equivalent_sym _ _
+       (normalise_knowing_equivalent (normalise_after_round kept) rounds
+          after (normalise_after_round_equivalent kept)))).
+Qed.
+
+Theorem validate_unit_sound_head_imports
+    : validate_unit_sound_head_imports_statement.
+Proof.
+  intros imports rounds unused slots G Ls kept before after Hvalidated.
+  exact (validate_unit_sound_head_from (imports_statics imports) empty_heap
+           rounds unused slots G Ls kept before after Hvalidated
+           (imports_statics_free unused imports)).
+Qed.
+
+Theorem validate_unit_knowing_sound_head_imports
+    : validate_unit_knowing_sound_head_imports_statement.
+Proof.
+  intros imports rounds unused slots G Ls kept before after Hvalidated.
+  exact (validate_unit_knowing_sound_head_from (imports_statics imports)
            empty_heap rounds unused slots G Ls kept before after Hvalidated
            (imports_statics_free unused imports)).
 Qed.
