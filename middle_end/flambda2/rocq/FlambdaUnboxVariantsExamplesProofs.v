@@ -154,3 +154,30 @@ Proof. split; vm_compute; reflexivity. Qed.
 Theorem bodies_validated_by_first_phase :
   bodies_validated_by_first_phase_statement.
 Proof. repeat split; vm_compute; reflexivity. Qed.
+
+(* The rounds of the first phase of the validation refine, and what
+   they take to the body after is refined by it. *)
+Lemma first_phase_rounds_refine (rounds : nat) :
+  ∀ e : expr, expr_refines e (iterate rounds normalise_expr_params e).
+Proof.
+  induction rounds as [ | rounds IH]; intros e; simpl.
+  - apply expr_refines_refl.
+  - exact (expr_refines_trans _ _ _ (normalise_expr_params_refines e)
+      (IH (normalise_expr_params e))).
+Qed.
+
+Lemma validated_by_first_phase_refines (before after : expr) :
+  validated_by_first_phase before after -> expr_refines before after.
+Proof.
+  intros Hsame.
+  exact (expr_refines_trans _ _ _ (first_phase_rounds_refine 5 before)
+    (expr_equivalent_refines _ _ (expr_eqb_sound _ _ Hsame))).
+Qed.
+
+Theorem while_two_tests_validated : while_two_tests_validated_statement.
+Proof. vm_compute. reflexivity. Qed.
+
+Theorem while_two_tests_refines : while_two_tests_refines_statement.
+Proof.
+  exact (validated_by_first_phase_refines _ _ while_two_tests_validated).
+Qed.

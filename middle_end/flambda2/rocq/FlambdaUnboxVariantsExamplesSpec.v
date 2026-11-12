@@ -128,6 +128,34 @@
    body unboxes; they are written here as the numbers, and the boxed
    [0L] that the branch of [None] returns as the symbol 1.
 
+   [while_two_tests] is
+
+     let result =
+       let n = opaque 10 in
+       let i = ref 0 in
+       let s = ref 0 in
+       while !i < n && !s < 20 do
+         s := !s + !i;
+         i := !i + 1
+       done;
+       !s
+
+   The [&&] is a join in the handler of the loop: the continuation
+   after the two tests takes a boolean, which the first test gives as
+   the constant [false] and the second as its comparison, tagged; it
+   untags the boolean for its [Switch]. Simplify gives that
+   continuation the number untagged: 0 from the first test, the
+   comparison itself from the second, and nothing is tagged. On the
+   term before, the untagging is not the first thing in the handler
+   of the join, as the continuation of the body of the loop is bound
+   above it; so the argument must be certain to be a naked immediate:
+   the constant, and the number that the second test tagged
+   (FlambdaUnboxVariantsSpec.made_number). The body here is the
+   handler of the loop. The front end has made the two references
+   parameters of the loop, 1 and 2, and of each continuation in it;
+   the bound [n] is the variable 3, the loop is the continuation 2
+   and its exit the continuation 1, which is given the result alone.
+
    The bodies are those of the function of each source: the body
    before Simplify and the body after. They are written by hand from
    the two terms that the compiler prints ([-drawfexpr-to] and
@@ -168,7 +196,12 @@
    phase take each of the seven bodies of this file to the body after,
    and the three of the other file too, [pair_built] among them, which
    the round of that file does not validate
-   ([bodies_validated_by_first_phase_statement]).
+   ([bodies_validated_by_first_phase_statement]). They take the body
+   of [while_two_tests] to its body after as well
+   ([while_two_tests_validated_statement]), so that body after refines
+   the body before ([while_two_tests_refines_statement]); the round
+   of this file does not, as it binds no parameter that every
+   application gives the same thing.
 
    The proofs are in FlambdaUnboxVariantsExamplesProofs.v, which needs
    no review. *)
@@ -764,3 +797,71 @@ Definition bodies_validated_by_first_phase_statement : Prop :=
   ∧ validated_by_first_phase pair_computed_before pair_computed_after
   ∧ validated_by_first_phase int64_built_before int64_built_after
   ∧ validated_by_first_phase pair_built_before pair_built_after.
+
+(* ======================================================================== *)
+(* A number that was tagged                                                 *)
+(* ======================================================================== *)
+
+Definition less_tagged (a b : simple) : named :=
+  Prim
+    (Binary
+       (Int_comp Standard_tagged_immediate (Yielding_bool (Int_lt Signed))))
+    [a; b].
+
+(* The continuation of the join is 3 and its parameters are 4, the
+   boolean, 5 and 6; that of the second test is 4, with the parameters
+   12 and 13; that of the body of the loop is 5, with the parameters 7
+   and 8, and 6 and 7 are the continuations of the arms that go to the
+   body and to the second test. *)
+Definition while_two_tests_before : expr :=
+  Let_cont_non_recursive 3
+    (Handler [4; 5; 6] (make_handler_metadata [Value; Value; Value])
+       (Let_cont_non_recursive 5
+          (Handler [7; 8] (make_handler_metadata [Value; Value])
+             (Let 9 Value (add_tagged (Var 8) (Var 7))
+                (Let 10 Value (add_tagged (Var 7) (tagged 1))
+                   (Apply_cont (jump 2 [Var 10; Var 9])))))
+          (Let_cont_non_recursive 6
+             (Handler [] (make_handler_metadata [])
+                (Apply_cont (jump 5 [Var 5; Var 6])))
+             (Let 11 naked_immediate (untag (Var 4))
+                (Switch (Var 11)
+                   [(0%Z, jump 1 [Var 6]); (1%Z, jump 6 [])])))))
+    (Let_cont_non_recursive 4
+       (Handler [12; 13] (make_handler_metadata [Value; Value])
+          (Let 14 naked_immediate (less_tagged (Var 13) (tagged 20))
+             (Let 15 Value (tag_immediate (Var 14))
+                (Apply_cont (jump 3 [Var 15; Var 12; Var 13])))))
+       (Let 16 naked_immediate (less_tagged (Var 1) (Var 3))
+          (Let 17 Value (tag_immediate (Var 16))
+             (Let_cont_non_recursive 7
+                (Handler [] (make_handler_metadata [])
+                   (Apply_cont (jump 4 [Var 1; Var 2])))
+                (Let 18 naked_immediate (untag (Var 17))
+                   (Switch (Var 18)
+                      [(0%Z, jump 3 [tagged 0; Var 1; Var 2]);
+                       (1%Z, jump 7 [])])))))).
+
+Definition while_two_tests_after : expr :=
+  Let_cont_non_recursive 3
+    (Handler [4] (make_handler_metadata [naked_immediate])
+       (Let_cont_non_recursive 5
+          (Handler [] (make_handler_metadata [])
+             (Let 9 Value (add_tagged (Var 2) (Var 1))
+                (Let 10 Value (add_tagged (Var 1) (tagged 1))
+                   (Apply_cont (jump 2 [Var 10; Var 9])))))
+          (Switch (Var 4) [(0%Z, jump 1 [Var 2]); (1%Z, jump 5 [])])))
+    (Let 16 naked_immediate (less_tagged (Var 1) (Var 3))
+       (Let_cont_non_recursive 4
+          (Handler [] (make_handler_metadata [])
+             (Let 14 naked_immediate (less_tagged (Var 2) (tagged 20))
+                (Apply_cont (jump 3 [Var 14]))))
+          (Switch (Var 16) [(0%Z, jump 3 [naked 0]); (1%Z, jump 4 [])]))).
+
+(* Five rounds of the first phase of the validation take the body
+   before to the body after. *)
+Definition while_two_tests_validated_statement : Prop :=
+  validated_by_first_phase while_two_tests_before while_two_tests_after.
+
+Definition while_two_tests_refines_statement : Prop :=
+  expr_refines while_two_tests_before while_two_tests_after.
