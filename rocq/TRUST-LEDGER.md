@@ -589,6 +589,34 @@ it gave back.
     are said to be told apart by a run only where both answer and
     every place looked at is read on both sides
     (`told_apart_where_read`).
+  - the types kept in `.cmx` files (`environment_of_cmx`,
+    `check_cmx`, in `types_of_compilations.ml`): that a file is
+    loaded by the compiler's own loader and resolver
+    (`Flambda_cmx.create_loader`, `load_cmx_file_contents`), the
+    directory given being the whole load path and the current unit
+    another one; that the environment is the one that
+    `Typing_env.create` makes with that resolver, read through the
+    observer; that the names asked are the symbols and the
+    variables that `Serializable.ids_for_export` gives and whose
+    compilation unit is the unit, a symbol at the kind of values
+    and a variable at its own kind; that the units are those of
+    the `.cmx` files of the directory, each named as its file with
+    the first letter in upper case;
+  - the rule of the test: that the directory is the one in which
+    the compiler of the context `main` finds the standard library,
+    and that the files there are those that the build of this tree
+    made with its own compiler;
+  - `check_environments`: that it does what `check_file` did for
+    the environments of a file (the expected file of that test did
+    not change);
+  - `top_of_a_type`: that what is counted is the constructor at the
+    top of the model's type, and for a head whether it may be null
+    and whether it then has a variable;
+  - the control (`control_of_the_tops`, and the rules of the
+    directory `cmx_control`): that the four types are those that its
+    lines say; that the three files are made as the rules say, by
+    the compiler of the context, the second with `-opaque`, and the
+    third by writing a line of text.
 
 Not trusted, though it is OCaml: what the tool proposes to
 `validate_unit` and to `validate_unit_knowing`. Each proposal is

@@ -559,6 +559,13 @@ says so. Only the labels that this tree cites are listed.
   apart may each have been given the same one. The compiler's variables
   are distinct on every path. A hole in the contract of the model's
   join, not a difference with the compiler.
+- **T7-12.** The type "any value" has two forms: `any_value`
+  (`Unknown`), and the head whose part that is not null is unknown and
+  which may be null, with no variable for whether it is, which
+  `unknown_with_subkind` and the traversal of types make. Both joins
+  turn that head into `Unknown`; `is_obviously_unknown` is false of it,
+  so a level keeps an equation that says nothing. The two mean the same;
+  no wrong result is known.
 - **V2-2.** The fexpr printer drops the kinds of the fields of a
   `Make_block`, and the parser reads back `any_value` for each.
 - **V2-3.** The conversion gives a meaning to a local allocation read
@@ -568,6 +575,13 @@ says so. Only the labels that this tree cites are listed.
   binds.
 - **V2-5.** The argument of a raise that nothing reads is to be replaced
   by 0, but the flow analysis counts it as read in every handler.
+- **V2-6.** The term that `-drawfexpr` prints has no mark for a functor,
+  for `[@cold]`, for opaque code or for the modes of parameters; the
+  parser gives each a default, and Simplify reads them. The compiler
+  inlines the application of a functor that is under its size for
+  functors; the tool's Simplify, to which the functor is a function, may
+  leave the call. The pair validated is then not the pair that the
+  compiler made.
 - **V3-2.** Simplify lifts a closed constant out of a function or a
   loop, and shares equal constants: the number of allocations changes.
 - **V4-1.** Loopify makes a self tail call a jump without comparing the
