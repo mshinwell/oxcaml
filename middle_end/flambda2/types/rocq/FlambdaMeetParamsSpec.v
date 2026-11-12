@@ -29,8 +29,8 @@
 (* The equations on the parameters of a continuation, for parameters
    that the environment does not know.
 
-   This file is to be reviewed: three definitions, an example and six
-   statements. The proofs are in FlambdaMeetParamsProofs.v, which
+   This file is to be reviewed: three definitions, an example and
+   eight statements. The proofs are in FlambdaMeetParamsProofs.v, which
    needs no review.
 
    The question. The contract agreed for
@@ -75,8 +75,11 @@
    environment). A parameter that is not known and is to be avoided
    stays unknown, since a variable that a meet defines is not among
    the names to avoid ([new_names_avoided], FlambdaMeetSpec.v), and
-   an equation on a name that is not known adds nothing. Two
-   instances:
+   an equation on a variable that is not known adds nothing: where
+   the function answers, the environment is as it was
+   ([add_equation_on_unknown_statement]). It need not answer: the
+   compiler stops with a fatal error on a name that is not bound.
+   Two instances:
    - the function as transcribed starts with no name to avoid, so
      the premise is that every parameter is known: it is the
      statement that was proved;
@@ -85,7 +88,12 @@
      agreed, for a join that has its own
      ([add_equations_on_params_avoiding_sound_statement]). This
      function is not the transcription: it is here to show what
-     would make the contract true.
+     would make the contract true. On the example it does not
+     answer ([example_params_avoiding_answer_statement]); that is
+     one input, and does not show that it never answers where a
+     parameter is not known. What is shown in general is the
+     statement above: of such a parameter the environment answered
+     says nothing.
 
    A premise on the join alone ("the join makes no variable that is
    among the parameters") is not stated: a variable becomes known to
@@ -244,6 +252,20 @@ Definition add_equations_on_params_not_sound_statement : Prop :=
 (* The premise under which the contract is true                             *)
 (* ======================================================================== *)
 
+(* An equation on a variable that the environment does not know adds
+   nothing: where the function answers, the environment is as it
+   was. No equation is being added when it is called. *)
+Definition add_equation_on_unknown_statement : Prop :=
+  ∀ (mh : meet_expanded_head) (menv menv' : Meet_env.t) (x : variable)
+    (ty : flambda_type),
+    meet_expanded_head_other_kinds mh ->
+    typing_env_fits (Meet_env.typing_env menv) ->
+    type_fits (Meet_env.typing_env menv) ty ->
+    Meet_env.adding_equations_for_names menv = [] ->
+    Typing_env.mem None (Meet_env.typing_env menv) (Name_var x) = false ->
+    Meet_env.add_equation menv (Name_var x) ty mh = Some menv' ->
+    menv' = menv.
+
 (* [Meet_env.add_equations_on_params]: what is added is true, if
    every parameter that the environment does not know is among the
    names to avoid. No equation is being added when it is called. *)
@@ -295,3 +317,11 @@ Definition add_equations_on_params_avoiding_sound_statement : Prop :=
     join_scoped_envs_sound join ->
     add_equations_on_params_sound
       (add_equations_on_params_avoiding join repaired_choices fuel).
+
+(* On the example it does not answer, with the join that makes the
+   second parameter (which now may not make it): the second parameter
+   is not known when its equation is added. This is one input. *)
+Definition example_params_avoiding_answer_statement : Prop :=
+  add_equations_on_params_avoiding (naming_join example_unknown_param)
+    repaired_choices 3 example_params_env example_params example_param_types
+  = None.

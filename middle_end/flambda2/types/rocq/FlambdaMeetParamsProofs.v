@@ -304,6 +304,23 @@ Proof.
     cbn. rewrite Pos.eqb_refl. reflexivity.
 Qed.
 
+Theorem add_equation_on_unknown : add_equation_on_unknown_statement.
+Proof.
+  intros mh menv menv' x ty Hother Hfits Hty Hadding Hmem Hadd.
+  unfold Meet_env.add_equation in Hadd.
+  destruct (Meet_env.add_equation0 true menv (Name_var x) ty mh)
+    as [ result | ] eqn:Hadd0; [ | discriminate Hadd ].
+  assert (Hnot_adding :
+    Keyed.among name_eqb (Name_var x)
+      (Meet_env.adding_equations_for_names menv)
+    = false) by (rewrite Hadding; reflexivity).
+  destruct (add_equation0_unknown mh menv (Name_var x) ty result Hother Hfits
+              Hty Hmem Hnot_adding Hadd0)
+    as [ -> | (-> & alias & _ & Hbottom) ].
+  - cbn in Hadd. injection Hadd as <-. reflexivity.
+  - exfalso. exact (add_alias_var_not_bottom _ _ _ Hbottom).
+Qed.
+
 (* What is asked of a parameter and its type, in an environment and
    under a valuation: the type fits; if the environment knows the
    parameter, it has a value of the type; if not, it is to be
@@ -467,3 +484,7 @@ Proof.
   unfold among. apply existsb_exists. exists (fst param).
   split; [ exact (in_map fst params param Hin) | apply Pos.eqb_refl ].
 Qed.
+
+Theorem example_params_avoiding_answer
+  : example_params_avoiding_answer_statement.
+Proof. vm_compute. reflexivity. Qed.
