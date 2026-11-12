@@ -8754,13 +8754,58 @@ let generated_joins_after_joins () : joined_step list comparison list =
             (run_generated_joins With_the_repaired_test_of_the_join steps))
     } ]
 
+(* A run with, at the place of a position, what the model sees or what the
+   compiler sees replaced: for the controls. *)
+let with_a_reading_replaced position ~of_the_model (taken : seen)
+    (run : joins_run) : joins_run =
+  match run with
+  | Both_answer places ->
+    Both_answer
+      (List.mapi
+         (fun i ((name, seen, seen') as place) ->
+           if i <> position
+           then place
+           else if of_the_model
+           then name, taken, seen'
+           else name, seen, taken)
+         places)
+  | (Neither_answers _ | Only_one_answers _) as unchanged -> unchanged
+
+(* Whether a run tells the model and the compiler apart, and at which place
+   first. That is said only of a run in which both sides answer and every place
+   looked at is read on both: a reading that fails is not a difference between
+   the two. *)
+type told_apart =
+  | No_answer of string
+  | A_place_is_not_read
+  | Not_told_apart
+  | Told_apart_first_at of string
+
+let told_apart_where_read (run : joins_run) : told_apart =
+  match run with
+  | Neither_answers why | Only_one_answers why -> No_answer why
+  | Both_answer places -> (
+    if
+      not
+        (List.for_all
+           (fun ((_ : string), seen, seen') ->
+             seen_is_read seen && seen_is_read seen')
+           places)
+    then A_place_is_not_read
+    else
+      match first_difference_of_joins places with
+      | Some (place, (_ : seen), (_ : seen)) -> Told_apart_first_at place
+      | None -> Not_told_apart)
+
 (* A control of the names that a join of the model is told to avoid (T7-11), on
    two of the generated programs in which two uses of the first join each have a
    join of their own. Told to avoid every variable made so far, the model sees
    what the compiler sees. Told only of the variables that its environments
    know, it does not: the two inner joins are each given the same new variable.
-   That run is not one of the comparisons above: it shows what they leave
-   out. *)
+   That the two are told apart is said only where every place looked at is read
+   on both sides ([told_apart_where_read]): with a reading of that run taken
+   away, it is not said. That run is not one of the comparisons above: it shows
+   what they leave out. *)
 let control_of_the_names_to_avoid () =
   let check what holds =
     if holds
@@ -8776,34 +8821,53 @@ let control_of_the_names_to_avoid () =
   List.iter
     (fun seed ->
       let steps = generate_joined_steps (Random.of_int seed) in
-      let difference avoid : (string * seen * seen) option option =
-        match run_generated_joins ~avoid Of_the_compiler steps with
-        | Both_answer places -> Some (first_difference_of_joins places)
-        | Neither_answers _ | Only_one_answers _ -> None
-      in
+      let run avoid = run_generated_joins ~avoid Of_the_compiler steps in
       check
         (Printf.sprintf
            "seed %d, every variable made so far avoided: the model sees what \
             the compiler sees at every place looked at"
            seed)
-        (match difference Every_variable_made with
-        | Some None -> true
-        | Some (Some _) | None -> false);
-      match difference What_the_environments_know with
-      | Some (Some (place, (_ : seen), (_ : seen))) ->
-        check
-          (Printf.sprintf
-             "seed %d, only the variables that the environments know avoided: \
-              the model and the compiler are told apart, first %s"
-             seed place)
-          true
-      | Some None | None ->
-        check
-          (Printf.sprintf
-             "seed %d, only the variables that the environments know avoided: \
-              the model and the compiler are told apart"
-             seed)
-          false)
+        (match run Every_variable_made with
+        | Both_answer places ->
+          Option.is_none (first_difference_of_joins places)
+        | Neither_answers _ | Only_one_answers _ -> false);
+      let narrow = run What_the_environments_know in
+      let told_apart =
+        Printf.sprintf
+          "seed %d, only the variables that the environments know avoided: \
+           every place looked at is read on both sides, and the model and the \
+           compiler are told apart"
+          seed
+      in
+      (match told_apart_where_read narrow with
+      | Told_apart_first_at place ->
+        check (told_apart ^ ", first " ^ place) true
+      | No_answer why -> check (told_apart ^ " (" ^ general why ^ ")") false
+      | A_place_is_not_read ->
+        check (told_apart ^ " (a place is not read)") false
+      | Not_told_apart -> check (told_apart ^ " (the two see the same)") false);
+      let not_read (run : joins_run) =
+        match told_apart_where_read run with
+        | A_place_is_not_read -> true
+        | No_answer _ | Not_told_apart | Told_apart_first_at _ -> false
+      in
+      let last =
+        match narrow with
+        | Both_answer places -> List.length places - 1
+        | Neither_answers _ | Only_one_answers _ -> 0
+      in
+      let without position ~of_the_model =
+        with_a_reading_replaced position ~of_the_model
+          (Nothing_seen "taken away") narrow
+      in
+      check
+        "with nothing read of the model at the first place of that run: the \
+         two are not said to be told apart"
+        (not_read (without 0 ~of_the_model:true));
+      check
+        "with nothing read of the compiler at the last place of that run: the \
+         two are not said to be told apart"
+        (not_read (without last ~of_the_model:false)))
     [161196; 161457]
 
 (* A control of what a run with the repaired test comes to
@@ -8838,23 +8902,7 @@ let control_of_the_repaired_test () =
     | Disagree _ -> true
     | Agree | Known_to_disagree _ | Not_run _ | Not_this_comparison -> false
   in
-  (* A run with, at the place of a position, what the model sees or what the
-     compiler sees replaced. *)
-  let with_at position ~of_the_model (taken : seen) (run : joins_run) :
-      joins_run =
-    match run with
-    | Both_answer places ->
-      Both_answer
-        (List.mapi
-           (fun i ((name, seen, seen') as place) ->
-             if i <> position
-             then place
-             else if of_the_model
-             then name, taken, seen'
-             else name, seen, taken)
-           places)
-    | (Neither_answers _ | Only_one_answers _) as unchanged -> unchanged
-  in
+  let with_at = with_a_reading_replaced in
   List.iter
     (fun (seed, changed) ->
       let steps = generate_joined_steps (Random.of_int seed) in

@@ -2799,9 +2799,13 @@ where e1 : (Naked_immediate ((Known [0; 1]) [Is_int e0]))
 
 A control: two generated programs of joins after joins, with the joins of the model told to avoid every variable made so far, and told only of the variables that their environments know (T7-11)
   seed 161196, every variable made so far avoided: the model sees what the compiler sees at every place looked at: yes
-  seed 161196, only the variables that the environments know avoided: the model and the compiler are told apart, first after the first join: yes
+  seed 161196, only the variables that the environments know avoided: every place looked at is read on both sides, and the model and the compiler are told apart, first after the first join: yes
+  with nothing read of the model at the first place of that run: the two are not said to be told apart: yes
+  with nothing read of the compiler at the last place of that run: the two are not said to be told apart: yes
   seed 161457, every variable made so far avoided: the model sees what the compiler sees at every place looked at: yes
-  seed 161457, only the variables that the environments know avoided: the model and the compiler are told apart, first after the first join: yes
+  seed 161457, only the variables that the environments know avoided: every place looked at is read on both sides, and the model and the compiler are told apart, first after the first join: yes
+  with nothing read of the model at the first place of that run: the two are not said to be told apart: yes
+  with nothing read of the compiler at the last place of that run: the two are not said to be told apart: yes
 
 A control: what a run of the model with the repaired test comes to, with a reading taken away
   seed 160037: the model with the compiler's test sees what the compiler sees: yes
