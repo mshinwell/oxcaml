@@ -50,7 +50,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaSimplifyPrimitivesSpec FlambdaSimplifyPrimitivesProofs
   FlambdaSimplifyPassSpec FlambdaSimplifyPassProofs
   FlambdaSimplifyPruningSpec.
-From OxCamlFlambda2Types Require FlambdaSimplifySwitchSpec
+From OxCamlFlambda2Types Require FlambdaMeetExamplesSpec
+  FlambdaMeetExamplesProofs FlambdaSimplifySwitchSpec
   FlambdaSimplifySwitchProofs.
 Import ListNotations.
 
@@ -1139,6 +1140,28 @@ Qed.
 
 Theorem simplify_expr_no_pruning : simplify_expr_no_pruning_statement.
 Proof. intros tenv fit e. apply simplify_expr_no_pruning_eq. Qed.
+
+(* ======================================================================== *)
+(* With the meet that the contract is proved of                             *)
+(* ======================================================================== *)
+
+Theorem simplify_by_types_pruning_with_refines
+    : simplify_by_types_pruning_with_refines_statement.
+Proof.
+  intros join fuel e Hjoin Hsets.
+  apply simplify_by_types_pruning_refines; [ | exact Hsets ].
+  apply simplify_switch_rewrite_sound.
+  exact (FlambdaSimplifySwitchProofs.meet_to_prove_bottom_sound join fuel
+           Hjoin).
+Qed.
+
+Theorem prune_by_types_refines : prune_by_types_refines_statement.
+Proof.
+  intros fuel e. unfold prune_by_types.
+  destruct (sets_well_formed e) eqn:Hsets; [ | apply refines_refl ].
+  apply simplify_by_types_pruning_with_refines; [ | exact Hsets ].
+  exact FlambdaMeetExamplesProofs.forgetful_join_sound.
+Qed.
 
 (* ======================================================================== *)
 (* An example                                                               *)

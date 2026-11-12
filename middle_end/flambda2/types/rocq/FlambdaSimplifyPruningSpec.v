@@ -91,6 +91,17 @@
      ([simplify_by_types_pruning_refines_statement]). With a [prune]
      that answers nothing it is the first function
      ([simplify_expr_no_pruning_statement]).
+   - With the transcribed meet that the contract is proved of
+     ([meet_to_prove], FlambdaMeetSpec.v):
+     [simplify_by_types_pruning_with join fuel] refines a unit with
+     well-formed sets for a join that has the contract of a join,
+     whatever the fuel
+     ([simplify_by_types_pruning_with_refines_statement]); and
+     [prune_by_types fuel], which is that function at the join that
+     forgets, applied where the sets of the unit pass their test and
+     the identity elsewhere, has no premise at all
+     ([prune_by_types_refines_statement]). That one is for the
+     validation to run.
    - One term on which it is computed, with the transcribed meet, and
      what the first function answers on it
      ([example_pruning_no_arm_statement]).
@@ -147,7 +158,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypingEnvKindedSpec FlambdaTypingEnvExamplesSpec
   FlambdaTypingEnvRefinementSpec FlambdaMeet FlambdaMeetSpec
   FlambdaSimplifyPrimitivesSpec FlambdaSimplifyPassSpec.
-From OxCamlFlambda2Types Require FlambdaSimplifySwitchSpec.
+From OxCamlFlambda2Types Require FlambdaMeetExamplesSpec
+  FlambdaSimplifySwitchSpec.
 Import ListNotations.
 
 Local Open Scope Z_scope.
@@ -565,14 +577,51 @@ Definition simplify_expr_no_pruning_statement : Prop :=
     simplify_expr_pruning no_pruning tenv fit e = simplify_expr tenv e.
 
 (* ======================================================================== *)
+(* With the meet that the contract is proved of                             *)
+(* ======================================================================== *)
+
+(* The function, with the pruning of FlambdaSimplifySwitchSpec.v at
+   the transcribed meet that the contract is proved of
+   ([meet_to_prove], FlambdaMeetSpec.v), a join and some fuel. Where
+   the fuel runs out in a meet nothing is pruned. *)
+Definition simplify_by_types_pruning_with (join : join_scoped_envs)
+    (fuel : nat) (e : expr) : expr :=
+  simplify_by_types_pruning
+    (FlambdaSimplifySwitchSpec.simplify_switch (meet_to_prove join fuel)) e.
+
+(* It refines a unit whose sets are well formed, for a join that has
+   the contract of a join and whatever the fuel. *)
+Definition simplify_by_types_pruning_with_refines_statement : Prop :=
+  ∀ (join : join_scoped_envs) (fuel : nat) (e : expr),
+    join_scoped_envs_sound join ->
+    sets_well_formed e = true ->
+    program_refines e (simplify_by_types_pruning_with join fuel e).
+
+(* What the validation can run: the join that forgets
+   (FlambdaMeetExamplesSpec.v), which has the contract of a join, and
+   the test of the sets made first. A unit whose sets fail the test is
+   left as it is. *)
+Definition prune_by_types (fuel : nat) (e : expr) : expr :=
+  if sets_well_formed e
+  then
+    simplify_by_types_pruning_with FlambdaMeetExamplesSpec.forgetful_join
+      fuel e
+  else e.
+
+(* It has no premise. *)
+Definition prune_by_types_refines_statement : Prop :=
+  ∀ (fuel : nat) (e : expr), program_refines e (prune_by_types fuel e).
+
+(* ======================================================================== *)
 (* An example                                                               *)
 (* ======================================================================== *)
 
-(* [let i = 5 in switch i with 0 -> k0 | 1 -> k1], with the transcribed
-   meet that FlambdaSimplifySwitchSpec.v runs: the scrutinee is the
-   constant, the meet of its type with the number of each arm is
-   bottom, and no arm is left. The first function leaves the [Switch],
-   which has no arm for the constant. *)
+(* [let i = 5 in switch i with 0 -> k0 | 1 -> k1], with the function
+   that the validation can run, at the fuel of the examples of
+   FlambdaSimplifySwitchSpec.v: the scrutinee is the constant, the
+   meet of its type with the number of each arm is bottom, and no arm
+   is left. The first function leaves the [Switch], which has no arm
+   for the constant. *)
 Definition example_pruning_no_arm_term (k0 k1 : continuation) : expr :=
   Let example_i naked_immediate_kind (Simple (Const (Naked_immediate 5)))
     (Switch (Var example_i)
@@ -580,10 +629,7 @@ Definition example_pruning_no_arm_term (k0 k1 : continuation) : expr :=
 
 Definition example_pruning_no_arm_statement : Prop :=
   ∀ k0 k1 : continuation,
-    simplify_by_types_pruning
-      (FlambdaSimplifySwitchSpec.simplify_switch
-         FlambdaSimplifySwitchSpec.example_meet)
-      (example_pruning_no_arm_term k0 k1)
+    prune_by_types 10 (example_pruning_no_arm_term k0 k1)
     = Let example_i naked_immediate_kind
         (Simple (Const (Naked_immediate 5))) Invalid
     ∧ simplify_by_types (example_pruning_no_arm_term k0 k1)
