@@ -1184,6 +1184,12 @@ The join of the model beside the n-way join of the compiler, on the chosen joins
   A closure whose own function has a known code, and one of which nothing is said of the code (T1-4): the same
   Of 8: 6 the same, 2 where neither answers, 0 different, 0 not run
 
+A control: two joins that differ only in what a variable bound by one use is known to be (4 or 5; 4 or 6)
+  the two targets of the compiler are told apart: yes
+  the two targets of the model are told apart: yes
+  the target of the model for the one and of the compiler for the other are told apart: yes
+  the targets of the model and of the compiler for the one are the same: yes
+
 Two or three types of kind value, for the join of the model and the n-way join of the compiler (1000 cases, seeds 100000 to 100999)
   1000 converted
   join: the model and the n-way join of the compiler: 1000 agree
@@ -1237,8 +1243,8 @@ Two or three uses that know equations on variables and pass a type of naked imme
 Two or three uses, of which some bind a variable and pass it or a block that holds it, for the join of the model and the n-way join of the compiler (1000 cases, seeds 108000 to 108999)
   1000 converted
   join: the model and the n-way join of the compiler: 1000 agree
-  of which those where a variable that was made is mentioned: 199 agree
-  join: the model and the binary join of the compiler: 732 agree, 268 disagree as recorded
+  of which those where a variable that was made is mentioned: 207 agree
+  join: the model and the binary join of the compiler: 727 agree, 273 disagree as recorded
     recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 108004): what is seen of the two answers is not the same
     on the shrunk input:
     a parameter of kind value
@@ -1248,8 +1254,8 @@ Two or three uses, of which some bind a variable and pass it or a block that hol
 The same with uses that know equations on variables, for the join of the model and the n-way join of the compiler (1000 cases, seeds 110000 to 110999)
   1000 converted
   join: the model and the n-way join of the compiler: 1000 agree
-  of which those where a variable that was made is mentioned: 132 agree
-  join: the model and the binary join of the compiler: 550 agree, 450 disagree as recorded
+  of which those where a variable that was made is mentioned: 135 agree
+  join: the model and the binary join of the compiler: 548 agree, 452 disagree as recorded
     recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 110000): what is seen of the two answers is not the same
     on the shrunk input:
     a parameter of kind value

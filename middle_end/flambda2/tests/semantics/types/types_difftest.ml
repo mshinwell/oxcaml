@@ -5023,8 +5023,25 @@ type join_at_a_continuation =
     at_uses : use list
   }
 
+(* The names of which the target of a join is asked, besides the names of the
+   tests: the variables that the source defines for types only, the variables
+   that the uses bind (the target may still mention one, and say what it is),
+   each once, and the parameter. The variables that the uses bind are numbered
+   with those of the tests, so they are not among the variables that the join
+   made, and are not reached as those are. *)
+let names_asked_of_a_join
+    ({ kind_of_parameter = _; for_types_at_source; at_uses } :
+      join_at_a_continuation) (parameter : M.variable) : MT.name list =
+  let bound =
+    List.fold_left
+      (fun bound (x, _) -> if List.mem x bound then bound else bound @ [x])
+      []
+      (List.concat_map (fun { binds; _ } -> binds) at_uses)
+  in
+  List.map (fun x -> MT.Name_var x) (for_types_at_source @ bound @ [parameter])
+
 let join_in_the_model (names : names) (model : model)
-    ({ kind_of_parameter = kind; for_types_at_source; at_uses } :
+    ({ kind_of_parameter = kind; for_types_at_source; at_uses } as input :
       join_at_a_continuation) : seen =
   let model_env, defined = env_of_model names in
   let parameter = names.numbering.variables.number (parameter names kind) in
@@ -5072,14 +5089,12 @@ let join_in_the_model (names : names) (model : model)
     | None -> Nothing_seen "no answer of the join"
     | Some (target, _) ->
       seen_in_the_model ~threshold:names.variables_with_a_name
-        (defined
-        @ List.map (fun x -> MT.Name_var x) for_types_at_source
-        @ [MT.Name_var parameter])
+        (defined @ names_asked_of_a_join input parameter)
         None target
 
 (* The same in the compiler. The conversion of the inputs may refuse them. *)
 let join_in_the_compiler (names : names) (implementation : implementation)
-    ({ kind_of_parameter = kind; for_types_at_source; at_uses } :
+    ({ kind_of_parameter = kind; for_types_at_source; at_uses } as input :
       join_at_a_continuation) : seen =
   let (_ : Model_env.t), defined = env_of_model names in
   let variable = Converter.variable_of_model names.numbering in
@@ -5112,8 +5127,8 @@ let join_in_the_compiler (names : names) (implementation : implementation)
           seen_in_the_compiler names.numbering
             ~threshold:names.variables_with_a_name
             (defined
-            @ List.map (fun x -> MT.Name_var x) for_types_at_source
-            @ [MT.Name_var (names.numbering.variables.number parameter)])
+            @ names_asked_of_a_join input
+                (names.numbering.variables.number parameter))
             None env
         | exception Assert_failure (file, _, _) ->
           Nothing_seen ("an assertion of " ^ Filename.basename file ^ " fails"))
@@ -5196,6 +5211,55 @@ let chosen_joins_in_the_model (names : names) =
                  uses
            } ))
        (the_chosen_joins names))
+
+(* A control of what is asked of a join: two joins that differ only in what a
+   variable bound by one use is known to be. The parameter is in both a block
+   whose field is an alias of that variable, and every name of the tests is as
+   it was: the two targets differ in the type of that variable alone, and are to
+   be told apart. One of the two is also to be the same as itself. *)
+let control_of_the_joins (names : names) =
+  let z = N.z_of_int in
+  let local = Converter.variable_to_model names.numbering names.local in
+  let join numbers : join_at_a_continuation =
+    { kind_of_parameter = Value;
+      for_types_at_source = [];
+      at_uses =
+        [ { binds = []; learns = []; passes = MT.this_tagged_immediate (z 0) };
+          { binds = [local, MT.these_tagged_immediates (List.map z numbers)];
+            learns = [];
+            passes =
+              MT.immutable_block false (z 0) (Scannable Value_only) Heap
+                [MT.alias_type_of Value (Var local)]
+          } ]
+    }
+  in
+  let threshold = names.variables_with_a_name in
+  let model = the_model Of_the_compiler in
+  let told_apart seen seen' = not (same_seen ~threshold seen seen') in
+  let check what holds =
+    if holds
+    then Format.printf "  %s: yes@." what
+    else (
+      incr failures;
+      Format.printf "  %s: NO@." what)
+  in
+  Format.printf
+    "@.A control: two joins that differ only in what a variable bound by one \
+     use is known to be (4 or 5; 4 or 6)@.";
+  let in_the_compiler numbers =
+    join_in_the_compiler names n_way (join numbers)
+  in
+  let in_the_model numbers = join_in_the_model names model (join numbers) in
+  check "the two targets of the compiler are told apart"
+    (told_apart (in_the_compiler [4; 5]) (in_the_compiler [4; 6]));
+  check "the two targets of the model are told apart"
+    (told_apart (in_the_model [4; 5]) (in_the_model [4; 6]));
+  check
+    "the target of the model for the one and of the compiler for the other are \
+     told apart"
+    (told_apart (in_the_model [4; 5]) (in_the_compiler [4; 6]));
+  check "the targets of the model and of the compiler for the one are the same"
+    (same_seen ~threshold (in_the_model [4; 5]) (in_the_compiler [4; 5]))
 
 let print_join_at_a_continuation ppf
     ({ kind_of_parameter; for_types_at_source = _; at_uses } :
@@ -6002,6 +6066,7 @@ let () =
     ~seed:99000 ~count:500 ~equations:`Cases MK.Value;
   examples_of_joins_in_the_model names;
   chosen_joins_in_the_model names;
+  control_of_the_joins names;
   let model_join_and_compiler ~title ~seed ~count ~known ?(binds = false) kind =
     let local = Converter.variable_to_model names.numbering names.local in
     run ~title ~seed ~count
