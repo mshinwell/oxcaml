@@ -119,8 +119,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaJoinFitsSpec FlambdaJoinAddsSpec FlambdaJoinKindsSpec
   FlambdaJoinTypes FlambdaJoinTypesSpec FlambdaMeetGrammar FlambdaMeetEnv
   FlambdaMeet FlambdaMeetSpec FlambdaMeetStepsSpec FlambdaMeetEnvSpec
-  FlambdaJoinMeet FlambdaJoinMeetSpec FlambdaJoinEquationNamesSpec
-  FlambdaMeetTermsSpec.
+  FlambdaMeetKeepsSpec FlambdaJoinMeet FlambdaJoinMeetSpec
+  FlambdaJoinEquationNamesSpec FlambdaMeetTermsSpec.
 Import ListNotations.
 
 (* The expansion of heads that the join of types is given in

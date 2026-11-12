@@ -105,7 +105,7 @@
    - So the join that the meet calls ([model_join_scoped_envs]) has
      the conclusions of the contract that the meet has for its join
      ([join_scoped_envs_sound], FlambdaMeetSpec.v) that are not about
-     values ([join_scoped_envs_keeps],
+     values ([join_scoped_envs_keeps] of FlambdaMeetKeepsSpec.v,
      [model_join_scoped_envs_keeps_statement]): the result is the
      environment given, extended; a meet may be made in it; a
      variable of the result that no environment given knows is none
@@ -213,7 +213,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaJoinKindsSpec FlambdaJoinNamesSpec FlambdaTypeAliasKindsSpec
   FlambdaJoinTypes FlambdaJoinTypesSpec FlambdaMeetGrammar FlambdaExpandHead
   FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec FlambdaMeetStepsSpec
-  FlambdaMeetEnvSpec FlambdaMeetExamplesSpec FlambdaJoinMeet.
+  FlambdaMeetEnvSpec FlambdaMeetExamplesSpec FlambdaMeetKeepsSpec
+  FlambdaJoinMeet.
 Import ListNotations.
 
 (* An expanded type and its conversion are the same type, of the same
@@ -490,43 +491,10 @@ Definition last_phase_kept_statement : Prop :=
 (* The conclusions of the contract that the meet has for its join
    ([join_scoped_envs_sound], FlambdaMeetSpec.v) that are not about
    values, under its premises but the one about the values that the
-   meet of expanded types keeps ([meet_expanded_head_sound]), which
-   they do not need. *)
-Definition join_scoped_envs_keeps (join : join_scoped_envs) : Prop :=
-  ∀ (meet_head : meet_expanded_head) (initial_env result : Meet_env.t)
-    (scoped_envs : list Typing_env.t),
-    let initial_tenv := Meet_env.typing_env initial_env in
-    meet_expanded_head_keeps meet_head ->
-    typing_env_fits initial_tenv ->
-    (∀ scoped_env : Typing_env.t,
-      scoped_env ∈ scoped_envs -> scoped_env_of initial_tenv scoped_env) ->
-    scoped_envs_agree scoped_envs ->
-    join meet_head (Typing_env.current_scope initial_tenv) initial_env
-      initial_tenv scoped_envs
-    = Some result ->
-    meet_env_extends initial_env result
-    ∧ typing_env_fits (Meet_env.typing_env result)
-    ∧ (∀ x : variable,
-        Typing_env.mem None (Meet_env.typing_env result) (Name_var x)
-        = true ->
-        Typing_env.mem None initial_tenv (Name_var x) = false ->
-        (∀ scoped_env : Typing_env.t,
-          scoped_env ∈ scoped_envs ->
-          Typing_env.mem None scoped_env (Name_var x) = false) ->
-        among x (Meet_env.names_to_avoid initial_env) = false
-        ∧ among x (Meet_env.names_to_avoid result) = true)
-    ∧ (∀ x : variable,
-        Typing_env.mem None (Meet_env.typing_env result) (Name_var x)
-        = true ->
-        Typing_env.mem None initial_tenv (Name_var x) = false ->
-        Typing_env.mem (Some Name_mode.normal) (Meet_env.typing_env result)
-          (Name_var x)
-        = false)
-    ∧ ∀ (scoped_env : Typing_env.t) (s : simple) (kind : flambda_kind),
-        scoped_env ∈ scoped_envs ->
-        Typing_env.mem_simple None (Meet_env.typing_env result) s = true ->
-        simple_of_kind scoped_env s kind ->
-        simple_of_kind (Meet_env.typing_env result) s kind.
+   meet of expanded types keeps ([meet_expanded_head_sound]), are
+   [join_scoped_envs_keeps] of FlambdaMeetKeepsSpec.v. (It was
+   defined here first; the owner of the meet took it, with the
+   statements of what a meet keeps given a join that has it.) *)
 
 (* What this file does not show of the model's join, as the meet
    calls it on inputs that have what the contract supposes: the types
