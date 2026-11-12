@@ -149,8 +149,12 @@
    the compiler's test or the repaired one. No relation on [x] is
    involved: the test for recovering relations is not what fails.
    The part of the conclusion that fails is the one about the names
-   of equations; a valuation that leaves [x] without a value
-   satisfies the result (that is not stated here).
+   of equations: the run, with a value for the one variable that the
+   join makes and none for [x], extends the run and satisfies the
+   result ([brought_in_result_satisfied_statement]; the reviewer's
+   observation). So the result is not an environment that no
+   valuation of the run satisfies; what it has not is an equation
+   only on names that have values.
 
    Where the meet needs that part (from its owner): in one lemma,
    which takes a joined environment that is satisfied and whose
@@ -603,6 +607,14 @@ Module Brought_in.
     [(p, Value_const (Tagged_immediate 3));
      (g, Value_const (Naked_immediate 7))].
 
+  (* The variable that the join makes, for the result of [Is_int] on
+     [p]: the first that is none of the three. *)
+  Definition made : variable := 4%positive.
+
+  (* The run, with 1 for that variable: [p] is an immediate. *)
+  Definition valuation_of_result : env :=
+    (made, Value_const (Naked_immediate 1)) :: valuation.
+
 End Brought_in.
 
 (* The inputs have what the contract that the meet has for its join
@@ -653,6 +665,24 @@ Definition brought_in_no_valuation_statement : Prop :=
              ∧ keeps_equations_valued Brought_in.initial_tenv
                  (Meet_env.typing_env result) Brought_in.valuation
                  valuation').
+
+(* The two other parts of the conclusion can be had: the run, with a
+   value for the variable that the join makes and none for [x],
+   extends the run and satisfies the result, with either test and
+   whatever the static environment. What fails is the part about the
+   names of equations alone. *)
+Definition brought_in_result_satisfied_statement : Prop :=
+  ∀ choices : Join_env.choices,
+    choices = Join_env.compiler_choices
+    ∨ choices = Join_env.repaired_choices ->
+    ∃ result : Meet_env.t,
+      Brought_in.join choices = Some result
+      ∧ extended_from Brought_in.second_env Brought_in.valuation
+          Brought_in.valuation_of_result
+      ∧ lookup Brought_in.x Brought_in.valuation_of_result = None
+      ∧ ∀ statics : static_env,
+          typing_env_satisfied_strictly statics
+            Brought_in.valuation_of_result (Meet_env.typing_env result).
 
 (* So the join of the model that the meet calls has not the contract
    that the meet has for its join, with the compiler's test or the

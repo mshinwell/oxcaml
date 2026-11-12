@@ -605,6 +605,82 @@ Proof.
     exact (brings_in_no_valuation _ _ _ repaired_brings_in).
 Qed.
 
+(* The types of an environment are true of the values that a
+   valuation gives their names: a test. *)
+Definition entries_satisfied_b (statics : static_env) (tenv : Typing_env.t)
+    (valuation : env) : bool :=
+  forallb
+    (fun entry =>
+       match value_of_name valuation (fst entry) with
+       | None => true
+       | Some v => type_satisfied_b statics valuation v (fst (snd entry))
+       end)
+    (Typing_env.names_to_types tenv).
+
+Lemma entries_give_strict_satisfaction (statics : static_env)
+    (tenv : Typing_env.t) (valuation : env) :
+  Typing_env.is_bottom tenv = false ->
+  entries_satisfied_b statics tenv valuation = true ->
+  aliases_respected (Typing_env.aliases tenv) valuation ->
+  typing_env_satisfied_strictly statics valuation tenv.
+Proof.
+  intros Hbottom Hentries Haliases.
+  split; [ exact Hbottom | ]. split; [ | exact Haliases ].
+  intros n ty binding_time_and_mode v Hlookup Hvalue. right.
+  apply type_satisfied_b_iff.
+  unfold entries_satisfied_b in Hentries. rewrite forallb_forall in Hentries.
+  apply (keyed_lookup_in name_eqb name_eqb_decides_equality) in Hlookup.
+  specialize (Hentries (n, (ty, binding_time_and_mode)) Hlookup).
+  cbn [fst snd] in Hentries. rewrite Hvalue in Hentries. exact Hentries.
+Qed.
+
+Lemma valuation_of_result_extends :
+  extended_from Brought_in.second_env Brought_in.valuation
+    Brought_in.valuation_of_result.
+Proof.
+  intros y Hy. unfold Typing_env.mem in Hy.
+  rewrite second_names_to_types in Hy. unfold second_entries in Hy.
+  cbn [Keyed.lookup name_eqb fst snd] in Hy.
+  destruct (Pos.eqb y 1%positive) eqn:Hp;
+    [ apply Pos.eqb_eq in Hp; subst y; reflexivity | ].
+  destruct (Pos.eqb y 2%positive) eqn:Hg;
+    [ apply Pos.eqb_eq in Hg; subst y; reflexivity | ].
+  discriminate Hy.
+Qed.
+
+Lemma compiler_result_satisfied (statics : static_env) :
+  typing_env_satisfied_strictly statics Brought_in.valuation_of_result
+    (Meet_env.typing_env compiler_result).
+Proof.
+  apply entries_give_strict_satisfaction.
+  - vm_compute. reflexivity.
+  - vm_compute. reflexivity.
+  - change (aliases_respected Aliases.empty Brought_in.valuation_of_result).
+    apply empty_respected.
+Qed.
+
+Lemma repaired_result_satisfied (statics : static_env) :
+  typing_env_satisfied_strictly statics Brought_in.valuation_of_result
+    (Meet_env.typing_env repaired_result).
+Proof.
+  apply entries_give_strict_satisfaction.
+  - vm_compute. reflexivity.
+  - vm_compute. reflexivity.
+  - change (aliases_respected Aliases.empty Brought_in.valuation_of_result).
+    apply empty_respected.
+Qed.
+
+Theorem brought_in_result_satisfied : brought_in_result_satisfied_statement.
+Proof.
+  intros choices [-> | ->].
+  - exists compiler_result. split; [ exact compiler_join_result | ].
+    split; [ exact valuation_of_result_extends | ].
+    split; [ reflexivity | exact compiler_result_satisfied ].
+  - exists repaired_result. split; [ exact repaired_join_result | ].
+    split; [ exact valuation_of_result_extends | ].
+    split; [ reflexivity | exact repaired_result_satisfied ].
+Qed.
+
 Theorem model_join_scoped_envs_not_sound
   : model_join_scoped_envs_not_sound_statement.
 Proof.
