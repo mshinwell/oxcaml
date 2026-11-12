@@ -442,7 +442,10 @@ Not trusted, though it is OCaml: what the tool proposes to
   by `drop_statics`.
 - Which `Let`s Simplify made static bindings, under which symbols, and
   in which code `my_closure` is a symbol (`lifting_guess`, once for
-  each lifting of the list): checked by `lift_unit`.
+  each lifting of the list): the `Let`s outside code and the code ids
+  are checked by `lift_unit`; the `Let`s in the bodies of code (the
+  field `lifted_out_of_code` of the guess, which `lift_unit` does not
+  read) by `lift_from_code_unit`.
 - Which value slots Simplify removed from the static sets of closures
   (`unused_slots_guess`): checked by `drop_unused_slots`.
 - Which code Simplify made a loop of, with a name for the loop of each

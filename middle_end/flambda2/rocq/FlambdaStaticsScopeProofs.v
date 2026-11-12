@@ -40,9 +40,9 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaSemanticsSpec FlambdaBindersSpec
   FlambdaNormaliseSpec FlambdaUnusedStaticsSpec FlambdaStaticsOrderSpec
-  FlambdaMyClosureSpec FlambdaLiftSpec FlambdaUnusedSlotsSpec
-  FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec FlambdaFloatCodeSpec
-  FlambdaValidateSpec
+  FlambdaMyClosureSpec FlambdaLiftSpec FlambdaLiftFromCodeSpec
+  FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec
+  FlambdaFloatCodeSpec FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec FlambdaScopedProofs
   FlambdaKeepsScopeProofs FlambdaStaticsScopeSpec.
 Import ListNotations.
@@ -380,16 +380,195 @@ Proof.
   apply bind_my_closures_scoped.
 Qed.
 
+(* The lifting out of code. A defining expression that mentions no
+   variable has none free, so the bindings that stand for it have
+   none. *)
+Lemma plain_simples_free (args : list simple) :
+  forallb plain_simple args = true -> free_variables_of_simples args = [].
+Proof.
+  induction args as [ | s args IH]; cbn [forallb]; [ reflexivity | ].
+  intros Hplain. apply andb_true_iff in Hplain. destruct Hplain as [Hs Hargs].
+  destruct s as [x | sym | c]; [ discriminate Hs | | ];
+    cbn [free_variables_of_simples flat_map free_variables_of_simple app];
+    exact (IH Hargs).
+Qed.
+
+Lemma plain_slots_free (slots : list (value_slot * simple)) :
+  forallb (fun slot => plain_simple (snd slot)) slots = true ->
+  free_variables_of_value_slots slots = [].
+Proof.
+  induction slots as [ | [slot s] slots IH]; cbn [forallb];
+    [ reflexivity | ].
+  intros Hplain. apply andb_true_iff in Hplain. destruct Hplain as [Hs Hslots].
+  destruct s as [x | sym | c]; [ discriminate Hs | | ];
+    cbn [free_variables_of_value_slots flat_map free_variables_of_simple
+         snd app];
+    exact (IH Hslots).
+Qed.
+
+Lemma closed_named_free (d : named) :
+  closed_named d = true -> free_variables_of_named d = [].
+Proof.
+  destruct d as [s | p args | code slots | fslot decls slots | slot closure
+    | pfrom slot closure | move_from move_to closure];
+    cbn [closed_named free_variables_of_named]; try discriminate;
+    intros Hclosed.
+  - exact (plain_simples_free args Hclosed).
+  - exact (plain_slots_free slots Hclosed).
+  - exact (plain_slots_free slots Hclosed).
+Qed.
+
+Definition no_free_names (bindings : list static_binding) : Prop :=
+  forallb binding_code_closed bindings = true
+  ∧ flat_map free_variables_of_binding bindings = []
+  ∧ flat_map free_continuations_of_binding bindings = [].
+
+Lemma no_free_names_app (bindings bindings' : list static_binding) :
+  no_free_names bindings -> no_free_names bindings' ->
+  no_free_names (bindings ++ bindings').
+Proof.
+  intros (Hclosed & Hv & Hk) (Hclosed' & Hv' & Hk'). unfold no_free_names.
+  rewrite forallb_app, !flat_map_app, Hclosed, Hclosed', Hv, Hv', Hk, Hk'.
+  repeat split.
+Qed.
+
+Lemma lifted_out_no_free_names (lets : list (path * lift_to))
+    (at_path : path) (d : named) :
+  no_free_names
+    match lifted_out lets at_path d with
+    | Some (bindings, _) => bindings
+    | None => []
+    end.
+Proof.
+  unfold lifted_out.
+  destruct (lookup at_path lets) as [target | ]; [ | repeat split ].
+  destruct (closed_named d) eqn:Hclosed; [ | repeat split ].
+  destruct (lift_named target d) as [[bindings s] | ] eqn:Hlift;
+    [ | repeat split ].
+  destruct (lift_named_stands_for target d bindings s Hlift)
+    as (Hcode & Hv & Hk).
+  rewrite (closed_named_free d Hclosed) in Hv.
+  split; [ exact Hcode | split; [ | exact Hk ] ].
+  exact (incl_l_nil Hv).
+Qed.
+
+Fixpoint lifted_out_bindings_no_free_names (lets : list (path * lift_to))
+    (at_path : path) (e : expr) {struct e} :
+  no_free_names (lifted_out_bindings lets at_path e)
+with handler_lifted_out_bindings_no_free_names
+    (lets : list (path * lift_to)) (at_path : path)
+    (h : continuation_handler) {struct h} :
+  no_free_names (handler_lifted_out_bindings lets at_path h).
+Proof.
+  - destruct e as [x kind d body | bindings body | k h body | handlers body
+                  | ap | ac | scrutinee arms | ];
+      cbn [lifted_out_bindings]; try solve [ repeat split ].
+    + apply no_free_names_app;
+        [ apply lifted_out_no_free_names
+        | apply lifted_out_bindings_no_free_names ].
+    + apply lifted_out_bindings_no_free_names.
+    + apply no_free_names_app;
+        [ apply lifted_out_bindings_no_free_names
+        | apply handler_lifted_out_bindings_no_free_names ].
+    + apply lifted_out_bindings_no_free_names.
+  - destruct h as [params metadata handler].
+    cbn [handler_lifted_out_bindings].
+    apply lifted_out_bindings_no_free_names.
+Qed.
+
+(* Bindings with no free names put before a group. *)
+Lemma scoped_bindings_prepend (first bindings bindings' : list static_binding) :
+  no_free_names first ->
+  scoped_bindings bindings bindings' ->
+  scoped_bindings bindings (first ++ bindings').
+Proof.
+  intros (Hcode & Hv & Hk) Hbindings Hclosed.
+  destruct (Hbindings Hclosed) as (Hclosed' & Hv' & Hk').
+  rewrite forallb_app, !flat_map_app, Hcode, Hclosed', Hv, Hk.
+  split; [ reflexivity | split; assumption ].
+Qed.
+
+Lemma scoped_bindings_app (bindings1 bindings1' bindings2 bindings2'
+    : list static_binding) :
+  scoped_bindings bindings1 bindings1' ->
+  scoped_bindings bindings2 bindings2' ->
+  scoped_bindings (bindings1 ++ bindings2) (bindings1' ++ bindings2').
+Proof.
+  intros H1 H2 Hclosed. rewrite forallb_app in Hclosed.
+  apply andb_true_iff in Hclosed. destruct Hclosed as [Hclosed1 Hclosed2].
+  destruct (H1 Hclosed1) as (Hclosed1' & Hv1 & Hk1).
+  destruct (H2 Hclosed2) as (Hclosed2' & Hv2 & Hk2).
+  rewrite forallb_app, !flat_map_app, Hclosed1', Hclosed2'.
+  split; [ reflexivity | split; apply incl_app_app; assumption ].
+Qed.
+
+Fixpoint lift_from_code_scoped (K : lets_in_code)
+    (lets : list (path * lift_to)) (at_path : path) (e : expr) {struct e} :
+  scoped e (lift_from_code K lets at_path e)
+with handler_lift_from_code_scoped (K : lets_in_code)
+    (lets : list (path * lift_to)) (at_path : path)
+    (h : continuation_handler) {struct h} :
+  scoped_handler h (handler_lift_from_code K lets at_path h)
+with binding_lift_from_code_scoped (K : lets_in_code)
+    (binding : static_binding) {struct binding} :
+  scoped_bindings [binding] (binding_lift_from_code K binding).
+Proof.
+  - destruct e as [x kind d body | bindings body | k h body | handlers body
+                  | ap | ac | scrutinee arms | ];
+      cbn [lift_from_code]; try apply scoped_refl.
+    + destruct (lifted_out lets at_path d) as [[bindings s] | ];
+        (apply scoped_let; [ | apply lift_from_code_scoped ]);
+        [ apply incl_nil_l | apply incl_refl ].
+    + apply scoped_let_static; [ | apply lift_from_code_scoped ].
+      induction bindings as [ | binding bindings IH]; cbn [flat_map];
+        [ apply scoped_bindings_nil | ].
+      exact (scoped_bindings_app [binding] _ bindings _
+               (binding_lift_from_code_scoped K binding) IH).
+    + apply scoped_let_cont;
+        [ apply handler_lift_from_code_scoped | apply lift_from_code_scoped ].
+    + apply scoped_let_cont_recursive;
+        [ reflexivity | apply scoped_handlers_refl
+        | apply lift_from_code_scoped ].
+  - destruct h as [params metadata handler].
+    cbn [handler_lift_from_code].
+    apply scoped_handler_intro, lift_from_code_scoped.
+  - destruct binding as [id c | id | sym const];
+      cbn [binding_lift_from_code]; try apply scoped_bindings_refl.
+    destruct c as [params my_closure ret exn metadata body].
+    apply scoped_bindings_prepend;
+      [ apply lifted_out_bindings_no_free_names | ].
+    apply scoped_bindings_cons_code;
+      [ apply scoped_code_intro, lift_from_code_scoped
+      | apply scoped_bindings_nil ].
+Qed.
+
+Theorem lift_from_code_keeps_scope : lift_from_code_keeps_scope_statement.
+Proof.
+  intros K lets at_path. apply keeps_scope_intro. intros e.
+  apply lift_from_code_scoped.
+Qed.
+
 Theorem with_lifting_keeps_scope : with_lifting_keeps_scope_statement.
 Proof.
   intros L. apply keeps_scope_intro. intros e.
-  unfold with_lifting, lift_unit. cbv zeta.
-  match goal with
-  | |- scoped _ (match (if ?c then _ else _) with _ => _ end) => destruct c
-  end;
-    [ | apply scoped_refl ].
-  eapply scoped_trans;
-    [ apply lift_expr_scoped | apply bind_my_closures_scoped ].
+  unfold with_lifting. cbv zeta.
+  apply (scoped_trans _
+    match lift_from_code_unit (lifting_unit L) (lifted_out_of_code L) e with
+    | Some e' => e'
+    | None => e
+    end).
+  - unfold lift_from_code_unit. cbv zeta.
+    match goal with
+    | |- scoped _ (match (if ?c then _ else _) with _ => _ end) => destruct c
+    end;
+      [ apply lift_from_code_scoped | apply scoped_refl ].
+  - unfold lift_unit. cbv zeta.
+    match goal with
+    | |- scoped _ (match (if ?c then _ else _) with _ => _ end) => destruct c
+    end;
+      [ | apply scoped_refl ].
+    eapply scoped_trans;
+      [ apply lift_expr_scoped | apply bind_my_closures_scoped ].
 Qed.
 
 (* ======================================================================== *)

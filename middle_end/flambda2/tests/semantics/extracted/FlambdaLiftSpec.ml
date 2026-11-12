@@ -22,7 +22,8 @@ let root = Coq_xH
 type lifting =
   { lifting_unit : unit_interface;
     lifted_lets : (path * lift_to) list;
-    lifted_my_closures : (code_id * symbol) list
+    lifted_my_closures : (code_id * symbol) list;
+    lifted_out_of_code : (code_id * (path * lift_to) list) list
   }
 
 (** val lift_named : lift_to -> named -> (static_binding list * symbol) option **)

@@ -55,9 +55,12 @@
    (FlambdaUnusedStaticsSpec.drop_statics) and compares again. Failing
    that too, it starts again from the term before as it was given. For
    each of the liftings given, in turn ([lifted_in_turn]), it makes the
-   [Let]s given static bindings of the symbols given
-   (FlambdaLiftSpec.lift_unit, which says what is lifted and under which
-   conditions) and normalises the result, each round followed by using
+   [Let]s given static bindings of the symbols given: first those in
+   the bodies of code, which mention no variable and whose bindings go
+   beside the code (FlambdaLiftFromCodeSpec.lift_from_code_unit), then
+   those outside code, where they stand (FlambdaLiftSpec.lift_unit,
+   which says what is lifted and under which conditions). It
+   normalises the result, each round followed by using
    what is known of the static closures whose bindings are in sight
    (FlambdaKnownClosuresSpec.use_known_closures: a value slot is read,
    a call is made direct) and by replacing the primitives and the
@@ -140,7 +143,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaUnusedParamsSpec FlambdaUnusedProjectionsSpec
   FlambdaUnusedStaticsSpec FlambdaWellFormedSpec FlambdaLiftSpec
   FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec
-  FlambdaFloatCodeSpec FlambdaHoistCodeSpec FlambdaLoopifySpec.
+  FlambdaFloatCodeSpec FlambdaHoistCodeSpec FlambdaLoopifySpec
+  FlambdaLiftFromCodeSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -326,9 +330,19 @@ Definition without_statics (D : dropped) (e : expr) : expr :=
   | None => e
   end.
 
-(* The [Let]s given made static bindings of the symbols given, if the
-   conditions of FlambdaLiftSpec.lift_unit hold. *)
+(* The [Let]s given made static bindings of the symbols given: those
+   in the bodies of code, if the conditions of
+   FlambdaLiftFromCodeSpec.lift_from_code_unit hold; then those outside
+   code, if the conditions of FlambdaLiftSpec.lift_unit hold of what
+   that gives. Where the conditions of one do not hold, it is not
+   made. *)
 Definition with_lifting (L : lifting) (e : expr) : expr :=
+  let e :=
+    match lift_from_code_unit (lifting_unit L) (lifted_out_of_code L) e with
+    | Some e' => e'
+    | None => e
+    end
+  in
   match lift_unit L e with
   | Some e' => e'
   | None => e

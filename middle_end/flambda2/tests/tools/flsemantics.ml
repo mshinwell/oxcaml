@@ -1801,7 +1801,11 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list)
         | Some _ | None -> None)
       (bound_symbols after)
   in
-  { lifting_unit = unit; lifted_lets = lets; lifted_my_closures = my_closures }
+  { lifting_unit = unit;
+    lifted_lets = lets;
+    lifted_my_closures = my_closures;
+    lifted_out_of_code = []
+  }
 
 (* ---- Value slots that Simplify removed --------------------------------- *)
 
@@ -2039,7 +2043,8 @@ let validate ~(outcome_before : outcome) (before : converted)
   let nothing_lifted : Lift.lifting =
     { lifting_unit = interface before;
       lifted_lets = [];
-      lifted_my_closures = []
+      lifted_my_closures = [];
+      lifted_out_of_code = []
     }
   in
   (* The code to loopify, and the term before with its self tail calls made

@@ -11,6 +11,7 @@ open FlambdaIdentitiesSpec
 open FlambdaInlineSiblingsSpec
 open FlambdaKnownClosuresSpec
 open FlambdaKnownSymbolsSpec
+open FlambdaLiftFromCodeSpec
 open FlambdaLiftSpec
 open FlambdaLoopAliasesSpec
 open FlambdaLoopLetsSpec
@@ -155,7 +156,13 @@ let without_statics d e =
 
 (** val with_lifting : lifting -> expr -> expr **)
 
-let with_lifting l e = match lift_unit l e with Some e' -> e' | None -> e
+let with_lifting l e =
+  let e0 =
+    match lift_from_code_unit l.lifting_unit l.lifted_out_of_code e with
+    | Some e' -> e'
+    | None -> e
+  in
+  match lift_unit l e0 with Some e' -> e' | None -> e0
 
 (** val with_known : expr -> expr **)
 

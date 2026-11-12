@@ -50,6 +50,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaUnusedParamsProofs FlambdaUnusedProjectionsSpec
   FlambdaUnusedProjectionsProofs FlambdaUnusedStaticsSpec
   FlambdaUnusedStaticsProofs FlambdaLiftSpec FlambdaLiftProofs
+  FlambdaLiftFromCodeSpec FlambdaLiftFromCodeProofs
   FlambdaUnusedSlotsSpec FlambdaUnusedSlotsProofs FlambdaKnownSymbolsSpec
   FlambdaKnownSymbolsProofs FlambdaKnownClosuresSpec FlambdaKnownClosuresProofs
   FlambdaFloatCodeSpec FlambdaFloatCodeProofs FlambdaHoistCodeSpec
@@ -285,9 +286,22 @@ Qed.
 Lemma with_lifting_program_refines (L : lifting) (e : expr) :
   program_refines e (with_lifting L e).
 Proof.
-  unfold with_lifting.
-  destruct (lift_unit L e) as [e' | ] eqn:Hlift; [ | apply refines_refl ].
-  exact (lift_unit_program_refines L e e' Hlift).
+  unfold with_lifting. cbv zeta.
+  apply (refines_trans _
+    (State
+       (match
+          lift_from_code_unit (lifting_unit L) (lifted_out_of_code L) e
+        with
+        | Some e' => e'
+        | None => e
+        end)
+       [] [] empty_static_env)).
+  - destruct (lift_from_code_unit (lifting_unit L) (lifted_out_of_code L) e)
+      as [e' | ] eqn:Hout;
+      [ | apply refines_refl ].
+    exact (lift_from_code_unit_program_refines _ _ e e' Hout).
+  - destruct (lift_unit L _) as [e' | ] eqn:Hlift; [ | apply refines_refl ].
+    exact (lift_unit_program_refines L _ e' Hlift).
 Qed.
 
 Lemma with_known_program_refines (e : expr) :

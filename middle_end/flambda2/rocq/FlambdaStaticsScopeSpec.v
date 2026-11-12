@@ -70,10 +70,15 @@
      FlambdaMyClosureSpec.bind_my_closures binds, in code, the closure
      of the code to a symbol: it adds a [Let] of the variable that the
      code binds for its closure ([bind_my_closures_keeps_scope_statement]).
+     FlambdaLiftFromCodeSpec.lift_from_code puts a symbol in the place
+     of a defining expression that has no variable, in code, and binds
+     the symbol beside the code to a constant that has none
+     ([lift_from_code_keeps_scope_statement]).
      The lifting as the check applies it, FlambdaValidateSpec.with_lifting,
-     is the two, or the term as it is
-     ([with_lifting_keeps_scope_statement]). None of the three
-     statements needs the tests that FlambdaLiftSpec.lift_unit makes.
+     is that and then the two, each made or not
+     ([with_lifting_keeps_scope_statement]). None of the four
+     statements needs the tests that FlambdaLiftSpec.lift_unit and
+     FlambdaLiftFromCodeSpec.lift_from_code_unit make.
    - FlambdaKnownSymbolsSpec.fold_known puts a constant or a symbol in
      the place of a defining expression, and makes an indirect call a
      direct call of the same callee with the same arguments, whatever is
@@ -106,8 +111,9 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec FlambdaBindersSpec FlambdaUnusedStaticsSpec
   FlambdaStaticsOrderSpec FlambdaMyClosureSpec FlambdaLiftSpec
-  FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec
-  FlambdaFloatCodeSpec FlambdaValidateSpec FlambdaValidatorEquivarianceSpec.
+  FlambdaLiftFromCodeSpec FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec
+  FlambdaKnownClosuresSpec FlambdaFloatCodeSpec FlambdaValidateSpec
+  FlambdaValidatorEquivarianceSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -140,6 +146,11 @@ Definition order_statics_as_keeps_scope_statement : Prop :=
 Definition lift_expr_keeps_scope_statement : Prop :=
   ∀ (lets : list (path * lift_to)) (at_path : path),
     keeps_scope (lift_expr lets at_path).
+
+(* The [Let]s given lifted out of the code given, whatever they are. *)
+Definition lift_from_code_keeps_scope_statement : Prop :=
+  ∀ (K : lets_in_code) (lets : list (path * lift_to)) (at_path : path),
+    keeps_scope (lift_from_code K lets at_path).
 
 (* The closure of each code given bound to its symbol in the code. *)
 Definition bind_my_closures_keeps_scope_statement : Prop :=

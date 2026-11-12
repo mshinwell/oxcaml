@@ -156,8 +156,9 @@
 
    What is not here, and makes a unit "not validated" rather than
    wrongly accepted:
-   - lifting out of a function or a loop, where the binding moves to
-     toplevel;
+   - lifting out of a function, where the binding moves to toplevel:
+     that is FlambdaLiftFromCodeSpec.v, for what mentions no variable;
+   - lifting out of a loop;
    - the sharing of equal constants: a symbol is bound once, so two
      [Let]s cannot be given the same symbol;
    - immutable arrays, which the model has not got;
@@ -206,12 +207,17 @@ Definition root : path := 1%positive.
 
 (* The guess: the [Let]s to lift, by their paths; the code ids whose
    only closure is, once those are lifted, a symbol, with that symbol;
-   and the interface of the unit (the continuations that it returns and
-   raises to), which the check of well-formedness takes. *)
+   the interface of the unit (the continuations that it returns and
+   raises to), which the check of well-formedness takes; and the [Let]s
+   to lift out of the bodies of code, by code id and by their paths in
+   the body. The last is not read here: it is for
+   FlambdaLiftFromCodeSpec.lift_from_code_unit, which the validation
+   applies before [lift_unit]. *)
 Record lifting : Type := Lifting {
   lifting_unit : unit_interface;
   lifted_lets : list (path * lift_to);
-  lifted_my_closures : list (code_id * symbol)
+  lifted_my_closures : list (code_id * symbol);
+  lifted_out_of_code : list (code_id * list (path * lift_to))
 }.
 
 (* ======================================================================== *)

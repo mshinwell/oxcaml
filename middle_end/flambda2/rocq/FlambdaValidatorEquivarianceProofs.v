@@ -48,7 +48,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaUnboxSpec FlambdaWellFormedSpec FlambdaWellKindedSpec
   FlambdaCompareSpec FlambdaCompareAlphaSpec FlambdaCompareAlphaProofs
   FlambdaMyClosureSpec FlambdaMyClosureProofs FlambdaLiftSpec
-  FlambdaLiftProofs FlambdaUnusedSlotsSpec FlambdaUnusedSlotsProofs
+  FlambdaLiftProofs FlambdaLiftFromCodeSpec FlambdaLiftFromCodeProofs
+  FlambdaUnusedSlotsSpec FlambdaUnusedSlotsProofs
   FlambdaKnownSymbolsSpec FlambdaKnownSymbolsProofs
   FlambdaKnownClosuresSpec FlambdaKnownClosuresProofs FlambdaFloatCodeSpec
   FlambdaFloatCodeProofs FlambdaHoistCodeSpec FlambdaHoistCodeProofs
@@ -5054,7 +5055,8 @@ Lemma lift_unit_renamed (r : renaming) (L : lifting) (e : expr) :
   = option_map (rename_expr r) (lift_unit L e).
 Proof.
   unfold lift_unit, rename_lifting.
-  cbn [lifting_unit lifted_lets lifted_my_closures]. cbv zeta.
+  cbn [lifting_unit lifted_lets lifted_my_closures lifted_out_of_code].
+  cbv zeta.
   rewrite <- lift_expr_equivariant, <- bind_my_closures_equivariant.
   rewrite well_formed_unit_equivariant, only_closures_of_renamed.
   pose proof (exits_plain_equivariant r [] e) as Hexits. simpl in Hexits.
@@ -5070,12 +5072,36 @@ Proof.
     reflexivity.
 Qed.
 
+(* The lifting out of code: the checks answer the same on the renamed
+   unit, and the rewrite commutes with the renaming. *)
+Lemma lift_from_code_unit_renamed (r : renaming) (u : unit_interface)
+    (K : lets_in_code) (e : expr) :
+  lift_from_code_unit (rename_unit_interface r u) K (rename_expr r e)
+  = option_map (rename_expr r) (lift_from_code_unit u K e).
+Proof.
+  unfold lift_from_code_unit. cbv zeta.
+  rewrite <- lift_from_code_equivariant, well_formed_unit_equivariant.
+  pose proof (exits_plain_equivariant r [] e) as Hexits. simpl in Hexits.
+  rewrite Hexits.
+  destruct
+    (exits_plain [] e && well_formed_unit u (lift_from_code K [] root e));
+    reflexivity.
+Qed.
+
 Lemma with_lifting_renamed (r : renaming) (L : lifting) (e : expr) :
   with_lifting (rename_lifting r L) (rename_expr r e)
   = rename_expr r (with_lifting L e).
 Proof.
-  unfold with_lifting. rewrite lift_unit_renamed.
-  destruct (lift_unit L e); reflexivity.
+  unfold with_lifting. cbv zeta.
+  change (lifting_unit (rename_lifting r L))
+    with (rename_unit_interface r (lifting_unit L)).
+  change (lifted_out_of_code (rename_lifting r L))
+    with (lifted_out_of_code L).
+  rewrite lift_from_code_unit_renamed.
+  destruct (lift_from_code_unit (lifting_unit L) (lifted_out_of_code L) e)
+    as [e' | ];
+    cbn [option_map]; rewrite lift_unit_renamed;
+    destruct (lift_unit L _); reflexivity.
 Qed.
 
 (* The removal of unused value slots. *)
