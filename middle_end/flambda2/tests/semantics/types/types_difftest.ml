@@ -5834,6 +5834,18 @@ let print_analysis ~threshold (seen : seen)
   rename_variables_above ~own threshold
     (String.concat "\n" (of_the_names @ of_the_created))
 
+(* The names that the variables which a join of the model makes are to avoid.
+   The join that Simplify calls is given them (FlambdaJoinMeet.v, [model_join]);
+   the compiler's new variables differ from every other by construction. They
+   are the variables of the test and those that the environments joined know,
+   which may have variables that a meet or a join before made: it is what the
+   model's join that the meet calls avoids ([Join_env.cut_and_n_way_join]). *)
+let names_for_a_join_to_avoid (of_the_test : M.variable list)
+    ~(source : Model_env.t) ~(uses : Model_env.t list) : M.variable list =
+  of_the_test
+  @ Model_join_env.variables_of_env source
+  @ List.concat_map Model_join_env.variables_of_env uses
+
 let join_in_the_model ?(read = fun _ _ _ _ -> ()) (names : names)
     (model : model)
     ({ kind_of_parameter = kind; for_types_at_source; at_uses } as input :
@@ -5871,14 +5883,18 @@ let join_in_the_model ?(read = fun _ _ _ _ -> ()) (names : names)
   if List.exists Option.is_none uses
   then Nothing_seen "no answer where an equation is added at a use"
   else
+    let uses = List.filter_map Fun.id uses in
     let avoid =
-      List.init names.variables_with_a_name (fun i -> N.positive_of_int (i + 1))
+      names_for_a_join_to_avoid
+        (List.init names.variables_with_a_name (fun i ->
+             N.positive_of_int (i + 1)))
+        ~source ~uses
     in
     match
       model.join_of_model avoid
         { source;
           cut_after = Model_env.current_scope source;
-          uses = List.mapi (fun i env -> i, env) (List.filter_map Fun.id uses)
+          uses = List.mapi (fun i env -> i, env) uses
         }
     with
     | None -> Nothing_seen "no answer of the join"
