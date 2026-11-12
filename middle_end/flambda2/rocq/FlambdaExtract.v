@@ -55,11 +55,12 @@ From Stdlib Require Import ExtrOcamlBasic.
 From OxCamlFlambda2 Require Import FlambdaMapSpec FlambdaModel
   FlambdaBindersSpec FlambdaSemanticsSpec FlambdaWellFormedSpec
   FlambdaWellKindedSpec FlambdaBlockLoadSpec FlambdaCompareSpec
-  FlambdaCseSpec FlambdaForwardSpec FlambdaIdentitiesSpec
-  FlambdaLoopAliasesSpec FlambdaLoopLetsSpec FlambdaLoopifySpec
-  FlambdaNormaliseSpec FlambdaParamAliasesSpec FlambdaRecHandlersSpec
-  FlambdaRenameApartSpec FlambdaShortcutSpec FlambdaSinkContsSpec
-  FlambdaStaticsInScopeSpec FlambdaStaticsOrderSpec FlambdaUnboxSpec
+  FlambdaCseSpec FlambdaDeadParamsSpec FlambdaForwardSpec
+  FlambdaIdentitiesSpec FlambdaLoopAliasesSpec FlambdaLoopLetsSpec
+  FlambdaLoopifySpec FlambdaNormaliseSpec FlambdaParamAliasesSpec
+  FlambdaRecHandlersSpec FlambdaRenameApartSpec FlambdaShortcutSpec
+  FlambdaSinkContsSpec FlambdaStaticsInScopeSpec FlambdaStaticsOrderSpec
+  FlambdaUnboxSpec
   FlambdaUnusedContsSpec FlambdaUnusedParamsSpec FlambdaUnusedStaticsSpec
   FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
@@ -196,6 +197,7 @@ Separate Extraction
   dedup
   distinct
   domain
+  drop_dead_params
   drop_deleted_code
   drop_statics
   drop_unused_params

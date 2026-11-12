@@ -116,6 +116,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaControlFlowSpec.v \
   FlambdaCseProofs.v \
   FlambdaCseSpec.v \
+  FlambdaDeadParamsProofs.v \
+  FlambdaDeadParamsSpec.v \
   FlambdaDemoteProofs.v \
   FlambdaDemoteScopeProofs.v \
   FlambdaDemoteScopeSpec.v \
