@@ -99,7 +99,10 @@
    That it keeps scope, in the sense that the validator asks of a
    rewrite it applies, is stated in FlambdaDemoteScopeSpec.v. The
    statement about the stack is from the empty static environment, as
-   FlambdaTrapSpec.stack_agrees_statement is.
+   FlambdaTrapSpec.stack_agrees_statement is;
+   [demote_handlers_stack_from_statement] is the same from a static
+   environment that holds no code, as
+   FlambdaTrapSpec.stack_agrees_from_statement is.
 
    Why the condition is enough, in terms of the check of trap actions.
    Under the discipline a call names the handler installed last. So
@@ -336,6 +339,21 @@ Definition demote_handlers_stack_statement : Prop :=
       (State (demote_handlers scope e) [] [] empty_static_env empty_heap)
       (initial_stack unit_exn) b
     <-> stack_behaves (State e [] [] empty_static_env empty_heap)
+          (initial_stack unit_exn) b.
+
+(* The same of a unit run from a static environment that holds no
+   code, as that of the symbols that a unit imports is
+   (FlambdaTrapSpec.stack_agrees_from_statement). *)
+Definition demote_handlers_stack_from_statement : Prop :=
+  ∀ (statics : static_env) (unit_exn : continuation)
+    (scope : list continuation) (e : expr) (b : behaviour),
+    static_code statics = [] ->
+    binders_distinct e = true ->
+    traps_well_formed unit_exn e = true ->
+    stack_behaves
+      (State (demote_handlers scope e) [] [] statics empty_heap)
+      (initial_stack unit_exn) b
+    <-> stack_behaves (State e [] [] statics empty_heap)
           (initial_stack unit_exn) b.
 
 (* ======================================================================== *)

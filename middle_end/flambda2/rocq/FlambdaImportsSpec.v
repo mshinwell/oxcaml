@@ -32,11 +32,12 @@
    requests/C5-imported-symbols.md.
 
    This file is to be reviewed: [imports_statics] and [unit_refines];
-   the five statements of what a primitive does with an imported
-   symbol, against FlambdaValueSpec.imported_of and identity_of and
-   FlambdaPrimitiveSpec.eval_phys_equal; and the two examples, against
-   what the front end makes of a handler that matches an exception
-   (lambda/matching.ml, [combine_extension_constructor]).
+   [prefix_refines_statement], of two terms that follow one group of
+   static bindings; the five statements of what a primitive does with
+   an imported symbol, against FlambdaValueSpec.imported_of and
+   identity_of and FlambdaPrimitiveSpec.eval_phys_equal; and the two
+   examples, against what the front end makes of a handler that matches
+   an exception (lambda/matching.ml, [combine_extension_constructor]).
 
    A unit mentions symbols that it does not bind. The first that the
    front end makes are the predefined exceptions: a division tests its
@@ -134,6 +135,31 @@ Definition unit_refines (imports : list (symbol * import_class))
 Definition expr_refines_unit_refines_statement : Prop :=
   ∀ (imports : list (symbol * import_class)) (source target : expr),
     expr_refines source target -> unit_refines imports source target.
+
+(* ======================================================================== *)
+(* A prefix of static bindings                                              *)
+(* ======================================================================== *)
+
+(* Two terms that follow one group of static bindings. Where the group
+   evaluates, with no variable in scope, from a static environment to
+   another (FlambdaSemanticsSpec.eval_static_bindings: it binds no name
+   twice and none that the first environment binds, and each of its
+   constants has its value), the two terms with the group in front
+   refine each other from the first environment exactly when the two
+   terms without it do from the second. The heap and the rest of the
+   state are the same on both sides. So what is validated of two terms
+   that follow a prefix is said of the two terms run from the
+   environment that the prefix makes. Where the group does not
+   evaluate, the two terms with it in front are undefined, and their
+   refinement says nothing. *)
+Definition prefix_refines_statement : Prop :=
+  ∀ (prefix : list static_binding) (statics statics' : static_env)
+    (hp : heap) (source target : expr),
+    eval_static_bindings [] prefix statics = Some statics' ->
+    refines (State (Let_static prefix source) [] [] statics hp)
+      (State (Let_static prefix target) [] [] statics hp)
+    <-> refines (State source [] [] statics' hp)
+          (State target [] [] statics' hp).
 
 (* ======================================================================== *)
 (* What a primitive does with an imported symbol                            *)

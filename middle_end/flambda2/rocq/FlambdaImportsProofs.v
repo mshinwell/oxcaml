@@ -31,8 +31,8 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaSemanticsSpec FlambdaPrimitiveProofs FlambdaUnusedStaticsSpec
-  FlambdaImportsSpec.
+  FlambdaSemanticsSpec FlambdaSemanticsProofs FlambdaPrimitiveProofs
+  FlambdaUnusedStaticsSpec FlambdaImportsSpec.
 Import ListNotations.
 
 Theorem expr_refines_unit_refines : expr_refines_unit_refines_statement.
@@ -67,6 +67,30 @@ Lemma imports_statics_free_of (D : dropped)
 Proof.
   unfold envs_free_of, statics_free_of, imports_statics. simpl.
   induction imports as [ | [s c] imports IH]; [ reflexivity | exact IH ].
+Qed.
+
+(* ======================================================================== *)
+(* A prefix of static bindings                                              *)
+(* ======================================================================== *)
+
+Theorem prefix_refines : prefix_refines_statement.
+Proof.
+  intros prefix statics statics' hp source target Heval.
+  assert (Hsource :
+    step (State (Let_static prefix source) [] [] statics hp)
+    = Step (State source [] [] statics' hp))
+    by (rewrite step_let_static, Heval; reflexivity).
+  assert (Htarget :
+    step (State (Let_static prefix target) [] [] statics hp)
+    = Step (State target [] [] statics' hp))
+    by (rewrite step_let_static, Heval; reflexivity).
+  split; intros Hrefines.
+  - apply (refines_trans _ _ _
+      (equivalent_refines _ _
+         (equivalent_sym _ _ (step_equivalent _ _ Hsource)))).
+    apply (refines_trans _ _ _ Hrefines).
+    apply equivalent_refines, step_equivalent, Htarget.
+  - exact (refines_step _ _ _ _ Hsource Htarget Hrefines).
 Qed.
 
 (* ======================================================================== *)

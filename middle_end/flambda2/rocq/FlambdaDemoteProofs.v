@@ -2482,23 +2482,31 @@ Qed.
 (* The machine with a stack of handlers                                     *)
 (* ======================================================================== *)
 
-Theorem demote_handlers_stack : demote_handlers_stack_statement.
+Theorem demote_handlers_stack_from : demote_handlers_stack_from_statement.
 Proof.
-  intros unit_exn scope e b Hdistinct Htraps.
+  intros statics unit_exn scope e b Hcode Hdistinct Htraps.
   assert (Hdistinct' : binders_distinct (demote_handlers scope e) = true)
     by (rewrite demote_handlers_binders; exact Hdistinct).
   pose proof (demote_handlers_keeps_traps unit_exn scope e Hdistinct Htraps)
     as Htraps'.
-  pose proof (stack_agrees unit_exn e b Hdistinct Htraps) as Hbefore.
+  pose proof (stack_agrees_from statics unit_exn e b Hcode Hdistinct Htraps)
+    as Hbefore.
   pose proof
-    (stack_agrees unit_exn (demote_handlers scope e) b Hdistinct' Htraps')
+    (stack_agrees_from statics unit_exn (demote_handlers scope e) b Hcode
+       Hdistinct' Htraps')
     as Hafter.
-  pose proof
-    (demote_handlers_equivalent scope e [] [] empty_static_env empty_heap b)
+  pose proof (demote_handlers_equivalent scope e [] [] statics empty_heap b)
     as Hsame.
   split; intros H.
   - apply Hbefore, Hsame, Hafter. exact H.
   - apply Hafter, Hsame, Hbefore. exact H.
+Qed.
+
+Theorem demote_handlers_stack : demote_handlers_stack_statement.
+Proof.
+  intros unit_exn scope e b.
+  exact (demote_handlers_stack_from empty_static_env unit_exn scope e b
+           eq_refl).
 Qed.
 
 (* ======================================================================== *)

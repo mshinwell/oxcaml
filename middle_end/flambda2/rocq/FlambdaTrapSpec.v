@@ -114,6 +114,9 @@
    actions is for such a term, and without it lets through code whose
    return and exception continuations are one name, on which the two
    machines differ ([stack_needs_distinct_binders_statement]).
+   [stack_agrees_from_statement] is the same of a unit run from a
+   static environment that holds no code, as that of the symbols that
+   a unit imports is.
    [stack_differs_statement]: without the discipline they differ; the
    term is one where a raise names a handler other than the one
    installed last (discrepancy C5-1), and its binders are distinct.
@@ -422,6 +425,23 @@ Definition stack_agrees_statement : Prop :=
       (initial_stack unit_exn)
       b
     <-> behaves (State e [] [] empty_static_env empty_heap) b.
+
+(* The same of a unit run from a static environment that holds no
+   code, whatever it binds symbols to: that of the symbols that a unit
+   imports is one (FlambdaImportsSpec.imports_statics). With the empty
+   static environment it is the statement above. Code that is bound
+   before the unit starts is left out: nothing is asked here of its
+   binders or of its trap actions. *)
+Definition stack_agrees_from_statement : Prop :=
+  ∀ (statics : static_env) (unit_exn : continuation) (e : expr)
+    (b : behaviour),
+    static_code statics = [] ->
+    binders_distinct e = true ->
+    traps_well_formed unit_exn e = true ->
+    stack_behaves (State e [] [] statics empty_heap)
+      (initial_stack unit_exn)
+      b
+    <-> behaves (State e [] [] statics empty_heap) b.
 
 (* Two handlers are installed, [outer] then [inner], and the body raises
    to [outer]. By the names the raise goes to [outer], which leaves with

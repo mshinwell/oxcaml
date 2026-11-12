@@ -29,7 +29,7 @@
 
    This file is to be reviewed: [holds_from_imports], which is extracted
    and read by the test tool of middle_end/flambda2/tests/semantics/,
-   and the two statements.
+   and the four statements.
 
    FlambdaValidateSpec.validate_unit_sound_statement is of the two
    units run from the empty static environment
@@ -78,6 +78,17 @@
    bound to, the closures that a [Let] binds): those normalisations
    are under all environments too.
 
+   [validate_unit_sound_from_statement] and
+   [validate_unit_knowing_sound_from_statement] are the same two from
+   any static environment in which the names that the validation
+   removes from the term before do not occur, and from any heap. The
+   two above are these at the static environment of the imports, in
+   which no name occurs. They are of a unit run after other units have
+   bound code and symbols, as far as the model can say what those are:
+   a call of code that the unit does not bind has there the meaning of
+   the code that the environment binds. They say nothing of a call
+   whose code is not code of the model.
+
    What it is not of:
    - a unit validated once unused static bindings are removed from the
      head of the term after as well
@@ -92,9 +103,12 @@
      FlambdaHoistCodeSpec, FlambdaHoistStaticsSpec), are each stated
      from the empty static environment. Each is to be stated from the
      imports by its owner before this is;
-   - the machine with a stack of handlers (FlambdaTrapSpec.v), whose
-     agreement with this one is stated from the empty static
-     environment.
+   - the machine with a stack of handlers (FlambdaTrapSpec.v). Its
+     agreement with this one is stated from any static environment
+     that holds no code, of which that of the imports is one
+     (FlambdaTrapSpec.stack_agrees_from_statement), for a unit whose
+     binders are distinct and that follows the discipline of trap
+     actions; no statement here puts the two together.
 
    The proofs are in FlambdaValidateImportsProofs.v, which needs no
    review. *)
@@ -140,3 +154,34 @@ Definition validate_unit_knowing_sound_imports_statement : Prop :=
       (validate_unit_knowing rounds unused slots G Ls kept before after)
     = true ->
     unit_refines imports before after.
+
+(* The same from any static environment in which the names that the
+   validation removes from the term before do not occur
+   (FlambdaUnusedStaticsSpec.statics_free_of), and from any heap. *)
+(* CR mshinwell: the heap is any heap because no step of this machine
+   reads or changes it. When a step runs the primitives of the heap,
+   the premise [heap_free_of unused hp = true]
+   (FlambdaHeapSpec.heap_free_of: the names removed occur in no value
+   of a cell of the heap) is to be added here, as it is to be added to
+   FlambdaUnusedStaticsSpec.drop_statics_refines_statement: a symbol
+   that only the heap names is otherwise removed from under a read. *)
+Definition validate_unit_sound_from_statement : Prop :=
+  ∀ (statics : static_env) (hp : heap) (rounds : nat) (unused : dropped)
+    (slots : list value_slot) (G : loopified) (Ls : list lifting)
+    (kept : list code_id) (before after : expr),
+    holds_from_imports
+      (validate_unit rounds unused slots G Ls kept before after)
+    = true ->
+    statics_free_of unused statics = true ->
+    refines (State before [] [] statics hp) (State after [] [] statics hp).
+
+(* The same of the second asking. *)
+Definition validate_unit_knowing_sound_from_statement : Prop :=
+  ∀ (statics : static_env) (hp : heap) (rounds : nat) (unused : dropped)
+    (slots : list value_slot) (G : loopified) (Ls : list lifting)
+    (kept : list code_id) (before after : expr),
+    holds_from_imports
+      (validate_unit_knowing rounds unused slots G Ls kept before after)
+    = true ->
+    statics_free_of unused statics = true ->
+    refines (State before [] [] statics hp) (State after [] [] statics hp).

@@ -1899,13 +1899,15 @@ Proof.
     + exact I.
 Qed.
 
-Lemma initial_inv (unit_exn : continuation) (e : expr) (n : nat) :
+Lemma initial_inv_from (statics : static_env) (unit_exn : continuation)
+    (e : expr) (n : nat) :
+  static_code statics = [] ->
   full_well_formed unit_exn e = true ->
-  inv n (State e [] [] empty_static_env empty_heap)
-    (State e [] [] empty_static_env empty_heap)
+  inv n (State e [] [] statics empty_heap)
+    (State e [] [] statics empty_heap)
     (initial_stack unit_exn).
 Proof.
-  unfold full_well_formed.
+  intros Hcode. unfold full_well_formed.
   destruct (full_demands [unit_exn] e) as [ds | ] eqn:Hdemands;
     [ | discriminate ].
   intros Hwf.
@@ -1920,18 +1922,18 @@ Proof.
     rewrite forallb_forall in Hwf. apply trap_stack_eqb_eq.
     exact (Hwf d Hd).
   - split; [ apply Sim_trap, Sim_unit | ]. intros id c Hlookup.
-    discriminate.
+    rewrite Hcode in Hlookup. discriminate.
 Qed.
 
-Theorem stack_agrees : stack_agrees_statement.
+Theorem stack_agrees_from : stack_agrees_from_statement.
 Proof.
-  intros unit_exn e b Hd Hwf.
+  intros statics unit_exn e b Hcode Hd Hwf.
   rewrite <- (full_well_formed_eq unit_exn e Hd) in Hwf.
   assert (Hrun : ∀ fuel : nat,
-            related 0 (run fuel (State e [] [] empty_static_env empty_heap))
-              (stack_run fuel (State e [] [] empty_static_env empty_heap)
+            related 0 (run fuel (State e [] [] statics empty_heap))
+              (stack_run fuel (State e [] [] statics empty_heap)
                  (initial_stack unit_exn))).
-  { intros fuel. apply run_related, initial_inv. exact Hwf. }
+  { intros fuel. apply run_related, initial_inv_from; assumption. }
   destruct b as [k vs | | ]; simpl.
   - split; intros [fuel H]; exists fuel; specialize (Hrun fuel);
       rewrite H in Hrun; revert Hrun.
@@ -1956,6 +1958,13 @@ Proof.
         try contradiction.
       intros _. exists s, st. reflexivity.
 Qed.
+
+Theorem stack_agrees : stack_agrees_statement.
+Proof.
+  intros unit_exn e b.
+  exact (stack_agrees_from empty_static_env unit_exn e b eq_refl).
+Qed.
+
 (* ======================================================================== *)
 (* Calls with fewer or more arguments than parameters, on the two machines  *)
 (* ======================================================================== *)
