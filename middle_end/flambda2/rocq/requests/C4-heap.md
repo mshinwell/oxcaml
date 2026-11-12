@@ -49,7 +49,56 @@ two parts:
 
 It does not put the heap in the state of `FlambdaSemanticsSpec.v`:
 section 7 says what that sweep is and why I counted it and did not
-finish it. Section 10 says what the prototype proves and leaves.
+finish it. Section 10 says what the prototype proves and leaves. The
+sweep has since been rehearsed on the integration branch as it is
+now; `requests/C4-heap-fallout.md` has the counts, which replace
+those of section 7.1.
+
+## Two things for the human to see before the sweep
+
+The sweep that puts the heap into `state` adds a component that
+nothing reads, and 64 statements of `Spec` files gain a binder for it
+(the fallout note, "The heap in `state`: a rehearsal of the sweep").
+Two of the choices made in it are right only while no step changes
+the heap, and are what the last step, the relation at exit, replaces.
+
+1. **One heap for the two states of a statement.** Where a statement
+   or a lemma is about two states, they have the same heap, also
+   where their static environments differ (`refines (State e vars
+   conts statics hp) (State e' vars conts statics' hp)`). With a heap
+   for each the statement would be false, since exits are compared by
+   their heaps. Among the statements of `Spec` files, those with two
+   static environments and one heap are
+   `FlambdaContextWhereSpec.let_static_code_refines_where_statement`
+   and, through its two runs,
+   `FlambdaLiftSpec.lift_simulates_statement`. The others are lemmas
+   of `Proofs` files: the congruence lemmas for `Let_static`, and the
+   relations on states of the simulation proofs.
+2. **Exits compared by their heaps, exactly.** `Exit k vs hp` and
+   `Exits k vs hp` carry the heap, and `refines` and `equivalent` ask
+   of two exits that their heaps be equal. This is the comparison
+   that section 8.2 gives for the first two epochs. It differs in
+   form from section 8.1, where an exit carries an `outcome`: in the
+   sweep it carries the values and the heap, as agreed with C0, and
+   the static environment stays out of it, as today.
+
+What changes again when exits are compared up to a correspondence
+(section 3; epoch 3 of section 8.3):
+
+- `refines` and `equivalent` are redefined, so every statement made
+  with them, or with `expr_refines` and `expr_equivalent`, changes
+  meaning with no change of text. Of the 37 statements of `Spec`
+  files that name the heap after the sweep, 18 are such.
+- `lift_simulates_statement` says, after the sweep, that the lifted
+  run exits with the heap of the first; it will say that the two
+  heaps are related.
+- The statements that name the heap of one exit and ask nothing of it
+  do not change: `well_formed_exit_valid_statement`,
+  `renamed_state_equivalent_statement`,
+  `exits_plain_sound_statement`, `run_exit_in_range_statement`,
+  `well_kinded_exit_statement`.
+- The lemmas of `Proofs` files with one heap for two states gain a
+  second heap and a premise that relates the two.
 
 ## Summary
 

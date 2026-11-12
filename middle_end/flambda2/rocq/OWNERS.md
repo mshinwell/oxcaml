@@ -125,7 +125,15 @@ design out; that is the request, not the change.
   - the examples `middle_end/flambda2/tests/semantics/set_*.fl`,
     `apply_partial*.fl` and `apply_over*.fl` there, with their
     `.expected` files
-- C4, heap. Owner: unassigned.
+- C4, heap. Owner: C4, on `flambda2-rocq/C4-heap`.
+  - `middle_end/flambda2/rocq/requests/C4-heap.md` (the request) and
+    `requests/C4-heap-fallout.md` (what each step costs the other
+    owners)
+  - `middle_end/flambda2/rocq/FlambdaHeapSpec.v` and
+    `middle_end/flambda2/rocq/FlambdaHeapProofs.v` (the prototype: a
+    machine with a heap beside the machine that exists;
+    `FlambdaHeapEquivariance*` are N1's)
+  - `middle_end/flambda2/rocq/status/C4.md`
 - C5, exceptions. Owner: C5, on `flambda2-rocq/C5-epoch`.
   - `middle_end/flambda2/rocq/requests/C5-exceptions.md` (the request)
   - `middle_end/flambda2/rocq/FlambdaTrap*` (examples of the checks of

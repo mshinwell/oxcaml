@@ -248,3 +248,290 @@ statements are proved, and there is no conjecture.
   closure; what a closure that is not a symbol projects; a projection
   does not change as the static environment grows) and a case in each
   proof by cases on the relation.
+
+## The heap in `state`: a rehearsal of the sweep
+
+The step after the first is the sweep: `state` gains the heap, and
+nothing else changes. It was rehearsed on a scratch branch that is not
+for merging (`flambda2-rocq/C4-sweep-rehearsal-3`: its first commit is
+what the script does, its second what the rules then repair), over a
+base that has C2's tests of kinds at binders and C3's partial
+applications and over-applications. The real sweep is run again on the
+tip of its day, after the validator's series and C0's commit that
+names the initial state of a unit. The script is
+`requests/C4-heap-sweep.py`; the checker with the rules is
+`requests/C4-heap-sweep-check.py`; each says at its head how it is
+run.
+
+### The change
+
+In `rocq/FlambdaSemanticsSpec.v`: `state` has a fifth field,
+`state_heap : heap`, last. `Exit k vs hp` and `Exits k vs hp` carry
+the heap, last. `call_code`, `run_call`, `apply_cont_value`,
+`apply_continuation` and `call_function` take it as their last
+argument, and `step` gives every state it builds the heap of the state
+it was given. `behaves s (Exits k vs hp)` is `∃ fuel, run fuel s =
+Exit k vs hp`, so `refines` and `equivalent` compare the heap at an
+exit, exactly. No term makes a cell, so the heap of a run is the heap
+it started with. `state_values_all` is not changed.
+
+### What was decided where nothing said
+
+1. The heap is named `hp` in every statement. `h` is a handler in
+   some four hundred places of the proofs.
+2. A statement gains one binder, `(hp : heap)`, after the binder of
+   the static environment beside which the heap is first used, and
+   the two states of a statement share it, also where their static
+   environments differ. With a heap for each side the statement would
+   be false: exits are compared by their heaps.
+3. `Exits` carries the heap, as `Exit` does.
+4. A state that an example builds has `empty_heap`, and so has its
+   exit. C0's definition of the initial state will carry it.
+5. The functions of `Proofs` files that compare two results (`ended`,
+   `result_related` and `result_simulated` of
+   `FlambdaSemanticsProofs.v`, `related` of `FlambdaTrapProofs.v`)
+   compare the heaps of two exits, as they compare their values.
+6. C5's machine with a stack follows: `Stack_exit` carries the heap,
+   and `unwind`, `stack_enter`, `stack_call`, `stack_run_call` and
+   `stack_apply_cont` take it.
+7. N1's `rename_state` builds the state with the heap it was given: a
+   cell holds values, and values hold no names.
+8. The heap's own machine stays beside `step` until `step` runs the
+   primitives of the heap. `forget_heap` keeps the heap, and
+   `heap_step_agrees_statement` changes by one pattern.
+9. A section whose statements build states from a `Variable` that is
+   a static environment gains `Variable hp : heap`.
+10. `state_values_all` gains the cells with the primitives, not here:
+    no cell exists before, and C0 asked for a commit that adds the
+    component and nothing else.
+
+### What a script does
+
+The script edits the text of the `.v` files, and compiles nothing. On
+the base of the rehearsal it changes 66 files:
+
+- 965 applications of `State`, `Exit`, `Exits`, `Stack_exit` and of
+  the ten functions that take the heap gain it: `hp`; `_` in the 40
+  patterns that do not use it; `empty_heap` beside
+  `empty_static_env` and in the 23 exits and states that examples
+  write out;
+- 299 statements, lemmas and constructors of relations gain the
+  binder, 64 of them in 19 `Spec` files (below);
+- 37 first `intros` of a proof gain the name, where the binder went
+  into the leading quantifier of the statement;
+- 140 explicit applications of a lemma that gained the binder gain
+  `_` at its position;
+- the three constructors, the field, four comparisons of two exits,
+  two patterns that take a state apart, and one variable of a
+  section.
+
+After it every statement and every definition of the 283 files
+compiles (checked with `rocq compile -vos`, which runs no proof
+outside a section). The `Spec` files whose statements gain a binder,
+with the number of binders: `FlambdaSemanticsSpec.v` 8,
+`FlambdaContextWhereSpec.v` 9, `FlambdaPartialApplicationSpec.v` 9,
+`FlambdaWellKindedSpec.v` 6, `FlambdaClosuresSpec.v` 5,
+`FlambdaTrapSpec.v` 5, `FlambdaControlFlowSpec.v` 3,
+`FlambdaLiftSpec.v` 3, `FlambdaApplySpec.v` 2,
+`FlambdaInlineFreshSpec.v` 2, `FlambdaAlphaSpec.v`,
+`FlambdaCanonicalFreeNamesSpec.v`, `FlambdaEquivarianceSpec.v`,
+`FlambdaRangeSpec.v` and `FlambdaUnusedStaticsSpec.v` 1 each; in the
+types library `FlambdaSimplifySwitchSpec.v`, `FlambdaTypesSpec.v` and
+`FlambdaTypingEnvRefinementSpec.v` 2 each and
+`FlambdaEnvAliasesFollowSpec.v` 1. No statement changes meaning: each
+says of one more component, which nothing reads, what it said.
+
+The script and the rules leave 102 lines longer than 80 columns; they
+do not wrap, and the lines are wrapped again by hand.
+
+### The proofs
+
+There are 7,244 proofs in the 283 files. After the script 265 of
+them fail, in 52 files. Each proof is checked on its own
+(`rocq compile -vok`, with the proofs that fail admitted in a copy),
+so that one that fails hides none; a proof of a section that is not
+run is admitted with the variables that Rocq says it uses on the tree
+before the sweep, so that the lemma is the same lemma after the
+section. Rules driven by the error message then edit a proof that
+fails and check it again, keeping an edit when the proof passes or
+its first error moves forward. They repair 200 proofs, with
+353 edits. What the rules are:
+
+- the name of the heap after the name of a static environment, or of
+  the values of an exit, in an `intros` or in a pattern that takes a
+  relation on states apart (235 edits);
+- the heap, or `_`, as an argument that an explicit application of a
+  lemma or of a hypothesis is short of (90);
+- `hp` for a `_` that cannot be inferred, and `_` for an `hp` that is
+  not in scope (17);
+- a third part in a pattern that takes the comparison of two exits
+  apart (11).
+
+65 proofs are left, in 27 files. The tree has not been
+built whole: `make all` waits for them.
+
+By file, for the files with a proof that fails after the script, and
+by owner, for all the files that the script edits:
+
+| File | Owner | Edits by the script | Proofs broken after it | Repaired by the rules | Left |
+|------|-------|--------------------:|-----------------------:|----------------------:|-----:|
+| `rocq/FlambdaContextProofs.v` | C0 | 166 | 16 | 9 | 7 |
+| `rocq/FlambdaSemanticsProofs.v` | C0 | 164 | 11 | 11 | 0 |
+| `rocq/FlambdaWellFormedProofs.v` | C0 | 28 | 1 | 1 | 0 |
+| `rocq/FlambdaControlFlowProofs.v` | C0 (S3) | 8 | 3 | 3 | 0 |
+| `rocq/FlambdaApplyProofs.v` | C0 (S4) | 26 | 6 | 6 | 0 |
+| `rocq/FlambdaStaticProofs.v` | C0 (S5) | 0 | 2 | 2 | 0 |
+| `rocq/FlambdaWellKindedProofs.v` | C2 | 49 | 6 | 2 | 4 |
+| `rocq/FlambdaClosuresProofs.v` | C3 | 42 | 6 | 5 | 1 |
+| `rocq/FlambdaPartialApplicationProofs.v` | C3 | 55 | 5 | 3 | 2 |
+| `rocq/FlambdaHeapProofs.v` | C4 | 9 | 2 | 0 | 2 |
+| `rocq/FlambdaTrapProofs.v` | C5 | 69 | 7 | 3 | 4 |
+| `rocq/FlambdaAlphaProofs.v` | N1 | 1 | 1 | 1 | 0 |
+| `rocq/FlambdaEquivarianceProofs.v` | N1 | 19 | 7 | 6 | 1 |
+| `rocq/FlambdaHeapEquivarianceProofs.v` | N1 | 2 | 4 | 0 | 4 |
+| `rocq/FlambdaNominalProofs.v` | N1 | 7 | 3 | 3 | 0 |
+| `rocq/FlambdaScopeProofs.v` | N1 | 20 | 1 | 1 | 0 |
+| `rocq/FlambdaStateSupportProofs.v` | N1 | 2 | 1 | 0 | 1 |
+| `rocq/FlambdaContextWhereProofs.v` | N2 | 18 | 12 | 9 | 3 |
+| `rocq/FlambdaInlineFreshProofs.v` | N2 | 9 | 1 | 1 | 0 |
+| `rocq/FlambdaIdentitiesProofs.v` | P1 | 7 | 1 | 0 | 1 |
+| `types/rocq/FlambdaTypesProofs.v` | T1 | 0 | 17 | 16 | 1 |
+| `types/rocq/FlambdaSimplifySwitchProofs.v` | T1 (S2) | 0 | 10 | 10 | 0 |
+| `types/rocq/FlambdaTypingEnvRefinementProofs.v` | T2 | 0 | 16 | 16 | 0 |
+| `types/rocq/FlambdaSimplifyPassProofs.v` | T2 (S1) | 5 | 5 | 3 | 2 |
+| `types/rocq/FlambdaSimplifyPrimitivesProofs.v` | T2 (S1) | 0 | 3 | 3 | 0 |
+| `types/rocq/FlambdaSimplifyProjectionsProofs.v` | T2 (S1) | 0 | 1 | 1 | 0 |
+| `types/rocq/FlambdaAliasesProofs.v` | T3 | 6 | 6 | 6 | 0 |
+| `types/rocq/FlambdaEnvAliasesFollowProofs.v` | T3 | 10 | 7 | 7 | 0 |
+| `types/rocq/FlambdaSimplifyStaticsProofs.v` | T3 | 2 | 1 | 0 | 1 |
+| `types/rocq/FlambdaSimplifyApplyProofs.v` | T4 (S4) | 3 | 5 | 5 | 0 |
+| `rocq/FlambdaCompareProofs.v` | V1 (C0) | 21 | 2 | 2 | 0 |
+| `rocq/FlambdaNormaliseProofs.v` | V1 (C0) | 42 | 31 | 25 | 6 |
+| `rocq/FlambdaUnusedStaticsProofs.v` | V1 (C0) | 15 | 3 | 3 | 0 |
+| `rocq/FlambdaValidateProofs.v` | V1 (C0) | 0 | 2 | 2 | 0 |
+| `rocq/FlambdaBlockLoadProofs.v` | V2 | 7 | 2 | 1 | 1 |
+| `rocq/FlambdaCseProofs.v` | V2 | 7 | 2 | 1 | 1 |
+| `rocq/FlambdaRenameApartProofs.v` | V2 | 0 | 1 | 1 | 0 |
+| `rocq/FlambdaStaticsOrderProofs.v` | V2 | 9 | 2 | 2 | 0 |
+| `rocq/FlambdaUnboxProofs.v` | V2 | 7 | 2 | 1 | 1 |
+| `rocq/FlambdaUnusedContsProofs.v` | V2 | 0 | 1 | 1 | 0 |
+| `rocq/FlambdaKnownSymbolsProofs.v` | V3 (S5) | 31 | 4 | 2 | 2 |
+| `rocq/FlambdaLiftProofs.v` | V3 (S5) | 79 | 11 | 4 | 7 |
+| `rocq/FlambdaMyClosureProofs.v` | V3 (S5) | 14 | 1 | 0 | 1 |
+| `rocq/FlambdaSimulationProofs.v` | V3 (S5) | 12 | 3 | 0 | 3 |
+| `rocq/FlambdaUnusedSlotsProofs.v` | V3 (S5) | 29 | 4 | 2 | 2 |
+| `rocq/FlambdaContAlikeProofs.v` | V4 | 46 | 6 | 2 | 4 |
+| `rocq/FlambdaLoopAliasesProofs.v` | V4 | 0 | 5 | 4 | 1 |
+| `rocq/FlambdaLoopifyProofs.v` | V4 | 58 | 3 | 2 | 1 |
+| `rocq/FlambdaRecHandlersProofs.v` | V4 | 0 | 3 | 3 | 0 |
+| `rocq/FlambdaShortcutProofs.v` | V4 | 5 | 2 | 1 | 1 |
+| `rocq/FlambdaSinkContsProofs.v` | V4 | 3 | 5 | 5 | 0 |
+| `rocq/FlambdaUnusedParamsProofs.v` | V4 | 19 | 3 | 3 | 0 |
+
+| Owner | Files | Edits by the script | Proofs broken after it | Repaired by the rules | Left |
+|-------|------:|--------------------:|-----------------------:|----------------------:|-----:|
+| C0 | 5 | 406 | 28 | 21 | 7 |
+| C0 (S3) | 2 | 16 | 3 | 3 | 0 |
+| C0 (S4) | 2 | 32 | 6 | 6 | 0 |
+| C0 (S5) | 1 | 0 | 2 | 2 | 0 |
+| C1 | 2 | 23 | 0 | 0 | 0 |
+| C2 | 2 | 66 | 6 | 2 | 4 |
+| C3 | 4 | 157 | 11 | 8 | 3 |
+| C4 | 2 | 11 | 2 | 0 | 2 |
+| C5 | 2 | 115 | 7 | 3 | 4 |
+| N1 | 11 | 69 | 17 | 11 | 6 |
+| N2 | 4 | 79 | 13 | 10 | 3 |
+| P1 | 1 | 7 | 1 | 0 | 1 |
+| T1 | 2 | 6 | 17 | 16 | 1 |
+| T1 (S2) | 2 | 6 | 10 | 10 | 0 |
+| T2 | 2 | 6 | 16 | 16 | 0 |
+| T2 (S1) | 3 | 5 | 9 | 7 | 2 |
+| T3 | 4 | 21 | 14 | 13 | 1 |
+| T4 (S4) | 1 | 3 | 5 | 5 | 0 |
+| V1 (C0) | 5 | 83 | 38 | 32 | 6 |
+| V2 | 6 | 30 | 10 | 7 | 3 |
+| V3 (S5) | 7 | 179 | 23 | 8 | 15 |
+| V4 | 7 | 131 | 27 | 20 | 7 |
+| all | 77 | 1451 | 265 | 200 | 65 |
+
+### What is left, and whose it is
+
+What is left is of four kinds, by the first error of each proof.
+
+- An explicit application, by position, of a lemma, of an induction
+  hypothesis or of a hypothesis of a section that takes the
+  environments: the heap is missing at more than one place, or the
+  proof names what it introduces after a tactic that the rules do not
+  follow. Most of what is left is this, and all of C0's, N2's, V1's
+  and V2's. It is mechanical, for a hand.
+- A statement of a proofs file that names an exit and needs its heap
+  (`stuttering_ends` and `stuttering_refines` of
+  `FlambdaSimulationProofs.v`, `late_ends` and `late_refines` of
+  `FlambdaPartialApplicationProofs.v`, which say `∃ k vs`), or a
+  pattern that takes an exit apart one name short
+  (`run_renamed_exit`, `stack_behaves_equivariant`, `enter_related`,
+  the three of `FlambdaWellKindedProofs.v` about an exit).
+- A proof that writes out a state where no heap is in sight
+  (`lifted_step`, `simplify_expr_sound`, `let_static_body_refines_under`,
+  `let_static_typed`).
+- Five where the owner chooses. N1: `forget_with_heap` is no longer
+  true as stated, since `forget_heap` keeps the heap (N1 restates
+  `with_heap`), and `state_finitely_supported` gives a combinator of
+  four arguments a constructor of five (N1 gives it a function). C5:
+  `step_related` needs the invariant between the two machines to say
+  that their states have the same heap. C4: `heap_call_code_agrees`
+  and `heap_apply_cont_value_agrees` must say that the heap of the
+  state is the heap of the heap's own machine.
+
+N1 has said it does its six itself, as one commit on the branch of the
+sweep. By owner and file:
+
+- C0, 7:
+  - `rocq/FlambdaContextProofs.v`: `carried_of_result`, `apply_cont_value_transfer`, `call_function_transfer`, `transfer`, `related_states_refines_from`, `related_states_refines`, `let_static_code_refines_where`
+- C2, 4:
+  - `rocq/FlambdaWellKindedProofs.v`: `step_well_kinded_here`, `exit_well_kinded_here`, `well_kinded_exit`, `run_exit`
+- C3, 3:
+  - `rocq/FlambdaClosuresProofs.v`: `let_closures_runs`
+  - `rocq/FlambdaPartialApplicationProofs.v`: `late_ends`, `late_refines`
+- C4, 2:
+  - `rocq/FlambdaHeapProofs.v`: `heap_call_code_agrees`, `heap_apply_cont_value_agrees`
+- C5, 4:
+  - `rocq/FlambdaTrapProofs.v`: `enter_related`, `step_related`, `unwind_equivariant`, `stack_behaves_equivariant`
+- N1, 6:
+  - `rocq/FlambdaEquivarianceProofs.v`: `run_renamed_exit`
+  - `rocq/FlambdaHeapEquivarianceProofs.v`: `forget_with_heap`, `rename_static_env_inverse_l`, `rename_static_env_inverse_r`, `heap_state_of_renamed_expr`
+  - `rocq/FlambdaStateSupportProofs.v`: `state_finitely_supported`
+- N2, 3:
+  - `rocq/FlambdaContextWhereProofs.v`: `let_cont_recursive_handler_refines_from`, `let_static_code_refines_where`, `let_cont_handler_refines_in_range`
+- P1, 1:
+  - `rocq/FlambdaIdentitiesProofs.v`: `apply_identities_refines_at`
+- T1, 1:
+  - `types/rocq/FlambdaTypesProofs.v`: `inline_identity`
+- T2 (S1), 2:
+  - `types/rocq/FlambdaSimplifyPassProofs.v`: `let_static_body_refines_under`, `simplify_expr_sound`
+- T3, 1:
+  - `types/rocq/FlambdaSimplifyStaticsProofs.v`: `let_static_typed`
+- V1 (C0), 6:
+  - `rocq/FlambdaNormaliseProofs.v`: `inline_calls_refines_knowing`, `remove_unused_defined_lets_equivalent_bound`, `inline_known_calls_equivalent_knowing`, `rewrite_code_refines_aux`, `rewrite_code_refined_aux`, `thread_switch_equivalent`
+- V2, 3:
+  - `rocq/FlambdaBlockLoadProofs.v`: `load_blocks_knowing_refines`
+  - `rocq/FlambdaCseProofs.v`: `share_primitives_knowing_refines`
+  - `rocq/FlambdaUnboxProofs.v`: `unbox_numbers_knowing_refines`
+- V3 (S5), 15:
+  - `rocq/FlambdaKnownSymbolsProofs.v`: `fold_step_components`, `folded_related_step`
+  - `rocq/FlambdaLiftProofs.v`: `call_code_lifted`, `lifted_step`, `lift_simulates`, `closed_stays_plain`, `call_code_plain`, `apply_cont_value_plain`, `plain_step_components`
+  - `rocq/FlambdaMyClosureProofs.v`: `apply_cont_value_ok`
+  - `rocq/FlambdaSimulationProofs.v`: `stuttering_exit`, `stuttering_ends`, `stuttering_refines`
+  - `rocq/FlambdaUnusedSlotsProofs.v`: `drop_step_components`, `drop_step`
+- V4, 7:
+  - `rocq/FlambdaContAlikeProofs.v`: `apply_alike_carries`, `alike_carries`, `applies_alike_sym`, `applies_alike_carries`
+  - `rocq/FlambdaLoopAliasesProofs.v`: `follow_aliases_in_loops_equivalent_in`
+  - `rocq/FlambdaLoopifyProofs.v`: `loops_step`
+  - `rocq/FlambdaShortcutProofs.v`: `shortcut_switch_equivalent`
+
+### The test tool and the extracted files
+
+`tests/tools/flsemantics.ml` changes in two places: the pattern of an
+exit has a third component, and the record of the initial state has
+`state_heap = Values.empty_heap`. The extracted files are generated
+again. No expected output changes: the heap of every run is empty.
