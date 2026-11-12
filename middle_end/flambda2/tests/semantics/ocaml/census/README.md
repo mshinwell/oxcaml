@@ -79,7 +79,10 @@ continuations of each term placed once the rounds are over
 (`FlambdaValidateSpec.placed`; `functions`, seed 65), and the unit
 that was validated at the second asking is validated at the first.
 The sharing of primitives knowing, under an untagging, that the
-variable untagged is the tagging of the result changes none. No unit
+variable untagged is the tagging of the result changes none, and nor
+does the test against zero of a three-way comparison made the
+comparison of its operands
+(`FlambdaRecoverComparisonSpec.recover_known_comparisons`). No unit
 that was validated at one of these points is not at a later one. The
 day before, 336 were validated, 256 were not and 8 were not checked;
 of the units that keep a function, none was.

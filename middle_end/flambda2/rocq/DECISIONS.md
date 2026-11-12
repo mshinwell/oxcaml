@@ -477,6 +477,13 @@ says so. Only the labels that this tree cites are listed.
 - **T4-11.** In the model, `Typing_env.add_equations_on_params` may give
   a later parameter that the environment does not know a variable that
   the join made; whether the compiler can is not settled.
+- **T4-13.** The term that `-drawfexpr` prints cannot say that a value
+  may be null where it writes a kind, in a field of the shape of a
+  block or in an arity of more than one component; the parser reads
+  every kind of values that is written as never null, and Simplify, run
+  on the term read back, can remove a test of null that the compiler
+  keeps. The pair validated is then not the pair that the compiler
+  made; the compiler's own code is right.
 - **T5-1.** The assumption stated by the n-way join, that every name of
   the source is defined in every joined environment, is false of its
   callers, and nothing checks it.
