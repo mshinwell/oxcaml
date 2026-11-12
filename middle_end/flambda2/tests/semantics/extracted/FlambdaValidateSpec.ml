@@ -254,7 +254,10 @@ let normalise_lifted_round avoid kept e =
 let normalise_lifted rounds avoid kept e =
   iterate rounds
     (normalise_lifted_round avoid kept)
-    (iterate rounds normalise_params_round e)
+    (guard_scope simplify_by_types
+       (iterate rounds
+          (normalise_lifted_round avoid kept)
+          (iterate rounds normalise_params_round e)))
 
 (** val unit_continuations : lifting list -> continuation list **)
 
