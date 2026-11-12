@@ -245,8 +245,97 @@ let add_counts totals path =
   in
   read ()
 
-(* One file: a line for it and its disagreements are printed, and its counts are
-   returned with the number of its disagreements. *)
+(* A disagreement: the comparison, what it says, and the type. *)
+type disagreement = string * string * MT.flambda_type
+
+(* The environments of a unit, each with the names that are asked of it: each
+   type of a name that was not seen before is compared. The disagreements are
+   returned, in the order in which they were found. *)
+let check_environments (counts : counts)
+    (environments : (TE.t * (Name.t * K.t) list) list) : disagreement list =
+  let count = count counts in
+  let numbering = Model_names.create () in
+  (* The types of each name that were compared already. Two types are the same
+     one for the compiler's structural equality, and not for how they are
+     printed, which leaves things out. *)
+  let seen : TG.t list Name.Map.t ref = ref Name.Map.empty in
+  let seen_already name t =
+    let types = Option.value (Name.Map.find_opt name !seen) ~default:[] in
+    List.exists (TG.equal t) types
+    ||
+    (seen := Name.Map.add name (t :: types) !seen;
+     false)
+  in
+  let found = ref [] in
+  List.iter
+    (fun (env, names) ->
+      let comparisons =
+        comparisons_of_one_type numbering
+        @ comparisons_of_what_is_dropped numbering
+        @ round_trip_from_the_compiler numbering env
+        @ [ { name = "type_well_formed";
+              compare = (fun { model; compiler = _ } -> well_formed [model])
+            } ]
+      in
+      List.iter
+        (fun (name, kind) ->
+          count "names in the environments";
+          let t = TE.find env name (Some kind) in
+          if not (seen_already name t)
+          then (
+            count "different types of a name";
+            match Converter.type_to_model_with_what_is_dropped numbering t with
+            | exception Converter.Not_in_the_model what ->
+              count ("not in the model: " ^ general what)
+            | model, (dropped : Converter.dropped) ->
+              count "in the model";
+              if
+                List.exists
+                  (fun ((_ : Code_id.t), rec_info) ->
+                    not (TG.is_obviously_unknown rec_info))
+                  dropped.rec_infos
+              then
+                count
+                  "with a function type that has a rec_info, which is put back \
+                   for the round trip from the compiler";
+              (match Model_type.extension_depth model with
+              | 0 -> ()
+              | 1 -> count "with an extension"
+              | _ ->
+                count "with an extension within an extension";
+                if extension_on_a_name_within_one_on_it model
+                then count "with an extension on a name inside one on it");
+              List.iter
+                (fun { name = comparison; compare } ->
+                  match guarded compare { model; compiler = t } with
+                  | Not_this_comparison -> ()
+                  | Agree -> count (comparison ^ ": agree")
+                  | Not_run reason ->
+                    count (comparison ^ ": not run, " ^ general reason)
+                  | Known_to_disagree (label, _) ->
+                    count (comparison ^ ": as recorded, " ^ label)
+                  | Disagree what ->
+                    count (comparison ^ ": DISAGREE");
+                    found := (comparison, what, model) :: !found)
+                comparisons))
+        names)
+    environments;
+  List.rev !found
+
+let number (counts : counts) what =
+  Option.value (Hashtbl.find_opt counts.table what) ~default:0
+
+(* The disagreements of a unit, shown in full under its line. Their number is
+   returned. *)
+let print_disagreements (disagreements : disagreement list) : int =
+  List.iter
+    (fun (comparison, what, model) ->
+      Format.printf "  @[<v>DISAGREEMENT, %s: %s@ on the type@ %a@]@."
+        comparison what Model_type.print model)
+    disagreements;
+  List.length disagreements
+
+(* One file: its counts are returned with the number of its disagreements. *)
 let check_file filename : counts * int =
   let shown = Filename.basename filename in
   let counts = create_counts () in
@@ -259,7 +348,6 @@ let check_file filename : counts * int =
     counts, 0
   | Ok unit ->
     count "units simplified";
-    let numbering = Model_names.create () in
     let return_continuation = Flambda_unit.return_continuation unit in
     let at_end, at_handlers =
       List.partition
@@ -271,97 +359,56 @@ let check_file filename : counts * int =
       (fun _ -> count "environments at the start of a handler")
       at_handlers;
     List.iter (fun _ -> count "environments at the end of a unit") at_end;
-    (* The types of each name that were compared already. Two types are the same
-       one for the compiler's structural equality, and not for how they are
-       printed, which leaves things out. *)
-    let seen : TG.t list Name.Map.t ref = ref Name.Map.empty in
-    let seen_already name t =
-      let types = Option.value (Name.Map.find_opt name !seen) ~default:[] in
-      List.exists (TG.equal t) types
-      ||
-      (seen := Name.Map.add name (t :: types) !seen;
-       false)
-    in
-    let disagreements_of_the_file = ref [] in
-    List.iter
-      (fun (env, _) ->
-        let comparisons =
-          comparisons_of_one_type numbering
-          @ comparisons_of_what_is_dropped numbering
-          @ round_trip_from_the_compiler numbering env
-          @ [ { name = "type_well_formed";
-                compare = (fun { model; compiler = _ } -> well_formed [model])
-              } ]
-        in
-        List.iter
-          (fun (name, kind) ->
-            count "names in the environments";
-            let t = TE.find env name (Some kind) in
-            if not (seen_already name t)
-            then (
-              count "different types of a name";
-              match
-                Converter.type_to_model_with_what_is_dropped numbering t
-              with
-              | exception Converter.Not_in_the_model what ->
-                count ("not in the model: " ^ general what)
-              | model, (dropped : Converter.dropped) ->
-                count "in the model";
-                if
-                  List.exists
-                    (fun ((_ : Code_id.t), rec_info) ->
-                      not (TG.is_obviously_unknown rec_info))
-                    dropped.rec_infos
-                then
-                  count
-                    "with a function type that has a rec_info, which is put \
-                     back for the round trip from the compiler";
-                (match Model_type.extension_depth model with
-                | 0 -> ()
-                | 1 -> count "with an extension"
-                | _ ->
-                  count "with an extension within an extension";
-                  if extension_on_a_name_within_one_on_it model
-                  then count "with an extension on a name inside one on it");
-                List.iter
-                  (fun { name = comparison; compare } ->
-                    match guarded compare { model; compiler = t } with
-                    | Not_this_comparison -> ()
-                    | Agree -> count (comparison ^ ": agree")
-                    | Not_run reason ->
-                      count (comparison ^ ": not run, " ^ general reason)
-                    | Known_to_disagree (label, _) ->
-                      count (comparison ^ ": as recorded, " ^ label)
-                    | Disagree what ->
-                      count (comparison ^ ": DISAGREE");
-                      disagreements_of_the_file
-                        := (comparison, what, model)
-                           :: !disagreements_of_the_file)
-                  comparisons))
-          (names_of env))
-      (at_handlers @ at_end);
-    let number what =
-      Option.value (Hashtbl.find_opt counts.table what) ~default:0
+    let environments = at_handlers @ at_end in
+    let disagreements =
+      check_environments counts
+        (List.map
+           (fun (env, (_ : Continuation.t)) -> env, names_of env)
+           environments)
     in
     Format.printf
       "%s: %d environments, %d names, %d different types of a name, %d in the \
        model@."
-      shown
-      (List.length at_handlers + List.length at_end)
-      (number "names in the environments")
-      (number "different types of a name")
-      (number "in the model");
-    List.iter
-      (fun (comparison, what, model) ->
-        Format.printf "  @[<v>DISAGREEMENT, %s: %s@ on the type@ %a@]@."
-          comparison what Model_type.print model)
-      (List.rev !disagreements_of_the_file);
-    counts, List.length !disagreements_of_the_file
+      shown (List.length environments)
+      (number counts "names in the environments")
+      (number counts "different types of a name")
+      (number counts "in the model");
+    counts, print_disagreements disagreements
 
 (* The compiler keeps what it knows of a unit when it goes on to another one in
    the same run, and then fails on units that it simplifies when they come
    first. So each file is gone through in a run of its own: this program runs
-   itself on each, and adds up the counts that each run writes. *)
+   itself on each, with the arguments [one] before the file of the counts and
+   the input, and adds up the counts that each run writes. *)
+let each_in_a_run_of_its_own ~(one : string list) ~(shown : string -> string)
+    ~(they : string) (inputs : string list) =
+  let totals = create_counts () in
+  let with_disagreements = ref 0 in
+  List.iter
+    (fun input ->
+      let counts_file = Filename.temp_file "types_of_compilations" ".counts" in
+      match
+        Sys.command
+          (Filename.quote_command Sys.executable_name
+             (one @ [counts_file; input]))
+      with
+      | (0 | 1) as status ->
+        if status = 1 then incr with_disagreements;
+        add_counts totals counts_file;
+        Sys.remove counts_file
+      | status ->
+        count totals "units on which this tool stopped";
+        Format.printf "%s: this tool stopped with status %d@." (shown input)
+          status)
+    inputs;
+  Format.printf "@.In all:@.";
+  print_counts totals;
+  Format.printf "@.%s@."
+    (if !with_disagreements = 0
+     then "No disagreement."
+     else Printf.sprintf "DISAGREEMENTS in %d %s." !with_disagreements they);
+  if !with_disagreements > 0 then exit 1
+
 let () =
   match Array.to_list Sys.argv with
   | [_; "-one"; counts_file; filename] ->
@@ -383,32 +430,5 @@ let () =
     Format.printf
       "The types that Simplify computes for the units of the semantics tests, \
        against the Rocq model.@.@.";
-    let totals = create_counts () in
-    let with_disagreements = ref 0 in
-    List.iter
-      (fun filename ->
-        let counts_file =
-          Filename.temp_file "types_of_compilations" ".counts"
-        in
-        match
-          Sys.command
-            (Filename.quote_command Sys.executable_name
-               ["-one"; counts_file; filename])
-        with
-        | (0 | 1) as status ->
-          if status = 1 then incr with_disagreements;
-          add_counts totals counts_file;
-          Sys.remove counts_file
-        | status ->
-          count totals "units on which this tool stopped";
-          Format.printf "%s: this tool stopped with status %d@."
-            (Filename.basename filename)
-            status)
-      filenames;
-    Format.printf "@.In all:@.";
-    print_counts totals;
-    Format.printf "@.%s@."
-      (if !with_disagreements = 0
-       then "No disagreement."
-       else Printf.sprintf "DISAGREEMENTS in %d files." !with_disagreements);
-    if !with_disagreements > 0 then exit 1
+    each_in_a_run_of_its_own ~one:["-one"] ~shown:Filename.basename
+      ~they:"files" filenames
