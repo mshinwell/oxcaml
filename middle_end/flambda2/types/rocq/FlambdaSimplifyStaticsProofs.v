@@ -37,7 +37,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs
   FlambdaBindingTime FlambdaTypingEnv FlambdaTypingEnvSpec
-  FlambdaTypingEnvProofs FlambdaTypingEnvOperationsSpec
+  FlambdaTypingEnvProofs FlambdaTypingEnvInvariantSpec
+  FlambdaTypingEnvInvariantProofs FlambdaTypingEnvOperationsSpec
   FlambdaTypingEnvOperationsProofs FlambdaTypingEnvExamplesSpec
   FlambdaTypingEnvRefinementSpec FlambdaTypingEnvRefinementProofs
   FlambdaTypeRenameSpec FlambdaTypeRenameProofs FlambdaEnvRenameSpec
@@ -697,3 +698,253 @@ Proof.
       | apply expr_equivalent_under_refines; apply apply_cont_canonical;
         apply Forall2_cons; [ canonical_computed | apply Forall2_nil ] ].
 Qed.
+
+(* ======================================================================== *)
+(* The environment made is well formed                                      *)
+(* ======================================================================== *)
+
+(* The type of a constant is of the kind value, is not an alias, and is
+   not the unknown type. *)
+Lemma static_const_type_shape (const : static_const)
+    (tys : list flambda_type) (ty : flambda_type) :
+  static_const_type const tys = Some ty ->
+  FlambdaTypeGrammar.kind ty = Value
+  ∧ get_alias_opt ty = None
+  ∧ is_obviously_unknown ty = false.
+Proof.
+  destruct const as [code slots | fslot syms decls slots | tag fields
+    | contents | bytes];
+    cbn [static_const_type].
+  - intros [= <-]. repeat split; reflexivity.
+  - intros [= <-]. repeat split; reflexivity.
+  - destruct ((tag <? no_scan_tag) && _); [ | discriminate ].
+    intros [= <-]. repeat split; reflexivity.
+  - destruct tys as [ | cty [ | cty' tys]]; try discriminate.
+    destruct (boxable_number_of_kind (FlambdaTypeGrammar.kind cty))
+      as [k | ]; [ | discriminate ].
+    simpl. intros [= <-]. repeat split; reflexivity.
+  - intros [= <-]. repeat split; reflexivity.
+Qed.
+
+Lemma static_const_type_in_shape (tenv : Typing_env.t) (const : static_const)
+    (ty : flambda_type) :
+  static_const_type_in tenv const = Some ty ->
+  FlambdaTypeGrammar.kind ty = Value
+  ∧ get_alias_opt ty = None
+  ∧ is_obviously_unknown ty = false.
+Proof.
+  unfold static_const_type_in.
+  destruct (simplify_simples tenv (static_const_simples const))
+    as [answers | ]; [ | discriminate ].
+  simpl. apply static_const_type_shape.
+Qed.
+
+(* A variable that may occur in terms is bound. *)
+Lemma in_scope_mem (tenv : Typing_env.t) (x : variable) :
+  in_scope_in_terms tenv x -> Typing_env.mem None tenv (Name_var x) = true.
+Proof.
+  unfold in_scope_in_terms, Typing_env.mem.
+  destruct (Keyed.lookup name_eqb (Name_var x)
+              (Typing_env.names_to_types tenv)) as [[ty btm] | ];
+    [ intros _; reflexivity | discriminate ].
+Qed.
+
+(* Every symbol that has a type either was defined in [tenv0] or has a
+   type of the kind value. *)
+Definition symbols_of_kind_value (tenv0 tenv : Typing_env.t) : Prop :=
+  ∀ (s : symbol) (ty : flambda_type)
+    (btm : Binding_time.With_name_mode.t),
+    Keyed.lookup name_eqb (Name_symbol s) (Typing_env.names_to_types tenv)
+    = Some (ty, btm) ->
+    among s (Typing_env.defined_symbols tenv0) = true
+    ∨ FlambdaTypeGrammar.kind ty = Value.
+
+Lemma symbols_of_kind_value_replace (tenv0 tenv : Typing_env.t) (s : symbol)
+    (ty : flambda_type) :
+  FlambdaTypeGrammar.kind ty = Value ->
+  symbols_of_kind_value tenv0 tenv ->
+  symbols_of_kind_value tenv0
+    (Typing_env.replace_equation tenv (Name_symbol s) ty).
+Proof.
+  intros Hvalue Hkinds s' ty' btm Hlookup.
+  destruct (Pos.eq_dec s' s) as [-> | Hne].
+  - rewrite (replace_equation_lookup tenv (Name_symbol s) ty) in Hlookup.
+    injection Hlookup as <- _. right. exact Hvalue.
+  - rewrite (replace_equation_lookup_other tenv (Name_symbol s)
+               (Name_symbol s') ty) in Hlookup;
+      [ exact (Hkinds s' ty' btm Hlookup) | congruence ].
+Qed.
+
+(* One symbol that is defined, and that the group binds, is given the
+   type of its constant, taken in [prior]. *)
+Lemma replace_symbol_equation_invariant (tenv0 prior tenv : Typing_env.t)
+    (s : symbol) (const : static_const) (ty : flambda_type) :
+  among s (Typing_env.defined_symbols tenv0) = false ->
+  typing_env_invariant tenv ->
+  symbols_of_kind_value tenv0 tenv ->
+  among s (Typing_env.defined_symbols tenv) = true ->
+  static_const_type_in prior const = Some ty ->
+  (∀ y : variable,
+    in_scope_in_terms prior y ->
+    Typing_env.mem None tenv (Name_var y) = true) ->
+  typing_env_invariant (Typing_env.replace_equation tenv (Name_symbol s) ty)
+  ∧ symbols_of_kind_value tenv0
+      (Typing_env.replace_equation tenv (Name_symbol s) ty).
+Proof.
+  intros Hfresh Hinvariant Hkinds Hdefined Htype Hscope.
+  destruct (static_const_type_in_shape prior const ty Htype)
+    as (Hvalue & Halias & Hunknown).
+  split; [ | exact (symbols_of_kind_value_replace tenv0 tenv s ty Hvalue
+                      Hkinds) ].
+  apply replace_equation_invariant.
+  - exact Hinvariant.
+  - exact Hdefined.
+  - intros x Hx. apply Hscope.
+    exact (static_const_type_in_scope prior const ty x Htype Hx).
+  - intros ty' btm Hlookup. rewrite Hvalue.
+    destruct (Hkinds s ty' btm Hlookup) as [Hold | Hkind];
+      [ congruence | symmetry; exact Hkind ].
+  - intros alias Halias'. rewrite Halias in Halias'. discriminate Halias'.
+  - left. exact Hunknown.
+Qed.
+
+Lemma add_block_like_bindings_invariant (tenv0 : Typing_env.t)
+    (all : list static_binding) :
+  (∀ (s : symbol) (const : static_const),
+    Bind_symbol s const ∈ all ->
+    among s (Typing_env.defined_symbols tenv0) = false) ->
+  ∀ (bindings : list static_binding) (tenv : Typing_env.t),
+    (∀ binding : static_binding, binding ∈ bindings -> binding ∈ all) ->
+    typing_env_invariant tenv ->
+    symbols_of_kind_value tenv0 tenv ->
+    typing_env_invariant (add_block_like_bindings tenv bindings)
+    ∧ symbols_of_kind_value tenv0 (add_block_like_bindings tenv bindings).
+Proof.
+  intros Hfresh.
+  induction bindings as [ | [id c | id | s const] bindings IH];
+    intros tenv Hall Hinvariant Hkinds; cbn [add_block_like_bindings].
+  - split; assumption.
+  - apply IH; [ intros b Hb; apply Hall; right; exact Hb | | ]; assumption.
+  - apply IH; [ intros b Hb; apply Hall; right; exact Hb | | ]; assumption.
+  - destruct (is_closure_const const);
+      [ apply IH; [ intros b Hb; apply Hall; right; exact Hb | | ];
+        assumption | ].
+    assert (Hdefined :
+      typing_env_invariant (Typing_env.add_symbol_definition tenv s))
+      by (apply add_symbol_definition_invariant; exact Hinvariant).
+    destruct (static_const_type_in tenv const) as [ty | ] eqn:Htype.
+    + destruct
+        (replace_symbol_equation_invariant tenv0 tenv
+           (Typing_env.add_symbol_definition tenv s) s const ty
+           (Hfresh s const (Hall _ (or_introl eq_refl))) Hdefined Hkinds)
+        as [Hinvariant' Hkinds'].
+      * change (among s (s :: Typing_env.defined_symbols tenv) = true).
+        rewrite among_cons, Pos.eqb_refl. reflexivity.
+      * exact Htype.
+      * intros y Hy. exact (in_scope_mem tenv y Hy).
+      * apply IH; [ intros b Hb; apply Hall; right; exact Hb | | ];
+          assumption.
+    + apply IH; [ intros b Hb; apply Hall; right; exact Hb | | ];
+        assumption.
+Qed.
+
+Lemma add_closure_bindings_invariant (tenv0 prior : Typing_env.t)
+    (all : list static_binding) :
+  (∀ (s : symbol) (const : static_const),
+    Bind_symbol s const ∈ all ->
+    among s (Typing_env.defined_symbols tenv0) = false) ->
+  ∀ (bindings : list static_binding) (tenv : Typing_env.t),
+    (∀ binding : static_binding, binding ∈ bindings -> binding ∈ all) ->
+    typing_env_invariant tenv ->
+    symbols_of_kind_value tenv0 tenv ->
+    (∀ y : variable,
+      in_scope_in_terms prior y ->
+      Typing_env.mem None tenv (Name_var y) = true) ->
+    (∀ (s : symbol) (const : static_const),
+      Bind_symbol s const ∈ bindings ->
+      is_closure_const const = true ->
+      among s (Typing_env.defined_symbols tenv) = true) ->
+    typing_env_invariant (add_closure_bindings prior tenv bindings).
+Proof.
+  intros Hfresh.
+  induction bindings as [ | [id c | id | s const] bindings IH];
+    intros tenv Hall Hinvariant Hkinds Hscope Hdefined;
+    cbn [add_closure_bindings].
+  - exact Hinvariant.
+  - apply IH; try assumption;
+      [ intros b Hb; apply Hall; right; exact Hb
+      | intros s' const' Hin; apply Hdefined; right; exact Hin ].
+  - apply IH; try assumption;
+      [ intros b Hb; apply Hall; right; exact Hb
+      | intros s' const' Hin; apply Hdefined; right; exact Hin ].
+  - destruct (is_closure_const const) eqn:Hclosure;
+      [ | apply IH; try assumption;
+          [ intros b Hb; apply Hall; right; exact Hb
+          | intros s' const' Hin; apply Hdefined; right; exact Hin ] ].
+    destruct (static_const_type_in prior const) as [ty | ] eqn:Htype;
+      [ | apply IH; try assumption;
+          [ intros b Hb; apply Hall; right; exact Hb
+          | intros s' const' Hin; apply Hdefined; right; exact Hin ] ].
+    destruct
+      (replace_symbol_equation_invariant tenv0 prior tenv s const ty
+         (Hfresh s const (Hall _ (or_introl eq_refl))) Hinvariant Hkinds
+         (Hdefined s const (or_introl eq_refl) Hclosure) Htype Hscope)
+      as [Hinvariant' Hkinds'].
+    apply IH; try assumption.
+    + intros b Hb. apply Hall. right. exact Hb.
+    + intros s' const' Hin Hclosure'.
+      exact (Hdefined s' const' (or_intror Hin) Hclosure').
+Qed.
+
+Lemma add_symbol_definitions_invariant (tenv : Typing_env.t)
+    (syms : list symbol) :
+  typing_env_invariant tenv ->
+  typing_env_invariant (Typing_env.add_symbol_definitions tenv syms).
+Proof.
+  intros Hinvariant. induction syms as [ | sym syms IH].
+  - destruct tenv. exact Hinvariant.
+  - exact (add_symbol_definition_invariant
+             (Typing_env.add_symbol_definitions tenv syms) sym IH).
+Qed.
+
+Theorem add_static_bindings_invariant
+    : add_static_bindings_invariant_statement.
+Proof.
+  intros tenv bindings Hinvariant Hfresh. unfold add_static_bindings.
+  cbv zeta.
+  assert (Hkinds :
+    symbols_of_kind_value tenv
+      (Typing_env.add_symbol_definitions tenv (closure_symbols_of bindings))).
+  { intros s ty btm Hlookup. left.
+    pose proof Hinvariant as Hparts. invariant_parts Hparts.
+    exact (Hsymbols s ty btm Hlookup). }
+  destruct
+    (add_block_like_bindings_invariant tenv bindings Hfresh bindings _
+       (fun binding Hin => Hin)
+       (add_symbol_definitions_invariant tenv (closure_symbols_of bindings)
+          Hinvariant)
+       Hkinds)
+    as [Hprior Hkinds_prior].
+  apply (add_closure_bindings_invariant tenv _ bindings Hfresh bindings _
+           (fun binding Hin => Hin) Hprior Hkinds_prior
+           (fun y Hy => in_scope_mem _ y Hy)).
+  intros s const Hin Hclosure. apply among_In.
+  apply defined_symbols_block_like. left.
+  change
+    (s ∈ closure_symbols_of bindings ++ Typing_env.defined_symbols tenv).
+  apply in_or_app. left. apply in_closure_symbols_of. exists const.
+  split; assumption.
+Qed.
+
+Theorem add_static_bindings_well_formed
+    : add_static_bindings_well_formed_statement.
+Proof.
+  intros tenv bindings Hinvariant Hfresh.
+  pose proof (add_static_bindings_invariant tenv bindings Hinvariant Hfresh)
+    as Hafter.
+  split; [ exact (proj1 Hafter) | ].
+  exact (proj1 (closure_env_invariant _ Hafter)).
+Qed.
+
+Theorem example_group_well_formed : example_group_well_formed_statement.
+Proof. vm_compute. repeat split; reflexivity. Qed.

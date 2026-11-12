@@ -141,16 +141,45 @@
      symbol, is the [Simple] that the field was given
      ([example_load_of_static_block_statement]).
 
-   Not here: that the environment made passes the test of
-   well-formedness that the function which puts the rewrites together
-   makes before it rewrites. The types of the symbols as they are
-   seen in the body of code, which runs later and under other
-   variables, are in FlambdaSimplifyCodeEnvSpec.v, with an example of
-   a call of a symbol bound to a closure.
+   - The environment made is well formed
+     ([add_static_bindings_invariant_statement],
+     [add_static_bindings_well_formed_statement]): it has the invariant
+     of typing environments
+     (FlambdaTypingEnvInvariantSpec.typing_env_invariant) if the
+     environment had it and had none of the symbols that the group
+     binds defined; so it passes the test of well-formedness that the
+     function which puts the rewrites together makes before it
+     rewrites, and so does it with its variables out of scope, which
+     is the first test of FlambdaSimplifyCodeEnvSpec.code_env_in. The
+     two premises, plainly. The one on the environment is the model's
+     invariant, which is stricter than what the compiler keeps
+     (decision D32: the equations of the levels agree with the types
+     of the environment, and a symbol that has a type is defined;
+     discrepancies T2-1 and T2-4), so that an environment that the
+     compiler has need not satisfy it. The one on the group, that its
+     symbols are new to the environment, holds of a unit that binds
+     each symbol once, which the compiler's units do though nothing
+     checks it across a unit (C0-4); a term of the model that binds a
+     symbol again is undefined there. It is about the bindings of the
+     term: the compiler adds the types of the constants that it lifts
+     by another function, which lets a symbol be defined already
+     ([add_lifted_constant_state] of simplify/env/downwards_env.ml,
+     with [maybe_already_defined]), and that is not modelled here. An
+     example: a group of six bindings of every sort
+     ([example_group_well_formed_statement]).
 
-   Nothing is assumed of the term: where a symbol is bound twice, or a
-   constant has no value, the [Let_static] is undefined and anything
-   refines it.
+   Not here: that the test of well-formedness is passed from an
+   environment that passes the test and has not the invariant (the
+   test does not see that the levels agree). The types of the symbols
+   as they are seen in the body of code, which runs later and under
+   other variables, are in FlambdaSimplifyCodeEnvSpec.v, with an
+   example of a call of a symbol bound to a closure.
+
+   The statements of refinement assume nothing of the term: where a
+   symbol is bound twice, or a constant has no value, the [Let_static]
+   is undefined and anything refines it. The two statements that the
+   environment made is well formed have the premise on the group that
+   is said above.
 
    The proofs are in FlambdaSimplifyStaticsProofs.v, which needs no
    review. *)
@@ -162,7 +191,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
   FlambdaNominalSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaTypingEnv
-  FlambdaTypingEnvSpec FlambdaTypingEnvExamplesSpec
+  FlambdaTypingEnvSpec FlambdaTypingEnvInvariantSpec
+  FlambdaTypingEnvExamplesSpec
   FlambdaTypingEnvRefinementSpec FlambdaTypeRenameSpec FlambdaEnvRenameSpec
   FlambdaSimplifyPrimitivesSpec FlambdaSimplifyProjectionsSpec
   FlambdaSimplifyApplySpec.
@@ -425,3 +455,73 @@ Definition example_load_of_static_block_statement : Prop :=
       (Let_static bindings
          (Let example_q Value (Simple (Var example_x))
             (Apply_cont (Apply_cont_expr k [Var example_x] None)))).
+
+(* ======================================================================== *)
+(* The environment made is well formed                                      *)
+(* ======================================================================== *)
+
+(* The environment made has the invariant of typing environments, if
+   the environment had it and had none of the symbols that the group
+   binds defined. *)
+Definition add_static_bindings_invariant_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (bindings : list static_binding),
+    typing_env_invariant tenv ->
+    (∀ (s : symbol) (const : static_const),
+      Bind_symbol s const ∈ bindings ->
+      among s (Typing_env.defined_symbols tenv) = false) ->
+    typing_env_invariant (add_static_bindings tenv bindings).
+
+(* So it passes the test of well-formedness, and so does it with its
+   variables out of scope ([Typing_env.closure_env]): the first test
+   of FlambdaSimplifyCodeEnvSpec.code_env_in. *)
+Definition add_static_bindings_well_formed_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (bindings : list static_binding),
+    typing_env_invariant tenv ->
+    (∀ (s : symbol) (const : static_const),
+      Bind_symbol s const ∈ bindings ->
+      among s (Typing_env.defined_symbols tenv) = false) ->
+    typing_env_well_formed (add_static_bindings tenv bindings) = true
+    ∧ typing_env_well_formed
+        (Typing_env.closure_env (add_static_bindings tenv bindings))
+      = true.
+
+(* A group of six bindings of every sort, under the environment of the
+   example above, in which [x] and [y] are defined: a block of the two
+   variables; a boxed constant; a closure whose value slot holds [x];
+   a block that names that closure, which the group binds before it,
+   the first block and a constant; a string; and a closure of a set
+   that names itself for its slot and whose value slot holds the
+   second block. The symbols are 1 to 6. *)
+Definition example_group : list static_binding :=
+  [Bind_symbol 1%positive
+     (Static_const_block 0 [Var example_x; Var example_y]);
+   Bind_symbol 2%positive
+     (Static_const_boxed_number (Const (Naked_int64 5)));
+   Bind_symbol 3%positive
+     (Static_const_set_of_closures example_f [(example_w, Var example_x)]);
+   Bind_symbol 4%positive
+     (Static_const_block 1
+        [Symbol 3%positive; Symbol 1%positive; Const (Tagged_immediate 3)]);
+   Bind_symbol 5%positive (Static_const_immutable_string [104; 105]);
+   Bind_symbol 6%positive
+     (Static_const_closure_of_set 1%positive [(1%positive, 6%positive)]
+        [(1%positive, example_f)] [(example_w, Symbol 4%positive)])].
+
+(* The environment made passes the test, with its variables in scope
+   and out of scope, and every symbol of the group has a type in it. *)
+Definition example_group_well_formed_statement : Prop :=
+  let after := add_static_bindings example_pair_env example_group in
+  typing_env_well_formed after = true
+  ∧ typing_env_well_formed (Typing_env.closure_env after) = true
+  ∧ forallb
+      (fun s =>
+         match
+           Keyed.lookup name_eqb (Name_symbol s)
+             (Typing_env.names_to_types after)
+         with
+         | Some _ => true
+         | None => false
+         end)
+      [1%positive; 2%positive; 3%positive; 4%positive; 5%positive;
+       6%positive]
+    = true.
