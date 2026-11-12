@@ -78,33 +78,57 @@
    and the type is well formed if the types kept are
    ([expand_variable_well_formed_statement]).
 
-   And about the last phase itself, the variables
-   ([define_variables_in_scope_statement]): the equations of the two
-   extensions that it adds are on variables of the target that it
-   answers, and their types mention only such variables: those that
-   the source knows, those brought in, and those of the variables
-   that the join has made that the phase defines. This is of a state
-   whose equations mention only variables of the target so far
-   ([equations_in_target]), and where no variable that is to be an
-   alias of one that the join has made is itself one that the join
-   has made ([aliases_not_made]).
+   And about the variables of the two extensions, for the join of
+   environments up to what it adds to the target:
+   - the last phase ([define_variables_in_scope_statement]): the
+     equations of the two extensions that it adds are on variables
+     that the target is to have, and their types mention only such
+     variables: those that the source knows, those brought in, and
+     those of the variables that the join has made that the phase
+     defines ([in_final_target]). This is of a state whose equations
+     mention only variables of the target so far
+     ([equations_in_target]), and where no variable that is to be an
+     alias of one that the join has made is itself one that the join
+     has made ([aliases_not_made]).
+   - the first phases ([first_phases_scoped_statement]): the state
+     that they answer has those two properties ([state_scoped], and
+     [scoped_aliases_not_made_statement]), given a join of types that
+     has its contract and keeps them
+     ([join_of_types_keeps_scoped]).
+   - the join of types of FlambdaJoinTypes.v, given the three
+     functions of the join of environments, keeps them
+     ([n_way_join_keeps_scoped_statement]).
+   - together ([cut_and_n_way_join0_in_scope_statement]): the
+     equations of the two extensions that [cut_and_n_way_join0] adds
+     are on such variables and mention only such variables.
 
-   Not here yet: that the state that the first phases of a join
-   answer has those two properties; the kinds of what
-   [Join_env.expand_variable] answers; and the kinds and the
-   well-formedness of the equations that the state of a join holds,
-   through the phases of the join, which is what would give them of
-   the two extensions. A symbol of an equation is said nothing of
-   (the target is to know it too). *)
+   [in_final_target] is a set of variables read from the state of the
+   join: it is what the target is to know, not what the environment
+   answered knows. The functions of the meet's environment are any
+   functions here, and nothing is supposed of them: that the
+   environment that they answer knows these variables is for the
+   statements about those functions. A symbol of an equation is said
+   nothing of (the target is to know it too). And the witnesses of
+   these statements (the variables kept, the two lists of equations)
+   are not said to be those of the statements of
+   FlambdaJoinDefineSpec.v about what the equations mean: the proofs
+   take the same ones, and a statement that has both conclusions is
+   still to be made.
+
+   Not here yet: the kinds of what [Join_env.expand_variable] answers;
+   and the kinds and the well-formedness of the equations that the
+   state of a join holds, through the phases of the join, which is
+   what would give them of the two extensions. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
   FlambdaMapSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
-  FlambdaTypeWellFormedSpec FlambdaTypeProject FlambdaTypingEnv FlambdaJoinEnv
-  FlambdaJoinSpec FlambdaJoinEnvSpec FlambdaJoinStateSpec
-  FlambdaJoinDefineSpec.
+  FlambdaTypeWellFormedSpec FlambdaTypeProject FlambdaBindingTime
+  FlambdaTypingEnv FlambdaTypingEnvInvariantSpec FlambdaTypingEnvKindedSpec
+  FlambdaJoinEnv FlambdaJoinSpec FlambdaJoinEnvSpec FlambdaJoinStateSpec
+  FlambdaJoinDefineSpec FlambdaJoinTypes.
 Import ListNotations.
 
 (* The type answered is of the kind of the type given. *)
@@ -281,9 +305,12 @@ Definition aliases_not_made (s : Join_env.t) : Prop :=
         (Join_env.aliases_of_existentials s) e ->
     ~ is_existential s x.
 
-(* A variable of the target that the last phase answers, given the
-   variables that the join has made that the phase defines: one that
-   the source knows, one brought in, or one of those. *)
+(* A variable that the target that the last phase answers is to have,
+   given the variables that the join has made that the phase defines:
+   one that the source knows, one brought in, or one of those. (This
+   is read from the state of the join. That the environment answered
+   knows such a variable depends on the functions of the meet's
+   environment, of which nothing is supposed here.) *)
 Definition in_final_target (s : Join_env.t)
     (kept : list (variable * flambda_kind)) (x : variable) : Prop :=
   knows (Join_env.source_env s) x ∨ is_imported s x ∨ x ∈ map fst kept.
@@ -304,7 +331,8 @@ Definition equations_in_final_target (s : Join_env.t)
    is as [define_variables_true_statement] (FlambdaJoinDefineSpec.v)
    has it, the environment given with the variables brought in and
    some of the variables made defined in it and two extensions added;
-   and the equations of the two extensions are in that target. *)
+   and the equations of the two extensions are on variables that the
+   target is to have, and mention only such variables. *)
 Definition define_variables_in_scope_statement : Prop :=
   ∀ (meet_env meet_expanded_head : Type)
     (ops : Join_env.meet_env_functions meet_env meet_expanded_head)
@@ -328,6 +356,202 @@ Definition define_variables_in_scope_statement : Prop :=
          binding
          ∈ Bindings_in_target_env.existential_variables_in_order
              (Join_env.bindings s))
+      ∧ Join_env.add_env_extension ops
+          (variables_defined ops menv
+             (Bindings_in_target_env.imported_variables_in_order
+                (Join_env.bindings s)
+              ++ kept))
+          (Env_extension equations) mh
+        = Some menv'
+      ∧ Join_env.add_env_extension ops menv' (Env_extension relation_equations)
+          mh
+        = Some target
+      ∧ equations_in_final_target s kept equations
+      ∧ equations_in_final_target s kept relation_equations.
+
+(* ======================================================================== *)
+(* The state that the first phases answer                                   *)
+(* ======================================================================== *)
+
+(* A variable that is to be an alias of a variable that the join has
+   made is one that the source knows, or one brought in. *)
+Definition aliases_from_envs (s : Join_env.t) : Prop :=
+  ∀ e x : variable,
+    x
+    ∈ Aliases_of_existentials.aliases_of_existential_var
+        (Join_env.aliases_of_existentials s) e ->
+    knows (Join_env.source_env s) x ∨ is_imported s x.
+
+(* The variables listed as brought in are recorded with a kind (the
+   first part of [imports_recorded], FlambdaJoinEnvSpec.v, which a
+   valid state has). *)
+Definition imports_listed (s : Join_env.t) : Prop :=
+  ∀ x : variable,
+    among x (Join_env.imported_vars s) = true -> is_imported s x.
+
+(* What the first phases keep of the variables of the state: the types
+   of its equations mention only variables of the target so far, and
+   the aliases of the variables made are of the source or brought
+   in. *)
+Definition state_scoped (s : Join_env.t) : Prop :=
+  equations_in_target s ∧ aliases_from_envs s.
+
+(* At a valid state, the second gives the premise of
+   [define_variables_in_scope_statement]: no environment knows a
+   variable that the join has made. *)
+Definition scoped_aliases_not_made_statement : Prop :=
+  ∀ s : Join_env.t,
+    state_valid s -> aliases_from_envs s -> aliases_not_made s.
+
+(* What is asked of the join of types: it keeps the two properties,
+   at a state whose imports are listed. (Its contract,
+   [n_way_join_type_sound] of FlambdaJoinSpec.v, says that the type
+   answered mentions only variables of the target, and nothing of the
+   equations that the state holds.) *)
+Definition join_of_types_keeps_scoped (jt : Join_env.n_way_join_type) : Prop :=
+  ∀ (s s' : Join_env.t) (ts : list (Index.t * flambda_type))
+    (joined : Or_unknown.t flambda_type),
+    jt s ts = Some (joined, s') ->
+    imports_listed s ->
+    state_scoped s ->
+    state_scoped s'.
+
+(* The join of types of FlambdaJoinTypes.v, given the three functions
+   of the join of environments, keeps them: at every state, for every
+   list of types, and whatever the other four functions that it is
+   given. (By [n_way_join_keeps_statement], FlambdaJoinTypesKeepsSpec.v:
+   the three functions keep them, between any two states.) *)
+Definition n_way_join_keeps_scoped_statement : Prop :=
+  ∀ (p : Join_env.parameters) (fuel_of_env fuel : nat)
+    (expand_head : Typing_env.t -> flambda_type -> option Expanded_type.t)
+    (reduce_head_of_kind_naked_immediate :
+       Typing_env.t -> head_of_kind_naked_immediate
+       -> Or_bottom.t head_of_kind_naked_immediate)
+    (type_eqb : flambda_type -> flambda_type -> bool)
+    (block_shape_eqb : block_shape -> block_shape -> bool),
+    join_of_types_keeps_scoped
+      (n_way_join Join_env.joined_env
+         (Join_env.n_way_join_simples p fuel_of_env)
+         (Join_env.import_type p fuel_of_env)
+         (Join_env.n_way_join_env_extension p fuel_of_env) expand_head
+         reduce_head_of_kind_naked_immediate type_eqb block_shape_eqb fuel).
+
+(* The first phases answer a state that has the two properties: under
+   the premises of [first_phases_true_statement]
+   (FlambdaJoinStateSpec.v), with a join of types that keeps them. *)
+Definition first_phases_scoped_statement : Prop :=
+  ∀ (source : Typing_env.t) (jt : Join_env.n_way_join_type)
+    (choices : Join_env.choices) (p : Join_env.parameters) (fuel : nat)
+    (avoid : list variable) (envs : Joined_envs.t) (s1 s2 s3 : Join_env.t)
+    (relations2 relations3 : Join_env.inverse_relations),
+    n_way_join_type_sound typing_env_invariant Join_env.joined_env
+      Join_env.definitions_of_existentials kind_in_target_env
+      (state_true source) state_kinded jt ->
+    join_of_types_keeps_scoped jt ->
+    fresh_avoids p ->
+    parameters_type_eqb_sound p ->
+    expand_const_sound p ->
+    (∀ x : variable, knows source x -> x ∈ avoid) ->
+    (∀ (index : Index.t) (use : Typing_env.t) (x : variable),
+       Joined_envs.get_nth_joined_env envs index = Some use ->
+       knows use x ->
+       x ∈ avoid) ->
+    (∀ (index : Index.t) (use : Typing_env.t),
+       Joined_envs.get_nth_joined_env envs index = Some use ->
+       typing_env_invariant use) ->
+    (∀ (index : Index.t) (use : Typing_env.t),
+       Joined_envs.get_nth_joined_env envs index = Some use ->
+       typing_env_kinded use) ->
+    levels_found envs ->
+    (∀ (index : Index.t) (use : Typing_env.t) (x : variable)
+       (kind : flambda_kind) (ty : flambda_type)
+       (binding_time_and_mode : Binding_time.With_name_mode.t),
+       Joined_envs.get_nth_joined_env envs index = Some use ->
+       simple_of_kind use (Var x) kind ->
+       Keyed.lookup name_eqb (Name_var x) (Typing_env.names_to_types source)
+       = Some (ty, binding_time_and_mode) ->
+       FlambdaTypeGrammar.kind ty = kind) ->
+    Join_env.join_aliases_into_bindings p fuel
+      (Join_env.create envs
+         (Bindings_in_target_env.from_source_env avoid source))
+      envs
+    = Some s1 ->
+    Join_env.n_way_join_delayed_equations fuel choices jt s1 []
+      (Join_env.new_equations_in_joined_envs s1
+         (Join_env.create envs
+            (Bindings_in_target_env.from_source_env avoid source)))
+    = Some (relations2, s2) ->
+    Join_env.n_way_join_loop (Join_env.join_depth p) p fuel choices jt s2
+      relations2
+      (Join_env.new_definitions_of_existentials s2
+         (Join_env.create envs
+            (Bindings_in_target_env.from_source_env avoid source)))
+    = Some (relations3, s3) ->
+    state_scoped s3.
+
+(* ======================================================================== *)
+(* The join, up to what it adds to the target                               *)
+(* ======================================================================== *)
+
+(* [cut_and_n_way_join0], where there is an environment to join, under
+   the premises of [cut_and_n_way_join0_true_statement]
+   (FlambdaJoinDefineSpec.v) and with a join of types that keeps the
+   two properties: there is a state that has the invariant, whose
+   names to avoid are the names answered, such that the target
+   answered is the environment given with the variables brought in
+   and some of the variables made defined in it and two extensions
+   added; and the equations of the two extensions are on variables
+   that the target is to have, and mention only such variables. *)
+Definition cut_and_n_way_join0_in_scope_statement : Prop :=
+  ∀ (meet_env meet_expanded_head : Type)
+    (ops : Join_env.meet_env_functions meet_env meet_expanded_head)
+    (p : Join_env.parameters) (fuel : nat) (choices : Join_env.choices)
+    (jt : Join_env.n_way_join_type) (mh : meet_expanded_head)
+    (avoid : list variable) (menv target : meet_env) (source : Typing_env.t)
+    (envs : Joined_envs.t)
+    (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind))
+    (names : list variable),
+    n_way_join_type_sound typing_env_invariant Join_env.joined_env
+      Join_env.definitions_of_existentials kind_in_target_env
+      (state_true source) state_kinded jt ->
+    join_of_types_keeps_scoped jt ->
+    fresh_avoids p ->
+    parameters_type_eqb_sound p ->
+    expand_const_sound p ->
+    (∀ x : variable, knows source x -> x ∈ avoid) ->
+    (∀ (index : Index.t) (use : Typing_env.t) (x : variable),
+       Joined_envs.get_nth_joined_env envs index = Some use ->
+       knows use x ->
+       x ∈ avoid) ->
+    (∀ (index : Index.t) (use : Typing_env.t),
+       Joined_envs.get_nth_joined_env envs index = Some use ->
+       typing_env_invariant use) ->
+    (∀ (index : Index.t) (use : Typing_env.t),
+       Joined_envs.get_nth_joined_env envs index = Some use ->
+       typing_env_kinded use) ->
+    levels_found envs ->
+    (∀ (index : Index.t) (use : Typing_env.t) (x : variable)
+       (kind : flambda_kind) (ty : flambda_type)
+       (binding_time_and_mode : Binding_time.With_name_mode.t),
+       Joined_envs.get_nth_joined_env envs index = Some use ->
+       simple_of_kind use (Var x) kind ->
+       Keyed.lookup name_eqb (Name_var x) (Typing_env.names_to_types source)
+       = Some (ty, binding_time_and_mode) ->
+       FlambdaTypeGrammar.kind ty = kind) ->
+    Keyed.is_empty envs = false ->
+    Join_env.cut_and_n_way_join0 ops p fuel choices jt mh avoid menv source
+      envs
+    = Some (target, definitions, names) ->
+    ∃ (s : Join_env.t) (kept : list (variable * flambda_kind))
+      (equations relation_equations : list (name * flambda_type))
+      (menv' : meet_env),
+      state_true source s
+      ∧ names = Bindings_in_target_env.names_to_avoid (Join_env.bindings s)
+      ∧ (∀ binding : variable * flambda_kind,
+           binding ∈ kept ->
+           binding
+           ∈ Bindings_in_target_env.existential_variables_in_order
+               (Join_env.bindings s))
       ∧ Join_env.add_env_extension ops
           (variables_defined ops menv
              (Bindings_in_target_env.imported_variables_in_order
