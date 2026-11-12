@@ -11,6 +11,7 @@ open FlambdaNominalSpec
 open FlambdaPrimitiveModel
 open FlambdaPrimitiveSpec
 open FlambdaSemanticsSpec
+open FlambdaTupledSpec
 open FlambdaValueSpec
 open List
 open ListDef
@@ -124,6 +125,30 @@ let inlinable_b ap c =
   && Nat.eqb (length ap.ap_args_arity) (length (code_params_arity c)))
   && negb (binds_statics (code_body c))
 
+(** val tupled_inlinable_b : apply_expr -> code -> bool **)
+
+let tupled_inlinable_b ap c =
+  ((((((((((code_is_tupled c
+           && expr_in_scope
+                (code_my_closure c :: code_params c)
+                [code_return_continuation c; code_exn_continuation c]
+                (code_body c))
+          && negb
+               (Pos.eqb (code_return_continuation c) (code_exn_continuation c))
+          )
+         && negb (Pos.eqb ap.ap_continuation ap.ap_exn_continuation))
+        && no_exn_extra_args ap)
+       && negb (var_in_simples (code_my_closure c) ap.ap_args))
+      && forallb
+           (fun param -> negb (var_in_simples param ap.ap_args))
+           (code_params c))
+     && Nat.eqb (length ap.ap_args) (S O))
+    && arity_eqb ap.ap_args_arity (Singleton Value :: []))
+   && arity_eqb (code_params_arity c)
+        (arity_of_kinds (repeat Value (length (code_params c)))))
+  && negb (Nat.eqb (length (code_params c)) O))
+  && negb (binds_statics (code_body c))
+
 (** val codes_of : static_binding list -> (code_id * code) list -> (code_id *
     code) list **)
 
@@ -146,6 +171,13 @@ let inline_apply kept known ap =
       if negb (among called kept) && inlinable_b ap c
       then
         inlined_body c
+          (inline_renaming
+             (code_return_continuation c)
+             (code_exn_continuation c) ap.ap_continuation ap.ap_exn_continuation)
+          ap
+      else if negb (among called kept) && tupled_inlinable_b ap c
+      then
+        inlined_tupled_call c
           (inline_renaming
              (code_return_continuation c)
              (code_exn_continuation c) ap.ap_continuation ap.ap_exn_continuation)

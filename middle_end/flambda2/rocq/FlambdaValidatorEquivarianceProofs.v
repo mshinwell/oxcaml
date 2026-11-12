@@ -192,6 +192,10 @@ Qed.
 Theorem inlinable_b_equivariant : inlinable_b_equivariant_statement.
 Proof. exact FlambdaEquivarianceProofs.inlinable_b_equivariant. Qed.
 
+Theorem tupled_inlinable_b_equivariant :
+  tupled_inlinable_b_equivariant_statement.
+Proof. exact FlambdaEquivarianceProofs.tupled_inlinable_b_equivariant. Qed.
+
 Lemma var_in_simple_equivariant (r : renaming) (x : variable) (s : simple) :
   var_in_simple (rename_variable r x) (rename_simple r s) = var_in_simple x s.
 Proof. destruct s; simpl; [ apply rename_variable_eqb | | ]; reflexivity. Qed.

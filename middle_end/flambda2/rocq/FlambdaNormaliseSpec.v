@@ -45,7 +45,13 @@
    that the [Let_static]s passed have bound ([known]), and replaces a
    direct call of known code by the code inlined
    (FlambdaApplySpec.inlined_body) where that is sound ([inlinable_b],
-   which decides FlambdaApplySpec.inlinable). What is known where a
+   a check that is enough for FlambdaApplySpec.inlinable). That is for
+   code that is not tupled. A direct call that gives known tupled code
+   one argument, the tuple, is replaced by the code inlined with its
+   parameters bound to the fields of the tuple
+   (FlambdaTupledSpec.inlined_tupled_call) where that is sound
+   ([tupled_inlinable_b], a check that is enough for
+   FlambdaTupledSpec.tupled_inlinable). What is known where a
    handler or code is defined holds where it runs, however much later: a
    code id is bound once (FlambdaWellFormedSpec.v). The body of code is
    rewritten with what was known before its group of bindings, so nothing
@@ -128,7 +134,8 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaSemanticsSpec FlambdaNominalSpec FlambdaApplySpec FlambdaCompareSpec.
+  FlambdaSemanticsSpec FlambdaNominalSpec FlambdaApplySpec FlambdaCompareSpec
+  FlambdaTupledSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -225,7 +232,10 @@ Definition var_in_simples (x : variable) (args : list simple) : bool :=
        end)
     args.
 
-(* Decides FlambdaApplySpec.inlinable, for [inline_renaming]. *)
+(* Enough for FlambdaApplySpec.inlinable at [inline_renaming]
+   (FlambdaNormaliseProofs.inlinable_b_sound); the converse is not
+   claimed. It asks more than the predicate: that the two continuations
+   of the code differ, and that those of the call differ. *)
 Definition inlinable_b (ap : apply_expr) (c : code) : bool :=
   negb (code_is_tupled c)
   && expr_in_scope (code_my_closure c :: code_params c)
@@ -238,6 +248,29 @@ Definition inlinable_b (ap : apply_expr) (c : code) : bool :=
        (code_params c)
   && Nat.eqb (length (code_params c)) (length (ap_args ap))
   && Nat.eqb (length (ap_args_arity ap)) (length (code_params_arity c))
+  && negb (binds_statics (code_body c)).
+
+(* Enough for FlambdaTupledSpec.tupled_inlinable at [inline_renaming]
+   and the one argument of the call
+   (FlambdaNormaliseProofs.tupled_inlinable_b_sound); the converse is
+   not claimed. It asks more than the predicate: that the two
+   continuations of the code differ, and that those of the call
+   differ. *)
+Definition tupled_inlinable_b (ap : apply_expr) (c : code) : bool :=
+  code_is_tupled c
+  && expr_in_scope (code_my_closure c :: code_params c)
+    [code_return_continuation c; code_exn_continuation c] (code_body c)
+  && negb (Pos.eqb (code_return_continuation c) (code_exn_continuation c))
+  && negb (Pos.eqb (ap_continuation ap) (ap_exn_continuation ap))
+  && no_exn_extra_args ap
+  && negb (var_in_simples (code_my_closure c) (ap_args ap))
+  && forallb (fun param => negb (var_in_simples param (ap_args ap)))
+       (code_params c)
+  && Nat.eqb (length (ap_args ap)) 1
+  && arity_eqb (ap_args_arity ap) [Singleton Value]
+  && arity_eqb (code_params_arity c)
+       (arity_of_kinds (repeat Value (length (code_params c))))
+  && negb (Nat.eqb (length (code_params c)) 0)
   && negb (binds_statics (code_body c)).
 
 (* The code that a group of bindings adds to what is known, the last
@@ -261,6 +294,13 @@ Definition inline_apply (kept : list code_id)
       if negb (among called kept) && inlinable_b ap c
       then
         inlined_body c
+          (inline_renaming (code_return_continuation c)
+             (code_exn_continuation c) (ap_continuation ap)
+             (ap_exn_continuation ap))
+          ap
+      else if negb (among called kept) && tupled_inlinable_b ap c
+      then
+        inlined_tupled_call c
           (inline_renaming (code_return_continuation c)
              (code_exn_continuation c) (ap_continuation ap)
              (ap_exn_continuation ap))

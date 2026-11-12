@@ -106,9 +106,9 @@
    answers the same.
 
    The rewrites and checks of FlambdaNormaliseSpec.v:
-   - the checks [expr_in_scope], [inlinable_b] and [var_free_b], and
-     the test of whether a call agrees with the code called in its
-     arities ([call_agrees_b]);
+   - the checks [expr_in_scope], [inlinable_b], [tupled_inlinable_b]
+     and [var_free_b], and the test of whether a call agrees with the
+     code called in its arities ([call_agrees_b]);
    - the rewrites [remove_unused_lets], [inline_tail_conts] (with
      [inline_cont_at_tail], which it is made of), [drop_deleted_code],
      [remove_unused_total_lets], [remove_unused_defined_lets],
@@ -308,6 +308,12 @@ Definition expr_in_scope_equivariant_statement : Prop :=
 Definition inlinable_b_equivariant_statement : Prop :=
   ∀ (r : renaming) (ap : apply_expr) (c : code),
     inlinable_b (rename_apply r ap) (rename_code r c) = inlinable_b ap c.
+
+(* The same for a call that gives tupled code a tuple. *)
+Definition tupled_inlinable_b_equivariant_statement : Prop :=
+  ∀ (r : renaming) (ap : apply_expr) (c : code),
+    tupled_inlinable_b (rename_apply r ap) (rename_code r c)
+    = tupled_inlinable_b ap c.
 
 Definition var_free_b_equivariant_statement : Prop :=
   ∀ (r : renaming) (x : variable) (e : expr),

@@ -51,7 +51,8 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaSemanticsSpec FlambdaBindersSpec
   FlambdaFreeNamesSpec FlambdaFreeNamesProofs FlambdaApplySpec
-  FlambdaCompareSpec FlambdaNormaliseSpec FlambdaNormaliseProofs
+  FlambdaTupledSpec FlambdaCompareSpec FlambdaNormaliseSpec
+  FlambdaNormaliseProofs
   FlambdaUnusedContsSpec FlambdaUnusedContsProofs
   FlambdaValidatorEquivarianceSpec.
 Import ListNotations.
@@ -636,6 +637,47 @@ Proof.
     apply IH in Hx; [ | simpl in Hlength; congruence ].
     destruct Hx as [Hx | [Hx Hparams]];
       [ left; apply in_or_app; right; exact Hx | right ].
+    split; [ exact Hx | ].
+    intros [Heq | Hin]; [ apply Hparam; left; exact Heq | exact (Hparams Hin) ].
+Qed.
+
+(* The parameters of tupled code bound to the fields of a tuple. *)
+Lemma let_tuple_fields_code_closed (params : list variable) :
+  ∀ (size field : nat) (tuple : simple) (body : expr),
+    code_closed (let_tuple_fields params size field tuple body)
+    = code_closed body.
+Proof.
+  induction params as [ | param params IH]; intros size field tuple body;
+    cbn [let_tuple_fields]; scope; [ reflexivity | ].
+  apply IH.
+Qed.
+
+Lemma let_tuple_fields_free_continuations (params : list variable) :
+  ∀ (size field : nat) (tuple : simple) (body : expr),
+    free_continuations_of_expr (let_tuple_fields params size field tuple body)
+    = free_continuations_of_expr body.
+Proof.
+  induction params as [ | param params IH]; intros size field tuple body;
+    cbn [let_tuple_fields]; scope; [ reflexivity | ].
+  apply IH.
+Qed.
+
+Lemma let_tuple_fields_free_variables (params : list variable) :
+  ∀ (size field : nat) (tuple : simple) (body : expr) (x : variable),
+    In x
+      (free_variables_of_expr
+         (let_tuple_fields params size field tuple body)) ->
+    In x (free_variables_of_simples [tuple])
+    ∨ (In x (free_variables_of_expr body) ∧ ~ In x params).
+Proof.
+  induction params as [ | param params IH];
+    intros size field tuple body x; cbn [let_tuple_fields]; scope.
+  - intros Hx. right. split; [ exact Hx | intros [] ].
+  - cbn [free_variables_of_named]. intros Hx. apply in_app_or in Hx.
+    destruct Hx as [Hx | Hx]; [ left; exact Hx | ].
+    apply in_without in Hx. destruct Hx as [Hx Hparam].
+    apply IH in Hx.
+    destruct Hx as [Hx | [Hx Hparams]]; [ left; exact Hx | right ].
     split; [ exact Hx | ].
     intros [Heq | Hin]; [ apply Hparam; left; exact Heq | exact (Hparams Hin) ].
 Qed.

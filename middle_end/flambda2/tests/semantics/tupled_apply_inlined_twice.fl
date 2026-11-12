@@ -1,0 +1,20 @@
+let code inline(always) size(2) tupled
+      first_0 (a, b) my_closure &my_region my_depth -> k * e =
+  cont k (a)
+in
+let code inline(always) size(2) tupled
+      second_1 (a, b) my_closure &my_region my_depth -> k * e =
+  cont k (b)
+in
+let $Hello = "hello" in
+let $World = "world" in
+let $Inner = Block 0 ($Hello, $World) in
+let $Outer = Block 0 (1, $Inner) in
+let first = closure first_0 @first &toplevel in
+let second = closure second_1 @second &toplevel in
+apply &toplevel second ($Outer) -> k1 * error
+  where k1 (inner) =
+    apply &toplevel first (inner) -> k2 * error
+  where k2 (result) =
+    let $camlTupled_apply_inlined_twice = Block 0 (result) in
+    cont done ($camlTupled_apply_inlined_twice)

@@ -307,14 +307,25 @@ conditions `tupled_inlinable`, which are those of `inlinable` but for
 the arguments); and the two are equivalent where the callee is a
 closure of that code and the call returns at the result arity of the
 code (`inline_tupled_equivalent_statement`), which is the form that a
-rewrite of the term after Simplify needs. What is left is with the
-owners of the validator: a test
-for `tupled_inlinable`, and the case in the normalisation that inlines
-calls of known code, with the statements that a change of that
-function owes (that it commutes with renaming and keeps scope). It is
-what the units in which Simplify inlines a tupled function need in
-order to validate (`tests/semantics/tupled_apply_inlined.fl`,
-`kinds_tupled.fl`).
+rewrite of the term after Simplify needs. The validation uses the
+refinement: `FlambdaNormaliseSpec.inline_apply`, which inlines the
+direct calls of known code in the term before, has a second case, for
+a call that gives known tupled code one argument
+(`tupled_inlinable_b`, a check that is enough for
+`tupled_inlinable`; `inlined_tupled_call`). The rewrite commutes with
+renaming and keeps
+scope as it did. With it the units in which Simplify inlines a tupled
+function validate (`tests/semantics/tupled_apply_inlined.fl`,
+`tupled_apply_inlined_twice.fl`, `kinds_tupled.fl`), where the
+validation makes the call direct first: the callee is a symbol, or a
+variable bound to a closure of a set of one function with no named
+slot. `tests/semantics/ocaml/tupled_function.ml` is not there yet: its
+code projects its own function slot, so its closures are converted as
+closures of sets at named slots, and a call of a variable bound to
+such a closure is not made direct
+(`../types/rocq/FlambdaAliasesSpec.typing_env_under_let`). The
+equivalence is not used yet (`inline_known_apply`, for a callee that
+is a symbol).
 
 ## 6. Fallout
 
@@ -483,8 +494,9 @@ B. The call kind `Detupled`, `detuple_statement`, and the converter's
    needs no third kind.
 C. The inlining of a call that gives tupled code a tuple, for the
    validator. The statements are proved (`inline_tupled_statement`,
-   `inline_tupled_equivalent_statement`, after the first series); the
-   case in the validator's normalisation is left.
+   `inline_tupled_equivalent_statement`, after the first series), and
+   the validator's inlining of direct calls has the case
+   (`FlambdaNormaliseSpec.inline_apply`).
 
 What the first series gives on its own: a unit that binds tupled code
 is run and compared where Simplify leaves the calls of that code as

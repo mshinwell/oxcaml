@@ -41,7 +41,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaPrimitiveSpec FlambdaPrimitiveProofs
   FlambdaSemanticsSpec FlambdaSemanticsProofs FlambdaNominalSpec
   FlambdaNominalProofs FlambdaAlphaSpec FlambdaAlphaProofs FlambdaApplySpec
-  FlambdaNormaliseSpec FlambdaEquivarianceSpec.
+  FlambdaTupledSpec FlambdaNormaliseSpec FlambdaEquivarianceSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -1150,6 +1150,27 @@ Proof.
   reflexivity.
 Qed.
 
+Lemma tupled_inlinable_b_equivariant (r : renaming) (ap : apply_expr)
+    (c : code) :
+  tupled_inlinable_b (rename_apply r ap) (rename_code r c)
+  = tupled_inlinable_b ap c.
+Proof.
+  destruct c as [params my_closure ret exn metadata body].
+  unfold tupled_inlinable_b. simpl.
+  pose proof
+    (expr_in_scope_equivariant r body (my_closure :: params) [ret; exn])
+    as Hscope.
+  simpl in Hscope.
+  assert (Hextra : no_exn_extra_args (rename_apply r ap)
+                   = no_exn_extra_args ap).
+  { unfold no_exn_extra_args. simpl.
+    destruct (ap_exn_extra_args ap); reflexivity. }
+  rewrite Hscope, !rename_continuation_eqb, var_in_simples_equivariant,
+    params_not_in_args_equivariant, !length_map,
+    rename_binds_statics, Hextra.
+  reflexivity.
+Qed.
+
 Lemma codes_of_equivariant (r : renaming) (bindings : list static_binding) :
   ∀ known : list (code_id * code),
     codes_of (map (rename_static_binding r) bindings)
@@ -1217,6 +1238,45 @@ Proof.
     apply inline_renaming_conjugate.
 Qed.
 
+Lemma let_tuple_fields_equivariant (r : renaming) (params : list variable) :
+  ∀ (size field : nat) (tuple : simple) (body : expr),
+    rename_expr r (let_tuple_fields params size field tuple body)
+    = let_tuple_fields (map (rename_variable r) params) size field
+        (rename_simple r tuple) (rename_expr r body).
+Proof.
+  induction params as [ | param params IH]; intros size field tuple body;
+    simpl; [ reflexivity | ].
+  rewrite IH. reflexivity.
+Qed.
+
+Lemma inlined_tupled_call_equivariant (r : renaming) (c : code)
+    (ap : apply_expr) :
+  inlined_tupled_call (rename_code r c)
+    (inline_renaming (code_return_continuation (rename_code r c))
+       (code_exn_continuation (rename_code r c))
+       (ap_continuation (rename_apply r ap))
+       (ap_exn_continuation (rename_apply r ap)))
+    (rename_apply r ap)
+  = rename_expr r
+      (inlined_tupled_call c
+         (inline_renaming (code_return_continuation c)
+            (code_exn_continuation c) (ap_continuation ap)
+            (ap_exn_continuation ap))
+         ap).
+Proof.
+  destruct c as [params my_closure ret exn metadata body].
+  unfold inlined_tupled_call.
+  replace (ap_args (rename_apply r ap))
+    with (map (rename_simple r) (ap_args ap)) by reflexivity.
+  destruct (ap_args ap) as [ | tuple [ | arg args]]; try reflexivity.
+  cbn [map]. unfold inlined_tupled_body. simpl.
+  rewrite let_tuple_fields_equivariant, length_map. do 2 f_equal.
+  rewrite <- !rename_expr_compose. apply rename_expr_ext.
+  - intros x. rewrite !rename_variable_compose. reflexivity.
+  - intros j. rewrite !rename_continuation_compose.
+    apply inline_renaming_conjugate.
+Qed.
+
 Lemma inline_apply_equivariant (r : renaming) (kept : list code_id)
     (known : list (code_id * code)) (ap : apply_expr) :
   inline_apply kept (map_values (rename_code r) known) (rename_apply r ap)
@@ -1229,10 +1289,12 @@ Proof.
   rewrite lookup_map_values.
   destruct (lookup called known) as [c | ]; cbn [option_map];
     [ | reflexivity ].
-  rewrite inlinable_b_equivariant.
+  rewrite inlinable_b_equivariant, tupled_inlinable_b_equivariant.
   destruct (negb (among called kept) && inlinable_b ap c) eqn:Hinlinable;
+    [ apply inlined_body_equivariant | ].
+  destruct (negb (among called kept) && tupled_inlinable_b ap c);
     [ | reflexivity ].
-  apply inlined_body_equivariant.
+  apply inlined_tupled_call_equivariant.
 Qed.
 
 Fixpoint inline_calls_equivariant_aux (r : renaming) (kept : list code_id)

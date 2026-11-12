@@ -11,6 +11,7 @@ open FlambdaNominalSpec
 open FlambdaPrimitiveModel
 open FlambdaPrimitiveSpec
 open FlambdaSemanticsSpec
+open FlambdaTupledSpec
 open FlambdaValueSpec
 open List
 open ListDef
@@ -38,6 +39,8 @@ val inline_renaming :
 val var_in_simples : variable -> simple list -> bool
 
 val inlinable_b : apply_expr -> code -> bool
+
+val tupled_inlinable_b : apply_expr -> code -> bool
 
 val codes_of :
   static_binding list -> (code_id * code) list -> (code_id * code) list

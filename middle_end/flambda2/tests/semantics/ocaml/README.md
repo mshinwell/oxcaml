@@ -324,7 +324,7 @@ before. What each shows, and what its validation uses besides:
 | `try_no_raise.ml` | 14, 5 | an exception: the handler of a `try` that nothing raises to any more is made an ordinary continuation and its trap actions dropped, which the validator does not follow (C5) |
 | `try_reraise.ml` | 29, 14 | an exception: the handler of a `try` that nothing raises to any more is made an ordinary continuation and its trap actions dropped, which the validator does not follow (C5) |
 | `try_result_unused.ml` | 13, 3 | an exception: the handler of a `try` that nothing raises to any more is made an ordinary continuation and its trap actions dropped, which the validator does not follow (C5) |
-| `tupled_function.ml` | 21, 2 | two calls that give a tupled function its pair, which Simplify inlines: the validator does not inline a call of tupled code (C3) |
+| `tupled_function.ml` | 21, 2 | two calls that give a tupled function its pair, which Simplify inlines. The validator inlines such a call once it is direct (`../tupled_apply_inlined_twice.fl`, the same program with closures of sets of one function, is validated); here the code projects its own function slot, so the closures are of sets at named function slots, and a call of a variable bound to such a closure is not made direct (T3) |
 | `while_flag.ml` | 150, 75 | a boolean that Simplify keeps untagged in a parameter of the loop (T6) |
 | `while_unused_counter.ml` | 78, 40 | a parameter of a loop that is only passed round the loop, which Simplify removes (V4) |
 
@@ -377,10 +377,12 @@ before. What each shows, and what its validation uses besides:
    twice leaves in the term before and Simplify makes once
    (`exported_branch_calls_twice.ml`): the sharing of primitives does
    not cover projections yet.
-8. A call that gives a tupled function its tuple, inlined by Simplify
-   (`tupled_function.ml`): the inlining of the validator asks that the
-   code is not tupled (`FlambdaApplySpec.inlinable`), as the call takes
-   its first argument apart.
+8. A call of a variable bound to a closure of a set at named function
+   slots, which the validator does not make direct and so does not
+   inline (`tupled_function.ml`, whose tupled functions project their
+   own function slot). Where the closure is a symbol, or is of a set
+   of one function with no named slot, a call that gives a tupled
+   function its tuple is inlined (`../tupled_apply_inlined_twice.fl`).
 
 What the model has not got, and the conversion refuses: floating-point
 arithmetic (`float_add.ml`), arrays (`array_literal.ml`) and mutable

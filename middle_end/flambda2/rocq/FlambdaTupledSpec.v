@@ -83,7 +83,8 @@
      arity of the code ([inline_tupled_equivalent_statement]).
      FlambdaApplySpec.inlinable excludes tupled code, as its bindings
      are of the parameters to the arguments; these are the bindings for
-     tupled code.
+     tupled code. The validation inlines such a call
+     (FlambdaNormaliseSpec.inline_apply, by [inlined_tupled_call]).
 
    What is not here: the direct call of tupled code as the compiler has
    it, which gives the code the components (the review comment at
@@ -364,6 +365,15 @@ Definition inlined_tupled_body (c : code) (r : renaming) (ap : apply_expr)
   Let (code_my_closure c) Value (Simple (ap_callee ap))
     (let_tuple_fields (code_params c) (length (code_params c)) 0 tuple
        (rename_expr r (code_body c))).
+
+(* The same for a call as it stands, whose one argument is the tuple. A
+   call of another number of arguments is left as it is. *)
+Definition inlined_tupled_call (c : code) (r : renaming) (ap : apply_expr)
+    : expr :=
+  match ap_args ap with
+  | [tuple] => inlined_tupled_body c r ap tuple
+  | _ => Apply ap
+  end.
 
 (* What makes that sound. The conditions are those of
    FlambdaApplySpec.inlinable, but for the arguments: the call gives one

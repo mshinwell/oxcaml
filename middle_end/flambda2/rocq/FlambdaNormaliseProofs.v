@@ -36,7 +36,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaNominalProofs FlambdaControlFlowSpec FlambdaControlFlowProofs
   FlambdaContextSpec FlambdaContextProofs FlambdaApplySpec FlambdaApplyProofs
   FlambdaStaticSpec FlambdaStaticProofs FlambdaCompareSpec
-  FlambdaNormaliseSpec.
+  FlambdaTupledSpec FlambdaTupledProofs FlambdaNormaliseSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -309,6 +309,68 @@ Proof.
   - apply Nat.eqb_eq, Hfull.
 Qed.
 
+Lemma tupled_inlinable_b_sound (ap : apply_expr) (c : code)
+    (tuple : simple) :
+  tupled_inlinable_b ap c = true ->
+  ap_args ap = [tuple] ->
+  tupled_inlinable ap c
+    (inline_renaming (code_return_continuation c) (code_exn_continuation c)
+       (ap_continuation ap) (ap_exn_continuation ap))
+    tuple.
+Proof.
+  unfold tupled_inlinable_b. intros Hb Hargs.
+  apply andb_true_iff in Hb as [Hb Hstatic].
+  apply negb_true_iff in Hstatic.
+  apply andb_true_iff in Hb as [Hb Hnonempty].
+  apply andb_true_iff in Hb as [Hb Hvalues].
+  apply arity_eqb_eq in Hvalues.
+  apply andb_true_iff in Hb as [Hb Harity].
+  apply arity_eqb_eq in Harity.
+  apply andb_true_iff in Hb as [Hb _].
+  apply andb_true_iff in Hb as [Hb Hparams].
+  apply andb_true_iff in Hb as [Hb Hmy_closure].
+  apply andb_true_iff in Hb as [Hb Hextra].
+  apply no_exn_extra_args_nil in Hextra.
+  apply andb_true_iff in Hb as [Hb Hcall].
+  apply andb_true_iff in Hb as [Hb Hcode].
+  apply andb_true_iff in Hb as [Htupled Hscope].
+  apply negb_true_iff, Pos.eqb_neq in Hcode.
+  apply negb_true_iff, Pos.eqb_neq in Hcall.
+  destruct (expr_in_scope_sound _ _ _ Hscope) as [Hvars Hconts].
+  destruct (inline_renaming_spec _ _ _ _ Hcode Hcall)
+    as (Hfix & Hret & Hexn).
+  rewrite Hargs in Hmy_closure, Hparams.
+  unfold tupled_inlinable.
+  refine
+    (conj _
+       (conj _
+          (conj Hfix
+             (conj Hret
+                (conj Hexn
+                   (conj Hextra
+                      (conj Hargs
+                         (conj Harity
+                            (conj _
+                               (conj _
+                                  (conj Htupled
+                                     (conj Hvalues
+                                        (conj _ Hstatic))))))))))))).
+  - intros x Hx. destruct (Hvars x Hx) as [<- | Hin]; auto.
+  - intros k Hk. destruct (Hconts k Hk) as [<- | [<- | []]]; auto.
+  - intros Hfree.
+    assert (Hin : var_free_in_simples (code_my_closure c) [tuple])
+      by (apply Exists_cons_hd; exact Hfree).
+    apply var_in_simples_sound in Hin.
+    apply negb_true_iff in Hmy_closure. congruence.
+  - intros param Hin Hfree.
+    assert (Hin' : var_free_in_simples param [tuple])
+      by (apply Exists_cons_hd; exact Hfree).
+    apply var_in_simples_sound in Hin'.
+    rewrite forallb_forall in Hparams. specialize (Hparams param Hin).
+    apply negb_true_iff in Hparams. congruence.
+  - intros Hnil. rewrite Hnil in Hnonempty. discriminate.
+Qed.
+
 (* The static environment binds the code that is known. *)
 Definition statics_know (known : list (code_id * code))
     (statics : static_env) : Prop :=
@@ -351,11 +413,21 @@ Proof.
   destruct (ap_call_kind ap) as [called | ] eqn:Hkind; [ | apply refines_refl ].
   destruct (lookup called known) as [c | ] eqn:Hlookup;
     [ | apply refines_refl ].
-  destruct (negb (among called kept) && inlinable_b ap c) eqn:Hcheck;
-    [ | apply refines_refl ].
-  apply andb_true_iff in Hcheck as [_ Hinlinable].
-  exact (inline ap called c _ vars conts statics Hkind
-    (Hknow called c Hlookup) (inlinable_b_sound ap c Hinlinable)).
+  destruct (negb (among called kept) && inlinable_b ap c) eqn:Hcheck.
+  - apply andb_true_iff in Hcheck as [_ Hinlinable].
+    exact (inline ap called c _ vars conts statics Hkind
+      (Hknow called c Hlookup) (inlinable_b_sound ap c Hinlinable)).
+  - (* tupled code, given its tuple *)
+    destruct (negb (among called kept) && tupled_inlinable_b ap c)
+      eqn:Htupled;
+      [ | apply refines_refl ].
+    apply andb_true_iff in Htupled as [_ Htupled].
+    unfold inlined_tupled_call.
+    destruct (ap_args ap) as [ | tuple [ | arg args]] eqn:Hargs;
+      try apply refines_refl.
+    exact (inline_tupled ap called c _ tuple vars conts statics Hkind
+      (Hknow called c Hlookup)
+      (tupled_inlinable_b_sound ap c tuple Htupled Hargs)).
 Qed.
 
 Lemma statics_know_extend (known : list (code_id * code))
@@ -399,6 +471,34 @@ Proof.
   apply negb_true_iff, Hstatic.
 Qed.
 
+Lemma let_tuple_fields_binds_statics (params : list variable) :
+  ∀ (size field : nat) (tuple : simple) (body : expr),
+    binds_statics (let_tuple_fields params size field tuple body)
+    = binds_statics body.
+Proof.
+  induction params as [ | param params IH]; intros size field tuple body;
+    simpl; auto.
+Qed.
+
+Lemma inlined_tupled_call_binds_statics (c : code) (r : renaming)
+    (ap : apply_expr) :
+  binds_statics (code_body c) = false ->
+  binds_statics (inlined_tupled_call c r ap) = false.
+Proof.
+  intros Hbody. unfold inlined_tupled_call.
+  destruct (ap_args ap) as [ | tuple [ | arg args]]; try reflexivity.
+  unfold inlined_tupled_body. simpl.
+  rewrite let_tuple_fields_binds_statics, rename_binds_statics.
+  exact Hbody.
+Qed.
+
+Lemma tupled_inlinable_b_binds_statics (ap : apply_expr) (c : code) :
+  tupled_inlinable_b ap c = true -> binds_statics (code_body c) = false.
+Proof.
+  unfold tupled_inlinable_b. intros Hb.
+  apply andb_true_iff in Hb as [_ Hstatic]. apply negb_true_iff, Hstatic.
+Qed.
+
 Lemma inline_apply_binds_statics (known : list (code_id * code))
     (ap : apply_expr) :
   binds_statics (inline_apply kept known ap) = false.
@@ -406,11 +506,16 @@ Proof.
   unfold inline_apply.
   destruct (ap_call_kind ap) as [called | ]; [ | reflexivity ].
   destruct (lookup called known) as [c | ]; [ | reflexivity ].
-  destruct (negb (among called kept) && inlinable_b ap c) eqn:Hcheck;
-    [ | reflexivity ].
-  apply andb_true_iff in Hcheck as [_ Hinlinable].
-  rewrite inlined_body_binds_statics.
-  exact (inlinable_b_binds_statics ap c Hinlinable).
+  destruct (negb (among called kept) && inlinable_b ap c) eqn:Hcheck.
+  - apply andb_true_iff in Hcheck as [_ Hinlinable].
+    rewrite inlined_body_binds_statics.
+    exact (inlinable_b_binds_statics ap c Hinlinable).
+  - destruct (negb (among called kept) && tupled_inlinable_b ap c)
+      eqn:Htupled;
+      [ | reflexivity ].
+    apply andb_true_iff in Htupled as [_ Htupled].
+    apply inlined_tupled_call_binds_statics.
+    exact (tupled_inlinable_b_binds_statics ap c Htupled).
 Qed.
 
 Fixpoint inline_calls_binds_statics (e : expr) :

@@ -40,7 +40,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaBindersProofs FlambdaNominalSpec FlambdaNominalProofs
   FlambdaAlphaSpec FlambdaAlphaProofs FlambdaEquivarianceProofs
   FlambdaFreeNamesSpec FlambdaFreeNamesProofs FlambdaApplySpec
-  FlambdaInlineSiblingsSpec FlambdaGuardScopeSpec
+  FlambdaTupledSpec FlambdaInlineSiblingsSpec FlambdaGuardScopeSpec
   FlambdaNormaliseSpec FlambdaNormaliseProofs FlambdaBlockLoadSpec
   FlambdaCseSpec FlambdaIdentitiesSpec FlambdaRenameApartSpec
   FlambdaUnboxSpec FlambdaUnusedContsSpec FlambdaForwardSpec
@@ -156,6 +156,71 @@ Ltac split_tests :=
       apply andb_true_iff in H; destruct H as [H H']
     end.
 
+(* The body of tupled code, its parameters bound to the fields of the
+   tuple, in place of a call that gives it the tuple, keeps the scope of
+   the call. *)
+Lemma inlined_tupled_call_scoped (ap : apply_expr) (c : code) :
+  tupled_inlinable_b ap c = true ->
+  scoped (Apply ap)
+    (inlined_tupled_call c
+       (inline_renaming (code_return_continuation c)
+          (code_exn_continuation c) (ap_continuation ap)
+          (ap_exn_continuation ap))
+       ap).
+Proof.
+  intros Hinline. unfold inlined_tupled_call.
+  destruct (ap_args ap) as [ | tuple [ | arg args]] eqn:Hargs;
+    try apply scoped_refl.
+  unfold tupled_inlinable_b in Hinline. split_tests.
+  match goal with
+  | H : expr_in_scope _ _ _ = true |- _ => rename H into Hscope
+  end.
+  match goal with
+  | H : negb (binds_statics _) = true |- _ => rename H into Hstatics
+  end.
+  match goal with
+  | H : negb (Pos.eqb (code_return_continuation _) _) = true |- _ =>
+    rename H into Hcode
+  end.
+  match goal with
+  | H : negb (Pos.eqb (ap_continuation _) _) = true |- _ =>
+    rename H into Hcall
+  end.
+  apply negb_true_iff in Hstatics, Hcall, Hcode.
+  apply Pos.eqb_neq in Hcall, Hcode.
+  pose proof (binds_statics_code_closed (code_body c) Hstatics) as Hclosed.
+  rewrite (expr_in_scope_agrees _ _ _ Hclosed) in Hscope.
+  apply andb_true_iff in Hscope. destruct Hscope as [Hscope_v Hscope_k].
+  destruct
+    (inline_renaming_spec (code_return_continuation c)
+       (code_exn_continuation c) (ap_continuation ap)
+       (ap_exn_continuation ap) Hcode Hcall)
+    as (Hfixes & Hret & Hexn).
+  set (r :=
+    inline_renaming (code_return_continuation c) (code_exn_continuation c)
+      (ap_continuation ap) (ap_exn_continuation ap))
+    in *.
+  intros _. unfold inlined_tupled_body. scope.
+  rewrite let_tuple_fields_code_closed, code_closed_renamed.
+  split; [ exact Hclosed | split ].
+  - intros x Hx. cbn [free_variables_of_named] in Hx.
+    unfold free_variables_of_apply. apply in_or_app.
+    apply in_app_or in Hx. destruct Hx as [Hx | Hx]; [ left; exact Hx | ].
+    right. apply in_or_app. left. rewrite Hargs.
+    apply in_without in Hx. destruct Hx as [Hx Hclosure].
+    apply let_tuple_fields_free_variables in Hx.
+    destruct Hx as [Hx | [Hx Hparams]]; [ exact Hx | ].
+    rewrite free_variables_of_expr_renamed in Hx. apply in_map_iff in Hx.
+    destruct Hx as (y & Hy & Hin). rewrite Hfixes in Hy. subst y.
+    destruct (all_among_In _ _ x Hscope_v Hin) as [Heq | Hin'];
+      [ destruct Hclosure; left; exact Heq | contradiction ].
+  - intros k Hk. rewrite let_tuple_fields_free_continuations in Hk.
+    rewrite free_continuations_of_expr_renamed in Hk. apply in_map_iff in Hk.
+    destruct Hk as (j & Hj & Hin).
+    destruct (all_among_In _ _ j Hscope_k Hin) as [Heq | [Heq | []]];
+      subst j; [ left | right; left ]; congruence.
+Qed.
+
 (* The body of code in place of a call of it keeps the scope of the
    call: the test says that the free variables and continuations of the
    body are bound by the code. *)
@@ -166,10 +231,12 @@ Proof.
   unfold inline_apply.
   destruct (ap_call_kind ap) as [called | ]; [ | apply scoped_refl ].
   destruct (lookup called known) as [c | ]; [ | apply scoped_refl ].
-  match goal with
-  | |- context [if ?test then _ else _] =>
-    destruct test eqn:Hinline; [ | apply scoped_refl ]
-  end.
+  destruct (negb (among called kept) && inlinable_b ap c) eqn:Hinline;
+    [ | destruct (negb (among called kept) && tupled_inlinable_b ap c)
+          eqn:Htupled;
+        [ | apply scoped_refl ];
+      apply andb_true_iff in Htupled; destruct Htupled as [_ Htupled];
+      exact (inlined_tupled_call_scoped ap c Htupled) ].
   unfold inlinable_b in Hinline. split_tests.
   match goal with
   | H : expr_in_scope _ _ _ = true |- _ => rename H into Hscope
