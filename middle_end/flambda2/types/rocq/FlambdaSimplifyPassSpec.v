@@ -147,6 +147,18 @@
    a theorem of its own and one example. The function that prunes
    (FlambdaSimplifyPruningSpec.v) makes the same step.
 
+   Several applications. There is a statement for them and no rewrite
+   yet. [gather_uses] gathers the applications of a continuation at
+   the end of the body and in the handlers of the continuations that
+   the body defines, each with the environment that the function has
+   there; the handler may be rewritten under any environment that
+   each of them admits ([application_admits],
+   [gather_uses_refines_statement]). Simplify gathers the uses of a
+   continuation in the same places, as it goes down the body, and
+   gives the handler their join. Neither function calls
+   [gather_uses]: it gives no environment, and none is computed until
+   a join is called.
+
    What Simplify does and this does not:
    - There are no joins of the environments at the uses of a
      continuation, which Simplify has for the parameters of a
@@ -1026,6 +1038,78 @@ Definition binders_not_free (xs : list variable) (ks : list continuation)
   forallb (fun x => negb (var_free_in_handler_b x h)) xs
   && forallb (fun k => negb (cont_free_in_handler_b k h)) ks.
 
+(* The applications of the continuation [k], of handler [h], in
+   [body], each with the environment at the application and its
+   arguments; and the binders passed on the way to them. Where
+   [find_use] looks for one application at the end of the [Let]s and
+   the non-recursive [Let_cont]s that the body begins with, this
+   gathers every application: those at the end ([leaf_uses]), and
+   those in the handler of a [Let_cont] passed, if that handler
+   mentions [k]. Such a handler is gone into in the same way, under
+   the environment of its [Let_cont] with its parameters defined
+   ([handler_env]: nothing is asked of where that handler is applied).
+   The binders are the variables of the [Let]s, the parameters of the
+   handlers gone into, the names of the [Let_cont]s and, where a
+   handler is gone into, [k] itself: in the proof the handler of [k]
+   is copied to the head of that handler, so neither [h] nor what it
+   becomes may mention them. [None] where the body, or a handler that
+   mentions [k], is not of that form, or where [h] mentions one of
+   those binders. *)
+Fixpoint gather_uses (tenv : Typing_env.t) (k : continuation)
+    (h : continuation_handler) (body : expr)
+    : option
+        (list (Typing_env.t * list simple) * list variable
+         * list continuation) :=
+  match body with
+  | Let x declared defining_expr rest =>
+    if var_free_in_handler_b x h then None
+    else
+      match let_env tenv x declared defining_expr with
+      | Some tenv' =>
+        match gather_uses tenv' k h rest with
+        | Some (uses, xs, ks) => Some (uses, x :: xs, ks)
+        | None => None
+        end
+      | None => None
+      end
+  | Let_cont_non_recursive k' h' rest =>
+    if negb (Pos.eqb k k') && negb (cont_free_in_handler_b k' h)
+    then
+      match gather_uses tenv k h rest with
+      | Some (uses, xs, ks) =>
+        if cont_free_in_handler_b k h'
+        then
+          match h' with
+          | Handler params' metadata' body' =>
+            if
+              negb (cont_free_in_handler_b k h)
+              && forallb (fun x => negb (var_free_in_handler_b x h)) params'
+            then
+              match handler_env tenv params' metadata' with
+              | Some tenv_handler =>
+                match gather_uses tenv_handler k h body' with
+                | Some (uses', xs', ks') =>
+                  Some
+                    (uses' ++ uses, params' ++ xs' ++ xs,
+                     k :: k' :: ks' ++ ks)
+                | None => None
+                end
+              | None => None
+              end
+            else None
+          end
+        else Some (uses, xs, k' :: ks)
+      | None => None
+      end
+    else None
+  | Apply_cont _ | Switch _ _ =>
+    match leaf_uses tenv k body with
+    | Some uses => Some (uses, [], [])
+    | None => None
+    end
+  | Let_static _ _ | Let_cont_recursive _ _ | Apply _ | Invalid => None
+  end.
+
 (* ======================================================================== *)
 (* A term                                                                   *)
 (* ======================================================================== *)
@@ -1195,6 +1279,47 @@ Definition rewrite_handler_at_use_refines_statement : Prop :=
     rewrite_handler_at_use tenv k h body = Some h' ->
     expr_refines_under tenv (Let_cont_non_recursive k h body)
       (Let_cont_non_recursive k h' body).
+
+(* An application admits an environment for the handler: from a state
+   at the application, which satisfies the environment there, the
+   handler is entered in a state that satisfies [target]. The handler
+   is taken to run under the variables of the application with its
+   parameters bound, as it does once its [Let_cont] has been moved to
+   the application. The environment that [use_env] answers for an
+   application is one that it admits
+   (FlambdaSimplifyUsesSpec.use_env_satisfied_statement). *)
+Definition application_admits (params : list variable)
+    (metadata : handler_metadata) (tenv_use : Typing_env.t)
+    (args : list simple) (target : Typing_env.t) : Prop :=
+  ∀ (statics : static_env) (vars : env) (vs : list value)
+    (handler_vars : env),
+    env_satisfies_strictly tenv_use statics vars ->
+    eval_simples vars args = Some vs ->
+    map kind_of_value vs = hm_params_kinds metadata ->
+    bind_params params vs vars = Some handler_vars ->
+    env_satisfies_strictly target statics handler_vars.
+
+(* Several applications. The handler of a continuation may be
+   rewritten under an environment that every application gathered
+   admits, if what it becomes mentions none of the binders passed. No
+   environment is computed here: the statement is of any that the
+   applications admit, as a join of their environments is meant to
+   be. *)
+Definition gather_uses_refines_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (k : continuation) (params : list variable)
+    (metadata : handler_metadata) (handler handler' body : expr)
+    (target : Typing_env.t) (uses : list (Typing_env.t * list simple))
+    (xs : list variable) (ks : list continuation),
+    gather_uses tenv k (Handler params metadata handler) body
+    = Some (uses, xs, ks) ->
+    binders_not_free xs ks (Handler params metadata handler') = true ->
+    (∀ use : Typing_env.t * list simple,
+      use ∈ uses ->
+      application_admits params metadata (fst use) (snd use) target) ->
+    expr_refines_under target handler handler' ->
+    expr_refines_under tenv
+      (Let_cont_non_recursive k (Handler params metadata handler) body)
+      (Let_cont_non_recursive k (Handler params metadata handler') body).
 
 (* ======================================================================== *)
 (* Examples                                                                 *)

@@ -75,9 +75,10 @@
      of FlambdaSimplifyPassSpec.v: [arm_env], [use_env], [leaf_uses]
      (each application is renamed with its environment:
      [rename_application]), [let_env], [find_use] (the environment
-     and the binders passed are renamed: [rename_use]) and
-     [binders_not_free]; and, after the function,
-     [rewrite_handler_at_use]. The two tests of free names that
+     and the binders passed are renamed: [rename_use]),
+     [binders_not_free] and [gather_uses] (the applications and the
+     binders passed are renamed: [rename_gathered]); and, after the
+     function, [rewrite_handler_at_use]. The two tests of free names that
      [find_use] and [binders_not_free] make are the validator's, and
      that they commute with renaming is proved in the validator's
      proof file (../../rocq/FlambdaValidatorEquivarianceProofs.v),
@@ -229,6 +230,23 @@ Definition binders_not_free_equivariant_statement : Prop :=
     binders_not_free (map (rename_variable r) xs)
       (map (rename_continuation r) ks) (rename_handler r h)
     = binders_not_free xs ks h.
+
+(* What [gather_uses] answers: each application is renamed with its
+   environment, and the binders passed are renamed. *)
+Definition rename_gathered (r : renaming)
+    (gathered :
+       list (Typing_env.t * list simple) * list variable * list continuation)
+    : list (Typing_env.t * list simple) * list variable * list continuation :=
+  (map (rename_application r) (fst (fst gathered)),
+   map (rename_variable r) (snd (fst gathered)),
+   map (rename_continuation r) (snd gathered)).
+
+Definition gather_uses_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (k : continuation)
+    (h : continuation_handler) (body : expr),
+    gather_uses (rename_typing_env r tenv) (rename_continuation r k)
+      (rename_handler r h) (rename_expr r body)
+    = option_map (rename_gathered r) (gather_uses tenv k h body).
 
 (* ======================================================================== *)
 (* The function                                                             *)

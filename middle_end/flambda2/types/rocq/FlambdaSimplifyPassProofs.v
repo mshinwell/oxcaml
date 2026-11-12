@@ -35,9 +35,11 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
   FlambdaMapSpec FlambdaMapProofs FlambdaValueSpec FlambdaPrimitiveModel
   FlambdaPrimitiveSpec FlambdaPrimitiveProofs FlambdaSemanticsSpec
   FlambdaSemanticsProofs FlambdaWellFormedSpec FlambdaWellFormedProofs
+  FlambdaCompareSpec FlambdaCompareProofs FlambdaNominalSpec
+  FlambdaNominalProofs FlambdaContextSpec FlambdaContextProofs
   FlambdaContextWhereSpec FlambdaContextWhereProofs FlambdaNormaliseSpec
   FlambdaNormaliseProofs FlambdaUnusedContsSpec FlambdaUnusedContsProofs
-  FlambdaSinkContsProofs.
+  FlambdaContAlikeProofs FlambdaSinkContsSpec FlambdaSinkContsProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs
   FlambdaTypeWellFormedSpec FlambdaTypeWellFormedProofs
@@ -1459,6 +1461,337 @@ Qed.
 
 Theorem simplify_expr_refines_under : simplify_expr_refines_under_statement.
 Proof. intros tenv e. apply simplify_expr_sound. Qed.
+
+(* ======================================================================== *)
+(* Several applications                                                     *)
+(* ======================================================================== *)
+
+(* A [Let_cont] copied to the head of the handler of the next one, the
+   original being kept: the first step of
+   FlambdaSinkContsProofs.let_cont_into_handler, which then drops the
+   original. Here the original stays, for the applications that are
+   not in that handler. *)
+Lemma let_cont_copied_into_handler (k k' : continuation)
+    (h : continuation_handler) (params' : list variable)
+    (metadata' : handler_metadata) (handler' body : expr) :
+  ~ cont_free_in_handler k h ->
+  (∀ param : variable, param ∈ params' -> ~ var_free_in_handler param h) ->
+  expr_equivalent
+    (Let_cont_non_recursive k h
+       (Let_cont_non_recursive k' (Handler params' metadata' handler') body))
+    (Let_cont_non_recursive k h
+       (Let_cont_non_recursive k'
+          (Handler params' metadata' (Let_cont_non_recursive k h handler'))
+          body)).
+Proof.
+  intros Hh Hparams vars conts statics.
+  apply let_cont_non_recursive_equivalent_step.
+  apply let_cont_handler_alike. intros vs statics'. simpl.
+  destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata'));
+    simpl; [ | exact I ].
+  destruct (bind_params params' vs vars) as [handler_vars | ] eqn:Hbind;
+    simpl; [ | exact I ].
+  apply equivalent_sym.
+  eapply equivalent_trans;
+    [ apply step_equivalent, step_let_cont_non_recursive | ].
+  apply coincide_equivalent; [ reflexivity | ].
+  intros k'' _. unfold conts_agree_at.
+  change (rename_continuation identity_renaming k'') with k''.
+  destruct (Pos.eq_dec k'' k) as [-> | Hne];
+    [ | rewrite (resolve_other k'' k) by exact Hne; apply Same_matches ].
+  rewrite !resolve_head. apply closures_match.
+  - intros x Hx.
+    apply (lookup_bind_params_other params' vs vars handler_vars x Hbind).
+    intros Hin. exact (Hparams x Hin Hx).
+  - intros k1 Hk1. rewrite resolve_other; [ apply Same_matches | ].
+    intros ->. contradiction.
+Qed.
+
+(* The binders of two parts. *)
+Lemma binders_not_free_app (xs xs' : list variable)
+    (ks ks' : list continuation) (h : continuation_handler) :
+  binders_not_free (xs ++ xs') (ks ++ ks') h
+  = binders_not_free xs ks h && binders_not_free xs' ks' h.
+Proof.
+  unfold binders_not_free. rewrite !forallb_app.
+  destruct (forallb (fun x => negb (var_free_in_handler_b x h)) xs),
+    (forallb (fun x => negb (var_free_in_handler_b x h)) xs'),
+    (forallb (fun k => negb (cont_free_in_handler_b k h)) ks),
+    (forallb (fun k => negb (cont_free_in_handler_b k h)) ks');
+    reflexivity.
+Qed.
+
+(* As [find_use_refines_aux], with one case more: a [Let_cont] whose
+   handler applies the continuation. The handler of the continuation
+   is copied to the head of that handler, where the applications of
+   that handler are gathered and the copy is rewritten; the original
+   then passes that [Let_cont], whose handler no longer mentions it,
+   and is rewritten for the applications that are left; and the copy
+   of the handler as rewritten goes back. *)
+Fixpoint gather_uses_refines_aux (body : expr) {struct body} :
+  ∀ (tenv : Typing_env.t) (k : continuation) (params : list variable)
+    (metadata : handler_metadata) (handler handler' : expr)
+    (target : Typing_env.t) (uses : list (Typing_env.t * list simple))
+    (xs : list variable) (ks : list continuation),
+    gather_uses tenv k (Handler params metadata handler) body
+    = Some (uses, xs, ks) ->
+    binders_not_free xs ks (Handler params metadata handler') = true ->
+    (∀ use : Typing_env.t * list simple,
+      use ∈ uses ->
+      application_admits params metadata (fst use) (snd use) target) ->
+    expr_refines_under target handler handler' ->
+    expr_refines_under tenv
+      (Let_cont_non_recursive k (Handler params metadata handler) body)
+      (Let_cont_non_recursive k (Handler params metadata handler') body).
+Proof.
+  destruct body
+    as [x declared d rest | bindings rest | k' h' rest | handlers rest | ap
+        | ac | scrutinee arms | ];
+    intros tenv k params metadata handler handler' target uses xs ks Hgather
+      Hfree Huses Hhandler;
+    cbn [gather_uses] in Hgather; try discriminate.
+  - destruct (var_free_in_handler_b x (Handler params metadata handler))
+      eqn:Hx; [ discriminate | ].
+    destruct (let_env tenv x declared d) as [tenv' | ] eqn:Henv;
+      [ | discriminate ].
+    destruct (gather_uses tenv' k (Handler params metadata handler) rest)
+      as [[[uses' xs'] ks'] | ] eqn:Hrest; [ | discriminate ].
+    injection Hgather as <- <- <-.
+    unfold binders_not_free in Hfree. cbn [forallb] in Hfree.
+    apply andb_true_iff in Hfree. destruct Hfree as [Hxs Hks].
+    apply andb_true_iff in Hxs. destruct Hxs as [Hx' Hxs].
+    apply negb_true_iff in Hx'.
+    assert (Hrest_free :
+      binders_not_free xs' ks' (Handler params metadata handler') = true).
+    { unfold binders_not_free. rewrite Hxs, Hks. reflexivity. }
+    pose proof (gather_uses_refines_aux rest tenv' k params metadata handler
+                  handler' target uses' xs' ks' Hrest Hrest_free Huses
+                  Hhandler)
+      as IH.
+    intros vars conts statics Hsat.
+    apply (refines_trans _
+             (State
+                (Let x declared d
+                   (Let_cont_non_recursive k
+                      (Handler params metadata handler) rest))
+                vars conts statics)).
+    { apply equivalent_refines, let_cont_past_let. intros Hfree'.
+      apply var_free_in_handler_b_sound in Hfree'. congruence. }
+    apply (refines_trans _
+             (State
+                (Let x declared d
+                   (Let_cont_non_recursive k
+                      (Handler params metadata handler') rest))
+                vars conts statics)).
+    { apply let_refines_step; [ reflexivity | intros v Hv Hkind ].
+      apply IH.
+      exact (let_env_satisfied tenv tenv' x declared d statics vars v Henv
+               Hsat Hv Hkind). }
+    apply equivalent_refines, equivalent_sym, let_cont_past_let.
+    intros Hfree'. apply var_free_in_handler_b_sound in Hfree'. congruence.
+  - destruct (negb (Pos.eqb k k')
+              && negb
+                   (cont_free_in_handler_b k'
+                      (Handler params metadata handler)))
+      eqn:Htests; [ | discriminate ].
+    apply andb_true_iff in Htests. destruct Htests as [Hne Hk'].
+    apply negb_true_iff in Hne, Hk'. apply Pos.eqb_neq in Hne.
+    destruct (gather_uses tenv k (Handler params metadata handler) rest)
+      as [[[uses_rest xs_rest] ks_rest] | ] eqn:Hrest; [ | discriminate ].
+    destruct (cont_free_in_handler_b k h') eqn:Hk.
+    + (* the handler applies the continuation: a copy goes into it *)
+      destruct h' as [params' metadata' body'].
+      destruct (negb
+                  (cont_free_in_handler_b k
+                     (Handler params metadata handler))
+                && forallb
+                     (fun x =>
+                        negb
+                          (var_free_in_handler_b x
+                             (Handler params metadata handler)))
+                     params')
+        eqn:Htests'; [ | discriminate ].
+      apply andb_true_iff in Htests'. destruct Htests' as [Hself Hparams].
+      apply negb_true_iff in Hself.
+      destruct (handler_env tenv params' metadata') as [tenv_handler | ]
+        eqn:Henv; [ | discriminate ].
+      destruct (gather_uses tenv_handler k (Handler params metadata handler)
+                  body')
+        as [[[uses_h xs_h] ks_h] | ] eqn:Hinner; [ | discriminate ].
+      injection Hgather as <- <- <-.
+      change (k :: k' :: ks_h ++ ks_rest)
+        with ([k; k'] ++ ks_h ++ ks_rest) in Hfree.
+      rewrite binders_not_free_app, binders_not_free_app in Hfree.
+      apply andb_true_iff in Hfree. destruct Hfree as [Hfree_head Hfree].
+      apply andb_true_iff in Hfree. destruct Hfree as [Hfree_h Hfree_rest].
+      unfold binders_not_free in Hfree_head. cbn [forallb] in Hfree_head.
+      apply andb_true_iff in Hfree_head.
+      destruct Hfree_head as [Hparams' Hconts'].
+      rewrite andb_true_r in Hconts'.
+      apply andb_true_iff in Hconts'. destruct Hconts' as [Hself' Hk''].
+      apply negb_true_iff in Hself', Hk''.
+      pose proof (gather_uses_refines_aux body' tenv_handler k params
+                    metadata handler handler' target uses_h xs_h ks_h Hinner
+                    Hfree_h
+                    (fun use Hin =>
+                       Huses use (in_or_app _ _ _ (or_introl Hin)))
+                    Hhandler)
+        as IHh.
+      pose proof (gather_uses_refines_aux rest tenv k params metadata
+                    handler handler' target uses_rest xs_rest ks_rest Hrest
+                    Hfree_rest
+                    (fun use Hin =>
+                       Huses use (in_or_app _ _ _ (or_intror Hin)))
+                    Hhandler)
+        as IHrest.
+      set (h := Handler params metadata handler) in *.
+      set (hr := Handler params metadata handler') in *.
+      assert (Hnot_self : ~ cont_free_in_handler k h).
+      { intros Hf. apply cont_free_in_handler_b_sound in Hf. congruence. }
+      assert (Hnot_self' : ~ cont_free_in_handler k hr).
+      { intros Hf. apply cont_free_in_handler_b_sound in Hf. congruence. }
+      assert (Hnot_params :
+        ∀ param : variable, param ∈ params' -> ~ var_free_in_handler param h).
+      { intros param Hin Hf. apply var_free_in_handler_b_sound in Hf.
+        rewrite forallb_forall in Hparams. specialize (Hparams param Hin).
+        rewrite Hf in Hparams. discriminate. }
+      assert (Hnot_params' :
+        ∀ param : variable,
+          param ∈ params' -> ~ var_free_in_handler param hr).
+      { intros param Hin Hf. apply var_free_in_handler_b_sound in Hf.
+        rewrite forallb_forall in Hparams'. specialize (Hparams' param Hin).
+        rewrite Hf in Hparams'. discriminate. }
+      intros vars conts statics Hsat.
+      (* the copy *)
+      apply (refines_trans _
+               (State
+                  (Let_cont_non_recursive k h
+                     (Let_cont_non_recursive k'
+                        (Handler params' metadata'
+                           (Let_cont_non_recursive k h body'))
+                        rest))
+                  vars conts statics)).
+      { apply equivalent_refines.
+        exact (let_cont_copied_into_handler k k' h params' metadata' body'
+                 rest Hnot_self Hnot_params vars conts statics). }
+      (* the copy rewritten, in the handler *)
+      apply (refines_trans _
+               (State
+                  (Let_cont_non_recursive k h
+                     (Let_cont_non_recursive k'
+                        (Handler params' metadata'
+                           (Let_cont_non_recursive k hr body'))
+                        rest))
+                  vars conts statics)).
+      { apply (let_cont_body_refines_under tenv k h _ _); [ | exact Hsat ].
+        exact (let_cont_handler_typed tenv k' params' metadata' _ _ rest
+                 tenv_handler Henv IHh). }
+      (* the original past the other [Let_cont], which no longer uses it *)
+      assert (Hbound :
+        ~ cont_free_in_handler k
+            (Handler params' metadata' (Let_cont_non_recursive k hr body'))).
+      { simpl. tauto. }
+      apply (refines_trans _
+               (State
+                  (Let_cont_non_recursive k'
+                     (Handler params' metadata'
+                        (Let_cont_non_recursive k hr body'))
+                     (Let_cont_non_recursive k h rest))
+                  vars conts statics)).
+      { apply equivalent_refines, let_cont_past_let_cont;
+          [ exact Hne | exact Hbound | ].
+        intros Hf. apply cont_free_in_handler_b_sound in Hf. congruence. }
+      apply (refines_trans _
+               (State
+                  (Let_cont_non_recursive k'
+                     (Handler params' metadata'
+                        (Let_cont_non_recursive k hr body'))
+                     (Let_cont_non_recursive k hr rest))
+                  vars conts statics)).
+      { exact (let_cont_body_refines_under tenv k' _ _ _ IHrest vars conts
+                 statics Hsat). }
+      apply (refines_trans _
+               (State
+                  (Let_cont_non_recursive k hr
+                     (Let_cont_non_recursive k'
+                        (Handler params' metadata'
+                           (Let_cont_non_recursive k hr body'))
+                        rest))
+                  vars conts statics)).
+      { apply equivalent_refines, equivalent_sym, let_cont_past_let_cont;
+          [ exact Hne | exact Hbound | ].
+        intros Hf. apply cont_free_in_handler_b_sound in Hf. congruence. }
+      apply equivalent_refines, equivalent_sym.
+      exact (let_cont_copied_into_handler k k' hr params' metadata' body'
+               rest Hnot_self' Hnot_params' vars conts statics).
+    + injection Hgather as <- <- <-.
+      unfold binders_not_free in Hfree. cbn [forallb] in Hfree.
+      apply andb_true_iff in Hfree. destruct Hfree as [Hxs Hks].
+      apply andb_true_iff in Hks. destruct Hks as [Hk'' Hks].
+      apply negb_true_iff in Hk''.
+      assert (Hrest_free :
+        binders_not_free xs_rest ks_rest (Handler params metadata handler')
+        = true).
+      { unfold binders_not_free. rewrite Hxs, Hks. reflexivity. }
+      pose proof (gather_uses_refines_aux rest tenv k params metadata
+                    handler handler' target uses_rest xs_rest ks_rest Hrest
+                    Hrest_free Huses Hhandler)
+        as IH.
+      intros vars conts statics Hsat.
+      apply (refines_trans _
+               (State
+                  (Let_cont_non_recursive k' h'
+                     (Let_cont_non_recursive k
+                        (Handler params metadata handler) rest))
+                  vars conts statics)).
+      { apply equivalent_refines, let_cont_past_let_cont;
+          [ exact Hne | | ];
+          intros Hfree'; apply cont_free_in_handler_b_sound in Hfree';
+          congruence. }
+      apply (refines_trans _
+               (State
+                  (Let_cont_non_recursive k' h'
+                     (Let_cont_non_recursive k
+                        (Handler params metadata handler') rest))
+                  vars conts statics)).
+      { exact (let_cont_body_refines_under tenv k' h' _ _ IH vars conts
+                 statics Hsat). }
+      apply equivalent_refines, equivalent_sym, let_cont_past_let_cont;
+        [ exact Hne | | ];
+        intros Hfree'; apply cont_free_in_handler_b_sound in Hfree';
+        congruence.
+  - destruct (leaf_uses tenv k (Apply_cont ac)) as [uses' | ] eqn:Hleaf;
+      [ | discriminate ].
+    injection Hgather as <- _ _.
+    apply (leaf_refines tenv k params metadata handler handler' _ uses'
+             Hleaf).
+    intros index tenv_use args statics valuation vars conts vs handler_vars
+      Hnth _ Hshows Hargs Hkinds Hbind.
+    apply Hhandler.
+    exact (Huses (tenv_use, args) (nth_error_In _ _ Hnth) statics vars vs
+             handler_vars
+             (shows_satisfies tenv_use statics valuation vars Hshows) Hargs
+             Hkinds Hbind).
+  - destruct (leaf_uses tenv k (Switch scrutinee arms)) as [uses' | ]
+      eqn:Hleaf; [ | discriminate ].
+    injection Hgather as <- _ _.
+    apply (leaf_refines tenv k params metadata handler handler' _ uses'
+             Hleaf).
+    intros index tenv_use args statics valuation vars conts vs handler_vars
+      Hnth _ Hshows Hargs Hkinds Hbind.
+    apply Hhandler.
+    exact (Huses (tenv_use, args) (nth_error_In _ _ Hnth) statics vars vs
+             handler_vars
+             (shows_satisfies tenv_use statics valuation vars Hshows) Hargs
+             Hkinds Hbind).
+Qed.
+
+Theorem gather_uses_refines : gather_uses_refines_statement.
+Proof.
+  intros tenv k params metadata handler handler' body target uses xs ks.
+  exact (gather_uses_refines_aux body tenv k params metadata handler
+           handler' target uses xs ks).
+Qed.
 
 Theorem rewrite_handler_at_use_refines
     : rewrite_handler_at_use_refines_statement.

@@ -705,6 +705,70 @@ Proof.
     reflexivity.
 Qed.
 
+Fixpoint gather_uses_equivariant_aux (r : renaming) (body : expr)
+    {struct body} :
+  ∀ (tenv : Typing_env.t) (k : continuation) (h : continuation_handler),
+    gather_uses (rename_typing_env r tenv) (rename_continuation r k)
+      (rename_handler r h) (rename_expr r body)
+    = option_map (rename_gathered r) (gather_uses tenv k h body).
+Proof.
+  destruct body
+    as [x declared d rest | bindings rest | k' h' rest | handlers rest | ap
+        | ac | scrutinee arms | ];
+    intros tenv k h; cbn [rename_expr gather_uses option_map];
+    try reflexivity.
+  - rewrite var_free_in_handler_b_equivariant.
+    destruct (var_free_in_handler_b x h); [ reflexivity | ].
+    rewrite let_env_equivariant.
+    destruct (let_env tenv x declared d) as [tenv' | ]; cbn [option_map];
+      [ | reflexivity ].
+    rewrite (gather_uses_equivariant_aux r rest tenv' k h).
+    destruct (gather_uses tenv' k h rest) as [[[uses xs] ks] | ];
+      reflexivity.
+  - rewrite rename_continuation_eqb, !cont_free_in_handler_b_equivariant.
+    destruct (negb (Pos.eqb k k') && negb (cont_free_in_handler_b k' h));
+      [ | reflexivity ].
+    rewrite (gather_uses_equivariant_aux r rest tenv k h).
+    destruct (gather_uses tenv k h rest) as [[[uses xs] ks] | ];
+      cbn [option_map rename_gathered fst snd]; [ | reflexivity ].
+    destruct (cont_free_in_handler_b k h'); [ | reflexivity ].
+    destruct h' as [params' metadata' body']. cbn [rename_handler].
+    assert (Hparams :
+      forallb
+        (fun x => negb (var_free_in_handler_b x (rename_handler r h)))
+        (map (rename_variable r) params')
+      = forallb (fun x => negb (var_free_in_handler_b x h)) params').
+    { induction params' as [ | x params' IH]; [ reflexivity | ].
+      cbn [map forallb]. rewrite var_free_in_handler_b_equivariant, IH.
+      reflexivity. }
+    rewrite Hparams.
+    destruct (negb (cont_free_in_handler_b k h)
+              && forallb (fun x => negb (var_free_in_handler_b x h)) params');
+      [ | reflexivity ].
+    rewrite handler_env_rename.
+    destruct (handler_env tenv params' metadata') as [tenv_handler | ];
+      cbn [option_map]; [ | reflexivity ].
+    rewrite (gather_uses_equivariant_aux r body' tenv_handler k h).
+    destruct (gather_uses tenv_handler k h body') as [[[uses' xs'] ks'] | ];
+      cbn [option_map rename_gathered fst snd]; [ | reflexivity ].
+    unfold rename_gathered. cbn [fst snd map]. rewrite !map_app. reflexivity.
+  - change (Apply_cont (rename_apply_cont r ac))
+      with (rename_expr r (Apply_cont ac)).
+    rewrite leaf_uses_equivariant.
+    destruct (leaf_uses tenv k (Apply_cont ac)); reflexivity.
+  - change (Switch (rename_simple r scrutinee)
+              (map (fun arm => (fst arm, rename_apply_cont r (snd arm)))
+                 arms))
+      with (rename_expr r (Switch scrutinee arms)).
+    rewrite leaf_uses_equivariant.
+    destruct (leaf_uses tenv k (Switch scrutinee arms)); reflexivity.
+Qed.
+
+Theorem gather_uses_equivariant : gather_uses_equivariant_statement.
+Proof.
+  intros r tenv k h body. apply gather_uses_equivariant_aux.
+Qed.
+
 (* ======================================================================== *)
 (* The function                                                             *)
 (* ======================================================================== *)
