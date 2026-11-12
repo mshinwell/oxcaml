@@ -1503,6 +1503,43 @@ let rename_variables_above ?(own = Hashtbl.create 4) (threshold : int)
   copy 0;
   Buffer.contents buffer
 
+(* The same text with every variable numbered above the threshold written
+   alike. *)
+let without_the_names_above (threshold : int) (printed : string) : string =
+  let own = Hashtbl.create 4 in
+  let renamed = rename_variables_above ~own threshold printed in
+  (* The new names are [e] and a number: the number is left out. *)
+  let buffer = Buffer.create (String.length renamed) in
+  let is_digit c = c >= '0' && c <= '9' in
+  let is_letter c = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') in
+  let length = String.length renamed in
+  let rec copy i =
+    if i < length
+    then
+      let starts_a_word =
+        i = 0
+        ||
+        let before = renamed.[i - 1] in
+        not (is_letter before || is_digit before)
+      in
+      if
+        Char.equal renamed.[i] 'e'
+        && i + 1 < length
+        && is_digit renamed.[i + 1]
+        && starts_a_word
+      then (
+        Buffer.add_char buffer 'e';
+        let rec after j =
+          if j < length && is_digit renamed.[j] then after (j + 1) else j
+        in
+        copy (after (i + 1)))
+      else (
+        Buffer.add_char buffer renamed.[i];
+        copy (i + 1))
+  in
+  copy 0;
+  Buffer.contents buffer
+
 (* The same for the variables that are not those of the tests. *)
 let rename_own_variables (names : names) (printed : string) : string =
   rename_variables_above names.variables_with_a_name printed
@@ -4604,10 +4641,49 @@ let print_seen ?(own = Hashtbl.create 4) ~threshold (seen : seen) : string =
        sides of a comparison. So the text is written again with those variables
        in the order of their new names, which is the text answered: a set that
        has two of them is then written in one way, provided that the first text
-       came to both before it came to the set. *)
+       came to both before it came to the set.
+
+       Where the first text comes to two of them inside one set, it has them in
+       the order of what each is by itself: its type, as printed, with every
+       such variable written alike. Two that are alike in that are in the order
+       of their numbers, and the two sides may then name them differently: a
+       difference that is none, never an agreement that is none. *)
+    let by_itself : (int, string) Hashtbl.t = Hashtbl.create 4 in
+    List.iter
+      (fun (x, (t : MT.flambda_type option)) ->
+        match N.int_of_positive x with
+        | Some number ->
+          Hashtbl.replace by_itself number
+            (match t with
+            | Some t ->
+              without_the_names_above threshold
+                (Format.asprintf "%a" Model_type.print (Model_type.normalise t))
+            | None -> "not defined")
+        | None -> ())
+      of_others;
+    let first_order x y =
+      match N.int_of_positive x, N.int_of_positive y with
+      | Some number, Some number' ->
+        let made = number > threshold and made' = number' > threshold in
+        if made && made'
+        then
+          let of_itself number =
+            Option.value (Hashtbl.find_opt by_itself number) ~default:""
+          in
+          let c = String.compare (of_itself number) (of_itself number') in
+          if c <> 0 then c else Int.compare number number'
+        else if made
+        then 1
+        else if made'
+        then -1
+        else Int.compare number number'
+      | Some _, None -> -1
+      | None, Some _ -> 1
+      | None, None -> 0
+    in
     ignore
       (rename_variables_above ~own threshold
-         (text Model_type.normalise of_others)
+         (text (Model_type.normalise_by first_order) of_others)
         : string);
     let rank (x : M.variable) : int * int =
       match N.int_of_positive x with
