@@ -56,8 +56,9 @@ From OxCamlFlambda2 Require Import FlambdaMapSpec FlambdaModel
   FlambdaBindersSpec FlambdaSemanticsSpec FlambdaWellFormedSpec
   FlambdaWellKindedSpec
   FlambdaCompareSpec FlambdaNormaliseSpec FlambdaBlockLoadSpec
-  FlambdaCseSpec FlambdaIdentitiesSpec FlambdaStaticsOrderSpec
-  FlambdaUnboxSpec FlambdaUnusedContsSpec FlambdaUnusedStaticsSpec
+  FlambdaCseSpec FlambdaIdentitiesSpec FlambdaRenameApartSpec
+  FlambdaStaticsOrderSpec FlambdaUnboxSpec FlambdaUnusedContsSpec
+  FlambdaUnusedStaticsSpec
   FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeEqualSpec.

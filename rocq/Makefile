@@ -152,6 +152,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaPrimitiveSpec.v \
   FlambdaRangeProofs.v \
   FlambdaRangeSpec.v \
+  FlambdaRenameApartProofs.v \
+  FlambdaRenameApartSpec.v \
   FlambdaScopeProofs.v \
   FlambdaScopeSpec.v \
   FlambdaSemanticsProofs.v \

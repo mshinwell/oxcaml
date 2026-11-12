@@ -270,6 +270,8 @@ stays C0's for now.
 - `middle_end/flambda2/rocq/FlambdaStaticsOrder*` (another: the
   bindings of a group of static bindings put in the order in which
   another term has them; V1's once it is staffed)
+- `middle_end/flambda2/rocq/FlambdaRenameApart*` (another: every binder
+  of a term given a name of its own; V1's once it is staffed)
 - `middle_end/flambda2/rocq/requests/V2-missing-constructs.md`
 
 ## V3: converter
