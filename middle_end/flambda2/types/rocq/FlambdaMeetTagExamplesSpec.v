@@ -51,10 +51,10 @@
      compiler's says that [x] is a block of tag 0, and the other that
      [x] is an immediate or a block of tag 0, which calls the join
      ([tags_arm_statement]; with the join that forgets). The load of
-     the field in that arm then says that [x] is a block, and the two
-     environments have one type for [x] ([tags_load_statement]): on
-     this function the step that is true loses nothing that the load
-     does not give back.
+     the field in that arm then says that [x] is a block: in this
+     scenario the later load gives the same type for [x] after either
+     meet ([tags_load_statement], which is of that type and not of
+     the whole environments).
    - A value that may be null:
 
        let get (x : int or_null) = match x with Null -> 0 | This n -> n
