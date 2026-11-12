@@ -59,7 +59,8 @@
      [switch_merging_of_meet_to_prove_rewrite_sound_statement]).
    - [simplify_switch_merging_fixed_names_rename_statement]: the third
      slice with given names commutes with a renaming that fixes those
-     names.
+     names. That is less than to commute with every renaming, which
+     it does not (see "Renaming").
 
    What is assumed. Of the meet, [meet_sound] and [meet_keeps_terms],
    as in the second slice, where the first slice asks
@@ -87,10 +88,14 @@
    it binds, and commutes with a renaming when they are renamed with
    the term ([simplify_switch_merging_rename_statement]). As a rewrite
    of a [Switch] its names are fixed, and then it commutes with the
-   renamings that fix them, and with no other: a renaming that moves
-   one of the names moves it in the term that is answered and not in
-   the names that are given. A function over terms that needs more
-   has to give names that the renaming at hand fixes.
+   renamings that fix them, and not in general with a renaming that
+   moves one: where such a name is bound in what is answered, the
+   renaming moves it in the term and not in the names that are given.
+   So the statement here does not give what a function over a whole
+   term asks of a rewrite of a [Switch] when it asks that the rewrite
+   commute with every renaming. For that, the names have to be made
+   in a way that itself commutes with renaming, or the function has
+   to ask less of the rewrite; neither is here.
 
    The proofs are in FlambdaSimplifySwitchRewriteProofs.v, which needs
    no review. *)
