@@ -53,20 +53,39 @@
    symbol that is a block), and is as it was where it holds none (the
    names to remove, the code id of a symbol known to be a closure).
 
-   The normalisations that the validation applies to the two terms
-   (FlambdaValidateSpec.normalise_before, [normalise_after],
-   [without_statics]) are made of these rewrites and commute with
-   renaming too. The comparison of the two results answers the same
-   when both are renamed
-   (FlambdaCompareAlphaSpec.expr_eqb_equivariant_statement). So the
-   check as a whole, FlambdaValidateSpec.validate_unit, answers the
-   same on a pair of terms and on the pair renamed
-   ([validate_unit_equivariant_statement]): whether Simplify is found
-   correct on a unit does not depend on the names of the unit.
+   The normalisation that the validation applies to the term after
+   (FlambdaValidateSpec.normalise_after), the removal of static
+   bindings ([without_statics]) and what a round of the term before
+   does once the calls are inlined and the binders have names of their
+   own ([normalise_before_inlined]) are made of these rewrites and
+   commute with renaming too. The comparison of the two results
+   answers the same when both are renamed
+   (FlambdaCompareAlphaSpec.expr_eqb_equivariant_statement).
 
-   So each rewrite and each check of the sections before the one
-   headed "Rewrites that make names" depends on the names of the term
-   by their equality only: none goes by the order or the number of a
+   The verdict does not depend on the names of the unit, where the
+   code of the term before is closed and the condition on the later
+   liftings, given below, holds. This file stated it of every pair of
+   terms, while no rewrite of the validation made a name: the
+   normalisation of the term before
+   (FlambdaValidateSpec.normalise_before) commuted with renaming, and
+   the check as a whole, FlambdaValidateSpec.validate_unit, answered
+   the same on a pair of terms and on the pair renamed. A round of the
+   term before now gives every binder a name of its own
+   (FlambdaRenameApartSpec.rename_apart), and that rewrite makes
+   names: it commutes with a renaming only up to the names that it
+   makes. So the first statement is no longer here, and the second is
+   of fewer terms. The last section says that the normalisation of the
+   term before commutes with renaming up to the names that it makes,
+   and that the check answers the same on a pair of terms and on the
+   pair renamed where the code of the term before is closed, as that
+   of a well-formed unit is, and each lifting after the first is
+   applied to a term that mentions the two continuations of its unit
+   ([validate_unit_equivariant_statement]). Nothing is said of a term
+   before with open code.
+
+   Each rewrite and each check of the sections before the one headed
+   "Rewrites that make names" depends on the names of the term by
+   their equality only: none goes by the order or the number of a
    name, and none makes a name. The one place where names are made
    from others is the renaming that inlining builds from the four
    continuations of a call and of the code called
@@ -80,10 +99,10 @@
    [iterate] ask that the rewrite they are given commutes with
    renaming, and that of [static_names] asks that the way it is given
    of reading the names of a binding does not look at variables and
-   continuations. The statements of the last section, "Rewrites that
-   make names", are not all equations, and are of terms whose code is
-   closed (FlambdaBindersSpec.code_closed), as that of a well-formed
-   unit is.
+   continuations. The statements of the two sections after them,
+   "Rewrites that make names" and the last, are not all equations, and
+   are of terms whose code is closed (FlambdaBindersSpec.code_closed),
+   as that of a well-formed unit is.
 
    Kinds, arities and the metadata of handlers and of code have no
    names in them: a renaming keeps them, and a check that reads them
@@ -157,51 +176,78 @@
    into the handlers of recursive continuations and commutes when the
    rewrite does; FlambdaSinkContsSpec.sink_let_conts;
    FlambdaShortcutSpec.shortcut_switches;
-   FlambdaUnusedParamsSpec.drop_unused_params; and
+   FlambdaUnusedParamsSpec.drop_unused_params;
    FlambdaLoopAliasesSpec.follow_aliases_in_loops, which carries a
-   typing environment as [follow_aliases] does. And
+   typing environment as [follow_aliases] does;
+   FlambdaLoopLetsSpec.remove_unused_defined_lets_in_loops, which
+   carries the kinds of what is in scope as
+   [remove_unused_defined_lets] does;
+   FlambdaParamAliasesSpec.bind_aliased_params;
+   FlambdaForwardSpec.forward_applications; and
+   FlambdaInlineTailSpec.inline_tail_conts_kinded, which the
+   validation does not apply yet. And
    FlambdaLoopifySpec.loopify_unit, which the validation does not
    apply: it is given, for the code ids to make loops of, the
    continuation of each loop, and a renaming acts on those
    continuations ([rename_loopified], which is to be reviewed).
 
    The normalisations of FlambdaValidateSpec.v: [iterate] of a rewrite
-   that commutes, [normalise_before], [normalise_after] and
-   [without_statics]; and the check, [validate_unit]. The check is
-   given the liftings to make (FlambdaLiftSpec.lifting), each of which
-   holds the two continuations of the unit, so a renaming acts on it
+   that commutes, [normalise_before_inlined], [normalise_after],
+   [without_statics] and [with_code_first], which the check applies
+   to the term after. The check, [validate_unit], is in the last
+   section. It is given the liftings to make
+   (FlambdaLiftSpec.lifting), each of which holds the two
+   continuations of the unit, so a renaming acts on it
    ([rename_lifting], which is to be reviewed); the lifting, the
    removal of unused value slots, the folding on known symbols, the
    use of the static closures in sight and the moving up of the
    bindings of code commute with renaming by the statements of
    FlambdaLiftSpec.v, of FlambdaMyClosureSpec.v, of
    FlambdaUnusedSlotsSpec.v, of FlambdaKnownSymbolsSpec.v, of
-   FlambdaKnownClosuresSpec.v and of FlambdaFloatCodeSpec.v. Three
+   FlambdaKnownClosuresSpec.v and of FlambdaFloatCodeSpec.v. Four
    more rewrites that the check applies are stated to commute with
-   renaming in their own files: FlambdaCseSpec.share_known_primitives
-   and FlambdaIdentitiesSpec.apply_identities, of a round of the term
-   before, and FlambdaStaticsOrderSpec.order_statics_as, which the
-   check applies to the term before with the term after as its
-   pattern. The code whose calls the check is told not to inline is
-   named by code ids, which no renaming changes.
+   renaming in their own files:
+   FlambdaCseSpec.share_known_primitives,
+   FlambdaIdentitiesSpec.apply_identities and
+   FlambdaInlineSiblingsSpec.inline_sibling_calls, of a round of the
+   term before, and FlambdaStaticsOrderSpec.order_statics_as, which
+   the check applies to the term before with the term after as its
+   pattern. One of a round of the term after is stated here:
+   FlambdaUnusedProjectionsSpec.remove_unused_projections, which
+   carries what it knows of the variables that are sets of closures;
+   the action of a renaming on that is in its file
+   ([rename_known_sets]). The code whose calls the check is told not
+   to inline is named by code ids, which no renaming changes.
 
    Rewrites that make names. A rewrite that makes names with
    FlambdaNameAbstractionSpec.fresh_name, outside the names of the term
    it is given, does not commute with a renaming: which name is made
    depends on the numbers of the names of the term, and a renaming
-   changes those. The last section says what such a rewrite can do
-   instead, which is to commute up to the names that it makes
+   changes those. The section of that name says what such a rewrite
+   can do instead, which is to commute up to the names that it makes
    ([equivariant_up_to]); that this composes with the rewrites above,
    for rewrites that keep scope ([keeps_scope]); and that the
    comparison of FlambdaCompareSpec.v, which is up to bound names,
    answers the same ([expr_eqb_up_to_statement]). The three
    definitions are to be reviewed. They speak of the free names by the
    one function for each sort of FlambdaBindersSpec.v, which goes into
-   code. No rewrite that the validation applies is such a rewrite yet.
-   The section is for the pass that renames the binders of the term
-   before apart: when the validation applies it, the statement about
-   [validate_unit] will be made of these, with the premises that the
-   rewrites of the validation keep scope.
+   code. The validation applies one such rewrite, [rename_apart]. The
+   section after it, the last, says what follows for the validation: a
+   round of the term before, [normalise_before], and the normalisation
+   of a term in which something was lifted ([normalise_lifted]) keep
+   scope and commute with renaming up to the names that they make; and
+   [validate_unit] answers the same on a pair of terms and on the pair
+   renamed, where the code of the term before is closed and each
+   lifting after the first is applied to a term that mentions the two
+   continuations of its unit ([later_liftings_use_unit], which is to
+   be reviewed). They rest on
+   what the file of [rename_apart] states and proves, that it commutes
+   with renaming up to the names that it makes
+   (FlambdaRenameApartSpec.rename_apart_equivariant_up_to_statement),
+   and on the statements that each rewrite of the validation keeps
+   scope: FlambdaKeepsScopeSpec.v and FlambdaValidateScopeSpec.v for
+   those of a round, and FlambdaStaticsScopeSpec.v for those that the
+   check applies to the term before besides.
 
    Nothing is trusted here. The proofs are in
    FlambdaValidatorEquivarianceProofs.v, which needs no review. *)
@@ -215,7 +261,9 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaBindersSpec FlambdaWellFormedSpec FlambdaWellKindedSpec
   FlambdaLiftSpec FlambdaCompareSpec FlambdaRecHandlersSpec
   FlambdaSinkContsSpec FlambdaShortcutSpec FlambdaUnusedParamsSpec
-  FlambdaLoopAliasesSpec FlambdaLoopifySpec FlambdaValidateSpec.
+  FlambdaLoopAliasesSpec FlambdaLoopLetsSpec FlambdaParamAliasesSpec
+  FlambdaForwardSpec FlambdaInlineTailSpec FlambdaLoopifySpec
+  FlambdaRenameApartSpec FlambdaUnusedProjectionsSpec FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -281,6 +329,19 @@ Definition remove_unused_defined_lets_equivariant_statement : Prop :=
     remove_unused_defined_lets (rename_kinds_in_scope r kinds)
       (rename_expr r e)
     = rename_expr r (remove_unused_defined_lets kinds e).
+
+(* The removal of the projections of function slots that nothing uses
+   (FlambdaUnusedProjectionsSpec.v): what it knows is renamed with the
+   term. Then the pass as the validation runs it, with nothing known. *)
+Definition remove_projections_knowing_equivariant_statement : Prop :=
+  ∀ (r : renaming) (known : known_sets) (e : expr),
+    remove_projections_knowing (rename_known_sets r known) (rename_expr r e)
+    = rename_expr r (remove_projections_knowing known e).
+
+Definition remove_unused_projections_equivariant_statement : Prop :=
+  ∀ (r : renaming) (e : expr),
+    remove_unused_projections (rename_expr r e)
+    = rename_expr r (remove_unused_projections e).
 
 (* The test that decides whether a call agrees with the code called in
    its arities. It reads arities, which have no names in them, and how
@@ -632,6 +693,31 @@ Definition follow_aliases_in_loops_equivariant_statement : Prop :=
 Definition follow_aliases_in_loops_unknowing_equivariant_statement : Prop :=
   rewrite_equivariant (follow_aliases_in_loops []).
 
+(* Removing the unused [Let]s that are sure to have a value, in the
+   handlers of recursive continuations too (FlambdaLoopLetsSpec.v):
+   the kinds of what is in scope are renamed with the term. The
+   validation runs it with nothing in scope. *)
+Definition remove_unused_defined_lets_in_loops_equivariant_statement : Prop :=
+  ∀ (r : renaming) (kinds : kinds_in_scope) (e : expr),
+    remove_unused_defined_lets_in_loops (rename_kinds_in_scope r kinds)
+      (rename_expr r e)
+    = rename_expr r (remove_unused_defined_lets_in_loops kinds e).
+
+(* Binding a parameter that every application gives the same thing
+   (FlambdaParamAliasesSpec.v). *)
+Definition bind_aliased_params_equivariant_statement : Prop :=
+  rewrite_equivariant bind_aliased_params.
+
+(* An application of a continuation that only applies another
+   (FlambdaForwardSpec.v). *)
+Definition forward_applications_equivariant_statement : Prop :=
+  rewrite_equivariant forward_applications.
+
+(* Inlining a continuation at the end of its scope, where its handler
+   gives one kind for each parameter (FlambdaInlineTailSpec.v). *)
+Definition inline_tail_conts_kinded_equivariant_statement : Prop :=
+  rewrite_equivariant inline_tail_conts_kinded.
+
 (* FlambdaLoopifySpec.loopify_unit is given, for each code id to make
    a loop of, the continuation of the loop. The action: the
    continuation is renamed, the code id is not. *)
@@ -653,14 +739,29 @@ Definition iterate_equivariant_statement : Prop :=
   ∀ (rounds : nat) (f : expr -> expr),
     rewrite_equivariant f -> rewrite_equivariant (iterate rounds f).
 
-(* The normalisation of the term before Simplify, and that of the term
-   after: each is made of the rewrites above, of [fold_constants] and of
-   [inline_calls]. The code whose calls are not inlined is named by code
-   ids, which no renaming changes. *)
-Definition normalise_before_equivariant_statement : Prop :=
-  ∀ (rounds : nat) (kept : list code_id),
-    rewrite_equivariant (normalise_before rounds kept).
+(* The first phase of the term before Simplify: the round for an
+   expression, for the body of code and for a term. Each is made of
+   the rewrites above and of [fold_constants]; no call is inlined and
+   no name is made. *)
+Definition normalise_expr_params_equivariant_statement : Prop :=
+  rewrite_equivariant normalise_expr_params.
 
+Definition normalise_code_params_equivariant_statement : Prop :=
+  rewrite_equivariant normalise_code_params.
+
+Definition normalise_params_round_equivariant_statement : Prop :=
+  rewrite_equivariant normalise_params_round.
+
+(* The round of the second phase of the term before Simplify once its
+   calls are inlined and its binders have names of their own: it is
+   made of the rewrites above and of [fold_constants]. *)
+Definition normalise_before_inlined_equivariant_statement : Prop :=
+  rewrite_equivariant normalise_before_inlined.
+
+(* The normalisation of the term after Simplify: it is made of the
+   rewrites above and of [fold_constants]. The code whose calls are not
+   inlined is named by code ids, which no renaming changes. That of the
+   term before is in the last section: a round of it makes names. *)
 Definition normalise_after_equivariant_statement : Prop :=
   ∀ (rounds : nat) (kept : list code_id),
     rewrite_equivariant (normalise_after rounds kept).
@@ -669,6 +770,16 @@ Definition normalise_after_equivariant_statement : Prop :=
    refers to them. *)
 Definition without_statics_equivariant_statement : Prop :=
   ∀ D : dropped, rewrite_equivariant (without_statics D).
+
+(* The unit with all its code bound first, which the check applies to
+   the term after: the conditions of FlambdaHoistCodeSpec.hoist_code
+   hold of the renamed term where they hold of the term (they go by
+   symbols, code ids and where the static bindings are, and by the
+   free continuations of the term, which are renamed with it), and
+   the binding of the code first and the tidying of the groups of
+   static bindings commute with renaming. *)
+Definition with_code_first_equivariant_statement : Prop :=
+  rewrite_equivariant with_code_first.
 
 (* ======================================================================== *)
 (* The check of kinds of FlambdaWellKindedSpec.v                            *)
@@ -766,18 +877,9 @@ Definition rename_lifting (r : renaming) (L : lifting) : lifting :=
   Lifting (rename_unit_interface r (lifting_unit L)) (lifted_lets L)
     (lifted_my_closures L).
 
-(* The validation answers the same, and for the same reason, on two
-   terms and on the two renamed by one renaming, the liftings being
-   renamed with them. The number of rounds, the names of the static
-   bindings to remove, the value slots to remove and the code whose
-   calls are not inlined are as they were. *)
-Definition validate_unit_equivariant_statement : Prop :=
-  ∀ (r : renaming) (rounds : nat) (unused : dropped)
-    (slots : list value_slot) (Ls : list lifting) (kept : list code_id)
-    (before after : expr),
-    validate_unit rounds unused slots (map (rename_lifting r) Ls) kept
-      (rename_expr r before) (rename_expr r after)
-    = validate_unit rounds unused slots Ls kept before after.
+(* That the validation answers the same on two terms and on the two
+   renamed is in the last section: a round of the term before makes
+   names. *)
 
 (* ======================================================================== *)
 (* Rewrites that make names                                                 *)
@@ -874,3 +976,165 @@ Definition expr_eqb_up_to_statement : Prop :=
     code_closed e = true ->
     expr_eqb [] [] (f (rename_expr r e)) (rename_expr r e')
     = expr_eqb [] [] (f e) e'.
+
+(* ======================================================================== *)
+(* The validation, one of whose rewrites makes names                        *)
+(* ======================================================================== *)
+
+(* [rename_apart] commutes with renaming up to the names that it makes
+   in the sense of this file. Its own file says that the second
+   renaming does what the first does to the names that are free in the
+   term (FlambdaRenameApartSpec.rename_apart_equivariant_up_to_statement).
+   Here it does so to the names that are free in the result:
+   [rename_apart] keeps scope
+   (FlambdaKeepsScopeSpec.rename_apart_keeps_scope_statement). *)
+Definition rename_apart_commutes_up_to_statement : Prop :=
+  equivariant_up_to rename_apart.
+
+(* A round of the second phase of the term before keeps scope, and so
+   does the normalisation of the term before, which is the rounds of
+   the first phase and then those of the second: the rewrites that a
+   round is made of keep scope (FlambdaKeepsScopeSpec.v,
+   FlambdaValidateScopeSpec.v), and so does a round of the first phase
+   (FlambdaValidateScopeSpec.normalise_params_round_keeps_scope_statement).
+   The code whose calls are not inlined is named by code ids, which no
+   renaming changes. *)
+Definition normalise_before_round_keeps_scope_statement : Prop :=
+  ∀ kept : list code_id, keeps_scope (normalise_before_round kept).
+
+Definition normalise_before_keeps_scope_statement : Prop :=
+  ∀ (rounds : nat) (kept : list code_id),
+    keeps_scope (normalise_before rounds kept).
+
+(* A round of the second phase of the term before, and the
+   normalisation of the term before, commute with renaming up to the
+   names that they make; the first phase commutes with renaming. These
+   stand where this file stated that the normalisation of the term
+   before commutes with renaming, which it did while no round made a
+   name. *)
+Definition normalise_before_round_equivariant_up_to_statement : Prop :=
+  ∀ kept : list code_id, equivariant_up_to (normalise_before_round kept).
+
+Definition normalise_before_equivariant_up_to_statement : Prop :=
+  ∀ (rounds : nat) (kept : list code_id),
+    equivariant_up_to (normalise_before rounds kept).
+
+(* The same of the normalisation of a term in which something was
+   lifted: after the first phase, each of its rounds is a round of the
+   second phase of the term before followed
+   by the use of what is known of the static closures in sight and of
+   what the unit binds its symbols to, which commute with renaming and
+   keep scope (FlambdaStaticsScopeSpec.v). *)
+Definition normalise_lifted_keeps_scope_statement : Prop :=
+  ∀ (rounds : nat) (kept : list code_id),
+    keeps_scope (normalise_lifted rounds kept).
+
+Definition normalise_lifted_equivariant_up_to_statement : Prop :=
+  ∀ (rounds : nat) (kept : list code_id),
+    equivariant_up_to (normalise_lifted rounds kept).
+
+(* The two continuations of the unit of a lifting are free in a
+   term. *)
+Definition unit_continuations_free (L : lifting) (e : expr) : Prop :=
+  among (unit_return (lifting_unit L)) (free_continuations_of_expr e) = true
+  ∧ among (unit_exn (lifting_unit L)) (free_continuations_of_expr e) = true.
+
+(* Each lifting of a list is applied, in its turn
+   (FlambdaValidateSpec.lifted_in_turn), to a term in which the two
+   continuations of its unit are free. *)
+Fixpoint liftings_use_unit (rounds : nat) (Ls : list lifting)
+    (kept : list code_id) (e : expr) : Prop :=
+  match Ls with
+  | [] => True
+  | L :: Ls =>
+    unit_continuations_free L e
+    ∧ liftings_use_unit rounds Ls kept
+        (normalise_lifted rounds kept (with_lifting L e))
+  end.
+
+(* The liftings after the first are so applied. Nothing is asked of
+   the first, nor where there is one lifting or none. *)
+Definition later_liftings_use_unit (rounds : nat) (Ls : list lifting)
+    (kept : list code_id) (before : expr) : Prop :=
+  match Ls with
+  | [] => True
+  | L :: Ls =>
+    liftings_use_unit rounds Ls kept
+      (normalise_lifted rounds kept (with_lifting L before))
+  end.
+
+(* The validation answers the same, and for the same reason, on two
+   terms and on the two renamed by one renaming, the liftings being
+   renamed with them, where the code of the term before is closed and
+   each lifting after the first is applied to a term that mentions the
+   two continuations of its unit. The number of rounds, the names of
+   the static bindings to remove, the value slots to remove and the
+   code whose calls are not inlined are as they were. Nothing is asked
+   of the term after: its normalisation commutes with renaming, and
+   so does the putting of its code first
+   ([with_code_first_equivariant_statement]).
+
+   The first comparison is of the two terms as they are, and answers
+   the same of the two renamed. The next two are of the term before
+   normalised, which under the renaming is that term under a second
+   renaming that does to its free names what the first does. The last
+   is of the term before with the liftings made in turn, each followed
+   by a normalisation. The first lifting commutes with the renaming;
+   the normalisation after it makes names, so the term that the next
+   lifting is applied to is, under the renaming, that term under
+   another renaming, which does to its free names what the first does.
+   A lifting holds the two continuations of the unit, and it is given
+   renamed by the first renaming: that is the lifting renamed by the
+   other renaming where the two continuations are free in the term.
+   The removal of static bindings, the removal of value slots, the
+   moving up of the bindings of code and the ordering of static
+   bindings commute with those renamings and keep scope
+   (FlambdaStaticsScopeSpec.v); and the comparison is up to bound
+   names and does not tell apart two renamings that rename the free
+   names of its first term alike ([expr_eqb_renamed_alike_statement]).
+
+   What is not said. With two liftings or more, nothing is said of a
+   pair of terms where a lifting after the first is applied to a term
+   in which one of the two continuations of the unit is not free. That
+   leaves out an ordinary unit whose term, once its first lifting is
+   made and the result normalised, no longer mentions its exception
+   continuation free. With one lifting or none the second premise
+   asks nothing, and the statement is as it was. Nothing is
+   said of a term before with open code. Before a round renamed
+   binders apart this statement had no premise.
+
+   The second premise is of this statement only. The validation makes
+   no such test: it accepts what it accepted, and that what it accepts
+   is correct (FlambdaValidateSpec.validate_unit_sound_statement) has
+   no such premise. *)
+
+(* CR mshinwell: the second premise came with the liftings made in
+   turn and narrows what is guaranteed. Why the proof needs it: a
+   lifting is made only if what it makes is a well-formed unit
+   (FlambdaLiftSpec.lift_unit), and the checks of exception handlers
+   and of trap actions go by the name of the exception continuation of
+   the unit and do not follow rebinding
+   (FlambdaWellFormedSpec.unit_exn_handlers_well_formed). A round
+   makes names by their numbers, outside the names of the term
+   (FlambdaRenameApartSpec.rename_apart). So where the term no longer
+   mentions a continuation of the unit, a binder that a round makes
+   may have the number of that continuation, for the unit and not for
+   the renamed unit or the other way round, and a later lifting may
+   then be refused for the one and made for the other. The options:
+   (1) this premise, which is the one taken, so that the series that
+   renames binders apart is not held; (2) a round that is told the two
+   continuations of the unit and avoids them when it makes names,
+   which is planned as the next series if its cost is small, and is
+   meant to let the premise go once the statement is proved without
+   it; (3) checks of well-formedness that follow rebinding. Whether the
+   statement fails without the premise is not established: no pair of
+   terms with two verdicts is exhibited. *)
+Definition validate_unit_equivariant_statement : Prop :=
+  ∀ (r : renaming) (rounds : nat) (unused : dropped)
+    (slots : list value_slot) (Ls : list lifting) (kept : list code_id)
+    (before after : expr),
+    code_closed before = true ->
+    later_liftings_use_unit rounds Ls kept before ->
+    validate_unit rounds unused slots (map (rename_lifting r) Ls) kept
+      (rename_expr r before) (rename_expr r after)
+    = validate_unit rounds unused slots Ls kept before after.

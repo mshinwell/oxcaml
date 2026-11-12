@@ -58,8 +58,12 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaForwardSpec FlambdaInlineTailSpec FlambdaLoopifySpec
   FlambdaCseSpec FlambdaCseProofs
   FlambdaIdentitiesSpec FlambdaIdentitiesProofs FlambdaStaticsOrderSpec
-  FlambdaStaticsOrderProofs FlambdaValidateSpec
+  FlambdaStaticsOrderProofs FlambdaRenameApartSpec FlambdaRenameApartProofs
+  FlambdaInlineSiblingsSpec FlambdaInlineSiblingsProofs
+  FlambdaUnusedProjectionsSpec FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec.
+From OxCamlFlambda2 Require FlambdaKeepsScopeProofs FlambdaValidateScopeProofs
+  FlambdaStaticsScopeProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -408,6 +412,94 @@ Theorem remove_unused_defined_lets_equivariant :
   remove_unused_defined_lets_equivariant_statement.
 Proof.
   intros r kinds e. apply remove_unused_defined_lets_equivariant_aux.
+Qed.
+
+(* The projections of function slots that nothing uses. *)
+
+Lemma lookup_rename_known_sets (r : renaming) (x : variable)
+    (known : known_sets) :
+  lookup (rename_variable r x) (rename_known_sets r known) = lookup x known.
+Proof.
+  induction known as [ | [y entry] known IH]; simpl; [ reflexivity | ].
+  rewrite rename_variable_eqb, IH. reflexivity.
+Qed.
+
+Lemma forget_set_renamed (r : renaming) (x : variable) (known : known_sets) :
+  forget_set (rename_variable r x) (rename_known_sets r known)
+  = rename_known_sets r (forget_set x known).
+Proof.
+  induction known as [ | [y entry] known IH]; simpl; [ reflexivity | ].
+  rewrite rename_variable_eqb. destruct (Pos.eqb x y); simpl; rewrite IH;
+    reflexivity.
+Qed.
+
+Lemma forget_sets_renamed (r : renaming) (xs : list variable) :
+  ∀ known : known_sets,
+    forget_sets (map (rename_variable r) xs) (rename_known_sets r known)
+    = rename_known_sets r (forget_sets xs known).
+Proof.
+  induction xs as [ | x xs IH]; intros known; simpl; [ reflexivity | ].
+  rewrite forget_set_renamed. apply IH.
+Qed.
+
+Lemma sets_under_let_renamed (r : renaming) (known : known_sets)
+    (x : variable) (d : named) :
+  sets_under_let (rename_known_sets r known) (rename_variable r x)
+    (rename_named r d)
+  = rename_known_sets r (sets_under_let known x d).
+Proof.
+  unfold sets_under_let. rewrite forget_set_renamed.
+  destruct d; reflexivity.
+Qed.
+
+Lemma projection_defined_renamed (r : renaming) (known : known_sets)
+    (d : named) :
+  projection_defined (rename_known_sets r known) (rename_named r d)
+  = projection_defined known d.
+Proof.
+  destruct d as [s | p args | code slots | fslot decls slots | slot closure
+    | pfrom slot closure | move_from move_to closure];
+    try reflexivity.
+  destruct closure as [x | sym | c]; try reflexivity.
+  simpl. rewrite lookup_rename_known_sets. reflexivity.
+Qed.
+
+Fixpoint remove_projections_knowing_equivariant_aux (r : renaming)
+    (e : expr) :
+  ∀ known : known_sets,
+    remove_projections_knowing (rename_known_sets r known) (rename_expr r e)
+    = rename_expr r (remove_projections_knowing known e).
+Proof.
+  destruct e
+    as [ x kind d body | bindings body | k [params metadata handler] body
+       | handlers body | ap | ac | scrutinee arms | ];
+    intros known; simpl; try reflexivity.
+  - rewrite sets_under_let_renamed,
+      remove_projections_knowing_equivariant_aux,
+      projection_defined_renamed, var_free_b_equivariant_aux.
+    destruct
+      (kind_eqb kind Value
+       && projection_defined known d
+       && negb
+            (var_free_b x
+               (remove_projections_knowing (sets_under_let known x d) body)));
+      reflexivity.
+  - rewrite remove_projections_knowing_equivariant_aux. reflexivity.
+  - rewrite forget_sets_renamed, !remove_projections_knowing_equivariant_aux.
+    reflexivity.
+  - rewrite remove_projections_knowing_equivariant_aux. reflexivity.
+Qed.
+
+Theorem remove_projections_knowing_equivariant :
+  remove_projections_knowing_equivariant_statement.
+Proof.
+  intros r known e. apply remove_projections_knowing_equivariant_aux.
+Qed.
+
+Theorem remove_unused_projections_equivariant :
+  remove_unused_projections_equivariant_statement.
+Proof.
+  intros r e. exact (remove_projections_knowing_equivariant_aux r e []).
 Qed.
 
 (* ======================================================================== *)
@@ -4328,6 +4420,12 @@ Proof.
   exact (remove_unused_defined_lets_in_loops_equivariant_aux r e []).
 Qed.
 
+Theorem remove_unused_defined_lets_in_loops_equivariant :
+  remove_unused_defined_lets_in_loops_equivariant_statement.
+Proof.
+  intros r kinds e. apply remove_unused_defined_lets_in_loops_equivariant_aux.
+Qed.
+
 Lemma inline_calls_unknowing_equivariant (kept : list code_id) :
   rewrite_equivariant (inline_calls kept []).
 Proof. intros r e. exact (inline_calls_equivariant r kept [] e). Qed.
@@ -4355,6 +4453,7 @@ Ltac rename_outwards :=
       | rewrite follow_aliases_unknowing_equivariant
       | rewrite remove_unused_lets_equivariant_aux
       | rewrite remove_unused_defined_lets_closed_equivariant
+      | rewrite remove_unused_projections_equivariant
       | rewrite inline_calls_unknowing_equivariant
       | rewrite inline_known_calls_unknowing_equivariant
       | rewrite drop_deleted_code_equivariant_aux
@@ -4382,11 +4481,10 @@ Proof.
   apply rewrite_rec_handlers_equivariant, normalise_expr_before_equivariant.
 Qed.
 
-Lemma normalise_before_round_equivariant (kept : list code_id) :
-  rewrite_equivariant (normalise_before_round kept).
+Theorem normalise_before_inlined_equivariant :
+  normalise_before_inlined_equivariant_statement.
 Proof.
-  intros r e. unfold normalise_before_round, normalise_before_inlined.
-  rename_outwards.
+  intros r e. unfold normalise_before_inlined.
   rewrite normalise_code_before_equivariant. rename_outwards.
   apply rewrite_code_equivariant, normalise_code_before_equivariant.
 Qed.
@@ -4415,15 +4513,6 @@ Proof.
   intros r e. unfold normalise_params_round.
   rewrite normalise_code_params_equivariant.
   apply rewrite_code_equivariant, normalise_code_params_equivariant.
-Qed.
-
-Theorem normalise_before_equivariant :
-  normalise_before_equivariant_statement.
-Proof.
-  intros rounds kept r e. unfold normalise_before.
-  rewrite
-    (iterate_equivariant rounds _ normalise_params_round_equivariant r e).
-  apply iterate_equivariant, normalise_before_round_equivariant.
 Qed.
 
 Lemma normalise_expr_after_equivariant :
@@ -4914,7 +5003,8 @@ Proof.
 Qed.
 
 Fixpoint known_sets_renamed (r : renaming) (e : expr) {struct e} :
-  known_sets (rename_expr r e) = known_sets e
+  FlambdaKnownSymbolsSpec.known_sets (rename_expr r e)
+  = FlambdaKnownSymbolsSpec.known_sets e
 with known_sets_of_handler_renamed (r : renaming)
     (h : continuation_handler) {struct h} :
   known_sets_of_handler (rename_handler r h) = known_sets_of_handler h.
@@ -4997,7 +5087,7 @@ Lemma with_known_equivariant : rewrite_equivariant with_known.
 Proof.
   intros r e. unfold with_known, fold_known_unit. cbv zeta.
   rewrite known_bindings_renamed, known_sets_renamed, bound_as_renamed.
-  destruct (bound_as (known_bindings e) (known_sets e) e); [ | reflexivity ].
+  destruct (bound_as (known_bindings e) _ e); [ | reflexivity ].
   symmetry. apply fold_known_equivariant.
 Qed.
 
@@ -5043,48 +5133,6 @@ Qed.
 
 Lemma float_code_rewrite_equivariant : rewrite_equivariant float_code.
 Proof. intros r e. symmetry. apply float_code_equivariant. Qed.
-
-Lemma normalise_lifted_round_equivariant (kept : list code_id) :
-  rewrite_equivariant (normalise_lifted_round kept).
-Proof.
-  intros r e. unfold normalise_lifted_round.
-  rewrite normalise_before_round_equivariant,
-    use_known_closures_rewrite_equivariant.
-  apply with_known_equivariant.
-Qed.
-
-Lemma normalise_lifted_equivariant (rounds : nat) (kept : list code_id) :
-  rewrite_equivariant (normalise_lifted rounds kept).
-Proof.
-  intros r e. unfold normalise_lifted.
-  rewrite
-    (iterate_equivariant rounds _ normalise_params_round_equivariant r e).
-  apply iterate_equivariant, normalise_lifted_round_equivariant.
-Qed.
-
-(* The liftings in turn. *)
-Lemma lifted_in_turn_renamed (r : renaming) (rounds : nat)
-    (Ls : list lifting) (kept : list code_id) :
-  ∀ e : expr,
-    lifted_in_turn rounds (map (rename_lifting r) Ls) kept (rename_expr r e)
-    = rename_expr r (lifted_in_turn rounds Ls kept e).
-Proof.
-  induction Ls as [ | L Ls IH]; intros e; cbn [map lifted_in_turn];
-    [ reflexivity | ].
-  rewrite with_lifting_renamed, normalise_lifted_equivariant. apply IH.
-Qed.
-
-Theorem validate_unit_equivariant : validate_unit_equivariant_statement.
-Proof.
-  intros r rounds unused slots Ls kept before after. unfold validate_unit.
-  rewrite lifted_in_turn_renamed.
-  rewrite normalise_before_equivariant, normalise_after_equivariant,
-    without_slots_equivariant, !without_statics_equivariant,
-    with_code_first_equivariant, !float_code_rewrite_equivariant,
-    !order_statics_as_equivariant,
-    !expr_eqb_renamed.
-  reflexivity.
-Qed.
 
 (* ======================================================================== *)
 (* Rewrites that make names                                                 *)
@@ -5177,4 +5225,449 @@ Proof.
   destruct (Hf r e Hclosed) as (r' & Halike & Heq). rewrite Heq.
   apply expr_eqb_renamed_alike; [ | exact Halike ].
   exact (proj1 (Kf e Hclosed)).
+Qed.
+
+(* ======================================================================== *)
+(* The validation, one of whose rewrites makes names                        *)
+(* ======================================================================== *)
+
+(* Each rewrite of the validation keeps scope: the statements of
+   FlambdaKeepsScopeSpec.v, of FlambdaValidateScopeSpec.v and of
+   FlambdaStaticsScopeSpec.v. *)
+Lemma inline_calls_scope (kept : list code_id) :
+  keeps_scope (inline_calls kept []).
+Proof. exact (FlambdaValidateScopeProofs.inline_calls_keeps_scope kept). Qed.
+
+Lemma inline_sibling_calls_scope (kept : list code_id) :
+  keeps_scope (inline_sibling_calls kept).
+Proof.
+  exact (FlambdaValidateScopeProofs.inline_sibling_calls_keeps_scope kept).
+Qed.
+
+Lemma rename_apart_scope : keeps_scope rename_apart.
+Proof. exact FlambdaKeepsScopeProofs.rename_apart_keeps_scope. Qed.
+
+Lemma normalise_before_inlined_scope : keeps_scope normalise_before_inlined.
+Proof.
+  exact FlambdaValidateScopeProofs.normalise_before_inlined_keeps_scope.
+Qed.
+
+Lemma with_known_scope : keeps_scope with_known.
+Proof. exact FlambdaStaticsScopeProofs.with_known_keeps_scope. Qed.
+
+Lemma with_lifting_scope (L : lifting) : keeps_scope (with_lifting L).
+Proof. exact (FlambdaStaticsScopeProofs.with_lifting_keeps_scope L). Qed.
+
+Lemma without_slots_scope (slots : list value_slot) :
+  keeps_scope (without_slots slots).
+Proof. exact (FlambdaStaticsScopeProofs.without_slots_keeps_scope slots). Qed.
+
+Lemma without_statics_scope (unused : dropped) :
+  keeps_scope (without_statics unused).
+Proof.
+  exact (FlambdaStaticsScopeProofs.without_statics_keeps_scope unused).
+Qed.
+
+Lemma order_statics_as_scope (pattern : expr) :
+  keeps_scope (order_statics_as pattern).
+Proof.
+  exact (FlambdaStaticsScopeProofs.order_statics_as_keeps_scope pattern).
+Qed.
+
+(* The renaming that the file of [rename_apart] gives agrees with the
+   first on the names that are free in the term. A name that is free
+   in the result is free in the term, as the rewrite keeps scope. *)
+Theorem rename_apart_commutes_up_to : rename_apart_commutes_up_to_statement.
+Proof.
+  intros r e Hclosed.
+  destruct (rename_apart_equivariant_up_to r e)
+    as (r' & Hvars & Hconts & Heq).
+  destruct (rename_apart_scope e Hclosed) as (_ & Hvars_kept & Hconts_kept).
+  exists r'. split; [ split | exact Heq ].
+  - intros x Hx. apply Hvars, Hvars_kept, Hx.
+  - intros k Hk. apply Hconts, Hconts_kept, Hk.
+Qed.
+
+(* A round is four rewrites, one after the other. The first three, as
+   one rewrite: *)
+Definition inline_and_rename_apart (kept : list code_id) (e : expr) : expr :=
+  rename_apart (inline_sibling_calls kept (inline_calls kept [] e)).
+
+Lemma inline_and_rename_apart_scope (kept : list code_id) :
+  keeps_scope (inline_and_rename_apart kept).
+Proof.
+  exact
+    (keeps_scope_compose
+       (fun e => inline_sibling_calls kept (inline_calls kept [] e))
+       rename_apart
+       (keeps_scope_compose (inline_calls kept []) (inline_sibling_calls kept)
+          (inline_calls_scope kept) (inline_sibling_calls_scope kept))
+       rename_apart_scope).
+Qed.
+
+Lemma inline_sibling_calls_unknowing_equivariant (kept : list code_id) :
+  rewrite_equivariant (inline_sibling_calls kept).
+Proof. intros r e. apply inline_sibling_calls_equivariant. Qed.
+
+(* The inlining of calls commutes with renaming, and so does up to the
+   names that it makes. *)
+Lemma inline_and_rename_apart_up_to (kept : list code_id) :
+  equivariant_up_to (inline_and_rename_apart kept).
+Proof.
+  exact
+    (equivariant_up_to_compose
+       (fun e => inline_sibling_calls kept (inline_calls kept [] e))
+       rename_apart
+       (keeps_scope_compose (inline_calls kept []) (inline_sibling_calls kept)
+          (inline_calls_scope kept) (inline_sibling_calls_scope kept))
+       rename_apart_scope
+       (equivariant_up_to_compose (inline_calls kept [])
+          (inline_sibling_calls kept) (inline_calls_scope kept)
+          (inline_sibling_calls_scope kept)
+          (rewrite_equivariant_up_to (inline_calls kept [])
+             (inline_calls_unknowing_equivariant kept))
+          (rewrite_equivariant_up_to (inline_sibling_calls kept)
+             (inline_sibling_calls_unknowing_equivariant kept)))
+       rename_apart_commutes_up_to).
+Qed.
+
+Theorem normalise_before_round_keeps_scope :
+  normalise_before_round_keeps_scope_statement.
+Proof.
+  intros kept e.
+  exact
+    (keeps_scope_compose (inline_and_rename_apart kept)
+       normalise_before_inlined (inline_and_rename_apart_scope kept)
+       normalise_before_inlined_scope e).
+Qed.
+
+(* The first phase of the term before, however many times it is
+   applied: it commutes with renaming and keeps scope. *)
+Lemma params_phase_scope (rounds : nat) :
+  keeps_scope (iterate rounds normalise_params_round).
+Proof.
+  exact
+    (keeps_scope_iterate rounds normalise_params_round
+       FlambdaValidateScopeProofs.normalise_params_round_keeps_scope).
+Qed.
+
+Lemma params_phase_up_to (rounds : nat) :
+  equivariant_up_to (iterate rounds normalise_params_round).
+Proof.
+  exact
+    (rewrite_equivariant_up_to (iterate rounds normalise_params_round)
+       (iterate_equivariant rounds normalise_params_round
+          normalise_params_round_equivariant)).
+Qed.
+
+Theorem normalise_before_keeps_scope : normalise_before_keeps_scope_statement.
+Proof.
+  intros rounds kept e.
+  exact
+    (keeps_scope_compose (iterate rounds normalise_params_round)
+       (iterate rounds (normalise_before_round kept))
+       (params_phase_scope rounds)
+       (keeps_scope_iterate rounds (normalise_before_round kept)
+          (normalise_before_round_keeps_scope kept))
+       e).
+Qed.
+
+(* The rest of the round commutes with renaming, and so does up to the
+   names that it makes. *)
+Theorem normalise_before_round_equivariant_up_to :
+  normalise_before_round_equivariant_up_to_statement.
+Proof.
+  intros kept r e.
+  exact
+    (equivariant_up_to_compose (inline_and_rename_apart kept)
+       normalise_before_inlined (inline_and_rename_apart_scope kept)
+       normalise_before_inlined_scope (inline_and_rename_apart_up_to kept)
+       (rewrite_equivariant_up_to normalise_before_inlined
+          normalise_before_inlined_equivariant)
+       r e).
+Qed.
+
+Theorem normalise_before_equivariant_up_to :
+  normalise_before_equivariant_up_to_statement.
+Proof.
+  intros rounds kept r e.
+  exact
+    (equivariant_up_to_compose (iterate rounds normalise_params_round)
+       (iterate rounds (normalise_before_round kept))
+       (params_phase_scope rounds)
+       (keeps_scope_iterate rounds (normalise_before_round kept)
+          (normalise_before_round_keeps_scope kept))
+       (params_phase_up_to rounds)
+       (equivariant_up_to_iterate rounds (normalise_before_round kept)
+          (normalise_before_round_keeps_scope kept)
+          (normalise_before_round_equivariant_up_to kept))
+       r e).
+Qed.
+
+(* The use of what is known of the static closures in sight and of
+   what the unit binds its symbols to, as one rewrite. *)
+Lemma use_known_closures_scope : keeps_scope use_known_closures.
+Proof. exact FlambdaStaticsScopeProofs.use_known_closures_keeps_scope. Qed.
+
+Lemma float_code_scope : keeps_scope float_code.
+Proof. exact FlambdaStaticsScopeProofs.float_code_keeps_scope. Qed.
+
+Definition use_known (e : expr) : expr := with_known (use_known_closures e).
+
+Lemma use_known_scope : keeps_scope use_known.
+Proof.
+  exact
+    (keeps_scope_compose use_known_closures with_known
+       use_known_closures_scope with_known_scope).
+Qed.
+
+Lemma use_known_equivariant : rewrite_equivariant use_known.
+Proof.
+  intros r e. unfold use_known.
+  rewrite use_known_closures_rewrite_equivariant. apply with_known_equivariant.
+Qed.
+
+(* A round of the normalisation of a term in which something was
+   lifted: a round of the term before, then that rewrite. *)
+Lemma normalise_lifted_round_scope (kept : list code_id) :
+  keeps_scope (normalise_lifted_round kept).
+Proof.
+  intros e.
+  exact
+    (keeps_scope_compose (normalise_before_round kept) use_known
+       (normalise_before_round_keeps_scope kept) use_known_scope e).
+Qed.
+
+Lemma normalise_lifted_round_up_to (kept : list code_id) :
+  equivariant_up_to (normalise_lifted_round kept).
+Proof.
+  intros r e.
+  exact
+    (equivariant_up_to_compose (normalise_before_round kept) use_known
+       (normalise_before_round_keeps_scope kept) use_known_scope
+       (normalise_before_round_equivariant_up_to kept)
+       (rewrite_equivariant_up_to use_known use_known_equivariant) r e).
+Qed.
+
+Theorem normalise_lifted_keeps_scope : normalise_lifted_keeps_scope_statement.
+Proof.
+  intros rounds kept e.
+  exact
+    (keeps_scope_compose (iterate rounds normalise_params_round)
+       (iterate rounds (normalise_lifted_round kept))
+       (params_phase_scope rounds)
+       (keeps_scope_iterate rounds (normalise_lifted_round kept)
+          (normalise_lifted_round_scope kept))
+       e).
+Qed.
+
+Theorem normalise_lifted_equivariant_up_to :
+  normalise_lifted_equivariant_up_to_statement.
+Proof.
+  intros rounds kept r e.
+  exact
+    (equivariant_up_to_compose (iterate rounds normalise_params_round)
+       (iterate rounds (normalise_lifted_round kept))
+       (params_phase_scope rounds)
+       (keeps_scope_iterate rounds (normalise_lifted_round kept)
+          (normalise_lifted_round_scope kept))
+       (params_phase_up_to rounds)
+       (equivariant_up_to_iterate rounds (normalise_lifted_round kept)
+          (normalise_lifted_round_scope kept)
+          (normalise_lifted_round_up_to kept))
+       r e).
+Qed.
+
+(* Two renamings that rename the free names of a term alike rename
+   alike those of what a rewrite that keeps scope makes of it. *)
+Lemma renames_alike_kept (f : expr -> expr) (r r' : renaming) (e : expr) :
+  keeps_scope f ->
+  code_closed e = true ->
+  renames_alike r r' e ->
+  code_closed (f e) = true ∧ renames_alike r r' (f e).
+Proof.
+  intros Kf Hclosed [Hvars Hconts].
+  destruct (Kf e Hclosed) as (Hclosed_f & Hvars_f & Hconts_f).
+  split; [ exact Hclosed_f | ]. split.
+  - intros x Hx. apply Hvars, Hvars_f, Hx.
+  - intros k Hk. apply Hconts, Hconts_f, Hk.
+Qed.
+
+(* The second of three renamings does to the free names of a term what
+   the first does, and the third does to those of what a rewrite that
+   keeps scope makes of the term what the second does: the third does
+   to them what the first does. *)
+Lemma renames_alike_then (f : expr -> expr) (r r1 r2 : renaming) (e : expr) :
+  keeps_scope f ->
+  code_closed e = true ->
+  renames_alike r r1 e ->
+  renames_alike r1 r2 (f e) ->
+  renames_alike r r2 (f e).
+Proof.
+  intros Kf Hclosed [Hvars Hconts] [Hvars' Hconts'].
+  destruct (Kf e Hclosed) as (_ & Hv & Hk).
+  split.
+  - intros x Hx. rewrite (Hvars' x Hx). apply Hvars, Hv, Hx.
+  - intros k Hk'. rewrite (Hconts' k Hk'). apply Hconts, Hk, Hk'.
+Qed.
+
+(* The liftings in turn keep scope. *)
+Lemma lifted_in_turn_scope (rounds : nat) (kept : list code_id)
+    (Ls : list lifting) :
+  keeps_scope (lifted_in_turn rounds Ls kept).
+Proof.
+  induction Ls as [ | L Ls IH]; intros e Hclosed; cbn [lifted_in_turn].
+  - split; [ exact Hclosed | split; intros name Hname; exact Hname ].
+  - destruct (with_lifting_scope L e Hclosed) as (Hclosed1 & Hv1 & Hk1).
+    destruct
+      (normalise_lifted_keeps_scope rounds kept (with_lifting L e) Hclosed1)
+      as (Hclosed2 & Hv2 & Hk2).
+    destruct (IH _ Hclosed2) as (Hclosed3 & Hv3 & Hk3).
+    split; [ exact Hclosed3 | split ].
+    + intros x Hx. apply Hv1, Hv2, Hv3, Hx.
+    + intros k Hk. apply Hk1, Hk2, Hk3, Hk.
+Qed.
+
+(* A lifting renamed by two renamings that rename the two continuations
+   of its unit alike. *)
+Lemma rename_lifting_alike (r r' : renaming) (L : lifting) (e : expr) :
+  renames_alike r r' e ->
+  unit_continuations_free L e ->
+  rename_lifting r L = rename_lifting r' L.
+Proof.
+  intros [_ Hconts] [Hret Hexn]. unfold rename_lifting, rename_unit_interface.
+  rewrite (Hconts _ Hret), (Hconts _ Hexn). reflexivity.
+Qed.
+
+(* The liftings in turn, of a term under a renaming that does to its
+   free names what the renaming of the liftings does. *)
+Lemma lifted_in_turn_up_to (r : renaming) (rounds : nat)
+    (kept : list code_id) (Ls : list lifting) :
+  ∀ (r1 : renaming) (e : expr),
+    code_closed e = true ->
+    renames_alike r r1 e ->
+    liftings_use_unit rounds Ls kept e ->
+    ∃ r' : renaming,
+      renames_alike r r' (lifted_in_turn rounds Ls kept e)
+      ∧ lifted_in_turn rounds (map (rename_lifting r) Ls) kept
+          (rename_expr r1 e)
+        = rename_expr r' (lifted_in_turn rounds Ls kept e).
+Proof.
+  induction Ls as [ | L Ls IH]; intros r1 e Hclosed Halike Huse;
+    cbn [map lifted_in_turn].
+  - exists r1. split; [ exact Halike | reflexivity ].
+  - destruct Huse as [Hfree Huse].
+    rewrite (rename_lifting_alike r r1 L e Halike Hfree), with_lifting_renamed.
+    destruct
+      (renames_alike_kept (with_lifting L) r r1 e (with_lifting_scope L)
+         Hclosed Halike)
+      as (Hclosed1 & Halike1).
+    destruct
+      (normalise_lifted_equivariant_up_to rounds kept r1 (with_lifting L e)
+         Hclosed1)
+      as (r2 & Halike2 & Heq).
+    rewrite Heq.
+    destruct
+      (normalise_lifted_keeps_scope rounds kept (with_lifting L e) Hclosed1)
+      as (Hclosed2 & _ & _).
+    apply (IH r2); [ exact Hclosed2 | | exact Huse ].
+    exact
+      (renames_alike_then (normalise_lifted rounds kept) r r1 r2
+         (with_lifting L e) (normalise_lifted_keeps_scope rounds kept)
+         Hclosed1 Halike1 Halike2).
+Qed.
+
+(* The term before normalised is, under the renaming, that term under a
+   second renaming; the term before with the liftings made in turn is
+   that term under a third. The removal of static bindings, the removal
+   of value slots, the moving up of the bindings of code and the
+   ordering of static bindings commute with each of them, whatever
+   renames the pattern, and keep scope; so the two renamings rename the
+   free names of each term that is compared alike. The term after is
+   under the first renaming throughout: its normalisation and the
+   putting of its code first commute with it. *)
+Theorem validate_unit_equivariant : validate_unit_equivariant_statement.
+Proof.
+  intros r rounds unused slots Ls kept before after Hclosed Huse.
+  destruct (normalise_before_equivariant_up_to rounds kept r before Hclosed)
+    as (r' & Halike & Heq).
+  destruct (normalise_before_keeps_scope rounds kept before Hclosed)
+    as (Hclosed_b & _ & _).
+  assert (Hlifted :
+    ∃ r'' : renaming,
+      renames_alike r r'' (lifted_in_turn rounds Ls kept before)
+      ∧ lifted_in_turn rounds (map (rename_lifting r) Ls) kept
+          (rename_expr r before)
+        = rename_expr r'' (lifted_in_turn rounds Ls kept before)).
+  { destruct Ls as [ | L Ls]; cbn [map lifted_in_turn].
+    - exists r. split; [ | reflexivity ].
+      split; intros name _; reflexivity.
+    - cbn [later_liftings_use_unit] in Huse.
+      rewrite with_lifting_renamed.
+      destruct (with_lifting_scope L before Hclosed) as (Hclosed1 & _ & _).
+      destruct
+        (normalise_lifted_equivariant_up_to rounds kept r
+           (with_lifting L before) Hclosed1)
+        as (r2 & Halike2 & Heq2).
+      rewrite Heq2.
+      destruct
+        (normalise_lifted_keeps_scope rounds kept (with_lifting L before)
+           Hclosed1)
+        as (Hclosed2 & _ & _).
+      exact
+        (lifted_in_turn_up_to r rounds kept Ls r2 _ Hclosed2 Halike2 Huse). }
+  destruct Hlifted as (r'' & Halike' & Heq').
+  destruct (lifted_in_turn_scope rounds kept Ls before Hclosed)
+    as (Hclosed_l & _ & _).
+  unfold validate_unit. cbv zeta.
+  rewrite expr_eqb_renamed, Heq, Heq', normalise_after_equivariant,
+    without_slots_equivariant, !without_statics_equivariant,
+    with_code_first_equivariant, !float_code_rewrite_equivariant,
+    !order_statics_as_equivariant.
+  set (b := normalise_before rounds kept before) in *.
+  set (l := lifted_in_turn rounds Ls kept before) in *.
+  set (a := normalise_after rounds kept after).
+  set (c := float_code (with_code_first a)).
+  destruct
+    (renames_alike_kept (order_statics_as a) r r' b (order_statics_as_scope a)
+       Hclosed_b Halike)
+    as (Hclosed_ordered & Halike_ordered).
+  destruct
+    (renames_alike_kept (without_statics unused) r r' b
+       (without_statics_scope unused) Hclosed_b Halike)
+    as (Hclosed_without & Halike_without).
+  destruct
+    (renames_alike_kept (order_statics_as a) r r' (without_statics unused b)
+       (order_statics_as_scope a) Hclosed_without Halike_without)
+    as (Hclosed_both & Halike_both).
+  destruct
+    (renames_alike_kept (without_slots slots) r r'' l
+       (without_slots_scope slots) Hclosed_l Halike')
+    as (Hclosed_slots & Halike_slots).
+  destruct
+    (renames_alike_kept (without_statics unused) r r''
+       (without_slots slots l) (without_statics_scope unused) Hclosed_slots
+       Halike_slots)
+    as (Hclosed_lifted_without & Halike_lifted_without).
+  destruct
+    (renames_alike_kept float_code r r''
+       (without_statics unused (without_slots slots l)) float_code_scope
+       Hclosed_lifted_without Halike_lifted_without)
+    as (Hclosed_floated & Halike_floated).
+  destruct
+    (renames_alike_kept (order_statics_as c) r r''
+       (float_code (without_statics unused (without_slots slots l)))
+       (order_statics_as_scope c) Hclosed_floated Halike_floated)
+    as (Hclosed_last & Halike_last).
+  rewrite
+    (expr_eqb_renamed_alike r r' (order_statics_as a b) a Hclosed_ordered
+       Halike_ordered),
+    (expr_eqb_renamed_alike r r'
+       (order_statics_as a (without_statics unused b)) a Hclosed_both
+       Halike_both),
+    (expr_eqb_renamed_alike r r''
+       (order_statics_as c
+          (float_code (without_statics unused (without_slots slots l))))
+       c Hclosed_last Halike_last).
+  reflexivity.
 Qed.

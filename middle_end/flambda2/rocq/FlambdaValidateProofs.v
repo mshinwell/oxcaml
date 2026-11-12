@@ -36,14 +36,18 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaNormaliseSpec FlambdaNormaliseProofs FlambdaBlockLoadSpec
   FlambdaBlockLoadProofs FlambdaCseSpec FlambdaCseProofs
   FlambdaForwardSpec FlambdaForwardProofs
-  FlambdaIdentitiesSpec FlambdaIdentitiesProofs FlambdaStaticsOrderSpec
+  FlambdaIdentitiesSpec FlambdaIdentitiesProofs
+  FlambdaInlineSiblingsSpec FlambdaInlineSiblingsProofs
+  FlambdaRenameApartSpec
+  FlambdaRenameApartProofs FlambdaStaticsOrderSpec
   FlambdaStaticsOrderProofs FlambdaLoopAliasesSpec FlambdaLoopAliasesProofs
   FlambdaLoopLetsSpec FlambdaLoopLetsProofs FlambdaParamAliasesSpec
   FlambdaParamAliasesProofs FlambdaRecHandlersSpec FlambdaRecHandlersProofs
   FlambdaShortcutSpec FlambdaShortcutProofs FlambdaSinkContsSpec
   FlambdaSinkContsProofs FlambdaUnboxSpec FlambdaUnboxProofs
   FlambdaUnusedContsSpec FlambdaUnusedContsProofs FlambdaUnusedParamsSpec
-  FlambdaUnusedParamsProofs FlambdaUnusedStaticsSpec
+  FlambdaUnusedParamsProofs FlambdaUnusedProjectionsSpec
+  FlambdaUnusedProjectionsProofs FlambdaUnusedStaticsSpec
   FlambdaUnusedStaticsProofs FlambdaLiftSpec FlambdaLiftProofs
   FlambdaUnusedSlotsSpec FlambdaUnusedSlotsProofs FlambdaKnownSymbolsSpec
   FlambdaKnownSymbolsProofs FlambdaKnownClosuresSpec FlambdaKnownClosuresProofs
@@ -67,6 +71,7 @@ Ltac equivalence_step :=
     [ apply fold_constants_equivalent
     | apply follow_aliases_equivalent
     | apply remove_unused_defined_lets_equivalent
+    | apply remove_unused_projections_equivalent
     | apply drop_deleted_code_equivalent
     | apply merge_statics_equivalent
     | apply inline_known_calls_equivalent
@@ -126,6 +131,9 @@ Lemma normalise_before_round_refines (kept : list code_id) (e : expr) :
 Proof.
   unfold normalise_before_round.
   eapply expr_refines_trans; [ | apply normalise_before_inlined_refines ].
+  eapply expr_refines_trans;
+    [ | apply expr_equivalent_refines, rename_apart_equivalent ].
+  eapply expr_refines_trans; [ | apply inline_sibling_calls_refines ].
   apply inline_calls_refines.
 Qed.
 

@@ -30,10 +30,10 @@
    equivalence.
 
    This file is to be reviewed: [remove_unused_projections] and what it
-   is made of, which are to be extracted and run by the validation of
-   middle_end/flambda2/tests/semantics/ once a round of it uses them
-   (none does yet); the action of a renaming on what the pass knows
-   ([rename_known_sets]); and the statement.
+   is made of, which are extracted and run by the validation of
+   middle_end/flambda2/tests/semantics/ on the term after Simplify
+   (FlambdaValidateSpec.v); the action of a renaming on what the pass
+   knows ([rename_known_sets]); and the statement.
 
    The compiler's [Let] of a set of closures binds one variable to each
    closure of the set. The model's [Let] binds one variable, and such a

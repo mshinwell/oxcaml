@@ -29,9 +29,9 @@
    its group: a normalisation that refines.
 
    This file is to be reviewed: [inline_sibling_calls] and
-   [inline_in_group], which are to be extracted and run by the
-   validation of middle_end/flambda2/tests/semantics/ once a round of
-   it uses them (none does yet), and the statements.
+   [inline_in_group], which are extracted and run by the validation of
+   middle_end/flambda2/tests/semantics/ (FlambdaValidateSpec.v), and
+   the statements.
 
    FlambdaNormaliseSpec.inline_calls inlines a direct call of code that
    it knows. Down a term it knows the code that the groups of static
@@ -68,8 +68,8 @@
 
    The code whose calls are left ([kept]) is an argument, as for
    FlambdaNormaliseSpec.inline_calls, and the statements hold whatever
-   it is. The validation is to give the code that calls itself
-   through other code, so that a round does not unroll a recursion:
+   it is. The validation gives the code that calls itself through
+   other code, so that a round does not unroll a recursion:
    that is the policy of the test tool, and no statement supposes it.
 
    The proofs are in FlambdaInlineSiblingsProofs.v, which needs no

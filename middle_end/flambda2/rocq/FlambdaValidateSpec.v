@@ -115,10 +115,12 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaCompareSpec FlambdaNormaliseSpec FlambdaBlockLoadSpec
   FlambdaCseSpec FlambdaForwardSpec FlambdaIdentitiesSpec
-  FlambdaLoopAliasesSpec FlambdaLoopLetsSpec FlambdaParamAliasesSpec
-  FlambdaRecHandlersSpec FlambdaShortcutSpec FlambdaSinkContsSpec
+  FlambdaInlineSiblingsSpec FlambdaLoopAliasesSpec FlambdaLoopLetsSpec
+  FlambdaParamAliasesSpec FlambdaRecHandlersSpec FlambdaRenameApartSpec
+  FlambdaShortcutSpec FlambdaSinkContsSpec
   FlambdaStaticsOrderSpec FlambdaUnboxSpec FlambdaUnusedContsSpec
-  FlambdaUnusedParamsSpec FlambdaUnusedStaticsSpec FlambdaLiftSpec
+  FlambdaUnusedParamsSpec FlambdaUnusedProjectionsSpec
+  FlambdaUnusedStaticsSpec FlambdaLiftSpec
   FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec
   FlambdaFloatCodeSpec FlambdaHoistCodeSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
@@ -170,18 +172,25 @@ Definition normalise_expr_before (e : expr) : expr :=
 Definition normalise_code_before (body : expr) : expr :=
   rewrite_rec_handlers normalise_expr_before (normalise_expr_before body).
 
-(* One round for the term before, once its calls are inlined: the
-   round for the body of code, on the term itself; then the static
-   bindings tidied, and that round applied to the body of each piece of
-   code. None of these makes a name. *)
+(* One round for the term before, once its calls are inlined and its
+   binders have names of their own: the round for the body of code, on
+   the term itself; then the static bindings tidied, and that round
+   applied to the body of each piece of code. None of these makes a
+   name. *)
 Definition normalise_before_inlined (e : expr) : expr :=
   rewrite_code normalise_code_before
     (merge_statics (drop_deleted_code (normalise_code_before e))).
 
 (* One round for the term before: the calls of known code inlined, but
-   for the code given; then the round above. Every rewrite refines. *)
+   for the code given, in the bodies of code those of the other code of
+   its group too (FlambdaInlineSiblingsSpec.inline_sibling_calls), and
+   every binder given a name of its own
+   (FlambdaRenameApartSpec.rename_apart: the body of a function that is
+   inlined twice is copied twice, with the names it binds); then the
+   round above. Every rewrite refines. *)
 Definition normalise_before_round (kept : list code_id) (e : expr) : expr :=
-  normalise_before_inlined (inline_calls kept [] e).
+  normalise_before_inlined
+    (rename_apart (inline_sibling_calls kept (inline_calls kept [] e))).
 
 (* One round of the first phase for an expression of the term before:
    [normalise_expr_before] with what Simplify does to the parameters of
@@ -249,10 +258,16 @@ Definition normalise_before (rounds : nat) (kept : list code_id) (e : expr)
    handlers of recursive continuations too, with what is in scope there
    ([remove_unused_defined_lets_in_loops]): Simplify leaves such a [Let]
    where it has removed a parameter that every application gave the same
-   thing. *)
+   thing. Before that, the [Let] of the projection of a function slot
+   that nothing uses is removed
+   (FlambdaUnusedProjectionsSpec.remove_unused_projections): the [Let]
+   of a closure of a set that is not the first is one in the model
+   (FlambdaModel.let_closures), and the term before loses it by a
+   refinement. *)
 Definition normalise_expr_after (e : expr) : expr :=
   remove_unused_defined_lets_in_loops []
-    (fold_constants (follow_aliases_in_loops [] (follow_aliases [] e))).
+    (remove_unused_projections
+       (fold_constants (follow_aliases_in_loops [] (follow_aliases [] e)))).
 
 Definition normalise_code_after (body : expr) : expr :=
   rewrite_rec_handlers normalise_expr_after (normalise_expr_after body).
@@ -263,9 +278,11 @@ Definition normalise_after_round (kept : list code_id) (e : expr) : expr :=
        (drop_deleted_code
           (rewrite_rec_handlers normalise_expr_after
              (remove_unused_defined_lets_in_loops []
-                (fold_constants
-                   (inline_known_calls kept [] []
-                      (follow_aliases_in_loops [] (follow_aliases [] e)))))))).
+                (remove_unused_projections
+                   (fold_constants
+                      (inline_known_calls kept [] []
+                         (follow_aliases_in_loops []
+                            (follow_aliases [] e))))))))).
 
 Definition normalise_after (rounds : nat) (kept : list code_id) (e : expr)
     : expr :=
