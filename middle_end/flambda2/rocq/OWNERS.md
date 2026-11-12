@@ -304,6 +304,10 @@ pass into the validator.
     meet answers for each, and arms that all apply one continuation
     are merged into that application, with arguments computed from
     the scrutinee; after `simplify/simplify_switch_expr.ml`)
+  - `middle_end/flambda2/rocq/FlambdaMergeSwitches*` (that merging as
+    a rewrite of a whole term, for the validator: the arguments that
+    differ from arm to arm are the number of the arm tagged, or that
+    negated, and the variable of the scrutinee is bound again)
 - S3, continuations. Owner: unassigned.
 - S4, calls. Owner of the first slice: T4, on
   `flambda2-rocq/T4-meet-rename`; the rest unassigned.
