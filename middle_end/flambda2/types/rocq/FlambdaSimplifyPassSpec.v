@@ -115,8 +115,9 @@
      [Block_load] that is not marked [Mutable], and the tagging,
      untagging, boxing and unboxing of a number are looked at; of the
      binary ones, the arithmetic and the comparison of tagged
-     immediates. For every other primitive only the kind of its
-     result is recorded. (Simplify makes a [Block_load] marked
+     immediates and [Phys_equal]. For every other primitive only the
+     kind of its result is recorded. (Simplify makes a [Block_load]
+     marked
      [Mutable] of a constant [Invalid],
      [simplify_mutable_block_load]; this leaves it.)
    - Of that arithmetic, of the tables for one side known
@@ -127,8 +128,9 @@
      does here, so this rewrites a comparison that Simplify leaves.
    - The tests that it makes before a rewrite (that the environment
      passes [typing_env_well_formed], that the variable of a [Let] is
-     new to it, that the types of the environment are well formed
-     where a prover of tagged immediates is asked) are not Simplify's:
+     new to it, that the types of the environment and the types
+     asked about are well formed where a prover of tagged immediates
+     or the prover of physical equality is asked) are not Simplify's:
      they are the premises of the statements, tested so that the
      function needs none. The same of the tests of [code_env]: the
      arity of the code has as many kinds as the code has parameters,
@@ -138,7 +140,7 @@
      on the environments that the function builds, for a term whose
      binders are all different, is not stated here.
 
-   Nine terms on which the function is computed are at the end:
+   Ten terms on which the function is computed are at the end:
    what it answers is stated as an equation, with no premise.
 
    That the function commutes with renaming ([simplify_expr] of the
@@ -481,12 +483,30 @@ Definition simplify_int_comp_tagged (tenv : Typing_env.t)
     end
   else unknown.
 
+(* [Simplify_binary_primitive.simplify_phys_equal], where the prover
+   proves a boolean. (Where it does not, Simplify records that the
+   result is 0 or 1; this records its kind.) *)
+Definition simplify_phys_equal (tenv : Typing_env.t)
+    (op : equality_comparison) (ty1 ty2 : flambda_type) : outcome :=
+  let unknown := Stays_with_kind naked_immediate_kind in
+  if well_formed_input_b tenv ty1 && well_formed_input_b tenv ty2
+  then
+    match Provers.prove_physical_equality tenv ty1 ty2 with
+    | Some (Proof_of_property.Proved b) =>
+      Becomes_simple
+        (naked_bool_const match op with Phys_eq => b | Phys_neq => negb b end)
+    | Some Proof_of_property.Unknown | None => unknown
+    end
+  else unknown.
+
 (* A binary primitive: the arithmetic and the comparison of tagged
-   immediates; every other stays, at the kind of its result. *)
+   immediates, and physical equality; every other stays, at the kind
+   of its result. *)
 Definition simplify_binary (tenv : Typing_env.t) (p : binary_primitive)
     (arg1 : simple) (ty1 : flambda_type) (arg2 : simple) (ty2 : flambda_type)
     : outcome :=
   match p with
+  | Phys_equal op => simplify_phys_equal tenv op ty1 ty2
   | Int_arith Standard_tagged_immediate op =>
     simplify_int_arith_tagged tenv op arg1 ty1 arg2 ty2
   | Int_comp Standard_tagged_immediate behaviour =>
@@ -993,3 +1013,20 @@ Definition example_pass_unbox_in_code_statement : Prop :=
               (Let example_q int64 (Simple (Var example_x))
                  (Apply_cont (Apply_cont_expr ret [Var example_x] None))))]
         (Apply_cont (Apply_cont_expr k [] None)).
+
+(* [let x = 5 in let i = (x == 5) in switch i with 0 -> k0 | 1 -> k1]:
+   the two arguments of [Phys_equal] are aliases of one constant. *)
+Definition example_pass_phys_equal_statement : Prop :=
+  ∀ k0 k1 : continuation,
+    simplify_by_types
+      (Let example_x Value (Simple (Const (Tagged_immediate 5)))
+         (Let example_i naked_immediate_kind
+            (Prim (Binary (Phys_equal Phys_eq))
+               [Var example_x; Const (Tagged_immediate 5)])
+            (Switch (Var example_i)
+               [(0, Apply_cont_expr k0 [] None);
+                (1, Apply_cont_expr k1 [] None)])))
+    = Let example_x Value (Simple (Const (Tagged_immediate 5)))
+        (Let example_i naked_immediate_kind
+           (Simple (Const (Naked_immediate 1)))
+           (Apply_cont (Apply_cont_expr k1 [] None))).

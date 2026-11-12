@@ -495,6 +495,52 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
+(* Physical equality                                                        *)
+(* ======================================================================== *)
+
+(* The value of an argument has the type of the argument under any
+   valuation that satisfies the environment and agrees with the
+   machine: the two arguments of a primitive under the same one. *)
+Lemma argument_type_in_valuation (tenv : Typing_env.t)
+    (statics : static_env) (valuation vars : env) (arg : simple)
+    (ty : flambda_type) (v : value) :
+  typing_env_satisfied_strictly statics valuation tenv ->
+  agrees_in_terms tenv valuation vars ->
+  argument_type tenv arg ty ->
+  eval_simple vars arg = Some v ->
+  type_satisfied statics valuation v ty.
+Proof.
+  intros Hsatisfied Hagrees [Hmem [canonical Htype]] Heval.
+  apply (proj2 (type_simple_in_term_satisfied (fun _ => False) statics
+                  valuation tenv (Some Name_mode.normal) arg canonical ty
+                  Hsatisfied Htype)).
+  rewrite (agrees_eval_simple tenv valuation vars arg Hagrees);
+    [ exact Heval | ].
+  intros x ->. exact Hmem.
+Qed.
+
+Theorem let_phys_equal : let_phys_equal_statement.
+Proof.
+  intros tenv x declared op arg1 arg2 ty1 ty2 b body Hty1 Hty2 Hwf1 Hwf2
+    Hprove result.
+  apply let_constant.
+  intros statics vars r [_ [valuation [Hsatisfied Hagrees]]] Hnamed.
+  simpl in Hnamed.
+  destruct (eval_simple vars arg1) as [v1 | ] eqn:Hv1; [ | discriminate ].
+  destruct (eval_simple vars arg2) as [v2 | ] eqn:Hv2; [ | discriminate ].
+  change (eval_prim statics (Binary (Phys_equal op)) [v1; v2] = Some r)
+    in Hnamed.
+  rewrite <- naked_bool_const.
+  exact (prove_physical_equality_phys_equal statics valuation tenv ty1 ty2
+           b op v1 v2 r Hsatisfied Hwf1 Hwf2
+           (argument_type_in_valuation tenv statics valuation vars arg1 ty1
+              v1 Hsatisfied Hagrees Hty1 Hv1)
+           (argument_type_in_valuation tenv statics valuation vars arg2 ty2
+              v2 Hsatisfied Hagrees Hty2 Hv2)
+           Hprove Hnamed).
+Qed.
+
+(* ======================================================================== *)
 (* Examples                                                                 *)
 (* ======================================================================== *)
 

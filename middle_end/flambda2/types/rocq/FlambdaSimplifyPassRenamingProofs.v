@@ -215,6 +215,20 @@ Proof.
     reflexivity.
 Qed.
 
+Lemma simplify_phys_equal_equivariant (r : renaming) (tenv : Typing_env.t)
+    (op : equality_comparison) (ty1 ty2 : flambda_type) :
+  simplify_phys_equal (rename_typing_env r tenv) op (rename_type r ty1)
+    (rename_type r ty2)
+  = rename_outcome r (simplify_phys_equal tenv op ty1 ty2).
+Proof.
+  unfold simplify_phys_equal.
+  rewrite !well_formed_input_b_rename, prove_physical_equality_rename.
+  repeat match goal with
+         | |- context [match ?e with _ => _ end] => destruct e
+         end;
+    reflexivity.
+Qed.
+
 Lemma simplify_binary_equivariant (r : renaming) (tenv : Typing_env.t)
     (p : binary_primitive) (arg1 arg2 : simple) (ty1 ty2 : flambda_type) :
   simplify_binary (rename_typing_env r tenv) p (rename_simple r arg1)
@@ -222,6 +236,7 @@ Lemma simplify_binary_equivariant (r : renaming) (tenv : Typing_env.t)
   = rename_outcome r (simplify_binary tenv p arg1 ty1 arg2 ty2).
 Proof.
   destruct p; try reflexivity;
+    try apply simplify_phys_equal_equivariant;
     match goal with
     | |- context [Int_arith ?kind _] => destruct kind
     | |- context [Int_comp ?kind _] => destruct kind

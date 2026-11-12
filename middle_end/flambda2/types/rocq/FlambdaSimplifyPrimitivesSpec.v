@@ -60,9 +60,11 @@
      FlambdaProversSpec.v says what goes wrong). After the unboxing of
      variants the environments that Simplify builds are satisfied only
      with poison exempt, and these statements do not apply there.
-   - For the provers of tagged immediates, that the type asked about
-     and the types of the environment are well formed
-     ([well_formed_input], FlambdaProversSpec.v, which says why).
+   - For the provers of tagged immediates and for the prover of
+     physical equality, that each type asked about and the types of
+     the environment are well formed ([well_formed_input],
+     FlambdaProversSpec.v, which says why). Simplify makes no such
+     test.
    Nothing is assumed of the kinds of the term: where an argument is
    not of the kind that the primitive takes, the primitive has no
    value and the [Let] is undefined, which anything refines; and that
@@ -75,7 +77,8 @@
    it, with the canonical element, for the functions on terms that
    are built on these statements (FlambdaSimplifyPassSpec.v);
    [well_formed_input_b] is the test of what the provers of tagged
-   immediates ask of their input.
+   immediates and the prover of physical equality ask of each type
+   that they are given.
 
    What Simplify does, and what is here.
    - [Simplify_primitive.simplify_primitive] first replaces each
@@ -148,6 +151,14 @@
      the statement has no such limit. Before it asks, it looks for a
      comparison of the result of a comparison with zero
      ([recover_comparison_primitive]): not here.)
+   - [Phys_equal] ([simplify_phys_equal]): the two types are given to
+     [Provers.prove_physical_equality]; where it proves that the two
+     arguments are the same value, or that they are not, the primitive
+     is that boolean, or the other one for [Phys_neq]
+     ([let_phys_equal_statement]). A refinement: the primitive of the
+     model has no value on two allocated values. (Where the prover
+     does not know, Simplify records that the result is 0 or 1: not
+     here.)
    - Two small terms are rewritten with these, from the environment
      that knows nothing ([example_is_int_statement],
      [example_int_comp_statement]).
@@ -445,6 +456,31 @@ Definition let_int_comp_tagged_statement : Prop :=
       expr_equivalent_under tenv (Let x declared comparison body) Invalid
     | _, _ => True
     end.
+
+(* ======================================================================== *)
+(* Physical equality                                                        *)
+(* ======================================================================== *)
+
+(* [Simplify_binary_primitive.simplify_phys_equal]: where
+   [Provers.prove_physical_equality] proves a boolean of the types of
+   the two arguments, the primitive is that boolean for [Phys_eq] and
+   the other one for [Phys_neq]. The types are well formed, as the
+   statement of the prover asks. *)
+Definition let_phys_equal_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (x : variable) (declared : flambda_kind)
+    (op : equality_comparison) (arg1 arg2 : simple) (ty1 ty2 : flambda_type)
+    (b : bool) (body : expr),
+    argument_type tenv arg1 ty1 ->
+    argument_type tenv arg2 ty2 ->
+    well_formed_input tenv ty1 ->
+    well_formed_input tenv ty2 ->
+    Provers.prove_physical_equality tenv ty1 ty2
+    = Some (Proof_of_property.Proved b) ->
+    let result := match op with Phys_eq => b | Phys_neq => negb b end in
+    expr_refines_under tenv
+      (Let x declared (Prim (Binary (Phys_equal op)) [arg1; arg2]) body)
+      (Let x declared
+         (Simple (Const (Naked_immediate (if result then 1 else 0)))) body).
 
 (* ======================================================================== *)
 (* Examples                                                                 *)

@@ -539,6 +539,27 @@ Proof.
   exact (Hsame _ Hin).
 Qed.
 
+Lemma simplify_phys_equal_sound (tenv : Typing_env.t)
+    (op : equality_comparison) (arg1 arg2 : simple) (ty1 ty2 : flambda_type) :
+  argument_type tenv arg1 ty1 ->
+  argument_type tenv arg2 ty2 ->
+  outcome_sound tenv (Prim (Binary (Phys_equal op)) [arg1; arg2])
+    (simplify_phys_equal tenv op ty1 ty2).
+Proof.
+  intros Hty1 Hty2. unfold simplify_phys_equal.
+  pose proof (prim_kind_sound tenv (Binary (Phys_equal op)) [arg1; arg2])
+    as Hunknown.
+  destruct (well_formed_input_b tenv ty1 && well_formed_input_b tenv ty2)
+    eqn:Hwf; [ | exact Hunknown ].
+  apply andb_true_iff in Hwf. destruct Hwf as [Hwf1 Hwf2].
+  apply well_formed_input_b_sound in Hwf1, Hwf2.
+  destruct (Provers.prove_physical_equality tenv ty1 ty2) as [[b | ] | ]
+    eqn:Hprove; try exact Hunknown.
+  intros x declared body.
+  exact (let_phys_equal tenv x declared op arg1 arg2 ty1 ty2 b body Hty1
+           Hty2 Hwf1 Hwf2 Hprove).
+Qed.
+
 Lemma simplify_binary_sound (tenv : Typing_env.t) (p : binary_primitive)
     (arg1 arg2 : simple) (ty1 ty2 : flambda_type) :
   argument_type tenv arg1 ty1 ->
@@ -548,6 +569,7 @@ Lemma simplify_binary_sound (tenv : Typing_env.t) (p : binary_primitive)
 Proof.
   intros Hty1 Hty2.
   destruct p; try exact (prim_kind_sound tenv _ [arg1; arg2]);
+    try exact (simplify_phys_equal_sound tenv _ arg1 arg2 ty1 ty2 Hty1 Hty2);
     match goal with
     | |- context [Int_arith ?kind _] => destruct kind
     | |- context [Int_comp ?kind _] => destruct kind
@@ -1054,3 +1076,6 @@ Proof. intros k ret exn. vm_compute. reflexivity. Qed.
 
 Theorem example_pass_unbox_in_code : example_pass_unbox_in_code_statement.
 Proof. intros k ret exn. vm_compute. reflexivity. Qed.
+
+Theorem example_pass_phys_equal : example_pass_phys_equal_statement.
+Proof. intros k0 k1. vm_compute. reflexivity. Qed.
