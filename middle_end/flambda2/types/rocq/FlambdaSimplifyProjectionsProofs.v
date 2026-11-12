@@ -172,7 +172,7 @@ Qed.
 
 Theorem let_simple : let_simple_statement.
 Proof.
-  intros tenv x declared d s body Hknown vars conts statics Hsat.
+  intros tenv x declared d s body Hknown vars conts statics hp Hsat.
   destruct (eval_named statics vars d) as [v | ] eqn:Hd.
   - pose proof (Hknown statics vars v Hsat Hd) as Hs.
     destruct (kind_eqb (kind_of_value v) declared) eqn:Hkind.

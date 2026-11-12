@@ -332,9 +332,10 @@ Definition demote_handlers_stack_statement : Prop :=
     (b : behaviour),
     binders_distinct e = true ->
     traps_well_formed unit_exn e = true ->
-    stack_behaves (State (demote_handlers scope e) [] [] empty_static_env)
+    stack_behaves
+      (State (demote_handlers scope e) [] [] empty_static_env empty_heap)
       (initial_stack unit_exn) b
-    <-> stack_behaves (State e [] [] empty_static_env)
+    <-> stack_behaves (State e [] [] empty_static_env empty_heap)
           (initial_stack unit_exn) b.
 
 (* ======================================================================== *)
@@ -427,9 +428,9 @@ Definition demotion_under_call_statement : Prop :=
   binders_distinct before = true
   ∧ traps_well_formed unit_exn before = true
   ∧ demote_handlers [leave; unit_exn] before = before
-  ∧ stack_behaves (State before [] [] empty_static_env)
+  ∧ stack_behaves (State before [] [] empty_static_env empty_heap)
       (initial_stack unit_exn)
-      (Exits leave [Value_const (Tagged_immediate 2%Z)])
-  ∧ stack_behaves (State after [] [] empty_static_env)
+      (Exits leave [Value_const (Tagged_immediate 2%Z)] empty_heap)
+  ∧ stack_behaves (State after [] [] empty_static_env empty_heap)
       (initial_stack unit_exn)
-      (Exits unit_exn [Value_const (Tagged_immediate 0%Z)]).
+      (Exits unit_exn [Value_const (Tagged_immediate 0%Z)] empty_heap).

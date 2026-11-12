@@ -137,18 +137,18 @@ Qed.
 (* Equivalence under the environments in which what is known holds. *)
 Definition expr_equivalent_knowing (known : known_sets) (e e' : expr)
     : Prop :=
-  ∀ (vars : env) (conts : cont_env) (statics : static_env),
+  ∀ (vars : env) (conts : cont_env) (statics : static_env) (hp : heap),
     sets_hold known vars ->
-    equivalent (State e vars conts statics) (State e' vars conts statics).
+    equivalent (State e vars conts statics hp) (State e' vars conts statics hp).
 
 Lemma expr_equivalent_knowing_trans (known : known_sets) (e e' e'' : expr) :
   expr_equivalent_knowing known e e' ->
   expr_equivalent_knowing known e' e'' ->
   expr_equivalent_knowing known e e''.
 Proof.
-  intros H H' vars conts statics Hholds.
-  exact (equivalent_trans _ _ _ (H vars conts statics Hholds)
-    (H' vars conts statics Hholds)).
+  intros H H' vars conts statics hp Hholds.
+  exact (equivalent_trans _ _ _ (H vars conts statics hp Hholds)
+    (H' vars conts statics hp Hholds)).
 Qed.
 
 (* A projection that the test accepts has a value, of the kind of a
@@ -187,7 +187,7 @@ Lemma let_equivalent_knowing (known : known_sets) (x : variable)
   expr_equivalent_knowing (sets_under_let known x d) body body' ->
   expr_equivalent_knowing known (Let x kind d body) (Let x kind d body').
 Proof.
-  intros Hbody vars conts statics Hholds.
+  intros Hbody vars conts statics hp Hholds.
   apply let_equivalent_step; [ reflexivity | intros v Hd _ ].
   apply Hbody. exact (sets_hold_under_let known vars statics x d v Hholds Hd).
 Qed.
@@ -201,13 +201,13 @@ Lemma unused_projection_let (known : known_sets) (x : variable)
   ~ var_free_in_expr x body ->
   expr_equivalent_knowing known (Let x kind d body) body.
 Proof.
-  intros Hkind Hdefined Hunused vars conts statics Hholds.
+  intros Hkind Hdefined Hunused vars conts statics hp Hholds.
   destruct (projection_defined_sound known vars statics d Hholds Hdefined)
     as (v & Hd & Hv).
   apply kind_eqb_eq in Hkind. subst kind.
   assert (Hkind : kind_eqb (kind_of_value v) Value = true)
     by (apply kind_eqb_eq, Hv).
-  apply (equivalent_trans _ (State body ((x, v) :: vars) conts statics));
+  apply (equivalent_trans _ (State body ((x, v) :: vars) conts statics hp));
     [ apply step_equivalent; rewrite step_let, Hd, Hkind; reflexivity | ].
   apply coincide_equivalent.
   - intros y Hy. simpl.
@@ -223,9 +223,9 @@ Lemma let_cont_handler_equivalent_knowing (known : known_sets)
     (Let_cont_non_recursive k (Handler params metadata handler) body)
     (Let_cont_non_recursive k (Handler params metadata handler') body).
 Proof.
-  intros Hhandler vars conts statics Hholds.
+  intros Hhandler vars conts statics hp Hholds.
   apply refines_antisymmetric; apply let_cont_handler_refines_at;
-    intros values handler_vars conts' statics' _ Hbind;
+    intros values handler_vars conts' statics' hp' _ Hbind;
     apply equivalent_refines; [ | apply equivalent_sym ];
     apply Hhandler;
     exact (sets_hold_bind_params known params values vars handler_vars
@@ -240,7 +240,7 @@ Proof.
     as [ x kind d body | bindings body | k [params metadata handler] body
        | handlers body | ap | ac | scrutinee arms | ];
     intros known; simpl;
-    try (intros vars conts statics _; apply equivalent_refl).
+    try (intros vars conts statics hp _; apply equivalent_refl).
   - pose proof (let_equivalent_knowing known x kind d _ _
       (remove_projections_knowing_equivalent body (sets_under_let known x d)))
       as Hbody.
@@ -257,7 +257,7 @@ Proof.
     apply (expr_equivalent_knowing_trans known _ _ _ Hbody),
       unused_projection_let; [ exact Hkind | exact Hdefined | ].
     intros Hx. apply var_free_b_sound in Hx. congruence.
-  - intros vars conts statics Hholds.
+  - intros vars conts statics hp Hholds.
     apply let_static_equivalent_step.
     destruct (eval_static_bindings vars bindings statics) as [extended | ];
       [ | exact I ].
@@ -269,10 +269,10 @@ Proof.
          body)).
     + apply let_cont_handler_equivalent_knowing,
         remove_projections_knowing_equivalent.
-    + intros vars conts statics Hholds.
+    + intros vars conts statics hp Hholds.
       apply let_cont_non_recursive_equivalent_step.
       apply (remove_projections_knowing_equivalent body known), Hholds.
-  - intros vars conts statics Hholds.
+  - intros vars conts statics hp Hholds.
     apply let_cont_recursive_equivalent_step; [ reflexivity | intros _ ].
     apply (remove_projections_knowing_equivalent body known), Hholds.
 Qed.
@@ -280,6 +280,6 @@ Qed.
 Theorem remove_unused_projections_equivalent :
   remove_unused_projections_equivalent_statement.
 Proof.
-  intros e vars conts statics.
+  intros e vars conts statics hp.
   apply (remove_projections_knowing_equivalent e []), sets_hold_nil.
 Qed.

@@ -146,7 +146,7 @@ Definition rename_static_env (r : renaming) (statics : static_env)
 Definition rename_state (r : renaming) (s : state) : state :=
   State (rename_expr r (state_expr s)) (rename_env r (state_vars s))
     (rename_cont_env r (state_conts s))
-    (rename_static_env r (state_statics s)).
+    (rename_static_env r (state_statics s)) (state_heap s).
 
 (* An exit is observed by its continuation, which is renamed, and its
    values, which hold no names. *)
@@ -154,13 +154,13 @@ Definition rename_result (r : renaming) (result : step_result)
     : step_result :=
   match result with
   | Step s => Step (rename_state r s)
-  | Exit k vs => Exit (rename_continuation r k) vs
+  | Exit k vs hp => Exit (rename_continuation r k) vs hp
   | Undefined => Undefined
   end.
 
 Definition rename_behaviour (r : renaming) (b : behaviour) : behaviour :=
   match b with
-  | Exits k vs => Exits (rename_continuation r k) vs
+  | Exits k vs hp => Exits (rename_continuation r k) vs hp
   | Goes_wrong => Goes_wrong
   | Diverges => Diverges
   end.
@@ -219,8 +219,8 @@ Definition expr_refines_equivariant_statement : Prop :=
    leaves. A renaming that fixes them does not change its behaviour. *)
 Definition renamed_state_equivalent_statement : Prop :=
   ∀ (r : renaming) (s : state),
-    (∀ (k : continuation) (vs : list value),
-      behaves s (Exits k vs) -> rename_continuation r k = k) ->
+    (∀ (k : continuation) (vs : list value) (hp : heap),
+      behaves s (Exits k vs hp) -> rename_continuation r k = k) ->
     equivalent s (rename_state r s).
 
 (* ======================================================================== *)

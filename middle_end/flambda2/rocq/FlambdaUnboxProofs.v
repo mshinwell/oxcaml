@@ -389,23 +389,23 @@ Qed.
    induction, with what is known there. *)
 Fixpoint unbox_numbers_knowing_refines (e : expr) :
   ∀ (known : known_numbers) (vars : env) (conts : cont_env)
-    (statics : static_env),
+    (statics : static_env) (hp : heap),
     numbers_hold known vars statics ->
-    refines (State e vars conts statics)
-      (State (unbox_numbers_knowing known e) vars conts statics)
+    refines (State e vars conts statics hp)
+      (State (unbox_numbers_knowing known e) vars conts statics hp)
 with unbox_numbers_in_handler_refines (h : continuation_handler) :
   ∀ (known : known_numbers) (k : continuation) (body : expr) (vars : env)
-    (conts : cont_env) (statics : static_env),
+    (conts : cont_env) (statics : static_env) (hp : heap),
     numbers_hold known vars statics ->
-    refines (State (Let_cont_non_recursive k h body) vars conts statics)
+    refines (State (Let_cont_non_recursive k h body) vars conts statics hp)
       (State
          (Let_cont_non_recursive k (unbox_numbers_in_handler known h) body)
-         vars conts statics).
+         vars conts statics hp).
 Proof.
   - destruct e
       as [ x kind d body | bindings body | k h body | handlers body | ap
          | ac | scrutinee arms | ];
-      intros known vars conts statics Hhold; simpl.
+      intros known vars conts statics hp Hhold; simpl.
     + (* Let *)
       destruct (eval_named statics vars d) as [v | ] eqn:Hd;
         [ destruct (kind_eqb (kind_of_value v) kind) eqn:Hkind | ].
@@ -432,7 +432,7 @@ Proof.
         (State
            (Let_cont_non_recursive k (unbox_numbers_in_handler known h)
               body)
-           vars conts statics)).
+           vars conts statics hp)).
       * apply unbox_numbers_in_handler_refines, Hhold.
       * apply let_cont_non_recursive_refines_step,
           unbox_numbers_knowing_refines, Hhold.
@@ -444,11 +444,11 @@ Proof.
     + apply refines_refl.
     + apply refines_refl.
   - destruct h as [params metadata handler].
-    intros known k body vars conts statics Hhold. simpl.
+    intros known k body vars conts statics hp Hhold. simpl.
     apply (let_cont_handler_refines_where (symbol_numbers_hold known)
       (symbol_numbers_hold_extend known));
       [ exact (proj2 Hhold) | ].
-    intros vs handler_vars conts' statics' Hsymbols _ Hbind.
+    intros vs handler_vars conts' statics' hp' Hsymbols _ Hbind.
     apply unbox_numbers_knowing_refines.
     apply (numbers_hold_bind_params statics' params known vs vars
       handler_vars);
@@ -457,6 +457,6 @@ Qed.
 
 Theorem unbox_known_numbers_refines : unbox_known_numbers_refines_statement.
 Proof.
-  intros e vars conts statics. apply unbox_numbers_knowing_refines.
+  intros e vars conts statics hp. apply unbox_numbers_knowing_refines.
   split; intros entry [].
 Qed.

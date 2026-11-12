@@ -981,7 +981,7 @@ Definition results_agree (statics : static_env) (h : heap)
     (result : heap_step_result) (result' : step_result) : Prop :=
   match result, result' with
   | Heap_step s', Step t => forget_heap s' = t ∧ hs_heap s' = h
-  | Heap_exit k o, Exit k' vs' => k = k' ∧ o = Outcome vs' statics h
+  | Heap_exit k o, Exit k' vs' _ => k = k' ∧ o = Outcome vs' statics h
   | Heap_undefined, Undefined => True
   | _, _ => False
   end.
@@ -993,7 +993,7 @@ Lemma heap_call_code_agrees (closure : value) (c : code) (vs : list value)
   results_agree statics h
     (heap_call_code closure c vs args_arity return_arity return_to exn_to
        statics h)
-    (call_code closure c vs args_arity return_arity return_to exn_to statics).
+    (call_code closure c vs args_arity return_arity return_to exn_to statics h).
 Proof.
   unfold results_agree, heap_call_code, call_code.
   repeat (break_innermost; simpl; auto).
@@ -1009,7 +1009,7 @@ Lemma heap_run_call_agrees (return_partial : value -> heap_step_result)
   results_agree statics h
     (heap_run_call return_partial shape return_arity return_to exn_to statics
        h)
-    (run_call return_partial' shape return_arity return_to exn_to statics).
+    (run_call return_partial' shape return_arity return_to exn_to statics h).
 Proof.
   intros Hpartial.
   destruct shape
@@ -1027,7 +1027,7 @@ Qed.
 Lemma heap_apply_cont_value_agrees (c : cont_value) (vs : list value)
     (statics : static_env) (h : heap) :
   results_agree statics h (heap_apply_cont_value c vs statics h)
-    (apply_cont_value c vs statics).
+    (apply_cont_value c vs statics h).
 Proof.
   revert vs.
   induction c
@@ -1052,7 +1052,7 @@ Lemma heap_call_function_agrees (callee : value) (kind : call_kind)
     (heap_call_function callee kind vs args_arity return_arity return_to
        exn_to statics h)
     (call_function callee kind vs args_arity return_arity return_to exn_to
-       statics).
+       statics h).
 Proof.
   unfold heap_call_function, call_function. apply heap_run_call_agrees.
   intros partial. apply heap_apply_cont_value_agrees.

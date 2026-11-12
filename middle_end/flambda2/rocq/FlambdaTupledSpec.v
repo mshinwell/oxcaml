@@ -134,6 +134,7 @@ Definition params_are_values (c : code) : Prop :=
    arity of its parameters. *)
 Definition apply_tupled_statement : Prop :=
   ∀ (ap : apply_expr) (vars : env) (conts : cont_env) (statics : static_env)
+    (hp : heap)
     (callee tuple : value) (fields extra : list value) (called : code_id)
     (slots : list (value_slot * value)) (c : code),
     eval_simple vars (ap_callee ap) = Some callee ->
@@ -147,11 +148,11 @@ Definition apply_tupled_statement : Prop :=
     code_params c <> [] ->
     ap_args_arity ap = [Singleton Value] ->
     tuple_fields statics (length (code_params c)) tuple = Some fields ->
-    step (State (Apply ap) vars conts statics)
+    step (State (Apply ap) vars conts statics hp)
     = call_code callee c fields (code_params_arity c) (ap_return_arity ap)
         (resolve (ap_continuation ap) conts)
         (with_extra_args (resolve (ap_exn_continuation ap) conts) extra)
-        statics.
+        statics hp.
 
 (* A call that gives it more arguments, of the kinds of its arity and
    at arities that pass the compiler's test (which looks at the arity
@@ -161,6 +162,7 @@ Definition apply_tupled_statement : Prop :=
    left of the application, which keeps the other arguments. *)
 Definition apply_tupled_over_statement : Prop :=
   ∀ (ap : apply_expr) (vars : env) (conts : cont_env) (statics : static_env)
+    (hp : heap)
     (callee tuple : value) (fields rest extra : list value)
     (rest_arity : arity) (called : code_id)
     (slots : list (value_slot * value)) (c : code),
@@ -180,13 +182,13 @@ Definition apply_tupled_over_statement : Prop :=
       (ap_return_arity ap) (code_params_arity c) (code_result_arity c)
     = true ->
     tuple_fields statics (length (code_params c)) tuple = Some fields ->
-    step (State (Apply ap) vars conts statics)
+    step (State (Apply ap) vars conts statics hp)
     = call_code callee c fields (code_params_arity c) (code_result_arity c)
         (Over_application rest rest_arity (ap_return_arity ap)
            (resolve (ap_continuation ap) conts)
            (with_extra_args (resolve (ap_exn_continuation ap) conts) extra))
         (with_extra_args (resolve (ap_exn_continuation ap) conts) extra)
-        statics.
+        statics hp.
 
 (* A call of a closure of tupled code is undefined where it has no
    argument; where its arity has no parameter, or the first is not one
@@ -194,6 +196,7 @@ Definition apply_tupled_over_statement : Prop :=
    for each parameter of the code. *)
 Definition apply_tupled_undefined_statement : Prop :=
   ∀ (ap : apply_expr) (vars : env) (conts : cont_env) (statics : static_env)
+    (hp : heap)
     (callee : value) (vs : list value) (called : code_id)
     (slots : list (value_slot * value)) (c : code),
     eval_simple vars (ap_callee ap) = Some callee ->
@@ -210,7 +213,7 @@ Definition apply_tupled_undefined_statement : Prop :=
         ∧ tuple_fields statics (cardinal_unarized (code_params_arity c))
             tuple
           = None) ->
-    step (State (Apply ap) vars conts statics) = Undefined.
+    step (State (Apply ap) vars conts statics hp) = Undefined.
 
 (* No call of a closure of tupled code is a partial application. *)
 Definition tupled_never_partial_statement : Prop :=
@@ -305,8 +308,8 @@ Definition tupled_over_example : expr :=
 Definition examples_run_statement : Prop :=
   ∀ e : expr,
     e ∈ [tupled_static_example; tupled_made_example; tupled_over_example] ->
-    behaves (State e [] [] empty_static_env)
-      (Exits done [Value_const (Tagged_immediate 1)]).
+    behaves (State e [] [] empty_static_env empty_heap)
+      (Exits done [Value_const (Tagged_immediate 1)] empty_heap).
 
 (* They are well-formed units, and pass the check of kinds. *)
 Definition examples_well_formed_statement : Prop :=
@@ -333,7 +336,7 @@ Definition wrong_tuple_undefined_statement : Prop :=
           Const (Tagged_immediate 3)];
        tupled_wrong_tuple 1
          [Const (Tagged_immediate 1); Const (Tagged_immediate 2)]] ->
-    behaves (State e [] [] empty_static_env) Goes_wrong.
+    behaves (State e [] [] empty_static_env empty_heap) Goes_wrong.
 
 End Examples.
 
@@ -413,12 +416,13 @@ Definition tupled_inlinable (ap : apply_expr) (c : code) (r : renaming)
    many fields as the code has parameters, the call is undefined. *)
 Definition inline_tupled_statement : Prop :=
   ∀ (ap : apply_expr) (called : code_id) (c : code) (r : renaming)
-    (tuple : simple) (vars : env) (conts : cont_env) (statics : static_env),
+    (tuple : simple) (vars : env) (conts : cont_env) (statics : static_env)
+      (hp : heap),
     ap_call_kind ap = Direct called ->
     lookup called (static_code statics) = Some c ->
     tupled_inlinable ap c r tuple ->
-    refines (State (Apply ap) vars conts statics)
-      (State (inlined_tupled_body c r ap tuple) vars conts statics).
+    refines (State (Apply ap) vars conts statics hp)
+      (State (inlined_tupled_body c r ap tuple) vars conts statics hp).
 
 (* Where the callee is a closure of the code called, and the call
    returns at the result arity of the code, the two are equivalent,
@@ -429,12 +433,12 @@ Definition inline_tupled_statement : Prop :=
 Definition inline_tupled_equivalent_statement : Prop :=
   ∀ (ap : apply_expr) (called : code_id) (c : code) (r : renaming)
     (tuple : simple) (callee : value) (slots : list (value_slot * value))
-    (vars : env) (conts : cont_env) (statics : static_env),
+    (vars : env) (conts : cont_env) (statics : static_env) (hp : heap),
     ap_call_kind ap = Direct called ->
     eval_simple vars (ap_callee ap) = Some callee ->
     closure_of statics callee = Some (called, slots) ->
     lookup called (static_code statics) = Some c ->
     tupled_inlinable ap c r tuple ->
     ap_return_arity ap = code_result_arity c ->
-    equivalent (State (Apply ap) vars conts statics)
-      (State (inlined_tupled_body c r ap tuple) vars conts statics).
+    equivalent (State (Apply ap) vars conts statics hp)
+      (State (inlined_tupled_body c r ap tuple) vars conts statics hp).

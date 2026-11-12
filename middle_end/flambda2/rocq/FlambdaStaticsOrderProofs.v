@@ -450,14 +450,14 @@ Qed.
 (* A state runs alike under two static environments with the same
    lookups. *)
 Lemma same_lookups_refines (e : expr) (vars : env) (conts : cont_env)
-    (statics statics' : static_env) :
+    (statics statics' : static_env) (hp : heap) :
   same_lookups statics statics' ->
-  refines (State e vars conts statics) (State e vars conts statics').
+  refines (State e vars conts statics hp) (State e vars conts statics' hp).
 Proof.
   intros Hsame.
   assert (Hrelated :
-    state_erased nothing (State e vars conts statics)
-      (State (erase_expr nothing e) vars conts statics')).
+    state_erased nothing (State e vars conts statics hp)
+      (State (erase_expr nothing e) vars conts statics' hp)).
   { apply State_erased;
       [ apply expr_avoids_nothing
       | intros x v _; apply value_avoids_nothing
@@ -478,7 +478,7 @@ Lemma order_as_equivalent (pattern bindings : list static_binding)
   expr_equivalent (Let_static bindings body)
     (Let_static (order_as pattern bindings) body).
 Proof.
-  intros vars conts statics.
+  intros vars conts statics hp.
   pose proof (order_as_alike vars pattern bindings statics) as Halike.
   destruct (eval_static_bindings vars bindings statics)
     as [extended | ] eqn:Hextended,
@@ -486,13 +486,13 @@ Proof.
     as [extended' | ] eqn:Hextended';
     simpl in Halike; try contradiction.
   - apply refines_antisymmetric.
-    + apply (refines_step _ (State body vars conts extended) _
-        (State body vars conts extended'));
+    + apply (refines_step _ (State body vars conts extended hp) _
+        (State body vars conts extended' hp));
         [ rewrite step_let_static, Hextended; reflexivity
         | rewrite step_let_static, Hextended'; reflexivity
         | apply same_lookups_refines, Halike ].
-    + apply (refines_step _ (State body vars conts extended') _
-        (State body vars conts extended));
+    + apply (refines_step _ (State body vars conts extended' hp) _
+        (State body vars conts extended hp));
         [ rewrite step_let_static, Hextended'; reflexivity
         | rewrite step_let_static, Hextended; reflexivity
         | apply same_lookups_refines, same_lookups_sym, Halike ].
@@ -511,7 +511,7 @@ Proof.
       as [ px pkind pd pbody | pbindings pbody
          | pk [pparams pmetadata phandler] pbody | phandlers pbody | pap | pac
          | pscrutinee parms | ];
-    simpl; try (intros vars conts statics; apply equivalent_refl).
+    simpl; try (intros vars conts statics hp; apply equivalent_refl).
   - exact (plug_equivalent (Let_body x kind d Hole) _ _ (not_many _)
       (order_statics_as_equivalent_aux body pbody)).
   - apply (expr_equivalent_trans _

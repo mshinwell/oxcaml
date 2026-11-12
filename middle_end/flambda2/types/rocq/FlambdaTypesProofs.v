@@ -46,33 +46,34 @@ Proof. intros x t []. Qed.
 
 Theorem expr_refines_weaken : expr_refines_weaken_statement.
 Proof.
-  intros tenv source target Hrefines vars conts statics _. apply Hrefines.
+  intros tenv source target Hrefines vars conts statics hp _. apply Hrefines.
 Qed.
 
 Theorem expr_refines_in_empty : expr_refines_in_empty_statement.
 Proof.
   intros source target. split; [ | apply expr_refines_weaken ].
-  intros Hrefines vars conts statics. apply Hrefines, env_satisfies_empty.
+  intros Hrefines vars conts statics hp. apply Hrefines, env_satisfies_empty.
 Qed.
 
 Lemma expr_equivalent_in_refines (tenv : typing_env) (e e' : expr) :
   expr_equivalent_in tenv e e' -> expr_refines_in tenv e e'.
 Proof.
-  intros Hequiv vars conts statics Hsat. apply equivalent_refines, Hequiv, Hsat.
+  intros Hequiv vars conts statics hp Hsat. apply equivalent_refines, Hequiv,
+    Hsat.
 Qed.
 
 Lemma expr_refines_in_trans (tenv : typing_env) (e e' e'' : expr) :
   expr_refines_in tenv e e' -> expr_refines_in tenv e' e'' ->
   expr_refines_in tenv e e''.
 Proof.
-  intros H H' vars conts statics Hsat.
-  exact (refines_trans _ _ _ (H vars conts statics Hsat)
-    (H' vars conts statics Hsat)).
+  intros H H' vars conts statics hp Hsat.
+  exact (refines_trans _ _ _ (H vars conts statics hp Hsat)
+    (H' vars conts statics hp Hsat)).
 Qed.
 
 Theorem bottom : bottom_statement.
 Proof.
-  intros tenv x e e' Hbottom vars conts statics Hsat.
+  intros tenv x e e' Hbottom vars conts statics hp Hsat.
   destruct (Hsat x Bottom Hbottom) as (v & _ & []).
 Qed.
 
@@ -113,21 +114,21 @@ Qed.
 
 Theorem apply_cont_canonical : apply_cont_canonical_statement.
 Proof.
-  intros tenv k args vars conts statics Hsat.
+  intros tenv k args vars conts statics hp Hsat.
   apply step_eq_equivalent. rewrite !step_apply_cont. simpl.
   rewrite (canonical_simples_sound tenv vars args Hsat). reflexivity.
 Qed.
 
 Theorem let_simple_canonical : let_simple_canonical_statement.
 Proof.
-  intros tenv x kind s body vars conts statics Hsat.
+  intros tenv x kind s body vars conts statics hp Hsat.
   apply let_equivalent_step; [ | intros v _ _; apply equivalent_refl ].
   exact (canonical_simple_sound tenv vars s Hsat).
 Qed.
 
 Theorem switch_known : switch_known_statement.
 Proof.
-  intros tenv scrutinee i arms ac Hknown Hfind vars conts statics Hsat.
+  intros tenv scrutinee i arms ac Hknown Hfind vars conts statics hp Hsat.
   apply step_equivalent. rewrite step_switch.
   rewrite <- (canonical_simple_sound tenv vars scrutinee Hsat), Hknown.
   simpl. rewrite Hfind. reflexivity.
@@ -175,14 +176,14 @@ Qed.
 
 Theorem let_refines_in : let_refines_in_statement.
 Proof.
-  intros tenv x kind d body body' Hfresh Hbody vars conts statics Hsat.
+  intros tenv x kind d body body' Hfresh Hbody vars conts statics hp Hsat.
   apply let_refines_step; [ reflexivity | intros v _ _ ].
   apply Hbody, env_satisfies_extend; [ exact Hsat | exact Hfresh | exact I ].
 Qed.
 
 Theorem let_simple_refines_in : let_simple_refines_in_statement.
 Proof.
-  intros tenv x kind s body body' Hfresh Hnotin Hbody vars conts statics
+  intros tenv x kind s body body' Hfresh Hnotin Hbody vars conts statics hp
     Hsat.
   apply let_refines_step; [ reflexivity | intros v Hs _ ]. simpl in Hs.
   apply Hbody, env_satisfies_extend; [ exact Hsat | exact Hfresh | ].
@@ -193,14 +194,14 @@ Qed.
 
 Theorem let_cont_body_refines_in : let_cont_body_refines_in_statement.
 Proof.
-  intros tenv k h body body' Hbody vars conts statics Hsat.
+  intros tenv k h body body' Hbody vars conts statics hp Hsat.
   apply let_cont_non_recursive_refines_step, Hbody, Hsat.
 Qed.
 
 Theorem let_cont_recursive_body_refines_in :
   let_cont_recursive_body_refines_in_statement.
 Proof.
-  intros tenv handlers body body' Hbody vars conts statics Hsat.
+  intros tenv handlers body body' Hbody vars conts statics hp Hsat.
   apply let_cont_recursive_refines_step; [ reflexivity | intros _ ].
   apply Hbody, Hsat.
 Qed.
@@ -247,9 +248,9 @@ Qed.
 Theorem let_cont_handler_refines_in : let_cont_handler_refines_in_statement.
 Proof.
   intros tenv k params metadata handler handler' body Hfresh Hhandler vars
-    conts statics Hsat.
+    conts statics hp Hsat.
   apply let_cont_handler_refines_at.
-  intros vs handler_vars conts' statics' _ Hbind. apply Hhandler.
+  intros vs handler_vars conts' statics' hp' _ Hbind. apply Hhandler.
   exact (env_satisfies_params tenv params vs vars handler_vars Hsat Hfresh
     Hbind).
 Qed.
@@ -258,9 +259,9 @@ Theorem let_cont_recursive_handler_refines_in :
   let_cont_recursive_handler_refines_in_statement.
 Proof.
   intros tenv before k params metadata handler handler' after body Hfresh
-    Hbinds Hhandler vars conts statics Hsat.
+    Hbinds Hhandler vars conts statics hp Hsat.
   apply let_cont_recursive_handler_refines_at; [ exact Hbinds | ].
-  intros vs handler_vars conts' statics' _ Hbind. apply Hhandler.
+  intros vs handler_vars conts' statics' hp' _ Hbind. apply Hhandler.
   exact (env_satisfies_params tenv params vs vars handler_vars Hsat Hfresh
     Hbind).
 Qed.
@@ -296,9 +297,9 @@ Proof.
   { apply unused_let. simpl. unfold var_free_in_simples. intros Hfree.
     inversion Hfree as [? ? Hhead | ? ? Hrest];
       [ exact Hhead | inversion Hrest ]. }
-  intros vars conts statics.
-  exact (refines_trans _ _ _ (Hrewrite vars conts statics)
-    (Hunused vars conts statics)).
+  intros vars conts statics hp.
+  exact (refines_trans _ _ _ (Hrewrite vars conts statics hp)
+    (Hunused vars conts statics hp)).
 Qed.
 
 Theorem let_simple_apply_cont : let_simple_apply_cont_statement.
@@ -323,9 +324,9 @@ Proof.
   { apply unused_let. simpl. unfold var_free_in_simples. intros Hfree.
     inversion Hfree as [? ? Hhead | ? ? Hrest];
       [ exact (Hnotfree Hhead) | inversion Hrest ]. }
-  intros vars conts statics.
-  exact (refines_trans _ _ _ (Hrewrite vars conts statics)
-    (Hunused vars conts statics)).
+  intros vars conts statics hp.
+  exact (refines_trans _ _ _ (Hrewrite vars conts statics hp)
+    (Hunused vars conts statics hp)).
 Qed.
 
 (* ======================================================================== *)
@@ -399,8 +400,8 @@ Proof.
     apply unused_let. simpl. unfold var_free_in_simples. intros Hfree.
     inversion Hfree as [? ? Hhead | ? ? Hrest];
       [ exact (Hmy_closure Hhead) | inversion Hrest ]. }
-  intros vars conts statics.
-  exact (refines_trans _ _ _ (Hinline vars conts statics)
-    (refines_trans _ _ _ (Hparam vars conts statics)
-       (Hunused vars conts statics))).
+  intros vars conts statics hp.
+  exact (refines_trans _ _ _ (Hinline vars conts statics hp)
+    (refines_trans _ _ _ (Hparam vars conts statics hp)
+       (Hunused vars conts statics hp))).
 Qed.

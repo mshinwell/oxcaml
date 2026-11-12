@@ -571,7 +571,8 @@ Proof. intros Hincl Havoids x Hx. apply Havoids, Hincl, Hx. Qed.
 
 Section Merging.
 
-Variables (statics : static_env) (fresh0 : list variable) (vars0 : env).
+Variables (statics : static_env) (hp : heap) (fresh0 : list variable)
+  (vars0 : env).
 
 (* What holds as the arguments are rebuilt: the [Let]s made so far run
    from the state of the [Switch] to [vars]; what is known holds
@@ -580,8 +581,8 @@ Variables (statics : static_env) (fresh0 : list variable) (vars0 : env).
    what is known. *)
 Definition merging_inv (vars : env) (m : merging) : Prop :=
   (∀ (body : expr) (conts : cont_env),
-    equivalent (State (bind_lets (merging_lets m) body) vars0 conts statics)
-      (State body vars conts statics))
+    equivalent (State (bind_lets (merging_lets m) body) vars0 conts statics hp)
+      (State body vars conts statics hp))
   ∧ all_computed (merging_known m) vars statics
   ∧ (∀ s : simple, avoids fresh0 s -> eval_simple vars s = eval_simple vars0 s)
   ∧ NoDup (merging_fresh m)
@@ -683,7 +684,7 @@ Proof.
         apply
           (equivalent_trans _
              (State (Let x (kind_of_value v) (Prim p args) body) vars conts
-                statics));
+                statics hp));
           [ apply Hlets | ].
         apply step_equivalent. rewrite step_let. cbn [eval_named].
         rewrite Hvs. cbn. rewrite Hprim, kind_eqb_refl. reflexivity.
@@ -1150,7 +1151,7 @@ Qed.
 
 Theorem merge_arms_refines : merge_arms_refines_statement.
 Proof.
-  intros known fresh scrutinee arms e vars conts statics Hmerge Hknown.
+  intros known fresh scrutinee arms e vars conts statics hp Hmerge Hknown.
   unfold merge_arms in Hmerge.
   destruct (mergeable_arms arms) as [[cont num_args] | ] eqn:Hmergeable;
     [ | discriminate ].
@@ -1170,10 +1171,10 @@ Proof.
     (rebuild_mergeable_arguments scrutinee (Merging [] known fresh) arguments)
     as [[args m] | ] eqn:Hrebuild; [ | discriminate ].
   cbn in Hmerge. injection Hmerge as <-.
-  destruct (step_switch_cases scrutinee arms vars conts statics)
+  destruct (step_switch_cases scrutinee arms vars conts statics hp)
     as [Hundefined | (v & i & ac & Hv & Hi & Hfind & Hstep)].
   { apply step_undefined_refines, Hundefined. }
-  apply (refines_trans _ (State (Apply_cont ac) vars conts statics));
+  apply (refines_trans _ (State (Apply_cont ac) vars conts statics hp));
     [ apply equivalent_refines, step_equivalent, Hstep | ].
   assert (Hvalue : v = Value_const (Naked_immediate i)).
   { destruct v; try discriminate Hi.
@@ -1205,7 +1206,8 @@ Proof.
              Hscrutinee num_args _ arguments Hrecognize).
     intros row Hrow x Hx. apply in_map_iff in Hrow as (arm & <- & Harm).
     exact (proj1 (proj2 (name_new_spec _ _ _ x (Hnew x Hx))) arm Harm). }
-  assert (Hinv : merging_inv statics fresh vars vars (Merging [] known fresh)).
+  assert
+    (Hinv : merging_inv statics hp fresh vars vars (Merging [] known fresh)).
   { split; [ intros body conts'; apply equivalent_refl | ].
     split; [ exact Hknown | ]. split; [ reflexivity | ].
     split; [ apply distinct_NoDup, Hdistinct | ].
@@ -1213,14 +1215,14 @@ Proof.
     intros entry Hentry x Hx.
     exact (proj2 (proj2 (name_new_spec _ _ _ x (Hnew x Hx))) entry Hentry). }
   destruct
-    (rebuild_mergeable_arguments_sound statics fresh vars scrutinee i
+    (rebuild_mergeable_arguments_sound statics hp fresh vars scrutinee i
        Hscrutinee Hv (Hranges (i, ac) Hin) arguments vars _ args m vs Hinv
        Hrebuild Husable Havoid Hvalues)
     as (vars' & Hinv' & Hargs & _).
   apply
     (refines_trans _
        (State (Apply_cont (Apply_cont_expr cont args None)) vars' conts
-          statics)).
+          statics hp)).
   - apply equivalent_refines, step_eq_equivalent. rewrite !step_apply_cont.
     cbn [ac_args ac_continuation]. rewrite Hvs, Hargs, Hcont. reflexivity.
   - apply equivalent_refines, equivalent_sym. apply (proj1 Hinv').
@@ -1228,12 +1230,12 @@ Qed.
 
 Theorem rebuild_switch_refines : rebuild_switch_refines_statement.
 Proof.
-  intros known fresh scrutinee arms vars conts statics Hknown.
+  intros known fresh scrutinee arms vars conts statics hp Hknown.
   unfold rebuild_switch. destruct arms as [ | arm arms].
   - apply equivalent_refines, switch_no_arms.
   - destruct (merge_arms known fresh scrutinee (arm :: arms)) as [e | ]
       eqn:Hmerge.
-    + exact (merge_arms_refines known fresh scrutinee _ e vars conts statics
+    + exact (merge_arms_refines known fresh scrutinee _ e vars conts statics _
                Hmerge Hknown).
     + apply switch_of_arms_refines.
 Qed.
@@ -1241,7 +1243,7 @@ Qed.
 Theorem rebuild_switch_nothing_known_refines :
   rebuild_switch_nothing_known_refines_statement.
 Proof.
-  intros fresh scrutinee arms vars conts statics.
+  intros fresh scrutinee arms vars conts statics hp.
   apply rebuild_switch_refines. intros entry [].
 Qed.
 
@@ -1268,7 +1270,7 @@ Proof.
   { apply equivalent_under_valid_refines, equivalent_under_valid.
     apply switch_canonical.
     split; [ exact Hmem | exists ty; exact Htype ]. }
-  intros vars conts statics Hvalid Hsat.
+  intros vars conts statics hp Hvalid Hsat.
   apply rebuild_switch_refines. exact (Hknown statics vars Hvalid Hsat).
 Qed.
 
@@ -1721,7 +1723,7 @@ Proof.
     = Apply_cont (Apply_cont_expr k [Var example_x] None))
     by compute_rebuild_switch.
   split; [ exact Hrebuilt | ].
-  intros vars conts statics. unfold example_switch_index.
+  intros vars conts statics hp. unfold example_switch_index.
   apply let_refines_step; [ reflexivity | intros v Hv _ ].
   rewrite <- Hrebuilt. apply rebuild_switch_refines.
   intros entry [<- | []]. unfold computed_holds. cbn [fst snd].

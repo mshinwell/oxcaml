@@ -100,7 +100,7 @@ Lemma code_body_refines (params : list variable) (my_closure : variable)
          (code_in_scope params my_closure metadata) body)
       body.
 Proof.
-  split; intros vs callee callee_vars conts statics _ Hkinds Hvalue Hbind;
+  split; intros vs callee callee_vars conts statics hp _ Hkinds Hvalue Hbind;
     apply equivalent_refines; [ | apply equivalent_sym ];
     apply remove_unused_defined_lets_in_loops_equivalent_bound,
       (code_in_scope_hold params my_closure metadata vs callee callee_vars
@@ -110,13 +110,14 @@ Qed.
 (* A group of static bindings with the bodies of its code rewritten, one
    piece of code at a time: [done] is what has been rewritten. *)
 Lemma bindings_in_code_equivalent (body : expr) (vars : env)
-    (conts : cont_env) (statics : static_env) (todo : list static_binding) :
+    (conts : cont_env) (statics : static_env) (hp : heap)
+      (todo : list static_binding) :
   ∀ done : list static_binding,
-    equivalent (State (Let_static (done ++ todo) body) vars conts statics)
+    equivalent (State (Let_static (done ++ todo) body) vars conts statics hp)
       (State
          (Let_static
             (done ++ map remove_unused_defined_lets_in_binding todo) body)
-         vars conts statics).
+         vars conts statics hp).
 Proof.
   induction todo as [ | binding todo IH]; intros done; simpl;
     [ apply equivalent_refl | ].
@@ -125,7 +126,7 @@ Proof.
        (Let_static
           (done ++ remove_unused_defined_lets_in_binding binding :: todo)
           body)
-       vars conts statics)).
+       vars conts statics hp)).
   - destruct binding
       as [id [params my_closure ret exn metadata code_body] | id
          | sym const];
@@ -149,30 +150,30 @@ Proof.
   destruct e
     as [ x kind d body | bindings body | k [params metadata handler] body
        | handlers body | ap | ac | scrutinee arms | ];
-    simpl; intros vars conts statics; try apply equivalent_refl.
+    simpl; intros vars conts statics hp; try apply equivalent_refl.
   - apply let_equivalent_step; [ reflexivity | intros v _ _ ].
     apply remove_unused_defined_lets_in_code_equivalent_aux.
   - (* down the body, then the code of the group *)
     apply (equivalent_trans _
       (State (Let_static bindings (remove_unused_defined_lets_in_code body))
-         vars conts statics)).
+         vars conts statics hp)).
     + apply let_static_equivalent_step.
       destruct (eval_static_bindings vars bindings statics) as [extended | ];
         [ | exact I ].
       apply remove_unused_defined_lets_in_code_equivalent_aux.
-    + exact (bindings_in_code_equivalent _ vars conts statics bindings []).
+    + exact (bindings_in_code_equivalent _ vars conts statics _ bindings []).
   - apply (equivalent_trans _
       (State
          (Let_cont_non_recursive k
             (Handler params metadata
                (remove_unused_defined_lets_in_code handler))
             body)
-         vars conts statics)).
+         vars conts statics hp)).
     + apply
         (let_cont_handler_equivalent_bound [] k params metadata handler _
            body);
         [ | intros x kind [=] ].
-      intros vars' conts' statics' _.
+      intros vars' conts' statics' hp' _.
       apply remove_unused_defined_lets_in_code_equivalent_aux.
     + apply let_cont_non_recursive_equivalent_step.
       apply remove_unused_defined_lets_in_code_equivalent_aux.
@@ -184,7 +185,7 @@ Proof.
                   (k, remove_unused_defined_lets_in_code_handler h))
                handlers)
             body)
-         vars conts statics)).
+         vars conts statics hp)).
     + apply (let_cont_recursive_handlers_equivalent_bound [] handlers _ body);
         [ | | intros x kind [=] ].
       * induction handlers as [ | [k [params metadata handler]] handlers IH];
@@ -194,7 +195,7 @@ Proof.
         exists params, metadata, handler,
           (remove_unused_defined_lets_in_code handler).
         split; [ reflexivity | ]. split; [ reflexivity | ].
-        intros vars' conts' statics' _.
+        intros vars' conts' statics' hp' _.
         apply remove_unused_defined_lets_in_code_equivalent_aux.
       * unfold handlers_bind_statics.
         induction handlers as [ | [k [params metadata handler]] handlers IH];

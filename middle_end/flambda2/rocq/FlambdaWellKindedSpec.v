@@ -782,6 +782,7 @@ End Checker.
    taken apart (FlambdaTupledSpec.v). Nothing is asked of the state. *)
 Definition call_at_wrong_kinds_undefined_statement : Prop :=
   ∀ (ap : apply_expr) (vars : env) (conts : cont_env) (statics : static_env)
+    (hp : heap)
     (callee : value) (vs : list value) (called : code_id)
     (value_slots : list (value_slot * value)) (c : code),
     eval_simple vars (ap_callee ap) = Some callee ->
@@ -799,7 +800,7 @@ Definition call_at_wrong_kinds_undefined_statement : Prop :=
                (ap_return_arity ap) (code_params_arity c)
                (code_result_arity c)
              = false) ->
-    step (State (Apply ap) vars conts statics) = Undefined.
+    step (State (Apply ap) vars conts statics hp) = Undefined.
 
 (* What a binder gives, whatever the state: the step that binds a
    variable binds it to a value of the kind of its binder. A [Let] that
@@ -821,21 +822,22 @@ Definition call_at_wrong_kinds_undefined_statement : Prop :=
    application enters none. *)
 Definition let_binds_at_kind_statement : Prop :=
   ∀ (x : variable) (kind : flambda_kind) (d : named) (body : expr)
-    (vars : env) (conts : cont_env) (statics : static_env) (s : state),
-    step (State (Let x kind d body) vars conts statics) = Step s ->
+    (vars : env) (conts : cont_env) (statics : static_env) (hp : heap)
+      (s : state),
+    step (State (Let x kind d body) vars conts statics hp) = Step s ->
     ∃ v : value,
       eval_named statics vars d = Some v
       ∧ kind_of_value v = kind
-      ∧ s = State body ((x, v) :: vars) conts statics.
+      ∧ s = State body ((x, v) :: vars) conts statics hp.
 
 Definition handler_binds_at_kinds_statement : Prop :=
   ∀ (params : list variable) (metadata : handler_metadata) (handler : expr)
     (def_vars : env) (def_conts : cont_env)
     (recursive : list (continuation * continuation_handler))
-    (vs : list value) (statics : static_env) (s : state),
+    (vs : list value) (statics : static_env) (hp : heap) (s : state),
     apply_cont_value
       (Closure (Handler params metadata handler) def_vars def_conts recursive)
-      vs statics
+      vs statics hp
     = Step s ->
     map kind_of_value vs = hm_params_kinds metadata
     ∧ ∃ handler_vars : env,
@@ -843,13 +845,13 @@ Definition handler_binds_at_kinds_statement : Prop :=
         ∧ s
           = State handler handler_vars
               (rec_closures recursive def_vars def_conts ++ def_conts)
-              statics.
+              statics hp.
 
 Definition call_binds_at_kinds_statement : Prop :=
   ∀ (closure : value) (c : code) (vs : list value)
     (args_arity return_arity : arity) (return_to exn_to : cont_value)
-    (statics : static_env) (s : state),
-    call_code closure c vs args_arity return_arity return_to exn_to statics
+    (statics : static_env) (hp : heap) (s : state),
+    call_code closure c vs args_arity return_arity return_to exn_to statics hp
     = Step s ->
     map kind_of_value vs = code_params_kinds c
     ∧ bind_params (code_params c) vs [(code_my_closure c, closure)]
@@ -869,7 +871,7 @@ Definition well_kinded_unit_state_statement : Prop :=
   ∀ (slots : slot_kinds) (unit_return unit_exn : continuation) (e : expr),
     well_kinded_unit slots unit_return unit_exn e = true ->
     state_well_kinded slots (unit_arities unit_return unit_exn)
-      (State e [] [] empty_static_env)
+      (State e [] [] empty_static_env empty_heap)
     = true.
 
 Definition step_well_kinded_statement : Prop :=
@@ -890,9 +892,9 @@ Definition well_kinded_no_kind_fault_statement : Prop :=
 
 Definition well_kinded_exit_statement : Prop :=
   ∀ (slots : slot_kinds) (outer : arity_env) (s : state) (k : continuation)
-    (vs : list value),
+    (vs : list value) (hp : heap),
     state_well_kinded slots outer s = true ->
-    step s = Exit k vs ->
+    step s = Exit k vs hp ->
     lookup k outer = Some (map kind_of_value vs)
     ∧ forallb (value_well_kinded slots) vs = true.
 
@@ -903,13 +905,13 @@ Definition well_kinded_unit_never_faults_statement : Prop :=
   ∀ (slots : slot_kinds) (unit_return unit_exn : continuation) (e : expr)
     (n : nat) (s : state),
     well_kinded_unit slots unit_return unit_exn e = true ->
-    run n (State e [] [] empty_static_env) = Step s ->
+    run n (State e [] [] empty_static_env empty_heap) = Step s ->
     kind_fault s = false.
 
 Definition well_kinded_unit_exits_statement : Prop :=
   ∀ (slots : slot_kinds) (unit_return unit_exn : continuation) (e : expr)
-    (n : nat) (k : continuation) (vs : list value),
+    (n : nat) (k : continuation) (vs : list value) (hp : heap),
     well_kinded_unit slots unit_return unit_exn e = true ->
-    run n (State e [] [] empty_static_env) = Exit k vs ->
+    run n (State e [] [] empty_static_env empty_heap) = Exit k vs hp ->
     (k = unit_return ∨ k = unit_exn)
     ∧ ∃ v : value, vs = [v] ∧ kind_of_value v = Value.

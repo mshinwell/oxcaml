@@ -148,14 +148,15 @@ Definition var_in_typing_env (x : variable) (tenv : typing_env) : Prop :=
 
 Definition expr_refines_in (tenv : typing_env) (source target : expr)
     : Prop :=
-  ∀ (vars : env) (conts : cont_env) (statics : static_env),
+  ∀ (vars : env) (conts : cont_env) (statics : static_env) (hp : heap),
     env_satisfies tenv vars ->
-    refines (State source vars conts statics) (State target vars conts statics).
+    refines (State source vars conts statics hp)
+      (State target vars conts statics hp).
 
 Definition expr_equivalent_in (tenv : typing_env) (e e' : expr) : Prop :=
-  ∀ (vars : env) (conts : cont_env) (statics : static_env),
+  ∀ (vars : env) (conts : cont_env) (statics : static_env) (hp : heap),
     env_satisfies tenv vars ->
-    equivalent (State e vars conts statics) (State e' vars conts statics).
+    equivalent (State e vars conts statics hp) (State e' vars conts statics hp).
 
 (* With nothing known it is refinement under all environments, which
    implies refinement relative to any typing environment. *)

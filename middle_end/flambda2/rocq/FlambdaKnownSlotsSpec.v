@@ -419,7 +419,7 @@ Definition slots_as_kept_statement : Prop :=
   ∀ (known : known_slots) (e : expr) (n : nat) (s : state),
     closed_slots known = true ->
     slots_as known e = true ->
-    run n (State e [] [] empty_static_env) = Step s ->
+    run n (State e [] [] empty_static_env empty_heap) = Step s ->
     state_slots_known known s.
 
 (* In such a state, a defining expression that has a value has the same

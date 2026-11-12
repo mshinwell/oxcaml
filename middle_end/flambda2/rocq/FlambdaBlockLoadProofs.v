@@ -406,23 +406,23 @@ Qed.
    parts under binders, by the induction, with what is known there. *)
 Fixpoint load_blocks_knowing_refines (e : expr) :
   ∀ (known : known_blocks) (vars : env) (conts : cont_env)
-    (statics : static_env),
+    (statics : static_env) (hp : heap),
     blocks_hold known vars statics ->
-    refines (State e vars conts statics)
-      (State (load_blocks_knowing known e) vars conts statics)
+    refines (State e vars conts statics hp)
+      (State (load_blocks_knowing known e) vars conts statics hp)
 with load_blocks_in_handler_refines (h : continuation_handler) :
   ∀ (known : known_blocks) (k : continuation) (body : expr) (vars : env)
-    (conts : cont_env) (statics : static_env),
+    (conts : cont_env) (statics : static_env) (hp : heap),
     blocks_hold known vars statics ->
-    refines (State (Let_cont_non_recursive k h body) vars conts statics)
+    refines (State (Let_cont_non_recursive k h body) vars conts statics hp)
       (State
          (Let_cont_non_recursive k (load_blocks_in_handler known h) body)
-         vars conts statics).
+         vars conts statics hp).
 Proof.
   - destruct e
       as [ x kind d body | bindings body | k h body | handlers body | ap
          | ac | scrutinee arms | ];
-      intros known vars conts statics Hhold; simpl.
+      intros known vars conts statics hp Hhold; simpl.
     + (* Let *)
       destruct (eval_named statics vars d) as [v | ] eqn:Hd;
         [ destruct (kind_eqb (kind_of_value v) kind) eqn:Hkind | ].
@@ -448,7 +448,7 @@ Proof.
       apply (refines_trans _
         (State
            (Let_cont_non_recursive k (load_blocks_in_handler known h) body)
-           vars conts statics)).
+           vars conts statics hp)).
       * apply load_blocks_in_handler_refines, Hhold.
       * apply let_cont_non_recursive_refines_step,
           load_blocks_knowing_refines, Hhold.
@@ -460,11 +460,11 @@ Proof.
     + apply refines_refl.
     + apply refines_refl.
   - destruct h as [params metadata handler].
-    intros known k body vars conts statics Hhold. simpl.
+    intros known k body vars conts statics hp Hhold. simpl.
     apply (let_cont_handler_refines_where (symbols_hold known vars)
       (symbols_hold_extend known vars));
       [ exact (proj2 Hhold) | ].
-    intros vs handler_vars conts' statics' Hsymbols _ Hbind.
+    intros vs handler_vars conts' statics' hp' Hsymbols _ Hbind.
     apply load_blocks_knowing_refines.
     apply (blocks_hold_bind_params statics' params known vs vars
       handler_vars);
@@ -473,6 +473,6 @@ Qed.
 
 Theorem load_known_blocks_refines : load_known_blocks_refines_statement.
 Proof.
-  intros e vars conts statics. apply load_blocks_knowing_refines.
+  intros e vars conts statics hp. apply load_blocks_knowing_refines.
   split; intros entry [].
 Qed.

@@ -267,7 +267,7 @@ Theorem let_static_code_typed : let_static_code_typed_statement.
 Proof.
   intros tenv before id params my_closure ret exn metadata code_body
     code_body' after body tenv_code Henv Hsource Htarget Hbody vars conts
-    statics Hsat.
+    statics hp' Hsat.
   pose (source :=
           before
           ++ Bind_code id (Code params my_closure ret exn metadata code_body)
@@ -309,11 +309,12 @@ Proof.
   (* A state whose expression binds nothing static has the predicate
      only by its static environment. *)
   assert (Hcall :
-    ∀ (e : expr) (vars0 : env) (conts0 : cont_env) (statics0 : static_env),
+    ∀ (e : expr) (vars0 : env) (conts0 : cont_env) (statics0 : static_env)
+      (hp : heap),
       binds_statics e = false ->
-      inv (State e vars0 conts0 statics0) ->
+      inv (State e vars0 conts0 statics0 hp) ->
       env_satisfies_strictly outer statics0 []).
-  { intros e vars0 conts0 statics0 He Hinv. unfold inv in Hinv.
+  { intros e vars0 conts0 statics0 hp He Hinv. unfold inv in Hinv.
     destruct Hinv as [Hsat0 | [bindings [b [Hexpr [Hbinds _]]]]];
       [ exact Hsat0 | ].
     simpl in Hexpr. subst e. cbn [binds_statics] in He.
@@ -326,7 +327,7 @@ Proof.
     + left.
       exact (env_satisfies_strictly_statics_extend outer (state_statics s)
                (state_statics s') [] (step_extends_statics s s' Hstep) Hsat0).
-    + left. destruct s as [e vars0 conts0 statics0].
+    + left. destruct s as [e vars0 conts0 statics0 hp].
       simpl in Hexpr, Hextended. subst e.
       rewrite step_let_static in Hstep.
       destruct (eval_static_bindings vars0 bindings statics0)
@@ -341,16 +342,16 @@ Proof.
     + unfold target. rewrite existsb_app. simpl. apply orb_true_r.
     + apply Hgroup. apply add_static_bindings_code.
   - rewrite Hsource, Htarget. reflexivity.
-  - intros vs callee callee_vars return_to exn_to statics0 Hbind Hkinds
+  - intros vs callee callee_vars return_to exn_to statics0 hp Hbind Hkinds
       Hcallee.
     split.
     + split; intros Hinv; unfold inv; left;
-        [ exact (Hcall _ _ _ _ Hsource Hinv)
-        | exact (Hcall _ _ _ _ Htarget Hinv) ].
+        [ exact (Hcall _ _ _ _ _ Hsource Hinv)
+        | exact (Hcall _ _ _ _ _ Htarget Hinv) ].
     + intros Hinv. apply Hbody.
       exact (code_env_in_satisfied_from_closure _ params my_closure metadata
                tenv_code statics0 vs callee callee_vars Henv
-               (Hcall _ _ _ _ Hsource Hinv) Hkinds Hcallee Hbind).
+               (Hcall _ _ _ _ _ Hsource Hinv) Hkinds Hcallee Hbind).
 Qed.
 
 (* ======================================================================== *)

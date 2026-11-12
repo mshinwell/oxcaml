@@ -49,7 +49,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
 Import ListNotations.
 
 Lemma expr_equivalent_refl (e : expr) : expr_equivalent e e.
-Proof. intros vars conts statics. apply equivalent_refl. Qed.
+Proof. intros vars conts statics hp. apply equivalent_refl. Qed.
 
 (* The body under the binding of [k], against the body with the handler
    in place: the [Let]s run alike; then the one applies [k] and the other
@@ -61,7 +61,8 @@ Lemma inline_cont_at_tail_equivalent (k : continuation)
   length params = length (hm_params_kinds metadata) ->
   ∀ inlined : expr,
     inline_cont_at_tail k params metadata handler body = Some inlined ->
-    ∀ (vars def_vars : env) (conts : cont_env) (statics : static_env),
+    ∀ (vars def_vars : env) (conts : cont_env) (statics : static_env)
+      (hp : heap),
       (∀ x : variable,
         var_free_in_handler x (Handler params metadata handler) ->
         lookup x vars = lookup x def_vars) ->
@@ -69,14 +70,14 @@ Lemma inline_cont_at_tail_equivalent (k : continuation)
         (State body vars
            ((k, Closure (Handler params metadata handler) def_vars conts [])
             :: conts)
-           statics)
-        (State inlined vars conts statics).
+           statics hp)
+        (State inlined vars conts statics hp).
 Proof.
   intros Hkinds.
   induction body
     as [ x kind d body IH | bindings body IH | k' h body IH | handlers body IH
        | ap | ac | scrutinee arms | ];
-    intros inlined Heq vars def_vars conts statics Hagree; simpl in Heq;
+    intros inlined Heq vars def_vars conts statics hp Hagree; simpl in Heq;
     try discriminate.
   - (* Let *)
     match type of Heq with
@@ -101,7 +102,7 @@ Proof.
     apply let_static_equivalent_step.
     destruct (eval_static_bindings vars bindings statics) as [extended | ];
       [ | exact I ].
-    exact (IH body' eq_refl vars def_vars conts extended Hagree).
+    exact (IH body' eq_refl vars def_vars conts extended hp Hagree).
   - (* Apply_cont *)
     destruct
       (Pos.eqb (ac_continuation ac) k
@@ -132,16 +133,17 @@ Proof.
         destruct (bind_params_some params vs vars Hvs) as [bound Hbound].
         destruct
           (let_params_run params (hm_params_kinds metadata) (ac_args ac) vs
-             vars bound handler conts statics Hargs
+             vars bound handler conts statics hp Hargs
              (proj1 (kinds_eqb_eq _ _) Htested) Hfresh Hbound)
           as [n Hrun].
-        apply (equivalent_trans _ (State handler handler_vars conts statics)).
+        apply
+          (equivalent_trans _ (State handler handler_vars conts statics hp)).
         { apply step_equivalent.
-          apply (step_apply_cont_handler _ _ _ _ vs params metadata handler
+          apply (step_apply_cont_handler _ _ _ _ _ vs params metadata handler
             def_vars conts []);
             [ exact Hargs | rewrite Hk; apply resolve_head | exact Htested
             | exact Hbind ]. }
-        apply (equivalent_trans _ (State handler bound conts statics)).
+        apply (equivalent_trans _ (State handler bound conts statics hp)).
         { apply coincide_equivalent.
           - intros x Hx.
             apply (bind_params_agree params vs def_vars vars handler_vars
@@ -158,7 +160,7 @@ Proof.
            rewrite Htested. reflexivity.
         -- apply
              (let_params_wrong_kinds params (hm_params_kinds metadata)
-                (ac_args ac) vs vars handler conts statics Hlength Hkinds
+                (ac_args ac) vs vars handler conts statics _ Hlength Hkinds
                 Hargs);
              [ | exact Hfresh ].
            intros Heq. rewrite Heq, kinds_eqb_refl in Htested.
@@ -168,7 +170,7 @@ Proof.
         reflexivity.
       * exact
           (let_params_wrong params (hm_params_kinds metadata) (ac_args ac)
-             vars handler conts statics Hlength Hargs Hfresh).
+             vars handler conts statics _ Hlength Hargs Hfresh).
 Qed.
 
 (* Each layer is a context around what the induction gives; then the
@@ -210,7 +212,7 @@ Proof.
       (inline_cont_at_tail k params metadata
          (inline_tail_conts_kinded handler) (inline_tail_conts_kinded body))
       as [inlined | ] eqn:Hinline; [ | exact Hlayers ].
-    apply (expr_equivalent_trans _ _ _ Hlayers). intros vars conts statics.
+    apply (expr_equivalent_trans _ _ _ Hlayers). intros vars conts statics hp.
     eapply equivalent_trans;
       [ apply step_equivalent, step_let_cont_non_recursive | ].
     apply (inline_cont_at_tail_equivalent k params metadata _ _ Hkinds inlined

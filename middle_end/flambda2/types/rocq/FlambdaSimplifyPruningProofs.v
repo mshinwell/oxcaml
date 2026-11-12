@@ -94,7 +94,7 @@ Proof. intros s [_ (_ & _ & Hstatics)]. exact Hstatics. Qed.
 
 Theorem run_valid_expr : run_valid_expr_statement.
 Proof.
-  intros e e' vars conts statics Hsets [(_ & C & S & B) Hvalid].
+  intros e e' vars conts statics hp Hsets [(_ & C & S & B) Hvalid].
   exact (conj (conj Hsets (conj C (conj S B))) Hvalid).
 Qed.
 
@@ -104,31 +104,33 @@ Qed.
 
 (* What [run_valid] says of a state apart from its expression. *)
 Definition rest_valid (vars : env) (conts : cont_env) (statics : static_env)
+    (hp : heap)
     : Prop :=
-  run_valid (State Invalid vars conts statics).
+  run_valid (State Invalid vars conts statics hp).
 
 Lemma run_valid_rest (e : expr) (vars : env) (conts : cont_env)
-    (statics : static_env) :
-  run_valid (State e vars conts statics) -> rest_valid vars conts statics.
+    (statics : static_env) (hp : heap) :
+  run_valid (State e vars conts statics hp) -> rest_valid vars conts statics hp.
 Proof. apply run_valid_expr. reflexivity. Qed.
 
 Lemma rest_valid_run (e : expr) (vars : env) (conts : cont_env)
-    (statics : static_env) :
+    (statics : static_env) (hp : heap) :
   sets_well_formed e = true ->
-  rest_valid vars conts statics ->
-  run_valid (State e vars conts statics).
+  rest_valid vars conts statics hp ->
+  run_valid (State e vars conts statics hp).
 Proof. intros Hsets. apply run_valid_expr. exact Hsets. Qed.
 
 (* A step from a state whose expression has well-formed sets. *)
 Lemma rest_valid_step (e e' : expr) (vars vars' : env)
-    (conts conts' : cont_env) (statics statics' : static_env) :
+    (conts conts' : cont_env) (statics statics' : static_env) (hp : heap) :
   sets_well_formed e = true ->
-  rest_valid vars conts statics ->
-  step (State e vars conts statics) = Step (State e' vars' conts' statics') ->
-  rest_valid vars' conts' statics'.
+  rest_valid vars conts statics hp ->
+  step (State e vars conts statics hp)
+    = Step (State e' vars' conts' statics' hp) ->
+  rest_valid vars' conts' statics' hp.
 Proof.
   intros Hsets Hvalid Hstep. apply (run_valid_rest e').
-  exact (run_valid_kept _ _ (rest_valid_run e vars conts statics Hsets Hvalid)
+  exact (run_valid_kept _ _ (rest_valid_run e vars conts statics _ Hsets Hvalid)
            Hstep).
 Qed.
 
@@ -136,18 +138,18 @@ Qed.
    the expression: the form in which two steps make one with nothing
    asked of the term between. *)
 Definition refines_valid (tenv : Typing_env.t) (source target : expr) : Prop :=
-  ∀ (vars : env) (conts : cont_env) (statics : static_env),
-    rest_valid vars conts statics ->
+  ∀ (vars : env) (conts : cont_env) (statics : static_env) (hp : heap),
+    rest_valid vars conts statics hp ->
     env_satisfies_strictly tenv statics vars ->
-    refines (State source vars conts statics)
-      (State target vars conts statics).
+    refines (State source vars conts statics hp)
+      (State target vars conts statics hp).
 
 Lemma refines_valid_from (tenv : Typing_env.t) (source target : expr) :
   refines_valid tenv source target ->
   expr_refines_from_valid tenv source target.
 Proof.
-  intros H vars conts statics Hvalid. apply H.
-  exact (run_valid_rest source vars conts statics Hvalid).
+  intros H vars conts statics hp Hvalid. apply H.
+  exact (run_valid_rest source vars conts statics _ Hvalid).
 Qed.
 
 Lemma from_valid_refines_valid (tenv : Typing_env.t) (source target : expr) :
@@ -155,30 +157,30 @@ Lemma from_valid_refines_valid (tenv : Typing_env.t) (source target : expr) :
   expr_refines_from_valid tenv source target ->
   refines_valid tenv source target.
 Proof.
-  intros Hsets H vars conts statics Hvalid. apply H.
-  exact (rest_valid_run source vars conts statics Hsets Hvalid).
+  intros Hsets H vars conts statics hp Hvalid. apply H.
+  exact (rest_valid_run source vars conts statics _ Hsets Hvalid).
 Qed.
 
 Lemma refines_valid_trans (tenv : Typing_env.t) (e e' e'' : expr) :
   refines_valid tenv e e' -> refines_valid tenv e' e'' ->
   refines_valid tenv e e''.
 Proof.
-  intros H H' vars conts statics Hvalid Hsat.
-  exact (refines_trans _ _ _ (H vars conts statics Hvalid Hsat)
-           (H' vars conts statics Hvalid Hsat)).
+  intros H H' vars conts statics hp Hvalid Hsat.
+  exact (refines_trans _ _ _ (H vars conts statics hp Hvalid Hsat)
+           (H' vars conts statics hp Hvalid Hsat)).
 Qed.
 
 Lemma refines_under_valid (tenv : Typing_env.t) (e e' : expr) :
   expr_refines_under tenv e e' -> refines_valid tenv e e'.
 Proof.
-  intros H vars conts statics _ Hsat. exact (H vars conts statics Hsat).
+  intros H vars conts statics hp _ Hsat. exact (H vars conts statics hp Hsat).
 Qed.
 
 Lemma refines_valid_of_under_valid (tenv : Typing_env.t) (e e' : expr) :
   FlambdaSimplifySwitchSpec.expr_refines_under_valid tenv e e' ->
   refines_valid tenv e e'.
 Proof.
-  intros H vars conts statics Hvalid Hsat. apply H; [ | exact Hsat ].
+  intros H vars conts statics hp Hvalid Hsat. apply H; [ | exact Hsat ].
   exact (run_valid_statics _ Hvalid).
 Qed.
 
@@ -192,10 +194,10 @@ Qed.
 Theorem expr_refines_from_valid_trans
     : expr_refines_from_valid_trans_statement.
 Proof.
-  intros tenv e e' e'' Hsets H H' vars conts statics Hvalid Hsat.
-  refine (refines_trans _ _ _ (H vars conts statics Hvalid Hsat) _).
+  intros tenv e e' e'' Hsets H H' vars conts statics hp Hvalid Hsat.
+  refine (refines_trans _ _ _ (H vars conts statics hp Hvalid Hsat) _).
   apply H'; [ | exact Hsat ].
-  exact (run_valid_expr e e' vars conts statics Hsets Hvalid).
+  exact (run_valid_expr e e' vars conts statics _ Hsets Hvalid).
 Qed.
 
 Theorem from_valid_program : from_valid_program_statement.
@@ -675,7 +677,7 @@ Lemma let_body_refines_valid (tenv tenv' : Typing_env.t) (x : variable)
   refines_valid tenv' body body' ->
   refines_valid tenv (Let x declared d body) (Let x declared d body').
 Proof.
-  intros Hd Hbody Hestablishes Hrefines vars conts statics Hvalid Hsat.
+  intros Hd Hbody Hestablishes Hrefines vars conts statics hp Hvalid Hsat.
   apply let_refines_step; [ reflexivity | intros v Hv Hkind ].
   apply Hrefines; [ | exact (Hestablishes statics vars v Hsat Hv) ].
   apply (rest_valid_step (Let x declared d body) body vars _ conts _ statics
@@ -698,7 +700,7 @@ Lemma let_declared_refines_valid (tenv : Typing_env.t) (x : variable)
     body body' ->
   refines_valid tenv (Let x declared d body) (Let x declared d body').
 Proof.
-  intros Hwf Hfresh Hd Hbody Hrefines vars conts statics Hvalid Hsat.
+  intros Hwf Hfresh Hd Hbody Hrefines vars conts statics hp Hvalid Hsat.
   apply let_refines_step; [ reflexivity | intros v Hv Hkind ].
   apply Hrefines.
   - apply (rest_valid_step (Let x declared d body) body vars _ conts _
@@ -895,10 +897,10 @@ Lemma let_cont_body_refines_valid (tenv : Typing_env.t) (k : continuation)
   refines_valid tenv (Let_cont_non_recursive k h body)
     (Let_cont_non_recursive k h body').
 Proof.
-  intros Hsets Hbody vars conts statics Hvalid Hsat.
+  intros Hsets Hbody vars conts statics hp Hvalid Hsat.
   apply let_cont_non_recursive_refines_step. apply Hbody; [ | exact Hsat ].
-  exact (rest_valid_step _ body vars _ conts _ statics _ Hsets Hvalid
-           (step_let_cont_non_recursive k h body vars conts statics)).
+  exact (rest_valid_step _ body vars _ conts _ statics _ _ Hsets Hvalid
+           (step_let_cont_non_recursive k h body vars conts statics hp)).
 Qed.
 
 Lemma let_cont_recursive_body_refines_valid (tenv : Typing_env.t)
@@ -909,10 +911,10 @@ Lemma let_cont_recursive_body_refines_valid (tenv : Typing_env.t)
   refines_valid tenv (Let_cont_recursive handlers body)
     (Let_cont_recursive handlers body').
 Proof.
-  intros Hsets Hbody vars conts statics Hvalid Hsat.
+  intros Hsets Hbody vars conts statics hp Hvalid Hsat.
   apply let_cont_recursive_refines_step; [ reflexivity | intros Hbinds ].
   apply Hbody; [ | exact Hsat ].
-  apply (rest_valid_step _ body vars _ conts _ statics _ Hsets Hvalid).
+  apply (rest_valid_step _ body vars _ conts _ statics _ _ Hsets Hvalid).
   rewrite step_let_cont_recursive, Hbinds. reflexivity.
 Qed.
 
@@ -933,14 +935,14 @@ Lemma handler_typed_from (tenv : Typing_env.t) (statics : static_env)
     (fun s => run_valid s ∧ statics_extend statics (state_statics s)) params
     (hm_params_kinds metadata) vars handler handler'.
 Proof.
-  intros Henv Hsets Hsets' Hhandler Hsat vs handler_vars conts' statics'
+  intros Henv Hsets Hsets' Hhandler Hsat vs handler_vars conts' statics' hp
     Hkinds Hbind.
   split.
   - split; intros [Hrun Hextend]; (split; [ | exact Hextend ]).
-    + exact (run_valid_expr _ _ _ _ _ Hsets' Hrun).
-    + exact (run_valid_expr _ _ _ _ _ Hsets Hrun).
+    + exact (run_valid_expr _ _ _ _ _ _ Hsets' Hrun).
+    + exact (run_valid_expr _ _ _ _ _ _ Hsets Hrun).
   - intros [Hrun Hextend]. apply Hhandler.
-    + exact (run_valid_rest _ _ _ _ Hrun).
+    + exact (run_valid_rest _ _ _ _ _ Hrun).
     + exact (handler_env_satisfied tenv params metadata tenv_handler
                statics' vars vs handler_vars Henv
                (env_satisfies_strictly_statics_extend tenv statics statics'
@@ -970,7 +972,7 @@ Lemma let_cont_handler_typed_valid (tenv : Typing_env.t) (k : continuation)
     (Let_cont_non_recursive k (Handler params metadata handler) body)
     (Let_cont_non_recursive k (Handler params metadata handler') body).
 Proof.
-  intros Henv Hsets Hsets' Hbody Hhandler vars conts statics Hvalid Hsat.
+  intros Henv Hsets Hsets' Hbody Hhandler vars conts statics hp Hvalid Hsat.
   apply (FlambdaContextWhereProofs.let_cont_handler_refines_from
            (fun s => run_valid s ∧ statics_extend statics (state_statics s))).
   - exact (valid_extending_kept statics).
@@ -1011,15 +1013,15 @@ Lemma let_cont_recursive_handler_typed_valid (tenv : Typing_env.t)
     (Let_cont_recursive
        (before ++ (k, Handler params metadata handler') :: after) body).
 Proof.
-  intros Henv Hbinds Hsets Hsets' Hall Hall' Hhandler vars conts statics
+  intros Henv Hbinds Hsets Hsets' Hall Hall' Hhandler vars conts statics hp
     Hvalid Hsat.
   apply (FlambdaContextWhereProofs.let_cont_recursive_handler_refines_from
            (fun s => run_valid s ∧ statics_extend statics (state_statics s))).
   - exact (valid_extending_kept statics).
   - split; [ | apply statics_extend_refl ].
-    exact (rest_valid_run _ vars conts statics Hall Hvalid).
+    exact (rest_valid_run _ vars conts statics _ Hall Hvalid).
   - split; [ | apply statics_extend_refl ].
-    exact (rest_valid_run _ vars conts statics Hall' Hvalid).
+    exact (rest_valid_run _ vars conts statics _ Hall' Hvalid).
   - exact Hbinds.
   - exact (handler_typed_from tenv statics vars params metadata handler
              handler' tenv_handler Henv Hsets Hsets' Hhandler Hsat).
@@ -1047,17 +1049,17 @@ Lemma let_static_body_refines_valid (tenv : Typing_env.t)
   refines_valid (add_static_bindings tenv bindings) body body' ->
   refines_valid tenv (Let_static bindings body) (Let_static bindings body').
 Proof.
-  intros Hsets Hbody vars conts statics Hvalid Hsat.
+  intros Hsets Hbody vars conts statics hp Hvalid Hsat.
   destruct (eval_static_bindings vars bindings statics) as [statics' | ]
     eqn:Hbindings.
   - assert (Hstep :
       ∀ b : expr,
-        step (State (Let_static bindings b) vars conts statics)
-        = Step (State b vars conts statics')).
+        step (State (Let_static bindings b) vars conts statics hp)
+        = Step (State b vars conts statics' hp)).
     { intros b. rewrite step_let_static, Hbindings. reflexivity. }
     eapply refines_step; [ apply Hstep | apply Hstep | ].
     apply Hbody.
-    + exact (rest_valid_step _ body vars _ conts _ statics _ Hsets Hvalid
+    + exact (rest_valid_step _ body vars _ conts _ statics _ _ Hsets Hvalid
                (Hstep body)).
     + exact (add_static_bindings_env_satisfies tenv statics statics' vars
                bindings Hbindings Hsat).
@@ -1129,7 +1131,7 @@ Lemma let_static_code_typed_valid (tenv : Typing_env.t)
        body).
 Proof.
   intros Henv Hsource Htarget Hcode Hcode' Hsets Hsets' Hbody vars conts
-    statics Hvalid Hsat.
+    statics hp' Hvalid Hsat.
   pose (source :=
           before
           ++ Bind_code id (Code params my_closure ret exn metadata code_body)
@@ -1167,11 +1169,12 @@ Proof.
     exact (add_static_bindings_env_satisfies tenv statics extended vars
              bindings Heval Hsat). }
   assert (Hcall :
-    ∀ (e : expr) (vars0 : env) (conts0 : cont_env) (statics0 : static_env),
+    ∀ (e : expr) (vars0 : env) (conts0 : cont_env) (statics0 : static_env)
+      (hp : heap),
       binds_statics e = false ->
-      inv (State e vars0 conts0 statics0) ->
+      inv (State e vars0 conts0 statics0 hp) ->
       env_satisfies_strictly outer statics0 []).
-  { intros e vars0 conts0 statics0 He Hinv. unfold inv in Hinv.
+  { intros e vars0 conts0 statics0 hp He Hinv. unfold inv in Hinv.
     destruct Hinv as [Hsat0 | [bindings [b [Hexpr [Hbinds _]]]]];
       [ exact Hsat0 | ].
     simpl in Hexpr. subst e. cbn [binds_statics] in He.
@@ -1186,36 +1189,36 @@ Proof.
     + left.
       exact (env_satisfies_strictly_statics_extend outer (state_statics s)
                (state_statics s') [] (step_extends_statics s s' Hstep) Hsat0).
-    + left. destruct s as [e vars0 conts0 statics0].
+    + left. destruct s as [e vars0 conts0 statics0 hp].
       simpl in Hexpr, Hextended. subst e.
       rewrite step_let_static in Hstep.
       destruct (eval_static_bindings vars0 bindings statics0)
         as [extended | ] eqn:Heval; [ | discriminate ].
       injection Hstep as <-. exact (Hextended extended eq_refl).
-  - split; [ exact (rest_valid_run _ vars conts statics Hsets Hvalid) | ].
+  - split; [ exact (rest_valid_run _ vars conts statics _ Hsets Hvalid) | ].
     unfold inv. right. exists source, body.
     split; [ reflexivity | ]. split.
     + unfold source. rewrite existsb_app. simpl. apply orb_true_r.
     + exact (Hgroup source eq_refl).
-  - split; [ exact (rest_valid_run _ vars conts statics Hsets' Hvalid) | ].
+  - split; [ exact (rest_valid_run _ vars conts statics _ Hsets' Hvalid) | ].
     unfold inv. right. exists target, body.
     split; [ reflexivity | ]. split.
     + unfold target. rewrite existsb_app. simpl. apply orb_true_r.
     + apply Hgroup. apply add_static_bindings_code.
   - rewrite Hsource, Htarget. reflexivity.
-  - intros vs callee callee_vars return_to exn_to statics0 Hbind Hkinds
+  - intros vs callee callee_vars return_to exn_to statics0 hp Hbind Hkinds
       Hcallee.
     split.
     + split; intros [Hrun Hinv]; split.
-      * exact (run_valid_expr _ _ _ _ _ Hcode' Hrun).
-      * unfold inv. left. exact (Hcall _ _ _ _ Hsource Hinv).
-      * exact (run_valid_expr _ _ _ _ _ Hcode Hrun).
-      * unfold inv. left. exact (Hcall _ _ _ _ Htarget Hinv).
+      * exact (run_valid_expr _ _ _ _ _ _ Hcode' Hrun).
+      * unfold inv. left. exact (Hcall _ _ _ _ _ Hsource Hinv).
+      * exact (run_valid_expr _ _ _ _ _ _ Hcode Hrun).
+      * unfold inv. left. exact (Hcall _ _ _ _ _ Htarget Hinv).
     + intros [Hrun Hinv]. apply Hbody.
-      * exact (run_valid_rest _ _ _ _ Hrun).
+      * exact (run_valid_rest _ _ _ _ _ Hrun).
       * exact (code_env_in_satisfied_from_closure _ params my_closure
                  metadata tenv_code statics0 vs callee callee_vars Henv
-                 (Hcall _ _ _ _ Hsource Hinv) Hkinds Hcallee Hbind).
+                 (Hcall _ _ _ _ _ Hsource Hinv) Hkinds Hcallee Hbind).
 Qed.
 
 (* ======================================================================== *)
@@ -1473,13 +1476,13 @@ Proof.
                   handler handler' target' xs' ks' Hrest Hrest_free
                   Hhandler_sets Hrest_sets Hhandler)
       as IH.
-    intros vars conts statics Hvalid Hsat.
+    intros vars conts statics hp Hvalid Hsat.
     apply (refines_trans _
              (State
                 (Let x declared d
                    (Let_cont_non_recursive k
                       (Handler params metadata handler) rest))
-                vars conts statics)).
+                vars conts statics hp)).
     { apply equivalent_refines, let_cont_past_let. intros Hfree'.
       apply var_free_in_handler_b_sound in Hfree'. congruence. }
     apply (refines_trans _
@@ -1487,7 +1490,7 @@ Proof.
                 (Let x declared d
                    (Let_cont_non_recursive k
                       (Handler params metadata handler') rest))
-                vars conts statics)).
+                vars conts statics hp)).
     { apply let_refines_step; [ reflexivity | intros v Hv Hkind ].
       apply IH.
       - eapply (rest_valid_step
@@ -1528,13 +1531,13 @@ Proof.
                   handler handler' target' xs' ks' Hrest Hrest_free
                   Hhandler_sets Hrest_sets Hhandler)
       as IH.
-    intros vars conts statics Hvalid Hsat.
+    intros vars conts statics hp Hvalid Hsat.
     apply (refines_trans _
              (State
                 (Let_cont_non_recursive k' h'
                    (Let_cont_non_recursive k
                       (Handler params metadata handler) rest))
-                vars conts statics)).
+                vars conts statics hp)).
     { apply equivalent_refines, let_cont_past_let_cont; [ exact Hne | | ];
         intros Hfree'; apply cont_free_in_handler_b_sound in Hfree';
         congruence. }
@@ -1543,7 +1546,7 @@ Proof.
                 (Let_cont_non_recursive k' h'
                    (Let_cont_non_recursive k
                       (Handler params metadata handler') rest))
-                vars conts statics)).
+                vars conts statics hp)).
     { apply let_cont_non_recursive_refines_step. apply IH; [ | exact Hsat ].
       eapply (rest_valid_step
                 (Let_cont_non_recursive k' h'
@@ -1562,14 +1565,14 @@ Proof.
     destruct (use_env scope tenv_use params metadata args) as [target' | ]
       eqn:Huse; [ | discriminate ].
     injection Hfind as <- _ _.
-    intros vars conts statics Hvalid Hsat.
+    intros vars conts statics hp Hvalid Hsat.
     apply (let_cont_handler_at_use_from run_valid scope tenv k params
              metadata handler handler' _ tenv_use args target'
              run_valid_kept Hleaf Huse);
       [ | | exact Hsat ].
-    + intros vars' conts' statics' Hrun Hsat'.
+    + intros vars' conts' statics' hp' Hrun Hsat'.
       apply Hhandler; [ | exact Hsat' ].
-      exact (run_valid_rest handler vars' conts' statics' Hrun).
+      exact (run_valid_rest handler vars' conts' statics' _ Hrun).
     + apply rest_valid_run; [ | exact Hvalid ].
       cbn [sets_well_formed handler_sets_well_formed].
       rewrite Hhandler_sets. reflexivity.
@@ -1579,14 +1582,14 @@ Proof.
     destruct (use_env scope tenv_use params metadata args) as [target' | ]
       eqn:Huse; [ | discriminate ].
     injection Hfind as <- _ _.
-    intros vars conts statics Hvalid Hsat.
+    intros vars conts statics hp Hvalid Hsat.
     apply (let_cont_handler_at_use_from run_valid scope tenv k params
              metadata handler handler' _ tenv_use args target'
              run_valid_kept Hleaf Huse);
       [ | | exact Hsat ].
-    + intros vars' conts' statics' Hrun Hsat'.
+    + intros vars' conts' statics' hp' Hrun Hsat'.
       apply Hhandler; [ | exact Hsat' ].
-      exact (run_valid_rest handler vars' conts' statics' Hrun).
+      exact (run_valid_rest handler vars' conts' statics' _ Hrun).
     + apply rest_valid_run; [ | exact Hvalid ].
       cbn [sets_well_formed handler_sets_well_formed].
       rewrite Hhandler_sets. reflexivity.
@@ -2342,11 +2345,11 @@ Qed.
 Theorem simplify_expr_pruning_refines
     : simplify_expr_pruning_refines_statement.
 Proof.
-  intros prune tenv fit e Hprune Hknown vars conts statics Hvalid Hsat.
+  intros prune tenv fit e Hprune Hknown vars conts statics hp Hvalid Hsat.
   assert (Hsets : sets_well_formed e = true) by exact (proj1 (proj1 Hvalid)).
   exact (proj2 (simplify_expr_pruning_sound prune Hprune e tenv fit Hknown
                   Hsets)
-           vars conts statics (run_valid_rest e vars conts statics Hvalid)
+           vars conts statics hp (run_valid_rest e vars conts statics _ Hvalid)
            Hsat).
 Qed.
 

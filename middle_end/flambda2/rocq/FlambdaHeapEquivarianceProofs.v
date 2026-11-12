@@ -60,8 +60,8 @@ Lemma rename_heap_state_with_heap (r : renaming) (s : heap_state) :
 Proof. reflexivity. Qed.
 
 Lemma forget_with_heap (t : state) (h : heap) :
-  forget_heap (with_heap t h) = t.
-Proof. destruct t. reflexivity. Qed.
+  state_heap t = h -> forget_heap (with_heap t h) = t.
+Proof. intros <-. destruct t. reflexivity. Qed.
 
 Lemma hs_heap_with_heap (t : state) (h : heap) :
   hs_heap (with_heap t h) = h.
@@ -83,8 +83,8 @@ Qed.
 Theorem rename_heap_state_compose : rename_heap_state_compose_statement.
 Proof.
   intros second first s. rewrite !rename_heap_state_with_heap.
-  rewrite forget_with_heap, hs_heap_with_heap, rename_state_compose.
-  reflexivity.
+  rewrite forget_with_heap by reflexivity.
+  rewrite hs_heap_with_heap, rename_state_compose. reflexivity.
 Qed.
 
 Theorem rename_heap_state_inverse : rename_heap_state_inverse_statement.
@@ -92,7 +92,7 @@ Proof.
   intros r s.
   destruct (rename_state_inverse r (forget_heap s)) as [Hleft Hright].
   split; rewrite !rename_heap_state_with_heap;
-    rewrite forget_with_heap, hs_heap_with_heap.
+    rewrite forget_with_heap by reflexivity; rewrite hs_heap_with_heap.
   - rewrite Hleft. apply with_heap_forget.
   - rewrite Hright. apply with_heap_forget.
 Qed.
@@ -302,7 +302,8 @@ Lemma rename_static_env_inverse_l (r : renaming) (statics : static_env) :
   = statics.
 Proof.
   pose proof
-    (rename_state_inverse r (State Invalid [] [] statics)) as [Hleft _].
+    (rename_state_inverse r (State Invalid [] [] statics empty_heap))
+    as [Hleft _].
   unfold rename_state in Hleft. simpl_state.
   injection Hleft as Hstatics. exact Hstatics.
 Qed.
@@ -312,7 +313,8 @@ Lemma rename_static_env_inverse_r (r : renaming) (statics : static_env) :
   = statics.
 Proof.
   pose proof
-    (rename_state_inverse r (State Invalid [] [] statics)) as [_ Hright].
+    (rename_state_inverse r (State Invalid [] [] statics empty_heap))
+    as [_ Hright].
   unfold rename_state in Hright. simpl_state.
   injection Hright as Hstatics. exact Hstatics.
 Qed.
@@ -584,7 +586,7 @@ Lemma heap_state_of_renamed_expr (r : renaming) (e : expr) (vars : env)
          (rename_cont_env (inverse_renaming r) conts)
          (rename_static_env (inverse_renaming r) statics) h).
 Proof.
-  pose proof (state_of_renamed_expr r e vars conts statics) as Hstate.
+  pose proof (state_of_renamed_expr r e vars conts statics h) as Hstate.
   unfold rename_state in Hstate. simpl_state.
   injection Hstate as Hvars Hconts Hstatics.
   unfold rename_heap_state. simpl.

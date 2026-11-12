@@ -104,7 +104,7 @@ Qed.
 
 Theorem float_code_over_let : float_code_over_let_statement.
 Proof.
-  intros x kind d codes body Hcodes vars conts statics.
+  intros x kind d codes body Hcodes vars conts statics hp.
   destruct (eval_static_bindings vars codes statics) as [statics' | ]
     eqn:Hbind.
   - pose proof (eval_code_bindings_values vars codes Hcodes statics statics'
@@ -162,7 +162,7 @@ Lemma float_over_let_cont (k : continuation) (h : continuation_handler)
   expr_equivalent (Let_cont_non_recursive k h (Let_static bindings body))
     (Let_static bindings (Let_cont_non_recursive k h body)).
 Proof.
-  intros vars conts statics.
+  intros vars conts statics hp.
   destruct (eval_static_bindings vars bindings statics) as [statics' | ]
     eqn:Hbind.
   - eapply equivalent_step;
@@ -182,7 +182,7 @@ Lemma float_over_let_cont_recursive
   expr_equivalent (Let_cont_recursive handlers (Let_static bindings body))
     (Let_static bindings (Let_cont_recursive handlers body)).
 Proof.
-  intros vars conts statics.
+  intros vars conts statics hp.
   destruct (handlers_bind_statics handlers) eqn:Hhandlers;
     destruct (eval_static_bindings vars bindings statics) as [statics' | ]
       eqn:Hbind.
@@ -216,7 +216,7 @@ Lemma let_static_if_any_same (bindings : list static_binding) (body : expr) :
   expr_equivalent (Let_static bindings body)
     (let_static_if_any bindings body).
 Proof.
-  intros vars conts statics.
+  intros vars conts statics hp.
   destruct bindings as [ | binding bindings]; simpl;
     [ | apply equivalent_refl ].
   apply step_equivalent. reflexivity.
@@ -247,7 +247,8 @@ Proof.
   destruct inner
     as [ x kind d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
-    unfold float_over; try (intros vars conts statics; apply equivalent_refl).
+    unfold float_over; try
+      (intros vars conts statics hp; apply equivalent_refl).
   set (codes := filter binds_code bindings).
   set (rest := filter (fun binding => negb (binds_code binding)) bindings).
   apply (expr_equivalent_trans _
@@ -274,7 +275,7 @@ Proof.
     as [ x kind d body | bindings body | k [params metadata handler] body
        | handlers body | ap | ac | scrutinee arms | ];
     cbn [float_code];
-    try (intros vars conts statics; apply equivalent_refl).
+    try (intros vars conts statics hp; apply equivalent_refl).
   - apply (expr_equivalent_trans _ (Let x kind d (float_code body))).
     + exact (plug_equivalent (Let_body x kind d Hole) _ _ (not_many _)
         (float_code_equivalent_aux body)).
@@ -292,7 +293,7 @@ Proof.
     apply (expr_equivalent_trans _ _ _ Hbody).
     apply (expr_equivalent_trans _
       (Let_static (bindings ++ bindings') body')).
-    + intros vars conts statics.
+    + intros vars conts statics hp.
       apply equivalent_sym, let_static_split.
     + apply code_first_equivalent.
   - apply (expr_equivalent_trans _

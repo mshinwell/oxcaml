@@ -101,10 +101,10 @@ Proof.
     destruct
       (Pos.eqb k (ap_continuation ap) || Pos.eqb k (ap_exn_continuation ap));
       [ | discriminate ].
-    intros [= <-] vars conts statics. apply equivalent_refl.
+    intros [= <-] vars conts statics hp. apply equivalent_refl.
   - (* the test *)
     destruct (arms_apply k arms); [ | discriminate ].
-    intros [= <-] vars conts statics. apply equivalent_refl.
+    intros [= <-] vars conts statics hp. apply equivalent_refl.
 Qed.
 
 (* Each layer is a context around what the induction gives; then the
@@ -115,7 +115,7 @@ Proof.
   destruct e
     as [ x kind d body | bindings body | k [params metadata handler] body
        | handlers body | ap | ac | scrutinee arms | ];
-    simpl; try (intros vars conts statics; apply equivalent_refl).
+    simpl; try (intros vars conts statics hp; apply equivalent_refl).
   - exact (plug_equivalent (Let_body x kind d Hole) _ _ (not_many _)
       (sink_conts_to_uses_equivalent_aux body)).
   - exact (plug_equivalent (Let_static_body bindings Hole) _ _ (not_many _)

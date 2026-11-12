@@ -203,7 +203,8 @@ Qed.
    run and leave the variables as they were. *)
 Lemma run_bind_aliases (params : list variable) :
   ∀ (kinds : list flambda_kind) (aliases : list (option simple))
-    (handler : expr) (vars : env) (conts : cont_env) (statics : static_env),
+    (handler : expr) (vars : env) (conts : cont_env) (statics : static_env)
+      (hp : heap),
     (∀ (i : nat) (p : variable) (s : simple),
       nth_error params i = Some p ->
       nth_error aliases i = Some (Some s) ->
@@ -213,12 +214,13 @@ Lemma run_bind_aliases (params : list variable) :
             nth_error kinds i = Some kind -> kind_of_value v = kind) ->
     ∃ (n : nat) (vars' : env),
       run n
-        (State (bind_aliases params kinds aliases handler) vars conts statics)
-      = Step (State handler vars' conts statics)
+        (State (bind_aliases params kinds aliases handler) vars conts statics
+           hp)
+      = Step (State handler vars' conts statics hp)
       ∧ ∀ x : variable, lookup x vars' = lookup x vars.
 Proof.
   induction params as [ | p params IH];
-    intros kinds aliases handler vars conts statics Hgiven.
+    intros kinds aliases handler vars conts statics hp Hgiven.
   - exists 0, vars. split; reflexivity.
   - destruct kinds as [ | kind kinds];
       [ exists 0, vars; split; reflexivity | ].
@@ -228,7 +230,7 @@ Proof.
     + destruct (Hgiven 0 p s eq_refl eq_refl) as (v & Hs & Hp & Hkind).
       specialize (Hkind kind eq_refl).
       destruct
-        (IH kinds aliases handler ((p, v) :: vars) conts statics)
+        (IH kinds aliases handler ((p, v) :: vars) conts statics hp)
         as (n & vars' & Hrun & Hsame).
       { intros i p' s' Hp' Hs'.
         destruct (Hgiven (S i) p' s' Hp' Hs') as (v' & Hs'v & Hp'v & Hk').
@@ -586,12 +588,13 @@ Inductive cont_aliased : env -> fate -> cont_value -> cont_value -> Prop :=
 
 Inductive state_aliased : state -> state -> Prop :=
   | State_aliased (K : fates) (e e' : expr) (vars vars' : env)
-      (conts conts' : cont_env) (statics : static_env) :
+      (conts conts' : cont_env) (statics : static_env) (hp : heap) :
     aliased K e e' ->
     (∀ x : variable, lookup x vars = lookup x vars') ->
     (∀ k : continuation,
       cont_aliased vars (fate_of K k) (resolve k conts) (resolve k conts')) ->
-    state_aliased (State e vars conts statics) (State e' vars' conts' statics).
+    state_aliased (State e vars conts statics hp)
+      (State e' vars' conts' statics hp).
 
 Lemma state_aliased_refl (s : state) : state_aliased s s.
 Proof.
@@ -738,7 +741,7 @@ Qed.
 Definition result_aliased (result result' : step_result) : Prop :=
   match result with
   | Undefined => True
-  | Exit k vs0 => result' = Exit k vs0
+  | Exit k vs0 hp => result' = Exit k vs0 hp
   | Step t =>
     ∃ (t1 : state) (n : nat) (t' : state),
       result' = Step t1 ∧ run n t1 = Step t' ∧ state_aliased t t'
@@ -749,18 +752,18 @@ Definition result_aliased (result result' : step_result) : Prop :=
 Lemma call_code_aliased (closure : value) (c : code) (vs : list value)
     (args_arity return_arity : arity) (f_ret f_exn : fate)
     (return_to return_to' exn_to exn_to' : cont_value) (vars : env)
-    (statics : static_env) :
+    (statics : static_env) (hp : heap) :
   no_alias f_ret ->
   no_alias f_exn ->
   cont_aliased vars f_ret return_to return_to' ->
   cont_aliased vars f_exn exn_to exn_to' ->
   result_aliased
-    (call_code closure c vs args_arity return_arity return_to exn_to statics)
+    (call_code closure c vs args_arity return_arity return_to exn_to statics hp)
     (call_code closure c vs args_arity return_arity return_to' exn_to'
-       statics).
+       statics hp).
 Proof.
   intros Hno_ret Hno_exn Hreturn Hraise.
-  destruct (call_code_cases closure c vs args_arity return_arity statics)
+  destruct (call_code_cases closure c vs args_arity return_arity statics hp)
     as [Hundefined | (callee_vars & Hcall)].
   - rewrite Hundefined. exact I.
   - rewrite !Hcall. cbn [result_aliased]. eexists _, 0, _.
@@ -786,19 +789,19 @@ Qed.
    a partial application to related results. *)
 Lemma run_call_aliased (shape : option call_shape) (return_arity : arity)
     (f_ret f_exn : fate) (return_to return_to' exn_to exn_to' : cont_value)
-    (vars : env) (statics : static_env) :
+    (vars : env) (statics : static_env) (hp : heap) :
   no_alias f_ret ->
   no_alias f_exn ->
   cont_aliased vars f_ret return_to return_to' ->
   cont_aliased vars f_exn exn_to exn_to' ->
   (∀ partial : value,
-    result_aliased (apply_cont_value return_to [partial] statics)
-      (apply_cont_value return_to' [partial] statics)) ->
+    result_aliased (apply_cont_value return_to [partial] statics hp)
+      (apply_cont_value return_to' [partial] statics hp)) ->
   result_aliased
-    (run_call (fun partial => apply_cont_value return_to [partial] statics)
-       shape return_arity return_to exn_to statics)
-    (run_call (fun partial => apply_cont_value return_to' [partial] statics)
-       shape return_arity return_to' exn_to' statics).
+    (run_call (fun partial => apply_cont_value return_to [partial] statics hp)
+       shape return_arity return_to exn_to statics hp)
+    (run_call (fun partial => apply_cont_value return_to' [partial] statics hp)
+       shape return_arity return_to' exn_to' statics hp).
 Proof.
   intros Hno_ret Hno_exn Hreturn Hraise Hpartial.
   destruct shape
@@ -807,10 +810,10 @@ Proof.
     cbn [run_call].
   - exact
       (call_code_aliased closure c vs args_arity return_arity f_ret f_exn _ _
-         _ _ vars statics Hno_ret Hno_exn Hreturn Hraise).
+         _ _ vars statics _ Hno_ret Hno_exn Hreturn Hraise).
   - apply
       (call_code_aliased closure c vs args_arity (code_result_arity c)
-         ([], []) f_exn _ _ _ _ vars statics (no_alias_nil []) Hno_exn);
+         ([], []) f_exn _ _ _ _ vars statics _ (no_alias_nil []) Hno_exn);
       [ | exact Hraise ].
     exact
       (Over_aliased vars ([], []) f_ret f_exn remaining remaining_arity
@@ -838,14 +841,14 @@ Qed.
 
 Lemma apply_cont_aliased (vars : env) (f : fate) (c c' : cont_value) :
   cont_aliased vars f c c' ->
-  ∀ (vs : list value) (statics : static_env),
+  ∀ (vs : list value) (statics : static_env) (hp : heap),
     given_values vars f vs ->
-    match apply_cont_value c vs statics with
+    match apply_cont_value c vs statics hp with
     | Undefined => True
-    | Exit k vs0 => apply_cont_value c' vs statics = Exit k vs0
+    | Exit k vs0 hp' => apply_cont_value c' vs statics hp = Exit k vs0 hp'
     | Step t =>
       ∃ (t1 : state) (n : nat) (t' : state),
-        apply_cont_value c' vs statics = Step t1
+        apply_cont_value c' vs statics hp = Step t1
         ∧ run n t1 = Step t'
         ∧ state_aliased t t'
     end.
@@ -862,9 +865,9 @@ Proof.
        | vars f f_ret f_exn remaining remaining_arity return_arity return_to
            return_to' exn_to exn_to' Hno Hno_ret Hno_exn Hreturn IHreturn
            Hraise _ ];
-    intros vs statics Hgiven.
+    intros vs statics hp Hgiven.
   - (* the same continuation *)
-    destruct (apply_cont_value c vs statics) as [t | k vs0 | ];
+    destruct (apply_cont_value c vs statics _) as [t | k vs0 | ];
       [ | reflexivity | exact I ].
     exists t, 0, t. split; [ reflexivity | ].
     split; [ reflexivity | apply state_aliased_refl ].
@@ -880,7 +883,8 @@ Proof.
     rewrite Hbind'.
     destruct
       (run_bind_aliases params kinds (fst f) handler' bound'
-         (rec_closures recursive' def_vars' def_conts' ++ def_conts') statics)
+         (rec_closures recursive' def_vars' def_conts' ++ def_conts') statics
+           hp)
       as (n & vars' & Hrun & Hsame).
     { intros i p s Hp Hs.
       destruct (given_bound vars f params vs def_vars bound Hfit Hheld Hgiven
@@ -924,7 +928,7 @@ Proof.
                Handler params metadata'
                  (bind_aliases params kinds (fst f) handler'))])
           :: def_conts')
-         statics)
+         statics hp)
       as (n & vars' & Hrun & Hsame).
     { intros i p s Hp Hs.
       destruct (Hvalues i p s Hp Hs) as (v & _ & Hs_bound & Hp_bound & Hv).
@@ -973,7 +977,7 @@ Proof.
          (shape_of_call statics v Indirect remaining remaining_arity
             return_arity)
          return_arity f_ret f_exn return_to return_to' exn_to exn_to' vars
-         statics Hno_ret Hno_exn Hreturn Hraise).
+         statics _ Hno_ret Hno_exn Hreturn Hraise).
     intros partial. apply IHreturn. intros i s Hs. exfalso.
     exact (Hno_ret i s Hs).
 Qed.
@@ -983,23 +987,23 @@ Qed.
 Lemma call_function_aliased (callee : value) (kind : call_kind)
     (vs : list value) (args_arity return_arity : arity) (f_ret f_exn : fate)
     (return_to return_to' exn_to exn_to' : cont_value) (vars : env)
-    (statics : static_env) :
+    (statics : static_env) (hp : heap) :
   no_alias f_ret ->
   no_alias f_exn ->
   cont_aliased vars f_ret return_to return_to' ->
   cont_aliased vars f_exn exn_to exn_to' ->
   result_aliased
     (call_function callee kind vs args_arity return_arity return_to exn_to
-       statics)
+       statics hp)
     (call_function callee kind vs args_arity return_arity return_to' exn_to'
-       statics).
+       statics hp).
 Proof.
   intros Hno_ret Hno_exn Hreturn Hraise. unfold call_function.
   apply
     (run_call_aliased
        (shape_of_call statics callee kind vs args_arity return_arity)
        return_arity f_ret f_exn return_to return_to' exn_to exn_to' vars
-       statics Hno_ret Hno_exn Hreturn Hraise).
+       statics _ Hno_ret Hno_exn Hreturn Hraise).
   intros partial. apply (apply_cont_aliased vars f_ret _ _ Hreturn).
   intros i s Hs. exfalso. exact (Hno_ret i s Hs).
 Qed.
@@ -1022,7 +1026,7 @@ Qed.
 Lemma aliased_step (st st' : state) :
   state_aliased st st' -> answered state_aliased same_values (step st) st'.
 Proof.
-  intros [K e e' vars vars' conts conts' statics Haliased Hvars Hconts].
+  intros [K e e' vars vars' conts conts' statics hp Haliased Hvars Hconts].
   destruct Haliased
     as [ K x kind d body body' Hx Hbody | K bindings body body' Hbody
        | K k params metadata metadata' handler handler' kinds aliases body
@@ -1035,7 +1039,7 @@ Proof.
     rewrite step_let.
     destruct (eval_named statics vars d) as [v | ] eqn:Hd; [ | exact I ].
     destruct (kind_eqb (kind_of_value v) kind) eqn:Hkind; [ | exact I ].
-    apply (answered_one _ (State body' ((x, v) :: vars') conts' statics)).
+    apply (answered_one _ (State body' ((x, v) :: vars') conts' statics hp)).
     + rewrite step_let, (eval_named_agree statics vars vars' d), Hd, Hkind
         by (intros y _; apply Hvars).
       reflexivity.
@@ -1050,7 +1054,7 @@ Proof.
     rewrite step_let_static.
     destruct (eval_static_bindings vars bindings statics) as [extended | ]
       eqn:Hextended; [ | exact I ].
-    apply (answered_one _ (State body' vars' conts' extended)).
+    apply (answered_one _ (State body' vars' conts' extended hp)).
     + rewrite step_let_static,
         (eval_static_bindings_agree vars vars' bindings), Hextended
         by (intros y _; apply Hvars).
@@ -1066,7 +1070,7 @@ Proof.
                 (bind_aliases params kinds aliases handler'))
              vars' conts' [])
           :: conts')
-         statics)).
+         statics hp)).
     + apply step_let_cont_non_recursive.
     + apply (State_aliased ((k, (aliases, [])) :: K));
         [ exact Hbody | exact Hvars | ].
@@ -1084,7 +1088,7 @@ Proof.
     destruct (handlers_bind_statics handlers) eqn:Hstatic; [ exact I | ].
     apply (answered_one _
       (State body' vars' (rec_closures handlers' vars' conts' ++ conts')
-         statics)).
+         statics hp)).
     + rewrite step_let_cont_recursive, Hbinds. reflexivity.
     + apply (State_aliased (plain_fates handlers ++ K));
         [ exact Hbody | exact Hvars | ].
@@ -1103,7 +1107,7 @@ Proof.
                Handler params metadata'
                  (bind_aliases params kinds aliases handler'))])
           :: conts')
-         statics)).
+         statics hp)).
     + rewrite step_let_cont_recursive. unfold handlers_bind_statics. simpl.
       rewrite bind_aliases_binds_statics, Hbinds. reflexivity.
     + apply (State_aliased ((k, (aliases, [])) :: K));
@@ -1133,15 +1137,15 @@ Proof.
       apply Extra_args_aliased; [ exact Hexn | apply Hconts ]. }
     pose proof
       (call_function_aliased callee (ap_call_kind ap) vs (ap_args_arity ap)
-         (ap_return_arity ap) _ _ _ _ _ _ vars statics Hret Hexn
+         (ap_return_arity ap) _ _ _ _ _ _ vars statics hp Hret Hexn
          (Hconts (ap_continuation ap)) Hraise)
       as Hcall.
     assert (Hstep' :
-      step (State (Apply ap) vars' conts' statics)
+      step (State (Apply ap) vars' conts' statics hp)
       = call_function callee (ap_call_kind ap) vs (ap_args_arity ap)
           (ap_return_arity ap) (resolve (ap_continuation ap) conts')
           (with_extra_args (resolve (ap_exn_continuation ap) conts') extra)
-          statics).
+          statics hp).
     { rewrite step_apply, (eval_simple_agree vars vars' (ap_callee ap)),
         Hcallee, (eval_simples_agree vars vars' (ap_args ap)), Hvs,
         (eval_simples_agree vars vars' (exn_extra_simples ap)), Hextra
@@ -1151,7 +1155,7 @@ Proof.
       (call_function callee (ap_call_kind ap) vs (ap_args_arity ap)
          (ap_return_arity ap) (resolve (ap_continuation ap) conts)
          (with_extra_args (resolve (ap_exn_continuation ap) conts) extra)
-         statics)
+         statics hp)
       as [t | k vs0 | ]; cbn [result_aliased] in Hcall; [ | | exact I ].
     + destruct Hcall as (t1 & n & t' & Hfirst & Hrun & Hrel).
       exists n, t'. split; [ | exact Hrel ].
@@ -1171,14 +1175,15 @@ Proof.
         [ left; exact Heval
         | right; exists p; split; [ exact Hp | exact Heval ] ]. }
     pose proof (apply_cont_aliased vars _ _ _ (Hconts (ac_continuation ac)) vs
-      statics Hgiven) as Happly.
+      statics hp Hgiven) as Happly.
     assert (Hstep' :
-      step (State (Apply_cont ac) vars' conts' statics)
-      = apply_cont_value (resolve (ac_continuation ac) conts') vs statics).
+      step (State (Apply_cont ac) vars' conts' statics hp)
+      = apply_cont_value (resolve (ac_continuation ac) conts') vs statics hp).
     { rewrite step_apply_cont, (eval_simples_agree vars vars' (ac_args ac)),
         Hvs by (intros y _; apply Hvars).
       reflexivity. }
-    destruct (apply_cont_value (resolve (ac_continuation ac) conts) vs statics)
+    destruct
+      (apply_cont_value (resolve (ac_continuation ac) conts) vs statics hp)
       as [t | k vs0 | ]; [ | | exact I ].
     + destruct Happly as (t1 & n & t' & Hfirst & Hrun & Hrel).
       exists n, t'. split; [ | exact Hrel ].
@@ -1189,7 +1194,7 @@ Proof.
     destruct (eval_simple vars scrutinee) as [v | ] eqn:Hv; [ | exact I ].
     destruct (naked_immediate_of_value v) as [i | ] eqn:Hi; [ | exact I ].
     destruct (find_arm i arms) as [ac | ] eqn:Hfind; [ | exact I ].
-    apply (answered_one _ (State (Apply_cont ac) vars' conts' statics)).
+    apply (answered_one _ (State (Apply_cont ac) vars' conts' statics hp)).
     + rewrite step_switch, (eval_simple_agree vars vars' scrutinee), Hv, Hi,
         Hfind by (intros y _; apply Hvars).
       reflexivity.
@@ -1734,7 +1739,7 @@ Qed.
 
 Theorem bind_aliased_params_refines : bind_aliased_params_refines_statement.
 Proof.
-  intros e vars conts statics.
+  intros e vars conts statics hp.
   apply (stuttering_refines state_aliased same_values aliased_step).
   - intros last vs vs' Hsame. exact Hsame.
   - apply (State_aliased []);

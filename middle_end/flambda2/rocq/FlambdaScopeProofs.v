@@ -185,12 +185,12 @@ Qed.
 (* ======================================================================== *)
 
 Lemma state_in_scope_intro (outer : list continuation) (e : expr)
-    (vars : env) (conts : cont_env) (statics : static_env) :
+    (vars : env) (conts : cont_env) (statics : static_env) (hp : heap) :
   names_among (map fst vars) (map fst conts ++ outer) e = true ->
   code_closed e = true ->
   conts_in_scope outer conts ->
   code_all_closed statics ->
-  state_in_scope outer (State e vars conts statics).
+  state_in_scope outer (State e vars conts statics hp).
 Proof. intros Hnames Hcode Hconts Hstatics. repeat split; assumption. Qed.
 
 Theorem unit_in_scope : unit_in_scope_statement.
@@ -205,16 +205,16 @@ Qed.
 Lemma call_code_in_scope (outer : list continuation) (closure : value)
     (called : code_id) (c : code) (vs : list value)
     (args_arity return_arity : arity) (return_to exn_to : cont_value)
-    (statics : static_env) :
+    (statics : static_env) (hp : heap) :
   code_all_closed statics ->
   lookup called (static_code statics) = Some c ->
   cont_in_scope outer return_to ->
   cont_in_scope outer exn_to ->
   match
-    call_code closure c vs args_arity return_arity return_to exn_to statics
+    call_code closure c vs args_arity return_arity return_to exn_to statics hp
   with
   | Step s' => state_in_scope outer s'
-  | Exit k _ => among k outer = true
+  | Exit k _ _ => among k outer = true
   | Undefined => True
   end.
 Proof.
@@ -248,7 +248,7 @@ Qed.
 Lemma run_call_in_scope (outer : list continuation)
     (return_partial : value -> step_result) (kind : call_kind)
     (shape : option call_shape) (return_arity : arity)
-    (return_to exn_to : cont_value) (statics : static_env) :
+    (return_to exn_to : cont_value) (statics : static_env) (hp : heap) :
   code_all_closed statics ->
   shape_calls statics kind shape ->
   cont_in_scope outer return_to ->
@@ -256,12 +256,13 @@ Lemma run_call_in_scope (outer : list continuation)
   (∀ partial : value,
     match return_partial partial with
     | Step s' => state_in_scope outer s'
-    | Exit k _ => among k outer = true
+    | Exit k _ _ => among k outer = true
     | Undefined => True
     end) ->
-  match run_call return_partial shape return_arity return_to exn_to statics with
+  match run_call return_partial shape return_arity return_to exn_to statics hp
+    with
   | Step s' => state_in_scope outer s'
-  | Exit k _ => among k outer = true
+  | Exit k _ _ => among k outer = true
   | Undefined => True
   end.
 Proof.
@@ -271,10 +272,10 @@ Proof.
         | closure c vs remaining args_arity remaining_arity | partial] | ];
     simpl in Hcalls |- *.
   - destruct Hcalls as (called & slots & _ & Hc & _).
-    exact (call_code_in_scope outer closure called c vs _ _ _ _ statics
+    exact (call_code_in_scope outer closure called c vs _ _ _ _ statics _
              Hstatics Hc Hreturn Hexn).
   - destruct Hcalls as (called & slots & _ & Hc & _).
-    apply (call_code_in_scope outer closure called c vs _ _ _ _ statics
+    apply (call_code_in_scope outer closure called c vs _ _ _ _ statics _
              Hstatics Hc);
       [ exact (conj Hreturn Hexn) | exact Hexn ].
   - apply Hpartial.
@@ -284,12 +285,12 @@ Qed.
 (* Applying a continuation in scope. *)
 Lemma apply_cont_value_in_scope (outer : list continuation)
     (c : cont_value) :
-  ∀ (vs : list value) (statics : static_env),
+  ∀ (vs : list value) (statics : static_env) (hp : heap),
     code_all_closed statics ->
     cont_in_scope outer c ->
-    match apply_cont_value c vs statics with
+    match apply_cont_value c vs statics hp with
     | Step s' => state_in_scope outer s'
-    | Exit k _ => among k outer = true
+    | Exit k _ _ => among k outer = true
     | Undefined => True
     end.
 Proof.
@@ -298,7 +299,7 @@ Proof.
        | c IH extra
        | remaining remaining_arity return_arity return_to exn_to IHreturn _]
     using cont_value_over_ind;
-    intros vs statics Hstatics Hc.
+    intros vs statics hp Hstatics Hc.
   - simpl.
     destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
       [ | exact I ].
@@ -313,27 +314,27 @@ Proof.
     + apply conts_in_scope_app; [ | exact Hdef_conts ].
       apply rec_closures_in_scope; assumption.
   - exact Hc.
-  - exact (IH (vs ++ extra) statics Hstatics Hc).
+  - exact (IH (vs ++ extra) statics hp Hstatics Hc).
   - rewrite apply_cont_value_over_application.
     destruct vs as [ | v [ | v' vs]]; [ exact I | | exact I ].
     destruct Hc as [Hreturn Hexn]. unfold call_function.
     apply (run_call_in_scope outer _ Indirect); try assumption.
     + apply shape_of_call_calls.
-    + intros partial. exact (IHreturn [partial] statics Hstatics Hreturn).
+    + intros partial. exact (IHreturn [partial] statics hp Hstatics Hreturn).
 Qed.
 
 Lemma call_function_in_scope (outer : list continuation) (callee : value)
     (kind : call_kind) (vs : list value) (args_arity return_arity : arity)
-    (return_to exn_to : cont_value) (statics : static_env) :
+    (return_to exn_to : cont_value) (statics : static_env) (hp : heap) :
   code_all_closed statics ->
   cont_in_scope outer return_to ->
   cont_in_scope outer exn_to ->
   match
     call_function callee kind vs args_arity return_arity return_to exn_to
-      statics
+      statics hp
   with
   | Step s' => state_in_scope outer s'
-  | Exit k _ => among k outer = true
+  | Exit k _ _ => among k outer = true
   | Undefined => True
   end.
 Proof.
@@ -341,7 +342,7 @@ Proof.
   apply (run_call_in_scope outer _ kind); try assumption.
   - apply shape_of_call_calls.
   - intros partial.
-    exact (apply_cont_value_in_scope outer return_to [partial] statics
+    exact (apply_cont_value_in_scope outer return_to [partial] statics _
              Hstatics Hreturn).
 Qed.
 
@@ -431,7 +432,7 @@ Lemma run_in_scope (outer : list continuation) (n : nat) :
     state_in_scope outer s ->
     match run n s with
     | Step s' => state_in_scope outer s'
-    | Exit k _ => among k outer = true
+    | Exit k _ _ => among k outer = true
     | Undefined => True
     end.
 Proof.
@@ -486,7 +487,7 @@ Proof.
     (run_in_scope [unit_return; unit_exn] n _
        (unit_in_scope unit_return unit_exn e Hnames Hcode))
     as Hrun.
-  destruct (run n (State e [] [] empty_static_env)) as [s | k vs | ];
+  destruct (run n (State e [] [] empty_static_env empty_heap)) as [s | k vs | ];
     [ exact (in_scope_reads_bound _ s Hrun) | | exact I ].
   apply among_In in Hrun.
   destruct Hrun as [<- | [<- | []]]; [ left | right ]; reflexivity.

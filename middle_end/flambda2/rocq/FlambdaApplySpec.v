@@ -88,7 +88,7 @@ Definition apply_indirect_known_statement : Prop :=
     (extra : list (simple * flambda_kind)) (k exn : continuation)
     (args_arity return_arity : arity) (v : value) (called : code_id)
     (slots : list (value_slot * value)) (vars : env) (conts : cont_env)
-    (statics : static_env),
+    (statics : static_env) (hp : heap),
     eval_simple vars callee = Some v ->
     closure_of statics v = Some (called, slots) ->
     equivalent
@@ -96,12 +96,12 @@ Definition apply_indirect_known_statement : Prop :=
          (Apply
             (Apply_expr callee Indirect args k exn extra args_arity
                return_arity))
-         vars conts statics)
+         vars conts statics hp)
       (State
          (Apply
             (Apply_expr callee (Direct called) args k exn extra args_arity
                return_arity))
-         vars conts statics).
+         vars conts statics hp).
 
 (* ======================================================================== *)
 (* Inlining                                                                 *)
@@ -170,12 +170,12 @@ Definition inlinable (ap : apply_expr) (c : code) (r : renaming) : Prop :=
    refines [c] inlined. *)
 Definition inline_statement : Prop :=
   ∀ (ap : apply_expr) (called : code_id) (c : code) (r : renaming)
-    (vars : env) (conts : cont_env) (statics : static_env),
+    (vars : env) (conts : cont_env) (statics : static_env) (hp : heap),
     ap_call_kind ap = Direct called ->
     lookup called (static_code statics) = Some c ->
     inlinable ap c r ->
-    refines (State (Apply ap) vars conts statics)
-      (State (inlined_body c r ap) vars conts statics).
+    refines (State (Apply ap) vars conts statics hp)
+      (State (inlined_body c r ap) vars conts statics hp).
 
 (* The same as a rewrite of terms, with the binding of the code in sight. *)
 Definition inline_let_code_statement : Prop :=

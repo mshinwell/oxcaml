@@ -77,11 +77,11 @@ From OxCamlFlambda2Types Require FlambdaSimplifyPassSpec
 Import ListNotations.
 
 Lemma expr_equivalent_refl (e : expr) : expr_equivalent e e.
-Proof. intros vars conts statics. apply equivalent_refl. Qed.
+Proof. intros vars conts statics hp. apply equivalent_refl. Qed.
 
 Lemma expr_equivalent_sym (e e' : expr) :
   expr_equivalent e e' -> expr_equivalent e' e.
-Proof. intros H vars conts statics. apply equivalent_sym, H. Qed.
+Proof. intros H vars conts statics hp. apply equivalent_sym, H. Qed.
 
 (* One rewrite that is an equivalence, at the head of the right-hand
    side. *)
@@ -371,13 +371,14 @@ Proof.
     | Some e' => e'
     | None => at_head
     end).
-  apply (refines_trans _ (State at_head [] [] empty_static_env)).
+  apply (refines_trans _ (State at_head [] [] empty_static_env empty_heap)).
   - subst at_head.
     destruct (lift_to_head_unit (lifting_unit L) (lifted_to_head L) e)
       as [e' | ] eqn:Hhead;
       [ | apply refines_refl ].
     exact (lift_to_head_unit_program_refines _ _ e e' Hhead).
-  - apply (refines_trans _ (State out_of_code [] [] empty_static_env)).
+  - apply
+    (refines_trans _ (State out_of_code [] [] empty_static_env empty_heap)).
     + subst out_of_code.
       destruct
         (lift_from_code_unit (lifting_unit L) (lifted_out_of_code L) at_head)
@@ -449,21 +450,21 @@ Qed.
 (* The term with its code first, run on its own, behaves as the
    term. *)
 Lemma with_code_first_program_equivalent (e : expr) :
-  equivalent (State e [] [] empty_static_env)
-    (State (with_code_first e) [] [] empty_static_env).
+  equivalent (State e [] [] empty_static_env empty_heap)
+    (State (with_code_first e) [] [] empty_static_env empty_heap).
 Proof.
   unfold with_code_first.
   destruct (hoist_code e) as [e' | ] eqn:Hhoist; [ | apply equivalent_refl ].
   apply (equivalent_trans _ _ _ (hoist_code_program_equivalent e e' Hhoist)).
-  apply (equivalent_trans _ _ _ (drop_deleted_code_equivalent e' [] [] _)).
+  apply (equivalent_trans _ _ _ (drop_deleted_code_equivalent e' [] [] _ _)).
   apply merge_statics_equivalent.
 Qed.
 
 (* The term with its static bindings that need nothing first, run on
    its own, behaves as the term. *)
 Lemma with_statics_first_program_equivalent (Ls : list lifting) (e : expr) :
-  equivalent (State e [] [] empty_static_env)
-    (State (with_statics_first Ls e) [] [] empty_static_env).
+  equivalent (State e [] [] empty_static_env empty_heap)
+    (State (with_statics_first Ls e) [] [] empty_static_env empty_heap).
 Proof.
   unfold with_statics_first.
   destruct Ls as [ | L Ls]; [ apply equivalent_refl | ].
@@ -472,7 +473,7 @@ Proof.
   apply (equivalent_trans _ _ _
     (FlambdaHoistStaticsProofs.hoist_statics_program_equivalent _ e e'
        Hhoist)).
-  apply (equivalent_trans _ _ _ (drop_deleted_code_equivalent e' [] [] _)).
+  apply (equivalent_trans _ _ _ (drop_deleted_code_equivalent e' [] [] _ _)).
   apply merge_statics_equivalent.
 Qed.
 
@@ -576,10 +577,10 @@ Proof.
           apply (refines_trans _ _ _ (without_slots_program_refines slots _)).
           apply without_statics_program_refines. }
         assert (Hafter :
-          equivalent (State after [] [] empty_static_env)
-            (State a [] [] empty_static_env))
+          equivalent (State after [] [] empty_static_env empty_heap)
+            (State a [] [] empty_static_env empty_heap))
           by exact (placed_after_equivalent rounds kept after [] []
-                      empty_static_env).
+                      empty_static_env _).
         destruct
           (expr_eqb [] []
              (order_statics_as (float_code (with_code_first a))
@@ -587,7 +588,7 @@ Proof.
              (float_code (with_code_first a))) eqn:Hlifted.
         -- intros _. apply (refines_trans _ _ _ Hlifting).
            apply (refines_trans _
-             (State (with_code_first a) [] [] empty_static_env)).
+             (State (with_code_first a) [] [] empty_static_env empty_heap)).
            { apply expr_refines_program, expr_equivalent_refines.
              apply (expr_equivalent_trans _ _ _ (float_code_equivalent _)).
              apply (expr_equivalent_trans _ _ _
@@ -609,7 +610,8 @@ Proof.
              (equivalent_refines _ _
                 (with_statics_first_program_equivalent Ls lifted))).
            apply (refines_trans _
-             (State (with_statics_first Ls a) [] [] empty_static_env)).
+             (State (with_statics_first Ls a) [] [] empty_static_env
+                empty_heap)).
            { apply expr_refines_program, expr_equivalent_refines.
              apply (expr_equivalent_trans _ _ _
                (order_statics_as_equivalent (with_statics_first Ls a) _)).

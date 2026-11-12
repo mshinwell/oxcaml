@@ -324,11 +324,11 @@ Proof.
 Qed.
 
 Lemma call_known_closure_holds (known : known_closures)
-    (statics : static_env) (vars : env) (conts : cont_env)
+    (statics : static_env) (hp : heap) (vars : env) (conts : cont_env)
     (ap : apply_expr) :
   closures_hold known vars statics ->
-  step (State (Apply (call_known_closure known ap)) vars conts statics)
-  = step (State (Apply ap) vars conts statics).
+  step (State (Apply (call_known_closure known ap)) vars conts statics hp)
+  = step (State (Apply ap) vars conts statics hp).
 Proof.
   intros Hhold. unfold call_known_closure.
   destruct (ap_call_kind ap) as [named | ] eqn:Hkind; [ reflexivity | ].
@@ -353,7 +353,7 @@ Qed.
 
 Theorem call_known_closure_sound : call_known_closure_sound_statement.
 Proof.
-  intros known statics vars conts ap Hhold.
+  intros known statics hp vars conts ap Hhold.
   apply call_known_closure_holds. intros [s const] Hin.
   exact (Hhold s const Hin).
 Qed.
@@ -367,23 +367,23 @@ Qed.
    known there. *)
 Fixpoint use_closures_knowing_refines (e : expr) :
   ∀ (known : known_closures) (vars : env) (conts : cont_env)
-    (statics : static_env),
+    (statics : static_env) (hp : heap),
     closures_hold known vars statics ->
-    refines (State e vars conts statics)
-      (State (use_closures_knowing known e) vars conts statics)
+    refines (State e vars conts statics hp)
+      (State (use_closures_knowing known e) vars conts statics hp)
 with use_closures_in_handler_refines (h : continuation_handler) :
   ∀ (known : known_closures) (k : continuation) (body : expr) (vars : env)
-    (conts : cont_env) (statics : static_env),
+    (conts : cont_env) (statics : static_env) (hp : heap),
     closures_hold known vars statics ->
-    refines (State (Let_cont_non_recursive k h body) vars conts statics)
+    refines (State (Let_cont_non_recursive k h body) vars conts statics hp)
       (State
          (Let_cont_non_recursive k (use_closures_in_handler known h) body)
-         vars conts statics).
+         vars conts statics hp).
 Proof.
   - destruct e
       as [ x kind d body | bindings body | k h body | handlers body | ap
          | ac | scrutinee arms | ];
-      intros known vars conts statics Hhold; simpl.
+      intros known vars conts statics hp Hhold; simpl.
     + destruct (eval_named statics vars d) as [v | ] eqn:Hd;
         [ destruct (kind_eqb (kind_of_value v) kind) eqn:Hkind | ].
       * eapply refines_step;
@@ -406,7 +406,7 @@ Proof.
     + apply (refines_trans _
         (State
            (Let_cont_non_recursive k (use_closures_in_handler known h) body)
-           vars conts statics)).
+           vars conts statics hp)).
       * apply use_closures_in_handler_refines, Hhold.
       * apply let_cont_non_recursive_refines_step,
           use_closures_knowing_refines, Hhold.
@@ -418,11 +418,11 @@ Proof.
     + apply refines_refl.
     + apply refines_refl.
   - destruct h as [params metadata handler].
-    intros known k body vars conts statics Hhold. simpl.
+    intros known k body vars conts statics hp Hhold. simpl.
     apply (let_cont_handler_refines_where (closures_hold known vars)
       (closures_hold_extend known vars));
       [ exact Hhold | ].
-    intros vs handler_vars conts' statics' Hhold' _ Hbind.
+    intros vs handler_vars conts' statics' hp' Hhold' _ Hbind.
     apply use_closures_knowing_refines.
     exact (closures_hold_bind_params statics' params known vs vars
       handler_vars Hhold' Hbind).
@@ -430,7 +430,7 @@ Qed.
 
 Theorem use_known_closures_refines : use_known_closures_refines_statement.
 Proof.
-  intros e vars conts statics. apply use_closures_knowing_refines.
+  intros e vars conts statics hp. apply use_closures_knowing_refines.
   intros entry [].
 Qed.
 

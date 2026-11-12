@@ -1173,7 +1173,7 @@ Definition static_fault (s : state) : bool :=
 Definition well_formed_never_faults_statement : Prop :=
   ∀ (u : unit_interface) (e : expr) (n : nat) (s : state),
     well_formed_unit u e = true ->
-    run n (State e [] [] empty_static_env) = Step s ->
+    run n (State e [] [] empty_static_env empty_heap) = Step s ->
     static_fault s = false.
 
 (* ======================================================================== *)
@@ -1189,8 +1189,8 @@ Definition well_formed_never_faults_statement : Prop :=
 Definition well_formed_names_bound_statement : Prop :=
   ∀ (u : unit_interface) (e : expr) (n : nat),
     well_formed_unit u e = true ->
-    match run n (State e [] [] empty_static_env) with
+    match run n (State e [] [] empty_static_env empty_heap) with
     | Step s => reads_unbound_variable s = false
-    | Exit k _ => k = unit_return u ∨ k = unit_exn u
+    | Exit k _ _ => k = unit_return u ∨ k = unit_exn u
     | Undefined => True
     end.

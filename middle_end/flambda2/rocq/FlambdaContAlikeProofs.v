@@ -69,7 +69,7 @@ Lemma ended_after_step (result : step_result) (n : nat) (b : behaviour) :
   ended
     match result with
     | Step s' => run n s'
-    | Exit k vs => Exit k vs
+    | Exit k vs hp => Exit k vs hp
     | Undefined => Undefined
     end
     b ->
@@ -182,18 +182,18 @@ Qed.
    applied to the same values, the second has every behaviour of the
    first that ends. *)
 Hypothesis base_carries :
-  ∀ (c c' : cont_value) (vs : list value) (statics : static_env)
+  ∀ (c c' : cont_value) (vs : list value) (statics : static_env) (hp : heap)
     (b : behaviour),
     base c c' ->
     b <> Diverges ->
-    result_behaves (apply_cont_value c vs statics) b ->
-    result_behaves (apply_cont_value c' vs statics) b.
+    result_behaves (apply_cont_value c vs statics hp) b ->
+    result_behaves (apply_cont_value c' vs statics hp) b.
 
 (* What a result comes to after [n] more steps. *)
 Definition then_run (n : nat) (result : step_result) : step_result :=
   match result with
   | Step s' => run n s'
-  | Exit k vs => Exit k vs
+  | Exit k vs hp => Exit k vs hp
   | Undefined => Undefined
   end.
 
@@ -201,32 +201,35 @@ Definition then_run (n : nat) (result : step_result) : step_result :=
    under the second. *)
 Definition carries_at (n : nat) : Prop :=
   ∀ (e : expr) (vars : env) (conts conts' : cont_env) (statics : static_env)
+    (hp : heap)
     (b : behaviour),
     conts_alike conts conts' ->
-    ended (run n (State e vars conts statics)) b ->
-    behaves (State e vars conts' statics) b.
+    ended (run n (State e vars conts statics hp)) b ->
+    behaves (State e vars conts' statics hp) b.
 
 (* The same full call, returning and raising to continuations that are
    alike. *)
 Lemma call_code_alike_carries (n : nat) (closure : value) (c : code)
     (vs : list value) (args_arity return_arity : arity)
-    (r r' x x' : cont_value) (statics : static_env) (b : behaviour) :
+    (r r' x x' : cont_value) (statics : static_env) (hp : heap)
+      (b : behaviour) :
   carries_at n ->
   alike r r' ->
   alike x x' ->
   ended
     (then_run n
-       (call_code closure c vs args_arity return_arity r x statics))
+       (call_code closure c vs args_arity return_arity r x statics hp))
     b ->
-  result_behaves (call_code closure c vs args_arity return_arity r' x' statics)
+  result_behaves
+    (call_code closure c vs args_arity return_arity r' x' statics hp)
     b.
 Proof.
   intros IH Hr Hx Hended.
-  destruct (call_code_cases closure c vs args_arity return_arity statics)
+  destruct (call_code_cases closure c vs args_arity return_arity statics hp)
     as [Hundefined | [callee_vars Hcall]].
   - rewrite Hundefined in Hended |- *. apply ended_undefined, Hended.
   - rewrite Hcall in Hended |- *. simpl in Hended |- *.
-    refine (IH _ _ _ _ _ _ _ Hended).
+    refine (IH _ _ _ _ _ _ _ _ Hended).
     apply Forall2_cons; [ split; [ reflexivity | exact Hr ] | ].
     apply Forall2_cons; [ split; [ reflexivity | exact Hx ] | ].
     apply Forall2_nil.
@@ -236,21 +239,22 @@ Qed.
    given a partial application come to the same. *)
 Lemma run_call_alike_carries (n : nat) (shape : option call_shape)
     (return_arity : arity) (r r' x x' : cont_value) (statics : static_env)
+      (hp : heap)
     (b : behaviour) :
   carries_at n ->
   alike r r' ->
   alike x x' ->
   (∀ partial : value,
-    ended (then_run n (apply_cont_value r [partial] statics)) b ->
-    result_behaves (apply_cont_value r' [partial] statics) b) ->
+    ended (then_run n (apply_cont_value r [partial] statics hp)) b ->
+    result_behaves (apply_cont_value r' [partial] statics hp) b) ->
   ended
     (then_run n
-       (run_call (fun partial => apply_cont_value r [partial] statics) shape
-          return_arity r x statics))
+       (run_call (fun partial => apply_cont_value r [partial] statics hp) shape
+          return_arity r x statics hp))
     b ->
   result_behaves
-    (run_call (fun partial => apply_cont_value r' [partial] statics) shape
-       return_arity r' x' statics)
+    (run_call (fun partial => apply_cont_value r' [partial] statics hp) shape
+       return_arity r' x' statics hp)
     b.
 Proof.
   intros IH Hr Hx Hpartial Hended.
@@ -258,8 +262,8 @@ Proof.
     as [[ closure c vs args_arity
         | closure c vs remaining args_arity remaining_arity | partial ] | ];
     unfold run_call in Hended |- *.
-  - exact (call_code_alike_carries n _ _ _ _ _ _ _ _ _ _ _ IH Hr Hx Hended).
-  - refine (call_code_alike_carries n _ _ _ _ _ _ _ _ _ _ _ IH _ Hx Hended).
+  - exact (call_code_alike_carries n _ _ _ _ _ _ _ _ _ _ _ _ IH Hr Hx Hended).
+  - refine (call_code_alike_carries n _ _ _ _ _ _ _ _ _ _ _ _ IH _ Hx Hended).
     apply Alike_over_application; assumption.
   - exact (Hpartial partial Hended).
   - apply ended_undefined, Hended.
@@ -267,12 +271,12 @@ Qed.
 
 (* Continuations that are alike, applied to the same values. *)
 Lemma apply_alike_carries (n : nat) (c c' : cont_value)
-    (statics : static_env) (b : behaviour) :
+    (statics : static_env) (hp : heap) (b : behaviour) :
   carries_at n ->
   alike c c' ->
   ∀ vs : list value,
-    ended (then_run n (apply_cont_value c vs statics)) b ->
-    result_behaves (apply_cont_value c' vs statics) b.
+    ended (then_run n (apply_cont_value c vs statics hp)) b ->
+    result_behaves (apply_cont_value c' vs statics hp) b.
 Proof.
   intros IH Halike.
   induction Halike
@@ -285,7 +289,7 @@ Proof.
   - (* the same continuation *)
     exact (ended_after_step _ _ _ Hended).
   - (* two that stand for each other *)
-    exact (base_carries c c' vs statics b Hbase
+    exact (base_carries c c' vs statics hp b Hbase
       (ended_terminating _ _ Hended) (ended_after_step _ _ _ Hended)).
   - (* closures of one handler *)
     simpl in Hended |- *.
@@ -293,14 +297,14 @@ Proof.
       simpl in Hended |- *; [ | apply ended_undefined, Hended ].
     destruct (bind_params params vs def_vars) as [handler_vars | ];
       simpl in Hended |- *; [ | apply ended_undefined, Hended ].
-    exact (IH _ _ _ _ _ _ (rec_closures_alike _ _ _ _ Hconts) Hended).
+    exact (IH _ _ _ _ _ _ _ (rec_closures_alike _ _ _ _ Hconts) Hended).
   - (* the same extra arguments *)
     simpl in Hended |- *. exact (IHalike _ Hended).
   - (* what is left of the same over-application *)
     rewrite apply_cont_value_over_application in Hended |- *.
     destruct vs as [ | v [ | v' vs]]; try (apply ended_undefined, Hended).
     unfold call_function in Hended |- *.
-    exact (run_call_alike_carries n _ _ _ _ _ _ statics b IH Hr Hx
+    exact (run_call_alike_carries n _ _ _ _ _ _ statics _ b IH Hr Hx
       (fun partial => IHr [partial]) Hended).
 Qed.
 
@@ -310,7 +314,7 @@ Lemma alike_carries (n : nat) : carries_at n.
 Proof.
   unfold carries_at.
   induction n as [ | n IH];
-    intros e vars conts conts' statics b Hrel Hended;
+    intros e vars conts conts' statics hp b Hrel Hended;
     [ destruct b; contradiction | ].
   rewrite run_succ in Hended.
   destruct e
@@ -322,22 +326,22 @@ Proof.
     destruct (eval_named statics vars d) as [v | ]; simpl in Hended |- *;
       [ | apply ended_undefined, Hended ].
     destruct (kind_eqb (kind_of_value v) kind); simpl in Hended |- *;
-      [ exact (IH _ _ _ _ _ _ Hrel Hended) | apply ended_undefined, Hended ].
+      [ exact (IH _ _ _ _ _ _ _ Hrel Hended) | apply ended_undefined, Hended ].
   - (* Let_static *)
     eapply behaves_of_step; [ apply step_let_static | ].
     destruct (eval_static_bindings vars bindings statics) as [extended | ];
       simpl in Hended |- *;
-      [ exact (IH _ _ _ _ _ _ Hrel Hended) | apply ended_undefined, Hended ].
+      [ exact (IH _ _ _ _ _ _ _ Hrel Hended) | apply ended_undefined, Hended ].
   - (* Let_cont_non_recursive *)
     eapply behaves_of_step; [ apply step_let_cont_non_recursive | ].
-    simpl in Hended |- *. refine (IH _ _ _ _ _ _ _ Hended).
+    simpl in Hended |- *. refine (IH _ _ _ _ _ _ _ _ Hended).
     apply Forall2_cons; [ | exact Hrel ].
     split; [ reflexivity | apply Alike_closure, Hrel ].
   - (* Let_cont_recursive *)
     eapply behaves_of_step; [ apply step_let_cont_recursive | ].
     destruct (handlers_bind_statics handlers); simpl in Hended |- *;
       [ apply ended_undefined, Hended | ].
-    exact (IH _ _ _ _ _ _ (rec_closures_alike _ _ _ _ Hrel) Hended).
+    exact (IH _ _ _ _ _ _ _ (rec_closures_alike _ _ _ _ Hrel) Hended).
   - (* Apply: the same call, returning to continuations that are alike *)
     eapply behaves_of_step; [ apply step_apply | ].
     destruct (eval_simple vars (ap_callee ap)) as [callee | ];
@@ -347,17 +351,17 @@ Proof.
     destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
       [ | apply ended_undefined, Hended ].
     unfold call_function in Hended |- *.
-    refine (run_call_alike_carries n _ _ _ _ _ _ statics b IH _ _ _ Hended).
+    refine (run_call_alike_carries n _ _ _ _ _ _ statics _ b IH _ _ _ Hended).
     + apply resolve_alike, Hrel.
     + apply with_extra_args_alike, resolve_alike, Hrel.
-    + intros partial. apply (apply_alike_carries n _ _ statics b IH).
+    + intros partial. apply (apply_alike_carries n _ _ statics _ b IH).
       apply resolve_alike, Hrel.
   - (* Apply_cont *)
     eapply behaves_of_step; [ apply step_apply_cont | ].
     destruct (eval_simples vars (ac_args ac)) as [vs | ];
       [ | apply ended_undefined, Hended ].
     unfold apply_continuation in Hended |- *.
-    exact (apply_alike_carries n _ _ statics b IH
+    exact (apply_alike_carries n _ _ statics _ b IH
       (resolve_alike (ac_continuation ac) _ _ Hrel) vs Hended).
   - (* Switch *)
     eapply behaves_of_step; [ apply step_switch | ].
@@ -367,7 +371,7 @@ Proof.
       [ | apply ended_undefined, Hended ].
     destruct (find_arm i arms) as [ac | ];
       [ | apply ended_undefined, Hended ].
-    simpl in Hended |- *. exact (IH _ _ _ _ _ _ Hrel Hended).
+    simpl in Hended |- *. exact (IH _ _ _ _ _ _ _ Hrel Hended).
   - (* Invalid *)
     eapply behaves_of_step; [ apply step_invalid | ].
     apply ended_undefined, Hended.
@@ -383,54 +387,55 @@ End Alike.
    are both undefined, or exit alike, or step to states that are
    equivalent. *)
 Definition applies_alike (c c' : cont_value) : Prop :=
-  ∀ (vs : list value) (statics : static_env),
-    result_related equivalent (apply_cont_value c vs statics)
-      (apply_cont_value c' vs statics).
+  ∀ (vs : list value) (statics : static_env) (hp : heap),
+    result_related equivalent (apply_cont_value c vs statics hp)
+      (apply_cont_value c' vs statics hp).
 
 Lemma applies_alike_sym (c c' : cont_value) :
   applies_alike c c' -> applies_alike c' c.
 Proof.
-  intros Halike vs statics. specialize (Halike vs statics).
-  destruct (apply_cont_value c vs statics),
-    (apply_cont_value c' vs statics);
+  intros Halike vs statics hp. specialize (Halike vs statics hp).
+  destruct (apply_cont_value c vs statics hp),
+    (apply_cont_value c' vs statics hp);
     simpl in Halike |- *; try contradiction;
     [ apply equivalent_sym, Halike | | exact I ].
-  destruct Halike as [-> ->]. auto.
+  destruct Halike as [-> [-> ->]]. auto.
 Qed.
 
 Lemma applies_alike_carries (c c' : cont_value) (vs : list value)
-    (statics : static_env) (b : behaviour) :
+    (statics : static_env) (hp : heap) (b : behaviour) :
   applies_alike c c' ->
   b <> Diverges ->
-  result_behaves (apply_cont_value c vs statics) b ->
-  result_behaves (apply_cont_value c' vs statics) b.
+  result_behaves (apply_cont_value c vs statics hp) b ->
+  result_behaves (apply_cont_value c' vs statics hp) b.
 Proof.
-  intros Halike _. specialize (Halike vs statics).
-  destruct (apply_cont_value c vs statics),
-    (apply_cont_value c' vs statics);
+  intros Halike _. specialize (Halike vs statics hp).
+  destruct (apply_cont_value c vs statics hp),
+    (apply_cont_value c' vs statics hp);
     simpl in Halike |- *; try contradiction;
     [ apply Halike | | auto ].
-  destruct Halike as [-> ->]. auto.
+  destruct Halike as [-> [-> ->]]. auto.
 Qed.
 
 (* An expression behaves alike under two continuation environments that
    differ in what one name is bound to, if the two things apply alike. *)
 Theorem replace_closure_equivalent (k : continuation) (c c' : cont_value)
-    (e : expr) (vars : env) (conts : cont_env) (statics : static_env) :
+    (e : expr) (vars : env) (conts : cont_env) (statics : static_env)
+      (hp : heap) :
   applies_alike c c' ->
-  equivalent (State e vars ((k, c) :: conts) statics)
-    (State e vars ((k, c') :: conts) statics).
+  equivalent (State e vars ((k, c) :: conts) statics hp)
+    (State e vars ((k, c') :: conts) statics hp).
 Proof.
   intros Halike. apply equivalent_of_terminating. intros b Hb.
   split; intros Hbehaves;
     destruct (behaves_ended _ _ Hb Hbehaves) as [n Hended].
-  - refine (alike_carries applies_alike applies_alike_carries n _ _ _ _ _ _ _
+  - refine (alike_carries applies_alike applies_alike_carries n _ _ _ _ _ _ _ _
       Hended).
     apply Forall2_cons; [ | apply conts_alike_refl ].
     split; [ reflexivity | apply Alike_base, Halike ].
   - refine (alike_carries (fun c1 c2 => applies_alike c2 c1) _ n _ _ _ _ _ _ _
-      Hended).
-    + intros c1 c2 vs statics' b' Hbase.
+      _ Hended).
+    + intros c1 c2 vs statics' hp' b' Hbase.
       apply applies_alike_carries, applies_alike_sym, Hbase.
     + apply Forall2_cons; [ | apply conts_alike_refl ].
       split; [ reflexivity | apply Alike_base, Halike ].
@@ -439,10 +444,11 @@ Qed.
 (* The same of a [Let_cont]: its handler may be replaced by one that, in
    a closure made where the [Let_cont] is, applies alike. *)
 Lemma let_cont_handler_alike (k : continuation) (h h' : continuation_handler)
-    (body : expr) (vars : env) (conts : cont_env) (statics : static_env) :
+    (body : expr) (vars : env) (conts : cont_env) (statics : static_env)
+      (hp : heap) :
   applies_alike (Closure h vars conts []) (Closure h' vars conts []) ->
-  equivalent (State (Let_cont_non_recursive k h body) vars conts statics)
-    (State (Let_cont_non_recursive k h' body) vars conts statics).
+  equivalent (State (Let_cont_non_recursive k h body) vars conts statics hp)
+    (State (Let_cont_non_recursive k h' body) vars conts statics hp).
 Proof.
   intros Halike. apply let_cont_non_recursive_equivalent_step.
   apply replace_closure_equivalent, Halike.

@@ -156,20 +156,20 @@ Definition step_in_range_statement : Prop :=
 Definition run_in_range_statement : Prop :=
   ∀ (e : expr) (n : nat) (s : state),
     numbers_in_range e = true ->
-    run n (State e [] [] empty_static_env) = Step s ->
+    run n (State e [] [] empty_static_env empty_heap) = Step s ->
     state_in_range s.
 
 Definition run_exit_in_range_statement : Prop :=
-  ∀ (e : expr) (n : nat) (k : continuation) (vs : list value),
+  ∀ (e : expr) (n : nat) (k : continuation) (vs : list value) (hp : heap),
     numbers_in_range e = true ->
-    run n (State e [] [] empty_static_env) = Exit k vs ->
+    run n (State e [] [] empty_static_env empty_heap) = Exit k vs hp ->
     ∀ v : value, v ∈ vs -> value_in_range v = true.
 
 (* So is every state of the run of a well-formed unit. *)
 Definition well_formed_in_range_statement : Prop :=
   ∀ (u : unit_interface) (e : expr) (n : nat) (s : state),
     well_formed_unit u e = true ->
-    run n (State e [] [] empty_static_env) = Step s ->
+    run n (State e [] [] empty_static_env empty_heap) = Step s ->
     state_in_range s.
 
 (* ======================================================================== *)
@@ -229,10 +229,10 @@ Definition in_range_unit : expr :=
 
 Definition in_range_runs_statement : Prop :=
   numbers_in_range in_range_unit = true
-  ∧ behaves (State in_range_unit [] [] empty_static_env)
+  ∧ behaves (State in_range_unit [] [] empty_static_env empty_heap)
       (Exits done
          [Value_block 250 [Value_const (Tagged_immediate 1)];
-          Value_const (Naked_int8 (-128))]).
+          Value_const (Naked_int8 (-128))] empty_heap).
 
 (* A block with a tag that no block of the compiler has. The machine
    makes it. *)
@@ -242,8 +242,8 @@ Definition tag_out_of_range_unit : expr :=
 
 Definition tag_out_of_range_statement : Prop :=
   numbers_in_range tag_out_of_range_unit = false
-  ∧ behaves (State tag_out_of_range_unit [] [] empty_static_env)
-      (Exits done [Value_block 300 []]).
+  ∧ behaves (State tag_out_of_range_unit [] [] empty_static_env empty_heap)
+      (Exits done [Value_block 300 []] empty_heap).
 
 (* An int8 that is 200. The addition has no value on it. *)
 Definition constant_out_of_range_unit : expr :=
@@ -252,7 +252,7 @@ Definition constant_out_of_range_unit : expr :=
 
 Definition constant_out_of_range_statement : Prop :=
   numbers_in_range constant_out_of_range_unit = false
-  ∧ behaves (State constant_out_of_range_unit [] [] empty_static_env)
+  ∧ behaves (State constant_out_of_range_unit [] [] empty_static_env empty_heap)
       Goes_wrong.
 
 End Examples.

@@ -154,14 +154,14 @@ Definition handler_refines_from (inv : state -> Prop)
     (params : list variable) (kinds : list flambda_kind) (def_vars : env)
     (source target : expr) : Prop :=
   ∀ (vs : list value) (handler_vars : env) (conts : cont_env)
-    (statics : static_env),
+    (statics : static_env) (hp : heap),
     map kind_of_value vs = kinds ->
     bind_params params vs def_vars = Some handler_vars ->
-    (inv (State source handler_vars conts statics)
-     <-> inv (State target handler_vars conts statics))
-    ∧ (inv (State source handler_vars conts statics) ->
-       refines (State source handler_vars conts statics)
-         (State target handler_vars conts statics)).
+    (inv (State source handler_vars conts statics hp)
+     <-> inv (State target handler_vars conts statics hp))
+    ∧ (inv (State source handler_vars conts statics hp) ->
+       refines (State source handler_vars conts statics hp)
+         (State target handler_vars conts statics hp)).
 
 (* The body of code with parameters [params], closure variable
    [my_closure], continuations [ret] and [exn] and metadata [metadata]
@@ -174,22 +174,22 @@ Definition code_refines_from (inv : state -> Prop) (params : list variable)
     (my_closure : variable) (ret exn : continuation)
     (metadata : code_metadata) (source target : expr) : Prop :=
   ∀ (vs : list value) (callee : value) (callee_vars : env)
-    (return_to exn_to : cont_value) (statics : static_env),
+    (return_to exn_to : cont_value) (statics : static_env) (hp : heap),
     bind_params params vs [(my_closure, callee)] = Some callee_vars ->
     map kind_of_value vs = unarize (cm_params_arity metadata) ->
     kind_of_value callee = Value ->
     (inv
-       (State source callee_vars [(ret, return_to); (exn, exn_to)] statics)
+       (State source callee_vars [(ret, return_to); (exn, exn_to)] statics hp)
      <-> inv
            (State target callee_vars [(ret, return_to); (exn, exn_to)]
-              statics))
+              statics hp))
     ∧ (inv
-         (State source callee_vars [(ret, return_to); (exn, exn_to)] statics)
+         (State source callee_vars [(ret, return_to); (exn, exn_to)] statics hp)
        ->
        refines
-         (State source callee_vars [(ret, return_to); (exn, exn_to)] statics)
+         (State source callee_vars [(ret, return_to); (exn, exn_to)] statics hp)
          (State target callee_vars [(ret, return_to); (exn, exn_to)]
-            statics)).
+            statics hp)).
 
 (* ======================================================================== *)
 (* A handler replaced by one that refines it where it runs                  *)
@@ -198,25 +198,25 @@ Definition code_refines_from (inv : state -> Prop) (params : list variable)
 Definition let_cont_handler_refines_from_statement : Prop :=
   ∀ (inv : state -> Prop) (k : continuation) (params : list variable)
     (metadata : handler_metadata) (handler handler' body : expr)
-    (vars : env) (conts : cont_env) (statics : static_env),
+    (vars : env) (conts : cont_env) (statics : static_env) (hp : heap),
     kept_by_step inv ->
     inv
       (State
          (Let_cont_non_recursive k (Handler params metadata handler) body)
-         vars conts statics) ->
+         vars conts statics hp) ->
     inv
       (State
          (Let_cont_non_recursive k (Handler params metadata handler') body)
-         vars conts statics) ->
+         vars conts statics hp) ->
     handler_refines_from inv params (hm_params_kinds metadata) vars handler
       handler' ->
     refines
       (State
          (Let_cont_non_recursive k (Handler params metadata handler) body)
-         vars conts statics)
+         vars conts statics hp)
       (State
          (Let_cont_non_recursive k (Handler params metadata handler') body)
-         vars conts statics).
+         vars conts statics hp).
 
 Definition let_cont_recursive_handler_refines_from_statement : Prop :=
   ∀ (inv : state -> Prop)
@@ -224,18 +224,18 @@ Definition let_cont_recursive_handler_refines_from_statement : Prop :=
     (params : list variable) (metadata : handler_metadata)
     (handler handler' : expr)
     (after : list (continuation * continuation_handler)) (body : expr)
-    (vars : env) (conts : cont_env) (statics : static_env),
+    (vars : env) (conts : cont_env) (statics : static_env) (hp : heap),
     kept_by_step inv ->
     inv
       (State
          (Let_cont_recursive
             (before ++ (k, Handler params metadata handler) :: after) body)
-         vars conts statics) ->
+         vars conts statics hp) ->
     inv
       (State
          (Let_cont_recursive
             (before ++ (k, Handler params metadata handler') :: after) body)
-         vars conts statics) ->
+         vars conts statics hp) ->
     binds_statics handler = binds_statics handler' ->
     handler_refines_from inv params (hm_params_kinds metadata) vars handler
       handler' ->
@@ -243,11 +243,11 @@ Definition let_cont_recursive_handler_refines_from_statement : Prop :=
       (State
          (Let_cont_recursive
             (before ++ (k, Handler params metadata handler) :: after) body)
-         vars conts statics)
+         vars conts statics hp)
       (State
          (Let_cont_recursive
             (before ++ (k, Handler params metadata handler') :: after) body)
-         vars conts statics).
+         vars conts statics hp).
 
 (* ======================================================================== *)
 (* The body of code replaced by one that refines it where it runs           *)
@@ -258,7 +258,8 @@ Definition let_static_code_refines_from_statement : Prop :=
     (params : list variable) (my_closure : variable)
     (ret exn : continuation) (metadata : code_metadata)
     (code_body code_body' : expr) (after : list static_binding)
-    (body : expr) (vars : env) (conts : cont_env) (statics : static_env),
+    (body : expr) (vars : env) (conts : cont_env) (statics : static_env)
+      (hp : heap),
     kept_by_step inv ->
     inv
       (State
@@ -268,7 +269,7 @@ Definition let_static_code_refines_from_statement : Prop :=
                   (Code params my_closure ret exn metadata code_body)
              :: after)
             body)
-         vars conts statics) ->
+         vars conts statics hp) ->
     inv
       (State
          (Let_static
@@ -277,7 +278,7 @@ Definition let_static_code_refines_from_statement : Prop :=
                   (Code params my_closure ret exn metadata code_body')
              :: after)
             body)
-         vars conts statics) ->
+         vars conts statics hp) ->
     binds_statics code_body = binds_statics code_body' ->
     code_refines_from inv params my_closure ret exn metadata code_body
       code_body' ->
@@ -289,7 +290,7 @@ Definition let_static_code_refines_from_statement : Prop :=
                   (Code params my_closure ret exn metadata code_body)
              :: after)
             body)
-         vars conts statics)
+         vars conts statics hp)
       (State
          (Let_static
             (before
@@ -297,7 +298,7 @@ Definition let_static_code_refines_from_statement : Prop :=
                   (Code params my_closure ret exn metadata code_body')
              :: after)
             body)
-         vars conts statics).
+         vars conts statics hp).
 
 (* For a condition on the static environment that its extensions keep:
    the body refines at every call, under any continuations and any
@@ -307,19 +308,20 @@ Definition let_static_code_refines_where_statement : Prop :=
     (params : list variable) (my_closure : variable)
     (ret exn : continuation) (metadata : code_metadata)
     (code_body code_body' : expr) (after : list static_binding)
-    (body : expr) (vars : env) (conts : cont_env) (statics : static_env),
+    (body : expr) (vars : env) (conts : cont_env) (statics : static_env)
+      (hp : heap),
     (∀ statics statics' : static_env,
       ok statics -> statics_extend statics statics' -> ok statics') ->
     ok statics ->
     binds_statics code_body = binds_statics code_body' ->
     (∀ (vs : list value) (callee : value) (callee_vars : env)
-       (conts' : cont_env) (statics' : static_env),
+       (conts' : cont_env) (statics' : static_env) (hp' : heap),
       ok statics' ->
       map kind_of_value vs = unarize (cm_params_arity metadata) ->
       kind_of_value callee = Value ->
       bind_params params vs [(my_closure, callee)] = Some callee_vars ->
-      refines (State code_body callee_vars conts' statics')
-        (State code_body' callee_vars conts' statics')) ->
+      refines (State code_body callee_vars conts' statics' hp')
+        (State code_body' callee_vars conts' statics' hp')) ->
     refines
       (State
          (Let_static
@@ -328,7 +330,7 @@ Definition let_static_code_refines_where_statement : Prop :=
                   (Code params my_closure ret exn metadata code_body)
              :: after)
             body)
-         vars conts statics)
+         vars conts statics hp)
       (State
          (Let_static
             (before
@@ -336,7 +338,7 @@ Definition let_static_code_refines_where_statement : Prop :=
                   (Code params my_closure ret exn metadata code_body')
              :: after)
             body)
-         vars conts statics).
+         vars conts statics hp).
 
 (* ======================================================================== *)
 (* The premises can be met                                                  *)
@@ -349,11 +351,11 @@ Definition handler_refines_from_always_statement : Prop :=
     (source target : expr),
     handler_refines_from (fun _ => True) params kinds def_vars source target
     <-> ∀ (vs : list value) (handler_vars : env) (conts : cont_env)
-          (statics : static_env),
+          (statics : static_env) (hp : heap),
           map kind_of_value vs = kinds ->
           bind_params params vs def_vars = Some handler_vars ->
-          refines (State source handler_vars conts statics)
-            (State target handler_vars conts statics).
+          refines (State source handler_vars conts statics hp)
+            (State target handler_vars conts statics hp).
 
 Definition code_refines_from_always_statement : Prop :=
   ∀ (params : list variable) (my_closure : variable)
@@ -372,12 +374,12 @@ Definition handler_refines_from_in_range_statement : Prop :=
     numbers_in_range source = true ->
     numbers_in_range target = true ->
     (∀ (vs : list value) (handler_vars : env) (conts : cont_env)
-       (statics : static_env),
+       (statics : static_env) (hp : heap),
       map kind_of_value vs = kinds ->
       bind_params params vs def_vars = Some handler_vars ->
-      state_in_range (State source handler_vars conts statics) ->
-      refines (State source handler_vars conts statics)
-        (State target handler_vars conts statics)) ->
+      state_in_range (State source handler_vars conts statics hp) ->
+      refines (State source handler_vars conts statics hp)
+        (State target handler_vars conts statics hp)) ->
     handler_refines_from state_in_range params kinds def_vars source target.
 
 (* So, from a state in range, a handler may be replaced by one that
@@ -385,23 +387,23 @@ Definition handler_refines_from_in_range_statement : Prop :=
 Definition let_cont_handler_refines_in_range_statement : Prop :=
   ∀ (k : continuation) (params : list variable)
     (metadata : handler_metadata) (handler handler' body : expr)
-    (vars : env) (conts : cont_env) (statics : static_env),
+    (vars : env) (conts : cont_env) (statics : static_env) (hp : heap),
     state_in_range
       (State
          (Let_cont_non_recursive k (Handler params metadata handler) body)
-         vars conts statics) ->
+         vars conts statics hp) ->
     numbers_in_range handler' = true ->
     (∀ (vs : list value) (handler_vars : env) (conts' : cont_env)
-       (statics' : static_env),
+       (statics' : static_env) (hp' : heap),
       map kind_of_value vs = hm_params_kinds metadata ->
       bind_params params vs vars = Some handler_vars ->
-      state_in_range (State handler handler_vars conts' statics') ->
-      refines (State handler handler_vars conts' statics')
-        (State handler' handler_vars conts' statics')) ->
+      state_in_range (State handler handler_vars conts' statics' hp') ->
+      refines (State handler handler_vars conts' statics' hp')
+        (State handler' handler_vars conts' statics' hp')) ->
     refines
       (State
          (Let_cont_non_recursive k (Handler params metadata handler) body)
-         vars conts statics)
+         vars conts statics hp)
       (State
          (Let_cont_non_recursive k (Handler params metadata handler') body)
-         vars conts statics).
+         vars conts statics hp).

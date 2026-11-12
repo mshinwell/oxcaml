@@ -903,13 +903,13 @@ Qed.
 Inductive state_lifted_out : state -> state -> Prop :=
   | State_lifted_out (lets : list (path * lift_to)) (at_path : path)
       (e : expr) (vars vars' : env) (conts conts' : cont_env)
-      (statics statics' : static_env) :
+      (statics statics' : static_env) (hp : heap) :
     env_lifted statics' vars vars' ->
     conts_lifted_out statics' conts conts' ->
     statics_lifted_out statics statics' ->
     aliases_bound statics' lets at_path e ->
-    state_lifted_out (State e vars conts statics)
-      (State (lift_from_code K lets at_path e) vars' conts' statics').
+    state_lifted_out (State e vars conts statics hp)
+      (State (lift_from_code K lets at_path e) vars' conts' statics' hp).
 
 (* The values at an exit are lifted, under the static environment that
    the second run has reached. *)
@@ -924,9 +924,9 @@ Definition result_lifted_out (statics' : static_env)
     (result result' : step_result) : Prop :=
   match result with
   | Undefined => True
-  | Exit k exit_vs =>
+  | Exit k exit_vs hp =>
     ∃ exit_vs' : list value,
-      result' = Exit k exit_vs'
+      result' = Exit k exit_vs' hp
       ∧ Forall2 (value_lifted statics') exit_vs exit_vs'
   | Step t => ∃ t' : state, result' = Step t' ∧ state_lifted_out t t'
   end.
@@ -1071,7 +1071,7 @@ Qed.
 Lemma call_code_lifted_out (closure closure' : value) (called : code_id)
     (c : code) (vs vs' : list value) (args_arity return_arity : arity)
     (return_to return_to' exn_to exn_to' : cont_value)
-    (statics statics' : static_env) :
+    (statics statics' : static_env) (hp : heap) :
   value_lifted statics' closure closure' ->
   Forall2 (value_lifted statics') vs vs' ->
   aliases_bound statics' (lets_of K called) root (code_body c) ->
@@ -1079,9 +1079,9 @@ Lemma call_code_lifted_out (closure closure' : value) (called : code_id)
   cont_lifted_out statics' exn_to exn_to' ->
   statics_lifted_out statics statics' ->
   result_lifted_out statics'
-    (call_code closure c vs args_arity return_arity return_to exn_to statics)
+    (call_code closure c vs args_arity return_arity return_to exn_to statics hp)
     (call_code closure' (code_lifted_out called c) vs' args_arity
-       return_arity return_to' exn_to' statics').
+       return_arity return_to' exn_to' statics' hp).
 Proof.
   intros Hclosure Hvs Hbound Hreturn Hexn Hstatics.
   unfold result_lifted_out, call_code.
@@ -1123,7 +1123,7 @@ Lemma run_call_lifted_out
     (return_partial return_partial' : value -> step_result)
     (shape shape' : call_shape) (return_arity : arity)
     (return_to return_to' exn_to exn_to' : cont_value)
-    (statics statics' : static_env) :
+    (statics statics' : static_env) (hp : heap) :
   shape_lifted_out statics' shape shape' ->
   cont_lifted_out statics' return_to return_to' ->
   cont_lifted_out statics' exn_to exn_to' ->
@@ -1134,9 +1134,9 @@ Lemma run_call_lifted_out
       (return_partial' partial')) ->
   result_lifted_out statics'
     (run_call return_partial (Some shape) return_arity return_to exn_to
-       statics)
+       statics hp)
     (run_call return_partial' (Some shape') return_arity return_to' exn_to'
-       statics').
+       statics' hp).
 Proof.
   intros Hshape Hreturn Hexn Hstatics Hpartial.
   destruct Hshape
@@ -1158,7 +1158,7 @@ Qed.
 Lemma call_function_lifted_out_from (callee callee' : value)
     (kind : call_kind) (vs vs' : list value) (args_arity return_arity : arity)
     (return_to return_to' exn_to exn_to' : cont_value)
-    (statics statics' : static_env) :
+    (statics statics' : static_env) (hp : heap) :
   value_lifted statics' callee callee' ->
   Forall2 (value_lifted statics') vs vs' ->
   cont_lifted_out statics' return_to return_to' ->
@@ -1166,13 +1166,13 @@ Lemma call_function_lifted_out_from (callee callee' : value)
   statics_lifted_out statics statics' ->
   (∀ partial partial' : value,
     value_lifted statics' partial partial' ->
-    result_lifted_out statics' (apply_cont_value return_to [partial] statics)
-      (apply_cont_value return_to' [partial'] statics')) ->
+    result_lifted_out statics' (apply_cont_value return_to [partial] statics hp)
+      (apply_cont_value return_to' [partial'] statics' hp)) ->
   result_lifted_out statics'
     (call_function callee kind vs args_arity return_arity return_to exn_to
-       statics)
+       statics hp)
     (call_function callee' kind vs' args_arity return_arity return_to'
-       exn_to' statics').
+       exn_to' statics' hp).
 Proof.
   intros Hcallee Hvs Hreturn Hexn Hstatics Hpartial.
   unfold call_function.
@@ -1183,18 +1183,18 @@ Proof.
               vs' args_arity return_arity shape Hstatics Hcallee Hvs Hshape)
     as (shape' & -> & Hshapes).
   exact (run_call_lifted_out _ _ shape shape' return_arity _ _ _ _ statics
-           statics' Hshapes Hreturn Hexn Hstatics Hpartial).
+           statics' _ Hshapes Hreturn Hexn Hstatics Hpartial).
 Qed.
 
 (* Applying a continuation. *)
 Lemma apply_cont_value_lifted_out (statics' : static_env)
     (c c' : cont_value) :
   cont_lifted_out statics' c c' ->
-  ∀ (vs vs' : list value) (statics : static_env),
+  ∀ (vs vs' : list value) (statics : static_env) (hp : heap),
     Forall2 (value_lifted statics') vs vs' ->
     statics_lifted_out statics statics' ->
-    result_lifted_out statics' (apply_cont_value c vs statics)
-      (apply_cont_value c' vs' statics').
+    result_lifted_out statics' (apply_cont_value c vs statics hp)
+      (apply_cont_value c' vs' statics' hp).
 Proof.
   induction 1
     as [ k
@@ -1203,7 +1203,7 @@ Proof.
        | c c' extra extra' Hc IH Hextra
        | remaining remaining' remaining_arity return_arity return_to
            return_to' exn_to exn_to' Hremaining Hreturn IHreturn Hexn _ ];
-    intros vs vs' statics Hvs Hstatics.
+    intros vs vs' statics hp Hvs Hstatics.
   - simpl. exists vs'. split; [ reflexivity | exact Hvs ].
   - simpl. rewrite (kinds_of_values_lifted statics' vs vs' Hvs).
     destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
@@ -1231,7 +1231,7 @@ Qed.
 Lemma call_function_lifted_out (callee callee' : value) (kind : call_kind)
     (vs vs' : list value) (args_arity return_arity : arity)
     (return_to return_to' exn_to exn_to' : cont_value)
-    (statics statics' : static_env) :
+    (statics statics' : static_env) (hp : heap) :
   value_lifted statics' callee callee' ->
   Forall2 (value_lifted statics') vs vs' ->
   cont_lifted_out statics' return_to return_to' ->
@@ -1239,9 +1239,9 @@ Lemma call_function_lifted_out (callee callee' : value) (kind : call_kind)
   statics_lifted_out statics statics' ->
   result_lifted_out statics'
     (call_function callee kind vs args_arity return_arity return_to exn_to
-       statics)
+       statics hp)
     (call_function callee' kind vs' args_arity return_arity return_to'
-       exn_to' statics').
+       exn_to' statics' hp).
 Proof.
   intros Hcallee Hvs Hreturn Hexn Hstatics.
   apply call_function_lifted_out_from; try assumption.
@@ -1271,7 +1271,7 @@ Lemma lifted_out_step (s s' : state) :
   static_fault s' = false ->
   answered state_lifted_out exit_lifted_out (step s) s'.
 Proof.
-  intros [lets at_path e vars vars' conts conts' statics statics' Hvars
+  intros [lets at_path e vars vars' conts conts' statics statics' hp Hvars
             Hconts Hstatics Hbound] Hfault.
   destruct e
     as [ x xkind d body | bindings body | k h body | handlers body | ap | ac
@@ -1286,7 +1286,7 @@ Proof.
     + (* Lifted out: the symbol is bound to what the [Let] makes. *)
       pose proof (Hbound_d statics vars v Hd) as Hv.
       exists 0, (State (lift_from_code K lets (xO at_path) body)
-                   ((x, Value_symbol s0) :: vars') conts' statics').
+                   ((x, Value_symbol s0) :: vars') conts' statics' hp).
       split.
       * simpl. rewrite step_let. cbn [eval_named eval_simple].
         rewrite (kind_of_value_lifted _ _ _ Hv), Hkind. reflexivity.
@@ -1297,7 +1297,7 @@ Proof.
                   (proj1 (proj2 Hstatics)) Hvars Hd)
         as (v' & Hd' & Hv).
       exists 0, (State (lift_from_code K lets (xO at_path) body)
-                   ((x, v') :: vars') conts' statics').
+                   ((x, v') :: vars') conts' statics' hp).
       split.
       * simpl.
         rewrite step_let, Hd', (kind_of_value_lifted statics' v v' Hv), Hkind.
@@ -1320,7 +1320,7 @@ Proof.
     pose proof (eval_static_bindings_extend vars' _ statics' extended'
       Hextended) as Hextend.
     exists 0, (State (lift_from_code K lets (xO at_path) body) vars' conts'
-                 extended').
+                 extended' hp).
     split; [ simpl; rewrite step_let_static, Hextended; reflexivity | ].
     apply State_lifted_out;
       [ exact (env_lifted_extend _ _ _ _ Hextend Hvars)
@@ -1387,14 +1387,14 @@ Proof.
       as (v' & Hscrutinee' & Hv).
     destruct (naked_immediate_of_value v) as [i | ] eqn:Hi; [ | exact I ].
     destruct (find_arm i arms) as [ac | ] eqn:Harm; [ | exact I ].
-    exists 0, (State (Apply_cont ac) vars' conts' statics').
+    exists 0, (State (Apply_cont ac) vars' conts' statics' hp).
     split.
     + simpl.
       rewrite step_switch, Hscrutinee',
         (naked_immediate_lifted statics' v v' i Hv Hi), Harm.
       reflexivity.
     + exact (State_lifted_out lets at_path (Apply_cont ac) vars vars' conts
-               conts' statics statics' Hvars Hconts Hstatics I).
+               conts' statics statics' hp Hvars Hconts Hstatics I).
   - (* Invalid *)
     rewrite step_invalid. exact I.
 Qed.
@@ -1413,7 +1413,7 @@ Hypothesis Hwf : well_formed_unit u (lift_from_code K [] root e) = true.
 (* The second state is one that the run of the unit rewritten reaches. *)
 Definition reached_lifted_out (s' : state) : Prop :=
   ∃ n : nat,
-    run n (State (lift_from_code K [] root e) [] [] empty_static_env)
+    run n (State (lift_from_code K [] root e) [] [] empty_static_env empty_heap)
     = Step s'.
 
 (* The states are related, the second is reached, and the first is one
@@ -1443,8 +1443,8 @@ Qed.
 
 Lemma unit_lifted_out_initial :
   exits_plain [] e = true ->
-  unit_lifted_out (State e [] [] empty_static_env)
-    (State (lift_from_code K [] root e) [] [] empty_static_env).
+  unit_lifted_out (State e [] [] empty_static_env empty_heap)
+    (State (lift_from_code K [] root e) [] [] empty_static_env empty_heap).
 Proof.
   intros Hplain.
   split;

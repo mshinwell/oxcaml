@@ -73,8 +73,8 @@ Variable R : state -> state -> Prop.
    first. *)
 Definition answers (s s' : state) : Prop :=
   (∃ n : nat, run n s = Undefined)
-  ∨ (∃ (k : continuation) (vs : list value),
-       step s = Exit k vs ∧ step s' = Exit k vs)
+  ∨ (∃ (k : continuation) (vs : list value) (hp : heap),
+       step s = Exit k vs hp ∧ step s' = Exit k vs hp)
   ∨ (∃ (n : nat) (t t' : state),
        run (S n) s = Step t ∧ step s' = Step t' ∧ R t t')
   ∨ refines s s'.
@@ -83,33 +83,33 @@ Hypothesis R_step : ∀ s s' : state, R s s' -> answers s s'.
 
 (* An exit of the first run is one of the second. *)
 Lemma ahead_exit (n : nat) :
-  ∀ (s s' : state) (k : continuation) (vs : list value),
+  ∀ (s s' : state) (k : continuation) (vs : list value) (hp : heap),
     R s s' ->
-    run n s = Exit k vs ->
-    ∃ m : nat, run m s' = Exit k vs.
+    run n s = Exit k vs hp ->
+    ∃ m : nat, run m s' = Exit k vs hp.
 Proof.
   induction n as [n IH] using (well_founded_induction lt_wf).
-  intros s s' k vs Hrel Hexit.
-  assert (Hs : behaves s (Exits k vs)) by (exists n; exact Hexit).
+  intros s s' k vs hp Hrel Hexit.
+  assert (Hs : behaves s (Exits k vs hp)) by (exists n; exact Hexit).
   destruct (R_step s s' Hrel)
-    as [[n0 Hwrong] | [(k1 & vs1 & Hstep & Hstep')
+    as [[n0 Hwrong] | [(k1 & vs1 & hp1 & Hstep & Hstep')
                       | [(j & t & t' & Hrun & Hstep' & Hrel') | Hrefines]]];
-    [ | | | exact (proj1 Hrefines k vs Hs) ].
+    [ | | | exact (proj1 Hrefines k vs hp Hs) ].
   - assert (Hs' : behaves s Goes_wrong) by (exists n0; exact Hwrong).
     discriminate (behaviour_unique s _ _ Hs Hs').
-  - assert (Hs' : behaves s (Exits k1 vs1))
+  - assert (Hs' : behaves s (Exits k1 vs1 hp1))
       by (exists 1; simpl; rewrite Hstep; reflexivity).
-    injection (behaviour_unique s _ _ Hs Hs') as <- <-.
+    injection (behaviour_unique s _ _ Hs Hs') as <- <- <-.
     exists 1. simpl. rewrite Hstep'. reflexivity.
   - destruct (Nat.lt_ge_cases n (S j)) as [Hshort | Hlong].
     + exfalso. replace (S j) with (n + (S j - n)) in Hrun by lia.
-      rewrite (ended_stable n _ s (Exits k vs)) in Hrun
+      rewrite (ended_stable n _ s (Exits k vs hp)) in Hrun
         by (rewrite Hexit; simpl; auto).
       rewrite Hexit in Hrun. discriminate.
     + replace n with (S j + (n - S j)) in Hexit by lia.
       rewrite run_add, Hrun in Hexit.
       assert (Hless : n - S j < n) by lia.
-      destruct (IH (n - S j) Hless t t' k vs Hrel' Hexit) as [m Hm].
+      destruct (IH (n - S j) Hless t t' k vs hp Hrel' Hexit) as [m Hm].
       exists (S m). simpl. rewrite Hstep'. exact Hm.
 Qed.
 
@@ -124,12 +124,12 @@ Proof.
   induction m as [ | m IH]; intros s s' b Hrel Hended;
     [ destruct b; contradiction | ].
   destruct (R_step s s' Hrel)
-    as [[n0 Hwrong] | [(k1 & vs1 & Hstep & Hstep')
+    as [[n0 Hwrong] | [(k1 & vs1 & hp1 & Hstep & Hstep')
                       | [(j & t & t' & Hrun & Hstep' & Hrel') | Hrefines]]].
   - right. exists n0. exact Hwrong.
   - left. simpl in Hended. rewrite Hstep' in Hended.
-    destruct b as [k vs | | ]; try contradiction.
-    destruct Hended as [<- <-].
+    destruct b as [k vs hp | | ]; try contradiction.
+    destruct Hended as [<- [<- <-]].
     exists 1. simpl. rewrite Hstep. reflexivity.
   - simpl in Hended. rewrite Hstep' in Hended.
     destruct (IH t t' b Hrel' Hended) as [Ht | Ht].
@@ -142,7 +142,7 @@ Qed.
 Lemma ahead_refines (s s' : state) : R s s' -> refines s s'.
 Proof.
   intros Hrel. split.
-  - intros k vs [n Hn]. exact (ahead_exit n s s' k vs Hrel Hn).
+  - intros k vs hp [n Hn]. exact (ahead_exit n s s' k vs _ Hrel Hn).
   - intros b Hterm Hb. destruct (behaves_ended s' b Hterm Hb) as [m Hended].
     exact (ahead_ends m s s' b Hrel Hended).
 Qed.
@@ -545,7 +545,7 @@ Hypothesis kinds_one_more :
    new parameter, which is as asked; or the handler before, entered
    with that value of the parameter read, goes wrong. *)
 Hypothesis extend_gives :
-  ∀ (known : facts) (vars : env) (statics : static_env)
+  ∀ (known : facts) (vars : env) (statics : static_env) (hp : heap)
     (args args' : list simple) (vs : list value) (v : value),
     facts_hold known vars statics ->
     extend known args = Some args' ->
@@ -557,17 +557,17 @@ Hypothesis extend_gives :
        ∧ fits statics vs u)
     ∨ (∀ (bound : env) (conts : cont_env),
          lookup x bound = Some v ->
-         ∃ n : nat, run n (State boxed bound conts statics) = Undefined).
+         ∃ n : nat, run n (State boxed bound conts statics hp) = Undefined).
 
 (* The handler after, entered with a new argument that is as asked,
    refines the handler before. *)
 Hypothesis handlers_alike :
-  ∀ (def_vars bound : env) (conts : cont_env) (statics : static_env)
+  ∀ (def_vars bound : env) (conts : cont_env) (statics : static_env) (hp : heap)
     (vs : list value) (u : value),
     bind_params params vs def_vars = Some bound ->
     fits statics vs u ->
-    refines (State boxed bound conts statics)
-      (State unboxed ((f, u) :: bound) conts statics).
+    refines (State boxed bound conts statics hp)
+      (State unboxed ((f, u) :: bound) conts statics hp).
 
 (* The handlers of a recursive [Let_cont] with the applications in them
    extended. *)
@@ -648,11 +648,11 @@ Definition conts_rel (statics : static_env) (inside : bool)
 
 Inductive state_rel : state -> state -> Prop :=
   | State_rel (inside : bool) (known : facts) (e e' : expr) (vars : env)
-      (conts conts' : cont_env) (statics : static_env) :
+      (conts conts' : cont_env) (statics : static_env) (hp : heap) :
     expr_rel inside known e e' ->
     facts_hold known vars statics ->
     conts_rel statics inside conts conts' ->
-    state_rel (State e vars conts statics) (State e' vars conts' statics).
+    state_rel (State e vars conts statics hp) (State e' vars conts' statics hp).
 
 Lemma state_rel_refl (s : state) : state_rel s s.
 Proof.
@@ -809,12 +809,12 @@ Lemma lockstep_answers (s s' : state) :
   result_simulated state_rel (step s) (step s') -> answers state_rel s s'.
 Proof.
   unfold answers.
-  destruct (step s) as [t | k0 vs | ] eqn:Hstep,
-    (step s') as [t' | k0' vs' | ] eqn:Hstep'; simpl; try contradiction;
+  destruct (step s) as [t | k0 vs hp0 | ] eqn:Hstep,
+    (step s') as [t' | k0' vs' hp0' | ] eqn:Hstep'; simpl; try contradiction;
     try (intros _; left; exists 1; simpl; rewrite Hstep; reflexivity).
   - intros Hrel. right. right. left. exists 0, t, t'. simpl.
     rewrite Hstep. auto.
-  - intros [<- <-]. right. left. exists k0, vs. auto.
+  - intros [<- [<- <-]]. right. left. exists k0, vs, hp0. auto.
 Qed.
 
 (* The same full call, returning and raising to related
@@ -822,16 +822,16 @@ Qed.
 Lemma call_code_rel (closure : value) (c : code) (vs : list value)
     (args_arity return_arity : arity)
     (return_to return_to' exn_to exn_to' : cont_value)
-    (statics : static_env) :
+    (statics : static_env) (hp : heap) :
   cont_rel statics false return_to return_to' ->
   cont_rel statics false exn_to exn_to' ->
   result_simulated state_rel
-    (call_code closure c vs args_arity return_arity return_to exn_to statics)
+    (call_code closure c vs args_arity return_arity return_to exn_to statics hp)
     (call_code closure c vs args_arity return_arity return_to' exn_to'
-       statics).
+       statics hp).
 Proof.
   intros Hreturn Hraise.
-  destruct (call_code_cases closure c vs args_arity return_arity statics)
+  destruct (call_code_cases closure c vs args_arity return_arity statics hp)
     as [Hundefined | (callee_vars & Hcall)].
   - rewrite !Hundefined. exact I.
   - rewrite !Hcall. simpl.
@@ -850,18 +850,18 @@ Qed.
    a partial application to related results. *)
 Lemma run_call_rel (shape : option call_shape) (return_arity : arity)
     (return_to return_to' exn_to exn_to' : cont_value)
-    (statics : static_env) :
+    (statics : static_env) (hp : heap) :
   cont_rel statics false return_to return_to' ->
   cont_rel statics false exn_to exn_to' ->
   (∀ partial : value,
     result_simulated state_rel
-      (apply_cont_value return_to [partial] statics)
-      (apply_cont_value return_to' [partial] statics)) ->
+      (apply_cont_value return_to [partial] statics hp)
+      (apply_cont_value return_to' [partial] statics hp)) ->
   result_simulated state_rel
-    (run_call (fun partial => apply_cont_value return_to [partial] statics)
-       shape return_arity return_to exn_to statics)
-    (run_call (fun partial => apply_cont_value return_to' [partial] statics)
-       shape return_arity return_to' exn_to' statics).
+    (run_call (fun partial => apply_cont_value return_to [partial] statics hp)
+       shape return_arity return_to exn_to statics hp)
+    (run_call (fun partial => apply_cont_value return_to' [partial] statics hp)
+       shape return_arity return_to' exn_to' statics hp).
 Proof.
   intros Hreturn Hraise Hpartial.
   destruct shape
@@ -877,13 +877,13 @@ Qed.
 
 (* Applying continuations that are related and are not the one being
    unboxed. *)
-Lemma apply_cont_value_rel (statics : static_env) (inside : bool)
+Lemma apply_cont_value_rel (statics : static_env) (hp : heap) (inside : bool)
     (c c' : cont_value) :
   cont_rel statics inside c c' ->
   inside = false ->
   ∀ vs : list value,
-    result_simulated state_rel (apply_cont_value c vs statics)
-      (apply_cont_value c' vs statics).
+    result_simulated state_rel (apply_cont_value c vs statics hp)
+      (apply_cont_value c' vs statics hp).
 Proof.
   intros Hc.
   induction Hc
@@ -894,7 +894,7 @@ Proof.
        | remaining remaining_arity return_arity return_to return_to' exn_to
            exn_to' Hreturn IHreturn Hraise _ ];
     intros Hinside vs; try discriminate Hinside.
-  - destruct (apply_cont_value c vs statics) as [t | k0 vs0 | ]; simpl;
+  - destruct (apply_cont_value c vs statics hp) as [t | k0 vs0 | ]; simpl;
       [ apply state_rel_refl | auto | exact I ].
   - simpl.
     destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata0));
@@ -918,27 +918,27 @@ Proof.
 Qed.
 
 Lemma apply_cont_rel (ac : apply_cont) (vars : env) (conts conts' : cont_env)
-    (statics : static_env) :
+    (statics : static_env) (hp : heap) :
   cont_rel statics false (resolve (ac_continuation ac) conts)
     (resolve (ac_continuation ac) conts') ->
   result_simulated state_rel
-    (step (State (Apply_cont ac) vars conts statics))
-    (step (State (Apply_cont ac) vars conts' statics)).
+    (step (State (Apply_cont ac) vars conts statics hp))
+    (step (State (Apply_cont ac) vars conts' statics hp)).
 Proof.
   intros Hc. rewrite !step_apply_cont.
   destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | exact I ].
-  exact (apply_cont_value_rel statics false _ _ Hc eq_refl vs).
+  exact (apply_cont_value_rel statics _ false _ _ Hc eq_refl vs).
 Qed.
 
 (* The same call, returning and raising to related continuations. *)
 Lemma apply_rel (ap : apply_expr) (vars : env) (conts conts' : cont_env)
-    (statics : static_env) :
+    (statics : static_env) (hp : heap) :
   cont_rel statics false (resolve (ap_continuation ap) conts)
     (resolve (ap_continuation ap) conts') ->
   cont_rel statics false (resolve (ap_exn_continuation ap) conts)
     (resolve (ap_exn_continuation ap) conts') ->
-  result_simulated state_rel (step (State (Apply ap) vars conts statics))
-    (step (State (Apply ap) vars conts' statics)).
+  result_simulated state_rel (step (State (Apply ap) vars conts statics hp))
+    (step (State (Apply ap) vars conts' statics hp)).
 Proof.
   intros Hreturn Hraise. rewrite !step_apply.
   destruct (eval_simple vars (ap_callee ap)) as [callee | ]; [ | exact I ].
@@ -949,7 +949,7 @@ Proof.
   apply run_call_rel;
     [ exact Hreturn | apply with_extra_args_rel, Hraise | ].
   intros partial.
-  exact (apply_cont_value_rel statics false _ _ Hreturn eq_refl [partial]).
+  exact (apply_cont_value_rel statics _ false _ _ Hreturn eq_refl [partial]).
 Qed.
 
 (* Extending the applications changes no static binding. *)
@@ -1114,10 +1114,10 @@ Qed.
 
 (* Out of the scope of the continuation the two runs step together. *)
 Lemma out_of_scope_step (e : expr) (vars : env) (conts conts' : cont_env)
-    (statics : static_env) :
+    (statics : static_env) (hp : heap) :
   conts_rel statics false conts conts' ->
-  result_simulated state_rel (step (State e vars conts statics))
-    (step (State e vars conts' statics)).
+  result_simulated state_rel (step (State e vars conts statics hp))
+    (step (State e vars conts' statics hp)).
 Proof.
   intros Hconts.
   destruct e
@@ -1146,9 +1146,9 @@ Proof.
       [ reflexivity | apply no_facts_hold | ].
     exact (rec_conts_rel statics false no_facts vars conts conts' handlers
       handlers eq_refl (no_facts_hold vars statics) Hconts).
-  - exact (apply_rel ap vars conts conts' statics
+  - exact (apply_rel ap vars conts conts' statics _
       (Hconts (ap_continuation ap)) (Hconts (ap_exn_continuation ap))).
-  - exact (apply_cont_rel ac vars conts conts' statics
+  - exact (apply_cont_rel ac vars conts conts' statics _
       (Hconts (ac_continuation ac))).
   - rewrite !step_switch.
     destruct (eval_simple vars scrutinee) as [v | ]; [ | exact I ].
@@ -1164,16 +1164,16 @@ Qed.
    handler after, which refines it. *)
 Lemma unboxed_application_answers (known : facts) (ac : apply_cont)
     (args' : list simple) (vars : env) (conts conts' : cont_env)
-    (statics : static_env) :
+    (statics : static_env) (hp : heap) :
   ac_continuation ac = k ->
   extend known (ac_args ac) = Some args' ->
   facts_hold known vars statics ->
   conts_rel statics true conts conts' ->
-  answers state_rel (State (Apply_cont ac) vars conts statics)
+  answers state_rel (State (Apply_cont ac) vars conts statics hp)
     (State
        (Apply_cont
           (Apply_cont_expr (ac_continuation ac) args' (ac_trap_action ac)))
-       vars conts' statics).
+       vars conts' statics hp).
 Proof.
   intros Hk Hextend Hfacts Hconts.
   pose proof (Hconts k) as Hc. rewrite Pos.eqb_refl in Hc. simpl in Hc.
@@ -1196,21 +1196,21 @@ Proof.
         unfold apply_continuation; rewrite Hk, <- Hboxed; simpl;
         rewrite Hkinds, Hbind; reflexivity ].
   assert (Hfirst :
-    step (State (Apply_cont ac) vars conts statics)
-    = Step (State boxed bound def_conts statics)).
+    step (State (Apply_cont ac) vars conts statics hp)
+    = Step (State boxed bound def_conts statics hp)).
   { rewrite step_apply_cont, Hvs. unfold apply_continuation.
     rewrite Hk, <- Hboxed. simpl. rewrite Hkinds, Hbind. reflexivity. }
   destruct (bind_params_value params vs def_vars bound i x Hbind x_at_i)
     as [v Hv].
   pose proof (bind_params_nth params vs def_vars bound i x v
     params_distinct Hbind x_at_i Hv) as Hx.
-  destruct (extend_gives known vars statics (ac_args ac) args' vs v Hfacts
+  destruct (extend_gives known vars statics hp (ac_args ac) args' vs v Hfacts
               Hextend Hvs Hv)
     as [(u & Hargs' & Hkind & Hfits) | Hwrong].
   - right. right. right.
     eapply refines_step;
       [ exact Hfirst
-      | | exact (handlers_alike def_vars bound def_conts statics vs u Hbind
+      | | exact (handlers_alike def_vars bound def_conts statics hp vs u Hbind
                    Hfits) ].
     rewrite step_apply_cont. simpl. rewrite Hargs'.
     unfold apply_continuation. rewrite Hk, <- Hunboxed. simpl.
@@ -1225,7 +1225,7 @@ Qed.
 Lemma state_rel_answers (s s' : state) :
   state_rel s s' -> answers state_rel s s'.
 Proof.
-  intros [inside known e e' vars conts conts' statics He Hfacts Hconts].
+  intros [inside known e e' vars conts conts' statics hp He Hfacts Hconts].
   destruct inside; unfold expr_rel in He;
     [ | subst e'; apply lockstep_answers, out_of_scope_step, Hconts ].
   destruct e
@@ -1311,7 +1311,7 @@ Proof.
     pose proof (Hconts (ap_continuation ap)) as Hc.
     pose proof (Hconts (ap_exn_continuation ap)) as Hc'.
     rewrite Hreturn in Hc. rewrite Hraise in Hc'.
-    exact (apply_rel ap vars conts conts' statics Hc Hc').
+    exact (apply_rel ap vars conts conts' statics _ Hc Hc').
   - (* Apply_cont *)
     destruct (extend_apply_cont_by extend known k ac) as [ac' | ] eqn:Hac;
       [ | discriminate ].
@@ -1321,10 +1321,10 @@ Proof.
         [ | discriminate ].
       injection Hac as <-. apply Pos.eqb_eq in Hk.
       exact (unboxed_application_answers known ac args' vars conts conts'
-        statics Hk Hextend Hfacts Hconts).
+        statics _ Hk Hextend Hfacts Hconts).
     + injection Hac as <-. apply lockstep_answers.
       pose proof (Hconts (ac_continuation ac)) as Hc. rewrite Hk in Hc.
-      exact (apply_cont_rel ac vars conts conts' statics Hc).
+      exact (apply_cont_rel ac vars conts conts' statics _ Hc).
   - (* Switch *)
     destruct (extend_arms_by extend known k arms) as [arms' | ] eqn:Harms;
       [ | discriminate ].
@@ -1345,16 +1345,16 @@ Qed.
 (* The handler given one more parameter, where every application in the
    body can be given its argument. *)
 Lemma unbox_parameter_refines (known : facts) (body body' : expr)
-    (vars : env) (conts : cont_env) (statics : static_env) :
+    (vars : env) (conts : cont_env) (statics : static_env) (hp : heap) :
   extend_applications_by extend known k body = Some body' ->
   facts_hold known vars statics ->
   refines
     (State (Let_cont_non_recursive k (Handler params metadata boxed) body)
-       vars conts statics)
+       vars conts statics hp)
     (State
        (Let_cont_non_recursive k (Handler (params ++ [f]) metadata' unboxed)
           body')
-       vars conts statics).
+       vars conts statics hp).
 Proof.
   intros Hbody Hfacts. apply let_cont_non_recursive_refines_step.
   apply (ahead_refines state_rel state_rel_answers).
@@ -1427,18 +1427,18 @@ Inductive removes : expr -> expr -> Prop :=
    on it, the expression without the [Let] refines the expression. *)
 Lemma removes_refines (v u : value) (e e' : expr) :
   removes e e' ->
-  ∀ (vars : env) (conts : cont_env) (statics : static_env),
+  ∀ (vars : env) (conts : cont_env) (statics : static_env) (hp : heap),
     lookup x vars = Some v ->
     lookup f vars = Some u ->
     gives p v u statics ->
-    refines (State e vars conts statics) (State e' vars conts statics).
+    refines (State e vars conts statics hp) (State e' vars conts statics hp).
 Proof.
   intros Hremoves.
   induction Hremoves
     as [ rest | y kind0 d body body' Hx Hf _ IH
        | k params metadata handler handler' body Hx Hf _ IH
        | k h body body' _ IH ];
-    intros vars conts statics Hlookup_x Hlookup_f Hgives.
+    intros vars conts statics hp Hlookup_x Hlookup_f Hgives.
   - destruct (eval_prim statics (Unary p) [v]) as [w | ] eqn:Hprim;
       [ | apply step_undefined_refines; rewrite step_let; simpl;
           rewrite Hlookup_x; simpl; rewrite Hprim; reflexivity ].
@@ -1446,7 +1446,7 @@ Proof.
     destruct (kind_eqb (kind_of_value u) kind) eqn:Hkind;
       [ | apply step_undefined_refines; rewrite step_let; simpl;
           rewrite Hlookup_x; simpl; rewrite Hprim, Hkind; reflexivity ].
-    apply (refines_trans _ (State rest ((f, u) :: vars) conts statics)).
+    apply (refines_trans _ (State rest ((f, u) :: vars) conts statics hp)).
     + apply equivalent_refines, step_equivalent. rewrite step_let. simpl.
       rewrite Hlookup_x. simpl. rewrite Hprim, Hkind. reflexivity.
     + apply equivalent_refines, coincide_equivalent.
@@ -1460,7 +1460,7 @@ Proof.
       assumption.
   - apply (let_cont_handler_refines_where (gives p v u) (gives_extend p v u));
       [ exact Hgives | ].
-    intros vs handler_vars conts0 statics0 Hgives0 _ Hbind.
+    intros vs handler_vars conts0 statics0 hp' Hgives0 _ Hbind.
     apply IH; [ | | exact Hgives0 ].
     + rewrite (bind_params_other params x vs vars handler_vars Hx Hbind).
       exact Hlookup_x.
@@ -1473,17 +1473,17 @@ Qed.
 (* The same where the variables of the expression do not yet bind [f],
    which is not free in it. *)
 Lemma read_refines (v u : value) (e e' : expr) (bound : env)
-    (conts : cont_env) (statics : static_env) :
+    (conts : cont_env) (statics : static_env) (hp : heap) :
   removes e e' ->
   var_free_b f e = false ->
   Pos.eqb x f = false ->
   lookup x bound = Some v ->
   gives p v u statics ->
-  refines (State e bound conts statics)
-    (State e' ((f, u) :: bound) conts statics).
+  refines (State e bound conts statics hp)
+    (State e' ((f, u) :: bound) conts statics hp).
 Proof.
   intros Hremoves Hfree Hne Hlookup Hgives.
-  apply (refines_trans _ (State e ((f, u) :: bound) conts statics)).
+  apply (refines_trans _ (State e ((f, u) :: bound) conts statics hp)).
   - apply equivalent_refines, coincide_equivalent.
     + intros y Hy. apply lookup_other. intros ->.
       apply var_free_b_sound in Hy. congruence.
@@ -1505,7 +1505,7 @@ Definition read_fits (i : nat) (p : unary_primitive) (statics : static_env)
 Lemma read_fits_refines (f : variable) (kind : flambda_kind)
     (p : unary_primitive) (x : variable) (i : nat) (params : list variable)
     (e e' : expr) (def_vars bound : env) (conts : cont_env)
-    (statics : static_env) (vs : list value) (u : value) :
+    (statics : static_env) (hp : heap) (vs : list value) (u : value) :
   removes f kind p x e e' ->
   var_free_b f e = false ->
   Pos.eqb x f = false ->
@@ -1513,11 +1513,11 @@ Lemma read_fits_refines (f : variable) (kind : flambda_kind)
   nth_error params i = Some x ->
   bind_params params vs def_vars = Some bound ->
   read_fits i p statics vs u ->
-  refines (State e bound conts statics)
-    (State e' ((f, u) :: bound) conts statics).
+  refines (State e bound conts statics hp)
+    (State e' ((f, u) :: bound) conts statics hp).
 Proof.
   intros Hremoves Hfree Hne Hdistinct Hx Hbind (v & Hv & Hgives).
-  exact (read_refines f kind p x v u e e' bound conts statics Hremoves Hfree
+  exact (read_refines f kind p x v u e e' bound conts statics hp Hremoves Hfree
     Hne (bind_params_nth params vs def_vars bound i x v Hdistinct Hbind Hx Hv)
     Hgives).
 Qed.
@@ -1586,7 +1586,8 @@ Qed.
    otherwise the [Let], the first thing in the handler, has no step. *)
 Lemma extend_args_gives (i : nat) (p : unary_primitive) (f x : variable)
     (kind : flambda_kind) (rest : expr) (known : facts) (vars : env)
-    (statics : static_env) (args args' : list simple) (vs : list value)
+    (statics : static_env) (hp : heap) (args args' : list simple)
+      (vs : list value)
     (v : value) :
   facts_hold known vars statics ->
   extend_args known i p args = Some args' ->
@@ -1601,7 +1602,7 @@ Lemma extend_args_gives (i : nat) (p : unary_primitive) (f x : variable)
        ∃ n : nat,
          run n
            (State (Let f kind (Prim (Unary p) [Var x]) rest) bound conts
-              statics)
+              statics hp)
          = Undefined).
 Proof.
   intros Hfacts Hextend Hvs Hv. unfold extend_args in Hextend.
@@ -1639,18 +1640,18 @@ Qed.
 Lemma unbox_heads_refines (handler : expr) :
   ∀ (known : facts) (k : continuation) (params : list variable)
     (metadata : handler_metadata) (body : expr) (vars : env)
-    (conts : cont_env) (statics : static_env),
+    (conts : cont_env) (statics : static_env) (hp : heap),
     facts_hold known vars statics ->
     refines
       (State (Let_cont_non_recursive k (Handler params metadata handler) body)
-         vars conts statics)
+         vars conts statics hp)
       (State (unbox_heads known k params metadata handler body) vars conts
-         statics).
+         statics hp).
 Proof.
   induction handler
     as [ f kind d rest IH | bindings rest _ | k0 h rest _ | handlers rest _
        | ap | ac | scrutinee arms | ];
-    intros known k params metadata body vars conts statics Hfacts;
+    intros known k params metadata body vars conts statics hp' Hfacts;
     try (simpl; apply refines_refl).
   destruct d
     as [ s | pr args | code slots | fslot decls slots | slot closure
@@ -1686,26 +1687,27 @@ Proof.
     (fun known => extend_args known i p) (read_fits i p) Hdistinct
     (position_nth x params i Hposition) eq_refl
     (extend_args_gives i p f x kind rest)
-    (fun def_vars bound conts0 statics0 vs u Hbind Hfits =>
+    (fun def_vars bound conts0 statics0 _ vs u Hbind Hfits =>
        read_fits_refines f kind p x i params _ rest def_vars bound conts0
-         statics0 vs u (Removes_here f kind p x rest) Hfree Hne Hdistinct
+         statics0 _ vs u (Removes_here f kind p x rest) Hfree Hne Hdistinct
          (position_nth x params i Hposition) Hbind Hfits)
-    known body body' vars conts statics Hbody Hfacts).
+    known body body' vars conts statics _ Hbody Hfacts).
 Qed.
 
 (* The handler of each non-recursive [Let_cont] and its body, by the
    induction, with what is known there; then the [Let]s that the handler
    begins with. *)
 Fixpoint unbox_params_knowing_refines (e : expr) :
-  ∀ (known : facts) (vars : env) (conts : cont_env) (statics : static_env),
+  ∀ (known : facts) (vars : env) (conts : cont_env) (statics : static_env)
+    (hp : heap),
     facts_hold known vars statics ->
-    refines (State e vars conts statics)
-      (State (unbox_params_knowing known e) vars conts statics).
+    refines (State e vars conts statics hp)
+      (State (unbox_params_knowing known e) vars conts statics hp).
 Proof.
   destruct e
     as [ x kind d body | bindings body | k h body | handlers body | ap
        | ac | scrutinee arms | ];
-    intros known vars conts statics Hfacts; simpl.
+    intros known vars conts statics hp Hfacts; simpl.
   - (* Let *)
     apply let_refines_step; [ reflexivity | ].
     intros v Hd _. apply unbox_params_knowing_refines.
@@ -1726,11 +1728,11 @@ Proof.
                (unbox_params_knowing (facts_under_params known params)
                   handler))
             body)
-         vars conts statics)).
+         vars conts statics hp)).
     + apply (let_cont_handler_refines_where (facts_hold known vars)
         (facts_hold_extend known vars));
         [ exact Hfacts | ].
-      intros vs handler_vars conts0 statics0 Hfacts0 _ Hbind.
+      intros vs handler_vars conts0 statics0 hp' Hfacts0 _ Hbind.
       apply unbox_params_knowing_refines.
       exact (facts_hold_bind_params statics0 params known vs vars
         handler_vars Hfacts0 Hbind).
@@ -1741,7 +1743,7 @@ Proof.
                  (unbox_params_knowing (facts_under_params known params)
                     handler))
               (unbox_params_knowing known body))
-           vars conts statics)).
+           vars conts statics hp)).
       * apply let_cont_non_recursive_refines_step.
         apply unbox_params_knowing_refines, Hfacts.
       * apply unbox_heads_refines, Hfacts.
@@ -1756,6 +1758,6 @@ Qed.
 
 Theorem unbox_known_params_refines : unbox_known_params_refines_statement.
 Proof.
-  intros e vars conts statics. apply unbox_params_knowing_refines.
+  intros e vars conts statics hp. apply unbox_params_knowing_refines.
   apply no_facts_hold.
 Qed.

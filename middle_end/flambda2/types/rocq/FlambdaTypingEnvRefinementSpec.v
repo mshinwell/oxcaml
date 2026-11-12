@@ -127,15 +127,15 @@ Local Open Scope Z_scope.
 
 Definition expr_refines_under (tenv : Typing_env.t) (source target : expr)
     : Prop :=
-  ∀ (vars : env) (conts : cont_env) (statics : static_env),
+  ∀ (vars : env) (conts : cont_env) (statics : static_env) (hp : heap),
     env_satisfies_strictly tenv statics vars ->
-    refines (State source vars conts statics)
-      (State target vars conts statics).
+    refines (State source vars conts statics hp)
+      (State target vars conts statics hp).
 
 Definition expr_equivalent_under (tenv : Typing_env.t) (e e' : expr) : Prop :=
-  ∀ (vars : env) (conts : cont_env) (statics : static_env),
+  ∀ (vars : env) (conts : cont_env) (statics : static_env) (hp : heap),
     env_satisfies_strictly tenv statics vars ->
-    equivalent (State e vars conts statics) (State e' vars conts statics).
+    equivalent (State e vars conts statics hp) (State e' vars conts statics hp).
 
 (* Refinement under all environments is refinement under any typing
    environment. *)

@@ -267,16 +267,16 @@ Qed.
    refines the term, and that the term refines. *)
 Fixpoint take_arms_refines (e : expr) :
   ∀ (consts : list (variable * Z)) (vars : env) (conts : cont_env)
-    (statics : static_env),
+    (statics : static_env) (hp : heap),
     immediates_hold consts vars ->
-    refines (State e vars conts statics)
-      (State (take_arms consts e) vars conts statics).
+    refines (State e vars conts statics hp)
+      (State (take_arms consts e) vars conts statics hp).
 Proof.
   destruct e
     as [ y kind d body | bindings body | k [handler_params metadata handler]
            body
        | handlers body | ap | ac | scrutinee arms | ];
-    intros consts vars conts statics Hhold; cbn [take_arms];
+    intros consts vars conts statics hp Hhold; cbn [take_arms];
     try apply refines_refl.
   - apply let_refines_step; [ reflexivity | ].
     intros v _ _. apply take_arms_refines, immediates_hold_under_let, Hhold.
@@ -290,9 +290,9 @@ Proof.
             (Handler handler_params metadata
                (take_arms (forget_immediates handler_params consts) handler))
             body)
-         vars conts statics)).
+         vars conts statics hp)).
     + apply let_cont_handler_refines_at.
-      intros vs handler_vars conts0 statics0 _ Hbind.
+      intros vs handler_vars conts0 statics0 hp' _ Hbind.
       apply take_arms_refines.
       exact (immediates_hold_bind_params consts handler_params vs vars
         handler_vars Hhold Hbind).
@@ -309,16 +309,16 @@ Qed.
 
 Fixpoint take_arms_refined (e : expr) :
   ∀ (consts : list (variable * Z)) (vars : env) (conts : cont_env)
-    (statics : static_env),
+    (statics : static_env) (hp : heap),
     immediates_hold consts vars ->
-    refines (State (take_arms consts e) vars conts statics)
-      (State e vars conts statics).
+    refines (State (take_arms consts e) vars conts statics hp)
+      (State e vars conts statics hp).
 Proof.
   destruct e
     as [ y kind d body | bindings body | k [handler_params metadata handler]
            body
        | handlers body | ap | ac | scrutinee arms | ];
-    intros consts vars conts statics Hhold; cbn [take_arms];
+    intros consts vars conts statics hp Hhold; cbn [take_arms];
     try apply refines_refl.
   - apply let_refines_step; [ reflexivity | ].
     intros v _ _. apply take_arms_refined, immediates_hold_under_let, Hhold.
@@ -332,11 +332,11 @@ Proof.
             (Handler handler_params metadata
                (take_arms (forget_immediates handler_params consts) handler))
             body)
-         vars conts statics)).
+         vars conts statics hp)).
     + apply let_cont_non_recursive_refines_step.
       apply take_arms_refined, Hhold.
     + apply let_cont_handler_refines_at.
-      intros vs handler_vars conts0 statics0 _ Hbind.
+      intros vs handler_vars conts0 statics0 hp' _ Hbind.
       apply take_arms_refined.
       exact (immediates_hold_bind_params consts handler_params vs vars
         handler_vars Hhold Hbind).
@@ -354,30 +354,30 @@ Qed.
    the read refines the handler, under the numbers that are known. *)
 Lemma never_reads_refines (consts : list (variable * Z))
     (handler without : expr) (vars : env) (conts : cont_env)
-    (statics : static_env) :
+    (statics : static_env) (hp : heap) :
   never_reads consts handler without = true ->
   immediates_hold consts vars ->
-  refines (State handler vars conts statics)
-    (State without vars conts statics).
+  refines (State handler vars conts statics hp)
+    (State without vars conts statics hp).
 Proof.
   intros Hsame Hhold. unfold never_reads in Hsame.
   eapply refines_trans;
-    [ exact (take_arms_refines handler consts vars conts statics Hhold) | ].
+    [ exact (take_arms_refines handler consts vars conts statics hp Hhold) | ].
   eapply refines_trans;
     [ apply equivalent_refines;
       exact (remove_unused_conts_equivalent (take_arms consts handler) vars
-        conts statics)
+        conts statics hp)
     | ].
   eapply refines_trans;
     [ apply equivalent_refines;
-      exact (expr_eqb_sound _ _ Hsame vars conts statics)
+      exact (expr_eqb_sound _ _ Hsame vars conts statics hp)
     | ].
   eapply refines_trans;
     [ apply equivalent_refines, equivalent_sym;
       exact (remove_unused_conts_equivalent (take_arms consts without) vars
-        conts statics)
+        conts statics hp)
     | ].
-  exact (take_arms_refined without consts vars conts statics Hhold).
+  exact (take_arms_refined without consts vars conts statics hp Hhold).
 Qed.
 
 (* A parameter that is known to be given a number is given that
@@ -407,10 +407,10 @@ Qed.
 
 (* A variable that is not free may be bound to anything. *)
 Lemma unread_refines (f : variable) (u : value) (e : expr) (bound : env)
-    (conts : cont_env) (statics : static_env) :
+    (conts : cont_env) (statics : static_env) (hp : heap) :
   var_free_b f e = false ->
-  refines (State e bound conts statics)
-    (State e ((f, u) :: bound) conts statics).
+  refines (State e bound conts statics hp)
+    (State e ((f, u) :: bound) conts statics hp).
 Proof.
   intros Hfree. apply equivalent_refines, coincide_equivalent.
   - intros y Hy. apply lookup_other. intros ->.
@@ -630,7 +630,7 @@ Lemma unbox_read_refines
   unbox_read extend known k params metadata handler body r
   = Some (params', metadata', handler', body') ->
   position x params = Some (read_position r) ->
-  (∀ (known : facts) (vars : env) (statics : static_env)
+  (∀ (known : facts) (vars : env) (statics : static_env) (hp : heap)
      (args args' : list simple) (vs : list value) (v : value),
      facts_hold known vars statics ->
      extend known args = Some args' ->
@@ -642,30 +642,31 @@ Lemma unbox_read_refines
         ∧ fits statics vs u)
      ∨ (∀ (bound : env) (conts : cont_env),
           lookup x bound = Some v ->
-          ∃ n : nat, run n (State handler bound conts statics) = Undefined))
+          ∃ n : nat, run n (State handler bound conts statics hp) = Undefined))
   ->
   (var_free_b (read_variable r) handler = false ->
    Pos.eqb x (read_variable r) = false ->
    distinct params = true ->
    among (read_variable r) params = false ->
    ∀ (def_vars bound : env) (conts : cont_env) (statics : static_env)
+     (hp : heap)
      (vs : list value) (u : value),
      bind_params params vs def_vars = Some bound ->
      fits statics vs u ->
-     refines (State handler bound conts statics)
+     refines (State handler bound conts statics hp)
        (State (read_without r) ((read_variable r, u) :: bound) conts
-          statics))
+          statics hp))
   ->
-  ∀ (vars : env) (conts : cont_env) (statics : static_env),
+  ∀ (vars : env) (conts : cont_env) (statics : static_env) (hp : heap),
     facts_hold known vars statics ->
     refines
       (State (Let_cont_non_recursive k (Handler params metadata handler) body)
-         vars conts statics)
+         vars conts statics hp)
       (State
          (Let_cont_non_recursive k (Handler params' metadata' handler') body')
-         vars conts statics).
+         vars conts statics hp).
 Proof.
-  intros Hread Hposition Hextend Halike vars conts statics Hfacts.
+  intros Hread Hposition Hextend Halike vars conts statics hp Hfacts.
   unfold unbox_read in Hread.
   destruct (may_take params metadata (read_variable r)) eqn:Htake;
     [ | discriminate ].
@@ -690,7 +691,7 @@ Proof.
     handler (read_without r) extend fits Hdistinct
     (position_nth x params _ Hposition) eq_refl Hextend
     (Halike eq_refl Hne Hdistinct Hfresh) known body extended vars conts
-    statics Hbody Hfacts).
+    statics hp Hbody Hfacts).
 Qed.
 
 (* The read that is taken next is a first read of some sort. *)
@@ -714,7 +715,7 @@ Qed.
 Lemma head_step_refines (known : facts) (k : continuation)
     (params params' : list variable) (metadata metadata' : handler_metadata)
     (handler handler' body body' : expr) (head : read) (vars : env)
-    (conts : cont_env) (statics : static_env) :
+    (conts : cont_env) (statics : static_env) (hp : heap) :
   head_read params handler = Some head ->
   unbox_read
     (fun known => extend_args known (read_position head) (read_primitive head))
@@ -723,10 +724,10 @@ Lemma head_step_refines (known : facts) (k : continuation)
   facts_hold known vars statics ->
   refines
     (State (Let_cont_non_recursive k (Handler params metadata handler) body)
-       vars conts statics)
+       vars conts statics hp)
     (State
        (Let_cont_non_recursive k (Handler params' metadata' handler') body')
-       vars conts statics).
+       vars conts statics hp).
 Proof.
   intros Hhead Hstep Hfacts. unfold head_read in Hhead.
   destruct handler as [ f kind d rest | | | | | | | ]; try discriminate.
@@ -738,19 +739,19 @@ Proof.
   exact (unbox_read_refines _ (read_fits i p) known k params params'
     metadata metadata' _ handler' body body' _ x Hstep Hposition
     (extend_args_gives i p f x kind rest)
-    (fun Hfree Hne Hdistinct _ def_vars bound conts0 statics0 vs u Hbind
+    (fun Hfree Hne Hdistinct _ def_vars bound conts0 statics0 hp vs u Hbind
        Hfits =>
        read_fits_refines f kind p x i params _ rest def_vars bound conts0
-         statics0 vs u (Removes_here f kind p x rest) Hfree Hne Hdistinct
+         statics0 _ vs u (Removes_here f kind p x rest) Hfree Hne Hdistinct
          (position_nth x params i Hposition) Hbind Hfits)
-    vars conts statics Hfacts).
+    vars conts statics hp Hfacts).
 Qed.
 
 (* A read further down, made a parameter. *)
 Lemma certain_step_refines (known : facts) (k : continuation)
     (params params' : list variable) (metadata metadata' : handler_metadata)
     (handler handler' body body' : expr) (r : read) (vars : env)
-    (conts : cont_env) (statics : static_env) :
+    (conts : cont_env) (statics : static_env) (hp : heap) :
   next_read params handler = Some r ->
   unbox_read
     (fun known =>
@@ -761,10 +762,10 @@ Lemma certain_step_refines (known : facts) (k : continuation)
   facts_hold known vars statics ->
   refines
     (State (Let_cont_non_recursive k (Handler params metadata handler) body)
-       vars conts statics)
+       vars conts statics hp)
     (State
        (Let_cont_non_recursive k (Handler params' metadata' handler') body')
-       vars conts statics).
+       vars conts statics hp).
 Proof.
   intros Hnext Hstep Hfacts.
   destruct (next_read_first params handler r Hnext) as [wanted Hfirst].
@@ -776,22 +777,22 @@ Proof.
     known k params params' metadata metadata' handler handler' body body' r
     x Hstep Hposition);
     [ | | exact Hfacts ].
-  - intros known0 vars0 statics0 args args' vs v Hfacts0 Hextend Hvs Hv.
+  - intros known0 vars0 statics0 hp' args args' vs v Hfacts0 Hextend Hvs Hv.
     left.
     exact (extend_args_certain_gives params handler (read_without r)
       (read_position r) (read_primitive r) (read_kind r) known0 vars0
       statics0 args args' vs v Hfacts0 Hextend Hvs Hv).
-  - intros Hfree Hne Hdistinct Hfresh def_vars bound conts0 statics0 vs u
-      Hbind [Hfits | (consts & Hnever & Hvalues)].
+  - intros Hfree Hne Hdistinct Hfresh def_vars bound conts0 statics0 hp' vs
+      u Hbind [Hfits | (consts & Hnever & Hvalues)].
     + exact (read_fits_refines (read_variable r) (read_kind r)
         (read_primitive r) x (read_position r) params handler
-        (read_without r) def_vars bound conts0 statics0 vs u Hremoves Hfree
+        (read_without r) def_vars bound conts0 statics0 hp' vs u Hremoves Hfree
         Hne Hdistinct (position_nth x params _ Hposition) Hbind Hfits).
     + apply (refines_trans _
-        (State handler ((read_variable r, u) :: bound) conts0 statics0));
+        (State handler ((read_variable r, u) :: bound) conts0 statics0 hp'));
         [ apply unread_refines, Hfree | ].
       apply (never_reads_refines consts handler (read_without r) _ conts0
-        statics0 Hnever).
+        statics0 _ Hnever).
       intros t c Ht. destruct (Hvalues t c Ht) as (j & Hparam & Hvalue).
       rewrite lookup_other.
       * exact (bind_params_nth params vs def_vars bound j t _ Hdistinct Hbind
@@ -803,23 +804,23 @@ Qed.
 Lemma unbox_reads_refines (fuel : nat) :
   ∀ (known : facts) (k : continuation) (params : list variable)
     (metadata : handler_metadata) (handler body : expr) (vars : env)
-    (conts : cont_env) (statics : static_env),
+    (conts : cont_env) (statics : static_env) (hp : heap),
     facts_hold known vars statics ->
     refines
       (State (Let_cont_non_recursive k (Handler params metadata handler) body)
-         vars conts statics)
+         vars conts statics hp)
       (State (unbox_reads fuel known k params metadata handler body) vars
-         conts statics).
+         conts statics hp).
 Proof.
   induction fuel as [ | fuel IH];
-    intros known k params metadata handler body vars conts statics Hfacts;
+    intros known k params metadata handler body vars conts statics hp Hfacts;
     simpl; [ apply refines_refl | ].
   destruct (next_read params handler) as [r | ] eqn:Hnext; simpl;
     [ | apply refines_refl ].
   assert (Hcertain :
     refines
       (State (Let_cont_non_recursive k (Handler params metadata handler) body)
-         vars conts statics)
+         vars conts statics hp)
       (State
          match
            unbox_read
@@ -833,7 +834,7 @@ Proof.
          | None =>
            Let_cont_non_recursive k (Handler params metadata handler) body
          end
-         vars conts statics)).
+         vars conts statics hp)).
   { destruct
       (unbox_read
          (fun known =>
@@ -844,7 +845,7 @@ Proof.
       [ | apply refines_refl ].
     eapply refines_trans; [ | apply IH; exact Hfacts ].
     exact (certain_step_refines known k params params' metadata metadata'
-      handler handler' body body' r vars conts statics Hnext Hstep Hfacts). }
+      handler handler' body body' r vars conts statics _ Hnext Hstep Hfacts). }
   destruct (head_read params handler) as [head | ] eqn:Hhead;
     [ | exact Hcertain ].
   destruct (Pos.eqb (read_variable head) (read_variable r));
@@ -858,22 +859,23 @@ Proof.
     [ | apply refines_refl ].
   eapply refines_trans; [ | apply IH; exact Hfacts ].
   exact (head_step_refines known k params params' metadata metadata' handler
-    handler' body body' head vars conts statics Hhead Hstep Hfacts).
+    handler' body body' head vars conts statics _ Hhead Hstep Hfacts).
 Qed.
 
 (* The handler of each non-recursive [Let_cont] and its body, by the
    induction, with what is known there; then the reads of the
    handler. *)
 Fixpoint unbox_variants_knowing_refines (e : expr) :
-  ∀ (known : facts) (vars : env) (conts : cont_env) (statics : static_env),
+  ∀ (known : facts) (vars : env) (conts : cont_env) (statics : static_env)
+    (hp : heap),
     facts_hold known vars statics ->
-    refines (State e vars conts statics)
-      (State (unbox_variants_knowing known e) vars conts statics).
+    refines (State e vars conts statics hp)
+      (State (unbox_variants_knowing known e) vars conts statics hp).
 Proof.
   destruct e
     as [ x kind d body | bindings body | k h body | handlers body | ap
        | ac | scrutinee arms | ];
-    intros known vars conts statics Hfacts; simpl.
+    intros known vars conts statics hp Hfacts; simpl.
   - (* Let *)
     apply let_refines_step; [ reflexivity | ].
     intros v Hd _. apply unbox_variants_knowing_refines.
@@ -894,11 +896,11 @@ Proof.
                (unbox_variants_knowing (facts_under_params known params)
                   handler))
             body)
-         vars conts statics)).
+         vars conts statics hp)).
     + apply (let_cont_handler_refines_where (facts_hold known vars)
         (facts_hold_extend known vars));
         [ exact Hfacts | ].
-      intros vs handler_vars conts0 statics0 Hfacts0 _ Hbind.
+      intros vs handler_vars conts0 statics0 hp' Hfacts0 _ Hbind.
       apply unbox_variants_knowing_refines.
       exact (facts_hold_bind_params statics0 params known vs vars
         handler_vars Hfacts0 Hbind).
@@ -909,7 +911,7 @@ Proof.
                  (unbox_variants_knowing (facts_under_params known params)
                     handler))
               (unbox_variants_knowing known body))
-           vars conts statics)).
+           vars conts statics hp)).
       * apply let_cont_non_recursive_refines_step.
         apply unbox_variants_knowing_refines, Hfacts.
       * apply unbox_reads_refines, Hfacts.
@@ -924,6 +926,6 @@ Qed.
 
 Theorem unbox_variant_params_refines : unbox_variant_params_refines_statement.
 Proof.
-  intros e vars conts statics. apply unbox_variants_knowing_refines.
+  intros e vars conts statics hp. apply unbox_variants_knowing_refines.
   apply no_facts_hold.
 Qed.

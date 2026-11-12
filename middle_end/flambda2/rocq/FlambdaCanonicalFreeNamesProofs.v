@@ -127,7 +127,7 @@ Qed.
 Theorem rename_variables_equivalent_canonical :
   rename_variables_equivalent_canonical_statement.
 Proof.
-  intros r e vars conts statics Hclosed Hconts.
+  intros r e vars conts statics hp Hclosed Hconts.
   apply rename_variables_equivalent;
     [ exact Hclosed | apply continuations_fixed, Hconts ].
 Qed.

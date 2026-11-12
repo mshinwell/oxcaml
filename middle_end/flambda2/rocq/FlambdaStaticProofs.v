@@ -57,7 +57,7 @@ Qed.
 
 Theorem let_static_split : let_static_split_statement.
 Proof.
-  intros bindings bindings' body vars conts statics.
+  intros bindings bindings' body vars conts statics hp.
   destruct (eval_static_bindings vars bindings statics) as [statics' | ]
     eqn:Hbindings.
   - (* the first part is bound: the second step of the right-hand side is
@@ -79,7 +79,7 @@ Qed.
    have a value, and then bind the variable to that value. *)
 Theorem project_static_closure : project_static_closure_statement.
 Proof.
-  intros s code slot contents x kind body vars conts statics.
+  intros s code slot contents x kind body vars conts statics hp.
   apply let_static_equivalent_step. simpl.
   destruct (lookup s (static_values statics)); [ exact I | ].
   destruct (eval_simple vars contents) as [v | ] eqn:Hcontents; simpl;

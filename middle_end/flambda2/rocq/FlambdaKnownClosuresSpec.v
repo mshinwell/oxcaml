@@ -287,15 +287,15 @@ Definition read_slot_named_sound_statement : Prop :=
 (* One call: under the same condition, the call made direct steps as the
    call does. *)
 Definition call_known_closure_sound_statement : Prop :=
-  ∀ (known : known_closures) (statics : static_env) (vars : env)
+  ∀ (known : known_closures) (statics : static_env) (hp : heap) (vars : env)
     (conts : cont_env) (ap : apply_expr),
     (∀ (s : symbol) (const : static_const),
       (s, const) ∈ known ->
       ∃ allocated : statically_allocated_value,
         eval_static_const vars const = Some allocated
         ∧ lookup s (static_values statics) = Some allocated) ->
-    step (State (Apply (call_known_closure known ap)) vars conts statics)
-    = step (State (Apply ap) vars conts statics).
+    step (State (Apply (call_known_closure known ap)) vars conts statics hp)
+    = step (State (Apply ap) vars conts statics hp).
 
 (* The action of a renaming on what is known: the constants are renamed,
    the symbols are not. *)

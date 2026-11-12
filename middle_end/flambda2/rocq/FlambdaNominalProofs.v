@@ -735,15 +735,15 @@ Qed.
    under the maps of the renaming, and the environments match under
    them. *)
 Theorem renamed_equivalent (r : renaming) (e : expr) (vars vars' : env)
-    (conts conts' : cont_env) (statics : static_env) :
+    (conts conts' : cont_env) (statics : static_env) (hp : heap) :
   code_closed e = true ->
   (∀ x : variable,
     var_free_in_expr x e ->
     lookup (rename_variable r x) vars' = lookup x vars) ->
   (∀ k : continuation,
     cont_free_in_expr k e -> conts_agree_at r k conts conts') ->
-  equivalent (State e vars conts statics)
-    (State (rename_expr r e) vars' conts' statics).
+  equivalent (State e vars conts statics hp)
+    (State (rename_expr r e) vars' conts' statics hp).
 Proof.
   intros Hclosed Hvars Hconts. apply matched_equivalent.
   apply (State_matches (variables_map r) (continuations_map r)).
@@ -760,12 +760,12 @@ Qed.
 (* One expression under environments that agree on its free names. No
    name is renamed, and nothing is asked of its code. *)
 Lemma coincide_equivalent (e : expr) (vars vars' : env)
-    (conts conts' : cont_env) (statics : static_env) :
+    (conts conts' : cont_env) (statics : static_env) (hp : heap) :
   (∀ x : variable, var_free_in_expr x e -> lookup x vars' = lookup x vars) ->
   (∀ k : continuation,
     cont_free_in_expr k e -> conts_agree_at identity_renaming k conts conts')
   ->
-  equivalent (State e vars conts statics) (State e vars' conts' statics).
+  equivalent (State e vars conts statics hp) (State e vars' conts' statics hp).
 Proof.
   intros Hvars Hconts. apply matched_equivalent.
   apply (State_matches (variables_map identity_renaming)
@@ -1123,11 +1123,11 @@ Qed.
 
 Theorem unused_let : unused_let_statement.
 Proof.
-  intros x kind d body Hunused vars conts statics.
+  intros x kind d body Hunused vars conts statics hp.
   destruct (eval_named statics vars d) as [v | ] eqn:Hd;
     [ destruct (kind_eqb (kind_of_value v) kind) eqn:Hkind | ].
   - apply equivalent_refines.
-    apply (equivalent_trans _ (State body ((x, v) :: vars) conts statics));
+    apply (equivalent_trans _ (State body ((x, v) :: vars) conts statics hp));
       [ apply step_equivalent; rewrite step_let, Hd, Hkind; reflexivity | ].
     apply coincide_equivalent.
     + intros y Hy. simpl.
@@ -1140,7 +1140,7 @@ Qed.
 
 Theorem unused_let_cont : unused_let_cont_statement.
 Proof.
-  intros k h body Hunused vars conts statics.
+  intros k h body Hunused vars conts statics hp.
   eapply equivalent_trans;
     [ apply step_equivalent, step_let_cont_non_recursive | ].
   apply coincide_equivalent; [ reflexivity | ].
@@ -1152,7 +1152,7 @@ Qed.
 
 Theorem unused_let_cont_recursive : unused_let_cont_recursive_statement.
 Proof.
-  intros handlers body Hstatics Hunused vars conts statics.
+  intros handlers body Hstatics Hunused vars conts statics hp.
   eapply equivalent_trans;
     [ apply step_equivalent; rewrite step_let_cont_recursive, Hstatics;
       reflexivity

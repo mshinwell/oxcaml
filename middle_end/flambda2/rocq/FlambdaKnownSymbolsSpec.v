@@ -454,14 +454,14 @@ Definition fold_function_slot_sound_statement : Prop :=
 (* A call is folded to a call that steps as it does, in any such static
    environment. *)
 Definition fold_known_apply_sound_statement : Prop :=
-  ∀ (sets run_statics : static_env) (vars : env) (conts : cont_env)
+  ∀ (sets run_statics : static_env) (hp : heap) (vars : env) (conts : cont_env)
     (ap : apply_expr),
     (∀ (s : symbol) (allocated allocated' : statically_allocated_value),
       lookup s (static_values sets) = Some allocated ->
       lookup s (static_values run_statics) = Some allocated' ->
       same_set allocated allocated') ->
-    step (State (Apply (fold_known_apply sets ap)) vars conts run_statics)
-    = step (State (Apply ap) vars conts run_statics).
+    step (State (Apply (fold_known_apply sets ap)) vars conts run_statics hp)
+    = step (State (Apply ap) vars conts run_statics hp).
 
 (* The rewrite commutes with renaming, which renames no symbol: what is
    known is the same, a defining expression that is folded has no

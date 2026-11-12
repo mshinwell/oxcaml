@@ -762,13 +762,13 @@ Qed.
 
 Inductive state_erased : state -> state -> Prop :=
   | State_erased (e : expr) (vars : env) (conts conts' : cont_env)
-      (statics statics' : static_env) :
+      (statics statics' : static_env) (hp : heap) :
     expr_avoids D e = true ->
     env_avoids vars ->
     conts_erased conts conts' ->
     statics_erased statics statics' ->
-    state_erased (State e vars conts statics)
-      (State (erase_expr D e) vars conts' statics').
+    state_erased (State e vars conts statics hp)
+      (State (erase_expr D e) vars conts' statics' hp).
 
 (* A value that avoids the names removed, as a property: that of a
    partial application is that of the value it calls and of its
@@ -860,7 +860,7 @@ Qed.
 Lemma call_code_erased (closure : value) (c : code) (vs : list value)
     (args_arity return_arity : arity)
     (return_to return_to' exn_to exn_to' : cont_value)
-    (statics statics' : static_env) :
+    (statics statics' : static_env) (hp : heap) :
   code_avoids D c = true ->
   value_avoids D closure = true ->
   forallb (value_avoids D) vs = true ->
@@ -868,9 +868,9 @@ Lemma call_code_erased (closure : value) (c : code) (vs : list value)
   cont_erased exn_to exn_to' ->
   statics_erased statics statics' ->
   result_simulated state_erased
-    (call_code closure c vs args_arity return_arity return_to exn_to statics)
+    (call_code closure c vs args_arity return_arity return_to exn_to statics hp)
     (call_code closure (erase_code D c) vs args_arity return_arity return_to'
-       exn_to' statics').
+       exn_to' statics' hp).
 Proof.
   intros Hc Hclosure Hvs Hreturn Hexn Hstatics.
   destruct c as [params my_closure ret exn metadata body].
@@ -900,7 +900,7 @@ Qed.
 Lemma run_call_erased (return_partial return_partial' : value -> step_result)
     (shape shape' : option call_shape) (return_arity : arity)
     (return_to return_to' exn_to exn_to' : cont_value)
-    (statics statics' : static_env) :
+    (statics statics' : static_env) (hp : heap) :
   shapes_related (fun c c' => c' = erase_code D c ∧ code_avoids D c = true)
     shape shape' ->
   shape_values_all (fun v => value_avoids D v = true) shape ->
@@ -912,9 +912,9 @@ Lemma run_call_erased (return_partial return_partial' : value -> step_result)
     result_simulated state_erased (return_partial partial)
       (return_partial' partial)) ->
   result_simulated state_erased
-    (run_call return_partial shape return_arity return_to exn_to statics)
+    (run_call return_partial shape return_arity return_to exn_to statics hp)
     (run_call return_partial' shape' return_arity return_to' exn_to'
-       statics').
+       statics' hp).
 Proof.
   intros Hshapes Hvalues Hreturn Hexn Hstatics Hpartial.
   destruct Hshapes
@@ -935,12 +935,12 @@ Proof.
 Qed.
 
 Lemma apply_cont_value_erased (c c' : cont_value) (vs : list value)
-    (statics statics' : static_env) :
+    (statics statics' : static_env) (hp : heap) :
   cont_erased c c' ->
   forallb (value_avoids D) vs = true ->
   statics_erased statics statics' ->
-  result_simulated state_erased (apply_cont_value c vs statics)
-    (apply_cont_value c' vs statics').
+  result_simulated state_erased (apply_cont_value c vs statics hp)
+    (apply_cont_value c' vs statics' hp).
 Proof.
   intros Hc Hvs Hstatics. revert vs Hvs.
   induction Hc
@@ -985,7 +985,7 @@ Qed.
 Lemma call_function_erased (callee : value) (kind : call_kind)
     (vs : list value) (args_arity return_arity : arity)
     (return_to return_to' exn_to exn_to' : cont_value)
-    (statics statics' : static_env) :
+    (statics statics' : static_env) (hp : heap) :
   value_avoids D callee = true ->
   forallb (value_avoids D) vs = true ->
   cont_erased return_to return_to' ->
@@ -993,9 +993,9 @@ Lemma call_function_erased (callee : value) (kind : call_kind)
   statics_erased statics statics' ->
   result_simulated state_erased
     (call_function callee kind vs args_arity return_arity return_to exn_to
-       statics)
+       statics hp)
     (call_function callee kind vs args_arity return_arity return_to' exn_to'
-       statics').
+       statics' hp).
 Proof.
   intros Hcallee Hvs Hreturn Hexn Hstatics. unfold call_function.
   apply run_call_erased; try assumption.
@@ -1020,7 +1020,7 @@ Qed.
 Lemma erased_step (s s' : state) :
   state_erased s s' -> result_simulated state_erased (step s) (step s').
 Proof.
-  intros [e vars conts conts' statics statics' He Hvars Hconts Hstatics].
+  intros [e vars conts conts' statics statics' hp He Hvars Hconts Hstatics].
   destruct e
     as [ x kind d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
@@ -1231,7 +1231,7 @@ Theorem drop_statics_refines : drop_statics_refines_statement.
 Proof.
   intros D e e'. unfold drop_statics.
   destruct (expr_avoids D e) eqn:He; [ | discriminate ].
-  intros [= <-] vars conts statics Hfree.
+  intros [= <-] vars conts statics hp Hfree.
   unfold envs_free_of in Hfree.
   apply andb_true_iff in Hfree as [Hfree Hstatics].
   apply andb_true_iff in Hfree as [Hvars Hconts].
@@ -1249,5 +1249,5 @@ Theorem drop_statics_program_refines :
   drop_statics_program_refines_statement.
 Proof.
   intros D e e' Hdrop.
-  exact (drop_statics_refines D e e' Hdrop [] [] empty_static_env eq_refl).
+  exact (drop_statics_refines D e e' Hdrop [] [] empty_static_env _ eq_refl).
 Qed.

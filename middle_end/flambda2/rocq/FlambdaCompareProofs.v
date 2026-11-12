@@ -789,12 +789,13 @@ Qed.
 
 Inductive state_matches : state -> state -> Prop :=
   | State_matches (vm km : name_map) (e e' : expr) (vars vars' : env)
-      (conts conts' : cont_env) (statics statics' : static_env) :
+      (conts conts' : cont_env) (statics statics' : static_env) (hp : heap) :
     expr_eqb vm km e e' = true ->
     envs_match (fun x => var_free_in_expr x e) vm vars vars' ->
     conts_match (fun k => cont_free_in_expr k e) km conts conts' ->
     statics_match statics statics' ->
-    state_matches (State e vars conts statics) (State e' vars' conts' statics').
+    state_matches (State e vars conts statics hp)
+      (State e' vars' conts' statics' hp).
 
 (* A continuation closure matches itself, by the reflexivity of the
    comparison. *)
@@ -915,15 +916,15 @@ Qed.
 Lemma call_code_match (closure : value) (c c' : code) (vs : list value)
     (args_arity return_arity : arity)
     (return_to return_to' exn_to exn_to' : cont_value)
-    (statics statics' : static_env) :
+    (statics statics' : static_env) (hp : heap) :
   code_eqb c c' = true ->
   statics_match statics statics' ->
   cont_matches return_to return_to' ->
   cont_matches exn_to exn_to' ->
   result_related state_matches
-    (call_code closure c vs args_arity return_arity return_to exn_to statics)
+    (call_code closure c vs args_arity return_arity return_to exn_to statics hp)
     (call_code closure c' vs args_arity return_arity return_to' exn_to'
-       statics').
+       statics' hp).
 Proof.
   intros Hc Hstatics Hreturn Hexn.
   destruct c as [params my_closure ret exn metadata body],
@@ -964,7 +965,7 @@ Qed.
 Lemma run_call_match (return_partial return_partial' : value -> step_result)
     (shape shape' : option call_shape) (return_arity : arity)
     (return_to return_to' exn_to exn_to' : cont_value)
-    (statics statics' : static_env) :
+    (statics statics' : static_env) (hp : heap) :
   shapes_related (fun c c' => code_eqb c c' = true) shape shape' ->
   statics_match statics statics' ->
   cont_matches return_to return_to' ->
@@ -973,9 +974,9 @@ Lemma run_call_match (return_partial return_partial' : value -> step_result)
     result_related state_matches (return_partial partial)
       (return_partial' partial)) ->
   result_related state_matches
-    (run_call return_partial shape return_arity return_to exn_to statics)
+    (run_call return_partial shape return_arity return_to exn_to statics hp)
     (run_call return_partial' shape' return_arity return_to' exn_to'
-       statics').
+       statics' hp).
 Proof.
   intros Hshapes Hstatics Hreturn Hexn Hpartial.
   destruct Hshapes
@@ -1002,11 +1003,11 @@ Qed.
 (* Applying matching continuations to the same values, under matching
    static environments. *)
 Lemma apply_cont_value_match (c c' : cont_value) (vs : list value)
-    (statics statics' : static_env) :
+    (statics statics' : static_env) (hp : heap) :
   cont_matches c c' ->
   statics_match statics statics' ->
-  result_related state_matches (apply_cont_value c vs statics)
-    (apply_cont_value c' vs statics').
+  result_related state_matches (apply_cont_value c vs statics hp)
+    (apply_cont_value c' vs statics' hp).
 Proof.
   intros Hc Hstatics. revert c' vs Hc.
   assert (Hclosure :
@@ -1029,8 +1030,8 @@ Proof.
            ∧ lookup k recursive = None)
         km conts conts' ->
       result_related state_matches
-        (apply_cont_value (Closure h vars conts recursive) vs statics)
-        (apply_cont_value (Closure h' vars' conts' recursive') vs statics')).
+        (apply_cont_value (Closure h vars conts recursive) vs statics hp)
+        (apply_cont_value (Closure h' vars' conts' recursive') vs statics' hp)).
   { intros vs vm km km' [params metadata handler]
       [params' metadata' handler'] vars vars' conts conts' recursive
       recursive' Hnames Hh Hrec Hvars Hconts.
@@ -1068,19 +1069,19 @@ Proof.
       (return_to return_to' exn_to exn_to' : cont_value),
       (∀ (c' : cont_value) (vs' : list value),
         cont_matches return_to c' ->
-        result_related state_matches (apply_cont_value return_to vs' statics)
-          (apply_cont_value c' vs' statics')) ->
+        result_related state_matches (apply_cont_value return_to vs' statics hp)
+          (apply_cont_value c' vs' statics' hp)) ->
       cont_matches return_to return_to' ->
       cont_matches exn_to exn_to' ->
       result_related state_matches
         (apply_cont_value
            (Over_application remaining remaining_arity return_arity return_to
               exn_to)
-           vs statics)
+           vs statics hp)
         (apply_cont_value
            (Over_application remaining remaining_arity return_arity
               return_to' exn_to')
-           vs statics')).
+           vs statics' hp)).
   { intros vs remaining remaining_arity return_arity return_to return_to'
       exn_to exn_to' IHreturn Hreturn Hexn.
     rewrite !apply_cont_value_over_application.
@@ -1125,15 +1126,15 @@ Qed.
 Lemma call_function_match (callee : value) (kind : call_kind)
     (vs : list value) (args_arity return_arity : arity)
     (return_to return_to' exn_to exn_to' : cont_value)
-    (statics statics' : static_env) :
+    (statics statics' : static_env) (hp : heap) :
   statics_match statics statics' ->
   cont_matches return_to return_to' ->
   cont_matches exn_to exn_to' ->
   result_related state_matches
     (call_function callee kind vs args_arity return_arity return_to exn_to
-       statics)
+       statics hp)
     (call_function callee kind vs args_arity return_arity return_to' exn_to'
-       statics').
+       statics' hp).
 Proof.
   intros Hstatics Hreturn Hexn. unfold call_function.
   apply run_call_match; try assumption.
@@ -1171,7 +1172,7 @@ Qed.
 Lemma matched_step (s s' : state) :
   state_matches s s' -> result_related state_matches (step s) (step s').
 Proof.
-  intros [vm km e e' vars vars' conts conts' statics statics' He Hvars
+  intros [vm km e e' vars vars' conts conts' statics statics' hp He Hvars
             Hconts Hstatics].
   destruct e
     as [ x kind d body | bindings body | k h body | handlers body | ap | ac
@@ -1318,7 +1319,7 @@ Proof. apply (bisimulation_equivalent state_matches matched_step). Qed.
 
 Theorem expr_eqb_sound : expr_eqb_sound_statement.
 Proof.
-  intros e e' Heq vars conts statics. apply matched_equivalent.
+  intros e e' Heq vars conts statics hp. apply matched_equivalent.
   apply (State_matches [] []);
     [ exact Heq | apply envs_match_same | apply conts_match_same
     | apply statics_match_same ].

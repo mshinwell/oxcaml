@@ -53,33 +53,33 @@ Local Open Scope Z_scope.
 
 Theorem expr_refines_under_weaken : expr_refines_under_weaken_statement.
 Proof.
-  intros tenv source target Hrefines vars conts statics _. apply Hrefines.
+  intros tenv source target Hrefines vars conts statics hp _. apply Hrefines.
 Qed.
 
 Theorem expr_refines_under_create : expr_refines_under_create_statement.
 Proof.
   intros source target. split.
-  - intros Hunder vars conts statics. apply Hunder, create_satisfied.
+  - intros Hunder vars conts statics hp. apply Hunder, create_satisfied.
   - apply expr_refines_under_weaken.
 Qed.
 
 Theorem expr_equivalent_under_refines
     : expr_equivalent_under_refines_statement.
 Proof.
-  intros tenv e e' Hequivalent vars conts statics Hsat.
+  intros tenv e e' Hequivalent vars conts statics hp Hsat.
   apply equivalent_refines, Hequivalent, Hsat.
 Qed.
 
 Theorem expr_refines_under_trans : expr_refines_under_trans_statement.
 Proof.
-  intros tenv e e' e'' Hfirst Hsecond vars conts statics Hsat.
-  exact (refines_trans _ _ _ (Hfirst vars conts statics Hsat)
-           (Hsecond vars conts statics Hsat)).
+  intros tenv e e' e'' Hfirst Hsecond vars conts statics hp Hsat.
+  exact (refines_trans _ _ _ (Hfirst vars conts statics hp Hsat)
+           (Hsecond vars conts statics hp Hsat)).
 Qed.
 
 Theorem bottom_refines_under : bottom_refines_under_statement.
 Proof.
-  intros tenv e e' Hbottom vars conts statics Hsat. exfalso.
+  intros tenv e e' Hbottom vars conts statics hp Hsat. exfalso.
   apply (bottom_not_satisfied tenv statics vars Hbottom).
   apply env_satisfies_strictly_env_satisfies. exact Hsat.
 Qed.
@@ -114,7 +114,7 @@ Qed.
 
 Theorem apply_cont_canonical : apply_cont_canonical_statement.
 Proof.
-  intros tenv k args args' action Hargs vars conts statics Hsat.
+  intros tenv k args args' action Hargs vars conts statics hp Hsat.
   apply step_eq_equivalent. rewrite !step_apply_cont. simpl.
   rewrite (canonical_in_terms_simples tenv statics vars args args' Hsat
              Hargs).
@@ -123,7 +123,7 @@ Qed.
 
 Theorem let_simple_canonical : let_simple_canonical_statement.
 Proof.
-  intros tenv x kind s canonical body Hcanonical vars conts statics Hsat.
+  intros tenv x kind s canonical body Hcanonical vars conts statics hp Hsat.
   apply let_equivalent_step; [ | intros v _ _; apply equivalent_refl ].
   exact (canonical_in_terms_sound tenv statics vars s canonical Hsat
            Hcanonical).
@@ -131,7 +131,7 @@ Qed.
 
 Theorem switch_known : switch_known_statement.
 Proof.
-  intros tenv scrutinee i arms ac Hknown Hfind vars conts statics Hsat.
+  intros tenv scrutinee i arms ac Hknown Hfind vars conts statics hp Hsat.
   apply step_equivalent. rewrite step_switch.
   rewrite <- (canonical_in_terms_sound tenv statics vars scrutinee _ Hsat
                 Hknown).
@@ -350,7 +350,7 @@ Qed.
 Theorem let_refines_under : let_refines_under_statement.
 Proof.
   intros tenv x declared d body body' kind Hwf Hfresh Hkind Hbody vars conts
-    statics Hsat.
+    statics hp Hsat.
   apply let_refines_step; [ reflexivity | intros v Hv _ ].
   apply Hbody. apply add_variable_definition_env_satisfies_strictly;
     [ exact Hwf | exact Hfresh | exact (Hkind statics vars v Hsat Hv)
@@ -359,7 +359,7 @@ Qed.
 
 Theorem let_declared_refines_under : let_declared_refines_under_statement.
 Proof.
-  intros tenv x declared d body body' Hwf Hfresh Hbody vars conts statics
+  intros tenv x declared d body body' Hwf Hfresh Hbody vars conts statics hp
     Hsat.
   apply let_refines_step; [ reflexivity | intros v Hv Hkind ].
   apply Hbody. apply add_variable_definition_env_satisfies_strictly;
@@ -369,7 +369,7 @@ Qed.
 Theorem let_typed_refines_under : let_typed_refines_under_statement.
 Proof.
   intros tenv x declared d body body' ty Hwf Hfresh Hfree Htype Hbody vars
-    conts statics Hsat.
+    conts statics hp Hsat.
   apply let_refines_step; [ reflexivity | intros v Hv _ ].
   pose proof (Htype statics vars v Hsat Hv) as Hty.
   apply Hbody. apply replace_equation_env_satisfies_strictly.
@@ -393,7 +393,7 @@ Qed.
 Theorem let_simple_refines_under : let_simple_refines_under_statement.
 Proof.
   intros tenv x declared s body body' kind result Hwf Hfresh Hscope Hkind
-    Hadd Hbody vars conts statics Hsat.
+    Hadd Hbody vars conts statics hp Hsat.
   apply let_refines_step; [ reflexivity | intros v Hv _ ]. simpl in Hv.
   assert (Hother :
     eval_simple ((x, v) :: vars) s = eval_simple vars s).
@@ -420,14 +420,14 @@ Qed.
 
 Theorem let_cont_body_refines_under : let_cont_body_refines_under_statement.
 Proof.
-  intros tenv k h body body' Hbody vars conts statics Hsat.
+  intros tenv k h body body' Hbody vars conts statics hp Hsat.
   apply let_cont_non_recursive_refines_step, Hbody, Hsat.
 Qed.
 
 Theorem let_cont_recursive_body_refines_under
     : let_cont_recursive_body_refines_under_statement.
 Proof.
-  intros tenv handlers body body' Hbody vars conts statics Hsat.
+  intros tenv handlers body body' Hbody vars conts statics hp Hsat.
   apply let_cont_recursive_refines_step; [ reflexivity | intros _ ].
   apply Hbody, Hsat.
 Qed.
@@ -479,7 +479,7 @@ Lemma handler_refines_under_where (tenv : Typing_env.t)
     handler handler'.
 Proof.
   intros Hinvariant Hdistinct Hfresh Hhandler Hsat.
-  intros vs handler_vars conts' statics' Hextend _ Hbind.
+  intros vs handler_vars conts' statics' hp Hextend _ Hbind.
   pose proof (bind_params_length params vs vars handler_vars Hbind)
     as Hlength.
   assert (Hkinds : length (map kind_of_value vs) = length params).
@@ -500,7 +500,7 @@ Theorem let_cont_handler_refines_under
     : let_cont_handler_refines_under_statement.
 Proof.
   intros tenv k params metadata handler handler' body Hinvariant Hdistinct
-    Hfresh Hhandler vars conts statics Hsat.
+    Hfresh Hhandler vars conts statics hp Hsat.
   apply (let_cont_handler_refines_where (statics_extend statics)
            (fun s s' Hs Hs' => statics_extend_trans statics s s' Hs Hs'));
     [ apply statics_extend_refl | ].
@@ -513,7 +513,7 @@ Theorem let_cont_recursive_handler_refines_under
     : let_cont_recursive_handler_refines_under_statement.
 Proof.
   intros tenv before k params metadata handler handler' after body
-    Hinvariant Hdistinct Hfresh Hbinds Hhandler vars conts statics Hsat.
+    Hinvariant Hdistinct Hfresh Hbinds Hhandler vars conts statics hp Hsat.
   pose proof (handler_refines_under_where tenv statics vars params
                 (hm_params_kinds metadata) handler handler' Hinvariant
                 Hdistinct Hfresh Hhandler Hsat)

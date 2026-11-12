@@ -171,7 +171,7 @@ Definition stack : Type := list stack_entry.
    stack. *)
 Inductive stack_result : Type :=
   | Stack_step (s : state) (st : stack)
-  | Stack_exit (k : continuation) (vs : list value)
+  | Stack_exit (k : continuation) (vs : list value) (hp : heap)
   | Stack_undefined.
 
 (* How control leaves what is running: by applying the continuation [k],
@@ -193,6 +193,7 @@ Inductive leaving : Type :=
 Definition stack_run_call (return_partial : value -> stack_result)
     (shape : option call_shape) (return_arity : arity)
     (return_to : cont_value) (extra : list value) (statics : static_env)
+      (hp : heap)
     (st : stack) : stack_result :=
   match shape with
   | Some (Full_call closure c vs args_arity) =>
@@ -200,18 +201,18 @@ Definition stack_run_call (return_partial : value -> stack_result)
     let exn := code_exn_continuation c in
     match
       call_code closure c vs args_arity return_arity (Outer ret) (Outer exn)
-        statics
+        statics hp
     with
     | Step s =>
       Stack_step s (Trap (Outer exn) :: Call ret exn return_to extra :: st)
-    | Exit _ _ | Undefined => Stack_undefined
+    | Exit _ _ _ | Undefined => Stack_undefined
     end
   | Some (Over_call closure c vs remaining args_arity remaining_arity) =>
     let ret := code_return_continuation c in
     let exn := code_exn_continuation c in
     match
       call_code closure c vs args_arity (code_result_arity c) (Outer ret)
-        (Outer exn) statics
+        (Outer exn) statics hp
     with
     | Step s =>
       Stack_step s
@@ -219,7 +220,7 @@ Definition stack_run_call (return_partial : value -> stack_result)
          :: Call_then ret exn remaining remaining_arity return_arity
               return_to extra
          :: st)
-    | Exit _ _ | Undefined => Stack_undefined
+    | Exit _ _ _ | Undefined => Stack_undefined
     end
   | Some (Partial_call partial) => return_partial partial
   | None => Stack_undefined
@@ -256,23 +257,23 @@ Definition stack_run_call (return_partial : value -> stack_result)
    [stack_agrees_statement] is about units on which none of this
    happens. Discrepancies C5-1 and C5-2. *)
 Fixpoint unwind (st : stack) (how : leaving) (vs : list value)
-    (statics : static_env) : stack_result :=
+    (statics : static_env) (hp : heap) : stack_result :=
   match how, st with
   | Raising, Trap c :: rest =>
-    match apply_cont_value c vs statics with
+    match apply_cont_value c vs statics hp with
     | Step s => Stack_step s rest
-    | Exit k vs => unwind rest (Leaving_by k) vs statics
+    | Exit k vs hp => unwind rest (Leaving_by k) vs statics hp
     | Undefined => Stack_undefined
     end
   | Raising, ([] | Call _ _ _ _ :: _ | Call_then _ _ _ _ _ _ _ :: _) =>
     Stack_undefined
-  | Leaving_by k, ([] | [Trap _]) => Stack_exit k vs
+  | Leaving_by k, ([] | [Trap _]) => Stack_exit k vs hp
   | Leaving_by k, Trap _ :: Call ret _ return_to _ :: rest =>
     if Pos.eqb k ret
     then
-      match apply_cont_value return_to vs statics with
+      match apply_cont_value return_to vs statics hp with
       | Step s => Stack_step s rest
-      | Exit k vs => unwind rest (Leaving_by k) vs statics
+      | Exit k vs hp => unwind rest (Leaving_by k) vs statics hp
       | Undefined => Stack_undefined
       end
     else Stack_undefined
@@ -286,14 +287,14 @@ Fixpoint unwind (st : stack) (how : leaving) (vs : list value)
       | [v] =>
         stack_run_call
           (fun partial =>
-             match apply_cont_value return_to [partial] statics with
+             match apply_cont_value return_to [partial] statics hp with
              | Step s => Stack_step s rest
-             | Exit k vs => unwind rest (Leaving_by k) vs statics
+             | Exit k vs hp => unwind rest (Leaving_by k) vs statics hp
              | Undefined => Stack_undefined
              end)
           (shape_of_call statics v Indirect remaining remaining_arity
              return_arity)
-          return_arity return_to extra statics rest
+          return_arity return_to extra statics hp rest
       | _ => Stack_undefined
       end
     else Stack_undefined
@@ -301,16 +302,16 @@ Fixpoint unwind (st : stack) (how : leaving) (vs : list value)
   | Leaving_by k,
     (Call _ exn _ extra | Call_then _ exn _ _ _ _ extra) :: rest =>
     if Pos.eqb k exn
-    then unwind rest Raising (vs ++ extra) statics
+    then unwind rest Raising (vs ++ extra) statics hp
     else Stack_undefined
   end.
 
 (* Going to what a continuation stands for, under the stack [st]. *)
 Definition stack_enter (c : cont_value) (vs : list value)
-    (statics : static_env) (st : stack) : stack_result :=
-  match apply_cont_value c vs statics with
+    (statics : static_env) (hp : heap) (st : stack) : stack_result :=
+  match apply_cont_value c vs statics hp with
   | Step s => Stack_step s st
-  | Exit k vs => unwind st (Leaving_by k) vs statics
+  | Exit k vs hp => unwind st (Leaving_by k) vs statics hp
   | Undefined => Stack_undefined
   end.
 
@@ -322,7 +323,7 @@ Definition stack_enter (c : cont_value) (vs : list value)
    under the stack. A partial application is given to the return
    continuation of the call, and nothing is put on the stack. *)
 Definition stack_call (ap : apply_expr) (vars : env) (conts : cont_env)
-    (statics : static_env) (st : stack) : stack_result :=
+    (statics : static_env) (hp : heap) (st : stack) : stack_result :=
   match
     eval_simple vars (ap_callee ap), eval_simples vars (ap_args ap),
     eval_simples vars (exn_extra_simples ap)
@@ -330,10 +331,10 @@ Definition stack_call (ap : apply_expr) (vars : env) (conts : cont_env)
   | Some callee, Some vs, Some extra =>
     let return_to := resolve (ap_continuation ap) conts in
     stack_run_call
-      (fun partial => stack_enter return_to [partial] statics st)
+      (fun partial => stack_enter return_to [partial] statics hp st)
       (shape_of_call statics callee (ap_call_kind ap) vs (ap_args_arity ap)
          (ap_return_arity ap))
-      (ap_return_arity ap) return_to extra statics st
+      (ap_return_arity ap) return_to extra statics hp st
   | _, _, _ => Stack_undefined
   end.
 
@@ -341,19 +342,20 @@ Definition stack_call (ap : apply_expr) (vars : env) (conts : cont_env)
    its continuation; or it is a raise, which goes to the handler on top
    of the stack. *)
 Definition stack_apply_cont (ac : apply_cont) (vars : env)
-    (conts : cont_env) (statics : static_env) (st : stack) : stack_result :=
+    (conts : cont_env) (statics : static_env) (hp : heap)
+      (st : stack) : stack_result :=
   match eval_simples vars (ac_args ac) with
   | Some vs =>
     let c := resolve (ac_continuation ac) conts in
     match ac_trap_action ac with
-    | None => stack_enter c vs statics st
+    | None => stack_enter c vs statics hp st
     | Some (Push exn_handler) =>
-      stack_enter c vs statics (Trap (resolve exn_handler conts) :: st)
+      stack_enter c vs statics hp (Trap (resolve exn_handler conts) :: st)
     | Some (Pop _ _) =>
-      if is_raise ac then unwind st Raising vs statics
+      if is_raise ac then unwind st Raising vs statics hp
       else
         match st with
-        | Trap _ :: rest => stack_enter c vs statics rest
+        | Trap _ :: rest => stack_enter c vs statics hp rest
         | [] | Call _ _ _ _ :: _ | Call_then _ _ _ _ _ _ _ :: _ =>
           Stack_undefined
         end
@@ -366,14 +368,16 @@ Definition stack_apply_cont (ac : apply_cont) (vars : env)
 Definition stack_step (s : state) (st : stack) : stack_result :=
   match state_expr s with
   | Apply ap =>
-    stack_call ap (state_vars s) (state_conts s) (state_statics s) st
+    stack_call ap (state_vars s) (state_conts s) (state_statics s)
+      (state_heap s) st
   | Apply_cont ac =>
-    stack_apply_cont ac (state_vars s) (state_conts s) (state_statics s) st
+    stack_apply_cont ac (state_vars s) (state_conts s) (state_statics s)
+      (state_heap s) st
   | Let _ _ _ _ | Let_static _ _ | Let_cont_non_recursive _ _ _
   | Let_cont_recursive _ _ | Switch _ _ | Invalid =>
     match step s with
     | Step s' => Stack_step s' st
-    | Exit _ _ | Undefined => Stack_undefined
+    | Exit _ _ _ | Undefined => Stack_undefined
     end
   end.
 
@@ -391,7 +395,7 @@ Fixpoint stack_run (fuel : nat) (s : state) (st : stack) : stack_result :=
 (* The behaviours, as FlambdaSemanticsSpec.behaves. *)
 Definition stack_behaves (s : state) (st : stack) (b : behaviour) : Prop :=
   match b with
-  | Exits k vs => ∃ fuel : nat, stack_run fuel s st = Stack_exit k vs
+  | Exits k vs hp => ∃ fuel : nat, stack_run fuel s st = Stack_exit k vs hp
   | Goes_wrong => ∃ fuel : nat, stack_run fuel s st = Stack_undefined
   | Diverges =>
     ∀ fuel : nat,
@@ -414,9 +418,10 @@ Definition stack_agrees_statement : Prop :=
   ∀ (unit_exn : continuation) (e : expr) (b : behaviour),
     binders_distinct e = true ->
     traps_well_formed unit_exn e = true ->
-    stack_behaves (State e [] [] empty_static_env) (initial_stack unit_exn)
+    stack_behaves (State e [] [] empty_static_env empty_heap)
+      (initial_stack unit_exn)
       b
-    <-> behaves (State e [] [] empty_static_env) b.
+    <-> behaves (State e [] [] empty_static_env empty_heap) b.
 
 (* Two handlers are installed, [outer] then [inner], and the body raises
    to [outer]. By the names the raise goes to [outer], which leaves with
@@ -456,12 +461,12 @@ Definition raise_over_handler : expr :=
 Definition stack_differs_statement : Prop :=
   let unit_exn : continuation := 1%positive in
   let leave : continuation := 2%positive in
-  let s := State raise_over_handler [] [] empty_static_env in
+  let s := State raise_over_handler [] [] empty_static_env empty_heap in
   binders_distinct raise_over_handler = true
   ∧ traps_well_formed unit_exn raise_over_handler = false
-  ∧ behaves s (Exits leave [Value_const (Tagged_immediate 2%Z)])
+  ∧ behaves s (Exits leave [Value_const (Tagged_immediate 2%Z)] empty_heap)
   ∧ stack_behaves s (initial_stack unit_exn)
-      (Exits leave [Value_const (Tagged_immediate 1%Z)]).
+      (Exits leave [Value_const (Tagged_immediate 1%Z)] empty_heap).
 
 (* Code whose return and exception continuations are one name, called by
    a unit. The body of the code raises. By the names the raise goes to
@@ -497,12 +502,13 @@ Definition raise_in_code_of_one_continuation : expr :=
 Definition stack_needs_distinct_binders_statement : Prop :=
   let unit_exn : continuation := 1%positive in
   let leave : continuation := 2%positive in
-  let s := State raise_in_code_of_one_continuation [] [] empty_static_env in
+  let s := State raise_in_code_of_one_continuation [] [] empty_static_env
+    empty_heap in
   binders_distinct raise_in_code_of_one_continuation = false
   ∧ traps_well_formed unit_exn raise_in_code_of_one_continuation = true
-  ∧ behaves s (Exits leave [Value_const (Tagged_immediate 1%Z)])
+  ∧ behaves s (Exits leave [Value_const (Tagged_immediate 1%Z)] empty_heap)
   ∧ stack_behaves s (initial_stack unit_exn)
-      (Exits unit_exn [Value_const (Tagged_immediate 0%Z)]).
+      (Exits unit_exn [Value_const (Tagged_immediate 0%Z)] empty_heap).
 (* ======================================================================== *)
 (* Which [Apply_cont] is a raise                                            *)
 (* ======================================================================== *)
@@ -624,7 +630,7 @@ Definition rename_stack_result (r : renaming) (result : stack_result)
     : stack_result :=
   match result with
   | Stack_step s st => Stack_step (rename_state r s) (rename_stack r st)
-  | Stack_exit k vs => Stack_exit (rename_continuation r k) vs
+  | Stack_exit k vs hp => Stack_exit (rename_continuation r k) vs hp
   | Stack_undefined => Stack_undefined
   end.
 

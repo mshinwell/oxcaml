@@ -79,17 +79,17 @@ Qed.
 
 (* So the merged application steps as the arm does. *)
 Lemma merged_steps_as_arm (v : variable) (c : const) (merged : apply_cont)
-    (vars vars' : env) (conts : cont_env) (statics : static_env) :
+    (vars vars' : env) (conts : cont_env) (statics : static_env) (hp : heap) :
   (∀ x : variable, x <> v -> lookup x vars' = lookup x vars) ->
   step
-    (State (Apply_cont merged) ((v, Value_const c) :: vars') conts statics)
+    (State (Apply_cont merged) ((v, Value_const c) :: vars') conts statics hp)
   = step
       (State
          (Apply_cont
             (Apply_cont_expr (ac_continuation merged)
                (map (constant_for v c) (ac_args merged))
                (ac_trap_action merged)))
-         vars conts statics).
+         vars conts statics hp).
 Proof.
   intros Hagree. rewrite !step_apply_cont. simpl.
   rewrite (eval_simples_constant_for v c vars vars' _ Hagree). reflexivity.
@@ -129,13 +129,13 @@ Qed.
 (* ======================================================================== *)
 
 Lemma step_bind_tagged (v : variable) (i : Z) (body : expr) (vars : env)
-    (conts : cont_env) (statics : static_env) :
+    (conts : cont_env) (statics : static_env) (hp : heap) :
   lookup v vars = Some (Value_const (Naked_immediate i)) ->
   in_range (int_width Standard_naked_immediate) i = true ->
-  step (State (bind_tagged v body) vars conts statics)
+  step (State (bind_tagged v body) vars conts statics hp)
   = Step
       (State body ((v, Value_const (Tagged_immediate i)) :: vars) conts
-         statics).
+         statics hp).
 Proof.
   intros Hv Hrange. unfold bind_tagged. rewrite step_let.
   cbn [eval_named eval_simples eval_simple]. rewrite Hv.
@@ -144,11 +144,11 @@ Proof.
 Qed.
 
 Lemma step_bind_negated (v : variable) (i : Z) (c : const) (body : expr)
-    (vars : env) (conts : cont_env) (statics : static_env) :
+    (vars : env) (conts : cont_env) (statics : static_env) (hp : heap) :
   lookup v vars = Some (Value_const (Tagged_immediate i)) ->
   constant_of_arm By_tagging_and_negating i = Some c ->
-  step (State (bind_negated v body) vars conts statics)
-  = Step (State body ((v, Value_const c) :: vars) conts statics).
+  step (State (bind_negated v body) vars conts statics hp)
+  = Step (State body ((v, Value_const c) :: vars) conts statics hp).
 Proof.
   intros Hv Hc. unfold bind_negated. rewrite step_let.
   cbn [eval_named eval_simples eval_simple]. rewrite Hv.
@@ -176,8 +176,8 @@ Lemma merge_by_tagging_refines (v : variable) (merged : apply_cont)
   forallb (arm_is_merged By_tagging v merged) arms = true ->
   expr_refines (Switch (Var v) arms) (bind_tagged v (Apply_cont merged)).
 Proof.
-  intros Hall vars conts statics.
-  destruct (step_switch_cases (Var v) arms vars conts statics)
+  intros Hall vars conts statics hp.
+  destruct (step_switch_cases (Var v) arms vars conts statics hp)
     as [Hwrong | (w & i & ac & Hv & Hi & Hfind & Hstep)];
     [ apply step_undefined_refines, Hwrong | ].
   apply naked_immediate_of_value_some in Hi. subst w.
@@ -201,8 +201,8 @@ Lemma merge_by_negating_refines (v : variable) (merged : apply_cont)
   expr_refines (Switch (Var v) arms)
     (bind_tagged v (bind_negated v (Apply_cont merged))).
 Proof.
-  intros Hall vars conts statics.
-  destruct (step_switch_cases (Var v) arms vars conts statics)
+  intros Hall vars conts statics hp.
+  destruct (step_switch_cases (Var v) arms vars conts statics hp)
     as [Hwrong | (w & i & ac & Hv & Hi & Hfind & Hstep)];
     [ apply step_undefined_refines, Hwrong | ].
   apply naked_immediate_of_value_some in Hi. subst w.

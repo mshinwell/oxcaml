@@ -337,15 +337,15 @@ Definition envs_free_of (D : dropped) (vars : env) (conts : cont_env)
 Definition drop_statics_refines_statement : Prop :=
   ∀ (D : dropped) (e e' : expr),
     drop_statics D e = Some e' ->
-    ∀ (vars : env) (conts : cont_env) (statics : static_env),
+    ∀ (vars : env) (conts : cont_env) (statics : static_env) (hp : heap),
       envs_free_of D vars conts statics = true ->
-      refines (State e vars conts statics) (State e' vars conts statics).
+      refines (State e vars conts statics hp) (State e' vars conts statics hp).
 
 (* Refinement of terms run on their own. Refinement under all environments
    ([expr_refines]) implies it. *)
 Definition program_refines (source target : expr) : Prop :=
-  refines (State source [] [] empty_static_env)
-    (State target [] [] empty_static_env).
+  refines (State source [] [] empty_static_env empty_heap)
+    (State target [] [] empty_static_env empty_heap).
 
 Definition drop_statics_program_refines_statement : Prop :=
   ∀ (D : dropped) (e e' : expr),

@@ -81,7 +81,7 @@ Proof. destruct ap. reflexivity. Qed.
 Theorem apply_direct_proved : apply_direct_proved_statement.
 Proof.
   intros tenv ap ty slot alloc_mode entry function_type Hkind Hty Hproved
-    vars conts statics Hsat.
+    vars conts statics hp Hsat.
   destruct (eval_simple vars (ap_callee ap)) as [v | ] eqn:Heval.
   - destruct (callee_code_proved tenv statics vars (ap_callee ap) ty slot
                 alloc_mode entry function_type v Hsat Hty Hproved Heval)
@@ -90,14 +90,14 @@ Proof.
     simpl in Hkind, Heval. subst kind.
     exact (apply_indirect_known callee args extra k exn args_arity
              return_arity v (function_type_code_id function_type)
-             value_slots vars conts statics Heval Hclosure).
+             value_slots vars conts statics _ Heval Hclosure).
   - apply step_eq_equivalent. rewrite !step_apply. simpl. rewrite Heval.
     reflexivity.
 Qed.
 
 Theorem apply_canonical : apply_canonical_statement.
 Proof.
-  intros tenv ap callee args Hcallee Hargs vars conts statics Hsat.
+  intros tenv ap callee args Hcallee Hargs vars conts statics hp Hsat.
   apply step_eq_equivalent. rewrite !step_apply. simpl.
   rewrite (canonical_in_terms_sound tenv statics vars (ap_callee ap) callee
              Hsat Hcallee).
@@ -116,7 +116,7 @@ Lemma direct_call_kind_equivalent (tenv : Typing_env.t) (ap : apply_expr) :
 Proof.
   unfold direct_call_kind.
   destruct (ap_call_kind ap) as [code | ] eqn:Hkind.
-  - rewrite <- Hkind, with_call_kind_same. intros vars conts statics _.
+  - rewrite <- Hkind, with_call_kind_same. intros vars conts statics hp _.
     apply equivalent_refl.
   - destruct (simplify_simple tenv (ap_callee ap)) as [[ty canonical] | ]
       eqn:Hcallee.
@@ -127,11 +127,11 @@ Proof.
         as [[[[[slot alloc_mode] entry] function_type] | ] | ] eqn:Hproved.
       * exact (apply_direct_proved tenv ap ty slot alloc_mode entry
                  function_type Hkind Hty Hproved).
-      * rewrite <- Hkind, with_call_kind_same. intros vars conts statics _.
+      * rewrite <- Hkind, with_call_kind_same. intros vars conts statics hp _.
         apply equivalent_refl.
-      * rewrite <- Hkind, with_call_kind_same. intros vars conts statics _.
+      * rewrite <- Hkind, with_call_kind_same. intros vars conts statics hp _.
         apply equivalent_refl.
-    + rewrite <- Hkind, with_call_kind_same. intros vars conts statics _.
+    + rewrite <- Hkind, with_call_kind_same. intros vars conts statics hp _.
       apply equivalent_refl.
 Qed.
 
@@ -141,9 +141,9 @@ Proof.
   unfold canonical_apply.
   destruct (simplify_simple tenv (ap_callee ap)) as [[ty callee] | ]
     eqn:Hcallee;
-    [ | intros vars conts statics _; apply equivalent_refl ].
+    [ | intros vars conts statics hp _; apply equivalent_refl ].
   destruct (simplify_simples tenv (ap_args ap)) as [answers | ] eqn:Hargs;
-    [ | intros vars conts statics _; apply equivalent_refl ].
+    [ | intros vars conts statics hp _; apply equivalent_refl ].
   apply apply_canonical.
   - exact (proj2 (simplify_simple_answer tenv (ap_callee ap) callee ty
                     Hcallee)).
@@ -153,14 +153,14 @@ Qed.
 Theorem simplify_apply_equivalent_under
   : simplify_apply_equivalent_under_statement.
 Proof.
-  intros tenv ap vars conts statics Hsat. unfold simplify_apply.
+  intros tenv ap vars conts statics hp Hsat. unfold simplify_apply.
   apply (equivalent_trans _
            (State (Apply (with_call_kind ap (direct_call_kind tenv ap))) vars
-              conts statics)).
-  - exact (direct_call_kind_equivalent tenv ap vars conts statics Hsat).
+              conts statics hp)).
+  - exact (direct_call_kind_equivalent tenv ap vars conts statics hp Hsat).
   - exact (canonical_apply_equivalent tenv
              (with_call_kind ap (direct_call_kind tenv ap)) vars conts
-             statics Hsat).
+             statics _ Hsat).
 Qed.
 
 Theorem simplify_apply_refines_under

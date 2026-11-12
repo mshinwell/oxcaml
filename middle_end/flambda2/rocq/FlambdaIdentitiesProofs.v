@@ -465,21 +465,21 @@ Qed.
    replaces the operation has its value or the operation has none; then
    the parts under binders, by the induction. *)
 Fixpoint apply_identities_refines_at (e : expr) :
-  ∀ (vars : env) (conts : cont_env) (statics : static_env),
-    refines (State e vars conts statics)
-      (State (apply_identities e) vars conts statics)
+  ∀ (vars : env) (conts : cont_env) (statics : static_env) (hp : heap),
+    refines (State e vars conts statics hp)
+      (State (apply_identities e) vars conts statics hp)
 with apply_identities_in_handler_refines (h : continuation_handler) :
   ∀ (k : continuation) (body : expr) (vars : env) (conts : cont_env)
-    (statics : static_env),
-    refines (State (Let_cont_non_recursive k h body) vars conts statics)
+    (statics : static_env) (hp : heap),
+    refines (State (Let_cont_non_recursive k h body) vars conts statics hp)
       (State
          (Let_cont_non_recursive k (apply_identities_in_handler h) body)
-         vars conts statics).
+         vars conts statics hp).
 Proof.
   - destruct e
       as [ x kind d body | bindings body | k h body | handlers body | ap
          | ac | scrutinee arms | ];
-      intros vars conts statics; simpl.
+      intros vars conts statics hp; simpl.
     + (* Let *)
       destruct (eval_named statics vars d) as [v | ] eqn:Hd;
         [ destruct (kind_eqb (kind_of_value v) kind) eqn:Hkind | ].
@@ -502,7 +502,7 @@ Proof.
       apply (refines_trans _
         (State
            (Let_cont_non_recursive k (apply_identities_in_handler h) body)
-           vars conts statics)).
+           vars conts statics hp)).
       * apply apply_identities_in_handler_refines.
       * apply let_cont_non_recursive_refines_step,
           apply_identities_refines_at.
@@ -514,9 +514,9 @@ Proof.
     + apply refines_refl.
     + apply refines_refl.
   - destruct h as [params metadata handler].
-    intros k body vars conts statics. simpl.
+    intros k body vars conts statics hp. simpl.
     apply let_cont_handler_refines_at.
-    intros vs handler_vars conts' statics' _ _.
+    intros vs handler_vars conts' statics' hp' _ _.
     apply apply_identities_refines_at.
 Qed.
 

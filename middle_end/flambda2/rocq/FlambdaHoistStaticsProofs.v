@@ -594,7 +594,7 @@ Definition hoist_env (statics : static_env) : static_env :=
 
 Definition hoist_state (s : state) : state :=
   State (without_hoisted (state_expr s)) (state_vars s)
-    (hoist_conts (state_conts s)) (hoist_env (state_statics s)).
+    (hoist_conts (state_conts s)) (hoist_env (state_statics s)) (state_heap s).
 
 (* What a symbol is bound to in the second static environment. *)
 Lemma lookup_hoist_env (statics : static_env) (s : symbol) :
@@ -817,7 +817,7 @@ Lemma known_inv_over (remaining : list value)
   <-> cont_known return_to ∧ cont_known exn_to.
 Proof. reflexivity. Qed.
 
-Lemma known_inv_code (statics : static_env) :
+Lemma known_inv_code (statics : static_env) (hp : heap) :
   statics_known statics ->
   (∀ (id : code_id) (c : code),
     lookup id (static_code statics) = Some c ->
@@ -831,7 +831,7 @@ Lemma known_inv_code (statics : static_env) :
       (State (code_body c) callee_vars
          [(code_return_continuation c, return_to);
           (code_exn_continuation c, exn_to)]
-         statics).
+         statics hp).
 Proof.
   intros S Hnone called c callee_vars return_to exn_to Hlookup Hreturn Hexn.
   unfold known_inv. simpl_state.
@@ -839,7 +839,7 @@ Proof.
   exact (expr_known_nothing _ (Hnone called c Hlookup)).
 Qed.
 
-Lemma known_inv_handler (statics : static_env) :
+Lemma known_inv_handler (statics : static_env) (hp : heap) :
   statics_known statics ->
   ∀ (params : list variable) (metadata : handler_metadata) (handler : expr)
     (def_vars : env) (def_conts : cont_env)
@@ -850,7 +850,7 @@ Lemma known_inv_handler (statics : static_env) :
          recursive) ->
     known_inv
       (State handler handler_vars
-         (rec_closures recursive def_vars def_conts ++ def_conts) statics).
+         (rec_closures recursive def_vars def_conts ++ def_conts) statics hp).
 Proof.
   intros S params metadata handler def_vars def_conts recursive handler_vars
     Cr.
@@ -923,18 +923,18 @@ Proof.
     destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
       [ | discriminate ].
     refine
-      (call_function_lands statics cont_known known_inv (fun c extra H => H)
-         known_inv_over (known_inv_code statics S Scode)
-         (known_inv_handler statics S) _ _ _ _ _ _ _ s'
+      (call_function_lands statics _ cont_known known_inv (fun c extra H => H)
+         known_inv_over (known_inv_code statics _ S Scode)
+         (known_inv_handler statics _ S) _ _ _ _ _ _ _ s'
          (resolve_known _ conts C) _ Hstep).
     apply with_extra_args_known, resolve_known, C.
   - (* Apply_cont *)
     destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | discriminate ].
     unfold apply_continuation in Hstep.
     exact
-      (apply_cont_value_lands statics cont_known known_inv
-         (fun c extra H => H) known_inv_over (known_inv_code statics S Scode)
-         (known_inv_handler statics S) _ vs s' (resolve_known _ conts C)
+      (apply_cont_value_lands statics _ cont_known known_inv
+         (fun c extra H => H) known_inv_over (known_inv_code statics _ S Scode)
+         (known_inv_handler statics _ S) _ vs s' (resolve_known _ conts C)
          Hstep).
   - (* Switch *)
     destruct (eval_simple vars scrutinee) as [v | ]; [ | discriminate ].
@@ -977,7 +977,7 @@ Qed.
 Definition result_hoisted (result result' : step_result) : Prop :=
   match result with
   | Step t => result' = Step (hoist_state t)
-  | Exit k vs => result' = Exit k vs
+  | Exit k vs hp => result' = Exit k vs hp
   | Undefined => result' = Undefined
   end.
 
@@ -1101,11 +1101,11 @@ Qed.
 (* A full call. *)
 Lemma call_code_hoist (closure : value) (c : code) (vs : list value)
     (args_arity return_arity : arity) (return_to exn_to : cont_value)
-    (statics : static_env) :
+    (statics : static_env) (hp : heap) :
   result_hoisted
-    (call_code closure c vs args_arity return_arity return_to exn_to statics)
+    (call_code closure c vs args_arity return_arity return_to exn_to statics hp)
     (call_code closure c vs args_arity return_arity (hoist_cont return_to)
-       (hoist_cont exn_to) (hoist_env statics)).
+       (hoist_cont exn_to) (hoist_env statics) hp).
 Proof.
   unfold result_hoisted, call_code.
   destruct (binds_statics (code_body c)) eqn:Hbinds; [ reflexivity | ].
@@ -1328,7 +1328,7 @@ Qed.
 
 (* A call of a given shape, given what the two runs do with a partial
    application. *)
-Lemma run_call_hoist (statics : static_env)
+Lemma run_call_hoist (statics : static_env) (hp : heap)
     (return_partial return_partial' : value -> step_result)
     (shape shape' : option call_shape) (return_arity : arity)
     (return_to exn_to : cont_value) :
@@ -1338,9 +1338,9 @@ Lemma run_call_hoist (statics : static_env)
     value_statics_bound deleted statics partial ->
     result_hoisted (return_partial partial) (return_partial' partial)) ->
   result_hoisted
-    (run_call return_partial shape return_arity return_to exn_to statics)
+    (run_call return_partial shape return_arity return_to exn_to statics hp)
     (run_call return_partial' shape' return_arity (hoist_cont return_to)
-       (hoist_cont exn_to) (hoist_env statics)).
+       (hoist_cont exn_to) (hoist_env statics) hp).
 Proof.
   intros Hshapes Hvalues Hpartial.
   destruct Hshapes
@@ -1353,11 +1353,12 @@ Proof.
   - exact (call_code_hoist closure c vs args_arity (code_result_arity c)
              (Over_application remaining remaining_arity return_arity
                 return_to exn_to)
-             exn_to statics).
+             exn_to statics hp).
   - exact (Hpartial partial Hvalues).
 Qed.
 
-Lemma call_function_hoist_from (statics : static_env) (callee : value)
+Lemma call_function_hoist_from (statics : static_env) (hp : heap)
+    (callee : value)
     (kind : call_kind) (vs : list value) (args_arity return_arity : arity)
     (return_to exn_to : cont_value) :
   statics_known statics ->
@@ -1366,14 +1367,14 @@ Lemma call_function_hoist_from (statics : static_env) (callee : value)
   Forall (value_statics_bound deleted statics) vs ->
   (∀ partial : value,
     value_statics_bound deleted statics partial ->
-    result_hoisted (apply_cont_value return_to [partial] statics)
+    result_hoisted (apply_cont_value return_to [partial] statics hp)
       (apply_cont_value (hoist_cont return_to) [partial]
-         (hoist_env statics))) ->
+         (hoist_env statics) hp)) ->
   result_hoisted
     (call_function callee kind vs args_arity return_arity return_to exn_to
-       statics)
+       statics hp)
     (call_function callee kind vs args_arity return_arity
-       (hoist_cont return_to) (hoist_cont exn_to) (hoist_env statics)).
+       (hoist_cont return_to) (hoist_cont exn_to) (hoist_env statics) hp).
 Proof.
   intros S Hfine Hcallee Hvs Hpartial. unfold call_function.
   apply run_call_hoist.
@@ -1383,15 +1384,16 @@ Proof.
   - exact Hpartial.
 Qed.
 
-Lemma apply_cont_value_hoist (statics : static_env) (c : cont_value) :
+Lemma apply_cont_value_hoist (statics : static_env) (hp : heap)
+    (c : cont_value) :
   statics_known statics ->
   statics_fine statics ->
   ∀ vs : list value,
     cont_known c ->
     cont_values_all (value_statics_bound deleted statics) c ->
     Forall (value_statics_bound deleted statics) vs ->
-    result_hoisted (apply_cont_value c vs statics)
-      (apply_cont_value (hoist_cont c) vs (hoist_env statics)).
+    result_hoisted (apply_cont_value c vs statics hp)
+      (apply_cont_value (hoist_cont c) vs (hoist_env statics) hp).
 Proof.
   intros S Hfine.
   induction c
@@ -1425,7 +1427,7 @@ Proof.
     apply Forall_cons; [ exact Hpartial | apply Forall_nil ].
 Qed.
 
-Lemma call_function_hoist (statics : static_env) (callee : value)
+Lemma call_function_hoist (statics : static_env) (hp : heap) (callee : value)
     (kind : call_kind) (vs : list value) (args_arity return_arity : arity)
     (return_to exn_to : cont_value) :
   statics_known statics ->
@@ -1436,9 +1438,9 @@ Lemma call_function_hoist (statics : static_env) (callee : value)
   cont_values_all (value_statics_bound deleted statics) return_to ->
   result_hoisted
     (call_function callee kind vs args_arity return_arity return_to exn_to
-       statics)
+       statics hp)
     (call_function callee kind vs args_arity return_arity
-       (hoist_cont return_to) (hoist_cont exn_to) (hoist_env statics)).
+       (hoist_cont return_to) (hoist_cont exn_to) (hoist_env statics) hp).
 Proof.
   intros S Hfine Hcallee Hvs Kreturn Vreturn.
   apply call_function_hoist_from; try assumption.
@@ -1450,12 +1452,12 @@ Qed.
 (* A step of a state of the first run is a step of the second state, to
    the second state of the result. *)
 Lemma hoist_step_components (e : expr) (vars : env) (conts : cont_env)
-    (statics : static_env) :
-  hoist_inv (State e vars conts statics) ->
-  result_hoisted (step (State e vars conts statics))
+    (statics : static_env) (hp : heap) :
+  hoist_inv (State e vars conts statics hp) ->
+  result_hoisted (step (State e vars conts statics hp))
     (step
        (State (without_hoisted e) vars (hoist_conts conts)
-          (hoist_env statics))).
+          (hoist_env statics) hp)).
 Proof.
   intros (W & Ws & (_ & Sc & _) & (Vvars & Vconts & Vstatics)
           & (K & Kc & S)).
@@ -1473,9 +1475,9 @@ Proof.
   - (* Let_static *)
     rewrite (eval_static_bindings_hoist vars bindings statics (proj1 K)
                (inv_no_rebinding unit_exn code_ids_of_binding code_id_bound
-                  bindings body vars conts statics W)
+                  bindings body vars conts statics hp W)
                (inv_no_rebinding unit_exn symbols_of_binding symbol_bound
-                  bindings body vars conts statics Ws)).
+                  bindings body vars conts statics hp Ws)).
     destruct (eval_static_bindings vars bindings statics); reflexivity.
   - (* Let_cont_non_recursive *)
     reflexivity.
@@ -1506,7 +1508,7 @@ Proof.
     destruct (eval_simples vars (ac_args ac)) as [vs | ] eqn:Hargs;
       [ | reflexivity ].
     unfold apply_continuation. rewrite resolve_hoist.
-    apply (apply_cont_value_hoist statics _ S Vstatics).
+    apply (apply_cont_value_hoist statics _ _ S Vstatics).
     + apply resolve_known, Kc.
     + apply resolve_values_all, Vconts.
     + apply forallb_Forall_among.
@@ -1528,7 +1530,7 @@ Proof.
   intros [-> Hinv].
   pose proof
     (hoist_step_components (state_expr s) (state_vars s) (state_conts s)
-       (state_statics s))
+       (state_statics s) (state_heap s))
     as Hstep.
   rewrite <- (state_eta s) in Hstep. specialize (Hstep Hinv).
   pose proof (hoist_inv_step s) as Hkept.
@@ -1613,14 +1615,16 @@ Proof.
                   Htop_symbols Hin Hamong).
         cbn [is_hoisted]. rewrite Hclosed. reflexivity. }
   apply (equivalent_trans _
-           (State (without_hoisted e) [] [] (Static_env src_code src_values))).
+           (State (without_hoisted e) [] [] (Static_env src_code src_values)
+              empty_heap)).
   - apply (bisimulation_equivalent
              (hoisted_related (unit_exn u) (deleted_code_ids e) src_code
                 src_values)
              (hoisted_related_step (unit_exn u) (deleted_code_ids e) src_code
                 src_values Hdeleted)).
     split; [ reflexivity | ].
-    destruct (initial_state_inv [] u e empty_static_env Hwf Hscope Hconts
+    destruct
+      (initial_state_inv [] u e empty_static_env empty_heap Hwf Hscope Hconts
                 (conj eq_refl (conj (fun _ => eq_refl) (Forall_nil _))))
       as [Hterms Hvalues].
     refine

@@ -117,7 +117,7 @@ Qed.
 
 Theorem let_prim_canonical : let_prim_canonical_statement.
 Proof.
-  intros tenv x declared p args args' body Hargs vars conts statics Hsat.
+  intros tenv x declared p args args' body Hargs vars conts statics hp Hsat.
   apply let_equivalent_step; [ | intros v _ _; apply equivalent_refl ].
   simpl.
   rewrite (canonical_in_terms_simples tenv statics vars args args' Hsat
@@ -127,7 +127,7 @@ Qed.
 
 Theorem let_constant : let_constant_statement.
 Proof.
-  intros tenv x declared d c body Hknown vars conts statics Hsat.
+  intros tenv x declared d c body Hknown vars conts statics hp Hsat.
   destruct (eval_named statics vars d) as [v | ] eqn:Hd.
   - pose proof (Hknown statics vars v Hsat Hd) as ->.
     destruct (kind_eqb (kind_of_value (Value_const c)) declared) eqn:Hkind.
@@ -143,7 +143,7 @@ Qed.
 
 Theorem let_invalid : let_invalid_statement.
 Proof.
-  intros tenv x declared d body Hnone vars conts statics Hsat.
+  intros tenv x declared d body Hnone vars conts statics hp Hsat.
   apply step_eq_equivalent.
   rewrite step_let, (Hnone statics vars Hsat), step_invalid. reflexivity.
 Qed.

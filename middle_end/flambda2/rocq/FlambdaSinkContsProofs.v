@@ -83,10 +83,10 @@ Qed.
 (* One expression under two continuation environments that differ in
    their first binding, of the same name to closures that match. *)
 Lemma head_matches_equivalent (e : expr) (vars : env) (k : continuation)
-    (c c' : cont_value) (conts : cont_env) (statics : static_env) :
+    (c c' : cont_value) (conts : cont_env) (statics : static_env) (hp : heap) :
   cont_matches c c' ->
-  equivalent (State e vars ((k, c) :: conts) statics)
-    (State e vars ((k, c') :: conts) statics).
+  equivalent (State e vars ((k, c) :: conts) statics hp)
+    (State e vars ((k, c') :: conts) statics hp).
 Proof.
   intros Hc. apply coincide_equivalent; [ reflexivity | ].
   intros k' _. unfold conts_agree_at.
@@ -122,7 +122,7 @@ Lemma let_cont_past_let (k : continuation) (h : continuation_handler)
   expr_equivalent (Let_cont_non_recursive k h (Let x kind d body))
     (Let x kind d (Let_cont_non_recursive k h body)).
 Proof.
-  intros Hx vars conts statics.
+  intros Hx vars conts statics hp.
   eapply equivalent_trans;
     [ apply step_equivalent, step_let_cont_non_recursive | ].
   apply let_equivalent_step; [ reflexivity | intros v _ _ ].
@@ -142,7 +142,7 @@ Lemma let_cont_past_let_static (k : continuation) (h : continuation_handler)
   expr_equivalent (Let_cont_non_recursive k h (Let_static bindings body))
     (Let_static bindings (Let_cont_non_recursive k h body)).
 Proof.
-  intros vars conts statics.
+  intros vars conts statics hp.
   eapply equivalent_trans;
     [ apply step_equivalent, step_let_cont_non_recursive | ].
   apply let_static_equivalent_step.
@@ -162,7 +162,7 @@ Lemma let_cont_past_let_cont (k k' : continuation)
     (Let_cont_non_recursive k h (Let_cont_non_recursive k' h' body))
     (Let_cont_non_recursive k' h' (Let_cont_non_recursive k h body)).
 Proof.
-  intros Hne Hk Hk' vars conts statics.
+  intros Hne Hk Hk' vars conts statics hp.
   eapply equivalent_trans;
     [ apply step_equivalent, step_let_cont_non_recursive | ].
   eapply equivalent_trans;
@@ -210,8 +210,8 @@ Proof.
           (Handler params' metadata' (Let_cont_non_recursive k h handler'))
           body))).
   - (* the copy *)
-    intros vars conts statics. apply let_cont_non_recursive_equivalent_step.
-    apply let_cont_handler_alike. intros vs statics'. simpl.
+    intros vars conts statics hp. apply let_cont_non_recursive_equivalent_step.
+    apply let_cont_handler_alike. intros vs statics' hp'. simpl.
     destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata'));
       simpl; [ | exact I ].
     destruct (bind_params params' vs vars) as [handler_vars | ] eqn:Hbind;
@@ -342,7 +342,7 @@ Proof.
   destruct e
     as [ x kind d body | bindings body | k [params metadata handler] body
        | handlers body | ap | ac | scrutinee arms | ];
-    simpl; try (intros vars conts statics; apply equivalent_refl).
+    simpl; try (intros vars conts statics hp; apply equivalent_refl).
   - exact (plug_equivalent (Let_body x kind d Hole) _ _ (not_many _)
       (sink_let_conts_equivalent_aux body)).
   - exact (plug_equivalent (Let_static_body bindings Hole) _ _ (not_many _)

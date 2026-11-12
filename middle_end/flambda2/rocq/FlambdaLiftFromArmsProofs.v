@@ -66,24 +66,24 @@ Hypothesis Hsome : bindings <> [].
 
 (* The second state is one that the run of the unit lifted reaches. *)
 Definition reached_lifted (s' : state) : Prop :=
-  ∃ n : nat, run n (State lifted [] [] empty_static_env) = Step s'.
+  ∃ n : nat, run n (State lifted [] [] empty_static_env empty_heap) = Step s'.
 
 (* The two states are the initial ones; or they are related as in
    FlambdaLiftFromCodeProofs.v, the second is reached, and the first is
    one of a unit that exits with symbols and constants only. *)
 Definition unit_lifted (s s' : state) : Prop :=
-  (s = State e [] [] empty_static_env
-   ∧ s' = State lifted [] [] empty_static_env)
+  (s = State e [] [] empty_static_env empty_heap
+   ∧ s' = State lifted [] [] empty_static_env empty_heap)
   ∨ (state_lifted_out [] s s' ∧ reached_lifted s' ∧ plain_state s).
 
 (* The first step of the second run binds the group; the states are
    then related. *)
 Lemma head_bound :
   ∃ statics' : static_env,
-    step (State lifted [] [] empty_static_env)
-    = Step (State (lift_from_code [] lets root e) [] [] statics')
-    ∧ state_lifted_out [] (State e [] [] empty_static_env)
-        (State (lift_from_code [] lets root e) [] [] statics').
+    step (State lifted [] [] empty_static_env empty_heap)
+    = Step (State (lift_from_code [] lets root e) [] [] statics' empty_heap)
+    ∧ state_lifted_out [] (State e [] [] empty_static_env empty_heap)
+        (State (lift_from_code [] lets root e) [] [] statics' empty_heap).
 Proof.
   pose proof (well_formed_never_faults u lifted 0 _ Hwf eq_refl) as Hfault.
   unfold static_fault in Hfault. simpl in Hfault.
@@ -103,8 +103,8 @@ Qed.
 
 (* A unit of which something is lifted begins with a [Let] or a
    [Let_cont]: its first step is not an exit. *)
-Lemma first_step_no_exit (k : continuation) (vs : list value) :
-  step (State e [] [] empty_static_env) <> Exit k vs.
+Lemma first_step_no_exit (k : continuation) (vs : list value) (hp : heap) :
+  step (State e [] [] empty_static_env empty_heap) <> Exit k vs hp.
 Proof.
   unfold bindings in Hsome.
   destruct e
@@ -130,14 +130,16 @@ Proof.
   intros [[-> ->] | (Hlifted & [n Hn] & Hplain_s)].
   - destruct head_bound as (statics' & Hhead & Hrelated).
     assert (Hreached :
-      reached_lifted (State (lift_from_code [] lets root e) [] [] statics')).
+      reached_lifted
+        (State (lift_from_code [] lets root e) [] [] statics' empty_heap)).
     { exists 1. simpl. rewrite Hhead. reflexivity. }
     destruct Hreached as [n Hn].
     pose proof (lifted_out_step [] _ _ Hrelated
       (well_formed_never_faults u _ n _ Hwf Hn)) as Hanswer.
     pose proof (plain_step _ (plain_initial e Hplain)) as Hstep.
     pose proof first_step_no_exit as Hno_exit.
-    destruct (step (State e [] [] empty_static_env)) as [t | k vs | ];
+    destruct (step (State e [] [] empty_static_env empty_heap)) as
+      [t | k vs | ];
       unfold answered in *; [ | | exact I ].
     + destruct Hanswer as (m & t' & Hrun & Ht).
       exists (S m), t'. split.
@@ -145,7 +147,7 @@ Proof.
         rewrite Hhead. exact Hrun.
       * right. split; [ exact Ht | ]. split; [ | exact Hstep ].
         exists (n + S m). rewrite run_add, Hn. exact Hrun.
-    + exfalso. exact (Hno_exit k vs eq_refl).
+    + exfalso. exact (Hno_exit k vs hp eq_refl).
   - pose proof (lifted_out_step [] s s' Hlifted
       (well_formed_never_faults u _ n s' Hwf Hn)) as Hanswer.
     pose proof (plain_step s Hplain_s) as Hstep.
@@ -160,8 +162,8 @@ Proof.
 Qed.
 
 Lemma unit_lifted_refines :
-  refines (State e [] [] empty_static_env)
-    (State lifted [] [] empty_static_env).
+  refines (State e [] [] empty_static_env empty_heap)
+    (State lifted [] [] empty_static_env empty_heap).
 Proof.
   apply (stuttering_refines unit_lifted (fun _ vs vs' => vs' = vs)
            unit_lifted_step).

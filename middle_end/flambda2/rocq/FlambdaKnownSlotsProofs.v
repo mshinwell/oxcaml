@@ -434,7 +434,7 @@ Lemma state_slots_known_step (s : state) :
   state_slots_known known s ->
   match step s with
   | Step s' => state_slots_known known s'
-  | Exit _ vs => Forall Pv vs
+  | Exit _ vs _ => Forall Pv vs
   | Undefined => True
   end.
 Proof.
@@ -495,7 +495,8 @@ Proof.
 Qed.
 
 Lemma slots_inv_initial (e : expr) :
-  slots_as known e = true -> slots_inv (State e [] [] empty_static_env).
+  slots_as known e = true
+    -> slots_inv (State e [] [] empty_static_env empty_heap).
 Proof.
   intros He. split.
   - exact (terms_inv_initial _ _ _ e He).
@@ -713,9 +714,9 @@ Let Hkept : kept_by_step inv := slots_inv_kept known Hclosed.
 (* The invariant does not look at the expression of a state but to ask
    the check of it. *)
 Lemma slots_inv_expr (e e' : expr) (vars : env) (conts : cont_env)
-    (statics : static_env) :
+    (statics : static_env) (hp : heap) :
   slots_as known e' = slots_as known e ->
-  inv (State e vars conts statics) <-> inv (State e' vars conts statics).
+  inv (State e vars conts statics hp) <-> inv (State e' vars conts statics hp).
 Proof.
   intros Has.
   unfold inv, slots_inv, terms_inv, state_slots_known, state_values_all.
@@ -726,7 +727,7 @@ Lemma slots_inv_let_static_code (done after : list static_binding)
     (id : code_id) (params : list variable) (my_closure : variable)
     (ret exn : continuation) (metadata : code_metadata)
     (code_body : expr) (syms : list symbol) (body : expr) (vars : env)
-    (conts : cont_env) (statics : static_env) :
+    (conts : cont_env) (statics : static_env) (hp : heap) :
   inv
     (State
        (Let_static
@@ -734,7 +735,7 @@ Lemma slots_inv_let_static_code (done after : list static_binding)
            ++ Bind_code id (Code params my_closure ret exn metadata code_body)
            :: after)
           body)
-       vars conts statics) ->
+       vars conts statics hp) ->
   inv
     (State
        (Let_static
@@ -744,7 +745,7 @@ Lemma slots_inv_let_static_code (done after : list static_binding)
                    (read_slots known syms code_body))
            :: after)
           body)
-       vars conts statics).
+       vars conts statics hp).
 Proof.
   apply slots_inv_expr. cbn [slots_as]. rewrite !forallb_app.
   cbn [forallb binding_slots_as code_slots_as].
@@ -755,12 +756,12 @@ Lemma slots_inv_let_cont_recursive_handler
     (done after : list (continuation * continuation_handler))
     (k : continuation) (params : list variable) (metadata : handler_metadata)
     (handler : expr) (syms : list symbol) (body : expr) (vars : env)
-    (conts : cont_env) (statics : static_env) :
+    (conts : cont_env) (statics : static_env) (hp : heap) :
   inv
     (State
        (Let_cont_recursive
           (done ++ (k, Handler params metadata handler) :: after) body)
-       vars conts statics) ->
+       vars conts statics hp) ->
   inv
     (State
        (Let_cont_recursive
@@ -768,7 +769,7 @@ Lemma slots_inv_let_cont_recursive_handler
            ++ (k, Handler params metadata (read_slots known syms handler))
            :: after)
           body)
-       vars conts statics).
+       vars conts statics hp).
 Proof.
   apply slots_inv_expr. cbn [slots_as]. rewrite !forallb_app.
   cbn [forallb handler_slots_as].
@@ -781,15 +782,15 @@ Qed.
    the like), each from the states that have the invariant. *)
 Fixpoint read_slots_refines_aux (e : expr) {struct e} :
   ∀ (syms : list symbol) (vars : env) (conts : cont_env)
-    (statics : static_env),
-    inv (State e vars conts statics) ->
-    refines (State e vars conts statics)
-      (State (read_slots known syms e) vars conts statics).
+    (statics : static_env) (hp : heap),
+    inv (State e vars conts statics hp) ->
+    refines (State e vars conts statics hp)
+      (State (read_slots known syms e) vars conts statics hp).
 Proof.
   destruct e
     as [ x kind d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
-    intros syms vars conts statics Hinv; cbn [read_slots];
+    intros syms vars conts statics hp Hinv; cbn [read_slots];
     try apply refines_refl.
   - (* Let *)
     destruct (eval_named statics vars d) as [v | ] eqn:Hd;
@@ -797,7 +798,7 @@ Proof.
     apply let_refines_step.
     + rewrite Hd.
       exact (read_slot_sound known syms
-               (State (Let x kind d body) vars conts statics) d v
+               (State (Let x kind d body) vars conts statics hp) d v
                (proj2 Hinv) Hd).
     + intros v' Hv' Hkind. apply read_slots_refines_aux.
       apply (Hkept _ _ Hinv).
@@ -807,18 +808,18 @@ Proof.
     apply (refines_trans _
       (State
          (Let_static (map (read_slots_in_binding known all) bindings) body)
-         vars conts statics)).
+         vars conts statics hp)).
     + assert (Hcode :
         ∀ done : list static_binding,
-          inv (State (Let_static (done ++ bindings) body) vars conts statics)
+          inv (State (Let_static (done ++ bindings) body) vars conts statics hp)
           ->
           refines
-            (State (Let_static (done ++ bindings) body) vars conts statics)
+            (State (Let_static (done ++ bindings) body) vars conts statics hp)
             (State
                (Let_static
                   (done ++ map (read_slots_in_binding known all) bindings)
                   body)
-               vars conts statics)).
+               vars conts statics hp)).
       { clear Hinv.
         induction bindings
           as [ | [id [params my_closure ret exn metadata code_body] | id
@@ -828,7 +829,7 @@ Proof.
         - cbn [read_slots_in_binding read_slots_in_code].
           pose proof
             (slots_inv_let_static_code done bindings id params my_closure ret
-               exn metadata code_body all body vars conts statics Hdone)
+               exn metadata code_body all body vars conts statics _ Hdone)
             as Hdone'.
           apply (refines_trans _
             (State
@@ -839,13 +840,13 @@ Proof.
                            (read_slots known all code_body))
                    :: bindings)
                   body)
-               vars conts statics)).
+               vars conts statics hp)).
           + apply (let_static_code_refines_from inv done id params my_closure
                      ret exn metadata code_body
                      (read_slots known all code_body) bindings body vars
-                     conts statics Hkept Hdone Hdone').
+                     conts statics hp Hkept Hdone Hdone').
             * symmetry. apply read_slots_binds_statics.
-            * intros vs callee callee_vars return_to exn_to statics' _ _ _.
+            * intros vs callee callee_vars return_to exn_to statics' hp' _ _ _.
               split.
               -- apply slots_inv_expr, read_slots_slots_as_expr.
               -- intros Hentry. apply read_slots_refines_aux. exact Hentry.
@@ -869,7 +870,7 @@ Proof.
           (State
              (Let_static (map (read_slots_in_binding known all) bindings)
                 body)
-             vars conts statics)).
+             vars conts statics hp)).
       { revert Hinv. apply slots_inv_expr. cbn [slots_as].
         rewrite read_slots_bindings_slots_as. reflexivity. }
       apply let_static_refines_step.
@@ -888,18 +889,18 @@ Proof.
         (State
            (Let_cont_non_recursive k
               (Handler params metadata (read_slots known all handler)) body)
-           vars conts statics)).
+           vars conts statics hp)).
     { revert Hinv. apply slots_inv_expr. cbn [slots_as handler_slots_as].
       rewrite read_slots_slots_as_expr. reflexivity. }
     apply (refines_trans _
       (State
          (Let_cont_non_recursive k
             (Handler params metadata (read_slots known all handler)) body)
-         vars conts statics)).
+         vars conts statics hp)).
     + apply (let_cont_handler_refines_from inv k params metadata handler
-               (read_slots known all handler) body vars conts statics Hkept
+               (read_slots known all handler) body vars conts statics hp Hkept
                Hinv Hinv').
-      intros vs handler_vars conts' statics' _ _. split.
+      intros vs handler_vars conts' statics' hp' _ _. split.
       * apply slots_inv_expr, read_slots_slots_as_expr.
       * intros Hentry. apply read_slots_refines_aux. exact Hentry.
     + apply let_cont_non_recursive_refines_step.
@@ -912,25 +913,25 @@ Proof.
              let '(k, h) := kh in (k, read_slots_in_handler known all h)).
     apply (refines_trans _
       (State (Let_cont_recursive (map read handlers) body) vars conts
-         statics)).
+         statics hp)).
     + assert (Hhandlers :
         ∀ done : list (continuation * continuation_handler),
           inv
             (State (Let_cont_recursive (done ++ handlers) body) vars conts
-               statics)
+               statics hp)
           ->
           refines
             (State (Let_cont_recursive (done ++ handlers) body) vars conts
-               statics)
+               statics hp)
             (State (Let_cont_recursive (done ++ map read handlers) body)
-               vars conts statics)).
+               vars conts statics hp)).
       { clear Hinv.
         induction handlers as [ | [k [params metadata handler]] handlers IH];
           intros done Hdone; cbn [map]; [ apply refines_refl | ].
         unfold read at 1. cbn [read_slots_in_handler].
         pose proof
           (slots_inv_let_cont_recursive_handler done handlers k params
-             metadata handler all body vars conts statics Hdone)
+             metadata handler all body vars conts statics _ Hdone)
           as Hdone'.
         apply (refines_trans _
           (State
@@ -939,12 +940,12 @@ Proof.
                  ++ (k, Handler params metadata (read_slots known all handler))
                  :: handlers)
                 body)
-             vars conts statics)).
+             vars conts statics hp)).
         - apply (let_cont_recursive_handler_refines_from inv done k params
                    metadata handler (read_slots known all handler) handlers
-                   body vars conts statics Hkept Hdone Hdone').
+                   body vars conts statics _ Hkept Hdone Hdone').
           + symmetry. apply read_slots_binds_statics.
-          + intros vs handler_vars conts' statics' _ _. split.
+          + intros vs handler_vars conts' statics' hp' _ _. split.
             * apply slots_inv_expr, read_slots_slots_as_expr.
             * intros Hentry. apply read_slots_refines_aux. exact Hentry.
         - specialize
@@ -957,7 +958,7 @@ Proof.
     + assert (Hinv' :
         inv
           (State (Let_cont_recursive (map read handlers) body) vars conts
-             statics)).
+             statics hp)).
       { revert Hinv. apply slots_inv_expr. cbn [slots_as]. f_equal.
         clear. induction handlers as [ | [k h] handlers IH];
           cbn [map forallb]; [ reflexivity | ].

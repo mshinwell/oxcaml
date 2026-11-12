@@ -147,7 +147,8 @@ Definition unit_in_scope_statement : Prop :=
   ∀ (unit_return unit_exn : continuation) (e : expr),
     names_in_scope unit_return unit_exn e = true ->
     code_closed e = true ->
-    state_in_scope [unit_return; unit_exn] (State e [] [] empty_static_env).
+    state_in_scope [unit_return; unit_exn]
+      (State e [] [] empty_static_env empty_heap).
 
 (* A step keeps a state in scope, and an exit is by one of [outer]. *)
 Definition step_in_scope_statement : Prop :=
@@ -155,7 +156,7 @@ Definition step_in_scope_statement : Prop :=
     state_in_scope outer s ->
     match step s with
     | Step s' => state_in_scope outer s'
-    | Exit k _ => among k outer = true
+    | Exit k _ _ => among k outer = true
     | Undefined => True
     end.
 
@@ -208,8 +209,8 @@ Definition unit_run_statement : Prop :=
   ∀ (unit_return unit_exn : continuation) (e : expr) (n : nat),
     names_in_scope unit_return unit_exn e = true ->
     code_closed e = true ->
-    match run n (State e [] [] empty_static_env) with
+    match run n (State e [] [] empty_static_env empty_heap) with
     | Step s => reads_unbound_variable s = false
-    | Exit k _ => k = unit_return ∨ k = unit_exn
+    | Exit k _ _ => k = unit_return ∨ k = unit_exn
     | Undefined => True
     end.

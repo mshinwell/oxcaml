@@ -636,16 +636,16 @@ Definition imports_bound (imports : list symbol) (statics : static_env)
    one up; and the values that it exits with hold none. *)
 Definition statics_bound_in_run_statement : Prop :=
   ∀ (imports : list symbol) (u : unit_interface) (e : expr)
-    (statics : static_env) (n : nat) (s : state),
+    (statics : static_env) (hp : heap) (n : nat) (s : state),
     well_formed_unit u e = true ->
     statics_in_scope imports e = true ->
     interface_conts_not_rebound u e = true ->
     imports_bound imports statics ->
-    run n (State e [] [] statics) = Step s ->
+    run n (State e [] [] statics hp) = Step s ->
     state_statics_bound (deleted_code_ids e) s
     ∧ statics_scope_fault (deleted_code_ids e) s = false
     ∧ match step s with
-      | Exit _ vs =>
+      | Exit _ vs _ =>
         Forall
           (value_statics_bound (deleted_code_ids e) (state_statics s)) vs
       | Step _ | Undefined => True
@@ -685,7 +685,7 @@ Definition rebound_unit_exn_reads_unbound_statement : Prop :=
     ∧ statics_in_scope [] e = true
     ∧ static_names_apart [] e = true
     ∧ interface_conts_not_rebound u e = false
-    ∧ run n (State e [] [] (Static_env [] [])) = Step s
+    ∧ run n (State e [] [] (Static_env [] []) empty_heap) = Step s
     ∧ statics_scope_fault (deleted_code_ids e) s = true.
 
 (* Why row 1 is asked with the check. There is a unit that passes
@@ -719,5 +719,5 @@ Definition branch_round_binding_reads_unbound_statement : Prop :=
     ∧ statics_in_scope [] e = true
     ∧ static_names_apart [] e = true
     ∧ interface_conts_not_rebound u e = true
-    ∧ run n (State e [] [] (Static_env [] [])) = Step s
+    ∧ run n (State e [] [] (Static_env [] []) empty_heap) = Step s
     ∧ statics_scope_fault (deleted_code_ids e) s = true.

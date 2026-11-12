@@ -626,19 +626,19 @@ Definition rebuild_switch (known : computed) (fresh : list variable)
 Definition merge_arms_refines_statement : Prop :=
   ∀ (known : computed) (fresh : list variable) (scrutinee : simple)
     (arms : list (Z * apply_cont)) (e : expr) (vars : env) (conts : cont_env)
-    (statics : static_env),
+    (statics : static_env) (hp : heap),
     merge_arms known fresh scrutinee arms = Some e ->
     all_computed known vars statics ->
-    refines (State (Switch scrutinee arms) vars conts statics)
-      (State e vars conts statics).
+    refines (State (Switch scrutinee arms) vars conts statics hp)
+      (State e vars conts statics hp).
 
 Definition rebuild_switch_refines_statement : Prop :=
   ∀ (known : computed) (fresh : list variable) (scrutinee : simple)
     (arms : list (Z * apply_cont)) (vars : env) (conts : cont_env)
-    (statics : static_env),
+    (statics : static_env) (hp : heap),
     all_computed known vars statics ->
-    refines (State (Switch scrutinee arms) vars conts statics)
-      (State (rebuild_switch known fresh scrutinee arms) vars conts statics).
+    refines (State (Switch scrutinee arms) vars conts statics hp)
+      (State (rebuild_switch known fresh scrutinee arms) vars conts statics hp).
 
 (* With nothing known, in every state. *)
 Definition rebuild_switch_nothing_known_refines_statement : Prop :=

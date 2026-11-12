@@ -123,7 +123,8 @@ Definition trim_conts (conts : cont_env) : cont_env :=
 
 Definition trim_state (s : state) : state :=
   State (drop_slots D (state_expr s)) (state_vars s)
-    (trim_conts (state_conts s)) (trim_statics (state_statics s)).
+    (trim_conts (state_conts s)) (trim_statics (state_statics s))
+      (state_heap s).
 
 Lemma lookup_trim_statics (s : symbol) (statics : static_env) :
   lookup s (static_values (trim_statics statics))
@@ -454,7 +455,7 @@ Proof. destruct c. simpl. auto 8. Qed.
 Definition result_trimmed (result result' : step_result) : Prop :=
   match result with
   | Step t => result' = Step (trim_state t)
-  | Exit k vs => result' = Exit k vs
+  | Exit k vs hp => result' = Exit k vs hp
   | Undefined => True
   end.
 
@@ -539,11 +540,11 @@ Qed.
 (* A full call. *)
 Lemma call_code_drop (closure : value) (c : code) (vs : list value)
     (args_arity return_arity : arity) (return_to exn_to : cont_value)
-    (statics : static_env) :
+    (statics : static_env) (hp : heap) :
   result_trimmed
-    (call_code closure c vs args_arity return_arity return_to exn_to statics)
+    (call_code closure c vs args_arity return_arity return_to exn_to statics hp)
     (call_code closure (drop_slots_code D c) vs args_arity return_arity
-       (trim_cont return_to) (trim_cont exn_to) (trim_statics statics)).
+       (trim_cont return_to) (trim_cont exn_to) (trim_statics statics) hp).
 Proof.
   unfold result_trimmed, call_code.
   destruct (drop_slots_code_parts c)
@@ -565,14 +566,14 @@ Qed.
    application. *)
 Lemma run_call_drop (return_partial return_partial' : value -> step_result)
     (shape : call_shape) (return_arity : arity)
-    (return_to exn_to : cont_value) (statics : static_env) :
+    (return_to exn_to : cont_value) (statics : static_env) (hp : heap) :
   (∀ partial : value,
     result_trimmed (return_partial partial) (return_partial' partial)) ->
   result_trimmed
     (run_call return_partial (Some shape) return_arity return_to exn_to
-       statics)
+       statics hp)
     (run_call return_partial' (Some (trim_shape shape)) return_arity
-       (trim_cont return_to) (trim_cont exn_to) (trim_statics statics)).
+       (trim_cont return_to) (trim_cont exn_to) (trim_statics statics) hp).
 Proof.
   intros Hpartial.
   destruct shape
@@ -584,7 +585,7 @@ Proof.
     exact (call_code_drop closure c vs args_arity (code_result_arity c)
              (Over_application remaining remaining_arity return_arity
                 return_to exn_to)
-             exn_to statics).
+             exn_to statics hp).
   - apply Hpartial.
 Qed.
 
@@ -592,16 +593,16 @@ Qed.
    applied to a partial application. *)
 Lemma call_function_drop_from (callee : value) (kind : call_kind)
     (vs : list value) (args_arity return_arity : arity)
-    (return_to exn_to : cont_value) (statics : static_env) :
+    (return_to exn_to : cont_value) (statics : static_env) (hp : heap) :
   (∀ partial : value,
-    result_trimmed (apply_cont_value return_to [partial] statics)
+    result_trimmed (apply_cont_value return_to [partial] statics hp)
       (apply_cont_value (trim_cont return_to) [partial]
-         (trim_statics statics))) ->
+         (trim_statics statics) hp)) ->
   result_trimmed
     (call_function callee kind vs args_arity return_arity return_to exn_to
-       statics)
+       statics hp)
     (call_function callee kind vs args_arity return_arity
-       (trim_cont return_to) (trim_cont exn_to) (trim_statics statics)).
+       (trim_cont return_to) (trim_cont exn_to) (trim_statics statics) hp).
 Proof.
   intros Hpartial. unfold call_function.
   destruct (shape_of_call statics callee kind vs args_arity return_arity)
@@ -613,16 +614,16 @@ Proof.
 Qed.
 
 Lemma apply_cont_value_drop (c : cont_value) :
-  ∀ (vs : list value) (statics : static_env),
-    result_trimmed (apply_cont_value c vs statics)
-      (apply_cont_value (trim_cont c) vs (trim_statics statics)).
+  ∀ (vs : list value) (statics : static_env) (hp : heap),
+    result_trimmed (apply_cont_value c vs statics hp)
+      (apply_cont_value (trim_cont c) vs (trim_statics statics) hp).
 Proof.
   induction c
     as [[params metadata handler] def_vars def_conts recursive | k
        | c IH extra
        | remaining remaining_arity return_arity return_to exn_to IHreturn _]
     using cont_value_over_ind;
-    intros vs statics.
+    intros vs statics hp.
   - unfold result_trimmed. simpl.
     destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
       [ | exact I ].
@@ -640,12 +641,12 @@ Qed.
 
 Lemma call_function_drop (callee : value) (kind : call_kind)
     (vs : list value) (args_arity return_arity : arity)
-    (return_to exn_to : cont_value) (statics : static_env) :
+    (return_to exn_to : cont_value) (statics : static_env) (hp : heap) :
   result_trimmed
     (call_function callee kind vs args_arity return_arity return_to exn_to
-       statics)
+       statics hp)
     (call_function callee kind vs args_arity return_arity
-       (trim_cont return_to) (trim_cont exn_to) (trim_statics statics)).
+       (trim_cont return_to) (trim_cont exn_to) (trim_statics statics) hp).
 Proof.
   apply call_function_drop_from. intros partial. apply apply_cont_value_drop.
 Qed.
@@ -657,17 +658,17 @@ Qed.
 (* A step of a state whose expression projects no slot removed is a
    step of the second state, to the second state of the result. *)
 Lemma drop_step_components (e : expr) (vars : env) (conts : cont_env)
-    (statics : static_env) :
+    (statics : static_env) (hp : heap) :
   slots_unused D e = true ->
-  match step (State e vars conts statics) with
+  match step (State e vars conts statics hp) with
   | Step t =>
     step
-      (State (drop_slots D e) vars (trim_conts conts) (trim_statics statics))
+      (State (drop_slots D e) vars (trim_conts conts) (trim_statics statics) hp)
     = Step (trim_state t)
-  | Exit k vs =>
+  | Exit k vs hp' =>
     step
-      (State (drop_slots D e) vars (trim_conts conts) (trim_statics statics))
-    = Exit k vs
+      (State (drop_slots D e) vars (trim_conts conts) (trim_statics statics) hp)
+    = Exit k vs hp'
   | Undefined => True
   end.
 Proof.
@@ -703,12 +704,13 @@ Proof.
       (call_function_drop callee (ap_call_kind ap) vs (ap_args_arity ap)
          (ap_return_arity ap) (resolve (ap_continuation ap) conts)
          (with_extra_args (resolve (ap_exn_continuation ap) conts) extra)
-         statics).
+         statics hp).
   - (* Apply_cont *)
     destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | exact I ].
     unfold apply_continuation. rewrite resolve_drop.
     exact
-      (apply_cont_value_drop (resolve (ac_continuation ac) conts) vs statics).
+      (apply_cont_value_drop (resolve (ac_continuation ac) conts) vs statics
+         hp).
   - (* Switch *)
     destruct (eval_simple vars scrutinee) as [v | ]; [ | exact I ].
     destruct (naked_immediate_of_value v) as [i | ]; [ | exact I ].
@@ -721,14 +723,14 @@ Lemma drop_step (s : state) :
   slots_unused D (state_expr s) = true ->
   match step s with
   | Step t => step (trim_state s) = Step (trim_state t)
-  | Exit k vs => step (trim_state s) = Exit k vs
+  | Exit k vs hp => step (trim_state s) = Exit k vs hp
   | Undefined => True
   end.
 Proof.
   intros Hunused.
   pose proof
     (drop_step_components (state_expr s) (state_vars s) (state_conts s)
-       (state_statics s) Hunused)
+       (state_statics s) (state_heap s) Hunused)
     as Hstep.
   rewrite <- (state_eta s) in Hstep. exact Hstep.
 Qed.

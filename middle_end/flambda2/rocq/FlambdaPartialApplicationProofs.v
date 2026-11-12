@@ -39,7 +39,7 @@ Import ListNotations.
 
 Theorem apply_partial : apply_partial_statement.
 Proof.
-  intros ap vars conts statics callee vs extra called slots c Hcallee Hargs
+  intros ap vars conts statics hp callee vs extra called slots c Hcallee Hargs
     Hextra Hclosure Hkind Hcode Htupled Hcount Hkinds Htest.
   rewrite step_apply, Hcallee, Hargs, Hextra. unfold call_function.
   rewrite (shape_of_call_closure statics callee _ _ _ _
@@ -57,7 +57,7 @@ Qed.
 
 Theorem apply_partial_application : apply_partial_application_statement.
 Proof.
-  intros ap vars conts statics closure applied vs extra applied_arity
+  intros ap vars conts statics hp closure applied vs extra applied_arity
     Hcallee Hargs Hextra Hkind Hnonempty Hkinds Hclosure.
   rewrite step_apply, Hcallee, Hargs, Hextra, Hkind. unfold call_function.
   rewrite (shape_of_call_closure statics closure Indirect _ _ _ Hclosure).
@@ -70,7 +70,7 @@ Qed.
 Theorem apply_partial_application_undefined :
   apply_partial_application_undefined_statement.
 Proof.
-  intros ap vars conts statics closure applied applied_arity Hcallee Hbad.
+  intros ap vars conts statics hp closure applied applied_arity Hcallee Hbad.
   rewrite step_apply, Hcallee.
   destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | reflexivity ].
   destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
@@ -86,7 +86,7 @@ Qed.
 Theorem apply_partial_application_kinds :
   apply_partial_application_kinds_statement.
 Proof.
-  intros ap vars conts statics closure applied vs applied_arity Hcallee Hargs
+  intros ap vars conts statics hp closure applied vs applied_arity Hcallee Hargs
     Hkinds.
   rewrite step_apply, Hcallee, Hargs.
   destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
@@ -108,15 +108,16 @@ Qed.
 Lemma step_apply_values (f : simple) (kind : call_kind) (args : list simple)
     (k exn : continuation) (extra : list (simple * flambda_kind))
     (args_arity return_arity : arity) (vars : env) (conts : cont_env)
-    (statics : static_env) (callee : value) (vs extra_vs : list value) :
+    (statics : static_env) (hp : heap) (callee : value)
+      (vs extra_vs : list value) :
   eval_simple vars f = Some callee ->
   eval_simples vars args = Some vs ->
   eval_simples vars (map fst extra) = Some extra_vs ->
   step
     (State (Apply (Apply_expr f kind args k exn extra args_arity return_arity))
-       vars conts statics)
+       vars conts statics hp)
   = call_function callee kind vs args_arity return_arity (resolve k conts)
-      (with_extra_args (resolve exn conts) extra_vs) statics.
+      (with_extra_args (resolve exn conts) extra_vs) statics hp.
 Proof.
   intros Hf Hargs Hextra. rewrite step_apply. cbn [ap_callee ap_args].
   change
@@ -131,11 +132,11 @@ Qed.
 Lemma step_apply_no_value (f : simple) (kind : call_kind)
     (args : list simple) (k exn : continuation)
     (extra : list (simple * flambda_kind)) (args_arity return_arity : arity)
-    (vars : env) (conts : cont_env) (statics : static_env) :
+    (vars : env) (conts : cont_env) (statics : static_env) (hp : heap) :
   eval_simples vars args = None ∨ eval_simples vars (map fst extra) = None ->
   step
     (State (Apply (Apply_expr f kind args k exn extra args_arity return_arity))
-       vars conts statics)
+       vars conts statics hp)
   = Undefined.
 Proof.
   intros Hnone. rewrite step_apply. cbn [ap_callee ap_args].
@@ -151,7 +152,7 @@ Qed.
 Theorem partial_then_apply : partial_then_apply_statement.
 Proof.
   intros f kind args args' k k' exn exn' extra extra' p metadata args_arity
-    args_arity' partial_arity return_arity vars conts statics callee called
+    args_arity' partial_arity return_arity vars conts statics hp callee called
     slots c Hf Hclosure Hkind Hcode Htupled Hcount Hnonempty Hfresh
     Hfresh'.
   (* the continuation is bound *)
@@ -176,7 +177,7 @@ Proof.
           (code_params_arity c) (code_result_arity c))
     eqn:Htests.
   2: { apply Hwrong.
-       rewrite (step_apply_values _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hf Hargs
+       rewrite (step_apply_values _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hf Hargs
                   Hextra).
        unfold call_function.
        rewrite (shape_of_call_closure statics callee _ _ _ _
@@ -193,7 +194,7 @@ Proof.
        rewrite
          (apply_partial
             (Apply_expr f kind args k exn extra args_arity partial_arity)
-            vars _ statics callee vs extra_vs called slots c Hf Hargs Hextra
+            vars _ statics _ callee vs extra_vs called slots c Hf Hargs Hextra
             Hclosure Hkind Hcode Htupled Hcount Hkinds Htest).
        unfold apply_continuation. simpl ap_continuation.
        rewrite resolve_head. cbn [apply_cont_value map kind_of_value].
@@ -203,7 +204,7 @@ Proof.
     rewrite
       (apply_partial
          (Apply_expr f kind args k exn extra args_arity partial_arity) vars _
-         statics callee vs extra_vs called slots c Hf Hargs Hextra Hclosure
+         statics _ callee vs extra_vs called slots c Hf Hargs Hextra Hclosure
          Hkind Hcode Htupled Hcount Hkinds Htest).
     unfold apply_continuation. simpl ap_continuation. rewrite resolve_head.
     cbn [apply_cont_value map kind_of_value]. rewrite Hmetadata.
@@ -241,7 +242,7 @@ Proof.
   destruct (kinds_eqb (map kind_of_value vs') (unarize args_arity'))
     eqn:Hkinds'.
   2: { apply Hwrong'.
-       rewrite (step_apply_values _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hp Hargs_p
+       rewrite (step_apply_values _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hp Hargs_p
                   Hextra_p).
        unfold call_function, shape_of_call. cbn [partial_application_of].
        destruct args_arity' as [ | component rest]; [ reflexivity | ].
@@ -251,8 +252,8 @@ Proof.
   assert (Hall : eval_simples vars (args ++ args') = Some (vs ++ vs'))
     by (rewrite eval_simples_app, Hargs, Hargs'; reflexivity).
   rewrite
-    (step_apply_values _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hp Hargs_p Hextra_p),
-    (step_apply_values _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hf Hall Hextra').
+    (step_apply_values _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hp Hargs_p Hextra_p),
+    (step_apply_values _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hf Hall Hextra').
   unfold call_function.
   rewrite (shape_of_call_closure statics callee kind _ _ _
              (closure_not_partial statics callee _ Hclosure)),
@@ -266,7 +267,7 @@ Qed.
 
 Theorem apply_over : apply_over_statement.
 Proof.
-  intros ap vars conts statics callee vs extra called slots c Hcallee Hargs
+  intros ap vars conts statics hp callee vs extra called slots c Hcallee Hargs
     Hextra Hclosure Hkind Hcode Htupled Hcount Hkinds Htest.
   rewrite step_apply, Hcallee, Hargs, Hextra. unfold call_function.
   rewrite (shape_of_call_closure statics callee _ _ _ _
@@ -280,7 +281,7 @@ Qed.
 
 Theorem over_application_applied : over_application_applied_statement.
 Proof.
-  intros remaining remaining_arity return_arity return_to exn_to vs statics.
+  intros remaining remaining_arity return_arity return_to exn_to vs statics hp.
   apply apply_cont_value_over_application.
 Qed.
 
@@ -301,23 +302,23 @@ Variable R : state -> state -> Prop.
 Definition answered (result : step_result) (s' : state) : Prop :=
   match result with
   | Undefined => True
-  | Exit k vs => ∃ n : nat, run (S n) s' = Exit k vs
+  | Exit k vs hp => ∃ n : nat, run (S n) s' = Exit k vs hp
   | Step t => ∃ (n : nat) (t' : state), run (S n) s' = Step t' ∧ R t t'
   end.
 
 Hypothesis R_step : ∀ s s' : state, R s s' -> answered (step s) s'.
 
 Lemma late_exit (n : nat) :
-  ∀ (s s' : state) (k : continuation) (vs : list value),
-    R s s' -> run n s = Exit k vs -> ∃ m : nat, run m s' = Exit k vs.
+  ∀ (s s' : state) (k : continuation) (vs : list value) (hp : heap),
+    R s s' -> run n s = Exit k vs hp -> ∃ m : nat, run m s' = Exit k vs hp.
 Proof.
-  induction n as [ | n IH]; intros s s' k vs Hrel; simpl; [ discriminate | ].
+  induction n as [ | n IH]; intros s s' k vs hp Hrel; simpl; [ discriminate | ].
   pose proof (R_step s s' Hrel) as Hanswer.
   destruct (step s) as [t | k' vs0 | ]; unfold answered in Hanswer.
   - destruct Hanswer as (j & t' & Hrun & Hrel'). intros Hexit.
-    destruct (IH t t' k vs Hrel' Hexit) as [m Hm].
+    destruct (IH t t' k vs hp Hrel' Hexit) as [m Hm].
     exists (S j + m). rewrite run_add, Hrun. exact Hm.
-  - intros [= <- <-]. destruct Hanswer as [j Hrun]. exists (S j). exact Hrun.
+  - intros [= <- <- <-]. destruct Hanswer as [j Hrun]. exists (S j). exact Hrun.
   - discriminate.
 Qed.
 
@@ -329,12 +330,13 @@ Lemma late_ends (m : nat) :
     ended (run m s') b ->
     ∃ n : nat,
       run n s = Undefined
-      ∨ ∃ (k : continuation) (vs : list value), run n s = Exit k vs.
+      ∨ ∃ (k : continuation) (vs : list value) (hp : heap), run n s
+        = Exit k vs hp.
 Proof.
   induction m as [m IH] using (well_founded_induction lt_wf).
   intros s s' b Hrel Hended.
   pose proof (R_step s s' Hrel) as Hanswer.
-  destruct (step s) as [t | k vs | ] eqn:Hstep; unfold answered in Hanswer.
+  destruct (step s) as [t | k vs hp' | ] eqn:Hstep; unfold answered in Hanswer.
   - destruct Hanswer as (j & t' & Hrun & Hrel').
     destruct (Nat.lt_ge_cases m (S j)) as [Hshort | Hlong].
     + exfalso. replace (S j) with (m + (S j - m)) in Hrun by lia.
@@ -345,7 +347,7 @@ Proof.
       assert (Hless : m - S j < m) by lia.
       destruct (IH (m - S j) Hless t t' b Hrel' Hended) as [n Hn].
       exists (S n). simpl. rewrite Hstep. exact Hn.
-  - exists 1. right. exists k, vs. simpl. rewrite Hstep. reflexivity.
+  - exists 1. right. exists k, vs, hp'. simpl. rewrite Hstep. reflexivity.
   - exists 1. left. simpl. rewrite Hstep. reflexivity.
 Qed.
 
@@ -353,16 +355,16 @@ Lemma late_refines (s s' : state) : R s s' -> refines s s'.
 Proof.
   intros Hrel.
   assert (Hexits :
-    ∀ (k : continuation) (vs : list value),
-      behaves s (Exits k vs) -> behaves s' (Exits k vs)).
-  { intros k vs [n Hn]. exact (late_exit n s s' k vs Hrel Hn). }
+    ∀ (k : continuation) (vs : list value) (hp : heap),
+      behaves s (Exits k vs hp) -> behaves s' (Exits k vs hp)).
+  { intros k vs hp [n Hn]. exact (late_exit n s s' k vs _ Hrel Hn). }
   split; [ exact Hexits | ].
   intros b Hterm Hb. destruct (behaves_ended s' b Hterm Hb) as [m Hended].
   destruct (late_ends m s s' b Hrel Hended)
-    as [n [Hwrong | (k & vs & Hexit)]].
+    as [n [Hwrong | (k & vs & hp & Hexit)]].
   - right. exists n. exact Hwrong.
-  - left. assert (Hs : behaves s (Exits k vs)) by (exists n; exact Hexit).
-    rewrite (behaviour_unique s' b (Exits k vs) Hb (Hexits k vs Hs)).
+  - left. assert (Hs : behaves s (Exits k vs hp)) by (exists n; exact Hexit).
+    rewrite (behaviour_unique s' b (Exits k vs hp) Hb (Hexits k vs hp Hs)).
     exact Hs.
 Qed.
 
@@ -438,9 +440,10 @@ Definition conts_split (conts conts' : cont_env) : Prop :=
 
 Inductive states_split : state -> state -> Prop :=
   | States_split (e : expr) (vars : env) (conts conts' : cont_env)
-      (statics : static_env) :
+      (statics : static_env) (hp : heap) :
     conts_split conts conts' ->
-    states_split (State e vars conts statics) (State e vars conts' statics).
+    states_split (State e vars conts statics hp)
+      (State e vars conts' statics hp).
 
 Lemma conts_split_refl (conts : cont_env) : conts_split conts conts.
 Proof.
@@ -530,7 +533,7 @@ Qed.
 Definition carried (result result' : step_result) : Prop :=
   match result with
   | Undefined => True
-  | Exit k vs => ∃ n : nat, run_on n result' = Exit k vs
+  | Exit k vs hp => ∃ n : nat, run_on n result' = Exit k vs hp
   | Step t =>
     ∃ (n : nat) (t' : state), run_on n result' = Step t' ∧ states_split t t'
   end.
@@ -556,13 +559,13 @@ Qed.
 Lemma call_code_split (closure : value) (c : code) (vs : list value)
     (args_arity return_arity : arity)
     (return_to return_to' exn_to exn_to' : cont_value)
-    (statics : static_env) :
+    (statics : static_env) (hp : heap) :
   cont_split return_to return_to' ->
   cont_split exn_to exn_to' ->
   carried
-    (call_code closure c vs args_arity return_arity return_to exn_to statics)
+    (call_code closure c vs args_arity return_arity return_to exn_to statics hp)
     (call_code closure c vs args_arity return_arity return_to' exn_to'
-       statics).
+       statics hp).
 Proof.
   intros Hreturn Hexn. unfold call_code.
   destruct (binds_statics (code_body c)); [ exact I | ].
@@ -578,13 +581,14 @@ Qed.
 Lemma run_call_split (return_partial return_partial' : value -> step_result)
     (shape : option call_shape) (return_arity : arity)
     (return_to return_to' exn_to exn_to' : cont_value)
-    (statics : static_env) :
+    (statics : static_env) (hp : heap) :
   cont_split return_to return_to' ->
   cont_split exn_to exn_to' ->
   (∀ partial : value,
     carried (return_partial partial) (return_partial' partial)) ->
-  carried (run_call return_partial shape return_arity return_to exn_to statics)
-    (run_call return_partial' shape return_arity return_to' exn_to' statics).
+  carried
+    (run_call return_partial shape return_arity return_to exn_to statics hp)
+    (run_call return_partial' shape return_arity return_to' exn_to' statics hp).
 Proof.
   intros Hreturn Hexn Hpartial.
   destruct shape
@@ -614,16 +618,17 @@ Proof.
 Qed.
 
 Lemma apply_cont_value_split (c : cont_value) :
-  ∀ (c' : cont_value) (vs : list value) (statics : static_env),
+  ∀ (c' : cont_value) (vs : list value) (statics : static_env) (hp : heap),
     cont_split c c' ->
-    carried (apply_cont_value c vs statics) (apply_cont_value c' vs statics).
+    carried (apply_cont_value c vs statics hp)
+      (apply_cont_value c' vs statics hp).
 Proof.
   induction c
     as [[params metadata body] def_vars def_conts recursive | exit
        | c IH extra
        | remaining remaining_arity return_arity return_to exn_to IHreturn _]
     using cont_value_over_ind;
-    intros c' vs statics Hc; apply cont_split_inv in Hc.
+    intros c' vs statics hp Hc; apply cont_split_inv in Hc.
   - destruct Hc as (def_conts' & -> & Hconts). simpl.
     destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
       [ | exact I ].
@@ -633,7 +638,7 @@ Proof.
     apply States_split, Forall2_app; [ | exact Hconts ].
     apply rec_closures_split, Hconts.
   - subst c'. simpl. exists 0. reflexivity.
-  - destruct Hc as (c0' & -> & Hc). exact (IH c0' (vs ++ extra) statics Hc).
+  - destruct Hc as (c0' & -> & Hc). exact (IH c0' (vs ++ extra) statics hp Hc).
   - destruct vs as [ | v [ | v' vs]]; try exact I.
     destruct Hc
       as [(return_to' & exn_to' & -> & Hreturn & Hexn)
@@ -655,7 +660,7 @@ Proof.
       apply carried_later.
       rewrite
         (step_apply_values (Var p) Indirect args k exn extra _ _
-           ((p, v) :: vars) conts statics v remaining extra_vs);
+           ((p, v) :: vars) conts statics _ v remaining extra_vs);
         [ | simpl; rewrite Pos.eqb_refl; reflexivity
         | rewrite (eval_simples_extend vars p v args Hfresh); exact Hargs
         | rewrite (eval_simples_extend vars p v _ Hfresh'); exact Hextra ].
@@ -667,14 +672,14 @@ Qed.
 Lemma call_function_split (callee : value) (kind : call_kind)
     (vs : list value) (args_arity return_arity : arity)
     (return_to return_to' exn_to exn_to' : cont_value)
-    (statics : static_env) :
+    (statics : static_env) (hp : heap) :
   cont_split return_to return_to' ->
   cont_split exn_to exn_to' ->
   carried
     (call_function callee kind vs args_arity return_arity return_to exn_to
-       statics)
+       statics hp)
     (call_function callee kind vs args_arity return_arity return_to' exn_to'
-       statics).
+       statics hp).
 Proof.
   intros Hreturn Hexn. unfold call_function.
   apply run_call_split; [ exact Hreturn | exact Hexn | ].
@@ -684,7 +689,7 @@ Qed.
 Lemma step_split (s s' : state) :
   states_split s s' -> carried (step s) (step s').
 Proof.
-  intros [e vars conts conts' statics Hconts].
+  intros [e vars conts conts' statics hp Hconts].
   destruct e
     as [x kind d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
@@ -734,13 +739,13 @@ Proof. rewrite skipn_app, skipn_all, Nat.sub_diag. reflexivity. Qed.
 Lemma call_code_split_at_params (closure : value) (c : code)
     (vs : list value) (args_arity return_arity : arity)
     (return_to return_to' exn_to exn_to' : cont_value)
-    (statics : static_env) :
+    (statics : static_env) (hp : heap) :
   cont_split return_to return_to' ->
   cont_split exn_to exn_to' ->
   carried
-    (call_code closure c vs args_arity return_arity return_to exn_to statics)
+    (call_code closure c vs args_arity return_arity return_to exn_to statics hp)
     (call_code closure c vs (code_params_arity c) return_arity return_to'
-       exn_to' statics).
+       exn_to' statics hp).
 Proof.
   intros Hreturn Hexn. unfold call_code.
   destruct (binds_statics (code_body c)); [ exact I | ].
@@ -775,7 +780,7 @@ Qed.
 Theorem over_application_split : over_application_split_statement.
 Proof.
   intros f kind args args' k k' exn' extra p args_arity args_arity'
-    return_arity vars conts statics callee called slots c Hf Hclosure Hcode
+    return_arity vars conts statics hp callee called slots c Hf Hclosure Hcode
     Htupled Hcount Hsize Hnonempty Hdistinct Hfresh Hfresh'.
   (* the term binds its continuation *)
   eapply refines_trans;
@@ -797,8 +802,8 @@ Proof.
   assert (Hall : eval_simples vars (args ++ args') = Some (vs ++ vs'))
     by (rewrite eval_simples_app, Hargs, Hargs'; reflexivity).
   rewrite
-    (step_apply_values _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hf Hall Hextra),
-    (step_apply_values _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hf Hargs Hextra).
+    (step_apply_values _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hf Hall Hextra),
+    (step_apply_values _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hf Hargs Hextra).
   rewrite resolve_head,
     (resolve_other exn' k _ conts (fun Heq => Hdistinct (eq_sym Heq))).
   unfold call_function.
@@ -855,7 +860,7 @@ Proof. split; exists 20; vm_compute; reflexivity. Qed.
 
 Theorem apply_extra_undefined : apply_extra_undefined_statement.
 Proof.
-  intros ap vars conts statics Hextra. rewrite step_apply, Hextra.
+  intros ap vars conts statics hp Hextra. rewrite step_apply, Hextra.
   destruct (eval_simple vars (ap_callee ap)); [ | reflexivity ].
   destruct (eval_simples vars (ap_args ap)); reflexivity.
 Qed.

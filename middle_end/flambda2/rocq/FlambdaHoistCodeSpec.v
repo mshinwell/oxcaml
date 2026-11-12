@@ -272,8 +272,8 @@ Definition hoist_code (e : expr) : option expr :=
 Definition hoist_code_program_equivalent_statement : Prop :=
   ∀ e e' : expr,
     hoist_code e = Some e' ->
-    equivalent (State e [] [] empty_static_env)
-      (State e' [] [] empty_static_env).
+    equivalent (State e [] [] empty_static_env empty_heap)
+      (State e' [] [] empty_static_env empty_heap).
 
 (* What the check of closures is for. The closures in a value, or in
    what a symbol is bound to, are of code that [bound] has: every
@@ -324,7 +324,7 @@ Definition closures_bound (s : state) : Prop :=
 Definition closures_in_scope_run_statement : Prop :=
   ∀ (e : expr) (n : nat) (s : state),
     closures_in_scope (fun _ => false) e = true ->
-    run n (State e [] [] empty_static_env) = Step s ->
+    run n (State e [] [] empty_static_env empty_heap) = Step s ->
     closures_bound s.
 
 (* The parts of the pass commute with renaming, which renames no code

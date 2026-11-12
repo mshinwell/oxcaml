@@ -826,7 +826,7 @@ Definition heap_step_evolves_statement : Prop :=
    FlambdaSemanticsSpec.v with the heap carried along: a state whose next
    step is not a [Let] of a primitive steps as its projection does. *)
 Definition forget_heap (s : heap_state) : state :=
-  State (hs_expr s) (hs_vars s) (hs_conts s) (hs_statics s).
+  State (hs_expr s) (hs_vars s) (hs_conts s) (hs_statics s) (hs_heap s).
 
 Definition is_let_prim (e : expr) : bool :=
   match e with
@@ -839,7 +839,7 @@ Definition heap_step_agrees_statement : Prop :=
     is_let_prim (hs_expr s) = false ->
     match heap_step s, step (forget_heap s) with
     | Heap_step s', Step t => forget_heap s' = t ∧ hs_heap s' = hs_heap s
-    | Heap_exit k o, Exit k' vs =>
+    | Heap_exit k o, Exit k' vs _ =>
       k = k' ∧ o = Outcome vs (hs_statics s) (hs_heap s)
     | Heap_undefined, Undefined => True
     | _, _ => False

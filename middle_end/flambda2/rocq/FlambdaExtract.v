@@ -212,6 +212,7 @@ Separate Extraction
   drop_deleted_code
   drop_statics
   drop_unused_params
+  empty_heap
   empty_static_env
   expr_eqb
   filter_bindings

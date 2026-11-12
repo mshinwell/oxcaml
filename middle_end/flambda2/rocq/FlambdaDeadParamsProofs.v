@@ -278,7 +278,7 @@ Qed.
 
 Theorem drop_dead_params_refines : drop_dead_params_refines_statement.
 Proof.
-  intros e vars conts statics.
+  intros e vars conts statics hp.
   apply (rounds_refines state_drops drops_round).
   apply (State_drops []);
     [ apply drop_dead_drops; intros k mask Hmask; discriminate Hmask

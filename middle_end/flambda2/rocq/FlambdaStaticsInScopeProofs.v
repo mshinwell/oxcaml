@@ -573,12 +573,12 @@ Definition terms_inv (s : state) : Prop :=
 (* A call of code. *)
 Lemma call_code_terms (closure : value) (c : code) (vs : list value)
     (args_arity return_arity : arity) (return_to exn_to : cont_value)
-    (statics : static_env) (s' : state) :
+    (statics : static_env) (hp : heap) (s' : state) :
   code_all_fine statics ->
   code_fine (bound_symbols statics) (ids_of statics) c ->
   cont_good (bound_symbols statics) (ids_of statics) return_to ->
   cont_good (bound_symbols statics) (ids_of statics) exn_to ->
-  call_code closure c vs args_arity return_arity return_to exn_to statics
+  call_code closure c vs args_arity return_arity return_to exn_to statics hp
   = Step s' ->
   terms_inv s'.
 Proof.
@@ -607,13 +607,14 @@ Qed.
 
 Lemma run_call_terms (return_partial : value -> step_result)
     (kind : call_kind) (shape : option call_shape) (return_arity : arity)
-    (return_to exn_to : cont_value) (statics : static_env) (s' : state) :
+    (return_to exn_to : cont_value) (statics : static_env) (hp : heap)
+      (s' : state) :
   code_all_fine statics ->
   shape_calls statics kind shape ->
   cont_good (bound_symbols statics) (ids_of statics) return_to ->
   cont_good (bound_symbols statics) (ids_of statics) exn_to ->
   (∀ partial : value, return_partial partial = Step s' -> terms_inv s') ->
-  run_call return_partial shape return_arity return_to exn_to statics
+  run_call return_partial shape return_arity return_to exn_to statics hp
   = Step s' ->
   terms_inv s'.
 Proof.
@@ -630,10 +631,10 @@ Proof.
         | closure c vs remaining args_arity remaining_arity | partial] | ];
     simpl in Hcalls |- *.
   - destruct Hcalls as (called & slots & _ & Hlookup & _).
-    exact (call_code_terms closure c vs _ _ _ _ statics s' Hcode
+    exact (call_code_terms closure c vs _ _ _ _ statics _ s' Hcode
              (Hfine called c Hlookup) Hreturn Hexn).
   - destruct Hcalls as (called & slots & _ & Hlookup & _).
-    apply (call_code_terms closure c vs _ _ _ _ statics s' Hcode
+    apply (call_code_terms closure c vs _ _ _ _ statics _ s' Hcode
              (Hfine called c Hlookup));
       [ apply Good_over; assumption | exact Hexn ].
   - apply Hpartial.
@@ -681,10 +682,10 @@ Qed.
 
 (* The application of a good continuation. *)
 Lemma apply_cont_value_terms (c : cont_value) :
-  ∀ (vs : list value) (statics : static_env) (s' : state),
+  ∀ (vs : list value) (statics : static_env) (hp : heap) (s' : state),
     code_all_fine statics ->
     cont_good (bound_symbols statics) (ids_of statics) c ->
-    apply_cont_value c vs statics = Step s' ->
+    apply_cont_value c vs statics hp = Step s' ->
     terms_inv s'.
 Proof.
   induction c
@@ -692,7 +693,7 @@ Proof.
        | c IHc extra
        | remaining remaining_arity return_arity return_to exn_to IHreturn _]
     using cont_value_over_ind;
-    intros vs statics s' Hcode Hgood Hstep.
+    intros vs statics hp s' Hcode Hgood Hstep.
   - simpl in Hstep.
     destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
       [ | discriminate ].
@@ -724,34 +725,35 @@ Proof.
         exfalso. exact (lookup_none_not_in _ _ Hlookup Hamong).
   - discriminate.
   - inversion Hgood; subst.
-    exact (IHc (vs ++ extra) statics s' Hcode ltac:(assumption) Hstep).
+    exact (IHc (vs ++ extra) statics hp s' Hcode ltac:(assumption) Hstep).
   - rewrite apply_cont_value_over_application in Hstep.
     destruct vs as [ | v [ | v' vs]]; [ discriminate | | discriminate ].
     inversion Hgood as [ | | syms0 ids0 r ra rta rt et Hreturn Hexn | ]; subst.
     unfold call_function in Hstep.
-    apply (run_call_terms _ Indirect _ _ _ _ statics s' Hcode
+    apply (run_call_terms _ Indirect _ _ _ _ statics _ s' Hcode
              (shape_of_call_calls _ _ _ _ _ _) Hreturn Hexn)
       in Hstep; [ exact Hstep | ].
     intros partial Hpartial.
-    exact (IHreturn [partial] statics s' Hcode Hreturn Hpartial).
+    exact (IHreturn [partial] statics hp s' Hcode Hreturn Hpartial).
 Qed.
 
 Lemma call_function_terms (callee : value) (kind : call_kind)
     (vs : list value) (args_arity return_arity : arity)
-    (return_to exn_to : cont_value) (statics : static_env) (s' : state) :
+    (return_to exn_to : cont_value) (statics : static_env) (hp : heap)
+      (s' : state) :
   code_all_fine statics ->
   cont_good (bound_symbols statics) (ids_of statics) return_to ->
   cont_good (bound_symbols statics) (ids_of statics) exn_to ->
   call_function callee kind vs args_arity return_arity return_to exn_to
-    statics
+    statics hp
   = Step s' ->
   terms_inv s'.
 Proof.
   intros Hcode Hreturn Hexn. unfold call_function.
-  apply (run_call_terms _ kind _ _ _ _ statics s' Hcode
+  apply (run_call_terms _ kind _ _ _ _ statics _ s' Hcode
            (shape_of_call_calls _ _ _ _ _ _) Hreturn Hexn).
   intros partial.
-  exact (apply_cont_value_terms return_to _ statics s' Hcode Hreturn).
+  exact (apply_cont_value_terms return_to _ statics _ s' Hcode Hreturn).
 Qed.
 
 (* The unfoldings of the checks at one constructor, and nothing else. *)
@@ -986,14 +988,14 @@ Proof.
     destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
       [ | discriminate ].
     at_constructor K.
-    apply (call_function_terms _ _ _ _ _ _ _ statics s' C) in Hstep;
+    apply (call_function_terms _ _ _ _ _ _ _ statics _ s' C) in Hstep;
       [ exact Hstep | | ].
     + apply K. left. reflexivity.
     + apply with_extra_args_good, K. right. left. reflexivity.
   - (* Apply_cont *)
     destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | discriminate ].
     unfold apply_continuation in Hstep. at_constructor K.
-    refine (apply_cont_value_terms _ vs statics s' C (K _ _) Hstep).
+    refine (apply_cont_value_terms _ vs statics _ s' C (K _ _) Hstep).
     left. reflexivity.
   - (* Switch *)
     destruct (eval_simple vars scrutinee) as [v | ]; [ | discriminate ].
@@ -1536,7 +1538,7 @@ Lemma values_step (s : state) :
   state_statics_bound deleted s ->
   match step s with
   | Step s' => state_statics_bound deleted s'
-  | Exit _ vs => Forall (value_statics_bound deleted (state_statics s)) vs
+  | Exit _ vs _ => Forall (value_statics_bound deleted (state_statics s)) vs
   | Undefined => True
   end.
 Proof.
@@ -1800,13 +1802,13 @@ Proof. apply all_among_spec. intros name H. exact H. Qed.
 
 (* The state that a unit is run from has both invariants. *)
 Lemma initial_state_inv (imports : list symbol) (u : unit_interface)
-    (e : expr) (statics : static_env) :
+    (e : expr) (statics : static_env) (hp : heap) :
   well_formed_unit u e = true ->
   statics_in_scope imports e = true ->
   interface_conts_not_rebound u e = true ->
   imports_bound imports statics ->
-  terms_inv (unit_exn u) (deleted_code_ids e) (State e [] [] statics)
-  ∧ state_statics_bound (deleted_code_ids e) (State e [] [] statics).
+  terms_inv (unit_exn u) (deleted_code_ids e) (State e [] [] statics hp)
+  ∧ state_statics_bound (deleted_code_ids e) (State e [] [] statics hp).
 Proof.
   intros Hwf Hscope Hconts (Hcode & Hbound & Hvalues).
   assert (Hsyms : sub imports (bound_symbols statics)).
@@ -1846,8 +1848,8 @@ Qed.
 
 Theorem statics_bound_in_run : statics_bound_in_run_statement.
 Proof.
-  intros imports u e statics n s Hwf Hscope Hconts Himports Hrun.
-  destruct (initial_state_inv imports u e statics Hwf Hscope Hconts Himports)
+  intros imports u e statics hp n s Hwf Hscope Hconts Himports Hrun.
+  destruct (initial_state_inv imports u e statics hp Hwf Hscope Hconts Himports)
     as [Hterms Hvalues].
   destruct (inv_run (unit_exn u) (deleted_code_ids e) n _ s Hterms Hvalues
               Hrun) as [Hterms' Hvalues'].
@@ -2013,8 +2015,8 @@ Proof. repeat split; vm_compute; reflexivity. Qed.
 
 (* It goes through the inner test and returns. *)
 Example nested_test_returns :
-  run 12 (State (nested_test_unit 1) [] [] (Static_env [] []))
-  = Exit 1%positive [Value_symbol 1%positive].
+  run 12 (State (nested_test_unit 1) [] [] (Static_env [] []) empty_heap)
+  = Exit 1%positive [Value_symbol 1%positive] empty_heap.
 Proof. vm_compute. reflexivity. Qed.
 
 (* ======================================================================== *)
@@ -2043,8 +2045,8 @@ Example recursive_handler_passes :
 Proof. repeat split; vm_compute; reflexivity. Qed.
 
 Example recursive_handler_returns :
-  run 4 (State recursive_handler_unit [] [] (Static_env [] []))
-  = Exit 1%positive [Value_symbol 1%positive].
+  run 4 (State recursive_handler_unit [] [] (Static_env [] []) empty_heap)
+  = Exit 1%positive [Value_symbol 1%positive] empty_heap.
 Proof. vm_compute. reflexivity. Qed.
 
 (* A handler, of the continuation [3], that mentions a symbol which the
@@ -2078,8 +2080,8 @@ Example sibling_handler_passes :
 Proof. repeat split; vm_compute; reflexivity. Qed.
 
 Example sibling_handler_returns :
-  run 8 (State (sibling_handler_unit 0) [] [] (Static_env [] []))
-  = Exit 1%positive [Value_symbol 1%positive].
+  run 8 (State (sibling_handler_unit 0) [] [] (Static_env [] []) empty_heap)
+  = Exit 1%positive [Value_symbol 1%positive] empty_heap.
 Proof. vm_compute. reflexivity. Qed.
 
 (* A unit that leaves by its exception continuation before the handler
@@ -2108,8 +2110,8 @@ Example raise_past_binding_passes :
 Proof. repeat split; vm_compute; reflexivity. Qed.
 
 Example raise_past_binding_exits :
-  run 3 (State raise_past_binding_unit [] [] (Static_env [] []))
-  = Exit 2%positive [Value_const (Tagged_immediate 0)].
+  run 3 (State raise_past_binding_unit [] [] (Static_env [] []) empty_heap)
+  = Exit 2%positive [Value_const (Tagged_immediate 0)] empty_heap.
 Proof. vm_compute. reflexivity. Qed.
 
 (* ======================================================================== *)
@@ -2140,9 +2142,9 @@ Definition round_unit : expr :=
 
 (* The state of its run that reads the symbol. *)
 Definition round_state : state :=
-  match run 5 (State round_unit [] [] (Static_env [] [])) with
+  match run 5 (State round_unit [] [] (Static_env [] []) empty_heap) with
   | Step s => s
-  | Exit _ _ | Undefined => State Invalid [] [] (Static_env [] [])
+  | Exit _ _ _ | Undefined => State Invalid [] [] (Static_env [] []) empty_heap
   end.
 
 Theorem branch_round_binding_reads_unbound :
@@ -2190,9 +2192,9 @@ Definition rebound_unit : expr :=
 
 (* The state of its run that reads the symbol. *)
 Definition rebound_state : state :=
-  match run 5 (State rebound_unit [] [] (Static_env [] [])) with
+  match run 5 (State rebound_unit [] [] (Static_env [] []) empty_heap) with
   | Step s => s
-  | Exit _ _ | Undefined => State Invalid [] [] (Static_env [] [])
+  | Exit _ _ _ | Undefined => State Invalid [] [] (Static_env [] []) empty_heap
   end.
 
 Theorem rebound_unit_exn_reads_unbound :

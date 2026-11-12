@@ -151,15 +151,16 @@ Qed.
 
 Theorem switch_arms_refined : switch_arms_refined_statement.
 Proof.
-  intros tenv s arms arms' Hall vars conts statics Hvalid Hsat.
-  destruct (step_switch_cases s arms vars conts statics)
+  intros tenv s arms arms' Hall vars conts statics hp Hvalid Hsat.
+  destruct (step_switch_cases s arms vars conts statics hp)
     as [Hundefined | [v [i [ac [Hv [Hi [Hfind Hstep]]]]]]].
   { apply step_undefined_refines, Hundefined. }
   pose proof (find_arm_forall2
                 (fun i ac ac' => arm_refines_where_taken tenv s i ac ac') i
                 arms arms' Hall) as Hfind'.
   rewrite Hfind in Hfind'. destruct Hfind' as [ac' [Hfind' Hrefines]].
-  apply (refines_step _ _ _ (State (Apply_cont ac') vars conts statics) Hstep).
+  apply
+    (refines_step _ _ _ (State (Apply_cont ac') vars conts statics hp) Hstep).
   - rewrite step_switch, Hv, Hi, Hfind'. reflexivity.
   - apply Hrefines; [ exact Hvalid | exact Hsat | ].
     rewrite Hv, (naked_immediate_of_value_some v i Hi). reflexivity.
@@ -172,7 +173,7 @@ Qed.
 Theorem simplify_arm_refines : simplify_arm_refines_statement.
 Proof.
   intros meet rewrite tenv s canonical ty i ac ac' Hmeet Hkeeps Hrewrite Hfits
-    Hmem Htype Harm vars conts statics Hvalid Hsat Heval.
+    Hmem Htype Harm vars conts statics hp Hvalid Hsat Heval.
   unfold simplify_arm in Harm.
   destruct (meet tenv ty (this_naked_immediate i)) as [[[t tenv'] | ] | ]
     eqn:Hanswer; try discriminate.

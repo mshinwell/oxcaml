@@ -793,13 +793,13 @@ Qed.
 #[local] Abbreviation state_wk := (state_well_kinded slots outer).
 
 Lemma state_well_kinded_intro (e : expr) (vars : env) (conts : cont_env)
-    (statics : static_env) :
+    (statics : static_env) (hp : heap) :
   well_kinded slots (kinds_of_env vars) (arities_of_conts outer conts) e
   = true ->
   env_wk vars = true ->
   conts_wk conts = true ->
   statics_wk statics = true ->
-  state_wk (State e vars conts statics) = true.
+  state_wk (State e vars conts statics hp) = true.
 Proof.
   intros He Hvars Hconts Hstatics. unfold state_well_kinded. simpl_state.
   rewrite He, Hvars, Hconts, Hstatics. reflexivity.
@@ -897,7 +897,7 @@ Qed.
 Definition result_wk (result : step_result) : Prop :=
   match result with
   | Step s' => state_wk s' = true
-  | Exit k vs =>
+  | Exit k vs _ =>
     lookup k outer = Some (map kind_of_value vs)
     ∧ forallb value_wk vs = true
   | Undefined => True
@@ -908,7 +908,7 @@ Definition result_wk (result : step_result) : Prop :=
 Lemma call_code_well_kinded (closure : value) (called : code_id)
     (value_slots : list (value_slot * value)) (c : code) (vs : list value)
     (args_arity return_arity : arity) (return_to exn_to : cont_value)
-    (statics : static_env) :
+    (statics : static_env) (hp : heap) :
   closure_of statics closure = Some (called, value_slots) ->
   lookup called (static_code statics) = Some c ->
   value_wk closure = true ->
@@ -919,14 +919,16 @@ Lemma call_code_well_kinded (closure : value) (called : code_id)
   arity_of_cont outer exn_to = [Value] ->
   statics_wk statics = true ->
   result_wk
-    (call_code closure c vs args_arity return_arity return_to exn_to statics).
+    (call_code closure c vs args_arity return_arity return_to exn_to statics
+       hp).
 Proof.
   intros Hclosure Hcode Hclosure_wk Hvs_wk Hreturn_wk Hreturn_to Hexn_wk
     Hexn_to Hstatics.
   destruct
-    (call_code closure c vs args_arity return_arity return_to exn_to statics)
+    (call_code closure c vs args_arity return_arity return_to exn_to statics hp)
     as [s' | k values | ] eqn:Hstep; [ | | exact I ].
-  2: { destruct (call_code_cases closure c vs args_arity return_arity statics)
+  2:
+    { destruct (call_code_cases closure c vs args_arity return_arity statics hp)
          as [Hundefined | [callee_vars Hsteps]];
          [ rewrite Hundefined in Hstep | rewrite Hsteps in Hstep ];
          discriminate. }
@@ -968,7 +970,7 @@ Qed.
    the call then expects one [Value]. *)
 Lemma run_call_well_kinded (return_partial : value -> step_result)
     (kind : call_kind) (shape : option call_shape) (return_arity : arity)
-    (return_to exn_to : cont_value) (statics : static_env) :
+    (return_to exn_to : cont_value) (statics : static_env) (hp : heap) :
   shape_calls statics kind shape ->
   shape_values_all (fun v => value_wk v = true) shape ->
   shape_arities return_arity shape ->
@@ -983,7 +985,7 @@ Lemma run_call_well_kinded (return_partial : value -> step_result)
     return_arity = [Singleton Value] ->
     result_wk (return_partial partial)) ->
   result_wk
-    (run_call return_partial shape return_arity return_to exn_to statics).
+    (run_call return_partial shape return_arity return_to exn_to statics hp).
 Proof.
   intros Hcalls Hvalues Harities Hreturn_wk Hreturn_to Hexn_wk Hexn_to
     Hstatics Hpartial.
@@ -994,13 +996,13 @@ Proof.
   - destruct Hcalls as (called & value_slots & Hclosure & Hcode & _).
     destruct Hvalues as [Hclosure_wk Hvs]. apply forallb_Forall in Hvs.
     exact (call_code_well_kinded closure called value_slots c vs _ _ _ _
-             statics Hclosure Hcode Hclosure_wk Hvs Hreturn_wk Hreturn_to
+             statics _ Hclosure Hcode Hclosure_wk Hvs Hreturn_wk Hreturn_to
              Hexn_wk Hexn_to Hstatics).
   - destruct Hcalls as (called & value_slots & Hclosure & Hcode & _).
     destruct Hvalues as (Hclosure_wk & Hvs & Hremaining).
     apply forallb_Forall in Hvs, Hremaining.
     apply (call_code_well_kinded closure called value_slots c vs _ _ _ _
-             statics Hclosure Hcode Hclosure_wk Hvs);
+             statics _ Hclosure Hcode Hclosure_wk Hvs);
       try assumption.
     + simpl. rewrite Hremaining, Hreturn_wk, Hexn_wk, Hreturn_to, Hexn_to.
       rewrite ?kinds_eqb_refl. reflexivity.
@@ -1013,19 +1015,19 @@ Qed.
 (* Applying a well-kinded continuation to well-kinded values of the
    kinds of its parameters. *)
 Lemma apply_cont_value_well_kinded (c : cont_value) :
-  ∀ (vs : list value) (statics : static_env),
+  ∀ (vs : list value) (statics : static_env) (hp : heap),
     cont_wk c = true ->
     map kind_of_value vs = arity_of_cont outer c ->
     forallb value_wk vs = true ->
     statics_wk statics = true ->
-    result_wk (apply_cont_value c vs statics).
+    result_wk (apply_cont_value c vs statics hp).
 Proof.
   induction c
     as [[params metadata handler] def_vars def_conts recursive | k
        | c IH extra
        | remaining remaining_arity return_arity return_to exn_to IHreturn _]
     using cont_value_over_ind;
-    intros vs statics Hc Hkinds Hvs_wk Hstatics.
+    intros vs statics hp Hc Hkinds Hvs_wk Hstatics.
   - cbn [apply_cont_value].
     destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
       [ | exact I ].
@@ -1053,7 +1055,7 @@ Proof.
     apply andb_true_iff in Hc as [Hc Hextra_kinds].
     apply andb_true_iff in Hc as [Hc Hextra].
     apply kinds_eqb_eq in Hextra_kinds. cbn [arity_of_cont] in Hkinds.
-    apply (IH (vs ++ extra) statics Hc); [ | | exact Hstatics ].
+    apply (IH (vs ++ extra) statics hp Hc); [ | | exact Hstatics ].
     + rewrite map_app, Hkinds, Hextra_kinds. apply firstn_skipn.
     + rewrite forallb_app, Hvs_wk, Hextra. reflexivity.
   - rewrite apply_cont_value_over_application.
@@ -1081,7 +1083,7 @@ Qed.
    to well-kinded continuations of the arities of the call. *)
 Lemma call_function_well_kinded (callee : value) (kind : call_kind)
     (vs : list value) (args_arity return_arity : arity)
-    (return_to exn_to : cont_value) (statics : static_env) :
+    (return_to exn_to : cont_value) (statics : static_env) (hp : heap) :
   value_wk callee = true ->
   forallb value_wk vs = true ->
   cont_wk return_to = true ->
@@ -1091,7 +1093,7 @@ Lemma call_function_well_kinded (callee : value) (kind : call_kind)
   statics_wk statics = true ->
   result_wk
     (call_function callee kind vs args_arity return_arity return_to exn_to
-       statics).
+       statics hp).
 Proof.
   intros Hcallee_wk Hvs_wk Hreturn_wk Hreturn_to Hexn_wk Hexn_to Hstatics.
   unfold call_function.
@@ -1245,7 +1247,8 @@ Proof.
       as [Hraise_wk Hraise_to].
     pose proof
       (call_function_well_kinded callee (ap_call_kind ap) vs
-         (ap_args_arity ap) (ap_return_arity ap) _ _ statics Hcallee_wk
+         (ap_args_arity ap) (ap_return_arity ap) _ _ statics (state_heap s)
+           Hcallee_wk
          Hvs_wk Hreturn_wk Hreturn_to Hraise_wk Hraise_to Hstatics)
       as Hresult.
     rewrite Hstep in Hresult. exact Hresult.
@@ -1260,7 +1263,8 @@ Proof.
     destruct (resolve_well_kinded conts _ _ Hconts Hk) as [Hc Harity].
     rewrite <- Harity in Hkinds.
     pose proof
-      (apply_cont_value_well_kinded _ vs statics Hc Hkinds Hvs_wk Hstatics)
+      (apply_cont_value_well_kinded _ vs statics (state_heap s) Hc Hkinds Hvs_wk
+         Hstatics)
       as Hresult.
     rewrite Hstep in Hresult. exact Hresult.
   - (* Switch *)
@@ -1462,9 +1466,9 @@ Qed.
 (* A state exits only at an [Apply_cont], or at an [Apply] that gives
    a partial application to its return continuation. *)
 Lemma exit_well_kinded_here (s : state) (k : continuation)
-    (vs : list value) :
+    (vs : list value) (hp : heap) :
   state_wk s = true ->
-  step s = Exit k vs ->
+  step s = Exit k vs hp ->
   lookup k outer = Some (map kind_of_value vs)
   ∧ forallb value_wk vs = true.
 Proof.
@@ -1505,7 +1509,7 @@ Proof.
       as [Hraise_wk Hraise_to].
     pose proof
       (call_function_well_kinded callee (ap_call_kind ap) args
-         (ap_args_arity ap) (ap_return_arity ap) _ _ statics
+         (ap_args_arity ap) (ap_return_arity ap) _ _ statics (state_heap s)
          (eval_simple_well_kinded vars _ callee Hvars Hcallee)
          (eval_simples_well_kinded vars _ args Hvars Hargs) Hreturn_wk
          Hreturn_to Hraise_wk Hraise_to Hstatics)
@@ -1521,8 +1525,8 @@ Proof.
     destruct (resolve_well_kinded conts _ _ Hconts Hk) as [Hc Harity].
     rewrite <- Harity in Hkinds.
     pose proof
-      (apply_cont_value_well_kinded _ args statics Hc Hkinds Hargs_wk
-         Hstatics)
+      (apply_cont_value_well_kinded _ args statics (state_heap s) Hc Hkinds
+         Hargs_wk Hstatics)
       as Hresult.
     rewrite Hstep in Hresult. exact Hresult.
   - destruct (eval_simple vars scrutinee) as [v | ]; [ | discriminate ].
@@ -1551,7 +1555,7 @@ End Kinds.
 Theorem call_at_wrong_kinds_undefined :
   call_at_wrong_kinds_undefined_statement.
 Proof.
-  intros ap vars conts statics callee vs called value_slots c Hcallee Hvs
+  intros ap vars conts statics hp callee vs called value_slots c Hcallee Hvs
     Hclosure Hcode Hmismatch.
   rewrite step_apply, Hcallee, Hvs.
   destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
@@ -1612,7 +1616,7 @@ Qed.
 
 Theorem let_binds_at_kind : let_binds_at_kind_statement.
 Proof.
-  intros x kind d body vars conts statics s. rewrite step_let.
+  intros x kind d body vars conts statics hp s. rewrite step_let.
   destruct (eval_named statics vars d) as [v | ]; [ | discriminate ].
   destruct (kind_eqb (kind_of_value v) kind) eqn:Hkind; [ | discriminate ].
   intros [= <-]. exists v. apply kind_eqb_eq in Hkind. auto.
@@ -1620,7 +1624,7 @@ Qed.
 
 Theorem handler_binds_at_kinds : handler_binds_at_kinds_statement.
 Proof.
-  intros params metadata handler def_vars def_conts recursive vs statics s.
+  intros params metadata handler def_vars def_conts recursive vs statics hp s.
   simpl.
   destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata))
     eqn:Hkinds; [ | discriminate ].
@@ -1631,7 +1635,7 @@ Qed.
 
 Theorem call_binds_at_kinds : call_binds_at_kinds_statement.
 Proof.
-  intros closure c vs args_arity return_arity return_to exn_to statics s
+  intros closure c vs args_arity return_arity return_to exn_to statics hp s
     Hcall.
   apply call_code_step in Hcall
     as (callee_vars & _ & Hkinds & Hargs & _ & Hbind & ->).
@@ -1680,8 +1684,8 @@ Qed.
 
 Theorem well_kinded_exit : well_kinded_exit_statement.
 Proof.
-  intros slots outer s k vs.
-  exact (exit_well_kinded_here slots outer s k vs).
+  intros slots outer s k vs hp.
+  exact (exit_well_kinded_here slots outer s k vs hp).
 Qed.
 
 Theorem well_kinded_unit_never_faults :
@@ -1696,25 +1700,25 @@ Qed.
 
 (* A run that exits has a last state, which is well-kinded. *)
 Lemma run_exit (n : nat) :
-  ∀ (s : state) (k : continuation) (vs : list value),
-    run n s = Exit k vs ->
-    ∃ (m : nat) (s' : state), run m s = Step s' ∧ step s' = Exit k vs.
+  ∀ (s : state) (k : continuation) (vs : list value) (hp : heap),
+    run n s = Exit k vs hp ->
+    ∃ (m : nat) (s' : state), run m s = Step s' ∧ step s' = Exit k vs hp.
 Proof.
-  induction n as [ | n IH]; intros s k vs; [ discriminate | ].
-  rewrite run_succ. destruct (step s) as [s'' | k' vs' | ] eqn:Hstep;
+  induction n as [ | n IH]; intros s k vs hp; [ discriminate | ].
+  rewrite run_succ. destruct (step s) as [s'' | k' vs' hp' | ] eqn:Hstep;
     [ | | discriminate ].
-  - intros Hrun. destruct (IH s'' k vs Hrun) as (m & s' & Hm & Hexit).
+  - intros Hrun. destruct (IH s'' k vs hp Hrun) as (m & s' & Hm & Hexit).
     exists (S m), s'. rewrite run_succ, Hstep. auto.
-  - intros [= -> ->]. exists 0, s. auto.
+  - intros [= -> -> ->]. exists 0, s. auto.
 Qed.
 
 Theorem well_kinded_unit_exits : well_kinded_unit_exits_statement.
 Proof.
-  intros slots unit_return unit_exn e n k vs He Hrun.
-  destruct (run_exit n _ k vs Hrun) as (m & s & Hm & Hexit).
+  intros slots unit_return unit_exn e n k vs hp He Hrun.
+  destruct (run_exit n _ k vs _ Hrun) as (m & s & Hm & Hexit).
   pose proof (run_well_kinded slots _ m _ s
     (well_kinded_unit_state slots unit_return unit_exn e He) Hm) as Hs.
-  destruct (well_kinded_exit slots _ s k vs Hs Hexit) as [Hk _].
+  destruct (well_kinded_exit slots _ s k vs _ Hs Hexit) as [Hk _].
   unfold unit_arities in Hk. simpl in Hk.
   assert (Hkinds : (k = unit_return ∨ k = unit_exn)
                    ∧ map kind_of_value vs = [Value]).
@@ -1778,8 +1782,8 @@ Example example_passes :
 Proof. reflexivity. Qed.
 
 Example example_runs :
-  run 8 (State example_well_kinded [] [] empty_static_env)
-  = Exit 1%positive [Value_const (Tagged_immediate 5)].
+  run 8 (State example_well_kinded [] [] empty_static_env empty_heap)
+  = Exit 1%positive [Value_const (Tagged_immediate 5)] empty_heap.
 Proof. vm_compute. reflexivity. Qed.
 
 (* What the check does not look at: a call at an arity that is not that
@@ -1796,7 +1800,8 @@ Example example_wrong_arity_passes :
 Proof. reflexivity. Qed.
 
 Example example_wrong_arity_undefined :
-  run 4 (State example_wrong_arity [] [] empty_static_env) = Undefined.
+  run 4 (State example_wrong_arity [] [] empty_static_env empty_heap)
+    = Undefined.
 Proof. vm_compute. reflexivity. Qed.
 
 (* Nor does it look at whether an argument of a call is of the kind of
@@ -1815,7 +1820,8 @@ Example example_wrong_argument_passes :
 Proof. reflexivity. Qed.
 
 Example example_wrong_argument_undefined :
-  run 4 (State example_wrong_argument [] [] empty_static_env) = Undefined.
+  run 4 (State example_wrong_argument [] [] empty_static_env empty_heap)
+    = Undefined.
 Proof. vm_compute. reflexivity. Qed.
 
 (* Where the check answers no: a slot given another kind than that of
@@ -1850,8 +1856,8 @@ Example example_dead_arm_refused :
 Proof. reflexivity. Qed.
 
 Example example_dead_arm_runs :
-  run 2 (State example_dead_arm [] [] empty_static_env)
-  = Exit 1%positive [Value_const (Tagged_immediate 5)].
+  run 2 (State example_dead_arm [] [] empty_static_env empty_heap)
+  = Exit 1%positive [Value_const (Tagged_immediate 5)] empty_heap.
 Proof. vm_compute. reflexivity. Qed.
 
 (* What the check does not look at: a call of what is not of kind
@@ -1868,7 +1874,8 @@ Example example_call_of_number_passes :
 Proof. reflexivity. Qed.
 
 Example example_call_of_number_undefined :
-  run 2 (State example_call_of_number [] [] empty_static_env) = Undefined.
+  run 2 (State example_call_of_number [] [] empty_static_env empty_heap)
+    = Undefined.
 Proof. vm_compute. reflexivity. Qed.
 
 (* Nor at the arguments of a primitive. [Opaque_identity] at kind [Value]
@@ -1887,7 +1894,7 @@ Proof. reflexivity. Qed.
 Example example_opaque_undefined :
   run 1
     (State (example_prim (Opaque_identity Value) Value) [] []
-       empty_static_env)
+       empty_static_env empty_heap)
   = Undefined.
 Proof. vm_compute. reflexivity. Qed.
 
@@ -1900,7 +1907,7 @@ Proof. reflexivity. Qed.
 Example example_is_int_undefined :
   run 1
     (State (example_prim (Is_int false) naked_immediate) [] []
-       empty_static_env)
+       empty_static_env empty_heap)
   = Undefined.
 Proof. vm_compute. reflexivity. Qed.
 
@@ -1942,8 +1949,8 @@ Proof. reflexivity. Qed.
 Example product_runs :
   run 5
     (State (product_unit [pair] [Unboxed_product [Singleton Value; pair]])
-       [] [] empty_static_env)
-  = Exit 1%positive [Value_const (Tagged_immediate 2)].
+       [] [] empty_static_env empty_heap)
+  = Exit 1%positive [Value_const (Tagged_immediate 2)] empty_heap.
 Proof. vm_compute. reflexivity. Qed.
 
 (* Two parameters, each a value, are not one parameter that is a pair of
@@ -1954,7 +1961,7 @@ Example product_two_parameters_undefined :
     (State
        (product_unit [Singleton Value; Singleton Value]
           [Unboxed_product [Singleton Value; pair]])
-       [] [] empty_static_env)
+       [] [] empty_static_env empty_heap)
   = Undefined.
 Proof. vm_compute. reflexivity. Qed.
 
@@ -1970,7 +1977,7 @@ Proof. reflexivity. Qed.
 Example product_result_nesting_undefined :
   run 3
     (State (product_unit [pair] [Unboxed_product [pair; Singleton Value]])
-       [] [] empty_static_env)
+       [] [] empty_static_env empty_heap)
   = Undefined.
 Proof. vm_compute. reflexivity. Qed.
 
@@ -1982,8 +1989,8 @@ Example product_argument_nesting_runs :
        (product_unit [Unboxed_product [Unboxed_product [Singleton Value];
                                        Singleton Value]]
           [Unboxed_product [Singleton Value; pair]])
-       [] [] empty_static_env)
-  = Exit 1%positive [Value_const (Tagged_immediate 2)].
+       [] [] empty_static_env empty_heap)
+  = Exit 1%positive [Value_const (Tagged_immediate 2)] empty_heap.
 Proof. vm_compute. reflexivity. Qed.
 
 (* A partial application: one argument, of the kind of the first of two
@@ -2002,7 +2009,7 @@ Definition partial_application_of (arg : simple) : state :=
           2%positive [] [Singleton Value] [Singleton Value]))
     [] []
     (Static_env [(1%positive, two_parameter_code)]
-       [(1%positive, Static_closure 1%positive [])]).
+       [(1%positive, Static_closure 1%positive [])]) empty_heap.
 
 Definition partial_application_state : state :=
   partial_application_of (Const (Tagged_immediate 1)).
@@ -2011,7 +2018,7 @@ Example partial_application_returns :
   step partial_application_state
   = Exit 1%positive
       [Value_partial_application (Value_symbol 1%positive)
-         [Value_const (Tagged_immediate 1)] [Singleton Value]].
+         [Value_const (Tagged_immediate 1)] [Singleton Value]] empty_heap.
 Proof. vm_compute. reflexivity. Qed.
 
 (* The same call with an argument that is not of the kind of the arity

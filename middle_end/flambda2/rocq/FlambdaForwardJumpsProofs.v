@@ -164,10 +164,10 @@ Qed.
 
 Theorem forward_jumps_equivalent : forward_jumps_equivalent_statement.
 Proof.
-  intros e vars conts statics.
+  intros e vars conts statics hp.
   assert (Hrel :
-    state_fwd true (State e vars conts statics)
-      (State (forward_jumps e) vars conts statics)).
+    state_fwd true (State e vars conts statics hp)
+      (State (forward_jumps e) vars conts statics hp)).
   { apply (State_fwd true []);
       [ apply forward_jumps_fwd, safe_none; reflexivity
       | intros k; apply Same_fwd | apply held_nil ]. }

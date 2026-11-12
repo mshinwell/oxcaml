@@ -209,8 +209,8 @@ Definition unused_let_cont_recursive_canonical_statement : Prop :=
    closed. *)
 Definition rename_variables_equivalent_canonical_statement : Prop :=
   ∀ (r : renaming) (e : expr) (vars : env) (conts : cont_env)
-    (statics : static_env),
+    (statics : static_env) (hp : heap),
     code_closed e = true ->
     fixes (continuation_permutation r) (free_continuations_of_expr e) ->
-    equivalent (State e vars conts statics)
-      (State (rename_expr r e) (rename_env r vars) conts statics).
+    equivalent (State e vars conts statics hp)
+      (State (rename_expr r e) (rename_env r vars) conts statics hp).

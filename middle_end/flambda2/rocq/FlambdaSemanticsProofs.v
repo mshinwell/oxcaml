@@ -46,13 +46,14 @@ Import ListNotations.
    this and goes by cases on [state_expr s]; it does not destruct [s],
    which would name the components by their position. *)
 Lemma state_eta (s : state) :
-  s = State (state_expr s) (state_vars s) (state_conts s) (state_statics s).
+  s = State (state_expr s) (state_vars s) (state_conts s) (state_statics s)
+    (state_heap s).
 Proof. destruct s. reflexivity. Qed.
 
 (* Reduces the projections of states that are given by their components,
    and nothing else. *)
 Ltac simpl_state :=
-  cbn [state_expr state_vars state_conts state_statics] in *.
+  cbn [state_expr state_vars state_conts state_statics state_heap] in *.
 
 (* ======================================================================== *)
 (* Steps                                                                    *)
@@ -68,46 +69,48 @@ Ltac simpl_state :=
    the proofs that use the lemma of the case that changed. *)
 
 Lemma step_let (x : variable) (kind : flambda_kind) (defining_expr : named)
-    (body : expr) (vars : env) (conts : cont_env) (statics : static_env) :
-  step (State (Let x kind defining_expr body) vars conts statics)
+    (body : expr) (vars : env) (conts : cont_env) (statics : static_env)
+      (hp : heap) :
+  step (State (Let x kind defining_expr body) vars conts statics hp)
   = match eval_named statics vars defining_expr with
     | Some v =>
       if kind_eqb (kind_of_value v) kind
-      then Step (State body ((x, v) :: vars) conts statics)
+      then Step (State body ((x, v) :: vars) conts statics hp)
       else Undefined
     | None => Undefined
     end.
 Proof. reflexivity. Qed.
 
 Lemma step_let_static (bindings : list static_binding) (body : expr)
-    (vars : env) (conts : cont_env) (statics : static_env) :
-  step (State (Let_static bindings body) vars conts statics)
+    (vars : env) (conts : cont_env) (statics : static_env) (hp : heap) :
+  step (State (Let_static bindings body) vars conts statics hp)
   = match eval_static_bindings vars bindings statics with
-    | Some statics' => Step (State body vars conts statics')
+    | Some statics' => Step (State body vars conts statics' hp)
     | None => Undefined
     end.
 Proof. reflexivity. Qed.
 
 Lemma step_let_cont_non_recursive (k : continuation)
     (h : continuation_handler) (body : expr) (vars : env) (conts : cont_env)
-    (statics : static_env) :
-  step (State (Let_cont_non_recursive k h body) vars conts statics)
-  = Step (State body vars ((k, Closure h vars conts []) :: conts) statics).
+    (statics : static_env) (hp : heap) :
+  step (State (Let_cont_non_recursive k h body) vars conts statics hp)
+  = Step (State body vars ((k, Closure h vars conts []) :: conts) statics hp).
 Proof. reflexivity. Qed.
 
 Lemma step_let_cont_recursive
     (handlers : list (continuation * continuation_handler)) (body : expr)
-    (vars : env) (conts : cont_env) (statics : static_env) :
-  step (State (Let_cont_recursive handlers body) vars conts statics)
+    (vars : env) (conts : cont_env) (statics : static_env) (hp : heap) :
+  step (State (Let_cont_recursive handlers body) vars conts statics hp)
   = if handlers_bind_statics handlers then Undefined
     else
       Step
-        (State body vars (rec_closures handlers vars conts ++ conts) statics).
+        (State body vars (rec_closures handlers vars conts ++ conts) statics
+           hp).
 Proof. reflexivity. Qed.
 
 Lemma step_apply (ap : apply_expr) (vars : env) (conts : cont_env)
-    (statics : static_env) :
-  step (State (Apply ap) vars conts statics)
+    (statics : static_env) (hp : heap) :
+  step (State (Apply ap) vars conts statics hp)
   = match
       eval_simple vars (ap_callee ap), eval_simples vars (ap_args ap),
       eval_simples vars (exn_extra_simples ap)
@@ -116,7 +119,7 @@ Lemma step_apply (ap : apply_expr) (vars : env) (conts : cont_env)
       call_function callee (ap_call_kind ap) vs (ap_args_arity ap)
         (ap_return_arity ap) (resolve (ap_continuation ap) conts)
         (with_extra_args (resolve (ap_exn_continuation ap) conts) extra)
-        statics
+        statics hp
     | _, _, _ => Undefined
     end.
 Proof. reflexivity. Qed.
@@ -124,14 +127,14 @@ Proof. reflexivity. Qed.
 (* A call with no extra argument for its exception continuation gives its
    callee that continuation as it is. *)
 Lemma step_apply_no_extra_args (ap : apply_expr) (vars : env)
-    (conts : cont_env) (statics : static_env) :
+    (conts : cont_env) (statics : static_env) (hp : heap) :
   ap_exn_extra_args ap = [] ->
-  step (State (Apply ap) vars conts statics)
+  step (State (Apply ap) vars conts statics hp)
   = match eval_simple vars (ap_callee ap), eval_simples vars (ap_args ap) with
     | Some callee, Some vs =>
       call_function callee (ap_call_kind ap) vs (ap_args_arity ap)
         (ap_return_arity ap) (resolve (ap_continuation ap) conts)
-        (resolve (ap_exn_continuation ap) conts) statics
+        (resolve (ap_exn_continuation ap) conts) statics hp
     | _, _ => Undefined
     end.
 Proof.
@@ -142,23 +145,23 @@ Proof.
 Qed.
 
 Lemma step_apply_cont (ac : apply_cont) (vars : env) (conts : cont_env)
-    (statics : static_env) :
-  step (State (Apply_cont ac) vars conts statics)
+    (statics : static_env) (hp : heap) :
+  step (State (Apply_cont ac) vars conts statics hp)
   = match eval_simples vars (ac_args ac) with
-    | Some vs => apply_continuation (ac_continuation ac) vs conts statics
+    | Some vs => apply_continuation (ac_continuation ac) vs conts statics hp
     | None => Undefined
     end.
 Proof. reflexivity. Qed.
 
 Lemma step_switch (scrutinee : simple) (arms : list (Z * apply_cont))
-    (vars : env) (conts : cont_env) (statics : static_env) :
-  step (State (Switch scrutinee arms) vars conts statics)
+    (vars : env) (conts : cont_env) (statics : static_env) (hp : heap) :
+  step (State (Switch scrutinee arms) vars conts statics hp)
   = match eval_simple vars scrutinee with
     | Some v =>
       match naked_immediate_of_value v with
       | Some i =>
         match find_arm i arms with
-        | Some ac => Step (State (Apply_cont ac) vars conts statics)
+        | Some ac => Step (State (Apply_cont ac) vars conts statics hp)
         | None => Undefined
         end
       | None => Undefined
@@ -167,8 +170,9 @@ Lemma step_switch (scrutinee : simple) (arms : list (Z * apply_cont))
     end.
 Proof. reflexivity. Qed.
 
-Lemma step_invalid (vars : env) (conts : cont_env) (statics : static_env) :
-  step (State Invalid vars conts statics) = Undefined.
+Lemma step_invalid (vars : env) (conts : cont_env) (statics : static_env)
+    (hp : heap) :
+  step (State Invalid vars conts statics hp) = Undefined.
 Proof. reflexivity. Qed.
 
 (* A continuation with extra arguments is, in the end, a handler, a way
@@ -190,9 +194,9 @@ Fixpoint cont_args (c : cont_value) (vs : list value) : list value :=
   end.
 
 Lemma apply_cont_value_target (c : cont_value) (vs : list value)
-    (statics : static_env) :
-  apply_cont_value c vs statics
-  = apply_cont_value (cont_target c) (cont_args c vs) statics.
+    (statics : static_env) (hp : heap) :
+  apply_cont_value c vs statics hp
+  = apply_cont_value (cont_target c) (cont_args c vs) statics hp.
 Proof.
   revert vs.
   induction c
@@ -243,7 +247,7 @@ Proof. destruct extra; reflexivity. Qed.
    continuation stands for a handler, which runs under the environments of
    its closure with its parameters bound; or for a way out of the term. *)
 Lemma step_apply_cont_handler (ac : apply_cont) (vars : env)
-    (conts : cont_env) (statics : static_env) (vs : list value)
+    (conts : cont_env) (statics : static_env) (hp : heap) (vs : list value)
     (params : list variable) (metadata : handler_metadata) (handler : expr)
     (def_vars : env) (def_conts : cont_env)
     (recursive : list (continuation * continuation_handler))
@@ -253,10 +257,10 @@ Lemma step_apply_cont_handler (ac : apply_cont) (vars : env)
   = Closure (Handler params metadata handler) def_vars def_conts recursive ->
   kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata) = true ->
   bind_params params vs def_vars = Some handler_vars ->
-  step (State (Apply_cont ac) vars conts statics)
+  step (State (Apply_cont ac) vars conts statics hp)
   = Step
       (State handler handler_vars
-         (rec_closures recursive def_vars def_conts ++ def_conts) statics).
+         (rec_closures recursive def_vars def_conts ++ def_conts) statics hp).
 Proof.
   intros Hargs Hresolve Hkinds Hbind. rewrite step_apply_cont, Hargs.
   unfold apply_continuation. rewrite Hresolve. simpl.
@@ -264,10 +268,10 @@ Proof.
 Qed.
 
 Lemma step_apply_cont_exit (ac : apply_cont) (vars : env) (conts : cont_env)
-    (statics : static_env) (vs : list value) (k : continuation) :
+    (statics : static_env) (hp : heap) (vs : list value) (k : continuation) :
   eval_simples vars (ac_args ac) = Some vs ->
   resolve (ac_continuation ac) conts = Outer k ->
-  step (State (Apply_cont ac) vars conts statics) = Exit k vs.
+  step (State (Apply_cont ac) vars conts statics hp) = Exit k vs hp.
 Proof.
   intros Hargs Hresolve. rewrite step_apply_cont, Hargs.
   unfold apply_continuation. rewrite Hresolve. reflexivity.
@@ -275,7 +279,7 @@ Qed.
 
 (* The same two, of a continuation that may have extra arguments. *)
 Lemma step_apply_cont_target_handler (ac : apply_cont) (vars : env)
-    (conts : cont_env) (statics : static_env) (vs : list value)
+    (conts : cont_env) (statics : static_env) (hp : heap) (vs : list value)
     (params : list variable) (metadata : handler_metadata) (handler : expr)
     (def_vars : env) (def_conts : cont_env)
     (recursive : list (continuation * continuation_handler))
@@ -290,10 +294,10 @@ Lemma step_apply_cont_target_handler (ac : apply_cont) (vars : env)
   bind_params params (cont_args (resolve (ac_continuation ac) conts) vs)
     def_vars
   = Some handler_vars ->
-  step (State (Apply_cont ac) vars conts statics)
+  step (State (Apply_cont ac) vars conts statics hp)
   = Step
       (State handler handler_vars
-         (rec_closures recursive def_vars def_conts ++ def_conts) statics).
+         (rec_closures recursive def_vars def_conts ++ def_conts) statics hp).
 Proof.
   intros Hargs Htarget Hkinds Hbind. rewrite step_apply_cont, Hargs.
   unfold apply_continuation. rewrite apply_cont_value_target, Htarget.
@@ -301,12 +305,12 @@ Proof.
 Qed.
 
 Lemma step_apply_cont_target_exit (ac : apply_cont) (vars : env)
-    (conts : cont_env) (statics : static_env) (vs : list value)
+    (conts : cont_env) (statics : static_env) (hp : heap) (vs : list value)
     (k : continuation) :
   eval_simples vars (ac_args ac) = Some vs ->
   cont_target (resolve (ac_continuation ac) conts) = Outer k ->
-  step (State (Apply_cont ac) vars conts statics)
-  = Exit k (cont_args (resolve (ac_continuation ac) conts) vs).
+  step (State (Apply_cont ac) vars conts statics hp)
+  = Exit k (cont_args (resolve (ac_continuation ac) conts) vs) hp.
 Proof.
   intros Hargs Htarget. rewrite step_apply_cont, Hargs.
   unfold apply_continuation. rewrite apply_cont_value_target, Htarget.
@@ -450,7 +454,7 @@ Proof. reflexivity. Qed.
    which for a closure of a set is the closure at the slot of that
    code. *)
 Lemma step_apply_closure (ap : apply_expr) (vars : env) (conts : cont_env)
-    (statics : static_env) (callee : value) (vs extra : list value)
+    (statics : static_env) (hp : heap) (callee : value) (vs extra : list value)
     (called : code_id) (slots : list (value_slot * value)) (c : code)
     (callee_vars : env) :
   eval_simple vars (ap_callee ap) = Some callee ->
@@ -468,13 +472,13 @@ Lemma step_apply_closure (ap : apply_expr) (vars : env) (conts : cont_env)
   arity_eqb (ap_return_arity ap) (code_result_arity c) = true ->
   bind_params (code_params c) vs [(code_my_closure c, callee)]
   = Some callee_vars ->
-  step (State (Apply ap) vars conts statics)
+  step (State (Apply ap) vars conts statics hp)
   = Step
       (State (code_body c) callee_vars
          [(code_return_continuation c, resolve (ap_continuation ap) conts);
           (code_exn_continuation c,
            with_extra_args (resolve (ap_exn_continuation ap) conts) extra)]
-         statics).
+         statics hp).
 Proof.
   intros Hcallee Hargs Hextra Hclosure Hkind Hcode Htupled Hbinds Hkinds
     Hparams Hresult Hbind.
@@ -511,10 +515,10 @@ Qed.
 Lemma step_let_closure_of_set (x : variable) (kind : flambda_kind)
     (slot : function_slot) (function_decls : list (function_slot * code_id))
     (value_slots : list (value_slot * simple)) (body : expr) (vars : env)
-    (conts : cont_env) (statics : static_env) :
+    (conts : cont_env) (statics : static_env) (hp : heap) :
   step
     (State (Let x kind (Closure_of_set slot function_decls value_slots) body)
-       vars conts statics)
+       vars conts statics hp)
   = match lookup slot function_decls, eval_value_slots vars value_slots with
     | Some _, Some vs =>
       if kind_eqb Value kind
@@ -522,7 +526,7 @@ Lemma step_let_closure_of_set (x : variable) (kind : flambda_kind)
         Step
           (State body
              ((x, Value_closure_of_set slot function_decls vs) :: vars) conts
-             statics)
+             statics hp)
       else Undefined
     | _, _ => Undefined
     end.
@@ -534,17 +538,18 @@ Qed.
 
 Lemma step_let_project_value_slot_from (x : variable) (kind : flambda_kind)
     (project_from : function_slot) (slot : value_slot) (closure : simple)
-    (body : expr) (vars : env) (conts : cont_env) (statics : static_env) :
+    (body : expr) (vars : env) (conts : cont_env) (statics : static_env)
+      (hp : heap) :
   step
     (State
        (Let x kind (Project_value_slot_from project_from slot closure) body)
-       vars conts statics)
+       vars conts statics hp)
   = match eval_simple vars closure with
     | Some v =>
       match project_value_slot statics project_from slot v with
       | Some w =>
         if kind_eqb (kind_of_value w) kind
-        then Step (State body ((x, w) :: vars) conts statics)
+        then Step (State body ((x, w) :: vars) conts statics hp)
         else Undefined
       | None => Undefined
       end
@@ -556,17 +561,17 @@ Qed.
 
 Lemma step_let_project_function_slot (x : variable) (kind : flambda_kind)
     (move_from move_to : function_slot) (closure : simple) (body : expr)
-    (vars : env) (conts : cont_env) (statics : static_env) :
+    (vars : env) (conts : cont_env) (statics : static_env) (hp : heap) :
   step
     (State
        (Let x kind (Project_function_slot move_from move_to closure) body)
-       vars conts statics)
+       vars conts statics hp)
   = match eval_simple vars closure with
     | Some v =>
       match project_function_slot statics move_from move_to v with
       | Some w =>
         if kind_eqb (kind_of_value w) kind
-        then Step (State body ((x, w) :: vars) conts statics)
+        then Step (State body ((x, w) :: vars) conts statics hp)
         else Undefined
       | None => Undefined
       end
@@ -578,14 +583,14 @@ Qed.
 
 (* A [Switch] is undefined, or steps to the arm of its scrutinee. *)
 Lemma step_switch_cases (scrutinee : simple) (arms : list (Z * apply_cont))
-    (vars : env) (conts : cont_env) (statics : static_env) :
-  step (State (Switch scrutinee arms) vars conts statics) = Undefined
+    (vars : env) (conts : cont_env) (statics : static_env) (hp : heap) :
+  step (State (Switch scrutinee arms) vars conts statics hp) = Undefined
   ∨ ∃ (v : value) (i : Z) (ac : apply_cont),
       eval_simple vars scrutinee = Some v
       ∧ naked_immediate_of_value v = Some i
       ∧ find_arm i arms = Some ac
-      ∧ step (State (Switch scrutinee arms) vars conts statics)
-        = Step (State (Apply_cont ac) vars conts statics).
+      ∧ step (State (Switch scrutinee arms) vars conts statics hp)
+        = Step (State (Apply_cont ac) vars conts statics hp).
 Proof.
   rewrite step_switch.
   destruct (eval_simple vars scrutinee) as [v | ]; [ | left; reflexivity ].
@@ -785,7 +790,7 @@ Qed.
 (* What a run that has ended came to, as a behaviour. *)
 Definition ended (result : step_result) (b : behaviour) : Prop :=
   match result, b with
-  | Exit k vs, Exits k' vs' => k = k' ∧ vs = vs'
+  | Exit k vs hp, Exits k' vs' hp' => k = k' ∧ vs = vs' ∧ hp = hp'
   | Undefined, Goes_wrong => True
   | _, _ => False
   end.
@@ -811,7 +816,7 @@ Lemma ended_unique (result : step_result) (b b' : behaviour) :
   ended result b -> ended result b' -> b = b'.
 Proof.
   destruct result, b, b'; simpl; try contradiction; try reflexivity.
-  intros [<- <-] [<- <-]. reflexivity.
+  intros [<- [<- <-]] [<- [<- <-]]. reflexivity.
 Qed.
 
 (* A state that diverges has no run that ends. *)
@@ -846,7 +851,7 @@ Qed.
 Definition result_behaves (result : step_result) (b : behaviour) : Prop :=
   match result with
   | Step s => behaves s b
-  | Exit k vs => b = Exits k vs
+  | Exit k vs hp => b = Exits k vs hp
   | Undefined => b = Goes_wrong
   end.
 
@@ -859,7 +864,7 @@ Proof.
     destruct (step s); simpl; [ eauto | congruence | discriminate ].
   - destruct (step s) eqn:Hstep; simpl.
     + intros [n Hrun]. exists (S n). simpl. rewrite Hstep. exact Hrun.
-    + intros [= <- <-]. exists 1. simpl. rewrite Hstep. reflexivity.
+    + intros [= <- <- <-]. exists 1. simpl. rewrite Hstep. reflexivity.
     + discriminate.
   - intros [[ | n] Hrun]; [ discriminate | ]. simpl in Hrun.
     destruct (step s); simpl; [ eauto | discriminate | reflexivity ].
@@ -922,17 +927,18 @@ Lemma ended_behaves (n : nat) (s : state) (b : behaviour) :
 Proof.
   destruct b as [k vs | | ], (run n s) as [s' | k' vs' | ] eqn:Hrun; simpl;
     try contradiction.
-  - intros [-> ->]. exists n. exact Hrun.
+  - intros [-> [-> ->]]. exists n. exact Hrun.
   - intros _. exists n. exact Hrun.
 Qed.
 
 Lemma ended_undefined (b : behaviour) : ended Undefined b -> b = Goes_wrong.
 Proof. destruct b; simpl; try contradiction. reflexivity. Qed.
 
-Lemma ended_exit (k : continuation) (vs : list value) (b : behaviour) :
-  ended (Exit k vs) b -> b = Exits k vs.
+Lemma ended_exit (k : continuation) (vs : list value) (hp : heap)
+    (b : behaviour) :
+  ended (Exit k vs hp) b -> b = Exits k vs hp.
 Proof.
-  destruct b; simpl; try contradiction. intros [-> ->]. reflexivity.
+  destruct b; simpl; try contradiction. intros [-> [-> ->]]. reflexivity.
 Qed.
 
 Lemma diverges_dec (b : behaviour) : b = Diverges ∨ b <> Diverges.
@@ -947,7 +953,7 @@ Proof.
   intros Hterm Hdiv. simpl. intros n.
   destruct (run n s') as [u | k vs | ] eqn:Hrun; [ exists u; reflexivity | | ];
     exfalso.
-  - assert (Hexit : behaves s' (Exits k vs)) by (exists n; exact Hrun).
+  - assert (Hexit : behaves s' (Exits k vs hp)) by (exists n; exact Hrun).
     apply Hterm in Hexit; [ | discriminate ].
     pose proof (behaviour_unique _ _ _ Hdiv Hexit). discriminate.
   - assert (Hwrong : behaves s' Goes_wrong) by (exists n; exact Hrun).
@@ -970,7 +976,7 @@ Qed.
 Lemma equivalent_refines (s s' : state) : equivalent s s' -> refines s s'.
 Proof.
   intros Hequiv. split.
-  - intros k vs Hb. apply Hequiv, Hb.
+  - intros k vs hp Hb. apply Hequiv, Hb.
   - intros b _ Hb. left. apply Hequiv, Hb.
 Qed.
 
@@ -981,7 +987,7 @@ Lemma refines_trans (s s' s'' : state) :
   refines s s' -> refines s' s'' -> refines s s''.
 Proof.
   intros [Hexits Hends] [Hexits' Hends']. split.
-  - intros k vs Hb. apply Hexits', Hexits, Hb.
+  - intros k vs hp Hb. apply Hexits', Hexits, Hb.
   - intros b Hterm Hb.
     destruct (Hends' b Hterm Hb) as [Hb' | Hwrong];
       [ exact (Hends b Hterm Hb') | ].
@@ -992,7 +998,7 @@ Qed.
 Lemma goes_wrong_refines (s s' : state) : behaves s Goes_wrong -> refines s s'.
 Proof.
   intros Hwrong. split.
-  - intros k vs Hb. pose proof (behaviour_unique _ _ _ Hwrong Hb).
+  - intros k vs hp Hb. pose proof (behaviour_unique _ _ _ Hwrong Hb).
     discriminate.
   - intros b _ _. right. exact Hwrong.
 Qed.
@@ -1057,7 +1063,8 @@ Proof. intros Hstep. apply goes_wrong_refines, step_undefined_wrong, Hstep. Qed.
 
 Lemma expr_equivalent_refines (e e' : expr) :
   expr_equivalent e e' -> expr_refines e e'.
-Proof. intros Hequiv vars conts statics. apply equivalent_refines, Hequiv. Qed.
+Proof. intros Hequiv vars conts statics hp. apply equivalent_refines, Hequiv.
+  Qed.
 
 (* ======================================================================== *)
 (* Bisimulations                                                            *)
@@ -1069,7 +1076,7 @@ Definition result_related (R : state -> state -> Prop)
     (result result' : step_result) : Prop :=
   match result, result' with
   | Step s, Step s' => R s s'
-  | Exit k vs, Exit k' vs' => k = k' ∧ vs = vs'
+  | Exit k vs hp, Exit k' vs' hp' => k = k' ∧ vs = vs' ∧ hp = hp'
   | Undefined, Undefined => True
   | _, _ => False
   end.
@@ -1104,10 +1111,10 @@ Proof.
   destruct b as [k vs | | ]; simpl; split.
   - intros [n Hn]. exists n. specialize (Hrun n). rewrite Hn in Hrun.
     destruct (run n s'); simpl in Hrun; try contradiction.
-    destruct Hrun as [-> ->]. reflexivity.
+    destruct Hrun as [-> [-> ->]]. reflexivity.
   - intros [n Hn]. exists n. specialize (Hrun n). rewrite Hn in Hrun.
     destruct (run n s); simpl in Hrun; try contradiction.
-    destruct Hrun as [-> ->]. reflexivity.
+    destruct Hrun as [-> [-> ->]]. reflexivity.
   - intros [n Hn]. exists n. specialize (Hrun n). rewrite Hn in Hrun.
     destruct (run n s'); simpl in Hrun; try contradiction. reflexivity.
   - intros [n Hn]. exists n. specialize (Hrun n). rewrite Hn in Hrun.
@@ -1707,14 +1714,14 @@ Qed.
    one value it is given, with the arguments that remain. *)
 Lemma apply_cont_value_over_application (remaining : list value)
     (remaining_arity return_arity : arity) (return_to exn_to : cont_value)
-    (vs : list value) (statics : static_env) :
+    (vs : list value) (statics : static_env) (hp : heap) :
   apply_cont_value
     (Over_application remaining remaining_arity return_arity return_to exn_to)
-    vs statics
+    vs statics hp
   = match vs with
     | [v] =>
       call_function v Indirect remaining remaining_arity return_arity
-        return_to exn_to statics
+        return_to exn_to statics hp
     | _ => Undefined
     end.
 Proof. destruct vs as [ | v [ | v' vs]]; reflexivity. Qed.
@@ -1751,8 +1758,8 @@ Qed.
    bound. *)
 Lemma call_code_step (closure : value) (c : code) (vs : list value)
     (args_arity return_arity : arity) (return_to exn_to : cont_value)
-    (statics : static_env) (s : state) :
-  call_code closure c vs args_arity return_arity return_to exn_to statics
+    (statics : static_env) (hp : heap) (s : state) :
+  call_code closure c vs args_arity return_arity return_to exn_to statics hp
   = Step s ->
   ∃ callee_vars : env,
     binds_statics (code_body c) = false
@@ -1766,7 +1773,7 @@ Lemma call_code_step (closure : value) (c : code) (vs : list value)
       = State (code_body c) callee_vars
           [(code_return_continuation c, return_to);
            (code_exn_continuation c, exn_to)]
-          statics.
+          statics hp.
 Proof.
   unfold call_code.
   destruct (binds_statics (code_body c)); [ discriminate | ].
@@ -1789,19 +1796,19 @@ Qed.
    variables that depend on the closure and the arguments only, with the
    code's two continuations bound to what the caller gave. *)
 Lemma call_code_cases (closure : value) (c : code) (vs : list value)
-    (args_arity return_arity : arity) (statics : static_env) :
+    (args_arity return_arity : arity) (statics : static_env) (hp : heap) :
   (∀ return_to exn_to : cont_value,
-    call_code closure c vs args_arity return_arity return_to exn_to statics
+    call_code closure c vs args_arity return_arity return_to exn_to statics hp
     = Undefined)
   ∨ (∃ callee_vars : env,
       ∀ return_to exn_to : cont_value,
         call_code closure c vs args_arity return_arity return_to exn_to
-          statics
+          statics hp
         = Step
             (State (code_body c) callee_vars
                [(code_return_continuation c, return_to);
                 (code_exn_continuation c, exn_to)]
-               statics)).
+               statics hp)).
 Proof.
   unfold call_code.
   destruct (binds_statics (code_body c)); [ left; reflexivity | ].
@@ -2034,8 +2041,8 @@ Qed.
    environment. *)
 Lemma call_code_statics (closure : value) (c : code) (vs : list value)
     (args_arity return_arity : arity) (return_to exn_to : cont_value)
-    (statics : static_env) (s' : state) :
-  call_code closure c vs args_arity return_arity return_to exn_to statics
+    (statics : static_env) (hp : heap) (s' : state) :
+  call_code closure c vs args_arity return_arity return_to exn_to statics hp
   = Step s' ->
   state_statics s' = statics.
 Proof.
@@ -2046,10 +2053,11 @@ Qed.
 
 Lemma run_call_statics (return_partial : value -> step_result)
     (shape : option call_shape) (return_arity : arity)
-    (return_to exn_to : cont_value) (statics : static_env) (s' : state) :
+    (return_to exn_to : cont_value) (statics : static_env) (hp : heap)
+      (s' : state) :
   (∀ partial : value,
     return_partial partial = Step s' -> state_statics s' = statics) ->
-  run_call return_partial shape return_arity return_to exn_to statics
+  run_call return_partial shape return_arity return_to exn_to statics hp
   = Step s' ->
   state_statics s' = statics.
 Proof.
@@ -2063,22 +2071,22 @@ Proof.
 Qed.
 
 Lemma apply_cont_value_statics (c : cont_value) :
-  ∀ (vs : list value) (statics : static_env) (s' : state),
-    apply_cont_value c vs statics = Step s' -> state_statics s' = statics.
+  ∀ (vs : list value) (statics : static_env) (hp : heap) (s' : state),
+    apply_cont_value c vs statics hp = Step s' -> state_statics s' = statics.
 Proof.
   induction c
     as [[params metadata handler] def_vars def_conts recursive | k
        | c IH extra
        | remaining remaining_arity return_arity return_to exn_to IHreturn _]
     using cont_value_over_ind;
-    intros vs statics s' Hstep.
+    intros vs statics hp s' Hstep.
   - simpl in Hstep.
     destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
       [ | discriminate ].
     destruct (bind_params params vs def_vars); [ | discriminate ].
     injection Hstep as <-. reflexivity.
   - discriminate.
-  - exact (IH _ _ _ Hstep).
+  - exact (IH _ _ _ _ Hstep).
   - rewrite apply_cont_value_over_application in Hstep.
     destruct vs as [ | v [ | v' vs]]; [ discriminate | | discriminate ].
     unfold call_function in Hstep.
@@ -2088,9 +2096,10 @@ Qed.
 
 Lemma call_function_statics (callee : value) (kind : call_kind)
     (vs : list value) (args_arity return_arity : arity)
-    (return_to exn_to : cont_value) (statics : static_env) (s' : state) :
+    (return_to exn_to : cont_value) (statics : static_env) (hp : heap)
+      (s' : state) :
   call_function callee kind vs args_arity return_arity return_to exn_to
-    statics
+    statics hp
   = Step s' ->
   state_statics s' = statics.
 Proof.
@@ -2107,6 +2116,7 @@ Qed.
 Section Lands.
 
 Variable statics : static_env.
+Variable hp : heap.
 Variable Kc : cont_value -> Prop.
 Variable Q : state -> Prop.
 
@@ -2130,7 +2140,7 @@ Hypothesis Q_code :
     Q (State (code_body c) callee_vars
          [(code_return_continuation c, return_to);
           (code_exn_continuation c, exn_to)]
-         statics).
+         statics hp).
 
 Hypothesis Q_handler :
   ∀ (params : list variable) (metadata : handler_metadata) (handler : expr)
@@ -2141,7 +2151,7 @@ Hypothesis Q_handler :
       (Closure (Handler params metadata handler) def_vars def_conts
          recursive) ->
     Q (State handler handler_vars
-         (rec_closures recursive def_vars def_conts ++ def_conts) statics).
+         (rec_closures recursive def_vars def_conts ++ def_conts) statics hp).
 
 Lemma call_code_lands (closure : value) (called : code_id) (c : code)
     (vs : list value) (args_arity return_arity : arity)
@@ -2149,7 +2159,7 @@ Lemma call_code_lands (closure : value) (called : code_id) (c : code)
   lookup called (static_code statics) = Some c ->
   Kc return_to ->
   Kc exn_to ->
-  call_code closure c vs args_arity return_arity return_to exn_to statics
+  call_code closure c vs args_arity return_arity return_to exn_to statics hp
   = Step s' ->
   Q s'.
 Proof.
@@ -2165,7 +2175,7 @@ Lemma run_call_lands (return_partial : value -> step_result)
   Kc return_to ->
   Kc exn_to ->
   (∀ partial : value, return_partial partial = Step s' -> Q s') ->
-  run_call return_partial shape return_arity return_to exn_to statics
+  run_call return_partial shape return_arity return_to exn_to statics hp
   = Step s' ->
   Q s'.
 Proof.
@@ -2186,7 +2196,7 @@ Qed.
 
 Lemma apply_cont_value_lands (c : cont_value) :
   ∀ (vs : list value) (s' : state),
-    Kc c -> apply_cont_value c vs statics = Step s' -> Q s'.
+    Kc c -> apply_cont_value c vs statics hp = Step s' -> Q s'.
 Proof.
   induction c
     as [[params metadata handler] def_vars def_conts recursive | k
@@ -2220,7 +2230,7 @@ Lemma call_function_lands (callee : value) (kind : call_kind)
   Kc return_to ->
   Kc exn_to ->
   call_function callee kind vs args_arity return_arity return_to exn_to
-    statics
+    statics hp
   = Step s' ->
   Q s'.
 Proof.
@@ -2368,7 +2378,8 @@ Qed.
 (* Full calls of two codes that differ in their bodies only: undefined
    both, or both run their bodies under the same variables. *)
 Lemma call_code_alike (closure : value) (c c' : code) (vs : list value)
-    (args_arity return_arity : arity) (statics statics' : static_env) :
+    (args_arity return_arity : arity) (statics statics' : static_env)
+      (hp : heap) :
   code_params c' = code_params c ->
   code_my_closure c' = code_my_closure c ->
   code_return_continuation c' = code_return_continuation c ->
@@ -2377,27 +2388,27 @@ Lemma call_code_alike (closure : value) (c c' : code) (vs : list value)
   code_result_arity c' = code_result_arity c ->
   binds_statics (code_body c') = binds_statics (code_body c) ->
   (∀ return_to exn_to return_to' exn_to' : cont_value,
-    call_code closure c vs args_arity return_arity return_to exn_to statics
+    call_code closure c vs args_arity return_arity return_to exn_to statics hp
     = Undefined
     ∧ call_code closure c' vs args_arity return_arity return_to' exn_to'
-        statics'
+        statics' hp
       = Undefined)
   ∨ (∃ callee_vars : env,
       ∀ return_to exn_to return_to' exn_to' : cont_value,
         call_code closure c vs args_arity return_arity return_to exn_to
-          statics
+          statics hp
         = Step
             (State (code_body c) callee_vars
                [(code_return_continuation c, return_to);
                 (code_exn_continuation c, exn_to)]
-               statics)
+               statics hp)
         ∧ call_code closure c' vs args_arity return_arity return_to' exn_to'
-            statics'
+            statics' hp
           = Step
               (State (code_body c') callee_vars
                  [(code_return_continuation c, return_to');
                   (code_exn_continuation c, exn_to')]
-                 statics')).
+                 statics' hp)).
 Proof.
   intros Hparams Hmy_closure Hret Hexn Hparams_arity Hresult_arity Hbinds.
   unfold call_code.
@@ -2456,7 +2467,7 @@ Definition result_simulated (R : state -> state -> Prop)
   match result, result' with
   | Undefined, _ => True
   | Step s, Step s' => R s s'
-  | Exit k vs, Exit k' vs' => k = k' ∧ vs = vs'
+  | Exit k vs hp, Exit k' vs' hp' => k = k' ∧ vs = vs' ∧ hp = hp'
   | _, _ => False
   end.
 
@@ -2483,16 +2494,16 @@ Proof.
   intros Hrel.
   pose proof (fun n => simulation_run n s s' Hrel) as Hrun.
   split.
-  - intros k vs [n Hn]. exists n. specialize (Hrun n). rewrite Hn in Hrun.
+  - intros k vs hp [n Hn]. exists n. specialize (Hrun n). rewrite Hn in Hrun.
     destruct (run n s'); simpl in Hrun; try contradiction.
-    destruct Hrun as [-> ->]. reflexivity.
+    destruct Hrun as [-> [-> ->]]. reflexivity.
   - intros b Hterm Hb. destruct (behaves_ended s' b Hterm Hb) as [n Hended].
     specialize (Hrun n).
     destruct (run n s) as [t | k vs | ] eqn:Hs.
     + destruct (run n s'); simpl in Hrun; contradiction.
     + destruct (run n s') as [t' | k' vs' | ]; simpl in Hrun;
         try contradiction.
-      destruct Hrun as [-> ->]. apply ended_exit in Hended. subst b.
+      destruct Hrun as [-> [-> ->]]. apply ended_exit in Hended. subst b.
       left. exists n. exact Hs.
     + right. exists n. exact Hs.
 Qed.
@@ -2511,15 +2522,15 @@ End Simulation.
 (* Two [Let]s whose defining expressions have the same value, or none. *)
 Lemma let_equivalent_step (x x' : variable) (kind : flambda_kind)
     (d d' : named) (body body' : expr) (vars vars' : env)
-    (conts conts' : cont_env) (statics statics' : static_env) :
+    (conts conts' : cont_env) (statics statics' : static_env) (hp : heap) :
   eval_named statics' vars' d' = eval_named statics vars d ->
   (∀ v : value,
     eval_named statics vars d = Some v ->
     kind_of_value v = kind ->
-    equivalent (State body ((x, v) :: vars) conts statics)
-      (State body' ((x', v) :: vars') conts' statics')) ->
-  equivalent (State (Let x kind d body) vars conts statics)
-    (State (Let x' kind d' body') vars' conts' statics').
+    equivalent (State body ((x, v) :: vars) conts statics hp)
+      (State body' ((x', v) :: vars') conts' statics' hp)) ->
+  equivalent (State (Let x kind d body) vars conts statics hp)
+    (State (Let x' kind d' body') vars' conts' statics' hp).
 Proof.
   intros Hd' Hbodies.
   destruct (eval_named statics vars d) as [v | ] eqn:Hd.
@@ -2535,15 +2546,15 @@ Qed.
 
 Lemma let_refines_step (x x' : variable) (kind : flambda_kind)
     (d d' : named) (body body' : expr) (vars vars' : env)
-    (conts conts' : cont_env) (statics statics' : static_env) :
+    (conts conts' : cont_env) (statics statics' : static_env) (hp : heap) :
   eval_named statics' vars' d' = eval_named statics vars d ->
   (∀ v : value,
     eval_named statics vars d = Some v ->
     kind_of_value v = kind ->
-    refines (State body ((x, v) :: vars) conts statics)
-      (State body' ((x', v) :: vars') conts' statics')) ->
-  refines (State (Let x kind d body) vars conts statics)
-    (State (Let x' kind d' body') vars' conts' statics').
+    refines (State body ((x, v) :: vars) conts statics hp)
+      (State body' ((x', v) :: vars') conts' statics' hp)) ->
+  refines (State (Let x kind d body) vars conts statics hp)
+    (State (Let x' kind d' body') vars' conts' statics' hp).
 Proof.
   intros Hd' Hbodies.
   destruct (eval_named statics vars d) as [v | ] eqn:Hd.
@@ -2562,19 +2573,19 @@ Qed.
    refinement the second may be anything when the first is not bound. *)
 Lemma let_static_equivalent_step (bindings bindings' : list static_binding)
     (body body' : expr) (vars vars' : env) (conts conts' : cont_env)
-    (statics statics' : static_env) :
+    (statics statics' : static_env) (hp : heap) :
   match
     eval_static_bindings vars bindings statics,
     eval_static_bindings vars' bindings' statics'
   with
   | Some extended, Some extended' =>
-    equivalent (State body vars conts extended)
-      (State body' vars' conts' extended')
+    equivalent (State body vars conts extended hp)
+      (State body' vars' conts' extended' hp)
   | None, None => True
   | _, _ => False
   end ->
-  equivalent (State (Let_static bindings body) vars conts statics)
-    (State (Let_static bindings' body') vars' conts' statics').
+  equivalent (State (Let_static bindings body) vars conts statics hp)
+    (State (Let_static bindings' body') vars' conts' statics' hp).
 Proof.
   intros Hbodies.
   destruct (eval_static_bindings vars bindings statics) as [extended | ]
@@ -2591,19 +2602,19 @@ Qed.
 
 Lemma let_static_refines_step (bindings bindings' : list static_binding)
     (body body' : expr) (vars vars' : env) (conts conts' : cont_env)
-    (statics statics' : static_env) :
+    (statics statics' : static_env) (hp : heap) :
   match
     eval_static_bindings vars bindings statics,
     eval_static_bindings vars' bindings' statics'
   with
   | Some extended, Some extended' =>
-    refines (State body vars conts extended)
-      (State body' vars' conts' extended')
+    refines (State body vars conts extended hp)
+      (State body' vars' conts' extended' hp)
   | Some _, None => False
   | None, _ => True
   end ->
-  refines (State (Let_static bindings body) vars conts statics)
-    (State (Let_static bindings' body') vars' conts' statics').
+  refines (State (Let_static bindings body) vars conts statics hp)
+    (State (Let_static bindings' body') vars' conts' statics' hp).
 Proof.
   intros Hbodies.
   destruct (eval_static_bindings vars bindings statics) as [extended | ]
@@ -2620,25 +2631,25 @@ Qed.
 (* Two [Let_cont_non_recursive]s always step to their bodies. *)
 Lemma let_cont_non_recursive_equivalent_step (k k' : continuation)
     (h h' : continuation_handler) (body body' : expr) (vars vars' : env)
-    (conts conts' : cont_env) (statics statics' : static_env) :
+    (conts conts' : cont_env) (statics statics' : static_env) (hp : heap) :
   equivalent
-    (State body vars ((k, Closure h vars conts []) :: conts) statics)
+    (State body vars ((k, Closure h vars conts []) :: conts) statics hp)
     (State body' vars' ((k', Closure h' vars' conts' []) :: conts')
-       statics') ->
-  equivalent (State (Let_cont_non_recursive k h body) vars conts statics)
-    (State (Let_cont_non_recursive k' h' body') vars' conts' statics').
+       statics' hp) ->
+  equivalent (State (Let_cont_non_recursive k h body) vars conts statics hp)
+    (State (Let_cont_non_recursive k' h' body') vars' conts' statics' hp).
 Proof.
   apply equivalent_step; apply step_let_cont_non_recursive.
 Qed.
 
 Lemma let_cont_non_recursive_refines_step (k k' : continuation)
     (h h' : continuation_handler) (body body' : expr) (vars vars' : env)
-    (conts conts' : cont_env) (statics statics' : static_env) :
-  refines (State body vars ((k, Closure h vars conts []) :: conts) statics)
+    (conts conts' : cont_env) (statics statics' : static_env) (hp : heap) :
+  refines (State body vars ((k, Closure h vars conts []) :: conts) statics hp)
     (State body' vars' ((k', Closure h' vars' conts' []) :: conts')
-       statics') ->
-  refines (State (Let_cont_non_recursive k h body) vars conts statics)
-    (State (Let_cont_non_recursive k' h' body') vars' conts' statics').
+       statics' hp) ->
+  refines (State (Let_cont_non_recursive k h body) vars conts statics hp)
+    (State (Let_cont_non_recursive k' h' body') vars' conts' statics' hp).
 Proof.
   apply refines_step; apply step_let_cont_non_recursive.
 Qed.
@@ -2648,15 +2659,15 @@ Qed.
 Lemma let_cont_recursive_equivalent_step
     (handlers handlers' : list (continuation * continuation_handler))
     (body body' : expr) (vars vars' : env) (conts conts' : cont_env)
-    (statics statics' : static_env) :
+    (statics statics' : static_env) (hp : heap) :
   handlers_bind_statics handlers = handlers_bind_statics handlers' ->
   (handlers_bind_statics handlers = false ->
    equivalent
-     (State body vars (rec_closures handlers vars conts ++ conts) statics)
+     (State body vars (rec_closures handlers vars conts ++ conts) statics hp)
      (State body' vars' (rec_closures handlers' vars' conts' ++ conts')
-        statics')) ->
-  equivalent (State (Let_cont_recursive handlers body) vars conts statics)
-    (State (Let_cont_recursive handlers' body') vars' conts' statics').
+        statics' hp)) ->
+  equivalent (State (Let_cont_recursive handlers body) vars conts statics hp)
+    (State (Let_cont_recursive handlers' body') vars' conts' statics' hp).
 Proof.
   intros Hbinds Hbodies.
   destruct (handlers_bind_statics handlers) eqn:Hsource.
@@ -2671,15 +2682,15 @@ Qed.
 Lemma let_cont_recursive_refines_step
     (handlers handlers' : list (continuation * continuation_handler))
     (body body' : expr) (vars vars' : env) (conts conts' : cont_env)
-    (statics statics' : static_env) :
+    (statics statics' : static_env) (hp : heap) :
   handlers_bind_statics handlers = handlers_bind_statics handlers' ->
   (handlers_bind_statics handlers = false ->
    refines
-     (State body vars (rec_closures handlers vars conts ++ conts) statics)
+     (State body vars (rec_closures handlers vars conts ++ conts) statics hp)
      (State body' vars' (rec_closures handlers' vars' conts' ++ conts')
-        statics')) ->
-  refines (State (Let_cont_recursive handlers body) vars conts statics)
-    (State (Let_cont_recursive handlers' body') vars' conts' statics').
+        statics' hp)) ->
+  refines (State (Let_cont_recursive handlers body) vars conts statics hp)
+    (State (Let_cont_recursive handlers' body') vars' conts' statics' hp).
 Proof.
   intros Hbinds Hbodies.
   destruct (handlers_bind_statics handlers) eqn:Hsource.
@@ -2856,19 +2867,19 @@ Qed.
    returning to continuations whose values do. *)
 Lemma call_code_values_all (Q : state -> Prop) (closure : value) (c : code)
     (vs : list value) (args_arity return_arity : arity)
-    (return_to exn_to : cont_value) (statics : static_env) :
+    (return_to exn_to : cont_value) (statics : static_env) (hp : heap) :
   P closure ->
   Forall P vs ->
   cont_values_all P return_to ->
   cont_values_all P exn_to ->
   (∀ (e : expr) (vars : env) (conts : cont_env),
     env_values_all P vars -> conts_values_all P conts ->
-    Q (State e vars conts statics)) ->
+    Q (State e vars conts statics hp)) ->
   match
-    call_code closure c vs args_arity return_arity return_to exn_to statics
+    call_code closure c vs args_arity return_arity return_to exn_to statics hp
   with
   | Step s' => Q s'
-  | Exit _ vs' => Forall P vs'
+  | Exit _ vs' _ => Forall P vs'
   | Undefined => True
   end.
 Proof.
@@ -2896,23 +2907,24 @@ Qed.
 Lemma run_call_values_all (Q : state -> Prop)
     (return_partial : value -> step_result) (shape : option call_shape)
     (return_arity : arity) (return_to exn_to : cont_value)
-    (statics : static_env) :
+    (statics : static_env) (hp : heap) :
   shape_values_all shape ->
   cont_values_all P return_to ->
   cont_values_all P exn_to ->
   (∀ (e : expr) (vars : env) (conts : cont_env),
     env_values_all P vars -> conts_values_all P conts ->
-    Q (State e vars conts statics)) ->
+    Q (State e vars conts statics hp)) ->
   (∀ partial : value,
     P partial ->
     match return_partial partial with
     | Step s' => Q s'
-    | Exit _ vs' => Forall P vs'
+    | Exit _ vs' _ => Forall P vs'
     | Undefined => True
     end) ->
-  match run_call return_partial shape return_arity return_to exn_to statics with
+  match run_call return_partial shape return_arity return_to exn_to statics hp
+    with
   | Step s' => Q s'
-  | Exit _ vs' => Forall P vs'
+  | Exit _ vs' _ => Forall P vs'
   | Undefined => True
   end.
 Proof.
@@ -2932,16 +2944,16 @@ Qed.
 
 (* Applying a continuation whose values satisfy [P] to values that do. *)
 Lemma apply_cont_value_values_all (Q : state -> Prop) (c : cont_value)
-    (vs : list value) (statics : static_env) :
+    (vs : list value) (statics : static_env) (hp : heap) :
   P_fields statics ->
   cont_values_all P c ->
   Forall P vs ->
   (∀ (e : expr) (vars : env) (conts : cont_env),
     env_values_all P vars -> conts_values_all P conts ->
-    Q (State e vars conts statics)) ->
-  match apply_cont_value c vs statics with
+    Q (State e vars conts statics hp)) ->
+  match apply_cont_value c vs statics hp with
   | Step s' => Q s'
-  | Exit _ vs' => Forall P vs'
+  | Exit _ vs' _ => Forall P vs'
   | Undefined => True
   end.
 Proof.
@@ -2990,7 +3002,7 @@ Qed.
    returning to continuations whose values do. *)
 Lemma call_function_values_all (Q : state -> Prop) (callee : value)
     (kind : call_kind) (vs : list value) (args_arity return_arity : arity)
-    (return_to exn_to : cont_value) (statics : static_env) :
+    (return_to exn_to : cont_value) (statics : static_env) (hp : heap) :
   P_fields statics ->
   P callee ->
   Forall P vs ->
@@ -2998,13 +3010,13 @@ Lemma call_function_values_all (Q : state -> Prop) (callee : value)
   cont_values_all P exn_to ->
   (∀ (e : expr) (vars : env) (conts : cont_env),
     env_values_all P vars -> conts_values_all P conts ->
-    Q (State e vars conts statics)) ->
+    Q (State e vars conts statics hp)) ->
   match
     call_function callee kind vs args_arity return_arity return_to exn_to
-      statics
+      statics hp
   with
   | Step s' => Q s'
-  | Exit _ vs' => Forall P vs'
+  | Exit _ vs' _ => Forall P vs'
   | Undefined => True
   end.
 Proof.
@@ -3056,14 +3068,14 @@ Qed.
 
 Theorem step_values_all : step_values_all_statement.
 Proof.
-  intros P Q [e vars conts statics] Hpartial (Hvars & Hconts & Hstatics)
+  intros P Q [e vars conts statics hp] Hpartial (Hvars & Hconts & Hstatics)
     Hfields Hlet Hlet_static Happly Happly_cont.
   simpl in *.
   assert (Hstate :
     ∀ (e' : expr) (vars' : env) (conts' : cont_env),
       env_values_all (P statics) vars' ->
       conts_values_all (P statics) conts' ->
-      state_values_all P Q (State e' vars' conts' statics))
+      state_values_all P Q (State e' vars' conts' statics hp))
     by (intros e' vars' conts' Hvars' Hconts'; repeat split; assumption).
   destruct e
     as [ x kind d body | bindings body | k h body | handlers body | ap | ac

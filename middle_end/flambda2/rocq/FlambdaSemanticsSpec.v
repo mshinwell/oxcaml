@@ -582,14 +582,15 @@ Record state : Type := State {
   state_expr : expr;
   state_vars : env;
   state_conts : cont_env;
-  state_statics : static_env
+  state_statics : static_env;
+  state_heap : heap
 }.
 
 (* What one step of a state, or a bounded run, comes to: another state, the
    application of an unbound continuation, or undefined behaviour. *)
 Inductive step_result : Type :=
   | Step (s : state)
-  | Exit (k : continuation) (vs : list value)
+  | Exit (k : continuation) (vs : list value) (hp : heap)
   | Undefined.
 
 (* The exception continuation that a call gives its callee: the caller's,
@@ -644,7 +645,7 @@ Definition with_extra_args (c : cont_value) (extra : list value)
      [Application_result_kind_mismatch]). *)
 Definition call_code (closure : value) (c : code) (vs : list value)
     (args_arity return_arity : arity) (return_to exn_to : cont_value)
-    (statics : static_env) : step_result :=
+    (statics : static_env) (hp : heap) : step_result :=
   if binds_statics (code_body c) then Undefined
   else if
     negb
@@ -659,7 +660,7 @@ Definition call_code (closure : value) (c : code) (vs : list value)
       Step (State (code_body c) callee_vars
         [(code_return_continuation c, return_to);
          (code_exn_continuation c, exn_to)]
-        statics)
+        statics hp)
     | None => Undefined
     end.
 
@@ -934,15 +935,16 @@ Definition shape_of_call (statics : static_env) (callee : value)
    below). *)
 Definition run_call (return_partial : value -> step_result)
     (shape : option call_shape) (return_arity : arity)
-    (return_to exn_to : cont_value) (statics : static_env) : step_result :=
+    (return_to exn_to : cont_value) (statics : static_env)
+      (hp : heap) : step_result :=
   match shape with
   | Some (Full_call closure c vs args_arity) =>
-    call_code closure c vs args_arity return_arity return_to exn_to statics
+    call_code closure c vs args_arity return_arity return_to exn_to statics hp
   | Some (Over_call closure c vs remaining args_arity remaining_arity) =>
     call_code closure c vs args_arity (code_result_arity c)
       (Over_application remaining remaining_arity return_arity return_to
          exn_to)
-      exn_to statics
+      exn_to statics hp
   | Some (Partial_call partial) => return_partial partial
   | None => Undefined
   end.
@@ -963,43 +965,44 @@ Definition run_call (return_partial : value -> step_result)
    value is not tested: a value that can be called is of kind
    [Value]. *)
 Fixpoint apply_cont_value (c : cont_value) (vs : list value)
-    (statics : static_env) {struct c} : step_result :=
+    (statics : static_env) (hp : heap) {struct c} : step_result :=
   match c with
-  | Outer k => Exit k vs
+  | Outer k => Exit k vs hp
   | Closure (Handler params metadata handler) def_vars def_conts recursive =>
     if kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata)
     then
       match bind_params params vs def_vars with
       | Some handler_vars =>
         Step (State handler handler_vars
-          (rec_closures recursive def_vars def_conts ++ def_conts) statics)
+          (rec_closures recursive def_vars def_conts ++ def_conts) statics hp)
       | None => Undefined
       end
     else Undefined
-  | Extra_args c extra => apply_cont_value c (vs ++ extra) statics
+  | Extra_args c extra => apply_cont_value c (vs ++ extra) statics hp
   | Over_application remaining remaining_arity return_arity return_to exn_to =>
     match vs with
     | [v] =>
-      run_call (fun partial => apply_cont_value return_to [partial] statics)
+      run_call (fun partial => apply_cont_value return_to [partial] statics hp)
         (shape_of_call statics v Indirect remaining remaining_arity
            return_arity)
-        return_arity return_to exn_to statics
+        return_arity return_to exn_to statics hp
     | _ => Undefined
     end
   end.
 
 Definition apply_continuation (k : continuation) (vs : list value)
-    (conts : cont_env) (statics : static_env) : step_result :=
-  apply_cont_value (resolve k conts) vs statics.
+    (conts : cont_env) (statics : static_env) (hp : heap) : step_result :=
+  apply_cont_value (resolve k conts) vs statics hp.
 
 (* A call: what [shape_of_call] says it is runs, and a partial
    application is given to the return continuation of the call. *)
 Definition call_function (callee : value) (kind : call_kind)
     (vs : list value) (args_arity return_arity : arity)
-    (return_to exn_to : cont_value) (statics : static_env) : step_result :=
-  run_call (fun partial => apply_cont_value return_to [partial] statics)
+    (return_to exn_to : cont_value) (statics : static_env)
+      (hp : heap) : step_result :=
+  run_call (fun partial => apply_cont_value return_to [partial] statics hp)
     (shape_of_call statics callee kind vs args_arity return_arity)
-    return_arity return_to exn_to statics.
+    return_arity return_to exn_to statics hp.
 
 (* CR mshinwell: a [Let] of a value of another kind than the one it
    gives its variable is undefined, and so is a handler applied to
@@ -1026,27 +1029,27 @@ Definition call_function (callee : value) (kind : call_kind)
 
 Definition step (s : state) : step_result :=
   match s with
-  | State (Let x kind defining_expr body) vars conts statics =>
+  | State (Let x kind defining_expr body) vars conts statics hp =>
     match eval_named statics vars defining_expr with
     | Some v =>
       if kind_eqb (kind_of_value v) kind
-      then Step (State body ((x, v) :: vars) conts statics)
+      then Step (State body ((x, v) :: vars) conts statics hp)
       else Undefined
     | None => Undefined
     end
-  | State (Let_static bindings body) vars conts statics =>
+  | State (Let_static bindings body) vars conts statics hp =>
     match eval_static_bindings vars bindings statics with
-    | Some statics' => Step (State body vars conts statics')
+    | Some statics' => Step (State body vars conts statics' hp)
     | None => Undefined
     end
-  | State (Let_cont_non_recursive k h body) vars conts statics =>
-    Step (State body vars ((k, Closure h vars conts []) :: conts) statics)
-  | State (Let_cont_recursive handlers body) vars conts statics =>
+  | State (Let_cont_non_recursive k h body) vars conts statics hp =>
+    Step (State body vars ((k, Closure h vars conts []) :: conts) statics hp)
+  | State (Let_cont_recursive handlers body) vars conts statics hp =>
     if handlers_bind_statics handlers then Undefined
     else
       Step
-        (State body vars (rec_closures handlers vars conts ++ conts) statics)
-  | State (Apply ap) vars conts statics =>
+        (State body vars (rec_closures handlers vars conts ++ conts) statics hp)
+  | State (Apply ap) vars conts statics hp =>
     match
       eval_simple vars (ap_callee ap), eval_simples vars (ap_args ap),
       eval_simples vars (exn_extra_simples ap)
@@ -1055,28 +1058,28 @@ Definition step (s : state) : step_result :=
       call_function callee (ap_call_kind ap) vs (ap_args_arity ap)
         (ap_return_arity ap) (resolve (ap_continuation ap) conts)
         (with_extra_args (resolve (ap_exn_continuation ap) conts) extra)
-        statics
+        statics hp
     | _, _, _ => Undefined
     end
-  | State (Apply_cont ac) vars conts statics =>
+  | State (Apply_cont ac) vars conts statics hp =>
     match eval_simples vars (ac_args ac) with
-    | Some vs => apply_continuation (ac_continuation ac) vs conts statics
+    | Some vs => apply_continuation (ac_continuation ac) vs conts statics hp
     | None => Undefined
     end
-  | State (Switch scrutinee arms) vars conts statics =>
+  | State (Switch scrutinee arms) vars conts statics hp =>
     match eval_simple vars scrutinee with
     | Some v =>
       match naked_immediate_of_value v with
       | Some i =>
         match find_arm i arms with
-        | Some ac => Step (State (Apply_cont ac) vars conts statics)
+        | Some ac => Step (State (Apply_cont ac) vars conts statics hp)
         | None => Undefined
         end
       | None => Undefined
       end
     | None => Undefined
     end
-  | State Invalid _ _ _ => Undefined
+  | State Invalid _ _ _ _ => Undefined
   end.
 
 (* At most [fuel] steps: the state reached, or how execution ended. *)
@@ -1202,7 +1205,7 @@ Definition step_values_all_statement : Prop :=
       Forall (P (state_statics s)) vs) ->
     match step s with
     | Step s' => state_values_all P Q s'
-    | Exit _ vs => Forall (P (state_statics s)) vs
+    | Exit _ vs _ => Forall (P (state_statics s)) vs
     | Undefined => True
     end.
 
@@ -1211,13 +1214,13 @@ Definition step_values_all_statement : Prop :=
 (* ======================================================================== *)
 
 Inductive behaviour : Type :=
-  | Exits (k : continuation) (vs : list value)
+  | Exits (k : continuation) (vs : list value) (hp : heap)
   | Goes_wrong
   | Diverges.
 
 Definition behaves (s : state) (b : behaviour) : Prop :=
   match b with
-  | Exits k vs => ∃ fuel : nat, run fuel s = Exit k vs
+  | Exits k vs hp => ∃ fuel : nat, run fuel s = Exit k vs hp
   | Goes_wrong => ∃ fuel : nat, run fuel s = Undefined
   | Diverges => ∀ fuel : nat, ∃ s' : state, run fuel s = Step s'
   end.
@@ -1237,8 +1240,8 @@ Definition equivalent (s s' : state) : Prop :=
    one of the source unless the source goes wrong; it is stated of the
    behaviours that end so that it can be proved without. *)
 Definition refines (source target : state) : Prop :=
-  (∀ (k : continuation) (vs : list value),
-    behaves source (Exits k vs) -> behaves target (Exits k vs))
+  (∀ (k : continuation) (vs : list value) (hp : heap),
+    behaves source (Exits k vs hp) -> behaves target (Exits k vs hp))
   ∧ (∀ b : behaviour,
       b <> Diverges ->
       behaves target b -> behaves source b ∨ behaves source Goes_wrong).
@@ -1257,13 +1260,13 @@ Definition refines_antisymmetric_statement : Prop :=
 
 (* The same for expressions: under all environments. *)
 Definition expr_equivalent (e e' : expr) : Prop :=
-  ∀ (vars : env) (conts : cont_env) (statics : static_env),
-    equivalent (State e vars conts statics) (State e' vars conts statics).
+  ∀ (vars : env) (conts : cont_env) (statics : static_env) (hp : heap),
+    equivalent (State e vars conts statics hp) (State e' vars conts statics hp).
 
 Definition expr_refines (source target : expr) : Prop :=
-  ∀ (vars : env) (conts : cont_env) (statics : static_env),
-    refines (State source vars conts statics)
-      (State target vars conts statics).
+  ∀ (vars : env) (conts : cont_env) (statics : static_env) (hp : heap),
+    refines (State source vars conts statics hp)
+      (State target vars conts statics hp).
 
 (* A step does not change the behaviour. *)
 Definition step_equivalent_statement : Prop :=

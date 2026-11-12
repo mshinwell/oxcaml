@@ -739,10 +739,10 @@ Definition under_let_static_respected_statement : Prop :=
 
 Definition follow_aliases_respected_statement : Prop :=
   ∀ (known : Known.t) (e : expr) (vars : env) (conts : cont_env)
-    (statics : static_env),
+    (statics : static_env) (hp : heap),
     known_respected known statics vars ->
-    equivalent (State e vars conts statics)
-      (State (follow_aliases known e) vars conts statics).
+    equivalent (State e vars conts statics hp)
+      (State (follow_aliases known e) vars conts statics hp).
 
 Definition follow_aliases_equivalent_statement : Prop :=
   ∀ e : expr, expr_equivalent e (follow_aliases Known.empty e).

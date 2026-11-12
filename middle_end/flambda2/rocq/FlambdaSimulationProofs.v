@@ -65,7 +65,7 @@ Variable Q : state -> list value -> list value -> Prop.
 Definition answered (result : step_result) (s' : state) : Prop :=
   match result with
   | Undefined => True
-  | Exit k vs => ∃ vs' : list value, step s' = Exit k vs' ∧ Q s' vs vs'
+  | Exit k vs hp => ∃ vs' : list value, step s' = Exit k vs' hp ∧ Q s' vs vs'
   | Step t => ∃ (n : nat) (t' : state), run (S n) s' = Step t' ∧ R t t'
   end.
 
@@ -73,19 +73,20 @@ Hypothesis R_step : ∀ s s' : state, R s s' -> answered (step s) s'.
 
 (* An exit of the first run is one of the second. *)
 Lemma stuttering_exit (n : nat) :
-  ∀ (s s' : state) (k : continuation) (vs : list value),
+  ∀ (s s' : state) (k : continuation) (vs : list value) (hp : heap),
     R s s' ->
-    run n s = Exit k vs ->
+    run n s = Exit k vs hp ->
     ∃ (m : nat) (last : state) (vs' : list value),
-      run m s' = Step last ∧ step last = Exit k vs' ∧ Q last vs vs'.
+      run m s' = Step last ∧ step last = Exit k vs' hp ∧ Q last vs vs'.
 Proof.
-  induction n as [ | n IH]; intros s s' k vs Hrel; simpl; [ discriminate | ].
+  induction n as [ | n IH]; intros s s' k vs hp Hrel; simpl; [ discriminate | ].
   pose proof (R_step s s' Hrel) as Hanswer.
   destruct (step s) as [t | k' vs0 | ]; unfold answered in Hanswer.
   - destruct Hanswer as (j & t' & Hrun & Hrel'). intros Hexit.
-    destruct (IH t t' k vs Hrel' Hexit) as (m & last & vs' & Hm & Hlast & HQ).
+    destruct (IH t t' k vs hp Hrel' Hexit) as
+      (m & last & vs' & Hm & Hlast & HQ).
     exists (S j + m), last, vs'. rewrite run_add, Hrun. auto.
-  - intros [= <- <-]. destruct Hanswer as (vs' & Hstep & HQ).
+  - intros [= <- <- ->]. destruct Hanswer as (vs' & Hstep & HQ).
     exists 0, s', vs'. auto.
   - discriminate.
 Qed.
@@ -98,12 +99,13 @@ Lemma stuttering_ends (m : nat) :
     ended (run m s') b ->
     ∃ n : nat,
       run n s = Undefined
-      ∨ ∃ (k : continuation) (vs : list value), run n s = Exit k vs.
+      ∨ ∃ (k : continuation) (vs : list value) (hp : heap), run n s
+        = Exit k vs hp.
 Proof.
   induction m as [m IH] using (well_founded_induction lt_wf).
   intros s s' b Hrel Hended.
   pose proof (R_step s s' Hrel) as Hanswer.
-  destruct (step s) as [t | k vs | ] eqn:Hstep; unfold answered in Hanswer.
+  destruct (step s) as [t | k vs hp' | ] eqn:Hstep; unfold answered in Hanswer.
   - destruct Hanswer as (j & t' & Hrun & Hrel').
     destruct (Nat.lt_ge_cases m (S j)) as [Hshort | Hlong].
     + exfalso. replace (S j) with (m + (S j - m)) in Hrun by lia.
@@ -114,7 +116,7 @@ Proof.
       assert (Hless : m - S j < m) by lia.
       destruct (IH (m - S j) Hless t t' b Hrel' Hended) as [n Hn].
       exists (S n). simpl. rewrite Hstep. exact Hn.
-  - exists 1. right. exists k, vs. simpl. rewrite Hstep. reflexivity.
+  - exists 1. right. exists k, vs, hp'. simpl. rewrite Hstep. reflexivity.
   - exists 1. left. simpl. rewrite Hstep. reflexivity.
 Qed.
 
@@ -127,20 +129,20 @@ Lemma stuttering_refines (s s' : state) :
 Proof.
   intros Hsame Hrel.
   assert (Hexits :
-    ∀ (k : continuation) (vs : list value),
-      behaves s (Exits k vs) -> behaves s' (Exits k vs)).
-  { intros k vs [n Hn].
-    destruct (stuttering_exit n s s' k vs Hrel Hn)
+    ∀ (k : continuation) (vs : list value) (hp : heap),
+      behaves s (Exits k vs hp) -> behaves s' (Exits k vs hp)).
+  { intros k vs hp [n Hn].
+    destruct (stuttering_exit n s s' k vs _ Hrel Hn)
       as (m & last & vs' & Hm & Hlast & HQ).
     rewrite (Hsame last vs vs' HQ) in Hlast.
     exists (m + 1). rewrite run_add, Hm. simpl. rewrite Hlast. reflexivity. }
   split; [ exact Hexits | ].
   intros b Hterm Hb. destruct (behaves_ended s' b Hterm Hb) as [m Hended].
   destruct (stuttering_ends m s s' b Hrel Hended)
-    as [n [Hwrong | (k & vs & Hexit)]].
+    as [n [Hwrong | (k & vs & hp & Hexit)]].
   - right. exists n. exact Hwrong.
-  - left. assert (Hs : behaves s (Exits k vs)) by (exists n; exact Hexit).
-    rewrite (behaviour_unique s' b (Exits k vs) Hb (Hexits k vs Hs)).
+  - left. assert (Hs : behaves s (Exits k vs hp)) by (exists n; exact Hexit).
+    rewrite (behaviour_unique s' b (Exits k vs hp) Hb (Hexits k vs hp Hs)).
     exact Hs.
 Qed.
 

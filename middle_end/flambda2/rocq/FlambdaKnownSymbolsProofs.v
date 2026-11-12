@@ -211,6 +211,7 @@ Qed.
 Section Folded_slot.
 
 Variables sets run_statics : static_env.
+Variable hp : heap.
 
 (* Each symbol that [sets] binds is bound in [run_statics] to a closure
    at the same slot of the same set, or to nothing. *)
@@ -284,8 +285,8 @@ Qed.
    nothing. *)
 Lemma fold_known_apply_sound_here (vars : env) (conts : cont_env)
     (ap : apply_expr) :
-  step (State (Apply (fold_known_apply sets ap)) vars conts run_statics)
-  = step (State (Apply ap) vars conts run_statics).
+  step (State (Apply (fold_known_apply sets ap)) vars conts run_statics hp)
+  = step (State (Apply ap) vars conts run_statics hp).
 Proof.
   unfold fold_known_apply.
   destruct (ap_call_kind ap) as [named | ] eqn:Hkind; [ reflexivity | ].
@@ -326,8 +327,8 @@ Qed.
 
 Theorem fold_known_apply_sound : fold_known_apply_sound_statement.
 Proof.
-  intros sets run_statics vars conts ap Hsets.
-  exact (fold_known_apply_sound_here sets run_statics Hsets vars conts ap).
+  intros sets run_statics hp vars conts ap Hsets.
+  exact (fold_known_apply_sound_here sets run_statics hp Hsets vars conts ap).
 Qed.
 
 (* ======================================================================== *)
@@ -601,7 +602,8 @@ Definition fold_conts (conts : cont_env) : cont_env :=
 
 Definition fold_state (s : state) : state :=
   State (fold_known S T (state_expr s)) (state_vars s)
-    (fold_conts (state_conts s)) (fold_statics (state_statics s)).
+    (fold_conts (state_conts s)) (fold_statics (state_statics s))
+      (state_heap s).
 
 Lemma lookup_fold_code (id : code_id) (statics : static_env) :
   lookup id (static_code (fold_statics statics))
@@ -713,7 +715,7 @@ Proof. destruct c. simpl. auto 8. Qed.
 Definition result_folded (result result' : step_result) : Prop :=
   match result with
   | Step t => result' = Step (fold_state t)
-  | Exit k vs => result' = Exit k vs
+  | Exit k vs hp => result' = Exit k vs hp
   | Undefined => True
   end.
 
@@ -803,11 +805,11 @@ Qed.
 (* A full call. *)
 Lemma call_code_fold (closure : value) (c : code) (vs : list value)
     (args_arity return_arity : arity) (return_to exn_to : cont_value)
-    (statics : static_env) :
+    (statics : static_env) (hp : heap) :
   result_folded
-    (call_code closure c vs args_arity return_arity return_to exn_to statics)
+    (call_code closure c vs args_arity return_arity return_to exn_to statics hp)
     (call_code closure (fold_known_code S T c) vs args_arity return_arity
-       (fold_cont return_to) (fold_cont exn_to) (fold_statics statics)).
+       (fold_cont return_to) (fold_cont exn_to) (fold_statics statics) hp).
 Proof.
   unfold result_folded, call_code.
   destruct (fold_known_code_parts c)
@@ -829,14 +831,14 @@ Qed.
    application. *)
 Lemma run_call_fold (return_partial return_partial' : value -> step_result)
     (shape : call_shape) (return_arity : arity)
-    (return_to exn_to : cont_value) (statics : static_env) :
+    (return_to exn_to : cont_value) (statics : static_env) (hp : heap) :
   (∀ partial : value,
     result_folded (return_partial partial) (return_partial' partial)) ->
   result_folded
     (run_call return_partial (Some shape) return_arity return_to exn_to
-       statics)
+       statics hp)
     (run_call return_partial' (Some (fold_shape shape)) return_arity
-       (fold_cont return_to) (fold_cont exn_to) (fold_statics statics)).
+       (fold_cont return_to) (fold_cont exn_to) (fold_statics statics) hp).
 Proof.
   intros Hpartial.
   destruct shape
@@ -848,7 +850,7 @@ Proof.
     exact (call_code_fold closure c vs args_arity (code_result_arity c)
              (Over_application remaining remaining_arity return_arity
                 return_to exn_to)
-             exn_to statics).
+             exn_to statics hp).
   - apply Hpartial.
 Qed.
 
@@ -856,16 +858,16 @@ Qed.
    applied to a partial application. *)
 Lemma call_function_fold_from (callee : value) (kind : call_kind)
     (vs : list value) (args_arity return_arity : arity)
-    (return_to exn_to : cont_value) (statics : static_env) :
+    (return_to exn_to : cont_value) (statics : static_env) (hp : heap) :
   (∀ partial : value,
-    result_folded (apply_cont_value return_to [partial] statics)
+    result_folded (apply_cont_value return_to [partial] statics hp)
       (apply_cont_value (fold_cont return_to) [partial]
-         (fold_statics statics))) ->
+         (fold_statics statics) hp)) ->
   result_folded
     (call_function callee kind vs args_arity return_arity return_to exn_to
-       statics)
+       statics hp)
     (call_function callee kind vs args_arity return_arity
-       (fold_cont return_to) (fold_cont exn_to) (fold_statics statics)).
+       (fold_cont return_to) (fold_cont exn_to) (fold_statics statics) hp).
 Proof.
   intros Hpartial. unfold call_function.
   destruct (shape_of_call statics callee kind vs args_arity return_arity)
@@ -877,16 +879,16 @@ Proof.
 Qed.
 
 Lemma apply_cont_value_fold (c : cont_value) :
-  ∀ (vs : list value) (statics : static_env),
-    result_folded (apply_cont_value c vs statics)
-      (apply_cont_value (fold_cont c) vs (fold_statics statics)).
+  ∀ (vs : list value) (statics : static_env) (hp : heap),
+    result_folded (apply_cont_value c vs statics hp)
+      (apply_cont_value (fold_cont c) vs (fold_statics statics) hp).
 Proof.
   induction c
     as [[params metadata handler] def_vars def_conts recursive | k
        | c IH extra
        | remaining remaining_arity return_arity return_to exn_to IHreturn _]
     using cont_value_over_ind;
-    intros vs statics.
+    intros vs statics hp.
   - unfold result_folded. simpl.
     destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
       [ | exact I ].
@@ -904,12 +906,12 @@ Qed.
 
 Lemma call_function_fold (callee : value) (kind : call_kind)
     (vs : list value) (args_arity return_arity : arity)
-    (return_to exn_to : cont_value) (statics : static_env) :
+    (return_to exn_to : cont_value) (statics : static_env) (hp : heap) :
   result_folded
     (call_function callee kind vs args_arity return_arity return_to exn_to
-       statics)
+       statics hp)
     (call_function callee kind vs args_arity return_arity
-       (fold_cont return_to) (fold_cont exn_to) (fold_statics statics)).
+       (fold_cont return_to) (fold_cont exn_to) (fold_statics statics) hp).
 Proof.
   apply call_function_fold_from. intros partial. apply apply_cont_value_fold.
 Qed.
@@ -918,19 +920,21 @@ Qed.
    bound them so, is a step of the second state, to the second state of
    the result, which has bound them so too. *)
 Lemma fold_step_components (e : expr) (vars : env) (conts : cont_env)
-    (statics : static_env) :
+    (statics : static_env) (hp : heap) :
   bound_as known sets e = true ->
   agrees statics ->
-  match step (State e vars conts statics) with
+  match step (State e vars conts statics hp) with
   | Step t =>
     step
-      (State (fold_known S T e) vars (fold_conts conts) (fold_statics statics))
+      (State (fold_known S T e) vars (fold_conts conts) (fold_statics statics)
+         hp)
     = Step (fold_state t)
     ∧ agrees (state_statics t)
-  | Exit k vs =>
+  | Exit k vs hp' =>
     step
-      (State (fold_known S T e) vars (fold_conts conts) (fold_statics statics))
-    = Exit k vs
+      (State (fold_known S T e) vars (fold_conts conts) (fold_statics statics)
+         hp)
+    = Exit k vs hp'
   | Undefined => True
   end.
 Proof.
@@ -941,7 +945,8 @@ Proof.
     simpl fold_known;
     try
       rewrite
-        (fold_known_apply_sound_here T (fold_statics statics) (proj2 Hagrees));
+        (fold_known_apply_sound_here T (fold_statics statics) hp
+           (proj2 Hagrees));
     autorewrite with step.
   - (* Let *)
     destruct (eval_named statics vars d) as [v | ] eqn:Hv; [ | exact I ].
@@ -979,28 +984,29 @@ Proof.
       (call_function_fold callee (ap_call_kind ap) vs (ap_args_arity ap)
          (ap_return_arity ap) (resolve (ap_continuation ap) conts)
          (with_extra_args (resolve (ap_exn_continuation ap) conts) extra)
-         statics)
+         statics hp)
       as Hcall.
     destruct (call_function callee (ap_call_kind ap) vs (ap_args_arity ap)
                 (ap_return_arity ap) (resolve (ap_continuation ap) conts)
                 (with_extra_args (resolve (ap_exn_continuation ap) conts)
                    extra)
-                statics)
+                statics hp)
       as [t | k exit_vs | ] eqn:Hstep;
       [ | exact Hcall | exact I ].
     split; [ exact Hcall | ].
-    rewrite (call_function_statics _ _ _ _ _ _ _ _ t Hstep). exact Hagrees.
+    rewrite (call_function_statics _ _ _ _ _ _ _ _ _ t Hstep). exact Hagrees.
   - (* Apply_cont *)
     destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | exact I ].
     unfold apply_continuation. rewrite resolve_fold.
     pose proof
-      (apply_cont_value_fold (resolve (ac_continuation ac) conts) vs statics)
+      (apply_cont_value_fold (resolve (ac_continuation ac) conts) vs statics hp)
       as Happly.
-    destruct (apply_cont_value (resolve (ac_continuation ac) conts) vs statics)
+    destruct
+      (apply_cont_value (resolve (ac_continuation ac) conts) vs statics hp)
       as [t | | ] eqn:Hstep;
       [ | exact Happly | exact I ].
     split; [ exact Happly | ].
-    rewrite (apply_cont_value_statics _ _ _ t Hstep). exact Hagrees.
+    rewrite (apply_cont_value_statics _ _ _ _ t Hstep). exact Hagrees.
   - (* Switch *)
     destruct (eval_simple vars scrutinee) as [v | ]; [ | exact I ].
     destruct (naked_immediate_of_value v) as [i | ]; [ | exact I ].
@@ -1040,7 +1046,7 @@ Proof.
   intros (-> & Hinv & Hagrees).
   pose proof
     (fold_step_components (state_expr s) (state_vars s) (state_conts s)
-       (state_statics s) (proj1 Hinv) Hagrees)
+       (state_statics s) (state_heap s) (proj1 Hinv) Hagrees)
     as Hstep.
   rewrite <- (state_eta s) in Hstep.
   pose proof (bound_as_inv_step s) as Hkept.

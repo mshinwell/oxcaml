@@ -508,14 +508,15 @@ Qed.
 (* A full call keeps the invariant. *)
 Lemma call_code_ok (closure : value) (called : code_id) (c : code)
     (vs : list value) (args_arity return_arity : arity)
-    (return_to exn_to : cont_value) (statics : static_env) (st : state) :
+    (return_to exn_to : cont_value) (statics : static_env) (hp : heap)
+      (st : state) :
   statics_ok statics ->
   lookup called (static_code statics) = Some c ->
   value_free closure = true ->
   forallb value_free vs = true ->
   cont_ok return_to ->
   cont_ok exn_to ->
-  call_code closure c vs args_arity return_arity return_to exn_to statics
+  call_code closure c vs args_arity return_arity return_to exn_to statics hp
   = Step st ->
   state_ok st.
 Proof.
@@ -535,7 +536,8 @@ Qed.
    with a partial application keeps it. *)
 Lemma run_call_ok (return_partial : value -> step_result) (kind : call_kind)
     (shape : option call_shape) (return_arity : arity)
-    (return_to exn_to : cont_value) (statics : static_env) (st : state) :
+    (return_to exn_to : cont_value) (statics : static_env) (hp : heap)
+      (st : state) :
   statics_ok statics ->
   shape_calls statics kind shape ->
   shape_values_all (fun v => value_free v = true) shape ->
@@ -544,7 +546,7 @@ Lemma run_call_ok (return_partial : value -> step_result) (kind : call_kind)
   (∀ partial : value,
     value_free partial = true -> return_partial partial = Step st ->
     state_ok st) ->
-  run_call return_partial shape return_arity return_to exn_to statics
+  run_call return_partial shape return_arity return_to exn_to statics hp
   = Step st ->
   state_ok st.
 Proof.
@@ -555,12 +557,12 @@ Proof.
     simpl in Hcalls, Hvalues |- *.
   - destruct Hcalls as (called & slots & _ & Hcode & _).
     destruct Hvalues as [Hclosure Hvs]. apply forallb_Forall in Hvs.
-    exact (call_code_ok closure called c vs _ _ _ _ statics st Hstatics
+    exact (call_code_ok closure called c vs _ _ _ _ statics _ st Hstatics
              Hcode Hclosure Hvs Hreturn Hexn).
   - destruct Hcalls as (called & slots & _ & Hcode & _).
     destruct Hvalues as (Hclosure & Hvs & Hremaining).
     apply forallb_Forall in Hvs, Hremaining.
-    apply (call_code_ok closure called c vs _ _ _ _ statics st Hstatics
+    apply (call_code_ok closure called c vs _ _ _ _ statics _ st Hstatics
              Hcode Hclosure Hvs);
       [ apply Over_application_ok; assumption | exact Hexn ].
   - exact (Hpartial partial Hvalues).
@@ -570,10 +572,10 @@ Qed.
 (* Applying a continuation keeps the invariant. *)
 Lemma apply_cont_value_ok (c : cont_value) :
   cont_ok c ->
-  ∀ (vs : list value) (statics : static_env) (st : state),
+  ∀ (vs : list value) (statics : static_env) (hp : heap) (st : state),
     forallb value_free vs = true ->
     statics_ok statics ->
-    apply_cont_value c vs statics = Step st ->
+    apply_cont_value c vs statics hp = Step st ->
     state_ok st.
 Proof.
   induction 1
@@ -582,7 +584,7 @@ Proof.
        | c extra Hc IH Hextra
        | remaining remaining_arity return_arity return_to exn_to Hremaining
            Hreturn IHreturn Hexn _ ];
-    intros vs statics st Hvs Hstatics.
+    intros vs statics hp st Hvs Hstatics.
   - discriminate.
   - simpl.
     destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
@@ -598,7 +600,7 @@ Proof.
   - rewrite apply_cont_value_over_application.
     destruct vs as [ | v [ | v' vs]]; [ discriminate | | discriminate ].
     simpl in Hvs. rewrite andb_true_r in Hvs. unfold call_function.
-    apply (run_call_ok _ Indirect _ _ _ _ statics st Hstatics
+    apply (run_call_ok _ Indirect _ _ _ _ statics _ st Hstatics
              (shape_of_call_calls _ _ _ _ _ _));
       [ | exact Hreturn | exact Hexn | ].
     + apply (shape_of_call_values_all _ value_free_partial);
@@ -610,12 +612,12 @@ Qed.
 
 (* A step keeps the invariant. *)
 Lemma ok_step_components (e : expr) (vars : env) (conts : cont_env)
-    (statics : static_env) (st : state) :
+    (statics : static_env) (hp : heap) (st : state) :
   only_closure_of id s e = true ->
   env_free vars ->
   conts_ok conts ->
   statics_ok statics ->
-  step (State e vars conts statics) = Step st ->
+  step (State e vars conts statics hp) = Step st ->
   state_ok st.
 Proof.
   intros He Hvars Hconts Hstatics.
@@ -673,7 +675,7 @@ Proof.
         (with_extra_args (resolve (ap_exn_continuation ap) conts) extra)).
     { apply with_extra_args_ok; [ exact (resolve_ok _ conts Hconts) | ].
       exact (eval_simples_free vars _ Hvars extra Hextra). }
-    apply (run_call_ok _ (ap_call_kind ap) _ _ _ _ statics st Hstatics
+    apply (run_call_ok _ (ap_call_kind ap) _ _ _ _ statics _ st Hstatics
              (shape_of_call_calls _ _ _ _ _ _));
       [ | exact Hreturn | exact Hexn | ].
     + apply (shape_of_call_values_all _ value_free_partial);
@@ -707,7 +709,7 @@ Lemma ok_step (st st' : state) :
   state_ok st -> step st = Step st' -> state_ok st'.
 Proof.
   intros (He & Hvars & Hconts & Hstatics). rewrite (state_eta st).
-  exact (ok_step_components _ _ _ _ st' He Hvars Hconts Hstatics).
+  exact (ok_step_components _ _ _ _ _ st' He Hvars Hconts Hstatics).
 Qed.
 
 Lemma ok_run (n : nat) :
@@ -721,7 +723,7 @@ Qed.
 
 Lemma ok_initial (e : expr) :
   only_closure_of id s e = true ->
-  state_ok (State e [] [] empty_static_env).
+  state_ok (State e [] [] empty_static_env empty_heap).
 Proof.
   intros He. split; [ exact He | ]. split; [ intros x v [=] | ].
   split; [ constructor | ]. split; [ intros id' c [=] | intros sym a [=] ].

@@ -173,8 +173,8 @@ Definition hoist_statics (u : unit_interface) (e : expr) : option expr :=
 Definition hoist_statics_program_equivalent_statement : Prop :=
   ∀ (u : unit_interface) (e e' : expr),
     hoist_statics u e = Some e' ->
-    equivalent (State e [] [] empty_static_env)
-      (State e' [] [] empty_static_env).
+    equivalent (State e [] [] empty_static_env empty_heap)
+      (State e' [] [] empty_static_env empty_heap).
 
 (* The parts of the pass commute with renaming, which moves no symbol
    and no code id: a constant that has a value in the empty environment

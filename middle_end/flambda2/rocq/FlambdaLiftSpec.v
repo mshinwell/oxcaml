@@ -369,9 +369,9 @@ Definition plain_value (v : value) : Prop :=
 
 (* A unit that passes the check exits with constants and symbols only. *)
 Definition exits_plain_sound_statement : Prop :=
-  ∀ (e : expr) (n : nat) (k : continuation) (vs : list value),
+  ∀ (e : expr) (n : nat) (k : continuation) (vs : list value) (hp : heap),
     exits_plain [] e = true ->
-    run n (State e [] [] empty_static_env) = Exit k vs ->
+    run n (State e [] [] empty_static_env empty_heap) = Exit k vs hp ->
     ∀ v : value, v ∈ vs -> plain_value v.
 
 (* ======================================================================== *)
@@ -498,18 +498,19 @@ Definition lift_simulates_statement : Prop :=
     let lifted := bind_my_closures known (lift_expr lets root e) in
     well_formed_unit u lifted = true ->
     only_closures_of known lifted = true ->
-    (∀ (k : continuation) (vs : list value),
-      behaves (State e [] [] empty_static_env) (Exits k vs) ->
+    (∀ (k : continuation) (vs : list value) (hp : heap),
+      behaves (State e [] [] empty_static_env empty_heap) (Exits k vs hp) ->
       ∃ (n : nat) (last : state) (vs' : list value),
-        run n (State lifted [] [] empty_static_env) = Step last
-        ∧ step last = Exit k vs'
+        run n (State lifted [] [] empty_static_env empty_heap) = Step last
+        ∧ step last = Exit k vs' hp
         ∧ Forall2 (value_lifted (state_statics last)) vs vs')
     ∧ (∀ b : behaviour,
         b <> Diverges ->
-        behaves (State lifted [] [] empty_static_env) b ->
-        behaves (State e [] [] empty_static_env) Goes_wrong
-        ∨ ∃ (k : continuation) (vs : list value),
-            behaves (State e [] [] empty_static_env) (Exits k vs)).
+        behaves (State lifted [] [] empty_static_env empty_heap) b ->
+        behaves (State e [] [] empty_static_env empty_heap) Goes_wrong
+        ∨ ∃ (k : continuation) (vs : list value) (hp : heap),
+            behaves (State e [] [] empty_static_env empty_heap)
+              (Exits k vs hp)).
 
 (* What [lift_unit] gives refines the unit, run on its own. *)
 Definition lift_unit_program_refines_statement : Prop :=

@@ -402,7 +402,7 @@ Qed.
 Definition result_in_range (result : step_result) : Prop :=
   match result with
   | Step s => state_in_range s
-  | Exit _ vs => forallb value_in_range vs = true
+  | Exit _ vs _ => forallb value_in_range vs = true
   | Undefined => True
   end.
 
@@ -435,7 +435,7 @@ Qed.
 
 Lemma call_code_in_range (closure : value) (called : code_id) (c : code)
     (vs : list value) (args_arity return_arity : arity)
-    (return_to exn_to : cont_value) (statics : static_env) :
+    (return_to exn_to : cont_value) (statics : static_env) (hp : heap) :
   value_in_range closure = true ->
   forallb value_in_range vs = true ->
   cont_in_range return_to ->
@@ -443,7 +443,8 @@ Lemma call_code_in_range (closure : value) (called : code_id) (c : code)
   statics_in_range statics ->
   lookup called (static_code statics) = Some c ->
   result_in_range
-    (call_code closure c vs args_arity return_arity return_to exn_to statics).
+    (call_code closure c vs args_arity return_arity return_to exn_to statics
+       hp).
 Proof.
   intros Hclosure Hvs Hreturn Hexn Hstatics Hcode. unfold call_code.
   destruct (binds_statics (code_body c)); [ exact I | ].
@@ -469,7 +470,7 @@ Qed.
 
 Lemma run_call_in_range (return_partial : value -> step_result)
     (kind : call_kind) (shape : option call_shape) (return_arity : arity)
-    (return_to exn_to : cont_value) (statics : static_env) :
+    (return_to exn_to : cont_value) (statics : static_env) (hp : heap) :
   shape_calls statics kind shape ->
   shape_values_all (fun v => value_in_range v = true) shape ->
   cont_in_range return_to ->
@@ -479,7 +480,7 @@ Lemma run_call_in_range (return_partial : value -> step_result)
     value_in_range partial = true ->
     result_in_range (return_partial partial)) ->
   result_in_range
-    (run_call return_partial shape return_arity return_to exn_to statics).
+    (run_call return_partial shape return_arity return_to exn_to statics hp).
 Proof.
   intros Hcalls Hvalues Hreturn Hexn Hstatics Hpartial.
   destruct shape
@@ -488,12 +489,12 @@ Proof.
     simpl in Hcalls, Hvalues |- *.
   - destruct Hcalls as (called & slots & _ & Hcode & _).
     destruct Hvalues as [Hclosure Hvs]. apply forallb_Forall in Hvs.
-    exact (call_code_in_range closure called c vs _ _ _ _ statics Hclosure
+    exact (call_code_in_range closure called c vs _ _ _ _ statics _ Hclosure
              Hvs Hreturn Hexn Hstatics Hcode).
   - destruct Hcalls as (called & slots & _ & Hcode & _).
     destruct Hvalues as (Hclosure & Hvs & Hremaining).
     apply forallb_Forall in Hvs, Hremaining.
-    apply (call_code_in_range closure called c vs _ _ _ _ statics Hclosure
+    apply (call_code_in_range closure called c vs _ _ _ _ statics _ Hclosure
              Hvs);
       [ constructor; assumption | exact Hexn | exact Hstatics | exact Hcode ].
   - exact (Hpartial partial Hvalues).
@@ -501,11 +502,11 @@ Proof.
 Qed.
 
 Lemma apply_cont_value_in_range (c : cont_value) (vs : list value)
-    (statics : static_env) :
+    (statics : static_env) (hp : heap) :
   cont_in_range c ->
   forallb value_in_range vs = true ->
   statics_in_range statics ->
-  result_in_range (apply_cont_value c vs statics).
+  result_in_range (apply_cont_value c vs statics hp).
 Proof.
   intros Hc Hvs Hstatics. revert vs Hvs.
   induction Hc
@@ -554,7 +555,7 @@ Qed.
 
 Lemma call_function_in_range (callee : value) (kind : call_kind)
     (vs : list value) (args_arity return_arity : arity)
-    (return_to exn_to : cont_value) (statics : static_env) :
+    (return_to exn_to : cont_value) (statics : static_env) (hp : heap) :
   value_in_range callee = true ->
   forallb value_in_range vs = true ->
   cont_in_range return_to ->
@@ -562,7 +563,7 @@ Lemma call_function_in_range (callee : value) (kind : call_kind)
   statics_in_range statics ->
   result_in_range
     (call_function callee kind vs args_arity return_arity return_to exn_to
-       statics).
+       statics hp).
 Proof.
   intros Hcallee Hvs Hreturn Hexn Hstatics. unfold call_function.
   apply (run_call_in_range _ kind); try assumption.
@@ -664,7 +665,7 @@ Qed.
 
 Lemma initial_state_in_range (e : expr) :
   numbers_in_range e = true ->
-  state_in_range (State e [] [] empty_static_env).
+  state_in_range (State e [] [] empty_static_env empty_heap).
 Proof.
   intros He. repeat split; simpl; try exact He; intros ? ? [].
 Qed.
@@ -679,7 +680,7 @@ Qed.
 
 Theorem run_exit_in_range : run_exit_in_range_statement.
 Proof.
-  intros e n k vs He Hrun.
+  intros e n k vs hp He Hrun.
   pose proof (run_result_in_range n _ (initial_state_in_range e He))
     as Hresult.
   rewrite Hrun in Hresult. apply forallb_forall. exact Hresult.
