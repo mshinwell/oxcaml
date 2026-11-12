@@ -238,9 +238,11 @@ it gave back.
   realises a definition of the model by hand-written OCaml. The extracted
   modules are in `middle_end/flambda2/tests/semantics/extracted/`.
 - **What the tool reports**, in the same file (`check`, `run`,
-  `observe`): that it calls `validate_unit` on the two terms converted,
-  and prints its answer as it is. The comparison of the two runs that it
-  also prints is a test of one run, and no theorem is about it.
+  `observe`): that it calls `validate_unit` on the two terms converted
+  or, where that does not validate them, `validate_unit_knowing` on the
+  same two terms, and prints the answer as it is. The comparison of the
+  two runs that it also prints is a test of one run, and no theorem is
+  about it.
 - **The conversion of types**, in
   `middle_end/flambda2/tests/semantics/types/type_converter.ml` with
   `model_numbers.ml` and `model_names.ml`: between `Type_grammar.t` and
@@ -464,8 +466,9 @@ it gave back.
     name, is or has within it an alias of a symbol.
 
 Not trusted, though it is OCaml: what the tool proposes to
-`validate_unit`. Each proposal is checked by an extracted function, and
-`validate_unit_sound` holds whatever is proposed.
+`validate_unit` and to `validate_unit_knowing`. Each proposal is
+checked by an extracted function, and `validate_unit_sound` and
+`validate_unit_knowing_sound` hold whatever is proposed.
 - Which static bindings to remove as unused (`unused_statics`): checked
   by `drop_statics`.
 - Which `Let`s Simplify made static bindings, under which symbols, and
@@ -481,7 +484,9 @@ Not trusted, though it is OCaml: what the tool proposes to
   the conversion notes it): checked by `loopify_unit`, which leaves
   alone the code that is not `loopable` with the name given.
 
-The guesses are made from the two terms as `convert_both` gives them,
+The guesses are made from the two terms as `convert_both` gives them
+(for `validate_unit_knowing`, from those two terms normalised by
+`normalise_knowing`, which the tool computes again for the purpose),
 so a code id or a symbol of the term after that a guess names is named
 by the numbering above. That identification of names is trusted, as
 said there; a guess adds nothing to it.

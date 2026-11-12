@@ -62,7 +62,7 @@ From OxCamlFlambda2 Require Import FlambdaMapSpec FlambdaModel
   FlambdaSinkContsSpec FlambdaStaticsInScopeSpec FlambdaStaticsOrderSpec
   FlambdaUnboxSpec
   FlambdaUnusedContsSpec FlambdaUnusedParamsSpec FlambdaUnusedStaticsSpec
-  FlambdaValidateSpec.
+  FlambdaValidateSpec FlambdaValidateKnowingSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
 From OxCamlFlambda2Types Require Import FlambdaBindingTime.
 From OxCamlFlambda2Types Require Import FlambdaJoinEnv.
@@ -228,6 +228,7 @@ Separate Extraction
   merge
   merge_statics
   names_in_scope
+  normalise_knowing
   numbers_in_range
   partial_or_over_application
   remove_unused_conts
@@ -250,6 +251,7 @@ Separate Extraction
   union_with
   unit_exn_handlers_well_formed
   validate_unit
+  validate_unit_knowing
   well_formed_unit
   well_kinded_unit
   without

@@ -102,6 +102,7 @@ module Well_formed = Flambda2_rocq_semantics.FlambdaWellFormedSpec
 module Well_kinded = Flambda2_rocq_semantics.FlambdaWellKindedSpec
 module Binders = Flambda2_rocq_semantics.FlambdaBindersSpec
 module Validate = Flambda2_rocq_semantics.FlambdaValidateSpec
+module Validate_knowing = Flambda2_rocq_semantics.FlambdaValidateKnowingSpec
 module Lift = Flambda2_rocq_semantics.FlambdaLiftSpec
 module My_closure = Flambda2_rocq_semantics.FlambdaMyClosureSpec
 module Unused_slots = Flambda2_rocq_semantics.FlambdaUnusedSlotsSpec
@@ -2154,7 +2155,12 @@ let well_formed_before ~filename (before : Flambda_unit.t) =
    the self tail calls of the code named here, as Simplify does for the code
    that the front end marks for loopify; which code that is, with a name for
    each loop, is a guess again, and the guesses above are made of the term that
-   this gives. *)
+   this gives. Failing all of that, the whole is asked a second time, of
+   [validate_unit_knowing], extracted from FlambdaValidateKnowingSpec.v, where
+   it is proved that what it accepts is correct for the unit in the same way. It
+   is [validate_unit] of the two terms normalised by rounds in front of each of
+   which the aliases are followed knowing what the symbols are bound to; the
+   guesses are made again, from those two terms. *)
 
 (* The code that the front end marks for loopify, each with a name for its loop
    that no continuation of the two units has. *)
@@ -2178,21 +2184,24 @@ let validate ~(outcome_before : outcome) (before : converted)
       lifted_out_of_code = []
     }
   in
-  (* The code to loopify, and the term before with its self tail calls made
-     jumps: the term that [validate_unit] normalises and lifts in. *)
+  (* The code to loopify. *)
   let loops = loopify_guess () in
-  let looped = Loopify.loopify_unit loops before.body in
-  (* One attempt, with the code whose calls the validation is told to leave. It
-     gives the verdict, the term before that was compared last, how it was made,
-     whether value slots were removed from it, and the term after as it was
-     compared. *)
-  let attempt kept =
+  (* The validation asked once, with the code whose calls it is told to leave.
+     [validate_unit] is the function asked, which has the two terms of the unit
+     already and takes the other guesses; [before] and [after] are the two terms
+     that it compares once it has made the loops and normalised, from which the
+     guesses are made. It gives the verdict, the term before that was compared
+     last, how it was made, whether value slots were removed from it, and the
+     term after as it was compared. *)
+  let ask validate_unit (before : converted) (after : converted) kept =
+    (* The term before with its self tail calls made jumps: the term that the
+       function asked normalises and lifts in. *)
+    let looped = Loopify.loopify_unit loops before.body in
     let normalised_before = Validate.normalise_before rounds kept looped in
     let normalised_after = Validate.normalise_after rounds kept after.body in
     let unused = unused_statics normalised_before in
-    let validation =
-      Validate.validate_unit rounds unused [] loops [nothing_lifted] kept
-        before.body after.body
+    let validation : Validate.validation =
+      validate_unit unused [] [nothing_lifted]
     in
     let not_lifted =
       ( validation,
@@ -2295,8 +2304,7 @@ let validate ~(outcome_before : outcome) (before : converted)
       | (_ :: _ as liftings), lifted, slots, unused ->
         ( (* The bindings of code of both terms are moved up before the
              comparison. *)
-          Validate.validate_unit rounds unused slots loops liftings kept
-            before.body after.body,
+          validate_unit unused slots liftings,
           Float_code.float_code (Validate.without_statics unused lifted),
           "lifted and normalised",
           (match slots with [] -> false | _ :: _ -> true),
@@ -2304,6 +2312,64 @@ let validate ~(outcome_before : outcome) (before : converted)
     | Same_up_to_bound_names | Same_once_normalised
     | Same_once_unused_statics_removed | Same_once_lifted ->
       not_lifted
+  in
+  (* One attempt, with the code whose calls the validation is told to leave:
+     [validate_unit] is asked of the two terms and, where it fails,
+     [validate_unit_knowing] is asked of the same two terms. That one compares
+     the two terms normalised with what their symbols are bound to used, each by
+     its own round, so the guesses for it are made from those, which are
+     computed here a second time for the purpose. The round of the term before
+     avoids the continuations of the units of the liftings and those of the
+     loops; every lifting made here has the unit of the term before, and the
+     names that the round makes depend only on the greatest of the names to
+     avoid and of the term, so the term that the guesses are made from is the
+     one that [validate_unit_knowing] compares. Nothing rests on that but
+     whether a guess fits: the verdict is that of [validate_unit_knowing] on the
+     two terms as converted. *)
+  let asked_again = ref false in
+  let attempt kept =
+    let first =
+      ask
+        (fun unused slots liftings ->
+          Validate.validate_unit rounds unused slots loops liftings kept
+            before.body after.body)
+        before after kept
+    in
+    match first with
+    | Not_validated, _, _, _, _ -> (
+      let knowing round (unit : converted) =
+        { unit with
+          body = Validate_knowing.normalise_knowing round rounds unit.body
+        }
+      in
+      let avoid =
+        Validate.unit_continuations [nothing_lifted] @ List.map snd loops
+      in
+      match
+        ask
+          (fun unused slots liftings ->
+            Validate_knowing.validate_unit_knowing rounds unused slots loops
+              liftings kept before.body after.body)
+          (knowing (Validate.normalise_before_round_avoiding avoid kept) before)
+          (knowing (Validate.normalise_after_round kept) after)
+          kept
+      with
+      | Not_validated, _, _, _, _ -> first
+      | ( ( Same_up_to_bound_names | Same_once_normalised
+          | Same_once_unused_statics_removed | Same_once_lifted ),
+          _,
+          _,
+          _,
+          _ ) as second ->
+        asked_again := true;
+        second)
+    | ( ( Same_up_to_bound_names | Same_once_normalised
+        | Same_once_unused_statics_removed | Same_once_lifted ),
+        _,
+        _,
+        _,
+        _ ) ->
+      first
   in
   (* Which calls the validation is told to leave: two guesses, tried in turn.
      First the recursive code and the code that the term after still calls
@@ -2347,6 +2413,11 @@ let validate ~(outcome_before : outcome) (before : converted)
       if outcome_before = Undefined
       then "nothing to validate, as the term before is undefined"
       else "not validated");
+  if !asked_again
+  then
+    Format.printf
+      "  (at the second asking, of the two terms normalised with what their \
+       symbols are bound to used)@.";
   (* A term before that is undefined is refined by anything: the validation is
      right and says nothing. *)
   (match validation with
