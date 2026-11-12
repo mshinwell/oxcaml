@@ -59,6 +59,7 @@ From OxCamlFlambda2 Require Import FlambdaMapSpec FlambdaModel
   FlambdaCseSpec FlambdaDeadParamsSpec FlambdaForwardJumpsSpec
   FlambdaForwardSpec
   FlambdaIdentitiesSpec FlambdaLoopAliasesSpec FlambdaLoopLetsSpec
+  FlambdaImportsSpec
   FlambdaLoopifySpec FlambdaMergeSwitchesSpec FlambdaNormaliseSpec
   FlambdaParamAliasesSpec
   FlambdaRecHandlersSpec FlambdaRenameApartSpec FlambdaShortcutSpec
@@ -66,6 +67,7 @@ From OxCamlFlambda2 Require Import FlambdaMapSpec FlambdaModel
   FlambdaStaticsOrderSpec
   FlambdaUnboxSpec
   FlambdaUnusedContsSpec FlambdaUnusedParamsSpec FlambdaUnusedStaticsSpec
+  FlambdaValidateImportsSpec
   FlambdaValidateSpec FlambdaValidateKnowingSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
 From OxCamlFlambda2Types Require Import FlambdaBindingTime.
@@ -221,6 +223,8 @@ Separate Extraction
   follow_aliases_in_loops
   forward_applications
   forward_jumps
+  holds_from_imports
+  imports_statics
   inline_calls
   inline_known_calls
   inline_tail_conts
