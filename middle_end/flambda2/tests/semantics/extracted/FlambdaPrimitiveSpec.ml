@@ -359,6 +359,7 @@ let eval_unary_primitive statics p v =
       let tag, _ = p0 in
       Some (Value_const (Naked_immediate tag))
     | None -> None)
+  | Array_length _ -> None
   | String_length -> (
     match string_of statics v with
     | Some bytes ->
@@ -477,6 +478,7 @@ let eval_phys_equal statics v1 v2 =
 
 let eval_binary_primitive statics p v1 v2 =
   match p with
+  | Array_load (_, _, _) -> None
   | String_or_bigstring_load width -> eval_string_load statics width v1 v2
   | Phys_equal op -> (
     match eval_phys_equal statics v1 v2 with
@@ -655,6 +657,7 @@ let access_in_range kind field =
 let heap_primitive_in_range = function
   | Make_block_with_identity (_, tag) -> tag_in_range tag
   | Block_set (kind, _, field) -> access_in_range kind field
+  | _ -> true
 
 (** val prim_in_range : prim -> bool **)
 
@@ -672,6 +675,7 @@ let naked_immediate_kind = Naked_number Kind_naked_immediate
 
 let result_kind_of_unary_primitive = function
   | Block_load (_, _, _) -> Value
+  | Array_length _ -> Value
   | Opaque_identity kind -> kind
   | Unary_int_arith (kind, _) -> kind_of_standard_int kind
   | Num_conv (_, dst) -> kind_of_standard_int dst
@@ -688,6 +692,7 @@ let result_kind_of_unary_primitive = function
 (** val result_kind_of_binary_primitive : binary_primitive -> flambda_kind **)
 
 let result_kind_of_binary_primitive = function
+  | Array_load (_, _, _) -> Value
   | String_or_bigstring_load width -> (
     match width with
     | Eight_signed -> Naked_number Kind_naked_int8
@@ -1031,6 +1036,28 @@ let prim_eq_dec p p' =
         | _ -> false)
       | Is_null -> ( match p1 with Is_null -> true | _ -> false)
       | Get_tag -> ( match p1 with Get_tag -> true | _ -> false)
+      | Array_length kind -> (
+        match p1 with
+        | Array_length kind0 -> (
+          match kind with
+          | Array_kind kind1 -> (
+            match kind0 with
+            | Array_kind kind2 -> (
+              match kind1 with
+              | Array_immediates -> (
+                match kind2 with Array_immediates -> true | _ -> false)
+              | Array_gc_ignorable_values -> (
+                match kind2 with
+                | Array_gc_ignorable_values -> true
+                | _ -> false)
+              | Array_values -> (
+                match kind2 with Array_values -> true | _ -> false))
+            | Float_array_opt_dynamic -> false)
+          | Float_array_opt_dynamic -> (
+            match kind0 with
+            | Array_kind _ -> false
+            | Float_array_opt_dynamic -> true))
+        | _ -> false)
       | String_length -> ( match p1 with String_length -> true | _ -> false)
       | Opaque_identity kind -> (
         match p1 with
@@ -1343,6 +1370,116 @@ let prim_eq_dec p p' =
     match p' with
     | Binary p1 -> (
       match p0 with
+      | Array_load (kind, load_kind, mut) -> (
+        match p1 with
+        | Array_load (kind0, load_kind0, mut0) -> (
+          match kind with
+          | Array_immediates -> (
+            match kind0 with
+            | Array_immediates -> (
+              match load_kind with
+              | Load_immediates -> (
+                match load_kind0 with
+                | Load_immediates -> (
+                  match mut with
+                  | Mutable -> ( match mut0 with Mutable -> true | _ -> false)
+                  | Immutable -> (
+                    match mut0 with Immutable -> true | _ -> false)
+                  | Immutable_unique -> (
+                    match mut0 with Immutable_unique -> true | _ -> false))
+                | _ -> false)
+              | Load_gc_ignorable_values -> (
+                match load_kind0 with
+                | Load_gc_ignorable_values -> (
+                  match mut with
+                  | Mutable -> ( match mut0 with Mutable -> true | _ -> false)
+                  | Immutable -> (
+                    match mut0 with Immutable -> true | _ -> false)
+                  | Immutable_unique -> (
+                    match mut0 with Immutable_unique -> true | _ -> false))
+                | _ -> false)
+              | Load_values -> (
+                match load_kind0 with
+                | Load_values -> (
+                  match mut with
+                  | Mutable -> ( match mut0 with Mutable -> true | _ -> false)
+                  | Immutable -> (
+                    match mut0 with Immutable -> true | _ -> false)
+                  | Immutable_unique -> (
+                    match mut0 with Immutable_unique -> true | _ -> false))
+                | _ -> false))
+            | _ -> false)
+          | Array_gc_ignorable_values -> (
+            match kind0 with
+            | Array_gc_ignorable_values -> (
+              match load_kind with
+              | Load_immediates -> (
+                match load_kind0 with
+                | Load_immediates -> (
+                  match mut with
+                  | Mutable -> ( match mut0 with Mutable -> true | _ -> false)
+                  | Immutable -> (
+                    match mut0 with Immutable -> true | _ -> false)
+                  | Immutable_unique -> (
+                    match mut0 with Immutable_unique -> true | _ -> false))
+                | _ -> false)
+              | Load_gc_ignorable_values -> (
+                match load_kind0 with
+                | Load_gc_ignorable_values -> (
+                  match mut with
+                  | Mutable -> ( match mut0 with Mutable -> true | _ -> false)
+                  | Immutable -> (
+                    match mut0 with Immutable -> true | _ -> false)
+                  | Immutable_unique -> (
+                    match mut0 with Immutable_unique -> true | _ -> false))
+                | _ -> false)
+              | Load_values -> (
+                match load_kind0 with
+                | Load_values -> (
+                  match mut with
+                  | Mutable -> ( match mut0 with Mutable -> true | _ -> false)
+                  | Immutable -> (
+                    match mut0 with Immutable -> true | _ -> false)
+                  | Immutable_unique -> (
+                    match mut0 with Immutable_unique -> true | _ -> false))
+                | _ -> false))
+            | _ -> false)
+          | Array_values -> (
+            match kind0 with
+            | Array_values -> (
+              match load_kind with
+              | Load_immediates -> (
+                match load_kind0 with
+                | Load_immediates -> (
+                  match mut with
+                  | Mutable -> ( match mut0 with Mutable -> true | _ -> false)
+                  | Immutable -> (
+                    match mut0 with Immutable -> true | _ -> false)
+                  | Immutable_unique -> (
+                    match mut0 with Immutable_unique -> true | _ -> false))
+                | _ -> false)
+              | Load_gc_ignorable_values -> (
+                match load_kind0 with
+                | Load_gc_ignorable_values -> (
+                  match mut with
+                  | Mutable -> ( match mut0 with Mutable -> true | _ -> false)
+                  | Immutable -> (
+                    match mut0 with Immutable -> true | _ -> false)
+                  | Immutable_unique -> (
+                    match mut0 with Immutable_unique -> true | _ -> false))
+                | _ -> false)
+              | Load_values -> (
+                match load_kind0 with
+                | Load_values -> (
+                  match mut with
+                  | Mutable -> ( match mut0 with Mutable -> true | _ -> false)
+                  | Immutable -> (
+                    match mut0 with Immutable -> true | _ -> false)
+                  | Immutable_unique -> (
+                    match mut0 with Immutable_unique -> true | _ -> false))
+                | _ -> false))
+            | _ -> false))
+        | _ -> false)
       | String_or_bigstring_load width -> (
         match p1 with
         | String_or_bigstring_load width0 -> (
@@ -2141,10 +2278,9 @@ let prim_eq_dec p p' =
                   in
                   f p2 p3
                 | _ -> false))))
-        | Block_set (_, _, _) -> false)
+        | _ -> false)
       | Block_set (kind, init, field) -> (
         match p1 with
-        | Make_block_with_identity (_, _) -> false
         | Block_set (kind0, init0, field0) ->
           let (Block_access_values (tag, size, field_kind)) = kind in
           let (Block_access_values (tag0, size0, field_kind0)) = kind0 in
@@ -2370,7 +2506,96 @@ let prim_eq_dec p p' =
                           f p2 p3
                         | _ -> false)))))
             else false
-          else false))
+          else false
+        | _ -> false)
+      | Make_mutable_array kind -> (
+        match p1 with
+        | Make_mutable_array kind0 -> (
+          match kind with
+          | Array_immediates -> (
+            match kind0 with Array_immediates -> true | _ -> false)
+          | Array_gc_ignorable_values -> (
+            match kind0 with Array_gc_ignorable_values -> true | _ -> false)
+          | Array_values -> (
+            match kind0 with Array_values -> true | _ -> false))
+        | _ -> false)
+      | Array_set (kind, set_kind) -> (
+        match p1 with
+        | Array_set (kind0, set_kind0) -> (
+          match kind with
+          | Array_immediates -> (
+            match kind0 with
+            | Array_immediates -> (
+              match set_kind with
+              | Set_immediates -> (
+                match set_kind0 with Set_immediates -> true | _ -> false)
+              | Set_gc_ignorable_values -> (
+                match set_kind0 with
+                | Set_gc_ignorable_values -> true
+                | _ -> false)
+              | Set_values init -> (
+                match set_kind0 with
+                | Set_values init0 -> (
+                  match init with
+                  | Initialization -> (
+                    match init0 with
+                    | Initialization -> true
+                    | Assignment -> false)
+                  | Assignment -> (
+                    match init0 with
+                    | Initialization -> false
+                    | Assignment -> true))
+                | _ -> false))
+            | _ -> false)
+          | Array_gc_ignorable_values -> (
+            match kind0 with
+            | Array_gc_ignorable_values -> (
+              match set_kind with
+              | Set_immediates -> (
+                match set_kind0 with Set_immediates -> true | _ -> false)
+              | Set_gc_ignorable_values -> (
+                match set_kind0 with
+                | Set_gc_ignorable_values -> true
+                | _ -> false)
+              | Set_values init -> (
+                match set_kind0 with
+                | Set_values init0 -> (
+                  match init with
+                  | Initialization -> (
+                    match init0 with
+                    | Initialization -> true
+                    | Assignment -> false)
+                  | Assignment -> (
+                    match init0 with
+                    | Initialization -> false
+                    | Assignment -> true))
+                | _ -> false))
+            | _ -> false)
+          | Array_values -> (
+            match kind0 with
+            | Array_values -> (
+              match set_kind with
+              | Set_immediates -> (
+                match set_kind0 with Set_immediates -> true | _ -> false)
+              | Set_gc_ignorable_values -> (
+                match set_kind0 with
+                | Set_gc_ignorable_values -> true
+                | _ -> false)
+              | Set_values init -> (
+                match set_kind0 with
+                | Set_values init0 -> (
+                  match init with
+                  | Initialization -> (
+                    match init0 with
+                    | Initialization -> true
+                    | Assignment -> false)
+                  | Assignment -> (
+                    match init0 with
+                    | Initialization -> false
+                    | Assignment -> true))
+                | _ -> false))
+            | _ -> false))
+        | _ -> false))
     | _ -> false)
 
 (** val prim_eqb : prim -> prim -> bool **)

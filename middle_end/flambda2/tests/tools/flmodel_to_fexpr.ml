@@ -320,6 +320,12 @@ let standard_int_or_float (kind : Kinds.standard_int) :
     Flambda_kind.Standard_int_or_float.t =
   Flambda_kind.Standard_int_or_float.of_standard_int (standard_int kind)
 
+let array_kind (kind : Primitives.array_kind) : P.Array_kind.t =
+  match kind with
+  | Array_immediates -> Immediates
+  | Array_gc_ignorable_values -> Gc_ignorable_values
+  | Array_values -> Values
+
 let unary_primitive (p : Primitives.unary_primitive) : P.unary_primitive =
   match p with
   | Block_load (Block_access_values (tag, size, field_kind), mut, field) ->
@@ -345,6 +351,9 @@ let unary_primitive (p : Primitives.unary_primitive) : P.unary_primitive =
   | Is_int variant_only -> Is_int { variant_only }
   | Is_null -> Is_null
   | Get_tag -> Get_tag
+  | Array_length (Array_kind kind) ->
+    Array_length (Array_kind (array_kind kind))
+  | Array_length Float_array_opt_dynamic -> Array_length Float_array_opt_dynamic
   | String_length -> String_length String
   | Unary_int_arith (kind, op) ->
     let op : P.unary_int_arith_op =
@@ -371,6 +380,20 @@ let unary_primitive (p : Primitives.unary_primitive) : P.unary_primitive =
 
 let binary_primitive (p : Primitives.binary_primitive) : P.binary_primitive =
   match p with
+  | Array_load (kind, load_kind, mut) ->
+    let load_kind : P.Array_load_kind.t =
+      match load_kind with
+      | Load_immediates -> Immediates
+      | Load_gc_ignorable_values -> Gc_ignorable_values
+      | Load_values -> Values
+    in
+    let mut : Mutability.t =
+      match mut with
+      | Mutable -> Mutable
+      | Immutable -> Immutable
+      | Immutable_unique -> Immutable_unique
+    in
+    Array_load (array_kind kind, load_kind, mut)
   | String_or_bigstring_load width ->
     let width : P.string_accessor_width =
       match width with

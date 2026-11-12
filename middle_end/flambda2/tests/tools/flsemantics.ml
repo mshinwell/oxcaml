@@ -1132,6 +1132,9 @@ let print_prim ppf (p : Primitives.prim) =
     | Is_int variant_only -> if variant_only then "Is_int" else "Is_int_generic"
     | Is_null -> "Is_null"
     | Get_tag -> "Get_tag"
+    | Array_length _ ->
+      (* The converter makes no primitive of arrays. *)
+      "Array_length"
     | String_length -> "String_length"
     | Opaque_identity _ -> "Opaque_identity"
     | Unary_int_arith (kind, op) ->
@@ -1180,6 +1183,9 @@ let print_prim ppf (p : Primitives.prim) =
   in
   match p with
   | Unary p -> Format.pp_print_string ppf (unary p)
+  | Binary (Array_load _) ->
+    (* The converter makes no primitive of arrays. *)
+    Format.pp_print_string ppf "Array_load"
   | Binary (String_or_bigstring_load width) ->
     Format.fprintf ppf "String_load %s"
       (match width with

@@ -25,11 +25,26 @@ type reinterpret_64_bit_word =
   | Tagged_int63_as_unboxed_int64
   | Unboxed_int64_as_tagged_int63
 
+type array_kind =
+  | Array_immediates
+  | Array_gc_ignorable_values
+  | Array_values
+
+type array_kind_for_length =
+  | Array_kind of array_kind
+  | Float_array_opt_dynamic
+
+type array_load_kind =
+  | Load_immediates
+  | Load_gc_ignorable_values
+  | Load_values
+
 type unary_primitive =
   | Block_load of block_access_kind * mutability * coq_Z
   | Is_int of bool
   | Is_null
   | Get_tag
+  | Array_length of array_kind_for_length
   | String_length
   | Opaque_identity of flambda_kind
   | Unary_int_arith of standard_int * unary_int_arith_op
@@ -81,6 +96,7 @@ type equality_comparison =
   | Phys_neq
 
 type binary_primitive =
+  | Array_load of array_kind * array_load_kind * mutability
   | String_or_bigstring_load of string_accessor_width
   | Phys_equal of equality_comparison
   | Int_arith of standard_int * binary_int_arith_op
@@ -99,9 +115,16 @@ type init_or_assign =
   | Initialization
   | Assignment
 
+type array_set_kind =
+  | Set_immediates
+  | Set_gc_ignorable_values
+  | Set_values of init_or_assign
+
 type heap_primitive =
   | Make_block_with_identity of cell_mutability * coq_Z
   | Block_set of block_access_kind * init_or_assign * coq_Z
+  | Make_mutable_array of array_kind
+  | Array_set of array_kind * array_set_kind
 
 type prim =
   | Unary of unary_primitive
