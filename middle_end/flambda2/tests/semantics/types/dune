@@ -35,7 +35,9 @@
   ocamloptcomp
   minicheck
   flambda2
+  flambda2_cmx
   flambda2_parser
+  flambda2_simplify
   flambda2_terms
   flambda2_algorithms
   flambda2_bound_identifiers

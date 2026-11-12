@@ -2619,4 +2619,80 @@ and for the names [(Value
   meet (n-way) of two blocks with a common field: 781 agree
     219 not run: the common part built twice is one value
 
+Groups of one to three static constants that are not closures, for the types that the model and Simplify give their symbols (2000 cases, seeds 150000 to 151999)
+  2000 converted
+  static constants: the model and Simplify: 1774 agree, 226 disagree as recorded
+    recorded as T3-10, Simplify stops at a boxed number whose contents are a variable that holds the naked number, and the model gives it the type of the box (seed 150014): Simplify stops at the constant of position 1 (Kind ℕ𝕗 of type (Naked_float ⊤) for f/NN), which the model gives a type
+    on the shrunk input:
+    $4 = the boxed number of v6
+    recorded as T3-10, the model gives no type to a boxed number whose contents are a variable of kind value, and Simplify gives its symbol the type that the environment has for the variable (seed 150043): what is seen is the same once the model gives the symbol that type; as they are:
+the model:
+the environment
+v1 : (Value Unknown), of which the canonical element is v1
+v2 : (Value Unknown), of which the canonical element is v2
+v3 : (Value (= v1)), of which the canonical element is v1
+v4 : (Naked_immediate Unknown), of which the canonical element is v4
+v5 : (Naked_immediate Unknown), of which the canonical element is v5
+v6 : (Naked_number naked_float Unknown), of which the canonical element is v6
+v7 : (Region Unknown), of which the canonical element is v7
+v8 : (Rec_info Unknown), of which the canonical element is v8
+$1 : (Value (Unknown Not_null)), of which the canonical element is $1
+$2 : (Value (Unknown Not_null)), of which the canonical element is $2
+$3 : not defined, of which the canonical element is not found
+$4 : (Value (Unknown Not_null)), of which the canonical element is $4
+$5 : not defined, of which the canonical element is not found
+the compiler:
+the environment
+v1 : (Value (= $4)), of which the canonical element is $4
+v2 : (Value Unknown), of which the canonical element is v2
+v3 : (Value (= v1)), of which the canonical element is $4
+v4 : (Naked_immediate Unknown), of which the canonical element is v4
+v5 : (Naked_immediate Unknown), of which the canonical element is v5
+v6 : (Naked_number naked_float Unknown), of which the canonical element is v6
+v7 : (Region Unknown), of which the canonical element is v7
+v8 : (Rec_info Unknown), of which the canonical element is v8
+$1 : (Value (Unknown Not_null)), of which the canonical element is $1
+$2 : (Value (Unknown Not_null)), of which the canonical element is $2
+$3 : not defined, of which the canonical element is not found
+$4 : (Value (Unknown Not_null)), of which the canonical element is $4
+$5 : not defined, of which the canonical element is not found
+    on the shrunk input:
+    with v1 an alias of v3
+    $4 = the boxed number of v3
+  of which those where the model gives no type to a constant that Simplify goes past: what is seen after the group, or after the constants before the one at which Simplify stops: 82 agree, 69 disagree as recorded
+    recorded as T3-10, the model gives no type to a boxed number whose contents are a variable of kind value, and Simplify gives its symbol the type that the environment has for the variable (seed 150043): what is seen is the same once the model gives the symbol that type
+    on the shrunk input:
+    with v1 an alias of v3
+    $4 = the boxed number of v3
+  of which the others where Simplify stops at no constant: what is seen after the group: 996 agree
+  of which those where the group has two or three constants: 526 agree
+  of which the others where Simplify stops at a constant to which the model gives no type: what is seen after the constants before it: 696 agree
+  of which those where that constant names a symbol that is not defined by then, and all its fields are of kind value (T3-11): 415 agree
+  of which those where that constant has a field that is not of kind value, and names no symbol that is not defined by then: 208 agree
+  static constants: Simplify with the binary meet, the compiler's default, and with the n-way meet: 2000 agree
+
+A control: groups of one static constant, the model on one and Simplify on one that differs from it in one thing
+  a block of two variables: the model and Simplify see the same: yes
+  and the block of the two variables exchanged: told apart: yes
+  and the block of another tag: told apart: yes
+  and the block with a third field: told apart: yes
+  and the same block bound to another symbol: told apart: yes
+  and the same block where the first variable is an alias of the second: told apart: yes
+  with that alias on both sides: the model and Simplify see the same: yes
+  a boxed number: the model and Simplify see the same: yes
+  and the boxed number of another constant: told apart: yes
+  a string: the model and Simplify see the same: yes
+  and the string of other bytes: told apart: yes
+  a block that names its own symbol: the model gives it no type: yes
+  and Simplify stops at it: yes
+  a block with a field that is a naked immediate: the model gives it no type: yes
+  and Simplify stops at it: yes
+  the model gives the block of two variables a type: yes
+  and Simplify does not stop at it: yes
+  a boxed number whose contents are a variable of kind value: the model gives it no type: yes
+  and Simplify does not stop at it: yes
+  where nothing is known of the variable, the two see the same: yes
+  where the variable has an alias type, the two are told apart: yes
+  and the model made to give the symbol the type that its environment has for the variable sees the same as Simplify: yes
+
 No disagreement.

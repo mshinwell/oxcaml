@@ -6872,6 +6872,974 @@ let ranges_of_numbers () =
     := !failures + List.length wrong + List.length wrong_from_the_compiler
 
 (* ======================================================================== *)
+(* The types of the symbols of a group of static constants                  *)
+(* ======================================================================== *)
+
+(* The environment that the model has in the body of a [Let_static]
+   (FlambdaSimplifyStaticsSpec.v, [add_static_bindings], extracted) beside the
+   one that Simplify leaves ([Simplify_static_const.simplify_static_consts]), on
+   generated groups of one to three constants that are not closures: blocks of
+   values, boxed numbers and strings. The environment before the group has the
+   names of the tests and equations that make variables of kind value aliases.
+   Simplify wants the environment as the library exports it, of which the tests
+   can make no type but through the functions exported: that is why the
+   equations are aliases only, which is all that the model's type of a constant
+   reads of a variable. It is made by the exported functions, and read through
+   the observer.
+
+   The model gives a constant no type where it says that Simplify stops with a
+   fatal error: a field of a block that is not of the kind value, a symbol that
+   is not defined when the constant is reached (T3-11). [static_const_type_in],
+   which is extracted too, says of each constant whether it has a type in the
+   environment that the constants before it make. Simplify is run on each prefix
+   of the group, which tells at which constant it stops. Where it stops at a
+   constant to which the model gives no type, or at none, what is seen of the
+   two environments after the constants before that one, or after the group, is
+   compared: the type and the canonical element of every name of the tests and
+   of every symbol that a group may bind.
+
+   Two things are known to differ, both of a boxed number whose contents are a
+   variable (T3-10). Where the variable holds the naked number, the model gives
+   the type of the box and Simplify stops. Where it is of the kind value, the
+   model gives no type and Simplify goes on: it gives the symbol the type that
+   the environment has for the variable, so that what is seen is the same if
+   nothing is known of the variable, and differs if the variable is an alias,
+   which the symbol then is too. The comparison goes past such a constant, and a
+   difference in what is seen is recorded, and is not a disagreement, only if it
+   goes once the model is made to give the symbol of each such constant the type
+   that its environment has for the variable.
+
+   Not generated: closures and code (Simplify would simplify the code), the
+   constants that the model has not (mutable blocks, blocks of a mixed shape,
+   arrays), a tag that is not one of a block that is scanned (the compiler
+   cannot build the constant), a variable that the environment does not define.
+   Simplify chooses its meet by the flag of the join algorithm: it is run with
+   the n-way one, which the model transcribes, and with the binary one, the
+   default, for a comparison of the two. *)
+module Model_statics = Flambda2_rocq_semantics.FlambdaSimplifyStaticsSpec
+module DE = Flambda2_simplify.Downwards_env
+module DA = Flambda2_simplify.Downwards_acc
+module Static_const = Flambda2_terms.Static_const
+module Static_const_group = Flambda2_terms.Flambda.Static_const_group
+module Static_const_or_code = Flambda2_terms.Flambda.Static_const_or_code
+
+let with_join_algorithm (algorithm : Oxcaml_flags.join_algorithm)
+    (f : unit -> 'a) : 'a =
+  let before = !Oxcaml_flags.Flambda2.join_algorithm in
+  Oxcaml_flags.Flambda2.join_algorithm := Oxcaml_flags.Set algorithm;
+  Fun.protect f ~finally:(fun () ->
+      Oxcaml_flags.Flambda2.join_algorithm := before)
+
+type static_group =
+  { (* The aliases of the environment before the group: a variable of kind
+       value, and what it is an alias of. *)
+    before : (M.variable * M.simple) list;
+    bindings : (M.symbol * M.static_const) list
+  }
+
+(* Three symbols that the environment of the tests does not define, for the
+   groups to bind. They are numbered after the symbols of the tests. *)
+let symbols_for_static_groups (names : names) : M.symbol list =
+  let unit = Current_unit.get_cu_exn () in
+  List.map
+    (fun name ->
+      names.numbering.symbols.number
+        (Symbol.create unit (Linkage_name.of_string name)))
+    ["a"; "b"; "c"]
+
+let same_symbol (symbol : M.symbol) (symbol' : M.symbol) : bool =
+  N.compare_positive symbol symbol' = 0
+
+(* A variable of kind value may be an alias of a variable of that kind numbered
+   after it, of a symbol of the tests or of a tagged constant.
+
+   A group binds one to three of the symbols, in some order. A field of a block
+   is mostly a variable of kind value, a tagged constant, a symbol of the tests
+   or one of the three symbols, whether the group has bound it by then, binds it
+   later or does not bind it; now and then it is a naked immediate. The contents
+   of a boxed number are a constant, the variable that holds a naked float, or a
+   variable of kind value. *)
+let generate_static_group (names : names) (symbols : M.symbol list) r :
+    static_group =
+  let pool = names.pool in
+  let before =
+    List.filter_map
+      (fun x : (M.variable * M.simple) option ->
+        let later =
+          List.filter (fun y -> N.compare_positive x y < 0) pool.value_variables
+        in
+        match G.below r 6, later with
+        | (0 | 1 | 2), _ -> None
+        | 3, _ :: _ -> Some (x, Var (G.pick r later))
+        | (3 | 4), _ -> Some (x, Symbol (G.pick r pool.symbols))
+        | _, _ -> Some (x, Const (Tagged_immediate (G.small_number r))))
+      pool.value_variables
+  in
+  let rec in_some_order symbols =
+    match symbols with
+    | [] -> []
+    | _ :: _ ->
+      let symbol = G.pick r symbols in
+      symbol
+      :: in_some_order
+           (List.filter (fun other -> not (same_symbol other symbol)) symbols)
+  in
+  let count = 1 + G.below r 3 in
+  let bound = List.filteri (fun i _ -> i < count) (in_some_order symbols) in
+  let field () : M.simple =
+    match G.below r 20 with
+    | 0 | 1 | 2 | 3 | 4 | 5 -> Var (G.pick r pool.value_variables)
+    | 6 | 7 | 8 | 9 -> Const (Tagged_immediate (G.small_number r))
+    | 10 | 11 | 12 -> Symbol (G.pick r pool.symbols)
+    | 13 | 14 | 15 | 16 | 17 -> Symbol (G.pick r symbols)
+    | 18 -> Var (G.pick r pool.naked_immediate_variables)
+    | _ -> Const (Naked_immediate (G.small_number r))
+  in
+  let contents () : M.simple =
+    match G.below r 6 with
+    | 0 ->
+      Const
+        (Naked_float
+           (N.z_of_int64 (Int64.bits_of_float (Float.of_int (G.below r 5)))))
+    | 1 -> Const (Naked_int32 (G.small_number r))
+    | 2 -> Const (Naked_int64 (G.small_number r))
+    | 3 -> Const (Naked_nativeint (G.small_number r))
+    | 4 -> Var (G.pick r pool.naked_float_variables)
+    | _ -> Var (G.pick r pool.value_variables)
+  in
+  let const () : M.static_const =
+    match G.below r 10 with
+    | 0 | 1 | 2 -> Static_const_boxed_number (contents ())
+    | 3 ->
+      Static_const_immutable_string
+        (G.list r ~max:3 (fun () -> N.z_of_int (97 + G.below r 3)))
+    | _ ->
+      Static_const_block
+        (N.z_of_int (G.pick r [0; 0; 1; 2; 250]), G.list r ~max:3 field)
+  in
+  { before; bindings = List.map (fun symbol -> symbol, const ()) bound }
+
+let print_static_const ppf (const : M.static_const) =
+  let simples =
+    Format.pp_print_list
+      ~pp_sep:(fun ppf () -> Format.fprintf ppf ",@ ")
+      Model_type.print_simple
+  in
+  match const with
+  | Static_const_block (tag, fields) ->
+    Format.fprintf ppf "@[<hov 2>the block of tag %a of (%a)@]" N.print_z tag
+      simples fields
+  | Static_const_boxed_number contents ->
+    Format.fprintf ppf "the boxed number of %a" Model_type.print_simple contents
+  | Static_const_immutable_string bytes ->
+    Format.fprintf ppf "@[<hov 2>the string of the bytes (%a)@]"
+      (Format.pp_print_list
+         ~pp_sep:(fun ppf () -> Format.fprintf ppf ",@ ")
+         N.print_z)
+      bytes
+  | Static_const_set_of_closures _ | Static_const_closure_of_set _ ->
+    Format.pp_print_string ppf "a closure"
+
+let print_static_group ppf { before; bindings } =
+  Format.fprintf ppf "@[<v>%a%a@]"
+    (fun ppf ->
+      List.iter (fun (x, simple) ->
+          Format.fprintf ppf "with %a an alias of %a@ "
+            Model_type.print_variable x Model_type.print_simple simple))
+    before
+    (Format.pp_print_list ~pp_sep:Format.pp_print_cut
+       (fun ppf (symbol, const) ->
+         Format.fprintf ppf "%a = %a" Model_type.print_symbol symbol
+           print_static_const const))
+    bindings
+
+(* Fewer aliases, fewer constants, fewer fields. *)
+let shrink_static_group ({ before; bindings } as group) =
+  let without i items = List.filteri (fun j _ -> i <> j) items in
+  List.mapi (fun i _ -> { group with before = without i before }) before
+  @ (match bindings with
+    | [] | [_] -> []
+    | _ :: _ :: _ ->
+      List.mapi
+        (fun i _ -> { group with bindings = without i bindings })
+        bindings)
+  @ List.concat
+      (List.mapi
+         (fun i ((symbol, const) : M.symbol * M.static_const) ->
+           match const with
+           | Static_const_block (tag, fields) ->
+             List.mapi
+               (fun j _ ->
+                 { group with
+                   bindings =
+                     List.mapi
+                       (fun i' binding ->
+                         if i = i'
+                         then
+                           symbol, M.Static_const_block (tag, without j fields)
+                         else binding)
+                       bindings
+                 })
+               fields
+           | Static_const_boxed_number _ | Static_const_immutable_string _
+           | Static_const_set_of_closures _ | Static_const_closure_of_set _ ->
+             [])
+         bindings)
+
+(* The constant of the compiler. The model's boxed number does not say which
+   number it boxes where its contents are a variable: it is a boxed float
+   here. *)
+let static_const_of_model (names : names) (const : M.static_const) :
+    Static_const.t =
+  let not_in_the_compiler what = raise (Converter.Not_in_the_compiler what) in
+  match const with
+  | Static_const_block (tag, fields) ->
+    let tag =
+      match Option.bind (N.int_of_z tag) Tag.Scannable.create with
+      | Some tag -> tag
+      | None ->
+        not_in_the_compiler "a tag that is not one of a block that is scanned"
+    in
+    Static_const.block tag Immutable Value_only
+      (List.map
+         (fun field ->
+           Simple.With_debuginfo.create
+             (Converter.simple_of_model names.numbering machine_width field)
+             Debuginfo.none)
+         fields)
+  | Static_const_boxed_number (Const const) -> (
+    match
+      Reg_width_const.descr (Converter.const_of_model machine_width const)
+    with
+    | Naked_float32 f -> Static_const.boxed_float32 (Const f)
+    | Naked_float f -> Static_const.boxed_float (Const f)
+    | Naked_int32 i -> Static_const.boxed_int32 (Const i)
+    | Naked_int64 i -> Static_const.boxed_int64 (Const i)
+    | Naked_nativeint i -> Static_const.boxed_nativeint (Const i)
+    | Naked_vec128 v -> Static_const.boxed_vec128 (Const v)
+    | Naked_vec256 v -> Static_const.boxed_vec256 (Const v)
+    | Naked_vec512 v -> Static_const.boxed_vec512 (Const v)
+    | Naked_mask m -> Static_const.boxed_mask (Const m)
+    | Naked_immediate _ | Tagged_immediate _ | Naked_int8 _ | Naked_int16 _
+    | Null | Poison _ ->
+      not_in_the_compiler "the box of a constant that has none")
+  | Static_const_boxed_number (Var x) ->
+    Static_const.boxed_float
+      (Var (Converter.variable_of_model names.numbering x, Debuginfo.none))
+  | Static_const_boxed_number (Symbol _) ->
+    not_in_the_compiler "a boxed number whose contents are a symbol"
+  | Static_const_immutable_string bytes ->
+    Static_const.immutable_string
+      (String.concat ""
+         (List.map
+            (fun byte ->
+              match N.int_of_z byte with
+              | Some byte when 0 <= byte && byte < 256 ->
+                String.make 1 (Char.chr byte)
+              | Some _ | None -> not_in_the_compiler "a byte out of range")
+            bytes))
+  | Static_const_set_of_closures _ | Static_const_closure_of_set _ ->
+    not_in_the_compiler "a static closure, which is not generated"
+
+(* The environment of the tests with the aliases, made by the functions that the
+   library exports: the equations are added with the meet that the flag of the
+   join algorithm chooses. *)
+let env_before_a_static_group (names : names)
+    (before : (M.variable * M.simple) list) : Flambda2_types.Typing_env.t =
+  let module Exported = Flambda2_types.Typing_env in
+  let env =
+    List.fold_left
+      (fun env (name, kind) ->
+        Exported.add_definition env
+          (Name.pattern_match name
+             ~var:(fun var ->
+               Bound_name.create_var
+                 (Bound_var.create var Flambda_debug_uid.none Name_mode.normal))
+             ~symbol:Bound_name.create_symbol)
+          kind)
+      (Exported.create ~machine_width ~resolver:(fun _ -> None))
+      names.defined
+  in
+  List.fold_left
+    (fun env (x, simple) ->
+      Exported.add_equation env
+        (Name.var (Converter.variable_of_model names.numbering x))
+        (Flambda2_types.alias_type_of K.value
+           (Converter.simple_of_model names.numbering machine_width simple)))
+    env before
+
+(* The environment that Simplify leaves after the constants, from the typing
+   environment given, as the modules of the library have it. The rest of
+   Simplify's environment is that of the top level of a unit; no code is defined
+   and none is simplified. *)
+let static_group_in_the_compiler (names : names)
+    (env : Flambda2_types.Typing_env.t)
+    (bindings : (M.symbol * M.static_const) list) : TE.t =
+  let denv =
+    DE.create ~round:0 ~machine_width
+      ~resolver:(fun _ -> None)
+      ~get_imported_code:(fun () -> Flambda2_cmx.Exported_code.empty)
+      ~propagating_float_consts:false
+      ~unit_toplevel_exn_continuation:(Continuation.create ())
+      ~unit_toplevel_return_continuation:
+        (Continuation.create ~sort:Toplevel_return ())
+      ~toplevel_my_alloc_region:(Variable.create "region" K.region)
+  in
+  let dacc =
+    DA.create
+      (DE.with_typing_env denv env)
+      Code_id.Map.empty Flambda2_simplify.Continuation_uses_env.empty
+  in
+  let bound =
+    Bound_static.create
+      (List.map
+         (fun ((symbol, _) : M.symbol * M.static_const) ->
+           Bound_static.Pattern.block_like
+             (Converter.symbol_of_model names.numbering symbol))
+         bindings)
+  in
+  let group =
+    Static_const_group.create
+      (List.map
+         (fun ((_, const) : M.symbol * M.static_const) ->
+           Static_const_or_code.create_static_const
+             (static_const_of_model names const))
+         bindings)
+  in
+  let ( (_ : Bound_static.t),
+        (_ : Flambda2_simplify.Rebuilt_static_const.Group.t),
+        dacc ) =
+    Flambda2_simplify.Simplify_static_const.simplify_static_consts dacc bound
+      group
+      ~simplify_function_body:(fun
+          _
+          _
+          ~return_continuation:_
+          ~return_arity:_
+          ~exn_continuation:_
+          ~loopify_state:_
+          ~params:_
+          ~implicit_params:_
+        -> Misc.fatal_error "No code is to be simplified here")
+  in
+  let observed = ref None in
+  TE.For_testing.set_observer
+    (Some (fun env (_ : Continuation.t) -> observed := Some env));
+  Flambda2_types.Typing_env.notify_test_observer (DA.typing_env dacc)
+    ~at_handler:(Continuation.create ());
+  TE.For_testing.set_observer None;
+  match !observed with
+  | Some env -> env
+  | None -> Misc.fatal_error "The observer was not called"
+
+(* Why the model gives a block no type, by its text and the symbols that are
+   defined when it is reached. *)
+type untyped =
+  { (* A field is a symbol that is not defined then. *)
+    names_a_symbol_not_defined : bool;
+    (* A field is a naked immediate. *)
+    has_a_field_not_of_kind_value : bool
+  }
+
+let why_untyped (names : names) ~(defined : M.symbol list)
+    (const : M.static_const) : untyped =
+  let is_defined symbol = List.exists (same_symbol symbol) defined in
+  match const with
+  | Static_const_block ((_ : N.z), fields) ->
+    { names_a_symbol_not_defined =
+        List.exists
+          (fun (field : M.simple) ->
+            match field with
+            | Symbol symbol -> not (is_defined symbol)
+            | Var _ | Const _ -> false)
+          fields;
+      has_a_field_not_of_kind_value =
+        List.exists
+          (fun (field : M.simple) ->
+            match field with
+            | Var x ->
+              List.exists
+                (fun y -> N.compare_positive x y = 0)
+                names.pool.naked_immediate_variables
+            | Const (Naked_immediate _) -> true
+            | Const
+                ( Tagged_immediate _ | Naked_float32 _ | Naked_float _
+                | Naked_int8 _ | Naked_int16 _ | Naked_int32 _ | Naked_int64 _
+                | Naked_nativeint _ | Naked_vec128 _ | Naked_vec256 _
+                | Naked_vec512 _ | Naked_mask _ | Null | Poison _ )
+            | Symbol _ ->
+              false)
+          fields
+    }
+  | Static_const_boxed_number _ | Static_const_immutable_string _
+  | Static_const_set_of_closures _ | Static_const_closure_of_set _ ->
+    { names_a_symbol_not_defined = false;
+      has_a_field_not_of_kind_value = false
+    }
+
+(* What the two say of a group. *)
+type static_group_verdict =
+  | Neither_starts of string
+  | One_does_not_start of string
+  | Compared of
+      { (* The position of the constant at which Simplify stops, if it does,
+           what it says, and whether the model gives that constant a type. *)
+        stops : (int * string * bool) option;
+        (* The positions of the constants before that one, or of all, to which
+           the model gives no type though Simplify goes on. *)
+        passed_untyped : int list;
+        (* What is seen after the constants before the one at which Simplify
+           stops, or after the group. *)
+        in_the_model : seen;
+        in_the_compiler : seen;
+        (* The same of the model made to do as Simplify does of a boxed number
+           whose contents are a variable of kind value. *)
+        in_the_model_as_simplify : seen
+      }
+
+(* A fatal error of Simplify without the escape sequences that colour it. *)
+let without_colours (line : string) : string =
+  let plain = Buffer.create (String.length line) in
+  let rec go i ~in_sequence =
+    if i < String.length line
+    then
+      let c = line.[i] in
+      if in_sequence
+      then go (i + 1) ~in_sequence:(not (Char.equal c 'm'))
+      else if Char.equal c '\027'
+      then go (i + 1) ~in_sequence:true
+      else (
+        Buffer.add_char plain c;
+        go (i + 1) ~in_sequence:false)
+  in
+  go 0 ~in_sequence:false;
+  Buffer.contents plain
+
+(* What the comparisons of static groups share: the model run, its environment
+   of the tests, and the names that are asked about, which are those of the
+   tests and the symbols that a group may bind. *)
+type setting_of_static_groups =
+  { model : model;
+    model_env : Model_env.t;
+    threshold : int;
+    asked : MT.name list
+  }
+
+let setting_of_static_groups (names : names) (symbols : M.symbol list) :
+    setting_of_static_groups =
+  let model_env, defined = env_of_model names in
+  { model = the_model Of_the_compiler;
+    model_env;
+    (* The variables of the environment are the first of the numbering. *)
+    threshold =
+      List.length
+        (List.filter
+           (fun (name : MT.name) ->
+             match name with Name_var _ -> true | Name_symbol _ -> false)
+           defined);
+    asked =
+      defined @ List.map (fun symbol : MT.name -> Name_symbol symbol) symbols
+  }
+
+let first n items = List.filteri (fun i _ -> i < n) items
+
+(* What the model says of a group. *)
+type static_group_in_the_model =
+  { (* Whether it gives the constant of a position a type, in the environment
+       that it has after those before. *)
+    typed : int -> bool;
+    (* What is seen after the first constants. *)
+    seen_after : int -> seen;
+    (* The same where, of a boxed number whose contents are a variable of kind
+       value, the model is made to do what Simplify is seen to do in place of
+       what it does itself: the symbol is defined and given, by an equation, the
+       type that the environment has for the variable (T3-10). The other
+       constants are added one by one by the model's function. *)
+    seen_after_as_simplify : int -> seen
+  }
+
+let static_group_in_the_model (names : names)
+    ({ model; model_env; threshold; asked } : setting_of_static_groups)
+    { before; bindings } : (static_group_in_the_model, string) result =
+  let rec add env aliases =
+    match aliases with
+    | [] -> Some env
+    | (x, simple) :: aliases ->
+      Option.bind
+        (model.add_equation_of_model env (Name_var x)
+           (MT.alias_type_of Value simple))
+        (fun env -> add env aliases)
+  in
+  match add model_env before with
+  | None -> Error "no answer where an alias is added"
+  | Some env ->
+    let binding ((symbol, const) : M.symbol * M.static_const) : M.static_binding
+        =
+      Bind_symbol (symbol, const)
+    in
+    let after n =
+      Model_statics.add_static_bindings env
+        (List.map binding (first n bindings))
+    in
+    let after_as_simplify n : Model_env.t option =
+      List.fold_left
+        (fun env ((symbol, const) as bound : M.symbol * M.static_const) ->
+          Option.bind env (fun env ->
+              match const with
+              | Static_const_boxed_number (Var x)
+                when List.exists
+                       (fun y -> N.compare_positive x y = 0)
+                       names.pool.value_variables ->
+                Option.bind (Model_env.find env (Name_var x) (Some Value))
+                  (fun t ->
+                    model.add_equation_of_model
+                      (Model_env.add_symbol_definition env symbol)
+                      (Name_symbol symbol) t)
+              | Static_const_boxed_number (Var _ | Const _ | Symbol _)
+              | Static_const_block _ | Static_const_immutable_string _
+              | Static_const_set_of_closures _ | Static_const_closure_of_set _
+                ->
+                Some (Model_statics.add_static_bindings env [binding bound])))
+        (Some env) (first n bindings)
+    in
+    Ok
+      { typed =
+          (fun i ->
+            let (_ : M.symbol), const = List.nth bindings i in
+            let its_type = Model_statics.static_const_type_in (after i) const in
+            Option.is_some its_type);
+        seen_after =
+          (fun n -> seen_in_the_model ~threshold asked None (after n));
+        seen_after_as_simplify =
+          (fun n ->
+            match after_as_simplify n with
+            | Some env -> seen_in_the_model ~threshold asked None env
+            | None -> Nothing_seen "no answer where the model does as Simplify")
+      }
+
+(* At which constant Simplify stops, and with what, and what is seen after the
+   first constants. *)
+let static_group_in_simplify (names : names)
+    ({ threshold; asked; model = _; model_env = _ } : setting_of_static_groups)
+    (algorithm : Oxcaml_flags.join_algorithm) { before; bindings } :
+    ((int * string) option * (int -> seen), string) result =
+  with_join_algorithm algorithm (fun () ->
+      match
+        or_fatal_error (fun () -> env_before_a_static_group names before)
+      with
+      | Error line ->
+        Error
+          ("a fatal error where an alias is added: "
+          ^ general (without_colours line))
+      | Ok env -> (
+        let after =
+          List.init
+            (List.length bindings + 1)
+            (fun n ->
+              or_fatal_error (fun () ->
+                  static_group_in_the_compiler names env (first n bindings)))
+        in
+        match after with
+        | [] | Error _ :: _ -> Error "a fatal error on a group of no constant"
+        | Ok _ :: _ ->
+          Ok
+            ( List.find_mapi
+                (fun n (after : (TE.t, string) result) ->
+                  match after with
+                  | Ok _ -> None
+                  | Error line -> Some (n - 1, general (without_colours line)))
+                after,
+              fun n ->
+                match List.nth after n with
+                | Ok env ->
+                  seen_in_the_compiler names.numbering ~threshold asked None env
+                | Error line ->
+                  Nothing_seen ("a fatal error: " ^ without_colours line) )))
+
+let static_groups (names : names) (symbols : M.symbol list) :
+    static_group comparison list =
+  let setting = setting_of_static_groups names symbols in
+  let threshold = setting.threshold in
+  let in_the_model = static_group_in_the_model names setting in
+  let in_the_compiler = static_group_in_simplify names setting in
+  let verdict (input : static_group) : static_group_verdict =
+    match in_the_model input, in_the_compiler N_way input with
+    | Error why, Error why' ->
+      Neither_starts (Printf.sprintf "the model: %s; the compiler: %s" why why')
+    | Error why, Ok _ -> One_does_not_start ("the model: " ^ why)
+    | Ok _, Error why -> One_does_not_start ("the compiler: " ^ why)
+    | Ok { typed; seen_after; seen_after_as_simplify }, Ok (stops, of_compiler)
+      ->
+      let compared =
+        match stops with
+        | Some (j, (_ : string)) -> j
+        | None -> List.length input.bindings
+      in
+      Compared
+        { stops = Option.map (fun (j, line) -> j, line, typed j) stops;
+          passed_untyped =
+            List.filter
+              (fun i -> not (typed i))
+              (List.init compared (fun i -> i));
+          in_the_model = seen_after compared;
+          in_the_compiler = of_compiler compared;
+          in_the_model_as_simplify = seen_after_as_simplify compared
+        }
+  in
+  let print_both ?(one = "the model") ?(other = "the compiler") seen seen' =
+    Format.asprintf "@[<v>%s:@ %a@ %s:@ %a@]" one print_lines
+      (print_seen ~threshold seen)
+      other print_lines
+      (print_seen ~threshold seen')
+  in
+  let defined_before (input : static_group) i : M.symbol list =
+    names.pool.symbols @ List.map fst (first i input.bindings)
+  in
+  let const_at (input : static_group) i : M.static_const =
+    snd (List.nth input.bindings i)
+  in
+  let why_untyped_at (input : static_group) i : untyped =
+    why_untyped names ~defined:(defined_before input i) (const_at input i)
+  in
+  let boxes_a_naked_number (const : M.static_const) =
+    match const with
+    | Static_const_boxed_number (Var x) ->
+      List.exists
+        (fun y -> N.compare_positive x y = 0)
+        names.pool.naked_float_variables
+    | Static_const_boxed_number (Const _ | Symbol _)
+    | Static_const_block _ | Static_const_immutable_string _
+    | Static_const_set_of_closures _ | Static_const_closure_of_set _ ->
+      false
+  in
+  let outcome ?(brief = false) (input : static_group)
+      (verdict : static_group_verdict) : outcome =
+    match verdict with
+    | Neither_starts why -> Not_run ("neither starts (" ^ why ^ ")")
+    | One_does_not_start why ->
+      Disagree ("one of the two does not start (" ^ why ^ ")")
+    | Compared
+        { stops = Some (j, line, true);
+          passed_untyped = _;
+          in_the_model = _;
+          in_the_compiler = _;
+          in_the_model_as_simplify = _
+        } ->
+      let what =
+        Printf.sprintf
+          "Simplify stops at the constant of position %d (%s), which the model \
+           gives a type"
+          (j + 1) line
+      in
+      if boxes_a_naked_number (const_at input j)
+      then
+        Known_to_disagree
+          ( "T3-10, Simplify stops at a boxed number whose contents are a \
+             variable that holds the naked number, and the model gives it the \
+             type of the box",
+            what )
+      else Disagree what
+    | Compared
+        { stops = Some ((_ : int), (_ : string), false) | None;
+          passed_untyped;
+          in_the_model;
+          in_the_compiler;
+          in_the_model_as_simplify
+        } ->
+      if same_seen ~threshold in_the_model in_the_compiler
+      then Agree
+      else
+        let what = print_both in_the_model in_the_compiler in
+        let passed = match passed_untyped with [] -> false | _ :: _ -> true in
+        if
+          passed
+          && same_seen ~threshold in_the_model_as_simplify in_the_compiler
+        then
+          Known_to_disagree
+            ( "T3-10, the model gives no type to a boxed number whose contents \
+               are a variable of kind value, and Simplify gives its symbol the \
+               type that the environment has for the variable",
+              if brief
+              then
+                "what is seen is the same once the model gives the symbol that \
+                 type"
+              else
+                Format.asprintf
+                  "@[<v>what is seen is the same once the model gives the \
+                   symbol that type; as they are:@ %a@]"
+                  print_lines what )
+        else Disagree what
+  in
+  (* The groups in which Simplify goes past no constant to which the model gives
+     no type. *)
+  let nothing_passed (input : static_group) :
+      ((int * string * bool) option * static_group_verdict) option =
+    match verdict input with
+    | Compared { stops; passed_untyped = []; _ } as verdict ->
+      Some (stops, verdict)
+    | Compared { passed_untyped = _ :: _; _ }
+    | Neither_starts _ | One_does_not_start _ ->
+      None
+  in
+  (* Of those, the groups in which Simplify stops at a constant to which the
+     model gives no type. The reason for which it gives none is told by the text
+     of the constant and by the symbols that the tests define and that the
+     constants before it bind. *)
+  let where_both_part ~(select : untyped -> bool) (input : static_group) :
+      outcome =
+    match nothing_passed input with
+    | Some (Some (j, (_ : string), false), verdict)
+      when select (why_untyped_at input j) ->
+      outcome input verdict
+    | Some ((Some _ | None), (_ : static_group_verdict)) | None ->
+      Not_this_comparison
+  in
+  [ { name = "static constants: the model and Simplify";
+      compare = (fun input -> outcome input (verdict input))
+    };
+    { name =
+        "of which those where the model gives no type to a constant that \
+         Simplify goes past: what is seen after the group, or after the \
+         constants before the one at which Simplify stops";
+      compare =
+        (fun input ->
+          match verdict input with
+          | Compared
+              { stops = Some ((_ : int), (_ : string), false) | None;
+                passed_untyped = _ :: _;
+                _
+              } as verdict ->
+            outcome ~brief:true input verdict
+          | Compared _ | Neither_starts _ | One_does_not_start _ ->
+            Not_this_comparison)
+    };
+    { name =
+        "of which the others where Simplify stops at no constant: what is seen \
+         after the group";
+      compare =
+        (fun input ->
+          match nothing_passed input with
+          | Some (None, verdict) -> outcome input verdict
+          | Some (Some _, (_ : static_group_verdict)) | None ->
+            Not_this_comparison)
+    };
+    { name = "of which those where the group has two or three constants";
+      compare =
+        (fun input ->
+          match nothing_passed input, input.bindings with
+          | Some (None, verdict), _ :: _ :: _ -> outcome input verdict
+          | Some (None, (_ : static_group_verdict)), ([] | [_])
+          | (Some (Some _, (_ : static_group_verdict)) | None), _ ->
+            Not_this_comparison)
+    };
+    { name =
+        "of which the others where Simplify stops at a constant to which the \
+         model gives no type: what is seen after the constants before it";
+      compare = where_both_part ~select:(fun (_ : untyped) -> true)
+    };
+    { name =
+        "of which those where that constant names a symbol that is not defined \
+         by then, and all its fields are of kind value (T3-11)";
+      compare =
+        where_both_part ~select:(fun why ->
+            why.names_a_symbol_not_defined
+            && not why.has_a_field_not_of_kind_value)
+    };
+    { name =
+        "of which those where that constant has a field that is not of kind \
+         value, and names no symbol that is not defined by then";
+      compare =
+        where_both_part ~select:(fun why ->
+            why.has_a_field_not_of_kind_value
+            && not why.names_a_symbol_not_defined)
+    };
+    (* The compiler's default is the binary meet. Nothing here is the model's:
+       the comparison says whether what the tests above say of Simplify with the
+       n-way meet holds of Simplify as it is run by default. *)
+    { name =
+        "static constants: Simplify with the binary meet, the compiler's \
+         default, and with the n-way meet";
+      compare =
+        (fun input ->
+          match in_the_compiler N_way input, in_the_compiler Binary input with
+          | Error why, Error why' ->
+            Not_run
+              (Printf.sprintf "neither starts (n-way: %s; binary: %s)" why why')
+          | Error why, Ok _ -> Disagree ("the n-way does not start: " ^ why)
+          | Ok _, Error why -> Disagree ("the binary does not start: " ^ why)
+          | Ok (stops, seen), Ok (stops', seen') -> (
+            let same n =
+              if same_seen ~threshold (seen n) (seen' n)
+              then Agree
+              else
+                Disagree
+                  (print_both ~one:"n-way" ~other:"binary" (seen n) (seen' n))
+            in
+            match stops, stops' with
+            | None, None -> same (List.length input.bindings)
+            | Some (j, (_ : string)), Some (j', (_ : string)) when j = j' ->
+              same j
+            | (None | Some _), (None | Some _) ->
+              Disagree "the two do not stop at the same constant"))
+    } ]
+
+(* A control of the comparison of static groups, on groups written by hand that
+   bind the first of the symbols: what is seen tells apart two groups that
+   differ in one thing, and the model and Simplify see the same of one group;
+   and the two stop where the comments above say. *)
+let control_of_the_static_groups (names : names) (symbols : M.symbol list) =
+  let setting = setting_of_static_groups names symbols in
+  let threshold = setting.threshold in
+  let symbol, other_symbol =
+    match symbols with
+    | symbol :: other_symbol :: _ -> symbol, other_symbol
+    | [] | [_] -> Misc.fatal_error "Two symbols are wanted"
+  in
+  let x, y =
+    match names.pool.value_variables with
+    | x :: y :: _ -> x, y
+    | [] | [_] -> Misc.fatal_error "Two variables are wanted"
+  in
+  let naked_immediate = List.hd names.pool.naked_immediate_variables in
+  let z = N.z_of_int in
+  let block ?(tag = 0) fields : M.static_const =
+    Static_const_block (z tag, fields)
+  in
+  let group ?(before = []) ?(binds = symbol) const : static_group =
+    { before; bindings = [binds, const] }
+  in
+  (* What is seen after the group, where every constant is passed. *)
+  let after sides (group : static_group) : seen =
+    match sides group with
+    | Ok ((_ : _ option), seen) -> seen (List.length group.bindings)
+    | Error why -> Nothing_seen why
+  in
+  let in_the_model group =
+    after
+      (fun group ->
+        Result.map
+          (fun ({ seen_after; _ } : static_group_in_the_model) ->
+            None, seen_after)
+          (static_group_in_the_model names setting group))
+      group
+  in
+  let in_simplify group =
+    after
+      (fun group ->
+        match static_group_in_simplify names setting N_way group with
+        | Ok (None, seen) -> Ok (None, seen)
+        | Ok (Some ((_ : int), line), (_ : int -> seen)) ->
+          Error ("Simplify stops: " ^ line)
+        | Error why -> Error why)
+      group
+  in
+  let both_see (seen : seen) (seen' : seen) =
+    match seen, seen' with
+    | Seen _, Seen _ -> true
+    | (Nothing_seen _ | Bottom_seen | Seen _), _ -> false
+  in
+  let same group group' =
+    let seen = in_the_model group in
+    let seen' = in_simplify group' in
+    both_see seen seen' && same_seen ~threshold seen seen'
+  in
+  let told_apart group group' =
+    let seen = in_the_model group in
+    let seen' = in_simplify group' in
+    both_see seen seen' && not (same_seen ~threshold seen seen')
+  in
+  let the_model_types (group : static_group) =
+    match static_group_in_the_model names setting group with
+    | Ok { typed; _ } -> Some (typed 0)
+    | Error _ -> None
+  in
+  let simplify_stops (group : static_group) =
+    match static_group_in_simplify names setting N_way group with
+    | Ok (Some (0, (_ : string)), (_ : int -> seen)) -> true
+    | Ok ((Some _ | None), (_ : int -> seen)) | Error _ -> false
+  in
+  let check what holds =
+    if holds
+    then Format.printf "  %s: yes@." what
+    else (
+      incr failures;
+      Format.printf "  %s: NO@." what)
+  in
+  Format.printf
+    "@.A control: groups of one static constant, the model on one and Simplify \
+     on one that differs from it in one thing@.";
+  let pair = group (block [Var x; Var y]) in
+  check "a block of two variables: the model and Simplify see the same"
+    (same pair pair);
+  check "and the block of the two variables exchanged: told apart"
+    (told_apart pair (group (block [Var y; Var x])));
+  check "and the block of another tag: told apart"
+    (told_apart pair (group (block ~tag:1 [Var x; Var y])));
+  check "and the block with a third field: told apart"
+    (told_apart pair (group (block [Var x; Var y; Var x])));
+  check "and the same block bound to another symbol: told apart"
+    (told_apart pair (group ~binds:other_symbol (block [Var x; Var y])));
+  check
+    "and the same block where the first variable is an alias of the second: \
+     told apart"
+    (told_apart pair (group ~before:[x, Var y] (block [Var x; Var y])));
+  let aliased = group ~before:[x, Var y] (block [Var x; Var y]) in
+  check "with that alias on both sides: the model and Simplify see the same"
+    (same aliased aliased);
+  let boxed i : static_group =
+    group (Static_const_boxed_number (Const (Naked_int64 (z i))))
+  in
+  check "a boxed number: the model and Simplify see the same"
+    (same (boxed 1) (boxed 1));
+  check "and the boxed number of another constant: told apart"
+    (told_apart (boxed 1) (boxed 2));
+  let text bytes : static_group =
+    group (Static_const_immutable_string (List.map z bytes))
+  in
+  check "a string: the model and Simplify see the same"
+    (same (text [97; 98]) (text [97; 98]));
+  check "and the string of other bytes: told apart"
+    (told_apart (text [97; 98]) (text [97; 99]));
+  let names_itself = group (block [Symbol symbol]) in
+  check "a block that names its own symbol: the model gives it no type"
+    (Option.equal Bool.equal (the_model_types names_itself) (Some false));
+  check "and Simplify stops at it" (simplify_stops names_itself);
+  let not_a_value = group (block [Var naked_immediate]) in
+  check
+    "a block with a field that is a naked immediate: the model gives it no type"
+    (Option.equal Bool.equal (the_model_types not_a_value) (Some false));
+  check "and Simplify stops at it" (simplify_stops not_a_value);
+  check "the model gives the block of two variables a type"
+    (Option.equal Bool.equal (the_model_types pair) (Some true));
+  check "and Simplify does not stop at it" (not (simplify_stops pair));
+  let boxed_variable ?before variable : static_group =
+    group ?before (Static_const_boxed_number (Var variable))
+  in
+  let unknown = boxed_variable x in
+  check
+    "a boxed number whose contents are a variable of kind value: the model \
+     gives it no type"
+    (Option.equal Bool.equal (the_model_types unknown) (Some false));
+  check "and Simplify does not stop at it" (not (simplify_stops unknown));
+  check "where nothing is known of the variable, the two see the same"
+    (same unknown unknown);
+  (* Of two variables that are aliases, the one defined second has the alias
+     type. *)
+  let alias = boxed_variable ~before:[x, Var y] y in
+  check "where the variable has an alias type, the two are told apart"
+    (told_apart alias alias);
+  check
+    "and the model made to give the symbol the type that its environment has \
+     for the variable sees the same as Simplify"
+    (let seen =
+       match static_group_in_the_model names setting alias with
+       | Ok { seen_after_as_simplify; _ } -> seen_after_as_simplify 1
+       | Error why -> Nothing_seen why
+     in
+     let seen' = in_simplify alias in
+     both_see seen seen' && same_seen ~threshold seen seen')
+
+(* ======================================================================== *)
 (* The tests                                                                *)
 (* ======================================================================== *)
 
@@ -7434,6 +8402,28 @@ let () =
           "Two types of kind value with a common part, shared and not, with \
            the compiler's default for the sharing of joins"
         Default_sharing);
+  let symbols_of_groups = symbols_for_static_groups names in
+  run
+    ~title:
+      "Groups of one to three static constants that are not closures, for the \
+       types that the model and Simplify give their symbols"
+    ~seed:150000 ~count:2000
+    ~generate:(generate_static_group names symbols_of_groups)
+    ~prepare:(fun ({ before; bindings } as input) ->
+      List.iter
+        (fun ((_, simple) : M.variable * M.simple) ->
+          ignore
+            (Converter.simple_of_model names.numbering machine_width simple
+              : Simple.t))
+        before;
+      List.iter
+        (fun ((_, const) : M.symbol * M.static_const) ->
+          ignore (static_const_of_model names const : Static_const.t))
+        bindings;
+      input)
+    ~shrink:shrink_static_group ~print:print_static_group
+    (static_groups names symbols_of_groups);
+  control_of_the_static_groups names symbols_of_groups;
   Format.printf "@.%s@."
     (if !failures = 0
      then "No disagreement."
