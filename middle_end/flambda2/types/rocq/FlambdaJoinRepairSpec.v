@@ -61,21 +61,25 @@
    (FlambdaJoinMeetSpec.v, [model_join_scoped_envs_satisfied_statement]
    for the join that the meet calls, [model_join_with_admits_use_statement]
    for the one that Simplify calls). With the repaired test one of the
-   four follows from a condition that every run of a term has:
+   four follows from another condition, which is part of what it is
+   for a machine to satisfy a typing environment:
    - [relation_scrutinees_have_values] (FlambdaJoinDefineSpec.v):
      where the variable that holds the result of a relation kept has
      a value, the variable that the relation is on has one. With the
      repaired test it holds at the run of a joined environment that
      gives a value to every variable that may occur in terms there
      ([bound_in_terms], FlambdaTypingEnvSpec.v):
-     [repaired_scrutinees_have_values_statement]. That is asked of
-     the valuation of a run wherever the machine is said to satisfy
-     an environment ([env_satisfies_strictly], same file: the machine
+     [repaired_scrutinees_have_values_statement]. That condition is
+     what [env_satisfies_strictly] (same file) asks where it relates
+     the variables of a machine to a typing environment: the machine
      binds the variables that may occur in terms, and the valuation
-     has what the machine has for them). It is not a premise of the
-     contract that the meet has for its join, nor of the contract of
-     the join that Simplify calls: both are for every valuation that
-     satisfies the environments.
+     has what the machine has for them. That definition is not a
+     proof that the runs of the compiler's terms satisfy the
+     environments that Simplify builds; nothing here shows that. And
+     the condition is not a premise of the contract that the meet has
+     for its join, nor of the contract of the join that Simplify
+     calls: both are for every valuation that satisfies the
+     environments.
    So the two statements, at the repaired test, have that premise in
    the place of the condition ([repaired_join_scoped_envs_satisfied_statement],
    [repaired_join_with_admits_use_statement]: the statements of
@@ -95,11 +99,12 @@
 
    What stays, and why:
    - [tags_at] (FlambdaJoinStateSpec.v): the blocks of the run have
-     tags in range. Every run of a well-formed term has it (decision
-     D23; FlambdaJoinSpec.v, [blocks_have_tags], says what is stated
-     of it and what is owed). It is needed by any join that makes a
-     [Get_tag] relation from the variable that a type of variants has
-     for the tag, with either test.
+     tags in range. It is a rule of well-formed terms (decision D23;
+     FlambdaJoinSpec.v, [blocks_have_tags], says what is stated of it
+     for the machine and what is owed to have it of a valuation). It
+     is needed by any join that makes a [Get_tag] relation from the
+     variable that a type of variants has for the tag, with either
+     test.
    - [aliases_have_values] (FlambdaJoinDefineSpec.v): a variable of
      the target that takes the place of a variable that the join made
      has a value where that one has. It follows from two conditions
@@ -158,27 +163,30 @@
    alternative of a variant or one case of a row-like type. The
    contract asks every join and every meet to hand that on.
 
-   What would remove it is a change of another size than the repair:
-   a join that gives no equation in its result to a variable unless
-   every joined environment has a type for what the variable stands
-   for there. That leaves out a variable brought in from some of the
-   joined environments only, as [x] here, and a variable made whose
-   definition has no [Simple] at some joined environment. The type
-   of such a variable would be forgotten; or put where the variable
-   is mentioned, as the last phase does already for a variable made
-   that is mentioned once; or put in the environment extension of
-   the case of the type that mentions it, where the meet finds it
-   when the case is known to be the one. The test is the compiler's
-   test for recovering relations, asked earlier: with it, a name
-   that has an equation in the result would be one that has a type
-   in every joined environment, and "a name that has an equation has
-   a value" could be kept by every join, which is also what the
-   compiler's test for relations supposes. None of this is defined
-   here and nothing is proved of it. The other ways are not changes
-   of the join: the contract of the meet for its join, or the
-   meaning of an equation of an environment extension on a name that
-   has no value (which the owner of the meet says would make the
-   meet wrong where it drops a case whose extensions do not meet).
+   A way to remove this obstruction, proposed and not proved: it is
+   not shown to be enough for the contract, and it is a change of
+   another size than the repair. The join would give no equation in
+   its result to a variable unless every joined environment has a
+   type for what the variable stands for there. That leaves out a
+   variable brought in from some of the joined environments only, as
+   [x] here, and a variable made whose definition has no [Simple] at
+   some joined environment. The type of such a variable would be
+   forgotten; or put where the variable is mentioned, as the last
+   phase does already for a variable made that is mentioned once; or
+   put in the environment extension of the case of the type that
+   mentions it, where the meet finds it when the case is known to be
+   the one (the meet does that for the variables that it defines
+   after a join, its owner says). The test is the compiler's test
+   for recovering relations, asked earlier: with it, a name that has
+   an equation in the result would be one that has a type in every
+   joined environment, and "a name that has an equation has a value"
+   might be kept by every join, which is also what the compiler's
+   test for relations supposes. None of this is defined here and
+   nothing is proved of it. The other ways are not changes of the
+   join: the contract of the meet for its join, or the meaning of an
+   equation of an environment extension on a name that has no value
+   (which the owner of the meet says would make the meet wrong where
+   it drops a case whose extensions do not meet).
 
    Not here: the same question for the contract of the join that
    Simplify calls ([sound_join_of_environments], FlambdaJoinSpec.v),
