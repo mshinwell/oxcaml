@@ -33,7 +33,14 @@
    inputs are made by hand: they are scenarios that the two functions
    suggest, written from a reading of Simplify, and not the trace of
    a run of the compiler. The fuel is 6. The answers are those of
-   the model: none was read off a run of the compiler.
+   the model.
+   The corresponding concrete scenarios have since been run with
+   both of the compiler's meets, by the workstream of the differential
+   tests of the types library. The type or bottom that the meet
+   returns and the selected queries of a type or of a canonical
+   element agree with the answers recorded here. That does not compare
+   whole resulting environments, nor test the universally quantified
+   parts of these statements.
 
    - A variant that has two constructors with arguments and none
      without:
