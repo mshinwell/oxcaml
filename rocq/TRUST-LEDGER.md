@@ -468,7 +468,31 @@ it gave back.
     (`has_a_part`, `has_an_alias_of_a_symbol`,
     `an_alias_of_a_symbol`): that it says whether one of the two
     types met, or a type that an equation before the meet gives a
-    name, is or has within it an alias of a symbol.
+    name, is or has within it an alias of a symbol;
+  - what is read of the analysis of a join (`analysis_of_the_model`,
+    `analysis_of_the_compiler`): that the compiler's is read by
+    `Analysis.simple_refined_at_join` with `fold_values_at_uses` and
+    by `fold_variables_created_at_join` with
+    `fold_definitions_at_uses`, and the model's by the extracted
+    `simple_refined_at_join_of` with `values_at_uses` and
+    `variables_created_at_join` with `definitions_at_uses`; that the
+    names asked are those asked of the target which the target
+    defines, and the variables made that what is seen reaches; that
+    the uses are numbered by their positions on both sides;
+  - its text (`print_analysis`): that the variables made have the
+    names that the text of what is seen gave them, and that those
+    created which it does not reach are ordered by what is read of
+    them; that two analyses are compared only where what is seen of
+    the two targets is the same;
+  - the comparison of two readings (`compare_analyses`,
+    `analysis_reading`): that it compares only where both joins
+    answer a target and what is seen of the two is the same; that a
+    reading missing on one side is then a disagreement, but for the
+    one case counted as not run, in which the compiler's reader
+    stops and a reader of the model has no answer;
+  - `control_of_the_analysis`: that its two joins are what its
+    comment says, and that the reader which stops is put in place of
+    the compiler's and of nothing else.
 
 Not trusted, though it is OCaml: what the tool proposes to
 `validate_unit` and to `validate_unit_knowing`. Each proposal is
