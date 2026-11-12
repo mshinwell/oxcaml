@@ -229,6 +229,15 @@ Fixpoint rec_handlers_map
   | (k, h) :: rest => (k, f (xO q) h) :: rec_handlers_map f (xI q) rest
   end.
 
+(* Whether [f] holds of each of the handlers. *)
+Fixpoint rec_handlers_forall (f : path -> continuation_handler -> bool)
+    (q : path) (handlers : list (continuation * continuation_handler))
+    : bool :=
+  match handlers with
+  | [] => true
+  | (_, h) :: rest => f (xO q) h && rec_handlers_forall f (xI q) rest
+  end.
+
 (* What [f] gives for each of the handlers, in their order. *)
 Fixpoint rec_handlers_bindings
     (f : path -> continuation_handler -> list static_binding) (q : path)
