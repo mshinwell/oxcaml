@@ -493,13 +493,13 @@ Chosen joins
                    (other_tags Bottom) (alloc_mode Heap))))
          (extensions No_extensions) (is_unique false)) Not_null))
       where e0 : (Value
-                     ((Variant (is_int None)
-                       (immediates (Known (Naked_immediate ((Known [0; 1]) []))))
-                       (get_tag None)
-                       (blocks (Known
-                                ((known_tags []) (other_tags Bottom)
-                                 (alloc_mode Heap_or_local))))
-                       (extensions No_extensions) (is_unique false)) Not_null))
+                    ((Variant (is_int None)
+                      (immediates (Known (Naked_immediate ((Known [0; 1]) []))))
+                      (get_tag None)
+                      (blocks (Known
+                               ((known_tags []) (other_tags Bottom)
+                                (alloc_mode Heap_or_local))))
+                      (extensions No_extensions) (is_unique false)) Not_null))
     (block 0 [0; 0]): use 1; the binary join: yes; the n-way join: yes
     (block 0 [1; 1]): use 2; the binary join: yes; the n-way join: yes
     (block 0 [0; 1]): no use; the binary join: yes; the n-way join: not for the values tried of its own variables
@@ -795,13 +795,13 @@ Examples of the join of types, written down from a transcription: the n-way join
              (other_tags Bottom) (alloc_mode Heap))))
    (extensions No_extensions) (is_unique false)) Not_null))
 where e0 : (Value
-               ((Variant (is_int None)
-                 (immediates (Known (Naked_immediate ((Known [5; 6]) []))))
-                 (get_tag None)
-                 (blocks (Known
-                          ((known_tags []) (other_tags Bottom)
-                           (alloc_mode Heap_or_local))))
-                 (extensions No_extensions) (is_unique false)) Not_null))
+              ((Variant (is_int None)
+                (immediates (Known (Naked_immediate ((Known [5; 6]) []))))
+                (get_tag None)
+                (blocks (Known
+                         ((known_tags []) (other_tags Bottom)
+                          (alloc_mode Heap_or_local))))
+                (extensions No_extensions) (is_unique false)) Not_null))
   a constant and a set [constant_and_set]: as written down
   a set and the unknown type [unknown]: as written down
   a set and bottom [bottom]: as written down
@@ -838,14 +838,14 @@ where e0 : (Value Unknown)
              (other_tags Bottom) (alloc_mode Heap))))
    (extensions No_extensions) (is_unique false)) Not_null))
 where e0 : (Value
-               ((Variant (is_int None)
-                 (immediates (Known
-                              (Naked_immediate ((Known [1; 2; 3; 4]) []))))
-                 (get_tag None)
-                 (blocks (Known
-                          ((known_tags []) (other_tags Bottom)
-                           (alloc_mode Heap_or_local))))
-                 (extensions No_extensions) (is_unique false)) Not_null))
+              ((Variant (is_int None)
+                (immediates (Known
+                             (Naked_immediate ((Known [1; 2; 3; 4]) []))))
+                (get_tag None)
+                (blocks (Known
+                         ((known_tags []) (other_tags Bottom)
+                          (alloc_mode Heap_or_local))))
+                (extensions No_extensions) (is_unique false)) Not_null))
   blocks of one tag and two sizes [two_sizes]: as written down
   blocks of one tag and two shapes (two values; a value and a naked float) [two_shapes]: as written down
   blocks of two tags (a variable is made for Get_tag) [two_tags]: as written down, with the compiler's variables:

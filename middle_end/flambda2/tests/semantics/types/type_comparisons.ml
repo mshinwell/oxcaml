@@ -164,7 +164,7 @@ let failures = ref 0
    every comparison needs of an input (its conversion): an input that it refuses
    goes to no comparison, and the refusals are counted once. An input on which a
    comparison disagrees is shrunk as long as the comparison still disagrees on
-   it. *)
+   it, if it is one of those that are shown: the others are only counted. *)
 let count_reasons reasons =
   let counts = Hashtbl.create 8 in
   List.iter
@@ -218,45 +218,47 @@ let run ~title ~seed ~count ~generate ~prepare ~shrink ~print
           | Agree -> incr agreed
           | Not_run reason -> not_run := reason :: !not_run
           | Known_to_disagree (entry, what) ->
-            (* Shrunk like any other, as long as it is the same entry. *)
-            let rec smallest steps input what =
-              let still candidate =
-                match compare candidate with
-                | Known_to_disagree (entry', what)
-                  when String.equal entry entry' ->
-                  Some (candidate, what)
-                | Not_this_comparison | Agree | Not_run _ | Disagree _
-                | Known_to_disagree _ ->
-                  None
-              in
-              match
-                if steps = 0 then None else List.find_map still (shrink input)
-              with
-              | Some (input, what) -> smallest (steps - 1) input what
-              | None -> input, what
-            in
-            let input, what = smallest 200 input what in
             known := (entry, case_seed, input, what) :: !known
           | Disagree what ->
-            let rec smallest steps input what =
-              let disagrees candidate =
-                match compare candidate with
-                | Disagree what -> Some (candidate, what)
-                | Not_this_comparison | Agree | Not_run _ | Known_to_disagree _
-                  ->
-                  None
-              in
-              match
-                if steps = 0
-                then None
-                else List.find_map disagrees (shrink input)
-              with
-              | Some (input, what) -> smallest (steps - 1) input what
-              | None -> input, what
-            in
-            let input, what = smallest 200 input what in
-            disagreed := (case_seed, input, what) :: !disagreed)
+            let case = case_seed, input, what in
+            disagreed := case :: !disagreed)
         inputs;
+      (* A recorded disagreement is shrunk like any other, as long as it is the
+         same entry. *)
+      let smallest_recorded entry input what =
+        let rec smallest steps input what =
+          let still candidate =
+            match compare candidate with
+            | Known_to_disagree (entry', what) when String.equal entry entry' ->
+              Some (candidate, what)
+            | Not_this_comparison | Agree | Not_run _ | Disagree _
+            | Known_to_disagree _ ->
+              None
+          in
+          match
+            if steps = 0 then None else List.find_map still (shrink input)
+          with
+          | Some (input, what) -> smallest (steps - 1) input what
+          | None -> input, what
+        in
+        smallest 200 input what
+      in
+      let smallest_disagreement input what =
+        let rec smallest steps input what =
+          let disagrees candidate =
+            match compare candidate with
+            | Disagree what -> Some (candidate, what)
+            | Not_this_comparison | Agree | Not_run _ | Known_to_disagree _ ->
+              None
+          in
+          match
+            if steps = 0 then None else List.find_map disagrees (shrink input)
+          with
+          | Some (input, what) -> smallest (steps - 1) input what
+          | None -> input, what
+        in
+        smallest 200 input what
+      in
       let disagreed = List.rev !disagreed in
       Format.printf "  %s: %d agree" name !agreed;
       if disagreed <> []
@@ -271,6 +273,7 @@ let run ~title ~seed ~count ~generate ~prepare ~shrink ~print
       (* One case of each recorded disagreement is shown. *)
       List.iter
         (fun (entry, case_seed, input, what) ->
+          let input, what = smallest_recorded entry input what in
           Format.printf
             "    @[<v>recorded as %s (seed %d): %s@ on the shrunk input:@ \
              @[%a@]@]@."
@@ -284,6 +287,7 @@ let run ~title ~seed ~count ~generate ~prepare ~shrink ~print
         (fun i (case_seed, input, what) ->
           if i < 3
           then
+            let input, what = smallest_disagreement input what in
             Format.printf
               "    @[<v>DISAGREEMENT (seed %d): %s@ on the shrunk input:@ \
                @[%a@]@]@."
