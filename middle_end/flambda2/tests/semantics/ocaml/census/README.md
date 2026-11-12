@@ -53,8 +53,11 @@ nothing uses, and with the lifting out of the code of functions; 578
 with the second asking (`unknown`, seed 30); and four more with the
 constants lifted to the head of the unit and the parameters of
 continuations unboxed where branches meet (`functions`, seeds 1, 55
-and 69; `unknown_scalar`, seed 122, at the second asking). Sharing
-the loads marked immutable changes none. No unit that was validated
+and 69; `unknown_scalar`, seed 122). Sharing the loads marked
+immutable changes none, and nor does the demotion of exception
+handlers, which the generated units have not got; with the rounds
+gone through again after it, the two units that were validated at the
+second asking are validated at the first. No unit that was validated
 at one of these points is not at a later one. The day before, 336
 were validated, 256 were not and 8 were not checked; of the units
 that keep a function, none was.
