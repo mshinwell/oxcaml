@@ -128,6 +128,10 @@ design out; that is the request, not the change.
     with fewer or more arguments than parameters comes to)
   - `middle_end/flambda2/rocq/FlambdaTupled*` (what a call that gives
     tupled code a tuple comes to)
+  - `middle_end/flambda2/rocq/FlambdaKnownSlots*` (a value slot that
+    every set of closures of the unit gives the same symbol or
+    constant is read as that, in code too, for the validator; S4's
+    once it is staffed)
   - `middle_end/flambda2/rocq/status/C3.md`
   - the examples `middle_end/flambda2/tests/semantics/set_*.fl`,
     `apply_partial*.fl`, `apply_over*.fl` and `tupled_apply*.fl` there,
