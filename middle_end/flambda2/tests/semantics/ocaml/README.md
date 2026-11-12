@@ -130,8 +130,8 @@ unit made from OCaml.
   unit, here always a predefined exception, and the tool runs both
   terms from the static environment of their imports
   (`FlambdaImportsSpec.imports_statics`), where such a symbol is
-  bound to something of which nothing is known; the two lines of
-  the runs say "with its import". The validator accepted the pair
+  bound to an imported value whose contents are unknown; the two
+  lines of the runs say "with its import". The validator accepted the pair
   with one of the verdicts of which the theorem from the imports is
   proved (`FlambdaValidateImportsSpec.v`: the same up to bound
   names, once normalised, once the unused static bindings of the
