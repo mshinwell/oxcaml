@@ -164,8 +164,9 @@
      T1-9 is the same). Where no name holds poison the two notions
      are one (FlambdaTypingEnvSpec.v), and a statement here holds
      with [typing_env_satisfied]: the last section says so of the two
-     forms. A finer statement, whose premise is only of the names
-     that a prover reaches, is not made.
+     forms. FlambdaProversPoisonSpec.v has what holds there with names
+     that hold poison: the statements of the provers that read no
+     relation of a naked immediate, of a value that is not poison.
 
    A [Simple] that a prover answers. Where an answer is a [Simple],
    the statement is that the [Simple] has a value in the valuation
@@ -252,9 +253,11 @@ Definition well_formed_input (tenv : Typing_env.t) (t : flambda_type)
    [meet_shortcut_sound], for a valuation that satisfies the
    environment strictly. After the unboxing of variants only
    [typing_env_satisfied] holds, which exempts the names that hold
-   poison, and under it a prover is not sound: it answers what the
-   environment says of a name that it expands, whatever the name
-   holds (discrepancy T6-1). The compiler relies on no answer about
+   poison, and under it a prover is not sound of every value: it
+   answers what the environment says of a name that it expands,
+   whatever the name holds (discrepancy T6-1).
+   FlambdaProversPoisonSpec.v says of which provers and of which
+   values it is sound there. The compiler relies on no answer about
    such a name being used on a path that runs, and nothing checks
    that. Decision D26. *)
 Definition prover_sound {A : Type}
@@ -1180,10 +1183,12 @@ Definition meet_shortcut_sound_where_no_poison {A : Type}
    satisfaction are one there. So each statement of this file that is
    of one of the two forms gives one for [typing_env_satisfied]; that
    of [prove_physical_equality] goes the same way. The premise is of
-   every name of the valuation. It is more than is needed, which is
-   that the names that the prover reaches hold no poison; that
-   statement is not made, as nothing here says which names a prover
-   reaches. *)
+   every name of the valuation. It is more than is needed. For the
+   provers that read no relation of a naked immediate,
+   FlambdaProversPoisonSpec.v has the statements with no premise on
+   the names, of a value that is not poison. For the others what is
+   needed is that the names that those relations are on hold no
+   poison; that statement is not made. *)
 Definition sound_where_no_poison_statement : Prop :=
   (∀ (A : Type)
      (prover :
