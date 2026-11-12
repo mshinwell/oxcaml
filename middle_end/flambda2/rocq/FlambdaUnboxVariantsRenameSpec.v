@@ -72,8 +72,10 @@
    free in the handler is what makes the pass refine the term, and is
    not needed for this.
 
-   With these two and [unbox_variant_params_refines] the pass can be
-   in a round of the validation.
+   With these two and [unbox_variant_params_refines] the pass is in a
+   round of the validation (FlambdaValidateSpec.normalise_expr_params):
+   the validation is still sound, answers the same under a renaming
+   and keeps scope with it.
 
    The proofs are in FlambdaUnboxVariantsRenameProofs.v, which needs no
    review. *)

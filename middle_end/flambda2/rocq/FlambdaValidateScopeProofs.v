@@ -49,7 +49,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaUnusedParamsSpec FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec FlambdaScopedProofs
   FlambdaKeepsScopeProofs FlambdaLoopsScopeSpec FlambdaLoopsScopeProofs
-  FlambdaValidateScopeSpec.
+  FlambdaUnboxVariantsSpec FlambdaValidateScopeSpec.
+From OxCamlFlambda2 Require FlambdaUnboxParamsNamesProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -62,6 +63,13 @@ Proof. apply keeps_scope_scoped, rename_apart_avoiding_keeps_scope. Qed.
 
 Lemma drop_unused_params_scoped (e : expr) : scoped e (drop_unused_params e).
 Proof. apply keeps_scope_scoped, drop_unused_params_keeps_scope. Qed.
+
+Lemma unbox_variant_params_scoped (e : expr) :
+  scoped e (unbox_variant_params e).
+Proof.
+  apply keeps_scope_scoped.
+  exact FlambdaUnboxParamsNamesProofs.unbox_variant_params_keeps_scope.
+Qed.
 
 (* The lemmas that say of a rewrite that its result keeps the scope of
    the term. A rewrite that takes another asks that the other keeps
@@ -81,6 +89,7 @@ Create HintDb scoped.
   drop_unused_params_scoped drop_dead_params_scoped
   rewrite_rec_handlers_scoped bind_aliased_params_scoped
   forward_applications_scoped remove_unused_defined_lets_in_loops_scoped
+  unbox_variant_params_scoped
   : scoped.
 
 (* A chain of rewrites, taken apart from the outside. *)

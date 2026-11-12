@@ -30,8 +30,10 @@
    something known: a normalisation that refines.
 
    This file is to be reviewed: [unbox_known_params] and what it is made
-   of, and the statement. Nothing runs the pass yet: it is not among
-   the normalisations of FlambdaValidateSpec.v.
+   of, and the statement. The validation does not run this pass: it
+   runs FlambdaUnboxVariantsSpec.unbox_variant_params, which is made as
+   this one is and uses what is defined here (that file says how the
+   two differ).
 
    Simplify unboxes the parameters of a continuation
    (simplify/unboxing/): where the type of a parameter says that it is

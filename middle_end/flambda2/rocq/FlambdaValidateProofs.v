@@ -48,6 +48,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaParamAliasesProofs FlambdaRecHandlersSpec FlambdaRecHandlersProofs
   FlambdaShortcutSpec FlambdaShortcutProofs FlambdaSinkContsSpec
   FlambdaSinkContsProofs FlambdaUnboxSpec FlambdaUnboxProofs
+  FlambdaUnboxVariantsSpec FlambdaUnboxVariantsProofs
   FlambdaUnusedContsSpec FlambdaUnusedContsProofs FlambdaUnusedParamsSpec
   FlambdaUnusedParamsProofs FlambdaUnusedProjectionsSpec
   FlambdaUnusedProjectionsProofs FlambdaUnusedStaticsSpec
@@ -102,6 +103,7 @@ Ltac refinement_step :=
     | apply drop_dead_params_refines
     | apply bind_aliased_params_refines
     | apply forward_applications_refines
+    | apply unbox_variant_params_refines
     | apply share_known_primitives_refines
     | apply apply_identities_refines
     | apply expr_equivalent_refines; equivalence_step ].

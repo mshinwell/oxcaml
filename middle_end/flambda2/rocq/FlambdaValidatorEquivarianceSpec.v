@@ -205,13 +205,16 @@
    bindings of code commute with renaming by the statements of
    FlambdaLiftSpec.v, of FlambdaMyClosureSpec.v, of
    FlambdaUnusedSlotsSpec.v, of FlambdaKnownSymbolsSpec.v, of
-   FlambdaKnownClosuresSpec.v and of FlambdaFloatCodeSpec.v. Four
-   more rewrites that the check applies are stated to commute with
+   FlambdaKnownClosuresSpec.v and of FlambdaFloatCodeSpec.v. Other
+   rewrites that the check applies are stated to commute with
    renaming in their own files:
    FlambdaCseSpec.share_known_primitives,
    FlambdaIdentitiesSpec.apply_identities and
    FlambdaInlineSiblingsSpec.inline_sibling_calls, of a round of the
-   term before, and FlambdaStaticsOrderSpec.order_statics_as, which
+   term before, FlambdaUnboxVariantsSpec.unbox_variant_params, of the
+   first phase of the term before
+   (FlambdaUnboxVariantsRenameSpec.v), and
+   FlambdaStaticsOrderSpec.order_statics_as, which
    the check applies to the term before with the term after as its
    pattern. One of a round of the term after is stated here:
    FlambdaUnusedProjectionsSpec.remove_unused_projections, which

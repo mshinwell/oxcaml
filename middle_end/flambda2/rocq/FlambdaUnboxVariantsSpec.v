@@ -32,8 +32,9 @@
    needs.
 
    This file is to be reviewed: [unbox_variant_params] and what it is
-   made of, and the statement. Nothing runs the pass yet: it is not
-   among the normalisations of FlambdaValidateSpec.v.
+   made of, and the statement. The validation runs the pass in the
+   first phase of its normalisation of the term before
+   (FlambdaValidateSpec.normalise_expr_params).
 
    FlambdaUnboxParamsSpec.v makes a parameter of the [Let] that a
    handler begins with, where that [Let] reads a box which is a

@@ -152,7 +152,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaLoopLetsSpec
   FlambdaParamAliasesSpec FlambdaRecHandlersSpec FlambdaRenameApartSpec
   FlambdaShortcutSpec FlambdaSinkContsSpec
-  FlambdaStaticsOrderSpec FlambdaUnboxSpec FlambdaUnusedContsSpec
+  FlambdaStaticsOrderSpec FlambdaUnboxSpec FlambdaUnboxVariantsSpec
+  FlambdaUnusedContsSpec
   FlambdaUnusedParamsSpec FlambdaUnusedProjectionsSpec
   FlambdaUnusedStaticsSpec FlambdaWellFormedSpec FlambdaLiftSpec
   FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec
@@ -243,7 +244,15 @@ Definition normalise_before_round (kept : list code_id) (e : expr) : expr :=
    continuations. After an arm of a [Switch] is made to go where its
    continuation goes, every application of a continuation whose handler
    only applies another is, wherever it is ([forward_applications]; the
-   continuations that this leaves unused are removed). After the
+   continuations that this leaves unused are removed). Once the
+   values are followed, a parameter of a continuation that its handler
+   reads as a box, where every application gives something that the
+   term shows, is unboxed as Simplify unboxes it: each read becomes a
+   parameter, and an application that has nothing to read gives a
+   constant in its place
+   (FlambdaUnboxVariantsSpec.unbox_variant_params); the boxed
+   parameter, where nothing else uses it, is then one of the unused
+   ones. After the
    bindings that are left unused are removed, a parameter that every
    application gives the same thing is bound to it at the start of the
    handler ([bind_aliased_params]), which leaves it unused as a
@@ -261,8 +270,9 @@ Definition normalise_expr_params (e : expr) : expr :=
   in
   let e := remove_unused_conts (forward_applications e) in
   let e :=
-    follow_aliases_in_loops []
-      (follow_aliases [] (unbox_known_numbers (load_known_blocks e)))
+    unbox_variant_params
+      (follow_aliases_in_loops []
+         (follow_aliases [] (unbox_known_numbers (load_known_blocks e))))
   in
   drop_dead_params
     (bind_aliased_params

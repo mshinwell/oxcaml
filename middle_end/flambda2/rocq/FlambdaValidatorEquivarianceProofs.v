@@ -64,12 +64,12 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaIdentitiesSpec FlambdaIdentitiesProofs FlambdaStaticsOrderSpec
   FlambdaStaticsOrderProofs FlambdaRenameApartSpec FlambdaRenameApartProofs
   FlambdaInlineSiblingsSpec FlambdaInlineSiblingsProofs
-  FlambdaUnusedProjectionsSpec FlambdaValidateSpec
+  FlambdaUnusedProjectionsSpec FlambdaUnboxVariantsSpec FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec.
 From OxCamlFlambda2 Require FlambdaKeepsScopeProofs FlambdaValidateScopeProofs
   FlambdaLoopsScopeProofs
   FlambdaStaticsScopeProofs FlambdaLiftFromArmsProofs
-  FlambdaHoistStaticsProofs.
+  FlambdaHoistStaticsProofs FlambdaUnboxParamsNamesProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -4697,6 +4697,31 @@ Proof.
   intros r e. exact (inline_known_calls_equivariant_aux r kept [] e []).
 Qed.
 
+(* The unboxing of the parameters of continuations commutes with
+   renaming: FlambdaUnboxParamsNamesProofs.v proves it from the
+   equations of this file for what is known of blocks and of wrapped
+   numbers, which it takes as premises, as this file is to use the
+   result. *)
+Lemma unbox_variant_params_renamed :
+  rewrite_equivariant unbox_variant_params.
+Proof.
+  apply FlambdaUnboxParamsNamesProofs.unbox_variant_params_equivariant;
+    first
+      [ exact var_free_b_equivariant
+      | exact remove_unused_conts_equivariant
+      | exact forget_vars_equivariant
+      | exact known_under_let_equivariant
+      | exact known_under_statics_equivariant
+      | exact known_block_of_equivariant
+      | exact field_loaded_equivariant
+      | exact load_known_named_equivariant
+      | exact forget_wrapped_vars_equivariant
+      | exact numbers_under_let_equivariant
+      | exact numbers_under_statics_equivariant
+      | exact unwrapped_equivariant
+      | exact unbox_known_named_equivariant ].
+Qed.
+
 (* The renaming is taken out of each rewrite in turn, from the
    innermost. *)
 Ltac rename_outwards :=
@@ -4726,6 +4751,7 @@ Ltac rename_outwards :=
       | rewrite drop_dead_params_equivariant
       | rewrite bind_aliased_params_equivariant
       | rewrite forward_applications_equivariant
+      | rewrite unbox_variant_params_renamed
       | rewrite remove_unused_defined_lets_in_loops_closed_equivariant
       | rewrite inline_tail_conts_kinded_equivariant_aux ].
 
