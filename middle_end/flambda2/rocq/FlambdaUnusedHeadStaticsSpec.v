@@ -32,7 +32,8 @@
    is made of ([head_bindings], [under_head], [static_const_total],
    [removed_binding_total], [kept_code_binds_only_kept]), which are
    extracted and run by the validation of
-   middle_end/flambda2/tests/semantics/, and the statement.
+   middle_end/flambda2/tests/semantics/; [head_free_in]; and the two
+   statements.
 
    FlambdaUnusedStaticsSpec.drop_statics removes static bindings that
    nothing refers to, and its result refines the term, run on its own:
@@ -63,6 +64,16 @@
      that they keep, binds a name removed. Under an environment that
      binds a name removed the statement is false, and it is not made:
      this is not an equivalence under all environments.
+
+   A second statement is of a term run from a static environment that
+   binds something, as a unit is that runs after the units it uses
+   ([drop_head_statics_refines_from_statement]). It asks of that
+   environment what the empty one gives for nothing: that it binds
+   none of the names that the groups at the head of the term bind
+   ([head_free_in]), and that the names removed occur in none of the
+   code and the values that it holds
+   (FlambdaUnusedStaticsSpec.statics_free_of). The first statement is
+   the second at the empty static environment.
 
    Which names to remove is for the caller to find; a wrong guess is
    refused, not believed.
@@ -182,3 +193,35 @@ Definition drop_head_statics (D : dropped) (e : expr) : option expr :=
 Definition drop_head_statics_program_refines_statement : Prop :=
   ∀ (D : dropped) (e e' : expr),
     drop_head_statics D e = Some e' -> program_refines e' e.
+
+(* ======================================================================== *)
+(* From a static environment that binds something                           *)
+(* ======================================================================== *)
+
+(* The static environment binds no symbol and no code id that the
+   groups at the head of the term bind. *)
+Definition head_free_in (statics : static_env) (e : expr) : bool :=
+  forallb (fun s => negb (is_bound s (static_values statics)))
+    (flat_map symbols_of_binding (head_bindings e))
+  && forallb (fun id => negb (is_bound id (static_code statics)))
+       (flat_map code_ids_of_binding (head_bindings e)).
+
+(* The term refines its result, each run with no variable and no
+   continuation in scope from one static environment and one heap,
+   where the names removed occur in nothing that the static
+   environment holds and it binds no name of the head of the term.
+   The second is asked of every name of the head: a name removed
+   that is bound already makes the term undefined where its result is
+   not, and a name kept that is bound already makes both undefined. *)
+(* CR mshinwell: the heap is any heap because no step of the machine
+   reads or changes it. When a step runs the primitives of the heap,
+   a premise is to be added here, as to
+   FlambdaUnusedStaticsSpec.drop_statics_refines_statement: that the
+   names removed occur in no value of a cell of the heap. A symbol
+   that only the heap names is otherwise removed from under a read. *)
+Definition drop_head_statics_refines_from_statement : Prop :=
+  ∀ (D : dropped) (e e' : expr) (statics : static_env) (hp : heap),
+    drop_head_statics D e = Some e' ->
+    statics_free_of D statics = true ->
+    head_free_in statics e = true ->
+    refines (State e' [] [] statics hp) (State e [] [] statics hp).

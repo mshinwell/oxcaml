@@ -890,10 +890,47 @@ Qed.
 
 End Head.
 
-Theorem drop_head_statics_program_refines :
-  drop_head_statics_program_refines_statement.
+(* The names of the head are not bound, as the first state of the
+   simulation asks. *)
+Lemma head_free_in_symbols (statics : static_env) (e : expr) (s : symbol) :
+  head_free_in statics e = true ->
+  among s (symbols_bound_by (head_bindings e)) = true ->
+  lookup s (static_values statics) = None.
 Proof.
-  intros D e e'. unfold drop_head_statics.
+  unfold head_free_in. intros Hfree Hs.
+  apply andb_true_iff in Hfree as [Hsyms _].
+  rewrite symbols_bound_by_flat_map in Hsyms.
+  rewrite forallb_forall in Hsyms.
+  specialize (Hsyms s (proj1 (among_In s _) Hs)).
+  unfold is_bound in Hsyms.
+  destruct (lookup s (static_values statics)); [ discriminate | reflexivity ].
+Qed.
+
+Lemma head_free_in_code (statics : static_env) (e : expr) (id : code_id) :
+  head_free_in statics e = true ->
+  among id (code_bound_by (head_bindings e)) = true ->
+  lookup id (static_code statics) = None.
+Proof.
+  unfold head_free_in. intros Hfree Hid.
+  apply andb_true_iff in Hfree as [_ Hcodes].
+  rewrite code_bound_by_flat_map in Hcodes.
+  rewrite forallb_forall in Hcodes.
+  specialize (Hcodes id (proj1 (among_In id _) Hid)).
+  unfold is_bound in Hcodes.
+  destruct (lookup id (static_code statics)); [ discriminate | reflexivity ].
+Qed.
+
+Lemma head_free_in_empty (e : expr) :
+  head_free_in empty_static_env e = true.
+Proof.
+  unfold head_free_in. apply andb_true_iff.
+  split; apply forallb_forall; intros name _; reflexivity.
+Qed.
+
+Theorem drop_head_statics_refines_from :
+  drop_head_statics_refines_from_statement.
+Proof.
+  intros D e e' statics hp. unfold drop_head_statics.
   destruct (head_statics_removable D e) eqn:Hchecks; [ | discriminate ].
   unfold head_statics_removable in Hchecks.
   apply andb_true_iff in Hchecks as [Hchecks Htotal].
@@ -903,12 +940,21 @@ Proof.
   apply andb_true_iff in Hchecks as [Havoids Hunder].
   rewrite symbols_bound_by_flat_map in Hsyms.
   rewrite code_bound_by_flat_map in Hcodes.
-  unfold drop_statics. rewrite Havoids. intros [= <-].
-  unfold program_refines.
+  unfold drop_statics. rewrite Havoids. intros [= <-] Hfree Hhead.
   apply (simulation_refines (related D) (related_step D)).
   apply Related_head.
   - exact Havoids.
-  - repeat split; try assumption; intros; reflexivity.
-  - exact (statics_free_of_erased D empty_static_env eq_refl).
+  - repeat split; try assumption.
+    + intros s. apply head_free_in_symbols, Hhead.
+    + intros id. apply head_free_in_code, Hhead.
+  - exact (statics_free_of_erased D statics Hfree).
   - split; [ apply statics_extend_refl | split; intros; assumption ].
+Qed.
+
+Theorem drop_head_statics_program_refines :
+  drop_head_statics_program_refines_statement.
+Proof.
+  intros D e e' Hdrop.
+  exact (drop_head_statics_refines_from D e e' empty_static_env empty_heap
+           Hdrop eq_refl (head_free_in_empty e)).
 Qed.
