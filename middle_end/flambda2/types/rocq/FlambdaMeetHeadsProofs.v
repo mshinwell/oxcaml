@@ -47,6 +47,29 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaMeetProductsSpec FlambdaMeetProductsProofs FlambdaMeetHeadsSpec.
 Import ListNotations.
 
+(* The proofs below, as far as the end of the section, are for any
+   predicate on static environments that implies validity
+   (FlambdaMeetValidity.v): in them the names of the four contracts
+   that suppose a valid static environment stand for the same with
+   that predicate. The theorems of the signed statements are after the
+   section, at validity itself. *)
+From OxCamlFlambda2Types Require Import FlambdaMeetValidity.
+
+Section Validity.
+
+Context {V : validity}.
+
+Abbreviation statics_valid := valid.
+Abbreviation meet_expanded_head_sound := meet_expanded_head_sound_for.
+Abbreviation join_scoped_envs_sound := join_scoped_envs_sound_for.
+Abbreviation meet_call_ok := meet_call_ok_for.
+Abbreviation part_meet_ok := part_meet_ok_for.
+Abbreviation meet_disjunction_right := meet_disjunction_right_for.
+Abbreviation type_part_meet_ok := type_part_meet_ok_for.
+Abbreviation meet_row_like_for_closures_right :=
+  meet_row_like_for_closures_right_for.
+Abbreviation value_heads_right := value_heads_right_for.
+
 (* ======================================================================== *)
 (* Meets of parts, put together                                             *)
 (* ======================================================================== *)
@@ -146,7 +169,7 @@ Proof.
   intros Hkeeps Hsound Hfunctional.
   apply (part_meet_ok_chosen type_fits choose _ (meet mh) (Value_const Null)
            Hfunctional).
-  intros w. exact (meet_type_ok mh w Hkeeps Hsound).
+  intros w. exact (meet_type_ok_for mh w Hkeeps Hsound).
 Qed.
 
 (* ======================================================================== *)
@@ -166,7 +189,8 @@ Proof.
     cbn in *. rewrite (Hextended x (proj1 Hfits)). exact Hx.
 Qed.
 
-Theorem meet_relation_ok : meet_relation_ok_statement.
+Lemma meet_relation_ok_for :
+  for_validity meet_relation_ok_statement.
 Proof.
   intros mh number Hkeeps Hsound menv x1 x2 result Henv H1 H2 Hmeet.
   unfold meet_relation in Hmeet.
@@ -178,7 +202,8 @@ Proof.
     + intros r menv' ->.
       destruct added as [ menv1 | ]; [ | discriminate Hmeet ].
       injection Hmeet as <- <-.
-      destruct (add_alias_keeps mh menv menv1 (Var x1) (Var x2) _ Hkeeps Henv
+      destruct (add_alias_keeps_for mh menv menv1 (Var x1) (Var x2) _ Hkeeps
+                  Henv
                   Hkind1 Hkind2 Hadd)
         as [[Hextends Henv'] Hnames].
       split; [ exact Hextends | ]. split; [ exact Henv' | ].
@@ -188,7 +213,7 @@ Proof.
     + intros statics valuation Hstatics Hvaluation (n & Hn & Hs1)
         (n' & Hn' & Hs2).
       rewrite Hn in Hn'. injection Hn' as <-. cbn in Hs1, Hs2.
-      destruct (meet_env_add_alias_sound mh statics valuation menv (Var x1)
+      destruct (meet_env_add_alias_sound_for mh statics valuation menv (Var x1)
                   (Var x2) _ (Value_const (Naked_immediate n)) added Hkeeps
                   Hsound Henv Hkind1 Hkind2 Hstatics Hvaluation Hs1 Hs2 Hadd)
         as (menv' & -> & valuation' & Hextended & Hvaluation' & Hvalued).
@@ -430,7 +455,8 @@ Proof.
   intros [= <- <-]. reflexivity.
 Qed.
 
-Theorem meet_disjunction_answer : meet_disjunction_answer_statement.
+Lemma meet_disjunction_answer_for :
+  for_validity meet_disjunction_answer_statement.
 Proof.
   intros A B join choices mh meet_a meet_b bottom_a bottom_b menv menv' a1 a2
     a b1 b2 b extensions1 extensions2 extensions r Hmeet Hanswer.
@@ -644,7 +670,7 @@ Proof.
               result Henv Hf1 Hf2 Hmeet)).
   - intros r menv' -> Hanswer. apply boxed_number_fits.
     split; [ | exact Hanswer ].
-    rewrite (proj2 (proj2 (meet_type_keeps mh menv menv' t1 t2 r Hkeeps Henv
+    rewrite (proj2 (proj2 (meet_type_keeps_for mh menv menv' t1 t2 r Hkeeps Henv
                              Hf1 Hf2 Hmeet))).
     exact Hk1.
   - intros statics valuation. apply Hiff.
@@ -662,7 +688,7 @@ Proof.
   intros menv strs1 strs2 result Henv H1 H2 [= <-].
   apply string_fits in H1. apply string_fits in H2.
   assert (Hcases :=
-    set_meet_cases (list Z) (list (list Z)) (lists_eqb Z.eqb) (fun s => s)
+    set_meet_cases_for (list Z) (list (list Z)) (lists_eqb Z.eqb) (fun s => s)
       menv strs1 strs2 lists_z_eqb_decides_equality).
   assert (Hboth :
     ∀ (statics : static_env) (valuation : env),
@@ -700,8 +726,8 @@ Qed.
 
 End Non_null.
 
-Theorem meet_head_of_kind_value_non_null_ok :
-  meet_head_of_kind_value_non_null_ok_statement.
+Lemma meet_head_of_kind_value_non_null_ok_for :
+  for_validity meet_head_of_kind_value_non_null_ok_statement.
 Proof.
   intros join choices mh v Hkeeps Hsound Hvariant Hclosures menv head1 head2
     result Henv H1 H2 Hmeet.
@@ -725,7 +751,7 @@ Proof.
     set (parts2 := (is_int2, get_tag2, blocks2, imms2, extensions2)).
     assert (Hok :=
       Hvariant menv parts1 parts2 result0 Henv H1 H2 Hmeet0).
-    apply (map_result_ok _ _ _ _ (fits_as_type non_null_value)
+    apply (map_result_ok_for _ _ _ _ (fits_as_type non_null_value)
              (satisfied_as_type non_null_value v)
              (variant_of_parts (is_unique1 || is_unique2)) menv parts1 parts2
              result0)
@@ -791,7 +817,7 @@ Proof.
     + apply boxable_number_eqb_eq in Hk. subst k2.
       apply boxed_number_fits in H1 as H1'.
       apply boxed_number_fits in H2 as H2'.
-      refine (combine_results2_ok _ _ _
+      refine (combine_results2_ok_for _ _ _
                 (fits_as_type
                    (fun contents : flambda_type =>
                       non_null_value
@@ -822,7 +848,7 @@ Proof.
         satisfied_heads_compatible statics valuation v _ _ Hs1 Hs2).
       cbn in Hsame. apply boxable_number_eqb_eq in Hsame. congruence.
   - (* Two sets of closures. *)
-    refine (combine_results2_ok _ _ _
+    refine (combine_results2_ok_for _ _ _
               (fits_as_type (create_closures Alloc_mode.Heap))
               (satisfied_as_type (create_closures Alloc_mode.Heap) v)
               (fun _ _ => True) (fun _ _ _ => True)
@@ -838,7 +864,7 @@ Proof.
       rewrite !non_null_value_satisfied, !closures_satisfied. tauto.
   - (* Two sets of strings. *)
     injection Hmeet as <-.
-    apply (map_result_ok _ _
+    apply (map_result_ok_for _ _
              (fits_as_type
                 (fun strs : list (list Z) => non_null_value (String strs)))
              (satisfied_as_type
@@ -1510,7 +1536,7 @@ Proof.
               result Henv Hf1 Hf2 Hmeet)).
   - intros r menv' -> Hanswer. apply tag_immediate_fits.
     split; [ | exact Hanswer ].
-    rewrite (proj2 (proj2 (meet_type_keeps mh menv menv' t1 t2 r Hkeeps Henv
+    rewrite (proj2 (proj2 (meet_type_keeps_for mh menv menv' t1 t2 r Hkeeps Henv
                              Hf1 Hf2 Hmeet))).
     exact Hk1.
   - intros statics valuation. apply Hiff.
@@ -1525,7 +1551,7 @@ Proof.
   apply (part_meet_ok_fact (or_unknown_fits (fits_as_type tag_immediate))
            (or_unknown_satisfied (satisfied_as_type tag_immediate v))
            (fun _ : static_env => is_immediate v)).
-  apply meet_unknown_ok; [ | exact meet_tagged_immediate_ok ].
+  apply meet_unknown_ok_for; [ | exact meet_tagged_immediate_ok ].
   intros statics valuation ty Hbottom Hs. unfold satisfied_as_type in Hs.
   apply tag_immediate_satisfied in Hs as (i & _ & Hs).
   exact (is_obviously_bottom_satisfied _ _ _ _ Hbottom Hs).
@@ -1547,7 +1573,7 @@ Proof.
   intros menv [get_tag1 blocks1] [get_tag2 blocks2] result Henv [Hf1 Hb1]
     [Hf2 Hb2] Hmeet.
   cbn [fst snd] in *.
-  refine (combine_results2_ok _ _ _ relation_variable_fits
+  refine (combine_results2_ok_for _ _ _ relation_variable_fits
             (relation_variable_satisfied (tag_number v))
             (or_unknown_fits (fits_as_type blocks_type))
             (or_unknown_satisfied (satisfied_as_type blocks_type v))
@@ -1555,9 +1581,9 @@ Proof.
             _ (fun get_tag blocks => (get_tag, blocks)) menv get_tag1 get_tag2
             blocks1 blocks2 result (relation_variable_part_stable _)
             (or_unknown_part_stable _ _ (type_part_stable blocks_type v))
-            (meet_relation_ok mh _ Hkeeps Hsound) _ _ _ Henv Hf1 Hf2 Hb1 Hb2
+            (meet_relation_ok_for mh _ Hkeeps Hsound) _ _ _ Henv Hf1 Hf2 Hb1 Hb2
             Hmeet).
-  - apply meet_unknown_ok; [ | exact Hblocks ].
+  - apply meet_unknown_ok_for; [ | exact Hblocks ].
     intros statics valuation blocks Hbottom Hs. unfold satisfied_as_type in Hs.
     apply blocks_type_satisfied in Hs as (tag & fields & _ & Hrow).
     exact (row_like_for_blocks_is_bottom_satisfied _ _ _ _ _ Hbottom Hrow).
@@ -1580,7 +1606,8 @@ Definition sides_of_rest (rest : variant_rest)
   let '(get_tag, blocks, imms, extensions) := rest in
   (imms, (get_tag, blocks), extensions).
 
-Theorem meet_variant_ok : meet_variant_ok_statement.
+Lemma meet_variant_ok_for :
+  for_validity meet_variant_ok_statement.
 Proof.
   intros join choices mh v Hjoin Hdefine Hkeeps Hsound Hblocks menv
     [[[[is_int1 get_tag1] blocks1] imms1] extensions1]
@@ -1600,7 +1627,7 @@ Proof.
     fun (statics : static_env) (valuation : env) (rest : variant_rest) =>
       disjunction_satisfied (immediates_satisfied v)
         (tagged_blocks_satisfied v) statics valuation (sides_of_rest rest)).
-  refine (combine_results2_ok _ _ _ relation_variable_fits
+  refine (combine_results2_ok_for _ _ _ relation_variable_fits
             (relation_variable_satisfied (is_int_number v)) fits_rest
             satisfied_rest
             (fits_as_type
@@ -1614,7 +1641,8 @@ Proof.
             (get_tag1, blocks1, imms1, extensions1)
             (get_tag2, blocks2, imms2, extensions2) result
             (relation_variable_part_stable _) _
-            (meet_relation_ok mh _ Hkeeps Hsound) _ _ _ Henv Hint1 Hint2 Hrest1
+            (meet_relation_ok_for mh _ Hkeeps Hsound) _ _ _ Henv Hint1 Hint2
+                Hrest1
             Hrest2 Hmeet).
   - (* The rest is stable. *)
     destruct (disjunction_stable immediates_fits (immediates_satisfied v)
@@ -1632,7 +1660,7 @@ Proof.
     | option_map _ ?m = _ => destruct m as [ result1 | ] eqn:Hmeet1
     end; [ | discriminate Hmeet0 ].
     injection Hmeet0 as <-.
-    refine (map_result_ok _ _
+    refine (map_result_ok_for _ _
               (disjunction_fits immediates_fits tagged_blocks_fits)
               (disjunction_satisfied (immediates_satisfied v)
                  (tagged_blocks_satisfied v))
@@ -1647,7 +1675,8 @@ Proof.
     + intros tenv [[imms [get_tag blocks]] extensions] H. exact H.
     + intros statics valuation [[imms [get_tag blocks]] extensions].
       reflexivity.
-    + exact (meet_disjunction_ok _ _ immediates_fits (immediates_satisfied v)
+    + exact (meet_disjunction_ok_for _ _ immediates_fits (immediates_satisfied
+               v)
                tagged_blocks_fits (tagged_blocks_satisfied v) join choices mh
                _ _ _ _ Hjoin Hdefine Hkeeps Hsound (immediates_part_stable v)
                (tagged_blocks_part_stable v) immediates_fits_by_kinds
@@ -1767,7 +1796,7 @@ Lemma meet_not_null_ok :
             (meet_head_of_kind_value_non_null join choices mh env elt1 elt2))).
 Proof.
   intros menv a1 a2 result Henv H1 H2 Hmeet.
-  refine (meet_or_unknown_or_bottom_ok _ _ (fits_as_type not_null_type)
+  refine (meet_or_unknown_or_bottom_ok_for _ _ (fits_as_type not_null_type)
             (satisfied_as_type not_null_type v) (fun a => a) _ menv a1 a2
             result _ _ Henv H1 H2 Hmeet).
   - intros head1 head2 result0 Hf1 Hf2 Hmeet0.
@@ -1775,7 +1804,7 @@ Proof.
                 head2)
       as [ result1 | ] eqn:Hmeet1; [ | discriminate Hmeet0 ].
     injection Hmeet0 as <-.
-    apply (map_result_ok _ _ (fits_as_type non_null_value)
+    apply (map_result_ok_for _ _ (fits_as_type non_null_value)
              (satisfied_as_type non_null_value v)
              (fits_as_type not_null_type) (satisfied_as_type not_null_type v)
              (fun x : head_of_kind_value_non_null =>
@@ -1810,7 +1839,7 @@ Proof.
     [ | discriminate Hmeet ].
   injection Hmeet as <-.
   apply null_type_fits in H1. apply null_type_fits in H2.
-  apply (map_result_ok _ _ relation_variable_fits
+  apply (map_result_ok_for _ _ relation_variable_fits
            (fun (statics : static_env) (valuation : env)
                 (x : option variable) =>
               v = Value_const Null
@@ -1824,7 +1853,7 @@ Proof.
     + intros [Hnull Hx]. split; [ exact Hnull | ]. exists 1%Z. auto.
     + intros [Hnull (n & [= <-] & Hx)]. auto.
   - exact (part_meet_ok_fact _ _ (fun _ => v = Value_const Null) _
-             (meet_relation_ok mh (fun _ => Some 1%Z) Hkeeps Hsound) menv x1
+             (meet_relation_ok_for mh (fun _ => Some 1%Z) Hkeeps Hsound) menv x1
              x2 result0 Henv H1 H2 Hmeet0).
 Qed.
 
@@ -1850,10 +1879,11 @@ Qed.
    side is true. The meaning of a head says more of a value that is not
    null: that the variable for [Is_null] holds 0, which is of the other
    side. That is had from what the answer of that side can be
-   ([meet_disjunction_answer]): the part of an input, which held 0
+   ([meet_disjunction_answer_for]): the part of an input, which held 0
    before and holds it still, the environment of the meet having known
    it; or the bottom of that side, which has no variable. *)
-Theorem meet_head_of_kind_value_ok : meet_head_of_kind_value_ok_statement.
+Lemma meet_head_of_kind_value_ok_for :
+  for_validity meet_head_of_kind_value_ok_statement.
 Proof.
   intros join choices mh v Hjoin Hdefine Hkeeps Hsound Hnon_null menv
     [non_null1 is_null1] [non_null2 is_null2] result Henv H1 H2 Hmeet.
@@ -1888,7 +1918,7 @@ Proof.
     ∀ tenv : Typing_env.t, fits_as_type null_type tenv Not_null).
   { intros tenv. apply type_fits_lists. cbn. apply lists_fit_nil. }
   assert (Hok :=
-    meet_disjunction_ok _ _ (fits_as_type not_null_type)
+    meet_disjunction_ok_for _ _ (fits_as_type not_null_type)
       (satisfied_as_type not_null_type v) (fits_as_type null_type)
       (satisfied_as_type null_type v) join choices mh _ (meet_is_null mh)
       (fun _ => Bottom) (fun _ => Not_null) Hjoin Hdefine Hkeeps Hsound
@@ -1938,9 +1968,9 @@ Proof.
          (extract_value (map_return_value rebuild r) (rebuild x1)
             (rebuild x2))).
     rewrite extract_value_map.
-    assert (Hnames := extract_value_answer _ r x1 x2).
+    assert (Hnames := extract_value_answer_for _ r x1 x2).
     destruct (extract_value r x1 x2) as [[a' b'] e'].
-    destruct (meet_disjunction_answer _ _ join choices mh _ _ _ _ menv menv'
+    destruct (meet_disjunction_answer_for _ _ join choices mh _ _ _ _ menv menv'
                 non_null1 non_null2 a' is_null1 is_null2 b' No_extensions
                 No_extensions e' r Hmeet0 Hnames)
       as [_ Hside].
@@ -1991,13 +2021,65 @@ Proof.
         [ exact (Hstable _ Hb1 Hz1) | exact (Hstable _ Hb2 Hz2) ].
 Qed.
 
-Theorem meet_value_heads_ok : meet_value_heads_ok_statement.
+Lemma meet_value_heads_ok_for :
+  for_validity meet_value_heads_ok_statement.
 Proof.
   intros join choices mh v Hjoin Hdefine Hkeeps Hsound Hblocks Hclosures.
-  apply (meet_head_of_kind_value_ok join choices mh v Hjoin Hdefine Hkeeps
+  apply (meet_head_of_kind_value_ok_for join choices mh v Hjoin Hdefine Hkeeps
            Hsound).
-  apply (meet_head_of_kind_value_non_null_ok join choices mh v Hkeeps Hsound);
+  apply (meet_head_of_kind_value_non_null_ok_for join choices mh v Hkeeps
+    Hsound);
     [ | exact Hclosures ].
-  exact (meet_variant_ok join choices mh v Hjoin Hdefine Hkeeps Hsound
+  exact (meet_variant_ok_for join choices mh v Hjoin Hdefine Hkeeps Hsound
            Hblocks).
+Qed.
+
+End Validity.
+
+Theorem meet_relation_ok :
+  meet_relation_ok_statement.
+Proof.
+  first
+    [ exact (@meet_relation_ok_for standard_validity)
+    | exact meet_relation_ok_for ].
+Qed.
+
+Theorem meet_disjunction_answer :
+  meet_disjunction_answer_statement.
+Proof.
+  first
+    [ exact (@meet_disjunction_answer_for standard_validity)
+    | exact meet_disjunction_answer_for ].
+Qed.
+
+Theorem meet_head_of_kind_value_non_null_ok :
+  meet_head_of_kind_value_non_null_ok_statement.
+Proof.
+  first
+    [ exact (@meet_head_of_kind_value_non_null_ok_for standard_validity)
+    | exact meet_head_of_kind_value_non_null_ok_for ].
+Qed.
+
+Theorem meet_variant_ok :
+  meet_variant_ok_statement.
+Proof.
+  first
+    [ exact (@meet_variant_ok_for standard_validity)
+    | exact meet_variant_ok_for ].
+Qed.
+
+Theorem meet_head_of_kind_value_ok :
+  meet_head_of_kind_value_ok_statement.
+Proof.
+  first
+    [ exact (@meet_head_of_kind_value_ok_for standard_validity)
+    | exact meet_head_of_kind_value_ok_for ].
+Qed.
+
+Theorem meet_value_heads_ok :
+  meet_value_heads_ok_statement.
+Proof.
+  first
+    [ exact (@meet_value_heads_ok_for standard_validity)
+    | exact meet_value_heads_ok_for ].
 Qed.
