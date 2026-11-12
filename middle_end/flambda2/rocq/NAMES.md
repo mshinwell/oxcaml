@@ -7,8 +7,9 @@ for it to obey the same laws.
 
 ## Where it stands
 
-As of the tree that has the first step of the heap and the passes for
-loops. The sections below say each thing in full.
+As of the tree that has the first step of the heap, the passes for
+loops and the meet of types under renaming. The sections below say
+each thing in full.
 
 **One account of the free names.** The free names of a term are one
 function for each sort (`FlambdaBindersSpec.v`), which goes into code.
@@ -37,10 +38,10 @@ remove bindings are proved from them.
 | The machine with a heap, and its refinements; the heap is left as it is | `FlambdaHeapEquivarianceSpec.v` | N1 |
 | The free names; the three conditions on binders; `alpha_equivalent` | `FlambdaAlphaSpec.v` | N1 |
 | The comparison `expr_eqb` | `FlambdaCompareAlphaSpec.v` | N1 |
-| The rewrites of the normalisation, the checks of well-formedness (exception handlers and trap actions among them), the check of kinds, the normalisations and `validate_unit` | `FlambdaValidatorEquivarianceSpec.v` | N3 |
+| The rewrites of the normalisation, the passes for loops, the checks of well-formedness (exception handlers and trap actions among them), the check of kinds, the normalisations and `validate_unit` | `FlambdaValidatorEquivarianceSpec.v` | N3 |
 | Identities of primitives, lifting, the binding of `my_closure`, ranges, sharing of primitives, folding at known symbols, unused value slots, the order of static bindings | the `Spec` file of each pass | the owner of each |
-| The passes for loops | proved, as lemmas of `FlambdaValidatorEquivarianceProofs.v`; not yet statements | the owner of loops, N3 |
 | Typing environments and their levels, extensions, aliases, types, provers | the types library (`FlambdaEnvRenameSpec.v`, `FlambdaTypeRenameSpec.v`, `FlambdaEnvAliasesRenamingSpec.v`, `FlambdaTypingEnvExtensionSpec.v`, `FlambdaProversRenameSpec.v`) | N3 and the owners |
+| The meet of types and of expanded types, and the functions that add to a typing environment, given a join that commutes with renaming; with the join that forgets, with no premise | the types library (`FlambdaMeetRenameSpec.v`) | the owner of the meet, N3 |
 
 Those of the machines, and of the rewrites and checks of the first
 six rows, are equations that hold of every state and of every term.
@@ -80,10 +81,12 @@ will be once the series of that request is merged.
 | The tests of freedom `var_free_b` and `cont_free_b` of the rewrites that remove bindings | the integrator |
 | One statement of `FlambdaRenameApartSpec.v` | the corpus stream, N2 |
 
-**Owed.** The statements for the passes for loops; `validate_unit`
-again when the validation gives binders names of their own; the
-permutations of locations; the functions on types that have no
-statement yet; and the rows of the table above.
+**Owed.** `validate_unit` again when the validation gives binders
+names of their own; the join of typing environments, which makes
+variables, with the source of new names renamed (section 7), and with
+it the meet for the join that the model has; the permutations of
+locations; the functions on types that have no statement yet; and the
+rows of the table above.
 
 ## 1. The names
 
@@ -132,7 +135,9 @@ on the aliases, and `FlambdaTypeRenameSpec.v` and
 extensions, each with the same laws, as instances of the interface.
 `FlambdaEnvRenameSpec.v` has the action on typing environments and
 their levels, with the same laws, and says that the functions of a
-typing environment commute with it.
+typing environment commute with it. `FlambdaMeetRenameSpec.v` has the
+action on the environment of the meet, and says that the meet
+commutes with it when the join that it is given does.
 
 ## 3. The binders
 
@@ -250,9 +255,14 @@ Two pairs of terms are accepted and proved not alpha-equivalent:
   not closed, so no rule renames the binder.
 
 Every statement that a bound name may be renamed has the premise that
-the code in what is renamed is closed. The relations of free names do
-not look into code, and the comparison treats code as closed, so
-without the premise the statements are false.
+the code in what is renamed is closed. The comparison, from which
+they are proved, treats code as closed, and the relations of free
+names do not look into code. Where code is not closed the comparison
+and the rules part: `expr_eqb_open_code_statement` is a pair that the
+comparison accepts and that is not alpha-equivalent. No more than
+that is shown: the statements about behaviour are not proved of terms
+whose code is not closed, and no such term is known to refute them.
+Well-formedness admits none.
 
 ## 6. The interface
 
@@ -390,11 +400,24 @@ the other rewrites of `FlambdaNormaliseSpec.v`,
 `FlambdaUnusedStaticsSpec.v`, `FlambdaUnusedContsSpec.v`,
 `FlambdaBlockLoadSpec.v` and `FlambdaUnboxSpec.v`; the checks of
 `FlambdaWellFormedSpec.v`, those of exception handlers and of trap
-actions among them; the check of kinds; the normalisations of the
-validation; and `validate_unit`: whether a unit is validated does not
-depend on its names. Every one is an equation that holds of every
-term. By the same prover, in the types library
+actions among them; the check of kinds; the passes for loops
+(`FlambdaRecHandlersSpec.v`, `FlambdaSinkContsSpec.v`,
+`FlambdaShortcutSpec.v`, `FlambdaUnusedParamsSpec.v`,
+`FlambdaLoopAliasesSpec.v`, `FlambdaLoopifySpec.v`); the
+normalisations of the validation; and `validate_unit`: whether a unit
+is validated does not depend on its names. Every one is an equation
+that holds of every term. By the same prover, in the types library
 (`FlambdaEnvRenameSpec.v`): the functions of typing environments.
+
+Proved by the owner of the meet and the third prover, in the types
+library (`FlambdaMeetRenameSpec.v`): the meet of types, of expanded
+types at every fuel, and the functions that add to a typing
+environment. The meet makes no variable; where it chooses between two
+names it is by their binding times, which a renaming keeps. The join
+that it is given is a parameter, and the statements are for a join
+that commutes with renaming; the join that forgets does, so with it
+the meet commutes with no premise. The join that the model has makes
+variables: it is not such a join, and what it owes is above.
 
 Proved by the owners of the passes, each in the file of its pass: the
 identities of primitives (`FlambdaIdentitiesSpec.v`), the lifting of
@@ -409,9 +432,6 @@ every binder a name of its own (`FlambdaRenameApartSpec.v`).
 
 Owed:
 
-- the passes for loops: they are proved to commute with renaming, as
-  lemmas of `FlambdaValidatorEquivarianceProofs.v`, and are not yet
-  statements;
 - each pass of the validator that is merged after this was written,
   by its owner or by the third prover, and `validate_unit` again with
   it;

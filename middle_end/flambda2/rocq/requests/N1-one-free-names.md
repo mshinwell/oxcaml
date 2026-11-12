@@ -67,9 +67,14 @@ the code is closed.
   statement about lists that was already there. And the five
   statements that said that the rules held in the newer form: they
   are the rules now.
-- Every statement that leaves a `Spec` file is kept, with its name
-  and its text, as a lemma of the `Proofs` file that proved it. No
-  proof that used one is changed.
+- Each of the nine statements in an older form that leaves a `Spec`
+  file (the six, the two of `FlambdaAlphaSpec.v` and the second
+  prover's one) is kept, with its name and its text, as a lemma of the
+  `Proofs` file that proved it. No proof that used one is changed.
+  The five statements that said that the rules held in the newer form
+  are not kept under their names: the constructors of
+  `alpha_equivalent` are those claims now, nothing else in the tree
+  used the five, and their theorems go with them.
 - The relations stay defined, in `FlambdaNominalSpec.v`, under a
   heading that says what they are for (section 7).
 
