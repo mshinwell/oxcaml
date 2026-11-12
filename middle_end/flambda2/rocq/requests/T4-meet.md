@@ -37,7 +37,7 @@ Files, in `middle_end/flambda2/types/rocq/`:
   reviewed (sections 16 and 17).
 - `FlambdaMeetKeepsSpec.v`: what a meet keeps, for a join that has
   the half of its contract that is not about values; one definition
-  and four statements, proved (`FlambdaMeetKeepsProofs.v`). To be
+  and six statements, proved (`FlambdaMeetKeepsProofs.v`). To be
   reviewed (section 18). `FlambdaMeetValidity.v`: the device of the
   proof; definitions and a tactic, no statement.
 
@@ -939,10 +939,17 @@ What is stated and proved:
 - `meet_expanded_head_repaired_keeps`: so at `repaired_choices`.
 - `forgetful_join_keeps`, `meet_with_forgetful_join_keeps`: the join
   that forgets has the definition, so the premise can be had.
+- `meet_of_types_keeps`: with the same premises, the meet of types
+  `Meet.meet join choices fuel` has `meet_keeps_well_formed`, the
+  part of `meet_contract` that says its answers may be met again.
+- `meet_of_types_kinds`: the two other parts of `meet_contract` that
+  are not about values, `meet_kinds` and `meet_bottom_env`, hold of
+  `Meet.meet join choices fuel` whatever the join, the choices and
+  the fuel.
 
 What is not stated: nothing about values; nothing for
-`compiler_choices`; nothing of `Meet.meet` or of the functions that
-add to a typing environment, whose contracts mix the two halves;
+`compiler_choices`; nothing of the functions that add to a typing
+environment, whose contracts are about values throughout;
 and neither of `join_scoped_envs_sound` and `join_scoped_envs_keeps`
 is shown to imply the other (the first gives its conclusions only
 for a meet that loses no value).
