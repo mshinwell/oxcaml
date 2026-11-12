@@ -213,7 +213,11 @@
    bindings of code commute with renaming by the statements of
    FlambdaLiftSpec.v, of FlambdaMyClosureSpec.v, of
    FlambdaUnusedSlotsSpec.v, of FlambdaKnownSymbolsSpec.v, of
-   FlambdaKnownClosuresSpec.v and of FlambdaFloatCodeSpec.v. Other
+   FlambdaKnownClosuresSpec.v and of FlambdaFloatCodeSpec.v. What
+   the check makes of the first three ([with_lifting],
+   [without_slots], [with_known]: the rewrites where their tests
+   pass, the term as it is where they do not) is stated in the
+   section of the check. Other
    rewrites that the check applies are stated to commute with
    renaming in their own files:
    FlambdaDemoteSpec.demote_handlers, of the end of the normalisation
@@ -277,7 +281,14 @@
    normalisation of a term in which something was lifted
    ([normalise_lifted]) keep scope and commute with renaming up to the
    names that they make, the last with the continuations that it is
-   given to avoid; and [validate_unit] answers the same on a pair of
+   given to avoid; so do the liftings made in turn, each followed by
+   that normalisation ([lifted_in_turn]), where the continuations to
+   avoid have those of the units of the liftings among them; the
+   putting first of the static bindings ([with_statics_first]), which
+   reads the continuations of the unit of a lifting, commutes with a
+   renaming of the term where the liftings are under another that
+   does to those continuations what it does; and [validate_unit]
+   answers the same on a pair of
    terms and on the pair renamed, where the code of the term before is
    closed, and more generally where the term before is under a second
    renaming that does to its free names, and to the continuations
@@ -964,9 +975,32 @@ Definition rename_lifting (r : renaming) (L : lifting) : lifting :=
   Lifting (rename_unit_interface r (lifting_unit L)) (lifted_lets L)
     (lifted_my_closures L) (lifted_out_of_code L) (lifted_to_head L).
 
+(* What the check makes of a lifting, of the value slots to remove and
+   of what the unit binds its symbols to
+   (FlambdaValidateSpec.with_lifting, [without_slots], [with_known]):
+   each applies rewrites of other files where their tests pass, and
+   leaves the term as it is where they do not. None makes a name, and
+   each commutes with renaming; that they keep scope is in
+   FlambdaStaticsScopeSpec.v. The lifting is renamed with the term:
+   its tests go by the two continuations of its unit. The value slots
+   are not renamed. *)
+Definition with_lifting_equivariant_statement : Prop :=
+  ∀ (r : renaming) (L : lifting) (e : expr),
+    with_lifting (rename_lifting r L) (rename_expr r e)
+    = rename_expr r (with_lifting L e).
+
+Definition without_slots_equivariant_statement : Prop :=
+  ∀ slots : list value_slot, rewrite_equivariant (without_slots slots).
+
+Definition with_known_equivariant_statement : Prop :=
+  rewrite_equivariant with_known.
+
 (* That the validation answers the same on two terms and on the two
    renamed is in the last section: a round of the term before makes
-   names. *)
+   names. So are the liftings made in turn, which have those rounds
+   between them, and the putting first of the static bindings, which
+   the check applies to a term that is under a renaming of its own by
+   then. *)
 
 (* ======================================================================== *)
 (* Rewrites that make names                                                 *)
@@ -1212,6 +1246,64 @@ Definition normalise_lifted_equivariant_up_to_statement : Prop :=
     equivariant_up_to_avoiding
       (fun avoid => normalise_lifted rounds avoid kept).
 
+(* The liftings made in turn, each followed by that normalisation
+   (FlambdaValidateSpec.lifted_in_turn), keep scope. *)
+Definition lifted_in_turn_keeps_scope_statement : Prop :=
+  ∀ (rounds : nat) (avoid : list continuation) (kept : list code_id)
+    (Ls : list lifting),
+    keeps_scope (lifted_in_turn rounds avoid Ls kept).
+
+(* They commute with renaming up to the names that the normalisations
+   make, where the continuations to avoid have among them the two of
+   the unit of each lifting. The liftings and the continuations to
+   avoid are renamed by the first renaming. The term may be under
+   another, which does to its free names and to the continuations to
+   avoid what the first does: that is how a normalisation leaves the
+   term for the lifting after it. The renaming of the result does to
+   the free names of the result, and to those continuations, what the
+   first does.
+
+   This is not an instance of [equivariant_up_to_avoiding]: the
+   liftings are an argument that holds continuations, and the term is
+   under a renaming of its own from the start. The proof uses the
+   premise on the liftings: a lifting renamed by the first renaming
+   is that lifting renamed by the other where the other does to the
+   two continuations of its unit what the first does, and the term
+   need not mention them. Whether the statement fails without the
+   premise is not established. *)
+Definition lifted_in_turn_equivariant_up_to_statement : Prop :=
+  ∀ (r : renaming) (rounds : nat) (avoid : list continuation)
+    (kept : list code_id) (Ls : list lifting),
+    (∀ L : lifting,
+      In L Ls ->
+      among (unit_return (lifting_unit L)) avoid = true
+      ∧ among (unit_exn (lifting_unit L)) avoid = true) ->
+    ∀ (r1 : renaming) (e : expr),
+      code_closed e = true ->
+      renames_alike r r1 e ->
+      rename_conts_alike r r1 avoid ->
+      ∃ r' : renaming,
+        renames_alike r r' (lifted_in_turn rounds avoid Ls kept e)
+        ∧ rename_conts_alike r r' avoid
+        ∧ lifted_in_turn rounds (map (rename_continuation r) avoid)
+            (map (rename_lifting r) Ls) kept (rename_expr r1 e)
+          = rename_expr r' (lifted_in_turn rounds avoid Ls kept e).
+
+(* The putting first of the static bindings
+   (FlambdaValidateSpec.with_statics_first) makes no name. Its tests go
+   by the two continuations of the unit of the first lifting, and the
+   check applies it to the term before with the liftings made, which
+   is under a renaming of its own by then. So it is stated with the
+   liftings under one renaming and the term under another, which does
+   to the continuations of the units of the liftings what the first
+   does. With one renaming for the two it is an equation with no
+   premise. That it keeps scope is in FlambdaStaticsScopeSpec.v. *)
+Definition with_statics_first_renamed_alike_statement : Prop :=
+  ∀ (r r' : renaming) (Ls : list lifting) (e : expr),
+    rename_conts_alike r r' (unit_continuations Ls) ->
+    with_statics_first (map (rename_lifting r) Ls) (rename_expr r' e)
+    = rename_expr r' (with_statics_first Ls e).
+
 (* The validation answers the same, and for the same reason, on two
    terms and on the two renamed by one renaming, the liftings being
    renamed with them, where the code of the term before is closed. The
@@ -1230,8 +1322,10 @@ Definition normalise_lifted_equivariant_up_to_statement : Prop :=
    two are of the term before
    normalised, which under the renaming is that term under a second
    renaming that does to its free names what the first does. The last
-   is of the term before with the liftings made in turn, each followed
-   by a normalisation. The first lifting commutes with the renaming;
+   two are of the term before with the liftings made in turn, each
+   followed by a normalisation
+   ([lifted_in_turn_equivariant_up_to_statement]). The first lifting
+   commutes with the renaming;
    the normalisation after it makes names, so the term that the next
    lifting is applied to is, under the renaming, that term under
    another renaming, which does to its free names what the first does.
@@ -1247,9 +1341,10 @@ Definition normalise_lifted_equivariant_up_to_statement : Prop :=
    with every renaming and keeps scope
    ([placed_equivariant_statement], [placed_keeps_scope_statement]).
    The removal of static bindings, the removal of value slots, the
-   moving up of the bindings of code and the ordering of static
-   bindings commute with those renamings and keep scope
-   (FlambdaStaticsScopeSpec.v); and the comparison is up to bound
+   moving up of the bindings of code, the putting first of the static
+   bindings ([with_statics_first_renamed_alike_statement]) and the
+   ordering of static bindings commute with those renamings and keep
+   scope (FlambdaStaticsScopeSpec.v); and the comparison is up to bound
    names and does not tell apart two renamings that rename the free
    names of its first term alike ([expr_eqb_renamed_alike_statement]).
 

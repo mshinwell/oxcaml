@@ -5294,6 +5294,9 @@ Proof.
     destruct (lift_unit L _); reflexivity.
 Qed.
 
+Theorem with_lifting_equivariant : with_lifting_equivariant_statement.
+Proof. exact with_lifting_renamed. Qed.
+
 (* The removal of unused value slots. *)
 Lemma without_slots_equivariant (slots : list value_slot) :
   rewrite_equivariant (without_slots slots).
@@ -6482,6 +6485,9 @@ Proof.
     + intros k Hk. apply Hk1, Hk2, Hk3, Hk.
 Qed.
 
+Theorem lifted_in_turn_keeps_scope : lifted_in_turn_keeps_scope_statement.
+Proof. exact lifted_in_turn_scope. Qed.
+
 (* A lifting renamed by two renamings that rename alike the
    continuations of a list in which the two of its unit are. *)
 Lemma rename_lifting_alike (r r' : renaming) (L : lifting)
@@ -6550,6 +6556,10 @@ Proof.
            Hclosed1 Halike1 Halike2).
     + intros k Hk. rewrite (Havoid2 k Hk). apply Havoid, Hk.
 Qed.
+
+Theorem lifted_in_turn_equivariant_up_to :
+  lifted_in_turn_equivariant_up_to_statement.
+Proof. exact lifted_in_turn_up_to. Qed.
 
 (* The continuations given for the loops, renamed by two renamings
    that rename them alike. *)
