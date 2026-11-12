@@ -132,10 +132,13 @@ design out; that is the request, not the change.
     every set of closures of the unit gives the same symbol or
     constant is read as that, in code too, for the validator; S4's
     once it is staffed)
+  - `middle_end/flambda2/rocq/FlambdaStubCalls*` (in the code of a
+    stub, the direct calls of the unit's other code are made indirect,
+    for the validator; S4's once it is staffed)
   - `middle_end/flambda2/rocq/status/C3.md`
   - the examples `middle_end/flambda2/tests/semantics/set_*.fl`,
-    `apply_partial*.fl`, `apply_over*.fl` and `tupled_apply*.fl` there,
-    with their `.expected` files
+    `apply_partial*.fl`, `apply_over*.fl`, `tupled_apply*.fl` and
+    `stub_by_hand*.fl` there, with their `.expected` files
 - C4, heap. Owner: C4, on `flambda2-rocq/C4-heap`.
   - `middle_end/flambda2/rocq/requests/C4-heap.md` (the request) and
     `requests/C4-heap-fallout.md` (what each step costs the other
