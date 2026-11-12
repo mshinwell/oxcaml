@@ -5343,6 +5343,100 @@ let names_asked_of_a_join
   in
   List.map (fun x -> MT.Name_var x) (for_types_at_source @ bound @ [parameter])
 
+(* The uses of a continuation with a parameter of kind value, of which most
+   bind, after the cut, a naked immediate that holds a relation: whether a value
+   is an immediate, the tag of a block, whether a value is null. The value is a
+   variable of the tests, or a variable that the use binds too. The use knows
+   the two equations that the function of the compiler which adds the relation
+   adds, in its order: the naked immediate is the result of the relation on the
+   value, and the value is a variant that names the naked immediate (or, for
+   [Is_null], may be null and names it). Half of the time it then knows more of
+   the value, by a generated type, so that the relation may be reduced. It
+   passes the value, a block that holds it, or the tagging of the naked
+   immediate. The other uses bind nothing and pass a variable of the tests or a
+   generated type.
+
+   The target of a join defines no variable that a use binds: it keeps a
+   relation by a variable of its own, or loses it. The same naked immediate is
+   the one that every such use binds. *)
+let generate_join_of_relations (names : names) ~(known : bool) r :
+    join_at_a_continuation =
+  let pool = names.pool in
+  let shallow : G.config = { well_formed = true; depth = 1 } in
+  let naked_immediate : MK.flambda_kind = Naked_number Kind_naked_immediate in
+  let local = Converter.variable_to_model names.numbering names.local in
+  let held = Converter.variable_to_model names.numbering names.for_types_only in
+  let relation_holds (relation : MT.Relation.t) (scrutinee : M.variable) :
+      (MT.name * MT.flambda_type) list =
+    let variant is_int get_tag : MT.flambda_type =
+      let head : MT.head_of_kind_value_non_null =
+        Variant (is_int, Unknown, get_tag, Unknown, No_extensions, false)
+      in
+      Type_value (Ok (No_alias (Head_of_kind_value (Ok head, Not_null))))
+    in
+    let may_be_null : MT.flambda_type =
+      let head : MT.head_of_kind_value =
+        Head_of_kind_value (Unknown, Maybe_null (Some held))
+      in
+      Type_value (Ok (No_alias head))
+    in
+    let of_the_result, of_the_scrutinee =
+      match relation with
+      | Is_int ->
+        MT.is_int_for_scrutinee (Name_var scrutinee), variant (Some held) None
+      | Get_tag ->
+        MT.get_tag_for_block (Name_var scrutinee), variant None (Some held)
+      | Is_null -> MT.is_null_for_scrutinee (Name_var scrutinee), may_be_null
+    in
+    [Name_var held, of_the_result; Name_var scrutinee, of_the_scrutinee]
+  in
+  let use () : use =
+    let learns = if known then generate_equations names r else [] in
+    if G.chance r ~percent:75
+    then
+      let relation = G.relation r in
+      let own = G.chance r ~percent:35 in
+      let scrutinee = if own then local else G.pick r pool.value_variables in
+      let alias = MT.alias_type_of Value (Var scrutinee) in
+      let more : (MT.name * MT.flambda_type) list =
+        if G.chance r ~percent:50
+        then [Name_var scrutinee, G.type_of_kind shallow r pool Value]
+        else []
+      in
+      { (* The types of what is bound say nothing: the equations are among what
+           the use knows, so that they are added in the order of the compiler's
+           function. *)
+        binds =
+          (held, MT.unknown naked_immediate)
+          :: (if own then [local, MT.unknown Value] else []);
+        learns = learns @ relation_holds relation scrutinee @ more;
+        passes =
+          (match G.below r 5 with
+          | 0 ->
+            MT.immutable_block false (N.z_of_int 0) (Scannable Value_only) Heap
+              [alias]
+          | 1 -> MT.tag_immediate (MT.alias_type_of naked_immediate (Var held))
+          | _ -> alias)
+      }
+    else
+      { binds = [];
+        learns;
+        passes =
+          (if G.chance r ~percent:50
+           then MT.alias_type_of Value (Var (G.pick r pool.value_variables))
+           else G.type_of_kind shallow r pool Value)
+      }
+  in
+  let first = use () in
+  let second = use () in
+  { kind_of_parameter = Value;
+    for_types_at_source = [];
+    at_uses =
+      (if G.chance r ~percent:35
+       then [first; second; use ()]
+       else [first; second])
+  }
+
 let join_in_the_model (names : names) (model : model)
     ({ kind_of_parameter = kind; for_types_at_source; at_uses } as input :
       join_at_a_continuation) : seen =
@@ -6603,6 +6697,20 @@ let () =
        the model and the n-way join of the compiler"
     ~seed:146000 ~count:1000
     (closures_at_uses ~known:true);
+  model_join_and_compiler_on
+    ~title:
+      "Two or three uses, of which most bind a naked immediate that holds a \
+       relation on a value and pass the value, a block that holds it or the \
+       tagging of the naked immediate, for the join of the model and the n-way \
+       join of the compiler"
+    ~seed:140000 ~count:1000
+    (generate_join_of_relations names ~known:false);
+  model_join_and_compiler_on
+    ~title:
+      "The same with uses that know equations on variables, for the join of \
+       the model and the n-way join of the compiler"
+    ~seed:142000 ~count:1000
+    (generate_join_of_relations names ~known:true);
   let with_itself ~title sharing =
     run ~title ~seed:70000 ~count:1500
       ~generate:(fun r ->

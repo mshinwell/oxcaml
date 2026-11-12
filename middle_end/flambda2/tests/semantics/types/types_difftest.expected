@@ -1873,6 +1873,48 @@ The same with uses that know equations on variables, for the join of the model a
     a use that passes (Value Unknown)
       and knows v3 : (Value Bottom)
 
+Two or three uses, of which most bind a naked immediate that holds a relation on a value and pass the value, a block that holds it or the tagging of the naked immediate, for the join of the model and the n-way join of the compiler (1000 cases, seeds 140000 to 140999)
+  1000 converted
+  join: the model and the n-way join of the compiler: 1000 agree
+  of which those where a variable that was made is mentioned: 243 agree
+  join: the model and the binary join of the compiler: 591 agree, 409 disagree as recorded
+    recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 140000): what is seen of the two answers is not the same
+    on the shrunk input:
+    a parameter of kind value
+    a use that passes (Value Unknown)
+      and binds v25 : (Naked_immediate Unknown)
+      and knows v3 : (Value (Unknown (Maybe_null (Some v25))))
+    a use that passes (Value Unknown)
+      and binds v25 : (Naked_immediate Unknown)
+      and knows v3 : (Value
+                      ((Variant (is_int None) (immediates Unknown)
+                        (get_tag (Some v25)) (blocks Unknown)
+                        (extensions No_extensions) (is_unique false))
+                       Not_null))
+
+The same with uses that know equations on variables, for the join of the model and the n-way join of the compiler (1000 cases, seeds 142000 to 142999)
+  1000 converted
+  join: the model and the n-way join of the compiler: 1000 agree
+  of which those where a variable that was made is mentioned: 178 agree
+  join: the model and the binary join of the compiler: 400 agree, 600 disagree as recorded
+    recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 142001): what is seen of the two answers is not the same
+    on the shrunk input:
+    a parameter of kind value
+    a use that passes (Value Unknown)
+      and binds v25 : (Naked_immediate Unknown)
+      and knows v1 : (Value
+                      ((Variant (is_int (Some v25)) (immediates Unknown)
+                        (get_tag None) (blocks Unknown)
+                        (extensions No_extensions) (is_unique false))
+                       Not_null))
+    a use that passes (Value Unknown)
+      and binds v25 : (Naked_immediate Unknown)
+      and knows v1 : (Value
+                      ((Variant (is_int (Some v25)) (immediates Unknown)
+                        (get_tag None) (blocks Unknown)
+                        (extensions No_extensions) (is_unique false))
+                       Not_null))
+
 A type of kind value with itself, shared and not (1500 cases, seeds 70000 to 71499)
   1500 converted
   join (binary) of a type with itself: 1208 agree
