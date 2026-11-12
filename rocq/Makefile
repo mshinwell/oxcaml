@@ -323,6 +323,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaSimplifyProjectionsSpec.v \
   FlambdaSimplifySwitchProofs.v \
   FlambdaSimplifySwitchSpec.v \
+  FlambdaSimplifyValueSlotsProofs.v \
+  FlambdaSimplifyValueSlotsSpec.v \
   FlambdaTypeAccessProofs.v \
   FlambdaTypeAccessSpec.v \
   FlambdaTypeAliasKindsProofs.v \
