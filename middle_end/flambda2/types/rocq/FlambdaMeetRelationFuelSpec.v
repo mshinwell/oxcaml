@@ -101,9 +101,8 @@
    the meet of any type with the type of a number, as a naked
    immediate, under the last three of the hypotheses above and
    consistent aliases. Nothing is asked of the type, nor of what the
-   environment has for it. The cases, of the meet of types that
-   [Meet.meet] asks where the environment is not bottom
-   ([Meet_env.meet_type]):
+   environment has for it. The cases, of [Meet_env.meet_type], which
+   is what [meet_fuel_enough] is about:
    - the type is of another kind: the meet answers nothing whatever
      the fuel (a fatal error of the compiler);
    - the type is not an alias: it is flat, and one unit is enough
@@ -114,10 +113,12 @@
      name mode of that element (the meet reads at the name mode of
      the names of types, which is below the two others,
      [Name_mode.compare_partial_order]); with consistent aliases that
-     element is canonical. If it is a constant, the meet compares the
-     two constants and asks no meet of expanded types. If it is a
-     name, the type that the environment has for it at the kind is
-     flat, or is a head of naked immediates (the case of
+     element is canonical. (Where the environment does not bind what
+     the type is an alias of, the meet reads nothing and answers
+     nothing, whatever the fuel.) If it is a constant, the meet
+     compares the two constants and asks no meet of expanded types.
+     If it is a name, the type that the environment has for it at
+     the kind is flat, or is a head of naked immediates (the case of
      [relation_const_fuel_enough_statement]), or is an alias, or
      there is none; in the last two the meet answers nothing
      whatever the fuel (fatal errors of the compiler: its

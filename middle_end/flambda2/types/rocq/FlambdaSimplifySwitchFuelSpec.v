@@ -80,17 +80,21 @@
 
    Why nothing is asked of the scrutinee. The type that the
    environment answers for it is an alias, and the meet reads for it
-   the canonical element of the class of what it is an alias of. That
-   is a constant, and then the meet asks no meet of itself; or a
-   name, and then the type that the environment has for the name is
-   flat, or is a head of naked immediates with its inverse relations
-   (the result of [Is_int], [Get_tag] or [Is_null]), or the
-   environment has no type for the name at the kind of the naked
-   immediates, or has an alias for it, and then the meet answers
-   nothing at every fuel. Where the type of the scrutinee is of
-   another kind the meet answers nothing at every fuel too. The cases
-   are those of [naked_immediate_fuel_enough_statement],
-   FlambdaMeetRelationFuelSpec.v.
+   the canonical element of the class of what it is an alias of (or
+   nothing, where the environment does not bind that, and then the
+   meet answers nothing at every fuel). That element is a constant,
+   and then the meet asks no meet of itself; or it is a name, and
+   then the type that the environment has for the name is flat, or
+   is a head of naked immediates with its inverse relations (the
+   result of [Is_int], [Get_tag] or [Is_null]), or the environment
+   has no type for the name at the kind of the naked immediates, or
+   has an alias for it, and in these two the meet answers nothing at
+   every fuel. Where the type of the scrutinee is of another kind
+   the meet answers nothing at every fuel too. The cases are those
+   of [naked_immediate_fuel_enough_statement],
+   FlambdaMeetRelationFuelSpec.v. (In an environment that is bottom
+   [Meet.meet] answers bottom before any of this, whatever the
+   types.)
 
    [arm_meets_agree] is about the type that the environment answers
    for the scrutinee, if it answers one: that it answers one is not
