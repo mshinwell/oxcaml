@@ -452,7 +452,7 @@ it does not cover".
    again. The primitive is known to have no value
    (`no_value_on`) where it is a load or `Get_tag` of a constant, and
    where it is `Untag_immediate` of a variable that a `Let` in scope
-   made a block.
+   made a block, or of a symbol.
 
    An application does not come to a read (`never_reads`) where the
    constants it gives show it. The parameters that it gives a constant
