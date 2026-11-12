@@ -193,6 +193,15 @@ struct
   let alias id ~same_as =
     ignore (find same_as : Numbers.positive);
     numbers := Map.add id (Map.find same_as !numbers) !numbers
+
+  (* Forgets every name numbered so far. *)
+  let reset () =
+    numbers := Map.empty;
+    next := 1
+
+  (* The names numbered so far, each with its number. *)
+  let bindings () =
+    List.map (fun (id, n) -> id, positive_of_int n) (Map.bindings !numbers)
 end
 
 module Variables = Numbering (Variable)
@@ -601,6 +610,24 @@ let code_arities : (Code_id.t * (Model.arity * Model.arity)) list ref = ref []
 let newer_versions : (Code_id.t * Code_id.t) list ref = ref []
 
 let deleted_code : Code_id.t list ref = ref []
+
+(* Forgets everything that the conversion has noted so far, so that a unit is
+   converted as if it were the first: the numbers given to names and what is
+   kept beside the terms. Whoever gives the conversion more state adds it
+   here. *)
+let reset_conversion () =
+  Variables.reset ();
+  Continuations.reset ();
+  Symbols.reset ();
+  Code_ids.reset ();
+  Value_slots.reset ();
+  Function_slots.reset ();
+  slot_kinds := [];
+  depth_variables := Variable.Set.empty;
+  named_function_slots := false;
+  code_arities := [];
+  newer_versions := [];
+  deleted_code := []
 
 let rec convert_expr (e : Flambda.Expr.t) : Model.expr =
   match Flambda.Expr.descr e with
@@ -1903,10 +1930,58 @@ let check_file filename =
       in
       check ~filename:filename_shown fl2.unit result.flambda
 
+(* The conversion, for the check that takes a term of the model through fexpr
+   and back (flroundtrip.ml). *)
+let conversion_for_round_trip : Flroundtrip.conversion =
+  let names numbered name =
+    List.map (fun (id, number) -> name id, number) (numbered ())
+  in
+  { convert =
+      (fun unit ->
+        match with_function_slots (fun () -> convert_unit unit) with
+        | exception Unsupported what -> Error (Format.asprintf "%t" what)
+        | { body; return_continuation; exn_continuation } ->
+          Ok { body; return_continuation; exn_continuation });
+    reset = reset_conversion;
+    value_slot_kind =
+      (fun slot -> Option.map convert_kind (List.assoc_opt slot !slot_kinds));
+    symbols =
+      (fun () ->
+        names Symbols.bindings (fun symbol ->
+            Linkage_name.to_string (Symbol.linkage_name symbol)));
+    code_ids = (fun () -> names Code_ids.bindings Code_id.name);
+    value_slots = (fun () -> names Value_slots.bindings Value_slot.name);
+    function_slots =
+      (fun () -> names Function_slots.bindings Function_slot.name)
+  }
+
+(* Simplify, for that check: run as [check_file] runs it, and on the same
+   units. *)
+let simplify_for_round_trip ~filename (parsed : Fexpr_to_flambda.conv_result) =
+  let well_formed_or_not_converted =
+    match with_function_slots (fun () -> convert_unit parsed.unit) with
+    | exception Unsupported _ -> true
+    | before -> well_formed before
+  in
+  if not well_formed_or_not_converted
+  then None
+  else
+    let null_formatter =
+      Format.make_formatter (fun _ _ _ -> ()) (fun () -> ())
+    in
+    let result =
+      Flambda2.flambda_to_flambda ~ppf_dump:null_formatter
+        ~prefixname:(Filename.chop_extension filename)
+        ~machine_width:Sixty_four ~code_slot_offsets:parsed.code_slot_offsets
+        parsed.unit
+    in
+    Some result.flambda
+
 module Options = Oxcaml_args.Make_optcomp_options (Oxcaml_args.Default.Optmain)
 
 let () =
   Clflags.set_target Clflags.Target.Native;
+  let round_trip = ref false in
   let files = ref [] in
   let defer_file file =
     match Filename.extension file with
@@ -1916,8 +1991,22 @@ let () =
   Compenv.warnings_for_discarded_params := true;
   Compenv.set_extra_params (Some Oxcaml_args.Extra_params.read_param);
   Compenv.readenv Format.err_formatter Before_args;
-  Clflags.add_arguments __LOC__ (Arch.command_line_options @ Options.list);
+  Clflags.add_arguments __LOC__
+    (( "-round-trip",
+       Arg.Set round_trip,
+       " Check that the conversion to the Rocq model survives a round trip \
+        through fexpr, for the unit and for what Simplify makes of it" )
+    :: (Arch.command_line_options @ Options.list));
   Clflags.Opt_flag_handler.set Oxcaml_flags.opt_flag_handler;
   Compenv.parse_arguments (ref Sys.argv) defer_file "flsemantics";
   Location.read_clflags_from_env ();
-  List.iter check_file (List.rev !files)
+  List.iter
+    (if !round_trip
+     then (
+       fun filename ->
+         reset_conversion ();
+         Flroundtrip.check_file conversion_for_round_trip
+           ~simplify:(simplify_for_round_trip ~filename)
+           filename)
+     else check_file)
+    (List.rev !files)

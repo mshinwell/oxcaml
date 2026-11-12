@@ -104,6 +104,15 @@ design out; that is the request, not the change.
     and its statements)
   - `middle_end/flambda2/tests/semantics/kinds_*.fl` and their
     `.expected` files
+  - `middle_end/flambda2/tests/tools/flmodel_to_fexpr.ml` and
+    `middle_end/flambda2/tests/tools/flroundtrip.ml` (a term of the
+    model printed back as fexpr, and the round trip that checks the
+    conversion with it; on `flambda2-rocq/C2-roundtrip`; the plan's
+    converter stream's when it has an owner). The lines of
+    `flsemantics.ml` that give the round trip the conversion are V2's
+  - `middle_end/flambda2/tests/semantics/roundtrip/` (the rules that
+    take every example through the round trip, and the answers that
+    are not "the same", with their reasons)
 - C3, sets of closures. Owner: C3, on `flambda2-rocq/C3-closures`.
   - `middle_end/flambda2/rocq/requests/C3-closures.md`
   - `middle_end/flambda2/rocq/requests/C3-partial-application.md`

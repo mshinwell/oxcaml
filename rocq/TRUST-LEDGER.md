@@ -60,8 +60,24 @@ it gave back.
   terms to the terms of `FlambdaModel.v`. It is trusted to give a term
   with the meaning of the one it is given, and to refuse (`Unsupported`)
   what the model has not got, never to approximate it. To be read case by
-  case against `terms/`. Workstream V3 owns it and is to add a printer
-  back to fexpr and round-trip tests. Of a set of closures it is trusted
+  case against `terms/`; that reading is not done. A second reading in
+  the other direction is: `flmodel_to_fexpr.ml`, beside the tool, prints
+  a term of the model back as fexpr, and `flsemantics.exe -round-trip`
+  (`flroundtrip.ml`) converts a unit, prints it, reads the text again
+  with the compiler's parser, converts that, and compares the two terms
+  with the model's comparison, for the unit of each example and for the
+  unit that Simplify makes of it
+  (`middle_end/flambda2/tests/semantics/roundtrip/`). This finds a case
+  that the conversion gets wrong in a way that is not the same both
+  times (two arguments exchanged, a number changed). It does not find
+  what the conversion drops and the printer does not put back, nor a
+  mistake made the same way in both directions, and it does not look at
+  what the conversion does to the two units of a check together. The
+  printer and the round trip are OCaml and add nothing to what is
+  trusted: they change no theorem and no answer of the validation. A
+  mistake in them can make this check miss a mistake of the conversion,
+  report a difference that is not one, or fail. Of a set of closures the
+  conversion is trusted
   for three things that no statement covers. The order of the
   declarations: the functions of a set are given in the order of
   `Function_declarations.funs_in_order`, and the variables of a `Let`
