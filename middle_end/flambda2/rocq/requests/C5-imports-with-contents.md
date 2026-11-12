@@ -8,8 +8,8 @@ reviews it) and the human (the decisions, at the end).
 
 It is a request with no prototype: nothing in a `.v` file or in the
 tool changes with it. What is measured is measured with the tool as
-it is, on units written for the purpose (section 4), and on C2's
-counts over real units, which are not in this tree.
+it is, on units written for the purpose (section 4), and on counts
+over real units, which are not in this tree.
 
 Paths of the model are in `middle_end/flambda2/rocq/`, and those of
 the compiler in `middle_end/flambda2/`, unless they say otherwise.
@@ -46,8 +46,8 @@ finds no `.cmx` and leaves the load and the call as they are. So for
 a unit that uses another unit the term after that the tool
 validates is not the one the compiler makes.
 
-C2 counted, over 119 real units (the modules of the standard library
-and a directory of the compiler's tests) and their 4,580 functions:
+Counted over 119 real units (the modules of the standard library and
+a directory of the compiler's tests) and their 4,580 functions:
 
 | | Units | Functions |
 |---|---|---|
@@ -69,8 +69,9 @@ today that load is where the run becomes undefined.
 - Before Simplify a function reaches another unit only by loading a
   field of its module block. After it, the term names the other
   unit's closure symbols, as values and as callees, and its code
-  ids, in direct calls. X5 is counting what else it names (the sets
-  of closures of inlined code, the other unit's lifted constants).
+  ids, in direct calls. What else it names (the sets of closures of
+  inlined code, the other unit's lifted constants) is not counted
+  yet.
 - A `.cmx` holds, for its unit (`cmx/flambda_cmx_format.ml`): the
   types of the symbols that can be reached from the module symbol,
   and the code, with a body only for code that may be inlined and
@@ -90,7 +91,7 @@ today that load is where the run becomes undefined.
   the types, which say more: the whole set of a closure and what
   its value slots hold, the contents of a boxed number, a block
   that is one of several.
-- Loading (X5 read this; `cmx/flambda_cmx.ml`). A `.cmx` is read the
+- Loading (`cmx/flambda_cmx.ml`). A `.cmx` is read the
   first time a symbol or a code id of its unit is asked for, and
   then all its code is merged. A unit that is never asked about is
   not read. A failure is remembered for the whole run: with a
@@ -158,10 +159,50 @@ symbol of which nothing is said is `Static_imported`, of the class
 the prefix replaces no part of the first request; it puts contents
 in front of it.
 
-The prefix is made on demand: of the names that the two terms
-mention, and of the names that the bodies and the blocks so bound
-mention in turn. A field of a block that is a symbol and is asked
-for by nothing stays an import. What is left out is under one
+The prefix is made on demand, and C2 writes it so. The names asked
+for are the least set such that:
+
+- every symbol and every code id of another unit that either term
+  names is asked for;
+- so is the code id of a closure that is asked for;
+- so is every such name in a body that the prefix binds;
+- the symbol at a field of a block that the prefix binds is asked
+  for when either term, or a body that the prefix binds, loads that
+  field from something that stands for the block. What stands for a
+  block is its symbol, a variable that a `Let` binds to its symbol,
+  and a variable that a `Let` binds to a load, of a field that is a
+  symbol, from what stands for a block of the prefix. A parameter
+  stands for nothing. Scope is respected: a variable stands for what
+  its nearest binding says, and in a body of code only what that body
+  binds stands for anything.
+
+What is asked for is bound, where the `.cmx` say what it is. More
+is bound than is asked for: a field of a block that the prefix
+binds, which the `.cmx` say is the symbol of a closure or of a
+block, is bound as that closure or that block whether it is asked
+for or not, and so on through the fields of the blocks so bound.
+That asks for nothing: the code of a closure bound in this way stays
+bound to nothing. So what the prefix binds is the data that the
+`.cmx` reach, through fields, from the blocks that are asked for,
+and the bodies of the code that is asked for. There are two reasons.
+A run reads data through names that the rule above does not follow
+(a list of another unit that a loop goes down is read through the
+parameter of the loop), and it is undefined where what it reads is
+an import. And the first runs of the prefix showed that with such a
+field left an import a unit that loads one function of a module of
+two has an import left, and a verdict with an import left is seldom
+one that holds from the imports (the statements, below).
+
+So a unit that names the module block of the standard library has
+in front of it the closures and the blocks reached from that block,
+and the bodies of the functions it asks for with those that these
+ask for in turn. Reaching data asks for no body; the bodies asked
+for can themselves ask for more, and nothing bounds that but the
+library. The cost is the size of the static data of the modules
+that the unit names, and of those bodies. Where the term before
+reaches a
+function through a field that nothing asks for, and calls it, the
+run is undefined. What is left out is under one
 obligation: leaving it out may make a run refused or undefined, and
 must never give a run a defined answer that the linked unit would
 not give. It is to be checked for each thing left out: for a closure
@@ -171,17 +212,28 @@ so; for a body, the code id stays bound to nothing.
 
 The reduction of a symbol itself, and not of a field, can be another
 symbol or a constant. No static binding says either of a symbol. A
-symbol that is said to be another symbol is not bound, and stays an
-import of which nothing is known: what was said of it is not used.
+symbol that is said to be another symbol is not bound, and what was
+said of it is not used. It cannot be given the class of data from
+its name alone, since the other symbol may be an identity and the
+model would then answer of a comparison what the linked unit does
+not: it is an import of the third class below, of which nothing is
+known, and until that class exists a unit that names one is refused.
 A symbol that is said to be a constant is refused, and the unit is
 not checked: the model takes a symbol for an object.
 
 The prefix binds each symbol and each code id once, and none that
-the unit binds. Blocks, closures and bodies of another unit may name
-one another in a cycle; the bindings of the prefix are then in one
-group, as those of a unit are, in an order in which each is defined
-when it is bound, and where there is no such order the symbol stays
-an import. The prefix has the numbering of names of the two terms.
+the unit binds. Closures and bodies of another unit may name one
+another in a cycle. That needs no special case: a field that is a
+symbol is not looked up when its block is bound
+(`FlambdaSemanticsSpec.eval_static_const`), so the bindings of the
+prefix can be one group, in any order. Two closures of one code
+cannot be in one group (`FlambdaWellFormedSpec.sets_well_formed`);
+they are bound by two groups. The grouping and the order change the
+list of what is bound, and not what any name is bound to. Cyclic
+data is not a case of this: V2 found that the front end makes it by
+calls of the run time, so the unit that has it is outside the model
+and its `.cmx` say nothing of the fields that hold it. The prefix
+has the numbering of names of the two terms.
 It is converted once, and is the same term in front of both: the
 compiler renames the variables and continuations of imported code at
 each import, so two conversions would agree up to bound names only.
@@ -231,6 +283,30 @@ the two prefixed terms as they are, and no statement changes:
   closures are lifted: for those the liftings are to be stated from
   the imports, which their owners already owe.
 
+The first runs of the prefix show what the second case costs. Of
+the units run so far with a prefix, none of which is in this tree
+yet, each one that is validated is so through the removal of unused
+static bindings from the head of the term after, or through a
+lifting: the prefix is in front of both terms, the term after does
+not use all of it, and the term before, once normalised, uses less.
+That is what those units show, and not a law: two terms that are the
+same up to bound names are validated by the first comparison, prefix
+and all. Neither of the two is one of the three. So such a unit,
+with an import left, for which a predefined exception is enough,
+prints the second of the lines below: validated with nothing else
+imported, and not validated with its imports. The removal from the
+head is V2's law (`FlambdaUnusedHeadStaticsSpec.v`), stated of a
+unit run from the empty static environment because a binding of a
+name that is bound already is undefined. From a static environment
+that binds none of the names at the head it is expected to hold, and
+the tool checks that neither the unit nor the prefix binds an
+import. That
+statement, and a test that takes the verdict where the head of the
+term after binds no import, come before the liftings: they are
+smaller, and the units run so far all need them. Each is a
+statement of its own, with its own premise, to be reviewed as such:
+nothing agreed here, and none of the three verdicts, covers it.
+
 One small statement is mine to add, so that the ledger can say the
 thing in its own terms. It has a condition: that the prefix
 evaluates, from the environment of the imports, to the environment
@@ -244,7 +320,11 @@ is then "the unit after refines the unit before, each run from the
 static environment that the `.cmx` describe", and the prefix is how
 it is checked. Without the condition the two prefixed terms are both
 undefined and the comparison says nothing; the tool is to check that
-the prefix evaluates, and to say so where it does not.
+the prefix evaluates, and to say so where it does not. That it does
+is the invariant of the construction, and is not proved: a prefix
+made by the rule above binds each name once and has no variable in a
+constant, so a failure is an error of the conversion, which no pair
+of units is known to reach.
 
 **A field of which the `.cmx` say nothing** is the one thing that the
 model cannot say today. A module block has such fields wherever the
@@ -360,8 +440,9 @@ heap and C calls as well; 20 need only this.
   leaves such code unbound; it does not refuse the unit).
 - A run that inspects a field of which the `.cmx` say nothing.
   Loading the field has a value, the symbol that stands for it,
-  which can be passed on and stored; every primitive on it but
-  `Opaque_identity`, a comparison included, has none.
+  which can be passed on and stored in a block that is made; every
+  unary or binary primitive on it but `Opaque_identity`, a comparison
+  included, has none.
 - A recursive module: its initialisation calls functions of the run
   time's own module for them, which fill in blocks that the unit
   then reads. That is a call with no body that writes to the unit's
@@ -401,10 +482,15 @@ a proof.
    no body. Small. V2 has accepted it as written, after its series
    in hand; each unit of a pair is checked as any unit of the corpus
    is. Before anything is said to be covered there are to be pairs
-   for what is left out and for what is refused: a function with no
-   body, a field of which nothing is said, a closure of a set of
-   several functions, a symbol that the unit and the prefix would
-   both bind, a prefix that does not evaluate.
+   for what is left out: a function with no body, a field of which
+   nothing is said, a closure of a set of several functions, and,
+   for the rule by which the prefix is made, a function of a nested
+   module and one reached through an alias of a module. A unit with
+   cyclic data is a second case of a field of which nothing is said,
+   whose first unit the tool does not check (it calls the run time).
+   V2 found that sources cannot make a symbol that the unit and the
+   prefix would both bind, or a prefix that does not evaluate: those
+   two are in step 2.
 2. C2 with V2 (the conversion is in the tool): the prefix. From the
    loader, for each name of another unit that the two terms mention:
    the reduction, converted to static bindings; the bodies, by the
@@ -417,9 +503,18 @@ a proof.
    prefix, so the conversion of a `.cmx` needs a check of its own
    that does not go through that conversion: at the least, the
    prefix printed for each pair and read against the first unit.
+   The tool checks the prefix it made (each name bound once, none
+   that the unit binds or that is still in the list of imports, and
+   that it evaluates) and says which check failed. Their test is a
+   control, a tool built with one deliberate fault in the prefix,
+   as no pair of units reaches them.
 3. Me: the statement that relates a prefix to the environment it
-   makes; the wording of the ledger; my two statements restated
-   from any static environment, if that is agreed. Small.
+   makes, with its condition; the wording of the ledger; the general
+   law beside my two statements, if that is agreed. Small. Then, V2
+   and me: the removal of unused static bindings from the head of
+   the term after, from a static environment that binds none of the
+   names at the head, and the verdict that rests on it taken from
+   the imports where the head binds none of them.
 4. V3, C3 and the owners of the liftings: their statements from the
    imports, already owed. This decides how many real units are
    validated with their imports, and it is the large item. V3 has
