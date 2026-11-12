@@ -253,8 +253,12 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaMeetHeadsSpec.v \
   FlambdaMeetImmediateProofs.v \
   FlambdaMeetImmediateSpec.v \
+  FlambdaMeetMatchExamplesProofs.v \
+  FlambdaMeetMatchExamplesSpec.v \
   FlambdaMeetProductsProofs.v \
   FlambdaMeetProductsSpec.v \
+  FlambdaMeetProjectionExamplesProofs.v \
+  FlambdaMeetProjectionExamplesSpec.v \
   FlambdaMeetProofs.v \
   FlambdaMeetRowLikeProofs.v \
   FlambdaMeetRowLikeSpec.v \
@@ -263,6 +267,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaMeetSpec.v \
   FlambdaMeetStepsProofs.v \
   FlambdaMeetStepsSpec.v \
+  FlambdaMeetTagExamplesProofs.v \
+  FlambdaMeetTagExamplesSpec.v \
   FlambdaProvers.v \
   FlambdaProversExamplesProofs.v \
   FlambdaProversExamplesSpec.v \
