@@ -1,0 +1,65 @@
+let $camlTwo_tags_shared_field__first_const_0 = Block 0 () in
+(let code inline(never) size(49)
+       f_0 (c/65 : imm tagged, x/66 : imm tagged)
+         my_closure/67 &my_alloc_region/68 my_depth/69
+         -> k/30 * k/31
+         : imm tagged =
+   let next_depth/70 = rec_info (succ my_depth/69) in
+   let region/71 = %begin_region () in
+   let ghost_region/72 = %begin_ghost_region () in
+   (let untagged/84 = %untag_imm (c/65) in
+    switch untagged/84
+      | 0 -> k/38
+      | 1 -> k/39)
+     where k/39 =
+       cont k/36
+     where k/38 =
+       cont k/37
+     where k/37 =
+       let Pmakeblock/83 =
+         %block.[`1`].my_alloc_region/68.local[region/71] (x/66)
+       in
+       cont k/33 (Pmakeblock/83)
+     where k/36 =
+       let Pmakeblock/82 =
+         %block.[`0`].my_alloc_region/68.local[region/71] (x/66)
+       in
+       cont k/33 (Pmakeblock/82)
+     where k/33 (`*match*/76` : [ 0 | 0 of imm tagged |1 of imm tagged ]) =
+       ((let prim/79 = %is_int (`*match*/76`) in
+         let Pisint/80 = %tag_imm (prim/79) in
+         (let untagged/81 = %untag_imm (Pisint/80) in
+          switch untagged/81
+            | 0 -> k/35
+            | 1 -> k/32 (0))
+           where k/35 =
+             cont k/34)
+          where k/34 =
+            let Pfield/77 = %block_load.[`0`] (`*match*/76`) in
+            let int_add/78 = %int_barith.add (Pfield/77, 1) in
+            cont k/32 (int_add/78))
+     where k/32 (region_return/73 : imm tagged) =
+       let unit/74 = %end_region (region/71) in
+       let unit/75 = %end_ghost_region (ghost_region/72) in
+       cont k/30 (region_return/73)
+ in
+ let f/85 = closure f_0 @f &toplevel in
+ (let Popaque/92 = %opaque (4) in
+  let Popaque/93 = %opaque (0) in
+  apply direct(f_0 &toplevel)
+    (f/85 : _ -> imm tagged) (Popaque/93, Popaque/92) -> k/40 * error)
+   where k/40 (apply_result/86 : imm tagged) =
+     ((let Popaque/90 = %opaque (5) in
+       let Popaque/91 = %opaque (1) in
+       apply direct(f_0 &toplevel)
+         (f/85 : _ -> imm tagged) (Popaque/91, Popaque/90) -> k/41 * error)
+        where k/41 (apply_result/87 : imm tagged) =
+          let result/88 = %int_barith.add (apply_result/87, apply_result/86)
+          in
+          let Pmakeblock/89 = %block.[`0`].`toplevel` (result/88) in
+          cont k/29 (Pmakeblock/89)))
+  where k/29 define_root_symbol (module_block/63) =
+    let field_0/64 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/63)
+    in
+    let $camlTwo_tags_shared_field = Block 0 (field_0/64) in
+    cont done ($camlTwo_tags_shared_field)
