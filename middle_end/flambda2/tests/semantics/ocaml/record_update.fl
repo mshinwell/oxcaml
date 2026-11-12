@@ -1,0 +1,46 @@
+let $camlRecord_update__first_const_0 = Block 0 () in
+(let code inline(always) size(11)
+       with_y_0
+         (point/57 : [ 0 of imm tagged * imm tagged * imm tagged ],
+          y/58 : imm tagged)
+         my_closure/59 &my_alloc_region/60 my_depth/61
+         -> k/16 * k/17
+         : [ 0 of imm tagged * imm tagged * imm tagged ] =
+   let next_depth/62 = rec_info (succ my_depth/61) in
+   let Pfield/63 = %block_load.[`2`] (point/57) in
+   let Pfield/64 = %block_load.[`0`] (point/57) in
+   let Pmakeblock/65 =
+     %block.[`0`].my_alloc_region/60 (Pfield/64, y/58, Pfield/63)
+   in
+   cont k/16 (Pmakeblock/65)
+ in
+ let with_y/66 = closure with_y_0 @with_y &toplevel in
+ (let region/69 = %begin_region () in
+  let ghost_region/70 = %begin_ghost_region () in
+  (let Popaque/80 = %opaque (1) in
+   let Pmakeblock/81 =
+     %block.[`0`].`toplevel`.local[region/69] (Popaque/80, 2, 3)
+   in
+   apply direct(with_y_0 &toplevel)
+     (with_y/66 : _ -> [ 0 of imm tagged * imm tagged * imm tagged ])
+       (Pmakeblock/81, 20)
+       -> k/20 * error)
+    where k/20 (point/74 : [ 0 of imm tagged * imm tagged * imm tagged ]) =
+      let Pfield/75 = %block_load.[`2`] (point/74) in
+      let Pfield/76 = %block_load.[`1`] (point/74) in
+      let Pfield/77 = %block_load.[`0`] (point/74) in
+      let int_add/78 = %int_barith.add (Pfield/77, Pfield/76) in
+      let int_add/79 = %int_barith.add (int_add/78, Pfield/75) in
+      cont k/19 (int_add/79)
+    where k/19 (region_return/71 : imm tagged) =
+      let unit/72 = %end_region (region/69) in
+      let unit/73 = %end_ghost_region (ghost_region/70) in
+      cont k/18 (region_return/71))
+   where k/18 (result/67 : imm tagged) =
+     let Pmakeblock/68 = %block.[`0`].`toplevel` (result/67) in
+     cont k/15 (Pmakeblock/68))
+  where k/15 define_root_symbol (module_block/55) =
+    let field_0/56 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/55)
+    in
+    let $camlRecord_update = Block 0 (field_0/56) in
+    cont done ($camlRecord_update)

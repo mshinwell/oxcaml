@@ -1,0 +1,16 @@
+let $camlIf_unknown__first_const_0 = Block 0 () in
+(let Popaque/21 = %opaque (3) in
+ let prim/22 = %int_comp.lt (Popaque/21, 5) in
+ let int_lessthan/23 = %tag_imm (prim/22) in
+ let untagged/24 = %untag_imm (int_lessthan/23) in
+ switch untagged/24
+   | 0 -> k/8 (2)
+   | 1 -> k/8 (1))
+  where k/8 (result/19 : imm tagged) =
+    let Pmakeblock/20 = %block.[`0`].`toplevel` (result/19) in
+    cont k/7 (Pmakeblock/20)
+  where k/7 define_root_symbol (module_block/17) =
+    let field_0/18 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/17)
+    in
+    let $camlIf_unknown = Block 0 (field_0/18) in
+    cont done ($camlIf_unknown)

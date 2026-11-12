@@ -1,0 +1,31 @@
+let $camlShifts__first_const_0 = Block 0 () in
+(let code inline(always) size(7)
+       pack_0 (high/47 : imm tagged, low/48 : imm tagged)
+         my_closure/49 &my_alloc_region/50 my_depth/51
+         -> k/12 * k/13
+         : imm tagged =
+   let next_depth/52 = rec_info (succ my_depth/51) in
+   let prim/53 = %untag_imm (8) in
+   let int_lsl/54 = %int_shift.lsl (high/47, prim/53) in
+   let int_add/55 = %int_barith.add (int_lsl/54, low/48) in
+   cont k/12 (int_add/55)
+ in
+ let pack/56 = closure pack_0 @pack &toplevel in
+ let prim/57 = %untag_imm (4) in
+ let int_lsr/58 = %int_shift.lsr (256, prim/57) in
+ let Popaque/59 = %opaque (-16) in
+ let prim/60 = %untag_imm (2) in
+ let int_asr/61 = %int_shift.asr (Popaque/59, prim/60) in
+ (let Popaque/66 = %opaque (3) in
+  apply direct(pack_0 &toplevel)
+    (pack/56 : _ -> imm tagged) (Popaque/66, 7) -> k/14 * error)
+   where k/14 (apply_result/62 : imm tagged) =
+     let int_add/63 = %int_barith.add (apply_result/62, int_asr/61) in
+     let result/64 = %int_barith.add (int_add/63, int_lsr/58) in
+     let Pmakeblock/65 = %block.[`0`].`toplevel` (result/64) in
+     cont k/11 (Pmakeblock/65))
+  where k/11 define_root_symbol (module_block/45) =
+    let field_0/46 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/45)
+    in
+    let $camlShifts = Block 0 (field_0/46) in
+    cont done ($camlShifts)

@@ -1,0 +1,45 @@
+let $camlClamp__first_const_0 = Block 0 () in
+(let code inline(always) size(31)
+       clamp_0 (low/47 : imm tagged, high/48 : imm tagged, x/49 : imm tagged)
+         my_closure/50 &my_alloc_region/51 my_depth/52
+         -> k/20 * k/21
+         : imm tagged =
+   let next_depth/53 = rec_info (succ my_depth/52) in
+   (let prim/57 = %int_comp.lt (x/49, low/47) in
+    let int_lessthan/58 = %tag_imm (prim/57) in
+    (let untagged/59 = %untag_imm (int_lessthan/58) in
+     switch untagged/59
+       | 0 -> k/23
+       | 1 -> k/20 (low/47))
+      where k/23 =
+        cont k/22)
+     where k/22 =
+       let prim/54 = %int_comp.gt (x/49, high/48) in
+       let int_greaterthan/55 = %tag_imm (prim/54) in
+       let untagged/56 = %untag_imm (int_greaterthan/55) in
+       switch untagged/56
+         | 0 -> k/20 (x/49)
+         | 1 -> k/20 (high/48)
+ in
+ let clamp/60 = closure clamp_0 @clamp &toplevel in
+ apply direct(clamp_0 &toplevel)
+   (clamp/60 : _ -> imm tagged) (0, 10, 50) -> k/24 * error
+   where k/24 (apply_result/61 : imm tagged) =
+     (apply direct(clamp_0 &toplevel)
+        (clamp/60 : _ -> imm tagged) (0, 10, 5) -> k/25 * error
+        where k/25 (apply_result/62 : imm tagged) =
+          (apply direct(clamp_0 &toplevel)
+             (clamp/60 : _ -> imm tagged) (0, 10, -5) -> k/26 * error
+             where k/26 (apply_result/63 : imm tagged) =
+               let int_add/64 =
+                 %int_barith.add (apply_result/63, apply_result/62)
+               in
+               let result/65 = %int_barith.add (int_add/64, apply_result/61)
+               in
+               let Pmakeblock/66 = %block.[`0`].`toplevel` (result/65) in
+               cont k/19 (Pmakeblock/66))))
+  where k/19 define_root_symbol (module_block/45) =
+    let field_0/46 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/45)
+    in
+    let $camlClamp = Block 0 (field_0/46) in
+    cont done ($camlClamp)

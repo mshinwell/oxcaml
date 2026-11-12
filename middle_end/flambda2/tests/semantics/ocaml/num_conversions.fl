@@ -1,0 +1,29 @@
+(let $camlNum_conversions__int32_1 = 5l in
+ let $camlNum_conversions__int32_0 = 7l in
+ let Popaque/49 = %opaque ($camlNum_conversions__int32_0) in
+ let prim/50 = %unbox_num.`int32` (Popaque/49) in
+ let prim/51 = %num_conv.[`int32`].[`imm`] (prim/50) in
+ let int_of_int32/52 = %tag_imm (prim/51) in
+ let Popaque/53 = %opaque (6) in
+ let prim/54 = %untag_imm (Popaque/53) in
+ let prim/55 = %num_conv.[`imm`].[`nativeint`] (prim/54) in
+ let nativeint_of_int/56 = %box_num.`nativeint`.`toplevel` (prim/55) in
+ let prim/57 = %unbox_num.`nativeint` (nativeint_of_int/56) in
+ let prim/58 = %num_conv.[`nativeint`].[`imm`] (prim/57) in
+ let int_of_nativeint/59 = %tag_imm (prim/58) in
+ let Popaque/60 = %opaque ($camlNum_conversions__int32_1) in
+ let prim/61 = %unbox_num.`int32` (Popaque/60) in
+ let prim/62 = %num_conv.[`int32`].[`int64`] (prim/61) in
+ let int64_of_int32/63 = %box_num.`int64`.`toplevel` (prim/62) in
+ let prim/64 = %unbox_num.`int64` (int64_of_int32/63) in
+ let prim/65 = %num_conv.[`int64`].[`imm`] (prim/64) in
+ let int_of_int64/66 = %tag_imm (prim/65) in
+ let int_add/67 = %int_barith.add (int_of_int64/66, int_of_nativeint/59) in
+ let result/68 = %int_barith.add (int_add/67, int_of_int32/52) in
+ let Pmakeblock/69 = %block.[`0`].`toplevel` (result/68) in
+ cont k/5 (Pmakeblock/69))
+  where k/5 define_root_symbol (module_block/47) =
+    let field_0/48 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/47)
+    in
+    let $camlNum_conversions = Block 0 (field_0/48) in
+    cont done ($camlNum_conversions)

@@ -1,0 +1,12 @@
+let $camlNegate__first_const_0 = Block 0 () in
+(let Popaque/17 = %opaque (5) in
+ let int_neg/18 = %int_barith.sub (0, Popaque/17) in
+ let int_pred/19 = %int_barith.sub (int_neg/18, 1) in
+ let result/20 = %int_barith.add (int_pred/19, 1) in
+ let Pmakeblock/21 = %block.[`0`].`toplevel` (result/20) in
+ cont k/5 (Pmakeblock/21))
+  where k/5 define_root_symbol (module_block/15) =
+    let field_0/16 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/15)
+    in
+    let $camlNegate = Block 0 (field_0/16) in
+    cont done ($camlNegate)

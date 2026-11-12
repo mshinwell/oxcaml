@@ -1,0 +1,30 @@
+(let $camlString_get_checked__string_1 = "index out of bounds" in
+ let $camlString_get_checked__block_2 =
+   Block 0 ($`*predef*`.caml_exn_Invalid_argument,
+            $camlString_get_checked__string_1)
+ in
+ let $camlString_get_checked__immstring_0 = "hello" in
+ (let prim/27 = %string_length ($camlString_get_checked__immstring_0) in
+  let prim/28 = %num_conv.[`imm`].[`nativeint`] (prim/27) in
+  let prim/29 = %num_conv.[tagged_imm].[`nativeint`] (1) in
+  let prim/30 = %int_comp.`nativeint`.unsigned.lt (prim/29, prim/28) in
+  switch prim/30
+    | 0 -> k/13
+    | 1 -> k/14)
+   where k/14 =
+     cont k/12
+   where k/13 =
+     cont error pop(regular error) ($camlString_get_checked__block_2)
+   where k/12 =
+     let prim/23 = %num_conv.[tagged_imm].[`nativeint`] (1) in
+     let prim/24 =
+       %string_load.[`8`] ($camlString_get_checked__immstring_0, prim/23)
+     in
+     let result/25 = %tag_imm (prim/24) in
+     let Pmakeblock/26 = %block.[`0`].`toplevel` (result/25) in
+     cont k/11 (Pmakeblock/26))
+  where k/11 define_root_symbol (module_block/21) =
+    let field_0/22 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/21)
+    in
+    let $camlString_get_checked = Block 0 (field_0/22) in
+    cont done ($camlString_get_checked)

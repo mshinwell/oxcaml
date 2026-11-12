@@ -1,0 +1,28 @@
+let $camlRaise_notrace__first_const_0 = Block 0 () in
+(let try_region/30 = %begin_try_region () in
+ let try_ghost_region/31 = %begin_try_ghost_region () in
+ cont k/21 push(k/19)
+   where k/21 =
+     ((let Popaque/36 = %opaque (1) in
+       (let untagged/37 = %untag_imm (Popaque/36) in
+        switch untagged/37
+          | 0 -> k/20 (1)
+          | 1 -> k/23)
+         where k/23 =
+           cont k/22)
+        where k/22 =
+          cont k/19 pop(notrace k/19) ($`*predef*`.caml_exn_Not_found))
+   where k/20 (body_result/35 : imm tagged) =
+     cont k/18 pop(k/19) (body_result/35)
+   where k/19 exn (exn/32 : val) =
+     let unit/33 = %end_try_region (try_region/30) in
+     let unit/34 = %end_try_ghost_region (try_ghost_region/31) in
+     cont k/18 (2))
+  where k/18 (result/28 : imm tagged) =
+    let Pmakeblock/29 = %block.[`0`].`toplevel` (result/28) in
+    cont k/17 (Pmakeblock/29)
+  where k/17 define_root_symbol (module_block/26) =
+    let field_0/27 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/26)
+    in
+    let $camlRaise_notrace = Block 0 (field_0/27) in
+    cont done ($camlRaise_notrace)

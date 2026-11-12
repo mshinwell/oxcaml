@@ -1,0 +1,62 @@
+let $camlBool_ops__first_const_0 = Block 0 () in
+(let code inline(always) size(11)
+       implies_0 (a/55 : imm tagged, b/56 : imm tagged)
+         my_closure/57 &my_alloc_region/58 my_depth/59
+         -> k/32 * k/33
+         : imm tagged =
+   let next_depth/60 = rec_info (succ my_depth/59) in
+   let untagged/61 = %untag_imm (a/55) in
+   switch untagged/61
+     | 0 -> k/32 (1)
+     | 1 -> k/32 (b/56)
+ in
+ let code inline(always) size(38)
+       xor_1 (a/62 : imm tagged, b/63 : imm tagged)
+         my_closure/64 &my_alloc_region/65 my_depth/66
+         -> k/34 * k/35
+         : imm tagged =
+   let next_depth/67 = rec_info (succ my_depth/66) in
+   (let untagged/72 = %untag_imm (a/62) in
+    switch untagged/72
+      | 0 -> k/40
+      | 1 -> k/41)
+     where k/41 =
+       cont k/36
+     where k/40 =
+       cont k/38
+     where k/38 =
+       ((let untagged/71 = %untag_imm (b/63) in
+         switch untagged/71
+           | 0 -> k/34 (0)
+           | 1 -> k/39)
+          where k/39 =
+            cont k/36)
+     where k/36 =
+       ((let untagged/70 = %untag_imm (a/62) in
+         switch untagged/70
+           | 0 -> k/37 (0)
+           | 1 -> k/37 (b/63))
+          where k/37 (switch_result/68 : imm tagged) =
+            let Pnot/69 = %boolean_not (switch_result/68) in
+            cont k/34 (Pnot/69))
+ in
+ let implies/73 = closure implies_0 @implies &toplevel in
+ let xor/74 = closure xor_1 @xor &toplevel in
+ apply direct(xor_1 &toplevel)
+   (xor/74 : _ -> imm tagged) (1, 1) -> k/43 * error
+   where k/43 (apply_result/77 : imm tagged) =
+     (apply direct(xor_1 &toplevel)
+        (xor/74 : _ -> imm tagged) (1, 0) -> k/44 * error
+        where k/44 (apply_result/78 : imm tagged) =
+          apply direct(implies_0 &toplevel)
+            (implies/73 : _ -> imm tagged)
+              (apply_result/78, apply_result/77)
+              -> k/42 * error)
+   where k/42 (result/75 : imm tagged) =
+     let Pmakeblock/76 = %block.[`0`].`toplevel` (result/75) in
+     cont k/31 (Pmakeblock/76))
+  where k/31 define_root_symbol (module_block/53) =
+    let field_0/54 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/53)
+    in
+    let $camlBool_ops = Block 0 (field_0/54) in
+    cont done ($camlBool_ops)

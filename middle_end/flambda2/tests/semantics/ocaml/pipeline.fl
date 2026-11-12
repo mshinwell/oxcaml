@@ -1,0 +1,38 @@
+let $camlPipeline__first_const_0 = Block 0 () in
+(let code inline(always) size(3)
+       increment_0 (x/45 : imm tagged)
+         my_closure/46 &my_alloc_region/47 my_depth/48
+         -> k/20 * k/21
+         : imm tagged =
+   let next_depth/49 = rec_info (succ my_depth/48) in
+   let int_add/50 = %int_barith.add (x/45, 1) in
+   cont k/20 (int_add/50)
+ in
+ let code inline(always) size(5)
+       double_1 (x/51 : imm tagged)
+         my_closure/52 &my_alloc_region/53 my_depth/54
+         -> k/22 * k/23
+         : imm tagged =
+   let next_depth/55 = rec_info (succ my_depth/54) in
+   let int_mul/56 = %int_barith.mul (x/51, 2) in
+   cont k/22 (int_mul/56)
+ in
+ let increment/57 = closure increment_0 @increment &toplevel in
+ let double/58 = closure double_1 @double &toplevel in
+ (let Popaque/63 = %opaque (5) in
+  apply direct(increment_0 &toplevel)
+    (increment/57 : _ -> imm tagged) (Popaque/63) -> k/26 * error)
+   where k/26 (apply_result/62 : imm tagged) =
+     apply direct(double_1 &toplevel)
+       (double/58 : _ -> imm tagged) (apply_result/62) -> k/25 * error
+   where k/25 (apply_result/61 : imm tagged) =
+     apply direct(increment_0 &toplevel)
+       (increment/57 : _ -> imm tagged) (apply_result/61) -> k/24 * error
+   where k/24 (result/59 : imm tagged) =
+     let Pmakeblock/60 = %block.[`0`].`toplevel` (result/59) in
+     cont k/19 (Pmakeblock/60))
+  where k/19 define_root_symbol (module_block/43) =
+    let field_0/44 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/43)
+    in
+    let $camlPipeline = Block 0 (field_0/44) in
+    cont done ($camlPipeline)

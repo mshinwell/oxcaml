@@ -1,0 +1,18 @@
+let $camlCompose_exported__first_const_0 = Block 0 () in
+(let code size(12)
+       compose_0 (f/27 : val, g/28 : val, x/29)
+         my_closure/30 &my_alloc_region/31 my_depth/32
+         -> k/12 * k/13 =
+   let next_depth/33 = rec_info (succ my_depth/32) in
+   apply &my_alloc_region/31 g/28 (x/29) -> k/14 * k/13
+     where k/14 (apply_result/34) =
+       apply &my_alloc_region/31 f/27 (apply_result/34) -> k/12 * k/13
+ in
+ let compose/35 = closure compose_0 @compose &toplevel in
+ let Pmakeblock/36 = %block.[`0`].`toplevel` (compose/35) in
+ cont k/11 (Pmakeblock/36))
+  where k/11 define_root_symbol (module_block/25) =
+    let field_0/26 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/25)
+    in
+    let $camlCompose_exported = Block 0 (field_0/26) in
+    cont done ($camlCompose_exported)

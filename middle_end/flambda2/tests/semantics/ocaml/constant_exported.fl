@@ -1,0 +1,17 @@
+let $camlConstant_exported__first_const_0 = Block 0 () in
+(let code size(1)
+       always_one_0 (param/21)
+         my_closure/22 &my_alloc_region/23 my_depth/24
+         -> k/10 * k/11
+         : imm tagged =
+   let next_depth/25 = rec_info (succ my_depth/24) in
+   cont k/10 (1)
+ in
+ let always_one/26 = closure always_one_0 @always_one &toplevel in
+ let Pmakeblock/27 = %block.[`0`].`toplevel` (always_one/26) in
+ cont k/9 (Pmakeblock/27))
+  where k/9 define_root_symbol (module_block/19) =
+    let field_0/20 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/19)
+    in
+    let $camlConstant_exported = Block 0 (field_0/20) in
+    cont done ($camlConstant_exported)

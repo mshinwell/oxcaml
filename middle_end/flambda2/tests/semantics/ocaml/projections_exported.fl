@@ -1,0 +1,29 @@
+let $camlProjections_exported__first_const_0 = Block 0 () in
+(let code size(2) tupled 
+       first_0 (param/44, param/45)
+         my_closure/46 &my_alloc_region/47 my_depth/48
+         -> k/14 * k/15 =
+   let next_depth/49 = rec_info (succ my_depth/48) in
+   let first/50 = %project_function_slot.[first].[first] (my_closure/46) in
+   cont k/14 (param/44)
+ in
+ let code size(2) tupled 
+       second_1 (param/51, param/52)
+         my_closure/53 &my_alloc_region/54 my_depth/55
+         -> k/16 * k/17 =
+   let next_depth/56 = rec_info (succ my_depth/55) in
+   let second/57 = %project_function_slot.[second].[second] (my_closure/53)
+   in
+   cont k/16 (param/52)
+ in
+ let first/58 = closure first_0 @first &toplevel in
+ let second/59 = closure second_1 @second &toplevel in
+ let Pmakeblock/60 = %block.[`0`].`toplevel` (first/58, second/59) in
+ cont k/13 (Pmakeblock/60))
+  where k/13 define_root_symbol (module_block/41) =
+    let field_0/42 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/41)
+    in
+    let field_1/43 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/41)
+    in
+    let $camlProjections_exported = Block 0 (field_0/42, field_1/43) in
+    cont done ($camlProjections_exported)

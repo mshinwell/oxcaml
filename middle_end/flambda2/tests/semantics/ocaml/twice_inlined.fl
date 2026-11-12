@@ -1,0 +1,28 @@
+let $camlTwice_inlined__first_const_0 = Block 0 () in
+(let code inline(always) size(5)
+       square_0 (x/33 : imm tagged)
+         my_closure/34 &my_alloc_region/35 my_depth/36
+         -> k/14 * k/15
+         : imm tagged =
+   let next_depth/37 = rec_info (succ my_depth/36) in
+   let int_mul/38 = %int_barith.mul (x/33, x/33) in
+   cont k/14 (int_mul/38)
+ in
+ let square/39 = closure square_0 @square &toplevel in
+ (let Popaque/45 = %opaque (4) in
+  apply direct(square_0 &toplevel)
+    (square/39 : _ -> imm tagged) (Popaque/45) -> k/16 * error)
+   where k/16 (apply_result/40 : imm tagged) =
+     ((let Popaque/44 = %opaque (3) in
+       apply direct(square_0 &toplevel)
+         (square/39 : _ -> imm tagged) (Popaque/44) -> k/17 * error)
+        where k/17 (apply_result/41 : imm tagged) =
+          let result/42 = %int_barith.add (apply_result/41, apply_result/40)
+          in
+          let Pmakeblock/43 = %block.[`0`].`toplevel` (result/42) in
+          cont k/13 (Pmakeblock/43)))
+  where k/13 define_root_symbol (module_block/31) =
+    let field_0/32 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/31)
+    in
+    let $camlTwice_inlined = Block 0 (field_0/32) in
+    cont done ($camlTwice_inlined)

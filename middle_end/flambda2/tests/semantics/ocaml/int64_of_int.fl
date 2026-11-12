@@ -1,0 +1,34 @@
+let $camlInt64_of_int__first_const_0 = Block 0 () in
+(let code inline(always) size(27)
+       add_as_int64_0 (a/53 : imm tagged, b/54 : imm tagged)
+         my_closure/55 &my_alloc_region/56 my_depth/57
+         -> k/12 * k/13
+         : imm tagged =
+   let next_depth/58 = rec_info (succ my_depth/57) in
+   let prim/59 = %untag_imm (b/54) in
+   let prim/60 = %num_conv.[`imm`].[`int64`] (prim/59) in
+   let int64_of_int/61 = %box_num.`int64`.my_alloc_region/56 (prim/60) in
+   let prim/62 = %untag_imm (a/53) in
+   let prim/63 = %num_conv.[`imm`].[`int64`] (prim/62) in
+   let int64_of_int/64 = %box_num.`int64`.my_alloc_region/56 (prim/63) in
+   let prim/65 = %unbox_num.`int64` (int64_of_int/61) in
+   let prim/66 = %unbox_num.`int64` (int64_of_int/64) in
+   let prim/67 = %int_barith.`int64`.add (prim/66, prim/65) in
+   let int64_add/68 = %box_num.`int64`.my_alloc_region/56 (prim/67) in
+   let prim/69 = %unbox_num.`int64` (int64_add/68) in
+   let prim/70 = %num_conv.[`int64`].[`imm`] (prim/69) in
+   let int_of_int64/71 = %tag_imm (prim/70) in
+   cont k/12 (int_of_int64/71)
+ in
+ let add_as_int64/72 = closure add_as_int64_0 @add_as_int64 &toplevel in
+ (let Popaque/75 = %opaque (40) in
+  apply direct(add_as_int64_0 &toplevel)
+    (add_as_int64/72 : _ -> imm tagged) (Popaque/75, 2) -> k/14 * error)
+   where k/14 (result/73 : imm tagged) =
+     let Pmakeblock/74 = %block.[`0`].`toplevel` (result/73) in
+     cont k/11 (Pmakeblock/74))
+  where k/11 define_root_symbol (module_block/51) =
+    let field_0/52 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/51)
+    in
+    let $camlInt64_of_int = Block 0 (field_0/52) in
+    cont done ($camlInt64_of_int)

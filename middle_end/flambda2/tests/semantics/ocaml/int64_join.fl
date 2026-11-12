@@ -1,0 +1,28 @@
+(let $camlInt64_join__int64_2 = 1L in
+ let $camlInt64_join__int64_1 = 3L in
+ let $camlInt64_join__int64_0 = 4L in
+ (let untagged/51 = %untag_imm (1) in
+  cont k/14)
+   where k/14 =
+     cont k/13
+   where k/13 =
+     let prim/47 = %unbox_num.`int64` ($camlInt64_join__int64_0) in
+     let prim/48 = %unbox_num.`int64` ($camlInt64_join__int64_1) in
+     let prim/49 = %int_barith.`int64`.add (prim/48, prim/47) in
+     let int64_add/50 = %box_num.`int64`.`toplevel` (prim/49) in
+     cont k/12 (int64_add/50)
+   where k/12 (x/38 : int64 boxed) =
+     let prim/39 = %unbox_num.`int64` ($camlInt64_join__int64_2) in
+     let prim/40 = %unbox_num.`int64` (x/38) in
+     let prim/41 = %int_barith.`int64`.add (prim/40, prim/39) in
+     let int64_add/42 = %box_num.`int64`.`toplevel` (prim/41) in
+     let prim/43 = %unbox_num.`int64` (int64_add/42) in
+     let prim/44 = %num_conv.[`int64`].[`imm`] (prim/43) in
+     let result/45 = %tag_imm (prim/44) in
+     let Pmakeblock/46 = %block.[`0`].`toplevel` (result/45) in
+     cont k/11 (Pmakeblock/46))
+  where k/11 define_root_symbol (module_block/36) =
+    let field_0/37 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/36)
+    in
+    let $camlInt64_join = Block 0 (field_0/37) in
+    cont done ($camlInt64_join)

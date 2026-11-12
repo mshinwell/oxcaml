@@ -1,0 +1,52 @@
+let $camlFor_sum__first_const_0 = Block 0 () in
+cont k/21 (0)
+  where k/21 (let_mutable/58 : imm tagged) =
+    let for_stop/59 = %opaque (10) in
+    ((let prim/76 = %int_comp.le (1, for_stop/59) in
+      let int_lessequal/77 = %tag_imm (prim/76) in
+      (let untagged/78 = %untag_imm (int_lessequal/77) in
+       switch untagged/78
+         | 0 -> k/22 (0, let_mutable/58)
+         | 1 -> k/26)
+        where k/26 =
+          cont k/23 (let_mutable/58))
+       where k/23 (total_13_unboxed0/62 : imm tagged) =
+         let prim/63 = %untag_imm (1) in
+         let for_start_naked/64 = %num_conv.[`imm`].[`int64`] (prim/63) in
+         let prim/65 = %untag_imm (for_stop/59) in
+         let for_stop_naked/66 = %num_conv.[`imm`].[`int64`] (prim/65) in
+         (cont k/24 (for_start_naked/64, total_13_unboxed0/62)
+            where rec k/24
+                        (for_counter_naked/67 : int64,
+                         total_13_unboxed0/68 : imm tagged) =
+              let prim/69 =
+                %num_conv.[`int64`].[`imm`] (for_counter_naked/67)
+              in
+              let i/70 = %tag_imm (prim/69) in
+              let int_add/71 = %int_barith.add (total_13_unboxed0/68, i/70)
+              in
+              let for_next_naked/72 =
+                %int_barith.`int64`.add (for_counter_naked/67, 1L)
+              in
+              let prim/73 =
+                %int_comp.`int64`.le (for_next_naked/72, for_stop_naked/66)
+              in
+              let `int64#_lessequal/74` = %tag_imm (prim/73) in
+              ((let untagged/75 = %untag_imm (`int64#_lessequal/74`) in
+                switch untagged/75
+                  | 0 -> k/22 (0, int_add/71)
+                  | 1 -> k/25)
+                 where k/25 =
+                   cont k/24 (for_next_naked/72, int_add/71)))
+       where k/22
+               (staticcatch_result/60 : imm tagged,
+                total_13_unboxed0/61 : imm tagged) =
+         cont k/20 (total_13_unboxed0/61))
+  where k/20 (result/56 : imm tagged) =
+    let Pmakeblock/57 = %block.[`0`].`toplevel` (result/56) in
+    cont k/19 (Pmakeblock/57)
+  where k/19 define_root_symbol (module_block/54) =
+    let field_0/55 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/54)
+    in
+    let $camlFor_sum = Block 0 (field_0/55) in
+    cont done ($camlFor_sum)

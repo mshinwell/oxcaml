@@ -1,0 +1,30 @@
+let $camlRaise_in_function__first_const_0 = Block 0 () in
+(let try_region/34 = %begin_try_region () in
+ let try_ghost_region/35 = %begin_try_ghost_region () in
+ cont k/21 push(k/19)
+   where k/21 =
+     let x/40 = %opaque (-1) in
+     ((let prim/41 = %int_comp.lt (x/40, 0) in
+       let int_lessthan/42 = %tag_imm (prim/41) in
+       (let untagged/43 = %untag_imm (int_lessthan/42) in
+        switch untagged/43
+          | 0 -> k/20 (x/40)
+          | 1 -> k/23)
+         where k/23 =
+           cont k/22)
+        where k/22 =
+          cont k/19 pop(regular k/19) ($`*predef*`.caml_exn_Not_found))
+   where k/20 (body_result/39 : imm tagged) =
+     cont k/18 pop(k/19) (body_result/39)
+   where k/19 exn (exn/36 : val) =
+     let unit/37 = %end_try_region (try_region/34) in
+     let unit/38 = %end_try_ghost_region (try_ghost_region/35) in
+     cont k/18 (0))
+  where k/18 (result/32 : imm tagged) =
+    let Pmakeblock/33 = %block.[`0`].`toplevel` (result/32) in
+    cont k/17 (Pmakeblock/33)
+  where k/17 define_root_symbol (module_block/30) =
+    let field_0/31 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/30)
+    in
+    let $camlRaise_in_function = Block 0 (field_0/31) in
+    cont done ($camlRaise_in_function)

@@ -1,0 +1,8 @@
+labelled_optional.fl:
+  before Simplify (38 steps): returns [0: 25]
+  after Simplify (6 steps): returns [0: 25]
+  the check of kinds: passes before, passes after
+  calls outside code: 2 before, 0 after
+  the same
+  calls outside code once those of known code are inlined: 0
+  validated: the same once normalised and unused static bindings removed

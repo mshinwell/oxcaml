@@ -1,0 +1,31 @@
+(let code inline(always) size(3)
+       next_0 (x/40 : imm tagged)
+         my_closure/41 &my_alloc_region/42 my_depth/43
+         -> k/18 * k/19
+         : imm tagged =
+   let next_depth/44 = rec_info (succ my_depth/43) in
+   let int_add/45 = %int_barith.add (x/40, 2) in
+   cont k/18 (int_add/45)
+ in
+ let $camlFunctor_apply__Pmakeblock_0 = Block 0 (2) in
+ cont k/23 ($camlFunctor_apply__Pmakeblock_0)
+   where k/23 (S/52 : val) =
+     let next/53 = closure next_0 @next &toplevel in
+     let Pmakeblock/54 = %block.[`0`].`toplevel` (next/53) in
+     cont k/20 (Pmakeblock/54)
+   where k/20 (By_two/46 : val) =
+     ((let Pfield/51 = %block_load.[`0`] (By_two/46) in
+       apply direct(next_0 &toplevel)
+         (Pfield/51 : _ -> imm tagged) (1) -> k/22 * error)
+        where k/22 (apply_result/49 : imm tagged) =
+          let Pfield/50 = %block_load.[`0`] (By_two/46) in
+          apply direct(next_0 &toplevel)
+            (Pfield/50 : _ -> imm tagged) (apply_result/49) -> k/21 * error
+        where k/21 (result/47 : imm tagged) =
+          let Pmakeblock/48 = %block.[`0`].`toplevel` (result/47) in
+          cont k/17 (Pmakeblock/48)))
+  where k/17 define_root_symbol (module_block/38) =
+    let field_0/39 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/38)
+    in
+    let $camlFunctor_apply = Block 0 (field_0/39) in
+    cont done ($camlFunctor_apply)

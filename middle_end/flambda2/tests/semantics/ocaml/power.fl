@@ -1,0 +1,37 @@
+let $camlPower__first_const_0 = Block 0 () in
+(let code rec size(27)
+       power_0 (base/37 : imm tagged, exponent/38 : imm tagged)
+         my_closure/39 &my_alloc_region/40 my_depth/41
+         -> k/18 * k/19
+         : imm tagged =
+   let next_depth/42 = rec_info (succ my_depth/41) in
+   (let prim/46 = %phys_eq (exponent/38, 0) in
+    let eq/47 = %tag_imm (prim/46) in
+    (let untagged/48 = %untag_imm (eq/47) in
+     switch untagged/48
+       | 0 -> k/22
+       | 1 -> k/18 (1))
+      where k/22 =
+        cont k/20)
+     where k/20 =
+       ((let int_sub/45 = %int_barith.sub (exponent/38, 1) in
+         apply direct(power_0 &my_alloc_region/40)
+           (my_closure/39 ~ depth my_depth/41 -> next_depth/42
+            : _ -> imm tagged)
+             (base/37, int_sub/45)
+             -> k/21 * k/19)
+          where k/21 (apply_result/43 : imm tagged) =
+            let int_mul/44 = %int_barith.mul (base/37, apply_result/43) in
+            cont k/18 (int_mul/44))
+ in
+ let power/49 = closure power_0 @power &toplevel in
+ apply direct(power_0 &toplevel)
+   (power/49 : _ -> imm tagged) (2, 10) -> k/23 * error
+   where k/23 (result/50 : imm tagged) =
+     let Pmakeblock/51 = %block.[`0`].`toplevel` (result/50) in
+     cont k/17 (Pmakeblock/51))
+  where k/17 define_root_symbol (module_block/35) =
+    let field_0/36 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/35)
+    in
+    let $camlPower = Block 0 (field_0/36) in
+    cont done ($camlPower)

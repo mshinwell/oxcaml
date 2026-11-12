@@ -1,0 +1,29 @@
+let $camlRef_counter__first_const_0 = Block 0 () in
+(let code inline(never) size(8)
+       tick_0 (counter/37 : val)
+         my_closure/38 &my_alloc_region/39 my_depth/40
+         -> k/14 * k/15
+         : imm tagged =
+   let next_depth/41 = rec_info (succ my_depth/40) in
+   let Pfield/42 = %block_load.mut.[`0`] (counter/37) in
+   let int_add/43 = %int_barith.add (Pfield/42, 1) in
+   let Psetfield/44 = %block_set.`imm`.[`0`] (counter/37, int_add/43) in
+   cont k/14 (Psetfield/44)
+ in
+ let tick/45 = closure tick_0 @tick &toplevel in
+ let Pmakeblock/46 = %block.mut.[`0`].`toplevel` (0) in
+ let counter/47 = %opaque (Pmakeblock/46) in
+ apply direct(tick_0 &toplevel)
+   (tick/45 : _ -> imm tagged) (counter/47) -> k/17 * error
+   where k/17 (apply_result/51 : imm tagged) =
+     apply direct(tick_0 &toplevel)
+       (tick/45 : _ -> imm tagged) (counter/47) -> k/16 * error
+   where k/16 (`*match*/48` : imm tagged) =
+     let result/49 = %block_load.mut.[`0`] (counter/47) in
+     let Pmakeblock/50 = %block.[`0`].`toplevel` (result/49) in
+     cont k/13 (Pmakeblock/50))
+  where k/13 define_root_symbol (module_block/35) =
+    let field_0/36 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/35)
+    in
+    let $camlRef_counter = Block 0 (field_0/36) in
+    cont done ($camlRef_counter)

@@ -1,0 +1,53 @@
+(let $camlInt32_overflow__int32_3 = 65536l in
+ let $camlInt32_overflow__int32_2 = -2147483648l in
+ let $camlInt32_overflow__int32_1 = 1l in
+ let $camlInt32_overflow__int32_0 = 2147483647l in
+ let prim/74 = %unbox_num.`int32` ($camlInt32_overflow__int32_1) in
+ let prim/75 = %unbox_num.`int32` ($camlInt32_overflow__int32_0) in
+ let prim/76 = %int_barith.`int32`.add (prim/75, prim/74) in
+ let int32_add/77 = %box_num.`int32`.`toplevel` (prim/76) in
+ let prim/78 = %unbox_num.`int32` (int32_add/77) in
+ let prim/79 = %num_conv.[`int32`].[`imm`] (prim/78) in
+ let above_the_largest/80 = %tag_imm (prim/79) in
+ let prim/81 = %unbox_num.`int32` ($camlInt32_overflow__int32_1) in
+ let prim/82 = %unbox_num.`int32` ($camlInt32_overflow__int32_2) in
+ let prim/83 = %int_barith.`int32`.sub (prim/82, prim/81) in
+ let int32_sub/84 = %box_num.`int32`.`toplevel` (prim/83) in
+ let prim/85 = %unbox_num.`int32` (int32_sub/84) in
+ let prim/86 = %num_conv.[`int32`].[`imm`] (prim/85) in
+ let below_the_least/87 = %tag_imm (prim/86) in
+ let prim/88 = %unbox_num.`int32` ($camlInt32_overflow__int32_3) in
+ let prim/89 = %unbox_num.`int32` ($camlInt32_overflow__int32_3) in
+ let prim/90 = %int_barith.`int32`.mul (prim/89, prim/88) in
+ let int32_mul/91 = %box_num.`int32`.`toplevel` (prim/90) in
+ let prim/92 = %unbox_num.`int32` (int32_mul/91) in
+ let prim/93 = %num_conv.[`int32`].[`imm`] (prim/92) in
+ let two_to_the_32/94 = %tag_imm (prim/93) in
+ let prim/95 = %unbox_num.`int32` ($camlInt32_overflow__int32_0) in
+ let prim/96 = %unbox_num.`int32` ($camlInt32_overflow__int32_0) in
+ let prim/97 = %int_barith.`int32`.mul (prim/96, prim/95) in
+ let int32_mul/98 = %box_num.`int32`.`toplevel` (prim/97) in
+ let prim/99 = %unbox_num.`int32` (int32_mul/98) in
+ let prim/100 = %num_conv.[`int32`].[`imm`] (prim/99) in
+ let the_largest_squared/101 = %tag_imm (prim/100) in
+ let Pmakeblock/102 =
+   %block.[`0`].`toplevel`
+     (above_the_largest/80,
+      below_the_least/87,
+      two_to_the_32/94,
+      the_largest_squared/101)
+ in
+ cont k/5 (Pmakeblock/102))
+  where k/5 define_root_symbol (module_block/69) =
+    let field_0/70 = %block_load.tag[`0`].`size`[`4`].[`0`] (module_block/69)
+    in
+    let field_1/71 = %block_load.tag[`0`].`size`[`4`].[`1`] (module_block/69)
+    in
+    let field_2/72 = %block_load.tag[`0`].`size`[`4`].[`2`] (module_block/69)
+    in
+    let field_3/73 = %block_load.tag[`0`].`size`[`4`].[`3`] (module_block/69)
+    in
+    let $camlInt32_overflow =
+      Block 0 (field_0/70, field_1/71, field_2/72, field_3/73)
+    in
+    cont done ($camlInt32_overflow)

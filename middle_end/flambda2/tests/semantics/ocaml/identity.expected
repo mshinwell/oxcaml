@@ -1,0 +1,8 @@
+identity.fl:
+  before Simplify (22 steps): returns [0: 7]
+  after Simplify (3 steps): returns [0: 7]
+  the check of kinds: passes before, passes after
+  calls outside code: 4 before, 0 after
+  the same
+  calls outside code once those of known code are inlined: 1
+  validated: the same once normalised and unused static bindings removed

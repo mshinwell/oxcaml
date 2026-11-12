@@ -1,0 +1,43 @@
+(let code rec size(24)
+       sum_0
+         (list/37 : [ 0 | 0 of imm tagged * [ 0 | 0 of imm tagged * val ] ])
+         my_closure/38 &my_alloc_region/39 my_depth/40
+         -> k/18 * k/19
+         : imm tagged =
+   let next_depth/41 = rec_info (succ my_depth/40) in
+   (let prim/46 = %is_int (list/37) in
+    let Pisint/47 = %tag_imm (prim/46) in
+    (let untagged/48 = %untag_imm (Pisint/47) in
+     switch untagged/48
+       | 0 -> k/22
+       | 1 -> k/18 (0))
+      where k/22 =
+        cont k/20)
+     where k/20 =
+       ((let Pfield/45 = %block_load.[`1`] (list/37) in
+         apply direct(sum_0 &my_alloc_region/39)
+           (my_closure/38 ~ depth my_depth/40 -> next_depth/41
+            : _ -> imm tagged)
+             (Pfield/45)
+             -> k/21 * k/19)
+          where k/21 (apply_result/42 : imm tagged) =
+            let Pfield/43 = %block_load.[`0`] (list/37) in
+            let int_add/44 = %int_barith.add (Pfield/43, apply_result/42) in
+            cont k/18 (int_add/44))
+ in
+ let $camlList_sum__const_block_0 = Block 0 (3, 0) in
+ let $camlList_sum__const_block_1 = Block 0 (2, $camlList_sum__const_block_0)
+ in
+ let $camlList_sum__const_block_2 = Block 0 (1, $camlList_sum__const_block_1)
+ in
+ let sum/49 = closure sum_0 @sum &toplevel in
+ apply direct(sum_0 &toplevel)
+   (sum/49 : _ -> imm tagged) ($camlList_sum__const_block_2) -> k/23 * error
+   where k/23 (result/50 : imm tagged) =
+     let Pmakeblock/51 = %block.[`0`].`toplevel` (result/50) in
+     cont k/17 (Pmakeblock/51))
+  where k/17 define_root_symbol (module_block/35) =
+    let field_0/36 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/35)
+    in
+    let $camlList_sum = Block 0 (field_0/36) in
+    cont done ($camlList_sum)

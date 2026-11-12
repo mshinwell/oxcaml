@@ -1,0 +1,25 @@
+let $camlFst_snd__first_const_0 = Block 0 () in
+(let code inline(always) size(5)
+       sum_0 (pair/33 : [ 0 of imm tagged * imm tagged ])
+         my_closure/34 &my_alloc_region/35 my_depth/36
+         -> k/12 * k/13
+         : imm tagged =
+   let next_depth/37 = rec_info (succ my_depth/36) in
+   let Pfield/38 = %block_load.[`1`] (pair/33) in
+   let Pfield/39 = %block_load.[`0`] (pair/33) in
+   let int_add/40 = %int_barith.add (Pfield/39, Pfield/38) in
+   cont k/12 (int_add/40)
+ in
+ let sum/41 = closure sum_0 @sum &toplevel in
+ (let Popaque/44 = %opaque (1) in
+  let Pmakeblock/45 = %block.[`0`].`toplevel` (Popaque/44, 2) in
+  apply direct(sum_0 &toplevel)
+    (sum/41 : _ -> imm tagged) (Pmakeblock/45) -> k/14 * error)
+   where k/14 (result/42 : imm tagged) =
+     let Pmakeblock/43 = %block.[`0`].`toplevel` (result/42) in
+     cont k/11 (Pmakeblock/43))
+  where k/11 define_root_symbol (module_block/31) =
+    let field_0/32 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/31)
+    in
+    let $camlFst_snd = Block 0 (field_0/32) in
+    cont done ($camlFst_snd)

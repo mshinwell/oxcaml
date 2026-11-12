@@ -1,0 +1,16 @@
+let $camlApply_exported__first_const_0 = Block 0 () in
+(let code size(6)
+       apply_0 (f/23 : val, x/24)
+         my_closure/25 &my_alloc_region/26 my_depth/27
+         -> k/10 * k/11 =
+   let next_depth/28 = rec_info (succ my_depth/27) in
+   apply &my_alloc_region/26 f/23 (x/24) -> k/10 * k/11
+ in
+ let apply/29 = closure apply_0 @`apply` &toplevel in
+ let Pmakeblock/30 = %block.[`0`].`toplevel` (apply/29) in
+ cont k/9 (Pmakeblock/30))
+  where k/9 define_root_symbol (module_block/21) =
+    let field_0/22 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/21)
+    in
+    let $camlApply_exported = Block 0 (field_0/22) in
+    cont done ($camlApply_exported)

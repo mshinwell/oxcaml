@@ -1,0 +1,41 @@
+let $camlGadt_known__first_const_0 = Block 0 () in
+(let code inline(always) size(27)
+       weight_0 (kind/37 : imm tagged, x/38 : val)
+         my_closure/39 &my_alloc_region/40 my_depth/41
+         -> k/22 * k/23
+         : imm tagged =
+   let next_depth/42 = rec_info (succ my_depth/41) in
+   (let untagged/45 = %untag_imm (kind/37) in
+    switch untagged/45
+      | 0 -> k/26
+      | 1 -> k/27)
+     where k/27 =
+       cont k/24
+     where k/26 =
+       cont k/25
+     where k/25 =
+       let int_add/44 = %int_barith.add (x/38, 1) in
+       cont k/22 (int_add/44)
+     where k/24 =
+       let untagged/43 = %untag_imm (x/38) in
+       switch untagged/43
+         | 0 -> k/22 (20)
+         | 1 -> k/22 (10)
+ in
+ let weight/46 = closure weight_0 @weight &toplevel in
+ apply direct(weight_0 &toplevel)
+   (weight/46 : _ -> imm tagged) (1, 1) -> k/28 * error
+   where k/28 (apply_result/47 : imm tagged) =
+     ((let Popaque/51 = %opaque (4) in
+       apply direct(weight_0 &toplevel)
+         (weight/46 : _ -> imm tagged) (0, Popaque/51) -> k/29 * error)
+        where k/29 (apply_result/48 : imm tagged) =
+          let result/49 = %int_barith.add (apply_result/48, apply_result/47)
+          in
+          let Pmakeblock/50 = %block.[`0`].`toplevel` (result/49) in
+          cont k/21 (Pmakeblock/50)))
+  where k/21 define_root_symbol (module_block/35) =
+    let field_0/36 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/35)
+    in
+    let $camlGadt_known = Block 0 (field_0/36) in
+    cont done ($camlGadt_known)

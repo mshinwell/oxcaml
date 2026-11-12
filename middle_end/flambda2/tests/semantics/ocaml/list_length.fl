@@ -1,0 +1,48 @@
+(let code rec loopify(default tailrec) size(22)
+       length_from_0
+         (acc/35 : imm tagged,
+          list/36 : [ 0 | 0 of val * [ 0 | 0 of val * val ] ])
+         my_closure/37 &my_alloc_region/38 my_depth/39
+         -> k/16 * k/17
+         : imm tagged =
+   let next_depth/40 = rec_info (succ my_depth/39) in
+   (let prim/43 = %is_int (list/36) in
+    let Pisint/44 = %tag_imm (prim/43) in
+    (let untagged/45 = %untag_imm (Pisint/44) in
+     switch untagged/45
+       | 0 -> k/19
+       | 1 -> k/16 (acc/35))
+      where k/19 =
+        cont k/18)
+     where k/18 =
+       let Pfield/41 = %block_load.[`1`] (list/36) in
+       let int_add/42 = %int_barith.add (acc/35, 1) in
+       apply direct(length_from_0 &my_alloc_region/38)
+         (my_closure/37 ~ depth my_depth/39 -> next_depth/40
+          : _ -> imm tagged)
+           (int_add/42, Pfield/41)
+           -> k/16 * k/17
+ in
+ let $camlList_length__const_block_0 = Block 0 (40, 0) in
+ let $camlList_length__const_block_1 =
+   Block 0 (30, $camlList_length__const_block_0)
+ in
+ let $camlList_length__const_block_2 =
+   Block 0 (20, $camlList_length__const_block_1)
+ in
+ let $camlList_length__const_block_3 =
+   Block 0 (10, $camlList_length__const_block_2)
+ in
+ let length_from/46 = closure length_from_0 @length_from &toplevel in
+ apply direct(length_from_0 &toplevel)
+   (length_from/46 : _ -> imm tagged)
+     (0, $camlList_length__const_block_3)
+     -> k/20 * error
+   where k/20 (result/47 : imm tagged) =
+     let Pmakeblock/48 = %block.[`0`].`toplevel` (result/47) in
+     cont k/15 (Pmakeblock/48))
+  where k/15 define_root_symbol (module_block/33) =
+    let field_0/34 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/33)
+    in
+    let $camlList_length = Block 0 (field_0/34) in
+    cont done ($camlList_length)

@@ -1,0 +1,22 @@
+let $camlLabelled_arguments__first_const_0 = Block 0 () in
+(let code inline(always) size(3)
+       subtract_0 (from/29 : imm tagged, amount/30 : imm tagged)
+         my_closure/31 &my_alloc_region/32 my_depth/33
+         -> k/12 * k/13
+         : imm tagged =
+   let next_depth/34 = rec_info (succ my_depth/33) in
+   let int_sub/35 = %int_barith.sub (from/29, amount/30) in
+   cont k/12 (int_sub/35)
+ in
+ let subtract/36 = closure subtract_0 @subtract &toplevel in
+ (let Popaque/39 = %opaque (3) in
+  apply direct(subtract_0 &toplevel)
+    (subtract/36 : _ -> imm tagged) (10, Popaque/39) -> k/14 * error)
+   where k/14 (result/37 : imm tagged) =
+     let Pmakeblock/38 = %block.[`0`].`toplevel` (result/37) in
+     cont k/11 (Pmakeblock/38))
+  where k/11 define_root_symbol (module_block/27) =
+    let field_0/28 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/27)
+    in
+    let $camlLabelled_arguments = Block 0 (field_0/28) in
+    cont done ($camlLabelled_arguments)

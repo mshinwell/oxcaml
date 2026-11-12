@@ -1,0 +1,81 @@
+let $camlRecord_of_functions__first_const_0 = Block 0 () in
+(let code inline(always) size(22)
+       fold3_0
+         (operations/85 : [ 0 of val * imm tagged ],
+          a/86 : imm tagged,
+          b/87 : imm tagged,
+          c/88 : imm tagged)
+         my_closure/89 &my_alloc_region/90 my_depth/91
+         -> k/26 * k/27
+         : imm tagged =
+   let next_depth/92 = rec_info (succ my_depth/91) in
+   (let Pfield/97 = %block_load.[`1`] (operations/85) in
+    let Pfield/98 = %block_load.[`0`] (operations/85) in
+    apply &my_alloc_region/90 Pfield/98 (Pfield/97, a/86) -> k/29 * k/27)
+     where k/29 (apply_result/95 : imm tagged) =
+       let Pfield/96 = %block_load.[`0`] (operations/85) in
+       apply &my_alloc_region/90
+         Pfield/96 (apply_result/95, b/87) -> k/28 * k/27
+     where k/28 (apply_result/93 : imm tagged) =
+       let Pfield/94 = %block_load.[`0`] (operations/85) in
+       apply &my_alloc_region/90
+         Pfield/94 (apply_result/93, c/88) -> k/26 * k/27
+ in
+ let code inline(always) size(5)
+       `fn[record_of_functions.ml:22,22--49]_1`
+         (a/99 : imm tagged, b/100 : imm tagged)
+         my_closure/101 &my_alloc_region/102 my_depth/103
+         -> k/30 * k/31
+         : imm tagged =
+   let next_depth/104 = rec_info (succ my_depth/103) in
+   let int_mul/105 = %int_barith.mul (a/99, b/100) in
+   cont k/30 (int_mul/105)
+ in
+ let code inline(always) size(3)
+       `fn[record_of_functions.ml:21,20--47]_2`
+         (a/106 : imm tagged, b/107 : imm tagged)
+         my_closure/108 &my_alloc_region/109 my_depth/110
+         -> k/32 * k/33
+         : imm tagged =
+   let next_depth/111 = rec_info (succ my_depth/110) in
+   let int_add/112 = %int_barith.add (a/106, b/107) in
+   cont k/32 (int_add/112)
+ in
+ let fold3/113 = closure fold3_0 @fold3 &toplevel in
+ (let Popaque/121 = %opaque (2) in
+  let `fn[record_of_functions.ml:22,22--49]/122` =
+    closure `fn[record_of_functions.ml:22,22--49]_1`
+      @`fn[record_of_functions.ml:22,22--49]` &toplevel
+  in
+  let Pmakeblock/123 =
+    %block.[`0`].`toplevel` (`fn[record_of_functions.ml:22,22--49]/122`, 2)
+  in
+  apply direct(fold3_0 &toplevel)
+    (fold3/113 : _ -> imm tagged)
+      (Pmakeblock/123, Popaque/121, 3, 4)
+      -> k/34 * error)
+   where k/34 (apply_result/114 : imm tagged) =
+     ((let Popaque/118 = %opaque (1) in
+       let `fn[record_of_functions.ml:21,20--47]/119` =
+         closure `fn[record_of_functions.ml:21,20--47]_2`
+           @`fn[record_of_functions.ml:21,20--47]` &toplevel
+       in
+       let Pmakeblock/120 =
+         %block.[`0`].`toplevel`
+           (`fn[record_of_functions.ml:21,20--47]/119`, 10)
+       in
+       apply direct(fold3_0 &toplevel)
+         (fold3/113 : _ -> imm tagged)
+           (Pmakeblock/120, Popaque/118, 2, 3)
+           -> k/35 * error)
+        where k/35 (apply_result/115 : imm tagged) =
+          let result/116 =
+            %int_barith.add (apply_result/115, apply_result/114)
+          in
+          let Pmakeblock/117 = %block.[`0`].`toplevel` (result/116) in
+          cont k/25 (Pmakeblock/117)))
+  where k/25 define_root_symbol (module_block/83) =
+    let field_0/84 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/83)
+    in
+    let $camlRecord_of_functions = Block 0 (field_0/84) in
+    cont done ($camlRecord_of_functions)

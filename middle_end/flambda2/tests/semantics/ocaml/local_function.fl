@@ -1,0 +1,49 @@
+let $camlLocal_function__first_const_0 = Block 0 () in
+(let code inline(always) size(4)
+       add_1 (y/57 : imm tagged)
+         my_closure/58 &my_alloc_region/59 my_depth/60
+         -> k/22 * k/23
+         : imm tagged =
+   let next_depth/61 = rec_info (succ my_depth/60) in
+   let x/62 = %project_value_slot.[add].[x] (my_closure/58) in
+   let int_add/63 = %int_barith.add (x/62, y/57) in
+   cont k/22 (int_add/63)
+ in
+ let code inline(always) size(26)
+       sum_of_two_0 (x/64 : imm tagged)
+         my_closure/65 &my_alloc_region/66 my_depth/67
+         -> k/24 * k/25
+         : imm tagged =
+   let next_depth/68 = rec_info (succ my_depth/67) in
+   let region/69 = %begin_region () in
+   let ghost_region/70 = %begin_ghost_region () in
+   (let add/74 = closure add_1 @add &my_alloc_region/66 &region/69
+    with { x = x/64 }
+    in
+    apply direct(add_1 &my_alloc_region/66)
+      (add/74 : _ -> imm tagged) (2) -> k/27 * k/25
+      where k/27 (apply_result/75 : imm tagged) =
+        (apply direct(add_1 &my_alloc_region/66)
+           (add/74 : _ -> imm tagged) (1) -> k/28 * k/25
+           where k/28 (apply_result/76 : imm tagged) =
+             let int_add/77 =
+               %int_barith.add (apply_result/76, apply_result/75)
+             in
+             cont k/26 (int_add/77)))
+     where k/26 (region_return/71 : imm tagged) =
+       let unit/72 = %end_region (region/69) in
+       let unit/73 = %end_ghost_region (ghost_region/70) in
+       cont k/24 (region_return/71)
+ in
+ let sum_of_two/78 = closure sum_of_two_0 @sum_of_two &toplevel in
+ (let Popaque/81 = %opaque (10) in
+  apply direct(sum_of_two_0 &toplevel)
+    (sum_of_two/78 : _ -> imm tagged) (Popaque/81) -> k/29 * error)
+   where k/29 (result/79 : imm tagged) =
+     let Pmakeblock/80 = %block.[`0`].`toplevel` (result/79) in
+     cont k/21 (Pmakeblock/80))
+  where k/21 define_root_symbol (module_block/55) =
+    let field_0/56 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/55)
+    in
+    let $camlLocal_function = Block 0 (field_0/56) in
+    cont done ($camlLocal_function)

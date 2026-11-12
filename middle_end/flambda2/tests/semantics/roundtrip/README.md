@@ -29,7 +29,19 @@ Each has a file here with what the tool prints, and its reason below.
   read back is not the unit printed. A limit of fexpr, not of the
   conversion: the example is there to show it.
 
+- `ocaml_option_join.expected`, `ocaml_option_heap.expected`,
+  `ocaml_list_heap.expected`, `ocaml_shape_heap.expected`,
+  `ocaml_shape2_heap.expected`, `ocaml_nested_heap.expected`,
+  `ocaml_either_heap.expected` and `ocaml_int64_option_heap.expected`,
+  the unit after Simplify. Simplify unboxes a variant where two
+  branches meet,
+  and gives the fields that a branch has not got the constant
+  `poison`. The conversion makes that constant of the model; the
+  printer does not print it (see below), so the unit after Simplify is
+  not taken through fexpr. The unit before is.
+
 ## What cannot be printed
 
 `flmodel_to_fexpr.ml` lists at its head what it refuses, with the
-reason for each. No example meets one today.
+reason for each. The eight examples above meet one: a poison
+constant.

@@ -1,0 +1,24 @@
+let $Statics_order_even = closure even @even &toplevel
+and $Statics_order_odd = closure odd @odd &toplevel
+and code rec size(18) even (n) my_closure &my_region my_depth -> k * e =
+  let is_zero = %int_comp.`eq` (n, 0) in
+  switch is_zero
+    | 0 -> not_zero
+    | 1 -> k (1)
+    where not_zero =
+      let m = %int_barith.`sub` (n, 1) in
+      apply direct(odd &my_region) $Statics_order_odd (m) -> k * e
+and code rec size(18) odd (n) my_closure &my_region my_depth -> k * e =
+  let is_zero = %int_comp.`eq` (n, 0) in
+  switch is_zero
+    | 0 -> not_zero
+    | 1 -> k (0)
+    where not_zero =
+      let m = %int_barith.`sub` (n, 1) in
+      apply direct(even &my_region) $Statics_order_even (m) -> k * e
+in
+let seven = %opaque (7) in
+apply direct(odd &toplevel) $Statics_order_odd (seven) -> k1 * error
+  where k1 (is_odd) =
+    let $camlStatics_order = Block 0 (is_odd) in
+    cont done ($camlStatics_order)

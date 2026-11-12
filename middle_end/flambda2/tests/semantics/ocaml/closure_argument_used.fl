@@ -1,0 +1,22 @@
+let $camlClosure_argument_used__first_const_0 = Block 0 () in
+(let code size(4)
+       g_0 (y/29 : imm tagged)
+         my_closure/30 &my_alloc_region/31 my_depth/32
+         -> k/12 * k/13
+         : imm tagged =
+   let next_depth/33 = rec_info (succ my_depth/32) in
+   let x/34 = %project_value_slot.[g].[x] (my_closure/30) in
+   let int_add/35 = %int_barith.add (y/29, x/34) in
+   cont k/12 (int_add/35)
+ in
+ (let x/38 = %opaque (3) in
+  let g/39 = closure g_0 @g &toplevel with { x = x/38 } in
+  apply direct(g_0 &toplevel) g/39 (x/38) -> k/14 * error)
+   where k/14 (result/36 : imm tagged) =
+     let Pmakeblock/37 = %block.[`0`].`toplevel` (result/36) in
+     cont k/11 (Pmakeblock/37))
+  where k/11 define_root_symbol (module_block/27) =
+    let field_0/28 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/27)
+    in
+    let $camlClosure_argument_used = Block 0 (field_0/28) in
+    cont done ($camlClosure_argument_used)

@@ -1,0 +1,10 @@
+let $camlInt_of_char__first_const_0 = Block 0 () in
+(let Popaque/13 = %opaque (97) in
+ let result/14 = %int_barith.add (Popaque/13, 1) in
+ let Pmakeblock/15 = %block.[`0`].`toplevel` (result/14) in
+ cont k/5 (Pmakeblock/15))
+  where k/5 define_root_symbol (module_block/11) =
+    let field_0/12 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/11)
+    in
+    let $camlInt_of_char = Block 0 (field_0/12) in
+    cont done ($camlInt_of_char)

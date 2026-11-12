@@ -1,0 +1,127 @@
+let $camlOption_bind__first_const_0 = Block 0 () in
+(let code inline(always) size(22)
+       bind_0 (option/129 : [ 0 | 0 of val ], f/130 : val)
+         my_closure/131 &my_alloc_region/132 my_depth/133
+         -> k/54 * k/55
+         : [ 0 | 0 of val ] =
+   let next_depth/134 = rec_info (succ my_depth/133) in
+   (let prim/136 = %is_int (option/129) in
+    let Pisint/137 = %tag_imm (prim/136) in
+    (let untagged/138 = %untag_imm (Pisint/137) in
+     switch untagged/138
+       | 0 -> k/57
+       | 1 -> k/54 (0))
+      where k/57 =
+        cont k/56)
+     where k/56 =
+       let Pfield/135 = %block_load.[`0`] (option/129) in
+       apply &my_alloc_region/132 f/130 (Pfield/135) -> k/54 * k/55
+ in
+ let code inline(always) size(23)
+       positive_1 (x/139 : imm tagged)
+         my_closure/140 &my_alloc_region/141 my_depth/142
+         -> k/58 * k/59
+         : [ 0 | 0 of val ] =
+   let next_depth/143 = rec_info (succ my_depth/142) in
+   (let prim/145 = %int_comp.lt (0, x/139) in
+    let int_lessthan/146 = %tag_imm (prim/145) in
+    (let untagged/147 = %untag_imm (int_lessthan/146) in
+     switch untagged/147
+       | 0 -> k/58 (0)
+       | 1 -> k/61)
+      where k/61 =
+        cont k/60)
+     where k/60 =
+       let Pmakeblock/144 = %block.[`0`].my_alloc_region/141 (x/139) in
+       cont k/58 (Pmakeblock/144)
+ in
+ let code inline(always) size(17)
+       value_2 (option/148 : [ 0 | 0 of val ])
+         my_closure/149 &my_alloc_region/150 my_depth/151
+         -> k/62 * k/63
+         : imm tagged =
+   let next_depth/152 = rec_info (succ my_depth/151) in
+   (let prim/154 = %is_int (option/148) in
+    let Pisint/155 = %tag_imm (prim/154) in
+    (let untagged/156 = %untag_imm (Pisint/155) in
+     switch untagged/156
+       | 0 -> k/65
+       | 1 -> k/62 (0))
+      where k/65 =
+        cont k/64)
+     where k/64 =
+       let Pfield/153 = %block_load.[`0`] (option/148) in
+       cont k/62 (Pfield/153)
+ in
+ let code size(9)
+       `fn[option_bind.ml:20,32--55]_3` (x/157 : imm tagged)
+         my_closure/158 &my_alloc_region/159 my_depth/160
+         -> k/66 * k/67
+         : [ 0 | 0 of val ] =
+   let next_depth/161 = rec_info (succ my_depth/160) in
+   let int_add/162 = %int_barith.add (x/157, 1) in
+   let Pmakeblock/163 = %block.[`0`].my_alloc_region/159 (int_add/162) in
+   cont k/66 (Pmakeblock/163)
+ in
+ let code size(9)
+       `fn[option_bind.ml:19,27--50]_4` (x/164 : imm tagged)
+         my_closure/165 &my_alloc_region/166 my_depth/167
+         -> k/68 * k/69
+         : [ 0 | 0 of val ] =
+   let next_depth/168 = rec_info (succ my_depth/167) in
+   let int_add/169 = %int_barith.add (x/164, 1) in
+   let Pmakeblock/170 = %block.[`0`].my_alloc_region/166 (int_add/169) in
+   cont k/68 (Pmakeblock/170)
+ in
+ let bind/171 = closure bind_0 @bind &toplevel in
+ let positive/172 = closure positive_1 @positive &toplevel in
+ let value/173 = closure value_2 @value &toplevel in
+ (let region/176 = %begin_region () in
+  let ghost_region/177 = %begin_ghost_region () in
+  (let `fn[option_bind.ml:20,32--55]/188` =
+     closure `fn[option_bind.ml:20,32--55]_3` @`fn[option_bind.ml:20,32--55]`
+       &toplevel &region/176
+   in
+   apply direct(positive_1 &toplevel)
+     (positive/172 : _ -> [ 0 | 0 of val ]) (-3) -> k/77 * error
+     where k/77 (apply_result/189 : [ 0 | 0 of val ]) =
+       apply direct(bind_0 &toplevel)
+         (bind/171 : _ -> [ 0 | 0 of val ])
+           (apply_result/189, `fn[option_bind.ml:20,32--55]/188`)
+           -> k/76 * error)
+    where k/76 (apply_result/187 : [ 0 | 0 of val ]) =
+      apply direct(value_2 &toplevel)
+        (value/173 : _ -> imm tagged) (apply_result/187) -> k/72 * error
+    where k/72 (apply_result/181 : imm tagged) =
+      ((let `fn[option_bind.ml:19,27--50]/185` =
+          closure `fn[option_bind.ml:19,27--50]_4`
+            @`fn[option_bind.ml:19,27--50]` &toplevel &region/176
+        in
+        apply direct(positive_1 &toplevel)
+          (positive/172 : _ -> [ 0 | 0 of val ]) (3) -> k/75 * error
+          where k/75 (apply_result/186 : [ 0 | 0 of val ]) =
+            apply direct(bind_0 &toplevel)
+              (bind/171 : _ -> [ 0 | 0 of val ])
+                (apply_result/186, `fn[option_bind.ml:19,27--50]/185`)
+                -> k/74 * error)
+         where k/74 (apply_result/184 : [ 0 | 0 of val ]) =
+           apply direct(value_2 &toplevel)
+             (value/173 : _ -> imm tagged) (apply_result/184) -> k/73 * error
+         where k/73 (apply_result/182 : imm tagged) =
+           let int_add/183 =
+             %int_barith.add (apply_result/182, apply_result/181)
+           in
+           cont k/71 (int_add/183))
+    where k/71 (region_return/178 : imm tagged) =
+      let unit/179 = %end_region (region/176) in
+      let unit/180 = %end_ghost_region (ghost_region/177) in
+      cont k/70 (region_return/178))
+   where k/70 (result/174 : imm tagged) =
+     let Pmakeblock/175 = %block.[`0`].`toplevel` (result/174) in
+     cont k/53 (Pmakeblock/175))
+  where k/53 define_root_symbol (module_block/127) =
+    let field_0/128 =
+      %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/127)
+    in
+    let $camlOption_bind = Block 0 (field_0/128) in
+    cont done ($camlOption_bind)

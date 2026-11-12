@@ -1,0 +1,57 @@
+let $camlInline_record__first_const_0 = Block 0 () in
+(let code inline(always) size(32)
+       area_0 (shape/65 : [ 0 of imm tagged |1 of imm tagged * imm tagged ])
+         my_closure/66 &my_alloc_region/67 my_depth/68
+         -> k/22 * k/23
+         : imm tagged =
+   let next_depth/69 = rec_info (succ my_depth/68) in
+   (let prim/76 = %get_tag (shape/65) in
+    let scrutinee_tag/77 = %tag_imm (prim/76) in
+    let untagged/78 = %untag_imm (scrutinee_tag/77) in
+    switch untagged/78
+      | 0 -> k/24
+      | 1 -> k/25)
+     where k/25 =
+       let Pfield/73 = %block_load.[`1`] (shape/65) in
+       let Pfield/74 = %block_load.[`0`] (shape/65) in
+       let int_mul/75 = %int_barith.mul (Pfield/74, Pfield/73) in
+       cont k/22 (int_mul/75)
+     where k/24 =
+       let radius/70 = %block_load.[`0`] (shape/65) in
+       let int_mul/71 = %int_barith.mul (3, radius/70) in
+       let int_mul/72 = %int_barith.mul (int_mul/71, radius/70) in
+       cont k/22 (int_mul/72)
+ in
+ let area/79 = closure area_0 @area &toplevel in
+ (let region/82 = %begin_region () in
+  let ghost_region/83 = %begin_ghost_region () in
+  (let Popaque/92 = %opaque (4) in
+   let Pmakeblock/93 =
+     %block.[`1`].`toplevel`.local[region/82] (3, Popaque/92)
+   in
+   apply direct(area_0 &toplevel)
+     (area/79 : _ -> imm tagged) (Pmakeblock/93) -> k/28 * error)
+    where k/28 (apply_result/87 : imm tagged) =
+      ((let Popaque/90 = %opaque (2) in
+        let Pmakeblock/91 =
+          %block.[`0`].`toplevel`.local[region/82] (Popaque/90)
+        in
+        apply direct(area_0 &toplevel)
+          (area/79 : _ -> imm tagged) (Pmakeblock/91) -> k/29 * error)
+         where k/29 (apply_result/88 : imm tagged) =
+           let int_add/89 =
+             %int_barith.add (apply_result/88, apply_result/87)
+           in
+           cont k/27 (int_add/89))
+    where k/27 (region_return/84 : imm tagged) =
+      let unit/85 = %end_region (region/82) in
+      let unit/86 = %end_ghost_region (ghost_region/83) in
+      cont k/26 (region_return/84))
+   where k/26 (result/80 : imm tagged) =
+     let Pmakeblock/81 = %block.[`0`].`toplevel` (result/80) in
+     cont k/21 (Pmakeblock/81))
+  where k/21 define_root_symbol (module_block/63) =
+    let field_0/64 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/63)
+    in
+    let $camlInline_record = Block 0 (field_0/64) in
+    cont done ($camlInline_record)

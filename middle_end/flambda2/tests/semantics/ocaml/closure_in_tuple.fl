@@ -1,0 +1,74 @@
+let $camlClosure_in_tuple__first_const_0 = Block 0 () in
+(let code inline(always) size(6)
+       `fn[closure_in_tuple.ml:10,32--65]_1` (x/73 : imm tagged)
+         my_closure/74 &my_alloc_region/75 my_depth/76
+         -> k/26 * k/27
+         : imm tagged =
+   let next_depth/77 = rec_info (succ my_depth/76) in
+   let base/78 =
+     %project_value_slot.[`fn[closure_in_tuple.ml:10,32--65]`].[base]
+       (my_closure/74)
+   in
+   let int_add/79 = %int_barith.add (x/73, base/78) in
+   let int_add/80 = %int_barith.add (int_add/79, base/78) in
+   cont k/26 (int_add/80)
+ in
+ let code inline(always) size(4)
+       `fn[closure_in_tuple.ml:10,2--30]_2` (x/81 : imm tagged)
+         my_closure/82 &my_alloc_region/83 my_depth/84
+         -> k/28 * k/29
+         : imm tagged =
+   let next_depth/85 = rec_info (succ my_depth/84) in
+   let base/86 =
+     %project_value_slot.[`fn[closure_in_tuple.ml:10,2--30]`].[base_1]
+       (my_closure/82)
+   in
+   let int_add/87 = %int_barith.add (x/81, base/86) in
+   cont k/28 (int_add/87)
+ in
+ let code inline(always) size(34)
+       make_pair_0 (base/88 : imm tagged)
+         my_closure/89 &my_alloc_region/90 my_depth/91
+         -> k/30 * k/31
+         : [ 0 of val * val ] =
+   let next_depth/92 = rec_info (succ my_depth/91) in
+   let `fn[closure_in_tuple.ml:10,32--65]/93` =
+     closure `fn[closure_in_tuple.ml:10,32--65]_1`
+       @`fn[closure_in_tuple.ml:10,32--65]` &my_alloc_region/90
+   with { base = base/88 }
+   in
+   let `fn[closure_in_tuple.ml:10,2--30]/94` =
+     closure `fn[closure_in_tuple.ml:10,2--30]_2`
+       @`fn[closure_in_tuple.ml:10,2--30]` &my_alloc_region/90
+   with { base_1 = base/88 }
+   in
+   let Pmakeblock/95 =
+     %block.[`0`].my_alloc_region/90
+       (`fn[closure_in_tuple.ml:10,2--30]/94`,
+        `fn[closure_in_tuple.ml:10,32--65]/93`)
+   in
+   cont k/30 (Pmakeblock/95)
+ in
+ let make_pair/96 = closure make_pair_0 @make_pair &toplevel in
+ (let Popaque/105 = %opaque (10) in
+  apply direct(make_pair_0 &toplevel)
+    (make_pair/96 : _ -> [ 0 of val * val ]) (Popaque/105) -> k/33 * error)
+   where k/33 (`*match*/99` : [ 0 of val * val ]) =
+     ((let Pmixedfield/104 = %block_load.[`1`] (`*match*/99`) in
+       apply &toplevel Pmixedfield/104 (1) -> k/34 * error)
+        where k/34 (apply_result/100 : imm tagged) =
+          ((let Pmixedfield/103 = %block_load.[`0`] (`*match*/99`) in
+            apply &toplevel Pmixedfield/103 (1) -> k/35 * error)
+             where k/35 (apply_result/101 : imm tagged) =
+               let int_add/102 =
+                 %int_barith.add (apply_result/101, apply_result/100)
+               in
+               cont k/32 (int_add/102)))
+   where k/32 (result/97 : imm tagged) =
+     let Pmakeblock/98 = %block.[`0`].`toplevel` (result/97) in
+     cont k/25 (Pmakeblock/98))
+  where k/25 define_root_symbol (module_block/71) =
+    let field_0/72 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/71)
+    in
+    let $camlClosure_in_tuple = Block 0 (field_0/72) in
+    cont done ($camlClosure_in_tuple)

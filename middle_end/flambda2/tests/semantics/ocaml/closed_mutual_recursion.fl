@@ -1,0 +1,46 @@
+let $camlClosed_mutual_recursion__first_const_0 = Block 0 () in
+(let code rec size(24)
+       g_0 (x/53 : imm tagged)
+         my_closure/54 &my_alloc_region/55 my_depth/56
+         -> k/20 * k/21 =
+   let next_depth/57 = rec_info (succ my_depth/56) in
+   let a/58 = %project_value_slot.[g].[a] (my_closure/54) in
+   let h/59 = %project_function_slot.[g].[h] (my_closure/54) in
+   (let prim/61 = %phys_eq (x/53, 0) in
+    let eq/62 = %tag_imm (prim/61) in
+    (let untagged/63 = %untag_imm (eq/62) in
+     switch untagged/63
+       | 0 -> k/23
+       | 1 -> k/20 (a/58))
+      where k/23 =
+        cont k/22)
+     where k/22 =
+       let int_sub/60 = %int_barith.sub (x/53, 1) in
+       apply direct(h_1 &my_alloc_region/55)
+         h/59 ~ depth my_depth/56 -> next_depth/57
+           (int_sub/60)
+           -> k/20 * k/21
+ and code rec size(6)
+       h_1 (x/64 : imm tagged)
+         my_closure/65 &my_alloc_region/66 my_depth/67
+         -> k/24 * k/25 =
+   let next_depth/68 = rec_info (succ my_depth/67) in
+   let a/69 = %project_value_slot.[h].[a] (my_closure/65) in
+   let g/70 = %project_function_slot.[h].[g] (my_closure/65) in
+   apply direct(g_0 &my_alloc_region/66)
+     g/70 ~ depth my_depth/67 -> next_depth/68 (x/64) -> k/24 * k/25
+ in
+ (let a/73 = %opaque (5) in
+  let g/74 = closure g_0 @g &toplevel
+  and h/75 = closure h_1 @h &toplevel
+  with { a = a/73 }
+  in
+  apply direct(g_0 &toplevel) g/74 (3) -> k/26 * error)
+   where k/26 (result/71 : imm tagged) =
+     let Pmakeblock/72 = %block.[`0`].`toplevel` (result/71) in
+     cont k/19 (Pmakeblock/72))
+  where k/19 define_root_symbol (module_block/51) =
+    let field_0/52 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/51)
+    in
+    let $camlClosed_mutual_recursion = Block 0 (field_0/52) in
+    cont done ($camlClosed_mutual_recursion)

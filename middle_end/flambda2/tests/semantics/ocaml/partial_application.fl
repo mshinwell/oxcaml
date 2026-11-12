@@ -1,0 +1,44 @@
+let $camlPartial_application__first_const_0 = Block 0 () in
+(let code size(3)
+       add_0 (a/55 : imm tagged, b/56 : imm tagged)
+         my_closure/57 &my_alloc_region/58 my_depth/59
+         -> k/20 * k/21
+         : imm tagged =
+   let next_depth/60 = rec_info (succ my_depth/59) in
+   let int_add/61 = %int_barith.add (a/55, b/56) in
+   cont k/20 (int_add/61)
+ in
+ let code size(5) stub
+       partial_add_1 (param1/62 : imm tagged)
+         my_closure/63 &my_alloc_region/64 my_depth/65
+         -> k/22 * k/23
+         : imm tagged =
+   let next_depth/66 = rec_info (succ my_depth/65) in
+   let add/67 = %project_value_slot.[partial_add].[add] (my_closure/63) in
+   apply direct(add_0 &my_alloc_region/64)
+     (add/67 : _ -> imm tagged) (1, param1/62) -> k/22 * k/23
+ in
+ let add/68 = closure add_0 @add &toplevel in
+ (let region/71 = %begin_region () in
+  let ghost_region/72 = %begin_ghost_region () in
+  (let partial_add/78 =
+     closure partial_add_1 @partial_add &toplevel &region/71
+   with { add = add/68 }
+   in
+   cont k/26 (partial_add/78))
+    where k/26 (add_one/76 : val) =
+      let Popaque/77 = %opaque (2) in
+      apply direct(partial_add_1 &toplevel)
+        (add_one/76 : _ -> imm tagged) (Popaque/77) -> k/25 * error
+    where k/25 (region_return/73 : imm tagged) =
+      let unit/74 = %end_region (region/71) in
+      let unit/75 = %end_ghost_region (ghost_region/72) in
+      cont k/24 (region_return/73))
+   where k/24 (result/69 : imm tagged) =
+     let Pmakeblock/70 = %block.[`0`].`toplevel` (result/69) in
+     cont k/19 (Pmakeblock/70))
+  where k/19 define_root_symbol (module_block/53) =
+    let field_0/54 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/53)
+    in
+    let $camlPartial_application = Block 0 (field_0/54) in
+    cont done ($camlPartial_application)

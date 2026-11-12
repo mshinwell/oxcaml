@@ -1,0 +1,29 @@
+let $camlWhile_countdown__first_const_0 = Block 0 () in
+(let Popaque/44 = %opaque (7) in
+ cont k/19 (Popaque/44))
+  where k/19 (let_mutable/35 : imm tagged) =
+    (cont k/21 (let_mutable/35)
+       where rec k/21 (n_14_unboxed0/38 : imm tagged) =
+         let prim/39 = %int_comp.gt (n_14_unboxed0/38, 0) in
+         let while_cond_result/40 = %tag_imm (prim/39) in
+         ((let untagged/43 = %untag_imm (while_cond_result/40) in
+           switch untagged/43
+             | 0 -> k/20 (0, n_14_unboxed0/38)
+             | 1 -> k/23)
+            where k/23 =
+              cont k/22 (n_14_unboxed0/38)
+            where k/22 (n_14_unboxed0/41 : imm tagged) =
+              let int_sub/42 = %int_barith.sub (n_14_unboxed0/41, 2) in
+              cont k/21 (int_sub/42))
+       where k/20
+               (staticcatch_result/36 : imm tagged,
+                n_14_unboxed0/37 : imm tagged) =
+         cont k/18 (n_14_unboxed0/37))
+  where k/18 (result/33 : imm tagged) =
+    let Pmakeblock/34 = %block.[`0`].`toplevel` (result/33) in
+    cont k/17 (Pmakeblock/34)
+  where k/17 define_root_symbol (module_block/31) =
+    let field_0/32 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/31)
+    in
+    let $camlWhile_countdown = Block 0 (field_0/32) in
+    cont done ($camlWhile_countdown)

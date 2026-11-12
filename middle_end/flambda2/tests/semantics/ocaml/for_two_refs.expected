@@ -1,0 +1,8 @@
+for_two_refs.fl:
+  before Simplify (90 steps): returns [0: 47]
+  after Simplify (52 steps): returns [0: 47]
+  the check of kinds: passes before, passes after
+  calls outside code: 0 before, 0 after
+  the same
+  calls outside code once those of known code are inlined: 0
+  validated: the same once normalised and unused static bindings removed

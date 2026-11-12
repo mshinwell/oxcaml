@@ -1,0 +1,42 @@
+(let code inline(always) size(22)
+       scale_0 (`*opt*by/45` : [ 0 | 0 of imm tagged ], x/46 : imm tagged)
+         my_closure/47 &my_alloc_region/48 my_depth/49
+         -> k/20 * k/21
+         : imm tagged =
+   let next_depth/50 = rec_info (succ my_depth/49) in
+   (let prim/54 = %is_int (`*opt*by/45`) in
+    let Pisint/55 = %tag_imm (prim/54) in
+    (let untagged/56 = %untag_imm (Pisint/55) in
+     switch untagged/56
+       | 0 -> k/24
+       | 1 -> k/22 (2))
+      where k/24 =
+        cont k/23)
+     where k/23 =
+       let Pfield/53 = %block_load.[`0`] (`*opt*by/45`) in
+       cont k/22 (Pfield/53)
+     where k/22 (by/51 : imm tagged) =
+       let int_mul/52 = %int_barith.mul (x/46, by/51) in
+       cont k/20 (int_mul/52)
+ in
+ let $camlLabelled_optional__const_block_0 = Block 0 (3) in
+ let scale/57 = closure scale_0 @scale &toplevel in
+ (let Popaque/63 = %opaque (5) in
+  apply direct(scale_0 &toplevel)
+    (scale/57 : _ -> imm tagged)
+      ($camlLabelled_optional__const_block_0, Popaque/63)
+      -> k/25 * error)
+   where k/25 (apply_result/58 : imm tagged) =
+     ((let Popaque/62 = %opaque (5) in
+       apply direct(scale_0 &toplevel)
+         (scale/57 : _ -> imm tagged) (0, Popaque/62) -> k/26 * error)
+        where k/26 (apply_result/59 : imm tagged) =
+          let result/60 = %int_barith.add (apply_result/59, apply_result/58)
+          in
+          let Pmakeblock/61 = %block.[`0`].`toplevel` (result/60) in
+          cont k/19 (Pmakeblock/61)))
+  where k/19 define_root_symbol (module_block/43) =
+    let field_0/44 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/43)
+    in
+    let $camlLabelled_optional = Block 0 (field_0/44) in
+    cont done ($camlLabelled_optional)

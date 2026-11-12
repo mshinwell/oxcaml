@@ -1,0 +1,13 @@
+(let $camlString_get_const__immstring_0 = "hello" in
+ let prim/15 = %num_conv.[tagged_imm].[`nativeint`] (1) in
+ let prim/16 =
+   %string_load.[`8`] ($camlString_get_const__immstring_0, prim/15)
+ in
+ let result/17 = %tag_imm (prim/16) in
+ let Pmakeblock/18 = %block.[`0`].`toplevel` (result/17) in
+ cont k/5 (Pmakeblock/18))
+  where k/5 define_root_symbol (module_block/13) =
+    let field_0/14 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/13)
+    in
+    let $camlString_get_const = Block 0 (field_0/14) in
+    cont done ($camlString_get_const)

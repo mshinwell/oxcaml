@@ -1,0 +1,47 @@
+let $camlSubmodule__first_const_0 = Block 0 () in
+(let code inline(always) size(5)
+       apply_0 (x/57 : imm tagged)
+         my_closure/58 &my_alloc_region/59 my_depth/60
+         -> k/22 * k/23
+         : imm tagged =
+   let next_depth/61 = rec_info (succ my_depth/60) in
+   let int_mul/62 = %int_barith.mul (x/57, 3) in
+   cont k/22 (int_mul/62)
+ in
+ let code inline(always) size(4)
+       apply_1 (x/63 : imm tagged)
+         my_closure/64 &my_alloc_region/65 my_depth/66
+         -> k/24 * k/25
+         : imm tagged =
+   let next_depth/67 = rec_info (succ my_depth/66) in
+   let Scale/68 = %project_value_slot.[`apply`].[Scale] (my_closure/64) in
+   let int_add/69 = %int_barith.add (x/63, 3) in
+   cont k/24 (int_add/69)
+ in
+ (let apply/79 = closure apply_0 @apply_1 &toplevel in
+  let Pmakeblock/80 = %block.[`0`].`toplevel` (3, apply/79) in
+  cont k/26 (Pmakeblock/80))
+   where k/26 (Scale/70 : val) =
+     ((let apply/77 = closure apply_1 @`apply` &toplevel
+       with { Scale = Scale/70 }
+       in
+       let Pmakeblock/78 = %block.[`0`].`toplevel` (apply/77) in
+       cont k/27 (Pmakeblock/78))
+        where k/27 (Offset/71 : val) =
+          ((let Pfield/76 = %block_load.[`1`] (Scale/70) in
+            apply direct(apply_0 &toplevel)
+              (Pfield/76 : _ -> imm tagged) (5) -> k/29 * error)
+             where k/29 (apply_result/74 : imm tagged) =
+               let Pfield/75 = %block_load.[`0`] (Offset/71) in
+               apply direct(apply_1 &toplevel)
+                 (Pfield/75 : _ -> imm tagged)
+                   (apply_result/74)
+                   -> k/28 * error
+             where k/28 (result/72 : imm tagged) =
+               let Pmakeblock/73 = %block.[`0`].`toplevel` (result/72) in
+               cont k/21 (Pmakeblock/73))))
+  where k/21 define_root_symbol (module_block/55) =
+    let field_0/56 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/55)
+    in
+    let $camlSubmodule = Block 0 (field_0/56) in
+    cont done ($camlSubmodule)

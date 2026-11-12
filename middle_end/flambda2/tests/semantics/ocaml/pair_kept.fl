@@ -1,0 +1,47 @@
+(let $camlPair_kept__const_block_0 = Block 0 (1, 2) in
+ let code inline(never) size(23)
+       sum_0 (c/45 : imm tagged, pair/46 : [ 0 of imm tagged * imm tagged ])
+         my_closure/47 &my_alloc_region/48 my_depth/49
+         -> k/16 * k/17
+         : [ 0 of imm tagged * [ 0 of imm tagged * imm tagged ] ] =
+   let next_depth/50 = rec_info (succ my_depth/49) in
+   (let untagged/56 = %untag_imm (c/45) in
+    switch untagged/56
+      | 0 -> k/18 (pair/46)
+      | 1 -> k/18 ($camlPair_kept__const_block_0))
+     where k/18 (p/51 : [ 0 of imm tagged * imm tagged ]) =
+       let Pfield/52 = %block_load.[`1`] (p/51) in
+       let Pfield/53 = %block_load.[`0`] (p/51) in
+       let int_add/54 = %int_barith.add (Pfield/53, Pfield/52) in
+       let Pmakeblock/55 = %block.[`0`].my_alloc_region/48 (int_add/54, p/51)
+       in
+       cont k/16 (Pmakeblock/55)
+ in
+ let $camlPair_kept__const_block_2 = Block 0 (3, 4) in
+ let $camlPair_kept__const_block_1 = Block 0 (5, 6) in
+ let sum/57 = closure sum_0 @sum &toplevel in
+ apply direct(sum_0 &toplevel)
+   (sum/57 : _ -> [ 0 of imm tagged * [ 0 of imm tagged * imm tagged ] ])
+     (0, $camlPair_kept__const_block_1)
+     -> k/19 * error
+   where k/19
+           (apply_result/58 :
+              [ 0 of imm tagged * [ 0 of imm tagged * imm tagged ] ]) =
+     let Pfield/59 = %block_load.[`0`] (apply_result/58) in
+     (apply direct(sum_0 &toplevel)
+        (sum/57 : _ -> [ 0 of imm tagged * [ 0 of imm tagged * imm tagged ] ]
+         )
+          (1, $camlPair_kept__const_block_2)
+          -> k/20 * error
+        where k/20
+                (apply_result/60 :
+                   [ 0 of imm tagged * [ 0 of imm tagged * imm tagged ] ]) =
+          let Pfield/61 = %block_load.[`0`] (apply_result/60) in
+          let result/62 = %int_barith.add (Pfield/61, Pfield/59) in
+          let Pmakeblock/63 = %block.[`0`].`toplevel` (result/62) in
+          cont k/15 (Pmakeblock/63)))
+  where k/15 define_root_symbol (module_block/43) =
+    let field_0/44 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/43)
+    in
+    let $camlPair_kept = Block 0 (field_0/44) in
+    cont done ($camlPair_kept)

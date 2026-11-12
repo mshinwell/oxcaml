@@ -1,0 +1,45 @@
+let $camlShift_edges__first_const_0 = Block 0 () in
+(let prim/48 = %untag_imm (1) in
+ let largest/49 = %int_shift.lsr (-1, prim/48) in
+ let prim/50 = %untag_imm (62) in
+ let least/51 = %int_shift.lsl (1, prim/50) in
+ let prim/52 = %untag_imm (61) in
+ let top_bit_lost/53 = %int_shift.lsl (3, prim/52) in
+ let prim/54 = %untag_imm (1) in
+ let sign_kept/55 = %int_shift.asr (-8, prim/54) in
+ let prim/56 = %untag_imm (62) in
+ let all_ones/57 = %int_shift.asr (-1, prim/56) in
+ let prim/58 = %untag_imm (62) in
+ let one/59 = %int_shift.lsr (-1, prim/58) in
+ let Pmakeblock/60 =
+   %block.[`0`].`toplevel`
+     (largest/49,
+      least/51,
+      top_bit_lost/53,
+      sign_kept/55,
+      all_ones/57,
+      one/59)
+ in
+ cont k/5 (Pmakeblock/60))
+  where k/5 define_root_symbol (module_block/41) =
+    let field_0/42 = %block_load.tag[`0`].`size`[`6`].[`0`] (module_block/41)
+    in
+    let field_1/43 = %block_load.tag[`0`].`size`[`6`].[`1`] (module_block/41)
+    in
+    let field_2/44 = %block_load.tag[`0`].`size`[`6`].[`2`] (module_block/41)
+    in
+    let field_3/45 = %block_load.tag[`0`].`size`[`6`].[`3`] (module_block/41)
+    in
+    let field_4/46 = %block_load.tag[`0`].`size`[`6`].[`4`] (module_block/41)
+    in
+    let field_5/47 = %block_load.tag[`0`].`size`[`6`].[`5`] (module_block/41)
+    in
+    let $camlShift_edges =
+      Block 0 (field_0/42,
+               field_1/43,
+               field_2/44,
+               field_3/45,
+               field_4/46,
+               field_5/47)
+    in
+    cont done ($camlShift_edges)

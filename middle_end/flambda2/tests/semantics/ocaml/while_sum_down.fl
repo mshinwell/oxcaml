@@ -1,0 +1,40 @@
+let $camlWhile_sum_down__first_const_0 = Block 0 () in
+(let n/49 = %opaque (10) in
+ cont k/21 (0)
+   where k/21 (let_mutable/50 : imm tagged) =
+     (cont k/22 (n/49, let_mutable/50)
+        where k/22
+                (let_mutable/51 : imm tagged, s_16_unboxed0/52 : imm tagged) =
+          (cont k/24 (s_16_unboxed0/52, let_mutable/51)
+             where rec k/24
+                         (s_16_unboxed0/56 : imm tagged,
+                          i_17_unboxed0/57 : imm tagged) =
+               let prim/58 = %int_comp.gt (i_17_unboxed0/57, 0) in
+               let while_cond_result/59 = %tag_imm (prim/58) in
+               ((let untagged/64 = %untag_imm (while_cond_result/59) in
+                 switch untagged/64
+                   | 0 -> k/23 (0, s_16_unboxed0/56, i_17_unboxed0/57)
+                   | 1 -> k/26)
+                  where k/26 =
+                    cont k/25 (s_16_unboxed0/56, i_17_unboxed0/57)
+                  where k/25
+                          (s_16_unboxed0/60 : imm tagged,
+                           i_17_unboxed0/61 : imm tagged) =
+                    let int_add/62 =
+                      %int_barith.add (s_16_unboxed0/60, i_17_unboxed0/61)
+                    in
+                    let int_sub/63 = %int_barith.sub (i_17_unboxed0/61, 1) in
+                    cont k/24 (int_add/62, int_sub/63))
+             where k/23
+                     (staticcatch_result/53 : imm tagged,
+                      s_16_unboxed0/54 : imm tagged,
+                      i_17_unboxed0/55 : imm tagged) =
+               cont k/20 (s_16_unboxed0/54))))
+  where k/20 (result/47 : imm tagged) =
+    let Pmakeblock/48 = %block.[`0`].`toplevel` (result/47) in
+    cont k/19 (Pmakeblock/48)
+  where k/19 define_root_symbol (module_block/45) =
+    let field_0/46 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/45)
+    in
+    let $camlWhile_sum_down = Block 0 (field_0/46) in
+    cont done ($camlWhile_sum_down)

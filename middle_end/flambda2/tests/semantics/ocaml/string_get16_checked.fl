@@ -1,0 +1,36 @@
+(let $camlString_get16_checked__string_1 = "index out of bounds" in
+ let $camlString_get16_checked__block_2 =
+   Block 0 ($`*predef*`.caml_exn_Invalid_argument,
+            $camlString_get16_checked__string_1)
+ in
+ let $camlString_get16_checked__immstring_0 = "hello" in
+ let Popaque/39 = %opaque ($camlString_get16_checked__immstring_0) in
+ (let prim/44 = %string_length (Popaque/39) in
+  let prim/45 = %num_conv.[`imm`].[`nativeint`] (prim/44) in
+  let prim/46 = %int_barith.`nativeint`.sub (prim/45, 1n) in
+  let prim/47 = %string_length (Popaque/39) in
+  let prim/48 = %num_conv.[`imm`].[`nativeint`] (prim/47) in
+  let prim/49 = %int_barith.`nativeint`.sub (prim/48, 1n) in
+  let prim/50 = %int_shift.`nativeint`.asr (prim/49, 63i) in
+  let prim/51 = %int_barith.`nativeint`.xor (prim/50, -1n) in
+  let prim/52 = %int_barith.`nativeint`.`and` (prim/51, prim/46) in
+  let prim/53 = %num_conv.[tagged_imm].[`nativeint`] (3) in
+  let prim/54 = %int_comp.`nativeint`.unsigned.lt (prim/53, prim/52) in
+  switch prim/54
+    | 0 -> k/13
+    | 1 -> k/14)
+   where k/14 =
+     cont k/12
+   where k/13 =
+     cont error pop(regular error) ($camlString_get16_checked__block_2)
+   where k/12 =
+     let prim/40 = %num_conv.[tagged_imm].[`nativeint`] (3) in
+     let prim/41 = %string_load.[`16`] (Popaque/39, prim/40) in
+     let result/42 = %tag_imm (prim/41) in
+     let Pmakeblock/43 = %block.[`0`].`toplevel` (result/42) in
+     cont k/11 (Pmakeblock/43))
+  where k/11 define_root_symbol (module_block/37) =
+    let field_0/38 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/37)
+    in
+    let $camlString_get16_checked = Block 0 (field_0/38) in
+    cont done ($camlString_get16_checked)

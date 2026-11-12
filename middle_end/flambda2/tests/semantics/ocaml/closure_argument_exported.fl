@@ -1,0 +1,40 @@
+let $camlClosure_argument_exported__first_const_0 = Block 0 () in
+(let code size(6)
+       apply_0 (h/56 : val, x/57)
+         my_closure/58 &my_alloc_region/59 my_depth/60
+         -> k/18 * k/19 =
+   let next_depth/61 = rec_info (succ my_depth/60) in
+   apply &my_alloc_region/59 h/56 (x/57) -> k/18 * k/19
+ in
+ let code size(4)
+       g_2 (y/62 : imm tagged)
+         my_closure/63 &my_alloc_region/64 my_depth/65
+         -> k/20 * k/21
+         : imm tagged =
+   let next_depth/66 = rec_info (succ my_depth/65) in
+   let x/67 = %project_value_slot.[g].[x] (my_closure/63) in
+   let int_add/68 = %int_barith.add (y/62, x/67) in
+   cont k/20 (int_add/68)
+ in
+ let code size(17)
+       f_1 (x/69 : imm tagged)
+         my_closure/70 &my_alloc_region/71 my_depth/72
+         -> k/22 * k/23
+         : imm tagged =
+   let next_depth/73 = rec_info (succ my_depth/72) in
+   let apply/74 = %project_value_slot.[f].[`apply`] (my_closure/70) in
+   let g/75 = closure g_2 @g &my_alloc_region/71 with { x = x/69 } in
+   apply direct(apply_0 &my_alloc_region/71)
+     (apply/74 : _ -> imm tagged) (g/75, x/69) -> k/22 * k/23
+ in
+ let apply/76 = closure apply_0 @`apply` &toplevel in
+ let f/77 = closure f_1 @f &toplevel with { `apply` = apply/76 } in
+ let Pmakeblock/78 = %block.[`0`].`toplevel` (apply/76, f/77) in
+ cont k/17 (Pmakeblock/78))
+  where k/17 define_root_symbol (module_block/53) =
+    let field_0/54 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/53)
+    in
+    let field_1/55 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/53)
+    in
+    let $camlClosure_argument_exported = Block 0 (field_0/54, field_1/55) in
+    cont done ($camlClosure_argument_exported)

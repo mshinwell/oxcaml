@@ -1,0 +1,28 @@
+(let code inline(always) size(11)
+       choose_0
+         (test/31 : imm tagged, x/32 : float boxed, y/33 : float boxed)
+         my_closure/34 &my_alloc_region/35 my_depth/36
+         -> k/12 * k/13
+         : float boxed =
+   let next_depth/37 = rec_info (succ my_depth/36) in
+   let untagged/38 = %untag_imm (test/31) in
+   switch untagged/38
+     | 0 -> k/12 (y/33)
+     | 1 -> k/12 (x/32)
+ in
+ let $camlFloat_const__float_1 = 0x1.8p+0 in
+ let $camlFloat_const__float_0 = 0x1.4p+1 in
+ let choose/39 = closure choose_0 @choose &toplevel in
+ (let Popaque/42 = %opaque ($camlFloat_const__float_0) in
+  apply direct(choose_0 &toplevel)
+    (choose/39 : _ -> float boxed)
+      (1, $camlFloat_const__float_1, Popaque/42)
+      -> k/14 * error)
+   where k/14 (result/40 : float boxed) =
+     let Pmakeblock/41 = %block.[`0`].`toplevel` (result/40) in
+     cont k/11 (Pmakeblock/41))
+  where k/11 define_root_symbol (module_block/29) =
+    let field_0/30 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/29)
+    in
+    let $camlFloat_const = Block 0 (field_0/30) in
+    cont done ($camlFloat_const)

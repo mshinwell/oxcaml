@@ -1,0 +1,51 @@
+(let $camlExn_with_argument__immstring_0 = "four" in
+ let $camlExn_with_argument__Pmakeblock_1 =
+   Block 0 ($`*predef*`.caml_exn_Invalid_argument,
+            $camlExn_with_argument__immstring_0)
+ in
+ (let try_region/46 = %begin_try_region () in
+  let try_ghost_region/47 = %begin_try_ghost_region () in
+  cont k/33 push(k/27)
+    where k/33 =
+      ((let Popaque/59 = %opaque (1) in
+        (let untagged/60 = %untag_imm (Popaque/59) in
+         switch untagged/60
+           | 0 -> k/32 (1)
+           | 1 -> k/35)
+          where k/35 =
+            cont k/34)
+         where k/34 =
+           cont k/27 pop(regular k/27) ($camlExn_with_argument__Pmakeblock_1))
+    where k/32 (body_result/58 : imm tagged) =
+      cont k/26 pop(k/27) (body_result/58)
+    where k/27 exn (exn/48 : val) =
+      let unit/49 = %end_try_region (try_region/46) in
+      let unit/50 = %end_try_ghost_region (try_ghost_region/47) in
+      ((let Pfield/54 = %block_load.[`0`] (exn/48) in
+        let prim/55 =
+          %phys_eq (Pfield/54, $`*predef*`.caml_exn_Invalid_argument)
+        in
+        let eq/56 = %tag_imm (prim/55) in
+        (let untagged/57 = %untag_imm (eq/56) in
+         switch untagged/57
+           | 0 -> k/30
+           | 1 -> k/31)
+          where k/31 =
+            cont k/28
+          where k/30 =
+            cont k/29)
+         where k/29 =
+           cont error pop(reraise error) (exn/48)
+         where k/28 =
+           let Pfield/51 = %block_load.[`1`] (exn/48) in
+           let prim/52 = %string_length (Pfield/51) in
+           let Pstringlength/53 = %tag_imm (prim/52) in
+           cont k/26 (Pstringlength/53)))
+   where k/26 (result/44 : imm tagged) =
+     let Pmakeblock/45 = %block.[`0`].`toplevel` (result/44) in
+     cont k/25 (Pmakeblock/45))
+  where k/25 define_root_symbol (module_block/42) =
+    let field_0/43 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/42)
+    in
+    let $camlExn_with_argument = Block 0 (field_0/43) in
+    cont done ($camlExn_with_argument)

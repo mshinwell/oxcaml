@@ -1,0 +1,35 @@
+let $camlTuple_return__first_const_0 = Block 0 () in
+(let code inline(always) size(14)
+       next_and_double_0 (x/39 : imm tagged)
+         my_closure/40 &my_alloc_region/41 my_depth/42
+         -> k/14 * k/15
+         : [ 0 of imm tagged * imm tagged ] =
+   let next_depth/43 = rec_info (succ my_depth/42) in
+   let int_mul/44 = %int_barith.mul (x/39, 2) in
+   let int_add/45 = %int_barith.add (x/39, 1) in
+   let Pmakeblock/46 =
+     %block.[`0`].my_alloc_region/41 (int_add/45, int_mul/44)
+   in
+   cont k/14 (Pmakeblock/46)
+ in
+ let next_and_double/47 =
+   closure next_and_double_0 @next_and_double &toplevel
+ in
+ (let Popaque/54 = %opaque (3) in
+  apply direct(next_and_double_0 &toplevel)
+    (next_and_double/47 : _ -> [ 0 of imm tagged * imm tagged ])
+      (Popaque/54)
+      -> k/17 * error)
+   where k/17 (`*match*/50` : [ 0 of imm tagged * imm tagged ]) =
+     let Pmixedfield/51 = %block_load.[`1`] (`*match*/50`) in
+     let Pmixedfield/52 = %block_load.[`0`] (`*match*/50`) in
+     let int_add/53 = %int_barith.add (Pmixedfield/52, Pmixedfield/51) in
+     cont k/16 (int_add/53)
+   where k/16 (result/48 : imm tagged) =
+     let Pmakeblock/49 = %block.[`0`].`toplevel` (result/48) in
+     cont k/13 (Pmakeblock/49))
+  where k/13 define_root_symbol (module_block/37) =
+    let field_0/38 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/37)
+    in
+    let $camlTuple_return = Block 0 (field_0/38) in
+    cont done ($camlTuple_return)

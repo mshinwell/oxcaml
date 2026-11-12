@@ -1,0 +1,41 @@
+let $camlPhysical_equality__first_const_0 = Block 0 () in
+(let code inline(always) size(5)
+       same_0 (x/39 : imm tagged, y/40 : imm tagged)
+         my_closure/41 &my_alloc_region/42 my_depth/43
+         -> k/22 * k/23
+         : imm tagged =
+   let next_depth/44 = rec_info (succ my_depth/43) in
+   let prim/45 = %phys_eq (x/39, y/40) in
+   let eq/46 = %tag_imm (prim/45) in
+   cont k/22 (eq/46)
+ in
+ let same/47 = closure same_0 @same &toplevel in
+ apply direct(same_0 &toplevel)
+   (same/47 : _ -> imm tagged) (0, 0) -> k/28 * error
+   where k/28 (apply_result/53 : imm tagged) =
+     ((let untagged/54 = %untag_imm (apply_result/53) in
+       switch untagged/54
+         | 0 -> k/24 (0)
+         | 1 -> k/29)
+        where k/29 =
+          cont k/25)
+   where k/25 =
+     ((let prim/50 = %phys_ne (1, 2) in
+       let noteq/51 = %tag_imm (prim/50) in
+       (let untagged/52 = %untag_imm (noteq/51) in
+        switch untagged/52
+          | 0 -> k/24 (0)
+          | 1 -> k/27)
+         where k/27 =
+           cont k/26)
+        where k/26 =
+          apply direct(same_0 &toplevel)
+            (same/47 : _ -> imm tagged) (2, 2) -> k/24 * error)
+   where k/24 (result/48 : imm tagged) =
+     let Pmakeblock/49 = %block.[`0`].`toplevel` (result/48) in
+     cont k/21 (Pmakeblock/49))
+  where k/21 define_root_symbol (module_block/37) =
+    let field_0/38 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/37)
+    in
+    let $camlPhysical_equality = Block 0 (field_0/38) in
+    cont done ($camlPhysical_equality)

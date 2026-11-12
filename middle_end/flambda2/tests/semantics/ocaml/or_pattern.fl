@@ -1,0 +1,45 @@
+let $camlOr_pattern__first_const_0 = Block 0 () in
+(let code inline(always) size(31)
+       hours_0 (day/43 : imm tagged)
+         my_closure/44 &my_alloc_region/45 my_depth/46
+         -> k/20 * k/21
+         : imm tagged =
+   let next_depth/47 = rec_info (succ my_depth/46) in
+   (let prim/51 = %int_comp.ne (day/43, 4) in
+    let int_notequal/52 = %tag_imm (prim/51) in
+    (let untagged/53 = %untag_imm (int_notequal/52) in
+     switch untagged/53
+       | 0 -> k/20 (6)
+       | 1 -> k/23)
+      where k/23 =
+        cont k/22)
+     where k/22 =
+       let prim/48 = %int_comp.ge (day/43, 5) in
+       let int_greaterequal/49 = %tag_imm (prim/48) in
+       let untagged/50 = %untag_imm (int_greaterequal/49) in
+       switch untagged/50
+         | 0 -> k/20 (8)
+         | 1 -> k/20 (0)
+ in
+ let hours/54 = closure hours_0 @hours &toplevel in
+ apply direct(hours_0 &toplevel)
+   (hours/54 : _ -> imm tagged) (6) -> k/24 * error
+   where k/24 (apply_result/55 : imm tagged) =
+     (apply direct(hours_0 &toplevel)
+        (hours/54 : _ -> imm tagged) (4) -> k/25 * error
+        where k/25 (apply_result/56 : imm tagged) =
+          (apply direct(hours_0 &toplevel)
+             (hours/54 : _ -> imm tagged) (0) -> k/26 * error
+             where k/26 (apply_result/57 : imm tagged) =
+               let int_add/58 =
+                 %int_barith.add (apply_result/57, apply_result/56)
+               in
+               let result/59 = %int_barith.add (int_add/58, apply_result/55)
+               in
+               let Pmakeblock/60 = %block.[`0`].`toplevel` (result/59) in
+               cont k/19 (Pmakeblock/60))))
+  where k/19 define_root_symbol (module_block/41) =
+    let field_0/42 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/41)
+    in
+    let $camlOr_pattern = Block 0 (field_0/42) in
+    cont done ($camlOr_pattern)

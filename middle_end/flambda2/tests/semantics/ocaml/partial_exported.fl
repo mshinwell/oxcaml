@@ -1,0 +1,35 @@
+let $camlPartial_exported__first_const_0 = Block 0 () in
+(let code size(3)
+       add_0 (a/44 : imm tagged, b/45 : imm tagged)
+         my_closure/46 &my_alloc_region/47 my_depth/48
+         -> k/16 * k/17
+         : imm tagged =
+   let next_depth/49 = rec_info (succ my_depth/48) in
+   let int_add/50 = %int_barith.add (a/44, b/45) in
+   cont k/16 (int_add/50)
+ in
+ let code size(5) stub
+       partial_add_1 (param1/51 : imm tagged)
+         my_closure/52 &my_alloc_region/53 my_depth/54
+         -> k/18 * k/19
+         : imm tagged =
+   let next_depth/55 = rec_info (succ my_depth/54) in
+   let add/56 = %project_value_slot.[partial_add].[add] (my_closure/52) in
+   apply direct(add_0 &my_alloc_region/53)
+     (add/56 : _ -> imm tagged) (1, param1/51) -> k/18 * k/19
+ in
+ let add/57 = closure add_0 @add &toplevel in
+ (let partial_add/60 = closure partial_add_1 @partial_add &toplevel
+  with { add = add/57 }
+  in
+  cont k/20 (partial_add/60))
+   where k/20 (incr/58 : val) =
+     let Pmakeblock/59 = %block.[`0`].`toplevel` (add/57, incr/58) in
+     cont k/15 (Pmakeblock/59))
+  where k/15 define_root_symbol (module_block/41) =
+    let field_0/42 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/41)
+    in
+    let field_1/43 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/41)
+    in
+    let $camlPartial_exported = Block 0 (field_0/42, field_1/43) in
+    cont done ($camlPartial_exported)

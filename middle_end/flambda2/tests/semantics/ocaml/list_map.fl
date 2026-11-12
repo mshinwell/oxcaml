@@ -1,0 +1,105 @@
+(let code rec size(35)
+       map_0
+         (f/93 : val, list/94 : [ 0 | 0 of val * [ 0 | 0 of val * val ] ])
+         my_closure/95 &my_alloc_region/96 my_depth/97
+         -> k/38 * k/39
+         : [ 0 | 0 of val * [ 0 | 0 of val * val ] ] =
+   let next_depth/98 = rec_info (succ my_depth/97) in
+   (let prim/104 = %is_int (list/94) in
+    let Pisint/105 = %tag_imm (prim/104) in
+    (let untagged/106 = %untag_imm (Pisint/105) in
+     switch untagged/106
+       | 0 -> k/43
+       | 1 -> k/38 (0))
+      where k/43 =
+        cont k/40)
+     where k/40 =
+       ((let Pfield/103 = %block_load.[`1`] (list/94) in
+         apply direct(map_0 &my_alloc_region/96)
+           (my_closure/95 ~ depth my_depth/97 -> next_depth/98
+            : _ -> [ 0 | 0 of val * [ 0 | 0 of val * val ] ])
+             (f/93, Pfield/103)
+             -> k/41 * k/39)
+          where k/41
+                  (apply_result/99 :
+                     [ 0 | 0 of val * [ 0 | 0 of val * val ] ]) =
+            ((let Pfield/102 = %block_load.[`0`] (list/94) in
+              apply &my_alloc_region/96 f/93 (Pfield/102) -> k/42 * k/39)
+               where k/42 (apply_result/100) =
+                 let Pmakeblock/101 =
+                   %block.[`0`].my_alloc_region/96
+                     (apply_result/100, apply_result/99)
+                 in
+                 cont k/38 (Pmakeblock/101)))
+ in
+ let code rec size(24)
+       sum_1
+         (list/107 : [ 0 | 0 of imm tagged * [ 0 | 0 of imm tagged * val ] ])
+         my_closure/108 &my_alloc_region/109 my_depth/110
+         -> k/44 * k/45
+         : imm tagged =
+   let next_depth/111 = rec_info (succ my_depth/110) in
+   (let prim/116 = %is_int (list/107) in
+    let Pisint/117 = %tag_imm (prim/116) in
+    (let untagged/118 = %untag_imm (Pisint/117) in
+     switch untagged/118
+       | 0 -> k/48
+       | 1 -> k/44 (0))
+      where k/48 =
+        cont k/46)
+     where k/46 =
+       ((let Pfield/115 = %block_load.[`1`] (list/107) in
+         apply direct(sum_1 &my_alloc_region/109)
+           (my_closure/108 ~ depth my_depth/110 -> next_depth/111
+            : _ -> imm tagged)
+             (Pfield/115)
+             -> k/47 * k/45)
+          where k/47 (apply_result/112 : imm tagged) =
+            let Pfield/113 = %block_load.[`0`] (list/107) in
+            let int_add/114 = %int_barith.add (Pfield/113, apply_result/112)
+            in
+            cont k/44 (int_add/114))
+ in
+ let code size(5)
+       `fn[list_map.ml:12,22--38]_2` (x/119 : imm tagged)
+         my_closure/120 &my_alloc_region/121 my_depth/122
+         -> k/49 * k/50
+         : imm tagged =
+   let next_depth/123 = rec_info (succ my_depth/122) in
+   let int_mul/124 = %int_barith.mul (x/119, 2) in
+   cont k/49 (int_mul/124)
+ in
+ let $camlList_map__const_block_0 = Block 0 (3, 0) in
+ let $camlList_map__const_block_1 = Block 0 (2, $camlList_map__const_block_0)
+ in
+ let $camlList_map__const_block_2 = Block 0 (1, $camlList_map__const_block_1)
+ in
+ let map/125 = closure map_0 @map &toplevel in
+ let sum/126 = closure sum_1 @sum &toplevel in
+ (let region/129 = %begin_region () in
+  let ghost_region/130 = %begin_ghost_region () in
+  (let `fn[list_map.ml:12,22--38]/135` =
+     closure `fn[list_map.ml:12,22--38]_2` @`fn[list_map.ml:12,22--38]`
+       &toplevel &region/129
+   in
+   apply direct(map_0 &toplevel)
+     (map/125 : _ -> [ 0 | 0 of imm tagged * [ 0 | 0 of imm tagged * val ] ])
+       (`fn[list_map.ml:12,22--38]/135`, $camlList_map__const_block_2)
+       -> k/53 * error)
+    where k/53
+            (apply_result/134 :
+               [ 0 | 0 of imm tagged * [ 0 | 0 of imm tagged * val ] ]) =
+      apply direct(sum_1 &toplevel)
+        (sum/126 : _ -> imm tagged) (apply_result/134) -> k/52 * error
+    where k/52 (region_return/131 : imm tagged) =
+      let unit/132 = %end_region (region/129) in
+      let unit/133 = %end_ghost_region (ghost_region/130) in
+      cont k/51 (region_return/131))
+   where k/51 (result/127 : imm tagged) =
+     let Pmakeblock/128 = %block.[`0`].`toplevel` (result/127) in
+     cont k/37 (Pmakeblock/128))
+  where k/37 define_root_symbol (module_block/91) =
+    let field_0/92 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/91)
+    in
+    let $camlList_map = Block 0 (field_0/92) in
+    cont done ($camlList_map)

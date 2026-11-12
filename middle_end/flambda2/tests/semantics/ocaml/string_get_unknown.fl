@@ -1,0 +1,42 @@
+(let $camlString_get_unknown__string_1 = "index out of bounds" in
+ let $camlString_get_unknown__block_2 =
+   Block 0 ($`*predef*`.caml_exn_Invalid_argument,
+            $camlString_get_unknown__string_1)
+ in
+ let $camlString_get_unknown__immstring_0 = "hello" in
+ (let try_region/43 = %begin_try_region () in
+  let try_ghost_region/44 = %begin_try_ghost_region () in
+  cont k/23 push(k/21)
+    where k/23 =
+      let Popaque/49 = %opaque (7) in
+      let Popaque/50 = %opaque ($camlString_get_unknown__immstring_0) in
+      ((let prim/54 = %string_length (Popaque/50) in
+        let prim/55 = %num_conv.[`imm`].[`nativeint`] (prim/54) in
+        let prim/56 = %num_conv.[tagged_imm].[`nativeint`] (Popaque/49) in
+        let prim/57 = %int_comp.`nativeint`.unsigned.lt (prim/56, prim/55) in
+        switch prim/57
+          | 0 -> k/25
+          | 1 -> k/26)
+         where k/26 =
+           cont k/24
+         where k/25 =
+           cont k/21 pop(regular k/21) ($camlString_get_unknown__block_2)
+         where k/24 =
+           let prim/51 = %num_conv.[tagged_imm].[`nativeint`] (Popaque/49) in
+           let prim/52 = %string_load.[`8`] (Popaque/50, prim/51) in
+           let Pstringrefs/53 = %tag_imm (prim/52) in
+           cont k/22 (Pstringrefs/53))
+    where k/22 (body_result/48 : imm tagged) =
+      cont k/20 pop(k/21) (body_result/48)
+    where k/21 exn (exn/45 : val) =
+      let unit/46 = %end_try_region (try_region/43) in
+      let unit/47 = %end_try_ghost_region (try_ghost_region/44) in
+      cont k/20 (-1))
+   where k/20 (result/41 : imm tagged) =
+     let Pmakeblock/42 = %block.[`0`].`toplevel` (result/41) in
+     cont k/19 (Pmakeblock/42))
+  where k/19 define_root_symbol (module_block/39) =
+    let field_0/40 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/39)
+    in
+    let $camlString_get_unknown = Block 0 (field_0/40) in
+    cont done ($camlString_get_unknown)

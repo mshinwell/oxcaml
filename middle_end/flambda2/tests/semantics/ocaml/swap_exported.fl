@@ -1,0 +1,22 @@
+let $camlSwap_exported__first_const_0 = Block 0 () in
+(let code size(10)
+       swap_0 (p/27 : [ 0 of val * val ])
+         my_closure/28 &my_alloc_region/29 my_depth/30
+         -> k/10 * k/11
+         : [ 0 of val * val ] =
+   let next_depth/31 = rec_info (succ my_depth/30) in
+   let Pmixedfield/32 = %block_load.[`0`] (p/27) in
+   let Pmixedfield/33 = %block_load.[`1`] (p/27) in
+   let Pmakeblock/34 =
+     %block.[`0`].my_alloc_region/29 (Pmixedfield/33, Pmixedfield/32)
+   in
+   cont k/10 (Pmakeblock/34)
+ in
+ let swap/35 = closure swap_0 @swap &toplevel in
+ let Pmakeblock/36 = %block.[`0`].`toplevel` (swap/35) in
+ cont k/9 (Pmakeblock/36))
+  where k/9 define_root_symbol (module_block/25) =
+    let field_0/26 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/25)
+    in
+    let $camlSwap_exported = Block 0 (field_0/26) in
+    cont done ($camlSwap_exported)

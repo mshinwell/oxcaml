@@ -1,0 +1,33 @@
+let $camlUnit_argument__first_const_0 = Block 0 () in
+(let code inline(always) size(1)
+       five_0 (param/39 : imm tagged)
+         my_closure/40 &my_alloc_region/41 my_depth/42
+         -> k/18 * k/19
+         : imm tagged =
+   let next_depth/43 = rec_info (succ my_depth/42) in
+   cont k/18 (5)
+ in
+ let code inline(always) size(6)
+       apply_to_unit_1 (f/44 : val)
+         my_closure/45 &my_alloc_region/46 my_depth/47
+         -> k/20 * k/21 =
+   let next_depth/48 = rec_info (succ my_depth/47) in
+   apply &my_alloc_region/46 f/44 (0) -> k/20 * k/21
+ in
+ let five/49 = closure five_0 @five &toplevel in
+ let apply_to_unit/50 = closure apply_to_unit_1 @apply_to_unit &toplevel in
+ apply direct(apply_to_unit_1 &toplevel)
+   (apply_to_unit/50 : _ -> imm tagged) (five/49) -> k/22 * error
+   where k/22 (apply_result/51 : imm tagged) =
+     (apply direct(five_0 &toplevel)
+        (five/49 : _ -> imm tagged) (0) -> k/23 * error
+        where k/23 (apply_result/52 : imm tagged) =
+          let result/53 = %int_barith.add (apply_result/52, apply_result/51)
+          in
+          let Pmakeblock/54 = %block.[`0`].`toplevel` (result/53) in
+          cont k/17 (Pmakeblock/54)))
+  where k/17 define_root_symbol (module_block/37) =
+    let field_0/38 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/37)
+    in
+    let $camlUnit_argument = Block 0 (field_0/38) in
+    cont done ($camlUnit_argument)

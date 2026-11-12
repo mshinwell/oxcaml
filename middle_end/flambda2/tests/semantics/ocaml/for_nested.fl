@@ -1,0 +1,127 @@
+let $camlFor_nested__first_const_0 = Block 0 () in
+(let n/103 = %opaque (3) in
+ cont k/35 (0)
+   where k/35 (let_mutable/104 : imm tagged) =
+     (cont k/36 (n/103, let_mutable/104)
+        where k/36
+                (for_stop/105 : imm tagged, s_14_unboxed0/106 : imm tagged) =
+          ((let prim/143 = %int_comp.le (1, for_stop/105) in
+            let int_lessequal/144 = %tag_imm (prim/143) in
+            (let untagged/145 = %untag_imm (int_lessequal/144) in
+             switch untagged/145
+               | 0 -> k/37 (0, s_14_unboxed0/106)
+               | 1 -> k/47)
+              where k/47 =
+                cont k/38 (s_14_unboxed0/106))
+             where k/38 (s_14_unboxed0/109 : imm tagged) =
+               let prim/110 = %untag_imm (1) in
+               let for_start_naked/111 =
+                 %num_conv.[`imm`].[`int64`] (prim/110)
+               in
+               let prim/112 = %untag_imm (for_stop/105) in
+               let for_stop_naked/113 =
+                 %num_conv.[`imm`].[`int64`] (prim/112)
+               in
+               (cont k/39 (for_start_naked/111, s_14_unboxed0/109)
+                  where rec k/39
+                              (for_counter_naked/114 : int64,
+                               s_14_unboxed0/115 : imm tagged) =
+                    let prim/116 =
+                      %num_conv.[`int64`].[`imm`] (for_counter_naked/114)
+                    in
+                    let i/117 = %tag_imm (prim/116) in
+                    (cont k/40 (i/117, s_14_unboxed0/115)
+                       where k/40
+                               (for_stop/118 : imm tagged,
+                                s_14_unboxed0/119 : imm tagged) =
+                         ((let prim/140 = %int_comp.le (1, for_stop/118) in
+                           let int_lessequal/141 = %tag_imm (prim/140) in
+                           (let untagged/142 = %untag_imm (int_lessequal/141)
+                            in
+                            switch untagged/142
+                              | 0 -> k/41 (0, s_14_unboxed0/119)
+                              | 1 -> k/46)
+                             where k/46 =
+                               cont k/43 (s_14_unboxed0/119))
+                            where k/43 (s_14_unboxed0/126 : imm tagged) =
+                              let prim/127 = %untag_imm (1) in
+                              let for_start_naked/128 =
+                                %num_conv.[`imm`].[`int64`] (prim/127)
+                              in
+                              let prim/129 = %untag_imm (for_stop/118) in
+                              let for_stop_naked/130 =
+                                %num_conv.[`imm`].[`int64`] (prim/129)
+                              in
+                              (cont k/44
+                                      (for_start_naked/128, s_14_unboxed0/126)
+                                 where rec k/44
+                                             (for_counter_naked/131 : int64,
+                                              s_14_unboxed0/132 : imm tagged) =
+                                   let prim/133 =
+                                     %num_conv.[`int64`].[`imm`]
+                                       (for_counter_naked/131)
+                                   in
+                                   let j/134 = %tag_imm (prim/133) in
+                                   let int_add/135 =
+                                     %int_barith.add
+                                       (s_14_unboxed0/132, j/134)
+                                   in
+                                   let for_next_naked/136 =
+                                     %int_barith.`int64`.add
+                                       (for_counter_naked/131, 1L)
+                                   in
+                                   let prim/137 =
+                                     %int_comp.`int64`.le
+                                       (for_next_naked/136,
+                                        for_stop_naked/130)
+                                   in
+                                   let `int64#_lessequal/138` =
+                                     %tag_imm (prim/137)
+                                   in
+                                   ((let untagged/139 =
+                                       %untag_imm (`int64#_lessequal/138`)
+                                     in
+                                     switch untagged/139
+                                       | 0 -> k/41 (0, int_add/135)
+                                       | 1 -> k/45)
+                                      where k/45 =
+                                        cont k/44
+                                               (for_next_naked/136,
+                                                int_add/135)))
+                            where k/41
+                                    (staticcatch_result/120 : imm tagged,
+                                     s_14_unboxed0/121 : imm tagged) =
+                              let for_next_naked/122 =
+                                %int_barith.`int64`.add
+                                  (for_counter_naked/114, 1L)
+                              in
+                              let prim/123 =
+                                %int_comp.`int64`.le
+                                  (for_next_naked/122, for_stop_naked/113)
+                              in
+                              let `int64#_lessequal/124` =
+                                %tag_imm (prim/123)
+                              in
+                              ((let untagged/125 =
+                                  %untag_imm (`int64#_lessequal/124`)
+                                in
+                                switch untagged/125
+                                  | 0 -> k/37 (0, s_14_unboxed0/121)
+                                  | 1 -> k/42)
+                                 where k/42 =
+                                   cont k/39
+                                          (for_next_naked/122,
+                                           s_14_unboxed0/121)))))
+             where k/37
+                     (staticcatch_result/107 : imm tagged,
+                      s_14_unboxed0/108 : imm tagged) =
+               cont k/34 (s_14_unboxed0/108))))
+  where k/34 (result/101 : imm tagged) =
+    let Pmakeblock/102 = %block.[`0`].`toplevel` (result/101) in
+    cont k/33 (Pmakeblock/102)
+  where k/33 define_root_symbol (module_block/99) =
+    let field_0/100 =
+      %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/99)
+    in
+    let $camlFor_nested = Block 0 (field_0/100) in
+    cont done ($camlFor_nested)

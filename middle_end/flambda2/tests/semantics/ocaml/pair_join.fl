@@ -1,0 +1,39 @@
+(let $camlPair_join__const_block_0 = Block 0 (1, 2) in
+ let code inline(never) size(16)
+       sum_0 (c/39 : imm tagged, pair/40 : [ 0 of imm tagged * imm tagged ])
+         my_closure/41 &my_alloc_region/42 my_depth/43
+         -> k/16 * k/17
+         : imm tagged =
+   let next_depth/44 = rec_info (succ my_depth/43) in
+   (let untagged/49 = %untag_imm (c/39) in
+    switch untagged/49
+      | 0 -> k/18 (pair/40)
+      | 1 -> k/18 ($camlPair_join__const_block_0))
+     where k/18 (p/45 : [ 0 of imm tagged * imm tagged ]) =
+       let Pfield/46 = %block_load.[`1`] (p/45) in
+       let Pfield/47 = %block_load.[`0`] (p/45) in
+       let int_add/48 = %int_barith.add (Pfield/47, Pfield/46) in
+       cont k/16 (int_add/48)
+ in
+ let $camlPair_join__const_block_2 = Block 0 (3, 4) in
+ let $camlPair_join__const_block_1 = Block 0 (5, 6) in
+ let sum/50 = closure sum_0 @sum &toplevel in
+ apply direct(sum_0 &toplevel)
+   (sum/50 : _ -> imm tagged)
+     (0, $camlPair_join__const_block_1)
+     -> k/19 * error
+   where k/19 (apply_result/51 : imm tagged) =
+     (apply direct(sum_0 &toplevel)
+        (sum/50 : _ -> imm tagged)
+          (1, $camlPair_join__const_block_2)
+          -> k/20 * error
+        where k/20 (apply_result/52 : imm tagged) =
+          let result/53 = %int_barith.add (apply_result/52, apply_result/51)
+          in
+          let Pmakeblock/54 = %block.[`0`].`toplevel` (result/53) in
+          cont k/15 (Pmakeblock/54)))
+  where k/15 define_root_symbol (module_block/37) =
+    let field_0/38 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/37)
+    in
+    let $camlPair_join = Block 0 (field_0/38) in
+    cont done ($camlPair_join)

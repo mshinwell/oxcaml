@@ -1,0 +1,16 @@
+let $camlUncaught_raise__first_const_0 = Block 0 () in
+(let Popaque/15 = %opaque (1) in
+ (let untagged/16 = %untag_imm (Popaque/15) in
+  switch untagged/16
+    | 0 -> k/12 (1)
+    | 1 -> k/14)
+   where k/14 =
+     cont k/13)
+  where k/13 =
+    cont error pop(regular error) ($`*predef*`.caml_exn_Not_found)
+  where k/12 (result/13 : imm tagged) =
+    let Pmakeblock/14 = %block.[`0`].`toplevel` (result/13) in
+    cont k/11 (Pmakeblock/14)
+  where k/11 define_root_symbol (module_block/12) =
+    let $camlUncaught_raise = Block 0 (1) in
+    cont done ($camlUncaught_raise)

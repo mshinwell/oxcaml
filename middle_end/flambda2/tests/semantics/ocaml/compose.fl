@@ -1,0 +1,71 @@
+let $camlCompose__first_const_0 = Block 0 () in
+(let code inline(always) size(14)
+       `fn[compose.ml:10,27--52]_1` (x/75)
+         my_closure/76 &my_alloc_region/77 my_depth/78
+         -> k/28 * k/29 =
+   let next_depth/79 = rec_info (succ my_depth/78) in
+   let f/80 =
+     %project_value_slot.[`fn[compose.ml:10,27--52]`].[f] (my_closure/76)
+   in
+   let g/81 =
+     %project_value_slot.[`fn[compose.ml:10,27--52]`].[g] (my_closure/76)
+   in
+   apply &my_alloc_region/77 g/81 (x/75) -> k/30 * k/29
+     where k/30 (apply_result/82) =
+       apply &my_alloc_region/77 f/80 (apply_result/82) -> k/28 * k/29
+ in
+ let code inline(always) size(24)
+       compose_0 (f/83 : val, g/84 : val)
+         my_closure/85 &my_alloc_region/86 my_depth/87
+         -> k/31 * k/32
+         : val =
+   let next_depth/88 = rec_info (succ my_depth/87) in
+   let `fn[compose.ml:10,27--52]/89` =
+     closure `fn[compose.ml:10,27--52]_1` @`fn[compose.ml:10,27--52]`
+       &my_alloc_region/86
+   with { f = f/83; g = g/84 }
+   in
+   cont k/31 (`fn[compose.ml:10,27--52]/89`)
+ in
+ let code size(5)
+       `fn[compose.ml:12,39--55]_2` (x/90 : imm tagged)
+         my_closure/91 &my_alloc_region/92 my_depth/93
+         -> k/33 * k/34
+         : imm tagged =
+   let next_depth/94 = rec_info (succ my_depth/93) in
+   let int_mul/95 = %int_barith.mul (x/90, 2) in
+   cont k/33 (int_mul/95)
+ in
+ let code size(3)
+       `fn[compose.ml:12,22--38]_3` (x/96 : imm tagged)
+         my_closure/97 &my_alloc_region/98 my_depth/99
+         -> k/35 * k/36
+         : imm tagged =
+   let next_depth/100 = rec_info (succ my_depth/99) in
+   let int_add/101 = %int_barith.add (x/96, 1) in
+   cont k/35 (int_add/101)
+ in
+ let compose/102 = closure compose_0 @compose &toplevel in
+ (let Popaque/105 = %opaque (5) in
+  let `fn[compose.ml:12,39--55]/106` =
+    closure `fn[compose.ml:12,39--55]_2` @`fn[compose.ml:12,39--55]`
+      &toplevel
+  in
+  let `fn[compose.ml:12,22--38]/107` =
+    closure `fn[compose.ml:12,22--38]_3` @`fn[compose.ml:12,22--38]`
+      &toplevel
+  in
+  apply direct(compose_0 &toplevel)
+    compose/102
+      (`fn[compose.ml:12,22--38]/107`, `fn[compose.ml:12,39--55]/106`)
+      -> k/38 * error
+    where k/38 (func/108) =
+      apply &toplevel func/108 (Popaque/105) -> k/37 * error)
+   where k/37 (result/103 : imm tagged) =
+     let Pmakeblock/104 = %block.[`0`].`toplevel` (result/103) in
+     cont k/27 (Pmakeblock/104))
+  where k/27 define_root_symbol (module_block/73) =
+    let field_0/74 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/73)
+    in
+    let $camlCompose = Block 0 (field_0/74) in
+    cont done ($camlCompose)

@@ -1,0 +1,20 @@
+let $camlDiv_unknown__first_const_0 = Block 0 () in
+(let Popaque/17 = %opaque (5) in
+ let Popaque/18 = %opaque (17) in
+ (let prim/21 = %int_comp.ne (Popaque/17, 0) in
+  switch prim/21
+    | 0 -> k/13
+    | 1 -> k/14)
+   where k/14 =
+     cont k/12
+   where k/13 =
+     cont error pop(regular error) ($`*predef*`.caml_exn_Division_by_zero)
+   where k/12 =
+     let result/19 = %int_barith.div (Popaque/18, Popaque/17) in
+     let Pmakeblock/20 = %block.[`0`].`toplevel` (result/19) in
+     cont k/11 (Pmakeblock/20))
+  where k/11 define_root_symbol (module_block/15) =
+    let field_0/16 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/15)
+    in
+    let $camlDiv_unknown = Block 0 (field_0/16) in
+    cont done ($camlDiv_unknown)

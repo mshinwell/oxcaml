@@ -1,0 +1,129 @@
+let $camlTree_root__first_const_0 = Block 0 () in
+(let code inline(always) size(17)
+       root_0
+         (tree/87 :
+            [ 0
+            | 0 of [ 0 | 0 of val * imm tagged * val ] * imm tagged *
+                [ 0 | 0 of val * imm tagged * val ] ])
+         my_closure/88 &my_alloc_region/89 my_depth/90
+         -> k/38 * k/39
+         : imm tagged =
+   let next_depth/91 = rec_info (succ my_depth/90) in
+   (let prim/93 = %is_int (tree/87) in
+    let Pisint/94 = %tag_imm (prim/93) in
+    (let untagged/95 = %untag_imm (Pisint/94) in
+     switch untagged/95
+       | 0 -> k/41
+       | 1 -> k/38 (100))
+      where k/41 =
+        cont k/40)
+     where k/40 =
+       let Pfield/92 = %block_load.[`1`] (tree/87) in
+       cont k/38 (Pfield/92)
+ in
+ let code inline(always) size(17)
+       left_1
+         (tree/96 :
+            [ 0
+            | 0 of [ 0 | 0 of val * imm tagged * val ] * imm tagged *
+                [ 0 | 0 of val * imm tagged * val ] ])
+         my_closure/97 &my_alloc_region/98 &my_region/99 &my_ghost_region/100
+           my_depth/101
+         -> k/42 * k/43
+         : [ 0
+           | 0 of [ 0 | 0 of val * imm tagged * val ] * imm tagged *
+               [ 0 | 0 of val * imm tagged * val ] ] stack =
+   let next_depth/102 = rec_info (succ my_depth/101) in
+   (let prim/104 = %is_int (tree/96) in
+    let Pisint/105 = %tag_imm (prim/104) in
+    (let untagged/106 = %untag_imm (Pisint/105) in
+     switch untagged/106
+       | 0 -> k/45
+       | 1 -> k/42 (0))
+      where k/45 =
+        cont k/44)
+     where k/44 =
+       let Pfield/103 = %block_load.[`0`] (tree/96) in
+       cont k/42 (Pfield/103)
+ in
+ let root/107 = closure root_0 @root &toplevel in
+ let left/108 = closure left_1 @left &toplevel in
+ (let region/111 = %begin_region () in
+  let ghost_region/112 = %begin_ghost_region () in
+  (let Popaque/116 = %opaque (1) in
+   let Pmakeblock/117 =
+     %block.[`0`].`toplevel`.local[region/111] (0, Popaque/116, 0)
+   in
+   let tree/118 =
+     %block.[`0`].`toplevel`.local[region/111] (Pmakeblock/117, 2, 0)
+   in
+   apply direct(left_1 &toplevel &region/111 &ghost_region/112)
+     (left/108
+      : _ ->
+        [ 0
+        | 0 of [ 0 | 0 of val * imm tagged * val ] * imm tagged *
+            [ 0 | 0 of val * imm tagged * val ] ]
+      )
+       (tree/118)
+       -> k/53 * error
+     where k/53
+             (apply_result/126 :
+                [ 0
+                | 0 of [ 0 | 0 of val * imm tagged * val ] * imm tagged *
+                    [ 0 | 0 of val * imm tagged * val ] ]) =
+       apply direct(left_1 &toplevel &region/111 &ghost_region/112)
+         (left/108
+          : _ ->
+            [ 0
+            | 0 of [ 0 | 0 of val * imm tagged * val ] * imm tagged *
+                [ 0 | 0 of val * imm tagged * val ] ]
+          )
+           (apply_result/126)
+           -> k/52 * error
+     where k/52
+             (apply_result/125 :
+                [ 0
+                | 0 of [ 0 | 0 of val * imm tagged * val ] * imm tagged *
+                    [ 0 | 0 of val * imm tagged * val ] ]) =
+       apply direct(root_0 &toplevel)
+         (root/107 : _ -> imm tagged) (apply_result/125) -> k/48 * error
+     where k/48 (apply_result/119 : imm tagged) =
+       (apply direct(left_1 &toplevel &region/111 &ghost_region/112)
+          (left/108
+           : _ ->
+             [ 0
+             | 0 of [ 0 | 0 of val * imm tagged * val ] * imm tagged *
+                 [ 0 | 0 of val * imm tagged * val ] ]
+           )
+            (tree/118)
+            -> k/51 * error
+          where k/51
+                  (apply_result/124 :
+                     [ 0
+                     | 0 of [ 0 | 0 of val * imm tagged * val ] *
+                         imm tagged * [ 0 | 0 of val * imm tagged * val ] ]) =
+            apply direct(root_0 &toplevel)
+              (root/107 : _ -> imm tagged) (apply_result/124) -> k/49 * error
+          where k/49 (apply_result/120 : imm tagged) =
+            (apply direct(root_0 &toplevel)
+               (root/107 : _ -> imm tagged) (tree/118) -> k/50 * error
+               where k/50 (apply_result/121 : imm tagged) =
+                 let int_add/122 =
+                   %int_barith.add (apply_result/121, apply_result/120)
+                 in
+                 let int_add/123 =
+                   %int_barith.add (int_add/122, apply_result/119)
+                 in
+                 cont k/47 (int_add/123))))
+    where k/47 (region_return/113 : imm tagged) =
+      let unit/114 = %end_region (region/111) in
+      let unit/115 = %end_ghost_region (ghost_region/112) in
+      cont k/46 (region_return/113))
+   where k/46 (result/109 : imm tagged) =
+     let Pmakeblock/110 = %block.[`0`].`toplevel` (result/109) in
+     cont k/37 (Pmakeblock/110))
+  where k/37 define_root_symbol (module_block/85) =
+    let field_0/86 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/85)
+    in
+    let $camlTree_root = Block 0 (field_0/86) in
+    cont done ($camlTree_root)

@@ -1,0 +1,67 @@
+(let $camlConv_truncate__int32_4 = -1l in
+ let $camlConv_truncate__int64_3 = 4611686018427387904L in
+ let $camlConv_truncate__int64_2 = -9223372036854775808L in
+ let $camlConv_truncate__int64_1 = 2147483648L in
+ let $camlConv_truncate__int64_0 = 4294967297L in
+ let prim/84 = %unbox_num.`int64` ($camlConv_truncate__int64_0) in
+ let prim/85 = %num_conv.[`int64`].[`int32`] (prim/84) in
+ let int32_of_int64/86 = %box_num.`int32`.`toplevel` (prim/85) in
+ let prim/87 = %unbox_num.`int32` (int32_of_int64/86) in
+ let prim/88 = %num_conv.[`int32`].[`imm`] (prim/87) in
+ let low_32_bits/89 = %tag_imm (prim/88) in
+ let prim/90 = %unbox_num.`int64` ($camlConv_truncate__int64_1) in
+ let prim/91 = %num_conv.[`int64`].[`int32`] (prim/90) in
+ let int32_of_int64/92 = %box_num.`int32`.`toplevel` (prim/91) in
+ let prim/93 = %unbox_num.`int32` (int32_of_int64/92) in
+ let prim/94 = %num_conv.[`int32`].[`imm`] (prim/93) in
+ let sign_from_bit_31/95 = %tag_imm (prim/94) in
+ let prim/96 = %untag_imm (4294967295) in
+ let prim/97 = %num_conv.[`imm`].[`int32`] (prim/96) in
+ let int32_of_int/98 = %box_num.`int32`.`toplevel` (prim/97) in
+ let prim/99 = %unbox_num.`int32` (int32_of_int/98) in
+ let prim/100 = %num_conv.[`int32`].[`imm`] (prim/99) in
+ let all_ones_32/101 = %tag_imm (prim/100) in
+ let prim/102 = %unbox_num.`int64` ($camlConv_truncate__int64_2) in
+ let prim/103 = %num_conv.[`int64`].[`imm`] (prim/102) in
+ let low_63_bits/104 = %tag_imm (prim/103) in
+ let prim/105 = %unbox_num.`int64` ($camlConv_truncate__int64_3) in
+ let prim/106 = %num_conv.[`int64`].[`imm`] (prim/105) in
+ let sign_from_bit_62/107 = %tag_imm (prim/106) in
+ let prim/108 = %unbox_num.`int32` ($camlConv_truncate__int32_4) in
+ let prim/109 = %num_conv.[`int32`].[`int64`] (prim/108) in
+ let int64_of_int32/110 = %box_num.`int64`.`toplevel` (prim/109) in
+ let prim/111 = %unbox_num.`int64` (int64_of_int32/110) in
+ let prim/112 = %num_conv.[`int64`].[`imm`] (prim/111) in
+ let sign_extended/113 = %tag_imm (prim/112) in
+ let Pmakeblock/114 =
+   %block.[`0`].`toplevel`
+     (low_32_bits/89,
+      sign_from_bit_31/95,
+      all_ones_32/101,
+      low_63_bits/104,
+      sign_from_bit_62/107,
+      sign_extended/113)
+ in
+ cont k/5 (Pmakeblock/114))
+  where k/5 define_root_symbol (module_block/77) =
+    let field_0/78 = %block_load.tag[`0`].`size`[`6`].[`0`] (module_block/77)
+    in
+    let field_1/79 = %block_load.tag[`0`].`size`[`6`].[`1`] (module_block/77)
+    in
+    let field_2/80 = %block_load.tag[`0`].`size`[`6`].[`2`] (module_block/77)
+    in
+    let field_3/81 = %block_load.tag[`0`].`size`[`6`].[`3`] (module_block/77)
+    in
+    let field_4/82 = %block_load.tag[`0`].`size`[`6`].[`4`] (module_block/77)
+    in
+    let field_5/83 = %block_load.tag[`0`].`size`[`6`].[`5`] (module_block/77)
+    in
+    let $camlConv_truncate =
+      Block 0 (field_0/78,
+               field_1/79,
+               field_2/80,
+               field_3/81,
+               field_4/82,
+               field_5/83)
+    in
+    cont done ($camlConv_truncate)

@@ -5,7 +5,9 @@
 
    The type annotation on [cells] makes its argument an ordinary, heap allocated
    one. Without it the compiler allocates the argument on the stack, in a
-   region, which the model has not got (see [match_variant_local.ml]). *)
+   region: that is [match_variant_local.ml]. Other examples have the same
+   annotation for the same reason; they were written before the test tool
+   converted regions. *)
 
 external ( + ) : int -> int -> int = "%addint"
 

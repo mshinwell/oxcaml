@@ -1,0 +1,16 @@
+let $camlTry_result_unused__first_const_0 = Block 0 () in
+(let try_region/22 = %begin_try_region () in
+ let try_ghost_region/23 = %begin_try_ghost_region () in
+ cont k/15 push(k/14)
+   where k/15 =
+     cont k/14 pop(regular k/14) ($`*predef*`.caml_exn_Not_found)
+   where k/14 exn (exn/24 : val) =
+     let unit/25 = %end_try_region (try_region/22) in
+     let unit/26 = %end_try_ghost_region (try_ghost_region/23) in
+     cont k/13 (5))
+  where k/13 (result/20 : imm tagged) =
+    let Pmakeblock/21 = %block.[`0`].`toplevel` (result/20) in
+    cont k/12 (Pmakeblock/21)
+  where k/12 define_root_symbol (module_block/19) =
+    let $camlTry_result_unused = Block 0 (5) in
+    cont done ($camlTry_result_unused)

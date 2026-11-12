@@ -1,0 +1,21 @@
+let $camlSeq_unit__first_const_0 = Block 0 () in
+(let code inline(always) size(1)
+       discard_0 (x/24 : val)
+         my_closure/25 &my_alloc_region/26 my_depth/27
+         -> k/14 * k/15
+         : imm tagged =
+   let next_depth/28 = rec_info (succ my_depth/27) in
+   cont k/14 (0)
+ in
+ let discard/29 = closure discard_0 @discard &toplevel in
+ (let Popaque/33 = %opaque (1) in
+  apply direct(discard_0 &toplevel)
+    (discard/29 : _ -> imm tagged) (Popaque/33) -> k/17 * error)
+   where k/17 (apply_result/32 : imm tagged) =
+     cont k/16 (3)
+   where k/16 (result/30 : imm tagged) =
+     let Pmakeblock/31 = %block.[`0`].`toplevel` (result/30) in
+     cont k/13 (Pmakeblock/31))
+  where k/13 define_root_symbol (module_block/23) =
+    let $camlSeq_unit = Block 0 (3) in
+    cont done ($camlSeq_unit)

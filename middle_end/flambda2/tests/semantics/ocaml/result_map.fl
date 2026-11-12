@@ -1,0 +1,80 @@
+let $camlResult_map__first_const_0 = Block 0 () in
+(let code inline(always) size(37)
+       map_0 (f/93 : val, r/94 : [ 0 of val |1 of val ])
+         my_closure/95 &my_alloc_region/96 my_depth/97
+         -> k/32 * k/33
+         : [ 0 of val |1 of val ] =
+   let next_depth/98 = rec_info (succ my_depth/97) in
+   (let prim/104 = %get_tag (r/94) in
+    let scrutinee_tag/105 = %tag_imm (prim/104) in
+    let untagged/106 = %untag_imm (scrutinee_tag/105) in
+    switch untagged/106
+      | 0 -> k/34
+      | 1 -> k/36)
+     where k/36 =
+       let Pfield/102 = %block_load.[`0`] (r/94) in
+       let Pmakeblock/103 = %block.[`1`].my_alloc_region/96 (Pfield/102) in
+       cont k/32 (Pmakeblock/103)
+     where k/34 =
+       ((let Pfield/101 = %block_load.[`0`] (r/94) in
+         apply &my_alloc_region/96 f/93 (Pfield/101) -> k/35 * k/33)
+          where k/35 (apply_result/99 : val) =
+            let Pmakeblock/100 =
+              %block.[`0`].my_alloc_region/96 (apply_result/99)
+            in
+            cont k/32 (Pmakeblock/100))
+ in
+ let code inline(always) size(17)
+       ok_or_1 (r/107 : [ 0 of val |1 of val ], default/108 : val)
+         my_closure/109 &my_alloc_region/110 my_depth/111
+         -> k/37 * k/38
+         : val =
+   let next_depth/112 = rec_info (succ my_depth/111) in
+   (let prim/114 = %get_tag (r/107) in
+    let scrutinee_tag/115 = %tag_imm (prim/114) in
+    let untagged/116 = %untag_imm (scrutinee_tag/115) in
+    switch untagged/116
+      | 0 -> k/39
+      | 1 -> k/37 (default/108))
+     where k/39 =
+       let Pfield/113 = %block_load.[`0`] (r/107) in
+       cont k/37 (Pfield/113)
+ in
+ let code size(5)
+       `fn[result_map.ml:15,24--40]_2` (x/117 : imm tagged)
+         my_closure/118 &my_alloc_region/119 my_depth/120
+         -> k/40 * k/41
+         : imm tagged =
+   let next_depth/121 = rec_info (succ my_depth/120) in
+   let int_mul/122 = %int_barith.mul (x/117, 2) in
+   cont k/40 (int_mul/122)
+ in
+ let map/123 = closure map_0 @map &toplevel in
+ let ok_or/124 = closure ok_or_1 @ok_or &toplevel in
+ (let region/127 = %begin_region () in
+  let ghost_region/128 = %begin_ghost_region () in
+  (let Popaque/133 = %opaque (21) in
+   let Pmakeblock/134 = %block.[`0`].`toplevel` (Popaque/133) in
+   let `fn[result_map.ml:15,24--40]/135` =
+     closure `fn[result_map.ml:15,24--40]_2` @`fn[result_map.ml:15,24--40]`
+       &toplevel &region/127
+   in
+   apply direct(map_0 &toplevel)
+     (map/123 : _ -> [ 0 of val |1 of val ])
+       (`fn[result_map.ml:15,24--40]/135`, Pmakeblock/134)
+       -> k/44 * error)
+    where k/44 (apply_result/132 : [ 0 of val |1 of val ]) =
+      apply direct(ok_or_1 &toplevel)
+        (ok_or/124 : _ -> imm tagged) (apply_result/132, 0) -> k/43 * error
+    where k/43 (region_return/129 : imm tagged) =
+      let unit/130 = %end_region (region/127) in
+      let unit/131 = %end_ghost_region (ghost_region/128) in
+      cont k/42 (region_return/129))
+   where k/42 (result/125 : imm tagged) =
+     let Pmakeblock/126 = %block.[`0`].`toplevel` (result/125) in
+     cont k/31 (Pmakeblock/126))
+  where k/31 define_root_symbol (module_block/91) =
+    let field_0/92 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/91)
+    in
+    let $camlResult_map = Block 0 (field_0/92) in
+    cont done ($camlResult_map)

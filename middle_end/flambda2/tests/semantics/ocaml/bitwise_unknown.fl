@@ -1,0 +1,16 @@
+let $camlBitwise_unknown__first_const_0 = Block 0 () in
+(let x/25 = %opaque (12) in
+ let int_xor/26 = %int_barith.xor (x/25, 5) in
+ let int_or/27 = %int_barith.or (x/25, 3) in
+ let int_and/28 = %int_barith.`and` (x/25, 10) in
+ let int_add/29 = %int_barith.add (int_and/28, int_or/27) in
+ let int_add/30 = %int_barith.add (int_add/29, int_xor/26) in
+ cont k/8 (int_add/30))
+  where k/8 (result/23 : imm tagged) =
+    let Pmakeblock/24 = %block.[`0`].`toplevel` (result/23) in
+    cont k/7 (Pmakeblock/24)
+  where k/7 define_root_symbol (module_block/21) =
+    let field_0/22 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/21)
+    in
+    let $camlBitwise_unknown = Block 0 (field_0/22) in
+    cont done ($camlBitwise_unknown)

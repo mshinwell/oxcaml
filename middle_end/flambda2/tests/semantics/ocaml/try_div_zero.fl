@@ -1,0 +1,32 @@
+let $camlTry_div_zero__first_const_0 = Block 0 () in
+(let try_region/33 = %begin_try_region () in
+ let try_ghost_region/34 = %begin_try_ghost_region () in
+ cont k/23 push(k/21)
+   where k/23 =
+     let Popaque/39 = %opaque (0) in
+     let Popaque/40 = %opaque (7) in
+     ((let prim/42 = %int_comp.ne (Popaque/39, 0) in
+       switch prim/42
+         | 0 -> k/25
+         | 1 -> k/26)
+        where k/26 =
+          cont k/24
+        where k/25 =
+          cont k/21 pop(regular k/21) ($`*predef*`.caml_exn_Division_by_zero)
+        where k/24 =
+          let int_div/41 = %int_barith.div (Popaque/40, Popaque/39) in
+          cont k/22 (int_div/41))
+   where k/22 (body_result/38 : imm tagged) =
+     cont k/20 pop(k/21) (body_result/38)
+   where k/21 exn (exn/35 : val) =
+     let unit/36 = %end_try_region (try_region/33) in
+     let unit/37 = %end_try_ghost_region (try_ghost_region/34) in
+     cont k/20 (-1))
+  where k/20 (result/31 : imm tagged) =
+    let Pmakeblock/32 = %block.[`0`].`toplevel` (result/31) in
+    cont k/19 (Pmakeblock/32)
+  where k/19 define_root_symbol (module_block/29) =
+    let field_0/30 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/29)
+    in
+    let $camlTry_div_zero = Block 0 (field_0/30) in
+    cont done ($camlTry_div_zero)

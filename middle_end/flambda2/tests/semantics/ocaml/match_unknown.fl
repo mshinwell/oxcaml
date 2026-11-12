@@ -1,0 +1,21 @@
+(let $camlMatch_unknown__const_block_0 = Block 0 (3) in
+ (let `*match*/23` = %opaque ($camlMatch_unknown__const_block_0) in
+  (let prim/25 = %is_int (`*match*/23`) in
+   let Pisint/26 = %tag_imm (prim/25) in
+   (let untagged/27 = %untag_imm (Pisint/26) in
+    switch untagged/27
+      | 0 -> k/14
+      | 1 -> k/12 (0))
+     where k/14 =
+       cont k/13)
+    where k/13 =
+      let Pfield/24 = %block_load.[`0`] (`*match*/23`) in
+      cont k/12 (Pfield/24))
+   where k/12 (result/21 : imm tagged) =
+     let Pmakeblock/22 = %block.[`0`].`toplevel` (result/21) in
+     cont k/11 (Pmakeblock/22))
+  where k/11 define_root_symbol (module_block/19) =
+    let field_0/20 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/19)
+    in
+    let $camlMatch_unknown = Block 0 (field_0/20) in
+    cont done ($camlMatch_unknown)

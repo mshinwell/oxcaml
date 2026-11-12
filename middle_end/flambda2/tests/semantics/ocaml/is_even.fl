@@ -1,0 +1,36 @@
+let $camlIs_even__first_const_0 = Block 0 () in
+(let code inline(always) size(6)
+       is_even_0 (x/37 : imm tagged)
+         my_closure/38 &my_alloc_region/39 my_depth/40
+         -> k/20 * k/21
+         : imm tagged =
+   let next_depth/41 = rec_info (succ my_depth/40) in
+   let int_and/42 = %int_barith.`and` (x/37, 1) in
+   let prim/43 = %phys_eq (int_and/42, 0) in
+   let eq/44 = %tag_imm (prim/43) in
+   cont k/20 (eq/44)
+ in
+ let is_even/45 = closure is_even_0 @is_even &toplevel in
+ apply direct(is_even_0 &toplevel)
+   (is_even/45 : _ -> imm tagged) (10) -> k/25 * error
+   where k/25 (apply_result/50 : imm tagged) =
+     ((let untagged/51 = %untag_imm (apply_result/50) in
+       switch untagged/51
+         | 0 -> k/22 (0)
+         | 1 -> k/26)
+        where k/26 =
+          cont k/23)
+   where k/23 =
+     (apply direct(is_even_0 &toplevel)
+        (is_even/45 : _ -> imm tagged) (7) -> k/24 * error
+        where k/24 (apply_result/48 : imm tagged) =
+          let Pnot/49 = %boolean_not (apply_result/48) in
+          cont k/22 (Pnot/49))
+   where k/22 (result/46 : imm tagged) =
+     let Pmakeblock/47 = %block.[`0`].`toplevel` (result/46) in
+     cont k/19 (Pmakeblock/47))
+  where k/19 define_root_symbol (module_block/35) =
+    let field_0/36 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/35)
+    in
+    let $camlIs_even = Block 0 (field_0/36) in
+    cont done ($camlIs_even)

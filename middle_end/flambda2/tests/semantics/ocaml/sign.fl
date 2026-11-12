@@ -1,0 +1,33 @@
+let $camlSign__first_const_0 = Block 0 () in
+(let code inline(always) size(7)
+       sign_0 (x/39 : imm tagged)
+         my_closure/40 &my_alloc_region/41 my_depth/42
+         -> k/16 * k/17
+         : imm tagged =
+   let next_depth/43 = rec_info (succ my_depth/42) in
+   let prim/44 = %int_comp.qmark (x/39, 0) in
+   let int_compare/45 = %tag_imm (prim/44) in
+   cont k/16 (int_compare/45)
+ in
+ let sign/46 = closure sign_0 @sign &toplevel in
+ apply direct(sign_0 &toplevel)
+   (sign/46 : _ -> imm tagged) (0) -> k/18 * error
+   where k/18 (apply_result/47 : imm tagged) =
+     let int_mul/48 = %int_barith.mul (100, apply_result/47) in
+     (apply direct(sign_0 &toplevel)
+        (sign/46 : _ -> imm tagged) (7) -> k/19 * error
+        where k/19 (apply_result/49 : imm tagged) =
+          let int_mul/50 = %int_barith.mul (10, apply_result/49) in
+          (apply direct(sign_0 &toplevel)
+             (sign/46 : _ -> imm tagged) (-7) -> k/20 * error
+             where k/20 (apply_result/51 : imm tagged) =
+               let int_add/52 = %int_barith.add (apply_result/51, int_mul/50)
+               in
+               let result/53 = %int_barith.add (int_add/52, int_mul/48) in
+               let Pmakeblock/54 = %block.[`0`].`toplevel` (result/53) in
+               cont k/15 (Pmakeblock/54))))
+  where k/15 define_root_symbol (module_block/37) =
+    let field_0/38 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/37)
+    in
+    let $camlSign = Block 0 (field_0/38) in
+    cont done ($camlSign)

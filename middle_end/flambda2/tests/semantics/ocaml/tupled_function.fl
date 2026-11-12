@@ -1,0 +1,40 @@
+(let code inline(always) size(2) tupled 
+       first_0 (param/45, param/46)
+         my_closure/47 &my_alloc_region/48 my_depth/49
+         -> k/18 * k/19 =
+   let next_depth/50 = rec_info (succ my_depth/49) in
+   let first/51 = %project_function_slot.[first].[first] (my_closure/47) in
+   cont k/18 (param/45)
+ in
+ let code inline(always) size(2) tupled 
+       second_1 (param/52, param/53)
+         my_closure/54 &my_alloc_region/55 my_depth/56
+         -> k/20 * k/21 =
+   let next_depth/57 = rec_info (succ my_depth/56) in
+   let second/58 = %project_function_slot.[second].[second] (my_closure/54)
+   in
+   cont k/20 (param/53)
+ in
+ let $camlTupled_function__immstring_0 = "hello" in
+ let $camlTupled_function__immstring_1 = "world" in
+ let $camlTupled_function__const_block_2 =
+   Block 0 ($camlTupled_function__immstring_0,
+            $camlTupled_function__immstring_1)
+ in
+ let $camlTupled_function__const_block_3 =
+   Block 0 (1, $camlTupled_function__const_block_2)
+ in
+ let first/59 = closure first_0 @first &toplevel in
+ let second/60 = closure second_1 @second &toplevel in
+ apply &toplevel
+   second/60 ($camlTupled_function__const_block_3) -> k/23 * error
+   where k/23 (apply_result/63 : [ 0 of val * val ]) =
+     apply &toplevel first/59 (apply_result/63) -> k/22 * error
+   where k/22 (result/61 : val) =
+     let Pmakeblock/62 = %block.[`0`].`toplevel` (result/61) in
+     cont k/17 (Pmakeblock/62))
+  where k/17 define_root_symbol (module_block/43) =
+    let field_0/44 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/43)
+    in
+    let $camlTupled_function = Block 0 (field_0/44) in
+    cont done ($camlTupled_function)

@@ -1,7 +1,8 @@
 (* [match_variant.ml] without the type annotation on [cells]. The compiler then
    allocates the two blocks on the stack, in a region that it opens around the
-   expression: [Begin_region], [End_region] and a local allocation mode, none of
-   which the model has. *)
+   expression: [Begin_region], [End_region] and a local allocation mode. The
+   model has no regions: the test tool drops them and converts the two blocks as
+   if they were on the heap (README.md, "Regions"). *)
 
 external ( + ) : int -> int -> int = "%addint"
 

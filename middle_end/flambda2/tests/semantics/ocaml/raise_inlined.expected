@@ -1,0 +1,8 @@
+raise_inlined.fl:
+  before Simplify (27 steps): returns [0: 0]
+  after Simplify (11 steps): returns [0: 0]
+  the check of kinds: passes before, passes after
+  calls outside code: 1 before, 0 after
+  the same
+  calls outside code once those of known code are inlined: 0
+  not validated

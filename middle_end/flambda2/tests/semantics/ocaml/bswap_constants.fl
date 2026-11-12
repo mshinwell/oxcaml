@@ -1,0 +1,38 @@
+(let $camlBswap_constants__int32_2 = 305419896l in
+ let $camlBswap_constants__int32_1 = 128l in
+ let $camlBswap_constants__int64_0 = 72623859790382856L in
+ let prim/51 = %unbox_num.`int64` ($camlBswap_constants__int64_0) in
+ let prim/52 = %int_uarith.`int64`.bswp (prim/51) in
+ let int64_bswap/53 = %box_num.`int64`.`toplevel` (prim/52) in
+ let prim/54 = %unbox_num.`int64` (int64_bswap/53) in
+ let prim/55 = %num_conv.[`int64`].[`imm`] (prim/54) in
+ let int_of_int64/56 = %tag_imm (prim/55) in
+ let prim/57 = %unbox_num.`int32` ($camlBswap_constants__int32_1) in
+ let prim/58 = %int_uarith.`int32`.bswp (prim/57) in
+ let int32_bswap/59 = %box_num.`int32`.`toplevel` (prim/58) in
+ let prim/60 = %unbox_num.`int32` (int32_bswap/59) in
+ let prim/61 = %num_conv.[`int32`].[`imm`] (prim/60) in
+ let int_of_int32/62 = %tag_imm (prim/61) in
+ let prim/63 = %unbox_num.`int32` ($camlBswap_constants__int32_2) in
+ let prim/64 = %int_uarith.`int32`.bswp (prim/63) in
+ let int32_bswap/65 = %box_num.`int32`.`toplevel` (prim/64) in
+ let prim/66 = %unbox_num.`int32` (int32_bswap/65) in
+ let prim/67 = %num_conv.[`int32`].[`imm`] (prim/66) in
+ let int_of_int32/68 = %tag_imm (prim/67) in
+ let int_bswap/69 = %int_uarith.bswp (-1) in
+ let int_bswap/70 = %int_uarith.bswp (4660) in
+ let result/71 =
+   %block.[`0`].`toplevel`
+     (int_bswap/70,
+      int_bswap/69,
+      int_of_int32/68,
+      int_of_int32/62,
+      int_of_int64/56)
+ in
+ let Pmakeblock/72 = %block.[`0`].`toplevel` (result/71) in
+ cont k/5 (Pmakeblock/72))
+  where k/5 define_root_symbol (module_block/49) =
+    let field_0/50 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/49)
+    in
+    let $camlBswap_constants = Block 0 (field_0/50) in
+    cont done ($camlBswap_constants)

@@ -1,0 +1,46 @@
+let $camlFib__first_const_0 = Block 0 () in
+(let code rec size(31)
+       fib_0 (n/39 : imm tagged)
+         my_closure/40 &my_alloc_region/41 my_depth/42
+         -> k/20 * k/21
+         : imm tagged =
+   let next_depth/43 = rec_info (succ my_depth/42) in
+   (let prim/49 = %int_comp.lt (n/39, 2) in
+    let int_lessthan/50 = %tag_imm (prim/49) in
+    (let untagged/51 = %untag_imm (int_lessthan/50) in
+     switch untagged/51
+       | 0 -> k/25
+       | 1 -> k/20 (n/39))
+      where k/25 =
+        cont k/22)
+     where k/22 =
+       ((let int_sub/48 = %int_barith.sub (n/39, 2) in
+         apply direct(fib_0 &my_alloc_region/41)
+           (my_closure/40 ~ depth my_depth/42 -> next_depth/43
+            : _ -> imm tagged)
+             (int_sub/48)
+             -> k/23 * k/21)
+          where k/23 (apply_result/44 : imm tagged) =
+            ((let int_sub/47 = %int_barith.sub (n/39, 1) in
+              apply direct(fib_0 &my_alloc_region/41)
+                (my_closure/40 ~ depth my_depth/42 -> next_depth/43
+                 : _ -> imm tagged)
+                  (int_sub/47)
+                  -> k/24 * k/21)
+               where k/24 (apply_result/45 : imm tagged) =
+                 let int_add/46 =
+                   %int_barith.add (apply_result/45, apply_result/44)
+                 in
+                 cont k/20 (int_add/46)))
+ in
+ let fib/52 = closure fib_0 @fib &toplevel in
+ apply direct(fib_0 &toplevel)
+   (fib/52 : _ -> imm tagged) (10) -> k/26 * error
+   where k/26 (result/53 : imm tagged) =
+     let Pmakeblock/54 = %block.[`0`].`toplevel` (result/53) in
+     cont k/19 (Pmakeblock/54))
+  where k/19 define_root_symbol (module_block/37) =
+    let field_0/38 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/37)
+    in
+    let $camlFib = Block 0 (field_0/38) in
+    cont done ($camlFib)

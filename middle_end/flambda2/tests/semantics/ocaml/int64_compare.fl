@@ -1,0 +1,64 @@
+(let code inline(always) size(29)
+       between_0
+         (low/73 : int64 boxed, x/74 : int64 boxed, high/75 : int64 boxed)
+         my_closure/76 &my_alloc_region/77 my_depth/78
+         -> k/22 * k/23
+         : imm tagged =
+   let next_depth/79 = rec_info (succ my_depth/78) in
+   (let prim/84 = %unbox_num.`int64` (x/74) in
+    let prim/85 = %unbox_num.`int64` (low/73) in
+    let prim/86 = %int_comp.`int64`.lt (prim/85, prim/84) in
+    let int64_lessthan/87 = %tag_imm (prim/86) in
+    (let untagged/88 = %untag_imm (int64_lessthan/87) in
+     switch untagged/88
+       | 0 -> k/22 (0)
+       | 1 -> k/25)
+      where k/25 =
+        cont k/24)
+     where k/24 =
+       let prim/80 = %unbox_num.`int64` (high/75) in
+       let prim/81 = %unbox_num.`int64` (x/74) in
+       let prim/82 = %int_comp.`int64`.lt (prim/81, prim/80) in
+       let int64_lessthan/83 = %tag_imm (prim/82) in
+       cont k/22 (int64_lessthan/83)
+ in
+ let $camlInt64_compare__int64_3 = 10L in
+ let $camlInt64_compare__int64_2 = 1L in
+ let $camlInt64_compare__int64_1 = 3L in
+ let $camlInt64_compare__int64_0 = 2L in
+ let between/89 = closure between_0 @between &toplevel in
+ (let prim/102 = %unbox_num.`int64` ($camlInt64_compare__int64_1) in
+  let prim/103 = %unbox_num.`int64` ($camlInt64_compare__int64_0) in
+  let prim/104 = %int_barith.`int64`.add (prim/103, prim/102) in
+  let int64_add/105 = %box_num.`int64`.`toplevel` (prim/104) in
+  apply direct(between_0 &toplevel)
+    (between/89 : _ -> imm tagged)
+      ($camlInt64_compare__int64_2,
+       int64_add/105,
+       $camlInt64_compare__int64_3)
+      -> k/28 * error)
+   where k/28 (apply_result/100 : imm tagged) =
+     ((let untagged/101 = %untag_imm (apply_result/100) in
+       switch untagged/101
+         | 0 -> k/26 (0)
+         | 1 -> k/29)
+        where k/29 =
+          cont k/27)
+   where k/27 =
+     let prim/92 = %unbox_num.`int64` ($camlInt64_compare__int64_2) in
+     let prim/93 = %unbox_num.`int64` ($camlInt64_compare__int64_2) in
+     let prim/94 = %int_barith.`int64`.add (prim/93, prim/92) in
+     let int64_add/95 = %box_num.`int64`.`toplevel` (prim/94) in
+     let prim/96 = %unbox_num.`int64` ($camlInt64_compare__int64_0) in
+     let prim/97 = %unbox_num.`int64` (int64_add/95) in
+     let prim/98 = %int_comp.`int64`.eq (prim/97, prim/96) in
+     let int64_equal/99 = %tag_imm (prim/98) in
+     cont k/26 (int64_equal/99)
+   where k/26 (result/90 : imm tagged) =
+     let Pmakeblock/91 = %block.[`0`].`toplevel` (result/90) in
+     cont k/21 (Pmakeblock/91))
+  where k/21 define_root_symbol (module_block/71) =
+    let field_0/72 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/71)
+    in
+    let $camlInt64_compare = Block 0 (field_0/72) in
+    cont done ($camlInt64_compare)

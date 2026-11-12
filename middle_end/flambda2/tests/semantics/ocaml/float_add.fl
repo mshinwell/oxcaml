@@ -1,0 +1,14 @@
+(let $camlFloat_add__float_1 = 0x1.2p+1 in
+ let $camlFloat_add__float_0 = 0x1.8p+0 in
+ let Popaque/19 = %opaque ($camlFloat_add__float_0) in
+ let prim/20 = %unbox_num.`float` ($camlFloat_add__float_1) in
+ let prim/21 = %unbox_num.`float` (Popaque/19) in
+ let prim/22 = %bfloat_arith.add (prim/21, prim/20) in
+ let result/23 = %box_num.`float`.`toplevel` (prim/22) in
+ let Pmakeblock/24 = %block.[`0`].`toplevel` (result/23) in
+ cont k/5 (Pmakeblock/24))
+  where k/5 define_root_symbol (module_block/17) =
+    let field_0/18 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/17)
+    in
+    let $camlFloat_add = Block 0 (field_0/18) in
+    cont done ($camlFloat_add)

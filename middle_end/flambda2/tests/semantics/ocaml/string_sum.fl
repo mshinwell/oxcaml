@@ -1,0 +1,41 @@
+(let code rec loopify(default tailrec) size(37)
+       sum_0 (s/49 : val, i/50 : imm tagged, acc/51 : imm tagged)
+         my_closure/52 &my_alloc_region/53 my_depth/54
+         -> k/16 * k/17
+         : imm tagged =
+   let next_depth/55 = rec_info (succ my_depth/54) in
+   (let prim/61 = %string_length (s/49) in
+    let Pstringlength/62 = %tag_imm (prim/61) in
+    let prim/63 = %int_comp.lt (i/50, Pstringlength/62) in
+    let int_lessthan/64 = %tag_imm (prim/63) in
+    (let untagged/65 = %untag_imm (int_lessthan/64) in
+     switch untagged/65
+       | 0 -> k/16 (acc/51)
+       | 1 -> k/19)
+      where k/19 =
+        cont k/18)
+     where k/18 =
+       let prim/56 = %num_conv.[tagged_imm].[`nativeint`] (i/50) in
+       let prim/57 = %string_load.[`8`] (s/49, prim/56) in
+       let Pstringrefu/58 = %tag_imm (prim/57) in
+       let int_add/59 = %int_barith.add (acc/51, Pstringrefu/58) in
+       let int_add/60 = %int_barith.add (i/50, 1) in
+       apply direct(sum_0 &my_alloc_region/53)
+         (my_closure/52 ~ depth my_depth/54 -> next_depth/55
+          : _ -> imm tagged)
+           (s/49, int_add/60, int_add/59)
+           -> k/16 * k/17
+ in
+ let $camlString_sum__immstring_0 = "hello" in
+ let sum/66 = closure sum_0 @sum &toplevel in
+ (let Popaque/69 = %opaque ($camlString_sum__immstring_0) in
+  apply direct(sum_0 &toplevel)
+    (sum/66 : _ -> imm tagged) (Popaque/69, 0, 0) -> k/20 * error)
+   where k/20 (result/67 : imm tagged) =
+     let Pmakeblock/68 = %block.[`0`].`toplevel` (result/67) in
+     cont k/15 (Pmakeblock/68))
+  where k/15 define_root_symbol (module_block/47) =
+    let field_0/48 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/47)
+    in
+    let $camlString_sum = Block 0 (field_0/48) in
+    cont done ($camlString_sum)

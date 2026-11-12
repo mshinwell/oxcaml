@@ -1,0 +1,46 @@
+(let $camlCompare_signed__int64_5 = -9223372036854775808L in
+ let $camlCompare_signed__int64_4 = 9223372036854775807L in
+ let $camlCompare_signed__int64_3 = 0L in
+ let $camlCompare_signed__int64_2 = -1L in
+ let $camlCompare_signed__int32_1 = 2147483647l in
+ let $camlCompare_signed__int32_0 = -2147483648l in
+ let prim/53 = %int_comp.lt (-1, 0) in
+ let minus_one_below_zero/54 = %tag_imm (prim/53) in
+ let prim/55 = %int_comp.lt (-4611686018427387904, 4611686018427387903) in
+ let least_below_largest/56 = %tag_imm (prim/55) in
+ let prim/57 = %unbox_num.`int32` ($camlCompare_signed__int32_1) in
+ let prim/58 = %unbox_num.`int32` ($camlCompare_signed__int32_0) in
+ let prim/59 = %int_comp.`int32`.lt (prim/58, prim/57) in
+ let least_below_largest_32/60 = %tag_imm (prim/59) in
+ let prim/61 = %unbox_num.`int64` ($camlCompare_signed__int64_3) in
+ let prim/62 = %unbox_num.`int64` ($camlCompare_signed__int64_2) in
+ let prim/63 = %int_comp.`int64`.lt (prim/62, prim/61) in
+ let minus_one_below_zero_64/64 = %tag_imm (prim/63) in
+ let prim/65 = %unbox_num.`int64` ($camlCompare_signed__int64_5) in
+ let prim/66 = %unbox_num.`int64` ($camlCompare_signed__int64_4) in
+ let prim/67 = %int_comp.`int64`.lt (prim/66, prim/65) in
+ let largest_below_least_64/68 = %tag_imm (prim/67) in
+ let Pmakeblock/69 =
+   %block.[`0`].`toplevel`
+     (minus_one_below_zero/54,
+      least_below_largest/56,
+      least_below_largest_32/60,
+      minus_one_below_zero_64/64,
+      largest_below_least_64/68)
+ in
+ cont k/5 (Pmakeblock/69))
+  where k/5 define_root_symbol (module_block/47) =
+    let field_0/48 = %block_load.tag[`0`].`size`[`5`].[`0`] (module_block/47)
+    in
+    let field_1/49 = %block_load.tag[`0`].`size`[`5`].[`1`] (module_block/47)
+    in
+    let field_2/50 = %block_load.tag[`0`].`size`[`5`].[`2`] (module_block/47)
+    in
+    let field_3/51 = %block_load.tag[`0`].`size`[`5`].[`3`] (module_block/47)
+    in
+    let field_4/52 = %block_load.tag[`0`].`size`[`5`].[`4`] (module_block/47)
+    in
+    let $camlCompare_signed =
+      Block 0 (field_0/48, field_1/49, field_2/50, field_3/51, field_4/52)
+    in
+    cont done ($camlCompare_signed)

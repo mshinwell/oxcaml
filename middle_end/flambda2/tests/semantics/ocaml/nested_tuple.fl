@@ -1,0 +1,40 @@
+let $camlNested_tuple__first_const_0 = Block 0 () in
+(let code inline(always) size(9)
+       sum_0
+         (param/51 : [ 0 of [ 0 of imm tagged * imm tagged ] * imm tagged ])
+         my_closure/52 &my_alloc_region/53 my_depth/54
+         -> k/14 * k/15
+         : imm tagged =
+   let next_depth/55 = rec_info (succ my_depth/54) in
+   let `*match*/56` = %block_load.[`0`] (param/51) in
+   let Pmixedfield/57 = %block_load.[`1`] (param/51) in
+   let Pmixedfield/58 = %block_load.[`1`] (`*match*/56`) in
+   let Pmixedfield/59 = %block_load.[`0`] (`*match*/56`) in
+   let int_add/60 = %int_barith.add (Pmixedfield/59, Pmixedfield/58) in
+   let int_add/61 = %int_barith.add (int_add/60, Pmixedfield/57) in
+   cont k/14 (int_add/61)
+ in
+ let sum/62 = closure sum_0 @sum &toplevel in
+ (let region/65 = %begin_region () in
+  let ghost_region/66 = %begin_ghost_region () in
+  (let Popaque/70 = %opaque (2) in
+   let Pmakeblock/71 =
+     %block.[`0`].`toplevel`.local[region/65] (1, Popaque/70)
+   in
+   let Pmakeblock/72 =
+     %block.[`0`].`toplevel`.local[region/65] (Pmakeblock/71, 3)
+   in
+   apply direct(sum_0 &toplevel)
+     (sum/62 : _ -> imm tagged) (Pmakeblock/72) -> k/17 * error)
+    where k/17 (region_return/67 : imm tagged) =
+      let unit/68 = %end_region (region/65) in
+      let unit/69 = %end_ghost_region (ghost_region/66) in
+      cont k/16 (region_return/67))
+   where k/16 (result/63 : imm tagged) =
+     let Pmakeblock/64 = %block.[`0`].`toplevel` (result/63) in
+     cont k/13 (Pmakeblock/64))
+  where k/13 define_root_symbol (module_block/49) =
+    let field_0/50 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/49)
+    in
+    let $camlNested_tuple = Block 0 (field_0/50) in
+    cont done ($camlNested_tuple)

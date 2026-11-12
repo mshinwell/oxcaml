@@ -1,0 +1,40 @@
+let $camlAdd3_exported__first_const_0 = Block 0 () in
+(let code size(7)
+       `fn[add3_exported.ml:5,15--33]_1` (c/43 : imm tagged)
+         my_closure/44 &my_alloc_region/45 my_depth/46
+         -> k/14 * k/15
+         : imm tagged =
+   let next_depth/47 = rec_info (succ my_depth/46) in
+   let a/48 =
+     %project_value_slot.[`fn[add3_exported.ml:5,15--33]`].[a]
+       (my_closure/44)
+   in
+   let b/49 =
+     %project_value_slot.[`fn[add3_exported.ml:5,15--33]`].[b]
+       (my_closure/44)
+   in
+   let int_add/50 = %int_barith.add (a/48, b/49) in
+   let int_add/51 = %int_barith.add (int_add/50, c/43) in
+   cont k/14 (int_add/51)
+ in
+ let code size(17)
+       add3_0 (a/52 : imm tagged, b/53 : imm tagged)
+         my_closure/54 &my_alloc_region/55 my_depth/56
+         -> k/16 * k/17
+         : val =
+   let next_depth/57 = rec_info (succ my_depth/56) in
+   let `fn[add3_exported.ml:5,15--33]/58` =
+     closure `fn[add3_exported.ml:5,15--33]_1`
+       @`fn[add3_exported.ml:5,15--33]` &my_alloc_region/55
+   with { a = a/52; b = b/53 }
+   in
+   cont k/16 (`fn[add3_exported.ml:5,15--33]/58`)
+ in
+ let add3/59 = closure add3_0 @add3 &toplevel in
+ let Pmakeblock/60 = %block.[`0`].`toplevel` (add3/59) in
+ cont k/13 (Pmakeblock/60))
+  where k/13 define_root_symbol (module_block/41) =
+    let field_0/42 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/41)
+    in
+    let $camlAdd3_exported = Block 0 (field_0/42) in
+    cont done ($camlAdd3_exported)

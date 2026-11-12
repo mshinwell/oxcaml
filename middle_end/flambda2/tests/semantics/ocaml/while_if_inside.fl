@@ -1,0 +1,66 @@
+let $camlWhile_if_inside__first_const_0 = Block 0 () in
+(let n/69 = %opaque (6) in
+ cont k/27 (0)
+   where k/27 (let_mutable/70 : imm tagged) =
+     (cont k/28 (0, let_mutable/70)
+        where k/28
+                (let_mutable/71 : imm tagged,
+                 evens_17_unboxed0/72 : imm tagged) =
+          (cont k/30 (evens_17_unboxed0/72, let_mutable/71)
+             where rec k/30
+                         (evens_17_unboxed0/76 : imm tagged,
+                          i_18_unboxed0/77 : imm tagged) =
+               let prim/78 = %int_comp.lt (i_18_unboxed0/77, n/69) in
+               let while_cond_result/79 = %tag_imm (prim/78) in
+               ((let untagged/94 = %untag_imm (while_cond_result/79) in
+                 switch untagged/94
+                   | 0 -> k/29 (0, evens_17_unboxed0/76, i_18_unboxed0/77)
+                   | 1 -> k/35)
+                  where k/35 =
+                    cont k/31 (evens_17_unboxed0/76, i_18_unboxed0/77)
+                  where k/31
+                          (evens_17_unboxed0/80 : imm tagged,
+                           i_18_unboxed0/81 : imm tagged) =
+                    ((let int_sub/89 = %int_barith.sub (i_18_unboxed0/81, 1)
+                      in
+                      let int_sub/90 =
+                        %int_barith.sub (i_18_unboxed0/81, int_sub/89)
+                      in
+                      let prim/91 = %int_comp.gt (int_sub/90, 0) in
+                      let int_greaterthan/92 = %tag_imm (prim/91) in
+                      (let untagged/93 = %untag_imm (int_greaterthan/92) in
+                       switch untagged/93
+                         | 0 ->
+                           k/32 (0, evens_17_unboxed0/80, i_18_unboxed0/81)
+                         | 1 -> k/34)
+                        where k/34 =
+                          cont k/33 (evens_17_unboxed0/80, i_18_unboxed0/81))
+                       where k/33
+                               (evens_17_unboxed0/86 : imm tagged,
+                                i_18_unboxed0/87 : imm tagged) =
+                         let int_add/88 =
+                           %int_barith.add
+                             (evens_17_unboxed0/86, i_18_unboxed0/87)
+                         in
+                         cont k/32 (0, int_add/88, i_18_unboxed0/87)
+                       where k/32
+                               (staticcatch_result/82 : imm tagged,
+                                evens_17_unboxed0/83 : imm tagged,
+                                i_18_unboxed0/84 : imm tagged) =
+                         let int_add/85 =
+                           %int_barith.add (i_18_unboxed0/84, 1)
+                         in
+                         cont k/30 (evens_17_unboxed0/83, int_add/85)))
+             where k/29
+                     (staticcatch_result/73 : imm tagged,
+                      evens_17_unboxed0/74 : imm tagged,
+                      i_18_unboxed0/75 : imm tagged) =
+               cont k/26 (evens_17_unboxed0/74))))
+  where k/26 (result/67 : imm tagged) =
+    let Pmakeblock/68 = %block.[`0`].`toplevel` (result/67) in
+    cont k/25 (Pmakeblock/68)
+  where k/25 define_root_symbol (module_block/65) =
+    let field_0/66 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/65)
+    in
+    let $camlWhile_if_inside = Block 0 (field_0/66) in
+    cont done ($camlWhile_if_inside)

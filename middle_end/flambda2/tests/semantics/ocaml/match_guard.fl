@@ -1,0 +1,53 @@
+(let code inline(always) size(31)
+       positive_or_zero_0 (option/45 : [ 0 | 0 of val ])
+         my_closure/46 &my_alloc_region/47 my_depth/48
+         -> k/20 * k/21
+         : imm tagged =
+   let next_depth/49 = rec_info (succ my_depth/48) in
+   (let prim/54 = %is_int (option/45) in
+    let Pisint/55 = %tag_imm (prim/54) in
+    (let untagged/56 = %untag_imm (Pisint/55) in
+     switch untagged/56
+       | 0 -> k/23
+       | 1 -> k/20 (0))
+      where k/23 =
+        cont k/22)
+     where k/22 =
+       let x/50 = %block_load.[`0`] (option/45) in
+       let prim/51 = %int_comp.gt (x/50, 0) in
+       let int_greaterthan/52 = %tag_imm (prim/51) in
+       let untagged/53 = %untag_imm (int_greaterthan/52) in
+       switch untagged/53
+         | 0 -> k/20 (0)
+         | 1 -> k/20 (x/50)
+ in
+ let $camlMatch_guard__const_block_1 = Block 0 (5) in
+ let $camlMatch_guard__const_block_0 = Block 0 (-5) in
+ let positive_or_zero/57 =
+   closure positive_or_zero_0 @positive_or_zero &toplevel
+ in
+ apply direct(positive_or_zero_0 &toplevel)
+   (positive_or_zero/57 : _ -> imm tagged) (0) -> k/24 * error
+   where k/24 (apply_result/58 : imm tagged) =
+     (apply direct(positive_or_zero_0 &toplevel)
+        (positive_or_zero/57 : _ -> imm tagged)
+          ($camlMatch_guard__const_block_0)
+          -> k/25 * error
+        where k/25 (apply_result/59 : imm tagged) =
+          (apply direct(positive_or_zero_0 &toplevel)
+             (positive_or_zero/57 : _ -> imm tagged)
+               ($camlMatch_guard__const_block_1)
+               -> k/26 * error
+             where k/26 (apply_result/60 : imm tagged) =
+               let int_add/61 =
+                 %int_barith.add (apply_result/60, apply_result/59)
+               in
+               let result/62 = %int_barith.add (int_add/61, apply_result/58)
+               in
+               let Pmakeblock/63 = %block.[`0`].`toplevel` (result/62) in
+               cont k/19 (Pmakeblock/63))))
+  where k/19 define_root_symbol (module_block/43) =
+    let field_0/44 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/43)
+    in
+    let $camlMatch_guard = Block 0 (field_0/44) in
+    cont done ($camlMatch_guard)

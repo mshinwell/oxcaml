@@ -1,0 +1,30 @@
+let $camlFirst_class_module__first_const_0 = Block 0 () in
+(let code inline(always) size(3)
+       step_0 (x/39 : imm tagged)
+         my_closure/40 &my_alloc_region/41 my_depth/42
+         -> k/16 * k/17
+         : imm tagged =
+   let next_depth/43 = rec_info (succ my_depth/42) in
+   let int_add/44 = %int_barith.add (x/39, 1) in
+   cont k/16 (int_add/44)
+ in
+ (let step/52 = closure step_0 @step &toplevel in
+  let Pmakeblock/53 = %block.[`0`].`toplevel` (10, step/52) in
+  cont k/18 (Pmakeblock/53))
+   where k/18 (packed/45 : val) =
+     ((let Popaque/50 = %opaque (10) in
+       let Pfield/51 = %block_load.[`1`] (packed/45) in
+       apply direct(step_0 &toplevel)
+         (Pfield/51 : _ -> imm tagged) (Popaque/50) -> k/20 * error)
+        where k/20 (apply_result/48 : imm tagged) =
+          let Pfield/49 = %block_load.[`1`] (packed/45) in
+          apply direct(step_0 &toplevel)
+            (Pfield/49 : _ -> imm tagged) (apply_result/48) -> k/19 * error
+        where k/19 (result/46 : imm tagged) =
+          let Pmakeblock/47 = %block.[`0`].`toplevel` (result/46) in
+          cont k/15 (Pmakeblock/47)))
+  where k/15 define_root_symbol (module_block/37) =
+    let field_0/38 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/37)
+    in
+    let $camlFirst_class_module = Block 0 (field_0/38) in
+    cont done ($camlFirst_class_module)

@@ -1,0 +1,39 @@
+let $camlInt_switch__first_const_0 = Block 0 () in
+(let code inline(always) size(37)
+       weight_0 (n/35 : imm tagged)
+         my_closure/36 &my_alloc_region/37 my_depth/38
+         -> k/18 * k/19
+         : imm tagged =
+   let next_depth/39 = rec_info (succ my_depth/38) in
+   (let prim/41 = %int_comp.unsigned.lt (3, n/35) in
+    let Pisout/42 = %tag_imm (prim/41) in
+    (let untagged/43 = %untag_imm (Pisout/42) in
+     switch untagged/43
+       | 0 -> k/21
+       | 1 -> k/18 (50))
+      where k/21 =
+        cont k/20)
+     where k/20 =
+       let untagged/40 = %untag_imm (n/35) in
+       switch untagged/40
+         | 0 -> k/18 (10)
+         | 1 -> k/18 (20)
+         | 2 -> k/18 (30)
+         | 3 -> k/18 (40)
+ in
+ let weight/44 = closure weight_0 @weight &toplevel in
+ apply direct(weight_0 &toplevel)
+   (weight/44 : _ -> imm tagged) (7) -> k/22 * error
+   where k/22 (apply_result/45 : imm tagged) =
+     (apply direct(weight_0 &toplevel)
+        (weight/44 : _ -> imm tagged) (2) -> k/23 * error
+        where k/23 (apply_result/46 : imm tagged) =
+          let result/47 = %int_barith.add (apply_result/46, apply_result/45)
+          in
+          let Pmakeblock/48 = %block.[`0`].`toplevel` (result/47) in
+          cont k/17 (Pmakeblock/48)))
+  where k/17 define_root_symbol (module_block/33) =
+    let field_0/34 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/33)
+    in
+    let $camlInt_switch = Block 0 (field_0/34) in
+    cont done ($camlInt_switch)

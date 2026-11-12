@@ -1,0 +1,27 @@
+let $camlExported_two_values__first_const_0 = Block 0 () in
+(let code inline(always) size(5)
+       square_0 (x/32 : imm tagged)
+         my_closure/33 &my_alloc_region/34 my_depth/35
+         -> k/14 * k/15
+         : imm tagged =
+   let next_depth/36 = rec_info (succ my_depth/35) in
+   let int_mul/37 = %int_barith.mul (x/32, x/32) in
+   cont k/14 (int_mul/37)
+ in
+ let square/38 = closure square_0 @square &toplevel in
+ apply direct(square_0 &toplevel)
+   (square/38 : _ -> imm tagged) (3) -> k/16 * error
+   where k/16 (nine/39 : imm tagged) =
+     (apply direct(square_0 &toplevel)
+        (square/38 : _ -> imm tagged) (4) -> k/17 * error
+        where k/17 (apply_result/40 : imm tagged) =
+          let result/41 = %int_barith.add (nine/39, apply_result/40) in
+          let Pmakeblock/42 = %block.[`0`].`toplevel` (nine/39, result/41) in
+          cont k/13 (Pmakeblock/42)))
+  where k/13 define_root_symbol (module_block/29) =
+    let field_0/30 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/29)
+    in
+    let field_1/31 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/29)
+    in
+    let $camlExported_two_values = Block 0 (field_0/30, field_1/31) in
+    cont done ($camlExported_two_values)

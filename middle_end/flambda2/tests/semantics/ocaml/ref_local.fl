@@ -1,0 +1,39 @@
+let $camlRef_local__first_const_0 = Block 0 () in
+cont k/21 (0)
+  where k/21 (let_mutable/48 : imm tagged) =
+    (cont k/22 (1, let_mutable/48)
+       where k/22
+               (let_mutable/49 : imm tagged, acc_15_unboxed0/50 : imm tagged) =
+         (cont k/24 (acc_15_unboxed0/50, let_mutable/49)
+            where rec k/24
+                        (acc_15_unboxed0/54 : imm tagged,
+                         i_16_unboxed0/55 : imm tagged) =
+              let prim/56 = %int_comp.le (i_16_unboxed0/55, 10) in
+              let while_cond_result/57 = %tag_imm (prim/56) in
+              ((let untagged/62 = %untag_imm (while_cond_result/57) in
+                switch untagged/62
+                  | 0 -> k/23 (0, acc_15_unboxed0/54, i_16_unboxed0/55)
+                  | 1 -> k/26)
+                 where k/26 =
+                   cont k/25 (acc_15_unboxed0/54, i_16_unboxed0/55)
+                 where k/25
+                         (acc_15_unboxed0/58 : imm tagged,
+                          i_16_unboxed0/59 : imm tagged) =
+                   let int_add/60 =
+                     %int_barith.add (acc_15_unboxed0/58, i_16_unboxed0/59)
+                   in
+                   let int_add/61 = %int_barith.add (i_16_unboxed0/59, 1) in
+                   cont k/24 (int_add/60, int_add/61))
+            where k/23
+                    (staticcatch_result/51 : imm tagged,
+                     acc_15_unboxed0/52 : imm tagged,
+                     i_16_unboxed0/53 : imm tagged) =
+              cont k/20 (acc_15_unboxed0/52)))
+  where k/20 (result/46 : imm tagged) =
+    let Pmakeblock/47 = %block.[`0`].`toplevel` (result/46) in
+    cont k/19 (Pmakeblock/47)
+  where k/19 define_root_symbol (module_block/44) =
+    let field_0/45 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/44)
+    in
+    let $camlRef_local = Block 0 (field_0/45) in
+    cont done ($camlRef_local)

@@ -1,0 +1,38 @@
+(let $camlInt32_arith__int32_0 = 1l in
+ let $camlInt32_arith__int32_1 = 255l in
+ let code inline(always) size(34)
+       f_0 (x/51 : int32 boxed, y/52 : int32 boxed)
+         my_closure/53 &my_alloc_region/54 my_depth/55
+         -> k/12 * k/13
+         : int32 boxed =
+   let next_depth/56 = rec_info (succ my_depth/55) in
+   let prim/57 = %unbox_num.`int32` (y/52) in
+   let prim/58 = %unbox_num.`int32` (x/51) in
+   let prim/59 = %int_barith.`int32`.mul (prim/58, prim/57) in
+   let int32_mul/60 = %box_num.`int32`.my_alloc_region/54 (prim/59) in
+   let prim/61 = %unbox_num.`int32` ($camlInt32_arith__int32_0) in
+   let prim/62 = %unbox_num.`int32` (int32_mul/60) in
+   let prim/63 = %int_barith.`int32`.add (prim/62, prim/61) in
+   let int32_add/64 = %box_num.`int32`.my_alloc_region/54 (prim/63) in
+   let prim/65 = %unbox_num.`int32` ($camlInt32_arith__int32_1) in
+   let prim/66 = %unbox_num.`int32` (int32_add/64) in
+   let prim/67 = %int_barith.`int32`.`and` (prim/66, prim/65) in
+   let int32_and/68 = %box_num.`int32`.my_alloc_region/54 (prim/67) in
+   cont k/12 (int32_and/68)
+ in
+ let $camlInt32_arith__int32_3 = 3l in
+ let $camlInt32_arith__int32_2 = 100l in
+ let f/69 = closure f_0 @f &toplevel in
+ (let Popaque/72 = %opaque ($camlInt32_arith__int32_2) in
+  apply direct(f_0 &toplevel)
+    (f/69 : _ -> int32 boxed)
+      (Popaque/72, $camlInt32_arith__int32_3)
+      -> k/14 * error)
+   where k/14 (result/70 : int32 boxed) =
+     let Pmakeblock/71 = %block.[`0`].`toplevel` (result/70) in
+     cont k/11 (Pmakeblock/71))
+  where k/11 define_root_symbol (module_block/49) =
+    let field_0/50 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/49)
+    in
+    let $camlInt32_arith = Block 0 (field_0/50) in
+    cont done ($camlInt32_arith)

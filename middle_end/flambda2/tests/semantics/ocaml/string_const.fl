@@ -1,0 +1,41 @@
+(let code inline(always) size(2)
+       first_0 (pair/44 : [ 0 of val * val ])
+         my_closure/45 &my_alloc_region/46 my_depth/47
+         -> k/18 * k/19 =
+   let next_depth/48 = rec_info (succ my_depth/47) in
+   let Pmixedfield/49 = %block_load.[`0`] (pair/44) in
+   cont k/18 (Pmixedfield/49)
+ in
+ let code inline(always) size(2)
+       second_1 (pair/50 : [ 0 of val * val ])
+         my_closure/51 &my_alloc_region/52 my_depth/53
+         -> k/20 * k/21 =
+   let next_depth/54 = rec_info (succ my_depth/53) in
+   let Pmixedfield/55 = %block_load.[`1`] (pair/50) in
+   cont k/20 (Pmixedfield/55)
+ in
+ let $camlString_const__immstring_0 = "hello" in
+ let $camlString_const__immstring_1 = "world" in
+ let $camlString_const__Pmakeblock_2 =
+   Block 0 ($camlString_const__immstring_0, $camlString_const__immstring_1)
+ in
+ let $camlString_const__Pmakeblock_3 =
+   Block 0 (1, $camlString_const__Pmakeblock_2)
+ in
+ let first/56 = closure first_0 @first &toplevel in
+ let second/57 = closure second_1 @second &toplevel in
+ apply direct(second_1 &toplevel)
+   (second/57 : _ -> [ 0 of val * val ])
+     ($camlString_const__Pmakeblock_3)
+     -> k/23 * error
+   where k/23 (apply_result/60 : [ 0 of val * val ]) =
+     apply direct(first_0 &toplevel)
+       (first/56 : _ -> val) (apply_result/60) -> k/22 * error
+   where k/22 (result/58 : val) =
+     let Pmakeblock/59 = %block.[`0`].`toplevel` (result/58) in
+     cont k/17 (Pmakeblock/59))
+  where k/17 define_root_symbol (module_block/42) =
+    let field_0/43 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/42)
+    in
+    let $camlString_const = Block 0 (field_0/43) in
+    cont done ($camlString_const)
