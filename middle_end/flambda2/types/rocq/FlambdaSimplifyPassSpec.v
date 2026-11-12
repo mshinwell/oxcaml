@@ -55,7 +55,8 @@
      canonical element, and the variable is made an alias of it
      ([bind_simple]).
    - At a [Let] of a primitive: the arguments are looked up
-     ([simplify_simples]); if their types are not of the kinds that
+     ([simplify_simples], FlambdaSimplifyPrimitivesSpec.v); if their
+     types are not of the kinds that
      the primitive takes, the term is [Invalid]; otherwise
      [simplify_unary], [simplify_binary] or [simplify_variadic] asks
      the provers, and the [Let] becomes [Invalid], or a [Let] of a
@@ -171,36 +172,6 @@ Import ListNotations.
 Local Open Scope Z_scope.
 
 (* ======================================================================== *)
-(* A [Simple] of the term                                                   *)
-(* ======================================================================== *)
-
-(* [Simplify_simple.simplify_simple] at the normal name mode: the type
-   of a [Simple] that occurs in the term, and its canonical element.
-   [None] where the environment does not know the [Simple] at that
-   name mode, which is a fatal error of the compiler. *)
-Definition simplify_simple (tenv : Typing_env.t) (s : simple)
-    : option (flambda_type * simple) :=
-  if Typing_env.mem_simple (Some Name_mode.normal) tenv s
-  then
-    match
-      Typing_env.type_simple_in_term_exn tenv (Some Name_mode.normal) s
-    with
-    | Some (Some answer) => Some answer
-    | Some None | None => None
-    end
-  else None.
-
-Fixpoint simplify_simples (tenv : Typing_env.t) (args : list simple)
-    : option (list (flambda_type * simple)) :=
-  match args with
-  | [] => Some []
-  | arg :: args =>
-    let* answer := simplify_simple tenv arg in
-    let* answers := simplify_simples tenv args in
-    Some (answer :: answers)
-  end.
-
-(* ======================================================================== *)
 (* What is decided of a defining expression                                 *)
 (* ======================================================================== *)
 
@@ -236,12 +207,6 @@ Definition of_simple_shortcut (answer : option (Meet_shortcut.t simple))
   | Some Meet_shortcut.Invalid => Becomes_invalid
   | Some Meet_shortcut.Need_meet | None => otherwise
   end.
-
-(* The type asked about and the types of the environment are well
-   formed: [well_formed_input] of FlambdaProversSpec.v, as a test. *)
-Definition well_formed_input_b (tenv : Typing_env.t) (ty : flambda_type)
-    : bool :=
-  types_well_formed_b tenv && type_well_formed ty.
 
 (* A unary primitive, on its argument and the type of the argument. A
    primitive that has no line of its own stays, and its variable is of

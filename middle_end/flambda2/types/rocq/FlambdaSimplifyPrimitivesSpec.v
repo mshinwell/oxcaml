@@ -71,7 +71,11 @@
    The type of an argument ([argument_type]) is the one that
    [Simplify_simple.simplify_simple] answers: the alias type of the
    canonical element of the argument, at the normal name mode. The
-   provers expand it.
+   provers expand it. [simplify_simple] and [simplify_simples] compute
+   it, with the canonical element, for the functions on terms that
+   are built on these statements (FlambdaSimplifyPassSpec.v);
+   [well_formed_input_b] is the test of what the provers of tagged
+   immediates ask of their input.
 
    What Simplify does, and what is here.
    - [Simplify_primitive.simplify_primitive] first replaces each
@@ -156,13 +160,14 @@
    review. *)
 
 From Stdlib Require Import ZArith List Bool.
-From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
+From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
   FlambdaMapSpec FlambdaValueSpec FlambdaPrimitiveModel FlambdaPrimitiveSpec
   FlambdaSemanticsSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
-  FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaEnvAliases
-  FlambdaEnvAliasesSpec FlambdaTypingEnv FlambdaTypingEnvSpec
+  FlambdaTypeMeaningSpec FlambdaTypeWellFormedSpec FlambdaBindingTime
+  FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaTypingEnv
+  FlambdaTypingEnvSpec FlambdaTypingEnvInvariantSpec
   FlambdaTypingEnvExamplesSpec FlambdaTypingEnvRefinementSpec
   FlambdaProvers FlambdaProversSpec.
 Import ListNotations.
@@ -197,6 +202,43 @@ Definition argument_type_satisfied_statement : Prop :=
       typing_env_satisfied_strictly statics valuation tenv
       ∧ agrees_in_terms tenv valuation vars
       ∧ type_satisfied statics valuation v ty.
+
+(* ======================================================================== *)
+(* The type of an argument, computed                                        *)
+(* ======================================================================== *)
+
+(* [Simplify_simple.simplify_simple] at the normal name mode: the type
+   of a [Simple] that occurs in the term, and its canonical element.
+   [None] where the environment does not know the [Simple] at that
+   name mode, which is a fatal error of the compiler. Where it answers
+   a type, that is the type of the argument ([argument_type]). *)
+Definition simplify_simple (tenv : Typing_env.t) (s : simple)
+    : option (flambda_type * simple) :=
+  if Typing_env.mem_simple (Some Name_mode.normal) tenv s
+  then
+    match
+      Typing_env.type_simple_in_term_exn tenv (Some Name_mode.normal) s
+    with
+    | Some (Some answer) => Some answer
+    | Some None | None => None
+    end
+  else None.
+
+Fixpoint simplify_simples (tenv : Typing_env.t) (args : list simple)
+    : option (list (flambda_type * simple)) :=
+  match args with
+  | [] => Some []
+  | arg :: args =>
+    let* answer := simplify_simple tenv arg in
+    let* answers := simplify_simples tenv args in
+    Some (answer :: answers)
+  end.
+
+(* The type asked about and the types of the environment are well
+   formed: [well_formed_input] of FlambdaProversSpec.v, as a test. *)
+Definition well_formed_input_b (tenv : Typing_env.t) (ty : flambda_type)
+    : bool :=
+  types_well_formed_b tenv && type_well_formed ty.
 
 (* ======================================================================== *)
 (* The arguments, and the two conclusions                                   *)

@@ -55,43 +55,6 @@ Import ListNotations.
 Local Open Scope Z_scope.
 
 (* ======================================================================== *)
-(* A [Simple] of the term                                                   *)
-(* ======================================================================== *)
-
-Lemma simplify_simple_answer (tenv : Typing_env.t) (s canonical : simple)
-    (ty : flambda_type) :
-  simplify_simple tenv s = Some (ty, canonical) ->
-  argument_type tenv s ty ∧ canonical_in_terms tenv s canonical.
-Proof.
-  unfold simplify_simple.
-  destruct (Typing_env.mem_simple (Some Name_mode.normal) tenv s) eqn:Hmem;
-    [ | discriminate ].
-  destruct (Typing_env.type_simple_in_term_exn tenv (Some Name_mode.normal) s)
-    as [[[ty' canonical'] | ] | ] eqn:Htype; try discriminate.
-  intros [= <- <-].
-  split; (split; [ exact Hmem | eexists; exact Htype ]).
-Qed.
-
-Lemma simplify_simples_answers (tenv : Typing_env.t) (args : list simple) :
-  ∀ answers : list (flambda_type * simple),
-    simplify_simples tenv args = Some answers ->
-    Forall2 (argument_type tenv) args (map fst answers)
-    ∧ Forall2 (canonical_in_terms tenv) args (map snd answers).
-Proof.
-  induction args as [ | arg args IH]; intros answers; simpl.
-  - intros [= <-]. split; apply Forall2_nil.
-  - destruct (simplify_simple tenv arg) as [[ty canonical] | ] eqn:Harg;
-      [ | discriminate ].
-    destruct (simplify_simples tenv args) as [answers' | ];
-      [ | discriminate ].
-    intros [= <-].
-    destruct (simplify_simple_answer tenv arg canonical ty Harg)
-      as [Hty Hcanonical].
-    destruct (IH answers' eq_refl) as [Htys Hcanonicals].
-    split; apply Forall2_cons; assumption.
-Qed.
-
-(* ======================================================================== *)
 (* What an outcome says                                                     *)
 (* ======================================================================== *)
 
@@ -343,14 +306,6 @@ Proof.
   - intros [].
   - intros [[= <-] | Hin]; [ left; reflexivity | right; exact (IH Hin) ].
   - intros [[=] | Hin]. exact (IH Hin).
-Qed.
-
-Lemma well_formed_input_b_sound (tenv : Typing_env.t) (ty : flambda_type) :
-  well_formed_input_b tenv ty = true -> well_formed_input tenv ty.
-Proof.
-  unfold well_formed_input_b. intros Hwf. apply andb_true_iff in Hwf.
-  destruct Hwf as [Htenv Hty].
-  split; [ exact (proj1 (types_well_formed_b_iff tenv) Htenv) | exact Hty ].
 Qed.
 
 Section Int_arith.
