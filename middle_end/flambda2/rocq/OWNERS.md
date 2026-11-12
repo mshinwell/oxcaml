@@ -180,6 +180,10 @@ All in `middle_end/flambda2/types/rocq/`, library `OxCamlFlambda2Types`.
     extensions of a typing environment, after
     `types/env/typing_env_extension.ml`; T3's by agreement with T2,
     though the names match T2's pattern)
+  - `middle_end/flambda2/types/rocq/FlambdaSimplifyValueSlots*` (the
+    projection of a value slot replaced by the `Simple` that a prover
+    answers, a slice of the rewrites through types, by agreement with
+    T2, who puts the rewrites together)
 - T4, meet. Owner: T4, on `flambda2-rocq/T4-meet`.
   - `middle_end/flambda2/types/rocq/FlambdaExpandHead*` (expanded
     types and `expand_head`, after `types/expand_head.ml`, and what
