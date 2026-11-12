@@ -1,0 +1,73 @@
+let $camlExported_fun_to_map__first_const_0 = Block 0 () in
+(let code rec size(35)
+       map_0 (f/70 : val, l/71 : [ 0 | 0 of val * [ 0 | 0 of val * val ] ])
+         my_closure/72 &my_alloc_region/73 my_depth/74
+         -> k/26 * k/27
+         : [ 0 | 0 of val * [ 0 | 0 of val * val ] ] =
+   let next_depth/75 = rec_info (succ my_depth/74) in
+   (let prim/81 = %is_int (l/71) in
+    let Pisint/82 = %tag_imm (prim/81) in
+    (let untagged/83 = %untag_imm (Pisint/82) in
+     switch untagged/83
+       | 0 -> k/31
+       | 1 -> k/26 (0))
+      where k/31 =
+        cont k/28)
+     where k/28 =
+       ((let Pfield/80 = %block_load.[`1`] (l/71) in
+         apply direct(map_0 &my_alloc_region/73)
+           (my_closure/72 ~ depth my_depth/74 -> next_depth/75
+            : _ -> [ 0 | 0 of val * [ 0 | 0 of val * val ] ])
+             (f/70, Pfield/80)
+             -> k/29 * k/27)
+          where k/29
+                  (apply_result/76 :
+                     [ 0 | 0 of val * [ 0 | 0 of val * val ] ]) =
+            ((let Pfield/79 = %block_load.[`0`] (l/71) in
+              apply &my_alloc_region/73 f/70 (Pfield/79) -> k/30 * k/27)
+               where k/30 (apply_result/77) =
+                 let Pmakeblock/78 =
+                   %block.[`0`].my_alloc_region/73
+                     (apply_result/77, apply_result/76)
+                 in
+                 cont k/26 (Pmakeblock/78)))
+ in
+ let code size(3)
+       `fn[exported_fun_to_map.ml:8,21--37]_2` (x/84 : imm tagged)
+         my_closure/85 &my_alloc_region/86 my_depth/87
+         -> k/32 * k/33
+         : imm tagged =
+   let next_depth/88 = rec_info (succ my_depth/87) in
+   let int_add/89 = %int_barith.add (x/84, 1) in
+   cont k/32 (int_add/89)
+ in
+ let code size(15)
+       incr_all_1
+         (l/90 : [ 0 | 0 of imm tagged * [ 0 | 0 of imm tagged * val ] ])
+         my_closure/91 &my_alloc_region/92 my_depth/93
+         -> k/34 * k/35
+         : [ 0 | 0 of imm tagged * [ 0 | 0 of imm tagged * val ] ] =
+   let next_depth/94 = rec_info (succ my_depth/93) in
+   let map/95 = %project_value_slot.[incr_all].[map] (my_closure/91) in
+   let `fn[exported_fun_to_map.ml:8,21--37]/96` =
+     closure `fn[exported_fun_to_map.ml:8,21--37]_2`
+       @`fn[exported_fun_to_map.ml:8,21--37]` &my_alloc_region/92
+   in
+   apply direct(map_0 &my_alloc_region/92)
+     (map/95 : _ -> [ 0 | 0 of imm tagged * [ 0 | 0 of imm tagged * val ] ])
+       (`fn[exported_fun_to_map.ml:8,21--37]/96`, l/90)
+       -> k/34 * k/35
+ in
+ let map/97 = closure map_0 @map &toplevel in
+ let incr_all/98 = closure incr_all_1 @incr_all &toplevel
+ with { map = map/97 }
+ in
+ let Pmakeblock/99 = %block.[`0`].`toplevel` (map/97, incr_all/98) in
+ cont k/25 (Pmakeblock/99))
+  where k/25 define_root_symbol (module_block/67) =
+    let field_0/68 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/67)
+    in
+    let field_1/69 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/67)
+    in
+    let $camlExported_fun_to_map = Block 0 (field_0/68, field_1/69) in
+    cont done ($camlExported_fun_to_map)

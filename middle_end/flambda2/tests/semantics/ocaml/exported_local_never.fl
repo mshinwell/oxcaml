@@ -1,0 +1,31 @@
+let $camlExported_local_never__first_const_0 = Block 0 () in
+(let code inline(never) size(3)
+       step_1 (y/37 : imm tagged)
+         my_closure/38 &my_alloc_region/39 my_depth/40
+         -> k/16 * k/17
+         : imm tagged =
+   let next_depth/41 = rec_info (succ my_depth/40) in
+   let int_add/42 = %int_barith.add (y/37, 1) in
+   cont k/16 (int_add/42)
+ in
+ let code size(18)
+       f_0 (x/43 : imm tagged)
+         my_closure/44 &my_alloc_region/45 my_depth/46
+         -> k/18 * k/19
+         : imm tagged =
+   let next_depth/47 = rec_info (succ my_depth/46) in
+   let step/48 = closure step_1 @step &my_alloc_region/45 in
+   apply direct(step_1 &my_alloc_region/45)
+     (step/48 : _ -> imm tagged) (x/43) -> k/20 * k/19
+     where k/20 (apply_result/49 : imm tagged) =
+       apply direct(step_1 &my_alloc_region/45)
+         (step/48 : _ -> imm tagged) (apply_result/49) -> k/18 * k/19
+ in
+ let f/50 = closure f_0 @f &toplevel in
+ let Pmakeblock/51 = %block.[`0`].`toplevel` (f/50) in
+ cont k/15 (Pmakeblock/51))
+  where k/15 define_root_symbol (module_block/35) =
+    let field_0/36 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/35)
+    in
+    let $camlExported_local_never = Block 0 (field_0/36) in
+    cont done ($camlExported_local_never)

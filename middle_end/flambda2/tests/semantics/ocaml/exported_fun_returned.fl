@@ -1,0 +1,30 @@
+let $camlExported_fun_returned__first_const_0 = Block 0 () in
+(let code size(3)
+       `fn[exported_fun_returned.ml:6,11--20]_1` (x/35 : imm tagged)
+         my_closure/36 &my_alloc_region/37 my_depth/38
+         -> k/14 * k/15
+         : imm tagged =
+   let next_depth/39 = rec_info (succ my_depth/38) in
+   let int_add/40 = %int_barith.add (x/35, 1) in
+   cont k/14 (int_add/40)
+ in
+ let code size(11)
+       make_0 (param/41 : imm tagged)
+         my_closure/42 &my_alloc_region/43 my_depth/44
+         -> k/16 * k/17
+         : val =
+   let next_depth/45 = rec_info (succ my_depth/44) in
+   let `fn[exported_fun_returned.ml:6,11--20]/46` =
+     closure `fn[exported_fun_returned.ml:6,11--20]_1`
+       @`fn[exported_fun_returned.ml:6,11--20]` &my_alloc_region/43
+   in
+   cont k/16 (`fn[exported_fun_returned.ml:6,11--20]/46`)
+ in
+ let make/47 = closure make_0 @make &toplevel in
+ let Pmakeblock/48 = %block.[`0`].`toplevel` (make/47) in
+ cont k/13 (Pmakeblock/48))
+  where k/13 define_root_symbol (module_block/33) =
+    let field_0/34 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/33)
+    in
+    let $camlExported_fun_returned = Block 0 (field_0/34) in
+    cont done ($camlExported_fun_returned)

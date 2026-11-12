@@ -102,6 +102,7 @@ module Unused_slots = Flambda2_rocq_semantics.FlambdaUnusedSlotsSpec
 module Float_code = Flambda2_rocq_semantics.FlambdaFloatCodeSpec
 module Loopify = Flambda2_rocq_semantics.FlambdaLoopifySpec
 module Statics_order = Flambda2_rocq_semantics.FlambdaStaticsOrderSpec
+module Lift_from_code = Flambda2_rocq_semantics.FlambdaLiftFromCodeSpec
 module Numbers = Flambda2_rocq_semantics.BinNums
 module P = Flambda_primitive
 
@@ -1646,6 +1647,10 @@ let unused_statics (e : Model.expr) : Unused_statics.dropped =
    [banned] pairs it with: the caller asks again, with the pair banned, where a
    symbol went to a [Let] whose block nothing uses in the end.
 
+   A symbol that no [Let] outside code takes goes to the first [Let] in the body
+   of code that makes just what the symbol is bound to and mentions no variable:
+   FlambdaLiftFromCodeSpec.lift_from_code lifts it out of the code.
+
    The guess also says in which code [my_closure] is a symbol: the code of each
    closure that the term after binds statically, if the term before, once
    lifted, makes no other closure of that code
@@ -1782,7 +1787,102 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list)
   in
   in_expr Lift.root before;
   let lets = List.rev !lets in
-  let lifted = Lift.lift_expr lets Lift.root before in
+  (* The [Let]s in the bodies of code, for the symbols that are left. *)
+  let plain (s : Model.simple) =
+    match s with Symbol _ | Const _ -> true | Var _ -> false
+  in
+  let plain_slots slots = List.for_all (fun (_, s) -> plain s) slots in
+  let rec in_code code_lets (path : Numbers.positive) (e : Model.expr) =
+    match e with
+    | Let (_, _, d, body) ->
+      let lift_out target = code_lets := (path, target) :: !code_lets in
+      (match d with
+      | Set_of_closures (code, slots) when plain_slots slots -> (
+        match
+          take path (fun (const : Model.static_const) ->
+              match const with
+              | Static_const_set_of_closures (code', slots') ->
+                code = code' && slots = slots'
+              | _ -> false)
+        with
+        | Some (sym, _) -> lift_out (Lift.Lift_to_symbol sym)
+        | None -> ())
+      | Closure_of_set (_, decls, slots) when plain_slots slots -> (
+        match
+          take path (fun (const : Model.static_const) ->
+              match const with
+              | Static_const_closure_of_set (_, _, decls', slots') ->
+                decls = decls' && slots = slots'
+              | _ -> false)
+        with
+        | Some (_, Static_const_closure_of_set (_, symbols, _, _)) ->
+          to_give
+            := List.filter
+                 (fun (sym, _) ->
+                   not (List.exists (fun (_, sym') -> sym = sym') symbols))
+                 !to_give;
+          lift_out (Lift.Lift_to_closure_symbols symbols)
+        | Some _ | None -> ())
+      | Prim (Variadic (Make_block (Block_kind_values tag)), fields)
+        when List.for_all plain fields -> (
+        match
+          take path (fun (const : Model.static_const) ->
+              match const with
+              | Static_const_block (tag', fields') ->
+                tag = tag' && fields = fields'
+              | _ -> false)
+        with
+        | Some (sym, _) -> lift_out (Lift.Lift_to_symbol sym)
+        | None -> ())
+      | Prim (Unary (Box_number _), [contents]) when plain contents -> (
+        match
+          take path (fun (const : Model.static_const) ->
+              match const with
+              | Static_const_boxed_number contents' -> contents = contents'
+              | _ -> false)
+        with
+        | Some (sym, _) -> lift_out (Lift.Lift_to_symbol sym)
+        | None -> ())
+      | _ -> ());
+      in_code code_lets (Numbers.Coq_xO path) body
+    | Let_static (_, body) -> in_code code_lets (Numbers.Coq_xO path) body
+    | Let_cont_non_recursive (_, Handler (_, _, handler), body) ->
+      in_code code_lets (Numbers.Coq_xO path) body;
+      in_code code_lets (Numbers.Coq_xI path) handler
+    | Let_cont_recursive (_, body) ->
+      in_code code_lets (Numbers.Coq_xO path) body
+    | Apply _ | Apply_cont _ | Switch _ | Invalid -> ()
+  in
+  let out_of_code = ref [] in
+  let rec in_groups (e : Model.expr) =
+    match e with
+    | Let (_, _, _, body) -> in_groups body
+    | Let_static (bindings, body) ->
+      List.iter
+        (fun (binding : Model.static_binding) ->
+          match binding with
+          | Bind_code (id, Code (_, _, _, _, _, code_body)) -> (
+            let code_lets = ref [] in
+            in_code code_lets Lift.root code_body;
+            match !code_lets with
+            | [] -> ()
+            | _ :: _ -> out_of_code := (id, List.rev !code_lets) :: !out_of_code
+            )
+          | Bind_deleted_code _ | Bind_symbol _ -> ())
+        bindings;
+      in_groups body
+    | Let_cont_non_recursive (_, Handler (_, _, handler), body) ->
+      in_groups body;
+      in_groups handler
+    | Let_cont_recursive (_, body) -> in_groups body
+    | Apply _ | Apply_cont _ | Switch _ | Invalid -> ()
+  in
+  in_groups before;
+  let out_of_code = List.rev !out_of_code in
+  let lifted =
+    Lift.lift_expr lets Lift.root
+      (Lift_from_code.lift_from_code out_of_code [] Lift.root before)
+  in
   let my_closures =
     List.filter_map
       (fun (sym, (const : Model.static_const)) ->
@@ -1804,7 +1904,7 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list)
   { lifting_unit = unit;
     lifted_lets = lets;
     lifted_my_closures = my_closures;
-    lifted_out_of_code = []
+    lifted_out_of_code = out_of_code
   }
 
 (* ---- Value slots that Simplify removed --------------------------------- *)
@@ -2102,19 +2202,31 @@ let validate ~(outcome_before : outcome) (before : converted)
         in
         let stop =
           match
-            remaining, made, lifting.lifted_lets, lifting.lifted_my_closures
+            ( remaining,
+              made,
+              lifting.lifted_lets,
+              lifting.lifted_my_closures,
+              lifting.lifted_out_of_code )
           with
-          | 0, _, _, _ | _, _ :: _, [], [] -> true
-          | _, _, _, _ -> false
+          | 0, _, _, _, _ | _, _ :: _, [], [], [] -> true
+          | _, _, _, _, _ -> false
         in
         if stop
         then List.rev made, lifted
         else
-          match Lift.lift_unit lifting lifted with
-          | None -> List.rev made, lifted
-          | Some lifted ->
+          (* As [validate_unit] applies a lifting: out of code, then where the
+             [Let]s stand. The sequence ends here if the term comes back as the
+             same value in memory. That comparison of two pointers is a shortcut
+             of this search, which is bounded and not trusted. It says nothing
+             of the checks of a lifting: a lifting whose checks pass may give
+             the same term back, and then the search stops; one that gives a
+             term rebuilt but equal may continue. *)
+          let lifted' = Validate.with_lifting lifting lifted in
+          if lifted' == lifted
+          then List.rev made, lifted
+          else
             liftings_from banned (stage + 1) (lifting :: made)
-              (Validate.normalise_lifted rounds avoid kept lifted)
+              (Validate.normalise_lifted rounds avoid kept lifted')
               (remaining - 1)
       in
       (* The guess gives a symbol to the first [Let] that makes a block of its
