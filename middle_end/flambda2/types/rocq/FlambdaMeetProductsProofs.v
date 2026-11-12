@@ -43,11 +43,35 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaMeetProductsSpec.
 Import ListNotations.
 
+(* The proofs below, as far as the end of the section, are for any
+   predicate on static environments that implies validity
+   (FlambdaMeetValidity.v): in them the names of the four contracts
+   that suppose a valid static environment stand for the same with
+   that predicate. The theorems of the signed statements are after the
+   section, at validity itself. *)
+From OxCamlFlambda2Types Require Import FlambdaMeetValidity.
+
+Section Validity.
+
+Context {V : validity}.
+
+Abbreviation statics_valid := valid.
+Abbreviation meet_expanded_head_sound := meet_expanded_head_sound_for.
+Abbreviation join_scoped_envs_sound := join_scoped_envs_sound_for.
+Abbreviation meet_call_ok := meet_call_ok_for.
+Abbreviation part_meet_ok := part_meet_ok_for.
+Abbreviation meet_disjunction_right := meet_disjunction_right_for.
+Abbreviation type_part_meet_ok := type_part_meet_ok_for.
+Abbreviation meet_row_like_for_closures_right :=
+  meet_row_like_for_closures_right_for.
+Abbreviation value_heads_right := value_heads_right_for.
+
 (* ======================================================================== *)
 (* What a meet answered                                                     *)
 (* ======================================================================== *)
 
-Theorem extract_value_answer : extract_value_answer_statement.
+Lemma extract_value_answer_for :
+  for_validity extract_value_answer_statement.
 Proof. intros A r left right. destruct r; cbn; auto. Qed.
 
 (* An answer of a meet of two parts is made of an answer of each. *)
@@ -101,7 +125,8 @@ Proof.
     reflexivity.
 Qed.
 
-Theorem combine_results3_ok : combine_results3_ok_statement.
+Lemma combine_results3_ok_for :
+  for_validity combine_results3_ok_statement.
 Proof.
   intros A B C D fits_a satisfied_a fits_b satisfied_b fits_c satisfied_c
     fits_d satisfied_d meet_a meet_b meet_c rebuild menv left_a right_a
@@ -132,7 +157,7 @@ Proof.
   { intros menv0 [lb lc] [rb rc] result0 Henv0 [Hlb0 Hlc0] [Hrb0 Hrc0] Hmeet0.
     cbn [fst snd] in *.
     exact
-      (combine_results2_ok B C (B * C)%type fits_b satisfied_b fits_c
+      (combine_results2_ok_for B C (B * C)%type fits_b satisfied_b fits_c
          satisfied_c
          fits_bc satisfied_bc meet_b meet_c pair menv0 lb rb lc rc result0
          Hstable_b Hstable_c Hok_b Hok_c
@@ -140,7 +165,7 @@ Proof.
          (fun statics valuation b c => iff_refl _) Henv0 Hlb0 Hrb0 Hlc0 Hrc0
          Hmeet0). }
   exact
-    (combine_results2_ok A (B * C)%type D fits_a satisfied_a fits_bc
+    (combine_results2_ok_for A (B * C)%type D fits_a satisfied_a fits_bc
        satisfied_bc fits_d satisfied_d meet_a _
        (fun a bc => rebuild a (fst bc) (snd bc))
        menv left_a right_a (left_b, left_c) (right_b, right_c) result
@@ -286,7 +311,8 @@ Proof.
   unfold Keyed.is_bound. destruct (Keyed.lookup eqb key bindings); congruence.
 Qed.
 
-Theorem map_meet_keys : map_meet_keys_statement.
+Lemma map_meet_keys_for :
+  for_validity map_meet_keys_statement.
 Proof.
   intros K A eqb meet_data menv menv' left right answer r key Heqb Hmeet
     Hanswer.
@@ -355,7 +381,8 @@ Qed.
 
 End Map_stable.
 
-Theorem map_meet_ok : map_meet_ok_statement.
+Lemma map_meet_ok_for :
+  for_validity map_meet_ok_statement.
 Proof.
   intros K A eqb fits satisfied meet_data Heqb Hstable Hok menv left right
     result Henv Hleft Hright Hmeet.
@@ -363,7 +390,7 @@ Proof.
     as [Hstable1 Hstable2].
   unfold map_meet in Hmeet.
   destruct
-    (meet_mapping_ok K A (Keyed.finite_map K A) fits satisfied meet_data _
+    (meet_mapping_ok_for K A (Keyed.finite_map K A) fits satisfied meet_data _
        (Keyed.keys_of_both eqb left right)
        (fun key => Keyed.lookup eqb key left)
        (fun key => Keyed.lookup eqb key right) menv left right _ result
@@ -452,12 +479,13 @@ Lemma meet_type_present_ok (value_at : static_env -> option value) :
   part_meet_ok type_fits (present_satisfied value_at) (meet mh).
 Proof.
   intros menv t1 t2 result Henv H1 H2 Hmeet. split.
-  - exact (proj1 (meet_type_ok mh (Value_const Null) Hkeeps Hsound menv t1 t2
+  - exact (proj1 (meet_type_ok_for mh (Value_const Null) Hkeeps Hsound menv t1
+                    t2
                     result Henv H1 H2 Hmeet)).
   - intros statics valuation Hstatics Hvaluation (w1 & Hw1 & Hs1)
       (w2 & Hw2 & Hs2).
     assert (Hsame : w2 = w1) by congruence. subst w2.
-    destruct (proj2 (meet_type_ok mh w1 Hkeeps Hsound menv t1 t2 result Henv
+    destruct (proj2 (meet_type_ok_for mh w1 Hkeeps Hsound menv t1 t2 result Henv
                        H1 H2 Hmeet)
                 statics valuation Hstatics Hvaluation Hs1 Hs2)
       as (r & menv' & valuation' & Hresult & Hextended & Hvaluation'
@@ -473,7 +501,8 @@ End Present.
 (* The fields of a block                                                    *)
 (* ======================================================================== *)
 
-Theorem product_satisfied_fields : product_satisfied_fields_statement.
+Lemma product_satisfied_fields_for :
+  for_validity product_satisfied_fields_statement.
 Proof.
   intros fields statics valuation tys. unfold product_satisfied.
   rewrite (fields_satisfied_nth (type_satisfied statics valuation) tys fields).
@@ -578,7 +607,8 @@ Qed.
 
 End Array_rebuild.
 
-Theorem meet_int_indexed_product_ok : meet_int_indexed_product_ok_statement.
+Lemma meet_int_indexed_product_ok_for :
+  for_validity meet_int_indexed_product_ok_statement.
 Proof.
   intros mh fields Hkeeps Hsound menv fields1 fields2 result Henv Hfits1
     Hfits2 Hmeet.
@@ -587,7 +617,8 @@ Proof.
   set (satisfied :=
     fun i : nat => present_satisfied (fun _ => nth_error fields i)).
   destruct
-    (meet_mapping_ok nat flambda_type (list flambda_type) type_fits satisfied
+    (meet_mapping_ok_for nat flambda_type (list flambda_type) type_fits
+       satisfied
        (meet mh) _ (seq 0 n) (nth_error fields1) (nth_error fields2) menv
        fields1 fields2 _ result (fun f init => eq_refl)
        (fun i => present_part_stable _)
@@ -633,8 +664,8 @@ Proof.
       exact (proj2 (Hall i ty (array_rebuild_nth n l Hkeys i ty Hnth))).
 Qed.
 
-Theorem meet_int_indexed_product_length
-  : meet_int_indexed_product_length_statement.
+Lemma meet_int_indexed_product_length_for :
+  for_validity meet_int_indexed_product_length_statement.
 Proof.
   intros mh menv menv' fields1 fields2 answer r Hmeet Hanswer.
   rewrite meet_int_indexed_product_unfold in Hmeet.
@@ -664,7 +695,8 @@ Qed.
 (* Function types                                                           *)
 (* ======================================================================== *)
 
-Theorem meet_function_type_ok : meet_function_type_ok_statement.
+Lemma meet_function_type_ok_for :
+  for_validity meet_function_type_ok_statement.
 Proof.
   intros functions slot menv ft1 ft2 result Henv _ _ Hmeet.
   unfold meet_function_type in Hmeet.
@@ -741,7 +773,7 @@ Proof.
   - exact (meet_type_present_ok mh Hkeeps Hsound value_at menv t1 t2 result
              Henv H1 H2 Hmeet).
   - intros r menv' -> Hanswer. split; [ exact Hanswer | ].
-    rewrite (proj2 (proj2 (meet_type_keeps mh menv menv' t1 t2 r Hkeeps Henv
+    rewrite (proj2 (proj2 (meet_type_keeps_for mh menv menv' t1 t2 r Hkeeps Henv
                              H1 H2 Hmeet))).
     exact Hkind1.
 Qed.
@@ -952,7 +984,8 @@ Proof.
     exact Hsatisfied.
 Qed.
 
-Theorem meet_closures_entry_ok : meet_closures_entry_ok_statement.
+Lemma meet_closures_entry_ok_for :
+  for_validity meet_closures_entry_ok_statement.
 Proof.
   intros mh v slot functions value_slots Hkeeps Hsound menv entry1 entry2
     result Henv Hfits1 Hfits2 Hmeet.
@@ -967,7 +1000,7 @@ Proof.
   set (value_slot_at :=
     fun (w : value_slot) (_ : static_env) => lookup w value_slots).
   exact
-    (combine_results3_ok _ _ _ _
+    (combine_results3_ok_for _ _ _ _
        (map_fits Pos.eqb (fun _ _ => True))
        (map_satisfied Pos.eqb (function_type_satisfied functions))
        (map_fits Pos.eqb closure_type_fits)
@@ -986,13 +1019,13 @@ Proof.
           (fun g => closure_type_part_stable (closure_at g)))
        (map_part_stable Pos.eqb _ _
           (fun w => present_part_stable (value_slot_at w)))
-       (map_meet_ok _ _ Pos.eqb _ _ meet_function_type
+       (map_meet_ok_for _ _ Pos.eqb _ _ meet_function_type
           pos_eqb_decides_equality (function_type_part_stable functions)
-          (meet_function_type_ok functions))
-       (map_meet_ok _ _ Pos.eqb _ _ (meet mh) pos_eqb_decides_equality
+          (meet_function_type_ok_for functions))
+       (map_meet_ok_for _ _ Pos.eqb _ _ (meet mh) pos_eqb_decides_equality
           (fun g => closure_type_part_stable (closure_at g))
           (fun g => meet_closure_type_ok mh (closure_at g) Hkeeps Hsound))
-       (map_meet_ok _ _ Pos.eqb _ _ (meet mh) pos_eqb_decides_equality
+       (map_meet_ok_for _ _ Pos.eqb _ _ (meet mh) pos_eqb_decides_equality
           (fun w => present_part_stable (value_slot_at w))
           (fun w => meet_type_present_ok mh Hkeeps Hsound (value_slot_at w)))
        (fun tenv a b c Ha Hb Hc =>
@@ -1003,7 +1036,8 @@ Proof.
        Henv Hf1 Hf2 Hc1 Hc2 Hv1 Hv2 Hmeet).
 Qed.
 
-Theorem meet_closures_entry_slots : meet_closures_entry_slots_statement.
+Lemma meet_closures_entry_slots_for :
+  for_validity meet_closures_entry_slots_statement.
 Proof.
   intros mh menv menv' entry1 entry2 answer r Hmeet Hanswer.
   destruct entry1 as [function_types1 closure_types1 value_slot_types1].
@@ -1027,13 +1061,95 @@ Proof.
   apply (combine_answer pair) in Hbc as (b & c & -> & Hb & Hc).
   cbn [fst snd]. split; [ | split ].
   - intros g.
-    exact (map_meet_keys _ _ Pos.eqb meet_function_type menv menv1
+    exact (map_meet_keys_for _ _ Pos.eqb meet_function_type menv menv1
              function_types1 function_types2 a res_a g
              pos_eqb_decides_equality Hmeet_a Ha).
   - intros g.
-    exact (map_meet_keys _ _ Pos.eqb (meet mh) menv1 menv2 closure_types1
+    exact (map_meet_keys_for _ _ Pos.eqb (meet mh) menv1 menv2 closure_types1
              closure_types2 b res_b g pos_eqb_decides_equality Hmeet_b Hb).
   - intros w.
-    exact (map_meet_keys _ _ Pos.eqb (meet mh) menv2 menv3 value_slot_types1
+    exact (map_meet_keys_for _ _ Pos.eqb (meet mh) menv2 menv3 value_slot_types1
              value_slot_types2 c res_c w pos_eqb_decides_equality Hmeet_c Hc).
+Qed.
+
+End Validity.
+
+Theorem extract_value_answer :
+  extract_value_answer_statement.
+Proof.
+  first
+    [ exact (@extract_value_answer_for standard_validity)
+    | exact extract_value_answer_for ].
+Qed.
+
+Theorem combine_results3_ok :
+  combine_results3_ok_statement.
+Proof.
+  first
+    [ exact (@combine_results3_ok_for standard_validity)
+    | exact combine_results3_ok_for ].
+Qed.
+
+Theorem map_meet_keys :
+  map_meet_keys_statement.
+Proof.
+  first
+    [ exact (@map_meet_keys_for standard_validity)
+    | exact map_meet_keys_for ].
+Qed.
+
+Theorem map_meet_ok :
+  map_meet_ok_statement.
+Proof.
+  first
+    [ exact (@map_meet_ok_for standard_validity)
+    | exact map_meet_ok_for ].
+Qed.
+
+Theorem product_satisfied_fields :
+  product_satisfied_fields_statement.
+Proof.
+  first
+    [ exact (@product_satisfied_fields_for standard_validity)
+    | exact product_satisfied_fields_for ].
+Qed.
+
+Theorem meet_int_indexed_product_ok :
+  meet_int_indexed_product_ok_statement.
+Proof.
+  first
+    [ exact (@meet_int_indexed_product_ok_for standard_validity)
+    | exact meet_int_indexed_product_ok_for ].
+Qed.
+
+Theorem meet_int_indexed_product_length :
+  meet_int_indexed_product_length_statement.
+Proof.
+  first
+    [ exact (@meet_int_indexed_product_length_for standard_validity)
+    | exact meet_int_indexed_product_length_for ].
+Qed.
+
+Theorem meet_function_type_ok :
+  meet_function_type_ok_statement.
+Proof.
+  first
+    [ exact (@meet_function_type_ok_for standard_validity)
+    | exact meet_function_type_ok_for ].
+Qed.
+
+Theorem meet_closures_entry_ok :
+  meet_closures_entry_ok_statement.
+Proof.
+  first
+    [ exact (@meet_closures_entry_ok_for standard_validity)
+    | exact meet_closures_entry_ok_for ].
+Qed.
+
+Theorem meet_closures_entry_slots :
+  meet_closures_entry_slots_statement.
+Proof.
+  first
+    [ exact (@meet_closures_entry_slots_for standard_validity)
+    | exact meet_closures_entry_slots_for ].
 Qed.
