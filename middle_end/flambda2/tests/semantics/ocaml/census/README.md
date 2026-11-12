@@ -82,7 +82,13 @@ The sharing of primitives knowing, under an untagging, that the
 variable untagged is the tagging of the result changes none, and nor
 does the test against zero of a three-way comparison made the
 comparison of its operands
-(`FlambdaRecoverComparisonSpec.recover_known_comparisons`). No unit
+(`FlambdaRecoverComparisonSpec.recover_known_comparisons`), nor the
+tidying of each term once its continuations are placed
+(`FlambdaValidateSpec.tidied_before`), nor the static blocks in
+scope known where a parameter is unboxed
+(`FlambdaUnboxInScopeSpec.v`), nor the second asking following
+aliases in the bodies of code. These 600 units import nothing, so
+the tool prints of each what it printed. No unit
 that was validated at one of these points is not at a later one. The
 day before, 336 were validated, 256 were not and 8 were not checked;
 of the units that keep a function, none was.
@@ -141,12 +147,24 @@ Seeds 1 to 60 of each, 240 units, on 2026-11-12. No unit on which the
 two runs differ, none undefined before Simplify, none on which the
 tool gave no answer.
 
-| Profile | Units | Validated | Not validated | Not checked |
-|---------|-------|-----------|---------------|-------------|
-| `exceptions` | 60 | 60 | 0 | 0 |
-| `exceptions_scalar` | 60 | 57 | 3 | 0 |
-| `loops` | 60 | 36 | 22 | 2 |
-| `loops_scalar` | 60 | 36 | 24 | 0 |
+| Profile | Units | Validated | Validated with its imports | Validated with nothing imported only | Not validated | Not checked |
+|---------|-------|-----------|----------------------------|--------------------------------------|---------------|-------------|
+| `exceptions` | 60 | 33 | 13 | 14 | 0 | 0 |
+| `exceptions_scalar` | 60 | 34 | 23 | 0 | 3 | 0 |
+| `loops` | 60 | 36 | 0 | 0 | 22 | 2 |
+| `loops_scalar` | 60 | 36 | 0 | 0 | 24 | 0 |
+
+A unit that names a predefined exception has an import, and the
+tool runs it from its imports (`../README.md`, "What the verdicts
+mean"): 51 of the 120 units with exceptions. The validator accepts
+50 of them, as it did before the tool ran units so. 36 are accepted
+with a verdict that is proved of the two units run from their
+imports. The other 14, all in the profile that keeps a function,
+are accepted once closures are lifted, which is proved of the two
+units run with nothing imported only: they are not validated with
+their imports. One of the three units that are not validated has an
+import. The validator accepts 189 of the 240, as it did; 139 of
+them import nothing.
 
 The two that are not checked have a reference that a local function
 captures: it stays a block with a field that is written
