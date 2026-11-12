@@ -201,6 +201,12 @@ Proof.
       [ exact Hunknown | reflexivity | apply check_possible_results_renamed ].
 Qed.
 
+Lemma comparison_unknown_renamed (r : renaming)
+    (behaviour : int_comparison_behaviour) :
+  rename_outcome r (comparison_unknown behaviour)
+  = comparison_unknown behaviour.
+Proof. destruct behaviour; reflexivity. Qed.
+
 Lemma simplify_int_comp_tagged_equivariant (r : renaming)
     (tenv : Typing_env.t) (behaviour : int_comparison_behaviour)
     (ty1 ty2 : flambda_type) :
@@ -215,7 +221,7 @@ Proof.
   repeat match goal with
          | |- context [match ?e with _ => _ end] => destruct e
          end;
-    reflexivity.
+    try reflexivity; symmetry; apply comparison_unknown_renamed.
 Qed.
 
 Lemma simplify_phys_equal_equivariant (r : renaming) (tenv : Typing_env.t)
@@ -244,7 +250,8 @@ Proof.
     | |- context [Int_arith ?kind _] => destruct kind
     | |- context [Int_comp ?kind _] => destruct kind
     end;
-    try reflexivity.
+    try reflexivity;
+    try (symmetry; apply comparison_unknown_renamed).
   - apply simplify_int_arith_tagged_equivariant.
   - apply simplify_int_comp_tagged_equivariant.
 Qed.

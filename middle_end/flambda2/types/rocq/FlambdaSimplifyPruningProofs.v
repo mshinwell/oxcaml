@@ -1308,3 +1308,6 @@ Qed.
 
 Theorem example_pruning_no_arm : example_pruning_no_arm_statement.
 Proof. intros k0 k1. split; vm_compute; reflexivity. Qed.
+
+Theorem example_pruning_comparison : example_pruning_comparison_statement.
+Proof. intros k0 k1 k2. split; vm_compute; reflexivity. Qed.

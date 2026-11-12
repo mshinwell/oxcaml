@@ -141,10 +141,11 @@
      [Block_load] that is not marked [Mutable], and the tagging,
      untagging, boxing and unboxing of a number are looked at; of the
      binary ones, the arithmetic and the comparison of tagged
-     immediates and [Phys_equal]. For every other primitive only the
-     kind of its result is recorded. (Simplify makes a [Block_load]
-     marked
-     [Mutable] of a constant [Invalid],
+     immediates, [Phys_equal], and the comparisons of integers of the
+     other kinds that yield a boolean, of which the type of the two
+     booleans is recorded and nothing more (below). For every other
+     primitive only the kind of its result is recorded. (Simplify
+     makes a [Block_load] marked [Mutable] of a constant [Invalid],
      [simplify_mutable_block_load]; this leaves it.)
    - Of that arithmetic, of the tables for one side known
      ([op_lhs_unknown], [op_rhs_unknown]) the lines that make another
@@ -152,6 +153,11 @@
      pair of numbers, however many each argument may be: Simplify
      gives up above ten on a side, as [simplify_int_arith_tagged]
      does here, so this rewrites a comparison that Simplify leaves.
+     A comparison of integers of any kind that yields a boolean and
+     is not decided, and a [Phys_equal] that is not decided, give
+     their variable the type of the two booleans, as Simplify does;
+     of a comparison that yields the result of a compare function
+     only the kind is recorded (Simplify records -1, 0 or 1).
    - The tests that it makes before a rewrite (that the environment
      passes [typing_env_well_formed], that the variable of a [Let] is
      new to it, that the types of the environment and the types
@@ -161,10 +167,12 @@
      function needs none. The same of the tests of [code_env]: the
      arity of the code has as many kinds as the code has parameters,
      the parameters are different variables, and none is
-     [my_closure]. Where a test fails the function stops, so a
-     failure costs rewrites and not correctness; that the tests pass
-     on the environments that the function builds, for a term whose
-     binders are all different, is not stated here.
+     [my_closure]. Where a test fails the rewrite that it guards is
+     not made: the function goes on knowing less, or leaves the term
+     from there down, or the code, as it is. So a failure costs
+     rewrites and not correctness; that the tests pass on the
+     environments that the function builds, for a term whose binders
+     are all different, is not stated here.
 
    Fifteen terms on which the function is computed are at the end:
    what it answers is stated as an equation, with no premise.
@@ -476,13 +484,26 @@ Definition simplify_int_arith_tagged (tenv : Typing_env.t)
     end
   else unknown.
 
+(* What is known of the result of a comparison that is not decided: one
+   that yields a boolean is 0 or 1 ([unknown] of
+   [Int_ops_for_binary_comp], [T.any_naked_bool]). Of one that yields
+   the result of a compare function this records the kind only
+   (Simplify records that it is -1, 0 or 1). *)
+Definition comparison_unknown (behaviour : int_comparison_behaviour)
+    : outcome :=
+  match behaviour with
+  | Yielding_bool _ => Stays_with_type any_naked_bool
+  | Yielding_int_like_compare_functions _ =>
+    Stays_with_kind naked_immediate_kind
+  end.
+
 (* The same functor at [Int_ops_for_binary_comp] of the tagged
    immediates, where both arguments are known: the one result of the
    comparison on every pair, if there is one. *)
 Definition simplify_int_comp_tagged (tenv : Typing_env.t)
     (behaviour : int_comparison_behaviour) (ty1 ty2 : flambda_type)
     : outcome :=
-  let unknown := Stays_with_kind naked_immediate_kind in
+  let unknown := comparison_unknown behaviour in
   if well_formed_input_b tenv ty1 && well_formed_input_b tenv ty2
   then
     match
@@ -510,12 +531,12 @@ Definition simplify_int_comp_tagged (tenv : Typing_env.t)
     end
   else unknown.
 
-(* [Simplify_binary_primitive.simplify_phys_equal], where the prover
-   proves a boolean. (Where it does not, Simplify records that the
-   result is 0 or 1; this records its kind.) *)
+(* [Simplify_binary_primitive.simplify_phys_equal]: where the prover
+   proves a boolean the primitive is that boolean; where it does not,
+   the result is 0 or 1 ([T.any_naked_bool]). *)
 Definition simplify_phys_equal (tenv : Typing_env.t)
     (op : equality_comparison) (ty1 ty2 : flambda_type) : outcome :=
-  let unknown := Stays_with_kind naked_immediate_kind in
+  let unknown := Stays_with_type any_naked_bool in
   if well_formed_input_b tenv ty1 && well_formed_input_b tenv ty2
   then
     match Provers.prove_physical_equality tenv ty1 ty2 with
@@ -527,8 +548,9 @@ Definition simplify_phys_equal (tenv : Typing_env.t)
   else unknown.
 
 (* A binary primitive: the arithmetic and the comparison of tagged
-   immediates, and physical equality; every other stays, at the kind
-   of its result. *)
+   immediates, and physical equality; a comparison of other integers
+   stays, and its result is 0 or 1 where it yields a boolean; every
+   other stays, at the kind of its result. *)
 Definition simplify_binary (tenv : Typing_env.t) (p : binary_primitive)
     (arg1 : simple) (ty1 : flambda_type) (arg2 : simple) (ty2 : flambda_type)
     : outcome :=
@@ -538,6 +560,7 @@ Definition simplify_binary (tenv : Typing_env.t) (p : binary_primitive)
     simplify_int_arith_tagged tenv op arg1 ty1 arg2 ty2
   | Int_comp Standard_tagged_immediate behaviour =>
     simplify_int_comp_tagged tenv behaviour ty1 ty2
+  | Int_comp _ behaviour => comparison_unknown behaviour
   | _ => Stays_with_kind (result_kind_of_binary_primitive p)
   end.
 

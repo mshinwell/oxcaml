@@ -38,7 +38,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
   FlambdaContextWhereSpec FlambdaContextWhereProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs
-  FlambdaTypeWellFormedSpec FlambdaTypeWellFormedProofs FlambdaBindingTime
+  FlambdaTypeWellFormedSpec FlambdaTypeWellFormedProofs
+  FlambdaTypeCreatorsSpec FlambdaTypeCreatorsProofs FlambdaBindingTime
   FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaEnvAliasesProofs
   FlambdaTypingEnv FlambdaTypingEnvSpec FlambdaTypingEnvProofs
   FlambdaTypingEnvInvariantSpec FlambdaTypingEnvInvariantProofs
@@ -501,6 +502,58 @@ Proof.
       | contradiction | contradiction ].
 Qed.
 
+(* A comparison that yields a boolean, and physical equality, have no
+   value but the two booleans. *)
+Lemma int_comp_yields_bool (statics : static_env) (kind : standard_int)
+    (c : int_comparison) (vs : list value) (v : value) :
+  eval_prim statics (Binary (Int_comp kind (Yielding_bool c))) vs = Some v ->
+  v = Value_const (Naked_immediate 0) ∨ v = Value_const (Naked_immediate 1).
+Proof.
+  destruct vs as [ | v1 [ | v2 [ | v3 vs]]]; try discriminate.
+  cbn [eval_prim eval_binary_primitive].
+  destruct (int_of_value kind v1) as [a | ]; [ | discriminate ].
+  destruct (int_of_value kind v2) as [b | ]; [ | discriminate ].
+  cbn. intros [= <-].
+  destruct (eval_int_comparison (int_width kind) c a b); auto.
+Qed.
+
+Lemma phys_equal_yields_bool (statics : static_env) (op : equality_comparison)
+    (vs : list value) (v : value) :
+  eval_prim statics (Binary (Phys_equal op)) vs = Some v ->
+  v = Value_const (Naked_immediate 0) ∨ v = Value_const (Naked_immediate 1).
+Proof.
+  destruct vs as [ | v1 [ | v2 [ | v3 vs]]]; try discriminate.
+  cbn [eval_prim eval_binary_primitive].
+  destruct (eval_phys_equal statics v1 v2) as [same | ]; [ | discriminate ].
+  cbn. intros [= <-]. destruct op, same; auto.
+Qed.
+
+Lemma yields_bool_sound (tenv : Typing_env.t) (p : prim) (args : list simple) :
+  (∀ (statics : static_env) (vs : list value) (v : value),
+    eval_prim statics p vs = Some v ->
+    v = Value_const (Naked_immediate 0)
+    ∨ v = Value_const (Naked_immediate 1)) ->
+  outcome_sound tenv (Prim p args) (Stays_with_type any_naked_bool).
+Proof.
+  intros Hbool statics vars v _ Hnamed. cbn [eval_named] in Hnamed.
+  destruct (eval_simples vars args) as [vs | ]; [ | discriminate ].
+  apply (proj2 (any_bool_satisfied statics vars v)).
+  exact (Hbool statics vs v Hnamed).
+Qed.
+
+Lemma comparison_unknown_sound (tenv : Typing_env.t) (kind : standard_int)
+    (behaviour : int_comparison_behaviour) (args : list simple) :
+  outcome_sound tenv (Prim (Binary (Int_comp kind behaviour)) args)
+    (comparison_unknown behaviour).
+Proof.
+  destruct behaviour as [c | s]; cbn [comparison_unknown].
+  - apply yields_bool_sound. intros statics vs v.
+    apply int_comp_yields_bool.
+  - exact (prim_kind_sound tenv
+             (Binary (Int_comp kind (Yielding_int_like_compare_functions s)))
+             args).
+Qed.
+
 Lemma simplify_int_comp_tagged_sound (tenv : Typing_env.t)
     (behaviour : int_comparison_behaviour) (arg1 arg2 : simple)
     (ty1 ty2 : flambda_type) :
@@ -512,9 +565,8 @@ Lemma simplify_int_comp_tagged_sound (tenv : Typing_env.t)
     (simplify_int_comp_tagged tenv behaviour ty1 ty2).
 Proof.
   intros Hty1 Hty2. unfold simplify_int_comp_tagged.
-  pose proof (prim_kind_sound tenv
-                (Binary (Int_comp Standard_tagged_immediate behaviour))
-                [arg1; arg2]) as Hunknown.
+  pose proof (comparison_unknown_sound tenv Standard_tagged_immediate
+                behaviour [arg1; arg2]) as Hunknown.
   destruct (well_formed_input_b tenv ty1 && well_formed_input_b tenv ty2)
     eqn:Hwf; [ | exact Hunknown ].
   apply andb_true_iff in Hwf. destruct Hwf as [Hwf1 Hwf2].
@@ -551,8 +603,11 @@ Lemma simplify_phys_equal_sound (tenv : Typing_env.t)
     (simplify_phys_equal tenv op ty1 ty2).
 Proof.
   intros Hty1 Hty2. unfold simplify_phys_equal.
-  pose proof (prim_kind_sound tenv (Binary (Phys_equal op)) [arg1; arg2])
-    as Hunknown.
+  assert (Hunknown :
+    outcome_sound tenv (Prim (Binary (Phys_equal op)) [arg1; arg2])
+      (Stays_with_type any_naked_bool)).
+  { apply yields_bool_sound. intros statics vs v.
+    apply phys_equal_yields_bool. }
   destruct (well_formed_input_b tenv ty1 && well_formed_input_b tenv ty2)
     eqn:Hwf; [ | exact Hunknown ].
   apply andb_true_iff in Hwf. destruct Hwf as [Hwf1 Hwf2].
@@ -578,7 +633,8 @@ Proof.
     | |- context [Int_arith ?kind _] => destruct kind
     | |- context [Int_comp ?kind _] => destruct kind
     end;
-    try exact (prim_kind_sound tenv _ [arg1; arg2]).
+    try exact (prim_kind_sound tenv _ [arg1; arg2]);
+    try apply comparison_unknown_sound.
   - exact (simplify_int_arith_tagged_sound tenv _ arg1 arg2 ty1 ty2
              Hty1 Hty2).
   - exact (simplify_int_comp_tagged_sound tenv _ arg1 arg2 ty1 ty2

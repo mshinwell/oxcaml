@@ -102,9 +102,10 @@
      the identity elsewhere, has no premise at all
      ([prune_by_types_refines_statement]). That one is for the
      validation to run.
-   - One term on which it is computed, with the transcribed meet, and
-     what the first function answers on it
-     ([example_pruning_no_arm_statement]).
+   - Two terms on which it is computed, with the transcribed meet, and
+     what the first function answers on them
+     ([example_pruning_no_arm_statement],
+     [example_pruning_comparison_statement]).
 
    Where a meet may be made. The law of the pruning asks
    [typing_env_fits] of the environment (FlambdaMeetSpec.v). Two of
@@ -151,8 +152,9 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
-  FlambdaMapSpec FlambdaValueSpec FlambdaSemanticsSpec FlambdaWellFormedSpec
-  FlambdaClosuresSpec FlambdaContextWhereSpec FlambdaUnusedStaticsSpec.
+  FlambdaMapSpec FlambdaValueSpec FlambdaPrimitiveModel FlambdaSemanticsSpec
+  FlambdaWellFormedSpec FlambdaClosuresSpec FlambdaContextWhereSpec
+  FlambdaUnusedStaticsSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaTypeWellFormedSpec FlambdaBindingTime
   FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaEnvAliasesInvariantSpec
@@ -708,3 +710,29 @@ Definition example_pruning_no_arm_statement : Prop :=
         (Simple (Const (Naked_immediate 5))) Invalid
     ∧ simplify_by_types (example_pruning_no_arm_term k0 k1)
       = example_pruning_no_arm_term k0 k1.
+
+(* [let x = opaque in let i = (x < 7) in switch i with 0 -> k0 | 1 ->
+   k1 | 2 -> k2], the comparison being of tagged immediates. It is not
+   decided; [i] is given the type of the two booleans; the meet of that
+   type with 2 is bottom, and the arm for 2 is removed. The first
+   function leaves the three arms. *)
+Definition example_pruning_comparison_term (arms : list (Z * apply_cont))
+    : expr :=
+  Let example_x Value (example_opaque Value (Tagged_immediate 5))
+    (Let example_i naked_immediate_kind
+       (Prim
+          (Binary
+             (Int_comp Standard_tagged_immediate
+                (Yielding_bool (Int_lt Signed))))
+          [Var example_x; Const (Tagged_immediate 7)])
+       (Switch (Var example_i) arms)).
+
+Definition example_pruning_comparison_statement : Prop :=
+  ∀ k0 k1 k2 : continuation,
+    let arm (i : Z) (k : continuation) := (i, Apply_cont_expr k [] None) in
+    prune_by_types 10
+      (example_pruning_comparison_term [arm 0 k0; arm 1 k1; arm 2 k2])
+    = example_pruning_comparison_term [arm 0 k0; arm 1 k1]
+    ∧ simplify_by_types
+        (example_pruning_comparison_term [arm 0 k0; arm 1 k1; arm 2 k2])
+      = example_pruning_comparison_term [arm 0 k0; arm 1 k1; arm 2 k2].
