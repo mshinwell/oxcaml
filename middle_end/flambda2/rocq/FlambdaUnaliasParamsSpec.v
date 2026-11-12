@@ -30,10 +30,11 @@
    that variable: a normalisation that is an equivalence.
 
    This file is to be reviewed: [unalias_params] and what it is made
-   of, and the statement. Nothing applies the pass yet. It is written
-   for the validation of middle_end/flambda2/tests/semantics/ to apply
-   to each of the two terms that it compares, once it has placed their
-   continuations (FlambdaValidateSpec.placed).
+   of, which are extracted and run by the validation of
+   middle_end/flambda2/tests/semantics/, and the statement. The
+   validation applies the pass to each of the two terms that it
+   compares, once it has placed their continuations
+   (FlambdaValidateSpec.tidied_before, [tidied_after]).
 
    Simplify gives a continuation a parameter for a primitive that has
    been computed on every path to it

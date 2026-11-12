@@ -36,6 +36,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaNormaliseSpec FlambdaNormaliseProofs FlambdaBlockLoadSpec
   FlambdaBlockLoadProofs FlambdaCodeLetsSpec FlambdaCodeLetsProofs
   FlambdaCseSpec FlambdaCseProofs
+  FlambdaCseEquivalentSpec FlambdaCseEquivalentProofs
   FlambdaDeadParamsSpec FlambdaDeadParamsProofs
   FlambdaForwardSpec FlambdaForwardProofs
   FlambdaForwardJumpsSpec FlambdaForwardJumpsProofs
@@ -52,6 +53,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaShareProjectionsSpec FlambdaShareProjectionsProofs
   FlambdaShortcutSpec FlambdaShortcutProofs FlambdaSinkContsSpec
   FlambdaSinkContsProofs FlambdaSinkUsesSpec FlambdaSinkUsesProofs
+  FlambdaUnaliasParamsSpec FlambdaUnaliasParamsProofs
   FlambdaUnboxSpec FlambdaUnboxProofs
   FlambdaUnboxVariantsSpec FlambdaUnboxVariantsProofs
   FlambdaUnusedContsSpec FlambdaUnusedContsProofs FlambdaUnusedParamsSpec
@@ -102,7 +104,9 @@ Ltac equivalence_step :=
     | apply shortcut_switches_equivalent
     | apply remove_unused_defined_lets_in_loops_equivalent
     | apply inline_tail_conts_kinded_equivalent
-    | apply forward_jumps_equivalent ].
+    | apply forward_jumps_equivalent
+    | apply unalias_params_equivalent
+    | apply share_known_primitives_equivalent ].
 
 Ltac refinement_step :=
   first
@@ -292,14 +296,89 @@ Proof.
     (rewrite_code_equivalent _ place_conts_equivalent _)).
 Qed.
 
-(* The term after, normalised and with its continuations placed, is
-   equivalent to the term after. *)
-Lemma placed_after_equivalent (rounds : nat) (kept : list code_id)
-    (after : expr) :
-  expr_equivalent after (placed (normalise_after rounds kept after)).
+(* The tidying of the term before, once its continuations are placed,
+   refines. *)
+Lemma tidy_expr_before_refines (e : expr) :
+  expr_refines e (tidy_expr_before e).
+Proof.
+  unfold tidy_expr_before.
+  repeat (eapply expr_refines_trans; [ | solve [ refinement_step ] ]).
+  apply expr_refines_refl.
+Qed.
+
+Lemma tidy_code_before_refines (body : expr) :
+  expr_refines body (tidy_code_before body).
+Proof.
+  unfold tidy_code_before.
+  exact (expr_refines_trans _ _ _ (tidy_expr_before_refines body)
+    (rewrite_rec_handlers_refines _ tidy_expr_before_refines _)).
+Qed.
+
+Lemma tidy_before_round_refines (e : expr) :
+  expr_refines e (tidy_before_round e).
+Proof.
+  unfold tidy_before_round.
+  exact (expr_refines_trans _ _ _ (tidy_code_before_refines e)
+    (rewrite_code_refines _ tidy_code_before_refines _)).
+Qed.
+
+Lemma tidied_before_refines (rounds : nat) (e : expr) :
+  expr_refines e (tidied_before rounds e).
+Proof.
+  unfold tidied_before.
+  exact (expr_refines_trans _ _ _
+    (expr_equivalent_refines _ _ (placed_equivalent e))
+    (iterate_refines _ tidy_before_round_refines rounds _)).
+Qed.
+
+(* That of the term after is an equivalence. *)
+Lemma tidy_expr_after_equivalent (e : expr) :
+  expr_equivalent e (tidy_expr_after e).
+Proof.
+  unfold tidy_expr_after.
+  repeat (eapply expr_equivalent_trans; [ | solve [ equivalence_step ] ]).
+  apply expr_equivalent_refl.
+Qed.
+
+Lemma tidy_code_after_equivalent (body : expr) :
+  expr_equivalent body (tidy_code_after body).
+Proof.
+  unfold tidy_code_after.
+  exact (expr_equivalent_trans _ _ _ (tidy_expr_after_equivalent body)
+    (rewrite_rec_handlers_equivalent _ tidy_expr_after_equivalent _)).
+Qed.
+
+Lemma tidy_after_round_equivalent (e : expr) :
+  expr_equivalent e (tidy_after_round e).
+Proof.
+  unfold tidy_after_round.
+  eapply expr_equivalent_trans;
+    [ | apply remove_unused_defined_lets_in_code_equivalent ].
+  exact (expr_equivalent_trans _ _ _ (tidy_code_after_equivalent e)
+    (rewrite_code_equivalent _ tidy_code_after_equivalent _)).
+Qed.
+
+Lemma tidied_after_equivalent (rounds : nat) :
+  ∀ e : expr, expr_equivalent e (tidied_after rounds e).
+Proof.
+  intros e. unfold tidied_after.
+  apply (expr_equivalent_trans _ _ _ (placed_equivalent e)).
+  generalize (placed e). clear e.
+  induction rounds as [ | rounds IH]; intros e; simpl;
+    [ apply expr_equivalent_refl | ].
+  exact (expr_equivalent_trans _ _ _ (tidy_after_round_equivalent e) (IH _)).
+Qed.
+
+(* The term after, normalised, with its continuations placed and
+   tidied, is equivalent to the term after. *)
+Lemma tidied_after_normalised_equivalent (rounds : nat)
+    (kept : list code_id) (after : expr) :
+  expr_equivalent after
+    (tidied_after rounds (normalise_after rounds kept after)).
 Proof.
   exact (expr_equivalent_trans _ _ _
-    (normalise_after_equivalent rounds kept after) (placed_equivalent _)).
+    (normalise_after_equivalent rounds kept after)
+    (tidied_after_equivalent rounds _)).
 Qed.
 
 (* A term that is, once its static bindings are in the order of the
@@ -308,17 +387,18 @@ Qed.
 Lemma ordered_same_equivalent (rounds : nat) (kept : list code_id)
     (e after : expr) :
   expr_eqb [] []
-    (order_statics_as (placed (normalise_after rounds kept after)) e)
-    (placed (normalise_after rounds kept after))
+    (order_statics_as (tidied_after rounds (normalise_after rounds kept after))
+       e)
+    (tidied_after rounds (normalise_after rounds kept after))
   = true ->
   expr_equivalent e after.
 Proof.
   intros Heq.
   apply (expr_equivalent_trans _ _ _
     (order_statics_as_equivalent
-       (placed (normalise_after rounds kept after)) e)).
+       (tidied_after rounds (normalise_after rounds kept after)) e)).
   apply (expr_equivalent_trans _ _ _ (expr_eqb_sound _ _ Heq)).
-  apply expr_equivalent_sym, placed_after_equivalent.
+  apply expr_equivalent_sym, tidied_after_normalised_equivalent.
 Qed.
 
 (* The two normalised terms being the same up to bound names, once the
@@ -327,17 +407,16 @@ Qed.
 Lemma normalised_refines (rounds : nat) (kept : list code_id)
     (before after : expr) :
   expr_eqb [] []
-    (order_statics_as (placed (normalise_after rounds kept after))
-       (placed (normalise_before rounds kept before)))
-    (placed (normalise_after rounds kept after))
+    (order_statics_as (tidied_after rounds (normalise_after rounds kept after))
+       (tidied_before rounds (normalise_before rounds kept before)))
+    (tidied_after rounds (normalise_after rounds kept after))
   = true ->
   expr_refines before after.
 Proof.
   intros Heq.
   apply (expr_refines_trans _ _ _
     (normalise_before_refines rounds kept before)).
-  apply (expr_refines_trans _ _ _
-    (expr_equivalent_refines _ _ (placed_equivalent _))).
+  apply (expr_refines_trans _ _ _ (tidied_before_refines rounds _)).
   apply expr_equivalent_refines.
   exact (ordered_same_equivalent rounds kept _ after Heq).
 Qed.
@@ -489,17 +568,19 @@ Proof.
     apply (expr_refines_trans _ _ _ (loopify_unit_refines G before)).
     revert Hvalidated. clear Hsame.
     generalize (loopify_unit G before). clear before. intros before.
-    set (a := placed (normalise_after rounds kept after)).
+    set (a := tidied_after rounds (normalise_after rounds kept after)).
     destruct (expr_eqb [] []
                 (order_statics_as a
-                   (placed (normalise_before rounds kept before)))
+                   (tidied_before rounds
+                      (normalise_before rounds kept before)))
                 a)
       eqn:Hnormalised.
     + intros _. exact (normalised_refines rounds kept before after Hnormalised).
     + destruct (expr_eqb [] []
                   (order_statics_as a
                      (without_statics unused
-                        (placed (normalise_before rounds kept before))))
+                        (tidied_before rounds
+                           (normalise_before rounds kept before))))
                   a);
         [ intros [H | H]; discriminate H | ].
       destruct
@@ -508,7 +589,7 @@ Proof.
               (float_code
                  (without_statics unused
                     (without_slots slots
-                       (placed
+                       (tidied_before rounds
                           (lifted_in_turn rounds (unit_continuations Ls) Ls
                              kept before))))))
            (float_code (with_code_first a)));
@@ -519,7 +600,7 @@ Proof.
               (with_statics_first Ls
                  (without_statics unused
                     (without_slots slots
-                       (placed
+                       (tidied_before rounds
                           (lifted_in_turn rounds (unit_continuations Ls) Ls
                              kept before))))))
            (with_statics_first Ls a));
@@ -538,25 +619,27 @@ Proof.
       (expr_refines_program _ _ (loopify_unit_refines G before))).
     revert Hvalidated. clear Hsame.
     generalize (loopify_unit G before). clear before. intros before.
-    set (a := placed (normalise_after rounds kept after)).
+    set (a := tidied_after rounds (normalise_after rounds kept after)).
     destruct (expr_eqb [] []
                 (order_statics_as a
-                   (placed (normalise_before rounds kept before)))
+                   (tidied_before rounds
+                      (normalise_before rounds kept before)))
                 a)
       eqn:Hnormalised.
     + intros _. apply expr_refines_program.
       exact (normalised_refines rounds kept before after Hnormalised).
     + assert (Hbefore :
         program_refines before
-          (placed (normalise_before rounds kept before))).
+          (tidied_before rounds (normalise_before rounds kept before))).
       { apply expr_refines_program.
         apply (expr_refines_trans _ _ _
           (normalise_before_refines rounds kept before)).
-        apply expr_equivalent_refines, placed_equivalent. }
+        apply tidied_before_refines. }
       destruct (expr_eqb [] []
                   (order_statics_as a
                      (without_statics unused
-                        (placed (normalise_before rounds kept before))))
+                        (tidied_before rounds
+                           (normalise_before rounds kept before))))
                   a) eqn:Hremoved.
       * intros _. apply (refines_trans _ _ _ Hbefore).
         apply (refines_trans _ _ _
@@ -566,7 +649,7 @@ Proof.
       * set (lifted :=
           without_statics unused
             (without_slots slots
-               (placed
+               (tidied_before rounds
                   (lifted_in_turn rounds (unit_continuations Ls) Ls kept
                      before)))).
         assert (Hlifting : program_refines before lifted).
@@ -574,15 +657,14 @@ Proof.
             (lifted_in_turn_program_refines rounds (unit_continuations Ls) Ls
                kept _)).
           apply (refines_trans _ _ _
-            (expr_refines_program _ _
-               (expr_equivalent_refines _ _ (placed_equivalent _)))).
+            (expr_refines_program _ _ (tidied_before_refines rounds _))).
           apply (refines_trans _ _ _ (without_slots_program_refines slots _)).
           apply without_statics_program_refines. }
         assert (Hafter :
           equivalent (State after [] [] empty_static_env empty_heap)
             (State a [] [] empty_static_env empty_heap))
-          by exact (placed_after_equivalent rounds kept after [] []
-                      empty_static_env _).
+          by exact (tidied_after_normalised_equivalent rounds kept after []
+                      [] empty_static_env _).
         destruct
           (expr_eqb [] []
              (order_statics_as (float_code (with_code_first a))

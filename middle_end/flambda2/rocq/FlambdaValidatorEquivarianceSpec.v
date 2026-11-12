@@ -186,9 +186,10 @@
    FlambdaForwardSpec.forward_applications; and
    FlambdaInlineTailSpec.inline_tail_conts_kinded and
    FlambdaForwardJumpsSpec.forward_jumps, which the validation
-   applies to the term after. One that nothing applies yet is stated
-   with them: FlambdaUnaliasParamsSpec.unalias_params, which takes
-   away a parameter that every application gives one variable. And
+   applies to the term after; and
+   FlambdaUnaliasParamsSpec.unalias_params, which takes away a
+   parameter that every application gives one variable, and which the
+   check applies to each term once its continuations are placed. And
    FlambdaLoopifySpec.loopify_unit, which the validation applies to
    the term before, after the first comparison and before any rewrite
    that makes names: it is given, for the code ids to make loops of,
@@ -204,7 +205,14 @@
    FlambdaSinkUsesSpec.sink_conts_to_uses in the term, in the handlers
    of its recursive continuations and in the bodies of its code; it
    commutes with renaming, and it keeps scope
-   ([placed_keeps_scope_statement], in the last section). The check,
+   ([placed_keeps_scope_statement], in the last section). And what
+   the check makes of each of those terms: its continuations placed,
+   then rounds of [unalias_params], of
+   FlambdaCseSpec.share_known_primitives, of following aliases and of
+   removing the [Let]s left unused ([tidied_before], [tidied_after]);
+   both commute with renaming, and that of the term before keeps
+   scope ([tidied_before_keeps_scope_statement], in the last
+   section). The check,
    [validate_unit], is in the last section. It is given the liftings
    to make
    (FlambdaLiftSpec.lifting), each of which holds the two
@@ -809,7 +817,8 @@ Definition inline_tail_conts_kinded_equivariant_statement : Prop :=
 
 (* Taking away a parameter of a continuation that every application
    gives one variable, which is at the handler what it is at the
-   applications (FlambdaUnaliasParamsSpec.v). That it keeps scope is in
+   applications (FlambdaUnaliasParamsSpec.v), as the check does once
+   the continuations are placed. That it keeps scope is in
    FlambdaStaticsScopeSpec.v. *)
 Definition unalias_params_equivariant_statement : Prop :=
   rewrite_equivariant unalias_params.
@@ -866,6 +875,18 @@ Definition normalise_after_equivariant_statement : Prop :=
    term that it compares (FlambdaValidateSpec.placed). *)
 Definition placed_equivariant_statement : Prop :=
   rewrite_equivariant placed.
+
+(* What the check makes of each term that it compares after the first
+   comparison: its continuations placed, and then the rounds of
+   FlambdaValidateSpec.tidy_before_round for the term before, of
+   [tidy_after_round] for the term after. The rounds are made of
+   rewrites above and of FlambdaCseSpec.share_known_primitives, which
+   is stated to commute with renaming in its file. *)
+Definition tidied_before_equivariant_statement : Prop :=
+  ∀ rounds : nat, rewrite_equivariant (tidied_before rounds).
+
+Definition tidied_after_equivariant_statement : Prop :=
+  ∀ rounds : nat, rewrite_equivariant (tidied_after rounds).
 
 (* The removal of the static bindings of the names given, where nothing
    refers to them. *)
@@ -1220,6 +1241,13 @@ Definition normalise_before_keeps_scope_statement : Prop :=
    normalisations, keeps scope. *)
 Definition placed_keeps_scope_statement : Prop := keeps_scope placed.
 
+(* So does what the check makes of the term before after that: the
+   rewrites of its rounds keep scope (FlambdaKeepsScopeSpec.v,
+   FlambdaLoopsScopeSpec.v, and FlambdaStaticsScopeSpec.v for
+   FlambdaUnaliasParamsSpec.unalias_params). *)
+Definition tidied_before_keeps_scope_statement : Prop :=
+  ∀ rounds : nat, keeps_scope (tidied_before rounds).
+
 (* A round of the second phase of the term before, and the
    normalisation of the term before, commute with renaming up to the
    names that they make; the first phase commutes with renaming, and
@@ -1347,9 +1375,12 @@ Definition with_statics_first_renamed_alike_statement : Prop :=
    first is the lifting renamed by the other, whether or not the term
    still mentions those continuations.
    Each of those terms, and the term after normalised, then has its
-   continuations placed (FlambdaValidateSpec.placed), which commutes
-   with every renaming and keeps scope
-   ([placed_equivariant_statement], [placed_keeps_scope_statement]).
+   continuations placed and is tidied
+   (FlambdaValidateSpec.tidied_before, [tidied_after]), which commutes
+   with every renaming and, for the term before, keeps scope
+   ([tidied_before_equivariant_statement],
+   [tidied_after_equivariant_statement],
+   [tidied_before_keeps_scope_statement]).
    The removal of static bindings, the removal of value slots, the
    moving up of the bindings of code, the putting first of the static
    bindings ([with_statics_first_renamed_alike_statement]) and the

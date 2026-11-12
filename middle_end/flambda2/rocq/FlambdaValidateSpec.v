@@ -142,6 +142,33 @@
    the call above them; and the comparison is of the bindings in
    their order.
 
+   Each of those terms is then tidied, in rounds ([tidied_before],
+   [tidied_after]). Simplify gives a continuation a parameter for a
+   primitive that was computed on every path to it, and gives each
+   application the variable that holds the result
+   (FlambdaUnaliasParamsSpec.v says where), and the handler uses the
+   parameter; the term before computes the primitive again in the
+   handler. With the continuation placed under the [Let] of the
+   primitive, the variable is in scope at the handler: where the
+   checks of FlambdaUnaliasParamsSpec.unalias_params pass, the
+   parameter is taken away and the handler begins with a [Let] of it
+   to the variable, in both terms;
+   what the handler of the term before computes again is shared with
+   the first computation ([share_known_primitives]); aliases are
+   followed and the [Let]s left unused are removed. The same is done
+   in the handlers of recursive continuations and in the bodies of
+   code. The term after is given the sharing too: placing puts side
+   by side, in both terms, computations of one primitive that a
+   [Let_cont] stood between and that Simplify did not share, and the
+   two terms must come out of it alike. Each rewrite of the tidying
+   of the term after is an equivalence
+   (FlambdaUnaliasParamsSpec.unalias_params_equivalent_statement,
+   FlambdaCseEquivalentSpec.share_known_primitives_equivalent_statement).
+   The tidying is not in a round of the normalisations for the reason
+   that the placing is not: it needs the continuations placed, and
+   the rewrites of a round that look at where a continuation is bound
+   follow Simplify on the term as the rounds leave it.
+
    The normalisation of the term before ends by making ordinary
    continuations of the exception handlers that no call can raise to,
    and removing the trap actions that name them
@@ -197,7 +224,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaParamAliasesSpec FlambdaRecHandlersSpec
   FlambdaRecoverComparisonSpec FlambdaRenameApartSpec
   FlambdaShareProjectionsSpec FlambdaShortcutSpec FlambdaSinkContsSpec
-  FlambdaSinkUsesSpec
+  FlambdaSinkUsesSpec FlambdaUnaliasParamsSpec
   FlambdaStaticsOrderSpec FlambdaUnboxSpec FlambdaUnboxVariantsSpec
   FlambdaUnusedContsSpec
   FlambdaUnusedParamsSpec FlambdaUnusedProjectionsSpec
@@ -642,6 +669,56 @@ Definition place_conts (e : expr) : expr :=
 Definition placed (e : expr) : expr :=
   rewrite_code place_conts (place_conts e).
 
+(* What is done to each of the terms that are compared once its
+   continuations are placed, in rounds. One round for an expression of
+   the term before: a parameter of a continuation that every
+   application gives one variable, which is at the handler what it is
+   at the applications, is taken away where the checks of
+   FlambdaUnaliasParamsSpec.unalias_params pass, and the handler
+   begins with a [Let] of it to that variable; a primitive that was
+   computed is not computed again; aliases are followed, into the
+   handlers of recursive continuations too for what is known where
+   they are defined; the [Let]s left unused are removed. *)
+Definition tidy_expr_before (e : expr) : expr :=
+  remove_unused_defined_lets []
+    (remove_unused_lets
+       (follow_aliases_in_loops []
+          (follow_aliases [] (share_known_primitives (unalias_params e))))).
+
+(* The same for the body of code: that round, and the same for the
+   handler of each of its recursive continuations. *)
+Definition tidy_code_before (body : expr) : expr :=
+  rewrite_rec_handlers tidy_expr_before (tidy_expr_before body).
+
+(* One round for the term before: that on the term itself, and on the
+   body of each piece of code. *)
+Definition tidy_before_round (e : expr) : expr :=
+  rewrite_code tidy_code_before (tidy_code_before e).
+
+(* The term before as it is compared, when the rounds of the
+   normalisations are over: its continuations placed, and then the
+   rounds above. *)
+Definition tidied_before (rounds : nat) (e : expr) : expr :=
+  iterate rounds tidy_before_round (placed e).
+
+(* The same for the term after, with rewrites that are equivalences
+   only: of the [Let]s left unused, those that are sure to have a
+   value are removed, as in the normalisation of the term after. *)
+Definition tidy_expr_after (e : expr) : expr :=
+  remove_unused_defined_lets_in_loops []
+    (follow_aliases_in_loops []
+       (follow_aliases [] (share_known_primitives (unalias_params e)))).
+
+Definition tidy_code_after (body : expr) : expr :=
+  rewrite_rec_handlers tidy_expr_after (tidy_expr_after body).
+
+Definition tidy_after_round (e : expr) : expr :=
+  remove_unused_defined_lets_in_code
+    (rewrite_code tidy_code_after (tidy_code_after e)).
+
+Definition tidied_after (rounds : nat) (e : expr) : expr :=
+  iterate rounds tidy_after_round (placed e).
+
 (* ======================================================================== *)
 (* The check                                                                *)
 (* ======================================================================== *)
@@ -660,8 +737,10 @@ Definition validate_unit (rounds : nat) (unused : dropped)
   if expr_eqb [] [] before after then Same_up_to_bound_names
   else
     let before := loopify_unit G before in
-    let normalised := placed (normalise_before rounds kept before) in
-    let after := placed (normalise_after rounds kept after) in
+    let normalised :=
+      tidied_before rounds (normalise_before rounds kept before)
+    in
+    let after := tidied_after rounds (normalise_after rounds kept after) in
     if expr_eqb [] [] (order_statics_as after normalised) after
     then Same_once_normalised
     else if
@@ -674,7 +753,7 @@ Definition validate_unit (rounds : nat) (unused : dropped)
            (float_code
               (without_statics unused
                  (without_slots slots
-                    (placed
+                    (tidied_before rounds
                        (lifted_in_turn rounds (unit_continuations Ls) Ls kept
                           before))))))
         (float_code (with_code_first after))
@@ -685,7 +764,7 @@ Definition validate_unit (rounds : nat) (unused : dropped)
            (with_statics_first Ls
               (without_statics unused
                  (without_slots slots
-                    (placed
+                    (tidied_before rounds
                        (lifted_in_turn rounds (unit_continuations Ls) Ls kept
                           before))))))
         (with_statics_first Ls after)

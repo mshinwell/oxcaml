@@ -27,8 +27,8 @@
 
 
 (* The rewrites of static bindings that the check of the validation
-   applies keep scope, and so does a rewrite of parameters that is
-   written for it to apply.
+   applies keep scope, and so does a rewrite of parameters that it
+   applies once the continuations are placed.
 
    This file is to be reviewed: the statements.
 
@@ -116,8 +116,10 @@
      variable; [with_statics_first] is that with the groups tidied, or
      the term as it is ([with_statics_first_keeps_scope_statement]).
      The statement does not need the tests that [hoist_statics] makes.
-   - FlambdaUnaliasParamsSpec.unalias_params, which nothing applies
-     yet, takes away a parameter of a continuation that every
+   - FlambdaUnaliasParamsSpec.unalias_params, of the rounds that
+     follow the placing of the continuations
+     (FlambdaValidateSpec.tidied_before), takes away a parameter of a
+     continuation that every
      application gives one variable, and has the handler begin with a
      [Let] of the parameter to that variable. The variable is free in
      the body of the [Let_cont], where an application gives it and no

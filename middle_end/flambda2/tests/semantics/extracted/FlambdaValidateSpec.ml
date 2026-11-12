@@ -37,6 +37,7 @@ open FlambdaSimplifyPassSpec
 open FlambdaSinkContsSpec
 open FlambdaSinkUsesSpec
 open FlambdaStaticsOrderSpec
+open FlambdaUnaliasParamsSpec
 open FlambdaUnboxSpec
 open FlambdaUnboxVariantsSpec
 open FlambdaUnusedContsSpec
@@ -275,6 +276,49 @@ let place_conts e =
 
 let placed e = rewrite_code place_conts (place_conts e)
 
+(** val tidy_expr_before : expr -> expr **)
+
+let tidy_expr_before e =
+  remove_unused_defined_lets []
+    (remove_unused_lets
+       (follow_aliases_in_loops []
+          (follow_aliases [] (share_known_primitives (unalias_params e)))))
+
+(** val tidy_code_before : expr -> expr **)
+
+let tidy_code_before body =
+  rewrite_rec_handlers tidy_expr_before (tidy_expr_before body)
+
+(** val tidy_before_round : expr -> expr **)
+
+let tidy_before_round e = rewrite_code tidy_code_before (tidy_code_before e)
+
+(** val tidied_before : nat -> expr -> expr **)
+
+let tidied_before rounds e = iterate rounds tidy_before_round (placed e)
+
+(** val tidy_expr_after : expr -> expr **)
+
+let tidy_expr_after e =
+  remove_unused_defined_lets_in_loops []
+    (follow_aliases_in_loops []
+       (follow_aliases [] (share_known_primitives (unalias_params e))))
+
+(** val tidy_code_after : expr -> expr **)
+
+let tidy_code_after body =
+  rewrite_rec_handlers tidy_expr_after (tidy_expr_after body)
+
+(** val tidy_after_round : expr -> expr **)
+
+let tidy_after_round e =
+  remove_unused_defined_lets_in_code
+    (rewrite_code tidy_code_after (tidy_code_after e))
+
+(** val tidied_after : nat -> expr -> expr **)
+
+let tidied_after rounds e = iterate rounds tidy_after_round (placed e)
+
 type validation =
   | Same_up_to_bound_names
   | Same_once_normalised
@@ -290,8 +334,10 @@ let validate_unit rounds unused slots g ls kept before after =
   then Same_up_to_bound_names
   else
     let before0 = loopify_unit g before in
-    let normalised = placed (normalise_before rounds kept before0) in
-    let after0 = placed (normalise_after rounds kept after) in
+    let normalised =
+      tidied_before rounds (normalise_before rounds kept before0)
+    in
+    let after0 = tidied_after rounds (normalise_after rounds kept after) in
     if expr_eqb [] [] (order_statics_as after0 normalised) after0
     then Same_once_normalised
     else if
@@ -306,7 +352,7 @@ let validate_unit rounds unused slots g ls kept before after =
            (float_code
               (without_statics unused
                  (without_slots slots
-                    (placed
+                    (tidied_before rounds
                        (lifted_in_turn rounds (unit_continuations ls) ls kept
                           before0))))))
         (float_code (with_code_first after0))
@@ -318,7 +364,7 @@ let validate_unit rounds unused slots g ls kept before after =
            (with_statics_first ls
               (without_statics unused
                  (without_slots slots
-                    (placed
+                    (tidied_before rounds
                        (lifted_in_turn rounds (unit_continuations ls) ls kept
                           before0))))))
         (with_statics_first ls after0)

@@ -4803,7 +4803,8 @@ Ltac rename_outwards :=
       | rewrite forward_jumps_equivariant
       | rewrite unbox_variant_params_renamed
       | rewrite remove_unused_defined_lets_in_loops_closed_equivariant
-      | rewrite inline_tail_conts_kinded_equivariant_aux ].
+      | rewrite inline_tail_conts_kinded_equivariant_aux
+      | rewrite FlambdaUnaliasParamsNamesProofs.unalias_params_renamed ].
 
 Lemma normalise_expr_before_equivariant :
   rewrite_equivariant normalise_expr_before.
@@ -4924,6 +4925,64 @@ Theorem placed_equivariant : placed_equivariant_statement.
 Proof.
   intros r e. unfold placed. rewrite place_conts_equivariant.
   apply (rewrite_code_equivariant _ place_conts_equivariant).
+Qed.
+
+(* The tidying that follows the placing: a round for an expression,
+   for the body of code and for a term, of the term before and of the
+   term after. *)
+Lemma tidy_expr_before_equivariant : rewrite_equivariant tidy_expr_before.
+Proof.
+  intros r e. unfold tidy_expr_before. rename_outwards. reflexivity.
+Qed.
+
+Lemma tidy_code_before_equivariant : rewrite_equivariant tidy_code_before.
+Proof.
+  intros r e. unfold tidy_code_before.
+  rewrite tidy_expr_before_equivariant.
+  apply rewrite_rec_handlers_equivariant, tidy_expr_before_equivariant.
+Qed.
+
+Lemma tidy_before_round_equivariant : rewrite_equivariant tidy_before_round.
+Proof.
+  intros r e. unfold tidy_before_round.
+  rewrite tidy_code_before_equivariant.
+  apply rewrite_code_equivariant, tidy_code_before_equivariant.
+Qed.
+
+Theorem tidied_before_equivariant : tidied_before_equivariant_statement.
+Proof.
+  intros rounds r e. unfold tidied_before. rewrite placed_equivariant.
+  exact
+    (iterate_equivariant rounds tidy_before_round
+       tidy_before_round_equivariant r _).
+Qed.
+
+Lemma tidy_expr_after_equivariant : rewrite_equivariant tidy_expr_after.
+Proof.
+  intros r e. unfold tidy_expr_after. rename_outwards. reflexivity.
+Qed.
+
+Lemma tidy_code_after_equivariant : rewrite_equivariant tidy_code_after.
+Proof.
+  intros r e. unfold tidy_code_after.
+  rewrite tidy_expr_after_equivariant.
+  apply rewrite_rec_handlers_equivariant, tidy_expr_after_equivariant.
+Qed.
+
+Lemma tidy_after_round_equivariant : rewrite_equivariant tidy_after_round.
+Proof.
+  intros r e. unfold tidy_after_round.
+  rewrite tidy_code_after_equivariant.
+  rewrite (rewrite_code_equivariant _ tidy_code_after_equivariant).
+  apply remove_unused_defined_lets_in_code_equivariant.
+Qed.
+
+Theorem tidied_after_equivariant : tidied_after_equivariant_statement.
+Proof.
+  intros rounds r e. unfold tidied_after. rewrite placed_equivariant.
+  exact
+    (iterate_equivariant rounds tidy_after_round
+       tidy_after_round_equivariant r _).
 Qed.
 
 Theorem without_statics_equivariant : without_statics_equivariant_statement.
@@ -6633,11 +6692,74 @@ Proof.
           place_conts_keeps_scope)).
 Qed.
 
+(* The tidying of the term before that follows the placing keeps
+   scope: each rewrite of its rounds does. *)
+Lemma tidy_expr_before_keeps_scope : keeps_scope tidy_expr_before.
+Proof.
+  exact
+    (keeps_scope_compose
+       (fun e =>
+          remove_unused_lets
+            (follow_aliases_in_loops []
+               (follow_aliases []
+                  (share_known_primitives (unalias_params e)))))
+       (remove_unused_defined_lets [])
+       (keeps_scope_compose
+          (fun e =>
+             follow_aliases_in_loops []
+               (follow_aliases []
+                  (share_known_primitives (unalias_params e))))
+          remove_unused_lets
+          (keeps_scope_compose
+             (fun e =>
+                follow_aliases [] (share_known_primitives (unalias_params e)))
+             (follow_aliases_in_loops [])
+             (keeps_scope_compose
+                (fun e => share_known_primitives (unalias_params e))
+                (follow_aliases [])
+                (keeps_scope_compose unalias_params share_known_primitives
+                   FlambdaStaticsScopeProofs.unalias_params_keeps_scope
+                   FlambdaKeepsScopeProofs.share_known_primitives_keeps_scope)
+                FlambdaKeepsScopeProofs.follow_aliases_keeps_scope)
+             FlambdaLoopsScopeProofs.follow_aliases_in_loops_keeps_scope)
+          FlambdaKeepsScopeProofs.remove_unused_lets_keeps_scope)
+       (FlambdaKeepsScopeProofs.remove_unused_defined_lets_keeps_scope [])).
+Qed.
+
+Lemma tidy_code_before_keeps_scope : keeps_scope tidy_code_before.
+Proof.
+  exact
+    (keeps_scope_compose tidy_expr_before
+       (rewrite_rec_handlers tidy_expr_before) tidy_expr_before_keeps_scope
+       (FlambdaLoopsScopeProofs.rewrite_rec_handlers_keeps_scope _
+          tidy_expr_before_keeps_scope)).
+Qed.
+
+Lemma tidy_before_round_keeps_scope : keeps_scope tidy_before_round.
+Proof.
+  exact
+    (keeps_scope_compose tidy_code_before (rewrite_code tidy_code_before)
+       tidy_code_before_keeps_scope
+       (FlambdaKeepsScopeProofs.rewrite_code_keeps_scope _
+          tidy_code_before_keeps_scope)).
+Qed.
+
+Theorem tidied_before_keeps_scope : tidied_before_keeps_scope_statement.
+Proof.
+  intros rounds.
+  exact
+    (keeps_scope_compose placed (iterate rounds tidy_before_round)
+       placed_keeps_scope
+       (keeps_scope_iterate rounds tidy_before_round
+          tidy_before_round_keeps_scope)).
+Qed.
+
 (* The term before normalised is, under the renaming, that term under a
    second renaming; the term before with the liftings made in turn is
    that term under a third, since each normalisation after a lifting
    avoids the continuations of the units of the liftings. The placing
-   of continuations, which comes next, the removal of static bindings,
+   of continuations and the tidying, which come next, the removal of
+   static bindings,
    the removal of value slots, the moving up of the bindings of code
    and the ordering of static bindings commute with each of them,
    whatever renames the pattern, and keep scope; so the
@@ -6676,8 +6798,9 @@ Proof.
   destruct (normalise_before_keeps_scope rounds kept before Hclosed)
     as (Hclosed_b0 & _ & _).
   destruct
-    (renames_alike_kept placed r r' (normalise_before rounds kept before)
-       placed_keeps_scope Hclosed_b0 Halike0)
+    (renames_alike_kept (tidied_before rounds) r r'
+       (normalise_before rounds kept before)
+       (tidied_before_keeps_scope rounds) Hclosed_b0 Halike0)
     as (Hclosed_b & Halike).
   destruct
     (lifted_in_turn_up_to r rounds (unit_continuations Ls) kept Ls
@@ -6688,23 +6811,26 @@ Proof.
        Hclosed)
     as (Hclosed_l0 & _ & _).
   destruct
-    (renames_alike_kept placed r r''
+    (renames_alike_kept (tidied_before rounds) r r''
        (lifted_in_turn rounds (unit_continuations Ls) Ls kept before)
-       placed_keeps_scope Hclosed_l0 Halike0')
+       (tidied_before_keeps_scope rounds) Hclosed_l0 Halike0')
     as (Hclosed_l & Halike').
   rewrite unit_continuations_renamed.
-  rewrite Heq, Heq', normalise_after_equivariant, !placed_equivariant,
+  rewrite Heq, Heq', normalise_after_equivariant,
+    !tidied_before_equivariant, tidied_after_equivariant,
     without_slots_equivariant, !without_statics_equivariant,
     with_code_first_equivariant, !float_code_rewrite_equivariant,
     (with_statics_first_renamed_alike r r Ls _ (fun k _ => eq_refl)),
     (with_statics_first_renamed_alike r r'' Ls _ Havoid'),
     !order_statics_as_equivariant.
-  set (b := placed (normalise_before rounds kept before)) in *.
+  set (b := tidied_before rounds (normalise_before rounds kept before))
+    in *.
   set
     (l :=
-      placed (lifted_in_turn rounds (unit_continuations Ls) Ls kept before))
+      tidied_before rounds
+        (lifted_in_turn rounds (unit_continuations Ls) Ls kept before))
     in *.
-  set (a := placed (normalise_after rounds kept after)).
+  set (a := tidied_after rounds (normalise_after rounds kept after)).
   set (c := float_code (with_code_first a)).
   set (c' := with_statics_first Ls a).
   destruct

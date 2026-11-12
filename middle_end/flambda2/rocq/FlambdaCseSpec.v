@@ -102,9 +102,10 @@
    values.
 
    The result refines the term
-   ([share_known_primitives_refines_statement]). It is not claimed to be
-   equivalent to it, though it most likely is; a refinement is what the
-   term before Simplify needs.
+   ([share_known_primitives_refines_statement]). That it is equivalent
+   to it is
+   FlambdaCseEquivalentSpec.share_known_primitives_equivalent_statement;
+   a refinement is what the term before Simplify needs.
 
    The pass commutes with the renamings of FlambdaNominalSpec.v, what it
    knows being renamed with the term

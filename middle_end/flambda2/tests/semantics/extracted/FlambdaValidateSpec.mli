@@ -37,6 +37,7 @@ open FlambdaSimplifyPassSpec
 open FlambdaSinkContsSpec
 open FlambdaSinkUsesSpec
 open FlambdaStaticsOrderSpec
+open FlambdaUnaliasParamsSpec
 open FlambdaUnboxSpec
 open FlambdaUnboxVariantsSpec
 open FlambdaUnusedContsSpec
@@ -104,6 +105,22 @@ val with_statics_first : lifting list -> expr -> expr
 val place_conts : expr -> expr
 
 val placed : expr -> expr
+
+val tidy_expr_before : expr -> expr
+
+val tidy_code_before : expr -> expr
+
+val tidy_before_round : expr -> expr
+
+val tidied_before : nat -> expr -> expr
+
+val tidy_expr_after : expr -> expr
+
+val tidy_code_after : expr -> expr
+
+val tidy_after_round : expr -> expr
+
+val tidied_after : nat -> expr -> expr
 
 type validation =
   | Same_up_to_bound_names
