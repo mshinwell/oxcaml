@@ -344,7 +344,7 @@ before. What each shows, and what its validation uses besides:
 | `pair_kept.ml` | 35, 33 | as `pair_join.ml` |
 | `pair_loop.ml` | 192, 85 | as `pair_join.ml`, at the entry of a loop, whose parameter Simplify unboxes from its subkind without looking at the uses (T6-7) |
 | `partial_exported.ml` | 13, 6 | the wrapper that Simplify makes of a partial application calls the function through a value slot of its own closure; the validator, which knows what the slot holds, inlines that call in the term before, and has no rewrite that does it in the term after (V3) |
-| `string_get_checked.ml` | 21, 4 | the bounds check of an access to a string that is a constant of the unit: the validator, which knows the string, resolves it where Simplify does not |
+| `string_get_checked.ml` | 21, 4 | the load of a character of a string that is a constant of the unit, at a constant index: the validator, which knows the string, has the character where Simplify, which resolves the bounds check as the validator does, keeps the load |
 | `string_get_unknown.ml` | 28, 16 | the index is converted for the bounds test and again in the continuation that loads the character; Simplify converts it once and gives the result to that continuation as an argument, which the sharing of primitives does not do (V2) |
 | `while_flag.ml` | 150, 75 | a boolean that Simplify keeps untagged in a parameter of the loop (T6) |
 
@@ -382,10 +382,15 @@ before. What each shows, and what its validation uses besides:
    the function through a value slot of its own closure, and the
    validator, which knows what the slot holds, inlines that call in
    the term before only.
-4. The validator knows more than Simplify in one unit: it resolves the
-   bounds check of an access to a string that is a constant of the
-   unit (`string_get_checked.ml`), and the two terms then differ the
-   other way.
+4. The validator knows more than Simplify in one unit
+   (`string_get_checked.ml`): it evaluates the load of a character of
+   a string that is a constant of the unit, at a constant index.
+   Simplify resolves the bounds check, as the validator does, and
+   keeps the load: `simplify_string_or_bigstring_load` of
+   `middle_end/flambda2/simplify/simplify_binary_primitive.ml`
+   answers that it knows nothing of the result, under a comment that
+   says it could evaluate loads from known strings. The two terms
+   then differ the other way.
 5. A primitive computed before a `Switch` and again in the handler
    that an arm goes to (`string_get_unknown.ml`: the index of an
    access to a string is converted for the bounds test and again for
@@ -552,7 +557,8 @@ removed it:
   (`FlambdaNormaliseSpec.inline_apply`). The verdict has a second
   line that says so.
 
-A count over 600 units made at random is in `census/README.md`.
+A count over 600 units made at random is in `census/README.md`, with
+one over 240 more that have exceptions, loops and recursive functions.
 
 ## Units that test the arithmetic
 

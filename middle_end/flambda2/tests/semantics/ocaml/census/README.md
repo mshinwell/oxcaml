@@ -19,7 +19,8 @@ with the results. The expressions are arithmetic and comparisons on
 integers, boolean operators, conditionals, constructors and matches on
 the variant, on options and on pairs, record fields, `let`, and
 closures applied at once. There is no recursion, no loop, nothing
-mutable, no float, no string and no exception.
+mutable, no float, no string and no exception, but in the two
+profiles of the last section.
 
 The profiles: `known` (every input is a constant), `unknown` (about a
 quarter of the integer constants are behind `opaque`), `functions`
@@ -106,3 +107,77 @@ guesses, and a better one needs no proof.
 So, for units of this kind: when every input is known and the result
 is a number, all are validated; with unknown inputs and numbers, 146
 of 150; of the units that keep a function, 96 of 100.
+
+## Two more profiles: exceptions, loops
+
+`exceptions` is `unknown` with handlers: `try ... with _ ->`, `raise
+Not_found`, `raise_notrace`, and `/` and `mod`, which raise where the
+divisor is zero, under a handler; an inlined function may raise, and
+is then called under a handler. `loops` is `unknown` with `for` loops
+(up and down) and `while` loops on references, local recursive
+functions (whose recursive call is a tail call or not), and one
+recursive function that the unit keeps and exports. With `_scalar`
+the values of the unit are integers and booleans, as above. A loop
+goes round seven times at most, and loops are nested twice at most.
+
+    sh census/run.sh <ocamlopt> <flsemantics.exe> 1 60 census-output \
+      exceptions exceptions_scalar loops loops_scalar
+
+Seeds 1 to 60 of each, 240 units, on 2026-11-12. No unit on which the
+two runs differ, none undefined before Simplify, none on which the
+tool gave no answer.
+
+| Profile | Units | Validated | Not validated | Not checked |
+|---------|-------|-----------|---------------|-------------|
+| `exceptions` | 60 | 60 | 0 | 0 |
+| `exceptions_scalar` | 60 | 57 | 3 | 0 |
+| `loops` | 60 | 6 | 52 | 2 |
+| `loops_scalar` | 60 | 10 | 50 | 0 |
+
+The two that are not checked have a reference that a local function
+captures: it stays a block with a field that is written
+(`Block_set`).
+
+What the 102 units with loops that are not validated lack. One unit
+of each kind was read; the counts are of the units whose two terms,
+as the tool shows them, differ by the same kinds of line, and a unit
+may lack several.
+
+- A `Let` on the other side of the binding of a continuation. In 57
+  units the two terms have, once the names are erased, the same
+  lines in another order, and most of the other 45 have this
+  difference too. The common case is the return continuation of a
+  call that does not use its parameter, as in
+
+      let rec f n acc =
+        if n <= 0 then acc else (let _ = f (n - 1) acc in n)
+
+  The term before binds the continuation and then has the `Let` of
+  `n - 1`; the term after has the `Let` first. Simplify cannot remove
+  the parameter of a return continuation, so it makes a wrapper of
+  the continuation at the call, below the `Let`s of the arguments,
+  and the handler, which is then applied once, ends up there. Where
+  the handler uses its parameter the two terms have the same order,
+  and such a unit is validated.
+- Code that the term after has twice (10 units). An inlined function
+  with a local recursive function that captures one of its
+  parameters, called twice. Simplify copies the code at each
+  inlining, makes each closure a symbol and puts the constant of its
+  value slot in its copy of the code; the term before has one piece
+  of code and two closures.
+- A closure with a value slot that is a variable, which Simplify
+  makes a symbol in the handler where the variable is bound (4
+  units), and a closure of no value slot that is not lifted under a
+  handler in the code of a function (6 units).
+- Static bindings on the other side of the binding of a
+  continuation.
+- A continuation that only applies another, as the return
+  continuation of a call, which the term before keeps (7 units).
+
+Of the three units with exceptions that are not validated, one has
+the first difference. One has it too, with a comparison in the term
+after whose result nothing uses, which the term before has lost. One
+has, in the term after, a record that Simplify made a symbol and a
+load of a field of that symbol, where the validator has the field:
+the record is the result of a `try` whose handler gives another
+record, and the handler turns out not to be reached.
