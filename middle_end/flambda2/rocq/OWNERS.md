@@ -399,6 +399,9 @@ stays C0's for now.
   tagged; S1's once it is staffed)
 - `middle_end/flambda2/rocq/FlambdaCse*` (another: a primitive already
   computed is not computed again; S5's once it is staffed)
+- `middle_end/flambda2/rocq/FlambdaShareProjections*` (another: a
+  value slot already projected is not projected again; S5's once it
+  is staffed)
 - `middle_end/flambda2/rocq/FlambdaStaticsOrder*` (another: the
   bindings of a group of static bindings put in the order in which
   another term has them; V1's once it is staffed)
