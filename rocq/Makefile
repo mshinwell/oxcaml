@@ -218,6 +218,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaJoinEnv.v \
   FlambdaJoinEnvProofs.v \
   FlambdaJoinEnvSpec.v \
+  FlambdaJoinFitsProofs.v \
+  FlambdaJoinFitsSpec.v \
   FlambdaJoinMeet.v \
   FlambdaJoinMeetExamplesProofs.v \
   FlambdaJoinMeetExamplesSpec.v \
