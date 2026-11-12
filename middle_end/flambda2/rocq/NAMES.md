@@ -43,6 +43,7 @@ remove bindings are proved from them.
 | The second series of passes for loops | proved, as lemmas of `FlambdaValidatorEquivarianceProofs.v`; not yet statements | the owner of loops |
 | Typing environments and their levels, extensions, aliases, types, provers | the types library (`FlambdaEnvRenameSpec.v`, `FlambdaTypeRenameSpec.v`, `FlambdaEnvAliasesRenamingSpec.v`, `FlambdaTypingEnvExtensionSpec.v`, `FlambdaProversRenameSpec.v`) | N3 and the owners |
 | The meet of types and of expanded types, and the functions that add to a typing environment, given a join that commutes with renaming; with the join that forgets, with no premise | the types library (`FlambdaMeetRenameSpec.v`) | the owner of the meet, N3 |
+| The join of typing environments and the join that Simplify calls, with the source of new names renamed; with them, the meet of the model with its own join | the types library (`FlambdaEnvRenameJoinSpec.v`, `FlambdaJoinMeetRenameSpec.v`; the traversal of types, as lemmas of `FlambdaEnvRenameJoinTypesProofs.v`) | N3; N1 for the traversal |
 
 Those of the machines, and of the rewrites and checks of the first
 six rows, are equations that hold of every state and of every term.
@@ -84,11 +85,10 @@ will be once the series of that request is merged.
 
 **Owed.** The statements for the second series of passes for loops;
 `validate_unit` again when the validation gives binders names of
-their own; the join of typing environments, which makes variables,
-with the source of new names renamed (section 7), and with it the
-meet for the join that the model has; the permutations of locations;
-the functions on types that have no statement yet; and the rows of
-the table above.
+their own; that the join of typing environments, with one source of
+new names, answers the renamed answer up to the variables that it
+makes (section 7); the permutations of locations; the functions on
+types that have no statement yet; and the rows of the table above.
 
 ## 1. The names
 
@@ -390,7 +390,23 @@ Where the names made stay free in the answer, the second is about
 answers up to a renaming of the names made, and says less. The join
 of typing environments is such a function: it defines the variables
 that it makes in the environment that it answers. It owes the first,
-which the third prover is stating.
+and has it, by the third prover
+(`types/rocq/FlambdaEnvRenameJoinSpec.v`): what a renaming does to
+the source of new names and to the state of the join; that no source
+commutes with every renaming; the equation for the two functions that
+ask the source; and the equation of the join as a whole, for two sets
+of parameters that the renaming relates, as the model's parameters
+and the same with the source renamed are. With it
+(`types/rocq/FlambdaJoinMeetRenameSpec.v`) the meet of the model with
+its own join, and the join that Simplify calls, answer the renamed
+answer with the renamed source. The traversal of types that the join
+calls (`types/rocq/FlambdaJoinTypes.v`) makes no name and compares no
+two variables itself: the variables that it finds in types it hands
+to the functions that it is given. Each of its functions gives the
+renamed answer on renamed arguments when those do (lemmas of
+`types/rocq/FlambdaEnvRenameJoinTypesProofs.v`). The second is not
+stated for the join: it needs that two sources give answers that
+differ by a renaming of the variables made.
 
 Prove it by one recursion over expressions, handlers, bindings and
 code. A function whose answer depends on the order or the number of a
@@ -422,10 +438,13 @@ library (`FlambdaMeetRenameSpec.v`): the meet of types, of expanded
 types at every fuel, and the functions that add to a typing
 environment. The meet makes no variable; where it chooses between two
 names it is by their binding times, which a renaming keeps. The join
-that it is given is a parameter, and the statements are for a join
+that it is given is a parameter. The first statements are for a join
 that commutes with renaming; the join that forgets does, so with it
 the meet commutes with no premise. The join that the model has makes
-variables: it is not such a join, and what it owes is above.
+variables and is not such a join: the statements of the second part
+of that file are for two joins that a renaming relates, and the
+model's join and the same with the source of new names renamed are
+two such (above).
 
 Proved by the owners of the passes, each in the file of its pass: the
 identities of primitives (`FlambdaIdentitiesSpec.v`), the lifting of
