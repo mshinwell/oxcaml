@@ -510,6 +510,44 @@ it gave back.
   - `control_of_the_analysis`: that its two joins are what its
     comment says, and that the reader which stops is put in place of
     the compiler's and of nothing else.
+  - the groups of static constants (`generate_static_group`,
+    `static_const_of_model`): that the generator is what the comment
+    at its definition says; that the constant of the compiler is the
+    model's, an immutable block of the shape of values for a block,
+    the boxed number of the kind of the constant for a boxed
+    constant, a boxed float where the contents are a variable;
+  - the two sides (`static_group_in_the_model`,
+    `env_before_a_static_group`, `static_group_in_the_compiler`,
+    `static_group_in_simplify`): that the model's environment is the
+    one of `env_of_model` with the aliases added by the model's
+    `add_equation`, and the compiler's is made by the functions that
+    the types library exports, the names of the tests defined in
+    the same order and the aliases added by its `add_equation`
+    under the flag that chooses the meet; that Simplify is given
+    that environment in the environment of the top level of a unit
+    with no code, and is run on each prefix of the group; that its
+    typing environment is read through the observer;
+  - what is compared (`static_group_verdict`,
+    `verdict_of_a_static_group`, `outcome_of_a_static_group`,
+    `static_groups`): that the constant at which Simplify stops is
+    the last of the first prefix on which it stops; that the
+    environments are compared after the constants before it, or
+    after the group, first and on every path, what the model itself
+    sees and what the compiler sees both being read; that
+    a difference is recorded under T3-10 only as the comment at
+    `static_group_in_the_model` says, the model being made to give
+    the symbol of a boxed number whose contents are a variable of
+    kind value the type that its environment has for the variable;
+    that a stop at a constant to which the model gives a type is
+    recorded under T3-10 only where the constant is a boxed number
+    of the variable that holds a naked float and that comparison
+    passes;
+    that `why_untyped` tells by the text of a block, and by the
+    symbols bound before it, whether it names a symbol that is not
+    defined or has a field that is a naked immediate;
+  - `control_of_the_static_groups`: that its groups are what its
+    lines say, and that where a line says so one side of a verdict
+    is put there by hand.
 
 Not trusted, though it is OCaml: what the tool proposes to
 `validate_unit` and to `validate_unit_knowing`. Each proposal is
