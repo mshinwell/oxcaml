@@ -145,6 +145,7 @@ module My_closure = Flambda2_rocq_semantics.FlambdaMyClosureSpec
 module Unused_slots = Flambda2_rocq_semantics.FlambdaUnusedSlotsSpec
 module Float_code = Flambda2_rocq_semantics.FlambdaFloatCodeSpec
 module Loopify = Flambda2_rocq_semantics.FlambdaLoopifySpec
+module Stub_calls = Flambda2_rocq_semantics.FlambdaStubCallsSpec
 module Statics_order = Flambda2_rocq_semantics.FlambdaStaticsOrderSpec
 module Lift_from_code = Flambda2_rocq_semantics.FlambdaLiftFromCodeSpec
 module Lift_from_arms = Flambda2_rocq_semantics.FlambdaLiftFromArmsSpec
@@ -1342,6 +1343,27 @@ let rec code_bound (e : Model.expr) : (Model.code_id * Model.expr) list =
     @ code_bound body
   | Apply _ | Apply_cont _ | Switch _ | Invalid -> []
 
+(* The code that an expression binds and that is a stub. *)
+let rec stub_code (e : Model.expr) : Model.code_id list =
+  let in_handler (Model.Handler (_, _, handler)) = stub_code handler in
+  match e with
+  | Let (_, _, _, body) -> stub_code body
+  | Let_static (bindings, body) ->
+    List.concat_map
+      (fun (binding : Model.static_binding) ->
+        match binding with
+        | Bind_code (id, Code (_, _, _, _, metadata, _)) ->
+          if metadata.cm_is_stub then [id] else []
+        | Bind_deleted_code _ | Bind_symbol _ -> [])
+      bindings
+    @ stub_code body
+  | Let_cont_non_recursive (_, handler, body) ->
+    in_handler handler @ stub_code body
+  | Let_cont_recursive (handlers, body) ->
+    List.concat_map (fun (_, handler) -> in_handler handler) handlers
+    @ stub_code body
+  | Apply _ | Apply_cont _ | Switch _ | Invalid -> []
+
 let recursive_code (e : Model.expr) : Model.code_id list =
   let calls =
     List.map (fun (id, body) -> id, direct_callees body) (code_bound e)
@@ -2150,6 +2172,11 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list)
       (Lift_from_code.lift_from_code out_of_code [] Lift.root
          (Lift_from_arms.lift_to_head to_head before))
   in
+  (* In the code of a stub Simplify knows nothing of [my_closure]: it simplifies
+     that code where it is bound and not where its set of closures is (see
+     FlambdaStubCallsSpec.v). So the code of a stub is not among the code whose
+     [my_closure] is to be bound to the symbol of its closure. *)
+  let stubs = stub_code lifted in
   let my_closures =
     List.filter_map
       (fun (sym, (const : Model.static_const)) ->
@@ -2164,7 +2191,9 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list)
             None
         in
         match code with
-        | Some code when My_closure.only_closure_of code sym lifted ->
+        | Some code
+          when (not (List.mem code stubs))
+               && My_closure.only_closure_of code sym lifted ->
           Some (code, sym)
         | Some _ | None -> None)
       (bound_symbols after)
@@ -2397,11 +2426,13 @@ let well_formed_before ~filename (before : Flambda_unit.t) =
    value slots of its static sets of closures that the term after has not got,
    moves the bindings of code of both terms up, and compares again. What is
    lifted and which slots are guesses too. Before any of this, where the two
-   terms are not the same as they are given, [validate_unit] makes jumps of the
-   self tail calls of the code named here, as Simplify does for the code that
-   the front end marks for loopify; which code that is, with a name for each
-   loop, is a guess again, and the guesses above are made of the term that this
-   gives. Failing all of that, the whole is asked a second time, of
+   terms are not the same as they are given, [validate_unit] makes indirect the
+   direct calls in the code of the stubs of the term before, as Simplify does
+   where it simplifies that code (FlambdaStubCallsSpec.v), and makes jumps of
+   the self tail calls of the code named here, as Simplify does for the code
+   that the front end marks for loopify; which code that is, with a name for
+   each loop, is a guess again, and the guesses above are made of the term that
+   this gives. Failing all of that, the whole is asked a second time, of
    [validate_unit_knowing], extracted from FlambdaValidateKnowingSpec.v, where
    it is proved that what it accepts is correct for the unit in the same way. It
    is [validate_unit] of the two terms normalised by rounds in front of each of
@@ -2452,9 +2483,12 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
      as the rounds leave them; the value slots and the static bindings to remove
      from a lifted term are guessed from that term placed and tidied. *)
   let ask validate_unit (before : converted) (after : converted) kept =
-    (* The term before with its self tail calls made jumps: the term that the
-       function asked normalises and lifts in. *)
-    let looped = Loopify.loopify_unit loops before.body in
+    (* The term before with the direct calls of the code of its stubs made
+       indirect and its self tail calls made jumps: the term that the function
+       asked normalises and lifts in. *)
+    let looped =
+      Loopify.loopify_unit loops (Stub_calls.demote_stub_calls before.body)
+    in
     let normalised_before = Validate.normalise_before rounds kept looped in
     let normalised_after = Validate.normalise_after rounds kept after.body in
     let tidied_after = Validate.tidied_after rounds normalised_after in

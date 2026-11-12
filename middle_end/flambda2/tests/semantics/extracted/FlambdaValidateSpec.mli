@@ -38,6 +38,7 @@ open FlambdaSimplifyPassSpec
 open FlambdaSinkContsSpec
 open FlambdaSinkUsesSpec
 open FlambdaStaticsOrderSpec
+open FlambdaStubCallsSpec
 open FlambdaUnaliasParamsSpec
 open FlambdaUnboxInScopeSpec
 open FlambdaUnboxParamsSpec

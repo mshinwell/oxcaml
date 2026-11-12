@@ -182,7 +182,10 @@ and read_slots_in_handler known syms = function
 
 and read_slots_in_binding known syms binding =
   match binding with
-  | Bind_code (id, c) -> Bind_code (id, read_slots_in_code known syms c)
+  | Bind_code (id, c) ->
+    if code_is_stub c
+    then binding
+    else Bind_code (id, read_slots_in_code known syms c)
   | _ -> binding
 
 (** val read_slots_in_code : known_slots -> symbol list -> code -> code **)

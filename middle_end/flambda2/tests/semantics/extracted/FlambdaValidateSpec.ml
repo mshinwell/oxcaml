@@ -38,6 +38,7 @@ open FlambdaSimplifyPassSpec
 open FlambdaSinkContsSpec
 open FlambdaSinkUsesSpec
 open FlambdaStaticsOrderSpec
+open FlambdaStubCallsSpec
 open FlambdaUnaliasParamsSpec
 open FlambdaUnboxInScopeSpec
 open FlambdaUnboxParamsSpec
@@ -356,7 +357,7 @@ let validate_unit rounds unused slots g ls kept before after =
   if expr_eqb [] [] before after
   then Same_up_to_bound_names
   else
-    let before0 = loopify_unit g before in
+    let before0 = loopify_unit g (demote_stub_calls before) in
     let normalised =
       tidied_before rounds (normalise_before rounds kept before0)
     in

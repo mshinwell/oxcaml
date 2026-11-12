@@ -535,6 +535,11 @@ let code_result_arity = function
 let code_is_tupled = function
   | Code (_, _, _, _, metadata, _) -> metadata.cm_is_tupled
 
+(** val code_is_stub : code -> bool **)
+
+let code_is_stub = function
+  | Code (_, _, _, _, metadata, _) -> metadata.cm_is_stub
+
 (** val code_params_kinds : code -> flambda_kind list **)
 
 let code_params_kinds c = unarize (code_params_arity c)

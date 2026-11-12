@@ -1,0 +1,16 @@
+let code size(5) add_one (x) my_closure &my_region my_depth -> k * e =
+  let y = %int_barith.`add` (x, 1) in
+  cont k (y)
+in
+let code size(20) stub add_two (x) my_closure &my_region my_depth -> k * e =
+  let f = %project_value_slot.[add_two].[add_one] (my_closure) in
+  apply direct(add_one &my_region) f (x) -> k1 * e
+    where k1 (y) =
+      apply direct(add_one &my_region) f (y) -> k * e
+in
+let one = closure add_one @add_one &toplevel in
+let two = closure add_two @add_two &toplevel with { add_one = one } in
+apply &toplevel two (40) -> k2 * error
+  where k2 (r) =
+    let $camlStub_by_hand = Block 0 (one, two, r) in
+    cont done ($camlStub_by_hand)

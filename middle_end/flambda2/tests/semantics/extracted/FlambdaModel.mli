@@ -219,6 +219,8 @@ val code_result_arity : code -> arity
 
 val code_is_tupled : code -> bool
 
+val code_is_stub : code -> bool
+
 val code_params_kinds : code -> flambda_kind list
 
 val code_body : code -> expr
