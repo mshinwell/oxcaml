@@ -148,6 +148,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaIdentitiesSpec.v \
   FlambdaInlineFreshProofs.v \
   FlambdaInlineFreshSpec.v \
+  FlambdaInlineSiblingsProofs.v \
+  FlambdaInlineSiblingsSpec.v \
   FlambdaInlineTailProofs.v \
   FlambdaInlineTailSpec.v \
   FlambdaKeepsScopeProofs.v \
