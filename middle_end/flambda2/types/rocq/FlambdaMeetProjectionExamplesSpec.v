@@ -29,12 +29,20 @@
 (* Examples of meets: projections.
 
    This file is to be reviewed: each statement says what the
-   transcribed meet answers at one of the calls of the types library
-   that Simplify makes for a projection, on three functions. A
-   projection defines its result and meets the type of what is
-   projected from with a shape that names the result
-   ([simplify_projection], simplify/simplify_common.ml); the
-   primitive is invalid if the answer is bottom. As in
+   transcribed meet answers on inputs made by hand, after the calls
+   of the types library that Simplify makes for a projection. The
+   inputs are scenarios that three functions suggest, written from a
+   reading of Simplify. They are not the trace of a run of the
+   compiler on them. A projection defines its result and meets the
+   type of what is projected from with a shape that names the result
+   ([simplify_projection], simplify/simplify_common.ml, through
+   [Meet.meet_shape], which is [Meet.meet] without the type that it
+   answers; the statements are about that meet); the primitive is
+   invalid if the answer is bottom. A load of a field and a
+   projection of a value slot come to this meet only where a faster
+   reading of the type has neither found the field or the slot nor
+   shown the primitive invalid ([meet_block_field_simple],
+   [meet_project_value_slot_simple]). As in
    FlambdaMeetMatchExamplesSpec.v, whose definitions are used, an
    environment answered is named as what the meet that is to be
    proved answers with [forgetful_join]; a statement says that both
@@ -76,10 +84,13 @@
 
      The body of the inner function projects [a] and [b] from its
      closure ([simplify_project_value_slot], the same file; the shape
-     is [closure_with_at_least_this_value_slot]). Nothing is known of
-     the closure at first, as where the code is simplified without
-     its set of closures ([dacc_inside_function],
-     simplify/simplify_set_of_closures.ml). After the first
+     is [closure_with_at_least_this_value_slot]). In the scenario
+     nothing is known of the closure at first. That is the case of
+     code that is simplified without its set of closures, a stub
+     ([dacc_inside_function], simplify/simplify_set_of_closures.ml,
+     where it is given no function slot); it is not the case of the
+     inner function of [add3] simplified with its set, where the
+     closure is an alias of a name of the set. After the first
      projection it is a closure at the function slot whose set has
      at least the first value slot, which is [a]
      ([closure_first_slot_statement]); after the second, at least the

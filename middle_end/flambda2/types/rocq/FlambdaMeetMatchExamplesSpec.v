@@ -29,11 +29,15 @@
 (* Examples of meets: the steps of a match.
 
    This file is to be reviewed: each statement says what the
-   transcribed meet answers at one of the calls of the types library
-   that Simplify makes on the function
+   transcribed meet answers on inputs made by hand, after the calls
+   of the types library that Simplify makes for the function
 
      type t = A | B | C of int
      let f x = match x with A -> 10 | B -> 20 | C n -> n
+
+   The inputs are scenarios that the function suggests, written from
+   a reading of Simplify. They are not the trace of a run of the
+   compiler on it.
 
    The match asks whether [x] is an immediate. If it is, it untags
    [x] and switches on the number; if it is not, it loads the field
@@ -51,8 +55,13 @@
      ([simplify_projection], simplify_common.ml, called by
      [simplify_untag_immediate] and [simplify_immutable_block_load0]
      of simplify_unary_primitive.ml): the result is defined and the
-     type of [x] is met with a shape that names the result. The
-     primitive is invalid if the answer is bottom.
+     type of [x] is met with a shape that names the result
+     ([Meet.meet_shape], which is [Meet.meet] without the type that
+     it answers; the statements are about that meet). The primitive
+     is invalid if the answer is bottom. A load comes to this meet
+     only where a faster reading of the type of [x] has neither
+     found the field nor shown the load invalid
+     ([meet_block_field_simple]).
 
    The environments answered are long, so each is named here as what
    the meet that is to be proved answers with one join
@@ -83,8 +92,8 @@
    - [match_load_statement]: after the load in the arm of the blocks,
      [x] is a block of tag 0 that has at least one field, which is
      the result.
-   - [match_load_of_immediate_statement]: the same load in the arm of
-     the immediates is invalid.
+   - [match_load_of_immediate_statement]: the meet of the same load
+     in the arm of the immediates answers bottom.
 
    The fuel is 6 throughout. The answers are those of the model: none
    was read off a run of the compiler. Examples of meets that call
