@@ -1,0 +1,17 @@
+let x = %opaque (4660) in
+let a = %int_uarith.`bswp` (x) in
+let b = %int_uarith.`bswp` (-1) in
+let c = %int_uarith.`imm`.`bswp` (-256i) in
+let d = %tag_imm (c) in
+let e = %int_uarith.`int8`.`bswp` (-5s) in
+let f = %num_conv.[`int8`].[`tagged_imm`] (e) in
+let g = %int_uarith.`int16`.`bswp` (128S) in
+let h = %num_conv.[`int16`].[`tagged_imm`] (g) in
+let i = %int_uarith.`int32`.`bswp` (305419896l) in
+let j = %num_conv.[`int32`].[`tagged_imm`] (i) in
+let k = %int_uarith.`int64`.`bswp` (72623859790382856L) in
+let l = %num_conv.[`int64`].[`tagged_imm`] (k) in
+let m = %int_uarith.`nativeint`.`bswp` (-2n) in
+let n = %num_conv.[`nativeint`].[`tagged_imm`] (m) in
+let $camlInt_bswap = Block 0 (a, b, d, f, h, j, l, n) in
+cont done ($camlInt_bswap)
