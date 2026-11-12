@@ -107,6 +107,15 @@ term is annotated with (the reviewer's point N1). The `Let`s that
 
 ### Step B: a call agrees with its code, or is undefined
 
+(Since the series for partial applications and over-applications,
+which landed after this request, a call is made of pieces:
+`shape_of_call` and `shape_of_closure_call` say what the call is, and
+`call_code` enters the body of code. The three tests below are in
+`call_code`, for a call with as many arguments as the code has
+parameters; a call with fewer or more is tested in
+`shape_of_closure_call`. Where this request says `call_function`, read
+the piece that holds the test.)
+
 `call_function` takes the two arities of the call and has no step unless
 three things hold. Each is what Simplify tests before it replaces a call
 by `Invalid`; the functions named are in
@@ -156,9 +165,11 @@ What else changes in step B:
   is undefined, and anything refines it.
 - `expr_eqb` already compares the arities of calls and the metadata of
   code, from step A.
-- `call_function_step`, a step lemma of `FlambdaSemanticsProofs.v`,
-  gains the three facts, and `step_apply_closure` (C3's: the way in
-  which an `Apply` does not go wrong) the three as premises.
+- `call_function_step`, a step lemma of `FlambdaSemanticsProofs.v`
+  (since replaced by `call_code_step` and the lemmas on the other
+  pieces of a call), gains the three facts, and `step_apply_closure`
+  (C3's: the way in which an `Apply` does not go wrong) the three as
+  premises.
 
 What the tests do not cover. They are about the values of the arguments
 and about two pairs of annotations. Nothing is tested when the body
@@ -706,13 +717,19 @@ term or on the state. Each is about the step that binds:
 |---|---|
 | `let_binds_at_kind` | A `Let` that has a step binds its variable to the value of its defining expression, which is of the kind of the `Let`. |
 | `handler_binds_at_kinds` | A handler that runs has its parameters bound to values of the kinds it gives them, one kind for each value. |
-| `call_binds_at_kinds` | Where `call_function` has a step, the body of the code called runs with its parameters bound to values of their kinds, and `my_closure` to a `Value`. |
+| `call_binds_at_kinds` | Where `call_code` has a step, the body of the code called runs with its parameters bound to values of their kinds, over an environment that binds `my_closure` to the closure called. (That `my_closure` stands for the closure in the body needs that no parameter has its name: `call_binds_my_closure`, C3's.) |
+| `called_closure_at_kind` | The closure that a call gives `call_code` is of kind `Value`. |
 
-The third is about `call_function`, the one place where the body of
-code is entered, and not about an `Apply`: so it keeps its content when
-partial applications and over-applications land, with which an `Apply`
-that has a step need not enter a body with all its arguments (the
-reviewer's point, agreed with C3, whose series renames the place).
+The third is about `call_code`, the one place where the body of code
+is entered, and not about an `Apply`: with partial applications and
+over-applications an `Apply` that has a step need not enter a body
+with all its arguments, and may enter none (the reviewer's point,
+agreed with C3). It was first stated of `call_function`; the series
+for partial applications and over-applications restated it of
+`call_code`, which is what every call that runs code comes to (a call
+with as many arguments as the code has parameters, the full call
+inside an over-application, and the call of a partial application),
+and added the fourth, about the closure.
 
 They are not a statement that a state is well-kinded, and the request
 does not claim one: `state_well_kinded` still needs the check as its
