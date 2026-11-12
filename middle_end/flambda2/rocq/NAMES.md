@@ -36,7 +36,7 @@ here.
 | The comparison `expr_eqb` | `FlambdaCompareAlphaSpec.v` | N1 |
 | The rewrites of the normalisation, the passes for loops, the checks of well-formedness (exception handlers and trap actions among them), the check of kinds, the normalisation of the term after and the first phase of that of the term before | `FlambdaValidatorEquivarianceSpec.v` | N3 |
 | The normalisation of the term before and that of a term in which something was lifted: up to the names that a round makes. `validate_unit`: where the code of the term before is closed | `FlambdaValidatorEquivarianceSpec.v` | N3 |
-| Identities of primitives, lifting, lifting out of code, the binding of `my_closure`, ranges, sharing of primitives and of projections, the recovery of comparisons, folding at known symbols, unused and known value slots, the order of static bindings, the static closures in sight, code moved up, code and static bindings bound first, lifting out of the arms of a test, inlining within a group of code, the unboxing of parameters, the merging of the arms of a `Switch`, the demotion of exception handlers | the `Spec` file of each pass | the owner of each |
+| Identities of primitives, lifting, lifting out of code, the binding of `my_closure`, ranges, sharing of primitives and of projections, the recovery of comparisons, folding at known symbols, unused and known value slots, the order of static bindings, the static closures in sight, code moved up, code and static bindings bound first, lifting out of the arms of a test, inlining within a group of code, the unboxing of parameters, the merging of the arms of a `Switch`, the demotion of exception handlers, the rewrite of the calls of code that never returns | the `Spec` file of each pass | the owner of each |
 | The second asking of the validation, `validate_unit_knowing`: where the code of the term before is closed | `FlambdaValidateKnowingSpec.v` | the owner of that file, N3 |
 | Typing environments and their levels, extensions, aliases, types, provers | the types library (`FlambdaEnvRenameSpec.v`, `FlambdaTypeRenameSpec.v`, `FlambdaEnvAliasesRenamingSpec.v`, `FlambdaTypingEnvExtensionSpec.v`, `FlambdaProversRenameSpec.v`) | N3 and the owners |
 | The model of Simplify: the function that rewrites a term from the types, the same with pruning, the rewrites of a `Switch`, following aliases with the aliases of the library | the types library (section 7 has the files) | the owners of those files |
@@ -691,7 +691,13 @@ pass keeps scope), the merging of the arms of a `Switch` that apply
 one continuation (`FlambdaMergeSwitchesSpec.v`), the demotion of the
 exception handlers that no call names (`FlambdaDemoteSpec.v`, with
 the list of continuations that it is given renamed; that it keeps
-scope is `FlambdaDemoteScopeSpec.v`), and the machine with a stack of
+scope is `FlambdaDemoteScopeSpec.v`), the rewrite of the calls of
+code that never returns (`FlambdaNeverReturnsSpec.v`, with the code
+that is known renamed; it makes no name: it binds the call's own
+return continuation again around the call, and parameters that have
+the names of the code's own binders, so its result need not have
+distinct binders; that it keeps scope is
+`FlambdaNeverReturnsScopeSpec.v`), and the machine with a stack of
 exception handlers (`FlambdaTrapSpec.v`). In the fourth form: giving
 every binder a name of its own (`FlambdaRenameApartSpec.v`).
 

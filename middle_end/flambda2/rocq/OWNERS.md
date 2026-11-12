@@ -173,6 +173,9 @@ design out; that is the request, not the change.
     what it keeps)
   - `middle_end/flambda2/rocq/requests/C5-never-returns.md` (a
     request: calls that never return)
+  - `middle_end/flambda2/rocq/FlambdaNeverReturns*` (the rewrite of
+    the term before that gives a call of code that never returns a
+    return continuation whose handler is `Invalid`)
   - `middle_end/flambda2/rocq/requests/C5-imports-with-contents.md`
     (a request: a unit run after the units it depends on)
   - `middle_end/flambda2/rocq/status/C5.md`

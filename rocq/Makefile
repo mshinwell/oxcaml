@@ -208,6 +208,10 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaMyClosureSpec.v \
   FlambdaNameAbstractionProofs.v \
   FlambdaNameAbstractionSpec.v \
+  FlambdaNeverReturnsProofs.v \
+  FlambdaNeverReturnsScopeProofs.v \
+  FlambdaNeverReturnsScopeSpec.v \
+  FlambdaNeverReturnsSpec.v \
   FlambdaNominalInstancesProofs.v \
   FlambdaNominalInstancesSpec.v \
   FlambdaNominalProofs.v \
