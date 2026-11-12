@@ -316,9 +316,9 @@ the same with what is known renamed with the term), and it keeps scope
 (`unbox_known_params_keeps_scope_statement`).
 
 **Wiring.** The pass is not in `FlambdaValidateSpec.v`. The second
-pass (section 7) validates the examples of this one and those of
-variants, and is the one to wire: V2 adds its line to the round
-(section 10).
+pass (section 7) validates the two bodies that this one validates and
+the seven of variants, and is the one to wire: V2 adds its line to the
+round (section 10).
 
 ## 5. The first thing asked: subkinds
 
@@ -791,8 +791,11 @@ whose parameter was unboxed, so these eight are new coverage.
   `unbox_variant_params_equivariant` and
   `unbox_variant_params_keeps_scope`
   (`FlambdaUnboxVariantsRenameProofs.v`). `unbox_known_params` has
-  the same three; it need not be wired for the examples here, all of
-  which the second pass validates. Also V2's: the conversion of the
+  the same three; it need not be wired for the two bodies that it
+  validates (`pair_computed`, `int64_built`), which the second pass
+  validates too (`earlier_examples_validated_statement`), nor for the
+  seven bodies of variants. `pair_built` and the sources that wait for
+  subkinds are validated by neither. Also V2's: the conversion of the
   poison constant; the sources above, with the seven of variants.
 - **V4**: nothing more; the place in the round is agreed.
 - **N1, N3**: nothing yet. The `Let` at a use under a `Switch`
