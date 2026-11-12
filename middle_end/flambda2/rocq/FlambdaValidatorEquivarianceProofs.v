@@ -3397,18 +3397,30 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma rec_masks_renamed (r : renaming)
-    (handlers : list (continuation * continuation_handler)) (known : masks) :
-  map (fun '(k, _) => (k, None))
+Lemma used_params_in_loop_equivariant (r : renaming) (k : continuation)
+    (h : continuation_handler) (whole : expr) :
+  used_params_in_loop (rename_continuation r k) (rename_handler r h)
+    (rename_expr r whole)
+  = used_params_in_loop k h whole.
+Proof.
+  destruct h as [params metadata handler]. simpl.
+  rewrite returned_to_equivariant, used_params_equivariant. reflexivity.
+Qed.
+
+Lemma loop_masks_renamed (r : renaming)
+    (handlers : list (continuation * continuation_handler)) (whole : expr)
+    (known : masks) :
+  map (fun '(k, h) => (k, used_params_in_loop k h (rename_expr r whole)))
     (map (fun '(k, h) => (rename_continuation r k, rename_handler r h))
        handlers)
   ++ Keyed.map_keys (rename_continuation r) known
   = Keyed.map_keys (rename_continuation r)
-      (map (fun '(k, _) => (k, None)) handlers ++ known).
+      (map (fun '(k, h) => (k, used_params_in_loop k h whole)) handlers
+       ++ known).
 Proof.
   unfold Keyed.map_keys, Keyed.map_bindings. rewrite map_app. f_equal.
   induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
-  rewrite IH. reflexivity.
+  rewrite used_params_in_loop_equivariant, IH. reflexivity.
 Qed.
 
 Fixpoint drop_params_equivariant_aux (r : renaming) (e : expr) :
@@ -3416,12 +3428,12 @@ Fixpoint drop_params_equivariant_aux (r : renaming) (e : expr) :
     drop_params (Keyed.map_keys (rename_continuation r) known)
       (rename_expr r e)
     = rename_expr r (drop_params known e)
-with drop_params_in_handler_equivariant (r : renaming)
+with drop_params_in_loop_equivariant (r : renaming)
     (h : continuation_handler) :
-  ∀ known : masks,
-    drop_params_in_handler (Keyed.map_keys (rename_continuation r) known)
+  ∀ (known : masks) (mask : option (list bool)),
+    drop_params_in_loop (Keyed.map_keys (rename_continuation r) known) mask
       (rename_handler r h)
-    = rename_handler r (drop_params_in_handler known h).
+    = rename_handler r (drop_params_in_loop known mask h).
 Proof.
   - destruct e
       as [ x kind d body | bindings body | k [params metadata handler] body
@@ -3448,19 +3460,28 @@ Proof.
                    (drop_params known handler))
               :: known)).
       rewrite drop_params_equivariant_aux. reflexivity.
-    + rewrite rec_masks_renamed, drop_params_equivariant_aux. f_equal.
+    + change
+        (Let_cont_recursive
+           (map (fun '(k, h) => (rename_continuation r k, rename_handler r h))
+              handlers)
+           (rename_expr r body))
+        with (rename_expr r (Let_cont_recursive handlers body)).
+      rewrite loop_masks_renamed, drop_params_equivariant_aux. f_equal.
+      generalize (Let_cont_recursive handlers body). intros whole.
       generalize
-        (map (fun '(k, _) => (k, @None (list bool))) handlers ++ known).
+        (map (fun '(k, h) => (k, used_params_in_loop k h whole)) handlers
+         ++ known).
       intros known'.
       induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
-      rewrite (drop_params_in_handler_equivariant r h known'), IH.
+      rewrite used_params_in_loop_equivariant,
+        (drop_params_in_loop_equivariant r h known'), IH.
       reflexivity.
     + rewrite drop_args_equivariant. reflexivity.
     + f_equal. rewrite !map_map. apply map_ext. intros arm. cbn [fst snd].
       rewrite drop_args_equivariant. reflexivity.
-  - destruct h as [params metadata handler]. intros known.
-    cbn [rename_handler drop_params_in_handler].
-    rewrite drop_params_equivariant_aux. reflexivity.
+  - destruct h as [params metadata handler]. intros known mask.
+    cbn [rename_handler drop_params_in_loop].
+    rewrite drop_params_equivariant_aux, keep_all_or_map. reflexivity.
 Qed.
 
 Lemma drop_unused_params_equivariant : rewrite_equivariant drop_unused_params.

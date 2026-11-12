@@ -606,16 +606,18 @@ Proof.
   exact (keep_used (fun param => var_free_b param handler) x params Hx Hused).
 Qed.
 
-(* A handler less the parameters that it does not use. *)
+(* A handler less the parameters that it does not use, as the test
+   says of the handler before or of the handler after. *)
 Lemma scoped_handler_unused_params (is_exn_handler : bool)
     (params : list variable) (metadata metadata' : handler_metadata)
-    (handler handler' : expr) (mask : option (list bool)) :
-  mask = None ∨ mask = used_params is_exn_handler params handler' ->
+    (handler handler' tested : expr) (mask : option (list bool)) :
+  mask = None ∨ mask = used_params is_exn_handler params tested ->
+  tested = handler ∨ tested = handler' ->
   scoped handler handler' ->
   scoped_handler (Handler params metadata handler)
     (Handler (keep_all_or mask params) metadata' handler').
 Proof.
-  intros Hmask Hhandler Hclosed. scope_in Hclosed. scope.
+  intros Hmask Htested Hhandler Hclosed. scope_in Hclosed. scope.
   destruct (Hhandler Hclosed) as (Hclosed' & Hv & Hk).
   split; [ exact Hclosed' | split; [ | exact Hk ] ].
   intros y Hy. apply in_without in Hy. destruct Hy as [Hy Hkept].
@@ -623,32 +625,38 @@ Proof.
   intros Hparam. apply Hkept.
   destruct Hmask as [-> | ->]; [ exact Hparam | ].
   apply used_params_kept; [ exact Hparam | ].
-  apply var_free_b_free; assumption.
+  destruct Htested as [-> | ->]; apply var_free_b_free;
+    solve [ assumption | apply Hv, Hy ].
 Qed.
 
 Fixpoint drop_params_scoped (e : expr) :
   ∀ known : masks, scoped e (drop_params known e)
-with drop_params_in_handler_scoped (h : continuation_handler) :
-  ∀ known : masks, scoped_handler h (drop_params_in_handler known h).
+with drop_params_in_loop_scoped (h : continuation_handler) :
+  ∀ (known : masks) (k : continuation) (whole : expr),
+    scoped_handler h
+      (drop_params_in_loop known (used_params_in_loop k h whole) h).
 Proof.
   - destruct e
       as [x kind d body | bindings body | k [params metadata handler] body
          | handlers body | ap | ac | scrutinee arms | ];
-      intros known; cbn [drop_params drop_params_in_handler]; cbv zeta.
+      intros known; cbn [drop_params drop_params_in_loop]; cbv zeta.
     + apply scoped_let; [ apply incl_refl | apply drop_params_scoped ].
     + apply scoped_let_static;
         [ apply scoped_bindings_refl | apply drop_params_scoped ].
     + apply scoped_let_cont; [ | apply drop_params_scoped ].
-      apply (scoped_handler_unused_params (hm_is_exn_handler metadata));
+      apply
+        (scoped_handler_unused_params (hm_is_exn_handler metadata) _ _ _ _ _
+           (drop_params known handler));
         [ destruct (returned_to k body); [ left | right ]; reflexivity
-        | apply drop_params_scoped ].
+        | right; reflexivity | apply drop_params_scoped ].
     + apply scoped_let_cont_recursive; [ | | apply drop_params_scoped ].
       * rewrite map_map. apply map_ext. intros [k h]. reflexivity.
       * set (known' := _ ++ known). clearbody known'.
+        set (whole := Let_cont_recursive handlers body). clearbody whole.
         induction handlers as [ | [k h] handlers IH]; cbn [map];
           [ apply scoped_handlers_nil | ].
         apply scoped_handlers_cons;
-          [ apply drop_params_in_handler_scoped | exact IH ].
+          [ apply drop_params_in_loop_scoped | exact IH ].
     + apply scoped_refl.
     + intros _. scope.
       split; [ reflexivity | split; [ apply drop_args_free | ] ].
@@ -664,9 +672,13 @@ Proof.
              (fun arm => apply_cont_continuations (snd arm)));
           [ apply incl_refl | intros arm; reflexivity ].
     + apply scoped_refl.
-  - destruct h as [params metadata handler]. intros known.
-    cbn [drop_params drop_params_in_handler].
-    apply scoped_handler_intro, drop_params_scoped.
+  - destruct h as [params metadata handler]. intros known k whole.
+    unfold used_params_in_loop. cbn [drop_params drop_params_in_loop].
+    apply
+      (scoped_handler_unused_params (hm_is_exn_handler metadata) _ _ _ _ _
+         handler);
+      [ destruct (returned_to k whole); [ left | right ]; reflexivity
+      | left; reflexivity | apply drop_params_scoped ].
 Qed.
 
 Theorem drop_unused_params_keeps_scope :

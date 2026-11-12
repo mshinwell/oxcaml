@@ -39,7 +39,11 @@
      the function: where a function is called the two runs go into the
      same body, which is related to itself with every parameter kept
      ([drops_refl]), and the pass run on the term is one way of choosing
-     the masks ([drop_params_drops]);
+     the masks ([drop_params_drops]). There the mask of a recursive
+     continuation is found from its handler as it stands; that the
+     parameters it removes are not free in the handler once that is
+     done is because the relation adds no free variable
+     ([drops_free]);
    - the variables of the two states agree on the free variables of the
      second expression. They are not the same: the first run binds the
      parameters that the second has not got;
@@ -99,8 +103,8 @@ Proof.
   destruct (Pos.eqb_spec k' k); [ contradiction | reflexivity ].
 Qed.
 
-(* The masks that the handlers of a recursive [Let_cont] add: all their
-   parameters are kept. *)
+(* The masks that the handlers of a recursive [Let_cont] add where all
+   their parameters are kept. *)
 Definition rec_masks (handlers : list (continuation * continuation_handler))
     : masks :=
   map (fun '(k, _) => (k, None)) handlers.
@@ -116,6 +120,20 @@ Lemma mask_of_rec_masks
 Proof.
   unfold mask_of.
   induction handlers as [ | [k' h] handlers IH]; simpl; [ reflexivity | ].
+  destruct (Pos.eqb k k'); [ reflexivity | exact IH ].
+Qed.
+
+(* The masks that the handlers of a recursive [Let_cont] add come before
+   those of the continuations in scope. *)
+Lemma mask_of_app (loop known : masks) (k : continuation) :
+  mask_of (loop ++ known) k
+  = match lookup k loop with
+    | Some mask => mask
+    | None => mask_of known k
+    end.
+Proof.
+  unfold mask_of.
+  induction loop as [ | [k' mask] loop IH]; simpl; [ reflexivity | ].
   destruct (Pos.eqb k k'); [ reflexivity | exact IH ].
 Qed.
 
@@ -363,23 +381,19 @@ Definition handler_params (h : continuation_handler) : list variable :=
   | Handler params _ _ => params
   end.
 
-Definition handler_kinds (h : continuation_handler) : list flambda_kind :=
-  match h with
-  | Handler _ metadata _ => hm_params_kinds metadata
-  end.
-
 Definition handler_expr (h : continuation_handler) : expr :=
   match h with
   | Handler _ _ handler => handler
   end.
 
-(* The second expression is the first with, at each non-recursive
-   [Let_cont], some parameters removed that the second handler does not
-   use, their kinds removed with them, and their arguments removed where
-   the continuation is applied. The handlers of a recursive [Let_cont]
-   give the same kinds. No [Apply] returns to a continuation that has
-   lost a parameter. (The
-   warning silenced is about induction schemes, which nothing uses.) *)
+(* The second expression is the first with, at each [Let_cont], some
+   parameters removed that the second handler does not use, their kinds
+   removed with them, and their arguments removed where the
+   continuation is applied. No [Apply]
+   returns to a continuation that has lost a parameter. The handlers of
+   a recursive [Let_cont] are related one with one, each with its mask
+   ([handlers_drop]). (The warning silenced is about induction schemes,
+   which nothing uses.) *)
 #[local] Set Warnings "-register-all".
 Inductive drops : masks -> expr -> expr -> Prop :=
   | Drops_let (known : masks) (x : variable) (kind : flambda_kind)
@@ -402,19 +416,12 @@ Inductive drops : masks -> expr -> expr -> Prop :=
       (Let_cont_non_recursive k (Handler params metadata handler) body)
       (Let_cont_non_recursive k
          (Handler (keep_all_or mask params) metadata' handler') body')
-  | Drops_let_cont_recursive (known : masks)
+  | Drops_let_cont_recursive (known loop : masks)
       (handlers handlers' : list (continuation * continuation_handler))
       (body body' : expr) :
-    Forall2
-      (fun kh kh' =>
-         fst kh = fst kh'
-         ∧ handler_params (snd kh) = handler_params (snd kh')
-         ∧ handler_kinds (snd kh) = handler_kinds (snd kh')
-         ∧ drops (rec_masks handlers ++ known) (handler_expr (snd kh))
-             (handler_expr (snd kh')))
-      handlers handlers' ->
+    handlers_drop (loop ++ known) loop handlers handlers' ->
     handlers_bind_statics handlers' = handlers_bind_statics handlers ->
-    drops (rec_masks handlers ++ known) body body' ->
+    drops (loop ++ known) body body' ->
     drops known (Let_cont_recursive handlers body)
       (Let_cont_recursive handlers' body')
   | Drops_apply (known : masks) (ap : apply_expr) :
@@ -428,35 +435,52 @@ Inductive drops : masks -> expr -> expr -> Prop :=
     drops known (Switch scrutinee arms)
       (Switch scrutinee
          (map (fun arm => (fst arm, drop_args known (snd arm))) arms))
-  | Drops_invalid (known : masks) : drops known Invalid Invalid.
+  | Drops_invalid (known : masks) : drops known Invalid Invalid
+(* The handlers of a recursive [Let_cont], one with one, under the masks
+   [inside] of where their expressions are: the same names, the masks
+   [loop] of the names in their order, the second handler with the
+   parameters that its mask keeps and their kinds, and expressions so
+   related. *)
+with handlers_drop :
+    masks -> masks -> list (continuation * continuation_handler) ->
+    list (continuation * continuation_handler) -> Prop :=
+  | Handlers_drop_nil (inside : masks) : handlers_drop inside [] [] []
+  | Handlers_drop_cons (inside : masks) (k : continuation)
+      (mask : option (list bool)) (params : list variable)
+      (metadata metadata' : handler_metadata) (handler handler' : expr)
+      (loop : masks)
+      (handlers handlers' : list (continuation * continuation_handler)) :
+    drops inside handler handler' ->
+    mask_fits mask params handler' ->
+    hm_params_kinds metadata' = keep_all_or mask (hm_params_kinds metadata) ->
+    handlers_drop inside loop handlers handlers' ->
+    handlers_drop inside ((k, mask) :: loop)
+      ((k, Handler params metadata handler) :: handlers)
+      ((k, Handler (keep_all_or mask params) metadata' handler')
+       :: handlers').
 
-(* The handlers of a recursive [Let_cont], one with one: the same names,
-   parameters and kinds, and expressions so related. *)
-Definition handlers_drop (known : masks)
-    (handlers handlers' : list (continuation * continuation_handler)) : Prop :=
-  Forall2
-    (fun kh kh' =>
-       fst kh = fst kh'
-       ∧ handler_params (snd kh) = handler_params (snd kh')
-       ∧ handler_kinds (snd kh) = handler_kinds (snd kh')
-       ∧ drops known (handler_expr (snd kh)) (handler_expr (snd kh')))
-    handlers handlers'.
-
-Lemma handlers_drop_lookup (known : masks) (k : continuation)
+Lemma handlers_drop_lookup (inside loop : masks) (k : continuation)
     (handlers handlers' : list (continuation * continuation_handler)) :
-  handlers_drop known handlers handlers' ->
-  match lookup k handlers, lookup k handlers' with
-  | Some h, Some h' =>
-    handler_params h = handler_params h'
-    ∧ handler_kinds h = handler_kinds h'
-    ∧ drops known (handler_expr h) (handler_expr h')
-  | None, None => True
-  | _, _ => False
+  handlers_drop inside loop handlers handlers' ->
+  match lookup k handlers, lookup k handlers', lookup k loop with
+  | Some (Handler params metadata handler), Some h', Some mask =>
+    ∃ (metadata' : handler_metadata) (handler' : expr),
+      h' = Handler (keep_all_or mask params) metadata' handler'
+      ∧ drops inside handler handler'
+      ∧ mask_fits mask params handler'
+      ∧ hm_params_kinds metadata'
+        = keep_all_or mask (hm_params_kinds metadata)
+  | None, None, None => True
+  | _, _, _ => False
   end.
 Proof.
-  induction 1 as [ | [k1 h] [k1' h'] handlers handlers' (Hk & Hh) _ IH];
+  induction 1
+    as [ inside
+       | inside k1 mask params metadata metadata' handler handler' loop
+           handlers handlers' Hhandler Hfits Hkinds _ IH ];
     simpl; [ exact I | ].
-  simpl in Hk, Hh. subst k1'. destruct (Pos.eqb k k1); [ exact Hh | exact IH ].
+  destruct (Pos.eqb k k1); [ | exact IH ].
+  exists metadata', handler'. auto.
 Qed.
 
 (* Every expression is related to itself, with every parameter kept. *)
@@ -479,22 +503,223 @@ Proof.
       ∀ k : continuation, mask_of (rec_masks handlers ++ known) k = None).
     { intros k. rewrite mask_of_rec_masks.
       destruct (lookup k handlers); [ reflexivity | apply Hnone ]. }
-    apply Drops_let_cont_recursive;
+    apply (Drops_let_cont_recursive known (rec_masks handlers));
       [ | reflexivity | apply drops_refl, Hnone' ].
     revert Hnone'. generalize (rec_masks handlers ++ known).
     intros known' Hnone'.
     induction handlers as [ | [k [params metadata handler]] handlers IH];
-      [ apply Forall2_nil | ].
-    apply Forall2_cons; [ | exact IH ].
-    simpl. split; [ reflexivity | ]. split; [ reflexivity | ].
-    split; [ reflexivity | ].
-    apply drops_refl, Hnone'.
+      [ apply Handlers_drop_nil | ].
+    apply (Handlers_drop_cons known' k None params metadata metadata handler
+      handler);
+      [ apply drops_refl, Hnone' | exact I | reflexivity | exact IH ].
   - apply Drops_apply; apply Hnone.
   - pose proof (Drops_apply_cont known ac) as Hdrops.
     rewrite (drop_args_none known ac (Hnone _)) in Hdrops. exact Hdrops.
   - pose proof (Drops_switch known scrutinee arms) as Hdrops.
     rewrite (map_drop_args_none known arms Hnone) in Hdrops. exact Hdrops.
   - apply Drops_invalid.
+Qed.
+
+(* ======================================================================== *)
+(* The relation adds no free variable                                       *)
+(* ======================================================================== *)
+
+Lemma keep_in {A : Type} (mask : list bool) :
+  ∀ (l : list A) (a : A), a ∈ keep mask l -> a ∈ l.
+Proof.
+  induction mask as [ | b mask IH]; intros l a; [ intros [] | ].
+  destruct l as [ | a0 l]; [ destruct b; intros [] | ].
+  destruct b; simpl.
+  - intros [<- | Hin]; [ left; reflexivity | right; exact (IH l a Hin) ].
+  - intros Hin. right. exact (IH l a Hin).
+Qed.
+
+Lemma in_keep_or_dropped {A : Type} (mask : list bool) :
+  ∀ (l : list A) (a : A),
+    length mask = length l -> a ∈ l -> a ∈ keep mask l ∨ a ∈ dropped mask l.
+Proof.
+  unfold dropped.
+  induction mask as [ | b mask IH]; intros [ | a0 l] a Hlen Hin;
+    try discriminate Hlen; [ destruct Hin | ].
+  simpl in Hlen. injection Hlen as Hlen. destruct b; simpl.
+  - destruct Hin as [<- | Hin]; [ left; left; reflexivity | ].
+    destruct (IH l a Hlen Hin) as [Hkept | Hgone];
+      [ left; right; exact Hkept | right; exact Hgone ].
+  - destruct Hin as [<- | Hin]; [ right; left; reflexivity | ].
+    destruct (IH l a Hlen Hin) as [Hkept | Hgone];
+      [ left; exact Hkept | right; right; exact Hgone ].
+Qed.
+
+Lemma var_free_in_simples_keep (x : variable) (mask : option (list bool))
+    (args : list simple) :
+  var_free_in_simples x (keep_all_or mask args) -> var_free_in_simples x args.
+Proof.
+  destruct mask as [mask | ]; simpl; [ | auto ].
+  unfold var_free_in_simples. intros Hx.
+  apply Exists_exists in Hx as (s & Hin & Hs). apply Exists_exists.
+  exists s. split; [ exact (keep_in mask args s Hin) | exact Hs ].
+Qed.
+
+(* A variable that is free in the second handler and is not one of the
+   parameters kept is not one of the parameters. *)
+Lemma mask_fits_not_param (mask : option (list bool)) (params : list variable)
+    (handler' : expr) (x : variable) :
+  mask_fits mask params handler' ->
+  x ∉ keep_all_or mask params ->
+  var_free_in_expr x handler' ->
+  x ∉ params.
+Proof.
+  destruct mask as [mask | ]; simpl; [ | auto ].
+  intros [Hlen Hdropped] Hnotin Hfree Hin.
+  destruct (in_keep_or_dropped mask params x Hlen Hin) as [Hkept | Hgone];
+    [ exact (Hnotin Hkept) | exact (Hdropped x Hgone Hfree) ].
+Qed.
+
+(* What the relation says of an expression of each form. *)
+Lemma drops_let_inv (known : masks) (x : variable) (kind : flambda_kind)
+    (d : named) (body e' : expr) :
+  drops known (Let x kind d body) e' ->
+  ∃ body' : expr, e' = Let x kind d body' ∧ drops known body body'.
+Proof. intros Hdrops. inversion Hdrops; subst. eauto. Qed.
+
+Lemma drops_let_static_inv (known : masks) (bindings : list static_binding)
+    (body e' : expr) :
+  drops known (Let_static bindings body) e' ->
+  ∃ body' : expr, e' = Let_static bindings body' ∧ drops known body body'.
+Proof. intros Hdrops. inversion Hdrops; subst. eauto. Qed.
+
+Lemma drops_let_cont_inv (known : masks) (k : continuation)
+    (params : list variable) (metadata : handler_metadata)
+    (handler body e' : expr) :
+  drops known
+    (Let_cont_non_recursive k (Handler params metadata handler) body) e' ->
+  ∃ (metadata' : handler_metadata) (handler' : expr)
+    (mask : option (list bool)) (body' : expr),
+    e'
+    = Let_cont_non_recursive k
+        (Handler (keep_all_or mask params) metadata' handler') body'
+    ∧ drops known handler handler'
+    ∧ mask_fits mask params handler'
+    ∧ drops ((k, mask) :: known) body body'.
+Proof. intros Hdrops. inversion Hdrops; subst. eauto 8. Qed.
+
+Lemma drops_let_cont_recursive_inv (known : masks)
+    (handlers : list (continuation * continuation_handler)) (body e' : expr) :
+  drops known (Let_cont_recursive handlers body) e' ->
+  ∃ (loop : masks) (handlers' : list (continuation * continuation_handler))
+    (body' : expr),
+    e' = Let_cont_recursive handlers' body'
+    ∧ handlers_drop (loop ++ known) loop handlers handlers'
+    ∧ drops (loop ++ known) body body'.
+Proof. intros Hdrops. inversion Hdrops; subst. eauto 8. Qed.
+
+Lemma drops_apply_inv (known : masks) (ap : apply_expr) (e' : expr) :
+  drops known (Apply ap) e' -> e' = Apply ap.
+Proof. intros Hdrops. inversion Hdrops; subst. reflexivity. Qed.
+
+Lemma drops_apply_cont_inv (known : masks) (ac : apply_cont) (e' : expr) :
+  drops known (Apply_cont ac) e' -> e' = Apply_cont (drop_args known ac).
+Proof. intros Hdrops. inversion Hdrops; subst. reflexivity. Qed.
+
+Lemma drops_switch_inv (known : masks) (scrutinee : simple)
+    (arms : list (Z * apply_cont)) (e' : expr) :
+  drops known (Switch scrutinee arms) e' ->
+  e'
+  = Switch scrutinee
+      (map (fun arm => (fst arm, drop_args known (snd arm))) arms).
+Proof. intros Hdrops. inversion Hdrops; subst. reflexivity. Qed.
+
+Lemma drops_invalid_inv (known : masks) (e' : expr) :
+  drops known Invalid e' -> e' = Invalid.
+Proof. intros Hdrops. inversion Hdrops; subst. reflexivity. Qed.
+
+Lemma handlers_drop_nil_inv (inside loop : masks)
+    (handlers' : list (continuation * continuation_handler)) :
+  handlers_drop inside loop [] handlers' -> handlers' = [].
+Proof. intros Hdrop. inversion Hdrop; subst. reflexivity. Qed.
+
+Lemma handlers_drop_cons_inv (inside loop : masks) (k : continuation)
+    (params : list variable) (metadata : handler_metadata) (handler : expr)
+    (handlers all' : list (continuation * continuation_handler)) :
+  handlers_drop inside loop ((k, Handler params metadata handler) :: handlers)
+    all' ->
+  ∃ (mask : option (list bool)) (metadata' : handler_metadata)
+    (handler' : expr) (rest : masks)
+    (handlers' : list (continuation * continuation_handler)),
+    loop = (k, mask) :: rest
+    ∧ all'
+      = (k, Handler (keep_all_or mask params) metadata' handler') :: handlers'
+    ∧ drops inside handler handler'
+    ∧ mask_fits mask params handler'
+    ∧ handlers_drop inside rest handlers handlers'.
+Proof. intros Hdrop. inversion Hdrop; subst. eauto 10. Qed.
+
+(* A variable that is free in the second expression is free in the
+   first: arguments go, and a parameter that goes is not free in the
+   second handler. *)
+Fixpoint drops_free (e : expr) :
+  ∀ (known : masks) (e' : expr) (x : variable),
+    drops known e e' -> var_free_in_expr x e' -> var_free_in_expr x e.
+Proof.
+  destruct e
+    as [ y kind d body | bindings body | k [params metadata handler] body
+       | handlers body | ap | ac | scrutinee arms | ];
+    intros known e' x Hdrops.
+  - destruct (drops_let_inv _ _ _ _ _ _ Hdrops) as (body' & -> & Hbody).
+    simpl. intros [Hd | [Hne Hfree]]; [ left; exact Hd | right ].
+    split; [ exact Hne | exact (drops_free body known body' x Hbody Hfree) ].
+  - destruct (drops_let_static_inv _ _ _ _ Hdrops) as (body' & -> & Hbody).
+    simpl. intros [Hbindings | Hfree]; [ left; exact Hbindings | right ].
+    exact (drops_free body known body' x Hbody Hfree).
+  - destruct (drops_let_cont_inv _ _ _ _ _ _ _ Hdrops)
+      as (metadata' & handler' & mask & body' & -> & Hhandler & Hfits & Hbody).
+    simpl. intros [[Hnotin Hfree] | Hfree];
+      [ left | right; exact (drops_free body _ body' x Hbody Hfree) ].
+    split;
+      [ exact (mask_fits_not_param mask params handler' x Hfits Hnotin Hfree)
+      | exact (drops_free handler known handler' x Hhandler Hfree) ].
+  - destruct (drops_let_cont_recursive_inv _ _ _ _ Hdrops)
+      as (loop & handlers' & body' & -> & Hhandlers & Hbody).
+    simpl. intros [Hfree | Hfree];
+      [ left | right; exact (drops_free body _ body' x Hbody Hfree) ].
+    clear Hbody Hdrops. remember (loop ++ known) as inside eqn:Hinside.
+    clear Hinside. revert loop handlers' Hhandlers Hfree.
+    induction handlers as [ | [k [params metadata handler]] handlers IH];
+      intros loop handlers' Hhandlers Hfree.
+    + rewrite (handlers_drop_nil_inv _ _ _ Hhandlers) in Hfree. exact Hfree.
+    + destruct (handlers_drop_cons_inv _ _ _ _ _ _ _ _ Hhandlers)
+        as (mask & metadata' & handler' & rest & rest' & -> & -> & Hhandler
+            & Hfits & Hrest).
+      simpl in Hfree |- *.
+      destruct Hfree as [[Hnotin Hfree] | Hfree];
+        [ left | right; exact (IH rest rest' Hrest Hfree) ].
+      split;
+        [ exact (mask_fits_not_param mask params handler' x Hfits Hnotin Hfree)
+        | exact (drops_free handler inside handler' x Hhandler Hfree) ].
+  - rewrite (drops_apply_inv _ _ _ Hdrops). auto.
+  - rewrite (drops_apply_cont_inv _ _ _ Hdrops). simpl.
+    apply var_free_in_simples_keep.
+  - rewrite (drops_switch_inv _ _ _ _ Hdrops). simpl.
+    intros [Hscrutinee | Harms]; [ left; exact Hscrutinee | right ].
+    apply Exists_exists in Harms as (arm' & Hin & Hfree).
+    apply in_map_iff in Hin as (arm & <- & Hin). apply Exists_exists.
+    exists arm. split; [ exact Hin | ].
+    exact (var_free_in_simples_keep x _ _ Hfree).
+  - rewrite (drops_invalid_inv _ _ Hdrops). auto.
+Qed.
+
+(* A mask that fits a handler fits it once parameters and arguments are
+   removed from it. *)
+Lemma mask_fits_drops (mask : option (list bool)) (params : list variable)
+    (known : masks) (handler handler' : expr) :
+  mask_fits mask params handler ->
+  drops known handler handler' ->
+  mask_fits mask params handler'.
+Proof.
+  destruct mask as [mask | ]; simpl; [ | auto ].
+  intros [Hlen Hdropped] Hdrops. split; [ exact Hlen | ].
+  intros x Hin Hfree.
+  exact (Hdropped x Hin (drops_free handler known handler' x Hdrops Hfree)).
 Qed.
 
 (* ======================================================================== *)
@@ -518,7 +743,10 @@ Proof.
   - rewrite drop_params_binds_statics. reflexivity.
   - rewrite !drop_params_binds_statics. reflexivity.
   - rewrite drop_params_binds_statics. f_equal.
-    generalize (map (fun '(k, _) => (k, @None (list bool))) handlers ++ known).
+    generalize (Let_cont_recursive handlers body). intros whole.
+    generalize
+      (map (fun '(k, h) => (k, used_params_in_loop k h whole)) handlers
+       ++ known).
     intros known'.
     induction handlers as [ | [k [params metadata handler]] handlers IH];
       simpl; [ reflexivity | ].
@@ -586,6 +814,27 @@ Proof.
   apply var_free_b_sound in Hfree. congruence.
 Qed.
 
+(* The masks that the pass gives the handlers of a recursive [Let_cont]. *)
+Lemma lookup_loop_masks (whole : expr) (k : continuation)
+    (handlers : list (continuation * continuation_handler))
+    (found : option (list bool)) :
+  lookup k (map (fun '(k, h) => (k, used_params_in_loop k h whole)) handlers)
+  = Some found ->
+  ∃ h : continuation_handler, found = used_params_in_loop k h whole.
+Proof.
+  induction handlers as [ | [k' h] handlers IH]; simpl; [ discriminate | ].
+  destruct (Pos.eqb_spec k k') as [-> | _];
+    [ intros [= <-]; exists h; reflexivity | exact IH ].
+Qed.
+
+Lemma used_params_in_loop_some (k : continuation) (h : continuation_handler)
+    (whole : expr) (mask : list bool) :
+  used_params_in_loop k h whole = Some mask -> returned_to k whole = false.
+Proof.
+  destruct h as [params metadata handler]. simpl.
+  destruct (returned_to k whole); [ discriminate | reflexivity ].
+Qed.
+
 Fixpoint drop_params_drops (e : expr) :
   ∀ known : masks, safe known e -> drops known e (drop_params known e).
 Proof.
@@ -608,35 +857,52 @@ Proof.
       * rewrite mask_of_other in Hmask by exact Hne.
         specialize (Hsafe k1 mask Hmask). simpl in Hsafe.
         apply orb_false_iff in Hsafe as [_ Hbody]. exact Hbody.
-  - change (map (fun '(k, _) => (k, @None (list bool))) handlers)
-      with (rec_masks handlers).
+  - set (whole := Let_cont_recursive handlers body).
+    set (loop :=
+      map (fun '(k, h) => (k, used_params_in_loop k h whole)) handlers).
     assert (Hsafe' :
       ∀ (k : continuation) (mask : list bool),
-        mask_of (rec_masks handlers ++ known) k = Some mask ->
+        mask_of (loop ++ known) k = Some mask ->
         existsb (fun '(_, h) => returned_to_in_handler k h) handlers = false
         ∧ returned_to k body = false).
-    { intros k mask. rewrite mask_of_rec_masks.
-      destruct (lookup k handlers); [ discriminate | ].
-      intros Hmask. specialize (Hsafe k mask Hmask). simpl in Hsafe.
-      apply orb_false_iff in Hsafe. exact Hsafe. }
-    apply Drops_let_cont_recursive.
-    + clear Hsafe. revert Hsafe'. generalize (rec_masks handlers ++ known).
-      intros known' Hsafe'.
+    { intros k mask. rewrite mask_of_app.
+      destruct (lookup k loop) as [found | ] eqn:Hlookup.
+      - intros ->. destruct (lookup_loop_masks whole k handlers _ Hlookup)
+          as [h Hfound].
+        symmetry in Hfound.
+        apply used_params_in_loop_some in Hfound. simpl in Hfound.
+        apply orb_false_iff in Hfound. exact Hfound.
+      - intros Hmask. specialize (Hsafe k mask Hmask). simpl in Hsafe.
+        apply orb_false_iff in Hsafe. exact Hsafe. }
+    apply (Drops_let_cont_recursive known loop).
+    + clear Hsafe. revert Hsafe'. generalize (loop ++ known). subst loop.
+      generalize whole. clear whole. intros whole known' Hsafe'.
       induction handlers as [ | [k [params metadata handler]] handlers IH];
-        [ apply Forall2_nil | ].
-      apply Forall2_cons.
-      * simpl. split; [ reflexivity | ]. split; [ reflexivity | ].
-        split; [ reflexivity | ].
-        apply drop_params_drops. intros k1 mask Hmask.
+        simpl; [ apply Handlers_drop_nil | ].
+      assert (Hhandler : drops known' handler (drop_params known' handler)).
+      { apply drop_params_drops. intros k1 mask Hmask.
         destruct (Hsafe' k1 mask Hmask) as [Hhandlers _]. simpl in Hhandlers.
-        apply orb_false_iff in Hhandlers as [Hhandler _]. exact Hhandler.
+        apply orb_false_iff in Hhandlers as [Hhandler _]. exact Hhandler. }
+      apply (Handlers_drop_cons known' k
+        (used_params_in_loop k (Handler params metadata handler) whole) params
+        metadata
+        (keep_kinds
+           (used_params_in_loop k (Handler params metadata handler) whole)
+           metadata)
+        handler (drop_params known' handler)).
+      * exact Hhandler.
+      * apply (mask_fits_drops _ _ known' handler); [ | exact Hhandler ].
+        simpl.
+        destruct (returned_to k whole); [ exact I | apply used_params_fit ].
+      * apply keep_kinds_kinds.
       * apply IH. intros k1 mask Hmask.
         destruct (Hsafe' k1 mask Hmask) as [Hhandlers Hbody].
         simpl in Hhandlers.
         apply orb_false_iff in Hhandlers as [_ Hrest].
         exact (conj Hrest Hbody).
     + clear Hsafe Hsafe'. unfold handlers_bind_statics.
-      generalize (rec_masks handlers ++ known). intros known'.
+      generalize (loop ++ known). subst loop. generalize whole. clear whole.
+      intros whole known'.
       induction handlers as [ | [k [params metadata handler]] handlers IH];
         simpl; [ reflexivity | ].
       rewrite drop_params_binds_statics, IH. reflexivity.
@@ -664,7 +930,8 @@ Qed.
    of the name: the same thing, if all its parameters are kept; or
    closures whose handlers are related under the masks of where they
    were defined, the second with the parameters that the mask keeps and
-   their kinds, under variables that agree on the free variables of the second
+   their kinds, under variables that agree on the free variables of the
+   second
    handler and of the handlers defined with it, and under continuations
    that are in turn so related; or two that are related with all their
    parameters kept, with the same extra arguments; or what is left of
@@ -672,12 +939,12 @@ Qed.
    related with all their parameters kept. *)
 Inductive cont_drops : option (list bool) -> cont_value -> cont_value -> Prop :=
   | Same_drops (c : cont_value) : cont_drops None c c
-  | Closure_drops (mask : option (list bool)) (known : masks)
+  | Closure_drops (mask : option (list bool)) (known loop : masks)
       (params : list variable) (metadata metadata' : handler_metadata)
       (handler handler' : expr) (vars vars' : env) (conts conts' : cont_env)
       (recursive recursive' : list (continuation * continuation_handler)) :
-    handlers_drop (rec_masks recursive ++ known) recursive recursive' ->
-    drops (rec_masks recursive ++ known) handler handler' ->
+    handlers_drop (loop ++ known) loop recursive recursive' ->
+    drops (loop ++ known) handler handler' ->
     mask_fits mask params handler' ->
     hm_params_kinds metadata' = keep_all_or mask (hm_params_kinds metadata) ->
     (∀ x : variable,
@@ -734,37 +1001,32 @@ Qed.
 
 (* The closures of the handlers of a recursive [Let_cont], over
    continuations that are related. *)
-Lemma rec_conts_drop (known : masks)
+Lemma rec_conts_drop (known loop : masks)
     (handlers handlers' : list (continuation * continuation_handler))
     (vars vars' : env) (conts conts' : cont_env) :
-  handlers_drop (rec_masks handlers ++ known) handlers handlers' ->
+  handlers_drop (loop ++ known) loop handlers handlers' ->
   (∀ x : variable,
     any_handler (var_free_in_handler x) handlers' ->
     lookup x vars = lookup x vars') ->
   conts_drop known conts conts' ->
-  conts_drop (rec_masks handlers ++ known)
+  conts_drop (loop ++ known)
     (rec_closures handlers vars conts ++ conts)
     (rec_closures handlers' vars' conts' ++ conts').
 Proof.
   intros Hhandlers Hvars Hconts k.
-  rewrite mask_of_rec_masks, !resolve_rec_closures.
-  pose proof (handlers_drop_lookup _ k _ _ Hhandlers) as Hlookup.
+  rewrite mask_of_app, !resolve_rec_closures.
+  pose proof (handlers_drop_lookup _ _ k _ _ Hhandlers) as Hlookup.
   destruct (lookup k handlers) as [[params metadata handler] | ],
-    (lookup k handlers') as [[params' metadata' handler'] | ] eqn:Hl';
+    (lookup k handlers') as [h' | ] eqn:Hl', (lookup k loop) as [mask | ];
     try contradiction; [ | apply Hconts ].
-  destruct Hlookup as (Hparams & Hkinds & Hhandler).
-  simpl in Hparams, Hkinds, Hhandler. subst params'.
-  apply (Closure_drops None known params metadata metadata' handler handler'
-    vars vars' conts conts' handlers handlers');
-    [ exact Hhandlers | exact Hhandler | exact I | symmetry; exact Hkinds |
+  destruct Hlookup as (metadata' & handler' & -> & Hhandler & Hfits & Hkinds).
+  apply (Closure_drops mask known loop params metadata metadata' handler
+    handler' vars vars' conts conts' handlers handlers');
+    [ exact Hhandlers | exact Hhandler | exact Hfits | exact Hkinds |
     | exact Hconts ].
   intros x [Hx | Hx]; apply Hvars; [ | exact Hx ].
   exact (any_handler_in _ k _ _ (lookup_in _ _ _ Hl') Hx).
 Qed.
-
-(* ======================================================================== *)
-(* Calls and applications of continuations                                  *)
-(* ======================================================================== *)
 
 (* The same full call, returning and raising to related continuations. *)
 Lemma call_code_drops (closure : value) (c : code) (vs : list value)
@@ -836,9 +1098,9 @@ Proof.
   intros Hc.
   induction Hc
     as [c
-       | mask known' params metadata metadata' handler handler' def_vars
-           def_vars' def_conts def_conts' recursive recursive' Hrecursive
-           Hhandler Hfits Hkinds Hdef_vars Hdef_conts _
+       | mask known' loop params metadata metadata' handler handler'
+           def_vars def_vars' def_conts def_conts' recursive recursive'
+           Hrecursive Hhandler Hfits Hkinds Hdef_vars Hdef_conts _
        | c c' extra Hc IHc
        | remaining remaining_arity return_arity return_to return_to' exn_to
            exn_to' Hreturn IHreturn Hraise _];
@@ -859,7 +1121,7 @@ Proof.
       as (bound' & Hbind' & Hagree);
       [ intros y Hy; apply Hdef_vars; left; exact Hy | ].
     rewrite Hbind'. simpl.
-    apply (State_drops (rec_masks recursive ++ known'));
+    apply (State_drops (loop ++ known'));
       [ exact Hhandler | exact Hagree | ].
     apply rec_conts_drop; [ exact Hrecursive | | exact Hdef_conts ].
     intros y Hy. apply Hdef_vars. right. exact Hy.
@@ -885,7 +1147,7 @@ Proof.
     as [ known x kind d body body' Hbody | known bindings body body' Hbody
        | known k params metadata metadata' handler handler' mask body body'
            Hhandler Hfits Hkinds Hbody
-       | known handlers handlers' body body' Hhandlers Hbinds Hbody
+       | known loop handlers handlers' body body' Hhandlers Hbinds Hbody
        | known ap Hret Hexn | known ac | known scrutinee arms | known ];
     autorewrite with step.
   - (* Let *)
@@ -909,16 +1171,16 @@ Proof.
     + intros y Hy. apply Hvars. right. exact Hy.
     + intros k'. destruct (Pos.eq_dec k' k) as [-> | Hne].
       * rewrite mask_of_head, !resolve_head.
-        apply (Closure_drops mask known params metadata metadata' handler
+        apply (Closure_drops mask known [] params metadata metadata' handler
           handler' vars vars' conts conts' [] []);
-          [ apply Forall2_nil | exact Hhandler | exact Hfits | exact Hkinds |
-          | exact Hconts ].
+          [ apply Handlers_drop_nil | exact Hhandler | exact Hfits
+          | exact Hkinds | | exact Hconts ].
         intros y [Hy | []]. apply Hvars. left. exact Hy.
       * rewrite mask_of_other, !resolve_other by exact Hne. apply Hconts.
   - (* Let_cont_recursive *)
     rewrite Hbinds.
     destruct (handlers_bind_statics handlers); simpl; [ exact I | ].
-    apply (State_drops (rec_masks handlers ++ known)); [ exact Hbody | | ].
+    apply (State_drops (loop ++ known)); [ exact Hbody | | ].
     + intros y Hy. apply Hvars. right. exact Hy.
     + apply rec_conts_drop; [ exact Hhandlers | | exact Hconts ].
       intros y Hy. apply Hvars. left. exact Hy.

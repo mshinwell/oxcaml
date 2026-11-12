@@ -44,18 +44,23 @@
    unit that the loop returns and every variable the loop assigns, and
    uses at most the latter.
 
-   [drop_unused_params] does it for the non-recursive continuations of a
-   term. Going down the term it keeps, for each continuation in scope,
-   which of its parameters are kept ([masks]): [None] for all of them,
-   or one boolean for each. At a non-recursive [Let_cont] the handler is
-   done first; the parameters that are then not free in it
+   [drop_unused_params] does it for the continuations of a term. Going
+   down the term it keeps, for each continuation in scope, which of its
+   parameters are kept ([masks]): [None] for all of them, or one boolean
+   for each. At a non-recursive [Let_cont] the handler is done first; the
+   parameters that are then not free in it
    (FlambdaNormaliseSpec.var_free_b) are removed from the handler, with
    their kinds in its metadata ([keep_kinds]), and
    in the body of the [Let_cont] the arguments at their positions are
    removed from every [Apply_cont] and every arm of a [Switch] that
    applies the continuation ([drop_args]), wherever it is: in the
    handlers of other continuations and in those of recursive ones, so in
-   a loop that exits through the continuation.
+   a loop that exits through the continuation. At a recursive [Let_cont]
+   the parameters removed from a handler are those that are not free in
+   it as it stands, before anything is removed from it
+   ([used_params_in_loop]); their arguments are removed from the
+   applications in the handlers of the [Let_cont], which are then done,
+   and in its body.
 
    What stops it:
    - a continuation that some [Apply] of the body has as its return or
@@ -70,10 +75,14 @@
      parameters of an exception handler that only raises reach (an
      [Apply_cont] with a trap action is one) go as those of any
      continuation; the trap action of an application stays as it is;
-   - the parameters of a recursive continuation are all kept. Simplify
-     finds the unused ones among them by its data flow analysis
-     ([decide_param_usage_recursive]), which this pass has not got; a
-     parameter that a loop only passes round to itself stays;
+   - a parameter of a recursive continuation that its handler uses only
+     to pass it on, to itself or to another continuation whose handler
+     does not use it, is kept. Simplify finds those too, by its data flow
+     analysis ([decide_param_usage_recursive]), which this pass has not
+     got. A parameter that the handler binds again at once, as
+     FlambdaParamAliasesSpec.bind_aliased_params makes it do where every
+     application gives the parameter the same thing, is one that the
+     handler does not use;
    - the bodies of code are not gone into
      (FlambdaNormaliseSpec.rewrite_code takes the pass there).
 
@@ -191,6 +200,18 @@ Definition keep_kinds (mask : option (list bool))
   | None => metadata
   end.
 
+(* Which parameters the handler of a recursive continuation uses, if not
+   all, as the handler stands. [whole] is the [Let_cont] of the
+   continuation: an [Apply] in one of its handlers or in its body that
+   returns to the continuation keeps all its parameters. *)
+Definition used_params_in_loop (k : continuation) (h : continuation_handler)
+    (whole : expr) : option (list bool) :=
+  match h with
+  | Handler params metadata handler =>
+    if returned_to k whole then None
+    else used_params (hm_is_exn_handler metadata) params handler
+  end.
+
 (* ======================================================================== *)
 (* The pass                                                                 *)
 (* ======================================================================== *)
@@ -209,9 +230,14 @@ Fixpoint drop_params (known : masks) (e : expr) : expr :=
       (Handler (keep_all_or mask params) (keep_kinds mask metadata) handler)
       (drop_params ((k, mask) :: known) body)
   | Let_cont_recursive handlers body =>
-    let known := map (fun '(k, _) => (k, None)) handlers ++ known in
+    let known :=
+      map (fun '(k, h) => (k, used_params_in_loop k h e)) handlers ++ known
+    in
     Let_cont_recursive
-      (map (fun '(k, h) => (k, drop_params_in_handler known h)) handlers)
+      (map
+         (fun '(k, h) =>
+            (k, drop_params_in_loop known (used_params_in_loop k h e) h))
+         handlers)
       (drop_params known body)
   | Apply _ | Invalid => e
   | Apply_cont ac => Apply_cont (drop_args known ac)
@@ -219,11 +245,12 @@ Fixpoint drop_params (known : masks) (e : expr) : expr :=
     Switch scrutinee
       (map (fun arm => (fst arm, drop_args known (snd arm))) arms)
   end
-with drop_params_in_handler (known : masks) (h : continuation_handler)
-    : continuation_handler :=
+with drop_params_in_loop (known : masks) (mask : option (list bool))
+    (h : continuation_handler) : continuation_handler :=
   match h with
   | Handler params metadata handler =>
-    Handler params metadata (drop_params known handler)
+    Handler (keep_all_or mask params) (keep_kinds mask metadata)
+      (drop_params known handler)
   end.
 
 Definition drop_unused_params (e : expr) : expr := drop_params [] e.
