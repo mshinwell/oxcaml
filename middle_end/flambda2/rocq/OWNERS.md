@@ -400,6 +400,14 @@ Owner: N2.
   body of code from the states that have a predicate that a step
   keeps. Its lemmas are in C0's `FlambdaContextProofs.v`, which N2
   changed for it by C0's leave; that file stays C0's)
+- `middle_end/flambda2/rocq/FlambdaKeepsScope*` (N2's, though it is
+  about V1's and V2's rewrites: each keeps scope, which the statements
+  of N3's `FlambdaValidatorEquivarianceSpec.v` about rewrites that make
+  names ask of a rewrite)
+- `middle_end/flambda2/rocq/FlambdaScopedProofs.v` (N2's, though it
+  matches the pattern of N1's section, N1 agreeing: lemmas only, about
+  a term that keeps the scope of another, for the proofs that a rewrite
+  of the validation keeps scope)
 - `middle_end/flambda2/rocq/requests/N2-fresh-quantifier.md`
 
 ## N3: what commutes with renaming
