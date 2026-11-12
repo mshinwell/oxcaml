@@ -263,3 +263,62 @@ Definition typing_env_functions_equivariant_statement : Prop :=
         = option_map (rename_typing_env r)
             (Flambda2_types.add_equations_on_params join choices fuel tenv
                params param_types).
+
+(* ======================================================================== *)
+(* Two joins, two meets, one renaming                                       *)
+(* ======================================================================== *)
+
+(* What is above is for a join that commutes with every renaming. A
+   join that makes variables takes them from a source of new names,
+   and of renamed environments it answers the renamed answer only if
+   the source is renamed too: on the renamed side it is another
+   function. What follows is for one renaming and two functions, the
+   second of which is given the renamed arguments. *)
+
+(* Two meets of two parts of a type, the parts being renamed by
+   [rename_a] and what the meets answer by [rename_b]. *)
+Definition meet_of_parts_related {A B : Type} (r : renaming)
+    (rename_a : A -> A) (rename_b : B -> B)
+    (meet meet' : Meet_env.t -> A -> A -> option (Meet_result.t B)) : Prop :=
+  ∀ (env : Meet_env.t) (a1 a2 : A),
+    meet' (rename_meet_env r env) (rename_a a1) (rename_a a2)
+    = option_map (rename_meet_result r rename_b) (meet env a1 a2).
+
+(* Two meets of expanded types. *)
+Definition meet_expanded_head_related (r : renaming)
+    (m m' : meet_expanded_head) : Prop :=
+  ∀ (env : Meet_env.t) (e1 e2 : Expanded_type.t),
+    m' (rename_meet_env r env) (rename_expanded r e1) (rename_expanded r e2)
+    = option_map (rename_meet_result r (rename_expanded r)) (m env e1 e2).
+
+(* Two joins, each given its meet of expanded types. *)
+Definition join_related_at (r : renaming) (join join' : join_scoped_envs)
+    (m m' : meet_expanded_head) : Prop :=
+  ∀ (cut_after : Scope.t) (initial_env : Meet_env.t)
+    (initial_tenv : Typing_env.t) (scoped_envs : list Typing_env.t),
+    join' m' cut_after (rename_meet_env r initial_env)
+      (rename_typing_env r initial_tenv)
+      (map (rename_typing_env r) scoped_envs)
+    = option_map (rename_meet_env r)
+        (join m cut_after initial_env initial_tenv scoped_envs).
+
+(* Two joins: given two meets of expanded types that the renaming
+   relates, the second answers the renamed answer of the first. *)
+Definition join_scoped_envs_related (r : renaming)
+    (join join' : join_scoped_envs) : Prop :=
+  ∀ m m' : meet_expanded_head,
+    meet_expanded_head_related r m m' -> join_related_at r join join' m m'.
+
+(* Two meets of types. *)
+Definition meet_function_related (r : renaming) (meet meet' : meet_function)
+    : Prop :=
+  ∀ (tenv : Typing_env.t) (t1 t2 : flambda_type),
+    meet' (rename_typing_env r tenv) (rename_type r t1) (rename_type r t2)
+    = option_map
+        (fun result =>
+           match result with
+           | Or_bottom.Bottom => Or_bottom.Bottom
+           | Or_bottom.Ok (t, tenv') =>
+             Or_bottom.Ok (rename_type r t, rename_typing_env r tenv')
+           end)
+        (meet tenv t1 t2).
