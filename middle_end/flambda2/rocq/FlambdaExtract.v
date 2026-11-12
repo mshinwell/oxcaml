@@ -56,7 +56,8 @@ From OxCamlFlambda2 Require Import FlambdaMapSpec FlambdaModel
   FlambdaBindersSpec FlambdaSemanticsSpec FlambdaWellFormedSpec
   FlambdaWellKindedSpec FlambdaBlockLoadSpec FlambdaCodeLetsSpec
   FlambdaCompareSpec
-  FlambdaCseSpec FlambdaDeadParamsSpec FlambdaForwardSpec
+  FlambdaCseSpec FlambdaDeadParamsSpec FlambdaForwardJumpsSpec
+  FlambdaForwardSpec
   FlambdaIdentitiesSpec FlambdaLoopAliasesSpec FlambdaLoopLetsSpec
   FlambdaLoopifySpec FlambdaMergeSwitchesSpec FlambdaNormaliseSpec
   FlambdaParamAliasesSpec
@@ -214,6 +215,7 @@ Separate Extraction
   follow_aliases
   follow_aliases_in_loops
   forward_applications
+  forward_jumps
   inline_calls
   inline_known_calls
   inline_tail_conts
