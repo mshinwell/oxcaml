@@ -39,12 +39,12 @@ that the conversion refused.
 | Profile | Units | Validated | Not validated |
 |---------|-------|-----------|---------------|
 | `known_scalar` | 150 | 150 | 0 |
-| `unknown_scalar` | 150 | 147 | 3 |
+| `unknown_scalar` | 150 | 149 | 1 |
 | `known` | 100 | 98 | 2 |
 | `unknown` | 100 | 98 | 2 |
 | `functions` | 100 | 96 | 4 |
 
-589 of the 600 are validated. On the same 600 terms, earlier the
+591 of the 600 are validated. On the same 600 terms, earlier the
 same day: 509 before the term after lost the continuations that are
 applied once (`FlambdaValidateSpec.inline_once_applied_after`); 555
 with that, and still 555 with the unused `Let`s of the parameters of
@@ -70,25 +70,28 @@ and 72, the last at the second asking, and `unknown_scalar`, seed
 does the unboxing of parameters giving, for an untagging under a
 test, the number that was tagged. One more with that unboxing
 giving a constant where a symbol of a constant block would be
-untagged (`unknown_scalar`, seed 1). No unit that was validated at
+untagged (`unknown_scalar`, seed 1). Two more with the rewrites
+that Simplify makes from the types applied once to the term before
+(`FlambdaSimplifyPassSpec.simplify_by_types`; `unknown_scalar`,
+seeds 57 and 61). Reading the value slots that every closure of the
+unit gives one symbol changes none. No unit that was validated at
 one of these points is not at a later one. The day before, 336 were
 validated, 256 were not and 8 were not checked; of the units that
 keep a function, none was.
 
-What the 11 units that are not validated lack, read off the two
+What the 9 units that are not validated lack, read off the two
 terms that the tool shows of each:
 
-| What is missing | `unknown_scalar` (3) | The other three (8) |
+| What is missing | `unknown_scalar` (1) | The other three (8) |
 |-----------------|----------------------|---------------------|
 | A block that Simplify makes a symbol and the term before still makes with a `Let`: the block is made in a handler and Simplify binds the symbol outside it, or the guess of the tool does not find it | 0 | 7 |
-| A `Switch` that Simplify removes with what it knows of the variable tested | 3 | 0 |
+| A `Switch` that Simplify removes with what it knows of the variable tested | 1 | 0 |
 | A `Let` on the other side of the binding of a continuation whose handler does not use it | 0 | 1 |
 
-The second row is two things, and a unit may have both. A `Switch`
-on a variable that a `Switch` around it has tested is resolved
-(seeds 57, 61 and 144). Two arms of a `Switch` give one continuation
-two arguments, each the number of the arm, where the term after has
-no such continuation (seed 144).
+The unit of the second row (seed 144) has two things. Two arms of
+a `Switch` give one continuation two arguments, each the number of
+the arm, where the term after has no such continuation; and below
+it a `Switch` is on a variable that a `Switch` around it has tested.
 
 Five of the 600 have the constant `poison` after Simplify, which
 unboxes a variant where two branches meet and gives the fields that a
@@ -97,8 +100,8 @@ of the model, so they are run and compared; four are validated
 (`functions`, seeds 27 and 55; `unknown_scalar`, seeds 1 and 100),
 and the other is in the second row.
 
-In seven of the 11 the term before keeps a continuation that the
-term after has not: the three of the second row, and four where a
+In five of the 9 the term before keeps a continuation that the
+term after has not: the one of the second row, and four where a
 handler only makes a block and goes on (Simplify makes the block a
 symbol and has no use for the handler).
 
@@ -106,7 +109,7 @@ The first row is in the tool only: nothing is believed of its
 guesses, and a better one needs no proof.
 
 So, for units of this kind: when every input is known and the result
-is a number, all are validated; with unknown inputs and numbers, 147
+is a number, all are validated; with unknown inputs and numbers, 149
 of 150; of the units that keep a function, 96 of 100.
 
 ## Two more profiles: exceptions, loops

@@ -146,132 +146,134 @@ Simplify does to it. Steps are those of the machine, before and after
 Simplify. The names in brackets are the streams whose work in progress
 is the rewrite that is missing.
 
-252 sources: 238 validated, 7 compared on one run and not validated, 2
+257 sources: 242 validated, 8 compared on one run and not validated, 2
 undefined in the model, 5 not checked.
 
 ### Validated
 
 | Source | Steps | Source | Steps |
 |--------|-------|--------|-------|
-| `add3_exported.ml` | 9, 6 | `int_of_char.ml` | 8, 3 |
-| `add_zero.ml` | 8, 2 | `int_switch.ml` | 31, 1 |
-| `apply_exported.ml` | 8, 4 | `is_even.ml` | 29, 1 |
-| `bitwise_unknown.ml` | 14, 7 | `labelled_arguments.ml` | 13, 3 |
-| `bool_not_unknown.ml` | 8, 3 | `labelled_optional.ml` | 38, 6 |
-| `bool_ops.ml` | 47, 1 | `length_exported.ml` | 8, 3 |
-| `bswap_constants.ml` | 29, 2 | `let_polymorphism.ml` | 27, 1 |
-| `char_code.ml` | 13, 3 | `list_head.ml` | 41, 3 |
-| `char_match.ml` | 48, 1 | `list_heap.ml` | 54, 33 |
-| `clamp.ml` | 49, 1 | `list_last.ml` | 76, 41 |
-| `closed_mutual_recursion.ml` | 66, 35 | `list_length.ml` | 64, 44 |
-| `closure_argument_exported.ml` | 12, 7 | `list_map.ml` | 132, 95 |
-| `closure_argument_used.ml` | 14, 3 | `list_rev.ml` | 70, 47 |
-| `closure_capture.ml` | 31, 4 | `list_sum.ml` | 61, 42 |
-| `closure_from_pair_exported.ml` | 9, 4 | `local_call_exported.ml` | 8, 4 |
-| `closure_from_pair_used.ml` | 16, 3 | `local_call_used.ml` | 10, 3 |
-| `closure_in_tuple.ml` | 33, 5 | `local_function.ml` | 29, 5 |
-| `compare_ints.ml` | 113, 1 | `match_guard.ml` | 52, 1 |
-| `compare_signed.ml` | 31, 1 | `match_unknown.ml` | 18, 10 |
-| `compare_unknown.ml` | 9, 4 | `match_variant.ml` | 66, 7 |
-| `compose.ml` | 29, 4 | `match_variant_local.ml` | 72, 7 |
-| `compose_exported.ml` | 8, 4 | `max_exported.ml` | 8, 4 |
-| `constant_exported.ml` | 8, 4 | `min_max.ml` | 25, 1 |
-| `constant_folding.ml` | 31, 1 | `mod_zero.ml` | 22, 6 |
-| `conv_truncate.ml` | 45, 1 | `module_alias.ml` | 34, 5 |
-| `curry.ml` | 36, 3 | `mutual_recursion.ml` | 130, 70 |
-| `div_const.ml` | 26, 5 | `nativeint_arith.ml` | 25, 8 |
-| `div_unknown.ml` | 16, 8 | `negate.ml` | 10, 5 |
-| `either_heap.ml` | 58, 37 | `nested_heap.ml` | 50, 29 |
-| `enum_to_int.ml` | 19, 1 | `nested_record.ml` | 23, 3 |
-| `exported_after_effect.ml` | 15, 6 | `nested_tuple.ml` | 24, 4 |
-| `exported_and_used.ml` | 14, 6 | `not_inlined.ml` | 21, 17 |
-| `exported_apply.ml` | 18, 9 | `num_conversions.ml` | 27, 19 |
-| `exported_arms_after_let.ml` | 26, 21 | `option_bind.ml` | 89, 1 |
-| `exported_bool.ml` | 11, 7 | `option_default.ml` | 32, 3 |
-| `exported_branch_calls_twice.ml` | 17, 11 | `option_heap.ml` | 47, 29 |
-| `exported_branch_fun_const.ml` | 17, 12 | `option_inlined.ml` | 36, 12 |
-| `exported_branch_option.ml` | 14, 9 | `option_join.ml` | 55, 29 |
-| `exported_branch_pair.ml` | 15, 10 | `option_map.ml` | 70, 4 |
-| `exported_branch_then_const.ml` | 14, 9 | `option_map_exported.ml` | 8, 4 |
-| `exported_branch_then_fun.ml` | 14, 8 | `or_null_known.ml` | 23, 1 |
-| `exported_branch_two_funs.ml` | 17, 11 | `or_null_unknown.ml` | 16, 6 |
-| `exported_capture.ml` | 16, 5 | `or_pattern.ml` | 49, 1 |
-| `exported_chain.ml` | 14, 10 | `over_application.ml` | 19, 3 |
-| `exported_compose_kept.ml` | 17, 13 | `overflow_wrap.ml` | 19, 1 |
-| `exported_const_list.ml` | 10, 7 | `pair_built.ml` | 43, 21 |
-| `exported_curried.ml` | 14, 6 | `pair_computed.ml` | 45, 29 |
-| `exported_fun_branch_fun.ml` | 17, 11 | `partial_application.ml` | 23, 3 |
-| `exported_fun_given.ml` | 9, 7 | `phys_equal_unknown.ml` | 9, 4 |
-| `exported_fun_in_arms.ml` | 20, 12 | `physical_equality.ml` | 32, 1 |
-| `exported_fun_in_one_arm.ml` | 17, 12 | `pipeline.ml` | 23, 5 |
-| `exported_fun_in_option.ml` | 9, 8 | `polymorphic_variant.ml` | 77, 4 |
-| `exported_fun_returned.ml` | 9, 7 | `power.ml` | 147, 99 |
-| `exported_fun_to_map.ml` | 12, 9 | `projections_exported.ml` | 11, 7 |
-| `exported_function.ml` | 14, 6 | `raise_in_function.ml` | 24, 11 |
-| `exported_funs_given.ml` | 10, 10 | `raise_inlined.ml` | 27, 11 |
-| `exported_funs_in_arms_used.ml` | 23, 14 | `raise_notrace.ml` | 22, 10 |
-| `exported_funs_in_pair.ml` | 14, 11 | `raise_unused_bucket.ml` | 23, 10 |
-| `exported_length.ml` | 8, 3 | `raise_unused_exn.ml` | 22, 10 |
-| `exported_list.ml` | 9, 5 | `record_exported.ml` | 11, 7 |
-| `exported_local_fun.ml` | 8, 4 | `record_of_functions.ml` | 51, 10 |
-| `exported_local_never.ml` | 9, 7 | `record_project.ml` | 37, 8 |
-| `exported_made.ml` | 14, 6 | `record_update.ml` | 27, 4 |
-| `exported_match_pair_then_fun.ml` | 13, 7 | `ref_local.ml` | 132, 79 |
-| `exported_match_then_fun.ml` | 21, 12 | `ref_straight.ml` | 13, 4 |
-| `exported_match_three_funs.ml` | 33, 19 | `result_join.ml` | 64, 33 |
-| `exported_nested_branch.ml` | 21, 13 | `result_map.ml` | 44, 3 |
-| `exported_nested_pair.ml` | 10, 7 | `returned_closure_of_pair.ml` | 71, 50 |
-| `exported_option_fun_in_arm.ml` | 18, 10 | `seq_unit.ml` | 13, 2 |
-| `exported_option_library.ml` | 14, 10 | `shape2_heap.ml` | 61, 36 |
-| `exported_pair_fun_in_arms.ml` | 21, 14 | `shape_constant.ml` | 24, 11 |
-| `exported_record.ml` | 23, 9 | `shape_heap.ml` | 54, 30 |
-| `exported_record_of_funs.ml` | 14, 11 | `shift_edges.ml` | 23, 1 |
-| `exported_record_update.ml` | 14, 6 | `shift_unknown.ml` | 17, 7 |
-| `exported_records_in_arms.ml` | 21, 14 | `shifts.ml` | 22, 8 |
-| `exported_some_again.ml` | 26, 6 | `sign.ml` | 27, 1 |
-| `exported_string_length.ml` | 8, 5 | `string_const.ml` | 21, 2 |
-| `exported_submodule.ml` | 14, 8 | `string_get16.ml` | 10, 5 |
-| `exported_table.ml` | 13, 8 | `string_get16_be.ml` | 16, 6 |
-| `exported_twice_kept.ml` | 14, 10 | `string_get16_checked.ml` | 29, 17 |
-| `exported_two_branches.ml` | 23, 15 | `string_get32.ml` | 23, 11 |
-| `exported_two_functions.ml` | 22, 10 | `string_get_const.ml` | 9, 4 |
-| `exported_two_somes.ml` | 11, 5 | `string_length_const.ml` | 8, 1 |
-| `exported_two_tests.ml` | 26, 17 | `string_length_unknown.ml` | 9, 5 |
-| `exported_two_values.ml` | 18, 1 | `string_sum.ml` | 100, 82 |
-| `exported_variant.ml` | 17, 6 | `submodule.ml` | 27, 1 |
-| `fact_exported.ml` | 8, 3 | `succ_pred.ml` | 12, 5 |
-| `factorial.ml` | 70, 46 | `swap_exported.ml` | 8, 4 |
-| `fib.ml` | 2041, 1417 | `tail_loop.ml` | 128, 83 |
-| `first_class_module.ml` | 22, 4 | `tree_root.ml` | 90, 4 |
-| `float_const.ml` | 15, 4 | `try_catch_all.ml` | 22, 10 |
-| `for_down.ml` | 79, 40 | `try_div_zero.ml` | 23, 12 |
-| `for_if.ml` | 165, 96 | `try_exported.ml` | 8, 4 |
-| `for_nested.ml` | 171, 95 | `try_in_function.ml` | 25, 10 |
-| `for_sum.ml` | 135, 81 | `try_nested.ml` | 30, 14 |
-| `for_two_refs.ml` | 90, 52 | `try_no_raise.ml` | 14, 5 |
-| `fst_snd.ml` | 16, 3 | `try_reraise.ml` | 29, 14 |
-| `functor_apply.ml` | 23, 1 | `try_result_unused.ml` | 13, 3 |
-| `gadt_known.ml` | 35, 4 | `try_test_outside.ml` | 22, 10 |
-| `higher_order.ml` | 32, 5 | `tuple_match.ml` | 75, 1 |
-| `id_exported.ml` | 8, 4 | `tuple_return.ml` | 20, 5 |
-| `identity.ml` | 22, 3 | `tuple_swap.ml` | 19, 4 |
-| `if_unknown.ml` | 13, 6 | `tupled_function.ml` | 21, 2 |
-| `ignore_value.ml` | 11, 2 | `twice_inlined.ml` | 19, 6 |
-| `indirect_call.ml` | 13, 9 | `unboxed_pair.ml` | 13, 4 |
-| `inline_function.ml` | 20, 4 | `unboxed_pair_argument.ml` | 10, 3 |
-| `inline_record.ml` | 45, 7 | `uncaught_raise.ml` | 10, 4 |
-| `int32_arith.ml` | 27, 8 | `unit_argument.ml` | 18, 1 |
-| `int32_overflow.ml` | 40, 1 | `variant_blocks_join.ml` | 20, 8 |
-| `int32_unknown.ml` | 17, 7 | `variant_match_exported.ml` | 8, 4 |
-| `int64_boxed.ml` | 22, 8 | `while_const_after.ml` | 70, 45 |
-| `int64_built.ml` | 61, 43 | `while_countdown.ml` | 61, 34 |
-| `int64_compare.ml` | 48, 1 | `while_if_inside.ml` | 161, 106 |
-| `int64_join.ml` | 26, 1 | `while_loop.ml` | 78, 45 |
-| `int64_of_int.ml` | 25, 7 | `while_nested.ml` | 188, 127 |
-| `int64_option_heap.ml` | 63, 38 | `while_sum_down.ml` | 133, 80 |
-| `int64_overflow.ml` | 33, 1 | `while_two_loops.ml` | 126, 81 |
-| `int64_shift.ml` | 21, 8 | `while_two_tests.ml` | 180, 123 |
-| `int64_to_int32.ml` | 10, 6 | `while_unused_counter.ml` | 78, 40 |
+| `add3_exported.ml` | 9, 6 | `int64_to_int32.ml` | 10, 6 |
+| `add_zero.ml` | 8, 2 | `int_of_char.ml` | 8, 3 |
+| `apply_exported.ml` | 8, 4 | `int_switch.ml` | 31, 1 |
+| `bitwise_unknown.ml` | 14, 7 | `is_even.ml` | 29, 1 |
+| `bool_not_unknown.ml` | 8, 3 | `labelled_arguments.ml` | 13, 3 |
+| `bool_ops.ml` | 47, 1 | `labelled_optional.ml` | 38, 6 |
+| `bswap_constants.ml` | 29, 2 | `length_exported.ml` | 8, 3 |
+| `capture_fun_and_var_run.ml` | 24, 20 | `let_polymorphism.ml` | 27, 1 |
+| `capture_rec_self.ml` | 9, 6 | `list_head.ml` | 41, 3 |
+| `capture_two_funs.ml` | 15, 12 | `list_heap.ml` | 54, 33 |
+| `char_code.ml` | 13, 3 | `list_last.ml` | 76, 41 |
+| `char_match.ml` | 48, 1 | `list_length.ml` | 64, 44 |
+| `clamp.ml` | 49, 1 | `list_map.ml` | 132, 95 |
+| `closed_mutual_recursion.ml` | 66, 35 | `list_rev.ml` | 70, 47 |
+| `closure_argument_exported.ml` | 12, 7 | `list_sum.ml` | 61, 42 |
+| `closure_argument_used.ml` | 14, 3 | `local_call_exported.ml` | 8, 4 |
+| `closure_capture.ml` | 31, 4 | `local_call_used.ml` | 10, 3 |
+| `closure_from_pair_exported.ml` | 9, 4 | `local_function.ml` | 29, 5 |
+| `closure_from_pair_used.ml` | 16, 3 | `match_guard.ml` | 52, 1 |
+| `closure_in_tuple.ml` | 33, 5 | `match_unknown.ml` | 18, 10 |
+| `compare_ints.ml` | 113, 1 | `match_variant.ml` | 66, 7 |
+| `compare_signed.ml` | 31, 1 | `match_variant_local.ml` | 72, 7 |
+| `compare_unknown.ml` | 9, 4 | `max_exported.ml` | 8, 4 |
+| `compose.ml` | 29, 4 | `min_max.ml` | 25, 1 |
+| `compose_exported.ml` | 8, 4 | `mod_zero.ml` | 22, 6 |
+| `constant_exported.ml` | 8, 4 | `module_alias.ml` | 34, 5 |
+| `constant_folding.ml` | 31, 1 | `mutual_recursion.ml` | 130, 70 |
+| `conv_truncate.ml` | 45, 1 | `nativeint_arith.ml` | 25, 8 |
+| `curry.ml` | 36, 3 | `negate.ml` | 10, 5 |
+| `div_const.ml` | 26, 5 | `nested_heap.ml` | 50, 29 |
+| `div_unknown.ml` | 16, 8 | `nested_record.ml` | 23, 3 |
+| `either_heap.ml` | 58, 37 | `nested_tuple.ml` | 24, 4 |
+| `enum_to_int.ml` | 19, 1 | `not_inlined.ml` | 21, 17 |
+| `exported_after_effect.ml` | 15, 6 | `num_conversions.ml` | 27, 19 |
+| `exported_and_used.ml` | 14, 6 | `option_bind.ml` | 89, 1 |
+| `exported_apply.ml` | 18, 9 | `option_default.ml` | 32, 3 |
+| `exported_arms_after_let.ml` | 26, 21 | `option_heap.ml` | 47, 29 |
+| `exported_bool.ml` | 11, 7 | `option_inlined.ml` | 36, 12 |
+| `exported_branch_calls_twice.ml` | 17, 11 | `option_join.ml` | 55, 29 |
+| `exported_branch_fun_const.ml` | 17, 12 | `option_map.ml` | 70, 4 |
+| `exported_branch_option.ml` | 14, 9 | `option_map_exported.ml` | 8, 4 |
+| `exported_branch_pair.ml` | 15, 10 | `or_null_known.ml` | 23, 1 |
+| `exported_branch_then_const.ml` | 14, 9 | `or_null_unknown.ml` | 16, 6 |
+| `exported_branch_then_fun.ml` | 14, 8 | `or_pattern.ml` | 49, 1 |
+| `exported_branch_two_funs.ml` | 17, 11 | `over_application.ml` | 19, 3 |
+| `exported_capture.ml` | 16, 5 | `over_rec.ml` | 84, 52 |
+| `exported_chain.ml` | 14, 10 | `overflow_wrap.ml` | 19, 1 |
+| `exported_compose_kept.ml` | 17, 13 | `pair_built.ml` | 43, 21 |
+| `exported_const_list.ml` | 10, 7 | `pair_computed.ml` | 45, 29 |
+| `exported_curried.ml` | 14, 6 | `partial_application.ml` | 23, 3 |
+| `exported_fun_branch_fun.ml` | 17, 11 | `phys_equal_unknown.ml` | 9, 4 |
+| `exported_fun_given.ml` | 9, 7 | `physical_equality.ml` | 32, 1 |
+| `exported_fun_in_arms.ml` | 20, 12 | `pipeline.ml` | 23, 5 |
+| `exported_fun_in_one_arm.ml` | 17, 12 | `polymorphic_variant.ml` | 77, 4 |
+| `exported_fun_in_option.ml` | 9, 8 | `power.ml` | 147, 99 |
+| `exported_fun_returned.ml` | 9, 7 | `projections_exported.ml` | 11, 7 |
+| `exported_fun_to_map.ml` | 12, 9 | `raise_in_function.ml` | 24, 11 |
+| `exported_function.ml` | 14, 6 | `raise_inlined.ml` | 27, 11 |
+| `exported_funs_given.ml` | 10, 10 | `raise_notrace.ml` | 22, 10 |
+| `exported_funs_in_arms_used.ml` | 23, 14 | `raise_unused_bucket.ml` | 23, 10 |
+| `exported_funs_in_pair.ml` | 14, 11 | `raise_unused_exn.ml` | 22, 10 |
+| `exported_length.ml` | 8, 3 | `record_exported.ml` | 11, 7 |
+| `exported_list.ml` | 9, 5 | `record_of_functions.ml` | 51, 10 |
+| `exported_local_fun.ml` | 8, 4 | `record_project.ml` | 37, 8 |
+| `exported_local_never.ml` | 9, 7 | `record_update.ml` | 27, 4 |
+| `exported_made.ml` | 14, 6 | `ref_local.ml` | 132, 79 |
+| `exported_match_pair_then_fun.ml` | 13, 7 | `ref_straight.ml` | 13, 4 |
+| `exported_match_then_fun.ml` | 21, 12 | `result_join.ml` | 64, 33 |
+| `exported_match_three_funs.ml` | 33, 19 | `result_map.ml` | 44, 3 |
+| `exported_nested_branch.ml` | 21, 13 | `returned_closure_of_pair.ml` | 71, 50 |
+| `exported_nested_pair.ml` | 10, 7 | `seq_unit.ml` | 13, 2 |
+| `exported_option_fun_in_arm.ml` | 18, 10 | `shape2_heap.ml` | 61, 36 |
+| `exported_option_library.ml` | 14, 10 | `shape_constant.ml` | 24, 11 |
+| `exported_pair_fun_in_arms.ml` | 21, 14 | `shape_heap.ml` | 54, 30 |
+| `exported_record.ml` | 23, 9 | `shift_edges.ml` | 23, 1 |
+| `exported_record_of_funs.ml` | 14, 11 | `shift_unknown.ml` | 17, 7 |
+| `exported_record_update.ml` | 14, 6 | `shifts.ml` | 22, 8 |
+| `exported_records_in_arms.ml` | 21, 14 | `sign.ml` | 27, 1 |
+| `exported_some_again.ml` | 26, 6 | `string_const.ml` | 21, 2 |
+| `exported_string_length.ml` | 8, 5 | `string_get16.ml` | 10, 5 |
+| `exported_submodule.ml` | 14, 8 | `string_get16_be.ml` | 16, 6 |
+| `exported_table.ml` | 13, 8 | `string_get16_checked.ml` | 29, 17 |
+| `exported_twice_kept.ml` | 14, 10 | `string_get32.ml` | 23, 11 |
+| `exported_two_branches.ml` | 23, 15 | `string_get_const.ml` | 9, 4 |
+| `exported_two_functions.ml` | 22, 10 | `string_length_const.ml` | 8, 1 |
+| `exported_two_somes.ml` | 11, 5 | `string_length_unknown.ml` | 9, 5 |
+| `exported_two_tests.ml` | 26, 17 | `string_sum.ml` | 100, 82 |
+| `exported_two_values.ml` | 18, 1 | `submodule.ml` | 27, 1 |
+| `exported_variant.ml` | 17, 6 | `succ_pred.ml` | 12, 5 |
+| `fact_exported.ml` | 8, 3 | `swap_exported.ml` | 8, 4 |
+| `factorial.ml` | 70, 46 | `tail_loop.ml` | 128, 83 |
+| `fib.ml` | 2041, 1417 | `tree_root.ml` | 90, 4 |
+| `first_class_module.ml` | 22, 4 | `try_catch_all.ml` | 22, 10 |
+| `float_const.ml` | 15, 4 | `try_div_zero.ml` | 23, 12 |
+| `for_down.ml` | 79, 40 | `try_exported.ml` | 8, 4 |
+| `for_if.ml` | 165, 96 | `try_in_function.ml` | 25, 10 |
+| `for_nested.ml` | 171, 95 | `try_nested.ml` | 30, 14 |
+| `for_sum.ml` | 135, 81 | `try_no_raise.ml` | 14, 5 |
+| `for_two_refs.ml` | 90, 52 | `try_reraise.ml` | 29, 14 |
+| `fst_snd.ml` | 16, 3 | `try_result_unused.ml` | 13, 3 |
+| `functor_apply.ml` | 23, 1 | `try_test_outside.ml` | 22, 10 |
+| `gadt_known.ml` | 35, 4 | `tuple_match.ml` | 75, 1 |
+| `higher_order.ml` | 32, 5 | `tuple_return.ml` | 20, 5 |
+| `id_exported.ml` | 8, 4 | `tuple_swap.ml` | 19, 4 |
+| `identity.ml` | 22, 3 | `tupled_function.ml` | 21, 2 |
+| `if_unknown.ml` | 13, 6 | `twice_inlined.ml` | 19, 6 |
+| `ignore_value.ml` | 11, 2 | `unboxed_pair.ml` | 13, 4 |
+| `indirect_call.ml` | 13, 9 | `unboxed_pair_argument.ml` | 10, 3 |
+| `inline_function.ml` | 20, 4 | `uncaught_raise.ml` | 10, 4 |
+| `inline_record.ml` | 45, 7 | `unit_argument.ml` | 18, 1 |
+| `int32_arith.ml` | 27, 8 | `variant_blocks_join.ml` | 20, 8 |
+| `int32_overflow.ml` | 40, 1 | `variant_match_exported.ml` | 8, 4 |
+| `int32_unknown.ml` | 17, 7 | `while_const_after.ml` | 70, 45 |
+| `int64_boxed.ml` | 22, 8 | `while_countdown.ml` | 61, 34 |
+| `int64_built.ml` | 61, 43 | `while_if_inside.ml` | 161, 106 |
+| `int64_compare.ml` | 48, 1 | `while_loop.ml` | 78, 45 |
+| `int64_join.ml` | 26, 1 | `while_nested.ml` | 188, 127 |
+| `int64_of_int.ml` | 25, 7 | `while_sum_down.ml` | 133, 80 |
+| `int64_option_heap.ml` | 63, 38 | `while_two_loops.ml` | 126, 81 |
+| `int64_overflow.ml` | 33, 1 | `while_two_tests.ml` | 180, 123 |
+| `int64_shift.ml` | 21, 8 | `while_unused_counter.ml` | 78, 40 |
 
 ### What the validation of a unit that exports a function rests on
 
@@ -340,10 +342,11 @@ before. What each shows, and what its validation uses besides:
 
 | Source | Steps | What the validator lacks |
 |--------|-------|--------------------------|
+| `capture_fun_bound_in_handler_run.ml` | 31, 26 | the closure of the function that is called holds a value chosen by a test when the module runs, so its symbol is bound in the handler of that test; the code of the closure that calls it is bound at the head of the unit and reads it from a value slot, where Simplify puts the symbol; the validation reads a slot only where the symbol it holds is in scope, and leaves this projection (C3) |
 | `pair_join.ml` | 31, 28 | one branch gives a parameter of the function, and Simplify loads its fields at that use, which only the subkind of the parameter justifies; the model has no subkinds (T6-7) |
 | `pair_kept.ml` | 35, 33 | as `pair_join.ml` |
 | `pair_loop.ml` | 192, 85 | as `pair_join.ml`, at the entry of a loop, whose parameter Simplify unboxes from its subkind without looking at the uses (T6-7) |
-| `partial_exported.ml` | 13, 6 | the wrapper that Simplify makes of a partial application calls the function through a value slot of its own closure; the validator, which knows what the slot holds, inlines that call in the term before, and has no rewrite that does it in the term after (V3) |
+| `partial_exported.ml` | 13, 6 | the wrapper of a partial application, which the front end makes as code marked `stub`, calls the function directly through a value slot of its own closure; Simplify does not simplify a stub where its closure is made, and makes that call indirect; the validator, which knows what the slot holds, inlines it in the term before (C3) |
 | `string_get_checked.ml` | 21, 4 | the load of a character of a string that is a constant of the unit, at a constant index: the validator, which knows the string, has the character where Simplify, which resolves the bounds check as the validator does, keeps the load |
 | `string_get_unknown.ml` | 28, 16 | the index is converted for the bounds test and again in the continuation that loads the character; Simplify converts it once and gives the result to that continuation as an argument, which the sharing of primitives does not do (V2) |
 | `while_flag.ml` | 150, 75 | a boolean that Simplify keeps untagged in a parameter of the loop (T6) |
@@ -377,10 +380,17 @@ before. What each shows, and what its validation uses besides:
    Simplify unboxes from its subkind without looking at the uses.
 2. A boolean that Simplify keeps untagged in a parameter of a loop
    (`while_flag.ml`).
-3. A partial application that the unit exports
-   (`partial_exported.ml`): the wrapper that Simplify makes of it calls
-   the function through a value slot of its own closure, and the
-   validator, which knows what the slot holds, inlines that call in
+3. The wrapper of a partial application whose closure stays
+   (`partial_exported.ml`). The front end makes the wrapper, as code
+   marked `stub`, with a direct call of the function through a value
+   slot of the wrapper's own closure. Simplify simplifies the code of
+   a stub where the code is bound and not where its closure is made
+   (`middle_end/flambda2/simplify/simplify_static_const.ml`), so it
+   does not know what the slot holds; and it makes of the direct call
+   an indirect call of known arity, the code named being code that
+   it has not simplified
+   (`middle_end/flambda2/simplify/simplify_apply_expr.ml`). The
+   validator, which knows what the slot holds, inlines the call in
    the term before only.
 4. The validator knows more than Simplify in one unit
    (`string_get_checked.ml`): it evaluates the load of a character of
@@ -398,6 +408,14 @@ before. What each shows, and what its validation uses besides:
    handler as an argument; the sharing of primitives of the validator
    knows in a handler what was computed before its `Let_cont`, not
    what the body computes before it applies it.
+6. A value slot that holds a symbol which is not in scope where the
+   slot is read (`capture_fun_bound_in_handler_run.ml`). The closure
+   of a function holds a value chosen by a test when the module
+   runs, so its symbol is bound in the handler of that test; the
+   code of a closure that calls the function is bound at the head of
+   the unit and reads it from a value slot, where Simplify puts the
+   symbol. The validation reads a slot only where the symbol it
+   holds is in scope, and leaves this projection.
 
 What the model has not got, and the conversion refuses: floating-point
 arithmetic (`float_add.ml`), arrays (`array_literal.ml`), mutable
@@ -562,8 +580,29 @@ removed it:
   by the function that knows more of what is bound
   (`FlambdaValidateKnowingSpec.v`), which makes the call direct; a
   call that gives tupled code its tuple is then inlined
-  (`FlambdaNormaliseSpec.inline_apply`). The verdict has a second
-  line that says so.
+  (`FlambdaNormaliseSpec.inline_apply`). The verdict then has a
+  second line that says so. With the rewrites from the types in the
+  normalisation of the term before (the next point), that unit is
+  validated at the first asking.
+- A `Switch` on a variable, in a handler that only one arm of a
+  `Switch` on the same variable applies (two generated units of
+  `census/`): Simplify, which knows in the arm what the variable is,
+  resolves the second. The rewrites that Simplify makes from the
+  types are applied to the term before once, between two runs of the
+  rounds of its second phase
+  (`FlambdaSimplifyPassSpec.simplify_by_types`, in
+  `FlambdaValidateSpec.normalise_before`): a handler that is applied
+  once is rewritten under what is known where it is applied.
+- A closure that calls a function of its module, made by a function
+  that stays a function (`capture_fun_and_var_run.ml`,
+  `capture_two_funs.ml`, `capture_rec_self.ml`, `over_rec.ml`): the
+  closure holds the function in a value slot, and Simplify, which
+  knows what the slot holds, makes the code of the closure call the
+  symbol of the function. The validator replaces the projection of a
+  value slot that every set of closures of the unit gives the same
+  symbol or constant by that symbol or constant, where the symbol is
+  in scope (`FlambdaKnownSlotsSpec.read_known_slots`, in each round
+  of the normalisation of a term in which something was lifted).
 
 A count over 600 units made at random is in `census/README.md`, with
 one over 240 more that have exceptions, loops and recursive functions.
@@ -598,7 +637,7 @@ once more on both sides, and `fib.ml` did not end. With it a round can
 only inline code that is not recursive, so the terms stop growing.
 Each attempt may go on to guess what Simplify lifted and which value
 slots it removed, and where it fails it is made again at the second
-asking. The 252 units here are checked in about ten seconds of
+asking. The 257 units here are checked in about ten seconds of
 processor time together.
 
 `FLSEMANTICS_PRINT_TERMS=1` makes the tool print, of a unit that is not
