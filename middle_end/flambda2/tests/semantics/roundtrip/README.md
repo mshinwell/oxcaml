@@ -29,19 +29,28 @@ Each has a file here with what the tool prints, and its reason below.
   read back is not the unit printed. A limit of fexpr, not of the
   conversion: the example is there to show it.
 
-- `ocaml_option_join.expected`, `ocaml_option_heap.expected`,
-  `ocaml_list_heap.expected`, `ocaml_shape_heap.expected`,
-  `ocaml_shape2_heap.expected`, `ocaml_nested_heap.expected`,
-  `ocaml_either_heap.expected` and `ocaml_int64_option_heap.expected`,
-  the unit after Simplify. Simplify unboxes a variant where two
-  branches meet,
-  and gives the fields that a branch has not got the constant
-  `poison`. The conversion makes that constant of the model; the
-  printer does not print it (see below), so the unit after Simplify is
-  not taken through fexpr. The unit before is.
-
 ## What cannot be printed
 
 `flmodel_to_fexpr.ml` lists at its head what it refuses, with the
-reason for each. The eight examples above meet one: a poison
-constant.
+reason for each. No example meets one today.
+
+## The constant `poison`
+
+Simplify unboxes a variant where two branches meet, and gives the
+fields that a branch has not got the constant `poison`; eight examples
+of `../ocaml` that the tool converts have it after Simplify
+(`option_join.fl` and seven whose names end in `_heap.fl`). The
+conversion makes that constant of the model, which keeps its kind and
+no name. The printer writes it as
+`poison.KIND."poison"`, with the quotes in the name that it gives the
+printer of fexpr: that printer writes the name of a poison constant as
+it is (`middle_end/flambda2/parser/print_fexpr.ml`), and the parser
+reads a string there (`middle_end/flambda2/parser/flambda_parser.mly`,
+the rule `const`), so a poison constant printed with the name that the
+compiler gave it is not read back (discrepancy C2-14).
+
+A poison constant whose kind is a naked `int8`, a naked `int16` or
+`mask` is printed all the same and is not read back today: the
+printer of fexpr writes those three kinds and the parser has no rule
+for them (`flambda_parser.mly`, the rule `naked_number_kind`;
+discrepancy R6-1). No example has one.

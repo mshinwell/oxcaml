@@ -54,10 +54,9 @@
    outside them, or that fexpr has no way to write, raises [Not_printable] with
    the reason: - an arity with an unboxed product: an arity of fexpr is a list
    of kinds; - a constant that is a vector or a mask, which the conversion does
-   not make; - a poison constant, which the conversion makes and which is not
-   written here yet; - a primitive of the heap, which the conversion does not
-   make either; - [Closure_of_set] other than as FlambdaModel.let_closures makes
-   it: the closure at the first function slot of its set, followed by the
+   not make; - a primitive of the heap, which the conversion does not make
+   either; - [Closure_of_set] other than as FlambdaModel.let_closures makes it:
+   the closure at the first function slot of its set, followed by the
    projections of the other function slots, in order, each bound at kind
    [Value]. Flambda binds all the closures of a set at once; -
    [Static_const_closure_of_set] other than as FlambdaModel.bind_closures makes
@@ -71,7 +70,16 @@
 
    What fexpr can write and its parser reads differently is written all the
    same, so that the check shows it: the arity of the arguments of a direct
-   call, the flag of [Is_int], the kind of [Opaque_identity]. *)
+   call, the flag of [Is_int], the kind of [Opaque_identity].
+
+   A poison constant is written with a name of its own, in quotes. The model
+   keeps no name for it, and the printer of fexpr writes a name as it is where
+   the parser reads a string, so that a name without its quotes is not read
+   back. A poison constant of kind naked [int8], naked [int16] or [mask] is
+   written all the same: the parser of fexpr has no rule for those three kinds
+   (parser/flambda_parser.mly, the rule [naked_number_kind]), though its printer
+   writes them, so such a constant is not read back today, and the check shows
+   it. *)
 
 open Import
 open Flambda2_kinds
@@ -256,7 +264,13 @@ let const (c : Model.const) : F.const =
   | Null -> Null
   | Naked_vec128 _ | Naked_vec256 _ | Naked_vec512 _ | Naked_mask _ ->
     not_printable "a constant that is a vector or a mask"
-  | Poison _ -> not_printable "a poison constant"
+  | Poison k ->
+    (* The printer of fexpr writes the name of a poison constant as it is, and
+       the parser asks for a string there (parser/print_fexpr.ml, the case
+       [Poison]; parser/flambda_parser.mly, the rule [const]). So the name is
+       given with its quotes, and the text can be read. The model keeps no name:
+       the conversion drops it. *)
+    Poison (kind k, "\"poison\"")
 
 let simple (s : Model.simple) : F.simple =
   match s with
