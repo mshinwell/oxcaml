@@ -1,0 +1,41 @@
+(let $camlString_get_in_branch__string_1 = "index out of bounds" in
+ let $camlString_get_in_branch__block_2 =
+   Block 0 ($`*predef*`.caml_exn_Invalid_argument,
+            $camlString_get_in_branch__string_1)
+ in
+ let $camlString_get_in_branch__immstring_0 = "hello" in
+ (let s/37 = %opaque ($camlString_get_in_branch__immstring_0) in
+  let i/38 = %opaque (3) in
+  (let Popaque/47 = %opaque (1) in
+   (let untagged/48 = %untag_imm (Popaque/47) in
+    switch untagged/48
+      | 0 -> k/18 (0)
+      | 1 -> k/23)
+     where k/23 =
+       cont k/19)
+    where k/19 =
+      ((let prim/43 = %string_length (s/37) in
+        let prim/44 = %num_conv.[`imm`].[`nativeint`] (prim/43) in
+        let prim/45 = %num_conv.[tagged_imm].[`nativeint`] (i/38) in
+        let prim/46 = %int_comp.`nativeint`.unsigned.lt (prim/45, prim/44) in
+        switch prim/46
+          | 0 -> k/21
+          | 1 -> k/22)
+         where k/22 =
+           cont k/20
+         where k/21 =
+           cont error pop(regular error) ($camlString_get_in_branch__block_2)
+         where k/20 =
+           let prim/39 = %num_conv.[tagged_imm].[`nativeint`] (i/38) in
+           let prim/40 = %string_load.[`8`] (s/37, prim/39) in
+           let Pstringrefs/41 = %tag_imm (prim/40) in
+           let int_add/42 = %int_barith.add (Pstringrefs/41, 1) in
+           cont k/18 (int_add/42)))
+   where k/18 (result/35 : imm tagged) =
+     let Pmakeblock/36 = %block.[`0`].`toplevel` (result/35) in
+     cont k/17 (Pmakeblock/36))
+  where k/17 define_root_symbol (module_block/33) =
+    let field_0/34 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/33)
+    in
+    let $camlString_get_in_branch = Block 0 (field_0/34) in
+    cont done ($camlString_get_in_branch)

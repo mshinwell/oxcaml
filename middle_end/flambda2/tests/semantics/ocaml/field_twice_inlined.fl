@@ -1,0 +1,47 @@
+let $camlField_twice_inlined__first_const_0 = Block 0 () in
+(let code inline(always) size(26)
+       both_0 (p/47 : [ 0 of val * val ])
+         my_closure/48 &my_alloc_region/49 my_depth/50
+         -> k/22 * k/23
+         : imm tagged =
+   let next_depth/51 = rec_info (succ my_depth/50) in
+   (let Pfield/55 = %block_load.[`0`] (p/47) in
+    apply &my_alloc_region/49 Pfield/55 (0) -> k/25 * k/23)
+     where k/25 (apply_result/53 : [ 0 |1 ]) =
+       ((let untagged/54 = %untag_imm (apply_result/53) in
+         switch untagged/54
+           | 0 -> k/22 (0)
+           | 1 -> k/26)
+          where k/26 =
+            cont k/24)
+     where k/24 =
+       let Pfield/52 = %block_load.[`0`] (p/47) in
+       apply &my_alloc_region/49 Pfield/52 (1) -> k/22 * k/23
+ in
+ let code size(1)
+       `fn[field_twice_inlined.ml:10,30--45]_1` (param/56 : imm tagged)
+         my_closure/57 &my_alloc_region/58 my_depth/59
+         -> k/27 * k/28
+         : imm tagged =
+   let next_depth/60 = rec_info (succ my_depth/59) in
+   cont k/27 (1)
+ in
+ let both/61 = closure both_0 @both &toplevel in
+ (let `fn[field_twice_inlined.ml:10,30--45]/64` =
+    closure `fn[field_twice_inlined.ml:10,30--45]_1`
+      @`fn[field_twice_inlined.ml:10,30--45]` &toplevel
+  in
+  let Pmakeblock/65 =
+    %block.[`0`].`toplevel` (`fn[field_twice_inlined.ml:10,30--45]/64`, 0)
+  in
+  let Popaque/66 = %opaque (Pmakeblock/65) in
+  apply direct(both_0 &toplevel)
+    (both/61 : _ -> [ 0 |1 ]) (Popaque/66) -> k/29 * error)
+   where k/29 (result/62 : imm tagged) =
+     let Pmakeblock/63 = %block.[`0`].`toplevel` (result/62) in
+     cont k/21 (Pmakeblock/63))
+  where k/21 define_root_symbol (module_block/45) =
+    let field_0/46 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/45)
+    in
+    let $camlField_twice_inlined = Block 0 (field_0/46) in
+    cont done ($camlField_twice_inlined)

@@ -1,0 +1,69 @@
+(let $camlString_length_after_join__string_1 = "index out of bounds" in
+ let $camlString_length_after_join__block_2 =
+   Block 0 ($`*predef*`.caml_exn_Invalid_argument,
+            $camlString_length_after_join__string_1)
+ in
+ let $camlString_length_after_join__immstring_0 = "hello" in
+ (let s/59 = %opaque ($camlString_length_after_join__immstring_0) in
+  let i/60 = %opaque (1) in
+  let j/61 = %opaque (2) in
+  (let Popaque/80 = %opaque (1) in
+   (let untagged/81 = %untag_imm (Popaque/80) in
+    switch untagged/81
+      | 0 -> k/40
+      | 1 -> k/41)
+     where k/41 =
+       cont k/32
+     where k/40 =
+       cont k/36)
+    where k/36 =
+      ((let prim/76 = %string_length (s/59) in
+        let prim/77 = %num_conv.[`imm`].[`nativeint`] (prim/76) in
+        let prim/78 = %num_conv.[tagged_imm].[`nativeint`] (j/61) in
+        let prim/79 = %int_comp.`nativeint`.unsigned.lt (prim/78, prim/77) in
+        switch prim/79
+          | 0 -> k/38
+          | 1 -> k/39)
+         where k/39 =
+           cont k/37
+         where k/38 =
+           cont error
+                  pop(regular error)
+                  ($camlString_length_after_join__block_2)
+         where k/37 =
+           let prim/73 = %num_conv.[tagged_imm].[`nativeint`] (j/61) in
+           let prim/74 = %string_load.[`8`] (s/59, prim/73) in
+           let Pstringrefs/75 = %tag_imm (prim/74) in
+           cont k/31 (Pstringrefs/75))
+    where k/32 =
+      ((let prim/69 = %string_length (s/59) in
+        let prim/70 = %num_conv.[`imm`].[`nativeint`] (prim/69) in
+        let prim/71 = %num_conv.[tagged_imm].[`nativeint`] (i/60) in
+        let prim/72 = %int_comp.`nativeint`.unsigned.lt (prim/71, prim/70) in
+        switch prim/72
+          | 0 -> k/34
+          | 1 -> k/35)
+         where k/35 =
+           cont k/33
+         where k/34 =
+           cont error
+                  pop(regular error)
+                  ($camlString_length_after_join__block_2)
+         where k/33 =
+           let prim/66 = %num_conv.[tagged_imm].[`nativeint`] (i/60) in
+           let prim/67 = %string_load.[`8`] (s/59, prim/66) in
+           let Pstringrefs/68 = %tag_imm (prim/67) in
+           cont k/31 (Pstringrefs/68))
+    where k/31 (c/62 : imm tagged) =
+      let prim/63 = %string_length (s/59) in
+      let Pstringlength/64 = %tag_imm (prim/63) in
+      let int_add/65 = %int_barith.add (c/62, Pstringlength/64) in
+      cont k/30 (int_add/65))
+   where k/30 (result/57 : imm tagged) =
+     let Pmakeblock/58 = %block.[`0`].`toplevel` (result/57) in
+     cont k/29 (Pmakeblock/58))
+  where k/29 define_root_symbol (module_block/55) =
+    let field_0/56 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/55)
+    in
+    let $camlString_length_after_join = Block 0 (field_0/56) in
+    cont done ($camlString_length_after_join)

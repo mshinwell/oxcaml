@@ -1,0 +1,49 @@
+(let $camlString_get_twice__string_1 = "index out of bounds" in
+ let $camlString_get_twice__block_2 =
+   Block 0 ($`*predef*`.caml_exn_Invalid_argument,
+            $camlString_get_twice__string_1)
+ in
+ let $camlString_get_twice__immstring_0 = "hello" in
+ (let s/47 = %opaque ($camlString_get_twice__immstring_0) in
+  let i/48 = %opaque (1) in
+  (let prim/60 = %string_length (s/47) in
+   let prim/61 = %num_conv.[`imm`].[`nativeint`] (prim/60) in
+   let prim/62 = %num_conv.[tagged_imm].[`nativeint`] (i/48) in
+   let prim/63 = %int_comp.`nativeint`.unsigned.lt (prim/62, prim/61) in
+   switch prim/63
+     | 0 -> k/25
+     | 1 -> k/26)
+    where k/26 =
+      cont k/21
+    where k/25 =
+      cont error pop(regular error) ($camlString_get_twice__block_2)
+    where k/21 =
+      let prim/49 = %num_conv.[tagged_imm].[`nativeint`] (i/48) in
+      let prim/50 = %string_load.[`8`] (s/47, prim/49) in
+      let Pstringrefs/51 = %tag_imm (prim/50) in
+      ((let prim/56 = %string_length (s/47) in
+        let prim/57 = %num_conv.[`imm`].[`nativeint`] (prim/56) in
+        let prim/58 = %num_conv.[tagged_imm].[`nativeint`] (i/48) in
+        let prim/59 = %int_comp.`nativeint`.unsigned.lt (prim/58, prim/57) in
+        switch prim/59
+          | 0 -> k/23
+          | 1 -> k/24)
+         where k/24 =
+           cont k/22
+         where k/23 =
+           cont error pop(regular error) ($camlString_get_twice__block_2)
+         where k/22 =
+           let prim/52 = %num_conv.[tagged_imm].[`nativeint`] (i/48) in
+           let prim/53 = %string_load.[`8`] (s/47, prim/52) in
+           let Pstringrefs/54 = %tag_imm (prim/53) in
+           let int_add/55 = %int_barith.add (Pstringrefs/54, Pstringrefs/51)
+           in
+           cont k/20 (int_add/55)))
+   where k/20 (result/45 : imm tagged) =
+     let Pmakeblock/46 = %block.[`0`].`toplevel` (result/45) in
+     cont k/19 (Pmakeblock/46))
+  where k/19 define_root_symbol (module_block/43) =
+    let field_0/44 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/43)
+    in
+    let $camlString_get_twice = Block 0 (field_0/44) in
+    cont done ($camlString_get_twice)
