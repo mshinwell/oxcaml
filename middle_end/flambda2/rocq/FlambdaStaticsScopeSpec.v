@@ -27,7 +27,8 @@
 
 
 (* The rewrites of static bindings that the check of the validation
-   applies keep scope.
+   applies keep scope, and so does a rewrite of parameters that is
+   written for it to apply.
 
    This file is to be reviewed: the statements.
 
@@ -115,6 +116,14 @@
      variable; [with_statics_first] is that with the groups tidied, or
      the term as it is ([with_statics_first_keeps_scope_statement]).
      The statement does not need the tests that [hoist_statics] makes.
+   - FlambdaUnaliasParamsSpec.unalias_params, which nothing applies
+     yet, takes away a parameter of a continuation that every
+     application gives one variable, and has the handler begin with a
+     [Let] of the parameter to that variable. The variable is free in
+     the body of the [Let_cont], where an application gives it and no
+     binder on the way binds it; the applications lose an argument
+     and mention no continuation more
+     ([unalias_params_keeps_scope_statement]).
 
    Nothing is asked of a term but that its code is closed, which
    [keeps_scope] itself asks, and nothing of what a rewrite is given.
@@ -129,7 +138,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaStaticsOrderSpec FlambdaMyClosureSpec FlambdaLiftSpec
   FlambdaLiftFromCodeSpec FlambdaLiftFromArmsSpec FlambdaUnusedSlotsSpec
   FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec FlambdaFloatCodeSpec
-  FlambdaKnownSlotsSpec FlambdaValidateSpec
+  FlambdaKnownSlotsSpec FlambdaUnaliasParamsSpec FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec.
 Import ListNotations.
 
@@ -231,3 +240,10 @@ Definition float_code_keeps_scope_statement : Prop := keeps_scope float_code.
 
 Definition with_statics_first_keeps_scope_statement : Prop :=
   ∀ Ls : list lifting, keeps_scope (with_statics_first Ls).
+
+(* ======================================================================== *)
+(* A parameter that every application gives one variable                    *)
+(* ======================================================================== *)
+
+Definition unalias_params_keeps_scope_statement : Prop :=
+  keeps_scope unalias_params.

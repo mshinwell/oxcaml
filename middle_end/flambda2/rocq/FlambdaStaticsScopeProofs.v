@@ -33,7 +33,9 @@
    term it is given (FlambdaScopedProofs.scoped), by recursion on the
    term with the lemmas of that file for each construct. A group whose
    bindings are permuted has the same closed code and the same free
-   names; a group with bindings removed has no more of either. *)
+   names; a group with bindings removed has no more of either. The
+   lemmas for FlambdaUnaliasParamsSpec.unalias_params are in
+   FlambdaUnaliasParamsNamesProofs.v. *)
 
 From Stdlib Require Import ZArith List Bool Permutation.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
@@ -44,9 +46,10 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaLiftFromCodeSpec FlambdaLiftFromArmsSpec FlambdaHoistStaticsSpec
   FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec
   FlambdaKnownSlotsSpec FlambdaStaticsInScopeSpec
-  FlambdaFloatCodeSpec FlambdaValidateSpec
+  FlambdaFloatCodeSpec FlambdaUnaliasParamsSpec FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec FlambdaScopedProofs
   FlambdaKeepsScopeProofs FlambdaStaticsScopeSpec.
+From OxCamlFlambda2 Require FlambdaUnaliasParamsNamesProofs.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -1348,3 +1351,10 @@ Proof.
            (hoisted_bindings_no_free_names e Hclosed)
            (without_hoisted_scoped e) Hclosed).
 Qed.
+
+(* ======================================================================== *)
+(* A parameter that every application gives one variable                    *)
+(* ======================================================================== *)
+
+Theorem unalias_params_keeps_scope : unalias_params_keeps_scope_statement.
+Proof. exact FlambdaUnaliasParamsNamesProofs.unalias_params_scope. Qed.

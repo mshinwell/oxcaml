@@ -186,7 +186,9 @@
    FlambdaForwardSpec.forward_applications; and
    FlambdaInlineTailSpec.inline_tail_conts_kinded and
    FlambdaForwardJumpsSpec.forward_jumps, which the validation
-   applies to the term after. And
+   applies to the term after. One that nothing applies yet is stated
+   with them: FlambdaUnaliasParamsSpec.unalias_params, which takes
+   away a parameter that every application gives one variable. And
    FlambdaLoopifySpec.loopify_unit, which the validation applies to
    the term before, after the first comparison and before any rewrite
    that makes names: it is given, for the code ids to make loops of,
@@ -323,7 +325,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaForwardSpec FlambdaForwardJumpsSpec FlambdaInlineTailSpec
   FlambdaLoopifySpec
   FlambdaDeadParamsSpec FlambdaRenameApartSpec FlambdaUnusedProjectionsSpec
-  FlambdaValidateSpec.
+  FlambdaUnaliasParamsSpec FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -804,6 +806,13 @@ Definition forward_jumps_equivariant_statement : Prop :=
    gives one kind for each parameter (FlambdaInlineTailSpec.v). *)
 Definition inline_tail_conts_kinded_equivariant_statement : Prop :=
   rewrite_equivariant inline_tail_conts_kinded.
+
+(* Taking away a parameter of a continuation that every application
+   gives one variable, which is at the handler what it is at the
+   applications (FlambdaUnaliasParamsSpec.v). That it keeps scope is in
+   FlambdaStaticsScopeSpec.v. *)
+Definition unalias_params_equivariant_statement : Prop :=
+  rewrite_equivariant unalias_params.
 
 (* FlambdaLoopifySpec.loopify_unit is given, for each code id to make
    a loop of, the continuation of the loop. The action: the

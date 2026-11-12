@@ -69,12 +69,14 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMergeSwitchesSpec FlambdaMergeSwitchesProofs FlambdaStaticsOrderSpec
   FlambdaStaticsOrderProofs FlambdaRenameApartSpec FlambdaRenameApartProofs
   FlambdaInlineSiblingsSpec FlambdaInlineSiblingsProofs
-  FlambdaUnusedProjectionsSpec FlambdaUnboxVariantsSpec FlambdaValidateSpec
+  FlambdaUnusedProjectionsSpec FlambdaUnboxVariantsSpec
+  FlambdaUnaliasParamsSpec FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec FlambdaValidatorEquivarianceBaseProofs.
 From OxCamlFlambda2 Require FlambdaKeepsScopeProofs FlambdaValidateScopeProofs
   FlambdaLoopsScopeProofs
   FlambdaStaticsScopeProofs FlambdaLiftFromArmsProofs
-  FlambdaHoistStaticsProofs FlambdaUnboxParamsNamesProofs.
+  FlambdaHoistStaticsProofs FlambdaUnboxParamsNamesProofs
+  FlambdaUnaliasParamsNamesProofs.
 From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
 From OxCamlFlambda2 Require FlambdaDemoteProofs.
 From OxCamlFlambda2 Require Import FlambdaKnownSlotsSpec.
@@ -4467,6 +4469,11 @@ Qed.
 Lemma inline_tail_conts_kinded_equivariant :
   rewrite_equivariant inline_tail_conts_kinded.
 Proof. exact inline_tail_conts_kinded_equivariant_aux. Qed.
+
+(* Taking away a parameter that every application gives one variable:
+   the lemmas are in FlambdaUnaliasParamsNamesProofs.v. *)
+Theorem unalias_params_equivariant : unalias_params_equivariant_statement.
+Proof. exact FlambdaUnaliasParamsNamesProofs.unalias_params_renamed. Qed.
 
 (* Following aliases into the handlers of recursive continuations. *)
 Fixpoint follow_aliases_in_loops_equivariant_aux (r : renaming) (e : expr) :
