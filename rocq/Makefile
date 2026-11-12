@@ -229,6 +229,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaExpandHead.v \
   FlambdaExpandHeadProofs.v \
   FlambdaExpandHeadSpec.v \
+  FlambdaJoinAddsProofs.v \
+  FlambdaJoinAddsSpec.v \
   FlambdaJoinDefineProofs.v \
   FlambdaJoinDefineSpec.v \
   FlambdaJoinEnv.v \
