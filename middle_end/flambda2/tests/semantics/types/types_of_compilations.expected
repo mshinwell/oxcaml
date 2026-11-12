@@ -115,6 +115,8 @@ In all:
   3690 is_obviously_unknown: agree
   3681 free_variables against free_names, without shadowed bindings: agree
   3681 free_variables includes free_names, with shadowed bindings: agree
+  3690 must_be_singleton: agree
+  3233 is_alias_of_name, of each name that the type mentions at its top: not run, the type mentions no variable and is no alias
   3690 free_variables, with the variables of what the converter drops, against free_names: agree
   61 the round trip from the compiler, as printed: not run, not in the compiler: a Rec_info type given by its head: the model has not got the expression
   61 the round trip from the compiler, for the compiler's equality: not run, not in the compiler: a Rec_info type given by its head: the model has not got the expression
@@ -124,6 +126,7 @@ In all:
   3629 the round trip from the compiler, as printed: agree
   3629 the round trip from the compiler, for the compiler's equality: agree
   3629 the round trip from the compiler, for Type_grammar.equal: agree
+  457 is_alias_of_name, of each name that the type mentions at its top: agree
   62 with a function type that has a rec_info, which is put back for the round trip from the compiler
   9 free_variables against free_names, without shadowed bindings: not run, what the converter dropped of Rec_info mentions variables, which the model has not got
   9 free_variables includes free_names, with shadowed bindings: not run, what the converter dropped of Rec_info mentions variables, which the model has not got

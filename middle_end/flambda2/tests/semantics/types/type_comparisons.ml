@@ -41,6 +41,7 @@ module TG = Flambda2_types__Type_grammar
 module TE = Flambda2_types__Typing_env
 module Equal = Flambda2_types__Equal_types_for_debug
 module Binary = Flambda2_types__Meet_and_join
+module MTC = Flambda2_types__More_type_creators
 module M = Flambda2_rocq_semantics.FlambdaModel
 module MT = Flambda2_rocq_semantics.FlambdaTypeGrammar
 module Well_formed = Flambda2_rocq_semantics.FlambdaTypeWellFormedSpec
@@ -115,7 +116,8 @@ let general reason =
 
 (* What the compiler does where it may stop with a fatal error. It writes what
    the error is about on the standard error before it raises: that is taken from
-   there, and kept out of the log. *)
+   there, and kept out of the log. Another exception goes through, with the
+   standard error as it was. *)
 let or_fatal_error f : (_, string) result =
   let out = Format.pp_get_formatter_out_functions Format.err_formatter () in
   let written = Buffer.create 80 in
@@ -151,6 +153,9 @@ let or_fatal_error f : (_, string) result =
          && String.equal (String.sub first_line 0 length) prefix
        then String.sub first_line length (String.length first_line - length)
        else first_line)
+  | exception other ->
+    restore ();
+    raise other
 
 let failures = ref 0
 
@@ -401,7 +406,63 @@ let comparisons_of_one_type (numbering : Model_names.t) : both comparison list =
       (fun m -> MT.free_variables (Model_type.normalise m))
       ~exact:true;
     free_variables "free_variables includes free_names, with shadowed bindings"
-      MT.free_variables ~exact:false ]
+      MT.free_variables ~exact:false;
+    (* The model answers [None] where the compiler stops with a fatal error: the
+       immediates of a variant that are one constant of another kind. *)
+    { name = "must_be_singleton";
+      compare =
+        (fun { model; compiler } ->
+          let of_model = MT.must_be_singleton model in
+          let of_compiler =
+            match or_fatal_error (fun () -> TG.must_be_singleton compiler) with
+            | Ok const -> Some (Option.map Converter.const_to_model const)
+            | Error (_ : string) -> None
+          in
+          let print ppf (answer : M.const option option) =
+            match answer with
+            | None -> Format.pp_print_string ppf "a fatal error"
+            | Some None -> Format.pp_print_string ppf "None"
+            | Some (Some const) -> Model_type.print_const ppf const
+          in
+          agree_if
+            (Stdlib.( = ) of_model of_compiler)
+            (Format.asprintf "the model answers %a, the compiler %a" print
+               of_model print of_compiler))
+    };
+    (* Asked of every name that could be the answer: the variables that the type
+       mentions, and the symbol that it is an alias of if it is one. *)
+    { name = "is_alias_of_name, of each name that the type mentions at its top";
+      compare =
+        (fun { model; compiler } ->
+          let names : MT.name list =
+            List.map
+              (fun x : MT.name -> Name_var x)
+              (Model_type.set N.compare_positive (MT.free_variables model))
+            @
+            match MT.get_alias_opt model with
+            | Some (Symbol symbol) -> [MT.Name_symbol symbol]
+            | Some (Var _ | Const _) | None -> []
+          in
+          let differ =
+            List.filter
+              (fun name ->
+                not
+                  (Bool.equal
+                     (MT.is_alias_of_name model name)
+                     (MTC.is_alias_of_name compiler
+                        (Converter.name_of_model numbering name))))
+              names
+          in
+          match names, differ with
+          | [], _ -> Not_run "the type mentions no variable and is no alias"
+          | _ :: _, [] -> Agree
+          | _ :: _, name :: _ ->
+            Disagree
+              (Format.asprintf "the model answers %b of %a, the compiler %b"
+                 (MT.is_alias_of_name model name)
+                 Model_type.print_name name
+                 (not (MT.is_alias_of_name model name))))
+    } ]
 
 (* For a type of the compiler that has what the converter drops of [Rec_info]:
    the variables of the model's type, with those of what was dropped, are the

@@ -301,6 +301,32 @@ type call =
   | Is_null_for_scrutinee of MT.name
   | Exactly_this_closure of slots_and_types
   | At_least_this_closure of slots_and_types
+  | Unknown_like of MT.flambda_type
+  | Bottom_like of MT.flambda_type
+  | Unknown_from_shape of MT.block_shape * int
+  | Unknown_with_subkind of MK.flambda_kind
+  | Kind_for_const of M.const
+  | These_naked_numbers of MK.naked_number_kind * N.z list
+  | Any_tagged_bool
+  | Any_naked_bool
+  | Any_tagged_immediate_or_null
+  | Tagged_immediate_alias_to of M.variable
+  | Boxed_number_alias_to of MK.boxable_number * M.variable * MT.Alloc_mode.t
+  | This_boxed_number of MK.boxable_number * N.z * MT.Alloc_mode.t
+  | These_boxed_numbers of MK.boxable_number * N.z list * MT.Alloc_mode.t
+  | Any_boxed_number of MK.boxable_number
+  | Row_like_create of block * MT.Open_or_closed.t
+      (** The tag is that of the second argument, and not the block's. *)
+  | Immutable_block_with_size_at_least of
+      N.z MT.Or_unknown.t * int * MT.block_shape * M.variable
+  | Closure_with_at_least_these_function_slots of
+      M.function_slot * (M.function_slot * M.simple) list
+  | Static_closure_with_this_code of
+      M.function_slot * M.symbol option * M.code_id
+  | Closure_with_at_least_these_value_slots of
+      M.function_slot * (M.value_slot * (M.variable * MK.flambda_kind)) list
+  | Closure_with_at_least_this_value_slot of
+      M.function_slot * M.value_slot * M.variable * MK.flambda_kind
 
 let name_of_call (call : call) =
   match call with
@@ -333,6 +359,29 @@ let name_of_call (call : call) =
   | Is_null_for_scrutinee _ -> "is_null_for_scrutinee"
   | Exactly_this_closure _ -> "exactly_this_closure"
   | At_least_this_closure _ -> "at_least_this_closure"
+  | Unknown_like _ -> "unknown_like"
+  | Bottom_like _ -> "bottom_like"
+  | Unknown_from_shape _ -> "unknown_from_shape"
+  | Unknown_with_subkind _ -> "unknown_with_subkind, of a kind"
+  | Kind_for_const _ -> "kind_for_const, as the unknown type of the kind"
+  | These_naked_numbers _ -> "these_naked_numbers"
+  | Any_tagged_bool -> "any_tagged_bool"
+  | Any_naked_bool -> "any_naked_bool"
+  | Any_tagged_immediate_or_null -> "any_tagged_immediate_or_null"
+  | Tagged_immediate_alias_to _ -> "tagged_immediate_alias_to"
+  | Boxed_number_alias_to _ -> "boxed_number_alias_to"
+  | This_boxed_number _ -> "this_boxed_number"
+  | These_boxed_numbers _ -> "these_boxed_numbers"
+  | Any_boxed_number _ -> "any_boxed_number"
+  | Row_like_create _ -> "row_like_for_blocks_create"
+  | Immutable_block_with_size_at_least _ -> "immutable_block_with_size_at_least"
+  | Closure_with_at_least_these_function_slots _ ->
+    "closure_with_at_least_these_function_slots"
+  | Static_closure_with_this_code _ -> "static_closure_with_this_code"
+  | Closure_with_at_least_these_value_slots _ ->
+    "closure_with_at_least_these_value_slots"
+  | Closure_with_at_least_this_value_slot _ ->
+    "closure_with_at_least_this_value_slot"
 
 let names_of_calls =
   [ "unknown";
@@ -362,7 +411,27 @@ let names_of_calls =
     "get_tag_for_block";
     "is_null_for_scrutinee";
     "exactly_this_closure";
-    "at_least_this_closure" ]
+    "at_least_this_closure";
+    "unknown_like";
+    "bottom_like";
+    "unknown_from_shape";
+    "unknown_with_subkind, of a kind";
+    "kind_for_const, as the unknown type of the kind";
+    "these_naked_numbers";
+    "any_tagged_bool";
+    "any_naked_bool";
+    "any_tagged_immediate_or_null";
+    "tagged_immediate_alias_to";
+    "boxed_number_alias_to";
+    "this_boxed_number";
+    "these_boxed_numbers";
+    "any_boxed_number";
+    "row_like_for_blocks_create";
+    "immutable_block_with_size_at_least";
+    "closure_with_at_least_these_function_slots";
+    "static_closure_with_this_code";
+    "closure_with_at_least_these_value_slots";
+    "closure_with_at_least_this_value_slot" ]
 
 (* A row-like structure of blocks as a type, to compare it as one. *)
 let blocks_as_type_of_model (blocks : MT.row_like_for_blocks) =
@@ -373,7 +442,15 @@ let blocks_as_type_of_compiler (blocks : TG.row_like_for_blocks) =
   TG.create_variant ~is_unique:false ~immediates:Unknown ~blocks:(Known blocks)
     ~extensions:No_extensions
 
+(* A function of the model that answers [None] where the compiler's function
+   stops (a fatal error, an index outside an array) has no type to compare: the
+   compiler's function is then to stop too. *)
+exception No_answer
+
 let call_in_the_model (call : call) : MT.flambda_type =
+  let answer (result : _ option) =
+    match result with Some result -> result | None -> raise No_answer
+  in
   match call with
   | Unknown kind -> MT.unknown kind
   | Bottom kind -> MT.bottom kind
@@ -437,6 +514,42 @@ let call_in_the_model (call : call) : MT.flambda_type =
       } ->
     MT.at_least_this_closure this_function_slot function_types closure_types
       value_slot_types closure_alloc_mode
+  | Unknown_like t -> MT.unknown_like t
+  | Bottom_like t -> MT.bottom_like t
+  | Unknown_from_shape (shape, index) ->
+    answer (MT.unknown_from_shape shape (N.nat_of_int index))
+  | Unknown_with_subkind kind -> MT.unknown_with_subkind kind
+  | Kind_for_const const -> MT.unknown (MT.kind_for_const const)
+  | These_naked_numbers (kind, numbers) -> MT.these_naked_numbers kind numbers
+  | Any_tagged_bool -> MT.any_tagged_bool
+  | Any_naked_bool -> MT.any_naked_bool
+  | Any_tagged_immediate_or_null -> MT.any_tagged_immediate_or_null
+  | Tagged_immediate_alias_to variable -> MT.tagged_immediate_alias_to variable
+  | Boxed_number_alias_to (number, variable, alloc_mode) ->
+    MT.boxed_number_alias_to number variable alloc_mode
+  | This_boxed_number (number, i, alloc_mode) ->
+    MT.this_boxed_number number i alloc_mode
+  | These_boxed_numbers (number, numbers, alloc_mode) ->
+    MT.these_boxed_numbers number numbers alloc_mode
+  | Any_boxed_number number -> MT.any_boxed_number number
+  | Row_like_create
+      ({ tag = _; shape; fields; block_alloc_mode }, open_or_closed) ->
+    blocks_as_type_of_model
+      (answer
+         (MT.row_like_for_blocks_create shape fields open_or_closed
+            block_alloc_mode))
+  | Immutable_block_with_size_at_least (tag, n, shape, x) ->
+    answer (MT.immutable_block_with_size_at_least tag (N.nat_of_int n) shape x)
+  | Closure_with_at_least_these_function_slots (function_slot, bindings) ->
+    MT.closure_with_at_least_these_function_slots function_slot bindings
+  | Static_closure_with_this_code (function_slot, symbol, code) ->
+    MT.static_closure_with_this_code function_slot symbol code
+  | Closure_with_at_least_these_value_slots (function_slot, value_slots) ->
+    MT.closure_with_at_least_these_value_slots function_slot value_slots
+  | Closure_with_at_least_this_value_slot
+      (function_slot, value_slot, variable, kind) ->
+    MT.closure_with_at_least_this_value_slot function_slot value_slot variable
+      kind
 
 exception No_such_function of string
 
@@ -449,6 +562,16 @@ let call_in_the_compiler (names : names) (call : call) : TG.t =
     Target_ocaml_int.Set.of_list (List.map immediate imms)
   in
   let scrutinee name = Simple.name (C.name_of_model numbering name) in
+  let variable = C.variable_of_model numbering in
+  let function_slot = C.function_slot_of_model numbering in
+  let numbers what of_z of_list numbers =
+    of_list (List.map (C.in_range what of_z) numbers)
+  in
+  let no_function_for_vectors () =
+    raise
+      (No_such_function
+         "the compiler has no such function for the vectors and the masks")
+  in
   let create_blocks { tag; shape; fields; block_alloc_mode } open_or_closed =
     TG.Row_like_for_blocks.create ~machine_width
       ~shape:(C.block_shape_of_model shape)
@@ -583,6 +706,197 @@ let call_in_the_compiler (names : names) (call : call) : TG.t =
     in
     MTC.at_least_this_closure this_function_slot ~at_least_these_function_slots
       ~at_least_these_closure_types ~at_least_these_value_slots alloc_mode
+  | Unknown_like t -> MTC.unknown_like (ty t)
+  | Bottom_like t -> MTC.bottom_like (ty t)
+  | Unknown_from_shape (shape, index) ->
+    MTC.unknown_from_shape (C.block_shape_of_model shape) index
+  | Unknown_with_subkind kind ->
+    MTC.unknown_with_subkind ~machine_width
+      (K.With_subkind.anything (C.kind_of_model kind))
+  | Kind_for_const const ->
+    MTC.unknown (MTC.kind_for_const (C.const_of_model machine_width const))
+  | These_naked_numbers (kind, ns) -> (
+    match kind with
+    | Kind_naked_immediate -> TG.these_naked_immediates (immediates ns)
+    | Kind_naked_float32 ->
+      TG.these_naked_float32s
+        (numbers "the bits of a float32" C.float32_of_z
+           Numeric_types.Float32_by_bit_pattern.Set.of_list ns)
+    | Kind_naked_float ->
+      TG.these_naked_floats
+        (numbers "the bits of a float" C.float_of_z
+           Numeric_types.Float_by_bit_pattern.Set.of_list ns)
+    | Kind_naked_int8 ->
+      TG.these_naked_int8s
+        (numbers "an int8" C.int8_of_z Numeric_types.Int8.Set.of_list ns)
+    | Kind_naked_int16 ->
+      TG.these_naked_int16s
+        (numbers "an int16" C.int16_of_z Numeric_types.Int16.Set.of_list ns)
+    | Kind_naked_int32 ->
+      TG.these_naked_int32s
+        (numbers "an int32" C.int32_of_z Numeric_types.Int32.Set.of_list ns)
+    | Kind_naked_int64 ->
+      TG.these_naked_int64s
+        (numbers "an int64" C.int64_of_z Numeric_types.Int64.Set.of_list ns)
+    | Kind_naked_nativeint ->
+      TG.these_naked_nativeints
+        (numbers "a nativeint"
+           (C.nativeint_of_z machine_width)
+           Targetint_32_64.Set.of_list ns)
+    | Kind_naked_vec128 ->
+      TG.these_naked_vec128s
+        (numbers "the bits of a vec128" C.vec128_of_z
+           Vector_types.Vec128.Bit_pattern.Set.of_list ns)
+    | Kind_naked_vec256 ->
+      TG.these_naked_vec256s
+        (numbers "the bits of a vec256" C.vec256_of_z
+           Vector_types.Vec256.Bit_pattern.Set.of_list ns)
+    | Kind_naked_vec512 ->
+      TG.these_naked_vec512s
+        (numbers "the bits of a vec512" C.vec512_of_z
+           Vector_types.Vec512.Bit_pattern.Set.of_list ns)
+    | Kind_naked_mask ->
+      TG.these_naked_masks
+        (numbers "the bits of a mask" C.mask_of_z
+           Vector_types.Mask.Bit_pattern.Set.of_list ns))
+  | Any_tagged_bool -> MTC.any_tagged_bool ~machine_width
+  | Any_naked_bool -> MTC.any_naked_bool ~machine_width
+  | Any_tagged_immediate_or_null -> MTC.any_tagged_immediate_or_null
+  | Tagged_immediate_alias_to x ->
+    TG.tagged_immediate_alias_to ~naked_immediate:(variable x)
+  | Boxed_number_alias_to (number, x, alloc_mode) -> (
+    let x = variable x in
+    let alloc_mode = C.alloc_mode_of_model alloc_mode in
+    match number with
+    | Boxable_naked_float32 ->
+      TG.boxed_float32_alias_to ~naked_float32:x alloc_mode
+    | Boxable_naked_float -> TG.boxed_float_alias_to ~naked_float:x alloc_mode
+    | Boxable_naked_int32 -> TG.boxed_int32_alias_to ~naked_int32:x alloc_mode
+    | Boxable_naked_int64 -> TG.boxed_int64_alias_to ~naked_int64:x alloc_mode
+    | Boxable_naked_nativeint ->
+      TG.boxed_nativeint_alias_to ~naked_nativeint:x alloc_mode
+    | Boxable_naked_vec128 ->
+      TG.boxed_vec128_alias_to ~naked_vec128:x alloc_mode
+    | Boxable_naked_vec256 ->
+      TG.boxed_vec256_alias_to ~naked_vec256:x alloc_mode
+    | Boxable_naked_vec512 ->
+      TG.boxed_vec512_alias_to ~naked_vec512:x alloc_mode
+    | Boxable_naked_mask -> TG.boxed_mask_alias_to ~naked_mask:x alloc_mode)
+  | This_boxed_number (number, i, alloc_mode) -> (
+    let alloc_mode = C.alloc_mode_of_model alloc_mode in
+    match number with
+    | Boxable_naked_float32 ->
+      MTC.this_boxed_float32
+        (C.in_range "the bits of a float32" C.float32_of_z i)
+        alloc_mode
+    | Boxable_naked_float ->
+      MTC.this_boxed_float
+        (C.in_range "the bits of a float" C.float_of_z i)
+        alloc_mode
+    | Boxable_naked_int32 ->
+      MTC.this_boxed_int32 (C.in_range "an int32" C.int32_of_z i) alloc_mode
+    | Boxable_naked_int64 ->
+      MTC.this_boxed_int64 (C.in_range "an int64" C.int64_of_z i) alloc_mode
+    | Boxable_naked_nativeint ->
+      MTC.this_boxed_nativeint
+        (C.in_range "a nativeint" (C.nativeint_of_z machine_width) i)
+        alloc_mode
+    | Boxable_naked_vec128 ->
+      MTC.this_boxed_vec128
+        (C.in_range "the bits of a vec128" C.vec128_of_z i)
+        alloc_mode
+    | Boxable_naked_vec256 ->
+      MTC.this_boxed_vec256
+        (C.in_range "the bits of a vec256" C.vec256_of_z i)
+        alloc_mode
+    | Boxable_naked_vec512 ->
+      MTC.this_boxed_vec512
+        (C.in_range "the bits of a vec512" C.vec512_of_z i)
+        alloc_mode
+    | Boxable_naked_mask ->
+      MTC.this_boxed_mask
+        (C.in_range "the bits of a mask" C.mask_of_z i)
+        alloc_mode)
+  | These_boxed_numbers (number, ns, alloc_mode) -> (
+    let alloc_mode = C.alloc_mode_of_model alloc_mode in
+    match number with
+    | Boxable_naked_float32 ->
+      MTC.these_boxed_float32s
+        (numbers "the bits of a float32" C.float32_of_z
+           Numeric_types.Float32_by_bit_pattern.Set.of_list ns)
+        alloc_mode
+    | Boxable_naked_float ->
+      MTC.these_boxed_floats
+        (numbers "the bits of a float" C.float_of_z
+           Numeric_types.Float_by_bit_pattern.Set.of_list ns)
+        alloc_mode
+    | Boxable_naked_int32 ->
+      MTC.these_boxed_int32s
+        (numbers "an int32" C.int32_of_z Numeric_types.Int32.Set.of_list ns)
+        alloc_mode
+    | Boxable_naked_int64 ->
+      MTC.these_boxed_int64s
+        (numbers "an int64" C.int64_of_z Numeric_types.Int64.Set.of_list ns)
+        alloc_mode
+    | Boxable_naked_nativeint ->
+      MTC.these_boxed_nativeints
+        (numbers "a nativeint"
+           (C.nativeint_of_z machine_width)
+           Targetint_32_64.Set.of_list ns)
+        alloc_mode
+    | Boxable_naked_vec128 | Boxable_naked_vec256 | Boxable_naked_vec512
+    | Boxable_naked_mask ->
+      no_function_for_vectors ())
+  | Any_boxed_number number -> (
+    match number with
+    | Boxable_naked_float32 -> MTC.any_boxed_float32
+    | Boxable_naked_float -> MTC.any_boxed_float
+    | Boxable_naked_int32 -> MTC.any_boxed_int32
+    | Boxable_naked_int64 -> MTC.any_boxed_int64
+    | Boxable_naked_nativeint -> MTC.any_boxed_nativeint
+    | Boxable_naked_vec128 | Boxable_naked_vec256 | Boxable_naked_vec512
+    | Boxable_naked_mask ->
+      no_function_for_vectors ())
+  | Row_like_create (block, open_or_closed) ->
+    let tag = C.tag_of_model machine_width in
+    blocks_as_type_of_compiler
+      (create_blocks block (fun (_ : Tag.t) ->
+           match open_or_closed with
+           | Open (Known t) -> Open (Known (tag t))
+           | Open Unknown -> Open Unknown
+           | Closed t -> Closed (tag t)))
+  | Immutable_block_with_size_at_least (tag, n, shape, x) ->
+    MTC.immutable_block_with_size_at_least ~machine_width
+      ~tag:(C.or_unknown_of_model (C.tag_of_model machine_width) tag)
+      ~n:(Target_ocaml_int.of_int machine_width n)
+      ~shape:(C.block_shape_of_model shape)
+      ~field_n_minus_one:(variable x)
+  | Closure_with_at_least_these_function_slots (this_function_slot, bindings) ->
+    MTC.closure_with_at_least_these_function_slots
+      ~this_function_slot:(function_slot this_function_slot)
+      (C.map_of_model ~empty:Function_slot.Map.empty ~mem:Function_slot.Map.mem
+         ~add:Function_slot.Map.add function_slot
+         (C.simple_of_model numbering machine_width)
+         bindings)
+  | Static_closure_with_this_code (this_function_slot, symbol, code) ->
+    MTC.static_closure_with_this_code
+      ~this_function_slot:(function_slot this_function_slot)
+      ~closure_symbol:(Option.map (C.symbol_of_model numbering) symbol)
+      ~code_id:(C.code_id_of_model numbering code)
+  | Closure_with_at_least_these_value_slots (this_function_slot, value_slots) ->
+    MTC.closure_with_at_least_these_value_slots
+      ~this_function_slot:(function_slot this_function_slot)
+      (C.map_of_model ~empty:Value_slot.Map.empty ~mem:Value_slot.Map.mem
+         ~add:Value_slot.Map.add
+         (C.value_slot_of_model numbering)
+         (fun (x, kind) -> variable x, C.kind_of_model kind)
+         value_slots)
+  | Closure_with_at_least_this_value_slot
+      (this_function_slot, value_slot, x, kind) ->
+    MTC.closure_with_at_least_this_value_slot
+      ~this_function_slot:(function_slot this_function_slot)
+      (C.value_slot_of_model numbering value_slot)
+      ~value_slot_var:(variable x) ~value_slot_kind:(C.kind_of_model kind)
 
 (* A call within what the compiler's function asks of its arguments: the kinds
    that it checks, a tag that the shape permits, fields of the kinds of the
@@ -653,6 +967,24 @@ let generate_call (names : names) r : call =
   let kind () = G.kind r in
   let name () = G.name config r pool in
   let naked_immediate = MK.Naked_number Kind_naked_immediate in
+  (* A variable of the pool, of whatever kind: the functions that are given one
+     do not look at its kind. *)
+  let variable () =
+    G.pick r
+      (pool.value_variables @ pool.naked_immediate_variables
+     @ pool.naked_float_variables)
+  in
+  let boxable_number () = G.pick r G.all_boxable_numbers in
+  let naked_number_kind () = G.pick r G.all_naked_number_kinds in
+  (* A tag that a block of values may have, one that it may not, and the tag of
+     the blocks of floats. *)
+  let any_tag () = N.z_of_int (G.pick r [0; 1; 2; 250; 251; 254]) in
+  let open_or_closed () : MT.Open_or_closed.t =
+    match G.below r 3 with
+    | 0 -> Closed (any_tag ())
+    | 1 -> Open (Known (any_tag ()))
+    | _ -> Open Unknown
+  in
   let generators : (unit -> call) list =
     [ (fun () -> Unknown (kind ()));
       (fun () -> Bottom (kind ()));
@@ -714,14 +1046,96 @@ let generate_call (names : names) r : call =
       (fun () -> Get_tag_for_block (name ()));
       (fun () -> Is_null_for_scrutinee (name ()));
       (fun () -> Exactly_this_closure (slots_and_types ()));
-      (fun () -> At_least_this_closure (slots_and_types ())) ]
+      (fun () -> At_least_this_closure (slots_and_types ()));
+      (fun () -> Unknown_like (ty (kind ())));
+      (fun () -> Bottom_like (ty (kind ())));
+      (* An index that the shape has, or one past its fields. *)
+      (fun () -> Unknown_from_shape (G.block_shape r, G.below r 5));
+      (fun () -> Unknown_with_subkind (kind ()));
+      (fun () ->
+        let kind = kind () in
+        match G.const_of_kind config r kind with
+        | Some const -> Kind_for_const const
+        | None -> Kind_for_const (Poison kind));
+      (fun () -> These_naked_numbers (naked_number_kind (), numbers ()));
+      (fun () -> Any_tagged_bool);
+      (fun () -> Any_naked_bool);
+      (fun () -> Any_tagged_immediate_or_null);
+      (fun () -> Tagged_immediate_alias_to (variable ()));
+      (fun () ->
+        Boxed_number_alias_to (boxable_number (), variable (), alloc_mode ()));
+      (fun () ->
+        This_boxed_number (boxable_number (), G.small_number r, alloc_mode ()));
+      (fun () ->
+        These_boxed_numbers (boxable_number (), numbers (), alloc_mode ()));
+      (fun () -> Any_boxed_number (boxable_number ()));
+      (fun () -> Row_like_create (block (), open_or_closed ()));
+      (fun () ->
+        Immutable_block_with_size_at_least
+          ( (if G.chance r ~percent:30
+             then MT.Or_unknown.Unknown
+             else MT.Or_unknown.Known (any_tag ())),
+            G.below r 5,
+            G.block_shape r,
+            variable () ));
+      (fun () ->
+        Closure_with_at_least_these_function_slots
+          ( G.pick r pool.function_slots,
+            distinct_keys
+              (G.list r ~max:2 (fun () ->
+                   ( G.pick r pool.function_slots,
+                     match G.simple config r pool MK.Value with
+                     | Some simple -> simple
+                     | None -> M.Var (variable ()) ))) ));
+      (fun () ->
+        Static_closure_with_this_code
+          ( G.pick r pool.function_slots,
+            (if G.chance r ~percent:50
+             then Some (G.pick r pool.symbols)
+             else None),
+            G.pick r pool.code_ids ));
+      (fun () ->
+        Closure_with_at_least_these_value_slots
+          ( G.pick r pool.function_slots,
+            distinct_keys
+              (G.list r ~max:2 (fun () ->
+                   G.pick r pool.value_slots, (variable (), kind ()))) ));
+      (fun () ->
+        Closure_with_at_least_this_value_slot
+          ( G.pick r pool.function_slots,
+            G.pick r pool.value_slots,
+            variable (),
+            kind () )) ]
   in
   (G.pick r generators) ()
 
 (* A call is shown by the type that the model makes of it. *)
+let model_on_call (call : call) : MT.flambda_type option =
+  match call_in_the_model call with
+  | of_model -> Some of_model
+  | exception No_answer -> None
+
 let print_call ppf (call : call) =
-  Format.fprintf ppf "@[<v>a call of %s, which in the model gives@ %a@]"
-    (name_of_call call) Model_type.print (call_in_the_model call)
+  match model_on_call call with
+  | Some of_model ->
+    Format.fprintf ppf "@[<v>a call of %s, which in the model gives@ %a@]"
+      (name_of_call call) Model_type.print of_model
+  | None ->
+    Format.fprintf ppf "a call of %s, which in the model has no answer"
+      (name_of_call call)
+
+(* What the compiler's function does on a call: a type, as the model has it, or
+   it stops (a fatal error, or the exception of an index outside an array). *)
+let compiler_on_call (names : names) (call : call) :
+    (MT.flambda_type, string) result =
+  match
+    or_fatal_error (fun () ->
+        match call_in_the_compiler names call with
+        | of_compiler -> Ok (to_model names of_compiler)
+        | exception Invalid_argument what -> Error ("an exception: " ^ what))
+  with
+  | Ok result -> result
+  | Error line -> Error ("a fatal error: " ^ line)
 
 let creation_functions (names : names) : call comparison list =
   List.map
@@ -732,14 +1146,21 @@ let creation_functions (names : names) : call comparison list =
             if not (String.equal (name_of_call call) name)
             then Not_this_comparison
             else
-              match call_in_the_compiler names call with
+              match compiler_on_call names call, model_on_call call with
               | exception No_such_function why -> Not_run why
-              | of_compiler ->
-                let of_compiler = to_model names of_compiler in
+              | Ok of_compiler, Some of_model ->
                 agree_if
-                  (Model_type.same (call_in_the_model call) of_compiler)
+                  (Model_type.same of_model of_compiler)
                   (Format.asprintf "the compiler gives %a" Model_type.print
-                     of_compiler))
+                     of_compiler)
+              | Ok of_compiler, None ->
+                Disagree
+                  (Format.asprintf
+                     "the model has no answer and the compiler gives %a"
+                     Model_type.print of_compiler)
+              | Error _, None -> Agree
+              | Error why, Some (_ : MT.flambda_type) ->
+                Disagree ("the compiler stops: " ^ why))
       })
     names_of_calls
   @ [ { name = "a creation function that is not in the list above";
@@ -749,19 +1170,35 @@ let creation_functions (names : names) : call comparison list =
             then Not_this_comparison
             else Disagree "it is compared with nothing")
       };
+      (* These calls are counted above with those that agree. *)
+      { name = "the calls on which the model has no answer: the compiler stops";
+        compare =
+          (fun call ->
+            match model_on_call call with
+            | Some (_ : MT.flambda_type) -> Not_this_comparison
+            | None -> (
+              match compiler_on_call names call with
+              | exception No_such_function why -> Not_run why
+              | Error (_ : string) -> Agree
+              | Ok of_compiler ->
+                Disagree
+                  (Format.asprintf "the compiler gives %a" Model_type.print
+                     of_compiler)))
+      };
       { name =
           "type_well_formed of what a creation function gives, in the model \
            and in the compiler";
         compare =
           (fun call ->
-            match call_in_the_compiler names call with
+            match compiler_on_call names call, model_on_call call with
             | exception No_such_function why -> Not_run why
-            | of_compiler ->
+            | (Error _ | Ok _), None -> Not_run "the model has no answer"
+            | Error why, Some (_ : MT.flambda_type) ->
+              Not_run ("the compiler stops: " ^ why)
+            | Ok of_compiler, Some of_model ->
               (* The lists given to a call may bind a key twice. *)
-              let of_model =
-                is_well_formed (Model_type.normalise (call_in_the_model call))
-              in
-              let of_compiler = is_well_formed (to_model names of_compiler) in
+              let of_model = is_well_formed (Model_type.normalise of_model) in
+              let of_compiler = is_well_formed of_compiler in
               agree_if
                 (Bool.equal of_model of_compiler)
                 (Printf.sprintf
@@ -772,9 +1209,12 @@ let creation_functions (names : names) : call comparison list =
       { name = "the calls that give a type of which type_well_formed is true";
         compare =
           (fun call ->
-            if is_well_formed (Model_type.normalise (call_in_the_model call))
-            then Agree
-            else Not_run "it is false of the type")
+            match model_on_call call with
+            | None -> Not_run "the model has no answer"
+            | Some of_model ->
+              if is_well_formed (Model_type.normalise of_model)
+              then Agree
+              else Not_run "it is false of the type")
       } ]
 
 (* ======================================================================== *)
@@ -4323,7 +4763,7 @@ let () =
   pairs_for_equality
     ~title:"Two raw types of the model, for the equality of types" ~seed:14000
     { well_formed = false; depth = 2 };
-  run ~title:"The creation functions" ~seed:20000 ~count:6000
+  run ~title:"The creation functions" ~seed:20000 ~count:10000
     ~generate:(generate_call names)
     ~prepare:(fun call -> call)
     ~shrink:(fun _ -> [])

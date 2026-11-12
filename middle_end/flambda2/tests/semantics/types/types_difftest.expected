@@ -38,6 +38,10 @@ Raw types of the model (3000 cases, seeds 1000 to 3999)
   is_obviously_unknown: 2773 agree
   free_variables against free_names, without shadowed bindings: 2773 agree
   free_variables includes free_names, with shadowed bindings: 2773 agree
+  must_be_singleton: 2773 agree
+  is_alias_of_name, of each name that the type mentions at its top: 950 agree
+    4 not run: not in the compiler: no variable is numbered 
+    1819 not run: the type mentions no variable and is no alias
 
 Types of the model that the compiler's functions make (3000 cases, seeds 5000 to 7999)
   34 not converted: not in the compiler: a Rec_info type given by its head: the model has not got the expression
@@ -49,6 +53,9 @@ Types of the model that the compiler's functions make (3000 cases, seeds 5000 to
   is_obviously_unknown: 2966 agree
   free_variables against free_names, without shadowed bindings: 2966 agree
   free_variables includes free_names, with shadowed bindings: 2966 agree
+  must_be_singleton: 2966 agree
+  is_alias_of_name, of each name that the type mentions at its top: 1113 agree
+    1853 not run: the type mentions no variable and is no alias
   the round trip from the compiler, as printed: 2966 agree
   the round trip from the compiler, for the compiler's equality: 2953 agree, 13 disagree as recorded
     recorded as T7-2 (seed 5132): the compiler's equality is not asked: it may overflow the stack on a type with an extension within an extension
@@ -115,40 +122,68 @@ Two raw types of the model, for the equality of types (1500 cases, seeds 14000 t
   the pairs that type_eqb answers to be the same: 550 agree
     823 not run: not the same
 
-The creation functions (6000 cases, seeds 20000 to 25999)
-  6000 converted
-  unknown: 212 agree
-  bottom: 213 agree
-  alias_type_of: 192 agree
-  type_for_const: 216 agree
-  null: 233 agree
-  any_non_null_value: 203 agree
-  this_tagged_immediate: 193 agree
-  this_naked_immediate: 236 agree
-  these_naked_immediates: 210 agree
-  these_tagged_immediates: 212 agree
-  any_tagged_immediate: 241 agree
-  any_block: 202 agree
-  tag_immediate: 225 agree
-  box_number: 205 agree
-  mutable_block: 218 agree
-  this_immutable_string: 212 agree
-  create_variant: 207 agree
-  create_closures: 200 agree
-  blocks_with_these_tags: 222 agree
-  immutable_block: 210 agree
-  row_like_for_blocks_create_exactly: 207 agree
-  row_like_for_blocks_create_at_least: 235 agree
-  row_like_for_blocks_create_at_least_unknown_tag: 190 agree
-  is_int_for_scrutinee: 218 agree
-  get_tag_for_block: 258 agree
-  is_null_for_scrutinee: 218 agree
-  exactly_this_closure: 203 agree
-  at_least_this_closure: 209 agree
+The creation functions (10000 cases, seeds 20000 to 29999)
+  10000 converted
+  unknown: 215 agree
+  bottom: 192 agree
+  alias_type_of: 207 agree
+  type_for_const: 215 agree
+  null: 206 agree
+  any_non_null_value: 216 agree
+  this_tagged_immediate: 181 agree
+  this_naked_immediate: 201 agree
+  these_naked_immediates: 206 agree
+  these_tagged_immediates: 190 agree
+  any_tagged_immediate: 210 agree
+  any_block: 194 agree
+  tag_immediate: 221 agree
+  box_number: 185 agree
+  mutable_block: 197 agree
+  this_immutable_string: 214 agree
+  create_variant: 193 agree
+  create_closures: 197 agree
+  blocks_with_these_tags: 198 agree
+  immutable_block: 224 agree
+  row_like_for_blocks_create_exactly: 192 agree
+  row_like_for_blocks_create_at_least: 203 agree
+  row_like_for_blocks_create_at_least_unknown_tag: 187 agree
+  is_int_for_scrutinee: 206 agree
+  get_tag_for_block: 215 agree
+  is_null_for_scrutinee: 242 agree
+  exactly_this_closure: 205 agree
+  at_least_this_closure: 190 agree
+  unknown_like: 198 agree
+    6 not run: not in the compiler: a Rec_info type given by its head: the model has not got the expression
+  bottom_like: 210 agree
+  unknown_from_shape: 224 agree
+  unknown_with_subkind, of a kind: 218 agree
+  kind_for_const, as the unknown type of the kind: 222 agree
+  these_naked_numbers: 203 agree
+  any_tagged_bool: 224 agree
+  any_naked_bool: 212 agree
+  any_tagged_immediate_or_null: 235 agree
+  tagged_immediate_alias_to: 191 agree
+  boxed_number_alias_to: 220 agree
+  this_boxed_number: 219 agree
+  these_boxed_numbers: 123 agree
+    102 not run: the compiler has no such function for the vectors and the masks
+  any_boxed_number: 135 agree
+    92 not run: the compiler has no such function for the vectors and the masks
+  row_like_for_blocks_create: 196 agree
+  immutable_block_with_size_at_least: 202 agree
+  closure_with_at_least_these_function_slots: 219 agree
+  static_closure_with_this_code: 208 agree
+  closure_with_at_least_these_value_slots: 218 agree
+  closure_with_at_least_this_value_slot: 221 agree
   a creation function that is not in the list above: 0 agree
-  type_well_formed of what a creation function gives, in the model and in the compiler: 6000 agree
-  the calls that give a type of which type_well_formed is true: 5325 agree
-    675 not run: it is false of the type
+  the calls on which the model has no answer: the compiler stops: 146 agree
+  type_well_formed of what a creation function gives, in the model and in the compiler: 9654 agree
+    6 not run: not in the compiler: a Rec_info type given by its head: the model has not got the expression
+    194 not run: the compiler has no such function for the vectors and the masks
+    146 not run: the model has no answer
+  the calls that give a type of which type_well_formed is true: 9157 agree
+    697 not run: it is false of the type
+    146 not run: the model has no answer
 
 A relation and a constant (600 cases, seeds 30000 to 30599)
   600 converted
