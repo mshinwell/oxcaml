@@ -25,16 +25,19 @@ let shortcut_switch k h body =
     match handler with
     | Apply_cont target -> (
       match body with
-      | Switch (scrutinee, arms) ->
-        if
-          (Pos.eqb target.ac_continuation k || metadata.hm_is_exn_handler)
-          || negb (no_trap_action target)
-        then Let_cont_non_recursive (k, h, body)
-        else
-          let arms0 = map (shortcut_arm k target) arms in
-          if arms_apply k arms0
-          then Let_cont_non_recursive (k, h, Switch (scrutinee, arms0))
-          else Switch (scrutinee, arms0)
+      | Switch (scrutinee, arms) -> (
+        match metadata.hm_params_kinds with
+        | [] ->
+          if
+            (Pos.eqb target.ac_continuation k || metadata.hm_is_exn_handler)
+            || negb (no_trap_action target)
+          then Let_cont_non_recursive (k, h, body)
+          else
+            let arms0 = map (shortcut_arm k target) arms in
+            if arms_apply k arms0
+            then Let_cont_non_recursive (k, h, Switch (scrutinee, arms0))
+            else Switch (scrutinee, arms0)
+        | _ :: _ -> Let_cont_non_recursive (k, h, body))
       | _ -> Let_cont_non_recursive (k, h, body))
     | _ -> Let_cont_non_recursive (k, h, body))
   | _ :: _ -> Let_cont_non_recursive (k, h, body)

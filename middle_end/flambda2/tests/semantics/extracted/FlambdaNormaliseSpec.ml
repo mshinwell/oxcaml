@@ -411,10 +411,14 @@ let rec fold_constants e =
   | Switch (scrutinee, arms) -> fold_switch scrutinee arms
   | _ -> e
 
-(** val named_is_total : named -> bool **)
+(** val named_is_total : flambda_kind -> named -> bool **)
 
-let named_is_total = function
-  | Simple s -> ( match s with Var _ -> false | _ -> true)
+let named_is_total kind = function
+  | Simple s -> (
+    match s with
+    | Var _ -> false
+    | Symbol _ -> kind_eqb Value kind
+    | Const c -> kind_eqb (kind_of_const c) kind)
   | _ -> false
 
 (** val remove_unused_total_lets : expr -> expr **)
@@ -423,7 +427,7 @@ let rec remove_unused_total_lets e =
   match e with
   | Let (x, kind, d, body) ->
     let body' = remove_unused_total_lets body in
-    if named_is_total d && negb (var_free_b x body')
+    if named_is_total kind d && negb (var_free_b x body')
     then body'
     else Let (x, kind, d, body')
   | Let_static (bindings, body) ->
@@ -438,37 +442,67 @@ let rec remove_unused_total_lets e =
     Let_cont_recursive (handlers, remove_unused_total_lets body)
   | _ -> e
 
-(** val named_defined : variable list -> named -> bool **)
+type kinds_in_scope = (variable * flambda_kind) list
 
-let named_defined vs = function
-  | Simple s -> simple_in_scope vs s
+(** val kind_of_simple_in_scope : kinds_in_scope -> simple -> flambda_kind
+    option **)
+
+let kind_of_simple_in_scope kinds = function
+  | Var x -> lookup x kinds
+  | Symbol _ -> Some Value
+  | Const c -> Some (kind_of_const c)
+
+(** val named_defined : kinds_in_scope -> flambda_kind -> named -> bool **)
+
+let named_defined kinds kind = function
+  | Simple s -> (
+    match kind_of_simple_in_scope kinds s with
+    | Some found -> kind_eqb found kind
+    | None -> false)
   | Set_of_closures (_, slots) ->
-    forallb (fun slot -> simple_in_scope vs (snd slot)) slots
+    kind_eqb Value kind
+    && forallb (fun slot -> simple_in_scope (map fst kinds) (snd slot)) slots
   | Closure_of_set (slot, decls, slots) ->
-    is_bound slot decls
-    && forallb (fun slot0 -> simple_in_scope vs (snd slot0)) slots
+    (kind_eqb Value kind && is_bound slot decls)
+    && forallb (fun slot0 -> simple_in_scope (map fst kinds) (snd slot0)) slots
   | _ -> false
 
-(** val remove_unused_defined_lets : variable list -> expr -> expr **)
+(** val params_in_scope : variable list -> flambda_kind list -> kinds_in_scope
+    -> kinds_in_scope **)
 
-let rec remove_unused_defined_lets vs e =
+let rec params_in_scope params params_kinds kinds =
+  match params with
+  | [] -> kinds
+  | param :: params0 -> (
+    match params_kinds with
+    | [] -> kinds
+    | kind :: params_kinds0 ->
+      params_in_scope params0 params_kinds0 ((param, kind) :: kinds))
+
+(** val remove_unused_defined_lets : kinds_in_scope -> expr -> expr **)
+
+let rec remove_unused_defined_lets kinds e =
   match e with
   | Let (x, kind, d, body) ->
-    let body' = remove_unused_defined_lets (x :: vs) body in
-    if named_defined vs d && negb (var_free_b x body')
+    let body' = remove_unused_defined_lets ((x, kind) :: kinds) body in
+    if named_defined kinds kind d && negb (var_free_b x body')
     then body'
     else Let (x, kind, d, body')
   | Let_static (bindings, body) ->
-    Let_static (bindings, remove_unused_defined_lets vs body)
+    Let_static (bindings, remove_unused_defined_lets kinds body)
   | Let_cont_non_recursive (k, handler0, body) ->
     let (Handler (params, metadata, handler)) = handler0 in
     Let_cont_non_recursive
       ( k,
         Handler
-          (params, metadata, remove_unused_defined_lets (app params vs) handler),
-        remove_unused_defined_lets vs body )
+          ( params,
+            metadata,
+            remove_unused_defined_lets
+              (params_in_scope params metadata.hm_params_kinds kinds)
+              handler ),
+        remove_unused_defined_lets kinds body )
   | Let_cont_recursive (handlers, body) ->
-    Let_cont_recursive (handlers, remove_unused_defined_lets vs body)
+    Let_cont_recursive (handlers, remove_unused_defined_lets kinds body)
   | _ -> e
 
 (** val symbols_of : static_binding list -> (symbol * code_id option) list ->
@@ -488,14 +522,6 @@ let rec symbols_of bindings known =
       | _ -> symbols_of bindings0 ((s, None) :: known))
     | _ -> symbols_of bindings0 known)
 
-(** val simple_has_kind_b : simple -> flambda_kind -> bool **)
-
-let simple_has_kind_b s kind =
-  match s with
-  | Var _ -> false
-  | Symbol _ -> kind_eqb kind Value
-  | Const c -> kind_eqb (kind_of_const c) kind
-
 (** val call_agrees_b : apply_expr -> code -> bool **)
 
 let call_agrees_b ap c =
@@ -503,7 +529,7 @@ let call_agrees_b ap c =
      (unarize_per_parameter ap.ap_args_arity)
      (unarize_per_parameter (code_params_arity c))
   && arity_eqb ap.ap_return_arity (code_result_arity c))
-  && forall2b simple_has_kind_b ap.ap_args (unarize ap.ap_args_arity)
+  && Nat.eqb (length (code_params c)) (length (code_params_kinds c))
 
 (** val inline_known_apply : (code_id * code) list -> (symbol * code_id option)
     list -> apply_expr -> expr **)
@@ -803,20 +829,23 @@ let arms_apply k arms =
 (** val thread_switch : continuation -> continuation_handler -> expr -> expr **)
 
 let thread_switch k h body =
-  let (Handler (params, _, handler)) = h in
+  let (Handler (params, metadata, handler)) = h in
   match params with
   | [] -> (
     match handler with
     | Switch (inner_scrutinee, inner) -> (
       match body with
-      | Switch (scrutinee, arms) ->
-        if simple_eq_dec scrutinee inner_scrutinee
-        then
-          let arms0 = map (thread_arm k inner) arms in
-          if arms_apply k arms0
-          then Let_cont_non_recursive (k, h, Switch (scrutinee, arms0))
-          else Switch (scrutinee, arms0)
-        else Let_cont_non_recursive (k, h, body)
+      | Switch (scrutinee, arms) -> (
+        match metadata.hm_params_kinds with
+        | [] ->
+          if simple_eq_dec scrutinee inner_scrutinee
+          then
+            let arms0 = map (thread_arm k inner) arms in
+            if arms_apply k arms0
+            then Let_cont_non_recursive (k, h, Switch (scrutinee, arms0))
+            else Switch (scrutinee, arms0)
+          else Let_cont_non_recursive (k, h, body)
+        | _ :: _ -> Let_cont_non_recursive (k, h, body))
       | _ -> Let_cont_non_recursive (k, h, body))
     | _ -> Let_cont_non_recursive (k, h, body))
   | _ :: _ -> Let_cont_non_recursive (k, h, body)

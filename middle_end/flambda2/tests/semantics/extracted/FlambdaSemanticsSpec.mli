@@ -2,6 +2,7 @@ open BinInt
 open BinNums
 open BinPos
 open Datatypes
+open FlambdaKindModel
 open FlambdaMapSpec
 open FlambdaModel
 open FlambdaPrimitiveSpec

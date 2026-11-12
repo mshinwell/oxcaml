@@ -5,4 +5,4 @@ try_in_code.fl:
   calls outside code: 3 before, 3 after
   the same
   calls outside code once those of known code are inlined: 3
-  not validated
+  validated: the same once normalised

@@ -2,6 +2,7 @@ open BinInt
 open BinNums
 open BinPos
 open Datatypes
+open FlambdaKindModel
 open FlambdaMapSpec
 open FlambdaModel
 open FlambdaPrimitiveSpec
@@ -237,18 +238,21 @@ type step_result =
 
 let rec apply_cont_value c vs statics =
   match c with
-  | Closure (h, def_vars, def_conts, recursive) -> (
-    let (Handler (params, _, handler)) = h in
-    match bind_params params vs def_vars with
-    | Some handler_vars ->
-      Step
-        { state_expr = handler;
-          state_vars = handler_vars;
-          state_conts =
-            app (rec_closures recursive def_vars def_conts) def_conts;
-          state_statics = statics
-        }
-    | None -> Undefined)
+  | Closure (h, def_vars, def_conts, recursive) ->
+    let (Handler (params, metadata, handler)) = h in
+    if kinds_eqb (map kind_of_value vs) metadata.hm_params_kinds
+    then
+      match bind_params params vs def_vars with
+      | Some handler_vars ->
+        Step
+          { state_expr = handler;
+            state_vars = handler_vars;
+            state_conts =
+              app (rec_closures recursive def_vars def_conts) def_conts;
+            state_statics = statics
+          }
+      | None -> Undefined
+    else Undefined
   | Outer k -> Exit (k, vs)
   | Extra_args (c0, extra) -> apply_cont_value c0 (app vs extra) statics
 
@@ -319,15 +323,18 @@ let step s =
     s
   in
   match state_expr0 with
-  | Let (x, _, defining_expr, body) -> (
+  | Let (x, kind, defining_expr, body) -> (
     match eval_named statics vars defining_expr with
     | Some v ->
-      Step
-        { state_expr = body;
-          state_vars = (x, v) :: vars;
-          state_conts = conts;
-          state_statics = statics
-        }
+      if kind_eqb (kind_of_value v) kind
+      then
+        Step
+          { state_expr = body;
+            state_vars = (x, v) :: vars;
+            state_conts = conts;
+            state_statics = statics
+          }
+      else Undefined
     | None -> Undefined)
   | Let_static (bindings, body) -> (
     match eval_static_bindings vars bindings statics with

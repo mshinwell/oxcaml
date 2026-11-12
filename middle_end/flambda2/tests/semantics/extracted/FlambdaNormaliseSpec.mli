@@ -98,20 +98,25 @@ val fold_switch : simple -> (coq_Z * apply_cont) list -> expr
 
 val fold_constants : expr -> expr
 
-val named_is_total : named -> bool
+val named_is_total : flambda_kind -> named -> bool
 
 val remove_unused_total_lets : expr -> expr
 
-val named_defined : variable list -> named -> bool
+type kinds_in_scope = (variable * flambda_kind) list
 
-val remove_unused_defined_lets : variable list -> expr -> expr
+val kind_of_simple_in_scope : kinds_in_scope -> simple -> flambda_kind option
+
+val named_defined : kinds_in_scope -> flambda_kind -> named -> bool
+
+val params_in_scope :
+  variable list -> flambda_kind list -> kinds_in_scope -> kinds_in_scope
+
+val remove_unused_defined_lets : kinds_in_scope -> expr -> expr
 
 val symbols_of :
   static_binding list ->
   (symbol * code_id option) list ->
   (symbol * code_id option) list
-
-val simple_has_kind_b : simple -> flambda_kind -> bool
 
 val call_agrees_b : apply_expr -> code -> bool
 
