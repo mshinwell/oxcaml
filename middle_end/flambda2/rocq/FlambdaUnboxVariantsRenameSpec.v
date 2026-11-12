@@ -72,8 +72,8 @@
    free in the handler is what makes the pass refine the term, and is
    not needed for this.
 
-   With these two and [unbox_variant_params_refines] the pass can take
-   the place of [unbox_known_params] in a round of the validation.
+   With these two and [unbox_variant_params_refines] the pass can be
+   in a round of the validation.
 
    The proofs are in FlambdaUnboxVariantsRenameProofs.v, which needs no
    review. *)

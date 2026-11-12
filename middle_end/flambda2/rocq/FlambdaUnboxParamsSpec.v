@@ -115,12 +115,15 @@
    of the term.
 
    The result refines the term ([unbox_known_params_refines_statement]),
-   under all environments. It is not claimed to be equivalent to it:
-   where the access kind of a load disagrees with a block that is
-   known, or asks that the field be an immediate, the load in the
-   handler may have no value and the argument at the application has
-   one (FlambdaBlockLoadSpec.v, at [field_loaded]). So the pass is for
-   the term before Simplify.
+   under all environments. It is not claimed to be equivalent to it,
+   and here is a case in which it is not: a static block may hold a
+   field that is not of the kind of values, as nothing tests the
+   fields of a static block when it is bound. The load of such a
+   field in the handler has no value; the argument at the application
+   is the field itself (FlambdaBlockLoadSpec.field_loaded gives what
+   the field holds, whatever its kind), and a new parameter of the
+   kind of the field takes it, so the term after runs where the term
+   before is undefined. So the pass is for the term before Simplify.
 
    What it is not: it does not decide as Simplify decides. Simplify
    unboxes by the type of the parameter, to a bounded depth, and only

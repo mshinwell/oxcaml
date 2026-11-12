@@ -147,8 +147,11 @@
    the body before, under all environments ([..._refines_statement]),
    which follows from the first by the theorems of the passes and of
    the comparison. So the constant [poison] that Simplify gives where
-   there is no field is where the pass gives it, and the refinement
-   says that no run reads it.
+   there is no field is where the pass gives it. Of [poison] that says
+   what the refinement says and no more: a run of the body before that
+   is defined is matched by the body after; where the body before is
+   undefined, as it is if it comes to a read that has no value,
+   nothing is claimed of the body after.
 
    The two bodies that FlambdaUnboxParamsExamplesSpec.v validates with
    its round are validated with this one too

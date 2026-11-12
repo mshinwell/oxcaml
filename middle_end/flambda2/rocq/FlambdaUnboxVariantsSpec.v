@@ -50,7 +50,11 @@
    ([Tag.Scannable.zero]); for the constant constructor of an
    application that gives a block, 0 as well ([extra_arg_for_ctor]).
 
-   [unbox_variant_params] does what the other pass does, and more:
+   [unbox_variant_params] is made as the other pass is, with the
+   differences below. It is not the other pass and more: it takes the
+   reads in an order of its own and stops at the first that it cannot
+   make a parameter, so it may leave a handler of which the other
+   pass makes the first read a parameter (below, at what stops it).
 
    - The [Let] need not be the first thing in the handler. It is the
      first, going down the handler, that reads a box which is a
@@ -76,17 +80,18 @@
 
    - Where the [Let] is not the first thing in the handler
      ([extend_args_certain]), an application gets as its new argument:
-     a constant of the kind of the [Let] that nothing reads
-     ([dummy_of]: [poison], or 0 for [Get_tag] and [Untag_immediate] at
-     the kind of naked immediates, as Simplify gives), if the
-     application does not come to the read ([never_reads], below);
+     a constant of the kind of the [Let] in place of what the read
+     would give ([dummy_of]: [poison], or 0 for [Get_tag] and
+     [Untag_immediate] at the kind of naked immediates, as Simplify
+     gives), if the application does not come to the read
+     ([never_reads], below);
      otherwise the constant that the term shows the primitive to give,
      if that is of the kind of the [Let]; or the field of a block that
      a [Let] in scope made, for a load at the kind of values; or the
      number in a box that a [Let] in scope made, for the unboxing of
      such a box at the kind of the number ([certain_projection]); or,
      where the primitive has no value on the argument for the
-     parameter read, the constant that nothing reads again. The
+     parameter read, that constant again. The
      primitive is known to have no value ([no_value_on]) where it is a
      load or [Get_tag] and the argument is a constant, and where it is
      [Untag_immediate] and the argument is a variable that a [Let] in
@@ -110,7 +115,7 @@
    so it has a value on any block that has the field, and only the
    [Switch] on the tag keeps it from being read.
 
-   Why a constant that nothing reads may be given. The new parameter
+   Why that constant may be given. The new parameter
    is read only below the place of the [Let] that was removed. In the
    term before, a run that comes to that place evaluates the
    primitive on the parameter read, which no binder on the way has
@@ -144,7 +149,12 @@
    under a test, an application that may come to the read and whose
    argument is neither known in one of these ways nor one on which
    the primitive has no value. It stops at the first read that it
-   cannot make a parameter, and does not look for another.
+   cannot make a parameter, and does not look for another. So where
+   a handler begins with the load of a field of one parameter and
+   then reads the tag of another, and an application gives a block
+   that is known for the first and nothing that is known for the
+   second, the other pass makes the load a parameter and this one
+   makes none: the tag comes first in its order.
 
    The result refines the term
    ([unbox_variant_params_refines_statement]), under all
@@ -281,7 +291,7 @@ Definition never_reads (consts : list (variable * Z))
     (remove_unused_conts (take_arms consts without)).
 
 (* The arguments of an application with one more, the last: the
-   constant that nothing reads, if the application does not come to the
+   constant of [dummy_of], if the application does not come to the
    read, given the handler and the handler without the read; otherwise
    what [p] certainly gives of the argument at position [i]; or, if it
    has no value on it, the constant again. *)

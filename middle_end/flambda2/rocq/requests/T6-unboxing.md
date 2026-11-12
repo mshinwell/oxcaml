@@ -27,9 +27,9 @@ Summary.
 - Variants need no statement about poison and no answer on D26. A
   second pass is built and proved for them:
   `FlambdaUnboxVariantsSpec.unbox_variant_params`. It makes a
-  parameter of a read that is under a test, and gives a constant that
-  nothing reads at an application that the term shows not to come to
-  the read, or on whose argument the read has no value: `None`, `[]`,
+  parameter of a read that is under a test, and gives a constant in
+  place of the read at an application that the term shows not to come
+  to the read, or on whose argument the read has no value: `None`, `[]`,
   a constant constructor, a block of another tag. Seven bodies of code
   from OCaml sources are validated with it in Rocq, with Simplify's
   `poison` where the pass puts it, and are not without it. It has its
@@ -249,10 +249,14 @@ and `is_int` of a variant.
 **The statement.** `unbox_known_params_refines_statement`: for every
 term `e`, `expr_refines e (unbox_known_params e)`, under all
 environments, with no premise. It is a refinement and not an
-equivalence because `load_known_named` gives the field of a known
-block where the access kind agrees with the block, and the load in the
-handler may still have no value on it (a field kind that asks for an
-immediate; `FlambdaBlockLoadSpec.v` says the same of its own pass).
+equivalence. A case in which it is not: a static block may hold a
+field that is not of the kind of values, as nothing tests the fields
+of a static block when it is bound. `load_known_named` gives what that
+field holds; the load in the handler has no value on it; and after the
+pass the application gives the field to a new parameter of its kind,
+so the term after runs where the term before is undefined. (Where the
+access kind disagrees with the known block, or asks for an immediate,
+`field_loaded` gives nothing and the pass does not fire.)
 
 **The proof.** The rewrite changes a handler and all its applications
 together, so it is a simulation over states. The second run takes one
@@ -312,8 +316,9 @@ the same with what is known renamed with the term), and it keeps scope
 (`unbox_known_params_keeps_scope_statement`).
 
 **Wiring.** The pass is not in `FlambdaValidateSpec.v`. The second
-pass (section 7) does all that this one does and is the one to wire:
-V2 adds its line to the round (section 10).
+pass (section 7) validates the examples of this one and those of
+variants, and is the one to wire: V2 adds its line to the round
+(section 10).
 
 ## 5. The first thing asked: subkinds
 
@@ -412,14 +417,16 @@ chain goes, a statement that poison is refined by any value would let
 the term before lose a poison and the term after gain one. The term
 before has none, and the term after has them. What is needed is to
 introduce, on the term before, a new parameter that some applications
-give a value nobody reads. Any constant would do for the proof; it
-must be `poison` only so that the result is Simplify's term.
+give a value which no run reads unless the term before is undefined.
+Any constant would do for the proof; it must be `poison` only so that
+the result is Simplify's term.
 
 ### What is built: `unbox_variant_params`
 
 `FlambdaUnboxVariantsSpec.v`, with the proof in
-`FlambdaUnboxVariantsProofs.v`. It does what `unbox_known_params`
-does, and three things more.
+`FlambdaUnboxVariantsProofs.v`. It is made as `unbox_known_params`
+is, with three differences. It is not that pass and more: see "What
+it does not cover".
 
 1. The `Let` that reads a box need not be the first thing in the
    handler. It is the first one found going down the handler through
@@ -431,7 +438,7 @@ does, and three things more.
 2. Where the `Let` is not the first thing in the handler, an
    application gets as its new argument
    (`extend_args_certain`), in this order: a constant of the kind of
-   the `Let` that nothing reads (`dummy_of`: `poison`, or 0 for
+   the `Let` in place of the read (`dummy_of`: `poison`, or 0 for
    `Get_tag` and `Untag_immediate`, which is what Simplify gives:
    `Unboxing_epa.compute_extra_args_for_variant`,
    `extra_arg_for_ctor`), if the term shows that the application does
@@ -441,8 +448,8 @@ does, and three things more.
    at the kind of values; the number in a box that a `Let` in scope
    made, for the unboxing of such a box at the kind of the number
    (`made_number`); or, where the term shows that the primitive has no
-   value on the argument for the parameter read, the constant that
-   nothing reads again. The primitive is known to have no value
+   value on the argument for the parameter read, that constant
+   again. The primitive is known to have no value
    (`no_value_on`) where it is a load or `Get_tag` of a constant, and
    where it is `Untag_immediate` of a variable that a `Let` in scope
    made a block.
@@ -481,7 +488,7 @@ The statement is `unbox_variant_params_refines_statement`:
 `expr_refines e (unbox_variant_params e)`, under all environments,
 with no premise.
 
-### Why no run reads the constant (the argument to attack)
+### Why the constant may be given (the argument to attack)
 
 The new parameter is read only below the place of the `Let` that was
 removed: its variable was not free in the handler, so every use of it
@@ -564,7 +571,15 @@ Two things had to be got right, and are where to look.
   `Switch` on what a `Let` of the handler computes of a parameter,
   is taken to be reachable; the application then needs an argument
   that is certain, or the pass stops.
-- It stops at the first read that cannot be made a parameter.
+- It stops at the first read, in its order, that cannot be made a
+  parameter, even where the first pass would make the read at the
+  head of the handler one. For a handler that begins with the load of
+  a field of `x` and then reads the tag of `y`, where an application
+  gives a known block for `x` and nothing known for `y`, the first
+  pass makes the load a parameter and this one makes none, as the tag
+  comes first in its order. The two bodies that the first pass
+  validates are validated with this one
+  (`earlier_examples_validated_statement`).
 - Among the loads, the order of the new parameters is the order in
   which the handler has them, the body of a `Let_cont` before its
   handler. In the seven examples that is Simplify's (the front end
@@ -776,9 +791,9 @@ whose parameter was unboxed, so these eight are new coverage.
   `unbox_variant_params_equivariant` and
   `unbox_variant_params_keeps_scope`
   (`FlambdaUnboxVariantsRenameProofs.v`). `unbox_known_params` has
-  the same three and need not be wired: the second pass does all that
-  it does. Also V2's: the conversion of the poison constant; the
-  sources above, with the seven of variants.
+  the same three; it need not be wired for the examples here, all of
+  which the second pass validates. Also V2's: the conversion of the
+  poison constant; the sources above, with the seven of variants.
 - **V4**: nothing more; the place in the round is agreed.
 - **N1, N3**: nothing yet. The `Let` at a use under a `Switch`
   (section 8) and the copy of a handler (section 7) will need a fresh
