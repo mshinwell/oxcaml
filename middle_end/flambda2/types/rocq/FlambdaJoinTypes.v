@@ -195,12 +195,11 @@
    makes them (a fold from the left that conses reverses its list);
    no statement depends on the order.
 
-   A stand-in. One thing that this file needs is another workstream's
-   and is not yet where this file can import it. It is copied here
-   under its owner's names, in a module of its own, and is to go, with
-   a change of the imports and nothing else, when the owner's file is
-   there: [Expanded_type], the type of expanded types and its creation
-   functions, of the file of [Expand_head] (the workstream on meet). *)
+   [Expanded_type], the type of expanded types and its creation
+   functions, is that of the file of [Expand_head]
+   (FlambdaExpandHead.v). It is given a name in this file too, where
+   this file had a copy of it before that file could be imported, so
+   that what is written against this file reads as it did. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlOption.
@@ -208,69 +207,17 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningBoolSpec FlambdaBindingTime FlambdaEnvAliases
   FlambdaTypingEnv FlambdaJoinEnv.
+From OxCamlFlambda2Types Require FlambdaExpandHead.
 Import ListNotations.
 
 (* ======================================================================== *)
-(* A stand-in                                                               *)
+(* Expanded types                                                           *)
 (* ======================================================================== *)
 
 (* [Expand_head.Expanded_type]: a type that is not an alias, given by
-   its kind and its head. A copy of what this file uses of the module
-   of that name in the file of [Expand_head]. *)
-Module Expanded_type.
-
-  (* [Expanded_type.descr]. *)
-  Inductive head : Type :=
-    | Head_value (head : head_of_kind_value)
-    | Head_naked_immediate (head : head_of_kind_naked_immediate)
-    | Head_naked_number (k : naked_number_kind) (head : list Z)
-    | Head_rec_info (head : unit)
-    | Head_region (head : unit).
-
-  (* [Expanded_type.t]. *)
-  Record t : Type := create {
-    kind : flambda_kind;
-    descr : or_unknown_or_bottom head
-  }.
-
-  Definition create_bottom (kind : flambda_kind) : t := create kind Bottom.
-
-  Definition create_unknown (kind : flambda_kind) : t := create kind Unknown.
-
-  Definition create_value (head : head_of_kind_value) : t :=
-    create Value (Ok (Head_value head)).
-
-  Definition create_naked_immediate (head : head_of_kind_naked_immediate)
-      : t :=
-    create (Naked_number Kind_naked_immediate) (Ok (Head_naked_immediate head)).
-
-  (* [create_naked_float32], [create_naked_float], ..., [create_naked_mask]. *)
-  Definition create_naked_number (k : naked_number_kind) (head : list Z) : t :=
-    create (Naked_number k) (Ok (Head_naked_number k head)).
-
-  Definition create_rec_info (head : unit) : t :=
-    create Rec_info (Ok (Head_rec_info head)).
-
-  Definition create_region (head : unit) : t :=
-    create Region (Ok (Head_region head)).
-
-  Definition unknown_like (expanded : t) : t :=
-    create_unknown (kind expanded).
-
-  (* [Expanded_type.to_type]. *)
-  Definition to_type (expanded : t) : flambda_type :=
-    match descr expanded with
-    | Unknown => unknown (kind expanded)
-    | Bottom => bottom (kind expanded)
-    | Ok (Head_value head) => Type_value (Ok (No_alias head))
-    | Ok (Head_naked_immediate head) =>
-      Type_naked_immediate (Ok (No_alias head))
-    | Ok (Head_naked_number k head) => Type_naked_number k (Ok (No_alias head))
-    | Ok (Head_rec_info head) => Type_rec_info (Ok (No_alias head))
-    | Ok (Head_region head) => Type_region (Ok (No_alias head))
-    end.
-
-End Expanded_type.
+   its kind and its head. The module of that name of
+   FlambdaExpandHead.v. *)
+Module Expanded_type := FlambdaExpandHead.Expanded_type.
 
 (* ======================================================================== *)
 (* Function types                                                           *)
