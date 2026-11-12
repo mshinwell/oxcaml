@@ -87,10 +87,18 @@
    six premises hold of inputs made of these uses, with variables to
    avoid that include those of that source.
 
-   What this does not give: the other premises of the sixth part,
-   which are not about the inputs. They are the two contracts of the
-   meet that is given, the test on the answer ([kept_defined_at]) and
-   the conditions on the run ([run_with_values]).
+   What this does not give. The statement is about what the uses
+   know, their kinds and their scopes. It does not say that a
+   valuation satisfies a use, nor that there is one. The other
+   premises of the statements of FlambdaJoinInTermsSpec.v stay with
+   the caller: the contracts of the meet that is given; that the join
+   answers; the use at its index (that it is not bottom is had here
+   if the source is not); the test on the answer ([kept_defined_at]);
+   that the valuation satisfies the use and the source strictly; the
+   conditions on the run ([run_with_values]); and, for the statement
+   in the machine, that the machine binds the variables that may
+   occur in terms at the use and that the valuation agrees with it on
+   them.
 
    Nothing is assumed beyond the premises of each statement. *)
 
