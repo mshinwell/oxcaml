@@ -200,8 +200,11 @@ Fixpoint iterate (rounds : nat) (f : expr -> expr) (e : expr) : expr :=
    recursive ones, nor into code. First what makes the control flow
    simpler: a [Switch] whose arms all apply one continuation, to
    arguments that are the same or the number of the arm, becomes that
-   application (FlambdaMergeSwitchesSpec.merge_switches, after
-   [collapse_switches] for the arms that are all the same); a
+   application where the tests of
+   FlambdaMergeSwitchesSpec.merge_switches pass (among them: the
+   scrutinee is a variable that no arm passes, no arm has a trap
+   action, and the numbers of the arms are immediates), after
+   [collapse_switches] for the arms that are all the same; a
    continuation that is applied once is moved to where it is
    applied and inlined there ([sink_let_conts], then [inline_tail_conts]),
    before an arm of a [Switch] is made to go where its continuation
