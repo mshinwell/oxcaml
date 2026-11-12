@@ -724,8 +724,10 @@ Definition equivariant_up_to (f : expr -> expr) : Prop :=
       renames_alike r r' (f e) ∧ f (rename_expr r e) = rename_expr r' (f e).
 
 (* A rewrite keeps scope: on a term whose code is closed, the code of
-   the result is closed, and a name that is free in the result is free
-   in the term. *)
+   the result is closed, and a variable or a continuation that is free
+   in the result is free in the term. Symbols and code ids are not
+   counted: no renaming moves one, and a rewrite that keeps scope may
+   mention or bind one that the term does not. *)
 Definition keeps_scope (f : expr -> expr) : Prop :=
   ∀ e : expr,
     code_closed e = true ->
