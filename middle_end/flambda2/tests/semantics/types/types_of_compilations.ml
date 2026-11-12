@@ -45,7 +45,15 @@
    different types and those that the model has; and at the end, for all the
    files, the types that the model has not got and why, and for each comparison
    how many types agree and how many are not run and why. A disagreement is
-   shown in full under its file and makes the tool fail. *)
+   shown in full under its file and makes the tool fail.
+
+   With [-cmx] the argument is a directory, and the types are those that the
+   compiler kept of a unit in its .cmx file when it compiled it, for every .cmx
+   file of the directory: the type of every symbol and of every variable of the
+   unit that the file has, read as Simplify reads them when it compiles a unit
+   that uses that one. What is printed for a unit is a line: its symbols, its
+   variables, and the types that the model has; and at the end, with the counts
+   of the comparisons, how many of the types are what at their top. *)
 
 open Flambda2_identifiers
 open Flambda2_kinds
@@ -245,13 +253,43 @@ let add_counts totals path =
   in
   read ()
 
+(* What a type is at its top, for the counts. *)
+let top_of_a_type (t : MT.flambda_type) : string =
+  match t with
+  | Type_value Unknown -> "unknown"
+  | Type_value Bottom -> "bottom"
+  | Type_value (Ok (Equals (Symbol _))) -> "an alias of a symbol"
+  | Type_value (Ok (Equals (Var _))) -> "an alias of a variable"
+  | Type_value (Ok (Equals (Const _))) -> "a constant"
+  | Type_value (Ok (No_alias (Head_of_kind_value (non_null, is_null)))) -> (
+    match non_null, is_null with
+    | Unknown, Not_null -> "any value that is not null"
+    | Unknown, Maybe_null _ -> "any value that is not null, or null"
+    | Bottom, Not_null -> "no value"
+    | Bottom, Maybe_null _ -> "null"
+    | Ok head, _ -> (
+      let what =
+        match head with
+        | Variant _ -> "a variant"
+        | Mutable_block _ -> "a mutable block"
+        | Boxed_number _ -> "a boxed number"
+        | Closures _ -> "closures"
+        | String _ -> "a string"
+      in
+      match is_null with Not_null -> what | Maybe_null _ -> what ^ ", or null"))
+  | Type_naked_immediate _ -> "a naked immediate"
+  | Type_naked_number _ -> "a naked number"
+  | Type_rec_info _ -> "a rec_info"
+  | Type_region _ -> "a region"
+
 (* A disagreement: the comparison, what it says, and the type. *)
 type disagreement = string * string * MT.flambda_type
 
 (* The environments of a unit, each with the names that are asked of it: each
    type of a name that was not seen before is compared. The disagreements are
-   returned, in the order in which they were found. *)
-let check_environments (counts : counts)
+   returned, in the order in which they were found. What the types are at their
+   top is counted where [tops] says so. *)
+let check_environments ~(tops : bool) (counts : counts)
     (environments : (TE.t * (Name.t * K.t) list) list) : disagreement list =
   let count = count counts in
   let numbering = Model_names.create () in
@@ -289,6 +327,7 @@ let check_environments (counts : counts)
               count ("not in the model: " ^ general what)
             | model, (dropped : Converter.dropped) ->
               count "in the model";
+              if tops then count ("at its top, " ^ top_of_a_type model);
               if
                 List.exists
                   (fun ((_ : Code_id.t), rec_info) ->
@@ -361,7 +400,7 @@ let check_file filename : counts * int =
     List.iter (fun _ -> count "environments at the end of a unit") at_end;
     let environments = at_handlers @ at_end in
     let disagreements =
-      check_environments counts
+      check_environments ~tops:false counts
         (List.map
            (fun (env, (_ : Continuation.t)) -> env, names_of env)
            environments)
@@ -375,11 +414,81 @@ let check_file filename : counts * int =
       (number counts "in the model");
     counts, print_disagreements disagreements
 
+(* ======================================================================== *)
+(* One unit of the standard library                                         *)
+(* ======================================================================== *)
+
+(* What the compiler kept of a unit in its .cmx file, as an environment: the one
+   that Simplify starts from when it compiles another unit, in which a name of
+   the unit is looked up in what its file has. With it, the symbols and the
+   variables of the unit that the file says it has, each with its kind: a symbol
+   is of kind value. The load path and the current unit, which is another one,
+   are set by the caller. *)
+let environment_of_cmx (unit_name : string) :
+    (TE.t * (Name.t * K.t) list * (Name.t * K.t) list, string) result =
+  let unit = Compilation_unit.of_string unit_name in
+  let loader =
+    Flambda2_cmx.Flambda_cmx.create_loader
+      ~get_module_info:Flambda2.get_module_info
+  in
+  let resolver = Flambda2_cmx.Flambda_cmx.load_cmx_file_contents loader in
+  match resolver unit with
+  | None -> Error "not read: no .cmx file, or one that has no types"
+  | Some serializable -> (
+    let module Exported = Flambda2_types.Typing_env in
+    let ids = Exported.Serializable.ids_for_export serializable in
+    observations := [];
+    TE.For_testing.set_observer (Some observe);
+    Exported.notify_test_observer
+      (Exported.create ~machine_width ~resolver)
+      ~at_handler:(Continuation.create ());
+    TE.For_testing.set_observer None;
+    match !observations with
+    | [(env, (_ : Continuation.t))] ->
+      let of_the_unit compilation_unit =
+        Compilation_unit.equal compilation_unit unit
+      in
+      Ok
+        ( env,
+          List.filter_map
+            (fun symbol ->
+              if of_the_unit (Symbol.compilation_unit symbol)
+              then Some (Name.symbol symbol, K.value)
+              else None)
+            (Symbol.Set.elements ids.symbols),
+          List.filter_map
+            (fun variable ->
+              if of_the_unit (Variable.compilation_unit variable)
+              then Some (Name.var variable, Variable.kind variable)
+              else None)
+            (Variable.Set.elements ids.variables) )
+    | [] | _ :: _ :: _ -> Error "not read: the observer was not called once")
+
+let check_cmx unit_name : counts * int =
+  let counts = create_counts () in
+  let count = count counts in
+  match environment_of_cmx unit_name with
+  | Error why ->
+    count "units not read";
+    Format.printf "%s: %s@." unit_name why;
+    counts, 0
+  | Ok (env, symbols, variables) ->
+    count "units read";
+    List.iter (fun _ -> count "symbols of a unit in its .cmx file") symbols;
+    List.iter (fun _ -> count "variables of a unit in its .cmx file") variables;
+    let disagreements =
+      check_environments ~tops:true counts [env, symbols @ variables]
+    in
+    Format.printf "%s: %d symbols, %d variables, %d in the model@." unit_name
+      (List.length symbols) (List.length variables)
+      (number counts "in the model");
+    counts, print_disagreements disagreements
+
 (* The compiler keeps what it knows of a unit when it goes on to another one in
    the same run, and then fails on units that it simplifies when they come
-   first. So each file is gone through in a run of its own: this program runs
-   itself on each, with the arguments [one] before the file of the counts and
-   the input, and adds up the counts that each run writes. *)
+   first. So each file, or each unit of the standard library, is gone through in
+   a run of its own: this program runs itself on each, and adds up the counts
+   that each run writes. *)
 let each_in_a_run_of_its_own ~(one : string list) ~(shown : string -> string)
     ~(they : string) (inputs : string list) =
   let totals = create_counts () in
@@ -423,9 +532,37 @@ let () =
     let counts, disagreements = check_file filename in
     write_counts counts counts_file;
     if disagreements > 0 then exit 1
-  | [] | [_] ->
-    prerr_endline "usage: types_of_compilations FILE.fl ...";
+  | [_; "-one-cmx"; directory; counts_file; unit_name] ->
+    Clflags.set_target Clflags.Target.Native;
+    Load_path.init ~auto_include:Load_path.no_auto_include ~visible:[]
+      ~hidden:[directory];
+    Env.set_current_unit
+      (Unit_info.make_dummy ~input_name:"types_of_compilations"
+         (Compilation_unit.of_string "Types_of_compilations"));
+    let counts, disagreements = check_cmx unit_name in
+    write_counts counts counts_file;
+    if disagreements > 0 then exit 1
+  | [] | [_] | [_; "-cmx"] ->
+    prerr_endline
+      "usage: types_of_compilations FILE.fl ..., or types_of_compilations -cmx \
+       DIRECTORY";
     exit 2
+  | [_; "-cmx"; directory] ->
+    (* The units of the .cmx files of the directory, in the order of their
+       names. *)
+    let units =
+      Sys.readdir directory |> Array.to_list
+      |> List.filter_map (fun file ->
+          if Filename.check_suffix file ".cmx"
+          then Some (String.capitalize_ascii (Filename.chop_suffix file ".cmx"))
+          else None)
+      |> List.sort String.compare
+    in
+    Format.printf
+      "The types that the compiler kept of the units of the standard library \
+       in their .cmx files, against the Rocq model.@.@.";
+    each_in_a_run_of_its_own ~one:["-one-cmx"; directory] ~shown:Fun.id
+      ~they:"units" units
   | _ :: filenames ->
     Format.printf
       "The types that Simplify computes for the units of the semantics tests, \

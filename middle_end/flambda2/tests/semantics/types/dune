@@ -82,3 +82,28 @@
  (alias runtest)
  (action
   (diff types_of_compilations.expected types_of_compilations.output)))
+
+;; The types that the compiler kept of the units of the standard library in
+;; their .cmx files. The files are those that the compiler of this context
+;; finds (%{ocaml_where}), and so, in the context in which the tests are
+;; run, those that the build of this tree made with its own compiler; in
+;; another context they would be those of another compiler, and there is no
+;; rule.
+
+(rule
+ (enabled_if
+  (= %{context_name} main))
+ (deps
+  types_of_compilations.exe
+  (glob_files %{ocaml_where}/*.cmx))
+ (action
+  (with-stdout-to
+   types_of_cmx.output
+   (run ./types_of_compilations.exe -cmx %{ocaml_where}))))
+
+(rule
+ (alias runtest)
+ (enabled_if
+  (= %{context_name} main))
+ (action
+  (diff types_of_cmx.expected types_of_cmx.output)))

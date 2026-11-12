@@ -1,0 +1,117 @@
+The types that the compiler kept of the units of the standard library in their .cmx files, against the Rocq model.
+
+CamlinternalAtomic: 9 symbols, 0 variables, 9 in the model
+CamlinternalComprehension: 6 symbols, 0 variables, 6 in the model
+CamlinternalFormat: 67 symbols, 1 variables, 66 in the model
+CamlinternalFormatBasics: 5 symbols, 0 variables, 5 in the model
+CamlinternalLazy: 8 symbols, 1 variables, 9 in the model
+CamlinternalMod: 3 symbols, 0 variables, 3 in the model
+CamlinternalOO: 29 symbols, 5 variables, 34 in the model
+CamlinternalQuote: 260 symbols, 3 variables, 263 in the model
+Std_exit: 1 symbols, 0 variables, 1 in the model
+Stdlib: 130 symbols, 6 variables, 136 in the model
+Stdlib__Arg: 72 symbols, 4 variables, 76 in the model
+Stdlib__Array: 73 symbols, 0 variables, 72 in the model
+Stdlib__ArrayLabels: 1 symbols, 0 variables, 1 in the model
+Stdlib__Atomic: 6 symbols, 0 variables, 6 in the model
+Stdlib__Backoff: 6 symbols, 3 variables, 9 in the model
+Stdlib__Bigarray: 67 symbols, 0 variables, 65 in the model
+Stdlib__Bool: 16 symbols, 0 variables, 16 in the model
+Stdlib__Buffer: 64 symbols, 0 variables, 64 in the model
+Stdlib__Bytes: 131 symbols, 1 variables, 132 in the model
+Stdlib__BytesLabels: 1 symbols, 0 variables, 1 in the model
+Stdlib__Callback: 6 symbols, 0 variables, 6 in the model
+Stdlib__Char: 37 symbols, 0 variables, 37 in the model
+Stdlib__Complex: 20 symbols, 0 variables, 20 in the model
+Stdlib__Condition: 5 symbols, 0 variables, 5 in the model
+Stdlib__Digest: 72 symbols, 0 variables, 72 in the model
+Stdlib__Domain: 74 symbols, 11 variables, 84 in the model
+Stdlib__Dynamic: 4 symbols, 0 variables, 4 in the model
+Stdlib__Dynarray: 62 symbols, 1 variables, 62 in the model
+Stdlib__Effect: 57 symbols, 3 variables, 60 in the model
+Stdlib__Either: 20 symbols, 0 variables, 20 in the model
+Stdlib__Ephemeron: 89 symbols, 0 variables, 89 in the model
+Stdlib__Filename: 78 symbols, 13 variables, 91 in the model
+Stdlib__Float: 96 symbols, 1 variables, 96 in the model
+Stdlib__Format: 247 symbols, 12 variables, 259 in the model
+Stdlib__Fun: 8 symbols, 1 variables, 9 in the model
+Stdlib__Gc: 117 symbols, 0 variables, 116 in the model
+Stdlib__Hashtbl: 53 symbols, 2 variables, 55 in the model
+Stdlib__Iarray: 54 symbols, 0 variables, 53 in the model
+Stdlib__In_channel: 18 symbols, 0 variables, 18 in the model
+Stdlib__Int: 11 symbols, 0 variables, 11 in the model
+Stdlib__Int32: 23 symbols, 0 variables, 23 in the model
+Stdlib__Int64: 23 symbols, 0 variables, 23 in the model
+Stdlib__Lazy: 7 symbols, 0 variables, 7 in the model
+Stdlib__Lexing: 33 symbols, 0 variables, 32 in the model
+Stdlib__List: 106 symbols, 0 variables, 106 in the model
+Stdlib__ListLabels: 1 symbols, 0 variables, 1 in the model
+Stdlib__Map: 108 symbols, 0 variables, 108 in the model
+Stdlib__Marshal: 15 symbols, 0 variables, 15 in the model
+Stdlib__Modes: 2 symbols, 0 variables, 2 in the model
+Stdlib__MoreLabels: 4 symbols, 0 variables, 4 in the model
+Stdlib__Mutex: 6 symbols, 0 variables, 6 in the model
+Stdlib__Nativeint: 23 symbols, 0 variables, 23 in the model
+Stdlib__Obj: 57 symbols, 0 variables, 57 in the model
+Stdlib__Oo: 1 symbols, 0 variables, 1 in the model
+Stdlib__Option: 18 symbols, 0 variables, 18 in the model
+Stdlib__Out_channel: 10 symbols, 0 variables, 10 in the model
+Stdlib__Pair: 12 symbols, 0 variables, 12 in the model
+Stdlib__Parsing: 24 symbols, 4 variables, 28 in the model
+Stdlib__Pqueue: 15 symbols, 0 variables, 15 in the model
+Stdlib__Printexc: 127 symbols, 3 variables, 129 in the model
+Stdlib__Printf: 17 symbols, 0 variables, 17 in the model
+Stdlib__Queue: 21 symbols, 1 variables, 22 in the model
+Stdlib__Quote: 13 symbols, 0 variables, 13 in the model
+Stdlib__Random: 75 symbols, 0 variables, 75 in the model
+Stdlib__Repr: 1 symbols, 0 variables, 1 in the model
+Stdlib__Result: 30 symbols, 0 variables, 30 in the model
+Stdlib__Scanf: 103 symbols, 2 variables, 105 in the model
+Stdlib__Semaphore: 12 symbols, 0 variables, 12 in the model
+Stdlib__Seq: 84 symbols, 1 variables, 85 in the model
+Stdlib__Set: 108 symbols, 0 variables, 108 in the model
+Stdlib__Stack: 19 symbols, 1 variables, 20 in the model
+Stdlib__StdLabels: 1 symbols, 0 variables, 1 in the model
+Stdlib__String: 80 symbols, 0 variables, 80 in the model
+Stdlib__StringLabels: 1 symbols, 0 variables, 1 in the model
+Stdlib__Sys: 22 symbols, 5 variables, 27 in the model
+Stdlib__Type: 5 symbols, 0 variables, 5 in the model
+Stdlib__Uchar: 41 symbols, 0 variables, 41 in the model
+Stdlib__Unit: 5 symbols, 0 variables, 5 in the model
+Stdlib__Weak: 48 symbols, 0 variables, 47 in the model
+
+In all:
+  79 units read
+  3384 symbols of a unit in its .cmx file
+  3469 names in the environments
+  3469 different types of a name
+  3456 in the model
+  2357 at its top, closures
+  2357 with a function type that has a rec_info, which is put back for the round trip from the compiler
+  3456 the round trip from the model (to the compiler and back): agree
+  3456 kind: agree
+  3456 get_alias_opt: agree
+  3456 is_obviously_bottom: agree
+  3456 is_obviously_unknown: agree
+  3456 free_variables against free_names, without shadowed bindings: agree
+  3456 free_variables includes free_names, with shadowed bindings: agree
+  3456 must_be_singleton: agree
+  3345 is_alias_of_name, of each name that the type mentions at its top: not run, the type mentions no variable and is no alias
+  3456 free_variables, with the variables of what the converter drops, against free_names: agree
+  3456 the round trip from the compiler, as printed: agree
+  3456 the round trip from the compiler, for the compiler's equality: agree
+  3456 the round trip from the compiler, for Type_grammar.equal: agree
+  3456 type_well_formed: agree
+  643 at its top, a variant
+  85 variables of a unit in its .cmx file
+  111 is_alias_of_name, of each name that the type mentions at its top: agree
+  13 not in the model: a type of arrays
+  358 at its top, a string
+  27 at its top, any value that is not null, or null
+  22 at its top, a mutable block
+  11 at its top, any value that is not null
+  34 at its top, a boxed number
+  1 at its top, a naked immediate
+  3 at its top, unknown
+
+No disagreement.
