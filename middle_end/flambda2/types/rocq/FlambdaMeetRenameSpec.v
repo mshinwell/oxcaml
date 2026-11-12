@@ -84,11 +84,12 @@
      ([typing_env_functions_equivariant_statement]).
 
    Two joins, two meets, one renaming (the second part). A join that
-   makes variables takes them from a source of new names. Of renamed
-   environments it answers the renamed answer only if the source is
-   renamed too, and it is then another function. So the second part
-   relates two functions by one renaming, the second being the one
-   that is given the renamed arguments: [meet_expanded_head_related],
+   makes variables takes them from a source of new names. For a
+   statement that holds of every input, the correspondence that is
+   meant renames the source as well, and the join with the renamed
+   source is another function. So the second part relates two
+   functions by one renaming, the second being the one that is given
+   the renamed arguments: [meet_expanded_head_related],
    [join_scoped_envs_related], [meet_function_related].
    - The meets of two joins that a renaming relates are related by
      it, at every fuel
@@ -296,11 +297,11 @@ Definition typing_env_functions_equivariant_statement : Prop :=
 (* ======================================================================== *)
 
 (* What is above is for a join that commutes with every renaming. A
-   join that makes variables takes them from a source of new names,
-   and of renamed environments it answers the renamed answer only if
-   the source is renamed too: on the renamed side it is another
-   function. What follows is for one renaming and two functions, the
-   second of which is given the renamed arguments. *)
+   join that makes variables takes them from a source of new names;
+   the correspondence that is meant renames the source as well, so on
+   the renamed side the join is another function. What follows is
+   for one renaming and two functions, the second of which is given
+   the renamed arguments. *)
 
 (* Two meets of two parts of a type, the parts being renamed by
    [rename_a] and what the meets answer by [rename_b]. *)

@@ -861,11 +861,12 @@ statements of section 16 say nothing of the meet that is given it.
 
 The join of the model takes its new variables from a source of new
 names, a function from the names to avoid to a variable
-(`Join_env.fresh`, `FlambdaJoinEnv.v`). Of renamed environments it
-answers the renamed answer if the source is renamed too: the
-variable that the renamed source gives for renamed names is the
-renamed variable. The join with the renamed source is another
-function. So the relations are between two functions, for one
+(`Join_env.fresh`, `FlambdaJoinEnv.v`). The correspondence that is
+meant renames the source as well: the variable that the renamed
+source gives for renamed names is the renamed variable. That the
+join then answers the renamed answer is for the files of the join
+to prove; it is not proved here. The join with the renamed source
+is another function. So the relations are between two functions, for one
 renaming, the second being given the renamed arguments:
 `meet_of_parts_related`, `meet_expanded_head_related`,
 `join_related_at` (two joins, each given its meet),
