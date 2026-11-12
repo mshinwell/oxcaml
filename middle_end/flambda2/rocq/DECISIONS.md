@@ -336,6 +336,12 @@ says so. Only the labels that this tree cites are listed.
   continuation of the unit: `to_cmm` gives that continuation a handler
   of its own and lets such a trap action through, where for the return
   continuation of a function it fails.
+- **R1-24.** A model of imported symbols in which every import is an
+  object with an identity answers false to `Phys_equal` of any import
+  against any allocated value of the unit, which is not justified for an
+  import that is immutable data: Simplify may share it. An import has a
+  class, and only one that is an identity is told apart from what the
+  unit allocates.
 - **R2-3.** A static set of closures may be empty; a set bound by a
   `Let` may not.
 - **R2-7.** Simplify fails on a set of closures in which two function
