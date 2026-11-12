@@ -38,7 +38,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaApplySpec FlambdaCompareSpec FlambdaNormaliseSpec
   FlambdaNormaliseProofs FlambdaPrimitiveModel FlambdaPrimitiveSpec
   FlambdaBlockLoadSpec FlambdaCseSpec
-  FlambdaIdentitiesSpec FlambdaRenameApartSpec FlambdaStaticsOrderSpec
+  FlambdaIdentitiesSpec FlambdaMergeSwitchesSpec FlambdaRenameApartSpec
+  FlambdaStaticsOrderSpec
   FlambdaUnboxSpec FlambdaUnusedContsSpec FlambdaUnusedContsProofs
   FlambdaUnusedStaticsSpec FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec FlambdaScopedProofs
@@ -153,6 +154,133 @@ Qed.
 Theorem collapse_switches_keeps_scope :
   collapse_switches_keeps_scope_statement.
 Proof. apply keeps_scope_intro, collapse_switches_scoped. Qed.
+
+(* Switches whose arms are merged. The merged arguments are among
+   those of the first arm and the variable of the scrutinee, and the
+   continuation is that of the first arm; the new [Let]s bind that
+   variable and use nothing else. *)
+
+Lemma merged_arguments_free (v : variable) (args args' : list simple) :
+  incl (free_variables_of_simples (merged_arguments v args args'))
+    (v :: free_variables_of_simples args).
+Proof.
+  revert args'.
+  induction args as [ | s args IH]; intros [ | s' args']; simpl;
+    try (intros x []).
+  assert
+    (Hrest :
+      incl (free_variables_of_simples (merged_arguments v args args'))
+        (v :: free_variables_of_simple s ++ free_variables_of_simples args)).
+  { intros x Hx. destruct (IH args' x Hx) as [<- | Hin];
+      [ left; reflexivity | right; apply in_or_app; right; exact Hin ]. }
+  destruct (simple_eq_dec s s'); simpl.
+  - apply incl_app; [ apply incl_tl, incl_appl, incl_refl | exact Hrest ].
+  - intros x [<- | Hx]; [ left; reflexivity | apply Hrest, Hx ].
+Qed.
+
+(* What the new [Let]s do to the scope of what is under them. *)
+Definition binds_again (v : variable) (wrap : expr -> expr) : Prop :=
+  ∀ body : expr,
+    code_closed (wrap body) = code_closed body
+    ∧ incl (free_variables_of_expr (wrap body))
+        (v :: free_variables_of_expr body)
+    ∧ free_continuations_of_expr (wrap body)
+      = free_continuations_of_expr body.
+
+Lemma bind_tagged_binds_again (v : variable) : binds_again v (bind_tagged v).
+Proof.
+  intros body. split; [ reflexivity | split; [ | reflexivity ] ].
+  unfold bind_tagged. scope. simpl.
+  intros x [<- | Hx]; [ left; reflexivity | right ].
+  apply in_without in Hx. apply Hx.
+Qed.
+
+Lemma bind_negated_binds_again (v : variable) :
+  binds_again v (bind_negated v).
+Proof.
+  intros body. split; [ reflexivity | split; [ | reflexivity ] ].
+  unfold bind_negated. scope. simpl.
+  intros x [<- | Hx]; [ left; reflexivity | right ].
+  apply in_without in Hx. apply Hx.
+Qed.
+
+Lemma binds_again_twice (v : variable) (wrap wrap' : expr -> expr) :
+  binds_again v wrap -> binds_again v wrap' ->
+  binds_again v (fun body => wrap (wrap' body)).
+Proof.
+  intros Hwrap Hwrap' body.
+  destruct (Hwrap (wrap' body)) as (Hclosed & Hv & Hk).
+  destruct (Hwrap' body) as (Hclosed' & Hv' & Hk').
+  split; [ congruence | split; [ | congruence ] ].
+  intros x Hx. apply Hv in Hx.
+  destruct Hx as [<- | Hx]; [ left; reflexivity | apply Hv', Hx ].
+Qed.
+
+Lemma merged_scoped (v : variable) (i i' : Z) (ac ac' : apply_cont)
+    (others : list (Z * apply_cont)) (wrap : expr -> expr) :
+  binds_again v wrap ->
+  scoped (Switch (Var v) ((i, ac) :: (i', ac') :: others))
+    (wrap
+       (Apply_cont
+          (Apply_cont_expr (ac_continuation ac)
+             (merged_arguments v (ac_args ac) (ac_args ac')) None))).
+Proof.
+  intros Hwrap _.
+  destruct (Hwrap
+    (Apply_cont
+       (Apply_cont_expr (ac_continuation ac)
+          (merged_arguments v (ac_args ac) (ac_args ac')) None)))
+    as (Hclosed & Hv & Hk).
+  rewrite Hclosed, Hk. split; [ reflexivity | split ].
+  - assert
+      (Hswitch :
+        ∀ y : variable,
+          y = v ∨ In y (free_variables_of_simples (ac_args ac)) ->
+          In y
+            (free_variables_of_expr
+               (Switch (Var v) ((i, ac) :: (i', ac') :: others)))).
+    { intros y [-> | Hy]; scope; simpl;
+        [ left; reflexivity | right; apply in_or_app; left; exact Hy ]. }
+    intros x Hx. apply Hswitch. apply Hv in Hx.
+    destruct Hx as [<- | Hx]; [ left; reflexivity | ].
+    scope_in Hx. apply merged_arguments_free in Hx.
+    destruct Hx as [<- | Hx]; [ left; reflexivity | right; exact Hx ].
+  - scope. simpl. intros k [<- | []]. left. reflexivity.
+Qed.
+
+Lemma merge_switch_scoped (scrutinee : simple)
+    (arms : list (Z * apply_cont)) :
+  scoped (Switch scrutinee arms) (merge_switch scrutinee arms).
+Proof.
+  unfold merge_switch.
+  destruct scrutinee as [v | sym | c]; try apply scoped_refl.
+  destruct arms as [ | [i ac] [ | [i' ac'] others]]; try apply scoped_refl.
+  cbv zeta.
+  destruct (var_in_simples v _); [ | apply scoped_refl ].
+  destruct (forallb (arm_is_merged By_tagging v _) _).
+  - apply (merged_scoped v i i' ac ac' others (bind_tagged v)).
+    apply bind_tagged_binds_again.
+  - destruct (forallb _ _); [ | apply scoped_refl ].
+    apply
+      (merged_scoped v i i' ac ac' others
+         (fun body => bind_tagged v (bind_negated v body))).
+    apply binds_again_twice;
+      [ apply bind_tagged_binds_again | apply bind_negated_binds_again ].
+Qed.
+
+Fixpoint merge_switches_scoped (e : expr) : scoped e (merge_switches e).
+Proof.
+  destruct e
+    as [x kind d body | bindings body | k [params metadata handler] body
+       | handlers body | ap | ac | scrutinee arms | ];
+    cbn [merge_switches];
+    first
+      [ apply merge_switch_scoped
+      | scoped_under_binders merge_switches_scoped ].
+Qed.
+
+Theorem merge_switches_keeps_scope : merge_switches_keeps_scope_statement.
+Proof. apply keeps_scope_intro, merge_switches_scoped. Qed.
 
 (* Continuations that are not used. *)
 

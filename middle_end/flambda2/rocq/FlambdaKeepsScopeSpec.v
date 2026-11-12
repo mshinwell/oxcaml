@@ -71,7 +71,8 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec FlambdaBindersSpec FlambdaCompareSpec
   FlambdaNormaliseSpec FlambdaBlockLoadSpec FlambdaCseSpec
-  FlambdaIdentitiesSpec FlambdaRenameApartSpec FlambdaStaticsOrderSpec
+  FlambdaIdentitiesSpec FlambdaMergeSwitchesSpec FlambdaRenameApartSpec
+  FlambdaStaticsOrderSpec
   FlambdaUnboxSpec FlambdaUnusedContsSpec FlambdaUnusedStaticsSpec
   FlambdaValidateSpec FlambdaValidatorEquivarianceSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
@@ -112,6 +113,9 @@ Definition fold_constants_keeps_scope_statement : Prop :=
 
 Definition collapse_switches_keeps_scope_statement : Prop :=
   keeps_scope collapse_switches.
+
+Definition merge_switches_keeps_scope_statement : Prop :=
+  keeps_scope merge_switches.
 
 Definition remove_unused_conts_keeps_scope_statement : Prop :=
   keeps_scope remove_unused_conts.

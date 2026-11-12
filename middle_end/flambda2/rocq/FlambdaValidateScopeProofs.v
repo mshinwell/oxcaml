@@ -81,7 +81,8 @@ Create HintDb scoped.
 
 #[export] Hint Resolve keeps_scope_intro rename_apart_scoped
   rename_apart_avoiding_scoped
-  fold_constants_scoped collapse_switches_scoped remove_unused_conts_scoped
+  fold_constants_scoped collapse_switches_scoped merge_switches_scoped
+  remove_unused_conts_scoped
   remove_unused_lets_scoped remove_unused_defined_lets_scoped
   apply_identities_scoped inline_tail_conts_scoped thread_switches_scoped
   drop_deleted_code_scoped merge_statics_scoped rewrite_code_scoped
