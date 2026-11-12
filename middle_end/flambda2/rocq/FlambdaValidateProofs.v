@@ -34,7 +34,8 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaSemanticsProofs FlambdaCompareSpec FlambdaCompareProofs
   FlambdaNormaliseSpec FlambdaNormaliseProofs FlambdaBlockLoadSpec
-  FlambdaBlockLoadProofs FlambdaCseSpec FlambdaCseProofs
+  FlambdaBlockLoadProofs FlambdaCodeLetsSpec FlambdaCodeLetsProofs
+  FlambdaCseSpec FlambdaCseProofs
   FlambdaDeadParamsSpec FlambdaDeadParamsProofs
   FlambdaForwardSpec FlambdaForwardProofs
   FlambdaIdentitiesSpec FlambdaIdentitiesProofs
@@ -205,6 +206,8 @@ Lemma normalise_after_round_equivalent (kept : list code_id) (e : expr) :
   expr_equivalent e (normalise_after_round kept e).
 Proof.
   unfold normalise_after_round, inline_once_applied_after.
+  eapply expr_equivalent_trans;
+    [ | apply remove_unused_defined_lets_in_code_equivalent ].
   eapply expr_equivalent_trans;
     [ | apply rewrite_code_equivalent, normalise_code_after_equivalent ].
   repeat (eapply expr_equivalent_trans; [ | solve [ equivalence_step ] ]).

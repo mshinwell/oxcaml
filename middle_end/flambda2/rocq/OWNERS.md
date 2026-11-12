@@ -460,6 +460,8 @@ units with loops (`while`, `for`, tail-recursive functions).
   `inline_tail_conts` is an equivalence)
 - `middle_end/flambda2/rocq/FlambdaDeadParams*` (removing the
   parameters of a loop that are only passed round it)
+- `middle_end/flambda2/rocq/FlambdaCodeLets*` (removing, in the body
+  of code, the unused `Let`s of its parameters)
 
 ## N1: nominal loose ends
 

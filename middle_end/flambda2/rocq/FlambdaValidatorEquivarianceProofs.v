@@ -57,6 +57,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSinkContsSpec FlambdaShortcutSpec FlambdaUnusedParamsSpec
   FlambdaLoopAliasesSpec FlambdaLoopLetsSpec FlambdaParamAliasesSpec
   FlambdaForwardSpec FlambdaInlineTailSpec FlambdaDeadParamsSpec
+  FlambdaCodeLetsSpec
   FlambdaLoopifySpec
   FlambdaCseSpec FlambdaCseProofs
   FlambdaIdentitiesSpec FlambdaIdentitiesProofs FlambdaStaticsOrderSpec
@@ -3810,6 +3811,60 @@ Proof.
     reflexivity.
 Qed.
 
+(* The same in the bodies of code, with the parameters of the code in
+   scope. *)
+Lemma remove_unused_defined_lets_in_binding_equivariant (r : renaming)
+    (binding : static_binding) :
+  remove_unused_defined_lets_in_binding (rename_static_binding r binding)
+  = rename_static_binding r (remove_unused_defined_lets_in_binding binding).
+Proof.
+  destruct binding
+    as [id [params my_closure ret exn metadata body] | id | sym const];
+    try reflexivity.
+  cbn [rename_static_binding rename_code
+       remove_unused_defined_lets_in_binding].
+  unfold code_in_scope.
+  change [(rename_variable r my_closure, Value)]
+    with (rename_kinds_in_scope r [(my_closure, Value)]).
+  rewrite params_in_scope_equivariant,
+    remove_unused_defined_lets_in_loops_equivariant_aux.
+  reflexivity.
+Qed.
+
+Fixpoint remove_unused_defined_lets_in_code_equivariant_aux (r : renaming)
+    (e : expr) :
+  remove_unused_defined_lets_in_code (rename_expr r e)
+  = rename_expr r (remove_unused_defined_lets_in_code e)
+with remove_unused_defined_lets_in_code_handler_equivariant (r : renaming)
+    (h : continuation_handler) :
+  remove_unused_defined_lets_in_code_handler (rename_handler r h)
+  = rename_handler r (remove_unused_defined_lets_in_code_handler h).
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      simpl; try reflexivity.
+    + rewrite remove_unused_defined_lets_in_code_equivariant_aux.
+      reflexivity.
+    + rewrite remove_unused_defined_lets_in_code_equivariant_aux, !map_map.
+      f_equal. apply map_ext.
+      exact (remove_unused_defined_lets_in_binding_equivariant r).
+    + rewrite remove_unused_defined_lets_in_code_handler_equivariant,
+        remove_unused_defined_lets_in_code_equivariant_aux.
+      reflexivity.
+    + rewrite remove_unused_defined_lets_in_code_equivariant_aux. f_equal.
+      induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
+      rewrite (remove_unused_defined_lets_in_code_handler_equivariant r h),
+        IH.
+      reflexivity.
+  - destruct h as [params metadata handler]. simpl.
+    rewrite remove_unused_defined_lets_in_code_equivariant_aux. reflexivity.
+Qed.
+
+Lemma remove_unused_defined_lets_in_code_equivariant :
+  rewrite_equivariant remove_unused_defined_lets_in_code.
+Proof. exact remove_unused_defined_lets_in_code_equivariant_aux. Qed.
+
 (* Binding the parameters that every application gives the same thing. *)
 Lemma simple_eqb_renamed (r : renaming) (s s' : simple) :
   simple_eqb (rename_simple r s) (rename_simple r s') = simple_eqb s s'.
@@ -4745,7 +4800,8 @@ Proof.
     (rewrite_rec_handlers_equivariant normalise_expr_after
        normalise_expr_after_equivariant).
   rename_outwards.
-  apply rewrite_code_equivariant, normalise_code_after_equivariant.
+  rewrite (rewrite_code_equivariant _ normalise_code_after_equivariant).
+  apply remove_unused_defined_lets_in_code_equivariant.
 Qed.
 
 Theorem normalise_after_equivariant : normalise_after_equivariant_statement.

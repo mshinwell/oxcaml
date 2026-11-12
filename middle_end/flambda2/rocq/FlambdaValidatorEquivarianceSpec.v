@@ -180,6 +180,8 @@
    FlambdaLoopLetsSpec.remove_unused_defined_lets_in_loops, which
    carries the kinds of what is in scope as
    [remove_unused_defined_lets] does;
+   FlambdaCodeLetsSpec.remove_unused_defined_lets_in_code, which
+   starts that pass in the body of each piece of code;
    FlambdaParamAliasesSpec.bind_aliased_params;
    FlambdaForwardSpec.forward_applications; and
    FlambdaInlineTailSpec.inline_tail_conts_kinded, which the
@@ -280,7 +282,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaBindersSpec FlambdaWellFormedSpec FlambdaWellKindedSpec
   FlambdaLiftSpec FlambdaCompareSpec FlambdaRecHandlersSpec
   FlambdaSinkContsSpec FlambdaShortcutSpec FlambdaUnusedParamsSpec
-  FlambdaLoopAliasesSpec FlambdaLoopLetsSpec FlambdaParamAliasesSpec
+  FlambdaLoopAliasesSpec FlambdaLoopLetsSpec FlambdaCodeLetsSpec
+  FlambdaParamAliasesSpec
   FlambdaForwardSpec FlambdaInlineTailSpec FlambdaLoopifySpec
   FlambdaDeadParamsSpec FlambdaRenameApartSpec FlambdaUnusedProjectionsSpec
   FlambdaValidateSpec.
@@ -733,6 +736,12 @@ Definition remove_unused_defined_lets_in_loops_equivariant_statement : Prop :=
     remove_unused_defined_lets_in_loops (rename_kinds_in_scope r kinds)
       (rename_expr r e)
     = rename_expr r (remove_unused_defined_lets_in_loops kinds e).
+
+(* The same pass in the body of each piece of code, started with the
+   parameters of the code and [my_closure] in scope
+   (FlambdaCodeLetsSpec.v). *)
+Definition remove_unused_defined_lets_in_code_equivariant_statement : Prop :=
+  rewrite_equivariant remove_unused_defined_lets_in_code.
 
 (* Binding a parameter that every application gives the same thing
    (FlambdaParamAliasesSpec.v). *)

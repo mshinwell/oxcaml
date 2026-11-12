@@ -134,7 +134,7 @@ From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaCompareSpec FlambdaNormaliseSpec FlambdaBlockLoadSpec
-  FlambdaCseSpec FlambdaDeadParamsSpec FlambdaForwardSpec
+  FlambdaCodeLetsSpec FlambdaCseSpec FlambdaDeadParamsSpec FlambdaForwardSpec
   FlambdaIdentitiesSpec
   FlambdaInlineSiblingsSpec FlambdaInlineTailSpec FlambdaLoopAliasesSpec
   FlambdaLoopLetsSpec
@@ -316,7 +316,13 @@ Definition inline_once_applied_after (e : expr) : expr :=
    (FlambdaUnusedProjectionsSpec.remove_unused_projections): the [Let]
    of a closure of a set that is not the first is one in the model
    (FlambdaModel.let_closures), and the term before loses it by a
-   refinement. *)
+   refinement. Last in a round, the unused [Let]s that are sure to have
+   a value are removed in the bodies of code with the parameters of the
+   code in scope
+   (FlambdaCodeLetsSpec.remove_unused_defined_lets_in_code): where
+   Simplify makes a loop of a function, it leaves such a [Let] of each
+   parameter of the function that every self tail call passes on as it
+   is. *)
 Definition normalise_expr_after (e : expr) : expr :=
   remove_unused_defined_lets_in_loops []
     (remove_unused_projections
@@ -328,17 +334,18 @@ Definition normalise_code_after (body : expr) : expr :=
   rewrite_rec_handlers normalise_expr_after (normalise_expr_after body).
 
 Definition normalise_after_round (kept : list code_id) (e : expr) : expr :=
-  rewrite_code normalise_code_after
-    (merge_statics
-       (drop_deleted_code
-          (rewrite_rec_handlers normalise_expr_after
-             (remove_unused_defined_lets_in_loops []
-                (remove_unused_projections
-                   (fold_constants
-                      (inline_known_calls kept [] []
-                         (follow_aliases_in_loops []
-                            (follow_aliases []
-                               (inline_once_applied_after e)))))))))).
+  remove_unused_defined_lets_in_code
+    (rewrite_code normalise_code_after
+       (merge_statics
+          (drop_deleted_code
+             (rewrite_rec_handlers normalise_expr_after
+                (remove_unused_defined_lets_in_loops []
+                   (remove_unused_projections
+                      (fold_constants
+                         (inline_known_calls kept [] []
+                            (follow_aliases_in_loops []
+                               (follow_aliases []
+                                  (inline_once_applied_after e))))))))))).
 
 Definition normalise_after (rounds : nat) (kept : list code_id) (e : expr)
     : expr :=
