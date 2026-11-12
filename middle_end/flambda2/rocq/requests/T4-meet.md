@@ -28,7 +28,7 @@ Files, in `middle_end/flambda2/types/rocq/`:
   meet answers at the calls that Simplify makes on small functions,
   fifteen statements, proved by running it (section 15).
 - `FlambdaExpandHeadSpec.v`, `FlambdaExpandHeadProofs.v`: what
-  `expand_head` keeps, seven statements, proved.
+  `expand_head` keeps, eight statements, proved.
 
 The compiler read: `types/meet_and_n_way_join.ml` (lines 1 to 1883, the
 meet), `types/meet.ml`, `types/env/meet_env.ml`, `types/expand_head.ml`,

@@ -36,6 +36,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaSemanticsSpec FlambdaPrimitiveProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs
+  FlambdaTypeWellFormedSpec FlambdaTypeWellFormedProofs
   FlambdaBindingTime FlambdaEnvAliases FlambdaEnvAliasesSpec
   FlambdaEnvAliasesProofs FlambdaTypingEnv FlambdaTypingEnvSpec
   FlambdaTypingEnvProofs FlambdaTypingEnvInvariantSpec
@@ -326,6 +327,50 @@ Proof.
   - intros m kind' Hin.
     rewrite (of_non_alias_type_equation_names _ _ Hexpanded) in Hin.
     exact (find_equations_kinded _ _ _ _ Hkinded Hfind m kind' Hin).
+Qed.
+
+(* What is used of the predicate of well-formed types, beside what
+   its own file states: the type of a constant, expanded, is well
+   formed, and a well-formed type that is not an alias is the type
+   made of what it expands to. *)
+Lemma expanded_create_const_well_formed (c : const) :
+  type_well_formed (Expanded_type.to_type (Expanded_type.create_const c))
+  = true.
+Proof.
+  destruct c as [i | i | f | f | i | i | i | i | i | i | i | i | i | | k];
+    try reflexivity.
+  apply unknown_well_formed.
+Qed.
+
+Lemma expanded_of_non_alias_well_formed (ty : flambda_type)
+    (expanded : Expanded_type.t) :
+  Expanded_type.of_non_alias_type ty = Some expanded ->
+  type_well_formed ty = true ->
+  type_well_formed (Expanded_type.to_type expanded) = true.
+Proof.
+  intros Hexpanded Hwf.
+  destruct ty as [ descr | descr | k descr | descr | descr ];
+    destruct descr as [ | [ head | s ] | ]; cbn in Hexpanded;
+    try discriminate Hexpanded; injection Hexpanded as <-;
+    try exact Hwf; try reflexivity.
+  - destruct k; try reflexivity; discriminate Hwf.
+  - destruct k; try reflexivity; discriminate Hwf.
+Qed.
+
+Theorem expand_head_well_formed : expand_head_well_formed_statement.
+Proof.
+  intros tenv ty expanded Hexpand Htypes Hty.
+  destruct (expand_head_cases tenv ty expanded Hexpand)
+    as [[_ Hexpanded]
+       | [s [Halias [[_ Hexpanded]
+                    | [[c [Hcanonical ->]]
+                      | [n [ty' [Hcanonical [Hfind Hexpanded]]]]]]]]].
+  - exact (expanded_of_non_alias_well_formed _ _ Hexpanded Hty).
+  - apply (expanded_of_non_alias_well_formed _ _ Hexpanded).
+    apply unknown_well_formed.
+  - apply expanded_create_const_well_formed.
+  - apply (expanded_of_non_alias_well_formed _ _ Hexpanded).
+    exact (find_well_formed _ _ _ _ Htypes Hfind).
 Qed.
 
 (* The alias that a type is, is among its aliases, at its kind. *)

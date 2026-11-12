@@ -54,6 +54,9 @@
    - kinds of equations ([expand_head_equations_kinded_statement]):
      the same of the names that have an equation in an extension
      inside the types ([type_equations_kinded] of that file);
+   - well-formedness ([expand_head_well_formed_statement]): if the
+     types of the environment and the type are well formed
+     (FlambdaTypeWellFormedSpec.v), so is the type expanded;
    - the kind ([expand_head_kind_statement]): the type expanded is of
      the kind of the type, if the type is kinded and the environment
      has [constants_of_kind]. The compiler does not check this where
@@ -74,7 +77,8 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
-  FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaEnvAliases
+  FlambdaTypeMeaningSpec FlambdaTypeWellFormedSpec FlambdaBindingTime
+  FlambdaEnvAliases
   FlambdaEnvAliasesSpec FlambdaTypingEnv FlambdaTypingEnvSpec
   FlambdaTypingEnvInvariantSpec FlambdaTypingEnvKindedSpec
   FlambdaMeetGrammar FlambdaExpandHead FlambdaMeetEnv FlambdaMeet
@@ -133,6 +137,14 @@ Definition expand_head_equations_kinded_statement : Prop :=
     type_equations_kinded tenv ty ->
     expand_head tenv ty = Some expanded ->
     type_equations_kinded tenv (Expanded_type.to_type expanded).
+
+(* The type expanded is well formed. *)
+Definition expand_head_well_formed_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (ty : flambda_type) (expanded : Expanded_type.t),
+    expand_head tenv ty = Some expanded ->
+    types_well_formed tenv ->
+    type_well_formed ty = true ->
+    type_well_formed (Expanded_type.to_type expanded) = true.
 
 (* The type expanded is of the kind of the type. *)
 Definition expand_head_kind_statement : Prop :=

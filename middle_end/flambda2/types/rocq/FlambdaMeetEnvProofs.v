@@ -751,34 +751,6 @@ Proof.
     exact (replace_equation_no_new _ _ _ x Hknown).
 Qed.
 
-(* What is used of the predicate of well-formed types, beside what
-   its own file states: the type of a constant, expanded, is well
-   formed, and a well-formed type that is not an alias is the type
-   made of what it expands to. *)
-Lemma to_type_create_const_well_formed (c : const) :
-  type_well_formed (Expanded_type.to_type (Expanded_type.create_const c))
-  = true.
-Proof.
-  destruct c as [i | i | f | f | i | i | i | i | i | i | i | i | i | | k];
-    try reflexivity.
-  apply unknown_well_formed.
-Qed.
-
-Lemma of_non_alias_type_well_formed (ty : flambda_type)
-    (expanded : Expanded_type.t) :
-  Expanded_type.of_non_alias_type ty = Some expanded ->
-  type_well_formed ty = true ->
-  type_well_formed (Expanded_type.to_type expanded) = true.
-Proof.
-  intros Hexpanded Hwf.
-  destruct ty as [ descr | descr | k descr | descr | descr ];
-    destruct descr as [ | [ head | s ] | ]; cbn in Hexpanded;
-    try discriminate Hexpanded; injection Hexpanded as <-;
-    try exact Hwf; try reflexivity.
-  - destruct k; try reflexivity; discriminate Hwf.
-  - destruct k; try reflexivity; discriminate Hwf.
-Qed.
-
 Section Keeps.
 
 Lemma mem_simple_of_name (tenv : Typing_env.t) (n : name) :
@@ -809,7 +781,8 @@ Lemma type_fits_of_non_alias (tenv : Typing_env.t) (ty : flambda_type)
   type_fits tenv (Expanded_type.to_type expanded).
 Proof.
   intros Hexpanded (Hwf & Hclosed & Hkinded & Hequations).
-  split; [ exact (of_non_alias_type_well_formed ty expanded Hexpanded Hwf) | ].
+  split;
+    [ exact (expanded_of_non_alias_well_formed ty expanded Hexpanded Hwf) | ].
   split.
   { intros x Hin.
     rewrite (of_non_alias_type_free_variables ty expanded Hexpanded) in Hin.
@@ -827,7 +800,7 @@ Qed.
 Lemma type_fits_create_const (tenv : Typing_env.t) (c : const) :
   type_fits tenv (Expanded_type.to_type (Expanded_type.create_const c)).
 Proof.
-  split; [ apply to_type_create_const_well_formed | ]. split.
+  split; [ apply expanded_create_const_well_formed | ]. split.
   { intros x Hin. rewrite create_const_free_variables in Hin. destruct Hin. }
   split; [ apply create_const_kinded | ].
   intros n k Hin. rewrite create_const_equation_names in Hin. destruct Hin.
