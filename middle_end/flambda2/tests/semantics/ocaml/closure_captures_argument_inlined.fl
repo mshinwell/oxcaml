@@ -1,0 +1,66 @@
+let $camlClosure_captures_argument_inlined__first_const_0 = Block 0 () in
+(let code size(4)
+       `fn[closure_captures_argument_inlined.ml:10,23--37]_1`
+         (x/67 : imm tagged)
+         my_closure/68 &my_alloc_region/69 my_depth/70
+         -> k/22 * k/23
+         : imm tagged =
+   let next_depth/71 = rec_info (succ my_depth/70) in
+   let n/72 =
+     %project_value_slot.[`fn[closure_captures_argument_inlined.ml:10,23--37]`].[n]
+       (my_closure/68)
+   in
+   let int_add/73 = %int_barith.add (x/67, n/72) in
+   cont k/22 (int_add/73)
+ in
+ let code inline(always) size(13)
+       adder_0 (n/74 : imm tagged)
+         my_closure/75 &my_alloc_region/76 my_depth/77
+         -> k/24 * k/25
+         : val =
+   let next_depth/78 = rec_info (succ my_depth/77) in
+   let `fn[closure_captures_argument_inlined.ml:10,23--37]/79` =
+     closure `fn[closure_captures_argument_inlined.ml:10,23--37]_1`
+       @`fn[closure_captures_argument_inlined.ml:10,23--37]`
+       &my_alloc_region/76
+   with { n = n/74 }
+   in
+   cont k/24 (`fn[closure_captures_argument_inlined.ml:10,23--37]/79`)
+ in
+ let code size(6)
+       add_first_2 (pair/80 : [ 0 of imm tagged * val ])
+         my_closure/81 &my_alloc_region/82 my_depth/83
+         -> k/26 * k/27
+         : val =
+   let next_depth/84 = rec_info (succ my_depth/83) in
+   let adder/85 = %project_value_slot.[add_first].[adder] (my_closure/81) in
+   let Pfield/86 = %block_load.[`0`] (pair/80) in
+   apply direct(adder_0 &my_alloc_region/82)
+     (adder/85 : _ -> val) (Pfield/86) -> k/26 * k/27
+ in
+ let adder/87 = closure adder_0 @adder &toplevel in
+ let add_first/88 = closure add_first_2 @add_first &toplevel
+ with { adder = adder/87 }
+ in
+ (let Popaque/91 = %opaque (3) in
+  let Pmakeblock/92 = %block.[`0`].`toplevel` (Popaque/91, 0) in
+  apply direct(add_first_2 &toplevel)
+    add_first/88 (Pmakeblock/92) -> k/29 * error
+    where k/29 (func/93) =
+      apply &toplevel func/93 (4) -> k/28 * error)
+   where k/28 (result/89 : imm tagged) =
+     let Pmakeblock/90 =
+       %block.[`0`].`toplevel` (adder/87, add_first/88, result/89)
+     in
+     cont k/21 (Pmakeblock/90))
+  where k/21 define_root_symbol (module_block/63) =
+    let field_0/64 = %block_load.tag[`0`].`size`[`3`].[`0`] (module_block/63)
+    in
+    let field_1/65 = %block_load.tag[`0`].`size`[`3`].[`1`] (module_block/63)
+    in
+    let field_2/66 = %block_load.tag[`0`].`size`[`3`].[`2`] (module_block/63)
+    in
+    let $camlClosure_captures_argument_inlined =
+      Block 0 (field_0/64, field_1/65, field_2/66)
+    in
+    cont done ($camlClosure_captures_argument_inlined)

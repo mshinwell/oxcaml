@@ -1,0 +1,56 @@
+let $camlSibling_through_alias__first_const_0 = Block 0 () in
+(let code rec size(21)
+       walk_0 (n/55 : imm tagged)
+         my_closure/56 &my_alloc_region/57 my_depth/58
+         -> k/20 * k/21
+         : imm tagged =
+   let next_depth/59 = rec_info (succ my_depth/58) in
+   let step/60 = %project_function_slot.[walk].[step] (my_closure/56) in
+   (let prim/61 = %phys_eq (n/55, 0) in
+    let eq/62 = %tag_imm (prim/61) in
+    (let untagged/63 = %untag_imm (eq/62) in
+     switch untagged/63
+       | 0 -> k/23
+       | 1 -> k/20 (0))
+      where k/23 =
+        cont k/22)
+     where k/22 =
+       apply direct(step_1 &my_alloc_region/57)
+         (step/60 ~ depth my_depth/58 -> next_depth/59 : _ -> imm tagged)
+           (n/55)
+           -> k/20 * k/21
+ and code rec size(7)
+       step_1 (n/64 : imm tagged)
+         my_closure/65 &my_alloc_region/66 my_depth/67
+         -> k/24 * k/25
+         : imm tagged =
+   let next_depth/68 = rec_info (succ my_depth/67) in
+   let walk/69 = %project_function_slot.[step].[walk] (my_closure/65) in
+   let int_sub/70 = %int_barith.sub (n/64, 1) in
+   apply direct(walk_0 &my_alloc_region/66)
+     (walk/69 ~ depth my_depth/67 -> next_depth/68 : _ -> imm tagged)
+       (int_sub/70)
+       -> k/24 * k/25
+ in
+ let walk/71 = closure walk_0 @walk &toplevel
+ and step/72 = closure step_1 @step &toplevel
+ in
+ (let Popaque/75 = %opaque (4) in
+  apply direct(walk_0 &toplevel)
+    (walk/71 : _ -> imm tagged) (Popaque/75) -> k/26 * error)
+   where k/26 (result/73 : imm tagged) =
+     let Pmakeblock/74 =
+       %block.[`0`].`toplevel` (walk/71, step/72, result/73)
+     in
+     cont k/19 (Pmakeblock/74))
+  where k/19 define_root_symbol (module_block/51) =
+    let field_0/52 = %block_load.tag[`0`].`size`[`3`].[`0`] (module_block/51)
+    in
+    let field_1/53 = %block_load.tag[`0`].`size`[`3`].[`1`] (module_block/51)
+    in
+    let field_2/54 = %block_load.tag[`0`].`size`[`3`].[`2`] (module_block/51)
+    in
+    let $camlSibling_through_alias =
+      Block 0 (field_0/52, field_1/53, field_2/54)
+    in
+    cont done ($camlSibling_through_alias)

@@ -1,0 +1,48 @@
+let $camlClosure_captures_field_once__first_const_0 = Block 0 () in
+(let code size(8)
+       `fn[closure_captures_field_once.ml:9,34--66]_1` (x/54 : imm tagged)
+         my_closure/55 &my_alloc_region/56 my_depth/57
+         -> k/18 * k/19
+         : imm tagged =
+   let next_depth/58 = rec_info (succ my_depth/57) in
+   let pair/59 =
+     %project_value_slot.[`fn[closure_captures_field_once.ml:9,34--66]`].[pair]
+       (my_closure/55)
+   in
+   let Pfield/60 = %block_load.[`0`] (pair/59) in
+   let Pfield/61 = %block_load.[`0`] (pair/59) in
+   let int_add/62 = %int_barith.add (x/54, Pfield/61) in
+   let int_add/63 = %int_barith.add (int_add/62, Pfield/60) in
+   cont k/18 (int_add/63)
+ in
+ let code inline(never) size(17)
+       doubler_0 (pair/64 : [ 0 of imm tagged * val ])
+         my_closure/65 &my_alloc_region/66 my_depth/67
+         -> k/20 * k/21
+         : val =
+   let next_depth/68 = rec_info (succ my_depth/67) in
+   let `fn[closure_captures_field_once.ml:9,34--66]/69` =
+     closure `fn[closure_captures_field_once.ml:9,34--66]_1`
+       @`fn[closure_captures_field_once.ml:9,34--66]` &my_alloc_region/66
+   with { pair = pair/64 }
+   in
+   cont k/20 (`fn[closure_captures_field_once.ml:9,34--66]/69`)
+ in
+ let doubler/70 = closure doubler_0 @doubler &toplevel in
+ (let Popaque/73 = %opaque (3) in
+  let Pmakeblock/74 = %block.[`0`].`toplevel` (Popaque/73, 0) in
+  apply direct(doubler_0 &toplevel)
+    doubler/70 (Pmakeblock/74) -> k/23 * error
+    where k/23 (func/75) =
+      apply &toplevel func/75 (4) -> k/22 * error)
+   where k/22 (result/71 : imm tagged) =
+     let Pmakeblock/72 = %block.[`0`].`toplevel` (doubler/70, result/71) in
+     cont k/17 (Pmakeblock/72))
+  where k/17 define_root_symbol (module_block/51) =
+    let field_0/52 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/51)
+    in
+    let field_1/53 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/51)
+    in
+    let $camlClosure_captures_field_once = Block 0 (field_0/52, field_1/53)
+    in
+    cont done ($camlClosure_captures_field_once)

@@ -1,0 +1,43 @@
+let $camlJoin_two_names_of_symbol__first_const_0 = Block 0 () in
+(let code size(14)
+       pick_0 (flag/48 : imm tagged)
+         my_closure/49 &my_alloc_region/50 my_depth/51
+         -> k/14 * k/15
+         : imm tagged =
+   let next_depth/52 = rec_info (succ my_depth/51) in
+   let default/53 = %project_value_slot.[pick].[`default`] (my_closure/49) in
+   (let untagged/56 = %untag_imm (flag/48) in
+    switch untagged/56
+      | 0 -> k/16 (default/53)
+      | 1 -> k/16 (default/53))
+     where k/16 (pair/54 : [ 0 of imm tagged * imm tagged ]) =
+       let Pfield/55 = %block_load.[`0`] (pair/54) in
+       cont k/14 (Pfield/55)
+ in
+ let Popaque/57 = %opaque (2) in
+ let Popaque/58 = %opaque (1) in
+ let default/59 = %block.[`0`].`toplevel` (Popaque/58, Popaque/57) in
+ let pick/60 = closure pick_0 @pick &toplevel
+ with { `default` = default/59 }
+ in
+ (let Popaque/63 = %opaque (1) in
+  apply direct(pick_0 &toplevel)
+    (pick/60 : _ -> imm tagged) (Popaque/63) -> k/17 * error)
+   where k/17 (result/61 : imm tagged) =
+     let Pmakeblock/62 =
+       %block.[`0`].`toplevel` (default/59, default/59, pick/60, result/61)
+     in
+     cont k/13 (Pmakeblock/62))
+  where k/13 define_root_symbol (module_block/43) =
+    let field_0/44 = %block_load.tag[`0`].`size`[`4`].[`0`] (module_block/43)
+    in
+    let field_1/45 = %block_load.tag[`0`].`size`[`4`].[`1`] (module_block/43)
+    in
+    let field_2/46 = %block_load.tag[`0`].`size`[`4`].[`2`] (module_block/43)
+    in
+    let field_3/47 = %block_load.tag[`0`].`size`[`4`].[`3`] (module_block/43)
+    in
+    let $camlJoin_two_names_of_symbol =
+      Block 0 (field_0/44, field_1/45, field_2/46, field_3/47)
+    in
+    cont done ($camlJoin_two_names_of_symbol)

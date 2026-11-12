@@ -1,0 +1,76 @@
+let $camlClosure_from_pair_called__first_const_0 = Block 0 () in
+(let code size(4)
+       add_1 (x/84 : imm tagged)
+         my_closure/85 &my_alloc_region/86 my_depth/87
+         -> k/30 * k/31
+         : imm tagged =
+   let next_depth/88 = rec_info (succ my_depth/87) in
+   let n/89 = %project_value_slot.[add].[n] (my_closure/85) in
+   let int_add/90 = %int_barith.add (x/84, n/89) in
+   cont k/30 (int_add/90)
+ in
+ let code size(6)
+       scale_2 (x/91 : imm tagged)
+         my_closure/92 &my_alloc_region/93 my_depth/94
+         -> k/32 * k/33
+         : imm tagged =
+   let next_depth/95 = rec_info (succ my_depth/94) in
+   let n/96 = %project_value_slot.[scale].[n_1] (my_closure/92) in
+   let int_mul/97 = %int_barith.mul (x/91, n/96) in
+   cont k/32 (int_mul/97)
+ in
+ let code size(52)
+       run_0 (n/98 : imm tagged)
+         my_closure/99 &my_alloc_region/100 my_depth/101
+         -> k/34 * k/35
+         : imm tagged =
+   let next_depth/102 = rec_info (succ my_depth/101) in
+   let region/103 = %begin_region () in
+   let ghost_region/104 = %begin_ghost_region () in
+   (let add/108 = closure add_1 @add &my_alloc_region/100 &region/103
+    with { n = n/98 }
+    in
+    let scale/109 = closure scale_2 @scale &my_alloc_region/100 &region/103
+    with { n_1 = n/98 }
+    in
+    apply direct(scale_2 &my_alloc_region/100)
+      (scale/109 : _ -> imm tagged) (4) -> k/37 * k/35
+      where k/37 (apply_result/110 : imm tagged) =
+        (apply direct(add_1 &my_alloc_region/100)
+           (add/108 : _ -> imm tagged) (3) -> k/38 * k/35
+           where k/38 (apply_result/111 : imm tagged) =
+             (apply direct(scale_2 &my_alloc_region/100)
+                (scale/109 : _ -> imm tagged) (2) -> k/39 * k/35
+                where k/39 (apply_result/112 : imm tagged) =
+                  (apply direct(add_1 &my_alloc_region/100)
+                     (add/108 : _ -> imm tagged) (1) -> k/40 * k/35
+                     where k/40 (apply_result/113 : imm tagged) =
+                       let int_add/114 =
+                         %int_barith.add (apply_result/113, apply_result/112)
+                       in
+                       let int_add/115 =
+                         %int_barith.add (int_add/114, apply_result/111)
+                       in
+                       let int_add/116 =
+                         %int_barith.add (int_add/115, apply_result/110)
+                       in
+                       cont k/36 (int_add/116)))))
+     where k/36 (region_return/105 : imm tagged) =
+       let unit/106 = %end_region (region/103) in
+       let unit/107 = %end_ghost_region (ghost_region/104) in
+       cont k/34 (region_return/105)
+ in
+ let run/117 = closure run_0 @run &toplevel in
+ (let Popaque/120 = %opaque (10) in
+  apply direct(run_0 &toplevel)
+    (run/117 : _ -> imm tagged) (Popaque/120) -> k/41 * error)
+   where k/41 (result/118 : imm tagged) =
+     let Pmakeblock/119 = %block.[`0`].`toplevel` (run/117, result/118) in
+     cont k/29 (Pmakeblock/119))
+  where k/29 define_root_symbol (module_block/81) =
+    let field_0/82 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/81)
+    in
+    let field_1/83 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/81)
+    in
+    let $camlClosure_from_pair_called = Block 0 (field_0/82, field_1/83) in
+    cont done ($camlClosure_from_pair_called)

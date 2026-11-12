@@ -1,0 +1,8 @@
+join_two_names_of_symbol.fl:
+  before Simplify (24 steps): returns [0: [0: 1; 2]; [0: 1; 2]; <fun>; 1]
+  after Simplify (8 steps): returns [0: [0: 1; 2]; [0: 1; 2]; <fun>; 1]
+  the check of kinds: passes before, passes after
+  calls outside code: 1 before, 0 after
+  the same
+  calls outside code once those of known code are inlined: 0
+  validated: the same once closures and blocks are lifted to symbols, the terms normalised and unused value slots removed

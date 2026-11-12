@@ -1,0 +1,103 @@
+let $camlToplevel_closure_applied_mutual__first_const_0 = Block 0 () in
+(let code inline(always) size(6)
+       apply_0 (f/102 : val, x/103)
+         my_closure/104 &my_alloc_region/105 my_depth/106
+         -> k/36 * k/37 =
+   let next_depth/107 = rec_info (succ my_depth/106) in
+   apply &my_alloc_region/105 f/102 (x/103) -> k/36 * k/37
+ in
+ let code rec size(23)
+       even_1 (n/108 : imm tagged)
+         my_closure/109 &my_alloc_region/110 my_depth/111
+         -> k/38 * k/39
+         : imm tagged =
+   let next_depth/112 = rec_info (succ my_depth/111) in
+   let odd/113 = %project_function_slot.[even].[odd] (my_closure/109) in
+   (let prim/115 = %phys_eq (n/108, 0) in
+    let eq/116 = %tag_imm (prim/115) in
+    (let untagged/117 = %untag_imm (eq/116) in
+     switch untagged/117
+       | 0 -> k/41
+       | 1 -> k/38 (1))
+      where k/41 =
+        cont k/40)
+     where k/40 =
+       let int_sub/114 = %int_barith.sub (n/108, 1) in
+       apply direct(odd_2 &my_alloc_region/110)
+         (odd/113 ~ depth my_depth/111 -> next_depth/112 : _ -> imm tagged)
+           (int_sub/114)
+           -> k/38 * k/39
+ and code rec size(23)
+       odd_2 (n/118 : imm tagged)
+         my_closure/119 &my_alloc_region/120 my_depth/121
+         -> k/42 * k/43
+         : imm tagged =
+   let next_depth/122 = rec_info (succ my_depth/121) in
+   let even/123 = %project_function_slot.[odd].[even] (my_closure/119) in
+   (let prim/125 = %phys_eq (n/118, 0) in
+    let eq/126 = %tag_imm (prim/125) in
+    (let untagged/127 = %untag_imm (eq/126) in
+     switch untagged/127
+       | 0 -> k/45
+       | 1 -> k/42 (0))
+      where k/45 =
+        cont k/44)
+     where k/44 =
+       let int_sub/124 = %int_barith.sub (n/118, 1) in
+       apply direct(even_1 &my_alloc_region/120)
+         (even/123 ~ depth my_depth/121 -> next_depth/122 : _ -> imm tagged)
+           (int_sub/124)
+           -> k/42 * k/43
+ in
+ let code size(4)
+       add_base_3 (x/128 : imm tagged)
+         my_closure/129 &my_alloc_region/130 my_depth/131
+         -> k/46 * k/47
+         : imm tagged =
+   let next_depth/132 = rec_info (succ my_depth/131) in
+   let base/133 = %project_value_slot.[add_base].[base] (my_closure/129) in
+   let int_add/134 = %int_barith.add (x/128, base/133) in
+   cont k/46 (int_add/134)
+ in
+ let apply/135 = closure apply_0 @`apply` &toplevel in
+ let even/136 = closure even_1 @even &toplevel
+ and odd/137 = closure odd_2 @odd &toplevel
+ in
+ let base/138 = %opaque (10) in
+ let add_base/139 = closure add_base_3 @add_base &toplevel
+ with { base = base/138 }
+ in
+ apply direct(even_1 &toplevel)
+   (even/136 : _ -> imm tagged) (4) -> k/50 * error
+   where k/50 (apply_result/144 : imm tagged) =
+     apply direct(apply_0 &toplevel)
+       (apply/135 : _ -> imm tagged)
+         (add_base/139, apply_result/144)
+         -> k/48 * error
+   where k/48 (apply_result/140 : imm tagged) =
+     (apply direct(apply_0 &toplevel)
+        (apply/135 : _ -> imm tagged) (add_base/139, 1) -> k/49 * error
+        where k/49 (apply_result/141 : imm tagged) =
+          let result/142 =
+            %int_barith.add (apply_result/141, apply_result/140)
+          in
+          let Pmakeblock/143 =
+            %block.[`0`].`toplevel`
+              (apply/135, even/136, odd/137, result/142)
+          in
+          cont k/35 (Pmakeblock/143)))
+  where k/35 define_root_symbol (module_block/97) =
+    let field_0/98 = %block_load.tag[`0`].`size`[`4`].[`0`] (module_block/97)
+    in
+    let field_1/99 = %block_load.tag[`0`].`size`[`4`].[`1`] (module_block/97)
+    in
+    let field_2/100 =
+      %block_load.tag[`0`].`size`[`4`].[`2`] (module_block/97)
+    in
+    let field_3/101 =
+      %block_load.tag[`0`].`size`[`4`].[`3`] (module_block/97)
+    in
+    let $camlToplevel_closure_applied_mutual =
+      Block 0 (field_0/98, field_1/99, field_2/100, field_3/101)
+    in
+    cont done ($camlToplevel_closure_applied_mutual)

@@ -1,0 +1,76 @@
+let $camlMutual_capture_exported__first_const_0 = Block 0 () in
+(let code rec size(26)
+       shrink_0 (n/73 : imm tagged)
+         my_closure/74 &my_alloc_region/75 my_depth/76
+         -> k/26 * k/27
+         : imm tagged =
+   let next_depth/77 = rec_info (succ my_depth/76) in
+   let step/78 = %project_value_slot.[shrink].[step] (my_closure/74) in
+   let grow/79 = %project_function_slot.[shrink].[grow] (my_closure/74) in
+   (let prim/82 = %int_comp.lt (n/73, step/78) in
+    let int_lessthan/83 = %tag_imm (prim/82) in
+    (let untagged/84 = %untag_imm (int_lessthan/83) in
+     switch untagged/84
+       | 0 -> k/29
+       | 1 -> k/26 (n/73))
+      where k/29 =
+        cont k/28)
+     where k/28 =
+       let int_sub/80 = %int_barith.sub (n/73, step/78) in
+       let int_sub/81 = %int_barith.sub (int_sub/80, step/78) in
+       apply direct(grow_1 &my_alloc_region/75)
+         (grow/79 ~ depth my_depth/76 -> next_depth/77 : _ -> imm tagged)
+           (int_sub/81)
+           -> k/26 * k/27
+ and code rec size(24)
+       grow_1 (n/85 : imm tagged)
+         my_closure/86 &my_alloc_region/87 my_depth/88
+         -> k/30 * k/31
+         : imm tagged =
+   let next_depth/89 = rec_info (succ my_depth/88) in
+   let step/90 = %project_value_slot.[grow].[step] (my_closure/86) in
+   let shrink/91 = %project_function_slot.[grow].[shrink] (my_closure/86) in
+   (let prim/93 = %int_comp.lt (n/85, 0) in
+    let int_lessthan/94 = %tag_imm (prim/93) in
+    (let untagged/95 = %untag_imm (int_lessthan/94) in
+     switch untagged/95
+       | 0 -> k/33
+       | 1 -> k/30 (n/85))
+      where k/33 =
+        cont k/32)
+     where k/32 =
+       let int_add/92 = %int_barith.add (n/85, step/90) in
+       apply direct(shrink_0 &my_alloc_region/87)
+         (shrink/91 ~ depth my_depth/88 -> next_depth/89 : _ -> imm tagged)
+           (int_add/92)
+           -> k/30 * k/31
+ in
+ let step/96 = %opaque (3) in
+ let shrink/97 = closure shrink_0 @shrink &toplevel
+ and grow/98 = closure grow_1 @grow &toplevel
+ with { step = step/96 }
+ in
+ apply direct(grow_1 &toplevel)
+   (grow/98 : _ -> imm tagged) (1) -> k/34 * error
+   where k/34 (apply_result/99 : imm tagged) =
+     (apply direct(shrink_0 &toplevel)
+        (shrink/97 : _ -> imm tagged) (10) -> k/35 * error
+        where k/35 (apply_result/100 : imm tagged) =
+          let result/101 =
+            %int_barith.add (apply_result/100, apply_result/99)
+          in
+          let Pmakeblock/102 =
+            %block.[`0`].`toplevel` (shrink/97, grow/98, result/101)
+          in
+          cont k/25 (Pmakeblock/102)))
+  where k/25 define_root_symbol (module_block/69) =
+    let field_0/70 = %block_load.tag[`0`].`size`[`3`].[`0`] (module_block/69)
+    in
+    let field_1/71 = %block_load.tag[`0`].`size`[`3`].[`1`] (module_block/69)
+    in
+    let field_2/72 = %block_load.tag[`0`].`size`[`3`].[`2`] (module_block/69)
+    in
+    let $camlMutual_capture_exported =
+      Block 0 (field_0/70, field_1/71, field_2/72)
+    in
+    cont done ($camlMutual_capture_exported)

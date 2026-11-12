@@ -1,0 +1,83 @@
+let $camlCollatz_local_refs__first_const_0 = Block 0 () in
+(let start/78 = %opaque (27) in
+ cont k/37 (start/78)
+   where k/37 (let_mutable/79 : imm tagged) =
+     (cont k/38 (0, let_mutable/79)
+        where k/38
+                (let_mutable/80 : imm tagged, n_21_unboxed0/81 : imm tagged) =
+          (cont k/40 (n_21_unboxed0/81, let_mutable/80)
+             where rec k/40
+                         (n_21_unboxed0/85 : imm tagged,
+                          steps_22_unboxed0/86 : imm tagged) =
+               let prim/87 = %int_comp.gt (n_21_unboxed0/85, 1) in
+               let while_cond_result/88 = %tag_imm (prim/87) in
+               ((let untagged/107 = %untag_imm (while_cond_result/88) in
+                 switch untagged/107
+                   | 0 -> k/39 (0, n_21_unboxed0/85, steps_22_unboxed0/86)
+                   | 1 -> k/50)
+                  where k/50 =
+                    cont k/41 (n_21_unboxed0/85, steps_22_unboxed0/86)
+                  where k/41
+                          (n_21_unboxed0/89 : imm tagged,
+                           steps_22_unboxed0/90 : imm tagged) =
+                    ((let int_and/103 =
+                        %int_barith.`and` (n_21_unboxed0/89, 1)
+                      in
+                      let prim/104 = %phys_eq (int_and/103, 0) in
+                      let eq/105 = %tag_imm (prim/104) in
+                      (let untagged/106 = %untag_imm (eq/105) in
+                       switch untagged/106
+                         | 0 -> k/48
+                         | 1 -> k/49)
+                        where k/49 =
+                          cont k/43 (n_21_unboxed0/89, steps_22_unboxed0/90)
+                        where k/48 =
+                          cont k/47 (n_21_unboxed0/89, steps_22_unboxed0/90))
+                       where k/47
+                               (n_21_unboxed0/99 : imm tagged,
+                                steps_22_unboxed0/100 : imm tagged) =
+                         let int_mul/101 =
+                           %int_barith.mul (3, n_21_unboxed0/99)
+                         in
+                         let int_add/102 = %int_barith.add (int_mul/101, 1)
+                         in
+                         cont k/42 (0, int_add/102, steps_22_unboxed0/100)
+                       where k/43
+                               (n_21_unboxed0/95 : imm tagged,
+                                steps_22_unboxed0/96 : imm tagged) =
+                         ((let prim/98 = %int_comp.ne (2, 0) in
+                           switch prim/98
+                             | 0 -> k/45
+                             | 1 -> k/46)
+                            where k/46 =
+                              cont k/44
+                            where k/45 =
+                              cont error
+                                     pop(regular error)
+                                     ($`*predef*`.caml_exn_Division_by_zero)
+                            where k/44 =
+                              let int_div/97 =
+                                %int_barith.div (n_21_unboxed0/95, 2)
+                              in
+                              cont k/42 (0, int_div/97, steps_22_unboxed0/96))
+                       where k/42
+                               (staticcatch_result/91 : imm tagged,
+                                n_21_unboxed0/92 : imm tagged,
+                                steps_22_unboxed0/93 : imm tagged) =
+                         let int_add/94 =
+                           %int_barith.add (steps_22_unboxed0/93, 1)
+                         in
+                         cont k/40 (n_21_unboxed0/92, int_add/94)))
+             where k/39
+                     (staticcatch_result/82 : imm tagged,
+                      n_21_unboxed0/83 : imm tagged,
+                      steps_22_unboxed0/84 : imm tagged) =
+               cont k/36 (steps_22_unboxed0/84))))
+  where k/36 (result/76 : imm tagged) =
+    let Pmakeblock/77 = %block.[`0`].`toplevel` (result/76) in
+    cont k/35 (Pmakeblock/77)
+  where k/35 define_root_symbol (module_block/74) =
+    let field_0/75 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/74)
+    in
+    let $camlCollatz_local_refs = Block 0 (field_0/75) in
+    cont done ($camlCollatz_local_refs)

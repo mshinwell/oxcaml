@@ -1,0 +1,72 @@
+let $camlClosure_pair_shares_capture__first_const_0 = Block 0 () in
+(let code size(4)
+       add_1 (x/82 : imm tagged)
+         my_closure/83 &my_alloc_region/84 my_depth/85
+         -> k/30 * k/31
+         : imm tagged =
+   let next_depth/86 = rec_info (succ my_depth/85) in
+   let n/87 = %project_value_slot.[add].[n] (my_closure/83) in
+   let int_add/88 = %int_barith.add (x/82, n/87) in
+   cont k/30 (int_add/88)
+ in
+ let code size(6)
+       scale_2 (x/89 : imm tagged)
+         my_closure/90 &my_alloc_region/91 my_depth/92
+         -> k/32 * k/33
+         : imm tagged =
+   let next_depth/93 = rec_info (succ my_depth/92) in
+   let n/94 = %project_value_slot.[scale].[n_1] (my_closure/90) in
+   let int_mul/95 = %int_barith.mul (x/89, n/94) in
+   cont k/32 (int_mul/95)
+ in
+ let code size(34)
+       make_0 (n/96 : imm tagged)
+         my_closure/97 &my_alloc_region/98 my_depth/99
+         -> k/34 * k/35
+         : [ 0 of val * val ] =
+   let next_depth/100 = rec_info (succ my_depth/99) in
+   let add/101 = closure add_1 @add &my_alloc_region/98 with { n = n/96 } in
+   let scale/102 = closure scale_2 @scale &my_alloc_region/98
+   with { n_1 = n/96 }
+   in
+   let Pmakeblock/103 = %block.[`0`].my_alloc_region/98 (add/101, scale/102)
+   in
+   cont k/34 (Pmakeblock/103)
+ in
+ let make/104 = closure make_0 @make &toplevel in
+ (let Popaque/117 = %opaque (10) in
+  apply direct(make_0 &toplevel)
+    (make/104 : _ -> [ 0 of val * val ]) (Popaque/117) -> k/37 * error)
+   where k/37 (`*match*/107` : [ 0 of val * val ]) =
+     let scale/108 = %block_load.[`1`] (`*match*/107`) in
+     let add/109 = %block_load.[`0`] (`*match*/107`) in
+     (apply &toplevel scale/108 (4) -> k/38 * error
+        where k/38 (apply_result/110 : imm tagged) =
+          (apply &toplevel add/109 (3) -> k/39 * error
+             where k/39 (apply_result/111 : imm tagged) =
+               (apply &toplevel scale/108 (2) -> k/40 * error
+                  where k/40 (apply_result/112 : imm tagged) =
+                    (apply &toplevel add/109 (1) -> k/41 * error
+                       where k/41 (apply_result/113 : imm tagged) =
+                         let int_add/114 =
+                           %int_barith.add
+                             (apply_result/113, apply_result/112)
+                         in
+                         let int_add/115 =
+                           %int_barith.add (int_add/114, apply_result/111)
+                         in
+                         let int_add/116 =
+                           %int_barith.add (int_add/115, apply_result/110)
+                         in
+                         cont k/36 (int_add/116)))))
+   where k/36 (result/105 : imm tagged) =
+     let Pmakeblock/106 = %block.[`0`].`toplevel` (make/104, result/105) in
+     cont k/29 (Pmakeblock/106))
+  where k/29 define_root_symbol (module_block/79) =
+    let field_0/80 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/79)
+    in
+    let field_1/81 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/79)
+    in
+    let $camlClosure_pair_shares_capture = Block 0 (field_0/80, field_1/81)
+    in
+    cont done ($camlClosure_pair_shares_capture)
