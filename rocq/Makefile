@@ -351,6 +351,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaJoinTypesSpec.v \
   FlambdaJoinTypesWithEnvProofs.v \
   FlambdaJoinTypesWithEnvSpec.v \
+  FlambdaJoinUsesProofs.v \
+  FlambdaJoinUsesSpec.v \
   FlambdaJoinWellFormedProofs.v \
   FlambdaJoinWellFormedSpec.v \
   FlambdaMeet.v \
