@@ -42,10 +42,11 @@
    comparison, the pass that gives every binder a name of its own, and
    the rewrites that a round of the validation is made of.
 
-   What is not here: the inlining of the calls of known code, and a
-   round as a whole. Their statements are to come with the change that
-   makes the validation give every binder a name of its own, which
-   changes both. Nor are the rewrites for lifting and for loops here.
+   What is not here: the inlining of the calls of known code and the
+   rounds as wholes, which are in FlambdaValidateScopeSpec.v and
+   FlambdaValidatorEquivarianceSpec.v; the rewrites for loops, in
+   FlambdaLoopsScopeSpec.v; and the rewrites for lifting and for the
+   static bindings, in FlambdaStaticsScopeSpec.v.
 
    The comparison up to bound names comes first
    ([expr_eqb_keeps_scope_statement]): of two terms that it accepts,
