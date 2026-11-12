@@ -651,22 +651,8 @@ Proof.
     simpl in Hallocated. congruence.
 Qed.
 
-(* The handlers a continuation holds, and those of the continuations it
-   holds, have well-formed sets. *)
-Fixpoint cont_sets_ok (c : cont_value) : Prop :=
-  match c with
-  | Outer _ => True
-  | Extra_args c' _ => cont_sets_ok c'
-  | Closure h _ conts recursive =>
-    handler_sets_well_formed h = true
-    ∧ forallb (fun '(_, h) => handler_sets_well_formed h) recursive = true
-    ∧ fold_right (fun kc acc => cont_sets_ok (snd kc) ∧ acc) True conts
-  | Over_application _ _ _ return_to exn_to =>
-    cont_sets_ok return_to ∧ cont_sets_ok exn_to
-  end.
-
-Definition conts_sets_ok (conts : cont_env) : Prop :=
-  fold_right (fun kc acc => cont_sets_ok (snd kc) ∧ acc) True conts.
+(* [cont_sets_ok], [conts_sets_ok], [code_sets_ok] and [sets_inv] are in
+   FlambdaClosuresSpec.v. *)
 
 Lemma conts_sets_ok_app (conts conts' : cont_env) :
   conts_sets_ok conts -> conts_sets_ok conts' ->
@@ -699,11 +685,6 @@ Proof.
   split; [ exact Hh | ]. split; [ exact Hall | exact Hconts ].
 Qed.
 
-Definition code_sets_ok (statics : static_env) : Prop :=
-  ∀ (id : code_id) (c : code),
-    lookup id (static_code statics) = Some c ->
-    code_sets_well_formed c = true.
-
 Lemma eval_static_bindings_code_sets_ok (vars : env)
     (bindings : list static_binding) :
   ∀ statics statics' : static_env,
@@ -729,15 +710,6 @@ Qed.
 Lemma with_extra_args_sets_ok (c : cont_value) (extra : list value) :
   cont_sets_ok c -> cont_sets_ok (with_extra_args c extra).
 Proof. destruct extra; intros Hc; exact Hc. Qed.
-
-(* What holds of every state of the run of a well-formed unit: the sets
-   of all the terms it holds are well-formed, and the static sets are
-   bound. *)
-Definition sets_inv (s : state) : Prop :=
-  sets_well_formed (state_expr s) = true
-  ∧ conts_sets_ok (state_conts s)
-  ∧ code_sets_ok (state_statics s)
-  ∧ static_sets_bound (state_statics s).
 
 (* Where a call and the application of a continuation land
    (FlambdaSemanticsProofs.call_function_lands). *)
@@ -794,10 +766,9 @@ Proof.
            Cdef Hrec).
 Qed.
 
-Lemma sets_inv_step (s s' : state) :
-  sets_inv s -> step s = Step s' -> sets_inv s'.
+Theorem sets_inv_step : sets_inv_step_statement.
 Proof.
-  intros (P & C & S & B) Hstep. rewrite (state_eta s) in Hstep.
+  intros s s' (P & C & S & B) Hstep. rewrite (state_eta s) in Hstep.
   set (vars := state_vars s) in *. set (conts := state_conts s) in *.
   set (statics := state_statics s) in *.
   destruct (state_expr s)
@@ -872,18 +843,19 @@ Proof.
     exact (IH next s' (sets_inv_step s next Hinv Hstep)).
 Qed.
 
-Lemma well_formed_sets_inv (u : unit_interface) (e : expr) (n : nat)
-    (s : state) :
-  well_formed_unit u e = true ->
-  run n (State e [] [] empty_static_env) = Step s ->
-  sets_inv s.
+Theorem sets_inv_initial : sets_inv_initial_statement.
 Proof.
-  intros Hwf.
-  pose proof (well_formed_unit_sets_well_formed u e Hwf) as Hsets.
-  apply sets_inv_run. unfold sets_inv. simpl_state.
+  intros e Hsets. unfold sets_inv. simpl_state.
   refine (conj Hsets (conj I (conj _ _))).
   - intros id c [=].
   - intros sym slot symbols decls slot_values [=].
+Qed.
+
+Theorem well_formed_sets_inv : well_formed_sets_inv_statement.
+Proof.
+  intros u e n s Hwf.
+  apply sets_inv_run. apply sets_inv_initial.
+  exact (well_formed_unit_sets_well_formed u e Hwf).
 Qed.
 
 Theorem well_formed_makes_closures : well_formed_makes_closures_statement.
@@ -1309,15 +1281,9 @@ Proof. simpl. rewrite andb_true_iff, forallb_Forall. reflexivity. Qed.
 (* A step from a state whose terms have well-formed sets keeps the values
    valid: the four things that FlambdaSemanticsSpec.step_values_all_statement
    asks of the state. *)
-Lemma state_valid_step (s : state) :
-  sets_inv s -> state_valid s ->
-  match step s with
-  | Step s' => state_valid s'
-  | Exit _ vs => Forall (fun v => value_valid v = true) vs
-  | Undefined => True
-  end.
+Theorem state_valid_step : state_valid_step_statement.
 Proof.
-  intros (P & _) Hvalid.
+  intros s (P & _) Hvalid.
   apply (step_values_all (fun _ v => value_valid v = true)
            (fun _ allocated => allocated_valid allocated = true) s
            (fun _ => value_valid_partial) Hvalid).

@@ -120,6 +120,16 @@
      hold wherever it goes. In particular a closure that it calls is at
      the only slot of its set that has the code called
      ([well_formed_closure_slot_statement]).
+   - What the run keeps, of which these are consequences, is stated on
+     states, so that a statement about a state of such a run can take it
+     as a premise. [sets_inv]: the sets of every term that the state
+     holds are well-formed, and its static sets are bound. The state
+     that a unit starts in has it where the sets of the unit are
+     well-formed ([sets_inv_initial_statement]), a step keeps it
+     ([sets_inv_step_statement]), so every state of the run of a
+     well-formed unit has it ([well_formed_sets_inv_statement]); and
+     from a state that has it, a step keeps the values valid
+     ([state_valid_step_statement]).
    - A call binds [my_closure] to the closure called, where [my_closure]
      is not also a parameter of the code
      ([call_binds_my_closure_statement]). The code that the run of a
@@ -537,6 +547,75 @@ Definition eval_static_const_valid_statement : Prop :=
     env_valid vars ->
     eval_static_const vars const = Some allocated ->
     allocated_valid allocated = true.
+
+(* ======================================================================== *)
+(* The sets of the terms that a state holds                                 *)
+(* ======================================================================== *)
+
+(* The handlers that a continuation keeps, and those of the continuations
+   that it keeps, have well-formed sets. What is left of an
+   over-application keeps no term: it is so when the two continuations
+   that it keeps are. *)
+Fixpoint cont_sets_ok (c : cont_value) : Prop :=
+  match c with
+  | Outer _ => True
+  | Extra_args c' _ => cont_sets_ok c'
+  | Closure h _ conts recursive =>
+    handler_sets_well_formed h = true
+    ∧ forallb (fun '(_, h) => handler_sets_well_formed h) recursive = true
+    ∧ fold_right (fun kc acc => cont_sets_ok (snd kc) ∧ acc) True conts
+  | Over_application _ _ _ return_to exn_to =>
+    cont_sets_ok return_to ∧ cont_sets_ok exn_to
+  end.
+
+Definition conts_sets_ok (conts : cont_env) : Prop :=
+  fold_right (fun kc acc => cont_sets_ok (snd kc) ∧ acc) True conts.
+
+(* The code that is bound has well-formed sets. *)
+Definition code_sets_ok (statics : static_env) : Prop :=
+  ∀ (id : code_id) (c : code),
+    lookup id (static_code statics) = Some c ->
+    code_sets_well_formed c = true.
+
+(* The sets of all the terms that the state holds are well-formed (its
+   expression, the handlers that its continuations keep, the code that
+   is bound), and its static sets are bound. It says nothing of the
+   values of the state: that is [state_valid]. *)
+Definition sets_inv (s : state) : Prop :=
+  sets_well_formed (state_expr s) = true
+  ∧ conts_sets_ok (state_conts s)
+  ∧ code_sets_ok (state_statics s)
+  ∧ static_sets_bound (state_statics s).
+
+(* The state that a unit starts in has it, where the sets of the unit are
+   well-formed: the unit need not pass the other checks of
+   [well_formed_unit]. *)
+Definition sets_inv_initial_statement : Prop :=
+  ∀ e : expr,
+    sets_well_formed e = true ->
+    sets_inv (State e [] [] empty_static_env).
+
+(* A step keeps it. *)
+Definition sets_inv_step_statement : Prop :=
+  ∀ s s' : state, sets_inv s -> step s = Step s' -> sets_inv s'.
+
+(* So every state of the run of a well-formed unit has it. *)
+Definition well_formed_sets_inv_statement : Prop :=
+  ∀ (u : unit_interface) (e : expr) (n : nat) (s : state),
+    well_formed_unit u e = true ->
+    run n (State e [] [] empty_static_env) = Step s ->
+    sets_inv s.
+
+(* From a state that has it and holds valid values only, a step gives a
+   state that holds valid values only, or ends with valid values. *)
+Definition state_valid_step_statement : Prop :=
+  ∀ s : state,
+    sets_inv s -> state_valid s ->
+    match step s with
+    | Step s' => state_valid s'
+    | Exit _ vs => Forall (fun v => value_valid v = true) vs
+    | Undefined => True
+    end.
 
 (* ======================================================================== *)
 (* The values of a well-formed unit                                         *)
