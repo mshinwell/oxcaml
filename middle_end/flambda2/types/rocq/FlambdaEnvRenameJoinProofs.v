@@ -1203,6 +1203,197 @@ Proof.
       assumption.
 Qed.
 
+Lemma existsb_renamed {B C : Type} (g : B -> C) (p : B -> bool)
+    (p' : C -> bool) (l : list B) :
+  (∀ b : B, p' (g b) = p b) -> existsb p' (map g l) = existsb p l.
+Proof.
+  intros Hp. induction l as [ | b l IH]; cbn [map existsb]; [ reflexivity | ].
+  rewrite Hp, IH. reflexivity.
+Qed.
+
+(* The state in which a variable is marked as imported: what
+   [import_var_transitive_body] goes on with. *)
+Definition mark_imported (env : Join_env.t) (var : variable)
+    (kind : flambda_kind) : Join_env.t :=
+  {| Join_env.joined_envs := Join_env.joined_envs env;
+     Join_env.types_in_target_env := Join_env.types_in_target_env env;
+     Join_env.types_in_joined_envs := Join_env.types_in_joined_envs env;
+     Join_env.aliases_of_existentials := Join_env.aliases_of_existentials env;
+     Join_env.imported_vars := var :: Join_env.imported_vars env;
+     Join_env.definitions_of_existentials :=
+       Join_env.definitions_of_existentials env;
+     Join_env.bindings :=
+       Bindings_in_target_env.import_from_all_envs (Join_env.bindings env) var
+         kind |}.
+
+Lemma mark_imported_renamed (r : renaming) (env : Join_env.t) (var : variable)
+    (kind : flambda_kind) :
+  mark_imported (rename_join_env r env) (rename_variable r var) kind
+  = rename_join_env r (mark_imported env var kind).
+Proof.
+  unfold mark_imported, rename_join_env.
+  cbn [Join_env.joined_envs Join_env.types_in_target_env
+       Join_env.types_in_joined_envs Join_env.aliases_of_existentials
+       Join_env.imported_vars Join_env.definitions_of_existentials
+       Join_env.bindings map].
+  rewrite import_from_all_envs_renamed. reflexivity.
+Qed.
+
+Lemma import_var_transitive_body_renamed (r : renaming)
+    (p p' : Join_env.parameters)
+    (import_var import_var' : Join_env.t -> variable -> option Join_env.t)
+    (env : Join_env.t) (var : variable) :
+  parameters_related r p p' ->
+  import_var_related r import_var import_var' ->
+  Join_env.import_var_transitive_body p' import_var' (rename_join_env r env)
+    (rename_variable r var)
+  = option_map (rename_join_env r)
+      (Join_env.import_var_transitive_body p import_var env var).
+Proof.
+  intros Hp Himport. unfold Join_env.import_var_transitive_body.
+  rewrite join_env_source_env_renamed, exists_in_source_env_renamed.
+  destruct (Source_env.exists_in_source_env (Join_env.source_env env) var);
+    [ reflexivity | ].
+  change
+    (among (rename_variable r var)
+       (Join_env.imported_vars (rename_join_env r env)))
+    with (among (rename_variable r var)
+            (map (rename_variable r) (Join_env.imported_vars env))).
+  rewrite among_renamed_variables.
+  destruct (among var (Join_env.imported_vars env)); [ reflexivity | ].
+  change
+    (Joined_envs.kind_of_imported_var
+       (Join_env.joined_envs (rename_join_env r env)) (rename_variable r var))
+    with (Joined_envs.kind_of_imported_var
+            (rename_joined_envs r (Join_env.joined_envs env))
+            (rename_variable r var)).
+  rewrite kind_of_imported_var_renamed.
+  destruct (Joined_envs.kind_of_imported_var (Join_env.joined_envs env) var)
+    as [kind | ];
+    [ | reflexivity ].
+  fold (mark_imported (rename_join_env r env) (rename_variable r var) kind).
+  fold (mark_imported env var kind).
+  rewrite mark_imported_renamed. cbv zeta.
+  generalize (mark_imported env var kind) as imported. intros imported.
+  change (Join_env.joined_envs (rename_join_env r imported))
+    with (rename_joined_envs r (Join_env.joined_envs imported)).
+  rewrite find_imported_var_renamed.
+  destruct
+    (Joined_envs.find_imported_var (Join_env.joined_envs imported) var kind)
+    as [types | ];
+    cbn [option_map]; [ | reflexivity ].
+  rewrite compact_map_values.
+  assert (Hexists :
+    existsb
+      (fun binding : Index.t * flambda_type =>
+         is_some (get_alias_opt (snd binding)))
+      (Keyed.map_values (rename_type r) (Keyed.compact Index.equal types))
+    = existsb
+        (fun binding : Index.t * flambda_type =>
+           is_some (get_alias_opt (snd binding)))
+        (Keyed.compact Index.equal types)).
+  { unfold Keyed.map_values. apply existsb_renamed. intros [index ty].
+    cbn [fst snd]. rewrite (proj2 (rename_type_alias r)).
+    destruct (get_alias_opt ty); reflexivity. }
+  rewrite Hexists.
+  destruct
+    (existsb
+       (fun binding : Index.t * flambda_type =>
+          is_some (get_alias_opt (snd binding)))
+       (Keyed.compact Index.equal types));
+    [ | apply import_or_delay_n_way_join_of_concrete_type_with_renamed;
+        assumption ].
+  assert (Htypes :
+    Keyed.map_values
+      (fun ty : flambda_type =>
+         match get_alias_opt ty with
+         | None => alias_type_of kind (Var (rename_variable r var))
+         | Some _ => ty
+         end)
+      (Keyed.map_values (rename_type r) types)
+    = Keyed.map_values (rename_type r)
+        (Keyed.map_values
+           (fun ty : flambda_type =>
+              match get_alias_opt ty with
+              | None => alias_type_of kind (Var var)
+              | Some _ => ty
+              end)
+           types)).
+  { unfold Keyed.map_values. rewrite !map_map. apply map_ext.
+    intros [index ty]. cbn [fst snd]. f_equal.
+    rewrite (proj2 (rename_type_alias r)).
+    destruct (get_alias_opt ty); cbn [option_map]; [ reflexivity | ].
+    symmetry. exact (proj1 (rename_type_alias r) kind (Var var)). }
+  rewrite Htypes,
+    get_alias_then_canonical_simple_ignoring_name_mode_exn_renamed.
+  destruct
+    (Joined_envs.get_alias_then_canonical_simple_ignoring_name_mode_exn
+       (Join_env.joined_envs imported)
+       (Keyed.map_values
+          (fun ty : flambda_type =>
+             match get_alias_opt ty with
+             | None => alias_type_of kind (Var var)
+             | Some _ => ty
+             end)
+          types))
+    as [[canonical_simples | ] | ];
+    cbn [option_map]; try reflexivity.
+  apply add_equals_in_joined_envs_with_renamed; assumption.
+Qed.
+
+Lemma import_var_transitive_renamed (r : renaming)
+    (p p' : Join_env.parameters) (fuel : nat) :
+  parameters_related r p p' ->
+  import_var_related r (Join_env.import_var_transitive p fuel)
+    (Join_env.import_var_transitive p' fuel).
+Proof.
+  intros Hp. induction fuel as [ | fuel IH]; intros env var;
+    cbn [Join_env.import_var_transitive]; [ reflexivity | ].
+  apply import_var_transitive_body_renamed; assumption.
+Qed.
+
+Lemma import_type_transitive_renamed (r : renaming)
+    (p p' : Join_env.parameters) (fuel : nat) (env : Join_env.t)
+    (ty : flambda_type) :
+  parameters_related r p p' ->
+  Join_env.import_type_transitive p' fuel (rename_join_env r env)
+    (rename_type r ty)
+  = option_map (rename_join_env r)
+      (Join_env.import_type_transitive p fuel env ty).
+Proof.
+  intros Hp.
+  apply import_type_transitive_with_renamed, import_var_transitive_renamed,
+    Hp.
+Qed.
+
+Lemma import_or_delay_n_way_join_type_renamed (r : renaming)
+    (p p' : Join_env.parameters) (fuel : nat) (env : Join_env.t)
+    (var : variable) (types : Keyed.finite_map Index.t flambda_type) :
+  parameters_related r p p' ->
+  Join_env.import_or_delay_n_way_join_type p' fuel (rename_join_env r env)
+    (rename_variable r var) (Keyed.map_values (rename_type r) types)
+  = option_map (rename_join_env r)
+      (Join_env.import_or_delay_n_way_join_type p fuel env var types).
+Proof.
+  intros Hp.
+  apply import_or_delay_n_way_join_type_with_renamed;
+    [ exact Hp | apply import_var_transitive_renamed, Hp ].
+Qed.
+
+Lemma import_name_transitive_renamed (r : renaming)
+    (p p' : Join_env.parameters) (fuel : nat) (env : Join_env.t)
+    (name : name) :
+  parameters_related r p p' ->
+  Join_env.import_name_transitive p' fuel (rename_join_env r env)
+    (rename_name r name)
+  = option_map (rename_join_env r)
+      (Join_env.import_name_transitive p fuel env name).
+Proof.
+  intros Hp. destruct name as [var | sym];
+    cbn [Join_env.import_name_transitive rename_name]; [ | reflexivity ].
+  apply import_var_transitive_renamed, Hp.
+Qed.
+
 (* ======================================================================== *)
 (* The choices that the join is handed                                      *)
 (* ======================================================================== *)
