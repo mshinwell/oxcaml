@@ -281,6 +281,68 @@ Definition kinds_per_parameter_eqb
     (kinds kinds' : list (list flambda_kind)) : bool :=
   if list_eq_dec (list_eq_dec kind_eq_dec) kinds kinds' then true else false.
 
+(* [Flambda_arity.cardinal_unarized]: how many variables the parameters
+   of an arity are, unarized. *)
+Definition cardinal_unarized (a : arity) : nat := length (unarize a).
+
+(* [Flambda_arity.partially_apply]: the arity that is left once the
+   first [provided] parameters are given. *)
+Definition partially_apply (a : arity) (provided : nat) : arity :=
+  skipn provided a.
+
+(* [arity_mismatch] of simplify/simplify_apply_expr.ml, negated: the
+   kinds of the parameters and of the arguments, each unarized, agree as
+   far as the shorter of the two goes. *)
+Fixpoint kinds_agree_on_prefix (params args : list (list flambda_kind))
+    : bool :=
+  match params, args with
+  | [], _ | _, [] => true
+  | param :: params, arg :: args =>
+    kinds_eqb param arg && kinds_agree_on_prefix params args
+  end.
+
+(* [Flambda_arity.is_one_param_of_kind_value]. *)
+Definition is_one_param_of_kind_value (a : arity) : bool :=
+  match a with
+  | [Singleton Value] => true
+  | _ => false
+  end.
+
+(* The test of arities by which the compiler takes a call made at the
+   arities [args_arity] and [return_arity], of code whose arities are
+   [params_arity] and [result_arity], for a partial application or an
+   over-application ([simplify_direct_function_call]): the arguments
+   agree with the parameters as far as they go, and there are more
+   arguments than parameters and the code returns one [Value], or fewer,
+   but not none, and the call expects one [Value]. Such a call is
+   outside the fragment.
+
+   It is a test of the arities and of nothing else. The compiler comes
+   to it with a call whose arguments have the kinds of [args_arity]: one
+   whose arguments have not is [Invalid] already
+   ([simplify_apply_shared]), whatever this test says of its arities;
+   FlambdaWellKindedSpec.at_partial_or_over_application asks that too.
+   And it comes to it for code that is not tupled, which this fragment
+   has not got.
+
+   Of the calls with more or fewer arguments than parameters that fail
+   the test, Simplify replaces by [Invalid] those whose arguments do not
+   agree with the parameters as far as they go, and those whose results
+   are not one [Value] as above. The one that is left is a call with no
+   argument of code that has parameters: there the compiler stops with a
+   fatal error, so no term it accepts has one. *)
+Definition partial_or_over_application
+    (args_arity return_arity params_arity result_arity : arity) : bool :=
+  let provided := length args_arity in
+  let params := length params_arity in
+  kinds_agree_on_prefix (unarize_per_parameter params_arity)
+    (unarize_per_parameter args_arity)
+  && (if Nat.ltb params provided
+      then is_one_param_of_kind_value result_arity
+      else
+        Nat.ltb 0 provided && Nat.ltb provided params
+        && is_one_param_of_kind_value return_arity).
+
 (* ======================================================================== *)
 (* Terms                                                                    *)
 (* ======================================================================== *)
