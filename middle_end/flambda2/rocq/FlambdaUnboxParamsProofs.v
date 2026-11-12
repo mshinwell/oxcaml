@@ -29,15 +29,22 @@
 (* Proofs of the statements of FlambdaUnboxParamsSpec.v. Nothing here
    needs review.
 
-   The rewrite of one [Let] of a handler changes the handler and every
-   application of its continuation together, so it is proved by a
-   simulation ([state_rel]) and not part by part. In the second run an
-   application of the continuation goes at once to the rest of the
-   handler, where the first run takes one step more, for the [Let]; so
-   the simulation is one in which a step of the second state is
-   answered by one or more of the first ([Ahead]). The pass is then
-   that rewrite done again and again, each time under the facts that
-   hold where its [Let_cont] is. *)
+   Giving a continuation one more parameter changes its handler and
+   every application of it together, so it is proved by a simulation
+   ([state_rel]) and not part by part ([One_parameter]). The simulation
+   is one in which a step of the second state is answered by one or
+   more of the first, or by a refinement that is already known
+   ([Ahead]): at an application of the continuation the second run
+   enters the handler after, and that this refines the handler before,
+   entered with the same values, is asked as a hypothesis, with what
+   the value of the new argument must be. The hypothesis holds where
+   the handler after is the handler before without a [Let] that reads
+   a parameter ([read_refines]): by the lemmas of contexts, down to
+   the [Let], which binds its variable to what the new parameter holds
+   already. The pass is then that rewrite, for the [Let] that a handler
+   begins with, done again and again, each time under the facts that
+   hold where its [Let_cont] is. FlambdaUnboxVariantsProofs.v uses the
+   same two for a [Let] further down. *)
 
 From Stdlib Require Import ZArith List Bool Arith Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
@@ -47,7 +54,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsProofs FlambdaContextProofs FlambdaWellFormedSpec
   FlambdaWellFormedProofs FlambdaNormaliseSpec FlambdaNormaliseProofs
   FlambdaBlockLoadSpec FlambdaBlockLoadProofs FlambdaUnboxSpec
-  FlambdaUnboxProofs FlambdaUnboxParamsSpec.
+  FlambdaUnboxProofs FlambdaNominalSpec FlambdaNominalProofs
+  FlambdaUnboxParamsSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -61,13 +69,15 @@ Variable R : state -> state -> Prop.
 
 (* What is asked of two related states: the first goes wrong; or both
    exit alike at once; or the second takes a step, and the first one or
-   more, to related states. *)
+   more, to related states; or the second is known to refine the
+   first. *)
 Definition answers (s s' : state) : Prop :=
   (∃ n : nat, run n s = Undefined)
   ∨ (∃ (k : continuation) (vs : list value),
        step s = Exit k vs ∧ step s' = Exit k vs)
   ∨ (∃ (n : nat) (t t' : state),
-       run (S n) s = Step t ∧ step s' = Step t' ∧ R t t').
+       run (S n) s = Step t ∧ step s' = Step t' ∧ R t t')
+  ∨ refines s s'.
 
 Hypothesis R_step : ∀ s s' : state, R s s' -> answers s s'.
 
@@ -83,7 +93,8 @@ Proof.
   assert (Hs : behaves s (Exits k vs)) by (exists n; exact Hexit).
   destruct (R_step s s' Hrel)
     as [[n0 Hwrong] | [(k1 & vs1 & Hstep & Hstep')
-                      | (j & t & t' & Hrun & Hstep' & Hrel')]].
+                      | [(j & t & t' & Hrun & Hstep' & Hrel') | Hrefines]]];
+    [ | | | exact (proj1 Hrefines k vs Hs) ].
   - assert (Hs' : behaves s Goes_wrong) by (exists n0; exact Hwrong).
     discriminate (behaviour_unique s _ _ Hs Hs').
   - assert (Hs' : behaves s (Exits k1 vs1))
@@ -114,7 +125,7 @@ Proof.
     [ destruct b; contradiction | ].
   destruct (R_step s s' Hrel)
     as [[n0 Hwrong] | [(k1 & vs1 & Hstep & Hstep')
-                      | (j & t & t' & Hrun & Hstep' & Hrel')]].
+                      | [(j & t & t' & Hrun & Hstep' & Hrel') | Hrefines]]].
   - right. exists n0. exact Hwrong.
   - left. simpl in Hended. rewrite Hstep' in Hended.
     destruct b as [k vs | | ]; try contradiction.
@@ -124,6 +135,8 @@ Proof.
     destruct (IH t t' b Hrel' Hended) as [Ht | Ht].
     + left. apply (run_behaves (S j) s b). rewrite Hrun. exact Ht.
     + right. apply (run_behaves (S j) s Goes_wrong). rewrite Hrun. exact Ht.
+  - apply (proj2 Hrefines b); [ | exact (ended_behaves (S m) s' b Hended) ].
+    intros ->. destruct (run (S m) s'); contradiction.
 Qed.
 
 Lemma ahead_refines (s s' : state) : R s s' -> refines s s'.
@@ -140,14 +153,77 @@ End Ahead.
 (* What is known holds                                                      *)
 (* ======================================================================== *)
 
+(* The fields of a block that a [Let] in scope made are of the kind of
+   values: [Make_block] has no value otherwise. *)
+Definition fields_valued (known : known_blocks) (vars : env) : Prop :=
+  ∀ (y : variable) (block : known_block) (tag : Z) (vs : list value),
+    (y, block) ∈ known_vars known ->
+    lookup y vars = Some (Value_block tag vs) ->
+    Forall (fun v => kind_of_value v = Value) vs.
+
 Definition facts_hold (known : facts) (vars : env) (statics : static_env)
     : Prop :=
   blocks_hold (facts_blocks known) vars statics
-  ∧ numbers_hold (facts_numbers known) vars statics.
+  ∧ numbers_hold (facts_numbers known) vars statics
+  ∧ fields_valued (facts_blocks known) vars.
 
 Lemma no_facts_hold (vars : env) (statics : static_env) :
   facts_hold no_facts vars statics.
-Proof. split; split; intros entry []. Qed.
+Proof.
+  split; [ split; intros entry [] | ].
+  split; [ split; intros entry [] | intros y block tag vs [] ].
+Qed.
+
+Lemma fields_valued_forget_var (known : known_blocks) (vars : env)
+    (x : variable) (v : value) :
+  fields_valued known vars ->
+  fields_valued (forget_var x known) ((x, v) :: vars).
+Proof.
+  intros Hvalued y block tag vs Hin Hlookup. simpl in Hin.
+  apply in_map_iff in Hin. destruct Hin as ([y0 block0] & Heq & Hin).
+  apply filter_In in Hin. destruct Hin as [Hin Hkey].
+  simpl in Heq, Hkey. injection Heq as -> _.
+  apply negb_true_iff, Pos.eqb_neq in Hkey.
+  rewrite lookup_other in Hlookup by congruence.
+  exact (Hvalued y block0 tag vs Hin Hlookup).
+Qed.
+
+Lemma fields_valued_under_let (known : known_blocks) (x : variable)
+    (d : named) (vars : env) (statics : static_env) (v : value) :
+  fields_valued known vars ->
+  eval_named statics vars d = Some v ->
+  fields_valued (known_under_let known x d) ((x, v) :: vars).
+Proof.
+  intros Hvalued Hd. unfold known_under_let.
+  pose proof (fields_valued_forget_var known vars x v Hvalued) as Hforgot.
+  destruct (block_made d) as [made | ] eqn:Hmade; [ | exact Hforgot ].
+  intros y block tag vs Hin Hlookup. simpl in Hin.
+  destruct Hin as [Heq | Hin]; [ | exact (Hforgot y block tag vs Hin Hlookup) ].
+  injection Heq as <- _. rewrite lookup_head in Hlookup.
+  injection Hlookup as ->.
+  destruct (block_made_spec d made Hmade) as (fields & -> & _).
+  simpl in Hd.
+  destruct (eval_simples vars fields) as [vs0 | ]; [ | discriminate ].
+  simpl in Hd. rewrite eval_prim_variadic in Hd. simpl in Hd.
+  destruct (forallb (fun v => kind_eqb (kind_of_value v) Value) vs0)
+    eqn:Hkinds; [ | discriminate ].
+  destruct (forallb (bound_if_symbol statics) vs0); [ | discriminate ].
+  injection Hd as _ <-. apply Forall_forall. intros u Hu.
+  apply kind_eqb_eq. exact (proj1 (forallb_forall _ _) Hkinds u Hu).
+Qed.
+
+Lemma fields_valued_bind_params (params : list variable) :
+  ∀ (known : known_blocks) (vs : list value) (vars handler_vars : env),
+    fields_valued known vars ->
+    bind_params params vs vars = Some handler_vars ->
+    fields_valued (forget_vars params known) handler_vars.
+Proof.
+  induction params as [ | param params IH];
+    intros known [ | v vs] vars handler_vars Hvalued; simpl;
+    try discriminate.
+  - intros [= <-]. exact Hvalued.
+  - apply IH, fields_valued_forget_var, Hvalued.
+Qed.
 
 Lemma facts_hold_under_let (known : facts) (x : variable) (d : named)
     (vars : env) (statics : static_env) (v : value) :
@@ -155,9 +231,10 @@ Lemma facts_hold_under_let (known : facts) (x : variable) (d : named)
   eval_named statics vars d = Some v ->
   facts_hold (facts_under_let known x d) ((x, v) :: vars) statics.
 Proof.
-  intros [Hblocks Hnumbers] Hd. split.
+  intros (Hblocks & Hnumbers & Hvalued) Hd. split; [ | split ].
   - exact (blocks_hold_under_let _ x d vars statics v Hblocks Hd).
   - exact (numbers_hold_under_let _ x d vars statics v Hnumbers Hd).
+  - exact (fields_valued_under_let _ x d vars statics v Hvalued Hd).
 Qed.
 
 Lemma facts_hold_under_statics (known : facts) (vars : env)
@@ -167,11 +244,12 @@ Lemma facts_hold_under_statics (known : facts) (vars : env)
   eval_static_bindings vars bindings statics = Some extended ->
   facts_hold (facts_under_statics known bindings) vars extended.
 Proof.
-  intros [Hblocks Hnumbers] Heval. split.
+  intros (Hblocks & Hnumbers & Hvalued) Heval. split; [ | split ].
   - exact (blocks_hold_under_statics _ vars statics bindings extended
       Hblocks Heval).
   - exact (numbers_hold_under_statics _ vars statics bindings extended
       Hnumbers Heval).
+  - exact Hvalued.
 Qed.
 
 Lemma facts_hold_bind_params (statics : static_env)
@@ -181,11 +259,13 @@ Lemma facts_hold_bind_params (statics : static_env)
   bind_params params vs vars = Some handler_vars ->
   facts_hold (facts_under_params known params) handler_vars statics.
 Proof.
-  intros [Hblocks Hnumbers] Hbind. split.
+  intros (Hblocks & Hnumbers & Hvalued) Hbind. split; [ | split ].
   - exact (blocks_hold_bind_params statics params _ vs vars handler_vars
       Hblocks Hbind).
   - exact (numbers_hold_bind_params statics params _ vs vars handler_vars
       Hnumbers Hbind).
+  - exact (fields_valued_bind_params params _ vs vars handler_vars Hvalued
+      Hbind).
 Qed.
 
 Lemma facts_hold_extend (known : facts) (vars : env)
@@ -194,8 +274,9 @@ Lemma facts_hold_extend (known : facts) (vars : env)
   statics_extend statics statics' ->
   facts_hold known vars statics'.
 Proof.
-  intros [[Hblock_vars Hblock_symbols] [Hnumber_vars Hnumber_symbols]] Hmore.
-  split; split.
+  intros ([Hblock_vars Hblock_symbols] & [Hnumber_vars Hnumber_symbols]
+          & Hvalued) Hmore.
+  split; [ split | split; [ split | exact Hvalued ] ].
   - exact Hblock_vars.
   - exact (symbols_hold_extend _ vars statics statics' Hblock_symbols Hmore).
   - exact Hnumber_vars.
@@ -218,7 +299,7 @@ Lemma projection_of_sound (known : facts) (vars : env)
   eval_prim statics (Unary p) [v] = Some w ->
   eval_simple vars projection = Some w.
 Proof.
-  intros [Hblocks Hnumbers] Hprojection Harg Hprim.
+  intros (Hblocks & Hnumbers & _) Hprojection Harg Hprim.
   assert (Hd : eval_named statics vars (Prim (Unary p) [arg]) = Some w)
     by (simpl; rewrite Harg; simpl; exact Hprim).
   unfold projection_of in Hprojection.
@@ -330,6 +411,29 @@ Proof.
   rewrite map_app, Hkinds. simpl. rewrite Hkind. apply kinds_eqb_refl.
 Qed.
 
+(* A parameter that is bound has an argument. *)
+Lemma bind_params_value (params : list variable) :
+  ∀ (vs : list value) (vars bound : env) (i : nat) (x : variable),
+    bind_params params vs vars = Some bound ->
+    nth_error params i = Some x ->
+    ∃ v : value, nth_error vs i = Some v.
+Proof.
+  induction params as [ | param params IH]; intros [ | v0 vs] vars bound i x;
+    simpl; try discriminate; try (destruct i; discriminate).
+  intros Hbind. destruct i as [ | i]; simpl.
+  - intros _. exists v0. reflexivity.
+  - exact (IH vs _ bound i x Hbind).
+Qed.
+
+Lemma position_among (x : variable) (xs : list variable) :
+  ∀ i : nat, position x xs = Some i -> among x xs = true.
+Proof.
+  induction xs as [ | y xs IH]; intros i; simpl; [ discriminate | ].
+  destruct (Pos.eqb x y); [ reflexivity | ].
+  destruct (position x xs) as [j | ]; [ | discriminate ].
+  intros _. exact (IH j eq_refl).
+Qed.
+
 Lemma position_nth (x : variable) (xs : list variable) :
   ∀ i : nat, position x xs = Some i -> nth_error xs i = Some x.
 Proof.
@@ -344,23 +448,54 @@ Qed.
 (* One [Let] of a handler made a parameter                                  *)
 (* ======================================================================== *)
 
-Section One_head.
+Section One_parameter.
 
 (* The continuation, the position of the parameter that is read, the
-   primitive that reads it, and the handler before and after. *)
+   new parameter and its kind, the handler before and after, what
+   gives an application its new argument, and what is asked of the
+   value of that argument, given the values of the others. *)
 Variable k : continuation.
 Variable i : nat.
-Variable p : unary_primitive.
 Variable params : list variable.
 Variable metadata metadata' : handler_metadata.
 Variable f x : variable.
 Variable kind : flambda_kind.
-Variable rest : expr.
+Variable boxed unboxed : expr.
+Variable extend : facts -> list simple -> option (list simple).
+Variable fits : static_env -> list value -> value -> Prop.
 
 Hypothesis params_distinct : distinct params = true.
 Hypothesis x_at_i : nth_error params i = Some x.
 Hypothesis kinds_one_more :
   hm_params_kinds metadata' = hm_params_kinds metadata ++ [kind].
+
+(* The new argument of an application has a value of the kind of the
+   new parameter, which is as asked; or the handler before, entered
+   with that value of the parameter read, goes wrong. *)
+Hypothesis extend_gives :
+  ∀ (known : facts) (vars : env) (statics : static_env)
+    (args args' : list simple) (vs : list value) (v : value),
+    facts_hold known vars statics ->
+    extend known args = Some args' ->
+    eval_simples vars args = Some vs ->
+    nth_error vs i = Some v ->
+    (∃ u : value,
+       eval_simples vars args' = Some (vs ++ [u])
+       ∧ kind_of_value u = kind
+       ∧ fits statics vs u)
+    ∨ (∀ (bound : env) (conts : cont_env),
+         lookup x bound = Some v ->
+         ∃ n : nat, run n (State boxed bound conts statics) = Undefined).
+
+(* The handler after, entered with a new argument that is as asked,
+   refines the handler before. *)
+Hypothesis handlers_alike :
+  ∀ (def_vars bound : env) (conts : cont_env) (statics : static_env)
+    (vs : list value) (u : value),
+    bind_params params vs def_vars = Some bound ->
+    fits statics vs u ->
+    refines (State boxed bound conts statics)
+      (State unboxed ((f, u) :: bound) conts statics).
 
 (* The handlers of a recursive [Let_cont] with the applications in them
    extended. *)
@@ -370,7 +505,7 @@ Definition extended_handlers (known : facts)
   all_some
     (map
        (fun '(k', h) =>
-          let* h := extend_in_handler known k i p h in
+          let* h := extend_in_handler_by extend known k h in
           Some (k', h))
        handlers).
 
@@ -378,7 +513,7 @@ Definition extended_handlers (known : facts)
    it, the second is the first with its applications extended; out of
    it, they are the same. *)
 Definition expr_rel (inside : bool) (known : facts) (e e' : expr) : Prop :=
-  if inside then extend_applications known k i p e = Some e' else e' = e.
+  if inside then extend_applications_by extend known k e = Some e' else e' = e.
 
 Definition handlers_rel (inside : bool) (known : facts)
     (handlers handlers' : list (continuation * continuation_handler))
@@ -402,10 +537,8 @@ Inductive cont_rel (statics : static_env)
   | Same_rel (c : cont_value) : cont_rel statics false c c
   | Unboxed_rel (vars : env) (conts : cont_env) :
     cont_rel statics true
-      (Closure
-         (Handler params metadata (Let f kind (Prim (Unary p) [Var x]) rest))
-         vars conts [])
-      (Closure (Handler (params ++ [f]) metadata' rest) vars conts [])
+      (Closure (Handler params metadata boxed) vars conts [])
+      (Closure (Handler (params ++ [f]) metadata' unboxed) vars conts [])
   | Closure_rel (inside : bool) (known : facts) (params0 : list variable)
       (metadata0 : handler_metadata) (handler handler' : expr) (vars : env)
       (conts conts' : cont_env)
@@ -525,7 +658,7 @@ Lemma lookup_extended_handlers (known : facts) (k' : continuation) :
     match lookup k' handlers with
     | Some h =>
       ∃ h' : continuation_handler,
-        extend_in_handler known k i p h = Some h'
+        extend_in_handler_by extend known k h = Some h'
         ∧ lookup k' handlers' = Some h'
     | None => lookup k' handlers' = None
     end.
@@ -533,13 +666,13 @@ Proof.
   unfold extended_handlers.
   induction handlers as [ | [k0 h] handlers IH]; intros handlers'; simpl.
   - intros [= <-]. reflexivity.
-  - destruct (extend_in_handler known k i p h) as [h' | ] eqn:Hh;
+  - destruct (extend_in_handler_by extend known k h) as [h' | ] eqn:Hh;
       [ | discriminate ].
     destruct
       (all_some
          (map
             (fun '(k', h) =>
-               let* h := extend_in_handler known k i p h in
+               let* h := extend_in_handler_by extend known k h in
                Some (k', h))
             handlers))
       as [rest_handlers | ]; [ | discriminate ].
@@ -572,7 +705,8 @@ Proof.
       eqn:Hfound.
     + destruct Hlookup as (h' & Hh & ->). simpl in Hh.
       destruct
-        (extend_applications (facts_under_params known params0) k i p handler)
+        (extend_applications_by extend (facts_under_params known params0) k
+           handler)
         as [handler' | ] eqn:Hhandler; [ | discriminate ].
       injection Hh as <-.
       assert (Hne : Pos.eqb k' k = false).
@@ -606,7 +740,8 @@ Proof.
   destruct (step s) as [t | k0 vs | ] eqn:Hstep,
     (step s') as [t' | k0' vs' | ] eqn:Hstep'; simpl; try contradiction;
     try (intros _; left; exists 1; simpl; rewrite Hstep; reflexivity).
-  - intros Hrel. right. right. exists 0, t, t'. simpl. rewrite Hstep. auto.
+  - intros Hrel. right. right. left. exists 0, t, t'. simpl.
+    rewrite Hstep. auto.
   - intros [<- <-]. right. left. exists k0, vs. auto.
 Qed.
 
@@ -748,11 +883,11 @@ Qed.
 (* Extending the applications changes no static binding. *)
 Fixpoint extend_binds_statics (e : expr) :
   ∀ (known : facts) (e' : expr),
-    extend_applications known k i p e = Some e' ->
+    extend_applications_by extend known k e = Some e' ->
     binds_statics e' = binds_statics e
 with extend_handler_binds_statics (h : continuation_handler) :
   ∀ (known : facts) (h' : continuation_handler),
-    extend_in_handler known k i p h = Some h' ->
+    extend_in_handler_by extend known k h = Some h' ->
     handler_binds_statics h' = handler_binds_statics h.
 Proof.
   - destruct e
@@ -760,20 +895,21 @@ Proof.
          | ac | scrutinee arms | ];
       intros known e'; simpl.
     + destruct
-        (extend_applications (facts_under_let known y d) k i p body)
+        (extend_applications_by extend (facts_under_let known y d) k body)
         as [body' | ] eqn:Hbody; [ | discriminate ].
       intros [= <-]. simpl. exact (extend_binds_statics body _ _ Hbody).
     + destruct
-        (extend_applications (facts_under_statics known bindings) k i p body)
+        (extend_applications_by extend (facts_under_statics known bindings) k
+           body)
         as [body' | ] eqn:Hbody; [ | discriminate ].
       intros [= <-]. simpl.
       rewrite (extend_binds_statics body _ _ Hbody). reflexivity.
-    + destruct (extend_in_handler known k i p h) as [h' | ] eqn:Hh;
+    + destruct (extend_in_handler_by extend known k h) as [h' | ] eqn:Hh;
         [ | discriminate ].
       destruct (Pos.eqb k0 k).
       * intros [= <-]. simpl.
         rewrite (extend_handler_binds_statics h _ _ Hh). reflexivity.
-      * destruct (extend_applications known k i p body) as [body' | ]
+      * destruct (extend_applications_by extend known k body) as [body' | ]
           eqn:Hbody; [ | discriminate ].
         intros [= <-]. simpl.
         rewrite (extend_handler_binds_statics h _ _ Hh),
@@ -784,24 +920,24 @@ Proof.
         (all_some
            (map
               (fun '(k', h) =>
-                 let* h := extend_in_handler known k i p h in
+                 let* h := extend_in_handler_by extend known k h in
                  Some (k', h))
               handlers))
         as [handlers' | ] eqn:Hhandlers; [ | discriminate ].
-      destruct (extend_applications known k i p body) as [body' | ]
+      destruct (extend_applications_by extend known k body) as [body' | ]
         eqn:Hbody; [ | discriminate ].
       intros [= <-]. simpl.
       rewrite (extend_binds_statics body _ _ Hbody). f_equal.
       clear Hbody. revert handlers' Hhandlers.
       induction handlers as [ | [k1 h1] handlers IH]; intros handlers'; simpl.
       * intros [= <-]. reflexivity.
-      * destruct (extend_in_handler known k i p h1) as [h1' | ] eqn:Hh1;
+      * destruct (extend_in_handler_by extend known k h1) as [h1' | ] eqn:Hh1;
           [ | discriminate ].
         destruct
           (all_some
              (map
                 (fun '(k', h) =>
-                   let* h := extend_in_handler known k i p h in
+                   let* h := extend_in_handler_by extend known k h in
                    Some (k', h))
                 handlers))
           as [rest_handlers | ]; [ | discriminate ].
@@ -812,14 +948,15 @@ Proof.
     + destruct
         (Pos.eqb (ap_continuation ap) k || Pos.eqb (ap_exn_continuation ap) k);
         [ discriminate | intros [= <-]; reflexivity ].
-    + destruct (extend_apply_cont known k i p ac); [ | discriminate ].
+    + destruct (extend_apply_cont_by extend known k ac); [ | discriminate ].
       intros [= <-]. reflexivity.
-    + destruct (extend_arms known k i p arms); [ | discriminate ].
+    + destruct (extend_arms_by extend known k arms); [ | discriminate ].
       intros [= <-]. reflexivity.
     + intros [= <-]. reflexivity.
   - destruct h as [params0 metadata0 handler]. intros known h'. simpl.
     destruct
-      (extend_applications (facts_under_params known params0) k i p handler)
+      (extend_applications_by extend (facts_under_params known params0) k
+         handler)
       as [handler' | ] eqn:Hhandler; [ | discriminate ].
     intros [= <-]. simpl. exact (extend_binds_statics handler _ _ Hhandler).
 Qed.
@@ -832,13 +969,13 @@ Proof.
   unfold extended_handlers, handlers_bind_statics. revert handlers'.
   induction handlers as [ | [k1 h1] handlers IH]; intros handlers'; simpl.
   - intros [= <-]. reflexivity.
-  - destruct (extend_in_handler known k i p h1) as [h1' | ] eqn:Hh1;
+  - destruct (extend_in_handler_by extend known k h1) as [h1' | ] eqn:Hh1;
       [ | discriminate ].
     destruct
       (all_some
          (map
             (fun '(k', h) =>
-               let* h := extend_in_handler known k i p h in
+               let* h := extend_in_handler_by extend known k h in
                Some (k', h))
             handlers))
       as [rest_handlers | ]; [ | discriminate ].
@@ -851,20 +988,20 @@ Qed.
 (* The arm found, extended. *)
 Lemma find_arm_extended (known : facts) (j : Z) :
   ∀ arms arms' : list (Z * apply_cont),
-    extend_arms known k i p arms = Some arms' ->
+    extend_arms_by extend known k arms = Some arms' ->
     match find_arm j arms with
     | Some ac =>
       ∃ ac' : apply_cont,
-        extend_apply_cont known k i p ac = Some ac'
+        extend_apply_cont_by extend known k ac = Some ac'
         ∧ find_arm j arms' = Some ac'
     | None => find_arm j arms' = None
     end.
 Proof.
   induction arms as [ | [discriminant ac] arms IH]; intros arms'; simpl.
   - intros [= <-]. reflexivity.
-  - destruct (extend_apply_cont known k i p ac) as [ac' | ] eqn:Hac;
+  - destruct (extend_apply_cont_by extend known k ac) as [ac' | ] eqn:Hac;
       [ | discriminate ].
-    destruct (extend_arms known k i p arms) as [rest_arms | ];
+    destruct (extend_arms_by extend known k arms) as [rest_arms | ];
       [ | discriminate ].
     intros [= <-]. simpl. destruct (Z.eqb j discriminant).
     + exists ac'. auto.
@@ -875,14 +1012,14 @@ Qed.
    of the continuation. *)
 Lemma closure_rel_in_scope (statics : static_env) (known : facts)
     (h h' : continuation_handler) (vars : env) (conts conts' : cont_env) :
-  extend_in_handler known k i p h = Some h' ->
+  extend_in_handler_by extend known k h = Some h' ->
   facts_hold known vars statics ->
   conts_rel statics true conts conts' ->
   cont_rel statics false (Closure h vars conts []) (Closure h' vars conts' []).
 Proof.
   destruct h as [params0 metadata0 handler]. simpl.
   destruct
-    (extend_applications (facts_under_params known params0) k i p handler)
+    (extend_applications_by extend (facts_under_params known params0) k handler)
     as [handler' | ] eqn:Hhandler; [ | discriminate ].
   intros [= <-] Hfacts Hconts.
   apply (Closure_rel statics true known);
@@ -950,25 +1087,23 @@ Proof.
   - rewrite !step_invalid. exact I.
 Qed.
 
-(* An application of the continuation being unboxed: the first run binds
-   the parameters and then reads the box; the second binds the
-   parameters and what was read at once. *)
+(* An application of the continuation being unboxed: the first run
+   enters the handler before; the second, with the new argument, the
+   handler after, which refines it. *)
 Lemma unboxed_application_answers (known : facts) (ac : apply_cont)
-    (arg projection : simple) (vars : env) (conts conts' : cont_env)
+    (args' : list simple) (vars : env) (conts conts' : cont_env)
     (statics : static_env) :
   ac_continuation ac = k ->
-  nth_error (ac_args ac) i = Some arg ->
-  projection_of known p arg = Some projection ->
+  extend known (ac_args ac) = Some args' ->
   facts_hold known vars statics ->
   conts_rel statics true conts conts' ->
   answers state_rel (State (Apply_cont ac) vars conts statics)
     (State
        (Apply_cont
-          (Apply_cont_expr (ac_continuation ac) (ac_args ac ++ [projection])
-             (ac_trap_action ac)))
+          (Apply_cont_expr (ac_continuation ac) args' (ac_trap_action ac)))
        vars conts' statics).
 Proof.
-  intros Hk Hnth Hprojection Hfacts Hconts.
+  intros Hk Hextend Hfacts Hconts.
   pose proof (Hconts k) as Hc. rewrite Pos.eqb_refl in Hc. simpl in Hc.
   inversion Hc as [ | def_vars def_conts | | | ].
   match goal with
@@ -977,49 +1112,42 @@ Proof.
   match goal with
   | H : _ = resolve k conts' |- _ => rename H into Hunboxed
   end.
-  destruct (eval_simples vars (ac_args ac)) as [vs | ] eqn:Hvs.
-  - destruct (eval_simples_nth vars _ vs i arg Hvs Hnth) as (v & Hv & Harg).
-    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata))
-      eqn:Hkinds;
-      [ | left; exists 1; simpl; rewrite step_apply_cont, Hvs;
-          unfold apply_continuation; rewrite Hk, <- Hboxed; simpl;
-          rewrite Hkinds; reflexivity ].
-    destruct (bind_params params vs def_vars) as [bound | ] eqn:Hbind.
-    + pose proof (bind_params_nth params vs def_vars bound i x v
-        params_distinct Hbind x_at_i Hv) as Hx.
-      assert (Hfirst :
-        step (State (Apply_cont ac) vars conts statics)
-        = Step
-            (State (Let f kind (Prim (Unary p) [Var x]) rest) bound def_conts
-               statics)).
-      { rewrite step_apply_cont, Hvs. unfold apply_continuation.
-        rewrite Hk, <- Hboxed. simpl. rewrite Hkinds, Hbind. reflexivity. }
-      destruct (eval_prim statics (Unary p) [v]) as [w | ] eqn:Hprim;
-        [ | left; exists 2; rewrite run_succ, Hfirst; simpl;
-            rewrite step_let; simpl; rewrite Hx; simpl; rewrite Hprim;
-            reflexivity ].
-      destruct (kind_eqb (kind_of_value w) kind) eqn:Hkind;
-        [ | left; exists 2; rewrite run_succ, Hfirst; simpl;
-            rewrite step_let; simpl; rewrite Hx; simpl;
-            rewrite Hprim, Hkind; reflexivity ].
-      right. right.
-      pose proof (projection_of_sound known vars statics p arg projection
-        v w Hfacts Hprojection Harg Hprim) as Hw.
-      exists 1, (State rest ((f, w) :: bound) def_conts statics),
-        (State rest ((f, w) :: bound) def_conts statics).
-      split; [ | split; [ | apply state_rel_refl ] ].
-      * rewrite run_succ, Hfirst. simpl. rewrite step_let. simpl.
-        rewrite Hx. simpl. rewrite Hprim, Hkind. reflexivity.
-      * rewrite step_apply_cont. simpl.
-        rewrite (eval_simples_snoc vars _ projection w vs Hvs Hw).
-        unfold apply_continuation. rewrite Hk, <- Hunboxed. simpl.
-        rewrite kinds_one_more, (kinds_snoc vs w _ kind Hkinds Hkind),
-          (bind_params_snoc params f w vs def_vars bound Hbind).
-        reflexivity.
-    + left. exists 1. simpl. rewrite step_apply_cont, Hvs.
-      unfold apply_continuation. rewrite Hk, <- Hboxed. simpl.
-      rewrite Hkinds, Hbind. reflexivity.
-  - left. exists 1. simpl. rewrite step_apply_cont, Hvs. reflexivity.
+  destruct (eval_simples vars (ac_args ac)) as [vs | ] eqn:Hvs;
+    [ | left; exists 1; simpl; rewrite step_apply_cont, Hvs; reflexivity ].
+  destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata))
+    eqn:Hkinds;
+    [ | left; exists 1; simpl; rewrite step_apply_cont, Hvs;
+        unfold apply_continuation; rewrite Hk, <- Hboxed; simpl;
+        rewrite Hkinds; reflexivity ].
+  destruct (bind_params params vs def_vars) as [bound | ] eqn:Hbind;
+    [ | left; exists 1; simpl; rewrite step_apply_cont, Hvs;
+        unfold apply_continuation; rewrite Hk, <- Hboxed; simpl;
+        rewrite Hkinds, Hbind; reflexivity ].
+  assert (Hfirst :
+    step (State (Apply_cont ac) vars conts statics)
+    = Step (State boxed bound def_conts statics)).
+  { rewrite step_apply_cont, Hvs. unfold apply_continuation.
+    rewrite Hk, <- Hboxed. simpl. rewrite Hkinds, Hbind. reflexivity. }
+  destruct (bind_params_value params vs def_vars bound i x Hbind x_at_i)
+    as [v Hv].
+  pose proof (bind_params_nth params vs def_vars bound i x v
+    params_distinct Hbind x_at_i Hv) as Hx.
+  destruct (extend_gives known vars statics (ac_args ac) args' vs v Hfacts
+              Hextend Hvs Hv)
+    as [(u & Hargs' & Hkind & Hfits) | Hwrong].
+  - right. right. right.
+    eapply refines_step;
+      [ exact Hfirst
+      | | exact (handlers_alike def_vars bound def_conts statics vs u Hbind
+                   Hfits) ].
+    rewrite step_apply_cont. simpl. rewrite Hargs'.
+    unfold apply_continuation. rewrite Hk, <- Hunboxed. simpl.
+    rewrite kinds_one_more,
+      (kinds_snoc vs u _ kind Hkinds (proj2 (kind_eqb_eq _ _) Hkind)),
+      (bind_params_snoc params f u vs def_vars bound Hbind).
+    reflexivity.
+  - left. destruct (Hwrong bound def_conts Hx) as [n Hn]. exists (S n).
+    rewrite run_succ, Hfirst. exact Hn.
 Qed.
 
 Lemma state_rel_answers (s s' : state) :
@@ -1033,7 +1161,7 @@ Proof.
        | ac | scrutinee arms | ];
     simpl in He.
   - (* Let *)
-    destruct (extend_applications (facts_under_let known y d) k i p body)
+    destruct (extend_applications_by extend (facts_under_let known y d) k body)
       as [body' | ] eqn:Hbody; [ | discriminate ].
     injection He as <-. apply lockstep_answers. rewrite !step_let.
     destruct (eval_named statics vars d) as [v | ] eqn:Hd; simpl;
@@ -1045,7 +1173,8 @@ Proof.
       | exact Hconts ].
   - (* Let_static *)
     destruct
-      (extend_applications (facts_under_statics known bindings) k i p body)
+      (extend_applications_by extend (facts_under_statics known bindings) k
+         body)
       as [body' | ] eqn:Hbody; [ | discriminate ].
     injection He as <-. apply lockstep_answers. rewrite !step_let_static.
     destruct (eval_static_bindings vars bindings statics) as [extended | ]
@@ -1057,7 +1186,7 @@ Proof.
       | exact (conts_rel_extend statics extended true conts conts'
           (eval_static_bindings_extend vars bindings _ _ Hbindings) Hconts) ].
   - (* Let_cont_non_recursive *)
-    destruct (extend_in_handler known k i p h) as [h' | ] eqn:Hh;
+    destruct (extend_in_handler_by extend known k h) as [h' | ] eqn:Hh;
       [ | discriminate ].
     pose proof (conts_rel_cons statics true k0 _ _ conts conts'
       (closure_rel_in_scope statics known h h' vars conts conts' Hh Hfacts
@@ -1068,7 +1197,7 @@ Proof.
       rewrite !step_let_cont_non_recursive. simpl.
       apply (State_rel false no_facts);
         [ reflexivity | apply no_facts_hold | exact Hbound ].
-    + destruct (extend_applications known k i p body) as [body' | ]
+    + destruct (extend_applications_by extend known k body) as [body' | ]
         eqn:Hbody; [ | discriminate ].
       injection He as <-. apply lockstep_answers.
       rewrite !step_let_cont_non_recursive. simpl.
@@ -1088,11 +1217,11 @@ Proof.
         (all_some
            (map
               (fun '(k', h) =>
-                 let* h := extend_in_handler known k i p h in
+                 let* h := extend_in_handler_by extend known k h in
                  Some (k', h))
               handlers))
         as [handlers' | ] eqn:Hhandlers; [ | discriminate ].
-      destruct (extend_applications known k i p body) as [body' | ]
+      destruct (extend_applications_by extend known k body) as [body' | ]
         eqn:Hbody; [ | discriminate ].
       injection He as <-. apply lockstep_answers.
       rewrite !step_let_cont_recursive.
@@ -1112,23 +1241,20 @@ Proof.
     rewrite Hreturn in Hc. rewrite Hraise in Hc'.
     exact (apply_rel ap vars conts conts' statics Hc Hc').
   - (* Apply_cont *)
-    destruct (extend_apply_cont known k i p ac) as [ac' | ] eqn:Hac;
+    destruct (extend_apply_cont_by extend known k ac) as [ac' | ] eqn:Hac;
       [ | discriminate ].
-    injection He as <-. unfold extend_apply_cont in Hac.
+    injection He as <-. unfold extend_apply_cont_by in Hac.
     destruct (Pos.eqb (ac_continuation ac) k) eqn:Hk.
-    + unfold extend_args in Hac.
-      destruct (nth_error (ac_args ac) i) as [arg | ] eqn:Hnth;
-        [ | discriminate ].
-      destruct (projection_of known p arg) as [projection | ] eqn:Hprojection;
+    + destruct (extend known (ac_args ac)) as [args' | ] eqn:Hextend;
         [ | discriminate ].
       injection Hac as <-. apply Pos.eqb_eq in Hk.
-      exact (unboxed_application_answers known ac arg projection vars conts
-        conts' statics Hk Hnth Hprojection Hfacts Hconts).
+      exact (unboxed_application_answers known ac args' vars conts conts'
+        statics Hk Hextend Hfacts Hconts).
     + injection Hac as <-. apply lockstep_answers.
       pose proof (Hconts (ac_continuation ac)) as Hc. rewrite Hk in Hc.
       exact (apply_cont_rel ac vars conts conts' statics Hc).
   - (* Switch *)
-    destruct (extend_arms known k i p arms) as [arms' | ] eqn:Harms;
+    destruct (extend_arms_by extend known k arms) as [arms' | ] eqn:Harms;
       [ | discriminate ].
     injection He as <-. apply lockstep_answers. rewrite !step_switch.
     destruct (eval_simple vars scrutinee) as [v | ]; [ | exact I ].
@@ -1144,20 +1270,17 @@ Proof.
     exact I.
 Qed.
 
-(* The [Let] at the head of the handler made a parameter, where every
-   application in the body can be given what it reads. *)
-Lemma unbox_head_refines (known : facts) (body body' : expr) (vars : env)
-    (conts : cont_env) (statics : static_env) :
-  extend_applications known k i p body = Some body' ->
+(* The handler given one more parameter, where every application in the
+   body can be given its argument. *)
+Lemma unbox_parameter_refines (known : facts) (body body' : expr)
+    (vars : env) (conts : cont_env) (statics : static_env) :
+  extend_applications_by extend known k body = Some body' ->
   facts_hold known vars statics ->
   refines
-    (State
-       (Let_cont_non_recursive k
-          (Handler params metadata (Let f kind (Prim (Unary p) [Var x]) rest))
-          body)
+    (State (Let_cont_non_recursive k (Handler params metadata boxed) body)
        vars conts statics)
     (State
-       (Let_cont_non_recursive k (Handler (params ++ [f]) metadata' rest)
+       (Let_cont_non_recursive k (Handler (params ++ [f]) metadata' unboxed)
           body')
        vars conts statics).
 Proof.
@@ -1169,7 +1292,272 @@ Proof.
   - rewrite !resolve_other by exact Hne. apply Same_rel.
 Qed.
 
-End One_head.
+End One_parameter.
+
+(* ======================================================================== *)
+(* A [Let] that reads a parameter, removed from where it is                 *)
+(* ======================================================================== *)
+
+(* What is asked of the value [u] given for the new parameter, the
+   parameter read being [v]: whatever is bound later, the primitive has
+   on [v] the value [u] if it has one. *)
+Definition gives (p : unary_primitive) (v u : value) (statics : static_env)
+    : Prop :=
+  ∀ statics' : static_env,
+    statics_extend statics statics' ->
+    ∀ w : value, eval_prim statics' (Unary p) [v] = Some w -> w = u.
+
+Lemma gives_extend (p : unary_primitive) (v u : value)
+    (statics statics' : static_env) :
+  gives p v u statics -> statics_extend statics statics' ->
+  gives p v u statics'.
+Proof.
+  intros Hgives Hmore statics'' Hmore'.
+  exact (Hgives statics'' (statics_extend_trans _ _ _ Hmore Hmore')).
+Qed.
+
+Section Read_removed.
+
+(* The variable of the [Let], its kind, the primitive, and the
+   parameter read. *)
+Variable f : variable.
+Variable kind : flambda_kind.
+Variable p : unary_primitive.
+Variable x : variable.
+
+(* The second expression is the first without one [Let] of [f] to the
+   primitive applied to [x], which is under [Let]s and in handlers or
+   bodies of non-recursive [Let_cont]s that bind neither [x] nor
+   [f]. *)
+Inductive removes : expr -> expr -> Prop :=
+  | Removes_here (rest : expr) :
+    removes (Let f kind (Prim (Unary p) [Var x]) rest) rest
+  | Removes_under_let (y : variable) (kind0 : flambda_kind) (d : named)
+      (body body' : expr) :
+    Pos.eqb x y = false ->
+    Pos.eqb f y = false ->
+    removes body body' ->
+    removes (Let y kind0 d body) (Let y kind0 d body')
+  | Removes_in_handler (k : continuation) (params : list variable)
+      (metadata : handler_metadata) (handler handler' body : expr) :
+    among x params = false ->
+    among f params = false ->
+    removes handler handler' ->
+    removes (Let_cont_non_recursive k (Handler params metadata handler) body)
+      (Let_cont_non_recursive k (Handler params metadata handler') body)
+  | Removes_in_body (k : continuation) (h : continuation_handler)
+      (body body' : expr) :
+    removes body body' ->
+    removes (Let_cont_non_recursive k h body)
+      (Let_cont_non_recursive k h body').
+
+(* Under variables that give [x] a value and [f] what the primitive has
+   on it, the expression without the [Let] refines the expression. *)
+Lemma removes_refines (v u : value) (e e' : expr) :
+  removes e e' ->
+  ∀ (vars : env) (conts : cont_env) (statics : static_env),
+    lookup x vars = Some v ->
+    lookup f vars = Some u ->
+    gives p v u statics ->
+    refines (State e vars conts statics) (State e' vars conts statics).
+Proof.
+  intros Hremoves.
+  induction Hremoves
+    as [ rest | y kind0 d body body' Hx Hf _ IH
+       | k params metadata handler handler' body Hx Hf _ IH
+       | k h body body' _ IH ];
+    intros vars conts statics Hlookup_x Hlookup_f Hgives.
+  - destruct (eval_prim statics (Unary p) [v]) as [w | ] eqn:Hprim;
+      [ | apply step_undefined_refines; rewrite step_let; simpl;
+          rewrite Hlookup_x; simpl; rewrite Hprim; reflexivity ].
+    pose proof (Hgives statics (statics_extend_refl statics) w Hprim) as ->.
+    destruct (kind_eqb (kind_of_value u) kind) eqn:Hkind;
+      [ | apply step_undefined_refines; rewrite step_let; simpl;
+          rewrite Hlookup_x; simpl; rewrite Hprim, Hkind; reflexivity ].
+    apply (refines_trans _ (State rest ((f, u) :: vars) conts statics)).
+    + apply equivalent_refines, step_equivalent. rewrite step_let. simpl.
+      rewrite Hlookup_x. simpl. rewrite Hprim, Hkind. reflexivity.
+    + apply equivalent_refines, coincide_equivalent.
+      * intros y _. destruct (Pos.eq_dec y f) as [-> | Hne];
+          [ rewrite lookup_head; exact Hlookup_f
+          | rewrite lookup_other by exact Hne; reflexivity ].
+      * intros k _. apply conts_agree_same. reflexivity.
+  - apply let_refines_step; [ reflexivity | ].
+    intros v0 _ _. apply Pos.eqb_neq in Hx, Hf.
+    apply IH; [ | | exact Hgives ]; rewrite lookup_other by assumption;
+      assumption.
+  - apply (let_cont_handler_refines_where (gives p v u) (gives_extend p v u));
+      [ exact Hgives | ].
+    intros vs handler_vars conts0 statics0 Hgives0 _ Hbind.
+    apply IH; [ | | exact Hgives0 ].
+    + rewrite (bind_params_other params x vs vars handler_vars Hx Hbind).
+      exact Hlookup_x.
+    + rewrite (bind_params_other params f vs vars handler_vars Hf Hbind).
+      exact Hlookup_f.
+  - apply let_cont_non_recursive_refines_step.
+    apply IH; assumption.
+Qed.
+
+(* The same where the variables of the expression do not yet bind [f],
+   which is not free in it. *)
+Lemma read_refines (v u : value) (e e' : expr) (bound : env)
+    (conts : cont_env) (statics : static_env) :
+  removes e e' ->
+  var_free_b f e = false ->
+  Pos.eqb x f = false ->
+  lookup x bound = Some v ->
+  gives p v u statics ->
+  refines (State e bound conts statics)
+    (State e' ((f, u) :: bound) conts statics).
+Proof.
+  intros Hremoves Hfree Hne Hlookup Hgives.
+  apply (refines_trans _ (State e ((f, u) :: bound) conts statics)).
+  - apply equivalent_refines, coincide_equivalent.
+    + intros y Hy. apply lookup_other. intros ->.
+      apply var_free_b_sound in Hy. congruence.
+    + intros k _. apply conts_agree_same. reflexivity.
+  - apply (removes_refines v u e e' Hremoves);
+      [ rewrite lookup_other by (apply Pos.eqb_neq; exact Hne); exact Hlookup
+      | apply lookup_head | exact Hgives ].
+Qed.
+
+End Read_removed.
+
+(* What is asked of the value given for the new parameter, among the
+   values that an application gives: it is what the primitive gives of
+   the one at the position of the parameter read. *)
+Definition read_fits (i : nat) (p : unary_primitive) (statics : static_env)
+    (vs : list value) (u : value) : Prop :=
+  ∃ v : value, nth_error vs i = Some v ∧ gives p v u statics.
+
+Lemma read_fits_refines (f : variable) (kind : flambda_kind)
+    (p : unary_primitive) (x : variable) (i : nat) (params : list variable)
+    (e e' : expr) (def_vars bound : env) (conts : cont_env)
+    (statics : static_env) (vs : list value) (u : value) :
+  removes f kind p x e e' ->
+  var_free_b f e = false ->
+  Pos.eqb x f = false ->
+  distinct params = true ->
+  nth_error params i = Some x ->
+  bind_params params vs def_vars = Some bound ->
+  read_fits i p statics vs u ->
+  refines (State e bound conts statics)
+    (State e' ((f, u) :: bound) conts statics).
+Proof.
+  intros Hremoves Hfree Hne Hdistinct Hx Hbind (v & Hv & Hgives).
+  exact (read_refines f kind p x v u e e' bound conts statics Hremoves Hfree
+    Hne (bind_params_nth params vs def_vars bound i x v Hdistinct Hbind Hx Hv)
+    Hgives).
+Qed.
+
+(* ======================================================================== *)
+(* The [Let] that a handler begins with                                     *)
+(* ======================================================================== *)
+
+(* [extend_applications] is [extend_applications_by] at
+   [extend_args]. *)
+Lemma extend_arms_by_args (i : nat) (p : unary_primitive) (known : facts)
+    (k : continuation) (arms : list (Z * apply_cont)) :
+  extend_arms_by (fun known => extend_args known i p) known k arms
+  = extend_arms known k i p arms.
+Proof.
+  induction arms as [ | [discriminant ac] arms IH]; simpl;
+    [ reflexivity | rewrite IH; reflexivity ].
+Qed.
+
+Fixpoint extend_applications_by_args (i : nat) (p : unary_primitive)
+    (k : continuation) (e : expr) :
+  ∀ known : facts,
+    extend_applications_by (fun known => extend_args known i p) known k e
+    = extend_applications known k i p e
+with extend_in_handler_by_args (i : nat) (p : unary_primitive)
+    (k : continuation) (h : continuation_handler) :
+  ∀ known : facts,
+    extend_in_handler_by (fun known => extend_args known i p) known k h
+    = extend_in_handler known k i p h.
+Proof.
+  - destruct e
+      as [ y kind0 d body | bindings body | k0 h body | handlers body | ap
+         | ac | scrutinee arms | ];
+      intros known; simpl; try reflexivity.
+    + rewrite extend_applications_by_args. reflexivity.
+    + rewrite extend_applications_by_args. reflexivity.
+    + rewrite extend_in_handler_by_args, extend_applications_by_args.
+      reflexivity.
+    + rewrite extend_applications_by_args.
+      replace
+        (map
+           (fun '(k', h) =>
+              let* h :=
+                extend_in_handler_by (fun known => extend_args known i p)
+                  known k h
+              in
+              Some (k', h))
+           handlers)
+        with
+          (map
+             (fun '(k', h) =>
+                let* h := extend_in_handler known k i p h in
+                Some (k', h))
+             handlers);
+        [ reflexivity | ].
+      induction handlers as [ | [k1 h1] handlers IH]; simpl;
+        [ reflexivity | ].
+      rewrite (extend_in_handler_by_args i p k h1 known), IH. reflexivity.
+    + rewrite extend_arms_by_args. reflexivity.
+  - destruct h as [params0 metadata0 handler]. intros known. simpl.
+    rewrite extend_applications_by_args. reflexivity.
+Qed.
+
+(* The argument that [extend_args] gives: where the primitive has a
+   value of the kind of the [Let] on the parameter read, that value;
+   otherwise the [Let], the first thing in the handler, has no step. *)
+Lemma extend_args_gives (i : nat) (p : unary_primitive) (f x : variable)
+    (kind : flambda_kind) (rest : expr) (known : facts) (vars : env)
+    (statics : static_env) (args args' : list simple) (vs : list value)
+    (v : value) :
+  facts_hold known vars statics ->
+  extend_args known i p args = Some args' ->
+  eval_simples vars args = Some vs ->
+  nth_error vs i = Some v ->
+  (∃ u : value,
+     eval_simples vars args' = Some (vs ++ [u])
+     ∧ kind_of_value u = kind
+     ∧ read_fits i p statics vs u)
+  ∨ (∀ (bound : env) (conts : cont_env),
+       lookup x bound = Some v ->
+       ∃ n : nat,
+         run n
+           (State (Let f kind (Prim (Unary p) [Var x]) rest) bound conts
+              statics)
+         = Undefined).
+Proof.
+  intros Hfacts Hextend Hvs Hv. unfold extend_args in Hextend.
+  destruct (nth_error args i) as [arg | ] eqn:Hnth; [ | discriminate ].
+  destruct (projection_of known p arg) as [projection | ] eqn:Hprojection;
+    [ | discriminate ].
+  injection Hextend as <-.
+  destruct (eval_simples_nth vars args vs i arg Hvs Hnth)
+    as (v' & Hv' & Harg).
+  rewrite Hv in Hv'. injection Hv' as <-.
+  destruct (eval_prim statics (Unary p) [v]) as [w | ] eqn:Hprim;
+    [ | right; intros bound conts Hx; exists 1; simpl; rewrite step_let;
+        simpl; rewrite Hx; simpl; rewrite Hprim; reflexivity ].
+  destruct (kind_eqb (kind_of_value w) kind) eqn:Hkind;
+    [ | right; intros bound conts Hx; exists 1; simpl; rewrite step_let;
+        simpl; rewrite Hx; simpl; rewrite Hprim, Hkind; reflexivity ].
+  pose proof (projection_of_sound known vars statics p arg projection v w
+    Hfacts Hprojection Harg Hprim) as Hw.
+  left. exists w. split; [ | split ].
+  - exact (eval_simples_snoc vars args projection w vs Hvs Hw).
+  - apply kind_eqb_eq, Hkind.
+  - exists v. split; [ exact Hv | ].
+    intros statics' Hmore w' Hprim'.
+    pose proof (projection_of_sound known vars statics' p arg projection v
+      w' (facts_hold_extend known vars statics statics' Hfacts Hmore)
+      Hprojection Harg Hprim') as Hw'.
+    congruence.
+Qed.
 
 (* ======================================================================== *)
 (* The pass                                                                 *)
@@ -1207,14 +1595,30 @@ Proof.
   destruct (extend_applications known k i p body) as [body' | ] eqn:Hbody;
     [ | apply refines_refl ].
   unfold may_take in Htake.
-  apply andb_true_iff in Htake as [Htake _].
+  apply andb_true_iff in Htake as [Htake Hfresh].
   apply andb_true_iff in Htake as [Htake _].
   apply andb_true_iff in Htake as [_ Hdistinct].
+  apply negb_true_iff in Hfresh.
+  assert (Hne : Pos.eqb x f = false).
+  { destruct (Pos.eqb_spec x f) as [Heq | _]; [ | reflexivity ].
+    rewrite <- Heq, (position_among x params i Hposition) in Hfresh.
+    discriminate. }
+  assert (Hfree :
+    var_free_b f (Let f kind (Prim (Unary p) [Var x]) rest) = false).
+  { simpl. rewrite Pos.eqb_refl, Pos.eqb_sym, Hne. reflexivity. }
   eapply refines_trans; [ | apply IH; exact Hfacts ].
-  exact (unbox_head_refines k i p params metadata
-    (with_one_more metadata kind) f x kind rest Hdistinct
-    (position_nth x params i Hposition) eq_refl known body body' vars conts
-    statics Hbody Hfacts).
+  rewrite <- extend_applications_by_args in Hbody.
+  exact (unbox_parameter_refines k i params metadata
+    (with_one_more metadata kind) f x kind
+    (Let f kind (Prim (Unary p) [Var x]) rest) rest
+    (fun known => extend_args known i p) (read_fits i p) Hdistinct
+    (position_nth x params i Hposition) eq_refl
+    (extend_args_gives i p f x kind rest)
+    (fun def_vars bound conts0 statics0 vs u Hbind Hfits =>
+       read_fits_refines f kind p x i params _ rest def_vars bound conts0
+         statics0 vs u (Removes_here f kind p x rest) Hfree Hne Hdistinct
+         (position_nth x params i Hposition) Hbind Hfits)
+    known body body' vars conts statics Hbody Hfacts).
 Qed.
 
 (* The handler of each non-recursive [Let_cont] and its body, by the

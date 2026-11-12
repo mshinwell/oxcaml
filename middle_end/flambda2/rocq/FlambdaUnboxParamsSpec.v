@@ -136,6 +136,11 @@
    none that the term has not got. FlambdaUnboxParamsRenameSpec.v has
    the statement that the pass commutes with a renaming.
 
+   [extend_applications_by] is [extend_applications] with the new
+   arguments given by a function; the pass does not use it.
+   FlambdaUnboxVariantsSpec.v does, for a parameter that is read under
+   a test.
+
    The proofs are in FlambdaUnboxParamsProofs.v, which needs no
    review. *)
 
@@ -320,6 +325,95 @@ with extend_in_handler (known : facts) (k : continuation) (i : nat)
   | Handler params metadata handler =>
     let* handler :=
       extend_applications (facts_under_params known params) k i p handler
+    in
+    Some (Handler params metadata handler)
+  end.
+
+(* ======================================================================== *)
+(* One more argument at every application, by a function of the arguments   *)
+(* ======================================================================== *)
+
+(* [extend_applications], with the new arguments of an application
+   given by a function of what is known and of its arguments:
+   [extend_applications known k i p] is [extend_applications_by] at
+   [fun known => extend_args known i p]. It is here for
+   FlambdaUnboxVariantsSpec.v, which gives the arguments otherwise. *)
+Definition extend_apply_cont_by
+    (extend : facts -> list simple -> option (list simple)) (known : facts)
+    (k : continuation) (ac : apply_cont) : option apply_cont :=
+  if Pos.eqb (ac_continuation ac) k
+  then
+    let* args := extend known (ac_args ac) in
+    Some (Apply_cont_expr (ac_continuation ac) args (ac_trap_action ac))
+  else Some ac.
+
+Fixpoint extend_arms_by
+    (extend : facts -> list simple -> option (list simple)) (known : facts)
+    (k : continuation) (arms : list (Z * apply_cont))
+    : option (list (Z * apply_cont)) :=
+  match arms with
+  | [] => Some []
+  | (discriminant, ac) :: arms =>
+    let* ac := extend_apply_cont_by extend known k ac in
+    let* arms := extend_arms_by extend known k arms in
+    Some ((discriminant, ac) :: arms)
+  end.
+
+Fixpoint extend_applications_by
+    (extend : facts -> list simple -> option (list simple)) (known : facts)
+    (k : continuation) (e : expr) : option expr :=
+  match e with
+  | Let x kind d body =>
+    let* body :=
+      extend_applications_by extend (facts_under_let known x d) k body
+    in
+    Some (Let x kind d body)
+  | Let_static bindings body =>
+    let* body :=
+      extend_applications_by extend (facts_under_statics known bindings) k
+        body
+    in
+    Some (Let_static bindings body)
+  | Let_cont_non_recursive k' h body =>
+    let* h := extend_in_handler_by extend known k h in
+    if Pos.eqb k' k then Some (Let_cont_non_recursive k' h body)
+    else
+      let* body := extend_applications_by extend known k body in
+      Some (Let_cont_non_recursive k' h body)
+  | Let_cont_recursive handlers body =>
+    if is_bound k handlers then Some e
+    else
+      let* handlers :=
+        all_some
+          (map
+             (fun '(k', h) =>
+                let* h := extend_in_handler_by extend known k h in
+                Some (k', h))
+             handlers)
+      in
+      let* body := extend_applications_by extend known k body in
+      Some (Let_cont_recursive handlers body)
+  | Apply ap =>
+    if Pos.eqb (ap_continuation ap) k || Pos.eqb (ap_exn_continuation ap) k
+    then None
+    else Some e
+  | Apply_cont ac =>
+    let* ac := extend_apply_cont_by extend known k ac in
+    Some (Apply_cont ac)
+  | Switch scrutinee arms =>
+    let* arms := extend_arms_by extend known k arms in
+    Some (Switch scrutinee arms)
+  | Invalid => Some e
+  end
+with extend_in_handler_by
+    (extend : facts -> list simple -> option (list simple)) (known : facts)
+    (k : continuation) (h : continuation_handler)
+    : option continuation_handler :=
+  match h with
+  | Handler params metadata handler =>
+    let* handler :=
+      extend_applications_by extend (facts_under_params known params) k
+        handler
     in
     Some (Handler params metadata handler)
   end.
