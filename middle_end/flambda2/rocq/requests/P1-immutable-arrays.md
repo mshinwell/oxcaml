@@ -5,9 +5,9 @@ constants.
 
 For the human, C0 (the values and the terms), V2 (the conversion and
 the validation) and R5 (review). Nothing of this is in the model yet.
-A prototype of the definitions exists, with no proof, and was used
-for the measure of section 5; the proofs wait for the heap to be in
-the state of the machine.
+A prototype of the definitions, not in this tree and with no proof,
+was used for the measure of section 5; the proofs wait for the heap
+to be in the state of the machine.
 
 ## 1. Why
 
@@ -170,6 +170,7 @@ and they are not equally cheap.
 - **From the load to the `Switch`, on the term after.** Where the
   unit binds the symbol to an array of constants `c_0 .. c_(n-1)`,
   each one that the load kind takes and of the kind of the `Let`,
+  and `i` is a variable,
 
       let x = Array_load ($t, i) in cont k (.. x ..)
 
@@ -181,29 +182,32 @@ and they are not equally cheap.
         | ..
         | n-1 -> cont k (.. c_(n-1) ..)
 
-  with `x` bound at the kind of naked immediates, and used nowhere
-  else. It is an **equivalence**: each side has a value exactly where
-  `i` is a tagged immediate that is the number of an element, and
-  then gives `k` the same arguments; the test of the kind of `x` that
-  the first `Let` makes is the condition on the constants. So it may
-  be used on the term after, which has equivalences only. It makes no
-  name. The binding of the table is then one of the unused static
-  bindings that the validation removes. Two conditions go with it,
-  both from the review of this request:
+  with `x` bound at the kind of naked immediates; `x` is used only
+  in the arguments of that one application. It is an
+  **equivalence**: each side has a value exactly where `i` is a
+  tagged immediate that is the number of an element, and then gives
+  `k` the same arguments; the test of the kind of `x` that the first
+  `Let` makes is the condition on the constants. So it may be used
+  on the term after, which has equivalences only. It makes no name.
+  Two conditions go with it, both from the review of this request,
+  and it depends on one thing that the validation does not do today
+  ("The binding that is left", below):
   - *Where the table is bound.* The load has a value only where the
     static environment binds the symbol to the table; the `Switch`
     asks nothing of the static environment. Under an environment in
     which the symbol is not bound to the table, the rewrite would
-    make a term that is defined of one that is not. So "what the unit
-    binds the symbol to", as the rewrites that follow known symbols
-    take it, is not enough: those are refinements of a unit run on
-    its own, and a normalisation of the term after is an equivalence
-    of terms under every environment. The rewrite is to fire only
-    where the term itself shows that the table is bound whenever the
-    load is executed: in the body of the `Let_static` that binds the
-    symbol, and in the code that this `Let_static`, or one inside its
-    body, binds; the facts are kept by scope, as the rewrite of the
-    loads from static blocks in scope keeps them. A symbol that the
+    make a term that is defined of one that is not, or, where the
+    symbol is bound to another array, a term with another result. So
+    "what the unit binds the symbol to", as the rewrites that follow
+    known symbols take it, is not enough: those are refinements of a
+    unit run on its own, and a normalisation of the term after is an
+    equivalence of terms under every environment. The rewrite is to
+    fire only where the term itself shows that the table is bound
+    whenever the load is executed: in the body of the `Let_static`
+    that binds the symbol, and in the code that this `Let_static`,
+    or one inside its body, binds. The facts are kept by scope, as
+    the rewrite goes down the term; the rule of scope of the static
+    names is that of `FlambdaStaticsInScopeSpec.v`. A symbol that the
     unit imports, or one bound below the code that loads from it, is
     left alone. The other way would be a guard, proved apart, that
     the table is bound wherever the load is executed; I recommend the
@@ -211,6 +215,10 @@ and they are not equally cheap.
     static name, once bound, stays bound to the same thing in the
     states reached from the binding; whether that holds of every term
     or only of a well-formed one is to be settled when it is stated.
+    The normalisation of the term after is an equivalence with no
+    premise, and this request does not ask to weaken it: if the fact
+    holds only of a well-formed term, the rewrite gets a guard that
+    the validator checks, or it waits.
   - *The direction.* If a load out of the bounds were given a value,
     the term with the load would be defined where the term with the
     `Switch` is not. The term with the load would still refine the
@@ -222,6 +230,15 @@ and they are not equally cheap.
     then be withdrawn from it or that statement weakened; the second
     rewrite below, on the term before, would be the one that stays a
     refinement.
+  - *The binding that is left.* After the rewrite nothing mentions
+    the symbol of the table, and the term before has no such
+    binding. The validation removes the static bindings that are not
+    used from the term before only, today, and as a refinement. The
+    removal from the term after of a static binding that nothing
+    mentions, as an equivalence, is not in the validation yet; the
+    owner of the validation has it to do, for code and closures that
+    an inlined call leaves behind as well. The rewrite validates no
+    unit until it is there.
 - **From the `Switch` to the load, on the term before.** This is
   what Simplify does, beside the two ways that
   `FlambdaMergeSwitchesSpec.merge_switches` has. It has to bind a
@@ -239,11 +256,11 @@ index. None of the four units has it.
 
 ## 5. The measure
 
-Definitions only: the prototype of section 3 in the `Spec` and model
-files, extracted, with no proof built, and the conversion of the test
-tool with the constant and the two primitives (section 6). The
-integration branch at 222450f953; the tool built there as it is and
-with the prototype; both run on the same terms:
+Definitions only: the prototype of section 3 (not in this tree) in
+the `Spec` and model files, extracted, with no proof built, and the
+conversion of the test tool with the constant and the two primitives
+(section 6). The integration branch at 222450f953; the tool built
+there as it is and with the prototype; both run on the same terms:
 
 | Set | Units | Outputs that differ |
 |-----|-------|---------------------|
@@ -251,15 +268,18 @@ with the prototype; both run on the same terms:
 | the corpus, written by hand | 111 | 0 |
 | the 600 generated units of `census/README.md` | 600 | 0 |
 | 240 generated units of two later profiles | 240 | 0 |
-| four sets of units written to probe the validation, not in the tree | 263 | 4 |
+| four sets of probing units, not in this tree | 263 | 4 |
 
 - **Gained: four units**, those of section 1. Each went from "not
   checked" to two runs that are **the same** (the results are those
   worked out by hand from the sources), and "not validated".
 - With each load replaced by hand in the term after, as the first
   rewrite of section 4 has it (one load in three of the units, two in
-  the fourth), the two terms of each of the four are the same up to
-  the names bound. So that rewrite is all that these four need.
+  the fourth), and the binding of the table, which nothing then
+  mentions, taken out, the two terms of each of the four are the same
+  up to the names bound. So that rewrite and the removal of that
+  binding are all that these four need. This was done on the terms
+  as the tool prints them; the validator was not run on the result.
 - **Lost: none.** No verdict changes in any other unit.
 - **One output moves and keeps its verdict**: `array_literal.ml` of
   the corpus, which makes a mutable array, is still not checked; the
@@ -284,11 +304,17 @@ For V2, who has the conversion. In `tests/tools/flsemantics.ml`:
   the static constants of the model or on what a symbol is bound to:
   where it prints a term, counts what a term refers to, finds the
   code and the value slots of a symbol, and reads what a unit
-  returns (an array is read as its elements).
+  returns. What is observed of an array is its elements, under a
+  constructor of its own and not as a block of tag 0 (V2's word), so
+  that the two runs cannot agree by an array on one side and a block
+  on the other. The prototype read it as a block of tag 0; none of
+  the four units returns an array.
 - The round trip (`flmodel_to_fexpr.ml`, `flroundtrip.ml`): the
   fexpr syntax has the constant (`parser/fexpr.ml`,
   `Immutable_value_array`). `tests/semantics/types/types_difftest.ml`
-  matches on the static constants in several places.
+  matches on the static constants in several places; its cases come
+  in the same series, as the compiler must build at every commit
+  that lands.
 - The one line of `array_literal.expected`.
 
 ## 7. What is decided here, and what is asked
@@ -307,12 +333,22 @@ Asked:
   on what a symbol is bound to;
 - of the owner of `FlambdaSimplifyStaticsSpec.v`, the type of the
   symbol of such a constant;
-- of V2, the conversion (section 6) and, when the rewrite of section
-  4 is proved, its place among the normalisations of the term after;
+- of V2, its word on the conversion (section 6), which comes as one
+  commit of the series of the definitions; the removal from the term
+  after of a static binding that nothing mentions (section 4); and,
+  when the rewrite of section 4 is proved, its place among the
+  normalisations of the term after;
 - of the human, the CR of section 3 (a static array is read at any
   load kind that its elements fit).
 
 The order of work: the definitions and their proofs once the heap is
-in the state of the machine, as one series; then the rewrite of the
-term after, with its statement of equivalence and its laws of
-renaming and scope.
+in the state of the machine, as one series that ends with the test
+tool; then the rewrite of the term after, with its statement of
+equivalence and its laws of renaming and scope.
+
+Answers so far. R5 has read the request, with the outputs of the
+measure, and agrees to it as a plan; its three corrections are in
+sections 2 and 4 (poison in a table of values, where the rewrite may
+fire, which half is left). No definition and no proof has been
+reviewed. V2 agrees to the side of the rewrite and to the conversion
+of section 6, with the observation of an array as said there.
