@@ -505,7 +505,9 @@ checked by an extracted function, and `validate_unit_sound` and
   each lifting of the list): the `Let`s outside code and the code ids
   are checked by `lift_unit`; the `Let`s in the bodies of code (the
   field `lifted_out_of_code` of the guess, which `lift_unit` does not
-  read) by `lift_from_code_unit`.
+  read) by `lift_from_code_unit`; the `Let`s of the handlers that are
+  not at toplevel, to bind at the head of the unit (the field
+  `lifted_to_head`), by `lift_to_head_unit`.
 - Which value slots Simplify removed from the static sets of closures
   (`unused_slots_guess`): checked by `drop_unused_slots`.
 - Which code Simplify made a loop of, with a name for the loop of each

@@ -1936,7 +1936,8 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list)
   { lifting_unit = unit;
     lifted_lets = lets;
     lifted_my_closures = my_closures;
-    lifted_out_of_code = out_of_code
+    lifted_out_of_code = out_of_code;
+    lifted_to_head = []
   }
 
 (* ---- Value slots that Simplify removed --------------------------------- *)
@@ -2181,7 +2182,8 @@ let validate ~(outcome_before : outcome) (before : converted)
     { lifting_unit = interface before;
       lifted_lets = [];
       lifted_my_closures = [];
-      lifted_out_of_code = []
+      lifted_out_of_code = [];
+      lifted_to_head = []
     }
   in
   (* The code to loopify. *)

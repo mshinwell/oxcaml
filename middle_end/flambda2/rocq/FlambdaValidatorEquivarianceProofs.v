@@ -49,6 +49,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaCompareSpec FlambdaCompareAlphaSpec FlambdaCompareAlphaProofs
   FlambdaMyClosureSpec FlambdaMyClosureProofs FlambdaLiftSpec
   FlambdaLiftProofs FlambdaLiftFromCodeSpec FlambdaLiftFromCodeProofs
+  FlambdaLiftFromArmsSpec FlambdaStaticsInScopeSpec FlambdaHoistStaticsSpec
   FlambdaUnusedSlotsSpec FlambdaUnusedSlotsProofs
   FlambdaKnownSymbolsSpec FlambdaKnownSymbolsProofs
   FlambdaKnownClosuresSpec FlambdaKnownClosuresProofs FlambdaFloatCodeSpec
@@ -67,7 +68,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaValidatorEquivarianceSpec.
 From OxCamlFlambda2 Require FlambdaKeepsScopeProofs FlambdaValidateScopeProofs
   FlambdaLoopsScopeProofs
-  FlambdaStaticsScopeProofs.
+  FlambdaStaticsScopeProofs FlambdaLiftFromArmsProofs
+  FlambdaHoistStaticsProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -5118,7 +5120,8 @@ Lemma lift_unit_renamed (r : renaming) (L : lifting) (e : expr) :
   = option_map (rename_expr r) (lift_unit L e).
 Proof.
   unfold lift_unit, rename_lifting.
-  cbn [lifting_unit lifted_lets lifted_my_closures lifted_out_of_code].
+  cbn [lifting_unit lifted_lets lifted_my_closures lifted_out_of_code
+       lifted_to_head].
   cbv zeta.
   rewrite <- lift_expr_equivariant, <- bind_my_closures_equivariant.
   rewrite well_formed_unit_equivariant, only_closures_of_renamed.
@@ -5151,6 +5154,21 @@ Proof.
     reflexivity.
 Qed.
 
+(* The lifting to the head of the unit, in the same way. *)
+Lemma lift_to_head_unit_renamed (r : renaming) (u : unit_interface)
+    (lets : list (path * lift_to)) (e : expr) :
+  lift_to_head_unit (rename_unit_interface r u) lets (rename_expr r e)
+  = option_map (rename_expr r) (lift_to_head_unit u lets e).
+Proof.
+  unfold lift_to_head_unit. cbv zeta.
+  rewrite <- FlambdaLiftFromArmsProofs.lift_to_head_equivariant,
+    well_formed_unit_equivariant.
+  pose proof (exits_plain_equivariant r [] e) as Hexits. simpl in Hexits.
+  rewrite Hexits.
+  destruct (exits_plain [] e && well_formed_unit u (lift_to_head lets e));
+    reflexivity.
+Qed.
+
 Lemma with_lifting_renamed (r : renaming) (L : lifting) (e : expr) :
   with_lifting (rename_lifting r L) (rename_expr r e)
   = rename_expr r (with_lifting L e).
@@ -5160,9 +5178,13 @@ Proof.
     with (rename_unit_interface r (lifting_unit L)).
   change (lifted_out_of_code (rename_lifting r L))
     with (lifted_out_of_code L).
-  rewrite lift_from_code_unit_renamed.
-  destruct (lift_from_code_unit (lifting_unit L) (lifted_out_of_code L) e)
-    as [e' | ];
+  change (lifted_to_head (rename_lifting r L)) with (lifted_to_head L).
+  rewrite lift_to_head_unit_renamed.
+  destruct (lift_to_head_unit (lifting_unit L) (lifted_to_head L) e)
+    as [at_head | ];
+    cbn [option_map]; rewrite lift_from_code_unit_renamed;
+    destruct (lift_from_code_unit (lifting_unit L) (lifted_out_of_code L) _)
+      as [e' | ];
     cbn [option_map]; rewrite lift_unit_renamed;
     destruct (lift_unit L _); reflexivity.
 Qed.
@@ -5423,6 +5445,314 @@ Qed.
 Lemma float_code_rewrite_equivariant : rewrite_equivariant float_code.
 Proof. intros r e. symmetry. apply float_code_equivariant. Qed.
 
+(* The unit with its static bindings that need nothing first. The check
+   that every static name is in scope where it is mentioned reads no
+   variable, and reads the continuations only to tell which handlers
+   are at toplevel: it answers the same on the renamed unit, for the
+   exception continuation renamed. *)
+Lemma simple_statics_in_scope_renamed (r : renaming) (syms : list symbol)
+    (s : simple) :
+  simple_statics_in_scope syms (rename_simple r s)
+  = simple_statics_in_scope syms s.
+Proof. destruct s; reflexivity. Qed.
+
+Lemma simples_statics_in_scope_renamed (r : renaming) (syms : list symbol)
+    (args : list simple) :
+  simples_statics_in_scope syms (map (rename_simple r) args)
+  = simples_statics_in_scope syms args.
+Proof.
+  unfold simples_statics_in_scope. apply forallb_map_with. intros s.
+  apply simple_statics_in_scope_renamed.
+Qed.
+
+Lemma value_slots_statics_in_scope_renamed (r : renaming)
+    (syms : list symbol) (slots : list (value_slot * simple)) :
+  value_slots_statics_in_scope syms
+    (map (fun slot => (fst slot, rename_simple r (snd slot))) slots)
+  = value_slots_statics_in_scope syms slots.
+Proof.
+  unfold value_slots_statics_in_scope. apply forallb_map_with. intros slot.
+  cbn [snd]. apply simple_statics_in_scope_renamed.
+Qed.
+
+Lemma named_statics_in_scope_renamed (r : renaming) (syms : list symbol)
+    (ids : list code_id) (d : named) :
+  named_statics_in_scope syms ids (rename_named r d)
+  = named_statics_in_scope syms ids d.
+Proof.
+  destruct d; cbn [rename_named named_statics_in_scope];
+    rewrite ?simple_statics_in_scope_renamed,
+      ?simples_statics_in_scope_renamed,
+      ?value_slots_statics_in_scope_renamed;
+    reflexivity.
+Qed.
+
+Lemma static_const_statics_in_scope_renamed (r : renaming)
+    (syms : list symbol) (ids : list code_id) (const : static_const) :
+  static_const_statics_in_scope syms ids (rename_static_const r const)
+  = static_const_statics_in_scope syms ids const.
+Proof.
+  destruct const; cbn [rename_static_const static_const_statics_in_scope];
+    rewrite ?simple_statics_in_scope_renamed,
+      ?simples_statics_in_scope_renamed,
+      ?value_slots_statics_in_scope_renamed;
+    reflexivity.
+Qed.
+
+Lemma apply_cont_statics_in_scope_renamed (r : renaming)
+    (syms : list symbol) (ac : apply_cont) :
+  apply_cont_statics_in_scope syms (rename_apply_cont r ac)
+  = apply_cont_statics_in_scope syms ac.
+Proof.
+  unfold apply_cont_statics_in_scope, rename_apply_cont. cbn [ac_args].
+  apply simples_statics_in_scope_renamed.
+Qed.
+
+Lemma apply_statics_in_scope_renamed (r : renaming) (syms : list symbol)
+    (ids : list code_id) (ap : apply_expr) :
+  apply_statics_in_scope syms ids (rename_apply r ap)
+  = apply_statics_in_scope syms ids ap.
+Proof.
+  unfold apply_statics_in_scope.
+  rewrite exn_extra_simples_rename. unfold rename_apply.
+  cbn [ap_callee ap_call_kind ap_args].
+  rewrite simple_statics_in_scope_renamed, !simples_statics_in_scope_renamed.
+  reflexivity.
+Qed.
+
+Lemma is_closure_const_renamed (r : renaming) (const : static_const) :
+  is_closure_const (rename_static_const r const) = is_closure_const const.
+Proof. destruct const; reflexivity. Qed.
+
+Lemma closure_symbols_of_binding_renamed (r : renaming)
+    (binding : static_binding) :
+  closure_symbols_of_binding (rename_static_binding r binding)
+  = closure_symbols_of_binding binding.
+Proof.
+  destruct binding as [id c | id | s const]; try reflexivity.
+  cbn [rename_static_binding closure_symbols_of_binding].
+  rewrite is_closure_const_renamed. reflexivity.
+Qed.
+
+Lemma declared_code_ids_of_binding_renamed (r : renaming)
+    (binding : static_binding) :
+  declared_code_ids_of_binding (rename_static_binding r binding)
+  = declared_code_ids_of_binding binding.
+Proof. destruct binding; reflexivity. Qed.
+
+Lemma group_consts_in_scope_renamed (r : renaming) (all : list symbol)
+    (ids : list code_id) (bindings : list static_binding) :
+  ∀ before : list symbol,
+    group_consts_in_scope before all ids
+      (map (rename_static_binding r) bindings)
+    = group_consts_in_scope before all ids bindings.
+Proof.
+  induction bindings as [ | [id c | id | s const] bindings IH];
+    intros before; cbn [map rename_static_binding group_consts_in_scope];
+    [ reflexivity | apply IH | apply IH | ].
+  rewrite is_closure_const_renamed, !static_const_statics_in_scope_renamed,
+    !IH.
+  reflexivity.
+Qed.
+
+Fixpoint expr_statics_in_scope_renamed (r : renaming) (e : expr) {struct e} :
+  ∀ (syms : list symbol) (ids : list code_id),
+    expr_statics_in_scope syms ids (rename_expr r e)
+    = expr_statics_in_scope syms ids e
+with handler_statics_in_scope_renamed (r : renaming)
+    (h : continuation_handler) {struct h} :
+  ∀ (syms : list symbol) (ids : list code_id),
+    handler_statics_in_scope syms ids (rename_handler r h)
+    = handler_statics_in_scope syms ids h
+with binding_statics_in_scope_renamed (r : renaming)
+    (binding : static_binding) {struct binding} :
+  ∀ (syms : list symbol) (ids : list code_id),
+    binding_statics_in_scope syms ids (rename_static_binding r binding)
+    = binding_statics_in_scope syms ids binding
+with code_statics_in_scope_renamed (r : renaming) (c : code) {struct c} :
+  ∀ (syms : list symbol) (ids : list code_id),
+    code_statics_in_scope syms ids (rename_code r c)
+    = code_statics_in_scope syms ids c.
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      intros syms ids; cbn [rename_expr expr_statics_in_scope];
+      try reflexivity.
+    + rewrite named_statics_in_scope_renamed, expr_statics_in_scope_renamed.
+      reflexivity.
+    + cbv zeta.
+      rewrite
+        (flat_map_names_renamed r symbols_of_binding
+           (symbols_of_binding_renamed r)),
+        (flat_map_names_renamed r declared_code_ids_of_binding
+           (declared_code_ids_of_binding_renamed r)),
+        (flat_map_names_renamed r closure_symbols_of_binding
+           (closure_symbols_of_binding_renamed r)),
+        group_consts_in_scope_renamed, expr_statics_in_scope_renamed.
+      f_equal. f_equal.
+      match goal with
+      | |- forallb (binding_statics_in_scope ?all ?ids') _
+           = forallb (binding_statics_in_scope ?all2 ?ids2) _ =>
+        change all2 with all; change ids2 with ids'; generalize all ids'
+      end.
+      intros all ids'.
+      induction bindings as [ | binding bindings IH]; cbn [map forallb];
+        [ reflexivity | ].
+      rewrite (binding_statics_in_scope_renamed r binding), IH.
+      reflexivity.
+    + rewrite
+        (static_names_renamed r symbols_of_binding
+           (symbols_of_binding_renamed r)),
+        (static_names_renamed r declared_code_ids_of_binding
+           (declared_code_ids_of_binding_renamed r)),
+        handler_statics_in_scope_renamed, expr_statics_in_scope_renamed.
+      reflexivity.
+    + rewrite expr_statics_in_scope_renamed,
+        (static_names_renamed r symbols_of_binding
+           (symbols_of_binding_renamed r)),
+        (static_names_renamed r declared_code_ids_of_binding
+           (declared_code_ids_of_binding_renamed r)).
+      f_equal.
+      induction handlers as [ | [k h] handlers IH]; cbn [map forallb];
+        [ reflexivity | ].
+      rewrite (handler_statics_in_scope_renamed r h), IH.
+      reflexivity.
+    + apply apply_statics_in_scope_renamed.
+    + apply apply_cont_statics_in_scope_renamed.
+    + rewrite simple_statics_in_scope_renamed. f_equal.
+      apply forallb_map_with. intros arm. cbn [snd].
+      apply apply_cont_statics_in_scope_renamed.
+  - destruct h as [params metadata handler]. intros syms ids.
+    cbn [rename_handler handler_statics_in_scope].
+    apply expr_statics_in_scope_renamed.
+  - destruct binding as [id c | id | s const]; intros syms ids;
+      cbn [rename_static_binding binding_statics_in_scope];
+      try reflexivity.
+    apply code_statics_in_scope_renamed.
+  - destruct c as [params my_closure ret exn metadata body].
+    intros syms ids. cbn [rename_code code_statics_in_scope].
+    apply expr_statics_in_scope_renamed.
+Qed.
+
+(* The continuations that the renamed unit binds are those that the
+   unit binds, renamed. *)
+Fixpoint bound_continuations_renamed (r : renaming) (e : expr) {struct e} :
+  bound_continuations (rename_expr r e)
+  = map (rename_continuation r) (bound_continuations e)
+with handler_bound_continuations_renamed (r : renaming)
+    (h : continuation_handler) {struct h} :
+  handler_bound_continuations (rename_handler r h)
+  = map (rename_continuation r) (handler_bound_continuations h)
+with binding_bound_continuations_renamed (r : renaming)
+    (binding : static_binding) {struct binding} :
+  binding_bound_continuations (rename_static_binding r binding)
+  = map (rename_continuation r) (binding_bound_continuations binding)
+with code_bound_continuations_renamed (r : renaming) (c : code) {struct c} :
+  code_bound_continuations (rename_code r c)
+  = map (rename_continuation r) (code_bound_continuations c).
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      cbn [rename_expr bound_continuations]; try reflexivity.
+    + apply bound_continuations_renamed.
+    + rewrite map_app, bound_continuations_renamed. f_equal.
+      induction bindings as [ | binding bindings IH]; cbn [map flat_map];
+        [ reflexivity | ].
+      rewrite map_app, (binding_bound_continuations_renamed r binding), IH.
+      reflexivity.
+    + cbn [map].
+      rewrite map_app, handler_bound_continuations_renamed,
+        bound_continuations_renamed.
+      reflexivity.
+    + rewrite !map_app, bound_continuations_renamed. f_equal; [ | f_equal ].
+      * rewrite !map_map. apply map_ext. intros [k h]. reflexivity.
+      * induction handlers as [ | [k h] handlers IH]; cbn [map flat_map];
+          [ reflexivity | ].
+        rewrite map_app, (handler_bound_continuations_renamed r h), IH.
+        reflexivity.
+  - destruct h as [params metadata handler].
+    cbn [rename_handler handler_bound_continuations].
+    apply bound_continuations_renamed.
+  - destruct binding as [id c | id | s const];
+      cbn [rename_static_binding binding_bound_continuations];
+      try reflexivity.
+    apply code_bound_continuations_renamed.
+  - destruct c as [params my_closure ret exn metadata body].
+    cbn [rename_code code_bound_continuations map].
+    rewrite bound_continuations_renamed. reflexivity.
+Qed.
+
+Lemma interface_conts_not_rebound_renamed (r : renaming)
+    (u : unit_interface) (e : expr) :
+  interface_conts_not_rebound (rename_unit_interface r u) (rename_expr r e)
+  = interface_conts_not_rebound u e.
+Proof.
+  unfold interface_conts_not_rebound, rename_unit_interface.
+  cbn [unit_return unit_exn].
+  rewrite bound_continuations_renamed, !among_rename_continuation.
+  reflexivity.
+Qed.
+
+Lemma static_names_apart_renamed (r : renaming) (imports : list symbol)
+    (e : expr) :
+  static_names_apart imports (rename_expr r e) = static_names_apart imports e.
+Proof.
+  unfold static_names_apart.
+  rewrite
+    (static_names_renamed r symbols_of_binding
+       (symbols_of_binding_renamed r)),
+    (static_names_renamed r declared_code_ids_of_binding
+       (declared_code_ids_of_binding_renamed r)).
+  reflexivity.
+Qed.
+
+Lemma hoist_statics_renamed (r : renaming) (u : unit_interface) (e : expr) :
+  hoist_statics (rename_unit_interface r u) (rename_expr r e)
+  = option_map (rename_expr r) (hoist_statics u e).
+Proof.
+  unfold hoist_statics, statics_in_scope.
+  rewrite well_formed_unit_equivariant, expr_statics_in_scope_renamed,
+    interface_conts_not_rebound_renamed, static_names_apart_renamed,
+    FlambdaHoistStaticsProofs.hoisted_bindings_renamed,
+    <- FlambdaHoistStaticsProofs.without_hoisted_renamed.
+  destruct
+    (well_formed_unit u e
+     && expr_statics_in_scope [] [] e
+     && interface_conts_not_rebound u e
+     && static_names_apart [] e);
+    reflexivity.
+Qed.
+
+(* The liftings may be under another renaming than the term, if the
+   two rename the continuations of the units of the liftings alike:
+   the checks go by those of the first. *)
+Lemma with_statics_first_renamed_alike (r r' : renaming) (Ls : list lifting)
+    (e : expr) :
+  rename_conts_alike r r' (unit_continuations Ls) ->
+  with_statics_first (map (rename_lifting r) Ls) (rename_expr r' e)
+  = rename_expr r' (with_statics_first Ls e).
+Proof.
+  intros Halike. destruct Ls as [ | L Ls]; [ reflexivity | ].
+  cbn [map with_statics_first].
+  assert (Hunit :
+    lifting_unit (rename_lifting r L)
+    = rename_unit_interface r' (lifting_unit L)).
+  { unfold rename_lifting, rename_unit_interface. cbn [lifting_unit].
+    rewrite <- (Halike (unit_return (lifting_unit L))),
+      <- (Halike (unit_exn (lifting_unit L)));
+      [ reflexivity | | ];
+      unfold unit_continuations; cbn [flat_map]; rewrite among_app;
+      apply orb_true_iff; left; rewrite !among_cons, Pos.eqb_refl;
+      [ apply orb_true_r | reflexivity ]. }
+  rewrite Hunit, hoist_statics_renamed.
+  destruct (hoist_statics (lifting_unit L) e) as [e' | ]; cbn [option_map];
+    [ | reflexivity ].
+  rewrite drop_deleted_code_equivariant_aux, merge_statics_equivariant_aux.
+  reflexivity.
+Qed.
+
 (* ======================================================================== *)
 (* Rewrites that make names                                                 *)
 (* ======================================================================== *)
@@ -5666,6 +5996,12 @@ Lemma order_statics_as_scope (pattern : expr) :
   keeps_scope (order_statics_as pattern).
 Proof.
   exact (FlambdaStaticsScopeProofs.order_statics_as_keeps_scope pattern).
+Qed.
+
+Lemma with_statics_first_scope (Ls : list lifting) :
+  keeps_scope (with_statics_first Ls).
+Proof.
+  exact (FlambdaStaticsScopeProofs.with_statics_first_keeps_scope Ls).
 Qed.
 
 (* The renaming that the file of [rename_apart] gives agrees with the
@@ -5939,13 +6275,14 @@ Lemma lifted_in_turn_up_to (r : renaming) (rounds : nat)
     rename_conts_alike r r1 avoid ->
     ∃ r' : renaming,
       renames_alike r r' (lifted_in_turn rounds avoid Ls kept e)
+      ∧ rename_conts_alike r r' avoid
       ∧ lifted_in_turn rounds (map (rename_continuation r) avoid)
           (map (rename_lifting r) Ls) kept (rename_expr r1 e)
         = rename_expr r' (lifted_in_turn rounds avoid Ls kept e).
 Proof.
   induction Ls as [ | L Ls IH]; intros Hunits r1 e Hclosed Halike Havoid;
     cbn [map lifted_in_turn].
-  - exists r1. split; [ exact Halike | reflexivity ].
+  - exists r1. split; [ exact Halike | split; [ exact Havoid | reflexivity ] ].
   - destruct (Hunits L (or_introl eq_refl)) as [Hret Hexn].
     rewrite (rename_lifting_alike r r1 L avoid Havoid Hret Hexn),
       with_lifting_renamed.
@@ -6060,7 +6397,7 @@ Proof.
   destruct
     (lifted_in_turn_up_to r rounds (unit_continuations Ls) kept Ls
        (unit_continuations_has Ls) r1 before Hclosed Halike1 Hunits)
-    as (r'' & Halike' & Heq').
+    as (r'' & Halike' & Havoid' & Heq').
   destruct
     (lifted_in_turn_scope rounds (unit_continuations Ls) kept Ls before
        Hclosed)
@@ -6069,12 +6406,15 @@ Proof.
   rewrite Heq, Heq', normalise_after_equivariant,
     without_slots_equivariant, !without_statics_equivariant,
     with_code_first_equivariant, !float_code_rewrite_equivariant,
+    (with_statics_first_renamed_alike r r Ls _ (fun k _ => eq_refl)),
+    (with_statics_first_renamed_alike r r'' Ls _ Havoid'),
     !order_statics_as_equivariant.
   set (b := normalise_before rounds kept before) in *.
   set (l := lifted_in_turn rounds (unit_continuations Ls) Ls kept before)
     in *.
   set (a := normalise_after rounds kept after).
   set (c := float_code (with_code_first a)).
+  set (c' := with_statics_first Ls a).
   destruct
     (renames_alike_kept (order_statics_as a) r r' b (order_statics_as_scope a)
        Hclosed_b Halike)
@@ -6106,6 +6446,18 @@ Proof.
        (float_code (without_statics unused (without_slots slots l)))
        (order_statics_as_scope c) Hclosed_floated Halike_floated)
     as (Hclosed_last & Halike_last).
+  destruct
+    (renames_alike_kept (with_statics_first Ls) r r''
+       (without_statics unused (without_slots slots l))
+       (with_statics_first_scope Ls) Hclosed_lifted_without
+       Halike_lifted_without)
+    as (Hclosed_first & Halike_first).
+  destruct
+    (renames_alike_kept (order_statics_as c') r r''
+       (with_statics_first Ls
+          (without_statics unused (without_slots slots l)))
+       (order_statics_as_scope c') Hclosed_first Halike_first)
+    as (Hclosed_last' & Halike_last').
   rewrite
     (expr_eqb_renamed_alike r r' (order_statics_as a b) a Hclosed_ordered
        Halike_ordered),
@@ -6115,7 +6467,12 @@ Proof.
     (expr_eqb_renamed_alike r r''
        (order_statics_as c
           (float_code (without_statics unused (without_slots slots l))))
-       c Hclosed_last Halike_last).
+       c Hclosed_last Halike_last),
+    (expr_eqb_renamed_alike r r''
+       (order_statics_as c'
+          (with_statics_first Ls
+             (without_statics unused (without_slots slots l))))
+       c' Hclosed_last' Halike_last').
   reflexivity.
 Qed.
 

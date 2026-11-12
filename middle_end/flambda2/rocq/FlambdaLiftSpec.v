@@ -208,16 +208,19 @@ Definition root : path := 1%positive.
 (* The guess: the [Let]s to lift, by their paths; the code ids whose
    only closure is, once those are lifted, a symbol, with that symbol;
    the interface of the unit (the continuations that it returns and
-   raises to), which the check of well-formedness takes; and the [Let]s
+   raises to), which the check of well-formedness takes; the [Let]s
    to lift out of the bodies of code, by code id and by their paths in
-   the body. The last is not read here: it is for
-   FlambdaLiftFromCodeSpec.lift_from_code_unit, which the validation
+   the body; and the [Let]s to lift to the head of the unit, by their
+   paths. The last two are not read here: they are for
+   FlambdaLiftFromCodeSpec.lift_from_code_unit and
+   FlambdaLiftFromArmsSpec.lift_to_head_unit, which the validation
    applies before [lift_unit]. *)
 Record lifting : Type := Lifting {
   lifting_unit : unit_interface;
   lifted_lets : list (path * lift_to);
   lifted_my_closures : list (code_id * symbol);
-  lifted_out_of_code : list (code_id * list (path * lift_to))
+  lifted_out_of_code : list (code_id * list (path * lift_to));
+  lifted_to_head : list (path * lift_to)
 }.
 
 (* ======================================================================== *)

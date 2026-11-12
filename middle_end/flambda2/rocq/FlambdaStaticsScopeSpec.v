@@ -74,11 +74,15 @@
      of a defining expression that has no variable, in code, and binds
      the symbol beside the code to a constant that has none
      ([lift_from_code_keeps_scope_statement]).
+     FlambdaLiftFromArmsSpec.lift_to_head does the same outside code,
+     and binds the symbols in a group around the unit
+     ([lift_to_head_keeps_scope_statement]).
      The lifting as the check applies it, FlambdaValidateSpec.with_lifting,
-     is that and then the two, each made or not
-     ([with_lifting_keeps_scope_statement]). None of the four
-     statements needs the tests that FlambdaLiftSpec.lift_unit and
-     FlambdaLiftFromCodeSpec.lift_from_code_unit make.
+     is the last of these, then the one before it, then the first two,
+     each made or not ([with_lifting_keeps_scope_statement]). None of
+     the five statements needs the tests that FlambdaLiftSpec.lift_unit,
+     FlambdaLiftFromCodeSpec.lift_from_code_unit and
+     FlambdaLiftFromArmsSpec.lift_to_head_unit make.
    - FlambdaKnownSymbolsSpec.fold_known puts a constant or a symbol in
      the place of a defining expression, and makes an indirect call a
      direct call of the same callee with the same arguments, whatever is
@@ -99,6 +103,12 @@
      [Let]s and continuations. Closed code has no free variable and no
      free continuation, so none leaves the scope of its binder
      ([float_code_keeps_scope_statement]).
+   - FlambdaHoistStaticsSpec.hoist_statics moves to the head of the
+     unit the bindings of code, and the bindings of symbols whose
+     constant has a value in the empty environment, which has no
+     variable; [with_statics_first] is that with the groups tidied, or
+     the term as it is ([with_statics_first_keeps_scope_statement]).
+     The statement does not need the tests that [hoist_statics] makes.
 
    Nothing is asked of a term but that its code is closed, which
    [keeps_scope] itself asks, and nothing of what a rewrite is given.
@@ -111,9 +121,9 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec FlambdaBindersSpec FlambdaUnusedStaticsSpec
   FlambdaStaticsOrderSpec FlambdaMyClosureSpec FlambdaLiftSpec
-  FlambdaLiftFromCodeSpec FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec
-  FlambdaKnownClosuresSpec FlambdaFloatCodeSpec FlambdaValidateSpec
-  FlambdaValidatorEquivarianceSpec.
+  FlambdaLiftFromCodeSpec FlambdaLiftFromArmsSpec FlambdaUnusedSlotsSpec
+  FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec FlambdaFloatCodeSpec
+  FlambdaValidateSpec FlambdaValidatorEquivarianceSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -151,6 +161,11 @@ Definition lift_expr_keeps_scope_statement : Prop :=
 Definition lift_from_code_keeps_scope_statement : Prop :=
   ∀ (K : lets_in_code) (lets : list (path * lift_to)) (at_path : path),
     keeps_scope (lift_from_code K lets at_path).
+
+(* The [Let]s given lifted to the head of the unit, whatever they
+   are. *)
+Definition lift_to_head_keeps_scope_statement : Prop :=
+  ∀ lets : list (path * lift_to), keeps_scope (lift_to_head lets).
 
 (* The closure of each code given bound to its symbol in the code. *)
 Definition bind_my_closures_keeps_scope_statement : Prop :=
@@ -191,3 +206,10 @@ Definition use_known_closures_keeps_scope_statement : Prop :=
 (* ======================================================================== *)
 
 Definition float_code_keeps_scope_statement : Prop := keeps_scope float_code.
+
+(* ======================================================================== *)
+(* The static bindings that need nothing bound first                        *)
+(* ======================================================================== *)
+
+Definition with_statics_first_keeps_scope_statement : Prop :=
+  ∀ Ls : list lifting, keeps_scope (with_statics_first Ls).

@@ -40,7 +40,8 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaSemanticsSpec FlambdaBindersSpec
   FlambdaNormaliseSpec FlambdaUnusedStaticsSpec FlambdaStaticsOrderSpec
-  FlambdaMyClosureSpec FlambdaLiftSpec FlambdaLiftFromCodeSpec
+  FlambdaMyClosureSpec FlambdaWellFormedSpec FlambdaLiftSpec
+  FlambdaLiftFromCodeSpec FlambdaLiftFromArmsSpec FlambdaHoistStaticsSpec
   FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec
   FlambdaFloatCodeSpec FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec FlambdaScopedProofs
@@ -548,27 +549,90 @@ Proof.
   apply lift_from_code_scoped.
 Qed.
 
+(* The lifting to the head of the unit: the unit with symbols in the
+   place of defining expressions that have no variable, under a group
+   of bindings that have no free name. *)
+Lemma scoped_let_static_around (bindings : list static_binding)
+    (e e' : expr) :
+  no_free_names bindings -> scoped e e' -> scoped e (Let_static bindings e').
+Proof.
+  intros (Hcode & Hv & Hk) He Hclosed.
+  destruct (He Hclosed) as (Hclosed' & Hv' & Hk'). scope.
+  rewrite Hcode, Hclosed', Hv, Hk.
+  split; [ reflexivity | split; assumption ].
+Qed.
+
+Lemma lift_to_head_scoped (lets : list (path * lift_to)) (e : expr) :
+  scoped e (lift_to_head lets e).
+Proof.
+  unfold lift_to_head. cbv zeta.
+  pose proof (lifted_out_bindings_no_free_names lets root e) as Hfree.
+  destruct (lifted_out_bindings lets root e) as [ | binding bindings];
+    [ apply scoped_refl | ].
+  exact (scoped_let_static_around _ _ _ Hfree
+           (lift_from_code_scoped [] lets root e)).
+Qed.
+
+Theorem lift_to_head_keeps_scope : lift_to_head_keeps_scope_statement.
+Proof.
+  intros lets. apply keeps_scope_intro. intros e. apply lift_to_head_scoped.
+Qed.
+
+(* Each of the three liftings as the check applies it: made, or the
+   term as it is. *)
+Lemma lift_to_head_unit_scoped (u : unit_interface)
+    (lets : list (path * lift_to)) (e : expr) :
+  scoped e
+    match lift_to_head_unit u lets e with
+    | Some e' => e'
+    | None => e
+    end.
+Proof.
+  unfold lift_to_head_unit. cbv zeta.
+  match goal with
+  | |- scoped _ (match (if ?c then _ else _) with _ => _ end) => destruct c
+  end;
+    [ apply lift_to_head_scoped | apply scoped_refl ].
+Qed.
+
+Lemma lift_from_code_unit_scoped (u : unit_interface) (K : lets_in_code)
+    (e : expr) :
+  scoped e
+    match lift_from_code_unit u K e with
+    | Some e' => e'
+    | None => e
+    end.
+Proof.
+  unfold lift_from_code_unit. cbv zeta.
+  match goal with
+  | |- scoped _ (match (if ?c then _ else _) with _ => _ end) => destruct c
+  end;
+    [ apply lift_from_code_scoped | apply scoped_refl ].
+Qed.
+
+Lemma lift_unit_scoped (L : lifting) (e : expr) :
+  scoped e
+    match lift_unit L e with
+    | Some e' => e'
+    | None => e
+    end.
+Proof.
+  unfold lift_unit. cbv zeta.
+  match goal with
+  | |- scoped _ (match (if ?c then _ else _) with _ => _ end) => destruct c
+  end;
+    [ | apply scoped_refl ].
+  eapply scoped_trans;
+    [ apply lift_expr_scoped | apply bind_my_closures_scoped ].
+Qed.
+
 Theorem with_lifting_keeps_scope : with_lifting_keeps_scope_statement.
 Proof.
   intros L. apply keeps_scope_intro. intros e.
   unfold with_lifting. cbv zeta.
-  apply (scoped_trans _
-    match lift_from_code_unit (lifting_unit L) (lifted_out_of_code L) e with
-    | Some e' => e'
-    | None => e
-    end).
-  - unfold lift_from_code_unit. cbv zeta.
-    match goal with
-    | |- scoped _ (match (if ?c then _ else _) with _ => _ end) => destruct c
-    end;
-      [ apply lift_from_code_scoped | apply scoped_refl ].
-  - unfold lift_unit. cbv zeta.
-    match goal with
-    | |- scoped _ (match (if ?c then _ else _) with _ => _ end) => destruct c
-    end;
-      [ | apply scoped_refl ].
-    eapply scoped_trans;
-      [ apply lift_expr_scoped | apply bind_my_closures_scoped ].
+  eapply scoped_trans; [ apply lift_to_head_unit_scoped | ].
+  eapply scoped_trans;
+    [ apply lift_from_code_unit_scoped | apply lift_unit_scoped ].
 Qed.
 
 (* ======================================================================== *)
@@ -1035,3 +1099,162 @@ Qed.
 
 Theorem float_code_keeps_scope : float_code_keeps_scope_statement.
 Proof. apply keeps_scope_intro. exact float_code_scoped. Qed.
+
+(* ======================================================================== *)
+(* The static bindings that need nothing bound first                        *)
+(* ======================================================================== *)
+
+(* A constant that has a value in the empty environment has no
+   variable. *)
+Lemma eval_simple_closed_free (s : simple) (v : value) :
+  eval_simple [] s = Some v -> free_variables_of_simple s = [].
+Proof.
+  destruct s as [x | sym | c]; simpl; [ discriminate | | ]; reflexivity.
+Qed.
+
+Lemma eval_simples_closed_free (args : list simple) :
+  ∀ vs : list value,
+    eval_simples [] args = Some vs -> free_variables_of_simples args = [].
+Proof.
+  unfold free_variables_of_simples.
+  induction args as [ | s args IH]; intros vs; simpl; [ reflexivity | ].
+  destruct (eval_simple [] s) as [v | ] eqn:Hs; [ | discriminate ].
+  destruct (eval_simples [] args) as [rest | ]; [ | discriminate ].
+  intros _. rewrite (eval_simple_closed_free s v Hs), (IH rest eq_refl).
+  reflexivity.
+Qed.
+
+Lemma eval_value_slots_closed_free (slots : list (value_slot * simple)) :
+  ∀ vs : list (value_slot * value),
+    eval_value_slots [] slots = Some vs ->
+    free_variables_of_value_slots slots = [].
+Proof.
+  unfold free_variables_of_value_slots.
+  induction slots as [ | [slot s] slots IH]; intros vs; simpl;
+    [ reflexivity | ].
+  destruct (eval_simple [] s) as [v | ] eqn:Hs; [ | discriminate ].
+  destruct (eval_value_slots [] slots) as [rest | ]; [ | discriminate ].
+  intros _. rewrite (eval_simple_closed_free s v Hs), (IH rest eq_refl).
+  reflexivity.
+Qed.
+
+Lemma eval_static_const_closed_free (const : static_const)
+    (allocated : statically_allocated_value) :
+  eval_static_const [] const = Some allocated ->
+  free_variables_of_static_const const = [].
+Proof.
+  destruct const as [code slots | slot syms decls slots | tag fields
+                    | contents | bytes];
+    simpl.
+  - destruct (eval_value_slots [] slots) as [vs | ] eqn:Hslots;
+      [ | discriminate ].
+    intros _. exact (eval_value_slots_closed_free slots vs Hslots).
+  - destruct (lookup slot decls); [ | discriminate ]. simpl.
+    destruct (eval_value_slots [] slots) as [vs | ] eqn:Hslots;
+      [ | discriminate ].
+    intros _. exact (eval_value_slots_closed_free slots vs Hslots).
+  - destruct (eval_simples [] fields) as [vs | ] eqn:Hfields;
+      [ | discriminate ].
+    intros _. exact (eval_simples_closed_free fields vs Hfields).
+  - destruct (eval_simple [] contents) as [v | ] eqn:Hcontents;
+      [ | discriminate ].
+    intros _. exact (eval_simple_closed_free contents v Hcontents).
+  - intros _. reflexivity.
+Qed.
+
+(* The bindings that are bound first have no free name, where the code
+   of the group is closed. *)
+Lemma hoisted_of_group_no_free_names (bindings : list static_binding) :
+  forallb binding_code_closed bindings = true ->
+  no_free_names (filter is_hoisted bindings).
+Proof.
+  intros Hclosed.
+  assert (Hfiltered :
+    forallb binding_code_closed (filter is_hoisted bindings) = true)
+    by (apply forallb_filter, Hclosed).
+  split; [ exact Hfiltered | ].
+  split; [ | exact (bindings_closed_no_continuations _ Hfiltered) ].
+  clear Hfiltered.
+  induction bindings as [ | binding bindings IH]; cbn [filter];
+    [ reflexivity | ].
+  cbn [forallb] in Hclosed. apply andb_true_iff in Hclosed.
+  destruct Hclosed as [Hfirst Hrest].
+  destruct (is_hoisted binding) eqn:Hhoisted; [ | exact (IH Hrest) ].
+  cbn [flat_map]. rewrite (IH Hrest), app_nil_r.
+  destruct binding as [id c | id | sym const]; scope_in Hfirst; scope.
+  - exact (proj1 (code_is_closed_free c Hfirst)).
+  - discriminate Hhoisted.
+  - cbn [is_hoisted] in Hhoisted.
+    destruct (eval_static_const [] const) as [allocated | ] eqn:Hconst;
+      [ | discriminate Hhoisted ].
+    exact (eval_static_const_closed_free const allocated Hconst).
+Qed.
+
+Fixpoint hoisted_bindings_no_free_names (e : expr) {struct e} :
+  code_closed e = true -> no_free_names (hoisted_bindings e)
+with handler_hoisted_bindings_no_free_names (h : continuation_handler)
+    {struct h} :
+  handler_code_closed h = true ->
+  no_free_names (handler_hoisted_bindings h).
+Proof.
+  - destruct e as [x kind d body | bindings body | k h body | handlers body
+                  | ap | ac | scrutinee arms | ];
+      cbn [hoisted_bindings]; intros Hclosed; scope_in Hclosed;
+      try solve [ repeat split ].
+    + exact (hoisted_bindings_no_free_names body Hclosed).
+    + apply andb_true_iff in Hclosed. destruct Hclosed as [Hfirst Hrest].
+      apply no_free_names_app;
+        [ exact (hoisted_of_group_no_free_names bindings Hfirst)
+        | exact (hoisted_bindings_no_free_names body Hrest) ].
+    + apply andb_true_iff in Hclosed. destruct Hclosed as [Hh Hbody].
+      apply no_free_names_app;
+        [ exact (hoisted_bindings_no_free_names body Hbody)
+        | exact (handler_hoisted_bindings_no_free_names h Hh) ].
+    + apply andb_true_iff in Hclosed. destruct Hclosed as [_ Hbody].
+      exact (hoisted_bindings_no_free_names body Hbody).
+  - destruct h as [params metadata handler].
+    cbn [handler_hoisted_bindings]. intros Hclosed. scope_in Hclosed.
+    exact (hoisted_bindings_no_free_names handler Hclosed).
+Qed.
+
+(* The unit with those bindings removed. *)
+Fixpoint without_hoisted_scoped (e : expr) {struct e} :
+  scoped e (without_hoisted e)
+with handler_without_hoisted_scoped (h : continuation_handler) {struct h} :
+  scoped_handler h (handler_without_hoisted h).
+Proof.
+  - destruct e as [x kind d body | bindings body | k h body | handlers body
+                  | ap | ac | scrutinee arms | ];
+      cbn [without_hoisted]; try apply scoped_refl.
+    + apply scoped_let; [ apply incl_refl | apply without_hoisted_scoped ].
+    + apply scoped_let_static;
+        [ apply scoped_bindings_filter | apply without_hoisted_scoped ].
+    + apply scoped_let_cont;
+        [ apply handler_without_hoisted_scoped | apply without_hoisted_scoped ].
+    + apply scoped_let_cont_recursive;
+        [ reflexivity | apply scoped_handlers_refl
+        | apply without_hoisted_scoped ].
+  - destruct h as [params metadata handler].
+    cbn [handler_without_hoisted].
+    apply scoped_handler_intro, without_hoisted_scoped.
+Qed.
+
+Theorem with_statics_first_keeps_scope :
+  with_statics_first_keeps_scope_statement.
+Proof.
+  intros Ls. apply keeps_scope_intro. intros e.
+  unfold with_statics_first.
+  destruct Ls as [ | L Ls]; [ apply scoped_refl | ].
+  unfold hoist_statics.
+  match goal with
+  | |- scoped _ (match (if ?c then _ else _) with _ => _ end) => destruct c
+  end;
+    [ | apply scoped_refl ].
+  eapply scoped_trans;
+    [ | eapply scoped_trans;
+        [ apply drop_deleted_code_scoped | apply merge_statics_scoped ] ].
+  intros Hclosed.
+  exact (scoped_let_static_around _ _ _
+           (hoisted_bindings_no_free_names e Hclosed)
+           (without_hoisted_scoped e) Hclosed).
+Qed.

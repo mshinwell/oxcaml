@@ -8,11 +8,13 @@ open FlambdaDeadParamsSpec
 open FlambdaFloatCodeSpec
 open FlambdaForwardSpec
 open FlambdaHoistCodeSpec
+open FlambdaHoistStaticsSpec
 open FlambdaIdentitiesSpec
 open FlambdaInlineSiblingsSpec
 open FlambdaInlineTailSpec
 open FlambdaKnownClosuresSpec
 open FlambdaKnownSymbolsSpec
+open FlambdaLiftFromArmsSpec
 open FlambdaLiftFromCodeSpec
 open FlambdaLiftSpec
 open FlambdaLoopAliasesSpec
@@ -84,6 +86,8 @@ val lifted_in_turn :
 val without_slots : value_slot list -> expr -> expr
 
 val with_code_first : expr -> expr
+
+val with_statics_first : lifting list -> expr -> expr
 
 type validation =
   | Same_up_to_bound_names

@@ -8,11 +8,13 @@ open FlambdaDeadParamsSpec
 open FlambdaFloatCodeSpec
 open FlambdaForwardSpec
 open FlambdaHoistCodeSpec
+open FlambdaHoistStaticsSpec
 open FlambdaIdentitiesSpec
 open FlambdaInlineSiblingsSpec
 open FlambdaInlineTailSpec
 open FlambdaKnownClosuresSpec
 open FlambdaKnownSymbolsSpec
+open FlambdaLiftFromArmsSpec
 open FlambdaLiftFromCodeSpec
 open FlambdaLiftSpec
 open FlambdaLoopAliasesSpec
@@ -169,11 +171,16 @@ let without_statics d e =
 
 let with_lifting l e =
   let e0 =
-    match lift_from_code_unit l.lifting_unit l.lifted_out_of_code e with
+    match lift_to_head_unit l.lifting_unit l.lifted_to_head e with
     | Some e' -> e'
     | None -> e
   in
-  match lift_unit l e0 with Some e' -> e' | None -> e0
+  let e1 =
+    match lift_from_code_unit l.lifting_unit l.lifted_out_of_code e0 with
+    | Some e' -> e'
+    | None -> e0
+  in
+  match lift_unit l e1 with Some e' -> e' | None -> e1
 
 (** val with_known : expr -> expr **)
 
@@ -220,6 +227,16 @@ let with_code_first e =
   | Some e' -> merge_statics (drop_deleted_code e')
   | None -> e
 
+(** val with_statics_first : lifting list -> expr -> expr **)
+
+let with_statics_first ls e =
+  match ls with
+  | [] -> e
+  | l :: _ -> (
+    match hoist_statics l.lifting_unit e with
+    | Some e' -> merge_statics (drop_deleted_code e')
+    | None -> e)
+
 type validation =
   | Same_up_to_bound_names
   | Same_once_normalised
@@ -254,5 +271,16 @@ let validate_unit rounds unused slots g ls kept before after =
                     (lifted_in_turn rounds (unit_continuations ls) ls kept
                        before0)))))
         (float_code (with_code_first after0))
+    then Same_once_lifted
+    else if
+      expr_eqb [] []
+        (order_statics_as
+           (with_statics_first ls after0)
+           (with_statics_first ls
+              (without_statics unused
+                 (without_slots slots
+                    (lifted_in_turn rounds (unit_continuations ls) ls kept
+                       before0)))))
+        (with_statics_first ls after0)
     then Same_once_lifted
     else Not_validated

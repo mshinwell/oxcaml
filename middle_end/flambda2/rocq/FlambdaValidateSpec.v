@@ -55,9 +55,12 @@
    (FlambdaUnusedStaticsSpec.drop_statics) and compares again. Failing
    that too, it starts again from the term before as it was given. For
    each of the liftings given, in turn ([lifted_in_turn]), it makes the
-   [Let]s given static bindings of the symbols given: first those in
+   [Let]s given static bindings of the symbols given: first those to
+   bind at the head of the unit, which mention no variable and may
+   stand where no static binding can, in the arm of a test
+   (FlambdaLiftFromArmsSpec.lift_to_head_unit); then those in
    the bodies of code, which mention no variable and whose bindings go
-   beside the code (FlambdaLiftFromCodeSpec.lift_from_code_unit), then
+   beside the code (FlambdaLiftFromCodeSpec.lift_from_code_unit); then
    those outside code, where they stand (FlambdaLiftSpec.lift_unit,
    which says what is lifted and under which conditions). It
    normalises the result, each round followed by using
@@ -87,7 +90,16 @@
    FlambdaHoistCodeSpec.hoist_code ([with_code_first]): Simplify binds
    the code of a closure that it lifts in the handler of a
    continuation in that handler, and the term before binds all the
-   code of the unit first. The
+   code of the unit first. Failing that, it compares the same two
+   terms otherwise: each with its static bindings that need nothing
+   from around them, the code and the symbols whose constants mention
+   no variable, bound first, where it passes the checks of
+   FlambdaHoistStaticsSpec.hoist_statics for the unit of the first
+   lifting given ([with_statics_first]). Simplify binds a symbol that
+   it lifts out of the arm of a test under the last [Let] before the
+   test, and the term before binds it at its head; where such a
+   binding stands does not matter to a unit whose static names are
+   all in scope where they are mentioned. The
    first lifting comes before any normalisation because the
    normalisation unfolds calls: a [Let] in the body of a function would
    be many [Let]s afterwards, and a closure that nothing uses would be
@@ -145,7 +157,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaUnusedStaticsSpec FlambdaWellFormedSpec FlambdaLiftSpec
   FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec
   FlambdaFloatCodeSpec FlambdaHoistCodeSpec FlambdaLoopifySpec
-  FlambdaLiftFromCodeSpec.
+  FlambdaLiftFromCodeSpec FlambdaLiftFromArmsSpec FlambdaHoistStaticsSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -360,12 +372,22 @@ Definition without_statics (D : dropped) (e : expr) : expr :=
   end.
 
 (* The [Let]s given made static bindings of the symbols given: those
-   in the bodies of code, if the conditions of
-   FlambdaLiftFromCodeSpec.lift_from_code_unit hold; then those outside
-   code, if the conditions of FlambdaLiftSpec.lift_unit hold of what
-   that gives. Where the conditions of one do not hold, it is not
-   made. *)
+   to bind at the head of the unit, if the conditions of
+   FlambdaLiftFromArmsSpec.lift_to_head_unit hold; then those in the
+   bodies of code, if the conditions of
+   FlambdaLiftFromCodeSpec.lift_from_code_unit hold of what that gives;
+   then those outside code that are bound where they stand, if the
+   conditions of FlambdaLiftSpec.lift_unit hold of what that gives.
+   Where the conditions of one do not hold, it is not made. The paths
+   of each are paths in the term that it is given: the first puts the
+   unit under a group of static bindings, if it lifts anything. *)
 Definition with_lifting (L : lifting) (e : expr) : expr :=
+  let e :=
+    match lift_to_head_unit (lifting_unit L) (lifted_to_head L) e with
+    | Some e' => e'
+    | None => e
+    end
+  in
   let e :=
     match lift_from_code_unit (lifting_unit L) (lifted_out_of_code L) e with
     | Some e' => e'
@@ -438,6 +460,22 @@ Definition with_code_first (e : expr) : expr :=
   | None => e
   end.
 
+(* The unit with its static bindings that need nothing from around
+   them bound first, the code and the symbols whose constants mention
+   no variable, if the conditions of
+   FlambdaHoistStaticsSpec.hoist_statics hold for the unit of the first
+   of the liftings given; and its groups of static bindings tidied
+   again. The term as it is if no lifting is given. *)
+Definition with_statics_first (Ls : list lifting) (e : expr) : expr :=
+  match Ls with
+  | [] => e
+  | L :: _ =>
+    match hoist_statics (lifting_unit L) e with
+    | Some e' => merge_statics (drop_deleted_code e')
+    | None => e
+    end
+  end.
+
 (* ======================================================================== *)
 (* The check                                                                *)
 (* ======================================================================== *)
@@ -473,6 +511,16 @@ Definition validate_unit (rounds : nat) (unused : dropped)
                     (lifted_in_turn rounds (unit_continuations Ls) Ls kept
                        before)))))
         (float_code (with_code_first after))
+    then Same_once_lifted
+    else if
+      expr_eqb [] []
+        (order_statics_as (with_statics_first Ls after)
+           (with_statics_first Ls
+              (without_statics unused
+                 (without_slots slots
+                    (lifted_in_turn rounds (unit_continuations Ls) Ls kept
+                       before)))))
+        (with_statics_first Ls after)
     then Same_once_lifted
     else Not_validated.
 

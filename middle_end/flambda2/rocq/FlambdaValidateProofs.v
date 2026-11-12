@@ -53,11 +53,13 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaUnusedProjectionsProofs FlambdaUnusedStaticsSpec
   FlambdaUnusedStaticsProofs FlambdaLiftSpec FlambdaLiftProofs
   FlambdaLiftFromCodeSpec FlambdaLiftFromCodeProofs
+  FlambdaLiftFromArmsSpec FlambdaLiftFromArmsProofs
   FlambdaUnusedSlotsSpec FlambdaUnusedSlotsProofs FlambdaKnownSymbolsSpec
   FlambdaKnownSymbolsProofs FlambdaKnownClosuresSpec FlambdaKnownClosuresProofs
   FlambdaFloatCodeSpec FlambdaFloatCodeProofs FlambdaHoistCodeSpec
   FlambdaHoistCodeProofs FlambdaLoopifySpec FlambdaLoopifyProofs
-  FlambdaValidateSpec.
+  FlambdaHoistStaticsSpec FlambdaValidateSpec.
+From OxCamlFlambda2 Require FlambdaHoistStaticsProofs.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec
   FlambdaAliasesProofs.
 Import ListNotations.
@@ -292,21 +294,34 @@ Lemma with_lifting_program_refines (L : lifting) (e : expr) :
   program_refines e (with_lifting L e).
 Proof.
   unfold with_lifting. cbv zeta.
-  apply (refines_trans _
-    (State
-       (match
-          lift_from_code_unit (lifting_unit L) (lifted_out_of_code L) e
-        with
-        | Some e' => e'
-        | None => e
-        end)
-       [] [] empty_static_env)).
-  - destruct (lift_from_code_unit (lifting_unit L) (lifted_out_of_code L) e)
-      as [e' | ] eqn:Hout;
+  set (at_head :=
+    match lift_to_head_unit (lifting_unit L) (lifted_to_head L) e with
+    | Some e' => e'
+    | None => e
+    end).
+  set (out_of_code :=
+    match
+      lift_from_code_unit (lifting_unit L) (lifted_out_of_code L) at_head
+    with
+    | Some e' => e'
+    | None => at_head
+    end).
+  apply (refines_trans _ (State at_head [] [] empty_static_env)).
+  - subst at_head.
+    destruct (lift_to_head_unit (lifting_unit L) (lifted_to_head L) e)
+      as [e' | ] eqn:Hhead;
       [ | apply refines_refl ].
-    exact (lift_from_code_unit_program_refines _ _ e e' Hout).
-  - destruct (lift_unit L _) as [e' | ] eqn:Hlift; [ | apply refines_refl ].
-    exact (lift_unit_program_refines L _ e' Hlift).
+    exact (lift_to_head_unit_program_refines _ _ e e' Hhead).
+  - apply (refines_trans _ (State out_of_code [] [] empty_static_env)).
+    + subst out_of_code.
+      destruct
+        (lift_from_code_unit (lifting_unit L) (lifted_out_of_code L) at_head)
+        as [e' | ] eqn:Hout;
+        [ | apply refines_refl ].
+      exact (lift_from_code_unit_program_refines _ _ at_head e' Hout).
+    + destruct (lift_unit L out_of_code) as [e' | ] eqn:Hlift;
+        [ | apply refines_refl ].
+      exact (lift_unit_program_refines L out_of_code e' Hlift).
 Qed.
 
 Lemma with_known_program_refines (e : expr) :
@@ -377,6 +392,23 @@ Proof.
   apply merge_statics_equivalent.
 Qed.
 
+(* The term with its static bindings that need nothing first, run on
+   its own, behaves as the term. *)
+Lemma with_statics_first_program_equivalent (Ls : list lifting) (e : expr) :
+  equivalent (State e [] [] empty_static_env)
+    (State (with_statics_first Ls e) [] [] empty_static_env).
+Proof.
+  unfold with_statics_first.
+  destruct Ls as [ | L Ls]; [ apply equivalent_refl | ].
+  destruct (hoist_statics (lifting_unit L) e) as [e' | ] eqn:Hhoist;
+    [ | apply equivalent_refl ].
+  apply (equivalent_trans _ _ _
+    (FlambdaHoistStaticsProofs.hoist_statics_program_equivalent _ e e'
+       Hhoist)).
+  apply (equivalent_trans _ _ _ (drop_deleted_code_equivalent e' [] [] _)).
+  apply merge_statics_equivalent.
+Qed.
+
 Theorem validate_unit_sound_everywhere :
   validate_unit_sound_everywhere_statement.
 Proof.
@@ -407,6 +439,16 @@ Proof.
                        (lifted_in_turn rounds (unit_continuations Ls) Ls kept
                           before)))))
            (float_code (with_code_first a)));
+        [ intros [H | H]; discriminate H | ].
+      destruct
+        (expr_eqb [] []
+           (order_statics_as (with_statics_first Ls a)
+              (with_statics_first Ls
+                 (without_statics unused
+                    (without_slots slots
+                       (lifted_in_turn rounds (unit_continuations Ls) Ls kept
+                          before)))))
+           (with_statics_first Ls a));
         intros [H | H]; discriminate H.
 Qed.
 
@@ -441,34 +483,57 @@ Proof.
           (without_statics_program_refines unused _)).
         apply expr_refines_program, expr_equivalent_refines.
         exact (ordered_same_equivalent rounds kept _ after Hremoved).
-      * destruct
+      * set (lifted :=
+          without_statics unused
+            (without_slots slots
+               (lifted_in_turn rounds (unit_continuations Ls) Ls kept
+                  before))).
+        assert (Hlifting : program_refines before lifted).
+        { apply (refines_trans _ _ _
+            (lifted_in_turn_program_refines rounds (unit_continuations Ls) Ls
+               kept _)).
+          apply (refines_trans _ _ _ (without_slots_program_refines slots _)).
+          apply without_statics_program_refines. }
+        assert (Hafter :
+          equivalent (State after [] [] empty_static_env)
+            (State a [] [] empty_static_env))
+          by exact (normalise_after_equivalent rounds kept after [] []
+                      empty_static_env).
+        destruct
           (expr_eqb [] []
              (order_statics_as (float_code (with_code_first a))
-                (float_code
-                   (without_statics unused
-                      (without_slots slots
-                         (lifted_in_turn rounds (unit_continuations Ls) Ls kept
-                            before)))))
-             (float_code (with_code_first a))) eqn:Hlifted;
-          [ intros _ | intros H; contradiction H; reflexivity ].
-        apply (refines_trans _ _ _
-          (lifted_in_turn_program_refines rounds (unit_continuations Ls) Ls kept
-             _)).
-        apply (refines_trans _ _ _ (without_slots_program_refines slots _)).
-        apply (refines_trans _ _ _
-          (without_statics_program_refines unused _)).
-        apply (refines_trans _
-          (State (with_code_first a) [] [] empty_static_env)).
-        { apply expr_refines_program, expr_equivalent_refines.
-          apply (expr_equivalent_trans _ _ _ (float_code_equivalent _)).
-          apply (expr_equivalent_trans _ _ _
-            (order_statics_as_equivalent
-               (float_code (with_code_first a)) _)).
-          apply (expr_equivalent_trans _ _ _ (expr_eqb_sound _ _ Hlifted)).
-          apply expr_equivalent_sym, float_code_equivalent. }
-        apply equivalent_refines, equivalent_sym.
-        apply (equivalent_trans _ (State a [] [] empty_static_env)).
-        { exact (normalise_after_equivalent rounds kept after [] []
-                   empty_static_env). }
-        apply with_code_first_program_equivalent.
+                (float_code lifted))
+             (float_code (with_code_first a))) eqn:Hlifted.
+        -- intros _. apply (refines_trans _ _ _ Hlifting).
+           apply (refines_trans _
+             (State (with_code_first a) [] [] empty_static_env)).
+           { apply expr_refines_program, expr_equivalent_refines.
+             apply (expr_equivalent_trans _ _ _ (float_code_equivalent _)).
+             apply (expr_equivalent_trans _ _ _
+               (order_statics_as_equivalent
+                  (float_code (with_code_first a)) _)).
+             apply (expr_equivalent_trans _ _ _ (expr_eqb_sound _ _ Hlifted)).
+             apply expr_equivalent_sym, float_code_equivalent. }
+           apply equivalent_refines, equivalent_sym.
+           apply (equivalent_trans _ _ _ Hafter).
+           apply with_code_first_program_equivalent.
+        -- destruct
+             (expr_eqb [] []
+                (order_statics_as (with_statics_first Ls a)
+                   (with_statics_first Ls lifted))
+                (with_statics_first Ls a)) eqn:Hfirst;
+             [ intros _ | intros H; contradiction H; reflexivity ].
+           apply (refines_trans _ _ _ Hlifting).
+           apply (refines_trans _ _ _
+             (equivalent_refines _ _
+                (with_statics_first_program_equivalent Ls lifted))).
+           apply (refines_trans _
+             (State (with_statics_first Ls a) [] [] empty_static_env)).
+           { apply expr_refines_program, expr_equivalent_refines.
+             apply (expr_equivalent_trans _ _ _
+               (order_statics_as_equivalent (with_statics_first Ls a) _)).
+             exact (expr_eqb_sound _ _ Hfirst). }
+           apply equivalent_refines, equivalent_sym.
+           apply (equivalent_trans _ _ _ Hafter).
+           apply with_statics_first_program_equivalent.
 Qed.
