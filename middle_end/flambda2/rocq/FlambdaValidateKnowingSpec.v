@@ -31,8 +31,9 @@
    This file is to be reviewed: the definitions and the statements.
 
    FlambdaValidateSpec.validate_unit normalises the term before
-   Simplify and the term after in rounds, and compares them. In each
-   round it follows aliases with the function of
+   Simplify and the term after in rounds, tidies each once its
+   continuations are placed, and compares them. In each round, and
+   where it tidies, it follows aliases with the function of
    ../types/rocq/FlambdaAliasesSpec.v, which knows nothing of what a
    symbol is bound to. The function of
    ../types/rocq/FlambdaEnvAliasesFollowSpec.v knows the closures that
@@ -53,9 +54,10 @@
    known: what the term around the code knows of a symbol is not used
    in the body, and what a [Let] of the body binds is.
 
-   The second does not take the place of the first in the rounds. The
-   normalisation of the term before has more rewrites than that of the
-   term after: it may refine, and the other must keep the behaviour.
+   The second does not take the place of the first in the rounds or
+   in the tidying. The normalisation of the term before has more
+   rewrites than that of the term after: it may refine, and the other
+   must keep the behaviour.
    Where the second function makes a call direct in both terms, the
    normalisation of the term before goes on from there (it inlines the
    call, moves the continuations that are applied once to where they
@@ -150,9 +152,11 @@
    review. *)
 
 (* CR mshinwell: the function of FlambdaAliasesSpec.v stays in the
-   rounds, and the validation is asked a second time with the new one
-   in front of each round. The first can go, and the new one take its
-   place in the rounds, when two things are done. The normalisation of
+   rounds and in the tidying of the two terms
+   (FlambdaValidateSpec.tidied_before, tidied_after), and the
+   validation is asked a second time with the new one in front of
+   each round. The first can go, and the new one take its place in
+   both, when two things are done. The normalisation of
    the term after is to reach what that of the term before reaches on
    indirect_higher_order.fl once the calls are direct, or the term
    before is to keep the calls that Simplify kept (the list of code
