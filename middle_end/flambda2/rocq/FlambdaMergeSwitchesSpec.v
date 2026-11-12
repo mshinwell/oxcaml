@@ -49,24 +49,34 @@
    The model of that function, with what it is given and what is
    stated of it, is ../types/rocq/FlambdaSimplifySwitchMergeSpec.v.
 
-   [merge_switches] does as much to the term before, for three of the
+   [merge_switches] does as much to the term before, for four of the
    ways in which Simplify computes an argument:
    - the argument is, in every arm, the number of the arm as a tagged
      immediate: the scrutinee is tagged ([By_tagging]);
    - the argument is the tagged immediate 1 in the arm of 0 and the
      tagged immediate 0 in the arm of 1, and there is no other arm:
      the scrutinee is tagged and the result negated
-     ([By_tagging_and_negating]).
+     ([By_tagging_and_negating]);
    - the argument is, in every arm, the number of the arm as a naked
      immediate: it is the scrutinee, and no primitive is needed
      ([As_it_is]). Simplify takes such an argument for one that is
      the same in every arm, the scrutinee, whatever the number of the
      arms ([recognize_mergeable_argument], where the function of the
-     number of the arm is the identity on naked immediates).
+     number of the arm is the identity on naked immediates);
+   - the argument is, in every arm, an offset plus a slope times the
+     number of the arm, as a tagged immediate or as a naked one, and
+     there are three arms or more: the scrutinee, tagged first where
+     the argument is tagged, is multiplied by the slope and added to
+     the offset ([By_arithmetic]; [Affine_argument] and
+     [enough_arms] of Simplify). The slope and the offset are those
+     of the line through the first two arms.
    The arguments that differ from arm to arm are all computed in the
-   same one of these three ways. An argument that is another multiple
-   of the number of the arm plus an offset, which Simplify also
-   merges, is not here.
+   same one of these four ways, and for the fourth with one slope and
+   one offset. Simplify decides for each argument, so it also merges
+   arms whose arguments are computed in several ways, which are not
+   merged here. Nor are the arms an argument of which Simplify loads
+   from a table of the constants of the arms
+   ([Lookup_table_argument]).
 
    How it decides ([merge_switch]). The scrutinee must be a variable
    and there must be two arms or more. The application that the
@@ -80,25 +90,44 @@
    the arms the [Switch] becomes the application: for the first way
    under a [Let] of the variable as itself tagged, for the second
    under a second [Let] of the variable as that negated
-   ([bind_tagged], [bind_negated]), and for the third with no [Let].
-   Otherwise the [Switch] is left as it is.
+   ([bind_tagged], [bind_negated]), for the third with no [Let], and
+   for the fourth under a [Let] for each primitive of the arithmetic
+   ([bind_arithmetic]). Otherwise the [Switch] is left as it is.
 
-   For the two ways that tag, the variable of the scrutinee is bound
-   again, where Simplify binds a new variable; for the third nothing
-   is bound. So the rewrite makes no name, and needs none to be
-   given; the comparison of the validation is up to bound names
-   (FlambdaCompareSpec.v). The arguments that are the same in every
-   arm are not captured by the new [Let]s: in the merged arguments the
-   variable of the scrutinee marks the arguments that are computed, so
-   an argument that is that variable in the arms is read as one of
-   them, and then no arm is the application with a constant in its
-   place: nothing is merged. Nothing is assumed of the numbers of the
-   arms: for the first way they are tested to be immediates
+   The arithmetic of the fourth way. The slope and the offset are
+   computed from the first two arms as Simplify computes them
+   ([arithmetic_of_arms], [line_through]); they say which primitives
+   there are ([arithmetic_steps]): the multiplication by the slope,
+   which is not made by 1, then the addition of the offset, which is
+   not made of 0; for a negative slope the multiplication is by its
+   opposite and the result is subtracted from the offset. The
+   constant of an arm is then what those primitives compute of its
+   number ([arithmetic_value]), which wraps as they do, and each arm,
+   the first two with the others, is tested to have that constant. So
+   the refinement does not depend on how the slope and the offset are
+   found: a slope or an offset that is not that of the arms merges
+   nothing.
+
+   For the ways that apply a primitive, the variable of the scrutinee
+   is bound again, once for each primitive, where Simplify binds a new
+   variable each time; for the third nothing is bound. So the
+   rewrite makes no name, and needs none to be given; the comparison
+   of the validation is up to bound names (FlambdaCompareSpec.v).
+   The arguments that are the same in every arm are not captured by
+   the new [Let]s: in the merged arguments the variable of the
+   scrutinee marks the arguments that are computed, so an argument
+   that is that variable in the arms is read as one of them, and then
+   no arm is the application with a constant in its place: nothing is
+   merged. Nothing is assumed of the numbers of the arms: for the
+   first way they are tested to be immediates
    ([in_range]), as [Tag_immediate] has no value on a number that is
    not one and the machine does not ask it of the scrutinee of a
    [Switch]; for the second they are 0 or 1; for the third nothing is
    asked of them, as the variable is passed with the value that the
-   machine has for it.
+   machine has for it; for the fourth they are tested to be
+   immediates, as for the first, and the constants of the arithmetic
+   too, as [Int_arith] has no value on a constant that is not an
+   integer of its kind.
 
    [merge_switches] goes where
    FlambdaNormaliseSpec.collapse_switches goes: into the bodies of
@@ -114,10 +143,11 @@
    The result refines the term ([merge_switches_refines_statement]).
    Where the scrutinee is the number of an arm, the [Switch] goes to
    that arm, and the merged term binds the variable to the constant
-   of that arm (for the third way the variable holds it already) and
-   applies the continuation to the same values. It is
-   not an equivalence: the [Switch] is undefined where the scrutinee
-   is not the number of an arm, and the merged term is not.
+   of that arm, in a step for each of its [Let]s (for the third way
+   the variable holds it already), and applies the continuation to
+   the same values. It is not an equivalence: the [Switch] is
+   undefined where the scrutinee is not the number of an arm, and the
+   merged term is not.
 
    The rewrite commutes with renaming
    ([merge_switches_equivariant_statement]): it makes no name, and it
@@ -128,16 +158,17 @@
    in the term, is stated with the same of the other rewrites of a
    round (FlambdaKeepsScopeSpec.merge_switches_keeps_scope_statement).
 
-   Three terms as checks of the definitions
+   Four terms as checks of the definitions
    ([merge_switches_tagging_example_statement],
    [merge_switches_negating_example_statement],
-   [merge_switches_as_it_is_example_statement]).
+   [merge_switches_as_it_is_example_statement],
+   [merge_switches_arithmetic_example_statement]).
 
    The proofs are in FlambdaMergeSwitchesProofs.v, which needs no
    review. *)
 
 From Stdlib Require Import ZArith List Bool.
-From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
+From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaKindModel FlambdaModel
   FlambdaPrimitiveModel FlambdaPrimitiveSpec FlambdaSemanticsSpec
   FlambdaNominalSpec FlambdaNormaliseSpec.
@@ -149,17 +180,80 @@ Local Open Scope Z_scope.
 (* The arguments that are computed from the number of the arm               *)
 (* ======================================================================== *)
 
+(* The immediates that an argument computed by arithmetic is: tagged
+   or naked. *)
+Inductive arithmetic_kind : Type :=
+  | Arithmetic_tagged
+  | Arithmetic_naked.
+
+Definition standard_int_of_arithmetic_kind (kind : arithmetic_kind)
+    : standard_int :=
+  match kind with
+  | Arithmetic_tagged => Standard_tagged_immediate
+  | Arithmetic_naked => Standard_naked_immediate
+  end.
+
 (* How the arguments that differ from arm to arm are computed from the
-   scrutinee. *)
+   scrutinee. For [By_arithmetic] the argument is, at the kind given,
+   the offset plus the slope times the number of the arm. *)
 Inductive merge_by : Type :=
   | By_tagging
   | By_tagging_and_negating
-  | As_it_is.
+  | As_it_is
+  | By_arithmetic (kind : arithmetic_kind) (offset slope : Z).
+
+(* One step of the arithmetic, on the integer that the variable holds:
+   it is multiplied by a constant, or added to one, or subtracted from
+   one. *)
+Inductive arithmetic_step : Type :=
+  | Multiply_by (c : Z)
+  | Add_to (c : Z)
+  | Subtract_from (c : Z).
+
+(* The steps for an offset and a slope, integers of a width
+   ([rebuild_affine_expr] of simplify_switch_expr.ml): the
+   multiplication by the slope, or by its opposite where it is
+   negative, which is not made where that is 1; then the addition of
+   the offset, or for a negative slope the subtraction from the
+   offset, which is not made where it is the addition of 0. The
+   opposite wraps, as that of Simplify does: the opposite of the
+   least integer is itself. *)
+Definition arithmetic_steps (width offset slope : Z) : list arithmetic_step :=
+  let negative := slope <? 0 in
+  let factor := if negative then wrap width (- slope) else slope in
+  (if factor =? 1 then [] else [Multiply_by factor])
+  ++ (if negative then [Subtract_from offset]
+      else if offset =? 0 then [] else [Add_to offset]).
+
+(* What a step makes of an integer of a width, as the primitives of
+   [Int_arith] do: the result wraps, and there is none where the
+   constant is not an integer of the width. *)
+Definition arithmetic_step_value (width : Z) (step : arithmetic_step) (a : Z)
+    : option Z :=
+  let result (c r : Z) : option Z :=
+    if in_range width c then Some (wrap width r) else None
+  in
+  match step with
+  | Multiply_by c => result c (a * c)
+  | Add_to c => result c (c + a)
+  | Subtract_from c => result c (c - a)
+  end.
+
+Fixpoint arithmetic_value (width : Z) (steps : list arithmetic_step) (a : Z)
+    : option Z :=
+  match steps with
+  | [] => Some a
+  | step :: steps =>
+    let* a := arithmetic_step_value width step a in
+    arithmetic_value width steps a
+  end.
 
 (* The constant that such an argument is in the arm of number [i]. For
-   the two ways that apply a primitive, only if the number is one
-   that the primitive has a value on; the scrutinee as it is, is the
-   number of the arm whatever that is. *)
+   the ways that apply a primitive, only if the number is one that
+   the primitives have a value on; the scrutinee as it is, is the
+   number of the arm whatever that is. For [By_arithmetic] it is what
+   the steps compute of the number, so the result wraps as the
+   primitives do. *)
 Definition constant_of_arm (how : merge_by) (i : Z) : option const :=
   match how with
   | By_tagging =>
@@ -171,6 +265,14 @@ Definition constant_of_arm (how : merge_by) (i : Z) : option const :=
     else if i =? 1 then Some (Tagged_immediate 0)
     else None
   | As_it_is => Some (Naked_immediate i)
+  | By_arithmetic kind offset slope =>
+    let standard := standard_int_of_arithmetic_kind kind in
+    let width := int_width standard in
+    if in_range width i
+    then
+      option_map (const_of_int standard)
+        (arithmetic_value width (arithmetic_steps width offset slope) i)
+    else None
   end.
 
 (* ======================================================================== *)
@@ -220,6 +322,97 @@ Definition bind_tagged (v : variable) (body : expr) : expr :=
 Definition bind_negated (v : variable) (body : expr) : expr :=
   Let v Value (Prim (Unary Boolean_not) [Var v]) body.
 
+(* The variable bound again to what a step of the arithmetic makes of
+   it, at a kind of integers. The constant is the second argument of
+   the multiplication and the first of the two others, as Simplify has
+   them. *)
+Definition bind_arithmetic_step (standard : standard_int) (v : variable)
+    (step : arithmetic_step) (body : expr) : expr :=
+  let constant (c : Z) : simple := Const (const_of_int standard c) in
+  let arith (op : binary_int_arith_op) (args : list simple) : named :=
+    Prim (Binary (Int_arith standard op)) args
+  in
+  Let v (kind_of_standard_int standard)
+    (match step with
+     | Multiply_by c => arith Mul [Var v; constant c]
+     | Add_to c => arith Add [constant c; Var v]
+     | Subtract_from c => arith Sub [constant c; Var v]
+     end)
+    body.
+
+Fixpoint bind_arithmetic_steps (standard : standard_int) (v : variable)
+    (steps : list arithmetic_step) (body : expr) : expr :=
+  match steps with
+  | [] => body
+  | step :: steps =>
+    bind_arithmetic_step standard v step
+      (bind_arithmetic_steps standard v steps body)
+  end.
+
+(* The variable bound to the offset plus the slope times itself, at a
+   kind of immediates: it is tagged first where they are tagged. *)
+Definition bind_arithmetic (kind : arithmetic_kind) (offset slope : Z)
+    (v : variable) (body : expr) : expr :=
+  let standard := standard_int_of_arithmetic_kind kind in
+  let body :=
+    bind_arithmetic_steps standard v
+      (arithmetic_steps (int_width standard) offset slope) body
+  in
+  match kind with
+  | Arithmetic_tagged => bind_tagged v body
+  | Arithmetic_naked => body
+  end.
+
+(* The arithmetic that two arms determine
+   ([recognize_affine_argument] of simplify_switch_expr.ml, which
+   reads the arms in the order of their numbers and takes the first
+   two): the constants that they have where their arguments first
+   differ, which are to be immediates of one kind, and the slope and
+   the offset of the line through them. There is none where the slope
+   is not a whole number. The differences, the slope and the offset
+   are integers of the width of the immediates and wrap, as those of
+   Simplify do; the quotient and the remainder are those that
+   truncate towards zero. Whether the arms are on the line is not
+   decided here but by [arm_is_merged], for each of them, the first
+   two as the others. *)
+Fixpoint first_difference (args args' : list simple)
+    : option (const * const) :=
+  match args, args' with
+  | s :: args, s' :: args' =>
+    if simple_eq_dec s s'
+    then first_difference args args'
+    else
+      match s, s' with
+      | Const c, Const c' => Some (c, c')
+      | _, _ => None
+      end
+  | _, _ => None
+  end.
+
+Definition line_through (width i a i' a' : Z) : option (Z * Z) :=
+  let run := wrap width (i' - i) in
+  let rise := wrap width (a' - a) in
+  if (run =? 0) || negb (Z.rem rise run =? 0)
+  then None
+  else
+    let slope := wrap width (Z.quot rise run) in
+    Some (wrap width (a - slope * i), slope).
+
+Definition arithmetic_of_arms (i i' : Z) (args args' : list simple)
+    : option (arithmetic_kind * Z * Z) :=
+  let line (kind : arithmetic_kind) (a a' : Z)
+      : option (arithmetic_kind * Z * Z) :=
+    let width := int_width (standard_int_of_arithmetic_kind kind) in
+    let* '(offset, slope) := line_through width i a i' a' in
+    Some (kind, offset, slope)
+  in
+  let* '(c, c') := first_difference args args' in
+  match c, c' with
+  | Tagged_immediate a, Tagged_immediate a' => line Arithmetic_tagged a a'
+  | Naked_immediate a, Naked_immediate a' => line Arithmetic_naked a a'
+  | _, _ => None
+  end.
+
 (* ======================================================================== *)
 (* The rewrite                                                              *)
 (* ======================================================================== *)
@@ -227,7 +420,7 @@ Definition bind_negated (v : variable) (body : expr) : expr :=
 Definition merge_switch (scrutinee : simple) (arms : list (Z * apply_cont))
     : expr :=
   match scrutinee, arms with
-  | Var v, (_, ac) :: (_, ac') :: _ =>
+  | Var v, (i, ac) :: (i', ac') :: _ =>
     let merged :=
       Apply_cont_expr (ac_continuation ac)
         (merged_arguments v (ac_args ac) (ac_args ac')) None
@@ -240,7 +433,17 @@ Definition merge_switch (scrutinee : simple) (arms : list (Z * apply_cont))
       then bind_tagged v (bind_negated v (Apply_cont merged))
       else if forallb (arm_is_merged As_it_is v merged) arms
       then Apply_cont merged
-      else Switch scrutinee arms
+      else
+        match arithmetic_of_arms i i' (ac_args ac) (ac_args ac') with
+        | Some (kind, offset, slope) =>
+          if (3 <=? length arms)%nat
+             && forallb
+                  (arm_is_merged (By_arithmetic kind offset slope) v merged)
+                  arms
+          then bind_arithmetic kind offset slope v (Apply_cont merged)
+          else Switch scrutinee arms
+        | None => Switch scrutinee arms
+        end
     else Switch scrutinee arms
   | _, _ => Switch scrutinee arms
   end.
@@ -271,7 +474,7 @@ Definition merge_switches_equivariant_statement : Prop :=
     merge_switches (rename_expr r e) = rename_expr r (merge_switches e).
 
 (* ======================================================================== *)
-(* Three terms                                                              *)
+(* Four terms                                                               *)
 (* ======================================================================== *)
 
 Module Merge_examples.
@@ -312,6 +515,24 @@ Definition switch_as_it_is : expr :=
 
 Definition merged_as_it_is : expr := Apply_cont (apply_k (Var i)).
 
+(* [switch i with 0 -> k x 5t | 1 -> k x 7t | 2 -> k x 9t] and
+   [let i = Tag_immediate i in let i = i * 2t in let i = 5t + i in
+   k x i]. *)
+Definition switch_arithmetic : expr :=
+  Switch (Var i)
+    [(0, apply_k (constant 5)); (1, apply_k (constant 7));
+     (2, apply_k (constant 9))].
+
+Definition merged_arithmetic : expr :=
+  bind_tagged i
+    (Let i Value
+       (Prim (Binary (Int_arith Standard_tagged_immediate Mul))
+          [Var i; constant 2])
+       (Let i Value
+          (Prim (Binary (Int_arith Standard_tagged_immediate Add))
+             [constant 5; Var i])
+          (Apply_cont (apply_k (Var i))))).
+
 End Merge_examples.
 
 Definition merge_switches_tagging_example_statement : Prop :=
@@ -325,3 +546,7 @@ Definition merge_switches_negating_example_statement : Prop :=
 Definition merge_switches_as_it_is_example_statement : Prop :=
   merge_switches Merge_examples.switch_as_it_is
   = Merge_examples.merged_as_it_is.
+
+Definition merge_switches_arithmetic_example_statement : Prop :=
+  merge_switches Merge_examples.switch_arithmetic
+  = Merge_examples.merged_arithmetic.

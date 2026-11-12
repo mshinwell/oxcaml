@@ -31,16 +31,17 @@
    The refinement is by the steps of the machine: where the [Switch]
    has a step it goes to an arm, which the test has found to be the
    merged application with a constant in place of the variable; the
-   merged term binds the variable to that constant in one or two
-   steps, and then the two apply the same continuation to the same
-   values. The rest is the recursion of
+   merged term binds the variable to that constant in the steps of
+   its [Let]s, and then the two apply the same continuation to the
+   same values. The rest is the recursion of
    FlambdaNormaliseProofs.collapse_switches_refines. *)
 
 From Stdlib Require Import ZArith List Bool Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaKindModel FlambdaModel
   FlambdaMapSpec FlambdaValueSpec FlambdaPrimitiveModel FlambdaPrimitiveSpec
-  FlambdaSemanticsSpec FlambdaSemanticsProofs FlambdaContextSpec
+  FlambdaPrimitiveProofs FlambdaSemanticsSpec FlambdaSemanticsProofs
+  FlambdaContextSpec
   FlambdaContextProofs FlambdaNominalSpec FlambdaNominalProofs
   FlambdaAlphaProofs FlambdaNormaliseSpec FlambdaNormaliseProofs
   FlambdaMergeSwitchesSpec.
@@ -257,6 +258,181 @@ Proof.
   destruct merged. reflexivity.
 Qed.
 
+(* The arithmetic. An argument has the value that it has with the
+   constant in place of the variable, in any environment in which the
+   variable holds the constant and the other variables are bound
+   alike. *)
+Lemma eval_simples_constant_bound (v : variable) (c : const)
+    (vars vars' : env) (args : list simple) :
+  lookup v vars' = Some (Value_const c) ->
+  (∀ x : variable, x <> v -> lookup x vars' = lookup x vars) ->
+  eval_simples vars' args = eval_simples vars (map (constant_for v c) args).
+Proof.
+  intros Hv Hagree. induction args as [ | s args IH]; simpl; [ reflexivity | ].
+  rewrite IH. destruct s as [x | sym | c']; simpl; try reflexivity.
+  destruct (Pos.eqb_spec x v) as [-> | Hne]; simpl;
+    [ rewrite Hv | rewrite (Hagree x Hne) ]; reflexivity.
+Qed.
+
+Lemma merged_steps_as_arm_bound (v : variable) (c : const)
+    (merged : apply_cont) (vars vars' : env) (conts : cont_env)
+    (statics : static_env) (hp : heap) :
+  lookup v vars' = Some (Value_const c) ->
+  (∀ x : variable, x <> v -> lookup x vars' = lookup x vars) ->
+  step (State (Apply_cont merged) vars' conts statics hp)
+  = step
+      (State
+         (Apply_cont
+            (Apply_cont_expr (ac_continuation merged)
+               (map (constant_for v c) (ac_args merged))
+               (ac_trap_action merged)))
+         vars conts statics hp).
+Proof.
+  intros Hv Hagree. rewrite !step_apply_cont. simpl.
+  rewrite (eval_simples_constant_bound v c vars vars' _ Hv Hagree).
+  reflexivity.
+Qed.
+
+(* What a step of the arithmetic makes of an integer of the width is
+   one. *)
+Lemma arithmetic_step_value_in_range (standard : standard_int)
+    (arith : arithmetic_step) (a a' : Z) :
+  arithmetic_step_value (int_width standard) arith a = Some a' ->
+  in_range (int_width standard) a' = true.
+Proof.
+  destruct arith as [c | c | c]; cbn [arithmetic_step_value];
+    destruct (in_range (int_width standard) c); try discriminate;
+    intros [= <-]; apply wrap_in_range, int_width_positive.
+Qed.
+
+(* The [Let] of a step of the arithmetic binds the variable to what
+   the step makes of the integer that it holds. *)
+Lemma step_bind_arithmetic_step (standard : standard_int) (v : variable)
+    (arith : arithmetic_step) (a a' : Z) (body : expr) (vars : env)
+    (conts : cont_env) (statics : static_env) (hp : heap) :
+  lookup v vars = Some (Value_const (const_of_int standard a)) ->
+  in_range (int_width standard) a = true ->
+  arithmetic_step_value (int_width standard) arith a = Some a' ->
+  step
+    (State (bind_arithmetic_step standard v arith body) vars conts statics hp)
+  = Step
+      (State body ((v, Value_const (const_of_int standard a')) :: vars) conts
+         statics hp).
+Proof.
+  intros Hv Hrange Hvalue.
+  assert
+    (Hint :
+      ∀ c : Z,
+        in_range (int_width standard) c = true ->
+        int_of_value standard (Value_const (const_of_int standard c))
+        = Some c).
+  { intros c Hc. destruct standard; simpl in *; rewrite Hc; reflexivity. }
+  assert
+    (Hkind :
+      ∀ c : Z,
+        kind_eqb (kind_of_value (Value_const (const_of_int standard c)))
+          (kind_of_standard_int standard)
+        = true).
+  { intros c. destruct standard; reflexivity. }
+  unfold bind_arithmetic_step. rewrite step_let.
+  destruct arith as [c | c | c]; cbn [arithmetic_step_value] in Hvalue;
+    destruct (in_range (int_width standard) c) eqn:Hc; try discriminate;
+    injection Hvalue as <-;
+    cbn [eval_named eval_simples eval_simple]; rewrite Hv;
+    cbn [eval_prim eval_binary_primitive];
+    rewrite (Hint a Hrange), (Hint c Hc); cbn [eval_int_arith];
+    rewrite Hkind; reflexivity.
+Qed.
+
+(* So do the [Let]s of the steps, one after the other. The
+   environment that they leave binds the other variables as before. *)
+Lemma bind_arithmetic_steps_equivalent (standard : standard_int)
+    (v : variable) (body : expr) (conts : cont_env) (statics : static_env)
+    (hp : heap) (steps : list arithmetic_step) :
+  ∀ (a a' : Z) (vars : env),
+    lookup v vars = Some (Value_const (const_of_int standard a)) ->
+    in_range (int_width standard) a = true ->
+    arithmetic_value (int_width standard) steps a = Some a' ->
+    ∃ vars' : env,
+      lookup v vars' = Some (Value_const (const_of_int standard a'))
+      ∧ (∀ x : variable, x <> v -> lookup x vars' = lookup x vars)
+      ∧ equivalent
+          (State (bind_arithmetic_steps standard v steps body) vars conts
+             statics hp)
+          (State body vars' conts statics hp).
+Proof.
+  induction steps as [ | arith steps IH]; intros a a' vars Hv Hrange Hvalue.
+  - injection Hvalue as <-. exists vars.
+    split; [ exact Hv | split; [ reflexivity | apply equivalent_refl ] ].
+  - cbn [arithmetic_value] in Hvalue.
+    destruct (arithmetic_step_value (int_width standard) arith a)
+      as [a1 | ] eqn:Hstep; [ | discriminate ].
+    destruct
+      (IH a1 a' ((v, Value_const (const_of_int standard a1)) :: vars))
+      as (vars' & Hv' & Hagree & Hequiv).
+    + simpl. rewrite Pos.eqb_refl. reflexivity.
+    + exact (arithmetic_step_value_in_range standard arith a a1 Hstep).
+    + exact Hvalue.
+    + exists vars'. split; [ exact Hv' | split ].
+      * intros x Hne. rewrite (Hagree x Hne).
+        apply lookup_other_variable, Hne.
+      * eapply equivalent_trans; [ | exact Hequiv ].
+        apply step_equivalent.
+        exact
+          (step_bind_arithmetic_step standard v arith a a1 _ vars conts
+             statics hp Hv Hrange Hstep).
+Qed.
+
+Lemma merge_by_arithmetic_refines (kind : arithmetic_kind) (offset slope : Z)
+    (v : variable) (merged : apply_cont) (arms : list (Z * apply_cont)) :
+  forallb (arm_is_merged (By_arithmetic kind offset slope) v merged) arms
+  = true ->
+  expr_refines (Switch (Var v) arms)
+    (bind_arithmetic kind offset slope v (Apply_cont merged)).
+Proof.
+  intros Hall vars conts statics hp.
+  destruct (step_switch_cases (Var v) arms vars conts statics hp)
+    as [Hwrong | (w & i & ac & Hv & Hi & Hfind & Hstep)];
+    [ apply step_undefined_refines, Hwrong | ].
+  apply naked_immediate_of_value_some in Hi. subst w.
+  destruct (arm_is_merged_found _ _ _ _ _ _ Hall Hfind) as (c & Hc & ->).
+  cbn [constant_of_arm] in Hc. cbv zeta in Hc.
+  destruct (in_range (int_width (standard_int_of_arithmetic_kind kind)) i)
+    eqn:Hrange; [ | discriminate ].
+  destruct (arithmetic_value _ _ i) as [a | ] eqn:Hvalue; [ | discriminate ].
+  injection Hc as <-.
+  apply equivalent_refines.
+  eapply equivalent_trans; [ apply step_equivalent, Hstep | ].
+  apply equivalent_sym.
+  unfold bind_arithmetic. cbv zeta.
+  destruct kind; cbn [standard_int_of_arithmetic_kind] in *.
+  - eapply equivalent_trans;
+      [ apply step_equivalent, (step_bind_tagged v i);
+        [ exact Hv | exact Hrange ]
+      | ].
+    destruct
+      (bind_arithmetic_steps_equivalent Standard_tagged_immediate v
+         (Apply_cont merged) conts statics hp
+         (arithmetic_steps (int_width Standard_tagged_immediate) offset slope)
+         i a ((v, Value_const (Tagged_immediate i)) :: vars))
+      as (vars' & Hv' & Hagree & Hequiv);
+      [ simpl; rewrite Pos.eqb_refl; reflexivity | exact Hrange
+      | exact Hvalue | ].
+    eapply equivalent_trans; [ exact Hequiv | ].
+    apply step_eq_equivalent, merged_steps_as_arm_bound; [ exact Hv' | ].
+    intros x Hne. rewrite (Hagree x Hne). apply lookup_other_variable, Hne.
+  - destruct
+      (bind_arithmetic_steps_equivalent Standard_naked_immediate v
+         (Apply_cont merged) conts statics hp
+         (arithmetic_steps (int_width Standard_naked_immediate) offset slope)
+         i a vars)
+      as (vars' & Hv' & Hagree & Hequiv);
+      [ exact Hv | exact Hrange | exact Hvalue | ].
+    eapply equivalent_trans; [ exact Hequiv | ].
+    apply step_eq_equivalent, merged_steps_as_arm_bound;
+      [ exact Hv' | exact Hagree ].
+Qed.
+
 Lemma merge_switch_refines (scrutinee : simple)
     (arms : list (Z * apply_cont)) :
   expr_refines (Switch scrutinee arms) (merge_switch scrutinee arms).
@@ -272,7 +448,12 @@ Proof.
   destruct (forallb (arm_is_merged By_tagging_and_negating v _) _)
     eqn:Hnegating; [ apply merge_by_negating_refines, Hnegating | ].
   destruct (forallb (arm_is_merged As_it_is v _) _) eqn:Has_it_is;
-    [ apply merge_as_it_is_refines, Has_it_is | apply expr_refines_refl ].
+    [ apply merge_as_it_is_refines, Has_it_is | ].
+  destruct (arithmetic_of_arms _ _ _ _) as [[[kind offset] slope] | ];
+    [ | apply expr_refines_refl ].
+  destruct (_ && _) eqn:Harithmetic; [ | apply expr_refines_refl ].
+  apply andb_prop in Harithmetic as [_ Harithmetic].
+  apply merge_by_arithmetic_refines, Harithmetic.
 Qed.
 
 Fixpoint merge_switches_refines_aux (e : expr) :
@@ -431,6 +612,51 @@ Proof.
     rewrite constants_for_renamed. reflexivity.
 Qed.
 
+Lemma first_difference_renamed (r : renaming) (args args' : list simple) :
+  first_difference (map (rename_simple r) args) (map (rename_simple r) args')
+  = first_difference args args'.
+Proof.
+  revert args'.
+  induction args as [ | s args IH]; intros [ | s' args']; simpl;
+    try reflexivity.
+  destruct (simple_eq_dec s s') as [-> | Hne],
+    (simple_eq_dec (rename_simple r _) (rename_simple r _)) as [Heq | Hne'].
+  - apply IH.
+  - contradiction.
+  - elim Hne. exact (renamed_simple_same r _ _ Heq).
+  - destruct s, s'; reflexivity.
+Qed.
+
+Lemma arithmetic_of_arms_renamed (r : renaming) (i i' : Z)
+    (args args' : list simple) :
+  arithmetic_of_arms i i' (map (rename_simple r) args)
+    (map (rename_simple r) args')
+  = arithmetic_of_arms i i' args args'.
+Proof.
+  unfold arithmetic_of_arms. rewrite first_difference_renamed. reflexivity.
+Qed.
+
+Lemma bind_arithmetic_steps_renamed (r : renaming) (standard : standard_int)
+    (v : variable) (steps : list arithmetic_step) (body : expr) :
+  rename_expr r (bind_arithmetic_steps standard v steps body)
+  = bind_arithmetic_steps standard (rename_variable r v) steps
+      (rename_expr r body).
+Proof.
+  induction steps as [ | [c | c | c] steps IH]; simpl;
+    [ reflexivity | rewrite IH; reflexivity .. ].
+Qed.
+
+Lemma bind_arithmetic_renamed (r : renaming) (kind : arithmetic_kind)
+    (offset slope : Z) (v : variable) (body : expr) :
+  rename_expr r (bind_arithmetic kind offset slope v body)
+  = bind_arithmetic kind offset slope (rename_variable r v)
+      (rename_expr r body).
+Proof.
+  unfold bind_arithmetic. cbv zeta.
+  destruct kind; [ unfold bind_tagged; simpl | ];
+    rewrite bind_arithmetic_steps_renamed; reflexivity.
+Qed.
+
 Lemma merge_switch_equivariant (r : renaming) (scrutinee : simple)
     (arms : list (Z * apply_cont)) :
   merge_switch (rename_simple r scrutinee)
@@ -469,7 +695,19 @@ Proof.
   destruct (forallb (arm_is_merged By_tagging v merged) _); [ reflexivity | ].
   destruct (forallb (arm_is_merged By_tagging_and_negating v merged) _);
     [ reflexivity | ].
-  destruct (forallb (arm_is_merged As_it_is v merged) _); reflexivity.
+  destruct (forallb (arm_is_merged As_it_is v merged) _); [ reflexivity | ].
+  change (ac_args (rename_apply_cont r ac))
+    with (map (rename_simple r) (ac_args ac)).
+  change (ac_args (rename_apply_cont r ac'))
+    with (map (rename_simple r) (ac_args ac')).
+  rewrite arithmetic_of_arms_renamed.
+  destruct (arithmetic_of_arms i i' (ac_args ac) (ac_args ac'))
+    as [[[kind offset] slope] | ]; [ | reflexivity ].
+  rewrite length_map,
+    (forallb_under_map _ _ (arm_is_merged _ v merged))
+    by (intros arm; apply arm_is_merged_renamed).
+  destruct (_ && _); [ | reflexivity ].
+  rewrite bind_arithmetic_renamed. reflexivity.
 Qed.
 
 Fixpoint merge_switches_equivariant_aux (r : renaming) (e : expr) :
@@ -490,7 +728,7 @@ Theorem merge_switches_equivariant : merge_switches_equivariant_statement.
 Proof. exact merge_switches_equivariant_aux. Qed.
 
 (* ======================================================================== *)
-(* Three terms                                                              *)
+(* Four terms                                                               *)
 (* ======================================================================== *)
 
 Theorem merge_switches_tagging_example :
@@ -504,3 +742,7 @@ Proof. reflexivity. Qed.
 Theorem merge_switches_as_it_is_example :
   merge_switches_as_it_is_example_statement.
 Proof. reflexivity. Qed.
+
+Theorem merge_switches_arithmetic_example :
+  merge_switches_arithmetic_example_statement.
+Proof. vm_compute. reflexivity. Qed.

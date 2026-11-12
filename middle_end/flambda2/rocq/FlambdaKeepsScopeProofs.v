@@ -223,6 +223,44 @@ Proof.
   destruct Hx as [<- | Hx]; [ left; reflexivity | apply Hv', Hx ].
 Qed.
 
+(* The [Let]s of the arithmetic: each binds the variable again, to a
+   primitive of itself and a constant. *)
+Lemma bind_arithmetic_step_binds_again (standard : standard_int)
+    (v : variable) (step : arithmetic_step) :
+  binds_again v (bind_arithmetic_step standard v step).
+Proof.
+  intros body. split; [ reflexivity | split; [ | reflexivity ] ].
+  unfold bind_arithmetic_step. destruct step; scope; simpl;
+    (intros x [<- | Hx]; [ left; reflexivity | right ]);
+    apply in_without in Hx; apply Hx.
+Qed.
+
+Lemma bind_arithmetic_steps_binds_again (standard : standard_int)
+    (v : variable) (steps : list arithmetic_step) :
+  binds_again v (bind_arithmetic_steps standard v steps).
+Proof.
+  induction steps as [ | step steps IH]; [ apply binds_again_nothing | ].
+  exact
+    (binds_again_twice v _ _
+       (bind_arithmetic_step_binds_again standard v step) IH).
+Qed.
+
+Lemma bind_arithmetic_binds_again (kind : arithmetic_kind) (offset slope : Z)
+    (v : variable) :
+  binds_again v (bind_arithmetic kind offset slope v).
+Proof.
+  destruct kind.
+  - exact
+      (binds_again_twice v _ _ (bind_tagged_binds_again v)
+         (bind_arithmetic_steps_binds_again Standard_tagged_immediate v
+            (arithmetic_steps (int_width Standard_tagged_immediate) offset
+               slope))).
+  - exact
+      (bind_arithmetic_steps_binds_again Standard_naked_immediate v
+         (arithmetic_steps (int_width Standard_naked_immediate) offset
+            slope)).
+Qed.
+
 Lemma merged_scoped (v : variable) (i i' : Z) (ac ac' : apply_cont)
     (others : list (Z * apply_cont)) (wrap : expr -> expr) :
   binds_again v wrap ->
@@ -273,9 +311,16 @@ Proof.
            (fun body => bind_tagged v (bind_negated v body))).
       apply binds_again_twice;
         [ apply bind_tagged_binds_again | apply bind_negated_binds_again ].
-    + destruct (forallb _ _); [ | apply scoped_refl ].
-      apply (merged_scoped v i i' ac ac' others (fun body => body)).
-      apply binds_again_nothing.
+    + destruct (forallb _ _).
+      * apply (merged_scoped v i i' ac ac' others (fun body => body)).
+        apply binds_again_nothing.
+      * destruct (arithmetic_of_arms _ _ _ _) as [[[kind offset] slope] | ];
+          [ | apply scoped_refl ].
+        destruct (_ && _); [ | apply scoped_refl ].
+        apply
+          (merged_scoped v i i' ac ac' others
+             (bind_arithmetic kind offset slope v)).
+        apply bind_arithmetic_binds_again.
 Qed.
 
 Fixpoint merge_switches_scoped (e : expr) : scoped e (merge_switches e).
