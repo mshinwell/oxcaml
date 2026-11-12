@@ -67,9 +67,10 @@
    the join of types supposes of it for the names of equations
    ([expand_head_for_join_equations_kinded_statement]).
 
-   The same of the join that Simplify calls ([model_join]), in the
-   last section. The statements of FlambdaJoinMeetSpec.v about it
-   have the premise [types_fit_otherwise] for the run that they name.
+   The same of the join that Simplify calls ([model_join]), in a
+   section of its own. The statements of FlambdaJoinMeetSpec.v about
+   it have the premise [types_fit_otherwise] for the run that they
+   name.
    Here it follows from their premises about the inputs and one
    more, [uses_fit_otherwise]: the types of the uses that are joined
    are well formed and have the names of their equations at their
@@ -87,7 +88,19 @@
    any meet of expanded types that has both halves
    ([model_join_with_admits_use_outright_statement]); it is not
    stated at the meet of the model, which is not shown to have the
-   half about values and may not have it. *)
+   half about values and may not have it.
+
+   The meet of the model has the half of that which is not about
+   values ([meet_expanded_head_keeps]), for the choices of the meet
+   that its contract is proved of
+   ([model_meet_expanded_head_keeps_statement]): the meet has it at
+   every fuel from a join that has the conclusions of its contract
+   that are not about values (FlambdaMeetKeepsSpec.v), and the join
+   of the model has them outright (above). So the join that Simplify
+   calls has those five parts of [join_guarantees] under premises
+   about its inputs and the choices of the meet only
+   ([model_join_guarantees_on_inputs_statement]): nothing is supposed
+   of a function of the model. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
@@ -384,3 +397,54 @@ Definition model_join_with_admits_use_outright_statement : Prop :=
       ∧ definitions_hold
           (Analysis.canonical_definitions_at_normal_mode analysis) index
           valuation valuation'.
+
+(* ======================================================================== *)
+(* The join and the meet of the model together                              *)
+(* ======================================================================== *)
+
+(* The meet of expanded types of the model keeps what a meet keeps
+   ([meet_expanded_head_keeps], FlambdaMeetSpec.v), whatever the
+   choices of the join, the depth and the fuel, for choices of the
+   meet as its contract has them: the type of the [Get_tag] step that
+   is true, no variable defined again, the variables of a single case
+   lifted ([repaired_choices], FlambdaMeet.v, has the three). *)
+Definition model_meet_expanded_head_keeps_statement : Prop :=
+  ∀ (join_choices : Join_env.choices) (meet_choices : meet_choices)
+    (join_depth : nat) (fuel : fuels),
+    type_of_get_tag_scrutinee meet_choices
+    = immediate_or_blocks_with_these_tags ->
+    define_again meet_choices = false ->
+    lift_variables_of_single_case meet_choices = true ->
+    meet_expanded_head_keeps
+      (model_meet_expanded_head join_choices meet_choices join_depth fuel).
+
+(* So the join that Simplify calls, with such choices of the meet,
+   has five of the six parts of [join_guarantees] (FlambdaJoinSpec.v)
+   under premises about its inputs only: the conclusions of
+   [model_join_keeps_outright_statement] and of
+   [model_join_describes_uses_outright_statement], without their
+   premise about the meet. (That a meet may be made in the target
+   says that the target has the invariant of typing environments and
+   no bottom type, the first two parts.) The sixth part,
+   [join_admits_use], is not here: see
+   [model_join_with_admits_use_outright_statement]. *)
+Definition model_join_guarantees_on_inputs_statement : Prop :=
+  ∀ (A : Type) (join_choices : Join_env.choices) (meet_choices : meet_choices)
+    (join_depth : nat) (fuel : fuels) (avoid : list variable)
+    (inputs : join_inputs A) (target : Typing_env.t)
+    (analysis : Analysis.t A),
+    type_of_get_tag_scrutinee meet_choices
+    = immediate_or_blocks_with_these_tags ->
+    define_again meet_choices = false ->
+    lift_variables_of_single_case meet_choices = true ->
+    join_inputs_well_formed typing_env_invariant avoid inputs ->
+    uses_kinded inputs ->
+    uses_agree_with_source_on_kinds inputs ->
+    typing_env_fits (source inputs) ->
+    uses_fit_otherwise inputs ->
+    model_join join_choices meet_choices join_depth fuel avoid inputs
+    = Some (target, analysis) ->
+    typing_env_fits target
+    ∧ join_keeps_source (source inputs) target
+    ∧ join_introduces avoid inputs target
+    ∧ analysis_describes_uses inputs target analysis.

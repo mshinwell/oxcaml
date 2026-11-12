@@ -53,7 +53,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaMeetEnvSpec FlambdaMeetEnvProofs FlambdaJoinMeet
   FlambdaJoinMeetSpec FlambdaJoinMeetProofs FlambdaJoinWellFormedSpec
   FlambdaJoinWellFormedProofs FlambdaJoinEquationNamesSpec
-  FlambdaJoinEquationNamesProofs FlambdaJoinMeetFitsSpec.
+  FlambdaJoinEquationNamesProofs FlambdaMeetKeepsSpec FlambdaMeetKeepsProofs
+  FlambdaJoinMeetFitsSpec.
 Import ListNotations.
 
 Theorem expand_head_for_join_equations_kinded
@@ -625,4 +626,37 @@ Proof.
               join_depth fuel avoid inputs envs s3 relations3 kept equations
               relation_equations definitions Hinputs Hkinded Hagree Hfits
               Hfit_uses Hrun)).
+Qed.
+
+(* ---------------------------------------------------------------------- *)
+(* The join and the meet of the model together                             *)
+(* ---------------------------------------------------------------------- *)
+
+Theorem model_meet_expanded_head_keeps
+  : model_meet_expanded_head_keeps_statement.
+Proof.
+  intros join_choices meet_choices join_depth fuel Htag Hagain Hlift.
+  exact (meet_expanded_head_fuel_keeps
+           (model_join_scoped_envs join_choices join_depth fuel) meet_choices
+           (fuel_of_meet fuel)
+           (model_join_scoped_envs_keeps_outright join_choices join_depth
+              fuel)
+           Htag Hagain Hlift).
+Qed.
+
+Theorem model_join_guarantees_on_inputs
+  : model_join_guarantees_on_inputs_statement.
+Proof.
+  intros A join_choices meet_choices join_depth fuel avoid inputs target
+    analysis Htag Hagain Hlift Hinputs Hkinded Hagree Hfits Hfit_uses Hjoin.
+  pose proof (model_meet_expanded_head_keeps join_choices meet_choices
+                join_depth fuel Htag Hagain Hlift) as Hmh.
+  destruct (model_join_keeps_outright A join_choices meet_choices join_depth
+              fuel avoid inputs target analysis Hmh Hinputs Hkinded Hagree
+              Hfits Hfit_uses Hjoin) as [Htarget [Hkeeps Hintroduces]].
+  split; [ exact Htarget | ]. split; [ exact Hkeeps | ].
+  split; [ exact Hintroduces | ].
+  exact (model_join_describes_uses_outright A join_choices meet_choices
+           join_depth fuel avoid inputs target analysis Hmh Hinputs Hkinded
+           Hagree Hfits Hfit_uses Hjoin).
 Qed.
