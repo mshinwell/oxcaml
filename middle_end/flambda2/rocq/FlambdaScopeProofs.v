@@ -200,6 +200,151 @@ Proof.
     [ exact Hnames | exact Hcode | exact I | apply Forall_nil ].
 Qed.
 
+(* A full call of code that the static environment binds, returning to
+   continuations in scope. *)
+Lemma call_code_in_scope (outer : list continuation) (closure : value)
+    (called : code_id) (c : code) (vs : list value)
+    (args_arity return_arity : arity) (return_to exn_to : cont_value)
+    (statics : static_env) :
+  code_all_closed statics ->
+  lookup called (static_code statics) = Some c ->
+  cont_in_scope outer return_to ->
+  cont_in_scope outer exn_to ->
+  match
+    call_code closure c vs args_arity return_arity return_to exn_to statics
+  with
+  | Step s' => state_in_scope outer s'
+  | Exit k _ => among k outer = true
+  | Undefined => True
+  end.
+Proof.
+  intros Hstatics Hc Hreturn Hexn. unfold call_code.
+  destruct (binds_statics (code_body c)); [ exact I | ].
+  destruct
+    (negb
+       (kinds_eqb (map kind_of_value vs) (unarize args_arity)
+        && kinds_per_parameter_eqb (unarize_per_parameter args_arity)
+             (unarize_per_parameter (code_params_arity c))
+        && arity_eqb return_arity (code_result_arity c)));
+    [ exact I | ].
+  destruct (bind_params (code_params c) vs [(code_my_closure c, closure)])
+    as [callee_vars | ] eqn:Hbind; [ | exact I ].
+  destruct
+    (proj1 (closed_code c) (lookup_code_closed statics called c Hstatics Hc))
+    as [Hbody Hbody_closed].
+  apply state_in_scope_intro; [ | exact Hbody_closed | | exact Hstatics ].
+  - refine (names_among_mono _ _ _ _ _ _ _ Hbody).
+    + intros x Hx. apply (among_bind_params _ _ _ _ x Hbind).
+      rewrite among_app. rewrite among_cons in Hx. simpl.
+      destruct (Pos.eqb x (code_my_closure c));
+        destruct (among x (code_params c)); simpl in *; auto.
+    + intros k' Hk'. simpl in *.
+      destruct (Pos.eqb k' (code_return_continuation c));
+        destruct (Pos.eqb k' (code_exn_continuation c)); simpl in *;
+        auto; discriminate.
+  - split; [ exact Hreturn | ]. split; [ exact Hexn | exact I ].
+Qed.
+
+Lemma run_call_in_scope (outer : list continuation)
+    (return_partial : value -> step_result) (kind : call_kind)
+    (shape : option call_shape) (return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) :
+  code_all_closed statics ->
+  shape_calls statics kind shape ->
+  cont_in_scope outer return_to ->
+  cont_in_scope outer exn_to ->
+  (∀ partial : value,
+    match return_partial partial with
+    | Step s' => state_in_scope outer s'
+    | Exit k _ => among k outer = true
+    | Undefined => True
+    end) ->
+  match run_call return_partial shape return_arity return_to exn_to statics with
+  | Step s' => state_in_scope outer s'
+  | Exit k _ => among k outer = true
+  | Undefined => True
+  end.
+Proof.
+  intros Hstatics Hcalls Hreturn Hexn Hpartial.
+  destruct shape
+    as [[closure c vs args_arity
+        | closure c vs remaining args_arity remaining_arity | partial] | ];
+    simpl in Hcalls |- *.
+  - destruct Hcalls as (called & slots & _ & Hc & _).
+    exact (call_code_in_scope outer closure called c vs _ _ _ _ statics
+             Hstatics Hc Hreturn Hexn).
+  - destruct Hcalls as (called & slots & _ & Hc & _).
+    apply (call_code_in_scope outer closure called c vs _ _ _ _ statics
+             Hstatics Hc);
+      [ exact (conj Hreturn Hexn) | exact Hexn ].
+  - apply Hpartial.
+  - exact I.
+Qed.
+
+(* Applying a continuation in scope. *)
+Lemma apply_cont_value_in_scope (outer : list continuation)
+    (c : cont_value) :
+  ∀ (vs : list value) (statics : static_env),
+    code_all_closed statics ->
+    cont_in_scope outer c ->
+    match apply_cont_value c vs statics with
+    | Step s' => state_in_scope outer s'
+    | Exit k _ => among k outer = true
+    | Undefined => True
+    end.
+Proof.
+  induction c
+    as [[params metadata handler] def_vars def_conts recursive | k'
+       | c IH extra
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+    using cont_value_over_ind;
+    intros vs statics Hstatics Hc.
+  - simpl.
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+      [ | exact I ].
+    destruct (bind_params params vs def_vars) as [handler_vars | ] eqn:Hbind;
+      [ | exact I ].
+    destruct Hc as ([Hh Hh_closed] & Hrecursive & Hdef_conts).
+    rewrite handler_names_among_handler in Hh.
+    apply state_in_scope_intro; [ | exact Hh_closed | | exact Hstatics ].
+    + rewrite map_app, rec_closures_domain, <- app_assoc.
+      refine (names_among_mono _ _ _ _ _ _ (fun k'' Hk'' => Hk'') Hh).
+      intros x. exact (among_bind_params _ _ _ _ x Hbind).
+    + apply conts_in_scope_app; [ | exact Hdef_conts ].
+      apply rec_closures_in_scope; assumption.
+  - exact Hc.
+  - exact (IH (vs ++ extra) statics Hstatics Hc).
+  - rewrite apply_cont_value_over_application.
+    destruct vs as [ | v [ | v' vs]]; [ exact I | | exact I ].
+    destruct Hc as [Hreturn Hexn]. unfold call_function.
+    apply (run_call_in_scope outer _ Indirect); try assumption.
+    + apply shape_of_call_calls.
+    + intros partial. exact (IHreturn [partial] statics Hstatics Hreturn).
+Qed.
+
+Lemma call_function_in_scope (outer : list continuation) (callee : value)
+    (kind : call_kind) (vs : list value) (args_arity return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) :
+  code_all_closed statics ->
+  cont_in_scope outer return_to ->
+  cont_in_scope outer exn_to ->
+  match
+    call_function callee kind vs args_arity return_arity return_to exn_to
+      statics
+  with
+  | Step s' => state_in_scope outer s'
+  | Exit k _ => among k outer = true
+  | Undefined => True
+  end.
+Proof.
+  intros Hstatics Hreturn Hexn. unfold call_function.
+  apply (run_call_in_scope outer _ kind); try assumption.
+  - apply shape_of_call_calls.
+  - intros partial.
+    exact (apply_cont_value_in_scope outer return_to [partial] statics
+             Hstatics Hreturn).
+Qed.
+
 Theorem step_in_scope : step_in_scope_statement.
 Proof.
   intros outer [e vars conts statics] ([Hnames Hcode] & Hconts & Hstatics).
@@ -258,71 +403,17 @@ Proof.
     destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | exact I ].
     destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
       [ | exact I ].
-    unfold call_function.
-    destruct (closure_of statics callee) as [[called slots] | ];
-      [ | exact I ].
-    destruct
-      (match ap_call_kind ap with
-       | Direct named => Pos.eqb called named
-       | Indirect => true
-       end);
-      [ | exact I ].
-    destruct (lookup called (static_code statics)) as [c | ] eqn:Hc;
-      [ | exact I ].
-    destruct (binds_statics (code_body c)); [ exact I | ].
-    destruct
-      (negb
-         (kinds_eqb (map kind_of_value vs) (unarize (ap_args_arity ap))
-          && kinds_per_parameter_eqb
-               (unarize_per_parameter (ap_args_arity ap))
-               (unarize_per_parameter (code_params_arity c))
-          && arity_eqb (ap_return_arity ap) (code_result_arity c)));
-      [ exact I | ].
-    destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
-      as [callee_vars | ] eqn:Hbind; [ | exact I ].
-    destruct
-      (proj1 (closed_code c) (lookup_code_closed statics called c Hstatics Hc))
-      as [Hbody Hbody_closed].
     destruct (names_among_apply _ _ _ Hnames) as [Hreturn Hexn].
-    apply state_in_scope_intro; [ | exact Hbody_closed | | exact Hstatics ].
-    + refine (names_among_mono _ _ _ _ _ _ _ Hbody).
-      * intros x Hx. apply (among_bind_params _ _ _ _ x Hbind).
-        rewrite among_app. rewrite among_cons in Hx. simpl.
-        destruct (Pos.eqb x (code_my_closure c));
-          destruct (among x (code_params c)); simpl in *; auto.
-      * intros k' Hk'. simpl in *.
-        destruct (Pos.eqb k' (code_return_continuation c));
-          destruct (Pos.eqb k' (code_exn_continuation c)); simpl in *;
-          auto; discriminate.
-    + split; [ exact (resolve_in_scope _ _ _ Hconts Hreturn) | ].
-      split; [ | exact I ].
-      apply with_extra_args_in_scope.
-      exact (resolve_in_scope _ _ _ Hconts Hexn).
+    apply call_function_in_scope;
+      [ exact Hstatics | exact (resolve_in_scope _ _ _ Hconts Hreturn)
+      | apply with_extra_args_in_scope;
+        exact (resolve_in_scope _ _ _ Hconts Hexn) ].
   - (* Apply_cont *)
     destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | exact I ].
     unfold apply_continuation.
-    pose proof
-      (resolve_in_scope outer (ac_continuation ac) conts Hconts
-         (names_among_apply_cont _ _ _ Hnames))
-      as Hc.
-    revert Hc vs. generalize (resolve (ac_continuation ac) conts).
-    intros c.
-    induction c
-      as [[params metadata handler] def_vars def_conts recursive | k'
-         | c IH extra];
-      intros Hc vs; simpl; [ | exact Hc | exact (IH Hc (vs ++ extra)) ].
-    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
-      [ | exact I ].
-    destruct (bind_params params vs def_vars) as [handler_vars | ] eqn:Hbind;
-      [ | exact I ].
-    destruct Hc as ([Hh Hh_closed] & Hrecursive & Hdef_conts).
-    rewrite handler_names_among_handler in Hh.
-    apply state_in_scope_intro; [ | exact Hh_closed | | exact Hstatics ].
-    + rewrite map_app, rec_closures_domain, <- app_assoc.
-      refine (names_among_mono _ _ _ _ _ _ (fun k'' Hk'' => Hk'') Hh).
-      intros x. exact (among_bind_params _ _ _ _ x Hbind).
-    + apply conts_in_scope_app; [ | exact Hdef_conts ].
-      apply rec_closures_in_scope; assumption.
+    apply apply_cont_value_in_scope; [ exact Hstatics | ].
+    exact (resolve_in_scope outer (ac_continuation ac) conts Hconts
+             (names_among_apply_cont _ _ _ Hnames)).
   - (* Switch *)
     destruct (eval_simple vars scrutinee) as [v | ]; [ | exact I ].
     destruct (naked_immediate_of_value v) as [i | ]; [ | exact I ].

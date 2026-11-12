@@ -344,8 +344,11 @@ Proof.
   destruct (eval_simples vars (map fst (ap_exn_extra_args ap)))
     as [extra | ];
     [ | reflexivity ].
-  unfold call_function. rewrite Hclosure. cbv beta iota zeta.
-  rewrite Pos.eqb_refl. reflexivity.
+  unfold call_function.
+  rewrite !(shape_of_call_closure statics (Value_symbol s) _ vs _ _ eq_refl),
+    (shape_of_closure_call_kind statics (Value_symbol s) (Direct code) vs _ _
+       code slots Hclosure (or_intror eq_refl)).
+  reflexivity.
 Qed.
 
 Theorem call_known_closure_sound : call_known_closure_sound_statement.

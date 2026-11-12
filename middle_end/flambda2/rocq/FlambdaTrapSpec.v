@@ -30,8 +30,9 @@
    binders are distinct, this machine and the machine of
    FlambdaSemanticsSpec.v behave alike.
 
-   This file is to be reviewed: [stack_entry], [unwind], [stack_enter],
-   [stack_call], [stack_apply_cont], [stack_step], [stack_run],
+   This file is to be reviewed: [stack_entry], [stack_run_call],
+   [unwind], [stack_enter], [stack_call], [stack_apply_cont],
+   [stack_step], [stack_run],
    [stack_behaves], [initial_stack] and the three statements about the
    two machines, against what the backend does with the terms it is
    given (middle_end/flambda2/to_cmm/to_cmm_expr.ml: translate_raise,
@@ -55,7 +56,9 @@
      top, whatever it names;
    - a raise (FlambdaModel.is_raise) removes the entry on top and goes
      to it, whatever continuation the raise names;
-   - a call puts on the stack the return continuation of the caller,
+   - a call of code with as many arguments as it has parameters
+     (FlambdaSemanticsSpec.shape_of_call says what a call is) puts on
+     the stack the return continuation of the caller,
      with the extra arguments of the call, and above it a handler that
      stands for the exception continuation of the code called, which is
      how the body of code starts: with one handler installed. The body
@@ -68,6 +71,18 @@
      not looked at (To_cmm_expr.translate_apply does not look at it
      either, and wraps the call in a handler that adds the extra
      arguments);
+   - a call that makes a partial application puts nothing on the stack:
+     the partial application is given to the return continuation of the
+     call. A call with more arguments than the code has parameters is
+     the call of the code with the first of them, as above, but the
+     stack keeps the arguments that remain ([Call_then]); when the body
+     returns, its result is called with those, under the stack as it
+     was at the call, for the return continuation and with the extra
+     arguments of the whole call. So a raise in either of the two calls
+     goes to the caller's handler with the extra arguments: the
+     compiled program makes the two calls in one generic application
+     (caml_applyN), inside the handler that To_cmm_expr.translate_apply
+     wraps it in;
    - a unit starts with one handler installed, which stands for its
      exception continuation, and ends when it applies a continuation it
      does not bind.
@@ -132,10 +147,17 @@ Import ListNotations.
    exception handler installed. [Call] is a call in progress: the return
    and exception continuations of the code called, what the return
    continuation of the call stands for in the caller, and the values of
-   the extra arguments of the call. *)
+   the extra arguments of the call. [Call_then] is the first call of an
+   over-application in progress: the same, with the arguments that
+   remain, the arity that they are given at and the arity of the result
+   of the whole call, as FlambdaSemanticsSpec.Over_application keeps
+   them. *)
 Inductive stack_entry : Type :=
   | Trap (c : cont_value)
   | Call (ret exn : continuation) (return_to : cont_value)
+      (extra : list value)
+  | Call_then (ret exn : continuation) (remaining : list value)
+      (remaining_arity return_arity : arity) (return_to : cont_value)
       (extra : list value).
 
 Definition stack : Type := list stack_entry.
@@ -153,6 +175,51 @@ Inductive leaving : Type :=
   | Leaving_by (k : continuation)
   | Raising.
 
+(* A call of the shape given, made under the stack [st]; [return_to] is
+   what its return continuation stands for and [extra] the values of its
+   extra arguments. The body of the code runs as
+   FlambdaSemanticsSpec.call_code has it, but with its return and
+   exception continuations standing for nothing; the stack has the
+   call, and the handler that the body starts with. For an
+   over-application the call is that of the first arguments, made at
+   the result arity of the code as FlambdaSemanticsSpec.run_call makes
+   it, and the stack keeps what remains. [return_partial] is what is
+   done with a partial application. *)
+Definition stack_run_call (return_partial : value -> stack_result)
+    (shape : option call_shape) (return_arity : arity)
+    (return_to : cont_value) (extra : list value) (statics : static_env)
+    (st : stack) : stack_result :=
+  match shape with
+  | Some (Full_call closure c vs args_arity) =>
+    let ret := code_return_continuation c in
+    let exn := code_exn_continuation c in
+    match
+      call_code closure c vs args_arity return_arity (Outer ret) (Outer exn)
+        statics
+    with
+    | Step s =>
+      Stack_step s (Trap (Outer exn) :: Call ret exn return_to extra :: st)
+    | Exit _ _ | Undefined => Stack_undefined
+    end
+  | Some (Over_call closure c vs remaining args_arity remaining_arity) =>
+    let ret := code_return_continuation c in
+    let exn := code_exn_continuation c in
+    match
+      call_code closure c vs args_arity (code_result_arity c) (Outer ret)
+        (Outer exn) statics
+    with
+    | Step s =>
+      Stack_step s
+        (Trap (Outer exn)
+         :: Call_then ret exn remaining remaining_arity return_arity
+              return_to extra
+         :: st)
+    | Exit _ _ | Undefined => Stack_undefined
+    end
+  | Some (Partial_call partial) => return_partial partial
+  | None => Stack_undefined
+  end.
+
 (* Leaving with the values [vs], under the stack [st].
    - A raise goes to the handler on top. If that stands for nothing, as
      the handler that the body of code starts with does, the raise
@@ -162,13 +229,21 @@ Inductive leaving : Type :=
      installed.
    - Leaving the body of code by its return continuation, with the
      handler it started with on top, returns to the caller.
-   - Leaving it by its exception continuation, that handler removed,
-     raises in the caller, with the extra arguments of the call. *)
+   - Leaving the body of the first call of an over-application by its
+     return continuation, with that handler on top and one value, calls
+     the value with the arguments that remain, under the stack below
+     the call; a partial application that this makes is given to the
+     return continuation of the whole call.
+   - Leaving the body by its exception continuation, that handler
+     removed, raises in the caller, with the extra arguments of the
+     call. *)
 (* CR mshinwell: Where the stack is not what a term that follows the
    discipline would have, this machine is undefined: a [Pop] or a raise
    with no handler on top, a return or the end of the unit with a
    handler still installed, the body of code left by a continuation
-   that is neither of its two. The code that the backend makes would do
+   that is neither of its two, the first call of an over-application
+   that returns other than one value. The code that the backend makes
+   would do
    something there that no term describes (a [Pop] removes whatever is
    on top, a raise goes to whatever handler is installed, of whatever
    call), and to_cmm stops on some of these terms when it visits them.
@@ -184,7 +259,8 @@ Fixpoint unwind (st : stack) (how : leaving) (vs : list value)
     | Exit k vs => unwind rest (Leaving_by k) vs statics
     | Undefined => Stack_undefined
     end
-  | Raising, ([] | Call _ _ _ _ :: _) => Stack_undefined
+  | Raising, ([] | Call _ _ _ _ :: _ | Call_then _ _ _ _ _ _ _ :: _) =>
+    Stack_undefined
   | Leaving_by k, ([] | [Trap _]) => Stack_exit k vs
   | Leaving_by k, Trap _ :: Call ret _ return_to _ :: rest =>
     if Pos.eqb k ret
@@ -195,8 +271,30 @@ Fixpoint unwind (st : stack) (how : leaving) (vs : list value)
       | Undefined => Stack_undefined
       end
     else Stack_undefined
+  | Leaving_by k,
+    Trap _
+    :: Call_then ret _ remaining remaining_arity return_arity return_to extra
+    :: rest =>
+    if Pos.eqb k ret
+    then
+      match vs with
+      | [v] =>
+        stack_run_call
+          (fun partial =>
+             match apply_cont_value return_to [partial] statics with
+             | Step s => Stack_step s rest
+             | Exit k vs => unwind rest (Leaving_by k) vs statics
+             | Undefined => Stack_undefined
+             end)
+          (shape_of_call statics v Indirect remaining remaining_arity
+             return_arity)
+          return_arity return_to extra statics rest
+      | _ => Stack_undefined
+      end
+    else Stack_undefined
   | Leaving_by k, Trap _ :: Trap _ :: _ => Stack_undefined
-  | Leaving_by k, Call _ exn _ extra :: rest =>
+  | Leaving_by k,
+    (Call _ exn _ extra | Call_then _ exn _ _ _ _ extra) :: rest =>
     if Pos.eqb k exn
     then unwind rest Raising (vs ++ extra) statics
     else Stack_undefined
@@ -215,10 +313,9 @@ Definition stack_enter (c : cont_value) (vs : list value)
 (* Steps                                                                    *)
 (* ======================================================================== *)
 
-(* A call. The body of the code runs as FlambdaSemanticsSpec.call_function
-   has it, but with its return and exception continuations standing for
-   nothing; the stack has the call, and the handler that the body starts
-   with. *)
+(* A call: what FlambdaSemanticsSpec.shape_of_call says it is, made
+   under the stack. A partial application is given to the return
+   continuation of the call, and nothing is put on the stack. *)
 Definition stack_call (ap : apply_expr) (vars : env) (conts : cont_env)
     (statics : static_env) (st : stack) : stack_result :=
   match
@@ -226,27 +323,12 @@ Definition stack_call (ap : apply_expr) (vars : env) (conts : cont_env)
     eval_simples vars (exn_extra_simples ap)
   with
   | Some callee, Some vs, Some extra =>
-    match closure_of statics callee with
-    | Some (called, _) =>
-      match lookup called (static_code statics) with
-      | Some c =>
-        let ret := code_return_continuation c in
-        let exn := code_exn_continuation c in
-        match
-          call_function callee (ap_call_kind ap) vs (ap_args_arity ap)
-            (ap_return_arity ap) (Outer ret) (Outer exn) statics
-        with
-        | Step s =>
-          Stack_step s
-            (Trap (Outer exn)
-             :: Call ret exn (resolve (ap_continuation ap) conts) extra
-             :: st)
-        | Exit _ _ | Undefined => Stack_undefined
-        end
-      | None => Stack_undefined
-      end
-    | None => Stack_undefined
-    end
+    let return_to := resolve (ap_continuation ap) conts in
+    stack_run_call
+      (fun partial => stack_enter return_to [partial] statics st)
+      (shape_of_call statics callee (ap_call_kind ap) vs (ap_args_arity ap)
+         (ap_return_arity ap))
+      (ap_return_arity ap) return_to extra statics st
   | _, _, _ => Stack_undefined
   end.
 
@@ -267,7 +349,8 @@ Definition stack_apply_cont (ac : apply_cont) (vars : env)
       else
         match st with
         | Trap _ :: rest => stack_enter c vs statics rest
-        | [] | Call _ _ _ _ :: _ => Stack_undefined
+        | [] | Call _ _ _ _ :: _ | Call_then _ _ _ _ _ _ _ :: _ =>
+          Stack_undefined
         end
     end
   | None => Stack_undefined
@@ -512,8 +595,9 @@ Definition raises_not_as_marked_statement : Prop :=
    on states. A handler installed, and the continuation that a call
    returns to, are continuation values, and are renamed as such. The two
    continuations of the code of a call in progress are names, and are
-   renamed. The extra arguments of a call are values, which hold no
-   variables or continuations. *)
+   renamed. The extra arguments of a call, and the arguments that
+   remain of an over-application, are values, which hold no variables
+   or continuations. *)
 Definition rename_stack_entry (r : renaming) (entry : stack_entry)
     : stack_entry :=
   match entry with
@@ -521,6 +605,11 @@ Definition rename_stack_entry (r : renaming) (entry : stack_entry)
   | Call ret exn return_to extra =>
     Call (rename_continuation r ret) (rename_continuation r exn)
       (rename_cont_value r return_to) extra
+  | Call_then ret exn remaining remaining_arity return_arity return_to
+      extra =>
+    Call_then (rename_continuation r ret) (rename_continuation r exn)
+      remaining remaining_arity return_arity (rename_cont_value r return_to)
+      extra
   end.
 
 Definition rename_stack (r : renaming) (st : stack) : stack :=

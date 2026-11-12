@@ -395,7 +395,10 @@ Definition lift_unit (L : lifting) (e : expr) : option expr :=
    closure of a set with named function slots, [statics'] binds the
    symbols of the whole set, each to the closure at its slot
    ([static_set_bound]), and the set has a symbol for each function
-   slot. A constant is lifted to itself only, and so is a symbol.
+   slot. A constant is lifted to itself only, and so is a symbol. A
+   partial application is lifted to a partial application, of the value
+   it calls lifted, to its arguments lifted, at the same arity: none is
+   made a symbol.
 
    The relation speaks of the second static environment only. A symbol
    is related to itself whatever it is bound to, in either run
@@ -436,6 +439,13 @@ Inductive value_lifted (statics' : static_env) : value -> value -> Prop :=
     value_lifted statics'
       (Value_closure_of_set slot function_decls value_slots)
       (Value_closure_of_set slot function_decls value_slots')
+  | Lifted_partial_application (callee callee' : value)
+      (args args' : list value) (args_arity : arity) :
+    value_lifted statics' callee callee' ->
+    Forall2 (value_lifted statics') args args' ->
+    value_lifted statics'
+      (Value_partial_application callee args args_arity)
+      (Value_partial_application callee' args' args_arity)
   | Lifted_to_boxed_number (c : const) (s : symbol) :
     lookup s (static_values statics')
     = Some (Static_boxed_number (Value_const c)) ->

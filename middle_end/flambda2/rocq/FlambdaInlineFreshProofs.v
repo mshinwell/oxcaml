@@ -130,7 +130,8 @@ Lemma opened_inlinable (ap : apply_expr) (c : code) (r : renaming)
   inlinable ap (open_code fresh c) r.
 Proof.
   intros
-    (Hclosed & Hdistinct & Hvars & Hret & Hexn & Hextra & Harity & Hstatics)
+    (Hclosed & Hdistinct & Hvars & Hret & Hexn & Hextra & Harity & Hfull
+     & Hstatics)
     Hlength Houtside.
   apply distinct_outside_app in Houtside as [Houtside [_ Hargs]].
   pose proof (open_code_variables fresh c Hlength Hdistinct Houtside)
@@ -175,6 +176,7 @@ Proof.
   { intros param Hin. apply Hnot_free. unfold code_variables.
     apply among_In in Hin. rewrite among_cons, Hin. apply orb_true_r. }
   split; [ rewrite open_code_arity; exact Harity | ].
+  split; [ destruct c; exact Hfull | ].
   rewrite open_code_body, rename_binds_statics. exact Hstatics.
 Qed.
 

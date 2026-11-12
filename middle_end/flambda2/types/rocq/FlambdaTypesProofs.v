@@ -335,7 +335,7 @@ Qed.
 Theorem inline_identity : inline_identity_statement.
 Proof.
   intros called x my_closure ret exn metadata callee arg k k_exn args_arity
-    return_arity Hcode_conts Hcall_conts Hx Hmy_closure.
+    return_arity Hcode_conts Hcall_conts Hx Hmy_closure Hfull.
   set (bindings :=
     [Bind_code called (identity_code x my_closure ret exn metadata)]).
   set (ap :=
@@ -370,7 +370,8 @@ Proof.
         [ exact (Hmy_closure Hhead) | inversion Hrest ].
     - intros param [<- | []]. unfold var_free_in_simples. intros Hfree.
       inversion Hfree as [? ? Hhead | ? ? Hrest];
-        [ exact (Hx Hhead) | inversion Hrest ]. }
+        [ exact (Hx Hhead) | inversion Hrest ].
+    - exact Hfull. }
   (* the parameter replaced by the argument, under the bindings *)
   assert (Hparam :
     expr_refines

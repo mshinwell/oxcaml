@@ -171,22 +171,22 @@ Lemma step_invalid (vars : env) (conts : cont_env) (statics : static_env) :
   step (State Invalid vars conts statics) = Undefined.
 Proof. reflexivity. Qed.
 
-(* A continuation with extra arguments is, in the end, a handler or a way
-   out, applied to more arguments: [cont_target] is which, and
-   [cont_args] the arguments it is applied to when the continuation is
-   applied to [vs]. A proof about applying a continuation rewrites with
-   [apply_cont_value_target] and goes by the two cases of
-   [cont_target_cases]. *)
+(* A continuation with extra arguments is, in the end, a handler, a way
+   out or what is left of an over-application, applied to more
+   arguments: [cont_target] is which, and [cont_args] the arguments it
+   is applied to when the continuation is applied to [vs]. A proof about
+   applying a continuation rewrites with [apply_cont_value_target] and
+   goes by the three cases of [cont_target_cases]. *)
 Fixpoint cont_target (c : cont_value) : cont_value :=
   match c with
   | Extra_args c _ => cont_target c
-  | Closure _ _ _ _ | Outer _ => c
+  | Closure _ _ _ _ | Outer _ | Over_application _ _ _ _ _ => c
   end.
 
 Fixpoint cont_args (c : cont_value) (vs : list value) : list value :=
   match c with
   | Extra_args c extra => cont_args c (vs ++ extra)
-  | Closure _ _ _ _ | Outer _ => vs
+  | Closure _ _ _ _ | Outer _ | Over_application _ _ _ _ _ => vs
   end.
 
 Lemma apply_cont_value_target (c : cont_value) (vs : list value)
@@ -195,50 +195,49 @@ Lemma apply_cont_value_target (c : cont_value) (vs : list value)
   = apply_cont_value (cont_target c) (cont_args c vs) statics.
 Proof.
   revert vs.
-  induction c as [h def_vars def_conts recursive | k | c IH extra];
-    intros vs; simpl; [ reflexivity | reflexivity | apply IH ].
+  induction c
+    as [h def_vars def_conts recursive | k | c IH extra
+       | remaining remaining_arity return_arity return_to _ exn_to _];
+    intros vs; [ reflexivity | reflexivity | apply IH | reflexivity ].
 Qed.
 
 Lemma cont_target_cases (c : cont_value) :
   (∃ (h : continuation_handler) (def_vars : env) (def_conts : cont_env)
      (recursive : list (continuation * continuation_handler)),
     cont_target c = Closure h def_vars def_conts recursive)
-  ∨ (∃ k : continuation, cont_target c = Outer k).
+  ∨ (∃ k : continuation, cont_target c = Outer k)
+  ∨ (∃ (remaining : list value) (remaining_arity return_arity : arity)
+       (return_to exn_to : cont_value),
+      cont_target c
+      = Over_application remaining remaining_arity return_arity return_to
+          exn_to).
 Proof.
-  induction c as [h def_vars def_conts recursive | k | c IH extra]; simpl.
+  induction c
+    as [h def_vars def_conts recursive | k | c IH extra
+       | remaining remaining_arity return_arity return_to _ exn_to _];
+    simpl.
   - left. exists h, def_vars, def_conts, recursive. reflexivity.
-  - right. exists k. reflexivity.
+  - right. left. exists k. reflexivity.
   - exact IH.
+  - right. right.
+    exists remaining, remaining_arity, return_arity, return_to, exn_to.
+    reflexivity.
 Qed.
 
 Lemma cont_target_not_extra_args (c c' : cont_value) (extra : list value) :
   cont_target c <> Extra_args c' extra.
 Proof.
   destruct (cont_target_cases c)
-    as [(h & def_vars & def_conts & recursive & ->) | (k & ->)];
+    as [(h & def_vars & def_conts & recursive & ->)
+       | [(k & ->)
+         | (remaining & remaining_arity & return_arity & return_to & exn_to
+            & ->)]];
     discriminate.
 Qed.
 
 Lemma cont_target_with_extra_args (c : cont_value) (extra : list value) :
   cont_target (with_extra_args c extra) = cont_target c.
 Proof. destruct extra; reflexivity. Qed.
-
-(* Applying a continuation leaves the static environment as it is. *)
-Lemma apply_cont_value_statics (c : cont_value) (vs : list value)
-    (statics : static_env) (s : state) :
-  apply_cont_value c vs statics = Step s -> state_statics s = statics.
-Proof.
-  revert vs.
-  induction c as [[params metadata handler] def_vars def_conts recursive | k
-                 | c IH extra];
-    intros vs; simpl.
-  - destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
-      [ | discriminate ].
-    destruct (bind_params params vs def_vars); [ | discriminate ].
-    intros [= <-]. reflexivity.
-  - discriminate.
-  - apply IH.
-Qed.
 
 (* The two ways in which an [Apply_cont] does not go wrong: its
    continuation stands for a handler, which runs under the environments of
@@ -314,12 +313,125 @@ Proof.
   reflexivity.
 Qed.
 
-(* The way in which an [Apply] does not go wrong: its callee is a closure
-   of code that is bound, the code named if the call is direct, whose
-   body binds nothing static and has as many parameters as there are
-   arguments, the extra arguments of its exception continuation have
-   values, and the call agrees with the code in the three ways of
-   [call_function]. The body runs with [my_closure] bound to the callee,
+(* A closure is not a partial application, and a call of it is what
+   [shape_of_closure_call] says. *)
+Lemma closure_not_partial (statics : static_env) (v : value)
+    (closure : code_id * list (value_slot * value)) :
+  closure_of statics v = Some closure -> partial_application_of v = None.
+Proof. destruct v; simpl; try reflexivity. discriminate. Qed.
+
+Lemma shape_of_call_closure (statics : static_env) (callee : value)
+    (kind : call_kind) (vs : list value) (args_arity return_arity : arity) :
+  partial_application_of callee = None ->
+  shape_of_call statics callee kind vs args_arity return_arity
+  = shape_of_closure_call statics callee kind vs args_arity return_arity.
+Proof.
+  intros Hpartial. unfold shape_of_call. rewrite Hpartial.
+  destruct kind; reflexivity.
+Qed.
+
+(* The call of a closure of code that is bound, the code named if the
+   call is direct: full where the arguments are as many as the
+   parameters, and otherwise what the tests of arities say. A direct
+   call of a closure of the code named is what an indirect one is. *)
+Lemma shape_of_closure_call_full (statics : static_env) (closure : value)
+    (kind : call_kind) (vs : list value) (args_arity return_arity : arity)
+    (called : code_id) (slots : list (value_slot * value)) (c : code) :
+  closure_of statics closure = Some (called, slots) ->
+  kind = Indirect ∨ kind = Direct called ->
+  lookup called (static_code statics) = Some c ->
+  length args_arity = length (code_params_arity c) ->
+  shape_of_closure_call statics closure kind vs args_arity return_arity
+  = Some (Full_call closure c vs args_arity).
+Proof.
+  intros Hclosure Hkind Hcode Hfull. unfold shape_of_closure_call.
+  rewrite Hclosure.
+  assert (Hexpected :
+    match kind with
+    | Direct named => Pos.eqb called named
+    | Indirect => true
+    end = true)
+    by (destruct Hkind as [-> | ->]; [ reflexivity | apply Pos.eqb_refl ]).
+  rewrite Hexpected, Hcode, Hfull, Nat.eqb_refl. reflexivity.
+Qed.
+
+Lemma shape_of_closure_call_not_full (statics : static_env)
+    (closure : value) (kind : call_kind) (vs : list value)
+    (args_arity return_arity : arity) (called : code_id)
+    (slots : list (value_slot * value)) (c : code) :
+  closure_of statics closure = Some (called, slots) ->
+  kind = Indirect ∨ kind = Direct called ->
+  lookup called (static_code statics) = Some c ->
+  length args_arity <> length (code_params_arity c) ->
+  shape_of_closure_call statics closure kind vs args_arity return_arity
+  = if
+      negb
+        (kinds_eqb (map kind_of_value vs) (unarize args_arity)
+         && partial_or_over_application args_arity return_arity
+              (code_params_arity c) (code_result_arity c))
+    then None
+    else if Nat.ltb (length (code_params_arity c)) (length args_arity)
+    then
+      Some
+        (Over_call closure c
+           (firstn (cardinal_unarized (code_params_arity c)) vs)
+           (skipn (cardinal_unarized (code_params_arity c)) vs)
+           (firstn (length (code_params_arity c)) args_arity)
+           (partially_apply args_arity (length (code_params_arity c))))
+    else Some (Partial_call (Value_partial_application closure vs args_arity)).
+Proof.
+  intros Hclosure Hkind Hcode Hcount. unfold shape_of_closure_call.
+  rewrite Hclosure.
+  assert (Hexpected :
+    match kind with
+    | Direct named => Pos.eqb called named
+    | Indirect => true
+    end = true)
+    by (destruct Hkind as [-> | ->]; [ reflexivity | apply Pos.eqb_refl ]).
+  apply Nat.eqb_neq in Hcount. rewrite Hexpected, Hcode, Hcount. reflexivity.
+Qed.
+
+Lemma shape_of_closure_call_kind (statics : static_env) (closure : value)
+    (kind : call_kind) (vs : list value) (args_arity return_arity : arity)
+    (called : code_id) (slots : list (value_slot * value)) :
+  closure_of statics closure = Some (called, slots) ->
+  kind = Indirect ∨ kind = Direct called ->
+  shape_of_closure_call statics closure kind vs args_arity return_arity
+  = shape_of_closure_call statics closure Indirect vs args_arity
+      return_arity.
+Proof.
+  intros Hclosure [-> | ->]; [ reflexivity | ].
+  unfold shape_of_closure_call. rewrite Hclosure, Pos.eqb_refl. reflexivity.
+Qed.
+
+Lemma eval_simples_app (vars : env) (args args' : list simple) :
+  eval_simples vars (args ++ args')
+  = match eval_simples vars args, eval_simples vars args' with
+    | Some vs, Some vs' => Some (vs ++ vs')
+    | _, _ => None
+    end.
+Proof.
+  induction args as [ | s args IH]; simpl.
+  - destruct (eval_simples vars args'); reflexivity.
+  - destruct (eval_simple vars s) as [v | ]; simpl; [ | reflexivity ].
+    rewrite IH.
+    destruct (eval_simples vars args) as [vs | ]; simpl; [ | reflexivity ].
+    destruct (eval_simples vars args'); reflexivity.
+Qed.
+
+Lemma shape_of_call_direct (statics : static_env) (callee : value)
+    (named : code_id) (vs : list value) (args_arity return_arity : arity) :
+  shape_of_call statics callee (Direct named) vs args_arity return_arity
+  = shape_of_closure_call statics callee (Direct named) vs args_arity
+      return_arity.
+Proof. reflexivity. Qed.
+
+(* The way in which a full call does not go wrong: its callee is a
+   closure of code that is bound, the code named if the call is direct,
+   whose body binds nothing static and has as many parameters as there
+   are arguments, the extra arguments of its exception continuation
+   have values, and the call agrees with the code in the three ways of
+   [call_code]. The body runs with [my_closure] bound to the callee,
    which for a closure of a set is the closure at the slot of that
    code. *)
 Lemma step_apply_closure (ap : apply_expr) (vars : env) (conts : cont_env)
@@ -351,15 +463,30 @@ Proof.
   intros Hcallee Hargs Hextra Hclosure Hkind Hcode Hbinds Hkinds Hparams
     Hresult Hbind.
   rewrite step_apply, Hcallee, Hargs, Hextra. unfold call_function.
-  rewrite Hclosure.
+  rewrite (shape_of_call_closure statics callee _ _ _ _
+             (closure_not_partial statics callee _ Hclosure)).
+  unfold shape_of_closure_call. rewrite Hclosure.
   assert (Hexpected :
     match ap_call_kind ap with
     | Direct named => Pos.eqb called named
     | Indirect => true
     end = true)
     by (destruct Hkind as [-> | ->]; [ reflexivity | apply Pos.eqb_refl ]).
-  rewrite Hexpected, Hcode, Hbinds, Hkinds, Hparams, Hresult, Hbind.
-  reflexivity.
+  rewrite Hexpected, Hcode.
+  assert (Hcount :
+    Nat.eqb (length (ap_args_arity ap)) (length (code_params_arity c)) = true).
+  { apply Nat.eqb_eq. pose proof Hparams as Hsame.
+    unfold kinds_per_parameter_eqb in Hsame.
+    destruct
+      (list_eq_dec (list_eq_dec kind_eq_dec)
+         (unarize_per_parameter (ap_args_arity ap))
+         (unarize_per_parameter (code_params_arity c)))
+      as [Hequal | ]; [ | discriminate ].
+    unfold unarize_per_parameter in Hequal.
+    rewrite <- (length_map unarize_component (ap_args_arity ap)), Hequal.
+    apply length_map. }
+  rewrite Hcount. simpl. unfold call_code.
+  rewrite Hbinds, Hkinds, Hparams, Hresult, Hbind. reflexivity.
 Qed.
 
 (* The [Let] of a closure of a new set, and of the projection of a
@@ -468,7 +595,7 @@ Theorem closure_in_set_of : closure_in_set_of_statement.
 Proof.
   intros statics v code value_slots. unfold closure_of, closure_in_set.
   destruct v as [c | code' slots | slot decls slots | s | tag fields
-    | contents | l];
+    | contents | l | pa_callee pa_args pa_arity];
     [ | | | | split; [ discriminate | intros (slot & decls & [=] & _) ] .. ].
   - split; [ discriminate | intros (slot & decls & [=] & _) ].
   - split.
@@ -500,7 +627,8 @@ Qed.
 Theorem closure_in_set_slot : closure_in_set_slot_statement.
 Proof.
   intros statics v slot decls slots. unfold closure_in_set, is_bound.
-  destruct v as [c | code vs | fslot fdecls vs | s | tag fields | contents | l];
+  destruct v as [c | code vs | fslot fdecls vs | s | tag fields | contents
+    | l | pa_callee pa_args pa_arity];
     [ | | | | discriminate .. ].
   - discriminate.
   - intros [= <- <- _]. reflexivity.
@@ -570,7 +698,7 @@ Proof.
   intros statics move_from move_to v w.
   unfold project_function_slot, closure_in_set.
   destruct v as [c | code slots | slot decls slots | s | tag fields
-    | contents | l];
+    | contents | l | pa_callee pa_args pa_arity];
     [ | | | | discriminate .. ].
   - discriminate.
   - intros Hproject.
@@ -1148,25 +1276,64 @@ Lemma closure_of_kind (statics : static_env) (v : value) (code : code_id)
   closure_of statics v = Some (code, vs) -> kind_of_value v = Value.
 Proof. destruct v; try discriminate; reflexivity. Qed.
 
-(* A call that is not undefined: the callee is a closure of code that is
-   bound, the arguments are of the kinds of the call's arity, the call
-   is made at the arities of the code, and the body runs with the
-   parameters bound. *)
-Lemma call_function_step (callee : value) (kind : call_kind)
-    (vs : list value) (args_arity return_arity : arity)
-    (return_to exn_to : cont_value) (statics : static_env) (s : state) :
-  call_function callee kind vs args_arity return_arity return_to exn_to
-    statics
+(* What is left of an over-application, applied: an indirect call of the
+   one value it is given, with the arguments that remain. *)
+Lemma apply_cont_value_over_application (remaining : list value)
+    (remaining_arity return_arity : arity) (return_to exn_to : cont_value)
+    (vs : list value) (statics : static_env) :
+  apply_cont_value
+    (Over_application remaining remaining_arity return_arity return_to exn_to)
+    vs statics
+  = match vs with
+    | [v] =>
+      call_function v Indirect remaining remaining_arity return_arity
+        return_to exn_to statics
+    | _ => Undefined
+    end.
+Proof. destruct vs as [ | v [ | v' vs]]; reflexivity. Qed.
+
+(* Induction on what a continuation stands for, through extra arguments
+   and what is left of an over-application; the continuations that a
+   closure keeps are not gone into. *)
+Lemma cont_value_over_ind (P : cont_value -> Prop) :
+  (∀ (h : continuation_handler) (vars : env)
+     (conts : list (continuation * cont_value))
+     (recursive : list (continuation * continuation_handler)),
+    P (Closure h vars conts recursive)) ->
+  (∀ k : continuation, P (Outer k)) ->
+  (∀ c : cont_value, P c -> ∀ extra : list value, P (Extra_args c extra)) ->
+  (∀ (remaining : list value) (remaining_arity return_arity : arity)
+     (return_to exn_to : cont_value),
+    P return_to -> P exn_to ->
+    P (Over_application remaining remaining_arity return_arity return_to
+         exn_to)) ->
+  ∀ c : cont_value, P c.
+Proof.
+  intros Hclosure Houter Hextra Hover.
+  fix IH 1. intros [h vars conts recursive | k | c extra
+    | remaining remaining_arity return_arity return_to exn_to].
+  - apply Hclosure.
+  - apply Houter.
+  - apply Hextra, IH.
+  - apply Hover; apply IH.
+Qed.
+
+(* A full call that is not undefined: the body binds nothing static,
+   the arguments are of the kinds of the call's arity, the call is made
+   at the arities of the code, and the body runs with the parameters
+   bound. *)
+Lemma call_code_step (closure : value) (c : code) (vs : list value)
+    (args_arity return_arity : arity) (return_to exn_to : cont_value)
+    (statics : static_env) (s : state) :
+  call_code closure c vs args_arity return_arity return_to exn_to statics
   = Step s ->
-  ∃ (called : code_id) (value_slots : list (value_slot * value)) (c : code)
-    (callee_vars : env),
-    closure_of statics callee = Some (called, value_slots)
-    ∧ lookup called (static_code statics) = Some c
+  ∃ callee_vars : env,
+    binds_statics (code_body c) = false
     ∧ map kind_of_value vs = unarize args_arity
     ∧ unarize_per_parameter args_arity
       = unarize_per_parameter (code_params_arity c)
     ∧ return_arity = code_result_arity c
-    ∧ bind_params (code_params c) vs [(code_my_closure c, callee)]
+    ∧ bind_params (code_params c) vs [(code_my_closure c, closure)]
       = Some callee_vars
     ∧ s
       = State (code_body c) callee_vars
@@ -1174,17 +1341,7 @@ Lemma call_function_step (callee : value) (kind : call_kind)
            (code_exn_continuation c, exn_to)]
           statics.
 Proof.
-  unfold call_function.
-  destruct (closure_of statics callee) as [[called value_slots] | ];
-    [ | discriminate ].
-  destruct
-    (match kind with
-     | Direct named => Pos.eqb called named
-     | Indirect => true
-     end);
-    [ | discriminate ].
-  destruct (lookup called (static_code statics)) as [c | ] eqn:Hlookup;
-    [ | discriminate ].
+  unfold call_code.
   destruct (binds_statics (code_body c)); [ discriminate | ].
   destruct
     (kinds_eqb (map kind_of_value vs) (unarize args_arity)
@@ -1196,40 +1353,30 @@ Proof.
   apply andb_true_iff in Hagree as [Hkinds Hargs].
   apply kinds_eqb_eq in Hkinds. apply kinds_per_parameter_eqb_eq in Hargs.
   apply arity_eqb_eq in Hreturn.
-  destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
+  destruct (bind_params (code_params c) vs [(code_my_closure c, closure)])
     as [callee_vars | ] eqn:Hbind; [ | discriminate ].
-  intros [= <-]. exists called, value_slots, c, callee_vars. auto 7.
+  intros [= <-]. exists callee_vars. auto 7.
 Qed.
 
-(* A call is undefined, or runs a body under variables that depend on the
-   callee, the arguments and the static environment only, with the code's
-   two continuations bound to what the caller gave. *)
-Lemma call_function_cases (callee : value) (kind : call_kind)
-    (vs : list value) (args_arity return_arity : arity)
-    (statics : static_env) :
+(* A full call is undefined, or runs the body of the code under
+   variables that depend on the closure and the arguments only, with the
+   code's two continuations bound to what the caller gave. *)
+Lemma call_code_cases (closure : value) (c : code) (vs : list value)
+    (args_arity return_arity : arity) (statics : static_env) :
   (∀ return_to exn_to : cont_value,
-    call_function callee kind vs args_arity return_arity return_to exn_to
-      statics
+    call_code closure c vs args_arity return_arity return_to exn_to statics
     = Undefined)
-  ∨ (∃ (body : expr) (callee_vars : env) (ret exn : continuation),
+  ∨ (∃ callee_vars : env,
       ∀ return_to exn_to : cont_value,
-        call_function callee kind vs args_arity return_arity return_to
-          exn_to statics
+        call_code closure c vs args_arity return_arity return_to exn_to
+          statics
         = Step
-            (State body callee_vars [(ret, return_to); (exn, exn_to)]
+            (State (code_body c) callee_vars
+               [(code_return_continuation c, return_to);
+                (code_exn_continuation c, exn_to)]
                statics)).
 Proof.
-  unfold call_function.
-  destruct (closure_of statics callee) as [[called slots] | ];
-    [ | left; reflexivity ].
-  destruct
-    (match kind with
-     | Direct named => Pos.eqb called named
-     | Indirect => true
-     end);
-    [ | left; reflexivity ].
-  destruct (lookup called (static_code statics)) as [c | ];
-    [ | left; reflexivity ].
+  unfold call_code.
   destruct (binds_statics (code_body c)); [ left; reflexivity | ].
   destruct
     (negb
@@ -1238,9 +1385,561 @@ Proof.
              (unarize_per_parameter (code_params_arity c))
         && arity_eqb return_arity (code_result_arity c)));
     [ left; reflexivity | ].
-  destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
+  destruct (bind_params (code_params c) vs [(code_my_closure c, closure)])
     as [callee_vars | ]; [ | left; reflexivity ].
   right. eauto.
+Qed.
+
+(* What the call of a closure is, where it is something: the closure is
+   one of code that is bound, the code named if the call is direct, and
+   the call is full, or an over-application, or a partial application,
+   by the number of its arguments. *)
+Lemma shape_of_closure_call_cases (statics : static_env) (closure : value)
+    (kind : call_kind) (vs : list value) (args_arity return_arity : arity)
+    (shape : call_shape) :
+  shape_of_closure_call statics closure kind vs args_arity return_arity
+  = Some shape ->
+  ∃ (called : code_id) (slots : list (value_slot * value)) (c : code),
+    closure_of statics closure = Some (called, slots)
+    ∧ lookup called (static_code statics) = Some c
+    ∧ (∀ named : code_id, kind = Direct named -> called = named)
+    ∧ (length args_arity = length (code_params_arity c)
+       ∧ shape = Full_call closure c vs args_arity
+       ∨ length (code_params_arity c) < length args_arity
+         ∧ map kind_of_value vs = unarize args_arity
+         ∧ partial_or_over_application args_arity return_arity
+             (code_params_arity c) (code_result_arity c)
+           = true
+         ∧ shape
+           = Over_call closure c
+               (firstn (cardinal_unarized (code_params_arity c)) vs)
+               (skipn (cardinal_unarized (code_params_arity c)) vs)
+               (firstn (length (code_params_arity c)) args_arity)
+               (partially_apply args_arity (length (code_params_arity c)))
+       ∨ length args_arity < length (code_params_arity c)
+         ∧ map kind_of_value vs = unarize args_arity
+         ∧ partial_or_over_application args_arity return_arity
+             (code_params_arity c) (code_result_arity c)
+           = true
+         ∧ shape
+           = Partial_call (Value_partial_application closure vs args_arity)).
+Proof.
+  unfold shape_of_closure_call.
+  destruct (closure_of statics closure) as [[called slots] | ] eqn:Hclosure;
+    [ | discriminate ].
+  destruct
+    (match kind with
+     | Direct named => Pos.eqb called named
+     | Indirect => true
+     end)
+    eqn:Hexpected; [ | discriminate ].
+  destruct (lookup called (static_code statics)) as [c | ] eqn:Hcode;
+    [ | discriminate ].
+  intros Hshape. exists called, slots, c.
+  split; [ reflexivity | ]. split; [ exact Hcode | ].
+  split; [ intros named ->; apply Pos.eqb_eq; exact Hexpected | ].
+  destruct (Nat.eqb (length args_arity) (length (code_params_arity c)))
+    eqn:Hcount.
+  - left. injection Hshape as <-.
+    split; [ apply Nat.eqb_eq; exact Hcount | reflexivity ].
+  - apply Nat.eqb_neq in Hcount.
+    destruct
+      (kinds_eqb (map kind_of_value vs) (unarize args_arity)
+       && partial_or_over_application args_arity return_arity
+            (code_params_arity c) (code_result_arity c))
+      eqn:Htests; simpl in Hshape; [ | discriminate ].
+    apply andb_true_iff in Htests as [Hkinds Htest].
+    apply kinds_eqb_eq in Hkinds.
+    destruct (Nat.ltb (length (code_params_arity c)) (length args_arity))
+      eqn:Hover; injection Hshape as <-.
+    + apply Nat.ltb_lt in Hover. right. left. auto.
+    + apply Nat.ltb_ge in Hover. right. right.
+      split; [ lia | auto ].
+Qed.
+
+(* What a call is, where it is something: the call of the callee, a
+   closure; or, the call being indirect and giving one argument at
+   least, that of the closure of a partial application with the
+   arguments so far and then those of the call. *)
+Lemma shape_of_call_cases (statics : static_env) (callee : value)
+    (kind : call_kind) (vs : list value) (args_arity return_arity : arity)
+    (shape : call_shape) :
+  shape_of_call statics callee kind vs args_arity return_arity = Some shape ->
+  shape_of_closure_call statics callee kind vs args_arity return_arity
+  = Some shape
+  ∨ ∃ (closure : value) (applied : list value) (applied_arity : arity),
+      kind = Indirect
+      ∧ callee = Value_partial_application closure applied applied_arity
+      ∧ args_arity <> []
+      ∧ shape_of_closure_call statics closure Indirect (applied ++ vs)
+          (applied_arity ++ args_arity) return_arity
+        = Some shape.
+Proof.
+  unfold shape_of_call.
+  destruct kind as [named | ]; [ intros Hshape; left; exact Hshape | ].
+  destruct callee
+    as [k | code slots | slot decls slots | s | tag fields | contents
+       | l | closure applied applied_arity];
+    simpl; try (intros Hshape; left; exact Hshape).
+  destruct args_arity as [ | component args_arity]; [ discriminate | ].
+  destruct (kinds_eqb _ _); [ | discriminate ].
+  intros Hshape. right. exists closure, applied, applied_arity.
+  split; [ reflexivity | ]. split; [ reflexivity | ].
+  split; [ discriminate | exact Hshape ].
+Qed.
+
+(* The closure and the code of a call that calls something are a closure
+   of that code, which is bound, and is the code named if the call is
+   direct. *)
+Definition shape_calls (statics : static_env) (kind : call_kind)
+    (shape : option call_shape) : Prop :=
+  match shape with
+  | Some (Full_call closure c _ _) | Some (Over_call closure c _ _ _ _) =>
+    ∃ (called : code_id) (slots : list (value_slot * value)),
+      closure_of statics closure = Some (called, slots)
+      ∧ lookup called (static_code statics) = Some c
+      ∧ ∀ named : code_id, kind = Direct named -> called = named
+  | Some (Partial_call _) | None => True
+  end.
+
+Lemma shape_of_closure_call_calls (statics : static_env) (closure : value)
+    (kind : call_kind) (vs : list value) (args_arity return_arity : arity) :
+  shape_calls statics kind
+    (shape_of_closure_call statics closure kind vs args_arity return_arity).
+Proof.
+  destruct
+    (shape_of_closure_call statics closure kind vs args_arity return_arity)
+    as [shape | ] eqn:Hshape; [ | exact I ].
+  destruct (shape_of_closure_call_cases _ _ _ _ _ _ _ Hshape)
+    as (called & slots & c & Hcode & Hlookup & Hnamed
+        & [[_ ->] | [(_ & _ & _ & ->) | (_ & _ & _ & ->)]]);
+    simpl; [ | | exact I ]; exists called, slots; auto.
+Qed.
+
+Lemma shape_of_call_calls (statics : static_env) (callee : value)
+    (kind : call_kind) (vs : list value) (args_arity return_arity : arity) :
+  shape_calls statics kind
+    (shape_of_call statics callee kind vs args_arity return_arity).
+Proof.
+  destruct (shape_of_call statics callee kind vs args_arity return_arity)
+    as [shape | ] eqn:Hshape; [ | exact I ].
+  destruct (shape_of_call_cases _ _ _ _ _ _ _ Hshape)
+    as [H | (closure & applied & applied_arity & -> & _ & _ & H)];
+    rewrite <- H; apply shape_of_closure_call_calls.
+Qed.
+
+(* What the tests of arities give of a call that is not full: the code
+   of an over-application returns one [Value], and a partial application
+   is of kind [Value] and is made by a call that expects one [Value]. *)
+Lemma is_one_param_of_kind_value_eq (a : arity) :
+  is_one_param_of_kind_value a = true -> a = [Singleton Value].
+Proof.
+  destruct a as [ | [[ | n | | ] | components] [ | c a]]; simpl; intros H;
+    try discriminate H.
+  reflexivity.
+Qed.
+
+Definition shape_arities (return_arity : arity) (shape : option call_shape)
+    : Prop :=
+  match shape with
+  | Some (Over_call _ c _ _ _ _) => code_result_arity c = [Singleton Value]
+  | Some (Partial_call partial) =>
+    return_arity = [Singleton Value] ∧ kind_of_value partial = Value
+  | Some (Full_call _ _ _ _) | None => True
+  end.
+
+Lemma shape_of_closure_call_arities (statics : static_env) (closure : value)
+    (kind : call_kind) (vs : list value) (args_arity return_arity : arity) :
+  shape_arities return_arity
+    (shape_of_closure_call statics closure kind vs args_arity return_arity).
+Proof.
+  destruct
+    (shape_of_closure_call statics closure kind vs args_arity return_arity)
+    as [shape | ] eqn:Hshape; [ | exact I ].
+  destruct (shape_of_closure_call_cases _ _ _ _ _ _ _ Hshape)
+    as (called & slots & c & _ & _ & _
+        & [[_ ->] | [(Hlt & _ & Htest & ->) | (Hlt & _ & Htest & ->)]]);
+    simpl; [ exact I | | ];
+    unfold partial_or_over_application in Htest; cbv zeta in Htest;
+    apply andb_true_iff in Htest as [_ Htest].
+  - apply Nat.ltb_lt in Hlt. rewrite Hlt in Htest.
+    exact (is_one_param_of_kind_value_eq _ Htest).
+  - assert (Hge :
+      Nat.ltb (length (code_params_arity c)) (length args_arity) = false)
+      by (apply Nat.ltb_ge; lia).
+    rewrite Hge in Htest. apply andb_true_iff in Htest as [_ Htest].
+    split; [ exact (is_one_param_of_kind_value_eq _ Htest) | reflexivity ].
+Qed.
+
+Lemma shape_of_call_arities (statics : static_env) (callee : value)
+    (kind : call_kind) (vs : list value) (args_arity return_arity : arity) :
+  shape_arities return_arity
+    (shape_of_call statics callee kind vs args_arity return_arity).
+Proof.
+  destruct (shape_of_call statics callee kind vs args_arity return_arity)
+    as [shape | ] eqn:Hshape; [ | exact I ].
+  destruct (shape_of_call_cases _ _ _ _ _ _ _ Hshape)
+    as [H | (closure & applied & applied_arity & -> & _ & _ & H)];
+    rewrite <- H; apply shape_of_closure_call_arities.
+Qed.
+
+(* A call, and the application of a continuation, keep the static
+   environment. *)
+Lemma call_code_statics (closure : value) (c : code) (vs : list value)
+    (args_arity return_arity : arity) (return_to exn_to : cont_value)
+    (statics : static_env) (s' : state) :
+  call_code closure c vs args_arity return_arity return_to exn_to statics
+  = Step s' ->
+  state_statics s' = statics.
+Proof.
+  intros Hstep.
+  apply call_code_step in Hstep as (callee_vars & _ & _ & _ & _ & _ & ->).
+  reflexivity.
+Qed.
+
+Lemma run_call_statics (return_partial : value -> step_result)
+    (shape : option call_shape) (return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) (s' : state) :
+  (∀ partial : value,
+    return_partial partial = Step s' -> state_statics s' = statics) ->
+  run_call return_partial shape return_arity return_to exn_to statics
+  = Step s' ->
+  state_statics s' = statics.
+Proof.
+  intros Hpartial.
+  destruct shape
+    as [[closure c vs args_arity
+        | closure c vs remaining args_arity remaining_arity | partial] | ];
+    simpl;
+    [ apply call_code_statics | apply call_code_statics | apply Hpartial
+    | discriminate ].
+Qed.
+
+Lemma apply_cont_value_statics (c : cont_value) :
+  ∀ (vs : list value) (statics : static_env) (s' : state),
+    apply_cont_value c vs statics = Step s' -> state_statics s' = statics.
+Proof.
+  induction c
+    as [[params metadata handler] def_vars def_conts recursive | k
+       | c IH extra
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+    using cont_value_over_ind;
+    intros vs statics s' Hstep.
+  - simpl in Hstep.
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+      [ | discriminate ].
+    destruct (bind_params params vs def_vars); [ | discriminate ].
+    injection Hstep as <-. reflexivity.
+  - discriminate.
+  - exact (IH _ _ _ Hstep).
+  - rewrite apply_cont_value_over_application in Hstep.
+    destruct vs as [ | v [ | v' vs]]; [ discriminate | | discriminate ].
+    unfold call_function in Hstep.
+    apply run_call_statics in Hstep; [ exact Hstep | ].
+    intros partial. apply IHreturn.
+Qed.
+
+Lemma call_function_statics (callee : value) (kind : call_kind)
+    (vs : list value) (args_arity return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) (s' : state) :
+  call_function callee kind vs args_arity return_arity return_to exn_to
+    statics
+  = Step s' ->
+  state_statics s' = statics.
+Proof.
+  unfold call_function. apply run_call_statics.
+  intros partial. apply apply_cont_value_statics.
+Qed.
+
+(* Where a call, or the application of a continuation, lands: on the
+   body of code that is bound, with the two continuations of the code
+   standing for continuations of which [Kc] holds; or on the handler of
+   a closure of which [Kc] holds. [Kc] of a continuation with extra
+   arguments gives [Kc] of the continuation inside, and [Kc] of what is
+   left of an over-application is [Kc] of its two continuations. *)
+Section Lands.
+
+Variable statics : static_env.
+Variable Kc : cont_value -> Prop.
+Variable Q : state -> Prop.
+
+Hypothesis Kc_extra :
+  ∀ (c : cont_value) (extra : list value), Kc (Extra_args c extra) -> Kc c.
+
+Hypothesis Kc_over :
+  ∀ (remaining : list value) (remaining_arity return_arity : arity)
+    (return_to exn_to : cont_value),
+    Kc
+      (Over_application remaining remaining_arity return_arity return_to
+         exn_to)
+    <-> Kc return_to ∧ Kc exn_to.
+
+Hypothesis Q_code :
+  ∀ (called : code_id) (c : code) (callee_vars : env)
+    (return_to exn_to : cont_value),
+    lookup called (static_code statics) = Some c ->
+    Kc return_to ->
+    Kc exn_to ->
+    Q (State (code_body c) callee_vars
+         [(code_return_continuation c, return_to);
+          (code_exn_continuation c, exn_to)]
+         statics).
+
+Hypothesis Q_handler :
+  ∀ (params : list variable) (metadata : handler_metadata) (handler : expr)
+    (def_vars : env) (def_conts : cont_env)
+    (recursive : list (continuation * continuation_handler))
+    (handler_vars : env),
+    Kc
+      (Closure (Handler params metadata handler) def_vars def_conts
+         recursive) ->
+    Q (State handler handler_vars
+         (rec_closures recursive def_vars def_conts ++ def_conts) statics).
+
+Lemma call_code_lands (closure : value) (called : code_id) (c : code)
+    (vs : list value) (args_arity return_arity : arity)
+    (return_to exn_to : cont_value) (s' : state) :
+  lookup called (static_code statics) = Some c ->
+  Kc return_to ->
+  Kc exn_to ->
+  call_code closure c vs args_arity return_arity return_to exn_to statics
+  = Step s' ->
+  Q s'.
+Proof.
+  intros Hcode Hreturn Hexn Hstep.
+  apply call_code_step in Hstep as (callee_vars & _ & _ & _ & _ & _ & ->).
+  exact (Q_code called c callee_vars return_to exn_to Hcode Hreturn Hexn).
+Qed.
+
+Lemma run_call_lands (return_partial : value -> step_result)
+    (kind : call_kind) (shape : option call_shape) (return_arity : arity)
+    (return_to exn_to : cont_value) (s' : state) :
+  shape_calls statics kind shape ->
+  Kc return_to ->
+  Kc exn_to ->
+  (∀ partial : value, return_partial partial = Step s' -> Q s') ->
+  run_call return_partial shape return_arity return_to exn_to statics
+  = Step s' ->
+  Q s'.
+Proof.
+  intros Hcalls Hreturn Hexn Hpartial.
+  destruct shape
+    as [[closure c vs args_arity
+        | closure c vs remaining args_arity remaining_arity | partial] | ];
+    simpl in Hcalls |- *.
+  - destruct Hcalls as (called & slots & _ & Hcode & _).
+    exact (call_code_lands closure called c vs _ _ _ _ s' Hcode Hreturn
+             Hexn).
+  - destruct Hcalls as (called & slots & _ & Hcode & _).
+    apply (call_code_lands closure called c vs _ _ _ _ s' Hcode);
+      [ apply Kc_over; split; assumption | exact Hexn ].
+  - apply Hpartial.
+  - discriminate.
+Qed.
+
+Lemma apply_cont_value_lands (c : cont_value) :
+  ∀ (vs : list value) (s' : state),
+    Kc c -> apply_cont_value c vs statics = Step s' -> Q s'.
+Proof.
+  induction c
+    as [[params metadata handler] def_vars def_conts recursive | k
+       | c IH extra
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+    using cont_value_over_ind;
+    intros vs s' Hc Hstep.
+  - simpl in Hstep.
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+      [ | discriminate ].
+    destruct (bind_params params vs def_vars) as [handler_vars | ];
+      [ | discriminate ].
+    injection Hstep as <-.
+    exact (Q_handler params metadata handler def_vars def_conts recursive
+             handler_vars Hc).
+  - discriminate.
+  - exact (IH _ s' (Kc_extra c extra Hc) Hstep).
+  - rewrite apply_cont_value_over_application in Hstep.
+    destruct vs as [ | v [ | v' vs]]; [ discriminate | | discriminate ].
+    apply Kc_over in Hc as [Hreturn Hexn].
+    unfold call_function in Hstep.
+    apply (run_call_lands _ Indirect _ _ _ _ s'
+             (shape_of_call_calls _ _ _ _ _ _) Hreturn Hexn)
+      in Hstep; [ exact Hstep | ].
+    intros partial. exact (IHreturn [partial] s' Hreturn).
+Qed.
+
+Lemma call_function_lands (callee : value) (kind : call_kind)
+    (vs : list value) (args_arity return_arity : arity)
+    (return_to exn_to : cont_value) (s' : state) :
+  Kc return_to ->
+  Kc exn_to ->
+  call_function callee kind vs args_arity return_arity return_to exn_to
+    statics
+  = Step s' ->
+  Q s'.
+Proof.
+  intros Hreturn Hexn. unfold call_function.
+  apply (run_call_lands _ kind _ _ _ _ s'
+           (shape_of_call_calls _ _ _ _ _ _) Hreturn Hexn).
+  intros partial. exact (apply_cont_value_lands return_to _ s' Hreturn).
+Qed.
+
+End Lands.
+
+(* Calls under two static environments. The closure that a call calls:
+   the callee, or the one that a partial application keeps. *)
+Definition called_closure (callee : value) : value :=
+  match partial_application_of callee with
+  | Some (closure, _, _) => closure
+  | None => callee
+  end.
+
+(* Two calls have the same shape, with the same values, of code related
+   by [R]. *)
+Inductive shapes_related (R : code -> code -> Prop)
+    : option call_shape -> option call_shape -> Prop :=
+  | Shapes_none : shapes_related R None None
+  | Shapes_full (closure : value) (c c' : code) (vs : list value)
+      (args_arity : arity) :
+    R c c' ->
+    shapes_related R (Some (Full_call closure c vs args_arity))
+      (Some (Full_call closure c' vs args_arity))
+  | Shapes_over (closure : value) (c c' : code) (vs remaining : list value)
+      (args_arity remaining_arity : arity) :
+    R c c' ->
+    shapes_related R
+      (Some (Over_call closure c vs remaining args_arity remaining_arity))
+      (Some (Over_call closure c' vs remaining args_arity remaining_arity))
+  | Shapes_partial (partial : value) :
+    shapes_related R (Some (Partial_call partial))
+      (Some (Partial_call partial)).
+
+(* Two static environments bind a code id alike: to code related by [R]
+   with the same arities, or not at all. *)
+Definition codes_agree (R : code -> code -> Prop)
+    (statics statics' : static_env) (called : code_id) : Prop :=
+  match
+    lookup called (static_code statics), lookup called (static_code statics')
+  with
+  | Some c, Some c' =>
+    R c c'
+    ∧ code_params_arity c' = code_params_arity c
+    ∧ code_result_arity c' = code_result_arity c
+  | None, None => True
+  | _, _ => False
+  end.
+
+Lemma shape_of_closure_call_related (R : code -> code -> Prop)
+    (statics statics' : static_env) (closure : value) (kind : call_kind)
+    (vs : list value) (args_arity return_arity : arity) :
+  closure_of statics' closure = closure_of statics closure ->
+  (∀ (called : code_id) (slots : list (value_slot * value)),
+    closure_of statics closure = Some (called, slots) ->
+    codes_agree R statics statics' called) ->
+  shapes_related R
+    (shape_of_closure_call statics closure kind vs args_arity return_arity)
+    (shape_of_closure_call statics' closure kind vs args_arity return_arity).
+Proof.
+  intros Hclosure Hcodes. unfold shape_of_closure_call. rewrite Hclosure.
+  destruct (closure_of statics closure) as [[called slots] | ];
+    [ | apply Shapes_none ].
+  specialize (Hcodes called slots eq_refl). unfold codes_agree in Hcodes.
+  destruct
+    (match kind with
+     | Direct named => Pos.eqb called named
+     | Indirect => true
+     end);
+    [ | apply Shapes_none ].
+  destruct (lookup called (static_code statics)) as [c | ],
+    (lookup called (static_code statics')) as [c' | ];
+    try contradiction; [ | apply Shapes_none ].
+  destruct Hcodes as (Hc & Hparams & Hresult). rewrite Hparams, Hresult.
+  destruct (Nat.eqb (length args_arity) (length (code_params_arity c)));
+    [ apply Shapes_full; exact Hc | ].
+  destruct
+    (negb
+       (kinds_eqb (map kind_of_value vs) (unarize args_arity)
+        && partial_or_over_application args_arity return_arity
+             (code_params_arity c) (code_result_arity c)));
+    [ apply Shapes_none | ].
+  destruct (Nat.ltb (length (code_params_arity c)) (length args_arity));
+    [ apply Shapes_over; exact Hc | apply Shapes_partial ].
+Qed.
+
+Lemma shape_of_call_related (R : code -> code -> Prop)
+    (statics statics' : static_env) (callee : value) (kind : call_kind)
+    (vs : list value) (args_arity return_arity : arity) :
+  closure_of statics' (called_closure callee)
+  = closure_of statics (called_closure callee) ->
+  (∀ (called : code_id) (slots : list (value_slot * value)),
+    closure_of statics (called_closure callee) = Some (called, slots) ->
+    codes_agree R statics statics' called) ->
+  shapes_related R
+    (shape_of_call statics callee kind vs args_arity return_arity)
+    (shape_of_call statics' callee kind vs args_arity return_arity).
+Proof.
+  intros Hclosure Hcodes. unfold shape_of_call.
+  destruct kind as [named | ];
+    destruct callee
+      as [k | code slots | slot decls slots | s | tag fields | contents
+         | l | closure applied applied_arity];
+    simpl in Hclosure, Hcodes |- *;
+    try (apply shape_of_closure_call_related; assumption).
+  - apply Shapes_none.
+  - destruct args_arity as [ | component args_arity];
+      [ apply Shapes_none | ].
+    destruct (kinds_eqb _ _); [ | apply Shapes_none ].
+    apply shape_of_closure_call_related; assumption.
+Qed.
+
+(* Full calls of two codes that differ in their bodies only: undefined
+   both, or both run their bodies under the same variables. *)
+Lemma call_code_alike (closure : value) (c c' : code) (vs : list value)
+    (args_arity return_arity : arity) (statics statics' : static_env) :
+  code_params c' = code_params c ->
+  code_my_closure c' = code_my_closure c ->
+  code_return_continuation c' = code_return_continuation c ->
+  code_exn_continuation c' = code_exn_continuation c ->
+  code_params_arity c' = code_params_arity c ->
+  code_result_arity c' = code_result_arity c ->
+  binds_statics (code_body c') = binds_statics (code_body c) ->
+  (∀ return_to exn_to return_to' exn_to' : cont_value,
+    call_code closure c vs args_arity return_arity return_to exn_to statics
+    = Undefined
+    ∧ call_code closure c' vs args_arity return_arity return_to' exn_to'
+        statics'
+      = Undefined)
+  ∨ (∃ callee_vars : env,
+      ∀ return_to exn_to return_to' exn_to' : cont_value,
+        call_code closure c vs args_arity return_arity return_to exn_to
+          statics
+        = Step
+            (State (code_body c) callee_vars
+               [(code_return_continuation c, return_to);
+                (code_exn_continuation c, exn_to)]
+               statics)
+        ∧ call_code closure c' vs args_arity return_arity return_to' exn_to'
+            statics'
+          = Step
+              (State (code_body c') callee_vars
+                 [(code_return_continuation c, return_to');
+                  (code_exn_continuation c, exn_to')]
+                 statics')).
+Proof.
+  intros Hparams Hmy_closure Hret Hexn Hparams_arity Hresult_arity Hbinds.
+  unfold call_code.
+  rewrite Hparams, Hmy_closure, Hret, Hexn, Hparams_arity, Hresult_arity,
+    Hbinds.
+  destruct (binds_statics (code_body c)); [ left; split; reflexivity | ].
+  destruct
+    (negb
+       (kinds_eqb (map kind_of_value vs) (unarize args_arity)
+        && kinds_per_parameter_eqb (unarize_per_parameter args_arity)
+             (unarize_per_parameter (code_params_arity c))
+        && arity_eqb return_arity (code_result_arity c)));
+    [ left; split; reflexivity | ].
+  destruct (bind_params (code_params c) vs [(code_my_closure c, closure)])
+    as [callee_vars | ]; [ | left; split; reflexivity ].
+  right. exists callee_vars. split; reflexivity.
 Qed.
 
 (* Every parameter bound, and every variable bound before, is bound. *)
@@ -1531,6 +2230,10 @@ Proof.
   exact (Hvars (x, v) Hlookup).
 Qed.
 
+Lemma forallb_Forall {A : Type} (f : A -> bool) (l : list A) :
+  forallb f l = true <-> Forall (fun a => f a = true) l.
+Proof. rewrite forallb_forall, Forall_forall. reflexivity. Qed.
+
 Section Values_all.
 
 Variable P : value -> Prop.
@@ -1605,6 +2308,141 @@ Proof.
   split; [ split; [ exact Hvars | exact Hconts ] | exact IH ].
 Qed.
 
+(* From here on [P] of a partial application is [P] of the value it
+   calls and of its arguments. *)
+Hypothesis P_partial :
+  ∀ (callee : value) (args : list value) (args_arity : arity),
+    P (Value_partial_application callee args args_arity)
+    <-> P callee ∧ Forall P args.
+
+(* [P] of the values of a call of a given shape. *)
+Definition shape_values_all (shape : option call_shape) : Prop :=
+  match shape with
+  | Some (Full_call closure _ vs _) => P closure ∧ Forall P vs
+  | Some (Over_call closure _ vs remaining _ _) =>
+    P closure ∧ Forall P vs ∧ Forall P remaining
+  | Some (Partial_call partial) => P partial
+  | None => True
+  end.
+
+Lemma shape_of_closure_call_values_all (statics : static_env)
+    (closure : value) (kind : call_kind) (vs : list value)
+    (args_arity return_arity : arity) :
+  P closure -> Forall P vs ->
+  shape_values_all
+    (shape_of_closure_call statics closure kind vs args_arity return_arity).
+Proof.
+  intros Hclosure Hvs.
+  destruct
+    (shape_of_closure_call statics closure kind vs args_arity return_arity)
+    as [shape | ] eqn:Hshape; [ | exact I ].
+  destruct (shape_of_closure_call_cases _ _ _ _ _ _ _ Hshape)
+    as (called & slots & c & _ & _ & _
+        & [[_ ->] | [(_ & _ & _ & ->) | (_ & _ & _ & ->)]]);
+    simpl.
+  - split; assumption.
+  - rewrite <- (firstn_skipn (cardinal_unarized (code_params_arity c)) vs)
+      in Hvs.
+    apply Forall_app in Hvs. split; [ exact Hclosure | exact Hvs ].
+  - apply P_partial. split; assumption.
+Qed.
+
+Lemma shape_of_call_values_all (statics : static_env) (callee : value)
+    (kind : call_kind) (vs : list value) (args_arity return_arity : arity) :
+  P callee -> Forall P vs ->
+  shape_values_all
+    (shape_of_call statics callee kind vs args_arity return_arity).
+Proof.
+  intros Hcallee Hvs.
+  destruct (shape_of_call statics callee kind vs args_arity return_arity)
+    as [shape | ] eqn:Hshape; [ | exact I ].
+  destruct (shape_of_call_cases _ _ _ _ _ _ _ Hshape)
+    as [H | (closure & applied & applied_arity & _ & -> & _ & H)];
+    rewrite <- H.
+  - apply shape_of_closure_call_values_all; assumption.
+  - apply P_partial in Hcallee as [Hclosure Happlied].
+    apply shape_of_closure_call_values_all; [ exact Hclosure | ].
+    apply Forall_app. split; assumption.
+Qed.
+
+(* A full call of a closure that satisfies [P], with arguments that do,
+   returning to continuations whose values do. *)
+Lemma call_code_values_all (Q : state -> Prop) (closure : value) (c : code)
+    (vs : list value) (args_arity return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) :
+  P closure ->
+  Forall P vs ->
+  cont_values_all P return_to ->
+  cont_values_all P exn_to ->
+  (∀ (e : expr) (vars : env) (conts : cont_env),
+    env_values_all P vars -> conts_values_all P conts ->
+    Q (State e vars conts statics)) ->
+  match
+    call_code closure c vs args_arity return_arity return_to exn_to statics
+  with
+  | Step s' => Q s'
+  | Exit _ vs' => Forall P vs'
+  | Undefined => True
+  end.
+Proof.
+  intros Hclosure Hvs Hreturn Hexn Hstate. unfold call_code.
+  destruct (binds_statics (code_body c)); [ exact I | ].
+  destruct
+    (negb
+       (kinds_eqb (map kind_of_value vs) (unarize args_arity)
+        && kinds_per_parameter_eqb (unarize_per_parameter args_arity)
+             (unarize_per_parameter (code_params_arity c))
+        && arity_eqb return_arity (code_result_arity c)));
+    [ exact I | ].
+  destruct (bind_params (code_params c) vs [(code_my_closure c, closure)])
+    as [callee_vars | ] eqn:Hbind; [ | exact I ].
+  apply Hstate.
+  - apply (bind_params_values_all (code_params c) vs
+             [(code_my_closure c, closure)] callee_vars Hvs);
+      [ | exact Hbind ].
+    apply Forall_cons; [ exact Hclosure | apply Forall_nil ].
+  - split; [ exact Hreturn | ]. split; [ exact Hexn | exact I ].
+Qed.
+
+(* A call of a shape whose values satisfy [P], given what is done with a
+   partial application that does. *)
+Lemma run_call_values_all (Q : state -> Prop)
+    (return_partial : value -> step_result) (shape : option call_shape)
+    (return_arity : arity) (return_to exn_to : cont_value)
+    (statics : static_env) :
+  shape_values_all shape ->
+  cont_values_all P return_to ->
+  cont_values_all P exn_to ->
+  (∀ (e : expr) (vars : env) (conts : cont_env),
+    env_values_all P vars -> conts_values_all P conts ->
+    Q (State e vars conts statics)) ->
+  (∀ partial : value,
+    P partial ->
+    match return_partial partial with
+    | Step s' => Q s'
+    | Exit _ vs' => Forall P vs'
+    | Undefined => True
+    end) ->
+  match run_call return_partial shape return_arity return_to exn_to statics with
+  | Step s' => Q s'
+  | Exit _ vs' => Forall P vs'
+  | Undefined => True
+  end.
+Proof.
+  intros Hshape Hreturn Hexn Hstate Hpartial.
+  destruct shape
+    as [[closure c vs args_arity
+        | closure c vs remaining args_arity remaining_arity | partial] | ];
+    simpl in Hshape |- *.
+  - destruct Hshape as [Hclosure Hvs].
+    apply call_code_values_all; assumption.
+  - destruct Hshape as (Hclosure & Hvs & Hremaining).
+    apply call_code_values_all; try assumption.
+    simpl. auto.
+  - exact (Hpartial partial Hshape).
+  - exact I.
+Qed.
+
 (* Applying a continuation whose values satisfy [P] to values that do. *)
 Lemma apply_cont_value_values_all (Q : state -> Prop) (c : cont_value)
     (vs : list value) (statics : static_env) :
@@ -1619,11 +2457,14 @@ Lemma apply_cont_value_values_all (Q : state -> Prop) (c : cont_value)
   | Undefined => True
   end.
 Proof.
-  intros Hc Hvs Hstate. revert vs Hvs.
-  induction c as [[params metadata handler] def_vars def_conts recursive | k
-                 | c IH extra];
-    intros vs Hvs; simpl; [ | exact Hvs | ].
-  - destruct Hc as [Hdef_vars Hdef_conts].
+  intros Hc Hvs Hstate. revert vs Hc Hvs.
+  induction c
+    as [[params metadata handler] def_vars def_conts recursive | k
+       | c IH extra
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+    using cont_value_over_ind;
+    intros vs Hc Hvs.
+  - simpl. destruct Hc as [Hdef_vars Hdef_conts].
     destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
       [ | exact I ].
     destruct (bind_params params vs def_vars) as [handler_vars | ] eqn:Hbind;
@@ -1633,8 +2474,18 @@ Proof.
                Hdef_vars Hbind).
     + apply conts_values_all_app; [ | exact Hdef_conts ].
       apply rec_closures_values_all; assumption.
-  - destruct Hc as [Hextra Hc]. apply (IH Hc).
+  - exact Hvs.
+  - simpl. destruct Hc as [Hextra Hc]. apply (IH (vs ++ extra) Hc).
     apply Forall_app. split; assumption.
+  - rewrite apply_cont_value_over_application.
+    destruct vs as [ | v [ | v' vs]]; [ exact I | | exact I ].
+    destruct Hc as (Hremaining & Hreturn & Hexn).
+    unfold call_function. apply run_call_values_all; try assumption.
+    + apply shape_of_call_values_all;
+        [ exact (Forall_inv Hvs) | exact Hremaining ].
+    + intros partial Hpartial.
+      apply IHreturn; [ exact Hreturn | ].
+      apply Forall_cons; [ exact Hpartial | apply Forall_nil ].
 Qed.
 
 (* The exception continuation that a call gives its callee. *)
@@ -1647,6 +2498,35 @@ Proof.
     [ exact Hc | split; [ exact Hextra | exact Hc ] ].
 Qed.
 
+(* A call of a value that satisfies [P], with arguments that do,
+   returning to continuations whose values do. *)
+Lemma call_function_values_all (Q : state -> Prop) (callee : value)
+    (kind : call_kind) (vs : list value) (args_arity return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) :
+  P callee ->
+  Forall P vs ->
+  cont_values_all P return_to ->
+  cont_values_all P exn_to ->
+  (∀ (e : expr) (vars : env) (conts : cont_env),
+    env_values_all P vars -> conts_values_all P conts ->
+    Q (State e vars conts statics)) ->
+  match
+    call_function callee kind vs args_arity return_arity return_to exn_to
+      statics
+  with
+  | Step s' => Q s'
+  | Exit _ vs' => Forall P vs'
+  | Undefined => True
+  end.
+Proof.
+  intros Hcallee Hvs Hreturn Hexn Hstate. unfold call_function.
+  apply run_call_values_all; try assumption.
+  - apply shape_of_call_values_all; assumption.
+  - intros partial Hpartial.
+    apply apply_cont_value_values_all; [ exact Hreturn | | exact Hstate ].
+    apply Forall_cons; [ exact Hpartial | apply Forall_nil ].
+Qed.
+
 End Values_all.
 
 (* [P] of every value a continuation holds, for a weaker [P]. *)
@@ -1654,8 +2534,10 @@ Fixpoint cont_values_all_impl (P P' : value -> Prop)
     (Himpl : ∀ v : value, P v -> P' v) (c : cont_value) :
   cont_values_all P c -> cont_values_all P' c.
 Proof.
-  destruct c as [h vars conts recursive | k | c extra]; simpl;
-    [ | auto | ].
+  destruct c
+    as [h vars conts recursive | k | c extra
+       | remaining remaining_arity return_arity return_to exn_to];
+    simpl; [ | auto | | ].
   - intros [Hvars Hconts]. split.
     + exact (Forall_impl _ (fun binding => Himpl (snd binding)) Hvars).
     + induction conts as [ | [k c] conts IH]; simpl; [ exact I | ].
@@ -1666,6 +2548,10 @@ Proof.
     split;
       [ exact (Forall_impl _ Himpl Hextra)
       | exact (cont_values_all_impl P P' Himpl c Hc) ].
+  - intros (Hremaining & Hreturn & Hexn).
+    exact (conj (Forall_impl _ Himpl Hremaining)
+             (conj (cont_values_all_impl P P' Himpl return_to Hreturn)
+                (cont_values_all_impl P P' Himpl exn_to Hexn))).
 Qed.
 
 Lemma conts_values_all_impl (P P' : value -> Prop) (conts : cont_env) :
@@ -1680,8 +2566,8 @@ Qed.
 
 Theorem step_values_all : step_values_all_statement.
 Proof.
-  intros P Q [e vars conts statics] (Hvars & Hconts & Hstatics) Hlet
-    Hlet_static Happly Happly_cont.
+  intros P Q [e vars conts statics] Hpartial (Hvars & Hconts & Hstatics)
+    Hlet Hlet_static Happly Happly_cont.
   simpl in *.
   assert (Hstate :
     ∀ (e' : expr) (vars' : env) (conts' : cont_env),
@@ -1724,41 +2610,18 @@ Proof.
       eqn:Hextra; [ | exact I ].
     destruct (Happly ap callee vs extra eq_refl Hcallee Hargs Hextra)
       as (Hcallee_ok & Hvs & Hextra_ok).
-    unfold call_function.
-    destruct (closure_of statics callee) as [[called slots] | ];
-      [ | exact I ].
-    destruct
-      (match ap_call_kind ap with
-       | Direct named => Pos.eqb called named
-       | Indirect => true
-       end);
-      [ | exact I ].
-    destruct (lookup called (static_code statics)) as [c | ]; [ | exact I ].
-    destruct (binds_statics (code_body c)); [ exact I | ].
-    destruct
-      (negb
-         (kinds_eqb (map kind_of_value vs) (unarize (ap_args_arity ap))
-          && kinds_per_parameter_eqb
-               (unarize_per_parameter (ap_args_arity ap))
-               (unarize_per_parameter (code_params_arity c))
-          && arity_eqb (ap_return_arity ap) (code_result_arity c)));
-      [ exact I | ].
-    destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
-      as [callee_vars | ] eqn:Hbind; [ | exact I ].
-    apply Hstate.
-    + apply (bind_params_values_all _ (code_params c) vs
-               [(code_my_closure c, callee)] callee_vars Hvs);
-        [ | exact Hbind ].
-      apply Forall_cons; [ exact Hcallee_ok | apply Forall_nil ].
-    + split; [ apply resolve_values_all, Hconts | ].
-      split; [ | exact I ].
-      apply with_extra_args_values_all;
-        [ apply resolve_values_all, Hconts | exact Hextra_ok ].
+    apply (call_function_values_all (P statics) (Hpartial statics)
+             (state_values_all P Q));
+      [ exact Hcallee_ok | exact Hvs | apply resolve_values_all, Hconts
+      | apply with_extra_args_values_all;
+        [ apply resolve_values_all, Hconts | exact Hextra_ok ]
+      | exact Hstate ].
   - (* Apply_cont *)
     destruct (eval_simples vars (ac_args ac)) as [vs | ] eqn:Hargs;
       [ | exact I ].
     unfold apply_continuation.
-    apply (apply_cont_value_values_all (P statics) (state_values_all P Q));
+    apply (apply_cont_value_values_all (P statics) (Hpartial statics)
+             (state_values_all P Q));
       [ apply resolve_values_all, Hconts | | exact Hstate ].
     exact (Happly_cont ac vs eq_refl Hargs).
   - (* Switch *)

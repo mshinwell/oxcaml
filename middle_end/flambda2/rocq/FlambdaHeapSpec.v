@@ -510,8 +510,52 @@ Definition exec_named (statics : static_env) (h : heap) (vars : env)
     Some (v, h)
   end.
 
-Fixpoint heap_apply_cont_value (c : cont_value) (vs : list value)
+(* FlambdaSemanticsSpec.call_code, with the heap carried along. *)
+Definition heap_call_code (closure : value) (c : code) (vs : list value)
+    (args_arity return_arity : arity) (return_to exn_to : cont_value)
     (statics : static_env) (h : heap) : heap_step_result :=
+  if binds_statics (code_body c) then Heap_undefined
+  else if
+    negb
+      (kinds_eqb (map kind_of_value vs) (unarize args_arity)
+       && kinds_per_parameter_eqb (unarize_per_parameter args_arity)
+            (unarize_per_parameter (code_params_arity c))
+       && arity_eqb return_arity (code_result_arity c))
+  then Heap_undefined
+  else
+    match bind_params (code_params c) vs [(code_my_closure c, closure)] with
+    | Some callee_vars =>
+      Heap_step
+        (Heap_state (code_body c) callee_vars
+           [(code_return_continuation c, return_to);
+            (code_exn_continuation c, exn_to)]
+           statics h)
+    | None => Heap_undefined
+    end.
+
+(* FlambdaSemanticsSpec.run_call, with the heap carried along. What a
+   call is ([FlambdaSemanticsSpec.shape_of_call]) does not depend on the
+   heap: no closure and no partial application is a location. *)
+Definition heap_run_call (return_partial : value -> heap_step_result)
+    (shape : option call_shape) (return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) (h : heap)
+    : heap_step_result :=
+  match shape with
+  | Some (Full_call closure c vs args_arity) =>
+    heap_call_code closure c vs args_arity return_arity return_to exn_to
+      statics h
+  | Some (Over_call closure c vs remaining args_arity remaining_arity) =>
+    heap_call_code closure c vs args_arity (code_result_arity c)
+      (Over_application remaining remaining_arity return_arity return_to
+         exn_to)
+      exn_to statics h
+  | Some (Partial_call partial) => return_partial partial
+  | None => Heap_undefined
+  end.
+
+(* FlambdaSemanticsSpec.apply_cont_value, with the heap carried along. *)
+Fixpoint heap_apply_cont_value (c : cont_value) (vs : list value)
+    (statics : static_env) (h : heap) {struct c} : heap_step_result :=
   match c with
   | Outer k => Heap_exit k (Outcome vs statics h)
   | Closure (Handler params metadata handler) def_vars def_conts recursive =>
@@ -527,46 +571,27 @@ Fixpoint heap_apply_cont_value (c : cont_value) (vs : list value)
       end
     else Heap_undefined
   | Extra_args c extra => heap_apply_cont_value c (vs ++ extra) statics h
+  | Over_application remaining remaining_arity return_arity return_to exn_to =>
+    match vs with
+    | [v] =>
+      heap_run_call
+        (fun partial => heap_apply_cont_value return_to [partial] statics h)
+        (shape_of_call statics v Indirect remaining remaining_arity
+           return_arity)
+        return_arity return_to exn_to statics h
+    | _ => Heap_undefined
+    end
   end.
 
+(* FlambdaSemanticsSpec.call_function, with the heap carried along. *)
 Definition heap_call_function (callee : value) (kind : call_kind)
     (vs : list value) (args_arity return_arity : arity)
     (return_to exn_to : cont_value) (statics : static_env) (h : heap)
     : heap_step_result :=
-  match closure_of statics callee with
-  | Some (called, _) =>
-    let expected :=
-      match kind with
-      | Direct named => Pos.eqb called named
-      | Indirect => true
-      end
-    in
-    match expected, lookup called (static_code statics) with
-    | true, Some c =>
-      if binds_statics (code_body c) then Heap_undefined
-      else if
-        negb
-          (kinds_eqb (map kind_of_value vs) (unarize args_arity)
-           && kinds_per_parameter_eqb (unarize_per_parameter args_arity)
-                (unarize_per_parameter (code_params_arity c))
-           && arity_eqb return_arity (code_result_arity c))
-      then Heap_undefined
-      else
-        match
-          bind_params (code_params c) vs [(code_my_closure c, callee)]
-        with
-        | Some callee_vars =>
-          Heap_step
-            (Heap_state (code_body c) callee_vars
-               [(code_return_continuation c, return_to);
-                (code_exn_continuation c, exn_to)]
-               statics h)
-        | None => Heap_undefined
-        end
-    | _, _ => Heap_undefined
-    end
-  | None => Heap_undefined
-  end.
+  heap_run_call
+    (fun partial => heap_apply_cont_value return_to [partial] statics h)
+    (shape_of_call statics callee kind vs args_arity return_arity)
+    return_arity return_to exn_to statics h.
 
 (* FlambdaSemanticsSpec.step, with the heap carried along. The case of
    [Let] is the only one that may change it. *)
@@ -761,6 +786,14 @@ Definition contents_related (c c' : const) : Prop :=
    - With [poison_refines], a poison of the first run is any value of
      its kind in the second, and a boxed poison any boxed number of its
      kind ([contents_related]).
+   - A partial application is a partial application of a related
+     callee to related arguments, at the same arity. Only a call reads
+     its callee and its arguments; a primitive sees no more of it than
+     that it is allocated. (The relation does not relate a partial
+     application to a closure. Simplify makes of a partial application
+     of a known function the closure of a wrapper,
+     [simplify_direct_partial_application]; whoever validates that
+     rewrite will need a rule for it.)
    [Step_same_boxed_number] is for a [Value_boxed_number] whose contents
    are not of a kind that has a boxed form, which no observation reads:
    it is itself; and [Step_same_closure_of_set] for a closure at a
@@ -817,7 +850,13 @@ Inductive value_step (R : value -> value -> Prop) : value -> value -> Prop :=
   | Step_poison (kind : flambda_kind) (v' : value) :
     poison_refines = true ->
     kind_of_value v' = kind ->
-    value_step R (Value_const (Poison kind)) v'.
+    value_step R (Value_const (Poison kind)) v'
+  | Step_partial_application (callee callee' : value)
+      (args args' : list value) (args_arity : arity) :
+    R callee callee' ->
+    Forall2 R args args' ->
+    value_step R (Value_partial_application callee args args_arity)
+      (Value_partial_application callee' args' args_arity).
 
 (* A value of the first run is a value of the second: the two
    correspond, or they have their heads in common and what they hold is
@@ -880,6 +919,8 @@ Fixpoint locations_of_value (v : value) : list location :=
     flat_map (fun slot => locations_of_value (snd slot)) slots
   | Value_block _ fields => flat_map locations_of_value fields
   | Value_location l => [l]
+  | Value_partial_application callee args _ =>
+    locations_of_value callee ++ flat_map locations_of_value args
   end.
 
 (* No location of the value dangles. *)
@@ -1033,8 +1074,9 @@ Definition heap_refines (source target : heap_state) : Prop :=
       ∨ heap_behaves source Heap_goes_wrong).
 
 (* The invariant of a state: no location dangles, in the environment, in
-   the continuations (in the environments of their closures and in their
-   extra arguments), in the static environment or in the heap. *)
+   the continuations (in the environments of their closures, in their
+   extra arguments and in the arguments that remain of an
+   over-application), in the static environment or in the heap. *)
 Fixpoint cont_value_closed (h : heap) (c : cont_value) : Prop :=
   match c with
   | Closure _ vars conts _ =>
@@ -1048,6 +1090,10 @@ Fixpoint cont_value_closed (h : heap) (c : cont_value) : Prop :=
   | Outer _ => True
   | Extra_args c extra =>
     (∀ v : value, v ∈ extra -> value_closed h v) ∧ cont_value_closed h c
+  | Over_application remaining _ _ return_to exn_to =>
+    (∀ v : value, v ∈ remaining -> value_closed h v)
+    ∧ cont_value_closed h return_to
+    ∧ cont_value_closed h exn_to
   end.
 
 Definition state_closed (s : heap_state) : Prop :=
@@ -1097,7 +1143,9 @@ Definition needed_by_closure (h : continuation_handler)
 
 (* Two continuations are related: the same way out; or closures of the
    same handlers, under related environments and related continuations;
-   or related continuations with related extra arguments. *)
+   or related continuations with related extra arguments; or what is
+   left of two over-applications at the same arities, with related
+   arguments that remain and related continuations. *)
 #[local] Set Warnings "-register-all".
 Inductive cont_related (R : value -> value -> Prop)
     : cont_value -> cont_value -> Prop :=
@@ -1114,7 +1162,18 @@ Inductive cont_related (R : value -> value -> Prop)
   | Related_extra_args (c c' : cont_value) (extra extra' : list value) :
     cont_related R c c' ->
     Forall2 R extra extra' ->
-    cont_related R (Extra_args c extra) (Extra_args c' extra').
+    cont_related R (Extra_args c extra) (Extra_args c' extra')
+  | Related_over_application (remaining remaining' : list value)
+      (remaining_arity return_arity : arity)
+      (return_to return_to' exn_to exn_to' : cont_value) :
+    Forall2 R remaining remaining' ->
+    cont_related R return_to return_to' ->
+    cont_related R exn_to exn_to' ->
+    cont_related R
+      (Over_application remaining remaining_arity return_arity return_to
+         exn_to)
+      (Over_application remaining' remaining_arity return_arity return_to'
+         exn_to').
 
 Definition conts_related (R : value -> value -> Prop)
     (conts conts' : cont_env) : Prop :=
@@ -1249,6 +1308,8 @@ Fixpoint cont_code_free_of (D : dropped) (c : cont_value) : bool :=
     && forallb (fun '(_, c) => cont_code_free_of D c) conts
     && forallb (fun '(_, h) => handler_free_of D h) recursive
   | Extra_args c _ => cont_code_free_of D c
+  | Over_application _ _ _ return_to exn_to =>
+    cont_code_free_of D return_to && cont_code_free_of D exn_to
   end.
 
 Definition conts_code_free_of (D : dropped) (conts : cont_env) : bool :=

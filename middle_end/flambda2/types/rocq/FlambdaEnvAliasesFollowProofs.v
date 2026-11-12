@@ -667,8 +667,14 @@ Proof.
   destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | reflexivity ].
   destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
     [ | reflexivity ].
-  unfold call_function. rewrite Hclosure_of, Hcode. simpl.
-  rewrite Pos.eqb_refl. reflexivity.
+  unfold call_function.
+  assert (Hclosure_of' : closure_of statics v = Some (code, slot_values))
+    by (rewrite Hclosure_of, Hcode; reflexivity).
+  rewrite !(shape_of_call_closure statics _ _ _ _ _
+              (closure_not_partial statics _ _ Hclosure_of')),
+    (shape_of_closure_call_kind statics _ (Direct code) _ _ _ code
+       slot_values Hclosure_of' (or_intror eq_refl)).
+  reflexivity.
 Qed.
 
 Lemma canonical_static_bindings_sound (known : Known.t)

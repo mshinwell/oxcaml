@@ -158,7 +158,6 @@ Separate Extraction
   FlambdaTypeWellFormedSpec.type_well_formed
   all_among
   among
-  at_partial_or_over_application
   bind_closures
   binders_distinct
   code_closed

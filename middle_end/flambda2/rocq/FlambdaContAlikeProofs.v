@@ -98,8 +98,10 @@ Variable base : cont_value -> cont_value -> Prop.
 (* The same continuation; two that are taken to stand for each other;
    closures of one handler under the same variables, whose continuations
    are in turn alike; or two that are alike, with the same extra
-   arguments. (The warning silenced is about induction schemes for the
-   nested occurrence, which nothing uses.) *)
+   arguments; or what is left of the same over-application, to return
+   and to raise to continuations that are alike. (The warning silenced
+   is about induction schemes for the nested occurrence, which nothing
+   uses.) *)
 #[local] Set Warnings "-register-all".
 Inductive alike : cont_value -> cont_value -> Prop :=
   | Alike_same (c : cont_value) : alike c c
@@ -111,7 +113,17 @@ Inductive alike : cont_value -> cont_value -> Prop :=
       conts' ->
     alike (Closure h vars conts recursive) (Closure h vars conts' recursive)
   | Alike_extra_args (c c' : cont_value) (extra : list value) :
-    alike c c' -> alike (Extra_args c extra) (Extra_args c' extra).
+    alike c c' -> alike (Extra_args c extra) (Extra_args c' extra)
+  | Alike_over_application (remaining : list value)
+      (remaining_arity return_arity : arity)
+      (return_to return_to' exn_to exn_to' : cont_value) :
+    alike return_to return_to' ->
+    alike exn_to exn_to' ->
+    alike
+      (Over_application remaining remaining_arity return_arity return_to
+         exn_to)
+      (Over_application remaining remaining_arity return_arity return_to'
+         exn_to').
 
 Definition conts_alike (conts conts' : cont_env) : Prop :=
   Forall2 (fun kc kc' => fst kc = fst kc' ∧ alike (snd kc) (snd kc')) conts
@@ -177,15 +189,126 @@ Hypothesis base_carries :
     result_behaves (apply_cont_value c vs statics) b ->
     result_behaves (apply_cont_value c' vs statics) b.
 
-(* A run that ends under the first environment ends alike under the
-   second. *)
-Lemma alike_carries (n : nat) :
+(* What a result comes to after [n] more steps. *)
+Definition then_run (n : nat) (result : step_result) : step_result :=
+  match result with
+  | Step s' => run n s'
+  | Exit k vs => Exit k vs
+  | Undefined => Undefined
+  end.
+
+(* A run of [n] steps that ends under the first environment ends alike
+   under the second. *)
+Definition carries_at (n : nat) : Prop :=
   ∀ (e : expr) (vars : env) (conts conts' : cont_env) (statics : static_env)
     (b : behaviour),
     conts_alike conts conts' ->
     ended (run n (State e vars conts statics)) b ->
     behaves (State e vars conts' statics) b.
+
+(* The same full call, returning and raising to continuations that are
+   alike. *)
+Lemma call_code_alike_carries (n : nat) (closure : value) (c : code)
+    (vs : list value) (args_arity return_arity : arity)
+    (r r' x x' : cont_value) (statics : static_env) (b : behaviour) :
+  carries_at n ->
+  alike r r' ->
+  alike x x' ->
+  ended
+    (then_run n
+       (call_code closure c vs args_arity return_arity r x statics))
+    b ->
+  result_behaves (call_code closure c vs args_arity return_arity r' x' statics)
+    b.
 Proof.
+  intros IH Hr Hx Hended.
+  destruct (call_code_cases closure c vs args_arity return_arity statics)
+    as [Hundefined | [callee_vars Hcall]].
+  - rewrite Hundefined in Hended |- *. apply ended_undefined, Hended.
+  - rewrite Hcall in Hended |- *. simpl in Hended |- *.
+    refine (IH _ _ _ _ _ _ _ Hended).
+    apply Forall2_cons; [ split; [ reflexivity | exact Hr ] | ].
+    apply Forall2_cons; [ split; [ reflexivity | exact Hx ] | ].
+    apply Forall2_nil.
+Qed.
+
+(* The same call, of whatever shape, where the return continuations
+   given a partial application come to the same. *)
+Lemma run_call_alike_carries (n : nat) (shape : option call_shape)
+    (return_arity : arity) (r r' x x' : cont_value) (statics : static_env)
+    (b : behaviour) :
+  carries_at n ->
+  alike r r' ->
+  alike x x' ->
+  (∀ partial : value,
+    ended (then_run n (apply_cont_value r [partial] statics)) b ->
+    result_behaves (apply_cont_value r' [partial] statics) b) ->
+  ended
+    (then_run n
+       (run_call (fun partial => apply_cont_value r [partial] statics) shape
+          return_arity r x statics))
+    b ->
+  result_behaves
+    (run_call (fun partial => apply_cont_value r' [partial] statics) shape
+       return_arity r' x' statics)
+    b.
+Proof.
+  intros IH Hr Hx Hpartial Hended.
+  destruct shape
+    as [[ closure c vs args_arity
+        | closure c vs remaining args_arity remaining_arity | partial ] | ];
+    unfold run_call in Hended |- *.
+  - exact (call_code_alike_carries n _ _ _ _ _ _ _ _ _ _ _ IH Hr Hx Hended).
+  - refine (call_code_alike_carries n _ _ _ _ _ _ _ _ _ _ _ IH _ Hx Hended).
+    apply Alike_over_application; assumption.
+  - exact (Hpartial partial Hended).
+  - apply ended_undefined, Hended.
+Qed.
+
+(* Continuations that are alike, applied to the same values. *)
+Lemma apply_alike_carries (n : nat) (c c' : cont_value)
+    (statics : static_env) (b : behaviour) :
+  carries_at n ->
+  alike c c' ->
+  ∀ vs : list value,
+    ended (then_run n (apply_cont_value c vs statics)) b ->
+    result_behaves (apply_cont_value c' vs statics) b.
+Proof.
+  intros IH Halike.
+  induction Halike
+    as [c | c c' Hbase
+       | [params metadata handler] def_vars def_conts def_conts' recursive
+           Hconts
+       | c c' extra Halike IHalike
+       | remaining remaining_arity return_arity r r' x x' Hr IHr Hx IHx];
+    intros vs Hended.
+  - (* the same continuation *)
+    exact (ended_after_step _ _ _ Hended).
+  - (* two that stand for each other *)
+    exact (base_carries c c' vs statics b Hbase
+      (ended_terminating _ _ Hended) (ended_after_step _ _ _ Hended)).
+  - (* closures of one handler *)
+    simpl in Hended |- *.
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+      simpl in Hended |- *; [ | apply ended_undefined, Hended ].
+    destruct (bind_params params vs def_vars) as [handler_vars | ];
+      simpl in Hended |- *; [ | apply ended_undefined, Hended ].
+    exact (IH _ _ _ _ _ _ (rec_closures_alike _ _ _ _ Hconts) Hended).
+  - (* the same extra arguments *)
+    simpl in Hended |- *. exact (IHalike _ Hended).
+  - (* what is left of the same over-application *)
+    rewrite apply_cont_value_over_application in Hended |- *.
+    destruct vs as [ | v [ | v' vs]]; try (apply ended_undefined, Hended).
+    unfold call_function in Hended |- *.
+    exact (run_call_alike_carries n _ _ _ _ _ _ statics b IH Hr Hx
+      (fun partial => IHr [partial]) Hended).
+Qed.
+
+(* A run that ends under the first environment ends alike under the
+   second. *)
+Lemma alike_carries (n : nat) : carries_at n.
+Proof.
+  unfold carries_at.
   induction n as [ | n IH];
     intros e vars conts conts' statics b Hrel Hended;
     [ destruct b; contradiction | ].
@@ -223,49 +346,19 @@ Proof.
       [ | apply ended_undefined, Hended ].
     destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
       [ | apply ended_undefined, Hended ].
-    destruct (call_function_cases callee (ap_call_kind ap) vs
-                (ap_args_arity ap) (ap_return_arity ap) statics)
-      as [Hundefined | (body & callee_vars & ret & exn & Hcall)].
-    + rewrite Hundefined in Hended |- *. apply ended_undefined, Hended.
-    + rewrite Hcall in Hended |- *. simpl in Hended |- *.
-      refine (IH _ _ _ _ _ _ _ Hended).
-      apply Forall2_cons;
-        [ split; [ reflexivity | apply resolve_alike, Hrel ] | ].
-      apply Forall2_cons;
-        [ split;
-            [ reflexivity
-            | apply with_extra_args_alike, resolve_alike, Hrel ]
-        | ].
-      apply Forall2_nil.
+    unfold call_function in Hended |- *.
+    refine (run_call_alike_carries n _ _ _ _ _ _ statics b IH _ _ _ Hended).
+    + apply resolve_alike, Hrel.
+    + apply with_extra_args_alike, resolve_alike, Hrel.
+    + intros partial. apply (apply_alike_carries n _ _ statics b IH).
+      apply resolve_alike, Hrel.
   - (* Apply_cont *)
     eapply behaves_of_step; [ apply step_apply_cont | ].
     destruct (eval_simples vars (ac_args ac)) as [vs | ];
       [ | apply ended_undefined, Hended ].
     unfold apply_continuation in Hended |- *.
-    pose proof (resolve_alike (ac_continuation ac) _ _ Hrel) as Halike.
-    remember (resolve (ac_continuation ac) conts) as c eqn:Hc.
-    remember (resolve (ac_continuation ac) conts') as c' eqn:Hc'.
-    clear Hc Hc'. revert vs Hended.
-    induction Halike
-      as [c | c c' Hbase
-         | [params metadata handler] def_vars def_conts def_conts' recursive
-             Hconts
-         | c c' extra Halike IHalike];
-      intros vs Hended.
-    + (* the same continuation *)
-      exact (ended_after_step _ _ _ Hended).
-    + (* two that stand for each other *)
-      exact (base_carries c c' vs statics b Hbase
-        (ended_terminating _ _ Hended) (ended_after_step _ _ _ Hended)).
-    + (* closures of one handler *)
-      simpl in Hended |- *.
-      destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
-        simpl in Hended |- *; [ | apply ended_undefined, Hended ].
-      destruct (bind_params params vs def_vars) as [handler_vars | ];
-        simpl in Hended |- *; [ | apply ended_undefined, Hended ].
-      exact (IH _ _ _ _ _ _ (rec_closures_alike _ _ _ _ Hconts) Hended).
-    + (* the same extra arguments *)
-      simpl in Hended |- *. exact (IHalike _ Hended).
+    exact (apply_alike_carries n _ _ statics b IH
+      (resolve_alike (ac_continuation ac) _ _ Hrel) vs Hended).
   - (* Switch *)
     eapply behaves_of_step; [ apply step_switch | ].
     destruct (eval_simple vars scrutinee) as [v | ];

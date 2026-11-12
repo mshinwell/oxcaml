@@ -104,6 +104,8 @@ Fixpoint value_avoids (D : dropped) (v : value) : bool :=
   | Value_block _ fields => forallb (value_avoids D) fields
   | Value_boxed_number _ => true
   | Value_location _ => true
+  | Value_partial_application callee args _ =>
+    value_avoids D callee && forallb (value_avoids D) args
   end.
 
 Definition simple_avoids (D : dropped) (s : simple) : bool :=
@@ -296,6 +298,10 @@ Fixpoint cont_free_of (D : dropped) (c : cont_value) : bool :=
     && forallb (fun '(_, c) => cont_free_of D c) conts
     && forallb (fun '(_, h) => handler_free_of D h) recursive
   | Extra_args c extra => cont_free_of D c && forallb (value_avoids D) extra
+  | Over_application remaining _ _ return_to exn_to =>
+    forallb (value_avoids D) remaining
+    && cont_free_of D return_to
+    && cont_free_of D exn_to
   end.
 
 Definition allocated_free_of (D : dropped)

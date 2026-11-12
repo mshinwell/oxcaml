@@ -951,8 +951,9 @@ Definition prim_in_range (p : prim) : bool :=
   end.
 
 (* A value is in range: its constants are, and the tags of its blocks,
-   all the way down the fields of blocks and the value slots of
-   closures. A symbol is: what it is bound to is not looked at here. *)
+   all the way down the fields of blocks, the value slots of closures,
+   and the value called and the arguments of a partial application. A
+   symbol is: what it is bound to is not looked at here. *)
 Fixpoint value_in_range (v : value) : bool :=
   match v with
   | Value_const c | Value_boxed_number c => const_in_range c
@@ -961,6 +962,8 @@ Fixpoint value_in_range (v : value) : bool :=
   | Value_symbol _ | Value_location _ => true
   | Value_block tag fields =>
     tag_in_range tag && forallb value_in_range fields
+  | Value_partial_application callee args _ =>
+    value_in_range callee && forallb value_in_range args
   end.
 
 (* What a symbol is bound to is in range. *)
@@ -1226,8 +1229,9 @@ Definition int_of_value_in_range_statement : Prop :=
      made alike of related fields are related ([relates_made]): what a
      primitive makes of related arguments is related;
    - what an observation answers of the first value it answers of the
-     second, with related parts, and if the first is not a symbol bound
-     to nothing nor is the second ([relates_observations]).
+     second, with related parts; if the first is a closure or a partial
+     application so is the second; and if the first is not a symbol
+     bound to nothing nor is the second ([relates_observations]).
    Equality is such a relation when the two static environments are the
    same. So is the relation between a value and the same value with a
    symbol in place of some of the blocks, boxed numbers and closures in
@@ -1276,6 +1280,8 @@ Definition relates_observations (R : value -> value -> Prop)
         string_of statics v = Some bytes ->
         string_of statics' v' = Some bytes)
     ∧ (closure_of statics v <> None -> closure_of statics' v' <> None)
+    ∧ (partial_application_of v <> None ->
+       partial_application_of v' <> None)
     ∧ (bound_if_symbol statics v = true ->
        bound_if_symbol statics' v' = true).
 

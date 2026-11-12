@@ -1123,13 +1123,19 @@ Qed.
 Fixpoint cont_free_of_renamed (r : renaming) (c : cont_value) :
   cont_free_of D (rename_cont_value r c) = cont_free_of D c.
 Proof.
-  destruct c as [h vars conts recursive | k | c extra]; simpl;
-    [ | reflexivity | rewrite (cont_free_of_renamed r c); reflexivity ].
-  rewrite handler_free_of_renamed, env_free_of_renamed,
-    handlers_free_of_renamed.
-  do 2 f_equal.
-  induction conts as [ | [k c] conts IH]; simpl; [ reflexivity | ].
-  rewrite (cont_free_of_renamed r c), IH. reflexivity.
+  destruct c
+    as [h vars conts recursive | k | c extra
+       | remaining remaining_arity return_arity return_to exn_to];
+    simpl;
+    [ | reflexivity | rewrite (cont_free_of_renamed r c); reflexivity | ].
+  - rewrite handler_free_of_renamed, env_free_of_renamed,
+      handlers_free_of_renamed.
+    do 2 f_equal.
+    induction conts as [ | [k c] conts IH]; simpl; [ reflexivity | ].
+    rewrite (cont_free_of_renamed r c), IH. reflexivity.
+  - rewrite (cont_free_of_renamed r return_to),
+      (cont_free_of_renamed r exn_to).
+    reflexivity.
 Qed.
 
 Lemma statics_free_of_renamed (r : renaming) (statics : static_env) :
@@ -3068,10 +3074,15 @@ Proof.
   rewrite eval_simple_equivariant.
   destruct (eval_simple vars (ap_callee ap)) as [callee | ];
     [ | reflexivity ].
-  replace (closure_of (rename_static_env r statics) callee)
-    with (closure_of statics callee)
-    by (destruct callee; reflexivity).
-  destruct (closure_of statics callee) as [[called slots] | ];
+  (* the closure called, which a partial application keeps *)
+  match goal with
+  | |- context [closure_of statics ?called] => generalize called
+  end.
+  intros closure.
+  replace (closure_of (rename_static_env r statics) closure)
+    with (closure_of statics closure)
+    by (destruct closure; reflexivity).
+  destruct (closure_of statics closure) as [[called slots] | ];
     [ | reflexivity ].
   rewrite lookup_rename_code.
   destruct (lookup called (static_code statics)) as [c | ]; cbn [option_map];
@@ -3522,31 +3533,34 @@ Qed.
 (* Loopify. The name given for the loop of each piece of code is renamed
    with the term; code ids are not renamed ([rename_loopified]). *)
 Lemma is_self_tail_call_equivariant (r : renaming) (my_closure : variable)
-    (ret exn : continuation) (ap : apply_expr) :
-  is_self_tail_call (rename_variable r my_closure)
+    (params_arity : arity) (ret exn : continuation) (ap : apply_expr) :
+  is_self_tail_call (rename_variable r my_closure) params_arity
     (rename_continuation r ret) (rename_continuation r exn)
     (rename_apply r ap)
-  = is_self_tail_call my_closure ret exn ap.
+  = is_self_tail_call my_closure params_arity ret exn ap.
 Proof.
   unfold is_self_tail_call. rewrite no_exn_extra_args_renamed.
-  cbn [rename_apply ap_callee ap_continuation ap_exn_continuation].
+  cbn [rename_apply ap_callee ap_continuation ap_exn_continuation
+       ap_args_arity].
   rewrite !rename_continuation_eqb.
   destruct (ap_callee ap) as [x | sym | c]; cbn [rename_simple];
     [ rewrite rename_variable_eqb | | ]; reflexivity.
 Qed.
 
 Fixpoint loop_calls_equivariant (r : renaming) (my_closure : variable)
-    (ret exn self : continuation) (e : expr) :
-  loop_calls (rename_variable r my_closure) (rename_continuation r ret)
-    (rename_continuation r exn) (rename_continuation r self)
-    (rename_expr r e)
-  = rename_expr r (loop_calls my_closure ret exn self e)
+    (params_arity : arity) (ret exn self : continuation) (e : expr) :
+  loop_calls (rename_variable r my_closure) params_arity
+    (rename_continuation r ret) (rename_continuation r exn)
+    (rename_continuation r self) (rename_expr r e)
+  = rename_expr r (loop_calls my_closure params_arity ret exn self e)
 with loop_calls_in_handler_equivariant (r : renaming) (my_closure : variable)
-    (ret exn self : continuation) (h : continuation_handler) :
-  loop_calls_in_handler (rename_variable r my_closure)
+    (params_arity : arity) (ret exn self : continuation)
+    (h : continuation_handler) :
+  loop_calls_in_handler (rename_variable r my_closure) params_arity
     (rename_continuation r ret) (rename_continuation r exn)
     (rename_continuation r self) (rename_handler r h)
-  = rename_handler r (loop_calls_in_handler my_closure ret exn self h).
+  = rename_handler r
+      (loop_calls_in_handler my_closure params_arity ret exn self h).
 Proof.
   - destruct e
       as [ x kind d body | bindings body | k h body | handlers body | ap | ac
@@ -3558,11 +3572,14 @@ Proof.
       reflexivity.
     + rewrite loop_calls_equivariant. f_equal.
       induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
-      rewrite (loop_calls_in_handler_equivariant r my_closure ret exn self h),
+      rewrite
+        (loop_calls_in_handler_equivariant r my_closure params_arity ret exn
+           self h),
         IH.
       reflexivity.
     + rewrite is_self_tail_call_equivariant.
-      destruct (is_self_tail_call my_closure ret exn ap); reflexivity.
+      destruct (is_self_tail_call my_closure params_arity ret exn ap);
+        reflexivity.
   - destruct h as [params metadata handler]. simpl.
     rewrite loop_calls_equivariant. reflexivity.
 Qed.
@@ -3620,7 +3637,7 @@ Proof.
   destruct c as [params my_closure ret exn metadata body].
   unfold loopable.
   cbn [rename_code code_params code_my_closure code_return_continuation
-       code_exn_continuation code_body].
+       code_exn_continuation code_body code_params_arity].
   rewrite among_rename_variable,
     (distinct_map_injective _ (rename_variable_eqb r)),
     !rename_continuation_eqb, loop_safe_equivariant, loop_calls_equivariant,

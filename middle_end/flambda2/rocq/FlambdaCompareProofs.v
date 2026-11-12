@@ -597,7 +597,8 @@ Definition handlers_eqb (vm km : name_map)
    names, under the pairs of names of where they were defined, with
    environments that match on the names free in the handlers: those of
    the handler itself and of the handlers defined with it, any of which
-   it may come to run. *)
+   it may come to run; or what is left of the same over-application,
+   with continuations that match. *)
 #[local] Set Warnings "-register-all".
 Inductive cont_matches : cont_value -> cont_value -> Prop :=
   | Same_matches (c : cont_value) : cont_matches c c
@@ -622,7 +623,17 @@ Inductive cont_matches : cont_value -> cont_value -> Prop :=
       (Closure h' vars' conts' recursive')
   | Extra_args_matches (c c' : cont_value) (extra : list value) :
     cont_matches c c' ->
-    cont_matches (Extra_args c extra) (Extra_args c' extra).
+    cont_matches (Extra_args c extra) (Extra_args c' extra)
+  | Over_application_matches (remaining : list value)
+      (remaining_arity return_arity : arity)
+      (return_to return_to' exn_to exn_to' : cont_value) :
+    cont_matches return_to return_to' ->
+    cont_matches exn_to exn_to' ->
+    cont_matches
+      (Over_application remaining remaining_arity return_arity return_to
+         exn_to)
+      (Over_application remaining remaining_arity return_arity return_to'
+         exn_to').
 
 Lemma with_extra_args_matches (c c' : cont_value) (extra : list value) :
   cont_matches c c' ->
@@ -803,95 +814,6 @@ Proof.
   apply handler_eqb_refl; [ apply reflexive_map_nil | exact Hkm' ].
 Qed.
 
-(* Applying matching continuations to the same values, under matching
-   static environments. *)
-Lemma apply_cont_value_match (c c' : cont_value) (vs : list value)
-    (statics statics' : static_env) :
-  cont_matches c c' ->
-  statics_match statics statics' ->
-  result_related state_matches (apply_cont_value c vs statics)
-    (apply_cont_value c' vs statics').
-Proof.
-  intros Hc Hstatics. revert vs.
-  assert (Hclosure :
-    ∀ (vs : list value) (vm km km' : name_map)
-      (h h' : continuation_handler)
-      (vars vars' : env) (conts conts' : cont_env)
-      (recursive recursive' : list (continuation * continuation_handler)),
-      combine_names (map fst recursive) (map fst recursive') km = Some km' ->
-      handler_eqb vm km' h h' = true ->
-      handlers_eqb vm km' recursive recursive' = true ->
-      envs_match
-        (fun x =>
-           var_free_in_handler x h
-           ∨ any_handler (var_free_in_handler x) recursive)
-        vm vars vars' ->
-      conts_match
-        (fun k =>
-           (cont_free_in_handler k h
-            ∨ any_handler (cont_free_in_handler k) recursive)
-           ∧ lookup k recursive = None)
-        km conts conts' ->
-      result_related state_matches
-        (apply_cont_value (Closure h vars conts recursive) vs statics)
-        (apply_cont_value (Closure h' vars' conts' recursive') vs statics')).
-  { intros vs vm km km' [params metadata handler]
-      [params' metadata' handler'] vars vars' conts conts' recursive
-      recursive' Hnames Hh Hrec Hvars Hconts.
-    simpl in Hh |- *.
-    destruct (bind_names params params' vm) as [vm' | ] eqn:Hbind;
-      [ | discriminate ].
-    apply andb_true_iff in Hh as [Hmetadata Hh].
-    apply handler_metadata_eqb_eq in Hmetadata. subst metadata'.
-    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
-      [ | exact I ].
-    pose proof (bind_params_match params params' vs vm vm' vars vars' _
-      (fun x => var_free_in_expr x handler)
-      (fun x Hx =>
-         match in_dec Pos.eq_dec x params with
-         | left Hin => or_introl Hin
-         | right Hnotin => or_intror (or_introl (conj Hnotin Hx))
-         end)
-      Hbind Hvars) as Hbound.
-    destruct (bind_params params vs vars), (bind_params params' vs vars');
-      try contradiction; simpl; [ | exact I ].
-    apply (State_matches vm' km');
-      [ exact Hh | exact Hbound | | exact Hstatics ].
-    refine
-      (rec_conts_match _ _ vm km km' vars vars' conts conts' recursive
-         recursive' Hnames Hrec _ _ _ Hconts).
-    - fewer_variables Hvars. right. assumption.
-    - intros k Hk Hunbound. split; [ right; exact Hk | exact Hunbound ].
-    - intros k Hk.
-      destruct (lookup_none_or_in k recursive) as [Hunbound | Hin];
-        [ right | left; exact Hin ].
-      split; [ left; exact Hk | exact Hunbound ]. }
-  assert (Hsame :
-    ∀ (c : cont_value) (vs : list value),
-      result_related state_matches (apply_cont_value c vs statics)
-        (apply_cont_value c vs statics')).
-  { intros c0.
-    induction c0 as [h vars conts recursive | exit | c0 IH extra];
-      intros vs.
-    - destruct (closure_matches_itself h vars conts recursive)
-        as (km' & Hnames & Hh & Hrec).
-      exact (Hclosure vs [] [] km' h h vars vars conts conts recursive
-        recursive Hnames Hh Hrec (envs_match_same _ vars)
-        (conts_match_same _ conts)).
-    - simpl. auto.
-    - simpl. apply IH. }
-  induction Hc
-    as [c
-       | vm km km' h h' vars vars' conts conts' recursive recursive' Hnames
-           Hh Hrec Hvars Hconts _
-       | c c' extra Hc IH];
-    intros vs.
-  - apply Hsame.
-  - exact (Hclosure vs vm km km' h h' vars vars' conts conts' recursive
-      recursive' Hnames Hh Hrec Hvars Hconts).
-  - simpl. apply IH.
-Qed.
-
 Lemma call_kind_eqb_eq (kind kind' : call_kind) :
   call_kind_eqb kind kind' = true -> kind = kind'.
 Proof.
@@ -968,6 +890,234 @@ Proof.
   reflexivity.
 Qed.
 
+(* Matching static environments bind a code id alike. *)
+Lemma codes_agree_match (statics statics' : static_env) (called : code_id) :
+  statics_match statics statics' ->
+  codes_agree (fun c c' => code_eqb c c' = true) statics statics' called.
+Proof.
+  intros Hstatics. unfold codes_agree.
+  pose proof (lookup_code_match called statics statics' Hstatics) as Hc.
+  destruct (lookup called (static_code statics))
+    as [[params my_closure ret exn metadata body] | ],
+    (lookup called (static_code statics'))
+    as [[params' my_closure' ret' exn' metadata' body'] | ];
+    try contradiction; [ | exact I ].
+  split; [ exact Hc | ]. simpl in Hc |- *.
+  destruct (bind_names params params' [(my_closure, my_closure')]);
+    [ | discriminate ].
+  apply andb_true_iff in Hc as [Hmetadata _].
+  apply code_metadata_eqb_eq in Hmetadata. subst metadata'.
+  split; reflexivity.
+Qed.
+
+(* The same full call of codes that are the same up to bound names,
+   returning to matching continuations. *)
+Lemma call_code_match (closure : value) (c c' : code) (vs : list value)
+    (args_arity return_arity : arity)
+    (return_to return_to' exn_to exn_to' : cont_value)
+    (statics statics' : static_env) :
+  code_eqb c c' = true ->
+  statics_match statics statics' ->
+  cont_matches return_to return_to' ->
+  cont_matches exn_to exn_to' ->
+  result_related state_matches
+    (call_code closure c vs args_arity return_arity return_to exn_to statics)
+    (call_code closure c' vs args_arity return_arity return_to' exn_to'
+       statics').
+Proof.
+  intros Hc Hstatics Hreturn Hexn.
+  destruct c as [params my_closure ret exn metadata body],
+    c' as [params' my_closure' ret' exn' metadata' body'].
+  unfold call_code. simpl in Hc |- *.
+  destruct (bind_names params params' [(my_closure, my_closure')])
+    as [vm | ] eqn:Hbind; [ | discriminate ].
+  apply andb_true_iff in Hc as [Hmetadata Hc].
+  apply code_metadata_eqb_eq in Hmetadata. subst metadata'.
+  rewrite <- (expr_eqb_binds_statics body _ _ _ Hc).
+  destruct (binds_statics body); [ exact I | ].
+  destruct
+    (negb
+       (kinds_eqb (map kind_of_value vs) (unarize args_arity)
+        && kinds_per_parameter_eqb (unarize_per_parameter args_arity)
+             (unarize_per_parameter (cm_params_arity metadata))
+        && arity_eqb return_arity (cm_result_arity metadata)));
+    [ exact I | ].
+  pose proof (bind_params_match params params' vs _ vm
+    [(my_closure, closure)] [(my_closure', closure)] (fun _ => True)
+    (fun x => var_free_in_expr x body) (fun x _ => or_intror I) Hbind
+    (envs_match_cons (fun _ => True) (fun _ => True) [] [] [] my_closure
+       my_closure' closure (fun x _ => or_intror I)
+       (envs_match_same _ [])))
+    as Hbound.
+  destruct (bind_params params vs [(my_closure, closure)]),
+    (bind_params params' vs [(my_closure', closure)]);
+    try contradiction; simpl; [ | exact I ].
+  apply (State_matches vm [(ret, ret'); (exn, exn')]);
+    [ exact Hc | exact Hbound | | exact Hstatics ].
+  apply (conts_match_cons (fun _ => True)); [ auto | | exact Hreturn ].
+  apply (conts_match_cons (fun _ => True));
+    [ auto | apply conts_match_same | exact Hexn ].
+Qed.
+
+(* Calls of the same shape, given that what is done with a partial
+   application matches. *)
+Lemma run_call_match (return_partial return_partial' : value -> step_result)
+    (shape shape' : option call_shape) (return_arity : arity)
+    (return_to return_to' exn_to exn_to' : cont_value)
+    (statics statics' : static_env) :
+  shapes_related (fun c c' => code_eqb c c' = true) shape shape' ->
+  statics_match statics statics' ->
+  cont_matches return_to return_to' ->
+  cont_matches exn_to exn_to' ->
+  (∀ partial : value,
+    result_related state_matches (return_partial partial)
+      (return_partial' partial)) ->
+  result_related state_matches
+    (run_call return_partial shape return_arity return_to exn_to statics)
+    (run_call return_partial' shape' return_arity return_to' exn_to'
+       statics').
+Proof.
+  intros Hshapes Hstatics Hreturn Hexn Hpartial.
+  destruct Hshapes
+    as [ | closure c c' vs args_arity Hc
+       | closure c c' vs remaining args_arity remaining_arity Hc | partial];
+    simpl.
+  - exact I.
+  - apply call_code_match; assumption.
+  - assert (Hresult : code_result_arity c' = code_result_arity c).
+    { destruct c as [params my_closure ret exn metadata body],
+        c' as [params' my_closure' ret' exn' metadata' body'].
+      simpl in Hc |- *.
+      destruct (bind_names params params' [(my_closure, my_closure')]);
+        [ | discriminate ].
+      apply andb_true_iff in Hc as [Hmetadata _].
+      apply code_metadata_eqb_eq in Hmetadata. subst metadata'.
+      reflexivity. }
+    rewrite Hresult.
+    apply call_code_match; try assumption.
+    apply Over_application_matches; assumption.
+  - apply Hpartial.
+Qed.
+
+(* Applying matching continuations to the same values, under matching
+   static environments. *)
+Lemma apply_cont_value_match (c c' : cont_value) (vs : list value)
+    (statics statics' : static_env) :
+  cont_matches c c' ->
+  statics_match statics statics' ->
+  result_related state_matches (apply_cont_value c vs statics)
+    (apply_cont_value c' vs statics').
+Proof.
+  intros Hc Hstatics. revert c' vs Hc.
+  assert (Hclosure :
+    ∀ (vs : list value) (vm km km' : name_map)
+      (h h' : continuation_handler)
+      (vars vars' : env) (conts conts' : cont_env)
+      (recursive recursive' : list (continuation * continuation_handler)),
+      combine_names (map fst recursive) (map fst recursive') km = Some km' ->
+      handler_eqb vm km' h h' = true ->
+      handlers_eqb vm km' recursive recursive' = true ->
+      envs_match
+        (fun x =>
+           var_free_in_handler x h
+           ∨ any_handler (var_free_in_handler x) recursive)
+        vm vars vars' ->
+      conts_match
+        (fun k =>
+           (cont_free_in_handler k h
+            ∨ any_handler (cont_free_in_handler k) recursive)
+           ∧ lookup k recursive = None)
+        km conts conts' ->
+      result_related state_matches
+        (apply_cont_value (Closure h vars conts recursive) vs statics)
+        (apply_cont_value (Closure h' vars' conts' recursive') vs statics')).
+  { intros vs vm km km' [params metadata handler]
+      [params' metadata' handler'] vars vars' conts conts' recursive
+      recursive' Hnames Hh Hrec Hvars Hconts.
+    simpl in Hh |- *.
+    destruct (bind_names params params' vm) as [vm' | ] eqn:Hbind;
+      [ | discriminate ].
+    apply andb_true_iff in Hh as [Hmetadata Hh].
+    apply handler_metadata_eqb_eq in Hmetadata. subst metadata'.
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+      [ | exact I ].
+    pose proof (bind_params_match params params' vs vm vm' vars vars' _
+      (fun x => var_free_in_expr x handler)
+      (fun x Hx =>
+         match in_dec Pos.eq_dec x params with
+         | left Hin => or_introl Hin
+         | right Hnotin => or_intror (or_introl (conj Hnotin Hx))
+         end)
+      Hbind Hvars) as Hbound.
+    destruct (bind_params params vs vars), (bind_params params' vs vars');
+      try contradiction; simpl; [ | exact I ].
+    apply (State_matches vm' km');
+      [ exact Hh | exact Hbound | | exact Hstatics ].
+    refine
+      (rec_conts_match _ _ vm km km' vars vars' conts conts' recursive
+         recursive' Hnames Hrec _ _ _ Hconts).
+    - fewer_variables Hvars. right. assumption.
+    - intros k Hk Hunbound. split; [ right; exact Hk | exact Hunbound ].
+    - intros k Hk.
+      destruct (lookup_none_or_in k recursive) as [Hunbound | Hin];
+        [ right | left; exact Hin ].
+      split; [ left; exact Hk | exact Hunbound ]. }
+  assert (Hover :
+    ∀ (vs : list value) (remaining : list value)
+      (remaining_arity return_arity : arity)
+      (return_to return_to' exn_to exn_to' : cont_value),
+      (∀ (c' : cont_value) (vs' : list value),
+        cont_matches return_to c' ->
+        result_related state_matches (apply_cont_value return_to vs' statics)
+          (apply_cont_value c' vs' statics')) ->
+      cont_matches return_to return_to' ->
+      cont_matches exn_to exn_to' ->
+      result_related state_matches
+        (apply_cont_value
+           (Over_application remaining remaining_arity return_arity return_to
+              exn_to)
+           vs statics)
+        (apply_cont_value
+           (Over_application remaining remaining_arity return_arity
+              return_to' exn_to')
+           vs statics')).
+  { intros vs remaining remaining_arity return_arity return_to return_to'
+      exn_to exn_to' IHreturn Hreturn Hexn.
+    rewrite !apply_cont_value_over_application.
+    destruct vs as [ | v [ | v' vs]]; [ exact I | | exact I ].
+    unfold call_function. apply run_call_match; try assumption.
+    - apply shape_of_call_related;
+        [ symmetry; apply closure_of_match; exact Hstatics | ].
+      intros called slots _. apply codes_agree_match. exact Hstatics.
+    - intros partial. apply IHreturn. exact Hreturn. }
+  induction c
+    as [h vars conts recursive | exit | c IHc extra
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+    using cont_value_over_ind;
+    intros c' vs Hc.
+  - inversion Hc
+      as [c0 | vm km km' h0 h' vars0 vars' conts0 conts' recursive0
+                 recursive' Hnames Hh Hrec Hvars Hconts | | ];
+      subst.
+    + destruct (closure_matches_itself h vars conts recursive)
+        as (km' & Hnames & Hh & Hrec).
+      exact (Hclosure vs [] [] km' h h vars vars conts conts recursive
+        recursive Hnames Hh Hrec (envs_match_same _ vars)
+        (conts_match_same _ conts)).
+    + exact (Hclosure vs vm km km' h h' vars vars' conts conts' recursive
+        recursive' Hnames Hh Hrec Hvars Hconts).
+  - inversion Hc; subst. simpl. auto.
+  - inversion Hc; subst; simpl; apply IHc;
+      [ apply Same_matches | assumption ].
+  - inversion Hc
+      as [c0 | |
+         | remaining0 remaining_arity0 return_arity0 return_to0 return_to'
+             exn_to0 exn_to' Hreturn Hexn];
+      subst.
+    + apply Hover; [ exact IHreturn | apply Same_matches .. ].
+    + apply Hover; assumption.
+Qed.
+
 (* The same call under matching static environments, returning to matching
    continuations. *)
 Lemma call_function_match (callee : value) (kind : call_kind)
@@ -984,49 +1134,11 @@ Lemma call_function_match (callee : value) (kind : call_kind)
        statics').
 Proof.
   intros Hstatics Hreturn Hexn. unfold call_function.
-  rewrite <- (closure_of_match statics statics' callee Hstatics).
-  destruct (closure_of statics callee) as [[called slots] | ]; [ | exact I ].
-  destruct
-    (match kind with
-     | Direct named => Pos.eqb called named
-     | Indirect => true
-     end);
-    [ | exact I ].
-  pose proof (lookup_code_match called statics statics' Hstatics) as Hc.
-  destruct (lookup called (static_code statics))
-    as [[params my_closure ret exn metadata body] | ],
-    (lookup called (static_code statics'))
-    as [[params' my_closure' ret' exn' metadata' body'] | ];
-    try contradiction; [ | exact I ].
-  simpl in Hc |- *.
-  destruct (bind_names params params' [(my_closure, my_closure')])
-    as [vm | ] eqn:Hbind; [ | discriminate ].
-  apply andb_true_iff in Hc as [Hmetadata Hc].
-  apply code_metadata_eqb_eq in Hmetadata. subst metadata'.
-  rewrite <- (expr_eqb_binds_statics body _ _ _ Hc).
-  destruct (binds_statics body); [ exact I | ].
-  destruct
-    (negb
-       (kinds_eqb (map kind_of_value vs) (unarize args_arity)
-        && kinds_per_parameter_eqb (unarize_per_parameter args_arity)
-             (unarize_per_parameter (cm_params_arity metadata))
-        && arity_eqb return_arity (cm_result_arity metadata)));
-    [ exact I | ].
-  pose proof (bind_params_match params params' vs _ vm
-    [(my_closure, callee)] [(my_closure', callee)] (fun _ => True)
-    (fun x => var_free_in_expr x body) (fun x _ => or_intror I) Hbind
-    (envs_match_cons (fun _ => True) (fun _ => True) [] [] [] my_closure
-       my_closure' callee (fun x _ => or_intror I)
-       (envs_match_same _ [])))
-    as Hbound.
-  destruct (bind_params params vs [(my_closure, callee)]),
-    (bind_params params' vs [(my_closure', callee)]);
-    try contradiction; simpl; [ | exact I ].
-  apply (State_matches vm [(ret, ret'); (exn, exn')]);
-    [ exact Hc | exact Hbound | | exact Hstatics ].
-  apply (conts_match_cons (fun _ => True)); [ auto | | exact Hreturn ].
-  apply (conts_match_cons (fun _ => True));
-    [ auto | apply conts_match_same | exact Hexn ].
+  apply run_call_match; try assumption.
+  - apply shape_of_call_related;
+      [ symmetry; apply closure_of_match; exact Hstatics | ].
+    intros called slots _. apply codes_agree_match. exact Hstatics.
+  - intros partial. apply apply_cont_value_match; assumption.
 Qed.
 
 Lemma find_arm_match (vm km : name_map) (i : Z)

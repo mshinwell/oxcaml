@@ -98,7 +98,9 @@ Definition env_in_range (vars : env) : Prop :=
    with the environments of its definition is when the handler, the
    values of its variables, what its continuations stand for, and the
    handlers defined with it are; a continuation with extra arguments is
-   when the continuation inside and the extra arguments are. *)
+   when the continuation inside and the extra arguments are; what is
+   left of an over-application is when the arguments that remain and its
+   two continuations are. *)
 Inductive cont_in_range : cont_value -> Prop :=
   | Outer_in_range (k : continuation) : cont_in_range (Outer k)
   | Extra_args_in_range (c : cont_value) (extra : list value) :
@@ -114,7 +116,16 @@ Inductive cont_in_range : cont_value -> Prop :=
       (k, c) ∈ conts -> cont_in_range c) ->
     (∀ (k : continuation) (h' : continuation_handler),
       (k, h') ∈ recursive -> handler_numbers_in_range h' = true) ->
-    cont_in_range (Closure h vars conts recursive).
+    cont_in_range (Closure h vars conts recursive)
+  | Over_application_in_range (remaining : list value)
+      (remaining_arity return_arity : arity)
+      (return_to exn_to : cont_value) :
+    forallb value_in_range remaining = true ->
+    cont_in_range return_to ->
+    cont_in_range exn_to ->
+    cont_in_range
+      (Over_application remaining remaining_arity return_arity return_to
+         exn_to).
 
 Definition conts_in_range (conts : cont_env) : Prop :=
   ∀ (k : continuation) (c : cont_value), (k, c) ∈ conts -> cont_in_range c.

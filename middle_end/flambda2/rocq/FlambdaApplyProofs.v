@@ -45,7 +45,10 @@ Proof.
   destruct (eval_simples vars args) as [vs | ]; [ | reflexivity ].
   destruct (eval_simples vars (map fst extra)) as [extra_vs | ];
     [ | reflexivity ].
-  unfold call_function. rewrite Hclosure, Pos.eqb_refl. reflexivity.
+  unfold call_function.
+  rewrite !(shape_of_call_closure statics v _ _ _ _
+              (closure_not_partial statics v _ Hclosure)).
+  unfold shape_of_closure_call. rewrite Hclosure, Pos.eqb_refl. reflexivity.
 Qed.
 
 (* ======================================================================== *)
@@ -121,47 +124,45 @@ Qed.
 (* Inlining                                                                 *)
 (* ======================================================================== *)
 
-(* The step of a direct call of a closure of the code named. *)
+(* The step of a direct call, with as many arguments as the code has
+   parameters, of a closure of the code named. *)
 Lemma step_apply_direct (ap : apply_expr) (callee : value) (called : code_id)
     (slots : list (value_slot * value)) (vs : list value) (vars : env)
-    (conts : cont_env) (statics : static_env) :
+    (conts : cont_env) (statics : static_env) (c : code) :
   eval_simple vars (ap_callee ap) = Some callee ->
   closure_of statics callee = Some (called, slots) ->
   eval_simples vars (ap_args ap) = Some vs ->
   ap_call_kind ap = Direct called ->
   ap_exn_extra_args ap = [] ->
+  lookup called (static_code statics) = Some c ->
+  length (ap_args_arity ap) = length (code_params_arity c) ->
   step (State (Apply ap) vars conts statics)
-  = match lookup called (static_code statics) with
-    | Some c =>
-      if binds_statics (code_body c) then Undefined
-      else if
-        negb
-          (kinds_eqb (map kind_of_value vs) (unarize (ap_args_arity ap))
-           && kinds_per_parameter_eqb
-                (unarize_per_parameter (ap_args_arity ap))
-                (unarize_per_parameter (code_params_arity c))
-           && arity_eqb (ap_return_arity ap) (code_result_arity c))
-      then Undefined
-      else
-        match
-          bind_params (code_params c) vs [(code_my_closure c, callee)]
-        with
-        | Some callee_vars =>
-          Step (State (code_body c) callee_vars
-            [(code_return_continuation c,
-              resolve (ap_continuation ap) conts);
-             (code_exn_continuation c,
-              resolve (ap_exn_continuation ap) conts)]
-            statics)
-        | None => Undefined
-        end
-    | None => Undefined
-    end.
+  = if binds_statics (code_body c) then Undefined
+    else if
+      negb
+        (kinds_eqb (map kind_of_value vs) (unarize (ap_args_arity ap))
+         && kinds_per_parameter_eqb
+              (unarize_per_parameter (ap_args_arity ap))
+              (unarize_per_parameter (code_params_arity c))
+         && arity_eqb (ap_return_arity ap) (code_result_arity c))
+    then Undefined
+    else
+      match bind_params (code_params c) vs [(code_my_closure c, callee)] with
+      | Some callee_vars =>
+        Step (State (code_body c) callee_vars
+          [(code_return_continuation c,
+            resolve (ap_continuation ap) conts);
+           (code_exn_continuation c,
+            resolve (ap_exn_continuation ap) conts)]
+          statics)
+      | None => Undefined
+      end.
 Proof.
-  intros Hcallee Hclosure Hargs Hkind Hextra.
+  intros Hcallee Hclosure Hargs Hkind Hextra Hcode Hfull.
   rewrite (step_apply_no_extra_args _ _ _ _ Hextra), Hcallee, Hargs, Hkind.
-  unfold call_function. rewrite Hclosure, Pos.eqb_refl.
-  destruct (lookup called (static_code statics)); reflexivity.
+  unfold call_function. rewrite shape_of_call_direct.
+  unfold shape_of_closure_call.
+  rewrite Hclosure, Pos.eqb_refl, Hcode, Hfull, Nat.eqb_refl. reflexivity.
 Qed.
 
 (* The call goes wrong, or it steps to the body under the callee's
@@ -173,7 +174,7 @@ Theorem inline : inline_statement.
 Proof.
   intros ap called c r vars conts statics Hkind Hcode
     (Hclosed_vars & Hclosed_conts & Hvars & Hret & Hexn & Hextra
-     & Hmy_closure & Hparams & Harity & Hstatic).
+     & Hmy_closure & Hparams & Harity & Hfull & Hstatic).
   pose proof
     (step_undefined_refines (State (Apply ap) vars conts statics)
        (State (inlined_body c r ap) vars conts statics))
@@ -188,18 +189,21 @@ Proof.
         reflexivity ].
   destruct (closure_of statics callee) as [[called' slots] | ] eqn:Hclosure;
     [ | apply Hwrong;
-        rewrite (step_apply_no_extra_args _ _ _ _ Hextra), Hcallee, Hargs;
-        unfold call_function; rewrite Hclosure; reflexivity ].
+        rewrite (step_apply_no_extra_args _ _ _ _ Hextra), Hcallee, Hargs,
+          Hkind;
+        unfold call_function; rewrite shape_of_call_direct;
+        unfold shape_of_closure_call; rewrite Hclosure; reflexivity ].
   destruct (Pos.eqb_spec called' called) as [-> | Hother];
     [ | apply Hwrong;
         rewrite (step_apply_no_extra_args _ _ _ _ Hextra), Hcallee, Hargs,
           Hkind;
-        unfold call_function; rewrite Hclosure;
+        unfold call_function; rewrite shape_of_call_direct;
+        unfold shape_of_closure_call; rewrite Hclosure;
         destruct (Pos.eqb_spec called' called);
         [ contradiction | reflexivity ] ].
   pose proof (step_apply_direct ap callee called slots vs vars conts statics
-    Hcallee Hclosure Hargs Hkind Hextra) as Hstep.
-  rewrite Hcode, Hstatic in Hstep.
+    c Hcallee Hclosure Hargs Hkind Hextra Hcode Hfull) as Hstep.
+  rewrite Hstatic in Hstep.
   match type of Hstep with
   | context [negb ?agrees] => destruct agrees eqn:Hagrees
   end;
@@ -409,7 +413,7 @@ Lemma inline_equivalent (ap : apply_expr) (called : code_id) (c : code)
 Proof.
   intros Hkind Hcallee Hclosure Hcode
     (Hclosed_vars & Hclosed_conts & Hvars & Hret & Hexn & Hextra
-     & Hmy_closure & Hparams & Harity & Hstatic)
+     & Hmy_closure & Hparams & Harity & Hfull & Hstatic)
     Hargs_arity Hreturn_arity Hparams_kinds.
   destruct (eval_simples vars (ap_args ap)) as [vs | ] eqn:Hargs;
     [ destruct
@@ -418,8 +422,8 @@ Proof.
         as [Hkinds | Hkinds]
     | ].
   - pose proof (step_apply_direct ap callee called slots vs vars conts
-      statics Hcallee Hclosure Hargs Hkind Hextra) as Hstep.
-    rewrite Hcode, Hstatic in Hstep.
+      statics c Hcallee Hclosure Hargs Hkind Hextra Hcode Hfull) as Hstep.
+    rewrite Hstatic in Hstep.
     rewrite Hkinds, Hargs_arity, Hreturn_arity, kinds_eqb_refl,
       arity_eqb_refl in Hstep.
     rewrite (proj2 (kinds_per_parameter_eqb_eq _ _) eq_refl) in Hstep.
@@ -467,7 +471,7 @@ Proof.
   - apply both_wrong_equivalent.
     + apply step_undefined_wrong.
       rewrite (step_apply_direct ap callee called slots vs vars conts
-        statics Hcallee Hclosure Hargs Hkind Hextra), Hcode, Hstatic.
+        statics c Hcallee Hclosure Hargs Hkind Hextra Hcode Hfull), Hstatic.
       destruct
         (kinds_eqb (map kind_of_value vs) (unarize (ap_args_arity ap)))
         eqn:Heq; [ | reflexivity ].

@@ -47,6 +47,8 @@
      renamed, as it is observed; a continuation with the extra
      arguments of a call kept ([Extra_args]) is renamed inside, the
      arguments being values, which hold no variables or continuations;
+     what is left of an over-application has its two continuations
+     renamed, and the values it keeps hold no names;
    - the static environment has its code renamed. Symbols, code ids and
      slots are fixed by the action;
    - a state, the result of a step and a behaviour are renamed
@@ -115,7 +117,8 @@ Import ListNotations.
 (* A continuation closure is renamed throughout; a way out of the term is
    a continuation, and is renamed. The extra arguments that a
    continuation is kept with are values, which hold no variables or
-   continuations. *)
+   continuations. What is left of an over-application is renamed in its
+   two continuations. *)
 Fixpoint rename_cont_value (r : renaming) (c : cont_value) : cont_value :=
   match c with
   | Closure h vars conts recursive =>
@@ -125,6 +128,9 @@ Fixpoint rename_cont_value (r : renaming) (c : cont_value) : cont_value :=
       (rename_handlers r recursive)
   | Outer k => Outer (rename_continuation r k)
   | Extra_args c extra => Extra_args (rename_cont_value r c) extra
+  | Over_application remaining remaining_arity return_arity return_to exn_to =>
+    Over_application remaining remaining_arity return_arity
+      (rename_cont_value r return_to) (rename_cont_value r exn_to)
   end.
 
 Definition rename_cont_env (r : renaming) (conts : cont_env) : cont_env :=

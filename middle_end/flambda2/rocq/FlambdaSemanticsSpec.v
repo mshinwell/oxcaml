@@ -30,7 +30,8 @@
 
    This file is to be reviewed: [closure_of], [closure_in_set],
    [project_value_slot], [project_function_slot], [eval_named],
-   [eval_static_bindings], [apply_cont_value], [with_extra_args],
+   [eval_static_bindings], [call_code], [shape_of_closure_call],
+   [shape_of_call], [run_call], [apply_cont_value], [with_extra_args],
    [call_function] and the rules of [step], then [behaves],
    [equivalent] and [refines]. The values, the static
    environment and the reading of allocated values are in
@@ -74,11 +75,31 @@
    closure called, with the code's return and exception continuations
    standing for the caller's. There is no stack.
 
+   A call need not give a function as many arguments as its code has
+   parameters: it is the generic application of the compiler
+   ([shape_of_call] says what a call is). With fewer arguments it makes
+   a partial application, a value of its own that keeps the closure and
+   the arguments so far ([Value_partial_application]), and gives it to
+   the return continuation of the call; an indirect call of that value
+   with more arguments is the call of the closure with all of them. With
+   more arguments it is a full call with the first of them, whose result
+   is then called with the rest: the full call returns to what is left
+   of the application ([Over_application]), which is a continuation that
+   no term names. A partial application is not a closure: nothing can be
+   projected from it, and a direct call of it is undefined. The compiler
+   has no such value: Simplify turns the partial application of a
+   function it knows into a closure of new code, and at run time one of
+   a function it does not know is a closure of [caml_curryN]. The
+   machine cannot make code, and its one value stands for both.
+
    Exceptions. An exception handler is a continuation; a raise is an
    [Apply_cont] of it, the exception being the first argument; and a call
    names the continuation that its exceptions go to, with extra
    arguments, which the call evaluates: the callee raises to the caller's
    handler applied to the exception followed by them ([with_extra_args]).
+   The two calls that an over-application makes, the full call and the
+   call of its result, raise to that one continuation with those extra
+   arguments.
    So where an exception goes is said by the term, as for any
    continuation, and the machine has no stack of handlers: a trap action
    ([Push], [Pop]) is not executed. The code that the backend makes does
@@ -151,9 +172,13 @@
    well-formed unit.
 
    Execution is undefined ([Undefined]) at [Invalid], at an unbound variable,
-   at a continuation or a function applied to the wrong number of
-   arguments, at a function called at arities that are not those of its
-   code or with arguments that are not of the kinds of the call's arity,
+   at a continuation applied to the wrong number of arguments, at a
+   function called with as many arguments as it has parameters at
+   arities that are not those of its code, or with fewer or more
+   arguments at arities that the compiler does not take for a partial
+   application or an over-application, or with arguments that are not
+   of the kinds of the call's arity, at a call of a partial application
+   that is direct or gives it no argument,
    at a [Let] whose defining expression has a value of another kind than
    the [Let] gives its variable, at a handler applied to values of other
    kinds than it gives its parameters,
@@ -175,9 +200,11 @@
    Kinds. The kinds and arities that terms carry (FlambdaModel.v) are
    tested where a variable is bound, and nowhere else. A call
    ([call_function]) is undefined unless it agrees with the code called,
-   in the three ways given there. Simplify assumes each of them, and a
-   well-typed program whose types are refined by a GADT can break the
-   second and the third in a branch that is never run. A [Let] is
+   in the three ways given at [call_code] for a full call and in those
+   given at [shape_of_closure_call] for the others. Simplify assumes
+   each of them, and a well-typed program whose types are refined by a
+   GADT can break the second and the third in a branch that is never
+   run. A [Let] is
    undefined unless the value of its defining expression is of its kind
    ([step]), and the application of a handler unless the values are of
    the kinds of its parameters ([apply_cont_value]). So, in every run, a
@@ -214,14 +241,21 @@ Definition env : Type := list (variable * value).
    [Extra_args] is a continuation that is to be given, after the arguments
    it is applied to, the values kept here: it is what a call with extra
    arguments for its exception continuation gives its callee to raise
-   to. *)
+   to.
+   [Over_application] is where the full call inside a call with more
+   arguments than the function has parameters returns to: its result is
+   to be called with the arguments that remain ([remaining], given at
+   [remaining_arity]), for a result of [return_arity], with the two
+   continuations of the whole call. *)
 #[local] Set Warnings "-register-all".
 Inductive cont_value : Type :=
   | Closure (h : continuation_handler) (vars : env)
       (conts : list (continuation * cont_value))
       (recursive : list (continuation * continuation_handler))
   | Outer (k : continuation)
-  | Extra_args (c : cont_value) (extra : list value).
+  | Extra_args (c : cont_value) (extra : list value)
+  | Over_application (remaining : list value)
+      (remaining_arity return_arity : arity) (return_to exn_to : cont_value).
 
 Definition cont_env : Type := list (continuation * cont_value).
 
@@ -462,7 +496,7 @@ Fixpoint eval_static_bindings (vars : env) (bindings : list static_binding)
 
 (* CR mshinwell: a call of code whose body binds something static is
    undefined, and so is a recursive [Let_cont] one of whose handlers does
-   ([call_function] and [step], by [binds_statics]). For a binding of a
+   ([call_code] and [step], by [binds_statics]). For a binding of a
    symbol this follows the compiler, which stops on one that is not at
    toplevel. For a group that binds only code the compiler has no such
    check (simplify/simplify_named.ml, the case [Static_consts]). So if a
@@ -546,32 +580,6 @@ Inductive step_result : Type :=
   | Exit (k : continuation) (vs : list value)
   | Undefined.
 
-(* Applying a handler runs it under the environments of its definition,
-   with its parameters bound and, for a recursive one, the handlers defined
-   with it in scope again. The values must be of the kinds that the
-   handler gives its parameters: otherwise there is no step. Applying a
-   way out ends execution, whatever the values: a way out is the
-   interface of the term, which says nothing of kinds. Applying a
-   continuation that has extra arguments applies it to the arguments
-   followed by those: so the extra arguments are tested with the others,
-   by the handler that they reach. *)
-Fixpoint apply_cont_value (c : cont_value) (vs : list value)
-    (statics : static_env) : step_result :=
-  match c with
-  | Outer k => Exit k vs
-  | Closure (Handler params metadata handler) def_vars def_conts recursive =>
-    if kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata)
-    then
-      match bind_params params vs def_vars with
-      | Some handler_vars =>
-        Step (State handler handler_vars
-          (rec_closures recursive def_vars def_conts ++ def_conts) statics)
-      | None => Undefined
-      end
-    else Undefined
-  | Extra_args c extra => apply_cont_value c (vs ++ extra) statics
-  end.
-
 (* The exception continuation that a call gives its callee: the caller's,
    to be applied to the exception followed by the extra arguments of the
    call. With no extra argument it is the caller's as it is. *)
@@ -590,17 +598,13 @@ Definition with_extra_args (c : cont_value) (extra : list value)
   | _ :: _ => Extra_args c extra
   end.
 
-Definition apply_continuation (k : continuation) (vs : list value)
-    (conts : cont_env) (statics : static_env) : step_result :=
-  apply_cont_value (resolve k conts) vs statics.
-
-(* Calling a closure runs the body of its code. The only variables are the
-   parameters and the closure itself; the only continuations are the
+(* A full call of a closure of the code [c] runs the body of the code.
+   The only variables are the parameters, bound to the arguments, and
+   [my_closure], bound to the closure; the only continuations are the
    return and exception continuations of the code, which stand for what
-   the caller's stand for. So there is no stack: to return is to apply the
-   continuation the caller gave. A direct call must be to a closure of the
-   code named. The body must bind nothing static: it would do so at each
-   call.
+   the caller's stand for. So there is no stack: to return is to apply
+   the continuation the caller gave. The body must bind nothing static:
+   it would do so at each call.
 
    The call must agree with the code, in three ways. Simplify assumes
    each: it replaces by [Invalid] a call that fails one
@@ -625,34 +629,108 @@ Definition apply_continuation (k : continuation) (vs : list value)
      results of the code, unboxed products and all
      ([simplify_direct_function_call], by
      [Flambda_arity.equal_ignoring_subkinds];
-     [Application_result_kind_mismatch]).
-   A call with fewer or more arguments than the code has parameters
-   fails the second and is undefined. Where the compiler takes such a
-   call for a partial application or an over-application, that is an
-   omission of this fragment and not undefined behaviour of the program:
-   FlambdaWellKindedSpec.v says which calls those are
-   ([partial_or_over_application]). *)
+     [Application_result_kind_mismatch]). *)
+Definition call_code (closure : value) (c : code) (vs : list value)
+    (args_arity return_arity : arity) (return_to exn_to : cont_value)
+    (statics : static_env) : step_result :=
+  if binds_statics (code_body c) then Undefined
+  else if
+    negb
+      (kinds_eqb (map kind_of_value vs) (unarize args_arity)
+       && kinds_per_parameter_eqb (unarize_per_parameter args_arity)
+            (unarize_per_parameter (code_params_arity c))
+       && arity_eqb return_arity (code_result_arity c))
+  then Undefined
+  else
+    match bind_params (code_params c) vs [(code_my_closure c, closure)] with
+    | Some callee_vars =>
+      Step (State (code_body c) callee_vars
+        [(code_return_continuation c, return_to);
+         (code_exn_continuation c, exn_to)]
+        statics)
+    | None => Undefined
+    end.
 
-(* CR mshinwell: two calls are undefined in [call_function] on trust.
-   - A call of a closure whose code is not bound, or is deleted
-     ([call_function] finds no code), while the closure itself is made,
-     by every form of closure. It cannot be undefined where the closure
-     is made, as a group may bind a symbol to a closure before it binds
-     the code. It is right if code is deleted only when it is never
-     called, which nothing checks; for the term after Simplify it is the
-     safe side. It is not decided whether well-formedness is to ask that
-     the code of every closure is bound by the time it is called, as it
-     is to ask of the symbols a term mentions (decision D8). Decision
-     D20.
+(* What a call is, before anything runs: a full call of code; a full
+   call with the first arguments, whose result is then called with the
+   arguments that remain; or a partial application, the value that
+   stands for a closure given some of its arguments. *)
+Inductive call_shape : Type :=
+  | Full_call (closure : value) (c : code) (vs : list value)
+      (args_arity : arity)
+  | Over_call (closure : value) (c : code) (vs remaining : list value)
+      (args_arity remaining_arity : arity)
+  | Partial_call (partial : value).
+
+(* What the call of a closure is; [None] where it is undefined. A direct
+   call must be to a closure of the code named.
+
+   A call is the generic application of the compiler, which tells the
+   three shapes apart by the number of arguments, counted by parameter
+   and not unarized ([simplify_direct_function_call]; at run time, for a
+   call of unknown arity, [caml_applyN]). With as many arguments as the
+   code has parameters it is a full call, and [call_code] makes the
+   three tests. Otherwise the arguments must be of the kinds of the
+   arity that the call is made at, and the arities must pass the test by
+   which the compiler takes the call for a partial application or an
+   over-application (FlambdaModel.partial_or_over_application).
+   - With more arguments than parameters it is a full call with the
+     first of them, at the result arity of the code, which is one
+     [Value]; the result is then called with the rest.
+   - With fewer, but not none, it is a partial application of the
+     closure to the arguments, and nothing is called.
+   What is not tested: at a partial application, nothing is compared
+   with the result arity of the code; at an over-application, nothing
+   with the return arity of the call, until the result is called. A call
+   with no argument of code that has parameters is undefined: the
+   compiler stops on one. *)
+
+(* CR mshinwell: two calls are undefined in [shape_of_closure_call] on
+   trust.
+   - A call of a closure whose code is not bound, or is deleted (no code
+     is found), while the closure itself is made, by every form of
+     closure. It cannot be undefined where the closure is made, as a
+     group may bind a symbol to a closure before it binds the code. It
+     is right if code is deleted only when it is never called, which
+     nothing checks; for the term after Simplify it is the safe side. It
+     is not decided whether well-formedness is to ask that the code of
+     every closure is bound by the time it is called, as it is to ask of
+     the symbols a term mentions (decision D8). Decision D20.
    - A direct call of a closure of other code than the one named. The
      backend would run the code named, with that closure. Not certain
      where the two code ids are versions of one function: the compiler
      relates them by its code age relation, which the model has not got.
      Discrepancy C0-1; no decision yet. *)
-Definition call_function (callee : value) (kind : call_kind)
-    (vs : list value) (args_arity return_arity : arity)
-    (return_to exn_to : cont_value) (statics : static_env) : step_result :=
-  match closure_of statics callee with
+
+(* CR mshinwell: a direct call, and an indirect call that the compiler
+   has marked as of known arity
+   ([Call_kind.Function_call.Indirect_known_arity]; the [Indirect] of
+   this fragment is both sorts of indirect call), are generic
+   applications here: with fewer or more arguments than the code has
+   parameters they are partial applications and over-applications. That
+   is how Simplify reads a call of any kind once it knows the callee
+   ([simplify_function_call] sends all three to
+   [simplify_direct_function_call]), and it is what makes an indirect
+   call of a known closure the same as a direct call of its code
+   whatever the number of arguments
+   (FlambdaApplySpec.apply_indirect_known_statement). The backend reads
+   the two as full calls: it stops on a direct call that has not as many
+   arguments as the code has parameters (to_cmm/to_cmm_expr.ml, "Wrong
+   arity for direct call"), and it compiles a call of known arity as a
+   full call with no test of the callee. So the machine gives a meaning
+   to calls that the backend refuses or would compile wrongly. No term
+   that the compiler makes is known to have one: closure conversion
+   makes a call direct only where it is full
+   (from_lambda/closure_conversion.ml, [close_apply]), and Simplify
+   marks a call as of known arity only where its types say that every
+   code the callee may have has the arity of the call; nothing checks
+   either afterwards. Whether such a call should be undefined, or ruled
+   out by well-formedness where the code is named, is not decided.
+   Discrepancy C3-9. *)
+Definition shape_of_closure_call (statics : static_env) (closure : value)
+    (kind : call_kind) (vs : list value) (args_arity return_arity : arity)
+    : option call_shape :=
+  match closure_of statics closure with
   | Some (called, _) =>
     let expected :=
       match kind with
@@ -662,29 +740,136 @@ Definition call_function (callee : value) (kind : call_kind)
     in
     match expected, lookup called (static_code statics) with
     | true, Some c =>
-      if binds_statics (code_body c) then Undefined
+      let provided := length args_arity in
+      let params := length (code_params_arity c) in
+      if Nat.eqb provided params
+      then Some (Full_call closure c vs args_arity)
       else if
         negb
           (kinds_eqb (map kind_of_value vs) (unarize args_arity)
-           && kinds_per_parameter_eqb (unarize_per_parameter args_arity)
-                (unarize_per_parameter (code_params_arity c))
-           && arity_eqb return_arity (code_result_arity c))
-      then Undefined
-      else
-        match
-          bind_params (code_params c) vs [(code_my_closure c, callee)]
-        with
-        | Some callee_vars =>
-          Step (State (code_body c) callee_vars
-            [(code_return_continuation c, return_to);
-             (code_exn_continuation c, exn_to)]
-            statics)
-        | None => Undefined
-        end
-    | _, _ => Undefined
+           && partial_or_over_application args_arity return_arity
+                (code_params_arity c) (code_result_arity c))
+      then None
+      else if Nat.ltb params provided
+      then
+        let size := cardinal_unarized (code_params_arity c) in
+        Some
+          (Over_call closure c (firstn size vs) (skipn size vs)
+             (firstn params args_arity) (partially_apply args_arity params))
+      else Some (Partial_call (Value_partial_application closure vs args_arity))
+    | _, _ => None
     end
+  | None => None
+  end.
+
+(* What a call is. An indirect call of a partial application is the
+   call of its closure with the arguments that it has been given
+   already, followed by those of the call, of which there must be one at
+   least: the compiler makes a partial application a closure of code
+   with the parameters that are left, and stops on a call of it with no
+   argument. The arguments of the call must be of the kinds of the arity
+   that the call is made at, and that is tested here, of the call's own
+   arguments, as Simplify tests it of every call before it goes by the
+   code of the callee ([simplify_apply_shared]; where the kinds
+   disagree, [Application_argument_kind_mismatch]). The call of the
+   closure tests the arguments kept and the new ones together, and in
+   that test a partial application that no call made, one that keeps
+   arguments that are not of the kinds of the arity it keeps, could
+   hide a mismatch. A direct call of a partial application is
+   undefined: it is a closure of no code of the term. *)
+Definition shape_of_call (statics : static_env) (callee : value)
+    (kind : call_kind) (vs : list value) (args_arity return_arity : arity)
+    : option call_shape :=
+  match kind, partial_application_of callee with
+  | Indirect, Some (closure, applied, applied_arity) =>
+    match args_arity with
+    | [] => None
+    | _ :: _ =>
+      if kinds_eqb (map kind_of_value vs) (unarize args_arity)
+      then
+        shape_of_closure_call statics closure Indirect (applied ++ vs)
+          (applied_arity ++ args_arity) return_arity
+      else None
+    end
+  | _, _ => shape_of_closure_call statics callee kind vs args_arity return_arity
+  end.
+
+(* A call of a given shape runs. A full call is made at the return arity
+   of the call and returns to its return continuation. The full call
+   inside an over-application is made at the result arity of the code,
+   and returns to what is left of the application
+   ([Over_application]); its exception continuation is that of the
+   call. [return_partial] is what is done with a partial application: it
+   is given to the return continuation of the call ([call_function]
+   below). *)
+Definition run_call (return_partial : value -> step_result)
+    (shape : option call_shape) (return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) : step_result :=
+  match shape with
+  | Some (Full_call closure c vs args_arity) =>
+    call_code closure c vs args_arity return_arity return_to exn_to statics
+  | Some (Over_call closure c vs remaining args_arity remaining_arity) =>
+    call_code closure c vs args_arity (code_result_arity c)
+      (Over_application remaining remaining_arity return_arity return_to
+         exn_to)
+      exn_to statics
+  | Some (Partial_call partial) => return_partial partial
   | None => Undefined
   end.
+
+(* Applying a handler runs it under the environments of its definition,
+   with its parameters bound and, for a recursive one, the handlers defined
+   with it in scope again. The values must be of the kinds that the
+   handler gives its parameters: otherwise there is no step. Applying a
+   way out ends execution, whatever the values: a way out is the
+   interface of the term, which says nothing of kinds. Applying a
+   continuation that has extra arguments applies it to the arguments
+   followed by those: so the extra arguments are tested with the others,
+   by the handler that they reach. Applying what is left of an
+   over-application, to the one value that the full call returned, is
+   an indirect call of that value with the arguments that remain; its
+   exception continuation is that of the over-application, extra
+   arguments included. No variable is bound there, and the kind of the
+   value is not tested: a value that can be called is of kind
+   [Value]. *)
+Fixpoint apply_cont_value (c : cont_value) (vs : list value)
+    (statics : static_env) {struct c} : step_result :=
+  match c with
+  | Outer k => Exit k vs
+  | Closure (Handler params metadata handler) def_vars def_conts recursive =>
+    if kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata)
+    then
+      match bind_params params vs def_vars with
+      | Some handler_vars =>
+        Step (State handler handler_vars
+          (rec_closures recursive def_vars def_conts ++ def_conts) statics)
+      | None => Undefined
+      end
+    else Undefined
+  | Extra_args c extra => apply_cont_value c (vs ++ extra) statics
+  | Over_application remaining remaining_arity return_arity return_to exn_to =>
+    match vs with
+    | [v] =>
+      run_call (fun partial => apply_cont_value return_to [partial] statics)
+        (shape_of_call statics v Indirect remaining remaining_arity
+           return_arity)
+        return_arity return_to exn_to statics
+    | _ => Undefined
+    end
+  end.
+
+Definition apply_continuation (k : continuation) (vs : list value)
+    (conts : cont_env) (statics : static_env) : step_result :=
+  apply_cont_value (resolve k conts) vs statics.
+
+(* A call: what [shape_of_call] says it is runs, and a partial
+   application is given to the return continuation of the call. *)
+Definition call_function (callee : value) (kind : call_kind)
+    (vs : list value) (args_arity return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) : step_result :=
+  run_call (fun partial => apply_cont_value return_to [partial] statics)
+    (shape_of_call statics callee kind vs args_arity return_arity)
+    return_arity return_to exn_to statics.
 
 (* CR mshinwell: a [Let] of a value of another kind than the one it
    gives its variable is undefined, and so is a handler applied to
@@ -707,7 +892,7 @@ Definition call_function (callee : value) (kind : call_kind)
    gives them. The handler that a value returns to, or that an
    exception reaches with the extra arguments, tests them against its
    own kinds; and the result arity of the code is compared with that of
-   the call, as two annotations ([call_function]). Decision D10. *)
+   the call, as two annotations ([call_code]). Decision D10. *)
 
 Definition step (s : state) : step_result :=
   match s with
@@ -802,6 +987,10 @@ Fixpoint cont_values_all (P : value -> Prop) (c : cont_value) : Prop :=
         (fun binding rest => cont_values_all P (snd binding) ∧ rest) True
         conts
   | Extra_args c extra => Forall P extra ∧ cont_values_all P c
+  | Over_application remaining _ _ return_to exn_to =>
+    Forall P remaining
+    ∧ cont_values_all P return_to
+    ∧ cont_values_all P exn_to
   end.
 
 Definition conts_values_all (P : value -> Prop) (conts : cont_env) : Prop :=
@@ -836,10 +1025,18 @@ Definition state_values_all (P : static_env -> value -> Prop)
      constants and the symbols among them, of which [P] need not hold
      in general (a symbol that is not bound).
    What a call or the application of a continuation binds are those
-   values, so nothing more is asked for them. *)
+   values, so nothing more is asked for them. A call may also make a
+   partial application out of its callee and its arguments, or call one
+   that an argument or a continuation holds: so [P] of a partial
+   application is to be [P] of the value it calls and of its
+   arguments. *)
 Definition step_values_all_statement : Prop :=
   ∀ (P : static_env -> value -> Prop)
     (Q : static_env -> statically_allocated_value -> Prop) (s : state),
+    (∀ (statics : static_env) (callee : value) (args : list value)
+       (args_arity : arity),
+      P statics (Value_partial_application callee args args_arity)
+      <-> P statics callee ∧ Forall (P statics) args) ->
     state_values_all P Q s ->
     (∀ (x : variable) (kind : flambda_kind) (defining_expr : named)
        (body : expr) (v : value),

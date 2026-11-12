@@ -333,6 +333,9 @@ Fixpoint fold_cont (c : cont_value) : cont_value :=
       (map (fun '(k, h) => (k, fold_known_handler S h)) recursive)
   | Outer k => Outer k
   | Extra_args c extra => Extra_args (fold_cont c) extra
+  | Over_application remaining remaining_arity return_arity return_to exn_to =>
+    Over_application remaining remaining_arity return_arity
+      (fold_cont return_to) (fold_cont exn_to)
   end.
 
 Definition fold_conts (conts : cont_env) : cont_env :=
@@ -432,33 +435,6 @@ Proof.
   apply map_ext. intros [k h]. reflexivity.
 Qed.
 
-Lemma apply_cont_value_fold (c : cont_value) (vs : list value)
-    (statics : static_env) :
-  match apply_cont_value c vs statics with
-  | Step t =>
-    apply_cont_value (fold_cont c) vs (fold_statics statics)
-    = Step (fold_state t)
-    ∧ state_statics t = statics
-  | Exit k vs' =>
-    apply_cont_value (fold_cont c) vs (fold_statics statics) = Exit k vs'
-  | Undefined => True
-  end.
-Proof.
-  revert vs.
-  induction c
-    as [[params metadata handler] def_vars def_conts recursive | k
-       | c IH extra];
-    intros vs; simpl; [ | reflexivity | apply IH ].
-  destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
-    [ | exact I ].
-  destruct (bind_params params vs def_vars) as [handler_vars | ];
-    [ | exact I ].
-  split; [ | reflexivity ].
-  unfold fold_state. simpl_state. f_equal. f_equal.
-  fold (fold_conts def_conts). rewrite rec_closures_fold.
-  unfold fold_conts. rewrite map_app. reflexivity.
-Qed.
-
 Lemma with_extra_args_fold (c : cont_value) (extra : list value) :
   fold_cont (with_extra_args c extra) = with_extra_args (fold_cont c) extra.
 Proof. destruct extra; reflexivity. Qed.
@@ -474,35 +450,92 @@ Lemma fold_known_code_parts (c : code) :
   ∧ code_body (fold_known_code S c) = fold_known S (code_body c).
 Proof. destruct c. simpl. auto 8. Qed.
 
-Lemma call_function_fold (callee : value) (kind : call_kind)
-    (vs : list value) (args_arity return_arity : arity)
-    (return_to exn_to : cont_value) (statics : static_env) :
-  match
-    call_function callee kind vs args_arity return_arity return_to exn_to
-      statics
-  with
-  | Step t =>
-    call_function callee kind vs args_arity return_arity (fold_cont return_to)
-      (fold_cont exn_to) (fold_statics statics)
-    = Step (fold_state t)
-    ∧ state_statics t = statics
-  | Exit _ _ => False
+(* What the second run does where the first does something: the same
+   step, to the second state of the result, or the same exit. *)
+Definition result_folded (result result' : step_result) : Prop :=
+  match result with
+  | Step t => result' = Step (fold_state t)
+  | Exit k vs => result' = Exit k vs
   | Undefined => True
   end.
+
+(* A call of the second run has the shape of the call of the first,
+   with the same values, of the code folded. *)
+Definition fold_shape (shape : call_shape) : call_shape :=
+  match shape with
+  | Full_call closure c vs args_arity =>
+    Full_call closure (fold_known_code S c) vs args_arity
+  | Over_call closure c vs remaining args_arity remaining_arity =>
+    Over_call closure (fold_known_code S c) vs remaining args_arity
+      remaining_arity
+  | Partial_call partial => Partial_call partial
+  end.
+
+Lemma shape_of_closure_call_fold (statics : static_env) (closure : value)
+    (kind : call_kind) (vs : list value) (args_arity return_arity : arity)
+    (shape : call_shape) :
+  shape_of_closure_call statics closure kind vs args_arity return_arity
+  = Some shape ->
+  shape_of_closure_call (fold_statics statics) closure kind vs args_arity
+    return_arity
+  = Some (fold_shape shape).
 Proof.
-  unfold call_function.
-  change (closure_of (fold_statics statics) callee)
-    with (closure_of statics callee).
-  destruct (closure_of statics callee) as [[called slots] | ]; [ | exact I ].
+  unfold shape_of_closure_call.
+  change (closure_of (fold_statics statics) closure)
+    with (closure_of statics closure).
+  destruct (closure_of statics closure) as [[called slots] | ];
+    [ | discriminate ].
   destruct
     (match kind with
      | Direct named => Pos.eqb called named
      | Indirect => true
      end);
-    [ | exact I ].
+    [ | discriminate ].
   rewrite lookup_fold_code.
-  destruct (lookup called (static_code statics)) as [c | ]; [ | exact I ].
-  simpl option_map. cbv iota.
+  destruct (lookup called (static_code statics)) as [c | ]; [ | discriminate ].
+  simpl option_map. cbv iota zeta.
+  destruct (fold_known_code_parts c)
+    as (_ & _ & _ & _ & Hparams_arity & Hresult_arity & _).
+  rewrite Hparams_arity, Hresult_arity.
+  destruct (Nat.eqb (length args_arity) (length (code_params_arity c)));
+    [ intros [= <-]; reflexivity | ].
+  destruct
+    (negb
+       (kinds_eqb (map kind_of_value vs) (unarize args_arity)
+        && partial_or_over_application args_arity return_arity
+             (code_params_arity c) (code_result_arity c)));
+    [ discriminate | ].
+  destruct (Nat.ltb (length (code_params_arity c)) (length args_arity));
+    intros [= <-]; reflexivity.
+Qed.
+
+Lemma shape_of_call_fold (statics : static_env) (callee : value)
+    (kind : call_kind) (vs : list value) (args_arity return_arity : arity)
+    (shape : call_shape) :
+  shape_of_call statics callee kind vs args_arity return_arity = Some shape ->
+  shape_of_call (fold_statics statics) callee kind vs args_arity return_arity
+  = Some (fold_shape shape).
+Proof.
+  unfold shape_of_call.
+  destruct kind as [named | ]; [ apply shape_of_closure_call_fold | ].
+  destruct (partial_application_of callee)
+    as [[[closure applied] applied_arity] | ];
+    [ | apply shape_of_closure_call_fold ].
+  destruct args_arity as [ | component args_arity]; [ discriminate | ].
+  destruct (kinds_eqb _ _); [ | discriminate ].
+  apply shape_of_closure_call_fold.
+Qed.
+
+(* A full call. *)
+Lemma call_code_fold (closure : value) (c : code) (vs : list value)
+    (args_arity return_arity : arity) (return_to exn_to : cont_value)
+    (statics : static_env) :
+  result_folded
+    (call_code closure c vs args_arity return_arity return_to exn_to statics)
+    (call_code closure (fold_known_code S c) vs args_arity return_arity
+       (fold_cont return_to) (fold_cont exn_to) (fold_statics statics)).
+Proof.
+  unfold result_folded, call_code.
   destruct (fold_known_code_parts c)
     as (Hparams & Hmy_closure & Hret & Hexn & Hparams_arity & Hresult_arity
         & Hbody).
@@ -513,9 +546,98 @@ Proof.
   | |- context [negb ?agrees] => destruct (negb agrees)
   end;
     [ exact I | ].
-  destruct (bind_params (code_params c) vs [(code_my_closure c, callee)]);
+  destruct (bind_params (code_params c) vs [(code_my_closure c, closure)]);
     [ | exact I ].
-  split; reflexivity.
+  reflexivity.
+Qed.
+
+(* A call of a given shape, given what the two runs do with a partial
+   application. *)
+Lemma run_call_fold (return_partial return_partial' : value -> step_result)
+    (shape : call_shape) (return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) :
+  (∀ partial : value,
+    result_folded (return_partial partial) (return_partial' partial)) ->
+  result_folded
+    (run_call return_partial (Some shape) return_arity return_to exn_to
+       statics)
+    (run_call return_partial' (Some (fold_shape shape)) return_arity
+       (fold_cont return_to) (fold_cont exn_to) (fold_statics statics)).
+Proof.
+  intros Hpartial.
+  destruct shape
+    as [closure c vs args_arity
+       | closure c vs remaining args_arity remaining_arity | partial];
+    simpl.
+  - apply call_code_fold.
+  - destruct (fold_known_code_parts c) as (_ & _ & _ & _ & _ & -> & _).
+    exact (call_code_fold closure c vs args_arity (code_result_arity c)
+             (Over_application remaining remaining_arity return_arity
+                return_to exn_to)
+             exn_to statics).
+  - apply Hpartial.
+Qed.
+
+(* A call, given what the two runs do when the return continuation is
+   applied to a partial application. *)
+Lemma call_function_fold_from (callee : value) (kind : call_kind)
+    (vs : list value) (args_arity return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) :
+  (∀ partial : value,
+    result_folded (apply_cont_value return_to [partial] statics)
+      (apply_cont_value (fold_cont return_to) [partial]
+         (fold_statics statics))) ->
+  result_folded
+    (call_function callee kind vs args_arity return_arity return_to exn_to
+       statics)
+    (call_function callee kind vs args_arity return_arity
+       (fold_cont return_to) (fold_cont exn_to) (fold_statics statics)).
+Proof.
+  intros Hpartial. unfold call_function.
+  destruct (shape_of_call statics callee kind vs args_arity return_arity)
+    as [shape | ] eqn:Hshape;
+    [ | exact I ].
+  rewrite (shape_of_call_fold statics callee kind vs args_arity return_arity
+             shape Hshape).
+  apply run_call_fold. exact Hpartial.
+Qed.
+
+Lemma apply_cont_value_fold (c : cont_value) :
+  ∀ (vs : list value) (statics : static_env),
+    result_folded (apply_cont_value c vs statics)
+      (apply_cont_value (fold_cont c) vs (fold_statics statics)).
+Proof.
+  induction c
+    as [[params metadata handler] def_vars def_conts recursive | k
+       | c IH extra
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+    using cont_value_over_ind;
+    intros vs statics.
+  - unfold result_folded. simpl.
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+      [ | exact I ].
+    destruct (bind_params params vs def_vars) as [handler_vars | ];
+      [ | exact I ].
+    unfold fold_state. simpl_state. f_equal. f_equal.
+    fold (fold_conts def_conts). rewrite rec_closures_fold.
+    unfold fold_conts. rewrite map_app. reflexivity.
+  - reflexivity.
+  - apply IH.
+  - simpl fold_cont. rewrite !apply_cont_value_over_application.
+    destruct vs as [ | v [ | v' vs]]; [ exact I | | exact I ].
+    apply call_function_fold_from. intros partial. apply IHreturn.
+Qed.
+
+Lemma call_function_fold (callee : value) (kind : call_kind)
+    (vs : list value) (args_arity return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) :
+  result_folded
+    (call_function callee kind vs args_arity return_arity return_to exn_to
+       statics)
+    (call_function callee kind vs args_arity return_arity
+       (fold_cont return_to) (fold_cont exn_to) (fold_statics statics)).
+Proof.
+  apply call_function_fold_from. intros partial. apply apply_cont_value_fold.
 Qed.
 
 (* A step of a state that binds the known symbols as is known, and has
@@ -582,9 +704,10 @@ Proof.
                 (with_extra_args (resolve (ap_exn_continuation ap) conts)
                    extra)
                 statics)
-      as [t | | ];
-      [ | contradiction | exact I ].
-    destruct Hcall as [Hcall ->]. split; [ exact Hcall | exact Hagrees ].
+      as [t | k exit_vs | ] eqn:Hstep;
+      [ | exact Hcall | exact I ].
+    split; [ exact Hcall | ].
+    rewrite (call_function_statics _ _ _ _ _ _ _ _ t Hstep). exact Hagrees.
   - (* Apply_cont *)
     destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | exact I ].
     unfold apply_continuation. rewrite resolve_fold.
@@ -592,9 +715,10 @@ Proof.
       (apply_cont_value_fold (resolve (ac_continuation ac) conts) vs statics)
       as Happly.
     destruct (apply_cont_value (resolve (ac_continuation ac) conts) vs statics)
-      as [t | | ];
+      as [t | | ] eqn:Hstep;
       [ | exact Happly | exact I ].
-    destruct Happly as [Happly ->]. split; [ exact Happly | exact Hagrees ].
+    split; [ exact Happly | ].
+    rewrite (apply_cont_value_statics _ _ _ t Hstep). exact Hagrees.
   - (* Switch *)
     destruct (eval_simple vars scrutinee) as [v | ]; [ | exact I ].
     destruct (naked_immediate_of_value v) as [i | ]; [ | exact I ].

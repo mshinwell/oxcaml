@@ -215,7 +215,8 @@ Proof.
   destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | reflexivity ].
   destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
     [ | reflexivity ].
-  unfold call_function. simpl. rewrite Pos.eqb_refl. reflexivity.
+  unfold call_function, shape_of_call, shape_of_closure_call. simpl.
+  rewrite Pos.eqb_refl. reflexivity.
 Qed.
 
 Lemma canonical_static_bindings_sound (tenv : typing_env) (vars : env)

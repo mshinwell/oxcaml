@@ -406,6 +406,82 @@ Definition result_in_range (result : step_result) : Prop :=
   | Undefined => True
   end.
 
+(* A value in range, as a property: that of a partial application is
+   that of the value it calls and of its arguments. *)
+Lemma value_in_range_partial (callee : value) (args : list value)
+    (args_arity : arity) :
+  value_in_range (Value_partial_application callee args args_arity) = true
+  <-> value_in_range callee = true
+      ∧ Forall (fun v => value_in_range v = true) args.
+Proof. simpl. rewrite andb_true_iff, forallb_Forall. reflexivity. Qed.
+
+Lemma call_code_in_range (closure : value) (called : code_id) (c : code)
+    (vs : list value) (args_arity return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) :
+  value_in_range closure = true ->
+  forallb value_in_range vs = true ->
+  cont_in_range return_to ->
+  cont_in_range exn_to ->
+  statics_in_range statics ->
+  lookup called (static_code statics) = Some c ->
+  result_in_range
+    (call_code closure c vs args_arity return_arity return_to exn_to statics).
+Proof.
+  intros Hclosure Hvs Hreturn Hexn Hstatics Hcode. unfold call_code.
+  destruct (binds_statics (code_body c)); [ exact I | ].
+  destruct
+    (negb
+       (kinds_eqb (map kind_of_value vs) (unarize args_arity)
+        && kinds_per_parameter_eqb (unarize_per_parameter args_arity)
+             (unarize_per_parameter (code_params_arity c))
+        && arity_eqb return_arity (code_result_arity c)));
+    [ exact I | ].
+  destruct (bind_params (code_params c) vs [(code_my_closure c, closure)])
+    as [callee_vars | ] eqn:Hbind;
+    [ | exact I ].
+  pose proof (proj1 Hstatics called c (lookup_in _ _ _ Hcode)) as Hc.
+  repeat split; simpl.
+  - destruct c. exact Hc.
+  - apply (bind_params_in_range _ _ _ _ Hvs) in Hbind; [ exact Hbind | ].
+    intros y w [[= <- <-] | []]. exact Hclosure.
+  - intros k c' [[= <- <-] | [[= <- <-] | []]]; assumption.
+  - exact (proj1 Hstatics).
+  - exact (proj2 Hstatics).
+Qed.
+
+Lemma run_call_in_range (return_partial : value -> step_result)
+    (kind : call_kind) (shape : option call_shape) (return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) :
+  shape_calls statics kind shape ->
+  shape_values_all (fun v => value_in_range v = true) shape ->
+  cont_in_range return_to ->
+  cont_in_range exn_to ->
+  statics_in_range statics ->
+  (∀ partial : value,
+    value_in_range partial = true ->
+    result_in_range (return_partial partial)) ->
+  result_in_range
+    (run_call return_partial shape return_arity return_to exn_to statics).
+Proof.
+  intros Hcalls Hvalues Hreturn Hexn Hstatics Hpartial.
+  destruct shape
+    as [[closure c vs args_arity
+        | closure c vs remaining args_arity remaining_arity | partial] | ];
+    simpl in Hcalls, Hvalues |- *.
+  - destruct Hcalls as (called & slots & _ & Hcode & _).
+    destruct Hvalues as [Hclosure Hvs]. apply forallb_Forall in Hvs.
+    exact (call_code_in_range closure called c vs _ _ _ _ statics Hclosure
+             Hvs Hreturn Hexn Hstatics Hcode).
+  - destruct Hcalls as (called & slots & _ & Hcode & _).
+    destruct Hvalues as (Hclosure & Hvs & Hremaining).
+    apply forallb_Forall in Hvs, Hremaining.
+    apply (call_code_in_range closure called c vs _ _ _ _ statics Hclosure
+             Hvs);
+      [ constructor; assumption | exact Hexn | exact Hstatics | exact Hcode ].
+  - exact (Hpartial partial Hvalues).
+  - exact I.
+Qed.
+
 Lemma apply_cont_value_in_range (c : cont_value) (vs : list value)
     (statics : static_env) :
   cont_in_range c ->
@@ -415,24 +491,37 @@ Lemma apply_cont_value_in_range (c : cont_value) (vs : list value)
 Proof.
   intros Hc Hvs Hstatics. revert vs Hvs.
   induction Hc
-    as [ k | c extra Hc IH Hextra
+    as [k | c extra Hc IH Hextra
        | [params metadata handler] vars conts recursive Hh Hvars Hconts _
-           Hrecursive ];
-    intros vs Hvs; simpl; [ exact Hvs | | ].
-  - apply IH. rewrite forallb_app, Hvs, Hextra. reflexivity.
-  - destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+           Hrecursive
+       | remaining remaining_arity return_arity return_to exn_to Hremaining
+           Hreturn IHreturn Hexn _];
+    intros vs Hvs.
+  - exact Hvs.
+  - simpl. apply IH. rewrite forallb_app, Hvs, Hextra. reflexivity.
+  - simpl.
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
       [ | exact I ].
     destruct (bind_params params vs vars) as [handler_vars | ] eqn:Hbind;
       [ | exact I ].
     repeat split; simpl.
     + exact Hh.
-    + exact (bind_params_in_range params vs vars handler_vars Hvs Hvars
-               Hbind).
+    + exact
+        (bind_params_in_range params vs vars handler_vars Hvs Hvars Hbind).
     + apply conts_in_range_app; [ | exact Hconts ].
-      exact (rec_closures_in_range recursive vars conts Hrecursive Hvars
-               Hconts).
+      exact
+        (rec_closures_in_range recursive vars conts Hrecursive Hvars Hconts).
     + exact (proj1 Hstatics).
     + exact (proj2 Hstatics).
+  - rewrite apply_cont_value_over_application.
+    destruct vs as [ | v [ | v' vs]]; [ exact I | | exact I ].
+    simpl in Hvs. rewrite andb_true_r in Hvs. unfold call_function.
+    apply (run_call_in_range _ Indirect); try assumption.
+    + apply shape_of_call_calls.
+    + apply (shape_of_call_values_all _ value_in_range_partial);
+        [ exact Hvs | apply forallb_Forall; exact Hremaining ].
+    + intros partial Hpartial. apply IHreturn. simpl.
+      rewrite Hpartial. reflexivity.
 Qed.
 
 Lemma with_extra_args_in_range (c : cont_value) (extra : list value) :
@@ -457,35 +546,13 @@ Lemma call_function_in_range (callee : value) (kind : call_kind)
        statics).
 Proof.
   intros Hcallee Hvs Hreturn Hexn Hstatics. unfold call_function.
-  destruct (closure_of statics callee) as [[called slots] | ];
-    [ | exact I ].
-  destruct
-    (match kind with
-     | Direct named => Pos.eqb called named
-     | Indirect => true
-     end);
-    [ | exact I ].
-  destruct (lookup called (static_code statics)) as [c | ] eqn:Hcode;
-    [ | exact I ].
-  destruct (binds_statics (code_body c)); [ exact I | ].
-  destruct
-    (negb
-       (kinds_eqb (map kind_of_value vs) (unarize args_arity)
-        && kinds_per_parameter_eqb (unarize_per_parameter args_arity)
-             (unarize_per_parameter (code_params_arity c))
-        && arity_eqb return_arity (code_result_arity c)));
-    [ exact I | ].
-  destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
-    as [callee_vars | ] eqn:Hbind;
-    [ | exact I ].
-  pose proof (proj1 Hstatics called c (lookup_in _ _ _ Hcode)) as Hc.
-  repeat split; simpl.
-  - destruct c. exact Hc.
-  - apply (bind_params_in_range _ _ _ _ Hvs) in Hbind; [ exact Hbind | ].
-    intros y w [[= <- <-] | []]. exact Hcallee.
-  - intros k c' [[= <- <-] | [[= <- <-] | []]]; assumption.
-  - exact (proj1 Hstatics).
-  - exact (proj2 Hstatics).
+  apply (run_call_in_range _ kind); try assumption.
+  - apply shape_of_call_calls.
+  - apply (shape_of_call_values_all _ value_in_range_partial);
+      [ exact Hcallee | apply forallb_Forall; exact Hvs ].
+  - intros partial Hpartial.
+    apply apply_cont_value_in_range; [ exact Hreturn | | exact Hstatics ].
+    simpl. rewrite Hpartial. reflexivity.
 Qed.
 
 (* ======================================================================== *)

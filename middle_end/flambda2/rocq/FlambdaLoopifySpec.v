@@ -54,9 +54,12 @@
    - its exception continuation is that of the code, with no extra
      arguments.
    So a call counts as a tail call by where it returns, and nothing else
-   is asked: not that the call names the code, not its arity (the call
-   has been found to be a full application of known code by then), not
-   its region (see the CR at [is_self_tail_call]).
+   is asked: not that the call names the code, not its region (see the
+   CR at [is_self_tail_call]). The call is a full application of known
+   code by then: Simplify makes the decision in
+   [simplify_direct_full_application], and takes a call with fewer or
+   more arguments than the code has parameters for a partial application
+   or an over-application first ([simplify_direct_function_call]).
 
    What [loopify_unit] does. For each code that a [Let_static] of the
    term binds and whose code id is in the list given, with a
@@ -82,20 +85,25 @@
    - some call was made a jump (FlambdaUnusedContsSpec.cont_free_b of
      [self]): Simplify does not keep a loop that nothing jumps to.
    A self tail call ([is_self_tail_call]) is an [Apply] whose callee is
-   [Var my_closure] and whose two continuations are those of the code,
-   the exception continuation with no extra arguments: with some, an
-   exception of the body would reach the handler with them after the
-   call and without them after the jump.
+   [Var my_closure], whose two continuations are those of the code, the
+   exception continuation with no extra arguments, and which is made at
+   an arity of as many components as the code has parameters. With extra
+   arguments, an exception of the body would reach the handler with them
+   after the call and without them after the jump. With fewer or more
+   components the call is a partial application or an over-application
+   (FlambdaSemanticsSpec.shape_of_closure_call, which compares the same
+   two lengths), which does not run the body with the arguments of the
+   call, so the jump would not refine it.
    What is not asked, and why it is right without:
    - the call kind. A direct call that names other code than that of the
-     closure is undefined (FlambdaSemanticsSpec.call_function), so
-     anything refines it;
-   - the arities of the call and the kinds of its arguments. A call
-     that does not agree with the code in them is undefined
-     (FlambdaSemanticsSpec.call_function), so the jump, which tests
-     the kinds of its arguments against those of the parameters and
-     their number, refines it; with the wrong number of arguments the
-     jump is undefined as the call is;
+     closure is undefined (FlambdaSemanticsSpec.shape_of_closure_call),
+     so anything refines it;
+   - the kinds of the arguments of the call, and that its arities are
+     those of the code. A full call that does not agree with the code in
+     them is undefined (FlambdaSemanticsSpec.call_code), so the jump,
+     which tests the kinds of its arguments against those of the
+     parameters and their number, refines it; with the wrong number of
+     arguments the jump is undefined as the call is;
    - that the callee has been proved to be this code: the closure a
      piece of code is called with is a closure of that code, by how a
      call finds the code.
@@ -103,7 +111,7 @@
    Why it is right: a self tail call runs the body again with the
    parameters bound to the arguments, [my_closure] to the same closure,
    and the same two continuations; there is no stack to push
-   (FlambdaSemanticsSpec.call_function). The jump runs the looped body
+   (FlambdaSemanticsSpec.call_code). The jump runs the looped body
    with the parameters rebound, under the variables and continuations of
    the first entry, where [my_closure] and the two continuations are the
    same. So the two runs go step for step, but at the entry of the code,
@@ -154,48 +162,53 @@ Import ListNotations.
    still open. The position can differ ([@nontail] inside an exclave),
    which looks harmless. Discrepancy V4-1. *)
 
-(* A call of the closure the code was called with, returning where the
-   code returns. *)
-Definition is_self_tail_call (my_closure : variable) (ret exn : continuation)
-    (ap : apply_expr) : bool :=
+(* A full call of the closure the code was called with, returning where
+   the code returns. [params_arity] is the arity of the parameters of
+   the code. *)
+Definition is_self_tail_call (my_closure : variable) (params_arity : arity)
+    (ret exn : continuation) (ap : apply_expr) : bool :=
   match ap_callee ap with
   | Var x => Pos.eqb x my_closure
   | Symbol _ | Const _ => false
   end
+  && Nat.eqb (length (ap_args_arity ap)) (length params_arity)
   && Pos.eqb (ap_continuation ap) ret
   && Pos.eqb (ap_exn_continuation ap) exn
   && no_exn_extra_args ap.
 
 (* The expression with its self tail calls made applications of [self] to
    the arguments of the call. *)
-Fixpoint loop_calls (my_closure : variable) (ret exn self : continuation)
-    (e : expr) : expr :=
+Fixpoint loop_calls (my_closure : variable) (params_arity : arity)
+    (ret exn self : continuation) (e : expr) : expr :=
   match e with
   | Let x kind d body =>
-    Let x kind d (loop_calls my_closure ret exn self body)
+    Let x kind d (loop_calls my_closure params_arity ret exn self body)
   | Let_static bindings body =>
-    Let_static bindings (loop_calls my_closure ret exn self body)
+    Let_static bindings (loop_calls my_closure params_arity ret exn self body)
   | Let_cont_non_recursive k h body =>
-    Let_cont_non_recursive k (loop_calls_in_handler my_closure ret exn self h)
-      (loop_calls my_closure ret exn self body)
+    Let_cont_non_recursive k
+      (loop_calls_in_handler my_closure params_arity ret exn self h)
+      (loop_calls my_closure params_arity ret exn self body)
   | Let_cont_recursive handlers body =>
     Let_cont_recursive
       (map
-         (fun '(k, h) => (k, loop_calls_in_handler my_closure ret exn self h))
+         (fun '(k, h) =>
+            (k, loop_calls_in_handler my_closure params_arity ret exn self h))
          handlers)
-      (loop_calls my_closure ret exn self body)
+      (loop_calls my_closure params_arity ret exn self body)
   | Apply ap =>
-    if is_self_tail_call my_closure ret exn ap
+    if is_self_tail_call my_closure params_arity ret exn ap
     then Apply_cont (Apply_cont_expr self (ap_args ap) None)
     else e
   | Apply_cont _ | Switch _ _ | Invalid => e
   end
-with loop_calls_in_handler (my_closure : variable)
+with loop_calls_in_handler (my_closure : variable) (params_arity : arity)
     (ret exn self : continuation) (h : continuation_handler)
     : continuation_handler :=
   match h with
   | Handler params metadata handler =>
-    Handler params metadata (loop_calls my_closure ret exn self handler)
+    Handler params metadata
+      (loop_calls my_closure params_arity ret exn self handler)
   end.
 
 (* No [Let] or handler of the expression binds [my_closure]; no
@@ -248,8 +261,9 @@ with loop_safe_handler (my_closure : variable) (ret exn self : continuation)
 Definition loop_handler (self : continuation) (c : code)
     : continuation_handler :=
   Handler (code_params c) (make_handler_metadata (code_params_kinds c))
-    (loop_calls (code_my_closure c) (code_return_continuation c)
-       (code_exn_continuation c) self (code_body c)).
+    (loop_calls (code_my_closure c) (code_params_arity c)
+       (code_return_continuation c) (code_exn_continuation c) self
+       (code_body c)).
 
 (* The code with the loop for its body, and nothing else changed. *)
 Definition looped_code (self : continuation) (c : code) : code :=
@@ -262,8 +276,9 @@ Definition looped_code (self : continuation) (c : code) : code :=
 
 Definition loopable (self : continuation) (c : code) : bool :=
   let looped :=
-    loop_calls (code_my_closure c) (code_return_continuation c)
-      (code_exn_continuation c) self (code_body c)
+    loop_calls (code_my_closure c) (code_params_arity c)
+      (code_return_continuation c) (code_exn_continuation c) self
+      (code_body c)
   in
   negb (among (code_my_closure c) (code_params c))
   && distinct (code_params c)

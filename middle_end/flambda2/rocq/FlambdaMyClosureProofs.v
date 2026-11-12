@@ -65,6 +65,8 @@ Fixpoint value_free (v : value) : bool :=
     negb (among id (map snd decls))
     && forallb (fun '(_, v) => value_free v) slots
   | Value_block _ fields => forallb value_free fields
+  | Value_partial_application callee args _ =>
+    value_free callee && forallb value_free args
   end.
 
 Definition slots_free (slots : list (value_slot * value)) : bool :=
@@ -113,7 +115,16 @@ Inductive cont_ok : cont_value -> Prop :=
   | Extra_args_ok (c : cont_value) (extra : list value) :
     cont_ok c ->
     forallb value_free extra = true ->
-    cont_ok (Extra_args c extra).
+    cont_ok (Extra_args c extra)
+  | Over_application_ok (remaining : list value)
+      (remaining_arity return_arity : arity)
+      (return_to exn_to : cont_value) :
+    forallb value_free remaining = true ->
+    cont_ok return_to ->
+    cont_ok exn_to ->
+    cont_ok
+      (Over_application remaining remaining_arity return_arity return_to
+         exn_to).
 
 Definition conts_ok (conts : cont_env) : Prop :=
   Forall (fun kc => cont_ok (snd kc)) conts.
@@ -214,7 +225,7 @@ Lemma closure_of_free (statics : static_env) (v : value) (code : code_id)
 Proof.
   intros [_ Hvalues].
   destruct v as [c | code' slots' | fslot decls slots' | sym | tag fields
-    | contents | loc]; simpl; try discriminate.
+    | contents | loc | callee args args_arity]; simpl; try discriminate.
   - intros Hv [= <- <-]. apply andb_true_iff in Hv as [Hcode Hslots].
     split; [ exact Hslots | ]. intros ->.
     rewrite Pos.eqb_refl in Hcode. discriminate.
@@ -248,7 +259,7 @@ Lemma closure_in_set_free (statics : static_env) (v : value)
 Proof.
   intros [_ Hvalues].
   destruct v as [c | code' slots' | fslot decls' slots' | sym | tag fields
-    | contents | loc]; simpl; try discriminate.
+    | contents | loc | callee args args_arity]; simpl; try discriminate.
   - intros Hv [= _ _ <-]. apply andb_true_iff in Hv as [_ Hslots].
     exact Hslots.
   - intros Hv. apply andb_true_iff in Hv as [_ Hslots].
@@ -283,7 +294,7 @@ Proof.
     destruct (Pos.eqb move_to unnamed_function_slot); [ | discriminate ].
     intros [= <-]. exact Hv. }
   destruct v as [c | code' slots' | fslot decls slots' | sym | tag fields
-    | contents | loc]; try discriminate.
+    | contents | loc | callee args args_arity]; try discriminate.
   - exact Hunnamed.
   - destruct (Pos.eqb fslot move_from); [ | discriminate ].
     destruct (lookup fslot decls); [ | discriminate ].
@@ -471,6 +482,76 @@ Proof.
   apply Extra_args_ok; assumption.
 Qed.
 
+(* A partial application holds no such closure exactly when the value
+   it calls and its arguments hold none. *)
+Lemma value_free_partial (callee : value) (args : list value)
+    (args_arity : arity) :
+  value_free (Value_partial_application callee args args_arity) = true
+  <-> value_free callee = true ∧ Forall (fun v => value_free v = true) args.
+Proof. simpl. rewrite andb_true_iff, forallb_Forall. reflexivity. Qed.
+
+(* A full call keeps the invariant. *)
+Lemma call_code_ok (closure : value) (called : code_id) (c : code)
+    (vs : list value) (args_arity return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) (st : state) :
+  statics_ok statics ->
+  lookup called (static_code statics) = Some c ->
+  value_free closure = true ->
+  forallb value_free vs = true ->
+  cont_ok return_to ->
+  cont_ok exn_to ->
+  call_code closure c vs args_arity return_arity return_to exn_to statics
+  = Step st ->
+  state_ok st.
+Proof.
+  intros Hstatics Hcode Hclosure Hvs Hreturn Hexn Hstep.
+  apply call_code_step in Hstep as (bound & _ & _ & _ & _ & Hbind & ->).
+  split; [ | split; [ | split; [ | exact Hstatics ] ] ]; simpl.
+  - pose proof (proj1 Hstatics called c Hcode) as Hc. destruct c. exact Hc.
+  - apply (bind_params_free (code_params c) vs
+             [(code_my_closure c, closure)] bound);
+      [ exact Hvs | | exact Hbind ].
+    apply env_free_cons; [ exact Hclosure | intros y w [=] ].
+  - constructor; [ exact Hreturn | ].
+    constructor; [ exact Hexn | constructor ].
+Qed.
+
+(* A call of a given shape keeps the invariant, given that what is done
+   with a partial application keeps it. *)
+Lemma run_call_ok (return_partial : value -> step_result) (kind : call_kind)
+    (shape : option call_shape) (return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) (st : state) :
+  statics_ok statics ->
+  shape_calls statics kind shape ->
+  shape_values_all (fun v => value_free v = true) shape ->
+  cont_ok return_to ->
+  cont_ok exn_to ->
+  (∀ partial : value,
+    value_free partial = true -> return_partial partial = Step st ->
+    state_ok st) ->
+  run_call return_partial shape return_arity return_to exn_to statics
+  = Step st ->
+  state_ok st.
+Proof.
+  intros Hstatics Hcalls Hvalues Hreturn Hexn Hpartial.
+  destruct shape
+    as [[closure c vs args_arity
+        | closure c vs remaining args_arity remaining_arity | partial] | ];
+    simpl in Hcalls, Hvalues |- *.
+  - destruct Hcalls as (called & slots & _ & Hcode & _).
+    destruct Hvalues as [Hclosure Hvs]. apply forallb_Forall in Hvs.
+    exact (call_code_ok closure called c vs _ _ _ _ statics st Hstatics
+             Hcode Hclosure Hvs Hreturn Hexn).
+  - destruct Hcalls as (called & slots & _ & Hcode & _).
+    destruct Hvalues as (Hclosure & Hvs & Hremaining).
+    apply forallb_Forall in Hvs, Hremaining.
+    apply (call_code_ok closure called c vs _ _ _ _ statics st Hstatics
+             Hcode Hclosure Hvs);
+      [ apply Over_application_ok; assumption | exact Hexn ].
+  - exact (Hpartial partial Hvalues).
+  - discriminate.
+Qed.
+
 (* Applying a continuation keeps the invariant. *)
 Lemma apply_cont_value_ok (c : cont_value) :
   cont_ok c ->
@@ -483,10 +564,13 @@ Proof.
   induction 1
     as [ k | [params metadata handler] dvars dconts recursive Hh Hdvars
              Hdconts Hrecursive
-       | c extra Hc IH Hextra ];
-    intros vs statics st Hvs Hstatics; simpl.
+       | c extra Hc IH Hextra
+       | remaining remaining_arity return_arity return_to exn_to Hremaining
+           Hreturn IHreturn Hexn _ ];
+    intros vs statics st Hvs Hstatics.
   - discriminate.
-  - destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+  - simpl.
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
       [ | discriminate ].
     destruct (bind_params params vs dvars) as [bound | ] eqn:Hbind;
       [ | discriminate ].
@@ -494,8 +578,18 @@ Proof.
     split; [ exact Hh | ]. split; [ | split; [ | exact Hstatics ] ].
     + exact (bind_params_free params vs dvars bound Hvs Hdvars Hbind).
     + apply rec_closures_ok; assumption.
-  - apply IH; [ | exact Hstatics ].
+  - simpl. apply IH; [ | exact Hstatics ].
     rewrite forallb_app, Hvs, Hextra. reflexivity.
+  - rewrite apply_cont_value_over_application.
+    destruct vs as [ | v [ | v' vs]]; [ discriminate | | discriminate ].
+    simpl in Hvs. rewrite andb_true_r in Hvs. unfold call_function.
+    apply (run_call_ok _ Indirect _ _ _ _ statics st Hstatics
+             (shape_of_call_calls _ _ _ _ _ _));
+      [ | exact Hreturn | exact Hexn | ].
+    + apply (shape_of_call_values_all _ value_free_partial);
+        [ exact Hvs | apply forallb_Forall; exact Hremaining ].
+    + intros partial Hpartial. apply IHreturn; [ | exact Hstatics ].
+      simpl. rewrite Hpartial. reflexivity.
 Qed.
 
 (* A step keeps the invariant. *)
@@ -556,37 +650,22 @@ Proof.
       eqn:Hextra;
       [ | discriminate ].
     unfold call_function.
-    destruct (closure_of statics callee) as [[called slots] | ];
-      [ | discriminate ].
-    destruct
-      (match ap_call_kind ap with
-       | Direct named => Pos.eqb called named
-       | Indirect => true
-       end);
-      [ | discriminate ].
-    destruct (lookup called (static_code statics)) as [c | ] eqn:Hcode;
-      [ | discriminate ].
-    destruct (binds_statics (code_body c)); [ discriminate | ].
-    match goal with
-    | |- context [negb ?agrees] => destruct (negb agrees)
-    end;
-      [ discriminate | ].
-    destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
-      as [bound | ] eqn:Hbind;
-      [ | discriminate ].
-    intros [= <-].
-    split; [ | split; [ | split; [ | exact Hstatics ] ] ].
-    + pose proof (proj1 Hstatics called c Hcode) as Hc. destruct c. exact Hc.
-    + apply (bind_params_free (code_params c) vs
-               [(code_my_closure c, callee)] bound);
-        [ exact (eval_simples_free vars _ Hvars vs Hargs) | | exact Hbind ].
-      apply env_free_cons;
-        [ exact (eval_simple_free vars _ callee Hvars Hcallee)
-        | intros y w [=] ].
-    + constructor; [ exact (resolve_ok _ conts Hconts) | ].
-      constructor; [ | constructor ]. simpl.
-      apply with_extra_args_ok; [ exact (resolve_ok _ conts Hconts) | ].
-      exact (eval_simples_free vars _ Hvars extra Hextra).
+    assert (Hreturn : cont_ok (resolve (ap_continuation ap) conts))
+      by exact (resolve_ok _ conts Hconts).
+    assert (Hexn :
+      cont_ok
+        (with_extra_args (resolve (ap_exn_continuation ap) conts) extra)).
+    { apply with_extra_args_ok; [ exact (resolve_ok _ conts Hconts) | ].
+      exact (eval_simples_free vars _ Hvars extra Hextra). }
+    apply (run_call_ok _ (ap_call_kind ap) _ _ _ _ statics st Hstatics
+             (shape_of_call_calls _ _ _ _ _ _));
+      [ | exact Hreturn | exact Hexn | ].
+    + apply (shape_of_call_values_all _ value_free_partial);
+        [ exact (eval_simple_free vars _ callee Hvars Hcallee) | ].
+      apply forallb_Forall. exact (eval_simples_free vars _ Hvars vs Hargs).
+    + intros partial Hpartial.
+      apply (apply_cont_value_ok _ Hreturn); [ | exact Hstatics ].
+      simpl. rewrite Hpartial. reflexivity.
   - (* Apply_cont *)
     rewrite step_apply_cont.
     destruct (eval_simples vars (ac_args ac)) as [vs | ] eqn:Hargs;

@@ -1128,12 +1128,22 @@ Definition rebinds (names_of : static_binding -> list positive)
   negb (distinct (flat_map names_of bindings))
   || existsb is_bound (flat_map names_of bindings).
 
-(* The callee is a closure of code whose body binds something static. *)
+(* The callee is a closure of code whose body binds something static,
+   or a partial application of one. (The call is undefined where it runs
+   that code; with fewer arguments than the code has parameters it runs
+   none. A call made where a continuation is applied, of the result of
+   the full call inside an over-application, is not looked at here.) *)
 Definition calls_code_binding_statics (ap : apply_expr) (vars : env)
     (statics : static_env) : bool :=
   match eval_simple vars (ap_callee ap) with
   | Some callee =>
-    match closure_of statics callee with
+    let closure :=
+      match partial_application_of callee with
+      | Some (closure, _, _) => closure
+      | None => callee
+      end
+    in
+    match closure_of statics closure with
     | Some (called, _) =>
       match lookup called (static_code statics) with
       | Some c => binds_statics (code_body c)
@@ -1145,7 +1155,8 @@ Definition calls_code_binding_statics (ap : apply_expr) (vars : env)
   end.
 
 (* The state is one the machine makes undefined to keep static bindings
-   from being executed twice. *)
+   from being executed twice, or, at an [Apply], would if the call ran
+   the code of its callee. *)
 Definition static_fault (s : state) : bool :=
   match state_expr s with
   | Let_static bindings _ =>

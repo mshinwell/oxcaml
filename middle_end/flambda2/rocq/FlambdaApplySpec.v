@@ -32,7 +32,9 @@
    (simplify/inlining/inlining_transforms.ml), and the statements.
 
    - A call whose callee is a closure of known code may be made direct
-     ([apply_indirect_known_statement]).
+     ([apply_indirect_known_statement]), whatever the number of its
+     arguments: a direct call is the generic application that an
+     indirect one is.
    - Inlining a direct call is a refinement ([inline_statement]): the call
      becomes the body of the code, with the closure and the arguments
      bound by [Let] to [my_closure] and the parameters, and with the
@@ -54,7 +56,11 @@
    - the bindings do not capture: [my_closure] and the parameters are not
      free in the arguments. The simplifier ensures it by taking fresh
      names for them, which FlambdaNominalSpec.v allows;
-   - there are as many arguments as parameters;
+   - there are as many arguments as parameters, and the call is a full
+     call: it gives the code as many arguments as it has parameters,
+     counted by parameter. With fewer or more it would be a partial
+     application or an over-application
+     (FlambdaSemanticsSpec.shape_of_closure_call);
    - the body binds nothing static. The call of code that does is
      undefined, wherever it is; inlined at toplevel, the body would have
      a meaning.
@@ -145,6 +151,13 @@ Definition inlinable (ap : apply_expr) (c : code) (r : renaming) : Prop :=
   ∧ (∀ param : variable,
       param ∈ code_params c -> ~ var_free_in_simples param (ap_args ap))
   ∧ length (code_params c) = length (ap_args ap)
+  (* the call is a full call: it has as many arguments as the code has
+     parameters, counted by parameter. With fewer or more it is a
+     partial application or an over-application, which does more, or
+     less, than run the body; and it may be one with as many values as
+     the code has variables, where a parameter is an unboxed product of
+     nothing *)
+  ∧ length (ap_args_arity ap) = length (code_params_arity c)
   (* the body binds nothing static: inlined, it could come to be at
      toplevel, where it would be allowed to *)
   ∧ binds_statics (code_body c) = false.

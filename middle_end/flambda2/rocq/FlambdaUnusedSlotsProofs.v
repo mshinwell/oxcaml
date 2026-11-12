@@ -113,6 +113,9 @@ Fixpoint trim_cont (c : cont_value) : cont_value :=
       (map (fun '(k, h) => (k, drop_slots_handler D h)) recursive)
   | Outer k => Outer k
   | Extra_args c extra => Extra_args (trim_cont c) extra
+  | Over_application remaining remaining_arity return_arity return_to exn_to =>
+    Over_application remaining remaining_arity return_arity
+      (trim_cont return_to) (trim_cont exn_to)
   end.
 
 Definition trim_conts (conts : cont_env) : cont_env :=
@@ -194,8 +197,9 @@ Lemma closure_of_drop (statics : static_env) (v : value) (code : code_id)
     closure_of (trim_statics statics) v = Some (code, slots')
     ∧ same_kept_slots slots slots'.
 Proof.
-  destruct v as [ c | vcode vslots | vslot vdecls vslots | s | tag fields | c
-    | loc ];
+  destruct v
+    as [ c | vcode vslots | vslot vdecls vslots | s | tag fields | c
+       | loc | callee args args_arity ];
     simpl; try discriminate.
   - intros H. exists slots. split; [ exact H | intros kept _; reflexivity ].
   - intros H. exists slots. split; [ exact H | intros kept _; reflexivity ].
@@ -218,8 +222,9 @@ Lemma closure_in_set_drop (statics : static_env) (v : value)
     closure_in_set (trim_statics statics) v = Some (at_slot, decls, slots')
     ∧ same_kept_slots slots slots'.
 Proof.
-  destruct v as [ c | vcode vslots | vslot vdecls vslots | s | tag fields | c
-    | loc ];
+  destruct v
+    as [ c | vcode vslots | vslot vdecls vslots | s | tag fields | c
+       | loc | callee args args_arity ];
     simpl; try discriminate.
   - intros H. exists slots. split; [ exact H | intros kept _; reflexivity ].
   - intros H. exists slots. split; [ exact H | intros kept _; reflexivity ].
@@ -244,7 +249,7 @@ Proof.
   - split; [ intros c; split; reflexivity | ].
     intros tag fields fields' Hfields.
     rewrite (forall2_eq fields fields' Hfields). reflexivity.
-  - intros v v' <-. split; [ | split; [ | split; [ | split ] ] ].
+  - intros v v' <-. split; [ | split; [ | split; [ | split; [ | split ] ] ] ].
     + intros tag fields H. exists fields. rewrite block_of_drop.
       split; [ exact H | apply forall2_eq_refl ].
     + intros c. rewrite boxed_number_of_drop. exact (fun H => H).
@@ -253,6 +258,7 @@ Proof.
         [ | congruence ].
       destruct (closure_of_drop statics v code slots Hc) as (slots' & -> & _).
       intros _. discriminate.
+    + exact (fun H => H).
     + rewrite bound_if_symbol_drop. exact (fun H => H).
 Qed.
 
@@ -428,31 +434,6 @@ Proof.
   apply map_ext. intros [k h]. reflexivity.
 Qed.
 
-Lemma apply_cont_value_drop (c : cont_value) (vs : list value)
-    (statics : static_env) :
-  match apply_cont_value c vs statics with
-  | Step t =>
-    apply_cont_value (trim_cont c) vs (trim_statics statics)
-    = Step (trim_state t)
-  | Exit k vs' =>
-    apply_cont_value (trim_cont c) vs (trim_statics statics) = Exit k vs'
-  | Undefined => True
-  end.
-Proof.
-  revert vs.
-  induction c
-    as [[params metadata handler] def_vars def_conts recursive | k
-       | c IH extra];
-    intros vs; simpl; [ | reflexivity | apply IH ].
-  destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
-    [ | exact I ].
-  destruct (bind_params params vs def_vars) as [handler_vars | ];
-    [ | exact I ].
-  unfold trim_state. simpl_state. f_equal. f_equal.
-  fold (trim_conts def_conts). rewrite rec_closures_drop.
-  unfold trim_conts. rewrite map_app. reflexivity.
-Qed.
-
 Lemma with_extra_args_drop (c : cont_value) (extra : list value) :
   trim_cont (with_extra_args c extra) = with_extra_args (trim_cont c) extra.
 Proof. destruct extra; reflexivity. Qed.
@@ -468,35 +449,92 @@ Lemma drop_slots_code_parts (c : code) :
   ∧ code_body (drop_slots_code D c) = drop_slots D (code_body c).
 Proof. destruct c. simpl. auto 8. Qed.
 
-Lemma call_function_drop (callee : value) (kind : call_kind)
-    (vs : list value) (args_arity return_arity : arity)
-    (return_to exn_to : cont_value) (statics : static_env) :
-  match
-    call_function callee kind vs args_arity return_arity return_to exn_to
-      statics
-  with
-  | Step t =>
-    call_function callee kind vs args_arity return_arity (trim_cont return_to)
-      (trim_cont exn_to) (trim_statics statics)
-    = Step (trim_state t)
-  | Exit _ _ => False
+(* What the second run does where the first does something: the same
+   step, to the second state of the result, or the same exit. *)
+Definition result_trimmed (result result' : step_result) : Prop :=
+  match result with
+  | Step t => result' = Step (trim_state t)
+  | Exit k vs => result' = Exit k vs
   | Undefined => True
   end.
+
+(* A call of the second run has the shape of the call of the first,
+   with the same values, of the code rewritten. *)
+Definition trim_shape (shape : call_shape) : call_shape :=
+  match shape with
+  | Full_call closure c vs args_arity =>
+    Full_call closure (drop_slots_code D c) vs args_arity
+  | Over_call closure c vs remaining args_arity remaining_arity =>
+    Over_call closure (drop_slots_code D c) vs remaining args_arity
+      remaining_arity
+  | Partial_call partial => Partial_call partial
+  end.
+
+Lemma shape_of_closure_call_drop (statics : static_env) (closure : value)
+    (kind : call_kind) (vs : list value) (args_arity return_arity : arity)
+    (shape : call_shape) :
+  shape_of_closure_call statics closure kind vs args_arity return_arity
+  = Some shape ->
+  shape_of_closure_call (trim_statics statics) closure kind vs args_arity
+    return_arity
+  = Some (trim_shape shape).
 Proof.
-  unfold call_function.
-  destruct (closure_of statics callee) as [[called slots] | ] eqn:Hc;
-    [ | exact I ].
-  destruct (closure_of_drop statics callee called slots Hc)
+  unfold shape_of_closure_call.
+  destruct (closure_of statics closure) as [[called slots] | ] eqn:Hc;
+    [ | discriminate ].
+  destruct (closure_of_drop statics closure called slots Hc)
     as (slots' & -> & _).
   destruct
     (match kind with
      | Direct named => Pos.eqb called named
      | Indirect => true
      end);
-    [ | exact I ].
+    [ | discriminate ].
   lookup_trimmed.
-  destruct (lookup called (static_code statics)) as [c | ]; [ | exact I ].
-  simpl option_map. cbv iota.
+  destruct (lookup called (static_code statics)) as [c | ]; [ | discriminate ].
+  simpl option_map. cbv iota zeta.
+  destruct (drop_slots_code_parts c)
+    as (_ & _ & _ & _ & Hparams_arity & Hresult_arity & _).
+  rewrite Hparams_arity, Hresult_arity.
+  destruct (Nat.eqb (length args_arity) (length (code_params_arity c)));
+    [ intros [= <-]; reflexivity | ].
+  destruct
+    (negb
+       (kinds_eqb (map kind_of_value vs) (unarize args_arity)
+        && partial_or_over_application args_arity return_arity
+             (code_params_arity c) (code_result_arity c)));
+    [ discriminate | ].
+  destruct (Nat.ltb (length (code_params_arity c)) (length args_arity));
+    intros [= <-]; reflexivity.
+Qed.
+
+Lemma shape_of_call_drop (statics : static_env) (callee : value)
+    (kind : call_kind) (vs : list value) (args_arity return_arity : arity)
+    (shape : call_shape) :
+  shape_of_call statics callee kind vs args_arity return_arity = Some shape ->
+  shape_of_call (trim_statics statics) callee kind vs args_arity return_arity
+  = Some (trim_shape shape).
+Proof.
+  unfold shape_of_call.
+  destruct kind as [named | ]; [ apply shape_of_closure_call_drop | ].
+  destruct (partial_application_of callee)
+    as [[[closure applied] applied_arity] | ];
+    [ | apply shape_of_closure_call_drop ].
+  destruct args_arity as [ | component args_arity]; [ discriminate | ].
+  destruct (kinds_eqb _ _); [ | discriminate ].
+  apply shape_of_closure_call_drop.
+Qed.
+
+(* A full call. *)
+Lemma call_code_drop (closure : value) (c : code) (vs : list value)
+    (args_arity return_arity : arity) (return_to exn_to : cont_value)
+    (statics : static_env) :
+  result_trimmed
+    (call_code closure c vs args_arity return_arity return_to exn_to statics)
+    (call_code closure (drop_slots_code D c) vs args_arity return_arity
+       (trim_cont return_to) (trim_cont exn_to) (trim_statics statics)).
+Proof.
+  unfold result_trimmed, call_code.
   destruct (drop_slots_code_parts c)
     as (Hparams & Hmy_closure & Hret & Hexn & Hparams_arity & Hresult_arity
         & Hbody).
@@ -507,9 +545,98 @@ Proof.
   | |- context [negb ?agrees] => destruct (negb agrees)
   end;
     [ exact I | ].
-  destruct (bind_params (code_params c) vs [(code_my_closure c, callee)]);
+  destruct (bind_params (code_params c) vs [(code_my_closure c, closure)]);
     [ | exact I ].
   reflexivity.
+Qed.
+
+(* A call of a given shape, given what the two runs do with a partial
+   application. *)
+Lemma run_call_drop (return_partial return_partial' : value -> step_result)
+    (shape : call_shape) (return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) :
+  (∀ partial : value,
+    result_trimmed (return_partial partial) (return_partial' partial)) ->
+  result_trimmed
+    (run_call return_partial (Some shape) return_arity return_to exn_to
+       statics)
+    (run_call return_partial' (Some (trim_shape shape)) return_arity
+       (trim_cont return_to) (trim_cont exn_to) (trim_statics statics)).
+Proof.
+  intros Hpartial.
+  destruct shape
+    as [closure c vs args_arity
+       | closure c vs remaining args_arity remaining_arity | partial];
+    simpl.
+  - apply call_code_drop.
+  - destruct (drop_slots_code_parts c) as (_ & _ & _ & _ & _ & -> & _).
+    exact (call_code_drop closure c vs args_arity (code_result_arity c)
+             (Over_application remaining remaining_arity return_arity
+                return_to exn_to)
+             exn_to statics).
+  - apply Hpartial.
+Qed.
+
+(* A call, given what the two runs do when the return continuation is
+   applied to a partial application. *)
+Lemma call_function_drop_from (callee : value) (kind : call_kind)
+    (vs : list value) (args_arity return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) :
+  (∀ partial : value,
+    result_trimmed (apply_cont_value return_to [partial] statics)
+      (apply_cont_value (trim_cont return_to) [partial]
+         (trim_statics statics))) ->
+  result_trimmed
+    (call_function callee kind vs args_arity return_arity return_to exn_to
+       statics)
+    (call_function callee kind vs args_arity return_arity
+       (trim_cont return_to) (trim_cont exn_to) (trim_statics statics)).
+Proof.
+  intros Hpartial. unfold call_function.
+  destruct (shape_of_call statics callee kind vs args_arity return_arity)
+    as [shape | ] eqn:Hshape;
+    [ | exact I ].
+  rewrite (shape_of_call_drop statics callee kind vs args_arity return_arity
+             shape Hshape).
+  apply run_call_drop. exact Hpartial.
+Qed.
+
+Lemma apply_cont_value_drop (c : cont_value) :
+  ∀ (vs : list value) (statics : static_env),
+    result_trimmed (apply_cont_value c vs statics)
+      (apply_cont_value (trim_cont c) vs (trim_statics statics)).
+Proof.
+  induction c
+    as [[params metadata handler] def_vars def_conts recursive | k
+       | c IH extra
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+    using cont_value_over_ind;
+    intros vs statics.
+  - unfold result_trimmed. simpl.
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+      [ | exact I ].
+    destruct (bind_params params vs def_vars) as [handler_vars | ];
+      [ | exact I ].
+    unfold trim_state. simpl_state. f_equal. f_equal.
+    fold (trim_conts def_conts). rewrite rec_closures_drop.
+    unfold trim_conts. rewrite map_app. reflexivity.
+  - reflexivity.
+  - apply IH.
+  - simpl trim_cont. rewrite !apply_cont_value_over_application.
+    destruct vs as [ | v [ | v' vs]]; [ exact I | | exact I ].
+    apply call_function_drop_from. intros partial. apply IHreturn.
+Qed.
+
+Lemma call_function_drop (callee : value) (kind : call_kind)
+    (vs : list value) (args_arity return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) :
+  result_trimmed
+    (call_function callee kind vs args_arity return_arity return_to exn_to
+       statics)
+    (call_function callee kind vs args_arity return_arity
+       (trim_cont return_to) (trim_cont exn_to) (trim_statics statics)).
+Proof.
+  apply call_function_drop_from. intros partial. apply apply_cont_value_drop.
 Qed.
 
 (* ======================================================================== *)
@@ -561,18 +688,11 @@ Proof.
     destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
       [ | exact I ].
     rewrite !resolve_drop, <- with_extra_args_drop.
-    pose proof
+    exact
       (call_function_drop callee (ap_call_kind ap) vs (ap_args_arity ap)
          (ap_return_arity ap) (resolve (ap_continuation ap) conts)
          (with_extra_args (resolve (ap_exn_continuation ap) conts) extra)
-         statics)
-      as Hcall.
-    destruct (call_function callee (ap_call_kind ap) vs (ap_args_arity ap)
-                (ap_return_arity ap) (resolve (ap_continuation ap) conts)
-                (with_extra_args (resolve (ap_exn_continuation ap) conts)
-                   extra)
-                statics);
-      [ exact Hcall | contradiction | exact I ].
+         statics).
   - (* Apply_cont *)
     destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | exact I ].
     unfold apply_continuation. rewrite resolve_drop.

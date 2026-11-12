@@ -171,6 +171,8 @@ Fixpoint cont_sets_well_formed (c : cont_value) : Prop :=
   match c with
   | Outer _ => True
   | Extra_args c' _ => cont_sets_well_formed c'
+  | Over_application _ _ _ return_to exn_to =>
+    cont_sets_well_formed return_to ∧ cont_sets_well_formed exn_to
   | Closure h _ conts recursive =>
     handler_sets_well_formed h = true
     ∧ forallb (fun '(_, h) => handler_sets_well_formed h) recursive = true

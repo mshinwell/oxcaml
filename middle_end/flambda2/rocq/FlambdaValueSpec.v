@@ -103,8 +103,11 @@ Definition location : Type := positive.
    the slot it is at, the code of each function slot of the set, and the
    values of the value slots ([Value_closure_of_set]). The contents of a
    boxed number are a constant, whose constructor says which number it
-   is. (The warning silenced is about induction schemes through the
-   lists, which nothing uses yet.) *)
+   is. A partial application ([Value_partial_application]) is what a
+   call that gives a function fewer arguments than it has parameters
+   comes to: the value called, the arguments given so far, and the arity
+   they were given at. (The warning silenced is about induction schemes
+   through the lists, which nothing uses yet.) *)
 #[local] Set Warnings "-register-all".
 Inductive value : Type :=
   | Value_const (c : const)
@@ -115,7 +118,9 @@ Inductive value : Type :=
   | Value_symbol (s : symbol)
   | Value_block (tag : Z) (fields : list value)
   | Value_boxed_number (contents : const)
-  | Value_location (l : location).
+  | Value_location (l : location)
+  | Value_partial_application (callee : value) (args : list value)
+      (args_arity : arity).
 
 (* The kind of a value. *)
 Definition kind_of_value (v : value) : flambda_kind :=
@@ -360,13 +365,24 @@ Definition string_of (statics : static_env) (v : value) : option (list Z) :=
   | _ => None
   end.
 
-(* Whether a value is allocated: a closure, a block, a boxed number or a
-   string. A symbol bound to nothing is not. *)
+(* A value as a partial application: the callee, the arguments it has
+   been applied to so far, and the arity they were given at. *)
+Definition partial_application_of (v : value)
+    : option (value * list value * arity) :=
+  match v with
+  | Value_partial_application callee args args_arity =>
+    Some (callee, args, args_arity)
+  | _ => None
+  end.
+
+(* Whether a value is allocated: a closure, a block, a boxed number, a
+   string or a partial application. A symbol bound to nothing is not. *)
 Definition is_allocated (statics : static_env) (v : value) : bool :=
   is_some (closure_of statics v)
   || is_some (block_of statics v)
   || is_some (boxed_number_of statics v)
-  || is_some (string_of statics v).
+  || is_some (string_of statics v)
+  || is_some (partial_application_of v).
 
 (* ======================================================================== *)
 (* The observations are exclusive                                           *)

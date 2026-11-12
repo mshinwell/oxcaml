@@ -140,6 +140,7 @@ Definition inlinable_at_fresh (ap : apply_expr) (c : code) (r : renaming)
   ∧ rename_continuation r (code_exn_continuation c) = ap_exn_continuation ap
   ∧ ap_exn_extra_args ap = []
   ∧ length (code_params c) = length (ap_args ap)
+  ∧ length (ap_args_arity ap) = length (code_params_arity c)
   ∧ binds_statics (code_body c) = false.
 
 (* The explicit form: any variables that are different from one

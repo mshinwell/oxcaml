@@ -95,16 +95,11 @@ Proof.
     destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | discriminate ].
     destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
       [ | discriminate ].
-    destruct
-      (call_function_cases callee (ap_call_kind ap) vs (ap_args_arity ap)
-         (ap_return_arity ap) statics)
-      as [Hundefined | (body & callee_vars & ret & exn & Hcall)].
-    + rewrite Hundefined in Hstep. discriminate.
-    + rewrite Hcall in Hstep. injection Hstep as <-.
-      apply statics_extend_refl.
+    rewrite (call_function_statics _ _ _ _ _ _ _ _ _ Hstep).
+    apply statics_extend_refl.
   - destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | discriminate ].
     unfold apply_continuation in Hstep.
-    apply apply_cont_value_statics in Hstep. rewrite Hstep.
+    rewrite (apply_cont_value_statics _ _ _ _ Hstep).
     apply statics_extend_refl.
   - destruct (eval_simple vars scrutinee) as [v | ]; [ | discriminate ].
     destruct (naked_immediate_of_value v) as [i | ]; [ | discriminate ].
@@ -248,6 +243,8 @@ Fixpoint cont_names (c : cont_value) : list positive :=
     handler_static_names names_of h
     ++ flat_map (fun kc => cont_names (snd kc)) conts
   | Extra_args c _ => cont_names c
+  | Over_application _ _ _ return_to exn_to =>
+    cont_names return_to ++ cont_names exn_to
   end.
 
 Definition conts_names (conts : cont_env) : list positive :=
@@ -265,6 +262,8 @@ Fixpoint cont_ok (c : cont_value) : Prop :=
     ∧ handlers_nowhere recursive
     ∧ fold_right (fun kc acc => cont_ok (snd kc) ∧ acc) True conts
   | Extra_args c _ => cont_ok c
+  | Over_application _ _ _ return_to exn_to =>
+    cont_ok return_to ∧ cont_ok exn_to
   end.
 
 (* Extra arguments change nothing: what holds of a continuation holds of
@@ -273,8 +272,10 @@ Lemma cont_target_ok (c : cont_value) :
   cont_ok c ->
   cont_ok (cont_target c) ∧ cont_names (cont_target c) = cont_names c.
 Proof.
-  induction c as [h def_vars def_conts recursive | k | c IH extra]; simpl;
-    [ auto | auto | exact IH ].
+  induction c
+    as [h def_vars def_conts recursive | k | c IH extra
+       | remaining remaining_arity return_arity return_to _ exn_to _];
+    simpl; [ auto | auto | exact IH | auto ].
 Qed.
 
 Lemma with_extra_args_ok (c : cont_value) (extra : list value) :
@@ -393,6 +394,148 @@ Definition inv (s : state) : Prop :=
       is_bound (state_statics s) n = false)
   ∧ code_ok (state_statics s).
 
+(* What is asked of a continuation for the state that it leads to to
+   satisfy the invariant. *)
+Definition cont_inv (statics : static_env) (c : cont_value) : Prop :=
+  cont_ok c
+  ∧ ∀ n : positive, In n (cont_names c) -> is_bound statics n = false.
+
+Lemma cont_inv_over (statics : static_env) (remaining : list value)
+    (remaining_arity return_arity : arity) (return_to exn_to : cont_value) :
+  cont_inv statics return_to ->
+  cont_inv statics exn_to ->
+  cont_inv statics
+    (Over_application remaining remaining_arity return_arity return_to
+       exn_to).
+Proof.
+  intros [C1 N1] [C2 N2]. split; [ exact (conj C1 C2) | ].
+  intros n Hn. simpl in Hn. apply in_app_or in Hn.
+  destruct Hn as [Hn | Hn]; [ exact (N1 n Hn) | exact (N2 n Hn) ].
+Qed.
+
+Lemma call_code_inv (closure : value) (called : code_id) (c : code)
+    (vs : list value) (args_arity return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) (s' : state) :
+  code_ok statics ->
+  lookup called (static_code statics) = Some c ->
+  cont_inv statics return_to ->
+  cont_inv statics exn_to ->
+  call_code closure c vs args_arity return_arity return_to exn_to statics
+  = Step s' ->
+  inv s'.
+Proof.
+  intros S Hlookup [C1 N1] [C2 N2] Hstep.
+  apply call_code_step in Hstep as (callee_vars & _ & _ & _ & _ & _ & ->).
+  unfold inv. simpl_state.
+  pose proof (S called c Hlookup) as Hc.
+  destruct c as [params my_closure ret exn metadata body]. simpl in Hc |- *.
+  destruct (statics_nowhere body Hc) as (Pbody & _ & Nbody).
+  rewrite Nbody.
+  refine
+    (conj Pbody
+       (conj (NoDup_nil _)
+          (conj (conj C1 (conj C2 I)) (conj _ (conj _ S))))).
+  - intros n [].
+  - intros n [[] | Hn].
+    unfold conts_names in Hn. simpl in Hn. rewrite app_nil_r in Hn.
+    apply in_app_or in Hn.
+    destruct Hn as [Hn | Hn]; [ exact (N1 n Hn) | exact (N2 n Hn) ].
+Qed.
+
+Lemma run_call_inv (return_partial : value -> step_result)
+    (kind : call_kind) (shape : option call_shape) (return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) (s' : state) :
+  code_ok statics ->
+  shape_calls statics kind shape ->
+  cont_inv statics return_to ->
+  cont_inv statics exn_to ->
+  (∀ partial : value, return_partial partial = Step s' -> inv s') ->
+  run_call return_partial shape return_arity return_to exn_to statics
+  = Step s' ->
+  inv s'.
+Proof.
+  intros S Hcalls Hreturn Hexn Hpartial.
+  destruct shape
+    as [[closure c vs args_arity
+        | closure c vs remaining args_arity remaining_arity | partial] | ];
+    simpl in Hcalls |- *.
+  - destruct Hcalls as (called & slots & _ & Hlookup & _).
+    exact (call_code_inv closure called c vs _ _ _ _ statics s' S Hlookup
+             Hreturn Hexn).
+  - destruct Hcalls as (called & slots & _ & Hlookup & _).
+    apply (call_code_inv closure called c vs _ _ _ _ statics s' S Hlookup);
+      [ apply cont_inv_over; assumption | exact Hexn ].
+  - apply Hpartial.
+  - discriminate.
+Qed.
+
+Lemma apply_cont_value_inv (c : cont_value) :
+  ∀ (vs : list value) (statics : static_env) (s' : state),
+    code_ok statics ->
+    cont_inv statics c ->
+    apply_cont_value c vs statics = Step s' ->
+    inv s'.
+Proof.
+  induction c
+    as [[params metadata handler] def_vars def_conts recursive | k
+       | c IHc extra
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+    using cont_value_over_ind;
+    intros vs statics s' S [Cr Nr] Hstep.
+  - simpl in Hstep.
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+      [ | discriminate ].
+    destruct (bind_params params vs def_vars); [ | discriminate ].
+    injection Hstep as <-. unfold inv. simpl_state. simpl in Cr, Nr.
+    destruct Cr as (Ph & Dh & Xh & Hrec & Cdef).
+    destruct (rec_closures_ok def_vars def_conts recursive Hrec Cdef)
+      as [Crec Nrec].
+    refine
+      (conj Ph
+         (conj Dh (conj (conts_ok_app _ _ Crec Cdef) (conj _ (conj _ S))))).
+    + intros n Hn Hin. rewrite conts_names_app in Hin.
+      apply in_app_or in Hin. destruct Hin as [Hin | Hin];
+        [ apply Nrec in Hin | ]; exact (Xh n Hn Hin).
+    + intros n Hn. apply Nr.
+      destruct Hn as [Hn | Hn]; apply in_or_app; [ left; exact Hn | right ].
+      rewrite conts_names_app in Hn. apply in_app_or in Hn.
+      destruct Hn as [Hn | Hn]; [ exact (Nrec n Hn) | exact Hn ].
+  - discriminate.
+  - exact (IHc (vs ++ extra) statics s' S (conj Cr Nr) Hstep).
+  - rewrite apply_cont_value_over_application in Hstep.
+    destruct vs as [ | v [ | v' vs]]; [ discriminate | | discriminate ].
+    simpl in Cr, Nr. destruct Cr as [C1 C2].
+    assert (Hreturn : cont_inv statics return_to).
+    { split; [ exact C1 | ].
+      intros n Hn. apply Nr, in_or_app. left. exact Hn. }
+    assert (Hexn : cont_inv statics exn_to).
+    { split; [ exact C2 | ].
+      intros n Hn. apply Nr, in_or_app. right. exact Hn. }
+    unfold call_function in Hstep.
+    apply (run_call_inv _ Indirect _ _ _ _ statics s' S
+             (shape_of_call_calls _ _ _ _ _ _) Hreturn Hexn)
+      in Hstep; [ exact Hstep | ].
+    intros partial Hpartial.
+    exact (IHreturn [partial] statics s' S Hreturn Hpartial).
+Qed.
+
+Lemma call_function_inv (callee : value) (kind : call_kind)
+    (vs : list value) (args_arity return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) (s' : state) :
+  code_ok statics ->
+  cont_inv statics return_to ->
+  cont_inv statics exn_to ->
+  call_function callee kind vs args_arity return_arity return_to exn_to
+    statics
+  = Step s' ->
+  inv s'.
+Proof.
+  intros S Hreturn Hexn. unfold call_function.
+  apply (run_call_inv _ kind _ _ _ _ statics s' S
+           (shape_of_call_calls _ _ _ _ _ _) Hreturn Hexn).
+  intros partial. exact (apply_cont_value_inv return_to _ statics s' S Hreturn).
+Qed.
+
 Lemma inv_step (s s' : state) : inv s -> step s = Step s' -> inv s'.
 Proof.
   intros (P & D & C & X & F & S) Hstep. rewrite (state_eta s) in Hstep.
@@ -475,56 +618,19 @@ Proof.
     destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | discriminate ].
     destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
       [ | discriminate ].
-    apply call_function_step in Hstep
-      as (called & slots & c & callee_vars & _ & Hlookup & _ & _ & _ & _
-          & ->).
-    unfold inv. simpl_state.
-    pose proof (S called c Hlookup) as Hc.
-    destruct c as [params my_closure ret exn metadata body]. simpl in Hc |- *.
-    destruct (statics_nowhere body Hc) as (Pbody & _ & Nbody).
     destruct (resolve_ok (ap_continuation ap) conts C) as [C1 N1].
     destruct (resolve_ok (ap_exn_continuation ap) conts C) as [C2 N2].
     destruct (with_extra_args_ok _ extra C2) as [C2' N2'].
     rewrite <- N2' in N2.
-    rewrite Nbody.
-    refine
-      (conj Pbody
-         (conj (NoDup_nil _)
-            (conj (conj C1 (conj C2' I)) (conj _ (conj _ S))))).
-    + intros n [].
-    + intros n [[] | Hn]. apply F. right.
-      unfold conts_names in Hn. simpl in Hn. rewrite app_nil_r in Hn.
-      apply in_app_or in Hn.
-      destruct Hn as [Hn | Hn]; [ exact (N1 n Hn) | exact (N2 n Hn) ].
+    apply (call_function_inv _ _ _ _ _ _ _ statics s' S) in Hstep;
+      [ exact Hstep | | ];
+      (split; [ assumption | ]; intros n Hn; apply F; right; auto).
   - (* Apply_cont *)
     destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | discriminate ].
     unfold apply_continuation in Hstep.
-    rewrite apply_cont_value_target in Hstep.
     destruct (resolve_ok (ac_continuation ac) conts C) as [Cr Nr].
-    destruct (cont_target_ok _ Cr) as [Ct Nt]. rewrite <- Nt in Nr.
-    clear Cr Nt.
-    destruct (cont_target_cases (resolve (ac_continuation ac) conts))
-      as [([params metadata handler] & def_vars & def_conts & recursive
-           & Htarget)
-         | (k & Htarget)];
-      rewrite Htarget in Hstep, Ct, Nr; simpl in Hstep; [ | discriminate ].
-    destruct (kinds_eqb _ (hm_params_kinds metadata)); [ | discriminate ].
-    destruct (bind_params params _ def_vars); [ | discriminate ].
-    injection Hstep as <-. unfold inv. simpl_state. simpl in Ct, Nr.
-    rename Ct into Cr.
-    destruct Cr as (Ph & Dh & Xh & Hrec & Cdef).
-    destruct (rec_closures_ok def_vars def_conts recursive Hrec Cdef)
-      as [Crec Nrec].
-    refine
-      (conj Ph
-         (conj Dh (conj (conts_ok_app _ _ Crec Cdef) (conj _ (conj _ S))))).
-    + intros n Hn Hin. rewrite conts_names_app in Hin.
-      apply in_app_or in Hin. destruct Hin as [Hin | Hin];
-        [ apply Nrec in Hin | ]; exact (Xh n Hn Hin).
-    + intros n Hn. apply F. right. apply Nr.
-      destruct Hn as [Hn | Hn]; apply in_or_app; [ left; exact Hn | right ].
-      rewrite conts_names_app in Hn. apply in_app_or in Hn.
-      destruct Hn as [Hn | Hn]; [ exact (Nrec n Hn) | exact Hn ].
+    exact (apply_cont_value_inv _ vs statics s' S
+             (conj Cr (fun n Hn => F n (or_intror (Nr n Hn)))) Hstep).
   - (* Switch *)
     destruct (eval_simple vars scrutinee) as [v | ]; [ | discriminate ].
     destruct (naked_immediate_of_value v) as [i | ]; [ | discriminate ].
@@ -580,7 +686,8 @@ Proof.
   intros (_ & _ & _ & _ & _ & S). unfold calls_code_binding_statics.
   destruct (eval_simple vars (ap_callee ap)) as [callee | ];
     [ | reflexivity ].
-  destruct (closure_of statics callee) as [[called slots] | ];
+  cbv zeta.
+  destruct (closure_of statics _) as [[called slots] | ];
     [ | reflexivity ].
   destruct (lookup called (static_code statics)) as [c | ] eqn:Hlookup;
     [ | reflexivity ].

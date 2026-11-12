@@ -246,7 +246,7 @@ Proof. intros Hf. apply forallb_forall. intros a _. apply Hf. Qed.
 Fixpoint value_avoids_nothing (v : value) : value_avoids nothing v = true.
 Proof.
   destruct v as [c | code slots | slot decls slots | s | tag fields | contents
-    | loc];
+    | loc | callee args args_arity];
     simpl; try reflexivity.
   - induction slots as [ | [slot v] slots IH]; simpl; [ reflexivity | ].
     rewrite (value_avoids_nothing v). exact IH.
@@ -255,6 +255,9 @@ Proof.
     induction slots as [ | [slot' v] slots IH]; simpl; [ reflexivity | ].
     rewrite (value_avoids_nothing v). exact IH.
   - induction fields as [ | v fields IH]; simpl; [ reflexivity | ].
+    rewrite (value_avoids_nothing v). exact IH.
+  - rewrite (value_avoids_nothing callee). simpl.
+    induction args as [ | v args IH]; simpl; [ reflexivity | ].
     rewrite (value_avoids_nothing v). exact IH.
 Qed.
 
@@ -384,9 +387,14 @@ Qed.
 Fixpoint cont_free_of_nothing (c : cont_value) :
   cont_free_of nothing c = true.
 Proof.
-  destruct c as [h vars conts recursive | k | c extra]; simpl;
+  destruct c as [h vars conts recursive | k | c extra
+    | remaining remaining_arity return_arity return_to exn_to];
+    simpl;
     [ | reflexivity
     | rewrite (cont_free_of_nothing c); simpl;
+      apply forallb_always, value_avoids_nothing
+    | rewrite (cont_free_of_nothing return_to),
+        (cont_free_of_nothing exn_to), !andb_true_r;
       apply forallb_always, value_avoids_nothing ].
   rewrite handler_free_of_nothing, env_free_of_nothing. simpl.
   replace

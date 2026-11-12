@@ -34,12 +34,14 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec FlambdaMapProofs
   FlambdaUnusedStaticsSpec FlambdaClosuresSpec FlambdaHeapSpec.
 From OxCamlFlambda2 Require FlambdaNameAbstractionSpec.
 From OxCamlFlambda2 Require FlambdaPrimitiveProofs.
+From OxCamlFlambda2 Require FlambdaSemanticsProofs.
 Import ListNotations.
 
 (* FlambdaPrimitiveProofs.v makes [eval_prim] opaque for the files that
-   require it. The proofs here run the machine on terms, so they need it
-   to compute. *)
+   require it, and FlambdaSemanticsProofs.v [step]. The proofs here run
+   the machine on terms, so they need both to compute. *)
 #[local] Transparent eval_prim.
+#[local] Transparent step.
 
 Local Open Scope Z_scope.
 
@@ -131,7 +133,7 @@ Proof.
     split; [ apply lookup_fresh_location; exact Hlookup | auto ].
   - destruct vs as [ | v1 [ | v2 [ | v3 vs]]]; try discriminate.
     destruct v1 as [c | code slots | fslot decls slots | s | tag fields | c
-      | l];
+      | l | callee0 applied applied_arity];
       try discriminate.
     destruct (lookup l h) as [[[ | ] tag fields] | ] eqn:Hcell;
       try discriminate.
@@ -319,7 +321,7 @@ Proof.
   destruct p as [p | p | p | p].
   - destruct vs as [ | v1 [ | v2 vs]]; try exact (Hpure Hexec);
       destruct v1 as [c | code slots | fslot decls slots | s | tag fields | c
-      | l];
+      | l | callee0 applied applied_arity];
       try exact (Hpure Hexec).
     simpl in Hexec |- *.
     destruct (lookup l h1) as [[cell_mut tag fields] | ] eqn:Hcell;
@@ -400,14 +402,51 @@ Proof.
   apply exec_prim_evolves.
 Qed.
 
+(* A call leaves the heap as it is. *)
+Lemma heap_call_code_heap (closure : value) (c : code) (vs : list value)
+    (args_arity return_arity : arity) (return_to exn_to : cont_value)
+    (statics : static_env) (h : heap) (s' : heap_state) :
+  heap_call_code closure c vs args_arity return_arity return_to exn_to statics
+    h
+  = Heap_step s' ->
+  hs_heap s' = h.
+Proof.
+  unfold heap_call_code. repeat break_match; try discriminate.
+  intros [= <-]. reflexivity.
+Qed.
+
+Lemma heap_run_call_heap (return_partial : value -> heap_step_result)
+    (shape : option call_shape) (return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) (h : heap)
+    (s' : heap_state) :
+  (∀ (partial : value) (s' : heap_state),
+    return_partial partial = Heap_step s' -> hs_heap s' = h) ->
+  heap_run_call return_partial shape return_arity return_to exn_to statics h
+  = Heap_step s' ->
+  hs_heap s' = h.
+Proof.
+  intros Hpartial.
+  destruct shape
+    as [[closure c vs args_arity
+        | closure c vs remaining args_arity remaining_arity | partial] | ];
+    simpl.
+  - apply heap_call_code_heap.
+  - apply heap_call_code_heap.
+  - apply Hpartial.
+  - discriminate.
+Qed.
+
 (* Applying a continuation leaves the heap as it is. *)
 Lemma heap_apply_cont_value_heap (c : cont_value) (vs : list value)
     (statics : static_env) (h : heap) (s' : heap_state) :
   heap_apply_cont_value c vs statics h = Heap_step s' -> hs_heap s' = h.
 Proof.
-  revert vs.
-  induction c as [handler vars conts recursive | k | c IH extra]; intros vs;
-    simpl.
+  revert vs s'.
+  induction c
+    as [handler vars conts recursive | k | c IH extra
+       | remaining remaining_arity return_arity return_to IHreturn exn_to
+           IHexn];
+    intros vs s'; simpl.
   - destruct handler as [params metadata handler].
     destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
       [ | discriminate ].
@@ -415,27 +454,104 @@ Proof.
     intros [= <-]. reflexivity.
   - discriminate.
   - apply IH.
+  - destruct vs as [ | v [ | v2 vs]]; try discriminate.
+    apply heap_run_call_heap. intros partial s0. apply IHreturn.
 Qed.
 
-(* And is what FlambdaSemanticsSpec.apply_cont_value is. *)
-Lemma heap_apply_cont_value_agrees (c : cont_value) (vs : list value)
-    (statics : static_env) (h : heap) :
-  match heap_apply_cont_value c vs statics h, apply_cont_value c vs statics with
+Lemma heap_call_function_heap (callee : value) (kind : call_kind)
+    (vs : list value) (args_arity return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) (h : heap)
+    (s' : heap_state) :
+  heap_call_function callee kind vs args_arity return_arity return_to exn_to
+    statics h
+  = Heap_step s' ->
+  hs_heap s' = h.
+Proof.
+  unfold heap_call_function. apply heap_run_call_heap. intros partial s0.
+  apply heap_apply_cont_value_heap.
+Qed.
+
+(* What the machine with a heap does and what the machine without does,
+   where they agree. *)
+Definition results_agree (statics : static_env) (h : heap)
+    (result : heap_step_result) (result' : step_result) : Prop :=
+  match result, result' with
   | Heap_step s', Step t => forget_heap s' = t ∧ hs_heap s' = h
   | Heap_exit k o, Exit k' vs' => k = k' ∧ o = Outcome vs' statics h
   | Heap_undefined, Undefined => True
   | _, _ => False
   end.
+
+(* A call is what FlambdaSemanticsSpec.call_code and run_call are. *)
+Lemma heap_call_code_agrees (closure : value) (c : code) (vs : list value)
+    (args_arity return_arity : arity) (return_to exn_to : cont_value)
+    (statics : static_env) (h : heap) :
+  results_agree statics h
+    (heap_call_code closure c vs args_arity return_arity return_to exn_to
+       statics h)
+    (call_code closure c vs args_arity return_arity return_to exn_to statics).
+Proof.
+  unfold results_agree, heap_call_code, call_code.
+  repeat (break_innermost; simpl; auto).
+Qed.
+
+Lemma heap_run_call_agrees (return_partial : value -> heap_step_result)
+    (return_partial' : value -> step_result) (shape : option call_shape)
+    (return_arity : arity) (return_to exn_to : cont_value)
+    (statics : static_env) (h : heap) :
+  (∀ partial : value,
+    results_agree statics h (return_partial partial)
+      (return_partial' partial)) ->
+  results_agree statics h
+    (heap_run_call return_partial shape return_arity return_to exn_to statics
+       h)
+    (run_call return_partial' shape return_arity return_to exn_to statics).
+Proof.
+  intros Hpartial.
+  destruct shape
+    as [[closure c vs args_arity
+        | closure c vs remaining args_arity remaining_arity | partial] | ];
+    simpl.
+  - apply heap_call_code_agrees.
+  - apply heap_call_code_agrees.
+  - apply Hpartial.
+  - exact I.
+Qed.
+
+(* Applying a continuation is what FlambdaSemanticsSpec.apply_cont_value
+   is. *)
+Lemma heap_apply_cont_value_agrees (c : cont_value) (vs : list value)
+    (statics : static_env) (h : heap) :
+  results_agree statics h (heap_apply_cont_value c vs statics h)
+    (apply_cont_value c vs statics).
 Proof.
   revert vs.
-  induction c as [handler vars conts recursive | k | c IH extra]; intros vs;
-    simpl.
+  induction c
+    as [handler vars conts recursive | k | c IH extra
+       | remaining remaining_arity return_arity return_to IHreturn exn_to
+           IHexn];
+    intros vs; simpl.
   - destruct handler as [params metadata handler].
     destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
       [ | exact I ].
     destruct (bind_params params vs vars); simpl; auto.
   - auto.
   - apply IH.
+  - destruct vs as [ | v [ | v2 vs]]; try exact I.
+    apply heap_run_call_agrees. intros partial. apply IHreturn.
+Qed.
+
+Lemma heap_call_function_agrees (callee : value) (kind : call_kind)
+    (vs : list value) (args_arity return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) (h : heap) :
+  results_agree statics h
+    (heap_call_function callee kind vs args_arity return_arity return_to
+       exn_to statics h)
+    (call_function callee kind vs args_arity return_arity return_to exn_to
+       statics).
+Proof.
+  unfold heap_call_function, call_function. apply heap_run_call_agrees.
+  intros partial. apply heap_apply_cont_value_agrees.
 Qed.
 
 Theorem heap_step_evolves : heap_step_evolves_statement.
@@ -453,8 +569,10 @@ Proof.
   - intros [= <-]. apply heap_evolves_refl.
   - repeat break_match; try discriminate. intros [= <-].
     apply heap_evolves_refl.
-  - unfold heap_call_function. repeat break_match; try discriminate.
-    intros [= <-]. apply heap_evolves_refl.
+  - repeat break_match; try discriminate.
+    intros Hstep.
+    rewrite (heap_call_function_heap _ _ _ _ _ _ _ _ _ _ Hstep).
+    apply heap_evolves_refl.
   - destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | discriminate ].
     intros Hstep. rewrite (heap_apply_cont_value_heap _ _ _ _ _ Hstep).
     apply heap_evolves_refl.
@@ -475,8 +593,12 @@ Proof.
   - intros _. destruct (eval_static_bindings vars bindings statics); auto.
   - intros _. auto.
   - intros _. destruct (handlers_bind_statics handlers); auto.
-  - intros _. unfold heap_call_function, call_function.
-    repeat (break_innermost; simpl; auto).
+  - intros _.
+    destruct (eval_simple vars (ap_callee ap)) as [callee | ]; simpl; auto.
+    destruct (eval_simples vars (ap_args ap)) as [vs | ]; simpl; auto.
+    destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ]; simpl;
+      auto.
+    apply heap_call_function_agrees.
   - intros _. unfold apply_continuation.
     destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | exact I ].
     apply heap_apply_cont_value_agrees.
@@ -502,11 +624,17 @@ Lemma value_induction (P : value -> Prop) :
     Forall P fields -> P (Value_block tag fields)) ->
   (∀ c : const, P (Value_boxed_number c)) ->
   (∀ l : location, P (Value_location l)) ->
+  (∀ (callee : value) (args : list value) (args_arity : arity),
+    P callee ->
+    Forall P args ->
+    P (Value_partial_application callee args args_arity)) ->
   ∀ v : value, P v.
 Proof.
-  intros Hconst Hclosure Hclosure_of_set Hsymbol Hblock Hboxed Hlocation.
+  intros Hconst Hclosure Hclosure_of_set Hsymbol Hblock Hboxed Hlocation
+    Hpartial.
   fix IH 1.
-  intros [c | code slots | slot decls slots | s | tag fields | c | l].
+  intros [c | code slots | slot decls slots | s | tag fields | c | l
+         | callee args args_arity].
   - apply Hconst.
   - apply Hclosure.
     exact
@@ -537,6 +665,14 @@ Proof.
          fields).
   - apply Hboxed.
   - apply Hlocation.
+  - apply Hpartial; [ apply IH | ].
+    exact
+      ((fix go (args : list value) : Forall P args :=
+          match args with
+          | [] => Forall_nil _
+          | arg :: args => Forall_cons _ (IH arg) (go args)
+          end)
+         args).
 Qed.
 
 Lemma Forall2_same {A : Type} (R : A -> A -> Prop) (l : list A) :
@@ -590,7 +726,8 @@ Proof.
        | v v' fslot fdecls slots slots' Hv Hv' Hnames Hslots
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
-       | kind v' Hpoison Hkind].
+       | kind v' Hpoison Hkind
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs].
   - apply Step_const.
   - apply Step_location. exact Hl.
   - exact
@@ -610,6 +747,9 @@ Proof.
   - apply Step_same_closure_of_set. exact Hgslot.
   - apply Step_opaque_symbol; assumption.
   - apply Step_poison; assumption.
+  - apply Step_partial_application;
+      [ exact (Hmono _ _ Hpcallee)
+      | exact (Forall2_mono _ _ _ _ Hmono Hpargs) ].
 Qed.
 
 (* Induction on the relation, through the lists of related contents. *)
@@ -634,7 +774,8 @@ Proof.
        | v v' fslot fdecls slots slots' Hv Hv' Hnames Hslots
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
-       | kind v' Hpoison Hkind].
+       | kind v' Hpoison Hkind
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs].
   - apply Step_const.
   - apply Step_location. exact Hl.
   - apply (Step_block _ _ _ _ _ _ _ tag fields fields' Hv Hv').
@@ -682,6 +823,23 @@ Proof.
   - apply Step_same_closure_of_set. exact Hgslot.
   - apply Step_opaque_symbol; assumption.
   - apply Step_poison; assumption.
+  - apply Step_partial_application;
+      [ exact (conj Hpcallee (IH _ _ Hpcallee)) | ].
+    exact
+      ((fix go (vs vs' : list value)
+          (H : Forall2 (value_related poison_refines r statics statics')
+                 vs vs')
+          : Forall2
+              (fun a a' =>
+                 value_related poison_refines r statics statics' a a'
+                 ∧ P a a')
+              vs vs' :=
+          match H with
+          | Forall2_nil _ => Forall2_nil _
+          | Forall2_cons _ _ Hhead Htail =>
+            Forall2_cons _ _ (conj Hhead (IH _ _ Hhead)) (go _ _ Htail)
+          end)
+         _ _ Hpargs).
 Qed.
 
 (* Two related values have their heads in common, under a valid
@@ -759,7 +917,7 @@ Lemma not_allocated (statics : static_env) (v : value) :
   ∧ string_of statics v = None.
 Proof.
   unfold is_allocated. rewrite !orb_false_iff.
-  intros [[[Hclosure Hblock] Hboxed] Hstring].
+  intros [[[[Hclosure Hblock] Hboxed] Hstring] _].
   destruct (closure_of statics v); [ discriminate | ].
   destruct (block_of statics v); [ discriminate | ].
   destruct (boxed_number_of statics v); [ discriminate | ].
@@ -785,7 +943,7 @@ Lemma closure_in_set_closure_of (statics : static_env) (v : value)
     lookup slot decls = Some code ∧ closure_of statics v = Some (code, slots).
 Proof.
   destruct v as [c | code slots' | slot' decls' slots' | s | tag fields | c
-    | l]; simpl; try discriminate.
+    | l | callee0 applied applied_arity]; simpl; try discriminate.
   - intros [= <- <- <-]. exists code. rewrite lookup_head. auto.
   - destruct (lookup slot' decls') as [code | ] eqn:Hslot; simpl;
       [ | discriminate ].
@@ -808,7 +966,7 @@ Lemma closure_of_closure_in_set (statics : static_env) (v : value)
     ∧ lookup slot decls = Some code.
 Proof.
   destruct v as [c | code' slots' | slot decls slots' | s | tag fields | c
-    | l]; simpl; try discriminate.
+    | l | callee0 applied applied_arity]; simpl; try discriminate.
   - intros [= <- <-]. eexists _, _. split; [ reflexivity | ].
     apply lookup_head.
   - destruct (lookup slot decls) as [code' | ] eqn:Hslot; simpl;
@@ -851,7 +1009,8 @@ Lemma project_set_bound (st : static_env) (v : value) (slot : function_slot)
       project_function_slot st slot move_to v = Some x ->
       set_bound st x ∧ closure_in_set st x = Some (move_to, decls, slots)).
 Proof.
-  destruct v as [c | code vs | slot' decls' vs | s | tag fields | c | l];
+  destruct v as [c | code vs | slot' decls' vs | s | tag fields | c | l
+    | callee0 applied applied_arity];
     cbn -[Pos.eqb]; try discriminate.
   - intros _ [= <- <- <-].
     destruct (Pos.eqb_spec move_to unnamed_function_slot) as [-> | Hne].
@@ -952,7 +1111,8 @@ Lemma project_function_slot_closure (st : static_env) (v w : value)
     (slots : list (value_slot * value)),
     closure_in_set st v = Some (move_from, decls, slots).
 Proof.
-  destruct v as [c | code vs | slot decls vs | s | tag fields | c | l];
+  destruct v as [c | code vs | slot decls vs | s | tag fields | c | l
+    | callee0 applied applied_arity];
     cbn -[Pos.eqb]; try discriminate.
   - destruct (Pos.eqb_spec move_from unnamed_function_slot) as [-> | _];
       [ | discriminate ].
@@ -1074,7 +1234,8 @@ Proof.
        | v v' fslot fdecls slots slots' Hv Hv' Hnames Hslots
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
-       | kind v' Hpoison Hkind]; try reflexivity.
+       | kind v' Hpoison Hkind
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs]; try reflexivity.
   - rewrite (block_of_kind _ _ _ Hv), (block_of_kind _ _ _ Hv'). reflexivity.
   - rewrite (boxed_number_of_kind _ _ _ Hv), (boxed_number_of_kind _ _ _ Hv').
     reflexivity.
@@ -1105,7 +1266,9 @@ Proof.
        | v v' fslot fdecls slots0 slots' Hv Hv' Hnames Hslots
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
-       | kind v' Hpoison Hkind]; try discriminate;
+       | kind v' Hpoison Hkind
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs];
+    try discriminate;
     try observations_conflict.
   - rewrite Hv in Hclosure. injection Hclosure as <- <- <-.
     destruct Hsiblings as [[Hbound Hbound'] | [Hsiblings _]];
@@ -1134,7 +1297,7 @@ Lemma value_avoids_nothing (v : value) : value_avoids nothing_dropped v = true.
 Proof.
   induction v
     as [c | code slots IH | fslot decls slots IH | s | tag fields IH | c
-       | l]
+       | l | callee0 applied applied_arity IHcallee IHapplied]
     using value_induction; try reflexivity; simpl.
   - apply forallb_forall. intros [name v] Hin. rewrite Forall_forall in IH.
     exact (IH _ Hin).
@@ -1144,6 +1307,8 @@ Proof.
       rewrite Forall_forall in IH. exact (IH _ Hin).
   - apply forallb_forall. intros v Hin. rewrite Forall_forall in IH.
     exact (IH _ Hin).
+  - rewrite IHcallee. simpl. apply forallb_forall. intros v Hin.
+    rewrite Forall_forall in IHapplied. exact (IHapplied _ Hin).
 Qed.
 
 (* A value that refers to no symbol left out is related to itself, under
@@ -1162,7 +1327,7 @@ Proof.
   intros Hsymbols.
   induction v
     as [c | code slots IH | fslot decls slots IH | s | tag fields IH | c
-       | l]
+       | l | callee0 applied applied_arity IHcallee IHapplied]
     using value_induction; intros Havoids Hlocations.
   - apply related_const.
   - simpl in Havoids. apply andb_true_iff in Havoids as [_ Havoids].
@@ -1200,6 +1365,15 @@ Proof.
       exists field. auto.
   - apply Related_step, Step_same_boxed_number.
   - apply related_location. apply Hlocations. left. reflexivity.
+  - simpl in Havoids. apply andb_true_iff in Havoids as [Hcallee Hargs].
+    apply Related_step, Step_partial_application.
+    + apply IHcallee; [ exact Hcallee | ].
+      intros l Hl. apply Hlocations. simpl. apply in_or_app. left. exact Hl.
+    + apply Forall2_same. intros arg Harg.
+      rewrite Forall_forall in IHapplied. apply (IHapplied arg Harg).
+      * rewrite forallb_forall in Hargs. exact (Hargs arg Harg).
+      * intros l Hl. apply Hlocations. simpl. apply in_or_app. right.
+        apply in_flat_map. exists arg. auto.
 Qed.
 
 Theorem outcome_related_reflexive : outcome_related_reflexive_statement.
@@ -1287,7 +1461,8 @@ Proof.
        | v v' fslot fdecls slots slots' Hv Hv' Hnames Hslots
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
-       | kind v' Hpoison Hkind].
+       | kind v' Hpoison Hkind
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs].
   - apply Step_const.
   - apply Step_location. exact Hl.
   - exact (Step_block _ _ _ _ _ _ _ tag fields fields' Hv Hv' Hfields).
@@ -1302,6 +1477,7 @@ Proof.
   - apply Step_same_closure_of_set. exact Hgslot.
   - apply Step_opaque_symbol; assumption.
   - discriminate Hpoison.
+  - apply Step_partial_application; assumption.
 Qed.
 
 Lemma value_related_poison (r : correspondence)
@@ -1474,7 +1650,8 @@ Proof.
        | v v' fslot fdecls slots slots' Hv Hv' Hnames Hslots
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
-       | kind v' Hpoison Hkind].
+       | kind v' Hpoison Hkind
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs].
   - apply Step_const.
   - apply Step_location. exact Hl.
   - exact
@@ -1505,6 +1682,9 @@ Proof.
   - apply Step_same_closure_of_set. exact Hgslot.
   - apply Step_opaque_symbol; assumption.
   - discriminate Hpoison.
+  - apply Step_partial_application;
+      [ exact (Hswap _ _ Hpcallee)
+      | exact (Forall2_swap _ _ _ _ Hswap Hpargs) ].
 Qed.
 
 Lemma value_related_swap (r : correspondence) (st st' : static_env)
@@ -1577,7 +1757,8 @@ Proof.
        | v v' fslot fdecls slots slots' Hv Hv' Hnames Hslots
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
-       | kind v' Hpoison Hkind].
+       | kind v' Hpoison Hkind
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs].
   - (* a constant *)
     inversion Hsecond; subst; simpl in *; try discriminate.
     + apply Step_const.
@@ -1628,7 +1809,9 @@ Proof.
          | v2 v3 fslot2 fdecls2 slots2 slots3 Hv2 Hv3 Hnames2 Hslots2
            Hsiblings2
          | gslot gdecls gslots Hgslot | s Hs Hs'
-         | kind v3 Hpoison Hkind]; try discriminate;
+         | kind v3 Hpoison Hkind
+         | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs];
+      try discriminate;
       try observations_conflict.
     + rewrite Hv' in Hv2. injection Hv2 as <- <- <-.
       apply
@@ -1691,6 +1874,10 @@ Proof.
   - (* poison *)
     apply Step_poison; [ exact Hpoison | ].
     rewrite <- (value_step_kind _ _ _ _ _ _ _ Hsecond). exact Hkind.
+  - (* a partial application *)
+    inversion Hsecond; subst; simpl in *; try discriminate.
+    apply Step_partial_application;
+      [ eexists; split; eassumption | eapply Forall2_compose; eassumption ].
 Qed.
 
 Theorem outcome_related_transitive : outcome_related_transitive_statement.
@@ -2048,7 +2235,8 @@ Proof.
        | v v' fslot fdecls slots slots' Hv Hv' Hnames Hslots
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
-       | kind v' Hpoison Hkind].
+       | kind v' Hpoison Hkind
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs].
   - apply Step_const.
   - apply Step_location. exact (Hlocations _ _ Hl).
   - exact
@@ -2068,6 +2256,9 @@ Proof.
   - apply Step_same_closure_of_set. exact Hgslot.
   - apply Step_opaque_symbol; assumption.
   - apply Step_poison; assumption.
+  - apply Step_partial_application;
+      [ exact (Hmono _ _ Hpcallee)
+      | exact (Forall2_mono _ _ _ _ Hmono Hpargs) ].
 Qed.
 
 Lemma value_related_grow (poison_refines : bool) (r r1 : correspondence)
@@ -2108,7 +2299,8 @@ Proof.
          | v v' fslot fdecls slots slots' Hv Hv' Hnames Hslots
            Hsiblings
          | gslot gdecls gslots Hgslot | s Hs Hs'
-         | kind v' Hpoison Hkind].
+         | kind v' Hpoison Hkind
+         | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs].
     + apply related_const.
     + apply related_location. exact Hl.
     + apply (related_block _ _ _ _ _ _ tag fields fields');
@@ -2148,6 +2340,9 @@ Proof.
     + apply Related_step, Step_same_closure_of_set. exact Hgslot.
     + apply Related_corr. apply Hsymbols; assumption.
     + apply Related_step, Step_poison; assumption.
+    + apply Related_step, Step_partial_application;
+        [ exact (proj2 Hpcallee) | ].
+      revert Hpargs. apply Forall2_mono. intros a a' [_ Ha]. exact Ha.
 Qed.
 
 Section Machine.
@@ -2219,7 +2414,9 @@ Proof.
        | v v' fslot fdecls slots slots' Hv Hv' Hnames Hslots
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
-       | kind v' Hpoison Hkind]; try reflexivity; try discriminate.
+       | kind v' Hpoison Hkind
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs];
+    try reflexivity; try discriminate.
   all: destruct v; try discriminate; destruct v'; try discriminate;
     reflexivity.
 Qed.
@@ -2248,7 +2445,9 @@ Proof.
        | v v' fslot fdecls slots slots' Hv Hv' Hnames Hslots
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
-       | kind v' Hpoison Hkind]; simpl; try exact I; try discriminate.
+       | kind v' Hpoison Hkind
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs];
+    simpl; try exact I; try discriminate.
   - exact Hl.
   - destruct v; try discriminate; destruct v'; try discriminate; exact I.
   - destruct v; try discriminate; destruct v'; try discriminate; exact I.
@@ -2279,7 +2478,9 @@ Proof.
        | v v' fslot fdecls slots slots' Hv Hv' Hnames Hslots
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
-       | kind v' Hpoison Hkind]; try discriminate;
+       | kind v' Hpoison Hkind
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs];
+    try discriminate;
     try observations_conflict.
   rewrite Hv in Hblock. injection Hblock as <- <-. exists fields'. auto.
 Qed.
@@ -2296,7 +2497,9 @@ Proof.
        | v v' fslot fdecls slots slots' Hv Hv' Hnames Hslots
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
-       | kind v' Hpoison Hkind]; try discriminate;
+       | kind v' Hpoison Hkind
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs];
+    try discriminate;
     try observations_conflict.
   - rewrite Hv in Hboxed. injection Hboxed as <-.
     destruct Hc as [<- | [Hfalse _]]; [ exact Hv' | discriminate Hfalse ].
@@ -2315,7 +2518,9 @@ Proof.
        | v v' fslot fdecls slots slots' Hv Hv' Hnames Hslots
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
-       | kind v' Hpoison Hkind]; try discriminate;
+       | kind v' Hpoison Hkind
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs];
+    try discriminate;
     try observations_conflict.
   rewrite Hv in Hstring. injection Hstring as <-. exact Hv'.
 Qed.
@@ -2336,7 +2541,9 @@ Proof.
        | v v' fslot fdecls slots0 slots' Hv Hv' Hnames Hslots
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
-       | kind v' Hpoison Hkind]; try discriminate;
+       | kind v' Hpoison Hkind
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs];
+    try discriminate;
     try observations_conflict.
   - destruct (closure_in_set_closure_of _ _ _ _ _ Hv)
       as (code0 & Hcode0 & Hclosure0).
@@ -2381,11 +2588,46 @@ Proof.
        | v v' fslot fdecls slots0 slots' Hv Hv' Hnames Hslots
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
-       | kind v' Hpoison Hkind]; try discriminate;
+       | kind v' Hpoison Hkind
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs];
+    try discriminate;
     try observations_conflict.
   - rewrite Hv in Hclosure. injection Hclosure as <- <- <-.
     exists slots'. auto.
   - simpl in Hclosure. rewrite Hgslot in Hclosure. discriminate.
+Qed.
+
+(* A value related to a partial application is one, of a related callee
+   to related arguments at the same arity. *)
+Lemma related_partial_application_of (v v' callee : value)
+    (args : list value) (args_arity : arity) :
+  related v v' ->
+  partial_application_of v = Some (callee, args, args_arity) ->
+  ∃ (callee' : value) (args' : list value),
+    v' = Value_partial_application callee' args' args_arity
+    ∧ related callee callee'
+    ∧ Forall2 related args args'.
+Proof.
+  intros Hrelated Hpartial. apply related_step in Hrelated.
+  destruct v as [ | | | | | | | callee0 args0 arity0];
+    simpl in Hpartial; try discriminate Hpartial.
+  injection Hpartial as -> -> ->.
+  inversion Hrelated; subst; simpl in *; try discriminate.
+  eexists. eexists. split; [ reflexivity | split; assumption ].
+Qed.
+
+(* And a value related to one that is no partial application is none. *)
+Lemma related_not_partial_application (v v' : value) :
+  related v v' ->
+  partial_application_of v = None ->
+  partial_application_of v' = None.
+Proof.
+  intros Hrelated. apply related_step in Hrelated.
+  destruct Hrelated; simpl; intros Hnone; try reflexivity; try discriminate;
+    match goal with
+    | |- partial_application_of ?w = None =>
+      destruct w; simpl in *; try reflexivity; discriminate
+    end.
 Qed.
 
 Lemma related_is_allocated (v v' : value) :
@@ -2404,10 +2646,14 @@ Proof.
   destruct (boxed_number_of statics v) as [c | ] eqn:Hboxed.
   { rewrite (related_boxed_number_of _ _ _ Hrelated Hboxed).
     intros _. simpl. rewrite !orb_true_r. reflexivity. }
-  destruct (string_of statics v) as [bytes | ] eqn:Hstring;
-    [ | discriminate ].
-  rewrite (related_string_of _ _ _ Hrelated Hstring).
-  intros _. simpl. rewrite !orb_true_r. reflexivity.
+  destruct (string_of statics v) as [bytes | ] eqn:Hstring.
+  { rewrite (related_string_of _ _ _ Hrelated Hstring).
+    intros _. simpl. rewrite !orb_true_r. reflexivity. }
+  destruct (partial_application_of v) as [[[callee args] args_arity] | ]
+    eqn:Hpartial; [ | discriminate ].
+  destruct (related_partial_application_of _ _ _ _ _ Hrelated Hpartial)
+    as (callee' & args' & -> & _).
+  intros _. reflexivity.
 Qed.
 
 Lemma related_int_of_value (kind : standard_int) (v v' : value) :
@@ -2454,7 +2700,8 @@ Proof.
        | v v' fslot fdecls slots slots' Hb Hb' Hnames Hslots
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
-       | kind v' Hpoison Hkind]; try reflexivity.
+       | kind v' Hpoison Hkind
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs]; try reflexivity.
   - destruct (proj1 (proj2 memories_valid) _ _ Hl) as (c & c' & _ & Hc' & _).
     simpl. unfold is_bound. rewrite Hc'. reflexivity.
   - destruct v'; try discriminate; try reflexivity. simpl in Hb' |- *.
@@ -2488,7 +2735,8 @@ Proof.
        | v v' fslot fdecls slots slots' Hb Hb' Hnames Hslots
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
-       | kind v' Hpoison Hkind]; try reflexivity.
+       | kind v' Hpoison Hkind
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs]; try reflexivity.
   1-4:
     destruct v'; try discriminate; try reflexivity; simpl in Hb' |- *;
     destruct (lookup s (static_values statics'));
@@ -2606,7 +2854,13 @@ Proof.
         [ | contradiction Hclosure; reflexivity ].
       destruct (related_closure_of _ _ _ _ Hv Hc) as (slots' & -> & _).
       discriminate.
-    + exact (related_bound_if_symbol _ _ Hv).
+    + split; [ | exact (related_bound_if_symbol _ _ Hv) ].
+      intros Hpartial.
+      destruct (partial_application_of v) as [[[callee args] args_arity] | ]
+        eqn:Hp; [ | contradiction Hpartial; reflexivity ].
+      destruct (related_partial_application_of _ _ _ _ _ Hv Hp)
+        as (callee' & args' & -> & _).
+      discriminate.
 Qed.
 
 Lemma related_eval_prim (p : prim) (vs vs' : list value) (result : value) :
@@ -3310,7 +3564,8 @@ Proof.
          | v v' fslot fdecls slots slots' Hb Hb' Hnames Hslots
            Hsiblings
          | gslot gdecls gslots Hgslot | s0 Hs0 Hs0'
-         | kind v' Hpoison Hkind].
+         | kind v' Hpoison Hkind
+         | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs].
     + apply Step_const.
     + apply Step_location. exact Hl.
     + exact
@@ -3353,6 +3608,9 @@ Proof.
         destruct (Pos.eqb_spec s0 s) as [Heq | _];
           [ contradiction | exact Hs0' ].
     + discriminate Hpoison.
+    + apply Step_partial_application;
+        [ exact (Hmono _ _ Hpcallee)
+        | exact (Forall2_mono _ _ _ _ Hmono Hpargs) ].
   - exact memories_symbols.
   - intros s0 Hkept0. unfold is_bound. simpl.
     destruct (Pos.eqb s0 s);
@@ -3393,10 +3651,17 @@ Lemma cont_value_induction (P : cont_value -> Prop) :
     P (Closure handler vars conts recursive)) ->
   (∀ k : continuation, P (Outer k)) ->
   (∀ (c : cont_value) (extra : list value), P c -> P (Extra_args c extra)) ->
+  (∀ (remaining : list value) (remaining_arity return_arity : arity)
+     (return_to exn_to : cont_value),
+    P return_to ->
+    P exn_to ->
+    P (Over_application remaining remaining_arity return_arity return_to
+         exn_to)) ->
   ∀ c : cont_value, P c.
 Proof.
-  intros Hclosure Houter Hextra. fix IH 1.
-  intros [handler vars conts recursive | k | c extra].
+  intros Hclosure Houter Hextra Hover. fix IH 1.
+  intros [handler vars conts recursive | k | c extra
+         | remaining remaining_arity return_arity return_to exn_to].
   - apply Hclosure.
     exact
       ((fix go (conts : list (continuation * cont_value))
@@ -3408,6 +3673,7 @@ Proof.
          conts).
   - apply Houter.
   - apply Hextra. apply IH.
+  - apply Hover; apply IH.
 Qed.
 
 Lemma Forall2_impl_Forall {A B : Type} (R R1 : A -> B -> Prop) (l : list A)
@@ -3427,11 +3693,16 @@ Lemma cont_related_mono (R R1 : value -> value -> Prop) (c c' : cont_value) :
   cont_related R1 c c'.
 Proof.
   intros Hmono. revert c'.
-  induction c as [handler vars conts recursive IH | k | c extra IH]
+  induction c
+    as [handler vars conts recursive IH | k | c extra IH
+       | remaining remaining_arity return_arity return_to exn_to IHreturn
+           IHexn]
     using cont_value_induction; intros c' Hc;
     inversion Hc
       as [k0 | handler0 vars0 vars' conts0 conts' recursive0 Henv Hconts
-         | c0 c0' extra0 extra' Hc0 Hextra];
+         | c0 c0' extra0 extra' Hc0 Hextra
+         | remaining0 remaining' remaining_arity0 return_arity0 return_to0
+             return_to' exn_to0 exn_to' Hremaining Hreturn Hexn];
     subst.
   - apply Related_closure.
     + revert Henv. apply env_related_mono; [ exact Hmono | auto ].
@@ -3441,6 +3712,9 @@ Proof.
   - apply Related_outer.
   - apply Related_extra_args; [ exact (IH _ Hc0) | ].
     revert Hextra. apply Forall2_mono. exact Hmono.
+  - apply Related_over_application;
+      [ revert Hremaining; apply Forall2_mono; exact Hmono
+      | exact (IHreturn _ Hreturn) | exact (IHexn _ Hexn) ].
 Qed.
 
 Lemma conts_related_mono (R R1 : value -> value -> Prop)
@@ -3590,7 +3864,8 @@ Proof.
          | v v' fslot fdecls slots slots' Hb Hb' Hnames Hslots
            Hsiblings
          | gslot gdecls gslots Hgslot | s0 Hs0 Hs0'
-         | kind v' Hpoison Hkind].
+         | kind v' Hpoison Hkind
+         | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs].
     + apply Step_const.
     + apply Step_location. exact Hl.
     + exact
@@ -3628,6 +3903,9 @@ Proof.
       * rewrite (is_allocated_same_values _ _ _ Hsame). exact Hs0.
       * rewrite (is_allocated_same_values _ _ _ Hsame'). exact Hs0'.
     + discriminate Hpoison.
+    + apply Step_partial_application;
+        [ exact (Hmono _ _ Hpcallee)
+        | exact (Forall2_mono _ _ _ _ Hmono Hpargs) ].
   - exact Hsymbols.
   - intros s Hkept. rewrite Hsame, Hsame'. exact (Hdomain s Hkept).
   - intros s Hdropped. rewrite Hsame.
@@ -3837,6 +4115,207 @@ Definition step_results_related (D : dropped)
   | Heap_undefined => True
   end.
 
+Lemma Forall2_firstn {A B : Type} (R : A -> B -> Prop) (n : nat)
+    (l : list A) (l' : list B) :
+  Forall2 R l l' -> Forall2 R (firstn n l) (firstn n l').
+Proof.
+  intros Hall. revert n.
+  induction Hall as [ | x y l l' Hxy Hall IH]; intros [ | n]; simpl;
+    constructor; auto.
+Qed.
+
+Lemma Forall2_skipn {A B : Type} (R : A -> B -> Prop) (n : nat)
+    (l : list A) (l' : list B) :
+  Forall2 R l l' -> Forall2 R (skipn n l) (skipn n l').
+Proof.
+  intros Hall. revert n.
+  induction Hall as [ | x y l l' Hxy Hall IH]; intros [ | n]; simpl;
+    try (constructor; assumption).
+  apply IH.
+Qed.
+
+(* Related values have the same kinds. *)
+Lemma related_kinds (D : dropped) (r : correspondence) (st st' : static_env)
+    (h h' : heap) (vs vs' : list value) :
+  memories_related D r st st' h h' ->
+  Forall2 (value_related false r st st') vs vs' ->
+  map kind_of_value vs' = map kind_of_value vs.
+Proof.
+  intros Hmemories Hvs.
+  induction Hvs as [ | v v' vs vs' Hv Hvs IH]; simpl; [ reflexivity | ].
+  rewrite IH, (related_kind D r st st' h h' Hmemories _ _ Hv). reflexivity.
+Qed.
+
+(* A full call of the same code with related closures, arguments and
+   continuations. *)
+Lemma related_heap_call_code (D : dropped) (r : correspondence)
+    (st st' : static_env) (h h' : heap) (closure closure' : value) (c : code)
+    (vs vs' : list value) (args_arity return_arity : arity)
+    (ret ret' exn exn' : cont_value) :
+  memories_related D r st st' h h' ->
+  static_code st = static_code st' ->
+  value_related false r st st' closure closure' ->
+  Forall2 (value_related false r st st') vs vs' ->
+  cont_related (value_related false r st st') ret ret' ->
+  cont_related (value_related false r st st') exn exn' ->
+  step_results_related D
+    (heap_call_code closure c vs args_arity return_arity ret exn st h)
+    (heap_call_code closure' c vs' args_arity return_arity ret' exn' st' h').
+Proof.
+  intros Hmemories Hcode Hclosure Hvs Hret Hexn. unfold heap_call_code.
+  destruct (binds_statics (code_body c)); [ exact I | ].
+  rewrite (related_kinds D r st st' h h' _ _ Hmemories Hvs).
+  destruct (negb _); [ exact I | ].
+  destruct (bind_params (code_params c) vs [(code_my_closure c, closure)])
+    as [env1 | ] eqn:Hbind; [ | exact I ].
+  assert (Henv0 :
+            env_related (value_related false r st st')
+              (fun x => true && negb (among x (code_params c)))
+              [(code_my_closure c, closure)] [(code_my_closure c, closure')]).
+  { intros y w _. simpl.
+    destruct (Pos.eqb y (code_my_closure c)); [ | discriminate ].
+    intros [= <-]. exists closure'. auto. }
+  destruct
+    (related_bind_params _ (fun _ => true) _ _ _ _ _ _ Hvs Henv0 Hbind)
+    as (env1' & -> & Henv1).
+  eexists. split; [ reflexivity | ].
+  apply (states_related_except_intro D r);
+    [ exact Hmemories | exact Hcode | | ].
+  - revert Henv1. apply env_related_mono; auto.
+  - apply Forall2_cons; [ split; [ reflexivity | exact Hret ] | ].
+    apply Forall2_cons; [ split; [ reflexivity | exact Hexn ] | ].
+    apply Forall2_nil.
+Qed.
+
+(* What two calls are, where the second is as the first with related
+   values: the same shape, of the same code at the same arities, with
+   related values. Nothing is asked where the first is undefined. *)
+Definition heap_shapes_related (R : value -> value -> Prop)
+    (shape shape' : option call_shape) : Prop :=
+  match shape, shape' with
+  | None, _ => True
+  | Some (Full_call closure c vs args_arity),
+    Some (Full_call closure' c' vs' args_arity') =>
+    R closure closure' ∧ c' = c ∧ Forall2 R vs vs' ∧ args_arity' = args_arity
+  | Some (Over_call closure c vs remaining args_arity remaining_arity),
+    Some (Over_call closure' c' vs' remaining' args_arity' remaining_arity')
+    =>
+    R closure closure'
+    ∧ c' = c
+    ∧ Forall2 R vs vs'
+    ∧ Forall2 R remaining remaining'
+    ∧ args_arity' = args_arity
+    ∧ remaining_arity' = remaining_arity
+  | Some (Partial_call partial), Some (Partial_call partial') =>
+    R partial partial'
+  | Some _, _ => False
+  end.
+
+Lemma related_shape_of_closure_call (D : dropped) (r : correspondence)
+    (st st' : static_env) (h h' : heap) (closure closure' : value)
+    (kind : call_kind) (vs vs' : list value) (args_arity return_arity : arity) :
+  memories_related D r st st' h h' ->
+  static_code st = static_code st' ->
+  value_related false r st st' closure closure' ->
+  Forall2 (value_related false r st st') vs vs' ->
+  heap_shapes_related (value_related false r st st')
+    (shape_of_closure_call st closure kind vs args_arity return_arity)
+    (shape_of_closure_call st' closure' kind vs' args_arity return_arity).
+Proof.
+  intros Hmemories Hcode Hclosure Hvs. unfold shape_of_closure_call.
+  destruct (closure_of st closure) as [[called slots] | ] eqn:Hcalled;
+    [ | exact I ].
+  destruct
+    (related_closure_of D r st st' h h' Hmemories _ _ _ _ Hclosure Hcalled)
+    as (slots' & -> & _).
+  rewrite <- Hcode.
+  destruct
+    match kind with
+    | Direct named => Pos.eqb called named
+    | Indirect => true
+    end;
+    [ | exact I ].
+  destruct (lookup called (static_code st)) as [c | ]; [ | exact I ].
+  destruct (Nat.eqb (length args_arity) (length (code_params_arity c))).
+  { simpl. auto. }
+  rewrite (related_kinds D r st st' h h' _ _ Hmemories Hvs).
+  destruct (negb _); [ exact I | ].
+  destruct (Nat.ltb (length (code_params_arity c)) (length args_arity)); simpl.
+  - split; [ exact Hclosure | ]. split; [ reflexivity | ].
+    split; [ apply Forall2_firstn; exact Hvs | ].
+    split; [ apply Forall2_skipn; exact Hvs | auto ].
+  - apply Related_step, Step_partial_application; assumption.
+Qed.
+
+Lemma related_shape_of_call (D : dropped) (r : correspondence)
+    (st st' : static_env) (h h' : heap) (callee callee' : value)
+    (kind : call_kind) (vs vs' : list value) (args_arity return_arity : arity) :
+  memories_related D r st st' h h' ->
+  static_code st = static_code st' ->
+  value_related false r st st' callee callee' ->
+  Forall2 (value_related false r st st') vs vs' ->
+  heap_shapes_related (value_related false r st st')
+    (shape_of_call st callee kind vs args_arity return_arity)
+    (shape_of_call st' callee' kind vs' args_arity return_arity).
+Proof.
+  intros Hmemories Hcode Hcallee Hvs. unfold shape_of_call.
+  destruct (partial_application_of callee)
+    as [[[closure applied] applied_arity] | ] eqn:Hpartial.
+  - destruct
+      (related_partial_application_of D r st st' h h' Hmemories _ _ _ _ _
+         Hcallee Hpartial)
+      as (closure' & applied' & -> & Hclosure & Happlied).
+    simpl.
+    destruct kind as [named | ];
+      [ apply (related_shape_of_closure_call D r _ _ h h'); assumption | ].
+    destruct args_arity as [ | component args_arity]; [ exact I | ].
+    rewrite (related_kinds D r st st' h h' _ _ Hmemories Hvs).
+    destruct (kinds_eqb _ _); [ | exact I ].
+    apply (related_shape_of_closure_call D r _ _ h h'); try assumption.
+    apply Forall2_app; assumption.
+  - rewrite
+      (related_not_partial_application D r st st' h h' Hmemories _ _ Hcallee
+         Hpartial).
+    destruct kind; apply (related_shape_of_closure_call D r _ _ h h');
+      assumption.
+Qed.
+
+(* Two calls of related shapes. *)
+Lemma related_heap_run_call (D : dropped) (r : correspondence)
+    (st st' : static_env) (h h' : heap)
+    (return_partial return_partial' : value -> heap_step_result)
+    (shape shape' : option call_shape) (return_arity : arity)
+    (ret ret' exn exn' : cont_value) :
+  memories_related D r st st' h h' ->
+  static_code st = static_code st' ->
+  (∀ partial partial' : value,
+    value_related false r st st' partial partial' ->
+    step_results_related D (return_partial partial)
+      (return_partial' partial')) ->
+  heap_shapes_related (value_related false r st st') shape shape' ->
+  cont_related (value_related false r st st') ret ret' ->
+  cont_related (value_related false r st st') exn exn' ->
+  step_results_related D
+    (heap_run_call return_partial shape return_arity ret exn st h)
+    (heap_run_call return_partial' shape' return_arity ret' exn' st' h').
+Proof.
+  intros Hmemories Hcode Hpartial Hshapes Hret Hexn.
+  destruct shape
+    as [[closure c vs args_arity
+        | closure c vs remaining args_arity remaining_arity | partial] | ],
+    shape'
+    as [[closure' c' vs' args_arity'
+        | closure' c' vs' remaining' args_arity' remaining_arity'
+        | partial'] | ];
+    simpl in Hshapes |- *; try contradiction; try exact I.
+  - destruct Hshapes as (Hclosure & -> & Hvs & ->).
+    apply (related_heap_call_code D r); assumption.
+  - destruct Hshapes as (Hclosure & -> & Hvs & Hremaining & -> & ->).
+    apply (related_heap_call_code D r); try assumption.
+    apply Related_over_application; assumption.
+  - apply Hpartial. exact Hshapes.
+Qed.
+
 Lemma related_heap_apply_cont_value (D : dropped) (r : correspondence)
     (st st' : static_env) (h h' : heap) (c c' : cont_value)
     (vs vs' : list value) :
@@ -3851,8 +4330,19 @@ Proof.
   induction Hc
     as [k | handler def_vars def_vars' def_conts def_conts' recursive Henv
               Hconts
-       | c c' extra extra' Hc IH Hextra];
+       | c c' extra extra' Hc IH Hextra
+       | remaining remaining' remaining_arity return_arity return_to
+           return_to' exn_to exn_to' Hremaining Hreturn IHreturn Hexn IHexn];
     intros vs vs' Hvs.
+  4: {
+    cbn [heap_apply_cont_value].
+    destruct Hvs as [ | v v' vs vs' Hv Hvs]; [ exact I | ].
+    destruct Hvs as [ | v2 v2' vs vs' Hv2 Hvs]; [ | exact I ].
+    cbn [heap_apply_cont_value].
+    apply (related_heap_run_call D r); try assumption.
+    - intros partial partial' Hpartial. apply IHreturn.
+      constructor; [ exact Hpartial | constructor ].
+    - apply (related_shape_of_call D r _ _ h h'); assumption. }
   3: { simpl. apply IH. apply Forall2_app; assumption. }
   - simpl. eexists. split; [ reflexivity | ]. exists r.
     split; [ exact (proj1 Hmemories) | exact Hvs ].
@@ -3909,44 +4399,11 @@ Lemma related_heap_call_function (D : dropped) (r : correspondence)
        h').
 Proof.
   intros Hmemories Hcode Hcallee Hvs Hret Hexn. unfold heap_call_function.
-  destruct (closure_of st callee) as [[called slots] | ] eqn:Hclosure;
-    [ | exact I ].
-  destruct
-    (related_closure_of D r st st' h h' Hmemories _ _ _ _ Hcallee Hclosure)
-    as (slots' & -> & _).
-  rewrite <- Hcode.
-  destruct
-    match kind with
-    | Direct named => Pos.eqb called named
-    | Indirect => true
-    end;
-    [ | exact I ].
-  destruct (lookup called (static_code st)) as [c | ]; [ | exact I ].
-  destruct (binds_statics (code_body c)); [ exact I | ].
-  assert (Hkinds : map kind_of_value vs' = map kind_of_value vs).
-  { induction Hvs as [ | v v' vs vs' Hv Hvs IH]; simpl; [ reflexivity | ].
-    rewrite IH, (related_kind D r st st' h h' Hmemories _ _ Hv).
-    reflexivity. }
-  rewrite Hkinds. destruct (negb _); [ exact I | ].
-  destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
-    as [env1 | ] eqn:Hbind; [ | exact I ].
-  assert (Henv0 :
-            env_related (value_related false r st st')
-              (fun x => true && negb (among x (code_params c)))
-              [(code_my_closure c, callee)] [(code_my_closure c, callee')]).
-  { intros y w _. simpl.
-    destruct (Pos.eqb y (code_my_closure c)); [ | discriminate ].
-    intros [= <-]. exists callee'. auto. }
-  destruct
-    (related_bind_params _ (fun _ => true) _ _ _ _ _ _ Hvs Henv0 Hbind)
-    as (env1' & -> & Henv1).
-  eexists. split; [ reflexivity | ].
-  apply (states_related_except_intro D r);
-    [ exact Hmemories | exact Hcode | | ].
-  - revert Henv1. apply env_related_mono; auto.
-  - apply Forall2_cons; [ split; [ reflexivity | exact Hret ] | ].
-    apply Forall2_cons; [ split; [ reflexivity | exact Hexn ] | ].
-    apply Forall2_nil.
+  apply (related_heap_run_call D r); try assumption.
+  - intros partial partial' Hpartial.
+    apply (related_heap_apply_cont_value D r); try assumption.
+    constructor; [ exact Hpartial | constructor ].
+  - apply (related_shape_of_call D r _ _ h h'); assumption.
 Qed.
 
 (* What the next step of an expression names: no symbol left out. *)
@@ -4128,7 +4585,7 @@ Proof.
       as (v' & -> & Hv').
     destruct (naked_immediate_of_value v) as [i | ] eqn:Hi; [ | exact I ].
     assert (Hsame : v' = v).
-    { destruct v as [c | | | | | | ]; try discriminate.
+    { destruct v as [c | | | | | | | ]; try discriminate.
       exact (related_const_left D r st st' h h' Hmemories c v' Hv'). }
     subst v'. rewrite Hi.
     destruct (find_arm i arms) as [ac | ] eqn:Harm; [ | exact I ].
@@ -4517,8 +4974,16 @@ Lemma closed_cont_related (R : value -> value -> Prop) (h : heap)
   cont_related R c c.
 Proof.
   intros Hsame.
-  induction c as [handler vars conts recursive IH | k | c extra IH]
+  induction c
+    as [handler vars conts recursive IH | k | c extra IH
+       | remaining remaining_arity return_arity return_to exn_to IHreturn
+           IHexn]
     using cont_value_induction; simpl.
+  4: { intros (Hremaining & Hreturn & Hexn).
+       apply Related_over_application;
+         [ | exact (IHreturn Hreturn) | exact (IHexn Hexn) ].
+       apply Forall2_same. intros v Hv. apply Hsame.
+       exact (Hremaining v Hv). }
   3: { intros [Hextra Hc]. apply Related_extra_args; [ exact (IH Hc) | ].
        apply Forall2_same. intros v Hv. apply Hsame. exact (Hextra v Hv). }
   - intros [Hvars Hconts]. apply Related_closure.
@@ -4819,8 +5284,15 @@ Lemma cont_value_closed_evolves (h h1 : heap) (c : cont_value) :
   heap_evolves h h1 -> cont_value_closed h c -> cont_value_closed h1 c.
 Proof.
   intros Hevolves.
-  induction c as [handler vars conts recursive IH | k | c extra IH]
-    using cont_value_induction; [ | auto | ].
+  induction c
+    as [handler vars conts recursive IH | k | c extra IH
+       | remaining remaining_arity return_arity return_to exn_to IHreturn
+           IHexn]
+    using cont_value_induction; [ | auto | | ].
+  3: { simpl. intros (Hremaining & Hreturn & Hexn).
+       split; [ | split; [ exact (IHreturn Hreturn) | exact (IHexn Hexn) ] ].
+       intros v Hv.
+       exact (value_closed_evolves _ _ _ Hevolves (Hremaining v Hv)). }
   2: { simpl. intros [Hextra Hc]. split; [ | exact (IH Hc) ].
        intros v Hv. exact (value_closed_evolves _ _ _ Hevolves (Hextra v Hv)). }
   intros Hc. apply cont_value_closed_closure in Hc as [Hvars Hconts].
@@ -4904,7 +5376,7 @@ Lemma closure_slots_closed (st : static_env) (h : heap) (v : value)
 Proof.
   intros [_ Hstatics] Hclosed Hclosure Hw.
   destruct v as [c | code0 slots0 | fslot decls slots0 | s | tag fields | c
-    | l];
+    | l | callee0 applied applied_arity];
     simpl in Hclosure; try discriminate.
   - injection Hclosure as <- <-. intros l Hl. apply Hclosed. simpl.
     apply in_flat_map. apply in_map_iff in Hw as (slot & <- & Hslot).
@@ -5106,7 +5578,8 @@ Lemma project_function_slot_closed (st : static_env) (h : heap)
   value_closed h w.
 Proof.
   intros Hclosed Hw.
-  destruct v as [c | code vs | slot decls' vs | s | tag fields | c | l];
+  destruct v as [c | code vs | slot decls' vs | s | tag fields | c | l
+    | callee0 applied applied_arity];
     try discriminate.
   - cbn -[Pos.eqb] in Hw.
     destruct (Pos.eqb move_from unnamed_function_slot); [ | discriminate ].
@@ -5304,6 +5777,81 @@ Proof.
   simpl. split; [ exact Hextra | exact Hc ].
 Qed.
 
+(* A partial application is closed when its callee and its arguments
+   are. *)
+Lemma value_closed_partial_application (h : heap) (callee : value)
+    (args : list value) (args_arity : arity) :
+  value_closed h (Value_partial_application callee args args_arity)
+  <-> value_closed h callee ∧ Forall (value_closed h) args.
+Proof.
+  unfold value_closed. simpl. split.
+  - intros Hclosed. split.
+    + intros l Hl. apply Hclosed. apply in_or_app. left. exact Hl.
+    + apply Forall_forall. intros arg Harg l Hl. apply Hclosed.
+      apply in_or_app. right. apply in_flat_map. exists arg. auto.
+  - intros [Hcallee Hargs] l Hl. apply in_app_or in Hl as [Hl | Hl].
+    + exact (Hcallee l Hl).
+    + apply in_flat_map in Hl as (arg & Harg & Hl).
+      rewrite Forall_forall in Hargs. exact (Hargs arg Harg l Hl).
+Qed.
+
+(* A full call of a closed closure with closed arguments, returning to
+   closed continuations. *)
+Lemma heap_call_code_closed (st : static_env) (h : heap) (closure : value)
+    (c : code) (vs : list value) (args_arity return_arity : arity)
+    (ret exn : cont_value) (s' : heap_state) :
+  memory_closed st h ->
+  value_closed h closure ->
+  (∀ v : value, v ∈ vs -> value_closed h v) ->
+  cont_value_closed h ret ->
+  cont_value_closed h exn ->
+  heap_call_code closure c vs args_arity return_arity ret exn st h
+  = Heap_step s' ->
+  state_closed s'.
+Proof.
+  intros Hmemory Hclosure Hvs Hret Hexn. unfold heap_call_code.
+  destruct (binds_statics (code_body c)); [ discriminate | ].
+  destruct (negb _); [ discriminate | ].
+  destruct (bind_params (code_params c) vs [(code_my_closure c, closure)])
+    as [env1 | ] eqn:Hbind; [ | discriminate ].
+  intros [= <-].
+  split; [ exact Hmemory | split ]; cbn [hs_vars hs_conts hs_heap].
+  - refine (bind_params_closed h _ vs _ env1 Hvs _ Hbind).
+    intros y w [[= <- <-] | [ ]]. exact Hclosure.
+  - intros k0 c0 [[= <- <-] | [[= <- <-] | [ ]]]; assumption.
+Qed.
+
+(* A call whose shape holds closed values. *)
+Lemma heap_run_call_closed (st : static_env) (h : heap)
+    (return_partial : value -> heap_step_result) (shape : option call_shape)
+    (return_arity : arity) (ret exn : cont_value) (s' : heap_state) :
+  memory_closed st h ->
+  (∀ (partial : value) (s' : heap_state),
+    value_closed h partial ->
+    return_partial partial = Heap_step s' ->
+    state_closed s') ->
+  FlambdaSemanticsProofs.shape_values_all (value_closed h) shape ->
+  cont_value_closed h ret ->
+  cont_value_closed h exn ->
+  heap_run_call return_partial shape return_arity ret exn st h
+  = Heap_step s' ->
+  state_closed s'.
+Proof.
+  intros Hmemory Hpartial Hshape Hret Hexn.
+  destruct shape
+    as [[closure c vs args_arity
+        | closure c vs remaining args_arity remaining_arity | partial] | ];
+    simpl in Hshape |- *.
+  - destruct Hshape as [Hclosure Hvs]. rewrite Forall_forall in Hvs.
+    apply (heap_call_code_closed st h); assumption.
+  - destruct Hshape as (Hclosure & Hvs & Hremaining).
+    rewrite Forall_forall in Hvs, Hremaining.
+    apply (heap_call_code_closed st h); try assumption.
+    simpl. split; [ exact Hremaining | split; assumption ].
+  - apply Hpartial. exact Hshape.
+  - discriminate.
+Qed.
+
 (* Applying a closed continuation to closed values. *)
 Lemma heap_apply_cont_value_closed (st : static_env) (h : heap)
     (c : cont_value) (vs : list value) (s' : heap_state) :
@@ -5313,9 +5861,23 @@ Lemma heap_apply_cont_value_closed (st : static_env) (h : heap)
   heap_apply_cont_value c vs st h = Heap_step s' ->
   state_closed s'.
 Proof.
-  intros Hmemory. revert vs.
-  induction c as [handler def_vars def_conts recursive _ | k | c extra IH]
-    using cont_value_induction; intros vs Hc Hvs.
+  intros Hmemory. revert vs s'.
+  induction c
+    as [handler def_vars def_conts recursive _ | k | c extra IH
+       | remaining remaining_arity return_arity return_to exn_to IHreturn
+           IHexn]
+    using cont_value_induction; intros vs s' Hc Hvs.
+  4: {
+    simpl in Hc. destruct Hc as (Hremaining & Hreturn & Hexn).
+    cbn [heap_apply_cont_value].
+    destruct vs as [ | v [ | v2 vs]]; try discriminate.
+    apply (heap_run_call_closed st h); try assumption.
+    - intros partial s0 Hpartial. apply IHreturn; [ exact Hreturn | ].
+      intros w [<- | [ ]]. exact Hpartial.
+    - apply FlambdaSemanticsProofs.shape_of_call_values_all.
+      + exact (value_closed_partial_application h).
+      + apply Hvs. left. reflexivity.
+      + apply Forall_forall. exact Hremaining. }
   - destruct handler as [params metadata handler]. simpl.
     apply cont_value_closed_closure in Hc as [Hdef_vars Hdef_conts].
     destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
@@ -5380,31 +5942,19 @@ Proof.
     destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ]
       eqn:Hextra; [ | discriminate ].
     unfold heap_call_function.
-    destruct (closure_of st callee) as [[called slots] | ];
-      [ | discriminate ].
-    destruct
-      match ap_call_kind ap with
-      | Direct named => Pos.eqb called named
-      | Indirect => true
-      end;
-      [ | discriminate ].
-    destruct (lookup called (static_code st)) as [c | ]; [ | discriminate ].
-    destruct (binds_statics (code_body c)); [ discriminate | ].
-    destruct (negb _); [ discriminate | ].
-    destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
-      as [env1 | ] eqn:Hbind; [ | discriminate ].
-    intros [= <-].
-    split; [ exact Hmemory | split ]; cbn [hs_vars hs_conts hs_heap].
-    + refine
-        (bind_params_closed h _ vs _ env1
-           (eval_simples_closed _ _ _ _ Hvars Hvs) _ Hbind).
-      intros y w [[= <- <-] | [ ]].
-      exact (eval_simple_closed _ _ _ _ Hvars Hcallee).
-    + intros k0 c0 [[= <- <-] | [[= <- <-] | [ ]]].
-      * apply resolve_closed. exact Hconts.
-      * apply with_extra_args_closed;
-          [ apply resolve_closed; exact Hconts
-          | exact (eval_simples_closed _ _ _ _ Hvars Hextra) ].
+    apply (heap_run_call_closed st h); try assumption.
+    + intros partial s0 Hpartial.
+      apply (heap_apply_cont_value_closed st h);
+        [ exact Hmemory | apply resolve_closed; exact Hconts | ].
+      intros w [<- | [ ]]. exact Hpartial.
+    + apply FlambdaSemanticsProofs.shape_of_call_values_all.
+      * exact (value_closed_partial_application h).
+      * exact (eval_simple_closed _ _ _ _ Hvars Hcallee).
+      * apply Forall_forall. exact (eval_simples_closed _ _ _ _ Hvars Hvs).
+    + apply resolve_closed. exact Hconts.
+    + apply with_extra_args_closed;
+        [ apply resolve_closed; exact Hconts
+        | exact (eval_simples_closed _ _ _ _ Hvars Hextra) ].
   - (* Apply_cont *)
     destruct (eval_simples vars (ac_args ac)) as [vs | ] eqn:Hvs;
       [ | discriminate ].
@@ -5649,6 +6199,69 @@ Lemma with_extra_args_code_free_of (D : dropped) (c : cont_value)
   cont_code_free_of D (with_extra_args c extra) = cont_code_free_of D c.
 Proof. destruct extra; reflexivity. Qed.
 
+(* A full call of code that names no symbol left out, returning to
+   continuations whose handlers name none. *)
+Lemma heap_call_code_code_free_of (D : dropped) (st : static_env) (h : heap)
+    (closure : value) (c : code) (vs : list value)
+    (args_arity return_arity : arity) (ret exn : cont_value)
+    (s1 : heap_state) :
+  (∀ (id : code_id) (c : code),
+    lookup id (static_code st) = Some c -> code_free_of D c = true) ->
+  code_free_of D c = true ->
+  cont_code_free_of D ret = true ->
+  cont_code_free_of D exn = true ->
+  heap_call_code closure c vs args_arity return_arity ret exn st h
+  = Heap_step s1 ->
+  state_code_free_of D s1.
+Proof.
+  intros Hcode Hc Hret Hexn. unfold heap_call_code.
+  destruct (binds_statics (code_body c)); [ discriminate | ].
+  destruct (negb _); [ discriminate | ].
+  destruct (bind_params (code_params c) vs [(code_my_closure c, closure)])
+    as [callee_vars | ]; [ | discriminate ].
+  intros [= <-].
+  unfold code_free_of in Hc.
+  apply andb_true_iff in Hc as [Hc_avoids Hc_binds].
+  destruct c as [params my_closure ret0 exn0 metadata code_body].
+  simpl in Hc_avoids, Hc_binds.
+  split; [ exact Hc_avoids | ]. split; [ exact Hc_binds | ].
+  split; [ | exact Hcode ].
+  cbn [hs_conts]. unfold conts_code_free_of. cbn [forallb].
+  rewrite Hret, Hexn. reflexivity.
+Qed.
+
+(* A call of code that is bound. *)
+Lemma heap_run_call_code_free_of (D : dropped) (st : static_env) (h : heap)
+    (return_partial : value -> heap_step_result) (kind : call_kind)
+    (shape : option call_shape) (return_arity : arity)
+    (ret exn : cont_value) (s1 : heap_state) :
+  (∀ (id : code_id) (c : code),
+    lookup id (static_code st) = Some c -> code_free_of D c = true) ->
+  (∀ (partial : value) (s1 : heap_state),
+    return_partial partial = Heap_step s1 -> state_code_free_of D s1) ->
+  FlambdaSemanticsProofs.shape_calls st kind shape ->
+  cont_code_free_of D ret = true ->
+  cont_code_free_of D exn = true ->
+  heap_run_call return_partial shape return_arity ret exn st h
+  = Heap_step s1 ->
+  state_code_free_of D s1.
+Proof.
+  intros Hcode Hpartial Hcalls Hret Hexn.
+  destruct shape
+    as [[closure c vs args_arity
+        | closure c vs remaining args_arity remaining_arity | partial] | ];
+    simpl in Hcalls |- *.
+  - destruct Hcalls as (called & slots & _ & Hlookup & _).
+    apply (heap_call_code_code_free_of D st h); try assumption.
+    exact (Hcode called c Hlookup).
+  - destruct Hcalls as (called & slots & _ & Hlookup & _).
+    apply (heap_call_code_code_free_of D st h); try assumption.
+    + exact (Hcode called c Hlookup).
+    + simpl. rewrite Hret, Hexn. reflexivity.
+  - apply Hpartial.
+  - discriminate.
+Qed.
+
 (* Applying a continuation whose handlers name no symbol left out. *)
 Lemma heap_apply_cont_value_code_free_of (D : dropped) (st : static_env)
     (h : heap) (c : cont_value) (vs : list value) (s1 : heap_state) :
@@ -5658,9 +6271,20 @@ Lemma heap_apply_cont_value_code_free_of (D : dropped) (st : static_env)
   heap_apply_cont_value c vs st h = Heap_step s1 ->
   state_code_free_of D s1.
 Proof.
-  intros Hcode. revert vs.
-  induction c as [handler def_vars def_conts recursive _ | k | c extra IH]
-    using cont_value_induction; intros vs Hc; simpl.
+  intros Hcode. revert vs s1.
+  induction c
+    as [handler def_vars def_conts recursive _ | k | c extra IH
+       | remaining remaining_arity return_arity return_to exn_to IHreturn
+           IHexn]
+    using cont_value_induction; intros vs s1 Hc.
+  4: {
+    simpl in Hc. apply andb_true_iff in Hc as [Hreturn Hexn].
+    cbn [heap_apply_cont_value].
+    destruct vs as [ | v [ | v2 vs]]; try discriminate.
+    apply (heap_run_call_code_free_of D st h _ Indirect); try assumption.
+    - intros partial s0. apply IHreturn. exact Hreturn.
+    - apply FlambdaSemanticsProofs.shape_of_call_calls. }
+  all: simpl.
   - destruct handler as [params metadata handler].
     destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
       [ | discriminate ].
@@ -5770,29 +6394,15 @@ Proof.
     destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
       [ | discriminate ].
     unfold heap_call_function.
-    destruct (closure_of st callee) as [[called slots] | ]; [ | discriminate ].
-    destruct
-      match ap_call_kind ap with
-      | Direct named => Pos.eqb called named
-      | Indirect => true
-      end;
-      [ | discriminate ].
-    destruct (lookup called (static_code st)) as [c | ] eqn:Hlookup;
-      [ | discriminate ].
-    destruct (binds_statics (code_body c)); [ discriminate | ].
-    destruct (negb _); [ discriminate | ].
-    destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
-      as [callee_vars | ]; [ | discriminate ].
-    intros [= <-].
-    pose proof (Hcode called c Hlookup) as Hc. unfold code_free_of in Hc.
-    apply andb_true_iff in Hc as [Hc_avoids Hc_binds].
-    destruct c as [params my_closure ret exn metadata code_body].
-    simpl in Hc_avoids, Hc_binds.
-    split; [ exact Hc_avoids | ]. split; [ exact Hc_binds | ].
-    split; [ | exact Hcode ].
-    cbn [hs_conts]. unfold conts_code_free_of. cbn [forallb].
-    rewrite with_extra_args_code_free_of.
-    rewrite !resolve_code_free_of by exact Hconts. reflexivity.
+    apply (heap_run_call_code_free_of D st h _ (ap_call_kind ap));
+      try assumption.
+    + intros partial s0.
+      apply (heap_apply_cont_value_code_free_of D st h); [ exact Hcode | ].
+      exact (resolve_code_free_of D _ conts Hconts).
+    + apply FlambdaSemanticsProofs.shape_of_call_calls.
+    + exact (resolve_code_free_of D _ conts Hconts).
+    + rewrite with_extra_args_code_free_of.
+      exact (resolve_code_free_of D _ conts Hconts).
   - (* Apply_cont *)
     destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | discriminate ].
     apply (heap_apply_cont_value_code_free_of D st h); [ exact Hcode | ].
@@ -5847,8 +6457,14 @@ Qed.
 Lemma cont_free_of_code (D : dropped) (c : cont_value) :
   cont_free_of D c = true -> cont_code_free_of D c = true.
 Proof.
-  induction c as [handler vars conts recursive IH | k | c extra IH]
-    using cont_value_induction; [ | reflexivity | ].
+  induction c
+    as [handler vars conts recursive IH | k | c extra IH
+       | remaining remaining_arity return_arity return_to exn_to IHreturn
+           IHexn]
+    using cont_value_induction; [ | reflexivity | | ].
+  3: { simpl. intros Hfree. apply andb_true_iff in Hfree as [Hfree Hexn].
+       apply andb_true_iff in Hfree as [_ Hreturn].
+       rewrite (IHreturn Hreturn), (IHexn Hexn). reflexivity. }
   2: { simpl. intros Hfree. apply andb_true_iff in Hfree as [Hfree _].
        exact (IH Hfree). }
   intros Hfree. rewrite cont_free_of_closure in Hfree.
@@ -5872,8 +6488,22 @@ Lemma free_cont_related (D : dropped) (R : value -> value -> Prop) (h : heap)
   cont_related R c c.
 Proof.
   intros Hsame.
-  induction c as [handler vars conts recursive IH | k | c extra IH]
+  induction c
+    as [handler vars conts recursive IH | k | c extra IH
+       | remaining remaining_arity return_arity return_to exn_to IHreturn
+           IHexn]
     using cont_value_induction; intros Hclosed Hfree.
+  4: { simpl in Hclosed, Hfree.
+       destruct Hclosed as (Hremaining & Hreturn & Hexn).
+       apply andb_true_iff in Hfree as [Hfree Hexn_free].
+       apply andb_true_iff in Hfree as [Hremaining_free Hreturn_free].
+       apply Related_over_application;
+         [ | exact (IHreturn Hreturn Hreturn_free)
+         | exact (IHexn Hexn Hexn_free) ].
+       apply Forall2_same. intros v Hv.
+       apply Hsame; [ exact (Hremaining v Hv) | ].
+       rewrite forallb_forall in Hremaining_free.
+       exact (Hremaining_free v Hv). }
   3: { simpl in Hclosed, Hfree. destruct Hclosed as [Hextra Hc].
        apply andb_true_iff in Hfree as [Hc_free Hextra_free].
        apply Related_extra_args; [ exact (IH Hc Hc_free) | ].

@@ -667,7 +667,9 @@ Qed.
    their kinds, under variables that agree on the free variables of the second
    handler and of the handlers defined with it, and under continuations
    that are in turn so related; or two that are related with all their
-   parameters kept, with the same extra arguments. *)
+   parameters kept, with the same extra arguments; or what is left of
+   the same over-application, to return and to raise to two that are
+   related with all their parameters kept. *)
 Inductive cont_drops : option (list bool) -> cont_value -> cont_value -> Prop :=
   | Same_drops (c : cont_value) : cont_drops None c c
   | Closure_drops (mask : option (list bool)) (known : masks)
@@ -691,7 +693,17 @@ Inductive cont_drops : option (list bool) -> cont_value -> cont_value -> Prop :=
          conts' recursive')
   | Extra_args_drops (c c' : cont_value) (extra : list value) :
     cont_drops None c c' ->
-    cont_drops None (Extra_args c extra) (Extra_args c' extra).
+    cont_drops None (Extra_args c extra) (Extra_args c' extra)
+  | Over_application_drops (remaining : list value)
+      (remaining_arity return_arity : arity)
+      (return_to return_to' exn_to exn_to' : cont_value) :
+    cont_drops None return_to return_to' ->
+    cont_drops None exn_to exn_to' ->
+    cont_drops None
+      (Over_application remaining remaining_arity return_arity return_to
+         exn_to)
+      (Over_application remaining remaining_arity return_arity return_to'
+         exn_to').
 
 Lemma with_extra_args_drops (c c' : cont_value) (extra : list value) :
   cont_drops None c c' ->
@@ -748,6 +760,117 @@ Proof.
     | exact Hconts ].
   intros x [Hx | Hx]; apply Hvars; [ | exact Hx ].
   exact (any_handler_in _ k _ _ (lookup_in _ _ _ Hl') Hx).
+Qed.
+
+(* ======================================================================== *)
+(* Calls and applications of continuations                                  *)
+(* ======================================================================== *)
+
+(* The same full call, returning and raising to related continuations. *)
+Lemma call_code_drops (closure : value) (c : code) (vs : list value)
+    (args_arity return_arity : arity)
+    (return_to return_to' exn_to exn_to' : cont_value)
+    (statics : static_env) :
+  cont_drops None return_to return_to' ->
+  cont_drops None exn_to exn_to' ->
+  result_simulated state_drops
+    (call_code closure c vs args_arity return_arity return_to exn_to statics)
+    (call_code closure c vs args_arity return_arity return_to' exn_to'
+       statics).
+Proof.
+  intros Hreturn Hraise.
+  destruct (call_code_cases closure c vs args_arity return_arity statics)
+    as [Hundefined | (callee_vars & Hcall)].
+  - rewrite !Hundefined. exact I.
+  - rewrite !Hcall. simpl.
+    apply (State_drops []);
+      [ apply drops_refl; reflexivity | reflexivity | ].
+    intros k'.
+    destruct (Pos.eq_dec k' (code_return_continuation c)) as [-> | Hne];
+      [ rewrite !resolve_head; exact Hreturn | ].
+    rewrite !(resolve_other k' (code_return_continuation c)) by exact Hne.
+    destruct (Pos.eq_dec k' (code_exn_continuation c)) as [-> | Hne'];
+      [ rewrite !resolve_head; exact Hraise | ].
+    rewrite !(resolve_other k' (code_exn_continuation c)) by exact Hne'.
+    apply Same_drops.
+Qed.
+
+(* The same call of any shape, where the two return continuations take
+   a partial application to related results. *)
+Lemma run_call_drops (shape : option call_shape) (return_arity : arity)
+    (return_to return_to' exn_to exn_to' : cont_value)
+    (statics : static_env) :
+  cont_drops None return_to return_to' ->
+  cont_drops None exn_to exn_to' ->
+  (∀ partial : value,
+    result_simulated state_drops
+      (apply_cont_value return_to [partial] statics)
+      (apply_cont_value return_to' [partial] statics)) ->
+  result_simulated state_drops
+    (run_call (fun partial => apply_cont_value return_to [partial] statics)
+       shape return_arity return_to exn_to statics)
+    (run_call (fun partial => apply_cont_value return_to' [partial] statics)
+       shape return_arity return_to' exn_to' statics).
+Proof.
+  intros Hreturn Hraise Hpartial.
+  destruct shape
+    as [[closure c vs args_arity
+        | closure c vs remaining args_arity remaining_arity | partial] | ];
+    simpl.
+  - apply call_code_drops; assumption.
+  - apply call_code_drops;
+      [ apply Over_application_drops; assumption | exact Hraise ].
+  - apply Hpartial.
+  - exact I.
+Qed.
+
+(* Related continuations, applied: the second to the arguments that its
+   mask keeps. *)
+Lemma apply_cont_value_drops (mask : option (list bool))
+    (c c' : cont_value) (statics : static_env) :
+  cont_drops mask c c' ->
+  ∀ vs : list value,
+    result_simulated state_drops (apply_cont_value c vs statics)
+      (apply_cont_value c' (keep_all_or mask vs) statics).
+Proof.
+  intros Hc.
+  induction Hc
+    as [c
+       | mask known' params metadata metadata' handler handler' def_vars
+           def_vars' def_conts def_conts' recursive recursive' Hrecursive
+           Hhandler Hfits Hkinds Hdef_vars Hdef_conts _
+       | c c' extra Hc IHc
+       | remaining remaining_arity return_arity return_to return_to' exn_to
+           exn_to' Hreturn IHreturn Hraise _];
+    intros vs.
+  - (* the same continuation *)
+    simpl.
+    destruct (apply_cont_value c vs statics) as [s1 | k1 vs1 | ]; simpl;
+      [ apply state_drops_refl | auto | exact I ].
+  - (* related closures *)
+    simpl.
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata))
+      eqn:Hgiven; [ | exact I ].
+    rewrite (kinds_masked mask vs _ _ Hkinds Hgiven).
+    destruct (bind_params params vs def_vars) as [bound | ] eqn:Hbind;
+      [ | exact I ].
+    destruct (bind_params_masked mask params metadata' handler' vs def_vars
+                def_vars' bound Hfits Hbind)
+      as (bound' & Hbind' & Hagree);
+      [ intros y Hy; apply Hdef_vars; left; exact Hy | ].
+    rewrite Hbind'. simpl.
+    apply (State_drops (rec_masks recursive ++ known'));
+      [ exact Hhandler | exact Hagree | ].
+    apply rec_conts_drop; [ exact Hrecursive | | exact Hdef_conts ].
+    intros y Hy. apply Hdef_vars. right. exact Hy.
+  - (* the same extra arguments *)
+    exact (IHc (vs ++ extra)).
+  - (* what is left of the same over-application *)
+    cbn [keep_all_or]. rewrite !apply_cont_value_over_application.
+    destruct vs as [ | v [ | v' vs]]; try exact I.
+    unfold call_function.
+    apply run_call_drops; [ exact Hreturn | exact Hraise | ].
+    intros partial. exact (IHreturn [partial]).
 Qed.
 
 (* ======================================================================== *)
@@ -810,22 +933,14 @@ Proof.
     destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | exact I ].
     destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
       [ | exact I ].
-    destruct (call_function_cases callee (ap_call_kind ap) vs
-                (ap_args_arity ap) (ap_return_arity ap) statics)
-      as [Hundefined | (body & callee_vars & ret & exn & Hcall)].
-    + rewrite !Hundefined. exact I.
-    + rewrite !Hcall. simpl.
-      apply (State_drops []);
-        [ apply drops_refl; reflexivity | reflexivity | ].
-      intros k'. pose proof (Hconts (ap_continuation ap)) as Hreturn.
-      pose proof (Hconts (ap_exn_continuation ap)) as Hraise.
-      rewrite Hret in Hreturn. rewrite Hexn in Hraise.
-      destruct (Pos.eq_dec k' ret) as [-> | Hne];
-        [ rewrite !resolve_head; exact Hreturn | ].
-      rewrite !(resolve_other k' ret) by exact Hne.
-      destruct (Pos.eq_dec k' exn) as [-> | Hne'];
-        [ rewrite !resolve_head; apply with_extra_args_drops, Hraise | ].
-      rewrite !(resolve_other k' exn) by exact Hne'. apply Same_drops.
+    pose proof (Hconts (ap_continuation ap)) as Hreturn.
+    pose proof (Hconts (ap_exn_continuation ap)) as Hraise.
+    rewrite Hret in Hreturn. rewrite Hexn in Hraise.
+    unfold call_function.
+    apply run_call_drops;
+      [ exact Hreturn | apply with_extra_args_drops, Hraise | ].
+    intros partial.
+    exact (apply_cont_value_drops None _ _ statics Hreturn [partial]).
   - (* Apply_cont *)
     unfold drop_args. cbn [ac_args ac_continuation].
     destruct (eval_simples vars (ac_args ac)) as [vs | ] eqn:Hargs;
@@ -833,40 +948,8 @@ Proof.
     rewrite (eval_simples_masked _ _ vars vars' vs Hargs)
       by (intros y Hy; apply Hvars; exact Hy).
     unfold apply_continuation.
-    pose proof (Hconts (ac_continuation ac)) as Hc.
-    remember (mask_of known (ac_continuation ac)) as mask eqn:Hmask.
-    remember (resolve (ac_continuation ac) conts) as c eqn:Hresolve.
-    remember (resolve (ac_continuation ac) conts') as c' eqn:Hresolve'.
-    clear Hmask Hresolve Hresolve' Hargs. revert vs.
-    induction Hc
-      as [c
-         | mask known' params metadata metadata' handler handler' def_vars
-             def_vars' def_conts def_conts' recursive recursive' Hrecursive
-             Hhandler Hfits Hkinds Hdef_vars Hdef_conts _
-         | c c' extra Hc IHc];
-      intros vs.
-    + (* the same continuation *)
-      simpl.
-      destruct (apply_cont_value c vs statics) as [s1 | k1 vs1 | ]; simpl;
-        [ apply state_drops_refl | auto | exact I ].
-    + (* related closures *)
-      simpl.
-      destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata))
-        eqn:Hgiven; [ | exact I ].
-      rewrite (kinds_masked mask vs _ _ Hkinds Hgiven).
-      destruct (bind_params params vs def_vars) as [bound | ] eqn:Hbind;
-        [ | exact I ].
-      destruct (bind_params_masked mask params metadata' handler' vs def_vars
-                  def_vars' bound Hfits Hbind)
-        as (bound' & Hbind' & Hagree);
-        [ intros y Hy; apply Hdef_vars; left; exact Hy | ].
-      rewrite Hbind'. simpl.
-      apply (State_drops (rec_masks recursive ++ known'));
-        [ exact Hhandler | exact Hagree | ].
-      apply rec_conts_drop; [ exact Hrecursive | | exact Hdef_conts ].
-      intros y Hy. apply Hdef_vars. right. exact Hy.
-    + (* the same extra arguments *)
-      exact (IHc (vs ++ extra)).
+    exact (apply_cont_value_drops _ _ _ statics
+             (Hconts (ac_continuation ac)) vs).
   - (* Switch *)
     rewrite (eval_simple_agree vars vars' scrutinee)
       by (intros y Hy; apply Hvars; left; exact Hy).

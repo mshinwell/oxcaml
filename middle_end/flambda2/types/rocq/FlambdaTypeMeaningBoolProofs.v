@@ -86,6 +86,10 @@ Hypothesis H_block :
     (∀ v : value, v ∈ fields -> P v) -> P (Value_block tag fields).
 Hypothesis H_boxed_number : ∀ c : const, P (Value_boxed_number c).
 Hypothesis H_location : ∀ l : location, P (Value_location l).
+Hypothesis H_partial_application :
+  ∀ (callee : value) (args : list value) (args_arity : arity),
+    P callee -> (∀ v : value, v ∈ args -> P v) ->
+    P (Value_partial_application callee args args_arity).
 
 Fixpoint value_induction (v : value) : P v :=
   match v with
@@ -100,6 +104,9 @@ Fixpoint value_induction (v : value) : P v :=
     H_block tag fields (list_all P value_induction fields)
   | Value_boxed_number c => H_boxed_number c
   | Value_location l => H_location l
+  | Value_partial_application callee args args_arity =>
+    H_partial_application callee args args_arity (value_induction callee)
+      (list_all P value_induction args)
   end.
 
 End Value_induction.
@@ -109,10 +116,10 @@ Proof.
   intros v.
   induction v
     as [c | code value_slots IH | slot decls value_slots IH | s
-       | tag fields IH | c | l]
+       | tag fields IH | c | l | callee args args_arity IHcallee IH]
     using value_induction;
     intros [c' | code' value_slots' | slot' decls' value_slots' | s'
-           | tag' fields' | c' | l'];
+           | tag' fields' | c' | l' | callee' args' args_arity'];
     simpl; try (split; discriminate).
   - rewrite (const_eqb_eq c c'). split; [ intros ->; reflexivity | ].
     intros [= ->]. reflexivity.
@@ -144,6 +151,15 @@ Proof.
     intros [= ->]. reflexivity.
   - rewrite Pos.eqb_eq. split; [ intros ->; reflexivity | ].
     intros [= ->]. reflexivity.
+  - assert (Harity :
+      arity_eqb args_arity args_arity' = true <-> args_arity = args_arity').
+    { unfold arity_eqb.
+      destruct (list_eq_dec arity_component_eq_dec args_arity args_arity');
+        split; congruence. }
+    rewrite !andb_true_iff, (IHcallee callee'), Harity, lists_eqb_eq.
+    + split; [ intros [[-> ->] ->]; reflexivity | ].
+      intros [= -> -> ->]. repeat split.
+    + intros v v' Hin. exact (IH v Hin v').
 Qed.
 
 Theorem value_eqb_decides_equality : value_eqb_decides_equality_statement.
@@ -156,8 +172,9 @@ Proof. exact value_eqb_eq. Qed.
 Lemma is_poison_b_eq (v : value) : is_poison_b v = true <-> is_poison v.
 Proof.
   unfold is_poison.
-  destruct v as [c | code slots | slot decls slots | s | tag fields | c' | l];
-    [ destruct c | | | | | | ]; simpl;
+  destruct v as [c | code slots | slot decls slots | s | tag fields | c'
+    | l | pa_callee pa_args pa_arity];
+    [ destruct c | | | | | | | ]; simpl;
     first
       [ split; [ intros _; eexists; reflexivity | reflexivity ]
       | split; [ discriminate | intros [k Hv]; discriminate Hv ] ].
@@ -331,8 +348,9 @@ Lemma head_of_kind_naked_immediate_satisfied_b_eq (statics : static_env)
 Proof.
   unfold head_of_kind_naked_immediate_satisfied_b,
     head_of_kind_naked_immediate_satisfied.
-  destruct v as [c | code slots | slot decls slots | s | tag fields | c' | l];
-    [ destruct c | | | | | | ];
+  destruct v as [c | code slots | slot decls slots | s | tag fields | c'
+    | l | pa_callee pa_args pa_arity];
+    [ destruct c | | | | | | | ];
     try (split; [ discriminate | intros [? [Hv _]]; discriminate Hv ]).
   rewrite andb_true_iff, (every_b_every (Relation.t * name)%type),
     (every_in (Relation.t * name)%type).
@@ -360,7 +378,8 @@ Lemma naked_numbers_satisfied_b_eq (k : naked_number_kind) (v : value)
   <-> naked_numbers_satisfied k v numbers.
 Proof.
   unfold naked_numbers_satisfied_b, naked_numbers_satisfied.
-  destruct v as [c | code slots | slot decls slots | s | tag fields | c' | l];
+  destruct v as [c | code slots | slot decls slots | s | tag fields | c'
+    | l | pa_callee pa_args pa_arity];
     try (split; [ discriminate | intros [? [? [Hv _]]]; discriminate Hv ]).
   rewrite andb_true_iff, (kind_eqb_eq _ _). split.
   - intros [Hkind Hnumber].

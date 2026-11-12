@@ -701,35 +701,36 @@ Qed.
    closed as that of the body is, its free variables are free in the
    body, and its free continuations are free in the body or the name of
    the loop. *)
-Fixpoint loop_calls_scope (my_closure : variable)
+Fixpoint loop_calls_scope (my_closure : variable) (a : arity)
     (ret exn self : continuation) (e : expr) :
-  code_closed (loop_calls my_closure ret exn self e) = code_closed e
-  ∧ incl (free_variables_of_expr (loop_calls my_closure ret exn self e))
+  code_closed (loop_calls my_closure a ret exn self e) = code_closed e
+  ∧ incl (free_variables_of_expr (loop_calls my_closure a ret exn self e))
       (free_variables_of_expr e)
-  ∧ incl (free_continuations_of_expr (loop_calls my_closure ret exn self e))
+  ∧ incl (free_continuations_of_expr (loop_calls my_closure a ret exn self e))
       (self :: free_continuations_of_expr e)
 with loop_calls_in_handler_scope (my_closure : variable)
-    (ret exn self : continuation) (h : continuation_handler) :
-  handler_code_closed (loop_calls_in_handler my_closure ret exn self h)
+    (a : arity) (ret exn self : continuation)
+    (h : continuation_handler) :
+  handler_code_closed (loop_calls_in_handler my_closure a ret exn self h)
   = handler_code_closed h
   ∧ incl
       (free_variables_of_handler
-         (loop_calls_in_handler my_closure ret exn self h))
+         (loop_calls_in_handler my_closure a ret exn self h))
       (free_variables_of_handler h)
   ∧ incl
       (free_continuations_of_handler
-         (loop_calls_in_handler my_closure ret exn self h))
+         (loop_calls_in_handler my_closure a ret exn self h))
       (self :: free_continuations_of_handler h).
 Proof.
   - destruct e
       as [x kind d body | bindings body | k h body | handlers body | ap | ac
          | scrutinee arms | ];
       cbn [loop_calls loop_calls_in_handler].
-    + destruct (loop_calls_scope my_closure ret exn self body)
+    + destruct (loop_calls_scope my_closure a ret exn self body)
         as (Hc & Hv & Hk).
       scope. split; [ exact Hc | split; [ | exact Hk ] ].
       apply incl_app_app; [ apply incl_refl | apply incl_without, Hv ].
-    + destruct (loop_calls_scope my_closure ret exn self body)
+    + destruct (loop_calls_scope my_closure a ret exn self body)
         as (Hc & Hv & Hk).
       scope. rewrite Hc. split; [ reflexivity | split ].
       * apply incl_app_app; [ apply incl_refl | exact Hv ].
@@ -737,9 +738,9 @@ Proof.
         destruct Hj as [Hj | Hj]; [ right; apply in_or_app; left; exact Hj | ].
         destruct (Hk j Hj) as [<- | Hj'];
           [ left; reflexivity | right; apply in_or_app; right; exact Hj' ].
-    + destruct (loop_calls_in_handler_scope my_closure ret exn self h)
+    + destruct (loop_calls_in_handler_scope my_closure a ret exn self h)
         as (Hc & Hv & Hk).
-      destruct (loop_calls_scope my_closure ret exn self body)
+      destruct (loop_calls_scope my_closure a ret exn self body)
         as (Hc' & Hv' & Hk').
       scope. rewrite Hc, Hc'. split; [ reflexivity | split ].
       * apply incl_app_app; assumption.
@@ -749,33 +750,33 @@ Proof.
         -- apply in_without in Hj. destruct Hj as [Hj Hout].
            destruct (Hk' j Hj) as [<- | Hj']; [ left; reflexivity | right ].
            apply in_or_app. right. apply in_without. split; assumption.
-    + destruct (loop_calls_scope my_closure ret exn self body)
+    + destruct (loop_calls_scope my_closure a ret exn self body)
         as (Hc' & Hv' & Hk').
       assert (Hgroup :
         map fst
           (map
              (fun '(k, h) =>
-                (k, loop_calls_in_handler my_closure ret exn self h))
+                (k, loop_calls_in_handler my_closure a ret exn self h))
              handlers)
         = map fst handlers
         ∧ forallb (fun '(_, h) => handler_code_closed h)
             (map
                (fun '(k, h) =>
-                  (k, loop_calls_in_handler my_closure ret exn self h))
+                  (k, loop_calls_in_handler my_closure a ret exn self h))
                handlers)
           = forallb (fun '(_, h) => handler_code_closed h) handlers
         ∧ incl
             (flat_map (fun '(_, h) => free_variables_of_handler h)
                (map
                   (fun '(k, h) =>
-                     (k, loop_calls_in_handler my_closure ret exn self h))
+                     (k, loop_calls_in_handler my_closure a ret exn self h))
                   handlers))
             (flat_map (fun '(_, h) => free_variables_of_handler h) handlers)
         ∧ incl
             (flat_map (fun '(_, h) => free_continuations_of_handler h)
                (map
                   (fun '(k, h) =>
-                     (k, loop_calls_in_handler my_closure ret exn self h))
+                     (k, loop_calls_in_handler my_closure a ret exn self h))
                   handlers))
             (self
              :: flat_map (fun '(_, h) => free_continuations_of_handler h)
@@ -785,7 +786,7 @@ Proof.
         - split; [ reflexivity | split; [ reflexivity | split ] ];
             intros j [].
         - destruct IH as (Hnames & Hc & Hv & Hk).
-          destruct (loop_calls_in_handler_scope my_closure ret exn self h)
+          destruct (loop_calls_in_handler_scope my_closure a ret exn self h)
             as (Hc0 & Hv0 & Hk0).
           rewrite Hnames, Hc, Hc0.
           split; [ reflexivity | split; [ reflexivity | split ] ].
@@ -808,7 +809,7 @@ Proof.
         -- destruct (Hk' j Hj) as [<- | Hj']; [ left; reflexivity | right ].
            apply in_without.
            split; [ apply in_or_app; right; exact Hj' | exact Hout ].
-    + destruct (is_self_tail_call my_closure ret exn ap).
+    + destruct (is_self_tail_call my_closure a ret exn ap).
       * scope. split; [ reflexivity | split ].
         -- unfold free_variables_of_apply_cont, free_variables_of_apply.
            cbn [ac_args]. apply incl_appr, incl_appl, incl_refl.
@@ -824,7 +825,7 @@ Proof.
       apply incl_tl, incl_refl.
   - destruct h as [params metadata handler].
     cbn [loop_calls loop_calls_in_handler].
-    destruct (loop_calls_scope my_closure ret exn self handler)
+    destruct (loop_calls_scope my_closure a ret exn self handler)
       as (Hc & Hv & Hk).
     scope. split; [ exact Hc | split; [ apply incl_without, Hv | exact Hk ] ].
 Qed.
@@ -877,7 +878,9 @@ Proof.
   unfold looped_code, loop_handler.
   cbn [code_params code_my_closure code_return_continuation
        code_exn_continuation code_body].
-  destruct (loop_calls_scope my_closure ret exn self body)
+  destruct
+    (loop_calls_scope my_closure (cm_params_arity metadata) ret exn self
+       body)
     as (Hc & Hv & Hk).
   apply scoped_code_looped; assumption.
 Qed.

@@ -272,6 +272,7 @@ Proof.
   unfold inlinable_b. intros Hb.
   apply andb_true_iff in Hb as [Hb Hstatic].
   apply negb_true_iff in Hstatic.
+  apply andb_true_iff in Hb as [Hb Hfull].
   apply andb_true_iff in Hb as [Hb Harity].
   apply andb_true_iff in Hb as [Hb Hparams].
   apply andb_true_iff in Hb as [Hb Hmy_closure].
@@ -291,7 +292,8 @@ Proof.
           (conj Hfix
              (conj Hret
                 (conj Hexn
-                   (conj Hextra (conj _ (conj _ (conj _ Hstatic))))))))).
+                   (conj Hextra
+                      (conj _ (conj _ (conj _ (conj _ Hstatic)))))))))).
   - intros x Hx. destruct (Hvars x Hx) as [<- | Hin]; auto.
   - intros k Hk. destruct (Hconts k Hk) as [<- | [<- | []]]; auto.
   - intros Hfree. apply var_in_simples_sound in Hfree.
@@ -300,6 +302,7 @@ Proof.
     rewrite forallb_forall in Hparams. specialize (Hparams param Hin).
     apply negb_true_iff in Hparams. congruence.
   - apply Nat.eqb_eq, Harity.
+  - apply Nat.eqb_eq, Hfull.
 Qed.
 
 (* The static environment binds the code that is known. *)

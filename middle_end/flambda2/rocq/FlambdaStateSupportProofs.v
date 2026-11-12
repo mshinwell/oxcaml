@@ -405,7 +405,9 @@ Qed.
 Fixpoint cont_value_supported (c : cont_value) {struct c} :
   supported rename_cont_value c.
 Proof.
-  destruct c as [h vars conts recursive | k | c extra].
+  destruct c
+    as [h vars conts recursive | k | c extra
+       | remaining remaining_arity return_arity return_to exn_to].
   - refine (supported4 rename_handler rename_env
               (fun r =>
                  map
@@ -428,6 +430,11 @@ Proof.
   - exact (supported1 rename_cont_value rename_cont_value
              (fun c => Extra_args c extra) c (fun r => eq_refl)
              (cont_value_supported c)).
+  - exact (supported2 rename_cont_value rename_cont_value rename_cont_value
+             (Over_application remaining remaining_arity return_arity)
+             return_to exn_to (fun r => eq_refl)
+             (cont_value_supported return_to)
+             (cont_value_supported exn_to)).
 Qed.
 
 Lemma cont_env_supported (conts : cont_env) :
@@ -478,13 +485,23 @@ Qed.
 Lemma stack_entry_supported (entry : stack_entry) :
   supported rename_stack_entry entry.
 Proof.
-  destruct entry as [c | ret exn return_to extra].
+  destruct entry
+    as [c | ret exn return_to extra
+       | ret exn remaining remaining_arity return_arity return_to extra].
   - exact (supported1 rename_cont_value rename_stack_entry Trap c
              (fun r => eq_refl) (cont_value_supported c)).
   - exact (supported3 rename_continuation rename_continuation
              rename_cont_value rename_stack_entry
              (fun ret exn return_to => Call ret exn return_to extra) ret exn
              return_to (fun r => eq_refl) (supported_continuation ret)
+             (supported_continuation exn)
+             (cont_value_supported return_to)).
+  - exact (supported3 rename_continuation rename_continuation
+             rename_cont_value rename_stack_entry
+             (fun ret exn return_to =>
+                Call_then ret exn remaining remaining_arity return_arity
+                  return_to extra)
+             ret exn return_to (fun r => eq_refl) (supported_continuation ret)
              (supported_continuation exn)
              (cont_value_supported return_to)).
 Qed.

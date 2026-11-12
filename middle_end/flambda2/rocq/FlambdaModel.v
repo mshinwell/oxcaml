@@ -314,16 +314,16 @@ Definition is_one_param_of_kind_value (a : arity) : bool :=
    over-application ([simplify_direct_function_call]): the arguments
    agree with the parameters as far as they go, and there are more
    arguments than parameters and the code returns one [Value], or fewer,
-   but not none, and the call expects one [Value]. Such a call is
-   outside the fragment.
+   but not none, and the call expects one [Value]. The machine makes
+   this test of a call that has not as many arguments as the code has
+   parameters (FlambdaSemanticsSpec.shape_of_closure_call).
 
    It is a test of the arities and of nothing else. The compiler comes
    to it with a call whose arguments have the kinds of [args_arity]: one
    whose arguments have not is [Invalid] already
    ([simplify_apply_shared]), whatever this test says of its arities;
-   FlambdaWellKindedSpec.at_partial_or_over_application asks that too.
-   And it comes to it for code that is not tupled, which this fragment
-   has not got.
+   the machine asks that too. And it comes to it for code that is not
+   tupled, which this fragment has not got.
 
    Of the calls with more or fewer arguments than parameters that fail
    the test, Simplify replaces by [Invalid] those whose arguments do not

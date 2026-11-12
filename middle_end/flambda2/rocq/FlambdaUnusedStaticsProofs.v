@@ -296,7 +296,7 @@ Lemma closure_of_erased (statics statics' : static_env) (v : value) :
 Proof.
   intros (_ & _ & Hvalues & Hvalues_avoid).
   destruct v as [c | code slots | fslot decls slots | s | tag fields
-    | contents | l]; simpl.
+    | contents | l | pa_callee pa_args pa_arity]; simpl.
   - intros _. split; [ reflexivity | discriminate ].
   - intros Hv. apply andb_true_iff in Hv as [Hcode Hslots].
     split; [ reflexivity | ]. intros called slots' [= <- <-]. auto.
@@ -330,6 +330,7 @@ Proof.
   - intros _. split; [ reflexivity | discriminate ].
   - intros _. split; [ reflexivity | discriminate ].
   - intros _. split; [ reflexivity | discriminate ].
+  - intros _. split; [ reflexivity | discriminate ].
 Qed.
 
 (* A value that refers to no name removed is the same closure of a set
@@ -346,7 +347,7 @@ Lemma closure_in_set_erased (statics statics' : static_env) (v : value) :
 Proof.
   intros (_ & _ & Hvalues & Hvalues_avoid).
   destruct v as [c | code slots | fslot decls slots | s | tag fields
-    | contents | l]; simpl.
+    | contents | l | pa_callee pa_args pa_arity]; simpl.
   - intros _. split; [ reflexivity | discriminate ].
   - intros Hv. apply andb_true_iff in Hv as [_ Hslots].
     split; [ reflexivity | ]. intros at_slot decls slots' [= _ _ <-].
@@ -366,6 +367,7 @@ Proof.
     + intros [= _ _ <-]. exact Hslots.
     + destruct (lookup fslot decls'); [ | discriminate ].
       simpl. intros [= _ _ <-]. exact Hslots.
+  - intros _. split; [ reflexivity | discriminate ].
   - intros _. split; [ reflexivity | discriminate ].
   - intros _. split; [ reflexivity | discriminate ].
   - intros _. split; [ reflexivity | discriminate ].
@@ -420,7 +422,7 @@ Proof.
     destruct (Pos.eqb move_to unnamed_function_slot); [ | discriminate ].
     intros [= <-]. exact Hv. }
   destruct v as [c | code slots | fslot decls slots | s | tag fields
-    | contents | l]; simpl.
+    | contents | l | pa_callee pa_args pa_arity]; simpl.
   - split; [ reflexivity | discriminate ].
   - split; [ reflexivity | exact Hunnamed ].
   - split; [ reflexivity | ]. intros w.
@@ -445,6 +447,7 @@ Proof.
       destruct (lookup move_to syms) as [s' | ] eqn:Hsym; [ | discriminate ].
       simpl. intros [= <-]. simpl.
       exact (lookup_closure_symbol_kept move_to syms s' Hsyms Hsym).
+  - split; [ reflexivity | discriminate ].
   - split; [ reflexivity | discriminate ].
   - split; [ reflexivity | discriminate ].
   - split; [ reflexivity | discriminate ].
@@ -645,7 +648,18 @@ Inductive cont_erased : cont_value -> cont_value -> Prop :=
   | Extra_args_erased (c c' : cont_value) (extra : list value) :
     cont_erased c c' ->
     forallb (value_avoids D) extra = true ->
-    cont_erased (Extra_args c extra) (Extra_args c' extra).
+    cont_erased (Extra_args c extra) (Extra_args c' extra)
+  | Over_application_erased (remaining : list value)
+      (remaining_arity return_arity : arity)
+      (return_to return_to' exn_to exn_to' : cont_value) :
+    forallb (value_avoids D) remaining = true ->
+    cont_erased return_to return_to' ->
+    cont_erased exn_to exn_to' ->
+    cont_erased
+      (Over_application remaining remaining_arity return_arity return_to
+         exn_to)
+      (Over_application remaining remaining_arity return_arity return_to'
+         exn_to').
 
 Lemma with_extra_args_erased (c c' : cont_value) (extra : list value) :
   cont_erased c c' ->
@@ -756,6 +770,124 @@ Inductive state_erased : state -> state -> Prop :=
     state_erased (State e vars conts statics)
       (State (erase_expr D e) vars conts' statics').
 
+(* A value that avoids the names removed, as a property: that of a
+   partial application is that of the value it calls and of its
+   arguments. *)
+Lemma value_avoids_partial (callee : value) (args : list value)
+    (args_arity : arity) :
+  value_avoids D (Value_partial_application callee args args_arity) = true
+  <-> value_avoids D callee = true
+      ∧ Forall (fun v => value_avoids D v = true) args.
+Proof. simpl. rewrite andb_true_iff, forallb_Forall. reflexivity. Qed.
+
+Lemma called_closure_avoids (callee : value) :
+  value_avoids D callee = true ->
+  value_avoids D (called_closure callee) = true.
+Proof.
+  destruct callee; simpl; try (intros H; exact H).
+  intros H. apply andb_true_iff in H. exact (proj1 H).
+Qed.
+
+(* The code of a closure that avoids the names removed is bound alike,
+   erased, by the two static environments. *)
+Lemma codes_agree_erased (statics statics' : static_env) (closure : value)
+    (called : code_id) (slots : list (value_slot * value)) :
+  statics_erased statics statics' ->
+  value_avoids D closure = true ->
+  closure_of statics closure = Some (called, slots) ->
+  codes_agree (fun c c' => c' = erase_code D c ∧ code_avoids D c = true)
+    statics statics' called.
+Proof.
+  intros Hstatics Hclosure Hcalled.
+  destruct (closure_of_erased statics statics' closure Hstatics Hclosure)
+    as [_ Hslots].
+  destruct (Hslots called slots Hcalled) as [Hkept _].
+  destruct Hstatics as (Hcode & Hcode_avoids & _).
+  unfold codes_agree. rewrite (Hcode called Hkept).
+  destruct (lookup called (static_code statics)) as [c | ] eqn:Hlookup;
+    simpl; [ | exact I ].
+  split; [ split; [ reflexivity | exact (Hcode_avoids called c Hkept Hlookup) ]
+         | ].
+  destruct c. split; reflexivity.
+Qed.
+
+Lemma call_code_erased (closure : value) (c : code) (vs : list value)
+    (args_arity return_arity : arity)
+    (return_to return_to' exn_to exn_to' : cont_value)
+    (statics statics' : static_env) :
+  code_avoids D c = true ->
+  value_avoids D closure = true ->
+  forallb (value_avoids D) vs = true ->
+  cont_erased return_to return_to' ->
+  cont_erased exn_to exn_to' ->
+  statics_erased statics statics' ->
+  result_simulated state_erased
+    (call_code closure c vs args_arity return_arity return_to exn_to statics)
+    (call_code closure (erase_code D c) vs args_arity return_arity return_to'
+       exn_to' statics').
+Proof.
+  intros Hc Hclosure Hvs Hreturn Hexn Hstatics.
+  destruct c as [params my_closure ret exn metadata body].
+  unfold call_code. simpl.
+  destruct (binds_statics body) eqn:Hbinds; [ exact I | ].
+  rewrite (erase_binds_statics body Hbinds).
+  destruct
+    (negb
+       (kinds_eqb (map kind_of_value vs) (unarize args_arity)
+        && kinds_per_parameter_eqb (unarize_per_parameter args_arity)
+             (unarize_per_parameter (cm_params_arity metadata))
+        && arity_eqb return_arity (cm_result_arity metadata)));
+    [ exact I | ].
+  destruct (bind_params params vs [(my_closure, closure)]) as [bound | ]
+    eqn:Hbind; simpl; [ | exact I ].
+  apply State_erased.
+  - exact Hc.
+  - apply (bind_params_avoids params vs [(my_closure, closure)] bound Hvs);
+      [ | exact Hbind ].
+    apply env_avoids_cons; [ exact Hclosure | ]. intros x v [=].
+  - apply Forall2_cons; [ split; [ reflexivity | exact Hreturn ] | ].
+    apply Forall2_cons; [ split; [ reflexivity | exact Hexn ] | ].
+    apply Forall2_nil.
+  - exact Hstatics.
+Qed.
+
+Lemma run_call_erased (return_partial return_partial' : value -> step_result)
+    (shape shape' : option call_shape) (return_arity : arity)
+    (return_to return_to' exn_to exn_to' : cont_value)
+    (statics statics' : static_env) :
+  shapes_related (fun c c' => c' = erase_code D c ∧ code_avoids D c = true)
+    shape shape' ->
+  shape_values_all (fun v => value_avoids D v = true) shape ->
+  cont_erased return_to return_to' ->
+  cont_erased exn_to exn_to' ->
+  statics_erased statics statics' ->
+  (∀ partial : value,
+    value_avoids D partial = true ->
+    result_simulated state_erased (return_partial partial)
+      (return_partial' partial)) ->
+  result_simulated state_erased
+    (run_call return_partial shape return_arity return_to exn_to statics)
+    (run_call return_partial' shape' return_arity return_to' exn_to'
+       statics').
+Proof.
+  intros Hshapes Hvalues Hreturn Hexn Hstatics Hpartial.
+  destruct Hshapes
+    as [ | closure c c' vs args_arity [-> Hc]
+       | closure c c' vs remaining args_arity remaining_arity [-> Hc]
+       | partial];
+    simpl in Hvalues |- *.
+  - exact I.
+  - destruct Hvalues as [Hclosure Hvs]. apply forallb_Forall in Hvs.
+    apply call_code_erased; assumption.
+  - destruct Hvalues as (Hclosure & Hvs & Hremaining).
+    apply forallb_Forall in Hvs, Hremaining.
+    replace (code_result_arity (erase_code D c)) with (code_result_arity c)
+      by (destruct c; reflexivity).
+    apply call_code_erased; try assumption.
+    apply Over_application_erased; assumption.
+  - exact (Hpartial partial Hvalues).
+Qed.
+
 Lemma apply_cont_value_erased (c c' : cont_value) (vs : list value)
     (statics statics' : static_env) :
   cont_erased c c' ->
@@ -769,10 +901,13 @@ Proof.
     as [k
        | [params metadata handler] vars conts conts' recursive Hh Hvars
            Hconts Hrec
-       | c c' extra Hc IH Hextra];
-    intros vs Hvs; simpl.
-  - auto.
-  - destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+       | c c' extra Hc IH Hextra
+       | remaining remaining_arity return_arity return_to return_to'
+           exn_to exn_to' Hremaining Hreturn IHreturn Hexn _];
+    intros vs Hvs.
+  - simpl. auto.
+  - simpl.
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
       [ | exact I ].
     destruct (bind_params params vs vars) as [bound | ] eqn:Hbind; simpl;
       [ | exact I ].
@@ -780,7 +915,21 @@ Proof.
       [ exact Hh
       | exact (bind_params_avoids params vs vars bound Hvs Hvars Hbind)
       | apply rec_closures_erased; assumption | exact Hstatics ].
-  - apply IH. rewrite forallb_app, Hvs, Hextra. reflexivity.
+  - simpl. apply IH. rewrite forallb_app, Hvs, Hextra. reflexivity.
+  - rewrite !apply_cont_value_over_application.
+    destruct vs as [ | v [ | v' vs]]; [ exact I | | exact I ].
+    simpl in Hvs. rewrite andb_true_r in Hvs. unfold call_function.
+    apply run_call_erased; try assumption.
+    + apply shape_of_call_related.
+      * exact (proj1 (closure_of_erased statics statics' _ Hstatics
+                        (called_closure_avoids v Hvs))).
+      * intros called slots.
+        exact (codes_agree_erased statics statics' _ called slots Hstatics
+                 (called_closure_avoids v Hvs)).
+    + apply (shape_of_call_values_all _ value_avoids_partial);
+        [ exact Hvs | apply forallb_Forall; exact Hremaining ].
+    + intros partial Hpartial. apply IHreturn. simpl.
+      rewrite Hpartial. reflexivity.
 Qed.
 
 Lemma call_function_erased (callee : value) (kind : call_kind)
@@ -799,42 +948,18 @@ Lemma call_function_erased (callee : value) (kind : call_kind)
        statics').
 Proof.
   intros Hcallee Hvs Hreturn Hexn Hstatics. unfold call_function.
-  destruct (closure_of_erased statics statics' callee Hstatics Hcallee)
-    as [Hsame Hslots].
-  rewrite Hsame.
-  destruct (closure_of statics callee) as [[called slots] | ]; [ | exact I ].
-  destruct (Hslots called slots eq_refl) as [Hkept _].
-  destruct
-    (match kind with
-     | Direct named => Pos.eqb called named
-     | Indirect => true
-     end);
-    [ | exact I ].
-  destruct Hstatics as (Hcode & Hcode_avoids & Hvalues & Hvalues_avoid).
-  rewrite (Hcode called Hkept).
-  destruct (lookup called (static_code statics))
-    as [[params my_closure ret exn metadata body] | ] eqn:Hlookup;
-    simpl; [ | exact I ].
-  destruct (binds_statics body) eqn:Hbinds; [ exact I | ].
-  rewrite (erase_binds_statics body Hbinds).
-  destruct
-    (negb
-       (kinds_eqb (map kind_of_value vs) (unarize args_arity)
-        && kinds_per_parameter_eqb (unarize_per_parameter args_arity)
-             (unarize_per_parameter (cm_params_arity metadata))
-        && arity_eqb return_arity (cm_result_arity metadata)));
-    [ exact I | ].
-  destruct (bind_params params vs [(my_closure, callee)]) as [bound | ]
-    eqn:Hbind; simpl; [ | exact I ].
-  apply State_erased.
-  - exact (Hcode_avoids called _ Hkept Hlookup).
-  - apply (bind_params_avoids params vs [(my_closure, callee)] bound Hvs);
-      [ | exact Hbind ].
-    apply env_avoids_cons; [ exact Hcallee | ]. intros x v [=].
-  - apply Forall2_cons; [ split; [ reflexivity | exact Hreturn ] | ].
-    apply Forall2_cons; [ split; [ reflexivity | exact Hexn ] | ].
-    apply Forall2_nil.
-  - repeat split; assumption.
+  apply run_call_erased; try assumption.
+  - apply shape_of_call_related.
+    + exact (proj1 (closure_of_erased statics statics' _ Hstatics
+                      (called_closure_avoids callee Hcallee))).
+    + intros called slots.
+      exact (codes_agree_erased statics statics' _ called slots Hstatics
+               (called_closure_avoids callee Hcallee)).
+  - apply (shape_of_call_values_all _ value_avoids_partial);
+      [ exact Hcallee | apply forallb_Forall; exact Hvs ].
+  - intros partial Hpartial.
+    apply apply_cont_value_erased; [ exact Hreturn | | exact Hstatics ].
+    simpl. rewrite Hpartial. reflexivity.
 Qed.
 
 (* A state and the state erased step alike, where the first is defined. *)
@@ -993,11 +1118,20 @@ Qed.
 Fixpoint cont_free_of_erased (D : dropped) (c : cont_value) :
   cont_free_of D c = true -> cont_erased D c c.
 Proof.
-  destruct c as [h vars conts recursive | k | c extra]; simpl;
+  destruct c
+    as [h vars conts recursive | k | c extra
+       | remaining remaining_arity return_arity return_to exn_to];
+    simpl;
     [ | intros _; apply Outer_erased
     | intros Hfree; apply andb_true_iff in Hfree as [Hc Hextra];
       apply Extra_args_erased;
-      [ exact (cont_free_of_erased D c Hc) | exact Hextra ] ].
+      [ exact (cont_free_of_erased D c Hc) | exact Hextra ]
+    | intros Hfree; apply andb_true_iff in Hfree as [Hfree Hexn];
+      apply andb_true_iff in Hfree as [Hremaining Hreturn];
+      exact (Over_application_erased D remaining remaining_arity
+               return_arity return_to return_to exn_to exn_to Hremaining
+               (cont_free_of_erased D return_to Hreturn)
+               (cont_free_of_erased D exn_to Hexn)) ].
   intros Hfree.
   apply andb_true_iff in Hfree as [Hfree Hrecursive].
   apply andb_true_iff in Hfree as [Hfree Hconts].

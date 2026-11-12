@@ -229,6 +229,7 @@ Definition inlinable_b (ap : apply_expr) (c : code) : bool :=
   && forallb (fun param => negb (var_in_simples param (ap_args ap)))
        (code_params c)
   && Nat.eqb (length (code_params c)) (length (ap_args ap))
+  && Nat.eqb (length (ap_args_arity ap)) (length (code_params_arity c))
   && negb (binds_statics (code_body c)).
 
 (* The code that a group of bindings adds to what is known, the last

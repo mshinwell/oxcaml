@@ -333,8 +333,10 @@ Definition identity_code (x my_closure : variable) (ret exn : continuation)
    bindings, then unused, go. The parameter and [my_closure] are taken not
    to be free in the argument, as they are when fresh; the two
    continuations of the call are taken to be different
-   (FlambdaApplySpec.v). Whatever the code and the call are annotated
-   with. *)
+   (FlambdaApplySpec.v). The call is taken to give the code as many
+   arguments as it has parameters, counted by parameter: with another
+   number it may be a partial application or an over-application.
+   Whatever else the code and the call are annotated with. *)
 Definition inline_identity_statement : Prop :=
   ∀ (called : code_id) (x my_closure : variable) (ret exn : continuation)
     (metadata : code_metadata) (callee arg : simple) (k k_exn : continuation)
@@ -343,6 +345,7 @@ Definition inline_identity_statement : Prop :=
     k <> k_exn ->
     ~ var_free_in_simple x arg ->
     ~ var_free_in_simple my_closure arg ->
+    length args_arity = length (cm_params_arity metadata) ->
     expr_refines
       (Let_static
          [Bind_code called (identity_code x my_closure ret exn metadata)]

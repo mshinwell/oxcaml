@@ -134,25 +134,89 @@ Proof.
   apply exec_prim_renamed.
 Qed.
 
-Lemma heap_apply_cont_value_equivariant (r : renaming) (c : cont_value)
-    (vs : list value) (statics : static_env) (h : heap) :
-  heap_apply_cont_value (rename_cont_value r c) vs
+(* A call of code. *)
+Lemma heap_call_code_equivariant (r : renaming) (closure : value) (c : code)
+    (vs : list value) (args_arity return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) (h : heap) :
+  heap_call_code closure (rename_code r c) vs args_arity return_arity
+    (rename_cont_value r return_to) (rename_cont_value r exn_to)
     (rename_static_env r statics) h
-  = rename_heap_result r (heap_apply_cont_value c vs statics h).
+  = rename_heap_result r
+      (heap_call_code closure c vs args_arity return_arity return_to exn_to
+         statics h).
 Proof.
-  revert vs.
+  destruct c as [params my_closure ret exn metadata body].
+  unfold heap_call_code. simpl.
+  rewrite rename_binds_statics.
+  destruct (binds_statics body); [ reflexivity | ].
+  destruct (negb _); [ reflexivity | ].
+  change [(rename_variable r my_closure, closure)]
+    with (rename_env r [(my_closure, closure)]).
+  rewrite bind_params_equivariant.
+  destruct (bind_params params vs [(my_closure, closure)]); reflexivity.
+Qed.
+
+(* A call by its shape: the shape of the renamed call is the shape with
+   its code renamed (FlambdaEquivarianceProofs.shape_of_call_equivariant). *)
+Lemma heap_run_call_equivariant (r : renaming)
+    (return_partial return_partial' : value -> heap_step_result)
+    (shape : option call_shape) (return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) (h : heap) :
+  (∀ partial : value,
+    return_partial' partial
+    = rename_heap_result r (return_partial partial)) ->
+  heap_run_call return_partial' (option_map (rename_shape r) shape)
+    return_arity (rename_cont_value r return_to)
+    (rename_cont_value r exn_to) (rename_static_env r statics) h
+  = rename_heap_result r
+      (heap_run_call return_partial shape return_arity return_to exn_to
+         statics h).
+Proof.
+  intros Hpartial.
+  destruct shape
+    as [[closure c vs args_arity
+        | closure c vs remaining args_arity remaining_arity | partial] | ];
+    simpl.
+  - apply heap_call_code_equivariant.
+  - replace (code_result_arity (rename_code r c)) with (code_result_arity c)
+      by (destruct c; reflexivity).
+    exact
+      (heap_call_code_equivariant r closure c vs args_arity
+         (code_result_arity c)
+         (Over_application remaining remaining_arity return_arity return_to
+            exn_to)
+         exn_to statics h).
+  - apply Hpartial.
+  - reflexivity.
+Qed.
+
+Lemma heap_apply_cont_value_equivariant (r : renaming) (c : cont_value) :
+  ∀ (vs : list value) (statics : static_env) (h : heap),
+    heap_apply_cont_value (rename_cont_value r c) vs
+      (rename_static_env r statics) h
+    = rename_heap_result r (heap_apply_cont_value c vs statics h).
+Proof.
   induction c
     as [[params metadata handler] def_vars def_conts recursive | k
-       | c IH extra];
-    intros vs; simpl; [ | reflexivity | apply IH ].
-  destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
-    [ | reflexivity ].
-  rewrite bind_params_equivariant.
-  destruct (bind_params params vs def_vars) as [handler_vars | ]; simpl;
-    [ | reflexivity ].
-  unfold rename_heap_state. simpl.
-  rewrite rename_cont_env_app, <- rec_closures_equivariant.
-  reflexivity.
+       | c IH extra
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+    using cont_value_over_ind;
+    intros vs statics h.
+  - simpl.
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+      [ | reflexivity ].
+    rewrite bind_params_equivariant.
+    destruct (bind_params params vs def_vars) as [handler_vars | ]; simpl;
+      [ | reflexivity ].
+    unfold rename_heap_state. simpl.
+    rewrite rename_cont_env_app, <- rec_closures_equivariant.
+    reflexivity.
+  - reflexivity.
+  - simpl. apply IH.
+  - destruct vs as [ | v [ | v' vs]]; try reflexivity.
+    cbn [rename_cont_value heap_apply_cont_value].
+    rewrite shape_of_call_equivariant.
+    apply heap_run_call_equivariant. intros partial. apply IHreturn.
 Qed.
 
 Lemma heap_call_function_equivariant (r : renaming) (callee : value)
@@ -165,28 +229,9 @@ Lemma heap_call_function_equivariant (r : renaming) (callee : value)
       (heap_call_function callee kind vs args_arity return_arity return_to
          exn_to statics h).
 Proof.
-  unfold heap_call_function.
-  replace (closure_of (rename_static_env r statics) callee)
-    with (closure_of statics callee) by reflexivity.
-  destruct (closure_of statics callee) as [[called slots] | ];
-    [ | reflexivity ].
-  rewrite lookup_rename_code.
-  destruct
-    (match kind with
-     | Direct named => Pos.eqb called named
-     | Indirect => true
-     end);
-    [ | reflexivity ].
-  destruct (lookup called (static_code statics))
-    as [[params my_closure ret exn metadata body] | ];
-    simpl; [ | reflexivity ].
-  rewrite rename_binds_statics.
-  destruct (binds_statics body); [ reflexivity | ].
-  destruct (negb _); [ reflexivity | ].
-  change [(rename_variable r my_closure, callee)]
-    with (rename_env r [(my_closure, callee)]).
-  rewrite bind_params_equivariant.
-  destruct (bind_params params vs [(my_closure, callee)]); reflexivity.
+  unfold heap_call_function. rewrite shape_of_call_equivariant.
+  apply heap_run_call_equivariant. intros partial.
+  apply heap_apply_cont_value_equivariant.
 Qed.
 
 (* ======================================================================== *)
@@ -397,7 +442,8 @@ Proof.
        | v v' c c' Hv Hv' Hc | c | v v' bytes Hv Hv'
        | v v' fslot fdecls slots slots' Hv Hv' Hnames Hslots Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
-       | kind v' Hpoison Hkind].
+       | kind v' Hpoison Hkind
+       | callee callee' args args' args_arity Hcallee Hargs].
   - apply Step_const.
   - apply Step_location. exact Hl.
   - exact (Step_block poison_refines corr st2 st2' R v v' tag fields fields'
@@ -411,6 +457,7 @@ Proof.
   - apply Step_same_closure_of_set. exact Hgslot.
   - apply Step_opaque_symbol; [ exact Hs | exact Hs' ].
   - apply Step_poison; assumption.
+  - apply Step_partial_application; assumption.
 Qed.
 
 Lemma value_related_code (v v' : value) :
@@ -554,10 +601,17 @@ Fixpoint cont_value_closed_renamed (r : renaming) (h : heap)
     (c : cont_value) {struct c} :
   cont_value_closed h c -> cont_value_closed h (rename_cont_value r c).
 Proof.
-  destruct c as [hd vars conts recursive | k | c extra]; simpl;
+  destruct c
+    as [hd vars conts recursive | k | c extra
+       | remaining remaining_arity return_arity return_to exn_to];
+    simpl;
     [ | exact (fun H => H)
     | intros [Hextra Hc]; split;
-      [ exact Hextra | exact (cont_value_closed_renamed r h c Hc) ] ].
+      [ exact Hextra | exact (cont_value_closed_renamed r h c Hc) ]
+    | intros (Hremaining & Hreturn & Hexn); split; [ exact Hremaining | ];
+      split;
+      [ exact (cont_value_closed_renamed r h return_to Hreturn)
+      | exact (cont_value_closed_renamed r h exn_to Hexn) ] ].
   intros [Hvars Hconts]. split.
   - exact (env_closed_renamed r h vars Hvars).
   - induction conts as [ | [k c] conts IH]; simpl; [ exact I | ].

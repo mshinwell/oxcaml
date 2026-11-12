@@ -172,7 +172,7 @@ Proof.
                   Hsat Hty Hv) as Htyped.
     pose proof (type_satisfied_kind statics vars v cty Htyped) as Hkind.
     rewrite (boxable_number_of_kind_unboxed _ k Hk) in Hkind.
-    destruct v as [c | | | | | | ];
+    destruct v as [c | | | | | | | ];
       try (destruct k; discriminate Hkind).
     apply box_number_satisfied. exists c.
     split; [ | split; [ exact Hkind | exact Htyped ] ].

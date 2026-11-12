@@ -661,6 +661,8 @@ Fixpoint cont_sets_ok (c : cont_value) : Prop :=
     handler_sets_well_formed h = true
     ∧ forallb (fun '(_, h) => handler_sets_well_formed h) recursive = true
     ∧ fold_right (fun kc acc => cont_sets_ok (snd kc) ∧ acc) True conts
+  | Over_application _ _ _ return_to exn_to =>
+    cont_sets_ok return_to ∧ cont_sets_ok exn_to
   end.
 
 Definition conts_sets_ok (conts : cont_env) : Prop :=
@@ -728,31 +730,6 @@ Lemma with_extra_args_sets_ok (c : cont_value) (extra : list value) :
   cont_sets_ok c -> cont_sets_ok (with_extra_args c extra).
 Proof. destruct extra; intros Hc; exact Hc. Qed.
 
-(* Applying a continuation whose sets are well-formed gives a handler and
-   continuations of which the same holds. *)
-Lemma apply_cont_value_sets_ok (c : cont_value) :
-  ∀ (vs : list value) (statics : static_env) (s' : state),
-    cont_sets_ok c ->
-    apply_cont_value c vs statics = Step s' ->
-    sets_well_formed (state_expr s') = true
-    ∧ conts_sets_ok (state_conts s')
-    ∧ state_statics s' = statics.
-Proof.
-  induction c as [[params metadata handler] def_vars def_conts recursive | k
-                 | c IH extra];
-    intros vs statics s'; simpl.
-  - intros (Ph & Hrec & Cdef).
-    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
-      [ | discriminate ].
-    destruct (bind_params params vs def_vars); [ | discriminate ].
-    intros [= <-]. simpl_state.
-    refine (conj Ph (conj (conts_sets_ok_app _ _ _ Cdef) eq_refl)).
-    exact (rec_closures_sets_ok def_vars def_conts recursive recursive Hrec
-             Cdef Hrec).
-  - intros _ [=].
-  - intros Hc. exact (IH (vs ++ extra) statics s' Hc).
-Qed.
-
 (* What holds of every state of the run of a well-formed unit: the sets
    of all the terms it holds are well-formed, and the static sets are
    bound. *)
@@ -761,6 +738,61 @@ Definition sets_inv (s : state) : Prop :=
   ∧ conts_sets_ok (state_conts s)
   ∧ code_sets_ok (state_statics s)
   ∧ static_sets_bound (state_statics s).
+
+(* Where a call and the application of a continuation land
+   (FlambdaSemanticsProofs.call_function_lands). *)
+Lemma sets_inv_over (remaining : list value)
+    (remaining_arity return_arity : arity) (return_to exn_to : cont_value) :
+  cont_sets_ok
+    (Over_application remaining remaining_arity return_arity return_to
+       exn_to)
+  <-> cont_sets_ok return_to ∧ cont_sets_ok exn_to.
+Proof. reflexivity. Qed.
+
+Lemma sets_inv_code (statics : static_env) :
+  code_sets_ok statics ->
+  static_sets_bound statics ->
+  ∀ (called : code_id) (c : code) (callee_vars : env)
+    (return_to exn_to : cont_value),
+    lookup called (static_code statics) = Some c ->
+    cont_sets_ok return_to ->
+    cont_sets_ok exn_to ->
+    sets_inv
+      (State (code_body c) callee_vars
+         [(code_return_continuation c, return_to);
+          (code_exn_continuation c, exn_to)]
+         statics).
+Proof.
+  intros S B called c callee_vars return_to exn_to Hlookup Hreturn Hexn.
+  unfold sets_inv. simpl_state.
+  pose proof (S called c Hlookup) as Hc.
+  destruct c as [params my_closure ret exn metadata body].
+  simpl in Hc |- *.
+  exact (conj Hc (conj (conj Hreturn (conj Hexn I)) (conj S B))).
+Qed.
+
+Lemma sets_inv_handler (statics : static_env) :
+  code_sets_ok statics ->
+  static_sets_bound statics ->
+  ∀ (params : list variable) (metadata : handler_metadata) (handler : expr)
+    (def_vars : env) (def_conts : cont_env)
+    (recursive : list (continuation * continuation_handler))
+    (handler_vars : env),
+    cont_sets_ok
+      (Closure (Handler params metadata handler) def_vars def_conts
+         recursive) ->
+    sets_inv
+      (State handler handler_vars
+         (rec_closures recursive def_vars def_conts ++ def_conts) statics).
+Proof.
+  intros S B params metadata handler def_vars def_conts recursive
+    handler_vars Cr.
+  unfold sets_inv. simpl_state. simpl in Cr.
+  destruct Cr as (Ph & Hrec & Cdef).
+  refine (conj Ph (conj (conts_sets_ok_app _ _ _ Cdef) (conj S B))).
+  exact (rec_closures_sets_ok def_vars def_conts recursive recursive Hrec
+           Cdef Hrec).
+Qed.
 
 Lemma sets_inv_step (s s' : state) :
   sets_inv s -> step s = Step s' -> sets_inv s'.
@@ -808,23 +840,20 @@ Proof.
     destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | discriminate ].
     destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
       [ | discriminate ].
-    apply call_function_step in Hstep
-      as (called & slots & c & callee_vars & _ & Hlookup & _ & _ & _ & _
-          & ->).
-    unfold sets_inv. simpl_state.
-    pose proof (S called c Hlookup) as Hc.
-    destruct c as [params my_closure ret exn metadata body].
-    simpl in Hc |- *.
-    refine (conj Hc (conj (conj _ (conj _ I)) (conj S B))).
-    + apply resolve_sets_ok, C.
-    + apply with_extra_args_sets_ok, resolve_sets_ok, C.
+    refine
+      (call_function_lands statics cont_sets_ok sets_inv
+         (fun c extra H => H) sets_inv_over (sets_inv_code statics S B)
+         (sets_inv_handler statics S B) _ _ _ _ _ _ _ s'
+         (resolve_sets_ok _ conts C) _ Hstep).
+    apply with_extra_args_sets_ok, resolve_sets_ok, C.
   - (* Apply_cont *)
     destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | discriminate ].
     unfold apply_continuation in Hstep.
-    destruct (apply_cont_value_sets_ok _ vs statics s'
-                (resolve_sets_ok (ac_continuation ac) conts C) Hstep)
-      as (Ph & Cs & Hstatics).
-    unfold sets_inv. rewrite Hstatics. exact (conj Ph (conj Cs (conj S B))).
+    exact
+      (apply_cont_value_lands statics cont_sets_ok sets_inv
+         (fun c extra H => H) sets_inv_over (sets_inv_code statics S B)
+         (sets_inv_handler statics S B) _ vs s' (resolve_sets_ok _ conts C)
+         Hstep).
   - (* Switch *)
     destruct (eval_simple vars scrutinee) as [v | ]; [ | discriminate ].
     destruct (naked_immediate_of_value v) as [i | ]; [ | discriminate ].
@@ -905,7 +934,7 @@ Proof.
   intros statics move_from move_to v w Hbound.
   unfold project_function_slot.
   destruct v as [c | code slots | slot decls slots | s | tag fields
-    | contents | l];
+    | contents | l | pa_callee pa_args pa_arity];
     [ | | | | discriminate .. ].
   - discriminate.
   - intros Hproject.
@@ -980,7 +1009,7 @@ Proof.
   intros statics v slot decls slot_values Hstatics Hv.
   unfold closure_in_set.
   destruct v as [c | code slots | at_slot set_decls slots | s | tag fields
-    | contents | l];
+    | contents | l | pa_callee pa_args pa_arity];
     [ | | | | discriminate .. ].
   - discriminate.
   - intros [= <- <- <-]. split; [ exact (unnamed_set_well_formed code) | ].
@@ -1025,7 +1054,7 @@ Proof.
   intros statics move_from move_to v decls slot_values Hstatics.
   unfold closure_in_set, project_function_slot.
   destruct v as [c | code slots | at_slot set_decls slots | s | tag fields
-    | contents | l];
+    | contents | l | pa_callee pa_args pa_arity];
     [ | | | | discriminate .. ].
   - discriminate.
   - intros [= <- <- <-]. exact (project_unnamed_defined move_to code _).
@@ -1120,7 +1149,7 @@ Lemma project_function_slot_keeps_valid (statics : static_env)
 Proof.
   intros Hv. unfold project_function_slot.
   destruct v as [c | code slots | at_slot decls slots | s | tag fields
-    | contents | l];
+    | contents | l | pa_callee pa_args pa_arity];
     [ | | | | discriminate .. ].
   - discriminate.
   - intros Hproject.
@@ -1269,6 +1298,14 @@ Proof.
   intros H. rewrite forallb_forall in H. apply Forall_forall. exact H.
 Qed.
 
+(* A partial application is valid when the value it calls and its
+   arguments are. *)
+Lemma value_valid_partial (callee : value) (args : list value)
+    (args_arity : arity) :
+  value_valid (Value_partial_application callee args args_arity) = true
+  <-> value_valid callee = true ∧ Forall (fun v => value_valid v = true) args.
+Proof. simpl. rewrite andb_true_iff, forallb_Forall. reflexivity. Qed.
+
 (* A step from a state whose terms have well-formed sets keeps the values
    valid: the four things that FlambdaSemanticsSpec.step_values_all_statement
    asks of the state. *)
@@ -1282,7 +1319,8 @@ Lemma state_valid_step (s : state) :
 Proof.
   intros (P & _) Hvalid.
   apply (step_values_all (fun _ v => value_valid v = true)
-           (fun _ allocated => allocated_valid allocated = true) s Hvalid).
+           (fun _ allocated => allocated_valid allocated = true) s
+           (fun _ => value_valid_partial) Hvalid).
   - intros x kind d body v Hexpr Heval. rewrite Hexpr in P. simpl in P.
     apply andb_true_iff in P as [Pd _].
     destruct Hvalid as (Hvars & _ & Hstatics).
@@ -1392,8 +1430,12 @@ Qed.
 Theorem call_binds_my_closure : call_binds_my_closure_statement.
 Proof.
   intros callee kind vs args_arity return_arity return_to exn_to statics s
-    called slot_values c Hcall Hclosure Hcode Hfresh.
-  unfold call_function in Hcall. rewrite Hclosure in Hcall.
+    called slot_values c Hcall Hclosure Hcode Hfresh Hcount.
+  unfold call_function in Hcall.
+  rewrite (shape_of_call_closure statics callee _ _ _ _
+             (closure_not_partial statics callee _ Hclosure))
+    in Hcall.
+  unfold shape_of_closure_call in Hcall. rewrite Hclosure in Hcall.
   cbv beta iota zeta in Hcall.
   destruct
     (match kind with
@@ -1401,21 +1443,32 @@ Proof.
      | Indirect => true
      end);
     [ | discriminate ].
-  rewrite Hcode in Hcall.
-  destruct (binds_statics (code_body c)); [ discriminate | ].
-  destruct
-    (negb
-       (kinds_eqb (map kind_of_value vs) (unarize args_arity)
-        && kinds_per_parameter_eqb (unarize_per_parameter args_arity)
-             (unarize_per_parameter (code_params_arity c))
-        && arity_eqb return_arity (code_result_arity c)));
-    [ discriminate | ].
-  destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
-    as [callee_vars | ] eqn:Hbind;
-    [ | discriminate ].
-  injection Hcall as <-. simpl. split; [ reflexivity | ].
-  rewrite (bind_params_lookup_other _ _ vs _ callee_vars Hfresh Hbind).
-  simpl. rewrite Pos.eqb_refl. reflexivity.
+  rewrite Hcode in Hcall. cbv beta iota zeta in Hcall.
+  assert (Hbody :
+    ∀ (args : list value) (at_arity result : arity) (k : cont_value),
+      call_code callee c args at_arity result k exn_to statics = Step s ->
+      state_expr s = code_body c
+      ∧ lookup (code_my_closure c) (state_vars s) = Some callee).
+  { intros args at_arity result k Hstep.
+    apply call_code_step in Hstep
+      as (callee_vars & _ & _ & _ & _ & Hbind & ->).
+    simpl. split; [ reflexivity | ].
+    rewrite (bind_params_lookup_other _ _ args _ callee_vars Hfresh Hbind).
+    simpl. rewrite Pos.eqb_refl. reflexivity. }
+  destruct (Nat.eqb (length args_arity) (length (code_params_arity c)))
+    eqn:Hfull.
+  - exact (Hbody _ _ _ _ Hcall).
+  - destruct
+      (negb
+         (kinds_eqb (map kind_of_value vs) (unarize args_arity)
+          && partial_or_over_application args_arity return_arity
+               (code_params_arity c) (code_result_arity c)));
+      [ discriminate | ].
+    destruct (Nat.ltb (length (code_params_arity c)) (length args_arity))
+      eqn:Hover.
+    + exact (Hbody _ _ _ _ Hcall).
+    + exfalso. apply Nat.ltb_ge in Hover. apply Nat.eqb_neq in Hfull.
+      apply Hfull. apply Nat.le_antisymm; assumption.
 Qed.
 
 (* ======================================================================== *)
@@ -1462,6 +1515,8 @@ Fixpoint cont_terms_ok (c : cont_value) : Prop :=
     ∧ forallb (fun '(_, h) => Ph h) recursive = true
     ∧ fold_right (fun kc acc => cont_terms_ok (snd kc) ∧ acc) True conts
   | Extra_args c' _ => cont_terms_ok c'
+  | Over_application _ _ _ return_to exn_to =>
+    cont_terms_ok return_to ∧ cont_terms_ok exn_to
   end.
 
 Definition conts_terms_ok (conts : cont_env) : Prop :=
@@ -1503,32 +1558,6 @@ Lemma with_extra_args_terms_ok (c : cont_value) (extra : list value) :
   cont_terms_ok c -> cont_terms_ok (with_extra_args c extra).
 Proof. destruct extra; intros Hc; exact Hc. Qed.
 
-(* Applying a continuation whose terms are kept gives a handler and
-   continuations of which the same holds. *)
-Lemma apply_cont_value_terms_ok (c : cont_value) :
-  ∀ (vs : list value) (statics : static_env) (s' : state),
-    cont_terms_ok c ->
-    apply_cont_value c vs statics = Step s' ->
-    Pe (state_expr s') = true
-    ∧ conts_terms_ok (state_conts s')
-    ∧ state_statics s' = statics.
-Proof.
-  induction c as [[params metadata handler] def_vars def_conts recursive | k
-                 | c IH extra];
-    intros vs statics s'; simpl.
-  - intros (Hh & Hrec & Cdef).
-    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
-      [ | discriminate ].
-    destruct (bind_params params vs def_vars); [ | discriminate ].
-    intros [= <-]. simpl_state.
-    refine (conj (Ph_handler params metadata handler Hh)
-              (conj (conts_terms_ok_app _ _ _ Cdef) eq_refl)).
-    exact (rec_closures_terms_ok def_vars def_conts recursive recursive Hrec
-             Cdef Hrec).
-  - intros _ [=].
-  - intros Hc. exact (IH (vs ++ extra) statics s' Hc).
-Qed.
-
 Definition code_terms_ok (statics : static_env) : Prop :=
   ∀ (id : code_id) (c : code),
     lookup id (static_code statics) = Some c -> Pc c = true.
@@ -1564,6 +1593,58 @@ Definition terms_inv (s : state) : Prop :=
   Pe (state_expr s) = true
   ∧ conts_terms_ok (state_conts s)
   ∧ code_terms_ok (state_statics s).
+
+(* Where a call and the application of a continuation land
+   (FlambdaSemanticsProofs.call_function_lands). *)
+Lemma terms_inv_over (remaining : list value)
+    (remaining_arity return_arity : arity) (return_to exn_to : cont_value) :
+  cont_terms_ok
+    (Over_application remaining remaining_arity return_arity return_to
+       exn_to)
+  <-> cont_terms_ok return_to ∧ cont_terms_ok exn_to.
+Proof. reflexivity. Qed.
+
+Lemma terms_inv_code (statics : static_env) :
+  code_terms_ok statics ->
+  ∀ (called : code_id) (c : code) (callee_vars : env)
+    (return_to exn_to : cont_value),
+    lookup called (static_code statics) = Some c ->
+    cont_terms_ok return_to ->
+    cont_terms_ok exn_to ->
+    terms_inv
+      (State (code_body c) callee_vars
+         [(code_return_continuation c, return_to);
+          (code_exn_continuation c, exn_to)]
+         statics).
+Proof.
+  intros S called c callee_vars return_to exn_to Hlookup Hreturn Hexn.
+  unfold terms_inv. simpl_state.
+  exact (conj (Pc_body c (S called c Hlookup))
+           (conj (conj Hreturn (conj Hexn I)) S)).
+Qed.
+
+Lemma terms_inv_handler (statics : static_env) :
+  code_terms_ok statics ->
+  ∀ (params : list variable) (metadata : handler_metadata) (handler : expr)
+    (def_vars : env) (def_conts : cont_env)
+    (recursive : list (continuation * continuation_handler))
+    (handler_vars : env),
+    cont_terms_ok
+      (Closure (Handler params metadata handler) def_vars def_conts
+         recursive) ->
+    terms_inv
+      (State handler handler_vars
+         (rec_closures recursive def_vars def_conts ++ def_conts) statics).
+Proof.
+  intros S params metadata handler def_vars def_conts recursive handler_vars
+    Cr.
+  unfold terms_inv. simpl_state. simpl in Cr.
+  destruct Cr as (Hh & Hrec & Cdef).
+  refine (conj (Ph_handler params metadata handler Hh)
+            (conj (conts_terms_ok_app _ _ _ Cdef) S)).
+  exact (rec_closures_terms_ok def_vars def_conts recursive recursive Hrec
+           Cdef Hrec).
+Qed.
 
 Lemma terms_inv_step (s s' : state) :
   terms_inv s -> step s = Step s' -> terms_inv s'.
@@ -1606,21 +1687,20 @@ Proof.
     destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | discriminate ].
     destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
       [ | discriminate ].
-    apply call_function_step in Hstep
-      as (called & slots & c & callee_vars & _ & Hlookup & _ & _ & _ & _
-          & ->).
-    unfold terms_inv. simpl_state.
-    refine (conj (Pc_body c (S called c Hlookup))
-              (conj (conj _ (conj _ I)) S)).
-    + apply resolve_terms_ok, C.
-    + apply with_extra_args_terms_ok, resolve_terms_ok, C.
+    refine
+      (call_function_lands statics cont_terms_ok terms_inv
+         (fun c extra H => H) terms_inv_over (terms_inv_code statics S)
+         (terms_inv_handler statics S) _ _ _ _ _ _ _ s'
+         (resolve_terms_ok _ conts C) _ Hstep).
+    apply with_extra_args_terms_ok, resolve_terms_ok, C.
   - (* Apply_cont *)
     destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | discriminate ].
     unfold apply_continuation in Hstep.
-    destruct (apply_cont_value_terms_ok _ vs statics s'
-                (resolve_terms_ok (ac_continuation ac) conts C) Hstep)
-      as (Hh & Cs & Hstatics).
-    unfold terms_inv. rewrite Hstatics. exact (conj Hh (conj Cs S)).
+    exact
+      (apply_cont_value_lands statics cont_terms_ok terms_inv
+         (fun c extra H => H) terms_inv_over (terms_inv_code statics S)
+         (terms_inv_handler statics S) _ vs s' (resolve_terms_ok _ conts C)
+         Hstep).
   - (* Switch *)
     destruct (eval_simple vars scrutinee) as [v | ]; [ | discriminate ].
     destruct (naked_immediate_of_value v) as [i | ]; [ | discriminate ].
@@ -1684,7 +1764,7 @@ Theorem well_formed_call_binds_my_closure :
   well_formed_call_binds_my_closure_statement.
 Proof.
   intros u e n s s' ap callee called slot_values c Hwf Hrun Hexpr Hcallee
-    Hclosure Hcode Hstep.
+    Hclosure Hcode Hcount Hstep.
   pose proof (well_formed_code_binders u e n s called c Hwf Hrun Hcode)
     as Hc.
   rewrite (state_eta s), Hexpr, step_apply, Hcallee in Hstep.
@@ -1695,7 +1775,8 @@ Proof.
     [ | discriminate ].
   apply
     (call_binds_my_closure callee _ vs _ _ _ _ _ s' called slot_values c
-       Hstep Hclosure Hcode).
+       Hstep Hclosure Hcode);
+    [ | exact Hcount ].
   destruct c as [params my_closure ret exn metadata body].
   simpl in Hc |- *.
   apply andb_true_iff in Hc as [Hc _]. apply andb_true_iff in Hc as [Hc _].
@@ -1868,7 +1949,7 @@ Lemma closure_in_set_sets_are (statics : static_env) (v : value)
 Proof.
   intros Hstatics Hv. unfold closure_in_set.
   destruct v as [k | code slots | at_slot set_decls slots | s | tag fields
-    | contents | l];
+    | contents | l | pa_callee pa_args pa_arity];
     [ | | | | discriminate .. ].
   - discriminate.
   - unfold Pv in Hv. simpl in Hv. apply andb_true_iff in Hv as [Hset Hslots].
@@ -1936,7 +2017,7 @@ Lemma project_function_slot_sets_are (statics : static_env)
 Proof.
   intros Hv. unfold project_function_slot.
   destruct v as [k | code slots | at_slot decls slots | s | tag fields
-    | contents | l];
+    | contents | l | pa_callee pa_args pa_arity];
     [ | | | | discriminate .. ].
   - discriminate.
   - intros Hproject.
@@ -2077,6 +2158,14 @@ Proof.
     exact (eval_static_const_sets_are const vars allocated Hconst Hvars Heval).
 Qed.
 
+Lemma value_sets_are_partial (callee : value) (args : list value)
+    (args_arity : arity) :
+  Pv (Value_partial_application callee args args_arity)
+  <-> Pv callee ∧ Forall Pv args.
+Proof.
+  unfold Pv. simpl. rewrite andb_true_iff, forallb_Forall. reflexivity.
+Qed.
+
 Lemma state_sets_are_step (s : state) :
   sets_are c function_decls closure_symbols (state_expr s) = true ->
   state_sets_are c function_decls closure_symbols s ->
@@ -2092,7 +2181,7 @@ Proof.
            (fun _ allocated =>
               allocated_sets_are c function_decls closure_symbols allocated
               = true)
-           s Hvalid).
+           s (fun _ => value_sets_are_partial) Hvalid).
   - intros x kind d body v Hexpr Heval. rewrite Hexpr in P. simpl in P.
     apply andb_true_iff in P as [Pd _].
     destruct Hvalid as (Hvars & _ & Hstatics).

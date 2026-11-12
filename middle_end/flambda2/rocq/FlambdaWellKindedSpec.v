@@ -31,8 +31,7 @@
    This file is to be reviewed: the check ([well_kinded] and what it is
    made of, [well_kinded_unit]) against the places where the compiler
    checks kinds, listed below; what it is for a state to be well-kinded
-   ([state_well_kinded]); [kind_fault]; [partial_or_over_application];
-   and the statements.
+   ([state_well_kinded]); [kind_fault]; and the statements.
 
    A variable of Flambda 2 has a kind ([Variable.kind]), and the terms of
    FlambdaModel.v give it where the variable is bound. Two things are
@@ -41,7 +40,9 @@
    What is undefined, with no premise. A call that does not agree with
    the code it calls has no step
    ([call_at_wrong_kinds_undefined_statement];
-   FlambdaSemanticsSpec.call_function makes the three tests), and a
+   FlambdaSemanticsSpec.call_code makes the three tests of a full call,
+   and FlambdaSemanticsSpec.shape_of_closure_call those of a partial
+   application and of an over-application), and a
    primitive has no value on an argument of another kind than it takes
    (FlambdaPrimitiveSpec.eval_prim_kinds_statement). These are the
    mismatches of kinds that Simplify replaces by [Invalid], and the ones
@@ -60,8 +61,9 @@
    follows that the step that binds a variable binds it to a value of
    the kind of its binder, whatever the term and whatever the state
    ([let_binds_at_kind_statement], [handler_binds_at_kinds_statement],
-   [call_binds_at_kinds_statement]). These are statements about the step
-   that binds. That a variable, where it is read, holds a value of the
+   [call_binds_at_kinds_statement],
+   [called_closure_at_kind_statement]). These are statements about the
+   step that binds. That a variable, where it is read, holds a value of the
    kind of the binder that the term has in scope there follows from
    them where no other binder of the same name comes between: that is
    the scoping of the term, and nothing here says it. What the tests do
@@ -149,8 +151,8 @@
      [project_function_slot]);
    - whether a call is made at the arities of the code called, even where
      the code is named, and whether its arguments are of the kinds of the
-     arity it is made at: the three tests of
-     FlambdaSemanticsSpec.call_function.
+     arity it is made at: the tests of FlambdaSemanticsSpec.call_code
+     and of FlambdaSemanticsSpec.shape_of_closure_call.
 
    What else it does not check:
    - that symbols and code ids are in scope: a symbol is a value whether
@@ -177,13 +179,11 @@
    The statements:
    - a call that does not agree with the code called is undefined,
      whatever the state ([call_at_wrong_kinds_undefined_statement]);
-   - a call that the compiler takes for a partial application or an
-     over-application is undefined too, and should not be: see below
-     ([partial_or_over_application_undefined_statement]);
    - the step that binds a variable binds a value of the kind of the
      binder, whatever the state ([let_binds_at_kind_statement],
      [handler_binds_at_kinds_statement],
-     [call_binds_at_kinds_statement]);
+     [call_binds_at_kinds_statement],
+     [called_closure_at_kind_statement]);
    - a unit that passes the check starts in a well-kinded state
      ([well_kinded_unit_state_statement]);
    - a well-kinded state steps to a well-kinded state
@@ -213,23 +213,21 @@
    name twice, or a recursive handler that binds something static. The
    last three are what FlambdaWellFormedSpec.v rules out for a unit.
 
-   Partial applications and over-applications are left out of the
-   fragment (FlambdaModel.v). A call with fewer or more arguments than
-   the code has parameters is undefined on the machine. For some such
-   calls that is right: Simplify makes them [Invalid] too, and well-typed
-   programs produce them in branches that are never run. For the others
-   it is an omission: the compiler takes the call for a partial
-   application, or for an over-application, and gives it a meaning, and
-   every statement about a unit that executes one says nothing.
-   [partial_or_over_application] is the test of arities by which the
-   compiler tells which is which (simplify/simplify_apply_expr.ml,
-   [simplify_direct_function_call]); it is not all that the compiler
-   asks of such a call, and the comment there says what else.
-   [at_partial_or_over_application] is the test on a state, where the
-   kinds of the arguments are known too. The test tool refuses a unit
-   with a direct call that passes the test of arities; a run that stops
-   at a call that passes the test on a state it reports as such, and
-   then neither compares the two runs nor attempts the validation.
+   Partial applications and over-applications. A call with fewer or
+   more arguments than the code has parameters is one, where its
+   arities pass the compiler's test
+   (FlambdaModel.partial_or_over_application) and its arguments are of
+   the kinds of its arity; otherwise it is undefined, as Simplify makes
+   it [Invalid]. A well-kinded state stays well-kinded through both: a
+   partial application is a well-kinded value of kind [Value] when the
+   value it calls and its arguments are well-kinded, and the test makes
+   the call that returns it expect one [Value]; what is left of an
+   over-application ([Over_application]) is a well-kinded continuation
+   of one parameter of kind [Value], which the test makes the result of
+   the code, when the arguments that remain are well-kinded and its two
+   continuations are, the one it returns to at the return arity of the
+   call. The kinds of the arguments that a partial application keeps
+   are not compared with anything until it is called with the rest.
 
    Tupled functions are left out too. A call of unknown arity gives a
    tupled function one argument, the tuple, whatever the arity of its
@@ -238,10 +236,10 @@
    direct call and a call of known arity go by the arity of the code.
    The code of this fragment has no such mark, and its [Indirect] is
    both sorts of indirect call. So the call with the tuple would be
-   undefined here, or taken for a partial application, or, where the
-   code has one parameter, run with the parameter bound to the tuple
-   and not to its field, which is a wrong result and not an undefined
-   one. The test tool refuses code that is tupled.
+   a partial application here, or undefined, or, where the code has one
+   parameter, run with the parameter bound to the tuple and not to its
+   field, which is a wrong result and not an undefined one. The test
+   tool refuses code that is tupled.
 
    The primitives. The check takes the kind of the result of a primitive
    from FlambdaPrimitiveSpec.prim_result_kind, and the proofs use two of
@@ -539,6 +537,8 @@ Fixpoint value_well_kinded (v : value) : bool :=
          && value_well_kinded v)
       value_slots
   | Value_block _ fields => forallb value_well_kinded fields
+  | Value_partial_application callee args _ =>
+    value_well_kinded callee && forallb value_well_kinded args
   end.
 
 Definition env_well_kinded (vars : env) : bool :=
@@ -554,7 +554,8 @@ Definition kinds_of_env (vars : env) : kind_env :=
    ([cont_well_kinded]); the answer for it is only there to make the
    function total. A continuation that has extra arguments takes what
    the continuation inside does but for the last ones, which the extra
-   arguments are. *)
+   arguments are. The continuation of the full call inside an
+   over-application takes its one result, a value. *)
 Fixpoint arity_of_cont (outer : arity_env) (c : cont_value)
     : list flambda_kind :=
   match c with
@@ -567,6 +568,7 @@ Fixpoint arity_of_cont (outer : arity_env) (c : cont_value)
   | Extra_args c extra =>
     let params_kinds := arity_of_cont outer c in
     firstn (length params_kinds - length extra) params_kinds
+  | Over_application _ _ _ _ _ => [Value]
   end.
 
 (* The kinds of the parameters of the continuations of an environment;
@@ -580,7 +582,11 @@ Definition arities_of_conts (outer : arity_env) (conts : cont_env)
    well-kinded environments, under which its handler is well-kinded, and
    so are the handlers defined with it, which are in scope in it. The
    extra arguments of a continuation are well-kinded values, of the
-   kinds of the last parameters of the continuation inside. *)
+   kinds of the last parameters of the continuation inside. The
+   continuation of the full call inside an over-application keeps
+   well-kinded arguments and two well-kinded continuations: the one it
+   returns to takes the results of the whole call, and the one for
+   exceptions a value. *)
 Fixpoint cont_well_kinded (outer : arity_env) (c : cont_value) : bool :=
   match c with
   | Outer k => is_bound k outer
@@ -600,6 +606,12 @@ Fixpoint cont_well_kinded (outer : arity_env) (c : cont_value) : bool :=
             handler_well_kinded (kinds_of_env vars)
               (handler_arities recursive ++ arities_of_conts outer conts) h)
          recursive
+  | Over_application remaining _ return_arity return_to exn_to =>
+    forallb value_well_kinded remaining
+    && cont_well_kinded outer return_to
+    && cont_well_kinded outer exn_to
+    && kinds_eqb (arity_of_cont outer return_to) (unarize return_arity)
+    && kinds_eqb (arity_of_cont outer exn_to) [Value]
   end.
 
 Definition conts_well_kinded (outer : arity_env) (conts : cont_env) : bool :=
@@ -677,13 +689,15 @@ Definition unbound (vars : env) (s : simple) : bool :=
 
 (* The continuation stands for a handler that has not as many parameters
    as the values it is given: [given] of them, and the extra arguments
-   that the continuation has. *)
+   that the continuation has. The continuation of the full call inside
+   an over-application takes one. *)
 Fixpoint wrong_number_given (c : cont_value) (given : nat) : bool :=
   match c with
   | Closure (Handler params _ _) _ _ _ =>
     negb (Nat.eqb (length params) given)
   | Outer _ => false
   | Extra_args c extra => wrong_number_given c (given + length extra)
+  | Over_application _ _ _ _ _ => negb (Nat.eqb 1 given)
   end.
 
 Definition wrong_number_of_arguments (ac : apply_cont) (conts : cont_env)
@@ -702,7 +716,9 @@ Definition wrong_kind_bound (statics : static_env) (vars : env)
 
 (* The continuation stands for a handler that gives its parameters other
    kinds than those of the values it is given: [given], followed by the
-   kinds of the extra arguments that the continuation has. *)
+   kinds of the extra arguments that the continuation has. What is left
+   of an over-application takes one [Value], the function to call with
+   the arguments that remain. *)
 Fixpoint wrong_kinds_given (c : cont_value) (given : list flambda_kind)
     : bool :=
   match c with
@@ -711,6 +727,7 @@ Fixpoint wrong_kinds_given (c : cont_value) (given : list flambda_kind)
   | Outer _ => false
   | Extra_args c extra =>
     wrong_kinds_given c (given ++ map kind_of_value extra)
+  | Over_application _ _ _ _ _ => negb (kinds_eqb given [Value])
   end.
 
 Definition wrong_kinds_of_arguments (ac : apply_cont) (vars : env)
@@ -750,46 +767,15 @@ Definition kind_fault (s : state) : bool :=
 End Checker.
 
 (* ======================================================================== *)
-(* Partial applications and over-applications                               *)
-(* ======================================================================== *)
-
-(* The state is at a call, of a closure whose code is bound, that the
-   compiler takes for a partial application or an over-application: its
-   arguments have values of the kinds of the arity it is made at, and
-   its arities pass the test above. *)
-Definition at_partial_or_over_application (s : state) : bool :=
-  match state_expr s with
-  | Apply ap =>
-    match
-      eval_simple (state_vars s) (ap_callee ap),
-      eval_simples (state_vars s) (ap_args ap)
-    with
-    | Some callee, Some vs =>
-      match closure_of (state_statics s) callee with
-      | Some (called, _) =>
-        match lookup called (static_code (state_statics s)) with
-        | Some c =>
-          kinds_eqb (map kind_of_value vs) (unarize (ap_args_arity ap))
-          && partial_or_over_application (ap_args_arity ap)
-               (ap_return_arity ap) (code_params_arity c)
-               (code_result_arity c)
-        | None => false
-        end
-      | None => false
-      end
-    | _, _ => false
-    end
-  | _ => false
-  end.
-
-(* ======================================================================== *)
 (* The statements                                                           *)
 (* ======================================================================== *)
 
-(* What Simplify replaces by [Invalid] at a call has no step: a call
-   whose arguments are not of the kinds of the arity it is made at, or
-   that is not made at the arities of the code it calls. Nothing is
-   asked of the state. *)
+(* What Simplify replaces by [Invalid] at a call of a closure has no
+   step: a call whose arguments are not of the kinds of the arity it is
+   made at; a call with as many arguments as the code has parameters
+   that is not made at the arities of the code; and a call with fewer or
+   more arguments whose arities fail the test for a partial application
+   or an over-application. Nothing is asked of the state. *)
 Definition call_at_wrong_kinds_undefined_statement : Prop :=
   ∀ (ap : apply_expr) (vars : env) (conts : cont_env) (statics : static_env)
     (callee : value) (vs : list value) (called : code_id)
@@ -799,28 +785,34 @@ Definition call_at_wrong_kinds_undefined_statement : Prop :=
     closure_of statics callee = Some (called, value_slots) ->
     lookup called (static_code statics) = Some c ->
     map kind_of_value vs <> unarize (ap_args_arity ap)
-    ∨ unarize_per_parameter (ap_args_arity ap)
-      <> unarize_per_parameter (code_params_arity c)
-    ∨ ap_return_arity ap <> code_result_arity c ->
+    ∨ length (ap_args_arity ap) = length (code_params_arity c)
+      ∧ (unarize_per_parameter (ap_args_arity ap)
+         <> unarize_per_parameter (code_params_arity c)
+         ∨ ap_return_arity ap <> code_result_arity c)
+    ∨ length (ap_args_arity ap) <> length (code_params_arity c)
+      ∧ partial_or_over_application (ap_args_arity ap) (ap_return_arity ap)
+          (code_params_arity c) (code_result_arity c)
+        = false ->
     step (State (Apply ap) vars conts statics) = Undefined.
-
-(* The machine has no step at a partial application or an
-   over-application. It computes nothing wrong there; what is lost is
-   that the statements say nothing of a unit that executes one. *)
-Definition partial_or_over_application_undefined_statement : Prop :=
-  ∀ s : state,
-    at_partial_or_over_application s = true -> step s = Undefined.
 
 (* What a binder gives, whatever the state: the step that binds a
    variable binds it to a value of the kind of its binder. A [Let] that
    has a step binds a value of its kind. A handler that runs has its
    parameters bound to values of the kinds it gives them, one for each.
-   The body of code is entered in one place, a call that has a step
-   (FlambdaSemanticsSpec.call_function): it runs with the parameters of
-   the code bound to values of the kinds of its parameters, and
-   [my_closure] to a value of kind [Value]. The third statement is about
-   that place, and not about an [Apply], so that it stays as it is when
-   an [Apply] comes to do more than enter a body. *)
+   The body of code is entered in one place, a full call that has a
+   step (FlambdaSemanticsSpec.call_code, which is what every call that
+   runs code comes to: a call with as many arguments as the code has
+   parameters, the full call inside an over-application, and the call
+   of a partial application): it runs with the parameters of the code
+   bound to values of the kinds of its parameters
+   ([call_binds_at_kinds_statement]), and [my_closure] to the closure
+   called, which is of kind [Value]
+   ([called_closure_at_kind_statement], about the closure that a call
+   gives [call_code]: FlambdaSemanticsSpec.shape_of_call says what a
+   call is, and [call_function] and [apply_cont_value] run nothing
+   else). The third statement is about that place, and not about an
+   [Apply], which may do more than enter a body, or less: a partial
+   application enters none. *)
 Definition let_binds_at_kind_statement : Prop :=
   ∀ (x : variable) (kind : flambda_kind) (d : named) (body : expr)
     (vars : env) (conts : cont_env) (statics : static_env) (s : state),
@@ -848,21 +840,24 @@ Definition handler_binds_at_kinds_statement : Prop :=
               statics.
 
 Definition call_binds_at_kinds_statement : Prop :=
-  ∀ (callee : value) (kind : call_kind) (vs : list value)
+  ∀ (closure : value) (c : code) (vs : list value)
     (args_arity return_arity : arity) (return_to exn_to : cont_value)
     (statics : static_env) (s : state),
-    call_function callee kind vs args_arity return_arity return_to exn_to
-      statics
+    call_code closure c vs args_arity return_arity return_to exn_to statics
     = Step s ->
-    ∃ (called : code_id) (value_slots : list (value_slot * value))
-      (c : code),
-      closure_of statics callee = Some (called, value_slots)
-      ∧ lookup called (static_code statics) = Some c
-      ∧ kind_of_value callee = Value
-      ∧ map kind_of_value vs = code_params_kinds c
-      ∧ bind_params (code_params c) vs [(code_my_closure c, callee)]
-        = Some (state_vars s)
-      ∧ state_expr s = code_body c.
+    map kind_of_value vs = code_params_kinds c
+    ∧ bind_params (code_params c) vs [(code_my_closure c, closure)]
+      = Some (state_vars s)
+    ∧ state_expr s = code_body c.
+
+Definition called_closure_at_kind_statement : Prop :=
+  ∀ (statics : static_env) (callee : value) (kind : call_kind)
+    (vs : list value) (args_arity return_arity : arity),
+    match shape_of_call statics callee kind vs args_arity return_arity with
+    | Some (Full_call closure _ _ _) | Some (Over_call closure _ _ _ _ _) =>
+      kind_of_value closure = Value
+    | Some (Partial_call _) | None => True
+    end.
 
 Definition well_kinded_unit_state_statement : Prop :=
   ∀ (slots : slot_kinds) (unit_return unit_exn : continuation) (e : expr),

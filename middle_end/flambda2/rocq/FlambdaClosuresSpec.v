@@ -125,8 +125,8 @@
      ([call_binds_my_closure_statement]). The code that the run of a
      well-formed unit binds has distinct binders
      ([well_formed_code_binders_statement]), so in such a run a call of
-     a closure that has a step runs the body of its code with
-     [my_closure] bound to the closure called
+     a closure that has a step, and is not a partial application, runs
+     the body of its code with [my_closure] bound to the closure called
      ([well_formed_call_binds_my_closure_statement]), which is at the
      slot of that code.
 
@@ -441,6 +441,8 @@ Fixpoint value_valid (v : value) : bool :=
     set_well_formed slot function_decls
     && forallb (fun '(_, contents) => value_valid contents) value_slots
   | Value_block _ fields => forallb value_valid fields
+  | Value_partial_application callee args _ =>
+    value_valid callee && forallb value_valid args
   end.
 
 (* What a symbol is bound to is valid when the values in it are, and, if
@@ -585,9 +587,14 @@ Definition well_formed_closure_slot_statement : Prop :=
     lookup slot' function_decls = Some code ->
     slot' = slot.
 
-(* A call that has a step runs the body of the code of the closure
-   called, and, where [my_closure] is not also a parameter of that code,
-   with [my_closure] bound to the closure called. *)
+(* A call of a closure that has a step, and gives the code of the
+   closure as many arguments as it has parameters or more, runs the body
+   of that code, and, where [my_closure] is not also a parameter of the
+   code, with [my_closure] bound to the closure called. With fewer
+   arguments the call is a partial application, and runs no code. (An
+   indirect call of a partial application runs the code of the closure
+   that it keeps, with [my_closure] bound to that closure; this is not
+   stated here.) *)
 Definition call_binds_my_closure_statement : Prop :=
   ∀ (callee : value) (kind : call_kind) (vs : list value)
     (args_arity return_arity : arity) (return_to exn_to : cont_value)
@@ -599,6 +606,7 @@ Definition call_binds_my_closure_statement : Prop :=
     closure_of statics callee = Some (called, slot_values) ->
     lookup called (static_code statics) = Some c ->
     among (code_my_closure c) (code_params c) = false ->
+    length (code_params_arity c) <= length args_arity ->
     state_expr s = code_body c
     ∧ lookup (code_my_closure c) (state_vars s) = Some callee.
 
@@ -616,8 +624,8 @@ Definition well_formed_code_binders_statement : Prop :=
     code_binders_distinct c = true.
 
 (* So in the run of a well-formed unit a call of a closure, if it has a
-   step, runs the body of the code of the closure with [my_closure]
-   bound to the closure called. *)
+   step and is not a partial application, runs the body of the code of
+   the closure with [my_closure] bound to the closure called. *)
 Definition well_formed_call_binds_my_closure_statement : Prop :=
   ∀ (u : unit_interface) (e : expr) (n : nat) (s s' : state)
     (ap : apply_expr) (callee : value) (called : code_id)
@@ -628,6 +636,7 @@ Definition well_formed_call_binds_my_closure_statement : Prop :=
     eval_simple (state_vars s) (ap_callee ap) = Some callee ->
     closure_of (state_statics s) callee = Some (called, slot_values) ->
     lookup called (static_code (state_statics s)) = Some c ->
+    length (code_params_arity c) <= length (ap_args_arity ap) ->
     step s = Step s' ->
     state_expr s' = code_body c
     ∧ lookup (code_my_closure c) (state_vars s') = Some callee.
@@ -788,6 +797,9 @@ Fixpoint value_sets_are (c : code_id)
          value_slots
   | Value_block _ fields =>
     forallb (value_sets_are c function_decls closure_symbols) fields
+  | Value_partial_application callee args _ =>
+    value_sets_are c function_decls closure_symbols callee
+    && forallb (value_sets_are c function_decls closure_symbols) args
   end.
 
 Definition allocated_sets_are (c : code_id)

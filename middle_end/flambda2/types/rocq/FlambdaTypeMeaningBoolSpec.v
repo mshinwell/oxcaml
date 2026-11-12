@@ -100,6 +100,11 @@ Fixpoint value_eqb (v v' : value) : bool :=
     Z.eqb tag tag' && lists_eqb value_eqb fields fields'
   | Value_boxed_number c, Value_boxed_number c' => const_eqb c c'
   | Value_location l, Value_location l' => Pos.eqb l l'
+  | Value_partial_application callee args args_arity,
+    Value_partial_application callee' args' args_arity' =>
+    value_eqb callee callee'
+    && lists_eqb value_eqb args args'
+    && arity_eqb args_arity args_arity'
   | _, _ => false
   end.
 

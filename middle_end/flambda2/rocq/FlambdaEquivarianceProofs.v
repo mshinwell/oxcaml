@@ -196,13 +196,17 @@ Qed.
 Fixpoint rename_cont_value_id (c : cont_value) :
   rename_cont_value identity_renaming c = c.
 Proof.
-  destruct c as [h vars conts recursive | k | c extra]; simpl;
-    [ | reflexivity | rewrite (rename_cont_value_id c); reflexivity ].
-  rewrite rename_handler_id, rename_env_id,
-    rename_handlers_id.
-  f_equal.
-  induction conts as [ | [k c] conts IH]; simpl; [ reflexivity | ].
-  rewrite (rename_cont_value_id c), IH. reflexivity.
+  destruct c
+    as [h vars conts recursive | k | c extra
+       | remaining remaining_arity return_arity return_to exn_to];
+    simpl;
+    [ | reflexivity | rewrite (rename_cont_value_id c); reflexivity | ].
+  - rewrite rename_handler_id, rename_env_id, rename_handlers_id.
+    f_equal.
+    induction conts as [ | [k c] conts IH]; simpl; [ reflexivity | ].
+    rewrite (rename_cont_value_id c), IH. reflexivity.
+  - rewrite (rename_cont_value_id return_to), (rename_cont_value_id exn_to).
+    reflexivity.
 Qed.
 
 Lemma rename_cont_env_id (conts : cont_env) :
@@ -250,16 +254,21 @@ Qed.
 Fixpoint rename_cont_value_ext (c : cont_value) :
   rename_cont_value r c = rename_cont_value r' c.
 Proof.
-  destruct c as [h vars conts recursive | k | c extra]; simpl;
+  destruct c
+    as [h vars conts recursive | k | c extra
+       | remaining remaining_arity return_arity return_to exn_to];
+    simpl;
     [ | rewrite same_continuations; reflexivity
-      | rewrite (rename_cont_value_ext c); reflexivity ].
-  rewrite
-    (rename_handler_ext r r' same_variables same_continuations h),
-    rename_env_ext, rename_handlers_ext.
-  f_equal.
-  induction conts as [ | [k c] conts IH]; simpl; [ reflexivity | ].
-  rewrite same_continuations, (rename_cont_value_ext c), IH.
-  reflexivity.
+      | rewrite (rename_cont_value_ext c); reflexivity | ].
+  - rewrite
+      (rename_handler_ext r r' same_variables same_continuations h),
+      rename_env_ext, rename_handlers_ext.
+    f_equal.
+    induction conts as [ | [k c] conts IH]; simpl; [ reflexivity | ].
+    rewrite same_continuations, (rename_cont_value_ext c), IH.
+    reflexivity.
+  - rewrite (rename_cont_value_ext return_to), (rename_cont_value_ext exn_to).
+    reflexivity.
 Qed.
 
 Lemma rename_cont_env_ext (conts : cont_env) :
@@ -318,16 +327,22 @@ Fixpoint rename_cont_value_compose (c : cont_value) :
   rename_cont_value (compose_renaming second first) c
   = rename_cont_value second (rename_cont_value first c).
 Proof.
-  destruct c as [h vars conts recursive | k | c extra]; simpl;
+  destruct c
+    as [h vars conts recursive | k | c extra
+       | remaining remaining_arity return_arity return_to exn_to];
+    simpl;
     [ | rewrite rename_continuation_compose; reflexivity
-      | rewrite (rename_cont_value_compose c); reflexivity ].
-  rewrite rename_handler_compose, rename_env_compose,
-    rename_handlers_compose.
-  f_equal.
-  induction conts as [ | [k c] conts IH]; simpl; [ reflexivity | ].
-  rewrite rename_continuation_compose,
-    (rename_cont_value_compose c), IH.
-  reflexivity.
+      | rewrite (rename_cont_value_compose c); reflexivity | ].
+  - rewrite rename_handler_compose, rename_env_compose,
+      rename_handlers_compose.
+    f_equal.
+    induction conts as [ | [k c] conts IH]; simpl; [ reflexivity | ].
+    rewrite rename_continuation_compose,
+      (rename_cont_value_compose c), IH.
+    reflexivity.
+  - rewrite (rename_cont_value_compose return_to),
+      (rename_cont_value_compose exn_to).
+    reflexivity.
 Qed.
 
 Lemma rename_cont_env_compose (conts : cont_env) :
@@ -539,25 +554,142 @@ Lemma rec_closures_equivariant (r : renaming)
   = rename_cont_env r (rec_closures handlers vars conts).
 Proof. apply rec_closures_equivariant_aux. Qed.
 
-Lemma apply_cont_value_equivariant (r : renaming) (c : cont_value)
-    (vs : list value) (statics : static_env) :
-  apply_cont_value (rename_cont_value r c) vs
+(* A call of code. *)
+Lemma call_code_equivariant (r : renaming) (closure : value) (c : code)
+    (vs : list value) (args_arity return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) :
+  call_code closure (rename_code r c) vs args_arity return_arity
+    (rename_cont_value r return_to) (rename_cont_value r exn_to)
     (rename_static_env r statics)
-  = rename_result r (apply_cont_value c vs statics).
+  = rename_result r
+      (call_code closure c vs args_arity return_arity return_to exn_to
+         statics).
 Proof.
-  revert vs.
+  destruct c as [params my_closure ret exn metadata body].
+  unfold call_code. simpl.
+  rewrite rename_binds_statics.
+  destruct (binds_statics body); [ reflexivity | ].
+  destruct (negb _); [ reflexivity | ].
+  change [(rename_variable r my_closure, closure)]
+    with (rename_env r [(my_closure, closure)]).
+  rewrite bind_params_equivariant.
+  destruct (bind_params params vs [(my_closure, closure)]); reflexivity.
+Qed.
+
+(* What a call is, under a renaming: the same, with its code renamed. *)
+Definition rename_shape (r : renaming) (shape : call_shape) : call_shape :=
+  match shape with
+  | Full_call closure c vs args_arity =>
+    Full_call closure (rename_code r c) vs args_arity
+  | Over_call closure c vs remaining args_arity remaining_arity =>
+    Over_call closure (rename_code r c) vs remaining args_arity
+      remaining_arity
+  | Partial_call partial => Partial_call partial
+  end.
+
+Lemma shape_of_closure_call_equivariant (r : renaming)
+    (statics : static_env) (closure : value) (kind : call_kind)
+    (vs : list value) (args_arity return_arity : arity) :
+  shape_of_closure_call (rename_static_env r statics) closure kind vs
+    args_arity return_arity
+  = option_map (rename_shape r)
+      (shape_of_closure_call statics closure kind vs args_arity
+         return_arity).
+Proof.
+  unfold shape_of_closure_call.
+  replace (closure_of (rename_static_env r statics) closure)
+    with (closure_of statics closure) by reflexivity.
+  destruct (closure_of statics closure) as [[called slots] | ];
+    [ | reflexivity ].
+  rewrite lookup_rename_code.
+  destruct
+    (match kind with
+     | Direct named => Pos.eqb called named
+     | Indirect => true
+     end);
+    [ | reflexivity ].
+  destruct (lookup called (static_code statics))
+    as [[params my_closure ret exn metadata body] | ];
+    simpl; [ | reflexivity ].
+  destruct (Nat.eqb _ _); [ reflexivity | ].
+  destruct (negb _); [ reflexivity | ].
+  destruct (Nat.ltb _ _); reflexivity.
+Qed.
+
+Lemma shape_of_call_equivariant (r : renaming) (statics : static_env)
+    (callee : value) (kind : call_kind) (vs : list value)
+    (args_arity return_arity : arity) :
+  shape_of_call (rename_static_env r statics) callee kind vs args_arity
+    return_arity
+  = option_map (rename_shape r)
+      (shape_of_call statics callee kind vs args_arity return_arity).
+Proof.
+  unfold shape_of_call.
+  destruct kind as [named | ]; [ apply shape_of_closure_call_equivariant | ].
+  destruct (partial_application_of callee)
+    as [[[closure applied] applied_arity] | ];
+    [ | apply shape_of_closure_call_equivariant ].
+  destruct args_arity; [ reflexivity | ].
+  destruct (kinds_eqb _ _);
+    [ apply shape_of_closure_call_equivariant | reflexivity ].
+Qed.
+
+Lemma run_call_equivariant (r : renaming)
+    (return_partial return_partial' : value -> step_result)
+    (shape : option call_shape) (return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) :
+  (∀ partial : value,
+    return_partial' partial = rename_result r (return_partial partial)) ->
+  run_call return_partial' (option_map (rename_shape r) shape) return_arity
+    (rename_cont_value r return_to) (rename_cont_value r exn_to)
+    (rename_static_env r statics)
+  = rename_result r
+      (run_call return_partial shape return_arity return_to exn_to statics).
+Proof.
+  intros Hpartial.
+  destruct shape
+    as [[closure c vs args_arity
+        | closure c vs remaining args_arity remaining_arity | partial] | ];
+    simpl.
+  - apply call_code_equivariant.
+  - replace (code_result_arity (rename_code r c)) with (code_result_arity c)
+      by (destruct c; reflexivity).
+    exact
+      (call_code_equivariant r closure c vs args_arity (code_result_arity c)
+         (Over_application remaining remaining_arity return_arity return_to
+            exn_to)
+         exn_to statics).
+  - apply Hpartial.
+  - reflexivity.
+Qed.
+
+Lemma apply_cont_value_equivariant (r : renaming) (c : cont_value) :
+  ∀ (vs : list value) (statics : static_env),
+    apply_cont_value (rename_cont_value r c) vs
+      (rename_static_env r statics)
+    = rename_result r (apply_cont_value c vs statics).
+Proof.
   induction c
     as [[params metadata handler] def_vars def_conts recursive | k
-       | c IH extra];
-    intros vs; simpl; [ | reflexivity | apply IH ].
-  destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
-    [ | reflexivity ].
-  rewrite bind_params_equivariant.
-  destruct (bind_params params vs def_vars) as [handler_vars | ]; simpl;
-    [ | reflexivity ].
-  unfold rename_state. simpl_state.
-  rewrite rename_cont_env_app, <- rec_closures_equivariant.
-  reflexivity.
+       | c IH extra
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+    using cont_value_over_ind;
+    intros vs statics.
+  - simpl.
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+      [ | reflexivity ].
+    rewrite bind_params_equivariant.
+    destruct (bind_params params vs def_vars) as [handler_vars | ]; simpl;
+      [ | reflexivity ].
+    unfold rename_state. simpl_state.
+    rewrite rename_cont_env_app, <- rec_closures_equivariant.
+    reflexivity.
+  - reflexivity.
+  - simpl. apply IH.
+  - destruct vs as [ | v [ | v' vs]]; try reflexivity.
+    cbn [rename_cont_value apply_cont_value].
+    rewrite shape_of_call_equivariant.
+    apply run_call_equivariant. intros partial. apply IHreturn.
 Qed.
 
 Lemma with_extra_args_equivariant (r : renaming) (c : cont_value)
@@ -576,28 +708,9 @@ Lemma call_function_equivariant (r : renaming) (callee : value)
       (call_function callee kind vs args_arity return_arity return_to exn_to
          statics).
 Proof.
-  unfold call_function.
-  replace (closure_of (rename_static_env r statics) callee)
-    with (closure_of statics callee) by reflexivity.
-  destruct (closure_of statics callee) as [[called slots] | ];
-    [ | reflexivity ].
-  rewrite lookup_rename_code.
-  destruct
-    (match kind with
-     | Direct named => Pos.eqb called named
-     | Indirect => true
-     end);
-    [ | reflexivity ].
-  destruct (lookup called (static_code statics))
-    as [[params my_closure ret exn metadata body] | ];
-    simpl; [ | reflexivity ].
-  rewrite rename_binds_statics.
-  destruct (binds_statics body); [ reflexivity | ].
-  destruct (negb _); [ reflexivity | ].
-  change [(rename_variable r my_closure, callee)]
-    with (rename_env r [(my_closure, callee)]).
-  rewrite bind_params_equivariant.
-  destruct (bind_params params vs [(my_closure, callee)]); reflexivity.
+  unfold call_function. rewrite shape_of_call_equivariant.
+  apply run_call_equivariant. intros partial.
+  apply apply_cont_value_equivariant.
 Qed.
 
 (* ======================================================================== *)

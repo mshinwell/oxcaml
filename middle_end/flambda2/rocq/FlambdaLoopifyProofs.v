@@ -58,7 +58,16 @@
    are then inside the loop. A self tail call there takes one step in
    each: the first calls the code again, which is found by the closure
    as it was at the entry ([frame_statics]), and the second jumps; the
-   two are inside the loop again, with the same frame.
+   two are inside the loop again, with the same frame. A self tail call
+   is a full call, so it is not a partial application nor an
+   over-application.
+
+   A call is of the same shape in the two runs
+   (FlambdaSemanticsProofs.shape_of_call_related), of code that is the
+   same or was made a loop. What is left of an over-application is a
+   continuation that makes a call when it is applied, so applying
+   related continuations may also take three steps in the second run
+   ([result_loops]).
 
    The handler of [self] has no step unless the values it is applied to
    are of the kinds of the parameters of the code
@@ -89,8 +98,9 @@ Import ListNotations.
 (* ======================================================================== *)
 
 Fixpoint loop_calls_binds_statics (my_closure : variable)
-    (ret exn self : continuation) (e : expr) :
-  binds_statics (loop_calls my_closure ret exn self e) = binds_statics e.
+    (params_arity : arity) (ret exn self : continuation) (e : expr) :
+  binds_statics (loop_calls my_closure params_arity ret exn self e)
+  = binds_statics e.
 Proof.
   destruct e
     as [ x kind d body | bindings body | k [params metadata handler] body
@@ -103,14 +113,17 @@ Proof.
     induction handlers as [ | [k [params metadata handler]] handlers IH]; simpl;
       [ reflexivity | ].
     rewrite loop_calls_binds_statics, IH. reflexivity.
-  - destruct (is_self_tail_call my_closure ret exn ap); reflexivity.
+  - destruct (is_self_tail_call my_closure params_arity ret exn ap);
+      reflexivity.
 Qed.
 
 Lemma loop_handlers_bind_statics (my_closure : variable)
-    (ret exn self : continuation)
+    (params_arity : arity) (ret exn self : continuation)
     (handlers : list (continuation * continuation_handler)) :
   handlers_bind_statics
-    (map (fun '(k, h) => (k, loop_calls_in_handler my_closure ret exn self h))
+    (map
+       (fun '(k, h) =>
+          (k, loop_calls_in_handler my_closure params_arity ret exn self h))
        handlers)
   = handlers_bind_statics handlers.
 Proof.
@@ -120,13 +133,15 @@ Proof.
   rewrite loop_calls_binds_statics, IH. reflexivity.
 Qed.
 
-Lemma lookup_loop_handlers (my_closure : variable)
+Lemma lookup_loop_handlers (my_closure : variable) (params_arity : arity)
     (ret exn self k : continuation)
     (handlers : list (continuation * continuation_handler)) :
   lookup k
-    (map (fun '(k, h) => (k, loop_calls_in_handler my_closure ret exn self h))
+    (map
+       (fun '(k, h) =>
+          (k, loop_calls_in_handler my_closure params_arity ret exn self h))
        handlers)
-  = option_map (loop_calls_in_handler my_closure ret exn self)
+  = option_map (loop_calls_in_handler my_closure params_arity ret exn self)
       (lookup k handlers).
 Proof.
   induction handlers as [ | [k' h] handlers IH]; simpl; [ reflexivity | ].
@@ -414,6 +429,9 @@ Definition frame_params (F : frame) : list variable :=
 Definition frame_my_closure (F : frame) : variable :=
   code_my_closure (frame_code F).
 
+Definition frame_params_arity (F : frame) : arity :=
+  code_params_arity (frame_code F).
+
 Definition frame_ret (F : frame) : continuation :=
   code_return_continuation (frame_code F).
 
@@ -423,12 +441,13 @@ Definition frame_exn (F : frame) : continuation :=
 (* The body of the frame's code, or a part of it, with the self tail calls
    made jumps. *)
 Definition looped (F : frame) (e : expr) : expr :=
-  loop_calls (frame_my_closure F) (frame_ret F) (frame_exn F) (frame_self F) e.
+  loop_calls (frame_my_closure F) (frame_params_arity F) (frame_ret F)
+    (frame_exn F) (frame_self F) e.
 
 Definition looped_handler (F : frame) (h : continuation_handler)
     : continuation_handler :=
-  loop_calls_in_handler (frame_my_closure F) (frame_ret F) (frame_exn F)
-    (frame_self F) h.
+  loop_calls_in_handler (frame_my_closure F) (frame_params_arity F)
+    (frame_ret F) (frame_exn F) (frame_self F) h.
 
 Definition looped_handlers (F : frame)
     (handlers : list (continuation * continuation_handler))
@@ -541,7 +560,8 @@ Definition vars_rel (F : frame) (vars vars' : env) : Prop :=
    that are related but for [self], which in the second is the closure
    of the loop, and of which the return and exception continuations
    stand in the second for what they stood for at the entry; or related
-   things, with the same extra arguments. *)
+   things, with the same extra arguments; or what is left of the same
+   over-application, to return and to raise to related things. *)
 Inductive cont_rel (statics : static_env) : cont_value -> cont_value -> Prop :=
   | Rel_same (c : cont_value) : cont_rel statics c c
   | Rel_out (h : continuation_handler) (vars : env) (conts conts' : cont_env)
@@ -568,7 +588,17 @@ Inductive cont_rel (statics : static_env) : cont_value -> cont_value -> Prop :=
       (Closure (looped_handler F h) vars' conts' (looped_handlers F recursive))
   | Rel_extra_args (c c' : cont_value) (extra : list value) :
     cont_rel statics c c' ->
-    cont_rel statics (Extra_args c extra) (Extra_args c' extra).
+    cont_rel statics (Extra_args c extra) (Extra_args c' extra)
+  | Rel_over_application (remaining : list value)
+      (remaining_arity return_arity : arity)
+      (return_to return_to' exn_to exn_to' : cont_value) :
+    cont_rel statics return_to return_to' ->
+    cont_rel statics exn_to exn_to' ->
+    cont_rel statics
+      (Over_application remaining remaining_arity return_arity return_to
+         exn_to)
+      (Over_application remaining remaining_arity return_arity return_to'
+         exn_to').
 
 Lemma with_extra_args_rel (statics : static_env) (c c' : cont_value)
     (extra : list value) :
@@ -600,12 +630,15 @@ Proof.
     as [ c | h vars conts conts' recursive _ IH
        | F h vars vars' conts conts' recursive Hwf Hstatics Hh Hrec Hvars _ IH
            Hself Hret Hexn
-       | c c' extra _ IH ].
+       | c c' extra _ IH
+       | remaining remaining_arity return_arity return_to return_to' exn_to
+           exn_to' _ IHreturn _ IHraise ].
   - apply Rel_same.
   - apply Rel_out, IH.
   - apply Rel_in; try assumption.
     exact (frame_statics_extend F statics statics' Hextend Hstatics).
   - apply Rel_extra_args, IH.
+  - apply Rel_over_application; assumption.
 Qed.
 
 Lemma in_conts_extend (F : frame) (statics statics' : static_env)
@@ -733,64 +766,17 @@ Proof.
   split; [ simpl; rewrite Hstep; reflexivity | exact Hrel ].
 Qed.
 
-(* Related continuations applied to the same values: the first is
-   undefined, or both exit alike, or both step, to related states. *)
-Lemma apply_cont_loops (statics statics' : static_env) (c c' : cont_value) :
-  statics_loop statics statics' ->
-  cont_rel statics c c' ->
-  ∀ vs : list value,
-    match apply_cont_value c vs statics with
-    | Undefined => True
-    | Exit k vs0 => apply_cont_value c' vs statics' = Exit k vs0
-    | Step s1 =>
-      ∃ t1 : state,
-        apply_cont_value c' vs statics' = Step t1 ∧ state_loops s1 t1
-    end.
-Proof.
-  intros Hstatics Hrel.
-  induction Hrel
-    as [ c | [params metadata handler] vars conts conts' recursive Hconts _
-       | F [params metadata handler] vars vars' conts conts' recursive Hwf
-           Hfstatics Hh Hrec Hvars Hconts _ Hself Hret Hexn
-       | c c' extra _ IH ];
-    intros vs.
-  - revert vs.
-    induction c
-      as [[params metadata handler] vars conts recursive | k | c IH extra];
-      intros vs; simpl; [ | reflexivity | apply IH ].
-    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
-      [ | exact I ].
-    destruct (bind_params params vs vars) as [bound | ]; [ | exact I ].
-    eexists. split; [ reflexivity | ].
-    apply Loops_out; [ exact Hstatics | intros k; apply Rel_same ].
-  - simpl.
-    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
-      [ | exact I ].
-    destruct (bind_params params vs vars) as [bound | ]; [ | exact I ].
-    eexists. split; [ reflexivity | ].
-    apply Loops_out; [ exact Hstatics | ].
-    intros k. rewrite !resolve_rec_closures.
-    destruct (lookup k recursive) as [h | ];
-      [ apply Rel_out, Hconts | apply Hconts ].
-  - simpl.
-    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
-      [ | exact I ].
-    destruct (bind_params params vs vars) as [bound | ] eqn:Hbind;
-      [ | exact I ].
-    destruct (bind_params_ext params vs vars vars' bound (proj1 Hvars) Hbind)
-      as (bound' & Hbind' & Hext).
-    rewrite Hbind'. eexists. split; [ reflexivity | ].
-    unfold safe_handler in Hh. simpl in Hh.
-    apply andb_true_iff in Hh as [Hparams Hhandler].
-    apply (Loops_in F); try assumption.
-    + split; [ exact Hext | ].
-      rewrite (lookup_bind_params_other params vs vars bound _ Hbind);
-        [ exact (proj2 Hvars) | ].
-      intros Hin. apply among_In in Hin. rewrite Hin in Hparams.
-      discriminate.
-    + apply in_conts_rec; try assumption. repeat split; assumption.
-  - simpl. apply IH.
-Qed.
+(* What two steps come to: the first is undefined; or both exit alike;
+   or both step, the second then going on for some steps, to related
+   states. *)
+Definition result_loops (result result' : step_result) : Prop :=
+  match result with
+  | Undefined => True
+  | Exit k vs => result' = Exit k vs
+  | Step s1 =>
+    ∃ (t1 : state) (n : nat) (t2 : state),
+      result' = Step t1 ∧ run n t1 = Step t2 ∧ state_loops s1 t2
+  end.
 
 (* An application that does not name [self] does not apply it. *)
 Lemma not_among_apply_cont (self : continuation) (ac : apply_cont) :
@@ -815,8 +801,9 @@ Lemma enter_loop (self : continuation) (c : code) (vs : list value)
     run 2 (State (code_body (looped_code self c)) entry conts statics)
     = Step
         (State
-           (loop_calls (code_my_closure c) (code_return_continuation c)
-              (code_exn_continuation c) self (code_body c))
+           (loop_calls (code_my_closure c) (code_params_arity c)
+              (code_return_continuation c) (code_exn_continuation c) self
+              (code_body c))
            entry'
            ((self,
              Closure (loop_handler self c) entry conts
@@ -841,71 +828,56 @@ Proof.
   simpl. rewrite Hkinds, Hbind'. reflexivity.
 Qed.
 
-(* The same call under the two static environments, returning to
-   related continuations: the first is undefined, or both step, the
-   second then going on for no step or two, to related states. *)
-Lemma call_loops (statics statics' : static_env) (callee : value)
-    (kind : call_kind) (vs : list value) (args_arity return_arity : arity)
+(* The same full call, of code and of what the second static environment
+   has for it, returning to related continuations: the second run goes
+   on for no step, or for two if the code was made a loop. *)
+Lemma call_code_loops (statics statics' : static_env) (closure : value)
+    (called : code_id) (slots : list (value_slot * value)) (c c' : code)
+    (vs : list value) (args_arity return_arity : arity)
     (r r' x x' : cont_value) :
   statics_loop statics statics' ->
+  closure_of statics closure = Some (called, slots) ->
+  lookup called (static_code statics) = Some c ->
+  code_loops c c' ->
   cont_rel statics r r' ->
   cont_rel statics x x' ->
-  match
-    call_function callee kind vs args_arity return_arity r x statics
-  with
-  | Undefined => True
-  | Exit _ _ => False
-  | Step s1 =>
-    ∃ (t1 : state) (n : nat) (t2 : state),
-      call_function callee kind vs args_arity return_arity r' x' statics'
-      = Step t1
-      ∧ run n t1 = Step t2
-      ∧ state_loops s1 t2
-  end.
+  result_loops (call_code closure c vs args_arity return_arity r x statics)
+    (call_code closure c' vs args_arity return_arity r' x' statics').
 Proof.
-  intros Hstatics Hr Hx. unfold call_function.
-  rewrite <- (closure_of_related (ignoring_binders any_body) statics statics'
-    callee (statics_loop_related _ _ Hstatics)).
-  destruct (closure_of statics callee) as [[called slots] | ] eqn:Hclosure;
-    [ | exact I ].
-  cbv zeta.
-  destruct
-    (match kind with
-     | Direct named => Pos.eqb called named
-     | Indirect => true
-     end);
-    [ | exact I ].
-  pose proof (lookup_code_loop called statics statics' Hstatics) as Hcode.
-  destruct (lookup called (static_code statics)) as [c | ] eqn:Hc;
-    [ | exact I ].
-  destruct (lookup called (static_code statics')) as [c' | ];
-    [ | contradiction ].
-  destruct (binds_statics (code_body c)) eqn:Hbinds; [ exact I | ].
-  match goal with
-  | |- context [if negb ?agrees then _ else _] =>
-    destruct (negb agrees) eqn:Hagrees; [ exact I | ]
-  end.
-  destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
-    as [entry | ] eqn:Hbind; [ | exact I ].
-  destruct Hcode as [-> | (self & Hloopable & ->)].
-  - rewrite Hbinds, Hagrees, Hbind. eexists _, 0, _.
+  intros Hstatics Hclosure Hc Hcode Hr Hx.
+  destruct Hcode as [-> | (self & Hloopable & ->)]; unfold call_code.
+  - destruct (binds_statics (code_body c)); [ exact I | ].
+    match goal with
+    | |- context [if negb ?agrees then _ else _] =>
+      destruct (negb agrees); [ exact I | ]
+    end.
+    destruct (bind_params (code_params c) vs [(code_my_closure c, closure)])
+      as [entry | ]; [ | exact I ].
+    cbn [result_loops]. eexists _, 0, _.
     split; [ reflexivity | ]. split; [ reflexivity | ].
     apply Loops_out; [ exact Hstatics | ].
     apply pair_conts_rel; [ exact Hr | intros _; exact Hx ].
   - destruct (looped_code_fields self c)
       as (Hsame_params & Hsame_closure & Hsame_ret & Hsame_exn
           & Hsame_params_arity & Hsame_result_arity).
-    rewrite looped_code_binds_statics, Hbinds, Hsame_params_arity,
-      Hsame_result_arity, Hagrees, Hsame_params, Hsame_closure, Hsame_ret,
-      Hsame_exn, Hbind.
+    rewrite looped_code_binds_statics, Hsame_params_arity,
+      Hsame_result_arity, Hsame_params, Hsame_closure, Hsame_ret, Hsame_exn.
+    destruct (binds_statics (code_body c)) eqn:Hbinds; [ exact I | ].
+    match goal with
+    | |- context [if negb ?agrees then _ else _] =>
+      destruct (negb agrees) eqn:Hagrees; [ exact I | ]
+    end.
+    destruct (bind_params (code_params c) vs [(code_my_closure c, closure)])
+      as [entry | ] eqn:Hbind; [ | exact I ].
     destruct (enter_loop self c vs _ entry
                 [(code_return_continuation c, r');
                  (code_exn_continuation c, x')]
                 statics' Hbinds (loopable_distinct self c Hloopable)
                 (agreed_kinds vs args_arity return_arity c Hagrees) Hbind)
       as (entry' & Hrun & Hext).
-    eexists _, 2, _. split; [ reflexivity | ]. split; [ exact Hrun | ].
-    set (F := Frame self c callee entry r' x').
+    cbn [result_loops]. eexists _, 2, _.
+    split; [ reflexivity | ]. split; [ exact Hrun | ].
+    set (F := Frame self c closure entry r' x').
     assert (Hwf : frame_wf F).
     { split; [ exact Hloopable | ]. split; [ exact Hbinds | ].
       intros y Hy.
@@ -921,6 +893,168 @@ Proof.
       * apply resolve_head.
       * apply resolve_other. intros Heq. apply Hret. symmetry. exact Heq.
       * apply resolve_other. intros Heq. apply Hexn. symmetry. exact Heq.
+Qed.
+
+(* A call is of the same shape under the two static environments. *)
+Lemma shape_of_call_loops (statics statics' : static_env) (callee : value)
+    (kind : call_kind) (vs : list value) (args_arity return_arity : arity) :
+  statics_loop statics statics' ->
+  shapes_related code_loops
+    (shape_of_call statics callee kind vs args_arity return_arity)
+    (shape_of_call statics' callee kind vs args_arity return_arity).
+Proof.
+  intros Hstatics. apply shape_of_call_related.
+  - symmetry.
+    exact
+      (closure_of_related (ignoring_binders any_body) statics statics'
+         (called_closure callee) (statics_loop_related _ _ Hstatics)).
+  - intros called slots _. unfold codes_agree.
+    pose proof (lookup_code_loop called statics statics' Hstatics) as Hcode.
+    destruct (lookup called (static_code statics)) as [c | ],
+      (lookup called (static_code statics')) as [c' | ];
+      try contradiction; [ | exact I ].
+    split; [ exact Hcode | ].
+    destruct Hcode as [-> | (self & _ & ->)]; [ split; reflexivity | ].
+    destruct (looped_code_fields self c)
+      as (_ & _ & _ & _ & Hparams & Hresult).
+    split; assumption.
+Qed.
+
+(* Calls of the same shape under the two static environments, returning
+   to related continuations that take a partial application to related
+   results. *)
+Lemma run_call_loops (statics statics' : static_env) (kind : call_kind)
+    (shape shape' : option call_shape) (return_arity : arity)
+    (r r' x x' : cont_value) :
+  statics_loop statics statics' ->
+  shapes_related code_loops shape shape' ->
+  shape_calls statics kind shape ->
+  cont_rel statics r r' ->
+  cont_rel statics x x' ->
+  (∀ partial : value,
+    result_loops (apply_cont_value r [partial] statics)
+      (apply_cont_value r' [partial] statics')) ->
+  result_loops
+    (run_call (fun partial => apply_cont_value r [partial] statics) shape
+       return_arity r x statics)
+    (run_call (fun partial => apply_cont_value r' [partial] statics') shape'
+       return_arity r' x' statics').
+Proof.
+  intros Hstatics Hshapes Hcalls Hr Hx Hpartial.
+  destruct Hshapes
+    as [ | closure c c' vs args_arity Hcode
+       | closure c c' vs remaining args_arity remaining_arity Hcode
+       | partial ];
+    cbn [run_call].
+  - exact I.
+  - destruct Hcalls as (called & slots & Hclosure & Hc & _).
+    exact
+      (call_code_loops statics statics' closure called slots c c' vs
+         args_arity return_arity r r' x x' Hstatics Hclosure Hc Hcode Hr Hx).
+  - destruct Hcalls as (called & slots & Hclosure & Hc & _).
+    assert (Hresult : code_result_arity c' = code_result_arity c).
+    { destruct Hcode as [-> | (self & _ & ->)]; [ reflexivity | ].
+      apply looped_code_fields. }
+    rewrite Hresult.
+    apply (call_code_loops statics statics' closure called slots);
+      try assumption.
+    apply Rel_over_application; assumption.
+  - apply Hpartial.
+Qed.
+
+(* Related continuations applied to the same values. *)
+Lemma apply_cont_loops (statics statics' : static_env) (c c' : cont_value) :
+  statics_loop statics statics' ->
+  cont_rel statics c c' ->
+  ∀ vs : list value,
+    result_loops (apply_cont_value c vs statics)
+      (apply_cont_value c' vs statics').
+Proof.
+  intros Hstatics Hrel.
+  induction Hrel
+    as [ c | [params metadata handler] vars conts conts' recursive Hconts _
+       | F [params metadata handler] vars vars' conts conts' recursive Hwf
+           Hfstatics Hh Hrec Hvars Hconts _ Hself Hret Hexn
+       | c c' extra _ IH
+       | remaining remaining_arity return_arity return_to return_to' exn_to
+           exn_to' Hreturn IHreturn Hraise _ ];
+    intros vs.
+  - revert vs.
+    induction c
+      as [[params metadata handler] vars conts recursive | k | c IH extra
+         | remaining remaining_arity return_arity return_to IHreturn exn_to
+             _];
+      intros vs.
+    + simpl.
+      destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+        [ | exact I ].
+      destruct (bind_params params vs vars) as [bound | ]; [ | exact I ].
+      eexists _, 0, _. split; [ reflexivity | ]. split; [ reflexivity | ].
+      apply Loops_out; [ exact Hstatics | intros k; apply Rel_same ].
+    + simpl. reflexivity.
+    + simpl. apply IH.
+    + rewrite !apply_cont_value_over_application.
+      destruct vs as [ | v [ | v' vs]]; try exact I.
+      unfold call_function.
+      apply (run_call_loops statics statics' Indirect);
+        [ exact Hstatics | apply shape_of_call_loops, Hstatics
+        | apply shape_of_call_calls | apply Rel_same | apply Rel_same | ].
+      intros partial. apply IHreturn.
+  - simpl.
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+      [ | exact I ].
+    destruct (bind_params params vs vars) as [bound | ]; [ | exact I ].
+    eexists _, 0, _. split; [ reflexivity | ]. split; [ reflexivity | ].
+    apply Loops_out; [ exact Hstatics | ].
+    intros k. rewrite !resolve_rec_closures.
+    destruct (lookup k recursive) as [h | ];
+      [ apply Rel_out, Hconts | apply Hconts ].
+  - simpl.
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+      [ | exact I ].
+    destruct (bind_params params vs vars) as [bound | ] eqn:Hbind;
+      [ | exact I ].
+    destruct (bind_params_ext params vs vars vars' bound (proj1 Hvars) Hbind)
+      as (bound' & Hbind' & Hext).
+    rewrite Hbind'. eexists _, 0, _.
+    split; [ reflexivity | ]. split; [ reflexivity | ].
+    unfold safe_handler in Hh. simpl in Hh.
+    apply andb_true_iff in Hh as [Hparams Hhandler].
+    apply (Loops_in F); try assumption.
+    + split; [ exact Hext | ].
+      rewrite (lookup_bind_params_other params vs vars bound _ Hbind);
+        [ exact (proj2 Hvars) | ].
+      intros Hin. apply among_In in Hin. rewrite Hin in Hparams.
+      discriminate.
+    + apply in_conts_rec; try assumption. repeat split; assumption.
+  - simpl. apply IH.
+  - rewrite !apply_cont_value_over_application.
+    destruct vs as [ | v [ | v' vs]]; try exact I.
+    unfold call_function.
+    apply (run_call_loops statics statics' Indirect);
+      [ exact Hstatics | apply shape_of_call_loops, Hstatics
+      | apply shape_of_call_calls | exact Hreturn | exact Hraise | ].
+    intros partial. apply IHreturn.
+Qed.
+
+(* The same call under the two static environments, returning to
+   related continuations. *)
+Lemma call_loops (statics statics' : static_env) (callee : value)
+    (kind : call_kind) (vs : list value) (args_arity return_arity : arity)
+    (r r' x x' : cont_value) :
+  statics_loop statics statics' ->
+  cont_rel statics r r' ->
+  cont_rel statics x x' ->
+  result_loops
+    (call_function callee kind vs args_arity return_arity r x statics)
+    (call_function callee kind vs args_arity return_arity r' x' statics').
+Proof.
+  intros Hstatics Hr Hx. unfold call_function.
+  apply (run_call_loops statics statics' kind);
+    [ exact Hstatics | apply shape_of_call_loops, Hstatics
+    | apply shape_of_call_calls | exact Hr | exact Hx | ].
+  intros partial.
+  exact (apply_cont_loops statics statics' r r' Hstatics Hr [partial]).
 Qed.
 
 (* ======================================================================== *)
@@ -972,6 +1106,7 @@ Lemma self_tail_call_loops (F : frame) (kind : call_kind) (vs : list value)
   frame_wf F ->
   frame_statics F statics ->
   in_conts F statics conts conts' ->
+  length args_arity = length (frame_params_arity F) ->
   match
     call_function (frame_closure F) kind vs args_arity return_arity
       (resolve (frame_ret F) conts) (resolve (frame_exn F) conts) statics
@@ -984,19 +1119,25 @@ Lemma self_tail_call_loops (F : frame) (kind : call_kind) (vs : list value)
       ∧ state_loops s1 t1
   end.
 Proof.
-  intros Hstatics Hwf Hfstatics Hin.
+  intros Hstatics Hwf Hfstatics Hin Hfull.
+  unfold frame_params_arity in Hfull.
   pose proof Hfstatics as (id & slots & Hclosure & Hid).
   pose proof Hwf as (Hloopable & Hbinds & Hentry).
   destruct (frame_wf_facts F Hwf) as (Hparams & Hret & Hexn & Hsafe & Hmy).
   pose proof Hin as (Hconts & Hself & Hr & Hx).
-  unfold call_function. rewrite Hclosure. cbv zeta.
+  unfold call_function.
+  rewrite
+    (shape_of_call_closure statics (frame_closure F) kind vs args_arity
+       return_arity (closure_not_partial statics _ _ Hclosure)).
+  unfold shape_of_closure_call. rewrite Hclosure.
   destruct
     (match kind with
      | Direct named => Pos.eqb id named
      | Indirect => true
      end);
     [ | exact I ].
-  rewrite Hid, Hbinds.
+  rewrite Hid. cbv zeta. rewrite Hfull, Nat.eqb_refl. cbn [run_call].
+  unfold call_code. rewrite Hbinds.
   match goal with
   | |- context [if negb ?agrees then _ else _] =>
     destruct (negb agrees) eqn:Hagrees; [ exact I | ]
@@ -1125,10 +1266,13 @@ Proof.
            (ap_return_arity ap) (resolve (ap_continuation ap) conts)
            (with_extra_args (resolve (ap_exn_continuation ap) conts) extra)
            statics)
-        as [s1 | k1 vs1 | ]; [ | contradiction | exact I ].
-      destruct Hcall as (t1 & n & t2 & Hcall & Hrun & Hrel).
-      exists n, t2. split; [ | exact Hrel ].
-      simpl. rewrite step_apply, Hcallee, Hargs, Hextra, Hcall. exact Hrun.
+        as [s1 | k1 vs1 | ]; cbn [result_loops] in Hcall.
+      * destruct Hcall as (t1 & n & t2 & Hcall & Hrun & Hrel).
+        exists n, t2. split; [ | exact Hrel ].
+        simpl. rewrite step_apply, Hcallee, Hargs, Hextra, Hcall. exact Hrun.
+      * exists vs1. split; [ | reflexivity ].
+        rewrite step_apply, Hcallee, Hargs, Hextra. exact Hcall.
+      * exact I.
     + (* Apply_cont *)
       rewrite step_apply_cont.
       destruct (eval_simples vars (ac_args ac)) as [vs | ] eqn:Hargs;
@@ -1141,9 +1285,10 @@ Proof.
       destruct (apply_cont_value (resolve (ac_continuation ac) conts) vs
                   statics)
         as [s1 | k1 vs1 | ].
-      * destruct Happly as (t1 & Happly & Hrel).
-        apply (answered_one _ _ t1); [ | exact Hrel ].
-        rewrite step_apply_cont, Hargs. exact Happly.
+      * destruct Happly as (t1 & n & t2 & Happly & Hrun & Hrel).
+        exists n, t2. split; [ | exact Hrel ].
+        simpl. rewrite step_apply_cont, Hargs. unfold apply_continuation.
+        rewrite Happly. exact Hrun.
       * exists vs1. split; [ | reflexivity ].
         rewrite step_apply_cont, Hargs. exact Happly.
       * exact I.
@@ -1242,14 +1387,16 @@ Proof.
       destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ]
         eqn:Hextra; [ | exact I ].
       destruct
-        (is_self_tail_call (frame_my_closure F) (frame_ret F) (frame_exn F) ap)
+        (is_self_tail_call (frame_my_closure F) (frame_params_arity F)
+           (frame_ret F) (frame_exn F) ap)
         eqn:Htail.
       * (* a self tail call *)
         unfold is_self_tail_call in Htail.
         apply andb_true_iff in Htail as [Htail Hno_extra].
         apply andb_true_iff in Htail as [Htail Hexn].
-        apply andb_true_iff in Htail as [Hvar Hret].
-        apply Pos.eqb_eq in Hret, Hexn.
+        apply andb_true_iff in Htail as [Htail Hret].
+        apply andb_true_iff in Htail as [Hvar Hfull].
+        apply Pos.eqb_eq in Hret, Hexn. apply Nat.eqb_eq in Hfull.
         destruct (ap_callee ap) as [y | sym | c]; try discriminate.
         apply Pos.eqb_eq in Hvar. subst y.
         simpl in Hcallee. rewrite Hmy in Hcallee. injection Hcallee as <-.
@@ -1261,7 +1408,7 @@ Proof.
         pose proof
           (self_tail_call_loops F (ap_call_kind ap) vs (ap_args_arity ap)
              (ap_return_arity ap) conts conts' statics statics' Hstatics Hwf
-             Hfstatics Hin)
+             Hfstatics Hin Hfull)
           as Hcall.
         destruct
           (call_function (frame_closure F) (ap_call_kind ap) vs
@@ -1289,17 +1436,28 @@ Proof.
              (ap_return_arity ap) (resolve (ap_continuation ap) conts)
              (with_extra_args (resolve (ap_exn_continuation ap) conts) extra)
              statics)
-          as [s1 | k1 vs1 | ]; [ | contradiction | exact I ].
-        destruct Hcall as (t1 & n & t2 & Hcall & Hrun & Hrel).
-        exists n, t2. split; [ | exact Hrel ].
-        simpl.
-        rewrite step_apply,
-          (eval_simple_agree vars vars' _ (fun y _ => Hagree y)),
-          (eval_simples_agree vars vars' (ap_args ap) (fun y _ => Hagree y)),
-          (eval_simples_agree vars vars' (exn_extra_simples ap)
-             (fun y _ => Hagree y)),
-          Hcallee, Hargs, Hextra, Hcall.
-        exact Hrun.
+          as [s1 | k1 vs1 | ]; cbn [result_loops] in Hcall.
+        -- destruct Hcall as (t1 & n & t2 & Hcall & Hrun & Hrel).
+           exists n, t2. split; [ | exact Hrel ].
+           simpl.
+           rewrite step_apply,
+             (eval_simple_agree vars vars' _ (fun y _ => Hagree y)),
+             (eval_simples_agree vars vars' (ap_args ap)
+                (fun y _ => Hagree y)),
+             (eval_simples_agree vars vars' (exn_extra_simples ap)
+                (fun y _ => Hagree y)),
+             Hcallee, Hargs, Hextra, Hcall.
+           exact Hrun.
+        -- exists vs1. split; [ | reflexivity ].
+           rewrite step_apply,
+             (eval_simple_agree vars vars' _ (fun y _ => Hagree y)),
+             (eval_simples_agree vars vars' (ap_args ap)
+                (fun y _ => Hagree y)),
+             (eval_simples_agree vars vars' (exn_extra_simples ap)
+                (fun y _ => Hagree y)),
+             Hcallee, Hargs, Hextra.
+           exact Hcall.
+        -- exact I.
     + (* Apply_cont *)
       apply not_among_apply_cont in Hsafe.
       rewrite step_apply_cont.
@@ -1313,11 +1471,12 @@ Proof.
       destruct (apply_cont_value (resolve (ac_continuation ac) conts) vs
                   statics)
         as [s1 | k1 vs1 | ].
-      * destruct Happly as (t1 & Happly & Hrel).
-        apply (answered_one _ _ t1); [ | exact Hrel ].
+      * destruct Happly as (t1 & n & t2 & Happly & Hrun & Hrel).
+        exists n, t2. split; [ | exact Hrel ].
+        simpl.
         rewrite step_apply_cont,
           (eval_simples_agree vars vars' _ (fun y _ => Hagree y)), Hargs.
-        exact Happly.
+        unfold apply_continuation. rewrite Happly. exact Hrun.
       * exists vs1. split; [ | reflexivity ].
         rewrite step_apply_cont,
           (eval_simples_agree vars vars' _ (fun y _ => Hagree y)), Hargs.

@@ -91,8 +91,10 @@ Definition handlers_related (vars : env)
        fst kh = fst kh' ∧ handler_related vars (snd kh) (snd kh'))
     handlers handlers'.
 
-(* Closures with related handlers and, in turn, related environments. (The
-   warning silenced is about induction schemes, which nothing uses.) *)
+(* Closures with related handlers and, in turn, related environments;
+   and what is left of the same over-application, with related
+   continuations. (The warning silenced is about induction schemes,
+   which nothing uses.) *)
 #[local] Set Warnings "-register-all".
 Inductive closure_related : cont_value -> cont_value -> Prop :=
   | Closure_related (h h' : continuation_handler) (vars : env)
@@ -108,7 +110,17 @@ Inductive closure_related : cont_value -> cont_value -> Prop :=
   | Extra_args_related (c c' : cont_value) (extra : list value) :
     closure_related c c' ->
     closure_related (Extra_args c extra) (Extra_args c' extra)
-  | Closure_same (c : cont_value) : closure_related c c.
+  | Closure_same (c : cont_value) : closure_related c c
+  | Over_related (remaining : list value)
+      (remaining_arity return_arity : arity)
+      (return_to return_to' exn_to exn_to' : cont_value) :
+    closure_related return_to return_to' ->
+    closure_related exn_to exn_to' ->
+    closure_related
+      (Over_application remaining remaining_arity return_arity return_to
+         exn_to)
+      (Over_application remaining remaining_arity return_arity return_to'
+         exn_to').
 
 Definition cont_env_related (conts conts' : cont_env) : Prop :=
   Forall2
@@ -140,41 +152,24 @@ Lemma closure_related_inv (c c' : cont_value) :
   | Outer k, Outer k' => k = k'
   | Extra_args c extra, Extra_args c' extra' =>
     extra = extra' ∧ closure_related c c'
+  | Over_application remaining remaining_arity return_arity return_to exn_to,
+    Over_application remaining' remaining_arity' return_arity' return_to'
+      exn_to' =>
+    remaining = remaining' ∧ remaining_arity = remaining_arity'
+    ∧ return_arity = return_arity' ∧ closure_related return_to return_to'
+    ∧ closure_related exn_to exn_to'
   | _, _ => False
   end.
 Proof.
   intros Hrel. inversion Hrel; subst.
   - auto.
   - auto.
-  - destruct c' as [h vars conts recursive | k | c extra];
-      [ | reflexivity | split; [ reflexivity | apply Closure_same ] ].
-    split; [ reflexivity | ]. split; [ apply Handler_same | ].
-    split; [ apply cont_env_related_refl | apply handlers_related_refl ].
-Qed.
-
-(* Related continuations are, under their extra arguments, related
-   handlers or the same way out, applied to the same arguments. *)
-Lemma closure_related_target (c : cont_value) :
-  ∀ c' : cont_value,
-    closure_related c c' ->
-    closure_related (cont_target c) (cont_target c')
-    ∧ ∀ vs : list value, cont_args c vs = cont_args c' vs.
-Proof.
-  induction c as [h def_vars def_conts recursive | k | c IH extra];
-    intros c' Hrel.
-  - pose proof (closure_related_inv _ _ Hrel) as Hinv.
-    destruct c' as [h' def_vars' def_conts' recursive' | k' | c' extra'];
-      try contradiction.
-    split; [ exact Hrel | reflexivity ].
-  - pose proof (closure_related_inv _ _ Hrel) as Hinv.
-    destruct c' as [h' def_vars' def_conts' recursive' | k' | c' extra'];
-      try contradiction.
-    split; [ exact Hrel | reflexivity ].
-  - pose proof (closure_related_inv _ _ Hrel) as Hinv.
-    destruct c' as [h' def_vars' def_conts' recursive' | k' | c' extra'];
-      try contradiction.
-    destruct Hinv as [<- Hinner]. destruct (IH c' Hinner) as [Htarget Hargs].
-    split; [ exact Htarget | ]. intros vs. simpl. apply Hargs.
+  - destruct c' as [h vars conts recursive | k | c extra | ];
+      [ | reflexivity | split; [ reflexivity | apply Closure_same ] | ].
+    + split; [ reflexivity | ]. split; [ apply Handler_same | ].
+      split; [ apply cont_env_related_refl | apply handlers_related_refl ].
+    + repeat split; apply Closure_same.
+  - auto 6.
 Qed.
 
 Lemma with_extra_args_related (c c' : cont_value) (extra : list value) :
@@ -413,99 +408,17 @@ Lemma closure_of_kind (statics : static_env) (v : value) (called : code_id)
   closure_of statics v = Some (called, slots) -> kind_of_value v = Value.
 Proof. destruct v; simpl; try discriminate; intros _; reflexivity. Qed.
 
-(* A call under related static environments: undefined under both, or it
-   runs related bodies under the same variables, with the two
-   continuations of the code bound to what the caller gave. The variables
-   are the parameters of the code, bound to the arguments, which are of
-   the kinds of its arity, and [my_closure], bound to the callee, which is
-   of kind [Value]. *)
-Lemma call_function_related (callee : value) (kind : call_kind)
-    (vs : list value) (args_arity return_arity : arity)
-    (statics statics' : static_env) :
+(* Related static environments bind a code id alike. *)
+Lemma codes_agree_related (statics statics' : static_env) (called : code_id) :
   statics_related_where statics statics' ->
-  ((∀ return_to exn_to : cont_value,
-     call_function callee kind vs args_arity return_arity return_to exn_to
-       statics
-     = Undefined)
-   ∧ (∀ return_to exn_to : cont_value,
-       call_function callee kind vs args_arity return_arity return_to exn_to
-         statics'
-       = Undefined))
-  ∨ (∃ (params : list variable) (my_closure : variable)
-       (ret exn : continuation) (metadata : code_metadata)
-       (body body' : expr) (callee_vars : env),
-      (code_related params my_closure ret exn metadata body body'
-       ∨ body = body')
-      ∧ bind_params params vs [(my_closure, callee)] = Some callee_vars
-      ∧ map kind_of_value vs = unarize (cm_params_arity metadata)
-      ∧ kind_of_value callee = Value
-      ∧ (∀ return_to exn_to : cont_value,
-          call_function callee kind vs args_arity return_arity return_to
-            exn_to statics
-          = Step
-              (State body callee_vars [(ret, return_to); (exn, exn_to)]
-                 statics))
-      ∧ (∀ return_to exn_to : cont_value,
-          call_function callee kind vs args_arity return_arity return_to
-            exn_to statics'
-          = Step
-              (State body' callee_vars [(ret, return_to); (exn, exn_to)]
-                 statics'))).
+  codes_agree codes_related_where statics statics' called.
 Proof.
-  intros Hstatics. unfold call_function.
-  rewrite <- (closure_of_related statics statics' callee Hstatics).
-  destruct (closure_of statics callee) as [[called slots] | ] eqn:Hclosure;
-    [ | left; split; reflexivity ].
-  pose proof (closure_of_kind _ _ _ _ Hclosure) as Hvalue.
-  destruct
-    (match kind with
-     | Direct named => Pos.eqb called named
-     | Indirect => true
-     end);
-    [ | left; split; reflexivity ].
+  intros Hstatics. unfold codes_agree.
   pose proof (lookup_code_related called statics statics' Hstatics) as Hc.
   destruct (lookup called (static_code statics)) as [c | ],
     (lookup called (static_code statics')) as [c' | ];
-    try contradiction; [ | left; split; reflexivity ].
-  (* Related code, or the same code: in both cases the two differ in
-     their bodies at most. *)
-  assert (Hcodes :
-    ∃ (params : list variable) (my_closure : variable)
-      (ret exn : continuation) (metadata : code_metadata)
-      (body body' : expr),
-      c = Code params my_closure ret exn metadata body
-      ∧ c' = Code params my_closure ret exn metadata body'
-      ∧ binds_statics body = binds_statics body'
-      ∧ (code_related params my_closure ret exn metadata body body'
-         ∨ body = body')).
-  { destruct Hc
-      as [params my_closure ret exn metadata body body' Hbinds Hbody
-         | [params my_closure ret exn metadata body]].
-    - exists params, my_closure, ret, exn, metadata, body, body'. auto.
-    - exists params, my_closure, ret, exn, metadata, body, body. auto. }
-  destruct Hcodes
-    as (params & my_closure & ret & exn & metadata & body & body' & -> & ->
-        & Hbinds & Hbody).
-  simpl. rewrite <- Hbinds.
-  destruct (binds_statics body); [ left; split; reflexivity | ].
-  destruct (kinds_eqb (map kind_of_value vs) (unarize args_arity))
-    eqn:Hkinds;
-    cbn [negb andb]; [ | left; split; reflexivity ].
-  destruct
-    (kinds_per_parameter_eqb (unarize_per_parameter args_arity)
-       (unarize_per_parameter (cm_params_arity metadata)))
-    eqn:Hper;
-    cbn [negb andb]; [ | left; split; reflexivity ].
-  destruct (arity_eqb return_arity (cm_result_arity metadata));
-    cbn [negb andb]; [ | left; split; reflexivity ].
-  destruct (bind_params params vs [(my_closure, callee)])
-    as [callee_vars | ] eqn:Hbind; [ | left; split; reflexivity ].
-  right.
-  exists params, my_closure, ret, exn, metadata, body, body', callee_vars.
-  apply kinds_eqb_eq in Hkinds. apply kinds_per_parameter_eqb_eq in Hper.
-  split; [ exact Hbody | ]. split; [ exact Hbind | ].
-  split; [ rewrite Hkinds; apply unarize_per_parameter_unarize, Hper | ].
-  split; [ exact Hvalue | split; reflexivity ].
+    try contradiction; [ | exact I ].
+  split; [ exact Hc | ]. destruct Hc; split; reflexivity.
 Qed.
 
 (* ======================================================================== *)
@@ -593,7 +506,33 @@ Hypothesis carried_code_related :
     carried (State e' callee_vars [(ret, return_to); (exn, exn_to)] statics)
       b.
 
-Lemma transfer (n : nat) :
+(* What is carried to a state, given what its step is. *)
+Definition result_carried (result' : step_result) (b : behaviour) : Prop :=
+  match result' with
+  | Step s' => carried s' b
+  | Exit k vs => b = Exits k vs
+  | Undefined => b = Goes_wrong
+  end.
+
+Lemma carried_of_result (s : state) (b : behaviour) :
+  result_carried (step s) b -> carried s b.
+Proof.
+  destruct (step s) as [s' | k vs | ] eqn:Hstep; simpl.
+  - exact (carried_step s s' b Hstep).
+  - intros ->. exact (carried_exit s k vs Hstep).
+  - intros ->. exact (carried_undefined s Hstep).
+Qed.
+
+(* A run of [n] steps from where a step leads. *)
+Definition run_on (n : nat) (result : step_result) : step_result :=
+  match result with
+  | Step s' => run n s'
+  | Exit k vs => Exit k vs
+  | Undefined => Undefined
+  end.
+
+(* What [transfer] below says of runs of [n] steps. *)
+Definition transfer_at (n : nat) : Prop :=
   ∀ (e : expr) (vars : env) (conts conts' : cont_env)
     (statics statics' : static_env) (b : behaviour),
     cont_env_related conts conts' ->
@@ -601,7 +540,282 @@ Lemma transfer (n : nat) :
     inv (State e vars conts' statics') ->
     ended (run n (State e vars conts statics)) b ->
     carried (State e vars conts' statics') b.
+
+(* [inv] of the state that a step leads to, where it leads to one. *)
+Definition result_inv (result : step_result) : Prop :=
+  match result with
+  | Step s' => inv s'
+  | Exit _ _ | Undefined => True
+  end.
+
+(* The same full call of related code, of a value of kind [Value],
+   returning to related continuations. Where the call under the second
+   environments runs a body, that state has [inv]. *)
+Lemma call_code_transfer (n : nat) (closure : value) (c c' : code)
+    (vs : list value) (args_arity return_arity : arity)
+    (return_to return_to' exn_to exn_to' : cont_value)
+    (statics statics' : static_env) (b : behaviour) :
+  transfer_at n ->
+  codes_related_where c c' ->
+  kind_of_value closure = Value ->
+  closure_related return_to return_to' ->
+  closure_related exn_to exn_to' ->
+  statics_related_where statics statics' ->
+  result_inv
+    (call_code closure c' vs args_arity return_arity return_to' exn_to'
+       statics') ->
+  ended
+    (run_on n
+       (call_code closure c vs args_arity return_arity return_to exn_to
+          statics))
+    b ->
+  result_carried
+    (call_code closure c' vs args_arity return_arity return_to' exn_to'
+       statics')
+    b.
 Proof.
+  intros IH Hc Hvalue Hreturn Hexn Hstatics Hinv Hended.
+  (* Related code, or the same code: in both cases the two differ in
+     their bodies at most. *)
+  assert (Hcodes :
+    ∃ (params : list variable) (my_closure : variable)
+      (ret exn : continuation) (metadata : code_metadata)
+      (body body' : expr),
+      c = Code params my_closure ret exn metadata body
+      ∧ c' = Code params my_closure ret exn metadata body'
+      ∧ binds_statics body = binds_statics body'
+      ∧ (code_related params my_closure ret exn metadata body body'
+         ∨ body = body')).
+  { destruct Hc
+      as [params my_closure ret exn metadata body body' Hbinds Hbody
+         | [params my_closure ret exn metadata body]].
+    - exists params, my_closure, ret, exn, metadata, body, body'. auto.
+    - exists params, my_closure, ret, exn, metadata, body, body. auto. }
+  destruct Hcodes
+    as (params & my_closure & ret & exn & metadata & body & body' & -> & ->
+        & Hbinds & Hbody).
+  destruct (call_code_alike closure
+              (Code params my_closure ret exn metadata body)
+              (Code params my_closure ret exn metadata body') vs args_arity
+              return_arity statics statics' eq_refl eq_refl eq_refl eq_refl
+              eq_refl eq_refl (eq_sym Hbinds))
+    as [Hundefined | [callee_vars Hcall]].
+  - destruct (Hundefined return_to exn_to return_to' exn_to')
+      as [Hsource Htarget].
+    rewrite Hsource in Hended. rewrite Htarget.
+    exact (ended_undefined b Hended).
+  - destruct (Hcall return_to exn_to return_to' exn_to')
+      as [Hsource Htarget].
+    (* What the call tested, and what it bound. *)
+    destruct (call_code_step _ _ _ _ _ _ _ _ _ Hsource)
+      as (callee_vars' & _ & Hkinds & Hper & _ & Hbind & Hstate).
+    assert (Hsame : callee_vars' = callee_vars) by congruence.
+    subst callee_vars'. clear Hstate. simpl in Hper, Hbind.
+    assert (Hparams : map kind_of_value vs = unarize (cm_params_arity metadata))
+      by (rewrite Hkinds; apply unarize_per_parameter_unarize, Hper).
+    rewrite Hsource in Hended. rewrite Htarget in Hinv |- *.
+    simpl in Hended, Hinv |- *.
+    assert (Hconts :
+      cont_env_related [(ret, return_to); (exn, exn_to)]
+        [(ret, return_to'); (exn, exn_to')]).
+    { apply Forall2_cons; [ split; [ reflexivity | exact Hreturn ] | ].
+      apply Forall2_cons; [ split; [ reflexivity | exact Hexn ] | ].
+      apply Forall2_nil. }
+    destruct Hbody as [Hbody | <-];
+      [ | exact (IH _ _ _ _ _ _ _ Hconts Hstatics Hinv Hended) ].
+    (* The state of the second body has [inv]; so has that of the
+       first, which the induction is about. *)
+    pose proof
+      (inv_code_related _ _ _ _ _ _ _ _ _ _ _ _ _ Hbody Hbind Hparams Hvalue
+         Hinv)
+      as Hfirst.
+    exact
+      (carried_code_related _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hbody Hfirst Hbind
+         Hparams Hvalue (IH _ _ _ _ _ _ _ Hconts Hstatics Hfirst Hended)).
+Qed.
+
+(* The closure of a call that calls something is of kind [Value]. *)
+Definition shape_closure_value (shape : option call_shape) : Prop :=
+  match shape with
+  | Some (Full_call closure _ _ _) | Some (Over_call closure _ _ _ _ _) =>
+    kind_of_value closure = Value
+  | Some (Partial_call _) | None => True
+  end.
+
+Lemma shape_of_call_closure_value (statics : static_env) (callee : value)
+    (kind : call_kind) (vs : list value) (args_arity return_arity : arity) :
+  shape_closure_value
+    (shape_of_call statics callee kind vs args_arity return_arity).
+Proof.
+  pose proof (shape_of_call_calls statics callee kind vs args_arity
+                return_arity)
+    as Hcalls.
+  destruct (shape_of_call statics callee kind vs args_arity return_arity)
+    as [[closure c vs' args_arity'
+        | closure c vs' remaining args_arity' remaining_arity | partial] | ];
+    simpl in Hcalls |- *; try exact I;
+    destruct Hcalls as (called & slots & Hclosure & _);
+    exact (closure_of_kind _ _ _ _ Hclosure).
+Qed.
+
+(* Calls of the same shape, given that what is done with a partial
+   application is carried. *)
+Lemma run_call_transfer (n : nat)
+    (return_partial return_partial' : value -> step_result)
+    (shape shape' : option call_shape) (return_arity : arity)
+    (return_to return_to' exn_to exn_to' : cont_value)
+    (statics statics' : static_env) (b : behaviour) :
+  transfer_at n ->
+  shapes_related codes_related_where shape shape' ->
+  shape_closure_value shape ->
+  closure_related return_to return_to' ->
+  closure_related exn_to exn_to' ->
+  statics_related_where statics statics' ->
+  result_inv
+    (run_call return_partial' shape' return_arity return_to' exn_to'
+       statics') ->
+  (∀ partial : value,
+    result_inv (return_partial' partial) ->
+    ended (run_on n (return_partial partial)) b ->
+    result_carried (return_partial' partial) b) ->
+  ended
+    (run_on n
+       (run_call return_partial shape return_arity return_to exn_to statics))
+    b ->
+  result_carried
+    (run_call return_partial' shape' return_arity return_to' exn_to' statics')
+    b.
+Proof.
+  intros IH Hshapes Hvalue Hreturn Hexn Hstatics Hinv Hpartial.
+  destruct Hshapes
+    as [ | closure c c' vs args_arity Hc
+       | closure c c' vs remaining args_arity remaining_arity Hc | partial];
+    simpl in Hvalue, Hinv |- *.
+  - exact (ended_undefined b).
+  - exact (call_code_transfer n closure c c' vs _ _ _ _ _ _ statics statics'
+             b IH Hc Hvalue Hreturn Hexn Hstatics Hinv).
+  - replace (code_result_arity c') with (code_result_arity c) in Hinv |- *
+      by (destruct Hc; reflexivity).
+    apply (call_code_transfer n closure c c' vs _ _ _ _ _ _ statics statics'
+             b IH Hc Hvalue);
+      [ apply Over_related; assumption | exact Hexn | exact Hstatics
+      | exact Hinv ].
+  - exact (Hpartial partial Hinv).
+Qed.
+
+(* Related continuations applied to the same values. Where the second
+   steps, the state it steps to has [inv]. *)
+Lemma apply_cont_value_transfer (n : nat) (c : cont_value) :
+  transfer_at n ->
+  ∀ (c' : cont_value) (vs : list value) (statics statics' : static_env)
+    (b : behaviour),
+    closure_related c c' ->
+    statics_related_where statics statics' ->
+    result_inv (apply_cont_value c' vs statics') ->
+    ended (run_on n (apply_cont_value c vs statics)) b ->
+    result_carried (apply_cont_value c' vs statics') b.
+Proof.
+  intros IH.
+  induction c
+    as [[params metadata body] def_vars def_conts recursive | exit
+       | c IHc extra
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+    using cont_value_over_ind;
+    intros c' vs statics statics' b Hc Hstatics Hinv Hended;
+    apply closure_related_inv in Hc.
+  - destruct c'
+      as [[params' metadata' body'] def_vars' def_conts' recursive' | | | ];
+      try contradiction.
+    destruct Hc as (<- & Hh & Hconts & Hrec).
+    apply handler_related_inv in Hh as (<- & <- & Hbody).
+    simpl in Hended, Hinv |- *.
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata))
+      eqn:Hkinds;
+      simpl in Hended, Hinv |- *; [ | exact (ended_undefined b Hended) ].
+    destruct (bind_params params vs def_vars) as [handler_vars | ] eqn:Hbind;
+      simpl in Hended, Hinv |- *; [ | exact (ended_undefined b Hended) ].
+    assert (Hconts' :
+      cont_env_related
+        (rec_closures recursive def_vars def_conts ++ def_conts)
+        (rec_closures recursive' def_vars def_conts' ++ def_conts')).
+    { apply Forall2_app; [ | exact Hconts ].
+      apply rec_closures_related; assumption. }
+    destruct Hbody as [Hbody | <-];
+      [ | exact (IH _ _ _ _ _ _ _ Hconts' Hstatics Hinv Hended) ].
+    (* The state of the second handler has [inv]; so has that of the
+       first, which the induction is about. *)
+    pose proof (proj1 (kinds_eqb_eq _ _) Hkinds) as Hkinds_eq.
+    pose proof (inv_related _ _ _ _ _ _ _ _ _ Hbody Hkinds_eq Hbind Hinv)
+      as Hfirst.
+    exact
+      (carried_related _ _ _ _ _ _ _ _ _ _ Hbody Hfirst Hkinds_eq Hbind
+         (IH _ _ _ _ _ _ _ Hconts' Hstatics Hfirst Hended)).
+  - destruct c' as [ | exit' | | ]; try contradiction. subst exit'.
+    exact (ended_exit exit vs b Hended).
+  - destruct c' as [ | | c' extra' | ]; try contradiction.
+    destruct Hc as [<- Hc].
+    exact (IHc c' (vs ++ extra) statics statics' b Hc Hstatics Hinv Hended).
+  - destruct c'
+      as [ | |
+         | remaining' remaining_arity' return_arity' return_to' exn_to'];
+      try contradiction.
+    destruct Hc as (<- & <- & <- & Hreturn & Hexn).
+    rewrite apply_cont_value_over_application in Hended, Hinv |- *.
+    destruct vs as [ | v [ | v' vs]];
+      [ exact (ended_undefined b Hended) | | exact (ended_undefined b Hended) ].
+    unfold call_function in Hended, Hinv |- *.
+    refine
+      (run_call_transfer n _ _ _ _ _ _ _ _ _ statics statics' b IH _
+         (shape_of_call_closure_value _ _ _ _ _ _) Hreturn Hexn Hstatics
+         Hinv _ Hended).
+    + apply shape_of_call_related;
+        [ symmetry; apply closure_of_related; exact Hstatics | ].
+      intros called slots _. apply codes_agree_related. exact Hstatics.
+    + intros partial Hinv' Hpartial.
+      exact (IHreturn return_to' [partial] statics statics' b Hreturn
+               Hstatics Hinv' Hpartial).
+Qed.
+
+(* The same call under related static environments, returning to related
+   continuations. *)
+Lemma call_function_transfer (n : nat) (callee : value) (kind : call_kind)
+    (vs : list value) (args_arity return_arity : arity)
+    (return_to return_to' exn_to exn_to' : cont_value)
+    (statics statics' : static_env) (b : behaviour) :
+  transfer_at n ->
+  closure_related return_to return_to' ->
+  closure_related exn_to exn_to' ->
+  statics_related_where statics statics' ->
+  result_inv
+    (call_function callee kind vs args_arity return_arity return_to' exn_to'
+       statics') ->
+  ended
+    (run_on n
+       (call_function callee kind vs args_arity return_arity return_to
+          exn_to statics))
+    b ->
+  result_carried
+    (call_function callee kind vs args_arity return_arity return_to' exn_to'
+       statics')
+    b.
+Proof.
+  intros IH Hreturn Hexn Hstatics Hinv Hended.
+  unfold call_function in Hended, Hinv |- *.
+  refine
+    (run_call_transfer n _ _ _ _ _ _ _ _ _ statics statics' b IH _
+       (shape_of_call_closure_value _ _ _ _ _ _) Hreturn Hexn Hstatics Hinv
+       _ Hended).
+  - apply shape_of_call_related;
+      [ symmetry; apply closure_of_related; exact Hstatics | ].
+    intros called slots _. apply codes_agree_related. exact Hstatics.
+  - intros partial Hinv' Hpartial.
+    exact (apply_cont_value_transfer n return_to IH return_to' [partial]
+             statics statics' b Hreturn Hstatics Hinv' Hpartial).
+Qed.
+
+Lemma transfer (n : nat) : transfer_at n.
+Proof.
+  unfold transfer_at.
   induction n as [ | n IH];
     intros e vars conts conts' statics statics' b Hrel Hstatics Hinv Hended;
     [ destruct b; contradiction | ].
@@ -690,59 +904,19 @@ Proof.
           simpl in Hended
         | ]
       | ].
-    + destruct (call_function_related closure (ap_call_kind ap) vs
-                  (ap_args_arity ap) (ap_return_arity ap) statics statics'
-                  Hstatics)
-        as [[Hundefined Hundefined']
-           | (params & my_closure & ret & exn & metadata & body & body'
-              & callee_vars & Hbody & Hbind & Hkinds & Hvalue & Hcall
-              & Hcall')].
-      * rewrite Hundefined in Hended. apply ended_undefined in Hended.
-        subst b. apply carried_undefined.
-        rewrite step_apply, Hcallee, Hargs, Hextra. apply Hundefined'.
-      * rewrite Hcall in Hended.
-        assert (Hstep :
-          step (State (Apply ap) vars conts' statics')
-          = Step
-              (State body' callee_vars
-                 [(ret, resolve (ap_continuation ap) conts');
-                  (exn,
-                   with_extra_args (resolve (ap_exn_continuation ap) conts')
-                     extra)]
-                 statics')).
-        { rewrite step_apply, Hcallee, Hargs, Hextra. apply Hcall'. }
-        pose proof (inv_step _ _ Hinv Hstep) as Hinv'.
-        assert (Hconts :
-          cont_env_related
-            [(ret, resolve (ap_continuation ap) conts);
-             (exn,
-              with_extra_args (resolve (ap_exn_continuation ap) conts)
-                extra)]
-            [(ret, resolve (ap_continuation ap) conts');
-             (exn,
-              with_extra_args (resolve (ap_exn_continuation ap) conts')
-                extra)]).
-        { apply Forall2_cons;
-            [ split; [ reflexivity | apply resolve_related, Hrel ] | ].
-          apply Forall2_cons;
-            [ split;
-                [ reflexivity
-                | apply with_extra_args_related, resolve_related, Hrel ]
-            | ].
-          apply Forall2_nil. }
-        apply (carried_step _ _ _ Hstep).
-        destruct Hbody as [Hbody | <-];
-          [ | exact (IH _ _ _ _ _ _ _ Hconts Hstatics Hinv' Hended) ].
-        (* The state of the second body has [inv]; so has that of the
-           first, which the induction is about. *)
-        pose proof
-          (inv_code_related _ _ _ _ _ _ _ _ _ _ _ _ _ Hbody Hbind Hkinds
-             Hvalue Hinv')
-          as Hfirst.
-        exact
-          (carried_code_related _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hbody Hfirst
-             Hbind Hkinds Hvalue
-             (IH _ _ _ _ _ _ _ Hconts Hstatics Hfirst Hended)).
+    + assert (Hinv' :
+        result_inv (step (State (Apply ap) vars conts' statics'))).
+      { destruct (step (State (Apply ap) vars conts' statics'))
+          as [s' | | ] eqn:Hstep; simpl; [ | exact I | exact I ].
+        exact (inv_step _ _ Hinv Hstep). }
+      apply carried_of_result.
+      rewrite step_apply, Hcallee, Hargs, Hextra in Hinv' |- *.
+      exact (call_function_transfer n closure (ap_call_kind ap) vs _ _ _ _ _
+               _ statics statics' b IH
+               (resolve_related (ap_continuation ap) _ _ Hrel)
+               (with_extra_args_related _ _ extra
+                  (resolve_related (ap_exn_continuation ap) _ _ Hrel))
+               Hstatics Hinv' Hended).
     + apply ended_undefined in Hended. subst b.
       apply carried_undefined.
       rewrite step_apply, Hcallee, Hargs, Hextra. reflexivity.
@@ -754,76 +928,17 @@ Proof.
     destruct (eval_simples vars (ac_args ac)) as [vs | ] eqn:Hargs;
       simpl in Hended.
     + unfold apply_continuation in Hended.
-      rewrite apply_cont_value_target in Hended.
-      destruct
-        (closure_related_target _ _
-           (resolve_related (ac_continuation ac) _ _ Hrel))
-        as [Htarget Hcargs].
-      pose proof (closure_related_inv _ _ Htarget) as Hclosure.
-      rewrite Hcargs in Hended. clear Htarget.
-      destruct (cont_target (resolve (ac_continuation ac) conts))
-        as [[params metadata body] def_vars def_conts recursive | exit
-           | c extra]
-             eqn:Hl,
-        (cont_target (resolve (ac_continuation ac) conts'))
-        as [[params' metadata' body'] def_vars' def_conts' recursive'
-           | exit' | c' extra']
-             eqn:Hl';
-        try contradiction; simpl in Hended;
-        [ | | destruct (cont_target_not_extra_args _ _ _ Hl) ].
-      * (* handlers: related closures *)
-        destruct Hclosure as (<- & Hh & Hconts & Hrec).
-        apply handler_related_inv in Hh as (<- & <- & Hbody).
-        destruct
-          (kinds_eqb
-             (map kind_of_value
-                (cont_args (resolve (ac_continuation ac) conts') vs))
-             (hm_params_kinds metadata))
-          eqn:Hkinds;
-          [ destruct
-              (bind_params params
-                 (cont_args (resolve (ac_continuation ac) conts') vs)
-                 def_vars)
-              as [handler_vars | ] eqn:Hbind;
-            simpl in Hended
-          | ].
-        -- pose proof
-             (step_apply_cont_target_handler _ _ _ statics' _ _ _ _ _ _ _ _
-                Hargs Hl' Hkinds Hbind)
-             as Hstep.
-           pose proof (inv_step _ _ Hinv Hstep) as Hinv'.
-           assert (Hconts' :
-             cont_env_related
-               (rec_closures recursive def_vars def_conts ++ def_conts)
-               (rec_closures recursive' def_vars def_conts' ++ def_conts')).
-           { apply Forall2_app; [ | exact Hconts ].
-             apply rec_closures_related; assumption. }
-           apply (carried_step _ _ _ Hstep).
-           destruct Hbody as [Hbody | <-];
-             [ | exact (IH _ _ _ _ _ _ _ Hconts' Hstatics Hinv' Hended) ].
-           (* The state of the second handler has [inv]; so has that of
-              the first, which the induction is about. *)
-           pose proof (proj1 (kinds_eqb_eq _ _) Hkinds) as Hkinds_eq.
-           pose proof
-             (inv_related _ _ _ _ _ _ _ _ _ Hbody Hkinds_eq Hbind Hinv')
-             as Hfirst.
-           exact
-             (carried_related _ _ _ _ _ _ _ _ _ _ Hbody Hfirst Hkinds_eq
-                Hbind (IH _ _ _ _ _ _ _ Hconts' Hstatics Hfirst Hended)).
-        -- apply ended_undefined in Hended. subst b.
-           apply carried_undefined. rewrite step_apply_cont, Hargs.
-           unfold apply_continuation.
-           rewrite apply_cont_value_target, Hl'. simpl.
-           rewrite Hkinds, Hbind. reflexivity.
-        -- apply ended_undefined in Hended. subst b.
-           apply carried_undefined. rewrite step_apply_cont, Hargs.
-           unfold apply_continuation.
-           rewrite apply_cont_value_target, Hl'. simpl. rewrite Hkinds.
-           reflexivity.
-      * (* ways out: the same exit *)
-        subst exit'. apply ended_exit in Hended. subst b.
-        apply carried_exit.
-        exact (step_apply_cont_target_exit _ _ _ _ _ _ Hargs Hl').
+      assert (Hinv' :
+        result_inv (step (State (Apply_cont ac) vars conts' statics'))).
+      { destruct (step (State (Apply_cont ac) vars conts' statics'))
+          as [s' | | ] eqn:Hstep; simpl; [ | exact I | exact I ].
+        exact (inv_step _ _ Hinv Hstep). }
+      apply carried_of_result.
+      rewrite step_apply_cont, Hargs in Hinv' |- *.
+      unfold apply_continuation in Hinv' |- *.
+      exact (apply_cont_value_transfer n _ IH _ vs statics statics' b
+               (resolve_related (ac_continuation ac) _ _ Hrel) Hstatics Hinv'
+               Hended).
     + apply ended_undefined in Hended. subst b.
       apply carried_undefined. rewrite step_apply_cont, Hargs. reflexivity.
   - (* Switch *)

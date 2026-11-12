@@ -430,15 +430,16 @@ Lemma is_allocated_statics_extend :
   is_allocated statics v = true -> is_allocated statics' v = true.
 Proof.
   unfold is_allocated. rewrite !orb_true_iff.
-  intros [[[Hsome | Hsome] | Hsome] | Hsome].
-  - left. left. left. revert Hsome. apply is_some_statics_extend.
+  intros [[[[Hsome | Hsome] | Hsome] | Hsome] | Hsome].
+  - left. left. left. left. revert Hsome. apply is_some_statics_extend.
     exact closure_of_statics_extend.
-  - left. left. right. revert Hsome. apply is_some_statics_extend.
+  - left. left. left. right. revert Hsome. apply is_some_statics_extend.
     exact block_of_statics_extend.
-  - left. right. revert Hsome. apply is_some_statics_extend.
+  - left. left. right. revert Hsome. apply is_some_statics_extend.
     exact boxed_number_of_statics_extend.
-  - right. revert Hsome. apply is_some_statics_extend.
+  - left. right. revert Hsome. apply is_some_statics_extend.
     exact string_of_statics_extend.
+  - right. exact Hsome.
 Qed.
 
 Lemma eval_is_int_statics_extend (variant_only b : bool) :
@@ -463,7 +464,7 @@ Proof.
   - exact (fun H => H).
   - destruct (is_allocated statics v) eqn:Hallocated.
     + rewrite (is_allocated_statics_extend Hallocated). exact (fun H => H).
-    + destruct v as [[ ] | | | | | | ]; simpl; try discriminate;
+    + destruct v as [[ ] | | | | | | | ]; simpl; try discriminate;
         exact (fun H => H).
 Qed.
 
@@ -2056,17 +2057,19 @@ Lemma related_is_allocated (v v' : value) :
   is_allocated statics' v' = true.
 Proof.
   intros Hr. unfold is_allocated. rewrite !orb_true_iff.
-  destruct (Hobserved v v' Hr) as (_ & Hboxed & Hstring & Hclosure & _).
-  intros [[[Hsome | Hsome] | Hsome] | Hsome].
-  - left. left. left. apply is_some_not_none, Hclosure, is_some_not_none.
-    exact Hsome.
-  - left. left. right. exact (related_is_block v v' Hr Hsome).
-  - left. right.
+  destruct (Hobserved v v' Hr)
+    as (_ & Hboxed & Hstring & Hclosure & Hpartial & _).
+  intros [[[[Hsome | Hsome] | Hsome] | Hsome] | Hsome].
+  - left. left. left. left.
+    apply is_some_not_none, Hclosure, is_some_not_none. exact Hsome.
+  - left. left. left. right. exact (related_is_block v v' Hr Hsome).
+  - left. left. right.
     destruct (boxed_number_of statics v) as [c | ] eqn:Hv; [ | discriminate ].
     rewrite (Hboxed c eq_refl). reflexivity.
-  - right.
+  - left. right.
     destruct (string_of statics v) as [bytes | ] eqn:Hv; [ | discriminate ].
     rewrite (Hstring bytes eq_refl). reflexivity.
+  - right. apply is_some_not_none, Hpartial, is_some_not_none. exact Hsome.
 Qed.
 
 Lemma related_eval_is_int (variant_only b : bool) (v v' : value) :
@@ -2142,7 +2145,8 @@ Lemma eval_unary_primitive_related (p : unary_primitive)
     eval_unary_primitive statics' p v' = Some result' ∧ R result result'.
 Proof.
   intros Hr.
-  destruct (Hobserved v v' Hr) as (Hblocks & Hboxed & Hstring & _ & Hbound).
+  destruct (Hobserved v v' Hr)
+    as (Hblocks & Hboxed & Hstring & _ & _ & Hbound).
   destruct p as [access mut field | variant_only | | | | kind | kind op
                 | src dst | | kind | kind | | | reinterpret];
     cbn [eval_unary_primitive].
@@ -2310,7 +2314,8 @@ Proof.
     intros v v' Hr. rewrite (related_same_kind v v' Hr). exact (fun H => H). }
   assert (Hbound' : forallb (bound_if_symbol statics') vs' = true).
   { revert Hbound. apply (forall2_forallb R); [ | exact Hargs ].
-    intros v v' Hr. exact (proj2 (proj2 (proj2 (proj2 (Hobserved v v' Hr))))). }
+    intros v v' Hr.
+    exact (proj2 (proj2 (proj2 (proj2 (proj2 (Hobserved v v' Hr)))))). }
   rewrite Hkinds', Hbound'. reflexivity.
 Qed.
 
