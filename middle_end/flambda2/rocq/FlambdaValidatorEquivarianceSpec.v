@@ -157,6 +157,24 @@
    statements of FlambdaLiftSpec.v, of FlambdaMyClosureSpec.v and of
    FlambdaUnusedSlotsSpec.v.
 
+   Rewrites that make names. A rewrite that makes names with
+   FlambdaNameAbstractionSpec.fresh_name, outside the names of the term
+   it is given, does not commute with a renaming: which name is made
+   depends on the numbers of the names of the term, and a renaming
+   changes those. The last section says what such a rewrite can do
+   instead, which is to commute up to the names that it makes
+   ([equivariant_up_to]); that this composes with the rewrites above,
+   for rewrites that keep scope ([keeps_scope]); and that the
+   comparison of FlambdaCompareSpec.v, which is up to bound names,
+   answers the same ([expr_eqb_up_to_statement]). The three
+   definitions are to be reviewed. They speak of the free names by the
+   one function for each sort of FlambdaBindersSpec.v, which goes into
+   code. No rewrite that the validation applies is such a rewrite yet.
+   The section is for the pass that renames the binders of the term
+   before apart: when the validation applies it, the statement about
+   [validate_unit] will be made of these, with the premises that the
+   rewrites of the validation keep scope.
+
    Nothing is trusted here. The proofs are in
    FlambdaValidatorEquivarianceProofs.v, which needs no review. *)
 
@@ -166,8 +184,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec FlambdaNominalSpec FlambdaAlphaSpec
   FlambdaNormaliseSpec FlambdaEquivarianceSpec FlambdaUnusedContsSpec
   FlambdaUnusedStaticsSpec FlambdaBlockLoadSpec FlambdaUnboxSpec
-  FlambdaWellFormedSpec FlambdaWellKindedSpec FlambdaLiftSpec
-  FlambdaValidateSpec.
+  FlambdaBindersSpec FlambdaWellFormedSpec FlambdaWellKindedSpec
+  FlambdaLiftSpec FlambdaCompareSpec FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -676,3 +694,97 @@ Definition validate_unit_equivariant_statement : Prop :=
     validate_unit rounds unused slots (rename_lifting r L)
       (rename_expr r before) (rename_expr r after)
     = validate_unit rounds unused slots L before after.
+
+(* ======================================================================== *)
+(* Rewrites that make names                                                 *)
+(* ======================================================================== *)
+
+(* Two renamings rename the free variables and the free continuations
+   of a term alike. The free names are those of the one function for
+   each sort, which goes into code. *)
+Definition renames_alike (r r' : renaming) (e : expr) : Prop :=
+  (∀ x : variable,
+    among x (free_variables_of_expr e) = true ->
+    rename_variable r' x = rename_variable r x)
+  ∧ (∀ k : continuation,
+      among k (free_continuations_of_expr e) = true ->
+      rename_continuation r' k = rename_continuation r k).
+
+(* A rewrite commutes with renaming up to the names that it makes: on a
+   term whose code is closed, the result for the renamed term is the
+   result for the term under a renaming that renames the free names of
+   that result as the first renaming does. The two renamings may differ
+   on the names that are bound in the result, and on names that are not
+   in it. *)
+Definition equivariant_up_to (f : expr -> expr) : Prop :=
+  ∀ (r : renaming) (e : expr),
+    code_closed e = true ->
+    ∃ r' : renaming,
+      renames_alike r r' (f e) ∧ f (rename_expr r e) = rename_expr r' (f e).
+
+(* A rewrite keeps scope: on a term whose code is closed, the code of
+   the result is closed, and a name that is free in the result is free
+   in the term. *)
+Definition keeps_scope (f : expr -> expr) : Prop :=
+  ∀ e : expr,
+    code_closed e = true ->
+    code_closed (f e) = true
+    ∧ (∀ x : variable,
+        among x (free_variables_of_expr (f e)) = true ->
+        among x (free_variables_of_expr e) = true)
+    ∧ (∀ k : continuation,
+        among k (free_continuations_of_expr (f e)) = true ->
+        among k (free_continuations_of_expr e) = true).
+
+(* A rewrite that commutes with renaming does so up to the names that
+   it makes: the second renaming may be taken to be the first. *)
+Definition rewrite_equivariant_up_to_statement : Prop :=
+  ∀ f : expr -> expr, rewrite_equivariant f -> equivariant_up_to f.
+
+(* Two rewrites that keep scope, one after the other, keep scope; and
+   if each commutes with renaming up to the names that it makes, so
+   does the one after the other. *)
+Definition keeps_scope_compose_statement : Prop :=
+  ∀ f g : expr -> expr,
+    keeps_scope f -> keeps_scope g -> keeps_scope (fun e => g (f e)).
+
+Definition equivariant_up_to_compose_statement : Prop :=
+  ∀ f g : expr -> expr,
+    keeps_scope f ->
+    keeps_scope g ->
+    equivariant_up_to f ->
+    equivariant_up_to g ->
+    equivariant_up_to (fun e => g (f e)).
+
+(* The same of a rewrite applied a number of times. *)
+Definition keeps_scope_iterate_statement : Prop :=
+  ∀ (rounds : nat) (f : expr -> expr),
+    keeps_scope f -> keeps_scope (iterate rounds f).
+
+Definition equivariant_up_to_iterate_statement : Prop :=
+  ∀ (rounds : nat) (f : expr -> expr),
+    keeps_scope f -> equivariant_up_to f ->
+    equivariant_up_to (iterate rounds f).
+
+(* The comparison is up to bound names, so it does not tell two
+   renamings of its first term apart that rename the free names of
+   that term alike: it answers as it does of the two terms that are
+   not renamed. *)
+Definition expr_eqb_renamed_alike_statement : Prop :=
+  ∀ (r r' : renaming) (e e' : expr),
+    code_closed e = true ->
+    renames_alike r r' e ->
+    expr_eqb [] [] (rename_expr r' e) (rename_expr r e')
+    = expr_eqb [] [] e e'.
+
+(* So where the first term of a comparison is the result of a rewrite
+   that keeps scope and commutes with renaming up to the names that it
+   makes, the comparison answers the same when the term rewritten and
+   the second term are renamed. *)
+Definition expr_eqb_up_to_statement : Prop :=
+  ∀ (f : expr -> expr) (r : renaming) (e e' : expr),
+    keeps_scope f ->
+    equivariant_up_to f ->
+    code_closed e = true ->
+    expr_eqb [] [] (f (rename_expr r e)) (rename_expr r e')
+    = expr_eqb [] [] (f e) e'.

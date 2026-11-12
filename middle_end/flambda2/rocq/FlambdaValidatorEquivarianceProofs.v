@@ -44,11 +44,12 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaApplySpec FlambdaNormaliseSpec FlambdaEquivarianceSpec
   FlambdaEquivarianceProofs FlambdaUnusedContsSpec FlambdaUnusedStaticsSpec
   FlambdaPrimitiveModel FlambdaPrimitiveSpec FlambdaBlockLoadSpec
+  FlambdaBindersSpec FlambdaFreeNamesSpec FlambdaFreeNamesProofs
   FlambdaUnboxSpec FlambdaWellFormedSpec FlambdaWellKindedSpec
-  FlambdaCompareSpec
-  FlambdaCompareAlphaSpec FlambdaCompareAlphaProofs FlambdaMyClosureSpec
-  FlambdaMyClosureProofs FlambdaLiftSpec FlambdaLiftProofs
-  FlambdaUnusedSlotsSpec FlambdaUnusedSlotsProofs FlambdaValidateSpec
+  FlambdaCompareSpec FlambdaCompareAlphaSpec FlambdaCompareAlphaProofs
+  FlambdaMyClosureSpec FlambdaMyClosureProofs FlambdaLiftSpec
+  FlambdaLiftProofs FlambdaUnusedSlotsSpec FlambdaUnusedSlotsProofs
+  FlambdaInlineFreshProofs FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
@@ -3501,4 +3502,97 @@ Proof.
     without_slots_equivariant, !without_statics_equivariant,
     !expr_eqb_renamed.
   reflexivity.
+Qed.
+
+(* ======================================================================== *)
+(* Rewrites that make names                                                 *)
+(* ======================================================================== *)
+
+Theorem rewrite_equivariant_up_to : rewrite_equivariant_up_to_statement.
+Proof.
+  intros f f_equivariant r e _. exists r. split; [ | apply f_equivariant ].
+  split; intros; reflexivity.
+Qed.
+
+Theorem keeps_scope_compose : keeps_scope_compose_statement.
+Proof.
+  intros f g Kf Kg e Hclosed.
+  destruct (Kf e Hclosed) as (Hclosed_f & Hvars_f & Hconts_f).
+  destruct (Kg (f e) Hclosed_f) as (Hclosed_g & Hvars_g & Hconts_g).
+  split; [ exact Hclosed_g | ]. split.
+  - intros x Hx. apply Hvars_f, Hvars_g, Hx.
+  - intros k Hk. apply Hconts_f, Hconts_g, Hk.
+Qed.
+
+Theorem equivariant_up_to_compose : equivariant_up_to_compose_statement.
+Proof.
+  intros f g Kf Kg Hf Hg r e Hclosed.
+  destruct (Hf r e Hclosed) as (r1 & [Hvars1 Hconts1] & Heq1).
+  destruct (Kf e Hclosed) as (Hclosed_f & _ & _).
+  destruct (Hg r1 (f e) Hclosed_f) as (r2 & [Hvars2 Hconts2] & Heq2).
+  destruct (Kg (f e) Hclosed_f) as (_ & Hvars_g & Hconts_g).
+  exists r2. split; [ split | ].
+  - intros x Hx. rewrite (Hvars2 x Hx). apply Hvars1, Hvars_g, Hx.
+  - intros k Hk. rewrite (Hconts2 k Hk). apply Hconts1, Hconts_g, Hk.
+  - rewrite Heq1. exact Heq2.
+Qed.
+
+Theorem keeps_scope_iterate : keeps_scope_iterate_statement.
+Proof.
+  intros rounds f Kf. induction rounds as [ | rounds IH]; intros e Hclosed.
+  - split; [ exact Hclosed | ]. split; intros; assumption.
+  - cbn [iterate].
+    destruct (Kf e Hclosed) as (Hclosed_f & Hvars_f & Hconts_f).
+    destruct (IH (f e) Hclosed_f) as (Hclosed' & Hvars' & Hconts').
+    split; [ exact Hclosed' | ]. split.
+    + intros x Hx. apply Hvars_f, Hvars', Hx.
+    + intros k Hk. apply Hconts_f, Hconts', Hk.
+Qed.
+
+Theorem equivariant_up_to_iterate : equivariant_up_to_iterate_statement.
+Proof.
+  intros rounds f Kf Hf.
+  induction rounds as [ | rounds IH]; intros r e Hclosed.
+  - exists r. split; [ split; intros; reflexivity | reflexivity ].
+  - cbn [iterate].
+    destruct (Hf r e Hclosed) as (r1 & [Hvars1 Hconts1] & Heq1).
+    destruct (Kf e Hclosed) as (Hclosed_f & _ & _).
+    destruct (IH r1 (f e) Hclosed_f) as (r2 & [Hvars2 Hconts2] & Heq2).
+    destruct (keeps_scope_iterate rounds f Kf (f e) Hclosed_f)
+      as (_ & Hvars' & Hconts').
+    exists r2. split; [ split | ].
+    + intros x Hx. rewrite (Hvars2 x Hx). apply Hvars1, Hvars', Hx.
+    + intros k Hk. rewrite (Hconts2 k Hk). apply Hconts1, Hconts', Hk.
+    + rewrite Heq1. exact Heq2.
+Qed.
+
+(* Two renamings of a term with closed code that rename its free names
+   alike give alpha-equivalent terms (a name that is free by the
+   relation is among the free names), which the comparison accepts; the
+   comparison is symmetric and transitive, and answers the same of two
+   terms renamed by one renaming. *)
+Theorem expr_eqb_renamed_alike : expr_eqb_renamed_alike_statement.
+Proof.
+  intros r r' e e' Hclosed [Hvars Hconts].
+  assert (Halpha : alpha_equivalent (rename_expr r' e) (rename_expr r e)).
+  { apply alpha_renamings_agree; [ exact Hclosed | | ].
+    - intros x Hx. apply Hvars, var_free_among, Hx.
+    - intros k Hk. apply Hconts, cont_free_among, Hk. }
+  pose proof (alpha_equivalent_accepted _ _ Halpha) as Hforth.
+  pose proof (expr_eqb_symmetric _ _ Hforth) as Hback.
+  pose proof (expr_eqb_renamed r e e') as Hsame.
+  destruct (expr_eqb [] [] e e') eqn:He.
+  - exact (expr_eqb_transitive _ _ _ Hforth Hsame).
+  - destruct (expr_eqb [] [] (rename_expr r' e) (rename_expr r e')) eqn:He';
+      [ | reflexivity ].
+    pose proof (expr_eqb_transitive _ _ _ Hback He') as Habsurd.
+    rewrite Hsame in Habsurd. discriminate.
+Qed.
+
+Theorem expr_eqb_up_to : expr_eqb_up_to_statement.
+Proof.
+  intros f r e e' Kf Hf Hclosed.
+  destruct (Hf r e Hclosed) as (r' & Halike & Heq). rewrite Heq.
+  apply expr_eqb_renamed_alike; [ | exact Halike ].
+  exact (proj1 (Kf e Hclosed)).
 Qed.
