@@ -474,7 +474,7 @@ Definition allocated_valid (allocated : statically_allocated_value) : bool :=
     && forallb (fun '(_, contents) => value_valid contents) value_slots
   | Static_block _ fields => forallb value_valid fields
   | Static_boxed_number contents => value_valid contents
-  | Static_string _ => true
+  | Static_string _ | Static_imported _ => true
   end.
 
 (* Every value of the environment is valid, those that a later binding of
@@ -903,7 +903,7 @@ Definition allocated_sets_are (c : code_id)
     forallb (value_sets_are c function_decls closure_symbols) fields
   | Static_boxed_number contents =>
     value_sets_are c function_decls closure_symbols contents
-  | Static_string _ => true
+  | Static_string _ | Static_imported _ => true
   end.
 
 Definition state_sets_are (c : code_id)

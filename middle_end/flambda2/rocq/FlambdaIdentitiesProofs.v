@@ -326,9 +326,10 @@ Lemma eval_phys_equal_same (statics : static_env) (v : value)
   eval_phys_equal statics v v = Some same -> same = true.
 Proof.
   unfold eval_phys_equal.
-  destruct (int_of_value Standard_tagged_immediate v) as [i | ];
-    [ | discriminate ].
-  intros [= <-]. apply Z.eqb_refl.
+  destruct (int_of_value Standard_tagged_immediate v) as [i | ].
+  - intros [= <-]. apply Z.eqb_refl.
+  - destruct (identity_of statics v) as [s | ]; [ | discriminate ].
+    intros [= <-]. apply Pos.eqb_refl.
 Qed.
 
 (* The identity of a binary primitive, where it has one, has the value

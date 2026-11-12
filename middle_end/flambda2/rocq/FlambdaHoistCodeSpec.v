@@ -306,7 +306,7 @@ Definition allocated_closures_bound (bound : code_id -> bool)
     && forallb (fun slot => value_closures_bound bound (snd slot)) slots
   | Static_block _ fields => forallb (value_closures_bound bound) fields
   | Static_boxed_number contents => value_closures_bound bound contents
-  | Static_string _ => true
+  | Static_string _ | Static_imported _ => true
   end.
 
 (* Every closure that the state holds, in a variable, in what a

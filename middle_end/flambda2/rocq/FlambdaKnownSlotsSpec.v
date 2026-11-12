@@ -400,7 +400,7 @@ Definition allocated_slots_known (known : known_slots)
          slot_values
   | Static_block _ fields => forallb (value_slots_known known) fields
   | Static_boxed_number contents => value_slots_known known contents
-  | Static_string _ => true
+  | Static_string _ | Static_imported _ => true
   end.
 
 (* Every value that the state holds is so: those of its variables and

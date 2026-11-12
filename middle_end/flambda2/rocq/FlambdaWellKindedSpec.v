@@ -631,7 +631,7 @@ Definition allocated_well_kinded (allocated : statically_allocated_value)
       fields
   | Static_boxed_number contents =>
     is_some (boxable_number_of_kind (kind_of_value contents))
-  | Static_string _ => true
+  | Static_string _ | Static_imported _ => true
   end.
 
 Definition statics_well_kinded (statics : static_env) : bool :=

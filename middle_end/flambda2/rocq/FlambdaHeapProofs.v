@@ -1454,7 +1454,7 @@ Proof.
     intros [= <- <- <-]. exists code. auto.
   - destruct (lookup s (static_values statics))
       as [[code slots' | slot' syms decls' slots' | tag fields | contents
-          | bytes] | ];
+          | bytes | ] | ];
       try discriminate.
     + intros [= <- <- <-]. exists code. rewrite lookup_head. auto.
     + destruct (lookup slot' decls') as [code | ] eqn:Hslot; simpl;
@@ -1478,7 +1478,7 @@ Proof.
     intros [= <- <-]. exists slot, decls. auto.
   - destruct (lookup s (static_values statics))
       as [[code' slots' | slot syms decls slots' | tag fields | contents
-          | bytes] | ];
+          | bytes | ] | ];
       try discriminate.
     + intros [= <- <-]. eexists _, _. split; [ reflexivity | ].
       apply lookup_head.
@@ -1532,7 +1532,8 @@ Proof.
       cbn -[Pos.eqb]. rewrite Hto. reflexivity.
     + split; [ split; reflexivity | discriminate ].
   - destruct (lookup s (static_values st))
-      as [[code vs | slot' syms decls' vs | tag fields | contents | bytes] | ]
+      as [[code vs | slot' syms decls' vs | tag fields | contents | bytes
+          | ] | ]
       eqn:Hlookup; try discriminate.
     + intros _ [= <- <- <-].
       destruct (Pos.eqb_spec move_to unnamed_function_slot) as [-> | Hne].
@@ -1595,7 +1596,7 @@ Lemma project_symbol (st : static_env) (s : symbol) (w : value)
 Proof.
   cbn -[Pos.eqb].
   destruct (lookup s (static_values st))
-    as [[code vs | slot syms decls vs | tag fields | contents | bytes] | ];
+    as [[code vs | slot syms decls vs | tag fields | contents | bytes | ] | ];
     try discriminate.
   - destruct (Pos.eqb move_from unnamed_function_slot); [ | discriminate ].
     destruct (Pos.eqb move_to unnamed_function_slot); [ | discriminate ].
@@ -1625,7 +1626,7 @@ Proof.
     destruct (lookup move_from decls); simpl; [ | discriminate ].
     intros _. eauto.
   - destruct (lookup s (static_values st))
-      as [[code vs | slot syms decls vs | tag fields | contents | bytes] | ];
+      as [[code vs | slot syms decls vs | tag fields | contents | bytes | ] | ];
       try discriminate.
     + destruct (Pos.eqb_spec move_from unnamed_function_slot) as [-> | _];
         [ | discriminate ].
@@ -1931,7 +1932,7 @@ Proof.
     + pose proof (Hstatics s a) as Hclosed.
       destruct a
         as [code slots | slot syms decls slots | tag fields | contents
-           | bytes].
+           | bytes | ].
       * apply
           (Step_closure _ _ _ _ _ _ _ unnamed_function_slot
              [(unnamed_function_slot, code)] slots slots);
@@ -1968,6 +1969,8 @@ Proof.
            apply Step_opaque_symbol; exact Hnot.
       * apply (Step_string _ _ _ _ _ _ _ bytes); simpl; rewrite Hlookup;
           reflexivity.
+      * apply Step_opaque_symbol; unfold is_allocated; simpl;
+          rewrite Hlookup; reflexivity.
     + assert (Hnot : is_allocated statics (Value_symbol s) = false).
       { unfold is_allocated. simpl. rewrite Hlookup. reflexivity. }
       apply Step_opaque_symbol; exact Hnot.
@@ -2567,12 +2570,12 @@ Lemma eval_phys_equal_location_cases (st : static_env) (v1 v2 : value) :
     | Some l1, Some l2 => Some (Pos.eqb l1 l2)
     | Some _, None =>
       if is_some (int_of_value Standard_tagged_immediate v2)
-         || is_allocated st v2
+         || is_allocated st v2 || is_imported st v2
       then Some false
       else None
     | None, Some _ =>
       if is_some (int_of_value Standard_tagged_immediate v1)
-         || is_allocated st v1
+         || is_allocated st v1 || is_imported st v1
       then Some false
       else None
     | None, None => None
@@ -2758,7 +2761,7 @@ Proof.
     [ | intros H; discriminate H ].
   rewrite (Hextend _ _ Hlookup). intros _.
   destruct a
-    as [code slots | slot syms decls slots | tag fields | contents | bytes];
+    as [code slots | slot syms decls slots | tag fields | contents | bytes | ];
     try (intros _; exact I).
   intros [Hkeys Hbound]. split; [ exact Hkeys | ].
   intros slot0 s0 Hin. exact (Hextend _ _ (Hbound slot0 s0 Hin)).
@@ -2918,7 +2921,12 @@ Lemma memories_left_out (s : symbol) :
   symbol_kept D s = false ->
   lookup s (static_values statics) = None
   ∧ is_allocated statics' (Value_symbol s) = true.
-Proof. exact (proj2 (proj2 memories_names) s). Qed.
+Proof. exact (proj1 (proj2 (proj2 memories_names)) s). Qed.
+
+Lemma memories_imported (s : symbol) (c : import_class) :
+  lookup s (static_values statics) = Some (Static_imported c)
+  <-> lookup s (static_values statics') = Some (Static_imported c).
+Proof. exact (proj2 (proj2 (proj2 memories_names)) s c). Qed.
 
 (* A symbol that is nothing in both memories corresponds to itself. *)
 Lemma memories_opaque (s : symbol) :
@@ -3398,13 +3406,25 @@ Proof.
         [ | contradiction Hclosure; reflexivity ].
       destruct (related_closure_of _ _ _ _ Hv Hc) as (slots' & -> & _).
       discriminate.
-    + split; [ | exact (related_bound_if_symbol _ _ Hv) ].
-      intros Hpartial.
-      destruct (partial_application_of v) as [[[callee args] args_arity] | ]
-        eqn:Hp; [ | contradiction Hpartial; reflexivity ].
-      destruct (related_partial_application_of _ _ _ _ _ Hv Hp)
-        as (callee' & args' & -> & _).
-      discriminate.
+    + split; [ | split; [ exact (related_bound_if_symbol _ _ Hv) | ] ].
+      * intros Hpartial.
+        destruct (partial_application_of v) as [[[callee args] args_arity] | ]
+          eqn:Hp; [ | contradiction Hpartial; reflexivity ].
+        destruct (related_partial_application_of _ _ _ _ _ Hv Hp)
+          as (callee' & args' & -> & _).
+        discriminate.
+      * intros [s c] Hs.
+        apply FlambdaPrimitiveProofs.imported_of_symbol in Hs as [-> Hs].
+        pose proof (related_step _ _ Hv) as Hstep.
+        assert (Hnot : is_allocated statics (Value_symbol s) = false).
+        { unfold is_allocated. simpl. rewrite Hs. reflexivity. }
+        inversion Hstep; subst;
+          try (unfold is_allocated in Hnot; simpl in Hnot;
+               match goal with
+               | H : _ = Some _ |- _ =>
+                 simpl in H; rewrite Hs in H; discriminate H
+               end).
+        simpl. rewrite (proj1 (memories_imported s c) Hs). reflexivity.
 Qed.
 
 (* So it keeps the kind and the integers, which is what the functions of
@@ -3413,6 +3433,24 @@ Lemma related_numbers : relates_numbers related.
 Proof.
   apply FlambdaPrimitiveProofs.relates_constants_numbers.
   exact (proj1 related_respects_observations).
+Qed.
+
+Lemma related_imported_of (v v' : value) (i : symbol * import_class) :
+  related v v' ->
+  imported_of statics v = Some i ->
+  imported_of statics' v' = Some i.
+Proof.
+  intros Hv.
+  exact
+    (proj2
+       (proj2
+          (proj2
+             (proj2
+                (proj2
+                   (proj2
+                      (proj2 (proj2 related_respects_observations) v v'
+                         Hv))))))
+       i).
 Qed.
 
 Lemma related_eval_prim (p : prim) (vs vs' : list value) (result : value) :
@@ -3471,12 +3509,20 @@ Proof.
     + exfalso. apply Hneq. apply Hiff. exact Heq'.
   - destruct (is_some (int_of_value Standard_tagged_immediate v2)); simpl;
       [ auto | ].
-    destruct (is_allocated statics v2) eqn:Hallocated; [ | discriminate ].
-    rewrite (related_is_allocated _ _ Hsecond Hallocated). auto.
+    destruct (is_allocated statics v2) eqn:Hallocated;
+      [ rewrite (related_is_allocated _ _ Hsecond Hallocated); auto | ].
+    unfold is_imported.
+    destruct (imported_of statics v2) as [s | ] eqn:Hi; [ | discriminate ].
+    rewrite (related_imported_of _ _ s Hsecond Hi). simpl.
+    rewrite orb_true_r. auto.
   - destruct (is_some (int_of_value Standard_tagged_immediate v1)); simpl;
       [ auto | ].
-    destruct (is_allocated statics v1) eqn:Hallocated; [ | discriminate ].
-    rewrite (related_is_allocated _ _ Hfirst Hallocated). auto.
+    destruct (is_allocated statics v1) eqn:Hallocated;
+      [ rewrite (related_is_allocated _ _ Hfirst Hallocated); auto | ].
+    unfold is_imported.
+    destruct (imported_of statics v1) as [s | ] eqn:Hi; [ | discriminate ].
+    rewrite (related_imported_of _ _ s Hfirst Hi). simpl.
+    rewrite orb_true_r. auto.
   - discriminate.
 Qed.
 
@@ -4171,10 +4217,10 @@ Proof.
               (Value_symbol s) (Value_symbol s)).
   { destruct a
       as [code slots | slot syms decls slots | tag fields | contents
-         | bytes],
+         | bytes | ],
       a'
       as [code' slots' | slot' syms' decls' slots' | tag' fields'
-         | contents' | bytes'];
+         | contents' | bytes' | ];
       simpl in Ha; try contradiction.
     - destruct Ha as (<- & Hnames & Hslots).
       apply
@@ -4235,7 +4281,8 @@ Proof.
         reflexivity. }
   pose proof memories_valid as (Hbijection & Hcells & Hvalues).
   split;
-    [ split; [ exact Hbijection | split ] | split; [ | split ] ].
+    [ split; [ exact Hbijection | split ]
+    | split; [ | split; [ | split ] ] ].
   - intros l l' Hl. destruct (Hcells _ _ Hl) as (c & c' & Hc & Hc' & Hcell).
     exists c, c'. split; [ exact Hc | ]. split; [ exact Hc' | ].
     exact (cell_related_change _ _ _ _ _ _ _ _ _ _ Hmono Hcell).
@@ -4307,6 +4354,9 @@ Proof.
     + unfold is_allocated in Hallocated |- *. simpl in Hallocated |- *.
       destruct (Pos.eqb_spec s0 s) as [Heq | _];
         [ contradiction | exact Hallocated ].
+  - intros s1 c. cbn -[Pos.eqb].
+    destruct (Pos.eqb s1 s); [ | exact (memories_imported s1 c) ].
+    split; intros [= ->]; [ | destruct a ]; simpl in Ha; contradiction.
 Qed.
 
 End Machine.
@@ -4518,7 +4568,8 @@ Lemma memories_same_values (D : dropped) (r : correspondence)
 Proof.
   intros Hsame Hsame' Hmemories.
   pose proof Hmemories
-    as ((Hbijection & Hcells & Hvalues) & Hsymbols & Hdomain & Hleft_out).
+    as ((Hbijection & Hcells & Hvalues) & Hsymbols & Hdomain & Hleft_out
+        & Himported).
   assert (Hextend : statics_extend st st2).
   { intros s a Hlookup. rewrite Hsame. exact Hlookup. }
   assert (Hextend' : statics_extend st' st2').
@@ -4532,7 +4583,8 @@ Proof.
       [ exact Hextend | exact Hextend'
       | exact (memories_opaque D r st st' h h' Hmemories) ]. }
   split;
-    [ split; [ exact Hbijection | split ] | split; [ | split ] ].
+    [ split; [ exact Hbijection | split ]
+    | split; [ | split; [ | split ] ] ].
   - intros l l' Hl. destruct (Hcells _ _ Hl) as (c & c' & Hc & Hc' & Hcell).
     exists c, c'. split; [ exact Hc | ]. split; [ exact Hc' | ].
     exact (cell_related_change _ _ _ _ _ _ _ _ _ _ Hmono Hcell).
@@ -4590,6 +4642,7 @@ Proof.
   - intros s Hdropped. rewrite Hsame.
     rewrite (is_allocated_same_values _ _ _ Hsame').
     exact (Hleft_out s Hdropped).
+  - intros s. rewrite Hsame, Hsame'. exact (Himported s).
 Qed.
 
 (* What the bindings of a group name, outside the code they bind: the
@@ -4751,16 +4804,19 @@ Qed.
 Theorem states_related_nothing : states_related_nothing_statement.
 Proof.
   intros s s'. split.
-  - intros (He & Hcode & Hdomain & r & Hvalid & Hsymbols & Henv & Hconts).
+  - intros (He & Hcode & Hdomain & Himported & r & Hvalid & Hsymbols & Henv
+            & Hconts).
     split; [ exact He | ]. split; [ exact Hcode | ]. exists r.
     split; [ | split; assumption ].
     split; [ exact Hvalid | ].
     split; [ intros sym _; apply Hsymbols | ].
-    split; [ intros sym _; apply Hdomain | intros sym [=] ].
-  - intros (He & Hcode & r & (Hvalid & Hsymbols & Hdomain & _) & Henv
-            & Hconts).
+    split; [ intros sym _; apply Hdomain | ].
+    split; [ intros sym [=] | exact Himported ].
+  - intros (He & Hcode & r & (Hvalid & Hsymbols & Hdomain & _ & Himported)
+            & Henv & Hconts).
     split; [ exact He | ]. split; [ exact Hcode | ].
-    split; [ intros sym; exact (Hdomain sym eq_refl) | ]. exists r.
+    split; [ intros sym; exact (Hdomain sym eq_refl) | ].
+    split; [ exact Himported | ]. exists r.
     split; [ exact Hvalid | ].
     split; [ intros sym; exact (Hsymbols sym eq_refl) | ].
     split; assumption.
@@ -5566,7 +5622,7 @@ Lemma closed_memories_related_except (D : dropped) (st st1 : static_env)
 Proof.
   intros [Hheap Hstatics] Hkept Hheap_avoids Hstatics_avoid Hsets Hagree
     Hleft_out.
-  split; [ split; [ | split ] | split; [ | split ] ]; simpl.
+  split; [ split; [ | split ] | split; [ | split; [ | split ] ] ]; simpl.
   - intros a a' b b' [-> _] [-> _]. reflexivity.
   - intros l l' [<- Hbound]. unfold is_bound in Hbound.
     destruct (lookup l h) as [c | ] eqn:Hlookup; [ | discriminate ].
@@ -5590,7 +5646,7 @@ Proof.
       pose proof (Hstatics_avoid s a) as Havoids.
       destruct a
         as [code slots | slot syms decls slots | tag fields | contents
-           | bytes].
+           | bytes | ].
       * apply
           (Step_closure _ _ _ _ _ _ _ unnamed_function_slot
              [(unnamed_function_slot, code)] slots slots);
@@ -5637,6 +5693,11 @@ Proof.
              [ exact Hnot | rewrite Hlookup; exact Hsame ].
       * apply (Step_string _ _ _ _ _ _ _ bytes); simpl;
           rewrite ?Hsame, ?Hlookup; reflexivity.
+      * assert (Hnot : is_allocated st (Value_symbol s) = false).
+        { unfold is_allocated. simpl. rewrite Hlookup. reflexivity. }
+        apply Step_opaque_symbol; [ exact Hnot | ].
+        rewrite (is_allocated_same_lookup st st1);
+          [ exact Hnot | rewrite Hlookup; exact Hsame ].
     + assert (Hnot : is_allocated st (Value_symbol s) = false).
       { unfold is_allocated. simpl. rewrite Hlookup. reflexivity. }
       apply Step_opaque_symbol; [ exact Hnot | ].
@@ -5646,6 +5707,13 @@ Proof.
   - intros s Hkept_s. unfold is_bound. rewrite (Hagree s Hkept_s).
     reflexivity.
   - exact Hleft_out.
+  - intros s c.
+    destruct (symbol_kept D s) eqn:Hkept_s;
+      [ rewrite (Hagree s Hkept_s); split; exact (fun H => H) | ].
+    destruct (Hleft_out s Hkept_s) as [Hnone Hallocated].
+    rewrite Hnone. split; [ discriminate | ].
+    intros Hs. unfold is_allocated in Hallocated. simpl in Hallocated.
+    rewrite Hs in Hallocated. discriminate.
 Qed.
 
 (* A closed memory is related to itself, and to itself with more cells. *)
@@ -5868,8 +5936,8 @@ Proof.
   intros y v [[= <- <-] | Hin]; [ | exact (Hvars y v Hin) ].
   apply load_field_in in Hfield. intros l Hl.
   destruct block; simpl in Hblock_of; try discriminate.
-  - destruct (lookup s (static_values statics)) as [[ | | tag0 fields0 | | ] | ]
-      eqn:Hs; try discriminate.
+  - destruct (lookup s (static_values statics))
+      as [[ | | tag0 fields0 | | | ] | ] eqn:Hs; try discriminate.
     injection Hblock_of as <- <-.
     exact (proj2 Hmemory s _ loaded Hs Hfield l Hl).
   - injection Hblock_of as <- <-.
@@ -6054,7 +6122,7 @@ Lemma block_fields_closed (st : static_env) (h : heap) (v : value) (tag : Z)
 Proof.
   intros [_ Hstatics] Hclosed Hblock Hfield.
   destruct v; simpl in Hblock; try discriminate.
-  - destruct (lookup s (static_values st)) as [[ | | tag0 fields0 | | ] | ]
+  - destruct (lookup s (static_values st)) as [[ | | tag0 fields0 | | | ] | ]
       eqn:Hs; try discriminate.
     injection Hblock as <- <-. exact (Hstatics s _ field Hs Hfield).
   - injection Hblock as <- <-. intros l Hl. apply Hclosed. simpl.
@@ -6081,7 +6149,7 @@ Proof.
     apply in_flat_map. apply in_map_iff in Hw as (slot & <- & Hslot).
     exists slot. auto.
   - destruct (lookup s (static_values st))
-      as [[code0 slots0 | fslot syms decls slots0 | | | ] | ]
+      as [[code0 slots0 | fslot syms decls slots0 | | | | ] | ]
       eqn:Hs; try discriminate.
     + injection Hclosure as <- <-. exact (Hstatics s _ w Hs Hw).
     + destruct (lookup fslot decls); simpl in Hclosure; [ | discriminate ].
@@ -7352,7 +7420,7 @@ Lemma allocated_free_of_values (D : dropped) (a : statically_allocated_value)
   value_avoids D v = true.
 Proof.
   destruct a
-    as [code slots | slot syms decls slots | tag fields | contents | bytes];
+    as [code slots | slot syms decls slots | tag fields | contents | bytes | ];
     unfold allocated_free_of, values_of_static; intros Ha Hv.
   - apply andb_true_iff in Ha as [_ Ha].
     apply in_map_iff in Hv as ([name w] & <- & Hin).
@@ -7362,6 +7430,7 @@ Proof.
     rewrite forallb_forall in Ha. exact (Ha (name, w) Hin).
   - rewrite forallb_forall in Ha. exact (Ha v Hv).
   - destruct Hv as [<- | [ ]]. exact Ha.
+  - destruct Hv.
   - destruct Hv.
 Qed.
 

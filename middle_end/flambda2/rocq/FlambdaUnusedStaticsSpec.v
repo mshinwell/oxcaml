@@ -314,7 +314,7 @@ Definition allocated_free_of (D : dropped)
     && forallb (fun '(_, v) => value_avoids D v) slots
   | Static_block _ fields => forallb (value_avoids D) fields
   | Static_boxed_number contents => value_avoids D contents
-  | Static_string _ => true
+  | Static_string _ | Static_imported _ => true
   end.
 
 Definition statics_free_of (D : dropped) (statics : static_env) : bool :=

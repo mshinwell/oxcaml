@@ -921,7 +921,7 @@ Proof.
     auto.
   - destruct (lookup s (static_values statics))
       as [[code slots | slot syms decls slots | tag fields | contents
-          | bytes] | ] eqn:Hs;
+          | bytes | ] | ] eqn:Hs;
       try discriminate.
     + intros Hproject.
       apply project_unnamed_function_slot in Hproject as (-> & -> & ->).
@@ -993,7 +993,7 @@ Proof.
     exact (slot_values_valid_in slots Hslots).
   - destruct (lookup s (static_values statics))
       as [[code slots | at_slot syms set_decls slots | tag fields | contents
-          | bytes] | ] eqn:Hs;
+          | bytes | ] | ] eqn:Hs;
       try discriminate.
     + pose proof (statics_valid_lookup statics s _ Hstatics Hs) as Hvalid.
       intros [= <- <- <-]. split; [ exact (unnamed_set_well_formed code) | ].
@@ -1037,7 +1037,7 @@ Proof.
     intros _. eexists. rewrite Pos.eqb_refl. simpl. reflexivity.
   - destruct (lookup s (static_values statics))
       as [[code slots | at_slot syms set_decls slots | tag fields | contents
-          | bytes] | ] eqn:Hs;
+          | bytes | ] | ] eqn:Hs;
       try discriminate.
     + intros [= <- <- <-]. exact (project_unnamed_defined move_to code _).
     + pose proof (statics_valid_lookup statics s _ Hstatics Hs) as Hvalid.
@@ -1139,7 +1139,7 @@ Proof.
     unfold is_bound. rewrite Hto, Hnames, Hcodes. reflexivity.
   - destruct (lookup s (static_values statics))
       as [[code slots | at_slot syms decls slots | tag fields | contents
-          | bytes] | ];
+          | bytes | ] | ];
       try discriminate.
     + intros Hproject.
       apply project_unnamed_function_slot in Hproject as (_ & _ & ->).
@@ -1940,7 +1940,7 @@ Proof.
     discriminate (Hnone expected Hexpected).
   - destruct (lookup s (static_values statics))
       as [[code slots | at_slot syms set_decls slots | tag fields | contents
-          | bytes] | ] eqn:Hs;
+          | bytes | ] | ] eqn:Hs;
       try discriminate.
     + pose proof (statics_sets_are_lookup statics s _ Hstatics Hs) as Hvalid.
       unfold Qv in Hvalid. simpl in Hvalid.
@@ -2002,7 +2002,7 @@ Proof.
     simpl. intros [= <-]. exact Hv.
   - destruct (lookup s (static_values statics))
       as [[code slots | at_slot syms decls slots | tag fields | contents
-          | bytes] | ];
+          | bytes | ] | ];
       try discriminate.
     + intros Hproject.
       apply project_unnamed_function_slot in Hproject as (_ & _ & ->).

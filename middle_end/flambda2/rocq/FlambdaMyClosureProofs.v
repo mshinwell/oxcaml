@@ -90,7 +90,7 @@ Definition allocated_ok (sym : symbol)
     && slots_free slots
   | Static_block _ fields => forallb value_free fields
   | Static_boxed_number v => value_free v
-  | Static_string _ => true
+  | Static_string _ | Static_imported _ => true
   end.
 
 Definition statics_ok (statics : static_env) : Prop :=
@@ -236,7 +236,7 @@ Proof.
   - intros _.
     destruct (lookup sym (static_values statics))
       as [[code' slots' | fslot syms decls slots' | tag fields | contents
-          | bytes] | ] eqn:Hsym;
+          | bytes | ] | ] eqn:Hsym;
       try discriminate;
       pose proof (Hvalues sym _ Hsym) as Hok; simpl in Hok;
       apply andb_true_iff in Hok as [Hcode Hslots].
@@ -268,7 +268,7 @@ Proof.
   - intros _.
     destruct (lookup sym (static_values statics))
       as [[code' slots' | fslot syms decls' slots' | tag fields | contents
-          | bytes] | ] eqn:Hsym;
+          | bytes | ] | ] eqn:Hsym;
       try discriminate;
       pose proof (Hvalues sym _ Hsym) as Hok; simpl in Hok;
       apply andb_true_iff in Hok as [_ Hslots].
@@ -302,7 +302,7 @@ Proof.
     simpl. intros [= <-]. exact Hv.
   - destruct (lookup sym (static_values statics))
       as [[code' slots' | fslot syms decls slots' | tag fields | contents
-          | bytes] | ];
+          | bytes | ] | ];
       try discriminate.
     + exact Hunnamed.
     + destruct (Pos.eqb fslot move_from); [ | discriminate ].

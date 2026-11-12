@@ -250,8 +250,8 @@ Proof.
   destruct (lookup s (static_values run_statics)) as [allocated' | ] eqn:Hs';
     [ | discriminate ].
   pose proof (Hsets s allocated allocated' Hs Hs') as Hsame.
-  destruct allocated as [code slots | fslot syms decls slots | | | ],
-    allocated' as [code' slots' | fslot' syms' decls' slots' | | | ];
+  destruct allocated as [code slots | fslot syms decls slots | | | | ],
+    allocated' as [code' slots' | fslot' syms' decls' slots' | | | | ];
     try contradiction.
   - rewrite Hknown in Hrun. exact Hrun.
   - destruct Hsame as (-> & -> & ->). rewrite Hknown in Hrun. exact Hrun.
@@ -271,8 +271,8 @@ Proof.
   destruct (lookup s (static_values run_statics)) as [allocated' | ] eqn:Hs';
     [ | discriminate ].
   pose proof (Hsets s allocated allocated' Hs Hs') as Hsame.
-  destruct allocated as [c sl | fslot syms decls sl | | | ],
-    allocated' as [c' sl' | fslot' syms' decls' sl' | | | ];
+  destruct allocated as [c sl | fslot syms decls sl | | | | ],
+    allocated' as [c' sl' | fslot' syms' decls' sl' | | | | ];
     try contradiction.
   - simpl in Hsame. subst c'. intros [= <- _] [= <- _]. reflexivity.
   - destruct Hsame as (-> & -> & ->).

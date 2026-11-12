@@ -251,7 +251,7 @@ Proof.
     intros [= <- <-]. exact Hv.
   - apply andb_true_iff in Hstatics as [_ Hvalues].
     destruct (lookup sym (static_values statics))
-      as [[code' vs' | slot syms decls vs' | tag fields | contents | bytes]
+      as [[code' vs' | slot syms decls vs' | tag fields | contents | bytes | ]
          | ] eqn:Hsym;
       try discriminate.
     + intros [= <- <-].
@@ -281,7 +281,7 @@ Proof.
     intros [= <- <- <-]. exact Hv.
   - apply andb_true_iff in Hstatics as [_ Hvalues].
     destruct (lookup sym (static_values statics))
-      as [[code' vs' | slot' syms decls' vs' | tag fields | contents | bytes]
+      as [[code' vs' | slot' syms decls' vs' | tag fields | contents | bytes | ]
          | ] eqn:Hsym;
       try discriminate.
     + intros [= <- <- <-].
@@ -314,7 +314,7 @@ Proof.
     destruct (lookup move_to decls); [ | discriminate ].
     intros [= <-]. split; [ reflexivity | exact Hv ].
   - destruct (lookup sym (static_values statics))
-      as [[code vs | slot syms decls vs | tag fields | contents | bytes] | ];
+      as [[code vs | slot syms decls vs | tag fields | contents | bytes | ] | ];
       try discriminate.
     + destruct (Pos.eqb move_from unnamed_function_slot); [ | discriminate ].
       destruct (Pos.eqb move_to unnamed_function_slot); [ | discriminate ].

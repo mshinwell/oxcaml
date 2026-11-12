@@ -422,7 +422,7 @@ Definition allocated_statics_among (syms : list symbol) (ids : list code_id)
     && forallb (fun '(_, v) => value_statics_among syms ids v) value_slots
   | Static_block _ fields => forallb (value_statics_among syms ids) fields
   | Static_boxed_number contents => value_statics_among syms ids contents
-  | Static_string _ => true
+  | Static_string _ | Static_imported _ => true
   end.
 
 (* The code ids that a unit declares deleted. *)

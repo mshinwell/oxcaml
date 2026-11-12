@@ -4914,13 +4914,32 @@ Proof.
   - intros H. inversion H. apply tagged_immediate_of_int in H1, H2.
     subst v1 v2. rewrite Z.eqb_eq.
     split; [ intros ->; reflexivity | intros Heq; inversion Heq; reflexivity ].
-  - destruct (is_allocated statics v2); [ | discriminate ].
+  - destruct (is_allocated statics v2 || is_imported statics v2);
+      [ | discriminate ].
     intros H. inversion H. split; [ discriminate | ].
     intros Heq. subst v2. rewrite H1 in H2. discriminate.
-  - destruct (is_allocated statics v1); [ | discriminate ].
+  - destruct (is_allocated statics v1 || is_imported statics v1);
+      [ | discriminate ].
     intros H. inversion H. split; [ discriminate | ].
     intros Heq. subst v2. rewrite H1 in H2. discriminate.
-  - discriminate.
+  - destruct (identity_of statics v1) as [s1 | ] eqn:Hi1,
+      (identity_of statics v2) as [s2 | ] eqn:Hi2.
+    + apply (proj1 (identity_of_imported _ _ _)) in Hi1.
+      apply (proj1 (identity_of_imported _ _ _)) in Hi2.
+      apply imported_of_symbol in Hi1 as [-> _].
+      apply imported_of_symbol in Hi2 as [-> _].
+      intros H. inversion H. rewrite Pos.eqb_eq.
+      split; [ intros ->; reflexivity | intros Heq; inversion Heq ].
+      reflexivity.
+    + destruct (is_allocated statics v2 || is_imported statics v2);
+        [ | discriminate ].
+      intros H. inversion H. split; [ discriminate | ].
+      intros Heq. subst v2. rewrite Hi1 in Hi2. discriminate.
+    + destruct (is_allocated statics v1 || is_imported statics v1);
+        [ | discriminate ].
+      intros H. inversion H. split; [ discriminate | ].
+      intros Heq. subst v2. rewrite Hi1 in Hi2. discriminate.
+    + discriminate.
 Qed.
 
 Theorem prove_physical_equality_phys_equal :

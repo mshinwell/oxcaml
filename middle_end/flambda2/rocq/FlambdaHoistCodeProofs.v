@@ -229,7 +229,7 @@ Lemma allocated_closures_bound_le (bound bound' : code_id -> bool)
 Proof.
   intros Hle.
   destruct allocated as [code slots | slot syms decls slots | tag fields
-                        | contents | bytes];
+                        | contents | bytes | c];
     simpl.
   - intros H. apply andb_true_iff in H as [Hcode Hslots].
     rewrite (Hle code Hcode), (slots_closures_bound_le _ _ slots Hle Hslots).
@@ -241,6 +241,7 @@ Proof.
   - rewrite !forallb_forall. intros H field Hin.
     exact (value_closures_bound_le bound bound' field Hle (H field Hin)).
   - apply value_closures_bound_le, Hle.
+  - intros _. reflexivity.
   - intros _. reflexivity.
 Qed.
 
@@ -487,7 +488,7 @@ Proof.
     pose proof (allocated_ok s allocated Hlookup) as Hallocated.
     destruct allocated
       as [code aslots | aslot syms adecls aslots | tag fields | contents
-         | bytes];
+         | bytes | ];
       simpl in Hallocated |- *; try discriminate.
     + intros [= <- <- <-].
       apply andb_true_iff in Hallocated as [Hcode Hslots].
@@ -537,7 +538,7 @@ Proof.
     intros [= <-]. exact Hc.
   - destruct (lookup s (static_values statics))
       as [[code aslots | aslot syms adecls aslots | tag fields | contents
-          | bytes] | ];
+          | bytes | ] | ];
       try discriminate.
     + destruct (Pos.eqb move_from unnamed_function_slot); [ | discriminate ].
       destruct (Pos.eqb move_to unnamed_function_slot); [ | discriminate ].

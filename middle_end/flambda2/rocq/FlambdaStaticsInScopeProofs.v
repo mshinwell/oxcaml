@@ -1093,7 +1093,7 @@ Proof.
   intros Hs Hi.
   destruct allocated
     as [code slots | slot symbols decls slots | tag fields | contents
-       | bytes];
+       | bytes | c];
     simpl; rewrite ?andb_true_iff.
   - intros [Hc Hslots]. split; [ exact (Hi code Hc) | ].
     exact (slots_among_sub _ _ _ _ _ Hs Hi Hslots).
@@ -1103,6 +1103,7 @@ Proof.
     + exact (all_among_sub _ _ _ Hi Hc).
   - apply values_among_sub; assumption.
   - apply value_among_sub; assumption.
+  - auto.
   - auto.
 Qed.
 
@@ -1218,7 +1219,7 @@ Proof.
       as Hallocated.
     destruct allocated
       as [code aslots | aslot symbols adecls aslots | tag fields | contents
-         | bytes];
+         | bytes | ];
       simpl in Hallocated; try discriminate.
     + intros [= <- <- <-]. apply andb_true_iff in Hallocated as [Hc Hslots].
       split; [ | exact Hslots ]. simpl. rewrite Hc. reflexivity.
@@ -1287,7 +1288,7 @@ Proof.
       as Hallocated.
     destruct allocated
       as [code aslots | aslot symbols adecls aslots | tag fields | contents
-         | bytes];
+         | bytes | ];
       try discriminate.
     + exact Hunnamed.
     + destruct (Pos.eqb aslot move_from); [ | discriminate ].

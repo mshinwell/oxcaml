@@ -95,7 +95,9 @@ Definition trim_allocated (allocated : statically_allocated_value)
   | Static_closure code slots => Static_closure code (keep_slots D slots)
   | Static_closure_of_set slot symbols decls slots =>
     Static_closure_of_set slot symbols decls (keep_slots D slots)
-  | Static_block _ _ | Static_boxed_number _ | Static_string _ => allocated
+  | Static_block _ _ | Static_boxed_number _ | Static_string _
+  | Static_imported _ =>
+    allocated
   end.
 
 Definition trim_statics (statics : static_env) : static_env :=
@@ -175,6 +177,13 @@ Proof.
   destruct (lookup s (static_values statics)); reflexivity.
 Qed.
 
+Lemma imported_of_drop (statics : static_env) (v : value) :
+  imported_of (trim_statics statics) v = imported_of statics v.
+Proof.
+  destruct v; simpl; try reflexivity. lookup_trimmed.
+  destruct (lookup s (static_values statics)) as [[] | ]; reflexivity.
+Qed.
+
 Lemma project_function_slot_drop (statics : static_env)
     (move_from move_to : function_slot) (v : value) :
   project_function_slot (trim_statics statics) move_from move_to v
@@ -206,7 +215,7 @@ Proof.
   - intros H. exists slots. split; [ exact H | intros kept _; reflexivity ].
   - lookup_trimmed.
     destruct (lookup s (static_values statics))
-      as [[ acode aslots | aslot asyms adecls aslots | | | ] | ];
+      as [[ acode aslots | aslot asyms adecls aslots | | | | ] | ];
       simpl; try discriminate.
     + intros [= <- <-]. eexists. split; [ reflexivity | ].
       intros kept Hkept. apply lookup_keep_slots, Hkept.
@@ -231,7 +240,7 @@ Proof.
   - intros H. exists slots. split; [ exact H | intros kept _; reflexivity ].
   - lookup_trimmed.
     destruct (lookup s (static_values statics))
-      as [[ acode aslots | aslot asyms adecls aslots | | | ] | ];
+      as [[ acode aslots | aslot asyms adecls aslots | | | | ] | ];
       simpl; try discriminate.
     + intros [= <- <- <-]. eexists. split; [ reflexivity | ].
       intros kept Hkept. apply lookup_keep_slots, Hkept.
@@ -250,7 +259,8 @@ Proof.
   - split; [ intros c; split; reflexivity | ].
     intros tag fields fields' Hfields.
     rewrite (forall2_eq fields fields' Hfields). reflexivity.
-  - intros v v' <-. split; [ | split; [ | split; [ | split; [ | split ] ] ] ].
+  - intros v v' <-.
+    split; [ | split; [ | split; [ | split; [ | split; [ | split ] ] ] ] ].
     + intros tag fields H. exists fields. rewrite block_of_drop.
       split; [ exact H | apply forall2_eq_refl ].
     + intros c. rewrite boxed_number_of_drop. exact (fun H => H).
@@ -261,6 +271,7 @@ Proof.
       intros _. discriminate.
     + exact (fun H => H).
     + rewrite bound_if_symbol_drop. exact (fun H => H).
+    + intros s. rewrite imported_of_drop. exact (fun H => H).
 Qed.
 
 Lemma eval_prim_drop (statics : static_env) (p : prim) (vs : list value)

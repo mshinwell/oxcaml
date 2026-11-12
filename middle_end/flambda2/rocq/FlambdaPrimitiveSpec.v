@@ -735,8 +735,30 @@ Definition eval_string_load (statics : static_env)
    integer. And on a tagged immediate against an allocated value (a
    block, a closure, a boxed number, a string, or a symbol bound to
    one): they are not the same, as the word of the one is odd and that
-   of the other a pointer, and as [prove_physical_equality] answers. It
-   has no value on anything else. *)
+   of the other a pointer, and as [prove_physical_equality] answers.
+
+   An imported symbol ([FlambdaValueSpec.imported_of]) of either class
+   is not a tagged immediate either: it is a pointer.
+
+   It has a value where one of the two is an identity: an imported
+   symbol of the class [Import_identity]
+   ([FlambdaValueSpec.identity_of]). Two identities are the same when
+   they are one symbol: [prove_physical_equality] answers so of any two
+   symbols. An identity is not an allocated value (a block, a closure,
+   a boxed number, a string, or a symbol bound to one), and is not an
+   imported symbol of the class [Import_data]. This is what a handler
+   does to tell which exception it has caught: it compares the
+   exception, or its first field, with the symbol of a predefined
+   exception (lambda/matching.ml, [combine_extension_constructor]), and
+   what it caught may be a block: an exception with arguments.
+
+   It has no value on anything else. So an imported symbol of the class
+   [Import_data] is as an immutable allocated value is: the comparison
+   has no value on it against an allocated value, against another
+   imported symbol of that class, or against itself. And an identity
+   against null, poison, a number that is not a value or a symbol that
+   is not bound has no value, as a tagged immediate against them has
+   none. *)
 (* CR mshinwell: [Phys_equal] has no value on two allocated values, on
    null or on poison, where the machine compares any two words. This is
    a first version, and not what the primitive is to mean in the end.
@@ -761,6 +783,26 @@ Definition eval_string_load (statics : static_env)
    No value is conservative: it would be wrong only in that nothing is
    then proved of a program that compares such values, as library code
    does with [==]. Decision D19. *)
+(* CR mshinwell: [Phys_equal] answers 0 of an identity against an
+   allocated value of the unit and against an import that is data, and
+   of two identities with different symbols. The machine code does;
+   Simplify proves it only of two symbols, or where the shapes of the
+   two types differ. The reason it is right: an identity is made once
+   (by the runtime for a predefined exception, by the unit that
+   declares an exception otherwise) and is never copied or shared, so
+   nothing that a unit allocates, and nothing that Simplify shares or
+   lifts, can be it. That the compiler shares equal immutable values
+   (decision D30) is about immutable structure, which an identity is
+   not. It rests on two things that are not checked here. One is that
+   the class is given to nothing but an exception: the conversion from
+   the compiler's terms decides it, from the symbol alone, and is to
+   give it to the predefined exceptions only until something can check
+   more. The other is that two symbols of that class are two objects:
+   [exception E = Not_found] in another unit makes no second symbol,
+   only another name for the first. For an import that is data there
+   is no such reason, since Simplify may know its contents from the
+   other unit and share it with a block of this one, and the comparison
+   has no value. Decision 2 of requests/C5-imported-symbols.md. *)
 Definition eval_phys_equal (statics : static_env) (v1 v2 : value)
     : option bool :=
   match
@@ -768,9 +810,23 @@ Definition eval_phys_equal (statics : static_env) (v1 v2 : value)
     int_of_value Standard_tagged_immediate v2
   with
   | Some a, Some b => Some (a =? b)
-  | Some _, None => if is_allocated statics v2 then Some false else None
-  | None, Some _ => if is_allocated statics v1 then Some false else None
-  | None, None => None
+  | Some _, None =>
+    if is_allocated statics v2 || is_imported statics v2 then Some false
+    else None
+  | None, Some _ =>
+    if is_allocated statics v1 || is_imported statics v1 then Some false
+    else None
+  | None, None =>
+    match identity_of statics v1, identity_of statics v2 with
+    | Some s1, Some s2 => Some (Pos.eqb s1 s2)
+    | Some _, None =>
+      if is_allocated statics v2 || is_imported statics v2 then Some false
+      else None
+    | None, Some _ =>
+      if is_allocated statics v1 || is_imported statics v1 then Some false
+      else None
+    | None, None => None
+    end
   end.
 
 (* A binary primitive applied to two values. For [Int_arith] and
@@ -1264,6 +1320,7 @@ Definition allocated_in_range (allocated : statically_allocated_value)
     tag_in_range tag && forallb value_in_range fields
   | Static_boxed_number contents => value_in_range contents
   | Static_string bytes => forallb byte_in_range bytes
+  | Static_imported _ => true
   end.
 
 (* ======================================================================== *)
@@ -1523,8 +1580,10 @@ Definition int_of_value_in_range_statement : Prop :=
      primitive makes of related arguments is related;
    - what an observation answers of the first value it answers of the
      second, with related parts; if the first is a closure or a partial
-     application so is the second; and if the first is not a symbol
-     bound to nothing nor is the second ([relates_observations]).
+     application so is the second; if the first is not a symbol bound
+     to nothing nor is the second; and if the first is an imported
+     symbol the second is the same imported symbol, of the same class
+     ([relates_observations]).
    Equality is such a relation when the two static environments are the
    same. So is the relation between a value and the same value with a
    symbol in place of some of the blocks, boxed numbers and closures in
@@ -1544,8 +1603,11 @@ Definition int_of_value_in_range_statement : Prop :=
    ever do: none may have a value that depends on the identity of an
    immutable allocated value. In particular [Phys_equal] can have no
    value on two of them, or it would tell a block from a symbol bound to
-   an equal block. With a heap the premise needs one more part, that a
-   location is related to a location only. *)
+   an equal block. What it answers of an imported symbol does depend on
+   its class, and of an identity on which symbol it is, and the last
+   part of the premise is for that.
+   With a heap the premise needs one more part, that a location is
+   related to a location only. *)
 Definition relates_constants (R : value -> value -> Prop) : Prop :=
   (∀ (c : const) (v' : value), R (Value_const c) v' -> v' = Value_const c)
   ∧ (∀ (v : value) (c : const), R v (Value_const c) -> v = Value_const c).
@@ -1576,7 +1638,10 @@ Definition relates_observations (R : value -> value -> Prop)
     ∧ (partial_application_of v <> None ->
        partial_application_of v' <> None)
     ∧ (bound_if_symbol statics v = true ->
-       bound_if_symbol statics' v' = true).
+       bound_if_symbol statics' v' = true)
+    ∧ (∀ i : symbol * import_class,
+        imported_of statics v = Some i ->
+        imported_of statics' v' = Some i).
 
 Definition respects_observations (R : value -> value -> Prop)
     (statics statics' : static_env) : Prop :=

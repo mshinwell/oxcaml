@@ -287,13 +287,15 @@ Inductive allocated_lifted (statics' : static_env)
     value_lifted statics' v v' ->
     allocated_lifted statics' (Static_boxed_number v) (Static_boxed_number v')
   | Lifted_static_string (bytes : list Z) :
-    allocated_lifted statics' (Static_string bytes) (Static_string bytes).
+    allocated_lifted statics' (Static_string bytes) (Static_string bytes)
+  | Lifted_static_imported (c : import_class) :
+    allocated_lifted statics' (Static_imported c) (Static_imported c).
 
 Ltac allocated_cases H :=
   destruct H
     as [ acode aslots aslots' Haslots
        | afslot asyms adecls aslots aslots' Haslots
-       | atag afields afields' Hafields | av av' Hav | abytes ].
+       | atag afields afields' Hafields | av av' Hav | abytes | ].
 
 Lemma allocated_lifted_extend (statics' statics'' : static_env)
     (allocated allocated' : statically_allocated_value) :
@@ -535,7 +537,8 @@ Proof.
   - split.
     + intros c. split; constructor.
     + intros tag fields fields' Hfields. constructor. exact Hfields.
-  - intros v v' Hv. split; [ | split; [ | split; [ | split; [ | split ] ] ] ].
+  - intros v v' Hv.
+    split; [ | split; [ | split; [ | split; [ | split; [ | split ] ] ] ] ].
     + intros tag fields. exact (block_of_lifted v v' tag fields Hv).
     + intros c. exact (boxed_number_of_lifted v v' c Hv).
     + intros bytes. exact (string_of_lifted v v' bytes Hv).
@@ -558,6 +561,11 @@ Proof.
       * rewrite Hlookup. reflexivity.
       * rewrite (Hbound fslot s (lookup_in _ _ _ Hsym)). reflexivity.
       * rewrite Hlookup. reflexivity.
+    + intros [s0 c] Hs0.
+      apply imported_of_symbol in Hs0 as [-> Hs0].
+      inversion Hv; subst. simpl.
+      destruct (Hsymbols s0 _ Hs0) as (allocated' & -> & Hallocated).
+      inversion Hallocated. reflexivity.
 Qed.
 
 Lemma eval_prim_lifted (p : prim) (vs vs' : list value) (v : value) :

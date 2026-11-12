@@ -251,6 +251,13 @@ Proof.
   reflexivity.
 Qed.
 
+Lemma imported_of_static_values :
+  imported_of statics v = imported_of statics' v.
+Proof.
+  destruct v; simpl; try reflexivity. rewrite (Hsame _ eq_refl).
+  reflexivity.
+Qed.
+
 (* By cases on the unary primitives: one that reads an allocated value
    does so through an observation. *)
 Lemma eval_unary_primitive_static_values (p : unary_primitive) :
@@ -267,6 +274,147 @@ Proof.
 Qed.
 
 End Static_values.
+
+(* An imported symbol is a symbol, bound to what is imported; and an
+   allocated value is not one. *)
+Lemma imported_of_symbol (statics : static_env) (v : value) (s : symbol)
+    (c : import_class) :
+  imported_of statics v = Some (s, c) ->
+  v = Value_symbol s
+  ∧ lookup s (static_values statics) = Some (Static_imported c).
+Proof.
+  destruct v as [ | | | s0 | | | | ]; simpl; try discriminate.
+  destruct (lookup s0 (static_values statics)) as [[ | | | | | c0] | ]
+    eqn:Hlookup; try discriminate.
+  intros [= <- <-]. split; [ reflexivity | exact Hlookup ].
+Qed.
+
+Lemma is_allocated_not_imported (statics : static_env) (v : value) :
+  is_allocated statics v = true -> imported_of statics v = None.
+Proof.
+  destruct v as [ | | | s | | | | ]; try reflexivity.
+  unfold is_allocated. simpl.
+  destruct (lookup s (static_values statics)) as [[ | | | | | c] | ];
+    try (intros _; reflexivity).
+  discriminate.
+Qed.
+
+(* An identity is an imported symbol of that class. *)
+Lemma identity_of_imported (statics : static_env) (v : value) (s : symbol) :
+  identity_of statics v = Some s
+  <-> imported_of statics v = Some (s, Import_identity).
+Proof.
+  unfold identity_of.
+  destruct (imported_of statics v) as [[s0 [ | ]] | ]; split; intros H;
+    try discriminate H; injection H as ->; reflexivity.
+Qed.
+
+(* What [Phys_equal] reads of a value that is not a tagged immediate
+   goes from one value to another, when the second is allocated where
+   the first is and is the same imported symbol where the first is
+   one. *)
+Section Phys_equal_transfer.
+
+Context (statics statics' : static_env) (v v' : value).
+Context
+  (Hallocated :
+    is_allocated statics v = true -> is_allocated statics' v' = true)
+  (Himported :
+    ∀ i : symbol * import_class,
+      imported_of statics v = Some i -> imported_of statics' v' = Some i).
+
+Lemma identity_of_transfer (s : symbol) :
+  identity_of statics v = Some s -> identity_of statics' v' = Some s.
+Proof.
+  intros Hs. apply identity_of_imported. apply Himported.
+  apply identity_of_imported. exact Hs.
+Qed.
+
+Lemma allocated_or_imported_transfer :
+  is_allocated statics v || is_imported statics v = true ->
+  is_allocated statics' v' || is_imported statics' v' = true.
+Proof.
+  intros H. apply orb_true_iff in H as [H | H].
+  - rewrite (Hallocated H). reflexivity.
+  - revert H. unfold is_imported.
+    destruct (imported_of statics v) as [i | ] eqn:Hi; [ | discriminate ].
+    intros _. rewrite (Himported i eq_refl). apply orb_true_r.
+Qed.
+
+Lemma not_identity_transfer :
+  identity_of statics v = None ->
+  is_allocated statics v || is_imported statics v = true ->
+  identity_of statics' v' = None
+  ∧ is_allocated statics' v' || is_imported statics' v' = true.
+Proof.
+  intros Hnone H.
+  split; [ | exact (allocated_or_imported_transfer H) ].
+  apply orb_true_iff in H as [H | H].
+  - unfold identity_of.
+    rewrite (is_allocated_not_imported statics' v' (Hallocated H)).
+    reflexivity.
+  - revert H Hnone. unfold is_imported, identity_of.
+    destruct (imported_of statics v) as [[s [ | ]] | ] eqn:Hi;
+      intros H Hnone; try discriminate.
+    rewrite (Himported _ eq_refl). reflexivity.
+Qed.
+
+End Phys_equal_transfer.
+
+(* [Phys_equal] gives of two values what it gives of two others, when
+   these are the same tagged immediates, are allocated where those are,
+   and are the same imported symbols where those are imported. *)
+Lemma eval_phys_equal_transfer (statics statics' : static_env)
+    (v1 v2 v1' v2' : value) (same : bool) :
+  int_of_value Standard_tagged_immediate v1'
+  = int_of_value Standard_tagged_immediate v1 ->
+  int_of_value Standard_tagged_immediate v2'
+  = int_of_value Standard_tagged_immediate v2 ->
+  (is_allocated statics v1 = true -> is_allocated statics' v1' = true) ->
+  (is_allocated statics v2 = true -> is_allocated statics' v2' = true) ->
+  (∀ i : symbol * import_class,
+    imported_of statics v1 = Some i -> imported_of statics' v1' = Some i) ->
+  (∀ i : symbol * import_class,
+    imported_of statics v2 = Some i -> imported_of statics' v2' = Some i) ->
+  eval_phys_equal statics v1 v2 = Some same ->
+  eval_phys_equal statics' v1' v2' = Some same.
+Proof.
+  intros Hint1 Hint2 Ha1 Ha2 Hi1 Hi2. unfold eval_phys_equal.
+  rewrite Hint1, Hint2.
+  destruct (int_of_value Standard_tagged_immediate v1),
+    (int_of_value Standard_tagged_immediate v2).
+  - exact (fun H => H).
+  - destruct (is_allocated statics v2 || is_imported statics v2) eqn:H2;
+      [ | discriminate ].
+    rewrite (allocated_or_imported_transfer statics statics' v2 v2' Ha2 Hi2
+               H2).
+    exact (fun H => H).
+  - destruct (is_allocated statics v1 || is_imported statics v1) eqn:H1;
+      [ | discriminate ].
+    rewrite (allocated_or_imported_transfer statics statics' v1 v1' Ha1 Hi1
+               H1).
+    exact (fun H => H).
+  - destruct (identity_of statics v1) as [s1 | ] eqn:Hid1,
+      (identity_of statics v2) as [s2 | ] eqn:Hid2.
+    + rewrite (identity_of_transfer statics statics' v1 v1' Hi1 s1 Hid1),
+        (identity_of_transfer statics statics' v2 v2' Hi2 s2 Hid2).
+      exact (fun H => H).
+    + rewrite (identity_of_transfer statics statics' v1 v1' Hi1 s1 Hid1).
+      destruct (is_allocated statics v2 || is_imported statics v2) eqn:H2;
+        [ | discriminate ].
+      destruct
+        (not_identity_transfer statics statics' v2 v2' Ha2 Hi2 Hid2 H2)
+        as [-> ->].
+      exact (fun H => H).
+    + rewrite (identity_of_transfer statics statics' v2 v2' Hi2 s2 Hid2).
+      destruct (is_allocated statics v1 || is_imported statics v1) eqn:H1;
+        [ | discriminate ].
+      destruct
+        (not_identity_transfer statics statics' v1 v1' Ha1 Hi1 Hid1 H1)
+        as [-> ->].
+      exact (fun H => H).
+    + discriminate.
+Qed.
 
 Lemma forallb_bound_if_symbol_static_values (statics statics' : static_env)
     (vs : list value) :
@@ -301,10 +449,14 @@ Proof.
     rewrite (string_of_static_values statics statics' v1)
       by (intros s ->; apply Hsame; left; reflexivity).
     reflexivity.
-  - unfold eval_phys_equal.
+  - unfold eval_phys_equal, identity_of, is_imported.
     rewrite (is_allocated_static_values statics statics' v1)
       by (intros s ->; apply Hsame; left; reflexivity).
     rewrite (is_allocated_static_values statics statics' v2)
+      by (intros s ->; apply Hsame; right; left; reflexivity).
+    rewrite (imported_of_static_values statics statics' v1)
+      by (intros s ->; apply Hsame; left; reflexivity).
+    rewrite (imported_of_static_values statics statics' v2)
       by (intros s ->; apply Hsame; right; left; reflexivity).
     reflexivity.
 Qed.
@@ -491,6 +643,18 @@ Proof.
   end.
 Qed.
 
+Lemma imported_of_statics_extend (i : symbol * import_class) :
+  imported_of statics v = Some i -> imported_of statics' v = Some i.
+Proof.
+  destruct v; simpl; try exact (fun H => H).
+  match goal with
+  | |- context [lookup ?s (static_values statics)] =>
+    destruct (lookup s (static_values statics)) eqn:Hlookup;
+      [ rewrite (Hextend _ _ eq_refl Hlookup); exact (fun H => H)
+      | discriminate ]
+  end.
+Qed.
+
 (* By cases on the unary primitives: one that reads an allocated value
    does so through an observation, and has no value where the
    observation has no answer. *)
@@ -570,22 +734,19 @@ Proof.
       [ exact (fun H => H) | | exact Hstring ].
     intros s allocated ->. apply Hextend. left. reflexivity.
   - (* [Phys_equal] *)
-    unfold eval_phys_equal.
-    assert (Hv1 :
-      is_allocated statics v1 = true -> is_allocated statics' v1 = true).
-    { apply is_allocated_statics_extend. intros s allocated ->.
-      apply Hextend. left. reflexivity. }
-    assert (Hv2 :
-      is_allocated statics v2 = true -> is_allocated statics' v2 = true).
-    { apply is_allocated_statics_extend. intros s allocated ->.
-      apply Hextend. right. left. reflexivity. }
-    destruct (int_of_value Standard_tagged_immediate v1),
-      (int_of_value Standard_tagged_immediate v2);
-      try exact (fun H => H).
-    + destruct (is_allocated statics v2); [ | discriminate ].
-      rewrite (Hv2 eq_refl). exact (fun H => H).
-    + destruct (is_allocated statics v1); [ | discriminate ].
-      rewrite (Hv1 eq_refl). exact (fun H => H).
+    destruct (eval_phys_equal statics v1 v2) as [same | ] eqn:Hsame;
+      [ | discriminate ].
+    rewrite (eval_phys_equal_transfer statics statics' v1 v2 v1 v2 same)
+      ; [ exact (fun H => H) | reflexivity | reflexivity | | | |
+        | exact Hsame ].
+    + apply is_allocated_statics_extend. intros s allocated ->.
+      apply Hextend. left. reflexivity.
+    + apply is_allocated_statics_extend. intros s allocated ->.
+      apply Hextend. right. left. reflexivity.
+    + intros i. apply imported_of_statics_extend. intros s0 allocated ->.
+      apply Hextend. left. reflexivity.
+    + intros i. apply imported_of_statics_extend. intros s0 allocated ->.
+      apply Hextend. right. left. reflexivity.
 Qed.
 
 (* By cases on the variadic primitives. *)
@@ -669,23 +830,29 @@ Proof.
 Qed.
 
 (* [Phys_equal] has a value on a symbol only if the symbol is
-   allocated, and so bound. *)
+   allocated or imported, and so bound. *)
 Lemma eval_phys_equal_symbol_bound (statics : static_env) (s : symbol)
     (v1 v2 : value) (same : bool) :
   eval_phys_equal statics v1 v2 = Some same ->
   v1 = Value_symbol s ∨ v2 = Value_symbol s ->
   lookup s (static_values statics) <> None.
 Proof.
-  unfold eval_phys_equal. intros Heval [-> | ->]; revert Heval;
-    rewrite int_of_value_symbol;
-    match goal with
-    | |- context [int_of_value ?kind ?other] =>
-      destruct (int_of_value kind other)
-    end;
-    try discriminate;
-    (destruct (is_allocated statics (Value_symbol s)) eqn:Hallocated;
-       [ | discriminate ]);
-    intros _; exact (is_allocated_symbol_bound statics s Hallocated).
+  intros Heval Hs.
+  destruct (lookup s (static_values statics)) eqn:Hlookup; [ discriminate | ].
+  exfalso.
+  assert (Hallocated : is_allocated statics (Value_symbol s) = false).
+  { unfold is_allocated. simpl. rewrite Hlookup. reflexivity. }
+  assert (Himported : imported_of statics (Value_symbol s) = None).
+  { simpl. rewrite Hlookup. reflexivity. }
+  assert (Hidentity : identity_of statics (Value_symbol s) = None).
+  { unfold identity_of. rewrite Himported. reflexivity. }
+  revert Heval. unfold eval_phys_equal, is_imported.
+  destruct Hs as [-> | ->];
+    rewrite int_of_value_symbol, Hidentity, Hallocated, Himported.
+  - destruct (int_of_value Standard_tagged_immediate v2); [ discriminate | ].
+    destruct (identity_of statics v2); discriminate.
+  - destruct (int_of_value Standard_tagged_immediate v1); [ discriminate | ].
+    destruct (identity_of statics v1); discriminate.
 Qed.
 
 (* By cases on the binary primitives: a symbol is not an integer. *)
@@ -889,6 +1056,30 @@ Qed.
 
 (* The arguments on which [Phys_equal] has a value are of kind
    [Value]. *)
+Lemma imported_of_kind (statics : static_env) (v : value)
+    (i : symbol * import_class) :
+  imported_of statics v = Some i -> kind_of_value v = Value.
+Proof. destruct v; simpl; try discriminate; reflexivity. Qed.
+
+Lemma identity_of_kind (statics : static_env) (v : value) (s : symbol) :
+  identity_of statics v = Some s -> kind_of_value v = Value.
+Proof.
+  intros Hs. apply identity_of_imported in Hs.
+  exact (imported_of_kind statics v _ Hs).
+Qed.
+
+Lemma allocated_or_imported_kind (statics : static_env) (v : value) :
+  is_allocated statics v || is_imported statics v = true ->
+  kind_of_value v = Value.
+Proof.
+  intros H.
+  apply orb_true_iff in H as [H | H];
+    [ exact (is_allocated_kind statics v H) | ].
+  unfold is_imported in H.
+  destruct (imported_of statics v) as [i | ] eqn:Hi; [ | discriminate ].
+  exact (imported_of_kind statics v i Hi).
+Qed.
+
 Lemma eval_phys_equal_kinds (statics : static_env) (arg1 arg2 : value)
     (same : bool) :
   eval_phys_equal statics arg1 arg2 = Some same ->
@@ -896,19 +1087,36 @@ Lemma eval_phys_equal_kinds (statics : static_env) (arg1 arg2 : value)
 Proof.
   unfold eval_phys_equal.
   destruct (int_of_value Standard_tagged_immediate arg1) as [a | ] eqn:Ha,
-    (int_of_value Standard_tagged_immediate arg2) as [b | ] eqn:Hb;
-    try discriminate.
+    (int_of_value Standard_tagged_immediate arg2) as [b | ] eqn:Hb.
   - intros _. split.
     + exact (int_of_value_kind _ _ _ Ha).
     + exact (int_of_value_kind _ _ _ Hb).
-  - destruct (is_allocated statics arg2) eqn:Hallocated; [ | discriminate ].
+  - destruct (is_allocated statics arg2 || is_imported statics arg2) eqn:H2;
+      [ | discriminate ].
     intros _. split.
     + exact (int_of_value_kind _ _ _ Ha).
-    + exact (is_allocated_kind statics arg2 Hallocated).
-  - destruct (is_allocated statics arg1) eqn:Hallocated; [ | discriminate ].
+    + exact (allocated_or_imported_kind statics arg2 H2).
+  - destruct (is_allocated statics arg1 || is_imported statics arg1) eqn:H1;
+      [ | discriminate ].
     intros _. split.
-    + exact (is_allocated_kind statics arg1 Hallocated).
+    + exact (allocated_or_imported_kind statics arg1 H1).
     + exact (int_of_value_kind _ _ _ Hb).
+  - destruct (identity_of statics arg1) as [s1 | ] eqn:Hi1,
+      (identity_of statics arg2) as [s2 | ] eqn:Hi2.
+    + intros _. split.
+      * exact (identity_of_kind _ _ _ Hi1).
+      * exact (identity_of_kind _ _ _ Hi2).
+    + destruct (is_allocated statics arg2 || is_imported statics arg2)
+        eqn:H2; [ | discriminate ].
+      intros _. split.
+      * exact (identity_of_kind _ _ _ Hi1).
+      * exact (allocated_or_imported_kind statics arg2 H2).
+    + destruct (is_allocated statics arg1 || is_imported statics arg1)
+        eqn:H1; [ | discriminate ].
+      intros _. split.
+      * exact (allocated_or_imported_kind statics arg1 H1).
+      * exact (identity_of_kind _ _ _ Hi2).
+    + discriminate.
 Qed.
 
 (* By cases on the binary primitives. *)
@@ -2107,25 +2315,32 @@ Proof.
     rewrite (related_is_allocated v v' Hr Hv). exact (fun H => H).
 Qed.
 
+Lemma related_imported_of (v v' : value) (i : symbol * import_class) :
+  R v v' ->
+  imported_of statics v = Some i ->
+  imported_of statics' v' = Some i.
+Proof.
+  intros Hr.
+  exact
+    (proj2 (proj2 (proj2 (proj2 (proj2 (proj2 (Hobserved v v' Hr)))))) i).
+Qed.
+
 (* [Phys_equal] reads its arguments as tagged immediates, which are
-   constants, and by whether they are allocated, which the observations
-   say. *)
+   constants, by whether they are allocated, which the observations
+   say, and as imported symbols, which related values are alike. *)
 Lemma related_eval_phys_equal (same : bool) (v1 v2 v1' v2' : value) :
   R v1 v1' ->
   R v2 v2' ->
   eval_phys_equal statics v1 v2 = Some same ->
   eval_phys_equal statics' v1' v2' = Some same.
 Proof.
-  intros Hr1 Hr2. unfold eval_phys_equal.
-  rewrite (related_int_of_value _ v1 v1' Hr1),
-    (related_int_of_value _ v2 v2' Hr2).
-  destruct (int_of_value Standard_tagged_immediate v1),
-    (int_of_value Standard_tagged_immediate v2);
-    try exact (fun H => H).
-  - destruct (is_allocated statics v2) eqn:Hallocated; [ | discriminate ].
-    rewrite (related_is_allocated v2 v2' Hr2 Hallocated). exact (fun H => H).
-  - destruct (is_allocated statics v1) eqn:Hallocated; [ | discriminate ].
-    rewrite (related_is_allocated v1 v1' Hr1 Hallocated). exact (fun H => H).
+  intros Hr1 Hr2. apply eval_phys_equal_transfer.
+  - exact (related_int_of_value _ v1 v1' Hr1).
+  - exact (related_int_of_value _ v2 v2' Hr2).
+  - exact (related_is_allocated v1 v1' Hr1).
+  - exact (related_is_allocated v2 v2' Hr2).
+  - intros i. exact (related_imported_of v1 v1' i Hr1).
+  - intros i. exact (related_imported_of v2 v2' i Hr2).
 Qed.
 
 (* On a value that is not a constant, [Is_null] answers no if it
@@ -2166,7 +2381,7 @@ Lemma eval_unary_primitive_related (p : unary_primitive)
 Proof.
   intros Hr.
   destruct (Hobserved v v' Hr)
-    as (Hblocks & Hboxed & Hstring & _ & _ & Hbound).
+    as (Hblocks & Hboxed & Hstring & _ & _ & Hbound & _).
   destruct p as [access mut field | variant_only | | | length_kind | | kind
                 | kind op | src dst | | kind | kind | | | reinterpret];
     cbn [eval_unary_primitive];
@@ -2340,7 +2555,8 @@ Proof.
   assert (Hbound' : forallb (bound_if_symbol statics') vs' = true).
   { revert Hbound. apply (forall2_forallb R); [ | exact Hargs ].
     intros v v' Hr.
-    exact (proj2 (proj2 (proj2 (proj2 (proj2 (Hobserved v v' Hr)))))). }
+    exact
+      (proj1 (proj2 (proj2 (proj2 (proj2 (proj2 (Hobserved v v' Hr))))))). }
   rewrite Hkinds', Hbound'. reflexivity.
 Qed.
 

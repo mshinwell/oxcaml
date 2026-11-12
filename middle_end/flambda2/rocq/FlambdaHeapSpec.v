@@ -140,9 +140,11 @@ Definition is_location (v : value) : bool :=
 
 (* [Phys_equal] where one of the two values is a location: option (b) of
    the request. Two locations are equal when they are the same location.
-   A location differs from a tagged immediate and from an immutable
-   allocated value. Against anything else there is no answer: null,
-   poison, a number that is not a value, a symbol that is not bound.
+   A location differs from a tagged immediate, from an immutable
+   allocated value and from an imported symbol of either class, which
+   is an object that was there before the unit ran. Against anything
+   else there is no answer: null, poison, a number that is not a value,
+   a symbol that is not bound.
    Where neither value is a location the comparison is
    FlambdaPrimitiveSpec.eval_phys_equal, which answers of two tagged
    immediates and of one against an allocated value, and has no value on
@@ -155,7 +157,7 @@ Definition eval_phys_equal_location (statics : static_env) (v1 v2 : value)
   | Value_location l1, Value_location l2 => Some (Pos.eqb l1 l2)
   | Value_location _, v | v, Value_location _ =>
     if is_some (int_of_value Standard_tagged_immediate v)
-       || is_allocated statics v
+       || is_allocated statics v || is_imported statics v
     then Some false
     else None
   | _, _ => None
@@ -1081,7 +1083,7 @@ Definition values_of_static (a : statically_allocated_value) : list value :=
     map snd slots
   | Static_block _ fields => fields
   | Static_boxed_number v => [v]
-  | Static_string _ => []
+  | Static_string _ | Static_imported _ => []
   end.
 
 (* No location dangles in the heap or in the static environment, and
@@ -1325,17 +1327,22 @@ Definition conts_related (R : value -> value -> Prop)
     conts conts'.
 
 (* Two states are related: they run the same expression, with the same
-   code and the same symbols bound, and there is a correspondence
-   between their memories, valid without poison, under which each symbol
-   is itself (the expression may name any), the environments hold
-   related values for the free variables of the expression, and the
-   continuations are related. *)
+   code, the same symbols bound and the same symbols imported, each of
+   the same class, and there is a correspondence between their memories,
+   valid without poison, under which each symbol is itself (the
+   expression may name any), the environments hold related values for
+   the free variables of the expression, and the continuations are
+   related. *)
 Definition states_related (s s' : heap_state) : Prop :=
   hs_expr s = hs_expr s'
   ∧ static_code (hs_statics s) = static_code (hs_statics s')
   ∧ (∀ sym : symbol,
       is_bound sym (static_values (hs_statics s))
       = is_bound sym (static_values (hs_statics s')))
+  ∧ (∀ (sym : symbol) (c : import_class),
+      lookup sym (static_values (hs_statics s)) = Some (Static_imported c)
+      <-> lookup sym (static_values (hs_statics s'))
+          = Some (Static_imported c))
   ∧ ∃ r : correspondence,
       correspondence_valid false r (hs_statics s) (hs_statics s')
         (hs_heap s) (hs_heap s')
@@ -1398,7 +1405,9 @@ Definition heap_refines_reflexive_statement : Prop :=
 (* The symbols of two memories under a correspondence, up to those left
    out. A symbol that is not left out corresponds to itself, and is bound
    in both memories or in neither. A symbol that is left out is not bound
-   in the first memory and is allocated in the second. *)
+   in the first memory and is allocated in the second. The two memories
+   import the same symbols, each as the same class (a symbol that is
+   left out is allocated in the second, so is imported in neither). *)
 Definition names_related (D : dropped) (r : correspondence)
     (statics statics' : static_env) : Prop :=
   (∀ s : symbol,
@@ -1411,7 +1420,10 @@ Definition names_related (D : dropped) (r : correspondence)
   ∧ (∀ s : symbol,
       symbol_kept D s = false ->
       lookup s (static_values statics) = None
-      ∧ is_allocated statics' (Value_symbol s) = true).
+      ∧ is_allocated statics' (Value_symbol s) = true)
+  ∧ (∀ (s : symbol) (c : import_class),
+      lookup s (static_values statics) = Some (Static_imported c)
+      <-> lookup s (static_values statics') = Some (Static_imported c)).
 
 (* Two memories related by a correspondence, valid without poison, up to
    the symbols left out. *)

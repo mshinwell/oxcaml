@@ -230,7 +230,7 @@ Proof.
     exact (conj Has (slot_values_known_in slots Hslots)).
   - destruct (lookup s (static_values statics))
       as [[code slots | at_slot syms set_decls slots | tag fields | contents
-          | bytes] | ] eqn:Hs;
+          | bytes | ] | ] eqn:Hs;
       try discriminate.
     + pose proof (statics_slots_known_lookup statics s _ Hstatics Hs)
         as Hvalid.
@@ -284,7 +284,7 @@ Proof.
     simpl. intros [= <-]. exact Hv.
   - destruct (lookup s (static_values statics))
       as [[code slots | at_slot syms decls slots | tag fields | contents
-          | bytes] | ];
+          | bytes | ] | ];
       try discriminate.
     + intros Hproject.
       apply project_unnamed_function_slot in Hproject as (_ & _ & ->).

@@ -152,7 +152,7 @@ Definition allocated_avoids (allocated : statically_allocated_value) : bool :=
     && slot_values_avoid slots
   | Static_block _ fields => forallb (value_avoids D) fields
   | Static_boxed_number contents => value_avoids D contents
-  | Static_string _ => true
+  | Static_string _ | Static_imported _ => true
   end.
 
 (* The second static environment is the first without the names removed
@@ -311,7 +311,7 @@ Proof.
     intros called slots.
     destruct (lookup s (static_values statics))
       as [[code slots' | fslot syms decls slots' | tag fields | contents
-          | bytes] | ] eqn:Hlookup;
+          | bytes | ] | ] eqn:Hlookup;
       try discriminate.
     + intros [= <- <-].
       pose proof (Hvalues_avoid s _ Hkept Hlookup) as Hallocated.
@@ -360,7 +360,7 @@ Proof.
     intros at_slot decls slots.
     destruct (lookup s (static_values statics))
       as [[code slots' | fslot syms decls' slots' | tag fields | contents
-          | bytes] | ] eqn:Hlookup;
+          | bytes | ] | ] eqn:Hlookup;
       try discriminate;
       pose proof (Hvalues_avoid s _ Hkept Hlookup) as Hallocated;
       simpl in Hallocated; apply andb_true_iff in Hallocated as [_ Hslots].
@@ -433,7 +433,7 @@ Proof.
   - simpl in Hv. rewrite (Hvalues s Hv). split; [ reflexivity | ].
     destruct (lookup s (static_values statics))
       as [[code slots' | fslot syms decls slots' | tag fields | contents
-          | bytes] | ] eqn:Hlookup;
+          | bytes | ] | ] eqn:Hlookup;
       try discriminate.
     + exact Hunnamed.
     + pose proof (Hvalues_avoid s _ Hv Hlookup) as Hallocated.
