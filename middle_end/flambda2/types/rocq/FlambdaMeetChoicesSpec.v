@@ -89,11 +89,13 @@
       the other records nothing. Recording changes nothing exactly
       where each of those variables is recorded already
       ([union_extra_variables_same_statement]); in particular where
-      there is none. So the choice matters only where a meet inside
-      the one case that is kept made a variable, which only a join
-      does. What fails: [meet_keeps_well_formed], the type answered
-      mentions a variable that the environment answered does not
-      know ([example_unbound_statement],
+      there is none. (To record them the lifting meet cuts the level
+      of the case's environment, and stops if that fails, which is a
+      fatal error of the compiler.) So the choice matters only where
+      a meet inside the one case that is kept made a variable, which
+      only a join does. What fails: [meet_keeps_well_formed], the
+      type answered mentions a variable that the environment
+      answered does not know ([example_unbound_statement],
       [not_lifting_not_keeps_statement]). With the repaired choice
       every variable of the type answered is known
       ([example_unbound_repaired_statement]). The compiler shows this
