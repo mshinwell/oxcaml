@@ -203,6 +203,10 @@ All in `middle_end/flambda2/types/rocq/`, library `OxCamlFlambda2Types`.
     environment in which the body of code is rewritten, with the
     types of the symbols, after `Typing_env.closure_env`; the same
     agreement)
+  - `middle_end/flambda2/rocq/FlambdaValidateKnowing*` (the validation
+    asked again with the new `follow_aliases` in front of each round;
+    T3's by agreement with the owner of the validator, whose files it
+    leaves as they are)
 - T4, meet. Owner: T4, on `flambda2-rocq/T4-meet`.
   - `middle_end/flambda2/types/rocq/FlambdaExpandHead*` (expanded
     types and `expand_head`, after `types/expand_head.ml`, and what
