@@ -66,10 +66,12 @@
    - [relation_switch_arm_keeps_statement]: under the same
      hypotheses, the environment that the meet for an arm answers has
      one of them again ([values_extension_free]): its types of kind
-     value are aliases or have no extension. The others are not shown
-     of it (that its aliases are consistent; what [scrutinee_has] asks
-     of a scrutinee), so a [Switch] that is simplified in the
-     environment of an arm still needs them.
+     value are aliases or have no extension. Its aliases are
+     consistent, as those of the environment of the [Switch] are
+     ([relation_switch_arm_keeps_aliases_statement]). What
+     [scrutinee_has] asks of a scrutinee is not shown of it, so a
+     [Switch] that is simplified in the environment of an arm still
+     needs that.
    - [model_relation_switch_fuel_statement]: the same of the meet of
      the model (FlambdaJoinMeet.model_meet), whose join has what is
      supposed where there is fuel for the join of environments
@@ -210,7 +212,7 @@ Definition relation_switch_fuel_statement : Prop :=
 
 (* The environment that the meet for an arm answers has
    [values_extension_free], as the environment of the [Switch] has.
-   Nothing is said of its aliases, nor of another scrutinee in it. *)
+   Nothing is said of another scrutinee in it. *)
 Definition relation_switch_arm_keeps_statement : Prop :=
   ∀ (join : join_scoped_envs) (choices : meet_choices)
     (tenv tenv' : Typing_env.t) (scrutinee : simple) (fuel : nat)
@@ -226,6 +228,23 @@ Definition relation_switch_arm_keeps_statement : Prop :=
     Meet.meet join choices fuel tenv scrutinee_ty (this_naked_immediate i)
     = Some (Or_bottom.Ok (ty, tenv')) ->
     values_extension_free tenv'.
+
+(* And its aliases are consistent. *)
+Definition relation_switch_arm_keeps_aliases_statement : Prop :=
+  ∀ (join : join_scoped_envs) (choices : meet_choices)
+    (tenv tenv' : Typing_env.t) (scrutinee : simple) (fuel : nat)
+    (scrutinee_ty ty : flambda_type) (canonical : simple) (i : Z),
+    join_of_nothing join ->
+    get_tag_shapes choices ->
+    values_extension_free tenv ->
+    aliases_consistent (Typing_env.aliases tenv) ->
+    scrutinee_has relation_type tenv scrutinee ->
+    2 <= fuel ->
+    Typing_env.type_simple_in_term_exn tenv (Some Name_mode.normal) scrutinee
+    = Some (Some (scrutinee_ty, canonical)) ->
+    Meet.meet join choices fuel tenv scrutinee_ty (this_naked_immediate i)
+    = Some (Or_bottom.Ok (ty, tenv')) ->
+    aliases_consistent (Typing_env.aliases tenv').
 
 (* The same of the meet of the model, where there is fuel for the join
    of environments: two meets of the model that differ in the fuel of

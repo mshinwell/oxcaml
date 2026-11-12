@@ -27,8 +27,8 @@
 
 (* The fuel of the meet that a [Switch] makes where it enters an arm,
    for a scrutinee that is the result of relations: two units are
-   enough, and the environment that the meet answers has again the
-   one thing that is supposed of the types of the environment.
+   enough, and the environment that the meet answers has again what
+   is supposed of the types and of the aliases of the environment.
 
    This file is to be reviewed: the definitions and the statements.
    It goes on from FlambdaMeetTerminationSpec.v (what it is for the
@@ -84,12 +84,16 @@
    [relation_const_meet_keeps_statement]: under the same hypotheses,
    where the meet of that fuel or more answers an environment, every
    type of kind value that this environment has for a name is an
-   alias or has no extension. So that one hypothesis
-   ([values_extension_free]) is kept by the meet for an arm. The
-   others are not shown of the environment answered: that its aliases
-   are consistent, and what is asked of the canonical element and of
-   the type of a scrutinee. A later meet in that environment still
-   needs them.
+   alias or has no extension. So that hypothesis
+   ([values_extension_free]) is kept by the meet for an arm.
+   [relation_const_meet_keeps_aliases_statement]: and the aliases of
+   that environment are consistent: the scrutinee, which was
+   canonical, is made an alias of the constant, and a name that an
+   equation of a relation is added to keeps its place among the
+   aliases or, being canonical, is made an alias of a constant. What
+   is asked of the canonical element and of the type of a scrutinee
+   is not shown of the environment answered; a later meet in that
+   environment still needs it.
 
    What the hypotheses are for. Each relation adds one equation at
    most, and after it the environment is another, of which the third
@@ -181,7 +185,7 @@ Definition relation_const_fuel_enough_statement : Prop :=
 
 (* The environment that this meet answers, with that fuel or more, has
    [values_extension_free] again: its types of kind value are aliases
-   or have no extension. Nothing is said of its aliases. *)
+   or have no extension. *)
 Definition relation_const_meet_keeps_statement : Prop :=
   ∀ (join : join_scoped_envs) (choices : meet_choices) (fuel : nat)
     (tenv tenv' : Typing_env.t) (t ty : flambda_type) (n : name)
@@ -200,6 +204,26 @@ Definition relation_const_meet_keeps_statement : Prop :=
     Meet.meet join choices fuel tenv t (this_const c)
     = Some (Or_bottom.Ok (ty, tenv')) ->
     values_extension_free tenv'.
+
+(* And its aliases are consistent. *)
+Definition relation_const_meet_keeps_aliases_statement : Prop :=
+  ∀ (join : join_scoped_envs) (choices : meet_choices) (fuel : nat)
+    (tenv tenv' : Typing_env.t) (t ty : flambda_type) (n : name)
+    (head : head_of_kind_naked_immediate) (c : const),
+    join_of_nothing join ->
+    get_tag_shapes choices ->
+    values_extension_free tenv ->
+    aliases_consistent (Typing_env.aliases tenv) ->
+    is_canonical (Typing_env.aliases tenv) (simple_of_name n) ->
+    Typing_env.get_alias_then_canonical_simple_exn tenv
+      (Some Name_mode.in_types) None t
+    = Some (Some (simple_of_name n)) ->
+    Typing_env.find tenv n (Some (kind t))
+    = Some (Type_naked_immediate (Ok (No_alias head))) ->
+    2 <= fuel ->
+    Meet.meet join choices fuel tenv t (this_const c)
+    = Some (Or_bottom.Ok (ty, tenv')) ->
+    aliases_consistent (Typing_env.aliases tenv').
 
 (* ======================================================================== *)
 (* Two examples                                                             *)

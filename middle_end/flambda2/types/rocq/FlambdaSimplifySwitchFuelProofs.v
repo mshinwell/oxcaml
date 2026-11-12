@@ -130,6 +130,19 @@ Proof.
        Hsimple Hfind Hfuel Hmeet).
 Qed.
 
+Theorem relation_switch_arm_keeps_aliases :
+  relation_switch_arm_keeps_aliases_statement.
+Proof.
+  intros join choices tenv tenv' scrutinee fuel scrutinee_ty ty canonical i
+    Hjoin Hshapes Hfree Hconsistent Hscrutinee Hfuel Hty Hmeet.
+  destruct (Hscrutinee scrutinee_ty canonical Hty)
+    as (n & ty0 & Hcanonical & Hsimple & Hfind & head & ->).
+  exact
+    (relation_const_meet_keeps_aliases join choices fuel tenv tenv'
+       scrutinee_ty ty n head (Naked_immediate i) Hjoin Hshapes Hfree
+       Hconsistent Hcanonical Hsimple Hfind Hfuel Hmeet).
+Qed.
+
 Theorem model_relation_switch_fuel : model_relation_switch_fuel_statement.
 Proof.
   intros join_choices choices join_depth [fuel_env fuel_types fuel_meet]
