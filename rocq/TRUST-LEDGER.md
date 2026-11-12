@@ -441,7 +441,27 @@ it gave back.
     nothing else of the scenario changes;
   - the inputs counted for T7-9 (`on_a_symbol`): that it says whether
     an extension of one of the two types met has an equation on a
-    symbol of the tests (`has_an_extension_on`).
+    symbol of the tests (`has_an_extension_on`);
+  - the generated inputs `generate_meet_of_relations`,
+    `generate_meet_of_closures` and `generate_join_of_relations`:
+    that they are what the comments at their definitions say; for
+    the last, that the two equations of a relation at a use are
+    those that `add_is_int_relation`, `add_get_tag_relation` and
+    `add_is_null_relation` of the compiler add, in their order;
+  - `up_to_the_alias_kept`: that it changes nothing of what is seen
+    but the type of a name whose type is an alias, into the alias of
+    the canonical element seen for that name, and only where the
+    canonical element of what the alias is to, as seen (a constant:
+    itself; a name: that of its line), is that element; that a
+    difference between the model and the n-way meet which it removes
+    is recorded under the label of T7-10 and is not a disagreement
+    of the test; that the cases of `control_of_the_alias_kept` are
+    what their names say;
+  - the inputs counted for T7-9 by an alias of a symbol
+    (`has_a_part`, `has_an_alias_of_a_symbol`,
+    `an_alias_of_a_symbol`): that it says whether one of the two
+    types met, or a type that an equation before the meet gives a
+    name, is or has within it an alias of a symbol.
 
 Not trusted, though it is OCaml: what the tool proposes to
 `validate_unit`. Each proposal is checked by an extracted function, and

@@ -541,7 +541,15 @@ says so. Only the labels that this tree cites are listed.
   of the cases ends with propagates no type of a symbol. The binary
   meet keeps it. Of two closure types with one case, the binary meet
   puts such an equation in the environment and the n-way meet drops
-  it. A loss of precision, shown on built types.
+  it. The same where the meet itself makes the equation, of a slot or
+  a field that is an alias of a symbol met with a type that says
+  more. A loss of precision, shown on built types.
+- **T7-10.** Which alias a name keeps after a meet of variants depends
+  on the order of names: where one of the two alternatives of a variant
+  is bottom, the equations of the level that the meet cut are added
+  again in the order of `Name.Map`. The model adds them in the order in
+  which they were made. The type answered and the canonical elements are
+  the same.
 - **V2-2.** The fexpr printer drops the kinds of the fields of a
   `Make_block`, and the parser reads back `any_value` for each.
 - **V2-3.** The conversion gives a meaning to a local allocation read
