@@ -73,8 +73,15 @@
      FlambdaSimplifyApplySpec.v): its code ids, and for each value
      slot the type of the [Simple] that it holds; or at the kind
      value, where a value slot holds a [Simple] that the environment
-     does not know. At a [Let] of the projection of a value slot it
-     stops (the model's value slots have no kind).
+     does not know.
+   - At a [Let] of the projection of a value slot: where the prover
+     of that projection answers a [Simple], asked about the type of
+     the closure at the kind that the [Let] declares
+     ([resolve_value_slot], on [simplify_project_value_slot] of
+     FlambdaSimplifyValueSlotsSpec.v), the projection becomes that
+     [Simple], which is then treated as above; otherwise it stops
+     there. (The model's value slots have no kind; Simplify asks at
+     the kind of the slot.)
    - A call is given to [simplify_apply] (FlambdaSimplifyApplySpec.v):
      an indirect call whose callee is proved, from its type, to be a
      closure of one piece of code becomes a direct call of that code,
@@ -150,7 +157,7 @@
      on the environments that the function builds, for a term whose
      binders are all different, is not stated here.
 
-   Twelve terms on which the function is computed are at the end:
+   Thirteen terms on which the function is computed are at the end:
    what it answers is stated as an equation, with no premise.
 
    That the function commutes with renaming ([simplify_expr] of the
@@ -176,7 +183,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypingEnvExamplesSpec FlambdaTypingEnvRefinementSpec
   FlambdaProvers FlambdaProversSpec FlambdaSimplifyPrimitivesSpec
   FlambdaSimplifyProjectionsSpec FlambdaSimplifyBoxingSpec
-  FlambdaSimplifyArithSpec FlambdaSimplifyApplySpec.
+  FlambdaSimplifyArithSpec FlambdaSimplifyApplySpec
+  FlambdaSimplifyValueSlotsSpec.
 Import ListNotations.
 
 Local Open Scope Z_scope.
@@ -680,6 +688,29 @@ Definition simplify_let (tenv : Typing_env.t) (x : variable)
     end
   else Step_stop.
 
+(* The projection of a value slot, at a [Let] that declares the kind
+   [declared]: where the prover answers a [Simple] for the slot, asked
+   at that kind about the type of the closure, the defining expression
+   is that [Simple]. Every other defining expression is left as it
+   is. *)
+Definition resolve_value_slot (tenv : Typing_env.t) (declared : flambda_kind)
+    (defining_expr : named) : named :=
+  match defining_expr with
+  | Project_value_slot slot closure
+  | Project_value_slot_from _ slot closure =>
+    match simplify_simple tenv closure with
+    | Some (ty, _) =>
+      match simplify_project_value_slot tenv declared slot ty with
+      | Some s => Simple s
+      | None => defining_expr
+      end
+    | None => defining_expr
+    end
+  | Simple _ | Prim _ _ | Set_of_closures _ _ | Closure_of_set _ _ _
+  | Project_function_slot _ _ _ =>
+    defining_expr
+  end.
+
 (* ======================================================================== *)
 (* The other expressions                                                    *)
 (* ======================================================================== *)
@@ -761,7 +792,9 @@ Definition code_env (syms : list symbol) (params : list variable)
 Fixpoint simplify_expr (tenv : Typing_env.t) (e : expr) : expr :=
   match e with
   | Let x declared defining_expr body =>
-    match simplify_let tenv x defining_expr with
+    match
+      simplify_let tenv x (resolve_value_slot tenv declared defining_expr)
+    with
     | Step_invalid => Invalid
     | Step_let defining_expr' tenv' =>
       Let x declared defining_expr' (simplify_expr tenv' body)
@@ -1111,3 +1144,22 @@ Definition example_pass_call_from_pair_statement : Prop :=
            (Let example_p Value pair
               (Let example_q Value (Simple (Var example_c))
                  (call (Var example_c) (Direct example_f))))).
+
+(* A value slot read back. [let x = opaque in let c = closure of
+   [example_f] with [x] in its value slot in let y = the value slot of
+   [c] in apply_cont k y]: [y] is [x]. *)
+Definition example_pass_value_slot_statement : Prop :=
+  ∀ k : continuation,
+    let unknown (body : expr) : expr :=
+      Let example_x Value (example_opaque Value (Tagged_immediate 5)) body
+    in
+    let closure := Set_of_closures example_f [(example_w, Var example_x)] in
+    simplify_by_types
+      (unknown
+         (Let example_c Value closure
+            (Let example_y Value (Project_value_slot example_w (Var example_c))
+               (Apply_cont (Apply_cont_expr k [Var example_y] None)))))
+    = unknown
+        (Let example_c Value closure
+           (Let example_y Value (Simple (Var example_x))
+              (Apply_cont (Apply_cont_expr k [Var example_x] None)))).

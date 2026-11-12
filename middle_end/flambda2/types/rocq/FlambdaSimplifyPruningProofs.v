@@ -626,6 +626,19 @@ Proof.
   intros _. destruct (simplify_simples tenv _); reflexivity.
 Qed.
 
+Lemma resolve_value_slot_sets (tenv : Typing_env.t) (declared : flambda_kind)
+    (d : named) :
+  named_sets_well_formed d = true ->
+  named_sets_well_formed (resolve_value_slot tenv declared d) = true.
+Proof.
+  destruct d; cbn [resolve_value_slot]; try (intros H; exact H);
+    intros _;
+    repeat match goal with
+           | |- context [match ?e with _ => _ end] => destruct e
+           end;
+    reflexivity.
+Qed.
+
 (* A [Let] that the function goes under: its new defining expression
    has well-formed sets, and the [Let] refines the new [Let] where the
    body refines the new body under the new environment. *)
@@ -884,20 +897,29 @@ Proof.
     intros tenv fit Hknown Hsets; cbn [simplify_expr_pruning].
   - pose proof Hsets as H. cbn [sets_well_formed] in H.
     apply andb_true_iff in H. destruct H as [Hd Hbody].
-    pose proof (simplify_let_sound tenv x d) as Hsound.
-    destruct (simplify_let tenv x d) as [ | d' tenv' | ] eqn:Hlet.
+    pose proof (resolve_value_slot_refines tenv x declared d body)
+      as Hresolve.
+    pose proof (resolve_value_slot_sets tenv declared d Hd) as Hd0.
+    cbv zeta.
+    set (d0 := resolve_value_slot tenv declared d) in *.
+    pose proof (simplify_let_sound tenv x d0) as Hsound.
+    destruct (simplify_let tenv x d0) as [ | d' tenv' | ] eqn:Hlet.
     + split; [ reflexivity | ].
-      apply refines_under_valid, expr_equivalent_under_refines.
-      exact (Hsound declared body).
-    + destruct (simplify_let_valid tenv tenv' x d d' Hlet Hd) as [Hd' Hstep].
+      apply refines_under_valid.
+      eapply expr_refines_under_trans; [ exact Hresolve | ].
+      apply expr_equivalent_under_refines. exact (Hsound declared body).
+    + destruct (simplify_let_valid tenv tenv' x d0 d' Hlet Hd0)
+        as [Hd' Hstep].
       destruct (simplify_expr_pruning_sound prune Hprune body tenv'
-                  (fit && let_keeps_fit tenv x d)
-                  (let_keeps_fit_sound tenv tenv' fit x d d' Hknown Hlet)
+                  (fit && let_keeps_fit tenv x d0)
+                  (let_keeps_fit_sound tenv tenv' fit x d0 d' Hknown Hlet)
                   Hbody)
         as [Hbody' Hrefines].
       split.
       * cbn [sets_well_formed]. rewrite Hd', Hbody'. reflexivity.
-      * exact (Hstep declared body _ Hbody Hrefines).
+      * eapply refines_valid_trans;
+          [ apply refines_under_valid; exact Hresolve | ].
+        exact (Hstep declared body _ Hbody Hrefines).
     + split; [ exact Hsets | ].
       apply refines_under_valid, expr_refines_under_refl.
   - assert (Hbody : sets_well_formed body = true).
@@ -1110,7 +1132,9 @@ Proof.
     as [x declared d body | bindings body | k handler body
         | handlers body | ap | ac | scrutinee arms | ];
     intros tenv fit; cbn [simplify_expr_pruning simplify_expr].
-  - destruct (simplify_let tenv x d) as [ | d' tenv' | ]; try reflexivity.
+  - cbv zeta.
+    destruct (simplify_let tenv x (resolve_value_slot tenv declared d))
+      as [ | d' tenv' | ]; try reflexivity.
     f_equal. apply simplify_expr_no_pruning_eq.
   - f_equal; [ | apply simplify_expr_no_pruning_eq ].
     generalize

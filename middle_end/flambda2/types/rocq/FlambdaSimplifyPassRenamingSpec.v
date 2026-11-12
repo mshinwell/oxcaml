@@ -67,7 +67,8 @@
      [Simple] or the type that it holds);
    - [simplify_let]: the step is renamed ([rename_let_step]: the
      defining expression and the environment that it holds);
-   - [simplify_apply_cont] and [simplify_switch];
+   - [resolve_value_slot], [simplify_apply_cont] and
+     [simplify_switch];
    - [code_env]: the symbols are not renamed, and the environment of
      the renamed parameters and closure variable is the renamed
      environment.
@@ -124,6 +125,14 @@ Definition simplify_let_equivariant_statement : Prop :=
     simplify_let (rename_typing_env r tenv) (rename_variable r x)
       (rename_named r defining_expr)
     = rename_let_step r (simplify_let tenv x defining_expr).
+
+(* The kind that a [Let] declares holds no name. *)
+Definition resolve_value_slot_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (declared : flambda_kind)
+    (defining_expr : named),
+    resolve_value_slot (rename_typing_env r tenv) declared
+      (rename_named r defining_expr)
+    = rename_named r (resolve_value_slot tenv declared defining_expr).
 
 Definition simplify_apply_cont_equivariant_statement : Prop :=
   ∀ (r : renaming) (tenv : Typing_env.t) (ac : apply_cont),

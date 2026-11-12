@@ -47,7 +47,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaSimplifyPrimitivesRenamingProofs
   FlambdaSimplifyProjectionsSpec FlambdaSimplifyBoxingSpec
   FlambdaSimplifyArithSpec FlambdaSimplifyApplySpec
-  FlambdaSimplifyApplyProofs FlambdaSimplifyPassSpec
+  FlambdaSimplifyApplyProofs FlambdaSimplifyValueSlotsSpec
+  FlambdaSimplifyValueSlotsProofs FlambdaSimplifyPassSpec
   FlambdaSimplifyPassRenamingSpec.
 Import ListNotations.
 
@@ -433,6 +434,23 @@ Proof.
   - reflexivity.
 Qed.
 
+Theorem resolve_value_slot_equivariant
+    : resolve_value_slot_equivariant_statement.
+Proof.
+  intros r tenv declared d.
+  destruct d
+    as [s | p args | code value_slots | slot function_decls value_slots
+        | slot closure | project_from slot closure
+        | move_from move_to closure];
+    cbn [rename_named resolve_value_slot]; try reflexivity;
+    rewrite simplify_simple_equivariant;
+    (destruct (simplify_simple tenv closure) as [[ty canonical] | ];
+     cbn [option_map rename_answer fst]; [ | reflexivity ]);
+    rewrite simplify_project_value_slot_rename;
+    (destruct (simplify_project_value_slot tenv declared slot ty) as [s | ];
+     reflexivity).
+Qed.
+
 (* ======================================================================== *)
 (* The other expressions                                                    *)
 (* ======================================================================== *)
@@ -561,8 +579,9 @@ Proof.
       as [x declared d body | bindings body | k handler body
           | handlers body | ap | ac | scrutinee arms | ];
       intros tenv; cbn [rename_expr simplify_expr].
-    + rewrite simplify_let_equivariant.
-      destruct (simplify_let tenv x d) as [ | d' tenv' | ];
+    + rewrite resolve_value_slot_equivariant, simplify_let_equivariant.
+      destruct (simplify_let tenv x (resolve_value_slot tenv declared d))
+        as [ | d' tenv' | ];
         cbn [rename_let_step rename_expr]; try reflexivity.
       rewrite (simplify_expr_equivariant_aux r body tenv'). reflexivity.
     + rewrite bound_symbols_renamed, add_symbol_definitions_equivariant,

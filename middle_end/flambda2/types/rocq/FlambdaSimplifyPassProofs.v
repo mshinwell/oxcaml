@@ -50,7 +50,9 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaSimplifyProjectionsSpec FlambdaSimplifyProjectionsProofs
   FlambdaSimplifyBoxingSpec FlambdaSimplifyBoxingProofs
   FlambdaSimplifyArithSpec FlambdaSimplifyArithProofs
-  FlambdaSimplifyApplySpec FlambdaSimplifyApplyProofs FlambdaSimplifyPassSpec.
+  FlambdaSimplifyApplySpec FlambdaSimplifyApplyProofs
+  FlambdaSimplifyValueSlotsSpec FlambdaSimplifyValueSlotsProofs
+  FlambdaSimplifyPassSpec.
 Import ListNotations.
 
 Local Open Scope Z_scope.
@@ -983,6 +985,30 @@ Qed.
 (* A term                                                                   *)
 (* ======================================================================== *)
 
+(* The projection of a value slot replaced by the [Simple] that the
+   prover answers. *)
+Lemma resolve_value_slot_refines (tenv : Typing_env.t) (x : variable)
+    (declared : flambda_kind) (d : named) (body : expr) :
+  expr_refines_under tenv (Let x declared d body)
+    (Let x declared (resolve_value_slot tenv declared d) body).
+Proof.
+  destruct d
+    as [s | p args | code value_slots | slot function_decls value_slots
+        | slot closure | project_from slot closure
+        | move_from move_to closure];
+    cbn [resolve_value_slot]; try apply expr_refines_under_refl;
+    (destruct (simplify_simple tenv closure) as [[ty canonical] | ]
+       eqn:Hclosure; [ | apply expr_refines_under_refl ]);
+    (destruct (simplify_simple_answer tenv closure canonical ty Hclosure)
+       as [Hty _]);
+    (destruct (simplify_project_value_slot tenv declared slot ty) as [s | ]
+       eqn:Hslot; [ | apply expr_refines_under_refl ]).
+  - exact (let_project_value_slot_known tenv x declared slot declared
+             closure ty s body Hty Hslot).
+  - exact (let_project_value_slot_from_known tenv x declared project_from
+             slot declared closure ty s body Hty Hslot).
+Qed.
+
 (* By recursion on the term: the bodies of the code that a [Let_static]
    binds are inside its list of bindings, which the induction principle
    of terms does not go into. The bodies are rewritten one binding at a
@@ -994,10 +1020,16 @@ Proof.
     as [x declared d body | bindings body | k handler body
         | handlers body | ap | ac | scrutinee arms | ];
     intros tenv; cbn [simplify_expr].
-  - pose proof (simplify_let_sound tenv x d) as Hlet.
-    destruct (simplify_let tenv x d) as [ | d' tenv' | ].
-    + apply expr_equivalent_under_refines. exact (Hlet declared body).
-    + exact (Hlet declared body (simplify_expr tenv' body)
+  - pose proof (resolve_value_slot_refines tenv x declared d body)
+      as Hresolve.
+    pose proof (simplify_let_sound tenv x (resolve_value_slot tenv declared d))
+      as Hlet.
+    destruct (simplify_let tenv x (resolve_value_slot tenv declared d))
+      as [ | d' tenv' | ].
+    + eapply expr_refines_under_trans; [ exact Hresolve | ].
+      apply expr_equivalent_under_refines. exact (Hlet declared body).
+    + eapply expr_refines_under_trans; [ exact Hresolve | ].
+      exact (Hlet declared body (simplify_expr tenv' body)
                (simplify_expr_sound body tenv')).
     + apply expr_refines_under_refl.
   - generalize
@@ -1104,3 +1136,6 @@ Proof. intros k exn. vm_compute. reflexivity. Qed.
 
 Theorem example_pass_call_from_pair : example_pass_call_from_pair_statement.
 Proof. intros k exn. vm_compute. reflexivity. Qed.
+
+Theorem example_pass_value_slot : example_pass_value_slot_statement.
+Proof. intros k. vm_compute. reflexivity. Qed.
