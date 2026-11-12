@@ -36,8 +36,8 @@
    - of [unary_primitive]: [Block_load] from an immutable block of
      values, whatever the load says of mutability, [Is_int], [Is_null],
      [Get_tag], [String_length] of a string, [Opaque_identity], the
-     unary [Int_arith] (here [Unary_int_arith]) with [Not], [Num_conv]
-     between the integer kinds, [Boolean_not], [Unbox_number],
+     unary [Int_arith] (here [Unary_int_arith]), [Num_conv] between the
+     integer kinds, [Boolean_not], [Unbox_number],
      [Box_number], [Untag_immediate] and [Tag_immediate];
    - of [binary_primitive]: [String_or_bigstring_load] of an integer of
      one, two, four or eight bytes from a string, [Phys_equal], and
@@ -95,9 +95,7 @@
      [dst]: the conversions to and from the two kinds of float are not
      here, and the conversion must refuse them.
    - The unary [Int_arith] of the compiler is [Unary_int_arith] here, as
-     [Int_arith] is the binary one. Its only operation is [Not]: the
-     swap of bytes, [Swap_byte_endianness], is not here, and the
-     conversion must refuse it.
+     [Int_arith] is the binary one.
    - [String_or_bigstring_load] has no [string_like_value]: it is the
      load from a string ([String]), and the conversion must refuse
      [Bytes] and [Bigstring]. The only [string_accessor_width]s are
@@ -137,7 +135,8 @@ Inductive mutability : Type :=
 
 (* [Flambda_primitive.unary_int_arith_op]. *)
 Inductive unary_int_arith_op : Type :=
-  | Not.
+  | Not
+  | Swap_byte_endianness.
 
 (* [Flambda_primitive.unary_primitive]. *)
 Inductive unary_primitive : Type :=

@@ -209,14 +209,62 @@ Definition eval_int_arith (width : Z) (op : binary_int_arith_op) (a b : Z)
   | Xor => Some (wrap width (Z.lxor a b))
   end.
 
-(* The unary [Int_arith]. [Not] is the complement of every bit, which
-   for an integer in two's complement is its opposite less one. The
-   result is in range as it is; it is wrapped so that this is evident
-   (FlambdaPrimitiveProofs.v, [eval_unary_int_arith_not]). *)
-Definition eval_unary_int_arith (width : Z) (op : unary_int_arith_op)
-    (a : Z) : Z :=
+(* The integer whose bytes are those of a list, the least significant
+   first. Of each element of the list only the low eight bits are
+   taken, which changes nothing of a byte. It is at least 0. *)
+Fixpoint little_endian (bytes : list Z) : Z :=
+  match bytes with
+  | [] => 0
+  | byte :: rest => byte mod 256 + 256 * little_endian rest
+  end.
+
+(* The low [count] bytes of an integer in two's complement, the least
+   significant first. *)
+Fixpoint bytes_of (count : nat) (z : Z) : list Z :=
+  match count with
+  | O => []
+  | S count => z mod 256 :: bytes_of count (z / 256)
+  end.
+
+(* The integer, at least 0, whose [count] bytes are the low [count]
+   bytes of [z] in the opposite order. *)
+Definition swap_bytes (count : nat) (z : Z) : Z :=
+  little_endian (rev (bytes_of count z)).
+
+(* The unary [Int_arith].
+   [Not] is the complement of every bit, which for an integer in two's
+   complement is its opposite less one. The result is in range as it
+   is; it is wrapped so that this is evident (FlambdaPrimitiveProofs.v,
+   [eval_unary_int_arith_not]).
+   [Swap_byte_endianness] puts the bytes of an integer in the opposite
+   order, and is not the same thing at every kind:
+   - at the two kinds of immediates it is the swap of the two low bytes
+     and nothing of the others: the result is from 0 to 65535, whatever
+     the bits of the argument above the sixteenth. It is what [%bswap16]
+     of the source becomes, which is on an [int];
+   - at the naked int8 it is the integer itself (wrapped here, as for
+     [Not]);
+   - at the naked int16, int32, int64 and nativeint it is the integer
+     of the kind whose bytes are those of the argument in the opposite
+     order, so that the last byte of the argument gives the sign.
+   This is [To_cmm_primitive.unary_int_arith_primitive], and what
+   Simplify computes of a constant: [swap_byte_endianness] of each
+   [Int_number_kind] of [Number_adjuncts], which for the immediates is
+   [Target_ocaml_int.get_least_significant_16_bits_then_byte_swap]. *)
+Definition eval_unary_int_arith (kind : standard_int)
+    (op : unary_int_arith_op) (a : Z) : Z :=
   match op with
-  | Not => wrap width (Z.lnot a)
+  | Not => wrap (int_width kind) (Z.lnot a)
+  | Swap_byte_endianness =>
+    match kind with
+    | Standard_tagged_immediate | Standard_naked_immediate =>
+      swap_bytes 2 a
+    | Standard_naked_int8 => wrap 8 a
+    | Standard_naked_int16 => wrap 16 (swap_bytes 2 a)
+    | Standard_naked_int32 => wrap 32 (swap_bytes 4 a)
+    | Standard_naked_int64 | Standard_naked_nativeint =>
+      wrap 64 (swap_bytes 8 a)
+    end
   end.
 
 (* The amounts by which an integer of a kind is shifted: those from 0 up
@@ -536,7 +584,7 @@ Definition eval_unary_primitive (statics : static_env) (p : unary_primitive)
     let* a := int_of_value kind v in
     Some
       (Value_const
-         (const_of_int kind (eval_unary_int_arith (int_width kind) op a)))
+         (const_of_int kind (eval_unary_int_arith kind op a)))
   | Num_conv src dst =>
     let* i := int_of_value src v in
     Some (Value_const (const_of_int dst (wrap (int_width dst) i)))
@@ -571,15 +619,6 @@ Definition byte_width_of_string_accessor_width
   | Sixteen | Sixteen_signed => 2%nat
   | Thirty_two => 4%nat
   | Sixty_four => 8%nat
-  end.
-
-(* The integer whose bytes are those of a list, the least significant
-   first. Of each element of the list only the low eight bits are
-   taken, which changes nothing of a byte. It is at least 0. *)
-Fixpoint little_endian (bytes : list Z) : Z :=
-  match bytes with
-  | [] => 0
-  | byte :: rest => byte mod 256 + 256 * little_endian rest
   end.
 
 (* [String_or_bigstring_load] of an integer from an immutable string.

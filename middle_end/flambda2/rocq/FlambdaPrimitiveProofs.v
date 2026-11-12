@@ -1227,20 +1227,57 @@ Proof.
     intros [= <-]; apply wrap_in_range, Hwidth.
 Qed.
 
-(* The result of the unary arithmetic is in range, and the complement
-   of an integer in range is in range, so the wrap of [Not] changes
-   nothing. *)
-Lemma eval_unary_int_arith_in_range (width : Z) (op : unary_int_arith_op)
-    (a : Z) :
-  1 <= width -> in_range width (eval_unary_int_arith width op a) = true.
-Proof. intros Hwidth. destruct op. apply wrap_in_range, Hwidth. Qed.
-
-Lemma eval_unary_int_arith_not (width a : Z) :
-  1 <= width ->
-  in_range width a = true ->
-  eval_unary_int_arith width Not a = Z.lnot a.
+(* The integer that some bytes make is at least 0, and below the first
+   that needs one more byte. *)
+Lemma little_endian_bound (bytes : list Z) :
+  0 <= little_endian bytes < 256 ^ Z.of_nat (length bytes).
 Proof.
-  intros Hwidth Hrange. simpl.
+  induction bytes as [ | byte rest IH]; [ simpl; lia | ].
+  cbn [little_endian length].
+  rewrite Nat2Z.inj_succ, Z.pow_succ_r by lia.
+  pose proof (Z.mod_pos_bound byte 256 eq_refl) as Hbyte. lia.
+Qed.
+
+Lemma length_bytes_of (count : nat) (z : Z) :
+  length (bytes_of count z) = count.
+Proof.
+  revert z. induction count as [ | count IH]; intros z; simpl;
+    [ reflexivity | rewrite IH; reflexivity ].
+Qed.
+
+(* The swap of [count] bytes is an integer of [count] bytes without a
+   sign. *)
+Lemma swap_bytes_bound (count : nat) (z : Z) :
+  0 <= swap_bytes count z < 256 ^ Z.of_nat count.
+Proof.
+  unfold swap_bytes.
+  pose proof (little_endian_bound (rev (bytes_of count z))) as Hbound.
+  rewrite length_rev, length_bytes_of in Hbound. exact Hbound.
+Qed.
+
+(* The result of the unary arithmetic is in range. *)
+Lemma eval_unary_int_arith_in_range (kind : standard_int)
+    (op : unary_int_arith_op) (a : Z) :
+  in_range (int_width kind) (eval_unary_int_arith kind op a) = true.
+Proof.
+  destruct op; cbn [eval_unary_int_arith].
+  - apply wrap_in_range, int_width_positive.
+  - destruct kind; cbn [int_width]; try (apply wrap_in_range; lia);
+      pose proof (swap_bytes_bound 2 a) as Hswap;
+      change (256 ^ Z.of_nat 2) with 65536 in Hswap;
+      unfold in_range; change (2 ^ (63 - 1)) with 4611686018427387904;
+      apply andb_true_iff; (split; [ apply Z.leb_le | apply Z.ltb_lt ]);
+      lia.
+Qed.
+
+(* The complement of an integer in range is in range, so the wrap of
+   [Not] changes nothing. *)
+Lemma eval_unary_int_arith_not (kind : standard_int) (a : Z) :
+  in_range (int_width kind) a = true ->
+  eval_unary_int_arith kind Not a = Z.lnot a.
+Proof.
+  intros Hrange. cbn [eval_unary_int_arith].
+  pose proof (int_width_positive kind) as Hwidth.
   apply wrap_of_in_range; [ exact Hwidth | ].
   unfold in_range in *. unfold Z.lnot.
   apply andb_true_iff in Hrange as [Hlow Hhigh].
@@ -1248,21 +1285,27 @@ Proof.
   apply andb_true_iff. split; [ apply Z.leb_le | apply Z.ltb_lt ]; lia.
 Qed.
 
+(* An integer of one byte is its own swap: the wrap changes nothing. *)
+Lemma eval_unary_int_arith_swap_int8 (a : Z) :
+  in_range 8 a = true ->
+  eval_unary_int_arith Standard_naked_int8 Swap_byte_endianness a = a.
+Proof. intros Hrange. apply wrap_of_in_range; [ lia | exact Hrange ]. Qed.
+
 (* Simplify rewrites the exclusive or of an integer with -1, on either
    side, into [Not] of the integer ([Simplify_binary_primitive], where
    an operation answers [Bitwise_not_of_the_other_side]). The two are
    the same integer. *)
-Lemma eval_int_arith_xor_minus_one_r (width a : Z) :
-  eval_int_arith width Xor a (-1)
-  = Some (eval_unary_int_arith width Not a).
+Lemma eval_int_arith_xor_minus_one_r (kind : standard_int) (a : Z) :
+  eval_int_arith (int_width kind) Xor a (-1)
+  = Some (eval_unary_int_arith kind Not a).
 Proof.
   unfold eval_int_arith, eval_unary_int_arith.
   rewrite Z.lxor_m1_r. reflexivity.
 Qed.
 
-Lemma eval_int_arith_xor_minus_one_l (width a : Z) :
-  eval_int_arith width Xor (-1) a
-  = Some (eval_unary_int_arith width Not a).
+Lemma eval_int_arith_xor_minus_one_l (kind : standard_int) (a : Z) :
+  eval_int_arith (int_width kind) Xor (-1) a
+  = Some (eval_unary_int_arith kind Not a).
 Proof.
   unfold eval_int_arith, eval_unary_int_arith.
   rewrite Z.lxor_m1_l. reflexivity.
@@ -1449,18 +1492,8 @@ Proof.
   apply andb_true_iff. split; [ apply Z.leb_le | apply Z.ltb_lt ]; lia.
 Qed.
 
-(* The integer that some bytes make is at least 0, and below the first
-   that needs one more byte. *)
-Lemma little_endian_bound (bytes : list Z) :
-  0 <= little_endian bytes < 256 ^ Z.of_nat (length bytes).
-Proof.
-  induction bytes as [ | byte rest IH]; [ simpl; lia | ].
-  cbn [little_endian length].
-  rewrite Nat2Z.inj_succ, Z.pow_succ_r by lia.
-  pose proof (Z.mod_pos_bound byte 256 eq_refl) as Hbyte. lia.
-Qed.
-
-(* So is what a load reads: at most as many bytes as its width has. *)
+(* What a load reads is at least 0, and below the first integer that
+   needs more bytes than its width has. *)
 Lemma little_endian_read_bound (bytes : list Z) (index count : nat) :
   0 <= little_endian (firstn count (skipn index bytes))
   < 256 ^ Z.of_nat count.
@@ -1592,7 +1625,7 @@ Proof.
     destruct (int_of_value kind arg) as [a | ]; [ | discriminate ].
     intros [= <-]. cbn [value_in_range].
     rewrite const_in_range_const_of_int.
-    apply eval_unary_int_arith_in_range, int_width_positive.
+    apply eval_unary_int_arith_in_range.
   - (* [Num_conv] *)
     destruct (int_of_value src arg) as [i | ]; [ | discriminate ].
     intros [= <-]. cbn [value_in_range].
@@ -2406,6 +2439,80 @@ Example not_wrong_kind :
   unary empty_static_env (Unary_int_arith Standard_tagged_immediate Not)
     (naked 5)
   = None.
+Proof. reflexivity. Qed.
+
+(* The swap of bytes. The values are those of [bswap16] and the like on
+   the same integers. *)
+Definition swap (kind : standard_int) (v : value) : option value :=
+  unary empty_static_env (Unary_int_arith kind Swap_byte_endianness) v.
+
+Example swap_tagged :
+  swap Standard_tagged_immediate (tagged 4660) = Some (tagged 13330).
+Proof. reflexivity. Qed.
+
+Example swap_tagged_drops_the_high_bytes :
+  swap Standard_tagged_immediate (tagged 1193046) = Some (tagged 22068).
+Proof. reflexivity. Qed.
+
+Example swap_tagged_negative :
+  swap Standard_tagged_immediate (tagged (-1)) = Some (tagged 65535).
+Proof. reflexivity. Qed.
+
+Example swap_naked_immediate :
+  swap Standard_naked_immediate (naked (-256)) = Some (naked 255).
+Proof. reflexivity. Qed.
+
+Example swap_int8 :
+  swap Standard_naked_int8 (Value_const (Naked_int8 (-5)))
+  = Some (Value_const (Naked_int8 (-5))).
+Proof. reflexivity. Qed.
+
+Example swap_int16_changes_the_sign :
+  swap Standard_naked_int16 (Value_const (Naked_int16 128))
+  = Some (Value_const (Naked_int16 (-32768))).
+Proof. reflexivity. Qed.
+
+Example swap_int16_negative :
+  swap Standard_naked_int16 (Value_const (Naked_int16 (-2)))
+  = Some (Value_const (Naked_int16 (-257))).
+Proof. reflexivity. Qed.
+
+Example swap_int32 :
+  swap Standard_naked_int32 (Value_const (Naked_int32 305419896))
+  = Some (Value_const (Naked_int32 2018915346)).
+Proof. reflexivity. Qed.
+
+Example swap_int32_changes_the_sign :
+  swap Standard_naked_int32 (Value_const (Naked_int32 128))
+  = Some (Value_const (Naked_int32 (-2147483648))).
+Proof. reflexivity. Qed.
+
+Example swap_int32_negative :
+  swap Standard_naked_int32 (Value_const (Naked_int32 (-2)))
+  = Some (Value_const (Naked_int32 (-16777217))).
+Proof. reflexivity. Qed.
+
+Example swap_int64 :
+  swap Standard_naked_int64 (Value_const (Naked_int64 72623859790382856))
+  = Some (Value_const (Naked_int64 578437695752307201)).
+Proof. reflexivity. Qed.
+
+Example swap_int64_of_one :
+  swap Standard_naked_int64 (Value_const (Naked_int64 1))
+  = Some (Value_const (Naked_int64 72057594037927936)).
+Proof. reflexivity. Qed.
+
+Example swap_nativeint_negative :
+  swap Standard_naked_nativeint (Value_const (Naked_nativeint (-2)))
+  = Some (Value_const (Naked_nativeint (-72057594037927937))).
+Proof. reflexivity. Qed.
+
+Example swap_wrong_kind :
+  swap Standard_naked_int32 (Value_const (Naked_int64 1)) = None.
+Proof. reflexivity. Qed.
+
+Example swap_out_of_range :
+  swap Standard_naked_int16 (Value_const (Naked_int16 32768)) = None.
 Proof. reflexivity. Qed.
 
 Definition num_conv (src dst : standard_int) (v : value) : option value :=

@@ -87,7 +87,7 @@ Definition outcome_holds (width : Z) (o : outcome) (a r : Z) : Prop :=
   | Exactly i => r = i
   | The_other_side => r = a
   | Negation_of_the_other_side => r = wrap width (0 - a)
-  | Bitwise_not_of_the_other_side => r = eval_unary_int_arith width Not a
+  | Bitwise_not_of_the_other_side => r = wrap width (Z.lnot a)
   | Cannot_simplify => True
   end.
 
