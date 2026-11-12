@@ -190,8 +190,8 @@ and they are not equally cheap.
   `Let` makes is the condition on the constants. So it may be used
   on the term after, which has equivalences only. It makes no name.
   Two conditions go with it, both from the review of this request,
-  and it depends on one thing that the validation does not do today
-  ("The binding that is left", below):
+  and it leaves a binding that the validation cannot account for
+  today, which is open ("The binding that is left", below):
   - *Where the table is bound.* The load has a value only where the
     static environment binds the symbol to the table; the `Switch`
     asks nothing of the static environment. Under an environment in
@@ -213,8 +213,10 @@ and they are not equally cheap.
     the table is bound wherever the load is executed; I recommend the
     facts by scope. What the proof needs of the machine is that a
     static name, once bound, stays bound to the same thing in the
-    states reached from the binding; whether that holds of every term
-    or only of a well-formed one is to be settled when it is stated.
+    states reached from the binding. The machine makes a binding of
+    a name that is bound already undefined, which is what should
+    give it of every term; whether it holds of every term or only of
+    a well-formed one is to be settled when it is stated.
     The normalisation of the term after is an equivalence with no
     premise, and this request does not ask to weaken it: if the fact
     holds only of a well-formed term, the rewrite gets a guard that
@@ -230,15 +232,32 @@ and they are not equally cheap.
     then be withdrawn from it or that statement weakened; the second
     rewrite below, on the term before, would be the one that stays a
     refinement.
-  - *The binding that is left.* After the rewrite nothing mentions
-    the symbol of the table, and the term before has no such
-    binding. The validation removes the static bindings that are not
-    used from the term before only, today, and as a refinement. The
-    removal from the term after of a static binding that nothing
-    mentions, as an equivalence, is not in the validation yet; the
-    owner of the validation has it to do, for code and closures that
-    an inlined call leaves behind as well. The rewrite validates no
-    unit until it is there.
+  - *The binding that is left. Open.* After the rewrite nothing
+    mentions the symbol of the table, and the term before has no
+    such binding. The validation removes the static bindings that
+    are not used from the term before only, as a refinement
+    (`FlambdaUnusedStaticsSpec.v`). Removing one from the term after
+    is not an equivalence under every environment, and not even the
+    half that a rewrite of the term after owes: a binding of a
+    symbol that is bound already is undefined
+    (`FlambdaSemanticsSpec.eval_static_bindings`), so under a static
+    environment that binds the symbol the term with the binding has
+    no value and the term without it may have one. The reviewer
+    found it, and ran the case of a static block on the machine. So
+    the removal is no normalisation of the term after, and it must
+    not come into the two verdicts that hold under every environment
+    (`validate_unit_sound_everywhere_statement`). What the owner of
+    the validation proposes is a law of a unit run on its own: the
+    term after refines, run from empty environments, the term with
+    the binding removed, where the validator has checked that
+    nothing mentions the symbol, that nothing else binds it, and
+    that its constant has a value. It would be used only in the
+    comparisons that conclude a refinement of units run on their
+    own, as the moves of static bindings on the term after are
+    (`FlambdaHoistStaticsSpec.v`, `FlambdaHoistCodeSpec.v`). That
+    law and how it composes are stated and reviewed apart, after the
+    heap is in the state; nothing here is agreed about them. The
+    rewrite validates no unit until then.
 - **From the `Switch` to the load, on the term before.** This is
   what Simplify does, beside the two ways that
   `FlambdaMergeSwitchesSpec.merge_switches` has. It has to bind a
@@ -277,9 +296,10 @@ there as it is and with the prototype; both run on the same terms:
   rewrite of section 4 has it (one load in three of the units, two in
   the fourth), and the binding of the table, which nothing then
   mentions, taken out, the two terms of each of the four are the same
-  up to the names bound. So that rewrite and the removal of that
-  binding are all that these four need. This was done on the terms
-  as the tool prints them; the validator was not run on the result.
+  up to the names bound. So these four need that rewrite and a way
+  to account for the binding of the table, which is open (section
+  4). This was done on the terms as the tool prints them; the
+  validator was not run on the result.
 - **Lost: none.** No verdict changes in any other unit.
 - **One output moves and keeps its verdict**: `array_literal.ml` of
   the corpus, which makes a mutable array, is still not checked; the
@@ -334,10 +354,10 @@ Asked:
 - of the owner of `FlambdaSimplifyStaticsSpec.v`, the type of the
   symbol of such a constant;
 - of V2, its word on the conversion (section 6), which comes as one
-  commit of the series of the definitions; the removal from the term
-  after of a static binding that nothing mentions (section 4); and,
-  when the rewrite of section 4 is proved, its place among the
-  normalisations of the term after;
+  commit of the series of the definitions; its law for the binding
+  that the rewrite leaves (section 4, open); and, when the rewrite
+  of section 4 is proved, its place among the normalisations of the
+  term after;
 - of the human, the CR of section 3 (a static array is read at any
   load kind that its elements fit).
 
@@ -347,8 +367,11 @@ tool; then the rewrite of the term after, with its statement of
 equivalence and its laws of renaming and scope.
 
 Answers so far. R5 has read the request, with the outputs of the
-measure, and agrees to it as a plan; its three corrections are in
-sections 2 and 4 (poison in a table of values, where the rewrite may
-fire, which half is left). No definition and no proof has been
-reviewed. V2 agrees to the side of the rewrite and to the conversion
-of section 6, with the observation of an array as said there.
+measure, and agrees to it as a plan; its corrections are in sections
+2 and 4 (poison in a table of values, where the rewrite may fire,
+which half is left, and that the binding left cannot be removed from
+the term after as an equivalence). No definition and no proof has
+been reviewed, and the agreement does not cover the law for the
+binding that is left. V2 agrees to the side of the rewrite and to
+the conversion of section 6, with the observation of an array as
+said there.
