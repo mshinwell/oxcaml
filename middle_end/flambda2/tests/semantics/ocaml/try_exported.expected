@@ -1,8 +1,9 @@
 try_exported.fl:
-  before Simplify (8 steps): returns [0: <fun>]
-  after Simplify (4 steps): returns [0: <fun>]
+  before Simplify, with its import (8 steps): returns [0: <fun>]
+  after Simplify, with its import (4 steps): returns [0: <fun>]
   the check of kinds: passes before, passes after
   calls outside code: 0 before, 0 after
   the same
   calls outside code once those of known code are inlined: 0
-  validated: the same once closures and blocks are lifted to symbols and the terms normalised
+  validated with nothing imported: the same once closures and blocks are lifted to symbols and the terms normalised
+  not validated with its imports: this verdict is outside what is proved of runs with imports

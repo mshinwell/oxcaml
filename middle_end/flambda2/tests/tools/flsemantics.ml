@@ -78,7 +78,27 @@
    compiler's direct call and its call of known arity give code its arguments as
    the code takes them, and the model has not got that of tupled code yet. So a
    direct call of tupled code is reported as unsupported, and so is a call of
-   known arity, which names no code, in a unit that has tupled code. *)
+   known arity, which names no code, in a unit that has tupled code.
+
+   Imports. The external symbols that the two units of a check mention, those of
+   another compilation unit, the predefined exceptions among them, are listed
+   once for both ([imports]), each with a class: an identity for a predefined
+   exception, data for any other. The two units are run from the static
+   environment that binds each of them to something imported
+   (FlambdaImportsSpec.imports_statics), and the two runs are compared. The
+   theorem of the validator is of two units run from the empty static
+   environment, where such a symbol is bound to nothing. Of two units run from
+   their imports there is a theorem for some of its verdicts only
+   (FlambdaValidateImportsSpec.holds_from_imports says which). So for a unit
+   that has imports no line begins "validated:". Where the verdict is one of
+   those, the line begins "validated with its imports", and it is of the two
+   runs shown. Where the validator accepts with another verdict, the line begins
+   "validated with nothing imported", which is what the theorem of the validator
+   says of it, and is followed by a line that begins "not validated with its
+   imports"; the comparison of the two runs shown is then a test and no more,
+   and the unit before is run from the empty static environment as well, to say
+   whether the validation with nothing imported is of a term that is
+   undefined. *)
 
 (* The matches below name the few constructs and primitives the model has and
    send every other to [unsupported]; they are meant to stay as they are when
@@ -95,6 +115,7 @@ module Kinds = Flambda2_rocq_semantics.FlambdaKindModel
 module Primitives = Flambda2_rocq_semantics.FlambdaPrimitiveModel
 module Model = Flambda2_rocq_semantics.FlambdaModel
 module Values = Flambda2_rocq_semantics.FlambdaValueSpec
+module Imports = Flambda2_rocq_semantics.FlambdaImportsSpec
 module Semantics = Flambda2_rocq_semantics.FlambdaSemanticsSpec
 module Normalise = Flambda2_rocq_semantics.FlambdaNormaliseSpec
 module Unused_statics = Flambda2_rocq_semantics.FlambdaUnusedStaticsSpec
@@ -103,6 +124,7 @@ module Well_kinded = Flambda2_rocq_semantics.FlambdaWellKindedSpec
 module Binders = Flambda2_rocq_semantics.FlambdaBindersSpec
 module Validate = Flambda2_rocq_semantics.FlambdaValidateSpec
 module Validate_knowing = Flambda2_rocq_semantics.FlambdaValidateKnowingSpec
+module Validate_imports = Flambda2_rocq_semantics.FlambdaValidateImportsSpec
 module Lift = Flambda2_rocq_semantics.FlambdaLiftSpec
 module My_closure = Flambda2_rocq_semantics.FlambdaMyClosureSpec
 module Unused_slots = Flambda2_rocq_semantics.FlambdaUnusedSlotsSpec
@@ -1118,6 +1140,16 @@ let rec observe depth (statics : Values.static_env) (v : Values.value) :
                Char.chr (int_of_z (List.nth bytes i))))
       | Some (Static_imported _) -> Imported (int_of_positive symbol))
 
+(* The name of the symbol of a number, for printing an import. *)
+let imported_name n =
+  match
+    List.find_opt
+      (fun (_, number) -> int_of_positive number = n)
+      (Symbols.bindings ())
+  with
+  | Some (symbol, _) -> Linkage_name.to_string (Symbol.linkage_name symbol)
+  | None -> string_of_int n
+
 let rec print_observation ppf (o : observation) =
   match o with
   | Tagged i -> Format.fprintf ppf "%d" i
@@ -1133,7 +1165,7 @@ let rec print_observation ppf (o : observation) =
   | String s -> Format.fprintf ppf "%S" s
   | Function -> Format.fprintf ppf "<fun>"
   | Dangling -> Format.fprintf ppf "<unbound symbol>"
-  | Imported n -> Format.fprintf ppf "<imported symbol %d>" n
+  | Imported n -> Format.fprintf ppf "<imported %s>" (imported_name n)
   | Location n -> Format.fprintf ppf "<location %d>" n
   | Too_deep -> Format.fprintf ppf "..."
 
@@ -1280,7 +1312,7 @@ let convert_unit (unit : Flambda_unit.t) : converted =
     exn_continuation = Continuations.find (Flambda_unit.exn_continuation unit)
   }
 
-let run (unit : converted) : outcome * int =
+let run ~(statics : Values.static_env) (unit : converted) : outcome * int =
   let rec go steps (state : Semantics.state) =
     if steps >= fuel
     then Still_running, steps
@@ -1301,9 +1333,30 @@ let run (unit : converted) : outcome * int =
     { state_expr = unit.body;
       state_vars = [];
       state_conts = [];
-      state_statics = Values.empty_static_env;
+      state_statics = statics;
       state_heap = Values.empty_heap
     }
+
+(* The external symbols that the units converted so far mention, each with its
+   class: the symbols of another compilation unit, the predefined exceptions
+   among them. The test is the compiler's own of a symbol that it looks up in
+   another unit ([Typing_env]). A symbol of the unit being checked that the unit
+   does not define is not one, and stays bound to nothing. The two units of a
+   check are converted with one numbering of symbols, so this is one list for
+   both. A predefined exception is an identity, and anything else is data: the
+   conversion cannot tell an exception that another unit declares from data. *)
+let imports () : (Model.symbol * Values.import_class) list =
+  List.filter_map
+    (fun (symbol, number) ->
+      if Current_unit.is_current (Symbol.compilation_unit symbol)
+      then None
+      else
+        Some
+          ( number,
+            if Symbol.is_predefined_exception symbol
+            then Values.Import_identity
+            else Values.Import_data ))
+    (Symbols.bindings ())
 
 (* ---- Printing model terms ---------------------------------------------- *)
 
@@ -2190,29 +2243,34 @@ let well_formed_before ~filename (before : Flambda_unit.t) =
         (why_not_well_formed before);
     ok
 
-(* What the comparison of the two runs shows of one run, this shows of all. The
-   whole check is [validate_unit], extracted from FlambdaValidateSpec.v, where
-   it is proved that what it accepts is correct for the unit run on its own from
-   empty environments. It normalises the two terms, compares them up to bound
-   names and, failing that, removes from the term before the static bindings
-   named here and compares again. Which names those are is a guess that it
-   checks. Failing that too, it is asked again, with the [Let]s that Simplify
-   seems to have made static bindings, in one or more liftings: it lifts them in
-   the term before as it was given, if it may, normalises the result, reads the
-   value slots of static closures and uses what the unit binds its symbols to,
-   removes the value slots of its static sets of closures that the term after
-   has not got, moves the bindings of code of both terms up, and compares again.
-   What is lifted and which slots are guesses too. Before any of this, where the
-   two terms are not the same as they are given, [validate_unit] makes jumps of
-   the self tail calls of the code named here, as Simplify does for the code
-   that the front end marks for loopify; which code that is, with a name for
-   each loop, is a guess again, and the guesses above are made of the term that
-   this gives. Failing all of that, the whole is asked a second time, of
-   [validate_unit_knowing], extracted from FlambdaValidateKnowingSpec.v, where
-   it is proved that what it accepts is correct for the unit in the same way. It
-   is [validate_unit] of the two terms normalised by rounds in front of each of
-   which the aliases are followed knowing what the symbols are bound to; the
-   guesses are made again, from those two terms. *)
+(* The comparison of the two runs is a test of those runs; this is a verdict
+   that has a theorem. The theorem is of the two units run from the empty static
+   environment and, for some verdicts, of the two units run from their imports
+   (the header, under "Imports"). The two runs compared start from the imports,
+   so for a unit that has imports the verdict is of those two runs only where
+   its label says so. The whole check is [validate_unit], extracted from
+   FlambdaValidateSpec.v, where it is proved that what it accepts is correct for
+   the unit run on its own from empty environments. It normalises the two terms,
+   compares them up to bound names and, failing that, removes from the term
+   before the static bindings named here and compares again. Which names those
+   are is a guess that it checks. Failing that too, it is asked again, with the
+   [Let]s that Simplify seems to have made static bindings, in one or more
+   liftings: it lifts them in the term before as it was given, if it may,
+   normalises the result, reads the value slots of static closures and uses what
+   the unit binds its symbols to, removes the value slots of its static sets of
+   closures that the term after has not got, moves the bindings of code of both
+   terms up, and compares again. What is lifted and which slots are guesses too.
+   Before any of this, where the two terms are not the same as they are given,
+   [validate_unit] makes jumps of the self tail calls of the code named here, as
+   Simplify does for the code that the front end marks for loopify; which code
+   that is, with a name for each loop, is a guess again, and the guesses above
+   are made of the term that this gives. Failing all of that, the whole is asked
+   a second time, of [validate_unit_knowing], extracted from
+   FlambdaValidateKnowingSpec.v, where it is proved that what it accepts is
+   correct for the unit in the same way. It is [validate_unit] of the two terms
+   normalised by rounds in front of each of which the aliases are followed
+   knowing what the symbols are bound to; the guesses are made again, from those
+   two terms. *)
 
 (* The code that the front end marks for loopify, each with a name for its loop
    that no continuation of the two units has. *)
@@ -2221,8 +2279,8 @@ let loopify_guess () =
     (fun code_id -> Code_ids.find code_id, Continuations.fresh ())
     (List.sort_uniq Code_id.compare !loopify_marked)
 
-let validate ~(outcome_before : outcome) (before : converted)
-    (after : converted) =
+let validate ~(imports : (Model.symbol * Values.import_class) list)
+    ~(outcome_before : outcome) (before : converted) (after : converted) =
   let recursive = recursive_code before.body @ recursive_code after.body in
   let inlined = Normalise.inline_calls recursive [] before.body in
   Format.printf
@@ -2490,20 +2548,52 @@ let validate ~(outcome_before : outcome) (before : converted)
         _ ) ->
       [], first
   in
+  (* Whether the verdict is of the two runs that were shown. It is for a unit
+     that imports nothing. For a unit that has imports it is where the model
+     says that the verdict holds of the unit run from its imports; where it does
+     not, and the validator accepts, what is validated is the unit with nothing
+     imported. No line begins "validated:" for a unit that has imports. *)
+  let of_the_runs_shown =
+    match imports with
+    | [] -> true
+    | _ :: _ -> Validate_imports.holds_from_imports validation
+  in
+  let validated =
+    match imports with
+    | [] -> "validated"
+    | _ :: _ ->
+      if of_the_runs_shown
+      then "validated with its imports"
+      else "validated with nothing imported"
+  in
+  (* The run of the term before that the validation is of. *)
+  let outcome_before =
+    if of_the_runs_shown
+    then outcome_before
+    else
+      match validation with
+      | Not_validated -> outcome_before
+      | Same_up_to_bound_names | Same_once_normalised
+      | Same_once_unused_statics_removed | Same_once_lifted ->
+        fst (run ~statics:Values.empty_static_env before)
+  in
   Format.printf "  %s@."
     (match validation with
-    | Same_up_to_bound_names -> "validated: the same up to bound names"
-    | Same_once_normalised -> "validated: the same once normalised"
+    | Same_up_to_bound_names -> validated ^ ": the same up to bound names"
+    | Same_once_normalised -> validated ^ ": the same once normalised"
     | Same_once_unused_statics_removed ->
-      "validated: the same once normalised and unused static bindings removed"
+      validated
+      ^ ": the same once normalised and unused static bindings removed"
     | Same_once_lifted ->
       if slots_removed
       then
-        "validated: the same once closures and blocks are lifted to symbols, \
-         the terms normalised and unused value slots removed"
+        validated
+        ^ ": the same once closures and blocks are lifted to symbols, the \
+           terms normalised and unused value slots removed"
       else
-        "validated: the same once closures and blocks are lifted to symbols \
-         and the terms normalised"
+        validated
+        ^ ": the same once closures and blocks are lifted to symbols and the \
+           terms normalised"
     | Not_validated ->
       if outcome_before = Undefined
       then "nothing to validate, as the term before is undefined"
@@ -2519,11 +2609,22 @@ let validate ~(outcome_before : outcome) (before : converted)
   | Not_validated -> ()
   | Same_up_to_bound_names | Same_once_normalised
   | Same_once_unused_statics_removed | Same_once_lifted ->
-    if outcome_before = Undefined
+    if not of_the_runs_shown
     then
       Format.printf
-        "  the term before is undefined in the model, so the validation says \
-         nothing of this unit@.");
+        "  not validated with its imports: this verdict is outside what is \
+         proved of runs with imports@.";
+    if outcome_before = Undefined
+    then
+      if of_the_runs_shown
+      then
+        Format.printf
+          "  the term before is undefined in the model, so the validation says \
+           nothing of this unit@."
+      else
+        Format.printf
+          "  with nothing imported the term before is undefined in the model, \
+           so that validation says nothing of this unit@.");
   match validation with
   | Not_validated when Sys.getenv_opt "FLSEMANTICS_PRINT_TERMS" <> None ->
     (* A pair of terms that the validation compared, for each guess of the calls
@@ -2553,12 +2654,21 @@ let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =
       (why_not_well_formed after);
     exit 1
   | before, after ->
-    let outcome_before, steps_before = run before in
-    let outcome_after, steps_after = run after in
-    Format.printf "%s:@.  before Simplify (%d steps): %a@." filename
-      steps_before print_outcome outcome_before;
-    Format.printf "  after Simplify (%d steps): %a@." steps_after print_outcome
-      outcome_after;
+    let imports = imports () in
+    let statics = Imports.imports_statics imports in
+    let outcome_before, steps_before = run ~statics before in
+    let outcome_after, steps_after = run ~statics after in
+    let with_imports =
+      match imports with
+      | [] -> ""
+      | [_] -> ", with its import"
+      | _ :: _ :: _ ->
+        Printf.sprintf ", with its %d imports" (List.length imports)
+    in
+    Format.printf "%s:@.  before Simplify%s (%d steps): %a@." filename
+      with_imports steps_before print_outcome outcome_before;
+    Format.printf "  after Simplify%s (%d steps): %a@." with_imports steps_after
+      print_outcome outcome_after;
     let passes ok = if ok then "passes" else "fails" in
     Format.printf "  the check of kinds: %s before, %s after@."
       (passes (well_kinded before))
@@ -2576,7 +2686,7 @@ let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =
         else "DIFFERENT", false
     in
     Format.printf "  %s@." verdict;
-    validate ~outcome_before before after;
+    validate ~imports ~outcome_before before after;
     if not ok then exit 1
 
 let check_file filename =

@@ -255,6 +255,43 @@ it gave back.
   function. The second part
   goes when the comparison relates code ids itself (workstream S4; there
   are notes in `flsemantics.ml` and `FlambdaCompareSpec.v`).
+- **Symbols that a unit does not define**, in the same file (`imports`,
+  about 15 lines, and `check`, which runs the two units from them). The
+  conversion lists the external symbols that the two units of a check
+  mention: the symbols of another compilation unit, the predefined
+  exceptions among them, which are of a unit of their own. A symbol of
+  the unit's own compilation unit that the unit does not define is not
+  one of them, and stays bound to nothing. Both units are run from the
+  static environment that binds each listed symbol to something
+  imported (`FlambdaImportsSpec.imports_statics`), an object whose
+  contents the model does not know. A symbol is given the class
+  `Import_identity` if it is a predefined exception
+  (`Symbol.is_predefined_exception`) and `Import_data` otherwise. Three
+  things are trusted. The list is the same for the two units: a symbol
+  that one of them mentions is declared for both. A predefined
+  exception is an object made once, by the startup code, that nothing
+  the unit allocates and no other symbol is: the model answers false to
+  `Phys_equal` of it against an allocated value of the unit and against
+  an import that is data, and answers by the symbols for two of them;
+  the compiler does not prove the first of these (the CR at
+  `eval_phys_equal`). And the model does not look into an import. It
+  can be passed, returned, stored (`Make_block` takes one as a field)
+  and given to `Opaque_identity`, which returns it. `Phys_equal`
+  answers false of an import of either class against a tagged
+  immediate, compares an identity as just said, and has no value of an
+  import that is data against an immutable allocated value, another
+  import that is data or itself. That is
+  `FlambdaPrimitiveSpec.eval_phys_equal`, which the machine that the
+  tool runs uses (`FlambdaSemanticsSpec.step`); it has no value on a
+  location of the heap, against an import as against anything.
+  `Phys_equal` of the machine with a heap (`FlambdaHeapSpec.exec_prim`),
+  which the tool does not run, answers false of an import of either
+  class against a location bound by that heap. No other unary or
+  binary primitive has a value on an import. It is not a closure, so a
+  call of it is undefined. A run that executes a load from an import,
+  or a call of one, is therefore undefined in the model where the
+  compiler gives it a meaning. Merely containing such a load or call
+  does not make the run undefined.
 - **The extraction**: Rocq's extraction to OCaml, by
   `middle_end/flambda2/rocq/FlambdaExtract.v`. It has no directive that
   realises a definition of the model by hand-written OCaml. The extracted
@@ -265,6 +302,31 @@ it gave back.
   same two terms, and prints the answer as it is. The comparison of the
   two runs that it also prints is a test of one run, and no theorem is
   about it.
+  For a unit that has imports (the entry "Symbols that a unit does not
+  define") the two runs are from its imports. The theorem of the
+  validator is of the two units run from the empty static environment,
+  where an external symbol is bound to nothing. Of the two units run
+  from their imports there is a theorem for three of its verdicts,
+  which `FlambdaValidateImportsSpec.holds_from_imports` names: the same
+  up to bound names, the same once normalised, and the same once the
+  unused static bindings of the term before are removed as well
+  (`validate_unit_sound_imports_statement`, and
+  `validate_unit_knowing_sound_imports_statement` for the second
+  asking). It is of no other verdict: not of a unit validated once
+  something is lifted, nor of one that rests on a removal of static
+  bindings from the term after. The tool asks that function, as it is
+  extracted, of the verdict, and no line that it prints for a unit that
+  has imports begins "validated:". Where the function accepts the
+  verdict, the line begins "validated with its imports", and the
+  verdict is of the two runs that the tool shows. Where the validator
+  accepts with another verdict, what is validated is the unit run with
+  nothing imported: the line begins "validated with nothing imported"
+  and is followed by a line that begins "not validated with its
+  imports", and the comparison of the two runs from the imports is
+  then an execution of both terms that is compared, not a validated
+  verdict. In that case the tool also runs the unit before from the
+  empty static environment, to say where the validation with nothing
+  imported is vacuous.
 - **The conversion of types**, in
   `middle_end/flambda2/tests/semantics/types/type_converter.ml` with
   `model_numbers.ml` and `model_names.ml`: between `Type_grammar.t` and

@@ -1,8 +1,8 @@
 raise_inlined.fl:
-  before Simplify (27 steps): returns [0: 0]
-  after Simplify (11 steps): returns [0: 0]
+  before Simplify, with its import (27 steps): returns [0: 0]
+  after Simplify, with its import (11 steps): returns [0: 0]
   the check of kinds: passes before, passes after
   calls outside code: 1 before, 0 after
   the same
   calls outside code once those of known code are inlined: 0
-  validated: the same once normalised and unused static bindings removed
+  validated with its imports: the same once normalised and unused static bindings removed
