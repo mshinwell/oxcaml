@@ -26,7 +26,8 @@
  ******************************************************************************)
 
 (* The fuel of the meet of types that have no name inside: their depth
-   is enough.
+   is enough. And of the meet of a shape with a type that has no
+   extension: two units are enough.
 
    This file is to be reviewed: the definitions and the statements.
    They go on from FlambdaMeetTerminationSpec.v, whose header says what
@@ -107,12 +108,47 @@
    alias ([example_depth_fuel_statement]) and one with the alias of a
    constant ([example_const_fuel_statement]).
 
-   What is not here: names. An alias of a name, a variable for a
-   relation, or an extension makes the meet read the environment and
-   add to it, and
-   then the types that are met are those that the environment has,
-   which the meet itself changes. FlambdaMeetTerminationSpec.v says
-   what a bound would rest on there, and what is in its way. *)
+   The meet with a shape. A relation gives the name that it is a
+   relation of a type that says little: [any_block],
+   [any_tagged_immediate], [null], [any_non_null_value], or the blocks
+   of some tags. Such a type is a shape ([shape]): it has no name
+   inside, and the types inside it each say nothing or have no value;
+   those five are shapes ([relation_shapes_statement]). The type that
+   a shape is met with is one that the environment has for a name,
+   and has names inside in general. What is asked of it is that it
+   has no extension ([extension_free]): it is not an alias; a variant
+   in it has [No_extensions], and a case of a row-like structure the
+   empty extension; and if it is a head of naked immediates it has no
+   inverse relation. It may have variables for relations, and nothing
+   is asked of the types inside it, which may be aliases of names.
+   For a shape and such a type, in either order, two units of fuel
+   are enough ([shape_fuel_enough_statement]), and the meet adds
+   nothing to the typing environment
+   ([shape_meet_adds_nothing_statement]), under the same hypothesis on
+   the join. Here the meet does read the environment: where a type
+   inside the second is an alias, it is met with a type that says
+   nothing or has no value, and the meet looks up what the alias is
+   an alias of and the type that the environment has for it. It adds
+   no equation, since that meet answers the type that the name has,
+   or bottom. Two units are reached: an example is run
+   ([example_shape_fuel_statement]), with a shape that has a type
+   inside which says nothing. The shapes that the relations give have
+   no such type; that one unit is enough for them is not stated.
+
+   The two classes are one test ([plain_type]) with two parameters:
+   whether a head of values may have variables for relations, and
+   what is asked of the types inside. A type with no name inside
+   allows no variable and asks the same of the types inside, one
+   level less ([nameless_type]); a shape allows no variable and asks
+   that the types inside say nothing or have no value; a type with no
+   extension allows variables and asks nothing of the types inside.
+
+   What is not here: names, but for the meet with a shape. An alias of
+   a name, a variable for a relation on both sides, or an extension
+   makes the meet read the environment and add to it, and then the
+   types that are met are those that the environment has, which the
+   meet itself changes. FlambdaMeetTerminationSpec.v says what a bound
+   would rest on there, and what is in its way. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
@@ -125,18 +161,22 @@ From OxCamlFlambda2Types Require FlambdaMeetExamplesSpec FlambdaJoinEnv
 Import ListNotations.
 
 (* ======================================================================== *)
-(* Types with no name inside                                                *)
+(* Types with no extension and no alias                                     *)
 (* ======================================================================== *)
 
-Section Nameless.
+Section Plain.
+
+(* Whether a head of values may have variables that stand for the
+   result of a relation. *)
+Variable relations : bool.
 
 (* What is asked of the types inside. *)
 Variable inside : flambda_type -> bool.
 
-Definition no_variable (var : option variable) : bool :=
+Definition relation_variable_allowed (var : option variable) : bool :=
   match var with
   | None => true
-  | Some _ => false
+  | Some _ => relations
   end.
 
 Definition extension_is_empty (extension : env_extension) : bool :=
@@ -144,54 +184,54 @@ Definition extension_is_empty (extension : env_extension) : bool :=
   | Env_extension equations => Keyed.is_empty equations
   end.
 
-Definition nameless_block_case (case : row_like_block_case) : bool :=
+Definition plain_block_case (case : row_like_block_case) : bool :=
   forallb inside (case_maps_to case)
   && extension_is_empty (case_env_extension case).
 
-Definition nameless_blocks (blocks : row_like_for_blocks) : bool :=
+Definition plain_blocks (blocks : row_like_for_blocks) : bool :=
   match blocks with
   | Row_like_for_blocks known_tags other_tags _ =>
     forallb
       (fun known =>
          match snd known with
          | Or_unknown.Unknown => true
-         | Or_unknown.Known case => nameless_block_case case
+         | Or_unknown.Known case => plain_block_case case
          end)
       known_tags
     && match other_tags with
        | Or_bottom.Bottom => true
-       | Or_bottom.Ok case => nameless_block_case case
+       | Or_bottom.Ok case => plain_block_case case
        end
   end.
 
-Definition nameless_closures_entry (entry : closures_entry) : bool :=
+Definition plain_closures_entry (entry : closures_entry) : bool :=
   match entry with
   | Closures_entry _ closure_types value_slot_types =>
     forallb (fun closure => inside (snd closure)) closure_types
     && forallb (fun slot => inside (snd slot)) value_slot_types
   end.
 
-Definition nameless_closures (closures : row_like_for_closures) : bool :=
+Definition plain_closures (closures : row_like_for_closures) : bool :=
   match closures with
   | Row_like_for_closures known_closures =>
     forallb
       (fun known =>
-         nameless_closures_entry (case_maps_to (snd known))
+         plain_closures_entry (case_maps_to (snd known))
          && extension_is_empty (case_env_extension (snd known)))
       known_closures
   end.
 
-Definition nameless_non_null (head : head_of_kind_value_non_null) : bool :=
+Definition plain_non_null (head : head_of_kind_value_non_null) : bool :=
   match head with
   | Variant is_int immediates get_tag blocks extensions _ =>
-    no_variable is_int && no_variable get_tag
+    relation_variable_allowed is_int && relation_variable_allowed get_tag
     && match immediates with
        | Or_unknown.Unknown => true
        | Or_unknown.Known ty => inside ty
        end
     && match blocks with
        | Or_unknown.Unknown => true
-       | Or_unknown.Known blocks => nameless_blocks blocks
+       | Or_unknown.Known blocks => plain_blocks blocks
        end
     && match extensions with
        | No_extensions => true
@@ -199,56 +239,71 @@ Definition nameless_non_null (head : head_of_kind_value_non_null) : bool :=
        end
   | Mutable_block _ | String _ => true
   | Boxed_number _ contents _ => inside contents
-  | Closures by_function_slot _ => nameless_closures by_function_slot
+  | Closures by_function_slot _ => plain_closures by_function_slot
   end.
 
-Definition nameless_value (head : head_of_kind_value) : bool :=
+Definition plain_value (head : head_of_kind_value) : bool :=
   match head with
   | Head_of_kind_value non_null is_null =>
     match non_null with
     | Unknown | Bottom => true
-    | Ok non_null => nameless_non_null non_null
+    | Ok non_null => plain_non_null non_null
     end
     && match is_null with
        | Not_null => true
-       | Maybe_null is_null => no_variable is_null
+       | Maybe_null is_null => relation_variable_allowed is_null
        end
   end.
 
-Definition nameless_naked_immediate (head : head_of_kind_naked_immediate)
+(* A head of naked immediates has no inverse relation, whether or not
+   variables for relations are allowed: an inverse relation makes the
+   meet add an equation. *)
+Definition plain_naked_immediate (head : head_of_kind_naked_immediate)
     : bool :=
   Keyed.is_empty (inverse_relations head).
 
-Definition nameless_descr {head : Type} (nameless_head : head -> bool)
+Definition plain_descr {head : Type} (plain_head : head -> bool)
     (ty : type_descr head) : bool :=
   match ty with
   | Unknown | Bottom => true
-  | Ok (No_alias head) => nameless_head head
+  | Ok (No_alias head) => plain_head head
   | Ok (Equals _) => false
   end.
 
 (* Of a type that is not an alias. *)
-Definition nameless_type (ty : flambda_type) : bool :=
+Definition plain_type (ty : flambda_type) : bool :=
   match ty with
-  | Type_value ty => nameless_descr nameless_value ty
-  | Type_naked_immediate ty => nameless_descr nameless_naked_immediate ty
-  | Type_naked_number _ ty => nameless_descr (fun _ => true) ty
-  | Type_rec_info ty => nameless_descr (fun _ => true) ty
-  | Type_region ty => nameless_descr (fun _ => true) ty
+  | Type_value ty => plain_descr plain_value ty
+  | Type_naked_immediate ty => plain_descr plain_naked_immediate ty
+  | Type_naked_number _ ty => plain_descr (fun _ => true) ty
+  | Type_rec_info ty => plain_descr (fun _ => true) ty
+  | Type_region ty => plain_descr (fun _ => true) ty
   end.
+
+End Plain.
+
+(* ======================================================================== *)
+(* Types with no name inside                                                *)
+(* ======================================================================== *)
+
+(* A type that is not an alias and has no variable for a relation,
+   given what is asked of the types inside it. *)
+Definition nameless_type (inside : flambda_type -> bool)
+    : flambda_type -> bool :=
+  plain_type false inside.
 
 (* An alias of a constant is taken as the type that the constant
    expands to, which is not an alias; an alias of a name is not
    allowed. *)
-Definition nameless_or_const (ty : flambda_type) : bool :=
+Definition nameless_or_const (inside : flambda_type -> bool)
+    (ty : flambda_type) : bool :=
   match get_alias_opt ty with
-  | None => nameless_type ty
+  | None => nameless_type inside ty
   | Some (Const c) =>
-    nameless_type (Expanded_type.to_type (Expanded_type.create_const c))
+    nameless_type inside
+      (Expanded_type.to_type (Expanded_type.create_const c))
   | Some (Var _ | Symbol _) => false
   end.
-
-End Nameless.
 
 (* A type has no name inside, and what is inside it is no deeper than
    [depth]. *)
@@ -396,6 +451,66 @@ Definition nameless_types_meet_adds_nothing_statement : Prop :=
     tenv' = tenv.
 
 (* ======================================================================== *)
+(* The meet with a shape                                                    *)
+(* ======================================================================== *)
+
+(* A type that says nothing or that has no value; it is not an
+   alias. *)
+Definition says_nothing_or_no_value (ty : flambda_type) : bool :=
+  is_obviously_unknown ty || is_obviously_bottom ty.
+
+(* A shape: a type that is not an alias, has no variable for a
+   relation and no extension, and whose types inside each say nothing
+   or have no value. *)
+Definition shape (ty : flambda_type) : bool :=
+  plain_type false says_nothing_or_no_value ty.
+
+(* A type that is not an alias and has no extension, nor an inverse
+   relation if it is one of naked immediates. It may have variables
+   for relations, and nothing is asked of the types inside it. *)
+Definition extension_free (ty : flambda_type) : bool :=
+  plain_type true (fun _ => true) ty.
+
+(* Two units of fuel are enough for the meet of a shape with a type
+   that has no extension, in either order. *)
+Definition shape_fuel_enough_statement : Prop :=
+  ∀ (join : join_scoped_envs) (choices : meet_choices) (menv : Meet_env.t)
+    (e1 e2 : Expanded_type.t),
+    join_of_nothing join ->
+    shape (Expanded_type.to_type e1) = true ->
+    extension_free (Expanded_type.to_type e2) = true ->
+    fuel_enough join choices 2 menv e1 e2
+    ∧ fuel_enough join choices 2 menv e2 e1.
+
+(* And that meet adds nothing to the typing environment. *)
+Definition shape_meet_adds_nothing_statement : Prop :=
+  ∀ (join : join_scoped_envs) (choices : meet_choices)
+    (menv menv' : Meet_env.t) (e1 e2 : Expanded_type.t)
+    (r : meet_return_value Expanded_type.t),
+    join_of_nothing join ->
+    shape (Expanded_type.to_type e1) = true ->
+    extension_free (Expanded_type.to_type e2) = true ->
+    (Meet.meet_expanded_head join choices 2 menv e1 e2
+     = Some (Meet_result.Ok r menv') ->
+     Meet_env.typing_env menv' = Meet_env.typing_env menv)
+    ∧ (Meet.meet_expanded_head join choices 2 menv e2 e1
+       = Some (Meet_result.Ok r menv') ->
+       Meet_env.typing_env menv' = Meet_env.typing_env menv).
+
+(* The types that a relation gives the name it is a relation of
+   ([reduce_inverse_relations], FlambdaMeet.v) are shapes; the last
+   two are what the compiler's choice and the repaired choice give
+   for [Get_tag]. *)
+Definition relation_shapes_statement : Prop :=
+  shape any_non_null_value = true
+  ∧ shape null = true
+  ∧ shape any_block = true
+  ∧ shape any_tagged_immediate = true
+  ∧ ∀ (tags : list Z) (alloc_mode : Alloc_mode.t),
+      shape (blocks_with_these_tags tags alloc_mode) = true
+      ∧ shape (immediate_or_blocks_with_these_tags tags alloc_mode) = true.
+
+(* ======================================================================== *)
 (* An example                                                               *)
 (* ======================================================================== *)
 
@@ -441,4 +556,27 @@ Definition example_const_fuel_statement : Prop :=
       = Some (Or_bottom.Ok answer))
   ∧ meet_to_prove FlambdaMeetExamplesSpec.forgetful_join 2 Typing_env.create
       block1 block2
+    = None.
+
+(* A boxed float of which nothing is known, which is a shape, met with
+   the boxed float whose contents are the variable [x]. The meet
+   answers with two units of fuel and not with one: the type that the
+   environment has for [x] is met with the contents of the shape. *)
+Definition example_shape_env : Typing_env.t :=
+  Typing_env.add_variable_definition Typing_env.create 1%positive
+    (Naked_number Kind_naked_float) Name_mode.normal.
+
+Definition example_shape_fuel_statement : Prop :=
+  let any_float := any_boxed_number Boxable_naked_float in
+  let boxed_x :=
+    boxed_number_alias_to Boxable_naked_float 1%positive Alloc_mode.Heap
+  in
+  shape any_float = true
+  ∧ extension_free boxed_x = true
+  ∧ (∃ answer : flambda_type * Typing_env.t,
+      meet_to_prove FlambdaMeetExamplesSpec.forgetful_join 2 example_shape_env
+        any_float boxed_x
+      = Some (Or_bottom.Ok answer))
+  ∧ meet_to_prove FlambdaMeetExamplesSpec.forgetful_join 1 example_shape_env
+      any_float boxed_x
     = None.

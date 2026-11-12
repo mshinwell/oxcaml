@@ -28,15 +28,25 @@
 (* Proofs of the statements of FlambdaMeetDepthSpec.v. Nothing here
    needs review.
 
-   The step of the meet is taken function by function. Of each, on
-   inputs that have no name inside, two things are shown together
-   ([same_kept]): it answers the same with two meets of less fuel that
-   answer the same on the types inside, and where it answers an
+   The step of the meet is taken function by function, for two meets
+   of less fuel and a class of inputs for each side ([plain_type] with
+   its two parameters). Of each function two things are shown together
+   ([same_kept]): it answers the same with the two meets, given that
+   the meets of types made of them answer the same on the types inside
+   ([Hinside] of the section [Step]); and where it answers an
    environment, that has the typing environment of the one it was
    given. The second is what makes the first go through a disjunction
    and a row-like structure: the environments that are cut there have
-   nothing in them, so no extension is added and no type of the
-   environment is met. *)
+   nothing in them, so no extension is added and no equation.
+
+   The types with no name inside are the instance in which both sides
+   have the class of one depth less, and the meets of types answer the
+   same by induction on the depth ([meet_steady],
+   [nameless_over_steady]). The meet with a shape is the instance in
+   which one side has types inside that say nothing or have no value,
+   and the meets of types answer the same because the meet of such a
+   type with any other asks no meet of less fuel
+   ([meet_of_nothing_steady], [meet_with_nothing_steady]). *)
 
 From Stdlib Require Import ZArith List Bool Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
@@ -61,34 +71,35 @@ Proof.
   apply Hfg, Hall, Ha.
 Qed.
 
-(* [nameless_type] grows with what it asks of the types inside. *)
-Lemma nameless_type_more (inside inside' : flambda_type -> bool)
-    (ty : flambda_type) :
+(* [plain_type] grows with what it asks of the types inside. *)
+Lemma plain_type_more (relations : bool)
+    (inside inside' : flambda_type -> bool) (ty : flambda_type) :
   (∀ ty : flambda_type, inside ty = true -> inside' ty = true) ->
-  nameless_type inside ty = true -> nameless_type inside' ty = true.
+  plain_type relations inside ty = true ->
+  plain_type relations inside' ty = true.
 Proof.
   intros Hinside.
   assert (Hcase :
     ∀ case : row_like_block_case,
-      nameless_block_case inside case = true ->
-      nameless_block_case inside' case = true).
-  { intros case. unfold nameless_block_case.
+      plain_block_case inside case = true ->
+      plain_block_case inside' case = true).
+  { intros case. unfold plain_block_case.
     rewrite !andb_true_iff. intros [Hfields Hextension].
     split; [ exact (forallb_more _ _ _ Hinside Hfields) | exact Hextension ]. }
   assert (Hblocks :
     ∀ blocks : row_like_for_blocks,
-      nameless_blocks inside blocks = true ->
-      nameless_blocks inside' blocks = true).
-  { intros [known other alloc_mode]. unfold nameless_blocks.
+      plain_blocks inside blocks = true ->
+      plain_blocks inside' blocks = true).
+  { intros [known other alloc_mode]. unfold plain_blocks.
     rewrite !andb_true_iff. intros [Hknown Hother]. split.
     - revert Hknown. apply forallb_more. intros [tag [case | ]]; cbn;
         [ apply Hcase | trivial ].
     - destruct other as [case | ]; [ apply Hcase, Hother | reflexivity ]. }
   assert (Hclosures :
     ∀ closures : row_like_for_closures,
-      nameless_closures inside closures = true ->
-      nameless_closures inside' closures = true).
-  { intros [known]. unfold nameless_closures. apply forallb_more.
+      plain_closures inside closures = true ->
+      plain_closures inside' closures = true).
+  { intros [known]. unfold plain_closures. apply forallb_more.
     intros [slot [[function_types closure_types value_slot_types] index
                    extension]].
     cbn. rewrite !andb_true_iff. intros [[Hclosure Hslots] Hextension].
@@ -121,7 +132,7 @@ Lemma nameless_or_const_more (inside inside' : flambda_type -> bool)
 Proof.
   intros Hinside. unfold nameless_or_const.
   destruct (get_alias_opt ty) as [[v | s | c] | ]; try discriminate;
-    apply nameless_type_more, Hinside.
+    apply plain_type_more, Hinside.
 Qed.
 
 Lemma nameless_within_succ (depth : nat) (ty : flambda_type) :
@@ -207,10 +218,10 @@ Definition same_kept {A : Type} (env : Meet_env.t)
   o = o' ∧ kept env o.
 
 (* Two meets answer so on the inputs that have [P]. *)
-Definition steady {A B : Type} (P : A -> Prop)
+Definition steady {A B : Type} (P1 P2 : A -> Prop)
     (m m' : Meet_env.t -> A -> A -> option (Meet_result.t B)) : Prop :=
-  ∀ (env : Meet_env.t) (a1 a2 : A),
-    P a1 -> P a2 -> same_kept env (m env a1 a2) (m' env a1 a2).
+  ∀ (env : Meet_env.t) (a b : A),
+    P1 a -> P2 b -> same_kept env (m env a b) (m' env a b).
 
 Lemma same_kept_none {A : Type} (env : Meet_env.t) :
   same_kept env (@None (Meet_result.t A)) None.
@@ -301,14 +312,15 @@ Ltac kept_cases H env1 Henv1 :=
 (* The functions that are given a meet for their parts                      *)
 (* ======================================================================== *)
 
-Lemma combine_results2_steady {A B C : Type} (PA : A -> Prop) (PB : B -> Prop)
+Lemma combine_results2_steady {A B C : Type} (PA1 PA2 : A -> Prop)
+    (PB1 PB2 : B -> Prop)
     (meet_a meet_a' : Meet_env.t -> A -> A -> option (Meet_result.t A))
     (meet_b meet_b' : Meet_env.t -> B -> B -> option (Meet_result.t B))
     (env : Meet_env.t) (left_a right_a : A) (left_b right_b : B)
     (rebuild : A -> B -> C) :
-  steady PA meet_a meet_a' ->
-  steady PB meet_b meet_b' ->
-  PA left_a -> PA right_a -> PB left_b -> PB right_b ->
+  steady PA1 PA2 meet_a meet_a' ->
+  steady PB1 PB2 meet_b meet_b' ->
+  PA1 left_a -> PA2 right_a -> PB1 left_b -> PB2 right_b ->
   same_kept env
     (combine_results2 env meet_a meet_b left_a right_a left_b right_b rebuild)
     (combine_results2 env meet_a' meet_b' left_a right_a left_b right_b
@@ -325,18 +337,18 @@ Proof.
     | apply same_kept_ok_at, Henv2 ].
 Qed.
 
-Lemma combine_results3_steady {A B C D : Type} (PA : A -> Prop)
-    (PB : B -> Prop) (PC : C -> Prop)
+Lemma combine_results3_steady {A B C D : Type} (PA1 PA2 : A -> Prop)
+    (PB1 PB2 : B -> Prop) (PC1 PC2 : C -> Prop)
     (meet_a meet_a' : Meet_env.t -> A -> A -> option (Meet_result.t A))
     (meet_b meet_b' : Meet_env.t -> B -> B -> option (Meet_result.t B))
     (meet_c meet_c' : Meet_env.t -> C -> C -> option (Meet_result.t C))
     (env : Meet_env.t) (left_a right_a : A) (left_b right_b : B)
     (left_c right_c : C) (rebuild : A -> B -> C -> D) :
-  steady PA meet_a meet_a' ->
-  steady PB meet_b meet_b' ->
-  steady PC meet_c meet_c' ->
-  PA left_a -> PA right_a -> PB left_b -> PB right_b ->
-  PC left_c -> PC right_c ->
+  steady PA1 PA2 meet_a meet_a' ->
+  steady PB1 PB2 meet_b meet_b' ->
+  steady PC1 PC2 meet_c meet_c' ->
+  PA1 left_a -> PA2 right_a -> PB1 left_b -> PB2 right_b ->
+  PC1 left_c -> PC2 right_c ->
   same_kept env
     (combine_results3 env meet_a meet_b meet_c left_a right_a left_b right_b
        left_c right_c rebuild)
@@ -365,12 +377,13 @@ Definition known_has {A : Type} (P : A -> Prop) (a : Or_unknown.t A) : Prop :=
   | Or_unknown.Unknown => True
   end.
 
-Lemma meet_unknown_steady {A : Type} (P : A -> Prop)
+Lemma meet_unknown_steady {A : Type} (P1 P2 : A -> Prop)
     (meet_contents meet_contents' :
       Meet_env.t -> A -> A -> option (Meet_result.t A))
     (contents_is_bottom : A -> bool) :
-  steady P meet_contents meet_contents' ->
-  steady (known_has P) (meet_unknown meet_contents contents_is_bottom)
+  steady P1 P2 meet_contents meet_contents' ->
+  steady (known_has P1) (known_has P2)
+    (meet_unknown meet_contents contents_is_bottom)
     (meet_unknown meet_contents' contents_is_bottom).
 Proof.
   intros Hcontents env [a1 | ] [a2 | ] H1 H2; unfold meet_unknown;
@@ -393,10 +406,10 @@ Definition ok_has {A : Type} (P : A -> Prop) (a : or_unknown_or_bottom A)
   | Unknown | Bottom => True
   end.
 
-Lemma meet_or_unknown_or_bottom_steady {A B : Type} (P : A -> Prop)
+Lemma meet_or_unknown_or_bottom_steady {A B : Type} (P1 P2 : A -> Prop)
     (meet_elt meet_elt' : Meet_env.t -> A -> A -> option (Meet_result.t B)) :
-  steady P meet_elt meet_elt' ->
-  steady (ok_has P) (meet_or_unknown_or_bottom meet_elt)
+  steady P1 P2 meet_elt meet_elt' ->
+  steady (ok_has P1) (ok_has P2) (meet_or_unknown_or_bottom meet_elt)
     (meet_or_unknown_or_bottom meet_elt').
 Proof.
   intros Helt env [ | a1 | ] [ | a2 | ] H1 H2;
@@ -415,12 +428,13 @@ Definition opt_has {A : Type} (P : A -> Prop) (a : option A) : Prop :=
   | None => True
   end.
 
-Definition fold2_over {K A M : Type} (PM : M -> Prop) (P : A -> Prop)
+Definition fold2_over {K A M : Type} (PM1 PM2 : M -> Prop)
+    (P1 P2 : A -> Prop)
     (fold2 :
       (K -> option A -> option A -> mapping_state K A -> mapping_state K A) ->
       M -> M -> mapping_state K A -> mapping_state K A) : Prop :=
   ∀ left right : M,
-    PM left -> PM right ->
+    PM1 left -> PM2 right ->
     ∃ entries : list (K * (option A * option A)),
       (∀ (step :
             K -> option A -> option A -> mapping_state K A ->
@@ -433,7 +447,7 @@ Definition fold2_over {K A M : Type} (PM : M -> Prop) (P : A -> Prop)
               entries init)
       ∧ ∀ entry : K * (option A * option A),
           In entry entries ->
-          opt_has P (fst (snd entry)) ∧ opt_has P (snd (snd entry)).
+          opt_has P1 (fst (snd entry)) ∧ opt_has P2 (snd (snd entry)).
 
 (* The state of [meet_mapping] has the typing environment of [env], if
    it has an environment. *)
@@ -523,12 +537,12 @@ Lemma meet_mapping_unfold {K A M : Type}
     end.
 Proof. reflexivity. Qed.
 
-Lemma mapping_step_steady {K A : Type} (P : A -> Prop)
+Lemma mapping_step_steady {K A : Type} (P1 P2 : A -> Prop)
     (meet_data meet_data' : Meet_env.t -> A -> A -> option (Meet_result.t A))
     (env : Meet_env.t) (key : K) (a b : option A)
     (state : mapping_state K A) :
-  steady P meet_data meet_data' ->
-  opt_has P a -> opt_has P b ->
+  steady P1 P2 meet_data meet_data' ->
+  opt_has P1 a -> opt_has P2 b ->
   state_kept env state ->
   mapping_step meet_data key a b state = mapping_step meet_data' key a b state
   ∧ state_kept env (mapping_step meet_data key a b state).
@@ -551,15 +565,16 @@ Proof.
   - split; [ reflexivity | intros acc'; discriminate ].
 Qed.
 
-Lemma meet_mapping_steady {K A M : Type} (PM : M -> Prop) (P : A -> Prop)
+Lemma meet_mapping_steady {K A M : Type} (PM1 PM2 : M -> Prop)
+    (P1 P2 : A -> Prop)
     (meet_data meet_data' : Meet_env.t -> A -> A -> option (Meet_result.t A))
     (fold2 :
       (K -> option A -> option A -> mapping_state K A -> mapping_state K A) ->
       M -> M -> mapping_state K A -> mapping_state K A)
     (rebuild : list (K * A) -> M) :
-  steady P meet_data meet_data' ->
-  fold2_over PM P fold2 ->
-  steady PM
+  steady P1 P2 meet_data meet_data' ->
+  fold2_over PM1 PM2 P1 P2 fold2 ->
+  steady PM1 PM2
     (fun env left right => meet_mapping meet_data fold2 env left right rebuild)
     (fun env left right =>
        meet_mapping meet_data' fold2 env left right rebuild).
@@ -580,7 +595,7 @@ Proof.
     cbv zeta. apply same_kept_ok_at, (Hstate res eq_refl).
   - destruct (Hentries (key, (a, b)) (or_introl eq_refl)) as [Ha Hb].
     cbn [List.fold_left fst snd] in *.
-    destruct (mapping_step_steady P meet_data meet_data' env key a b state
+    destruct (mapping_step_steady P1 P2 meet_data meet_data' env key a b state
                 Hdata Ha Hb Hstate) as [<- Hstate'].
     apply IH; [ | exact Hstate' ].
     intros entry Hin. apply Hentries. right. exact Hin.
@@ -611,13 +626,16 @@ Definition bindings_have {K A : Type} (P : A -> Prop)
     (m : Keyed.finite_map K A) : Prop :=
   ∀ binding : K * A, In binding m -> P (snd binding).
 
-Lemma map_meet_steady {K A : Type} (eqb : K -> K -> bool) (P : A -> Prop)
+Lemma map_meet_steady {K A : Type} (eqb : K -> K -> bool)
+    (P1 P2 : A -> Prop)
     (meet_data meet_data' : Meet_env.t -> A -> A -> option (Meet_result.t A)) :
-  steady P meet_data meet_data' ->
-  steady (bindings_have P) (map_meet eqb meet_data) (map_meet eqb meet_data').
+  steady P1 P2 meet_data meet_data' ->
+  steady (bindings_have P1) (bindings_have P2) (map_meet eqb meet_data)
+    (map_meet eqb meet_data').
 Proof.
   intros Hdata. unfold map_meet. cbv zeta.
-  apply (meet_mapping_steady (bindings_have P) P); [ exact Hdata | ].
+  apply (meet_mapping_steady (bindings_have P1) (bindings_have P2) P1 P2);
+    [ exact Hdata | ].
   intros left right Hleft Hright.
   exists
     (map
@@ -796,66 +814,67 @@ Qed.
 (* The step of the meet                                                     *)
 (* ======================================================================== *)
 
+(* What is asked of a type inside, as a proposition. *)
+Definition has (inside : flambda_type -> bool) (ty : flambda_type) : Prop :=
+  inside ty = true.
+
+(* The same of every type of a list. *)
+Definition all_have (inside : flambda_type -> bool)
+    (fields : list flambda_type) : Prop :=
+  ∀ ty : flambda_type, In ty fields -> has inside ty.
+
+Lemma forallb_bindings_have {K : Type} (inside : flambda_type -> bool)
+    (m : Keyed.finite_map K flambda_type) :
+  forallb (fun binding => inside (snd binding)) m = true ->
+  bindings_have (has inside) m.
+Proof.
+  intros Hall binding Hin. rewrite forallb_forall in Hall.
+  exact (Hall binding Hin).
+Qed.
+
+Lemma meet_function_type_steady :
+  steady (fun _ : Or_unknown.t function_type => True) (fun _ => True)
+    meet_function_type meet_function_type.
+Proof.
+  intros env [f1 | ] [f2 | ] _ _; unfold meet_function_type;
+    try apply same_kept_ok.
+  unfold meet_code_id. destruct (Pos.eqb _ _); cbn;
+    [ apply same_kept_ok | apply same_kept_bottom ].
+Qed.
+
+(* The step is taken for two meets of less fuel, [mh] and [mh'], and
+   two classes of heads, one for each side: on the left a head may
+   have variables for relations if [relations1] says so and its types
+   inside have [inside1], and the same on the right. What is supposed:
+   not both sides may have variables for relations, and the meets of
+   types that are made of [mh] and [mh'] answer the same, with the
+   typing environment given, on a type that has [inside1] and one
+   that has [inside2]. *)
 Section Step.
 
 Variable join : join_scoped_envs.
 Variable choices : meet_choices.
-Variable depth : nat.
 Variable mh mh' : meet_expanded_head.
+Variables relations1 relations2 : bool.
+Variables inside1 inside2 : flambda_type -> bool.
 Hypothesis Hjoin : join_of_nothing join.
-Hypothesis Hmh :
-  steady (fun e => nameless_expanded_within depth e = true) mh mh'.
-
-(* What is asked of the types inside. *)
-Definition inside (ty : flambda_type) : Prop :=
-  nameless_within depth ty = true.
-
-Lemma meet_steady : steady inside (FlambdaMeet.meet mh) (FlambdaMeet.meet mh').
-Proof.
-  intros env t1 t2 H1 H2. unfold FlambdaMeet.meet.
-  destruct (nameless_cases depth t1 H1)
-    as [(e1 & He1 & Hn1) | (c1 & Hc1 & Hn1)],
-      (nameless_cases depth t2 H2)
-    as [(e2 & He2 & Hn2) | (c2 & Hc2 & Hn2)].
-  - rewrite !(meet_type_non_alias env t1 t2 e1 e2 _ He1 He2).
-    destruct (negb (kind_eqb (kind t1) (kind t2)));
-      [ apply same_kept_none | ].
-    apply same_kept_map, Hmh; assumption.
-  - rewrite !(meet_type_constant_right env t1 t2 e1 c2 _ He1 Hc2).
-    destruct (negb (kind_eqb (kind t1) (kind t2)));
-      [ apply same_kept_none | ].
-    pose proof (Hmh env e1 (Expanded_type.create_const c2) Hn1 Hn2) as Hmeet.
-    kept_cases Hmeet env1 Henv1;
-      [ apply same_kept_none | apply same_kept_bottom
-      | apply same_kept_ok_at, Henv1 ].
-  - rewrite !(meet_type_constant_left env t1 t2 c1 e2 _ Hc1 He2).
-    destruct (negb (kind_eqb (kind t1) (kind t2)));
-      [ apply same_kept_none | ].
-    pose proof (Hmh env e2 (Expanded_type.create_const c1) Hn2 Hn1) as Hmeet.
-    kept_cases Hmeet env1 Henv1;
-      [ apply same_kept_none | apply same_kept_bottom
-      | apply same_kept_ok_at, Henv1 ].
-  - rewrite !(meet_type_constants env t1 t2 c1 c2 _ Hc1 Hc2).
-    destruct (negb (kind_eqb (kind t1) (kind t2)));
-      [ apply same_kept_none | ].
-    destruct (simple_equal (Const c1) (Const c2)); [ apply same_kept_ok | ].
-    destruct (Typing_env.add_alias _ _ _) as [[ | | ] | ];
-      first [ apply same_kept_none | apply same_kept_bottom ].
-Qed.
-
-(* Every type of a list has no name inside. *)
-Definition all_inside (fields : list flambda_type) : Prop :=
-  ∀ ty : flambda_type, In ty fields -> inside ty.
+Hypothesis Hrelations : relations1 && relations2 = false.
+Hypothesis Hinside :
+  steady (has inside1) (has inside2) (FlambdaMeet.meet mh)
+    (FlambdaMeet.meet mh').
 
 Lemma meet_array_of_types_steady (length : nat) :
-  steady all_inside
+  steady (all_have inside1) (all_have inside2)
     (fun env fields1 fields2 =>
        meet_array_of_types mh env fields1 fields2 length)
     (fun env fields1 fields2 =>
        meet_array_of_types mh' env fields1 fields2 length).
 Proof.
   unfold meet_array_of_types. cbv zeta.
-  apply (meet_mapping_steady all_inside inside); [ exact meet_steady | ].
+  apply
+    (meet_mapping_steady (all_have inside1) (all_have inside2) (has inside1)
+       (has inside2));
+    [ exact Hinside | ].
   intros left right Hleft Hright.
   exists
     (map (fun i => (i, (nth_error left i, nth_error right i)))
@@ -872,7 +891,7 @@ Proof.
 Qed.
 
 Lemma meet_int_indexed_product_steady :
-  steady all_inside (meet_int_indexed_product mh)
+  steady (all_have inside1) (all_have inside2) (meet_int_indexed_product mh)
     (meet_int_indexed_product mh').
 Proof.
   intros env fields1 fields2 H1 H2. unfold meet_int_indexed_product.
@@ -880,43 +899,30 @@ Proof.
 Qed.
 
 Lemma meet_product_function_slot_indexed_steady :
-  steady (bindings_have inside) (meet_product_function_slot_indexed mh)
+  steady (bindings_have (has inside1)) (bindings_have (has inside2))
+    (meet_product_function_slot_indexed mh)
     (meet_product_function_slot_indexed mh').
 Proof.
   intros env c1 c2 H1 H2. unfold meet_product_function_slot_indexed.
-  exact (map_meet_steady Pos.eqb inside _ _ meet_steady env c1 c2 H1 H2).
+  exact
+    (map_meet_steady Pos.eqb (has inside1) (has inside2) _ _ Hinside env c1 c2
+       H1 H2).
 Qed.
 
 Lemma meet_product_value_slot_indexed_steady :
-  steady (bindings_have inside) (meet_product_value_slot_indexed mh)
+  steady (bindings_have (has inside1)) (bindings_have (has inside2))
+    (meet_product_value_slot_indexed mh)
     (meet_product_value_slot_indexed mh').
 Proof.
   intros env c1 c2 H1 H2. unfold meet_product_value_slot_indexed.
-  exact (map_meet_steady Pos.eqb inside _ _ meet_steady env c1 c2 H1 H2).
-Qed.
-
-Lemma meet_function_type_steady :
-  steady (fun _ : Or_unknown.t function_type => True) meet_function_type
-    meet_function_type.
-Proof.
-  intros env [f1 | ] [f2 | ] _ _; unfold meet_function_type;
-    try apply same_kept_ok.
-  unfold meet_code_id. destruct (Pos.eqb _ _); cbn;
-    [ apply same_kept_ok | apply same_kept_bottom ].
-Qed.
-
-Lemma forallb_bindings_have {K : Type} (m : Keyed.finite_map K flambda_type) :
-  forallb (fun binding => nameless_within depth (snd binding)) m = true ->
-  bindings_have inside m.
-Proof.
-  intros Hall binding Hin. rewrite forallb_forall in Hall.
-  exact (Hall binding Hin).
+  exact
+    (map_meet_steady Pos.eqb (has inside1) (has inside2) _ _ Hinside env c1 c2
+       H1 H2).
 Qed.
 
 Lemma meet_closures_entry_steady :
-  steady
-    (fun entry =>
-       nameless_closures_entry (nameless_within depth) entry = true)
+  steady (fun entry => plain_closures_entry inside1 entry = true)
+    (fun entry => plain_closures_entry inside2 entry = true)
     (meet_closures_entry mh) (meet_closures_entry mh').
 Proof.
   intros env [ft1 ct1 vt1] [ft2 ct2 vt2] H1 H2. unfold meet_closures_entry.
@@ -924,7 +930,9 @@ Proof.
   destruct H1 as [Hc1 Hv1], H2 as [Hc2 Hv2].
   apply
     (combine_results3_steady (bindings_have (fun _ => True))
-       (bindings_have inside) (bindings_have inside));
+       (bindings_have (fun _ => True)) (bindings_have (has inside1))
+       (bindings_have (has inside2)) (bindings_have (has inside1))
+       (bindings_have (has inside2)));
     try (apply forallb_bindings_have; assumption);
     try (intros binding _; exact I).
   - apply map_meet_steady, meet_function_type_steady.
@@ -974,14 +982,15 @@ Lemma add_defined_vars_empty (env : Meet_env.t) :
   add_defined_vars choices env Typing_env_level.empty = Some env.
 Proof. reflexivity. Qed.
 
-Lemma meet_disjunction_steady {A B : Type} (PA : A -> Prop) (PB : B -> Prop)
+Lemma meet_disjunction_steady {A B : Type} (PA1 PA2 : A -> Prop)
+    (PB1 PB2 : B -> Prop)
     (meet_a meet_a' : Meet_env.t -> A -> A -> option (Meet_result.t A))
     (meet_b meet_b' : Meet_env.t -> B -> B -> option (Meet_result.t B))
     (bottom_a : unit -> A) (bottom_b : unit -> B) (env : Meet_env.t)
     (a1 : A) (b1 : B) (a2 : A) (b2 : B) :
-  steady PA meet_a meet_a' ->
-  steady PB meet_b meet_b' ->
-  PA a1 -> PA a2 -> PB b1 -> PB b2 ->
+  steady PA1 PA2 meet_a meet_a' ->
+  steady PB1 PB2 meet_b meet_b' ->
+  PA1 a1 -> PA2 a2 -> PB1 b1 -> PB2 b2 ->
   same_kept env
     (meet_disjunction join choices mh meet_a meet_b bottom_a bottom_b env a1
        b1 No_extensions a2 b2 No_extensions)
@@ -1460,14 +1469,14 @@ Lemma meet_row_like_unfold (mh0 : meet_expanded_head)
       end.
 Proof. reflexivity. Qed.
 
-Variable Pmaps : maps_to -> Prop.
+Variable Pmaps1 Pmaps2 : maps_to -> Prop.
 Variable meet_maps_to meet_maps_to' :
   Meet_env.t -> maps_to -> maps_to -> option (Meet_result.t maps_to).
-Hypothesis Hmaps : steady Pmaps meet_maps_to meet_maps_to'.
+Hypothesis Hmaps : steady Pmaps1 Pmaps2 meet_maps_to meet_maps_to'.
 
-(* A case whose contents have [Pmaps] and that has no extension. *)
-Definition case_has (c : case) : Prop :=
-  Pmaps (case_maps_to c) ∧ case_env_extension c = Env_extension [].
+(* A case whose contents have [P] and that has no extension. *)
+Definition case_has (P : maps_to -> Prop) (c : case) : Prop :=
+  P (case_maps_to c) ∧ case_env_extension c = Env_extension [].
 
 Variable initial_env : Meet_env.t.
 
@@ -1551,7 +1560,7 @@ Qed.
 
 Lemma row_meet_case_steady (need_join : bool) (other1 other2 : Or_bottom.t case)
     (case1 case2 : case) (state : row_like_state) :
-  case_has case1 -> case_has case2 -> row_state_kept state ->
+  case_has Pmaps1 case1 -> case_has Pmaps2 case2 -> row_state_kept state ->
   row_answer_kept
     (row_meet_knowns mh meet_maps_to need_join common_scope scoped other1
        other2 (Some (Or_unknown.Known case1)) (Some (Or_unknown.Known case2))
@@ -1724,8 +1733,9 @@ Proof. intros Hstate. exact Hstate. Qed.
 Lemma row_meet_knowns_steady (need_join : bool)
     (other1 other2 : Or_bottom.t case)
     (c1 c2 : option (Or_unknown.t case)) (state : row_like_state) :
-  bottom_or case_has other1 -> bottom_or case_has other2 ->
-  opt_has (known_has case_has) c1 -> opt_has (known_has case_has) c2 ->
+  bottom_or (case_has Pmaps1) other1 -> bottom_or (case_has Pmaps2) other2 ->
+  opt_has (known_has (case_has Pmaps1)) c1 ->
+  opt_has (known_has (case_has Pmaps2)) c2 ->
   row_state_kept state ->
   row_answer_kept
     (row_meet_knowns mh meet_maps_to need_join common_scope scoped other1
@@ -1765,22 +1775,22 @@ Proof.
   - apply row_answer_kept_some, Hstate.
 Qed.
 
-(* What [meet_row_like] asks of the merge that it is given, on maps
-   that have [Pknown]: with two functions for the cases of a tag that
-   answer the same and keep the state as it is asked to be, it answers
-   the same and keeps it so. *)
-Variable Pknown : known -> Prop.
+(* What [meet_row_like] asks of the merge that it is given, on a map
+   that has [Pknown1] and one that has [Pknown2]: with two functions
+   for the cases of a tag that answer the same and keep the state as
+   it is asked to be, it answers the same and keeps it so. *)
+Variable Pknown1 Pknown2 : known -> Prop.
 
 Definition merge_steady : Prop :=
   ∀ (f f' :
        row_tag -> option (Or_unknown.t case) -> option (Or_unknown.t case) ->
        row_like_state -> option (option (Or_unknown.t case) * row_like_state))
     (known1 known2 : known) (state : row_like_state),
-    Pknown known1 -> Pknown known2 -> row_state_kept state ->
+    Pknown1 known1 -> Pknown2 known2 -> row_state_kept state ->
     (∀ (tag : row_tag) (c1 c2 : option (Or_unknown.t case))
        (s : row_like_state),
-      opt_has (known_has case_has) c1 ->
-      opt_has (known_has case_has) c2 ->
+      opt_has (known_has (case_has Pmaps1)) c1 ->
+      opt_has (known_has (case_has Pmaps2)) c2 ->
       row_state_kept s ->
       row_answer_kept (f tag c1 c2 s) (f' tag c1 c2 s)) ->
     merge_map_known f known1 known2 state
@@ -1793,8 +1803,8 @@ Hypothesis Hmerge : merge_steady.
 
 Lemma meet_row_like_steady (known1 known2 : known)
     (other1 other2 : Or_bottom.t case) :
-  Pknown known1 -> Pknown known2 ->
-  bottom_or case_has other1 -> bottom_or case_has other2 ->
+  Pknown1 known1 -> Pknown2 known2 ->
+  bottom_or (case_has Pmaps1) other1 -> bottom_or (case_has Pmaps2) other2 ->
   same_kept initial_env
     (meet_row_like join choices mh meet_maps_to equal_index subset_index
        union_index meet_shape is_empty_map_known get_singleton_map_known
@@ -1940,23 +1950,24 @@ Proof.
       | apply row_answer_kept_none ].
 Qed.
 
-(* The cases of blocks and of closures that have no name inside. *)
+(* The cases of blocks and of closures. *)
 Lemma extension_is_empty_eq (extension : env_extension) :
   extension_is_empty extension = true -> extension = Env_extension [].
 Proof. destruct extension as [[ | ]]; [ reflexivity | discriminate ]. Qed.
 
-Lemma block_case_has (c : row_like_block_case) :
-  nameless_block_case (nameless_within depth) c = true ->
-  case_has all_inside c.
+Lemma block_case_has (inside : flambda_type -> bool)
+    (c : row_like_block_case) :
+  plain_block_case inside c = true -> case_has (all_have inside) c.
 Proof.
-  unfold nameless_block_case. rewrite andb_true_iff.
+  unfold plain_block_case. rewrite andb_true_iff.
   intros [Hfields Hextension]. split.
   - intros ty Hin. rewrite forallb_forall in Hfields. exact (Hfields ty Hin).
   - apply extension_is_empty_eq, Hextension.
 Qed.
 
-Definition entry_inside (entry : closures_entry) : Prop :=
-  nameless_closures_entry (nameless_within depth) entry = true.
+Definition entry_has (inside : flambda_type -> bool) (entry : closures_entry)
+    : Prop :=
+  plain_closures_entry inside entry = true.
 
 Lemma blocks_merge_steady (initial_env : Meet_env.t) :
   @merge_steady nat block_shape (list flambda_type) Z
@@ -1965,13 +1976,15 @@ Lemma blocks_merge_steady (initial_env : Meet_env.t) :
        merge_fold_failing Z.eqb
          (sort_numbers (Keyed.keys_of_both Z.eqb known1 known2))
          merge_case known1 known2 state)
-    all_inside initial_env (bindings_have (known_has (case_has all_inside))).
+    (all_have inside1) (all_have inside2) initial_env
+    (bindings_have (known_has (case_has (all_have inside1))))
+    (bindings_have (known_has (case_has (all_have inside2)))).
 Proof.
   intros f f' known1 known2 state Hknown1 Hknown2 Hstate Hf.
   apply
     (merge_fold_failing_steady initial_env Z.eqb _
-       (opt_has (known_has (case_has all_inside)))
-       (opt_has (known_has (case_has all_inside))));
+       (opt_has (known_has (case_has (all_have inside1))))
+       (opt_has (known_has (case_has (all_have inside2)))));
     [ intros key; apply keyed_lookup_has, Hknown1
     | intros key; apply keyed_lookup_has, Hknown2
     | exact Hstate
@@ -1993,12 +2006,15 @@ Lemma closures_merge_steady (initial_env : Meet_env.t) :
             | Some Or_unknown.Unknown => None
             end)
          known1 known2 state)
-    entry_inside initial_env (bindings_have (case_has entry_inside)).
+    (entry_has inside1) (entry_has inside2) initial_env
+    (bindings_have (case_has (entry_has inside1)))
+    (bindings_have (case_has (entry_has inside2))).
 Proof.
   intros f f' known1 known2 state Hknown1 Hknown2 Hstate Hf.
   apply
     (merge_fold_failing_steady initial_env Pos.eqb _
-       (opt_has (case_has entry_inside)) (opt_has (case_has entry_inside)));
+       (opt_has (case_has (entry_has inside1)))
+       (opt_has (case_has (entry_has inside2))));
     [ intros key; apply keyed_lookup_has, Hknown1
     | intros key; apply keyed_lookup_has, Hknown2
     | exact Hstate | ].
@@ -2015,7 +2031,7 @@ Proof.
 Qed.
 
 Lemma meet_alloc_mode_steady :
-  steady (fun _ : Alloc_mode.t => True)
+  steady (fun _ : Alloc_mode.t => True) (fun _ => True)
     (fun env alloc_mode1 alloc_mode2 =>
        Some (meet_alloc_mode env alloc_mode1 alloc_mode2))
     (fun env alloc_mode1 alloc_mode2 =>
@@ -2024,84 +2040,98 @@ Proof.
   intros env [ | | ] [ | | ] _ _; apply same_kept_ok.
 Qed.
 
+(* What [plain_blocks] says of the cases. *)
+Lemma plain_blocks_cases (inside : flambda_type -> bool)
+    (known : Keyed.finite_map Z (Or_unknown.t row_like_block_case))
+    (other : Or_bottom.t row_like_block_case) (alloc_mode : Alloc_mode.t) :
+  plain_blocks inside (Row_like_for_blocks known other alloc_mode) = true ->
+  bindings_have (known_has (case_has (all_have inside))) known
+  ∧ bottom_or (case_has (all_have inside)) other.
+Proof.
+  cbn [plain_blocks]. rewrite andb_true_iff. intros [Hknown Hother]. split.
+  - intros [tag [c | ]] Hin; cbn; [ | exact I ].
+    rewrite forallb_forall in Hknown. apply block_case_has.
+    exact (Hknown _ Hin).
+  - destruct other as [c | ]; cbn; [ apply block_case_has, Hother | exact I ].
+Qed.
+
 Lemma meet_row_like_for_blocks_steady :
-  steady
-    (fun blocks => nameless_blocks (nameless_within depth) blocks = true)
+  steady (fun blocks => plain_blocks inside1 blocks = true)
+    (fun blocks => plain_blocks inside2 blocks = true)
     (meet_row_like_for_blocks join choices mh)
     (meet_row_like_for_blocks join choices mh').
 Proof.
   intros env [known1 other1 alloc_mode1] [known2 other2 alloc_mode2] H1 H2.
   unfold meet_row_like_for_blocks. cbv zeta.
-  assert (Hblocks :
-    ∀ (known :
-         Keyed.finite_map Z (Or_unknown.t row_like_block_case))
-      (other : Or_bottom.t row_like_block_case) (alloc_mode : Alloc_mode.t),
-      nameless_blocks (nameless_within depth)
-        (Row_like_for_blocks known other alloc_mode)
-      = true ->
-      bindings_have (known_has (case_has all_inside)) known
-      ∧ bottom_or (case_has all_inside) other).
-  { intros known other alloc_mode. cbn [nameless_blocks].
-    rewrite andb_true_iff. intros [Hknown Hother]. split.
-    - intros [tag [c | ]] Hin; cbn; [ | exact I ].
-      rewrite forallb_forall in Hknown. apply block_case_has.
-      exact (Hknown _ Hin).
-    - destruct other as [c | ]; cbn; [ apply block_case_has, Hother | exact I ].
-  }
   apply
     (combine_results2_steady
        (fun known_and_other :
               Keyed.finite_map Z (Or_unknown.t row_like_block_case)
               * Or_bottom.t row_like_block_case =>
-          bindings_have (known_has (case_has all_inside)) (fst known_and_other)
-          ∧ bottom_or (case_has all_inside) (snd known_and_other))
-       (fun _ => True));
-    try exact I; try (apply (Hblocks _ _ _ H1)); try (apply (Hblocks _ _ _ H2)).
+          bindings_have (known_has (case_has (all_have inside1)))
+            (fst known_and_other)
+          ∧ bottom_or (case_has (all_have inside1)) (snd known_and_other))
+       (fun known_and_other :
+              Keyed.finite_map Z (Or_unknown.t row_like_block_case)
+              * Or_bottom.t row_like_block_case =>
+          bindings_have (known_has (case_has (all_have inside2)))
+            (fst known_and_other)
+          ∧ bottom_or (case_has (all_have inside2)) (snd known_and_other))
+       (fun _ => True) (fun _ => True));
+    try exact I;
+    try (apply (plain_blocks_cases _ _ _ _ H1));
+    try (apply (plain_blocks_cases _ _ _ _ H2)).
   - intros env' left right [Hknown_l Hother_l] [Hknown_r Hother_r].
-    apply (meet_row_like_steady _ _ _ _ _ _ _ all_inside _ _
-             meet_int_indexed_product_steady env'
-             (bindings_have (known_has (case_has all_inside)))
-             (blocks_merge_steady env'));
+    apply
+      (meet_row_like_steady _ _ _ _ _ _ _ (all_have inside1) (all_have inside2)
+         _ _ meet_int_indexed_product_steady env'
+         (bindings_have (known_has (case_has (all_have inside1))))
+         (bindings_have (known_has (case_has (all_have inside2))))
+         (blocks_merge_steady env'));
       assumption.
   - exact meet_alloc_mode_steady.
 Qed.
 
-Lemma closures_case_has (c : row_like_closures_case) :
-  nameless_closures_entry (nameless_within depth) (case_maps_to c)
+Lemma closures_case_has (inside : flambda_type -> bool)
+    (c : row_like_closures_case) :
+  plain_closures_entry inside (case_maps_to c)
   && extension_is_empty (case_env_extension c)
   = true ->
-  case_has entry_inside c.
+  case_has (entry_has inside) c.
 Proof.
   rewrite andb_true_iff. intros [Hentry Hextension].
   split; [ exact Hentry | apply extension_is_empty_eq, Hextension ].
 Qed.
 
+Lemma plain_closures_cases (inside : flambda_type -> bool)
+    (known : finite_map row_like_closures_case) :
+  plain_closures inside (Row_like_for_closures known) = true ->
+  bindings_have (case_has (entry_has inside)) known.
+Proof.
+  intros Hall [slot c] Hin. cbn [plain_closures] in Hall.
+  rewrite forallb_forall in Hall. apply closures_case_has.
+  exact (Hall _ Hin).
+Qed.
+
 Lemma meet_row_like_for_closures_steady :
-  steady
-    (fun closures =>
-       nameless_closures (nameless_within depth) closures = true)
+  steady (fun closures => plain_closures inside1 closures = true)
+    (fun closures => plain_closures inside2 closures = true)
     (meet_row_like_for_closures join choices mh)
     (meet_row_like_for_closures join choices mh').
 Proof.
   intros env [known1] [known2] H1 H2. unfold meet_row_like_for_closures.
   cbv zeta.
-  assert (Hknown :
-    ∀ known : finite_map row_like_closures_case,
-      nameless_closures (nameless_within depth) (Row_like_for_closures known)
-      = true ->
-      bindings_have (case_has entry_inside) known).
-  { intros known Hall [slot c] Hin. cbn [nameless_closures] in Hall.
-    rewrite forallb_forall in Hall. apply closures_case_has.
-    exact (Hall _ Hin). }
   match goal with
   | |- same_kept _ (match ?m with _ => _ end) (match ?m' with _ => _ end) =>
     assert (Hrow : same_kept env m m')
   end.
-  { apply (meet_row_like_steady _ _ _ _ _ _ _ entry_inside _ _
-             meet_closures_entry_steady env
-             (bindings_have (case_has entry_inside))
-             (closures_merge_steady env));
-      first [ exact I | apply Hknown; assumption ]. }
+  { apply
+      (meet_row_like_steady _ _ _ _ _ _ _ (entry_has inside1)
+         (entry_has inside2) _ _ meet_closures_entry_steady env
+         (bindings_have (case_has (entry_has inside1)))
+         (bindings_have (case_has (entry_has inside2)))
+         (closures_merge_steady env));
+      first [ exact I | apply plain_closures_cases; assumption ]. }
   kept_cases Hrow env1 Henv1.
   - apply same_kept_none.
   - apply same_kept_bottom.
@@ -2111,7 +2141,7 @@ Qed.
 
 Lemma set_meet_steady {K B : Type} (eqb : K -> K -> bool)
     (of_set : list K -> B) :
-  steady (fun _ : list K => True)
+  steady (fun _ : list K => True) (fun _ => True)
     (fun env s1 s2 => Some (set_meet eqb of_set env s1 s2))
     (fun env s1 s2 => Some (set_meet eqb of_set env s1 s2)).
 Proof.
@@ -2122,20 +2152,21 @@ Proof.
 Qed.
 
 Lemma meet_head_of_kind_naked_immediate_steady :
-  steady (fun head => nameless_naked_immediate head = true)
+  steady (fun head => plain_naked_immediate head = true)
+    (fun head => plain_naked_immediate head = true)
     (meet_head_of_kind_naked_immediate choices mh)
     (meet_head_of_kind_naked_immediate choices mh').
 Proof.
-  intros env [imms1 relations1] [imms2 relations2] H1 H2. cbn in H1, H2.
-  destruct relations1; [ | discriminate ].
-  destruct relations2; [ | discriminate ].
+  intros env [imms1 relations1'] [imms2 relations2'] H1 H2. cbn in H1, H2.
+  destruct relations1'; [ | discriminate ].
+  destruct relations2'; [ | discriminate ].
   unfold meet_head_of_kind_naked_immediate. cbn.
   match goal with
   | |- same_kept _ (match ?m with _ => _ end) _ =>
     assert (Himms : same_kept env m m)
   end.
   { apply
-      (meet_unknown_steady (fun _ : list Z => True) _ _ _
+      (meet_unknown_steady (fun _ : list Z => True) (fun _ => True) _ _ _
          (set_meet_steady _ _));
       [ destruct imms1; exact I | destruct imms2; exact I ]. }
   apply same_kept_cases in Himms.
@@ -2149,59 +2180,84 @@ Proof.
             | apply same_kept_bottom ].
 Qed.
 
-Lemma meet_relation_steady :
-  steady (fun var : option variable => var = None) (meet_relation mh)
-    (meet_relation mh').
-Proof. intros env var1 var2 -> ->. apply same_kept_ok. Qed.
+(* A variable for a relation, where the side may have one. *)
+Definition allowed (relations : bool) (var : option variable) : Prop :=
+  relation_variable_allowed relations var = true.
 
-Definition blocks_inside (blocks : row_like_for_blocks) : Prop :=
-  nameless_blocks (nameless_within depth) blocks = true.
+Lemma meet_relation_steady :
+  steady (allowed relations1) (allowed relations2) (meet_relation mh)
+    (meet_relation mh').
+Proof.
+  intros env [var1 | ] [var2 | ] H1 H2; unfold allowed in H1, H2;
+    cbn in H1, H2; try apply same_kept_ok.
+  rewrite H1, H2 in Hrelations. discriminate Hrelations.
+Qed.
+
+Definition blocks_have (inside : flambda_type -> bool)
+    (blocks : row_like_for_blocks) : Prop :=
+  plain_blocks inside blocks = true.
 
 Lemma meet_variant_steady (env : Meet_env.t)
+    (is_int1 get_tag1 is_int2 get_tag2 : option variable)
     (blocks1 blocks2 : Or_unknown.t row_like_for_blocks)
     (imms1 imms2 : Or_unknown.t flambda_type) :
-  known_has blocks_inside blocks1 -> known_has inside imms1 ->
-  known_has blocks_inside blocks2 -> known_has inside imms2 ->
+  allowed relations1 is_int1 -> allowed relations1 get_tag1 ->
+  allowed relations2 is_int2 -> allowed relations2 get_tag2 ->
+  known_has (blocks_have inside1) blocks1 -> known_has (has inside1) imms1 ->
+  known_has (blocks_have inside2) blocks2 -> known_has (has inside2) imms2 ->
   same_kept env
-    (meet_variant join choices mh env None None blocks1 imms1 None None
-       blocks2 imms2 No_extensions No_extensions)
-    (meet_variant join choices mh' env None None blocks1 imms1 None None
-       blocks2 imms2 No_extensions No_extensions).
+    (meet_variant join choices mh env is_int1 get_tag1 blocks1 imms1 is_int2
+       get_tag2 blocks2 imms2 No_extensions No_extensions)
+    (meet_variant join choices mh' env is_int1 get_tag1 blocks1 imms1 is_int2
+       get_tag2 blocks2 imms2 No_extensions No_extensions).
 Proof.
-  intros Hblocks1 Himms1 Hblocks2 Himms2. unfold meet_variant. cbv zeta.
+  intros Hint1 Htag1 Hint2 Htag2 Hblocks1 Himms1 Hblocks2 Himms2.
+  unfold meet_variant. cbv zeta.
   apply
-    (combine_results2_steady (fun var : option variable => var = None)
+    (combine_results2_steady (allowed relations1) (allowed relations2)
        (fun rest :
               option variable * Or_unknown.t row_like_for_blocks
               * Or_unknown.t flambda_type * variant_extensions =>
           let '(get_tag, blocks, imms, extensions) := rest in
-          get_tag = None ∧ known_has blocks_inside blocks
-          ∧ known_has inside imms ∧ extensions = No_extensions));
-    try reflexivity; try (repeat split; assumption).
+          allowed relations1 get_tag ∧ known_has (blocks_have inside1) blocks
+          ∧ known_has (has inside1) imms ∧ extensions = No_extensions)
+       (fun rest :
+              option variable * Or_unknown.t row_like_for_blocks
+              * Or_unknown.t flambda_type * variant_extensions =>
+          let '(get_tag, blocks, imms, extensions) := rest in
+          allowed relations2 get_tag ∧ known_has (blocks_have inside2) blocks
+          ∧ known_has (has inside2) imms ∧ extensions = No_extensions));
+    try assumption; try (repeat split; assumption).
   - exact meet_relation_steady.
-  - intros env' [[[get_tag1 blocks1'] imms1'] extensions1]
-      [[[get_tag2 blocks2'] imms2'] extensions2]
-      (-> & Hb1 & Hi1 & ->) (-> & Hb2 & Hi2 & ->).
+  - intros env' [[[get_tag1' blocks1'] imms1'] extensions1]
+      [[[get_tag2' blocks2'] imms2'] extensions2]
+      (Hg1 & Hb1 & Hi1 & ->) (Hg2 & Hb2 & Hi2 & ->).
     apply same_kept_map.
     apply
-      (meet_disjunction_steady (known_has inside)
+      (meet_disjunction_steady (known_has (has inside1))
+         (known_has (has inside2))
          (fun tagged : option variable * Or_unknown.t row_like_for_blocks =>
-            fst tagged = None ∧ known_has blocks_inside (snd tagged)));
-      try assumption; try (split; [ reflexivity | assumption ]).
-    + apply meet_unknown_steady, meet_steady.
-    + intros env'' [get_tag1 b1] [get_tag2 b2] [Hg1 Hbb1] [Hg2 Hbb2].
+            allowed relations1 (fst tagged)
+            ∧ known_has (blocks_have inside1) (snd tagged))
+         (fun tagged : option variable * Or_unknown.t row_like_for_blocks =>
+            allowed relations2 (fst tagged)
+            ∧ known_has (blocks_have inside2) (snd tagged)));
+      try assumption; try (split; assumption).
+    + apply meet_unknown_steady, Hinside.
+    + intros env'' [g1 b1] [g2 b2] [Hg1' Hbb1] [Hg2' Hbb2].
       cbn [fst snd] in *.
       apply
-        (combine_results2_steady (fun var : option variable => var = None)
-           (known_has blocks_inside));
+        (combine_results2_steady (allowed relations1) (allowed relations2)
+           (known_has (blocks_have inside1))
+           (known_has (blocks_have inside2)));
         try assumption.
       * exact meet_relation_steady.
       * apply meet_unknown_steady, meet_row_like_for_blocks_steady.
 Qed.
 
 Lemma meet_head_of_kind_value_non_null_steady :
-  steady
-    (fun head => nameless_non_null (nameless_within depth) head = true)
+  steady (fun head => plain_non_null relations1 inside1 head = true)
+    (fun head => plain_non_null relations2 inside2 head = true)
     (meet_head_of_kind_value_non_null join choices mh)
     (meet_head_of_kind_value_non_null join choices mh').
 Proof.
@@ -2213,14 +2269,12 @@ Proof.
     as [is_int2 imms2 get_tag2 blocks2 extensions2 is_unique2 | alloc_mode2
        | k2 contents2 alloc_mode2 | closures2 alloc_mode2 | strs2];
     try apply same_kept_bottom.
-  - cbn [nameless_non_null] in H1, H2. rewrite !andb_true_iff in H1, H2.
+  - cbn [plain_non_null] in H1, H2. rewrite !andb_true_iff in H1, H2.
     destruct H1 as [[[[Hint1 Htag1] Himms1] Hblocks1] Hext1].
     destruct H2 as [[[[Hint2 Htag2] Himms2] Hblocks2] Hext2].
-    destruct is_int1; [ discriminate | ]. destruct get_tag1; [ discriminate | ].
-    destruct is_int2; [ discriminate | ]. destruct get_tag2; [ discriminate | ].
     destruct extensions1; [ | discriminate ].
     destruct extensions2; [ | discriminate ].
-    apply same_kept_map, meet_variant_steady.
+    apply same_kept_map, meet_variant_steady; try assumption.
     + destruct blocks1; [ exact Hblocks1 | exact I ].
     + destruct imms1; [ exact Himms1 | exact I ].
     + destruct blocks2; [ exact Hblocks2 | exact I ].
@@ -2234,15 +2288,16 @@ Proof.
     | |- context [if ?same then _ else _] => destruct same
     end;
       [ | apply same_kept_bottom ].
-    apply (combine_results2_steady inside (fun _ => True)); try exact I;
-      try assumption.
-    + exact meet_steady.
-    + exact meet_alloc_mode_steady.
+    apply
+      (combine_results2_steady (has inside1) (has inside2) (fun _ => True)
+         (fun _ => True));
+      try exact I; try assumption.
+    exact meet_alloc_mode_steady.
   - apply
       (combine_results2_steady
-         (fun closures =>
-            nameless_closures (nameless_within depth) closures = true)
-         (fun _ => True));
+         (fun closures => plain_closures inside1 closures = true)
+         (fun closures => plain_closures inside2 closures = true)
+         (fun _ => True) (fun _ => True));
       try exact I; try assumption.
     + exact meet_row_like_for_closures_steady.
     + exact meet_alloc_mode_steady.
@@ -2253,51 +2308,52 @@ Proof.
       [ apply same_kept_bottom | apply same_kept_ok ].
 Qed.
 
+Definition null_allowed (relations : bool) (is_null : is_null) : Prop :=
+  match is_null with
+  | Not_null => True
+  | Maybe_null var => allowed relations var
+  end.
+
 Lemma meet_head_of_kind_value_steady :
-  steady (fun head => nameless_value (nameless_within depth) head = true)
+  steady (fun head => plain_value relations1 inside1 head = true)
+    (fun head => plain_value relations2 inside2 head = true)
     (meet_head_of_kind_value join choices mh)
     (meet_head_of_kind_value join choices mh').
 Proof.
   intros env [non_null1 is_null1] [non_null2 is_null2] H1 H2.
   unfold meet_head_of_kind_value. cbv zeta.
-  cbn [nameless_value] in H1, H2. apply andb_true_iff in H1, H2.
+  cbn [plain_value] in H1, H2. apply andb_true_iff in H1, H2.
   destruct H1 as [Hnon_null1 Hnull1], H2 as [Hnon_null2 Hnull2].
   apply same_kept_map.
   apply
     (meet_disjunction_steady
-       (ok_has
-          (fun head =>
-             nameless_non_null (nameless_within depth) head = true))
-       (fun is_null =>
-          match is_null with
-          | Not_null => True
-          | Maybe_null var => var = None
-          end)).
+       (ok_has (fun head => plain_non_null relations1 inside1 head = true))
+       (ok_has (fun head => plain_non_null relations2 inside2 head = true))
+       (null_allowed relations1) (null_allowed relations2)).
   - apply meet_or_unknown_or_bottom_steady. intros env' elt1 elt2 Helt1 Helt2.
     apply same_kept_map, meet_head_of_kind_value_non_null_steady; assumption.
   - intros env' [ | var1] [ | var2] Hvar1 Hvar2; try apply same_kept_bottom.
     apply same_kept_map, meet_relation_steady; assumption.
   - destruct non_null1; [ exact I | exact Hnon_null1 | exact I ].
   - destruct non_null2; [ exact I | exact Hnon_null2 | exact I ].
-  - destruct is_null1 as [ | [var | ]];
-      [ exact I | discriminate | reflexivity ].
-  - destruct is_null2 as [ | [var | ]];
-      [ exact I | discriminate | reflexivity ].
+  - destruct is_null1 as [ | var]; [ exact I | exact Hnull1 ].
+  - destruct is_null2 as [ | var]; [ exact I | exact Hnull2 ].
 Qed.
 
-(* A head that has no name inside. *)
-Definition head_inside (head : Expanded_type.head) : Prop :=
+(* A head of the class of a side. *)
+Definition head_plain (relations : bool) (inside : flambda_type -> bool)
+    (head : Expanded_type.head) : Prop :=
   match head with
-  | Expanded_type.Head_value head =>
-    nameless_value (nameless_within depth) head = true
+  | Expanded_type.Head_value head => plain_value relations inside head = true
   | Expanded_type.Head_naked_immediate head =>
-    nameless_naked_immediate head = true
+    plain_naked_immediate head = true
   | Expanded_type.Head_naked_number _ _ | Expanded_type.Head_rec_info _
   | Expanded_type.Head_region _ => True
   end.
 
 Lemma meet_expanded_head0_steady :
-  steady head_inside (meet_expanded_head0 join choices mh)
+  steady (head_plain relations1 inside1) (head_plain relations2 inside2)
+    (meet_expanded_head0 join choices mh)
     (meet_expanded_head0 join choices mh').
 Proof.
   intros env head1 head2 H1 H2. unfold meet_expanded_head0.
@@ -2319,29 +2375,82 @@ Proof.
   - apply same_kept_ok.
 Qed.
 
-Lemma nameless_expanded_head (expanded : Expanded_type.t) :
-  nameless_expanded_within (S depth) expanded = true ->
-  ok_has head_inside (Expanded_type.descr expanded).
+(* An expanded type of the class of a side. *)
+Definition expanded_plain (relations : bool) (inside : flambda_type -> bool)
+    (expanded : Expanded_type.t) : Prop :=
+  plain_type relations inside (Expanded_type.to_type expanded) = true.
+
+Lemma plain_expanded_head (relations : bool) (inside : flambda_type -> bool)
+    (expanded : Expanded_type.t) :
+  expanded_plain relations inside expanded ->
+  ok_has (head_plain relations inside) (Expanded_type.descr expanded).
 Proof.
   destruct expanded as [kind descr].
-  unfold nameless_expanded_within, Expanded_type.to_type.
+  unfold expanded_plain, Expanded_type.to_type.
   cbn [Expanded_type.descr Expanded_type.kind].
   destruct descr as [ | head | ]; cbn [ok_has]; try (intros _; exact I).
   destruct head; cbn; trivial.
 Qed.
 
 Lemma meet_expanded_head_step_steady :
-  steady (fun e => nameless_expanded_within (S depth) e = true)
+  steady (expanded_plain relations1 inside1)
+    (expanded_plain relations2 inside2)
     (meet_expanded_head_step join choices mh)
     (meet_expanded_head_step join choices mh').
 Proof.
   intros env e1 e2 H1 H2. unfold meet_expanded_head_step.
-  apply (meet_or_unknown_or_bottom_steady head_inside);
+  apply
+    (meet_or_unknown_or_bottom_steady (head_plain relations1 inside1)
+       (head_plain relations2 inside2));
     [ exact meet_expanded_head0_steady | | ];
-    apply nameless_expanded_head; assumption.
+    apply plain_expanded_head; assumption.
 Qed.
 
 End Step.
+
+(* ======================================================================== *)
+(* The meet of types with no name inside                                    *)
+(* ======================================================================== *)
+
+(* The meet of two types that have no name inside within a depth, given
+   two meets of expanded types that answer the same on what has none
+   within that depth. *)
+Lemma meet_steady (depth : nat) (mh mh' : meet_expanded_head) :
+  steady (fun e => nameless_expanded_within depth e = true)
+    (fun e => nameless_expanded_within depth e = true) mh mh' ->
+  steady (has (nameless_within depth)) (has (nameless_within depth))
+    (FlambdaMeet.meet mh) (FlambdaMeet.meet mh').
+Proof.
+  intros Hmh env t1 t2 H1 H2. unfold FlambdaMeet.meet.
+  destruct (nameless_cases depth t1 H1)
+    as [(e1 & He1 & Hn1) | (c1 & Hc1 & Hn1)],
+      (nameless_cases depth t2 H2)
+    as [(e2 & He2 & Hn2) | (c2 & Hc2 & Hn2)].
+  - rewrite !(meet_type_non_alias env t1 t2 e1 e2 _ He1 He2).
+    destruct (negb (kind_eqb (kind t1) (kind t2)));
+      [ apply same_kept_none | ].
+    apply same_kept_map, Hmh; assumption.
+  - rewrite !(meet_type_constant_right env t1 t2 e1 c2 _ He1 Hc2).
+    destruct (negb (kind_eqb (kind t1) (kind t2)));
+      [ apply same_kept_none | ].
+    pose proof (Hmh env e1 (Expanded_type.create_const c2) Hn1 Hn2) as Hmeet.
+    kept_cases Hmeet env1 Henv1;
+      [ apply same_kept_none | apply same_kept_bottom
+      | apply same_kept_ok_at, Henv1 ].
+  - rewrite !(meet_type_constant_left env t1 t2 c1 e2 _ Hc1 He2).
+    destruct (negb (kind_eqb (kind t1) (kind t2)));
+      [ apply same_kept_none | ].
+    pose proof (Hmh env e2 (Expanded_type.create_const c1) Hn2 Hn1) as Hmeet.
+    kept_cases Hmeet env1 Henv1;
+      [ apply same_kept_none | apply same_kept_bottom
+      | apply same_kept_ok_at, Henv1 ].
+  - rewrite !(meet_type_constants env t1 t2 c1 c2 _ Hc1 Hc2).
+    destruct (negb (kind_eqb (kind t1) (kind t2)));
+      [ apply same_kept_none | ].
+    destruct (simple_equal (Const c1) (Const c2)); [ apply same_kept_ok | ].
+    destruct (Typing_env.add_alias _ _ _) as [[ | | ] | ];
+      first [ apply same_kept_none | apply same_kept_bottom ].
+Qed.
 
 (* ======================================================================== *)
 (* The depth is enough                                                      *)
@@ -2354,13 +2463,18 @@ Lemma nameless_over_steady (join : join_scoped_envs) (choices : meet_choices)
     (mh0 : meet_expanded_head) (depth : nat) :
   join_of_nothing join ->
   steady (fun e => nameless_expanded_within depth e = true)
+    (fun e => nameless_expanded_within depth e = true)
     (meet_expanded_head_over join choices mh0 depth)
     (Meet.meet_expanded_head join choices depth).
 Proof.
   intros Hjoin. induction depth as [ | depth IH].
   - intros env e1 e2 H1. discriminate H1.
   - cbn [meet_expanded_head_over Meet.meet_expanded_head].
-    apply meet_expanded_head_step_steady; assumption.
+    intros env e1 e2 H1 H2. rewrite nameless_expanded_succ in H1, H2.
+    exact
+      (meet_expanded_head_step_steady join choices _ _ false false
+         (nameless_within depth) (nameless_within depth) Hjoin eq_refl
+         (meet_steady depth _ _ IH) env e1 e2 H1 H2).
 Qed.
 
 Theorem nameless_fuel_enough : nameless_fuel_enough_statement.
@@ -2409,6 +2523,276 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
+(* The meet with a shape                                                    *)
+(* ======================================================================== *)
+
+(* A type that says nothing or has no value is not an alias, and its
+   expansion says nothing or has no value. *)
+Lemma says_nothing_expands (ty : flambda_type) :
+  says_nothing_or_no_value ty = true ->
+  ∃ e : Expanded_type.t,
+    Expanded_type.of_non_alias_type ty = Some e
+    ∧ (Expanded_type.descr e = Unknown ∨ Expanded_type.descr e = Bottom).
+Proof.
+  unfold says_nothing_or_no_value.
+  destruct ty as [ty | ty | k ty | ty | ty];
+    destruct ty as [ | [head | s] | ]; cbn; try discriminate; intros _;
+    eexists; (split; [ reflexivity | ]); cbn; auto.
+Qed.
+
+(* A step of the meet, on an expanded type that says nothing or has no
+   value and any other: it asks no meet, and answers the environment
+   that it was given. *)
+Lemma step_of_nothing_left (join : join_scoped_envs) (choices : meet_choices)
+    (m m' : meet_expanded_head) (env : Meet_env.t) (e1 e2 : Expanded_type.t) :
+  Expanded_type.descr e1 = Unknown ∨ Expanded_type.descr e1 = Bottom ->
+  meet_expanded_head_step join choices m' env e1 e2
+  = meet_expanded_head_step join choices m env e1 e2
+  ∧ (meet_expanded_head_step join choices m env e1 e2
+     = Some (Meet_result.Ok Both_inputs env)
+     ∨ meet_expanded_head_step join choices m env e1 e2
+       = Some (Meet_result.Ok Right_input env)
+     ∨ ∃ r : meet_return_value unit,
+         meet_expanded_head_step join choices m env e1 e2
+         = Some (Meet_result.Bottom r)).
+Proof.
+  intros Hdescr. unfold meet_expanded_head_step, meet_or_unknown_or_bottom.
+  destruct Hdescr as [-> | ->]; destruct (Expanded_type.descr e2);
+    (split; [ reflexivity | ]); eauto.
+Qed.
+
+Lemma step_of_nothing_right (join : join_scoped_envs) (choices : meet_choices)
+    (m m' : meet_expanded_head) (env : Meet_env.t) (e1 e2 : Expanded_type.t) :
+  Expanded_type.descr e2 = Unknown ∨ Expanded_type.descr e2 = Bottom ->
+  meet_expanded_head_step join choices m' env e1 e2
+  = meet_expanded_head_step join choices m env e1 e2
+  ∧ (meet_expanded_head_step join choices m env e1 e2
+     = Some (Meet_result.Ok Both_inputs env)
+     ∨ meet_expanded_head_step join choices m env e1 e2
+       = Some (Meet_result.Ok Left_input env)
+     ∨ ∃ r : meet_return_value unit,
+         meet_expanded_head_step join choices m env e1 e2
+         = Some (Meet_result.Bottom r)).
+Proof.
+  intros Hdescr. unfold meet_expanded_head_step, meet_or_unknown_or_bottom.
+  destruct Hdescr as [-> | ->]; destruct (Expanded_type.descr e1);
+    (split; [ reflexivity | ]); eauto.
+Qed.
+
+(* An equation that says nothing or has no value, on a canonical
+   element: the type of a name is looked up, and no equation is
+   added. [side] is the input that the meet of types then answers. *)
+Lemma equation_of_nothing (join : join_scoped_envs) (choices : meet_choices)
+    (m m' : meet_expanded_head) (env : Meet_env.t) (canonical : simple)
+    (e : Expanded_type.t) (side : meet_return_value Expanded_type.t) :
+  Expanded_type.descr e = Unknown ∨ Expanded_type.descr e = Bottom ->
+  same_kept env
+    (option_map (map_result Expanded_type.to_type)
+       (let* result :=
+          Meet_env.add_or_delay_concrete_equation_on_canonical true env
+            canonical e (meet_expanded_head_step join choices m)
+        in
+        Some
+          match result with
+          | Or_bottom.Ok env0 => Meet_result.Ok side env0
+          | Or_bottom.Bottom => Meet_result.Bottom (New_result tt)
+          end))
+    (option_map (map_result Expanded_type.to_type)
+       (let* result :=
+          Meet_env.add_or_delay_concrete_equation_on_canonical true env
+            canonical e (meet_expanded_head_step join choices m')
+        in
+        Some
+          match result with
+          | Or_bottom.Ok env0 => Meet_result.Ok side env0
+          | Or_bottom.Bottom => Meet_result.Bottom (New_result tt)
+          end)).
+Proof.
+  intros Hdescr.
+  assert (Hname :
+    ∀ name : name,
+      same_kept env
+        (option_map (map_result Expanded_type.to_type)
+           (let* result :=
+              Meet_env.add_or_delay_concrete_equation_on_canonical_name true
+                env name e (meet_expanded_head_step join choices m)
+            in
+            Some
+              match result with
+              | Or_bottom.Ok env0 => Meet_result.Ok side env0
+              | Or_bottom.Bottom => Meet_result.Bottom (New_result tt)
+              end))
+        (option_map (map_result Expanded_type.to_type)
+           (let* result :=
+              Meet_env.add_or_delay_concrete_equation_on_canonical_name true
+                env name e (meet_expanded_head_step join choices m')
+            in
+            Some
+              match result with
+              | Or_bottom.Ok env0 => Meet_result.Ok side env0
+              | Or_bottom.Bottom => Meet_result.Bottom (New_result tt)
+              end))).
+  { intros name.
+    unfold Meet_env.add_or_delay_concrete_equation_on_canonical_name.
+    destruct (Keyed.among name_eqb name _);
+      [ apply same_kept_map, same_kept_ok | ].
+    unfold Meet_env.adding_equation_for_name,
+      Meet_env.add_concrete_equation_on_canonical_name.
+    cbn [Meet_env.typing_env].
+    destruct (Typing_env.find _ name _) as [existing | ];
+      [ | apply same_kept_none ].
+    cbn beta iota.
+    destruct (Expanded_type.of_non_alias_type existing) as [e_existing | ];
+      [ | apply same_kept_none ].
+    cbn beta iota.
+    match goal with
+    | |- context [meet_expanded_head_step join choices m ?env1 e e_existing] =>
+      destruct
+        (step_of_nothing_left join choices m m' env1 e e_existing Hdescr)
+        as [-> [-> | [-> | [r ->]]]]
+    end;
+      cbn beta iota;
+      first [ apply same_kept_map, same_kept_ok_at; reflexivity
+            | apply same_kept_bottom ]. }
+  unfold Meet_env.add_or_delay_concrete_equation_on_canonical.
+  destruct canonical as [x | sym | c]; [ apply Hname | apply Hname | ].
+  unfold Meet_env.add_concrete_equation_on_const.
+  destruct
+    (step_of_nothing_left join choices m m' env e
+       (Expanded_type.create_const c) Hdescr)
+    as [-> [-> | [-> | [r ->]]]];
+    cbn beta iota;
+    first [ apply same_kept_map, same_kept_ok | apply same_kept_bottom ].
+Qed.
+
+(* The meet of a type that says nothing or has no value with any type,
+   where the meet of expanded types is a step: it answers the same
+   whatever the step is of, with the typing environment given. *)
+Lemma meet_of_nothing_steady (join : join_scoped_envs)
+    (choices : meet_choices) (m m' : meet_expanded_head) :
+  steady (has says_nothing_or_no_value) (has (fun _ => true))
+    (FlambdaMeet.meet (meet_expanded_head_step join choices m))
+    (FlambdaMeet.meet (meet_expanded_head_step join choices m')).
+Proof.
+  intros env t1 t2 H1 _.
+  destruct (says_nothing_expands t1 H1) as (e1 & He1 & Hdescr).
+  unfold FlambdaMeet.meet, Meet_env.meet_type, Meet_env.meet.
+  destruct (negb (kind_eqb (kind t1) (kind t2))); [ apply same_kept_none | ].
+  unfold Typing_env.get_alias_then_canonical_simple_exn at 1 3.
+  rewrite (of_non_alias_type_not_alias t1 e1 He1). cbn beta iota.
+  unfold expand_head0 at 1 3.
+  rewrite (of_non_alias_type_not_alias t1 e1 He1), He1. cbn beta iota.
+  destruct (Typing_env.get_alias_then_canonical_simple_exn _ _ _ t2)
+    as [[simple2 | ] | ]; [ | | apply same_kept_none ].
+  - exact (equation_of_nothing join choices m m' env simple2 e1 _ Hdescr).
+  - destruct (expand_head0 _ t2 None) as [e2 | ]; [ | apply same_kept_none ].
+    cbn beta iota.
+    destruct (step_of_nothing_left join choices m m' env e1 e2 Hdescr)
+      as [-> [-> | [-> | [r ->]]]];
+      cbn; first [ apply same_kept_ok | apply same_kept_bottom ].
+Qed.
+
+(* The same with the two types the other way round. *)
+Lemma meet_with_nothing_steady (join : join_scoped_envs)
+    (choices : meet_choices) (m m' : meet_expanded_head) :
+  steady (has (fun _ => true)) (has says_nothing_or_no_value)
+    (FlambdaMeet.meet (meet_expanded_head_step join choices m))
+    (FlambdaMeet.meet (meet_expanded_head_step join choices m')).
+Proof.
+  intros env t1 t2 _ H2.
+  destruct (says_nothing_expands t2 H2) as (e2 & He2 & Hdescr).
+  unfold FlambdaMeet.meet, Meet_env.meet_type, Meet_env.meet.
+  destruct (negb (kind_eqb (kind t1) (kind t2))); [ apply same_kept_none | ].
+  unfold Typing_env.get_alias_then_canonical_simple_exn at 2 4.
+  rewrite (of_non_alias_type_not_alias t2 e2 He2). cbn beta iota.
+  destruct (Typing_env.get_alias_then_canonical_simple_exn _ _ _ t1)
+    as [[simple1 | ] | ]; [ | | apply same_kept_none ]; cbn beta iota.
+  - unfold expand_head0.
+    rewrite (of_non_alias_type_not_alias t2 e2 He2), He2. cbn beta iota.
+    exact (equation_of_nothing join choices m m' env simple1 e2 _ Hdescr).
+  - destruct (expand_head0 _ t1 None) as [e1 | ]; [ | apply same_kept_none ].
+    cbn beta iota. unfold expand_head0.
+    rewrite (of_non_alias_type_not_alias t2 e2 He2), He2. cbn beta iota.
+    destruct (step_of_nothing_right join choices m m' env e1 e2 Hdescr)
+      as [-> [-> | [-> | [r ->]]]];
+      cbn; first [ apply same_kept_ok | apply same_kept_bottom ].
+Qed.
+
+(* Two steps of the meet, on a shape and a type that has no extension,
+   in either order. *)
+Lemma shape_steps_steady (join : join_scoped_envs) (choices : meet_choices)
+    (m m' : meet_expanded_head) :
+  join_of_nothing join ->
+  steady (expanded_plain false says_nothing_or_no_value)
+    (expanded_plain true (fun _ => true))
+    (meet_expanded_head_step join choices
+       (meet_expanded_head_step join choices m))
+    (meet_expanded_head_step join choices
+       (meet_expanded_head_step join choices m')).
+Proof.
+  intros Hjoin.
+  exact
+    (meet_expanded_head_step_steady join choices _ _ false true _ _ Hjoin
+       eq_refl (meet_of_nothing_steady join choices m m')).
+Qed.
+
+Lemma steps_shape_steady (join : join_scoped_envs) (choices : meet_choices)
+    (m m' : meet_expanded_head) :
+  join_of_nothing join ->
+  steady (expanded_plain true (fun _ => true))
+    (expanded_plain false says_nothing_or_no_value)
+    (meet_expanded_head_step join choices
+       (meet_expanded_head_step join choices m))
+    (meet_expanded_head_step join choices
+       (meet_expanded_head_step join choices m')).
+Proof.
+  intros Hjoin.
+  exact
+    (meet_expanded_head_step_steady join choices _ _ true false _ _ Hjoin
+       eq_refl (meet_with_nothing_steady join choices m m')).
+Qed.
+
+Theorem shape_fuel_enough : shape_fuel_enough_statement.
+Proof.
+  intros join choices menv e1 e2 Hjoin H1 H2. split; intros mh0.
+  - exact
+      (proj1
+         (shape_steps_steady join choices mh0 (fun _ _ _ => None) Hjoin menv
+            e1 e2 H1 H2)).
+  - exact
+      (proj1
+         (steps_shape_steady join choices mh0 (fun _ _ _ => None) Hjoin menv
+            e2 e1 H2 H1)).
+Qed.
+
+Theorem shape_meet_adds_nothing : shape_meet_adds_nothing_statement.
+Proof.
+  intros join choices menv menv' e1 e2 r Hjoin H1 H2. split; intros Hmeet.
+  - destruct
+      (shape_steps_steady join choices (fun _ _ _ => None)
+         (fun _ _ _ => None) Hjoin menv e1 e2 H1 H2) as [_ Hkept].
+    exact (Hkept r menv' Hmeet).
+  - destruct
+      (steps_shape_steady join choices (fun _ _ _ => None)
+         (fun _ _ _ => None) Hjoin menv e2 e1 H2 H1) as [_ Hkept].
+    exact (Hkept r menv' Hmeet).
+Qed.
+
+Theorem relation_shapes : relation_shapes_statement.
+Proof.
+  repeat (split; [ reflexivity | ]).
+  intros tags alloc_mode.
+  assert (Hblocks :
+    plain_blocks says_nothing_or_no_value
+      (Row_like_for_blocks (map (fun tag : Z => (tag, Or_unknown.Unknown)) tags)
+         Or_bottom.Bottom alloc_mode)
+    = true).
+  { cbn [plain_blocks]. apply andb_true_iff. split; [ | reflexivity ].
+    induction tags as [ | tag tags IH]; [ reflexivity | exact IH ]. }
+  split; unfold shape; cbn -[plain_blocks]; rewrite Hblocks; reflexivity.
+Qed.
+
+(* ======================================================================== *)
 (* An example                                                               *)
 (* ======================================================================== *)
 
@@ -2424,6 +2808,13 @@ Proof.
   cbv zeta.
   split; [ reflexivity | split; [ reflexivity | split; [ reflexivity | ] ] ].
   split.
+  - eexists. vm_compute. reflexivity.
+  - vm_compute. reflexivity.
+Qed.
+
+Theorem example_shape_fuel : example_shape_fuel_statement.
+Proof.
+  cbv zeta. split; [ reflexivity | split; [ reflexivity | split ] ].
   - eexists. vm_compute. reflexivity.
   - vm_compute. reflexivity.
 Qed.
