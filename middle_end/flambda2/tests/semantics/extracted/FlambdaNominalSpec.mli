@@ -15,6 +15,8 @@ type renaming =
     continuation_permutation : permutation
   }
 
+val identity_renaming : renaming
+
 val rename_variable : renaming -> variable -> variable
 
 val rename_continuation : renaming -> continuation -> continuation

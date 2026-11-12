@@ -42,17 +42,20 @@ val inlinable_b : apply_expr -> code -> bool
 val codes_of :
   static_binding list -> (code_id * code) list -> (code_id * code) list
 
-val inline_apply : (code_id * code) list -> apply_expr -> expr
+val inline_apply : code_id list -> (code_id * code) list -> apply_expr -> expr
 
-val inline_calls : (code_id * code) list -> expr -> expr
+val inline_calls : code_id list -> (code_id * code) list -> expr -> expr
 
 val inline_calls_in_handler :
-  (code_id * code) list -> continuation_handler -> continuation_handler
+  code_id list ->
+  (code_id * code) list ->
+  continuation_handler ->
+  continuation_handler
 
 val inline_calls_in_binding :
-  (code_id * code) list -> static_binding -> static_binding
+  code_id list -> (code_id * code) list -> static_binding -> static_binding
 
-val inline_calls_in_code : (code_id * code) list -> code -> code
+val inline_calls_in_code : code_id list -> (code_id * code) list -> code -> code
 
 val var_in_simple : variable -> simple -> bool
 
@@ -121,25 +124,39 @@ val symbols_of :
 val call_agrees_b : apply_expr -> code -> bool
 
 val inline_known_apply :
-  (code_id * code) list -> (symbol * code_id option) list -> apply_expr -> expr
+  code_id list ->
+  (code_id * code) list ->
+  (symbol * code_id option) list ->
+  apply_expr ->
+  expr
 
 val inline_known_calls :
-  (code_id * code) list -> (symbol * code_id option) list -> expr -> expr
+  code_id list ->
+  (code_id * code) list ->
+  (symbol * code_id option) list ->
+  expr ->
+  expr
 
 val inline_known_calls_in_handler :
+  code_id list ->
   (code_id * code) list ->
   (symbol * code_id option) list ->
   continuation_handler ->
   continuation_handler
 
 val inline_known_calls_in_binding :
+  code_id list ->
   (code_id * code) list ->
   (symbol * code_id option) list ->
   static_binding ->
   static_binding
 
 val inline_known_calls_in_code :
-  (code_id * code) list -> (symbol * code_id option) list -> code -> code
+  code_id list ->
+  (code_id * code) list ->
+  (symbol * code_id option) list ->
+  code ->
+  code
 
 val binds_code : static_binding -> bool
 

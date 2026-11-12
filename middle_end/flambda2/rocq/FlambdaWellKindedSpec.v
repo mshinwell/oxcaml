@@ -239,7 +239,8 @@
    a partial application here, or undefined, or, where the code has one
    parameter, run with the parameter bound to the tuple and not to its
    field, which is a wrong result and not an undefined one. The test
-   tool refuses code that is tupled.
+   tool refuses a unit that has tupled code and a call that is not
+   direct.
 
    The primitives. The check takes the kind of the result of a primitive
    from FlambdaPrimitiveSpec.prim_result_kind, and the proofs use two of

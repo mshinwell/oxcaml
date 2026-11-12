@@ -25,6 +25,11 @@ type renaming =
     continuation_permutation : permutation
   }
 
+(** val identity_renaming : renaming **)
+
+let identity_renaming =
+  { variable_permutation = []; continuation_permutation = [] }
+
 (** val rename_variable : renaming -> variable -> variable **)
 
 let rename_variable r x = permute r.variable_permutation x

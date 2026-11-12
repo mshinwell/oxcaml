@@ -53,20 +53,21 @@
    What is covered: the terms that the conversion makes today. A term that is
    outside them, or that fexpr has no way to write, raises [Not_printable] with
    the reason: - an arity with an unboxed product: an arity of fexpr is a list
-   of kinds; - a constant that is a vector, a mask or poison, which the
-   conversion does not make; - a primitive of the heap, which the conversion
-   does not make either; - [Closure_of_set] other than as
-   FlambdaModel.let_closures makes it: the closure at the first function slot of
-   its set, followed by the projections of the other function slots, in order,
-   each bound at kind [Value]. Flambda binds all the closures of a set at once;
-   - [Static_const_closure_of_set] other than as FlambdaModel.bind_closures
-   makes it: the closures of one static set next to each other, in the order of
-   the set's symbols, of which there is at least one; - a closure bound at
-   another kind than [Value]; - code whose parameters are not as many as the
-   kinds of its arity; - a static boxed number whose contents are not a number
-   that can be boxed, or are a variable whose binder is not in sight (the model
-   does not say which number a boxed number holds; it is read off the kind of
-   the variable); - a value slot of kind [Region] or [Rec_info].
+   of kinds; - a constant that is a vector or a mask, which the conversion does
+   not make; - a poison constant, which the conversion makes and which is not
+   written here yet; - a primitive of the heap, which the conversion does not
+   make either; - [Closure_of_set] other than as FlambdaModel.let_closures makes
+   it: the closure at the first function slot of its set, followed by the
+   projections of the other function slots, in order, each bound at kind
+   [Value]. Flambda binds all the closures of a set at once; -
+   [Static_const_closure_of_set] other than as FlambdaModel.bind_closures makes
+   it: the closures of one static set next to each other, in the order of the
+   set's symbols, of which there is at least one; - a closure bound at another
+   kind than [Value]; - code whose parameters are not as many as the kinds of
+   its arity; - a static boxed number whose contents are not a number that can
+   be boxed, or are a variable whose binder is not in sight (the model does not
+   say which number a boxed number holds; it is read off the kind of the
+   variable); - a value slot of kind [Region] or [Rec_info].
 
    What fexpr can write and its parser reads differently is written all the
    same, so that the check shows it: the arity of the arguments of a direct

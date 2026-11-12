@@ -1,4 +1,5 @@
 open Datatypes
+open Nat
 
 (** val hd : 'a1 -> 'a1 list -> 'a1 **)
 
@@ -74,3 +75,7 @@ let rec combine l l' =
   | [] -> []
   | x :: tl0 -> (
     match l' with [] -> [] | y :: tl' -> (x, y) :: combine tl0 tl')
+
+(** val list_sum : nat list -> nat **)
+
+let list_sum l = fold_right add O l

@@ -71,7 +71,8 @@
    partial application is a value of the model that the compiler has not got as
    such; at the end of a run it is observed as a function is. Tupled functions,
    which a call of unknown arity applies to one argument that is the tuple, are
-   not in the model: code that is tupled is reported as unsupported. *)
+   not in the model: a unit that has code that is tupled and a call that is not
+   direct is reported as unsupported ([tupled_code_seen]). *)
 
 (* The matches below name the few constructs and primitives the model has and
    send every other to [unsupported]; they are meant to stay as they are when
@@ -99,6 +100,7 @@ module Lift = Flambda2_rocq_semantics.FlambdaLiftSpec
 module My_closure = Flambda2_rocq_semantics.FlambdaMyClosureSpec
 module Unused_slots = Flambda2_rocq_semantics.FlambdaUnusedSlotsSpec
 module Float_code = Flambda2_rocq_semantics.FlambdaFloatCodeSpec
+module Statics_order = Flambda2_rocq_semantics.FlambdaStaticsOrderSpec
 module Numbers = Flambda2_rocq_semantics.BinNums
 module P = Flambda_primitive
 
@@ -367,8 +369,10 @@ let convert_unary_primitive (p : P.unary_primitive) :
     | None, _ | _, None -> None)
   | Boolean_not -> Some Boolean_not
   | Unbox_number kind -> Some (Unbox_number (convert_boxable_number kind))
-  | Box_number (kind, Heap _) -> Some (Box_number (convert_boxable_number kind))
-  | Box_number (_, Local _) -> None
+  | Box_number (kind, (Heap _ | Local _)) ->
+    (* CR mshinwell: a box made in a region is converted as one made on the
+       heap; see [region_variables]. *)
+    Some (Box_number (convert_boxable_number kind))
   | Untag_immediate -> Some Untag_immediate
   | Tag_immediate -> Some Tag_immediate
   | Reinterpret_64_bit_word Tagged_int63_as_unboxed_int64 ->
@@ -449,7 +453,9 @@ let convert_binary_primitive (p : P.binary_primitive) :
 let convert_variadic_primitive (p : P.variadic_primitive) ~num_args :
     Primitives.variadic_primitive option =
   match p with
-  | Make_block (Values (tag, kinds), Immutable, Heap _)
+  | Make_block (Values (tag, kinds), Immutable, (Heap _ | Local _))
+  (* CR mshinwell: a block made in a region is converted as one made on the
+     heap; see [region_variables]. *)
     when List.compare_length_with kinds num_args = 0
          && List.for_all
               (fun kind ->
@@ -484,8 +490,8 @@ let convert_const (c : Reg_width_const.t) : Model.const =
     Naked_nativeint (z_of_int64 (Targetint_32_64.to_int64 i))
   | Naked_float32 f -> convert_float32 f
   | Naked_float f -> convert_float f
-  | Naked_vec128 _ | Naked_vec256 _ | Naked_vec512 _ | Naked_mask _ | Poison _
-    ->
+  | Poison (kind, _) -> Poison (convert_kind kind)
+  | Naked_vec128 _ | Naked_vec256 _ | Naked_vec512 _ | Naked_mask _ ->
     unsupported "constant %a" Reg_width_const.print c
 
 (* CR mshinwell: A hack, so that a unit made from an OCaml source can be
@@ -506,10 +512,39 @@ let depth_variables : Variable.Set.t ref = ref Variable.Set.empty
 let drop_depth_variable var =
   depth_variables := Variable.Set.add var !depth_variables
 
+(* CR mshinwell: Regions are dropped, and what is allocated in one is converted
+   as if it were allocated on the heap (decision D37). The model has no stack of
+   regions and frees nothing. So the conversion drops the [Let] of a
+   [Begin_region], makes the [Let] of an [End_region] bind the unit value that
+   the primitive returns (in [convert_let]), and forgets the allocation mode of
+   a block, a boxed number, a set of closures and a call, and the region of
+   code. This is right for a unit in which nothing allocated in a region is used
+   after the region has ended, which is what the type checker's modes are for,
+   and which nothing in the middle end checks. It is an assumption about both
+   units of a check: a validation says nothing about whether Simplify keeps
+   every use of a local allocation inside its region, since a term that uses a
+   block after its region has ended has, here, the meaning it would have if the
+   block were on the heap. What keeps a unit from passing for nothing: the
+   region variables dropped are noted here, and one used as a value is refused
+   ([convert_variable]). The regions of exception handlers ([Begin_try_region],
+   [End_try_region]) are dropped in the same way. One is opened where a handler
+   is installed, and the handler ends it, which ends every region that the body
+   had open when it raised. So for a unit with a handler the assumption is
+   wider: nothing allocated in a region is used after the region has ended,
+   whether it ends at its [End_region] or because a raise left it open and the
+   handler ended it; and a validation says nothing about whether Simplify keeps
+   it so on either way out. To be replaced if the model gains regions. *)
+let region_variables : Variable.Set.t ref = ref Variable.Set.empty
+
+let drop_region_variable var =
+  region_variables := Variable.Set.add var !region_variables
+
 (* A variable where it is used as a value. *)
 let convert_variable var =
   if Variable.Set.mem var !depth_variables
   then unsupported "the depth variable %a used as a value" Variable.print var;
+  if Variable.Set.mem var !region_variables
+  then unsupported "the region variable %a used as a value" Variable.print var;
   Variables.find var
 
 (* CR mshinwell: the coercions are dropped; see [depth_variables]. *)
@@ -592,6 +627,20 @@ let convert_trap_action (action : Trap_action.t) : Model.trap_action =
     Pop
       (Continuations.find exn_handler, Option.map convert_raise_kind raise_kind)
 
+(* Tupled code ([let f (a, b) = ...]) has one parameter for each component of
+   the tuple. A direct call, and a call of known arity, give it the components.
+   A call of unknown arity gives it the tuple, which the compiler takes apart on
+   the way in. The model has not got that: there such a call has fewer arguments
+   than the code has parameters and is a partial application; or, where the
+   tuple has one component, it has the right number and the wrong argument.
+   Either way it is defined and wrong. So a unit that has both tupled code and a
+   call that is not direct is refused ([convert_unit]), whatever that call is
+   of. This refuses more than it need: a call of known arity counts, and so does
+   a call that cannot be of the tupled code. *)
+let tupled_code_seen = ref false
+
+let indirect_call_seen = ref false
+
 let convert_apply_cont (ac : Apply_cont_expr.t) : Model.apply_cont =
   { ac_continuation = Continuations.find (Apply_cont_expr.continuation ac);
     ac_args = convert_simples (Apply_cont_expr.args ac);
@@ -635,7 +684,10 @@ let reset_conversion () =
   depth_variables := Variable.Set.empty;
   named_function_slots := false;
   newer_versions := [];
-  deleted_code := []
+  deleted_code := [];
+  region_variables := Variable.Set.empty;
+  tupled_code_seen := false;
+  indirect_call_seen := false
 
 let rec convert_expr (e : Flambda.Expr.t) : Model.expr =
   match Flambda.Expr.descr e with
@@ -692,6 +744,36 @@ and convert_let (pattern : Bound_pattern.t) (defining_expr : Flambda.Named.t)
   | Singleton bound_var, Simple s ->
     let var, kind = convert_bound_var bound_var in
     Model.Let (var, kind, Simple (convert_simple s), convert_expr body)
+  | ( Singleton bound_var,
+      Prim
+        ( Variadic
+            ((Begin_region { ghost = _ } | Begin_try_region { ghost = _ }), _),
+          _ ) ) ->
+    (* CR mshinwell: the binding of a region is dropped, and with it the region
+       it is given as its parent, if any; see [region_variables]. *)
+    drop_region_variable (Bound_var.var bound_var);
+    convert_expr body
+  | ( Singleton bound_var,
+      Prim
+        ( Unary
+            ((End_region { ghost = _ } | End_try_region { ghost = _ }), region),
+          _ ) ) ->
+    (* CR mshinwell: the end of a region does nothing but return the unit value;
+       see [region_variables]. *)
+    let is_region =
+      Simple.pattern_match' region
+        ~var:(fun var ~coercion:_ -> Variable.Set.mem var !region_variables)
+        ~symbol:(fun _ ~coercion:_ -> false)
+        ~const:(fun _ -> false)
+    in
+    if not is_region
+    then unsupported "the end of %a, which is not a region" Simple.print region;
+    let var, kind = convert_bound_var bound_var in
+    Model.Let
+      ( var,
+        kind,
+        Simple (Const (Tagged_immediate (z_of_int 0))),
+        convert_expr body )
   | Singleton bound_var, Prim (prim, _) ->
     let var, kind = convert_bound_var bound_var in
     Model.Let (var, kind, convert_prim prim, convert_expr body)
@@ -847,6 +929,7 @@ and convert_static_const (const : Static_const.t) : Model.static_const =
 
 and convert_code (code : Flambda.Function_params_and_body.t Code0.t) :
     Model.code =
+  if Code0.is_tupled code then tupled_code_seen := true;
   Flambda.Function_params_and_body.pattern_match (Code0.params_and_body code)
     ~f:(fun
         ~return_continuation
@@ -855,17 +938,21 @@ and convert_code (code : Flambda.Function_params_and_body.t Code0.t) :
         ~body
         ~my_closure
         ~is_my_closure_used:_
-        ~my_alloc_mode:_
+        ~my_alloc_mode
         ~my_depth
         ~free_names_of_body:_
       ->
       (* CR mshinwell: the depth of the code is dropped; see
          [depth_variables]. *)
       drop_depth_variable my_depth;
-      (* A call of unknown arity gives a tupled function one argument, the
-         tuple, whatever the arity of its code, and the model has not got
-         that. *)
-      if Code0.is_tupled code then unsupported "a tupled function";
+      (* CR mshinwell: the regions of the code are dropped; see
+         [region_variables]. *)
+      (match (my_alloc_mode : Alloc_mode.For_applications.t) with
+      | Not_alloc_stack { alloc_region } -> drop_region_variable alloc_region
+      | Maybe_alloc_stack { alloc_region; region; ghost_region } ->
+        drop_region_variable alloc_region;
+        drop_region_variable region;
+        drop_region_variable ghost_region);
       (* The arity that calls are compared with is that of the metadata of the
          code; unarized, it must give the kinds of the parameters. *)
       let params_arity = convert_arity (Code0.params_arity code) in
@@ -895,6 +982,7 @@ and convert_apply (apply : Apply_expr.t) : Model.apply_expr =
     | Function
         { function_call = Indirect_unknown_arity | Indirect_known_arity _; _ }
       ->
+      indirect_call_seen := true;
       Indirect
     | Method _ | C_call _ | Effect _ ->
       unsupported "the call %a" Apply_expr.print apply
@@ -1032,6 +1120,73 @@ let rec calls_outside_code (e : Model.expr) =
   | Apply _ -> 1
   | Apply_cont _ | Switch _ | Invalid -> 0
 
+(* The code that calls itself, at once or through other code, by direct calls.
+   The validation is told not to inline the calls of such code
+   ([FlambdaNormaliseSpec.inline_calls]): Simplify leaves them, and to inline
+   one is to leave another to inline in the next round. This is a guess that is
+   not trusted: the validation is sound whatever code it is told to keep. *)
+let rec direct_callees (e : Model.expr) : Model.code_id list =
+  let in_handler (Model.Handler (_, _, handler)) = direct_callees handler in
+  match e with
+  | Let (_, _, _, body) | Let_static (_, body) -> direct_callees body
+  | Let_cont_non_recursive (_, handler, body) ->
+    in_handler handler @ direct_callees body
+  | Let_cont_recursive (handlers, body) ->
+    List.concat_map (fun (_, handler) -> in_handler handler) handlers
+    @ direct_callees body
+  | Apply { ap_call_kind = Direct code; _ } -> [code]
+  | Apply { ap_call_kind = Indirect; _ } | Apply_cont _ | Switch _ | Invalid ->
+    []
+
+(* Every piece of code that an expression binds, with its body. *)
+let rec code_bound (e : Model.expr) : (Model.code_id * Model.expr) list =
+  let in_handler (Model.Handler (_, _, handler)) = code_bound handler in
+  match e with
+  | Let (_, _, _, body) -> code_bound body
+  | Let_static (bindings, body) ->
+    List.concat_map
+      (fun (binding : Model.static_binding) ->
+        match binding with
+        | Bind_code (id, Code (_, _, _, _, _, body)) ->
+          (id, body) :: code_bound body
+        | Bind_deleted_code _ | Bind_symbol _ -> [])
+      bindings
+    @ code_bound body
+  | Let_cont_non_recursive (_, handler, body) ->
+    in_handler handler @ code_bound body
+  | Let_cont_recursive (handlers, body) ->
+    List.concat_map (fun (_, handler) -> in_handler handler) handlers
+    @ code_bound body
+  | Apply _ | Apply_cont _ | Switch _ | Invalid -> []
+
+let recursive_code (e : Model.expr) : Model.code_id list =
+  let calls =
+    List.map (fun (id, body) -> id, direct_callees body) (code_bound e)
+  in
+  let reaches_itself id =
+    let seen = ref [] in
+    let rec from caller =
+      match List.assoc_opt caller calls with
+      | None -> false
+      | Some callees ->
+        List.exists
+          (fun callee ->
+            callee = id
+            || (not (List.mem callee !seen))
+               &&
+               (seen := callee :: !seen;
+                from callee))
+          callees
+    in
+    from id
+  in
+  List.filter reaches_itself (List.map fst calls)
+
+(* The code that an expression calls directly, in the code it binds too. *)
+let called_directly (e : Model.expr) : Model.code_id list =
+  direct_callees e
+  @ List.concat_map (fun (_, body) -> direct_callees body) (code_bound e)
+
 type converted =
   { body : Model.expr;
     return_continuation : Model.continuation;
@@ -1039,7 +1194,14 @@ type converted =
   }
 
 let convert_unit (unit : Flambda_unit.t) : converted =
-  { body = convert_expr (Flambda_unit.body unit);
+  tupled_code_seen := false;
+  indirect_call_seen := false;
+  (* CR mshinwell: the region of the unit is dropped; see [region_variables]. *)
+  drop_region_variable (Flambda_unit.toplevel_my_alloc_region unit);
+  let body = convert_expr (Flambda_unit.body unit) in
+  if !tupled_code_seen && !indirect_call_seen
+  then unsupported "a tupled function in a unit with a call that is not direct";
+  { body;
     return_continuation =
       Continuations.find (Flambda_unit.return_continuation unit);
     exn_continuation = Continuations.find (Flambda_unit.exn_continuation unit)
@@ -1814,33 +1976,36 @@ let well_formed_before ~filename (before : Flambda_unit.t) =
    What is lifted and which slots are guesses too. *)
 let validate ~(outcome_before : outcome) (before : converted)
     (after : converted) =
-  let inlined = Normalise.inline_calls [] before.body in
+  let recursive = recursive_code before.body @ recursive_code after.body in
+  let inlined = Normalise.inline_calls recursive [] before.body in
   Format.printf
     "  calls outside code once those of known code are inlined: %d@."
     (calls_outside_code inlined);
   let rounds = nat_of_int 50 in
-  let normalised_before = Validate.normalise_before rounds before.body in
-  let normalised_after = Validate.normalise_after rounds after.body in
-  let unused = unused_statics normalised_before in
   let nothing_lifted : Lift.lifting =
     { lifting_unit = interface before;
       lifted_lets = [];
       lifted_my_closures = []
     }
   in
-  let validation =
-    Validate.validate_unit rounds unused [] [nothing_lifted] before.body
-      after.body
-  in
-  (* The two terms that were compared last, how the term before was made, and
-     whether value slots were removed from it. *)
-  let validation, compared, compared_after, how, slots_removed =
+  (* One attempt, with the code whose calls the validation is told to leave. It
+     gives the verdict, the term before that was compared last, how it was made,
+     whether value slots were removed from it, and the term after as it was
+     compared. *)
+  let attempt kept =
+    let normalised_before = Validate.normalise_before rounds kept before.body in
+    let normalised_after = Validate.normalise_after rounds kept after.body in
+    let unused = unused_statics normalised_before in
+    let validation =
+      Validate.validate_unit rounds unused [] [nothing_lifted] kept before.body
+        after.body
+    in
     let not_lifted =
       ( validation,
         Validate.without_statics unused normalised_before,
-        normalised_after,
         "normalised",
-        false )
+        false,
+        normalised_after )
     in
     match validation with
     | Not_validated -> (
@@ -1870,26 +2035,50 @@ let validate ~(outcome_before : outcome) (before : converted)
           | None -> List.rev made, lifted
           | Some lifted ->
             liftings_from (lifting :: made)
-              (Validate.normalise_lifted rounds lifted)
+              (Validate.normalise_lifted rounds kept lifted)
               (remaining - 1)
       in
       match liftings_from [] before.body 3 with
       | [], _ -> not_lifted
-      | (_ :: _ as liftings), lifted -> (
+      | (_ :: _ as liftings), lifted ->
         (* The bindings of code of both terms are moved up before the
            comparison. *)
         let slots = unused_slots_guess lifted normalised_after in
         let lifted = Validate.without_slots slots lifted in
         let unused = unused_statics lifted in
-        ( Validate.validate_unit rounds unused slots liftings before.body
+        ( Validate.validate_unit rounds unused slots liftings kept before.body
             after.body,
           Float_code.float_code (Validate.without_statics unused lifted),
-          Float_code.float_code normalised_after,
           "lifted and normalised",
-          match slots with [] -> false | _ :: _ -> true )))
+          (match slots with [] -> false | _ :: _ -> true),
+          Float_code.float_code normalised_after ))
     | Same_up_to_bound_names | Same_once_normalised
     | Same_once_unused_statics_removed | Same_once_lifted ->
       not_lifted
+  in
+  (* Which calls the validation is told to leave: two guesses, tried in turn.
+     First the recursive code and the code that the term after still calls
+     directly, which Simplify chose not to inline. Then the recursive code
+     alone, for a function that Simplify inlines at one call and not at another:
+     there every call inlined on both sides is what makes the two terms the
+     same. *)
+  let first = attempt (recursive @ called_directly after.body) in
+  let attempts, (validation, _, _, slots_removed, _) =
+    match first with
+    | Not_validated, _, _, _, _ ->
+      let second = attempt recursive in
+      ( [ ( "leaving the calls of recursive code and of the code that the term \
+             after calls",
+            first );
+          "leaving the calls of recursive code", second ],
+        second )
+    | ( ( Same_up_to_bound_names | Same_once_normalised
+        | Same_once_unused_statics_removed | Same_once_lifted ),
+        _,
+        _,
+        _,
+        _ ) ->
+      [], first
   in
   Format.printf "  %s@."
     (match validation with
@@ -1909,12 +2098,31 @@ let validate ~(outcome_before : outcome) (before : converted)
       if outcome_before = Undefined
       then "nothing to validate, as the term before is undefined"
       else "not validated");
+  (* A term before that is undefined is refined by anything: the validation is
+     right and says nothing. *)
+  (match validation with
+  | Not_validated -> ()
+  | Same_up_to_bound_names | Same_once_normalised
+  | Same_once_unused_statics_removed | Same_once_lifted ->
+    if outcome_before = Undefined
+    then
+      Format.printf
+        "  the term before is undefined in the model, so the validation says \
+         nothing of this unit@.");
   match validation with
   | Not_validated when Sys.getenv_opt "FLSEMANTICS_PRINT_TERMS" <> None ->
-    Format.printf
-      "@[<v 2>  the term before, %s:@ %a@]@.@[<v 2>  the term after, \
-       normalised:@ %a@]@."
-      how print_expr compared print_expr compared_after
+    (* What [validate_unit] compared last, for each guess of the calls to leave:
+       the static bindings of the term before are in the order of those of the
+       term after. *)
+    List.iter
+      (fun (which, (_, compared, how, _, normalised_after)) ->
+        Format.printf
+          "@[<v 2>  %s:@ @[<v 2>the term before, %s:@ %a@]@ @[<v 2>the term \
+           after, normalised:@ %a@]@]@."
+          which how print_expr
+          (Statics_order.order_statics_as normalised_after compared)
+          print_expr normalised_after)
+      attempts
   | Not_validated | Same_up_to_bound_names | Same_once_normalised
   | Same_once_unused_statics_removed | Same_once_lifted ->
     ()
@@ -2051,13 +2259,19 @@ let () =
   Clflags.Opt_flag_handler.set Oxcaml_flags.opt_flag_handler;
   Compenv.parse_arguments (ref Sys.argv) defer_file "flsemantics";
   Location.read_clflags_from_env ();
-  List.iter
-    (if !round_trip
-     then (
-       fun filename ->
-         reset_conversion ();
-         Flroundtrip.check_file conversion_for_round_trip
-           ~simplify:(simplify_for_round_trip ~filename)
-           filename)
-     else check_file)
-    (List.rev !files)
+  (* One unit to a process: the symbols of a unit stay in the tables of the
+     compiler, so a second unit that used the name of one would be refused for a
+     reason that is not its own. *)
+  match !files with
+  | [] -> ()
+  | [file] ->
+    if !round_trip
+    then (
+      reset_conversion ();
+      Flroundtrip.check_file conversion_for_round_trip
+        ~simplify:(simplify_for_round_trip ~filename:file)
+        file)
+    else check_file file
+  | _ :: _ :: _ ->
+    Misc.fatal_error
+      "flsemantics checks one .fl file: run it once for each file"

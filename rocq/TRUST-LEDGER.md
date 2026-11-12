@@ -114,9 +114,14 @@ it gave back.
   arity is grouped into unboxed products, which is rebuilt through
   `Flambda_arity.fold_per_parameter`.
 - **Tupled functions**, which the model has not got: code has no mark
-  that it is tupled. The converter refuses (`Unsupported`) code that is
-  tupled (`Code0.is_tupled`), whatever calls it; that is OCaml, in the
-  same file, and is trusted. This goes when the fragment has them.
+  that it is tupled. The converter refuses (`Unsupported`) a unit that
+  has code that is tupled (`Code0.is_tupled`) and a call that is not
+  direct, whatever that call is of; that is OCaml, in the same file,
+  and is trusted. A direct call, and a call of known arity, give tupled
+  code the components, which is the arity of the code; only a call of
+  unknown arity gives it the tuple, so this refuses more than is
+  needed, and a unit whose calls are all direct is converted. This
+  goes when the fragment has them.
 - **Partial applications and over-applications** are in the model
   (`FlambdaSemanticsSpec.shape_of_closure_call`), and the converter
   gives a call its arguments and its two arities as they are, whatever
@@ -134,6 +139,31 @@ it gave back.
   not refuse such a call. Of a unit with one `validate_unit` may answer
   yes: its statement then holds of the model, and says nothing of what
   the backend makes of the unit there.
+- **What the conversion of terms leaves out**, in the same file. These
+  are the exceptions to "never to approximate", each with a `CR
+  mshinwell` where it is done. *Depths*: the depth variables of
+  recursion and the coercions that mention them are dropped
+  (`depth_variables`), so the model sees nothing of what Simplify does
+  with them. *Regions* (decision D37): the bindings of `Begin_region`
+  are dropped, `End_region` returns the unit value and does nothing,
+  and what is allocated in a region is converted as if it were
+  allocated on the heap (`region_variables`). This is trusted of both
+  units of a check, the one after Simplify as much as the one before:
+  it is right for a unit in which nothing allocated in a region is used
+  after the region has ended. A validation therefore does not
+  establish that Simplify keeps the uses of a local allocation within
+  the life of its region: a term that uses one later has, in the model,
+  the meaning it would have with the allocation on the heap
+  (discrepancy V2-3). The regions around a `try` (`Begin_try_region`,
+  `End_try_region`) are dropped in the same way. There a region also
+  ends when a raise leaves it open and the handler ends it, and the
+  same is trusted of both units on that way out: nothing allocated in
+  such a region is used in the handler after that, or later. A region
+  variable used as a value is refused. *Tupled functions*: a unit
+  that has tupled code and a call that is not direct is refused; this
+  is more than is needed (only a call of unknown arity gives tupled
+  code the tuple), and it is what keeps such a call from being run at
+  the arity of the code.
 - **The conversion of primitives**, in the same file (the section
   "Primitives"): one function for each arity of primitive that the model
   has (`convert_unary_primitive`, `convert_binary_primitive` and, once
@@ -147,13 +177,15 @@ it gave back.
   renaming of constructors, with the fields the model keeps. Trusted:
   that it sends a primitive to the one of the same name, and refuses a
   primitive, or a value of a field, that the model has not got. Of the
-  primitives that allocate or load, that is: an allocation that is not
-  on the heap; a block that is not immutable or not of values; and, for
-  `Make_block`, a kind of a field that says more than `any_value`, as
-  the model has no subkinds and Simplify uses them. What a primitive
-  computes is not here: it is `FlambdaPrimitiveSpec.eval_prim`, to be
-  read against `terms/flambda_primitive.mli` and
-  `simplify/simplify_*_primitive.ml`.
+  primitives that allocate or load, that is: a block that is not
+  immutable or not of values; and, for `Make_block`, a kind of a field
+  that says more than `any_value`, as the model has no subkinds and
+  Simplify uses them. An allocation in a region is not refused: it is
+  converted as one on the heap, which is not a renaming of constructors
+  and is one of the exceptions of the entry above (*Regions*). What a
+  primitive computes is not here: it is
+  `FlambdaPrimitiveSpec.eval_prim`, to be read against
+  `terms/flambda_primitive.mli` and `simplify/simplify_*_primitive.ml`.
 - **The conversion of numeric constants**, in the same file (the section
   "Numbers" and `convert_const`, about 75 lines; with the boxed numbers
   also `convert_float32`, `convert_float` and the boxed numbers of
@@ -164,8 +196,15 @@ it gave back.
   so: until this conversion went through `int64`, `z_of_int` converted
   the least tagged or naked immediate to -1, and what the tool reported
   before then is not made good by the repair.) Constants of the vector
-  and mask kinds, and poison, are refused, so the tool does not exercise
-  what the model says of boxing and unboxing at those kinds.
+  and mask kinds are refused, so the tool does not exercise what the
+  model says of boxing and unboxing at those kinds. A poison constant
+  is converted to the poison constant of the model, of the kind that it
+  carries; the string that says where the compiler made it is dropped.
+  The poison of the model is the abstract one of decision D26: a
+  constant with a kind and no bits. The backend gives the compiler's
+  poison a number made from that string (`String.hash` of it, in
+  `const` and `const_static` of `to_cmm/to_cmm_shared.ml`); the
+  conversion follows the decision and not those bits.
 - **The numbering of names**, in the same file (`Numbering`, about 30
   lines): each variable, continuation, symbol, code id, value slot and
   function slot of the compiler gets a number, the same throughout a
