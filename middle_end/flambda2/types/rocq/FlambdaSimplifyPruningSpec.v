@@ -143,8 +143,10 @@
    meet finds of them, and the environment that the meet answers for
    an arm is not kept. The function does nothing in the handler of a
    continuation, as the first does not. That it commutes with
-   renaming, and that it keeps scope
-   (../../rocq/FlambdaValidatorEquivarianceSpec.v), are to come.
+   renaming is in FlambdaSimplifyPruningRenamingSpec.v. That it keeps
+   scope (../../rocq/FlambdaValidatorEquivarianceSpec.v) is not
+   stated: the validation can have it by the test of
+   ../../rocq/FlambdaGuardScopeSpec.v.
 
    The proofs are in FlambdaSimplifyPruningProofs.v, which needs no
    review. *)
