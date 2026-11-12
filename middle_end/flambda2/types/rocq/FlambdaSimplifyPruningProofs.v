@@ -1606,6 +1606,318 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
+(* The applications gathered                                                *)
+(* ======================================================================== *)
+
+(* What satisfies an environment in which two canonical elements have
+   been made aliases satisfies the environment before. *)
+Lemma alias_weakens (tenv : Typing_env.t) (e1 e2 : simple)
+    (kind : flambda_kind) (result : Typing_env.add_alias_result)
+    (statics : static_env) (valuation : env) :
+  carried tenv ->
+  alias_keeps_fit tenv e1 e2 kind = true ->
+  Typing_env.add_alias tenv e1 e2 = Some (Ok result) ->
+  typing_env_satisfied_strictly statics valuation
+    (Typing_env.add_alias_result_t result) ->
+  typing_env_satisfied_strictly statics valuation tenv.
+Proof.
+  intros [Hinvariant _] Hkeeps Hadd [Hbottom [Htypes Haliases]].
+  unfold alias_keeps_fit in Hkeeps. rewrite !andb_true_iff in Hkeeps.
+  destruct Hkeeps as [[[[[Hc1 Hc2] _] _] _] _].
+  apply is_canonical_b_iff in Hc1. apply is_canonical_b_iff in Hc2.
+  pose proof (proj1 (typing_env_well_formed_iff _) (proj1 Hinvariant))
+    as Hconditions.
+  destruct Hconditions as [_ [_ [Hconsistent _]]].
+  destruct (add_alias_frame tenv e1 e2 result Hadd)
+    as [[added [Hadded [Haliases' _]]]
+        [_ [_ [_ [Hnames [_ [_ Hbottom']]]]]]].
+  split; [ rewrite <- Hbottom'; exact Hbottom | ].
+  split.
+  - intros n ty binding_time_and_mode v Hlookup Hvalue.
+    rewrite <- Hnames in Hlookup.
+    exact (Htypes n ty binding_time_and_mode v Hlookup Hvalue).
+  - rewrite Haliases' in Haliases.
+    exact (add_respected_before _ _ _ _ e1 e2 added valuation Hconsistent
+             Hc1 Hc2 Hadded Haliases).
+Qed.
+
+(* The environment of the body of a [Let]. *)
+Lemma let_env_weakens (tenv tenv' : Typing_env.t) (x : variable)
+    (declared : flambda_kind) (d : named) (statics : static_env)
+    (valuation : env) :
+  carried tenv ->
+  let_env tenv x declared d = Some tenv' ->
+  let_env_keeps_fit tenv x declared d = true ->
+  typing_env_satisfied_strictly statics valuation tenv' ->
+  typing_env_satisfied_strictly statics valuation tenv.
+Proof.
+  intros Hcarried. unfold let_env, let_env_keeps_fit. cbv zeta.
+  generalize (resolve_value_slot tenv declared d). intros resolved.
+  destruct (simplify_let tenv x resolved) as [ | d' tenv'' | ] eqn:Hlet;
+    [ discriminate | | ].
+  - intros [= <-]. revert Hlet. unfold simplify_let, let_keeps_fit.
+    destruct (typing_env_well_formed tenv
+              && negb (Typing_env.mem None tenv (Name_var x))) eqn:Htests;
+      [ | discriminate ].
+    apply andb_true_iff in Htests. destruct Htests as [_ Hfresh].
+    apply negb_true_iff in Hfresh.
+    destruct (simplify_named tenv resolved) as [ | s | ty | kind | ];
+      try discriminate.
+    + unfold bind_simple.
+      destruct (simplify_simple tenv s) as [[ty canonical] | ];
+        [ | discriminate ].
+      destruct (simple_in_terms_b tenv canonical
+                && simple_of_kind_b tenv canonical
+                     (FlambdaTypeGrammar.kind ty));
+        [ | discriminate ].
+      pose proof (add_variable_definition_carried tenv x
+                    (FlambdaTypeGrammar.kind ty) Hcarried Hfresh)
+        as Hcarried1.
+      set (tenv1 :=
+             Typing_env.add_variable_definition tenv x
+               (FlambdaTypeGrammar.kind ty) Name_mode.normal) in *.
+      destruct (Typing_env.add_alias tenv1 (Var x) canonical)
+        as [[ | result | ] | ] eqn:Hadd; try discriminate.
+      intros [= _ <-] Hkeeps Hsat.
+      apply (add_variable_definition_satisfied_inv _ statics valuation tenv x
+               (FlambdaTypeGrammar.kind ty) Name_mode.normal Hfresh).
+      exact (alias_weakens tenv1 (Var x) canonical _ result statics valuation
+               Hcarried1 Hkeeps Hadd Hsat).
+    + destruct (type_in_scope_b tenv ty); [ | discriminate ].
+      intros [= _ <-] _ Hsat.
+      apply (add_variable_definition_satisfied_inv _ statics valuation tenv x
+               (FlambdaTypeGrammar.kind ty) Name_mode.normal Hfresh).
+      apply (replace_equation_satisfied_inv _ statics valuation _ (Name_var x)
+               ty);
+        [ | exact Hsat ].
+      intros ty' binding_time_and_mode v Hlookup Hvalue.
+      rewrite add_variable_definition_lookup in Hlookup.
+      rewrite name_eqb_refl in Hlookup. injection Hlookup as <- _.
+      right. apply unknown_satisfied.
+      destruct Hsat as [_ [Htypes _]].
+      pose proof (replace_equation_lookup
+                    (Typing_env.add_variable_definition tenv x
+                       (FlambdaTypeGrammar.kind ty) Name_mode.normal)
+                    (Name_var x) ty)
+        as Hnew.
+      cbv beta iota in Hnew.
+      rewrite add_variable_definition_lookup, name_eqb_refl in Hnew.
+      cbn [option_map snd] in Hnew.
+      exact (has_type_unless_kind _ statics valuation v ty
+               (Htypes (Name_var x) ty _ v Hnew Hvalue)).
+    + intros [= _ <-] _ Hsat.
+      exact (add_variable_definition_satisfied_inv _ statics valuation tenv x
+               kind Name_mode.normal Hfresh Hsat).
+  - unfold declare_variable.
+    destruct (typing_env_well_formed tenv
+              && negb (Typing_env.mem None tenv (Name_var x))) eqn:Htests;
+      [ | discriminate ].
+    apply andb_true_iff in Htests. destruct Htests as [_ Hfresh].
+    apply negb_true_iff in Hfresh.
+    intros [= <-] _ Hsat.
+    exact (add_variable_definition_satisfied_inv _ statics valuation tenv x
+             declared Name_mode.normal Hfresh Hsat).
+Qed.
+
+(* The environment of an arm. *)
+Lemma arm_env_weakens (tenv : Typing_env.t) (scrutinee : simple) (d : Z)
+    (statics : static_env) (valuation : env) :
+  carried tenv ->
+  arm_env_keeps_fit tenv scrutinee d = true ->
+  typing_env_satisfied_strictly statics valuation (arm_env tenv scrutinee d)
+  ->
+  typing_env_satisfied_strictly statics valuation tenv.
+Proof.
+  intros Hcarried. unfold arm_env_keeps_fit, arm_env.
+  destruct (simplify_simple tenv scrutinee) as [[ty [c | sym | const]] | ];
+    try (intros _ Hsat; exact Hsat).
+  destruct (simple_in_terms_b tenv (Var c)
+            && simple_of_kind_b tenv (Var c) naked_immediate_kind);
+    [ | intros _ Hsat; exact Hsat ].
+  destruct (Typing_env.add_alias tenv (Var c) (Const (Naked_immediate d)))
+    as [[ | result | ] | ] eqn:Hadd; try (intros _ Hsat; exact Hsat).
+  intros Hkeeps Hsat.
+  exact (alias_weakens tenv _ _ _ result statics valuation Hcarried Hkeeps
+           Hadd Hsat).
+Qed.
+
+(* The environments of the applications at the end of a body. *)
+Lemma leaf_uses_weakens (tenv : Typing_env.t) (k : continuation) (e : expr)
+    (applications : list (Typing_env.t * list simple))
+    (tenv_use : Typing_env.t) (args : list simple) (statics : static_env)
+    (valuation : env) :
+  carried tenv ->
+  leaf_uses tenv k e = Some applications ->
+  leaf_uses_keep_fit tenv k e = true ->
+  (tenv_use, args) ∈ applications ->
+  typing_env_satisfied_strictly statics valuation tenv_use ->
+  typing_env_satisfied_strictly statics valuation tenv.
+Proof.
+  intros Hcarried.
+  destruct e
+    as [x declared d body | bindings body | k' h body | handlers body | ap
+        | ac | scrutinee arms | ];
+    simpl; try discriminate.
+  - intros [= <-] _. destruct (Pos.eqb (ac_continuation ac) k);
+      [ | intros [] ].
+    intros [[= <- _] | []] Hsat. exact Hsat.
+  - intros [= <-] Hkeeps Hin. apply in_flat_map in Hin.
+    destruct Hin as [[d ac] [Harm Hin]]. cbn [fst snd] in Hin.
+    rewrite forallb_forall in Hkeeps. specialize (Hkeeps (d, ac) Harm).
+    cbn [fst snd] in Hkeeps.
+    destruct (Pos.eqb (ac_continuation ac) k); [ | destruct Hin ].
+    destruct Hin as [[= <- _] | []]. cbn [negb orb] in Hkeeps.
+    exact (arm_env_weakens tenv scrutinee d statics valuation Hcarried
+             Hkeeps).
+Qed.
+
+(* Variables defined. *)
+Lemma define_variables_checked_weakens
+    (definitions : list (variable * flambda_kind)) :
+  ∀ (tenv tenv' : Typing_env.t) (statics : static_env) (valuation : env),
+    define_variables_checked tenv definitions = Some tenv' ->
+    typing_env_satisfied_strictly statics valuation tenv' ->
+    typing_env_satisfied_strictly statics valuation tenv.
+Proof.
+  induction definitions as [ | [x kind] definitions IH];
+    intros tenv tenv' statics valuation; cbn [define_variables_checked].
+  - intros [= <-] Hsat. exact Hsat.
+  - destruct (typing_env_well_formed tenv
+              && negb (Typing_env.mem None tenv (Name_var x))) eqn:Htests;
+      [ | discriminate ].
+    apply andb_true_iff in Htests. destruct Htests as [_ Hfresh].
+    apply negb_true_iff in Hfresh. intros Hdefine Hsat.
+    apply (add_variable_definition_satisfied_inv _ statics valuation tenv x
+             kind Name_mode.normal Hfresh).
+    exact (IH _ tenv' statics valuation Hdefine Hsat).
+Qed.
+
+Lemma handler_env_weakens (tenv tenv_handler : Typing_env.t)
+    (params : list variable) (metadata : handler_metadata)
+    (statics : static_env) (valuation : env) :
+  handler_env tenv params metadata = Some tenv_handler ->
+  typing_env_satisfied_strictly statics valuation tenv_handler ->
+  typing_env_satisfied_strictly statics valuation tenv.
+Proof.
+  unfold handler_env. cbv zeta.
+  destruct (Nat.eqb (length (hm_params_kinds metadata)) (length params));
+    [ | discriminate ].
+  apply define_variables_checked_weakens.
+Qed.
+
+(* Every environment gathered has the two conditions, and what
+   satisfies it satisfies the environment of the body. *)
+Fixpoint gather_uses_carried_aux (body : expr) {struct body} :
+  ∀ (tenv : Typing_env.t) (k : continuation) (h : continuation_handler)
+    (uses : list (Typing_env.t * list simple)) (xs : list variable)
+    (ks : list continuation),
+    carried tenv ->
+    gather_uses tenv k h body = Some (uses, xs, ks) ->
+    gather_uses_keeps_fit tenv k h body = true ->
+    ∀ use : Typing_env.t * list simple,
+      use ∈ uses ->
+      carried (fst use)
+      ∧ ∀ (statics : static_env) (valuation : env),
+          typing_env_satisfied_strictly statics valuation (fst use) ->
+          typing_env_satisfied_strictly statics valuation tenv.
+Proof.
+  destruct body
+    as [x declared d rest | bindings rest | k' h' rest | handlers rest | ap
+        | ac | scrutinee arms | ];
+    intros tenv k h uses xs ks Hcarried Hgather Hkeeps;
+    cbn [gather_uses] in Hgather; cbn [gather_uses_keeps_fit] in Hkeeps;
+    try discriminate.
+  - destruct (var_free_in_handler_b x h); [ discriminate | ].
+    destruct (let_env tenv x declared d) as [tenv' | ] eqn:Henv;
+      [ | discriminate ].
+    destruct (gather_uses tenv' k h rest) as [[[uses' xs'] ks'] | ]
+      eqn:Hrest; [ | discriminate ].
+    injection Hgather as <- _ _.
+    apply andb_true_iff in Hkeeps. destruct Hkeeps as [Hlet Hkeeps].
+    assert (Hcarried' : carried tenv').
+    { apply (let_env_known_to_fit tenv tenv' true x declared d
+               (fun _ => Hcarried) Henv).
+      rewrite Hlet. reflexivity. }
+    intros use Hin.
+    destruct (gather_uses_carried_aux rest tenv' k h uses' xs' ks' Hcarried'
+                Hrest Hkeeps use Hin)
+      as [Huse Hweakens].
+    split; [ exact Huse | ].
+    intros statics valuation Hsat.
+    exact (let_env_weakens tenv tenv' x declared d statics valuation Hcarried
+             Henv Hlet (Hweakens statics valuation Hsat)).
+  - destruct (negb (Pos.eqb k k') && negb (cont_free_in_handler_b k' h));
+      [ | discriminate ].
+    destruct (gather_uses tenv k h rest) as [[[uses_rest xs_rest] ks_rest] | ]
+      eqn:Hrest; [ | discriminate ].
+    apply andb_true_iff in Hkeeps. destruct Hkeeps as [Hkeeps_rest Hkeeps_h].
+    pose proof (gather_uses_carried_aux rest tenv k h uses_rest xs_rest
+                  ks_rest Hcarried Hrest Hkeeps_rest)
+      as IHrest.
+    destruct (cont_free_in_handler_b k h').
+    + destruct h' as [params' metadata' body'].
+      destruct (negb (cont_free_in_handler_b k h)
+                && forallb (fun x => negb (var_free_in_handler_b x h))
+                     params');
+        [ | discriminate ].
+      destruct (handler_env tenv params' metadata') as [tenv_handler | ]
+        eqn:Henv; [ | discriminate ].
+      destruct (gather_uses tenv_handler k h body')
+        as [[[uses_h xs_h] ks_h] | ] eqn:Hinner; [ | discriminate ].
+      injection Hgather as <- _ _.
+      assert (Hcarried_h : carried tenv_handler).
+      { exact (handler_env_known_to_fit tenv true params' metadata'
+                 tenv_handler (fun _ => Hcarried) Henv eq_refl). }
+      intros use Hin. apply in_app_or in Hin. destruct Hin as [Hin | Hin].
+      * destruct (gather_uses_carried_aux body' tenv_handler k h uses_h xs_h
+                    ks_h Hcarried_h Hinner Hkeeps_h use Hin)
+          as [Huse Hweakens].
+        split; [ exact Huse | ].
+        intros statics valuation Hsat.
+        exact (handler_env_weakens tenv tenv_handler params' metadata'
+                 statics valuation Henv (Hweakens statics valuation Hsat)).
+      * exact (IHrest use Hin).
+    + injection Hgather as <- _ _. exact IHrest.
+  - destruct (leaf_uses tenv k (Apply_cont ac)) as [uses' | ] eqn:Hleaf;
+      [ | discriminate ].
+    injection Hgather as <- _ _. intros [tenv_use args] Hin. cbn [fst].
+    split.
+    + exact (leaf_uses_carried tenv k _ uses' tenv_use args Hcarried Hleaf
+               Hkeeps Hin).
+    + intros statics valuation.
+      exact (leaf_uses_weakens tenv k _ uses' tenv_use args statics valuation
+               Hcarried Hleaf Hkeeps Hin).
+  - destruct (leaf_uses tenv k (Switch scrutinee arms)) as [uses' | ]
+      eqn:Hleaf; [ | discriminate ].
+    injection Hgather as <- _ _. intros [tenv_use args] Hin. cbn [fst].
+    split.
+    + exact (leaf_uses_carried tenv k _ uses' tenv_use args Hcarried Hleaf
+               Hkeeps Hin).
+    + intros statics valuation.
+      exact (leaf_uses_weakens tenv k _ uses' tenv_use args statics valuation
+               Hcarried Hleaf Hkeeps Hin).
+Qed.
+
+Theorem gather_uses_known_to_fit : gather_uses_known_to_fit_statement.
+Proof.
+  intros tenv fit k h body uses xs ks use Hknown Hgather Hin Hfit.
+  apply andb_true_iff in Hfit. destruct Hfit as [Hfit Hkeeps].
+  exact (proj1
+           (gather_uses_carried_aux body tenv k h uses xs ks (Hknown Hfit)
+              Hgather Hkeeps use Hin)).
+Qed.
+
+Theorem gather_uses_weaken : gather_uses_weaken_statement.
+Proof.
+  intros tenv k h body uses xs ks use statics valuation Hknown Hgather Hkeeps
+    Hin.
+  exact (proj2
+           (gather_uses_carried_aux body tenv k h uses xs ks
+              (Hknown eq_refl) Hgather Hkeeps use Hin)
+           statics valuation).
+Qed.
+
+(* ======================================================================== *)
 (* A term                                                                   *)
 (* ======================================================================== *)
 

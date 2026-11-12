@@ -57,6 +57,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaSimplifyPruningSpec FlambdaSimplifyPruningRenamingSpec.
 From OxCamlFlambda2Types Require FlambdaMeetExamplesSpec
   FlambdaSimplifySwitchSpec FlambdaSimplifySwitchProofs.
+From OxCamlFlambda2 Require Import FlambdaNormaliseSpec
+  FlambdaUnusedContsSpec.
 Import ListNotations.
 
 Local Open Scope Z_scope.
@@ -420,6 +422,45 @@ Proof.
       as [[ | [tenv_use args] [ | second others]] | ];
       cbn [option_map map rename_application fst snd]; try reflexivity.
     rewrite use_env_keeps_fit_equivariant. reflexivity.
+Qed.
+
+Fixpoint gather_uses_keeps_fit_equivariant_aux (r : renaming) (body : expr)
+    {struct body} :
+  ∀ (tenv : Typing_env.t) (k : continuation) (h : continuation_handler),
+    gather_uses_keeps_fit (rename_typing_env r tenv)
+      (rename_continuation r k) (rename_handler r h) (rename_expr r body)
+    = gather_uses_keeps_fit tenv k h body.
+Proof.
+  destruct body
+    as [x declared d rest | bindings rest | k' h' rest | handlers rest | ap
+        | ac | scrutinee arms | ];
+    intros tenv k h; cbn [rename_expr gather_uses_keeps_fit];
+    try reflexivity.
+  - rewrite let_env_equivariant, let_env_keeps_fit_equivariant.
+    destruct (let_env tenv x declared d) as [tenv' | ]; cbn [option_map];
+      [ | reflexivity ].
+    rewrite (gather_uses_keeps_fit_equivariant_aux r rest tenv' k h).
+    reflexivity.
+  - rewrite (gather_uses_keeps_fit_equivariant_aux r rest tenv k h),
+      cont_free_in_handler_b_equivariant.
+    destruct (cont_free_in_handler_b k h'); [ | reflexivity ].
+    destruct h' as [params' metadata' body']. cbn [rename_handler].
+    rewrite handler_env_rename.
+    destruct (handler_env tenv params' metadata') as [tenv_handler | ];
+      cbn [option_map]; [ | reflexivity ].
+    rewrite (gather_uses_keeps_fit_equivariant_aux r body' tenv_handler k h).
+    reflexivity.
+  - change (Switch (rename_simple r scrutinee)
+              (map (fun arm => (fst arm, rename_apply_cont r (snd arm)))
+                 arms))
+      with (rename_expr r (Switch scrutinee arms)).
+    apply leaf_uses_keep_fit_equivariant.
+Qed.
+
+Theorem gather_uses_keeps_fit_equivariant
+    : gather_uses_keeps_fit_equivariant_statement.
+Proof.
+  intros r tenv k h body. apply gather_uses_keeps_fit_equivariant_aux.
 Qed.
 
 (* ======================================================================== *)

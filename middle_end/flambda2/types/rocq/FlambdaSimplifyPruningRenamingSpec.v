@@ -76,7 +76,9 @@
    [use_env_keeps_fit_equivariant_statement],
    [leaf_uses_keep_fit_equivariant_statement],
    [let_env_keeps_fit_equivariant_statement],
-   [find_use_keeps_fit_equivariant_statement]); that the functions
+   [find_use_keeps_fit_equivariant_statement]), and so does the test
+   for the applications that are gathered
+   ([gather_uses_keeps_fit_equivariant_statement]); that the functions
    themselves commute with renaming is in
    FlambdaSimplifyPassRenamingSpec.v.
 
@@ -195,6 +197,13 @@ Definition find_use_keeps_fit_equivariant_statement : Prop :=
     find_use_keeps_fit (rename_typing_env r scope) (rename_typing_env r tenv)
       (rename_continuation r k) (rename_handler r h) (rename_expr r body)
     = find_use_keeps_fit scope tenv k h body.
+
+Definition gather_uses_keeps_fit_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (k : continuation)
+    (h : continuation_handler) (body : expr),
+    gather_uses_keeps_fit (rename_typing_env r tenv)
+      (rename_continuation r k) (rename_handler r h) (rename_expr r body)
+    = gather_uses_keeps_fit tenv k h body.
 
 (* ======================================================================== *)
 (* The function                                                             *)

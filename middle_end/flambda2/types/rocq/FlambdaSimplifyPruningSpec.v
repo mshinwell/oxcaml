@@ -97,6 +97,13 @@
      for a rewrite of the handler that is right from them
      ([find_use_refines_from_valid_statement]; the statement for every
      state is FlambdaSimplifyPassSpec.find_use_refines_statement).
+   - Of the applications that FlambdaSimplifyPassSpec.gather_uses
+     gathers, which the function does not call: a test
+     ([gather_uses_keeps_fit]) under which each of their environments
+     has the two conditions ([gather_uses_known_to_fit_statement]),
+     and is satisfied only by valuations that satisfy the environment
+     of the body ([gather_uses_weaken_statement]). The second is for
+     the day a join is called on them.
    - With the transcribed meet that the contract is proved of
      ([meet_to_prove], FlambdaMeetSpec.v):
      [simplify_by_types_pruning_with join fuel] refines a unit with
@@ -172,7 +179,7 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
   FlambdaMapSpec FlambdaValueSpec FlambdaPrimitiveModel FlambdaSemanticsSpec
   FlambdaWellFormedSpec FlambdaClosuresSpec FlambdaContextWhereSpec
-  FlambdaUnusedStaticsSpec.
+  FlambdaUnusedStaticsSpec FlambdaNormaliseSpec FlambdaUnusedContsSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaTypeWellFormedSpec FlambdaBindingTime
   FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaEnvAliasesInvariantSpec
@@ -662,6 +669,67 @@ Definition find_use_refines_from_valid_statement : Prop :=
     expr_refines_from_valid tenv
       (Let_cont_non_recursive k (Handler params metadata handler) body)
       (Let_cont_non_recursive k (Handler params metadata handler') body).
+
+(* [gather_uses]: every [Let] passed, in the body and in the handlers
+   gone into, and every arm at the end of them. *)
+Fixpoint gather_uses_keeps_fit (tenv : Typing_env.t) (k : continuation)
+    (h : continuation_handler) (body : expr) : bool :=
+  match body with
+  | Let x declared defining_expr rest =>
+    match let_env tenv x declared defining_expr with
+    | Some tenv' =>
+      let_env_keeps_fit tenv x declared defining_expr
+      && gather_uses_keeps_fit tenv' k h rest
+    | None => true
+    end
+  | Let_cont_non_recursive _ h' rest =>
+    gather_uses_keeps_fit tenv k h rest
+    && (if cont_free_in_handler_b k h'
+        then
+          match h' with
+          | Handler params' metadata' body' =>
+            match handler_env tenv params' metadata' with
+            | Some tenv_handler => gather_uses_keeps_fit tenv_handler k h body'
+            | None => true
+            end
+          end
+        else true)
+  | Apply_cont _ | Switch _ _ => leaf_uses_keep_fit tenv k body
+  | Let_static _ _ | Let_cont_recursive _ _ | Apply _ | Invalid => true
+  end.
+
+(* The environments gathered have the two conditions if the
+   environment of the body has them and the test passes. *)
+Definition gather_uses_known_to_fit_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (fit : bool) (k : continuation)
+    (h : continuation_handler) (body : expr)
+    (uses : list (Typing_env.t * list simple)) (xs : list variable)
+    (ks : list continuation) (use : Typing_env.t * list simple),
+    known_to_fit tenv fit ->
+    gather_uses tenv k h body = Some (uses, xs, ks) ->
+    use ∈ uses ->
+    known_to_fit (fst use) (fit && gather_uses_keeps_fit tenv k h body).
+
+(* And each says no less than the environment of the body: a
+   valuation that satisfies it satisfies that one. The environments
+   on the way are made from that of the body by defining variables,
+   by giving a type to a variable just defined and by making two
+   canonical elements aliases, and each of the three can be undone
+   where the tests pass. So one valuation serves the environment of
+   an application and an environment made from that of the body, as
+   the contract of a join asks of a use and the source. *)
+Definition gather_uses_weaken_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (k : continuation) (h : continuation_handler)
+    (body : expr) (uses : list (Typing_env.t * list simple))
+    (xs : list variable) (ks : list continuation)
+    (use : Typing_env.t * list simple) (statics : static_env)
+    (valuation : env),
+    known_to_fit tenv true ->
+    gather_uses tenv k h body = Some (uses, xs, ks) ->
+    gather_uses_keeps_fit tenv k h body = true ->
+    use ∈ uses ->
+    typing_env_satisfied_strictly statics valuation (fst use) ->
+    typing_env_satisfied_strictly statics valuation tenv.
 
 (* ======================================================================== *)
 (* The function                                                             *)
