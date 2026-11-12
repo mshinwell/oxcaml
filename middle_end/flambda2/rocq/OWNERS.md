@@ -103,6 +103,10 @@ design out; that is the request, not the change.
   - `middle_end/flambda2/rocq/requests/C2-kinds.md` (the request)
   - `middle_end/flambda2/rocq/FlambdaWellKinded*` (the check of kinds
     and its statements)
+  - `middle_end/flambda2/rocq/FlambdaStaticsInScope*` (the check that
+    the static names of a unit are in scope where they are mentioned,
+    row 4 of the conditions of a well-formed unit, and what it gives
+    of a run; the conjunct of `well_formed_unit` is C0's to wire)
   - `middle_end/flambda2/tests/semantics/kinds_*.fl` and their
     `.expected` files
   - `middle_end/flambda2/tests/tools/flmodel_to_fexpr.ml` and
