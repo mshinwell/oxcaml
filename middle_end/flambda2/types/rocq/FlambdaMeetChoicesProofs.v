@@ -71,9 +71,79 @@ Proof.
       apply andb_true_iff. split; apply Z.leb_le; lia.
 Qed.
 
+(* The cases of a binding of an environment that is given in full. *)
+Ltac binding_cases H :=
+  apply (keyed_lookup_in name_eqb name_eqb_eq) in H; vm_compute in H;
+  repeat (destruct H as [ H | H ]; [ injection H as <- <- <- | ]);
+  [ .. | destruct H ].
+
+(* A [Simple] of a list that is given in full is of its kind. *)
+Ltac listed_simples_kinded H :=
+  vm_compute in H;
+  repeat (destruct H as [ [= <- <-] | H ];
+          [ first [ eexists; vm_compute; reflexivity
+                  | vm_compute; reflexivity ]
+          | ]);
+  destruct H.
+
+Lemma example_get_tag_env_fits : typing_env_fits example_get_tag_env.
+Proof.
+  split.
+  { split; [ vm_compute; reflexivity | ].
+    intros n ty Hlookup.
+    apply (keyed_lookup_in name_eqb name_eqb_eq) in Hlookup.
+    vm_compute in Hlookup.
+    repeat (destruct Hlookup as [ [= <- <-] | Hlookup ];
+            [ eexists; vm_compute; reflexivity | ]).
+    destruct Hlookup. }
+  split.
+  { intros n ty btm Hlookup. binding_cases Hlookup.
+    all: vm_compute; reflexivity. }
+  split.
+  { split; [ | split ].
+    - intros n ty btm Hlookup s k Hin. binding_cases Hlookup.
+      all: listed_simples_kinded Hin.
+    - repeat (apply replace_equation_aliases_kinded;
+              [ eexists; vm_compute; reflexivity | ]).
+      repeat (apply add_variable_definition_aliases_kinded;
+              [ vm_compute; reflexivity | reflexivity | ]).
+      apply create_aliases_kinded.
+    - intros s ty btm Hlookup.
+      apply (keyed_lookup_in name_eqb name_eqb_eq) in Hlookup.
+      vm_compute in Hlookup.
+      repeat (destruct Hlookup as [ Hlookup | Hlookup ];
+              [ discriminate Hlookup | ]).
+      destruct Hlookup. }
+  split.
+  { intros n ty btm Hlookup m k Hin. binding_cases Hlookup.
+    all: listed_simples_kinded Hin. }
+  intros _ n ty btm Hlookup. binding_cases Hlookup.
+  all: reflexivity.
+Qed.
+
+Theorem example_get_tag_inputs : example_get_tag_inputs_statement.
+Proof.
+  split; [ exact example_get_tag_env_fits | ].
+  split.
+  { split; [ vm_compute; reflexivity | ].
+    split;
+      [ intros x Hin; vm_compute in Hin;
+        repeat (destruct Hin as [ <- | Hin ]; [ reflexivity | ]);
+        destruct Hin
+      | ].
+    split; [ intros s k Hin; listed_simples_kinded Hin | ].
+    intros n k Hin. listed_simples_kinded Hin. }
+  split; [ | reflexivity ].
+  split; [ vm_compute; reflexivity | ].
+  split; [ intros x Hin; vm_compute in Hin; destruct Hin | ].
+  split; [ intros s k Hin; listed_simples_kinded Hin | ].
+  intros n k Hin. listed_simples_kinded Hin.
+Qed.
+
 Theorem only_get_tag_not_sound : only_get_tag_not_sound_statement.
 Proof.
-  intros join Hinputs Hsound.
+  intros join Hsound.
+  assert (Hinputs := example_get_tag_inputs).
   assert (Hsame :
     Meet.meet join only_get_tag_of_blocks 3 example_get_tag_env
       example_tag_type example_zero_type
@@ -86,6 +156,13 @@ Proof.
               Ht1 Ht2 Hmeet)
     as [t0 [tenv0 [valuation' [Hresult [Hextended [Hsatisfied _]]]]]].
   injection Hresult as <- <-. exact (Hnot valuation' Hextended Hsatisfied).
+Qed.
+
+Theorem compiler_meet_not_sound_outright
+  : compiler_meet_not_sound_outright_statement.
+Proof.
+  intros join.
+  exact (compiler_meet_not_sound join example_get_tag_inputs).
 Qed.
 
 (* ======================================================================== *)

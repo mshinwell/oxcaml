@@ -30,7 +30,7 @@
    proved: when each matters, and what fails where it does.
 
    This file is to be reviewed: three definitions, two examples and
-   twelve statements. The proofs are in FlambdaMeetChoicesProofs.v, which
+   fourteen statements. The proofs are in FlambdaMeetChoicesProofs.v, which
    needs no review.
 
    The main theorem (FlambdaMeetClosuresSpec.v) is for the meet with
@@ -56,7 +56,12 @@
       immediate; unboxing records such relations. What fails:
       [meet_sound]. The example is that of FlambdaMeetExamplesSpec.v,
       here with this choice alone
-      ([only_get_tag_not_sound_statement]). The compiler's two meets
+      ([only_get_tag_not_sound_statement]); its input is shown to be
+      one that the contract speaks of
+      ([example_get_tag_inputs_statement]), which the statement there
+      supposes, so that the compiler's meet has not [meet_sound]
+      outright ([compiler_meet_not_sound_outright_statement]). The
+      compiler's two meets
       answer as the model does on such inputs (the differential test
       of the types library); no term that does not itself read the
       tag of an immediate was found to reach it.
@@ -173,17 +178,24 @@ Definition get_tag_reduction_of_block_statement : Prop :=
           alloc_mode)
      <-> is_block statics w).
 
-(* The meet with this choice alone has not [meet_sound], whatever the
-   join, on the input of FlambdaMeetExamplesSpec.v, if that input is
-   one that a meet may be given. The compiler's meets answer the
-   same on that input, built with its library of types; no term that
-   does not itself read the tag of an immediate was found to reach
-   it. *)
+(* The input of the example of FlambdaMeetExamplesSpec.v is one that
+   a meet may be given. The statement there
+   ([compiler_meet_not_sound_statement]) supposes it. *)
+Definition example_get_tag_inputs_statement : Prop :=
+  meet_inputs_well_formed example_get_tag_env example_tag_type
+    example_zero_type.
+
+(* So the meet with this choice alone has not [meet_sound], whatever
+   the join; nor has the meet with the compiler's three choices. The
+   compiler's meets answer the same on that input, built with its
+   library of types; no term that does not itself read the tag of an
+   immediate was found to reach it. *)
 Definition only_get_tag_not_sound_statement : Prop :=
   ∀ join : join_scoped_envs,
-    meet_inputs_well_formed example_get_tag_env example_tag_type
-      example_zero_type ->
     ~ meet_sound (Meet.meet join only_get_tag_of_blocks 3).
+
+Definition compiler_meet_not_sound_outright_statement : Prop :=
+  ∀ join : join_scoped_envs, ~ meet_sound (compiler_meet join 3).
 
 (* ======================================================================== *)
 (* 2. Defining again                                                        *)
