@@ -5227,6 +5227,108 @@ Proof.
   exact (proj1 (Kf e Hclosed)).
 Qed.
 
+(* Two renamings that rename the free names of a term alike rename
+   alike those of what a rewrite that keeps scope makes of it. *)
+Lemma renames_alike_kept (f : expr -> expr) (r r' : renaming) (e : expr) :
+  keeps_scope f ->
+  code_closed e = true ->
+  renames_alike r r' e ->
+  code_closed (f e) = true ∧ renames_alike r r' (f e).
+Proof.
+  intros Kf Hclosed [Hvars Hconts].
+  destruct (Kf e Hclosed) as (Hclosed_f & Hvars_f & Hconts_f).
+  split; [ exact Hclosed_f | ]. split.
+  - intros x Hx. apply Hvars, Hvars_f, Hx.
+  - intros k Hk. apply Hconts, Hconts_f, Hk.
+Qed.
+
+(* The second of three renamings does to the free names of a term what
+   the first does, and the third does to those of what a rewrite that
+   keeps scope makes of the term what the second does: the third does
+   to them what the first does. *)
+Lemma renames_alike_then (f : expr -> expr) (r r1 r2 : renaming) (e : expr) :
+  keeps_scope f ->
+  code_closed e = true ->
+  renames_alike r r1 e ->
+  renames_alike r1 r2 (f e) ->
+  renames_alike r r2 (f e).
+Proof.
+  intros Kf Hclosed [Hvars Hconts] [Hvars' Hconts'].
+  destruct (Kf e Hclosed) as (_ & Hv & Hk).
+  split.
+  - intros x Hx. rewrite (Hvars' x Hx). apply Hvars, Hv, Hx.
+  - intros k Hk'. rewrite (Hconts' k Hk'). apply Hconts, Hk, Hk'.
+Qed.
+
+Lemma map_rename_conts_alike (r r' : renaming) (ks : list continuation) :
+  rename_conts_alike r r' ks ->
+  map (rename_continuation r') ks = map (rename_continuation r) ks.
+Proof.
+  intros Halike. apply map_ext_in. intros k Hk.
+  apply Halike, among_In, Hk.
+Qed.
+
+Theorem rewrite_equivariant_up_to_avoiding :
+  rewrite_equivariant_up_to_avoiding_statement.
+Proof.
+  intros f Hf r avoid e _. exists r. split; [ | split ].
+  - split; intros; reflexivity.
+  - intros k _. reflexivity.
+  - apply Hf.
+Qed.
+
+Theorem equivariant_up_to_avoiding_before :
+  equivariant_up_to_avoiding_before_statement.
+Proof.
+  intros f g Kg Hg Hf r avoid e Hclosed.
+  destruct (Kg e Hclosed) as (Hclosed_g & _ & _).
+  destruct (Hf r avoid (g e) Hclosed_g) as (r' & Halike & Havoid & Heq).
+  exists r'. split; [ exact Halike | split; [ exact Havoid | ] ].
+  rewrite Hg. exact Heq.
+Qed.
+
+Theorem equivariant_up_to_avoiding_after :
+  equivariant_up_to_avoiding_after_statement.
+Proof.
+  intros f g Kf Kg Hg Hf r avoid e Hclosed.
+  destruct (Hf r avoid e Hclosed) as (r' & Halike & Havoid & Heq).
+  destruct (Kf avoid e Hclosed) as (Hclosed_f & _ & _).
+  destruct (renames_alike_kept g r r' (f avoid e) Kg Hclosed_f Halike)
+    as (_ & Halike_g).
+  exists r'. split; [ exact Halike_g | split; [ exact Havoid | ] ].
+  rewrite Heq. apply Hg.
+Qed.
+
+Theorem equivariant_up_to_avoiding_iterate :
+  equivariant_up_to_avoiding_iterate_statement.
+Proof.
+  intros rounds f Kf Hf.
+  induction rounds as [ | rounds IH]; intros r avoid e Hclosed.
+  - exists r. split; [ split; intros; reflexivity | ].
+    split; [ intros k _; reflexivity | reflexivity ].
+  - cbn [iterate].
+    destruct (Hf r avoid e Hclosed) as (r1 & Halike1 & Havoid1 & Heq1).
+    destruct (Kf avoid e Hclosed) as (Hclosed_f & _ & _).
+    destruct (IH r1 avoid (f avoid e) Hclosed_f)
+      as (r2 & Halike2 & Havoid2 & Heq2).
+    rewrite (map_rename_conts_alike r r1 avoid Havoid1) in Heq2.
+    exists r2. split; [ | split ].
+    + exact
+        (renames_alike_then (iterate rounds (f avoid)) r r1 r2 (f avoid e)
+           (keeps_scope_iterate rounds (f avoid) (Kf avoid)) Hclosed_f
+           Halike1 Halike2).
+    + intros k Hk. rewrite (Havoid2 k Hk). apply Havoid1, Hk.
+    + rewrite Heq1. exact Heq2.
+Qed.
+
+Theorem equivariant_up_to_avoiding_nothing :
+  equivariant_up_to_avoiding_nothing_statement.
+Proof.
+  intros f Hf r e Hclosed.
+  destruct (Hf r [] e Hclosed) as (r' & Halike & _ & Heq).
+  exists r'. split; [ exact Halike | exact Heq ].
+Qed.
+
 (* ======================================================================== *)
 (* The validation, one of whose rewrites makes names                        *)
 (* ======================================================================== *)
@@ -5244,8 +5346,11 @@ Proof.
   exact (FlambdaValidateScopeProofs.inline_sibling_calls_keeps_scope kept).
 Qed.
 
-Lemma rename_apart_scope : keeps_scope rename_apart.
-Proof. exact FlambdaKeepsScopeProofs.rename_apart_keeps_scope. Qed.
+Lemma rename_apart_avoiding_scope (avoid : list continuation) :
+  keeps_scope (rename_apart_avoiding avoid).
+Proof.
+  exact (FlambdaKeepsScopeProofs.rename_apart_avoiding_keeps_scope avoid).
+Qed.
 
 Lemma normalise_before_inlined_scope : keeps_scope normalise_before_inlined.
 Proof.
@@ -5275,70 +5380,99 @@ Proof.
 Qed.
 
 (* The renaming that the file of [rename_apart] gives agrees with the
-   first on the names that are free in the term. A name that is free
-   in the result is free in the term, as the rewrite keeps scope. *)
-Theorem rename_apart_commutes_up_to : rename_apart_commutes_up_to_statement.
+   first on the names that are free in the term, and on the
+   continuations to avoid. A name that is free in the result is free
+   in the term, as the rewrite keeps scope. *)
+Theorem rename_apart_avoiding_commutes_up_to :
+  rename_apart_avoiding_commutes_up_to_statement.
 Proof.
-  intros r e Hclosed.
-  destruct (rename_apart_equivariant_up_to r e)
-    as (r' & Hvars & Hconts & Heq).
-  destruct (rename_apart_scope e Hclosed) as (_ & Hvars_kept & Hconts_kept).
-  exists r'. split; [ split | exact Heq ].
+  intros r avoid e Hclosed.
+  destruct (rename_apart_avoiding_equivariant_up_to r avoid e)
+    as (r' & Hvars & Hconts & Havoid & Heq).
+  destruct (rename_apart_avoiding_scope avoid e Hclosed)
+    as (_ & Hvars_kept & Hconts_kept).
+  exists r'. split; [ split | split; [ exact Havoid | exact Heq ] ].
   - intros x Hx. apply Hvars, Hvars_kept, Hx.
   - intros k Hk. apply Hconts, Hconts_kept, Hk.
 Qed.
 
-(* A round is four rewrites, one after the other. The first three, as
-   one rewrite: *)
-Definition inline_and_rename_apart (kept : list code_id) (e : expr) : expr :=
-  rename_apart (inline_sibling_calls kept (inline_calls kept [] e)).
+Theorem rename_apart_commutes_up_to : rename_apart_commutes_up_to_statement.
+Proof.
+  exact
+    (equivariant_up_to_avoiding_nothing rename_apart_avoiding
+       rename_apart_avoiding_commutes_up_to).
+Qed.
 
-Lemma inline_and_rename_apart_scope (kept : list code_id) :
-  keeps_scope (inline_and_rename_apart kept).
+(* A round is four rewrites, one after the other. The first two, the
+   inlinings, as one rewrite: it commutes with renaming and keeps
+   scope. *)
+Definition inline_both (kept : list code_id) (e : expr) : expr :=
+  inline_sibling_calls kept (inline_calls kept [] e).
+
+Lemma inline_both_scope (kept : list code_id) : keeps_scope (inline_both kept).
+Proof.
+  exact
+    (keeps_scope_compose (inline_calls kept []) (inline_sibling_calls kept)
+       (inline_calls_scope kept) (inline_sibling_calls_scope kept)).
+Qed.
+
+Lemma inline_both_equivariant (kept : list code_id) :
+  rewrite_equivariant (inline_both kept).
+Proof.
+  intros r e. unfold inline_both.
+  rewrite (inline_calls_unknowing_equivariant kept r e).
+  apply inline_sibling_calls_equivariant.
+Qed.
+
+(* A round in which the names made avoid the continuations given: the
+   inlinings before the rewrite that makes names, and the rest of the
+   round after it, commute with renaming and keep scope. *)
+Lemma normalise_before_round_avoiding_scope (avoid : list continuation)
+    (kept : list code_id) :
+  keeps_scope (normalise_before_round_avoiding avoid kept).
 Proof.
   exact
     (keeps_scope_compose
-       (fun e => inline_sibling_calls kept (inline_calls kept [] e))
-       rename_apart
-       (keeps_scope_compose (inline_calls kept []) (inline_sibling_calls kept)
-          (inline_calls_scope kept) (inline_sibling_calls_scope kept))
-       rename_apart_scope).
+       (fun e => rename_apart_avoiding avoid (inline_both kept e))
+       normalise_before_inlined
+       (keeps_scope_compose (inline_both kept) (rename_apart_avoiding avoid)
+          (inline_both_scope kept) (rename_apart_avoiding_scope avoid))
+       normalise_before_inlined_scope).
 Qed.
 
-Lemma inline_sibling_calls_unknowing_equivariant (kept : list code_id) :
-  rewrite_equivariant (inline_sibling_calls kept).
-Proof. intros r e. apply inline_sibling_calls_equivariant. Qed.
-
-(* The inlining of calls commutes with renaming, and so does up to the
-   names that it makes. *)
-Lemma inline_and_rename_apart_up_to (kept : list code_id) :
-  equivariant_up_to (inline_and_rename_apart kept).
+Lemma normalise_before_round_avoiding_up_to (kept : list code_id) :
+  equivariant_up_to_avoiding
+    (fun avoid => normalise_before_round_avoiding avoid kept).
 Proof.
   exact
-    (equivariant_up_to_compose
-       (fun e => inline_sibling_calls kept (inline_calls kept [] e))
-       rename_apart
-       (keeps_scope_compose (inline_calls kept []) (inline_sibling_calls kept)
-          (inline_calls_scope kept) (inline_sibling_calls_scope kept))
-       rename_apart_scope
-       (equivariant_up_to_compose (inline_calls kept [])
-          (inline_sibling_calls kept) (inline_calls_scope kept)
-          (inline_sibling_calls_scope kept)
-          (rewrite_equivariant_up_to (inline_calls kept [])
-             (inline_calls_unknowing_equivariant kept))
-          (rewrite_equivariant_up_to (inline_sibling_calls kept)
-             (inline_sibling_calls_unknowing_equivariant kept)))
-       rename_apart_commutes_up_to).
+    (equivariant_up_to_avoiding_after
+       (fun avoid e => rename_apart_avoiding avoid (inline_both kept e))
+       normalise_before_inlined
+       (fun avoid =>
+          keeps_scope_compose (inline_both kept) (rename_apart_avoiding avoid)
+            (inline_both_scope kept) (rename_apart_avoiding_scope avoid))
+       normalise_before_inlined_scope normalise_before_inlined_equivariant
+       (equivariant_up_to_avoiding_before rename_apart_avoiding
+          (inline_both kept) (inline_both_scope kept)
+          (inline_both_equivariant kept)
+          rename_apart_avoiding_commutes_up_to)).
 Qed.
 
+(* A round of the term before is that round with nothing to avoid. *)
 Theorem normalise_before_round_keeps_scope :
   normalise_before_round_keeps_scope_statement.
 Proof.
-  intros kept e.
+  intros kept. exact (normalise_before_round_avoiding_scope [] kept).
+Qed.
+
+Theorem normalise_before_round_equivariant_up_to :
+  normalise_before_round_equivariant_up_to_statement.
+Proof.
+  intros kept.
   exact
-    (keeps_scope_compose (inline_and_rename_apart kept)
-       normalise_before_inlined (inline_and_rename_apart_scope kept)
-       normalise_before_inlined_scope e).
+    (equivariant_up_to_avoiding_nothing
+       (fun avoid => normalise_before_round_avoiding avoid kept)
+       (normalise_before_round_avoiding_up_to kept)).
 Qed.
 
 (* The first phase of the term before, however many times it is
@@ -5351,13 +5485,20 @@ Proof.
        FlambdaValidateScopeProofs.normalise_params_round_keeps_scope).
 Qed.
 
+Lemma params_phase_equivariant (rounds : nat) :
+  rewrite_equivariant (iterate rounds normalise_params_round).
+Proof.
+  exact
+    (iterate_equivariant rounds normalise_params_round
+       normalise_params_round_equivariant).
+Qed.
+
 Lemma params_phase_up_to (rounds : nat) :
   equivariant_up_to (iterate rounds normalise_params_round).
 Proof.
   exact
     (rewrite_equivariant_up_to (iterate rounds normalise_params_round)
-       (iterate_equivariant rounds normalise_params_round
-          normalise_params_round_equivariant)).
+       (params_phase_equivariant rounds)).
 Qed.
 
 Theorem normalise_before_keeps_scope : normalise_before_keeps_scope_statement.
@@ -5370,21 +5511,6 @@ Proof.
        (keeps_scope_iterate rounds (normalise_before_round kept)
           (normalise_before_round_keeps_scope kept))
        e).
-Qed.
-
-(* The rest of the round commutes with renaming, and so does up to the
-   names that it makes. *)
-Theorem normalise_before_round_equivariant_up_to :
-  normalise_before_round_equivariant_up_to_statement.
-Proof.
-  intros kept r e.
-  exact
-    (equivariant_up_to_compose (inline_and_rename_apart kept)
-       normalise_before_inlined (inline_and_rename_apart_scope kept)
-       normalise_before_inlined_scope (inline_and_rename_apart_up_to kept)
-       (rewrite_equivariant_up_to normalise_before_inlined
-          normalise_before_inlined_equivariant)
-       r e).
 Qed.
 
 Theorem normalise_before_equivariant_up_to :
@@ -5428,99 +5554,66 @@ Proof.
 Qed.
 
 (* A round of the normalisation of a term in which something was
-   lifted: a round of the term before, then that rewrite. *)
-Lemma normalise_lifted_round_scope (kept : list code_id) :
-  keeps_scope (normalise_lifted_round kept).
+   lifted: a round that avoids the continuations given, then that
+   rewrite. *)
+Lemma normalise_lifted_round_scope (avoid : list continuation)
+    (kept : list code_id) :
+  keeps_scope (normalise_lifted_round avoid kept).
 Proof.
-  intros e.
   exact
-    (keeps_scope_compose (normalise_before_round kept) use_known
-       (normalise_before_round_keeps_scope kept) use_known_scope e).
+    (keeps_scope_compose (normalise_before_round_avoiding avoid kept)
+       use_known (normalise_before_round_avoiding_scope avoid kept)
+       use_known_scope).
 Qed.
 
 Lemma normalise_lifted_round_up_to (kept : list code_id) :
-  equivariant_up_to (normalise_lifted_round kept).
+  equivariant_up_to_avoiding (fun avoid => normalise_lifted_round avoid kept).
 Proof.
-  intros r e.
   exact
-    (equivariant_up_to_compose (normalise_before_round kept) use_known
-       (normalise_before_round_keeps_scope kept) use_known_scope
-       (normalise_before_round_equivariant_up_to kept)
-       (rewrite_equivariant_up_to use_known use_known_equivariant) r e).
+    (equivariant_up_to_avoiding_after
+       (fun avoid => normalise_before_round_avoiding avoid kept) use_known
+       (fun avoid => normalise_before_round_avoiding_scope avoid kept)
+       use_known_scope use_known_equivariant
+       (normalise_before_round_avoiding_up_to kept)).
 Qed.
 
 Theorem normalise_lifted_keeps_scope : normalise_lifted_keeps_scope_statement.
 Proof.
-  intros rounds kept e.
+  intros rounds avoid kept.
   exact
     (keeps_scope_compose (iterate rounds normalise_params_round)
-       (iterate rounds (normalise_lifted_round kept))
+       (iterate rounds (normalise_lifted_round avoid kept))
        (params_phase_scope rounds)
-       (keeps_scope_iterate rounds (normalise_lifted_round kept)
-          (normalise_lifted_round_scope kept))
-       e).
+       (keeps_scope_iterate rounds (normalise_lifted_round avoid kept)
+          (normalise_lifted_round_scope avoid kept))).
 Qed.
 
 Theorem normalise_lifted_equivariant_up_to :
   normalise_lifted_equivariant_up_to_statement.
 Proof.
-  intros rounds kept r e.
+  intros rounds kept.
   exact
-    (equivariant_up_to_compose (iterate rounds normalise_params_round)
-       (iterate rounds (normalise_lifted_round kept))
-       (params_phase_scope rounds)
-       (keeps_scope_iterate rounds (normalise_lifted_round kept)
-          (normalise_lifted_round_scope kept))
-       (params_phase_up_to rounds)
-       (equivariant_up_to_iterate rounds (normalise_lifted_round kept)
-          (normalise_lifted_round_scope kept)
-          (normalise_lifted_round_up_to kept))
-       r e).
-Qed.
-
-(* Two renamings that rename the free names of a term alike rename
-   alike those of what a rewrite that keeps scope makes of it. *)
-Lemma renames_alike_kept (f : expr -> expr) (r r' : renaming) (e : expr) :
-  keeps_scope f ->
-  code_closed e = true ->
-  renames_alike r r' e ->
-  code_closed (f e) = true ∧ renames_alike r r' (f e).
-Proof.
-  intros Kf Hclosed [Hvars Hconts].
-  destruct (Kf e Hclosed) as (Hclosed_f & Hvars_f & Hconts_f).
-  split; [ exact Hclosed_f | ]. split.
-  - intros x Hx. apply Hvars, Hvars_f, Hx.
-  - intros k Hk. apply Hconts, Hconts_f, Hk.
-Qed.
-
-(* The second of three renamings does to the free names of a term what
-   the first does, and the third does to those of what a rewrite that
-   keeps scope makes of the term what the second does: the third does
-   to them what the first does. *)
-Lemma renames_alike_then (f : expr -> expr) (r r1 r2 : renaming) (e : expr) :
-  keeps_scope f ->
-  code_closed e = true ->
-  renames_alike r r1 e ->
-  renames_alike r1 r2 (f e) ->
-  renames_alike r r2 (f e).
-Proof.
-  intros Kf Hclosed [Hvars Hconts] [Hvars' Hconts'].
-  destruct (Kf e Hclosed) as (_ & Hv & Hk).
-  split.
-  - intros x Hx. rewrite (Hvars' x Hx). apply Hvars, Hv, Hx.
-  - intros k Hk'. rewrite (Hconts' k Hk'). apply Hconts, Hk, Hk'.
+    (equivariant_up_to_avoiding_before
+       (fun avoid => iterate rounds (normalise_lifted_round avoid kept))
+       (iterate rounds normalise_params_round) (params_phase_scope rounds)
+       (params_phase_equivariant rounds)
+       (equivariant_up_to_avoiding_iterate rounds
+          (fun avoid => normalise_lifted_round avoid kept)
+          (fun avoid => normalise_lifted_round_scope avoid kept)
+          (normalise_lifted_round_up_to kept))).
 Qed.
 
 (* The liftings in turn keep scope. *)
-Lemma lifted_in_turn_scope (rounds : nat) (kept : list code_id)
-    (Ls : list lifting) :
-  keeps_scope (lifted_in_turn rounds Ls kept).
+Lemma lifted_in_turn_scope (rounds : nat) (avoid : list continuation)
+    (kept : list code_id) (Ls : list lifting) :
+  keeps_scope (lifted_in_turn rounds avoid Ls kept).
 Proof.
   induction Ls as [ | L Ls IH]; intros e Hclosed; cbn [lifted_in_turn].
   - split; [ exact Hclosed | split; intros name Hname; exact Hname ].
   - destruct (with_lifting_scope L e Hclosed) as (Hclosed1 & Hv1 & Hk1).
     destruct
-      (normalise_lifted_keeps_scope rounds kept (with_lifting L e) Hclosed1)
+      (normalise_lifted_keeps_scope rounds avoid kept (with_lifting L e)
+         Hclosed1)
       as (Hclosed2 & Hv2 & Hk2).
     destruct (IH _ Hclosed2) as (Hclosed3 & Hv3 & Hk3).
     split; [ exact Hclosed3 | split ].
@@ -5528,104 +5621,132 @@ Proof.
     + intros k Hk. apply Hk1, Hk2, Hk3, Hk.
 Qed.
 
-(* A lifting renamed by two renamings that rename the two continuations
-   of its unit alike. *)
-Lemma rename_lifting_alike (r r' : renaming) (L : lifting) (e : expr) :
-  renames_alike r r' e ->
-  unit_continuations_free L e ->
+(* A lifting renamed by two renamings that rename alike the
+   continuations of a list in which the two of its unit are. *)
+Lemma rename_lifting_alike (r r' : renaming) (L : lifting)
+    (avoid : list continuation) :
+  rename_conts_alike r r' avoid ->
+  among (unit_return (lifting_unit L)) avoid = true ->
+  among (unit_exn (lifting_unit L)) avoid = true ->
   rename_lifting r L = rename_lifting r' L.
 Proof.
-  intros [_ Hconts] [Hret Hexn]. unfold rename_lifting, rename_unit_interface.
-  rewrite (Hconts _ Hret), (Hconts _ Hexn). reflexivity.
+  intros Halike Hret Hexn. unfold rename_lifting, rename_unit_interface.
+  rewrite (Halike _ Hret), (Halike _ Hexn). reflexivity.
 Qed.
 
 (* The liftings in turn, of a term under a renaming that does to its
-   free names what the renaming of the liftings does. *)
+   free names, and to the continuations to avoid, what the renaming of
+   the liftings does; the continuations of the unit of each lifting
+   are among those to avoid. *)
 Lemma lifted_in_turn_up_to (r : renaming) (rounds : nat)
-    (kept : list code_id) (Ls : list lifting) :
+    (avoid : list continuation) (kept : list code_id) (Ls : list lifting) :
+  (∀ L : lifting,
+    In L Ls ->
+    among (unit_return (lifting_unit L)) avoid = true
+    ∧ among (unit_exn (lifting_unit L)) avoid = true) ->
   ∀ (r1 : renaming) (e : expr),
     code_closed e = true ->
     renames_alike r r1 e ->
-    liftings_use_unit rounds Ls kept e ->
+    rename_conts_alike r r1 avoid ->
     ∃ r' : renaming,
-      renames_alike r r' (lifted_in_turn rounds Ls kept e)
-      ∧ lifted_in_turn rounds (map (rename_lifting r) Ls) kept
-          (rename_expr r1 e)
-        = rename_expr r' (lifted_in_turn rounds Ls kept e).
+      renames_alike r r' (lifted_in_turn rounds avoid Ls kept e)
+      ∧ lifted_in_turn rounds (map (rename_continuation r) avoid)
+          (map (rename_lifting r) Ls) kept (rename_expr r1 e)
+        = rename_expr r' (lifted_in_turn rounds avoid Ls kept e).
 Proof.
-  induction Ls as [ | L Ls IH]; intros r1 e Hclosed Halike Huse;
+  induction Ls as [ | L Ls IH]; intros Hunits r1 e Hclosed Halike Havoid;
     cbn [map lifted_in_turn].
   - exists r1. split; [ exact Halike | reflexivity ].
-  - destruct Huse as [Hfree Huse].
-    rewrite (rename_lifting_alike r r1 L e Halike Hfree), with_lifting_renamed.
+  - destruct (Hunits L (or_introl eq_refl)) as [Hret Hexn].
+    rewrite (rename_lifting_alike r r1 L avoid Havoid Hret Hexn),
+      with_lifting_renamed.
     destruct
       (renames_alike_kept (with_lifting L) r r1 e (with_lifting_scope L)
          Hclosed Halike)
       as (Hclosed1 & Halike1).
     destruct
-      (normalise_lifted_equivariant_up_to rounds kept r1 (with_lifting L e)
-         Hclosed1)
-      as (r2 & Halike2 & Heq).
+      (normalise_lifted_equivariant_up_to rounds kept r1 avoid
+         (with_lifting L e) Hclosed1)
+      as (r2 & Halike2 & Havoid2 & Heq).
+    cbv beta in Heq, Halike2.
+    rewrite (map_rename_conts_alike r r1 avoid Havoid) in Heq.
     rewrite Heq.
     destruct
-      (normalise_lifted_keeps_scope rounds kept (with_lifting L e) Hclosed1)
+      (normalise_lifted_keeps_scope rounds avoid kept (with_lifting L e)
+         Hclosed1)
       as (Hclosed2 & _ & _).
-    apply (IH r2); [ exact Hclosed2 | | exact Huse ].
-    exact
-      (renames_alike_then (normalise_lifted rounds kept) r r1 r2
-         (with_lifting L e) (normalise_lifted_keeps_scope rounds kept)
-         Hclosed1 Halike1 Halike2).
+    apply (IH (fun L' HL' => Hunits L' (or_intror HL')) r2).
+    + exact Hclosed2.
+    + exact
+        (renames_alike_then (normalise_lifted rounds avoid kept) r r1 r2
+           (with_lifting L e) (normalise_lifted_keeps_scope rounds avoid kept)
+           Hclosed1 Halike1 Halike2).
+    + intros k Hk. rewrite (Havoid2 k Hk). apply Havoid, Hk.
+Qed.
+
+(* The continuations of the units of the liftings: those of the renamed
+   liftings are those of the liftings, renamed; and the two of the unit
+   of each lifting are among them. *)
+Lemma unit_continuations_renamed (r : renaming) (Ls : list lifting) :
+  unit_continuations (map (rename_lifting r) Ls)
+  = map (rename_continuation r) (unit_continuations Ls).
+Proof.
+  unfold unit_continuations.
+  induction Ls as [ | L Ls IH]; [ reflexivity | ].
+  cbn [map flat_map app]. rewrite IH. reflexivity.
+Qed.
+
+Lemma unit_continuations_has (Ls : list lifting) :
+  ∀ L : lifting,
+    In L Ls ->
+    among (unit_return (lifting_unit L)) (unit_continuations Ls) = true
+    ∧ among (unit_exn (lifting_unit L)) (unit_continuations Ls) = true.
+Proof.
+  intros L HL.
+  split; apply among_In; unfold unit_continuations; apply in_flat_map;
+    exists L; (split; [ exact HL | ]).
+  - left. reflexivity.
+  - right. left. reflexivity.
 Qed.
 
 (* The term before normalised is, under the renaming, that term under a
    second renaming; the term before with the liftings made in turn is
-   that term under a third. The removal of static bindings, the removal
-   of value slots, the moving up of the bindings of code and the
-   ordering of static bindings commute with each of them, whatever
-   renames the pattern, and keep scope; so the two renamings rename the
-   free names of each term that is compared alike. The term after is
-   under the first renaming throughout: its normalisation and the
-   putting of its code first commute with it. *)
+   that term under a third, since each normalisation after a lifting
+   avoids the continuations of the units of the liftings. The removal
+   of static bindings, the removal of value slots, the moving up of the
+   bindings of code and the ordering of static bindings commute with
+   each of them, whatever renames the pattern, and keep scope; so the
+   two renamings rename the free names of each term that is compared
+   alike. The term after is under the first renaming throughout: its
+   normalisation and the putting of its code first commute with it. *)
 Theorem validate_unit_equivariant : validate_unit_equivariant_statement.
 Proof.
-  intros r rounds unused slots Ls kept before after Hclosed Huse.
+  intros r rounds unused slots Ls kept before after Hclosed.
   destruct (normalise_before_equivariant_up_to rounds kept r before Hclosed)
     as (r' & Halike & Heq).
   destruct (normalise_before_keeps_scope rounds kept before Hclosed)
     as (Hclosed_b & _ & _).
-  assert (Hlifted :
-    ∃ r'' : renaming,
-      renames_alike r r'' (lifted_in_turn rounds Ls kept before)
-      ∧ lifted_in_turn rounds (map (rename_lifting r) Ls) kept
-          (rename_expr r before)
-        = rename_expr r'' (lifted_in_turn rounds Ls kept before)).
-  { destruct Ls as [ | L Ls]; cbn [map lifted_in_turn].
-    - exists r. split; [ | reflexivity ].
-      split; intros name _; reflexivity.
-    - cbn [later_liftings_use_unit] in Huse.
-      rewrite with_lifting_renamed.
-      destruct (with_lifting_scope L before Hclosed) as (Hclosed1 & _ & _).
-      destruct
-        (normalise_lifted_equivariant_up_to rounds kept r
-           (with_lifting L before) Hclosed1)
-        as (r2 & Halike2 & Heq2).
-      rewrite Heq2.
-      destruct
-        (normalise_lifted_keeps_scope rounds kept (with_lifting L before)
-           Hclosed1)
-        as (Hclosed2 & _ & _).
-      exact
-        (lifted_in_turn_up_to r rounds kept Ls r2 _ Hclosed2 Halike2 Huse). }
-  destruct Hlifted as (r'' & Halike' & Heq').
-  destruct (lifted_in_turn_scope rounds kept Ls before Hclosed)
+  assert (Hself : renames_alike r r before)
+    by (split; intros name _; reflexivity).
+  assert (Hself' : rename_conts_alike r r (unit_continuations Ls))
+    by (intros k _; reflexivity).
+  destruct
+    (lifted_in_turn_up_to r rounds (unit_continuations Ls) kept Ls
+       (unit_continuations_has Ls) r before Hclosed Hself Hself')
+    as (r'' & Halike' & Heq').
+  destruct
+    (lifted_in_turn_scope rounds (unit_continuations Ls) kept Ls before
+       Hclosed)
     as (Hclosed_l & _ & _).
   unfold validate_unit. cbv zeta.
+  rewrite unit_continuations_renamed.
   rewrite expr_eqb_renamed, Heq, Heq', normalise_after_equivariant,
     without_slots_equivariant, !without_statics_equivariant,
     with_code_first_equivariant, !float_code_rewrite_equivariant,
     !order_statics_as_equivariant.
   set (b := normalise_before rounds kept before) in *.
-  set (l := lifted_in_turn rounds Ls kept before) in *.
+  set (l := lifted_in_turn rounds (unit_continuations Ls) Ls kept before)
+    in *.
   set (a := normalise_after rounds kept after).
   set (c := float_code (with_code_first a)).
   destruct

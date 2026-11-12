@@ -126,16 +126,21 @@ Proof.
   apply normalise_code_before_refines.
 Qed.
 
-Lemma normalise_before_round_refines (kept : list code_id) (e : expr) :
-  expr_refines e (normalise_before_round kept e).
+Lemma normalise_before_round_avoiding_refines (avoid : list continuation)
+    (kept : list code_id) (e : expr) :
+  expr_refines e (normalise_before_round_avoiding avoid kept e).
 Proof.
-  unfold normalise_before_round.
+  unfold normalise_before_round_avoiding.
   eapply expr_refines_trans; [ | apply normalise_before_inlined_refines ].
   eapply expr_refines_trans;
-    [ | apply expr_equivalent_refines, rename_apart_equivalent ].
+    [ | apply expr_equivalent_refines, rename_apart_avoiding_equivalent ].
   eapply expr_refines_trans; [ | apply inline_sibling_calls_refines ].
   apply inline_calls_refines.
 Qed.
+
+Lemma normalise_before_round_refines (kept : list code_id) (e : expr) :
+  expr_refines e (normalise_before_round kept e).
+Proof. apply normalise_before_round_avoiding_refines. Qed.
 
 (* The first phase of the term before. *)
 Lemma normalise_expr_params_refines (e : expr) :
@@ -290,38 +295,41 @@ Proof.
   exact (fold_known_unit_program_refines e e' Hfold).
 Qed.
 
-Lemma iterate_lifted_program_refines (rounds : nat) (kept : list code_id) :
+Lemma iterate_lifted_program_refines (rounds : nat)
+    (avoid : list continuation) (kept : list code_id) :
   ∀ e : expr,
-    program_refines e (iterate rounds (normalise_lifted_round kept) e).
+    program_refines e (iterate rounds (normalise_lifted_round avoid kept) e).
 Proof.
   induction rounds as [ | rounds IH]; intros e; simpl;
     [ apply refines_refl | ].
   apply (refines_trans _ _ _
-    (expr_refines_program _ _ (normalise_before_round_refines kept e))).
+    (expr_refines_program _ _
+       (normalise_before_round_avoiding_refines avoid kept e))).
   apply (refines_trans _ _ _
     (expr_refines_program _ _ (use_known_closures_refines _))).
   apply (refines_trans _ _ _ (with_known_program_refines _)).
   apply IH.
 Qed.
 
-Lemma normalise_lifted_program_refines (rounds : nat) (kept : list code_id) :
-  ∀ e : expr, program_refines e (normalise_lifted rounds kept e).
+Lemma normalise_lifted_program_refines (rounds : nat)
+    (avoid : list continuation) (kept : list code_id) :
+  ∀ e : expr, program_refines e (normalise_lifted rounds avoid kept e).
 Proof.
   intros e. unfold normalise_lifted.
   exact (refines_trans _ _ _
     (expr_refines_program _ _
        (iterate_refines _ normalise_params_round_refines rounds e))
-    (iterate_lifted_program_refines rounds kept _)).
+    (iterate_lifted_program_refines rounds avoid kept _)).
 Qed.
 
-Lemma lifted_in_turn_program_refines (rounds : nat) (Ls : list lifting)
-    (kept : list code_id) :
-  ∀ e : expr, program_refines e (lifted_in_turn rounds Ls kept e).
+Lemma lifted_in_turn_program_refines (rounds : nat)
+    (avoid : list continuation) (Ls : list lifting) (kept : list code_id) :
+  ∀ e : expr, program_refines e (lifted_in_turn rounds avoid Ls kept e).
 Proof.
   induction Ls as [ | L Ls IH]; intros e; simpl; [ apply refines_refl | ].
   apply (refines_trans _ _ _ (with_lifting_program_refines L _)).
   apply (refines_trans _ _ _
-    (normalise_lifted_program_refines rounds kept _)).
+    (normalise_lifted_program_refines rounds avoid kept _)).
   apply IH.
 Qed.
 
@@ -370,7 +378,8 @@ Proof.
               (float_code
                  (without_statics unused
                     (without_slots slots
-                       (lifted_in_turn rounds Ls kept before)))))
+                       (lifted_in_turn rounds (unit_continuations Ls) Ls kept
+                          before)))))
            (float_code (with_code_first a)));
         intros [H | H]; discriminate H.
 Qed.
@@ -407,11 +416,13 @@ Proof.
                 (float_code
                    (without_statics unused
                       (without_slots slots
-                         (lifted_in_turn rounds Ls kept before)))))
+                         (lifted_in_turn rounds (unit_continuations Ls) Ls kept
+                            before)))))
              (float_code (with_code_first a))) eqn:Hlifted;
           [ intros _ | intros H; contradiction H; reflexivity ].
         apply (refines_trans _ _ _
-          (lifted_in_turn_program_refines rounds Ls kept _)).
+          (lifted_in_turn_program_refines rounds (unit_continuations Ls) Ls kept
+             _)).
         apply (refines_trans _ _ _ (without_slots_program_refines slots _)).
         apply (refines_trans _ _ _
           (without_statics_program_refines unused _)).

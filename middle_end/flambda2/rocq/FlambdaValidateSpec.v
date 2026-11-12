@@ -56,8 +56,17 @@
    a call is made direct) and by replacing the primitives and the
    projections applied to symbols that the unit binds to constants by
    their values (FlambdaKnownSymbolsSpec.fold_known_unit;
-   [normalise_lifted]). Then it removes from the static sets of closures
-   the value slots given, if nothing projects them
+   [normalise_lifted]). Every round of that normalisation, after each
+   of the liftings, makes no name that is the return or the exception
+   continuation of the unit of any of the liftings given, the later
+   ones included, whether or not the term mentions them
+   ([unit_continuations]; FlambdaRenameApartSpec.rename_apart_avoiding
+   takes its new names outside the names of the term and outside
+   those): a lifting checks the unit by the names of those two
+   continuations, which the term may no longer mention once it is
+   normalised, so a binder made in a round must not take one of them.
+   Then it removes from the static sets of closures the value slots
+   given, if nothing projects them
    (FlambdaUnusedSlotsSpec.drop_unused_slots), removes the static
    bindings of the names given, and compares; in this comparison the
    bindings of code of both terms are first moved up to the head of
@@ -120,7 +129,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaShortcutSpec FlambdaSinkContsSpec
   FlambdaStaticsOrderSpec FlambdaUnboxSpec FlambdaUnusedContsSpec
   FlambdaUnusedParamsSpec FlambdaUnusedProjectionsSpec
-  FlambdaUnusedStaticsSpec FlambdaLiftSpec
+  FlambdaUnusedStaticsSpec FlambdaWellFormedSpec FlambdaLiftSpec
   FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec
   FlambdaFloatCodeSpec FlambdaHoistCodeSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
@@ -183,14 +192,25 @@ Definition normalise_before_inlined (e : expr) : expr :=
 
 (* One round for the term before: the calls of known code inlined, but
    for the code given, in the bodies of code those of the other code of
-   its group too (FlambdaInlineSiblingsSpec.inline_sibling_calls), and
-   every binder given a name of its own
-   (FlambdaRenameApartSpec.rename_apart: the body of a function that is
-   inlined twice is copied twice, with the names it binds); then the
-   round above. Every rewrite refines. *)
-Definition normalise_before_round (kept : list code_id) (e : expr) : expr :=
+   its group too (FlambdaInlineSiblingsSpec.inline_sibling_calls); then
+   FlambdaRenameApartSpec.rename_apart_avoiding, whose candidate gives
+   every binder a name of its own, none of them one of the
+   continuations given (the body of a function that is inlined twice
+   is copied twice, with the names it binds), and which keeps the
+   candidate only where its own comparison finds it the same as the
+   term, and the term as it is otherwise; then the round above. Every
+   rewrite refines. *)
+Definition normalise_before_round_avoiding (avoid : list continuation)
+    (kept : list code_id) (e : expr) : expr :=
   normalise_before_inlined
-    (rename_apart (inline_sibling_calls kept (inline_calls kept [] e))).
+    (rename_apart_avoiding avoid
+       (inline_sibling_calls kept (inline_calls kept [] e))).
+
+(* With no continuation to avoid: the round of the comparisons in which
+   nothing is lifted, where no check goes by a name that the term does
+   not mention. *)
+Definition normalise_before_round (kept : list code_id) (e : expr) : expr :=
+  normalise_before_round_avoiding [] kept e.
 
 (* One round of the first phase for an expression of the term before:
    [normalise_expr_before] with what Simplify does to the parameters of
@@ -316,24 +336,36 @@ Definition with_known (e : expr) : expr :=
    phase of that of the term before, then its second phase with each
    round followed by the use of what is known of the static closures in
    sight, and of what the unit binds its symbols to. *)
-Definition normalise_lifted_round (kept : list code_id) (e : expr) : expr :=
-  with_known (use_known_closures (normalise_before_round kept e)).
+Definition normalise_lifted_round (avoid : list continuation)
+    (kept : list code_id) (e : expr) : expr :=
+  with_known
+    (use_known_closures (normalise_before_round_avoiding avoid kept e)).
 
-Definition normalise_lifted (rounds : nat) (kept : list code_id) (e : expr)
-    : expr :=
-  iterate rounds (normalise_lifted_round kept)
+Definition normalise_lifted (rounds : nat) (avoid : list continuation)
+    (kept : list code_id) (e : expr) : expr :=
+  iterate rounds (normalise_lifted_round avoid kept)
     (iterate rounds normalise_params_round e).
+
+(* The return and the exception continuation of the unit of each of
+   the liftings given: the names by which a lifting checks the unit
+   (FlambdaLiftSpec.lift_unit), which the term need not mention. *)
+Definition unit_continuations (Ls : list lifting) : list continuation :=
+  flat_map
+    (fun L => [unit_return (lifting_unit L); unit_exn (lifting_unit L)]) Ls.
 
 (* The term with each of the liftings given applied in turn, each
    followed by that normalisation. A lifting after the first names
-   [Let]s of the term that those before it give. *)
-Fixpoint lifted_in_turn (rounds : nat) (Ls : list lifting)
-    (kept : list code_id) (e : expr) : expr :=
+   [Let]s of the term that those before it give. The continuations to
+   avoid are the same at every step: [validate_unit] gives those of
+   the units of all the liftings, so that no round, before or after
+   any of them, makes one. *)
+Fixpoint lifted_in_turn (rounds : nat) (avoid : list continuation)
+    (Ls : list lifting) (kept : list code_id) (e : expr) : expr :=
   match Ls with
   | [] => e
   | L :: Ls =>
-    lifted_in_turn rounds Ls kept
-      (normalise_lifted rounds kept (with_lifting L e))
+    lifted_in_turn rounds avoid Ls kept
+      (normalise_lifted rounds avoid kept (with_lifting L e))
   end.
 
 (* The value slots given removed from the static sets of closures, if
@@ -384,7 +416,8 @@ Definition validate_unit (rounds : nat) (unused : dropped)
            (float_code
               (without_statics unused
                  (without_slots slots
-                    (lifted_in_turn rounds Ls kept before)))))
+                    (lifted_in_turn rounds (unit_continuations Ls) Ls kept
+                       before)))))
         (float_code (with_code_first after))
     then Same_once_lifted
     else Not_validated.
