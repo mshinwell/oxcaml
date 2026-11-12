@@ -145,6 +145,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaLoopAliasesSpec.v \
   FlambdaLoopifyProofs.v \
   FlambdaLoopifySpec.v \
+  FlambdaLoopsScopeProofs.v \
+  FlambdaLoopsScopeSpec.v \
   FlambdaMapProofs.v \
   FlambdaMapSpec.v \
   FlambdaModel.v \
