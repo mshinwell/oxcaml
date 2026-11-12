@@ -51,6 +51,9 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaKeepsScopeProofs FlambdaLoopsScopeSpec FlambdaLoopsScopeProofs
   FlambdaUnboxVariantsSpec FlambdaValidateScopeSpec.
 From OxCamlFlambda2 Require FlambdaUnboxParamsNamesProofs.
+From OxCamlFlambda2 Require Import FlambdaUnboxParamsSpec
+  FlambdaUnboxInScopeSpec FlambdaUnboxInScopeProofs
+  FlambdaUnboxInScopeRenameSpec FlambdaUnboxInScopeRenameProofs.
 From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
 From OxCamlFlambda2 Require FlambdaDemoteScopeProofs.
 From OxCamlFlambda2 Require Import FlambdaShareProjectionsSpec
@@ -127,9 +130,27 @@ Theorem normalise_code_before_keeps_scope :
   normalise_code_before_keeps_scope_statement.
 Proof. apply keeps_scope_intro, normalise_code_before_scoped. Qed.
 
+(* The unboxing given what is known of symbols alone, and the round of
+   the first phase given it. *)
+Lemma unbox_variants_knowing_symbols_scoped (known : facts) (e : expr) :
+  symbols_only known -> scoped e (unbox_variants_knowing known e).
+Proof.
+  intros Honly. apply keeps_scope_scoped.
+  exact (unbox_variants_knowing_symbols_keeps_scope known Honly).
+Qed.
+
+#[export] Hint Resolve unbox_variants_knowing_symbols_scoped : scoped.
+
+Lemma normalise_expr_params_knowing_scoped (known : facts) (e : expr) :
+  symbols_only known -> scoped e (normalise_expr_params_knowing known e).
+Proof.
+  intros Honly. unfold normalise_expr_params_knowing. cbv zeta.
+  scoped_chain.
+Qed.
+
 Lemma normalise_expr_params_scoped (e : expr) :
   scoped e (normalise_expr_params e).
-Proof. unfold normalise_expr_params. cbv zeta. scoped_chain. Qed.
+Proof. apply normalise_expr_params_knowing_scoped, no_facts_only. Qed.
 
 #[export] Hint Resolve normalise_expr_params_scoped : scoped.
 
@@ -137,9 +158,26 @@ Theorem normalise_expr_params_keeps_scope :
   normalise_expr_params_keeps_scope_statement.
 Proof. apply keeps_scope_intro, normalise_expr_params_scoped. Qed.
 
+Lemma normalise_code_params_knowing_keeps_scope :
+  keeps_scope_where_known normalise_code_params_knowing.
+Proof.
+  intros known Honly. apply keeps_scope_intro. intros e.
+  unfold normalise_code_params_knowing.
+  eapply scoped_trans;
+    [ | apply normalise_expr_params_knowing_scoped, Honly ].
+  apply keeps_scope_scoped.
+  apply (rewrite_rec_handlers_in_scope_keeps_scope
+    normalise_expr_params_knowing); [ | exact Honly ].
+  intros known' Honly'. apply keeps_scope_intro. intros e'.
+  apply normalise_expr_params_knowing_scoped, Honly'.
+Qed.
+
 Lemma normalise_code_params_scoped (e : expr) :
   scoped e (normalise_code_params e).
-Proof. unfold normalise_code_params. scoped_chain. Qed.
+Proof.
+  apply keeps_scope_scoped.
+  exact (normalise_code_params_knowing_keeps_scope no_facts no_facts_only).
+Qed.
 
 #[export] Hint Resolve normalise_code_params_scoped : scoped.
 
@@ -149,7 +187,13 @@ Proof. apply keeps_scope_intro, normalise_code_params_scoped. Qed.
 
 Lemma normalise_params_round_scoped (e : expr) :
   scoped e (normalise_params_round e).
-Proof. unfold normalise_params_round. scoped_chain. Qed.
+Proof.
+  unfold normalise_params_round.
+  eapply scoped_trans; [ apply normalise_code_params_scoped | ].
+  apply keeps_scope_scoped.
+  exact (rewrite_code_in_scope_keeps_scope _
+    normalise_code_params_knowing_keeps_scope no_facts no_facts_only).
+Qed.
 
 #[export] Hint Resolve normalise_params_round_scoped : scoped.
 

@@ -238,10 +238,14 @@
    FlambdaIdentitiesSpec.apply_identities,
    FlambdaMergeSwitchesSpec.merge_switches and
    FlambdaInlineSiblingsSpec.inline_sibling_calls, of a round of the
-   term before, FlambdaUnboxVariantsSpec.unbox_variant_params, of the
-   first phase of the term before
-   (FlambdaUnboxVariantsRenameSpec.v), and
-   FlambdaStaticsOrderSpec.order_statics_as, which
+   term before, FlambdaUnboxVariantsSpec.unbox_variants_knowing, of
+   the first phase of the term before, which is given what the static
+   bindings in scope make known of their symbols, in code and in
+   loops (FlambdaUnboxVariantsRenameSpec.v; what is known of symbols
+   alone is not changed by a renaming, and the two functions that
+   take it into code and into loops commute with renaming where the
+   rewrite that they are given does: FlambdaUnboxInScopeRenameSpec.v),
+   and FlambdaStaticsOrderSpec.order_statics_as, which
    the check applies to the term before with the term after as its
    pattern. One of a round of the term after is stated here:
    FlambdaUnusedProjectionsSpec.remove_unused_projections, which

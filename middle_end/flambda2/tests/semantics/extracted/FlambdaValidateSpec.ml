@@ -38,6 +38,8 @@ open FlambdaSinkContsSpec
 open FlambdaSinkUsesSpec
 open FlambdaStaticsOrderSpec
 open FlambdaUnaliasParamsSpec
+open FlambdaUnboxInScopeSpec
+open FlambdaUnboxParamsSpec
 open FlambdaUnboxSpec
 open FlambdaUnboxVariantsSpec
 open FlambdaUnusedContsSpec
@@ -99,9 +101,9 @@ let normalise_before_round_avoiding avoid kept e =
 
 let normalise_before_round kept e = normalise_before_round_avoiding [] kept e
 
-(** val normalise_expr_params : expr -> expr **)
+(** val normalise_expr_params_knowing : facts -> expr -> expr **)
 
-let normalise_expr_params e =
+let normalise_expr_params_knowing known e =
   let e0 =
     shortcut_switches
       (thread_switches
@@ -112,7 +114,7 @@ let normalise_expr_params e =
   in
   let e1 = remove_unused_conts (forward_applications e0) in
   let e2 =
-    unbox_variant_params
+    unbox_variants_knowing known
       (follow_aliases_in_loops []
          (follow_aliases [] (unbox_known_numbers (load_known_blocks e1))))
   in
@@ -120,15 +122,21 @@ let normalise_expr_params e =
     (bind_aliased_params
        (remove_unused_defined_lets [] (remove_unused_lets (fold_constants e2))))
 
+(** val normalise_code_params_knowing : facts -> expr -> expr **)
+
+let normalise_code_params_knowing known body =
+  normalise_expr_params_knowing known
+    (rewrite_rec_handlers_in_scope normalise_expr_params_knowing known body)
+
 (** val normalise_code_params : expr -> expr **)
 
-let normalise_code_params body =
-  normalise_expr_params (rewrite_rec_handlers normalise_expr_params body)
+let normalise_code_params body = normalise_code_params_knowing no_facts body
 
 (** val normalise_params_round : expr -> expr **)
 
 let normalise_params_round e =
-  rewrite_code normalise_code_params (normalise_code_params e)
+  rewrite_code_in_scope normalise_code_params_knowing no_facts
+    (normalise_code_params e)
 
 (** val demote_and_tidy : nat -> expr -> expr **)
 

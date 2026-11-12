@@ -47,7 +47,10 @@
    they enable one another, and compares the results up to bound
    names. The term before is normalised in two
    phases: first what Simplify does to the parameters of the
-   continuations of the term as it is ([normalise_params_round]), then
+   continuations of the term as it is ([normalise_params_round]; in
+   the code and in the loops of the term, the unboxing of a parameter
+   knows the static blocks and boxed numbers of the static bindings in
+   scope, FlambdaUnboxInScopeSpec.v), then
    the rounds that inline the calls of known code
    ([normalise_before_round]), which the term after has too. Failing
    that, it removes from the term
@@ -235,6 +238,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaGuardScopeSpec.
 From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
 From OxCamlFlambda2 Require Import FlambdaKnownSlotsSpec.
+From OxCamlFlambda2 Require Import FlambdaUnboxParamsSpec
+  FlambdaUnboxInScopeSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
 From OxCamlFlambda2Types Require FlambdaSimplifyPassSpec.
 Import ListNotations.
@@ -346,7 +351,10 @@ Definition normalise_before_round (kept : list code_id) (e : expr) : expr :=
    term shows, is unboxed as Simplify unboxes it: each read becomes a
    parameter, and an application that has nothing to read gives a
    constant in its place
-   (FlambdaUnboxVariantsSpec.unbox_variant_params); the boxed
+   (FlambdaUnboxVariantsSpec.unbox_variants_knowing, given what is
+   known of symbols where the round is applied; [normalise_expr_params]
+   is the round with nothing known, in which that is
+   FlambdaUnboxVariantsSpec.unbox_variant_params); the boxed
    parameter, where nothing else uses it, is then one of the unused
    ones. After the
    bindings that are left unused are removed, a parameter that every
@@ -356,7 +364,8 @@ Definition normalise_before_round (kept : list code_id) (e : expr) : expr :=
    with them the parameters of a loop that are only passed round it and
    the [Let]s that only they need ([drop_dead_params]). The next round
    follows the new [Let]s and removes them. *)
-Definition normalise_expr_params (e : expr) : expr :=
+Definition normalise_expr_params_knowing (known : facts) (e : expr)
+    : expr :=
   let e :=
     shortcut_switches
       (thread_switches
@@ -367,7 +376,7 @@ Definition normalise_expr_params (e : expr) : expr :=
   in
   let e := remove_unused_conts (forward_applications e) in
   let e :=
-    unbox_variant_params
+    unbox_variants_knowing known
       (follow_aliases_in_loops []
          (follow_aliases [] (unbox_known_numbers (load_known_blocks e))))
   in
@@ -375,20 +384,39 @@ Definition normalise_expr_params (e : expr) : expr :=
     (bind_aliased_params
        (remove_unused_defined_lets [] (remove_unused_lets (fold_constants e)))).
 
+Definition normalise_expr_params (e : expr) : expr :=
+  normalise_expr_params_knowing no_facts e.
+
 (* The same for the body of code: the round for the handler of each of
    its recursive continuations, a loop in a loop included, and then for
    the body itself. The handlers come first: [forward_applications] goes
    into the handler of a loop for the continuations bound outside it,
    and must find those bound inside as [sink_let_conts] and
-   [inline_tail_conts] leave them there. *)
+   [inline_tail_conts] leave them there. The round for a handler is
+   given what is known of the symbols in scope where its [Let_cont] is:
+   what was known at the start, and the static blocks and boxed numbers
+   of the [Let_static]s that the [Let_cont] is under
+   (FlambdaUnboxInScopeSpec.rewrite_rec_handlers_in_scope). *)
+Definition normalise_code_params_knowing (known : facts) (body : expr)
+    : expr :=
+  normalise_expr_params_knowing known
+    (rewrite_rec_handlers_in_scope normalise_expr_params_knowing known body).
+
 Definition normalise_code_params (body : expr) : expr :=
-  normalise_expr_params (rewrite_rec_handlers normalise_expr_params body).
+  normalise_code_params_knowing no_facts body.
 
 (* One round of the first phase for the term before: the round above on
-   the term itself and on the body of each piece of code. No call is
-   inlined. *)
+   the term itself, with nothing known at the start, and on the body of
+   each piece of code, with what is known of the symbols in scope where
+   the code is bound: the static blocks and boxed numbers of the
+   [Let_static]s that the binding is under and of its own group
+   (FlambdaUnboxInScopeSpec.rewrite_code_in_scope). So the unboxing of a
+   parameter of a continuation knows a constant block of the unit in a
+   function and in a loop, as it does under the [Let_static] itself. No
+   call is inlined. *)
 Definition normalise_params_round (e : expr) : expr :=
-  rewrite_code normalise_code_params (normalise_code_params e).
+  rewrite_code_in_scope normalise_code_params_knowing no_facts
+    (normalise_code_params e).
 
 (* What ends the normalisation of the term before. The exception
    handlers that no call can raise to are made ordinary continuations

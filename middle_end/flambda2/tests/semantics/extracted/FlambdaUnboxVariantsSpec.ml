@@ -408,7 +408,3 @@ let rec unbox_variants_knowing known e =
   | Let_cont_recursive (handlers, body) ->
     Let_cont_recursive (handlers, unbox_variants_knowing known body)
   | _ -> e
-
-(** val unbox_variant_params : expr -> expr **)
-
-let unbox_variant_params e = unbox_variants_knowing no_facts e

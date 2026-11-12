@@ -38,6 +38,8 @@ open FlambdaSinkContsSpec
 open FlambdaSinkUsesSpec
 open FlambdaStaticsOrderSpec
 open FlambdaUnaliasParamsSpec
+open FlambdaUnboxInScopeSpec
+open FlambdaUnboxParamsSpec
 open FlambdaUnboxSpec
 open FlambdaUnboxVariantsSpec
 open FlambdaUnusedContsSpec
@@ -61,7 +63,9 @@ val normalise_before_round_avoiding :
 
 val normalise_before_round : code_id list -> expr -> expr
 
-val normalise_expr_params : expr -> expr
+val normalise_expr_params_knowing : facts -> expr -> expr
+
+val normalise_code_params_knowing : facts -> expr -> expr
 
 val normalise_code_params : expr -> expr
 

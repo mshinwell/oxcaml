@@ -109,5 +109,3 @@ val unbox_reads :
   expr
 
 val unbox_variants_knowing : facts -> expr -> expr
-
-val unbox_variant_params : expr -> expr

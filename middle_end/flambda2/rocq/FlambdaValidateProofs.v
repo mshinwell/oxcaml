@@ -56,6 +56,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaUnaliasParamsSpec FlambdaUnaliasParamsProofs
   FlambdaUnboxSpec FlambdaUnboxProofs
   FlambdaUnboxVariantsSpec FlambdaUnboxVariantsProofs
+  FlambdaUnboxParamsSpec FlambdaUnboxInScopeSpec FlambdaUnboxInScopeProofs
   FlambdaUnusedContsSpec FlambdaUnusedContsProofs FlambdaUnusedParamsSpec
   FlambdaUnusedParamsProofs FlambdaUnusedProjectionsSpec
   FlambdaUnusedProjectionsProofs FlambdaUnusedStaticsSpec
@@ -173,22 +174,61 @@ Lemma normalise_before_round_refines (kept : list code_id) (e : expr) :
   expr_refines e (normalise_before_round kept e).
 Proof. apply normalise_before_round_avoiding_refines. Qed.
 
-(* The first phase of the term before. *)
+(* The first phase of the term before. The round given what is known of
+   symbols refines wherever that holds: the rewrites before the
+   unboxing and those after it refine under all environments, and the
+   unboxing where what it is given holds. *)
+Lemma expr_refines_at (e e' : expr) (vars : env) (conts : cont_env)
+    (statics : static_env) (hp : heap) :
+  expr_refines e e' ->
+  refines (State e vars conts statics hp) (State e' vars conts statics hp).
+Proof. intros Hrefines. apply Hrefines. Qed.
+
+Lemma normalise_expr_params_knowing_refines :
+  refines_where_known normalise_expr_params_knowing.
+Proof.
+  intros known e vars conts statics hp Honly Hbound.
+  unfold normalise_expr_params_knowing. cbv zeta.
+  match goal with
+  | |- context [unbox_variants_knowing known ?x] =>
+    apply (refines_trans _
+      (State (unbox_variants_knowing known x) vars conts statics hp));
+      [ apply (refines_trans _ (State x vars conts statics hp));
+          [ | exact (unbox_variants_knowing_symbols_refines known x vars
+                conts statics hp Honly Hbound) ]
+      | ]
+  end; apply expr_refines_at;
+    repeat (eapply expr_refines_trans; [ | solve [ refinement_step ] ]);
+    apply expr_refines_refl.
+Qed.
+
 Lemma normalise_expr_params_refines (e : expr) :
   expr_refines e (normalise_expr_params e).
 Proof.
-  unfold normalise_expr_params. cbv zeta.
-  repeat (eapply expr_refines_trans; [ | solve [ refinement_step ] ]).
-  apply expr_refines_refl.
+  intros vars conts statics hp.
+  exact (normalise_expr_params_knowing_refines no_facts e vars conts statics
+    hp no_facts_only (no_symbols_bound statics)).
+Qed.
+
+Lemma normalise_code_params_knowing_refines :
+  refines_where_known normalise_code_params_knowing.
+Proof.
+  intros known body vars conts statics hp Honly Hbound.
+  unfold normalise_code_params_knowing.
+  eapply refines_trans;
+    [ exact (rewrite_rec_handlers_in_scope_refines _
+        normalise_expr_params_knowing_refines known body vars conts statics
+        hp Honly Hbound)
+    | exact (normalise_expr_params_knowing_refines known _ vars conts
+        statics hp Honly Hbound) ].
 Qed.
 
 Lemma normalise_code_params_refines (body : expr) :
   expr_refines body (normalise_code_params body).
 Proof.
-  unfold normalise_code_params.
-  exact (expr_refines_trans _ _ _
-    (rewrite_rec_handlers_refines _ normalise_expr_params_refines body)
-    (normalise_expr_params_refines _)).
+  intros vars conts statics hp.
+  exact (normalise_code_params_knowing_refines no_facts body vars conts
+    statics hp no_facts_only (no_symbols_bound statics)).
 Qed.
 
 Lemma normalise_params_round_refines (e : expr) :
@@ -196,7 +236,8 @@ Lemma normalise_params_round_refines (e : expr) :
 Proof.
   unfold normalise_params_round.
   eapply expr_refines_trans;
-    [ | apply rewrite_code_refines, normalise_code_params_refines ].
+    [ | apply rewrite_code_in_scope_expr_refines,
+          normalise_code_params_knowing_refines ].
   apply normalise_code_params_refines.
 Qed.
 

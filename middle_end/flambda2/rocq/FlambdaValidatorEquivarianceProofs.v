@@ -81,6 +81,9 @@ From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
 From OxCamlFlambda2 Require FlambdaDemoteProofs.
 From OxCamlFlambda2 Require Import FlambdaKnownSlotsSpec.
 From OxCamlFlambda2 Require FlambdaKnownSlotsProofs.
+From OxCamlFlambda2 Require Import FlambdaUnboxParamsSpec
+  FlambdaUnboxVariantsSpec FlambdaUnboxInScopeSpec FlambdaUnboxInScopeProofs
+  FlambdaUnboxInScopeRenameSpec FlambdaUnboxInScopeRenameProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 From OxCamlFlambda2 Require FlambdaGuardScopeSpec.
 From OxCamlFlambda2Types Require FlambdaSimplifyPassSpec
@@ -4829,22 +4832,60 @@ Proof.
   apply rewrite_code_equivariant, normalise_code_before_equivariant.
 Qed.
 
-(* The first phase of the term before. *)
+(* The first phase of the term before. The unboxing given what is
+   known of symbols alone commutes with renaming, as a renaming does
+   not change what it is given; so does the round given it. *)
+Lemma unbox_variants_knowing_symbols_renamed :
+  equivariant_where_known unbox_variants_knowing.
+Proof.
+  intros known Honly r e.
+  rewrite <- (symbols_only_renamed r known Honly) at 1.
+  apply FlambdaUnboxParamsNamesProofs.unbox_variants_knowing_equivariant;
+    first
+      [ exact var_free_b_equivariant
+      | exact remove_unused_conts_equivariant
+      | exact forget_vars_equivariant
+      | exact known_under_let_equivariant
+      | exact known_under_statics_equivariant
+      | exact known_block_of_equivariant
+      | exact field_loaded_equivariant
+      | exact load_known_named_equivariant
+      | exact forget_wrapped_vars_equivariant
+      | exact numbers_under_let_equivariant
+      | exact numbers_under_statics_equivariant
+      | exact unwrapped_equivariant
+      | exact unbox_known_named_equivariant ].
+Qed.
+
+Lemma normalise_expr_params_knowing_equivariant :
+  equivariant_where_known normalise_expr_params_knowing.
+Proof.
+  intros known Honly r e. unfold normalise_expr_params_knowing. cbv zeta.
+  rename_outwards.
+  rewrite (unbox_variants_knowing_symbols_renamed known Honly).
+  rename_outwards. reflexivity.
+Qed.
+
 Lemma normalise_expr_params_equivariant :
   rewrite_equivariant normalise_expr_params.
 Proof.
-  intros r e. unfold normalise_expr_params. cbv zeta. rename_outwards.
-  reflexivity.
+  exact (normalise_expr_params_knowing_equivariant no_facts no_facts_only).
+Qed.
+
+Lemma normalise_code_params_knowing_equivariant :
+  equivariant_where_known normalise_code_params_knowing.
+Proof.
+  intros known Honly r e. unfold normalise_code_params_knowing.
+  rewrite
+    (rewrite_rec_handlers_in_scope_equivariant _
+       normalise_expr_params_knowing_equivariant known Honly).
+  apply normalise_expr_params_knowing_equivariant, Honly.
 Qed.
 
 Lemma normalise_code_params_equivariant :
   rewrite_equivariant normalise_code_params.
 Proof.
-  intros r e. unfold normalise_code_params.
-  rewrite
-    (rewrite_rec_handlers_equivariant normalise_expr_params
-       normalise_expr_params_equivariant).
-  apply normalise_expr_params_equivariant.
+  exact (normalise_code_params_knowing_equivariant no_facts no_facts_only).
 Qed.
 
 Lemma normalise_params_round_equivariant :
@@ -4852,7 +4893,8 @@ Lemma normalise_params_round_equivariant :
 Proof.
   intros r e. unfold normalise_params_round.
   rewrite normalise_code_params_equivariant.
-  apply rewrite_code_equivariant, normalise_code_params_equivariant.
+  exact (rewrite_code_in_scope_equivariant _
+    normalise_code_params_knowing_equivariant no_facts no_facts_only r _).
 Qed.
 
 (* The demotion of exception handlers, as the validation applies it:
