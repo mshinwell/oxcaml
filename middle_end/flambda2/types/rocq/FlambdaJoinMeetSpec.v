@@ -142,6 +142,38 @@
      conditions are not among its premises and do not follow from
      them (see the CRs at the conditions in FlambdaJoinDefineSpec.v,
      and at [keeps_equations_valued] in FlambdaMeetSpec.v).
+   - The join that Simplify calls ([model_join]), in the environment
+     of the meet, on inputs of the contract of FlambdaJoinSpec.v.
+     Supposed of the meet of expanded types that the join gives the
+     meet's environment: what the meet's contract for its join
+     supposes of the one it is given ([meet_expanded_head_keeps],
+     and [meet_expanded_head_sound] for values). They are premises
+     here, and not shown of [model_meet_expanded_head]: the meet has
+     them by its own theorems only from a join that has the whole of
+     [join_scoped_envs_sound], which the join of this model has not
+     on every run (the item before). Supposed also: a meet may be
+     made in the source ([typing_env_fits]; the contract supposes
+     only its invariant and that it has no bottom type); the uses
+     have the names of the source at its kinds
+     ([uses_agree_with_source_on_kinds]); and the types that the
+     last phase adds fit otherwise ([types_fit_otherwise]). The run
+     is named ([model_join_run]). Then
+     ([model_join_keeps_statement]) a meet may be made in the
+     target, so it is well formed and has no bottom type; it keeps
+     the source ([join_keeps_source]); and the variables that it has
+     and the source has not are as the contract says
+     ([join_introduces]). These are four of the six parts of
+     [join_guarantees]. And ([model_join_admits_use_statement]) at a
+     use that is not bottom, on a run that has the conditions of the
+     item before, a valuation that satisfies the use and the source
+     extends to one that satisfies the target and agrees with it on
+     what the use knows and on what the source knows:
+     [join_admits_use] without its two parts on the definitions of
+     the analysis. Not here: [analysis_describes_uses]; that the
+     definitions of the analysis hold in the valuation answered
+     (they hold in the valuation of the state,
+     [model_join_true_statement]); and the conditions on runs read
+     as those of the contract ([values_are_read]).
 
    Examples of what [model_join] computes are in
    FlambdaJoinMeetExamplesSpec.v. *)
@@ -558,7 +590,9 @@ Definition model_join_scoped_envs_keeps_statement : Prop :=
    the source has after it are on names that have a value in the
    valuation given, those that the target has after it are on names
    that have one in the valuation answered
-   ([keeps_equations_valued], FlambdaMeetSpec.v). *)
+   ([keeps_equations_valued], FlambdaMeetSpec.v). The valuation
+   answered also has what the valuation given has for each variable
+   that the source knows. *)
 Definition last_phase_satisfied_statement : Prop :=
   ∀ (tenv : Typing_env.t) (fuel : nat) (source : Typing_env.t)
     (s : Join_env.t) (relations : Join_env.inverse_relations)
@@ -615,7 +649,8 @@ Definition last_phase_satisfied_statement : Prop :=
       ∧ typing_env_satisfied_strictly statics valuation'
           (Meet_env.typing_env target)
       ∧ keeps_equations_valued source (Meet_env.typing_env target) valuation
-          valuation'.
+          valuation'
+      ∧ extended_from source valuation valuation'.
 
 (* The same of the join that the meet calls, under the premises of
    the contract that the meet has for its join
@@ -711,3 +746,154 @@ Definition model_join_scoped_envs_satisfied_statement : Prop :=
             (Meet_env.typing_env result)
         ∧ keeps_equations_valued initial_tenv (Meet_env.typing_env result)
             valuation valuation'.
+
+(* ======================================================================== *)
+(* The join that Simplify calls, in the environment of the meet             *)
+(* ======================================================================== *)
+
+(* The run of the join that Simplify calls, on inputs: the
+   environments that are joined; the state that the first phases
+   answer, with its relations; and the variables, the equations of the
+   two extensions and the definitions that the last phase adds. They
+   are named by the equations that determine them. (The environment in
+   which the last phase chooses aliases is the one in which the
+   variables brought in are defined.) *)
+Definition model_join_run {A : Type} (join_choices : Join_env.choices)
+    (join_depth : nat) (fuel : fuels) (avoid : list variable)
+    (inputs : join_inputs A) (envs : Joined_envs.t) (s3 : Join_env.t)
+    (relations3 : Join_env.inverse_relations)
+    (kept : list (variable * flambda_kind))
+    (equations relation_equations : list (name * flambda_type))
+    (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind))
+    : Prop :=
+  let p := join_parameters join_depth in
+  let jt := model_join_of_types join_depth fuel in
+  let s0 :=
+    Join_env.create envs
+      (Bindings_in_target_env.from_source_env avoid (source inputs))
+  in
+  ∃ (s1 s2 : Join_env.t) (relations2 : Join_env.inverse_relations),
+    Join_env.cut_for_joins (cut_after inputs)
+      (map (fun binding => (fst binding, snd (snd binding)))
+         (Index.number (uses inputs)))
+    = Some envs
+    ∧ Join_env.join_aliases_into_bindings p (fuel_of_env fuel) s0 envs
+      = Some s1
+    ∧ Join_env.n_way_join_delayed_equations (fuel_of_env fuel) join_choices
+        jt s1 [] (Join_env.new_equations_in_joined_envs s1 s0)
+      = Some (relations2, s2)
+    ∧ Join_env.n_way_join_loop join_depth p (fuel_of_env fuel) join_choices
+        jt s2 relations2 (Join_env.new_definitions_of_existentials s2 s0)
+      = Some (relations3, s3)
+    ∧ last_phase_adds
+        (Meet_env.typing_env
+           (variables_defined meet_env_functions
+              (Meet_env.with_names_to_avoid
+                 (Meet_env.create (source inputs))
+                 (Bindings_in_target_env.names_to_avoid
+                    (Join_env.bindings s3)))
+              (Bindings_in_target_env.imported_variables_in_order
+                 (Join_env.bindings s3))))
+        (fuel_of_env fuel) s3 relations3 kept equations relation_equations
+        definitions.
+
+(* The environment of the meet in which the last phase of that run has
+   defined its variables. *)
+Definition model_join_defined {A : Type} (inputs : join_inputs A)
+    (s3 : Join_env.t) (kept : list (variable * flambda_kind)) : Meet_env.t :=
+  variables_defined meet_env_functions
+    (Meet_env.with_names_to_avoid (Meet_env.create (source inputs))
+       (Bindings_in_target_env.names_to_avoid (Join_env.bindings s3)))
+    (Bindings_in_target_env.imported_variables_in_order (Join_env.bindings s3)
+     ++ kept).
+
+(* The join that Simplify calls, on inputs of its contract
+   (FlambdaJoinSpec.v), given: a meet of expanded types that has what
+   the meet's contract for its join supposes of the one it is given
+   ([meet_expanded_head_keeps]; here it is the meet of the model, and
+   this is a premise: see the header); uses that have the names of
+   the source at its kinds; a source in which a meet may be made; and
+   types that fit otherwise, for what the last phase of the run adds.
+   Then a meet may be made in the target, which is so well formed and
+   without a bottom type; the target keeps the source; and a variable
+   that it has and the source has not may not occur in a term, and is
+   known to a use that is not bottom or is none of the names to
+   avoid. These are the parts of [join_guarantees] (FlambdaJoinSpec.v)
+   but two: what the analysis speaks of, and the valuations. *)
+Definition model_join_keeps_statement : Prop :=
+  ∀ (A : Type) (join_choices : Join_env.choices) (meet_choices : meet_choices)
+    (join_depth : nat) (fuel : fuels) (avoid : list variable)
+    (inputs : join_inputs A) (target : Typing_env.t) (analysis : Analysis.t A)
+    (envs : Joined_envs.t) (s3 : Join_env.t)
+    (relations3 : Join_env.inverse_relations)
+    (kept : list (variable * flambda_kind))
+    (equations relation_equations : list (name * flambda_type))
+    (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind)),
+    meet_expanded_head_keeps
+      (model_meet_expanded_head join_choices meet_choices join_depth fuel) ->
+    join_inputs_well_formed typing_env_invariant avoid inputs ->
+    uses_kinded inputs ->
+    uses_agree_with_source_on_kinds inputs ->
+    typing_env_fits (source inputs) ->
+    model_join join_choices meet_choices join_depth fuel avoid inputs
+    = Some (target, analysis) ->
+    model_join_run join_choices join_depth fuel avoid inputs envs s3
+      relations3 kept equations relation_equations definitions ->
+    types_fit_otherwise
+      (Meet_env.typing_env (model_join_defined inputs s3 kept))
+      (equations ++ relation_equations) ->
+    typing_env_fits target
+    ∧ join_keeps_source (source inputs) target
+    ∧ join_introduces avoid inputs target.
+
+(* And the valuations, at a use that is not bottom, on a run that has
+   the conditions of [last_phase_satisfied_statement], given also
+   that the meet of expanded types has what the contract supposes of
+   it on values ([meet_expanded_head_sound]): a valuation that
+   satisfies the use and the source extends to one that satisfies the
+   target and has what it has for the variables that the use knows
+   and for those that the source knows. This is [join_admits_use]
+   (FlambdaJoinSpec.v) on those runs, without its two parts on the
+   definitions of the analysis. *)
+Definition model_join_admits_use_statement : Prop :=
+  ∀ (A : Type) (join_choices : Join_env.choices) (meet_choices : meet_choices)
+    (join_depth : nat) (fuel : fuels) (avoid : list variable)
+    (inputs : join_inputs A) (target : Typing_env.t) (analysis : Analysis.t A)
+    (envs : Joined_envs.t) (s3 : Join_env.t)
+    (relations3 : Join_env.inverse_relations)
+    (kept : list (variable * flambda_kind))
+    (equations relation_equations : list (name * flambda_type))
+    (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind))
+    (index : Index.t) (use : Typing_env.t) (statics : static_env)
+    (valuation : env),
+    meet_expanded_head_keeps
+      (model_meet_expanded_head join_choices meet_choices join_depth fuel) ->
+    meet_expanded_head_sound
+      (model_meet_expanded_head join_choices meet_choices join_depth fuel) ->
+    join_inputs_well_formed typing_env_invariant avoid inputs ->
+    uses_kinded inputs ->
+    uses_agree_with_source_on_kinds inputs ->
+    typing_env_fits (source inputs) ->
+    model_join join_choices meet_choices join_depth fuel avoid inputs
+    = Some (target, analysis) ->
+    model_join_run join_choices join_depth fuel avoid inputs envs s3
+      relations3 kept equations relation_equations definitions ->
+    types_fit_otherwise
+      (Meet_env.typing_env (model_join_defined inputs s3 kept))
+      (equations ++ relation_equations) ->
+    use_at inputs index use ->
+    Typing_env.is_bottom use = false ->
+    statics_valid statics ->
+    typing_env_satisfied_strictly statics valuation use ->
+    typing_env_satisfied_strictly statics valuation (source inputs) ->
+    tags_at s3 use statics valuation ->
+    aliases_have_values s3 index use valuation ->
+    relation_scrutinees_have_values s3 relations3 index use valuation ->
+    (∀ (n : name) (ty : flambda_type),
+       (n, ty) ∈ equations ++ relation_equations ->
+       ∃ v : value,
+         value_of_name (target_valuation s3 index use valuation) n = Some v) ->
+    ∃ valuation' : env,
+      typing_env_satisfied_strictly statics valuation' target
+      ∧ agrees_on_known use valuation valuation'
+      ∧ agrees_on_known (source inputs) valuation valuation'.

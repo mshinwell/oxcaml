@@ -841,7 +841,7 @@ Proof.
      elsewhere. *)
   set (tenv2 := Meet_env.typing_env target) in *.
   exists (patched tenv2 valuation2 valuation).
-  split.
+  split; [ | split; [ | split ] ].
   - intros x Hx. rewrite lookup_patched.
     destruct (Typing_env.mem None tenv2 (Name_var x)) eqn:H2;
       [ | reflexivity ].
@@ -866,26 +866,38 @@ Proof.
       * destruct (proj2 Hstep2 x H2 H1) as [Hnew2 _].
         destruct (proj1 (proj1 Hstep1)) as (_ & _ & _ & _ & _ & _ & Hav & _).
         rewrite (Hav x Hnames_x) in Hnew2. discriminate Hnew2.
-  - split.
-    + apply (satisfied_but_coincide (fun _ => False) statics valuation2
-               (patched tenv2 valuation2 valuation) tenv2); [ | exact Hsat2 ].
-      intros x Hx. rewrite lookup_patched.
-      rewrite (mentions_known tenv2 x (proj1 (proj2 (proj1 Hstep2))) Hx).
-      reflexivity.
-    + (* The equations are on names that have values. *)
-      intros cut_after Hcut.
-      apply (equations_valued_extended tenv2 cut_after valuation2);
-        [ exact (proj1 (proj2 (proj1 Hstep2))) | | ].
-      { intros x Hx. rewrite lookup_patched, Hx. reflexivity. }
-      apply Hvalued2. apply Hvalued1.
-      destruct (target_variables_fresh s menv kept (proj1 Htrue)
-                  (eq_trans Hsource (eq_sym (proj2 (proj2 Htrue)))) Hkept
-                  Hdistinct) as [Hnodup Hfresh].
-      apply (variables_defined_valued tv _ menv Hfits Hnodup Hfresh).
-      rewrite Hsource.
-      apply (equations_valued_extended source cut_after valuation tv);
-        [ rewrite <- Hsource; exact (proj1 Hfits) | | exact Hcut ].
-      intros x Hx. exact (Hagrees x Hx).
+  - apply (satisfied_but_coincide (fun _ => False) statics valuation2
+             (patched tenv2 valuation2 valuation) tenv2); [ | exact Hsat2 ].
+    intros x Hx. rewrite lookup_patched.
+    rewrite (mentions_known tenv2 x (proj1 (proj2 (proj1 Hstep2))) Hx).
+    reflexivity.
+  - (* The equations are on names that have values. *)
+    intros cut_after Hcut.
+    apply (equations_valued_extended tenv2 cut_after valuation2);
+      [ exact (proj1 (proj2 (proj1 Hstep2))) | | ].
+    { intros x Hx. rewrite lookup_patched, Hx. reflexivity. }
+    apply Hvalued2. apply Hvalued1.
+    destruct (target_variables_fresh s menv kept (proj1 Htrue)
+                (eq_trans Hsource (eq_sym (proj2 (proj2 Htrue)))) Hkept
+                Hdistinct) as [Hnodup Hfresh].
+    apply (variables_defined_valued tv _ menv Hfits Hnodup Hfresh).
+    rewrite Hsource.
+    apply (equations_valued_extended source cut_after valuation tv);
+      [ rewrite <- Hsource; exact (proj1 Hfits) | | exact Hcut ].
+    intros x Hx. exact (Hagrees x Hx).
+  - (* What the source knows. *)
+    intros x Hx. rewrite lookup_patched.
+    assert (H0 : Typing_env.mem None (Meet_env.typing_env menv0) (Name_var x)
+                 = true).
+    { apply (tenv_extends_mem _ _ _
+               (meet_env_extends_tenv _ _ (proj1 Hkept0))).
+      rewrite Hsource. exact Hx. }
+    pose proof (tenv_extends_mem _ _ _ Hextends1 H0) as H1.
+    pose proof (tenv_extends_mem _ _ _
+                  (meet_env_extends_tenv _ _ (proj1 (proj1 Hstep2))) H1)
+      as H2.
+    change (Typing_env.mem None tenv2 (Name_var x) = true) in H2.
+    rewrite H2, (Hfrom2 x H1), (Hfrom1 x H0). exact (Hagrees x Hx).
 Qed.
 
 (* ---------------------------------------------------------------------- *)
@@ -1496,7 +1508,8 @@ Proof.
   fold menv in Hadds', Hadd1, Hadd2.
   destruct (last_phase_adds_functional _ _ _ _ _ _ _ _ _ _ _ _ Hadds Hadds')
     as (-> & -> & -> & ->).
-  apply (last_phase_satisfied _ (fuel_of_env fuel) initial_tenv s3 relations3
+  destruct (last_phase_satisfied _ (fuel_of_env fuel) initial_tenv s3
+              relations3
            mh menv menv1 target kept equations relation_equations definitions
            index scoped_env statics valuation Htrue3 Hrelations3 Hnonempty3
            Hscoped3 Hstate3 Hinvariant3 Hkinded3 Hsymbols3 HX HR eq_refl Hfits
@@ -1505,5 +1518,473 @@ Proof.
               _ kept equations relation_equations definitions Hfits Hscoped
               Hagree Hcut Haliases Hdelayed Hloop Hadds)
            Hmh Hsound Hadd1 Hadd2 Huse Hstatics Hsat_initial Hsat_use Htags
-           Haliases_v Hscrutinees Hvalued).
+           Haliases_v Hscrutinees Hvalued)
+    as [valuation' [Hfrom [Hsat [Hkeeps _]]]].
+  exists valuation'. split; [ exact Hfrom | ].
+  split; [ exact Hsat | exact Hkeeps ].
+Qed.
+
+(* ---------------------------------------------------------------------- *)
+(* The join that Simplify calls, in the environment of the meet            *)
+(* ---------------------------------------------------------------------- *)
+
+(* An environment of a meet, extended, keeps the typing environment as
+   the contract of the join says of a source. *)
+Lemma extends_keeps_source (menv menv' : Meet_env.t) :
+  meet_env_extends menv menv' ->
+  join_keeps_source (Meet_env.typing_env menv) (Meet_env.typing_env menv').
+Proof.
+  intros (Hscope & Hprev & Hmin & Hsymbols & _ & _ & _ & Hnames).
+  split; [ | split; [ | split; [ exact Hprev | split; assumption ] ] ].
+  - intros n ty btm Hlookup.
+    destruct (Hnames n ty btm Hlookup) as [ty' [H _]]. exists ty'. exact H.
+  - intros s. cbn [Typing_env.mem]. rewrite Hsymbols. reflexivity.
+Qed.
+
+(* The first phases of the join that Simplify calls, on inputs of the
+   contract. *)
+Lemma inputs_first_phases {A : Type} (join_choices : Join_env.choices)
+    (join_depth : nat) (fuel : fuels) (avoid : list variable)
+    (inputs : join_inputs A) (envs : Joined_envs.t) (s1 s2 s3 : Join_env.t)
+    (relations2 relations3 : Join_env.inverse_relations) :
+  let p := join_parameters join_depth in
+  let jt := model_join_of_types join_depth fuel in
+  let s0 :=
+    Join_env.create envs
+      (Bindings_in_target_env.from_source_env avoid (source inputs))
+  in
+  join_inputs_well_formed typing_env_invariant avoid inputs ->
+  uses_kinded inputs ->
+  uses_agree_with_source_on_kinds inputs ->
+  Join_env.cut_for_joins (cut_after inputs) (numbered_uses inputs)
+  = Some envs ->
+  Join_env.join_aliases_into_bindings p (fuel_of_env fuel) s0 envs
+  = Some s1 ->
+  Join_env.n_way_join_delayed_equations (fuel_of_env fuel) join_choices jt
+    s1 [] (Join_env.new_equations_in_joined_envs s1 s0)
+  = Some (relations2, s2) ->
+  Join_env.n_way_join_loop join_depth p (fuel_of_env fuel) join_choices jt
+    s2 relations2 (Join_env.new_definitions_of_existentials s2 s0)
+  = Some (relations3, s3) ->
+  state_true (source inputs) s3
+  ∧ relations_hold s3 relations3
+  ∧ grows s0 s3
+  ∧ state_kinded s3
+  ∧ relations_nonempty relations3
+  ∧ state_scoped s3
+  ∧ equations_kinded s3
+  ∧ relations_kinded s3 relations3
+  ∧ (∀ x : variable, x ∈ avoid -> x ∈ names_to_avoid s3)
+  ∧ (∀ x : variable, is_existential s3 x -> x ∉ avoid)
+  ∧ (∀ (index : Index.t) (use : Typing_env.t),
+       Join_env.joined_env s3 index = Some use
+       <-> use_at inputs index use ∧ Typing_env.is_bottom use = false)
+  ∧ joined_envs_are typing_env_invariant s3
+  ∧ joined_envs_are typing_env_kinded s3
+  ∧ symbols_of_joined_envs_in_source (source inputs) s3.
+Proof.
+  intros p jt s0 Hinputs Hkinded Hagree Hcut Haliases Hdelayed Hloop.
+  destruct Hinputs
+    as [[_ Huses_wf] [_ [_ [Hsymbols [Havoid_source Havoid_uses]]]]].
+  assert (Hfound :
+            ∀ (index : Index.t) (use : Typing_env.t),
+              Joined_envs.get_nth_joined_env envs index = Some use ->
+              use_at inputs index use ∧ Typing_env.is_bottom use = false).
+  { intros index use Huse. apply get_nth_lookup in Huse.
+    destruct Huse as [equations Hlookup].
+    destruct (cut_for_joins_found _ _ _ Hcut _ _ _ Hlookup) as [Hin [Hb _]].
+    split; [ apply numbered_uses_in; exact Hin | exact Hb ]. }
+  assert (Hhas :
+            ∀ (index : Index.t) (use : Typing_env.t),
+              use_at inputs index use ->
+              Typing_env.is_bottom use = false ->
+              ∃ level : Typing_env_level.t,
+                Typing_env.cut use (cut_after inputs) = Some level
+                ∧ Keyed.lookup Index.equal index envs
+                  = Some (use, Typing_env_level.equations level)).
+  { intros index use Hat Hb.
+    exact (cut_for_joins_has _ _ _ Hcut (numbered_uses_distinct inputs) index
+             use (proj2 (numbered_uses_in inputs index use) Hat) Hb). }
+  assert (Hsource : ∀ x : variable, knows (source inputs) x -> x ∈ avoid).
+  { intros x Hx. apply among_In. exact (Havoid_source x Hx). }
+  assert (Huses :
+            ∀ (index : Index.t) (use : Typing_env.t) (x : variable),
+              Joined_envs.get_nth_joined_env envs index = Some use ->
+              knows use x ->
+              x ∈ avoid).
+  { intros index use x Huse Hx. apply among_In.
+    exact (Havoid_uses index use x (proj1 (Hfound index use Huse)) Hx). }
+  assert (Hinvariant :
+            ∀ (index : Index.t) (use : Typing_env.t),
+              Joined_envs.get_nth_joined_env envs index = Some use ->
+              typing_env_invariant use).
+  { intros index use Huse.
+    exact (Huses_wf index use (proj1 (Hfound index use Huse))). }
+  assert (Hkinded_envs :
+            ∀ (index : Index.t) (use : Typing_env.t),
+              Joined_envs.get_nth_joined_env envs index = Some use ->
+              typing_env_kinded use).
+  { intros index use Huse.
+    exact (Hkinded index use (proj1 (Hfound index use Huse))). }
+  assert (Hlevels : levels_found envs).
+  { intros index use equations n ty Hlookup Hn.
+    destruct (cut_for_joins_found _ _ _ Hcut _ _ _ Hlookup)
+      as [Hin [_ [level [Hlevel ->]]]].
+    apply numbered_uses_in in Hin.
+    exact (cut_equations_found use (cut_after inputs) level n ty
+             (proj2 (Huses_wf index use Hin)) Hlevel Hn). }
+  assert (Hkinds :
+            ∀ (index : Index.t) (use : Typing_env.t) (x : variable)
+              (kind : flambda_kind) (ty : flambda_type)
+              (binding_time_and_mode : Binding_time.With_name_mode.t),
+              Joined_envs.get_nth_joined_env envs index = Some use ->
+              simple_of_kind use (Var x) kind ->
+              Keyed.lookup name_eqb (Name_var x)
+                (Typing_env.names_to_types (source inputs))
+              = Some (ty, binding_time_and_mode) ->
+              FlambdaTypeGrammar.kind ty = kind).
+  { intros index use x kind ty btm Huse Hk Hx.
+    assert (Hsrc :
+              simple_of_kind (source inputs) (Var x)
+                (FlambdaTypeGrammar.kind ty)).
+    { apply (simple_of_kind_name (source inputs) (Name_var x)). left.
+      exists ty, btm. split; [ exact Hx | reflexivity ]. }
+    destruct Hsrc as [ty0 Hfind0].
+    destruct (Hagree index use (Name_var x) (FlambdaTypeGrammar.kind ty) ty0
+                (proj1 (Hfound index use Huse))
+                (simple_of_kind_var_known use x kind Hk) Hfind0)
+      as [ty' Hfind'].
+    exact (simple_of_kind_unique use (Var x) (FlambdaTypeGrammar.kind ty) kind
+             (ex_intro _ ty' Hfind') Hk). }
+  destruct (join_parameters_sound join_depth)
+    as [Hfresh [Heqb [Hextension Hconst]]].
+  fold p in Hfresh, Heqb, Hextension, Hconst.
+  assert (Hreduce :
+            FlambdaJoinTypesSpec.reduce_head_of_kind_naked_immediate_sound
+              reduce_head_of_kind_naked_immediate).
+  { intros tenv0 statics valuation v head Hsat Hhead.
+    exact (FlambdaMeetStepsProofs.reduce_head_of_kind_naked_immediate_sound
+             statics valuation tenv0 head v Hsat Hhead). }
+  pose proof (n_way_join_of_types_true (source inputs) p (fuel_of_env fuel)
+                expand_head_for_join reduce_head_of_kind_naked_immediate
+                (fuel_of_types fuel) Hfresh Heqb Hextension
+                expand_head_for_join_sound Hreduce) as Hjt.
+  destruct (first_phases_true (source inputs) jt join_choices p
+              (fuel_of_env fuel)
+              avoid envs s1 s2 s3 relations2 relations3 Hjt Hfresh Heqb Hconst
+              Hsource Huses Hinvariant Hkinded_envs Hlevels Hkinds Haliases
+              Hdelayed Hloop) as [Htrue3 [Hrelations3 Hgrows3]].
+  pose proof (first_phases_kinded (source inputs) jt join_choices p
+                (fuel_of_env fuel) avoid envs s1 s2 s3 relations2 relations3
+                Hjt Hfresh Heqb Hconst Hsource Huses Hinvariant Hkinded_envs
+                Hlevels Hkinds Haliases Hdelayed Hloop) as Hstate3.
+  assert (Hnonempty1 : relations_nonempty []).
+  { intros r names' Hr. discriminate Hr. }
+  pose proof (loop_relations_nonempty _ _ _ _ _ _ _ _ _ _
+                (delayed_equations_relations_nonempty _ _ _ _ _ _ _ _
+                   Hnonempty1 Hdelayed)
+                Hloop) as Hnonempty3.
+  pose proof (first_phases_scoped (source inputs) jt join_choices p
+                (fuel_of_env fuel) avoid envs s1 s2 s3 relations2 relations3
+                Hjt
+                (n_way_join_keeps_scoped p (fuel_of_env fuel)
+                   (fuel_of_types fuel) expand_head_for_join
+                   reduce_head_of_kind_naked_immediate type_eqb
+                   block_shape_eqb)
+                Hfresh Heqb Hconst Hsource Huses Hinvariant Hkinded_envs
+                Hlevels Hkinds Haliases Hdelayed Hloop) as Hscoped3.
+  destruct (first_phases_kinds (source inputs) jt join_choices p
+              (fuel_of_env fuel) avoid envs s1 s2 s3 relations2 relations3 Hjt
+              (n_way_join_keeps_kinds p (fuel_of_env fuel)
+                 (fuel_of_types fuel) expand_head_for_join
+                 reduce_head_of_kind_naked_immediate type_eqb block_shape_eqb
+                 Hfresh)
+              Hfresh Heqb Hconst Hsource Huses Hinvariant Hkinded_envs Hlevels
+              Hkinds Haliases Hdelayed Hloop) as [HX HR].
+  destruct (first_phases_names jt join_choices p (fuel_of_env fuel) avoid
+              (source inputs) envs s1 s2 s3 relations2 relations3
+              (n_way_join_keeps_names p (fuel_of_env fuel)
+                 (fuel_of_types fuel) expand_head_for_join
+                 reduce_head_of_kind_naked_immediate type_eqb block_shape_eqb
+                 Hfresh)
+              Hfresh Haliases Hdelayed Hloop) as [Hnames_kept Hmade].
+  assert (Huse3 :
+            ∀ (index : Index.t) (use : Typing_env.t),
+              Join_env.joined_env s3 index = Some use
+              <-> use_at inputs index use ∧ Typing_env.is_bottom use = false).
+  { intros index use. rewrite (proj1 Hgrows3). split.
+    - exact (Hfound index use).
+    - intros [Hat Hb]. destruct (Hhas index use Hat Hb) as [level [_ Hl]].
+      apply get_nth_lookup. exists (Typing_env_level.equations level).
+      exact Hl. }
+  assert (Hinvariant3 : joined_envs_are typing_env_invariant s3).
+  { intros index use Huse. rewrite (proj1 Hgrows3) in Huse.
+    exact (Hinvariant index use Huse). }
+  assert (Hkinded3 : joined_envs_are typing_env_kinded s3).
+  { intros index use Huse. rewrite (proj1 Hgrows3) in Huse.
+    exact (Hkinded_envs index use Huse). }
+  assert (Hsymbols3 : symbols_of_joined_envs_in_source (source inputs) s3).
+  { intros index use sym Huse Hmem.
+    exact (Hsymbols index use sym (proj1 (proj1 (Huse3 index use) Huse))
+             Hmem). }
+  repeat (split; [ assumption | ]). exact Hsymbols3.
+Qed.
+
+(* The join that Simplify calls, unfolded. *)
+Lemma model_join_unfold {A : Type} (join_choices : Join_env.choices)
+    (meet_choices : meet_choices) (join_depth : nat) (fuel : fuels)
+    (avoid : list variable) (inputs : join_inputs A) (target : Typing_env.t)
+    (analysis : Analysis.t A) (envs : Joined_envs.t) :
+  model_join join_choices meet_choices join_depth fuel avoid inputs
+  = Some (target, analysis) ->
+  Join_env.cut_for_joins (cut_after inputs) (numbered_uses inputs)
+  = Some envs ->
+  ∃ (target_env : Meet_env.t)
+    (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind))
+    (names : list variable),
+    Join_env.cut_and_n_way_join0 meet_env_functions
+      (join_parameters join_depth) (fuel_of_env fuel) join_choices
+      (model_join_of_types join_depth fuel)
+      (model_meet_expanded_head join_choices meet_choices join_depth fuel)
+      avoid (Meet_env.create (source inputs)) (source inputs) envs
+    = Some (target_env, definitions, names)
+    ∧ target = Meet_env.typing_env target_env.
+Proof.
+  intros Hjoin.
+  unfold model_join, join_with, cut_and_n_way_join_with_analysis in Hjoin.
+  cbv zeta in Hjoin.
+  destruct (Join_env.cut_for_joins _ _) as [envs' | ] eqn:Hcut';
+    [ | discriminate ].
+  intros Hcut. injection Hcut as ->.
+  destruct (Join_env.cut_and_n_way_join0 _ _ _ _ _ _ _ _ _ _)
+    as [[[menv_t definitions] names] | ] eqn:Hjoin0; [ | discriminate ].
+  destruct (Analysis.create _ envs definitions) as [analysis' | ]
+    eqn:Hanalysis; [ | discriminate ].
+  injection Hjoin as <- <-.
+  exists menv_t, definitions, names. split; reflexivity.
+Qed.
+
+(* The join that Simplify calls, where there is an environment to
+   join: its target is what the two additions answer. *)
+Lemma model_join_replayed {A : Type} (join_choices : Join_env.choices)
+    (meet_choices : meet_choices) (join_depth : nat) (fuel : fuels)
+    (avoid : list variable) (inputs : join_inputs A) (target : Typing_env.t)
+    (analysis : Analysis.t A) (envs : Joined_envs.t) (s3 : Join_env.t)
+    (relations3 : Join_env.inverse_relations)
+    (kept : list (variable * flambda_kind))
+    (equations relation_equations : list (name * flambda_type))
+    (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind)) :
+  let mh :=
+    model_meet_expanded_head join_choices meet_choices join_depth fuel
+  in
+  model_join join_choices meet_choices join_depth fuel avoid inputs
+  = Some (target, analysis) ->
+  model_join_run join_choices join_depth fuel avoid inputs envs s3 relations3
+    kept equations relation_equations definitions ->
+  Keyed.is_empty envs = false ->
+  ∃ menv1 target_env : Meet_env.t,
+    Meet_env.add_env_extension (model_join_defined inputs s3 kept)
+      (Env_extension equations) mh
+    = Some menv1
+    ∧ Meet_env.add_env_extension menv1 (Env_extension relation_equations) mh
+      = Some target_env
+    ∧ target = Meet_env.typing_env target_env.
+Proof.
+  intros mh Hjoin
+    [s1 [s2 [relations2 [Hcut [Haliases [Hdelayed [Hloop Hadds]]]]]]] Hempty.
+  change (Join_env.cut_for_joins (cut_after inputs) (numbered_uses inputs)
+          = Some envs) in Hcut.
+  destruct (model_join_unfold join_choices meet_choices join_depth fuel avoid
+              inputs target analysis envs Hjoin Hcut)
+    as [target_env [definitions' [names [Hjoin0 ->]]]].
+  fold mh in Hjoin0.
+  set (p := join_parameters join_depth) in *.
+  set (jt := model_join_of_types join_depth fuel) in *.
+  destruct (cut_and_n_way_join0_replayed Meet_env.t meet_expanded_head
+              meet_env_functions p (fuel_of_env fuel) join_choices jt mh avoid
+              (Meet_env.create (source inputs)) target_env (source inputs)
+              envs definitions' names Hempty Hjoin0)
+    as [s1' [s2' [s3' [relations2' [relations3' [kept' [equations'
+          [relation_equations' [menv1 [Haliases' [Hdelayed' [Hloop' [Hnames
+            [Hadds' [Hadd1 Hadd2]]]]]]]]]]]]]]].
+  rewrite Haliases in Haliases'. injection Haliases' as <-.
+  rewrite Hdelayed in Hdelayed'. injection Hdelayed' as <- <-.
+  change (Join_env.join_depth p) with join_depth in Hloop'.
+  rewrite Hloop in Hloop'. injection Hloop' as <- <-.
+  subst names.
+  cbn [Join_env.with_names_to_avoid Join_env.add_env_extension
+         Join_env.current_typing_env meet_env_functions] in Hadds', Hadd1,
+    Hadd2.
+  destruct (last_phase_adds_functional _ _ _ _ _ _ _ _ _ _ _ _ Hadds Hadds')
+    as (-> & -> & -> & ->).
+  exists menv1, target_env.
+  split; [ exact Hadd1 | ]. split; [ exact Hadd2 | reflexivity ].
+Qed.
+
+Theorem model_join_keeps : model_join_keeps_statement.
+Proof.
+  intros A join_choices meet_choices join_depth fuel avoid inputs target
+    analysis envs s3 relations3 kept equations relation_equations definitions
+    Hmh Hinputs Hkinded Hagree Hfits Hjoin Hrun Hrest.
+  pose proof Hrun
+    as [s1 [s2 [relations2 [Hcut [Haliases [Hdelayed [Hloop Hadds]]]]]]].
+  change (Join_env.cut_for_joins (cut_after inputs) (numbered_uses inputs)
+          = Some envs) in Hcut.
+  set (mh :=
+         model_meet_expanded_head join_choices meet_choices join_depth fuel)
+    in *.
+  set (initial_env := Meet_env.create (source inputs)) in *.
+  destruct (Keyed.is_empty envs) eqn:Hempty.
+  { (* No environment to join: the target is bottom. *)
+    destruct (model_join_unfold join_choices meet_choices join_depth fuel
+                avoid inputs target analysis envs Hjoin Hcut)
+      as [target_env [definitions' [names [Hjoin0 ->]]]].
+    unfold Join_env.cut_and_n_way_join0 in Hjoin0. rewrite Hempty in Hjoin0.
+    injection Hjoin0 as <- _ _.
+    cbn [Join_env.make_bottom meet_env_functions].
+    destruct (make_bottom_keeps initial_env Hfits) as [Hextends Hfits'].
+    split; [ exact Hfits' | ].
+    split; [ exact (extends_keeps_source _ _ Hextends) | ].
+    intros x Hx Hnot. exfalso. apply Hnot. exact Hx. }
+  destruct (model_join_replayed join_choices meet_choices join_depth fuel
+              avoid inputs target analysis envs s3 relations3 kept equations
+              relation_equations definitions Hjoin Hrun Hempty)
+    as [menv1 [target_env [Hadd1 [Hadd2 ->]]]].
+  fold mh in Hadd1, Hadd2.
+  unfold model_join_defined in Hrest, Hadd1. fold initial_env in Hrest, Hadd1.
+  set (names :=
+         Bindings_in_target_env.names_to_avoid (Join_env.bindings s3)) in *.
+  set (menv_a := Meet_env.with_names_to_avoid initial_env names) in *.
+  set (menv0 :=
+         variables_defined meet_env_functions menv_a
+           (Bindings_in_target_env.imported_variables_in_order
+              (Join_env.bindings s3)
+            ++ kept)) in *.
+  destruct (inputs_first_phases join_choices join_depth fuel avoid inputs envs
+              s1 s2 s3 relations2 relations3 Hinputs Hkinded Hagree Hcut
+              Haliases Hdelayed Hloop)
+    as (Htrue3 & Hrelations3 & Hgrows3 & Hstate3 & Hnonempty3 & Hscoped3 & HX
+        & HR & Hnames_kept & Hmade & Huse3 & Hinvariant3 & Hkinded3
+        & Hsymbols3).
+  destruct (last_phase_kept _ (fuel_of_env fuel) (source inputs) s3 relations3
+              mh menv_a menv1 target_env kept equations relation_equations
+              definitions Htrue3 Hrelations3 Hnonempty3 Hscoped3 Hstate3
+              Hinvariant3 Hkinded3 Hsymbols3 HX HR eq_refl Hfits Hadds Hrest
+              Hmh Hadd1 Hadd2) as [Hkept0 [Hstep1 Hstep2]].
+  fold menv0 in Hkept0, Hstep1.
+  assert (Hextends_a : meet_env_extends initial_env menv_a).
+  { apply with_names_extends. intros x Hx. discriminate Hx. }
+  pose proof (meet_env_extends_trans _ _ _ Hextends_a (proj1 Hkept0))
+    as Hextends0.
+  pose proof (meet_env_extends_trans _ _ _ Hextends0 (proj1 (proj1 Hstep1)))
+    as Hextends1.
+  pose proof (meet_env_extends_trans _ _ _ Hextends1 (proj1 (proj1 Hstep2)))
+    as Hextends2.
+  destruct (last_phase_adds_kept _ (fuel_of_env fuel) s3 relations3 kept
+              equations relation_equations definitions Hadds)
+    as [Hdistinct Hkept].
+  assert (Hsource3 : Meet_env.typing_env menv_a = Join_env.source_env s3).
+  { rewrite (proj2 (proj2 Htrue3)). reflexivity. }
+  destruct (target_variables_defined s3 menv_a kept (proj1 Htrue3) Hsource3
+              Hfits Hkept Hdistinct) as [_ [Hmem0 [_ Hnames0]]].
+  fold menv0 in Hmem0, Hnames0.
+  assert (Hkept_made :
+            ∀ x : variable, x ∈ map fst kept -> is_existential s3 x).
+  { intros x Hx. apply in_map_iff in Hx. destruct Hx as [[y k] [Heq Hin]].
+    cbn in Heq. subst y. apply is_bound_lookup. exists k.
+    exact (in_order_lookup _ _ _ (Hkept _ Hin)). }
+  destruct (proj1 Htrue3) as [_ [_ [_ [_ Himports]]]].
+  split; [ exact (proj2 (proj1 Hstep2)) | ].
+  split; [ exact (extends_keeps_source _ _ Hextends2) | ].
+  intros x Hx Hnot. unfold knows in Hx, Hnot.
+  assert (Hnot' : Typing_env.mem None (source inputs) (Name_var x) = false).
+  { destruct (Typing_env.mem None (source inputs) (Name_var x));
+      [ exfalso; exact (Hnot eq_refl) | reflexivity ]. }
+  split.
+  - intros Hterms. unfold in_scope_in_terms in Hterms.
+    rewrite (last_phase_not_in_terms _ (fuel_of_env fuel) s3 relations3 menv_a
+               menv1 target_env kept equations relation_equations definitions
+               (proj1 Htrue3) Hsource3 Hfits Hadds (proj1 (proj1 Hstep1))
+               (proj1 (proj1 Hstep2))
+               (fun y H1 H0 => proj2 (proj2 (proj2 Hstep1 y H1 H0)))
+               (fun y H2 H1 => proj2 (proj2 (proj2 Hstep2 y H2 H1))) x Hx
+               Hnot') in Hterms.
+    discriminate Hterms.
+  - assert (Hnew :
+              among x (Meet_env.names_to_avoid menv0) = false ->
+              among x avoid = false).
+    { intros Hav. destruct (among x avoid) eqn:Hx_avoid; [ | reflexivity ].
+      rewrite Hnames0 in Hav.
+      change (among x names = false) in Hav.
+      pose proof (proj2 (among_In _ _)
+                    (Hnames_kept x (proj1 (among_In _ _) Hx_avoid))) as Hin.
+      change (among x names = true) in Hin. rewrite Hin in Hav.
+      discriminate Hav. }
+    destruct (Typing_env.mem None (Meet_env.typing_env menv0) (Name_var x))
+      eqn:H0.
+    + apply Hmem0 in H0. destruct H0 as [H0 | [H0 | H0]].
+      * exfalso. rewrite (proj2 (proj2 Htrue3)) in H0. exact (Hnot H0).
+      * left. destruct (Himports x H0) as [_ [index [use [Huse Hknows]]]].
+        exists index, use.
+        destruct (proj1 (Huse3 index use) Huse) as [Hat Hb].
+        split; [ exact Hat | ]. split; [ exact Hb | exact Hknows ].
+      * right. destruct (among x avoid) eqn:Hav; [ | reflexivity ].
+        exfalso.
+        exact (Hmade x (Hkept_made x H0) (proj1 (among_In _ _) Hav)).
+    + right. apply Hnew.
+      destruct (Typing_env.mem None (Meet_env.typing_env menv1) (Name_var x))
+        eqn:H1; [ exact (proj1 (proj2 Hstep1 x H1 H0)) | ].
+      destruct (among x (Meet_env.names_to_avoid menv0)) eqn:Hav0;
+        [ | reflexivity ].
+      pose proof (proj1 (proj2 Hstep2 x Hx H1)) as Hnew2.
+      rewrite (extends_avoids menv0 menv1 x (proj1 (proj1 Hstep1)) Hav0)
+        in Hnew2.
+      discriminate Hnew2.
+Qed.
+
+Theorem model_join_admits_use : model_join_admits_use_statement.
+Proof.
+  intros A join_choices meet_choices join_depth fuel avoid inputs target
+    analysis envs s3 relations3 kept equations relation_equations definitions
+    index use statics valuation Hmh Hsound Hinputs Hkinded Hagree Hfits Hjoin
+    Hrun Hrest Hat Hbottom Hstatics Hsat_use Hsat_source Htags Haliases_v
+    Hscrutinees Hvalued.
+  pose proof Hrun
+    as [s1 [s2 [relations2 [Hcut [Haliases [Hdelayed [Hloop Hadds]]]]]]].
+  change (Join_env.cut_for_joins (cut_after inputs) (numbered_uses inputs)
+          = Some envs) in Hcut.
+  destruct (inputs_first_phases join_choices join_depth fuel avoid inputs envs
+              s1 s2 s3 relations2 relations3 Hinputs Hkinded Hagree Hcut
+              Haliases Hdelayed Hloop)
+    as (Htrue3 & Hrelations3 & Hgrows3 & Hstate3 & Hnonempty3 & Hscoped3 & HX
+        & HR & Hnames_kept & Hmade & Huse3 & Hinvariant3 & Hkinded3
+        & Hsymbols3).
+  assert (Huse : Join_env.joined_env s3 index = Some use).
+  { apply Huse3. split; [ exact Hat | exact Hbottom ]. }
+  assert (Hempty : Keyed.is_empty envs = false).
+  { pose proof Huse as Huse0. rewrite (proj1 Hgrows3) in Huse0.
+    destruct envs; [ discriminate Huse0 | reflexivity ]. }
+  destruct (model_join_replayed join_choices meet_choices join_depth fuel
+              avoid inputs target analysis envs s3 relations3 kept equations
+              relation_equations definitions Hjoin Hrun Hempty)
+    as [menv1 [target_env [Hadd1 [Hadd2 ->]]]].
+  unfold model_join_defined in Hrest, Hadd1.
+  set (mh :=
+         model_meet_expanded_head join_choices meet_choices join_depth fuel)
+    in *.
+  set (menv_a :=
+         Meet_env.with_names_to_avoid (Meet_env.create (source inputs))
+           (Bindings_in_target_env.names_to_avoid (Join_env.bindings s3)))
+    in *.
+  destruct (last_phase_satisfied _ (fuel_of_env fuel) (source inputs) s3
+              relations3 mh menv_a menv1 target_env kept equations
+              relation_equations definitions index use statics valuation
+              Htrue3 Hrelations3 Hnonempty3 Hscoped3 Hstate3 Hinvariant3
+              Hkinded3 Hsymbols3 HX HR eq_refl Hfits
+              (fun x Hx => proj2 (among_In _ _) Hx) Hadds Hrest Hmh Hsound
+              Hadd1 Hadd2 Huse Hstatics Hsat_source Hsat_use Htags Haliases_v
+              Hscrutinees Hvalued)
+    as [valuation' [Hfrom [Hsat [_ Hfrom_source]]]].
+  exists valuation'. split; [ exact Hsat | ].
+  split; [ exact Hfrom | exact Hfrom_source ].
 Qed.
