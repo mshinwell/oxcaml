@@ -45,42 +45,34 @@ Import ListNotations.
 
 (* A [Let_cont] moved is equivalent to the [Let_cont] where it was. *)
 Fixpoint sink_to_use_equivalent (body : expr) {struct body} :
-  ∀ (k : continuation) (h : continuation_handler) (sunk : expr),
-    sink_to_use k h body = Some sunk ->
-    expr_equivalent (Let_cont_non_recursive k h body) sunk.
+  ∀ (k : continuation) (h : continuation_handler),
+    expr_equivalent (Let_cont_non_recursive k h body) (sink_to_use k h body).
 Proof.
   destruct body
     as [ x kind d body | bindings body | k' [params' metadata' handler'] body
        | handlers body | ap | ac | scrutinee arms | ];
-    intros k h sunk; simpl; try discriminate.
+    intros k h hp; cbn [sink_to_use];
+    try (intros vars conts statics; apply equivalent_refl).
   - (* Let *)
-    destruct (var_free_in_handler_b x h) eqn:Hfree; [ discriminate | ].
-    destruct (sink_to_use k h body) as [sunk' | ] eqn:Hsink;
-      [ | discriminate ].
-    intros [= <-].
+    destruct (var_free_in_handler_b x h) eqn:Hfree;
+      [ intros vars conts statics; apply equivalent_refl | ].
     apply (expr_equivalent_trans _
       (Let x kind d (Let_cont_non_recursive k h body))).
     + apply let_cont_past_let. intros Hx.
       apply var_free_in_handler_b_sound in Hx. congruence.
     + exact (plug_equivalent (Let_body x kind d Hole) _ _ (not_many _)
-        (sink_to_use_equivalent body k h sunk' Hsink)).
+        (sink_to_use_equivalent body k h)).
   - (* Let_static *)
-    destruct (sink_to_use k h body) as [sunk' | ] eqn:Hsink;
-      [ | discriminate ].
-    intros [= <-].
     apply (expr_equivalent_trans _
       (Let_static bindings (Let_cont_non_recursive k h body))).
     + apply let_cont_past_let_static.
     + exact (plug_equivalent (Let_static_body bindings Hole) _ _ (not_many _)
-        (sink_to_use_equivalent body k h sunk' Hsink)).
+        (sink_to_use_equivalent body k h)).
   - (* past another Let_cont *)
     destruct
       (negb (Pos.eqb k k') && negb (cont_free_b k handler')
        && negb (cont_free_in_handler_b k' h))
-      eqn:Hpast; [ | discriminate ].
-    destruct (sink_to_use k h body) as [sunk' | ] eqn:Hsink;
-      [ | discriminate ].
-    intros [= <-].
+      eqn:Hpast; [ | intros vars conts statics; apply equivalent_refl ].
     apply andb_true_iff in Hpast as [Hpast Hk'].
     apply andb_true_iff in Hpast as [Hne Hk].
     apply negb_true_iff in Hne, Hk, Hk'. apply Pos.eqb_neq in Hne.
@@ -96,15 +88,7 @@ Proof.
         (Let_cont_non_recursive_body k'
            (Handler params' metadata' handler') Hole)
         _ _ (not_many _)
-        (sink_to_use_equivalent body k h sunk' Hsink)).
-  - (* the call *)
-    destruct
-      (Pos.eqb k (ap_continuation ap) || Pos.eqb k (ap_exn_continuation ap));
-      [ | discriminate ].
-    intros [= <-] vars conts statics hp. apply equivalent_refl.
-  - (* the test *)
-    destruct (arms_apply k arms); [ | discriminate ].
-    intros [= <-] vars conts statics hp. apply equivalent_refl.
+        (sink_to_use_equivalent body k h)).
 Qed.
 
 (* Each layer is a context around what the induction gives; then the
@@ -115,7 +99,8 @@ Proof.
   destruct e
     as [ x kind d body | bindings body | k [params metadata handler] body
        | handlers body | ap | ac | scrutinee arms | ];
-    simpl; try (intros vars conts statics hp; apply equivalent_refl).
+    cbn [sink_conts_to_uses];
+    try (intros vars conts statics hp; apply equivalent_refl).
   - exact (plug_equivalent (Let_body x kind d Hole) _ _ (not_many _)
       (sink_conts_to_uses_equivalent_aux body)).
   - exact (plug_equivalent (Let_static_body bindings Hole) _ _ (not_many _)
@@ -136,13 +121,8 @@ Proof.
           (Let_cont_non_recursive_body k
              (Handler params metadata (sink_conts_to_uses handler)) Hole)
           _ _ (not_many _) (sink_conts_to_uses_equivalent_aux body)). }
-    destruct
-      (sink_to_use k
-         (Handler params metadata (sink_conts_to_uses handler))
-         (sink_conts_to_uses body))
-      as [sunk | ] eqn:Hsink; [ | exact Hlayers ].
     exact (expr_equivalent_trans _ _ _ Hlayers
-      (sink_to_use_equivalent _ _ _ _ Hsink)).
+      (sink_to_use_equivalent _ _ _)).
   - exact (plug_equivalent (Let_cont_recursive_body handlers Hole) _ _
       (not_many _) (sink_conts_to_uses_equivalent_aux body)).
 Qed.

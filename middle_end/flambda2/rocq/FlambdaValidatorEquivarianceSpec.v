@@ -750,7 +750,7 @@ Definition rewrite_rec_handlers_equivariant_statement : Prop :=
 Definition sink_let_conts_equivariant_statement : Prop :=
   rewrite_equivariant sink_let_conts.
 
-(* Moving a continuation down to the call or the test that uses it
+(* Moving a continuation down past the bindings under it
    (FlambdaSinkUsesSpec.v). *)
 Definition sink_conts_to_uses_equivariant_statement : Prop :=
   rewrite_equivariant sink_conts_to_uses.

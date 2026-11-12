@@ -3348,12 +3348,12 @@ Qed.
 Lemma sink_let_conts_equivariant : rewrite_equivariant sink_let_conts.
 Proof. exact sink_let_conts_equivariant_aux. Qed.
 
-(* Moving a continuation down to the call or the test that uses it. *)
+(* Moving a continuation down past the bindings under it. *)
 Fixpoint sink_to_use_equivariant (r : renaming) (k : continuation)
     (h : continuation_handler) (body : expr) {struct body} :
   sink_to_use (rename_continuation r k) (rename_handler r h)
     (rename_expr r body)
-  = option_map (rename_expr r) (sink_to_use k h body).
+  = rename_expr r (sink_to_use k h body).
 Proof.
   destruct body
     as [ x kind d body | bindings body | k' [params' metadata' handler'] body
@@ -3361,22 +3361,14 @@ Proof.
     cbn [rename_expr rename_handler sink_to_use]; try reflexivity.
   - rewrite var_free_in_handler_b_equivariant,
       (sink_to_use_equivariant r k h body).
-    destruct (var_free_in_handler_b x h); [ reflexivity | ].
-    destruct (sink_to_use k h body); reflexivity.
-  - rewrite (sink_to_use_equivariant r k h body).
-    destruct (sink_to_use k h body); reflexivity.
+    destruct (var_free_in_handler_b x h); reflexivity.
+  - rewrite (sink_to_use_equivariant r k h body). reflexivity.
   - rewrite cont_free_b_equivariant_aux, cont_free_in_handler_b_equivariant,
       rename_continuation_eqb, (sink_to_use_equivariant r k h body).
     destruct
       (negb (Pos.eqb k k') && negb (cont_free_b k handler')
        && negb (cont_free_in_handler_b k' h));
-      [ | reflexivity ].
-    destruct (sink_to_use k h body); reflexivity.
-  - change (Apply (rename_apply r ap)) with (rename_expr r (Apply ap)).
-    rewrite cont_free_b_equivariant_aux.
-    destruct (cont_free_b k (Apply ap)); reflexivity.
-  - rewrite arms_apply_equivariant.
-    destruct (arms_apply k arms); reflexivity.
+      reflexivity.
 Qed.
 
 Fixpoint sink_conts_to_uses_equivariant_aux (r : renaming) (e : expr) :
@@ -3390,17 +3382,10 @@ Proof.
   - rewrite sink_conts_to_uses_equivariant_aux. reflexivity.
   - rewrite sink_conts_to_uses_equivariant_aux. reflexivity.
   - rewrite !sink_conts_to_uses_equivariant_aux.
-    pose proof
+    exact
       (sink_to_use_equivariant r k
          (Handler params metadata (sink_conts_to_uses handler))
-         (sink_conts_to_uses body))
-      as Hsink.
-    cbn [rename_handler] in Hsink. rewrite Hsink.
-    destruct
-      (sink_to_use k
-         (Handler params metadata (sink_conts_to_uses handler))
-         (sink_conts_to_uses body));
-      reflexivity.
+         (sink_conts_to_uses body)).
   - rewrite sink_conts_to_uses_equivariant_aux. reflexivity.
 Qed.
 

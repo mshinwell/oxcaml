@@ -233,46 +233,28 @@ Qed.
 Theorem sink_let_conts_keeps_scope : sink_let_conts_keeps_scope_statement.
 Proof. apply keeps_scope_intro, sink_let_conts_scoped. Qed.
 
-(* A continuation moved down to the call or the test that uses it: the
-   moves are three of those above. *)
+(* A continuation moved down past the bindings under it: the moves
+   are three of those above. *)
 Fixpoint sink_to_use_scoped (k : continuation)
     (h : continuation_handler) (body : expr) {struct body} :
-  ∀ sunk : expr,
-    sink_to_use k h body = Some sunk ->
-    scoped (Let_cont_non_recursive k h body) sunk.
+  scoped (Let_cont_non_recursive k h body) (sink_to_use k h body).
 Proof.
   destruct body
     as [x kind d body | bindings body | k' [params metadata handler] body
        | handlers body | ap | ac | scrutinee arms | ];
-    cbn [sink_to_use]; intros sunk;
-    try (intros Hsunk; discriminate Hsunk).
-  - destruct (var_free_in_handler_b x h);
-      [ intros Hsunk; discriminate Hsunk | ].
-    destruct (sink_to_use k h body) as [sunk' | ] eqn:Hbody;
-      cbn [option_map]; intros Hsunk; [ | discriminate Hsunk ].
-    injection Hsunk as <-.
-    apply scoped_let_cont_past_let, sink_to_use_scoped, Hbody.
-  - destruct (sink_to_use k h body) as [sunk' | ] eqn:Hbody;
-      cbn [option_map]; intros Hsunk; [ | discriminate Hsunk ].
-    injection Hsunk as <-.
-    apply scoped_let_cont_past_let_static, sink_to_use_scoped, Hbody.
+    cbn [sink_to_use]; try apply scoped_refl.
+  - destruct (var_free_in_handler_b x h); [ apply scoped_refl | ].
+    apply scoped_let_cont_past_let, sink_to_use_scoped.
+  - apply scoped_let_cont_past_let_static, sink_to_use_scoped.
   - match goal with
-    | |- (if ?test then _ else _) = _ -> _ =>
-      destruct test eqn:Hpast; [ | intros Hsunk; discriminate Hsunk ]
+    | |- scoped _ (if ?test then _ else _) =>
+      destruct test eqn:Hpast; [ | apply scoped_refl ]
     end.
     apply andb_true_iff in Hpast. destruct Hpast as [Hpast _].
     apply andb_true_iff in Hpast. destruct Hpast as [_ Hunused].
     apply negb_true_iff in Hunused.
-    destruct (sink_to_use k h body) as [sunk' | ] eqn:Hbody;
-      cbn [option_map]; intros Hsunk; [ | discriminate Hsunk ].
-    injection Hsunk as <-.
     apply scoped_let_cont_past_let_cont;
-      [ exact Hunused | apply sink_to_use_scoped, Hbody ].
-  - destruct (cont_free_b k (Apply ap)); intros Hsunk;
-      [ | discriminate Hsunk ].
-    injection Hsunk as <-. apply scoped_refl.
-  - destruct (arms_apply k arms); intros Hsunk; [ | discriminate Hsunk ].
-    injection Hsunk as <-. apply scoped_refl.
+      [ exact Hunused | apply sink_to_use_scoped ].
 Qed.
 
 Fixpoint sink_conts_to_uses_scoped (e : expr) :
@@ -283,16 +265,8 @@ Proof.
        | handlers body | ap | ac | scrutinee arms | ];
     cbn [sink_conts_to_uses];
     try (scoped_under_binders sink_conts_to_uses_scoped).
-  cbv zeta.
-  destruct
-    (sink_to_use k
-       (Handler params metadata (sink_conts_to_uses handler))
-       (sink_conts_to_uses body))
-    as [sunk | ] eqn:Hsunk.
-  - eapply scoped_trans;
-      [ | exact (sink_to_use_scoped _ _ _ _ Hsunk) ].
-    scoped_under_binders sink_conts_to_uses_scoped.
-  - scoped_under_binders sink_conts_to_uses_scoped.
+  eapply scoped_trans; [ | apply sink_to_use_scoped ].
+  scoped_under_binders sink_conts_to_uses_scoped.
 Qed.
 
 Theorem sink_conts_to_uses_keeps_scope :

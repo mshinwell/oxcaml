@@ -48,7 +48,7 @@
    to begin with, as a round applies it; a rewrite that keeps scope,
    taken into the handlers of the recursive continuations
    (FlambdaRecHandlersSpec.rewrite_rec_handlers); the moving of a
-   continuation down to the call or the test that uses it
+   continuation down past the bindings under it
    (FlambdaSinkUsesSpec.sink_conts_to_uses), which the validation
    applies once, when the rounds are over, to each term that it then
    compares; and loopify (FlambdaLoopifySpec.loopify_unit), which

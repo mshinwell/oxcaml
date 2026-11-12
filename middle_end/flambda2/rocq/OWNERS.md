@@ -511,7 +511,7 @@ units with loops (`while`, `for`, tail-recursive functions).
 - `middle_end/flambda2/rocq/FlambdaCodeLets*` (removing, in the body
   of code, the unused `Let`s of its parameters)
 - `middle_end/flambda2/rocq/FlambdaSinkUses*` (moving a continuation
-  down to the call or the test that uses it)
+  down past the bindings under it)
 
 ## N1: nominal loose ends
 
