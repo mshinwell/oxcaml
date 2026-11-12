@@ -320,6 +320,13 @@ it started with. `state_values_all` is not changed.
     does not exit says it of an exit with any heap (V3's
     `call_code_no_exit`, `run_call_no_exit` and
     `apply_cont_value_closed` of `FlambdaLiftProofs.v`; V3 agreed).
+14. A run from the empty heap stays in it. Where a statement builds a
+    state on `empty_static_env`, which has `empty_heap`, and an
+    existential binds the static environment of the other states that
+    it builds, those have `empty_heap` too and the existential binds
+    no heap (`head_bound` of `FlambdaLiftFromArmsProofs.v`). An
+    existential heap would say less, and the proofs that use the
+    lemma could not name it.
 
 ### What a script does
 
@@ -365,7 +372,7 @@ with the number of binders: `FlambdaContextWhereSpec.v` 17,
 meaning: each says of one more component, which nothing reads, what
 it said.
 
-The rehearsals corrected the script five times:
+The rehearsals corrected the script six times:
 
 - an application, outside its section, of a lemma of a section that
   gained the variable is left to the rules (16 places): the script
@@ -381,7 +388,9 @@ The rehearsals corrected the script five times:
   one of them the static environment, gains `(hp : heap)` after that
   group. Before, the state that `merging_inv` of
   `types/rocq/FlambdaSimplifySwitchMergeProofs.v` builds was given
-  `empty_heap`, which made two proofs fail for a good reason.
+  `empty_heap`, which made two proofs fail for a good reason;
+- decision 14. Before, the existential of `head_bound` bound a heap,
+  and its proof and the proof that uses it failed.
 
 The script and the rules leave 131 lines longer than 80 columns. A
 tool that is not in this tree breaks each at a space, and the tree is
@@ -389,8 +398,8 @@ built after it.
 
 ### The edits that are choices
 
-Six edits are not the script's, because each is a choice. The first
-five are exact replacements made after the script; the sixth is among
+Seven edits are not the script's, because each is a choice. The first
+six are exact replacements made after the script; the seventh is among
 the repairs by hand. Their owners have agreed to them.
 
 - C0: the tactic `simpl_state` of `rocq/FlambdaSemanticsProofs.v`
@@ -406,6 +415,10 @@ the repairs by hand. Their owners have agreed to them.
   `rocq/FlambdaNormaliseProofs.v` introduces the heaps of
   `expr_refines` and of `handler_refines_at`. A tactic is not a
   proof: neither the script nor the rules read it.
+- C0: `empty_heap` is in the list of what `rocq/FlambdaExtract.v`
+  extracts, before `empty_static_env`: the test tool builds the
+  initial state of a run with it. The OCaml checks on the tree after
+  the sweep showed that it was missing.
 - N1: `forget_with_heap` of `rocq/FlambdaHeapEquivarianceProofs.v`
   takes the premise that the heap given is the heap of the state. A
   state has a heap now, so the lemma is false without it; its two
@@ -481,6 +494,11 @@ and file:
   one more component in an existential; in `drops_round` the relation
   is taken apart, since the two states that it relates have one heap.
 
+One more since, on b859e1bdef: T2's `let_refines_value` of
+`types/rocq/FlambdaSimplifyPassProofs.v`, which is new there. Its
+statement has no state, and its proof runs a probe, which now starts
+from `empty_heap`; T2 has been told.
+
 ### The run of the day
 
 The run is made so that what a rehearsal has repaired is not repaired
@@ -488,45 +506,73 @@ again:
 
 1. The statements of the tip are compiled, and Rocq is asked which
    variables of its section each proof uses.
-2. The script, and the five edits that are choices.
+2. The script, and the six edits that are choices.
 3. A file that the script leaves as it left it in the rehearsal takes
-   the text that the rehearsal ended with. The other files, new or
-   changed since the rehearsal, keep the script's text.
-4. The statements are compiled, and the rules run on those other
-   files.
-5. In them, a proof that the rehearsal repaired by hand is given its
-   repaired text, if its lemma has not changed since.
+   the text that the rehearsal ended with. In a file that differs, a
+   lemma whose text after the script is what it was after the script
+   in the rehearsal takes, from its first line to the end of its
+   proof, the text that the rehearsal ended with.
+4. The statements are compiled, and the rules run on the files that
+   differ: there they find the lemmas that are new or changed since
+   the rehearsal.
+5. In those files, a proof that a rehearsal repaired by hand is given
+   its repaired text, if its lemma has not changed since.
 6. What still fails is for a hand.
 7. The lines are wrapped, and the tree is built: `make -C rocq all`,
-   `make -C rocq assumptions`, then the OCaml checks, which need
-   C0's two edits to the test tool and the extracted files generated
-   again.
+   `make -C rocq assumptions`, then the OCaml checks, with C0's two
+   edits to the test tool and the extracted files generated again.
 
 The tools of steps 3 and 5 are not in this tree; they compare texts
-and copy them.
+and copy them. Each run is the rehearsal of the next.
 
-Measured, on a machine of 64 cores that other work was using:
+Measured, on a machine of 64 cores:
 
 - On 106a2d501a, without step 3: 77 minutes before the repairs by
   hand (the statements twice, 200 s and 178 s; the variables, 54 s;
   the script and the edits, 55 s; the rules, 69 minutes), then 23
   repairs by hand, eight of them new in that rehearsal.
-- On f24bfe1689, with step 3: 25 of the 378 files had changed since
-  the rehearsal. Steps 1 to 6 took 16 minutes 35 seconds (the
-  statements twice, 320 s and 305 s; the variables, 91 s; the script
-  and the edits, 92 s; step 3, 44 s; the rules on the 25 files, 123 s;
-  the last check of them, 18 s) and left nothing for a hand.
-  `make -C rocq all` then took 3 minutes 56 seconds and
-  `make -C rocq assumptions` 12 minutes 26 seconds; both pass.
+- On f24bfe1689, with step 3 by file only: 25 of the 378 files had
+  changed since the rehearsal. Steps 1 to 6 took 16 minutes 35
+  seconds and left nothing for a hand.
+- On 23daac59dc, after C3's tupled functions, with step 3 by file
+  only: 42 of the 382 files had changed, large files of the core
+  among them. Steps 1 to 6 took 43 minutes 49 seconds, 31 of them
+  the rules going again over every proof of those files, and left
+  nothing for a hand. Step 3 by lemma was made for this case.
+- On 8a5eb534ec, with step 3 as above, on a machine that nothing
+  else was using: 11 of the 386 files had changed. Steps 1 to 6 took
+  7 minutes 28 seconds (the statements twice, 176 s and 124 s; the
+  variables, 53 s; the script and the edits, 40 s; step 3, 15 s; the
+  rules on the 11 files, 31 s; the last check of them, 7 s) and left
+  nothing for a hand. `make -C rocq all` then took 199 s and
+  `make -C rocq assumptions` 234 s; both pass. With C0's two edits to
+  the test tool, `make -s boot-compiler`, the tests of
+  `tests/semantics/` and `make -s fmt` pass on that tree, and no
+  expected output changes.
+- On b859e1bdef: 22 of the 394 files had changed. Steps 1 to 6 took
+  4 minutes 31 seconds and left one proof for a hand (T2's, above).
+  `make -C rocq all` then took 293 s and `make -C rocq assumptions`
+  252 s; both pass.
+- On 60a8f698b6: 16 of the 398 files had changed. Steps 1 to 6 took
+  5 minutes and left two proofs of a new file, which failed by the
+  script's fault and pass since its sixth correction.
 
-So the cost of the day is about a quarter of an hour for the script
-and the rules, the builds, and a hand for what the files that are new
-since the last rehearsal leave. The rehearsal is run again as the
-tip moves, so that those are few.
+The builds are slower when other work uses the machine: on
+f24bfe1689 and 23daac59dc `make -C rocq all` took about four minutes
+and `make -C rocq assumptions` about twelve.
+
+So the cost of the day is about a quarter of an hour, on a machine
+that is free, from a clean tip to a tree of Rocq that builds, then
+the OCaml checks, and a hand for what the lemmas that are new since
+the last rehearsal leave. The rehearsal is run again as the tip
+moves, so that those are few.
 
 ### The test tool and the extracted files
 
-`tests/tools/flsemantics.ml` changes in two places: the pattern of an
-exit has a third component, and the record of the initial state has
-`state_heap = Values.empty_heap`. The extracted files are generated
-again. No expected output changes: the heap of every run is empty.
+`rocq/FlambdaExtract.v` extracts `empty_heap` (the edits that are
+choices). `tests/tools/flsemantics.ml` changes in two places: the
+pattern of an exit has a third component, and the record of the
+initial state has `state_heap = Values.empty_heap`. The extracted
+files are generated again: `FlambdaSemanticsSpec` and
+`FlambdaValueSpec`, each an `.ml` and an `.mli`. No expected output
+changes: the heap of every run is empty.

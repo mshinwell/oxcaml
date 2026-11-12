@@ -43,6 +43,11 @@ middle_end/flambda2/types/rocq in place:
  10. A definition that builds a state from its arguments gains the heap
      as an argument, and so does one that calls it: the first phase is
      run again until no such definition is new.
+ 11. Where a statement builds a state on [empty_static_env], which has
+     [empty_heap], and an existential binds the static environment of
+     the other states that it builds, those have [empty_heap] too, and
+     the existential binds no heap: a run from the empty heap stays in
+     it.
 
 It does not wrap the lines it makes longer than 80 columns. What it
 cannot place it reports (UNBOUND, PROOF-NO-HEAP, INTROS-LATE, and
@@ -300,6 +305,31 @@ BINDER_BARE_UNTYPED_RE = re.compile(
     r"(∀|∃|forall|exists|fun|λ)\s+"
     r"((?:[A-Za-z_][A-Za-z0-9_']*\s+)*[A-Za-z_][A-Za-z0-9_']*)\s*(,|=>)"
 )
+
+
+def existential(t, lo, b):
+    """Whether the binder group [b] is one of an existential quantifier."""
+    if b["kind"] in ("bare_typed", "bare_untyped"):
+        return t.startswith("∃", b["pos"]) or t.startswith("exists", b["pos"])
+    j = b["pos"] - 1
+    while j >= lo:
+        while j >= lo and t[j] in " \n\t":
+            j -= 1
+        if j < lo:
+            return False
+        if t[j] not in ")}":
+            return t[j] == "∃" or t[max(lo, j - 5):j + 1] == "exists"
+        depth = 0
+        while j >= lo:
+            if t[j] in ")}":
+                depth += 1
+            elif t[j] in "({":
+                depth -= 1
+                if depth == 0:
+                    break
+            j -= 1
+        j -= 1
+    return False
 
 
 def binders_in(doc, start, end):
@@ -785,6 +815,28 @@ def process_file(path, rel, tables, report, phase):
         for pos in sorted(keep):
             if any(pos2 != pos and scopes(pos2, pos) for pos2 in keep):
                 del keep[pos]
+        # A run from the empty heap stays in it. Where the statement
+        # builds a state on [empty_static_env], which has [empty_heap],
+        # and an existential binds the static environment of the states
+        # that the heap would be bound for, those states have
+        # [empty_heap] and nothing is bound: an existential heap would
+        # say less, and its uses could not name it.
+        if "empty_static_env" in t[s:e]:
+            for pos in sorted(keep):
+                b = keep[pos]
+                if not existential(t, s, b):
+                    continue
+                within = [u for u in us if scopes(pos, u["start"])]
+                if not within or any(
+                        u["name"] != "State"
+                        or (binder_of(u) or (None,))[0] is not b
+                        for u in within):
+                    continue
+                for u in within:
+                    u["text"] = " empty_heap"
+                    u["done"] = True
+                del keep[pos]
+                report.add(rel, line_of(t, pos), "STATE-EMPTY", "State")
         # An inner quantifier that binds a static environment binds its
         # own heap, where every state in its scope is built with a static
         # environment that it binds: what it says is said of a state that
@@ -827,7 +879,7 @@ def process_file(path, rel, tables, report, phase):
         # every use must be in the scope of a kept binder, or of a
         # variable of a section
         for u in us:
-            if covered(u["start"]):
+            if u.get("done") or covered(u["start"]):
                 continue
             a = u["anchor"]
             section_var = None
