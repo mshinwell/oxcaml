@@ -53,7 +53,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaKnownClosuresSpec FlambdaKnownClosuresProofs FlambdaFloatCodeSpec
   FlambdaFloatCodeProofs FlambdaInlineFreshProofs FlambdaRecHandlersSpec
   FlambdaSinkContsSpec FlambdaShortcutSpec FlambdaUnusedParamsSpec
-  FlambdaLoopAliasesSpec FlambdaLoopifySpec FlambdaValidateSpec
+  FlambdaLoopAliasesSpec FlambdaLoopLetsSpec FlambdaParamAliasesSpec
+  FlambdaForwardSpec FlambdaLoopifySpec FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
@@ -3487,6 +3488,557 @@ Qed.
 Lemma drop_unused_params_equivariant : rewrite_equivariant drop_unused_params.
 Proof. intros r e. exact (drop_params_equivariant_aux r e []). Qed.
 
+(* Removing the unused [Let]s whose defining expression has a value, in
+   the handlers of recursive continuations too. *)
+Fixpoint remove_unused_defined_lets_in_loops_equivariant_aux (r : renaming)
+    (e : expr) :
+  ∀ kinds : kinds_in_scope,
+    remove_unused_defined_lets_in_loops (rename_kinds_in_scope r kinds)
+      (rename_expr r e)
+    = rename_expr r (remove_unused_defined_lets_in_loops kinds e)
+with remove_unused_defined_lets_in_handler_equivariant (r : renaming)
+    (h : continuation_handler) :
+  ∀ kinds : kinds_in_scope,
+    remove_unused_defined_lets_in_handler (rename_kinds_in_scope r kinds)
+      (rename_handler r h)
+    = rename_handler r (remove_unused_defined_lets_in_handler kinds h).
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      intros kinds;
+      cbn [rename_expr remove_unused_defined_lets_in_loops];
+      try reflexivity.
+    + change ((rename_variable r x, kind) :: rename_kinds_in_scope r kinds)
+        with (rename_kinds_in_scope r ((x, kind) :: kinds)).
+      rewrite remove_unused_defined_lets_in_loops_equivariant_aux,
+        named_defined_equivariant, var_free_b_equivariant_aux.
+      destruct
+        (named_defined kinds kind d
+         && negb
+              (var_free_b x
+                 (remove_unused_defined_lets_in_loops ((x, kind) :: kinds)
+                    body)));
+        reflexivity.
+    + rewrite remove_unused_defined_lets_in_loops_equivariant_aux.
+      reflexivity.
+    + rewrite remove_unused_defined_lets_in_handler_equivariant,
+        remove_unused_defined_lets_in_loops_equivariant_aux.
+      reflexivity.
+    + rewrite remove_unused_defined_lets_in_loops_equivariant_aux. f_equal.
+      induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
+      rewrite (remove_unused_defined_lets_in_handler_equivariant r h kinds),
+        IH.
+      reflexivity.
+  - destruct h as [params metadata handler]. intros kinds.
+    cbn [rename_handler remove_unused_defined_lets_in_handler].
+    rewrite params_in_scope_equivariant,
+      remove_unused_defined_lets_in_loops_equivariant_aux.
+    reflexivity.
+Qed.
+
+(* Binding the parameters that every application gives the same thing. *)
+Lemma simple_eqb_renamed (r : renaming) (s s' : simple) :
+  simple_eqb (rename_simple r s) (rename_simple r s') = simple_eqb s s'.
+Proof.
+  unfold simple_eqb.
+  destruct (simple_eq_dec (rename_simple r s) (rename_simple r s'))
+    as [Heq | Hne'],
+    (simple_eq_dec s s') as [Heq' | Hne];
+    try reflexivity.
+  - exfalso. apply Hne, (rename_simple_injective r), Heq.
+  - exfalso. apply Hne'. rewrite Heq'. reflexivity.
+Qed.
+
+Fixpoint binds_var_equivariant (r : renaming) (x : variable) (e : expr) :
+  binds_var (rename_variable r x) (rename_expr r e) = binds_var x e
+with binds_var_in_handler_equivariant (r : renaming) (x : variable)
+    (h : continuation_handler) :
+  binds_var_in_handler (rename_variable r x) (rename_handler r h)
+  = binds_var_in_handler x h.
+Proof.
+  - destruct e
+      as [ y kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      simpl; try reflexivity.
+    + rewrite rename_variable_eqb, binds_var_equivariant. reflexivity.
+    + apply binds_var_equivariant.
+    + rewrite binds_var_in_handler_equivariant, binds_var_equivariant.
+      reflexivity.
+    + rewrite binds_var_equivariant. f_equal.
+      induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
+      rewrite (binds_var_in_handler_equivariant r x h), IH. reflexivity.
+  - destruct h as [params metadata handler]. simpl.
+    rewrite among_rename_variable, binds_var_equivariant. reflexivity.
+Qed.
+
+Lemma stable_equivariant (r : renaming) (s : simple) (e : expr) :
+  stable (rename_simple r s) (rename_expr r e) = stable s e.
+Proof.
+  destruct s; simpl; [ rewrite binds_var_equivariant | | ]; reflexivity.
+Qed.
+
+Lemma args_if_applies_equivariant (r : renaming) (k : continuation)
+    (ac : apply_cont) :
+  args_if_applies (rename_continuation r k) (rename_apply_cont r ac)
+  = option_map (map (rename_simple r)) (args_if_applies k ac).
+Proof.
+  unfold args_if_applies, rename_apply_cont.
+  cbn [ac_continuation ac_args]. rewrite rename_continuation_eqb.
+  destruct (Pos.eqb (ac_continuation ac) k); reflexivity.
+Qed.
+
+Lemma first_some_map {A B : Type} (g : A -> B) (a b : option A) :
+  first_some (option_map g a) (option_map g b)
+  = option_map g (first_some a b).
+Proof. destruct a; reflexivity. Qed.
+
+Fixpoint some_args_equivariant (r : renaming) (k : continuation) (e : expr) :
+  some_args (rename_continuation r k) (rename_expr r e)
+  = option_map (map (rename_simple r)) (some_args k e)
+with some_args_in_handler_equivariant (r : renaming) (k : continuation)
+    (h : continuation_handler) :
+  some_args_in_handler (rename_continuation r k) (rename_handler r h)
+  = option_map (map (rename_simple r)) (some_args_in_handler k h).
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | bound h body | handlers body | ap
+         | ac | scrutinee arms | ];
+      simpl; try reflexivity.
+    + apply some_args_equivariant.
+    + apply some_args_equivariant.
+    + rewrite some_args_equivariant, some_args_in_handler_equivariant.
+      apply first_some_map.
+    + rewrite some_args_equivariant, <- first_some_map. f_equal.
+      induction handlers as [ | [k' h] handlers IH]; simpl; [ reflexivity | ].
+      rewrite (some_args_in_handler_equivariant r k h), IH.
+      apply first_some_map.
+    + apply args_if_applies_equivariant.
+    + induction arms as [ | [discriminant ac] arms IH]; simpl;
+        [ reflexivity | ].
+      rewrite args_if_applies_equivariant, IH. apply first_some_map.
+  - destruct h as [params metadata handler]. simpl.
+    apply some_args_equivariant.
+Qed.
+
+Lemma given_equivariant (r : renaming) (k : continuation) (i : nat)
+    (ok ok' : simple -> bool) (ac : apply_cont) :
+  (∀ arg : simple, ok' (rename_simple r arg) = ok arg) ->
+  given (rename_continuation r k) i ok' (rename_apply_cont r ac)
+  = given k i ok ac.
+Proof.
+  intros Hok. unfold given, rename_apply_cont.
+  cbn [ac_continuation ac_args].
+  rewrite rename_continuation_eqb, nth_error_map.
+  destruct (nth_error (ac_args ac) i); simpl; [ rewrite Hok | ]; reflexivity.
+Qed.
+
+Fixpoint always_given_equivariant (r : renaming) (k : continuation)
+    (i : nat) (ok ok' : simple -> bool) (e : expr) :
+  (∀ arg : simple, ok' (rename_simple r arg) = ok arg) ->
+  always_given (rename_continuation r k) i ok' (rename_expr r e)
+  = always_given k i ok e
+with always_given_in_handler_equivariant (r : renaming) (k : continuation)
+    (i : nat) (ok ok' : simple -> bool) (h : continuation_handler) :
+  (∀ arg : simple, ok' (rename_simple r arg) = ok arg) ->
+  always_given_in_handler (rename_continuation r k) i ok' (rename_handler r h)
+  = always_given_in_handler k i ok h.
+Proof.
+  - intros Hok.
+    destruct e
+      as [ x kind d body | bindings body | bound h body | handlers body | ap
+         | ac | scrutinee arms | ];
+      simpl; try reflexivity.
+    + apply always_given_equivariant, Hok.
+    + apply always_given_equivariant, Hok.
+    + rewrite (always_given_in_handler_equivariant r k i ok ok' h Hok),
+        (always_given_equivariant r k i ok ok' body Hok).
+      reflexivity.
+    + rewrite (always_given_equivariant r k i ok ok' body Hok). f_equal.
+      induction handlers as [ | [k' h] handlers IH]; simpl; [ reflexivity | ].
+      rewrite (always_given_in_handler_equivariant r k i ok ok' h Hok), IH.
+      reflexivity.
+    + apply given_equivariant, Hok.
+    + induction arms as [ | [discriminant ac] arms IH]; simpl;
+        [ reflexivity | ].
+      rewrite (given_equivariant r k i ok ok' ac Hok), IH. reflexivity.
+  - intros Hok. destruct h as [params metadata handler]. simpl.
+    apply always_given_equivariant, Hok.
+Qed.
+
+Lemma aliases_from_equivariant (r : renaming) (params : list variable) :
+  ∀ (j : nat) (alias_at alias_at' : nat -> variable -> option simple),
+    (∀ (i : nat) (param : variable),
+      alias_at' i (rename_variable r param)
+      = option_map (rename_simple r) (alias_at i param)) ->
+    aliases_from j (map (rename_variable r) params) alias_at'
+    = map (option_map (rename_simple r)) (aliases_from j params alias_at).
+Proof.
+  induction params as [ | param params IH]; intros j alias_at alias_at' Hat;
+    simpl; [ reflexivity | ].
+  rewrite Hat, (IH (S j) alias_at alias_at' Hat). reflexivity.
+Qed.
+
+Lemma aliases_of_equivariant (r : renaming) (k : continuation)
+    (params : list variable) (metadata : handler_metadata)
+    (loop loop' : option expr) (body whole : expr) :
+  loop' = option_map (rename_expr r) loop ->
+  aliases_of (rename_continuation r k) (map (rename_variable r) params)
+    metadata loop' (rename_expr r body) (rename_expr r whole)
+  = map (option_map (rename_simple r))
+      (aliases_of k params metadata loop body whole).
+Proof.
+  intros ->. unfold aliases_of.
+  rewrite returned_to_equivariant,
+    (distinct_map_injective _ (rename_variable_eqb r)), length_map,
+    some_args_equivariant.
+  destruct
+    (returned_to k whole || hm_is_exn_handler metadata
+     || negb (distinct params)
+     || negb (Nat.eqb (length (hm_params_kinds metadata)) (length params)));
+    [ reflexivity | ].
+  destruct (some_args k body) as [args | ]; simpl; [ | reflexivity ].
+  apply aliases_from_equivariant. intros i param.
+  rewrite nth_error_map.
+  destruct (nth_error args i) as [s | ]; simpl; [ | reflexivity ].
+  rewrite stable_equivariant,
+    (always_given_equivariant r k i (fun arg => simple_eqb arg s))
+    by (intros arg; apply simple_eqb_renamed).
+  destruct loop as [handler | ]; simpl.
+  - rewrite
+      (always_given_equivariant r k i
+         (fun arg => simple_eqb arg s || simple_eqb arg (Var param))),
+      binds_var_equivariant
+      by (intros arg; rewrite simple_eqb_renamed; f_equal;
+          exact (simple_eqb_renamed r arg (Var param))).
+    destruct
+      (stable s whole && always_given k i (fun arg => simple_eqb arg s) body
+       && (always_given k i
+             (fun arg => simple_eqb arg s || simple_eqb arg (Var param))
+             handler
+           && negb (binds_var param handler)));
+      reflexivity.
+  - destruct
+      (stable s whole && always_given k i (fun arg => simple_eqb arg s) body
+       && true);
+      reflexivity.
+Qed.
+
+Lemma bind_aliases_equivariant (r : renaming) (params : list variable) :
+  ∀ (kinds : list flambda_kind) (aliases : list (option simple))
+    (handler : expr),
+    bind_aliases (map (rename_variable r) params) kinds
+      (map (option_map (rename_simple r)) aliases) (rename_expr r handler)
+    = rename_expr r (bind_aliases params kinds aliases handler).
+Proof.
+  induction params as [ | p params IH]; intros kinds aliases handler;
+    [ reflexivity | ].
+  destruct kinds as [ | kind kinds]; [ reflexivity | ].
+  destruct aliases as [ | [s | ] aliases]; [ reflexivity | | ]; simpl;
+    rewrite IH; reflexivity.
+Qed.
+
+Lemma alone_map {A B : Type} (g : A -> B) (l : list A) :
+  alone (map g l) = alone l.
+Proof. destruct l as [ | a [ | b l]]; reflexivity. Qed.
+
+Fixpoint bind_aliased_params_equivariant_aux (r : renaming) (e : expr) :
+  bind_aliased_params (rename_expr r e) = rename_expr r (bind_aliased_params e)
+with bind_aliased_params_in_loop_equivariant (r : renaming)
+    (h : continuation_handler) :
+  ∀ (flag : bool) (k : continuation) (body whole : expr),
+    bind_aliased_params_in_loop flag (rename_continuation r k)
+      (rename_expr r body) (rename_expr r whole) (rename_handler r h)
+    = rename_handler r (bind_aliased_params_in_loop flag k body whole h).
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k [params metadata handler] body
+         | handlers body | ap | ac | scrutinee arms | ];
+      try reflexivity.
+    + cbn [rename_expr bind_aliased_params].
+      rewrite bind_aliased_params_equivariant_aux. reflexivity.
+    + cbn [rename_expr bind_aliased_params].
+      rewrite bind_aliased_params_equivariant_aux. reflexivity.
+    + cbn [rename_expr rename_handler bind_aliased_params].
+      change
+        (Let_cont_non_recursive (rename_continuation r k)
+           (Handler (map (rename_variable r) params) metadata
+              (rename_expr r handler))
+           (rename_expr r body))
+        with
+          (rename_expr r
+             (Let_cont_non_recursive k (Handler params metadata handler)
+                body)).
+      rewrite
+        (aliases_of_equivariant r k params metadata None None body _ eq_refl),
+        (bind_aliased_params_equivariant_aux r handler),
+        bind_aliases_equivariant,
+        (bind_aliased_params_equivariant_aux r body).
+      reflexivity.
+    + cbn [rename_expr bind_aliased_params].
+      rewrite (bind_aliased_params_equivariant_aux r body), alone_map.
+      change
+        (Let_cont_recursive
+           (map (fun '(k, h) => (rename_continuation r k, rename_handler r h))
+              handlers)
+           (rename_expr r body))
+        with (rename_expr r (Let_cont_recursive handlers body)).
+      f_equal.
+      generalize (alone handlers) (Let_cont_recursive handlers body).
+      intros flag whole.
+      induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
+      rewrite (bind_aliased_params_in_loop_equivariant r h flag k body whole),
+        IH.
+      reflexivity.
+  - destruct h as [params metadata handler]. intros flag k body whole.
+    cbn [rename_handler bind_aliased_params_in_loop].
+    rewrite (bind_aliased_params_equivariant_aux r handler).
+    destruct flag.
+    + rewrite
+        (aliases_of_equivariant r k params metadata (Some handler)
+           (Some (rename_expr r handler)) body whole eq_refl),
+        bind_aliases_equivariant.
+      reflexivity.
+    + change (@nil (option simple))
+        with (map (option_map (rename_simple r)) []).
+      rewrite bind_aliases_equivariant. reflexivity.
+Qed.
+
+Lemma bind_aliased_params_equivariant :
+  rewrite_equivariant bind_aliased_params.
+Proof. exact bind_aliased_params_equivariant_aux. Qed.
+
+(* An application made to go where the handler of its continuation
+   goes. The entries are keyed by continuations, which are renamed, and
+   keep parameters and an [Apply_cont], which are renamed too. *)
+Fixpoint binds_cont_equivariant (r : renaming) (k : continuation) (e : expr) :
+  binds_cont (rename_continuation r k) (rename_expr r e) = binds_cont k e
+with binds_cont_in_handler_equivariant (r : renaming) (k : continuation)
+    (h : continuation_handler) :
+  binds_cont_in_handler (rename_continuation r k) (rename_handler r h)
+  = binds_cont_in_handler k h.
+Proof.
+  - destruct e
+      as [ y kind d body | bindings body | k' h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      simpl; try reflexivity.
+    + apply binds_cont_equivariant.
+    + apply binds_cont_equivariant.
+    + rewrite rename_continuation_eqb, binds_cont_in_handler_equivariant,
+        binds_cont_equivariant.
+      reflexivity.
+    + rewrite binds_cont_equivariant. f_equal.
+      induction handlers as [ | [k' h] handlers IH]; simpl; [ reflexivity | ].
+      rewrite rename_continuation_eqb,
+        (binds_cont_in_handler_equivariant r k h), IH.
+      reflexivity.
+  - destruct h as [params metadata handler]. simpl.
+    apply binds_cont_equivariant.
+Qed.
+
+Definition rename_forward_entry (r : renaming)
+    (entry : option (list variable * apply_cont))
+    : option (list variable * apply_cont) :=
+  option_map
+    (fun entry =>
+       (map (rename_variable r) (fst entry), rename_apply_cont r (snd entry)))
+    entry.
+
+Definition rename_forwards (r : renaming) (F : forwards) : forwards :=
+  map
+    (fun binding =>
+       (rename_continuation r (fst binding),
+        rename_forward_entry r (snd binding)))
+    F.
+
+Lemma forward_of_renamed (r : renaming) (F : forwards) (k : continuation) :
+  forward_of (rename_forwards r F) (rename_continuation r k)
+  = rename_forward_entry r (forward_of F k).
+Proof.
+  unfold forward_of, rename_forwards.
+  induction F as [ | [k' entry] F IH]; simpl; [ reflexivity | ].
+  rewrite rename_continuation_eqb.
+  destruct (Pos.eqb k k'); [ reflexivity | exact IH ].
+Qed.
+
+Lemma subst_simple_equivariant (r : renaming) (params : list variable)
+    (args : list simple) (s : simple) :
+  subst_simple (map (rename_variable r) params) (map (rename_simple r) args)
+    (rename_simple r s)
+  = rename_simple r (subst_simple params args s).
+Proof.
+  destruct s as [x | sym | c]; try reflexivity.
+  cbn [rename_simple subst_simple].
+  assert (Hlookup :
+    lookup (rename_variable r x)
+      (combine (map (rename_variable r) params) (map (rename_simple r) args))
+    = option_map (rename_simple r) (lookup x (combine params args))).
+  { revert args.
+    induction params as [ | p params IH]; intros [ | arg args]; simpl;
+      try reflexivity.
+    rewrite rename_variable_eqb.
+    destruct (Pos.eqb x p); [ reflexivity | apply IH ]. }
+  rewrite Hlookup.
+  destruct (lookup x (combine params args)); reflexivity.
+Qed.
+
+Lemma forwarded_equivariant (r : renaming) (params : list variable)
+    (args : list simple) (target : apply_cont) :
+  forwarded (map (rename_variable r) params) (map (rename_simple r) args)
+    (rename_apply_cont r target)
+  = rename_apply_cont r (forwarded params args target).
+Proof.
+  unfold forwarded, rename_apply_cont.
+  cbn [ac_continuation ac_args ac_trap_action]. rewrite !map_map.
+  f_equal. apply map_ext. intros s. apply subst_simple_equivariant.
+Qed.
+
+Lemma forward_apply_cont_equivariant (r : renaming) (F : forwards)
+    (ac : apply_cont) :
+  forward_apply_cont (rename_forwards r F) (rename_apply_cont r ac)
+  = rename_apply_cont r (forward_apply_cont F ac).
+Proof.
+  unfold forward_apply_cont.
+  change (ac_continuation (rename_apply_cont r ac))
+    with (rename_continuation r (ac_continuation ac)).
+  rewrite forward_of_renamed.
+  destruct (forward_of F (ac_continuation ac)) as [[params target] | ];
+    [ | reflexivity ].
+  cbn [rename_forward_entry option_map fst snd].
+  change (ac_args (rename_apply_cont r ac))
+    with (map (rename_simple r) (ac_args ac)).
+  rewrite !length_map, !no_trap_action_renamed.
+  destruct
+    (Nat.eqb (length (ac_args ac)) (length params)
+     && no_trap_action ac && no_trap_action target);
+    [ apply forwarded_equivariant | reflexivity ].
+Qed.
+
+Lemma forward_arm_equivariant (r : renaming) (F : forwards)
+    (ac : apply_cont) :
+  forward_arm (rename_forwards r F) (rename_apply_cont r ac)
+  = rename_apply_cont r (forward_arm F ac).
+Proof.
+  pose proof (forward_apply_cont_equivariant r F ac) as Hgeneral.
+  unfold forward_arm.
+  change (ac_continuation (rename_apply_cont r ac))
+    with (rename_continuation r (ac_continuation ac)).
+  change (ac_args (rename_apply_cont r ac))
+    with (map (rename_simple r) (ac_args ac)).
+  rewrite forward_of_renamed.
+  destruct (forward_of F (ac_continuation ac)) as [[params target] | ] eqn:Hof;
+    cbn [rename_forward_entry option_map fst snd].
+  - destruct params as [ | p params], (ac_args ac) as [ | arg args] eqn:Hargs;
+      cbn [map]; try exact Hgeneral.
+    rewrite no_trap_action_renamed.
+    destruct (no_trap_action ac);
+      [ exact (forwarded_equivariant r [] [] target) | reflexivity ].
+  - destruct (ac_args ac); exact Hgeneral.
+Qed.
+
+Lemma forwarding_equivariant (r : renaming) (k : continuation)
+    (params : list variable) (metadata : handler_metadata)
+    (handler body : expr) :
+  forwarding (rename_continuation r k) (map (rename_variable r) params)
+    metadata (rename_expr r handler) (rename_expr r body)
+  = rename_forward_entry r (forwarding k params metadata handler body).
+Proof.
+  destruct handler as [ | | | | | target | | ]; try reflexivity.
+  cbn [rename_expr forwarding].
+  rewrite among_apply_cont_continuations_renamed,
+    (distinct_map_injective _ (rename_variable_eqb r)),
+    apply_cont_continuations_renamed.
+  rewrite
+    (existsb_map_with (fun j => binds_cont j (rename_expr r body))
+       (rename_continuation r) (fun j => binds_cont j body)
+       (apply_cont_continuations target)
+       (fun j => binds_cont_equivariant r j body)).
+  change (ac_args (rename_apply_cont r target))
+    with (map (rename_simple r) (ac_args target)).
+  rewrite
+    (existsb_map_with _ (rename_simple r)
+       (fun s =>
+          match s with
+          | Var x => negb (among x params) && binds_var x body
+          | Symbol _ | Const _ => false
+          end)
+       (ac_args target)).
+  - match goal with
+    | |- (if ?check then _ else _) = _ => destruct check; reflexivity
+    end.
+  - intros [x | sym | c]; cbn [rename_simple]; try reflexivity.
+    rewrite among_rename_variable, binds_var_equivariant. reflexivity.
+Qed.
+
+Fixpoint forward_applications_under_equivariant (r : renaming) (e : expr) :
+  ∀ F : forwards,
+    forward_applications_under (rename_forwards r F) (rename_expr r e)
+    = rename_expr r (forward_applications_under F e)
+with forward_applications_in_handler_equivariant (r : renaming)
+    (h : continuation_handler) :
+  ∀ F : forwards,
+    forward_applications_in_handler (rename_forwards r F)
+      (rename_handler r h)
+    = rename_handler r (forward_applications_in_handler F h).
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k [params metadata handler] body
+         | handlers body | ap | ac | scrutinee arms | ];
+      intros F; try reflexivity.
+    + cbn [rename_expr forward_applications_under].
+      rewrite forward_applications_under_equivariant. reflexivity.
+    + cbn [rename_expr forward_applications_under].
+      rewrite forward_applications_under_equivariant. reflexivity.
+    + cbn [rename_expr rename_handler forward_applications_under]. cbv zeta.
+      rewrite (forward_applications_under_equivariant r handler F),
+        forwarding_equivariant.
+      change
+        ((rename_continuation r k,
+          rename_forward_entry r
+            (forwarding k params metadata
+               (forward_applications_under F handler) body))
+         :: rename_forwards r F)
+        with
+          (rename_forwards r
+             ((k,
+               forwarding k params metadata
+                 (forward_applications_under F handler) body)
+              :: F)).
+      rewrite (forward_applications_under_equivariant r body). reflexivity.
+    + cbn [rename_expr forward_applications_under]. cbv zeta.
+      assert (Hscope :
+        map (fun '(k, _) => (k, None))
+          (map (fun '(k, h) => (rename_continuation r k, rename_handler r h))
+             handlers)
+        ++ rename_forwards r F
+        = rename_forwards r
+            (map (fun '(k, _) => (k, None)) handlers ++ F)).
+      { unfold rename_forwards. rewrite map_app, !map_map. f_equal.
+        apply map_ext. intros [k h]. reflexivity. }
+      rewrite Hscope. clear Hscope.
+      rewrite (forward_applications_under_equivariant r body). f_equal.
+      generalize (map (fun '(k, _) => (k, @None (list variable * apply_cont)))
+                    handlers ++ F).
+      intros F'.
+      induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
+      rewrite (forward_applications_in_handler_equivariant r h F'), IH.
+      reflexivity.
+    + cbn [rename_expr forward_applications_under].
+      rewrite forward_apply_cont_equivariant. reflexivity.
+    + cbn [rename_expr forward_applications_under]. f_equal.
+      rewrite !map_map. apply map_ext. intros [i ac]. cbn [fst snd].
+      rewrite forward_arm_equivariant. reflexivity.
+  - destruct h as [params metadata handler]. intros F.
+    cbn [rename_handler forward_applications_in_handler].
+    rewrite forward_applications_under_equivariant. reflexivity.
+Qed.
+
+Lemma forward_applications_equivariant :
+  rewrite_equivariant forward_applications.
+Proof.
+  intros r e. exact (forward_applications_under_equivariant r e []).
+Qed.
+
 (* Following aliases into the handlers of recursive continuations. *)
 Fixpoint follow_aliases_in_loops_equivariant_aux (r : renaming) (e : expr) :
   ∀ tenv : typing_env,
@@ -3732,6 +4284,13 @@ Proof.
   intros r e. exact (remove_unused_defined_lets_equivariant_aux r e []).
 Qed.
 
+Lemma remove_unused_defined_lets_in_loops_closed_equivariant :
+  rewrite_equivariant (remove_unused_defined_lets_in_loops []).
+Proof.
+  intros r e.
+  exact (remove_unused_defined_lets_in_loops_equivariant_aux r e []).
+Qed.
+
 Lemma inline_calls_unknowing_equivariant :
   rewrite_equivariant (inline_calls []).
 Proof. intros r e. exact (inline_calls_equivariant r [] e). Qed.
@@ -3764,7 +4323,10 @@ Ltac rename_outwards :=
       | rewrite sink_let_conts_equivariant_aux
       | rewrite shortcut_switches_equivariant_aux
       | rewrite follow_aliases_in_loops_unknowing_equivariant
-      | rewrite drop_unused_params_equivariant ].
+      | rewrite drop_unused_params_equivariant
+      | rewrite bind_aliased_params_equivariant
+      | rewrite forward_applications_equivariant
+      | rewrite remove_unused_defined_lets_in_loops_closed_equivariant ].
 
 Lemma normalise_expr_before_equivariant :
   rewrite_equivariant normalise_expr_before.
