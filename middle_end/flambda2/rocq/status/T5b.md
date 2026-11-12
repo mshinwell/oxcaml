@@ -3,9 +3,9 @@
 The series is merged into the integration branch (the type
 traversal and the assembled conditional theorem; the reviewer's
 scope is those, not the join of environments end to end). What
-follows the merge is on `flambda2-rocq/T5b-join-types`, which is on
-the integration branch. T4's files are under it now; the traversal
-does not use them yet ("What is left"). (My work on slices of the
+followed that merge is merged too. T4's two functions are
+arguments of the traversal, and `FlambdaJoinMeet.v` gives them
+("Decided overnight"). (My work on slices of the
 meet, for T4, has a status file of its own,
 `status/T5b-meet.md`.) Files, all in
 `middle_end/flambda2/types/rocq/`:
@@ -117,8 +117,8 @@ types, inside a join of environments". I do not change that file.
   ("What is assumed"). T5 asked for it. No condition of the
   well-formedness of types was found to fail of an answer. How it
   is proved: "The shape of the proof".
-- After the merge, on T5's branch
-  (`FlambdaJoinWellFormedSpec.v`): the types of the equations that
+- After the merge (`FlambdaJoinWellFormedSpec.v`): the types of
+  the equations that
   the state of the join of environments holds are well formed
   through its first phases (`first_phases_well_formed`), and so are
   the types of the two extensions that its last phase adds
@@ -223,9 +223,8 @@ types, inside a join of environments". I do not change that file.
   file's statement for a join that has `join_scoped_envs_keeps`
   (another hypothesis than the contract of the join: neither
   implies the other). T4 proposed it.
-- Validation of these two sections, on a base that has my
-  series, T5's later commits and T4's series of what a meet
-  keeps: `make -C rocq -j8 all`, `make -C rocq assumptions`.
+- Validation of these two sections, at the tip that was merged:
+  `make -C rocq -j8 all`, `make -C rocq assumptions`.
 - `Expanded_type` is T4's module: `FlambdaJoinTypes.v` names it
   (`Module Expanded_type := FlambdaExpandHead.Expanded_type`) where
   it had a copy. Nothing else changed, in my files or in T5's: the
@@ -301,13 +300,13 @@ definition and the first two statements of
   environments: see "Decided overnight".
 - Signed after the merge, and merged: `n_way_join_of_types_true`,
   and the paragraph of the header of the examples about the run.
-- Signed after the merge, not merged yet:
+- Signed after the merge, and merged:
   `n_way_join_equations_kinded_statement` with the premise
   `expand_head_equations_kinded`, and
   `n_way_join_of_types_equations_kinded_statement`.
 - To be asked: the sentence of the header of the examples about the
   example of closure types of another kind, which T7 has run.
-- To be asked: the two premises, the contract and the statement of
+- Merged since: the two premises, the contract and the statement of
   `FlambdaJoinTypesSpec.v` for well-formedness
   (`expand_head_well_formed`,
   `n_way_join_env_extension_well_formed`,
@@ -315,20 +314,26 @@ definition and the first two statements of
   `n_way_join_well_formed_statement`), and
   `n_way_join_of_types_well_formed_statement`.
 
-- Asked of R4: the three Specs of the last three pairs of files.
-  Read, with no formal finding; one repair of prose asked and made
-  (what `recover_equation_names_statement` says, against what the
-  function does). Confirmed at the tip, with the change of
-  `Expanded_type` (R4 read that each operation that was copied is
-  the one of T4's module) and the statement about values
-  (`model_join_scoped_envs_satisfied_outright_statement`). R4's
-  own build was still to come.
-- To be asked of R4: the last two sections of
+- Signed by R4, and merged: the three Specs of the last three
+  pairs of files. No formal finding; one repair of prose asked and
+  made (what `recover_equation_names_statement` says, against what
+  the function does). With them, the change of `Expanded_type` (R4
+  read that each operation that was copied is the one of T4's
+  module) and the statement about values
+  (`model_join_scoped_envs_satisfied_outright_statement`).
+- Signed by R4, and merged: the last two sections of
   `FlambdaJoinMeetFitsSpec.v` (`uses_fit_otherwise` and four
-  statements about the join that Simplify calls; three
-  statements about the join and the meet together), and the
-  statement added to `FlambdaMeetTermsSpec.v` (for R1 or R4, as
-  the orchestrator says).
+  statements about the join that Simplify calls; three statements
+  about the join and the meet together), and the statement added
+  to `FlambdaMeetTermsSpec.v`. No formal finding; one repair of
+  prose asked and made (`join_scoped_envs_keeps` is another
+  hypothesis than the contract of the join, not a weaker one). R4
+  checked that the premises can be had together: on an ordinary
+  environment with a use that is not bottom, and the repaired
+  choices of the meet, the join of the model answers and
+  `model_join_guarantees_on_inputs` applies with no premise left.
+  R4's limit, which the statements have: nothing about values is
+  concluded of the meet of the model.
 
 ## Stand-ins carried
 
@@ -561,19 +566,20 @@ check first:
 ## What is assumed, and of whom
 
 Hypotheses of the statements (no axiom, nothing admitted). Each is a
-named proposition in `FlambdaJoinTypesSpec.v` until its owner's file
-is on my base.
+named proposition in `FlambdaJoinTypesSpec.v`. Those about the two
+functions of the meet are discharged where the join is given T4's
+functions (`FlambdaJoinMeet.v`), by T5's statements and mine there.
 
 | Assumed | Where it stands |
 |---------|-----------------|
 | `environment_side_sound`: `n_way_join_simples_sound`, `import_type_sound`, `n_way_join_env_extension_sound`, `valid_states_have_witnesses` (`FlambdaJoinSpec.v`); the last is used by `n_way_join_bound_is_met` only | T5 has proved the four of the functions of `Join_env`, under `fresh_avoids p` and `env_extension_eqb_sound p`; those two are the premises of `n_way_join_of_types_sound` in its place |
-| `expand_head_sound`: a value of a type has the expanded type under a valuation that satisfies the environment strictly; the expansion is in scope and kinded where the type and the environment are; it is of the kind of the type where the type is kinded and the environment has `constants_of_kind` | T4; a premise of `n_way_join_of_types_sound` until T4's files are under this branch |
-| `expand_head_equations_kinded`: in an environment that has the names of the equations inside its types at their kinds, a type that has its own at their kinds expands to one that has | T4 (an expanded type is the type, an unknown type, the type of a constant or a type of the environment); a premise of the two statements about the names of equations only |
-| `expand_head_well_formed`: in an environment whose types are well formed, a type that is well formed expands to one that is | T4 has proved it of its function, as it is written here; a premise of the two statements about well-formedness only, until the traversal takes T4's function |
+| `expand_head_sound`: a value of a type has the expanded type under a valuation that satisfies the environment strictly; the expansion is in scope and kinded where the type and the environment are; it is of the kind of the type where the type is kinded and the environment has `constants_of_kind` | T4; a premise of `n_way_join_of_types_sound`, discharged for T4's function in `FlambdaJoinMeetProofs.v` (`expand_head_for_join_sound`) |
+| `expand_head_equations_kinded`: in an environment that has the names of the equations inside its types at their kinds, a type that has its own at their kinds expands to one that has | T4 (an expanded type is the type, an unknown type, the type of a constant or a type of the environment); a premise of the two statements about the names of equations only, discharged for T4's function in `FlambdaJoinMeetFitsProofs.v` (`expand_head_for_join_equations_kinded`) |
+| `expand_head_well_formed`: in an environment whose types are well formed, a type that is well formed expands to one that is | T4 has proved it of its function, as it is written here; a premise of the two statements about well-formedness only, discharged for T4's function in `FlambdaJoinWellFormedProofs.v` (`expand_head_for_join_well_formed`) |
 | `n_way_join_env_extension_well_formed`: the extension that the join of extensions answers is well formed if those given are | discharged in `n_way_join_of_types_well_formed` with T5's `n_way_join_env_extension_answers_given` (the function answers an extension that it was given, or the empty one) |
 | `import_type_equations_kinded`, `n_way_join_env_extension_equations_kinded` (`FlambdaJoinSpec.v`) | T5 has proved both of the functions of `Join_env`, under `fresh_avoids p`; premises of `n_way_join_equations_kinded`, discharged in `n_way_join_of_types_equations_kinded` |
 | `joined_envs_constants_of_kind`: in each environment joined, a constant that is the canonical element of a `Simple` of a kind is of that kind | discharged in `n_way_join_of_types_sound`, from the contract's kinds premise and the invariant of typing environments (T2's `typing_env_kinded_constants_of_kind`) |
-| `reduce_head_of_kind_naked_immediate_sound`: a number that has a head, under a valuation that satisfies the environment strictly, has the reduced head, which is then not bottom | T4, who has proved it with no premise on its branch; a premise of `n_way_join_of_types_sound` until T4's files are under this branch |
+| `reduce_head_of_kind_naked_immediate_sound`: a number that has a head, under a valuation that satisfies the environment strictly, has the reduced head, which is then not bottom | T4, who has proved it with no premise (`FlambdaMeetStepsProofs.v`); a premise of `n_way_join_of_types_sound`, discharged with that theorem where the join is given T4's function |
 | `type_eqb_sound`: types that the test identifies have the same values | discharged with T1's `type_eqb` (`type_equal_satisfied`) |
 | `block_shape_eqb_sound`: shapes that the test identifies are one shape | discharged with T1's `block_shape_eqb` |
 

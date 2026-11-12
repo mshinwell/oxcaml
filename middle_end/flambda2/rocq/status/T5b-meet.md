@@ -1,7 +1,6 @@
 # T5b on the meet: slices of the proof of the contract of meet
 
-Branch `flambda2-rocq/T5b-meet`, on the integration branch (the
-slices are merged). T4 owns the meet, its contract and its
+The slices are merged. T4 owns the meet, its contract and its
 statements, and leads; I prove slices of the traversal that T4 has
 cut loose, in files of my own, to statements that T4 fixes. Reviewer
 of the meet: R1. (My own stream, the type traversal of the n-way
@@ -243,7 +242,7 @@ That is the bridge for slice 2.
 ## After the slices: a meet adds no variable that may occur in terms
 
 Asked by T1, for the second slice of the rewrite of the `Switch`,
-through the orchestrator. Not merged; for T4 and R1 to read.
+through the orchestrator. Merged; R1 signed it.
 
 - `meet_keeps_terms meet` (`FlambdaMeetTermsSpec.v`): a variable that
   may occur in terms under the environment that a meet answers
@@ -256,8 +255,7 @@ through the orchestrator. Not merged; for T4 and R1 to read.
   every `join` with `join_scoped_envs_sound join`. The join that
   forgets has that contract (`forgetful_join_sound`, proved again),
   so there is an instance with no premise.
-- After the merge, not merged yet (on the branch of the join of
-  types that stands on T4's series of what a meet keeps):
+- After that merge, and merged since:
   `meet_to_prove_keeps_terms_of_keeps`, the same conclusion for
   every `join` with `join_scoped_envs_keeps join`
   (`FlambdaMeetKeepsSpec.v`: the conclusions of the contract that
