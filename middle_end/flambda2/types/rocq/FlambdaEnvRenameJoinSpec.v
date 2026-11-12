@@ -117,12 +117,20 @@
    types is related to itself with the renamed source is for the
    traversal of types (FlambdaJoinTypes.v), and is not stated here.
 
-   Not stated here yet: the equation of the join as a whole
-   ([Join_env.cut_and_n_way_join]). It needs the action on the
-   environment of the meet, which is with the statements of the meet
-   (FlambdaMeetRenameSpec.v), and a meet of expanded types that is
-   related as the parameters are. It will be stated here when the
-   lemmas reach it.
+   The equation of the join as a whole is the last statement
+   ([cut_and_n_way_join_related_statement]): the join that the meet
+   calls ([Join_env.cut_and_n_way_join]), where everything that it is
+   given is related, answers of the renamed environments the renamed
+   answer. That join is written for any functions of the environment
+   of the meet ([Join_env.meet_env_functions]) and any type of meets
+   of expanded types, so the statement is for any action of the
+   renaming on the environments of the meet and any relation between
+   two meets of expanded types under which the functions are related
+   ([meet_env_functions_related], which is to be reviewed). That the
+   functions of the model's meet are so related, at the action and the
+   relation of FlambdaMeetRenameSpec.v, is not stated here; nor is the
+   equation of the join that Simplify calls, which answers an analysis
+   as well.
 
    What this does not say: that the join with one source of new names
    answers, of renamed arguments, the answer renamed up to the
@@ -397,3 +405,81 @@ Definition compiler_choices_related_statement : Prop :=
 Definition repaired_choices_related_statement : Prop :=
   ∀ r : renaming,
     choices_related r Join_env.repaired_choices Join_env.repaired_choices.
+
+(* ======================================================================== *)
+(* The join that the meet calls                                             *)
+(* ======================================================================== *)
+
+(* The join is given the functions of the environment of the meet that
+   it uses ([Join_env.meet_env_functions]), and the meet of expanded
+   types, which it hands to one of them. Two sets of such functions
+   are related by a renaming, given an action [rename_env] of the
+   renaming on the environments of the meet and a relation
+   [heads_related] between two meets of expanded types: each function
+   of the second, on renamed arguments, answers the renamed answer of
+   the first; the one that takes a meet of expanded types does so for
+   two that are related. *)
+Definition meet_env_functions_related {meet_env meet_expanded_head : Type}
+    (r : renaming) (rename_env : meet_env -> meet_env)
+    (heads_related : meet_expanded_head -> meet_expanded_head -> Prop)
+    (ops ops' : Join_env.meet_env_functions meet_env meet_expanded_head)
+    : Prop :=
+  (∀ tenv : Typing_env.t,
+    Join_env.create_meet_env ops' (rename_typing_env r tenv)
+    = rename_env (Join_env.create_meet_env ops tenv))
+  ∧ (∀ env : meet_env,
+      Join_env.current_typing_env ops' (rename_env env)
+      = rename_typing_env r (Join_env.current_typing_env ops env))
+  ∧ (∀ (env : meet_env) (var : variable) (kind : flambda_kind)
+       (mode : Name_mode.t),
+      Join_env.add_variable_definition ops' (rename_env env)
+        (rename_variable r var) kind mode
+      = rename_env (Join_env.add_variable_definition ops env var kind mode))
+  ∧ (∀ (env : meet_env) (extension : env_extension)
+       (m m' : meet_expanded_head),
+      heads_related m m' ->
+      Join_env.add_env_extension ops' (rename_env env)
+        (rename_env_extension r extension) m'
+      = option_map rename_env
+          (Join_env.add_env_extension ops env extension m))
+  ∧ (∀ env : meet_env,
+      Join_env.make_bottom ops' (rename_env env)
+      = rename_env (Join_env.make_bottom ops env))
+  ∧ (∀ env : meet_env,
+      Join_env.final_typing_env ops' (rename_env env)
+      = rename_typing_env r (Join_env.final_typing_env ops env))
+  ∧ (∀ env : meet_env,
+      Join_env.names_to_avoid ops' (rename_env env)
+      = map (rename_variable r) (Join_env.names_to_avoid ops env))
+  ∧ ∀ (env : meet_env) (names : list variable),
+      Join_env.with_names_to_avoid ops' (rename_env env)
+        (map (rename_variable r) names)
+      = rename_env (Join_env.with_names_to_avoid ops env names).
+
+(* The join that the meet calls: where everything that it is given is
+   related (the functions of the environment of the meet, the
+   parameters, the choices, the join of types and the meet of expanded
+   types), the second join answers, of the renamed environment of the
+   meet and the renamed typing environments, the renamed answer of the
+   first. The scope is not renamed. *)
+Definition cut_and_n_way_join_related_statement : Prop :=
+  ∀ (meet_env meet_expanded_head : Type) (r : renaming)
+    (rename_env : meet_env -> meet_env)
+    (heads_related : meet_expanded_head -> meet_expanded_head -> Prop)
+    (ops ops' : Join_env.meet_env_functions meet_env meet_expanded_head)
+    (p p' : Join_env.parameters) (fuel : nat)
+    (choices choices' : Join_env.choices)
+    (join_type join_type' : Join_env.n_way_join_type)
+    (m m' : meet_expanded_head) (cut_after : Scope.t) (source_env : meet_env)
+    (source_tenv : Typing_env.t) (joined_envs : list Typing_env.t),
+    meet_env_functions_related r rename_env heads_related ops ops' ->
+    parameters_related r p p' ->
+    choices_related r choices choices' ->
+    n_way_join_type_related r join_type join_type' ->
+    heads_related m m' ->
+    Join_env.cut_and_n_way_join ops' p' fuel choices' join_type' m'
+      cut_after (rename_env source_env) (rename_typing_env r source_tenv)
+      (map (rename_typing_env r) joined_envs)
+    = option_map rename_env
+        (Join_env.cut_and_n_way_join ops p fuel choices join_type m cut_after
+           source_env source_tenv joined_envs).

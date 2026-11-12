@@ -46,7 +46,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeRenameSpec FlambdaTypeRenameProofs FlambdaBindingTime
   FlambdaEnvAliases FlambdaEnvAliasesRenamingSpec
   FlambdaEnvAliasesRenamingProofs FlambdaTypingEnv FlambdaEnvRenameSpec
-  FlambdaEnvRenameProofs FlambdaExpandHead FlambdaJoinEnv FlambdaJoinEnvSpec
+  FlambdaEnvRenameProofs FlambdaExpandHead FlambdaTypeProject
+  FlambdaTypeProjectRenameProofs FlambdaJoinEnv FlambdaJoinEnvSpec
   FlambdaJoinMeet FlambdaEnvRenameJoinSpec.
 Import ListNotations.
 
@@ -2056,4 +2057,648 @@ Proof.
       as [env'' | ];
       cbn [option_map]; [ | reflexivity ].
     apply import_type_transitive_renamed, Hp.
+Qed.
+
+(* ======================================================================== *)
+(* Defining the variables of the target                                     *)
+(* ======================================================================== *)
+
+Lemma unbind_renamed_keys {A B : Type} (r : renaming) (g : A -> B)
+    (var : variable) (bindings : finite_map A) :
+  unbind (rename_variable r var)
+    (Keyed.map_bindings (rename_variable r) g bindings)
+  = Keyed.map_bindings (rename_variable r) g (unbind var bindings).
+Proof.
+  exact
+    (unbind_renamed Pos.eqb (rename_variable r) (rename_variable_eqb r) g var
+       bindings).
+Qed.
+
+Lemma domain_renamed_keys {A B : Type} (r : renaming) (g : A -> B)
+    (bindings : finite_map A) :
+  domain (Keyed.map_bindings (rename_variable r) g bindings)
+  = map (rename_variable r) (domain bindings).
+Proof.
+  exact
+    (domain_renamed Pos.eqb (rename_variable r) (rename_variable_eqb r) g
+       bindings).
+Qed.
+
+Lemma move_definition_renamed (r : renaming)
+    (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind))
+    (from to_ : variable) :
+  Join_env.move_definition
+    (Keyed.map_bindings (rename_variable r) (rename_definition r)
+       definitions)
+    (rename_variable r from) (rename_variable r to_)
+  = Keyed.map_bindings (rename_variable r) (rename_definition r)
+      (Join_env.move_definition definitions from to_).
+Proof.
+  unfold Join_env.move_definition.
+  rewrite lookup_renamed_keys.
+  destruct (lookup from definitions) as [defn | ]; cbn [option_map];
+    [ | reflexivity ].
+  rewrite unbind_renamed_keys. reflexivity.
+Qed.
+
+Lemma move_equation_renamed (r : renaming)
+    (equations : finite_map flambda_type) (from to_ : variable) :
+  Join_env.move_equation
+    (Keyed.map_bindings (rename_variable r) (rename_type r) equations)
+    (rename_variable r from) (rename_variable r to_)
+  = option_map (Keyed.map_bindings (rename_variable r) (rename_type r))
+      (Join_env.move_equation equations from to_).
+Proof.
+  unfold Join_env.move_equation.
+  rewrite is_bound_renamed_keys.
+  destruct (is_bound to_ equations); [ reflexivity | ].
+  rewrite lookup_renamed_keys.
+  destruct (lookup from equations) as [ty | ]; cbn [option_map];
+    [ | reflexivity ].
+  rewrite unbind_renamed_keys. reflexivity.
+Qed.
+
+Lemma move_inverse_relation_renamed (r : renaming)
+    (relations : Join_env.inverse_relations) (from to_ : variable) :
+  Join_env.move_inverse_relation (rename_inverse_relations r relations)
+    (rename_variable r from) (rename_variable r to_)
+  = rename_inverse_relations r
+      (Join_env.move_inverse_relation relations from to_).
+Proof.
+  unfold Join_env.move_inverse_relation, rename_inverse_relations.
+  rewrite lookup_renamed_keys.
+  destruct (lookup from relations) as [names | ]; cbn [option_map];
+    [ | reflexivity ].
+  cbv zeta. rewrite unbind_renamed_keys, lookup_renamed_keys.
+  destruct (lookup to_ (unbind from relations)) as [existing | ];
+    cbn [option_map]; unfold Keyed.map_bindings; cbn [map fst snd];
+    rewrite map_app; reflexivity.
+Qed.
+
+Lemma in_inverse_relations_renamed (r : renaming)
+    (relations : Join_env.inverse_relations) (var : variable) :
+  Join_env.in_inverse_relations (rename_inverse_relations r relations)
+    (rename_variable r var)
+  = Join_env.in_inverse_relations relations var.
+Proof.
+  unfold Join_env.in_inverse_relations, rename_inverse_relations.
+  rewrite is_bound_renamed_keys, compact_renamed_keys. f_equal.
+  unfold Keyed.map_bindings. apply existsb_renamed. intros [var' names].
+  cbn [fst snd]. apply existsb_renamed. intros [relation name].
+  cbn [fst snd].
+  change (Name_var (rename_variable r var))
+    with (rename_name r (Name_var var)).
+  apply name_eqb_renamed.
+Qed.
+
+Lemma count_occurrences_renamed (r : renaming) (var : variable)
+    (vars : list variable) :
+  Join_env.count_occurrences (rename_variable r var)
+    (map (rename_variable r) vars)
+  = Join_env.count_occurrences var vars.
+Proof.
+  unfold Join_env.count_occurrences.
+  rewrite
+    (filter_renamed (rename_variable r) (Pos.eqb var)
+       (Pos.eqb (rename_variable r var)))
+    by (intros var'; apply rename_variable_eqb).
+  apply length_map.
+Qed.
+
+Lemma earliest_bound_renamed (r : renaming) (tenv : Typing_env.t)
+    (candidates : list variable) :
+  ∀ best : variable,
+    Join_env.earliest_bound (rename_typing_env r tenv)
+      (rename_variable r best) (map (rename_variable r) candidates)
+    = option_map (rename_variable r)
+        (Join_env.earliest_bound tenv best candidates).
+Proof.
+  induction candidates as [ | var candidates IH]; intros best;
+    cbn [map Join_env.earliest_bound]; [ reflexivity | ].
+  change (Name_var (rename_variable r var))
+    with (rename_name r (Name_var var)).
+  change (Name_var (rename_variable r best))
+    with (rename_name r (Name_var best)).
+  rewrite !binding_time_and_mode_equivariant.
+  destruct (Typing_env.binding_time_and_mode tenv (Name_var var))
+    as [time | ];
+    [ | reflexivity ].
+  destruct (Typing_env.binding_time_and_mode tenv (Name_var best))
+    as [best_time | ];
+    [ | reflexivity ].
+  destruct
+    (Binding_time.strictly_earlier
+       (Binding_time.With_name_mode.binding_time time)
+       (Binding_time.With_name_mode.binding_time best_time));
+    apply IH.
+Qed.
+
+Lemma choose_alias_renamed (r : renaming) (tenv : Typing_env.t)
+    (aliases : list variable) :
+  Join_env.choose_alias (rename_typing_env r tenv)
+    (map (rename_variable r) aliases)
+  = option_map (option_map (rename_variable r))
+      (Join_env.choose_alias tenv aliases).
+Proof.
+  destruct aliases as [ | var aliases]; unfold Join_env.choose_alias;
+    cbn [map]; [ reflexivity | ].
+  rewrite earliest_bound_renamed.
+  destruct (Join_env.earliest_bound tenv var aliases); reflexivity.
+Qed.
+
+Lemma expand_variable_renamed (r : renaming)
+    (to_expand : finite_map flambda_type) (fuel : nat) :
+  ∀ var : variable,
+    Join_env.expand_variable fuel
+      (Keyed.map_bindings (rename_variable r) (rename_type r) to_expand)
+      (rename_variable r var)
+    = option_map (rename_type r) (Join_env.expand_variable fuel to_expand var).
+Proof.
+  induction fuel as [ | fuel IH]; intros var;
+    cbn [Join_env.expand_variable]; [ reflexivity | ].
+  rewrite lookup_renamed_keys.
+  destruct (lookup var to_expand) as [ty | ]; cbn [option_map];
+    [ | reflexivity ].
+  rewrite get_alias_opt_renamed.
+  destruct (get_alias_opt ty) as [[var' | sym | c] | ];
+    cbn [option_map rename_simple]; try reflexivity.
+  - rewrite domain_renamed_keys, among_renamed_variables.
+    destruct (among var' (domain to_expand)); [ apply IH | reflexivity ].
+  - rewrite domain_renamed_keys.
+    apply project_variables_out_renamed. exact IH.
+Qed.
+
+(* The state of the fold over the variables made: the target, the
+   types to put for the variables removed, the equations, the inverse
+   relations and the definitions. *)
+Definition rename_elimination {meet_env : Type} (r : renaming)
+    (rename_env : meet_env -> meet_env)
+    (state :
+       meet_env * finite_map flambda_type * finite_map flambda_type
+       * Join_env.inverse_relations
+       * finite_map (Simples_in_joined_envs.t * flambda_kind))
+    : meet_env * finite_map flambda_type * finite_map flambda_type
+      * Join_env.inverse_relations
+      * finite_map (Simples_in_joined_envs.t * flambda_kind) :=
+  let '(target_env, to_expand, equations, relations, definitions) := state in
+  (rename_env target_env,
+   Keyed.map_bindings (rename_variable r) (rename_type r) to_expand,
+   Keyed.map_bindings (rename_variable r) (rename_type r) equations,
+   rename_inverse_relations r relations,
+   Keyed.map_bindings (rename_variable r) (rename_definition r) definitions).
+
+(* The target and the definitions that are left. *)
+Definition rename_defined {meet_env : Type} (r : renaming)
+    (rename_env : meet_env -> meet_env)
+    (result :
+       meet_env * finite_map (Simples_in_joined_envs.t * flambda_kind))
+    : meet_env * finite_map (Simples_in_joined_envs.t * flambda_kind) :=
+  (rename_env (fst result),
+   Keyed.map_bindings (rename_variable r) (rename_definition r)
+     (snd result)).
+
+Lemma define_or_eliminate_variables_and_add_equations_renamed
+    {meet_env meet_expanded_head : Type} (r : renaming)
+    (rename_env : meet_env -> meet_env)
+    (heads_related : meet_expanded_head -> meet_expanded_head -> Prop)
+    (ops ops' : Join_env.meet_env_functions meet_env meet_expanded_head)
+    (fuel : nat) (m m' : meet_expanded_head) (env : Join_env.t)
+    (source_env : meet_env) (relations : Join_env.inverse_relations) :
+  meet_env_functions_related r rename_env heads_related ops ops' ->
+  heads_related m m' ->
+  Join_env.define_or_eliminate_variables_and_add_equations ops' fuel m'
+    (rename_join_env r env) (rename_env source_env)
+    (rename_inverse_relations r relations)
+  = option_map (rename_defined r rename_env)
+      (Join_env.define_or_eliminate_variables_and_add_equations ops fuel m
+         env source_env relations).
+Proof.
+  intros
+    (Hcreate & Hcurrent & Hadd_var & Hadd_ext & Hbottom & Hfinal & Hnames
+     & Hwith)
+    Hm.
+  unfold Join_env.define_or_eliminate_variables_and_add_equations.
+  cbv zeta.
+  change (Join_env.bindings (rename_join_env r env))
+    with (rename_bindings_in_target_env r (Join_env.bindings env)).
+  change (Join_env.types_in_target_env (rename_join_env r env))
+    with (Keyed.map_bindings (rename_variable r) (rename_type r)
+            (Join_env.types_in_target_env env)).
+  change (Join_env.aliases_of_existentials (rename_join_env r env))
+    with (rename_aliases_of_existentials r
+            (Join_env.aliases_of_existentials env)).
+  change (Join_env.definitions_of_existentials (rename_join_env r env))
+    with (Keyed.map_bindings (rename_variable r) (rename_definition r)
+            (Join_env.definitions_of_existentials env)).
+  rewrite imported_variables_in_order_renamed,
+    existential_variables_in_order_renamed.
+  (* The imported variables are defined. *)
+  match goal with
+  | |- context
+         [List.fold_left ?f
+            (Bindings_in_target_env.imported_variables_in_order
+               (Join_env.bindings env))
+            source_env] =>
+    set
+      (target_env :=
+         List.fold_left f
+           (Bindings_in_target_env.imported_variables_in_order
+              (Join_env.bindings env))
+           source_env)
+  end.
+  match goal with
+  | |- context
+         [List.fold_left ?f' (rename_keys r ?l) (rename_env source_env)] =>
+    replace (List.fold_left f' (rename_keys r l) (rename_env source_env))
+      with (rename_env target_env)
+      by (symmetry; subst target_env;
+          unfold rename_keys, Keyed.map_bindings; apply fold_left_renamed;
+          intros b [var kind]; cbn [fst snd]; apply Hadd_var)
+  end.
+  (* The variables that the equations mention. *)
+  rewrite compact_renamed_keys.
+  match goal with
+  | |- context [flat_map ?h (compact (Join_env.types_in_target_env env))] =>
+    set
+      (free_vars :=
+         flat_map h (compact (Join_env.types_in_target_env env)))
+  end.
+  match goal with
+  | |- context
+         [flat_map ?h'
+            (Keyed.map_bindings (rename_variable r) (rename_type r)
+               (compact (Join_env.types_in_target_env env)))] =>
+    replace
+      (flat_map h'
+         (Keyed.map_bindings (rename_variable r) (rename_type r)
+            (compact (Join_env.types_in_target_env env))))
+      with (map (rename_variable r) free_vars)
+      by (symmetry; subst free_vars; unfold Keyed.map_bindings;
+          apply flat_map_renamed; intros [var ty]; cbn [fst snd];
+          apply (proj1 free_variables_rename_type))
+  end.
+  rewrite Hcurrent.
+  (* The variables made are replaced, removed or defined. *)
+  match goal with
+  | |- context
+         [List.fold_left ?f
+            (Bindings_in_target_env.existential_variables_in_order
+               (Join_env.bindings env))
+            ?init] =>
+    set
+      (eliminated :=
+         List.fold_left f
+           (Bindings_in_target_env.existential_variables_in_order
+              (Join_env.bindings env))
+           init)
+  end.
+  match goal with
+  | |- context [List.fold_left ?f' (rename_keys r ?l) ?init'] =>
+    replace (List.fold_left f' (rename_keys r l) init')
+      with (option_map (rename_elimination r rename_env) eliminated)
+  end.
+  2: {
+    symmetry. subst eliminated. unfold rename_keys, Keyed.map_bindings.
+    match goal with
+    | |- List.fold_left _ _ ?init' = _ =>
+      change init'
+        with (option_map (rename_elimination r rename_env)
+                (Some
+                   (target_env, [], Join_env.types_in_target_env env,
+                    relations, Join_env.definitions_of_existentials env)))
+    end.
+    apply fold_left_renamed.
+    intros [[[[[target to_expand] equations] relations'] definitions] | ]
+      [var var_kind];
+      [ | reflexivity ].
+    cbn [option_map rename_elimination fst snd].
+    rewrite aliases_of_existential_var_renamed, choose_alias_renamed.
+    destruct
+      (Join_env.choose_alias (Join_env.current_typing_env ops target_env)
+         (Aliases_of_existentials.aliases_of_existential_var
+            (Join_env.aliases_of_existentials env) var))
+      as [[canon_var | ] | ];
+      cbn [option_map]; [ | | reflexivity ].
+    - rewrite move_definition_renamed, move_equation_renamed,
+        move_inverse_relation_renamed.
+      destruct (Join_env.move_equation equations var canon_var)
+        as [equations' | ];
+        cbn [option_map]; [ | reflexivity ].
+      change (Var (rename_variable r canon_var))
+        with (rename_simple r (Var canon_var)).
+      rewrite <- rename_type_alias_type_of.
+      rewrite
+        (filter_renamed (rename_variable r)
+           (fun alias : variable => negb (Pos.eqb alias canon_var)))
+        by (intros alias; rewrite rename_variable_eqb; reflexivity).
+      rewrite
+        (fold_left_renamed
+           (Keyed.map_bindings (rename_variable r) (rename_type r))
+           (rename_variable r)
+           (fun equations alias =>
+              (alias, alias_type_of var_kind (Var canon_var)) :: equations))
+        by (intros b c; reflexivity).
+      reflexivity.
+    - rewrite in_inverse_relations_renamed, count_occurrences_renamed.
+      match goal with
+      | |- (if ?c then _ else _) = _ => destruct c
+      end.
+      + rewrite lookup_renamed_keys, !unbind_renamed_keys.
+        destruct (lookup var equations) as [ty | ];
+          cbn [option_map rename_elimination Keyed.map_bindings map fst snd];
+          rewrite ?rename_type_unknown; reflexivity.
+      + rewrite Hadd_var. reflexivity.
+  }
+  destruct eliminated
+    as [[[[[target to_expand] equations] relations'] definitions] | ];
+    cbn [option_map rename_elimination]; [ | reflexivity ].
+  (* The equations, with the types of the variables removed in place. *)
+  rewrite domain_renamed_keys, compact_renamed_keys.
+  change
+    (Keyed.map_bindings (rename_variable r) (rename_type r)
+       (compact equations))
+    with (map
+            (fun binding : variable * flambda_type =>
+               (rename_variable r (fst binding), rename_type r (snd binding)))
+            (compact equations)).
+  match goal with
+  | |- context [@traverse ?A ?B ?f (compact equations)] =>
+    rewrite
+      (@traverse_renamed A A B B
+         (fun binding =>
+            (rename_variable r (fst binding), rename_type r (snd binding)))
+         (fun equation =>
+            (rename_name r (fst equation), rename_type r (snd equation)))
+         f);
+    [ destruct (traverse f (compact equations)) as [equations' | ];
+      cbn [option_map]; [ | reflexivity ]
+    | intros [var ty] _; cbn [fst snd];
+      match goal with
+      | |- context
+             [project_variables_out (map (rename_variable r) ?tp) ?e' _] =>
+        rewrite
+          (project_variables_out_renamed r tp
+             (Join_env.expand_variable fuel to_expand) e' ty
+             (expand_variable_renamed r to_expand fuel))
+      end;
+      destruct
+        (project_variables_out (domain to_expand)
+           (Join_env.expand_variable fuel to_expand) ty);
+      reflexivity ]
+  end.
+  (* The equations for the inverse relations. *)
+  unfold rename_inverse_relations at 1. rewrite compact_renamed_keys.
+  match goal with
+  | |- context
+         [Keyed.map_bindings (rename_variable r) ?g (compact relations')] =>
+    change (Keyed.map_bindings (rename_variable r) g (compact relations'))
+      with (map
+              (fun binding : variable * list (Relation.t * name) =>
+                 (rename_variable r (fst binding), g (snd binding)))
+              (compact relations'))
+  end.
+  match goal with
+  | |- context [@traverse ?A ?B ?f (compact relations')] =>
+    rewrite
+      (@traverse_renamed A A B B
+         (fun binding =>
+            (rename_variable r (fst binding),
+             map
+               (fun relation : Relation.t * name =>
+                  (fst relation, rename_name r (snd relation)))
+               (snd binding)))
+         (fun equation =>
+            (rename_name r (fst equation), rename_type r (snd equation)))
+         f);
+    [ destruct (traverse f (compact relations')) as [relation_equations | ];
+      cbn [option_map]; [ | reflexivity ]
+    | intros [var names] _; cbn [fst snd];
+      match goal with
+      | |- context
+             [project_variables_out (map (rename_variable r) ?tp) ?e' ?t'] =>
+        change t'
+          with (rename_type r
+                  (Type_naked_immediate
+                     (Ok
+                        (No_alias
+                           (Head_of_kind_naked_immediate Or_unknown.Unknown
+                              names)))));
+        rewrite
+          (project_variables_out_renamed r tp
+             (Join_env.expand_variable fuel to_expand) e' _
+             (expand_variable_renamed r to_expand fuel))
+      end;
+      destruct
+        (project_variables_out (domain to_expand)
+           (Join_env.expand_variable fuel to_expand)
+           (Type_naked_immediate
+              (Ok
+                 (No_alias
+                    (Head_of_kind_naked_immediate Or_unknown.Unknown names)))));
+      reflexivity ]
+  end.
+  (* The two extensions are added to the target. *)
+  match goal with
+  | |- context
+         [Join_env.add_env_extension ops' (rename_env target) ?ext m'] =>
+    change ext with (rename_env_extension r (Env_extension equations'));
+    rewrite (Hadd_ext target (Env_extension equations') m m' Hm)
+  end.
+  destruct
+    (Join_env.add_env_extension ops target (Env_extension equations') m)
+    as [target' | ];
+    cbn [option_map]; [ | reflexivity ].
+  match goal with
+  | |- context
+         [Join_env.add_env_extension ops' (rename_env target') ?ext m'] =>
+    change ext with (rename_env_extension r (Env_extension relation_equations));
+    rewrite (Hadd_ext target' (Env_extension relation_equations) m m' Hm)
+  end.
+  destruct
+    (Join_env.add_env_extension ops target'
+       (Env_extension relation_equations) m)
+    as [target'' | ];
+    reflexivity.
+Qed.
+
+(* ======================================================================== *)
+(* Cut and n-way join                                                       *)
+(* ======================================================================== *)
+
+Lemma cut_for_joins_renamed (r : renaming) (cut_after : Scope.t)
+    (envs : list (Index.t * Typing_env.t)) :
+  Join_env.cut_for_joins cut_after
+    (Keyed.map_values (rename_typing_env r) envs)
+  = option_map (rename_joined_envs r)
+      (Join_env.cut_for_joins cut_after envs).
+Proof.
+  unfold Keyed.map_values, rename_joined_envs.
+  induction envs as [ | [index tenv] envs IH]; [ reflexivity | ].
+  cbn [map fst snd Join_env.cut_for_joins] in *.
+  rewrite IH.
+  destruct (Join_env.cut_for_joins cut_after envs) as [rest | ];
+    cbn [option_map]; [ | reflexivity ].
+  change (Typing_env.is_bottom (rename_typing_env r tenv))
+    with (Typing_env.is_bottom tenv).
+  destruct (Typing_env.is_bottom tenv); [ reflexivity | ].
+  rewrite cut_equivariant.
+  destruct (Typing_env.cut tenv cut_after) as [level | ]; reflexivity.
+Qed.
+
+Lemma variables_of_env_renamed (r : renaming) (tenv : Typing_env.t) :
+  Join_env.variables_of_env (rename_typing_env r tenv)
+  = map (rename_variable r) (Join_env.variables_of_env tenv).
+Proof.
+  unfold Join_env.variables_of_env. rewrite names_to_types_equivariant.
+  unfold Keyed.map_bindings. apply flat_map_renamed.
+  intros [[var | sym] binding]; reflexivity.
+Qed.
+
+(* The target, the definitions that are left and the names of the
+   join. *)
+Definition rename_join_result {meet_env : Type} (r : renaming)
+    (rename_env : meet_env -> meet_env)
+    (result :
+       meet_env * finite_map (Simples_in_joined_envs.t * flambda_kind)
+       * list variable)
+    : meet_env * finite_map (Simples_in_joined_envs.t * flambda_kind)
+      * list variable :=
+  (rename_env (fst (fst result)),
+   Keyed.map_bindings (rename_variable r) (rename_definition r)
+     (snd (fst result)),
+   map (rename_variable r) (snd result)).
+
+Lemma cut_and_n_way_join0_renamed {meet_env meet_expanded_head : Type}
+    (r : renaming) (rename_env : meet_env -> meet_env)
+    (heads_related : meet_expanded_head -> meet_expanded_head -> Prop)
+    (ops ops' : Join_env.meet_env_functions meet_env meet_expanded_head)
+    (p p' : Join_env.parameters) (fuel : nat)
+    (choices choices' : Join_env.choices)
+    (join_type join_type' : Join_env.n_way_join_type)
+    (m m' : meet_expanded_head) (avoid : list variable)
+    (source_env : meet_env) (source_tenv : Typing_env.t)
+    (equations_to_join : Joined_envs.t) :
+  meet_env_functions_related r rename_env heads_related ops ops' ->
+  parameters_related r p p' ->
+  choices_related r choices choices' ->
+  n_way_join_type_related r join_type join_type' ->
+  heads_related m m' ->
+  Join_env.cut_and_n_way_join0 ops' p' fuel choices' join_type' m'
+    (map (rename_variable r) avoid) (rename_env source_env)
+    (rename_typing_env r source_tenv)
+    (rename_joined_envs r equations_to_join)
+  = option_map (rename_join_result r rename_env)
+      (Join_env.cut_and_n_way_join0 ops p fuel choices join_type m avoid
+         source_env source_tenv equations_to_join).
+Proof.
+  intros Hops Hp Hchoices Hjoin Hm.
+  pose proof Hops
+    as (Hcreate & Hcurrent & Hadd_var & Hadd_ext & Hbottom & Hfinal & Hnames
+        & Hwith).
+  unfold Join_env.cut_and_n_way_join0. cbv zeta.
+  assert (Hempty :
+    Keyed.is_empty (rename_joined_envs r equations_to_join)
+    = Keyed.is_empty equations_to_join)
+    by (destruct equations_to_join; reflexivity).
+  rewrite Hempty. clear Hempty.
+  destruct (Keyed.is_empty equations_to_join).
+  { cbn [option_map rename_join_result fst snd]. rewrite Hbottom. reflexivity. }
+  rewrite from_source_env_renamed, join_env_create_renamed.
+  set
+    (empty_env :=
+       Join_env.create equations_to_join
+         (Bindings_in_target_env.from_source_env avoid source_tenv)).
+  rewrite
+    (join_aliases_into_bindings_renamed r p p' fuel empty_env
+       equations_to_join Hp).
+  destruct
+    (Join_env.join_aliases_into_bindings p fuel empty_env equations_to_join)
+    as [env | ];
+    cbn [option_map]; [ | reflexivity ].
+  rewrite new_equations_in_joined_envs_renamed.
+  match goal with
+  | |- context
+         [Join_env.n_way_join_delayed_equations fuel choices' join_type'
+            (rename_join_env r env) ?relations ?equations] =>
+    change
+      (Join_env.n_way_join_delayed_equations fuel choices' join_type'
+         (rename_join_env r env) relations equations)
+      with (Join_env.n_way_join_delayed_equations fuel choices' join_type'
+              (rename_join_env r env) (rename_inverse_relations r [])
+              equations)
+  end.
+  rewrite
+    (n_way_join_delayed_equations_renamed r choices choices' join_type
+       join_type' fuel Hchoices Hjoin env []).
+  destruct
+    (Join_env.n_way_join_delayed_equations fuel choices join_type env []
+       (Join_env.new_equations_in_joined_envs env empty_env))
+    as [[relations env'] | ];
+    cbn [option_map rename_round_result fst snd]; [ | reflexivity ].
+  rewrite new_definitions_of_existentials_renamed,
+    (proj2 (proj2 (proj2 (proj2 Hp)))),
+    (n_way_join_loop_renamed r p p' fuel choices choices' join_type
+       join_type' (Join_env.join_depth p) Hp Hchoices Hjoin env' relations).
+  destruct
+    (Join_env.n_way_join_loop (Join_env.join_depth p) p fuel choices
+       join_type env' relations
+       (Join_env.new_definitions_of_existentials env' empty_env))
+    as [[relations' env''] | ];
+    cbn [option_map rename_round_result fst snd]; [ | reflexivity ].
+  change (Join_env.bindings (rename_join_env r env''))
+    with (rename_bindings_in_target_env r (Join_env.bindings env'')).
+  change
+    (Bindings_in_target_env.names_to_avoid
+       (rename_bindings_in_target_env r (Join_env.bindings env'')))
+    with (map (rename_variable r)
+            (Bindings_in_target_env.names_to_avoid (Join_env.bindings env''))).
+  rewrite Hwith,
+    (define_or_eliminate_variables_and_add_equations_renamed r rename_env
+       heads_related ops ops' fuel m m' env''
+       (Join_env.with_names_to_avoid ops source_env
+          (Bindings_in_target_env.names_to_avoid (Join_env.bindings env'')))
+       relations' Hops Hm).
+  destruct
+    (Join_env.define_or_eliminate_variables_and_add_equations ops fuel m
+       env''
+       (Join_env.with_names_to_avoid ops source_env
+          (Bindings_in_target_env.names_to_avoid (Join_env.bindings env'')))
+       relations')
+    as [[target_env definitions] | ];
+    reflexivity.
+Qed.
+
+Theorem cut_and_n_way_join_related : cut_and_n_way_join_related_statement.
+Proof.
+  intros meet_env meet_expanded_head r rename_env heads_related ops ops' p
+    p' fuel choices choices' join_type join_type' m m' cut_after source_env
+    source_tenv joined_envs Hops Hp Hchoices Hjoin Hm.
+  pose proof Hops
+    as (Hcreate & Hcurrent & Hadd_var & Hadd_ext & Hbottom & Hfinal & Hnames
+        & Hwith).
+  unfold Join_env.cut_and_n_way_join. cbv zeta.
+  rewrite number_renamed, cut_for_joins_renamed.
+  destruct (Join_env.cut_for_joins cut_after (Index.number joined_envs))
+    as [equations_to_join | ];
+    cbn [option_map]; [ | reflexivity ].
+  rewrite Hnames, variables_of_env_renamed,
+    (flat_map_renamed (rename_typing_env r) (rename_variable r)
+       Join_env.variables_of_env Join_env.variables_of_env)
+    by (intros tenv; apply variables_of_env_renamed).
+  rewrite <- !map_app.
+  rewrite
+    (cut_and_n_way_join0_renamed r rename_env heads_related ops ops' p p'
+       fuel choices choices' join_type join_type' m m'
+       (Join_env.names_to_avoid ops source_env
+        ++ Join_env.variables_of_env source_tenv
+        ++ flat_map Join_env.variables_of_env joined_envs)
+       source_env source_tenv equations_to_join Hops Hp Hchoices Hjoin Hm).
+  destruct
+    (Join_env.cut_and_n_way_join0 ops p fuel choices join_type m
+       (Join_env.names_to_avoid ops source_env
+        ++ Join_env.variables_of_env source_tenv
+        ++ flat_map Join_env.variables_of_env joined_envs)
+       source_env source_tenv equations_to_join)
+    as [[[target_env definitions] names] | ];
+    reflexivity.
 Qed.
