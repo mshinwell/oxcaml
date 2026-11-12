@@ -724,8 +724,13 @@ Not trusted, though it is OCaml: what the tool proposes to
 `validate_unit` and to `validate_unit_knowing`. Each proposal is
 checked by an extracted function, and `validate_unit_sound` and
 `validate_unit_knowing_sound` hold whatever is proposed.
-- Which static bindings to remove as unused (`unused_statics`): checked
-  by `drop_statics`.
+- Which static bindings to remove as unused (`unused_statics`, of the
+  term before and, with them, of the term after): checked by
+  `drop_statics` for the term before, and for the term after by
+  `drop_statics` under the checks of
+  `FlambdaUnusedHeadStaticsSpec.head_statics_removable`
+  (`without_head_statics`: where a check fails the term after is left
+  as it is).
 - Which `Let`s Simplify made static bindings, under which symbols, and
   in which code `my_closure` is a symbol (`lifting_guess`, once for
   each lifting of the list): the `Let`s outside code and the code ids
