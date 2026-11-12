@@ -220,9 +220,13 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaMeetEnvSpec.v \
   FlambdaMeetExamplesProofs.v \
   FlambdaMeetExamplesSpec.v \
+  FlambdaMeetFuelProofs.v \
+  FlambdaMeetFuelSpec.v \
   FlambdaMeetGrammar.v \
   FlambdaMeetHeadsProofs.v \
   FlambdaMeetHeadsSpec.v \
+  FlambdaMeetImmediateProofs.v \
+  FlambdaMeetImmediateSpec.v \
   FlambdaMeetProductsProofs.v \
   FlambdaMeetProductsSpec.v \
   FlambdaMeetProofs.v \
