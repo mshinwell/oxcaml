@@ -1003,36 +1003,233 @@ Two types of kind value, for the meet of the model and the n-way meet of the com
   meet: the model and the n-way meet of the compiler: 1000 agree
   of which those where the meet is not bottom: 588 agree
   of which those where a variable that was made is mentioned: 0 agree
+  meet: the model and the binary meet of the compiler: 1000 agree
 
 Two types of naked immediates, for the meet of the model and the n-way meet of the compiler (500 cases, seeds 92000 to 92499)
   500 converted
   meet: the model and the n-way meet of the compiler: 500 agree
   of which those where the meet is not bottom: 272 agree
   of which those where a variable that was made is mentioned: 0 agree
+  meet: the model and the binary meet of the compiler: 500 agree
 
 Equations on variables and two types of kind value, for the meet of the model and the n-way meet of the compiler (1000 cases, seeds 94000 to 94999)
   1000 converted
   meet: the model and the n-way meet of the compiler: 1000 agree
   of which those where the meet is not bottom: 402 agree
   of which those where a variable that was made is mentioned: 0 agree
+  meet: the model and the binary meet of the compiler: 1000 agree
 
 Equations on variables and two types of naked immediates, for the meet of the model and the n-way meet of the compiler (500 cases, seeds 96000 to 96499)
   500 converted
   meet: the model and the n-way meet of the compiler: 500 agree
   of which those where the meet is not bottom: 171 agree
   of which those where a variable that was made is mentioned: 0 agree
+  meet: the model and the binary meet of the compiler: 500 agree
 
 Aliases between variables and symbols, and two types of kind value, for the meet of the model and the n-way meet of the compiler (1000 cases, seeds 98000 to 98999)
   1000 converted
   meet: the model and the n-way meet of the compiler: 1000 agree
   of which those where the meet is not bottom: 755 agree
   of which those where a variable that was made is mentioned: 0 agree
+  meet: the model and the binary meet of the compiler: 1000 agree
 
 Two variants whose cases hold a variable and blocks of a repeated variable, for the meet of the model and the n-way meet of the compiler (500 cases, seeds 99000 to 99499)
   500 converted
   meet: the model and the n-way meet of the compiler: 500 agree
   of which those where the meet is not bottom: 500 agree
   of which those where a variable that was made is mentioned: 279 agree
+  meet: the model and the binary meet of the compiler: 221 agree, 279 disagree as recorded
+    recorded as the binary meet, which the model does not transcribe, answers otherwise (seed 99002): what is seen of the two answers is not the same
+    on the shrunk input:
+    (Value
+     ((Variant (is_int None) (immediates Unknown) (get_tag None)
+       (blocks (Known
+                ((known_tags [0 ->
+                               (Known
+                                ((Known 1) Value_only
+                                 [(Value
+                                   ((Variant (is_int None)
+                                     (immediates Unknown) (get_tag None)
+                                     (blocks (Known
+                                              ((known_tags [1 ->
+                                                             (Known
+                                                              ((Known 1)
+                                                               Value_only
+                                                               [(Value
+                                                                 (= v2))] 
+                                                               []));
+                                                            2 ->
+                                                             (Known
+                                                              ((Known 1)
+                                                               Value_only
+                                                               [(Value
+                                                                 (= v2))] 
+                                                               []))])
+                                               (other_tags Bottom)
+                                               (alloc_mode Heap))))
+                                     (extensions No_extensions)
+                                     (is_unique false)) Not_null))] []))])
+                 (other_tags Bottom) (alloc_mode Heap))))
+       (extensions No_extensions) (is_unique false)) Not_null))
+    and
+    (Value
+     ((Variant (is_int None) (immediates Unknown) (get_tag None)
+       (blocks (Known
+                ((known_tags [0 ->
+                               (Known
+                                ((Known 1) Value_only
+                                 [(Value
+                                   ((Variant (is_int None)
+                                     (immediates Unknown) (get_tag None)
+                                     (blocks (Known
+                                              ((known_tags [1 ->
+                                                             (Known
+                                                              ((Known 1)
+                                                               Value_only
+                                                               [(Value
+                                                                 ((Variant
+                                                                   (is_int None)
+                                                                   (immediates Unknown)
+                                                                   (get_tag None)
+                                                                   (blocks 
+                                                                   (Known
+                                                                    ((known_tags 
+                                                                    [])
+                                                                    (other_tags Bottom)
+                                                                    (alloc_mode Heap))))
+                                                                   (extensions No_extensions)
+                                                                   (is_unique false))
+                                                                  Not_null))]
+                                                               []));
+                                                            2 ->
+                                                             (Known
+                                                              ((Known 1)
+                                                               Value_only
+                                                               [(Value
+                                                                 ((Variant
+                                                                   (is_int None)
+                                                                   (immediates 
+                                                                   (Known
+                                                                    (Naked_immediate
+                                                                    Unknown)))
+                                                                   (get_tag None)
+                                                                   (blocks 
+                                                                   (Known
+                                                                    ((known_tags 
+                                                                    [])
+                                                                    (other_tags Bottom)
+                                                                    (alloc_mode Heap))))
+                                                                   (extensions No_extensions)
+                                                                   (is_unique false))
+                                                                  Not_null))]
+                                                               []))])
+                                               (other_tags Bottom)
+                                               (alloc_mode Heap))))
+                                     (extensions No_extensions)
+                                     (is_unique false)) Not_null))] []))])
+                 (other_tags Bottom) (alloc_mode Heap))))
+       (extensions No_extensions) (is_unique false)) Not_null))
+
+The join of the model beside the n-way join of the compiler, on the inputs of the examples of the join
+  two sets of naked immediates: the same
+  two sets of tagged immediates: the same
+  two boxed floats: the same
+  two strings: the same
+  one constant twice: the same
+  two constants: the same
+  two constants in a field (a variable is made, mentioned once: its type is in its place): the same
+  two constants in two fields (one variable is made, mentioned twice): the same
+  a constant and a set: the same
+  a set and the unknown type: the same
+  a set and bottom: the same
+  bottom twice: the same
+  a string and a tagged immediate: the same
+  null and a tagged immediate: the same
+  two mutable blocks, on the heap and local: not run, not in the compiler: the allocation mode Local, which no function of the compiler makes
+  two mutable blocks, on the heap and on the heap or local: the same
+  blocks of one tag and one size: the same
+  blocks whose field is one variable: the same
+  blocks whose fields are two variables of which nothing is known (a variable is made, mentioned once: its type is in its place): the same
+  blocks whose fields are two variables known to be numbers (the same): the same
+  blocks with two fields that are two variables of which nothing is known (one variable is made, mentioned twice): the same
+  blocks with two fields that are two variables known to be numbers (the same): the same
+  blocks of one tag and two sizes: the same
+  blocks of one tag and two shapes (two values; a value and a naked float): the same
+  blocks of two tags (a variable is made for Get_tag): the same
+  an immediate and a block (a variable is made for Is_int): the same
+  two variants: the same
+  two closures of one code: the same
+  two closures of two codes: the same
+  a closure with a function type, and the closures of at least a value slot: the same
+  a tagged immediate and an alias of kind value to a naked immediate (T5b-3): neither answers.
+  The model: no answer of the join
+  The compiler: an assertion of meet_and_n_way_join.ml fails
+  two closures whose closure types join to a type of another kind: neither answers.
+  The model: no answer of the join
+  The compiler: a fatal error: Function-slot-indexed products can only hold types of kind [Value]:
+  Of 32: 29 the same, 2 where neither answers, 0 different, 1 not run
+
+Two or three types of kind value, for the join of the model and the n-way join of the compiler (1000 cases, seeds 100000 to 100999)
+  1000 converted
+  join: the model and the n-way join of the compiler: 1000 agree
+  of which those where a variable that was made is mentioned: 133 agree
+  join: the model and the binary join of the compiler: 829 agree, 171 disagree as recorded
+    recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 100003): what is seen of the two answers is not the same
+    on the shrunk input:
+    a parameter of kind value
+    a use that passes (Value (Unknown (Maybe_null (Some v5))))
+    a use that passes (Value (Unknown Not_null))
+
+Two or three types of naked immediates, for the join of the model and the n-way join of the compiler (500 cases, seeds 102000 to 102499)
+  500 converted
+  join: the model and the n-way join of the compiler: 500 agree
+  of which those where a variable that was made is mentioned: 0 agree
+  join: the model and the binary join of the compiler: 481 agree, 19 disagree as recorded
+    recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 102028): what is seen of the two answers is not the same
+    on the shrunk input:
+    a parameter of kind naked_immediate
+    a use that passes (Naked_immediate (Unknown [Is_int $1]))
+    a use that passes (Naked_immediate (Unknown [Is_int v2]))
+
+Two or three uses that know equations on variables and pass a type of kind value, for the join of the model and the n-way join of the compiler (1000 cases, seeds 104000 to 104999)
+  1000 converted
+  join: the model and the n-way join of the compiler: 1000 agree
+  of which those where a variable that was made is mentioned: 128 agree
+  join: the model and the binary join of the compiler: 563 agree, 437 disagree as recorded
+    recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 104000): what is seen of the two answers is not the same
+    on the shrunk input:
+    a parameter of kind value
+    a use that passes (Value
+                       ((Variant (is_int None) (immediates Unknown)
+                         (get_tag (Some v4))
+                         (blocks (Known
+                                  ((known_tags [])
+                                   (other_tags (Ok
+                                                ((Known 2) Value_only [] [])))
+                                   (alloc_mode Heap_or_local))))
+                         (extensions No_extensions) (is_unique false))
+                        Not_null))
+    a use that passes (Value
+                       ((Variant (is_int None) (immediates Unknown)
+                         (get_tag None)
+                         (blocks (Known
+                                  ((known_tags []) (other_tags Bottom)
+                                   (alloc_mode Heap_or_local))))
+                         (extensions No_extensions) (is_unique false))
+                        Not_null))
+
+Two or three uses that know equations on variables and pass a type of naked immediates, for the join of the model and the n-way join of the compiler (500 cases, seeds 106000 to 106499)
+  500 converted
+  join: the model and the n-way join of the compiler: 500 agree
+  of which those where a variable that was made is mentioned: 24 agree
+  join: the model and the binary join of the compiler: 325 agree, 175 disagree as recorded
+    recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 106002): what is seen of the two answers is not the same
+    on the shrunk input:
+    a parameter of kind naked_immediate
+    a use that passes (Naked_immediate Bottom)
+      and knows v5 : (Naked_immediate (= # 2))
+    a use that passes (Naked_immediate Unknown)
+      and knows v5 : (Naked_immediate ((Known [1]) []))
 
 A type of kind value with itself, shared and not (1500 cases, seeds 70000 to 71499)
   1500 converted

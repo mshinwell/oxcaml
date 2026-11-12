@@ -4322,6 +4322,7 @@ module Model_meet = Flambda2_rocq_semantics.FlambdaMeet
 module Model_join_meet = Flambda2_rocq_semantics.FlambdaJoinMeet
 module Model_join_env = Flambda2_rocq_semantics.FlambdaJoinEnv.Join_env
 module Model_name_mode = Flambda2_rocq_semantics.FlambdaBindingTime.Name_mode
+module Model_join_spec = Flambda2_rocq_semantics.FlambdaJoinSpec
 
 type model =
   { meet_of_model :
@@ -4332,7 +4333,9 @@ type model =
     add_equation_of_model :
       Model_env.t -> MT.name -> MT.flambda_type -> Model_env.t option;
     add_relation_of_model :
-      MT.Relation.t -> Model_env.t -> MT.name -> M.simple -> Model_env.t option
+      MT.Relation.t -> Model_env.t -> MT.name -> M.simple -> Model_env.t option;
+    (* The join of environments, for the tests of the join below. *)
+    join_of_model : unit Model_join_spec.join_of_environments
   }
 
 (* The choices of the model: the compiler's, or those of the meet and of the
@@ -4370,7 +4373,9 @@ let the_model (choices : choices) : model =
           | Get_tag -> Model_meet.Flambda2_types.add_get_tag_relation
           | Is_null -> Model_meet.Flambda2_types.add_is_null_relation
         in
-        add join meet_choices fuel)
+        add join meet_choices fuel);
+    join_of_model =
+      Model_join_meet.model_join join_choices meet_choices join_depth fuels
   }
 
 (* The environment that the steps of a scenario make in the model. *)
@@ -4545,7 +4550,7 @@ let print_seen ~threshold (seen : seen) : string =
          (fun ppf (answer : MT.flambda_type option) ->
            match answer with
            | Some t -> Format.fprintf ppf "the meet answers %a" print t
-           | None -> Format.pp_print_string ppf "after the steps")
+           | None -> Format.pp_print_string ppf "the environment")
          answer
          (if env_is_bottom then ", in an environment that is bottom" else "")
          (fun ppf ->
@@ -4860,7 +4865,7 @@ let model_against_compiler (names : names) :
            match name with Name_var _ -> true | Name_symbol _ -> false)
          defined)
   in
-  let both { equations; met = m1, m2 } =
+  let in_the_model { equations; met = m1, m2 } =
     let in_the_model =
       let rec add env equations =
         match equations with
@@ -4878,10 +4883,14 @@ let model_against_compiler (names : names) :
         | Some (Ok (t, env)) ->
           seen_in_the_model ~threshold defined (Some t) env)
     in
+    in_the_model
+  in
+  let in_the_compiler (implementation : implementation)
+      { equations; met = m1, m2 } =
     let in_the_compiler =
       match
         or_fatal_error (fun () ->
-            let meet_expanded_head = n_way.meet_expanded_head in
+            let meet_expanded_head = implementation.meet_expanded_head in
             let env =
               List.fold_left
                 (fun env (name, t) ->
@@ -4892,7 +4901,8 @@ let model_against_compiler (names : names) :
                 names.env equations
             in
             match
-              n_way.meet env (to_compiler names m1) (to_compiler names m2)
+              implementation.meet env (to_compiler names m1)
+                (to_compiler names m2)
             with
             | Bottom -> Bottom_seen
             | Ok (t, env) ->
@@ -4902,8 +4912,9 @@ let model_against_compiler (names : names) :
       | Ok seen -> seen
       | Error line -> Nothing_seen ("a fatal error: " ^ general line)
     in
-    in_the_model, in_the_compiler
+    in_the_compiler
   in
+  let both input = in_the_model input, in_the_compiler n_way input in
   let different in_the_model in_the_compiler =
     Disagree
       (Format.asprintf "@[<v>the model:@ %a@ the compiler:@ %a@]" print_lines
@@ -4954,6 +4965,295 @@ let model_against_compiler (names : names) :
             then Agree
             else different in_the_model in_the_compiler
           | (Nothing_seen _ | Bottom_seen | Seen _), _ -> Not_this_comparison)
+    };
+    (* The binary meet is not what the model transcribes: where it answers
+       otherwise the model is not wrong, and the comparison is shown to tell two
+       answers apart. *)
+    { name = "meet: the model and the binary meet of the compiler";
+      compare =
+        (fun input ->
+          let in_the_model = in_the_model input in
+          let in_the_compiler = in_the_compiler binary input in
+          match in_the_model, in_the_compiler with
+          | Nothing_seen _, Nothing_seen _ -> Not_run "neither answers"
+          | (Nothing_seen _ | Bottom_seen | Seen _), _ ->
+            if same_seen ~threshold in_the_model in_the_compiler
+            then Agree
+            else
+              Known_to_disagree
+                ( "the binary meet, which the model does not transcribe, \
+                   answers otherwise",
+                  "what is seen of the two answers is not the same" ))
+    } ]
+
+(* ======================================================================== *)
+(* The join of the model beside the compiler's                              *)
+(* ======================================================================== *)
+
+(* The transcription of the n-way join of environments (FlambdaJoinEnv.v), with
+   the transcriptions of the join of types and of the meet tied in
+   (FlambdaJoinMeet.v), is extracted, and is run here beside the n-way join of
+   the compiler ([Join_env.cut_and_n_way_join_with_analysis]), with the choices
+   that are the compiler's: on the inputs of the examples of the join, where it
+   is the function that the statements are about that is run and not an answer
+   copied from them, and on generated types.
+
+   The inputs are those of [join_env], made in the model by the same calls: the
+   source is the environment of the tests with the parameter defined; a use is
+   the source at the next scope, to which are added the equations that the use
+   knows and then the type of the parameter; the join cuts after the scope of
+   the source. The names that the variables made by the model's join must avoid
+   are all the variables numbered for the tests.
+
+   What is compared is what can be seen of the two targets, as for the meet:
+   whether the target is marked bottom, the type and the canonical element of
+   the parameter and of every name of the tests, and the type of every other
+   variable that those types mention (the variables that the join made), with
+   those variables renamed in the order in which they come. The analysis that
+   the join answers with the target is not compared. *)
+(* The uses of a continuation with one parameter of a kind: what each use knows
+   of the names of the tests, and the type of what it passes. *)
+type join_at_a_continuation =
+  { kind_of_parameter : MK.flambda_kind;
+    at_uses : ((MT.name * MT.flambda_type) list * MT.flambda_type) list
+  }
+
+let join_in_the_model (names : names) (model : model)
+    ({ kind_of_parameter = kind; at_uses } : join_at_a_continuation) : seen =
+  let model_env, defined = env_of_model names in
+  let parameter = names.numbering.variables.number (parameter names kind) in
+  let source =
+    Model_env.add_variable_definition model_env parameter kind
+      Model_name_mode.normal
+  in
+  let use (known, t) =
+    List.fold_left
+      (fun env (name, t) ->
+        Option.bind env (fun env -> model.add_equation_of_model env name t))
+      (Some (Model_env.increment_scope source))
+      (known @ [MT.Name_var parameter, t])
+  in
+  let uses = List.map use at_uses in
+  if List.exists Option.is_none uses
+  then Nothing_seen "no answer where an equation is added at a use"
+  else
+    let avoid =
+      List.init names.variables_with_a_name (fun i -> N.positive_of_int (i + 1))
+    in
+    match
+      model.join_of_model avoid
+        { source;
+          cut_after = Model_env.current_scope source;
+          uses = List.filter_map (Option.map (fun env -> (), env)) uses
+        }
+    with
+    | None -> Nothing_seen "no answer of the join"
+    | Some (target, _) ->
+      seen_in_the_model ~threshold:names.variables_with_a_name
+        (defined @ [MT.Name_var parameter])
+        None target
+
+(* The same in the compiler. The conversion of the inputs may refuse them. *)
+let join_in_the_compiler (names : names) (implementation : implementation)
+    ({ kind_of_parameter = kind; at_uses } : join_at_a_continuation) : seen =
+  let (_ : Model_env.t), defined = env_of_model names in
+  let known =
+    List.map
+      (fun (known, (_ : MT.flambda_type)) ->
+        List.map
+          (fun (name, t) ->
+            Converter.name_of_model names.numbering name, to_compiler names t)
+          known)
+      at_uses
+  in
+  let types = List.map (fun (_, t) -> to_compiler names t) at_uses in
+  match
+    or_fatal_error (fun () ->
+        match
+          join_env names implementation ~known:(List.nth known) kind types
+        with
+        | env, parameter ->
+          seen_in_the_compiler names.numbering
+            ~threshold:names.variables_with_a_name
+            (defined
+            @ [MT.Name_var (names.numbering.variables.number parameter)])
+            None env
+        | exception Assert_failure (file, _, _) ->
+          Nothing_seen ("an assertion of " ^ Filename.basename file ^ " fails"))
+  with
+  | Ok seen -> seen
+  | Error line -> Nothing_seen ("a fatal error: " ^ general line)
+
+let examples_of_joins_in_the_model (names : names) =
+  Format.printf
+    "@.The join of the model beside the n-way join of the compiler, on the \
+     inputs of the examples of the join@.";
+  let model = the_model Of_the_compiler in
+  let threshold = names.variables_with_a_name in
+  let same = ref 0 and neither = ref 0 and different = ref 0 in
+  let not_run = ref 0 in
+  let examples = examples_of_joins names in
+  List.iter
+    (fun { example; source = _; knowing; inputs; answer = _ } ->
+      let input : join_at_a_continuation =
+        { kind_of_parameter = MT.kind (List.hd inputs);
+          at_uses =
+            List.map
+              (fun t ->
+                ( List.map
+                    (fun (x, t) : (MT.name * MT.flambda_type) -> Name_var x, t)
+                    knowing,
+                  t ))
+              inputs
+        }
+      in
+      match join_in_the_compiler names n_way input with
+      | exception Converter.Not_in_the_compiler what ->
+        incr not_run;
+        Format.printf "  %s: not run, not in the compiler: %s@." example what
+      | in_the_compiler -> (
+        let in_the_model = join_in_the_model names model input in
+        match in_the_model, in_the_compiler with
+        | Nothing_seen why, Nothing_seen why' ->
+          incr neither;
+          Format.printf
+            "  @[<v>%s: neither answers.@ The model: %s@ The compiler: %s@]@."
+            example why why'
+        | (Nothing_seen _ | Bottom_seen | Seen _), _ ->
+          if same_seen ~threshold in_the_model in_the_compiler
+          then (
+            incr same;
+            Format.printf "  %s: the same@." example)
+          else (
+            incr different;
+            Format.printf
+              "  @[<v>%s: DIFFERENT. The model:@ %a@ the compiler:@ %a@]@."
+              example print_lines
+              (print_seen ~threshold in_the_model)
+              print_lines
+              (print_seen ~threshold in_the_compiler))))
+    examples;
+  Format.printf
+    "  Of %d: %d the same, %d where neither answers, %d different, %d not run@."
+    (List.length examples) !same !neither !different !not_run
+
+let print_join_at_a_continuation ppf
+    ({ kind_of_parameter; at_uses } : join_at_a_continuation) =
+  Format.fprintf ppf "@[<v>a parameter of kind %a%a@]" Model_type.print_kind
+    kind_of_parameter
+    (fun ppf ->
+      List.iter (fun (known, t) ->
+          Format.fprintf ppf "@ a use that passes %a%a" Model_type.print t
+            (fun ppf ->
+              List.iter (fun (name, t) ->
+                  Format.fprintf ppf "@   and knows %a : %a"
+                    Model_type.print_name name Model_type.print t))
+            known))
+    at_uses
+
+let shrink_join_at_a_continuation (input : join_at_a_continuation) =
+  let at i f =
+    List.concat
+      (List.mapi
+         (fun j use ->
+           if i = j
+           then
+             List.map
+               (fun use ->
+                 { input with
+                   at_uses =
+                     List.mapi
+                       (fun k use' -> if k = j then use else use')
+                       input.at_uses
+                 })
+               (f use)
+           else [])
+         input.at_uses)
+  in
+  (* A use less, if two are left; an equation less; a smaller type. *)
+  (if List.length input.at_uses > 2
+   then
+     List.mapi
+       (fun i _ ->
+         let at_uses = List.filteri (fun j _ -> i <> j) input.at_uses in
+         { input with at_uses })
+       input.at_uses
+   else [])
+  @ List.concat
+      (List.mapi
+         (fun i _ ->
+           at i (fun (known, t) ->
+               List.mapi
+                 (fun k _ -> List.filteri (fun l _ -> k <> l) known, t)
+                 known
+               @ List.map (fun t -> known, t) (G.shrink t)))
+         input.at_uses)
+
+(* The join of the model against the n-way join of the compiler. *)
+let model_join_against_compiler (names : names) :
+    join_at_a_continuation comparison list =
+  let model = the_model Of_the_compiler in
+  let threshold = names.variables_with_a_name in
+  let both input =
+    join_in_the_model names model input, join_in_the_compiler names n_way input
+  in
+  let different in_the_model in_the_compiler =
+    Disagree
+      (Format.asprintf "@[<v>the model:@ %a@ the compiler:@ %a@]" print_lines
+         (print_seen ~threshold in_the_model)
+         print_lines
+         (print_seen ~threshold in_the_compiler))
+  in
+  [ { name = "join: the model and the n-way join of the compiler";
+      compare =
+        (fun input ->
+          let in_the_model, in_the_compiler = both input in
+          match in_the_model, in_the_compiler with
+          | Nothing_seen why, Nothing_seen why' ->
+            Not_run
+              (Printf.sprintf
+                 "neither answers (the model: %s; the compiler: %s)" why why')
+          | Nothing_seen why, (Bottom_seen | Seen _) ->
+            Known_to_disagree
+              ( "the model has no answer where the compiler answers",
+                Format.asprintf "@[<v>the model: %s@ the compiler:@ %a@]" why
+                  print_lines
+                  (print_seen ~threshold in_the_compiler) )
+          | (Bottom_seen | Seen _), _ ->
+            if same_seen ~threshold in_the_model in_the_compiler
+            then Agree
+            else different in_the_model in_the_compiler)
+    };
+    { name = "of which those where a variable that was made is mentioned";
+      compare =
+        (fun input ->
+          match both input with
+          | ( (Seen { of_others = _ :: _; _ } as in_the_model),
+              (Seen _ as in_the_compiler) )
+          | ( (Seen _ as in_the_model),
+              (Seen { of_others = _ :: _; _ } as in_the_compiler) ) ->
+            if same_seen ~threshold in_the_model in_the_compiler
+            then Agree
+            else different in_the_model in_the_compiler
+          | (Nothing_seen _ | Bottom_seen | Seen _), _ -> Not_this_comparison)
+    };
+    (* The binary join is not what the model transcribes (T7-3): the comparison
+       is shown to tell two answers apart. *)
+    { name = "join: the model and the binary join of the compiler";
+      compare =
+        (fun input ->
+          let in_the_model = join_in_the_model names model input in
+          let in_the_compiler = join_in_the_compiler names binary input in
+          match in_the_model, in_the_compiler with
+          | Nothing_seen _, Nothing_seen _ -> Not_run "neither answers"
+          | (Nothing_seen _ | Bottom_seen | Seen _), _ ->
+            if same_seen ~threshold in_the_model in_the_compiler
+            then Agree
+            else
+              Known_to_disagree
+                ( "T7-3, the binary join, which the model does not transcribe, \
+                   answers otherwise",
+                  "what is seen of the two answers is not the same" ))
     } ]
 
 (* ======================================================================== *)
@@ -5639,6 +5939,51 @@ let () =
       "Two variants whose cases hold a variable and blocks of a repeated \
        variable, for the meet of the model and the n-way meet of the compiler"
     ~seed:99000 ~count:500 ~equations:`Cases MK.Value;
+  examples_of_joins_in_the_model names;
+  let model_join_and_compiler ~title ~seed ~count ~known kind =
+    run ~title ~seed ~count
+      ~generate:(fun r ->
+        let config : G.config = { well_formed = true; depth = 2 } in
+        { kind_of_parameter = kind;
+          at_uses =
+            List.init
+              (2 + G.below r 2)
+              (fun _ ->
+                ( (if known then generate_equations names r else []),
+                  G.type_of_kind config r names.pool kind ))
+        })
+      ~prepare:(fun (input : join_at_a_continuation) ->
+        List.iter
+          (fun (known, t) ->
+            List.iter (fun (_, t) -> ignore (to_compiler names t : TG.t)) known;
+            ignore (to_compiler names t : TG.t))
+          input.at_uses;
+        input)
+      ~shrink:shrink_join_at_a_continuation ~print:print_join_at_a_continuation
+      (model_join_against_compiler names)
+  in
+  model_join_and_compiler
+    ~title:
+      "Two or three types of kind value, for the join of the model and the \
+       n-way join of the compiler"
+    ~seed:100000 ~count:1000 ~known:false MK.Value;
+  model_join_and_compiler
+    ~title:
+      "Two or three types of naked immediates, for the join of the model and \
+       the n-way join of the compiler"
+    ~seed:102000 ~count:500 ~known:false (MK.Naked_number Kind_naked_immediate);
+  model_join_and_compiler
+    ~title:
+      "Two or three uses that know equations on variables and pass a type of \
+       kind value, for the join of the model and the n-way join of the \
+       compiler"
+    ~seed:104000 ~count:1000 ~known:true MK.Value;
+  model_join_and_compiler
+    ~title:
+      "Two or three uses that know equations on variables and pass a type of \
+       naked immediates, for the join of the model and the n-way join of the \
+       compiler"
+    ~seed:106000 ~count:500 ~known:true (MK.Naked_number Kind_naked_immediate);
   let with_itself ~title sharing =
     run ~title ~seed:70000 ~count:1500
       ~generate:(fun r ->
