@@ -343,6 +343,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaJoinWellFormedProofs.v \
   FlambdaJoinWellFormedSpec.v \
   FlambdaMeet.v \
+  FlambdaMeetChoicesProofs.v \
+  FlambdaMeetChoicesSpec.v \
   FlambdaMeetClosuresProofs.v \
   FlambdaMeetClosuresSpec.v \
   FlambdaMeetEnv.v \
@@ -361,6 +363,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaMeetKeepsSpec.v \
   FlambdaMeetMatchExamplesProofs.v \
   FlambdaMeetMatchExamplesSpec.v \
+  FlambdaMeetParamsProofs.v \
+  FlambdaMeetParamsSpec.v \
   FlambdaMeetProductsProofs.v \
   FlambdaMeetProductsSpec.v \
   FlambdaMeetProjectionExamplesProofs.v \
