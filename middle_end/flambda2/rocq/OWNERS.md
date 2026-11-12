@@ -352,9 +352,10 @@ stays C0's for now.
   that is known; V1's once it is staffed)
 - `middle_end/flambda2/rocq/FlambdaUnusedConts*` (another: removing a
   continuation that is not used; S3's once it is staffed)
-- `middle_end/flambda2/rocq/FlambdaUnbox*` (another: unboxing a number
-  that is known to be boxed, untagging one that is known to be tagged;
-  S1's once it is staffed)
+- `middle_end/flambda2/rocq/FlambdaUnboxSpec.v` and
+  `middle_end/flambda2/rocq/FlambdaUnboxProofs.v` (another: unboxing a
+  number that is known to be boxed, untagging one that is known to be
+  tagged; S1's once it is staffed)
 - `middle_end/flambda2/rocq/FlambdaCse*` (another: a primitive already
   computed is not computed again; S5's once it is staffed)
 - `middle_end/flambda2/rocq/FlambdaStaticsOrder*` (another: the
