@@ -147,9 +147,13 @@ design out; that is the request, not the change.
   - `middle_end/flambda2/rocq/status/C4.md`
 - C5, exceptions. Owner: C5, on `flambda2-rocq/C5-epoch`.
   - `middle_end/flambda2/rocq/requests/C5-exceptions.md` (the request)
+  - `middle_end/flambda2/rocq/requests/C5-imported-symbols.md`
   - `middle_end/flambda2/rocq/FlambdaTrap*` (examples of the checks of
     exception handlers and of trap actions, which are in
     `FlambdaWellFormedSpec.v`; later, what is proved of them)
+  - `middle_end/flambda2/rocq/FlambdaImports*` (the static environment
+    of a unit that imports symbols, and what a primitive does with an
+    imported symbol; a prototype)
   - `middle_end/flambda2/rocq/FlambdaDemote*` (the demotion of an
     exception handler that no call can raise to, as a rewrite, with
     what it keeps)
