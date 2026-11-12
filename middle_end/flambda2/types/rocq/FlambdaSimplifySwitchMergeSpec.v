@@ -110,7 +110,10 @@
      [known_holds_under]). It is a hypothesis about the caller, as the
      soundness of the meet is in the first slice. Nothing here says
      that what Simplify knows has it. With nothing known it holds, and
-     then every primitive is bound anew.
+     then nothing from before the [Switch] is used: a primitive is
+     bound the first time an argument asks for it, and one that is
+     bound for an argument may still be found for the next ones, where
+     one of its arguments is a variable.
    - Under a typing environment, what the second slice assumes, and
      its header says why.
    Nothing is assumed of the names that are given: [merge_arms] tests
