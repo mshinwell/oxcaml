@@ -35,14 +35,16 @@
    [meet_head_of_kind_region], a lemma named after the function says
    that on the renamed environment and renamed arguments it gives the
    renamed answer; where the function is a meet of two parts, the
-   lemma is [meet_of_parts_equivariant] of it
-   (FlambdaMeetRenameSpec.v). The meet of less fuel that the functions
-   are given commutes with renaming: a hypothesis of the section. The
-   type that the choices give a name of which a number is the tag
-   holds no name: a second hypothesis, shown below of the two records
-   of choices that FlambdaMeet.v has. The environment of the meet is
-   FlambdaEnvRenameMeetProofs.v, and the functions that put a meet
-   together FlambdaEnvRenameMeetPartsProofs.v. *)
+   lemma is [meet_of_parts_related] of it (FlambdaMeetRenameSpec.v).
+   The functions are given a meet of less fuel: there are two, one
+   with the arguments and one with the renamed arguments, which the
+   renaming relates ([meet_expanded_head_related]); a hypothesis of
+   the section. A renaming of variables fixes the type that the
+   choices give a name of which a number is the tag
+   ([meet_choices_closed]): a second hypothesis, shown below of the
+   two records of choices that FlambdaMeet.v has. The environment of
+   the meet is FlambdaEnvRenameMeetProofs.v, and the functions that
+   put a meet together FlambdaEnvRenameMeetPartsProofs.v. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
@@ -53,8 +55,9 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaEnvAliases FlambdaEnvAliasesRenamingSpec
   FlambdaEnvAliasesRenamingProofs FlambdaTypingEnv FlambdaEnvRenameSpec
   FlambdaEnvRenameProofs FlambdaMeetGrammar FlambdaExpandHead
-  FlambdaProversRenameSpec FlambdaMeetEnv FlambdaMeet FlambdaMeetRenameSpec
-  FlambdaEnvRenameMeetProofs FlambdaEnvRenameMeetPartsProofs.
+  FlambdaProversRenameSpec FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec
+  FlambdaMeetRenameSpec FlambdaEnvRenameMeetProofs
+  FlambdaEnvRenameMeetPartsProofs.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -133,35 +136,6 @@ Proof.
   - reflexivity.
 Qed.
 
-(* ======================================================================== *)
-(* The meets that are given the meet of less fuel                           *)
-(* ======================================================================== *)
-
-Section Meet_given.
-
-(* The meet of expanded types of less fuel commutes with renaming. *)
-Variable m : meet_expanded_head.
-Hypothesis m_equivariant : meet_expanded_head_equivariant m.
-
-(* [meet], of FlambdaMeet.v: the meet of two types. *)
-Lemma meet_of_types_renamed :
-  meet_of_parts_equivariant rename_type rename_type (meet m).
-Proof. intros r env t1 t2. apply (meet_type_renamed m m_equivariant). Qed.
-
-Lemma meet_relation_renamed :
-  meet_of_parts_equivariant (fun r => option_map (rename_variable r))
-    (fun r => option_map (rename_variable r)) (meet_relation m).
-Proof.
-  intros r env [var1 | ] [var2 | ]; cbn [meet_relation option_map];
-    try reflexivity.
-  change (Var (rename_variable r var1)) with (rename_simple r (Var var1)).
-  change (Var (rename_variable r var2)) with (rename_simple r (Var var2)).
-  rewrite (add_alias_renamed m m_equivariant).
-  destruct (Meet_env.add_alias env (Var var1) (Var var2) m)
-    as [[env' | ] | ];
-    reflexivity.
-Qed.
-
 (* A function type holds no name, and the meet of two answers no new
    one: whatever [g] is. *)
 Lemma meet_function_type_renamed (r : renaming)
@@ -180,16 +154,47 @@ Proof.
     reflexivity.
 Qed.
 
-Lemma meet_array_of_types_renamed (r : renaming) (env : Meet_env.t)
+(* ======================================================================== *)
+(* The meets that are given the meet of less fuel                           *)
+(* ======================================================================== *)
+
+Section Meet_given.
+
+(* One renaming and two meets of expanded types of less fuel, which the
+   renaming relates. *)
+Variable r : renaming.
+Variables m m' : meet_expanded_head.
+Hypothesis m_related : meet_expanded_head_related r m m'.
+
+(* [meet], of FlambdaMeet.v: the meet of two types. *)
+Lemma meet_of_types_renamed :
+  meet_of_parts_related r (rename_type r) (rename_type r) (meet m) (meet m').
+Proof. intros env t1 t2. apply (meet_type_renamed r m m' m_related). Qed.
+
+Lemma meet_relation_renamed :
+  meet_of_parts_related r (option_map (rename_variable r))
+    (option_map (rename_variable r)) (meet_relation m) (meet_relation m').
+Proof.
+  intros env [var1 | ] [var2 | ]; cbn [meet_relation option_map];
+    try reflexivity.
+  change (Var (rename_variable r var1)) with (rename_simple r (Var var1)).
+  change (Var (rename_variable r var2)) with (rename_simple r (Var var2)).
+  rewrite (add_alias_renamed r m m' m_related).
+  destruct (Meet_env.add_alias env (Var var1) (Var var2) m)
+    as [[env' | ] | ];
+    reflexivity.
+Qed.
+
+Lemma meet_array_of_types_renamed (env : Meet_env.t)
     (fields1 fields2 : list flambda_type) (length : nat) :
-  meet_array_of_types m (rename_meet_env r env) (map (rename_type r) fields1)
+  meet_array_of_types m' (rename_meet_env r env) (map (rename_type r) fields1)
     (map (rename_type r) fields2) length
   = option_map (rename_meet_result r (map (rename_type r)))
       (meet_array_of_types m env fields1 fields2 length).
 Proof.
   unfold meet_array_of_types. cbv zeta.
   apply (meet_mapping_renamed r (rename_type r) (map (rename_type r)));
-    [ exact (meet_of_types_renamed r) | | ].
+    [ exact meet_of_types_renamed | | ].
   - intros step step' init Hstep. revert init.
     induction (seq 0 length) as [ | i indices IH]; intros init;
       cbn [List.fold_left]; [ reflexivity | ].
@@ -208,39 +213,40 @@ Proof.
 Qed.
 
 Lemma meet_int_indexed_product_renamed :
-  meet_of_parts_equivariant (fun r => map (rename_type r))
-    (fun r => map (rename_type r)) (meet_int_indexed_product m).
+  meet_of_parts_related r (map (rename_type r)) (map (rename_type r))
+    (meet_int_indexed_product m) (meet_int_indexed_product m').
 Proof.
-  intros r env fields1 fields2. unfold meet_int_indexed_product. cbv zeta.
+  intros env fields1 fields2. unfold meet_int_indexed_product. cbv zeta.
   rewrite !length_map. apply meet_array_of_types_renamed.
 Qed.
 
 Lemma meet_product_function_slot_indexed_renamed :
-  meet_of_parts_equivariant (fun r => map_values (rename_type r))
-    (fun r => map_values (rename_type r))
-    (meet_product_function_slot_indexed m).
+  meet_of_parts_related r (map_values (rename_type r))
+    (map_values (rename_type r)) (meet_product_function_slot_indexed m)
+    (meet_product_function_slot_indexed m').
 Proof.
-  intros r env components1 components2.
+  intros env components1 components2.
   exact
-    (map_meet_renamed r Pos.eqb (rename_type r) (meet m) (meet m) env
-       components1 components2 (meet_of_types_renamed r)).
+    (map_meet_renamed r Pos.eqb (rename_type r) (meet m) (meet m') env
+       components1 components2 meet_of_types_renamed).
 Qed.
 
 Lemma meet_product_value_slot_indexed_renamed :
-  meet_of_parts_equivariant (fun r => map_values (rename_type r))
-    (fun r => map_values (rename_type r)) (meet_product_value_slot_indexed m).
+  meet_of_parts_related r (map_values (rename_type r))
+    (map_values (rename_type r)) (meet_product_value_slot_indexed m)
+    (meet_product_value_slot_indexed m').
 Proof.
-  intros r env components1 components2.
+  intros env components1 components2.
   exact
-    (map_meet_renamed r Pos.eqb (rename_type r) (meet m) (meet m) env
-       components1 components2 (meet_of_types_renamed r)).
+    (map_meet_renamed r Pos.eqb (rename_type r) (meet m) (meet m') env
+       components1 components2 meet_of_types_renamed).
 Qed.
 
 Lemma meet_closures_entry_renamed :
-  meet_of_parts_equivariant rename_closures_entry rename_closures_entry
-    (meet_closures_entry m).
+  meet_of_parts_related r (rename_closures_entry r) (rename_closures_entry r)
+    (meet_closures_entry m) (meet_closures_entry m').
 Proof.
-  intros r env [function_types1 closure_types1 value_slot_types1]
+  intros env [function_types1 closure_types1 value_slot_types1]
     [function_types2 closure_types2 value_slot_types2].
   cbn [rename_closures_entry meet_closures_entry].
   apply
@@ -250,8 +256,8 @@ Proof.
   - intros env' function_types function_types'.
     apply map_meet_of_fixed_renamed. intros env'' func_type func_type'.
     apply meet_function_type_renamed.
-  - exact (meet_product_function_slot_indexed_renamed r).
-  - exact (meet_product_value_slot_indexed_renamed r).
+  - exact meet_product_function_slot_indexed_renamed.
+  - exact meet_product_value_slot_indexed_renamed.
   - reflexivity.
 Qed.
 
@@ -259,31 +265,28 @@ Qed.
 (* Naked immediates, naked numbers, and the kinds with one type             *)
 (* ======================================================================== *)
 
-(* Where the meet can do other than the compiler. The type that the
-   choices give a name of which a number among some tags is [Get_tag]
-   holds no name. *)
+(* Where the meet can do other than the compiler. A renaming of
+   variables fixes the type that the choices give a name of which a
+   number among some tags is [Get_tag]. *)
 Variable choices : meet_choices.
-Hypothesis choices_closed :
-  ∀ (r : renaming) (tags : list Z) (alloc_mode : Alloc_mode.t),
-    rename_type r (type_of_get_tag_scrutinee choices tags alloc_mode)
-    = type_of_get_tag_scrutinee choices tags alloc_mode.
+Hypothesis choices_closed : meet_choices_closed choices.
 
 (* An equation whose type holds no name. *)
-Lemma add_equation_strict_of_closed_renamed (r : renaming)
-    (env : Meet_env.t) (name : name) (ty : flambda_type) :
+Lemma add_equation_strict_of_closed_renamed (env : Meet_env.t)
+    (name : name) (ty : flambda_type) :
   rename_type r ty = ty ->
   Meet_env.add_equation_strict (rename_meet_env r env) (rename_name r name)
-    ty m
+    ty m'
   = option_map (or_bottom_map (rename_meet_env r))
       (Meet_env.add_equation_strict env name ty m).
 Proof.
   intros Hty. rewrite <- Hty at 1.
-  apply (add_equation_strict_renamed m m_equivariant).
+  apply (add_equation_strict_renamed r m m' m_related).
 Qed.
 
-Lemma reduce_inverse_relations_renamed (r : renaming) (env : Meet_env.t)
+Lemma reduce_inverse_relations_renamed (env : Meet_env.t)
     (imms : Or_unknown.t (list Z)) (relations : list (Relation.t * name)) :
-  reduce_inverse_relations choices m (rename_meet_env r env) imms
+  reduce_inverse_relations choices m' (rename_meet_env r env) imms
     (map
        (fun relation : Relation.t * name =>
           (fst relation, rename_name r (snd relation)))
@@ -322,11 +325,12 @@ Proof.
 Qed.
 
 Lemma meet_head_of_kind_naked_immediate_renamed :
-  meet_of_parts_equivariant rename_head_of_kind_naked_immediate
-    rename_head_of_kind_naked_immediate
-    (meet_head_of_kind_naked_immediate choices m).
+  meet_of_parts_related r (rename_head_of_kind_naked_immediate r)
+    (rename_head_of_kind_naked_immediate r)
+    (meet_head_of_kind_naked_immediate choices m)
+    (meet_head_of_kind_naked_immediate choices m').
 Proof.
-  intros r env t1 t2. unfold meet_head_of_kind_naked_immediate.
+  intros env t1 t2. unfold meet_head_of_kind_naked_immediate.
   rewrite current_typing_env_renamed,
     !reduce_head_of_kind_naked_immediate_renamed.
   destruct
@@ -417,8 +421,8 @@ Proof. reflexivity. Qed.
 (* The two records of choices                                               *)
 (* ======================================================================== *)
 
-(* The type that each gives a name of which a number among some tags
-   is [Get_tag] holds no name. *)
+(* A renaming of variables fixes the type that each gives a name of
+   which a number among some tags is [Get_tag]. *)
 
 Lemma compiler_choices_closed (r : renaming) (tags : list Z)
     (alloc_mode : Alloc_mode.t) :

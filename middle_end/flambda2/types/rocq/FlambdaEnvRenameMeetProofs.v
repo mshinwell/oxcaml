@@ -36,10 +36,14 @@
    the function says that on the renamed environment and renamed
    arguments it gives the renamed answer. The action on what the meet
    takes and answers is that of FlambdaMeetRenameSpec.v. A function
-   that is given the meet of expanded types commutes if that meet does
-   ([meet_expanded_head_equivariant]). The laws used are those of the
-   typing environment (FlambdaEnvRenameProofs.v), of the aliases, of
-   types and of expanded types. *)
+   that is given the meet of expanded types is given two, one with the
+   arguments and one with the renamed arguments, which the renaming
+   relates ([meet_expanded_head_related]): the second answers of
+   renamed types the renamed answer of the first. Where the two are
+   one, that is that the meet commutes with the renaming. The same of
+   the functions that are given the join. The laws used are those of
+   the typing environment (FlambdaEnvRenameProofs.v), of the aliases,
+   of types and of expanded types. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
@@ -51,7 +55,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaEnvAliasesRenamingProofs FlambdaTypingEnv FlambdaEnvRenameSpec
   FlambdaEnvRenameProofs FlambdaMeetGrammar FlambdaExpandHead
   FlambdaProversRenameSpec FlambdaProversRenameProofs FlambdaMeetEnv
-  FlambdaMeet FlambdaMeetRenameSpec.
+  FlambdaMeet FlambdaMeetSpec FlambdaMeetRenameSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -263,18 +267,34 @@ Proof.
     f_equal. apply replace_equation_equivariant.
 Qed.
 
+(* The equations of a list, renamed on both sides. *)
+Definition rename_equations (r : renaming)
+    (equations : list (name * flambda_type)) : list (name * flambda_type) :=
+  map (fun equation => (rename_name r (fst equation),
+                        rename_type r (snd equation)))
+    equations.
+
+(* Parameters, renamed; their kinds are kept. *)
+Definition rename_params (r : renaming)
+    (params : list (variable * flambda_kind))
+    : list (variable * flambda_kind) :=
+  map (fun param => (rename_variable r (fst param), snd param)) params.
+
 Section Meet_given.
 
-(* The meet of expanded types that the functions are given commutes
-   with renaming. *)
-Variable m : meet_expanded_head.
-Hypothesis m_equivariant : meet_expanded_head_equivariant m.
+(* One renaming and two meets of expanded types: the second, which the
+   functions are given with the renamed arguments, answers of renamed
+   types the renamed answer of the first. Where the two are one meet,
+   this is that the meet commutes with the renaming. *)
+Variable r : renaming.
+Variables m m' : meet_expanded_head.
+Hypothesis m_related : meet_expanded_head_related r m m'.
 
-Lemma add_concrete_equation_on_canonical_name_renamed (r : renaming)
+Lemma add_concrete_equation_on_canonical_name_renamed
     (raise_on_bottom : bool) (env : Meet_env.t) (name : name)
     (ty : Expanded_type.t) :
   Meet_env.add_concrete_equation_on_canonical_name raise_on_bottom
-    (rename_meet_env r env) (rename_name r name) (rename_expanded r ty) m
+    (rename_meet_env r env) (rename_name r name) (rename_expanded r ty) m'
   = option_map (or_bottom_map (rename_meet_env r))
       (Meet_env.add_concrete_equation_on_canonical_name raise_on_bottom env
          name ty m).
@@ -290,7 +310,7 @@ Proof.
   rewrite of_non_alias_type_renamed.
   destruct (Expanded_type.of_non_alias_type existing) as [existing_ty | ];
     cbn [option_map]; [ | reflexivity ].
-  rewrite m_equivariant.
+  rewrite m_related.
   destruct (m env ty existing_ty) as [[res | res env'] | ];
     cbn [option_map rename_meet_result]; [ | | reflexivity ].
   - destruct raise_on_bottom; [ reflexivity | ].
@@ -315,7 +335,7 @@ Proof.
         reflexivity.
 Qed.
 
-Lemma adding_equation_for_name_renamed (r : renaming) (env : Meet_env.t)
+Lemma adding_equation_for_name_renamed (env : Meet_env.t)
     (name : name)
     (f f' : Meet_env.t -> option (Or_bottom.t Meet_env.t)) :
   (∀ env : Meet_env.t,
@@ -345,10 +365,10 @@ Proof.
 Qed.
 
 Lemma add_or_delay_concrete_equation_on_canonical_name_renamed
-    (r : renaming) (raise_on_bottom : bool) (env : Meet_env.t) (name : name)
+    (raise_on_bottom : bool) (env : Meet_env.t) (name : name)
     (ty : Expanded_type.t) :
   Meet_env.add_or_delay_concrete_equation_on_canonical_name raise_on_bottom
-    (rename_meet_env r env) (rename_name r name) (rename_expanded r ty) m
+    (rename_meet_env r env) (rename_name r name) (rename_expanded r ty) m'
   = option_map (or_bottom_map (rename_meet_env r))
       (Meet_env.add_or_delay_concrete_equation_on_canonical_name
          raise_on_bottom env name ty m).
@@ -364,28 +384,28 @@ Proof.
   apply add_concrete_equation_on_canonical_name_renamed.
 Qed.
 
-Lemma add_concrete_equation_on_const_renamed (r : renaming)
+Lemma add_concrete_equation_on_const_renamed
     (raise_on_bottom : bool) (env : Meet_env.t) (const : const)
     (ty : Expanded_type.t) :
   Meet_env.add_concrete_equation_on_const raise_on_bottom
-    (rename_meet_env r env) const (rename_expanded r ty) m
+    (rename_meet_env r env) const (rename_expanded r ty) m'
   = option_map (or_bottom_map (rename_meet_env r))
       (Meet_env.add_concrete_equation_on_const raise_on_bottom env const ty
          m).
 Proof.
   unfold Meet_env.add_concrete_equation_on_const.
-  rewrite <- (create_const_renamed r const) at 1. rewrite m_equivariant.
+  rewrite <- (create_const_renamed r const) at 1. rewrite m_related.
   destruct (m env ty (Expanded_type.create_const const))
     as [[res | res env'] | ];
     cbn [option_map rename_meet_result]; try reflexivity.
   destruct raise_on_bottom; reflexivity.
 Qed.
 
-Lemma add_or_delay_concrete_equation_on_canonical_renamed (r : renaming)
+Lemma add_or_delay_concrete_equation_on_canonical_renamed
     (raise_on_bottom : bool) (env : Meet_env.t) (simple : simple)
     (ty : Expanded_type.t) :
   Meet_env.add_or_delay_concrete_equation_on_canonical raise_on_bottom
-    (rename_meet_env r env) (rename_simple r simple) (rename_expanded r ty) m
+    (rename_meet_env r env) (rename_simple r simple) (rename_expanded r ty) m'
   = option_map (or_bottom_map (rename_meet_env r))
       (Meet_env.add_or_delay_concrete_equation_on_canonical raise_on_bottom
          env simple ty m).
@@ -393,19 +413,19 @@ Proof.
   destruct simple as [x | sym | c];
     cbn [Meet_env.add_or_delay_concrete_equation_on_canonical rename_simple].
   - exact
-      (add_or_delay_concrete_equation_on_canonical_name_renamed r
+      (add_or_delay_concrete_equation_on_canonical_name_renamed
          raise_on_bottom env (Name_var x) ty).
   - exact
-      (add_or_delay_concrete_equation_on_canonical_name_renamed r
+      (add_or_delay_concrete_equation_on_canonical_name_renamed
          raise_on_bottom env (Name_symbol sym) ty).
   - apply add_concrete_equation_on_const_renamed.
 Qed.
 
-Lemma add_concrete_equation_on_simple_renamed (r : renaming)
+Lemma add_concrete_equation_on_simple_renamed
     (raise_on_bottom : bool) (env : Meet_env.t) (simple : simple)
     (ty : Expanded_type.t) :
   Meet_env.add_concrete_equation_on_simple raise_on_bottom
-    (rename_meet_env r env) (rename_simple r simple) (rename_expanded r ty) m
+    (rename_meet_env r env) (rename_simple r simple) (rename_expanded r ty) m'
   = option_map (or_bottom_map (rename_meet_env r))
       (Meet_env.add_concrete_equation_on_simple raise_on_bottom env simple ty
          m).
@@ -417,11 +437,11 @@ Proof.
   apply add_or_delay_concrete_equation_on_canonical_renamed.
 Qed.
 
-Lemma record_demotion_renamed (r : renaming) (raise_on_bottom : bool)
+Lemma record_demotion_renamed (raise_on_bottom : bool)
     (env : Meet_env.t) (kind : flambda_kind) (demoted : name)
     (canonical : simple) :
   Meet_env.record_demotion raise_on_bottom (rename_meet_env r env) kind
-    (rename_name r demoted) (rename_simple r canonical) m
+    (rename_name r demoted) (rename_simple r canonical) m'
   = option_map (or_bottom_map (rename_meet_env r))
       (Meet_env.record_demotion raise_on_bottom env kind demoted canonical m).
 Proof.
@@ -456,12 +476,12 @@ Proof.
   apply add_or_delay_concrete_equation_on_canonical_renamed.
 Qed.
 
-Lemma add_alias_between_canonicals_renamed (r : renaming)
+Lemma add_alias_between_canonicals_renamed
     (raise_on_bottom : bool) (env : Meet_env.t) (kind : flambda_kind)
     (canonical_element1 canonical_element2 : simple) :
   Meet_env.add_alias_between_canonicals raise_on_bottom
     (rename_meet_env r env) kind (rename_simple r canonical_element1)
-    (rename_simple r canonical_element2) m
+    (rename_simple r canonical_element2) m'
   = option_map (or_bottom_map (rename_meet_env r))
       (Meet_env.add_alias_between_canonicals raise_on_bottom env kind
          canonical_element1 canonical_element2 m).
@@ -482,10 +502,10 @@ Proof.
   - destruct raise_on_bottom; reflexivity.
 Qed.
 
-Lemma add_equation_on_simple0_renamed (r : renaming) (raise_on_bottom : bool)
+Lemma add_equation_on_simple0_renamed (raise_on_bottom : bool)
     (env : Meet_env.t) (simple : simple) (ty : flambda_type) :
   Meet_env.add_equation_on_simple0 raise_on_bottom (rename_meet_env r env)
-    (rename_simple r simple) (rename_type r ty) m
+    (rename_simple r simple) (rename_type r ty) m'
   = option_map (or_bottom_map (rename_meet_env r))
       (Meet_env.add_equation_on_simple0 raise_on_bottom env simple ty m).
 Proof.
@@ -502,10 +522,10 @@ Proof.
     apply add_concrete_equation_on_simple_renamed.
 Qed.
 
-Lemma add_equation0_renamed (r : renaming) (raise_on_bottom : bool)
+Lemma add_equation0_renamed (raise_on_bottom : bool)
     (env : Meet_env.t) (name : name) (ty : flambda_type) :
   Meet_env.add_equation0 raise_on_bottom (rename_meet_env r env)
-    (rename_name r name) (rename_type r ty) m
+    (rename_name r name) (rename_type r ty) m'
   = option_map (or_bottom_map (rename_meet_env r))
       (Meet_env.add_equation0 raise_on_bottom env name ty m).
 Proof.
@@ -513,18 +533,11 @@ Proof.
   apply add_equation_on_simple0_renamed.
 Qed.
 
-(* The equations of a list, renamed on both sides. *)
-Definition rename_equations (r : renaming)
-    (equations : list (name * flambda_type)) : list (name * flambda_type) :=
-  map (fun equation => (rename_name r (fst equation),
-                        rename_type r (snd equation)))
-    equations.
-
-Lemma add_equations0_renamed (r : renaming) (raise_on_bottom : bool)
+Lemma add_equations0_renamed (raise_on_bottom : bool)
     (equations : list (name * flambda_type)) :
   ∀ env : Meet_env.t,
     Meet_env.add_equations0 raise_on_bottom (rename_meet_env r env)
-      (rename_equations r equations) m
+      (rename_equations r equations) m'
     = option_map (or_bottom_map (rename_meet_env r))
         (Meet_env.add_equations0 raise_on_bottom env equations m).
 Proof.
@@ -537,10 +550,10 @@ Proof.
     cbn [option_map or_bottom_map]; [ apply IH | reflexivity | reflexivity ].
 Qed.
 
-Lemma add_env_extension0_renamed (r : renaming) (raise_on_bottom : bool)
+Lemma add_env_extension0_renamed (raise_on_bottom : bool)
     (env : Meet_env.t) (extension : env_extension) :
   Meet_env.add_env_extension0 raise_on_bottom (rename_meet_env r env)
-    (rename_env_extension r extension) m
+    (rename_env_extension r extension) m'
   = option_map (or_bottom_map (rename_meet_env r))
       (Meet_env.add_env_extension0 raise_on_bottom env extension m).
 Proof.
@@ -557,10 +570,10 @@ Proof.
   apply add_equations0_renamed.
 Qed.
 
-Lemma add_equation_strict_renamed (r : renaming) (env : Meet_env.t)
+Lemma add_equation_strict_renamed (env : Meet_env.t)
     (name : name) (ty : flambda_type) :
   Meet_env.add_equation_strict (rename_meet_env r env) (rename_name r name)
-    (rename_type r ty) m
+    (rename_type r ty) m'
   = option_map (or_bottom_map (rename_meet_env r))
       (Meet_env.add_equation_strict env name ty m).
 Proof.
@@ -571,10 +584,10 @@ Proof.
     [ reflexivity | apply add_equation0_renamed ].
 Qed.
 
-Lemma add_env_extension_strict_renamed (r : renaming) (env : Meet_env.t)
+Lemma add_env_extension_strict_renamed (env : Meet_env.t)
     (extension : env_extension) :
   Meet_env.add_env_extension_strict (rename_meet_env r env)
-    (rename_env_extension r extension) m
+    (rename_env_extension r extension) m'
   = option_map (or_bottom_map (rename_meet_env r))
       (Meet_env.add_env_extension_strict env extension m).
 Proof.
@@ -585,7 +598,7 @@ Proof.
     [ reflexivity | apply add_env_extension0_renamed ].
 Qed.
 
-Lemma bottom_on_exception_renamed (r : renaming) (env : Meet_env.t)
+Lemma bottom_on_exception_renamed (env : Meet_env.t)
     (result : option (Or_bottom.t Meet_env.t)) :
   Meet_env.bottom_on_exception (rename_meet_env r env)
     (option_map (or_bottom_map (rename_meet_env r)) result)
@@ -596,10 +609,10 @@ Proof.
     reflexivity.
 Qed.
 
-Lemma add_env_extension_maybe_bottom_renamed (r : renaming)
+Lemma add_env_extension_maybe_bottom_renamed
     (env : Meet_env.t) (extension : env_extension) :
   Meet_env.add_env_extension_maybe_bottom (rename_meet_env r env)
-    (rename_env_extension r extension) m
+    (rename_env_extension r extension) m'
   = option_map (rename_meet_env r)
       (Meet_env.add_env_extension_maybe_bottom env extension m).
 Proof.
@@ -610,20 +623,20 @@ Proof.
     reflexivity.
 Qed.
 
-Lemma add_equation_renamed (r : renaming) (env : Meet_env.t) (name : name)
+Lemma add_equation_renamed (env : Meet_env.t) (name : name)
     (ty : flambda_type) :
   Meet_env.add_equation (rename_meet_env r env) (rename_name r name)
-    (rename_type r ty) m
+    (rename_type r ty) m'
   = option_map (rename_meet_env r) (Meet_env.add_equation env name ty m).
 Proof.
   unfold Meet_env.add_equation. rewrite add_equation0_renamed.
   apply bottom_on_exception_renamed.
 Qed.
 
-Lemma add_equation_on_simple_renamed (r : renaming) (env : Meet_env.t)
+Lemma add_equation_on_simple_renamed (env : Meet_env.t)
     (simple : simple) (ty : flambda_type) :
   Meet_env.add_equation_on_simple (rename_meet_env r env)
-    (rename_simple r simple) (rename_type r ty) m
+    (rename_simple r simple) (rename_type r ty) m'
   = option_map (rename_meet_env r)
       (Meet_env.add_equation_on_simple env simple ty m).
 Proof.
@@ -632,10 +645,10 @@ Proof.
   apply bottom_on_exception_renamed.
 Qed.
 
-Lemma add_env_extension_renamed (r : renaming) (env : Meet_env.t)
+Lemma add_env_extension_renamed (env : Meet_env.t)
     (extension : env_extension) :
   Meet_env.add_env_extension (rename_meet_env r env)
-    (rename_env_extension r extension) m
+    (rename_env_extension r extension) m'
   = option_map (rename_meet_env r)
       (Meet_env.add_env_extension env extension m).
 Proof.
@@ -643,17 +656,11 @@ Proof.
   apply bottom_on_exception_renamed.
 Qed.
 
-(* Parameters, renamed; their kinds are kept. *)
-Definition rename_params (r : renaming)
-    (params : list (variable * flambda_kind))
-    : list (variable * flambda_kind) :=
-  map (fun param => (rename_variable r (fst param), snd param)) params.
-
-Lemma add_equations_on_params_renamed (r : renaming)
+Lemma add_equations_on_params_renamed
     (params : list (variable * flambda_kind)) :
   ∀ (env : Meet_env.t) (param_types : list flambda_type),
     Meet_env.add_equations_on_params (rename_meet_env r env)
-      (rename_params r params) (map (rename_type r) param_types) m
+      (rename_params r params) (map (rename_type r) param_types) m'
     = option_map (rename_meet_env r)
         (Meet_env.add_equations_on_params env params param_types m).
 Proof.
@@ -668,10 +675,10 @@ Proof.
     cbn [option_map]; [ apply IH | reflexivity ].
 Qed.
 
-Lemma add_alias0_renamed (r : renaming) (raise_on_bottom : bool)
+Lemma add_alias0_renamed (raise_on_bottom : bool)
     (env : Meet_env.t) (simple1 simple2 : simple) :
   Meet_env.add_alias0 raise_on_bottom (rename_meet_env r env)
-    (rename_simple r simple1) (rename_simple r simple2) m
+    (rename_simple r simple1) (rename_simple r simple2) m'
   = option_map (or_bottom_map (rename_meet_env r))
       (Meet_env.add_alias0 raise_on_bottom env simple1 simple2 m).
 Proof.
@@ -689,10 +696,10 @@ Proof.
   apply add_alias_between_canonicals_renamed.
 Qed.
 
-Lemma add_alias_renamed (r : renaming) (env : Meet_env.t)
+Lemma add_alias_renamed (env : Meet_env.t)
     (simple1 simple2 : simple) :
   Meet_env.add_alias (rename_meet_env r env) (rename_simple r simple1)
-    (rename_simple r simple2) m
+    (rename_simple r simple2) m'
   = option_map (or_bottom_map (rename_meet_env r))
       (Meet_env.add_alias env simple1 simple2 m).
 Proof. apply add_alias0_renamed. Qed.
@@ -701,9 +708,9 @@ Proof. apply add_alias0_renamed. Qed.
 (* The meet of two types of which either may be an alias                    *)
 (* ======================================================================== *)
 
-Lemma meet_renamed (r : renaming) (env : Meet_env.t) (t1 t2 : flambda_type) :
+Lemma meet_renamed (env : Meet_env.t) (t1 t2 : flambda_type) :
   Meet_env.meet (rename_meet_env r env) (rename_type r t1) (rename_type r t2)
-    m
+    m'
   = option_map (rename_meet_result r (rename_expanded r))
       (Meet_env.meet env t1 t2 m).
 Proof.
@@ -762,13 +769,13 @@ Proof.
     destruct (expand_head0 (Meet_env.typing_env env) t2 None)
       as [expanded2 | ];
       cbn [option_map]; [ | reflexivity ].
-    apply m_equivariant.
+    apply m_related.
 Qed.
 
-Lemma meet_type_renamed (r : renaming) (env : Meet_env.t)
+Lemma meet_type_renamed (env : Meet_env.t)
     (t1 t2 : flambda_type) :
   Meet_env.meet_type (rename_meet_env r env) (rename_type r t1)
-    (rename_type r t2) m
+    (rename_type r t2) m'
   = option_map (rename_meet_result r (rename_type r))
       (Meet_env.meet_type env t1 t2 m).
 Proof.
@@ -824,126 +831,8 @@ Qed.
 (* The meet as it is exposed, and adding to a typing environment            *)
 (* ======================================================================== *)
 
-(* The functions of the modules [Meet] and [Flambda2_types] of
-   FlambdaMeet.v, for a join, choices and a fuel at which the meet of
-   expanded types commutes with renaming. *)
-Section Adding.
-
-Variable join :
-  meet_expanded_head -> Scope.t -> Meet_env.t -> Typing_env.t ->
-  list Typing_env.t -> option Meet_env.t.
-Variable choices : meet_choices.
-Variable fuel : nat.
-Hypothesis meet_equivariant :
-  meet_expanded_head_equivariant (Meet.meet_expanded_head join choices fuel).
-
-(* [Meet.meet]. *)
-Lemma exposed_meet_renamed :
-  meet_function_equivariant (Meet.meet join choices fuel).
-Proof.
-  intros r tenv t1 t2. unfold Meet.meet.
-  change (Typing_env.is_bottom (rename_typing_env r tenv))
-    with (Typing_env.is_bottom tenv).
-  destruct (Typing_env.is_bottom tenv); [ reflexivity | ].
-  rewrite create_renamed, (meet_type_renamed _ meet_equivariant).
-  destruct
-    (Meet_env.meet_type (Meet_env.create tenv) t1 t2
-       (Meet.meet_expanded_head join choices fuel))
-    as [[res | res env] | ];
-    cbn [option_map rename_meet_result]; try reflexivity.
-  cbv zeta. rewrite extract_value_renamed, is_obviously_bottom_renamed.
-  destruct (is_obviously_bottom (extract_value res t1 t2));
-    [ reflexivity | ].
-  rewrite final_typing_env_strict_renamed.
-  destruct (Meet_env.final_typing_env_strict env) as [tenv' | ];
-    reflexivity.
-Qed.
-
-(* [Meet.meet_shape]. *)
-Lemma meet_shape_renamed (r : renaming) (tenv : Typing_env.t)
-    (t shape : flambda_type) :
-  Meet.meet_shape join choices fuel (rename_typing_env r tenv)
-    (rename_type r t) (rename_type r shape)
-  = option_map (or_bottom_map (rename_typing_env r))
-      (Meet.meet_shape join choices fuel tenv t shape).
-Proof.
-  unfold Meet.meet_shape.
-  change (Typing_env.is_bottom (rename_typing_env r tenv))
-    with (Typing_env.is_bottom tenv).
-  destruct (Typing_env.is_bottom tenv); [ reflexivity | ].
-  rewrite exposed_meet_renamed.
-  destruct (Meet.meet join choices fuel tenv t shape)
-    as [[[ty tenv'] | ] | ];
-    reflexivity.
-Qed.
-
-(* [Flambda2_types.add_equation]. *)
-Lemma typing_env_add_equation_renamed (r : renaming) (tenv : Typing_env.t)
-    (name : name) (ty : flambda_type) :
-  Flambda2_types.add_equation join choices fuel (rename_typing_env r tenv)
-    (rename_name r name) (rename_type r ty)
-  = option_map (rename_typing_env r)
-      (Flambda2_types.add_equation join choices fuel tenv name ty).
-Proof.
-  apply use_meet_env_renamed. intros env.
-  apply add_equation_renamed, meet_equivariant.
-Qed.
-
-(* [Flambda2_types.add_equations_on_params]. *)
-Lemma typing_env_add_equations_on_params_renamed (r : renaming)
-    (tenv : Typing_env.t) (params : list (variable * flambda_kind))
-    (param_types : list flambda_type) :
-  Flambda2_types.add_equations_on_params join choices fuel
-    (rename_typing_env r tenv) (rename_params r params)
-    (map (rename_type r) param_types)
-  = option_map (rename_typing_env r)
-      (Flambda2_types.add_equations_on_params join choices fuel tenv params
-         param_types).
-Proof.
-  apply use_meet_env_renamed. intros env.
-  apply add_equations_on_params_renamed, meet_equivariant.
-Qed.
-
-(* [Flambda2_types.add_env_extension]. *)
-Lemma typing_env_add_env_extension_renamed (r : renaming)
-    (tenv : Typing_env.t) (extension : env_extension) :
-  Flambda2_types.add_env_extension join choices fuel
-    (rename_typing_env r tenv) (rename_env_extension r extension)
-  = option_map (rename_typing_env r)
-      (Flambda2_types.add_env_extension join choices fuel tenv extension).
-Proof.
-  apply use_meet_env_renamed. intros env.
-  apply add_env_extension_renamed, meet_equivariant.
-Qed.
-
-(* The head that the scrutinee is given is a function of a variable:
-   on the renamed variable it is to be the renamed head. *)
-Lemma add_relation_renamed (r : renaming) (tenv : Typing_env.t)
-    (name : name) (scrutinee : simple) (name_ty : flambda_type)
-    (scrutinee_head scrutinee_head' : variable -> head_of_kind_value) :
-  (∀ var : variable,
-    scrutinee_head' (rename_variable r var)
-    = rename_head_of_kind_value r (scrutinee_head var)) ->
-  Flambda2_types.add_relation join choices fuel (rename_typing_env r tenv)
-    (rename_name r name) (rename_simple r scrutinee) (rename_type r name_ty)
-    scrutinee_head'
-  = option_map (rename_typing_env r)
-      (Flambda2_types.add_relation join choices fuel tenv name scrutinee
-         name_ty scrutinee_head).
-Proof.
-  intros Hhead. apply use_meet_env_renamed. intros env.
-  rewrite (add_equation_renamed _ meet_equivariant).
-  destruct
-    (Meet_env.add_equation env name name_ty
-       (Meet.meet_expanded_head join choices fuel))
-    as [env' | ];
-    cbn [option_map]; [ | reflexivity ].
-  destruct name as [var | sym]; cbn [rename_name]; [ | reflexivity ].
-  rewrite Hhead.
-  exact
-    (add_equation_on_simple_renamed _ meet_equivariant r env' scrutinee
-       (Type_value (Ok (No_alias (scrutinee_head var))))).
-Qed.
+(* [Type_grammar.is_null], [is_int_for_scrutinee] and
+   [get_tag_for_block], for a scrutinee that may be a constant. *)
 
 Lemma is_null_of_simple_renamed (r : renaming) (scrutinee : simple) :
   Flambda2_types.is_null_of_simple (rename_simple r scrutinee)
@@ -981,10 +870,133 @@ Proof.
   - reflexivity.
 Qed.
 
+(* The functions of the modules [Meet] and [Flambda2_types] of
+   FlambdaMeet.v, for one renaming, two joins, choices and a fuel at
+   which the renaming relates the two meets of expanded types: the
+   functions with the second join, on the renamed arguments, give the
+   renamed answer of those with the first. *)
+Section Adding.
+
+Variable r : renaming.
+Variables join join' : join_scoped_envs.
+Variable choices : meet_choices.
+Variable fuel : nat.
+Hypothesis meet_related :
+  meet_expanded_head_related r (Meet.meet_expanded_head join choices fuel)
+    (Meet.meet_expanded_head join' choices fuel).
+
+(* [Meet.meet]. *)
+Lemma exposed_meet_renamed :
+  meet_function_related r (Meet.meet join choices fuel)
+    (Meet.meet join' choices fuel).
+Proof.
+  intros tenv t1 t2. unfold Meet.meet.
+  change (Typing_env.is_bottom (rename_typing_env r tenv))
+    with (Typing_env.is_bottom tenv).
+  destruct (Typing_env.is_bottom tenv); [ reflexivity | ].
+  rewrite create_renamed, (meet_type_renamed r _ _ meet_related).
+  destruct
+    (Meet_env.meet_type (Meet_env.create tenv) t1 t2
+       (Meet.meet_expanded_head join choices fuel))
+    as [[res | res env] | ];
+    cbn [option_map rename_meet_result]; try reflexivity.
+  cbv zeta. rewrite extract_value_renamed, is_obviously_bottom_renamed.
+  destruct (is_obviously_bottom (extract_value res t1 t2));
+    [ reflexivity | ].
+  rewrite final_typing_env_strict_renamed.
+  destruct (Meet_env.final_typing_env_strict env) as [tenv' | ];
+    reflexivity.
+Qed.
+
+(* [Meet.meet_shape]. *)
+Lemma meet_shape_renamed (tenv : Typing_env.t) (t shape : flambda_type) :
+  Meet.meet_shape join' choices fuel (rename_typing_env r tenv)
+    (rename_type r t) (rename_type r shape)
+  = option_map (or_bottom_map (rename_typing_env r))
+      (Meet.meet_shape join choices fuel tenv t shape).
+Proof.
+  unfold Meet.meet_shape.
+  change (Typing_env.is_bottom (rename_typing_env r tenv))
+    with (Typing_env.is_bottom tenv).
+  destruct (Typing_env.is_bottom tenv); [ reflexivity | ].
+  rewrite exposed_meet_renamed.
+  destruct (Meet.meet join choices fuel tenv t shape)
+    as [[[ty tenv'] | ] | ];
+    reflexivity.
+Qed.
+
+(* [Flambda2_types.add_equation]. *)
+Lemma typing_env_add_equation_renamed (tenv : Typing_env.t) (name : name)
+    (ty : flambda_type) :
+  Flambda2_types.add_equation join' choices fuel (rename_typing_env r tenv)
+    (rename_name r name) (rename_type r ty)
+  = option_map (rename_typing_env r)
+      (Flambda2_types.add_equation join choices fuel tenv name ty).
+Proof.
+  apply use_meet_env_renamed. intros env.
+  apply (add_equation_renamed r _ _ meet_related).
+Qed.
+
+(* [Flambda2_types.add_equations_on_params]. *)
+Lemma typing_env_add_equations_on_params_renamed (tenv : Typing_env.t)
+    (params : list (variable * flambda_kind))
+    (param_types : list flambda_type) :
+  Flambda2_types.add_equations_on_params join' choices fuel
+    (rename_typing_env r tenv) (rename_params r params)
+    (map (rename_type r) param_types)
+  = option_map (rename_typing_env r)
+      (Flambda2_types.add_equations_on_params join choices fuel tenv params
+         param_types).
+Proof.
+  apply use_meet_env_renamed. intros env.
+  apply (add_equations_on_params_renamed r _ _ meet_related).
+Qed.
+
+(* [Flambda2_types.add_env_extension]. *)
+Lemma typing_env_add_env_extension_renamed (tenv : Typing_env.t)
+    (extension : env_extension) :
+  Flambda2_types.add_env_extension join' choices fuel
+    (rename_typing_env r tenv) (rename_env_extension r extension)
+  = option_map (rename_typing_env r)
+      (Flambda2_types.add_env_extension join choices fuel tenv extension).
+Proof.
+  apply use_meet_env_renamed. intros env.
+  apply (add_env_extension_renamed r _ _ meet_related).
+Qed.
+
+(* The head that the scrutinee is given is a function of a variable:
+   on the renamed variable it is to be the renamed head. *)
+Lemma add_relation_renamed (tenv : Typing_env.t) (name : name)
+    (scrutinee : simple) (name_ty : flambda_type)
+    (scrutinee_head scrutinee_head' : variable -> head_of_kind_value) :
+  (∀ var : variable,
+    scrutinee_head' (rename_variable r var)
+    = rename_head_of_kind_value r (scrutinee_head var)) ->
+  Flambda2_types.add_relation join' choices fuel (rename_typing_env r tenv)
+    (rename_name r name) (rename_simple r scrutinee) (rename_type r name_ty)
+    scrutinee_head'
+  = option_map (rename_typing_env r)
+      (Flambda2_types.add_relation join choices fuel tenv name scrutinee
+         name_ty scrutinee_head).
+Proof.
+  intros Hhead. apply use_meet_env_renamed. intros env.
+  rewrite (add_equation_renamed r _ _ meet_related).
+  destruct
+    (Meet_env.add_equation env name name_ty
+       (Meet.meet_expanded_head join choices fuel))
+    as [env' | ];
+    cbn [option_map]; [ | reflexivity ].
+  destruct name as [var | sym]; cbn [rename_name]; [ | reflexivity ].
+  rewrite Hhead.
+  exact
+    (add_equation_on_simple_renamed r _ _ meet_related env' scrutinee
+       (Type_value (Ok (No_alias (scrutinee_head var))))).
+Qed.
+
 (* [Flambda2_types.add_is_null_relation]. *)
-Lemma add_is_null_relation_renamed (r : renaming) (tenv : Typing_env.t)
-    (name : name) (scrutinee : simple) :
-  Flambda2_types.add_is_null_relation join choices fuel
+Lemma add_is_null_relation_renamed (tenv : Typing_env.t) (name : name)
+    (scrutinee : simple) :
+  Flambda2_types.add_is_null_relation join' choices fuel
     (rename_typing_env r tenv) (rename_name r name)
     (rename_simple r scrutinee)
   = option_map (rename_typing_env r)
@@ -997,9 +1009,9 @@ Proof.
 Qed.
 
 (* [Flambda2_types.add_is_int_relation]. *)
-Lemma add_is_int_relation_renamed (r : renaming) (tenv : Typing_env.t)
-    (name : name) (scrutinee : simple) :
-  Flambda2_types.add_is_int_relation join choices fuel
+Lemma add_is_int_relation_renamed (tenv : Typing_env.t) (name : name)
+    (scrutinee : simple) :
+  Flambda2_types.add_is_int_relation join' choices fuel
     (rename_typing_env r tenv) (rename_name r name)
     (rename_simple r scrutinee)
   = option_map (rename_typing_env r)
@@ -1012,9 +1024,9 @@ Proof.
 Qed.
 
 (* [Flambda2_types.add_get_tag_relation]. *)
-Lemma add_get_tag_relation_renamed (r : renaming) (tenv : Typing_env.t)
-    (name : name) (scrutinee : simple) :
-  Flambda2_types.add_get_tag_relation join choices fuel
+Lemma add_get_tag_relation_renamed (tenv : Typing_env.t) (name : name)
+    (scrutinee : simple) :
+  Flambda2_types.add_get_tag_relation join' choices fuel
     (rename_typing_env r tenv) (rename_name r name)
     (rename_simple r scrutinee)
   = option_map (rename_typing_env r)
