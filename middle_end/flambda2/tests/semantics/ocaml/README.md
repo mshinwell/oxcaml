@@ -127,7 +127,7 @@ Simplify does to it. Steps are those of the machine, before and after
 Simplify. The names in brackets are the streams whose work in progress
 is the rewrite that is missing.
 
-212 sources: 172 validated, 34 compared on one run and not validated, 2
+213 sources: 173 validated, 34 compared on one run and not validated, 2
 undefined in the model, 4 not checked.
 
 ### Validated
@@ -184,42 +184,43 @@ undefined in the model, 4 not checked.
 | `exported_nested_pair.ml` | 10, 7 | `record_project.ml` | 37, 8 |
 | `exported_record.ml` | 23, 9 | `record_update.ml` | 27, 4 |
 | `exported_record_update.ml` | 14, 6 | `ref_local.ml` | 132, 79 |
-| `exported_string_length.ml` | 8, 5 | `ref_straight.ml` | 13, 4 |
-| `exported_table.ml` | 13, 8 | `result_map.ml` | 44, 3 |
-| `exported_twice_kept.ml` | 14, 10 | `returned_closure_of_pair.ml` | 71, 50 |
-| `exported_two_branches.ml` | 23, 15 | `seq_unit.ml` | 13, 2 |
-| `exported_two_functions.ml` | 22, 10 | `shift_edges.ml` | 23, 1 |
-| `exported_two_values.ml` | 18, 1 | `shift_unknown.ml` | 17, 7 |
-| `exported_variant.ml` | 17, 6 | `shifts.ml` | 22, 8 |
-| `fact_exported.ml` | 8, 3 | `sign.ml` | 27, 1 |
-| `factorial.ml` | 70, 46 | `string_const.ml` | 21, 2 |
-| `fib.ml` | 2041, 1417 | `string_get16.ml` | 10, 5 |
-| `first_class_module.ml` | 22, 4 | `string_get16_be.ml` | 16, 6 |
-| `float_const.ml` | 15, 4 | `string_get16_checked.ml` | 29, 17 |
-| `for_down.ml` | 79, 40 | `string_get32.ml` | 23, 11 |
-| `for_if.ml` | 165, 96 | `string_get_const.ml` | 9, 4 |
-| `for_nested.ml` | 171, 95 | `string_length_const.ml` | 8, 1 |
-| `for_sum.ml` | 135, 81 | `string_length_unknown.ml` | 9, 5 |
-| `for_two_refs.ml` | 90, 52 | `submodule.ml` | 27, 1 |
-| `fst_snd.ml` | 16, 3 | `succ_pred.ml` | 12, 5 |
-| `functor_apply.ml` | 23, 1 | `swap_exported.ml` | 8, 4 |
-| `gadt_known.ml` | 35, 4 | `tree_root.ml` | 90, 4 |
-| `higher_order.ml` | 32, 5 | `tuple_match.ml` | 75, 1 |
-| `id_exported.ml` | 8, 4 | `tuple_return.ml` | 20, 5 |
-| `identity.ml` | 22, 3 | `tuple_swap.ml` | 19, 4 |
-| `if_unknown.ml` | 13, 6 | `twice_inlined.ml` | 19, 6 |
-| `ignore_value.ml` | 11, 2 | `unboxed_pair.ml` | 13, 4 |
-| `indirect_call.ml` | 13, 9 | `unboxed_pair_argument.ml` | 10, 3 |
-| `inline_function.ml` | 20, 4 | `uncaught_raise.ml` | 10, 4 |
-| `inline_record.ml` | 45, 7 | `unit_argument.ml` | 18, 1 |
-| `int32_arith.ml` | 27, 8 | `variant_match_exported.ml` | 8, 4 |
-| `int32_overflow.ml` | 40, 1 | `while_const_after.ml` | 70, 45 |
-| `int32_unknown.ml` | 17, 7 | `while_countdown.ml` | 61, 34 |
-| `int64_boxed.ml` | 22, 8 | `while_if_inside.ml` | 161, 106 |
-| `int64_compare.ml` | 48, 1 | `while_loop.ml` | 78, 45 |
-| `int64_join.ml` | 26, 1 | `while_nested.ml` | 188, 127 |
-| `int64_of_int.ml` | 25, 7 | `while_sum_down.ml` | 133, 80 |
-| `int64_overflow.ml` | 33, 1 | `while_two_loops.ml` | 126, 81 |
+| `exported_some_again.ml` | 26, 6 | `ref_straight.ml` | 13, 4 |
+| `exported_string_length.ml` | 8, 5 | `result_map.ml` | 44, 3 |
+| `exported_table.ml` | 13, 8 | `returned_closure_of_pair.ml` | 71, 50 |
+| `exported_twice_kept.ml` | 14, 10 | `seq_unit.ml` | 13, 2 |
+| `exported_two_branches.ml` | 23, 15 | `shift_edges.ml` | 23, 1 |
+| `exported_two_functions.ml` | 22, 10 | `shift_unknown.ml` | 17, 7 |
+| `exported_two_values.ml` | 18, 1 | `shifts.ml` | 22, 8 |
+| `exported_variant.ml` | 17, 6 | `sign.ml` | 27, 1 |
+| `fact_exported.ml` | 8, 3 | `string_const.ml` | 21, 2 |
+| `factorial.ml` | 70, 46 | `string_get16.ml` | 10, 5 |
+| `fib.ml` | 2041, 1417 | `string_get16_be.ml` | 16, 6 |
+| `first_class_module.ml` | 22, 4 | `string_get16_checked.ml` | 29, 17 |
+| `float_const.ml` | 15, 4 | `string_get32.ml` | 23, 11 |
+| `for_down.ml` | 79, 40 | `string_get_const.ml` | 9, 4 |
+| `for_if.ml` | 165, 96 | `string_length_const.ml` | 8, 1 |
+| `for_nested.ml` | 171, 95 | `string_length_unknown.ml` | 9, 5 |
+| `for_sum.ml` | 135, 81 | `submodule.ml` | 27, 1 |
+| `for_two_refs.ml` | 90, 52 | `succ_pred.ml` | 12, 5 |
+| `fst_snd.ml` | 16, 3 | `swap_exported.ml` | 8, 4 |
+| `functor_apply.ml` | 23, 1 | `tree_root.ml` | 90, 4 |
+| `gadt_known.ml` | 35, 4 | `tuple_match.ml` | 75, 1 |
+| `higher_order.ml` | 32, 5 | `tuple_return.ml` | 20, 5 |
+| `id_exported.ml` | 8, 4 | `tuple_swap.ml` | 19, 4 |
+| `identity.ml` | 22, 3 | `twice_inlined.ml` | 19, 6 |
+| `if_unknown.ml` | 13, 6 | `unboxed_pair.ml` | 13, 4 |
+| `ignore_value.ml` | 11, 2 | `unboxed_pair_argument.ml` | 10, 3 |
+| `indirect_call.ml` | 13, 9 | `uncaught_raise.ml` | 10, 4 |
+| `inline_function.ml` | 20, 4 | `unit_argument.ml` | 18, 1 |
+| `inline_record.ml` | 45, 7 | `variant_match_exported.ml` | 8, 4 |
+| `int32_arith.ml` | 27, 8 | `while_const_after.ml` | 70, 45 |
+| `int32_overflow.ml` | 40, 1 | `while_countdown.ml` | 61, 34 |
+| `int32_unknown.ml` | 17, 7 | `while_if_inside.ml` | 161, 106 |
+| `int64_boxed.ml` | 22, 8 | `while_loop.ml` | 78, 45 |
+| `int64_compare.ml` | 48, 1 | `while_nested.ml` | 188, 127 |
+| `int64_join.ml` | 26, 1 | `while_sum_down.ml` | 133, 80 |
+| `int64_of_int.ml` | 25, 7 | `while_two_loops.ml` | 126, 81 |
+| `int64_overflow.ml` | 33, 1 | | |
 
 ### What the validation of a unit that exports a function rests on
 
@@ -256,6 +257,7 @@ before. What each shows, and what its validation uses besides:
 | `exported_two_branches.ml` | two values, each chosen by a test, with a function after each, the second function calling the first: the code of each function is bound in the handler of its test, the second handler inside the first | as the one before |
 | `exported_branch_pair.ml` | one of two constant pairs chosen by a test, then a function that reads it: the pairs become symbols, and the closure a symbol that holds the one chosen | the closure lifted to a symbol in the term before and the code of the term after bound first |
 | `exported_branch_calls_twice.ml` | as `exported_branch_two_funs.ml`, the second function calling the first twice: inlines both calls, and reads the value slot of the first closure once | the same, not validated: with the two calls inlined in the term before the validator reads the value slot twice, and it shares no primitive |
+| `exported_some_again.ml` | a value that is not known until the module runs, put in an option that a function which is always inlined takes apart, and kept in another option: the first option is gone, and the second is a symbol | the closure and the second option lifted to symbols: the test tool gives the symbol to the first block of its shape, which is the first option, finds it unused in the end, and guesses again without it |
 
 ### The same on one run, not validated
 

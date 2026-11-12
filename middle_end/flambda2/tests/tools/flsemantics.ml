@@ -1642,14 +1642,16 @@ let unused_statics (e : Model.expr) : Unused_statics.dropped =
    variable of which nothing is known, or if they are the same symbol or
    constant; a variable bound to a symbol or a constant, or whose own [Let] is
    lifted here, counts as that symbol or constant. A [Let] is named by its path,
-   as FlambdaLiftSpec.lift_expr counts it.
+   as FlambdaLiftSpec.lift_expr counts it. A symbol is not given to a [Let] that
+   [banned] pairs it with: the caller asks again, with the pair banned, where a
+   symbol went to a [Let] whose block nothing uses in the end.
 
    The guess also says in which code [my_closure] is a symbol: the code of each
    closure that the term after binds statically, if the term before, once
    lifted, makes no other closure of that code
    (FlambdaMyClosureSpec.only_closure_of). *)
-let lifting_guess ~unit (before : Model.expr) (after : Model.expr) :
-    Lift.lifting =
+let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list)
+    (before : Model.expr) (after : Model.expr) : Lift.lifting =
   (* The symbols bound outside code, in the order in which they are bound when
      the term runs: the body of a [Let_cont] before its handler. *)
   let rec bound_symbols (e : Model.expr) =
@@ -1675,8 +1677,12 @@ let lifting_guess ~unit (before : Model.expr) (after : Model.expr) :
          (fun (sym, _) -> not (List.mem sym bound_before))
          (bound_symbols after))
   in
-  let take matches =
-    match List.find_opt (fun (_, const) -> matches const) !to_give with
+  let take path matches =
+    match
+      List.find_opt
+        (fun (sym, const) -> matches const && not (List.mem (path, sym) banned))
+        !to_give
+    with
     | None -> None
     | Some (sym, const) ->
       to_give := List.filter (fun (sym', _) -> sym' <> sym) !to_give;
@@ -1719,7 +1725,7 @@ let lifting_guess ~unit (before : Model.expr) (after : Model.expr) :
         known_simples := (x, known) :: !known_simples
       | Set_of_closures (code, _) -> (
         match
-          take (fun (const : Model.static_const) ->
+          take path (fun (const : Model.static_const) ->
               match const with
               | Static_const_set_of_closures (code', _) -> code = code'
               | _ -> false)
@@ -1728,7 +1734,7 @@ let lifting_guess ~unit (before : Model.expr) (after : Model.expr) :
         | None -> ())
       | Closure_of_set (slot, decls, _) -> (
         match
-          take (fun (const : Model.static_const) ->
+          take path (fun (const : Model.static_const) ->
               match const with
               | Static_const_closure_of_set (_, _, decls', _) -> decls = decls'
               | _ -> false)
@@ -1747,7 +1753,7 @@ let lifting_guess ~unit (before : Model.expr) (after : Model.expr) :
         | Some _ | None -> ())
       | Prim (Variadic (Make_block (Block_kind_values tag)), fields) -> (
         match
-          take (fun (const : Model.static_const) ->
+          take path (fun (const : Model.static_const) ->
               match const with
               | Static_const_block (tag', fields') ->
                 tag = tag' && fields_agree fields fields'
@@ -1757,7 +1763,7 @@ let lifting_guess ~unit (before : Model.expr) (after : Model.expr) :
         | None -> ())
       | Prim (Unary (Box_number _), [contents]) -> (
         match
-          take (fun (const : Model.static_const) ->
+          take path (fun (const : Model.static_const) ->
               match const with
               | Static_const_boxed_number contents' ->
                 fields_agree [contents] [contents']
@@ -2073,14 +2079,21 @@ let validate ~(outcome_before : outcome) (before : converted)
          every lifting has the unit of the term before, and a name made is the
          one after the greatest of those to avoid and of the term, so the names
          made here are those that [validate_unit] makes whatever the number of
-         liftings it is given. *)
+         liftings it is given. [banned] has, for the liftings by their place in
+         the sequence, the [Let]s that a symbol is not to go to. *)
       let avoid =
         let unit = interface before in
         [unit.unit_return; unit.unit_exn]
       in
-      let rec liftings_from made lifted remaining =
+      let rec liftings_from banned stage made lifted remaining =
         let lifting =
-          lifting_guess ~unit:(interface before) lifted normalised_after
+          lifting_guess ~unit:(interface before)
+            ~banned:
+              (List.filter_map
+                 (fun (stage', path, sym) ->
+                   if stage' = stage then Some (path, sym) else None)
+                 banned)
+            lifted normalised_after
         in
         let stop =
           match
@@ -2095,24 +2108,51 @@ let validate ~(outcome_before : outcome) (before : converted)
           match Lift.lift_unit lifting lifted with
           | None -> List.rev made, lifted
           | Some lifted ->
-            liftings_from (lifting :: made)
+            liftings_from banned (stage + 1) (lifting :: made)
               (Validate.normalise_lifted rounds avoid kept lifted)
               (remaining - 1)
       in
-      match liftings_from [] looped 3 with
-      | [], _ -> not_lifted
-      | (_ :: _ as liftings), lifted ->
-        (* The bindings of code of both terms are moved up before the
-           comparison. *)
+      (* The guess gives a symbol to the first [Let] that makes a block of its
+         shape, and a field that is a variable agrees with anything. So the
+         symbol may go to a block that the normalisation then finds no use for
+         (the argument of a match that is resolved, say), where the term after
+         binds it to a block made later. Such a symbol is not used in the term
+         lifted: the sequence is guessed again with that [Let] banned for it, a
+         few times at most. *)
+      let rec guessed banned again =
+        let liftings, lifted = liftings_from banned 0 [] looped 3 in
         let slots = unused_slots_guess lifted normalised_after in
         let lifted = Validate.without_slots slots lifted in
         let unused = unused_statics lifted in
-        ( Validate.validate_unit rounds unused slots loops liftings kept
+        let wrong =
+          List.concat
+            (List.mapi
+               (fun stage (lifting : Lift.lifting) ->
+                 List.filter_map
+                   (fun (path, (target : Lift.lift_to)) ->
+                     match target with
+                     | Lift_to_symbol sym
+                       when List.mem sym unused.dropped_symbols ->
+                       Some (stage, path, sym)
+                     | Lift_to_symbol _ | Lift_to_closure_symbols _ -> None)
+                   lifting.lifted_lets)
+               liftings)
+        in
+        match wrong with
+        | _ :: _ when again > 0 -> guessed (wrong @ banned) (again - 1)
+        | _ -> liftings, lifted, slots, unused
+      in
+      match guessed [] 5 with
+      | [], _, _, _ -> not_lifted
+      | (_ :: _ as liftings), lifted, slots, unused ->
+        ( (* The bindings of code of both terms are moved up before the
+             comparison. *)
+          Validate.validate_unit rounds unused slots loops liftings kept
             before.body after.body,
           Float_code.float_code (Validate.without_statics unused lifted),
           "lifted and normalised",
           (match slots with [] -> false | _ :: _ -> true),
-          Float_code.float_code normalised_after ))
+          Float_code.float_code (Validate.with_code_first normalised_after) ))
     | Same_up_to_bound_names | Same_once_normalised
     | Same_once_unused_statics_removed | Same_once_lifted ->
       not_lifted

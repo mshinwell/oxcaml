@@ -1,0 +1,43 @@
+let $camlExported_some_again__first_const_0 = Block 0 () in
+(let code inline(always) size(17)
+       get_0 (o/46 : [ 0 | 0 of imm tagged ])
+         my_closure/47 &my_alloc_region/48 my_depth/49
+         -> k/16 * k/17
+         : imm tagged =
+   let next_depth/50 = rec_info (succ my_depth/49) in
+   (let prim/52 = %is_int (o/46) in
+    let Pisint/53 = %tag_imm (prim/52) in
+    (let untagged/54 = %untag_imm (Pisint/53) in
+     switch untagged/54
+       | 0 -> k/19
+       | 1 -> k/16 (0))
+      where k/19 =
+        cont k/18)
+     where k/18 =
+       let Pfield/51 = %block_load.[`0`] (o/46) in
+       cont k/16 (Pfield/51)
+ in
+ let get/55 = closure get_0 @get &toplevel in
+ let v/56 = %opaque (6) in
+ (let Pmakeblock/60 = %block.[`0`].`toplevel` (v/56) in
+  apply direct(get_0 &toplevel)
+    (get/55 : _ -> imm tagged) (Pmakeblock/60) -> k/20 * error)
+   where k/20 (inside/57 : imm tagged) =
+     let kept/58 = %block.[`0`].`toplevel` (inside/57) in
+     let Pmakeblock/59 =
+       %block.[`0`].`toplevel` (get/55, v/56, inside/57, kept/58)
+     in
+     cont k/15 (Pmakeblock/59))
+  where k/15 define_root_symbol (module_block/41) =
+    let field_0/42 = %block_load.tag[`0`].`size`[`4`].[`0`] (module_block/41)
+    in
+    let field_1/43 = %block_load.tag[`0`].`size`[`4`].[`1`] (module_block/41)
+    in
+    let field_2/44 = %block_load.tag[`0`].`size`[`4`].[`2`] (module_block/41)
+    in
+    let field_3/45 = %block_load.tag[`0`].`size`[`4`].[`3`] (module_block/41)
+    in
+    let $camlExported_some_again =
+      Block 0 (field_0/42, field_1/43, field_2/44, field_3/45)
+    in
+    cont done ($camlExported_some_again)
