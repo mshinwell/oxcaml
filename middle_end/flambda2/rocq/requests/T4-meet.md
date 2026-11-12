@@ -41,7 +41,7 @@ Files, in `middle_end/flambda2/types/rocq/`:
   reviewed (section 18). `FlambdaMeetValidity.v`: the device of the
   proof; definitions and a tactic, no statement.
 - `FlambdaMeetParamsSpec.v`: the equations on parameters that the
-  environment does not know; three definitions, an example and six
+  environment does not know; three definitions, an example and eight
   statements, proved (`FlambdaMeetParamsProofs.v`). To be reviewed
   (section 20).
 - `FlambdaMeetChoicesSpec.v`: the three places where the compiler's
@@ -1068,7 +1068,9 @@ The premise under which the contract holds:
   environment does not know is among the names that the meet is to
   avoid. Then such a parameter stays unknown (a variable that a meet
   defines is not among the names to avoid) and its equation adds
-  nothing.
+  nothing: `add_equation_on_unknown`, where the function answers
+  the environment is as it was. It need not answer: the compiler
+  stops with a fatal error on a name that is not bound.
 - For the function as transcribed, which starts with no name to
   avoid, this is that every parameter is known: the statement that
   was proved.
@@ -1076,6 +1078,11 @@ The premise under which the contract holds:
   the parameters as names to avoid. It is not the transcription.
   `add_equations_on_params_avoiding_sound`: it has the contract as
   agreed, for a join that has its own.
+  `example_params_avoiding_answer`: on the example it does not
+  answer. That is one input; it is not shown that the function
+  never answers where a parameter is not known. What is shown in
+  general is `add_equation_on_unknown`: of such a parameter the
+  environment answered says nothing.
 
 A premise on the join alone is not stated; the header says why, and
 what the join of the model does (it makes the variable one greater
