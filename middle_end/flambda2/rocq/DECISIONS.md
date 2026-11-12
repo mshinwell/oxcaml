@@ -536,6 +536,13 @@ says so. Only the labels that this tree cites are listed.
   meet keeps it. A loss of precision, shown on built types.
 - **V2-2.** The fexpr printer drops the kinds of the fields of a
   `Make_block`, and the parser reads back `any_value` for each.
+- **V2-3.** The conversion gives a meaning to a local allocation read
+  after its region has ended.
+- **V2-4.** A handler that catches an exception by name is undefined in
+  the model, and the predefined exceptions are symbols that no unit
+  binds.
+- **V2-5.** The argument of a raise that nothing reads is to be replaced
+  by 0, but the flow analysis counts it as read in every handler.
 - **V3-2.** Simplify lifts a closed constant out of a function or a
   loop, and shares equal constants: the number of allocations changes.
 - **V4-1.** Loopify makes a self tail call a jump without comparing the
