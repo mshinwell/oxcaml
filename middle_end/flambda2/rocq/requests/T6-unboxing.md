@@ -28,12 +28,14 @@ Summary.
   second pass is built and proved for them:
   `FlambdaUnboxVariantsSpec.unbox_variant_params`. It makes a
   parameter of a read that is under a test, and gives a constant that
-  nothing reads at an application on whose argument the read has no
-  value: `None`, `[]`, a constant constructor. Three bodies of code
+  nothing reads at an application that the term shows not to come to
+  the read, or on whose argument the read has no value: `None`, `[]`,
+  a constant constructor, a block of another tag. Six bodies of code
   from OCaml sources are validated with it in Rocq, with Simplify's
-  `poison` where the pass puts it, and are not without it. A variant
-  with several tags is not covered. The tool does not convert a poison
-  constant yet, so no such unit is checked by it today (section 7).
+  `poison` where the pass puts it, and are not without it. It has its
+  statements of renaming and of scope, so it can be wired. The test
+  tool converts a poison constant on V2's branch; such units run and
+  wait for the pass in the round (section 7).
 
 ## 1. What Simplify does
 
@@ -309,9 +311,9 @@ statements, proved: the pass commutes with a renaming
 the same with what is known renamed with the term), and it keeps scope
 (`unbox_known_params_keeps_scope_statement`).
 
-**Wiring.** The pass is not in `FlambdaValidateSpec.v`. V4 is
-rewriting that part of the round and will add the line, given the
-statement and the lemma of renaming.
+**Wiring.** The pass is not in `FlambdaValidateSpec.v`. The second
+pass (section 7) does all that this one does and is the one to wire:
+V2 adds its line to the round (section 10).
 
 ## 5. The first thing asked: subkinds
 
@@ -417,29 +419,52 @@ must be `poison` only so that the result is Simplify's term.
 
 `FlambdaUnboxVariantsSpec.v`, with the proof in
 `FlambdaUnboxVariantsProofs.v`. It does what `unbox_known_params`
-does, and two things more.
+does, and three things more.
 
 1. The `Let` that reads a box need not be the first thing in the
    handler. It is the first one found going down the handler through
-   the bodies of `Let`s and through the handlers, then the bodies, of
+   the bodies of `Let`s and through the bodies, then the handlers, of
    non-recursive `Let_cont`s (`first_read`), provided that no binder
    on the way binds the parameter read or the variable of the `Let`,
    and that the variable is not free in the handler. The `Let` is
    removed where it is; its variable becomes the last parameter.
 2. Where the `Let` is not the first thing in the handler, an
    application gets as its new argument
-   (`extend_args_certain`): a constant that the term shows the
-   primitive to give, if it is of the kind of the `Let`; or the field
-   of a block that a `Let` in scope made, for a load at the kind of
-   values; or, where the term shows that the primitive has no value on
-   the argument for the parameter read, a constant of the kind of the
-   `Let` (`dummy_of`): `poison`, or 0 for `Get_tag` and
-   `Untag_immediate`, which is what Simplify gives
-   (`Unboxing_epa.compute_extra_args_for_variant`,
-   `extra_arg_for_ctor`). The primitive is known to have no value
+   (`extend_args_certain`), in this order: a constant of the kind of
+   the `Let` that nothing reads (`dummy_of`: `poison`, or 0 for
+   `Get_tag` and `Untag_immediate`, which is what Simplify gives:
+   `Unboxing_epa.compute_extra_args_for_variant`,
+   `extra_arg_for_ctor`), if the term shows that the application does
+   not come to the read (`never_reads`, below); a constant that the
+   term shows the primitive to give, if it is of the kind of the
+   `Let`; the field of a block that a `Let` in scope made, for a load
+   at the kind of values; or, where the term shows that the primitive
+   has no value on the argument for the parameter read, the constant
+   that nothing reads again. The primitive is known to have no value
    (`no_value_on`) where it is a load or `Get_tag` of a constant, and
    where it is `Untag_immediate` of a variable that a `Let` in scope
    made a block.
+
+   An application does not come to a read (`never_reads`) where the
+   constants it gives show it. The parameters that it gives a constant
+   naked immediate are known: whether the value is an immediate and
+   its tag, once those are parameters. In the handler every `Switch`
+   on one of them is replaced by the arm it goes to (`take_arms`), and
+   the continuations that nothing then applies are removed
+   (`remove_unused_conts`); if what is left of the handler is, up to
+   bound names (`expr_eqb`), what is left of the handler without the
+   read, the read was in a continuation that this application does not
+   reach. That is what a variant with several tags needs: the front
+   end's load says nothing of the tag (`%block_load.[0]`), so it has a
+   value on a block of another tag that has the field, and only the
+   `Switch` on the tag keeps it from being read.
+
+3. The reads are taken in an order (`next_read`): first a `Get_tag`,
+   then an `Untag_immediate`, then an `Is_int`, then the loads and
+   the unboxings, each sort from the top of the handler down. The new
+   parameters are then in Simplify's order for a variant: the tag,
+   the constant constructor, whether the value is an immediate, the
+   fields (`Unboxing_epa.add_extra_params_and_args`).
 
 So for `match v with None -> 0 | Some y -> y + 2` at a join of
 `Some (x + 1)` and `None`: `Is_int` of the parameter is the first
@@ -461,26 +486,39 @@ removed: its variable was not free in the handler, so every use of it
 was bound by that `Let`. In the term before, a run that comes to that
 place evaluates the primitive on the parameter read, and that
 parameter still has the value that the application gave, because no
-binder on the way binds it. An application is given the constant only
-where the term shows that the primitive has no value on what the
-application gives for the parameter read. So a run of the term
-before that starts at such an application and comes to the place of
-the `Let` is undefined there, and a refinement asks nothing of the
-term after from then on; and a run that does not come to that place
-never looks at the new parameter. Nothing is said about which arm of
-a `Switch` leads where, and nothing about what a primitive does with
-`poison`: the constant could be any constant of the kind. D26 and
-T6-1 are about a parameter that holds poison being read through what
-the types record of it; here the claim is made of the term before,
-in which there is no poison, and what it says of the term after is
-that the validator has found Simplify's `poison` exactly at the
-applications from which the term before, were it to read, would be
-undefined. If Simplify gave `poison` at a use from which the handler
-can read the field, the two terms would differ at that argument and
-the unit would not be validated.
+binder on the way binds it. An application is given the constant in
+two cases only.
 
-The proof follows the argument and has no simulation of its own.
-`FlambdaUnboxParamsProofs.read_refines`: under variables that give
+- The term shows that the primitive has no value on what the
+  application gives for the parameter read. A run of the term before
+  that starts at such an application and comes to the place of the
+  `Let` is undefined there, and a refinement asks nothing of the term
+  after from then on; a run that does not come to that place never
+  looks at the new parameter.
+- The term shows that the application does not come to the read
+  (`never_reads`). Then the handler and the handler without the read
+  are equivalent under the constants that the application gives:
+  each is equivalent to what is left of it, since taking the arm of a
+  `Switch` on a variable that holds a known number and removing an
+  unused continuation are equivalences, and the two that are left are
+  the same up to bound names.
+
+Nothing is said about what a primitive does with `poison`: the
+constant could be any constant of the kind. D26 and T6-1 are about a
+parameter that holds poison being read through what the types record
+of it; here the claim is made of the term before, in which there is
+no poison, and what it says of the term after is that the validator
+has found Simplify's `poison` only at applications from which the
+term before does not read, or would be undefined if it did. If
+Simplify gave `poison` at a use from which the handler can read the
+field, the two terms would differ at that argument and the unit would
+not be validated.
+
+The proof follows the argument and has no simulation of its own
+(`take_arms` is proved by the lemmas of contexts; the removal of
+unused continuations and the comparison are the validator's, with
+their theorems). `FlambdaUnboxParamsProofs.read_refines`: under
+variables that give
 the new parameter a value `u` such that the primitive, whatever is
 bound later, has on the parameter read the value `u` if it has one,
 the handler without the `Let` refines the handler; by induction on
@@ -515,24 +553,27 @@ Two things had to be got right, and are where to look.
 
 ### What it does not cover
 
-- **A variant with several tags.** The front end's load of a field
-  says nothing of the tag (`%block_load.[1]`), so on a block of
-  another tag that has the field the load has a value, and "the
-  primitive has no value on the argument" is false. Simplify gives
-  `poison` there because the load is under the arm of a `Switch` on
-  the tag. That needs the other argument: the place of the `Let` is
-  reached only through arms whose discriminants the application does
-  not give. It is a statement about the control flow of the handler,
-  with a simulation that follows a run of the handler; it is not
-  built. Where the load does state a tag that the block has not got,
-  it has no value in the model, and `no_value_on` could say so: one
-  more case, not written.
+- **A read under a test that is not a `Switch` on a parameter given a
+  constant.** `never_reads` knows only the parameters that the
+  application gives a constant naked immediate, and replaces only a
+  `Switch` on such a parameter. A read under a comparison, or under a
+  `Switch` on what a `Let` of the handler computes of a parameter,
+  is taken to be reachable; the application then needs an argument
+  that is certain, or the pass stops.
 - It stops at the first read that cannot be made a parameter.
-- The order of the new parameters is the order in which the reads are
-  found. In the three examples that is Simplify's.
-- It is not yet stated that the pass commutes with renaming, nor that
-  it keeps scope, so it cannot be wired into the validation yet. It
-  makes no name; the statements will be those of the first pass.
+- Among the loads, the order of the new parameters is the order in
+  which the handler has them, the body of a `Let_cont` before its
+  handler. In the six examples that is Simplify's (the front end
+  reads the fields last to first, and puts the continuation of the
+  first arm outermost).
+- A field that the handler reads in two places becomes two
+  parameters, where Simplify has one. A pass that makes one of two
+  parameters that every application gives the same argument would
+  mend it.
+- It is not in a round of the validation yet. It has what the wiring
+  needs: `unbox_variant_params_equivariant` and
+  `unbox_variant_params_keeps_scope`
+  (`FlambdaUnboxVariantsRenameProofs.v`); it makes no name.
 
 ### The other way
 
@@ -548,9 +589,10 @@ names for the wrappers. Not built.
 
 ### The tool
 
-One thing blocks every unit with an unboxed variant in the test tool:
-its conversion refuses a poison constant, so such a unit is "not
-checked". The model has the constant. V2 is adding the case.
+The conversion of the test tool refused a poison constant, so a unit
+with an unboxed variant was "not checked". The model has the
+constant, and V2's series for the round has the case: such a unit
+then runs, and is validated once the pass is in the round.
 
 ## 8. What else is owed for pairs and numbers
 
@@ -651,6 +693,29 @@ the other units from OCaml.
       match on_heap v with Empty -> 0 | Full -> 1 | Pair (a, b) -> a + b
     let result = f true 3 + f false 4
 
+    (* shape2_heap *)
+    let[@inline never] f : bool -> int -> int =
+     fun c x ->
+      let v = if c then Pair (x + 1, x) else Full in
+      match on_heap v with
+      | Empty -> 10 | Full -> x + 20 | Pair (a, b) -> a + b
+    let result = f true 3 + f false 4
+
+    (* nested_heap *)
+    let[@inline never] f : bool -> int -> int =
+     fun c x ->
+      let v = if c then Some (x + 1, x) else None in
+      match on_heap v with None -> 0 | Some (a, b) -> a + b
+    let result = f true 3 + f false 4
+
+    (* either_heap *)
+    type either = Left of int | Right of int * int
+    let[@inline never] f : bool -> int -> int =
+     fun c x ->
+      let v = if c then Left (x + 1) else Right (x, x + 2) in
+      match on_heap v with Left y -> y + 3 | Right (y, z) -> y + z
+    let result = f true 3 + f false 4
+
     (* pair_loop *)
     let rec fib : int -> int * int -> int =
      fun n acc ->
@@ -675,6 +740,9 @@ the sources to `middle_end/flambda2/tests/semantics/ocaml/`.
 | `option_heap` | the same, the option on the heap | | not checked: the conversion refuses the poison constant | the conversion, and `unbox_variant_params`: with it the body in Rocq is validated |
 | `list_heap` | the list: `is_int` and the head, `poison` for the head where the use gives `[]` | | not checked, likewise | likewise |
 | `shape_heap` | two constant constructors and a pair: `is_int` and the two fields, `poison` for both where the use gives a constant constructor; the value stays a parameter | | not checked, likewise | likewise |
+| `shape2_heap` | the same with the two constant constructors told apart: the constant constructor, `is_int` and the two fields; 0 for the constant constructor where the use gives the pair | | not checked, likewise | likewise |
+| `nested_heap` | an option of a pair: `is_int` and the two fields of the pair, `poison` for both where the use gives `None` | | not checked, likewise | likewise |
+| `either_heap` | two constructors that hold fields: the tag and the fields of both, `poison` for the fields of the constructor that the use does not give | | not checked, likewise | likewise |
 
 Of V2's 172 sources, two unbox a pair and both validate already,
 because the pair is known on every path and the join is inlined away;
@@ -687,16 +755,19 @@ whose parameter was unboxed, so these eight are new coverage.
   binder undefined (section 5). Recommended. Without it the unboxing of
   a block that is not built in the term cannot be validated, in a loop
   or out of one.
-- **V4** (or the owner of the validator's wiring): the line for
-  `unbox_known_params` in the round of the term before, after
-  `follow_aliases` and before `drop_unused_params`. The two lemmas the
-  wiring needs are `unbox_known_params_equivariant` and
-  `unbox_known_params_keeps_scope`
-  (`FlambdaUnboxParamsRenameProofs.v`). `unbox_variant_params` does
-  all that `unbox_known_params` does and is to take its place in the
-  round once it has the same two statements.
-- **V2**: the conversion of the poison constant; the sources above,
-  with the three of variants.
+- **V2** (agreed 2026-11-12): the line for `unbox_variant_params` in
+  the round of the term before, after `follow_aliases`, the loads of
+  known blocks and the unboxing of known numbers, and before the
+  passes that bind or remove parameters; in a commit of its own after
+  V2's series for the round. The wiring needs
+  `unbox_variant_params_refines` (`FlambdaUnboxVariantsProofs.v`),
+  `unbox_variant_params_equivariant` and
+  `unbox_variant_params_keeps_scope`
+  (`FlambdaUnboxVariantsRenameProofs.v`). `unbox_known_params` has
+  the same three and need not be wired: the second pass does all that
+  it does. Also V2's: the conversion of the poison constant; the
+  sources above, with the six of variants.
+- **V4**: nothing more; the place in the round is agreed.
 - **N1, N3**: nothing yet. The `Let` at a use under a `Switch`
   (section 8) and the copy of a handler (section 7) will need a fresh
   continuation name each.
