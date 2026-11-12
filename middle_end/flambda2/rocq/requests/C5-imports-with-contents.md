@@ -161,33 +161,60 @@ in front of it.
 The prefix is made on demand: of the names that the two terms
 mention, and of the names that the bodies and the blocks so bound
 mention in turn. A field of a block that is a symbol and is asked
-for by nothing stays an import. Binding less is always right: what
-is not bound is not looked into. It is converted once, and is the
-same term in front of both: the compiler renames the variables and
-continuations of imported code at each import, so two conversions
-would agree up to bound names only.
+for by nothing stays an import. What is left out is under one
+obligation: leaving it out may make a run refused or undefined, and
+must never give a run a defined answer that the linked unit would
+not give. It is to be checked for each thing left out: for a closure
+bound alone and without slots C3 has checked it (above); for a field
+of which nothing is said, the class proposed below is what makes it
+so; for a body, the code id stays bound to nothing.
+
+The reduction of a symbol itself, and not of a field, can be another
+symbol or a constant. No static binding says either of a symbol. A
+symbol that is said to be another symbol is not bound, and stays an
+import of which nothing is known: what was said of it is not used.
+A symbol that is said to be a constant is refused, and the unit is
+not checked: the model takes a symbol for an object.
+
+The prefix binds each symbol and each code id once, and none that
+the unit binds. Blocks, closures and bodies of another unit may name
+one another in a cycle; the bindings of the prefix are then in one
+group, as those of a unit are, in an order in which each is defined
+when it is bound, and where there is no such order the symbol stays
+an import. The prefix has the numbering of names of the two terms.
+It is converted once, and is the same term in front of both: the
+compiler renames the variables and continuations of imported code at
+each import, so two conversions would agree up to bound names only.
 
 **What is assumed, and where it is said.** One new entry of the
-trust ledger: that when the unit starts, what the prefix says of
-each symbol it binds is true of the object, and each code id that it
-binds has that code. Of a block the prefix says its tag and its
-fields. Of a closure it says its code and its function slot and
-binds it with nothing else; the model has no value where anything
-else of it is read. That is: the `.cmx` are right about their
-units, and they are the `.cmx` of the units that the program is
-linked with. It is stated for each unit read, by the digest of its
-`.cmx`. The tool names the units read; it prints the digests only
-when asked, as it prints the terms, since the `.cmx` of a test is
-made by the build and its digest moves with the compiler. The units
-read are those that the run of Simplify read. The tool can ask the
-loader for any unit, as it writes no `.cmx`. In the compiler's own
-process asking changes what is recorded, so there the prefix is
-made of the units already recorded, or a way to ask without loading
-is added to the compiler, which is not ours to add. Nothing is
-assumed of what the prefix
-does not bind. Simplify is not trusted for it: the conversion reads
-the `.cmx` through the compiler's loader and its reduction, and not
-through anything that Simplify concluded.
+trust ledger, in two parts. The first is of the linked program:
+every read and every call that the prefix permits is justified by
+the unit that the program is linked with. A load of a field that
+the prefix gives a block returns what that field holds when the unit
+starts; a call of code that the prefix binds runs that code; a
+closure that the prefix binds is of that code, at that function
+slot. What the prefix leaves out (a field, another function of a
+set, a value slot, a body) remains unknown: it is not said to be
+absent, and the model has no value where it would be read. The
+second part is of the conversion: making the prefix from the
+reduction is trusted OCaml, trusted to say nothing that the
+reduction does not say and to leave out only under the obligation
+above. That the `.cmx` are right about their units, and are the
+`.cmx` of the units that the program is linked with, is what the
+first part rests on; it does not by itself justify the translation,
+which is why the second part is stated apart. The first part is
+stated for each unit read, by the digest of its `.cmx`. The tool
+names the units read; it prints the digests only when asked, as it
+prints the terms, since the `.cmx` of a test is made by the build
+and its digest moves with the compiler. The units read are those
+that the run of Simplify read. The tool can ask the loader for any
+unit, as it writes no `.cmx`. In the compiler's own process asking
+changes what is recorded, so there the prefix is made of the units
+already recorded, or a way to ask without loading is added to the
+compiler, which is not ours to add. Nothing is assumed of what the
+prefix does not bind. Simplify is not trusted for it: the conversion
+reads the `.cmx` through the compiler's loader and its reduction,
+and not through anything that Simplify concluded.
 
 **The statements.** With a prefix, the validator's theorems apply to
 the two prefixed terms as they are, and no statement changes:
@@ -205,12 +232,19 @@ the two prefixed terms as they are, and no statement changes:
   the imports, which their owners already owe.
 
 One small statement is mine to add, so that the ledger can say the
-thing in its own terms: two terms that follow one prefix refine each
-other from an environment exactly when the terms without the prefix
-do from the environment that the prefix makes of it. The verdict is
-then "the unit after refines the unit before, each run from the
+thing in its own terms. It has a condition: that the prefix
+evaluates, from the environment of the imports, to the environment
+that binds what the prefix binds beside what was bound, and changes
+nothing else of the state. That asks that the prefix bind no name
+twice and none that is bound already, and that each of its constants
+have its value when it is bound. Under that condition two terms that
+follow the prefix refine each other from the first environment
+exactly when the terms without it do from the second. The verdict
+is then "the unit after refines the unit before, each run from the
 static environment that the `.cmx` describe", and the prefix is how
-it is checked.
+it is checked. Without the condition the two prefixed terms are both
+undefined and the comparison says nothing; the tool is to check that
+the prefix evaluates, and to say so where it does not.
 
 **A field of which the `.cmx` say nothing** is the one thing that the
 model cannot say today. A module block has such fields wherever the
@@ -218,25 +252,43 @@ module computes a value as it is initialised (a table, a channel).
 The field is not a symbol: it may be an immediate, or an object that
 is mutable. `Import_data` is wrong for it, as the model answers
 false to `Phys_equal` of an import against an immediate. Proposed: a
-third class, `Import_unknown`, of which no primitive has a value,
-`Phys_equal` included; it can be passed, stored and returned. The
-prefix then gives such a field a symbol of its own, of that class.
-Without it, a block with one unknown field cannot be bound at all,
-and every load from that module stays undefined. The first units
-(section 6) do not need it; the standard library does.
+third class, `Import_unknown`, and the prefix gives such a field a
+symbol of its own, of that class. What the class must be is to be
+gone through case by case, as the tests that there are answer of
+any import. `is_imported` is what makes `Phys_equal` false of an
+import against a tagged immediate, and against an identity for one
+that is data; the machine with a heap has its own such test against
+a location. An unknown may be an immediate, an identity or a
+location, so none of these may answer of it, and `Phys_equal` has no
+value on it against anything, itself included: a symbol of its own
+for a field does not say that what the field holds differs from what
+another field or object is. No unary or binary primitive has a value
+on it but `Opaque_identity`, which returns it. It can be a field of
+a block that is made, an argument and a result. Every definition
+that asks whether a value is imported, and the part of
+`relates_observations` for imports, is to be read again for it; that
+list is part of the work. Without the class, a block with one
+unknown field cannot be bound at all, and every load from that
+module stays undefined. The first units (section 6) do not need it;
+the standard library does.
 
 **From which environment.** The three verdicts that hold from the
 imports hold from more: the proof uses nothing of the static
 environment of the imports but that the names removed from the term
-before do not occur in it, and nothing of the heap. So my two
-statements can be made from any static environment in which those
-names do not occur and from any heap, with the imports as the
-instance that the tool runs. That is the form in which a call of
-code that has no body means something: it holds whatever code the
-environment binds there. I propose to restate my two that way. I do
-not propose it for the liftings: from the imports their invariants
-are about objects that hold nothing, and that is the cheaper thing
-to ask of their owners first.
+before do not occur in it. So a general law can be stated beside my
+two statements, which stay as they are and become instances of it:
+from any static environment in which those names do not occur. The
+heap needs its own premise. Today no step of the machine that the
+theorem is of reads the heap, and the law holds from any heap. Once
+the core executes the heap, the names removed must not occur in the
+values that the heap holds either (for example, a symbol that only
+the heap names), and the law is to say so then. Under the law a
+call of code that has no body in the `.cmx` means something where
+the environment binds code of the model for it, whatever that code
+is. It is not an answer for a call whose code is outside the model.
+I do not propose the general form for the liftings: V3 has read its
+proofs, and from an arbitrary environment the invariant of each pass
+would become a premise.
 
 **The four cases.**
 
@@ -249,8 +301,8 @@ to ask of their owners first.
   the model, and the pair is compared all the same. A meaning for
   that call is the same question as a meaning for a C call (a call
   whose code is not in the model, which may read and write the
-  heap), and should be answered once, with it; under my two
-  statements as restated it already means "whatever code is there".
+  heap), and should be answered once, with it; the general law above
+  gives it one only where the code is code of the model.
 - (c) A function of another unit that is inlined, or a field that is
   read from the `.cmx`: the main case, and what the prefix is for.
 - (d) A field of another unit read at toplevel: the load has a value
@@ -306,8 +358,10 @@ heap and C calls as well; 20 need only this.
 - A run that calls code of another unit which has no body in the
   `.cmx`, or whose body the model cannot express (the conversion
   leaves such code unbound; it does not refuse the unit).
-- A run that reads a field of which the `.cmx` say nothing, or that
-  compares one.
+- A run that inspects a field of which the `.cmx` say nothing.
+  Loading the field has a value, the symbol that stands for it,
+  which can be passed on and stored; every primitive on it but
+  `Opaque_identity`, a comparison included, has none.
 - A recursive module: its initialisation calls functions of the run
   time's own module for them, which fill in blocks that the unit
   then reads. That is a call with no body that writes to the unit's
@@ -346,7 +400,11 @@ a proof.
    function of the first unit is never inlined, so that its code has
    no body. Small. V2 has accepted it as written, after its series
    in hand; each unit of a pair is checked as any unit of the corpus
-   is.
+   is. Before anything is said to be covered there are to be pairs
+   for what is left out and for what is refused: a function with no
+   body, a field of which nothing is said, a closure of a set of
+   several functions, a symbol that the unit and the prefix would
+   both bind, a prefix that does not evaluate.
 2. C2 with V2 (the conversion is in the tool): the prefix. From the
    loader, for each name of another unit that the two terms mention:
    the reduction, converted to static bindings; the bodies, by the
@@ -355,7 +413,10 @@ a proof.
    Medium: about the size of the conversion of static constants. It
    is trusted OCaml; the ledger entry is mine to write, with them.
    A commit of its own, apart from the option, with V2's word on it
-   as on any change to the tool.
+   as on any change to the tool. The round trip does not reach the
+   prefix, so the conversion of a `.cmx` needs a check of its own
+   that does not go through that conversion: at the least, the
+   prefix printed for each pair and read against the first unit.
 3. Me: the statement that relates a prefix to the environment it
    makes; the wording of the ledger; my two statements restated
    from any static environment, if that is agreed. Small.
@@ -432,13 +493,15 @@ a proof.
    compiler's own process that means the units the compilation has
    recorded, unless the compiler gains a way to ask whether a unit
    is loaded.
-3. **A third class for a value of which nothing is known.**
-   Recommended: yes, when the first pairs are in and before the
-   standard library.
-4. **My two statements from any static environment and any heap**,
-   with the imports as an instance. Recommended: yes; it is what
-   gives a call of code with no body a meaning in the three verdicts
-   that do not lift.
+3. **A third class for a value of which nothing is known**, with
+   every test on an import gone through for it. Recommended: yes,
+   when the first pairs are in and before the standard library.
+4. **A general law beside my two statements**, from any static
+   environment in which the names removed do not occur, with the
+   premise on the heap that the core will need; my two stay, as
+   instances. Recommended: yes; it gives a call of code with no body
+   a meaning, in the three verdicts that do not lift, where the code
+   is code of the model.
 5. **The order**: pairs of units and the prefix first, the liftings
    from the imports next. Recommended as written in section 6.
 6. **The wording of the tool's lines** for a verdict that rests on a
