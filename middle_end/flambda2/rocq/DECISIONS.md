@@ -210,6 +210,12 @@ says so. Only the labels that this tree cites are listed.
 - **C3-8.** The model can write a set of closures in which a value slot
   is given twice; the compiler cannot, and the fexpr parser accepts one
   and keeps the second value.
+- **C3-9.** The backend reads a direct call and a call of known arity as
+  full calls; Simplify reads a call of any kind as a generic
+  application.
+- **C3-10.** `simplify_direct_tuple_application` takes the tuple and the
+  remaining arity apart by two different counts, and splits an
+  over-application without the test that the code returns one value.
 - **C4-1.** Simplify lifts an `Immutable_unique` block out of a function
   to one symbol.
 - **C4-2.** Nothing checks that a field loaded as immutable is never
