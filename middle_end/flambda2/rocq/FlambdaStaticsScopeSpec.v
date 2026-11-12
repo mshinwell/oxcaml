@@ -39,7 +39,8 @@
    check of the validation (FlambdaValidateSpec.validate_unit) applies
    rewrites to the term before that are not rewrites of a round: it
    removes static bindings, it lifts, it uses what the unit binds its
-   symbols to, and it removes value slots; and
+   symbols to and what is known of the static closures in sight, it
+   removes value slots, and it moves the bindings of code up; and
    FlambdaStaticsOrderSpec.order_statics_as is for it to apply, with
    the term after as the pattern. Each keeps scope, and that is stated
    here. It is what a statement that the check answers the
@@ -83,6 +84,16 @@
      sets of closures, and with them the variables they hold
      ([drop_slots_keeps_scope_statement]); [without_slots] is that, or
      the term as it is ([without_slots_keeps_scope_statement]).
+   - FlambdaKnownClosuresSpec.use_known_closures puts, for the
+     projection of a value slot of a static closure in sight, what the
+     slot holds, and makes a call of such a closure direct. A variable
+     that a slot of a static closure holds is free in the binding of
+     the closure, which is in the term
+     ([use_known_closures_keeps_scope_statement]).
+   - FlambdaFloatCodeSpec.float_code moves the bindings of code out of
+     [Let]s and continuations. Closed code has no free variable and no
+     free continuation, so none leaves the scope of its binder
+     ([float_code_keeps_scope_statement]).
 
    Nothing is asked of a term but that its code is closed, which
    [keeps_scope] itself asks, and nothing of what a rewrite is given.
@@ -95,8 +106,8 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec FlambdaBindersSpec FlambdaUnusedStaticsSpec
   FlambdaStaticsOrderSpec FlambdaMyClosureSpec FlambdaLiftSpec
-  FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec FlambdaValidateSpec
-  FlambdaValidatorEquivarianceSpec.
+  FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec
+  FlambdaFloatCodeSpec FlambdaValidateSpec FlambdaValidatorEquivarianceSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -156,3 +167,16 @@ Definition drop_slots_keeps_scope_statement : Prop :=
 
 Definition without_slots_keeps_scope_statement : Prop :=
   ∀ slots : list value_slot, keeps_scope (without_slots slots).
+
+(* ======================================================================== *)
+(* What is known of the static closures in sight                            *)
+(* ======================================================================== *)
+
+Definition use_known_closures_keeps_scope_statement : Prop :=
+  keeps_scope use_known_closures.
+
+(* ======================================================================== *)
+(* The bindings of code moved up                                            *)
+(* ======================================================================== *)
+
+Definition float_code_keeps_scope_statement : Prop := keeps_scope float_code.

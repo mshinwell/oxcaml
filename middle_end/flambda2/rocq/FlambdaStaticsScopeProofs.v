@@ -41,7 +41,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaSemanticsSpec FlambdaBindersSpec
   FlambdaNormaliseSpec FlambdaUnusedStaticsSpec FlambdaStaticsOrderSpec
   FlambdaMyClosureSpec FlambdaLiftSpec FlambdaUnusedSlotsSpec
-  FlambdaKnownSymbolsSpec FlambdaValidateSpec
+  FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec FlambdaFloatCodeSpec
+  FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec FlambdaScopedProofs
   FlambdaKeepsScopeProofs FlambdaStaticsScopeSpec.
 Import ListNotations.
@@ -550,3 +551,308 @@ Proof.
   destruct (slots_unused slots e);
     [ apply drop_slots_scoped | apply scoped_refl ].
 Qed.
+
+(* ======================================================================== *)
+(* What is known of the static closures in sight                            *)
+(* ======================================================================== *)
+
+(* The variables of the constants that are known. *)
+Definition known_closures_variables (known : known_closures)
+    : list variable :=
+  flat_map (fun entry => free_variables_of_static_const (snd entry)) known.
+
+Lemma lookup_In {A : Type} (name : positive) (a : A)
+    (bindings : list (positive * A)) :
+  lookup name bindings = Some a -> In (name, a) bindings.
+Proof.
+  induction bindings as [ | [bound b] bindings IH]; cbn [lookup];
+    [ discriminate | ].
+  destruct (Pos.eqb name bound) eqn:Htest.
+  - intros [= ->]. apply Pos.eqb_eq in Htest. subst bound. left.
+    reflexivity.
+  - intros Hlookup. right. exact (IH Hlookup).
+Qed.
+
+(* What a slot of a known closure holds is a variable of what is
+   known, if it is a variable. *)
+Lemma slot_read_free (known : known_closures)
+    (project_from : option function_slot) (slot : value_slot)
+    (closure contents : simple) :
+  slot_read known project_from slot closure = Some contents ->
+  incl (free_variables_of_simple contents) (known_closures_variables known).
+Proof.
+  unfold slot_read. destruct closure as [x | s | c]; try discriminate.
+  destruct (lookup s known) as [const | ] eqn:Hknown; [ | discriminate ].
+  destruct (static_closure_slots const) as [[at_slot slots] | ] eqn:Hslots;
+    [ | discriminate ].
+  intros Hread.
+  assert (Hcontents : lookup slot slots = Some contents).
+  { destruct project_from as [from | ]; [ | exact Hread ].
+    destruct (Pos.eqb at_slot from); [ exact Hread | discriminate ]. }
+  intros y Hy. unfold known_closures_variables. apply in_flat_map.
+  exists (s, const). split; [ apply lookup_In, Hknown | ].
+  cbn [snd].
+  assert (Hin : In y (free_variables_of_value_slots slots)).
+  { unfold free_variables_of_value_slots. apply in_flat_map.
+    exists (slot, contents).
+    split; [ apply lookup_In, Hcontents | exact Hy ]. }
+  destruct const; cbn [static_closure_slots] in Hslots; try discriminate;
+    injection Hslots as _ <-; exact Hin.
+Qed.
+
+Lemma read_slot_named_free (known : known_closures) (names : list variable)
+    (d : named) :
+  incl (known_closures_variables known) names ->
+  incl (free_variables_of_named (read_slot_named known d))
+    (free_variables_of_named d ++ names).
+Proof.
+  intros Hknown.
+  destruct d as [s | p args | code slots | fslot decls slots | slot closure
+    | project_from slot closure | move_from move_to closure];
+    cbn [read_slot_named]; try (apply incl_appl, incl_refl).
+  - destruct (slot_read known None slot closure) as [contents | ] eqn:Hread;
+      [ | apply incl_appl, incl_refl ].
+    cbn [free_variables_of_named]. apply incl_appr.
+    eapply incl_tran; [ exact (slot_read_free _ _ _ _ _ Hread) | ].
+    exact Hknown.
+  - destruct (slot_read known (Some project_from) slot closure)
+      as [contents | ] eqn:Hread;
+      [ | apply incl_appl, incl_refl ].
+    cbn [free_variables_of_named]. apply incl_appr.
+    eapply incl_tran; [ exact (slot_read_free _ _ _ _ _ Hread) | ].
+    exact Hknown.
+Qed.
+
+Lemma forget_slot_var_variables (x : variable) (known : known_closures) :
+  incl (known_closures_variables (forget_slot_var x known))
+    (known_closures_variables known).
+Proof.
+  unfold known_closures_variables, forget_slot_var.
+  apply incl_flat_map_filter.
+Qed.
+
+Lemma forget_slot_vars_variables (xs : list variable) :
+  ∀ known : known_closures,
+    incl (known_closures_variables (forget_slot_vars xs known))
+      (known_closures_variables known).
+Proof.
+  induction xs as [ | x xs IH]; intros known; cbn [forget_slot_vars];
+    [ apply incl_refl | ].
+  eapply incl_tran; [ apply IH | apply forget_slot_var_variables ].
+Qed.
+
+Lemma static_closures_made_variables (bindings : list static_binding) :
+  incl (known_closures_variables (flat_map static_closure_made bindings))
+    (flat_map free_variables_of_binding bindings).
+Proof.
+  unfold known_closures_variables.
+  induction bindings as [ | binding bindings IH]; cbn [flat_map];
+    [ apply incl_refl | ].
+  rewrite flat_map_app. apply incl_app_app; [ | exact IH ].
+  destruct binding as [id c | id | s const]; cbn [static_closure_made];
+    try (intros y []).
+  destruct const; cbn [flat_map snd free_variables_of_binding];
+    try (intros y []); rewrite app_nil_r; apply incl_refl.
+Qed.
+
+Fixpoint use_closures_knowing_scoped (e : expr) :
+  ∀ (known : known_closures) (names : list variable),
+    incl (known_closures_variables known) names ->
+    scoped_under names e (use_closures_knowing known e).
+Proof.
+  intros known names Hknown.
+  destruct e as [x kind d body | bindings body | k h body | handlers body
+                | ap | ac | scrutinee arms | ];
+    cbn [use_closures_knowing]; try apply scoped_under_refl.
+  - apply scoped_under_let; [ apply read_slot_named_free, Hknown | ].
+    apply use_closures_knowing_scoped.
+    intros y Hy. right. apply in_or_app. left.
+    exact (Hknown y (forget_slot_var_variables x known y Hy)).
+  - apply scoped_under_let_static. apply use_closures_knowing_scoped.
+    unfold closures_under_statics, known_closures_variables.
+    rewrite flat_map_app.
+    intros y Hy. apply in_app_or in Hy. apply in_or_app.
+    destruct Hy as [Hy | Hy];
+      [ right; exact (static_closures_made_variables bindings y Hy)
+      | left; exact (Hknown y Hy) ].
+  - destruct h as [params metadata handler]. cbn [use_closures_in_handler].
+    apply scoped_under_let_cont; apply use_closures_knowing_scoped;
+      [ | exact Hknown ].
+    eapply incl_tran; [ apply forget_slot_vars_variables | exact Hknown ].
+  - apply scoped_under_let_cont_recursive.
+    apply use_closures_knowing_scoped, Hknown.
+  - assert (Hsame :
+      free_variables_of_apply (call_known_closure known ap)
+      = free_variables_of_apply ap
+      ∧ ap_continuation (call_known_closure known ap) = ap_continuation ap
+      ∧ ap_exn_continuation (call_known_closure known ap)
+        = ap_exn_continuation ap).
+    { unfold call_known_closure.
+      destruct (ap_call_kind ap), (callee_code known (ap_callee ap));
+        repeat split; reflexivity. }
+    destruct Hsame as (Hv & Hret & Hexn).
+    intros _. scope. rewrite Hv, Hret, Hexn.
+    split; [ reflexivity | ].
+    split; [ apply incl_appl, incl_refl | apply incl_refl ].
+Qed.
+
+Theorem use_known_closures_keeps_scope :
+  use_known_closures_keeps_scope_statement.
+Proof.
+  apply keeps_scope_intro. intros e. apply scoped_under_none.
+  apply use_closures_knowing_scoped. intros y [].
+Qed.
+
+(* ======================================================================== *)
+(* The bindings of code moved up                                            *)
+(* ======================================================================== *)
+
+Lemma let_static_if_any_closed (bindings : list static_binding)
+    (body : expr) :
+  code_closed (let_static_if_any bindings body)
+  = forallb binding_code_closed bindings && code_closed body.
+Proof. destruct bindings; reflexivity. Qed.
+
+Lemma let_static_if_any_free_variables (bindings : list static_binding)
+    (body : expr) :
+  free_variables_of_expr (let_static_if_any bindings body)
+  = flat_map free_variables_of_binding bindings
+    ++ free_variables_of_expr body.
+Proof. destruct bindings; reflexivity. Qed.
+
+Lemma let_static_if_any_free_continuations (bindings : list static_binding)
+    (body : expr) :
+  free_continuations_of_expr (let_static_if_any bindings body)
+  = flat_map free_continuations_of_binding bindings
+    ++ free_continuations_of_expr body.
+Proof. destruct bindings; reflexivity. Qed.
+
+(* The bindings of code of a group whose code is closed have no free
+   variable. *)
+Lemma code_bindings_closed_no_variables (bindings : list static_binding) :
+  forallb binding_code_closed bindings = true ->
+  flat_map free_variables_of_binding (filter binds_code bindings) = [].
+Proof.
+  induction bindings as [ | binding bindings IH]; cbn [forallb filter];
+    [ reflexivity | ].
+  intros Hclosed. apply andb_true_iff in Hclosed.
+  destruct Hclosed as [Hfirst Hrest].
+  destruct binding as [id c | id | s const];
+    cbn [binds_code flat_map free_variables_of_binding app];
+    [ | exact (IH Hrest) | exact (IH Hrest) ].
+  rewrite (IH Hrest), app_nil_r.
+  exact (proj1 (code_is_closed_free c Hfirst)).
+Qed.
+
+(* A binder that the bindings of code at the head of a term are moved
+   over: the binder asks the same of its own parts whatever the term
+   under it, and the free names of the whole grow with those of the
+   term under it. *)
+Lemma float_over_scoped (wrap : expr -> expr) (closed : bool)
+    (inner : expr) :
+  (∀ e : expr, code_closed (wrap e) = closed && code_closed e) ->
+  (∀ e e' : expr,
+    incl (free_variables_of_expr e') (free_variables_of_expr e) ->
+    incl (free_variables_of_expr (wrap e'))
+      (free_variables_of_expr (wrap e))) ->
+  (∀ e e' : expr,
+    incl (free_continuations_of_expr e') (free_continuations_of_expr e) ->
+    incl (free_continuations_of_expr (wrap e'))
+      (free_continuations_of_expr (wrap e))) ->
+  scoped (wrap inner) (float_over wrap inner).
+Proof.
+  intros Hclosed Hv Hk.
+  destruct inner as [x kind d body | bindings body | k h body
+                    | handlers body | ap | ac | scrutinee arms | ];
+    cbn [float_over]; try apply scoped_refl.
+  intros Hwrap. rewrite Hclosed in Hwrap. scope_in Hwrap.
+  apply andb_true_iff in Hwrap. destruct Hwrap as [Hwrap Hinner].
+  apply andb_true_iff in Hinner. destruct Hinner as [Hbindings Hbody].
+  rewrite let_static_if_any_closed, let_static_if_any_free_variables,
+    let_static_if_any_free_continuations, Hclosed, let_static_if_any_closed,
+    (code_bindings_closed_no_variables bindings Hbindings),
+    (bindings_closed_no_continuations (filter binds_code bindings)
+       (forallb_filter _ _ _ Hbindings)).
+  rewrite !forallb_filter by exact Hbindings. rewrite Hwrap, Hbody.
+  split; [ reflexivity | ]. cbn [app].
+  split; [ apply Hv | apply Hk ];
+    rewrite ?let_static_if_any_free_variables,
+      ?let_static_if_any_free_continuations;
+    scope;
+    (apply incl_app_app; [ apply incl_flat_map_filter | apply incl_refl ]).
+Qed.
+
+Lemma float_over_let_scoped (x : variable) (kind : flambda_kind) (d : named)
+    (inner : expr) :
+  scoped (Let x kind d inner) (float_over (Let x kind d) inner).
+Proof.
+  apply (float_over_scoped (Let x kind d) true).
+  - intros e. reflexivity.
+  - intros e e' He. scope.
+    apply incl_app_app; [ apply incl_refl | apply incl_without, He ].
+  - intros e e' He. exact He.
+Qed.
+
+Lemma float_over_let_cont_scoped (k : continuation)
+    (h : continuation_handler) (inner : expr) :
+  scoped (Let_cont_non_recursive k h inner)
+    (float_over (Let_cont_non_recursive k h) inner).
+Proof.
+  apply
+    (float_over_scoped (Let_cont_non_recursive k h) (handler_code_closed h)).
+  - intros e. reflexivity.
+  - intros e e' He. scope. apply incl_app_app; [ apply incl_refl | exact He ].
+  - intros e e' He. scope.
+    apply incl_app_app; [ apply incl_refl | apply incl_without, He ].
+Qed.
+
+Lemma float_over_let_cont_recursive_scoped
+    (handlers : list (continuation * continuation_handler)) (inner : expr) :
+  scoped (Let_cont_recursive handlers inner)
+    (float_over (Let_cont_recursive handlers) inner).
+Proof.
+  apply
+    (float_over_scoped (Let_cont_recursive handlers)
+       (forallb (fun '(_, h) => handler_code_closed h) handlers)).
+  - intros e. reflexivity.
+  - intros e e' He. scope. apply incl_app_app; [ apply incl_refl | exact He ].
+  - intros e e' He. scope.
+    apply incl_without, incl_app_app; [ apply incl_refl | exact He ].
+Qed.
+
+Fixpoint float_code_scoped (e : expr) : scoped e (float_code e).
+Proof.
+  destruct e as [x kind d body | bindings body
+                | k [params metadata handler] body | handlers body | ap | ac
+                | scrutinee arms | ];
+    cbn [float_code]; try apply scoped_refl.
+  - eapply scoped_trans;
+      [ apply scoped_let; [ apply incl_refl | apply float_code_scoped ]
+      | apply float_over_let_scoped ].
+  - eapply scoped_trans;
+      [ apply scoped_let_static;
+        [ apply scoped_bindings_refl | apply (float_code_scoped body) ]
+      | ].
+    destruct (float_code body)
+      as [x' kind' d' body' | bindings' body' | k' h' body'
+         | handlers' body' | ap' | ac' | scrutinee' arms' | ];
+      try
+        (apply scoped_let_static;
+         [ apply scoped_bindings_code_first | apply scoped_refl ]).
+    eapply scoped_trans; [ apply scoped_let_static_merge | ].
+    apply scoped_let_static;
+      [ apply scoped_bindings_code_first | apply scoped_refl ].
+  - eapply scoped_trans;
+      [ apply scoped_let_cont;
+        [ apply scoped_handler_intro, float_code_scoped
+        | apply float_code_scoped ]
+      | apply float_over_let_cont_scoped ].
+  - eapply scoped_trans;
+      [ apply scoped_let_cont_recursive;
+        [ reflexivity | apply scoped_handlers_refl
+        | apply float_code_scoped ]
+      | apply float_over_let_cont_recursive_scoped ].
+Qed.
+
+Theorem float_code_keeps_scope : float_code_keeps_scope_statement.
+Proof. apply keeps_scope_intro. exact float_code_scoped. Qed.
