@@ -63,8 +63,11 @@
    it simplifies an untagging
    ([Simplify_unary_primitive.simplify_untag_immediate], the inverse
    equation for its sharing). The front end untags a variant that is
-   not a block to test it, and tags the number again where an arm
-   gives the constructor its own number. The like for the boxing of
+   not a block to test it; where the arms give each constant
+   constructor its own number they pass tagged constants, the merging
+   of those arms makes the tagging of what was tested
+   (FlambdaMergeSwitchesSpec.merge_switches), and this equation makes
+   that tagging the variable. The like for the boxing of
    an unboxed number is not known here: Simplify records it only
    where it has proved that the box is on the heap, and in the model
    a boxed number that is a symbol and one that is made are not the
