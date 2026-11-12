@@ -284,6 +284,10 @@ pass into the validator.
   - `middle_end/flambda2/types/rocq/FlambdaSimplifyPrimitivesRenaming*`
     and `middle_end/flambda2/types/rocq/FlambdaSimplifyPassRenaming*`
     (that function and its parts commute with renaming)
+  - `middle_end/flambda2/types/rocq/FlambdaSimplifyHandlers*` (the
+    environment under which the handler of a continuation is
+    rewritten, at the kinds that the handler gives its parameters;
+    after `simplify/simplify_let_cont_expr.ml`)
   - `middle_end/flambda2/types/rocq/FlambdaSimplifyPruning*` (a second
     function, which also removes the arms of a `Switch` that the type
     of the scrutinee excludes; its theorem is of the states of the run

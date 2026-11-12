@@ -387,6 +387,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaSimplifyBoxingSpec.v \
   FlambdaSimplifyCodeEnvProofs.v \
   FlambdaSimplifyCodeEnvSpec.v \
+  FlambdaSimplifyHandlersProofs.v \
+  FlambdaSimplifyHandlersSpec.v \
   FlambdaSimplifyPassProofs.v \
   FlambdaSimplifyPassRenamingProofs.v \
   FlambdaSimplifyPassRenamingSpec.v \
