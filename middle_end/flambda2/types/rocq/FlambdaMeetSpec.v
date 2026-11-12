@@ -334,9 +334,12 @@
      the result does not know, and answers types that fit the
      environments of the alternatives: they are to fit the result.
    Meet gives the join environments that it made from the first by
-   adding definitions and equations ([scoped_env_of]): each fits, and
-   has every name of the first with its binding time and a type of the
-   same kind; and no two of them have one [Simple] at two kinds. The
+   adding definitions and equations ([scoped_env_of]): each fits, has
+   every name of the first with its binding time and a type of the
+   same kind, and knows no symbol that the first does not (a meet
+   defines no symbol; the join may then put an alias to a symbol of
+   an environment joined into a type of the result); and no two of
+   them have one [Simple] at two kinds. The
    variables that two alternatives define are different variables:
    the second alternative is given the names to avoid of the first,
    and a meet has its new variables among the names to avoid that it
@@ -1029,15 +1032,25 @@ Definition meet_expanded_head_keeps (meet_head : meet_expanded_head) : Prop :=
     ∧ new_names_avoided menv menv'.
 
 (* What meet gives the join: an environment made from [initial_tenv] by
-   adding definitions and equations. It fits, and it has what
-   [initial_tenv] has. It is not said that what satisfies it satisfies
+   adding definitions and equations. It fits, it has what
+   [initial_tenv] has, and it knows no symbol that [initial_tenv] does
+   not. It is not said that what satisfies it satisfies
    [initial_tenv]: see the header. *)
+(* The last clause was added on 2026-11-12, after the contract was
+   signed, at the request of the owner of the n-way join: its join
+   copies an alias to a symbol into a type of the target, which fits
+   the target only if the target knows the symbol. It is a premise of
+   the join's contract, so it asks less of the join, and one thing
+   more of the meet, which defines no symbol. *)
 Definition scoped_env_of (initial_tenv scoped_env : Typing_env.t) : Prop :=
   typing_env_fits scoped_env
   ∧ (∀ n : name,
       Typing_env.mem None initial_tenv n = true ->
       Typing_env.mem None scoped_env n = true)
-  ∧ keeps_names initial_tenv scoped_env.
+  ∧ keeps_names initial_tenv scoped_env
+  ∧ ∀ sym : symbol,
+      Typing_env.mem None scoped_env (Name_symbol sym) = true ->
+      Typing_env.mem None initial_tenv (Name_symbol sym) = true.
 
 (* No two of the environments that are joined have one [Simple] at
    two kinds. *)

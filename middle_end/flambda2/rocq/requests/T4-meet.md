@@ -350,7 +350,11 @@ bottom); R1 ran it on both of the compiler's meets, and
 every name of `initial_tenv` with its binding time and a type of the
 same kind. T5 has made the matching change (its premise on the source
 is per valuation), and asks the scoped environments to be kinded,
-which `scoped_env_of` gives. The join needs the environment of the
+which `scoped_env_of` gives. Since 2026-11-12 `scoped_env_of` also
+says that the scoped environment knows no symbol that `initial_tenv`
+does not (asked by T5: its join copies an alias to a symbol into a
+type of the target; a meet defines no symbol, so the meet gives it).
+The join needs the environment of the
 meet to be satisfied by that valuation: for a name that every
 environment joined has an equation on, it answers the meet of the
 joined type with the type that `initial_tenv` records. The meet

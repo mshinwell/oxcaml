@@ -698,7 +698,10 @@ Proof. exact (proj2 (proj2 (proj2 (proj2 (proj2 Hscoped))))). Qed.
 Lemma scoped_scoped_env_of : scoped_env_of tenv stenv.
 Proof.
   split; [ exact Hscoped_fits | ].
-  split; [ exact (proj1 scoped_knows) | exact scoped_keeps_names ].
+  split; [ exact (proj1 scoped_knows) | ].
+  split; [ exact scoped_keeps_names | ].
+  intros sym Hsym. unfold Typing_env.mem in *.
+  rewrite (proj1 (proj2 (proj2 (proj2 Hscoped)))) in Hsym. exact Hsym.
 Qed.
 
 (* A variable that the level defines is of the kind that it defines it

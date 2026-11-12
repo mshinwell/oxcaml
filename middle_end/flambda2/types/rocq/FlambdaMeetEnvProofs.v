@@ -1146,7 +1146,7 @@ Lemma scoped_env_of_kind (initial_tenv scoped_env : Typing_env.t)
   simple_of_kind scoped_env s kind ->
   simple_of_kind initial_tenv s kind.
 Proof.
-  intros (Hfits & _ & Hnames) Hknown Hkind.
+  intros (Hfits & _ & Hnames & _) Hknown Hkind.
   assert (Hsymbols : symbols_of_kind_value scoped_env).
   { exact (proj2 (proj2 (proj1 (proj2 (proj2 Hfits))))). }
   assert (Hname :
