@@ -41,15 +41,6 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaImportsSpec FlambdaImportsProofs FlambdaValidateImportsSpec.
 Import ListNotations.
 
-(* No name occurs in the static environment of the imports. *)
-Lemma imports_statics_free_of (D : dropped)
-    (imports : list (symbol * import_class)) :
-  envs_free_of D [] [] (imports_statics imports) = true.
-Proof.
-  unfold envs_free_of, statics_free_of, imports_statics. simpl.
-  induction imports as [ | [s c] imports IH]; [ reflexivity | exact IH ].
-Qed.
-
 Lemma without_statics_unit_refines (imports : list (symbol * import_class))
     (D : dropped) (e : expr) :
   unit_refines imports e (without_statics D e).

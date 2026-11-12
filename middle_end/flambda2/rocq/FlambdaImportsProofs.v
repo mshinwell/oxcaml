@@ -31,11 +31,43 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaSemanticsSpec FlambdaPrimitiveProofs FlambdaImportsSpec.
+  FlambdaSemanticsSpec FlambdaPrimitiveProofs FlambdaUnusedStaticsSpec
+  FlambdaImportsSpec.
 Import ListNotations.
 
 Theorem expr_refines_unit_refines : expr_refines_unit_refines_statement.
 Proof. intros imports source target Hrefines. apply Hrefines. Qed.
+
+(* ======================================================================== *)
+(* The static environment of the imports                                    *)
+(* ======================================================================== *)
+
+(* Three facts for the proofs that start a unit from its imports: there
+   is no code in that environment, what it binds a symbol to is something
+   imported, and no name occurs in it. *)
+Lemma imports_statics_code (imports : list (symbol * import_class)) :
+  static_code (imports_statics imports) = [].
+Proof. reflexivity. Qed.
+
+Lemma imports_statics_imported (imports : list (symbol * import_class))
+    (s : symbol) (allocated : statically_allocated_value) :
+  lookup s (static_values (imports_statics imports)) = Some allocated ->
+  ∃ c : import_class, allocated = Static_imported c.
+Proof.
+  unfold imports_statics. cbn [static_values].
+  induction imports as [ | [s' c] imports IH]; cbn [map lookup];
+    [ discriminate | ].
+  destruct (Pos.eqb s s'); [ | exact IH ].
+  intros [= <-]. exists c. reflexivity.
+Qed.
+
+Lemma imports_statics_free_of (D : dropped)
+    (imports : list (symbol * import_class)) :
+  envs_free_of D [] [] (imports_statics imports) = true.
+Proof.
+  unfold envs_free_of, statics_free_of, imports_statics. simpl.
+  induction imports as [ | [s c] imports IH]; [ reflexivity | exact IH ].
+Qed.
 
 (* ======================================================================== *)
 (* What a primitive does with an imported symbol                            *)
