@@ -3108,9 +3108,9 @@ Qed.
 (* The rewrites of FlambdaRecHandlersSpec.v, FlambdaSinkContsSpec.v,
    FlambdaShortcutSpec.v, FlambdaUnusedParamsSpec.v and
    FlambdaLoopAliasesSpec.v commute with renaming. None makes a name;
-   each compares names by equality only. The statements are in the form
-   of those of FlambdaValidatorEquivarianceSpec.v, and are lemmas here
-   until they are stated there. *)
+   each compares names by equality only. The statements are in
+   FlambdaValidatorEquivarianceSpec.v; the lemma here that has the name
+   of a statement proves it. *)
 
 (* A rewrite applied to the handlers of recursive continuations. *)
 Section Rewrite_rec_handlers.
@@ -3520,10 +3520,7 @@ Proof.
 Qed.
 
 (* Loopify. The name given for the loop of each piece of code is renamed
-   with the term; code ids are not renamed. *)
-Definition rename_loopified (r : renaming) (G : loopified) : loopified :=
-  map (fun entry => (fst entry, rename_continuation r (snd entry))) G.
-
+   with the term; code ids are not renamed ([rename_loopified]). *)
 Lemma is_self_tail_call_equivariant (r : renaming) (my_closure : variable)
     (ret exn : continuation) (ap : apply_expr) :
   is_self_tail_call (rename_variable r my_closure)

@@ -64,21 +64,26 @@
    ([validate_unit_equivariant_statement]): whether Simplify is found
    correct on a unit does not depend on the names of the unit.
 
-   So each rewrite and each check below depends on the names of the
-   term by their equality only: none goes by the order or the number of
-   a name, and none makes a name. The one place where names are made
+   So each rewrite and each check of the sections before the one
+   headed "Rewrites that make names" depends on the names of the term
+   by their equality only: none goes by the order or the number of a
+   name, and none makes a name. The one place where names are made
    from others is the renaming that inlining builds from the four
    continuations of a call and of the code called
    (FlambdaNormaliseSpec.inline_renaming); it is made of swaps of those
    four, and commutes with a renaming of them.
 
-   Every statement here is an equation and holds of every term: nothing
-   is asked of the term, its code, its binders or its scopes. Three
-   statements have a premise, on an argument that is a function: those
-   of [rewrite_code] and of [iterate] ask that the rewrite they are
-   given commutes with renaming, and that of [static_names] asks that
-   the way it is given of reading the names of a binding does not look
-   at variables and continuations.
+   Every statement of those sections is an equation and holds of every
+   term: nothing is asked of the term, its code, its binders or its
+   scopes. Four statements have a premise, on an argument that is a
+   function: those of [rewrite_code], of [rewrite_rec_handlers] and of
+   [iterate] ask that the rewrite they are given commutes with
+   renaming, and that of [static_names] asks that the way it is given
+   of reading the names of a binding does not look at variables and
+   continuations. The statements of the last section, "Rewrites that
+   make names", are not all equations, and are of terms whose code is
+   closed (FlambdaBindersSpec.code_closed), as that of a well-formed
+   unit is.
 
    Kinds, arities and the metadata of handlers and of code have no
    names in them: a renaming keeps them, and a check that reads them
@@ -147,6 +152,19 @@
    which hold names, so a renaming acts on them ([rename_kind_env],
    [rename_arity_env], which are to be reviewed).
 
+   The passes for loops, which the normalisations apply:
+   FlambdaRecHandlersSpec.rewrite_rec_handlers, which takes a rewrite
+   into the handlers of recursive continuations and commutes when the
+   rewrite does; FlambdaSinkContsSpec.sink_let_conts;
+   FlambdaShortcutSpec.shortcut_switches;
+   FlambdaUnusedParamsSpec.drop_unused_params; and
+   FlambdaLoopAliasesSpec.follow_aliases_in_loops, which carries a
+   typing environment as [follow_aliases] does. And
+   FlambdaLoopifySpec.loopify_unit, which the validation does not
+   apply: it is given, for the code ids to make loops of, the
+   continuation of each loop, and a renaming acts on those
+   continuations ([rename_loopified], which is to be reviewed).
+
    The normalisations of FlambdaValidateSpec.v: [iterate] of a rewrite
    that commutes, [normalise_before], [normalise_after] and
    [without_statics]; and the check, [validate_unit]. The check is
@@ -188,7 +206,9 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaNormaliseSpec FlambdaEquivarianceSpec FlambdaUnusedContsSpec
   FlambdaUnusedStaticsSpec FlambdaBlockLoadSpec FlambdaUnboxSpec
   FlambdaBindersSpec FlambdaWellFormedSpec FlambdaWellKindedSpec
-  FlambdaLiftSpec FlambdaCompareSpec FlambdaValidateSpec.
+  FlambdaLiftSpec FlambdaCompareSpec FlambdaRecHandlersSpec
+  FlambdaSinkContsSpec FlambdaShortcutSpec FlambdaUnusedParamsSpec
+  FlambdaLoopAliasesSpec FlambdaLoopifySpec FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -563,6 +583,56 @@ Definition well_formed_unit_equivariant_statement : Prop :=
 Definition static_fault_equivariant_statement : Prop :=
   ∀ (r : renaming) (s : state),
     static_fault (rename_state r s) = static_fault s.
+
+(* ======================================================================== *)
+(* The passes for loops                                                     *)
+(* ======================================================================== *)
+
+(* A rewrite taken into the handlers of recursive continuations
+   (FlambdaRecHandlersSpec.v) commutes with renaming when the rewrite
+   does. *)
+Definition rewrite_rec_handlers_equivariant_statement : Prop :=
+  ∀ f : expr -> expr,
+    rewrite_equivariant f -> rewrite_equivariant (rewrite_rec_handlers f).
+
+(* Moving a continuation to the handler that alone uses it
+   (FlambdaSinkContsSpec.v). *)
+Definition sink_let_conts_equivariant_statement : Prop :=
+  rewrite_equivariant sink_let_conts.
+
+(* An arm of a [Switch] that applies a continuation which only applies
+   another (FlambdaShortcutSpec.v). *)
+Definition shortcut_switches_equivariant_statement : Prop :=
+  rewrite_equivariant shortcut_switches.
+
+(* Removing the parameters of a continuation that its handler does not
+   use (FlambdaUnusedParamsSpec.v). *)
+Definition drop_unused_params_equivariant_statement : Prop :=
+  rewrite_equivariant drop_unused_params.
+
+(* Following aliases into the handlers of recursive continuations
+   (FlambdaLoopAliasesSpec.v), with the action on the typing
+   environment that [follow_aliases] has. *)
+Definition follow_aliases_in_loops_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : typing_env) (e : expr),
+    follow_aliases_in_loops (rename_naive_typing_env r tenv)
+      (rename_expr r e)
+    = rename_expr r (follow_aliases_in_loops tenv e).
+
+(* The pass as the validation runs it, with nothing known. *)
+Definition follow_aliases_in_loops_unknowing_equivariant_statement : Prop :=
+  rewrite_equivariant (follow_aliases_in_loops []).
+
+(* FlambdaLoopifySpec.loopify_unit is given, for each code id to make
+   a loop of, the continuation of the loop. The action: the
+   continuation is renamed, the code id is not. *)
+Definition rename_loopified (r : renaming) (G : loopified) : loopified :=
+  map (fun entry => (fst entry, rename_continuation r (snd entry))) G.
+
+Definition loopify_unit_equivariant_statement : Prop :=
+  ∀ (r : renaming) (G : loopified) (e : expr),
+    loopify_unit (rename_loopified r G) (rename_expr r e)
+    = rename_expr r (loopify_unit G e).
 
 (* ======================================================================== *)
 (* The normalisations of FlambdaValidateSpec.v                              *)
