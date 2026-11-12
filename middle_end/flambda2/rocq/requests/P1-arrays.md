@@ -205,3 +205,34 @@ touched.
 The proofs that go by cases on `cell` are in `FlambdaHeapProofs.v`
 and, for one lemma, in `FlambdaHeapEquivarianceProofs.v`
 (`outcome_related_code`).
+
+## 7. Added after the review of the first series
+
+In `FlambdaHeapSpec.v`, beside `exec_prim_arrays_statement`, both
+proved in `FlambdaHeapProofs.v`:
+
+- `array_length_known_statement`: if `Make_array` of the arguments
+  `vs` returned `v`, then in every heap that the one after the
+  allocation evolves to, `Array_length` of `v` is
+  `array_length_of vs`, whatever array kind it carries. It is what
+  `Simplify_unary_primitive.simplify_array_length` does with the type
+  that `Simplify_variadic_primitive.simplify_make_array` gives a
+  mutable array, which has its length.
+- `array_kind_of_access_statement`: the array kind that an
+  `Array_length`, an `Array_load` or an `Array_set` carries changes
+  nothing of what it does. `Simplify_common.specialise_array_kind`
+  replaces `Values` and `Gc_ignorable_values` by `Immediates` in a
+  load and in a store where the type of the array says that its
+  elements are immediates, and keeps the load kind and the set kind;
+  in the model that rewrite changes nothing, on any array.
+
+Examples (`Array_of_a_partial_application`, in `FlambdaHeapProofs.v`):
+an array that holds a partial application that holds the location of
+a mutable cell, run on the machine with a heap. The call completed
+after a write to the cell returns what the cell holds then. With a
+location bound to nothing in place of the cell: `Make_array` refuses
+the location itself, and stores a partial application that holds it
+(the guard of `exec_prim` is on the arguments themselves); the call
+completed is undefined at the load in the body of the function; the
+state is not closed, and no state reached from a closed one holds
+such a value.
