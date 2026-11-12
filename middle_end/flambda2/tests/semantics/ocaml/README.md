@@ -82,14 +82,17 @@ unit made from OCaml.
 - **Tupled functions.** `let f (a, b) = ...` may be compiled as code
   that takes the two components, with a mark that says a call of
   unknown arity gives it the pair. The model's code has the mark, and
-  every call of the model gives such code the pair
-  (`FlambdaSemanticsSpec.arguments_for_code`), so a call of unknown
+  every call of the model gives such code its first argument as the
+  pair; the arguments after it, if there are any, are given as they
+  are and make the call an over-application
+  (`FlambdaSemanticsSpec.arguments_for_code`). So a call of unknown
   arity is converted as it is (`tupled_function.ml`). A direct call,
   and a call of known arity, give the code the components, which the
   model has not got yet: a direct call of tupled code that the unit
   binds is refused, and so is a call of known arity in a unit that
-  binds tupled code. The code that `nested_tuple.ml` makes is not
-  tupled.
+  binds tupled code. A function with a pair pattern is not always
+  tupled code: the code that `nested_tuple.ml` makes takes one
+  parameter, the pair, which the call allocates.
 
 ## What the verdicts mean
 
