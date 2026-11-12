@@ -42,9 +42,9 @@ that the conversion refused.
 | `unknown_scalar` | 150 | 149 | 1 |
 | `known` | 100 | 98 | 2 |
 | `unknown` | 100 | 98 | 2 |
-| `functions` | 100 | 96 | 4 |
+| `functions` | 100 | 97 | 3 |
 
-591 of the 600 are validated. On the same 600 terms, earlier the
+592 of the 600 are validated. On the same 600 terms, earlier the
 same day: 509 before the term after lost the continuations that are
 applied once (`FlambdaValidateSpec.inline_once_applied_after`); 555
 with that, and still 555 with the unused `Let`s of the parameters of
@@ -74,19 +74,22 @@ untagged (`unknown_scalar`, seed 1). Two more with the rewrites
 that Simplify makes from the types applied once to the term before
 (`FlambdaSimplifyPassSpec.simplify_by_types`; `unknown_scalar`,
 seeds 57 and 61). Reading the value slots that every closure of the
-unit gives one symbol changes none. No unit that was validated at
-one of these points is not at a later one. The day before, 336 were
+unit gives one symbol changes none. One more with the
+continuations of each term placed once the rounds are over
+(`FlambdaValidateSpec.placed`; `functions`, seed 65), and the unit
+that was validated at the second asking is validated at the first.
+No unit that was validated at one of these points is not at a later
+one. The day before, 336 were
 validated, 256 were not and 8 were not checked; of the units that
 keep a function, none was.
 
-What the 9 units that are not validated lack, read off the two
+What the 8 units that are not validated lack, read off the two
 terms that the tool shows of each:
 
-| What is missing | `unknown_scalar` (1) | The other three (8) |
+| What is missing | `unknown_scalar` (1) | The other three (7) |
 |-----------------|----------------------|---------------------|
 | A block that Simplify makes a symbol and the term before still makes with a `Let`: the block is made in a handler and Simplify binds the symbol outside it, or the guess of the tool does not find it | 0 | 7 |
 | A `Switch` that Simplify removes with what it knows of the variable tested | 1 | 0 |
-| A `Let` on the other side of the binding of a continuation whose handler does not use it | 0 | 1 |
 
 The unit of the second row (seed 144) has two things. Two arms of
 a `Switch` give one continuation two arguments, each the number of
@@ -100,7 +103,7 @@ of the model, so they are run and compared; four are validated
 (`functions`, seeds 27 and 55; `unknown_scalar`, seeds 1 and 100),
 and the other is in the second row.
 
-In five of the 9 the term before keeps a continuation that the
+In five of the 8 the term before keeps a continuation that the
 term after has not: the one of the second row, and four where a
 handler only makes a block and goes on (Simplify makes the block a
 symbol and has no use for the handler).
@@ -110,7 +113,7 @@ guesses, and a better one needs no proof.
 
 So, for units of this kind: when every input is known and the result
 is a number, all are validated; with unknown inputs and numbers, 149
-of 150; of the units that keep a function, 96 of 100.
+of 150; of the units that keep a function, 97 of 100.
 
 ## Two more profiles: exceptions, loops
 
@@ -138,53 +141,63 @@ tool gave no answer.
 |---------|-------|-----------|---------------|-------------|
 | `exceptions` | 60 | 60 | 0 | 0 |
 | `exceptions_scalar` | 60 | 57 | 3 | 0 |
-| `loops` | 60 | 6 | 52 | 2 |
-| `loops_scalar` | 60 | 10 | 50 | 0 |
+| `loops` | 60 | 36 | 22 | 2 |
+| `loops_scalar` | 60 | 36 | 24 | 0 |
 
 The two that are not checked have a reference that a local function
 captures: it stays a block with a field that is written
 (`Block_set`).
 
-What the 102 units with loops that are not validated lack. One unit
+Before each term that is compared had its continuations placed
+(`FlambdaValidateSpec.placed`), 16 of the 120 units with loops were
+validated, and in 57 of the 102 that were not the two terms had,
+once the names are erased, the same lines in another order. The
+common case is the return continuation of a call that does not use
+its parameter, as in
+
+    let rec f n acc =
+      if n <= 0 then acc else (let _ = f (n - 1) acc in n)
+
+The term before binds the continuation and then has the `Let` of
+`n - 1`; the term after has the `Let` first. Simplify cannot remove
+the parameter of a return continuation, so it makes a wrapper of
+the continuation at the call, below the `Let`s of the arguments,
+and the handler, which is then applied once, ends up there. The
+placing moves the continuation of the term before down to the call.
+
+What the 46 units with loops that are not validated lack. One unit
 of each kind was read; the counts are of the units whose two terms,
-as the tool shows them, differ by the same kinds of line, and a unit
-may lack several.
+as the tool shows them, differ by the same kinds of line.
 
-- A `Let` on the other side of the binding of a continuation. In 57
-  units the two terms have, once the names are erased, the same
-  lines in another order, and most of the other 45 have this
-  difference too. The common case is the return continuation of a
-  call that does not use its parameter, as in
-
-      let rec f n acc =
-        if n <= 0 then acc else (let _ = f (n - 1) acc in n)
-
-  The term before binds the continuation and then has the `Let` of
-  `n - 1`; the term after has the `Let` first. Simplify cannot remove
-  the parameter of a return continuation, so it makes a wrapper of
-  the continuation at the call, below the `Let`s of the arguments,
-  and the handler, which is then applied once, ends up there. Where
-  the handler uses its parameter the two terms have the same order,
-  and such a unit is validated.
-- Code that the term after has twice (10 units). An inlined function
-  with a local recursive function that captures one of its
+- A closure of no value slot that the term before makes by a `Let`
+  and the term after has as a symbol (17 units). A local recursive
+  function that captures nothing, in the code of a function that
+  the unit keeps or in a handler: Simplify binds its closure with
+  its code, and where the function around it is inlined twice the
+  two `Let`s are one symbol.
+- Code that the term after has twice or more (10 units). An inlined
+  function with a local recursive function that captures one of its
   parameters, called twice. Simplify copies the code at each
   inlining, makes each closure a symbol and puts the constant of its
   value slot in its copy of the code; the term before has one piece
   of code and two closures.
+- The return continuation of a call, whose handler only applies
+  another continuation (7 units): the term before keeps it, and in
+  the term after the call returns to the other.
 - A closure with a value slot that is a variable, which Simplify
   makes a symbol in the handler where the variable is bound (4
-  units), and a closure of no value slot that is not lifted under a
-  handler in the code of a function (6 units).
-- Static bindings on the other side of the binding of a
-  continuation.
-- A continuation that only applies another, as the return
-  continuation of a call, which the term before keeps (7 units).
+  units).
+- Eight others. One has a `Let` on the other side of the binding of
+  a recursive continuation, one has static bindings in another
+  place, and six differ by continuations or by a `Switch`, and were
+  not sorted further.
 
 Of the three units with exceptions that are not validated, one has
-the first difference. One has it too, with a comparison in the term
-after whose result nothing uses, which the term before has lost. One
-has, in the term after, a record that Simplify made a symbol and a
-load of a field of that symbol, where the validator has the field:
-the record is the result of a `try` whose handler gives another
-record, and the handler turns out not to be reached.
+the same lines in another order: a `Let` is on the other side of the
+binding of a continuation that the placing does not move. One has a
+comparison in the term after whose result nothing uses, which the
+term before has lost. One has, in the term after, a record that
+Simplify made a symbol and a load of a field of that symbol, where
+the validator has the field: the record is the result of a `try`
+whose handler gives another record, and the handler turns out not to
+be reached.
