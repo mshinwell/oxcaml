@@ -188,6 +188,9 @@ All in `middle_end/flambda2/types/rocq/`, library `OxCamlFlambda2Types`.
   - `middle_end/flambda2/types/rocq/FlambdaMeetDepth*` (the fuel of
     the meet of types with no name inside: their depth is enough;
     T1's by the same agreement)
+  - `middle_end/flambda2/types/rocq/FlambdaMeetRelationFuel*` (the
+    fuel of the meet for an arm of a `Switch` whose scrutinee is the
+    result of a relation; T1's by the same agreement)
 - T2, typing environment. Owner: T2, on `flambda2-rocq/T2-env`.
   - `middle_end/flambda2/types/rocq/FlambdaBindingTime.v` (binding times
     and name modes, after `types/env/binding_time.ml` and
