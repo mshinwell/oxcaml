@@ -582,9 +582,14 @@ units of the liftings (`lifted_in_turn_keeps_scope_statement`,
 `with_statics_first`, which reads the continuations of the units: it
 commutes with a renaming of the term where the liftings are under
 another renaming that does to those continuations what it does
-(`with_statics_first_renamed_alike_statement`). By
-the same prover, in the types library (`FlambdaEnvRenameSpec.v`): the
-functions of typing environments.
+(`with_statics_first_renamed_alike_statement`). The removal, from the
+head of the term after, of the static bindings that nothing uses,
+where its checks pass (`FlambdaValidateSpec.without_head_statics`), is
+stated there too: an equation, for every set of names to remove
+(`without_head_statics_equivariant_statement`); the checks read the
+same of a term renamed, as a renaming moves no symbol and no code id.
+By the same prover, in the types library (`FlambdaEnvRenameSpec.v`):
+the functions of typing environments.
 
 The validation applies one rewrite that makes names, `rename_apart`,
 in each round of the second phase of the term before. In the fourth
