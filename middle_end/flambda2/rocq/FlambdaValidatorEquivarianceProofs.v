@@ -54,7 +54,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaFloatCodeProofs FlambdaInlineFreshProofs FlambdaRecHandlersSpec
   FlambdaSinkContsSpec FlambdaShortcutSpec FlambdaUnusedParamsSpec
   FlambdaLoopAliasesSpec FlambdaLoopLetsSpec FlambdaParamAliasesSpec
-  FlambdaForwardSpec FlambdaLoopifySpec FlambdaValidateSpec
+  FlambdaForwardSpec FlambdaInlineTailSpec FlambdaLoopifySpec
+  FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
@@ -4038,6 +4039,33 @@ Lemma forward_applications_equivariant :
 Proof.
   intros r e. exact (forward_applications_under_equivariant r e []).
 Qed.
+
+(* Inlining a continuation at the end of its scope, where its handler
+   gives one kind for each parameter. *)
+Fixpoint inline_tail_conts_kinded_equivariant_aux (r : renaming) (e : expr) :
+  inline_tail_conts_kinded (rename_expr r e)
+  = rename_expr r (inline_tail_conts_kinded e).
+Proof.
+  destruct e
+    as [ x kind d body | bindings body | k [params metadata handler] body
+       | handlers body | ap | ac | scrutinee arms | ];
+    simpl; try reflexivity.
+  - rewrite inline_tail_conts_kinded_equivariant_aux. reflexivity.
+  - rewrite inline_tail_conts_kinded_equivariant_aux. reflexivity.
+  - rewrite !inline_tail_conts_kinded_equivariant_aux,
+      inline_cont_at_tail_equivariant_aux, length_map.
+    destruct (Nat.eqb (length params) (length (hm_params_kinds metadata)));
+      [ | reflexivity ].
+    destruct
+      (inline_cont_at_tail k params metadata
+         (inline_tail_conts_kinded handler) (inline_tail_conts_kinded body));
+      reflexivity.
+  - rewrite inline_tail_conts_kinded_equivariant_aux. reflexivity.
+Qed.
+
+Lemma inline_tail_conts_kinded_equivariant :
+  rewrite_equivariant inline_tail_conts_kinded.
+Proof. exact inline_tail_conts_kinded_equivariant_aux. Qed.
 
 (* Following aliases into the handlers of recursive continuations. *)
 Fixpoint follow_aliases_in_loops_equivariant_aux (r : renaming) (e : expr) :
