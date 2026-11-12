@@ -2308,24 +2308,26 @@ let well_formed_before ~filename (before : Flambda_unit.t) =
    the unit run on its own from empty environments. It normalises the two terms,
    compares them up to bound names and, failing that, removes from the term
    before the static bindings named here and compares again. Which names those
-   are is a guess that it checks. Failing that too, it is asked again, with the
-   [Let]s that Simplify seems to have made static bindings, in one or more
-   liftings: it lifts them in the term before as it was given, if it may,
-   normalises the result, reads the value slots of static closures and uses what
-   the unit binds its symbols to, removes the value slots of its static sets of
-   closures that the term after has not got, moves the bindings of code of both
-   terms up, and compares again. What is lifted and which slots are guesses too.
-   Before any of this, where the two terms are not the same as they are given,
-   [validate_unit] makes jumps of the self tail calls of the code named here, as
-   Simplify does for the code that the front end marks for loopify; which code
-   that is, with a name for each loop, is a guess again, and the guesses above
-   are made of the term that this gives. Failing all of that, the whole is asked
-   a second time, of [validate_unit_knowing], extracted from
-   FlambdaValidateKnowingSpec.v, where it is proved that what it accepts is
-   correct for the unit in the same way. It is [validate_unit] of the two terms
-   normalised by rounds in front of each of which the aliases are followed
-   knowing what the symbols are bound to; the guesses are made again, from those
-   two terms. *)
+   are is a guess that it checks. Failing that, it removes those of them that
+   the term after binds at its head from the term after too, under checks of its
+   own, and compares again; a unit accepted so has a verdict of its own. Failing
+   that too, it is asked again, with the [Let]s that Simplify seems to have made
+   static bindings, in one or more liftings: it lifts them in the term before as
+   it was given, if it may, normalises the result, reads the value slots of
+   static closures and uses what the unit binds its symbols to, removes the
+   value slots of its static sets of closures that the term after has not got,
+   moves the bindings of code of both terms up, and compares again. What is
+   lifted and which slots are guesses too. Before any of this, where the two
+   terms are not the same as they are given, [validate_unit] makes jumps of the
+   self tail calls of the code named here, as Simplify does for the code that
+   the front end marks for loopify; which code that is, with a name for each
+   loop, is a guess again, and the guesses above are made of the term that this
+   gives. Failing all of that, the whole is asked a second time, of
+   [validate_unit_knowing], extracted from FlambdaValidateKnowingSpec.v, where
+   it is proved that what it accepts is correct for the unit in the same way. It
+   is [validate_unit] of the two terms normalised by rounds in front of each of
+   which the aliases are followed knowing what the symbols are bound to; the
+   guesses are made again, from those two terms. *)
 
 (* The code that the front end marks for loopify, each with a name for its loop
    that no continuation of the two units has. *)
@@ -2360,16 +2362,16 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
      asked compared, with how it was made, to show where a unit that is not
      validated differs; whether value slots were removed from it; and the term
      after as it was compared with it. Which pair: where nothing is guessed to
-     lift, that of the third comparison (the term before normalised, with its
-     unused static bindings removed); where something is lifted and nothing to
-     the head of the unit, that of the fourth (the bindings of code of both
-     terms moved up); where something is lifted to the head, that of the fifth,
-     which is the last. Each term shown has its continuations placed and is
-     tidied, as [validate_unit] does to each term that it compares after the
-     first comparison ([tidied_before], [tidied_after]). The liftings are
-     guessed from the terms as the rounds leave them; the value slots and the
-     static bindings to remove from a lifted term are guessed from that term
-     placed and tidied. *)
+     lift, that of the fourth comparison (the term before normalised, with its
+     unused static bindings removed, and the term after with those of its head
+     removed); where something is lifted and nothing to the head of the unit,
+     that of the fifth (the bindings of code of both terms moved up); where
+     something is lifted to the head, that of the sixth, which is the last. Each
+     term shown has its continuations placed and is tidied, as [validate_unit]
+     does to each term that it compares after the first comparison
+     ([tidied_before], [tidied_after]). The liftings are guessed from the terms
+     as the rounds leave them; the value slots and the static bindings to remove
+     from a lifted term are guessed from that term placed and tidied. *)
   let ask validate_unit (before : converted) (after : converted) kept =
     (* The term before with its self tail calls made jumps: the term that the
        function asked normalises and lifts in. *)
@@ -2377,7 +2379,34 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
     let normalised_before = Validate.normalise_before rounds kept looped in
     let normalised_after = Validate.normalise_after rounds kept after.body in
     let tidied_after = Validate.tidied_after rounds normalised_after in
-    let unused = unused_statics normalised_before in
+    (* The names that the term after binds and does not use are added to those
+       of the term before, where the term before can do without them too: the
+       one list is for both terms (FlambdaValidateSpec.without_head_statics). *)
+    let unused_after = unused_statics tidied_after in
+    let both (before_term : Model.expr) (unused : Unused_statics.dropped) :
+        Unused_statics.dropped =
+      let more =
+        { Unused_statics.dropped_symbols =
+            unused.dropped_symbols
+            @ List.filter
+                (fun sym -> not (List.mem sym unused.dropped_symbols))
+                unused_after.dropped_symbols;
+          dropped_code =
+            unused.dropped_code
+            @ List.filter
+                (fun id -> not (List.mem id unused.dropped_code))
+                unused_after.dropped_code
+        }
+      in
+      match Unused_statics.drop_statics more before_term with
+      | Some _ -> more
+      | None -> unused
+    in
+    let unused =
+      both
+        (Validate.tidied_before rounds normalised_before)
+        (unused_statics normalised_before)
+    in
     let validation : Validate.validation =
       validate_unit unused [] [nothing_lifted]
     in
@@ -2387,7 +2416,7 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
           (Validate.tidied_before rounds normalised_before),
         "normalised",
         false,
-        tidied_after )
+        Validate.without_head_statics unused tidied_after )
     in
     match validation with
     | Not_validated -> (
@@ -2489,6 +2518,8 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
       match guessed [] 5 with
       | [], _, _, _ -> not_lifted
       | (_ :: _ as liftings), lifted, slots, unused ->
+        let unused = both lifted unused in
+        let tidied_after = Validate.without_head_statics unused tidied_after in
         let validation = validate_unit unused slots liftings in
         let slots_removed = match slots with [] -> false | _ :: _ -> true in
         if
@@ -2510,7 +2541,7 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
             slots_removed,
             Validate.with_statics_first liftings tidied_after )
         else
-          ( (* The pair shown is that of the fourth comparison: the bindings of
+          ( (* The pair shown is that of the fifth comparison: the bindings of
                code of both terms are moved up. *)
             validation,
             Float_code.float_code (Validate.without_statics unused lifted),
@@ -2518,7 +2549,8 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
             slots_removed,
             Float_code.float_code (Validate.with_code_first tidied_after) ))
     | Same_up_to_bound_names | Same_once_normalised
-    | Same_once_unused_statics_removed | Same_once_lifted ->
+    | Same_once_unused_statics_removed | Same_once_head_statics_removed
+    | Same_once_lifted ->
       not_lifted
   in
   (* One attempt, with the code whose calls the validation is told to leave:
@@ -2564,7 +2596,8 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
       with
       | Not_validated, _, _, _, _ -> first
       | ( ( Same_up_to_bound_names | Same_once_normalised
-          | Same_once_unused_statics_removed | Same_once_lifted ),
+          | Same_once_unused_statics_removed | Same_once_head_statics_removed
+          | Same_once_lifted ),
           _,
           _,
           _,
@@ -2572,7 +2605,8 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
         asked_again := true;
         second)
     | ( ( Same_up_to_bound_names | Same_once_normalised
-        | Same_once_unused_statics_removed | Same_once_lifted ),
+        | Same_once_unused_statics_removed | Same_once_head_statics_removed
+        | Same_once_lifted ),
         _,
         _,
         _,
@@ -2596,7 +2630,8 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
           "leaving the calls of recursive code", second ],
         second )
     | ( ( Same_up_to_bound_names | Same_once_normalised
-        | Same_once_unused_statics_removed | Same_once_lifted ),
+        | Same_once_unused_statics_removed | Same_once_head_statics_removed
+        | Same_once_lifted ),
         _,
         _,
         _,
@@ -2629,7 +2664,8 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
       match validation with
       | Not_validated -> outcome_before
       | Same_up_to_bound_names | Same_once_normalised
-      | Same_once_unused_statics_removed | Same_once_lifted ->
+      | Same_once_unused_statics_removed | Same_once_head_statics_removed
+      | Same_once_lifted ->
         fst (run ~statics:Values.empty_static_env before)
   in
   Format.printf "  %s@."
@@ -2639,6 +2675,10 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
     | Same_once_unused_statics_removed ->
       validated
       ^ ": the same once normalised and unused static bindings removed"
+    | Same_once_head_statics_removed ->
+      validated
+      ^ ": the same once normalised and unused static bindings removed, at the \
+         head of the term after too"
     | Same_once_lifted ->
       if slots_removed
       then
@@ -2663,7 +2703,8 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
   (match validation with
   | Not_validated -> ()
   | Same_up_to_bound_names | Same_once_normalised
-  | Same_once_unused_statics_removed | Same_once_lifted ->
+  | Same_once_unused_statics_removed | Same_once_head_statics_removed
+  | Same_once_lifted ->
     if not of_the_runs_shown
     then
       Format.printf
@@ -2695,7 +2736,8 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
           print_expr normalised_after)
       attempts
   | Not_validated | Same_up_to_bound_names | Same_once_normalised
-  | Same_once_unused_statics_removed | Same_once_lifted ->
+  | Same_once_unused_statics_removed | Same_once_head_statics_removed
+  | Same_once_lifted ->
     ()
 
 let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =
