@@ -1,4 +1,3 @@
-open BinNums
 open Datatypes
 open FlambdaMapSpec
 open FlambdaModel
@@ -31,27 +30,17 @@ val declared_code_ids_of_binding : static_binding -> code_id list
 val group_consts_in_scope :
   symbol list -> symbol list -> code_id list -> static_binding list -> bool
 
-val spine_static_names :
-  (static_binding -> positive list) -> expr -> positive list
-
-val expr_statics_in_scope :
-  continuation -> bool -> symbol list -> code_id list -> expr -> bool
+val expr_statics_in_scope : symbol list -> code_id list -> expr -> bool
 
 val handler_statics_in_scope :
-  continuation ->
-  bool ->
-  symbol list ->
-  code_id list ->
-  continuation_handler ->
-  bool
+  symbol list -> code_id list -> continuation_handler -> bool
 
 val binding_statics_in_scope :
-  continuation -> symbol list -> code_id list -> static_binding -> bool
+  symbol list -> code_id list -> static_binding -> bool
 
-val code_statics_in_scope :
-  continuation -> symbol list -> code_id list -> code -> bool
+val code_statics_in_scope : symbol list -> code_id list -> code -> bool
 
-val statics_in_scope : symbol list -> unit_interface -> expr -> bool
+val statics_in_scope : symbol list -> expr -> bool
 
 val static_names_apart : symbol list -> expr -> bool
 

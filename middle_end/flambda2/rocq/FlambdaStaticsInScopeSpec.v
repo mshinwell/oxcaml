@@ -34,9 +34,9 @@
    Simplify processes a group of static bindings
    (simplify/simplify_static_const.ml), and [static_names_apart].
 
-   The scope of a static name is not that of a variable. A unit is a
-   sequence of groups of static bindings ([Let_static]), each at
-   toplevel (row 1), and the rule is:
+   The scope of a static name is not that of a variable, and it is not
+   read off the text alone. A unit is a sequence of groups of static
+   bindings ([Let_static]), each at toplevel (row 1), and the rule is:
    - a symbol that the unit imports is in scope everywhere;
    - in a group, the symbols that the group binds to closures are in
      scope in every definition of the group. Its other symbols are in
@@ -45,24 +45,46 @@
      deleted, are in scope in every definition of the group;
    - after a group, all it binds or declares deleted is in scope in the
      body;
-   - what is bound at toplevel in the body of a non-recursive [Let_cont]
-     is also in scope in its handler, when the handler is at toplevel
-     (FlambdaWellFormedSpec.handler_at_toplevel): such a handler runs
-     after its body, and Simplify makes such terms, placing in the body
-     a constant that it lifted while it simplified the body and that the
-     handler knows;
-   - what the body of a [Let_cont] binds on its spine is in scope in its
-     handlers, at toplevel or not. The spine is what the body reaches
-     through [Let]s, [Let_static]s and the bodies of [Let_cont]s, in no
-     handler: the machine runs down it, and binds all of it, before the
-     body applies a continuation. Simplify makes such terms too: it
-     places the constants that it lifts out of the arms of a test under
-     the last [Let] before the test, and the handler of a test inside
-     that one is defined above that place and mentions them;
+   - what the body of a [Let_cont] binds is in scope in its handlers,
+     recursive or not, at toplevel or not (see below);
    - the body of code sees what is in scope where the code is bound;
    - a code id that is declared deleted is in scope, and is not code:
      [Bind_deleted_code] binds nothing, and a call of a closure of it
      stays undefined where it is executed.
+
+   The clause for the handlers of a [Let_cont] is right only of a unit
+   that passes row 1 and [interface_conts_not_rebound], and the check
+   is meant with those two. In such a unit a handler binds something
+   static only if the body of its [Let_cont] can do nothing but apply
+   its continuation or leave the unit by its exception continuation
+   (FlambdaWellFormedSpec.handler_at_toplevel). So the run of the body
+   of any [Let_cont] binds all that the body binds, down its spine and
+   then in each such handler in turn, before it enters a handler of
+   that [Let_cont], which it does by applying its continuation or by
+   the return of a call to it. The run may also leave the unit by its
+   exception continuation before it has bound all of that: row 1
+   allows it, and then no handler of the [Let_cont] is entered. What
+   the body binds through [Let]s, [Let_static]s and the bodies of
+   [Let_cont]s, in no handler, is bound before the body applies
+   anything, whatever the unit; the rest needs the two conditions.
+   Without row 1 a branch of the body can go round a handler that
+   binds a symbol ([branch_round_binding_reads_unbound_statement]);
+   without the other a raise that was to leave the unit can
+   ([rebound_unit_exn_reads_unbound_statement]).
+
+   Simplify makes such terms, and this is its own discipline: it
+   simplifies the body of a [Let_cont] first, and gives each handler an
+   environment with the constants that it has lifted meanwhile
+   (simplify/join_points.ml, [compute_handler_env], and
+   simplify/simplify_let_cont_expr.ml,
+   [simplify_single_recursive_handler]: the constants lifted after the
+   fork), whether or not the handler is at toplevel. It places those
+   constants in the body, under the last [Let] before a test or in the
+   handler of a continuation of the body. So a handler may mention a
+   symbol that is bound below it in the text: a closure lifted out of
+   an arm of a test, in the handler of a test inside that one; or a
+   block that the body builds, in the handler of the continuation that
+   the body applies last.
 
    What mentions a static name: a simple that is a symbol; the code of a
    set of closures, made by a [Let] or statically; the symbols that a
@@ -205,62 +227,39 @@ Fixpoint group_consts_in_scope (before all : list symbol)
 (* A unit                                                                   *)
 (* ======================================================================== *)
 
-(* The static names that an expression binds on its spine: by the
-   [Let_static]s that it reaches through [Let]s, [Let_static]s and the
-   bodies of [Let_cont]s, and by none that is in a handler. *)
-Fixpoint spine_static_names (names_of : static_binding -> list positive)
-    (e : expr) : list positive :=
-  match e with
-  | Let _ _ _ body => spine_static_names names_of body
-  | Let_static bindings body =>
-    flat_map names_of bindings ++ spine_static_names names_of body
-  | Let_cont_non_recursive _ _ body | Let_cont_recursive _ body =>
-    spine_static_names names_of body
-  | Apply _ | Apply_cont _ | Switch _ _ | Invalid => []
-  end.
-
 (* Every symbol and every code id that the expression mentions is in
-   scope, given those in scope around it, whether the expression is at
-   toplevel, and the exception continuation of the unit (for what
-   toplevel is). A group of bindings brings its names into scope as its
-   comment above says, and the code it binds is checked under all that
-   the group binds. The handler of a non-recursive continuation that is
-   at toplevel is checked with, in scope, what its body binds: the
+   scope, given those in scope around it. A group of bindings brings its
+   names into scope as its comment above says, and the code it binds is
+   checked under all that the group binds. A handler of a [Let_cont] is
+   checked with, in scope, what the body of the [Let_cont] binds: the
    static names of the body, which in a unit that passes row 1 are all
-   at toplevel in it. Any other handler of a [Let_cont] is checked with,
-   in scope, what the body binds on its spine. *)
-Fixpoint expr_statics_in_scope (unit_exn : continuation) (toplevel : bool)
-    (syms : list symbol) (ids : list code_id) (e : expr) {struct e} : bool :=
+   at toplevel in it. *)
+Fixpoint expr_statics_in_scope (syms : list symbol) (ids : list code_id)
+    (e : expr) {struct e} : bool :=
   match e with
   | Let _ _ defining_expr body =>
     named_statics_in_scope syms ids defining_expr
-    && expr_statics_in_scope unit_exn toplevel syms ids body
+    && expr_statics_in_scope syms ids body
   | Let_static bindings body =>
     let all := flat_map symbols_of_binding bindings ++ syms in
     let ids' := flat_map declared_code_ids_of_binding bindings ++ ids in
     group_consts_in_scope
       (flat_map closure_symbols_of_binding bindings ++ syms) all ids' bindings
-    && forallb (binding_statics_in_scope unit_exn all ids') bindings
-    && expr_statics_in_scope unit_exn toplevel all ids' body
-  | Let_cont_non_recursive k h body =>
-    (if toplevel && handler_at_toplevel unit_exn k h body
-     then
-       handler_statics_in_scope unit_exn true
-         (static_names symbols_of_binding body ++ syms)
-         (static_names declared_code_ids_of_binding body ++ ids) h
-     else
-       handler_statics_in_scope unit_exn false
-         (spine_static_names symbols_of_binding body ++ syms)
-         (spine_static_names declared_code_ids_of_binding body ++ ids) h)
-    && expr_statics_in_scope unit_exn toplevel syms ids body
+    && forallb (binding_statics_in_scope all ids') bindings
+    && expr_statics_in_scope all ids' body
+  | Let_cont_non_recursive _ h body =>
+    handler_statics_in_scope
+      (static_names symbols_of_binding body ++ syms)
+      (static_names declared_code_ids_of_binding body ++ ids) h
+    && expr_statics_in_scope syms ids body
   | Let_cont_recursive handlers body =>
     forallb
       (fun '(_, h) =>
-         handler_statics_in_scope unit_exn false
-           (spine_static_names symbols_of_binding body ++ syms)
-           (spine_static_names declared_code_ids_of_binding body ++ ids) h)
+         handler_statics_in_scope
+           (static_names symbols_of_binding body ++ syms)
+           (static_names declared_code_ids_of_binding body ++ ids) h)
       handlers
-    && expr_statics_in_scope unit_exn toplevel syms ids body
+    && expr_statics_in_scope syms ids body
   | Apply ap => apply_statics_in_scope syms ids ap
   | Apply_cont ac => apply_cont_statics_in_scope syms ac
   | Switch scrutinee arms =>
@@ -268,32 +267,29 @@ Fixpoint expr_statics_in_scope (unit_exn : continuation) (toplevel : bool)
     && forallb (fun arm => apply_cont_statics_in_scope syms (snd arm)) arms
   | Invalid => true
   end
-with handler_statics_in_scope (unit_exn : continuation) (toplevel : bool)
-    (syms : list symbol) (ids : list code_id) (h : continuation_handler)
-    {struct h} : bool :=
+with handler_statics_in_scope (syms : list symbol) (ids : list code_id)
+    (h : continuation_handler) {struct h} : bool :=
   match h with
-  | Handler _ _ handler =>
-    expr_statics_in_scope unit_exn toplevel syms ids handler
+  | Handler _ _ handler => expr_statics_in_scope syms ids handler
   end
-with binding_statics_in_scope (unit_exn : continuation) (syms : list symbol)
-    (ids : list code_id) (binding : static_binding) {struct binding} : bool :=
+with binding_statics_in_scope (syms : list symbol) (ids : list code_id)
+    (binding : static_binding) {struct binding} : bool :=
   match binding with
-  | Bind_code _ c => code_statics_in_scope unit_exn syms ids c
+  | Bind_code _ c => code_statics_in_scope syms ids c
   | Bind_deleted_code _ | Bind_symbol _ _ => true
   end
-with code_statics_in_scope (unit_exn : continuation) (syms : list symbol)
-    (ids : list code_id) (c : code) {struct c} : bool :=
+with code_statics_in_scope (syms : list symbol) (ids : list code_id)
+    (c : code) {struct c} : bool :=
   match c with
-  | Code _ _ _ _ _ body => expr_statics_in_scope unit_exn false syms ids body
+  | Code _ _ _ _ _ body => expr_statics_in_scope syms ids body
   end.
 
 (* Row 4 of well-formedness. A unit, with the symbols it imports: every
    symbol that it mentions is one of those or is in scope where it is
    mentioned, and every code id that it mentions is in scope there, bound
    or declared deleted. *)
-Definition statics_in_scope (imports : list symbol) (u : unit_interface)
-    (e : expr) : bool :=
-  expr_statics_in_scope (unit_exn u) true imports [] e.
+Definition statics_in_scope (imports : list symbol) (e : expr) : bool :=
+  expr_statics_in_scope imports [] e.
 
 (* What goes with it of row 2: no static binding of the unit binds a
    symbol that it imports, and no code id is both bound and declared
@@ -348,10 +344,10 @@ with code_bound_continuations (c : code) : list continuation :=
    compiler checks nothing of the sort; its binders are fresh names, so
    no term it builds binds one of the two again.
 
-   Why it is asked. Rows 1 and 4 both read "the handler runs after the
-   toplevel bindings of its body" off names: a handler is at toplevel
-   when its body can only apply its continuation or use the exception
-   continuation of the unit
+   Why it is asked. Row 1 reads "the handler runs after the toplevel
+   bindings of its body" off names, and row 4 relies on it: a handler
+   is at toplevel when its body can only apply its continuation or use
+   the exception continuation of the unit
    (FlambdaWellFormedSpec.handler_at_toplevel). If a [Let_cont] of the
    unit binds that name again, a body that uses it does not leave the
    unit: it goes to a handler of the unit, which may go on to an outer
@@ -642,7 +638,7 @@ Definition statics_bound_in_run_statement : Prop :=
   ∀ (imports : list symbol) (u : unit_interface) (e : expr)
     (statics : static_env) (n : nat) (s : state),
     well_formed_unit u e = true ->
-    statics_in_scope imports u e = true ->
+    statics_in_scope imports e = true ->
     interface_conts_not_rebound u e = true ->
     imports_bound imports statics ->
     run n (State e [] [] statics) = Step s ->
@@ -669,11 +665,11 @@ Definition statics_bound_in_run_statement : Prop :=
      let_cont k = (let_static s = a block; apply k_outer) in
      raise to exn
 
-   The handler of [k] is at toplevel by its body, which only raises to
-   the name of the exception continuation of the unit; so the handler
-   of [k_outer], at toplevel too, is checked with [s] in scope. The
-   raise goes to the handler bound in the unit, which goes to
-   [k_outer], and [s] was never bound. *)
+   Row 1 lets the handler of [k] bind [s]: the body of its [Let_cont]
+   only raises to the name of the exception continuation of the unit.
+   The check lets the handler of [k_outer] mention [s], which the body
+   of its [Let_cont] binds. The raise goes to the handler bound in the
+   unit, which goes to [k_outer], and [s] was never bound. *)
 Definition rebound_unit_exn_reads_unbound_statement : Prop :=
   ∃ (u : unit_interface) (e : expr) (n : nat) (s : state),
     statics_at_toplevel (unit_exn u) true e = true
@@ -686,8 +682,42 @@ Definition rebound_unit_exn_reads_unbound_statement : Prop :=
     ∧ numbers_in_range e = true
     ∧ unit_exn_handlers_well_formed (unit_exn u) e = true
     ∧ traps_well_formed (unit_exn u) e = false
-    ∧ statics_in_scope [] u e = true
+    ∧ statics_in_scope [] e = true
     ∧ static_names_apart [] e = true
     ∧ interface_conts_not_rebound u e = false
+    ∧ run n (State e [] [] (Static_env [] [])) = Step s
+    ∧ statics_scope_fault (deleted_code_ids e) s = true.
+
+(* Why row 1 is asked with the check. There is a unit that passes
+   [statics_in_scope], [static_names_apart],
+   [interface_conts_not_rebound] and every condition of
+   [well_formed_unit] but the first, which it fails, and whose run reads
+   a symbol that is not bound. A handler of it binds a symbol, and the
+   body of its [Let_cont] can go round it:
+
+     let v = 1 in
+     let_cont k_a = (x = the first field of s; return x) in
+     let_cont k_b = (let_static s = a block; apply k_a) in
+     switch v | 0 -> apply k_b | 1 -> apply k_a
+
+   The check lets the handler of [k_a] mention [s], which the body of
+   its [Let_cont] binds. Row 1 refuses the unit: the handler of [k_b]
+   binds a symbol, and the body of its [Let_cont] can also apply
+   [k_a]. *)
+Definition branch_round_binding_reads_unbound_statement : Prop :=
+  ∃ (u : unit_interface) (e : expr) (n : nat) (s : state),
+    statics_at_toplevel (unit_exn u) true e = false
+    ∧ distinct (static_names code_ids_of_binding e) = true
+    ∧ distinct (static_names symbols_of_binding e) = true
+    ∧ names_in_scope (unit_return u) (unit_exn u) e = true
+    ∧ binders_distinct e = true
+    ∧ code_closed e = true
+    ∧ sets_well_formed e = true
+    ∧ numbers_in_range e = true
+    ∧ unit_exn_handlers_well_formed (unit_exn u) e = true
+    ∧ traps_well_formed (unit_exn u) e = true
+    ∧ statics_in_scope [] e = true
+    ∧ static_names_apart [] e = true
+    ∧ interface_conts_not_rebound u e = true
     ∧ run n (State e [] [] (Static_env [] [])) = Step s
     ∧ statics_scope_fault (deleted_code_ids e) s = true.

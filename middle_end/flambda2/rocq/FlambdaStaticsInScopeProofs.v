@@ -248,52 +248,21 @@ Proof.
     + exact (IH _ _ _ _ _ _ (sub_cons_mono s _ _ Hb) Ha Hi Hrest).
 Qed.
 
-(* What an expression binds on its spine is among what it binds. *)
-Lemma spine_static_names_sub (names_of : static_binding -> list positive)
-    (e : expr) :
-  sub (spine_static_names names_of e) (static_names names_of e).
-Proof.
-  induction e
-    as [ x kind d body IH | bindings body IH | k h body IH | handlers body IH
-       | ap | ac | scrutinee arms | ];
-    simpl; try apply sub_refl.
-  - exact IH.
-  - apply sub_app_mono, IH.
-  - exact (sub_trans _ _ _ IH (sub_app_r _ _)).
-  - exact (sub_trans _ _ _ IH (sub_app_r _ _)).
-Qed.
-
-(* The scope of a handler with what the body binds on its spine is
-   within its scope with all that the body binds. *)
-Lemma spine_scope_sub (names_of : static_binding -> list positive)
-    (body : expr) (names names' : list positive) :
-  sub names names' ->
-  sub (spine_static_names names_of body ++ names)
-    (static_names names_of body ++ names').
-Proof.
-  intros H. apply sub_app.
-  - exact (sub_trans _ _ _ (spine_static_names_sub names_of body)
-             (sub_app_l _ _)).
-  - exact (sub_trans _ _ _ H (sub_app_r _ _)).
-Qed.
-
-(* The check passes under a larger scope, and at toplevel if it passes
-   away from it: there a handler has only more in scope. *)
-Fixpoint expr_scope_sub (unit_exn : continuation) (e : expr) {struct e} :
-  ∀ (top top' : bool) (syms syms' : list symbol) (ids ids' : list code_id),
-    (top = true -> top' = true) ->
+(* The check passes under a larger scope. *)
+Fixpoint expr_scope_sub (e : expr) {struct e} :
+  ∀ (syms syms' : list symbol) (ids ids' : list code_id),
     sub syms syms' ->
     sub ids ids' ->
-    expr_statics_in_scope unit_exn top syms ids e = true ->
-    expr_statics_in_scope unit_exn top' syms' ids' e = true.
+    expr_statics_in_scope syms ids e = true ->
+    expr_statics_in_scope syms' ids' e = true.
 Proof.
   destruct e
     as [ x kind d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
-    intros top top' syms syms' ids ids' Htop Hs Hi; simpl.
+    intros syms syms' ids ids' Hs Hi; simpl.
   - rewrite !andb_true_iff. intros [Hd Hbody].
     split; [ exact (named_scope_sub _ _ _ _ _ Hs Hi Hd) | ].
-    exact (expr_scope_sub unit_exn body _ _ _ _ _ _ Htop Hs Hi Hbody).
+    exact (expr_scope_sub body _ _ _ _ Hs Hi Hbody).
   - rewrite !andb_true_iff. intros [[Hconsts Hcode] Hbody].
     pose proof (sub_app_mono (flat_map symbols_of_binding bindings) _ _ Hs)
       as Hall.
@@ -309,10 +278,8 @@ Proof.
         ∀ (all all' : list symbol) (cids cids' : list code_id),
           sub all all' ->
           sub cids cids' ->
-          forallb (binding_statics_in_scope unit_exn all cids) bindings
-          = true ->
-          forallb (binding_statics_in_scope unit_exn all' cids') bindings
-          = true).
+          forallb (binding_statics_in_scope all cids) bindings = true ->
+          forallb (binding_statics_in_scope all' cids') bindings = true).
       { intros all all' cids cids' Ha Hc. clear Hcode Hall Hids.
         induction bindings as [ | binding bindings IH]; simpl; [ auto | ].
         rewrite !andb_true_iff. intros [Hb Hrest].
@@ -320,38 +287,22 @@ Proof.
         destruct binding as [id [params my_closure ret exn metadata cbody]
                             | id | s const];
           simpl in Hb |- *; auto.
-        exact (expr_scope_sub unit_exn cbody _ _ _ _ _ _ (fun H => H) Ha Hc
-                 Hb). }
+        exact (expr_scope_sub cbody _ _ _ _ Ha Hc Hb). }
       exact (Hlist _ _ _ _ Hall Hids Hcode).
-    + exact (expr_scope_sub unit_exn body _ _ _ _ _ _ Htop Hall Hids Hbody).
+    + exact (expr_scope_sub body _ _ _ _ Hall Hids Hbody).
   - rewrite !andb_true_iff. intros [Hh Hbody].
-    split;
-      [ | exact (expr_scope_sub unit_exn body _ _ _ _ _ _ Htop Hs Hi Hbody) ].
+    split; [ | exact (expr_scope_sub body _ _ _ _ Hs Hi Hbody) ].
     destruct h as [params metadata handler]. simpl in Hh |- *.
-    destruct (top && handler_at_toplevel unit_exn k
-                       (Handler params metadata handler) body) eqn:Hat.
-    + apply andb_true_iff in Hat as [-> Hat]. rewrite (Htop eq_refl), Hat.
-      simpl.
-      refine (expr_scope_sub unit_exn handler _ _ _ _ _ _ (fun H => H) _ _
-                Hh);
-        apply sub_app_mono; assumption.
-    + destruct (top' && handler_at_toplevel unit_exn k
-                          (Handler params metadata handler) body).
-      * refine (expr_scope_sub unit_exn handler _ _ _ _ _ _ (fun _ => eq_refl)
-                  _ _ Hh);
-          apply spine_scope_sub; assumption.
-      * refine (expr_scope_sub unit_exn handler _ _ _ _ _ _ (fun H => H) _ _
-                  Hh);
-          apply sub_app_mono; assumption.
+    refine (expr_scope_sub handler _ _ _ _ _ _ Hh);
+      apply sub_app_mono; assumption.
   - rewrite !andb_true_iff. intros [Hhs Hbody].
-    split;
-      [ | exact (expr_scope_sub unit_exn body _ _ _ _ _ _ Htop Hs Hi Hbody) ].
+    split; [ | exact (expr_scope_sub body _ _ _ _ Hs Hi Hbody) ].
     clear Hbody.
     induction handlers as [ | [k' [params metadata handler]] handlers IH];
       simpl in Hhs |- *; [ reflexivity | ].
     apply andb_true_iff in Hhs as [Hh Hrest].
     apply andb_true_iff. split; [ | exact (IH Hrest) ].
-    refine (expr_scope_sub unit_exn handler _ _ _ _ _ _ (fun H => H) _ _ Hh);
+    refine (expr_scope_sub handler _ _ _ _ _ _ Hh);
       apply sub_app_mono; assumption.
   - apply apply_scope_sub; assumption.
   - apply simples_scope_sub, Hs.
@@ -464,7 +415,7 @@ Definition ids_of (statics : static_env) : list code_id :=
 Definition handler_fine (top : bool) (syms : list symbol)
     (ids : list code_id) (h : continuation_handler) : Prop :=
   handler_statics_at_toplevel unit_exn top h = true
-  ∧ handler_statics_in_scope unit_exn true syms ids h = true
+  ∧ handler_statics_in_scope syms ids h = true
   ∧ all_among (handler_static_names deleted_code_ids_of_binding h) deleted
     = true
   ∧ among unit_exn (handler_bound_continuations h) = false.
@@ -478,7 +429,7 @@ Lemma handler_fine_sub (top : bool) (syms syms' : list symbol)
 Proof.
   intros Hs Hi (P & S & D & U). refine (conj P (conj _ (conj D U))).
   destruct h as [params metadata handler]. simpl in S |- *.
-  exact (expr_scope_sub unit_exn handler _ _ _ _ _ _ (fun H => H) Hs Hi S).
+  exact (expr_scope_sub handler _ _ _ _ Hs Hi S).
 Qed.
 
 (* A handler that is not at toplevel binds nothing static. *)
@@ -502,11 +453,12 @@ Qed.
 
 (* A continuation is good under a scope: when it is applied in a state
    whose static environment binds that scope, the state that it leads
-   to has the invariant. A handler that is at toplevel may mention what
-   its body binds; so the continuations that a closure keeps need be
-   good only under the scope with, added, what the handler of the
-   closure binds. Only the continuations that the handlers of the
-   closure can use are asked for. *)
+   to has the invariant. A handler that is at toplevel may bind static
+   names, and a continuation that it then uses may mention them; so the
+   continuations that a closure keeps need be good only under the scope
+   with, added, what the handler of the closure binds. Only the
+   continuations that the handlers of the closure can use are asked
+   for. *)
 Inductive cont_good : list symbol -> list code_id -> cont_value -> Prop :=
   | Good_outer (syms : list symbol) (ids : list code_id) (k : continuation) :
     cont_good syms ids (Outer k)
@@ -572,7 +524,7 @@ Qed.
 Definition code_fine (syms : list symbol) (ids : list code_id) (c : code)
     : Prop :=
   code_statics_at_toplevel unit_exn c = true
-  ∧ code_statics_in_scope unit_exn syms ids c = true
+  ∧ code_statics_in_scope syms ids c = true
   ∧ among unit_exn (code_bound_continuations c) = false.
 
 Lemma code_fine_sub (syms syms' : list symbol) (ids ids' : list code_id)
@@ -583,7 +535,7 @@ Proof.
   intros Hs Hi (P & S & U). refine (conj P (conj _ U)).
   destruct c as [params my_closure ret exn metadata body].
   simpl in S |- *.
-  exact (expr_scope_sub unit_exn body _ _ _ _ _ _ (fun H => H) Hs Hi S).
+  exact (expr_scope_sub body _ _ _ _ Hs Hi S).
 Qed.
 
 Definition code_all_fine (statics : static_env) : Prop :=
@@ -600,7 +552,7 @@ Definition code_all_fine (statics : static_env) : Prop :=
    the unit is bound by nothing; and the code bound is fine. *)
 Definition terms_inv (s : state) : Prop :=
   statics_at_toplevel unit_exn true (state_expr s) = true
-  ∧ expr_statics_in_scope unit_exn true (bound_symbols (state_statics s))
+  ∧ expr_statics_in_scope (bound_symbols (state_statics s))
       (ids_of (state_statics s)) (state_expr s)
     = true
   ∧ all_among (static_names deleted_code_ids_of_binding (state_expr s))
@@ -645,8 +597,7 @@ Proof.
     as (_ & _ & Ndeleted).
   unfold terms_inv. simpl_state. rewrite Nsyms, Nids, Ndeleted, !app_nil_l.
   refine (conj Ptop (conj _ (conj eq_refl (conj U (conj _ (conj _ Hcode)))))).
-  - exact (expr_scope_sub unit_exn body _ _ _ _ _ _ (fun _ => eq_refl)
-             (sub_refl _) (sub_refl _) S).
+  - exact S.
   - rewrite (lookup_other _ _ _ _ Hret), (lookup_other _ _ _ _ Hexn_ne).
     reflexivity.
   - intros k _. unfold resolve. rewrite !lookup_cons.
@@ -869,8 +820,7 @@ Proof.
       - rewrite Hn, orb_true_r. reflexivity.
       - rewrite Hn. apply orb_true_r. }
     refine (conj Pbody (conj _ (conj Dbody (conj Ubody (conj L (conj _ _)))))).
-    + exact (expr_scope_sub unit_exn body _ _ _ _ _ _ (fun H => H) Hsyms Hids
-               Sbody).
+    + exact (expr_scope_sub body _ _ _ _ Hsyms Hids Sbody).
     + intros k Hk. refine (cont_good_sub _ _ _ (K k Hk) _ _ _ _).
       * apply sub_app; [ apply sub_app | ].
         -- exact (sub_trans _ _ _ (sub_trans _ _ _ (sub_app_l _ _) Hsyms)
@@ -916,14 +866,7 @@ Proof.
     + rewrite (lookup_other _ _ _ _ Hk). exact L.
     + intros k' Hk'. destruct (Pos.eqb_spec k' k) as [-> | Hne].
       * rewrite resolve_head. apply Good_closure.
-        -- refine (conj Phtop (conj _ (conj Dh Uh))).
-           cbn [handler_statics_in_scope].
-           destruct (handler_at_toplevel unit_exn k
-                       (Handler params metadata handler) body);
-             [ exact Sh | ].
-           refine (expr_scope_sub unit_exn handler _ _ _ _ _ _
-                     (fun _ => eq_refl) _ _ Sh);
-             apply spine_scope_sub, sub_refl.
+        -- exact (conj Phtop (conj Sh (conj Dh Uh))).
         -- apply Forall_nil.
         -- intros Hnil. destruct (Hnil eq_refl).
         -- exact L.
@@ -994,10 +937,7 @@ Proof.
       pose proof (among_flat_map_false _ _ _ _ Uhandlers Hin) as Uh'.
       cbn beta iota in Ph', Sh', Uh'.
       refine (conj Ph' (conj _ (conj _ Uh'))).
-      - destruct h' as [params metadata handler].
-        refine (expr_scope_sub unit_exn handler _ _ _ _ _ _
-                  (fun _ => eq_refl) _ _ Sh');
-          apply spine_scope_sub, sub_refl.
+      - exact Sh'.
       - rewrite (handler_nowhere_names deleted_code_ids_of_binding h' Ph').
         reflexivity. }
     refine (conj Pbody (conj Sbody (conj D (conj Ubody (conj _ (conj _ C)))))).
@@ -1862,7 +1802,7 @@ Proof. apply all_among_spec. intros name H. exact H. Qed.
 Lemma initial_state_inv (imports : list symbol) (u : unit_interface)
     (e : expr) (statics : static_env) :
   well_formed_unit u e = true ->
-  statics_in_scope imports u e = true ->
+  statics_in_scope imports e = true ->
   interface_conts_not_rebound u e = true ->
   imports_bound imports statics ->
   terms_inv (unit_exn u) (deleted_code_ids e) (State e [] [] statics)
@@ -1879,8 +1819,7 @@ Proof.
   - unfold terms_inv. simpl_state.
     refine (conj _ (conj _ (conj _ (conj Hexn (conj eq_refl (conj _ _)))))).
     + exact (well_formed_unit_statics_at_toplevel u e Hwf).
-    + exact (expr_scope_sub (unit_exn u) e _ _ _ _ _ _ (fun H => H) Hsyms
-               (sub_nil _) Hscope).
+    + exact (expr_scope_sub e _ _ _ _ Hsyms (sub_nil _) Hscope).
     + apply all_among_refl.
     + intros k _. apply Good_outer.
     + unfold code_all_fine. rewrite Hcode. apply Forall_nil.
@@ -2030,8 +1969,9 @@ Qed.
    lifted: the handler of the inner test is defined above the group that
    binds the symbols of the arms, and mentions two of them. It is not at
    toplevel, since its body also applies the continuation of the whole
-   match; the symbols are in scope in it because its body binds them on
-   its spine. The arms here are blocks, where Simplify has closures. The
+   match; the symbols are in scope in it because the body of its
+   [Let_cont] binds them. The arms here are blocks, where Simplify has
+   closures. The
    continuations are [1] and [2] for the unit, [3] for the match and [4]
    for the inner test; the symbol [1] is what the unit returns, and
    [4], [2] and [3] are those of the arms. *)
@@ -2065,7 +2005,7 @@ Definition nested_test_unit (scrutinee : Z) : expr :=
 
 Example nested_test_passes :
   well_formed_unit nested_test_interface (nested_test_unit 1) = true
-  ∧ statics_in_scope [] nested_test_interface (nested_test_unit 1) = true
+  ∧ statics_in_scope [] (nested_test_unit 1) = true
   ∧ static_names_apart [] (nested_test_unit 1) = true
   ∧ interface_conts_not_rebound nested_test_interface (nested_test_unit 1)
     = true.
@@ -2076,6 +2016,141 @@ Example nested_test_returns :
   run 12 (State (nested_test_unit 1) [] [] (Static_env [] []))
   = Exit 1%positive [Value_symbol 1%positive].
 Proof. vm_compute. reflexivity. Qed.
+
+(* ======================================================================== *)
+(* Handlers that mention what the body binds                                *)
+(* ======================================================================== *)
+
+Definition handlers_interface : unit_interface :=
+  Unit_interface 1%positive 2%positive.
+
+(* A recursive handler that mentions a symbol which the body of its
+   [Let_cont] binds, and returns it. *)
+Definition recursive_handler_unit : expr :=
+  Let_cont_recursive
+    [(3%positive,
+      Handler [] (make_handler_metadata [])
+        (Apply_cont (Apply_cont_expr 1%positive [Symbol 1%positive] None)))]
+    (Let_static [Bind_symbol 1%positive (nested_test_arm 0)]
+       (Apply_cont (Apply_cont_expr 3%positive [] None))).
+
+Example recursive_handler_passes :
+  well_formed_unit handlers_interface recursive_handler_unit = true
+  ∧ statics_in_scope [] recursive_handler_unit = true
+  ∧ static_names_apart [] recursive_handler_unit = true
+  ∧ interface_conts_not_rebound handlers_interface recursive_handler_unit
+    = true.
+Proof. repeat split; vm_compute; reflexivity. Qed.
+
+Example recursive_handler_returns :
+  run 4 (State recursive_handler_unit [] [] (Static_env [] []))
+  = Exit 1%positive [Value_symbol 1%positive].
+Proof. vm_compute. reflexivity. Qed.
+
+(* A handler, of the continuation [3], that mentions a symbol which the
+   body of its [Let_cont] binds in the handler of another continuation,
+   [4], and not on its spine. The handler of [3] is not at toplevel: the
+   body of its [Let_cont] can also return. The handler of [4] is, so it
+   may bind the symbol, and it always runs before [3] is applied: this
+   is what row 1 gives, and what the check relies on. *)
+Definition sibling_handler_unit (scrutinee : Z) : expr :=
+  Let 1%positive (Naked_number Kind_naked_immediate)
+    (Simple (Const (Naked_immediate scrutinee)))
+    (Let_cont_non_recursive 3%positive
+       (Handler [] (make_handler_metadata [])
+          (Apply_cont (Apply_cont_expr 1%positive [Symbol 1%positive] None)))
+       (Let_cont_non_recursive 4%positive
+          (Handler [] (make_handler_metadata [])
+             (Let_static [Bind_symbol 1%positive (nested_test_arm 0)]
+                (Switch (Var 1%positive)
+                   [(0%Z, Apply_cont_expr 3%positive [] None);
+                    (1%Z,
+                     Apply_cont_expr 1%positive [Const (Tagged_immediate 7)]
+                       None)])))
+          (Apply_cont (Apply_cont_expr 4%positive [] None)))).
+
+Example sibling_handler_passes :
+  well_formed_unit handlers_interface (sibling_handler_unit 0) = true
+  ∧ statics_in_scope [] (sibling_handler_unit 0) = true
+  ∧ static_names_apart [] (sibling_handler_unit 0) = true
+  ∧ interface_conts_not_rebound handlers_interface (sibling_handler_unit 0)
+    = true.
+Proof. repeat split; vm_compute; reflexivity. Qed.
+
+Example sibling_handler_returns :
+  run 8 (State (sibling_handler_unit 0) [] [] (Static_env [] []))
+  = Exit 1%positive [Value_symbol 1%positive].
+Proof. vm_compute. reflexivity. Qed.
+
+(* A unit that leaves by its exception continuation before the handler
+   that binds a symbol has run. The handler of [3] mentions the symbol;
+   the handler of [4] binds it and applies [3]; the body raises. Row 1
+   allows the raise, and the unit passes the checks: no handler is
+   entered, and it exits without the symbol bound. *)
+Definition raise_past_binding_unit : expr :=
+  Let_cont_non_recursive 3%positive
+    (Handler [] (make_handler_metadata [])
+       (Apply_cont (Apply_cont_expr 1%positive [Symbol 1%positive] None)))
+    (Let_cont_non_recursive 4%positive
+       (Handler [] (make_handler_metadata [])
+          (Let_static [Bind_symbol 1%positive (nested_test_arm 0)]
+             (Apply_cont (Apply_cont_expr 3%positive [] None))))
+       (Apply_cont
+          (Apply_cont_expr 2%positive [Const (Tagged_immediate 0)]
+             (Some (Pop 2%positive None))))).
+
+Example raise_past_binding_passes :
+  well_formed_unit handlers_interface raise_past_binding_unit = true
+  ∧ statics_in_scope [] raise_past_binding_unit = true
+  ∧ static_names_apart [] raise_past_binding_unit = true
+  ∧ interface_conts_not_rebound handlers_interface raise_past_binding_unit
+    = true.
+Proof. repeat split; vm_compute; reflexivity. Qed.
+
+Example raise_past_binding_exits :
+  run 3 (State raise_past_binding_unit [] [] (Static_env [] []))
+  = Exit 2%positive [Value_const (Tagged_immediate 0)].
+Proof. vm_compute. reflexivity. Qed.
+
+(* ======================================================================== *)
+(* A unit whose body goes round a handler that binds a symbol               *)
+(* ======================================================================== *)
+
+(* The variable of the test is [2], and [1] is the variable that the
+   handler of [3] binds to the field that it reads of the symbol [1]. *)
+Definition round_unit : expr :=
+  Let 2%positive (Naked_number Kind_naked_immediate)
+    (Simple (Const (Naked_immediate 1)))
+    (Let_cont_non_recursive 3%positive
+       (Handler [] (make_handler_metadata [])
+          (Let 1%positive Value
+             (Prim
+                (Unary
+                   (Block_load (Block_access_values None None Any_value)
+                      Immutable 0))
+                [Symbol 1%positive])
+             (Apply_cont (Apply_cont_expr 1%positive [Var 1%positive] None))))
+       (Let_cont_non_recursive 4%positive
+          (Handler [] (make_handler_metadata [])
+             (Let_static [Bind_symbol 1%positive (nested_test_arm 0)]
+                (Apply_cont (Apply_cont_expr 3%positive [] None))))
+          (Switch (Var 2%positive)
+             [(0%Z, Apply_cont_expr 4%positive [] None);
+              (1%Z, Apply_cont_expr 3%positive [] None)]))).
+
+(* The state of its run that reads the symbol. *)
+Definition round_state : state :=
+  match run 5 (State round_unit [] [] (Static_env [] [])) with
+  | Step s => s
+  | Exit _ _ | Undefined => State Invalid [] [] (Static_env [] [])
+  end.
+
+Theorem branch_round_binding_reads_unbound :
+  branch_round_binding_reads_unbound_statement.
+Proof.
+  exists handlers_interface, round_unit, 5%nat, round_state.
+  repeat split; vm_compute; reflexivity.
+Qed.
 
 (* ======================================================================== *)
 (* A unit that binds the name of its exception continuation again           *)

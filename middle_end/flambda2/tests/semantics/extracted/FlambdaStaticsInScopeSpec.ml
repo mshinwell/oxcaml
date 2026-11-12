@@ -1,4 +1,3 @@
-open BinNums
 open Datatypes
 open FlambdaMapSpec
 open FlambdaModel
@@ -108,55 +107,36 @@ let rec group_consts_in_scope before all ids = function
         && group_consts_in_scope (s :: before) all ids bindings0
     | _ -> group_consts_in_scope before all ids bindings0)
 
-(** val spine_static_names : (static_binding -> positive list) -> expr ->
-    positive list **)
+(** val expr_statics_in_scope : symbol list -> code_id list -> expr -> bool **)
 
-let rec spine_static_names names_of = function
-  | Let (_, _, _, body) -> spine_static_names names_of body
-  | Let_static (bindings, body) ->
-    app (flat_map names_of bindings) (spine_static_names names_of body)
-  | Let_cont_non_recursive (_, _, body) -> spine_static_names names_of body
-  | Let_cont_recursive (_, body) -> spine_static_names names_of body
-  | _ -> []
-
-(** val expr_statics_in_scope : continuation -> bool -> symbol list -> code_id
-    list -> expr -> bool **)
-
-let rec expr_statics_in_scope unit_exn0 toplevel syms ids = function
+let rec expr_statics_in_scope syms ids = function
   | Let (_, _, defining_expr, body) ->
     named_statics_in_scope syms ids defining_expr
-    && expr_statics_in_scope unit_exn0 toplevel syms ids body
+    && expr_statics_in_scope syms ids body
   | Let_static (bindings, body) ->
     let all = app (flat_map symbols_of_binding bindings) syms in
     let ids' = app (flat_map declared_code_ids_of_binding bindings) ids in
     (group_consts_in_scope
        (app (flat_map closure_symbols_of_binding bindings) syms)
        all ids' bindings
-    && forallb (binding_statics_in_scope unit_exn0 all ids') bindings)
-    && expr_statics_in_scope unit_exn0 toplevel all ids' body
-  | Let_cont_non_recursive (k, h, body) ->
-    (if toplevel && handler_at_toplevel unit_exn0 k h body
-     then
-       handler_statics_in_scope unit_exn0 true
-         (app (static_names symbols_of_binding body) syms)
-         (app (static_names declared_code_ids_of_binding body) ids)
-         h
-     else
-       handler_statics_in_scope unit_exn0 false
-         (app (spine_static_names symbols_of_binding body) syms)
-         (app (spine_static_names declared_code_ids_of_binding body) ids)
-         h)
-    && expr_statics_in_scope unit_exn0 toplevel syms ids body
+    && forallb (binding_statics_in_scope all ids') bindings)
+    && expr_statics_in_scope all ids' body
+  | Let_cont_non_recursive (_, h, body) ->
+    handler_statics_in_scope
+      (app (static_names symbols_of_binding body) syms)
+      (app (static_names declared_code_ids_of_binding body) ids)
+      h
+    && expr_statics_in_scope syms ids body
   | Let_cont_recursive (handlers, body) ->
     forallb
       (fun pat ->
         let _, h = pat in
-        handler_statics_in_scope unit_exn0 false
-          (app (spine_static_names symbols_of_binding body) syms)
-          (app (spine_static_names declared_code_ids_of_binding body) ids)
+        handler_statics_in_scope
+          (app (static_names symbols_of_binding body) syms)
+          (app (static_names declared_code_ids_of_binding body) ids)
           h)
       handlers
-    && expr_statics_in_scope unit_exn0 toplevel syms ids body
+    && expr_statics_in_scope syms ids body
   | Apply ap -> apply_statics_in_scope syms ids ap
   | Apply_cont ac -> apply_cont_statics_in_scope syms ac
   | Switch (scrutinee, arms) ->
@@ -164,31 +144,27 @@ let rec expr_statics_in_scope unit_exn0 toplevel syms ids = function
     && forallb (fun arm -> apply_cont_statics_in_scope syms (snd arm)) arms
   | Invalid -> true
 
-(** val handler_statics_in_scope : continuation -> bool -> symbol list ->
-    code_id list -> continuation_handler -> bool **)
+(** val handler_statics_in_scope : symbol list -> code_id list ->
+    continuation_handler -> bool **)
 
-and handler_statics_in_scope unit_exn0 toplevel syms ids = function
-  | Handler (_, _, handler) ->
-    expr_statics_in_scope unit_exn0 toplevel syms ids handler
+and handler_statics_in_scope syms ids = function
+  | Handler (_, _, handler) -> expr_statics_in_scope syms ids handler
 
-(** val binding_statics_in_scope : continuation -> symbol list -> code_id list
-    -> static_binding -> bool **)
+(** val binding_statics_in_scope : symbol list -> code_id list -> static_binding
+    -> bool **)
 
-and binding_statics_in_scope unit_exn0 syms ids = function
-  | Bind_code (_, c) -> code_statics_in_scope unit_exn0 syms ids c
+and binding_statics_in_scope syms ids = function
+  | Bind_code (_, c) -> code_statics_in_scope syms ids c
   | _ -> true
 
-(** val code_statics_in_scope : continuation -> symbol list -> code_id list ->
-    code -> bool **)
+(** val code_statics_in_scope : symbol list -> code_id list -> code -> bool **)
 
-and code_statics_in_scope unit_exn0 syms ids = function
-  | Code (_, _, _, _, _, body) ->
-    expr_statics_in_scope unit_exn0 false syms ids body
+and code_statics_in_scope syms ids = function
+  | Code (_, _, _, _, _, body) -> expr_statics_in_scope syms ids body
 
-(** val statics_in_scope : symbol list -> unit_interface -> expr -> bool **)
+(** val statics_in_scope : symbol list -> expr -> bool **)
 
-let statics_in_scope imports u e =
-  expr_statics_in_scope u.unit_exn true imports [] e
+let statics_in_scope imports e = expr_statics_in_scope imports [] e
 
 (** val static_names_apart : symbol list -> expr -> bool **)
 
