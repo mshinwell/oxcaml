@@ -4828,6 +4828,24 @@ let generate_meet_of_cases (names : names) r : MT.flambda_type * MT.flambda_type
   then blocks [0, [one]], blocks [0, [other]]
   else one, other
 
+(* Two types that are alike: a type, and one of the smaller types that the
+   shrinker gives for it, or the type again. Two types generated apart seldom
+   have a part in common, and their meet or join then stops at the top; these
+   have the same cases, slots and extensions but for one place. *)
+let generate_alike (names : names) r (kind : MK.flambda_kind) :
+    MT.flambda_type * MT.flambda_type =
+  let config : G.config = { well_formed = true; depth = 3 } in
+  let t = G.type_of_kind config r names.pool kind in
+  let smaller =
+    List.filter (fun t' -> Stdlib.( = ) (MT.kind t') kind) (G.shrink t)
+  in
+  let other =
+    match smaller with
+    | [] -> t
+    | _ :: _ -> if G.chance r ~percent:15 then t else G.pick r smaller
+  in
+  if G.chance r ~percent:50 then t, other else other, t
+
 type meet_in_an_environment =
   { equations : (MT.name * MT.flambda_type) list;
     met : MT.flambda_type * MT.flambda_type
@@ -6007,8 +6025,8 @@ let () =
         let config : G.config = { well_formed = true; depth = 2 } in
         let aliases, equations =
           match shape with
-          | `None | `Cases -> false, []
-          | `Types -> false, generate_equations names r
+          | `None | `Cases | `Alike -> false, []
+          | `Types | `Alike_with_equations -> false, generate_equations names r
           | `Aliases -> true, generate_aliases names r
         in
         (* With the aliases, one of the two types is often an alias too. *)
@@ -6022,6 +6040,7 @@ let () =
           met =
             (match shape with
             | `Cases -> generate_meet_of_cases names r
+            | `Alike | `Alike_with_equations -> generate_alike names r kind
             | `None | `Types | `Aliases -> side (), side ())
         })
       ~prepare:(fun ({ equations; met = m1, m2 } as input) ->
@@ -6064,21 +6083,62 @@ let () =
       "Two variants whose cases hold a variable and blocks of a repeated \
        variable, for the meet of the model and the n-way meet of the compiler"
     ~seed:99000 ~count:500 ~equations:`Cases MK.Value;
+  model_and_compiler
+    ~title:
+      "A type of kind value and a smaller type made from it, for the meet of \
+       the model and the n-way meet of the compiler"
+    ~seed:112000 ~count:1500 ~equations:`Alike MK.Value;
+  model_and_compiler
+    ~title:
+      "Equations on variables, then a type of kind value and a smaller type \
+       made from it, for the meet of the model and the n-way meet of the \
+       compiler"
+    ~seed:114000 ~count:1000 ~equations:`Alike_with_equations MK.Value;
+  model_and_compiler
+    ~title:
+      "A type of naked immediates and a smaller type made from it, for the \
+       meet of the model and the n-way meet of the compiler"
+    ~seed:116000 ~count:500 ~equations:`Alike
+    (MK.Naked_number Kind_naked_immediate);
   examples_of_joins_in_the_model names;
   chosen_joins_in_the_model names;
   control_of_the_joins names;
-  let model_join_and_compiler ~title ~seed ~count ~known ?(binds = false) kind =
+  let model_join_and_compiler ~title ~seed ~count ~known ?(binds = false)
+      ?(alike = false) kind =
     let local = Converter.variable_to_model names.numbering names.local in
     run ~title ~seed ~count
       ~generate:(fun r ->
         let config : G.config = { well_formed = true; depth = 2 } in
         let shallow : G.config = { well_formed = true; depth = 1 } in
+        (* The types passed, where they are to be alike: a type and smaller
+           types made from it. Nothing is generated for them otherwise, so that
+           the other runs have the inputs that they had. *)
+        let alike_types =
+          if alike then Some (generate_alike names r kind) else None
+        in
+        let passed i =
+          match alike_types with
+          | None -> G.type_of_kind config r names.pool kind
+          | Some (one, other) -> (
+            if i = 0
+            then one
+            else if i = 1
+            then other
+            else
+              match
+                List.filter
+                  (fun t -> Stdlib.( = ) (MT.kind t) kind)
+                  (G.shrink one)
+              with
+              | [] -> one
+              | _ :: _ as smaller -> G.pick r smaller)
+        in
         { kind_of_parameter = kind;
           for_types_at_source = [];
           at_uses =
             List.init
               (2 + G.below r 2)
-              (fun _ ->
+              (fun i ->
                 let learns = if known then generate_equations names r else [] in
                 (* A use may bind a variable of its own and pass it, or a block
                    that holds it. *)
@@ -6095,11 +6155,7 @@ let () =
                            (Scannable Value_only) Heap
                            [alias; G.type_of_kind shallow r names.pool Value])
                   }
-                else
-                  { binds = [];
-                    learns;
-                    passes = G.type_of_kind config r names.pool kind
-                  })
+                else { binds = []; learns; passes = passed i })
         })
       ~prepare:(fun (input : join_at_a_continuation) ->
         List.iter
@@ -6146,6 +6202,16 @@ let () =
       "The same with uses that know equations on variables, for the join of \
        the model and the n-way join of the compiler"
     ~seed:110000 ~count:1000 ~known:true ~binds:true MK.Value;
+  model_join_and_compiler
+    ~title:
+      "Two or three uses that pass a type of kind value and smaller types made \
+       from it, for the join of the model and the n-way join of the compiler"
+    ~seed:118000 ~count:1500 ~known:false ~alike:true MK.Value;
+  model_join_and_compiler
+    ~title:
+      "The same with uses that know equations on variables, for the join of \
+       the model and the n-way join of the compiler"
+    ~seed:120000 ~count:1000 ~known:true ~alike:true MK.Value;
   let with_itself ~title sharing =
     run ~title ~seed:70000 ~count:1500
       ~generate:(fun r ->
