@@ -51,8 +51,8 @@
    ([state_valid], ../../rocq/FlambdaClosuresSpec.v), and the sets of
    closures of every term that it holds are well formed (its
    expression, the handlers that its continuations keep, the code that
-   is bound). The state that a unit starts in has it as soon as the
-   sets of the unit are well formed
+   is bound: [sets_inv], the same file). The state that a unit starts
+   in has it as soon as the sets of the unit are well formed
    (../../rocq/FlambdaWellFormedSpec.sets_well_formed, a test, and one
    of the conditions of a well-formed unit).
 
@@ -179,50 +179,12 @@ Local Open Scope Z_scope.
 (* The states of the run of a unit whose sets are well formed               *)
 (* ======================================================================== *)
 
-(* The handlers that a continuation keeps, and those of the
-   continuations that it keeps, have well-formed sets. *)
-(* CR mshinwell: [cont_sets_well_formed], [conts_sets_well_formed] and
-   [code_sets_well_formed_in] are copies of [cont_sets_ok],
-   [conts_sets_ok] and [code_sets_ok] of
-   ../../rocq/FlambdaClosuresProofs.v, and the first conjunct of
-   [run_valid] is [sets_inv] of that file. They are copied because a
-   statement may not name a definition of a file of proofs. They are
-   to go when those definitions are moved to
-   ../../rocq/FlambdaClosuresSpec.v, which its owner has been asked
-   for. *)
-Fixpoint cont_sets_well_formed (c : cont_value) : Prop :=
-  match c with
-  | Outer _ => True
-  | Extra_args c' _ => cont_sets_well_formed c'
-  | Over_application _ _ _ return_to exn_to =>
-    cont_sets_well_formed return_to ∧ cont_sets_well_formed exn_to
-  | Closure h _ conts recursive =>
-    handler_sets_well_formed h = true
-    ∧ forallb (fun '(_, h) => handler_sets_well_formed h) recursive = true
-    ∧ fold_right (fun kc acc => cont_sets_well_formed (snd kc) ∧ acc) True
-        conts
-  end.
-
-Definition conts_sets_well_formed (conts : cont_env) : Prop :=
-  fold_right (fun kc acc => cont_sets_well_formed (snd kc) ∧ acc) True conts.
-
-(* The code that is bound has well-formed sets. *)
-Definition code_sets_well_formed_in (statics : static_env) : Prop :=
-  ∀ (id : code_id) (c : code),
-    lookup id (static_code statics) = Some c ->
-    code_sets_well_formed c = true.
-
 (* What holds of every state of the run of a unit whose sets are well
-   formed: the sets of every term that the state holds are well formed,
-   the static sets are bound ([static_sets_bound],
+   formed: the sets of every term that the state holds are well
+   formed and the static sets are bound ([sets_inv],
    ../../rocq/FlambdaClosuresSpec.v), and every value that it holds is
-   valid. *)
-Definition run_valid (s : state) : Prop :=
-  (sets_well_formed (state_expr s) = true
-   ∧ conts_sets_well_formed (state_conts s)
-   ∧ code_sets_well_formed_in (state_statics s)
-   ∧ static_sets_bound (state_statics s))
-  ∧ state_valid s.
+   valid ([state_valid], the same file). *)
+Definition run_valid (s : state) : Prop := sets_inv s ∧ state_valid s.
 
 (* A step keeps it. *)
 Definition run_valid_kept_statement : Prop := kept_by_step run_valid.

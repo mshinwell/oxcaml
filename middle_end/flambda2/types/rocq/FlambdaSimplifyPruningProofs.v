@@ -70,15 +70,9 @@ Local Abbreviation code_env_in :=
 (* The states of the run of a unit whose sets are well formed               *)
 (* ======================================================================== *)
 
-(* The copies of FlambdaSimplifyPruningSpec.v are the definitions of
-   ../../rocq/FlambdaClosuresProofs.v that they copy. *)
-Lemma run_valid_iff (s : state) : run_valid s <-> sets_inv s ∧ state_valid s.
-Proof. reflexivity. Qed.
-
 Theorem run_valid_kept : run_valid_kept_statement.
 Proof.
-  intros s s' Hvalid Hstep. apply run_valid_iff in Hvalid.
-  destruct Hvalid as [Hsets Hvalid]. apply run_valid_iff. split.
+  intros s s' [Hsets Hvalid] Hstep. split.
   - exact (sets_inv_step s s' Hsets Hstep).
   - pose proof (state_valid_step s Hsets Hvalid) as H.
     rewrite Hstep in H. exact H.
