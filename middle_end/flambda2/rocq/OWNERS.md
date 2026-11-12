@@ -433,6 +433,11 @@ Owner: N3, on `flambda2-rocq/N3-equivariance` for the validator and on
   rewrite and each check of the validator commutes with renaming:
   what `NAMES.md`, section 7, owes for the files of V1 and V2 and for
   the checks of `FlambdaWellFormedSpec.v`)
+- `middle_end/flambda2/rocq/FlambdaStaticsScope*` (the rewrites that
+  the check of the validation applies to the term before, other than
+  those of a round, keep scope: what the statement about
+  `validate_unit` in the files above rests on, with
+  `FlambdaKeepsScope*`)
 - `middle_end/flambda2/types/rocq/FlambdaEnvRename*` (the action of a
   renaming on a typing environment and on its levels, their free
   variables, and that the functions of `FlambdaTypingEnv.v` commute
