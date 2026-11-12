@@ -5098,8 +5098,9 @@ let model_against_compiler (names : names) :
           then
             against_the_binary_meet
               ~label:
-                "T7-9, the binary meet answers otherwise where an extension \
-                 has an equation on a symbol"
+                "an input selected for T7-9 by its text (an extension has an \
+                 equation on a symbol; the cause is not checked), on which the \
+                 binary meet answers otherwise"
               input
           else Not_this_comparison)
     } ]
