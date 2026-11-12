@@ -339,6 +339,25 @@
    closes after the join; the model has no regions, and the bodies
    are written without it.
 
+   One body more, for an argument that the term has already read.
+   [int64_max] is the body of
+
+       fun a b ->
+        let m = if less a b then b else a in
+        add m 1L
+
+   on boxed 64-bit integers. The comparison unboxes [a] and [b]; each
+   arm gives the join one of the two boxes, and the handler unboxes
+   what it is given. Simplify gives the join the number: on each arm
+   the one that the comparison unboxed, which is in scope. Neither box
+   is made in the body, so nothing is known of what is in it but that
+   a [Let] above has read it (FlambdaUnboxParamsSpec.reads_under_let),
+   and the pass gives the variable of that [Let]
+   ([int64_max_validated_statement], [int64_max_refines_statement]).
+   The parameters of the code are [a], 1, and [b], 2; the continuation
+   of the join is 2 and its parameter is 3; the constant [1L] is
+   written as the number, as the constants of [int64_option_heap] are.
+
    The proofs are in FlambdaUnboxVariantsExamplesProofs.v, which needs
    no review. *)
 
@@ -1324,3 +1343,45 @@ Definition two_tags_validated_statement : Prop :=
 
 Definition two_tags_refines_statement : Prop :=
   expr_refines two_tags_before two_tags_after.
+
+(* ======================================================================== *)
+(* A box that the term has already read                                     *)
+(* ======================================================================== *)
+
+Definition less_int64 (a b : simple) : named :=
+  Prim
+    (Binary (Int_comp Standard_naked_int64 (Yielding_bool (Int_lt Signed))))
+    [a; b].
+
+Definition int64_max_before : expr :=
+  Let 4 naked_int64 (unbox_int64 (Var 2))
+    (Let 5 naked_int64 (unbox_int64 (Var 1))
+       (Let 6 naked_immediate (less_int64 (Var 5) (Var 4))
+          (Let_cont_non_recursive 2
+             (Handler [3] (make_handler_metadata [Value])
+                (Let 7 naked_int64 (unbox_int64 (Var 3))
+                   (Let 9 naked_int64
+                      (int64_arith Add (Var 7) (Const (Naked_int64 1)))
+                      (Let 10 Value (box_int64 (Var 9))
+                         (Apply_cont (jump 1 [Var 10]))))))
+             (Switch (Var 6)
+                [(0%Z, jump 2 [Var 1]); (1%Z, jump 2 [Var 2])])))).
+
+Definition int64_max_after : expr :=
+  Let 4 naked_int64 (unbox_int64 (Var 2))
+    (Let 5 naked_int64 (unbox_int64 (Var 1))
+       (Let 6 naked_immediate (less_int64 (Var 5) (Var 4))
+          (Let_cont_non_recursive 2
+             (Handler [7] (make_handler_metadata [naked_int64])
+                (Let 9 naked_int64
+                   (int64_arith Add (Var 7) (Const (Naked_int64 1)))
+                   (Let 10 Value (box_int64 (Var 9))
+                      (Apply_cont (jump 1 [Var 10])))))
+             (Switch (Var 6)
+                [(0%Z, jump 2 [Var 5]); (1%Z, jump 2 [Var 4])])))).
+
+Definition int64_max_validated_statement : Prop :=
+  validated_by_first_phase int64_max_before int64_max_after.
+
+Definition int64_max_refines_statement : Prop :=
+  expr_refines int64_max_before int64_max_after.
