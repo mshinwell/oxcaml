@@ -7,9 +7,9 @@ for it to obey the same laws.
 
 ## Where it stands
 
-As of the tree that has the first step of the heap, the passes for
-loops and the meet of types under renaming. The sections below say
-each thing in full.
+As of the tree in which the heap is a component of the state of the
+machine, with the passes for loops and the meet of types under
+renaming. The sections below say each thing in full.
 
 **One account of the free names.** The free names of a term are one
 function for each sort (`FlambdaBindersSpec.v`), which goes into code.
@@ -31,7 +31,7 @@ here.
 |------|-------|----|
 | The machine: a step, a run, a behaviour; equivalence and refinement, of states and of expressions | `FlambdaEquivarianceSpec.v` | N1 |
 | The machine with a stack of exception handlers and of calls | `FlambdaTrapSpec.v` | the owner of exceptions |
-| The machine with a heap, and its refinements; the heap is left as it is | `FlambdaHeapEquivarianceSpec.v` | N1 |
+| The machine of `FlambdaHeapSpec.v`, which runs the primitives of the heap, and its refinements; the heap is left as it is | `FlambdaHeapEquivarianceSpec.v` | N1 |
 | The free names; the three conditions on binders; `alpha_equivalent` | `FlambdaAlphaSpec.v` | N1 |
 | The comparison `expr_eqb` | `FlambdaCompareAlphaSpec.v` | N1 |
 | The rewrites of the normalisation, the passes for loops, the checks of well-formedness (exception handlers and trap actions among them), the check of kinds, the normalisation of the term after and the first phase of that of the term before | `FlambdaValidatorEquivarianceSpec.v` | N3 |
@@ -50,12 +50,22 @@ round of the term before makes names.
 
 **What has a finite support.** Every expression and every state
 (`FlambdaStateSupportSpec.v`); a state with a stack (the same file); a
-state with a heap (`FlambdaHeapEquivarianceSpec.v`). So what each of
-the three machines runs is a nominal set, and its execution is an
-equivariant function. None of the three is an instance of the
-interface; section 6 says why. The locations of the heap are a sort
-of names of their own; their permutations are not defined yet (they
-are owed when the heap is in the state of the machine).
+state of the machine of `FlambdaHeapSpec.v`
+(`FlambdaHeapEquivarianceSpec.v`). So what each of the three machines
+runs is a nominal set, and its execution is an equivariant function.
+None of the three is an instance of the interface; section 6 says
+why.
+
+**The locations of the heap** are a sort of names of their own. Their
+permutations act on values, cells, heaps, environments, continuations,
+the static environment and states, and each of these with its
+locations obeys the laws of the interface (`FlambdaLocationsSpec.v`);
+the action commutes with that of the renamings. The primitives go
+through it by an equation, but for the two that bind a location,
+which do up to the location chosen
+(`FlambdaLocationsPrimitiveSpec.v`); a step, a run and a behaviour of
+the machine do in that form (`FlambdaLocationsMachineSpec.v`). Section
+4 has the premise.
 
 **A rewrite that makes names** does not commute with renaming. It
 owes two things, defined in `FlambdaValidatorEquivarianceSpec.v`:
@@ -96,9 +106,10 @@ section 7, has the reason for each and what it would take.
 
 **Owed.** That the join of typing environments, with one source of
 new names, answers the renamed answer up to the variables that it
-makes (section 7); the
-permutations of locations; the functions on types that have no
-statement yet; and the rows of the table above.
+makes (section 7); the functions on types that have no statement
+yet; the rows of the table above; and, when a step of the machine
+comes to allocate, the proofs about a step under a permutation of
+locations again (section 4).
 
 ## 1. The names
 
@@ -109,8 +120,9 @@ and no continuation (a closure holds code ids and values), so nothing
 is renamed in a value. If a new place comes to hold names, it is a
 sort of its own. The locations of the heap (`FlambdaHeapSpec.v`) are
 one: no renaming of variables or of continuations moves a location,
-and the permutations of locations, when they are defined, move nothing
-in a term.
+and the permutations of locations (`FlambdaLocationsSpec.v`) move
+nothing in a term, so the two actions commute
+(`rename_permute_state_statement`).
 
 Names are compared by equality only. The one function that looks at
 the number of a name is `fresh_name` (`FlambdaNameAbstractionSpec.v`),
@@ -132,6 +144,9 @@ which gives a name outside a list of names.
 | `FlambdaCanonicalFreeNamesSpec.v` | The names that a `Let`, a `Let_cont` or a handler binds may be renamed; corollaries, with the one function, of the statements about a binding that is not used |
 | `FlambdaStateSupportSpec.v` | Every expression and every state has a finite support: with the action, the states are a nominal set |
 | `FlambdaHeapEquivarianceSpec.v` | The action on the states of the machine with a heap, which leaves the heap alone; a step, a run and a behaviour of that machine commute with it; its refinements are preserved by renaming; its states have a finite support |
+| `FlambdaLocationsSpec.v` | The action of the permutations of locations on what the machine holds; each thing that holds locations obeys the laws of the interface, with its locations for its names; the action commutes with that of the renamings; lookups go through it |
+| `FlambdaLocationsPrimitiveSpec.v` | A primitive under a permutation of locations: an equation where it binds no location; every primitive up to the location chosen, where the heap binds the locations of all its entries; that premise is kept; a heap with a hidden entry where it fails |
+| `FlambdaLocationsMachineSpec.v` | A step, a run and a behaviour under a permutation of locations, up to the locations allocated, for a state whose heap binds every location of the state; a step, a run and the action keep that; the same of what a `Let` is to run when a step allocates |
 | `FlambdaFreshQuantifierSpec.v`, `FlambdaFreshAbstractionSpec.v` | The quantifier "for all but finitely many names"; `fresh_names`; equal abstractions of one name and of a list of distinct names, said with the quantifier |
 | `FlambdaFreshBindersSpec.v`, `FlambdaAlphaFreshSpec.v`, `FlambdaAlphaGroupSpec.v` | For each binder, the rule that compares two binders at fresh names, and that it can be read both ways on terms with distinct binders and closed code; the recursive group as a name abstraction |
 | `FlambdaCompareConverseSpec.v` | What the comparison accepts is alpha-equivalent, on terms with distinct binders and closed code |
@@ -204,12 +219,31 @@ N1-8).
 Execution commutes with renaming, with no condition:
 `step (rename_state r s) = rename_result r (step s)`, and the same of
 `run` and of `behaves`. So a rewrite that is correct with one choice of
-names is correct with every other.
+names is correct with every other. The action leaves the heap of a
+state as it is, since a cell holds values.
 
-The same holds of the machine with a heap (`heap_step`, `heap_run`,
-`heap_behaves`, and its refinements `heap_refines` and
-`heap_expr_refines`): the action renames the state without its heap
-and leaves the heap as it is, since a cell holds values.
+The same holds of the machine of `FlambdaHeapSpec.v`, which runs the
+primitives of the heap (`heap_step`, `heap_run`, `heap_behaves`, and
+its refinements `heap_refines` and `heap_expr_refines`).
+
+Under a permutation of locations the statement has another form. A
+step that allocates chooses a location that the heap does not bind
+(`FlambdaHeapSpec.fresh_location`), and no choice of a name commutes
+with a permutation. So what a state moved by `p` steps to is what the
+state steps to, moved by some `p'` that agrees with `p` on the
+locations that the heap of the state binds; the same of a run and of
+a behaviour (`FlambdaLocationsMachineSpec.v`). The premise is that the
+heap of the state binds every location of the state, those of an
+entry of the heap that a later write hides among them: a location
+that is in the state and is not bound may be the one that an
+allocation chooses, and `hidden_entry_statement`
+(`FlambdaLocationsPrimitiveSpec.v`) is a heap where a hidden entry
+makes the difference. A step keeps the premise. No step allocates
+yet: a `Let` of a primitive is `eval_prim`, which commutes with the
+action by an equation, as does every primitive of the heap but the
+two that bind a location; so of the machine as it is `p'` is `p`. The
+statements are in the form that stays true when a step runs the
+primitives of the heap.
 
 ## 5. The same up to bound names
 
@@ -320,6 +354,14 @@ all the code of the static environment, and the laws would hold only
 of states whose code is closed, as for expressions. So the
 equivariance of execution stays stated directly, for both sorts at
 once.
+
+Locations. Each thing that holds locations (a value, a cell, a heap,
+an environment, a continuation, the static environment, a state) is
+an instance of the interface for that one sort, with `=` for its
+equality and all its locations for its names
+(`FlambdaLocationsSpec.v`). Nothing binds a location, so the names of
+a thing are its support, and there is no equality up to bound names
+to define.
 
 ## 7. What is owed for each function on terms
 
@@ -697,7 +739,8 @@ Owed:
   it pairs the other occurrences of that sort.
 - **A new function on terms.** Section 7.
 - **A new place for names.** A sort of its own, an action, and an
-  instance of the interface. Tell N1 before putting a variable or a
+  instance of the interface, as the locations of the heap have
+  (`FlambdaLocationsSpec.v`). Tell N1 before putting a variable or a
   continuation into a value.
 - **A statement that renames.** The premise that code is closed, or a
   reason why it is not needed.
@@ -713,6 +756,10 @@ Owed:
   says, statement by statement, what was replaced, what is left and
   why, and how to go back.
 - The functions listed as owed in section 7.
+- A step under a permutation of locations is proved of the machine as
+  it is, in which no step allocates. The statements are in the form
+  that stays true when one does (section 4); the proofs of the case
+  of a `Let` are owed again then.
 
 ## 10. The compiler's side
 

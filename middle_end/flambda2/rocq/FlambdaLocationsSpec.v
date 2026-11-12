@@ -38,7 +38,7 @@
    the heap does not bind, and from a state all of whose locations
    its heap binds another choice should give the same run with other
    names. That is the property this file prepares for; it is not
-   stated or proved here (see "What is not here"). So the locations
+   stated here ("What is not here" says where it is). So the locations
    are treated as a sort of names, the third beside the variables and
    the continuations, and what is said of names in
    FlambdaNameAbstractionSpec.v is said of them here.
@@ -94,21 +94,25 @@
      moved binds a location moved exactly where the heap binds the
      location ([is_bound_permute_heap_statement]).
 
-   What is not here. That the machine goes through the action. A step
-   that allocates chooses a location outside the domain of the heap,
-   computed from the locations that the heap binds
-   (FlambdaHeapSpec.fresh_location), and that choice does not commute
-   with a permutation, as no choice of a name does
-   (NAMES.md, section 7). What is to be stated is about a state all
-   of whose locations its heap binds, those of an entry of the heap
-   that a later write hides among them (a location that is in the
-   state and is not bound may be the one that an allocation chooses,
-   and then the allocation captures it): the step of such a state
-   moved is the step of the state, moved by a permutation that agrees
-   with the first on the locations of the state. That is for the
-   machine that allocates, and is not stated yet. Nor is the link
-   with the relation between outcomes of FlambdaHeapSpec.v, which
-   pairs locations by a correspondence.
+   What is not here. That the machine goes through the action: that
+   is in two other files. A step that allocates chooses a location
+   outside the domain of the heap, computed from the locations that
+   the heap binds (FlambdaHeapSpec.fresh_location), and that choice
+   does not commute with a permutation, as no choice of a name does
+   (NAMES.md, section 7). So the statements there are about a heap
+   that binds every location at hand, those of an entry of the heap
+   that a later write hides among them (a location that is held and
+   is not bound may be the one that an allocation chooses, and then
+   the allocation captures it), and they are up to a second
+   permutation that agrees with the first on the locations that the
+   heap binds: FlambdaLocationsPrimitiveSpec.v for the primitives,
+   the two that allocate among them, and
+   FlambdaLocationsMachineSpec.v for a step, a run and a behaviour
+   of the machine. A step of the machine does not run the primitives
+   of the heap yet, so no step allocates; the statements about a
+   step are in the form that stays true when one does. The link with
+   the relation between outcomes of FlambdaHeapSpec.v, which pairs
+   locations by a correspondence, is not stated.
 
    Nothing is trusted here. The proofs are in
    FlambdaLocationsProofs.v, which needs no review. *)

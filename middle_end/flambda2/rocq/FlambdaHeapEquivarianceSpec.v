@@ -58,9 +58,10 @@
    than the renaming of bound names, on another sort of thing, and the
    two do not meet: the statements here are equations, for one run and
    its renaming, with the same locations on both sides. The action of
-   the permutations of locations, and what a step does with it, are not
-   here: they are owed once the heap is in the state of the machine
-   (the same request, section 5).
+   the permutations of locations is in FlambdaLocationsSpec.v, and what
+   the primitives and a step of FlambdaSemanticsSpec.v do with it is in
+   FlambdaLocationsPrimitiveSpec.v and FlambdaLocationsMachineSpec.v;
+   nothing is said there of a step of the machine of this file.
 
    The statements:
    - the action is that of a group, and it commutes with forgetting the
