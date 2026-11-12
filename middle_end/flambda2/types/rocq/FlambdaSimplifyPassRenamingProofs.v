@@ -435,6 +435,18 @@ Proof.
   - reflexivity.
 Qed.
 
+Theorem declare_variable_equivariant
+    : declare_variable_equivariant_statement.
+Proof.
+  intros r tenv x declared. unfold declare_variable.
+  rewrite typing_env_well_formed_rename, mem_variable_renamed.
+  destruct (typing_env_well_formed tenv
+            && negb (Typing_env.mem None tenv (Name_var x)));
+    [ | reflexivity ].
+  cbn [option_map]. rewrite add_variable_definition_equivariant.
+  reflexivity.
+Qed.
+
 Theorem resolve_value_slot_equivariant
     : resolve_value_slot_equivariant_statement.
 Proof.
@@ -576,7 +588,11 @@ Proof.
       destruct (simplify_let tenv x (resolve_value_slot tenv declared d))
         as [ | d' tenv' | ];
         cbn [rename_let_step rename_expr]; try reflexivity.
-      rewrite (simplify_expr_equivariant_aux r body tenv'). reflexivity.
+      * rewrite (simplify_expr_equivariant_aux r body tenv'). reflexivity.
+      * rewrite declare_variable_equivariant.
+        destruct (declare_variable tenv x declared) as [tenv' | ];
+          cbn [option_map rename_expr]; [ | reflexivity ].
+        rewrite (simplify_expr_equivariant_aux r body tenv'). reflexivity.
     + rewrite add_static_bindings_rename, defined_symbols_renamed.
       rewrite (simplify_expr_equivariant_aux r body). f_equal.
       generalize

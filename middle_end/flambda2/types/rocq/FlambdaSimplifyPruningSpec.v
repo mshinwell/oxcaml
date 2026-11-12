@@ -560,7 +560,13 @@ Fixpoint simplify_expr_pruning (prune : switch_rewrite) (tenv : Typing_env.t)
       Let x declared defining_expr'
         (simplify_expr_pruning prune tenv'
            (fit && let_keeps_fit tenv x resolved) body)
-    | Step_stop => e
+    | Step_stop =>
+      match declare_variable tenv x declared with
+      | Some tenv' =>
+        Let x declared defining_expr
+          (simplify_expr_pruning prune tenv' fit body)
+      | None => e
+      end
     end
   | Let_static bindings body =>
     let tenv' := add_static_bindings tenv bindings in

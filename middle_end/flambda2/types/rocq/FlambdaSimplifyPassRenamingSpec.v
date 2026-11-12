@@ -134,6 +134,13 @@ Definition resolve_value_slot_equivariant_statement : Prop :=
       (rename_named r defining_expr)
     = rename_named r (resolve_value_slot tenv declared defining_expr).
 
+Definition declare_variable_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (x : variable)
+    (declared : flambda_kind),
+    declare_variable (rename_typing_env r tenv) (rename_variable r x)
+      declared
+    = option_map (rename_typing_env r) (declare_variable tenv x declared).
+
 Definition simplify_apply_cont_equivariant_statement : Prop :=
   ∀ (r : renaming) (tenv : Typing_env.t) (ac : apply_cont),
     simplify_apply_cont (rename_typing_env r tenv) (rename_apply_cont r ac)

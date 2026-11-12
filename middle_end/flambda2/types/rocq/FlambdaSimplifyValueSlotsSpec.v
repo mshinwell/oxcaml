@@ -37,7 +37,7 @@
    projection, where it has a value, has one of the kind of the value
    slot. A value slot of the model has no kind, so nothing gives that
    premise, and the function that puts the rewrites together
-   (FlambdaSimplifyPassSpec.v) stops at such a [Let].
+   (FlambdaSimplifyPassSpec.v) does not use that statement.
 
    The premise is needed for the answer [Invalid] alone
    (FlambdaProversSpec.v, [meet_project_value_slot_simple_known_statement];

@@ -1053,7 +1053,16 @@ Proof.
     + eapply expr_refines_under_trans; [ exact Hresolve | ].
       exact (Hlet declared body (simplify_expr tenv' body)
                (simplify_expr_sound body tenv')).
-    + apply expr_refines_under_refl.
+    + destruct (declare_variable tenv x declared) as [tenv' | ] eqn:Hdeclare;
+        [ | apply expr_refines_under_refl ].
+      revert Hdeclare. unfold declare_variable.
+      destruct (typing_env_well_formed tenv
+                && negb (Typing_env.mem None tenv (Name_var x))) eqn:Htests;
+        [ | discriminate ].
+      intros [= <-]. apply andb_true_iff in Htests.
+      destruct Htests as [Hwf Hfresh]. apply negb_true_iff in Hfresh.
+      apply (let_declared_refines_under tenv x declared d body _ Hwf Hfresh).
+      apply simplify_expr_sound.
   - generalize
       (Typing_env.defined_symbols (add_static_bindings tenv bindings)).
     intros syms.
@@ -1162,4 +1171,7 @@ Theorem example_pass_value_slot : example_pass_value_slot_statement.
 Proof. intros k. vm_compute. reflexivity. Qed.
 
 Theorem example_pass_static_block : example_pass_static_block_statement.
+Proof. intros k. vm_compute. reflexivity. Qed.
+
+Theorem example_pass_unknown_let : example_pass_unknown_let_statement.
 Proof. intros k. vm_compute. reflexivity. Qed.

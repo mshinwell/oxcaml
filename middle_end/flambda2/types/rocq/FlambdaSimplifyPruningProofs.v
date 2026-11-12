@@ -694,6 +694,31 @@ Proof.
   - rewrite step_let, Hv, (proj2 (kind_eqb_eq _ _) Hkind). reflexivity.
 Qed.
 
+(* The same at the kind that the [Let] declares, which the test of
+   the machine gives. *)
+Lemma let_declared_refines_valid (tenv : Typing_env.t) (x : variable)
+    (declared : flambda_kind) (d : named) (body body' : expr) :
+  typing_env_well_formed tenv = true ->
+  Typing_env.mem None tenv (Name_var x) = false ->
+  named_sets_well_formed d = true ->
+  sets_well_formed body = true ->
+  refines_valid
+    (Typing_env.add_variable_definition tenv x declared Name_mode.normal)
+    body body' ->
+  refines_valid tenv (Let x declared d body) (Let x declared d body').
+Proof.
+  intros Hwf Hfresh Hd Hbody Hrefines vars conts statics Hvalid Hsat.
+  apply let_refines_step; [ reflexivity | intros v Hv Hkind ].
+  apply Hrefines.
+  - apply (rest_valid_step (Let x declared d body) body vars _ conts _
+             statics _);
+      [ | exact Hvalid | ].
+    + cbn [sets_well_formed]. rewrite Hd, Hbody. reflexivity.
+    + rewrite step_let, Hv, (proj2 (kind_eqb_eq _ _) Hkind). reflexivity.
+  - apply add_variable_definition_env_satisfies_strictly;
+      [ exact Hwf | exact Hfresh | exact Hkind | exact Hsat ].
+Qed.
+
 Lemma canonical_named_sets (tenv : Typing_env.t) (d : named) :
   named_sets_well_formed d = true ->
   named_sets_well_formed (canonical_named tenv d) = true.
@@ -996,8 +1021,25 @@ Proof.
       * eapply refines_valid_trans;
           [ apply refines_under_valid; exact Hresolve | ].
         exact (Hstep declared body _ Hbody Hrefines).
-    + split; [ exact Hsets | ].
-      apply refines_under_valid, expr_refines_under_refl.
+    + destruct (declare_variable tenv x declared) as [tenv' | ] eqn:Hdeclare.
+      * revert Hdeclare. unfold declare_variable.
+        destruct (typing_env_well_formed tenv
+                  && negb (Typing_env.mem None tenv (Name_var x)))
+          eqn:Htests; [ | discriminate ].
+        intros [= <-]. apply andb_true_iff in Htests.
+        destruct Htests as [Hwf Hfresh]. apply negb_true_iff in Hfresh.
+        destruct (simplify_expr_pruning_sound prune Hprune body _ fit
+                    (fun Hfit =>
+                       add_variable_definition_carried tenv x declared
+                         (Hknown Hfit) Hfresh)
+                    Hbody)
+          as [Hbody' Hrefines].
+        split.
+        -- cbn [sets_well_formed]. rewrite Hd, Hbody'. reflexivity.
+        -- exact (let_declared_refines_valid tenv x declared d body _ Hwf
+                    Hfresh Hd Hbody Hrefines).
+      * split; [ exact Hsets | ].
+        apply refines_under_valid, expr_refines_under_refl.
   - assert (Hbody : sets_well_formed body = true).
     { pose proof Hsets as H. cbn [sets_well_formed] in H.
       apply andb_true_iff in H. exact (proj2 H). }
@@ -1205,7 +1247,10 @@ Proof.
   - cbv zeta.
     destruct (simplify_let tenv x (resolve_value_slot tenv declared d))
       as [ | d' tenv' | ]; try reflexivity.
-    f_equal. apply simplify_expr_no_pruning_eq.
+    + f_equal. apply simplify_expr_no_pruning_eq.
+    + destruct (declare_variable tenv x declared) as [tenv' | ];
+        [ | reflexivity ].
+      f_equal. apply simplify_expr_no_pruning_eq.
   - f_equal; [ | apply simplify_expr_no_pruning_eq ].
     generalize
       (Typing_env.defined_symbols (add_static_bindings tenv bindings)).

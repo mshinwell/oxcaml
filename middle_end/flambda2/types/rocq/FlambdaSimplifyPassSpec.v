@@ -79,9 +79,10 @@
      the closure at the kind that the [Let] declares
      ([resolve_value_slot], on [simplify_project_value_slot] of
      FlambdaSimplifyValueSlotsSpec.v), the projection becomes that
-     [Simple], which is then treated as above; otherwise it stops
-     there. (The model's value slots have no kind; Simplify asks at
-     the kind of the slot.)
+     [Simple], which is then treated as above; otherwise the
+     projection stays, and nothing is known of its variable but the
+     kind that the [Let] declares (below). (The model's value slots
+     have no kind; Simplify asks at the kind of the slot.)
    - A call is given to [simplify_apply] (FlambdaSimplifyApplySpec.v):
      an indirect call whose callee is proved, from its type, to be a
      closure of one piece of code becomes a direct call of that code,
@@ -103,10 +104,15 @@
    - The arguments of an [Apply_cont] are replaced by their canonical
      elements. A [Switch] whose scrutinee has a constant for
      canonical element becomes the [Apply_cont] of its arm.
-   - Where it knows nothing (a [Simple] that the environment does not
-     know, a variable that the environment has already, an environment
-     that fails its test of well-formedness) it leaves the term from
-     there down as it is ([Step_stop]).
+   - Where it knows nothing of the defining expression of a [Let] (a
+     [Simple] that the environment does not know, the projection of a
+     value slot that no prover answers, a test that fails on the way)
+     it defines the variable at the kind that the [Let] declares and
+     goes on into the body ([declare_variable]): the machine has no
+     step at a [Let] unless the value is of that kind. Where the
+     variable is one that the environment has already, or the
+     environment fails its test of well-formedness, it leaves the term
+     from there down as it is.
 
    What Simplify does and this does not:
    - Nothing is done in the handler of a continuation. (The
@@ -160,7 +166,7 @@
      on the environments that the function builds, for a term whose
      binders are all different, is not stated here.
 
-   Fourteen terms on which the function is computed are at the end:
+   Fifteen terms on which the function is computed are at the end:
    what it answers is stated as an equation, with no premise.
 
    That the function commutes with renaming ([simplify_expr] of the
@@ -714,6 +720,18 @@ Definition resolve_value_slot (tenv : Typing_env.t) (declared : flambda_kind)
     defining_expr
   end.
 
+(* A [Let] of which nothing is known: its variable is defined at the
+   kind that the [Let] declares, where the environment passes its test
+   of well-formedness and does not have the variable. *)
+Definition declare_variable (tenv : Typing_env.t) (x : variable)
+    (declared : flambda_kind) : option Typing_env.t :=
+  if typing_env_well_formed tenv
+     && negb (Typing_env.mem None tenv (Name_var x))
+  then
+    Some
+      (Typing_env.add_variable_definition tenv x declared Name_mode.normal)
+  else None.
+
 (* ======================================================================== *)
 (* The other expressions                                                    *)
 (* ======================================================================== *)
@@ -792,7 +810,11 @@ Fixpoint simplify_expr (tenv : Typing_env.t) (e : expr) : expr :=
     | Step_invalid => Invalid
     | Step_let defining_expr' tenv' =>
       Let x declared defining_expr' (simplify_expr tenv' body)
-    | Step_stop => e
+    | Step_stop =>
+      match declare_variable tenv x declared with
+      | Some tenv' => Let x declared defining_expr (simplify_expr tenv' body)
+      | None => e
+      end
     end
   | Let_static bindings body =>
     let tenv' := add_static_bindings tenv bindings in
@@ -1184,3 +1206,37 @@ Definition example_pass_static_block_statement : Prop :=
         (Let_static bindings
            (Let example_q Value (Simple (Var example_x))
               (Apply_cont (Apply_cont_expr k [Var example_x] None)))).
+
+(* A [Let] of which nothing is known. [let c = opaque in let y = the
+   value slot of [c] in let p = Make_block 0 [y; y] in let q =
+   Block_load p 0 in apply_cont k q]: no prover answers for the value
+   slot of [c]; [y] is defined at the kind that its [Let] declares, and
+   the load is [y]. *)
+Definition example_pass_unknown_let_statement : Prop :=
+  ∀ k : continuation,
+    let unknown (body : expr) : expr :=
+      Let example_c Value (example_opaque Value (Tagged_immediate 5)) body
+    in
+    let project := Project_value_slot example_w (Var example_c) in
+    let pair :=
+      Prim (Variadic (Make_block (Block_kind_values 0)))
+        [Var example_y; Var example_y]
+    in
+    let load :=
+      Prim
+        (Unary
+           (Block_load (Block_access_values (Some 0) (Some 2) Any_value)
+              Immutable 0))
+        [Var example_p]
+    in
+    simplify_by_types
+      (unknown
+         (Let example_y Value project
+            (Let example_p Value pair
+               (Let example_q Value load
+                  (Apply_cont (Apply_cont_expr k [Var example_q] None))))))
+    = unknown
+        (Let example_y Value project
+           (Let example_p Value pair
+              (Let example_q Value (Simple (Var example_y))
+                 (Apply_cont (Apply_cont_expr k [Var example_y] None))))).
