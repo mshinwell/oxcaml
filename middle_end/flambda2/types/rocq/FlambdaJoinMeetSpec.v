@@ -53,6 +53,28 @@
      fuel, and for the functions of [Meet_env]; as there, nothing is
      said of what those functions answer.
 
+   - The variables that the join defines, in the environment of the
+     meet ([variables_defined_kept_statement],
+     [target_variables_defined_statement]): defining variables that
+     the environment does not know, each once, keeps it
+     ([meet_env_kept], FlambdaMeetEnvSpec.v), and the environment
+     answered knows them, at their kinds, and nothing else that it
+     did not know. So, for a valid state of the join whose source is
+     the typing environment of the environment given: the environment
+     in which the variables brought in and some of the variables made
+     are defined knows exactly the variables that the target is to
+     have ([in_final_target], FlambdaJoinFitsSpec.v), each at the
+     kind that the state has for it.
+   - So the names of the equations that the last phase adds, and the
+     variables of their types, are known to the environment that the
+     first extension is added to
+     ([last_phase_names_known_statement]): by
+     [last_phase_adds_in_scope_statement] of FlambdaJoinAddsSpec.v.
+     This is about that environment, before the first extension is
+     added: that the second extension is added to an environment
+     that still knows them needs the first to fit entirely (kinds
+     and well-formedness too), which is not shown yet.
+
    Examples of what [model_join] computes are in
    FlambdaJoinMeetExamplesSpec.v. *)
 
@@ -64,9 +86,10 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaTypingEnv FlambdaTypingEnvSpec
   FlambdaTypingEnvInvariantSpec FlambdaTypingEnvKindedSpec FlambdaJoinEnv
   FlambdaJoinSpec FlambdaJoinEnvSpec FlambdaJoinStateSpec
-  FlambdaJoinDefineSpec FlambdaJoinTypes FlambdaJoinTypesSpec
-  FlambdaMeetGrammar FlambdaExpandHead FlambdaMeetEnv FlambdaMeet
-  FlambdaMeetSpec FlambdaJoinMeet.
+  FlambdaJoinDefineSpec FlambdaJoinFitsSpec FlambdaJoinAddsSpec
+  FlambdaJoinTypes FlambdaJoinTypesSpec FlambdaMeetGrammar FlambdaExpandHead
+  FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec FlambdaMeetStepsSpec
+  FlambdaMeetEnvSpec FlambdaJoinMeet.
 Import ListNotations.
 
 (* An expanded type and its conversion are the same type, of the same
@@ -108,3 +131,104 @@ Definition model_join_true_statement : Prop :=
     join_adds_true meet_env_functions
       (model_meet_expanded_head join_choices meet_choices join_depth fuel)
       inputs target analysis.
+
+(* ======================================================================== *)
+(* The variables that the join defines, in the environment of the meet      *)
+(* ======================================================================== *)
+
+(* Variables that the environment does not know, each once, are
+   defined: the environment is kept; the one answered knows each at
+   its kind, and knows a variable only if the first knew it or it is
+   one of them; and the names to avoid are the same. *)
+Definition variables_defined_kept_statement : Prop :=
+  ∀ (vars : list (variable * flambda_kind)) (menv : Meet_env.t),
+    typing_env_fits (Meet_env.typing_env menv) ->
+    NoDup (map fst vars) ->
+    (∀ x : variable,
+       x ∈ map fst vars ->
+       Typing_env.mem None (Meet_env.typing_env menv) (Name_var x) = false) ->
+    meet_env_kept menv (variables_defined meet_env_functions menv vars)
+    ∧ (∀ (x : variable) (kind : flambda_kind),
+         (x, kind) ∈ vars ->
+         simple_of_kind
+           (Meet_env.typing_env
+              (variables_defined meet_env_functions menv vars))
+           (Var x) kind)
+    ∧ (∀ x : variable,
+         Typing_env.mem None
+           (Meet_env.typing_env
+              (variables_defined meet_env_functions menv vars))
+           (Name_var x)
+         = true
+         <-> Typing_env.mem None (Meet_env.typing_env menv) (Name_var x) = true
+             ∨ x ∈ map fst vars)
+    ∧ Meet_env.names_to_avoid (variables_defined meet_env_functions menv vars)
+      = Meet_env.names_to_avoid menv.
+
+(* For a valid state of the join whose source is the typing
+   environment of the environment given, and variables that the join
+   has made, each once: the environment in which the variables
+   brought in and those are defined is kept, knows exactly the
+   variables that the target is to have, and has each at the kind
+   that the state has for it. *)
+Definition target_variables_defined_statement : Prop :=
+  ∀ (s : Join_env.t) (menv : Meet_env.t)
+    (kept : list (variable * flambda_kind)),
+    state_valid s ->
+    Meet_env.typing_env menv = Join_env.source_env s ->
+    typing_env_fits (Meet_env.typing_env menv) ->
+    (∀ binding : variable * flambda_kind,
+       binding ∈ kept ->
+       binding
+       ∈ Bindings_in_target_env.existential_variables_in_order
+           (Join_env.bindings s)) ->
+    NoDup (map fst kept) ->
+    let menv' :=
+      variables_defined meet_env_functions menv
+        (Bindings_in_target_env.imported_variables_in_order
+           (Join_env.bindings s)
+         ++ kept)
+    in
+    meet_env_kept menv menv'
+    ∧ (∀ x : variable,
+         in_final_target s kept x
+         <-> Typing_env.mem None (Meet_env.typing_env menv') (Name_var x)
+             = true)
+    ∧ (∀ (x : variable) (kind : flambda_kind),
+         in_final_target s kept x ->
+         kind_in_target_env s x = Some kind ->
+         simple_of_kind (Meet_env.typing_env menv') (Var x) kind)
+    ∧ Meet_env.names_to_avoid menv' = Meet_env.names_to_avoid menv.
+
+(* The names of the equations that the last phase adds, and the
+   variables of their types, are known to the environment in which
+   the variables are defined: the one that the first extension is
+   added to. *)
+Definition last_phase_names_known_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (fuel : nat) (source : Typing_env.t)
+    (s : Join_env.t) (relations : Join_env.inverse_relations)
+    (menv : Meet_env.t) (kept : list (variable * flambda_kind))
+    (equations relation_equations : list (name * flambda_type))
+    (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind)),
+    state_true source s ->
+    relations_hold s relations ->
+    relations_nonempty relations ->
+    state_scoped s ->
+    Meet_env.typing_env menv = source ->
+    typing_env_fits (Meet_env.typing_env menv) ->
+    last_phase_adds tenv fuel s relations kept equations relation_equations
+      definitions ->
+    let menv' :=
+      variables_defined meet_env_functions menv
+        (Bindings_in_target_env.imported_variables_in_order
+           (Join_env.bindings s)
+         ++ kept)
+    in
+    meet_env_kept menv menv'
+    ∧ ∀ (n : name) (ty : flambda_type),
+        (n, ty) ∈ equations ++ relation_equations ->
+        Typing_env.mem None (Meet_env.typing_env menv') n = true
+        ∧ ∀ x : variable,
+            x ∈ free_variables ty ->
+            Typing_env.mem None (Meet_env.typing_env menv') (Name_var x)
+            = true.
