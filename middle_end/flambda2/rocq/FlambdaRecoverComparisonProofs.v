@@ -1,0 +1,566 @@
+(******************************************************************************
+ *                                  OxCaml                                    *
+ * -------------------------------------------------------------------------- *
+ *                               MIT License                                  *
+ *                                                                            *
+ * Copyright (c) 2026 Jane Street Group LLC                                   *
+ * opensource-contacts@janestreet.com                                         *
+ *                                                                            *
+ * Permission is hereby granted, free of charge, to any person obtaining a    *
+ * copy of this software and associated documentation files (the "Software"), *
+ * to deal in the Software without restriction, including without limitation  *
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,   *
+ * and/or sell copies of the Software, and to permit persons to whom the      *
+ * Software is furnished to do so, subject to the following conditions:       *
+ *                                                                            *
+ * The above copyright notice and this permission notice shall be included    *
+ * in all copies or substantial portions of the Software.                     *
+ *                                                                            *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR *
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   *
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL    *
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER *
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING    *
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER        *
+ * DEALINGS IN THE SOFTWARE.                                                  *
+ ******************************************************************************)
+
+(* Proofs of the statements of FlambdaRecoverComparisonSpec.v. Nothing
+   here needs review. The proof of the refinement and that of the
+   equivariance follow those of FlambdaCseProofs.v, whose lemmas on what
+   is known they use. *)
+
+From Stdlib Require Import ZArith List Bool Lia.
+From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
+  FlambdaMapProofs FlambdaKindModel FlambdaValueSpec FlambdaPrimitiveModel
+  FlambdaPrimitiveSpec FlambdaPrimitiveProofs FlambdaSemanticsSpec
+  FlambdaSemanticsProofs FlambdaContextProofs FlambdaNominalSpec
+  FlambdaNominalProofs
+  FlambdaApplyProofs FlambdaWellFormedSpec FlambdaWellFormedProofs
+  FlambdaNormaliseSpec FlambdaNormaliseProofs FlambdaCseSpec
+  FlambdaCseProofs FlambdaRecoverComparisonSpec.
+Import ListNotations.
+
+(* ======================================================================== *)
+(* The table                                                                *)
+(* ======================================================================== *)
+
+(* Two integers in the range of a width that have the same reading are
+   the same. *)
+Lemma reading_injective (width : Z) (s : signedness) (a b : Z) :
+  in_range width a = true ->
+  in_range width b = true ->
+  reading width s a = reading width s b ->
+  a = b.
+Proof.
+  unfold in_range. intros Ha Hb.
+  apply andb_true_iff in Ha as [Ha_low Ha_high].
+  apply andb_true_iff in Hb as [Hb_low Hb_high].
+  apply Z.leb_le in Ha_low, Hb_low. apply Z.ltb_lt in Ha_high, Hb_high.
+  destruct s; cbn [reading]; [ intros Hsame; exact Hsame | ].
+  unfold unsigned.
+  assert (Hpow : (2 ^ width = 2 * 2 ^ (width - 1))%Z).
+  { destruct (Z.le_gt_cases width 0) as [Hle | Hgt].
+    - assert (Hzero : (2 ^ (width - 1) = 0)%Z)
+        by (apply Z.pow_neg_r; lia).
+      rewrite Hzero in Ha_low, Ha_high. lia.
+    - replace width with (Z.succ (width - 1)) at 1 by lia.
+      apply Z.pow_succ_r. lia. }
+  remember (2 ^ (width - 1))%Z as half.
+  rewrite Hpow.
+  destruct (Z.ltb_spec a 0), (Z.ltb_spec b 0); lia.
+Qed.
+
+(* The comparison the other way round. *)
+Lemma eval_int_comparison_swap (width : Z) (c : int_comparison) (x y : Z) :
+  eval_int_comparison width (swap_comparison c) x y
+  = eval_int_comparison width c y x.
+Proof.
+  destruct c; cbn [swap_comparison eval_int_comparison]; try reflexivity;
+    rewrite Z.eqb_sym; reflexivity.
+Qed.
+
+(* The table is right: the test against 0 of the result of comparing
+   two integers three ways is the comparison that the table gives of
+   the two integers. *)
+Lemma against_zero_sound (width : Z) (s : signedness)
+    (c c' : int_comparison) (a b : Z) :
+  in_range width a = true ->
+  in_range width b = true ->
+  against_zero s c = Some c' ->
+  eval_int_comparison 63 c
+    (eval_int_comp width (Yielding_int_like_compare_functions s) a b) 0
+  = eval_int_comparison width c' a b.
+Proof.
+  intros Ha Hb Hc. cbn [eval_int_comp].
+  pose proof (reading_injective width s a b Ha Hb) as Hinjective.
+  destruct (Z.compare_spec (reading width s a) (reading width s b))
+    as [Hsame | Hless | Hgreater].
+  - specialize (Hinjective Hsame). subst b.
+    destruct c as [ | | [ | ] | [ | ] | [ | ] | [ | ]]; cbn in Hc;
+      inversion Hc; subst c'; cbn [eval_int_comparison];
+      rewrite ?Z.eqb_refl, ?Z.ltb_irrefl, ?Z.leb_refl; reflexivity.
+  - assert (Hdiffer : (a =? b)%Z = false)
+      by (apply Z.eqb_neq; intros ->; lia).
+    assert (H1 : (reading width s a <? reading width s b)%Z = true)
+      by (apply Z.ltb_lt; lia).
+    assert (H2 : (reading width s b <? reading width s a)%Z = false)
+      by (apply Z.ltb_ge; lia).
+    assert (H3 : (reading width s a <=? reading width s b)%Z = true)
+      by (apply Z.leb_le; lia).
+    assert (H4 : (reading width s b <=? reading width s a)%Z = false)
+      by (apply Z.leb_gt; lia).
+    destruct c as [ | | [ | ] | [ | ] | [ | ] | [ | ]]; cbn in Hc;
+      inversion Hc; subst c'; cbn [eval_int_comparison];
+      rewrite ?Hdiffer, ?H1, ?H2, ?H3, ?H4; reflexivity.
+  - assert (Hdiffer : (a =? b)%Z = false)
+      by (apply Z.eqb_neq; intros ->; lia).
+    assert (H1 : (reading width s a <? reading width s b)%Z = false)
+      by (apply Z.ltb_ge; lia).
+    assert (H2 : (reading width s b <? reading width s a)%Z = true)
+      by (apply Z.ltb_lt; lia).
+    assert (H3 : (reading width s a <=? reading width s b)%Z = false)
+      by (apply Z.leb_gt; lia).
+    assert (H4 : (reading width s b <=? reading width s a)%Z = true)
+      by (apply Z.leb_le; lia).
+    destruct c as [ | | [ | ] | [ | ] | [ | ] | [ | ]]; cbn in Hc;
+      inversion Hc; subst c'; cbn [eval_int_comparison];
+      rewrite ?Hdiffer, ?H1, ?H2, ?H3, ?H4; reflexivity.
+Qed.
+
+(* ======================================================================== *)
+(* What is known of a variable                                              *)
+(* ======================================================================== *)
+
+Lemma first_known_sound {A : Type}
+    (f : variable * (prim * list simple) -> option A) (known : computed)
+    (a : A) :
+  first_known f known = Some a ->
+  ∃ entry : variable * (prim * list simple),
+    entry ∈ known ∧ f entry = Some a.
+Proof.
+  induction known as [ | entry known IH]; cbn [first_known];
+    [ discriminate | ].
+  destruct (f entry) as [a' | ] eqn:Hentry.
+  - intros [= <-]. exists entry. split; [ left; reflexivity | exact Hentry ].
+  - intros Hfound. destruct (IH Hfound) as (entry' & Hin & Hf).
+    exists entry'. split; [ right; exact Hin | exact Hf ].
+Qed.
+
+Lemma comparison_held_sound (u : variable)
+    (entry : variable * (prim * list simple)) (kind : standard_int)
+    (s : signedness) (operands : list simple) :
+  comparison_held u entry = Some (kind, s, operands) ->
+  entry
+  = (u,
+     (Binary (Int_comp kind (Yielding_int_like_compare_functions s)),
+      operands)).
+Proof.
+  destruct entry as [y [p args]].
+  destruct p as [ p | [ | | | | | kind' [c | s']] | p | p ];
+    cbn [comparison_held]; try discriminate.
+  destruct (Pos.eqb_spec u y) as [<- | _]; [ | discriminate ].
+  intros [= <- <- <-]. reflexivity.
+Qed.
+
+Lemma tagged_comparison_held_sound (known : computed) (t : variable)
+    (entry : variable * (prim * list simple)) (held : comparison) :
+  tagged_comparison_held known t entry = Some held ->
+  ∃ u : variable,
+    entry = (t, (Unary Tag_immediate, [Var u]))
+    ∧ first_known (comparison_held u) known = Some held.
+Proof.
+  destruct entry as [y [p args]].
+  destruct p as [ [ ] | p | p | p ]; cbn [tagged_comparison_held];
+    try discriminate.
+  destruct args as [ | [u | sym | c] [ | arg args]]; try discriminate.
+  destruct (Pos.eqb_spec t y) as [<- | _]; [ | discriminate ].
+  intros Hheld. exists u. split; [ reflexivity | exact Hheld ].
+Qed.
+
+(* A simple known to hold the tagged result of a three-way comparison
+   has that value, and the arguments of the comparison are two integers
+   of its kind. *)
+Lemma compared_holds (known : computed) (vars : env) (statics : static_env)
+    (tagged : simple) (kind : standard_int) (s : signedness)
+    (operands : list simple) :
+  all_computed known vars statics ->
+  compared known tagged = Some (kind, s, operands) ->
+  ∃ (v1 v2 : value) (a b : Z),
+    eval_simples vars operands = Some [v1; v2]
+    ∧ int_of_value kind v1 = Some a
+    ∧ int_of_value kind v2 = Some b
+    ∧ eval_simple vars tagged
+      = Some
+          (Value_const
+             (Tagged_immediate
+                (eval_int_comp (int_width kind)
+                   (Yielding_int_like_compare_functions s) a b)))
+    ∧ in_range 63
+        (eval_int_comp (int_width kind)
+           (Yielding_int_like_compare_functions s) a b)
+      = true.
+Proof.
+  intros Hhold Hcompared.
+  destruct tagged as [t | sym | c]; cbn [compared] in Hcompared;
+    try discriminate.
+  apply first_known_sound in Hcompared as (entry & Hentry & Hheld).
+  apply tagged_comparison_held_sound in Hheld as (u & -> & Hcomparison).
+  apply first_known_sound in Hcomparison as (entry' & Hentry' & Hheld').
+  apply comparison_held_sound in Hheld' as ->.
+  destruct (Hhold _ Hentry) as (vs & v & Hvs & Htag & Hlookup).
+  destruct (Hhold _ Hentry') as (vs' & v' & Hvs' & Hcomp & Hlookup').
+  cbn [fst snd] in Hvs, Htag, Hlookup, Hvs', Hcomp, Hlookup'.
+  (* The three-way comparison. *)
+  destruct vs' as [ | v1 [ | v2 [ | v3 vs']]]; try discriminate Hcomp.
+  rewrite eval_prim_binary in Hcomp. cbn [eval_binary_primitive] in Hcomp.
+  destruct (int_of_value kind v1) as [a | ] eqn:Ha; [ | discriminate ].
+  destruct (int_of_value kind v2) as [b | ] eqn:Hb; [ | discriminate ].
+  remember
+    (eval_int_comp (int_width kind) (Yielding_int_like_compare_functions s)
+       a b)
+    as r eqn:Hr.
+  cbv beta iota in Hcomp. injection Hcomp as <-.
+  (* Its tagging. *)
+  cbn [eval_simples eval_simple] in Hvs. rewrite Hlookup' in Hvs.
+  cbv beta iota in Hvs. injection Hvs as <-.
+  rewrite eval_prim_unary in Htag. cbn [eval_unary_primitive] in Htag.
+  cbn [int_of_value int_width] in Htag.
+  destruct (in_range 63 r) eqn:Hrange; [ | discriminate ].
+  cbv beta iota in Htag. injection Htag as <-.
+  exists v1, v2, a, b. subst r.
+  split; [ exact Hvs' | ]. split; [ exact Ha | ].
+  split; [ exact Hb | ]. split; [ exact Hlookup | exact Hrange ].
+Qed.
+
+(* ======================================================================== *)
+(* The test, and the comparison it becomes                                  *)
+(* ======================================================================== *)
+
+Lemma is_tagged_zero_sound (s : simple) :
+  is_tagged_zero s = true -> s = Const (Tagged_immediate 0).
+Proof.
+  destruct s as [x | sym | [ ]]; cbn [is_tagged_zero]; try discriminate.
+  intros Hzero. apply Z.eqb_eq in Hzero. subst. reflexivity.
+Qed.
+
+(* What a test gives of two tagged immediates. *)
+Lemma tested_eval (statics : static_env) (p : prim) (c : int_comparison)
+    (x y : Z) :
+  tested p = Some c ->
+  in_range 63 x = true ->
+  in_range 63 y = true ->
+  eval_prim statics p
+    [Value_const (Tagged_immediate x); Value_const (Tagged_immediate y)]
+  = Some (naked_bool (eval_int_comparison 63 c x y)).
+Proof.
+  intros Htested Hx Hy.
+  destruct p as [ p | [ | | [ | ] | | | [ ] [c' | s]] | p | p ];
+    cbn [tested] in Htested; try discriminate; injection Htested as <-;
+    rewrite eval_prim_binary; cbn [eval_binary_primitive];
+    try unfold eval_phys_equal; cbn [int_of_value int_width];
+    rewrite Hx, Hy; reflexivity.
+Qed.
+
+(* The comparison that takes the place of a test has the value of the
+   test. *)
+Lemma recover_one_way_holds (known : computed) (vars : env)
+    (statics : static_env) (tagged zero : simple) (c : int_comparison)
+    (d' : named) :
+  all_computed known vars statics ->
+  recover_one_way known tagged zero c = Some d' ->
+  ∃ r : Z,
+    eval_simple vars tagged = Some (Value_const (Tagged_immediate r))
+    ∧ in_range 63 r = true
+    ∧ zero = Const (Tagged_immediate 0)
+    ∧ eval_named statics vars d'
+      = Some (naked_bool (eval_int_comparison 63 c r 0)).
+Proof.
+  intros Hhold. unfold recover_one_way.
+  destruct (is_tagged_zero zero) eqn:Hzero; [ | discriminate ].
+  apply is_tagged_zero_sound in Hzero.
+  destruct (compared known tagged) as [[[kind s] operands] | ] eqn:Hcompared;
+    [ | discriminate ].
+  destruct (against_zero s c) as [c' | ] eqn:Hagainst; [ | discriminate ].
+  intros [= <-].
+  destruct (compared_holds known vars statics tagged kind s operands Hhold
+    Hcompared)
+    as (v1 & v2 & a & b & Hoperands & Ha & Hb & Htagged & Hrange).
+  exists
+    (eval_int_comp (int_width kind) (Yielding_int_like_compare_functions s)
+       a b).
+  split; [ exact Htagged | ]. split; [ exact Hrange | ].
+  split; [ exact Hzero | ].
+  cbn [eval_named]. rewrite Hoperands. cbv beta iota.
+  rewrite eval_prim_binary. cbn [eval_binary_primitive].
+  rewrite Ha, Hb. cbv beta iota.
+  destruct (int_of_value_const kind v1 a Ha) as [_ Ha_range].
+  destruct (int_of_value_const kind v2 b Hb) as [_ Hb_range].
+  rewrite (against_zero_sound (int_width kind) s c c' a b Ha_range Hb_range
+    Hagainst).
+  reflexivity.
+Qed.
+
+Lemma recover_comparison_sound (known : computed) (vars : env)
+    (statics : static_env) (d : named) (v : value) :
+  all_computed known vars statics ->
+  eval_named statics vars d = Some v ->
+  eval_named statics vars (recover_comparison known d) = Some v.
+Proof.
+  intros Hhold Hd. unfold recover_comparison.
+  destruct d as [s | p args | code slots | fslot decls slots | slot closure
+    | pfrom slot closure | move_from move_to closure];
+    try exact Hd.
+  destruct args as [ | arg1 [ | arg2 [ | arg3 args]]]; try exact Hd.
+  destruct (tested p) as [c | ] eqn:Htested; [ | exact Hd ].
+  destruct (recover_one_way known arg1 arg2 c) as [d' | ] eqn:Hone.
+  - destruct (recover_one_way_holds known vars statics arg1 arg2 c d' Hhold
+      Hone)
+      as (r & Htagged & Hrange & -> & Hd').
+    rewrite Hd'. rewrite <- Hd.
+    cbn [eval_named eval_simples eval_simple]. rewrite Htagged.
+    cbv beta iota.
+    symmetry. apply tested_eval; [ exact Htested | exact Hrange | ].
+    reflexivity.
+  - destruct (recover_one_way known arg2 arg1 (swap_comparison c))
+      as [d' | ] eqn:Hother; [ | exact Hd ].
+    destruct (recover_one_way_holds known vars statics arg2 arg1
+      (swap_comparison c) d' Hhold Hother)
+      as (r & Htagged & Hrange & -> & Hd').
+    rewrite Hd'. rewrite <- Hd. rewrite eval_int_comparison_swap.
+    cbn [eval_named eval_simples eval_simple]. rewrite Htagged.
+    cbv beta iota.
+    symmetry. apply tested_eval; [ exact Htested | | exact Hrange ].
+    reflexivity.
+Qed.
+
+(* ======================================================================== *)
+(* The pass                                                                 *)
+(* ======================================================================== *)
+
+(* As in FlambdaCseProofs.v: at a [Let], the variable has the value of
+   the primitive or the primitive has none; then the parts under
+   binders, by the induction, with what is known there. *)
+Fixpoint recover_comparisons_knowing_refines (e : expr) :
+  ∀ (known : computed) (vars : env) (conts : cont_env)
+    (statics : static_env) (hp : heap),
+    all_computed known vars statics ->
+    refines (State e vars conts statics hp)
+      (State (recover_comparisons_knowing known e) vars conts statics hp)
+with recover_comparisons_in_handler_refines (h : continuation_handler) :
+  ∀ (known : computed) (k : continuation) (body : expr) (vars : env)
+    (conts : cont_env) (statics : static_env) (hp : heap),
+    all_computed known vars statics ->
+    refines (State (Let_cont_non_recursive k h body) vars conts statics hp)
+      (State
+         (Let_cont_non_recursive k (recover_comparisons_in_handler known h)
+            body)
+         vars conts statics hp).
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap
+         | ac | scrutinee arms | ];
+      intros known vars conts statics hp Hhold; simpl.
+    + (* Let *)
+      destruct (eval_named statics vars d) as [v | ] eqn:Hd;
+        [ destruct (kind_eqb (kind_of_value v) kind) eqn:Hkind | ].
+      * eapply refines_step;
+          [ rewrite step_let, Hd, Hkind; reflexivity
+          | rewrite step_let,
+              (recover_comparison_sound known vars statics d v Hhold Hd),
+              Hkind;
+            reflexivity
+          | ].
+        apply recover_comparisons_knowing_refines.
+        exact (all_computed_under_let known x d vars statics v Hhold Hd).
+      * apply step_undefined_refines. rewrite step_let, Hd, Hkind.
+        reflexivity.
+      * apply step_undefined_refines. rewrite step_let, Hd. reflexivity.
+    + (* Let_static *)
+      apply let_static_refines_step.
+      destruct (eval_static_bindings vars bindings statics)
+        as [extended | ] eqn:Hbindings; [ | exact I ].
+      apply recover_comparisons_knowing_refines.
+      exact (all_computed_extend known vars statics extended Hhold
+        (eval_static_bindings_extend vars bindings _ _ Hbindings)).
+    + (* Let_cont_non_recursive *)
+      apply (refines_trans _
+        (State
+           (Let_cont_non_recursive k
+              (recover_comparisons_in_handler known h) body)
+           vars conts statics hp)).
+      * apply recover_comparisons_in_handler_refines, Hhold.
+      * apply let_cont_non_recursive_refines_step,
+          recover_comparisons_knowing_refines, Hhold.
+    + (* Let_cont_recursive *)
+      apply let_cont_recursive_refines_step; [ reflexivity | intros _ ].
+      apply recover_comparisons_knowing_refines, Hhold.
+    + apply refines_refl.
+    + apply refines_refl.
+    + apply refines_refl.
+    + apply refines_refl.
+  - destruct h as [params metadata handler].
+    intros known k body vars conts statics hp Hhold. simpl.
+    apply (let_cont_handler_refines_where (statics_extend statics)
+      (statics_extend_trans statics));
+      [ apply statics_extend_refl | ].
+    intros vs handler_vars conts' statics' hp' Hextend _ Hbind.
+    apply recover_comparisons_knowing_refines.
+    apply (all_computed_bind_params statics' params known vs vars
+      handler_vars);
+      [ exact (all_computed_extend known vars statics statics' Hhold
+          Hextend)
+      | exact Hbind ].
+Qed.
+
+Theorem recover_known_comparisons_refines :
+  recover_known_comparisons_refines_statement.
+Proof.
+  intros e vars conts statics hp. apply recover_comparisons_knowing_refines.
+  intros entry [].
+Qed.
+
+(* ======================================================================== *)
+(* The pass commutes with renaming                                          *)
+(* ======================================================================== *)
+
+(* An entry of what is known, and a comparison, renamed. *)
+Definition rename_entry (r : renaming)
+    (entry : variable * (prim * list simple))
+    : variable * (prim * list simple) :=
+  (rename_variable r (fst entry),
+   (fst (snd entry), map (rename_simple r) (snd (snd entry)))).
+
+Definition rename_comparison (r : renaming) (held : comparison)
+    : comparison :=
+  (fst held, map (rename_simple r) (snd held)).
+
+Lemma first_known_renamed {A : Type} (r : renaming)
+    (f f' : variable * (prim * list simple) -> option A) (g : A -> A)
+    (known : computed) :
+  (∀ entry : variable * (prim * list simple),
+     f' (rename_entry r entry) = option_map g (f entry)) ->
+  first_known f' (rename_computed r known)
+  = option_map g (first_known f known).
+Proof.
+  intros Hf. induction known as [ | entry known IH]; [ reflexivity | ].
+  cbn [rename_computed map first_known].
+  change
+    (rename_variable r (fst entry),
+     (fst (snd entry), map (rename_simple r) (snd (snd entry))))
+    with (rename_entry r entry).
+  rewrite Hf. destruct (f entry); [ reflexivity | exact IH ].
+Qed.
+
+Lemma comparison_held_renamed (r : renaming) (u : variable)
+    (entry : variable * (prim * list simple)) :
+  comparison_held (rename_variable r u) (rename_entry r entry)
+  = option_map (rename_comparison r) (comparison_held u entry).
+Proof.
+  destruct entry as [y [p args]].
+  destruct p as [ p | [ | | | | | kind [c | s]] | p | p ];
+    try reflexivity.
+  cbn [rename_entry fst snd comparison_held].
+  rewrite rename_variable_eqb. destruct (Pos.eqb u y); reflexivity.
+Qed.
+
+Lemma tagged_comparison_held_renamed (r : renaming) (known : computed)
+    (t : variable) (entry : variable * (prim * list simple)) :
+  tagged_comparison_held (rename_computed r known) (rename_variable r t)
+    (rename_entry r entry)
+  = option_map (rename_comparison r) (tagged_comparison_held known t entry).
+Proof.
+  destruct entry as [y [p args]].
+  destruct p as [ [ ] | p | p | p ]; try reflexivity.
+  destruct args as [ | [u | sym | c] [ | arg args]]; try reflexivity.
+  cbn [rename_entry fst snd map rename_simple tagged_comparison_held].
+  rewrite rename_variable_eqb. destruct (Pos.eqb t y); [ | reflexivity ].
+  apply first_known_renamed. intros entry.
+  apply comparison_held_renamed.
+Qed.
+
+Lemma compared_renamed (r : renaming) (known : computed) (tagged : simple) :
+  compared (rename_computed r known) (rename_simple r tagged)
+  = option_map (rename_comparison r) (compared known tagged).
+Proof.
+  destruct tagged as [t | sym | c]; try reflexivity.
+  cbn [rename_simple compared]. apply first_known_renamed. intros entry.
+  apply tagged_comparison_held_renamed.
+Qed.
+
+Lemma is_tagged_zero_renamed (r : renaming) (s : simple) :
+  is_tagged_zero (rename_simple r s) = is_tagged_zero s.
+Proof. destruct s; reflexivity. Qed.
+
+Lemma recover_one_way_renamed (r : renaming) (known : computed)
+    (tagged zero : simple) (c : int_comparison) :
+  recover_one_way (rename_computed r known) (rename_simple r tagged)
+    (rename_simple r zero) c
+  = option_map (rename_named r) (recover_one_way known tagged zero c).
+Proof.
+  unfold recover_one_way.
+  rewrite is_tagged_zero_renamed, compared_renamed.
+  destruct (is_tagged_zero zero); [ | reflexivity ].
+  destruct (compared known tagged) as [[[kind s] operands] | ];
+    [ | reflexivity ].
+  cbn [option_map rename_comparison fst snd].
+  destruct (against_zero s c); reflexivity.
+Qed.
+
+Lemma recover_comparison_renamed (r : renaming) (known : computed)
+    (d : named) :
+  recover_comparison (rename_computed r known) (rename_named r d)
+  = rename_named r (recover_comparison known d).
+Proof.
+  destruct d as [s | p args | | | | | ]; try reflexivity.
+  destruct args as [ | arg1 [ | arg2 [ | arg3 args]]]; try reflexivity.
+  cbn [rename_named map recover_comparison].
+  destruct (tested p) as [c | ]; [ | reflexivity ].
+  rewrite !recover_one_way_renamed.
+  destruct (recover_one_way known arg1 arg2 c); [ reflexivity | ].
+  destruct (recover_one_way known arg2 arg1 (swap_comparison c));
+    reflexivity.
+Qed.
+
+Fixpoint recover_comparisons_knowing_equivariant_aux (r : renaming)
+    (e : expr) :
+  ∀ known : computed,
+    recover_comparisons_knowing (rename_computed r known) (rename_expr r e)
+    = rename_expr r (recover_comparisons_knowing known e)
+with recover_comparisons_in_handler_equivariant (r : renaming)
+    (h : continuation_handler) :
+  ∀ known : computed,
+    recover_comparisons_in_handler (rename_computed r known)
+      (rename_handler r h)
+    = rename_handler r (recover_comparisons_in_handler known h).
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      intros known; simpl; try reflexivity.
+    + rewrite recover_comparison_renamed, computed_under_let_renamed,
+        recover_comparisons_knowing_equivariant_aux.
+      reflexivity.
+    + rewrite recover_comparisons_knowing_equivariant_aux. reflexivity.
+    + rewrite recover_comparisons_in_handler_equivariant,
+        recover_comparisons_knowing_equivariant_aux.
+      reflexivity.
+    + rewrite recover_comparisons_knowing_equivariant_aux. reflexivity.
+  - destruct h as [params metadata handler]. intros known. simpl.
+    rewrite forget_computed_vars_renamed,
+      recover_comparisons_knowing_equivariant_aux.
+    reflexivity.
+Qed.
+
+Theorem recover_comparisons_knowing_equivariant :
+  recover_comparisons_knowing_equivariant_statement.
+Proof.
+  intros r known e. apply recover_comparisons_knowing_equivariant_aux.
+Qed.
+
+Theorem recover_known_comparisons_equivariant :
+  recover_known_comparisons_equivariant_statement.
+Proof.
+  intros r e. exact (recover_comparisons_knowing_equivariant_aux r e []).
+Qed.
