@@ -36,7 +36,7 @@ here.
 | The comparison `expr_eqb` | `FlambdaCompareAlphaSpec.v` | N1 |
 | The rewrites of the normalisation, the passes for loops, the checks of well-formedness (exception handlers and trap actions among them), the check of kinds, the normalisation of the term after and the first phase of that of the term before | `FlambdaValidatorEquivarianceSpec.v` | N3 |
 | The normalisation of the term before and that of a term in which something was lifted: up to the names that a round makes. `validate_unit`: where the code of the term before is closed | `FlambdaValidatorEquivarianceSpec.v` | N3 |
-| Identities of primitives, lifting, lifting out of code, the binding of `my_closure`, ranges, sharing of primitives and of projections, folding at known symbols, unused and known value slots, the order of static bindings, the static closures in sight, code moved up, code and static bindings bound first, lifting out of the arms of a test, inlining within a group of code, the unboxing of parameters, the merging of the arms of a `Switch`, the demotion of exception handlers | the `Spec` file of each pass | the owner of each |
+| Identities of primitives, lifting, lifting out of code, the binding of `my_closure`, ranges, sharing of primitives and of projections, the recovery of comparisons, folding at known symbols, unused and known value slots, the order of static bindings, the static closures in sight, code moved up, code and static bindings bound first, lifting out of the arms of a test, inlining within a group of code, the unboxing of parameters, the merging of the arms of a `Switch`, the demotion of exception handlers | the `Spec` file of each pass | the owner of each |
 | The second asking of the validation, `validate_unit_knowing`: where the code of the term before is closed | `FlambdaValidateKnowingSpec.v` | the owner of that file, N3 |
 | Typing environments and their levels, extensions, aliases, types, provers | the types library (`FlambdaEnvRenameSpec.v`, `FlambdaTypeRenameSpec.v`, `FlambdaEnvAliasesRenamingSpec.v`, `FlambdaTypingEnvExtensionSpec.v`, `FlambdaProversRenameSpec.v`) | N3 and the owners |
 | The model of Simplify: the function that rewrites a term from the types, the same with pruning, the rewrites of a `Switch`, following aliases with the aliases of the library | the types library (section 7 has the files) | the owners of those files |
@@ -553,11 +553,36 @@ removal, in the body of code, of the unused `Let`s of its parameters
 (`FlambdaCodeLetsSpec.v`); the
 test for inlining a call that gives tupled code a tuple; the demotion
 of exception handlers with the rounds that tidy after it
-(`demote_and_tidy`); the placing of continuations that the check
-makes of each term that it compares (`FlambdaValidateSpec.placed`),
-which also keeps scope; the normalisation of the term after and the
-first phase of that of the term before. Every one is an equation
-that holds of every term. By
+(`demote_and_tidy`); the normalisation of the term after and the
+first phase of that of the term before; the placing of continuations
+that the check makes of each term that it compares
+(`FlambdaValidateSpec.placed`), which also keeps scope, and the
+tidying in rounds that follows it (`tidied_before`, `tidied_after`:
+a parameter that every application gives one variable is taken away
+where the checks of `FlambdaUnaliasParamsSpec.unalias_params` pass,
+primitives are shared, aliases are followed and the `Let`s left
+unused are removed). That pass and the two tidyings commute with
+every renaming, each by an equation, the tidyings for every number
+of rounds (`unalias_params_equivariant_statement`,
+`tidied_before_equivariant_statement`,
+`tidied_after_equivariant_statement`); the pass and the tidying of
+the term before keep scope
+(`FlambdaStaticsScopeSpec.unalias_params_keeps_scope_statement`,
+`tidied_before_keeps_scope_statement`). Every one is an equation
+that holds of every term. Other functions that the check applies are
+stated there as well: `with_lifting`, with the lifting renamed with
+the term, `without_slots` and `with_known`, each an equation
+(`with_lifting_equivariant_statement`,
+`without_slots_equivariant_statement`,
+`with_known_equivariant_statement`); `lifted_in_turn`, which keeps
+scope, and commutes with renaming up to the names made where the
+continuations that it is given to avoid have among them those of the
+units of the liftings (`lifted_in_turn_keeps_scope_statement`,
+`lifted_in_turn_equivariant_up_to_statement`); and
+`with_statics_first`, which reads the continuations of the units: it
+commutes with a renaming of the term where the liftings are under
+another renaming that does to those continuations what it does
+(`with_statics_first_renamed_alike_statement`). By
 the same prover, in the types library (`FlambdaEnvRenameSpec.v`): the
 functions of typing environments.
 
@@ -637,7 +662,12 @@ constants (`FlambdaLiftSpec.v`) and out of the code of a function
 (`FlambdaMyClosureSpec.v`), the check of ranges (`FlambdaRangeSpec.v`),
 the sharing of primitives (`FlambdaCseSpec.v`) and of the
 projections of a value slot (`FlambdaShareProjectionsSpec.v`; that
-it keeps scope, `FlambdaShareProjectionsScopeSpec.v`), the folding
+it keeps scope, `FlambdaShareProjectionsScopeSpec.v`), the recovery
+of the comparison that a three-way result is tested for
+(`FlambdaRecoverComparisonSpec.v`:
+`recover_known_comparisons_equivariant_statement`, an equation that
+holds of every term; that it keeps scope,
+`FlambdaRecoverComparisonScopeSpec.v`), the folding
 at known symbols (`FlambdaKnownSymbolsSpec.v`), the removal of unused
 value slots (`FlambdaUnusedSlotsSpec.v`), the reading of a value slot
 that every set of closures of the unit gives the same symbol or
@@ -716,14 +746,6 @@ Owed:
   its equation: a round makes names, and `validate_unit` answers the
   same on renamed terms only because every rewrite of a round keeps
   scope;
-- statements for five functions of `FlambdaValidateSpec.v` that the
-  check applies, whose laws are proved as lemmas of
-  `FlambdaValidatorEquivarianceProofs.v` and are not yet stated in a
-  `Spec` file (N3): `with_lifting`, `without_slots` and `with_known`,
-  each an equation; `lifted_in_turn`, up to the names made, with the
-  continuations to avoid; and `with_statics_first`, which reads the
-  continuations of the units, for a second renaming that does to
-  them what the first does;
 - by their owners, the functions on types that have no such statement
   yet.
 
