@@ -287,11 +287,16 @@ Fixpoint iterate (rounds : nat) (f : expr -> expr) (e : expr) : expr :=
    handlers of the non-recursive continuations but not into those of the
    recursive ones, nor into code. First what makes the control flow
    simpler: a [Switch] whose arms all apply one continuation, to
-   arguments that are the same or the number of the arm, becomes that
-   application where the tests of
-   FlambdaMergeSwitchesSpec.merge_switches pass (among them: the
-   scrutinee is a variable that no arm passes, no arm has a trap
-   action, and the numbers of the arms are immediates), after
+   arguments that are the same, or the number of the arm, tagged or
+   not, or the negation of that number where the arms are those of 0
+   and 1, or, where there are three arms or more, that number times a
+   slope plus an offset, becomes that application, under the [Let]s
+   that compute the argument where it is not the scrutinee itself,
+   where the tests of FlambdaMergeSwitchesSpec.merge_switches pass
+   (among them: the scrutinee is a variable that no arm passes, no arm
+   has a trap action, the arguments that differ are all computed in
+   one way, and, for the ways that tag or compute, the numbers of the
+   arms are immediates), after
    [collapse_switches] for the arms that are all the same; a
    continuation that is applied once is moved to where it is
    applied and inlined there ([sink_let_conts], then [inline_tail_conts]),
@@ -553,11 +558,21 @@ Definition normalise_before (rounds : nat) (kept : list code_id) (e : expr)
    that follows a [try] whose result is matched). In all three the
    term before has the same handler, and
    FlambdaForwardSpec.forward_applications has forwarded its
-   applications. *)
+   applications.
+
+   Then an arm of a [Switch] that applies a continuation of no
+   parameters whose handler is a [Switch] on the same scrutinee goes
+   where the arm of the handler for the same number goes, where the
+   checks of FlambdaNormaliseSpec.thread_switches permit (an
+   equivalence), as a round of the term before has it. The term
+   after has such a pair in a generated unit: the scrutinee of the
+   two is what the arms of a third [Switch], which Simplify merged,
+   gave two parameters. *)
 Definition inline_once_applied_after (e : expr) : expr :=
   remove_unused_conts
-    (forward_kinded
-       (inline_tail_conts_kinded (sink_let_conts (remove_unused_conts e)))).
+    (thread_switches
+       (forward_kinded
+          (inline_tail_conts_kinded (sink_let_conts (remove_unused_conts e))))).
 
 (* The same for the term after. Every rewrite is an equivalence. The
    unused [Let]s that are sure to have a value are removed in the

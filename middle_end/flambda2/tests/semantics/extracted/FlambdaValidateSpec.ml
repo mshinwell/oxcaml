@@ -161,8 +161,9 @@ let normalise_before rounds kept e =
 
 let inline_once_applied_after e =
   remove_unused_conts
-    (forward_kinded
-       (inline_tail_conts_kinded (sink_let_conts (remove_unused_conts e))))
+    (thread_switches
+       (forward_kinded
+          (inline_tail_conts_kinded (sink_let_conts (remove_unused_conts e)))))
 
 (** val normalise_expr_after : expr -> expr **)
 
