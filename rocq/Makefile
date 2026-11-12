@@ -116,6 +116,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaContextWhereSpec.v \
   FlambdaControlFlowProofs.v \
   FlambdaControlFlowSpec.v \
+  FlambdaCseEquivalentProofs.v \
+  FlambdaCseEquivalentSpec.v \
   FlambdaCseProofs.v \
   FlambdaCseSpec.v \
   FlambdaDeadParamsProofs.v \
@@ -250,6 +252,9 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaTrapSpec.v \
   FlambdaTupledProofs.v \
   FlambdaTupledSpec.v \
+  FlambdaUnaliasParamsNamesProofs.v \
+  FlambdaUnaliasParamsProofs.v \
+  FlambdaUnaliasParamsSpec.v \
   FlambdaUnboxParamsExamplesProofs.v \
   FlambdaUnboxParamsExamplesSpec.v \
   FlambdaUnboxParamsNamesProofs.v \
