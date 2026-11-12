@@ -47,10 +47,11 @@
 
    [share_known_projections] does the same with what can be read off
    the term. It goes through a term keeping, for a variable bound by a
-   [Let] to the projection of a value slot ([is_projection]: from the
-   closure of a set of one function, or from the closure at a function
-   slot of a set), that projection ([projected]). A later [Let] of the
-   same projection, of the same slot from the same closure, becomes a
+   [Let] to the projection of a value slot ([is_projection]: either
+   form of the projection, the one that names no function slot and
+   the one that names the function slot it projects from), that
+   projection ([projected]). A later [Let] of the same projection, in
+   the same form, of the same slot from the same closure, becomes a
    [Let] of that variable ([share_projection]). Nothing else is
    rewritten, and the [Let] stays. As in FlambdaCseSpec.v, which this
    file follows: what is known of a variable, and what projects from
