@@ -253,7 +253,11 @@
    names that they make, the last with the continuations that it is
    given to avoid; and [validate_unit] answers the same on a pair of
    terms and on the pair renamed, where the code of the term before is
-   closed. They rest on what the file of [rename_apart] states and
+   closed, and more generally where the term before is under a second
+   renaming that does to its free names, and to the continuations
+   that the validation is given, what the first does
+   ([validate_unit_renamed_alike_statement]). They rest on what the
+   file of [rename_apart] states and
    proves, that [rename_apart_avoiding] commutes with renaming up to
    the names that it makes, the second renaming doing to the
    continuations to avoid what the first does
@@ -1171,5 +1175,35 @@ Definition validate_unit_equivariant_statement : Prop :=
     code_closed before = true ->
     validate_unit rounds unused slots (rename_loopified r G)
       (map (rename_lifting r) Ls) kept (rename_expr r before)
+      (rename_expr r after)
+    = validate_unit rounds unused slots G Ls kept before after.
+
+(* The same where the term before is under a second renaming, which
+   does to its free names what the first does, and does so to the
+   continuations that the validation is given and the term need not
+   mention: those of the units of the liftings and those given for the
+   loops. The statement above is the case in which the two renamings
+   are one.
+
+   This is the form for a caller that has rewritten the term before,
+   ahead of the validation, with a rewrite that makes names: of the
+   renamed term such a rewrite gives its result under a second
+   renaming. The premise about those continuations is why such a
+   rewrite is to be given them to avoid
+   ([equivariant_up_to_avoiding]): what
+   the second renaming does to the free names of the term says nothing
+   of a continuation that the term does not mention, and the
+   validation reads these, the lifting for the continuations of its
+   unit and FlambdaLoopifySpec.loopify_unit for the continuation of
+   each loop. *)
+Definition validate_unit_renamed_alike_statement : Prop :=
+  ∀ (r r1 : renaming) (rounds : nat) (unused : dropped)
+    (slots : list value_slot) (G : loopified) (Ls : list lifting)
+    (kept : list code_id) (before after : expr),
+    code_closed before = true ->
+    renames_alike r r1 before ->
+    rename_conts_alike r r1 (unit_continuations Ls ++ map snd G) ->
+    validate_unit rounds unused slots (rename_loopified r G)
+      (map (rename_lifting r) Ls) kept (rename_expr r1 before)
       (rename_expr r after)
     = validate_unit rounds unused slots G Ls kept before after.

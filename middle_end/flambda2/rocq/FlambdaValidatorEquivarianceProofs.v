@@ -5685,6 +5685,24 @@ Proof.
     + intros k Hk. rewrite (Havoid2 k Hk). apply Havoid, Hk.
 Qed.
 
+(* The continuations given for the loops, renamed by two renamings
+   that rename them alike. *)
+Lemma rename_loopified_alike (r r' : renaming) (G : loopified) :
+  rename_conts_alike r r' (map snd G) ->
+  rename_loopified r G = rename_loopified r' G.
+Proof.
+  intros Halike. unfold rename_loopified. apply map_ext_in.
+  intros [id k] Hin. cbn [fst snd]. f_equal. symmetry.
+  apply Halike, among_In, in_map_iff. exists (id, k).
+  split; [ reflexivity | exact Hin ].
+Qed.
+
+(* The continuations of the renamed loops are those of the loops,
+   renamed. *)
+Lemma loop_continuations_renamed (r : renaming) (G : loopified) :
+  map snd (rename_loopified r G) = map (rename_continuation r) (map snd G).
+Proof. unfold rename_loopified. rewrite !map_map. reflexivity. Qed.
+
 (* The continuations of the units of the liftings: those of the renamed
    liftings are those of the liftings, renamed; and the two of the unit
    of each lifting are among them. *)
@@ -5719,28 +5737,41 @@ Qed.
    each of them, whatever renames the pattern, and keep scope; so the
    two renamings rename the free names of each term that is compared
    alike. The term after is under the first renaming throughout: its
-   normalisation and the putting of its code first commute with it. *)
-Theorem validate_unit_equivariant : validate_unit_equivariant_statement.
+   normalisation and the putting of its code first commute with it.
+   The term before may be under a renaming of its own from the start,
+   if that renaming does to its free names, and to the continuations
+   of the units and of the loops, what the first does. *)
+Theorem validate_unit_renamed_alike : validate_unit_renamed_alike_statement.
 Proof.
-  intros r rounds unused slots G Ls kept before after Hclosed.
-  unfold validate_unit. rewrite expr_eqb_renamed.
+  intros r r1 rounds unused slots G Ls kept before after Hclosed Halike1
+    Hheld.
+  unfold validate_unit.
+  rewrite (expr_eqb_renamed_alike r r1 before after Hclosed Halike1).
   destruct (expr_eqb [] [] before after); [ reflexivity | ].
-  cbv zeta. rewrite loopify_unit_equivariant.
-  destruct (FlambdaLoopsScopeProofs.loopify_unit_scoped G before Hclosed)
-    as [Hclosed' _].
-  clear Hclosed. revert Hclosed'.
-  generalize (loopify_unit G before). clear before. intros before Hclosed.
-  destruct (normalise_before_equivariant_up_to rounds kept r before Hclosed)
-    as (r' & Halike & Heq).
+  cbv zeta.
+  assert (Hunits : rename_conts_alike r r1 (unit_continuations Ls)).
+  { intros k Hk. apply Hheld. rewrite among_app, Hk. reflexivity. }
+  assert (Hloops : rename_conts_alike r r1 (map snd G)).
+  { intros k Hk. apply Hheld. rewrite among_app, Hk. apply orb_true_r. }
+  rewrite (rename_loopified_alike r r1 G Hloops), loopify_unit_equivariant.
+  destruct
+    (renames_alike_kept (loopify_unit G) r r1 before
+       (FlambdaLoopsScopeProofs.loopify_unit_keeps_scope G) Hclosed Halike1)
+    as (Hclosed' & Halike1').
+  clear Hclosed Halike1 Hheld Hloops. revert Hclosed' Halike1'.
+  generalize (loopify_unit G before). clear before.
+  intros before Hclosed Halike1.
+  destruct (normalise_before_equivariant_up_to rounds kept r1 before Hclosed)
+    as (r' & Halike_b & Heq).
+  pose proof
+    (renames_alike_then (normalise_before rounds kept) r r1 r' before
+       (normalise_before_keeps_scope rounds kept) Hclosed Halike1 Halike_b)
+    as Halike.
   destruct (normalise_before_keeps_scope rounds kept before Hclosed)
     as (Hclosed_b & _ & _).
-  assert (Hself : renames_alike r r before)
-    by (split; intros name _; reflexivity).
-  assert (Hself' : rename_conts_alike r r (unit_continuations Ls))
-    by (intros k _; reflexivity).
   destruct
     (lifted_in_turn_up_to r rounds (unit_continuations Ls) kept Ls
-       (unit_continuations_has Ls) r before Hclosed Hself Hself')
+       (unit_continuations_has Ls) r1 before Hclosed Halike1 Hunits)
     as (r'' & Halike' & Heq').
   destruct
     (lifted_in_turn_scope rounds (unit_continuations Ls) kept Ls before
@@ -5798,4 +5829,12 @@ Proof.
           (float_code (without_statics unused (without_slots slots l))))
        c Hclosed_last Halike_last).
   reflexivity.
+Qed.
+
+Theorem validate_unit_equivariant : validate_unit_equivariant_statement.
+Proof.
+  intros r rounds unused slots G Ls kept before after Hclosed.
+  apply validate_unit_renamed_alike; [ exact Hclosed | | ].
+  - split; intros name _; reflexivity.
+  - intros k _. reflexivity.
 Qed.
