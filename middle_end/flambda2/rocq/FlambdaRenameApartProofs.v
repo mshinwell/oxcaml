@@ -32,7 +32,8 @@ From Stdlib Require Import ZArith List Bool Arith Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaSemanticsSpec FlambdaSemanticsProofs
-  FlambdaCompareSpec FlambdaCompareProofs FlambdaNominalSpec
+  FlambdaBindersSpec FlambdaCompareSpec FlambdaCompareProofs
+  FlambdaNominalSpec
   FlambdaNominalProofs FlambdaAlphaSpec FlambdaAlphaProofs
   FlambdaEquivarianceProofs FlambdaCompareAlphaSpec
   FlambdaCompareAlphaProofs FlambdaNameAbstractionSpec
@@ -1592,10 +1593,172 @@ Proof.
     intros Hk. exact (cont_free_in_continuations_of k handler Hk).
 Qed.
 
+(* The free variables and continuations of a term, as
+   FlambdaBindersSpec.v lists them, in its code too, are among the
+   variables and continuations of the term. *)
+Lemma free_variables_of_named_variables (d : named) :
+  free_variables_of_named d = variables_in_named d.
+Proof. destruct d; reflexivity. Qed.
+
+Fixpoint free_variables_in_variables_of (e : expr) :
+  incl (free_variables_of_expr e) (variables_of e)
+with free_variables_in_variables_in_handler (h : continuation_handler) :
+  incl (free_variables_of_handler h) (variables_in_handler h)
+with free_variables_in_variables_in_binding (binding : static_binding) :
+  incl (free_variables_of_binding binding) (variables_in_binding binding)
+with free_variables_in_variables_in_code (c : code) :
+  incl (free_variables_of_code c) (variables_in_code c).
+Proof.
+  - destruct e
+      as [y kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      cbn [free_variables_of_expr free_variables_of_handler
+           free_variables_of_binding free_variables_of_code variables_of
+           variables_in_handler variables_in_binding variables_in_code].
+    + intros x Hx. right. apply in_or_app. apply in_app_or in Hx.
+      destruct Hx as [Hx | Hx];
+        [ left; rewrite <- free_variables_of_named_variables; exact Hx
+        | right ].
+      unfold without in Hx. apply filter_In in Hx.
+      exact (free_variables_in_variables_of body x (proj1 Hx)).
+    + apply incl_app_app; [ | apply free_variables_in_variables_of ].
+      induction bindings as [ | binding bindings IH]; cbn [flat_map];
+        [ apply incl_refl | ].
+      apply incl_app_app;
+        [ apply free_variables_in_variables_in_binding | exact IH ].
+    + apply incl_app_app;
+        [ apply free_variables_in_variables_in_handler
+        | apply free_variables_in_variables_of ].
+    + apply incl_app_app; [ | apply free_variables_in_variables_of ].
+      induction handlers as [ | [k h] handlers IH]; cbn [flat_map snd];
+        [ apply incl_refl | ].
+      apply incl_app_app;
+        [ apply free_variables_in_variables_in_handler | exact IH ].
+    + apply incl_refl.
+    + apply incl_refl.
+    + apply incl_refl.
+    + apply incl_refl.
+  - destruct h as [params metadata handler].
+    cbn [free_variables_of_expr free_variables_of_handler
+         free_variables_of_binding free_variables_of_code variables_of
+         variables_in_handler variables_in_binding variables_in_code].
+    intros x Hx. unfold without in Hx. apply filter_In in Hx.
+    apply in_or_app. right.
+    exact (free_variables_in_variables_of handler x (proj1 Hx)).
+  - destruct binding as [id c | id | sym const];
+      cbn [free_variables_of_expr free_variables_of_handler
+           free_variables_of_binding free_variables_of_code variables_of
+           variables_in_handler variables_in_binding variables_in_code].
+    + apply free_variables_in_variables_in_code.
+    + apply incl_refl.
+    + destruct const; apply incl_refl.
+  - destruct c as [params my_closure ret exn metadata body].
+    cbn [free_variables_of_expr free_variables_of_handler
+         free_variables_of_binding free_variables_of_code variables_of
+         variables_in_handler variables_in_binding variables_in_code].
+    intros x Hx. unfold without in Hx. apply filter_In in Hx.
+    right. apply in_or_app. right.
+    exact (free_variables_in_variables_of body x (proj1 Hx)).
+Qed.
+
+Fixpoint free_continuations_in_continuations_of (e : expr) :
+  incl (free_continuations_of_expr e) (continuations_of e)
+with free_continuations_in_continuations_in_handler
+    (h : continuation_handler) :
+  incl (free_continuations_of_handler h) (continuations_in_handler h)
+with free_continuations_in_continuations_in_binding
+    (binding : static_binding) :
+  incl (free_continuations_of_binding binding)
+    (continuations_in_binding binding)
+with free_continuations_in_continuations_in_code (c : code) :
+  incl (free_continuations_of_code c) (continuations_in_code c).
+Proof.
+  - destruct e
+      as [y kind d body | bindings body | bound h body | handlers body | ap
+         | ac | scrutinee arms | ];
+      cbn [free_continuations_of_expr free_continuations_of_handler
+           free_continuations_of_binding free_continuations_of_code
+           continuations_of continuations_in_handler
+           continuations_in_binding continuations_in_code].
+    + apply free_continuations_in_continuations_of.
+    + apply incl_app_app; [ | apply free_continuations_in_continuations_of ].
+      induction bindings as [ | binding bindings IH]; cbn [flat_map];
+        [ apply incl_refl | ].
+      apply incl_app_app;
+        [ apply free_continuations_in_continuations_in_binding | exact IH ].
+    + intros j Hj. right. apply in_or_app. apply in_app_or in Hj.
+      destruct Hj as [Hj | Hj];
+        [ left;
+          exact (free_continuations_in_continuations_in_handler h j Hj)
+        | right ].
+      unfold without in Hj. apply filter_In in Hj.
+      exact (free_continuations_in_continuations_of body j (proj1 Hj)).
+    + intros j Hj. unfold without in Hj. apply filter_In in Hj.
+      destruct Hj as [Hj _]. apply in_app_or in Hj. apply in_or_app.
+      destruct Hj as [Hj | Hj];
+        [ left
+        | right; exact (free_continuations_in_continuations_of body j Hj) ].
+      revert Hj.
+      induction handlers as [ | [bound h] handlers IH];
+        cbn [flat_map fst snd]; intros Hj; [ destruct Hj | ].
+      apply in_or_app. apply in_app_or in Hj.
+      destruct Hj as [Hj | Hj];
+        [ left; right;
+          exact (free_continuations_in_continuations_in_handler h j Hj)
+        | right; exact (IH Hj) ].
+    + apply incl_refl.
+    + apply incl_refl.
+    + apply incl_refl.
+    + apply incl_refl.
+  - destruct h as [params metadata handler].
+    cbn [free_continuations_of_expr free_continuations_of_handler
+         free_continuations_of_binding free_continuations_of_code
+         continuations_of continuations_in_handler continuations_in_binding
+         continuations_in_code].
+    apply free_continuations_in_continuations_of.
+  - destruct binding as [id c | id | sym const];
+      cbn [free_continuations_of_expr free_continuations_of_handler
+           free_continuations_of_binding free_continuations_of_code
+           continuations_of continuations_in_handler
+           continuations_in_binding continuations_in_code].
+    + apply free_continuations_in_continuations_in_code.
+    + apply incl_refl.
+    + apply incl_refl.
+  - destruct c as [params my_closure ret exn metadata body].
+    cbn [free_continuations_of_expr free_continuations_of_handler
+         free_continuations_of_binding free_continuations_of_code
+         continuations_of continuations_in_handler continuations_in_binding
+         continuations_in_code].
+    intros j Hj. unfold without in Hj. apply filter_In in Hj.
+    right. right.
+    exact (free_continuations_in_continuations_of body j (proj1 Hj)).
+Qed.
+
 Theorem rename_apart_equivariant_up_to :
   rename_apart_equivariant_up_to_statement.
 Proof.
   intros r e.
+  destruct (rename_apart_equivariant_up_to_names r e)
+    as (r' & Hv & Hk & Hrenamed).
+  exists r'. split; [ | split ]; [ | | exact Hrenamed ].
+  - intros x Hx.
+    apply Hv, among_In, free_variables_in_variables_of, among_In, Hx.
+  - intros k Hfree.
+    apply Hk, among_In, free_continuations_in_continuations_of, among_In,
+      Hfree.
+Qed.
+
+(* The older form, of the names that are free by the relations of
+   FlambdaNominalSpec.v, which do not go into code. *)
+Lemma rename_apart_equivariant_up_to_by_relation (r : renaming) (e : expr) :
+  ∃ r' : renaming,
+    (∀ x : variable,
+      var_free_in_expr x e -> rename_variable r' x = rename_variable r x)
+    ∧ (∀ k : continuation,
+        cont_free_in_expr k e ->
+        rename_continuation r' k = rename_continuation r k)
+    ∧ rename_apart (rename_expr r e) = rename_expr r' (rename_apart e).
+Proof.
   destruct (rename_apart_equivariant_up_to_names r e)
     as (r' & Hv & Hk & Hrenamed).
   exists r'. split; [ | split ]; [ | | exact Hrenamed ].

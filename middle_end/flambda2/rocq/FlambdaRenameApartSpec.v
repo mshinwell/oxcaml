@@ -73,7 +73,8 @@
    renaming [r] there is a renaming that does to every name of the term
    what [r] does, and with which the result for the renamed term is the
    renamed result ([rename_apart_equivariant_up_to_names_statement]). In
-   particular it agrees with [r] on the free names of the term
+   particular it agrees with [r] on the free variables and
+   continuations of the term, those of its code included
    ([rename_apart_equivariant_up_to_statement]). Nothing is asked of the
    term.
 
@@ -83,8 +84,8 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaSemanticsSpec FlambdaCompareSpec FlambdaNominalSpec
-  FlambdaNameAbstractionSpec FlambdaFreshQuantifierSpec.
+  FlambdaSemanticsSpec FlambdaBindersSpec FlambdaCompareSpec
+  FlambdaNominalSpec FlambdaNameAbstractionSpec FlambdaFreshQuantifierSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -409,13 +410,15 @@ Definition rename_apart_equivariant_up_to_names_statement : Prop :=
           rename_continuation r' k = rename_continuation r k)
       ∧ rename_apart (rename_expr r e) = rename_expr r' (rename_apart e).
 
-(* The same, said of the free names of the term. *)
+(* The same, said of the free variables and continuations of the term,
+   as FlambdaBindersSpec.v lists them, in its code too. *)
 Definition rename_apart_equivariant_up_to_statement : Prop :=
   ∀ (r : renaming) (e : expr),
     ∃ r' : renaming,
       (∀ x : variable,
-        var_free_in_expr x e -> rename_variable r' x = rename_variable r x)
+        among x (free_variables_of_expr e) = true ->
+        rename_variable r' x = rename_variable r x)
       ∧ (∀ k : continuation,
-          cont_free_in_expr k e ->
+          among k (free_continuations_of_expr e) = true ->
           rename_continuation r' k = rename_continuation r k)
       ∧ rename_apart (rename_expr r e) = rename_expr r' (rename_apart e).
