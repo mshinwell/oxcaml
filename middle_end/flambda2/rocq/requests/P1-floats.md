@@ -97,12 +97,16 @@ the second, the identities are right and the comment says too much.
 **Option 1: the bit pattern of a NaN is kept.** A float is its bits,
 a NaN included, and nothing is compared up to anything.
 - What `eval_prim` returns on a NaN: a definite bit pattern, by the
-  rule of one target, as CompCert has a rule per target. On x86-64: a
-  NaN operand is returned, made quiet, the first if both are NaNs;
-  an invalid operation on numbers (`0. /. 0.`) gives the negative
-  quiet NaN (seen in the runs of P1-6 to P1-8). arm64 differs, by its
-  manual, which was not tried: the positive one, and its own order
-  between two NaNs. `Abs` and `Neg` change the sign bit only.
+  rule of one target, as CompCert has a rule per target. For x86-64
+  the rule proposed, to be read against the manual of each
+  instruction before it is written down: a NaN operand is returned,
+  made quiet, the first if both are NaNs; an invalid operation on
+  numbers (`0. /. 0.`) gives the negative quiet NaN. The runs of P1-6
+  to P1-8 agree with it, but they tried two quiet NaNs only, not a
+  signalling one with a quiet one, and not each order of operands
+  that the backend may choose. arm64 differs, by its manual, which
+  was not tried: the positive one, and its own order between two
+  NaNs. `Abs` and `Neg` change the sign bit only.
 - Which identities survive: none of `x *. 1.`, `1. *. x`, `x /. 1.`
   (wrong on a signalling NaN) and `x *. -1.`, `-1. *. x`, `x /. -1.`
   (wrong on every NaN), unless `x` is known not to be a NaN, which
@@ -113,7 +117,7 @@ a NaN included, and nothing is compared up to anything.
   manuals of the processors, with payloads, which `SpecFloat` has
   not got (its NaN is one value); and an assumption on the backend
   that nothing checks, that it keeps the order of the operands of an
-  operation that commutes on numbers. The four identities, or their
+  operation that commutes on numbers. The six identities, or their
   comment, change in the compiler.
 
 **Option 2: floats up to the payload and the sign of NaNs.** There is

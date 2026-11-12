@@ -58,9 +58,15 @@ with the integer comparisons on immediates and on boxed integers.
   comparisons on what Simplify specialises (two tagged immediates;
   two boxed integers of one kind; floats when the model has them),
   and, if wanted, on strings and on immutable blocks by structure.
-  Where the table gives no result the call is undefined, with a CR:
-  on a closure the real function raises, and between values of
-  different shapes it follows the layout of the runtime.
+  Where the real function raises, the model must raise too, to the
+  exception continuation: on a closure it may raise (`compare` of a
+  value with itself answers before it looks, `runtime/compare.c`),
+  and a path of the source that raises must not become one on which
+  anything goes. Where the table simply has no answer (values of
+  different shapes, which the real function orders by the layout of
+  the runtime), that is a domain the model has not got, and is kept
+  apart from a raise: the check of the unit stops, as it does for an
+  unknown name, and the call is not made undefined.
 - (B) Calls as events. A run is observed by the calls it makes (the
   name and the arguments) as well as by how it ends, and the result
   of a call is given by the environment. This covers every call at
@@ -77,9 +83,23 @@ strings: with them, a `match` on a string and the equality of two
 strings are converted and run. Second the seven polymorphic
 comparisons on immediates and boxed integers, so that the rewrites of
 `simplify_extcall.ml` can be checked (they are a pass for the
-validator, like the identities of arithmetic). `caml_fresh_oo_id`
-waits for the heap, which has identities. (B) is for later, with the
-whole-program statement.
+validator, like the identities of arithmetic). A name that is not in
+the table, and a call whose signature the table has not got (what
+the `Apply` declares of its arguments and its result: their kinds,
+unboxed arguments, `noalloc`, a call that does not return), stay
+refused by the conversion. That is about what the call declares. It
+is not a check of the kinds of the values that arrive: a value of
+another kind than the call declares is undefined where the call is
+executed, as for a primitive (D10), and no statement gets a static
+premise on kinds from the table. `caml_fresh_oo_id` needs more than
+an allocation with an identity: a counter in the state, so that two
+calls never answer alike in a whole program. (B) is for later, with
+the whole-program statement.
+
+A limit that the strings bring with them: a string of the model is
+immutable, and one made from bytes by an erased conversion is outside
+it (X5-3). The comparisons of strings inherit that limit as the loads
+do.
 
 The change is in the core: a case of the machine for an `Apply` with
 a C call, the well-formedness of such an `Apply`, and the conversion.
@@ -87,7 +107,13 @@ What each function computes can be leaf work beside the primitives,
 with the same laws (a result is in range, is kept when the static
 environment grows, and is read through the observations).
 
-Asked of the human: (A) or (B) first; whether a call the table has no
-result for is undefined or stops the check; whether polymorphic
-comparison by structure is wanted now or only what Simplify
-specialises.
+Asked of the human: (A) or (B) first; whether polymorphic comparison
+by structure is wanted now or only what Simplify specialises.
+
+Read as a design by R2 (2026-11-12), whose points are taken above: a
+comparison of closures may raise and does not always; an unknown name
+or a call signature that the table has not got stays unconverted,
+which is not a static check of kinds; a raise is kept apart from a
+domain the model has not got; the limit of X5-3; what
+`caml_fresh_oo_id` needs. It is a request, and no meaning of a call
+is agreed.
