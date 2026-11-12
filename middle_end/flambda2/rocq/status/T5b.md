@@ -24,6 +24,21 @@ its own there.) Files, all in
 - `FlambdaJoinTypesExamplesSpec.v`,
   `FlambdaJoinTypesExamplesProofs.v`: what the transcription answers
   on small types, by computation.
+- `FlambdaJoinWellFormedSpec.v`, `FlambdaJoinWellFormedProofs.v`:
+  the types of the equations that the join of environments holds
+  and adds are well formed.
+- `FlambdaJoinEquationNamesSpec.v`,
+  `FlambdaJoinEquationNamesProofs.v`: the names of the equations
+  inside those types are of their kinds.
+- `FlambdaJoinMeetFitsSpec.v`, `FlambdaJoinMeetFitsProofs.v`: so
+  the types that the join put together with the meet adds fit the
+  environment of the meet, which was a premise of T5's statements
+  about that join.
+
+The last three pairs are about T5's join of environments
+(`FlambdaJoinEnv.v`) and stand on T5's files; T5 handed the two
+open points over (the orchestrator's item of the night). They are
+on `flambda2-rocq/T5b-join-types`, which is on T5's branch.
 
 The interface is T5's `FlambdaJoinSpec.v`, section "The join of
 types, inside a join of environments". I do not change that file.
@@ -98,6 +113,54 @@ types, inside a join of environments". I do not change that file.
   ("What is assumed"). T5 asked for it. No condition of the
   well-formedness of types was found to fail of an answer. How it
   is proved: "The shape of the proof".
+- After the merge, on T5's branch
+  (`FlambdaJoinWellFormedSpec.v`): the types of the equations that
+  the state of the join of environments holds are well formed
+  through its first phases (`first_phases_well_formed`), and so are
+  the types of the two extensions that its last phase adds
+  (`last_phase_adds_well_formed`). The join of types keeps it with
+  no premise (`n_way_join_keeps_well_formed`, by
+  `n_way_join_keeps`), and recovering the relations of a
+  well-formed type answers a well-formed type
+  (`recover_inverse_relations_well_formed`). The premises beside
+  those of T5's `first_phases_true`: the joined environments have
+  well-formed types, the type of a constant is well formed, the
+  join of types answers a well-formed type
+  (`n_way_join_type_well_formed`). Of what the join is given in
+  `FlambdaJoinMeet.v`: `join_parameters_well_formed`,
+  `expand_head_for_join_well_formed` (by T4's theorem).
+- The same for the names of the equations inside those types
+  (`FlambdaJoinEquationNamesSpec.v`): they are of their kinds "in
+  reach" through the first phases
+  (`first_phases_equation_names`), in the target where every
+  variable of an equation is in the target
+  (`scoped_equation_names`), and so are those of the types that
+  the last phase adds (`last_phase_adds_equation_names`). It
+  follows T5's statements for the aliases
+  (`FlambdaJoinKindsSpec.v`). The join of types keeps it
+  (`n_way_join_keeps_equation_names`), and each name of an
+  equation inside the type that `recover_inverse_relations` answers
+  is one of the type given, or is reached through aliases between
+  naked immediates from a variable that the type given has an alias
+  to at that kind, so is a naked immediate
+  (`recover_equation_names`; the statement says where a name may
+  come from, not that one only is new).
+- So (`FlambdaJoinMeetFitsSpec.v`) the names of the equations
+  inside the types added are of their kinds in the environment of
+  the meet in which the variables of the target are defined
+  (`last_phase_equation_names_known`); the join that the meet
+  calls adds types that fit otherwise
+  (`model_join_adds_types_that_fit_otherwise`: T5's premise
+  `join_adds_types_that_fit_otherwise`, for every choice, depth
+  and fuel); and it has the conclusions of the meet's contract for
+  its join that are not about values with no premise left about
+  the join itself (`model_join_scoped_envs_keeps_outright`). The
+  same of T5's conclusion about values on the runs that have its
+  conditions (`model_join_scoped_envs_satisfied_outright`).
+- `Expanded_type` is T4's module: `FlambdaJoinTypes.v` names it
+  (`Module Expanded_type := FlambdaExpandHead.Expanded_type`) where
+  it had a copy. Nothing else changed, in my files or in T5's: the
+  two were the same definitions.
 - Twenty-nine examples, each an equation proved by computation:
   unions of sets of numbers and of strings, constants and other
   aliases, unknown and bottom inputs, heads of two forms, blocks of
@@ -174,22 +237,25 @@ definition and the first two statements of
   `n_way_join_well_formed_statement`), and
   `n_way_join_of_types_well_formed_statement`.
 
+- Asked of R4: the three Specs of the last three pairs of files.
+  Read, with no formal finding; one repair of prose asked and made
+  (what `recover_equation_names_statement` says, against what the
+  function does). To be confirmed at the tip, with the change of
+  `Expanded_type`.
+
 ## Stand-ins carried
 
-A copy under its owner's names, to go with a change of imports when
-the owner's file is under this branch.
-
-| What | Owner |
-|------|-------|
-| `Expanded_type` (`head`, `t`, `create`, `kind`, `descr`, `create_bottom`, `create_unknown`, `create_value`, `create_naked_immediate`, `create_naked_number`, `create_rec_info`, `create_region`, `unknown_like`, `to_type`) | T4, `FlambdaExpandHead.v` |
+None. The copy of `Expanded_type` is gone (above).
 
 `expand_head` and `reduce_head_of_kind_naked_immediate` are
-parameters of the traversal, with what is assumed of each a named
-proposition of the Spec; they become T4's functions and theorems
-when those are under this branch. `type_eqb` and `block_shape_eqb`
-are parameters of the traversal too; `n_way_join_of_types` gives it
-T1's. The fold over a map that threads a state is C0's
-(`Keyed.filter_map_fold`); my copy is gone.
+parameters of the traversal and of `n_way_join_of_types`, with what
+is assumed of each a named proposition of the Spec; T5's
+`FlambdaJoinMeet.v` gives them T4's functions, and T5's statements
+and mine there discharge the premises with T4's theorems ("Decided
+overnight"). `type_eqb` and `block_shape_eqb` are parameters of the
+traversal too; `n_way_join_of_types` gives it T1's. The fold over a
+map that threads a state is C0's (`Keyed.filter_map_fold`); my copy
+is gone.
 
 ## Agreed with other streams
 
@@ -481,6 +547,51 @@ is on my base.
   Cost to change: the equations are stated again over (a); nothing
   else depends on them.
 
+- A symbol in the target of a join (2026-11-12). T5 needed, of
+  every alias to a symbol inside a type that the join adds, that
+  the target knows the symbol; the contract of the join of types
+  said of a symbol only that it stands at kind value
+  (`simple_of_kind_in_target`, `FlambdaJoinSpec.v`). Options: (a)
+  a contract beside the main one, as for the names of equations;
+  (b) the definition says more of a symbol: of kind value, and
+  known to an environment joined. Chosen: (b), on my advice, and
+  T5 has made the change (the definition is T5's and has a dated
+  `CR mshinwell`; my two files were edited by T5 with my
+  agreement: one argument more to the reading, one case more in
+  the lemma that carries it to a later state). Why: (a) would need
+  a second traversal of the thirty functions, because my theorem
+  about them is general in the list read off a type and not in
+  the two predicates; with (b) nothing of the traversal changes,
+  since it never looks inside the case of a symbol. Cost to
+  change: T5's chain through the phases, and the argument in my
+  files. It is a change of meaning of a signed definition, for
+  the reviewer of the join to read.
+
+- The two functions of the meet stay arguments of the join of
+  types (2026-11-12). Options: (a) `n_way_join_of_types` takes
+  T4's `expand_head` and `reduce_head_of_kind_naked_immediate`
+  itself: two arguments fewer, and the premises about them gone
+  from its five statements, which are signed; (b) they stay
+  arguments, and the file that puts the join and the meet together
+  (T5's `FlambdaJoinMeet.v`) gives them, as it does. Chosen: (b).
+  Why: that file exists and its statements discharge the premises;
+  the statement that the join commutes with a renaming of
+  variables (N3 has begun it) is simpler of a traversal that takes
+  those functions as arguments; (a) would change signed statements
+  for no new fact. What was done: the copy of `Expanded_type` went,
+  by a module that names T4's, so T5's conversion between the two
+  (`join_expanded`) converts a type to itself and can go when T5
+  wishes. Cost to change to (a): mechanical.
+
+- Where the last three pairs of files stand. They are about T5's
+  functions and are in files of mine, by agreement with T5 and the
+  orchestrator; T5 owns the functions and the statements that
+  mine discharge the premise of. The last statement
+  (`model_join_scoped_envs_keeps_outright`) is T5's
+  `model_join_scoped_envs_keeps` with its premise discharged; it
+  is in my file because T5's proofs file cannot import mine
+  without a cycle. T5 may move it.
+
 ## Found so far
 
 - T5b-1: `n_way_join` has no bound on its depth and no test for a
@@ -501,6 +612,15 @@ is on my base.
   `example_join_alias_of_another_kind` shows the first on the stub.
   T7 ran the test in the compiler: `Meet_env.add_equation` accepts
   the alias, and the n-way join stops at the `assert false`.
+- A mistake in the transcription of the join of environments,
+  found by the well-formedness of what it stores:
+  `Join_env.add_or_replace_equation` put a second equation on a
+  name where the compiler's (`Name.Map.add`) replaces the one that
+  the name had. The type that `recover_inverse_relations` answers
+  for a variant whose extension for blocks already had an equation
+  on the variable of its tag was then not well formed (an
+  extension binds a name once). Reported to T5, who has repaired
+  the function; no statement of T5's changed.
 - Met again here: R1-16 (the empty set given to
   `create_naked_immediates_non_empty`: `None` in the model), X3-5
   (the joined relations are dropped when the join of the variant is
@@ -518,16 +638,14 @@ is on my base.
 
 ## What is left
 
-- T4's `Expanded_type`, `expand_head` and
-  `reduce_head_of_kind_naked_immediate` and their theorems, now
-  that T4's files are under this branch: a change of imports, two
-  arguments fewer in `n_way_join_of_types`, and the premises about
-  the two functions gone from its statements (all but
-  `expand_head_well_formed`, until T4 proves it); no proof changes
-  shape. Not started.
 - Arrays, when the grammar has them (`Array`,
   `n_way_join_array_contents`, `join_array_element_kinds`).
 - Code age and `rec_info`, with the function types.
+
+- The conclusion about values of the meet's contract for its join
+  (`join_scoped_envs_sound`) for the model's join: T5's, with the
+  meet's own statements; the conclusions that are not about values
+  are had.
 
 ## Asked of me next
 
