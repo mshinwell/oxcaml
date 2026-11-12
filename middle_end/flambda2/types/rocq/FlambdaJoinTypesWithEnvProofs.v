@@ -116,3 +116,39 @@ Proof.
     exact (type_equal_satisfied statics vars v t t' Hequal).
   - intros shape shape' Hequal. exact (proj1 (block_shape_eqb_eq _ _) Hequal).
 Qed.
+
+Theorem n_way_join_of_types_equations_kinded
+  : n_way_join_of_types_equations_kinded_statement.
+Proof.
+  intros p fuel_of_env expand_head reduce_head_of_kind_naked_immediate
+    fuel Hfresh Heqb Hexpand Hequations Hreduce.
+  unfold n_way_join_of_types.
+  apply
+    (FlambdaJoinTypesProofs.n_way_join_equations_kinded typing_env_invariant
+       _ Join_env.joined_env Join_env.definitions_of_existentials
+       kind_in_target_env state_valid state_kinded).
+  - split; [ exact state_valid_has_witnesses | ].
+    split;
+      [ exact
+          (FlambdaJoinEnvProofs.n_way_join_simples_sound p fuel_of_env Hfresh)
+      | ].
+    split;
+      [ exact
+          (FlambdaJoinEnvProofs.import_type_sound p fuel_of_env Hfresh)
+      | ].
+    exact
+      (FlambdaJoinEnvProofs.n_way_join_env_extension_sound p fuel_of_env
+         Hfresh Heqb).
+  - exact
+      (FlambdaJoinEnvProofs.import_type_equations_kinded p fuel_of_env Hfresh).
+  - exact
+      (FlambdaJoinEnvProofs.n_way_join_env_extension_equations_kinded p
+         fuel_of_env Hfresh).
+  - exact joined_envs_have_constants_of_kind.
+  - exact Hexpand.
+  - exact Hequations.
+  - exact Hreduce.
+  - intros t t' Hequal statics vars v.
+    exact (type_equal_satisfied statics vars v t t' Hequal).
+  - intros shape shape' Hequal. exact (proj1 (block_shape_eqb_eq _ _) Hequal).
+Qed.

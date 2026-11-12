@@ -29,7 +29,7 @@
 (* The n-way join of types with the functions of the join of
    environments: the two halves of the n-way join put together.
 
-   To be reviewed: the definition and the three statements of this
+   To be reviewed: the definition and the four statements of this
    file.
 
    FlambdaJoinTypesSpec.v says what the type traversal guarantees
@@ -61,7 +61,14 @@
    those of the first and one more, [parameters_type_eqb_sound]: it is
    about the equality of types that the join of environments is given
    for its own use, which is not the equality that the traversal
-   uses.
+   uses. The fourth is that the function meets the contract for the
+   names of the equations inside the type that it answers
+   ([n_way_join_type_equations_kinded], FlambdaJoinSpec.v), which the
+   target of a join is to have at their kinds if a meet is to be made
+   in it. It has the premises of the first and one more,
+   [expand_head_equations_kinded] (FlambdaJoinTypesSpec.v). The
+   invariant of the state is only a premise of that contract, so the
+   statement gives the same at [state_true source].
 
    What is still assumed, each a premise of the first statement:
    - of [Expand_head] and of the reduction of heads of naked
@@ -168,5 +175,25 @@ Definition n_way_join_of_types_true_statement : Prop :=
     n_way_join_type_sound typing_env_invariant Join_env.joined_env
       Join_env.definitions_of_existentials kind_in_target_env
       (state_true source) state_kinded
+      (n_way_join_of_types p fuel_of_env expand_head
+         reduce_head_of_kind_naked_immediate fuel).
+
+(* It meets the contract for the names of the equations inside the
+   type that it answers. *)
+Definition n_way_join_of_types_equations_kinded_statement : Prop :=
+  ∀ (p : Join_env.parameters) (fuel_of_env : nat)
+    (expand_head : Typing_env.t -> flambda_type -> option Expanded_type.t)
+    (reduce_head_of_kind_naked_immediate :
+       Typing_env.t -> head_of_kind_naked_immediate
+       -> Or_bottom.t head_of_kind_naked_immediate)
+    (fuel : nat),
+    fresh_avoids p ->
+    env_extension_eqb_sound p ->
+    expand_head_sound typing_env_invariant expand_head ->
+    expand_head_equations_kinded expand_head ->
+    reduce_head_of_kind_naked_immediate_sound
+      reduce_head_of_kind_naked_immediate ->
+    n_way_join_type_equations_kinded typing_env_invariant Join_env.joined_env
+      kind_in_target_env state_valid state_kinded
       (n_way_join_of_types p fuel_of_env expand_head
          reduce_head_of_kind_naked_immediate fuel).
