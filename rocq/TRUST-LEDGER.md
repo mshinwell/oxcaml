@@ -113,28 +113,27 @@ it gave back.
   compiler checks that where code is made). Not cross-checked: how an
   arity is grouped into unboxed products, which is rebuilt through
   `Flambda_arity.fold_per_parameter`.
-- **Partial applications, over-applications and tupled functions**,
-  which the model has not got: there a call with more or fewer arguments
-  than the code has parameters is undefined, and code has no mark that
-  it is tupled. What the tool does about them is OCaml, in the same
-  file, and is trusted. The converter refuses (`Unsupported`) code that
-  is tupled (`Code0.is_tupled`), whatever calls it. It refuses a direct
-  call whose arities pass the compiler's test for a partial application
-  or an over-application, against the arities of the code named, when
-  the unit binds that code: the test is
-  `FlambdaWellKindedSpec.partial_or_over_application`, a test of
-  arities only, to be read against `simplify_direct_function_call` of
-  `simplify/simplify_apply_expr.ml`. An indirect one cannot be told from
-  the term. When the run of either unit stops at a call that passes the
-  test on a state (`at_partial_or_over_application`: the arities, and
-  the kinds of the values of the arguments), the tool prints "not
-  decided", does not compare the two runs, and does not call
-  `validate_unit`. Not covered: a unit with such a call on a path that
-  the run does not take, or beyond the fuel; a direct call of code that
-  the unit does not bind. Of such a unit `validate_unit` may answer yes:
-  its statement then holds of the model, where the call is undefined,
-  and says nothing of what the compiler makes of the unit there. This
-  goes when the fragment has the three.
+- **Tupled functions**, which the model has not got: code has no mark
+  that it is tupled. The converter refuses (`Unsupported`) code that is
+  tupled (`Code0.is_tupled`), whatever calls it; that is OCaml, in the
+  same file, and is trusted. This goes when the fragment has them.
+- **Partial applications and over-applications** are in the model
+  (`FlambdaSemanticsSpec.shape_of_closure_call`), and the converter
+  gives a call its arguments and its two arities as they are, whatever
+  its kind. Two things are trusted. A partial application is a value of
+  the model that the compiler has not got as such (it makes a closure
+  of a wrapper): at the end of a run the tool observes it as it
+  observes a closure (`observe`, `Function`), without looking into it,
+  so two runs that end with functions that differ are not told apart,
+  as for closures. And the model takes every call for a generic
+  application: a direct call, or an indirect one of known arity, with
+  fewer or more arguments than its code has parameters is a partial
+  application or an over-application in the model, where the backend
+  stops on the first and compiles the second as a full call
+  (discrepancy C3-9; the CR at `shape_of_closure_call`). The tool does
+  not refuse such a call. Of a unit with one `validate_unit` may answer
+  yes: its statement then holds of the model, and says nothing of what
+  the backend makes of the unit there.
 - **The conversion of primitives**, in the same file (the section
   "Primitives"): one function for each arity of primitive that the model
   has (`convert_unary_primitive`, `convert_binary_primitive` and, once
