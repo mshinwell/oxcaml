@@ -153,6 +153,8 @@ design out; that is the request, not the change.
   - `middle_end/flambda2/rocq/FlambdaDemote*` (the demotion of an
     exception handler that no call can raise to, as a rewrite, with
     what it keeps)
+  - `middle_end/flambda2/rocq/requests/C5-never-returns.md` (a
+    request: calls that never return)
   - `middle_end/flambda2/rocq/status/C5.md`
   - the examples `middle_end/flambda2/tests/semantics/`
     `exn_extra_args.fl`, `push_unit_return.fl`, `raise_in_call.fl`,
