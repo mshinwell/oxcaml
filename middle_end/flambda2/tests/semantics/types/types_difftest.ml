@@ -5002,8 +5002,10 @@ let model_against_compiler (names : names) :
    source is the environment of the tests with the parameter defined; a use is
    the source at the next scope, to which are added the equations that the use
    knows and then the type of the parameter; the join cuts after the scope of
-   the source. The names that the variables made by the model's join must avoid
-   are all the variables numbered for the tests.
+   the source. A use may bind variables of its own, after the cut, and the
+   source may define variables for types only. The names that the variables
+   made by the model's join must avoid are all the variables numbered for the
+   tests.
 
    What is compared is what can be seen of the two targets, as for the meet:
    whether the target is marked bottom, the type and the canonical element of
@@ -5011,27 +5013,47 @@ let model_against_compiler (names : names) :
    variable that those types mention (the variables that the join made), with
    those variables renamed in the order in which they come. The analysis that
    the join answers with the target is not compared. *)
-(* The uses of a continuation with one parameter of a kind: what each use knows
-   of the names of the tests, and the type of what it passes. *)
+(* The uses of a continuation with one parameter of a kind, as for the chosen
+   joins: the variables that each use binds, what it knows of the names of the
+   tests, and the type of what it passes; and the variables that the source
+   defines for types only. *)
 type join_at_a_continuation =
   { kind_of_parameter : MK.flambda_kind;
-    at_uses : ((MT.name * MT.flambda_type) list * MT.flambda_type) list
+    for_types_at_source : M.variable list;
+    at_uses : use list
   }
 
 let join_in_the_model (names : names) (model : model)
-    ({ kind_of_parameter = kind; at_uses } : join_at_a_continuation) : seen =
+    ({ kind_of_parameter = kind; for_types_at_source; at_uses } :
+      join_at_a_continuation) : seen =
   let model_env, defined = env_of_model names in
   let parameter = names.numbering.variables.number (parameter names kind) in
-  let source =
-    Model_env.add_variable_definition model_env parameter kind
-      Model_name_mode.normal
+  let kind_of x =
+    Converter.kind_to_model
+      (Variable.kind (Converter.variable_of_model names.numbering x))
   in
-  let use (known, t) =
+  let define mode env x =
+    Model_env.add_variable_definition env x (kind_of x) mode
+  in
+  let source =
+    List.fold_left
+      (define Model_name_mode.in_types)
+      (Model_env.add_variable_definition model_env parameter kind
+         Model_name_mode.normal)
+      for_types_at_source
+  in
+  let use { binds; learns; passes } =
     List.fold_left
       (fun env (name, t) ->
         Option.bind env (fun env -> model.add_equation_of_model env name t))
-      (Some (Model_env.increment_scope source))
-      (known @ [MT.Name_var parameter, t])
+      (Some
+         (List.fold_left
+            (fun env (x, _) -> define Model_name_mode.normal env x)
+            (Model_env.increment_scope source)
+            binds))
+      (learns
+      @ List.map (fun (x, t) -> MT.Name_var x, t) binds
+      @ [MT.Name_var parameter, passes])
   in
   let uses = List.map use at_uses in
   if List.exists Option.is_none uses
@@ -5050,32 +5072,47 @@ let join_in_the_model (names : names) (model : model)
     | None -> Nothing_seen "no answer of the join"
     | Some (target, _) ->
       seen_in_the_model ~threshold:names.variables_with_a_name
-        (defined @ [MT.Name_var parameter])
+        (defined
+        @ List.map (fun x -> MT.Name_var x) for_types_at_source
+        @ [MT.Name_var parameter])
         None target
 
 (* The same in the compiler. The conversion of the inputs may refuse them. *)
 let join_in_the_compiler (names : names) (implementation : implementation)
-    ({ kind_of_parameter = kind; at_uses } : join_at_a_continuation) : seen =
+    ({ kind_of_parameter = kind; for_types_at_source; at_uses } :
+      join_at_a_continuation) : seen =
   let (_ : Model_env.t), defined = env_of_model names in
+  let variable = Converter.variable_of_model names.numbering in
   let known =
     List.map
-      (fun (known, (_ : MT.flambda_type)) ->
+      (fun { learns; _ } ->
         List.map
           (fun (name, t) ->
             Converter.name_of_model names.numbering name, to_compiler names t)
-          known)
+          learns)
       at_uses
   in
-  let types = List.map (fun (_, t) -> to_compiler names t) at_uses in
+  let locals =
+    List.map
+      (fun { binds; _ } ->
+        List.map (fun (x, t) -> variable x, to_compiler names t) binds)
+      at_uses
+  in
+  let types =
+    List.map (fun { passes; _ } -> to_compiler names passes) at_uses
+  in
+  let in_types = List.map variable for_types_at_source in
   match
     or_fatal_error (fun () ->
         match
-          join_env names implementation ~known:(List.nth known) kind types
+          join_env names implementation ~known:(List.nth known)
+            ~locals:(List.nth locals) ~in_types kind types
         with
         | env, parameter ->
           seen_in_the_compiler names.numbering
             ~threshold:names.variables_with_a_name
             (defined
+            @ List.map (fun x -> MT.Name_var x) for_types_at_source
             @ [MT.Name_var (names.numbering.variables.number parameter)])
             None env
         | exception Assert_failure (file, _, _) ->
@@ -5084,33 +5121,19 @@ let join_in_the_compiler (names : names) (implementation : implementation)
   | Ok seen -> seen
   | Error line -> Nothing_seen ("a fatal error: " ^ general line)
 
-let examples_of_joins_in_the_model (names : names) =
-  Format.printf
-    "@.The join of the model beside the n-way join of the compiler, on the \
-     inputs of the examples of the join@.";
+let joins_in_the_model (names : names) ~title
+    (joins : (string * join_at_a_continuation) list) =
+  Format.printf "@.%s@." title;
   let model = the_model Of_the_compiler in
   let threshold = names.variables_with_a_name in
   let same = ref 0 and neither = ref 0 and different = ref 0 in
   let not_run = ref 0 in
-  let examples = examples_of_joins names in
   List.iter
-    (fun { example; source = _; knowing; inputs; answer = _ } ->
-      let input : join_at_a_continuation =
-        { kind_of_parameter = MT.kind (List.hd inputs);
-          at_uses =
-            List.map
-              (fun t ->
-                ( List.map
-                    (fun (x, t) : (MT.name * MT.flambda_type) -> Name_var x, t)
-                    knowing,
-                  t ))
-              inputs
-        }
-      in
+    (fun (name, input) ->
       match join_in_the_compiler names n_way input with
       | exception Converter.Not_in_the_compiler what ->
         incr not_run;
-        Format.printf "  %s: not run, not in the compiler: %s@." example what
+        Format.printf "  %s: not run, not in the compiler: %s@." name what
       | in_the_compiler -> (
         let in_the_model = join_in_the_model names model input in
         match in_the_model, in_the_compiler with
@@ -5118,59 +5141,92 @@ let examples_of_joins_in_the_model (names : names) =
           incr neither;
           Format.printf
             "  @[<v>%s: neither answers.@ The model: %s@ The compiler: %s@]@."
-            example why why'
+            name why why'
         | (Nothing_seen _ | Bottom_seen | Seen _), _ ->
           if same_seen ~threshold in_the_model in_the_compiler
           then (
             incr same;
-            Format.printf "  %s: the same@." example)
+            Format.printf "  %s: the same@." name)
           else (
             incr different;
             Format.printf
-              "  @[<v>%s: DIFFERENT. The model:@ %a@ the compiler:@ %a@]@."
-              example print_lines
+              "  @[<v>%s: DIFFERENT. The model:@ %a@ the compiler:@ %a@]@." name
+              print_lines
               (print_seen ~threshold in_the_model)
               print_lines
               (print_seen ~threshold in_the_compiler))))
-    examples;
+    joins;
   Format.printf
     "  Of %d: %d the same, %d where neither answers, %d different, %d not run@."
-    (List.length examples) !same !neither !different !not_run
+    (List.length joins) !same !neither !different !not_run
+
+let examples_of_joins_in_the_model (names : names) =
+  joins_in_the_model names
+    ~title:
+      "The join of the model beside the n-way join of the compiler, on the \
+       inputs of the examples of the join"
+    (List.map
+       (fun { example; source = _; knowing; inputs; answer = _ } ->
+         let learns =
+           List.map
+             (fun (x, t) : (MT.name * MT.flambda_type) -> Name_var x, t)
+             knowing
+         in
+         ( example,
+           { kind_of_parameter = MT.kind (List.hd inputs);
+             for_types_at_source = [];
+             at_uses =
+               List.map (fun passes -> { binds = []; learns; passes }) inputs
+           } ))
+       (examples_of_joins names))
+
+let chosen_joins_in_the_model (names : names) =
+  joins_in_the_model names
+    ~title:
+      "The join of the model beside the n-way join of the compiler, on the \
+       chosen joins"
+    (List.map
+       (fun { title; kind; in_types; known; uses; probes = _; recorded = _ } ->
+         ( title,
+           { kind_of_parameter = kind;
+             for_types_at_source = in_types;
+             at_uses =
+               List.map
+                 (fun (use : use) -> { use with learns = known @ use.learns })
+                 uses
+           } ))
+       (the_chosen_joins names))
 
 let print_join_at_a_continuation ppf
-    ({ kind_of_parameter; at_uses } : join_at_a_continuation) =
+    ({ kind_of_parameter; for_types_at_source = _; at_uses } :
+      join_at_a_continuation) =
   Format.fprintf ppf "@[<v>a parameter of kind %a%a@]" Model_type.print_kind
     kind_of_parameter
     (fun ppf ->
-      List.iter (fun (known, t) ->
-          Format.fprintf ppf "@ a use that passes %a%a" Model_type.print t
+      List.iter (fun { binds; learns; passes } ->
+          Format.fprintf ppf "@ a use that passes %a%a%a" Model_type.print
+            passes
+            (fun ppf ->
+              List.iter (fun (x, t) ->
+                  Format.fprintf ppf "@   and binds %a : %a"
+                    Model_type.print_variable x Model_type.print t))
+            binds
             (fun ppf ->
               List.iter (fun (name, t) ->
                   Format.fprintf ppf "@   and knows %a : %a"
                     Model_type.print_name name Model_type.print t))
-            known))
+            learns))
     at_uses
 
+(* A use less, if more than two are left; an equation less; a smaller type of
+   what is passed. *)
 let shrink_join_at_a_continuation (input : join_at_a_continuation) =
-  let at i f =
-    List.concat
-      (List.mapi
-         (fun j use ->
-           if i = j
-           then
-             List.map
-               (fun use ->
-                 { input with
-                   at_uses =
-                     List.mapi
-                       (fun k use' -> if k = j then use else use')
-                       input.at_uses
-                 })
-               (f use)
-           else [])
-         input.at_uses)
+  let with_use i (use : use) =
+    { input with
+      at_uses =
+        List.mapi (fun j use' -> if i = j then use else use') input.at_uses
+    }
   in
-  (* A use less, if two are left; an equation less; a smaller type. *)
   (if List.length input.at_uses > 2
    then
      List.mapi
@@ -5181,12 +5237,17 @@ let shrink_join_at_a_continuation (input : join_at_a_continuation) =
    else [])
   @ List.concat
       (List.mapi
-         (fun i _ ->
-           at i (fun (known, t) ->
-               List.mapi
-                 (fun k _ -> List.filteri (fun l _ -> k <> l) known, t)
-                 known
-               @ List.map (fun t -> known, t) (G.shrink t)))
+         (fun i (use : use) ->
+           List.mapi
+             (fun k _ ->
+               with_use i
+                 { use with
+                   learns = List.filteri (fun l _ -> k <> l) use.learns
+                 })
+             use.learns
+           @ List.map
+               (fun passes -> with_use i { use with passes })
+               (G.shrink use.passes))
          input.at_uses)
 
 (* The join of the model against the n-way join of the compiler. *)
@@ -5940,23 +6001,48 @@ let () =
        variable, for the meet of the model and the n-way meet of the compiler"
     ~seed:99000 ~count:500 ~equations:`Cases MK.Value;
   examples_of_joins_in_the_model names;
-  let model_join_and_compiler ~title ~seed ~count ~known kind =
+  chosen_joins_in_the_model names;
+  let model_join_and_compiler ~title ~seed ~count ~known ?(binds = false) kind =
+    let local = Converter.variable_to_model names.numbering names.local in
     run ~title ~seed ~count
       ~generate:(fun r ->
         let config : G.config = { well_formed = true; depth = 2 } in
+        let shallow : G.config = { well_formed = true; depth = 1 } in
         { kind_of_parameter = kind;
+          for_types_at_source = [];
           at_uses =
             List.init
               (2 + G.below r 2)
               (fun _ ->
-                ( (if known then generate_equations names r else []),
-                  G.type_of_kind config r names.pool kind ))
+                let learns = if known then generate_equations names r else [] in
+                (* A use may bind a variable of its own and pass it, or a block
+                   that holds it. *)
+                if binds && G.chance r ~percent:60
+                then
+                  let alias = MT.alias_type_of Value (Var local) in
+                  { binds = [local, G.type_of_kind shallow r names.pool Value];
+                    learns;
+                    passes =
+                      (if G.chance r ~percent:50
+                       then alias
+                       else
+                         MT.immutable_block false (N.z_of_int 0)
+                           (Scannable Value_only) Heap
+                           [alias; G.type_of_kind shallow r names.pool Value])
+                  }
+                else
+                  { binds = [];
+                    learns;
+                    passes = G.type_of_kind config r names.pool kind
+                  })
         })
       ~prepare:(fun (input : join_at_a_continuation) ->
         List.iter
-          (fun (known, t) ->
-            List.iter (fun (_, t) -> ignore (to_compiler names t : TG.t)) known;
-            ignore (to_compiler names t : TG.t))
+          (fun { binds; learns; passes } ->
+            let converts t = ignore (to_compiler names t : TG.t) in
+            List.iter (fun (_, t) -> converts t) binds;
+            List.iter (fun (_, t) -> converts t) learns;
+            converts passes)
           input.at_uses;
         input)
       ~shrink:shrink_join_at_a_continuation ~print:print_join_at_a_continuation
@@ -5984,6 +6070,17 @@ let () =
        naked immediates, for the join of the model and the n-way join of the \
        compiler"
     ~seed:106000 ~count:500 ~known:true (MK.Naked_number Kind_naked_immediate);
+  model_join_and_compiler
+    ~title:
+      "Two or three uses, of which some bind a variable and pass it or a block \
+       that holds it, for the join of the model and the n-way join of the \
+       compiler"
+    ~seed:108000 ~count:1000 ~known:false ~binds:true MK.Value;
+  model_join_and_compiler
+    ~title:
+      "The same with uses that know equations on variables, for the join of \
+       the model and the n-way join of the compiler"
+    ~seed:110000 ~count:1000 ~known:true ~binds:true MK.Value;
   let with_itself ~title sharing =
     run ~title ~seed:70000 ~count:1500
       ~generate:(fun r ->

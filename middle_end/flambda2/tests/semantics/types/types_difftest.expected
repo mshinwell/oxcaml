@@ -1169,6 +1169,21 @@ The join of the model beside the n-way join of the compiler, on the inputs of th
   The compiler: a fatal error: Function-slot-indexed products can only hold types of kind [Value]:
   Of 32: 29 the same, 2 where neither answers, 0 different, 1 not run
 
+The join of the model beside the n-way join of the compiler, on the chosen joins
+  Two blocks, (0, 0) and (1, 1), each field an alias of its constant: the same
+  The immediate 0, and a block whose field is a variable that only that use binds, known to be 4 or 5: the same
+  The same, the variable known to be 4: its type is the alias of the constant: the same
+  The immediates 5 and 6 as a variant whose immediate case says that a variable is 1, and that it is 2 (R1-15): the same
+  A number that is 0 or 2, and one that is 2 or 4, each what is_int answers on a variable that every use knows to be the immediate 3: no number is either (R1-16): neither answers.
+  The model: no answer of the join
+  The compiler: a fatal error: Head_of_kind_naked_immediates.create_naked_immediates_non_empty
+  The same two numbers as the immediates of two variants with no block (R1-16): neither answers.
+  The model: no answer of the join
+  The compiler: a fatal error: Head_of_kind_naked_immediates.create_naked_immediates_non_empty
+  A variable of the source, for types only, that one use knows to be 0 or 2 and what is_int answers on a variable known to be the immediate 3 (no number is that), and the other use knows to be 1: the same
+  A closure whose own function has a known code, and one of which nothing is said of the code (T1-4): the same
+  Of 8: 6 the same, 2 where neither answers, 0 different, 0 not run
+
 Two or three types of kind value, for the join of the model and the n-way join of the compiler (1000 cases, seeds 100000 to 100999)
   1000 converted
   join: the model and the n-way join of the compiler: 1000 agree
@@ -1194,42 +1209,56 @@ Two or three types of naked immediates, for the join of the model and the n-way 
 Two or three uses that know equations on variables and pass a type of kind value, for the join of the model and the n-way join of the compiler (1000 cases, seeds 104000 to 104999)
   1000 converted
   join: the model and the n-way join of the compiler: 1000 agree
-  of which those where a variable that was made is mentioned: 128 agree
-  join: the model and the binary join of the compiler: 563 agree, 437 disagree as recorded
-    recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 104000): what is seen of the two answers is not the same
+  of which those where a variable that was made is mentioned: 130 agree
+  join: the model and the binary join of the compiler: 566 agree, 434 disagree as recorded
+    recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 104001): what is seen of the two answers is not the same
     on the shrunk input:
     a parameter of kind value
-    a use that passes (Value
-                       ((Variant (is_int None) (immediates Unknown)
-                         (get_tag (Some v4))
-                         (blocks (Known
-                                  ((known_tags [])
-                                   (other_tags (Ok
-                                                ((Known 2) Value_only [] [])))
-                                   (alloc_mode Heap_or_local))))
-                         (extensions No_extensions) (is_unique false))
-                        Not_null))
-    a use that passes (Value
-                       ((Variant (is_int None) (immediates Unknown)
-                         (get_tag None)
-                         (blocks (Known
-                                  ((known_tags []) (other_tags Bottom)
-                                   (alloc_mode Heap_or_local))))
-                         (extensions No_extensions) (is_unique false))
-                        Not_null))
+    a use that passes (Value Bottom)
+    a use that passes (Value Bottom)
 
 Two or three uses that know equations on variables and pass a type of naked immediates, for the join of the model and the n-way join of the compiler (500 cases, seeds 106000 to 106499)
   500 converted
   join: the model and the n-way join of the compiler: 500 agree
-  of which those where a variable that was made is mentioned: 24 agree
-  join: the model and the binary join of the compiler: 325 agree, 175 disagree as recorded
-    recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 106002): what is seen of the two answers is not the same
+  of which those where a variable that was made is mentioned: 32 agree
+  join: the model and the binary join of the compiler: 334 agree, 166 disagree as recorded
+    recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 106000): what is seen of the two answers is not the same
     on the shrunk input:
     a parameter of kind naked_immediate
-    a use that passes (Naked_immediate Bottom)
-      and knows v5 : (Naked_immediate (= # 2))
     a use that passes (Naked_immediate Unknown)
-      and knows v5 : (Naked_immediate ((Known [1]) []))
+      and knows v2 : (Value (Bottom (Maybe_null None)))
+      and knows v3 : (Value Bottom)
+    a use that passes (Naked_immediate Unknown)
+      and knows v2 : (Value
+                      ((Boxed_number naked_vec128
+                        (Naked_number naked_vec128 Unknown) Heap_or_local)
+                       Not_null))
+
+Two or three uses, of which some bind a variable and pass it or a block that holds it, for the join of the model and the n-way join of the compiler (1000 cases, seeds 108000 to 108999)
+  1000 converted
+  join: the model and the n-way join of the compiler: 1000 agree
+  of which those where a variable that was made is mentioned: 199 agree
+  join: the model and the binary join of the compiler: 732 agree, 268 disagree as recorded
+    recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 108004): what is seen of the two answers is not the same
+    on the shrunk input:
+    a parameter of kind value
+    a use that passes (Value (Unknown Not_null))
+    a use that passes (Value (Unknown (Maybe_null (Some v5))))
+
+The same with uses that know equations on variables, for the join of the model and the n-way join of the compiler (1000 cases, seeds 110000 to 110999)
+  1000 converted
+  join: the model and the n-way join of the compiler: 1000 agree
+  of which those where a variable that was made is mentioned: 132 agree
+  join: the model and the binary join of the compiler: 550 agree, 450 disagree as recorded
+    recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 110000): what is seen of the two answers is not the same
+    on the shrunk input:
+    a parameter of kind value
+    a use that passes (Value Unknown)
+      and binds v24 : (Value (= 3))
+      and knows v4 : (Naked_immediate ((Known [0; 4; 1]) [Is_int $1]))
+    a use that passes (Value Unknown)
+      and knows v4 : (Naked_immediate (= # -2))
+      and knows v5 : (Naked_immediate Bottom)
 
 A type of kind value with itself, shared and not (1500 cases, seeds 70000 to 71499)
   1500 converted
