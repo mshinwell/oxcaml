@@ -1,0 +1,64 @@
+let $camlExported_funs_in_arms_used__first_const_0 = Block 0 () in
+(let code size(3)
+       `fn[exported_funs_in_arms_used.ml:8,51--65]_0` (x/62 : imm tagged)
+         my_closure/63 &my_alloc_region/64 my_depth/65
+         -> k/30 * k/31
+         : imm tagged =
+   let next_depth/66 = rec_info (succ my_depth/65) in
+   let int_add/67 = %int_barith.add (x/62, 2) in
+   cont k/30 (int_add/67)
+ in
+ let code size(3)
+       `fn[exported_funs_in_arms_used.ml:8,31--45]_1` (x/68 : imm tagged)
+         my_closure/69 &my_alloc_region/70 my_depth/71
+         -> k/32 * k/33
+         : imm tagged =
+   let next_depth/72 = rec_info (succ my_depth/71) in
+   let int_add/73 = %int_barith.add (x/68, 1) in
+   cont k/32 (int_add/73)
+ in
+ let code size(13)
+       twice_2 (x/74 : imm tagged)
+         my_closure/75 &my_alloc_region/76 my_depth/77
+         -> k/34 * k/35
+         : imm tagged =
+   let next_depth/78 = rec_info (succ my_depth/77) in
+   let step/79 = %project_value_slot.[twice].[step] (my_closure/75) in
+   apply &my_alloc_region/76 step/79 (x/74) -> k/36 * k/35
+     where k/36 (apply_result/80 : imm tagged) =
+       apply &my_alloc_region/76 step/79 (apply_result/80) -> k/34 * k/35
+ in
+ (let Popaque/86 = %opaque (1) in
+  (let untagged/87 = %untag_imm (Popaque/86) in
+   switch untagged/87
+     | 0 -> k/40
+     | 1 -> k/41)
+    where k/41 =
+      cont k/38
+    where k/40 =
+      cont k/39)
+   where k/39 =
+     let `fn[exported_funs_in_arms_used.ml:8,51--65]/85` =
+       closure `fn[exported_funs_in_arms_used.ml:8,51--65]_0`
+         @`fn[exported_funs_in_arms_used.ml:8,51--65]` &toplevel
+     in
+     cont k/37 (`fn[exported_funs_in_arms_used.ml:8,51--65]/85`)
+   where k/38 =
+     let `fn[exported_funs_in_arms_used.ml:8,31--45]/84` =
+       closure `fn[exported_funs_in_arms_used.ml:8,31--45]_1`
+         @`fn[exported_funs_in_arms_used.ml:8,31--45]` &toplevel
+     in
+     cont k/37 (`fn[exported_funs_in_arms_used.ml:8,31--45]/84`)
+   where k/37 (step/81 : val) =
+     let twice/82 = closure twice_2 @twice &toplevel
+     with { step = step/81 }
+     in
+     let Pmakeblock/83 = %block.[`0`].`toplevel` (step/81, twice/82) in
+     cont k/29 (Pmakeblock/83))
+  where k/29 define_root_symbol (module_block/59) =
+    let field_0/60 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/59)
+    in
+    let field_1/61 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/59)
+    in
+    let $camlExported_funs_in_arms_used = Block 0 (field_0/60, field_1/61) in
+    cont done ($camlExported_funs_in_arms_used)

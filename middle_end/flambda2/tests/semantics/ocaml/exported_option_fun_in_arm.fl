@@ -1,0 +1,35 @@
+let $camlExported_option_fun_in_arm__first_const_0 = Block 0 () in
+(let code size(3)
+       `fn[exported_option_fun_in_arm.ml:8,33--49]_0` (x/31 : imm tagged)
+         my_closure/32 &my_alloc_region/33 my_depth/34
+         -> k/16 * k/17
+         : imm tagged =
+   let next_depth/35 = rec_info (succ my_depth/34) in
+   let int_add/36 = %int_barith.add (x/31, 1) in
+   cont k/16 (int_add/36)
+ in
+ (let Popaque/41 = %opaque (1) in
+  (let untagged/42 = %untag_imm (Popaque/41) in
+   switch untagged/42
+     | 0 -> k/18 (0)
+     | 1 -> k/20)
+    where k/20 =
+      cont k/19)
+   where k/19 =
+     let `fn[exported_option_fun_in_arm.ml:8,33--49]/39` =
+       closure `fn[exported_option_fun_in_arm.ml:8,33--49]_0`
+         @`fn[exported_option_fun_in_arm.ml:8,33--49]` &toplevel
+     in
+     let Pmakeblock/40 =
+       %block.[`0`].`toplevel`
+         (`fn[exported_option_fun_in_arm.ml:8,33--49]/39`)
+     in
+     cont k/18 (Pmakeblock/40)
+   where k/18 (f/37 : [ 0 | 0 of val ]) =
+     let Pmakeblock/38 = %block.[`0`].`toplevel` (f/37) in
+     cont k/15 (Pmakeblock/38))
+  where k/15 define_root_symbol (module_block/29) =
+    let field_0/30 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/29)
+    in
+    let $camlExported_option_fun_in_arm = Block 0 (field_0/30) in
+    cont done ($camlExported_option_fun_in_arm)

@@ -1,0 +1,75 @@
+let $camlExported_match_three_funs__first_const_0 = Block 0 () in
+(let code size(1)
+       `fn[exported_match_three_funs.ml:9,9--19]_0` (x/65 : imm tagged)
+         my_closure/66 &my_alloc_region/67 my_depth/68
+         -> k/36 * k/37
+         : imm tagged =
+   let next_depth/69 = rec_info (succ my_depth/68) in
+   cont k/36 (x/65)
+ in
+ let code size(3)
+       `fn[exported_match_three_funs.ml:10,9--23]_1` (x/70 : imm tagged)
+         my_closure/71 &my_alloc_region/72 my_depth/73
+         -> k/38 * k/39
+         : imm tagged =
+   let next_depth/74 = rec_info (succ my_depth/73) in
+   let int_add/75 = %int_barith.add (x/70, 1) in
+   cont k/38 (int_add/75)
+ in
+ let code size(3)
+       `fn[exported_match_three_funs.ml:11,9--23]_2` (x/76 : imm tagged)
+         my_closure/77 &my_alloc_region/78 my_depth/79
+         -> k/40 * k/41
+         : imm tagged =
+   let next_depth/80 = rec_info (succ my_depth/79) in
+   let int_add/81 = %int_barith.add (x/76, 2) in
+   cont k/40 (int_add/81)
+ in
+ (let `*match*/84` = %opaque (1) in
+  (let prim/91 = %int_comp.ne (`*match*/84`, 0) in
+   let int_notequal/92 = %tag_imm (prim/91) in
+   (let untagged/93 = %untag_imm (int_notequal/92) in
+    switch untagged/93
+      | 0 -> k/49
+      | 1 -> k/50)
+     where k/50 =
+       cont k/43
+     where k/49 =
+       cont k/48)
+    where k/48 =
+      let `fn[exported_match_three_funs.ml:9,9--19]/90` =
+        closure `fn[exported_match_three_funs.ml:9,9--19]_0`
+          @`fn[exported_match_three_funs.ml:9,9--19]` &toplevel
+      in
+      cont k/42 (`fn[exported_match_three_funs.ml:9,9--19]/90`)
+    where k/43 =
+      ((let prim/87 = %int_comp.ne (`*match*/84`, 1) in
+        let int_notequal/88 = %tag_imm (prim/87) in
+        (let untagged/89 = %untag_imm (int_notequal/88) in
+         switch untagged/89
+           | 0 -> k/46
+           | 1 -> k/47)
+          where k/47 =
+            cont k/44
+          where k/46 =
+            cont k/45)
+         where k/45 =
+           let `fn[exported_match_three_funs.ml:10,9--23]/86` =
+             closure `fn[exported_match_three_funs.ml:10,9--23]_1`
+               @`fn[exported_match_three_funs.ml:10,9--23]` &toplevel
+           in
+           cont k/42 (`fn[exported_match_three_funs.ml:10,9--23]/86`)
+         where k/44 =
+           let `fn[exported_match_three_funs.ml:11,9--23]/85` =
+             closure `fn[exported_match_three_funs.ml:11,9--23]_2`
+               @`fn[exported_match_three_funs.ml:11,9--23]` &toplevel
+           in
+           cont k/42 (`fn[exported_match_three_funs.ml:11,9--23]/85`)))
+   where k/42 (g/82 : val) =
+     let Pmakeblock/83 = %block.[`0`].`toplevel` (g/82) in
+     cont k/35 (Pmakeblock/83))
+  where k/35 define_root_symbol (module_block/63) =
+    let field_0/64 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/63)
+    in
+    let $camlExported_match_three_funs = Block 0 (field_0/64) in
+    cont done ($camlExported_match_three_funs)

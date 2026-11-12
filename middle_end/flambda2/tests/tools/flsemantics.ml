@@ -110,6 +110,7 @@ module Float_code = Flambda2_rocq_semantics.FlambdaFloatCodeSpec
 module Loopify = Flambda2_rocq_semantics.FlambdaLoopifySpec
 module Statics_order = Flambda2_rocq_semantics.FlambdaStaticsOrderSpec
 module Lift_from_code = Flambda2_rocq_semantics.FlambdaLiftFromCodeSpec
+module Lift_from_arms = Flambda2_rocq_semantics.FlambdaLiftFromArmsSpec
 module Numbers = Flambda2_rocq_semantics.BinNums
 module P = Flambda_primitive
 
@@ -1679,6 +1680,15 @@ let unused_statics (e : Model.expr) : Unused_statics.dropped =
    [banned] pairs it with: the caller asks again, with the pair banned, where a
    symbol went to a [Let] whose block nothing uses in the end.
 
+   In a handler that is not at toplevel
+   (FlambdaWellFormedSpec.handler_at_toplevel: the arm of a test, say), where no
+   static binding may stand, a symbol goes to the first [Let] that makes just
+   what the symbol is bound to and mentions no variable:
+   FlambdaLiftFromArmsSpec.lift_to_head binds it at the head of the unit. That
+   puts the unit under a group of static bindings, and the validation makes it
+   first, so the paths of the other [Let]s outside code are then given as they
+   are under that group.
+
    A symbol that no [Let] outside code takes goes to the first [Let] in the body
    of code that makes just what the symbol is bound to and mentions no variable:
    FlambdaLiftFromCodeSpec.lift_from_code lifts it out of the code.
@@ -1714,10 +1724,23 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list)
          (fun (sym, _) -> not (List.mem sym bound_before))
          (bound_symbols after))
   in
+  (* The path of what is at a path in the unit, once the unit is under a group
+     of static bindings. *)
+  let rec under_group (path : Numbers.positive) : Numbers.positive =
+    match path with
+    | Coq_xH -> Coq_xO Coq_xH
+    | Coq_xO path -> Coq_xO (under_group path)
+    | Coq_xI path -> Coq_xI (under_group path)
+  in
+  (* A path of [banned] is as an earlier guess gave it: the path of the [Let],
+     or that path under the group of the lifting to the head. *)
   let take path matches =
     match
       List.find_opt
-        (fun (sym, const) -> matches const && not (List.mem (path, sym) banned))
+        (fun (sym, const) ->
+          matches const
+          && (not (List.mem (path, sym) banned))
+          && not (List.mem (under_group path, sym) banned))
         !to_give
     with
     | None -> None
@@ -1754,72 +1777,8 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list)
       known_simples := (x, Model.Symbol sym) :: !known_simples
     | Lift_to_closure_symbols _ -> ()
   in
-  let rec in_expr (path : Numbers.positive) (e : Model.expr) =
-    match e with
-    | Let (x, _, d, body) ->
-      (match d with
-      | Simple ((Symbol _ | Const _) as known) ->
-        known_simples := (x, known) :: !known_simples
-      | Set_of_closures (code, _) -> (
-        match
-          take path (fun (const : Model.static_const) ->
-              match const with
-              | Static_const_set_of_closures (code', _) -> code = code'
-              | _ -> false)
-        with
-        | Some (sym, _) -> lift x path (Lift_to_symbol sym)
-        | None -> ())
-      | Closure_of_set (slot, decls, _) -> (
-        match
-          take path (fun (const : Model.static_const) ->
-              match const with
-              | Static_const_closure_of_set (_, _, decls', _) -> decls = decls'
-              | _ -> false)
-        with
-        | Some (_, Static_const_closure_of_set (_, symbols, _, _)) ->
-          (* The symbols of the other closures of the set go with it. *)
-          to_give
-            := List.filter
-                 (fun (sym, _) ->
-                   not (List.exists (fun (_, sym') -> sym = sym') symbols))
-                 !to_give;
-          (match List.assoc_opt slot symbols with
-          | Some sym -> known_simples := (x, Model.Symbol sym) :: !known_simples
-          | None -> ());
-          lift x path (Lift_to_closure_symbols symbols)
-        | Some _ | None -> ())
-      | Prim (Variadic (Make_block (Block_kind_values tag)), fields) -> (
-        match
-          take path (fun (const : Model.static_const) ->
-              match const with
-              | Static_const_block (tag', fields') ->
-                tag = tag' && fields_agree fields fields'
-              | _ -> false)
-        with
-        | Some (sym, _) -> lift x path (Lift_to_symbol sym)
-        | None -> ())
-      | Prim (Unary (Box_number _), [contents]) -> (
-        match
-          take path (fun (const : Model.static_const) ->
-              match const with
-              | Static_const_boxed_number contents' ->
-                fields_agree [contents] [contents']
-              | _ -> false)
-        with
-        | Some (sym, _) -> lift x path (Lift_to_symbol sym)
-        | None -> ())
-      | _ -> ());
-      in_expr (Numbers.Coq_xO path) body
-    | Let_static (_, body) -> in_expr (Numbers.Coq_xO path) body
-    | Let_cont_non_recursive (_, Handler (_, _, handler), body) ->
-      in_expr (Numbers.Coq_xO path) body;
-      in_expr (Numbers.Coq_xI path) handler
-    | Let_cont_recursive (_, body) -> in_expr (Numbers.Coq_xO path) body
-    | Apply _ | Apply_cont _ | Switch _ | Invalid -> ()
-  in
-  in_expr Lift.root before;
-  let lets = List.rev !lets in
-  (* The [Let]s in the bodies of code, for the symbols that are left. *)
+  (* The [Let]s that mention no variable, in the body of code or in a handler
+     that is not at toplevel. *)
   let plain (s : Model.simple) =
     match s with Symbol _ | Const _ -> true | Var _ -> false
   in
@@ -1885,6 +1844,80 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list)
       in_code code_lets (Numbers.Coq_xO path) body
     | Apply _ | Apply_cont _ | Switch _ | Invalid -> ()
   in
+  let to_head = ref [] in
+  let rec in_expr (path : Numbers.positive) (e : Model.expr) =
+    match e with
+    | Let (x, _, d, body) ->
+      (match d with
+      | Simple ((Symbol _ | Const _) as known) ->
+        known_simples := (x, known) :: !known_simples
+      | Set_of_closures (code, _) -> (
+        match
+          take path (fun (const : Model.static_const) ->
+              match const with
+              | Static_const_set_of_closures (code', _) -> code = code'
+              | _ -> false)
+        with
+        | Some (sym, _) -> lift x path (Lift_to_symbol sym)
+        | None -> ())
+      | Closure_of_set (slot, decls, _) -> (
+        match
+          take path (fun (const : Model.static_const) ->
+              match const with
+              | Static_const_closure_of_set (_, _, decls', _) -> decls = decls'
+              | _ -> false)
+        with
+        | Some (_, Static_const_closure_of_set (_, symbols, _, _)) ->
+          (* The symbols of the other closures of the set go with it. *)
+          to_give
+            := List.filter
+                 (fun (sym, _) ->
+                   not (List.exists (fun (_, sym') -> sym = sym') symbols))
+                 !to_give;
+          (match List.assoc_opt slot symbols with
+          | Some sym -> known_simples := (x, Model.Symbol sym) :: !known_simples
+          | None -> ());
+          lift x path (Lift_to_closure_symbols symbols)
+        | Some _ | None -> ())
+      | Prim (Variadic (Make_block (Block_kind_values tag)), fields) -> (
+        match
+          take path (fun (const : Model.static_const) ->
+              match const with
+              | Static_const_block (tag', fields') ->
+                tag = tag' && fields_agree fields fields'
+              | _ -> false)
+        with
+        | Some (sym, _) -> lift x path (Lift_to_symbol sym)
+        | None -> ())
+      | Prim (Unary (Box_number _), [contents]) -> (
+        match
+          take path (fun (const : Model.static_const) ->
+              match const with
+              | Static_const_boxed_number contents' ->
+                fields_agree [contents] [contents']
+              | _ -> false)
+        with
+        | Some (sym, _) -> lift x path (Lift_to_symbol sym)
+        | None -> ())
+      | _ -> ());
+      in_expr (Numbers.Coq_xO path) body
+    | Let_static (_, body) -> in_expr (Numbers.Coq_xO path) body
+    | Let_cont_non_recursive (k, (Handler (_, _, handler) as h), body) ->
+      in_expr (Numbers.Coq_xO path) body;
+      if Well_formed.handler_at_toplevel unit.Well_formed.unit_exn k h body
+      then in_expr (Numbers.Coq_xI path) handler
+      else in_code to_head (Numbers.Coq_xI path) handler
+    | Let_cont_recursive (_, body) -> in_expr (Numbers.Coq_xO path) body
+    | Apply _ | Apply_cont _ | Switch _ | Invalid -> ()
+  in
+  in_expr Lift.root before;
+  let to_head = List.rev !to_head in
+  let lets =
+    match Lift_from_code.lifted_out_bindings to_head Lift.root before with
+    | [] -> List.rev !lets
+    | _ :: _ ->
+      List.rev_map (fun (path, target) -> under_group path, target) !lets
+  in
   let out_of_code = ref [] in
   let rec in_groups (e : Model.expr) =
     match e with
@@ -1913,7 +1946,8 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list)
   let out_of_code = List.rev !out_of_code in
   let lifted =
     Lift.lift_expr lets Lift.root
-      (Lift_from_code.lift_from_code out_of_code [] Lift.root before)
+      (Lift_from_code.lift_from_code out_of_code [] Lift.root
+         (Lift_from_arms.lift_to_head to_head before))
   in
   let my_closures =
     List.filter_map
@@ -1937,7 +1971,7 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list)
     lifted_lets = lets;
     lifted_my_closures = my_closures;
     lifted_out_of_code = out_of_code;
-    lifted_to_head = []
+    lifted_to_head = to_head
   }
 
 (* ---- Value slots that Simplify removed --------------------------------- *)
@@ -2192,9 +2226,15 @@ let validate ~(outcome_before : outcome) (before : converted)
      [validate_unit] is the function asked, which has the two terms of the unit
      already and takes the other guesses; [before] and [after] are the two terms
      that it compares once it has made the loops and normalised, from which the
-     guesses are made. It gives the verdict, the term before that was compared
-     last, how it was made, whether value slots were removed from it, and the
-     term after as it was compared. *)
+     guesses are made. It gives the verdict; a term before that the function
+     asked compared, with how it was made, to show where a unit that is not
+     validated differs; whether value slots were removed from it; and the term
+     after as it was compared with it. Which pair: where nothing is guessed to
+     lift, that of the third comparison (the term before normalised, with its
+     unused static bindings removed); where something is lifted and nothing to
+     the head of the unit, that of the fourth (the bindings of code of both
+     terms moved up); where something is lifted to the head, that of the fifth,
+     which is the last. *)
   let ask validate_unit (before : converted) (after : converted) kept =
     (* The term before with its self tail calls made jumps: the term that the
        function asked normalises and lifts in. *)
@@ -2215,19 +2255,20 @@ let validate ~(outcome_before : outcome) (before : converted)
     match validation with
     | Not_validated -> (
       (* The liftings, in turn, as [validate_unit] makes them. The first is
-         guessed from the term before as it was given; each one after it from
-         the term that those before it give, normalised: for the [Let]s that
-         inlining a call has brought out of a function. One is tried after the
-         first only if it lifts something, and there are three at most. After
-         each, as [validate_unit] does, the value slots of static closures are
-         read and what the unit binds its symbols to is used in every round of
-         the normalisation. The rounds are told, as [validate_unit] tells them,
-         not to make a name that is one of the two continuations of the unit:
-         every lifting has the unit of the term before, and a name made is the
-         one after the greatest of those to avoid and of the term, so the names
-         made here are those that [validate_unit] makes whatever the number of
-         liftings it is given. [banned] has, for the liftings by their place in
-         the sequence, the [Let]s that a symbol is not to go to. *)
+         guessed from the term before after its self tail calls are made jumps;
+         each one after it from the term that those before it give, normalised:
+         for the [Let]s that inlining a call has brought out of a function. One
+         is tried after the first only if it lifts something, and there are
+         three at most. After each, as [validate_unit] does, the value slots of
+         static closures are read and what the unit binds its symbols to is used
+         in every round of the normalisation. The rounds are told, as
+         [validate_unit] tells them, not to make a name that is one of the two
+         continuations of the unit: every lifting has the unit of the term
+         before, and a name made is the one after the greatest of those to avoid
+         and of the term, so the names made here are those that [validate_unit]
+         makes whatever the number of liftings it is given. [banned] has, for
+         the liftings by their place in the sequence, the [Let]s that a symbol
+         is not to go to. *)
       let avoid =
         let unit = interface before in
         [unit.unit_return; unit.unit_exn]
@@ -2248,21 +2289,22 @@ let validate ~(outcome_before : outcome) (before : converted)
               made,
               lifting.lifted_lets,
               lifting.lifted_my_closures,
-              lifting.lifted_out_of_code )
+              lifting.lifted_out_of_code,
+              lifting.lifted_to_head )
           with
-          | 0, _, _, _, _ | _, _ :: _, [], [], [] -> true
-          | _, _, _, _, _ -> false
+          | 0, _, _, _, _, _ | _, _ :: _, [], [], [], [] -> true
+          | _, _, _, _, _, _ -> false
         in
         if stop
         then List.rev made, lifted
         else
-          (* As [validate_unit] applies a lifting: out of code, then where the
-             [Let]s stand. The sequence ends here if the term comes back as the
-             same value in memory. That comparison of two pointers is a shortcut
-             of this search, which is bounded and not trusted. It says nothing
-             of the checks of a lifting: a lifting whose checks pass may give
-             the same term back, and then the search stops; one that gives a
-             term rebuilt but equal may continue. *)
+          (* As [validate_unit] applies a lifting: to the head of the unit, out
+             of code, then where the [Let]s stand. The sequence ends here if the
+             term comes back as the same value in memory. That comparison of two
+             pointers is a shortcut of this search, which is bounded and not
+             trusted. It says nothing of the checks of a lifting: a lifting
+             whose checks pass may give the same term back, and then the search
+             stops; one that gives a term rebuilt but equal may continue. *)
           let lifted' = Validate.with_lifting lifting lifted in
           if lifted' == lifted
           then List.rev made, lifted
@@ -2304,13 +2346,34 @@ let validate ~(outcome_before : outcome) (before : converted)
       match guessed [] 5 with
       | [], _, _, _ -> not_lifted
       | (_ :: _ as liftings), lifted, slots, unused ->
-        ( (* The bindings of code of both terms are moved up before the
-             comparison. *)
-          validate_unit unused slots liftings,
-          Float_code.float_code (Validate.without_statics unused lifted),
-          "lifted and normalised",
-          (match slots with [] -> false | _ :: _ -> true),
-          Float_code.float_code (Validate.with_code_first normalised_after) ))
+        let validation = validate_unit unused slots liftings in
+        let slots_removed = match slots with [] -> false | _ :: _ -> true in
+        if
+          List.exists
+            (fun (lifting : Lift.lifting) ->
+              match lifting.lifted_to_head with [] -> false | _ :: _ -> true)
+            liftings
+        then
+          (* Something was lifted to the head of the unit: the pair shown is
+             that of the last comparison, of the two terms with their static
+             bindings that mention no variable bound first. An earlier
+             comparison may be the one that holds: the verdict is that of the
+             function asked alone. *)
+          ( validation,
+            Validate.with_statics_first liftings
+              (Validate.without_statics unused lifted),
+            "lifted and normalised, with the static bindings that mention no \
+             variable first",
+            slots_removed,
+            Validate.with_statics_first liftings normalised_after )
+        else
+          ( (* The pair shown is that of the fourth comparison: the bindings of
+               code of both terms are moved up. *)
+            validation,
+            Float_code.float_code (Validate.without_statics unused lifted),
+            "lifted and normalised",
+            slots_removed,
+            Float_code.float_code (Validate.with_code_first normalised_after) ))
     | Same_up_to_bound_names | Same_once_normalised
     | Same_once_unused_statics_removed | Same_once_lifted ->
       not_lifted
@@ -2433,14 +2496,14 @@ let validate ~(outcome_before : outcome) (before : converted)
          nothing of this unit@.");
   match validation with
   | Not_validated when Sys.getenv_opt "FLSEMANTICS_PRINT_TERMS" <> None ->
-    (* What [validate_unit] compared last, for each guess of the calls to leave:
-       the static bindings of the term before are in the order of those of the
-       term after. *)
+    (* A pair of terms that the validation compared, for each guess of the calls
+       to leave ([ask] says which pair): the static bindings of the term before
+       are in the order of those of the term after. *)
     List.iter
       (fun (which, (_, compared, how, _, normalised_after)) ->
         Format.printf
           "@[<v 2>  %s:@ @[<v 2>the term before, %s:@ %a@]@ @[<v 2>the term \
-           after, normalised:@ %a@]@]@."
+           after, as it was compared:@ %a@]@]@."
           which how print_expr
           (Statics_order.order_statics_as normalised_after compared)
           print_expr normalised_after)

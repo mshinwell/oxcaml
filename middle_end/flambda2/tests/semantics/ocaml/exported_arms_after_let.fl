@@ -1,0 +1,101 @@
+let $camlExported_arms_after_let__first_const_0 = Block 0 () in
+(let code size(3)
+       `fn[exported_arms_after_let.ml:8,45--59]_1` (x/91 : imm tagged)
+         my_closure/92 &my_alloc_region/93 my_depth/94
+         -> k/44 * k/45
+         : imm tagged =
+   let next_depth/95 = rec_info (succ my_depth/94) in
+   let int_add/96 = %int_barith.add (x/91, 2) in
+   cont k/44 (int_add/96)
+ in
+ let code size(3)
+       `fn[exported_arms_after_let.ml:8,25--39]_2` (x/97 : imm tagged)
+         my_closure/98 &my_alloc_region/99 my_depth/100
+         -> k/46 * k/47
+         : imm tagged =
+   let next_depth/101 = rec_info (succ my_depth/100) in
+   let int_add/102 = %int_barith.add (x/97, 1) in
+   cont k/46 (int_add/102)
+ in
+ let code size(35)
+       choose_0 (c/103 : imm tagged)
+         my_closure/104 &my_alloc_region/105 my_depth/106
+         -> k/48 * k/49
+         : val =
+   let next_depth/107 = rec_info (succ my_depth/106) in
+   (let untagged/110 = %untag_imm (c/103) in
+    switch untagged/110
+      | 0 -> k/52
+      | 1 -> k/53)
+     where k/53 =
+       cont k/50
+     where k/52 =
+       cont k/51
+     where k/51 =
+       let `fn[exported_arms_after_let.ml:8,45--59]/109` =
+         closure `fn[exported_arms_after_let.ml:8,45--59]_1`
+           @`fn[exported_arms_after_let.ml:8,45--59]` &my_alloc_region/105
+       in
+       cont k/48 (`fn[exported_arms_after_let.ml:8,45--59]/109`)
+     where k/50 =
+       let `fn[exported_arms_after_let.ml:8,25--39]/108` =
+         closure `fn[exported_arms_after_let.ml:8,25--39]_2`
+           @`fn[exported_arms_after_let.ml:8,25--39]` &my_alloc_region/105
+       in
+       cont k/48 (`fn[exported_arms_after_let.ml:8,25--39]/108`)
+ in
+ let code size(3)
+       `fn[exported_arms_after_let.ml:12,38--52]_3` (x/111 : imm tagged)
+         my_closure/112 &my_alloc_region/113 my_depth/114
+         -> k/54 * k/55
+         : imm tagged =
+   let next_depth/115 = rec_info (succ my_depth/114) in
+   let int_add/116 = %int_barith.add (x/111, 2) in
+   cont k/54 (int_add/116)
+ in
+ let code size(3)
+       `fn[exported_arms_after_let.ml:12,18--32]_4` (x/117 : imm tagged)
+         my_closure/118 &my_alloc_region/119 my_depth/120
+         -> k/56 * k/57
+         : imm tagged =
+   let next_depth/121 = rec_info (succ my_depth/120) in
+   let int_add/122 = %int_barith.add (x/117, 1) in
+   cont k/56 (int_add/122)
+ in
+ let choose/123 = closure choose_0 @choose &toplevel in
+ let b/124 = %opaque (1) in
+ (let untagged/129 = %untag_imm (b/124) in
+  switch untagged/129
+    | 0 -> k/61
+    | 1 -> k/62)
+   where k/62 =
+     cont k/59
+   where k/61 =
+     cont k/60
+   where k/60 =
+     let `fn[exported_arms_after_let.ml:12,38--52]/128` =
+       closure `fn[exported_arms_after_let.ml:12,38--52]_3`
+         @`fn[exported_arms_after_let.ml:12,38--52]` &toplevel
+     in
+     cont k/58 (`fn[exported_arms_after_let.ml:12,38--52]/128`)
+   where k/59 =
+     let `fn[exported_arms_after_let.ml:12,18--32]/127` =
+       closure `fn[exported_arms_after_let.ml:12,18--32]_4`
+         @`fn[exported_arms_after_let.ml:12,18--32]` &toplevel
+     in
+     cont k/58 (`fn[exported_arms_after_let.ml:12,18--32]/127`)
+   where k/58 (g/125 : val) =
+     let Pmakeblock/126 = %block.[`0`].`toplevel` (choose/123, b/124, g/125)
+     in
+     cont k/43 (Pmakeblock/126))
+  where k/43 define_root_symbol (module_block/87) =
+    let field_0/88 = %block_load.tag[`0`].`size`[`3`].[`0`] (module_block/87)
+    in
+    let field_1/89 = %block_load.tag[`0`].`size`[`3`].[`1`] (module_block/87)
+    in
+    let field_2/90 = %block_load.tag[`0`].`size`[`3`].[`2`] (module_block/87)
+    in
+    let $camlExported_arms_after_let =
+      Block 0 (field_0/88, field_1/89, field_2/90)
+    in
+    cont done ($camlExported_arms_after_let)

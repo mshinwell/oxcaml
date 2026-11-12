@@ -1,0 +1,56 @@
+let $camlExported_pair_fun_in_arms__first_const_0 = Block 0 () in
+(let code size(3)
+       `fn[exported_pair_fun_in_arms.ml:8,54--68]_0` (x/47 : imm tagged)
+         my_closure/48 &my_alloc_region/49 my_depth/50
+         -> k/24 * k/25
+         : imm tagged =
+   let next_depth/51 = rec_info (succ my_depth/50) in
+   let int_add/52 = %int_barith.add (x/47, 2) in
+   cont k/24 (int_add/52)
+ in
+ let code size(3)
+       `fn[exported_pair_fun_in_arms.ml:8,31--45]_1` (x/53 : imm tagged)
+         my_closure/54 &my_alloc_region/55 my_depth/56
+         -> k/26 * k/27
+         : imm tagged =
+   let next_depth/57 = rec_info (succ my_depth/56) in
+   let int_add/58 = %int_barith.add (x/53, 1) in
+   cont k/26 (int_add/58)
+ in
+ (let Popaque/65 = %opaque (1) in
+  (let untagged/66 = %untag_imm (Popaque/65) in
+   switch untagged/66
+     | 0 -> k/31
+     | 1 -> k/32)
+    where k/32 =
+      cont k/29
+    where k/31 =
+      cont k/30)
+   where k/30 =
+     let `fn[exported_pair_fun_in_arms.ml:8,54--68]/63` =
+       closure `fn[exported_pair_fun_in_arms.ml:8,54--68]_0`
+         @`fn[exported_pair_fun_in_arms.ml:8,54--68]` &toplevel
+     in
+     let Pmakeblock/64 =
+       %block.[`0`].`toplevel`
+         (2, `fn[exported_pair_fun_in_arms.ml:8,54--68]/63`)
+     in
+     cont k/28 (Pmakeblock/64)
+   where k/29 =
+     let `fn[exported_pair_fun_in_arms.ml:8,31--45]/61` =
+       closure `fn[exported_pair_fun_in_arms.ml:8,31--45]_1`
+         @`fn[exported_pair_fun_in_arms.ml:8,31--45]` &toplevel
+     in
+     let Pmakeblock/62 =
+       %block.[`0`].`toplevel`
+         (1, `fn[exported_pair_fun_in_arms.ml:8,31--45]/61`)
+     in
+     cont k/28 (Pmakeblock/62)
+   where k/28 (p/59 : [ 0 of imm tagged * val ]) =
+     let Pmakeblock/60 = %block.[`0`].`toplevel` (p/59) in
+     cont k/23 (Pmakeblock/60))
+  where k/23 define_root_symbol (module_block/45) =
+    let field_0/46 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/45)
+    in
+    let $camlExported_pair_fun_in_arms = Block 0 (field_0/46) in
+    cont done ($camlExported_pair_fun_in_arms)

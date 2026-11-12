@@ -1,0 +1,43 @@
+let $camlExported_fun_in_one_arm__first_const_0 = Block 0 () in
+(let code size(3)
+       succ_0 (x/46 : imm tagged)
+         my_closure/47 &my_alloc_region/48 my_depth/49
+         -> k/20 * k/21
+         : imm tagged =
+   let next_depth/50 = rec_info (succ my_depth/49) in
+   let int_add/51 = %int_barith.add (x/46, 1) in
+   cont k/20 (int_add/51)
+ in
+ let code size(3)
+       `fn[exported_fun_in_one_arm.ml:10,38--52]_1` (x/52 : imm tagged)
+         my_closure/53 &my_alloc_region/54 my_depth/55
+         -> k/22 * k/23
+         : imm tagged =
+   let next_depth/56 = rec_info (succ my_depth/55) in
+   let int_add/57 = %int_barith.add (x/52, 2) in
+   cont k/22 (int_add/57)
+ in
+ let succ/58 = closure succ_0 @`succ` &toplevel in
+ (let Popaque/62 = %opaque (1) in
+  (let untagged/63 = %untag_imm (Popaque/62) in
+   switch untagged/63
+     | 0 -> k/26
+     | 1 -> k/24 (succ/58))
+    where k/26 =
+      cont k/25)
+   where k/25 =
+     let `fn[exported_fun_in_one_arm.ml:10,38--52]/61` =
+       closure `fn[exported_fun_in_one_arm.ml:10,38--52]_1`
+         @`fn[exported_fun_in_one_arm.ml:10,38--52]` &toplevel
+     in
+     cont k/24 (`fn[exported_fun_in_one_arm.ml:10,38--52]/61`)
+   where k/24 (f/59 : val) =
+     let Pmakeblock/60 = %block.[`0`].`toplevel` (succ/58, f/59) in
+     cont k/19 (Pmakeblock/60))
+  where k/19 define_root_symbol (module_block/43) =
+    let field_0/44 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/43)
+    in
+    let field_1/45 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/43)
+    in
+    let $camlExported_fun_in_one_arm = Block 0 (field_0/44, field_1/45) in
+    cont done ($camlExported_fun_in_one_arm)
