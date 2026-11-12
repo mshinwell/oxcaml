@@ -228,6 +228,48 @@
    [shape_constant] ([shape_constant_validated_statement],
    [shape_constant_refines_statement]).
 
+   The last examples are whole terms, with a symbol that a function,
+   or a loop, is given where it is bound. [constant_join] is the body
+   of the function of
+
+     let[@inline never] f : bool -> int -> int =
+      fun c x ->
+       let v = if c then Some 8 else None in
+       match v with None -> x | Some y -> x + y
+
+   The block [Some 8] is a constant, which closure conversion makes a
+   symbol of the unit, bound before the code of [f]; the join in the
+   body is given that symbol or the constant [None]. Simplify gives
+   the join whether the value is an immediate and the field: 8 from
+   the symbol and [poison] from [None]. The body alone says nothing of
+   the symbol. A round of the first phase for a whole term
+   (FlambdaValidateSpec.normalise_params_round) gives the round for
+   the body of code what the static bindings in scope make known
+   (FlambdaUnboxInScopeSpec.rewrite_code_in_scope), and the round for
+   the handler of a loop likewise
+   (FlambdaUnboxInScopeSpec.rewrite_rec_handlers_in_scope). So:
+   - [constant_in_code] binds the symbol and the code in one group.
+     Five such rounds take it to the term with the join unboxed
+     ([constant_in_code_validated_statement]), which therefore refines
+     it ([constant_in_code_refines_statement]);
+   - [constant_below_code] binds the code first and the symbol under
+     it. The symbol is not in scope where the code is bound, and five
+     rounds leave the term as it is
+     ([constant_below_code_left_statement]);
+   - [constant_in_loop] has the same join in the handler of a
+     recursive continuation under the binding of the symbol; the two
+     parameters of the handler are 1 and 2, and it is applied once, to
+     the variables 1 and 2 of the term. Five rounds unbox the join
+     there ([constant_in_loop_validated_statement],
+     [constant_in_loop_refines_statement]).
+   In the three the symbol is 1 and the code id is 1; the parameters
+   of the code are [c], 1, and [x], 2, its closure variable is 3 and
+   its return and exception continuations are 1 and 2. In the two
+   terms with code, the code is not called: the body of the term
+   returns a constant to the continuation 1, and only the bindings
+   matter. The term with the loop applies its handler, which returns
+   [x], or [x] and 8 added, to the continuation 1.
+
    The proofs are in FlambdaUnboxVariantsExamplesProofs.v, which needs
    no review. *)
 
@@ -239,7 +281,7 @@ From OxCamlFlambda2 Require Import FlambdaKindModel FlambdaModel
   FlambdaShortcutSpec FlambdaSinkContsSpec FlambdaUnboxSpec
   FlambdaUnusedContsSpec FlambdaUnusedParamsSpec FlambdaValidateSpec
   FlambdaUnboxParamsSpec FlambdaUnboxParamsExamplesSpec
-  FlambdaUnboxVariantsSpec.
+  FlambdaUnboxVariantsSpec FlambdaUnboxInScopeSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
 Import ListNotations.
 Open Scope positive_scope.
@@ -933,3 +975,97 @@ Definition shape_constant_validated_statement : Prop :=
 
 Definition shape_constant_refines_statement : Prop :=
   expr_refines shape_constant_before shape_constant_after.
+
+(* ======================================================================== *)
+(* A constant block in code and in a loop                                   *)
+(* ======================================================================== *)
+
+(* The continuation of the join is 2 and its parameter is 3; 3 is the
+   continuation that loads the field. *)
+Definition constant_join_before : expr :=
+  Let_cont_non_recursive 2
+    (Handler [3] (make_handler_metadata [Value])
+       (Let_cont_non_recursive 3
+          (Handler [] (make_handler_metadata [])
+             (Let 4 Value (field 0 3)
+                (Let 5 Value (add_tagged (Var 2) (Var 4))
+                   (Apply_cont (jump 1 [Var 5])))))
+          (Let 6 naked_immediate (is_int (Var 3))
+             (Switch (Var 6) [(0%Z, jump 3 []); (1%Z, jump 1 [Var 2])]))))
+    (Let 7 naked_immediate (untag (Var 1))
+       (Switch (Var 7)
+          [(0%Z, jump 2 [tagged 0]); (1%Z, jump 2 [Symbol 1])])).
+
+Definition constant_join_after : expr :=
+  Let_cont_non_recursive 2
+    (Handler [6; 4] (make_handler_metadata [naked_immediate; Value])
+       (Let_cont_non_recursive 3
+          (Handler [] (make_handler_metadata [])
+             (Let 5 Value (add_tagged (Var 2) (Var 4))
+                (Apply_cont (jump 1 [Var 5]))))
+          (Switch (Var 6) [(0%Z, jump 3 []); (1%Z, jump 1 [Var 2])])))
+    (Let 7 naked_immediate (untag (Var 1))
+       (Switch (Var 7)
+          [(0%Z, jump 2 [naked 1; poison_value]);
+           (1%Z, jump 2 [naked 0; tagged 8])])).
+
+Definition constant_block : static_const := Static_const_block 0 [tagged 8].
+
+Definition constant_code (body : expr) : code :=
+  Code [1; 2] 3 1 2
+    (make_code_metadata [Singleton Value; Singleton Value] [Singleton Value])
+    body.
+
+Definition constant_in_code_before : expr :=
+  Let_static
+    [Bind_symbol 1 constant_block;
+     Bind_code 1 (constant_code constant_join_before)]
+    (Apply_cont (jump 1 [tagged 0])).
+
+Definition constant_in_code_after : expr :=
+  Let_static
+    [Bind_symbol 1 constant_block;
+     Bind_code 1 (constant_code constant_join_after)]
+    (Apply_cont (jump 1 [tagged 0])).
+
+Definition constant_below_code : expr :=
+  Let_static [Bind_code 1 (constant_code constant_join_before)]
+    (Let_static [Bind_symbol 1 constant_block]
+       (Apply_cont (jump 1 [tagged 0]))).
+
+(* The loop is the continuation 5. *)
+Definition constant_in_loop_before : expr :=
+  Let_static [Bind_symbol 1 constant_block]
+    (Let_cont_recursive
+       [(5,
+         Handler [1; 2] (make_handler_metadata [Value; Value])
+           constant_join_before)]
+       (Apply_cont (jump 5 [Var 1; Var 2]))).
+
+Definition constant_in_loop_after : expr :=
+  Let_static [Bind_symbol 1 constant_block]
+    (Let_cont_recursive
+       [(5,
+         Handler [1; 2] (make_handler_metadata [Value; Value])
+           constant_join_after)]
+       (Apply_cont (jump 5 [Var 1; Var 2]))).
+
+(* Five rounds of the first phase for a whole term take the term before
+   to the term after, up to bound names. *)
+Definition validated_by_rounds (before after : expr) : Prop :=
+  expr_eqb [] [] (iterate 5 normalise_params_round before) after = true.
+
+Definition constant_in_code_validated_statement : Prop :=
+  validated_by_rounds constant_in_code_before constant_in_code_after.
+
+Definition constant_in_code_refines_statement : Prop :=
+  expr_refines constant_in_code_before constant_in_code_after.
+
+Definition constant_below_code_left_statement : Prop :=
+  validated_by_rounds constant_below_code constant_below_code.
+
+Definition constant_in_loop_validated_statement : Prop :=
+  validated_by_rounds constant_in_loop_before constant_in_loop_after.
+
+Definition constant_in_loop_refines_statement : Prop :=
+  expr_refines constant_in_loop_before constant_in_loop_after.

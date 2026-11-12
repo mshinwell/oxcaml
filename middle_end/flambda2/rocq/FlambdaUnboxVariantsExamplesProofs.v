@@ -189,3 +189,33 @@ Theorem shape_constant_refines : shape_constant_refines_statement.
 Proof.
   exact (validated_by_first_phase_refines _ _ shape_constant_validated).
 Qed.
+
+(* The rounds of the first phase for a whole term refine, and what they
+   take to the term after is refined by it. *)
+Lemma validated_by_rounds_refines (before after : expr) :
+  validated_by_rounds before after -> expr_refines before after.
+Proof.
+  intros Hsame.
+  exact (expr_refines_trans _ _ _
+    (iterate_refines _ normalise_params_round_refines 5 before)
+    (expr_equivalent_refines _ _ (expr_eqb_sound _ _ Hsame))).
+Qed.
+
+Theorem constant_in_code_validated : constant_in_code_validated_statement.
+Proof. vm_compute. reflexivity. Qed.
+
+Theorem constant_in_code_refines : constant_in_code_refines_statement.
+Proof.
+  exact (validated_by_rounds_refines _ _ constant_in_code_validated).
+Qed.
+
+Theorem constant_below_code_left : constant_below_code_left_statement.
+Proof. vm_compute. reflexivity. Qed.
+
+Theorem constant_in_loop_validated : constant_in_loop_validated_statement.
+Proof. vm_compute. reflexivity. Qed.
+
+Theorem constant_in_loop_refines : constant_in_loop_refines_statement.
+Proof.
+  exact (validated_by_rounds_refines _ _ constant_in_loop_validated).
+Qed.
