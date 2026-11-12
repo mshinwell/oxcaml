@@ -30,15 +30,18 @@
 
    This file is to be reviewed: what is known where a subterm is
    ([Known.t]) and the functions that keep it ([Known.add_equal],
-   [Known.forget], [Known.bind], [Known.under_let]); [follow_aliases]
-   and what it is made of; what it is for an environment of the machine
-   to agree with what is known ([known_respected]); and the statements.
+   [Known.forget], [Known.bind], [Known.under_let],
+   [Known.under_let_static]); [follow_aliases] and what it is made of;
+   what it is for a static environment and an environment of the
+   machine to agree with what is known ([known_respected]); and the
+   statements.
    [follow_aliases] is written to be extracted and run by the validation
    of middle_end/flambda2/tests/semantics/, in the place of
    FlambdaAliasesSpec.follow_aliases, which is written with a list of
    variables and types. This one is written with the aliases of
    FlambdaEnvAliases.v (after middle_end/flambda2/types/env/aliases.ml),
-   and knows the closures of a set of several functions.
+   and knows the closures of a set of several functions, and the
+   closures that a [Let_static] binds symbols to.
 
    What is known where a subterm is ([Known.t]):
    - the aliases: classes of simples that are equal, each with its
@@ -48,19 +51,27 @@
    - the closures: for some variables, the closure that the variable was
      bound to by a [Let] ([Known.closure]): the code of a closure with
      no function slot named, or the function slot, the functions and the
-     value slots of a closure of a set.
+     value slots of a closure of a set;
+   - the closures of symbols: for some symbols, the closure that a
+     [Let_static] bound the symbol to ([Known.static_closure]): the
+     same, and for a closure of a set the symbols that the set names for
+     its function slots.
 
    [follow_aliases] goes through a term and
    - replaces every [Simple] by the canonical element of its class
      ([Known.canonical_simple]), as Simplify does
      (simplify/simplify_simple.ml);
-   - makes a call of a variable that is known to be a closure a direct
-     call of its code ([canonical_call_kind]);
-   - replaces the projection of a value slot from such a variable by
-     what the slot holds ([canonical_project], and
+   - makes a call of a variable or of a symbol that is known to be a
+     closure a direct call of its code ([canonical_call_kind]);
+   - replaces the projection of a value slot from such a variable or
+     symbol by what the slot holds ([canonical_project], and
      [canonical_project_from] where the projection names the function
      slot of the closure: only if it is the slot that the closure is
-     at).
+     at);
+   - replaces the projection of a function slot from a symbol known to
+     be the closure of a static set at the slot that the projection
+     names by the symbol that the set names for the other slot
+     ([canonical_project_function_slot]).
    There is no substitution, and a [Let] stays where it is, to be
    removed if it is then unused (../../rocq/FlambdaNormaliseSpec.v).
 
@@ -79,6 +90,13 @@
      all known: the compiler's [Let] of a set is a [Let] of the first
      closure and one of each other closure as its projection from the
      first (FlambdaModel.let_closures).
+   Going under a [Let_static] ([Known.under_let_static]) each symbol
+   that the group binds to a closure is recorded with it. What is
+   recorded of a symbol stays true as the term runs on: the machine
+   does not bind a symbol twice (that is undefined:
+   FlambdaSemanticsSpec.eval_static_bindings), and a static environment
+   only grows ([known_respected_extend_statement]). The value slots of
+   a static closure are [Simple]s, read where the group is.
    Handlers of non-recursive continuations are gone into, with what is
    known where they are defined and their parameters bound; those of
    recursive ones and code are left as they are.
@@ -91,8 +109,8 @@
      with its canonical element, leaving the variable out. If the
      variable was the canonical element of a class, the other names of
      the class are made aliases of one another;
-   - of the closures: the one recorded for the variable, and those with
-     a value slot that holds it.
+   - of the closures: the one recorded for the variable, and those, of
+     variables and of symbols, with a value slot that holds it.
    Where the variable is not written in the aliases they are left as
    they are, which is the case of every binder of a term whose bound
    variables are all different. The compiler has no such operation, and
@@ -103,9 +121,15 @@
    What is not as in the compiler:
    - Simplify keeps a typing environment, of which the aliases are a
      part, and learns what a closure is from the type of the variable.
-     Here the closures known are a list of their own, a stand-in until
-     the types of closures and the provers are used for it. Nothing is
-     known of a symbol bound to a closure.
+     Here the closures known are two lists of their own, a stand-in
+     until the types of closures and the provers are used for it.
+   - A symbol is known to be bound to a closure only in the body of the
+     [Let_static] that binds it, and in the handlers defined there: not
+     in code, and not where the term has not gone through the binding.
+     Simplify has the type of a symbol wherever the symbol is used.
+   - The projection of a function slot from a variable known to be a
+     closure is left as it is: the variable that holds the closure at
+     the other slot, if there is one, is not looked for.
    - A variable that is not bound in the term (a parameter of the code
      that the term is the body of, say) has the binding time of the
      variables of other compilation units, so that it is earlier than
@@ -118,17 +142,21 @@
      or answers bottom, the aliases are left as they were.
 
    The statements:
-   - every environment agrees with knowing nothing;
+   - every static environment and environment agree with knowing
+     nothing, and what is known stays true when the static environment
+     binds more;
    - in an environment that agrees with what is known, the canonical
      element of a [Simple] has the value of the [Simple];
    - an environment that agrees with what is known still does when a
      variable is forgotten and then bound to any value, and when the
      variable of a [Let] is bound to the value of what it is bound to;
+     and the static environment that a [Let_static] makes agrees with
+     what is known in its body;
    - two simples that were known to be equal, neither of them the
      variable forgotten, are still known to be equal, where the aliases
      are consistent; and they stay consistent under binders;
-   - the result is equivalent to the term in every environment that
-     agrees with what is known
+   - the result is equivalent to the term in every static environment
+     and environment that agree with what is known
      ([follow_aliases_respected_statement]), so, starting from nothing
      known, in every environment
      ([follow_aliases_equivalent_statement]): it is not only a
@@ -144,7 +172,8 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaSemanticsSpec FlambdaNominalSpec FlambdaNormaliseSpec.
+  FlambdaValueSpec FlambdaSemanticsSpec FlambdaWellFormedSpec
+  FlambdaNominalSpec FlambdaNormaliseSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar FlambdaBindingTime
   FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaEnvAliasesRenamingSpec.
 Import ListNotations.
@@ -185,16 +214,26 @@ Definition closure_slot (c : closure) : function_slot :=
   | Of_set slot _ _ => slot
   end.
 
+(* The closure that a symbol is known to be bound to: the closure, and
+   the symbols that its set names for its function slots (none for a
+   closure with no function slot named). *)
+Record static_closure : Type := make_static_closure {
+  as_closure : closure;
+  closure_symbols : list (function_slot * symbol)
+}.
+
 (* What is known. [binding_times] has the variables that have been bound
    on the way to the subterm, each with the time of its last binding. *)
 Record t : Type := make {
   aliases : Aliases.t;
   binding_times : Keyed.finite_map name (unit * Binding_time.With_name_mode.t);
   next_binding_time : Binding_time.t;
-  closures : list (variable * closure)
+  closures : list (variable * closure);
+  static_closures : list (symbol * static_closure)
 }.
 
-Definition empty : t := make Aliases.empty [] Binding_time.earliest_var [].
+Definition empty : t :=
+  make Aliases.empty [] Binding_time.earliest_var [] [].
 
 (* The binding time of a name that [binding_times] has not: a symbol has
    that of symbols; a variable is not bound in the term, and has that of
@@ -271,7 +310,13 @@ Definition forget (known : t) (x : variable) : t :=
        (fun entry =>
           negb (Pos.eqb x (fst entry))
           && negb (var_in_value_slots x (closure_value_slots (snd entry))))
-       (closures known)).
+       (closures known))
+    (filter
+       (fun entry =>
+          negb
+            (var_in_value_slots x
+               (closure_value_slots (as_closure (snd entry)))))
+       (static_closures known)).
 
 (* [x] is bound: nothing is known of it but when it was bound. *)
 Definition bind (known : t) (x : variable) : t :=
@@ -282,7 +327,8 @@ Definition bind (known : t) (x : variable) : t :=
        Binding_time.With_name_mode.create (next_binding_time known)
          Name_mode.normal))
      :: binding_times known)
-    (Binding_time.succ (next_binding_time known)) (closures known).
+    (Binding_time.succ (next_binding_time known)) (closures known)
+    (static_closures known).
 
 (* The parameters of a handler are bound, in their order. *)
 Definition bind_all (known : t) (xs : list variable) : t :=
@@ -290,25 +336,30 @@ Definition bind_all (known : t) (xs : list variable) : t :=
 
 Definition with_aliases (known : t) (aliases : Aliases.t) : t :=
   make aliases (binding_times known) (next_binding_time known)
-    (closures known).
+    (closures known) (static_closures known).
 
 Definition add_closure (known : t) (x : variable) (c : closure) : t :=
   make (aliases known) (binding_times known) (next_binding_time known)
-    ((x, c) :: closures known).
+    ((x, c) :: closures known) (static_closures known).
 
-(* The closure that a simple is known to be. *)
+(* The closure that a simple is known to be: the one recorded for a
+   variable, or the one that a symbol is known to be bound to. *)
 Definition find_closure (known : t) (s : simple) : option closure :=
   match s with
   | Var x => lookup x (closures known)
-  | Symbol _ | Const _ => None
+  | Symbol sym => option_map as_closure (lookup sym (static_closures known))
+  | Const _ => None
   end.
 
 (* What is known in the body of a [Let] of [x] to [d]: [x] is bound;
    then it is an alias of [d] if that is a [Simple], or the closure that
    [d] makes, or the closure of the same set at another slot if [d] is
-   the projection of a function slot from a closure that is known. A
-   [Simple] or a value slot that is [x] is the variable that [x] was
-   before the [Let], of which nothing is known any more. *)
+   the projection of a function slot from a variable that is known to
+   be a closure. A [Simple] or a value slot that is [x] is the variable
+   that [x] was before the [Let], of which nothing is known any more.
+   (The projection of a function slot from a symbol is a symbol, which
+   [canonical_project_function_slot] below puts in its place where it
+   is known; nothing is recorded for it here.) *)
 Definition under_let (known : t) (x : variable) (d : named) : t :=
   let known := bind known x in
   match d with
@@ -327,16 +378,56 @@ Definition under_let (known : t) (x : variable) (d : named) : t :=
     then known
     else add_closure known x (Of_set slot function_decls value_slots)
   | Project_function_slot move_from move_to closure =>
-    match find_closure known closure with
-    | Some (Of_set slot function_decls value_slots) =>
-      if Pos.eqb slot move_from
-      then add_closure known x (Of_set move_to function_decls value_slots)
-      else known
-    | Some (Of_code _ _) | None => known
+    match closure with
+    | Var y =>
+      match lookup y (closures known) with
+      | Some (Of_set slot function_decls value_slots) =>
+        if Pos.eqb slot move_from
+        then add_closure known x (Of_set move_to function_decls value_slots)
+        else known
+      | Some (Of_code _ _) | None => known
+      end
+    | Symbol _ | Const _ => known
     end
   | Prim _ _ | Project_value_slot _ _ | Project_value_slot_from _ _ _ =>
     known
   end.
+
+(* The closure that a static binding binds its symbol to, if it binds a
+   symbol to a closure. *)
+Definition static_closure_of_binding (binding : static_binding)
+    : option (symbol * static_closure) :=
+  match binding with
+  | Bind_symbol s (Static_const_set_of_closures code value_slots) =>
+    Some (s, make_static_closure (Of_code code value_slots) [])
+  | Bind_symbol s
+      (Static_const_closure_of_set slot closure_symbols function_decls
+         value_slots) =>
+    Some
+      (s,
+       make_static_closure (Of_set slot function_decls value_slots)
+         closure_symbols)
+  | Bind_symbol _
+      (Static_const_block _ _ | Static_const_boxed_number _
+      | Static_const_immutable_string _)
+  | Bind_code _ _ | Bind_deleted_code _ =>
+    None
+  end.
+
+(* What is known in the body of a [Let_static]: each symbol that the
+   group binds to a closure is bound to that closure. *)
+Definition under_let_static (known : t) (bindings : list static_binding)
+    : t :=
+  make (aliases known) (binding_times known) (next_binding_time known)
+    (closures known)
+    (flat_map
+       (fun binding =>
+          match static_closure_of_binding binding with
+          | Some entry => [entry]
+          | None => []
+          end)
+       bindings
+     ++ static_closures known).
 
 End Known.
 
@@ -378,6 +469,32 @@ Definition canonical_project_from (known : Known.t)
   | None => Project_value_slot_from project_from slot closure
   end.
 
+(* The projection of a function slot from a symbol known to be bound to
+   the closure of a static set, at the slot that the projection names:
+   the symbol that the set names for the other slot, if the set has that
+   slot. *)
+Definition canonical_project_function_slot (known : Known.t)
+    (move_from move_to : function_slot) (closure : simple) : named :=
+  match closure with
+  | Symbol s =>
+    match lookup s (Known.static_closures known) with
+    | Some c =>
+      match Known.as_closure c with
+      | Known.Of_set slot function_decls _ =>
+        if Pos.eqb slot move_from && is_bound move_to function_decls
+        then
+          match lookup move_to (Known.closure_symbols c) with
+          | Some s' => Simple (Symbol s')
+          | None => Project_function_slot move_from move_to closure
+          end
+        else Project_function_slot move_from move_to closure
+      | Known.Of_code _ _ => Project_function_slot move_from move_to closure
+      end
+    | None => Project_function_slot move_from move_to closure
+    end
+  | Var _ | Const _ => Project_function_slot move_from move_to closure
+  end.
+
 Definition canonical_named (known : Known.t) (d : named) : named :=
   match d with
   | Simple s => Simple (Known.canonical_simple known s)
@@ -392,7 +509,7 @@ Definition canonical_named (known : Known.t) (d : named) : named :=
     canonical_project_from known project_from slot
       (Known.canonical_simple known closure)
   | Project_function_slot move_from move_to closure =>
-    Project_function_slot move_from move_to
+    canonical_project_function_slot known move_from move_to
       (Known.canonical_simple known closure)
   end.
 
@@ -455,8 +572,9 @@ Fixpoint follow_aliases (known : Known.t) (e : expr) : expr :=
     let d' := canonical_named known d in
     Let x kind d' (follow_aliases (Known.under_let known x d') body)
   | Let_static bindings body =>
-    Let_static (map (canonical_static_binding known) bindings)
-      (follow_aliases known body)
+    let bindings' := map (canonical_static_binding known) bindings in
+    Let_static bindings'
+      (follow_aliases (Known.under_let_static known bindings') body)
   | Let_cont_non_recursive k h body =>
     Let_cont_non_recursive k (follow_aliases_in_handler known h)
       (follow_aliases known body)
@@ -503,34 +621,73 @@ Definition closure_respected (vars : env) (x : variable) (c : Known.closure)
       eval_value_slots vars (Known.closure_value_slots c) = Some slot_values
       ∧ lookup x vars = Some (closure_value c slot_values).
 
-(* An environment of the machine agrees with what is known: it respects
-   the aliases (FlambdaEnvAliasesSpec.v), and every closure recorded is
-   what its variable is. *)
-Definition known_respected (known : Known.t) (vars : env) : Prop :=
+(* What a symbol is bound to when it is bound to the closure [c] whose
+   value slots have the values [slot_values]. *)
+Definition static_closure_value (c : Known.static_closure)
+    (slot_values : list (value_slot * value)) : statically_allocated_value :=
+  match Known.as_closure c with
+  | Known.Of_code code _ => Static_closure code slot_values
+  | Known.Of_set slot function_decls _ =>
+    Static_closure_of_set slot (Known.closure_symbols c) function_decls
+      slot_values
+  end.
+
+(* The symbol [s] is bound to the closure [c]: the static environment
+   binds it to that closure, with the values that the [Simple]s of the
+   value slots have; and the closure has code, as for a variable. *)
+Definition static_closure_respected (statics : static_env) (vars : env)
+    (s : symbol) (c : Known.static_closure) : Prop :=
+  Known.closure_code (Known.as_closure c) <> None
+  ∧ ∃ slot_values : list (value_slot * value),
+      eval_value_slots vars (Known.closure_value_slots (Known.as_closure c))
+      = Some slot_values
+      ∧ lookup s (static_values statics)
+        = Some (static_closure_value c slot_values).
+
+(* A static environment and an environment of the machine agree with
+   what is known: the environment respects the aliases
+   (FlambdaEnvAliasesSpec.v), every closure recorded for a variable is
+   what the variable is, and every closure recorded for a symbol is what
+   the static environment binds the symbol to. *)
+Definition known_respected (known : Known.t) (statics : static_env)
+    (vars : env) : Prop :=
   aliases_respected (Known.aliases known) vars
-  ∧ ∀ (x : variable) (c : Known.closure),
-      (x, c) ∈ Known.closures known -> closure_respected vars x c.
+  ∧ (∀ (x : variable) (c : Known.closure),
+      (x, c) ∈ Known.closures known -> closure_respected vars x c)
+  ∧ ∀ (s : symbol) (c : Known.static_closure),
+      (s, c) ∈ Known.static_closures known ->
+      static_closure_respected statics vars s c.
 
 Definition empty_known_respected_statement : Prop :=
-  ∀ vars : env, known_respected Known.empty vars.
+  ∀ (statics : static_env) (vars : env),
+    known_respected Known.empty statics vars.
+
+(* What is known stays true when the static environment binds more. *)
+Definition known_respected_extend_statement : Prop :=
+  ∀ (known : Known.t) (statics statics' : static_env) (vars : env),
+    known_respected known statics vars ->
+    statics_extend statics statics' ->
+    known_respected known statics' vars.
 
 (* The canonical element of a [Simple] has its value. *)
 Definition canonical_simple_respected_statement : Prop :=
-  ∀ (known : Known.t) (vars : env) (s : simple),
-    known_respected known vars ->
+  ∀ (known : Known.t) (statics : static_env) (vars : env) (s : simple),
+    known_respected known statics vars ->
     eval_simple vars (Known.canonical_simple known s) = eval_simple vars s.
 
 (* What is left when a variable is forgotten is about the other
    variables only: it holds whatever the variable is then bound to. *)
 Definition forget_respected_statement : Prop :=
-  ∀ (known : Known.t) (vars : env) (x : variable) (v : value),
-    known_respected known vars ->
-    known_respected (Known.forget known x) ((x, v) :: vars).
+  ∀ (known : Known.t) (statics : static_env) (vars : env) (x : variable)
+    (v : value),
+    known_respected known statics vars ->
+    known_respected (Known.forget known x) statics ((x, v) :: vars).
 
 Definition bind_respected_statement : Prop :=
-  ∀ (known : Known.t) (vars : env) (x : variable) (v : value),
-    known_respected known vars ->
-    known_respected (Known.bind known x) ((x, v) :: vars).
+  ∀ (known : Known.t) (statics : static_env) (vars : env) (x : variable)
+    (v : value),
+    known_respected known statics vars ->
+    known_respected (Known.bind known x) statics ((x, v) :: vars).
 
 (* Forgetting a variable loses nothing of the aliases that is not about
    it: two simples that were known to be equal, neither of them the
@@ -563,9 +720,18 @@ Definition under_let_consistent_statement : Prop :=
 Definition under_let_respected_statement : Prop :=
   ∀ (known : Known.t) (statics : static_env) (vars : env) (x : variable)
     (d : named) (v : value),
-    known_respected known vars ->
+    known_respected known statics vars ->
     eval_named statics vars d = Some v ->
-    known_respected (Known.under_let known x d) ((x, v) :: vars).
+    known_respected (Known.under_let known x d) statics ((x, v) :: vars).
+
+(* Under a [Let_static]: the static environment that the group makes
+   agrees, with the environment, with what is known in the body. *)
+Definition under_let_static_respected_statement : Prop :=
+  ∀ (known : Known.t) (statics extended : static_env) (vars : env)
+    (bindings : list static_binding),
+    known_respected known statics vars ->
+    eval_static_bindings vars bindings statics = Some extended ->
+    known_respected (Known.under_let_static known bindings) extended vars.
 
 (* ======================================================================== *)
 (* The result is equivalent to the term                                     *)
@@ -574,7 +740,7 @@ Definition under_let_respected_statement : Prop :=
 Definition follow_aliases_respected_statement : Prop :=
   ∀ (known : Known.t) (e : expr) (vars : env) (conts : cont_env)
     (statics : static_env),
-    known_respected known vars ->
+    known_respected known statics vars ->
     equivalent (State e vars conts statics)
       (State (follow_aliases known e) vars conts statics).
 
@@ -586,9 +752,10 @@ Definition follow_aliases_equivalent_statement : Prop :=
 (* ======================================================================== *)
 
 (* What is known, renamed: every variable written in it, in the aliases,
-   in the map of binding times and in the closures. The binding times
-   themselves are as they were: a variable keeps the time of its
-   binding when it is renamed. *)
+   in the map of binding times and in the closures, those of symbols
+   too. The binding times themselves are as they were: a variable keeps
+   the time of its binding when it is renamed. Symbols are not
+   renamed. *)
 Definition rename_closure (r : renaming) (c : Known.closure) : Known.closure :=
   match c with
   | Known.Of_code code value_slots =>
@@ -598,6 +765,11 @@ Definition rename_closure (r : renaming) (c : Known.closure) : Known.closure :=
       (map_values (rename_simple r) value_slots)
   end.
 
+Definition rename_static_closure (r : renaming) (c : Known.static_closure)
+    : Known.static_closure :=
+  Known.make_static_closure (rename_closure r (Known.as_closure c))
+    (Known.closure_symbols c).
+
 Definition rename_known (r : renaming) (known : Known.t) : Known.t :=
   Known.make (rename_aliases r (Known.aliases known))
     (rename_binding_times r (Known.binding_times known))
@@ -605,7 +777,8 @@ Definition rename_known (r : renaming) (known : Known.t) : Known.t :=
     (map
        (fun entry =>
           (rename_variable r (fst entry), rename_closure r (snd entry)))
-       (Known.closures known)).
+       (Known.closures known))
+    (map_values (rename_static_closure r) (Known.static_closures known)).
 
 (* The functions commute with renaming, with no premise: they compare
    names for equality only, and order them by when they were bound,
@@ -621,6 +794,12 @@ Definition rename_under_let_statement : Prop :=
     Known.under_let (rename_known r known) (rename_variable r x)
       (rename_named r d)
     = rename_known r (Known.under_let known x d).
+
+Definition rename_under_let_static_statement : Prop :=
+  ∀ (r : renaming) (known : Known.t) (bindings : list static_binding),
+    Known.under_let_static (rename_known r known)
+      (map (rename_static_binding r) bindings)
+    = rename_known r (Known.under_let_static known bindings).
 
 Definition rename_follow_aliases_statement : Prop :=
   ∀ (r : renaming) (known : Known.t) (e : expr),

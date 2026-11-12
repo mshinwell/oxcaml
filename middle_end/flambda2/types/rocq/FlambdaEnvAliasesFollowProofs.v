@@ -31,8 +31,10 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec FlambdaMapProofs
-  FlambdaSemanticsSpec FlambdaSemanticsProofs FlambdaContextProofs
-  FlambdaNominalSpec FlambdaNominalProofs FlambdaNormaliseSpec.
+  FlambdaValueSpec FlambdaSemanticsSpec FlambdaSemanticsProofs
+  FlambdaWellFormedSpec FlambdaWellFormedProofs FlambdaClosuresProofs
+  FlambdaContextProofs FlambdaNominalSpec FlambdaNominalProofs
+  FlambdaNormaliseSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeRenameSpec
   FlambdaTypeRenameProofs FlambdaBindingTime FlambdaEnvAliases
@@ -209,11 +211,24 @@ Qed.
 
 Theorem empty_known_respected : empty_known_respected_statement.
 Proof.
-  intros vars. split; [ apply empty_respected | intros x c [] ].
+  intros statics vars.
+  split; [ apply empty_respected | split; [ intros x c [] | intros s c [] ] ].
 Qed.
 
-Lemma canonical_simple_sound (known : Known.t) (vars : env) (s : simple) :
-  known_respected known vars ->
+Theorem known_respected_extend : known_respected_extend_statement.
+Proof.
+  intros known statics statics' vars (Haliases & Hclosures & Hstatics)
+    [_ Hvalues].
+  split; [ exact Haliases | split; [ exact Hclosures | ] ].
+  intros s c Hin.
+  destruct (Hstatics s c Hin) as [Hcode (slot_values & Hslots & Hbound)].
+  split; [ exact Hcode | ]. exists slot_values.
+  split; [ exact Hslots | exact (Hvalues s _ Hbound) ].
+Qed.
+
+Lemma canonical_simple_sound (known : Known.t) {statics : static_env}
+    (vars : env) (s : simple) :
+  known_respected known statics vars ->
   eval_simple vars (Known.canonical_simple known s) = eval_simple vars s.
 Proof.
   intros [Haliases _].
@@ -221,7 +236,7 @@ Proof.
 Qed.
 
 Theorem canonical_simple_respected : canonical_simple_respected_statement.
-Proof. exact canonical_simple_sound. Qed.
+Proof. intros known statics vars s. apply canonical_simple_sound. Qed.
 
 Lemma closure_respected_bind (vars : env) (x : variable) (v : value)
     (y : variable) (c : Known.closure) :
@@ -234,6 +249,30 @@ Proof.
   split; [ exact Hcode | ]. exists slot_values. split.
   - rewrite eval_value_slots_bind; assumption.
   - simpl. rewrite Pos.eqb_sym, Hxy. exact Hlookup.
+Qed.
+
+Lemma static_closure_respected_bind (statics : static_env) (vars : env)
+    (x : variable) (v : value) (s : symbol) (c : Known.static_closure) :
+  static_closure_respected statics vars s c ->
+  var_in_value_slots x (Known.closure_value_slots (Known.as_closure c))
+  = false ->
+  static_closure_respected statics ((x, v) :: vars) s c.
+Proof.
+  intros [Hcode (slot_values & Hslots & Hbound)] Hfree.
+  split; [ exact Hcode | ]. exists slot_values.
+  split; [ rewrite eval_value_slots_bind; assumption | exact Hbound ].
+Qed.
+
+Lemma in_static_closures_forget (known : Known.t) (x : variable)
+    (s : symbol) (c : Known.static_closure) :
+  (s, c) ∈ Known.static_closures (Known.forget known x) ->
+  (s, c) ∈ Known.static_closures known
+  ∧ var_in_value_slots x (Known.closure_value_slots (Known.as_closure c))
+    = false.
+Proof.
+  unfold Known.forget. cbn [Known.static_closures]. intros Hin.
+  apply filter_In in Hin. destruct Hin as [Hin Hkept]. simpl in Hkept.
+  apply negb_true_iff in Hkept. auto.
 Qed.
 
 Lemma in_closures_forget (known : Known.t) (x y : variable)
@@ -251,7 +290,8 @@ Qed.
 
 Theorem forget_respected : forget_respected_statement.
 Proof.
-  intros known vars x v [Haliases Hclosures]. split.
+  intros known statics vars x v (Haliases & Hclosures & Hstatics).
+  split; [ | split ].
   - unfold Known.forget. cbn [Known.aliases].
     apply (respected_coincide
       (Known.forget_in_aliases (Known.binding_times known)
@@ -266,54 +306,52 @@ Proof.
     destruct (in_closures_forget known x y c Hin) as (Hin' & Hxy & Hfree).
     apply closure_respected_bind;
       [ exact (Hclosures y c Hin') | exact Hxy | exact Hfree ].
+  - intros s c Hin.
+    destruct (in_static_closures_forget known x s c Hin) as [Hin' Hfree].
+    apply static_closure_respected_bind;
+      [ exact (Hstatics s c Hin') | exact Hfree ].
 Qed.
 
 Theorem bind_respected : bind_respected_statement.
 Proof.
-  intros known vars x v Hrespected.
-  exact (forget_respected known vars x v Hrespected).
+  intros known statics vars x v Hrespected.
+  exact (forget_respected known statics vars x v Hrespected).
 Qed.
 
 Lemma bind_all_respected (params : list variable) :
-  ∀ (known : Known.t) (vs : list value) (vars handler_vars : env),
-    known_respected known vars ->
+  ∀ (known : Known.t) (statics : static_env) (vs : list value)
+    (vars handler_vars : env),
+    known_respected known statics vars ->
     bind_params params vs vars = Some handler_vars ->
-    known_respected (Known.bind_all known params) handler_vars.
+    known_respected (Known.bind_all known params) statics handler_vars.
 Proof.
   induction params as [ | param params IH];
-    intros known [ | v vs] vars handler_vars Hrespected; simpl;
+    intros known statics [ | v vs] vars handler_vars Hrespected; simpl;
     try discriminate.
   - intros [= <-]. exact Hrespected.
   - apply (IH (Known.bind known param)). apply bind_respected, Hrespected.
 Qed.
 
-Lemma find_closure_in (known : Known.t) (s : simple) (c : Known.closure) :
-  Known.find_closure known s = Some c ->
-  ∃ y : variable, s = Var y ∧ (y, c) ∈ Known.closures known.
-Proof.
-  destruct s as [y | sym | k]; simpl; try discriminate.
-  intros Hlookup. exists y.
-  split; [ reflexivity | exact (lookup_in y c _ Hlookup) ].
-Qed.
-
 Theorem under_let_respected : under_let_respected_statement.
 Proof.
   intros known statics vars x d v Hrespected Hd.
-  pose proof (bind_respected known vars x v Hrespected) as Hbound.
+  pose proof (bind_respected known statics vars x v Hrespected) as Hbound.
   unfold Known.under_let. cbv zeta.
   destruct d as [s | p args | code slots | fslot decls slots | slot closure
     | pfrom slot closure | move_from move_to closure];
     try exact Hbound.
   - (* Simple *)
     destruct (var_in_simple x s) eqn:Hfree; [ exact Hbound | ].
-    destruct Hbound as [Haliases Hclosures]. split; [ | exact Hclosures ].
+    destruct Hbound as (Haliases & Hclosures & Hstatics).
+    split; [ | split; [ exact Hclosures | exact Hstatics ] ].
     cbn [Known.aliases Known.with_aliases].
     apply add_equal_respected; [ exact Haliases | ].
     simpl. rewrite Pos.eqb_refl, (eval_simple_bind vars x v s Hfree).
     symmetry. exact Hd.
   - (* Set_of_closures *)
     destruct (var_in_value_slots x slots) eqn:Hfree; [ exact Hbound | ].
-    destruct Hbound as [Haliases Hclosures]. split; [ exact Haliases | ].
+    destruct Hbound as (Haliases & Hclosures & Hstatics).
+    split; [ exact Haliases | split; [ | exact Hstatics ] ].
     intros y c [[= <- <-] | Hin]; [ | exact (Hclosures y c Hin) ].
     simpl in Hd.
     destruct (eval_value_slots vars slots) as [slot_values | ] eqn:Hslots;
@@ -324,7 +362,8 @@ Proof.
     + simpl. rewrite Pos.eqb_refl. reflexivity.
   - (* Closure_of_set *)
     destruct (var_in_value_slots x slots) eqn:Hfree; [ exact Hbound | ].
-    destruct Hbound as [Haliases Hclosures]. split; [ exact Haliases | ].
+    destruct Hbound as (Haliases & Hclosures & Hstatics).
+    split; [ exact Haliases | split; [ | exact Hstatics ] ].
     intros y c [[= <- <-] | Hin]; [ | exact (Hclosures y c Hin) ].
     simpl in Hd.
     destruct (lookup fslot decls) as [code | ] eqn:Hcode;
@@ -338,13 +377,15 @@ Proof.
     + simpl. rewrite eval_value_slots_bind; assumption.
     + simpl. rewrite Pos.eqb_refl. reflexivity.
   - (* Project_function_slot *)
-    destruct (Known.find_closure (Known.bind known x) closure)
+    destruct closure as [y | sym | k]; try exact Hbound.
+    destruct (lookup y (Known.closures (Known.bind known x)))
       as [[code slots | slot decls slots] | ] eqn:Hfind;
       try exact Hbound.
     destruct (Pos.eqb_spec slot move_from) as [-> | _]; [ | exact Hbound ].
-    destruct (find_closure_in _ _ _ Hfind) as (y & -> & Hin).
+    pose proof (lookup_in y _ _ Hfind) as Hin.
     destruct (in_closures_forget known x y _ Hin) as (_ & Hxy & Hfree).
-    destruct Hbound as [Haliases Hclosures]. split; [ exact Haliases | ].
+    destruct Hbound as (Haliases & Hclosures & Hstatics).
+    split; [ exact Haliases | split; [ | exact Hstatics ] ].
     intros z c [[= <- <-] | Hin']; [ | exact (Hclosures z c Hin') ].
     destruct (Hclosures y _ Hin) as [Hcode (slot_values & Hslots & Hlookup)].
     simpl in Hlookup. rewrite Pos.eqb_sym, Hxy in Hlookup.
@@ -360,13 +401,51 @@ Proof.
     simpl. rewrite Pos.eqb_refl. reflexivity.
 Qed.
 
+Theorem under_let_static_respected : under_let_static_respected_statement.
+Proof.
+  intros known statics extended vars bindings Hrespected Heval.
+  destruct
+    (known_respected_extend known statics extended vars Hrespected
+       (eval_static_bindings_extend vars bindings statics extended Heval))
+    as (Haliases & Hclosures & Hstatics).
+  split; [ exact Haliases | split; [ exact Hclosures | ] ].
+  intros s c Hin. unfold Known.under_let_static in Hin.
+  cbn [Known.static_closures] in Hin. apply in_app_or in Hin.
+  destruct Hin as [Hin | Hin]; [ | exact (Hstatics s c Hin) ].
+  apply in_flat_map in Hin. destruct Hin as (binding & Hbinding & Hentry).
+  destruct binding
+    as [id code | id
+       | sym [code slots | fslot syms decls slots | tag fields | contents
+             | bytes]];
+    simpl in Hentry; try contradiction;
+    destruct Hentry as [[= <- <-] | []];
+    destruct
+      (eval_static_bindings_binds vars bindings statics extended sym _ Heval
+         Hbinding)
+      as (allocated & Hconst & Hbound);
+    simpl in Hconst.
+  - destruct (eval_value_slots vars slots) as [slot_values | ] eqn:Hslots;
+      [ | discriminate Hconst ].
+    simpl in Hconst. injection Hconst as <-.
+    split; [ discriminate | ]. exists slot_values.
+    split; [ exact Hslots | exact Hbound ].
+  - destruct (lookup fslot decls) as [code | ] eqn:Hcode;
+      [ | discriminate Hconst ].
+    simpl in Hconst.
+    destruct (eval_value_slots vars slots) as [slot_values | ] eqn:Hslots;
+      [ | discriminate Hconst ].
+    simpl in Hconst. injection Hconst as <-.
+    split; [ simpl; rewrite Hcode; discriminate | ]. exists slot_values.
+    split; [ exact Hslots | exact Hbound ].
+Qed.
+
 (* ======================================================================== *)
 (* Following aliases at the head of a term                                  *)
 (* ======================================================================== *)
 
-Lemma canonical_simples_sound (known : Known.t) (vars : env)
-    (args : list simple) :
-  known_respected known vars ->
+Lemma canonical_simples_sound (known : Known.t) {statics : static_env}
+    (vars : env) (args : list simple) :
+  known_respected known statics vars ->
   eval_simples vars (map (Known.canonical_simple known) args)
   = eval_simples vars args.
 Proof.
@@ -375,9 +454,9 @@ Proof.
   rewrite (canonical_simple_sound known vars s Hrespected), IH. reflexivity.
 Qed.
 
-Lemma canonical_value_slots_sound (known : Known.t) (vars : env)
-    (slots : list (value_slot * simple)) :
-  known_respected known vars ->
+Lemma canonical_value_slots_sound (known : Known.t) {statics : static_env}
+    (vars : env) (slots : list (value_slot * simple)) :
+  known_respected known statics vars ->
   eval_value_slots vars (canonical_value_slots known slots)
   = eval_value_slots vars slots.
 Proof.
@@ -386,42 +465,49 @@ Proof.
   rewrite (canonical_simple_sound known vars s Hrespected), IH. reflexivity.
 Qed.
 
-(* What a known closure is. *)
-Lemma find_closure_sound (known : Known.t) (vars : env) (s : simple)
-    (c : Known.closure) :
-  known_respected known vars ->
+(* What a known closure is: the value of the simple is a closure, made
+   by a [Let] or bound to a symbol, of that code and at that slot, with
+   the values of the value slots. *)
+Lemma find_closure_sound (known : Known.t) (statics : static_env)
+    (vars : env) (s : simple) (c : Known.closure) :
+  known_respected known statics vars ->
   Known.find_closure known s = Some c ->
   Known.closure_code c <> None
-  ∧ ∃ slot_values : list (value_slot * value),
+  ∧ ∃ (v : value) (slot_values : list (value_slot * value)),
       eval_value_slots vars (Known.closure_value_slots c) = Some slot_values
-      ∧ eval_simple vars s = Some (closure_value c slot_values).
+      ∧ eval_simple vars s = Some v
+      ∧ closure_of statics v
+        = option_map (fun code => (code, slot_values)) (Known.closure_code c)
+      ∧ ∀ (project_from : function_slot) (slot : value_slot),
+          project_value_slot statics project_from slot v
+          = if Pos.eqb (Known.closure_slot c) project_from
+            then lookup slot slot_values
+            else None.
 Proof.
-  intros [_ Hclosures] Hfind.
-  destruct (find_closure_in known s c Hfind) as (y & -> & Hin).
-  exact (Hclosures y c Hin).
-Qed.
-
-Lemma closure_of_closure_value (statics : static_env) (c : Known.closure)
-    (slot_values : list (value_slot * value)) :
-  closure_of statics (closure_value c slot_values)
-  = option_map (fun code => (code, slot_values)) (Known.closure_code c).
-Proof.
-  destruct c as [code slots | slot decls slots]; simpl; [ reflexivity | ].
-  destruct (lookup slot decls); reflexivity.
-Qed.
-
-Lemma project_value_slot_closure_value (statics : static_env)
-    (project_from : function_slot) (slot : value_slot) (c : Known.closure)
-    (slot_values : list (value_slot * value)) :
-  Known.closure_code c <> None ->
-  project_value_slot statics project_from slot (closure_value c slot_values)
-  = if Pos.eqb (Known.closure_slot c) project_from
-    then lookup slot slot_values
-    else None.
-Proof.
-  destruct c as [code slots | fslot decls slots]; simpl; [ reflexivity | ].
-  intros Hcode. unfold project_value_slot. simpl.
-  destruct (lookup fslot decls); [ reflexivity | contradiction ].
+  intros (_ & Hclosures & Hstatics) Hfind.
+  destruct s as [y | sym | k]; simpl in Hfind; [ | | discriminate Hfind ].
+  - destruct (Hclosures y c (lookup_in y c _ Hfind))
+      as [Hcode (slot_values & Hslots & Hbound)].
+    split; [ exact Hcode | ].
+    exists (closure_value c slot_values), slot_values.
+    split; [ exact Hslots | split; [ exact Hbound | ] ].
+    destruct c as [code slots | fslot decls slots]; simpl;
+      [ split; reflexivity | ].
+    unfold project_value_slot. simpl. simpl in Hcode.
+    destruct (lookup fslot decls); [ split; reflexivity | contradiction ].
+  - destruct (lookup sym (Known.static_closures known)) as [sc | ] eqn:Hsym;
+      [ | discriminate Hfind ].
+    simpl in Hfind. injection Hfind as <-.
+    destruct (Hstatics sym sc (lookup_in sym sc _ Hsym))
+      as [Hcode (slot_values & Hslots & Hbound)].
+    split; [ exact Hcode | ]. exists (Value_symbol sym), slot_values.
+    split; [ exact Hslots | split; [ reflexivity | ] ].
+    unfold project_value_slot, closure_in_set, closure_of.
+    rewrite Hbound. unfold static_closure_value.
+    destruct (Known.as_closure sc) as [code slots | fslot decls slots]; simpl;
+      [ split; reflexivity | ].
+    simpl in Hcode.
+    destruct (lookup fslot decls); [ split; reflexivity | contradiction ].
 Qed.
 
 (* A slot of evaluated value slots has the value of what it held. *)
@@ -444,7 +530,7 @@ Qed.
 
 Lemma canonical_project_sound (known : Known.t) (vars : env)
     (statics : static_env) (slot : value_slot) (closure : simple) :
-  known_respected known vars ->
+  known_respected known statics vars ->
   eval_named statics vars (canonical_project known slot closure)
   = eval_named statics vars (Project_value_slot slot closure).
 Proof.
@@ -453,9 +539,10 @@ Proof.
     [ | reflexivity ].
   destruct (lookup slot (Known.closure_value_slots c)) as [contents | ]
     eqn:Hslot; [ | reflexivity ].
-  destruct (find_closure_sound known vars closure c Hrespected Hclosure)
-    as [Hcode (slot_values & Hslots & Heval)].
-  simpl. rewrite Heval. simpl. rewrite closure_of_closure_value.
+  destruct
+    (find_closure_sound known statics vars closure c Hrespected Hclosure)
+    as [Hcode (v & slot_values & Hslots & Heval & Hclosure_of & _)].
+  simpl. rewrite Heval. simpl. rewrite Hclosure_of.
   destruct (Known.closure_code c) as [code | ]; [ | contradiction ].
   simpl. symmetry.
   exact (eval_value_slots_lookup vars slot _ slot_values contents Hslots
@@ -465,7 +552,7 @@ Qed.
 Lemma canonical_project_from_sound (known : Known.t) (vars : env)
     (statics : static_env) (project_from : function_slot) (slot : value_slot)
     (closure : simple) :
-  known_respected known vars ->
+  known_respected known statics vars ->
   eval_named statics vars
     (canonical_project_from known project_from slot closure)
   = eval_named statics vars
@@ -478,26 +565,55 @@ Proof.
     [ | reflexivity ].
   destruct (lookup slot (Known.closure_value_slots c)) as [contents | ]
     eqn:Hslot; [ | reflexivity ].
-  destruct (find_closure_sound known vars closure c Hrespected Hclosure)
-    as [Hcode (slot_values & Hslots & Heval)].
-  simpl. rewrite Heval. simpl.
-  rewrite (project_value_slot_closure_value statics project_from slot c
-    slot_values Hcode), Hat.
+  destruct
+    (find_closure_sound known statics vars closure c Hrespected Hclosure)
+    as [Hcode (v & slot_values & Hslots & Heval & _ & Hproject)].
+  simpl. rewrite Heval. simpl. rewrite Hproject, Hat.
   symmetry.
   exact (eval_value_slots_lookup vars slot _ slot_values contents Hslots
     Hslot).
 Qed.
 
+Lemma canonical_project_function_slot_sound (known : Known.t) (vars : env)
+    (statics : static_env) (move_from move_to : function_slot)
+    (closure : simple) :
+  known_respected known statics vars ->
+  eval_named statics vars
+    (canonical_project_function_slot known move_from move_to closure)
+  = eval_named statics vars (Project_function_slot move_from move_to closure).
+Proof.
+  intros (_ & _ & Hstatics). unfold canonical_project_function_slot.
+  destruct closure as [x | s | k]; try reflexivity.
+  destruct (lookup s (Known.static_closures known)) as [sc | ] eqn:Hsym;
+    [ | reflexivity ].
+  destruct (Known.as_closure sc) as [code slots | slot decls slots] eqn:Hsc;
+    [ reflexivity | ].
+  destruct (Pos.eqb slot move_from && is_bound move_to decls) eqn:Hat;
+    [ | reflexivity ].
+  destruct (lookup move_to (Known.closure_symbols sc)) as [s' | ] eqn:Hto;
+    [ | reflexivity ].
+  apply andb_true_iff in Hat. destruct Hat as [Hfrom Hbound_to].
+  destruct (Hstatics s sc (lookup_in s sc _ Hsym))
+    as [Hcode (slot_values & _ & Hbound)].
+  rewrite Hsc in Hcode. simpl in Hcode.
+  unfold is_bound in Hbound_to. simpl.
+  unfold static_closure_value in Hbound. rewrite Hsc in Hbound.
+  rewrite Hbound, Hfrom.
+  destruct (lookup slot decls); [ | contradiction ].
+  destruct (lookup move_to decls); [ | discriminate Hbound_to ].
+  simpl. rewrite Hto. reflexivity.
+Qed.
+
 Lemma canonical_named_sound (known : Known.t) (vars : env)
     (statics : static_env) (d : named) :
-  known_respected known vars ->
+  known_respected known statics vars ->
   eval_named statics vars (canonical_named known d)
   = eval_named statics vars d.
 Proof.
   intros Hrespected.
   destruct d as [s | p args | code slots | fslot decls slots | slot closure
     | pfrom slot closure | move_from move_to closure]; simpl.
-  - apply canonical_simple_sound, Hrespected.
+  - exact (canonical_simple_sound known vars s Hrespected).
   - rewrite (canonical_simples_sound known vars args Hrespected).
     reflexivity.
   - rewrite (canonical_value_slots_sound known vars slots Hrespected).
@@ -513,7 +629,10 @@ Proof.
     simpl.
     rewrite (canonical_simple_sound known vars closure Hrespected).
     reflexivity.
-  - rewrite (canonical_simple_sound known vars closure Hrespected).
+  - rewrite (canonical_project_function_slot_sound known vars statics
+      move_from move_to _ Hrespected).
+    simpl.
+    rewrite (canonical_simple_sound known vars closure Hrespected).
     reflexivity.
 Qed.
 
@@ -521,7 +640,7 @@ Qed.
    is a known closure, made direct: they take the same step. *)
 Lemma canonical_apply_equivalent (known : Known.t) (ap : apply_expr)
     (vars : env) (conts : cont_env) (statics : static_env) :
-  known_respected known vars ->
+  known_respected known statics vars ->
   equivalent (State (Apply ap) vars conts statics)
     (State (Apply (canonical_apply known ap)) vars conts statics).
 Proof.
@@ -540,21 +659,21 @@ Proof.
               (Known.canonical_simple known (ap_callee ap)))
     as [c | ] eqn:Hclosure; [ | reflexivity ].
   destruct (Known.closure_code c) as [code | ] eqn:Hcode; [ | reflexivity ].
-  destruct (find_closure_sound known vars _ c Hrespected Hclosure)
-    as [_ (slot_values & _ & Heval)].
+  destruct (find_closure_sound known statics vars _ c Hrespected Hclosure)
+    as [_ (v & slot_values & _ & Heval & Hclosure_of & _)].
   rewrite (canonical_simple_sound known vars (ap_callee ap) Hrespected)
     in Heval.
   rewrite Heval.
   destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | reflexivity ].
   destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
     [ | reflexivity ].
-  unfold call_function. rewrite closure_of_closure_value, Hcode. simpl.
+  unfold call_function. rewrite Hclosure_of, Hcode. simpl.
   rewrite Pos.eqb_refl. reflexivity.
 Qed.
 
-Lemma canonical_static_bindings_sound (known : Known.t) (vars : env)
-    (bindings : list static_binding) :
-  known_respected known vars ->
+Lemma canonical_static_bindings_sound (known : Known.t)
+    {statics0 : static_env} (vars : env) (bindings : list static_binding) :
+  known_respected known statics0 vars ->
   ∀ statics : static_env,
     eval_static_bindings vars (map (canonical_static_binding known) bindings)
       statics
@@ -597,7 +716,7 @@ Qed.
 
 Lemma canonical_apply_cont_equivalent (known : Known.t) (ac : apply_cont)
     (vars : env) (conts : cont_env) (statics : static_env) :
-  known_respected known vars ->
+  known_respected known statics vars ->
   equivalent (State (Apply_cont ac) vars conts statics)
     (State (Apply_cont (canonical_apply_cont known ac)) vars conts statics).
 Proof.
@@ -614,7 +733,7 @@ Qed.
 (* Equivalence in the environments that agree with what is known. *)
 Definition equivalent_where (known : Known.t) (e e' : expr) : Prop :=
   ∀ (vars : env) (conts : cont_env) (statics : static_env),
-    known_respected known vars ->
+    known_respected known statics vars ->
     equivalent (State e vars conts statics) (State e' vars conts statics).
 
 Lemma let_equivalent_where (known : Known.t) (x : variable)
@@ -630,14 +749,17 @@ Qed.
 
 Lemma let_static_equivalent_where (known : Known.t)
     (bindings : list static_binding) (body body' : expr) :
-  equivalent_where known body body' ->
+  equivalent_where (Known.under_let_static known bindings) body body' ->
   equivalent_where known (Let_static bindings body)
     (Let_static bindings body').
 Proof.
   intros Hbody vars conts statics Hrespected.
   apply let_static_equivalent_step.
-  destruct (eval_static_bindings vars bindings statics) as [extended | ];
-    [ apply Hbody, Hrespected | exact I ].
+  destruct (eval_static_bindings vars bindings statics) as [extended | ]
+    eqn:Heval; [ | exact I ].
+  apply Hbody.
+  exact (under_let_static_respected known statics extended vars bindings
+    Hrespected Heval).
 Qed.
 
 (* A handler may be replaced by one equivalent to it under what is known
@@ -651,11 +773,17 @@ Lemma let_cont_handler_equivalent_where (known : Known.t) (k : continuation)
     (Let_cont_non_recursive k (Handler params metadata handler') body).
 Proof.
   intros Hhandler vars conts statics Hrespected.
-  apply refines_antisymmetric; apply let_cont_handler_refines_at;
-    intros vs handler_vars conts' statics' Hbind; apply equivalent_refines;
+  apply refines_antisymmetric;
+    apply
+      (let_cont_handler_refines_where
+         (fun statics' => known_respected known statics' vars)
+         (fun statics' statics'' => known_respected_extend known _ _ vars));
+    try exact Hrespected;
+    intros vs handler_vars conts' statics' Hok Hbind; apply equivalent_refines;
     [ | apply equivalent_sym ];
     apply Hhandler,
-      (bind_all_respected params known vs vars handler_vars Hrespected Hbind).
+      (bind_all_respected params known statics' vs vars handler_vars Hok
+         Hbind).
 Qed.
 
 Lemma equivalent_where_trans (known : Known.t) (e e' e'' : expr) :
@@ -825,8 +953,9 @@ Proof.
     apply add_equal_consistent, Hbound.
   - destruct (var_in_value_slots x slots); exact Hbound.
   - destruct (var_in_value_slots x slots); exact Hbound.
-  - destruct (Known.find_closure _ closure)
-      as [[code slots | slot decls slots] | ]; try exact Hbound.
+  - destruct closure as [y | sym | k]; try exact Hbound.
+    destruct (lookup y _) as [[code slots | slot decls slots] | ];
+      try exact Hbound.
     destruct (Pos.eqb slot move_from); exact Hbound.
 Qed.
 
@@ -1232,12 +1361,16 @@ Lemma forget_renamed (r : renaming) (known : Known.t) (x : variable) :
 Proof.
   unfold Known.forget, rename_known.
   cbn [Known.aliases Known.binding_times Known.next_binding_time
-       Known.closures].
+       Known.closures Known.static_closures].
   f_equal.
   - apply forget_in_aliases_renamed.
   - apply filter_renamed. intros [y c]. cbn [fst snd].
     rewrite rename_variable_eqb, closure_value_slots_renamed,
       var_in_value_slots_renamed.
+    reflexivity.
+  - apply filter_renamed. intros [s c].
+    cbn [fst snd rename_static_closure Known.as_closure].
+    rewrite closure_value_slots_renamed, var_in_value_slots_renamed.
     reflexivity.
 Qed.
 
@@ -1262,9 +1395,14 @@ Lemma find_closure_renamed (r : renaming) (known : Known.t) (s : simple) :
   Known.find_closure (rename_known r known) (rename_simple r s)
   = option_map (rename_closure r) (Known.find_closure known s).
 Proof.
-  destruct s as [y | sym | c]; try reflexivity.
-  exact (lookup_renamed Pos.eqb (rename_variable r) (rename_variable_eqb r)
-    (rename_closure r) y (Known.closures known)).
+  destruct s as [y | sym | c]; [ | | reflexivity ].
+  - exact (lookup_renamed Pos.eqb (rename_variable r) (rename_variable_eqb r)
+      (rename_closure r) y (Known.closures known)).
+  - cbn [rename_simple Known.find_closure rename_known Known.static_closures].
+    rewrite
+      (lookup_map_values Known.static_closure Known.static_closure
+         (rename_static_closure r) sym (Known.static_closures known)).
+    destruct (lookup sym (Known.static_closures known)); reflexivity.
 Qed.
 
 (* The test of the renamed value slots, as [rename_named] writes
@@ -1288,18 +1426,40 @@ Proof.
     destruct (var_in_simple x s); [ reflexivity | ].
     unfold Known.with_aliases, rename_known.
     cbn [Known.aliases Known.binding_times Known.next_binding_time
-         Known.closures].
+         Known.closures Known.static_closures].
     f_equal.
     exact (add_equal_renamed r _ _ (Var x) s).
   - renamed_slots_test r x slots.
     destruct (var_in_value_slots x slots); reflexivity.
   - renamed_slots_test r x slots.
     destruct (var_in_value_slots x slots); reflexivity.
-  - rewrite find_closure_renamed.
-    destruct (Known.find_closure (Known.bind known x) closure)
+  - destruct closure as [y | sym | k]; try reflexivity.
+    cbn [rename_simple].
+    change
+      (lookup (rename_variable r y)
+         (Known.closures (rename_known r (Known.bind known x))))
+      with
+        (Known.find_closure (rename_known r (Known.bind known x))
+           (rename_simple r (Var y))).
+    rewrite find_closure_renamed. cbn [Known.find_closure].
+    destruct (lookup y (Known.closures (Known.bind known x)))
       as [[code slots | slot decls slots] | ]; try reflexivity.
     cbn [option_map rename_closure].
     destruct (Pos.eqb slot move_from); reflexivity.
+Qed.
+
+Theorem rename_under_let_static : rename_under_let_static_statement.
+Proof.
+  intros r known bindings. unfold Known.under_let_static, rename_known.
+  cbn [Known.aliases Known.binding_times Known.next_binding_time
+       Known.closures Known.static_closures].
+  f_equal. unfold map_values. rewrite map_app. f_equal.
+  induction bindings as [ | binding bindings IH]; [ reflexivity | ].
+  cbn [map flat_map]. rewrite map_app, IH. f_equal.
+  destruct binding
+    as [id c | id
+       | sym [code slots | fslot syms decls slots | tag fields | s | bytes]];
+    reflexivity.
 Qed.
 
 Lemma canonical_simples_renamed (r : renaming) (known : Known.t)
@@ -1359,6 +1519,29 @@ Proof.
   destruct (lookup slot (Known.closure_value_slots c)); reflexivity.
 Qed.
 
+Lemma canonical_project_function_slot_renamed (r : renaming)
+    (known : Known.t) (move_from move_to : function_slot) (closure : simple) :
+  canonical_project_function_slot (rename_known r known) move_from move_to
+    (rename_simple r closure)
+  = rename_named r
+      (canonical_project_function_slot known move_from move_to closure).
+Proof.
+  unfold canonical_project_function_slot.
+  destruct closure as [x | s | k]; try reflexivity.
+  cbn [rename_simple rename_known Known.static_closures].
+  rewrite
+    (lookup_map_values Known.static_closure Known.static_closure
+       (rename_static_closure r) s (Known.static_closures known)).
+  destruct (lookup s (Known.static_closures known)) as [sc | ];
+    cbn [option_map]; [ | reflexivity ].
+  cbn [rename_static_closure Known.as_closure Known.closure_symbols].
+  destruct (Known.as_closure sc) as [code slots | slot decls slots];
+    cbn [rename_closure]; [ reflexivity | ].
+  destruct (Pos.eqb slot move_from && is_bound move_to decls);
+    [ | reflexivity ].
+  destruct (lookup move_to (Known.closure_symbols sc)); reflexivity.
+Qed.
+
 Lemma canonical_named_renamed (r : renaming) (known : Known.t) (d : named) :
   canonical_named (rename_known r known) (rename_named r d)
   = rename_named r (canonical_named known d).
@@ -1372,7 +1555,8 @@ Proof.
   - f_equal. apply canonical_value_slots_renamed.
   - rewrite canonical_simple_renamed. apply canonical_project_renamed.
   - rewrite canonical_simple_renamed. apply canonical_project_from_renamed.
-  - rewrite canonical_simple_renamed. reflexivity.
+  - rewrite canonical_simple_renamed.
+    apply canonical_project_function_slot_renamed.
 Qed.
 
 Lemma canonical_static_binding_renamed (r : renaming) (known : Known.t)
@@ -1449,9 +1633,16 @@ Proof.
         (rename_under_let r known x (canonical_named known d)),
         (follow_aliases_renamed r body).
       reflexivity.
-    + rewrite (follow_aliases_renamed r body). f_equal.
-      rewrite !map_map. apply map_ext. intros binding.
-      apply canonical_static_binding_renamed.
+    + assert (Hbindings :
+        map (canonical_static_binding (rename_known r known))
+          (map (rename_static_binding r) bindings)
+        = map (rename_static_binding r)
+            (map (canonical_static_binding known) bindings))
+        by (rewrite !map_map; apply map_ext; intros binding;
+            apply canonical_static_binding_renamed).
+      rewrite Hbindings, (rename_under_let_static r known),
+        (follow_aliases_renamed r body).
+      reflexivity.
     + rewrite (follow_aliases_in_handler_renamed r h),
         (follow_aliases_renamed r body).
       reflexivity.
@@ -1562,6 +1753,64 @@ Example wrong_slot_left :
   = two_closures
       (Let x Value (Project_value_slot_from f_slot v_slot (Var g))
          (jump [Var x])).
+Proof. reflexivity. Qed.
+
+(* A static set of two closures, bound to the symbols [s_f] and [s_g],
+   with a value slot that holds the variable [y]. *)
+Definition s_f : symbol := 1%positive.
+Definition s_g : symbol := 2%positive.
+
+Definition two_static_closures (body : expr) : expr :=
+  Let_static
+    [Bind_symbol s_f
+       (Static_const_closure_of_set f_slot [(f_slot, s_f); (g_slot, s_g)]
+          [(f_slot, f_code); (g_slot, g_code)] [(v_slot, Var y)]);
+     Bind_symbol s_g
+       (Static_const_closure_of_set g_slot [(f_slot, s_f); (g_slot, s_g)]
+          [(f_slot, f_code); (g_slot, g_code)] [(v_slot, Var y)])]
+    body.
+
+(* In the body of the [Let_static]: a variable bound to the first
+   symbol is the symbol; the projection of the other function slot from
+   it is the second symbol; a call of that is a direct call of the code
+   of the second closure; and the value slot projected from it is the
+   variable that the slot was given. *)
+Example static_closures_known :
+  follow_aliases Known.empty
+    (two_static_closures
+       (Let f Value (Simple (Symbol s_f))
+          (Let g Value (Project_function_slot f_slot g_slot (Var f))
+             (Let x Value (Project_value_slot_from g_slot v_slot (Var g))
+                (call (Var g) Indirect [Var x])))))
+  = two_static_closures
+      (Let f Value (Simple (Symbol s_f))
+         (Let g Value (Simple (Symbol s_g))
+            (Let x Value (Simple (Var y))
+               (call (Symbol s_g) (Direct g_code) [Var y])))).
+Proof. reflexivity. Qed.
+
+(* The variable that the value slot holds is bound again: what was
+   recorded of the two symbols said what the slot holds, and is
+   forgotten whole. *)
+Example static_closures_forgotten :
+  follow_aliases Known.empty
+    (two_static_closures
+       (Let y Value (Simple three)
+          (Let x Value (Project_value_slot_from f_slot v_slot (Symbol s_f))
+             (call (Symbol s_f) Indirect [Var x]))))
+  = two_static_closures
+      (Let y Value (Simple three)
+         (Let x Value (Project_value_slot_from f_slot v_slot (Symbol s_f))
+            (call (Symbol s_f) Indirect [Var x]))).
+Proof. reflexivity. Qed.
+
+(* Before the [Let_static] nothing is known of its symbols. *)
+Example static_closures_in_scope :
+  follow_aliases Known.empty
+    (Let x Value (Project_function_slot f_slot g_slot (Symbol s_f))
+       (two_static_closures (call (Var x) Indirect [])))
+  = Let x Value (Project_function_slot f_slot g_slot (Symbol s_f))
+      (two_static_closures (call (Var x) Indirect [])).
 Proof. reflexivity. Qed.
 
 (* What is learnt in the body of a [Let_cont] is not known in the
