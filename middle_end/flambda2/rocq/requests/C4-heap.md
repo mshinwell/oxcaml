@@ -57,8 +57,9 @@ those of section 7.1.
 ## Two things for the human to see before the sweep
 
 The sweep that puts the heap into `state` adds a component that
-nothing reads, and 64 statements of `Spec` files gain a binder for it
-(the fallout note, "The heap in `state`: a rehearsal of the sweep").
+nothing reads, and 85 statements of `Spec` files gain a binder for it
+(the fallout note, "The heap in `state`: the rehearsals of the
+sweep").
 Two of the choices made in it are right only while no step changes
 the heap, and are what the last step, the relation at exit, replaces.
 

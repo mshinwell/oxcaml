@@ -23,7 +23,8 @@ middle_end/flambda2/types/rocq in place:
      the binder of the static environment beside which it is first used
      (or of the values of an exit, where there is no static
      environment). A section whose variable is that static environment
-     gains a variable.
+     gains a variable (in a sentence that declares several groups of
+     variables, after the group of the static environment).
   4. Where the binder went into the leading quantifier of a statement,
      the first [intros] of its proof gains the name at the same
      position.
@@ -33,14 +34,25 @@ middle_end/flambda2/types/rocq in place:
      with a pattern of four names, the pattern gains the name.
   7. Where two results are matched together and the values of their
      exits are compared, their heaps are compared.
+  8. A quantifier inside a statement that binds a static environment,
+     under a statement that has the heap already, binds a heap of its
+     own, [hp'].
+  9. In a branch of a match on an exit that is compared with a state or
+     an application at the heap of the statement, the exit matched has
+     its own heap, [hp'], and the other side keeps [hp].
+ 10. A definition that builds a state from its arguments gains the heap
+     as an argument, and so does one that calls it: the first phase is
+     run again until no such definition is new.
 
 It does not wrap the lines it makes longer than 80 columns. What it
-cannot place it reports (UNBOUND, PROOF-NO-HEAP, INTROS-LATE): the
-second script, C4-heap-sweep-check.py, compiles the tree and repairs
-what the error messages show.
+cannot place it reports (UNBOUND, PROOF-NO-HEAP, INTROS-LATE, and
+APPLICATION-OUTSIDE for an application, outside its section, of a
+lemma of a section that gained the variable): the second script,
+C4-heap-sweep-check.py, compiles the tree and repairs what the error
+messages show.
 
-requests/C4-heap-fallout.md, "The heap in [state]: a rehearsal of the
-sweep", says what this did in the rehearsal.
+requests/C4-heap-fallout.md, "The heap in [state]: the rehearsals of
+the sweep", says what this did on 106a2d501a.
 """
 import json
 import os
@@ -511,6 +523,21 @@ def process_file(path, rel, tables, report, phase):
     targets.update(EXTRA)
     units = find_units(doc)
 
+    sections = []
+    for sm in re.finditer(r"^Section\s+([A-Za-z_][\w']*)\s*\.", t, re.M):
+        em = re.search(r"^End\s+%s\s*\." % re.escape(sm.group(1)),
+                       t[sm.end():], re.M)
+        if em:
+            sections.append((sm.start(), sm.end() + em.start()))
+
+    def note_home(name, pos):
+        """A lemma of a section takes the variables of the section first
+        once the section is closed: its applications outside are left to
+        the rules."""
+        for (s0, s1) in sections:
+            if s0 <= pos < s1:
+                tables["lemma_home"][name] = (rel, s0, s1)
+
     def unit_at(pos):
         lo, hi = 0, len(units) - 1
         while lo <= hi:
@@ -615,10 +642,26 @@ def process_file(path, rel, tables, report, phase):
         if u["text"] != " " + HP:
             continue
         u["branch_end"] = branch_end(doc, u["after"])
-        used = any(u["after"] < v["pos"] <= u["branch_end"]
-                   for v in term_uses)
-        if not used:
+        inside = [v for v in term_uses
+                  if u["after"] < v["pos"] <= u["branch_end"]]
+        if not inside:
             u["text"] = " _"
+        elif u["name"] in EXIT_LIKE \
+                and any(v["name"] not in EXIT_LIKE for v in inside) \
+                and any(v["name"] in EXIT_LIKE for v in inside):
+            # The branch of an exit says of a state, or of a continuation
+            # or a function applied, that it comes to an exit: that is
+            # done in the heap of the statement, not in the heap of the
+            # exit matched, which gets another name; the exits of the
+            # branch are given that one. (Where the branch has no exit
+            # of its own it goes on from the exit matched, as a machine
+            # does, and in its heap.)
+            u["text"] = " " + HP + "'"
+            for v in inside:
+                if v["name"] in EXIT_LIKE:
+                    v["text"] = " " + HP + "'"
+            report.add(rel, line_of(t, u["start"]), "PATTERN-OUTER",
+                       u["name"])
         u["anchor"] = None
 
     # two results matched together, whose exits are compared: the heaps
@@ -713,6 +756,18 @@ def process_file(path, rel, tables, report, phase):
         def covered(pos):
             return any(scopes(pos2, pos) for pos2 in keep)
 
+        def binder_of(u):
+            a = u["anchor"]
+            if a is None or a[1] is None:
+                return None
+            for nm in a[1]:
+                cands = [bb for bb in binders
+                         if nm in bb["names"] and bb["pos"] < u["start"]
+                         and scopes(bb["pos"], u["start"])]
+                if cands:
+                    return cands[-1], nm
+            return None
+
         order = sorted(us, key=lambda u: (
             0 if (u["anchor"] and u["anchor"][0] == "statics") else 1,
             u["start"]))
@@ -720,22 +775,55 @@ def process_file(path, rel, tables, report, phase):
             a = u["anchor"]
             if a is None or a[1] is None or covered(u["start"]):
                 continue
-            b = None
-            for nm in a[1]:
-                cands = [bb for bb in binders
-                         if nm in bb["names"] and bb["pos"] < u["start"]
-                         and scopes(bb["pos"], u["start"])]
-                if cands:
-                    b = cands[-1]
-                    b.setdefault("anchors", set()).add(nm)
-                    break
-            if b is None:
+            found = binder_of(u)
+            if found is None:
                 continue
+            b, nm = found
+            b.setdefault("anchors", set()).add(nm)
             keep[b["pos"]] = b
         # drop a binder that is in the scope of another kept one
         for pos in sorted(keep):
             if any(pos2 != pos and scopes(pos2, pos) for pos2 in keep):
                 del keep[pos]
+        # An inner quantifier that binds a static environment binds its
+        # own heap, where every state in its scope is built with a static
+        # environment that it binds: what it says is said of a state that
+        # runs later, in the heap of that time.
+        inner = {}
+        for u in us:
+            a = u["anchor"]
+            if a is None or a[0] != "statics":
+                continue
+            found = binder_of(u)
+            if found is None or found[0]["pos"] in keep:
+                continue
+            inner.setdefault(found[0]["pos"],
+                             (found[0], set()))[1].add(found[1])
+        for pos in sorted(inner):
+            b, nms = inner[pos]
+            within = [u for u in us if scopes(pos, u["start"])]
+            own = True
+            for u in within:
+                a = u["anchor"]
+                if a is None or a[0] != "statics":
+                    continue
+                found = binder_of(u)
+                if found is None or not (
+                        found[0]["pos"] == pos
+                        or scopes(pos, found[0]["pos"])):
+                    own = False
+            if not own:
+                continue
+            depth = sum(1 for pos2 in keep if scopes(pos2, pos))
+            if depth == 0:
+                continue
+            hname = HP + "'" * depth
+            b["anchors"] = set(nms) | b.get("anchors", set())
+            b["heap_name"] = hname
+            keep[pos] = b
+            for u in within:
+                u["text"] = " " + hname
+            report.add(rel, line_of(t, pos), "BINDER-INNER", hname)
         # every use must be in the scope of a kept binder, or of a
         # variable of a section
         for u in us:
@@ -752,6 +840,28 @@ def process_file(path, rel, tables, report, phase):
                         section_var = mm
                     if section_var:
                         break
+            section_group = None
+            if section_var is None and a and a[1]:
+                # [Variables (statics : static_env) (x : t) ...]: several
+                # groups in one sentence; the heap goes after the group
+                # of the static environment
+                for nm in a[1]:
+                    for mm in re.finditer(
+                            r"^(?:Variables?|Context)\s+(?:\([^()]*\)\s*)*?"
+                            r"(\(\s*(?:[\w']+\s+)*" + re.escape(nm)
+                            + r"(?:\s+[\w']+)*\s*:\s*static_env\s*\))",
+                            t[:s], re.M):
+                        section_group = mm
+                    if section_group:
+                        break
+            if section_group is not None:
+                if section_group.end(1) not in section_heap:
+                    section_heap.add(section_group.end(1))
+                    doc.insert(section_group.end(1),
+                               " (%s : %s)" % (HP, HEAP_TYPE), 1)
+                    report.add(rel, line_of(t, section_group.start()),
+                               "SECTION-VARIABLE", "")
+                continue
             if section_var is None and section_heap:
                 continue
             if section_var is not None:
@@ -778,20 +888,23 @@ def process_file(path, rel, tables, report, phase):
                            "%s: no binder in scope" % u["name"])
         hdr = parse_header(doc, s, e, kw) if kw in DECL_KW.split("|") else None
         for pos, b in keep.items():
+            hname = b.get("heap_name", HP)
             if b["kind"] == "paren":
-                doc.insert(b["close"] + 1, " (%s : %s)" % (HP, HEAP_TYPE), 1)
+                doc.insert(b["close"] + 1, " (%s : %s)" % (hname, HEAP_TYPE),
+                           1)
             elif b["kind"] == "brace":
-                doc.insert(b["close"] + 1, " {%s : %s}" % (HP, HEAP_TYPE), 1)
+                doc.insert(b["close"] + 1, " {%s : %s}" % (hname, HEAP_TYPE),
+                           1)
             elif b["kind"] == "bare_typed":
                 doc.insert(b["names_start"], "(", 1)
-                doc.insert(b["stop"], ") (%s : %s)" % (HP, HEAP_TYPE), 1)
+                doc.insert(b["stop"], ") (%s : %s)" % (hname, HEAP_TYPE), 1)
             else:
                 ins = b["names_end"]
                 for mm in NAME_RE.finditer(t, b["names_start"],
                                            b["names_end"]):
                     if mm.group(0) in b["anchors"]:
                         ins = mm.end()
-                doc.insert(ins, " " + HP, 1)
+                doc.insert(ins, " " + hname, 1)
             report.add(rel, line_of(t, pos), "BINDER", b["kind"])
             # where the binder is, for the intros and the applications
             if hdr is None:
@@ -810,6 +923,7 @@ def process_file(path, rel, tables, report, phase):
                         break  # implicit: no position changes
                     if is_lemma:
                         tables["lemma_arg"][hdr["name"]] = explicit_before
+                        note_home(hdr["name"], pos)
                     else:
                         tables["def_arg"][hdr["name"]] = explicit_before
                         report.add(rel, line_of(t, pos), "DEF-ARG",
@@ -843,6 +957,7 @@ def process_file(path, rel, tables, report, phase):
                         tables["stmt_intro"][hdr["name"]] = q
                     elif is_lemma:
                         tables["lemma_arg"][hdr["name"]] = explicit_before + q
+                        note_home(hdr["name"], pos)
                         marked_all[ui] = q
                     break
             if not placed:
@@ -978,6 +1093,11 @@ def phase2(doc, rel, tables, report):
         atoms = doc.read_atoms(m.end(), p + 1)
         if len(atoms) <= p:
             continue
+        home = tables["lemma_home"].get(name)
+        if home and not (home[0] == rel and home[1] <= m.start() < home[2]):
+            report.add(rel, line_of(t, m.start()), "APPLICATION-OUTSIDE",
+                       name)
+            continue
         pos = atoms[p - 1][1] if p > 0 else m.end()
         fill = " " + HP if name in tables["def_arg"] else " _"
         doc.insert(pos, fill, 3)
@@ -1002,11 +1122,21 @@ def main():
                 files.append(os.path.join(d, fn))
     # Spec files first: their statements give the proofs their positions
     files.sort(key=lambda p: (not p.endswith("Spec.v"), p))
-    report = Report()
-    tables = {"lemma_arg": {}, "def_arg": {}, "stmt_intro": {}, "proofs": {},
-              "docs": {}}
-    for rel in files:
-        process_file(os.path.join(root, rel), rel, tables, report, 1)
+    # A definition that gains the heap because its body builds a state is
+    # itself a name whose uses gain the heap: the first phase is run again
+    # until no such definition is new.
+    for _ in range(6):
+        report = Report()
+        tables = {"lemma_arg": {}, "def_arg": {}, "stmt_intro": {},
+                  "proofs": {}, "docs": {}, "lemma_home": {}}
+        for rel in files:
+            process_file(os.path.join(root, rel), rel, tables, report, 1)
+        new = {n: p for n, p in tables["def_arg"].items()
+               if n not in TARGETS and n not in EXTRA}
+        if not new:
+            break
+        EXTRA.update(new)
+        print("definitions that gain the heap:", sorted(new.items()))
     phase1b(tables, report)
     for rel in files:
         doc = tables["docs"][rel]

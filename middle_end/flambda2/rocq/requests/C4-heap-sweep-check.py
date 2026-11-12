@@ -108,12 +108,30 @@ def first_error(output, path):
     """(file, line, message, c0, c1) of the first error in [output]; the
     columns are bytes from the start of the line, and may run past it."""
     m = re.search(r'File "([^"]*)", line (\d+), characters (\d+)-(\d+):\n'
-                  r'(Error:(?:.*\n?){1,40})', output)
+                  r'(Error:(?:(?!File ").*\n?){1,900})', output)
     if not m:
         return None
-    msg = m.group(5).strip()
+    msg = without_environment(m.group(5).strip())
     return (m.group(1), int(m.group(2)), msg, int(m.group(3)),
             int(m.group(4)))
+
+
+TAIL = re.compile(
+    r"^(The |Unable |Cannot |Found |Illegal |Non exhaustive|Not |No |Wrong |"
+    r"This |Tactic |Incorrect |Anomaly|Could not|Recursive|In nested|"
+    r"Expects |Attempt |Unknown |Ltac |Too |Nothing |Type error|Universe )",
+    re.M)
+
+
+def without_environment(msg):
+    """The message without the hypotheses that Rocq prints before it."""
+    m = re.match(r"Error:\s*\n?In environment\n", msg)
+    if not m:
+        return msg
+    t = TAIL.search(msg, m.end())
+    if not t:
+        return msg
+    return "Error: " + msg[t.start():]
 
 
 SEM = threading.BoundedSemaphore(int(os.environ.get("ROCQS", "40")))
@@ -486,12 +504,35 @@ def candidates(text, a, b, e0, e1, msg):
     span = text[e0:e1]
     if 'Cannot infer this placeholder of type "heap"' in msg and span == "_":
         out.append(("placeholder", [(e0, e1, HP)]))
+    of_states = []
+    for m in re.finditer(
+            r"state_(?:statics|expr|vars|conts) ([A-Za-z_][\w']*)",
+            text[a:max(e0, e1)]):
+        if m.group(1) in of_states:
+            of_states.remove(m.group(1))
+        of_states.insert(0, m.group(1))
+    if 'Cannot infer this placeholder of type "heap"' in msg and span == "_":
+        for nm in of_states[:2]:
+            out.append(("placeholder", [(e0, e1, "(state_heap %s)" % nm)]))
+        if re.search(r"empty_static_env\s*$", text[a:e0]):
+            out.append(("placeholder", [(e0, e1, "empty_heap")]))
+    # where the argument starts: before its parenthesis, if it has one
+    g0 = e0
+    if e0 > a and text[e0 - 1] == "(" and text[e1:e1 + 1] == ")":
+        g0 = e0 - 1
     if re.search(r'expected to have type\s+"heap"', msg):
-        out.append(("argument", [(e0, e0, HP + " ")]))
-        out.append(("argument", [(e0, e0, "_ ")]))
-    if re.search(r'has type\s+"∀ hp : heap,', msg):
+        out.append(("argument", [(g0, g0, HP + " ")]))
+        out.append(("argument", [(g0, g0, "_ ")]))
+        for nm in of_states[:2]:
+            out.append(("argument", [(g0, g0, "(state_heap %s) " % nm)]))
+    if re.search(r'has type\s+"∀ hp\d* : heap,', msg):
         out.append(("applied to the heap", [(e1, e1, " " + HP)]))
         out.append(("applied to the heap _", [(e1, e1, " _")]))
+        if re.fullmatch(r"[A-Za-z_][\w']*", span):
+            out.append(("applied to the heap",
+                        [(e0, e0, "("), (e1, e1, " %s)" % HP)]))
+            out.append(("applied to the heap _",
+                        [(e0, e0, "("), (e1, e1, " _)")]))
     if msg.startswith(("Error: Expects a disjunctive pattern",
                        "Error: Expects a conjunctive pattern",
                        "Error: Not a primitive equality")):
@@ -503,6 +544,21 @@ def candidates(text, a, b, e0, e1, msg):
                                            " " + HP)]))
             out.append(("last argument _", [(e0 + m.end(), e0 + m.end(),
                                              " _")]))
+    # a name bound to what is still an existential over the heap
+    mex = re.match(r'Error: The term "([A-Za-z_][\w\']*)" has type\s+'
+                   r'"∃ hp : heap,', msg)
+    if mex:
+        nm = re.escape(mex.group(1))
+        found = list(re.finditer(r"&\s*(%s)\s*\)" % nm, text[a:e0]))
+        if found:
+            m = found[-1]
+            out.append(("pattern", [(a + m.start(1), a + m.start(1),
+                                     HP + " & ")]))
+        found = list(re.finditer(r"(?<![\w'])(%s)\]" % nm, text[a:e0]))
+        if found:
+            m = found[-1]
+            out.append(("pattern", [(a + m.start(1), a + m.end(1),
+                                     "[%s %s]" % (HP, mex.group(1)))]))
     # the patterns that take apart the comparison of two exits
     ls = text.rfind("\n", 0, e0) + 1
     le = text.find("\n", max(e1, e0))
@@ -525,6 +581,9 @@ def candidates(text, a, b, e0, e1, msg):
     # the heap named where it is not in scope
     if span == HP and "hp was not found" in msg:
         out.append(("heap as _", [(e0, e1, "_")]))
+        if re.search(r"\[\]\s+\[\]\s+\S", text[max(a, e0 - 80):e0]) \
+                or re.search(r"empty_static_env\s*$", text[a:e0]):
+            out.append(("heap as empty_heap", [(e0, e1, "empty_heap")]))
     # an explicit application whose arguments are one short before here;
     # tried after the names of the [intros]
     generic = []
@@ -536,7 +595,7 @@ def candidates(text, a, b, e0, e1, msg):
         return k > a and (text[k - 1].isalnum() or text[k - 1] in "_')]")
 
     if re.search(r"has type[\s\S]*while it is expected to have type", msg):
-        j = e0
+        j = g0
         starts = []
         for _ in range(5):
             k = j
@@ -566,8 +625,8 @@ def candidates(text, a, b, e0, e1, msg):
                 break
             starts.append(start)
             j = start
-        if is_argument(e0):
-            generic.append(("argument _", [(e0, e0, "_ ")]))
+        if is_argument(g0):
+            generic.append(("argument _", [(g0, g0, "_ ")]))
         for st in starts:
             generic.append(("argument before _", [(st, st, "_ ")]))
     # the name in a pattern that takes a relation on states apart
@@ -585,6 +644,14 @@ def candidates(text, a, b, e0, e1, msg):
         if opening < closing:
             continue
         out.append(("as pattern", [(end, end, " " + HP)]))
+        # and after each of the names that follow it in the branch
+        k = end
+        for _ in range(6):
+            m2 = re.match(r"\s+([A-Za-z_][\w']*)", text[k:k + 60])
+            if not m2 or m2.group(1) == HP:
+                break
+            k += m2.end()
+            out.append(("as pattern", [(k, k, " " + HP)]))
     # the name in an [intros]
     found = [m for m in re.finditer(r"(?<![\w'])intros\b", text[a:max(e1, e0)])]
     for m in reversed(found[-4:]):
@@ -610,12 +677,109 @@ def candidates(text, a, b, e0, e1, msg):
                 continue
             out.append(("intros", [(end, end, " " + HP)]))
     out += generic
-    # where the name is taken already, another name
-    for rule, edits in list(out):
+    # a pattern that takes an exit apart, one name short: on the lines
+    # just before the error
+    z0 = ls
+    for _ in range(8):
+        if z0 <= a:
+            break
+        z0 = text.rfind("\n", a, z0 - 1) + 1
+    z0 = max(z0, a)
+    for m in re.finditer(r"\[= ([^\]\[]+)\]", text[z0:le]):
+        items = m.group(1).split()
+        if len(items) == 2:
+            for arrow in ("->", "<-"):
+                out.append(("exit pattern", [(z0 + m.end() - 1,
+                                              z0 + m.end() - 1,
+                                              " " + arrow)]))
+    for m in re.finditer(r"injection\s+[\w']+\s+as\s+(?:->|<-)\s+(?:->|<-)"
+                         r"(?=\s*[.;])", text[z0:le]):
+        for arrow in ("->", "<-"):
+            out.append(("exit pattern", [(z0 + m.end(), z0 + m.end(),
+                                          " " + arrow)]))
+    for m in re.finditer(r"\[(->|<-|[A-Za-z_][\w']*) (->|<-|[A-Za-z_][\w']*)\]",
+                         text[z0:le]):
+        if "-" not in m.group(0):
+            continue
+        for arrow in ("->", "<-"):
+            out.append(("exits compared", [(z0 + m.start(), z0 + m.end(),
+                                            "[%s [%s %s]]" % (
+                                                m.group(1), m.group(2),
+                                                arrow))]))
+    # the heap named where a pattern before it stopped one name short
+    if "hp was not found" in msg:
+        for m in list(re.finditer(r"&\s*([A-Za-z_][\w']*)\s*\)",
+                                  text[a:e0]))[-2:]:
+            out.append(("pattern names the heap",
+                        [(a + m.start(1), a + m.start(1), HP + " & ")]))
+    # a statement written inside the proof, with no heap in sight: its
+    # quantifier gains the heap
+    if "hp was not found" in msg:
+        i = text.rfind("assert (", a, e0)
+        if i != -1 and close_of(text, i + 7) is not None \
+                and close_of(text, i + 7) >= e0:
+            j = close_of(text, i + 7)
+            colon = text.find(":", i, e0)
+            if colon != -1:
+                st = colon + 1
+                while text[st] in " \n\t":
+                    st += 1
+                body = text[st:j]
+                fills = []
+                for m in re.finditer(
+                        r"(?:(?:statics|extended)[\w']*|Exits?\s+[\w']+"
+                        r"\s+[\w']+)\s+(_)(?=\))", body):
+                    fills.append((st + m.start(1), st + m.end(1), HP))
+                q = re.match(r"(∀|forall)\s+", body)
+                if q:
+                    comma = body.find(",")
+                    binders = body[q.end():comma]
+                    if binders.lstrip().startswith("("):
+                        binder = [(st + comma, st + comma, " (%s : heap)" % HP)]
+                    else:
+                        binder = [(st + q.end(), st + comma,
+                                   "(%s) (%s : heap)" % (binders.strip(), HP))]
+                    name = "assert gains the heap"
+                else:
+                    # no quantifier of its own: the heap is more often one
+                    # that an [intros] or a pattern before it should have
+                    # named, so those are tried first
+                    binder = [(st, st, "∀ %s : heap, " % HP)]
+                    name = "assert quantifies the heap"
+                out.append((name, binder + fills))
+                out.append((name, binder))
+    for m in reversed(list(re.finditer(
+            r"(?<![\w'])(?:statics|extended)[\w']*(?=\))", text[z0:e0]))[-5:]):
+        for fill in (HP, "_"):
+            out.append(("heap after statics, before",
+                        [(z0 + m.end(), z0 + m.end(), " " + fill)]))
+    for m in reversed(list(re.finditer(
+            r"\(state_statics ([A-Za-z_][\w']*)\)(?=\s*\))",
+            text[z0:e0]))[-3:]):
+        out.append(("heap after statics, before",
+                    [(z0 + m.end(), z0 + m.end(),
+                      " (state_heap %s)" % m.group(1))]))
+    order = {"pattern names the heap": -1,
+             "assert gains the heap": 0, "placeholder": 1, "argument": 2,
+             "applied to the heap": 2, "applied to the heap _": 2,
+             "pattern": 2, "last argument": 3, "last argument _": 3,
+             "argument _": 4, "argument before _": 5, "exits compared": 6,
+             "exit pattern": 6, "state pattern": 7, "heap as _": 8,
+             "as pattern": 9, "intros": 10, "heap as empty_heap": 8,
+             "assert quantifies the heap": 10.5,
+             "heap after statics, before": 11}
+    out = [x for _, _, x in sorted(
+        (order.get(x[0], 12), i, x) for i, x in enumerate(out))]
+    # where the name is taken already, another name: just after
+    with_other = []
+    for rule, edits in out:
+        with_other.append((rule, edits))
         if rule in ("intros", "pattern", "as pattern"):
-            out.append((rule + " (another name)",
-                        [(st, en, rep.replace(HP, HP + "'"))
-                         for st, en, rep in edits]))
+            for other in (HP + "'", HP + "''"):
+                with_other.append((rule + " (another name)",
+                                   [(st, en, rep.replace(HP, other))
+                                    for st, en, rep in edits]))
+    out = with_other
     # ---- several edits at once ------------------------------------------
     singles = [x for x in out if "another name" not in x[0]]
     intros_edits = [e for rule, e in singles if rule == "intros"][:3]
@@ -666,13 +830,81 @@ def candidates(text, a, b, e0, e1, msg):
         compound.append(("one more placeholder", edits))
         for ie in intros_edits:
             compound.append(("one more placeholder, intros", edits + ie))
+    # two exits compared, proved by [split; reflexivity]
+    if "not a declared reflexive relation" in msg:
+        i = text.find("split; reflexivity", ls, le)
+        if i != -1 and text[max(0, i - 7):i] != "repeat ":
+            compound.insert(0, ("exits compared, split",
+                                [(i, i, "repeat ")]))
+    # an exit taken apart with two names, and given back with two
+    pats = list(re.finditer(
+        r"\[\s*[\w']+\s*\|\s*([\w']+)\s+([\w']+)(\s*)\|\s*\]",
+        text[a:e0]))
+    if pats:
+        pm = pats[-1]
+        gm = re.search(r"exists\s+%s,\s*%s(?=\s*[.;])" % (
+            re.escape(pm.group(1)), re.escape(pm.group(2))), text[ls:le])
+        for nm in (HP, HP + "'"):
+            named = [(a + pm.end(2), a + pm.end(2), " " + nm)]
+            if gm:
+                compound.insert(0, ("exit named, and given",
+                                    named + [(ls + gm.end(), ls + gm.end(),
+                                              ", " + nm)]))
+            compound.append(("exit named", named))
+    # every [intros] that ends with a static environment
+    for lo, hi in ((a, b), (a, se)):
+        edits = []
+        for m in re.finditer(
+                r"(?<![\w'])intros((?:\s+[\w']+)*\s+(?:statics|extended)"
+                r"[\w']*)(?=(?:\s+_)*\s*[;.)\]|])", text[lo:hi]):
+            pos = lo + m.end(1)
+            edits.append((pos, pos, " " + HP))
+        if edits:
+            compound.insert(0, ("every intros to a static env", edits))
     # an intros with each of the first other edits
     others = [(rule, e) for rule, e in singles if rule != "intros"][:4]
     for ie in intros_edits[:2]:
         for rule, e in others:
             if not any(st <= ie[0][0] <= en for st, en, _ in e):
                 compound.append((rule + ", intros", e + ie))
-    return out[:22] + compound[:14]
+    return out[:90] + compound[:24]
+
+
+DEFECTS = ['∀ hp : heap', '∀ hp0 : heap', 'expected to have type "heap"',
+           'placeholder of type "heap"', 'instance for the variable hp',
+           '"∃ hp : heap']
+
+
+def defect_gone(text, edits, msg, new_msg, a, e0, res):
+    """The message named a missing heap and the new one does not, and the
+    new error is in the sentence of the old one or after it."""
+    had = [d for d in DEFECTS if d in msg]
+    if not had or any(d in new_msg for d in had):
+        return False
+    if "Syntax error" in new_msg or "was not found" in new_msg:
+        return False
+    ss = max(text.rfind(". ", a, e0), text.rfind(".\n", a, e0),
+             text.rfind("- ", a, e0), text.rfind("+ ", a, e0),
+             text.rfind("* ", a, e0))
+    ss = a if ss == -1 else ss + 2
+    shift = sum(len(rep) - (end - start) for start, end, rep in edits
+                if end <= ss)
+    new = apply_edits(text, edits)
+    off = char_offset(new, new.split("\n"), res[0], res[1])
+    return off >= ss + shift
+
+
+def written_at(text, edits, line, col):
+    """Whether line [line], byte [col] of the text after [edits] is in
+    what an edit wrote."""
+    new = apply_edits(text, edits)
+    off = char_offset(new, new.split("\n"), line, col)
+    shift = 0
+    for start, end, rep in sorted(edits):
+        if start + shift <= off <= start + shift + len(rep):
+            return True
+        shift += len(rep) - (end - start)
+    return False
 
 
 def apply_edits(text, edits):
@@ -730,7 +962,7 @@ def repair_proof(path, lines, proofs, idx, err):
     log = []
     spent = 0.0
     name, pa, pb = proofs[idx]
-    for _round in range(14):
+    for _round in range(40):
         line, c0, c1, msg = err
         cur_lines = text.split("\n")
         a = sum(len(l) + 1 for l in cur_lines[:pa])
@@ -746,43 +978,47 @@ def repair_proof(path, lines, proofs, idx, err):
                 continue
             seen.add(key)
             cands.append((rule, edits))
-        cands = cands[:36]
-        for batch_start in range(0, len(cands), 8):
-            batch = cands[batch_start:batch_start + 8]
-            futs = [INNER.submit(check_single, path, apply_edits(text, edits),
-                                 proofs, idx) for _, edits in batch]
-            results = [f.result() for f in futs]
-            spent += sum(dt for _, dt in results)
-            for (rule, edits), (res, dt) in zip(batch, results):
+        futs = [INNER.submit(check_single, path, apply_edits(text, edits),
+                             proofs, idx) for _, edits in cands]
+        results = [f.result() for f in futs]
+        spent += sum(dt for _, dt in results)
+        chosen = None
+        for (rule, edits), (res, dt) in zip(cands, results):
+            if res is None:
+                chosen = (rule, edits, res)
+                break
+        if chosen is None:
+            for (rule, edits), (res, dt) in zip(cands, results):
                 if res == "other":
                     continue
-                if res is not None:
-                    m2 = res[3]
-                    if "Syntax error" in m2 or "already used" in m2:
-                        continue
-                    if "hp was not found" in m2 and \
-                            "hp was not found" not in msg:
-                        continue
-                    before = sum(len(rep) - (end - start)
-                                 for start, end, rep in edits
-                                 if start <= e0
-                                 and text.count("\n", start, e0) == 0)
-                    later = res[0] > line or (
-                        res[0] == line and res[1] > c0 + max(before, 0))
-                    if not later:
-                        continue
-                first = min(start for start, _, _ in edits)
-                ln = text.count("\n", 0, first) + 1
-                log.append((rule, ln, cur_lines[ln - 1].strip()[:100]))
-                text = apply_edits(text, edits)
-                progressed = True
-                if res is None:
-                    log.append(("time", spent))
-                    return True, text.split("\n"), log, None
-                err = res
+                m2 = res[3]
+                if "Syntax error" in m2 or "already used" in m2:
+                    continue
+                if "hp was not found" in m2 and written_at(
+                        text, edits, res[0], res[1]):
+                    continue
+                before = sum(len(rep) - (end - start)
+                             for start, end, rep in edits
+                             if start <= e0
+                             and text.count("\n", start, e0) == 0)
+                later = res[0] > line or (
+                    res[0] == line and res[1] > c0 + max(before, 0))
+                if not later and not defect_gone(text, edits, msg, m2,
+                                                 a, e0, res):
+                    continue
+                chosen = (rule, edits, res)
                 break
-            if progressed:
-                break
+        if chosen is not None:
+            rule, edits, res = chosen
+            first = min(start for start, _, _ in edits)
+            ln = text.count("\n", 0, first) + 1
+            log.append((rule, ln, cur_lines[ln - 1].strip()[:100]))
+            text = apply_edits(text, edits)
+            progressed = True
+            if res is None:
+                log.append(("time", spent))
+                return True, text.split("\n"), log, None
+            err = res
         if not progressed:
             break
     log.append(("time", spent))
