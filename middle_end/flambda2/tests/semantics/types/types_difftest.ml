@@ -4992,6 +4992,104 @@ let generate_meet_of_relations (names : names) r :
   let other = variant second in
   one, other
 
+(* Two closure types of a set of closures with the two function slots of the
+   tests and one or two of their value slots. Each type has one case, for one of
+   the two function slots, whose index is the contents of the set, exactly or at
+   least, and whose entry gives most of the slots a function type, a type of the
+   closure and a type of the value. The second type has most often the contents,
+   the slot and the entry of the first, each part of the entry kept or made
+   again. *)
+let generate_meet_of_closures (names : names) r :
+    MT.flambda_type * MT.flambda_type =
+  let pool = names.pool in
+  let config : G.config = { well_formed = true; depth = 1 } in
+  let contents () : MT.set_of_closures_contents =
+    { contents_closures = pool.function_slots;
+      contents_value_slots =
+        (if G.chance r ~percent:50
+         then pool.value_slots
+         else [List.hd pool.value_slots])
+    }
+  in
+  let component () : MT.flambda_type =
+    match G.below r 4 with
+    | 0 -> MT.unknown Value
+    | 1 -> MT.alias_type_of Value (Var (G.pick r pool.value_variables))
+    | _ -> G.type_of_kind config r pool Value
+  in
+  let function_type () : MT.function_type MT.Or_unknown.t =
+    if G.chance r ~percent:25
+    then Unknown
+    else Known { function_type_code_id = G.pick r pool.code_ids }
+  in
+  let most make slots =
+    List.filter_map
+      (fun slot ->
+        if G.chance r ~percent:80 then Some (slot, make ()) else None)
+      slots
+  in
+  let entry (contents : MT.set_of_closures_contents) : MT.closures_entry =
+    let function_types = most function_type contents.contents_closures in
+    let closure_types = most component contents.contents_closures in
+    let value_slot_types = most component contents.contents_value_slots in
+    Closures_entry (function_types, closure_types, value_slot_types)
+  in
+  (* The entry again for contents that may have fewer value slots, each of its
+     parts kept or made again. *)
+  let again (contents : MT.set_of_closures_contents)
+      (Closures_entry (function_types, closure_types, value_slot_types) :
+        MT.closures_entry) : MT.closures_entry =
+    let part make (slot, old) =
+      slot, if G.chance r ~percent:65 then old else make ()
+    in
+    let function_types = List.map (part function_type) function_types in
+    let closure_types = List.map (part component) closure_types in
+    let value_slot_types =
+      List.map (part component)
+        (List.filter
+           (fun (slot, (_ : MT.flambda_type)) ->
+             List.mem slot contents.contents_value_slots)
+           value_slot_types)
+    in
+    Closures_entry (function_types, closure_types, value_slot_types)
+  in
+  let closures slot contents entry : MT.flambda_type =
+    let case : MT.row_like_closures_case =
+      { case_maps_to = entry;
+        case_index =
+          { index_domain =
+              (if G.chance r ~percent:50
+               then Known contents
+               else At_least contents);
+            index_shape = ()
+          };
+        case_env_extension =
+          (if G.chance r ~percent:85
+           then MT.empty_env_extension
+           else G.env_extension config r pool)
+      }
+    in
+    MT.create_closures (G.alloc_mode config r)
+      (Row_like_for_closures [slot, case])
+  in
+  let slot = G.pick r pool.function_slots in
+  let first_contents = contents () in
+  let first_entry = entry first_contents in
+  let one = closures slot first_contents first_entry in
+  let second_slot =
+    if G.chance r ~percent:85 then slot else G.pick r pool.function_slots
+  in
+  let second_contents =
+    if G.chance r ~percent:75 then first_contents else contents ()
+  in
+  let second_entry =
+    if G.chance r ~percent:75
+    then again second_contents first_entry
+    else entry second_contents
+  in
+  let other = closures second_slot second_contents second_entry in
+  one, other
+
 type meet_in_an_environment =
   { equations : (MT.name * MT.flambda_type) list;
     met : MT.flambda_type * MT.flambda_type
@@ -6212,9 +6310,10 @@ let () =
         let config : G.config = { well_formed = true; depth = 2 } in
         let aliases, equations =
           match shape with
-          | `None | `Cases | `Alike | `Siblings | `Relations -> false, []
+          | `None | `Cases | `Alike | `Siblings | `Relations | `Closures ->
+            false, []
           | `Types | `Alike_with_equations | `Siblings_with_equations
-          | `Relations_with_equations ->
+          | `Relations_with_equations | `Closures_with_equations ->
             false, generate_equations names r
           | `Aliases -> true, generate_aliases names r
         in
@@ -6237,6 +6336,8 @@ let () =
               first, second
             | `Relations | `Relations_with_equations ->
               generate_meet_of_relations names r
+            | `Closures | `Closures_with_equations ->
+              generate_meet_of_closures names r
             | `None | `Types | `Aliases -> side (), side ())
         })
       ~prepare:(fun ({ equations; met = m1, m2 } as input) ->
@@ -6317,9 +6418,30 @@ let () =
       "Equations on variables, then two variants with variables of relations, \
        for the meet of the model and the n-way meet of the compiler"
     ~seed:134000 ~count:1000 ~equations:`Relations_with_equations MK.Value;
+  model_and_compiler
+    ~title:
+      "Two closure types of one set of closures with two function slots, for \
+       the meet of the model and the n-way meet of the compiler"
+    ~seed:136000 ~count:1000 ~equations:`Closures MK.Value;
+  model_and_compiler
+    ~title:
+      "Equations on variables, then two closure types of one set of closures \
+       with two function slots, for the meet of the model and the n-way meet \
+       of the compiler"
+    ~seed:138000 ~count:1000 ~equations:`Closures_with_equations MK.Value;
   examples_of_joins_in_the_model names;
   chosen_joins_in_the_model names;
   control_of_the_joins names;
+  let prepare_join (input : join_at_a_continuation) =
+    List.iter
+      (fun { binds; learns; passes } ->
+        let converts t = ignore (to_compiler names t : TG.t) in
+        List.iter (fun (_, t) -> converts t) binds;
+        List.iter (fun (_, t) -> converts t) learns;
+        converts passes)
+      input.at_uses;
+    input
+  in
   let model_join_and_compiler ~title ~seed ~count ~known ?(binds = false)
       ?(alike = false) ?(siblings = false) kind =
     let local = Converter.variable_to_model names.numbering names.local in
@@ -6382,15 +6504,13 @@ let () =
                   }
                 else { binds = []; learns; passes = passed i })
         })
-      ~prepare:(fun (input : join_at_a_continuation) ->
-        List.iter
-          (fun { binds; learns; passes } ->
-            let converts t = ignore (to_compiler names t : TG.t) in
-            List.iter (fun (_, t) -> converts t) binds;
-            List.iter (fun (_, t) -> converts t) learns;
-            converts passes)
-          input.at_uses;
-        input)
+      ~prepare:prepare_join ~shrink:shrink_join_at_a_continuation
+      ~print:print_join_at_a_continuation
+      (model_join_against_compiler names)
+  in
+  (* The same comparisons on inputs that a function makes whole. *)
+  let model_join_and_compiler_on ~title ~seed ~count generate =
+    run ~title ~seed ~count ~generate ~prepare:prepare_join
       ~shrink:shrink_join_at_a_continuation ~print:print_join_at_a_continuation
       (model_join_against_compiler names)
   in
@@ -6448,6 +6568,41 @@ let () =
       "The same with uses that know equations on variables, for the join of \
        the model and the n-way join of the compiler"
     ~seed:130000 ~count:1000 ~known:true ~siblings:true MK.Value;
+  let closures_at_uses ~known r : join_at_a_continuation =
+    let one, other = generate_meet_of_closures names r in
+    let use passes =
+      { binds = [];
+        learns = (if known then generate_equations names r else []);
+        passes
+      }
+    in
+    let first = use one in
+    let second = use other in
+    { kind_of_parameter = Value;
+      for_types_at_source = [];
+      at_uses =
+        (if G.chance r ~percent:30
+         then
+           let again, (_ : MT.flambda_type) =
+             generate_meet_of_closures names r
+           in
+           [first; second; use again]
+         else [first; second])
+    }
+  in
+  model_join_and_compiler_on
+    ~title:
+      "Two or three uses that pass closure types of one set of closures with \
+       two function slots, for the join of the model and the n-way join of the \
+       compiler"
+    ~seed:144000 ~count:1000
+    (closures_at_uses ~known:false);
+  model_join_and_compiler_on
+    ~title:
+      "The same with uses that know equations on variables, for the join of \
+       the model and the n-way join of the compiler"
+    ~seed:146000 ~count:1000
+    (closures_at_uses ~known:true);
   let with_itself ~title sharing =
     run ~title ~seed:70000 ~count:1500
       ~generate:(fun r ->

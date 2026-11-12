@@ -1468,6 +1468,122 @@ Equations on variables, then two variants with variables of relations, for the m
       Not_null))
   of which those where an extension of the types met has an equation on a symbol: 102 agree
 
+Two closure types of one set of closures with two function slots, for the meet of the model and the n-way meet of the compiler (1000 cases, seeds 136000 to 136999)
+  1000 converted
+  meet: the model and the n-way meet of the compiler: 1000 agree
+  of which those where the meet is not bottom: 476 agree
+  of which those where a variable that was made is mentioned: 0 agree
+  meet: the model and the binary meet of the compiler: 986 agree, 14 disagree as recorded
+    recorded as the binary meet, which the model does not transcribe, answers otherwise (seed 136020): what is seen of the two answers is not the same
+    on the shrunk input:
+    (Value
+     ((Closures
+       [1 ->
+         ((At_least (closures [1; 2] value_slots [1]))
+          ((function_types []) (closure_types [])
+           (value_slot_types [1 -> (Value (= $1))])) [])] Heap_or_local)
+      Not_null))
+    and
+    (Value
+     ((Closures
+       [1 ->
+         ((At_least (closures [1; 2] value_slots [1; 2]))
+          ((function_types []) (closure_types [])
+           (value_slot_types [1 ->
+                               (Value
+                                ((Variant (is_int None) (immediates Unknown)
+                                  (get_tag None) (blocks Unknown)
+                                  (extensions No_extensions)
+                                  (is_unique false)) Not_null))])) [])]
+       Heap_or_local) Not_null))
+  of which those where an extension of the types met has an equation on a symbol: 65 agree, 2 disagree as recorded
+    recorded as an input selected for T7-9 by its text (an extension has an equation on a symbol; the cause is not checked), on which the binary meet answers otherwise (seed 136907): what is seen of the two answers is not the same
+    on the shrunk input:
+    (Value
+     ((Closures
+       [1 ->
+         ((At_least (closures [1; 2] value_slots [1]))
+          ((function_types []) (closure_types [1 -> (Value (= $2))])
+           (value_slot_types [])) [])] Heap_or_local) Not_null))
+    and
+    (Value
+     ((Closures
+       [1 ->
+         ((At_least (closures [1; 2] value_slots [1]))
+          ((function_types [])
+           (closure_types [1 ->
+                            (Value
+                             ((Variant (is_int None) (immediates Unknown)
+                               (get_tag None)
+                               (blocks (Known
+                                        ((known_tags [3 ->
+                                                       (Known
+                                                        ((Known 2) Value_only
+                                                         []
+                                                         [$2 ->
+                                                           (Value Unknown)]))])
+                                         (other_tags Bottom)
+                                         (alloc_mode Heap))))
+                               (extensions No_extensions) (is_unique false))
+                              Not_null))]) (value_slot_types [])) [])]
+       Heap_or_local) Not_null))
+
+Equations on variables, then two closure types of one set of closures with two function slots, for the meet of the model and the n-way meet of the compiler (1000 cases, seeds 138000 to 138999)
+  1000 converted
+  meet: the model and the n-way meet of the compiler: 1000 agree
+  of which those where the meet is not bottom: 325 agree
+  of which those where a variable that was made is mentioned: 0 agree
+  meet: the model and the binary meet of the compiler: 986 agree, 14 disagree as recorded
+    recorded as the binary meet, which the model does not transcribe, answers otherwise (seed 138181): what is seen of the two answers is not the same
+    on the shrunk input:
+    with v3 : (Value (= $1))
+    (Value
+     ((Closures
+       [2 ->
+         ((At_least (closures [1; 2] value_slots [1]))
+          ((function_types []) (closure_types [])
+           (value_slot_types [1 ->
+                               (Value
+                                ((Variant (is_int None) (immediates Unknown)
+                                  (get_tag None) (blocks Unknown)
+                                  (extensions No_extensions)
+                                  (is_unique false)) Not_null))])) [])]
+       Heap_or_local) Not_null))
+    and
+    (Value
+     ((Closures
+       [2 ->
+         ((At_least (closures [1; 2] value_slots [1]))
+          ((function_types []) (closure_types [])
+           (value_slot_types [1 -> (Value (= v3))])) [])] Heap_or_local)
+      Not_null))
+  of which those where an extension of the types met has an equation on a symbol: 71 agree, 2 disagree as recorded
+    recorded as an input selected for T7-9 by its text (an extension has an equation on a symbol; the cause is not checked), on which the binary meet answers otherwise (seed 138234): what is seen of the two answers is not the same
+    on the shrunk input:
+    with v1 : (Value (= $2))
+    (Value
+     ((Closures
+       [2 ->
+         ((Known (closures [1; 2] value_slots [1; 2]))
+          ((function_types []) (closure_types [])
+           (value_slot_types [2 ->
+                               (Value
+                                ((Closures
+                                  [2 ->
+                                    ((Known (closures [] value_slots [2; 2]))
+                                     ((function_types []) (closure_types 
+                                      []) (value_slot_types []))
+                                     [$1 -> (Value Unknown)])] Heap_or_local)
+                                 Not_null))])) [])] Heap_or_local) Not_null))
+    and
+    (Value
+     ((Closures
+       [2 ->
+         ((Known (closures [1; 2] value_slots [1; 2]))
+          ((function_types []) (closure_types [])
+           (value_slot_types [2 -> (Value (= v1))])) [])] Heap_or_local)
+      Not_null))
+
 The join of the model beside the n-way join of the compiler, on the inputs of the examples of the join
   two sets of naked immediates: the same
   two sets of tagged immediates: the same
@@ -1714,6 +1830,48 @@ The same with uses that know equations on variables, for the join of the model a
                        ((Boxed_number naked_float
                          (Naked_number naked_float Unknown) Heap)
                         (Maybe_null (Some v5))))
+
+Two or three uses that pass closure types of one set of closures with two function slots, for the join of the model and the n-way join of the compiler (1000 cases, seeds 144000 to 144999)
+  1000 converted
+  join: the model and the n-way join of the compiler: 1000 agree
+  of which those where a variable that was made is mentioned: 0 agree
+  join: the model and the binary join of the compiler: 891 agree, 109 disagree as recorded
+    recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 144008): what is seen of the two answers is not the same
+    on the shrunk input:
+    a parameter of kind value
+    a use that passes (Value ((Closures [] Heap) Not_null))
+    a use that passes (Value
+                       ((Closures
+                         [2 ->
+                           ((At_least (closures [1; 2] value_slots [1; 2]))
+                            ((function_types []) (closure_types [])
+                             (value_slot_types [1 ->
+                                                 (Value
+                                                  ((Variant (is_int None)
+                                                    (immediates Unknown)
+                                                    (get_tag (Some v5))
+                                                    (blocks (Known
+                                                             ((known_tags 
+                                                              [])
+                                                              (other_tags Bottom)
+                                                              (alloc_mode Heap_or_local))))
+                                                    (extensions No_extensions)
+                                                    (is_unique false))
+                                                   Not_null))])) [])]
+                         Heap_or_local) Not_null))
+
+The same with uses that know equations on variables, for the join of the model and the n-way join of the compiler (1000 cases, seeds 146000 to 146999)
+  1000 converted
+  join: the model and the n-way join of the compiler: 1000 agree
+  of which those where a variable that was made is mentioned: 55 agree
+  join: the model and the binary join of the compiler: 646 agree, 354 disagree as recorded
+    recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 146001): what is seen of the two answers is not the same
+    on the shrunk input:
+    a parameter of kind value
+    a use that passes (Value Unknown)
+      and knows v1 : (Value Bottom)
+    a use that passes (Value Unknown)
+      and knows v3 : (Value Bottom)
 
 A type of kind value with itself, shared and not (1500 cases, seeds 70000 to 71499)
   1500 converted
