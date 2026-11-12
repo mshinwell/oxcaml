@@ -1,0 +1,14 @@
+(let $camlEmpty_array_phys_equal__empty_array_0 = Empty_array in
+ (let Popaque/23 = %opaque ($camlEmpty_array_phys_equal__empty_array_0) in
+  let Popaque/24 = %opaque ($camlEmpty_array_phys_equal__empty_array_0) in
+  let prim/25 = %phys_eq (Popaque/24, Popaque/23) in
+  let eq/26 = %tag_imm (prim/25) in
+  cont k/8 (eq/26))
+   where k/8 (result/21 : imm tagged) =
+     let Pmakeblock/22 = %block.[`0`].`toplevel` (result/21) in
+     cont k/7 (Pmakeblock/22))
+  where k/7 define_root_symbol (module_block/19) =
+    let field_0/20 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/19)
+    in
+    let $camlEmpty_array_phys_equal = Block 0 (field_0/20) in
+    cont done ($camlEmpty_array_phys_equal)

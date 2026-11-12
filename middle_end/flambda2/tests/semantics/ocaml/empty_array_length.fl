@@ -1,0 +1,16 @@
+(let $camlEmpty_array_length__empty_array_0 = Empty_array in
+ let Popaque/16 = %opaque ($camlEmpty_array_length__empty_array_0) in
+ let Parraylength/17 = %array_length.`imm` (Popaque/16) in
+ let result/18 = %int_barith.add (Parraylength/17, 5) in
+ let Pmakeblock/19 =
+   %block.[`0`].`toplevel`
+     ($camlEmpty_array_length__empty_array_0, result/18)
+ in
+ cont k/5 (Pmakeblock/19))
+  where k/5 define_root_symbol (module_block/14) =
+    let field_1/15 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/14)
+    in
+    let $camlEmpty_array_length =
+      Block 0 ($camlEmpty_array_length__empty_array_0, field_1/15)
+    in
+    cont done ($camlEmpty_array_length)

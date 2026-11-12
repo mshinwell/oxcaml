@@ -1001,7 +1001,20 @@ and convert_or_variable : type a.
 
 (* A static block of the model is a tag and fields that are values, so a block
    with a mixed shape, whose flat suffix holds naked numbers, is not in the
-   model. *)
+   model.
+
+   The empty array of values is the model's immutable array with no element. Its
+   length is 0 and no load or store is within its bounds, so that the compiler's
+   is mutable and the model's is not changes no run that keeps to the bounds: a
+   load from it has no value in the model, and a store into an array is not
+   converted. The model does not say that [[||] == [||]]: [Phys_equal] has no
+   value on two allocated values, these as any others
+   (FlambdaPrimitiveSpec.eval_phys_equal), so a run that compares them is
+   undefined, where the compiler makes one symbol of the empty arrays of a unit
+   and answers that they are the same. The compiler's constant is also the empty
+   array of floats; no primitive of arrays of floats is converted, so nothing
+   reads it as one. An empty array of naked numbers of another kind or of
+   unboxed products is not in the model. *)
 and convert_static_const (const : Static_const.t) : Model.static_const =
   match const with
   | Block (tag, Immutable, Value_only, fields) ->
@@ -1015,6 +1028,8 @@ and convert_static_const (const : Static_const.t) : Model.static_const =
       (List.map
          (fun field -> convert_simple (Simple.With_debuginfo.simple field))
          fields)
+  | Empty_array Values_or_immediates_or_naked_floats ->
+    Static_const_immutable_value_array []
   | Immutable_string s ->
     Static_const_immutable_string
       (List.init (String.length s) (fun i -> z_of_int (Char.code s.[i])))
