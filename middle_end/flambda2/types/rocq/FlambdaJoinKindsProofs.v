@@ -2176,3 +2176,93 @@ Proof.
       rewrite (project_variables_out_kind _ _ _ _ Hty).
       exact (Hrelations_inv r names Hbinding).
 Qed.
+
+(* The definitions, through the fold of the last phase. *)
+Definition definitions_kinded_invariant {meet_env : Type} (s : Join_env.t)
+    (acc : define_acc meet_env) : Prop :=
+  let '(_, _, _, _, definitions) := acc in
+  ∀ (x : variable) (definition : Simples_in_joined_envs.t * flambda_kind),
+    lookup x definitions = Some definition ->
+    kind_in_target_env s x = Some (snd definition)
+    ∧ ∃ e : variable,
+        lookup e (Join_env.definitions_of_existentials s) = Some definition.
+
+Lemma define_step_definitions_kinded {meet_env meet_expanded_head : Type}
+    (ops : Join_env.meet_env_functions meet_env meet_expanded_head)
+    (s : Join_env.t) (tenv_of_aliases : Typing_env.t)
+    (unique : variable -> bool) (acc acc' : define_acc meet_env)
+    (binding : variable * flambda_kind) :
+  aliases_of_kinds s ->
+  definitions_kinded_invariant s acc ->
+  define_step ops s tenv_of_aliases unique (Some acc) binding = Some acc' ->
+  definitions_kinded_invariant s acc'.
+Proof.
+  intros Hkinds Hinv Hstep.
+  destruct acc as [[[[menv to_expand] equations] relations] definitions].
+  destruct binding as [var var_kind]. cbn [define_step fst snd] in Hstep.
+  cbn [definitions_kinded_invariant] in Hinv.
+  assert (Hremoved :
+            ∀ (x : variable)
+              (definition : Simples_in_joined_envs.t * flambda_kind),
+              lookup x (unbind var definitions) = Some definition ->
+              kind_in_target_env s x = Some (snd definition)
+              ∧ ∃ e : variable,
+                  lookup e (Join_env.definitions_of_existentials s)
+                  = Some definition).
+  { intros x d Hx. rewrite lookup_unbind in Hx.
+    destruct (Pos.eqb x var); [ discriminate | ]. exact (Hinv x d Hx). }
+  destruct (Join_env.choose_alias tenv_of_aliases _) as [[canon_var | ] | ]
+    eqn:Hchoose; [ | | discriminate ].
+  - destruct (Join_env.move_equation equations var canon_var)
+      as [equations1 | ]; [ | discriminate ].
+    injection Hstep as <-.
+    pose proof (choose_alias_in _ _ _ Hchoose) as Hcanon_in.
+    intros x d Hx. unfold Join_env.move_definition in Hx.
+    destruct (lookup var definitions) as [defn | ] eqn:Hvar_def;
+      [ | exact (Hinv x d Hx) ].
+    rewrite lookup_cons in Hx.
+    destruct (Pos.eqb x canon_var) eqn:Heq; [ | exact (Hremoved x d Hx) ].
+    apply Pos.eqb_eq in Heq. subst x. injection Hx as <-.
+    destruct (Hinv var defn Hvar_def) as [Hkind_var Horigin].
+    split; [ | exact Horigin ].
+    destruct (Hkinds var canon_var Hcanon_in) as [kind [Hk1 Hk2]].
+    rewrite Hk1, <- Hk2. exact Hkind_var.
+  - destruct (unique var); injection Hstep as <-;
+      [ exact Hremoved | exact Hinv ].
+Qed.
+
+Theorem last_phase_adds_definitions_kinded
+  : last_phase_adds_definitions_kinded_statement.
+Proof.
+  intros tenv fuel source s relations kept equations relation_equations
+    definitions Htrue Hkinds Hadds x definition Hx.
+  destruct (last_phase_adds_parts tenv fuel s relations _ definitions Hadds)
+    as [r1 [to_expand [equations1 [relations1 [kept' [equations'
+          [relation_equations' [Hfold _]]]]]]]].
+  assert (Hinv :
+            definitions_kinded_invariant s
+              (r1, to_expand, equations1, relations1, definitions)).
+  { refine (fold_left_invariant
+              (define_step (recording tenv) s tenv (unique_of s relations))
+              (definitions_kinded_invariant s) (fun b => eq_refl) _ _ _ _ _
+              Hfold).
+    - intros a a' b _ Ha Hstep.
+      exact (define_step_definitions_kinded (recording tenv) s tenv
+               (unique_of s relations) a a' b Hkinds Ha Hstep).
+    - intros y d Hy.
+      destruct Htrue as [[_ [Hnew [[Hrecorded _] _]]] _].
+      destruct d as [simples k].
+      pose proof (Hrecorded y simples k Hy) as He.
+      split; [ | exists y; exact Hy ]. cbn [snd].
+      unfold kind_in_target_env.
+      destruct (Keyed.lookup name_eqb (Name_var y)
+                  (Typing_env.names_to_types
+                     (Bindings_in_target_env.source_env
+                        (Join_env.bindings s)))) as [[ty btm] | ]
+        eqn:Hsource; [ exfalso | rewrite He; reflexivity ].
+      apply (proj1 (Hnew y (proj2 (is_bound_lookup _ _)
+                               (ex_intro _ k He)))).
+      apply bound_knows. unfold Keyed.is_bound, Join_env.source_env.
+      rewrite Hsource. reflexivity. }
+  exact (Hinv x definition Hx).
+Qed.

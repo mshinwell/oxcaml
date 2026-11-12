@@ -126,7 +126,8 @@
      valuation that satisfies the source and an environment joined
      extends to one that satisfies the target, and the equations of
      the target are on names that have a value where those of the
-     source were, if the run has the
+     source were, if the static environment is valid
+     ([statics_valid]) and the run has the
      three conditions under which the equations added are true
      (FlambdaJoinDefineSpec.v, FlambdaJoinAddsSpec.v) and every name
      of an equation added has a value in the valuation of the target
@@ -162,20 +163,26 @@
      target, so it is well formed and has no bottom type; it keeps
      the source ([join_keeps_source]); and the variables that it has
      and the source has not are as the contract says
-     ([join_introduces]). These are four of the six parts of
-     [join_guarantees]. And ([model_join_admits_use_statement]) at a
-     use that is not bottom, on a run that has the conditions of the
-     item before, a valuation that satisfies the use and the source
+     ([join_introduces]). And the analysis speaks of the uses as the
+     contract says ([model_join_describes_uses_statement]:
+     [analysis_describes_uses]). These are five of the six parts of
+     [join_guarantees]; the sixth is on the runs that have the
+     conditions. And ([model_join_admits_use_statement]) at a
+     use that is not bottom, for a static environment that is valid
+     ([statics_valid], which the statements about the meet's
+     environment suppose and [join_admits_use] does not) and on a
+     run that has the conditions of the item before, a valuation
+     that satisfies the use and the source
      extends to one that satisfies the target and agrees with it on
      what the use knows and on what the source knows, and in which
      the definitions of the analysis hold: the conclusion of
-     [join_admits_use], on those runs. (The definitions hold in the
+     [join_admits_use], for those static environments and on those
+     runs. (The definitions hold in the
      valuation of the state, [model_join_true_statement], and each
      is of a variable that the target has,
      [last_phase_adds_definitions_statement] of
-     FlambdaJoinAddsSpec.v.) Not here: [analysis_describes_uses],
-     and the conditions on runs read as those of the contract
-     ([values_are_read]).
+     FlambdaJoinAddsSpec.v.) Not here: the conditions on runs read
+     as those of the contract ([values_are_read]).
 
    Examples of what [model_join] computes are in
    FlambdaJoinMeetExamplesSpec.v. *)
@@ -578,8 +585,9 @@ Definition model_join_scoped_envs_keeps_statement : Prop :=
    [last_phase_kept_statement], and: the meet of expanded types has
    what the meet's contract supposes of it on values
    ([meet_expanded_head_sound]); the names to avoid of the environment
-   given have those of the state; the valuation satisfies the source
-   and the environment joined; the run has the three conditions under
+   given have those of the state; the static environment is valid
+   ([statics_valid]); the valuation satisfies the source and the
+   environment joined; the run has the three conditions under
    which the equations added are true ([tags_at],
    [aliases_have_values], [relation_scrutinees_have_values]:
    [last_phase_adds_true_statement], FlambdaJoinAddsSpec.v); and
@@ -761,7 +769,10 @@ Definition model_join_scoped_envs_satisfied_statement : Prop :=
    two extensions and the definitions that the last phase adds. They
    are named by the equations that determine them. (The environment in
    which the last phase chooses aliases is the one in which the
-   variables brought in are defined.) *)
+   variables brought in are defined.) It is a premise of the three
+   statements below: it is not said here that every answer of the
+   join has such a run, and where no use is cut the join answers
+   before these phases are run. *)
 Definition model_join_run {A : Type} (join_choices : Join_env.choices)
     (join_depth : nat) (fuel : fuels) (avoid : list variable)
     (inputs : join_inputs A) (envs : Joined_envs.t) (s3 : Join_env.t)
@@ -822,8 +833,9 @@ Definition model_join_defined {A : Type} (inputs : join_inputs A)
    without a bottom type; the target keeps the source; and a variable
    that it has and the source has not may not occur in a term, and is
    known to a use that is not bottom or is none of the names to
-   avoid. These are the parts of [join_guarantees] (FlambdaJoinSpec.v)
-   but two: what the analysis speaks of, and the valuations. *)
+   avoid. These are four of the six parts of [join_guarantees]
+   (FlambdaJoinSpec.v); the two statements after this one are for what
+   the analysis speaks of, and for the valuations. *)
 Definition model_join_keeps_statement : Prop :=
   ∀ (A : Type) (join_choices : Join_env.choices) (meet_choices : meet_choices)
     (join_depth : nat) (fuel : fuels) (avoid : list variable)
@@ -850,15 +862,50 @@ Definition model_join_keeps_statement : Prop :=
     ∧ join_keeps_source (source inputs) target
     ∧ join_introduces avoid inputs target.
 
-(* And the valuations, at a use that is not bottom, on a run that has
-   the conditions of [last_phase_satisfied_statement], given also
+(* And what the analysis speaks of ([analysis_describes_uses],
+   FlambdaJoinSpec.v), under the same premises: its identifiers are
+   those of the uses that are not bottom; a definition is of a
+   variable that the target has at the kind given, and each of its
+   [Simple]s is of that kind at the use of its index, which has an
+   identifier; and a definition at the normal mode is moreover a
+   [Simple] that may occur in a term at that use. *)
+Definition model_join_describes_uses_statement : Prop :=
+  ∀ (A : Type) (join_choices : Join_env.choices) (meet_choices : meet_choices)
+    (join_depth : nat) (fuel : fuels) (avoid : list variable)
+    (inputs : join_inputs A) (target : Typing_env.t) (analysis : Analysis.t A)
+    (envs : Joined_envs.t) (s3 : Join_env.t)
+    (relations3 : Join_env.inverse_relations)
+    (kept : list (variable * flambda_kind))
+    (equations relation_equations : list (name * flambda_type))
+    (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind)),
+    meet_expanded_head_keeps
+      (model_meet_expanded_head join_choices meet_choices join_depth fuel) ->
+    join_inputs_well_formed typing_env_invariant avoid inputs ->
+    uses_kinded inputs ->
+    uses_agree_with_source_on_kinds inputs ->
+    typing_env_fits (source inputs) ->
+    model_join join_choices meet_choices join_depth fuel avoid inputs
+    = Some (target, analysis) ->
+    model_join_run join_choices join_depth fuel avoid inputs envs s3
+      relations3 kept equations relation_equations definitions ->
+    types_fit_otherwise
+      (Meet_env.typing_env (model_join_defined inputs s3 kept))
+      (equations ++ relation_equations) ->
+    analysis_describes_uses inputs target analysis.
+
+(* And the valuations, at a use that is not bottom, for a static
+   environment that is valid ([statics_valid]: the predicate
+   [join_admits_use] does not ask it, the statements about the meet's
+   environment do) and on a run that has the
+   conditions of [last_phase_satisfied_statement], given also
    that the meet of expanded types has what the contract supposes of
    it on values ([meet_expanded_head_sound]): a valuation that
    satisfies the use and the source extends to one that satisfies the
    target and has what it has for the variables that the use knows
    and for those that the source knows, and the definitions of the
    two maps of the analysis hold in it. This is the conclusion of
-   [join_admits_use] (FlambdaJoinSpec.v), on those runs. *)
+   [join_admits_use] (FlambdaJoinSpec.v), for those static
+   environments and on those runs. *)
 Definition model_join_admits_use_statement : Prop :=
   ∀ (A : Type) (join_choices : Join_env.choices) (meet_choices : meet_choices)
     (join_depth : nat) (fuel : fuels) (avoid : list variable)

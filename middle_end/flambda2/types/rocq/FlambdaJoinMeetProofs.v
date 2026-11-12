@@ -53,7 +53,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaMeetSpec FlambdaMeetStepsSpec FlambdaMeetStepsProofs
   FlambdaMeetEnvSpec FlambdaMeetEnvProofs FlambdaMeetScopesProofs
   FlambdaJoinMeet
-  FlambdaJoinMeetSpec FlambdaTypingEnvOperationsSpec
+  FlambdaJoinMeetSpec FlambdaEnvAliases FlambdaEnvAliasesSpec
+  FlambdaEnvAliasesProofs FlambdaTypingEnvOperationsSpec
   FlambdaTypingEnvOperationsProofs FlambdaTypingEnvProofs
   FlambdaTypeMeaningProofs.
 Import ListNotations.
@@ -2067,4 +2068,287 @@ Proof.
            use statics valuation valuation' Hnormal); [ | exact Hsat_use
                                                         | exact Hdefs ].
   rewrite (proj1 Hgrows3) in Huse. exact Huse.
+Qed.
+
+(* The identifiers of the uses that are not bottom, by index. *)
+Definition ids_of_uses {A : Type} (inputs : join_inputs A)
+    : Keyed.finite_map Index.t A :=
+  flat_map
+    (fun binding : Index.t * (A * Typing_env.t) =>
+       if Typing_env.is_bottom (snd (snd binding))
+       then []
+       else [(fst binding, fst (snd binding))])
+    (Index.number (uses inputs)).
+
+Lemma model_join_external_ids {A : Type} (join_choices : Join_env.choices)
+    (meet_choices : meet_choices) (join_depth : nat) (fuel : fuels)
+    (avoid : list variable) (inputs : join_inputs A) (target : Typing_env.t)
+    (analysis : Analysis.t A) :
+  model_join join_choices meet_choices join_depth fuel avoid inputs
+  = Some (target, analysis) ->
+  Analysis.external_ids analysis = ids_of_uses inputs.
+Proof.
+  intros Hjoin.
+  unfold model_join, join_with, cut_and_n_way_join_with_analysis in Hjoin.
+  cbv zeta in Hjoin.
+  destruct (Join_env.cut_for_joins _ _) as [envs | ]; [ | discriminate ].
+  destruct (Join_env.cut_and_n_way_join0 _ _ _ _ _ _ _ _ _ _)
+    as [[[menv_t definitions] names] | ]; [ | discriminate ].
+  destruct (Analysis.create _ envs definitions) as [analysis' | ]
+    eqn:Hanalysis; [ | discriminate ].
+  injection Hjoin as _ <-.
+  unfold Analysis.create in Hanalysis.
+  destruct (Analysis.definitions_at_normal_mode envs (compact definitions))
+    as [at_normal_mode | ]; [ | discriminate ].
+  injection Hanalysis as <-. reflexivity.
+Qed.
+
+Lemma ids_of_uses_found {A : Type} (inputs : join_inputs A) (index : Index.t)
+    (id : A) :
+  Keyed.lookup Index.equal index (ids_of_uses inputs) = Some id ->
+  ∃ use : Typing_env.t,
+    nth_error (uses inputs) index = Some (id, use)
+    ∧ Typing_env.is_bottom use = false.
+Proof.
+  intros Hlookup.
+  apply (keyed_lookup_in Index.equal index_equal_decides) in Hlookup.
+  unfold ids_of_uses in Hlookup. apply in_flat_map in Hlookup.
+  destruct Hlookup as [[i [id' use]] [Hin Hmem]]. cbn [fst snd] in Hmem.
+  destruct (Typing_env.is_bottom use) eqn:Hb; [ destruct Hmem | ].
+  destruct Hmem as [Heq | []]. injection Heq as -> ->.
+  exists use. split; [ apply number_in; exact Hin | exact Hb ].
+Qed.
+
+Lemma ids_distinct {A : Type} :
+  ∀ numbered : list (Index.t * (A * Typing_env.t)),
+    NoDup (map fst numbered) ->
+    NoDup
+      (map fst
+         (flat_map
+            (fun binding : Index.t * (A * Typing_env.t) =>
+               if Typing_env.is_bottom (snd (snd binding))
+               then []
+               else [(fst binding, fst (snd binding))])
+            numbered))
+    ∧ ∀ i : Index.t,
+        i
+        ∈ map fst
+            (flat_map
+               (fun binding : Index.t * (A * Typing_env.t) =>
+                  if Typing_env.is_bottom (snd (snd binding))
+                  then []
+                  else [(fst binding, fst (snd binding))])
+               numbered) ->
+        i ∈ map fst numbered.
+Proof.
+  induction numbered as [ | [i [id use]] numbered IH]; intros Hnodup.
+  - split; [ constructor | intros i [] ].
+  - cbn [map fst] in Hnodup. apply NoDup_cons_iff in Hnodup.
+    destruct Hnodup as [Hfresh Hnodup].
+    destruct (IH Hnodup) as [Hdistinct Hsub].
+    cbn [flat_map fst snd]. destruct (Typing_env.is_bottom use).
+    + split; [ exact Hdistinct | ].
+      intros j Hj. right. exact (Hsub j Hj).
+    + cbn [app map fst]. split.
+      * constructor; [ | exact Hdistinct ].
+        intros Hin. exact (Hfresh (Hsub i Hin)).
+      * intros j [<- | Hj]; [ left; reflexivity | right; exact (Hsub j Hj) ].
+Qed.
+
+Lemma ids_of_uses_has {A : Type} (inputs : join_inputs A) (index : Index.t)
+    (id : A) (use : Typing_env.t) :
+  nth_error (uses inputs) index = Some (id, use) ->
+  Typing_env.is_bottom use = false ->
+  Keyed.lookup Index.equal index (ids_of_uses inputs) = Some id.
+Proof.
+  intros Hnth Hb.
+  apply (keyed_lookup_of_in Index.equal index_equal_decides).
+  - exact (proj1 (ids_distinct _ (combine_seq_distinct (uses inputs) 0))).
+  - unfold ids_of_uses. apply in_flat_map. exists (index, (id, use)).
+    split; [ apply number_in; exact Hnth | ].
+    cbn [fst snd]. rewrite Hb. left. reflexivity.
+Qed.
+
+Lemma mem_at_mode_mem (tenv : Typing_env.t) (mode : Name_mode.t)
+    (s : simple) :
+  Typing_env.mem_simple (Some mode) tenv s = true ->
+  Typing_env.mem_simple None tenv s = true.
+Proof.
+  destruct s as [x | sym | c]; cbn [Typing_env.mem_simple];
+    [ | intros H; exact H | reflexivity ].
+  unfold Typing_env.mem.
+  destruct (Keyed.lookup name_eqb (Name_var x) (Typing_env.names_to_types tenv))
+    as [[ty btm] | ]; [ reflexivity | discriminate ].
+Qed.
+
+(* The canonical element at a name mode of a [Simple] of some kind is
+   of that kind. *)
+Lemma canonical_at_mode_kinded (tenv : Typing_env.t) (mode : Name_mode.t)
+    (s canonical : simple) (kind : flambda_kind) :
+  typing_env_invariant tenv ->
+  typing_env_kinded tenv ->
+  simple_of_kind tenv s kind ->
+  Typing_env.get_canonical_simple_exn tenv (Some mode) None s
+  = Some (Some canonical) ->
+  simple_of_kind tenv canonical kind
+  ∧ Typing_env.mem_simple (Some mode) tenv canonical = true.
+Proof.
+  intros Hinvariant Hkinded Hk Hcanonical.
+  pose proof (simple_of_kind_mem_simple tenv s kind Hinvariant Hk) as Hmem.
+  pose proof (get_canonical_simple_bound tenv mode s canonical
+                (proj1 Hinvariant) Hmem Hcanonical) as Hbound.
+  split; [ | exact Hbound ].
+  destruct (mem_simple_of_some_kind tenv canonical
+              (mem_at_mode_mem tenv mode canonical Hbound)) as [kind' Hk'].
+  destruct (proj1 (typing_env_well_formed_iff tenv) (proj1 Hinvariant))
+    as [_ [_ [Hconsistent _]]].
+  unfold Typing_env.get_canonical_simple_exn in Hcanonical.
+  destruct (option_map _ _) as [name_mode | ]; [ | discriminate ].
+  cbn in Hcanonical. injection Hcanonical as Hcan.
+  pose proof (canonical_at_mode_aliased _ _ _ _ _ _ _ _ _ Hconsistent Hcan)
+    as Haliased.
+  rewrite (proj1 (proj2 Hkinded) canonical s kind' kind Haliased Hk' Hk)
+    in Hk'.
+  exact Hk'.
+Qed.
+
+Theorem model_join_describes_uses : model_join_describes_uses_statement.
+Proof.
+  intros A join_choices meet_choices join_depth fuel avoid inputs target
+    analysis envs s3 relations3 kept equations relation_equations definitions
+    Hmh Hinputs Hkinded Hagree Hfits Hjoin Hrun Hrest.
+  pose proof Hrun
+    as [s1 [s2 [relations2 [Hcut [Haliases [Hdelayed [Hloop Hadds]]]]]]].
+  change (Join_env.cut_for_joins (cut_after inputs) (numbered_uses inputs)
+          = Some envs) in Hcut.
+  pose proof (model_join_external_ids join_choices meet_choices join_depth
+                fuel avoid inputs target analysis Hjoin) as Hids.
+  assert (Hids_found :
+            ∀ (index : Index.t) (id : A),
+              Keyed.lookup Index.equal index (Analysis.external_ids analysis)
+              = Some id ->
+              ∃ use : Typing_env.t,
+                nth_error (uses inputs) index = Some (id, use)
+                ∧ Typing_env.is_bottom use = false).
+  { intros index id Hlookup. rewrite Hids in Hlookup.
+    exact (ids_of_uses_found inputs index id Hlookup). }
+  set (mh :=
+         model_meet_expanded_head join_choices meet_choices join_depth fuel)
+    in *.
+  set (initial_env := Meet_env.create (source inputs)) in *.
+  destruct (Keyed.is_empty envs) eqn:Hempty.
+  { (* No environment to join: the analysis has no definition. *)
+    destruct (model_join_unfold join_choices meet_choices join_depth fuel
+                avoid inputs target analysis envs Hjoin Hcut)
+      as [target_env [definitions' [names [Hjoin0 Htarget]]]].
+    destruct (model_join_analysis join_choices meet_choices join_depth fuel
+                avoid inputs target analysis envs target_env definitions'
+                names Hjoin Hcut Hjoin0)
+      as [at_normal_mode [Hnormal [Hdefs Hat]]].
+    unfold Join_env.cut_and_n_way_join0 in Hjoin0. rewrite Hempty in Hjoin0.
+    injection Hjoin0 as _ <- _.
+    split; [ exact Hids_found | ]. split.
+    - intros x simples kind index simple Hx. rewrite Hdefs in Hx.
+      discriminate Hx.
+    - intros x simples kind index simple Hx. rewrite Hat in Hx.
+      destruct (definitions_at_normal_mode_lookup envs _ _ Hnormal x simples
+                  kind Hx) as [simples0 [Hin _]].
+      apply in_compact in Hin. discriminate Hin. }
+  destruct (model_join_replayed join_choices meet_choices join_depth fuel
+              avoid inputs target analysis envs s3 relations3 kept equations
+              relation_equations definitions Hjoin Hrun Hempty)
+    as [menv1 [target_env [Hadd1 [Hadd2 [-> [at_normal_mode [Hnormal
+          [Hdefinitions Hat_normal]]]]]]]].
+  fold mh in Hadd1, Hadd2.
+  unfold model_join_defined in Hrest, Hadd1. fold initial_env in Hrest, Hadd1.
+  set (names :=
+         Bindings_in_target_env.names_to_avoid (Join_env.bindings s3)) in *.
+  set (menv_a := Meet_env.with_names_to_avoid initial_env names) in *.
+  set (menv0 :=
+         variables_defined meet_env_functions menv_a
+           (Bindings_in_target_env.imported_variables_in_order
+              (Join_env.bindings s3)
+            ++ kept)) in *.
+  destruct (inputs_first_phases join_choices join_depth fuel avoid inputs envs
+              s1 s2 s3 relations2 relations3 Hinputs Hkinded Hagree Hcut
+              Haliases Hdelayed Hloop)
+    as (Htrue3 & Hrelations3 & Hgrows3 & Hstate3 & Hnonempty3 & Hscoped3 & HX
+        & HR & Hnames_kept & Hmade & Huse3 & Hinvariant3 & Hkinded3
+        & Hsymbols3).
+  destruct (last_phase_kept _ (fuel_of_env fuel) (source inputs) s3 relations3
+              mh menv_a menv1 target_env kept equations relation_equations
+              definitions Htrue3 Hrelations3 Hnonempty3 Hscoped3 Hstate3
+              Hinvariant3 Hkinded3 Hsymbols3 HX HR eq_refl Hfits Hadds Hrest
+              Hmh Hadd1 Hadd2) as [Hkept0 [Hstep1 Hstep2]].
+  fold menv0 in Hkept0, Hstep1.
+  destruct (last_phase_adds_kept _ (fuel_of_env fuel) s3 relations3 kept
+              equations relation_equations definitions Hadds)
+    as [Hdistinct Hkept].
+  assert (Hsource3 : Meet_env.typing_env menv_a = Join_env.source_env s3).
+  { rewrite (proj2 (proj2 Htrue3)). reflexivity. }
+  destruct (target_variables_defined s3 menv_a kept (proj1 Htrue3) Hsource3
+              Hfits Hkept Hdistinct) as [_ [_ [Hkinds0 _]]].
+  fold menv0 in Hkinds0.
+  assert (Hcore :
+            ∀ (x : variable) (simples : Simples_in_joined_envs.t)
+              (kind : flambda_kind) (index : Index.t) (simple : simple),
+              lookup x definitions = Some (simples, kind) ->
+              Simples_in_joined_envs.find index simples = Some simple ->
+              simple_of_kind (Meet_env.typing_env target_env) (Var x) kind
+              ∧ ∃ (id : A) (use : Typing_env.t),
+                  nth_error (uses inputs) index = Some (id, use)
+                  ∧ Keyed.lookup Index.equal index
+                      (Analysis.external_ids analysis)
+                    = Some id
+                  ∧ simple_of_kind use simple kind
+                  ∧ Join_env.joined_env s3 index = Some use).
+  { intros x simples kind index simple Hx Hfind.
+    pose proof (last_phase_adds_definitions _ (fuel_of_env fuel)
+                  (source inputs) s3 relations3 kept equations
+                  relation_equations definitions Htrue3
+                  (scoped_aliases_not_made s3 (proj1 Htrue3) (proj2 Hscoped3))
+                  Hadds x (simples, kind) Hx) as Hfinal.
+    destruct (last_phase_adds_definitions_kinded _ (fuel_of_env fuel)
+                (source inputs) s3 relations3 kept equations
+                relation_equations definitions Htrue3
+                (proj1 (proj2 (proj2 (proj2 HX)))) Hadds x (simples, kind) Hx)
+      as [Hkind [e He]].
+    cbn [snd] in Hkind. split.
+    - apply (extends_kinds menv0 target_env (Var x) kind
+               (meet_env_extends_trans _ _ _ (proj1 (proj1 Hstep1))
+                  (proj1 (proj1 Hstep2)))).
+      exact (Hkinds0 x kind Hfinal Hkind).
+    - pose proof (proj2 (proj2 (proj2 (proj1 (proj2 Htrue3))))) as Hin_envs.
+      destruct (Hin_envs e simples kind He index simple Hfind)
+        as [use [Huse _]].
+      destruct (proj1 (Huse3 index use) Huse) as [[id Hnth] Hb].
+      exists id, use. split; [ exact Hnth | ]. split.
+      + rewrite Hids. exact (ids_of_uses_has inputs index id use Hnth Hb).
+      + split; [ | exact Huse ].
+        exact (proj2 (proj2 Hstate3) e simples kind index simple use He Hfind
+                 Huse). }
+  split; [ exact Hids_found | ]. split.
+  - intros x simples kind index simple Hx Hfind. rewrite Hdefinitions in Hx.
+    destruct (Hcore x simples kind index simple Hx Hfind)
+      as [Htarget [id [use [Hnth [Hid [Hk _]]]]]].
+    split; [ exact Htarget | ]. exists id, use.
+    split; [ exact Hnth | ]. split; [ exact Hid | exact Hk ].
+  - intros x simples' kind index canonical Hx Hfind.
+    rewrite Hat_normal in Hx.
+    destruct (definitions_at_normal_mode_lookup envs _ _ Hnormal x simples'
+                kind Hx) as [simples [Hin Hat]].
+    apply in_compact in Hin.
+    destruct (simples_at_normal_mode_find envs _ _ Hat index canonical Hfind)
+      as [simple [use' [Hin' [Huse' Hcanonical]]]].
+    apply (keyed_in_compact Index.equal index_equal_decides) in Hin'.
+    destruct (Hcore x simples kind index simple Hin Hin')
+      as [Htarget [id [use [Hnth [Hid [Hk Huse]]]]]].
+    pose proof Huse as Huse0. rewrite (proj1 Hgrows3) in Huse0.
+    change (Joined_envs.get_nth_joined_env envs index = Some use) in Huse0.
+    rewrite Huse' in Huse0. injection Huse0 as ->.
+    split; [ exact Htarget | ]. exists id, use.
+    split; [ exact Hnth | ]. split; [ exact Hid | ].
+    exact (canonical_at_mode_kinded use Name_mode.normal simple canonical kind
+             (Hinvariant3 index use Huse) (Hkinded3 index use Huse) Hk
+             Hcanonical).
 Qed.

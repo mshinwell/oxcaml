@@ -88,7 +88,10 @@
    And the last phase: each equation of the two extensions that it
    adds is on a variable that the target has at the kind of the type
    of the equation, and the aliases of that type are of their kinds
-   in the target ([last_phase_adds_kinded_statement]).
+   in the target ([last_phase_adds_kinded_statement]). And each
+   definition that it answers is of a variable that the state has at
+   the kind of the definition, and is a definition that the state has
+   ([last_phase_adds_definitions_kinded_statement]).
 
    Not here: the kinds of the names of the equations inside types. *)
 
@@ -337,3 +340,28 @@ Definition last_phase_adds_kinded_statement : Prop :=
       type_kinded_in_target Join_env.joined_env kind_in_target_env s ty
       ∧ ∃ x : variable,
           n = Name_var x ∧ kind_in_target_env s x = Some (kind ty).
+
+(* The definitions that the last phase answers: each is of a variable
+   that the state has at the kind of the definition, and is a
+   definition that the state has for a variable that the join has
+   made: that of a variable that the phase defines, or one that has
+   been moved to the variable of the target that stands for a
+   variable that it removes, which is of the kind of that one
+   ([aliases_of_kinds]). (That the variable is one that the target is
+   to have is [last_phase_adds_definitions_statement],
+   FlambdaJoinAddsSpec.v.) *)
+Definition last_phase_adds_definitions_kinded_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (fuel : nat) (source : Typing_env.t)
+    (s : Join_env.t) (relations : Join_env.inverse_relations)
+    (kept : list (variable * flambda_kind))
+    (equations relation_equations : list (name * flambda_type))
+    (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind)),
+    state_true source s ->
+    aliases_of_kinds s ->
+    last_phase_adds tenv fuel s relations kept equations relation_equations
+      definitions ->
+    ∀ (x : variable) (definition : Simples_in_joined_envs.t * flambda_kind),
+      lookup x definitions = Some definition ->
+      kind_in_target_env s x = Some (snd definition)
+      ∧ ∃ e : variable,
+          lookup e (Join_env.definitions_of_existentials s) = Some definition.
