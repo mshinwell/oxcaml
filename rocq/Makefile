@@ -116,6 +116,10 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaControlFlowSpec.v \
   FlambdaCseProofs.v \
   FlambdaCseSpec.v \
+  FlambdaDemoteProofs.v \
+  FlambdaDemoteScopeProofs.v \
+  FlambdaDemoteScopeSpec.v \
+  FlambdaDemoteSpec.v \
   FlambdaEquivarianceProofs.v \
   FlambdaEquivarianceSpec.v \
   FlambdaExtcallProofs.v \
