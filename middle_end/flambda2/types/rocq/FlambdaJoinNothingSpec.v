@@ -51,8 +51,8 @@
      expanded types it is given, and whatever the two other amounts
      of fuel ([model_join_scoped_envs_of_nothing_statement]). No
      invariant is asked of the environment, which may be bottom. The
-     environment answered is not the one given: its names to avoid
-     are those of the join.
+     environment answered need not be the one given: its names to
+     avoid are those of the join.
    - With no fuel for the join of environments, and an environment
      that is not bottom, the join answers nothing
      ([model_join_scoped_envs_no_fuel_statement]): the first of the
