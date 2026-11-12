@@ -39,7 +39,8 @@ remove bindings are proved from them.
 | The free names; the three conditions on binders; `alpha_equivalent` | `FlambdaAlphaSpec.v` | N1 |
 | The comparison `expr_eqb` | `FlambdaCompareAlphaSpec.v` | N1 |
 | The rewrites of the normalisation, the passes for loops, the checks of well-formedness (exception handlers and trap actions among them), the check of kinds, the normalisations and `validate_unit` | `FlambdaValidatorEquivarianceSpec.v` | N3 |
-| Identities of primitives, lifting, the binding of `my_closure`, ranges, sharing of primitives, folding at known symbols, unused value slots, the order of static bindings | the `Spec` file of each pass | the owner of each |
+| Identities of primitives, lifting, the binding of `my_closure`, ranges, sharing of primitives, folding at known symbols, unused value slots, the order of static bindings, the static closures in sight, code moved up | the `Spec` file of each pass | the owner of each |
+| The second series of passes for loops | proved, as lemmas of `FlambdaValidatorEquivarianceProofs.v`; not yet statements | the owner of loops |
 | Typing environments and their levels, extensions, aliases, types, provers | the types library (`FlambdaEnvRenameSpec.v`, `FlambdaTypeRenameSpec.v`, `FlambdaEnvAliasesRenamingSpec.v`, `FlambdaTypingEnvExtensionSpec.v`, `FlambdaProversRenameSpec.v`) | N3 and the owners |
 | The meet of types and of expanded types, and the functions that add to a typing environment, given a join that commutes with renaming; with the join that forgets, with no premise | the types library (`FlambdaMeetRenameSpec.v`) | the owner of the meet, N3 |
 
@@ -81,12 +82,13 @@ will be once the series of that request is merged.
 | The tests of freedom `var_free_b` and `cont_free_b` of the rewrites that remove bindings | the integrator |
 | One statement of `FlambdaRenameApartSpec.v` | the corpus stream, N2 |
 
-**Owed.** `validate_unit` again when the validation gives binders
-names of their own; the join of typing environments, which makes
-variables, with the source of new names renamed (section 7), and with
-it the meet for the join that the model has; the permutations of
-locations; the functions on types that have no statement yet; and the
-rows of the table above.
+**Owed.** The statements for the second series of passes for loops;
+`validate_unit` again when the validation gives binders names of
+their own; the join of typing environments, which makes variables,
+with the source of new names renamed (section 7), and with it the
+meet for the join that the model has; the permutations of locations;
+the functions on types that have no statement yet; and the rows of
+the table above.
 
 ## 1. The names
 
@@ -374,6 +376,12 @@ compose:
   result is closed and no name is free in the result that was not
   free in the term.
 
+A rewrite that is not known to keep scope is made to by a test
+(`FlambdaGuardScopeSpec.guard_scope`): it keeps scope whatever the
+rewrite is, it is the rewrite where the rewrite keeps scope, and it
+commutes with renaming where the rewrite does
+(`FlambdaValidateScopeSpec.v`).
+
 Rewrites that have both compose and iterate, a rewrite that commutes
 with renaming has the first, and the comparison answers the same on
 the results (`expr_eqb_up_to_statement`).
@@ -426,12 +434,20 @@ constants (`FlambdaLiftSpec.v`), the binding of `my_closure`
 the sharing of primitives (`FlambdaCseSpec.v`), the folding at known
 symbols (`FlambdaKnownSymbolsSpec.v`), the removal of unused value
 slots (`FlambdaUnusedSlotsSpec.v`), the order of static bindings
-(`FlambdaStaticsOrderSpec.v`), and the machine with a stack of
-exception handlers (`FlambdaTrapSpec.v`). In the fourth form: giving
+(`FlambdaStaticsOrderSpec.v`), the use of the static closures in
+sight (`FlambdaKnownClosuresSpec.v`), the move of code to the head of
+what it is in (`FlambdaFloatCodeSpec.v`), and the machine with a
+stack of exception handlers (`FlambdaTrapSpec.v`). In the fourth form: giving
 every binder a name of its own (`FlambdaRenameApartSpec.v`).
 
 Owed:
 
+- the second series of passes for loops (the parameters that every
+  application gives the same thing, the applications that go where a
+  handler goes, the unused `Let`s in loops, the inlining of a
+  continuation at the end of its scope with kinds): they are proved
+  to commute with renaming, as lemmas of
+  `FlambdaValidatorEquivarianceProofs.v`, and are not yet statements;
 - each pass of the validator that is merged after this was written,
   by its owner or by the third prover, and `validate_unit` again with
   it;
