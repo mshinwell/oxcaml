@@ -131,7 +131,8 @@ From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaCompareSpec FlambdaNormaliseSpec FlambdaBlockLoadSpec
-  FlambdaCseSpec FlambdaForwardSpec FlambdaIdentitiesSpec
+  FlambdaCseSpec FlambdaDeadParamsSpec FlambdaForwardSpec
+  FlambdaIdentitiesSpec
   FlambdaInlineSiblingsSpec FlambdaLoopAliasesSpec FlambdaLoopLetsSpec
   FlambdaParamAliasesSpec FlambdaRecHandlersSpec FlambdaRenameApartSpec
   FlambdaShortcutSpec FlambdaSinkContsSpec
@@ -229,9 +230,10 @@ Definition normalise_before_round (kept : list code_id) (e : expr) : expr :=
    bindings that are left unused are removed, a parameter that every
    application gives the same thing is bound to it at the start of the
    handler ([bind_aliased_params]), which leaves it unused as a
-   parameter, and the unused ones are removed, those of loops too
-   ([drop_unused_params]). The next round follows the new [Let]s and
-   removes them. *)
+   parameter, and the unused ones are removed, those of loops too, and
+   with them the parameters of a loop that are only passed round it and
+   the [Let]s that only they need ([drop_dead_params]). The next round
+   follows the new [Let]s and removes them. *)
 Definition normalise_expr_params (e : expr) : expr :=
   let e :=
     shortcut_switches
@@ -245,7 +247,7 @@ Definition normalise_expr_params (e : expr) : expr :=
     follow_aliases_in_loops []
       (follow_aliases [] (unbox_known_numbers (load_known_blocks e)))
   in
-  drop_unused_params
+  drop_dead_params
     (bind_aliased_params
        (remove_unused_defined_lets [] (remove_unused_lets (fold_constants e)))).
 
