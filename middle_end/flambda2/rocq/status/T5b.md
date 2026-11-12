@@ -18,10 +18,11 @@ proof.
   renaming (`recover_comparisons_knowing_equivariant`,
   `recover_known_comparisons_equivariant`); it keeps scope
   (`recover_known_comparisons_keeps_scope`).
-- Nothing applies it yet. The owner of `FlambdaValidateSpec.v`
-  wires it; the place agreed is innermost of the rewrites that
-  follow the values in `normalise_expr_before`, under
-  `share_known_primitives`, on the term before only.
+- The validation applies it, on the term before only: innermost of
+  the rewrites that follow the values in `normalise_expr_before`,
+  under `share_known_primitives` (the place agreed with the owner
+  of `FlambdaValidateSpec.v`). The proofs of the round use the
+  three theorems above.
 - Measured before the proofs, with the definitions applied in that
   place in a build that is not in this tree: of 1356 units (the 370
   of the corpus, 840 generated ones, and 146 written to probe the

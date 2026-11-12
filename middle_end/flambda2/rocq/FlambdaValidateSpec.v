@@ -194,7 +194,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaIdentitiesSpec FlambdaMergeSwitchesSpec
   FlambdaInlineSiblingsSpec FlambdaInlineTailSpec FlambdaLoopAliasesSpec
   FlambdaLoopLetsSpec
-  FlambdaParamAliasesSpec FlambdaRecHandlersSpec FlambdaRenameApartSpec
+  FlambdaParamAliasesSpec FlambdaRecHandlersSpec
+  FlambdaRecoverComparisonSpec FlambdaRenameApartSpec
   FlambdaShareProjectionsSpec FlambdaShortcutSpec FlambdaSinkContsSpec
   FlambdaSinkUsesSpec
   FlambdaStaticsOrderSpec FlambdaUnboxSpec FlambdaUnboxVariantsSpec
@@ -238,11 +239,17 @@ Fixpoint iterate (rounds : nat) (f : expr -> expr) (e : expr) : expr :=
    goes ([shortcut_switches]), as Simplify makes no shortcut to a
    continuation that it inlines. Then what follows the values, into the
    handlers of the recursive continuations too for what is known where
-   they are defined ([follow_aliases_in_loops]): among them a primitive
-   that was computed, and a value slot that was projected, is not
-   computed or projected again ([share_known_primitives],
-   [share_known_projections]). Then what removes the bindings and the
-   parameters that are left unused. *)
+   they are defined ([follow_aliases_in_loops]): among them a test
+   against 0 of the result of a three-way comparison becomes the
+   comparison of its two operands, which is what Simplify makes of
+   [compare a b < 0]
+   (FlambdaRecoverComparisonSpec.recover_known_comparisons; it comes
+   first, so that the comparison it makes is shared with one that was
+   computed, and the three-way comparison goes with the bindings that
+   are left unused), and a primitive that was computed, and a value
+   slot that was projected, is not computed or projected again
+   ([share_known_primitives], [share_known_projections]). Then what
+   removes the bindings and the parameters that are left unused. *)
 Definition normalise_expr_before (e : expr) : expr :=
   let e :=
     shortcut_switches
@@ -258,7 +265,8 @@ Definition normalise_expr_before (e : expr) : expr :=
          (follow_aliases []
             (share_known_projections
                (share_known_primitives
-                  (unbox_known_numbers (load_known_blocks e))))))
+                  (recover_known_comparisons
+                     (unbox_known_numbers (load_known_blocks e)))))))
   in
   drop_unused_params
     (remove_unused_defined_lets [] (remove_unused_lets (fold_constants e))).

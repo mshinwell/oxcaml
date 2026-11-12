@@ -29,6 +29,7 @@ open FlambdaModel
 open FlambdaNormaliseSpec
 open FlambdaParamAliasesSpec
 open FlambdaRecHandlersSpec
+open FlambdaRecoverComparisonSpec
 open FlambdaRenameApartSpec
 open FlambdaShareProjectionsSpec
 open FlambdaShortcutSpec
@@ -68,7 +69,8 @@ let normalise_expr_before e =
          (follow_aliases []
             (share_known_projections
                (share_known_primitives
-                  (unbox_known_numbers (load_known_blocks e0))))))
+                  (recover_known_comparisons
+                     (unbox_known_numbers (load_known_blocks e0)))))))
   in
   drop_unused_params
     (remove_unused_defined_lets [] (remove_unused_lets (fold_constants e1)))

@@ -44,7 +44,7 @@
 
    The statement is in a file of its own, and not in
    FlambdaRecoverComparisonSpec.v, because [keeps_scope] is defined
-   after the validator, which is to apply the rewrite.
+   after the validator, which applies the rewrite.
 
    The proof is in FlambdaRecoverComparisonScopeProofs.v, which needs
    no review. *)

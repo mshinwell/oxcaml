@@ -29,6 +29,7 @@ open FlambdaModel
 open FlambdaNormaliseSpec
 open FlambdaParamAliasesSpec
 open FlambdaRecHandlersSpec
+open FlambdaRecoverComparisonSpec
 open FlambdaRenameApartSpec
 open FlambdaShareProjectionsSpec
 open FlambdaShortcutSpec

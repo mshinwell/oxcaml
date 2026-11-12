@@ -29,9 +29,10 @@
    the comparison of the two operands: a normalisation that refines.
 
    This file is to be reviewed: [recover_known_comparisons] and what it
-   is made of, which are to be extracted and run by the validation of
-   middle_end/flambda2/tests/semantics/ (nothing applies them yet); the
-   table [against_zero], against the compiler's; and the statements.
+   is made of, which are extracted and run by the validation of
+   middle_end/flambda2/tests/semantics/
+   (FlambdaValidateSpec.normalise_expr_before); the table
+   [against_zero], against the compiler's; and the statements.
 
    What the source has. [compare a b < 0], [compare a b = 0], and the
    first test of a [match] on [compare a b], reach Simplify as three
@@ -326,7 +327,7 @@ Definition recover_comparisons_knowing_equivariant_statement : Prop :=
     recover_comparisons_knowing (rename_computed r known) (rename_expr r e)
     = rename_expr r (recover_comparisons_knowing known e).
 
-(* The pass as the validation is to run it, with nothing known. *)
+(* The pass as the validation runs it, with nothing known. *)
 Definition recover_known_comparisons_equivariant_statement : Prop :=
   ∀ (r : renaming) (e : expr),
     recover_known_comparisons (rename_expr r e)

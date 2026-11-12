@@ -408,6 +408,10 @@ stays C0's for now.
 - `middle_end/flambda2/rocq/FlambdaShareProjections*` (another: a
   value slot already projected is not projected again; S5's once it
   is staffed)
+- `middle_end/flambda2/rocq/FlambdaRecoverComparison*` (another: a
+  test against 0 of the result of a three-way comparison becomes the
+  comparison of its operands; T5b's, on `flambda2-rocq/T5b-compare`;
+  reviewer R5; S1's once it is staffed)
 - `middle_end/flambda2/rocq/FlambdaStaticsOrder*` (another: the
   bindings of a group of static bindings put in the order in which
   another term has them; V1's once it is staffed)
