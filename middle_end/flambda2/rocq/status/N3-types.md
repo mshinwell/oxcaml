@@ -14,8 +14,11 @@ Files (new, mine): `middle_end/flambda2/types/rocq/FlambdaEnvRenameSpec.v`
 and `FlambdaEnvRenameProofs.v`; for the meet, four files of lemmas,
 `FlambdaEnvRenameMeetProofs.v`, `FlambdaEnvRenameMeetPartsProofs.v`,
 `FlambdaEnvRenameMeetProductsProofs.v` and
-`FlambdaEnvRenameMeetValuesProofs.v` (below). No file of another
-owner is edited.
+`FlambdaEnvRenameMeetValuesProofs.v` (below); for the join,
+`FlambdaEnvRenameJoinSpec.v` and `FlambdaEnvRenameJoinProofs.v`,
+`FlambdaTypeProjectRenameProofs.v`, and `FlambdaJoinMeetRenameSpec.v`
+and `FlambdaJoinMeetRenameProofs.v` (below). No file of another owner
+is edited.
 
 ## Done
 
@@ -137,10 +140,66 @@ parameters, of the state of two folds, and of what `meet_variant`
 answers. If a statement to review comes to need one, it moves to the
 `Spec` file of that statement.
 
+## The join of typing environments under renaming
+
+The orchestrator's order: every function of the model that reads
+names commutes with renaming, and the meet is stated for a join that a
+renaming relates to another. This says that the model's join is such
+a join.
+
+- **The source of new names.** The join makes variables with a source
+  that is one of its parameters. No function from the names to avoid
+  to a name commutes with every renaming (`no_source_commutes`), so
+  the join with one source cannot. What is stated: a renaming acts on
+  the source too (`rename_fresh`: the renaming undone on the names to
+  avoid, the source asked, its answer renamed), and the join with the
+  renamed source, of renamed arguments, answers the renamed answer.
+  It is said as a relation between two sources (`fresh_related`), and
+  the same for the parameters of the join (`parameters_related`), the
+  choices (`choices_related`), the join of types
+  (`n_way_join_type_related`) and the functions of the environment of
+  the meet (`meet_env_functions_related`).
+- **`FlambdaEnvRenameJoinSpec.v`** (fifteen statements, all proved):
+  the five about the source; the model's parameters with the renamed
+  source are related to the model's; the one function that makes a
+  variable, and the function of the state that calls it; the two
+  choices are related to themselves; the model's join of types is
+  related to itself where the parameters are; the join that the meet
+  calls (`cut_and_n_way_join_related`), the join that Simplify calls
+  and the function of `join_levels.ml` over it, each for any related
+  functions of the environment of the meet; and what Simplify reads of
+  an analysis. The action on the state of a join, on the names of the
+  target, on the joined environments, on the aliases of the variables
+  made and on an analysis is defined there, to be reviewed.
+- **`FlambdaEnvRenameJoinProofs.v`** (about 150 lemmas): every
+  function of `FlambdaJoinEnv.v` has its lemma, named
+  `<function>_renamed`. The traversal of the types
+  (`FlambdaJoinTypes.v`) is N1's file,
+  `FlambdaEnvRenameJoinTypesProofs.v`, for any state and any action on
+  it; its seven hypotheses are discharged here at the state of the
+  join.
+- **`FlambdaTypeProjectRenameProofs.v`**: the removal of variables
+  from a type (`project_variables_out`) on renamed arguments, by the
+  induction on types.
+- **`FlambdaJoinMeetRenameSpec.v`** (eight statements, all proved):
+  the model's functions of the environment of the meet are related to
+  themselves; two joins with related parameters and choices are
+  related in the sense of the meet's file
+  (`join_scoped_envs_related`); so the model's join and the model's
+  join with the renamed source are, and the model's meet with the
+  renamed source, of a renamed environment and renamed types, answers
+  the renamed answer (`model_meet_related`); the same of the join
+  that Simplify calls (`model_join_related`).
+
+Not stated: that the join or the meet with ONE source answers, of
+renamed arguments, the answer renamed up to the variables made. It
+needs one more fact, that two sources give answers that differ by a
+renaming of the variables made.
+
 ## To do
 
-- The extensions, and what the join does to an environment, when its
-  owner asks.
+- The fact above, if the up-to form is wanted.
+- The extensions, when their owner asks.
 
 ## Decided overnight
 
@@ -174,6 +233,14 @@ answers. If a statement to review comes to need one, it moves to the
 
 ## Found
 
+- **The join cannot commute with every renaming**, whatever source of
+  new names it is given (`no_source_commutes`: the empty list of names
+  to avoid is fixed by every renaming, and no variable is). Not a
+  discrepancy with the compiler, whose join is never given renamed
+  environments. Nothing else in the join goes by the number or the
+  order of a name: variables are compared by equality and by binding
+  time, and the one call of the source is in
+  `existential_for_these_simples`.
 - Nothing that is not equivariant. No function of the environment makes
   a name or goes by the order of names: the order of binding is read
   from binding times, which a name keeps, and a tie is settled by the
