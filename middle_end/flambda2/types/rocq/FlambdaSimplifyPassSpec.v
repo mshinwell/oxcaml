@@ -141,13 +141,11 @@
    Nine terms on which the function is computed are at the end:
    what it answers is stated as an equation, with no premise.
 
-   What is not here and is owed: that the function commutes with
-   renaming ([simplify_expr] of the renamed environment and the
-   renamed term is the renamed answer), as the other rewrites of the
-   validator do (../../rocq/FlambdaValidatorEquivarianceSpec.v). It
-   rests on the same law for the functions of the environment, for
-   the provers and for the expansion of the head of a type, and is
-   for a file of its own.
+   That the function commutes with renaming ([simplify_expr] of the
+   renamed environment and the renamed term is the renamed answer),
+   as the other rewrites of the validation do
+   (../../rocq/FlambdaValidatorEquivarianceSpec.v), is in
+   FlambdaSimplifyPassRenamingSpec.v.
 
    Nothing is assumed: the two statements have no premise.
 
