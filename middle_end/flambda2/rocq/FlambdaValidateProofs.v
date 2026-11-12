@@ -39,6 +39,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaForwardSpec FlambdaForwardProofs
   FlambdaIdentitiesSpec FlambdaIdentitiesProofs
   FlambdaInlineSiblingsSpec FlambdaInlineSiblingsProofs
+  FlambdaInlineTailSpec FlambdaInlineTailProofs
   FlambdaRenameApartSpec
   FlambdaRenameApartProofs FlambdaStaticsOrderSpec
   FlambdaStaticsOrderProofs FlambdaLoopAliasesSpec FlambdaLoopAliasesProofs
@@ -83,7 +84,8 @@ Ltac equivalence_step :=
     | apply sink_let_conts_equivalent
     | apply follow_aliases_in_loops_equivalent
     | apply shortcut_switches_equivalent
-    | apply remove_unused_defined_lets_in_loops_equivalent ].
+    | apply remove_unused_defined_lets_in_loops_equivalent
+    | apply inline_tail_conts_kinded_equivalent ].
 
 Ltac refinement_step :=
   first
@@ -186,7 +188,7 @@ Qed.
 Lemma normalise_expr_after_equivalent (e : expr) :
   expr_equivalent e (normalise_expr_after e).
 Proof.
-  unfold normalise_expr_after.
+  unfold normalise_expr_after, inline_once_applied_after.
   repeat (eapply expr_equivalent_trans; [ | solve [ equivalence_step ] ]).
   apply expr_equivalent_refl.
 Qed.
@@ -202,7 +204,7 @@ Qed.
 Lemma normalise_after_round_equivalent (kept : list code_id) (e : expr) :
   expr_equivalent e (normalise_after_round kept e).
 Proof.
-  unfold normalise_after_round.
+  unfold normalise_after_round, inline_once_applied_after.
   eapply expr_equivalent_trans;
     [ | apply rewrite_code_equivalent, normalise_code_after_equivalent ].
   repeat (eapply expr_equivalent_trans; [ | solve [ equivalence_step ] ]).

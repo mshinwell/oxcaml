@@ -4669,7 +4669,8 @@ Ltac rename_outwards :=
       | rewrite drop_dead_params_equivariant
       | rewrite bind_aliased_params_equivariant
       | rewrite forward_applications_equivariant
-      | rewrite remove_unused_defined_lets_in_loops_closed_equivariant ].
+      | rewrite remove_unused_defined_lets_in_loops_closed_equivariant
+      | rewrite inline_tail_conts_kinded_equivariant_aux ].
 
 Lemma normalise_expr_before_equivariant :
   rewrite_equivariant normalise_expr_before.
@@ -4723,7 +4724,8 @@ Qed.
 Lemma normalise_expr_after_equivariant :
   rewrite_equivariant normalise_expr_after.
 Proof.
-  intros r e. unfold normalise_expr_after. rename_outwards. reflexivity.
+  intros r e. unfold normalise_expr_after, inline_once_applied_after.
+  rename_outwards. reflexivity.
 Qed.
 
 Lemma normalise_code_after_equivariant :
@@ -4737,7 +4739,8 @@ Qed.
 Lemma normalise_after_round_equivariant (kept : list code_id) :
   rewrite_equivariant (normalise_after_round kept).
 Proof.
-  intros r e. unfold normalise_after_round. rename_outwards.
+  intros r e. unfold normalise_after_round, inline_once_applied_after.
+  rename_outwards.
   rewrite
     (rewrite_rec_handlers_equivariant normalise_expr_after
        normalise_expr_after_equivariant).

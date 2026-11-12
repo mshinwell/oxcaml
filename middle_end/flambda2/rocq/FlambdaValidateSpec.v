@@ -136,7 +136,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaCompareSpec FlambdaNormaliseSpec FlambdaBlockLoadSpec
   FlambdaCseSpec FlambdaDeadParamsSpec FlambdaForwardSpec
   FlambdaIdentitiesSpec
-  FlambdaInlineSiblingsSpec FlambdaLoopAliasesSpec FlambdaLoopLetsSpec
+  FlambdaInlineSiblingsSpec FlambdaInlineTailSpec FlambdaLoopAliasesSpec
+  FlambdaLoopLetsSpec
   FlambdaParamAliasesSpec FlambdaRecHandlersSpec FlambdaRenameApartSpec
   FlambdaShortcutSpec FlambdaSinkContsSpec
   FlambdaStaticsOrderSpec FlambdaUnboxSpec FlambdaUnusedContsSpec
@@ -287,6 +288,24 @@ Definition normalise_before (rounds : nat) (kept : list code_id) (e : expr)
   iterate rounds (normalise_before_round kept)
     (iterate rounds normalise_params_round e).
 
+(* For the term after, what [normalise_expr_before] does first for the
+   term before, with rewrites that are equivalences. A continuation
+   that is not used is removed. One that is applied once is moved to
+   where it is applied, where [sink_let_conts] can move it, and its
+   handler is put in place of the application where
+   FlambdaInlineTailSpec.inline_tail_conts_kinded allows: the
+   application ends the run of [Let]s that is the body of the binding,
+   and the handler gives one kind for each of its parameters. The
+   validation inlines, in the term after too, the calls that Simplify
+   left and that are not in the list of code to leave, and the
+   continuation that such a call returned to is then applied once; and
+   Simplify leaves some continuations that are applied once, the one
+   whose handler binds the symbols of the unit among them. The term
+   before can have lost both: its rounds have [sink_let_conts] and
+   FlambdaNormaliseSpec.inline_tail_conts. *)
+Definition inline_once_applied_after (e : expr) : expr :=
+  inline_tail_conts_kinded (sink_let_conts (remove_unused_conts e)).
+
 (* The same for the term after. Every rewrite is an equivalence. The
    unused [Let]s that are sure to have a value are removed in the
    handlers of recursive continuations too, with what is in scope there
@@ -301,7 +320,9 @@ Definition normalise_before (rounds : nat) (kept : list code_id) (e : expr)
 Definition normalise_expr_after (e : expr) : expr :=
   remove_unused_defined_lets_in_loops []
     (remove_unused_projections
-       (fold_constants (follow_aliases_in_loops [] (follow_aliases [] e)))).
+       (fold_constants
+          (follow_aliases_in_loops []
+             (follow_aliases [] (inline_once_applied_after e))))).
 
 Definition normalise_code_after (body : expr) : expr :=
   rewrite_rec_handlers normalise_expr_after (normalise_expr_after body).
@@ -316,7 +337,8 @@ Definition normalise_after_round (kept : list code_id) (e : expr) : expr :=
                    (fold_constants
                       (inline_known_calls kept [] []
                          (follow_aliases_in_loops []
-                            (follow_aliases [] e))))))))).
+                            (follow_aliases []
+                               (inline_once_applied_after e)))))))))).
 
 Definition normalise_after (rounds : nat) (kept : list code_id) (e : expr)
     : expr :=

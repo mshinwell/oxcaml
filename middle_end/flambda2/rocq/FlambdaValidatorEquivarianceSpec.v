@@ -183,7 +183,7 @@
    FlambdaParamAliasesSpec.bind_aliased_params;
    FlambdaForwardSpec.forward_applications; and
    FlambdaInlineTailSpec.inline_tail_conts_kinded, which the
-   validation does not apply yet. And
+   validation applies to the term after. And
    FlambdaLoopifySpec.loopify_unit, which the validation applies to
    the term before, after the first comparison and before any rewrite
    that makes names: it is given, for the code ids to make loops of,
