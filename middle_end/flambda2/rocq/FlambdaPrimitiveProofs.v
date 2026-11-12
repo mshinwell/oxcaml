@@ -1291,6 +1291,136 @@ Lemma eval_unary_int_arith_swap_int8 (a : Z) :
   eval_unary_int_arith Standard_naked_int8 Swap_byte_endianness a = a.
 Proof. intros Hrange. apply wrap_of_in_range; [ lia | exact Hrange ]. Qed.
 
+(* A swap done twice. The bytes of an integer make its low bytes
+   again. *)
+Lemma little_endian_bytes_of (count : nat) (z : Z) :
+  little_endian (bytes_of count z) = z mod 256 ^ Z.of_nat count.
+Proof.
+  revert z. induction count as [ | count IH]; intros z.
+  - simpl. symmetry. apply Z.mod_1_r.
+  - cbn [bytes_of little_endian].
+    rewrite IH, Z.mod_mod by lia.
+    rewrite Nat2Z.inj_succ, Z.pow_succ_r by lia.
+    symmetry. apply Z.rem_mul_r; [ lia | ]. apply Z.pow_pos_nonneg; lia.
+Qed.
+
+(* The bytes of the integer that some bytes make are those bytes. *)
+Lemma bytes_of_little_endian (bytes : list Z) :
+  bytes_of (length bytes) (little_endian bytes)
+  = map (fun byte => byte mod 256) bytes.
+Proof.
+  induction bytes as [ | byte rest IH]; [ reflexivity | ].
+  cbn [length bytes_of little_endian map].
+  pose proof (Z.mod_pos_bound byte 256 eq_refl) as Hbyte.
+  rewrite (Z.mul_comm 256 (little_endian rest)).
+  rewrite Z_mod_plus_full, Z.div_add by lia.
+  rewrite Z.mod_mod, Z.div_small, Z.add_0_l by lia.
+  rewrite IH. reflexivity.
+Qed.
+
+(* Each of the bytes of an integer is a byte. *)
+Lemma map_mod_bytes_of (count : nat) (z : Z) :
+  map (fun byte => byte mod 256) (bytes_of count z) = bytes_of count z.
+Proof.
+  revert z. induction count as [ | count IH]; intros z; [ reflexivity | ].
+  cbn [bytes_of map]. rewrite Z.mod_mod, IH by lia. reflexivity.
+Qed.
+
+(* The low bytes of an integer are not changed by what is added above
+   them. *)
+Lemma bytes_of_add_above (count : nat) (z k : Z) :
+  bytes_of count (z + k * 256 ^ Z.of_nat count) = bytes_of count z.
+Proof.
+  revert z k. induction count as [ | count IH]; intros z k;
+    [ reflexivity | ].
+  cbn [bytes_of].
+  rewrite Nat2Z.inj_succ, Z.pow_succ_r by lia.
+  replace (k * (256 * 256 ^ Z.of_nat count))
+    with (k * 256 ^ Z.of_nat count * 256) by lia.
+  rewrite Z_mod_plus_full, Z.div_add by lia.
+  rewrite IH. reflexivity.
+Qed.
+
+(* Two swaps of [count] bytes give the low [count] bytes back. *)
+Lemma swap_bytes_twice (count : nat) (z : Z) :
+  swap_bytes count (swap_bytes count z) = z mod 256 ^ Z.of_nat count.
+Proof.
+  unfold swap_bytes.
+  pose proof (bytes_of_little_endian (rev (bytes_of count z))) as Hbytes.
+  rewrite length_rev, length_bytes_of in Hbytes. rewrite Hbytes.
+  rewrite <- map_rev, rev_involutive, map_mod_bytes_of.
+  apply little_endian_bytes_of.
+Qed.
+
+(* Wrapping adds a multiple of two to the width. *)
+Lemma wrap_adds_multiple (width z : Z) :
+  0 <= width -> ∃ k : Z, wrap width z = z + k * 2 ^ width.
+Proof.
+  intros Hwidth. unfold wrap.
+  exists (- ((z + 2 ^ (width - 1)) / 2 ^ width)).
+  assert (Hpow : 2 ^ width <> 0) by (apply Z.pow_nonzero; lia).
+  pose proof (Z.div_mod (z + 2 ^ (width - 1)) (2 ^ width) Hpow) as Hdiv.
+  lia.
+Qed.
+
+(* Wrapping looks at the low bits only. *)
+Lemma wrap_mod (width z : Z) :
+  wrap width (z mod 2 ^ width) = wrap width z.
+Proof. unfold wrap. rewrite Zplus_mod_idemp_l. reflexivity. Qed.
+
+(* So two swaps of an integer of [count] bytes with a sign, each
+   wrapped to the width, give the integer back. *)
+Lemma swap_bytes_wrap_twice (count : nat) (a : Z) :
+  (1 <= count)%nat ->
+  in_range (8 * Z.of_nat count) a = true ->
+  wrap (8 * Z.of_nat count)
+    (swap_bytes count (wrap (8 * Z.of_nat count) (swap_bytes count a)))
+  = a.
+Proof.
+  intros Hcount Hrange.
+  assert (Hpow : 2 ^ (8 * Z.of_nat count) = 256 ^ Z.of_nat count).
+  { rewrite Z.pow_mul_r by lia. reflexivity. }
+  destruct (wrap_adds_multiple (8 * Z.of_nat count) (swap_bytes count a))
+    as [k Hk]; [ lia | ].
+  rewrite Hk, Hpow.
+  unfold swap_bytes at 1. rewrite bytes_of_add_above.
+  fold (swap_bytes count (swap_bytes count a)).
+  rewrite swap_bytes_twice, <- Hpow, wrap_mod.
+  apply wrap_of_in_range; [ lia | exact Hrange ].
+Qed.
+
+(* At the kinds other than the immediates, the swap done twice is the
+   identity. *)
+Lemma eval_unary_int_arith_swap_twice (kind : standard_int) (a : Z) :
+  kind <> Standard_tagged_immediate ->
+  kind <> Standard_naked_immediate ->
+  in_range (int_width kind) a = true ->
+  eval_unary_int_arith kind Swap_byte_endianness
+    (eval_unary_int_arith kind Swap_byte_endianness a)
+  = a.
+Proof.
+  intros Htagged Hnaked Hrange.
+  destruct kind; try contradiction;
+    cbn [eval_unary_int_arith int_width] in *.
+  - rewrite !(wrap_of_in_range 8 a) by (lia || exact Hrange). reflexivity.
+  - exact (swap_bytes_wrap_twice 2 a ltac:(lia) Hrange).
+  - exact (swap_bytes_wrap_twice 4 a ltac:(lia) Hrange).
+  - exact (swap_bytes_wrap_twice 8 a ltac:(lia) Hrange).
+  - exact (swap_bytes_wrap_twice 8 a ltac:(lia) Hrange).
+Qed.
+
+(* At the immediates it gives the two low bytes of the integer. *)
+Lemma eval_unary_int_arith_swap_twice_immediate (kind : standard_int)
+    (a : Z) :
+  kind = Standard_tagged_immediate ∨ kind = Standard_naked_immediate ->
+  eval_unary_int_arith kind Swap_byte_endianness
+    (eval_unary_int_arith kind Swap_byte_endianness a)
+  = a mod 65536.
+Proof.
+  intros [-> | ->]; cbn [eval_unary_int_arith];
+    exact (swap_bytes_twice 2 a).
+Qed.
+
 (* Simplify rewrites the exclusive or of an integer with -1, on either
    side, into [Not] of the integer ([Simplify_binary_primitive], where
    an operation answers [Bitwise_not_of_the_other_side]). The two are
