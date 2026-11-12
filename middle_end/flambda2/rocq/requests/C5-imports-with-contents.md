@@ -129,13 +129,22 @@ reduction of section 2 says:
 - a block, by `Bind_symbol` of a block whose fields are constants
   and symbols;
 - a closure, by `Bind_symbol` of the closure at its function slot of
-  a set that has this one function and no value slot. That is less
-  than the other unit has, and it shows: a body that reads a value
-  slot of its own closure, or goes to another function of its set
-  as mutually recursive functions may, has no value there, and a
-  run that reaches it is undefined. The verdict is then empty, not
-  wrong. The types have the whole set; reading them is the second
-  step (section 7);
+  a set that has this one function and no value slot
+  (`Static_const_closure_of_set`, at the closure's own slot: a
+  projection has no value on a closure at another slot than the one
+  it names). That is less than the other unit has, and it shows: a
+  body that reads a value slot of its own closure, or goes to
+  another function of its set as mutually recursive functions may,
+  has no value there, and a run that reaches it is undefined. The
+  verdict is then empty, not wrong. C3 has confirmed it: the model
+  has no value exactly where what is missing would be read
+  (`project_value_slot` of a slot the closure has not got,
+  `project_function_slot` to a slot its set has not got), no
+  primitive counts slots or functions, and `Phys_equal` has no value
+  on two closures. The prefix is converted with the presentation of
+  sets that the two terms have, and is written for named function
+  slots first. The types have the whole set; reading them is the
+  second step (section 7);
 - code that has a body, by `Bind_code` of the body converted as the
   code of the unit is;
 - code that has no body: nothing. Its code id stays bound to
@@ -159,9 +168,12 @@ continuations of imported code at each import, so two conversions
 would agree up to bound names only.
 
 **What is assumed, and where it is said.** One new entry of the
-trust ledger: that when the unit starts, each symbol that the prefix
-binds is the object that the prefix says, and each code id that it
-binds has that code. That is: the `.cmx` are right about their
+trust ledger: that when the unit starts, what the prefix says of
+each symbol it binds is true of the object, and each code id that it
+binds has that code. Of a block the prefix says its tag and its
+fields. Of a closure it says its code and its function slot and
+binds it with nothing else; the model has no value where anything
+else of it is read. That is: the `.cmx` are right about their
 units, and they are the `.cmx` of the units that the program is
 linked with. It is stated for each unit read, by the digest of its
 `.cmx`. The tool names the units read; it prints the digests only
@@ -305,7 +317,11 @@ heap and C calls as well; 20 need only this.
   boxed number). Where Simplify uses it the unit is not validated,
   and where a body in the prefix needs it the run is undefined.
   That is a loss of completeness and never of soundness: the prefix
-  says less than the `.cmx`, not more.
+  says less than the `.cmx`, not more. The rewrites that read the
+  value slots known of every set of a term read those of the
+  prefixed term: a closure of the prefix has no slot and gives no
+  slot a value, and a run through it is undefined in the term
+  before, so the verdict is empty for that run too.
 - The other direction. The theorem is of the run of a unit, which
   is its initialisation. Of the code of a function that this run
   does not call it says nothing, with or without imports: the
@@ -345,16 +361,30 @@ a proof.
    from any static environment, if that is agreed. Small.
 4. V3, C3 and the owners of the liftings: their statements from the
    imports, already owed. This decides how many real units are
-   validated with their imports, and it is the large item.
+   validated with their imports, and it is the large item. V3 has
+   read its proofs for it: all are simulations set up at the first
+   state, and all but one go through from the imports, given that
+   the result of a pass binds no import and a short fact about the
+   imports for the invariant of each. The one is the moving of
+   static bindings to the head of the unit, whose check of scope
+   must be told that the imports are in scope from the start: a
+   definition changes there. V3's estimate is a day for the first
+   and a day for the second, after its series in hand and after
+   C4's move of the same proofs to the heap.
 5. Me: the third class. Small in my files; one more case wherever a
    class is matched, as the second class was.
 6. C0: the list of imports in the interface of a unit, and the row
    of well-formedness for symbols and code ids, which must admit a
    code id of another unit that is bound to nothing. As already
    proposed.
-7. C3 to confirm: a closure of another unit bound at its function
-   slot, in a set of one, with no value slot, beside the sets of the
-   unit, whichever of the two presentations the unit has.
+7. C3 has confirmed the closure of another unit bound at its
+   function slot, in a set of one, with no value slot: it is whole
+   and bound for the checks of sets, and it goes through the choice
+   of presentation with the two terms. C3 will state its reading of
+   known value slots from any static environment that stores no code
+   and whose values have their slots as the unit says, of which the
+   imports are an instance; no premise on what the unit binds is
+   needed there.
 8. X5: the same prefix in the validation of the compiler's own run,
    where the loaded `.cmx` are at hand; and the counts of what the
    terms after of real units name of other units.
