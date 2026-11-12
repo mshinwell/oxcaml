@@ -20,10 +20,15 @@ Files, in `middle_end/flambda2/types/rocq/`:
   be reviewed against those files.
 - `FlambdaMeetGrammar.v`: definitions that belong in the files of T1,
   T2 and C0 and wait for them there.
-- `FlambdaMeetExamplesSpec.v`, `FlambdaMeetExamplesProofs.v`: eight
-  statements about the transcribed functions, proved by running them.
+- `FlambdaMeetExamplesSpec.v`, `FlambdaMeetExamplesProofs.v`: eleven
+  statements about the transcribed functions, nine proved by running
+  them and two that are corollaries of the main theorem (section 15).
+- `FlambdaMeetMatchExamplesSpec.v`,
+  `FlambdaMeetProjectionExamplesSpec.v` and their proofs: what the
+  meet answers at the calls that Simplify makes on small functions,
+  fifteen statements, proved by running it (section 15).
 - `FlambdaExpandHeadSpec.v`, `FlambdaExpandHeadProofs.v`: what
-  `expand_head` keeps, six statements, proved.
+  `expand_head` keeps, seven statements, proved.
 
 The compiler read: `types/meet_and_n_way_join.ml` (lines 1 to 1883, the
 meet), `types/meet.ml`, `types/env/meet_env.ml`, `types/expand_head.ml`,
@@ -715,5 +720,24 @@ strict satisfaction, with no other premise), `expand_head_closed`,
   environment knows, which the contract of section 2 does not
   suppose (there is a `CR mshinwell` that says why it is needed).
 - The two parameters are replaced by T1's and T2's predicates: done.
+- The premise of the main theorem is one that a join has: the join
+  that forgets the environments joined has the contract of a join
+  (`forgetful_join_sound`), so `meet_to_prove forgetful_join fuel` has
+  `meet_contract` with no premise left, whatever the fuel, and the
+  functions that add to a typing environment, made of it, have theirs
+  (`meet_with_forgetful_join_contract`,
+  `typing_env_functions_with_forgetful_join`,
+  `FlambdaMeetExamplesSpec.v`). It is not the compiler's join.
+- Examples of the meet at the calls that Simplify makes
+  (`FlambdaMeetMatchExamplesSpec.v`,
+  `FlambdaMeetProjectionExamplesSpec.v`): a match on
+  `type t = A | B | C of int`; the two fields of a pair; a float that
+  is boxed and then unboxed; two value slots of a closure. Each
+  statement gives the two types met, says that `meet_to_prove` and
+  `compiler_meet` answer the same type and environment (whatever the
+  join, but for the two meets of rows, which call it), and says what
+  the environment answered has for the variables. The answers are
+  the model's. They are inputs for the differential tests: none has
+  been compared with the compiler yet.
 
 For reviewers: whether a precision statement is wanted.
