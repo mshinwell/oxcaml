@@ -431,6 +431,84 @@ let tests_of i made above =
        (fun entry -> existsb (PeanoNat.Nat.eqb (snd entry)) (boxes_of i above))
        made)
 
+(** val tags_at_apply_cont : (facts -> simple list -> coq_Z list) -> facts ->
+    continuation -> apply_cont -> coq_Z list **)
+
+let tags_at_apply_cont tag_of known k ac =
+  if Pos.eqb ac.ac_continuation k then tag_of known ac.ac_args else []
+
+(** val tags_given : (facts -> simple list -> coq_Z list) -> facts ->
+    continuation -> expr -> coq_Z list **)
+
+let rec tags_given tag_of known k = function
+  | Let (x, _, d, body) -> tags_given tag_of (facts_under_let known x d) k body
+  | Let_static (bindings, body) ->
+    tags_given tag_of (facts_under_statics known bindings) k body
+  | Let_cont_non_recursive (k', h, body) ->
+    app
+      (tags_given_in_handler tag_of known k h)
+      (if Pos.eqb k' k then [] else tags_given tag_of known k body)
+  | Let_cont_recursive (handlers, body) ->
+    if is_bound k handlers
+    then []
+    else
+      app
+        (flat_map
+           (fun pat ->
+             let _, h = pat in
+             tags_given_in_handler tag_of known k h)
+           handlers)
+        (tags_given tag_of known k body)
+  | Apply_cont ac -> tags_at_apply_cont tag_of known k ac
+  | Switch (_, arms) ->
+    flat_map
+      (fun pat ->
+        let _, ac = pat in
+        tags_at_apply_cont tag_of known k ac)
+      arms
+  | _ -> []
+
+(** val tags_given_in_handler : (facts -> simple list -> coq_Z list) -> facts ->
+    continuation -> continuation_handler -> coq_Z list **)
+
+and tags_given_in_handler tag_of known k = function
+  | Handler (params, _, handler) ->
+    tags_given tag_of (facts_under_params known params) k handler
+
+(** val tag_read : variable list -> variable list -> expr -> expr -> nat ->
+    facts -> simple list -> coq_Z list **)
+
+let tag_read tests params handler without i known args =
+  match nth_error args i with
+  | Some arg -> (
+    if
+      never_reads (only_of tests (known_immediates params args)) handler without
+    then []
+    else
+      match known_block_of known.facts_blocks arg with
+      | Some block -> fst block :: []
+      | None -> [])
+  | None -> []
+
+(** val all_same : coq_Z list -> bool **)
+
+let all_same = function [] -> true | tag :: tags0 -> forallb (Z.eqb tag) tags0
+
+(** val reads_field : unary_primitive -> bool **)
+
+let reads_field = function Block_load (_, _, _) -> true | _ -> false
+
+(** val loads_of_two_tags : facts -> continuation -> variable list -> variable
+    list -> expr -> expr -> read -> bool **)
+
+let loads_of_two_tags known k tests params handler body r =
+  reads_field r.read_primitive
+  && negb
+       (all_same
+          (tags_given
+             (tag_read tests params handler r.read_without r.read_position)
+             known k body))
+
 (** val unbox_reads : nat -> facts -> continuation -> (variable * nat) list ->
     (nat * nat list) list -> variable list -> handler_metadata -> expr -> expr
     -> expr **)
@@ -455,31 +533,37 @@ let rec unbox_reads fuel known k made above params metadata handler body =
     in
     match next_read params handler with
     | Some r -> (
-      let step =
-        match head_read params handler with
-        | Some head ->
-          if Pos.eqb head.read_variable r.read_variable
-          then
-            unbox_read
-              (fun known0 ->
-                extend_args known0 head.read_position head.read_primitive)
-              known k params metadata handler body head
-          else certain r
-        | None -> certain r
-      in
-      match step with
-      | Some p ->
-        let p0, body0 = p in
-        let p1, handler0 = p0 in
-        let params', metadata0 = p1 in
-        unbox_reads fuel0 known k
-          (if reads_test r.read_primitive
-           then (r.read_variable, r.read_position) :: made
-           else made)
-          ((length params, length params :: boxes_of r.read_position above)
-          :: above)
-          params' metadata0 handler0 body0
-      | None -> unchanged)
+      if
+        loads_of_two_tags known k
+          (tests_of r.read_position made above)
+          params handler body r
+      then unchanged
+      else
+        let step =
+          match head_read params handler with
+          | Some head ->
+            if Pos.eqb head.read_variable r.read_variable
+            then
+              unbox_read
+                (fun known0 ->
+                  extend_args known0 head.read_position head.read_primitive)
+                known k params metadata handler body head
+            else certain r
+          | None -> certain r
+        in
+        match step with
+        | Some p ->
+          let p0, body0 = p in
+          let p1, handler0 = p0 in
+          let params', metadata0 = p1 in
+          unbox_reads fuel0 known k
+            (if reads_test r.read_primitive
+             then (r.read_variable, r.read_position) :: made
+             else made)
+            ((length params, length params :: boxes_of r.read_position above)
+            :: above)
+            params' metadata0 handler0 body0
+        | None -> unchanged)
     | None -> unchanged)
 
 (** val unbox_variants_knowing : facts -> expr -> expr **)

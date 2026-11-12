@@ -857,7 +857,11 @@ Proof.
       * intros ->. apply nth_error_In, among_In in Hparam. congruence.
 Qed.
 
-(* The reads of a handler, one after the other. *)
+#[local] Arguments loads_of_two_tags : simpl never.
+
+(* The reads of a handler, one after the other. Where the pass stops
+   at a load to which blocks of more than one tag may come, the term
+   is as it was. *)
 Lemma unbox_reads_refines (fuel : nat) :
   ∀ (known : facts) (k : continuation) (made : list (variable * nat))
     (above : list (nat * list nat)) (params : list variable)
@@ -876,6 +880,10 @@ Proof.
     simpl; [ apply refines_refl | ].
   destruct (next_read params handler) as [r | ] eqn:Hnext; simpl;
     [ | apply refines_refl ].
+  destruct
+    (loads_of_two_tags known k (tests_of (read_position r) made above) params
+       handler body r);
+    [ apply refines_refl | ].
   set (made' :=
     if reads_test (read_primitive r)
     then (read_variable r, read_position r) :: made

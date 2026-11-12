@@ -119,6 +119,51 @@ val boxes_of : nat -> (nat * nat list) list -> nat list
 val tests_of :
   nat -> (variable * nat) list -> (nat * nat list) list -> variable list
 
+val tags_at_apply_cont :
+  (facts -> simple list -> coq_Z list) ->
+  facts ->
+  continuation ->
+  apply_cont ->
+  coq_Z list
+
+val tags_given :
+  (facts -> simple list -> coq_Z list) ->
+  facts ->
+  continuation ->
+  expr ->
+  coq_Z list
+
+val tags_given_in_handler :
+  (facts -> simple list -> coq_Z list) ->
+  facts ->
+  continuation ->
+  continuation_handler ->
+  coq_Z list
+
+val tag_read :
+  variable list ->
+  variable list ->
+  expr ->
+  expr ->
+  nat ->
+  facts ->
+  simple list ->
+  coq_Z list
+
+val all_same : coq_Z list -> bool
+
+val reads_field : unary_primitive -> bool
+
+val loads_of_two_tags :
+  facts ->
+  continuation ->
+  variable list ->
+  variable list ->
+  expr ->
+  expr ->
+  read ->
+  bool
+
 val unbox_reads :
   nat ->
   facts ->

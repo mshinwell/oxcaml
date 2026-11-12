@@ -902,6 +902,119 @@ Proof.
     rewrite IH; reflexivity.
 Qed.
 
+(* The tags that the applications of a continuation give are those
+   that the applications of the renamed expression give, where the
+   function that finds a tag answers the same on renamed arguments. *)
+Section Tags_renamed.
+
+Variable r : renaming.
+Variable tag_of tag_of' : facts -> list simple -> list Z.
+
+Hypothesis tag_of_renamed :
+  ∀ (known : facts) (args : list simple),
+    tag_of' (rename_facts r known) (map (rename_simple r) args)
+    = tag_of known args.
+
+Lemma tags_at_apply_cont_renamed (known : facts) (k : continuation)
+    (ac : apply_cont) :
+  tags_at_apply_cont tag_of' (rename_facts r known) (rename_continuation r k)
+    (rename_apply_cont r ac)
+  = tags_at_apply_cont tag_of known k ac.
+Proof.
+  unfold tags_at_apply_cont, rename_apply_cont.
+  cbn [ac_continuation ac_args].
+  rewrite rename_continuation_eqb.
+  destruct (Pos.eqb (ac_continuation ac) k);
+    [ apply tag_of_renamed | reflexivity ].
+Qed.
+
+Fixpoint tags_given_renamed (e : expr) :
+  ∀ (known : facts) (k : continuation),
+    tags_given tag_of' (rename_facts r known) (rename_continuation r k)
+      (rename_expr r e)
+    = tags_given tag_of known k e
+with tags_given_in_handler_renamed (h : continuation_handler) :
+  ∀ (known : facts) (k : continuation),
+    tags_given_in_handler tag_of' (rename_facts r known)
+      (rename_continuation r k) (rename_handler r h)
+    = tags_given_in_handler tag_of known k h.
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k0 h body | handlers body | ap
+         | ac | scrutinee arms | ];
+      intros known k; cbn [rename_expr tags_given].
+    + rewrite facts_under_let_equivariant. apply tags_given_renamed.
+    + rewrite facts_under_statics_equivariant. apply tags_given_renamed.
+    + rewrite tags_given_in_handler_renamed, rename_continuation_eqb.
+      destruct (Pos.eqb k0 k); [ reflexivity | ].
+      rewrite tags_given_renamed. reflexivity.
+    + rewrite is_bound_renamed_handlers.
+      destruct (is_bound k handlers); [ reflexivity | ].
+      rewrite tags_given_renamed. f_equal.
+      induction handlers as [ | [k1 h1] handlers IH]; cbn [map flat_map];
+        [ reflexivity | ].
+      rewrite (tags_given_in_handler_renamed h1 known k), IH. reflexivity.
+    + reflexivity.
+    + apply tags_at_apply_cont_renamed.
+    + induction arms as [ | [discriminant ac] arms IH];
+        cbn [map flat_map fst snd]; [ reflexivity | ].
+      rewrite tags_at_apply_cont_renamed, IH. reflexivity.
+    + reflexivity.
+  - destruct h as [params metadata handler]. intros known k.
+    cbn [rename_handler tags_given_in_handler].
+    rewrite facts_under_params_equivariant. apply tags_given_renamed.
+Qed.
+
+End Tags_renamed.
+
+Lemma tag_read_renamed (r : renaming) (tests params : list variable)
+    (handler without : expr) (i : nat) (known : facts) (args : list simple) :
+  tag_read (map (rename_variable r) tests) (map (rename_variable r) params)
+    (rename_expr r handler) (rename_expr r without) i (rename_facts r known)
+    (map (rename_simple r) args)
+  = tag_read tests params handler without i known args.
+Proof.
+  unfold tag_read. rewrite nth_error_map.
+  destruct (nth_error args i) as [arg | ]; [ | reflexivity ].
+  cbn [option_map].
+  rewrite known_immediates_equivariant, only_of_equivariant,
+    never_reads_renamed.
+  destruct
+    (never_reads (only_of tests (known_immediates params args)) handler
+       without);
+    [ reflexivity | ].
+  change (facts_blocks (rename_facts r known))
+    with (rename_known_blocks r (facts_blocks known)).
+  rewrite known_block_of_equivariant.
+  destruct (known_block_of (facts_blocks known) arg) as [[tag fields] | ];
+    reflexivity.
+Qed.
+
+(* Whether blocks of more than one tag may come to a load is answered
+   the same of the renamed term. *)
+Lemma loads_of_two_tags_renamed (r : renaming) (known : facts)
+    (k : continuation) (tests params : list variable) (handler body : expr)
+    (found : read) :
+  loads_of_two_tags (rename_facts r known) (rename_continuation r k)
+    (map (rename_variable r) tests) (map (rename_variable r) params)
+    (rename_expr r handler) (rename_expr r body) (rename_read r found)
+  = loads_of_two_tags known k tests params handler body found.
+Proof.
+  unfold loads_of_two_tags.
+  cbn [rename_read read_primitive read_position read_without].
+  rewrite
+    (tags_given_renamed r
+       (tag_read tests params handler (read_without found)
+          (read_position found))
+       (tag_read (map (rename_variable r) tests)
+          (map (rename_variable r) params) (rename_expr r handler)
+          (rename_expr r (read_without found)) (read_position found))
+       (tag_read_renamed r tests params handler (read_without found)
+          (read_position found))
+       body known k).
+  reflexivity.
+Qed.
+
 Fixpoint lets_in_renamed (r : renaming) (e : expr) :
   lets_in (rename_expr r e) = lets_in e.
 Proof.
@@ -1028,6 +1141,11 @@ Proof.
   change (read_variable (rename_read r found))
     with (rename_variable r (read_variable found)).
   rewrite tested_is_int_renamed, tests_of_renamed, length_map.
+  rewrite loads_of_two_tags_renamed.
+  destruct
+    (loads_of_two_tags known k (tests_of (read_position found) made above)
+       params handler body found);
+    [ reflexivity | ].
   set (made' :=
     if reads_test (read_primitive found)
     then (read_variable found, read_position found) :: made
@@ -2047,6 +2165,10 @@ Proof.
     cbn [unbox_reads]; [ apply scoped_under_refl | ].
   destruct (next_read params handler) as [found | ] eqn:Hnext;
     [ | apply scoped_under_refl ].
+  destruct
+    (loads_of_two_tags known k (tests_of (read_position found) made above)
+       params handler body found);
+    [ apply scoped_under_refl | ].
   simpl.
   set (made' :=
     if reads_test (read_primitive found)

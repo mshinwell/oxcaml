@@ -111,6 +111,26 @@
      handler ([head_read]) the argument is the one of the other pass
      ([extend_args]).
 
+   - A load is not made a parameter where the applications that may
+     come to it give blocks of more than one tag
+     ([loads_of_two_tags]), and the pass stops there. For a variant
+     Simplify makes the parameters for the fields tag by tag
+     ([fields_by_tag] of [Unboxing_types.decision]) and gives the
+     parameter unboxed the type of a variant that has, at each tag,
+     those of that tag ([Build_unboxing_denv.denv_of_decision]); a
+     load in the handler is replaced by one of them only where that
+     type gives one ([Simplify_unary_primitive]'s
+     [simplify_immutable_block_load]), which it does where the tag is
+     known. Where blocks of two tags come to a load, no [Switch] on
+     the tag having been gone through, the load stays, its box stays
+     a parameter and the applications give the blocks as they did.
+     The tags are those of the arguments that a [Let] in scope or a
+     [Let_static] made a block (FlambdaBlockLoadSpec.known_block_of),
+     in the applications that the term does not show to be kept from
+     the load ([never_reads], with the tests of the same box, as for
+     the constant above); an argument that is not such a block has
+     no tag here.
+
    An application does not come to a read ([never_reads]) where the
    term shows it by the constants that the application gives. The
    parameters that it gives a constant naked immediate are known
@@ -168,7 +188,8 @@
    a field of a static block nothing is tested, so a symbol is not
    taken as a known block here.
 
-   What stops it for a parameter: what stops the other pass; and,
+   What stops it for a parameter: what stops the other pass; a load
+   to which blocks of more than one tag may come; and,
    under a test, an application that may come to the read and whose
    argument is neither known in one of these ways nor one on which
    the primitive has no value. It stops at the first read that it
@@ -576,9 +597,96 @@ Definition tests_of (i : nat) (made : list (variable * nat))
     (filter (fun entry => existsb (Nat.eqb (snd entry)) (boxes_of i above))
        made).
 
+(* The numbers that [tag_of] gives for the applications of [k] in an
+   expression, one after the other, with what is known at each: the
+   applications are those that
+   FlambdaUnboxParamsSpec.extend_applications_by extends, and what is
+   known at each is what it is there. *)
+Definition tags_at_apply_cont (tag_of : facts -> list simple -> list Z)
+    (known : facts) (k : continuation) (ac : apply_cont) : list Z :=
+  if Pos.eqb (ac_continuation ac) k then tag_of known (ac_args ac) else [].
+
+Fixpoint tags_given (tag_of : facts -> list simple -> list Z) (known : facts)
+    (k : continuation) (e : expr) : list Z :=
+  match e with
+  | Let x _ d body => tags_given tag_of (facts_under_let known x d) k body
+  | Let_static bindings body =>
+    tags_given tag_of (facts_under_statics known bindings) k body
+  | Let_cont_non_recursive k' h body =>
+    tags_given_in_handler tag_of known k h
+    ++ (if Pos.eqb k' k then [] else tags_given tag_of known k body)
+  | Let_cont_recursive handlers body =>
+    if is_bound k handlers then []
+    else
+      flat_map (fun '(_, h) => tags_given_in_handler tag_of known k h)
+        handlers
+      ++ tags_given tag_of known k body
+  | Apply_cont ac => tags_at_apply_cont tag_of known k ac
+  | Switch _ arms =>
+    flat_map (fun '(_, ac) => tags_at_apply_cont tag_of known k ac) arms
+  | Apply _ | Invalid => []
+  end
+with tags_given_in_handler (tag_of : facts -> list simple -> list Z)
+    (known : facts) (k : continuation) (h : continuation_handler) : list Z :=
+  match h with
+  | Handler params _ handler =>
+    tags_given tag_of (facts_under_params known params) k handler
+  end.
+
+(* The tag of the block that an application gives for the parameter at
+   position [i], where the term shows the argument to be a block that
+   was made and does not show the application to be kept from the
+   read, given the handler and the handler without the read, by the
+   constants that it gives to the parameters [tests]: that tag alone,
+   and otherwise nothing. *)
+Definition tag_read (tests params : list variable) (handler without : expr)
+    (i : nat) (known : facts) (args : list simple) : list Z :=
+  match nth_error args i with
+  | Some arg =>
+    if never_reads (only_of tests (known_immediates params args)) handler
+         without
+    then []
+    else
+      match known_block_of (facts_blocks known) arg with
+      | Some block => [fst block]
+      | None => []
+      end
+  | None => []
+  end.
+
+(* Whether the numbers are all the same. *)
+Definition all_same (tags : list Z) : bool :=
+  match tags with
+  | [] => true
+  | tag :: tags => forallb (Z.eqb tag) tags
+  end.
+
+(* The reads that are loads of a field of a block. *)
+Definition reads_field (p : unary_primitive) : bool :=
+  match p with
+  | Block_load _ _ _ => true
+  | _ => false
+  end.
+
+(* Whether the read is a load to which blocks of more than one tag may
+   come: the applications of [k] in [body] that may come to it give,
+   for the parameter read, blocks that were made and that are not all
+   of one tag. *)
+Definition loads_of_two_tags (known : facts) (k : continuation)
+    (tests params : list variable) (handler body : expr) (r : read) : bool :=
+  reads_field (read_primitive r)
+  && negb
+       (all_same
+          (tags_given
+             (tag_read tests params handler (read_without r)
+                (read_position r))
+             known k body)).
+
 (* The [Let_cont] of [k], with the reads of its parameters made
    parameters one after the other, in the order of [next_read], as
-   long as each can be: if it is the [Let] that the handler begins
+   long as each can be: not a load to which blocks of more than one
+   tag may come ([loads_of_two_tags]); if it is the [Let] that the
+   handler begins
    with, as FlambdaUnboxParamsSpec.unbox_heads does it; otherwise with
    arguments that are certain. [made] is the tests made parameters so
    far, each with the position that it read, and [above], for each
@@ -606,32 +714,36 @@ Fixpoint unbox_reads (fuel : nat) (known : facts) (k : continuation)
     in
     match next_read params handler with
     | Some r =>
-      let step :=
-        match head_read params handler with
-        | Some head =>
-          if Pos.eqb (read_variable head) (read_variable r)
-          then
-            unbox_read
-              (fun known =>
-                 extend_args known (read_position head)
-                   (read_primitive head))
-              known k params metadata handler body head
-          else certain r
-        | None => certain r
+      if loads_of_two_tags known k (tests_of (read_position r) made above)
+           params handler body r
+      then unchanged
+      else
+        let step :=
+          match head_read params handler with
+          | Some head =>
+            if Pos.eqb (read_variable head) (read_variable r)
+            then
+              unbox_read
+                (fun known =>
+                   extend_args known (read_position head)
+                     (read_primitive head))
+                known k params metadata handler body head
+            else certain r
+          | None => certain r
+          end
+        in
+        match step with
+        | Some (params', metadata, handler, body) =>
+          unbox_reads fuel known k
+            (if reads_test (read_primitive r)
+             then (read_variable r, read_position r) :: made
+             else made)
+            ((length params,
+              length params :: boxes_of (read_position r) above)
+             :: above)
+            params' metadata handler body
+        | None => unchanged
         end
-      in
-      match step with
-      | Some (params', metadata, handler, body) =>
-        unbox_reads fuel known k
-          (if reads_test (read_primitive r)
-           then (read_variable r, read_position r) :: made
-           else made)
-          ((length params,
-            length params :: boxes_of (read_position r) above)
-           :: above)
-          params' metadata handler body
-      | None => unchanged
-      end
     | None => unchanged
     end
   end.
