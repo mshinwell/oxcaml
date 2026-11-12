@@ -159,6 +159,10 @@ All in `middle_end/flambda2/types/rocq/`, library `OxCamlFlambda2Types`.
     provers and reification read of a type)
   - `middle_end/flambda2/types/rocq/FlambdaTypeCreators*` (what the
     other creation functions of types make)
+  - `middle_end/flambda2/types/rocq/FlambdaMeetTermination*` (the fuel
+    of the meet: more fuel changes no answer, and what it is for the
+    fuel to be enough; T1's by agreement with T4, though the names
+    match T4's pattern)
 - T2, typing environment. Owner: T2, on `flambda2-rocq/T2-env`.
   - `middle_end/flambda2/types/rocq/FlambdaBindingTime.v` (binding times
     and name modes, after `types/env/binding_time.ml` and
