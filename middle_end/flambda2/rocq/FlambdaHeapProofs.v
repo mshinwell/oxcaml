@@ -436,6 +436,36 @@ Proof.
     [ subst h'; exact Harrays | intros p' Hheap; discriminate Hheap ].
 Qed.
 
+Theorem array_length_known : array_length_known_statement.
+Proof.
+  intros statics h h1 h2 kind length_kind vs v Hmake Hevolves.
+  apply exec_prim_bound in Hmake as [_ Hmake]. simpl in Hmake.
+  destruct vs as [ | v0 vs0]; [ discriminate | ].
+  destruct (array_made kind (v0 :: vs0)) as [elements | ] eqn:Hmade;
+    simpl in Hmake; [ | discriminate ].
+  injection Hmake as <- <-.
+  apply FlambdaPrimitiveProofs.array_made_of_arguments in Hmade as [-> _].
+  destruct
+    (proj2 Hevolves (FlambdaHeapSpec.fresh_location h) kind (v0 :: vs0))
+    as (elements' & Hcell & Hlength).
+  { simpl. rewrite Pos.eqb_refl. reflexivity. }
+  unfold exec_prim. simpl. unfold is_bound. rewrite Hcell. simpl.
+  rewrite (FlambdaPrimitiveProofs.array_length_of_same_length _ _ Hlength).
+  reflexivity.
+Qed.
+
+Theorem array_kind_of_access : array_kind_of_access_statement.
+Proof.
+  intros statics h vs kind kind' length_kind length_kind' load_kind mut
+    set_kind.
+  unfold exec_prim.
+  destruct (forallb (argument_bound statics h) vs); [ | auto ].
+  split; [ | split ].
+  - destruct vs as [ | v1 [ | v2 vs]]; reflexivity.
+  - destruct vs as [ | v1 [ | v2 [ | v3 vs]]]; reflexivity.
+  - reflexivity.
+Qed.
+
 Theorem no_effects : no_effects_statement.
 Proof.
   intros statics h h' p vs v Heffects Hexec.
@@ -702,6 +732,145 @@ Example phys_equal_of_an_array_and_itself :
 Proof. reflexivity. Qed.
 
 End Array_examples.
+
+(* An array that holds a partial application that holds a location: the
+   primitives of arrays, the calls and the heap together. [get cell _]
+   is the first field of [cell], as it is when the second argument
+   comes. *)
+Module Array_of_a_partial_application.
+
+Definition x : variable := 1%positive.
+Definition y : variable := 2%positive.
+Definition my_closure : variable := 3%positive.
+Definition partial : variable := 4%positive.
+Definition r : variable := 5%positive.
+Definition a : variable := 6%positive.
+Definition u : variable := 7%positive.
+Definition loaded : variable := 8%positive.
+Definition z : variable := 9%positive.
+Definition ret : continuation := 1%positive.
+Definition exn : continuation := 2%positive.
+Definition done : continuation := 1%positive.
+Definition error : continuation := 2%positive.
+Definition after_partial : continuation := 3%positive.
+Definition get_code_id : code_id := 1%positive.
+Definition get_symbol : symbol := 1%positive.
+
+Definition one_value : arity := [Singleton Value].
+Definition imm (i : Z) : value := Value_const (Tagged_immediate i).
+Definition any_field : block_access_kind :=
+  Block_access_values None None Any_value.
+
+Definition get_code : code :=
+  Code [x; y] my_closure ret exn
+    (make_code_metadata [Singleton Value; Singleton Value] one_value)
+    (Let z Value (Prim (Unary (Block_load any_field Mutable 0)) [Var x])
+       (Apply_cont (Apply_cont_expr ret [Var z] None))).
+
+(* What is done with a partial application of [get] to the cell [r]: it
+   is stored in an array, 8 is written into the cell, and the element
+   of the array is loaded and given its second argument. *)
+Definition use_partial : expr :=
+  Let a Value
+    (Prim (Heap (Make_mutable_array Array_values))
+       [Const (Tagged_immediate 0)])
+    (Let u Value
+       (Prim (Heap (Array_set Array_values (Set_values Assignment)))
+          [Var a; Const (Tagged_immediate 0); Var partial])
+       (Let u Value
+          (Prim (Heap (Block_set any_field Assignment 0))
+             [Var r; Const (Tagged_immediate 8)])
+          (Let loaded Value
+             (Prim (Binary (Array_load Array_values Load_values Mutable))
+                [Var a; Const (Tagged_immediate 0)])
+             (Apply
+                (Apply_expr (Var loaded) Indirect
+                   [Const (Tagged_immediate 0)] done error [] one_value
+                   one_value))))).
+
+(* The cell is made holding 7, and [get] is given it alone. *)
+Definition program : expr :=
+  Let_static
+    [Bind_code get_code_id get_code;
+     Bind_symbol get_symbol (Static_const_set_of_closures get_code_id [])]
+    (Let r Value
+       (Prim (Heap (Make_block_with_identity Cell_mutable 0))
+          [Const (Tagged_immediate 7)])
+       (Let_cont_non_recursive after_partial
+          (Handler [partial] (make_handler_metadata [Value]) use_partial)
+          (Apply
+             (Apply_expr (Symbol get_symbol) Indirect [Var r] after_partial
+                error [] one_value one_value)))).
+
+(* It returns 8: the array holds the partial application with the
+   location of the cell, and the call completed reads the cell as it is
+   then. *)
+Example returns_what_the_cell_holds_at_the_end :
+  ∃ o : outcome,
+    heap_run 11 (Heap_state program [] [] empty_static_env empty_heap)
+    = Heap_exit done o
+    ∧ outcome_values o = [imm 8].
+Proof. eexists. split; reflexivity. Qed.
+
+(* The same use from a state whose variable [partial] is bound to a
+   partial application of [get] to the location [l]. *)
+Definition a_cell : location := 1%positive.
+Definition dangling : location := 9%positive.
+Definition h : heap := [(a_cell, Cell_block Cell_mutable 0 [imm 7])].
+Definition statics : static_env := Static_env [(get_code_id, get_code)] [].
+
+Definition partial_of (l : location) : value :=
+  Value_partial_application (Value_closure get_code_id []) [Value_location l]
+    one_value.
+
+Definition use (l : location) : heap_state :=
+  Heap_state use_partial
+    [(partial, partial_of l); (r, Value_location a_cell)] [] statics h.
+
+Example use_of_a_cell :
+  ∃ o : outcome,
+    heap_run 7 (use a_cell) = Heap_exit done o ∧ outcome_values o = [imm 8].
+Proof. eexists. split; reflexivity. Qed.
+
+(* A partial application that holds a location bound to nothing is not
+   refused where it is stored: [exec_prim] refuses an argument that is
+   itself such a location ([argument_bound]), and does not look inside
+   the others. *)
+Example a_dangling_location_is_not_stored :
+  exec_prim statics h (Heap (Make_mutable_array Array_values))
+    [Value_location dangling]
+  = None.
+Proof. reflexivity. Qed.
+
+Example a_partial_application_of_one_is_stored :
+  is_some
+    (exec_prim statics h (Heap (Make_mutable_array Array_values))
+       [partial_of dangling])
+  = true.
+Proof. reflexivity. Qed.
+
+(* It is refused where it is used: the fifth step is the call that
+   completes the partial application, and the machine is undefined at
+   the load in the body of [get], whose argument is the location. *)
+Example completed_it_is_undefined :
+  ∃ s : heap_state,
+    heap_run 5 (use dangling) = Heap_step s
+    ∧ hs_expr s = code_body get_code
+    ∧ heap_step s = Heap_undefined.
+Proof. eexists. split; [ reflexivity | ]. split; reflexivity. Qed.
+
+(* And no state reached from a closed one holds such a value
+   ([heap_step_closed_statement]): this one is not closed. *)
+Example it_is_not_closed : ~ state_closed (use dangling).
+Proof.
+  intros (_ & Hvars & _).
+  specialize
+    (Hvars partial (partial_of dangling) (or_introl eq_refl) dangling
+       (or_introl eq_refl)).
+  discriminate Hvars.
+Qed.
+
+End Array_of_a_partial_application.
 
 (* ======================================================================== *)
 (* The machine                                                              *)

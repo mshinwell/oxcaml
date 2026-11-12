@@ -532,6 +532,40 @@ Definition exec_prim_arrays_statement : Prop :=
     exec_prim statics h p vs = Some (v, h') ->
     arrays_hold_their_kinds h'.
 
+(* What Simplify knows of a mutable array, from its [Make_array]
+   ([Simplify_variadic_primitive.simplify_make_array]): its length. The
+   length of an array is the number of arguments it was made of, in
+   every heap that the one after the allocation evolves to: an
+   [Array_length] of an array whose [Make_array] is in sight is that
+   number ([Simplify_unary_primitive.simplify_array_length]). There is
+   no length where the number is not a tagged immediate. *)
+Definition array_length_known_statement : Prop :=
+  ∀ (statics : static_env) (h h1 h2 : heap) (kind : array_kind)
+    (length_kind : array_kind_for_length) (vs : list value) (v : value),
+    exec_prim statics h (Heap (Make_mutable_array kind)) vs = Some (v, h1) ->
+    heap_evolves h1 h2 ->
+    exec_prim statics h2 (Unary (Array_length length_kind)) [v]
+    = let* n := array_length_of vs in
+      Some (n, h2).
+
+(* The array kind that a length, a load or a store carries changes
+   nothing. [Simplify_common.specialise_array_kind] replaces [Values]
+   and [Gc_ignorable_values] by [Immediates] in a load and in a store,
+   where the type of the array says that its elements are immediates,
+   and keeps the load kind and the set kind. *)
+Definition array_kind_of_access_statement : Prop :=
+  ∀ (statics : static_env) (h : heap) (vs : list value)
+    (kind kind' : array_kind)
+    (length_kind length_kind' : array_kind_for_length)
+    (load_kind : array_load_kind) (mut : mutability)
+    (set_kind : array_set_kind),
+    exec_prim statics h (Unary (Array_length length_kind)) vs
+    = exec_prim statics h (Unary (Array_length length_kind')) vs
+    ∧ exec_prim statics h (Binary (Array_load kind load_kind mut)) vs
+      = exec_prim statics h (Binary (Array_load kind' load_kind mut)) vs
+    ∧ exec_prim statics h (Heap (Array_set kind set_kind)) vs
+      = exec_prim statics h (Heap (Array_set kind' set_kind)) vs.
+
 (* A primitive with no effects returns the heap as it came. *)
 Definition no_effects_statement : Prop :=
   ∀ (statics : static_env) (h h' : heap) (p : prim) (vs : list value)
