@@ -38,9 +38,12 @@ a `CR` at the place in the `Spec` file.
 - **D9.** A call whose arities are not those of the code called is
   undefined. Ruled.
 - **D10.** A mismatch of kinds is undefined where it is executed. Ruled
-  for calls and primitives. Where a value of another kind is bound by
-  a `Let` or a handler, or put in a block field or a value slot, the
-  machine does not test yet. Open in that part.
+  for calls and primitives. The machine also tests the kind of a value
+  where a `Let` binds it and where a handler is applied to it: decided
+  overnight, for the review of the human, with a review comment before
+  `step` that gives the other reading. Not tested: the field of a
+  static block or a value slot where it is stored, a value given to a
+  way out of the term, a value that a call returns. Open in that part.
 - **D11.** The validator does not run the check of kinds; the test tool
   prints the check's answer and goes on. Decided.
 - **D12.** A static check of kinds may refuse only what the compiler

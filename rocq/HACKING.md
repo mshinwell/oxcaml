@@ -481,13 +481,32 @@ be proved correct, built a fragment at a time. The files follow the same Spec/Pr
   variable, a handler the kinds of its parameters, code the arity of
   its parameters and that of its results, and an `Apply` the two
   arities it is made at; an arity is `Flambda_arity.t` without
-  subkinds, unboxed products included. Execution ignores all of it but
-  at a call: `call_function` has no step unless the arguments are of
-  the kinds of the call's arity and the two arities of the call are
-  those of the code. Such a call is one that Simplify replaces by
-  `Invalid`, and well-typed programs give rise to them in branches
-  that never run, so it has to be undefined; so has a primitive on an
-  argument of another kind than it takes (`eval_prim_kinds`). A call
+  subkinds, unboxed products included. Execution tests the kinds
+  that a term carries where a variable is bound: at a call (the
+  arguments, against the call's arity, and the two arities of the
+  call against those of the code), at a `Let` (the value of the
+  defining expression, against the kind of the `Let`) and where a
+  handler is applied (the values, against the kinds of its
+  parameters): `FlambdaSemanticsSpec.call_function`, `step`,
+  `apply_cont_value`. A step that fails a test is undefined. So the
+  step that binds a variable binds a value of the kind of its binder,
+  whatever the term (`FlambdaWellKindedSpec.let_binds_at_kind`,
+  `handler_binds_at_kinds`, `call_binds_at_kinds`), and a proof gets
+  the fact from `let_refines_step`, `let_equivalent_step` and
+  `handler_refines_at`, `handler_refines_where`,
+  `handler_refines_from`, which hand it to the hypothesis about the
+  body or the handler. The tests at a `Let` and at a handler are
+  decision D10, with a review comment before `step`. For a rewrite:
+  one that keeps a `Let` at its kind with the same value needs
+  nothing; one that removes a `Let` or a handler with parameters, or
+  moves a value past one, is a refinement, and an equivalence only
+  where the kind is known on the term; a `Let` that a rewrite makes
+  must give the kind of the value it binds. The machine with a heap
+  (`FlambdaHeapSpec.heap_step`) has the same two tests. A call that
+  fails its test is one that Simplify replaces by `Invalid`, and
+  well-typed programs give rise to them in branches that never run,
+  so it has to be undefined; so has a primitive on an argument of
+  another kind than it takes (`eval_prim_kinds`). A call
   with fewer or more arguments than the code has parameters is
   undefined too, where the compiler has a partial application or an
   over-application: those are not in the fragment
@@ -499,7 +518,10 @@ be proved correct, built a fragment at a time. The files follow the same Spec/Pr
   well-kinded state, a step keeps a state well-kinded, and a
   well-kinded state has none of the faults of `kind_fault` (it reads
   no unbound variable, applies no handler to the wrong number of
-  arguments, and its `Switch` is on a naked immediate); a call that
+  arguments, its `Switch` is on a naked immediate, it binds no value
+  of another kind than its `Let` gives and applies no handler to
+  values of other kinds than its parameters': `wrong_kind_bound`,
+  `wrong_kinds_of_arguments`); a call that
   does not agree with its code and a primitive on an argument of
   another kind are not among those, and stay undefined. The check is a
   sufficient condition and a diagnostic, which the test tool prints.
