@@ -175,6 +175,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaLoopsScopeSpec.v \
   FlambdaMapProofs.v \
   FlambdaMapSpec.v \
+  FlambdaMergeSwitchesProofs.v \
+  FlambdaMergeSwitchesSpec.v \
   FlambdaModel.v \
   FlambdaMyClosureProofs.v \
   FlambdaMyClosureSpec.v \
