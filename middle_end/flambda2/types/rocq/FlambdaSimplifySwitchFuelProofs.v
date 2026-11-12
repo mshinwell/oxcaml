@@ -86,68 +86,42 @@ Proof.
   repeat split; reflexivity.
 Qed.
 
-Theorem flat_switch_fuel : flat_switch_fuel_statement.
-Proof.
-  intros join choices tenv scrutinee fuel Hconsistent Hscrutinee Hfuel
-    scrutinee_ty canonical i Hty.
-  destruct (Hscrutinee scrutinee_ty canonical Hty)
-    as (n & ty & Hcanonical & Hsimple & Hfind & e & He & Hflat).
-  pose proof
-    (alias_flat_const_fuel_enough join choices tenv scrutinee_ty ty n e
-       (Naked_immediate i) Hconsistent Hcanonical Hsimple Hfind He Hflat
-       eq_refl) as Henough.
-  exact
-    (proj2
-       (meet_fuel_enough_stable join choices 1 fuel tenv scrutinee_ty
-          (this_const (Naked_immediate i)) Henough Hfuel)).
-Qed.
-
-Theorem relation_switch_fuel : relation_switch_fuel_statement.
+Theorem switch_fuel : switch_fuel_statement.
 Proof.
   intros join choices tenv scrutinee fuel Hjoin Hshapes Hfree Hconsistent
-    Hscrutinee Hfuel scrutinee_ty canonical i Hty.
-  destruct (Hscrutinee scrutinee_ty canonical Hty)
-    as (n & ty & Hcanonical & Hsimple & Hfind & head & ->).
-  pose proof
-    (relation_const_fuel_enough join choices tenv scrutinee_ty n head
-       (Naked_immediate i) Hjoin Hshapes Hfree Hconsistent Hcanonical Hsimple
-       Hfind) as Henough.
+    Hfuel scrutinee_ty canonical i Hty.
   exact
     (proj2
        (meet_fuel_enough_stable join choices 2 fuel tenv scrutinee_ty
-          (this_const (Naked_immediate i)) Henough Hfuel)).
+          (this_naked_immediate i)
+          (naked_immediate_fuel_enough join choices tenv scrutinee_ty i Hjoin
+             Hshapes Hfree Hconsistent) Hfuel)).
 Qed.
 
-Theorem relation_switch_arm_keeps : relation_switch_arm_keeps_statement.
+Theorem switch_arm_keeps : switch_arm_keeps_statement.
 Proof.
   intros join choices tenv tenv' scrutinee fuel scrutinee_ty ty canonical i
-    Hjoin Hshapes Hfree Hconsistent Hscrutinee Hfuel Hty Hmeet.
-  destruct (Hscrutinee scrutinee_ty canonical Hty)
-    as (n & ty0 & Hcanonical & Hsimple & Hfind & head & ->).
+    Hjoin Hshapes Hfree Hconsistent Hfuel _ Hmeet.
   exact
-    (relation_const_meet_keeps join choices fuel tenv tenv' scrutinee_ty ty n
-       head (Naked_immediate i) Hjoin Hshapes Hfree Hconsistent Hcanonical
-       Hsimple Hfind Hfuel Hmeet).
+    (naked_immediate_meet_keeps join choices fuel tenv tenv' scrutinee_ty ty i
+       Hjoin Hshapes Hfree Hconsistent Hfuel Hmeet).
 Qed.
 
-Theorem relation_switch_arm_keeps_aliases :
-  relation_switch_arm_keeps_aliases_statement.
+Theorem switch_slices_fuel : switch_slices_fuel_statement.
 Proof.
-  intros join choices tenv tenv' scrutinee fuel scrutinee_ty ty canonical i
-    Hjoin Hshapes Hfree Hconsistent Hscrutinee Hfuel Hty Hmeet.
-  destruct (Hscrutinee scrutinee_ty canonical Hty)
-    as (n & ty0 & Hcanonical & Hsimple & Hfind & head & ->).
+  intros join choices rewrite known fresh tenv scrutinee arms fuel Hjoin
+    Hshapes Hfree Hconsistent Hfuel.
+  apply slices_of_agreeing_meets.
   exact
-    (relation_const_meet_keeps_aliases join choices fuel tenv tenv'
-       scrutinee_ty ty n head (Naked_immediate i) Hjoin Hshapes Hfree
-       Hconsistent Hcanonical Hsimple Hfind Hfuel Hmeet).
+    (switch_fuel join choices tenv scrutinee fuel Hjoin Hshapes Hfree
+       Hconsistent Hfuel).
 Qed.
 
-Theorem model_relation_switch_fuel : model_relation_switch_fuel_statement.
+Theorem model_switch_fuel : model_switch_fuel_statement.
 Proof.
   intros join_choices choices join_depth [fuel_env fuel_types fuel_meet]
     [fuel_env' fuel_types' fuel_meet'] tenv scrutinee Hfuel Henv Htypes
-    Hmeet Hmeet' Hchoices Hvalues Haliases Hscrutinee.
+    Hmeet Hmeet' Hchoices Hvalues Haliases.
   cbn [FlambdaJoinMeet.fuel_of_env FlambdaJoinMeet.fuel_of_types
        FlambdaJoinMeet.fuel_of_meet] in Hfuel, Henv, Htypes, Hmeet, Hmeet'.
   subst fuel_env' fuel_types'.
@@ -167,12 +141,28 @@ Proof.
          (FlambdaJoinMeet.model_join_scoped_envs join_choices join_depth fuel)
          choices fuel_meet' tenv scrutinee_ty (this_naked_immediate i)).
   rewrite
-    (relation_switch_fuel _ choices tenv scrutinee fuel_meet Hjoin Hchoices
-       Hvalues Haliases Hscrutinee Hmeet scrutinee_ty canonical i Hty).
+    (switch_fuel _ choices tenv scrutinee fuel_meet Hjoin Hchoices Hvalues
+       Haliases Hmeet scrutinee_ty canonical i Hty).
   rewrite
-    (relation_switch_fuel _ choices tenv scrutinee fuel_meet' Hjoin Hchoices
-       Hvalues Haliases Hscrutinee Hmeet' scrutinee_ty canonical i Hty).
+    (switch_fuel _ choices tenv scrutinee fuel_meet' Hjoin Hchoices Hvalues
+       Haliases Hmeet' scrutinee_ty canonical i Hty).
   reflexivity.
+Qed.
+
+Theorem flat_switch_fuel : flat_switch_fuel_statement.
+Proof.
+  intros join choices tenv scrutinee fuel Hconsistent Hscrutinee Hfuel
+    scrutinee_ty canonical i Hty.
+  destruct (Hscrutinee scrutinee_ty canonical Hty)
+    as (n & ty & Hcanonical & Hsimple & Hfind & e & He & Hflat).
+  pose proof
+    (alias_flat_const_fuel_enough join choices tenv scrutinee_ty ty n e
+       (Naked_immediate i) Hconsistent Hcanonical Hsimple Hfind He Hflat
+       eq_refl) as Henough.
+  exact
+    (proj2
+       (meet_fuel_enough_stable join choices 1 fuel tenv scrutinee_ty
+          (this_const (Naked_immediate i)) Henough Hfuel)).
 Qed.
 
 Theorem example_switch_fuel : example_switch_fuel_statement.
@@ -190,13 +180,50 @@ Proof.
     (proj1 (FlambdaTypingEnvInvariantProofs.typing_env_well_formed_iff _) Hwf)
     as Hconditions.
   destruct Hconditions as [_ [_ [Hconsistent _]]].
-  apply relation_switch_fuel; try assumption.
-  - apply values_extension_free_of_entries. vm_compute. reflexivity.
-  - intros scrutinee_ty canonical Hty. vm_compute in Hty.
-    injection Hty as <- <-.
-    exists (Name_var FlambdaMeetExamplesSpec.example_tag).
-    eexists. split; [ vm_compute; reflexivity | ].
-    split; [ vm_compute; reflexivity | ].
-    split; [ vm_compute; reflexivity | ].
-    eexists. reflexivity.
+  apply switch_fuel; try assumption.
+  apply values_extension_free_of_entries. vm_compute. reflexivity.
+Qed.
+
+Theorem example_switch_under_arm : example_switch_under_arm_statement.
+Proof.
+  set (tenv' :=
+    match example_arm_env with
+    | Some tenv' => tenv'
+    | None => Typing_env.create
+    end).
+  assert (Harm : example_arm_env = Some tenv') by (vm_compute; reflexivity).
+  exists tenv'. split; [ exact Harm | ].
+  split; [ vm_compute; reflexivity | ].
+  split; [ | intros ac0 ac1; vm_compute; reflexivity ].
+  intros join choices fuel arms Hjoin Hshapes Hfuel.
+  assert (Hgood :
+    values_extension_free tenv'
+    ∧ aliases_consistent (Typing_env.aliases tenv')).
+  { unfold example_arm_env in Harm.
+    destruct
+      (Meet.meet FlambdaMeetExamplesSpec.forgetful_join repaired_choices 2
+         example_two_relations_env FlambdaMeetExamplesSpec.example_tag_type
+         (this_naked_immediate 1)) as [[[ty tenv''] | ] | ] eqn:Hmeet;
+      try discriminate Harm.
+    injection Harm as Harm. rewrite <- Harm.
+    assert (Hwf :
+      FlambdaTypingEnvInvariantSpec.typing_env_well_formed
+        example_two_relations_env
+      = true) by (vm_compute; reflexivity).
+    pose proof
+      (proj1 (FlambdaTypingEnvInvariantProofs.typing_env_well_formed_iff _)
+         Hwf) as Hconditions.
+    destruct Hconditions as [_ [_ [Hconsistent _]]].
+    refine
+      (naked_immediate_meet_keeps FlambdaMeetExamplesSpec.forgetful_join
+         repaired_choices 2 example_two_relations_env tenv''
+         FlambdaMeetExamplesSpec.example_tag_type ty 1%Z
+         FlambdaMeetDepthProofs.forgetful_join_of_nothing
+         (proj2 choices_get_tag_shapes) _ Hconsistent (le_n 2) Hmeet).
+    apply values_extension_free_of_entries. vm_compute. reflexivity. }
+  destruct Hgood as [Hfree Hconsistent].
+  apply
+    (slices_of_agreeing_meets _ _ (fun _ ac => ac) [] [] tenv'
+       (Var FlambdaMeetExamplesSpec.example_tag) arms).
+  apply switch_fuel; assumption.
 Qed.
