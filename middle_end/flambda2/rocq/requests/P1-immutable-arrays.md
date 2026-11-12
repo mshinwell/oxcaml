@@ -40,9 +40,11 @@ is rebuilt on the way up (`rebuild_switch`).
   last is taken where the discriminants are consecutive, from a first
   `d`; the argument of every arm is a constant or a symbol, all of
   one kind; and the arguments are not an affine function of the
-  discriminant. A variable is refused. A poison constant is allowed
-  and is written into the table as an arbitrary number
-  (`create_lookup_table_array_const`). The `Switch` must have at
+  discriminant. A variable is refused. A poison constant is allowed:
+  in a table of naked numbers it is written as an arbitrary number
+  (`create_lookup_table_array_const`, `fields_to_or_variables`), and
+  in a table of values it stays the poison constant, so an element
+  of the static constant may be poison. The `Switch` must have at
   least three arms (`enough_arms`).
 - The kind of array. For arguments of kind value that are all tagged
   immediates: array kind `Immediates`, load kind `Immediates`. For
@@ -78,8 +80,8 @@ term before untags and tests:
 
 ## 3. The smallest extension of the model
 
-No heap: the array is static data, as a static block is. It has no
-identity and nothing writes it.
+No heap: the array is immutable static data, as a static block is.
+It is not a location of the heap and nothing writes it.
 
 - **A static constant** (`FlambdaModel.static_const`):
   `Static_const_immutable_value_array (elements : list simple)`. It
