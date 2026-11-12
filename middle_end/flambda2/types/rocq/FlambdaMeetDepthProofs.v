@@ -56,7 +56,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar FlambdaBindingTime
   FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec FlambdaMeetTerminationSpec
   FlambdaMeetTerminationProofs FlambdaMeetDepthSpec.
 From OxCamlFlambda2Types Require FlambdaMeetExamplesSpec FlambdaJoinEnv
-  FlambdaJoinMeet.
+  FlambdaJoinMeet FlambdaJoinNothingSpec FlambdaJoinNothingProofs.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -199,6 +199,14 @@ Proof.
       change (example_model_join_answer (example_join_fuel 0) = Some result)
         in Hresult.
       rewrite Hnone in Hresult. discriminate Hresult.
+Qed.
+
+Theorem model_join_of_nothing : model_join_of_nothing_statement.
+Proof.
+  intros join_choices join_depth fuel Hfuel env scoped_envs Hnonempty Hall.
+  exact
+    (FlambdaJoinNothingProofs.model_join_scoped_envs_of_nothing join_choices
+       join_depth fuel env scoped_envs Hfuel Hnonempty Hall).
 Qed.
 
 (* ======================================================================== *)
@@ -2560,6 +2568,21 @@ Proof.
   pose proof (Hkept r env eq_refl) as Henv.
   destruct (is_obviously_bottom _); try discriminate. cbn.
   intros [= _ <-]. exact Henv.
+Qed.
+
+Theorem model_meet_nameless : model_meet_nameless_statement.
+Proof.
+  intros join_choices choices join_depth depth fuel tenv tenv' t1 t2 ty Hfuel
+    Hdepth H1 H2.
+  pose proof (model_join_of_nothing join_choices join_depth fuel Hfuel)
+    as Hjoin.
+  pose proof (nameless_within_more _ _ t1 Hdepth H1) as H1'.
+  pose proof (nameless_within_more _ _ t2 Hdepth H2) as H2'.
+  split.
+  - exact (nameless_types_fuel_enough _ choices _ tenv t1 t2 Hjoin H1' H2').
+  - exact
+      (nameless_types_meet_adds_nothing _ choices _ tenv tenv' t1 t2 ty Hjoin
+         H1' H2').
 Qed.
 
 (* ======================================================================== *)

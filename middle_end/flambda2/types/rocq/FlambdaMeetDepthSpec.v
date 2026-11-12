@@ -94,14 +94,23 @@
 
    The join that forgets has the property
    ([forgetful_join_of_nothing_statement]). The join of the model
-   (FlambdaJoinMeet.v) is not shown to have it, and does not have it
-   for every fuel: an example is run ([example_model_join_statement])
-   in which, with fuel, the environment that it answers has the typing
-   environment that it was given and is not the environment that it
-   was given, and with no fuel for the environment it answers nothing.
-   For the join of the model the property is then at most one of a
-   fuel that is enough; that is not stated here, and nothing is stated
-   of the compiler's join.
+   (FlambdaJoinMeet.v) has it where its fuel for the join of
+   environments is not zero, whatever its test for recovering
+   relations, its depth and its two other amounts of fuel
+   ([model_join_of_nothing_statement], which is
+   FlambdaJoinNothingSpec.model_join_scoped_envs_of_nothing_statement
+   said with the predicate of this file). With no fuel for the join
+   of environments it has it not: an example is run
+   ([example_model_join_statement]) in which, with fuel, the
+   environment that it answers has the typing environment that it was
+   given and is not the environment that it was given, and with no
+   fuel for the environment it answers nothing
+   (FlambdaJoinNothingSpec.model_join_scoped_envs_no_fuel_statement
+   says that of every environment that is not bottom). So what is
+   stated in this file under the hypothesis holds of the meet of the
+   model with such a fuel; it is said once, of the types with no name
+   inside ([model_meet_nameless_statement]). Nothing is stated of the
+   compiler's join.
 
    The bound is by the depth of the two types and not by that of the
    environment: the functions of the meet read no type of the
@@ -417,6 +426,15 @@ Definition example_model_join_statement : Prop :=
         (FlambdaJoinMeet.model_join_scoped_envs
            FlambdaJoinEnv.Join_env.compiler_choices 5 (example_join_fuel 0)).
 
+(* The join of the model has the property, where its fuel for the join
+   of environments is not zero. *)
+Definition model_join_of_nothing_statement : Prop :=
+  ∀ (join_choices : FlambdaJoinEnv.Join_env.choices) (join_depth : nat)
+    (fuel : FlambdaJoinMeet.fuels),
+    FlambdaJoinMeet.fuel_of_env fuel <> 0%nat ->
+    join_of_nothing
+      (FlambdaJoinMeet.model_join_scoped_envs join_choices join_depth fuel).
+
 (* ======================================================================== *)
 (* The depth is enough                                                      *)
 (* ======================================================================== *)
@@ -462,6 +480,27 @@ Definition nameless_types_meet_adds_nothing_statement : Prop :=
     nameless_within depth t2 = true ->
     Meet.meet join choices depth tenv t1 t2 = Some (Or_bottom.Ok (ty, tenv')) ->
     tenv' = tenv.
+
+(* The meet of the model (FlambdaJoinMeet.model_meet), of two such
+   types, with fuel for the join of environments and a fuel of the
+   meet that is the depth or more: that fuel of the meet is enough,
+   and the meet answers the typing environment that it was given,
+   where it answers one. *)
+Definition model_meet_nameless_statement : Prop :=
+  ∀ (join_choices : FlambdaJoinEnv.Join_env.choices) (choices : meet_choices)
+    (join_depth depth : nat) (fuel : FlambdaJoinMeet.fuels)
+    (tenv tenv' : Typing_env.t) (t1 t2 ty : flambda_type),
+    FlambdaJoinMeet.fuel_of_env fuel <> 0%nat ->
+    depth <= FlambdaJoinMeet.fuel_of_meet fuel ->
+    nameless_within depth t1 = true ->
+    nameless_within depth t2 = true ->
+    meet_fuel_enough
+      (FlambdaJoinMeet.model_join_scoped_envs join_choices join_depth fuel)
+      choices (FlambdaJoinMeet.fuel_of_meet fuel) tenv t1 t2
+    ∧ (FlambdaJoinMeet.model_meet join_choices choices join_depth fuel tenv
+         t1 t2
+       = Some (Or_bottom.Ok (ty, tenv')) ->
+       tenv' = tenv).
 
 (* ======================================================================== *)
 (* The meet with a shape                                                    *)

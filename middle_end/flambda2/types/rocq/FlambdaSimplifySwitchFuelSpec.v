@@ -62,6 +62,12 @@
      meet of two units, under what FlambdaMeetRelationFuelSpec.v
      supposes of the environment, of the choices of the meet and of
      the join.
+   - [model_relation_switch_fuel_statement]: the same of the meet of
+     the model (FlambdaJoinMeet.model_meet), whose join has what is
+     supposed where there is fuel for the join of environments
+     (FlambdaMeetDepthSpec.model_join_of_nothing_statement): for such
+     a scrutinee, two meets of the model that differ in the fuel of
+     the meet only, two units or more in both, answer the same.
    With the first, each slice applied to the meet of any such fuel is
    the slice applied to the meet of one unit, or of two.
 
@@ -103,7 +109,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar FlambdaBindingTime
   FlambdaMeetTerminationSpec FlambdaMeetDepthSpec FlambdaMeetRelationFuelSpec
   FlambdaSimplifyPrimitivesSpec FlambdaSimplifySwitchSpec
   FlambdaSimplifySwitchArmsSpec FlambdaSimplifySwitchMergeSpec.
-From OxCamlFlambda2Types Require FlambdaMeetExamplesSpec.
+From OxCamlFlambda2Types Require FlambdaMeetExamplesSpec FlambdaJoinEnv
+  FlambdaJoinMeet.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -192,6 +199,28 @@ Definition relation_switch_fuel_statement : Prop :=
     scrutinee_has relation_type tenv scrutinee ->
     2 <= fuel ->
     arm_meets_agree (Meet.meet join choices fuel) (Meet.meet join choices 2)
+      tenv scrutinee.
+
+(* The same of the meet of the model, where there is fuel for the join
+   of environments: two meets of the model that differ in the fuel of
+   the meet only, two units or more in both, answer the same for the
+   arms. *)
+Definition model_relation_switch_fuel_statement : Prop :=
+  ∀ (join_choices : FlambdaJoinEnv.Join_env.choices) (choices : meet_choices)
+    (join_depth : nat) (fuel fuel' : FlambdaJoinMeet.fuels)
+    (tenv : Typing_env.t) (scrutinee : simple),
+    FlambdaJoinMeet.fuel_of_env fuel <> 0%nat ->
+    FlambdaJoinMeet.fuel_of_env fuel' = FlambdaJoinMeet.fuel_of_env fuel ->
+    FlambdaJoinMeet.fuel_of_types fuel' = FlambdaJoinMeet.fuel_of_types fuel ->
+    2 <= FlambdaJoinMeet.fuel_of_meet fuel ->
+    2 <= FlambdaJoinMeet.fuel_of_meet fuel' ->
+    get_tag_shapes choices ->
+    values_extension_free tenv ->
+    aliases_consistent (Typing_env.aliases tenv) ->
+    scrutinee_has relation_type tenv scrutinee ->
+    arm_meets_agree
+      (FlambdaJoinMeet.model_meet join_choices choices join_depth fuel)
+      (FlambdaJoinMeet.model_meet join_choices choices join_depth fuel')
       tenv scrutinee.
 
 (* ======================================================================== *)

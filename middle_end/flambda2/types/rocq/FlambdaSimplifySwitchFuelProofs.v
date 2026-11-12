@@ -41,7 +41,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar FlambdaBindingTime
   FlambdaSimplifySwitchArmsSpec FlambdaSimplifySwitchMergeSpec
   FlambdaSimplifySwitchFuelSpec.
 From OxCamlFlambda2Types Require FlambdaMeetExamplesSpec
-  FlambdaTypingEnvInvariantSpec FlambdaTypingEnvInvariantProofs.
+  FlambdaTypingEnvInvariantSpec FlambdaTypingEnvInvariantProofs
+  FlambdaJoinEnv FlambdaJoinMeet FlambdaMeetDepthProofs.
 Import ListNotations.
 
 Lemma prune_arms_agree (meet meet' : meet_function) (tenv : Typing_env.t)
@@ -115,6 +116,38 @@ Proof.
     (proj2
        (meet_fuel_enough_stable join choices 2 fuel tenv scrutinee_ty
           (this_const (Naked_immediate i)) Henough Hfuel)).
+Qed.
+
+Theorem model_relation_switch_fuel : model_relation_switch_fuel_statement.
+Proof.
+  intros join_choices choices join_depth [fuel_env fuel_types fuel_meet]
+    [fuel_env' fuel_types' fuel_meet'] tenv scrutinee Hfuel Henv Htypes
+    Hmeet Hmeet' Hchoices Hvalues Haliases Hscrutinee.
+  cbn [FlambdaJoinMeet.fuel_of_env FlambdaJoinMeet.fuel_of_types
+       FlambdaJoinMeet.fuel_of_meet] in Hfuel, Henv, Htypes, Hmeet, Hmeet'.
+  subst fuel_env' fuel_types'.
+  set (fuel :=
+    {| FlambdaJoinMeet.fuel_of_env := fuel_env;
+       FlambdaJoinMeet.fuel_of_types := fuel_types;
+       FlambdaJoinMeet.fuel_of_meet := fuel_meet |}).
+  pose proof
+    (FlambdaMeetDepthProofs.model_join_of_nothing join_choices join_depth
+       fuel Hfuel) as Hjoin.
+  intros scrutinee_ty canonical i Hty.
+  change
+    (Meet.meet
+       (FlambdaJoinMeet.model_join_scoped_envs join_choices join_depth fuel)
+       choices fuel_meet tenv scrutinee_ty (this_naked_immediate i)
+     = Meet.meet
+         (FlambdaJoinMeet.model_join_scoped_envs join_choices join_depth fuel)
+         choices fuel_meet' tenv scrutinee_ty (this_naked_immediate i)).
+  rewrite
+    (relation_switch_fuel _ choices tenv scrutinee fuel_meet Hjoin Hchoices
+       Hvalues Haliases Hscrutinee Hmeet scrutinee_ty canonical i Hty).
+  rewrite
+    (relation_switch_fuel _ choices tenv scrutinee fuel_meet' Hjoin Hchoices
+       Hvalues Haliases Hscrutinee Hmeet' scrutinee_ty canonical i Hty).
+  reflexivity.
 Qed.
 
 Theorem example_switch_fuel : example_switch_fuel_statement.

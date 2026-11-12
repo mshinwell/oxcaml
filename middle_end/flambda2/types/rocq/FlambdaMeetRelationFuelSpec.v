@@ -72,7 +72,9 @@
    - the types that the choices give for [Get_tag] are bare shapes of
      kind value ([get_tag_shapes]); those of the compiler's choice and
      of the repaired choice are ([choices_get_tag_shapes_statement]);
-   - the join has [join_of_nothing] (FlambdaMeetDepthSpec.v).
+   - the join has [join_of_nothing] (FlambdaMeetDepthSpec.v); the
+     join of the model has it where there is fuel for the join of
+     environments ([model_join_of_nothing_statement], same file).
    The constant is any constant. Enough is [meet_fuel_enough]: the
    answer is the same whatever is answered where the fuel runs out.
    That the meet answers is not said.
