@@ -577,11 +577,13 @@ says so. Only the labels that this tree cites are listed.
   by 0, but the flow analysis counts it as read in every handler.
 - **V2-6.** The term that `-drawfexpr` prints has no mark for a functor,
   for `[@cold]`, for opaque code or for the modes of parameters; the
-  parser gives each a default, and Simplify reads them. The compiler
-  inlines the application of a functor that is under its size for
-  functors; the tool's Simplify, to which the functor is a function, may
-  leave the call. The pair validated is then not the pair that the
-  compiler made.
+  parser gives each a default, and Simplify reads them. One case is
+  known: for code with no inlining attribute, the decision made at the
+  declaration compares the size of a functor with the thresholds for
+  functors, and a functor no larger than `small_functor_size` is to be
+  inlined; the tool's Simplify, to which the functor is a function,
+  compares it with the thresholds for functions and may leave the call.
+  The pair validated is then not the pair that the compiler made.
 - **V3-2.** Simplify lifts a closed constant out of a function or a
   loop, and shares equal constants: the number of allocations changes.
 - **V4-1.** Loopify makes a self tail call a jump without comparing the
