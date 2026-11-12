@@ -1077,6 +1077,7 @@ type observation =
   | String of string
   | Function
   | Dangling
+  | Imported of int
   | Location of int
   | Too_deep
 
@@ -1114,7 +1115,8 @@ let rec observe depth (statics : Values.static_env) (v : Values.value) :
       | Some (Static_string bytes) ->
         String
           (String.init (List.length bytes) (fun i ->
-               Char.chr (int_of_z (List.nth bytes i)))))
+               Char.chr (int_of_z (List.nth bytes i))))
+      | Some (Static_imported _) -> Imported (int_of_positive symbol))
 
 let rec print_observation ppf (o : observation) =
   match o with
@@ -1131,6 +1133,7 @@ let rec print_observation ppf (o : observation) =
   | String s -> Format.fprintf ppf "%S" s
   | Function -> Format.fprintf ppf "<fun>"
   | Dangling -> Format.fprintf ppf "<unbound symbol>"
+  | Imported n -> Format.fprintf ppf "<imported symbol %d>" n
   | Location n -> Format.fprintf ppf "<location %d>" n
   | Too_deep -> Format.fprintf ppf "..."
 

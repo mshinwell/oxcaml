@@ -1,5 +1,6 @@
 open BinInt
 open BinNums
+open BinPos
 open Datatypes
 open FlambdaKindModel
 open FlambdaMapSpec
@@ -467,11 +468,32 @@ let eval_phys_equal statics v1 v2 =
   | Some a -> (
     match int_of_value Standard_tagged_immediate v2 with
     | Some b -> Some (Z.eqb a b)
-    | None -> if is_allocated statics v2 then Some false else None)
+    | None ->
+      if is_allocated statics v2 || is_imported statics v2
+      then Some false
+      else None)
   | None -> (
     match int_of_value Standard_tagged_immediate v2 with
-    | Some _ -> if is_allocated statics v1 then Some false else None
-    | None -> None)
+    | Some _ ->
+      if is_allocated statics v1 || is_imported statics v1
+      then Some false
+      else None
+    | None -> (
+      match identity_of statics v1 with
+      | Some s1 -> (
+        match identity_of statics v2 with
+        | Some s2 -> Some (Pos.eqb s1 s2)
+        | None ->
+          if is_allocated statics v2 || is_imported statics v2
+          then Some false
+          else None)
+      | None -> (
+        match identity_of statics v2 with
+        | Some _ ->
+          if is_allocated statics v1 || is_imported statics v1
+          then Some false
+          else None
+        | None -> None)))
 
 (** val eval_binary_primitive : static_env -> binary_primitive -> value -> value
     -> value option **)

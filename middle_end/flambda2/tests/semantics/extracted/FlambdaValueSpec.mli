@@ -21,6 +21,10 @@ type value =
 
 val kind_of_value : value -> flambda_kind
 
+type import_class =
+  | Import_identity
+  | Import_data
+
 type statically_allocated_value =
   | Static_closure of code_id * (value_slot * value) list
   | Static_closure_of_set of
@@ -31,6 +35,7 @@ type statically_allocated_value =
   | Static_block of coq_Z * value list
   | Static_boxed_number of value
   | Static_string of coq_Z list
+  | Static_imported of import_class
 
 type static_env =
   { static_code : (code_id * code) list;
@@ -77,3 +82,9 @@ val string_of : static_env -> value -> coq_Z list option
 val partial_application_of : value -> ((value * value list) * arity) option
 
 val is_allocated : static_env -> value -> bool
+
+val imported_of : static_env -> value -> (symbol * import_class) option
+
+val is_imported : static_env -> value -> bool
+
+val identity_of : static_env -> value -> symbol option

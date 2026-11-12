@@ -23,6 +23,10 @@ type value =
 
 let kind_of_value = function Value_const c -> kind_of_const c | _ -> Value
 
+type import_class =
+  | Import_identity
+  | Import_data
+
 type statically_allocated_value =
   | Static_closure of code_id * (value_slot * value) list
   | Static_closure_of_set of
@@ -33,6 +37,7 @@ type statically_allocated_value =
   | Static_block of coq_Z * value list
   | Static_boxed_number of value
   | Static_string of coq_Z list
+  | Static_imported of import_class
 
 type static_env =
   { static_code : (code_id * code) list;
@@ -223,3 +228,25 @@ let is_allocated statics v =
    || is_some (boxed_number_of statics v))
   || is_some (string_of statics v))
   || is_some (partial_application_of v)
+
+(** val imported_of : static_env -> value -> (symbol * import_class) option **)
+
+let imported_of statics = function
+  | Value_symbol s -> (
+    match lookup s statics.static_values with
+    | Some s0 -> ( match s0 with Static_imported c -> Some (s, c) | _ -> None)
+    | None -> None)
+  | _ -> None
+
+(** val is_imported : static_env -> value -> bool **)
+
+let is_imported statics v = is_some (imported_of statics v)
+
+(** val identity_of : static_env -> value -> symbol option **)
+
+let identity_of statics v =
+  match imported_of statics v with
+  | Some p -> (
+    let s, i = p in
+    match i with Import_identity -> Some s | Import_data -> None)
+  | None -> None
