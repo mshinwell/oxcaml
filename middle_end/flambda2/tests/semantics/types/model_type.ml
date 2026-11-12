@@ -48,9 +48,12 @@ module N = Model_numbers
 
 (* ---- Orders on keys ---------------------------------------------------- *)
 
-let compare_name (n : MT.name) (n' : MT.name) =
+(* Names in an order of the variables: the order of their numbers, or another
+   that a caller has for variables whose numbers mean nothing. *)
+let compare_name_by (order : M.variable -> M.variable -> int) (n : MT.name)
+    (n' : MT.name) =
   match n, n' with
-  | Name_var x, Name_var x' -> N.compare_positive x x'
+  | Name_var x, Name_var x' -> order x x'
   | Name_symbol s, Name_symbol s' -> N.compare_positive s s'
   | Name_var _, Name_symbol _ -> -1
   | Name_symbol _, Name_var _ -> 1
@@ -58,9 +61,9 @@ let compare_name (n : MT.name) (n' : MT.name) =
 let relation_rank (relation : MT.Relation.t) =
   match relation with Is_null -> 0 | Is_int -> 1 | Get_tag -> 2
 
-let compare_relation_and_name (relation, name) (relation', name') =
+let compare_relation_and_name_by order (relation, name) (relation', name') =
   let c = Int.compare (relation_rank relation) (relation_rank relation') in
-  if c <> 0 then c else compare_name name name'
+  if c <> 0 then c else compare_name_by order name name'
 
 (* ---- Maps and sets in one way ----------------------------------------- *)
 
@@ -97,9 +100,12 @@ let descr head (ty : _ MT.type_descr) : _ MT.type_descr =
   | Ok (No_alias h) -> Ok (No_alias (head h))
   | Ok (Equals simple) -> Ok (Equals simple)
 
-let rec normalise (t : MT.flambda_type) : MT.flambda_type =
+(* The sets and the maps keyed by names are written in the order given for the
+   variables. *)
+let rec normalise_by (order : M.variable -> M.variable -> int)
+    (t : MT.flambda_type) : MT.flambda_type =
   match t with
-  | Type_value ty -> Type_value (descr head_of_kind_value ty)
+  | Type_value ty -> Type_value (descr (head_of_kind_value order) ty)
   | Type_naked_immediate ty ->
     Type_naked_immediate
       (descr
@@ -108,7 +114,7 @@ let rec normalise (t : MT.flambda_type) : MT.flambda_type =
            { naked_immediates =
                or_unknown (set N.compare_z) head.naked_immediates;
              inverse_relations =
-               set compare_relation_and_name head.inverse_relations
+               set (compare_relation_and_name_by order) head.inverse_relations
            })
          ty)
   | Type_naked_number (kind, ty) ->
@@ -116,40 +122,41 @@ let rec normalise (t : MT.flambda_type) : MT.flambda_type =
   | Type_rec_info ty -> Type_rec_info ty
   | Type_region ty -> Type_region ty
 
-and head_of_kind_value
+and head_of_kind_value order
     (Head_of_kind_value (non_null, is_null) : MT.head_of_kind_value) :
     MT.head_of_kind_value =
   Head_of_kind_value
     ( (match non_null with
       | Unknown -> Unknown
       | Bottom -> Bottom
-      | Ok head -> Ok (head_of_kind_value_non_null head)),
+      | Ok head -> Ok (head_of_kind_value_non_null order head)),
       is_null )
 
-and head_of_kind_value_non_null (head : MT.head_of_kind_value_non_null) :
+and head_of_kind_value_non_null order (head : MT.head_of_kind_value_non_null) :
     MT.head_of_kind_value_non_null =
   match head with
   | Variant (is_int, immediates, get_tag, blocks, extensions, is_unique) ->
     Variant
       ( is_int,
-        or_unknown normalise immediates,
+        or_unknown (normalise_by order) immediates,
         get_tag,
-        or_unknown row_like_for_blocks blocks,
+        or_unknown (row_like_for_blocks order) blocks,
         (match extensions with
         | No_extensions -> No_extensions
         | Ext (when_immediate, when_block) ->
-          Ext (env_extension when_immediate, env_extension when_block)),
+          let extension = env_extension order in
+          Ext (extension when_immediate, extension when_block)),
         is_unique )
   | Mutable_block alloc_mode -> Mutable_block alloc_mode
   | Boxed_number (number, contents, alloc_mode) ->
-    Boxed_number (number, normalise contents, alloc_mode)
+    Boxed_number (number, normalise_by order contents, alloc_mode)
   | Closures (Row_like_for_closures known_closures, alloc_mode) ->
     Closures
       ( Row_like_for_closures
           (map N.compare_positive
              (fun (case : (_, _, _, _) MT.row_like_case) :
                   (_, _, _, _) MT.row_like_case ->
-               { case_maps_to = closures_entry case.case_maps_to;
+               { case_maps_to = closures_entry order case.case_maps_to;
                  case_index =
                    { index_domain =
                        (match case.case_index.index_domain with
@@ -158,7 +165,8 @@ and head_of_kind_value_non_null (head : MT.head_of_kind_value_non_null) :
                          At_least (contents_of_set contents));
                      index_shape = case.case_index.index_shape
                    };
-                 case_env_extension = env_extension case.case_env_extension
+                 case_env_extension =
+                   env_extension order case.case_env_extension
                })
              known_closures),
         alloc_mode )
@@ -170,31 +178,34 @@ and contents_of_set (contents : MT.set_of_closures_contents) :
     contents_value_slots = set N.compare_positive contents.contents_value_slots
   }
 
-and block_case (case : MT.row_like_block_case) : MT.row_like_block_case =
-  { case_maps_to = List.map normalise case.case_maps_to;
+and block_case order (case : MT.row_like_block_case) : MT.row_like_block_case =
+  { case_maps_to = List.map (normalise_by order) case.case_maps_to;
     case_index = case.case_index;
-    case_env_extension = env_extension case.case_env_extension
+    case_env_extension = env_extension order case.case_env_extension
   }
 
-and row_like_for_blocks
+and row_like_for_blocks order
     (Row_like_for_blocks (known_tags, other_tags, alloc_mode) :
       MT.row_like_for_blocks) : MT.row_like_for_blocks =
   Row_like_for_blocks
-    ( map N.compare_z (or_unknown block_case) known_tags,
-      or_bottom block_case other_tags,
+    ( map N.compare_z (or_unknown (block_case order)) known_tags,
+      or_bottom (block_case order) other_tags,
       alloc_mode )
 
-and closures_entry
+and closures_entry order
     (Closures_entry (function_types, closure_types, value_slot_types) :
       MT.closures_entry) : MT.closures_entry =
   Closures_entry
     ( map N.compare_positive Fun.id function_types,
-      map N.compare_positive normalise closure_types,
-      map N.compare_positive normalise value_slot_types )
+      map N.compare_positive (normalise_by order) closure_types,
+      map N.compare_positive (normalise_by order) value_slot_types )
 
-and env_extension (Env_extension equations : MT.env_extension) :
+and env_extension order (Env_extension equations : MT.env_extension) :
     MT.env_extension =
-  Env_extension (map compare_name normalise equations)
+  Env_extension (map (compare_name_by order) (normalise_by order) equations)
+
+(* The normal form: the variables in the order of their numbers. *)
+let normalise = normalise_by N.compare_positive
 
 (* The same type, up to how its maps and sets are written. *)
 let same (t : MT.flambda_type) (t' : MT.flambda_type) : bool =

@@ -4553,41 +4553,75 @@ let seen_in_the_compiler (numbering : Model_names.t) ~threshold
 
 (* What is seen, as printed, with the variables numbered above the threshold
    renamed in the order in which they come. *)
-let print_seen ?own ~threshold (seen : seen) : string =
-  let print ppf t = Model_type.print ppf (Model_type.normalise t) in
-  let print_type ppf (t : MT.flambda_type option) =
-    match t with
-    | Some t -> print ppf t
-    | None -> Format.pp_print_string ppf "not defined"
-  in
+let print_seen ?(own = Hashtbl.create 4) ~threshold (seen : seen) : string =
   match seen with
   | Nothing_seen why -> "no answer: " ^ why
   | Bottom_seen -> "the meet is bottom"
   | Seen { answer; env_is_bottom; of_names; of_others } ->
-    rename_variables_above ?own threshold
-      (Format.asprintf "@[<v>%a%s%a%a@]"
-         (fun ppf (answer : MT.flambda_type option) ->
-           match answer with
-           | Some t -> Format.fprintf ppf "the meet answers %a" print t
-           | None -> Format.pp_print_string ppf "the environment")
-         answer
-         (if env_is_bottom then ", in an environment that is bottom" else "")
-         (fun ppf ->
-           List.iter (fun (name, t, (canonical : M.simple option)) ->
-               Format.fprintf ppf
-                 "@ %a : %a, of which the canonical element is %a"
-                 Model_type.print_name name print_type t
-                 (fun ppf (canonical : M.simple option) ->
-                   match canonical with
-                   | Some simple -> Model_type.print_simple ppf simple
-                   | None -> Format.pp_print_string ppf "not found")
-                 canonical))
-         of_names
-         (fun ppf ->
-           List.iter (fun (x, t) ->
-               Format.fprintf ppf "@ where %a : %a" Model_type.print_variable x
-                 print_type t))
-         of_others)
+    (* The text, with the types in a normal form and the other variables in the
+       order given. *)
+    let text normalise of_others =
+      let print ppf t = Model_type.print ppf (normalise t) in
+      let print_type ppf (t : MT.flambda_type option) =
+        match t with
+        | Some t -> print ppf t
+        | None -> Format.pp_print_string ppf "not defined"
+      in
+      Format.asprintf "@[<v>%a%s%a%a@]"
+        (fun ppf (answer : MT.flambda_type option) ->
+          match answer with
+          | Some t -> Format.fprintf ppf "the meet answers %a" print t
+          | None -> Format.pp_print_string ppf "the environment")
+        answer
+        (if env_is_bottom then ", in an environment that is bottom" else "")
+        (fun ppf ->
+          List.iter (fun (name, t, (canonical : M.simple option)) ->
+              Format.fprintf ppf
+                "@ %a : %a, of which the canonical element is %a"
+                Model_type.print_name name print_type t
+                (fun ppf (canonical : M.simple option) ->
+                  match canonical with
+                  | Some simple -> Model_type.print_simple ppf simple
+                  | None -> Format.pp_print_string ppf "not found")
+                canonical))
+        of_names
+        (fun ppf ->
+          List.iter (fun (x, t) ->
+              Format.fprintf ppf "@ where %a : %a" Model_type.print_variable x
+                print_type t))
+        of_others
+    in
+    (* The variables numbered above the threshold are named in the order in
+       which a first text comes to them. In that text a set of names, or a map
+       keyed by names, is written in the order of the numbers of its variables,
+       which for those variables mean nothing and are not the same on the two
+       sides of a comparison. So the text is written again with those variables
+       in the order of their new names, which is the text answered: a set that
+       has two of them is then written in one way, provided that the first text
+       came to both before it came to the set. *)
+    ignore
+      (rename_variables_above ~own threshold
+         (text Model_type.normalise of_others)
+        : string);
+    let rank (x : M.variable) : int * int =
+      match N.int_of_positive x with
+      | Some number when number <= threshold -> 0, number
+      | Some number -> (
+        match Hashtbl.find_opt own number with
+        | Some name -> 1, name
+        | None -> 2, number)
+      | None -> 3, 0
+    in
+    let order x y =
+      let kind, position = rank x in
+      let kind', position' = rank y in
+      let c = Int.compare kind kind' in
+      if c <> 0 then c else Int.compare position position'
+    in
+    rename_variables_above ~own threshold
+      (text
+         (Model_type.normalise_by order)
+         (List.stable_sort (fun (x, _) (y, _) -> order x y) of_others))
 
 (* The two say the same: both stop, both are bottom, or both see the same. *)
 let same_seen ~threshold (seen : seen) (seen' : seen) : bool =
