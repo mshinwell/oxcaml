@@ -37,7 +37,7 @@ which gives a name outside a list of names.
 | `FlambdaFreshBindersSpec.v`, `FlambdaAlphaFreshSpec.v`, `FlambdaAlphaGroupSpec.v` | For each binder, the rule that compares two binders at fresh names, and that it can be read both ways on terms with distinct binders and closed code; the recursive group as a name abstraction |
 | `FlambdaCompareConverseSpec.v` | What the comparison accepts is alpha-equivalent, on terms with distinct binders and closed code |
 | `FlambdaInlineFreshSpec.v` | Inlining a call with the binders of the code exchanged for fresh names; two choices give alpha-equivalent terms |
-| `FlambdaValidatorEquivarianceSpec.v` | Each rewrite and each check of the validator commutes with renaming: the rewrites of the normalisation, the checks of well-formedness and of kinds, and `validate_unit` |
+| `FlambdaValidatorEquivarianceSpec.v` | Each rewrite and each check of the validator commutes with renaming: the rewrites of the normalisation, the checks of well-formedness and of kinds, and `validate_unit`; what a rewrite that makes names owes instead |
 
 The four rows before the last are the second prover's files, and the
 last is the third prover's.
@@ -46,6 +46,9 @@ In the types library, `FlambdaEnvAliasesRenamingSpec.v` has the action
 on the aliases, and `FlambdaTypeRenameSpec.v` and
 `FlambdaTypeNominalSpec.v` the action on types and on environment
 extensions, each with the same laws, as instances of the interface.
+`FlambdaEnvRenameSpec.v` has the action on typing environments and
+their levels, with the same laws, and says that the functions of a
+typing environment commute with it.
 
 ## 3. The binders
 
@@ -222,6 +225,23 @@ it commutes with renaming, in one of these forms:
   `fresh_name`, and its statement relates two choices by the
   permutation that swaps them.
 
+A rewrite that gives binders names that it makes is of the fourth
+form. It does not commute with a renaming, since which name
+`fresh_name` gives depends on the numbers of the names of the term.
+What it owes is in `FlambdaValidatorEquivarianceSpec.v`:
+
+- `equivariant_up_to`: on a term whose code is closed, the result on
+  the renamed term is the result under a second renaming, which
+  renames the free names of the result as the first does. The two may
+  differ on the names bound in the result;
+- `keeps_scope`: on a term whose code is closed, the code of the
+  result is closed and no name is free in the result that was not
+  free in the term.
+
+Rewrites that have both compose and iterate, a rewrite that commutes
+with renaming has the first, and the comparison answers the same on
+the results (`expr_eqb_up_to_statement`).
+
 Prove it by one recursion over expressions, handlers, bindings and
 code. A function whose answer depends on the order or the number of a
 name is a finding: record a discrepancy.
@@ -241,20 +261,28 @@ the other rewrites of `FlambdaNormaliseSpec.v`,
 actions among them; the check of kinds; the normalisations of the
 validation; and `validate_unit`: whether a unit is validated does not
 depend on its names. Every one is an equation that holds of every
-term.
+term. By the same prover, in the types library
+(`FlambdaEnvRenameSpec.v`): the functions of typing environments.
+
+Proved by the owners of the passes, each in the file of its pass: the
+identities of primitives (`FlambdaIdentitiesSpec.v`), the lifting of
+constants (`FlambdaLiftSpec.v`), the binding of `my_closure`
+(`FlambdaMyClosureSpec.v`), the check of ranges (`FlambdaRangeSpec.v`),
+and the machine with a stack of exception handlers
+(`FlambdaTrapSpec.v`).
 
 Owed:
 
 - each pass of the validator that is merged after this was written,
   by its owner or by the third prover, and `validate_unit` again with
   it;
-- a pass that renames the two terms apart makes names, so it owes the
-  fourth form: the result on a renamed term is the result renamed by a
-  renaming that agrees with the first on the free names;
-- the functions of typing environments, by the third prover, in the
-  types library;
-- by their owners, the lifting of constants and the functions on types
-  that have no such statement yet.
+- a pass that renames the two terms apart makes names, so it owes
+  `equivariant_up_to` and `keeps_scope`; and once the validation
+  applies it, each rewrite of the validation owes `keeps_scope`, for
+  `validate_unit` to answer the same on a unit and on the unit
+  renamed;
+- by their owners, the functions on types that have no such statement
+  yet.
 
 ## 8. What a change to the model owes
 
