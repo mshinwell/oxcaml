@@ -520,6 +520,45 @@ module Analysis : sig
       external_ids : (Index.t, 'a) Keyed.finite_map
     }
 
+  val definitions_in_joined_envs :
+    'a1 t -> (Simples_in_joined_envs.t * flambda_kind) finite_map
+
+  val canonical_definitions_at_normal_mode :
+    'a1 t -> (Simples_in_joined_envs.t * flambda_kind) finite_map
+
+  val value_at_use : simple -> const Or_unknown.t
+
+  val values_of_bindings :
+    (Index.t, 'a1) Keyed.finite_map ->
+    (Index.t * simple) list ->
+    ('a1 * const Or_unknown.t) list option
+
+  val values_at_uses :
+    (Index.t, 'a1) Keyed.finite_map ->
+    Simples_in_joined_envs.t ->
+    ('a1 * const Or_unknown.t) list option
+
+  type simple_refined_at_join =
+    | Not_refined_at_join
+    | Invariant_in_all_uses of simple
+    | Variable_refined_at_these_uses of Simples_in_joined_envs.t * flambda_kind
+
+  val simple_refined_at_join_of :
+    'a1 t -> Typing_env.t -> simple -> simple_refined_at_join
+
+  val definitions_of_bindings :
+    (Index.t, 'a1) Keyed.finite_map ->
+    (Index.t * simple) list ->
+    ('a1 * simple) list option
+
+  val definitions_at_uses :
+    (Index.t, 'a1) Keyed.finite_map ->
+    Simples_in_joined_envs.t ->
+    ('a1 * simple) list option
+
+  val variables_created_at_join :
+    'a1 t -> ((variable * Simples_in_joined_envs.t) * flambda_kind) list
+
   val simples_at_normal_mode :
     Joined_envs.t ->
     (Index.t * simple) list ->

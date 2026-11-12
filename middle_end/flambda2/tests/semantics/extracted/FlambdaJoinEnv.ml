@@ -1792,6 +1792,93 @@ module Analysis = struct
       external_ids : (Index.t, 'a) Keyed.finite_map
     }
 
+  (** val definitions_in_joined_envs : 'a1 t -> (Simples_in_joined_envs.t *
+      flambda_kind) finite_map **)
+
+  let definitions_in_joined_envs t0 = t0.definitions_in_joined_envs
+
+  (** val canonical_definitions_at_normal_mode : 'a1 t ->
+      (Simples_in_joined_envs.t * flambda_kind) finite_map **)
+
+  let canonical_definitions_at_normal_mode t0 =
+    t0.canonical_definitions_at_normal_mode
+
+  (** val value_at_use : simple -> const Or_unknown.t **)
+
+  let value_at_use = function
+    | Const const0 -> Or_unknown.Known const0
+    | _ -> Or_unknown.Unknown
+
+  (** val values_of_bindings : (Index.t, 'a1) Keyed.finite_map -> (Index.t *
+      simple) list -> ('a1 * const Or_unknown.t) list option **)
+
+  let rec values_of_bindings external_ids0 = function
+    | [] -> Some []
+    | p :: canonicals_in_joined_envs0 -> (
+      let index, simple0 = p in
+      match Keyed.lookup Index.equal index external_ids0 with
+      | Some external_id -> (
+        match values_of_bindings external_ids0 canonicals_in_joined_envs0 with
+        | Some values -> Some ((external_id, value_at_use simple0) :: values)
+        | None -> None)
+      | None -> None)
+
+  (** val values_at_uses : (Index.t, 'a1) Keyed.finite_map ->
+      Simples_in_joined_envs.t -> ('a1 * const Or_unknown.t) list option **)
+
+  let values_at_uses external_ids0 canonicals_in_joined_envs =
+    values_of_bindings external_ids0
+      (Keyed.compact Index.equal canonicals_in_joined_envs)
+
+  type simple_refined_at_join =
+    | Not_refined_at_join
+    | Invariant_in_all_uses of simple
+    | Variable_refined_at_these_uses of Simples_in_joined_envs.t * flambda_kind
+
+  (** val simple_refined_at_join_of : 'a1 t -> Typing_env.t -> simple ->
+      simple_refined_at_join **)
+
+  let simple_refined_at_join_of analysis env simple0 =
+    match Typing_env.get_canonical_simple_ignoring_name_mode env simple0 with
+    | Var var -> (
+      match lookup var analysis.definitions_in_joined_envs with
+      | Some p ->
+        let canonicals_in_joined_envs, kind0 = p in
+        Variable_refined_at_these_uses (canonicals_in_joined_envs, kind0)
+      | None -> Not_refined_at_join)
+    | x -> Invariant_in_all_uses x
+
+  (** val definitions_of_bindings : (Index.t, 'a1) Keyed.finite_map -> (Index.t
+      * simple) list -> ('a1 * simple) list option **)
+
+  let rec definitions_of_bindings external_ids0 = function
+    | [] -> Some []
+    | p :: canonicals_in_joined_envs0 -> (
+      let index, simple0 = p in
+      match Keyed.lookup Index.equal index external_ids0 with
+      | Some external_id -> (
+        match
+          definitions_of_bindings external_ids0 canonicals_in_joined_envs0
+        with
+        | Some definitions -> Some ((external_id, simple0) :: definitions)
+        | None -> None)
+      | None -> None)
+
+  (** val definitions_at_uses : (Index.t, 'a1) Keyed.finite_map ->
+      Simples_in_joined_envs.t -> ('a1 * simple) list option **)
+
+  let definitions_at_uses external_ids0 canonicals_in_joined_envs =
+    definitions_of_bindings external_ids0
+      (Keyed.compact Index.equal canonicals_in_joined_envs)
+
+  (** val variables_created_at_join : 'a1 t -> ((variable *
+      Simples_in_joined_envs.t) * flambda_kind) list **)
+
+  let variables_created_at_join analysis =
+    map
+      (fun binding -> (fst binding, fst (snd binding)), snd (snd binding))
+      (compact analysis.canonical_definitions_at_normal_mode)
+
   (** val simples_at_normal_mode : Joined_envs.t -> (Index.t * simple) list ->
       Simples_in_joined_envs.t option option **)
 

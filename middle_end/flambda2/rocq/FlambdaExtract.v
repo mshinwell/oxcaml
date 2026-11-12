@@ -92,6 +92,10 @@ Set Extraction Output Directory ".".
 Separate Extraction
   FlambdaBindingTime.Name_mode.in_types
   FlambdaBindingTime.Name_mode.normal
+  FlambdaJoinEnv.Analysis.definitions_at_uses
+  FlambdaJoinEnv.Analysis.simple_refined_at_join_of
+  FlambdaJoinEnv.Analysis.values_at_uses
+  FlambdaJoinEnv.Analysis.variables_created_at_join
   FlambdaJoinEnv.Join_env.compiler_choices
   FlambdaJoinEnv.Join_env.repaired_choices
   FlambdaJoinMeet.model_add_equation
