@@ -648,18 +648,84 @@ Proof.
   - intros id c [=].
 Qed.
 
+(* ======================================================================== *)
+(* The conditions of a well-formed unit, one at a time                      *)
+(* ======================================================================== *)
+
+(* A proof that needs a condition of [well_formed_unit] takes it by one
+   of these lemmas and does not unfold the definition, so that a
+   condition can be added without a change to the proofs that do not
+   need the new one. A proof that a given unit is well-formed goes by
+   [well_formed_unit_intro], which asks each condition by its name. *)
+Local Ltac condition :=
+  unfold well_formed_unit; rewrite !andb_true_iff; tauto.
+
+Lemma well_formed_unit_statics_at_toplevel (u : unit_interface) (e : expr) :
+  well_formed_unit u e = true ->
+  statics_at_toplevel (unit_exn u) true e = true.
+Proof. condition. Qed.
+
+Lemma well_formed_unit_code_ids_distinct (u : unit_interface) (e : expr) :
+  well_formed_unit u e = true ->
+  distinct (static_names code_ids_of_binding e) = true.
+Proof. condition. Qed.
+
+Lemma well_formed_unit_symbols_distinct (u : unit_interface) (e : expr) :
+  well_formed_unit u e = true ->
+  distinct (static_names symbols_of_binding e) = true.
+Proof. condition. Qed.
+
+Lemma well_formed_unit_names_in_scope (u : unit_interface) (e : expr) :
+  well_formed_unit u e = true ->
+  names_in_scope (unit_return u) (unit_exn u) e = true.
+Proof. condition. Qed.
+
+Lemma well_formed_unit_binders_distinct (u : unit_interface) (e : expr) :
+  well_formed_unit u e = true -> binders_distinct e = true.
+Proof. condition. Qed.
+
+Lemma well_formed_unit_code_closed (u : unit_interface) (e : expr) :
+  well_formed_unit u e = true -> code_closed e = true.
+Proof. condition. Qed.
+
+Lemma well_formed_unit_sets_well_formed (u : unit_interface) (e : expr) :
+  well_formed_unit u e = true -> sets_well_formed e = true.
+Proof. condition. Qed.
+
+Lemma well_formed_unit_numbers_in_range (u : unit_interface) (e : expr) :
+  well_formed_unit u e = true -> numbers_in_range e = true.
+Proof. condition. Qed.
+
+Lemma well_formed_unit_exn_handlers_well_formed (u : unit_interface)
+    (e : expr) :
+  well_formed_unit u e = true ->
+  unit_exn_handlers_well_formed (unit_exn u) e = true.
+Proof. condition. Qed.
+
+Lemma well_formed_unit_traps_well_formed (u : unit_interface) (e : expr) :
+  well_formed_unit u e = true -> traps_well_formed (unit_exn u) e = true.
+Proof. condition. Qed.
+
+Lemma well_formed_unit_intro (u : unit_interface) (e : expr) :
+  statics_at_toplevel (unit_exn u) true e = true ->
+  distinct (static_names code_ids_of_binding e) = true ->
+  distinct (static_names symbols_of_binding e) = true ->
+  names_in_scope (unit_return u) (unit_exn u) e = true ->
+  binders_distinct e = true ->
+  code_closed e = true ->
+  sets_well_formed e = true ->
+  numbers_in_range e = true ->
+  unit_exn_handlers_well_formed (unit_exn u) e = true ->
+  traps_well_formed (unit_exn u) e = true ->
+  well_formed_unit u e = true.
+Proof. condition. Qed.
+
 Theorem well_formed_never_faults : well_formed_never_faults_statement.
 Proof.
-  intros u e n s Hwf Hrun. unfold well_formed_unit in Hwf.
-  apply andb_true_iff in Hwf as [Hwf _].
-  apply andb_true_iff in Hwf as [Hwf _].
-  apply andb_true_iff in Hwf as [Hwf _].
-  apply andb_true_iff in Hwf as [Hwf _].
-  apply andb_true_iff in Hwf as [Hwf _].
-  apply andb_true_iff in Hwf as [Hwf _].
-  apply andb_true_iff in Hwf as [Hwf _].
-  apply andb_true_iff in Hwf as [Hwf Dsymbols].
-  apply andb_true_iff in Hwf as [P Dcode].
+  intros u e n s Hwf Hrun.
+  pose proof (well_formed_unit_statics_at_toplevel u e Hwf) as P.
+  pose proof (well_formed_unit_code_ids_distinct u e Hwf) as Dcode.
+  pose proof (well_formed_unit_symbols_distinct u e Hwf) as Dsymbols.
   pose proof (inv_run (unit_exn u) code_ids_of_binding code_id_bound
     code_bound_after n _ s
     (well_formed_inv (unit_exn u) code_ids_of_binding code_id_bound e
@@ -684,13 +750,9 @@ Qed.
 
 Theorem well_formed_names_bound : well_formed_names_bound_statement.
 Proof.
-  intros u e n Hwf. unfold well_formed_unit in Hwf.
-  apply andb_true_iff in Hwf as [Hwf _].
-  apply andb_true_iff in Hwf as [Hwf _].
-  apply andb_true_iff in Hwf as [Hwf _].
-  apply andb_true_iff in Hwf as [Hwf _].
-  apply andb_true_iff in Hwf as [Hwf Hclosed].
-  apply andb_true_iff in Hwf as [Hwf _].
-  apply andb_true_iff in Hwf as [_ Hnames].
-  exact (unit_run (unit_return u) (unit_exn u) e n Hnames Hclosed).
+  intros u e n Hwf.
+  exact
+    (unit_run (unit_return u) (unit_exn u) e n
+       (well_formed_unit_names_in_scope u e Hwf)
+       (well_formed_unit_code_closed u e Hwf)).
 Qed.

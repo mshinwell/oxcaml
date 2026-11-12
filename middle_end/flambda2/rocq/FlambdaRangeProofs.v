@@ -35,7 +35,8 @@ From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaSemanticsSpec FlambdaSemanticsProofs
-  FlambdaWellFormedSpec FlambdaNominalSpec FlambdaRangeSpec.
+  FlambdaWellFormedSpec FlambdaWellFormedProofs FlambdaNominalSpec
+  FlambdaRangeSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -596,10 +597,8 @@ Qed.
 
 Theorem well_formed_in_range : well_formed_in_range_statement.
 Proof.
-  intros u e n s Hwf. unfold well_formed_unit in Hwf.
-  apply andb_true_iff in Hwf as [Hwf _].
-  apply andb_true_iff in Hwf as [Hwf _].
-  apply andb_true_iff in Hwf as [_ He]. exact (run_in_range e n s He).
+  intros u e n s Hwf.
+  exact (run_in_range e n s (well_formed_unit_numbers_in_range u e Hwf)).
 Qed.
 
 (* ======================================================================== *)

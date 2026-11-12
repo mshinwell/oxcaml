@@ -845,11 +845,8 @@ Lemma well_formed_sets_inv (u : unit_interface) (e : expr) (n : nat)
   run n (State e [] [] empty_static_env) = Step s ->
   sets_inv s.
 Proof.
-  intros Hwf. unfold well_formed_unit in Hwf.
-  apply andb_true_iff in Hwf as [Hwf _].
-  apply andb_true_iff in Hwf as [Hwf _].
-  apply andb_true_iff in Hwf as [Hwf _].
-  apply andb_true_iff in Hwf as [_ Hsets].
+  intros Hwf.
+  pose proof (well_formed_unit_sets_well_formed u e Hwf) as Hsets.
   apply sets_inv_run. unfold sets_inv. simpl_state.
   refine (conj Hsets (conj I (conj _ _))).
   - intros id c [=].
@@ -1651,14 +1648,7 @@ End Terms_kept.
 Theorem well_formed_code_binders : well_formed_code_binders_statement.
 Proof.
   intros u e n s id c Hwf Hrun Hlookup.
-  assert (Hbinders : binders_distinct e = true).
-  { unfold well_formed_unit in Hwf.
-    apply andb_true_iff in Hwf as [Hwf _].
-    apply andb_true_iff in Hwf as [Hwf _].
-    apply andb_true_iff in Hwf as [Hwf _].
-    apply andb_true_iff in Hwf as [Hwf _].
-    apply andb_true_iff in Hwf as [Hwf _].
-    apply andb_true_iff in Hwf as [_ Hbinders]. exact Hbinders. }
+  pose proof (well_formed_unit_binders_distinct u e Hwf) as Hbinders.
   assert (Hinv :
     terms_inv binders_distinct handler_binders_distinct
       code_binders_distinct s).
@@ -2331,18 +2321,20 @@ Qed.
 Theorem parity_well_formed : parity_well_formed_statement.
 Proof.
   intros i Hi. split.
-  - unfold well_formed_unit.
-    apply andb_true_iff. split; [ | vm_compute; reflexivity ].
-    apply andb_true_iff. split; [ | vm_compute; reflexivity ].
-    apply andb_true_iff. split; [ vm_compute; reflexivity | ].
+  - apply well_formed_unit_intro;
+      [ vm_compute; reflexivity ..
+      | idtac
+      | vm_compute; reflexivity
+      | vm_compute; reflexivity ].
     unfold FlambdaClosuresSpec.parity_static. cbn [numbers_in_range].
     apply andb_true_iff. split; [ vm_compute; reflexivity | ].
     unfold apply_in_range. cbn. rewrite Hi. reflexivity.
   - eexists. split; [ reflexivity | ].
-    unfold well_formed_unit.
-    apply andb_true_iff. split; [ | vm_compute; reflexivity ].
-    apply andb_true_iff. split; [ | vm_compute; reflexivity ].
-    apply andb_true_iff. split; [ vm_compute; reflexivity | ].
+    apply well_formed_unit_intro;
+      [ vm_compute; reflexivity ..
+      | idtac
+      | vm_compute; reflexivity
+      | vm_compute; reflexivity ].
     cbn [numbers_in_range].
     apply andb_true_iff. split; [ vm_compute; reflexivity | ].
     apply andb_true_iff. split; [ vm_compute; reflexivity | ].
