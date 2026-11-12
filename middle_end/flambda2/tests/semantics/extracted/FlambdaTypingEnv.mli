@@ -171,6 +171,8 @@ module Typing_env : sig
 
   val add_symbol_definition : t -> symbol -> t
 
+  val add_symbol_definitions : t -> symbol list -> t
+
   val add_definition : t -> name -> Name_mode.t -> flambda_kind -> t option
 
   val replace_equation : t -> name -> flambda_type -> t
@@ -200,6 +202,9 @@ module Typing_env : sig
     Typing_env_level.t option
 
   val cut : t -> Scope.t -> Typing_env_level.t option
+
+  val type_simple_in_term_exn :
+    t -> Name_mode.t option -> simple -> (flambda_type * simple) option option
 
   val get_canonical_simple_ignoring_name_mode : t -> simple -> simple
 

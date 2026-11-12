@@ -493,6 +493,18 @@ module Typing_env = struct
       is_bottom = tenv.is_bottom
     }
 
+  (** val add_symbol_definitions : t -> symbol list -> t **)
+
+  let add_symbol_definitions tenv syms =
+    { defined_symbols = app syms tenv.defined_symbols;
+      prev_levels = tenv.prev_levels;
+      current_level = tenv.current_level;
+      just_after_level = tenv.just_after_level;
+      next_binding_time = tenv.next_binding_time;
+      min_binding_time = tenv.min_binding_time;
+      is_bottom = tenv.is_bottom
+    }
+
   (** val add_definition : t -> name -> Name_mode.t -> flambda_kind -> t option
       **)
 
@@ -586,6 +598,39 @@ module Typing_env = struct
     if Z.leb (current_scope tenv) cut_after
     then Some Typing_env_level.empty
     else cut_loop cut_after tenv.current_level.One_level.level tenv.prev_levels
+
+  (** val type_simple_in_term_exn : t -> Name_mode.t option -> simple ->
+      (flambda_type * simple) option option **)
+
+  let type_simple_in_term_exn tenv min_name_mode simple0 =
+    match
+      match simple0 with
+      | Var x -> find_with_binding_time_and_mode tenv (Name_var x) None
+      | Symbol s -> find_with_binding_time_and_mode tenv (Name_symbol s) None
+      | Const const ->
+        Some (type_for_const const, Binding_time.With_name_mode.consts)
+    with
+    | Some p ->
+      let ty, binding_time_and_name_mode_simple = p in
+      let name_mode_simple =
+        binding_time_and_name_mode_simple.Binding_time.With_name_mode.name_mode
+      in
+      let kind0 = kind ty in
+      let min_name_mode0 =
+        match min_name_mode with
+        | Some name_mode0 -> name_mode0
+        | None -> name_mode_simple
+      in
+      Some
+        (match
+           Aliases.get_canonical_element_exn
+             (binding_time_resolver tenv)
+             (names_to_types tenv) (aliases tenv) simple0 name_mode_simple
+             min_name_mode0 tenv.min_binding_time
+         with
+        | Some alias -> Some (alias_type_of kind0 alias, alias)
+        | None -> None)
+    | None -> None
 
   (** val get_canonical_simple_ignoring_name_mode : t -> simple -> simple **)
 

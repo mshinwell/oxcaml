@@ -71,6 +71,7 @@ From OxCamlFlambda2Types Require Import FlambdaBindingTime.
 From OxCamlFlambda2Types Require Import FlambdaJoinEnv.
 From OxCamlFlambda2Types Require Import FlambdaJoinMeet.
 From OxCamlFlambda2Types Require Import FlambdaMeet.
+From OxCamlFlambda2Types Require Import FlambdaSimplifyStaticsSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeEqualSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar.
 From OxCamlFlambda2Types Require Import FlambdaTypeMeaningBoolSpec.
@@ -109,6 +110,8 @@ Separate Extraction
   FlambdaMeet.Flambda2_types.add_is_null_relation
   FlambdaMeet.compiler_choices
   FlambdaMeet.repaired_choices
+  FlambdaSimplifyStaticsSpec.add_static_bindings
+  FlambdaSimplifyStaticsSpec.static_const_type_in
   FlambdaTypeEqualSpec.type_eqb
   FlambdaTypeGrammar.Relation.of_const
   FlambdaTypeGrammar.alias_type_of
