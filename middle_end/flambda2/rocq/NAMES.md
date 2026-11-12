@@ -314,10 +314,47 @@ it commutes with renaming, in one of these forms:
   `fresh_name`, and its statement relates two choices by the
   permutation that swaps them.
 
-A rewrite that gives binders names that it makes is of the fourth
-form. It does not commute with a renaming, since which name
-`fresh_name` gives depends on the numbers of the names of the term.
-What it owes is in `FlambdaValidatorEquivarianceSpec.v`:
+**Why a function that makes names cannot commute with every
+renaming.** A source of new names is a function from the names to
+avoid to a name outside them; `fresh_name` is one. No such function
+commutes with every renaming. Take a list `l`, the name `n` that the
+source gives for `l`, and a name `y` that is not in `l` and is not
+`n`. The renaming that swaps `n` and `y` moves no name of `l`, so the
+source gives `n` for the renamed list; and `n` renamed is `y`. So a
+function that asks the source for a name and lets that name show in
+its answer does not commute with every renaming, whatever the source
+is. This is not a defect of `fresh_name`, and another choice would
+not help: that no function which respects renaming can pick a name
+out is what it is for names to be compared by equality only.
+
+**What such a function owes instead.** One of two things.
+
+- *With the source renamed.* The source is an argument of the
+  function, and a renaming acts on it as on any function, by
+  conjugation: the renamed source, given a list, undoes the renaming
+  on the list, asks the source, and renames what it answers. That is
+  a source of new names again. The function then owes an equation of
+  the second form above: with the renamed source, on the renamed
+  arguments, it gives the renamed answer. Nothing is up to anything,
+  nothing is asked of scopes or of code, the equation composes with
+  the others of this section, and its proof is the recursion of a
+  function that makes no name with one more case, the call of the
+  source, which is the definition of the conjugate.
+- *With one source on both sides.* The answer for the renamed
+  arguments is the answer under a second renaming, which agrees with
+  the first on the names that the function was given and may differ
+  on the names made. It follows from the first and one more fact,
+  that the choice does not matter: two sources give answers that
+  differ by a renaming which fixes the names given.
+
+Where the source can be an argument, state the first: a caller that
+only has to push a renaming through the function needs no more, and
+the second is derived from it.
+
+For a rewrite of terms, the names made are bound in the result, and
+the second says that the two results are the same up to bound names.
+It is in `FlambdaValidatorEquivarianceSpec.v`, with what makes it
+compose:
 
 - `equivariant_up_to`: on a term whose code is closed, the result on
   the renamed term is the result under a second renaming, which
@@ -330,6 +367,12 @@ What it owes is in `FlambdaValidatorEquivarianceSpec.v`:
 Rewrites that have both compose and iterate, a rewrite that commutes
 with renaming has the first, and the comparison answers the same on
 the results (`expr_eqb_up_to_statement`).
+
+Where the names made stay free in the answer, the second is about
+answers up to a renaming of the names made, and says less. The join
+of typing environments is such a function: it defines the variables
+that it makes in the environment that it answers. It owes the first,
+which the third prover is stating.
 
 Prove it by one recursion over expressions, handlers, bindings and
 code. A function whose answer depends on the order or the number of a
