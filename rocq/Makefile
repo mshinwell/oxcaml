@@ -267,6 +267,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaJoinEnv.v \
   FlambdaJoinEnvProofs.v \
   FlambdaJoinEnvSpec.v \
+  FlambdaJoinEquationNamesProofs.v \
+  FlambdaJoinEquationNamesSpec.v \
   FlambdaJoinFitsProofs.v \
   FlambdaJoinFitsSpec.v \
   FlambdaJoinKindsProofs.v \
@@ -274,6 +276,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaJoinMeet.v \
   FlambdaJoinMeetExamplesProofs.v \
   FlambdaJoinMeetExamplesSpec.v \
+  FlambdaJoinMeetFitsProofs.v \
+  FlambdaJoinMeetFitsSpec.v \
   FlambdaJoinMeetProofs.v \
   FlambdaJoinMeetSpec.v \
   FlambdaJoinNamesProofs.v \
@@ -291,6 +295,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaJoinTypesSpec.v \
   FlambdaJoinTypesWithEnvProofs.v \
   FlambdaJoinTypesWithEnvSpec.v \
+  FlambdaJoinWellFormedProofs.v \
+  FlambdaJoinWellFormedSpec.v \
   FlambdaMeet.v \
   FlambdaMeetClosuresProofs.v \
   FlambdaMeetClosuresSpec.v \
