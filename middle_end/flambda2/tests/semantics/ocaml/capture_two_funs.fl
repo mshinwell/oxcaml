@@ -1,0 +1,81 @@
+let $camlCapture_two_funs__first_const_0 = Block 0 () in
+(let code inline(never) size(3)
+       add_0 (a/83 : imm tagged, b/84 : imm tagged)
+         my_closure/85 &my_alloc_region/86 my_depth/87
+         -> k/26 * k/27
+         : imm tagged =
+   let next_depth/88 = rec_info (succ my_depth/87) in
+   let int_add/89 = %int_barith.add (a/83, b/84) in
+   cont k/26 (int_add/89)
+ in
+ let code inline(never) size(3)
+       twice_1 (a/90 : imm tagged)
+         my_closure/91 &my_alloc_region/92 my_depth/93
+         -> k/28 * k/29
+         : imm tagged =
+   let next_depth/94 = rec_info (succ my_depth/93) in
+   let int_add/95 = %int_barith.add (a/90, a/90) in
+   cont k/28 (int_add/95)
+ in
+ let code size(15)
+       `fn[capture_two_funs.ml:12,13--45]_3` (x/96 : imm tagged)
+         my_closure/97 &my_alloc_region/98 my_depth/99
+         -> k/30 * k/31
+         : imm tagged =
+   let next_depth/100 = rec_info (succ my_depth/99) in
+   let add/101 =
+     %project_value_slot.[`fn[capture_two_funs.ml:12,13--45]`].[add]
+       (my_closure/97)
+   in
+   let twice/102 =
+     %project_value_slot.[`fn[capture_two_funs.ml:12,13--45]`].[twice]
+       (my_closure/97)
+   in
+   let n/103 =
+     %project_value_slot.[`fn[capture_two_funs.ml:12,13--45]`].[n]
+       (my_closure/97)
+   in
+   apply direct(twice_1 &my_alloc_region/98)
+     (twice/102 : _ -> imm tagged) (x/96) -> k/32 * k/31
+     where k/32 (apply_result/104 : imm tagged) =
+       (apply direct(twice_1 &my_alloc_region/98)
+          (twice/102 : _ -> imm tagged) (n/103) -> k/33 * k/31
+          where k/33 (apply_result/105 : imm tagged) =
+            apply direct(add_0 &my_alloc_region/98)
+              (add/101 : _ -> imm tagged)
+                (apply_result/105, apply_result/104)
+                -> k/30 * k/31)
+ in
+ let code size(28)
+       make_2 (n/106 : imm tagged)
+         my_closure/107 &my_alloc_region/108 my_depth/109
+         -> k/34 * k/35
+         : val =
+   let next_depth/110 = rec_info (succ my_depth/109) in
+   let add/111 = %project_value_slot.[make].[add_1] (my_closure/107) in
+   let twice/112 = %project_value_slot.[make].[twice_1] (my_closure/107) in
+   let `fn[capture_two_funs.ml:12,13--45]/113` =
+     closure `fn[capture_two_funs.ml:12,13--45]_3`
+       @`fn[capture_two_funs.ml:12,13--45]` &my_alloc_region/108
+   with { add = add/111; twice = twice/112; n = n/106 }
+   in
+   cont k/34 (`fn[capture_two_funs.ml:12,13--45]/113`)
+ in
+ let add/114 = closure add_0 @add &toplevel in
+ let twice/115 = closure twice_1 @twice &toplevel in
+ let make/116 = closure make_2 @make &toplevel
+ with { add_1 = add/114; twice_1 = twice/115 }
+ in
+ let Pmakeblock/117 = %block.[`0`].`toplevel` (add/114, twice/115, make/116)
+ in
+ cont k/25 (Pmakeblock/117))
+  where k/25 define_root_symbol (module_block/79) =
+    let field_0/80 = %block_load.tag[`0`].`size`[`3`].[`0`] (module_block/79)
+    in
+    let field_1/81 = %block_load.tag[`0`].`size`[`3`].[`1`] (module_block/79)
+    in
+    let field_2/82 = %block_load.tag[`0`].`size`[`3`].[`2`] (module_block/79)
+    in
+    let $camlCapture_two_funs = Block 0 (field_0/80, field_1/81, field_2/82)
+    in
+    cont done ($camlCapture_two_funs)

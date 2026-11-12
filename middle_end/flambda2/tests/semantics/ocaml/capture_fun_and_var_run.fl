@@ -1,0 +1,55 @@
+let $camlCapture_fun_and_var_run__first_const_0 = Block 0 () in
+(let code inline(never) size(3)
+       add_0 (a/61 : imm tagged, b/62 : imm tagged)
+         my_closure/63 &my_alloc_region/64 my_depth/65
+         -> k/22 * k/23
+         : imm tagged =
+   let next_depth/66 = rec_info (succ my_depth/65) in
+   let int_add/67 = %int_barith.add (a/61, b/62) in
+   cont k/22 (int_add/67)
+ in
+ let code size(6)
+       `fn[capture_fun_and_var_run.ml:14,28--44]_2` (x/68 : imm tagged)
+         my_closure/69 &my_alloc_region/70 my_depth/71
+         -> k/24 * k/25
+         : imm tagged =
+   let next_depth/72 = rec_info (succ my_depth/71) in
+   let add/73 =
+     %project_value_slot.[`fn[capture_fun_and_var_run.ml:14,28--44]`].[add]
+       (my_closure/69)
+   in
+   let n/74 =
+     %project_value_slot.[`fn[capture_fun_and_var_run.ml:14,28--44]`].[n]
+       (my_closure/69)
+   in
+   apply direct(add_0 &my_alloc_region/70)
+     (add/73 : _ -> imm tagged) (n/74, x/68) -> k/24 * k/25
+ in
+ let code inline(never) size(17)
+       make_1 (n/75 : imm tagged)
+         my_closure/76 &my_alloc_region/77 my_depth/78
+         -> k/26 * k/27
+         : val =
+   let next_depth/79 = rec_info (succ my_depth/78) in
+   let add/80 = %project_value_slot.[make].[add_1] (my_closure/76) in
+   let `fn[capture_fun_and_var_run.ml:14,28--44]/81` =
+     closure `fn[capture_fun_and_var_run.ml:14,28--44]_2`
+       @`fn[capture_fun_and_var_run.ml:14,28--44]` &my_alloc_region/77
+   with { add = add/80; n = n/75 }
+   in
+   cont k/26 (`fn[capture_fun_and_var_run.ml:14,28--44]/81`)
+ in
+ let add/82 = closure add_0 @add &toplevel in
+ let make/83 = closure make_1 @make &toplevel with { add_1 = add/82 } in
+ (let Popaque/86 = %opaque (1) in
+  apply direct(make_1 &toplevel) make/83 (Popaque/86) -> k/29 * error
+    where k/29 (func/87) =
+      apply &toplevel func/87 (2) -> k/28 * error)
+   where k/28 (result/84 : imm tagged) =
+     let Pmakeblock/85 = %block.[`0`].`toplevel` (result/84) in
+     cont k/21 (Pmakeblock/85))
+  where k/21 define_root_symbol (module_block/59) =
+    let field_0/60 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/59)
+    in
+    let $camlCapture_fun_and_var_run = Block 0 (field_0/60) in
+    cont done ($camlCapture_fun_and_var_run)
