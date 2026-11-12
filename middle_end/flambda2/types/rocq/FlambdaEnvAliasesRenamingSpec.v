@@ -69,8 +69,9 @@
      variables, and the names the renamed structure speaks of are the
      renamed names;
    - the equality test of simples, the order, the queries and
-     [Aliases.add] commute with renaming, and respect and the invariant
-     are kept by it.
+     [Aliases.add] commute with renaming; respect and the invariant are
+     kept by it, and the compiler's two checks ([Aliases.invariant],
+     [Aliases.invariant_add_result]) answer the same.
    No statement about a function has a premise: the functions compare
    names for equality only and read binding times through the map and
    the resolver. In particular where two aliases are equally early the
@@ -309,6 +310,33 @@ Definition rename_well_formed_statement : Prop :=
     aliases_well_formed (rename_resolver r binding_time_resolver)
       (rename_binding_times r binding_times_and_modes) (rename_aliases r t)
     <-> aliases_well_formed binding_time_resolver binding_times_and_modes t.
+
+(* What the compiler's two checks answer, which it makes with its
+   invariant checks on: [Aliases.invariant] answers of the renamed
+   structure what it answers of the structure, and
+   [Aliases.invariant_add_result] of the renamed result of
+   [Aliases.add] what it answers of the result. *)
+Definition rename_invariant_statement : Prop :=
+  ∀ (A : Type) (r : renaming)
+    (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t),
+    Aliases.invariant (rename_resolver r binding_time_resolver)
+      (rename_binding_times r binding_times_and_modes) (rename_aliases r t)
+    = Aliases.invariant binding_time_resolver binding_times_and_modes t.
+
+Definition rename_invariant_add_result_statement : Prop :=
+  ∀ (A : Type) (r : renaming)
+    (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (result : Aliases.add_result),
+    Aliases.invariant_add_result (rename_resolver r binding_time_resolver)
+      (rename_binding_times r binding_times_and_modes)
+      (rename_add_result r result)
+    = Aliases.invariant_add_result binding_time_resolver
+        binding_times_and_modes result.
 
 (* ======================================================================== *)
 (* The structure as a thing that contains names                             *)

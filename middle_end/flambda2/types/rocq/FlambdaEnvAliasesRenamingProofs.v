@@ -58,6 +58,25 @@ Lemma is_empty_map {B C : Type} (g : B -> C) (l : list B) :
   Keyed.is_empty (map g l) = Keyed.is_empty l.
 Proof. destruct l; reflexivity. Qed.
 
+Lemma forallb_renamed {B C : Type} (g : B -> C) (p : B -> bool)
+    (p' : C -> bool) (l : list B) :
+  (∀ b : B, p' (g b) = p b) -> forallb p' (map g l) = forallb p l.
+Proof.
+  intros Hp. induction l as [ | b l IH]; simpl; [ reflexivity | ].
+  rewrite Hp, IH. reflexivity.
+Qed.
+
+Lemma fold_left_renamed {B B' C C' : Type} (gb : B -> B') (gc : C -> C')
+    (f : B -> C -> B) (f' : B' -> C' -> B') (l : list C) :
+  (∀ (b : B) (c : C), f' (gb b) (gc c) = gb (f b c)) ->
+  ∀ init : B,
+    List.fold_left f' (map gc l) (gb init) = gb (List.fold_left f l init).
+Proof.
+  intros Hf. induction l as [ | c l IH]; intros init; simpl;
+    [ reflexivity | ].
+  rewrite Hf. apply IH.
+Qed.
+
 (* The earliest of a list, as [Aliases.find_earliest_alias] finds it. *)
 Lemma fold_earliest_renamed {B : Type} (g : B -> B)
     (earlier earlier' : B -> B -> bool) (l : list B) (first : B) :
@@ -126,6 +145,14 @@ Proof.
   rewrite among_keys_renamed. reflexivity.
 Qed.
 
+Lemma inter_keys_renamed (keys keys' : list K) :
+  Keyed.inter eqb (map f keys) (map f keys')
+  = map f (Keyed.inter eqb keys keys').
+Proof.
+  unfold Keyed.inter. apply filter_renamed. intros k.
+  apply among_keys_renamed.
+Qed.
+
 Lemma dedup_renamed (keys : list K) :
   Keyed.dedup eqb (map f keys) = map f (Keyed.dedup eqb keys).
 Proof.
@@ -167,6 +194,15 @@ Proof.
   intros Hbound. unfold Keyed.tabulate, Keyed.map_bindings.
   induction keys as [ | k keys IH]; simpl; [ reflexivity | ].
   rewrite Hbound, IH, map_app. destruct (bound k); reflexivity.
+Qed.
+
+Lemma compact_keys_renamed {B C : Type} (g : B -> C)
+    (bindings : Keyed.finite_map K B) :
+  Keyed.compact eqb (Keyed.map_bindings f g bindings)
+  = Keyed.map_bindings f g (Keyed.compact eqb bindings).
+Proof.
+  unfold Keyed.compact. rewrite domain_renamed. apply tabulate_renamed.
+  intros k. apply lookup_renamed.
 Qed.
 
 Lemma filter_bindings_renamed {B C : Type} (g : B -> C)
@@ -977,6 +1013,53 @@ Proof.
   revert Hwell_formed. apply well_formed_resolver. intros n.
   unfold rename_resolver.
   rewrite (rename_name_inverse_r (inverse_renaming r)). reflexivity.
+Qed.
+
+(* ======================================================================== *)
+(* The compiler's two checks                                                *)
+(* ======================================================================== *)
+
+Lemma disjoint_alias_sets_renamed (r : renaming) (sets : list (list name)) :
+  Aliases.disjoint_alias_sets (map (map (rename_name r)) sets)
+  = Aliases.disjoint_alias_sets sets.
+Proof.
+  induction sets as [ | names sets IH]; simpl; [ reflexivity | ].
+  rewrite IH. f_equal. apply forallb_renamed. intros names'.
+  rewrite (inter_keys_renamed name_eqb (rename_name r) (name_eqb_renamed r)).
+  apply is_empty_map.
+Qed.
+
+Theorem rename_invariant : rename_invariant_statement.
+Proof.
+  intros A r binding_time_resolver binding_times_and_modes
+    [canonical_elements of_names of_consts].
+  unfold Aliases.invariant, rename_aliases. simpl.
+  rewrite (compact_keys_renamed name_eqb (rename_name r) (name_eqb_renamed r)).
+  change (Keyed.map_values (rename_aliases_of_canonical_element r) of_consts)
+    with
+      (Keyed.map_bindings (fun c : const => c)
+         (rename_aliases_of_canonical_element r) of_consts).
+  rewrite
+    (compact_keys_renamed const_eqb (fun c : const => c)
+       (fun c c' => eq_refl)).
+  unfold Keyed.map_bindings. f_equal.
+  - apply forallb_renamed. intros [canonical_element aliases]. simpl.
+    rewrite all_renamed, mem_renamed. f_equal.
+    apply forallb_renamed. intros n. apply name_defined_earlier_renamed.
+  - rewrite <- (disjoint_alias_sets_renamed r
+                  (map _ (Keyed.compact name_eqb of_names) ++ _)).
+    f_equal. rewrite map_app, !map_map.
+    f_equal; apply map_ext; intros [k aliases]; simpl; apply all_renamed.
+Qed.
+
+Theorem rename_invariant_add_result : rename_invariant_add_result_statement.
+Proof.
+  intros A r binding_time_resolver binding_times_and_modes
+    [t demoted_name canonical_element].
+  unfold Aliases.invariant_add_result, rename_add_result. simpl.
+  rewrite (rename_invariant A r), <- rename_simple_of_name,
+    (rename_defined_earlier A r), canonical_renamed.
+  destruct (Aliases.canonical t (simple_of_name demoted_name)); reflexivity.
 Qed.
 
 (* ======================================================================== *)

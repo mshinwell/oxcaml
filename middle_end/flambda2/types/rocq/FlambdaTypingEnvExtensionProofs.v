@@ -409,12 +409,7 @@ Lemma compact_renamed (r : renaming)
     (Keyed.map_bindings (rename_name r) (rename_type r) m)
   = Keyed.map_bindings (rename_name r) (rename_type r)
       (Keyed.compact name_eqb m).
-Proof.
-  unfold Keyed.compact.
-  rewrite (domain_renamed name_eqb (rename_name r) (name_eqb_renamed r)).
-  apply (tabulate_renamed (rename_name r)). intros n.
-  apply (lookup_renamed name_eqb (rename_name r) (name_eqb_renamed r)).
-Qed.
+Proof. apply compact_keys_renamed. exact (name_eqb_renamed r). Qed.
 
 Theorem apply_renaming_bindings : apply_renaming_bindings_statement.
 Proof.
@@ -465,25 +460,6 @@ Proof.
   destruct (Keyed.is_empty _); [ | reflexivity ].
   destruct t1 as [equations1], t2 as [equations2]. simpl.
   unfold Keyed.map_bindings. rewrite map_app. reflexivity.
-Qed.
-
-Lemma fold_left_renamed {A A' B B' : Type} (ga : A -> A') (gb : B -> B')
-    (f : A -> B -> A) (f' : A' -> B' -> A') (l : list B) :
-  (∀ (a : A) (b : B), f' (ga a) (gb b) = ga (f a b)) ->
-  ∀ init : A,
-    List.fold_left f' (map gb l) (ga init) = ga (List.fold_left f l init).
-Proof.
-  intros Hf. induction l as [ | b l IH]; intros init; simpl;
-    [ reflexivity | ].
-  rewrite Hf. apply IH.
-Qed.
-
-Lemma forallb_renamed {A B : Type} (g : A -> B) (p : A -> bool)
-    (p' : B -> bool) (l : list A) :
-  (∀ a : A, p' (g a) = p a) -> forallb p' (map g l) = forallb p l.
-Proof.
-  intros Hp. induction l as [ | a l IH]; simpl; [ reflexivity | ].
-  rewrite Hp, IH. reflexivity.
 Qed.
 
 Theorem apply_renaming_fold : apply_renaming_fold_statement.

@@ -1099,17 +1099,6 @@ Proof.
   rewrite Hp, IH. reflexivity.
 Qed.
 
-Lemma fold_left_map {A A' B B' : Type} (ga : A -> A') (gb : B -> B')
-    (f : A -> B -> A) (f' : A' -> B' -> A') (l : list B) :
-  (∀ (a : A) (b : B), f' (ga a) (gb b) = ga (f a b)) ->
-  ∀ init : A,
-    List.fold_left f' (map gb l) (ga init) = ga (List.fold_left f l init).
-Proof.
-  intros Hf. induction l as [ | b l IH]; intros init; simpl;
-    [ reflexivity | ].
-  rewrite Hf. apply IH.
-Qed.
-
 Lemma var_in_simple_renamed (r : renaming) (x : variable) (s : simple) :
   var_in_simple (rename_variable r x) (rename_simple r s) = var_in_simple x s.
 Proof. destruct s; simpl; [ apply rename_variable_eqb | | ]; reflexivity. Qed.
@@ -1221,7 +1210,7 @@ Proof.
             (Aliases.get_canonical_ignoring_name_mode (rename_aliases r t) n)
             (Var (rename_variable r x)))
        _ (demoted_to_variable_renamed r t x)).
-  apply (fold_left_map (rename_aliases r) (rename_name r) _ _ _)
+  apply (fold_left_renamed (rename_aliases r) (rename_name r) _ _ _)
     with (init := Aliases.empty).
   intros rebuilt n. rewrite demoted_to_variable_renamed.
   destruct (simple_equal (Aliases.get_canonical_ignoring_name_mode t n)
