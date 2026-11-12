@@ -173,7 +173,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaInlineSiblingsSpec FlambdaInlineTailSpec FlambdaLoopAliasesSpec
   FlambdaLoopLetsSpec
   FlambdaParamAliasesSpec FlambdaRecHandlersSpec FlambdaRenameApartSpec
-  FlambdaShortcutSpec FlambdaSinkContsSpec
+  FlambdaShareProjectionsSpec FlambdaShortcutSpec FlambdaSinkContsSpec
   FlambdaStaticsOrderSpec FlambdaUnboxSpec FlambdaUnboxVariantsSpec
   FlambdaUnusedContsSpec
   FlambdaUnusedParamsSpec FlambdaUnusedProjectionsSpec
@@ -212,8 +212,11 @@ Fixpoint iterate (rounds : nat) (f : expr -> expr) (e : expr) : expr :=
    goes ([shortcut_switches]), as Simplify makes no shortcut to a
    continuation that it inlines. Then what follows the values, into the
    handlers of the recursive continuations too for what is known where
-   they are defined ([follow_aliases_in_loops]); then what removes the
-   bindings and the parameters that are left unused. *)
+   they are defined ([follow_aliases_in_loops]): among them a primitive
+   that was computed, and a value slot that was projected, is not
+   computed or projected again ([share_known_primitives],
+   [share_known_projections]). Then what removes the bindings and the
+   parameters that are left unused. *)
 Definition normalise_expr_before (e : expr) : expr :=
   let e :=
     shortcut_switches
@@ -227,8 +230,9 @@ Definition normalise_expr_before (e : expr) : expr :=
     apply_identities
       (follow_aliases_in_loops []
          (follow_aliases []
-            (share_known_primitives
-               (unbox_known_numbers (load_known_blocks e)))))
+            (share_known_projections
+               (share_known_primitives
+                  (unbox_known_numbers (load_known_blocks e))))))
   in
   drop_unused_params
     (remove_unused_defined_lets [] (remove_unused_lets (fold_constants e))).

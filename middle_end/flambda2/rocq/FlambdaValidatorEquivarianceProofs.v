@@ -62,6 +62,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaCodeLetsSpec
   FlambdaLoopifySpec
   FlambdaCseSpec FlambdaCseProofs
+  FlambdaShareProjectionsSpec FlambdaShareProjectionsProofs
   FlambdaIdentitiesSpec FlambdaIdentitiesProofs
   FlambdaMergeSwitchesSpec FlambdaMergeSwitchesProofs FlambdaStaticsOrderSpec
   FlambdaStaticsOrderProofs FlambdaRenameApartSpec FlambdaRenameApartProofs
@@ -4824,6 +4825,7 @@ Ltac rename_outwards :=
       | rewrite load_known_blocks_equivariant
       | rewrite unbox_known_numbers_equivariant
       | rewrite share_known_primitives_equivariant
+      | rewrite share_known_projections_equivariant
       | rewrite apply_identities_equivariant
       | rewrite follow_aliases_unknowing_equivariant
       | rewrite remove_unused_lets_equivariant_aux
