@@ -21,6 +21,7 @@ open FlambdaLiftSpec
 open FlambdaLoopAliasesSpec
 open FlambdaLoopLetsSpec
 open FlambdaLoopifySpec
+open FlambdaMergeSwitchesSpec
 open FlambdaModel
 open FlambdaNormaliseSpec
 open FlambdaParamAliasesSpec

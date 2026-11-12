@@ -61,7 +61,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaCodeLetsSpec
   FlambdaLoopifySpec
   FlambdaCseSpec FlambdaCseProofs
-  FlambdaIdentitiesSpec FlambdaIdentitiesProofs FlambdaStaticsOrderSpec
+  FlambdaIdentitiesSpec FlambdaIdentitiesProofs
+  FlambdaMergeSwitchesSpec FlambdaMergeSwitchesProofs FlambdaStaticsOrderSpec
   FlambdaStaticsOrderProofs FlambdaRenameApartSpec FlambdaRenameApartProofs
   FlambdaInlineSiblingsSpec FlambdaInlineSiblingsProofs
   FlambdaUnusedProjectionsSpec FlambdaUnboxVariantsSpec FlambdaValidateSpec
@@ -4731,6 +4732,7 @@ Ltac rename_outwards :=
     first
       [ rewrite fold_constants_equivariant
       | rewrite collapse_switches_equivariant_aux
+      | rewrite merge_switches_equivariant
       | rewrite remove_unused_conts_equivariant_aux
       | rewrite inline_tail_conts_equivariant_aux
       | rewrite thread_switches_equivariant_aux

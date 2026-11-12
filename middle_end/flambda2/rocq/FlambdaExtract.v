@@ -58,7 +58,8 @@ From OxCamlFlambda2 Require Import FlambdaMapSpec FlambdaModel
   FlambdaCompareSpec
   FlambdaCseSpec FlambdaDeadParamsSpec FlambdaForwardSpec
   FlambdaIdentitiesSpec FlambdaLoopAliasesSpec FlambdaLoopLetsSpec
-  FlambdaLoopifySpec FlambdaNormaliseSpec FlambdaParamAliasesSpec
+  FlambdaLoopifySpec FlambdaMergeSwitchesSpec FlambdaNormaliseSpec
+  FlambdaParamAliasesSpec
   FlambdaRecHandlersSpec FlambdaRenameApartSpec FlambdaShortcutSpec
   FlambdaSinkContsSpec FlambdaStaticsInScopeSpec FlambdaStaticsOrderSpec
   FlambdaUnboxSpec
@@ -232,6 +233,7 @@ Separate Extraction
   map_values
   merge
   merge_statics
+  merge_switches
   names_in_scope
   normalise_knowing
   numbers_in_range

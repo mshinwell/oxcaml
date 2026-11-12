@@ -211,7 +211,8 @@
    FlambdaDemoteSpec.demote_handlers, of the end of the normalisation
    of the term before and of the liftings made in turn,
    FlambdaCseSpec.share_known_primitives,
-   FlambdaIdentitiesSpec.apply_identities and
+   FlambdaIdentitiesSpec.apply_identities,
+   FlambdaMergeSwitchesSpec.merge_switches and
    FlambdaInlineSiblingsSpec.inline_sibling_calls, of a round of the
    term before, FlambdaUnboxVariantsSpec.unbox_variant_params, of the
    first phase of the term before

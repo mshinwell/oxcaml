@@ -39,6 +39,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaDeadParamsSpec FlambdaDeadParamsProofs
   FlambdaForwardSpec FlambdaForwardProofs
   FlambdaIdentitiesSpec FlambdaIdentitiesProofs
+  FlambdaMergeSwitchesSpec FlambdaMergeSwitchesProofs
   FlambdaInlineSiblingsSpec FlambdaInlineSiblingsProofs
   FlambdaInlineTailSpec FlambdaInlineTailProofs
   FlambdaRenameApartSpec
@@ -97,6 +98,7 @@ Ltac refinement_step :=
   first
     [ apply inline_calls_refines
     | apply collapse_switches_refines
+    | apply merge_switches_refines
     | apply inline_tail_conts_refines
     | apply remove_unused_lets_refines
     | apply load_known_blocks_refines

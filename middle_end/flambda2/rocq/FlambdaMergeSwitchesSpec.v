@@ -30,11 +30,12 @@
    refines.
 
    This file is to be reviewed: [merge_switches] and what it is made
-   of, and the statements. The rewrite is written to be one of the
-   normalisations of the term before Simplify that the validation of
-   middle_end/flambda2/tests/semantics/ applies (FlambdaValidateSpec.v),
-   and to be extracted and run with them. The validation does not
-   apply it yet.
+   of, and the statements. The rewrite is one of the normalisations
+   of the term before Simplify that the validation of
+   middle_end/flambda2/tests/semantics/ applies: in a round of each of
+   its two phases it follows [collapse_switches]
+   (FlambdaValidateSpec.normalise_expr_before and
+   [normalise_expr_params]). It is extracted and run with them.
 
    What Simplify does. Where the arms of a [Switch] all apply the same
    continuation with no trap action, and each argument is either the
@@ -95,7 +96,7 @@
    [Let]s, of static bindings and of the bindings of continuations,
    and into the handlers of non-recursive continuations. It leaves
    the handlers of recursive continuations and the bodies of code as
-   they are: a round of the validation is to take it there as it takes
+   they are: a round of the validation takes it there as it takes
    the other rewrites of the round, with
    FlambdaRecHandlersSpec.rewrite_rec_handlers and
    FlambdaNormaliseSpec.rewrite_code. A [Switch] whose arms are all the
@@ -111,7 +112,10 @@
    The rewrite commutes with renaming
    ([merge_switches_equivariant_statement]): it makes no name, and it
    looks at names only to compare them, which a renaming, being
-   injective, keeps true or false.
+   injective, keeps true or false. That it keeps scope, which is that
+   a variable or a continuation that is free in the result is free in
+   the term, is stated with the same of the other rewrites of a round
+   (FlambdaKeepsScopeSpec.merge_switches_keeps_scope_statement).
 
    Two terms as checks of the definitions
    ([merge_switches_tagging_example_statement],

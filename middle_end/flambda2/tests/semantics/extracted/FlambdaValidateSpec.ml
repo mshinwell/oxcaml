@@ -21,6 +21,7 @@ open FlambdaLiftSpec
 open FlambdaLoopAliasesSpec
 open FlambdaLoopLetsSpec
 open FlambdaLoopifySpec
+open FlambdaMergeSwitchesSpec
 open FlambdaModel
 open FlambdaNormaliseSpec
 open FlambdaParamAliasesSpec
@@ -52,7 +53,8 @@ let normalise_expr_before e =
       (thread_switches
          (inline_tail_conts
             (sink_let_conts
-               (remove_unused_conts (collapse_switches (fold_constants e))))))
+               (remove_unused_conts
+                  (merge_switches (collapse_switches (fold_constants e)))))))
   in
   let e1 =
     apply_identities
@@ -95,7 +97,8 @@ let normalise_expr_params e =
       (thread_switches
          (inline_tail_conts
             (sink_let_conts
-               (remove_unused_conts (collapse_switches (fold_constants e))))))
+               (remove_unused_conts
+                  (merge_switches (collapse_switches (fold_constants e)))))))
   in
   let e1 = remove_unused_conts (forward_applications e0) in
   let e2 =

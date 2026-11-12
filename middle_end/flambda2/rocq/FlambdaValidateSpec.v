@@ -168,7 +168,7 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaCompareSpec FlambdaNormaliseSpec FlambdaBlockLoadSpec
   FlambdaCodeLetsSpec FlambdaCseSpec FlambdaDeadParamsSpec FlambdaForwardSpec
-  FlambdaIdentitiesSpec
+  FlambdaIdentitiesSpec FlambdaMergeSwitchesSpec
   FlambdaInlineSiblingsSpec FlambdaInlineTailSpec FlambdaLoopAliasesSpec
   FlambdaLoopLetsSpec
   FlambdaParamAliasesSpec FlambdaRecHandlersSpec FlambdaRenameApartSpec
@@ -198,7 +198,11 @@ Fixpoint iterate (rounds : nat) (f : expr -> expr) (e : expr) : expr :=
    need to know nothing of where they are applied, and that go into the
    handlers of the non-recursive continuations but not into those of the
    recursive ones, nor into code. First what makes the control flow
-   simpler: a continuation that is applied once is moved to where it is
+   simpler: a [Switch] whose arms all apply one continuation, to
+   arguments that are the same or the number of the arm, becomes that
+   application (FlambdaMergeSwitchesSpec.merge_switches, after
+   [collapse_switches] for the arms that are all the same); a
+   continuation that is applied once is moved to where it is
    applied and inlined there ([sink_let_conts], then [inline_tail_conts]),
    before an arm of a [Switch] is made to go where its continuation
    goes ([shortcut_switches]), as Simplify makes no shortcut to a
@@ -212,7 +216,8 @@ Definition normalise_expr_before (e : expr) : expr :=
       (thread_switches
          (inline_tail_conts
             (sink_let_conts
-               (remove_unused_conts (collapse_switches (fold_constants e))))))
+               (remove_unused_conts
+                  (merge_switches (collapse_switches (fold_constants e)))))))
   in
   let e :=
     apply_identities
@@ -288,7 +293,8 @@ Definition normalise_expr_params (e : expr) : expr :=
       (thread_switches
          (inline_tail_conts
             (sink_let_conts
-               (remove_unused_conts (collapse_switches (fold_constants e))))))
+               (remove_unused_conts
+                  (merge_switches (collapse_switches (fold_constants e)))))))
   in
   let e := remove_unused_conts (forward_applications e) in
   let e :=
