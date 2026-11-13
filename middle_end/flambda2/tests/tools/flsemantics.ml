@@ -1534,6 +1534,65 @@ let convert_unit (unit : Flambda_unit.t) : converted =
     exn_continuation = Continuations.find (Flambda_unit.exn_continuation unit)
   }
 
+(* What other units read of a unit is the data of its own symbol
+   ([Flambda_unit.module_symbol]); the backend does not use what the unit gives
+   its return continuation, whose handler returns the unit value
+   ([To_cmm.unit0]). The model observes what the unit gives its return
+   continuation ([run]). So that the observation begins at the symbol that other
+   units read, a unit is checked only if, as it is written, every use of its
+   return continuation gives it that symbol and nothing else, and no call
+   returns to it ([check]). This is a test of the form of the term, and enough
+   for what is wanted: a unit that fails it may still return its own symbol,
+   through a variable or from a call, and is not checked all the same. What is
+   given back is the reason, for a unit that fails. Code is not looked into: it
+   cannot name the return continuation of the unit. The test is of a unit as the
+   compiler has it and not of a term of the model read back from a text, which
+   has no symbol of its own, so it is not part of [convert_unit]. *)
+let return_not_of_own_symbol (unit : Flambda_unit.t) (converted : converted) =
+  let return = converted.return_continuation in
+  (* The number of the symbol, if the conversion has met it. *)
+  let own =
+    List.find_map
+      (fun (symbol, number) ->
+        if Symbol.equal symbol (Flambda_unit.module_symbol unit)
+        then Some number
+        else None)
+      (Symbols.bindings ())
+  in
+  let other_than_own =
+    Some
+      "a use of the return continuation of the unit gives it something other \
+       than the symbol of the unit alone"
+  in
+  let in_apply_cont (ac : Model.apply_cont) =
+    if ac.ac_continuation <> return
+    then None
+    else
+      match ac.ac_args, own with
+      | [Symbol symbol], Some own when symbol = own -> None
+      | _, _ -> other_than_own
+  in
+  let first_of reasons = List.find_map (fun reason -> reason) reasons in
+  let rec in_expr (e : Model.expr) =
+    match e with
+    | Let (_, _, _, body) | Let_static (_, body) -> in_expr body
+    | Let_cont_non_recursive (_, handler, body) ->
+      first_of [in_handler handler; in_expr body]
+    | Let_cont_recursive (handlers, body) ->
+      first_of
+        (List.map (fun (_, handler) -> in_handler handler) handlers
+        @ [in_expr body])
+    | Apply ap ->
+      if ap.ap_continuation <> return
+      then None
+      else Some "a call returns to the return continuation of the unit"
+    | Apply_cont ac -> in_apply_cont ac
+    | Switch (_, arms) ->
+      first_of (List.map (fun (_, ac) -> in_apply_cont ac) arms)
+    | Invalid -> None
+  and in_handler (Model.Handler (_, _, handler)) = in_expr handler in
+  in_expr converted.body
+
 let run ~(statics : Values.static_env) (unit : converted) : outcome * int =
   let rec go steps (state : Semantics.state) =
     if steps >= fuel
@@ -4294,6 +4353,17 @@ let check ~filename ~(units : (Compilation_unit.t * Digest.t) list)
   | exception Unsupported what ->
     Format.printf "%s: not checked: the model has not got %s@." filename
       (Format.asprintf "%t" what)
+  | before_converted, after_converted, _
+    when Option.is_some (return_not_of_own_symbol before before_converted)
+         || Option.is_some (return_not_of_own_symbol after after_converted) -> (
+    match
+      ( return_not_of_own_symbol before before_converted,
+        return_not_of_own_symbol after after_converted )
+    with
+    | Some reason, _ -> Format.printf "%s: not checked: %s@." filename reason
+    | None, Some reason ->
+      Format.printf "%s: not checked: after Simplify, %s@." filename reason
+    | None, None -> ())
   | _, after, _ when not (well_formed after) ->
     Format.printf "%s: the term after Simplify is NOT WELL-FORMED (%s)@."
       filename

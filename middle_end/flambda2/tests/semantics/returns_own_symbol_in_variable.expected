@@ -1,0 +1,1 @@
+returns_own_symbol_in_variable.fl: not checked: a use of the return continuation of the unit gives it something other than the symbol of the unit alone

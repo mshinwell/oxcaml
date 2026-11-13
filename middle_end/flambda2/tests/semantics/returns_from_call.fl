@@ -1,0 +1,6 @@
+let code size(1) identity (x) my_closure &my_region my_depth -> k * e =
+  cont k (x)
+in
+let $Identity = closure identity @identity &toplevel in
+let $camlReturns_from_call = Block 0 (1) in
+apply &toplevel $Identity ($camlReturns_from_call) -> done * error

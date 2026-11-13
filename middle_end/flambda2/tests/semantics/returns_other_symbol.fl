@@ -1,0 +1,3 @@
+let $camlReturns_other_symbol = Block 0 (1) in
+let $Other = Block 0 (2) in
+cont done ($Other)

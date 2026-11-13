@@ -1,0 +1,3 @@
+let $camlReturns_own_symbol_in_variable = Block 0 (1) in
+let x = $camlReturns_own_symbol_in_variable in
+cont done (x)

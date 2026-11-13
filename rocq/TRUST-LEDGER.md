@@ -325,12 +325,20 @@ it gave back.
   Other units read the data of the unit's symbol; the backend's handler
   for the return of the unit ignores its argument and returns the unit
   value (`to_cmm/to_cmm.ml`). Returning the unit's symbol makes the tool
-  start its observation at that symbol, but the tool does not check this
-  of either term. A hand-written text can return another symbol and be
-  validated; this was observed on a text that is not in this tree. No
-  agreement with what a linked program observes follows from that
-  verdict, nor is such agreement established merely by returning the
-  right symbol.
+  start its observation at that symbol. The tool checks a unit only
+  where, in the term before and in the term after as they are written,
+  every use of the return continuation of the unit gives it the symbol
+  of the unit and nothing else, and no call returns to it
+  (`return_not_of_own_symbol`, asked in `check` of each of the two
+  terms); a unit of which either term fails is not checked, and the
+  line printed says which term and why. The test is of the form of the
+  term: a unit that returns its own symbol through a variable or from
+  a call is refused all the same. A hand-written text that returns
+  another symbol was validated before this test and is refused by it
+  (`returns_other_symbol.fl`, in `tests/semantics/`). The check that a
+  term survives a round trip through its text does not ask it.
+  Returning the right symbol does not by itself establish agreement
+  with what a linked program observes.
   *The function slot of a value-slot projection*: where a unit is
   converted with unnamed function slots, `convert_prim` drops
   `project_from` from `Project_value_slot`. In that presentation the
