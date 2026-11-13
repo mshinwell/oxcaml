@@ -596,7 +596,8 @@ it gave back.
   is reported apart, whatever imports it has left. The line begins
   "validated with its imports, given the .cmx of N of them" where a
   theorem is of the two runs shown: the prefix leaves no import, or
-  `FlambdaValidateImportsSpec.holds_from` accepts the verdict.
+  `FlambdaValidateImportsSpec.verdict_holds_from` accepts the
+  verdict (`verdict_knowing_holds_from`, for the second asking).
   Otherwise it begins "validated with nothing else imported,
   given the .cmx of N", and is followed by a line that begins "not
   validated with its imports", as for a unit with no prefix (the
@@ -621,33 +622,46 @@ it gave back.
   define") the two runs are from its imports. The theorem of the
   validator is of the two units run from the empty static environment,
   where an external symbol is bound to nothing. Of the two units run
-  from their imports there is a theorem for four of its verdicts,
-  which `FlambdaValidateImportsSpec.holds_from` tests
-  (`validate_unit_sound_head_imports_statement`, and
-  `validate_unit_knowing_sound_head_imports_statement` for the second
-  asking). Three hold whatever the imports are: the same up to bound
+  from their imports there is a theorem for a verdict that passes a
+  test of the model: `FlambdaValidateImportsSpec.verdict_holds_from`
+  (`validate_unit_sound_verdict_imports_statement`), and
+  `verdict_knowing_holds_from` for the second asking
+  (`validate_unit_knowing_sound_verdict_imports_statement`). Three
+  verdicts pass it whatever the imports are: the same up to bound
   names, the same once normalised, and the same once the unused
   static bindings of the term before are removed as well. The fourth,
   the same once unused static bindings are removed from the head of
-  the term after too, holds where no import is a symbol that the
+  the term after too, passes it where no import is a symbol that the
   groups at the head of the term after bind, once the validation has
-  normalised and tidied that term, and the function tests that. The
-  theorem is of no other verdict: not of a unit validated once
-  something is lifted, nor of the fourth where an import is such a
-  symbol. The tool asks that function, as it is extracted, of the
-  verdict, and no line that it prints for a unit that has imports
+  normalised and tidied that term. The fifth, the same once something
+  is lifted, passes it: where that holds of the head of the term
+  after, if the checks of the removal of bindings from that head
+  pass, whether a binding goes or not; where no import is a name
+  that the term binds at each step of the validation of the lifted
+  term whose law from the imports asks it (the result of each lifting
+  that is made; the term in which what the unit binds its symbols to
+  is used, in each round in which it is; and both terms whose static
+  bindings are taken first, where the verdict is of that comparison);
+  and where no lifting is given a table to put at the head of the
+  unit, whether the table is put or not: the law of that step is
+  stated from the empty static environment only. The test computes
+  those terms a second time, as the validation does; it is
+  sufficient, not necessary. The theorem is of no verdict that does
+  not pass the test, and of the test with the verdict that the
+  validator gives of the same arguments. The tool
+  asks those two functions, as they are
+  extracted, and no line that it prints for a unit that has imports
   begins "validated:". Trusted of that call: that what the tool gives
-  the function beside the verdict is what the two statements give
-  it, which is the static environment of the imports that the two
-  runs are from (`imports_statics`, as it is extracted), and the
-  number of rounds, the code whose calls are left and the term after
-  of the asking that gave the verdict. For the second asking that
-  term is the term after normalised with what is known of its names,
-  which the tool computes a second time with `normalise_knowing` and
-  `normalise_after_round` as they are extracted. Where the function
-  accepts the verdict, the line begins "validated with its imports",
-  and the verdict is of the two runs that the tool shows. Where the
-  validator accepts and the function does not, what is validated is
+  the function is the static environment of the imports that the two
+  runs are from (`imports_statics`, as it is extracted), with the
+  arguments and the verdict of the asking whose verdict it reports.
+  The call is written beside each asking, with the arguments of that
+  asking, and the tool reads the one of the asking that it made last;
+  where a unit is validated, the asking made last is the one whose
+  verdict is reported. Where the test accepts the verdict, the line
+  begins "validated with its imports", and the verdict is of the two
+  runs that the tool shows. Where the validator accepts and the test
+  does not, what is validated is
   the unit run with nothing imported: the line begins "validated
   with nothing imported" and is followed by a line that begins "not
   validated with its imports", and the comparison of the two runs

@@ -27,10 +27,12 @@
 
 (* The validation, of a unit that imports symbols.
 
-   This file is to be reviewed: [holds_from], which is extracted and
-   read by the test tool of middle_end/flambda2/tests/semantics/;
-   [holds_from_imports], the three of the verdicts that it accepts
-   which it accepts under no condition; the eight statements of the
+   This file is to be reviewed: [verdict_holds_from] and
+   [verdict_knowing_holds_from], which are extracted and read by the
+   test tool of middle_end/flambda2/tests/semantics/, with what they
+   are made of ([holds_from], [lifted_holds_from] and the tests that
+   it puts together); [holds_from_imports], the three verdicts that
+   are accepted under no condition; the ten statements of the
    validation; and [static_names_free_in_head_statement].
 
    FlambdaValidateSpec.validate_unit_sound_statement is of the two
@@ -112,13 +114,19 @@
      binds a name that the groups at the head of that term bind: that
      removal is the one of the paragraph above;
    - a unit validated once something is lifted
-     ([Same_once_lifted]). The liftings, and what is done to a lifted
-     term (FlambdaLiftSpec, FlambdaLiftFromCodeSpec,
-     FlambdaLiftFromArmsSpec, FlambdaKnownSymbolsSpec,
+     ([Same_once_lifted]), run from a static environment in general:
+     no statement here is of that verdict from a static environment
+     that is not that of the imports. The statements used for it are
+     those of the four liftings (FlambdaLiftFromArmsSpec,
+     FlambdaLiftFromCodeSpec, FlambdaLiftSpec, FlambdaLiftAroundSpec)
+     and of what is done to a lifted term (FlambdaKnownSymbolsSpec,
      FlambdaKnownSlotsSpec, FlambdaUnusedSlotsSpec,
-     FlambdaHoistCodeSpec, FlambdaHoistStaticsSpec), are each stated
-     from the empty static environment. Each is to be stated from the
-     imports by its owner before this is;
+     FlambdaHoistCodeSpec, FlambdaHoistStaticsSpec) from the static
+     environment of the imports; the tables that a lifting puts at
+     the head of the unit
+     (FlambdaUnusedHeadStaticsSpec.add_head_tables) have a statement
+     from the empty one only. From the imports that verdict is the
+     last section of this file;
    - the machine with a stack of handlers (FlambdaTrapSpec.v). Its
      agreement with this one is stated from any static environment
      that holds no code, of which that of the imports is one
@@ -126,15 +134,49 @@
      binders are distinct and that follows the discipline of trap
      actions; no statement here puts the two together.
 
+   [validate_unit_sound_verdict_imports_statement], and the same of
+   the second asking, are of every verdict, the one that lifts among
+   them, at the static environment of the imports. The law of each
+   pass that the validation of a lifted term makes is stated from the
+   imports in the file of the pass. Those of the rounds, of the
+   removal of value slots, of the code taken first and of the reading
+   of value slots that are known ask nothing there. Those of the four
+   liftings ask that the imports bind no name that the term lifted
+   binds; those of the use of what the unit binds its symbols to and
+   of the static bindings taken first ask it of the term that the
+   pass is given (FlambdaImportsSpec.static_names_free_in). A unit
+   may bind a symbol that is also an import, and the validation is
+   not given the imports, so nothing in a verdict says that these
+   hold: [lifted_holds_from] computes again the terms that
+   [validate_unit] compares and tests each of them where the pass is
+   made, with the test of the head of the term after where the
+   checks of the removal of bindings from it pass, whether a binding
+   goes or not. The law of the tables put at the head of the unit
+   (FlambdaUnusedHeadStaticsSpec.add_head_tables, the last step of a
+   lifting) is stated from the empty static environment only: a
+   lifting that is given a table is refused, whether the table would
+   be put or not. The tests are sufficient, not necessary.
+   [verdict_holds_from] is that test for the verdict that lifts and
+   [holds_from] for the others; what is stated of it is at the static
+   environment of the imports, and of the verdict that the validator
+   gives of the same arguments.
+
    The proofs are in FlambdaValidateImportsProofs.v, which needs no
    review. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
+  FlambdaCompareSpec FlambdaStaticsOrderSpec
   FlambdaUnusedStaticsSpec FlambdaUnusedHeadStaticsSpec FlambdaLoopifySpec
-  FlambdaLiftSpec FlambdaValidateSpec FlambdaValidateKnowingSpec
+  FlambdaStubCallsSpec FlambdaNeverReturnsSpec
+  FlambdaLiftSpec FlambdaLiftFromCodeSpec FlambdaLiftFromArmsSpec
+  FlambdaLiftAroundSpec FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec
+  FlambdaKnownSlotsSpec FlambdaHoistCodeSpec FlambdaHoistStaticsSpec
+  FlambdaFloatCodeSpec FlambdaGuardScopeSpec
+  FlambdaValidateSpec FlambdaValidateKnowingSpec
   FlambdaImportsSpec.
+From OxCamlFlambda2Types Require FlambdaSimplifyPassSpec.
 Import ListNotations.
 
 (* Whether a verdict of [validate_unit] is one that holds of the unit
@@ -289,6 +331,247 @@ Definition validate_unit_knowing_sound_head_imports_statement : Prop :=
     (Ls : list lifting) (kept : list code_id) (before after : expr),
     holds_from (imports_statics imports) rounds kept
       (normalise_knowing (normalise_after_round kept) rounds after)
+      (validate_unit_knowing rounds unused slots G Ls kept before after)
+    = true ->
+    unit_refines imports before after.
+
+(* ======================================================================== *)
+(* The verdict that lifts                                                   *)
+(* ======================================================================== *)
+
+(* Where a step of [with_lifting] is made, whether the static
+   environment binds no name that its result binds
+   (FlambdaImportsSpec.static_names_free_in): the premise of the law
+   of each of the four liftings from the imports. *)
+Definition made_free_in (statics : static_env) (made : option expr) : bool :=
+  match made with
+  | Some e' => static_names_free_in statics e'
+  | None => true
+  end.
+
+(* Whether a lifting is given no table to put at the head of the unit
+   (FlambdaUnusedHeadStaticsSpec.add_head_tables, the last step of
+   [with_lifting]). The law of that step is stated from the empty
+   static environment only: a lifting that is given a table is refused
+   here, whether the checks of that step pass or not. *)
+Definition no_tables_put (L : lifting) : bool :=
+  match tables_put L with
+  | [] => true
+  | _ :: _ => false
+  end.
+
+(* That, of each of the four liftings of [with_lifting L e], and no
+   table to put. The terms are those of [with_lifting]. *)
+Definition lifting_free_in (statics : static_env) (L : lifting) (e : expr)
+    : bool :=
+  let to_head := lift_to_head_unit (lifting_unit L) (lifted_to_head L) e in
+  let e :=
+    match to_head with
+    | Some e' => e'
+    | None => e
+    end
+  in
+  let from_code :=
+    lift_from_code_unit (lifting_unit L) (lifted_out_of_code L) e
+  in
+  let e :=
+    match from_code with
+    | Some e' => e'
+    | None => e
+    end
+  in
+  let where_bound := lift_unit L e in
+  let e :=
+    match where_bound with
+    | Some e' => e'
+    | None => e
+    end
+  in
+  made_free_in statics to_head
+  && made_free_in statics from_code
+  && made_free_in statics where_bound
+  && made_free_in statics
+       (lift_around_unit (lifting_unit L) (lifted_around L) (groups_put L) e)
+  && no_tables_put L.
+
+(* Whether, in each round of [normalise_lifted] that uses what the
+   unit binds its symbols to ([with_known], where [fold_known_unit]
+   gives a term), the static environment binds no name that the term
+   given to [fold_known_unit] binds: the premise of
+   FlambdaKnownSymbolsSpec.fold_known_unit_refines_imports_statement.
+   The terms are those of [normalise_lifted_round], and the rounds
+   are those of [iterate]. *)
+Fixpoint known_free_in (statics : static_env) (rounds : nat)
+    (avoid : list continuation) (kept : list code_id) (e : expr) : bool :=
+  match rounds with
+  | O => true
+  | S rounds =>
+    let given :=
+      use_known_closures (normalise_before_round_avoiding avoid kept e)
+    in
+    match fold_known_unit given with
+    | Some folded =>
+      static_names_free_in statics given
+      && known_free_in statics rounds avoid kept (read_known_slots folded)
+    | None => known_free_in statics rounds avoid kept (read_known_slots given)
+    end
+  end.
+
+(* That, of the rounds of [normalise_lifted rounds avoid kept e]:
+   those before the rewrites that Simplify makes from the types, and
+   those after. *)
+Definition normalise_lifted_free_in (statics : static_env) (rounds : nat)
+    (avoid : list continuation) (kept : list code_id) (e : expr) : bool :=
+  let e := iterate rounds normalise_params_round e in
+  known_free_in statics rounds avoid kept e
+  && known_free_in statics rounds avoid kept
+       (guard_scope FlambdaSimplifyPassSpec.simplify_by_types
+          (iterate rounds (normalise_lifted_round avoid kept) e)).
+
+(* The two, of each of the liftings as [lifted_in_turn] applies
+   them. *)
+Fixpoint lifted_free_in (statics : static_env) (rounds : nat)
+    (avoid : list continuation) (Ls : list lifting) (kept : list code_id)
+    (e : expr) : bool :=
+  match Ls with
+  | [] => true
+  | L :: Ls =>
+    lifting_free_in statics L e
+    && normalise_lifted_free_in statics rounds avoid kept (with_lifting L e)
+    && lifted_free_in statics rounds avoid Ls kept
+         (normalise_lifted rounds avoid kept (with_lifting L e))
+  end.
+
+(* Where [with_statics_first Ls e] takes bindings to the head of [e],
+   whether the static environment binds no name that [e] binds: the
+   premise of
+   FlambdaHoistStaticsSpec.hoist_statics_equivalent_imports_statement. *)
+Definition statics_first_free_in (statics : static_env) (Ls : list lifting)
+    (e : expr) : bool :=
+  match Ls with
+  | [] => true
+  | L :: _ =>
+    match hoist_statics (lifting_unit L) e with
+    | Some _ => static_names_free_in statics e
+    | None => true
+    end
+  end.
+
+(* Where the removal of static bindings from the head of [e] is made
+   ([drop_head_statics D e] gives a term: its checks pass, whether or
+   not a binding goes), whether the static environment binds no name
+   that the groups at the head of [e] bind: the premise of
+   FlambdaUnusedHeadStaticsSpec.drop_head_statics_refines_from_statement. *)
+Definition head_removal_free_in (statics : static_env) (D : dropped)
+    (e : expr) : bool :=
+  match drop_head_statics D e with
+  | Some _ => head_free_in statics e
+  | None => true
+  end.
+
+(* Whether a verdict [Same_once_lifted] of [validate_unit], of the
+   arguments given, is one that holds of the unit run from the static
+   environment [statics]. The terms are those that [validate_unit]
+   compares, computed again. Asked:
+   - of the term after, normalised and tidied,
+     [head_removal_free_in];
+   - of the term before, [lifted_free_in];
+   - where the first of the two comparisons of lifted terms fails, so
+     that the verdict is of the second, [statics_first_free_in] of
+     both terms that the second compares.
+   Nothing is asked for the removal of value slots, for the code taken
+   first, or for the reading of value slots that are known: their laws
+   from the imports have no premise. Nor for the calls of the lifted
+   term that are taken on when its rounds are over
+   (FlambdaValidateSpec.with_returns, under the choice that
+   [validate_unit] makes from the term after): that is a refinement
+   under all environments. The tests are sufficient, and no
+   more is claimed of them: a unit that fails one may be correct from
+   its imports. What is stated of this function is the statement
+   below, at the static environment of the imports and of arguments
+   of which [validate_unit] gives that verdict; nothing is stated of
+   it at another static environment, nor of arguments of which the
+   verdict is another. *)
+Definition lifted_holds_from (statics : static_env) (rounds : nat)
+    (unused : dropped) (slots : list value_slot) (G : loopified)
+    (Ls : list lifting) (kept : list code_id) (before after : expr) : bool :=
+  let before := loopify_unit G (cut_returns [] (demote_stub_calls before)) in
+  let tidied := tidied_after rounds (normalise_after rounds kept after) in
+  let taken := negb (keeps_a_return tidied) in
+  let after := without_head_statics unused tidied in
+  let lifted :=
+    without_statics unused
+      (without_slots slots
+         (tidied_before rounds
+            (with_returns taken
+               (lifted_in_turn rounds (unit_continuations Ls) Ls kept
+                  before))))
+  in
+  head_removal_free_in statics unused tidied
+  && lifted_free_in statics rounds (unit_continuations Ls) Ls kept before
+  && (expr_eqb [] []
+        (order_statics_as (float_code (with_code_first after))
+           (float_code lifted))
+        (float_code (with_code_first after))
+      || statics_first_free_in statics Ls after
+         && statics_first_free_in statics Ls lifted).
+
+(* Whether a verdict of [validate_unit], of the arguments given, is one
+   that holds of the unit run from the static environment [statics]:
+   [lifted_holds_from] for the verdict that lifts, [holds_from] for
+   the others. The verdict is to be the one that [validate_unit] gives
+   of those arguments: the function does not compute it, and the
+   statement below is of that one alone, at the static environment of
+   the imports. *)
+Definition verdict_holds_from (statics : static_env) (rounds : nat)
+    (unused : dropped) (slots : list value_slot) (G : loopified)
+    (Ls : list lifting) (kept : list code_id) (before after : expr)
+    (v : validation) : bool :=
+  match v with
+  | Same_once_lifted =>
+    lifted_holds_from statics rounds unused slots G Ls kept before after
+  | Same_up_to_bound_names | Same_once_normalised
+  | Same_once_unused_statics_removed | Same_once_head_statics_removed
+  | Not_validated =>
+    holds_from statics rounds kept after v
+  end.
+
+(* The same of a verdict of the second asking, of the arguments that
+   [validate_unit_knowing] is given: the test is of the two terms that
+   it gives [validate_unit]. The verdict is to be the one that
+   [validate_unit_knowing] gives of those arguments. *)
+Definition verdict_knowing_holds_from (statics : static_env) (rounds : nat)
+    (unused : dropped) (slots : list value_slot) (G : loopified)
+    (Ls : list lifting) (kept : list code_id) (before after : expr)
+    (v : validation) : bool :=
+  verdict_holds_from statics rounds unused slots G Ls kept
+    (normalise_knowing
+       (normalise_before_round_avoiding
+          (unit_continuations Ls ++ map snd G) kept)
+       rounds before)
+    (normalise_knowing (normalise_after_round kept) rounds after)
+    v.
+
+(* A unit whose verdict [verdict_holds_from] accepts at the static
+   environment of its imports refines the unit it came from, each run
+   on its own from those imports. *)
+Definition validate_unit_sound_verdict_imports_statement : Prop :=
+  ∀ (imports : list (symbol * import_class)) (rounds : nat)
+    (unused : dropped) (slots : list value_slot) (G : loopified)
+    (Ls : list lifting) (kept : list code_id) (before after : expr),
+    verdict_holds_from (imports_statics imports) rounds unused slots G Ls
+      kept before after
+      (validate_unit rounds unused slots G Ls kept before after)
+    = true ->
+    unit_refines imports before after.
+
+(* The same of the second asking. *)
+Definition validate_unit_knowing_sound_verdict_imports_statement : Prop :=
+  ∀ (imports : list (symbol * import_class)) (rounds : nat)
+    (unused : dropped) (slots : list value_slot) (G : loopified)
+    (Ls : list lifting) (kept : list code_id) (before after : expr),
+    verdict_knowing_holds_from (imports_statics imports) rounds unused slots
+      G Ls kept before after
       (validate_unit_knowing rounds unused slots G Ls kept before after)
     = true ->
     unit_refines imports before after.

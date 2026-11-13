@@ -225,7 +225,6 @@ Separate Extraction
   forward_jumps
   forward_kinded
   forward_kinded_in_code
-  holds_from
   imports_statics
   inline_calls
   inline_known_calls
@@ -275,6 +274,8 @@ Separate Extraction
   unit_exn_handlers_well_formed
   validate_unit
   validate_unit_knowing
+  verdict_holds_from
+  verdict_knowing_holds_from
   well_formed_unit
   well_kinded_unit
   without

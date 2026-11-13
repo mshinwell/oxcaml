@@ -58,6 +58,11 @@ let head_statics_removable d e =
   && distinct (flat_map code_ids_of_binding (head_bindings e)))
   && forallb (removed_binding_total d) (head_bindings e)
 
+(** val drop_head_statics : dropped -> expr -> expr option **)
+
+let drop_head_statics d e =
+  if head_statics_removable d e then drop_statics d e else None
+
 (** val table_binding : (symbol * simple list) -> static_binding **)
 
 let table_binding table =

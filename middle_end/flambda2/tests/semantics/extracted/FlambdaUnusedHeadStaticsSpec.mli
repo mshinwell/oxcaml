@@ -22,6 +22,8 @@ val kept_code_binds_only_kept : dropped -> static_binding -> bool
 
 val head_statics_removable : dropped -> expr -> bool
 
+val drop_head_statics : dropped -> expr -> expr option
+
 val table_binding : symbol * simple list -> static_binding
 
 val tables_dropped : (symbol * simple list) list -> dropped
