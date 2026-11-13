@@ -302,6 +302,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaUnboxInScopeRenameProofs.v \
   FlambdaUnboxInScopeRenameSpec.v \
   FlambdaUnboxInScopeSpec.v \
+  FlambdaUnboxLoopsProofs.v \
+  FlambdaUnboxLoopsSpec.v \
   FlambdaUnboxParamsExamplesProofs.v \
   FlambdaUnboxParamsExamplesSpec.v \
   FlambdaUnboxParamsNamesProofs.v \
