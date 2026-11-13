@@ -1435,13 +1435,13 @@ Proof.
   split; assumption.
 Qed.
 
-Lemma forward_apply_cont_scope (F : forwards) (ac : apply_cont) :
-  incl (free_variables_of_apply_cont (forward_apply_cont F ac))
+Lemma forward_apply_cont_keeping_scope (F : forwards) (ac : apply_cont) :
+  incl (free_variables_of_apply_cont (forward_apply_cont_keeping F ac))
     (free_variables_of_apply_cont ac ++ flat_map forward_variables F)
-  ∧ incl (apply_cont_continuations (forward_apply_cont F ac))
+  ∧ incl (apply_cont_continuations (forward_apply_cont_keeping F ac))
       (apply_cont_continuations ac ++ flat_map forward_continuations F).
 Proof.
-  unfold forward_apply_cont.
+  unfold forward_apply_cont_keeping.
   destruct (forward_of F (ac_continuation ac)) as [[params target] | ]
     eqn:Hforward;
     [ | split; apply incl_appl, incl_refl ].
@@ -1449,18 +1449,27 @@ Proof.
   | |- context [if ?test then _ else _] => destruct test eqn:Htest
   end;
     [ | split; apply incl_appl, incl_refl ].
-  apply andb_true_iff in Htest. destruct Htest as [Htest _].
   apply andb_true_iff in Htest. destruct Htest as [Hlength _].
   apply Nat.eqb_eq in Hlength. apply forward_of_In in Hforward. split.
   - intros y Hy.
+    change
+      (In y
+         (free_variables_of_apply_cont (forwarded params (ac_args ac) target)))
+      in Hy.
     apply (forwarded_free params (ac_args ac) target Hlength), in_app_or
       in Hy.
     apply in_or_app. destruct Hy as [Hy | Hy]; [ left; exact Hy | right ].
     apply in_flat_map. exists (ac_continuation ac, Some (params, target)).
     split; [ exact Hforward | exact Hy ].
-  - intros j Hj. apply in_or_app. right. apply in_flat_map.
-    exists (ac_continuation ac, Some (params, target)).
-    split; [ exact Hforward | exact Hj ].
+  - (* the continuation of the handler, and the one of the trap action
+       that the application keeps *)
+    intros j Hj. unfold forwarded_keeping, apply_cont_continuations in Hj.
+    cbn [ac_continuation ac_trap_action] in Hj. apply in_or_app.
+    destruct Hj as [<- | Hj].
+    + right. apply in_flat_map.
+      exists (ac_continuation ac, Some (params, target)).
+      split; [ exact Hforward | left; reflexivity ].
+    + left. unfold apply_cont_continuations. right. exact Hj.
 Qed.
 
 Lemma forward_arm_scope (F : forwards) (ac : apply_cont) :
@@ -1472,10 +1481,10 @@ Proof.
   unfold forward_arm.
   destruct (forward_of F (ac_continuation ac))
     as [[[ | param params] target] | ] eqn:Hforward;
-    try apply forward_apply_cont_scope;
+    try apply forward_apply_cont_keeping_scope;
     destruct (ac_args ac) as [ | arg args];
-    try apply forward_apply_cont_scope.
-  destruct (no_trap_action ac); [ | split; apply incl_appl, incl_refl ].
+    try apply forward_apply_cont_keeping_scope.
+  destruct (no_trap_action ac); [ | apply forward_apply_cont_keeping_scope ].
   apply forward_of_In in Hforward. split.
   - intros y Hy. apply (forwarded_free [] [] target eq_refl) in Hy.
     apply in_or_app. right. apply in_flat_map.
@@ -1611,7 +1620,8 @@ Proof.
     intros _. scope. destruct (forward_apply_scope F ap) as [Hv Hk].
     split; [ reflexivity | split; [ | exact Hk ] ].
     rewrite Hv. apply incl_appl, incl_refl.
-  - intros _. scope. destruct (forward_apply_cont_scope F ac) as [Hv Hk].
+  - intros _. scope.
+    destruct (forward_apply_cont_keeping_scope F ac) as [Hv Hk].
     split; [ reflexivity | split; assumption ].
   - intros _. scope. split; [ reflexivity | split ].
     + rewrite <- app_assoc. apply incl_app_app; [ apply incl_refl | ].

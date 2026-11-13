@@ -64,6 +64,26 @@ let forward_apply_cont f ac =
     else ac
   | None -> ac
 
+(** val forwarded_keeping : trap_action option -> variable list -> simple list
+    -> apply_cont -> apply_cont **)
+
+let forwarded_keeping action params args target =
+  { ac_continuation = target.ac_continuation;
+    ac_args = map (subst_simple params args) target.ac_args;
+    ac_trap_action = action
+  }
+
+(** val forward_apply_cont_keeping : forwards -> apply_cont -> apply_cont **)
+
+let forward_apply_cont_keeping f ac =
+  match forward_of f ac.ac_continuation with
+  | Some p ->
+    let params, target = p in
+    if Nat.eqb (length ac.ac_args) (length params) && no_trap_action target
+    then forwarded_keeping ac.ac_trap_action params ac.ac_args target
+    else ac
+  | None -> ac
+
 (** val forward_arm : forwards -> apply_cont -> apply_cont **)
 
 let forward_arm f ac =
@@ -73,10 +93,13 @@ let forward_arm f ac =
     match l with
     | [] -> (
       match ac.ac_args with
-      | [] -> if no_trap_action ac then forwarded [] [] target else ac
-      | _ :: _ -> forward_apply_cont f ac)
-    | _ :: _ -> forward_apply_cont f ac)
-  | None -> forward_apply_cont f ac
+      | [] ->
+        if no_trap_action ac
+        then forwarded [] [] target
+        else forward_apply_cont_keeping f ac
+      | _ :: _ -> forward_apply_cont_keeping f ac)
+    | _ :: _ -> forward_apply_cont_keeping f ac)
+  | None -> forward_apply_cont_keeping f ac
 
 (** val passes_on : variable list -> simple list -> bool **)
 
@@ -174,7 +197,7 @@ let rec forward_applications_under calls f e =
           handlers,
         forward_applications_under calls f0 body )
   | Apply ap -> Apply (if calls then forward_apply f ap else ap)
-  | Apply_cont ac -> Apply_cont (forward_apply_cont f ac)
+  | Apply_cont ac -> Apply_cont (forward_apply_cont_keeping f ac)
   | Switch (scrutinee, arms) ->
     Switch (scrutinee, map (fun arm -> fst arm, forward_arm f (snd arm)) arms)
   | Invalid -> e

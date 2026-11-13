@@ -44,7 +44,9 @@
      [Upwards_env.add_continuation_shortcut]), and every application of
      it is rebuilt as an application of that one, with the arguments of
      the application put for the parameters in the arguments of the
-     handler (simplify/continuation_shortcut.ml, [apply]);
+     handler (simplify/continuation_shortcut.ml, [apply]), and with
+     the trap action of the application, if it has one
+     (simplify/expr_builder.ml, [apply_continuation_shortcuts]);
    - an arm of a [Switch] that is a goto, with no argument and no trap
      action, to a continuation of no parameters whose handler is known
      becomes the [Apply_cont] of the handler as it is, with its
@@ -73,10 +75,13 @@
    parameters and that [Apply_cont] ([forwards]). An application of such
    a continuation becomes the [Apply_cont] of its handler with the
    arguments put for the parameters ([forwarded]): an [Apply_cont], if
-   neither it nor that of the handler has a trap action
-   ([forward_apply_cont]); an arm of a [Switch] in the same way, and a
-   goto to a continuation of no parameters whatever the trap action of
-   the handler ([forward_arm]). Where the calls are taken, an [Apply]
+   that of the handler has no trap action, and it keeps its own if it
+   has one ([forward_apply_cont_keeping], [forwarded_keeping]); an arm
+   of a [Switch] in the same way, and a goto to a continuation of no
+   parameters whatever the trap action of the handler ([forward_arm]).
+   ([forward_apply_cont] is the case where neither has a trap action,
+   which FlambdaForwardJumpsSpec.forward_jumps is made of.) Where the
+   calls are taken, an [Apply]
    that returns to such a continuation returns to the one that its
    handler applies, if the [Apply_cont] of the handler has no trap
    action and its arguments are the parameters, in their order
@@ -160,7 +165,8 @@
    their parameters: where they differ the first term is undefined,
    and the second may not be. So the pass is for the term before
    Simplify. The machine does not execute trap actions, so that a goto
-   takes that of the handler is nothing to it.
+   takes that of the handler, or that an application keeps its own
+   where it goes on, is nothing to it.
 
    Nothing is asked of the names of the term beyond what the pass checks
    itself. [binds_cont] and FlambdaParamAliasesSpec.binds_var may say yes
@@ -247,14 +253,37 @@ Definition forward_apply_cont (F : forwards) (ac : apply_cont) : apply_cont :=
   | None => ac
   end.
 
+(* The same with a trap action given, in place of that of the handler. *)
+Definition forwarded_keeping (action : option trap_action)
+    (params : list variable) (args : list simple) (target : apply_cont)
+    : apply_cont :=
+  Apply_cont_expr (ac_continuation target)
+    (map (subst_simple params args) (ac_args target))
+    action.
+
+(* An [Apply_cont] made to go where the handler of its continuation
+   goes, if the [Apply_cont] of the handler has no trap action. It
+   keeps its own trap action, if it has one. *)
+Definition forward_apply_cont_keeping (F : forwards) (ac : apply_cont)
+    : apply_cont :=
+  match forward_of F (ac_continuation ac) with
+  | Some (params, target) =>
+    if Nat.eqb (length (ac_args ac)) (length params) && no_trap_action target
+    then forwarded_keeping (ac_trap_action ac) params (ac_args ac) target
+    else ac
+  | None => ac
+  end.
+
 (* The same for an arm of a [Switch]; and a goto to a continuation of no
    parameters goes where the handler goes whatever the trap action of
    the handler. *)
 Definition forward_arm (F : forwards) (ac : apply_cont) : apply_cont :=
   match forward_of F (ac_continuation ac), ac_args ac with
   | Some ([], target), [] =>
-    if no_trap_action ac then forwarded [] [] target else ac
-  | _, _ => forward_apply_cont F ac
+    if no_trap_action ac
+    then forwarded [] [] target
+    else forward_apply_cont_keeping F ac
+  | _, _ => forward_apply_cont_keeping F ac
   end.
 
 (* Whether the arguments are the parameters, in their order. *)
@@ -340,7 +369,7 @@ Fixpoint forward_applications_under (calls : bool) (F : forwards)
       (forward_applications_under calls F body)
   | Apply ap => Apply (if calls then forward_apply F ap else ap)
   | Invalid => e
-  | Apply_cont ac => Apply_cont (forward_apply_cont F ac)
+  | Apply_cont ac => Apply_cont (forward_apply_cont_keeping F ac)
   | Switch scrutinee arms =>
     Switch scrutinee (map (fun arm => (fst arm, forward_arm F (snd arm))) arms)
   end

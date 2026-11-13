@@ -297,7 +297,8 @@ Section Strict.
 Variable strict : bool.
 
 (* The second application is the first, or the [Apply_cont] of the
-   handler of its continuation, as the entry of that says. Where
+   handler of its continuation, as the entry of that says, with the
+   trap action of the handler or with that of the first. Where
    [strict], the arguments of the first are known, by the binders
    around it, to have the kinds that the handler of its continuation
    gives its parameters. *)
@@ -311,7 +312,17 @@ Inductive goes (G : kinds_in_scope) (K : kinds_of_conts) (F : forwards)
      ∃ kinds : list flambda_kind,
        lookup (ac_continuation ac) K = Some kinds
        ∧ args_have_kinds G (ac_args ac) kinds) ->
-    goes G K F ac (forwarded params (ac_args ac) target).
+    goes G K F ac (forwarded params (ac_args ac) target)
+  | Goes_keeping (ac : apply_cont) (params : list variable)
+      (target : apply_cont) :
+    forward_of F (ac_continuation ac) = Some (params, target) ->
+    length (ac_args ac) = length params ->
+    (strict = true ->
+     ∃ kinds : list flambda_kind,
+       lookup (ac_continuation ac) K = Some kinds
+       ∧ args_have_kinds G (ac_args ac) kinds) ->
+    goes G K F ac
+      (forwarded_keeping (ac_trap_action ac) params (ac_args ac) target).
 
 (* What [strict] asks of an entry: a handler that gives as many kinds
    as it has parameters, so that it runs on values of those kinds. *)
@@ -894,19 +905,35 @@ Lemma goes_inv (G : kinds_in_scope) (K : kinds_of_conts) (F : forwards)
     (b target : apply_cont) :
   goes G K F b target ->
   target = b
-  ∨ ∃ (params_b : list variable) (target_b : apply_cont),
+  ∨ ∃ (params_b : list variable) (target_b : apply_cont)
+      (action : option trap_action),
       forward_of F (ac_continuation b) = Some (params_b, target_b)
       ∧ length (ac_args b) = length params_b
       ∧ (strict = true ->
          ∃ kinds : list flambda_kind,
            lookup (ac_continuation b) K = Some kinds
            ∧ args_have_kinds G (ac_args b) kinds)
-      ∧ target = forwarded params_b (ac_args b) target_b.
+      ∧ target = forwarded_keeping action params_b (ac_args b) target_b.
 Proof.
-  intros [ac | ac params_b target_b Hentry Hlength Hkinds];
-    [ left; reflexivity | right ].
-  exists params_b, target_b. auto.
+  intros [ ac
+         | ac params_b target_b Hentry Hlength Hkinds
+         | ac params_b target_b Hentry Hlength Hkinds ];
+    [ left; reflexivity | right | right ].
+  - exists params_b, target_b, (ac_trap_action target_b). auto.
+  - exists params_b, target_b, (ac_trap_action ac). auto.
 Qed.
+
+(* The machine does not execute a trap action: the step of an
+   [Apply_cont] that goes on is the same with any. *)
+Lemma step_forwarded_keeping (action : option trap_action)
+    (params : list variable) (args : list simple) (target : apply_cont)
+    (vars : env) (conts : cont_env) (statics : static_env) (hp : heap) :
+  step
+    (State (Apply_cont (forwarded_keeping action params args target)) vars
+       conts statics hp)
+  = step (State (Apply_cont (forwarded params args target)) vars conts statics
+      hp).
+Proof. rewrite !step_apply_cont. reflexivity. Qed.
 
 (* The step of an [Apply_cont] that goes on is that of the [Apply_cont]
    of the handler under the variables of the closure with the parameters
@@ -1112,7 +1139,7 @@ Proof.
       { rewrite <- Hkinds.
         exact (params_in_scope_hold params vs G def_vars bound Htyped Hbind). }
       destruct (goes_inv _ K F b target Hgoes)
-        as [-> | (params_b & target_b & Hentry & Hlength & Hkinds_b
+        as [-> | (params_b & target_b & action & Hentry & Hlength & Hkinds_b
                   & Htarget)].
       * (* the handler of the first closure is the same application *)
         destruct (IHdef_conts (ac_continuation b)) as [IHapply _].
@@ -1146,7 +1173,8 @@ Proof.
              as [n Hanswer].
            exists (S n). unfold run_on at 1.
            rewrite run_succ_on, step_apply_cont, Hargs_b.
-           unfold apply_continuation. rewrite Htarget. exact Hanswer.
+           unfold apply_continuation.
+           rewrite Htarget, step_forwarded_keeping. exact Hanswer.
         -- exists 1. unfold run_on.
            rewrite run_one, step_apply_cont, Hargs_b. intros Hstrict.
            destruct (Hruns_b Hstrict) as (vb' & Hvb' & _).
@@ -1355,7 +1383,7 @@ Proof.
     destruct (cont_fwd_rounds _ _ _ (Hconts (ac_continuation ac)))
       as [Hsame Hon].
     destruct (goes_inv G K F ac ac' Hgoes)
-      as [-> | (params & target & Hentry & Hlength & Hkinds & ->)].
+      as [-> | (params & target & action & Hentry & Hlength & Hkinds & ->)].
     + destruct (eval_simples vars (ac_args ac)) as [vs | ] eqn:Hargs.
       * destruct (Hsame vs statics hp) as [n Hanswer]. exists n.
         rewrite run_succ_on, !step_apply_cont, Hargs.
@@ -1380,7 +1408,8 @@ Proof.
                     Hargs Hvars Hcont)
           as [n Hanswer].
         exists n.
-        rewrite run_succ_on, step_apply_cont, Hargs. exact Hanswer.
+        rewrite step_forwarded_keeping, run_succ_on, step_apply_cont, Hargs.
+        exact Hanswer.
       * exists 0. rewrite run_one, step_apply_cont, Hargs. intros Hstrict.
         destruct (Hruns Hstrict) as (vs' & Hvs' & _). discriminate Hvs'.
   - (* Switch *)
@@ -1452,21 +1481,19 @@ Proof.
     rewrite forward_applications_binds_statics, IH. reflexivity.
 Qed.
 
-Lemma goes_forward_apply_cont (G : kinds_in_scope) (K : kinds_of_conts)
-    (F : forwards) (ac : apply_cont) :
-  goes false G K F ac (forward_apply_cont F ac).
+Lemma goes_forward_apply_cont_keeping (G : kinds_in_scope)
+    (K : kinds_of_conts) (F : forwards) (ac : apply_cont) :
+  goes false G K F ac (forward_apply_cont_keeping F ac).
 Proof.
-  unfold forward_apply_cont.
+  unfold forward_apply_cont_keeping.
   destruct (forward_of F (ac_continuation ac)) as [[params target] | ] eqn:Hk;
     [ | apply Goes_same ].
   destruct
-    (Nat.eqb (length (ac_args ac)) (length params) && no_trap_action ac
-     && no_trap_action target)
+    (Nat.eqb (length (ac_args ac)) (length params) && no_trap_action target)
     eqn:Hcheck; [ | apply Goes_same ].
-  apply andb_true_iff in Hcheck as [Hcheck _].
   apply andb_true_iff in Hcheck as [Hlength _].
   apply Nat.eqb_eq in Hlength.
-  apply Goes_on; [ assumption | assumption | intros Hs; discriminate Hs ].
+  apply Goes_keeping; [ assumption | assumption | intros Hs; discriminate Hs ].
 Qed.
 
 Lemma goes_forward_arm (G : kinds_in_scope) (K : kinds_of_conts) (F : forwards)
@@ -1475,11 +1502,12 @@ Lemma goes_forward_arm (G : kinds_in_scope) (K : kinds_of_conts) (F : forwards)
 Proof.
   unfold forward_arm.
   destruct (forward_of F (ac_continuation ac)) as [[params target] | ] eqn:Hk;
-    [ | apply goes_forward_apply_cont ].
-  destruct params as [ | p params]; [ | apply goes_forward_apply_cont ].
+    [ | apply goes_forward_apply_cont_keeping ].
+  destruct params as [ | p params];
+    [ | apply goes_forward_apply_cont_keeping ].
   destruct (ac_args ac) as [ | arg args] eqn:Hargs;
-    [ | apply goes_forward_apply_cont ].
-  destruct (no_trap_action ac); [ | apply Goes_same ].
+    [ | apply goes_forward_apply_cont_keeping ].
+  destruct (no_trap_action ac); [ | apply goes_forward_apply_cont_keeping ].
   pose proof (Goes_on false G K F ac [] target Hk) as Hgoes.
   rewrite Hargs in Hgoes.
   apply Hgoes; [ reflexivity | intros Hs; discriminate Hs ].
@@ -1760,7 +1788,7 @@ Proof.
   - destruct calls;
       [ apply Fwd_apply, returns_forward_apply
       | apply Fwd_apply, Returns_same ].
-  - apply Fwd_apply_cont, goes_forward_apply_cont.
+  - apply Fwd_apply_cont, goes_forward_apply_cont_keeping.
   - apply Fwd_switch. clear Hsafe.
     induction arms as [ | arm arms IH]; simpl; [ apply Forall2_nil | ].
     apply Forall2_cons; [ | exact IH ].

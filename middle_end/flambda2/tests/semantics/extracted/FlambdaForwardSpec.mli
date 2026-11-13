@@ -21,6 +21,11 @@ val forward_of : forwards -> continuation -> (variable list * apply_cont) option
 
 val forward_apply_cont : forwards -> apply_cont -> apply_cont
 
+val forwarded_keeping :
+  trap_action option -> variable list -> simple list -> apply_cont -> apply_cont
+
+val forward_apply_cont_keeping : forwards -> apply_cont -> apply_cont
+
 val forward_arm : forwards -> apply_cont -> apply_cont
 
 val passes_on : variable list -> simple list -> bool

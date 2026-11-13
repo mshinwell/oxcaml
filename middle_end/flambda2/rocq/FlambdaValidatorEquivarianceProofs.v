@@ -4297,12 +4297,48 @@ Proof.
     [ apply forwarded_equivariant | reflexivity ].
 Qed.
 
+Lemma forwarded_keeping_equivariant (r : renaming)
+    (action : option trap_action) (params : list variable)
+    (args : list simple) (target : apply_cont) :
+  forwarded_keeping (option_map (rename_trap_action r) action)
+    (map (rename_variable r) params) (map (rename_simple r) args)
+    (rename_apply_cont r target)
+  = rename_apply_cont r (forwarded_keeping action params args target).
+Proof.
+  unfold forwarded_keeping, rename_apply_cont.
+  cbn [ac_continuation ac_args ac_trap_action]. rewrite !map_map.
+  f_equal. apply map_ext. intros s. apply subst_simple_equivariant.
+Qed.
+
+Lemma forward_apply_cont_keeping_equivariant (r : renaming) (F : forwards)
+    (ac : apply_cont) :
+  forward_apply_cont_keeping (rename_forwards r F) (rename_apply_cont r ac)
+  = rename_apply_cont r (forward_apply_cont_keeping F ac).
+Proof.
+  unfold forward_apply_cont_keeping.
+  change (ac_continuation (rename_apply_cont r ac))
+    with (rename_continuation r (ac_continuation ac)).
+  rewrite forward_of_renamed.
+  destruct (forward_of F (ac_continuation ac)) as [[params target] | ];
+    [ | reflexivity ].
+  cbn [rename_forward_entry option_map fst snd].
+  change (ac_args (rename_apply_cont r ac))
+    with (map (rename_simple r) (ac_args ac)).
+  rewrite !length_map, !no_trap_action_renamed.
+  destruct
+    (Nat.eqb (length (ac_args ac)) (length params) && no_trap_action target);
+    [ | reflexivity ].
+  change (ac_trap_action (rename_apply_cont r ac))
+    with (option_map (rename_trap_action r) (ac_trap_action ac)).
+  apply forwarded_keeping_equivariant.
+Qed.
+
 Lemma forward_arm_equivariant (r : renaming) (F : forwards)
     (ac : apply_cont) :
   forward_arm (rename_forwards r F) (rename_apply_cont r ac)
   = rename_apply_cont r (forward_arm F ac).
 Proof.
-  pose proof (forward_apply_cont_equivariant r F ac) as Hgeneral.
+  pose proof (forward_apply_cont_keeping_equivariant r F ac) as Hgeneral.
   unfold forward_arm.
   change (ac_continuation (rename_apply_cont r ac))
     with (rename_continuation r (ac_continuation ac)).
@@ -4315,7 +4351,7 @@ Proof.
       cbn [map]; try exact Hgeneral.
     rewrite no_trap_action_renamed.
     destruct (no_trap_action ac);
-      [ exact (forwarded_equivariant r [] [] target) | reflexivity ].
+      [ exact (forwarded_equivariant r [] [] target) | exact Hgeneral ].
   - destruct (ac_args ac); exact Hgeneral.
 Qed.
 
@@ -4439,7 +4475,7 @@ Proof.
       destruct calls; [ | reflexivity ].
       rewrite forward_apply_equivariant. reflexivity.
     + cbn [rename_expr forward_applications_under].
-      rewrite forward_apply_cont_equivariant. reflexivity.
+      rewrite forward_apply_cont_keeping_equivariant. reflexivity.
     + cbn [rename_expr forward_applications_under]. f_equal.
       rewrite !map_map. apply map_ext. intros [i ac]. cbn [fst snd].
       rewrite forward_arm_equivariant. reflexivity.
