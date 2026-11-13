@@ -587,17 +587,7 @@ before. What each shows, and what its validation uses besides:
    the unit and reads it from a value slot, where Simplify puts the
    symbol. The validation reads a slot only where the symbol it
    holds is in scope, and leaves this projection.
-3. The length of a constant string where nothing is lifted
-   (`exn_with_argument.ml`). The handler of an exception that
-   carries a string reads the length of what was raised, which is a
-   string that the unit binds. Simplify has the length from the type
-   of the symbol. The validator computes the length of a string that
-   the unit binds only in a term in which something was lifted
-   (`FlambdaValidateSpec.normalise_lifted`), and nothing is lifted
-   in this unit. The comparison of the exception with the predefined
-   one that the handler catches, which stopped this unit and
-   `try_not_found.ml`, is folded now (below).
-4. A function that Simplify inlines at one of its calls and not at
+3. A function that Simplify inlines at one of its calls and not at
    another (`rec_helper_called_outside.ml`, T3's source). Two
    functions are defined together with `let rec .. and ..`, neither
    of them recursive; the first calls the second, and the unit calls
@@ -945,6 +935,23 @@ removed it:
   itself an answer it is that one
   (`FlambdaPrimitiveSpec.phys_equal_same_statement`, C5's), and
   where it gives none the term before is undefined.
+- The argument of an exception that is raised at one place, in a
+  branch (`exn_with_argument.ml`). The handler reads the length of
+  the string that the exception carries, a string that the unit
+  binds, and Simplify has the length. The exception is a static
+  block, and the one application of the handler is in the handler
+  of a continuation that an arm of a `Switch` leads to. The
+  rewrites from the types rewrote a handler under what is known at
+  its one application only where that application ends the body of
+  its `Let_cont`; they now gather the applications in the handlers
+  of the continuations that the body defines, and where there is one
+  they rewrite the handler under what is known there
+  (`FlambdaSimplifyPassSpec.find_one_use`, T2's), as Simplify knows
+  the one use of a continuation whatever the flags. The parameter of
+  the handler is then the block that was raised, the loads from it
+  are the symbols that it holds, and the validation computes the
+  length of the string where it uses what the unit binds its symbols
+  to. The unit is validated with its imports.
 - A call whose result is only passed on
   (`call_result_passed_on.ml`): where the handler of the return
   continuation of a call applies another continuation to its
