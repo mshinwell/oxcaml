@@ -1,0 +1,10 @@
+a_while_notrace_closure_two_around.fl:
+  before Simplify, with its import (396 steps): returns
+                                                  [0: 8467; 709; 8022; 7]
+  after Simplify, with its import (215 steps): returns
+                                                 [0: 8467; 709; 8022; 7]
+  the check of kinds: passes before, passes after
+  calls outside code: 4 before, 4 after
+  the same
+  calls outside code once those of known code are inlined: 0
+  validated with its imports: the same once normalised and unused static bindings removed, at the head of the term after too

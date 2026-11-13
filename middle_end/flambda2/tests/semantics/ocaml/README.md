@@ -1187,6 +1187,21 @@ removed it:
   the second asking, 10 of them only with the part that follows
   aliases in the bodies of code; nothing in the tree makes the
   measure.
+- The result of a function that the validation inlines at two
+  calls of the term after (`a_captured_after_the_loop.ml`,
+  `a_while_notrace_closure_two_around.ml`; sources by T5). Simplify
+  inlines none of the four calls of the function; the validation
+  inlines them in both terms.
+  A copy of the body then ends with a `Let` of the result of its
+  call to the variable that the body returns, and the aliases could
+  not be followed past the next copy, which binds the same names:
+  the term after is not renamed apart, and the term before is. Such
+  a `Let` is now made one with the `Let` around it that binds the
+  variable, before the aliases are followed
+  (`FlambdaAliasLetsSpec.merge_alias_lets`, an equivalence that
+  makes no name). It is made only where the body returns the last
+  thing that it computes. Each of the two units is validated with
+  its imports.
 
 A count over 600 units made at random is in `census/README.md`, with
 one over 240 more that have exceptions, loops and recursive functions.
