@@ -89,6 +89,9 @@
    do not occur
    (FlambdaUnusedHeadStaticsSpec.add_head_tables_refines_under_statement),
    and what may follow a unit names no symbol.
+   That [with_lifting_observed] commutes with renaming and keeps scope
+   is in FlambdaValidatorEquivarianceSpec.v and
+   FlambdaStaticsScopeSpec.v, beside the same of [with_lifting].
 
    Whether this is what the verdict on a unit that is lifted is to
    mean has not been decided (FlambdaObserversSpec.v). No function of

@@ -93,6 +93,10 @@
      FlambdaUnusedHeadStaticsSpec.add_head_tables pass: a table that
      is bound has constants and symbols only, so the group has no
      code and mentions no variable ([with_lifting_keeps_scope_statement]).
+     The same is stated of
+     FlambdaLiftObservedSpec.with_lifting_observed, which makes the
+     same rewrites and leaves out one test of each, that of the exits
+     ([with_lifting_observed_keeps_scope_statement]).
      None of the statements but that of [lift_around] needs the tests
      that FlambdaLiftSpec.lift_unit,
      FlambdaLiftFromCodeSpec.lift_from_code_unit,
@@ -178,6 +182,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaUnaliasParamsSpec FlambdaWrapReturnsSpec
   FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec.
+From OxCamlFlambda2 Require Import FlambdaLiftObservedSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -241,6 +246,11 @@ Definition bind_my_closures_keeps_scope_statement : Prop :=
 (* The lifting as the check applies it. *)
 Definition with_lifting_keeps_scope_statement : Prop :=
   ∀ L : lifting, keeps_scope (with_lifting L).
+
+(* The same without the test of the exits
+   (FlambdaLiftObservedSpec.with_lifting_observed). *)
+Definition with_lifting_observed_keeps_scope_statement : Prop :=
+  ∀ L : lifting, keeps_scope (with_lifting_observed L).
 
 (* ======================================================================== *)
 (* What the unit binds its symbols to                                       *)

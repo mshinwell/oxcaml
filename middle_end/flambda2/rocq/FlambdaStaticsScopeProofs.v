@@ -45,6 +45,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaStaticsOrderSpec
   FlambdaMyClosureSpec FlambdaWellFormedSpec FlambdaLiftSpec
   FlambdaLiftFromCodeSpec FlambdaLiftFromArmsSpec FlambdaLiftAroundSpec
+  FlambdaLiftObservedSpec
   FlambdaHoistStaticsSpec
   FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec
   FlambdaKnownSlotsSpec FlambdaStubCallsSpec FlambdaStaticsInScopeSpec
@@ -857,6 +858,65 @@ Proof.
   eapply scoped_trans; [ apply lift_from_code_unit_scoped | ].
   eapply scoped_trans;
     [ apply lift_unit_scoped | apply lift_around_unit_scoped ].
+Qed.
+
+(* The four liftings without the test of the exits
+   (FlambdaLiftObservedSpec.v), as the four with it. *)
+Lemma to_head_observed_scoped (L : lifting) (e : expr) :
+  scoped e (to_head_observed L e).
+Proof.
+  unfold to_head_observed, lift_to_head_unit_observed. cbv zeta.
+  match goal with
+  | |- scoped _ (match (if ?c then _ else _) with _ => _ end) => destruct c
+  end;
+    [ apply lift_to_head_scoped | apply scoped_refl ].
+Qed.
+
+Lemma out_of_code_observed_scoped (L : lifting) (e : expr) :
+  scoped e (out_of_code_observed L e).
+Proof.
+  unfold out_of_code_observed, lift_from_code_unit_observed. cbv zeta.
+  match goal with
+  | |- scoped _ (match (if ?c then _ else _) with _ => _ end) => destruct c
+  end;
+    [ apply lift_from_code_scoped | apply scoped_refl ].
+Qed.
+
+Lemma lets_observed_scoped (L : lifting) (e : expr) :
+  scoped e (lets_observed L e).
+Proof.
+  unfold lets_observed, lift_unit_observed. cbv zeta.
+  match goal with
+  | |- scoped _ (match (if ?c then _ else _) with _ => _ end) => destruct c
+  end;
+    [ | apply scoped_refl ].
+  eapply scoped_trans;
+    [ apply lift_expr_scoped | apply bind_my_closures_scoped ].
+Qed.
+
+Lemma around_observed_scoped (L : lifting) (e : expr) :
+  scoped e (around_observed L e).
+Proof.
+  unfold around_observed, lift_around_unit_observed. cbv zeta.
+  set (groups := groups_of (lifted_around L) (groups_put L) e).
+  destruct (around_ok (lifted_around L) groups [] root e) eqn:Hok;
+    cbn [andb]; [ | apply scoped_refl ].
+  destruct
+    (well_formed_unit (lifting_unit L)
+       (lift_around (lifted_around L) groups root e));
+    [ exact (lift_around_scoped _ _ _ _ _ Hok) | apply scoped_refl ].
+Qed.
+
+Theorem with_lifting_observed_keeps_scope :
+  with_lifting_observed_keeps_scope_statement.
+Proof.
+  intros L. apply keeps_scope_intro. intros e.
+  unfold with_lifting_observed, liftings_observed.
+  eapply scoped_trans; [ | apply add_head_tables_scoped ].
+  eapply scoped_trans; [ apply to_head_observed_scoped | ].
+  eapply scoped_trans; [ apply out_of_code_observed_scoped | ].
+  eapply scoped_trans;
+    [ apply lets_observed_scoped | apply around_observed_scoped ].
 Qed.
 
 (* ======================================================================== *)
