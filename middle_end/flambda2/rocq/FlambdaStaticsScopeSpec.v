@@ -155,6 +155,14 @@
      binder on the way binds it; the applications lose an argument
      and mention no continuation more
      ([unalias_params_keeps_scope_statement]).
+   - FlambdaGiveScrutineeSpec.give_scrutinees puts the scrutinee of
+     a [Switch] for an argument of a continuation that is the number
+     of the arm that the application is
+     in. The variable is put only in an arm of a [Switch] on it, or
+     in a handler bound beside such a [Switch] that only arms of one
+     number apply, or under those where no binder of the variable is
+     between, so it is free in the term
+     ([give_scrutinees_keeps_scope_statement]).
    - FlambdaWrapReturnsSpec.wrap_returns takes away a parameter that
      its handler does not use, of a continuation that a call returns
      to: the applications lose an argument, and each call returns to
@@ -188,7 +196,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec FlambdaFloatCodeSpec
   FlambdaGroupsUpSpec FlambdaKnownSlotsSpec FlambdaStubCallsSpec
   FlambdaUnaliasParamsSpec FlambdaWrapReturnsSpec FlambdaUntagParamsSpec
-  FlambdaValidateSpec
+  FlambdaGiveScrutineeSpec FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec.
 From OxCamlFlambda2 Require Import FlambdaLiftObservedSpec.
 Import ListNotations.
@@ -329,6 +337,13 @@ Definition with_statics_first_keeps_scope_statement : Prop :=
 
 Definition unalias_params_keeps_scope_statement : Prop :=
   keeps_scope unalias_params.
+
+(* ======================================================================== *)
+(* A parameter that every application gives the number of its arm           *)
+(* ======================================================================== *)
+
+Definition give_scrutinees_keeps_scope_statement : Prop :=
+  keeps_scope give_scrutinees.
 
 (* ======================================================================== *)
 (* An unused parameter of a continuation that a call returns to             *)

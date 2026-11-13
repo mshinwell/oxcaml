@@ -54,7 +54,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaValidatorEquivarianceSpec FlambdaScopedProofs
   FlambdaKeepsScopeProofs FlambdaStaticsScopeSpec.
 From OxCamlFlambda2 Require FlambdaUnaliasParamsNamesProofs
-  FlambdaWrapReturnsNamesProofs FlambdaUntagParamsNamesProofs.
+  FlambdaWrapReturnsNamesProofs FlambdaUntagParamsNamesProofs
+  FlambdaGiveScrutineeNamesProofs.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -1812,6 +1813,13 @@ Qed.
 
 Theorem unalias_params_keeps_scope : unalias_params_keeps_scope_statement.
 Proof. exact FlambdaUnaliasParamsNamesProofs.unalias_params_scope. Qed.
+
+(* ======================================================================== *)
+(* A parameter that every application gives the number of its arm           *)
+(* ======================================================================== *)
+
+Theorem give_scrutinees_keeps_scope : give_scrutinees_keeps_scope_statement.
+Proof. exact FlambdaGiveScrutineeNamesProofs.give_scrutinees_scope. Qed.
 
 (* ======================================================================== *)
 (* An unused parameter of a continuation that a call returns to             *)

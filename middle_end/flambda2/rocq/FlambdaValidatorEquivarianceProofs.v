@@ -76,7 +76,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaInlineSiblingsSpec FlambdaInlineSiblingsProofs
   FlambdaUnusedProjectionsSpec FlambdaUnboxVariantsSpec
   FlambdaUnaliasParamsSpec FlambdaWrapReturnsSpec FlambdaUntagParamsSpec
-  FlambdaValidateSpec
+  FlambdaGiveScrutineeSpec FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec FlambdaValidatorEquivarianceBaseProofs.
 From OxCamlFlambda2 Require FlambdaKeepsScopeProofs FlambdaValidateScopeProofs
   FlambdaLoopsScopeProofs
@@ -84,7 +84,7 @@ From OxCamlFlambda2 Require FlambdaKeepsScopeProofs FlambdaValidateScopeProofs
   FlambdaLiftAroundProofs
   FlambdaHoistStaticsProofs FlambdaUnboxParamsNamesProofs
   FlambdaUnaliasParamsNamesProofs FlambdaWrapReturnsNamesProofs
-  FlambdaUntagParamsNamesProofs.
+  FlambdaUntagParamsNamesProofs FlambdaGiveScrutineeNamesProofs.
 From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
 From OxCamlFlambda2 Require FlambdaDemoteProofs.
 From OxCamlFlambda2 Require Import FlambdaLiftObservedSpec.
@@ -4770,6 +4770,12 @@ Proof. exact inline_tail_conts_kinded_equivariant_aux. Qed.
 Theorem unalias_params_equivariant : unalias_params_equivariant_statement.
 Proof. exact FlambdaUnaliasParamsNamesProofs.unalias_params_renamed. Qed.
 
+(* Giving a parameter the scrutinee where every application gives it
+   the number of its arm: the lemmas are in
+   FlambdaGiveScrutineeNamesProofs.v. *)
+Theorem give_scrutinees_equivariant : give_scrutinees_equivariant_statement.
+Proof. exact FlambdaGiveScrutineeNamesProofs.give_scrutinees_renamed. Qed.
+
 (* Removing an unused parameter of a continuation that a call returns
    to: the lemmas are in FlambdaWrapReturnsNamesProofs.v. *)
 Theorem wrap_returns_equivariant : wrap_returns_equivariant_statement.
@@ -5113,7 +5119,8 @@ Ltac rename_outwards :=
       | rewrite unbox_variant_params_renamed
       | rewrite remove_unused_defined_lets_in_loops_closed_equivariant
       | rewrite inline_tail_conts_kinded_equivariant_aux
-      | rewrite FlambdaUnaliasParamsNamesProofs.unalias_params_renamed ].
+      | rewrite FlambdaUnaliasParamsNamesProofs.unalias_params_renamed
+      | rewrite FlambdaGiveScrutineeNamesProofs.give_scrutinees_renamed ].
 
 Lemma normalise_expr_before_equivariant :
   rewrite_equivariant normalise_expr_before.

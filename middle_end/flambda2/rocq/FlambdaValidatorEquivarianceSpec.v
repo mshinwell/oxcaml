@@ -355,7 +355,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaInlineTailSpec FlambdaLoopifySpec
   FlambdaDeadParamsSpec FlambdaRenameApartSpec FlambdaUnusedProjectionsSpec
   FlambdaUnaliasParamsSpec FlambdaWrapReturnsSpec FlambdaUntagParamsSpec
-  FlambdaValidateSpec.
+  FlambdaGiveScrutineeSpec FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 From OxCamlFlambda2 Require Import FlambdaLiftObservedSpec.
 Import ListNotations.
@@ -860,6 +860,14 @@ Definition inline_tail_conts_kinded_equivariant_statement : Prop :=
    FlambdaStaticsScopeSpec.v. *)
 Definition unalias_params_equivariant_statement : Prop :=
   rewrite_equivariant unalias_params.
+
+(* Giving a parameter of a continuation the scrutinee of a [Switch]
+   where every application gives it the number of the arm that it is
+   in (FlambdaGiveScrutineeSpec.v). The variable and the positions are
+   found by tests of equality of names, and no name is made. That it
+   keeps scope is in FlambdaStaticsScopeSpec.v. *)
+Definition give_scrutinees_equivariant_statement : Prop :=
+  rewrite_equivariant give_scrutinees.
 
 (* Removing a parameter that its handler does not use, of a
    continuation that a call returns to, with a wrapper for the call
