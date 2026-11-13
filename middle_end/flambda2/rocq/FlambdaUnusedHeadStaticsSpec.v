@@ -30,9 +30,9 @@
 
    This file is to be reviewed: [head_statics_removable] and what it
    is made of ([head_bindings], [under_head], [static_const_total],
-   [removed_binding_total], [kept_code_binds_only_kept]), which are
-   extracted and run by the validation of
-   middle_end/flambda2/tests/semantics/; [head_free_in]; and the two
+   [removed_binding_total], [kept_code_binds_only_kept]), and
+   [add_head_tables], which are extracted and run by the validation of
+   middle_end/flambda2/tests/semantics/; [head_free_in]; and the three
    statements.
 
    FlambdaUnusedStaticsSpec.drop_statics removes static bindings that
@@ -85,6 +85,24 @@
    That the term refines the larger one is
    FlambdaUnusedStaticsSpec.drop_statics_program_refines_statement,
    which needs no check beyond those of drop_statics.
+
+   [add_head_tables] is that reading as a rewrite, for one kind of
+   binding: a symbol bound to an immutable array of constants and
+   symbols. Simplify makes such an array where it turns a [Switch]
+   whose arms give constants into a load from a table
+   (simplify/simplify_switch_expr.ml, the lookup tables), and binds
+   it with the static bindings of the unit. The term before has no
+   such binding. The validation puts the tables that it is given at
+   the head of the term before, so that a rewrite of the term before
+   which makes the load finds the table bound; that the term with
+   them refines the term, each run on its own, is
+   [add_head_tables_program_refines_statement]. Which tables to put
+   is for the caller to find. Where the checks fail, the term is
+   left as it is. Where they pass, the tables are bound whatever
+   they hold: a table that nothing will use, or that is not one that
+   Simplify made, is bound all the same, and the statement holds of
+   it. Whether a table serves is not checked here: that is for the
+   rewrite that reads it and for the comparison of the two terms.
 
    The proofs are in FlambdaUnusedHeadStaticsProofs.v, which needs no
    review. *)
@@ -193,6 +211,49 @@ Definition drop_head_statics (D : dropped) (e : expr) : option expr :=
 Definition drop_head_statics_program_refines_statement : Prop :=
   ∀ (D : dropped) (e e' : expr),
     drop_head_statics D e = Some e' -> program_refines e' e.
+
+(* ======================================================================== *)
+(* Read the other way: tables bound at the head                             *)
+(* ======================================================================== *)
+
+(* A table is a symbol with the elements of an immutable array. The
+   static binding of one, and the names to remove that are the symbols
+   of the tables given. *)
+Definition table_binding (table : symbol * list simple) : static_binding :=
+  Bind_symbol (fst table) (Static_const_immutable_value_array (snd table)).
+
+Definition tables_dropped (tables : list (symbol * list simple)) : dropped :=
+  Dropped (map fst tables) [].
+
+(* Every element of every table is a constant or a symbol. *)
+Definition tables_plain (tables : list (symbol * list simple)) : bool :=
+  forallb (fun table => forallb plain_simple (snd table)) tables.
+
+(* The term under one group of static bindings of the tables given,
+   where every element is a constant or a symbol and the checks for
+   the removal of exactly their symbols pass of the larger term
+   ([head_statics_removable]): nothing in the term refers to one of
+   those symbols or binds it, and the symbols are distinct from each
+   other and from those that the groups at the head of the term bind.
+   The term as it is where that fails, and where no table is given. *)
+Definition add_head_tables (tables : list (symbol * list simple)) (e : expr)
+    : expr :=
+  match tables with
+  | [] => e
+  | _ :: _ =>
+    let e' := Let_static (map table_binding tables) e in
+    if tables_plain tables && head_statics_removable (tables_dropped tables) e'
+    then e'
+    else e
+  end.
+
+(* The result refines the term, each run on its own. It is not a
+   refinement under all environments, nor from a static environment
+   that binds one of the symbols: a group that was put binds that
+   symbol again there, and a name bound twice is undefined. *)
+Definition add_head_tables_program_refines_statement : Prop :=
+  ∀ (tables : list (symbol * list simple)) (e : expr),
+    program_refines e (add_head_tables tables e).
 
 (* ======================================================================== *)
 (* From a static environment that binds something                           *)

@@ -958,3 +958,86 @@ Proof.
   exact (drop_head_statics_refines_from D e e' empty_static_env empty_heap
            Hdrop eq_refl (head_free_in_empty e)).
 Qed.
+
+(* ======================================================================== *)
+(* Tables bound at the head                                                 *)
+(* ======================================================================== *)
+
+(* The binding of a table whose symbol is among the names removed is
+   removed. *)
+Lemma tables_all_removed (names : list symbol)
+    (tables : list (symbol * list simple)) :
+  incl (map fst tables) names ->
+  keep_map (binding_kept (Dropped names []))
+    (erase_binding (Dropped names [])) (map table_binding tables)
+  = [].
+Proof.
+  induction tables as [ | [s elements] tables IH]; intros Hincl;
+    [ reflexivity | ].
+  cbn [map table_binding fst snd keep_map binding_kept].
+  unfold symbol_kept. cbn [dropped_symbols].
+  assert (Hamong : among s names = true)
+    by (apply among_In, Hincl; left; reflexivity).
+  rewrite Hamong. cbn [negb].
+  apply IH. intros s' Hs'. apply Hincl. right. exact Hs'.
+Qed.
+
+(* A group of no binding runs as what is under it. *)
+Lemma empty_group_equivalent (body : expr) (vars : env) (conts : cont_env)
+    (statics : static_env) (hp : heap) :
+  equivalent (State (Let_static [] body) vars conts statics hp)
+    (State body vars conts statics hp).
+Proof. apply step_equivalent. reflexivity. Qed.
+
+(* The term without the tables is the removal of their symbols from the
+   term with them, up to a group of no binding; the removal is a
+   refinement the other way by [drop_head_statics_program_refines], and
+   removing those symbols from the term itself, which binds none of
+   them and mentions none, is a refinement by
+   FlambdaUnusedStaticsProofs.drop_statics_program_refines. *)
+Theorem add_head_tables_program_refines :
+  add_head_tables_program_refines_statement.
+Proof.
+  intros tables e. unfold add_head_tables.
+  destruct tables as [ | table tables]; [ apply refines_refl | ].
+  cbv zeta.
+  set (all := table :: tables).
+  set (D := tables_dropped all).
+  set (e' := Let_static (map table_binding all) e).
+  destruct (tables_plain all && head_statics_removable D e') eqn:Hchecks;
+    [ | apply refines_refl ].
+  apply andb_true_iff in Hchecks as [_ Hchecks].
+  assert (Havoids' : expr_avoids D e' = true).
+  { unfold head_statics_removable in Hchecks.
+    do 5 (apply andb_true_iff in Hchecks as [Hchecks _]). exact Hchecks. }
+  assert (Havoids : expr_avoids D e = true).
+  { subst e'. simpl in Havoids'.
+    apply andb_true_iff in Havoids' as [_ Havoids']. exact Havoids'. }
+  assert (Herased : erase_expr D e' = Let_static [] (erase_expr D e)).
+  { subst e'.
+    change (erase_expr D (Let_static (map table_binding all) e))
+      with
+        (Let_static
+           (keep_map (binding_kept D) (erase_binding D)
+              (map table_binding all))
+           (erase_expr D e)).
+    subst D. unfold tables_dropped.
+    rewrite (tables_all_removed (map fst all) all (incl_refl _)).
+    reflexivity. }
+  assert
+    (Hhead : drop_head_statics D e' = Some (Let_static [] (erase_expr D e))).
+  { unfold drop_head_statics. rewrite Hchecks. unfold drop_statics.
+    rewrite Havoids', Herased. reflexivity. }
+  unfold program_refines.
+  apply
+    (refines_trans _
+       (State (erase_expr D e) [] [] empty_static_env empty_heap)).
+  - apply (drop_statics_program_refines D e).
+    unfold drop_statics. rewrite Havoids. reflexivity.
+  - apply
+      (refines_trans _
+         (State (Let_static [] (erase_expr D e)) [] [] empty_static_env
+            empty_heap)).
+    + apply equivalent_refines, equivalent_sym, empty_group_equivalent.
+    + exact (drop_head_statics_program_refines D e' _ Hhead).
+Qed.
