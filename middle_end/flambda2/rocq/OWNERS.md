@@ -647,6 +647,13 @@ Owner: N3, on `flambda2-rocq/N3-equivariance` for the validator and on
   is removed, and the call returns to a wrapper, as Simplify makes
   it: a refinement, for the term before; and the lemmas for its laws
   of renaming and of scope, which are stated in the files above)
+- `middle_end/flambda2/rocq/FlambdaUntagParams*` (parameters of
+  continuations that hold a tagged immediate and are only untagged or
+  passed on, as a flag kept in a reference and set in a loop is, are
+  untagged where they are given, for a set of positions at once, as
+  Simplify has them: a refinement, for the term before; and the
+  lemmas for its laws of renaming and of scope, which are stated in
+  the files above)
 - `middle_end/flambda2/rocq/FlambdaCseEquivalent*` (the sharing of
   primitives of `FlambdaCseSpec.v` gives a term that is equivalent to
   the one it is given, which is what a rewrite of the term after
