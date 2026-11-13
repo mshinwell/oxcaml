@@ -1030,11 +1030,13 @@ Definition well_kinded_unit_equivariant_statement : Prop :=
    are renamed. A [Let] to lift is named by where it is, and what it is
    lifted to by symbols and code ids; a group to put is named by where
    it is put and by the [Let]s that it stands for, and is read off the
-   term (FlambdaLiftAroundSpec.groups_of). *)
+   term (FlambdaLiftAroundSpec.groups_of); a table to bind is a symbol
+   with constants and symbols, and one that has a variable is not
+   bound (FlambdaUnusedHeadStaticsSpec.add_head_tables). *)
 Definition rename_lifting (r : renaming) (L : lifting) : lifting :=
   Lifting (rename_unit_interface r (lifting_unit L)) (lifted_lets L)
     (lifted_my_closures L) (lifted_out_of_code L) (lifted_to_head L)
-    (lifted_around L) (groups_put L).
+    (lifted_around L) (groups_put L) (tables_put L).
 
 (* What the check makes of a lifting, of the value slots to remove and
    of what the unit binds its symbols to

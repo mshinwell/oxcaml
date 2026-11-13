@@ -5,6 +5,7 @@ open FlambdaModel
 open FlambdaUnusedStaticsSpec
 open FlambdaWellFormedSpec
 open List
+open ListDef
 
 (** val head_bindings : expr -> static_binding list **)
 
@@ -55,3 +56,29 @@ let head_statics_removable d e =
    && distinct (flat_map symbols_of_binding (head_bindings e)))
   && distinct (flat_map code_ids_of_binding (head_bindings e)))
   && forallb (removed_binding_total d) (head_bindings e)
+
+(** val table_binding : (symbol * simple list) -> static_binding **)
+
+let table_binding table =
+  Bind_symbol (fst table, Static_const_immutable_value_array (snd table))
+
+(** val tables_dropped : (symbol * simple list) list -> dropped **)
+
+let tables_dropped tables =
+  { dropped_symbols = map fst tables; dropped_code = [] }
+
+(** val tables_plain : (symbol * simple list) list -> bool **)
+
+let tables_plain tables =
+  forallb (fun table -> forallb plain_simple (snd table)) tables
+
+(** val add_head_tables : (symbol * simple list) list -> expr -> expr **)
+
+let add_head_tables tables e =
+  match tables with
+  | [] -> e
+  | _ :: _ ->
+    let e' = Let_static (map table_binding tables, e) in
+    if tables_plain tables && head_statics_removable (tables_dropped tables) e'
+    then e'
+    else e

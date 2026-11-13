@@ -88,7 +88,11 @@
      ([lift_around_keeps_scope_statement]).
      The lifting as the check applies it, FlambdaValidateSpec.with_lifting,
      is the fourth of these, then the third, then the first two, then
-     the last, each made or not ([with_lifting_keeps_scope_statement]).
+     the last, each made or not; and then the tables given, bound in
+     a group at the head of the unit where the checks of
+     FlambdaUnusedHeadStaticsSpec.add_head_tables pass: a table that
+     is bound has constants and symbols only, so the group has no
+     code and mentions no variable ([with_lifting_keeps_scope_statement]).
      None of the statements but that of [lift_around] needs the tests
      that FlambdaLiftSpec.lift_unit,
      FlambdaLiftFromCodeSpec.lift_from_code_unit,

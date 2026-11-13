@@ -5700,11 +5700,63 @@ Proof.
     reflexivity.
 Qed.
 
+(* The tables bound at the head of a unit
+   (FlambdaUnusedHeadStaticsSpec.add_head_tables): a table whose
+   elements are constants and symbols is not changed by a renaming,
+   and the checks are of names that no renaming moves. *)
+Lemma plain_simples_renamed (r : renaming) (elements : list simple) :
+  forallb plain_simple elements = true ->
+  map (rename_simple r) elements = elements.
+Proof.
+  induction elements as [ | s elements IH]; [ reflexivity | ].
+  cbn [forallb map]. intros Hplain.
+  apply andb_true_iff in Hplain. destruct Hplain as [Hs Hplain].
+  rewrite (IH Hplain). destruct s; [ discriminate | reflexivity | reflexivity ].
+Qed.
+
+Lemma tables_renamed (r : renaming) (tables : list (symbol * list simple)) :
+  tables_plain tables = true ->
+  map (rename_static_binding r) (map table_binding tables)
+  = map table_binding tables.
+Proof.
+  unfold tables_plain.
+  induction tables as [ | [s elements] tables IH]; [ reflexivity | ].
+  cbn [forallb snd map]. intros Hplain.
+  apply andb_true_iff in Hplain. destruct Hplain as [Helements Hplain].
+  rewrite (IH Hplain). unfold table_binding at 1 3. cbn [fst snd].
+  cbn [rename_static_binding rename_static_const].
+  rewrite (plain_simples_renamed r elements Helements). reflexivity.
+Qed.
+
+Lemma add_head_tables_renamed (r : renaming)
+    (tables : list (symbol * list simple)) (e : expr) :
+  add_head_tables tables (rename_expr r e)
+  = rename_expr r (add_head_tables tables e).
+Proof.
+  unfold add_head_tables.
+  destruct tables as [ | table tables]; [ reflexivity | ].
+  cbv zeta.
+  destruct (tables_plain (table :: tables)) eqn:Hplain; cbn [andb];
+    [ | reflexivity ].
+  assert
+    (Hrenamed :
+      Let_static (map table_binding (table :: tables)) (rename_expr r e)
+      = rename_expr r (Let_static (map table_binding (table :: tables)) e)).
+  { cbn [rename_expr]. rewrite (tables_renamed r _ Hplain). reflexivity. }
+  rewrite Hrenamed, head_statics_removable_renamed.
+  destruct
+    (head_statics_removable (tables_dropped (table :: tables))
+       (Let_static (map table_binding (table :: tables)) e));
+    reflexivity.
+Qed.
+
 Lemma with_lifting_renamed (r : renaming) (L : lifting) (e : expr) :
   with_lifting (rename_lifting r L) (rename_expr r e)
   = rename_expr r (with_lifting L e).
 Proof.
   unfold with_lifting. cbv zeta.
+  change (tables_put (rename_lifting r L)) with (tables_put L).
+  rewrite <- add_head_tables_renamed. f_equal.
   change (lifting_unit (rename_lifting r L))
     with (rename_unit_interface r (lifting_unit L)).
   change (lifted_out_of_code (rename_lifting r L))

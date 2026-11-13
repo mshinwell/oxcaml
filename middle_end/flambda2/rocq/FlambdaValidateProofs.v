@@ -531,6 +531,16 @@ Proof.
     | Some e' => e'
     | None => out_of_code
     end).
+  set (around :=
+    match
+      lift_around_unit (lifting_unit L) (lifted_around L) (groups_put L)
+        lifted
+    with
+    | Some e' => e'
+    | None => lifted
+    end).
+  apply (refines_trans _ (State around [] [] empty_static_env empty_heap));
+    [ | exact (add_head_tables_program_refines (tables_put L) around) ].
   apply (refines_trans _ (State at_head [] [] empty_static_env empty_heap)).
   - subst at_head.
     destruct (lift_to_head_unit (lifting_unit L) (lifted_to_head L) e)
@@ -551,7 +561,8 @@ Proof.
         destruct (lift_unit L out_of_code) as [e' | ] eqn:Hlift;
           [ | apply refines_refl ].
         exact (lift_unit_program_refines L out_of_code e' Hlift).
-      * destruct
+      * subst around.
+        destruct
           (lift_around_unit (lifting_unit L) (lifted_around L) (groups_put L)
              lifted)
           as [e' | ] eqn:Haround;
@@ -559,11 +570,13 @@ Proof.
         exact (lift_around_unit_program_refines _ _ _ lifted e' Haround).
 Qed.
 
-(* With no [Let] to make an alias of a symbol bound around it and no
-   group to put, [with_lifting] is its first three liftings. *)
+(* With no [Let] to make an alias of a symbol bound around it, no
+   group to put and no table to bind, [with_lifting] is its first
+   three liftings. *)
 Lemma with_lifting_nothing_around (L : lifting) (e : expr) :
   lifted_around L = [] ->
   groups_put L = [] ->
+  tables_put L = [] ->
   with_lifting L e
   = (let at_head :=
        match lift_to_head_unit (lifting_unit L) (lifted_to_head L) e with
@@ -584,8 +597,8 @@ Lemma with_lifting_nothing_around (L : lifting) (e : expr) :
      | None => out_of_code
      end).
 Proof.
-  intros Haround Hgroups. unfold with_lifting. cbv zeta.
-  rewrite Haround, Hgroups.
+  intros Haround Hgroups Htables. unfold with_lifting. cbv zeta.
+  rewrite Haround, Hgroups, Htables. cbn [add_head_tables].
   apply FlambdaLiftAroundProofs.lift_around_unit_nothing.
 Qed.
 

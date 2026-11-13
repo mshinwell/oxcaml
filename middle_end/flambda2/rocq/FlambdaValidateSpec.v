@@ -100,7 +100,12 @@
    the bodies of code, which mention no variable and whose bindings go
    beside the code (FlambdaLiftFromCodeSpec.lift_from_code_unit); then
    those outside code, where they stand (FlambdaLiftSpec.lift_unit,
-   which says what is lifted and under which conditions). It
+   which says what is lifted and under which conditions). With each
+   lifting it also binds, at the head of the unit, the tables given:
+   symbols bound to immutable arrays of constants and symbols, which
+   Simplify binds where it makes a load of a [Switch] whose arms give
+   constants, and which the term before has not
+   (FlambdaUnusedHeadStaticsSpec.add_head_tables). It
    normalises the result, each round followed by using
    what is known of the static closures whose bindings are in sight
    (FlambdaKnownClosuresSpec.use_known_closures: a value slot is read,
@@ -689,7 +694,14 @@ Definition without_head_statics (D : dropped) (e : expr) : expr :=
    of FlambdaLiftAroundSpec.lift_around_unit hold of what that gives.
    Where the conditions of one do not hold, it is not made. The paths
    of each are paths in the term that it is given: the first puts the
-   unit under a group of static bindings, if it lifts anything. *)
+   unit under a group of static bindings, if it lifts anything. Last
+   of all, the tables given are bound in a group at the head of the
+   unit, where the checks of
+   FlambdaUnusedHeadStaticsSpec.add_head_tables pass: Simplify binds
+   such a table where it makes a load of a [Switch] whose arms give
+   constants, and a round that makes the same load of the term before
+   needs the table in scope. As it comes last, no path of the
+   liftings before it is a path in a term that has the group. *)
 Definition with_lifting (L : lifting) (e : expr) : expr :=
   let e :=
     match lift_to_head_unit (lifting_unit L) (lifted_to_head L) e with
@@ -709,12 +721,15 @@ Definition with_lifting (L : lifting) (e : expr) : expr :=
     | None => e
     end
   in
-  match
-    lift_around_unit (lifting_unit L) (lifted_around L) (groups_put L) e
-  with
-  | Some e' => e'
-  | None => e
-  end.
+  let e :=
+    match
+      lift_around_unit (lifting_unit L) (lifted_around L) (groups_put L) e
+    with
+    | Some e' => e'
+    | None => e
+    end
+  in
+  add_head_tables (tables_put L) e.
 
 (* What the unit binds its symbols to used wherever they are, if it
    binds each of them to one constant. *)

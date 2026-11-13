@@ -2457,7 +2457,8 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list) ~around
       lifted_out_of_code = out_of_code;
       lifted_to_head = to_head;
       lifted_around = [];
-      groups_put = []
+      groups_put = [];
+      tables_put = []
     }
   in
   (* [known] has the symbols that the groups around a place bind, each with its
@@ -3678,7 +3679,8 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
       lifted_out_of_code = [];
       lifted_to_head = [];
       lifted_around = [];
-      groups_put = []
+      groups_put = [];
+      tables_put = []
     }
   in
   (* The code to loopify. *)

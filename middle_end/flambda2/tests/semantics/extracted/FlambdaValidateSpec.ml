@@ -232,9 +232,12 @@ let with_lifting l e =
     | None -> e0
   in
   let e2 = match lift_unit l e1 with Some e' -> e' | None -> e1 in
-  match lift_around_unit l.lifting_unit l.lifted_around l.groups_put e2 with
-  | Some e' -> e'
-  | None -> e2
+  let e3 =
+    match lift_around_unit l.lifting_unit l.lifted_around l.groups_put e2 with
+    | Some e' -> e'
+    | None -> e2
+  in
+  add_head_tables l.tables_put e3
 
 (** val with_known : expr -> expr **)
 

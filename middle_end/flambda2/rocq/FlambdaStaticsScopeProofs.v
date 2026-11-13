@@ -41,7 +41,8 @@ From Stdlib Require Import ZArith List Bool Permutation.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaSemanticsSpec FlambdaBindersSpec
-  FlambdaNormaliseSpec FlambdaUnusedStaticsSpec FlambdaStaticsOrderSpec
+  FlambdaNormaliseSpec FlambdaUnusedStaticsSpec FlambdaUnusedHeadStaticsSpec
+  FlambdaStaticsOrderSpec
   FlambdaMyClosureSpec FlambdaWellFormedSpec FlambdaLiftSpec
   FlambdaLiftFromCodeSpec FlambdaLiftFromArmsSpec FlambdaLiftAroundSpec
   FlambdaHoistStaticsSpec
@@ -793,10 +794,64 @@ Proof.
     [ exact (lift_around_scoped _ _ _ _ _ Hok) | apply scoped_refl ].
 Qed.
 
+(* The tables bound at the head of a unit
+   (FlambdaUnusedHeadStaticsSpec.add_head_tables): a table whose
+   elements are constants and symbols has no code and mentions no
+   variable. *)
+Lemma plain_simples_closed (elements : list simple) :
+  forallb plain_simple elements = true ->
+  free_variables_of_simples elements = [].
+Proof.
+  induction elements as [ | s elements IH]; [ reflexivity | ].
+  cbn [forallb]. intros Hplain.
+  apply andb_true_iff in Hplain. destruct Hplain as [Hs Hplain].
+  unfold free_variables_of_simples in *. cbn [flat_map].
+  rewrite (IH Hplain). destruct s; [ discriminate | reflexivity | reflexivity ].
+Qed.
+
+Lemma tables_closed (tables : list (symbol * list simple)) :
+  tables_plain tables = true ->
+  forallb binding_code_closed (map table_binding tables) = true
+  ∧ flat_map free_variables_of_binding (map table_binding tables) = []
+  ∧ flat_map free_continuations_of_binding (map table_binding tables) = [].
+Proof.
+  unfold tables_plain.
+  induction tables as [ | [s elements] tables IH]; [ repeat split | ].
+  cbn [forallb snd]. intros Hplain.
+  apply andb_true_iff in Hplain. destruct Hplain as [Helements Hplain].
+  destruct (IH Hplain) as (Hcode & Hv & Hk).
+  cbn [map forallb flat_map].
+  change (table_binding (s, elements))
+    with (Bind_symbol s (Static_const_immutable_value_array elements)).
+  scope. cbn [free_variables_of_static_const].
+  rewrite Hcode, Hv, Hk, (plain_simples_closed elements Helements).
+  repeat split.
+Qed.
+
+Lemma add_head_tables_scoped (tables : list (symbol * list simple))
+    (e : expr) :
+  scoped e (add_head_tables tables e).
+Proof.
+  unfold add_head_tables.
+  destruct tables as [ | table tables]; [ apply scoped_refl | ].
+  cbv zeta.
+  destruct
+    (tables_plain (table :: tables)
+     && head_statics_removable (tables_dropped (table :: tables))
+          (Let_static (map table_binding (table :: tables)) e))
+    eqn:Hchecks;
+    [ | apply scoped_refl ].
+  apply andb_true_iff in Hchecks. destruct Hchecks as [Hplain _].
+  destruct (tables_closed _ Hplain) as (Hcode & Hv & Hk).
+  intros Hclosed. scope. rewrite Hcode, Hv, Hk. cbn [andb app].
+  split; [ exact Hclosed | split; apply incl_refl ].
+Qed.
+
 Theorem with_lifting_keeps_scope : with_lifting_keeps_scope_statement.
 Proof.
   intros L. apply keeps_scope_intro. intros e.
   unfold with_lifting. cbv zeta.
+  eapply scoped_trans; [ | apply add_head_tables_scoped ].
   eapply scoped_trans; [ apply lift_to_head_unit_scoped | ].
   eapply scoped_trans; [ apply lift_from_code_unit_scoped | ].
   eapply scoped_trans;

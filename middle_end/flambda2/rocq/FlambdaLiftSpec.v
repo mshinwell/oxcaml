@@ -257,12 +257,16 @@ Fixpoint rec_handlers_bindings
    paths; the [Let]s to make aliases of symbols that a group of
    static bindings around them binds, by their paths; and the
    [Let_cont]s before which such a group is put, by their paths, each
-   with the paths of the [Let]s whose bindings make the group. The
-   last four are not read here: the first two are for
+   with the paths of the [Let]s whose bindings make the group; and
+   the tables to bind at the head of the unit, each a symbol with the
+   elements of an immutable array, which lift no [Let]. The last
+   five are not read here: the first two are for
    FlambdaLiftFromCodeSpec.lift_from_code_unit and
    FlambdaLiftFromArmsSpec.lift_to_head_unit, which the validation
-   applies before [lift_unit], and the other two for
-   FlambdaLiftAroundSpec.lift_around_unit, which it applies after. *)
+   applies before [lift_unit], the next two for
+   FlambdaLiftAroundSpec.lift_around_unit, which it applies after,
+   and the last for FlambdaUnusedHeadStaticsSpec.add_head_tables,
+   which it applies last of all. *)
 Record lifting : Type := Lifting {
   lifting_unit : unit_interface;
   lifted_lets : list (path * lift_to);
@@ -270,7 +274,8 @@ Record lifting : Type := Lifting {
   lifted_out_of_code : list (code_id * list (path * lift_to));
   lifted_to_head : list (path * lift_to);
   lifted_around : list (path * lift_to);
-  groups_put : list (path * list path)
+  groups_put : list (path * list path);
+  tables_put : list (symbol * list simple)
 }.
 
 (* ======================================================================== *)
