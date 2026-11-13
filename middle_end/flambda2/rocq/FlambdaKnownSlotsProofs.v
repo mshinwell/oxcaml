@@ -86,6 +86,129 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
+(* The check, but for a set of closures that has no function                *)
+(* ======================================================================== *)
+
+(* The [Let] of a [Closure_of_set] that has no function has no value:
+   FlambdaSemanticsSpec.eval_named looks its slot up among the
+   functions. The invariant of this file asks nothing of the value
+   slots of such a [Let]; of every other set of closures it asks what
+   [slots_as] asks. So a term that binds nothing static and names no
+   code id has it, whatever is known: it makes no other set. What may
+   follow a unit is such a term (FlambdaObserversSpec.observer). *)
+Definition named_slots_checked (d : named) : list (value_slot * simple) :=
+  match d with
+  | Closure_of_set _ [] _ => []
+  | Simple _ | Prim _ _ | Set_of_closures _ _ | Closure_of_set _ (_ :: _) _
+  | Project_value_slot _ _ | Project_value_slot_from _ _ _
+  | Project_function_slot _ _ _ =>
+    named_slots_made d
+  end.
+
+Fixpoint slots_checked (known : known_slots) (e : expr) : bool :=
+  match e with
+  | Let _ _ d body =>
+    value_slots_as known (named_slots_checked d) && slots_checked known body
+  | Let_static bindings body =>
+    forallb (binding_slots_checked known) bindings && slots_checked known body
+  | Let_cont_non_recursive _ h body =>
+    handler_slots_checked known h && slots_checked known body
+  | Let_cont_recursive handlers body =>
+    forallb (fun '(_, h) => handler_slots_checked known h) handlers
+    && slots_checked known body
+  | Apply _ | Apply_cont _ | Switch _ _ | Invalid => true
+  end
+with handler_slots_checked (known : known_slots) (h : continuation_handler)
+    : bool :=
+  match h with
+  | Handler _ _ handler => slots_checked known handler
+  end
+with binding_slots_checked (known : known_slots) (binding : static_binding)
+    : bool :=
+  match binding with
+  | Bind_code _ c => code_slots_checked known c
+  | Bind_deleted_code _ => true
+  | Bind_symbol _ const =>
+    value_slots_as known (static_const_slots_made const)
+  end
+with code_slots_checked (known : known_slots) (c : code) : bool :=
+  match c with
+  | Code _ _ _ _ _ body => slots_checked known body
+  end.
+
+Lemma named_slots_checked_as (known : known_slots) (d : named) :
+  value_slots_as known (named_slots_made d) = true ->
+  value_slots_as known (named_slots_checked d) = true.
+Proof.
+  destruct d as [a | p args | code slots | slot [ | decl decls] slots
+    | slot closure | project_from slot closure | move_from move_to closure];
+    intros H; try exact H.
+  reflexivity.
+Qed.
+
+(* Where the [Let] has a value, the two ask the same. *)
+Lemma named_slots_checked_made (known : known_slots) (statics : static_env)
+    (vars : env) (d : named) (v : value) :
+  eval_named statics vars d = Some v ->
+  value_slots_as known (named_slots_checked d) = true ->
+  value_slots_as known (named_slots_made d) = true.
+Proof.
+  destruct d as [a | p args | code slots | slot [ | decl decls] slots
+    | slot closure | project_from slot closure | move_from move_to closure];
+    intros Heval H; try exact H.
+  simpl in Heval. discriminate.
+Qed.
+
+(* What passes [slots_as] passes it. *)
+Fixpoint slots_as_checked (known : known_slots) (e : expr) {struct e} :
+  slots_as known e = true -> slots_checked known e = true
+with handler_slots_as_checked (known : known_slots)
+    (h : continuation_handler) {struct h} :
+  handler_slots_as known h = true -> handler_slots_checked known h = true.
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      cbn [slots_as slots_checked]; try (intros _; reflexivity).
+    + intros H. apply andb_true_iff in H as [Hd Hbody].
+      rewrite (named_slots_checked_as known d Hd),
+        (slots_as_checked known body Hbody).
+      reflexivity.
+    + intros H. apply andb_true_iff in H as [Hbindings Hbody].
+      rewrite (slots_as_checked known body Hbody), andb_true_r.
+      induction bindings
+        as [ | [id [params my_closure ret exn metadata code_body] | id
+               | sym const]
+               bindings IH];
+        cbn [forallb] in *; [ reflexivity | | | ];
+        apply andb_true_iff in Hbindings as [Hb Hrest];
+        rewrite (IH Hrest), andb_true_r.
+      * exact (slots_as_checked known code_body Hb).
+      * reflexivity.
+      * exact Hb.
+    + intros H. apply andb_true_iff in H as [Hh Hbody].
+      rewrite (handler_slots_as_checked known h Hh),
+        (slots_as_checked known body Hbody).
+      reflexivity.
+    + intros H. apply andb_true_iff in H as [Hhandlers Hbody].
+      rewrite (slots_as_checked known body Hbody), andb_true_r.
+      induction handlers as [ | [k h] handlers IH]; cbn [forallb] in *;
+        [ reflexivity | ].
+      apply andb_true_iff in Hhandlers as [Hh Hrest].
+      rewrite (handler_slots_as_checked known h Hh), (IH Hrest).
+      reflexivity.
+  - destruct h as [params metadata handler].
+    cbn [handler_slots_as handler_slots_checked]. apply slots_as_checked.
+Qed.
+
+Lemma code_slots_as_checked (known : known_slots) (c : code) :
+  code_slots_as known c = true -> code_slots_checked known c = true.
+Proof.
+  destruct c as [params my_closure ret exn metadata body].
+  cbn [code_slots_as code_slots_checked]. apply slots_as_checked.
+Qed.
+
+(* ======================================================================== *)
 (* The invariant                                                            *)
 (* ======================================================================== *)
 
@@ -99,12 +222,12 @@ Let Qv (allocated : statically_allocated_value) : Prop :=
   allocated_slots_known known allocated = true.
 
 (* The terms. *)
-Lemma slots_as_terms_inv_step (s s' : state) :
-  terms_inv (slots_as known) (handler_slots_as known) (code_slots_as known)
-    s ->
+Lemma slots_checked_terms_inv_step (s s' : state) :
+  terms_inv (slots_checked known) (handler_slots_checked known)
+    (code_slots_checked known) s ->
   step s = Step s' ->
-  terms_inv (slots_as known) (handler_slots_as known) (code_slots_as known)
-    s'.
+  terms_inv (slots_checked known) (handler_slots_checked known)
+    (code_slots_checked known) s'.
 Proof.
   apply terms_inv_step.
   - intros x kind d body H. simpl in H. apply andb_true_iff in H as [_ H].
@@ -420,7 +543,7 @@ Qed.
 Lemma eval_static_bindings_slots_known (vars : env) :
   env_values_all Pv vars ->
   ∀ (bindings : list static_binding) (statics statics' : static_env),
-    forallb (binding_slots_as known) bindings = true ->
+    forallb (binding_slots_checked known) bindings = true ->
     Forall (fun binding => Qv (snd binding)) (static_values statics) ->
     eval_static_bindings vars bindings statics = Some statics' ->
     Forall (fun binding => Qv (snd binding)) (static_values statics').
@@ -451,7 +574,7 @@ Proof.
 Qed.
 
 Lemma state_slots_known_step (s : state) :
-  slots_as known (state_expr s) = true ->
+  slots_checked known (state_expr s) = true ->
   state_slots_known known s ->
   match step s with
   | Step s' => state_slots_known known s'
@@ -476,8 +599,8 @@ Proof.
               (value_slots_known_in_static_arrays (state_statics s) Hstatics)
               _ Hprim).
     intros w [<- | []]. exact Htuple.
-  - intros x kind d body v hp' Hexpr Hexec. rewrite Hexpr in P. simpl in P.
-    apply andb_true_iff in P as [Pd _].
+  - intros x kind d body v hp' Hexpr Hexec. rewrite Hexpr in P.
+    cbn [slots_checked] in P. apply andb_true_iff in P as [Pd _].
     destruct Hvalid as (Hvars & _ & Hstatics & Hheap).
     refine (exec_named_values_all Pv (state_statics s) (state_heap s) hp'
               (state_vars s) d v value_slots_known_of_numbers
@@ -489,8 +612,9 @@ Proof.
       exact (proj1 (forallb_forall _ _)
                (eval_simples_slots_known (state_vars s) Hvars args vs Hvs)).
     + intros _ w Heval.
-      exact (eval_named_slots_known (state_statics s) (state_vars s) d w Pd
-               Hvars Hstatics Heval).
+      exact (eval_named_slots_known (state_statics s) (state_vars s) d w
+               (named_slots_checked_made known _ _ d w Heval Pd) Hvars
+               Hstatics Heval).
   - intros bindings body statics' Hexpr Heval.
     split; [ exact (fun v H => H) | ].
     rewrite Hexpr in P. simpl in P. apply andb_true_iff in P as [Pbindings _].
@@ -516,13 +640,14 @@ Qed.
 
 (* The two together: what the refinement goes by. *)
 Definition slots_inv (s : state) : Prop :=
-  terms_inv (slots_as known) (handler_slots_as known) (code_slots_as known) s
+  terms_inv (slots_checked known) (handler_slots_checked known)
+    (code_slots_checked known) s
   ∧ state_slots_known known s.
 
 Lemma slots_inv_kept : kept_by_step slots_inv.
 Proof.
   intros s s' [Hterms Hvalues] Hstep.
-  split; [ exact (slots_as_terms_inv_step s s' Hterms Hstep) | ].
+  split; [ exact (slots_checked_terms_inv_step s s' Hterms Hstep) | ].
   pose proof (state_slots_known_step s (proj1 Hterms) Hvalues) as H.
   rewrite Hstep in H. exact H.
 Qed.
@@ -532,7 +657,7 @@ Lemma slots_inv_initial (e : expr) :
     -> slots_inv (State e [] [] empty_static_env empty_heap).
 Proof.
   intros He. split.
-  - exact (terms_inv_initial _ _ _ e He).
+  - exact (terms_inv_initial _ _ _ e (slots_as_checked known e He)).
   - exact
       (conj (Forall_nil _)
          (conj I (conj (Forall_nil _) (heap_values_all_empty _)))).
@@ -548,9 +673,11 @@ Lemma slots_inv_from (e : expr) (statics : static_env) :
   slots_inv (State e [] [] statics empty_heap).
 Proof.
   intros He Hcode Hvalues. split.
-  - unfold terms_inv. simpl_state. refine (conj He (conj I _)).
+  - unfold terms_inv. simpl_state.
+    refine (conj (slots_as_checked known e He) (conj I _)).
     intros id c Hlookup. rewrite Forall_forall in Hcode.
-    exact (Hcode (id, c) (lookup_in id c _ Hlookup)).
+    exact (code_slots_as_checked known c
+             (Hcode (id, c) (lookup_in id c _ Hlookup))).
   - exact
       (conj (Forall_nil _)
          (conj I (conj Hvalues (heap_values_all_empty _)))).
@@ -727,6 +854,84 @@ Proof.
   - cbn [read_slots_in_binding]. rewrite IH. reflexivity.
 Qed.
 
+Lemma read_slot_slots_checked (known : known_slots) (syms : list symbol)
+    (d : named) :
+  named_slots_checked (read_slot known syms d) = named_slots_checked d.
+Proof.
+  destruct d as [a | p args | code slots | slot decls slots | slot closure
+    | project_from slot closure | move_from move_to closure];
+    cbn [read_slot]; try reflexivity;
+    (destruct (lookup slot known) as [a | ]; [ | reflexivity ]);
+    destruct (simple_statics_in_scope syms a); reflexivity.
+Qed.
+
+(* The same of the check that the invariant has. *)
+Fixpoint read_slots_slots_checked_expr (known known' : known_slots) (e : expr)
+    {struct e} :
+  ∀ syms : list symbol,
+    slots_checked known' (read_slots known syms e) = slots_checked known' e
+with read_slots_slots_checked_handler (known known' : known_slots)
+    (h : continuation_handler) {struct h} :
+  ∀ syms : list symbol,
+    handler_slots_checked known' (read_slots_in_handler known syms h)
+    = handler_slots_checked known' h.
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      intros syms; cbn [read_slots slots_checked]; try reflexivity.
+    + rewrite read_slot_slots_checked,
+        (read_slots_slots_checked_expr known known' body).
+      reflexivity.
+    + rewrite (read_slots_slots_checked_expr known known' body). f_equal.
+      generalize (flat_map symbols_of_binding bindings ++ syms).
+      intros all.
+      induction bindings
+        as [ | [id [params my_closure ret exn metadata code_body] | id
+               | sym const]
+               bindings IH];
+        cbn [map forallb]; [ reflexivity | | | ].
+      * cbn [read_slots_in_binding code_is_stub].
+        destruct (cm_is_stub metadata); [ rewrite IH; reflexivity | ].
+        cbn [read_slots_in_code binding_slots_checked code_slots_checked].
+        rewrite (read_slots_slots_checked_expr known known' code_body), IH.
+        reflexivity.
+      * cbn [read_slots_in_binding]. rewrite IH. reflexivity.
+      * cbn [read_slots_in_binding]. rewrite IH. reflexivity.
+    + rewrite (read_slots_slots_checked_handler known known' h),
+        (read_slots_slots_checked_expr known known' body).
+      reflexivity.
+    + rewrite (read_slots_slots_checked_expr known known' body). f_equal.
+      generalize (static_names symbols_of_binding body ++ syms).
+      intros all.
+      induction handlers as [ | [k h] handlers IH]; cbn [map forallb];
+        [ reflexivity | ].
+      rewrite (read_slots_slots_checked_handler known known' h), IH.
+      reflexivity.
+  - destruct h as [params metadata handler]. intros syms.
+    cbn [read_slots_in_handler handler_slots_checked].
+    apply read_slots_slots_checked_expr.
+Qed.
+
+Lemma read_slots_bindings_slots_checked (known known' : known_slots)
+    (syms : list symbol) (bindings : list static_binding) :
+  forallb (binding_slots_checked known')
+    (map (read_slots_in_binding known syms) bindings)
+  = forallb (binding_slots_checked known') bindings.
+Proof.
+  induction bindings
+    as [ | [id [params my_closure ret exn metadata code_body] | id
+           | sym const]
+           bindings IH];
+    cbn [map forallb]; [ reflexivity | | | ].
+  - cbn [read_slots_in_binding code_is_stub].
+    destruct (cm_is_stub metadata); [ rewrite IH; reflexivity | ].
+    cbn [read_slots_in_code binding_slots_checked code_slots_checked].
+    rewrite read_slots_slots_checked_expr, IH. reflexivity.
+  - cbn [read_slots_in_binding]. rewrite IH. reflexivity.
+  - cbn [read_slots_in_binding]. rewrite IH. reflexivity.
+Qed.
+
 (* The rewrite binds what the term binds. *)
 Fixpoint read_slots_binds_statics (known : known_slots) (e : expr) :
   ∀ syms : list symbol,
@@ -770,7 +975,7 @@ Let Hkept : kept_by_step inv := slots_inv_kept known Hclosed.
    the check of it. *)
 Lemma slots_inv_expr (e e' : expr) (vars : env) (conts : cont_env)
     (statics : static_env) (hp : heap) :
-  slots_as known e' = slots_as known e ->
+  slots_checked known e' = slots_checked known e ->
   inv (State e vars conts statics hp) <-> inv (State e' vars conts statics hp).
 Proof.
   intros Has.
@@ -802,9 +1007,9 @@ Lemma slots_inv_let_static_code (done after : list static_binding)
           body)
        vars conts statics hp).
 Proof.
-  apply slots_inv_expr. cbn [slots_as]. rewrite !forallb_app.
-  cbn [forallb binding_slots_as code_slots_as].
-  rewrite read_slots_slots_as_expr. reflexivity.
+  apply slots_inv_expr. cbn [slots_checked]. rewrite !forallb_app.
+  cbn [forallb binding_slots_checked code_slots_checked].
+  rewrite read_slots_slots_checked_expr. reflexivity.
 Qed.
 
 Lemma slots_inv_let_cont_recursive_handler
@@ -826,9 +1031,9 @@ Lemma slots_inv_let_cont_recursive_handler
           body)
        vars conts statics hp).
 Proof.
-  apply slots_inv_expr. cbn [slots_as]. rewrite !forallb_app.
-  cbn [forallb handler_slots_as].
-  rewrite read_slots_slots_as_expr. reflexivity.
+  apply slots_inv_expr. cbn [slots_checked]. rewrite !forallb_app.
+  cbn [forallb handler_slots_checked].
+  rewrite read_slots_slots_checked_expr. reflexivity.
 Qed.
 
 (* Down the term. The code of a group and the handlers of a recursive
@@ -912,7 +1117,7 @@ Proof.
             * symmetry. apply read_slots_binds_statics.
             * intros vs callee callee_vars return_to exn_to statics' hp' _ _ _.
               split.
-              -- apply slots_inv_expr, read_slots_slots_as_expr.
+              -- apply slots_inv_expr, read_slots_slots_checked_expr.
               -- intros Hentry. apply read_slots_refines_aux. exact Hentry.
           + specialize
               (IH
@@ -935,8 +1140,8 @@ Proof.
              (Let_static (map (read_slots_in_binding known all) bindings)
                 body)
              vars conts statics hp)).
-      { revert Hinv. apply slots_inv_expr. cbn [slots_as].
-        rewrite read_slots_bindings_slots_as. reflexivity. }
+      { revert Hinv. apply slots_inv_expr. cbn [slots_checked].
+        rewrite read_slots_bindings_slots_checked. reflexivity. }
       apply let_static_refines_step.
       destruct
         (eval_static_bindings vars
@@ -954,8 +1159,9 @@ Proof.
            (Let_cont_non_recursive k
               (Handler params metadata (read_slots known all handler)) body)
            vars conts statics hp)).
-    { revert Hinv. apply slots_inv_expr. cbn [slots_as handler_slots_as].
-      rewrite read_slots_slots_as_expr. reflexivity. }
+    { revert Hinv. apply slots_inv_expr.
+      cbn [slots_checked handler_slots_checked].
+      rewrite read_slots_slots_checked_expr. reflexivity. }
     apply (refines_trans _
       (State
          (Let_cont_non_recursive k
@@ -965,7 +1171,7 @@ Proof.
                (read_slots known all handler) body vars conts statics hp Hkept
                Hinv Hinv').
       intros vs handler_vars conts' statics' hp' _ _. split.
-      * apply slots_inv_expr, read_slots_slots_as_expr.
+      * apply slots_inv_expr, read_slots_slots_checked_expr.
       * intros Hentry. apply read_slots_refines_aux. exact Hentry.
     + apply let_cont_non_recursive_refines_step.
       apply read_slots_refines_aux. apply (Hkept _ _ Hinv').
@@ -1010,7 +1216,7 @@ Proof.
                    body vars conts statics _ Hkept Hdone Hdone').
           + symmetry. apply read_slots_binds_statics.
           + intros vs handler_vars conts' statics' hp' _ _. split.
-            * apply slots_inv_expr, read_slots_slots_as_expr.
+            * apply slots_inv_expr, read_slots_slots_checked_expr.
             * intros Hentry. apply read_slots_refines_aux. exact Hentry.
         - specialize
             (IH
@@ -1023,10 +1229,10 @@ Proof.
         inv
           (State (Let_cont_recursive (map read handlers) body) vars conts
              statics hp)).
-      { revert Hinv. apply slots_inv_expr. cbn [slots_as]. f_equal.
+      { revert Hinv. apply slots_inv_expr. cbn [slots_checked]. f_equal.
         clear. induction handlers as [ | [k h] handlers IH];
           cbn [map forallb]; [ reflexivity | ].
-        unfold read at 1. rewrite read_slots_slots_as_handler, IH.
+        unfold read at 1. rewrite read_slots_slots_checked_handler, IH.
         reflexivity. }
       apply let_cont_recursive_refines_step; [ reflexivity | ].
       intros Hbinds. apply read_slots_refines_aux. apply (Hkept _ _ Hinv').
