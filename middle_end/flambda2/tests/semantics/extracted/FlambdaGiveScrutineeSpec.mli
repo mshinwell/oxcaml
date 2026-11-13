@@ -5,6 +5,7 @@ open Datatypes
 open FlambdaMapSpec
 open FlambdaModel
 open FlambdaUnaliasParamsSpec
+open FlambdaUnusedContsSpec
 open List
 open ListDef
 

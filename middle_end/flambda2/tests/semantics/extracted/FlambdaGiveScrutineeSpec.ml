@@ -5,6 +5,7 @@ open Datatypes
 open FlambdaMapSpec
 open FlambdaModel
 open FlambdaUnaliasParamsSpec
+open FlambdaUnusedContsSpec
 open List
 open ListDef
 
@@ -29,7 +30,11 @@ let only_arm k c arms =
 
 (** val arm_fact : variable -> continuation -> expr -> coq_Z option **)
 
-let arm_fact x k = function
+let rec arm_fact x k = function
+  | Let_cont_non_recursive (k', h, body0) ->
+    if Pos.eqb k' k || cont_free_in_handler_b k h
+    then None
+    else arm_fact x k body0
   | Switch (scrutinee, arms) -> (
     match scrutinee with
     | Var y ->
@@ -158,7 +163,8 @@ let scrutinee_var current = function Var y -> y :: current | _ -> current
 
 (** val scrutinee_of : variable list -> expr -> variable list **)
 
-let scrutinee_of current = function
+let rec scrutinee_of current = function
+  | Let_cont_non_recursive (_, _, body) -> scrutinee_of current body
   | Switch (scrutinee, _) -> scrutinee_var current scrutinee
   | _ -> current
 

@@ -46,7 +46,8 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaSemanticsSpec FlambdaNominalSpec FlambdaNominalProofs
   FlambdaEquivarianceSpec FlambdaEquivarianceProofs FlambdaBindersSpec
-  FlambdaValidatorEquivarianceSpec FlambdaScopedProofs
+  FlambdaValidatorEquivarianceSpec FlambdaValidatorEquivarianceBaseProofs
+  FlambdaScopedProofs FlambdaUnusedContsSpec
   FlambdaUnaliasParamsSpec FlambdaUnaliasParamsProofs
   FlambdaUnaliasParamsNamesProofs FlambdaGiveScrutineeSpec.
 Import ListNotations.
@@ -80,20 +81,25 @@ Proof.
   rewrite rename_continuation_eqb, IH. reflexivity.
 Qed.
 
-Lemma arm_fact_equivariant (r : renaming) (x : variable) (k : continuation)
-    (body : expr) :
+Fixpoint arm_fact_equivariant (r : renaming) (x : variable)
+    (k : continuation) (body : expr) {struct body} :
   arm_fact (rename_variable r x) (rename_continuation r k)
     (rename_expr r body)
   = arm_fact x k body.
 Proof.
-  destruct body as [ | | | | | | scrutinee arms | ]; try reflexivity.
-  cbn [rename_expr]. unfold arm_fact.
-  destruct scrutinee as [y | sym | cst]; cbn [rename_simple];
+  destruct body as [ | | k' hh body | | | | scrutinee arms | ];
     try reflexivity.
-  rewrite rename_variable_eqb, first_arm_of_equivariant.
-  destruct (Pos.eqb y x); [ | reflexivity ].
-  destruct (first_arm_of k arms) as [c | ]; [ | reflexivity ].
-  rewrite only_arm_equivariant. reflexivity.
+  - cbn [rename_expr arm_fact].
+    rewrite rename_continuation_eqb, cont_free_in_handler_b_equivariant,
+      arm_fact_equivariant.
+    reflexivity.
+  - cbn [rename_expr arm_fact].
+    destruct scrutinee as [y | sym | cst]; cbn [rename_simple];
+      try reflexivity.
+    rewrite rename_variable_eqb, first_arm_of_equivariant.
+    destruct (Pos.eqb y x); [ | reflexivity ].
+    destruct (first_arm_of k arms) as [c | ]; [ | reflexivity ].
+    rewrite only_arm_equivariant. reflexivity.
 Qed.
 
 Lemma arm_known_equivariant (r : renaming) (x : variable)
@@ -196,13 +202,15 @@ Lemma scrutinee_var_equivariant (r : renaming) (current : list variable)
   = map (rename_variable r) (scrutinee_var current scrutinee).
 Proof. destruct scrutinee; reflexivity. Qed.
 
-Lemma scrutinee_of_equivariant (r : renaming) (current : list variable)
-    (e : expr) :
+Fixpoint scrutinee_of_equivariant (r : renaming) (current : list variable)
+    (e : expr) {struct e} :
   scrutinee_of (map (rename_variable r) current) (rename_expr r e)
   = map (rename_variable r) (scrutinee_of current e).
 Proof.
-  destruct e; try reflexivity. cbn [rename_expr scrutinee_of].
-  apply scrutinee_var_equivariant.
+  destruct e as [ | | k' hh body | | | | scrutinee arms | ];
+    try reflexivity.
+  - cbn [rename_expr scrutinee_of]. apply scrutinee_of_equivariant.
+  - cbn [rename_expr scrutinee_of]. apply scrutinee_var_equivariant.
 Qed.
 
 Fixpoint first_scrutinee_equivariant (r : renaming) (k : continuation)
@@ -333,6 +341,25 @@ Proof.
   destruct known; [ destruct (Pos.eqb _ _) | ]; reflexivity.
 Qed.
 
+(* The variable of a fact is the scrutinee of a [Switch] that the body
+   comes to, so it is free in the body. *)
+Fixpoint arm_fact_free (x : variable) (k : continuation) (body : expr)
+    (c : Z) {struct body} :
+  arm_fact x k body = Some c -> In x (free_variables_of_expr body).
+Proof.
+  destruct body as [ | | k' hh body | | | | scrutinee arms | ];
+    try discriminate.
+  - cbn [arm_fact].
+    destruct (Pos.eqb k' k || cont_free_in_handler_b k hh);
+      [ discriminate | ].
+    intros Hfact. cbn [free_variables_of_expr]. apply in_or_app. right.
+    exact (arm_fact_free x k body c Hfact).
+  - cbn [arm_fact]. destruct scrutinee as [z | | ]; try discriminate.
+    destruct (Pos.eqb_spec z x) as [-> | _]; [ | discriminate ].
+    intros _. cbn [free_variables_of_expr free_variables_of_simple app].
+    left. reflexivity.
+Qed.
+
 Lemma give_nth_free_variables (x : variable) (c : Z) (a : variable) :
   ∀ (i : nat) (args : list simple),
     In a (free_variables_of_simples (give_nth x c i args)) ->
@@ -458,12 +485,7 @@ Proof.
         destruct (arm_fact x k' body) as [c | ] eqn:Hfact;
           [ | right; split; [ reflexivity | exact Hknown ] ].
         left. apply in_or_app. right.
-        unfold arm_fact in Hfact.
-        destruct body as [ | | | | | | scrutinee arms | ]; try discriminate.
-        destruct scrutinee as [z | | ]; try discriminate.
-        destruct (Pos.eqb_spec z x) as [-> | _]; [ | discriminate ].
-        cbn [free_variables_of_expr free_variables_of_simple app].
-        left. reflexivity.
+        exact (arm_fact_free x k' body c Hfact).
       * destruct (give_scrutinee_free_variables x k i a body known Hin)
           as [Hin' | Hx]; [ | right; exact Hx ].
         left. apply in_or_app. right. exact Hin'.

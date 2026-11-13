@@ -72,7 +72,13 @@
      has for its body a [Switch] on [x], and that only arms of one
      number apply, [x] is that number ([arm_fact]): the handler runs
      when such an arm is taken, under the variables that the [Switch]
-     was run under, and its parameters;
+     was run under, and its parameters. The same where the body comes
+     to the [Switch] through other non-recursive [Let_cont]s, each
+     arm that has more to compute having a continuation of its own,
+     if none of them binds the name again and none of their handlers
+     mentions it: nothing but the [Switch] applies the continuation
+     then, and no variable is bound between its [Let_cont] and the
+     [Switch];
    - what is known where a continuation is defined is known in its
      handler, which runs under the variables of its definition and
      its parameters;
@@ -118,7 +124,8 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaKindModel FlambdaModel
-  FlambdaMapSpec FlambdaSemanticsSpec FlambdaUnaliasParamsSpec.
+  FlambdaMapSpec FlambdaSemanticsSpec FlambdaUnusedContsSpec
+  FlambdaUnaliasParamsSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -140,10 +147,12 @@ Definition only_arm (k : continuation) (c : Z)
     arms.
 
 (* The number that [x] is whenever the handler of [k] runs, where the
-   body of the [Let_cont] of [k] is a [Switch] on [x] and only arms of
-   one number apply [k]. *)
-Definition arm_fact (x : variable) (k : continuation) (body : expr)
-    : option Z :=
+   body of the [Let_cont] of [k] is a [Switch] on [x], or comes to one
+   through non-recursive [Let_cont]s that do not bind [k] again and
+   whose handlers do not mention it, and only arms of one number apply
+   [k]. *)
+Fixpoint arm_fact (x : variable) (k : continuation) (body : expr)
+    {struct body} : option Z :=
   match body with
   | Switch (Var y) arms =>
     if Pos.eqb y x
@@ -153,6 +162,9 @@ Definition arm_fact (x : variable) (k : continuation) (body : expr)
       | None => None
       end
     else None
+  | Let_cont_non_recursive k' h body =>
+    if Pos.eqb k' k || cont_free_in_handler_b k h then None
+    else arm_fact x k body
   | _ => None
   end.
 
@@ -264,7 +276,8 @@ Definition scrutinee_by (k : continuation) (i : nat)
   else None.
 
 (* A scrutinee that is a variable, before those that there were; and
-   that of an expression that is a [Switch]. *)
+   that of an expression that is a [Switch], or comes to one through
+   non-recursive [Let_cont]s. *)
 Definition scrutinee_var (current : list variable) (scrutinee : simple)
     : list variable :=
   match scrutinee with
@@ -272,10 +285,11 @@ Definition scrutinee_var (current : list variable) (scrutinee : simple)
   | _ => current
   end.
 
-Definition scrutinee_of (current : list variable) (e : expr)
+Fixpoint scrutinee_of (current : list variable) (e : expr) {struct e}
     : list variable :=
   match e with
   | Switch scrutinee _ => scrutinee_var current scrutinee
+  | Let_cont_non_recursive _ _ body => scrutinee_of current body
   | _ => current
   end.
 

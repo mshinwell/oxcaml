@@ -37,20 +37,27 @@
    What is known of [x] where an expression is holds of the variables
    that it runs under ([holds]).
 
-   One closure is not so: that of a continuation whose handler is
+   Some closures are not so: that of a continuation whose handler is
    rewritten for the number of the arm that applies it (arm_fact),
-   when [x] is not that number. It is in scope in the [Switch] and in
-   the arm that the [Switch] takes, and nowhere else; the arm taken
-   has another number, so does not apply it. The two states in which
-   it is in scope have their own cases of the relation
-   ([Rel_state_switch], [Rel_state_arm]). *)
+   when [x] is not that number. It is in scope in the [Let_cont]s
+   between its own and the [Switch], whose handlers do not mention
+   it, in the [Switch], and in the arm that the [Switch] takes; the
+   arm taken has another number, so does not apply it. The relation
+   of states has the list of such continuations ([dead]), and asks
+   that two continuations be related only where the expression may
+   apply them and they are not in the list; a closure asks the same
+   of the continuations that its handler, or a handler bound with
+   it, mentions ([closure_mentions]), so one made while such a
+   continuation is in scope is related to its counterpart. The arm
+   taken has its own case ([Rel_state_arm]), which asks only of the
+   continuation that it applies. *)
 
 From Stdlib Require Import ZArith List Bool Arith Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaKindModel FlambdaModel
   FlambdaMapSpec FlambdaMapProofs FlambdaSemanticsSpec FlambdaSemanticsProofs
   FlambdaContextSpec FlambdaContextProofs
-  FlambdaNormaliseSpec FlambdaNormaliseProofs
+  FlambdaNormaliseSpec FlambdaNormaliseProofs FlambdaUnusedContsSpec
   FlambdaUnaliasParamsSpec FlambdaUnaliasParamsProofs
   FlambdaGiveScrutineeSpec.
 Import ListNotations.
@@ -137,18 +144,29 @@ Proof.
 Qed.
 
 (* What [arm_fact] finds. *)
-Lemma arm_fact_some (x : variable) (k : continuation) (body : expr) (c : Z) :
-  arm_fact x k body = Some c ->
-  ∃ arms : list (Z * apply_cont),
-    body = Switch (Var x) arms ∧ only_arm k c arms = true.
+Lemma arm_fact_switch (x : variable) (k : continuation) (scrutinee : simple)
+    (arms : list (Z * apply_cont)) (c : Z) :
+  arm_fact x k (Switch scrutinee arms) = Some c ->
+  scrutinee = Var x ∧ only_arm k c arms = true.
 Proof.
-  unfold arm_fact.
-  destruct body as [ | | | | | | scrutinee arms | ]; try discriminate.
+  cbn [arm_fact].
   destruct scrutinee as [y | | ]; try discriminate.
   destruct (Pos.eqb_spec y x) as [-> | _]; [ | discriminate ].
   destruct (first_arm_of k arms) as [c' | ]; [ | discriminate ].
   destruct (only_arm k c' arms) eqn:Honly; [ | discriminate ].
-  intros [= <-]. exists arms. split; [ reflexivity | exact Honly ].
+  intros [= <-]. split; [ reflexivity | exact Honly ].
+Qed.
+
+Lemma arm_fact_let_cont (x : variable) (k k1 : continuation)
+    (hh : continuation_handler) (body : expr) (c : Z) :
+  arm_fact x k (Let_cont_non_recursive k1 hh body) = Some c ->
+  k <> k1 ∧ cont_free_in_handler_b k hh = false ∧ arm_fact x k body = Some c.
+Proof.
+  cbn [arm_fact].
+  destruct (Pos.eqb_spec k1 k) as [-> | Hne]; [ discriminate | ].
+  cbn [orb].
+  destruct (cont_free_in_handler_b k hh); [ discriminate | ].
+  intros Hfact. split; [ congruence | split; [ reflexivity | exact Hfact ] ].
 Qed.
 
 (* An arm of another number does not apply the continuation. *)
@@ -164,6 +182,25 @@ Proof.
   apply orb_true_iff in Hall as [Hk | Hc].
   - apply negb_true_iff, Pos.eqb_neq in Hk. exact (Hk Heq).
   - apply Z.eqb_eq in Hc. exact (Hne Hc).
+Qed.
+
+(* The continuation that an application applies is free in it. *)
+Lemma ac_continuation_free (ac : apply_cont) :
+  cont_free_b (ac_continuation ac) (Apply_cont ac) = true.
+Proof.
+  cbn [cont_free_b]. unfold apply_cont_continuations, among.
+  cbn [existsb]. rewrite Pos.eqb_refl. reflexivity.
+Qed.
+
+(* A continuation free in the arm taken is free in the [Switch]. *)
+Lemma arm_free_in_switch (k1 : continuation) (scrutinee : simple)
+    (arms : list (Z * apply_cont)) (j : Z) (ac : apply_cont) :
+  find_arm j arms = Some ac ->
+  cont_free_b k1 (Apply_cont ac) = true ->
+  cont_free_b k1 (Switch scrutinee arms) = true.
+Proof.
+  intros Hfind Hfree. cbn [cont_free_b]. apply existsb_exists.
+  exists (j, ac). split; [ exact (find_arm_in j arms ac Hfind) | exact Hfree ].
 Qed.
 
 (* ======================================================================== *)
@@ -220,23 +257,49 @@ Proof.
   cbn [ac_args]. apply eval_simples_give_nth, Hholds. reflexivity.
 Qed.
 
+(* The variable holds the number, or it does not. *)
+Lemma holds_or_not (c : Z) (vars : env) :
+  lookup x vars = Some (Value_const (Naked_immediate c))
+  ∨ lookup x vars <> Some (Value_const (Naked_immediate c)).
+Proof.
+  destruct (lookup x vars) as [v | ]; [ | right; discriminate ].
+  destruct (naked_immediate_of_value v) as [j | ] eqn:Hj.
+  - apply naked_immediate_of_value_some in Hj. subst v.
+    destruct (Z.eq_dec j c) as [-> | Hne]; [ left; reflexivity | ].
+    right. intros [= Heq]. exact (Hne Heq).
+  - right. intros [= ->]. discriminate.
+Qed.
+
+(* The continuations that a closure may apply of those that were in
+   scope where it was made: those that its handler mentions, and those
+   that the handlers bound with it mention. *)
+Definition closure_mentions (hh : continuation_handler)
+    (recursive : list (continuation * continuation_handler))
+    (k1 : continuation) : bool :=
+  cont_free_in_handler_b k1 hh
+  || existsb (fun '(_, h) => cont_free_in_handler_b k1 h) recursive.
+
 (* What a continuation name stands for in the two runs: the same thing;
-   or two closures of one handler, under continuations so related; or
-   the closure of a handler and that of the handler rewritten for what
-   is known of [x] under the variables of the closure; or two so
-   related with the same extra arguments; or what is left of the same
-   over-application. *)
+   or two closures of one handler, under continuations so related where
+   the closure may apply them; or the closure of a handler and that of
+   the handler rewritten for what is known of [x] under the variables
+   of the closure; or two so related with the same extra arguments; or
+   what is left of the same over-application. *)
 Inductive cont_rel : cont_value -> cont_value -> Prop :=
   | Rel_same (c : cont_value) : cont_rel c c
   | Rel_plain (hh : continuation_handler) (dv : env) (dc dc' : cont_env)
       (recursive : list (continuation * continuation_handler)) :
-    (∀ k1 : continuation, cont_rel (resolve k1 dc) (resolve k1 dc')) ->
+    (∀ k1 : continuation,
+       closure_mentions hh recursive k1 = true ->
+       cont_rel (resolve k1 dc) (resolve k1 dc')) ->
     cont_rel (Closure hh dv dc recursive) (Closure hh dv dc' recursive)
   | Rel_given (known : option Z) (hh : continuation_handler) (dv : env)
       (dc dc' : cont_env)
       (recursive : list (continuation * continuation_handler)) :
     holds known dv ->
-    (∀ k1 : continuation, cont_rel (resolve k1 dc) (resolve k1 dc')) ->
+    (∀ k1 : continuation,
+       closure_mentions hh recursive k1 = true ->
+       cont_rel (resolve k1 dc) (resolve k1 dc')) ->
     cont_rel (Closure hh dv dc recursive)
       (Closure (give_in_handler x k i known hh) dv dc'
          (give_handlers x k i known recursive))
@@ -252,50 +315,48 @@ Inductive cont_rel : cont_value -> cont_value -> Prop :=
       (Over_application remaining remaining_arity return_arity return_to'
          exn_to').
 
-Definition conts_rel (conts conts' : cont_env) : Prop :=
-  ∀ k1 : continuation, cont_rel (resolve k1 conts) (resolve k1 conts').
-
-(* Two states: an expression and the same rewritten for what is known,
-   which holds; the same expression; and the two states that have in
-   scope a continuation [k2] whose handler was rewritten for a number
-   [c] that [x] is not: the [Switch] on [x], of which only arms of the
-   number [c] apply [k2], and the arm taken, which does not apply
-   it. *)
+(* Two states. An expression and the same rewritten for what is known,
+   which holds, under continuations that are related where the
+   expression may apply them, but for those of [dead]: each of these
+   has a handler that was rewritten for a number that [x] is not, and
+   is applied only by arms of that number of the [Switch] on [x] that
+   the expression comes to ([arm_fact]), so it is not applied. The
+   same expression. And the arm that a [Switch] takes, of which only
+   the continuation that it applies need be related. *)
 Inductive state_rel : state -> state -> Prop :=
-  | Rel_state (known : option Z) (e : expr) (vars : env)
-      (conts conts' : cont_env) (statics : static_env) (hp : heap) :
+  | Rel_state (dead : list (continuation * Z)) (known : option Z) (e : expr)
+      (vars : env) (conts conts' : cont_env) (statics : static_env)
+      (hp : heap) :
     holds known vars ->
-    conts_rel conts conts' ->
+    (∀ (k2 : continuation) (c : Z),
+       (k2, c) ∈ dead ->
+       arm_fact x k2 e = Some c
+       ∧ lookup x vars <> Some (Value_const (Naked_immediate c))) ->
+    (∀ k1 : continuation,
+       cont_free_b k1 e = true ->
+       k1 ∉ map fst dead ->
+       cont_rel (resolve k1 conts) (resolve k1 conts')) ->
     state_rel (State e vars conts statics hp)
       (State (give_scrutinee x k i known e) vars conts' statics hp)
   | Rel_state_same (e : expr) (vars : env) (conts conts' : cont_env)
       (statics : static_env) (hp : heap) :
-    conts_rel conts conts' ->
+    (∀ k1 : continuation,
+       cont_free_b k1 e = true ->
+       cont_rel (resolve k1 conts) (resolve k1 conts')) ->
     state_rel (State e vars conts statics hp) (State e vars conts' statics hp)
-  | Rel_state_switch (c : Z) (k2 : continuation) (clo clo' : cont_value)
-      (known : option Z) (arms : list (Z * apply_cont)) (vars : env)
+  | Rel_state_arm (known : option Z) (ac : apply_cont) (vars : env)
       (conts conts' : cont_env) (statics : static_env) (hp : heap) :
-    lookup x vars <> Some (Value_const (Naked_immediate c)) ->
-    only_arm k2 c arms = true ->
-    conts_rel conts conts' ->
-    state_rel
-      (State (Switch (Var x) arms) vars ((k2, clo) :: conts) statics hp)
-      (State (give_scrutinee x k i known (Switch (Var x) arms)) vars
-         ((k2, clo') :: conts') statics hp)
-  | Rel_state_arm (k2 : continuation) (clo clo' : cont_value)
-      (known : option Z) (ac : apply_cont) (vars : env)
-      (conts conts' : cont_env) (statics : static_env) (hp : heap) :
-    ac_continuation ac <> k2 ->
     holds known vars ->
-    conts_rel conts conts' ->
-    state_rel (State (Apply_cont ac) vars ((k2, clo) :: conts) statics hp)
-      (State (Apply_cont (give_in_apply_cont x k i known ac)) vars
-         ((k2, clo') :: conts') statics hp).
+    cont_rel (resolve (ac_continuation ac) conts)
+      (resolve (ac_continuation ac) conts') ->
+    state_rel (State (Apply_cont ac) vars conts statics hp)
+      (State (Apply_cont (give_in_apply_cont x k i known ac)) vars conts'
+         statics hp).
 
 Lemma state_rel_refl (s : state) : state_rel s s.
 Proof.
   destruct s as [e vars conts statics hp].
-  apply Rel_state_same. intros k1. apply Rel_same.
+  apply Rel_state_same. intros k1 _. apply Rel_same.
 Qed.
 
 Lemma with_extra_args_rel (c c' : cont_value) (extra : list value) :
@@ -305,32 +366,66 @@ Proof.
   intros Hc. destruct extra; simpl; [ exact Hc | apply Rel_extra, Hc ].
 Qed.
 
+(* No continuation is dead where the expression comes to no [Switch]
+   through [Let_cont]s. *)
+Lemma no_dead (dead : list (continuation * Z)) (e : expr) (vars : env) :
+  (∀ k2 : continuation, arm_fact x k2 e = None) ->
+  (∀ (k2 : continuation) (c : Z),
+     (k2, c) ∈ dead ->
+     arm_fact x k2 e = Some c
+     ∧ lookup x vars <> Some (Value_const (Naked_immediate c))) ->
+  dead = [].
+Proof.
+  intros Hnone Hdead. destruct dead as [ | [k2 c] dead]; [ reflexivity | ].
+  destruct (Hdead k2 c (or_introl eq_refl)) as [Hfact _].
+  rewrite Hnone in Hfact. discriminate.
+Qed.
+
 (* The closures of the handlers of a recursive [Let_cont]. *)
 Lemma rec_conts_plain
     (handlers : list (continuation * continuation_handler))
-    (vars : env) (conts conts' : cont_env) :
-  conts_rel conts conts' ->
-  conts_rel (rec_closures handlers vars conts ++ conts)
-    (rec_closures handlers vars conts' ++ conts').
+    (vars : env) (conts conts' : cont_env) (k1 : continuation) :
+  (∀ k2 : continuation,
+     existsb (fun '(_, h) => cont_free_in_handler_b k2 h) handlers = true ->
+     cont_rel (resolve k2 conts) (resolve k2 conts')) ->
+  (lookup k1 handlers = None ->
+   cont_rel (resolve k1 conts) (resolve k1 conts')) ->
+  cont_rel (resolve k1 (rec_closures handlers vars conts ++ conts))
+    (resolve k1 (rec_closures handlers vars conts' ++ conts')).
 Proof.
-  intros Hconts k1. rewrite !resolve_rec_closures.
-  destruct (lookup k1 handlers) as [hh | ]; [ | apply Hconts ].
-  apply Rel_plain. exact Hconts.
+  intros Hgroup Hout. rewrite !resolve_rec_closures.
+  destruct (lookup k1 handlers) as [hh | ] eqn:Hlookup;
+    [ | exact (Hout eq_refl) ].
+  apply Rel_plain. intros k2 Hk2. apply Hgroup.
+  unfold closure_mentions in Hk2.
+  apply orb_true_iff in Hk2 as [Hk2 | Hk2]; [ | exact Hk2 ].
+  apply existsb_exists. exists (k1, hh).
+  split; [ exact (lookup_in k1 hh handlers Hlookup) | exact Hk2 ].
 Qed.
 
 Lemma rec_conts_given (known : option Z)
     (handlers : list (continuation * continuation_handler))
-    (vars : env) (conts conts' : cont_env) :
+    (vars : env) (conts conts' : cont_env) (k1 : continuation) :
   holds known vars ->
-  conts_rel conts conts' ->
-  conts_rel (rec_closures handlers vars conts ++ conts)
-    (rec_closures (give_handlers x k i known handlers) vars conts' ++ conts').
+  (∀ k2 : continuation,
+     existsb (fun '(_, h) => cont_free_in_handler_b k2 h) handlers = true ->
+     cont_rel (resolve k2 conts) (resolve k2 conts')) ->
+  (lookup k1 handlers = None ->
+   cont_rel (resolve k1 conts) (resolve k1 conts')) ->
+  cont_rel (resolve k1 (rec_closures handlers vars conts ++ conts))
+    (resolve k1
+       (rec_closures (give_handlers x k i known handlers) vars conts'
+        ++ conts')).
 Proof.
-  intros Hholds Hconts k1.
+  intros Hholds Hgroup Hout.
   rewrite !resolve_rec_closures, lookup_give_handlers.
-  destruct (lookup k1 handlers) as [hh | ]; cbn [option_map];
-    [ | apply Hconts ].
-  apply Rel_given; assumption.
+  destruct (lookup k1 handlers) as [hh | ] eqn:Hlookup; cbn [option_map];
+    [ | exact (Hout eq_refl) ].
+  apply Rel_given; [ exact Hholds | ]. intros k2 Hk2. apply Hgroup.
+  unfold closure_mentions in Hk2.
+  apply orb_true_iff in Hk2 as [Hk2 | Hk2]; [ | exact Hk2 ].
+  apply existsb_exists. exists (k1, hh).
+  split; [ exact (lookup_in k1 hh handlers Hlookup) | exact Hk2 ].
 Qed.
 
 (* The same full call, returning and raising to related continuations. *)
@@ -351,7 +446,7 @@ Proof.
   - rewrite !Hundefined. exact I.
   - rewrite !Hcall. simpl.
     apply Rel_state_same.
-    intros k'.
+    intros k' _.
     destruct (Pos.eq_dec k' (code_return_continuation c)) as [-> | Hne];
       [ rewrite !resolve_head; exact Hreturn | ].
     rewrite !(resolve_other k' (code_return_continuation c)) by exact Hne.
@@ -409,18 +504,27 @@ Proof.
     destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds m));
       [ | exact I ].
     destruct (bind_params ps vs dv) as [bound | ]; [ | exact I ].
-    simpl. apply Rel_state_same. apply rec_conts_plain. exact Hdc.
+    simpl. apply Rel_state_same. intros k1 Hk1. apply rec_conts_plain.
+    + intros k2 Hk2. apply Hdc. unfold closure_mentions. rewrite Hk2.
+      apply orb_true_r.
+    + intros _. apply Hdc. unfold closure_mentions.
+      cbn [cont_free_in_handler_b]. rewrite Hk1. reflexivity.
   - cbn [give_in_handler apply_cont_value].
     destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds m));
       [ | exact I ].
     destruct (bind_params ps vs dv) as [bound | ] eqn:Hbound; [ | exact I ].
     cbn [result_related].
-    apply (Rel_state (known_under x ps known)).
+    apply (Rel_state [] (known_under x ps known)).
     + unfold known_under. destruct (among x ps) eqn:Hx; intros c Hc;
         [ discriminate | ].
       rewrite (lookup_bind_params_out ps vs dv bound x Hx Hbound).
       exact (Hholds c Hc).
-    + apply rec_conts_given; assumption.
+    + intros k2 c [].
+    + intros k1 Hk1 _. apply rec_conts_given; [ exact Hholds | | ].
+      * intros k2 Hk2. apply Hdc. unfold closure_mentions. rewrite Hk2.
+        apply orb_true_r.
+      * intros _. apply Hdc. unfold closure_mentions.
+        cbn [cont_free_in_handler_b]. rewrite Hk1. reflexivity.
   - exact (IHc (vs ++ extra)).
   - rewrite !apply_cont_value_over_application.
     destruct vs as [ | v [ | v' vs]]; try exact I.
@@ -446,16 +550,22 @@ Proof.
   intros partial. apply apply_cont_value_rel, Hreturn.
 Qed.
 
-(* A continuation bound over related continuations. *)
-Lemma conts_rel_cons (k1 : continuation) (c c' : cont_value)
-    (conts conts' : cont_env) :
-  cont_rel c c' ->
-  conts_rel conts conts' ->
-  conts_rel ((k1, c) :: conts) ((k1, c') :: conts').
+(* A closure of the handler of a non-recursive [Let_cont], rewritten
+   for something that holds, is related to the closure of the handler
+   where the continuations that the handler mentions are. *)
+Lemma closure_given (known : option Z) (hh : continuation_handler)
+    (vars : env) (conts conts' : cont_env) :
+  holds known vars ->
+  (∀ k1 : continuation,
+     cont_free_in_handler_b k1 hh = true ->
+     cont_rel (resolve k1 conts) (resolve k1 conts')) ->
+  cont_rel (Closure hh vars conts [])
+    (Closure (give_in_handler x k i known hh) vars conts' []).
 Proof.
-  intros Hc Hconts k2. destruct (Pos.eq_dec k2 k1) as [-> | Hne].
-  - rewrite !resolve_head. exact Hc.
-  - rewrite !(resolve_other k2 k1) by exact Hne. apply Hconts.
+  intros Hholds Hconts.
+  apply (Rel_given known hh vars conts conts' []); [ exact Hholds | ].
+  intros k1 Hk1. apply Hconts. unfold closure_mentions in Hk1.
+  cbn [existsb] in Hk1. rewrite orb_false_r in Hk1. exact Hk1.
 Qed.
 
 (* Two related states step together. *)
@@ -463,79 +573,173 @@ Lemma give_step (s s' : state) :
   state_rel s s' -> result_related state_rel (step s) (step s').
 Proof.
   intros
-    [known e vars conts conts' statics hp Hholds Hconts
+    [dead known e vars conts conts' statics hp Hholds Hdead Hconts
     | e vars conts conts' statics hp Hconts
-    | c k2 clo clo' known arms vars conts conts' statics hp Hnot Honly Hconts
-    | k2 clo clo' known ac vars conts conts' statics hp Hne Hholds Hconts].
+    | known ac vars conts conts' statics hp Hholds Hk].
   - (* an expression and the same rewritten *)
     destruct e as [y kind1 d body | bindings body | k1 hh body
                   | handlers body | ap | ac | scrutinee arms | ];
       cbn [give_scrutinee].
-    + rewrite !step_let.
+    + assert (Hnil : dead = [])
+        by (apply (no_dead dead (Let y kind1 d body) vars);
+            [ intros k2; reflexivity | exact Hdead ]).
+      subst dead.
+      rewrite !step_let.
       destruct (eval_named statics vars d) as [v | ]; [ | exact I ].
       destruct (kind_eqb (kind_of_value v) kind1); [ | exact I ].
-      cbn [result_related]. apply Rel_state; [ | exact Hconts ].
-      intros c Hc. destruct (Pos.eqb_spec y x) as [-> | Hyx];
-        [ discriminate | ].
-      rewrite lookup_other by congruence. exact (Hholds c Hc).
-    + rewrite !step_let_static.
+      cbn [result_related]. apply (Rel_state []).
+      * intros c Hc. destruct (Pos.eqb_spec y x) as [-> | Hyx];
+          [ discriminate | ].
+        rewrite lookup_other by congruence. exact (Hholds c Hc).
+      * intros k2 c [].
+      * intros k1 Hk1 _. apply Hconts; [ exact Hk1 | intros [] ].
+    + assert (Hnil : dead = [])
+        by (apply (no_dead dead (Let_static bindings body) vars);
+            [ intros k2; reflexivity | exact Hdead ]).
+      subst dead.
+      rewrite !step_let_static.
       destruct (eval_static_bindings vars bindings statics); [ | exact I ].
-      cbn [result_related]. apply Rel_state; assumption.
+      cbn [result_related]. apply (Rel_state []); [ exact Hholds | | ].
+      * intros k2 c [].
+      * intros k1 Hk1 _. apply Hconts; [ exact Hk1 | intros [] ].
     + rewrite !step_let_cont_non_recursive. cbn [result_related].
+      (* what is dead stays so in the body, and the handler does not
+         mention it *)
+      assert (Hbody :
+        ∀ (k2 : continuation) (c : Z),
+          (k2, c) ∈ dead ->
+          k2 <> k1 ∧ cont_free_in_handler_b k2 hh = false
+          ∧ arm_fact x k2 body = Some c
+          ∧ lookup x vars <> Some (Value_const (Naked_immediate c))).
+      { intros k2 c Hin. destruct (Hdead k2 c Hin) as [Hfact Hnot].
+        destruct (arm_fact_let_cont x k2 k1 hh body c Hfact)
+          as (Hne & Hfree & Hfact').
+        repeat split; assumption. }
+      assert (Hbody_dead :
+        ∀ (k2 : continuation) (c : Z),
+          (k2, c) ∈ dead ->
+          arm_fact x k2 body = Some c
+          ∧ lookup x vars <> Some (Value_const (Naked_immediate c))).
+      { intros k2 c Hin. destruct (Hbody k2 c Hin) as (_ & _ & Hf & Hn).
+        split; assumption. }
+      (* the continuations that the handler mentions are related *)
+      assert (Hhandler :
+        ∀ k3 : continuation,
+          cont_free_in_handler_b k3 hh = true ->
+          cont_rel (resolve k3 conts) (resolve k3 conts')).
+      { intros k3 Hk3. apply Hconts.
+        - cbn [cont_free_b]. rewrite Hk3. reflexivity.
+        - intros Hin. apply in_map_iff in Hin as ([k2 c2] & Heq & Hin).
+          cbn [fst] in Heq. subst k2.
+          destruct (Hbody k3 c2 Hin) as (_ & Hfree & _). congruence. }
+      (* those of the body, but for the one bound, are related *)
+      assert (Hrest :
+        ∀ k3 : continuation,
+          cont_free_b k3 body = true ->
+          k3 <> k1 ->
+          k3 ∉ map fst dead ->
+          cont_rel (resolve k3 ((k1, Closure hh vars conts []) :: conts))
+            (resolve k3
+               ((k1,
+                 Closure
+                   (give_in_handler x k i
+                      match arm_fact x k1 body with
+                      | Some c => Some c
+                      | None => known
+                      end hh) vars conts' []) :: conts'))).
+      { intros k3 Hk3 Hne Hk3dead.
+        rewrite !(resolve_other k3 k1) by exact Hne.
+        apply Hconts; [ | exact Hk3dead ].
+        cbn [cont_free_b]. rewrite Hk3.
+        apply Pos.eqb_neq in Hne. rewrite Hne. apply orb_true_r. }
       destruct (arm_fact x k1 body) as [c | ] eqn:Hfact.
-      * destruct (arm_fact_some x k1 body c Hfact) as (arms & -> & Honly).
-        destruct (lookup x vars) as [v | ] eqn:Hv.
-        -- destruct (naked_immediate_of_value v) as [j | ] eqn:Hj.
-           ++ apply naked_immediate_of_value_some in Hj. subst v.
-              destruct (Z.eq_dec j c) as [-> | Hjc].
-              ** apply (Rel_state known (Switch (Var x) arms));
-                   [ exact Hholds | ].
-                 apply conts_rel_cons; [ | exact Hconts ].
-                 apply (Rel_given (Some c) hh vars conts conts' []);
-                   [ | exact Hconts ].
-                 intros c' [= <-]. exact Hv.
-              ** apply (Rel_state_switch c k1 _ _ known arms);
-                   [ | exact Honly | exact Hconts ].
-                 rewrite Hv. intros [= Heq]. exact (Hjc Heq).
-           ++ apply (Rel_state_switch c k1 _ _ known arms);
-                [ | exact Honly | exact Hconts ].
-              rewrite Hv. intros [= ->]. discriminate.
-        -- apply (Rel_state_switch c k1 _ _ known arms);
-             [ | exact Honly | exact Hconts ].
-           rewrite Hv. discriminate.
-      * apply (Rel_state known body); [ exact Hholds | ].
-        apply conts_rel_cons; [ | exact Hconts ].
-        apply (Rel_given known hh vars conts conts' []); assumption.
-    + rewrite !step_let_cont_recursive.
+      * destruct (holds_or_not c vars) as [Hc | Hnot].
+        -- apply (Rel_state dead known body);
+             [ exact Hholds | exact Hbody_dead | ].
+           intros k3 Hk3 Hk3dead.
+           destruct (Pos.eq_dec k3 k1) as [-> | Hne];
+             [ | exact (Hrest k3 Hk3 Hne Hk3dead) ].
+           rewrite !resolve_head.
+           apply closure_given; [ | exact Hhandler ].
+           intros c' [= <-]. exact Hc.
+        -- apply (Rel_state ((k1, c) :: dead) known body);
+             [ exact Hholds | | ].
+           ++ intros k2 c2 [[= <- <-] | Hin];
+                [ split; assumption | exact (Hbody_dead k2 c2 Hin) ].
+           ++ intros k3 Hk3 Hk3dead. cbn [map fst] in Hk3dead.
+              apply Hrest; [ exact Hk3 | | ].
+              ** intros ->. apply Hk3dead. left. reflexivity.
+              ** intros Hin. apply Hk3dead. right. exact Hin.
+      * apply (Rel_state dead known body);
+          [ exact Hholds | exact Hbody_dead | ].
+        intros k3 Hk3 Hk3dead.
+        destruct (Pos.eq_dec k3 k1) as [-> | Hne];
+          [ | exact (Hrest k3 Hk3 Hne Hk3dead) ].
+        rewrite !resolve_head.
+        apply closure_given; [ exact Hholds | exact Hhandler ].
+    + assert (Hnil : dead = [])
+        by (apply (no_dead dead (Let_cont_recursive handlers body) vars);
+            [ intros k2; reflexivity | exact Hdead ]).
+      subst dead.
+      rewrite !step_let_cont_recursive.
       fold (give_handlers x k i known handlers).
       rewrite give_handlers_bind_statics.
       destruct (handlers_bind_statics handlers); [ exact I | ].
-      cbn [result_related]. apply (Rel_state known body); [ exact Hholds | ].
-      apply rec_conts_given; assumption.
-    + rewrite !step_apply.
+      cbn [result_related]. apply (Rel_state [] known body);
+        [ exact Hholds | | ].
+      * intros k2 c [].
+      * intros k3 Hk3 _. apply rec_conts_given; [ exact Hholds | | ].
+        -- intros k2 Hk2. apply Hconts; [ | intros [] ].
+           cbn [cont_free_b]. rewrite Hk2. reflexivity.
+        -- intros _. apply Hconts; [ | intros [] ].
+           cbn [cont_free_b]. rewrite Hk3. apply orb_true_r.
+    + assert (Hnil : dead = [])
+        by (apply (no_dead dead (Apply ap) vars);
+            [ intros k2; reflexivity | exact Hdead ]).
+      subst dead.
+      rewrite !step_apply.
       destruct (eval_simple vars (ap_callee ap)) as [callee | ]; [ | exact I ].
       destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | exact I ].
       destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
         [ | exact I ].
       apply call_function_rel;
-        [ apply Hconts | apply with_extra_args_rel, Hconts ].
-    + rewrite !step_apply_cont, (eval_args_given known vars ac Hholds),
+        [ apply Hconts | apply with_extra_args_rel, Hconts ];
+        try (intros []); cbn [cont_free_b]; rewrite Pos.eqb_refl;
+        [ reflexivity | apply orb_true_r ].
+    + assert (Hnil : dead = [])
+        by (apply (no_dead dead (Apply_cont ac) vars);
+            [ intros k2; reflexivity | exact Hdead ]).
+      subst dead.
+      rewrite !step_apply_cont, (eval_args_given known vars ac Hholds),
         give_in_apply_cont_continuation.
       destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | exact I ].
-      unfold apply_continuation. apply apply_cont_value_rel, Hconts.
+      unfold apply_continuation.
+      apply apply_cont_value_rel, Hconts;
+        [ apply ac_continuation_free | intros [] ].
     + rewrite !step_switch.
       destruct (eval_simple vars scrutinee) as [v | ] eqn:Hv; [ | exact I ].
       destruct (naked_immediate_of_value v) as [j | ] eqn:Hj; [ | exact I ].
       rewrite find_arm_give.
-      destruct (find_arm j arms) as [ac | ]; [ | exact I ].
+      destruct (find_arm j arms) as [ac | ] eqn:Hfind; [ | exact I ].
       cbn [option_map result_related].
-      apply (Rel_state (arm_known x scrutinee j known) (Apply_cont ac));
-        [ | exact Hconts ].
-      unfold arm_known. destruct scrutinee as [y | sym | cst];
-        try exact Hholds.
-      destruct (Pos.eqb_spec y x) as [-> | _]; [ | exact Hholds ].
-      intros c' [= <-]. cbn [eval_simple] in Hv. rewrite Hv. f_equal.
-      exact (naked_immediate_of_value_some v j Hj).
+      apply naked_immediate_of_value_some in Hj. subst v.
+      apply (Rel_state_arm (arm_known x scrutinee j known) ac).
+      * unfold arm_known. destruct scrutinee as [y | sym | cst];
+          try exact Hholds.
+        destruct (Pos.eqb_spec y x) as [-> | _]; [ | exact Hholds ].
+        intros c' [= <-]. cbn [eval_simple] in Hv. exact Hv.
+      * apply Hconts.
+        -- exact (arm_free_in_switch _ scrutinee arms j ac Hfind
+             (ac_continuation_free ac)).
+        -- intros Hin. apply in_map_iff in Hin as ([k2 c] & Heq & Hin).
+           cbn [fst] in Heq. subst k2.
+           destruct (Hdead _ c Hin) as [Hfact Hnot].
+           destruct (arm_fact_switch x _ scrutinee arms c Hfact)
+             as [-> Honly].
+           cbn [eval_simple] in Hv.
+           assert (Hjc : j <> c) by (intros ->; exact (Hnot Hv)).
+           exact (only_arm_other _ c arms j ac Honly
+             (find_arm_in j arms ac Hfind) Hjc eq_refl).
     + rewrite !step_invalid. exact I.
   - (* the same expression *)
     destruct e as [y kind1 d body | bindings body | k1 hh body
@@ -543,53 +747,55 @@ Proof.
     + rewrite !step_let.
       destruct (eval_named statics vars d) as [v | ]; [ | exact I ].
       destruct (kind_eqb (kind_of_value v) kind1); [ | exact I ].
-      cbn [result_related]. apply Rel_state_same, Hconts.
+      cbn [result_related]. apply Rel_state_same. exact Hconts.
     + rewrite !step_let_static.
       destruct (eval_static_bindings vars bindings statics); [ | exact I ].
-      cbn [result_related]. apply Rel_state_same, Hconts.
+      cbn [result_related]. apply Rel_state_same. exact Hconts.
     + rewrite !step_let_cont_non_recursive. cbn [result_related].
-      apply Rel_state_same. apply conts_rel_cons; [ | exact Hconts ].
-      apply Rel_plain, Hconts.
+      apply Rel_state_same. intros k3 Hk3.
+      destruct (Pos.eq_dec k3 k1) as [-> | Hne].
+      * rewrite !resolve_head. apply Rel_plain. intros k4 Hk4.
+        apply Hconts. unfold closure_mentions in Hk4.
+        cbn [existsb] in Hk4. rewrite orb_false_r in Hk4.
+        cbn [cont_free_b]. rewrite Hk4. reflexivity.
+      * rewrite !(resolve_other k3 k1) by exact Hne. apply Hconts.
+        cbn [cont_free_b]. rewrite Hk3.
+        apply Pos.eqb_neq in Hne. rewrite Hne. apply orb_true_r.
     + rewrite !step_let_cont_recursive.
       destruct (handlers_bind_statics handlers); [ exact I | ].
-      cbn [result_related]. apply Rel_state_same, rec_conts_plain, Hconts.
+      cbn [result_related]. apply Rel_state_same. intros k3 Hk3.
+      apply rec_conts_plain.
+      * intros k2 Hk2. apply Hconts. cbn [cont_free_b]. rewrite Hk2.
+        reflexivity.
+      * intros _. apply Hconts. cbn [cont_free_b]. rewrite Hk3.
+        apply orb_true_r.
     + rewrite !step_apply.
       destruct (eval_simple vars (ap_callee ap)) as [callee | ]; [ | exact I ].
       destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | exact I ].
       destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
         [ | exact I ].
       apply call_function_rel;
-        [ apply Hconts | apply with_extra_args_rel, Hconts ].
+        [ apply Hconts | apply with_extra_args_rel, Hconts ];
+        cbn [cont_free_b]; rewrite Pos.eqb_refl;
+        [ reflexivity | apply orb_true_r ].
     + rewrite !step_apply_cont.
       destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | exact I ].
-      unfold apply_continuation. apply apply_cont_value_rel, Hconts.
+      unfold apply_continuation.
+      apply apply_cont_value_rel, Hconts, ac_continuation_free.
     + rewrite !step_switch.
       destruct (eval_simple vars scrutinee) as [v | ]; [ | exact I ].
       destruct (naked_immediate_of_value v) as [j | ]; [ | exact I ].
-      destruct (find_arm j arms) as [ac | ]; [ | exact I ].
-      cbn [result_related]. apply Rel_state_same, Hconts.
+      destruct (find_arm j arms) as [ac | ] eqn:Hfind; [ | exact I ].
+      cbn [result_related]. apply Rel_state_same. intros k1 Hk1.
+      apply Hconts.
+      exact (arm_free_in_switch k1 scrutinee arms j ac Hfind Hk1).
     + rewrite !step_invalid. exact I.
-  - (* the [Switch], with a continuation in scope that is not applied *)
-    cbn [give_scrutinee]. rewrite !step_switch. cbn [eval_simple].
-    destruct (lookup x vars) as [v | ] eqn:Hv; [ | exact I ].
-    destruct (naked_immediate_of_value v) as [j | ] eqn:Hj; [ | exact I ].
-    rewrite find_arm_give.
-    destruct (find_arm j arms) as [ac | ] eqn:Hfind; [ | exact I ].
-    cbn [option_map result_related].
-    apply naked_immediate_of_value_some in Hj. subst v.
-    assert (Hjc : j <> c) by (intros ->; apply Hnot; reflexivity).
-    apply (Rel_state_arm k2 clo clo' (arm_known x (Var x) j known) ac);
-      [ | | exact Hconts ].
-    + exact (only_arm_other k2 c arms j ac Honly (find_arm_in j arms ac Hfind)
-        Hjc).
-    + unfold arm_known. rewrite Pos.eqb_refl. intros c' [= <-]. exact Hv.
   - (* the arm taken *)
     rewrite !step_apply_cont, (eval_args_given known vars ac Hholds),
       give_in_apply_cont_continuation.
     destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | exact I ].
     unfold apply_continuation.
-    rewrite !(resolve_other (ac_continuation ac) k2) by exact Hne.
-    apply apply_cont_value_rel, Hconts.
+    apply apply_cont_value_rel. exact Hk.
 Qed.
 
 (* The rewrite gives an equivalent term, whatever is given. *)
@@ -598,8 +804,8 @@ Lemma give_scrutinee_equivalent (e : expr) :
 Proof.
   intros vars conts statics hp.
   apply (bisimulation_equivalent state_rel give_step).
-  apply (Rel_state None); [ intros c; discriminate | ].
-  intros k1. apply Rel_same.
+  apply (Rel_state [] None); [ intros c; discriminate | intros k2 c [] | ].
+  intros k1 _ _. apply Rel_same.
 Qed.
 
 End Site.

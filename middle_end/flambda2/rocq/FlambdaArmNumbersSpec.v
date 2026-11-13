@@ -65,8 +65,10 @@
    - in an arm of a [Switch] on [x], [x] is the number of the arm
      ([arm_known]);
    - in the handler of a non-recursive continuation whose [Let_cont]
-     has for its body a [Switch] on [x], and that only arms of one
-     number apply, [x] is that number ([arm_fact]);
+     has for its body a [Switch] on [x], or comes to one through
+     non-recursive [Let_cont]s that do not bind the continuation
+     again and whose handlers do not mention it, and that only arms
+     of one number apply, [x] is that number ([arm_fact]);
    - what is known where a continuation is defined is known in its
      handler, which runs under the variables of its definition and
      its parameters;
