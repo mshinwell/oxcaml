@@ -189,6 +189,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaLiftFromArmsSpec.v \
   FlambdaLiftFromCodeProofs.v \
   FlambdaLiftFromCodeSpec.v \
+  FlambdaLiftObservedProofs.v \
+  FlambdaLiftObservedSpec.v \
   FlambdaLiftProofs.v \
   FlambdaLiftSpec.v \
   FlambdaLocationsMachineProofs.v \

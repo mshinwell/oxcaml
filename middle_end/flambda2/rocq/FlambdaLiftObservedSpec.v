@@ -1,0 +1,170 @@
+(******************************************************************************
+ *                                  OxCaml                                    *
+ * -------------------------------------------------------------------------- *
+ *                               MIT License                                  *
+ *                                                                            *
+ * Copyright (c) 2026 Jane Street Group LLC                                   *
+ * opensource-contacts@janestreet.com                                         *
+ *                                                                            *
+ * Permission is hereby granted, free of charge, to any person obtaining a    *
+ * copy of this software and associated documentation files (the "Software"), *
+ * to deal in the Software without restriction, including without limitation  *
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,   *
+ * and/or sell copies of the Software, and to permit persons to whom the      *
+ * Software is furnished to do so, subject to the following conditions:       *
+ *                                                                            *
+ * The above copyright notice and this permission notice shall be included    *
+ * in all copies or substantial portions of the Software.                     *
+ *                                                                            *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR *
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   *
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL    *
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER *
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING    *
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER        *
+ * DEALINGS IN THE SOFTWARE.                                                  *
+ ******************************************************************************)
+
+
+(* The liftings to symbols without the test of the exits, up to what
+   may follow a unit.
+
+   This file is to be reviewed: the four functions, each against the
+   function that it stands beside, and the four statements.
+
+   Each of the four liftings has a function that makes it of a unit if
+   its conditions hold: FlambdaLiftFromArmsSpec.lift_to_head_unit,
+   FlambdaLiftFromCodeSpec.lift_from_code_unit, FlambdaLiftSpec.lift_unit
+   and FlambdaLiftAroundSpec.lift_around_unit. The first condition of
+   each is FlambdaLiftSpec.exits_plain: the unit exits with symbols and
+   constants only. With it, the unit lifted exits with the same values
+   as the unit, and the statement of each is a refinement in which the
+   exits are equal. Without it, the unit lifted may exit with a symbol
+   where the unit exits with the closure, the block or the boxed number
+   that the symbol is bound to (FlambdaLiftSpec.value_lifted), and the
+   two exits are not equal.
+
+   The functions here are those four with that one condition left out
+   and every other condition kept. What is stated of each is
+   FlambdaObserversSpec.refines_under_observers: the unit and the unit
+   lifted, run from one continuation environment of what may follow a
+   unit (FlambdaObserversSpec.observers), from the static environment
+   of the imports of the unit (FlambdaImportsSpec.imports_statics) and
+   the empty heap, come to results that
+   FlambdaObserversSpec.observed_refines relates. An exit of the first
+   is answered by an exit of the second through the same continuation,
+   with the same constants and the same locations among its values and
+   a heap that binds the same locations; and the second ends only if
+   the first exits or goes wrong. What may follow a unit is a way out,
+   or a handler with no environment of its own that binds nothing
+   static and names no symbol and no code id: it has the values that
+   the unit gave it and nothing else, and may read them, project from
+   them and call them.
+
+   So, where the unit lifted gives a symbol and the unit a closure, a
+   block or a boxed number, nothing that follows and reads what it was
+   given tells the two apart. The statements say nothing of a term that
+   follows and names a symbol of the unit, as another unit does; and
+   nothing where the unit goes wrong. They are one-way, as
+   FlambdaSemanticsSpec.refines is.
+
+   Each has the premise of the statement of the lifting from the
+   imports (FlambdaLiftSpec.lift_unit_refines_imports_statement and the
+   three like it): the unit lifted binds no name that the imports bind
+   (FlambdaImportsSpec.static_names_free_in). With no import it holds
+   of every term.
+
+   Whether this is what the verdict on a unit that is lifted is to
+   mean has not been decided (FlambdaObserversSpec.v). No function of
+   the validation calls the functions here.
+
+   The proofs are in FlambdaLiftObservedProofs.v, which needs no
+   review. *)
+
+From Stdlib Require Import ZArith List Bool.
+From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
+  FlambdaSemanticsSpec FlambdaWellFormedSpec FlambdaImportsSpec
+  FlambdaObserversSpec FlambdaMyClosureSpec FlambdaLiftSpec
+  FlambdaLiftFromCodeSpec FlambdaLiftFromArmsSpec FlambdaLiftAroundSpec.
+Import ListNotations.
+
+(* ======================================================================== *)
+(* The four liftings without the test of the exits                          *)
+(* ======================================================================== *)
+
+(* FlambdaLiftFromArmsSpec.lift_to_head_unit without the test of the
+   exits: the result is a well-formed unit. *)
+Definition lift_to_head_unit_observed (u : unit_interface)
+    (lets : list (path * lift_to)) (e : expr) : option expr :=
+  let lifted := lift_to_head lets e in
+  if well_formed_unit u lifted then Some lifted else None.
+
+(* FlambdaLiftFromCodeSpec.lift_from_code_unit without the test of the
+   exits: the result is a well-formed unit. *)
+Definition lift_from_code_unit_observed (u : unit_interface)
+    (K : lets_in_code) (e : expr) : option expr :=
+  let lifted := lift_from_code K [] root e in
+  if well_formed_unit u lifted then Some lifted else None.
+
+(* FlambdaLiftSpec.lift_unit without the test of the exits: the result
+   is a well-formed unit, and it makes no closure of the code that the
+   guess names but the symbol given. *)
+Definition lift_unit_observed (L : lifting) (e : expr) : option expr :=
+  let lifted :=
+    bind_my_closures (lifted_my_closures L)
+      (lift_expr (lifted_lets L) root e)
+  in
+  if
+    well_formed_unit (lifting_unit L) lifted
+    && only_closures_of (lifted_my_closures L) lifted
+  then Some lifted
+  else None.
+
+(* FlambdaLiftAroundSpec.lift_around_unit without the test of the
+   exits: the guess passes the check, and the result is a well-formed
+   unit. *)
+Definition lift_around_unit_observed (u : unit_interface)
+    (lets : list (path * lift_to)) (places : list (path * list path))
+    (e : expr) : option expr :=
+  let groups := groups_of lets places e in
+  let lifted := lift_around lets groups root e in
+  if around_ok lets groups [] root e && well_formed_unit u lifted
+  then Some lifted
+  else None.
+
+(* ======================================================================== *)
+(* The statements                                                           *)
+(* ======================================================================== *)
+
+(* What each gives is the unit, up to what may follow a unit: the two,
+   run from one continuation environment of what may follow a unit and
+   from the static environment of the imports, come to results that
+   differ in nothing that an exit is compared by. *)
+Definition lift_to_head_unit_observed_refines_statement : Prop :=
+  ∀ (imports : list (symbol * import_class)) (u : unit_interface)
+    (lets : list (path * lift_to)) (e e' : expr),
+    lift_to_head_unit_observed u lets e = Some e' ->
+    static_names_free_in (imports_statics imports) e' = true ->
+    refines_under_observers [] (imports_statics imports) empty_heap e e'.
+
+Definition lift_from_code_unit_observed_refines_statement : Prop :=
+  ∀ (imports : list (symbol * import_class)) (u : unit_interface)
+    (K : lets_in_code) (e e' : expr),
+    lift_from_code_unit_observed u K e = Some e' ->
+    static_names_free_in (imports_statics imports) e' = true ->
+    refines_under_observers [] (imports_statics imports) empty_heap e e'.
+
+Definition lift_unit_observed_refines_statement : Prop :=
+  ∀ (imports : list (symbol * import_class)) (L : lifting) (e e' : expr),
+    lift_unit_observed L e = Some e' ->
+    static_names_free_in (imports_statics imports) e' = true ->
+    refines_under_observers [] (imports_statics imports) empty_heap e e'.
+
+Definition lift_around_unit_observed_refines_statement : Prop :=
+  ∀ (imports : list (symbol * import_class)) (u : unit_interface)
+    (lets : list (path * lift_to)) (places : list (path * list path))
+    (e e' : expr),
+    lift_around_unit_observed u lets places e = Some e' ->
+    static_names_free_in (imports_statics imports) e' = true ->
+    refines_under_observers [] (imports_statics imports) empty_heap e e'.
