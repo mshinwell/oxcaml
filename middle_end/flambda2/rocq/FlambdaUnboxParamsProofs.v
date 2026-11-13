@@ -36,15 +36,25 @@
    more of the first, or by a refinement that is already known
    ([Ahead]): at an application of the continuation the second run
    enters the handler after, and that this refines the handler before,
-   entered with the same values, is asked as a hypothesis, with what
-   the value of the new argument must be. The hypothesis holds where
+   entered with the same values, is asked as a premise
+   ([handlers_alike]), with what the value of the new argument must
+   be. The premise holds where
    the handler after is the handler before without a [Let] that reads
    a parameter ([read_refines]): by the lemmas of contexts, down to
    the [Let], which binds its variable to what the new parameter holds
    already. The pass is then that rewrite, for the [Let] that a handler
    begins with, done again and again, each time under the facts that
    hold where its [Let_cont] is. FlambdaUnboxVariantsProofs.v uses the
-   same two for a [Let] further down. *)
+   same two for a [Let] further down.
+
+   For a recursive continuation that is alone in its [Let_cont] the
+   handler after applies the continuation itself, so the two runs go
+   on together from the handler. What is asked there ([enters_loop])
+   is that the handler before, entered with the values of an
+   application, comes in one step to an expression of which the
+   handler after is the extension, with the new parameter bound
+   ([unbox_loop_parameter_refines]). FlambdaUnboxLoopsProofs.v uses it
+   for a read that is first taken to the head of the handler. *)
 
 From Stdlib Require Import ZArith List Bool Arith Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
@@ -630,15 +640,37 @@ Hypothesis extend_gives :
          lookup x bound = Some v ->
          ∃ n : nat, run n (State boxed bound conts statics hp) = Undefined).
 
-(* The handler after, entered with a new argument that is as asked,
-   refines the handler before. *)
-Hypothesis handlers_alike :
+(* What is asked where the continuation is not recursive: the handler
+   after, entered with a new argument that is as asked, refines the
+   handler before. *)
+Definition handlers_alike : Prop :=
   ∀ (def_vars bound : env) (conts : cont_env) (statics : static_env) (hp : heap)
     (vs : list value) (u : value),
     bind_params params vs def_vars = Some bound ->
     fits statics vs u ->
     refines (State boxed bound conts statics hp)
       (State unboxed ((f, u) :: bound) conts statics hp).
+
+(* What is asked where the continuation is recursive, alone in its
+   [Let_cont], which is defined where [known] holds: the handler
+   before, entered with the values of an application, goes wrong, or
+   comes in one step, with the new parameter bound to an argument that
+   is as asked, to an expression of which the handler after is the
+   extension, with what is known there. The applications in the
+   handler are of the continuation itself, so the two runs go on in
+   step from there. *)
+Definition enters_loop (known : facts) : Prop :=
+  ∀ (def_vars bound : env) (conts : cont_env) (statics : static_env) (hp : heap)
+    (vs : list value) (u : value),
+    facts_hold known def_vars statics ->
+    bind_params params vs def_vars = Some bound ->
+    fits statics vs u ->
+    (∃ n : nat, run n (State boxed bound conts statics hp) = Undefined)
+    ∨ (∃ (rest : expr) (inside : facts),
+         step (State boxed bound conts statics hp)
+         = Step (State rest ((f, u) :: bound) conts statics hp)
+         ∧ extend_applications_by extend inside k rest = Some unboxed
+         ∧ facts_hold inside ((f, u) :: bound) statics).
 
 (* The handlers of a recursive [Let_cont] with the applications in them
    extended. *)
@@ -666,7 +698,9 @@ Definition handlers_rel (inside : bool) (known : facts)
 
 (* What a continuation name stands for in the two runs. For the name
    [k] where it is the continuation being unboxed ([true]): the two
-   handlers, defined under the same environments. For any other
+   handlers, defined under the same environments, each with no
+   recursive handlers, or each the one recursive handler of its own
+   closure, defined where what is known holds. For any other
    ([false]): the same thing; or closures whose handlers are related,
    under the same variables, of which the facts that the handlers were
    extended with hold, and under continuations that are in turn
@@ -679,6 +713,7 @@ Inductive cont_rel (statics : static_env)
     : bool -> cont_value -> cont_value -> Prop :=
   | Same_rel (c : cont_value) : cont_rel statics false c c
   | Unboxed_rel (vars : env) (conts : cont_env) :
+    handlers_alike ->
     cont_rel statics true
       (Closure (Handler params metadata boxed) vars conts [])
       (Closure (Handler (params ++ [f]) metadata' unboxed) vars conts [])
@@ -709,7 +744,15 @@ Inductive cont_rel (statics : static_env)
       (Over_application remaining remaining_arity return_arity return_to
          exn_to)
       (Over_application remaining remaining_arity return_arity return_to'
-         exn_to').
+         exn_to')
+  | Unboxed_loop_rel (known : facts) (vars : env) (conts : cont_env) :
+    facts_hold known vars statics ->
+    enters_loop known ->
+    cont_rel statics true
+      (Closure (Handler params metadata boxed) vars conts
+         [(k, Handler params metadata boxed)])
+      (Closure (Handler (params ++ [f]) metadata' unboxed) vars conts
+         [(k, Handler (params ++ [f]) metadata' unboxed)]).
 
 Definition conts_rel (statics : static_env) (inside : bool)
     (conts conts' : cont_env) : Prop :=
@@ -741,19 +784,22 @@ Lemma cont_rel_extend (statics statics' : static_env) (inside : bool)
 Proof.
   intros Hmore Hc.
   induction Hc
-    as [ c | vars conts
+    as [ c | vars conts Halike
        | inside known params0 metadata0 handler handler' vars conts conts'
            recursive recursive' Hrecursive Hhandler Hfacts Hconts IH
        | c c' extra Hc IH
        | remaining remaining_arity return_arity return_to return_to' exn_to
-           exn_to' Hreturn IHreturn Hraise IHraise ].
+           exn_to' Hreturn IHreturn Hraise IHraise
+       | known vars conts Hfacts Henters ].
   - apply Same_rel.
-  - apply Unboxed_rel.
+  - apply Unboxed_rel, Halike.
   - apply (Closure_rel statics' inside known);
       [ exact Hrecursive | exact Hhandler
       | exact (facts_hold_extend _ _ _ _ Hfacts Hmore) | exact IH ].
   - apply Extra_args_rel, IH.
   - apply Over_application_rel; assumption.
+  - apply (Unboxed_loop_rel statics' known);
+      [ exact (facts_hold_extend _ _ _ _ Hfacts Hmore) | exact Henters ].
 Qed.
 
 Lemma conts_rel_extend (statics statics' : static_env) (inside : bool)
@@ -958,12 +1004,13 @@ Lemma apply_cont_value_rel (statics : static_env) (hp : heap) (inside : bool)
 Proof.
   intros Hc.
   induction Hc
-    as [ c | vars conts
+    as [ c | vars conts _
        | inside known params0 metadata0 handler handler' vars conts conts'
            recursive recursive' Hrecursive Hhandler Hfacts Hconts _
        | c c' extra Hc IH
        | remaining remaining_arity return_arity return_to return_to' exn_to
-           exn_to' Hreturn IHreturn Hraise _ ];
+           exn_to' Hreturn IHreturn Hraise _
+       | known vars conts _ _ ];
     intros Hinside vs; try discriminate Hinside.
   - destruct (apply_cont_value c vs statics hp) as [t | k0 vs0 | ]; simpl;
       [ apply state_rel_refl | auto | exact I ].
@@ -1232,7 +1279,9 @@ Qed.
 
 (* An application of the continuation being unboxed: the first run
    enters the handler before; the second, with the new argument, the
-   handler after, which refines it. *)
+   handler after. Where the continuation is not recursive the handler
+   after refines the handler before. Where it is, the first run takes
+   one step more, and the two are related again. *)
 Lemma unboxed_application_answers (known : facts) (ac : apply_cont)
     (args' : list simple) (vars : env) (conts conts' : cont_env)
     (statics : static_env) (hp : heap) :
@@ -1248,40 +1297,43 @@ Lemma unboxed_application_answers (known : facts) (ac : apply_cont)
 Proof.
   intros Hk Hextend Hfacts Hconts.
   pose proof (Hconts k) as Hc. rewrite Pos.eqb_refl in Hc. simpl in Hc.
-  inversion Hc as [ | def_vars def_conts | | | ].
-  match goal with
-  | H : _ = resolve k conts |- _ => rename H into Hboxed
-  end.
-  match goal with
-  | H : _ = resolve k conts' |- _ => rename H into Hunboxed
-  end.
-  destruct (eval_simples vars (ac_args ac)) as [vs | ] eqn:Hvs;
-    [ | left; exists 1; simpl; rewrite step_apply_cont, Hvs; reflexivity ].
-  destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata))
-    eqn:Hkinds;
-    [ | left; exists 1; simpl; rewrite step_apply_cont, Hvs;
-        unfold apply_continuation; rewrite Hk, <- Hboxed; simpl;
-        rewrite Hkinds; reflexivity ].
-  destruct (bind_params params vs def_vars) as [bound | ] eqn:Hbind;
-    [ | left; exists 1; simpl; rewrite step_apply_cont, Hvs;
-        unfold apply_continuation; rewrite Hk, <- Hboxed; simpl;
-        rewrite Hkinds, Hbind; reflexivity ].
-  assert (Hfirst :
-    step (State (Apply_cont ac) vars conts statics hp)
-    = Step (State boxed bound def_conts statics hp)).
-  { rewrite step_apply_cont, Hvs. unfold apply_continuation.
-    rewrite Hk, <- Hboxed. simpl. rewrite Hkinds, Hbind. reflexivity. }
-  destruct (bind_params_value params vs def_vars bound i x Hbind x_at_i)
-    as [v Hv].
-  pose proof (bind_params_nth params vs def_vars bound i x v
-    params_distinct Hbind x_at_i Hv) as Hx.
-  destruct (extend_gives known vars statics hp (ac_args ac) args' vs v Hfacts
-              Hextend Hvs Hv)
-    as [(u & Hargs' & Hkind & Hfits) | Hwrong].
-  - right. right. right.
+  inversion Hc
+    as [ | def_vars def_conts Halike | | |
+       | known0 def_vars def_conts Hdef_facts Henters ];
+    match goal with
+    | H : _ = resolve k conts |- _ => rename H into Hboxed
+    end;
+    match goal with
+    | H : _ = resolve k conts' |- _ => rename H into Hunboxed
+    end;
+    (destruct (eval_simples vars (ac_args ac)) as [vs | ] eqn:Hvs;
+      [ | left; exists 1; simpl; rewrite step_apply_cont, Hvs; reflexivity ]);
+    (destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata))
+       eqn:Hkinds;
+      [ | left; exists 1; simpl; rewrite step_apply_cont, Hvs;
+          unfold apply_continuation; rewrite Hk, <- Hboxed; simpl;
+          rewrite Hkinds; reflexivity ]);
+    (destruct (bind_params params vs def_vars) as [bound | ] eqn:Hbind;
+      [ | left; exists 1; simpl; rewrite step_apply_cont, Hvs;
+          unfold apply_continuation; rewrite Hk, <- Hboxed; simpl;
+          rewrite Hkinds, Hbind; reflexivity ]);
+    destruct (bind_params_value params vs def_vars bound i x Hbind x_at_i)
+      as [v Hv];
+    pose proof (bind_params_nth params vs def_vars bound i x v
+      params_distinct Hbind x_at_i Hv) as Hx;
+    destruct (extend_gives known vars statics hp (ac_args ac) args' vs v
+                Hfacts Hextend Hvs Hv)
+      as [(u & Hargs' & Hkind & Hfits) | Hwrong].
+  - (* not recursive *)
+    assert (Hfirst :
+      step (State (Apply_cont ac) vars conts statics hp)
+      = Step (State boxed bound def_conts statics hp)).
+    { rewrite step_apply_cont, Hvs. unfold apply_continuation.
+      rewrite Hk, <- Hboxed. simpl. rewrite Hkinds, Hbind. reflexivity. }
+    right. right. right.
     eapply refines_step;
       [ exact Hfirst
-      | | exact (handlers_alike def_vars bound def_conts statics hp vs u Hbind
+      | | exact (Halike def_vars bound def_conts statics hp vs u Hbind
                    Hfits) ].
     rewrite step_apply_cont. simpl. rewrite Hargs'.
     unfold apply_continuation. rewrite Hk, <- Hunboxed. simpl.
@@ -1289,8 +1341,64 @@ Proof.
       (kinds_snoc vs u _ kind Hkinds (proj2 (kind_eqb_eq _ _) Hkind)),
       (bind_params_snoc params f u vs def_vars bound Hbind).
     reflexivity.
-  - left. destruct (Hwrong bound def_conts Hx) as [n Hn]. exists (S n).
+  - assert (Hfirst :
+      step (State (Apply_cont ac) vars conts statics hp)
+      = Step (State boxed bound def_conts statics hp)).
+    { rewrite step_apply_cont, Hvs. unfold apply_continuation.
+      rewrite Hk, <- Hboxed. simpl. rewrite Hkinds, Hbind. reflexivity. }
+    left. destruct (Hwrong bound def_conts Hx) as [n Hn]. exists (S n).
     rewrite run_succ, Hfirst. exact Hn.
+  - (* recursive *)
+    set (loop := (k, Handler params metadata boxed)) in *.
+    set (loop' := (k, Handler (params ++ [f]) metadata' unboxed)) in *.
+    assert (Hfirst :
+      step (State (Apply_cont ac) vars conts statics hp)
+      = Step
+          (State boxed bound
+             (rec_closures [loop] def_vars def_conts ++ def_conts) statics
+             hp)).
+    { rewrite step_apply_cont, Hvs. unfold apply_continuation.
+      rewrite Hk, <- Hboxed. simpl. rewrite Hkinds, Hbind. reflexivity. }
+    destruct
+      (Henters def_vars bound
+         (rec_closures [loop] def_vars def_conts ++ def_conts) statics hp vs
+         u Hdef_facts Hbind Hfits)
+      as [[n Hn] | (rest & inside & Hstep & Hrest & Hinside)].
+    + left. exists (S n). rewrite run_succ, Hfirst. exact Hn.
+    + right. right. left.
+      exists 1,
+        (State rest ((f, u) :: bound)
+           (rec_closures [loop] def_vars def_conts ++ def_conts) statics hp),
+        (State unboxed ((f, u) :: bound)
+           (rec_closures [loop'] def_vars def_conts ++ def_conts) statics hp).
+      split; [ | split ].
+      * rewrite run_succ, Hfirst, run_succ, Hstep. reflexivity.
+      * rewrite step_apply_cont. simpl. rewrite Hargs'.
+        unfold apply_continuation. rewrite Hk, <- Hunboxed. simpl.
+        rewrite kinds_one_more,
+          (kinds_snoc vs u _ kind Hkinds (proj2 (kind_eqb_eq _ _) Hkind)),
+          (bind_params_snoc params f u vs def_vars bound Hbind).
+        reflexivity.
+      * apply (State_rel true inside); [ exact Hrest | exact Hinside | ].
+        intros k'. unfold rec_closures, loop, loop'. simpl.
+        destruct (Pos.eqb_spec k' k) as [Heq | Hne].
+        -- rewrite Heq, !resolve_head.
+           apply (Unboxed_loop_rel statics known0); assumption.
+        -- rewrite !resolve_other by exact Hne. apply Same_rel.
+  - set (loop := (k, Handler params metadata boxed)) in *.
+    assert (Hfirst :
+      step (State (Apply_cont ac) vars conts statics hp)
+      = Step
+          (State boxed bound
+             (rec_closures [loop] def_vars def_conts ++ def_conts) statics
+             hp)).
+    { rewrite step_apply_cont, Hvs. unfold apply_continuation.
+      rewrite Hk, <- Hboxed. simpl. rewrite Hkinds, Hbind. reflexivity. }
+    left.
+    destruct
+      (Hwrong bound (rec_closures [loop] def_vars def_conts ++ def_conts) Hx)
+      as [n Hn].
+    exists (S n). rewrite run_succ, Hfirst. exact Hn.
 Qed.
 
 Lemma state_rel_answers (s s' : state) :
@@ -1415,23 +1523,56 @@ Qed.
 
 (* The handler given one more parameter, where every application in the
    body can be given its argument. *)
-Lemma unbox_parameter_refines (known : facts) (body body' : expr)
-    (vars : env) (conts : cont_env) (statics : static_env) (hp : heap) :
-  extend_applications_by extend known k body = Some body' ->
-  facts_hold known vars statics ->
-  refines
-    (State (Let_cont_non_recursive k (Handler params metadata boxed) body)
-       vars conts statics hp)
-    (State
-       (Let_cont_non_recursive k (Handler (params ++ [f]) metadata' unboxed)
-          body')
-       vars conts statics hp).
+Lemma unbox_parameter_refines :
+  handlers_alike ->
+  ∀ (known : facts) (body body' : expr) (vars : env) (conts : cont_env)
+    (statics : static_env) (hp : heap),
+    extend_applications_by extend known k body = Some body' ->
+    facts_hold known vars statics ->
+    refines
+      (State (Let_cont_non_recursive k (Handler params metadata boxed) body)
+         vars conts statics hp)
+      (State
+         (Let_cont_non_recursive k
+            (Handler (params ++ [f]) metadata' unboxed) body')
+         vars conts statics hp).
 Proof.
-  intros Hbody Hfacts. apply let_cont_non_recursive_refines_step.
+  intros Halike known body body' vars conts statics hp Hbody Hfacts.
+  apply let_cont_non_recursive_refines_step.
   apply (ahead_refines state_rel state_rel_answers).
   apply (State_rel true known); [ exact Hbody | exact Hfacts | ].
   intros k'. destruct (Pos.eqb_spec k' k) as [Heq | Hne].
-  - rewrite Heq, !resolve_head. apply Unboxed_rel.
+  - rewrite Heq, !resolve_head. apply Unboxed_rel, Halike.
+  - rewrite !resolve_other by exact Hne. apply Same_rel.
+Qed.
+
+(* The same for a recursive continuation that is alone in its
+   [Let_cont]: the applications in the body are given their argument,
+   and the handler after is the extension of what the handler before
+   comes to in one step. *)
+Lemma unbox_loop_parameter_refines (known : facts) (body body' : expr)
+    (vars : env) (conts : cont_env) (statics : static_env) (hp : heap) :
+  enters_loop known ->
+  binds_statics unboxed = binds_statics boxed ->
+  extend_applications_by extend known k body = Some body' ->
+  facts_hold known vars statics ->
+  refines
+    (State (Let_cont_recursive [(k, Handler params metadata boxed)] body)
+       vars conts statics hp)
+    (State
+       (Let_cont_recursive [(k, Handler (params ++ [f]) metadata' unboxed)]
+          body')
+       vars conts statics hp).
+Proof.
+  intros Henters Hbinds Hbody Hfacts.
+  apply let_cont_recursive_refines_step;
+    [ unfold handlers_bind_statics; simpl; rewrite Hbinds; reflexivity | ].
+  intros _. apply (ahead_refines state_rel state_rel_answers).
+  apply (State_rel true known); [ exact Hbody | exact Hfacts | ].
+  intros k'. unfold rec_closures. simpl.
+  destruct (Pos.eqb_spec k' k) as [Heq | Hne].
+  - rewrite Heq, !resolve_head.
+    apply (Unboxed_loop_rel statics known); assumption.
   - rewrite !resolve_other by exact Hne. apply Same_rel.
 Qed.
 
