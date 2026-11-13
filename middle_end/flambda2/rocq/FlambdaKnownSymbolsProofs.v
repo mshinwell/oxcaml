@@ -29,14 +29,25 @@
    needs review.
 
    The unit and the unit folded are run side by side, in step, with the
-   same values. The second state is the first with its terms folded
-   ([fold_state]). Two things are kept along the run of the unit: its
+   same values. Two things are kept along the run of the unit: its
    terms bind the known symbols as the unit says
    (FlambdaClosuresProofs.terms_inv_step), so what the run has bound of
    them is what is known ([agrees]). A defining expression that has a
    value in such a static environment has the same value in the known
    one, by the laws of the primitives about a static environment that
-   grows (FlambdaPrimitiveProofs.eval_prim_statics_extend). *)
+   grows (FlambdaPrimitiveProofs.eval_prim_statics_extend).
+
+   The two runs may start from a continuation environment of what may
+   follow a unit (FlambdaObserversSpec.observers). What follows is the
+   same term in the two runs, and the folding is not the identity on
+   it: a primitive applied to constants is folded wherever it is. So
+   the second state is not the first with every term folded. It is
+   given by a relation ([state_kept]): each term that the first state
+   keeps, its expression and the handlers of its continuations, is
+   folded in the second or, if it binds nothing static, left as it is;
+   the code is folded. A step is answered for the two ways
+   ([kept_step_components]). For a unit run on its own nothing is left
+   as it is. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
@@ -45,8 +56,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaPrimitiveSpec FlambdaPrimitiveProofs FlambdaSemanticsSpec
   FlambdaSemanticsProofs FlambdaNominalSpec FlambdaNormaliseSpec
   FlambdaClosuresProofs FlambdaUnusedStaticsSpec FlambdaUnusedSlotsProofs
-  FlambdaWellFormedSpec FlambdaImportsSpec FlambdaUnitFromProofs
-  FlambdaKnownSymbolsSpec.
+  FlambdaWellFormedSpec FlambdaImportsSpec FlambdaObserversSpec
+  FlambdaUnitFromProofs FlambdaKnownSymbolsSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -582,33 +593,13 @@ Proof.
                statics' Hsets_agrees Heval) ].
 Qed.
 
-(* The second state: the first with its terms folded. *)
+(* The static environment of the second state: that of the first with
+   its code folded. *)
 Definition fold_statics (statics : static_env) : static_env :=
   Static_env
     (map (fun binding => (fst binding, fold_known_code S T (snd binding)))
        (static_code statics))
     (static_values statics).
-
-Fixpoint fold_cont (c : cont_value) : cont_value :=
-  match c with
-  | Closure h vars conts recursive =>
-    Closure (fold_known_handler S T h) vars
-      (map (fun binding => (fst binding, fold_cont (snd binding))) conts)
-      (map (fun '(k, h) => (k, fold_known_handler S T h)) recursive)
-  | Outer k => Outer k
-  | Extra_args c extra => Extra_args (fold_cont c) extra
-  | Over_application remaining remaining_arity return_arity return_to exn_to =>
-    Over_application remaining remaining_arity return_arity
-      (fold_cont return_to) (fold_cont exn_to)
-  end.
-
-Definition fold_conts (conts : cont_env) : cont_env :=
-  map (fun binding => (fst binding, fold_cont (snd binding))) conts.
-
-Definition fold_state (s : state) : state :=
-  State (fold_known S T (state_expr s)) (state_vars s)
-    (fold_conts (state_conts s)) (fold_statics (state_statics s))
-      (state_heap s).
 
 Lemma lookup_fold_code (id : code_id) (statics : static_env) :
   lookup id (static_code (fold_statics statics))
@@ -682,28 +673,6 @@ Proof.
   rewrite fold_known_handler_binds_statics, IH. reflexivity.
 Qed.
 
-Lemma resolve_fold (k : continuation) (conts : cont_env) :
-  resolve k (fold_conts conts) = fold_cont (resolve k conts).
-Proof.
-  unfold resolve, fold_conts. rewrite lookup_map_snd.
-  destruct (lookup k conts); reflexivity.
-Qed.
-
-Lemma rec_closures_fold
-    (handlers : list (continuation * continuation_handler)) (vars : env)
-    (conts : cont_env) :
-  rec_closures (map (fun '(k, h) => (k, fold_known_handler S T h)) handlers)
-    vars (fold_conts conts)
-  = fold_conts (rec_closures handlers vars conts).
-Proof.
-  unfold rec_closures, fold_conts. rewrite !map_map.
-  apply map_ext. intros [k h]. reflexivity.
-Qed.
-
-Lemma with_extra_args_fold (c : cont_value) (extra : list value) :
-  fold_cont (with_extra_args c extra) = with_extra_args (fold_cont c) extra.
-Proof. destruct extra; reflexivity. Qed.
-
 Lemma fold_known_code_parts (c : code) :
   code_params (fold_known_code S T c) = code_params c
   ∧ code_my_closure (fold_known_code S T c) = code_my_closure c
@@ -714,15 +683,6 @@ Lemma fold_known_code_parts (c : code) :
   ∧ code_result_arity (fold_known_code S T c) = code_result_arity c
   ∧ code_body (fold_known_code S T c) = fold_known S T (code_body c).
 Proof. destruct c. simpl. auto 8. Qed.
-
-(* What the second run does where the first does something: the same
-   step, to the second state of the result, or the same exit. *)
-Definition result_folded (result result' : step_result) : Prop :=
-  match result with
-  | Step t => result' = Step (fold_state t)
-  | Exit k vs hp => result' = Exit k vs hp
-  | Undefined => True
-  end.
 
 (* A call of the second run has the shape of the call of the first,
    with the same values, of the code folded. *)
@@ -807,219 +767,6 @@ Proof.
   apply shape_of_closure_call_fold.
 Qed.
 
-(* A full call. *)
-Lemma call_code_fold (closure : value) (c : code) (vs : list value)
-    (args_arity return_arity : arity) (return_to exn_to : cont_value)
-    (statics : static_env) (hp : heap) :
-  result_folded
-    (call_code closure c vs args_arity return_arity return_to exn_to statics hp)
-    (call_code closure (fold_known_code S T c) vs args_arity return_arity
-       (fold_cont return_to) (fold_cont exn_to) (fold_statics statics) hp).
-Proof.
-  unfold result_folded, call_code.
-  destruct (fold_known_code_parts c)
-    as (Hparams & Hmy_closure & Hret & Hexn & Hparams_arity & Hresult_arity
-        & Hbody).
-  rewrite Hparams, Hmy_closure, Hret, Hexn, Hbody, fold_known_binds_statics.
-  destruct (binds_statics (code_body c)); [ exact I | ].
-  rewrite Hparams_arity, Hresult_arity.
-  match goal with
-  | |- context [negb ?agrees] => destruct (negb agrees)
-  end;
-    [ exact I | ].
-  destruct (bind_params (code_params c) vs [(code_my_closure c, closure)]);
-    [ | exact I ].
-  reflexivity.
-Qed.
-
-(* A call of a given shape, given what the two runs do with a partial
-   application. *)
-Lemma run_call_fold (return_partial return_partial' : value -> step_result)
-    (shape : call_shape) (return_arity : arity)
-    (return_to exn_to : cont_value) (statics : static_env) (hp : heap) :
-  (∀ partial : value,
-    result_folded (return_partial partial) (return_partial' partial)) ->
-  result_folded
-    (run_call return_partial (Some shape) return_arity return_to exn_to
-       statics hp)
-    (run_call return_partial' (Some (fold_shape shape)) return_arity
-       (fold_cont return_to) (fold_cont exn_to) (fold_statics statics) hp).
-Proof.
-  intros Hpartial.
-  destruct shape
-    as [closure c vs args_arity
-       | closure c vs remaining args_arity remaining_arity | partial];
-    simpl.
-  - apply call_code_fold.
-  - destruct (fold_known_code_parts c) as (_ & _ & _ & _ & _ & -> & _).
-    exact (call_code_fold closure c vs args_arity (code_result_arity c)
-             (Over_application remaining remaining_arity return_arity
-                return_to exn_to)
-             exn_to statics hp).
-  - apply Hpartial.
-Qed.
-
-(* A call, given what the two runs do when the return continuation is
-   applied to a partial application. *)
-Lemma call_function_fold_from (callee : value) (kind : call_kind)
-    (vs : list value) (args_arity return_arity : arity)
-    (return_to exn_to : cont_value) (statics : static_env) (hp : heap) :
-  (∀ partial : value,
-    result_folded (apply_cont_value return_to [partial] statics hp)
-      (apply_cont_value (fold_cont return_to) [partial]
-         (fold_statics statics) hp)) ->
-  result_folded
-    (call_function callee kind vs args_arity return_arity return_to exn_to
-       statics hp)
-    (call_function callee kind vs args_arity return_arity
-       (fold_cont return_to) (fold_cont exn_to) (fold_statics statics) hp).
-Proof.
-  intros Hpartial. unfold call_function.
-  destruct (shape_of_call statics callee kind vs args_arity return_arity)
-    as [shape | ] eqn:Hshape;
-    [ | exact I ].
-  rewrite (shape_of_call_fold statics callee kind vs args_arity return_arity
-             shape Hshape).
-  apply run_call_fold. exact Hpartial.
-Qed.
-
-Lemma apply_cont_value_fold (c : cont_value) :
-  ∀ (vs : list value) (statics : static_env) (hp : heap),
-    result_folded (apply_cont_value c vs statics hp)
-      (apply_cont_value (fold_cont c) vs (fold_statics statics) hp).
-Proof.
-  induction c
-    as [[params metadata handler] def_vars def_conts recursive | k
-       | c IH extra
-       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
-    using cont_value_over_ind;
-    intros vs statics hp.
-  - unfold result_folded. simpl.
-    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
-      [ | exact I ].
-    destruct (bind_params params vs def_vars) as [handler_vars | ];
-      [ | exact I ].
-    unfold fold_state. simpl_state. f_equal. f_equal.
-    fold (fold_conts def_conts). rewrite rec_closures_fold.
-    unfold fold_conts. rewrite map_app. reflexivity.
-  - reflexivity.
-  - apply IH.
-  - simpl fold_cont. rewrite !apply_cont_value_over_application.
-    destruct vs as [ | v [ | v' vs]]; [ exact I | | exact I ].
-    apply call_function_fold_from. intros partial. apply IHreturn.
-Qed.
-
-Lemma call_function_fold (callee : value) (kind : call_kind)
-    (vs : list value) (args_arity return_arity : arity)
-    (return_to exn_to : cont_value) (statics : static_env) (hp : heap) :
-  result_folded
-    (call_function callee kind vs args_arity return_arity return_to exn_to
-       statics hp)
-    (call_function callee kind vs args_arity return_arity
-       (fold_cont return_to) (fold_cont exn_to) (fold_statics statics) hp).
-Proof.
-  apply call_function_fold_from. intros partial. apply apply_cont_value_fold.
-Qed.
-
-(* A step of a state that binds the known symbols as is known, and has
-   bound them so, is a step of the second state, to the second state of
-   the result, which has bound them so too. *)
-Lemma fold_step_components (e : expr) (vars : env) (conts : cont_env)
-    (statics : static_env) (hp : heap) :
-  bound_as known sets e = true ->
-  agrees statics ->
-  match step (State e vars conts statics hp) with
-  | Step t =>
-    step
-      (State (fold_known S T e) vars (fold_conts conts) (fold_statics statics)
-         hp)
-    = Step (fold_state t)
-    ∧ agrees (state_statics t)
-  | Exit k vs hp' =>
-    step
-      (State (fold_known S T e) vars (fold_conts conts) (fold_statics statics)
-         hp)
-    = Exit k vs hp'
-  | Undefined => True
-  end.
-Proof.
-  intros Hbound Hagrees.
-  destruct e
-    as [ x xkind d body | bindings body | k h body | handlers body | ap | ac
-       | scrutinee arms | ];
-    simpl fold_known;
-    try
-      rewrite
-        (fold_known_apply_sound_here T (fold_statics statics) hp
-           (proj2 Hagrees));
-    autorewrite with step.
-  - (* Let *)
-    destruct (eval_named statics vars d) as [v | ] eqn:Hv; [ | exact I ].
-    destruct (kind_eqb (kind_of_value v) xkind) eqn:Hkind; [ | exact I ].
-    rewrite eval_named_fold_statics.
-    rewrite (fold_function_slot_sound_here T statics (proj2 Hagrees) vars _ v
-               (fold_known_named_sound_here S statics (proj1 Hagrees) vars d
-                  v Hv)),
-      Hkind.
-    split; [ reflexivity | exact Hagrees ].
-  - (* Let_static *)
-    simpl in Hbound. apply andb_true_iff in Hbound as [Hbound _].
-    apply andb_true_iff in Hbound as [Hbindings _].
-    destruct (eval_static_bindings vars bindings statics) as [statics' | ]
-      eqn:Heval; [ | exact I ].
-    rewrite (eval_static_bindings_fold vars bindings statics statics' Heval).
-    split; [ reflexivity | ].
-    exact (eval_static_bindings_agrees vars bindings Hbindings statics
-             statics' Hagrees Heval).
-  - (* Let_cont_non_recursive *)
-    split; [ reflexivity | exact Hagrees ].
-  - (* Let_cont_recursive *)
-    rewrite fold_known_handlers_bind_statics.
-    destruct (handlers_bind_statics handlers); [ exact I | ].
-    split; [ | exact Hagrees ].
-    unfold fold_state. simpl_state. rewrite rec_closures_fold.
-    unfold fold_conts. rewrite map_app. reflexivity.
-  - (* Apply *)
-    destruct (eval_simple vars (ap_callee ap)) as [callee | ]; [ | exact I ].
-    destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | exact I ].
-    destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
-      [ | exact I ].
-    rewrite !resolve_fold, <- with_extra_args_fold.
-    pose proof
-      (call_function_fold callee (ap_call_kind ap) vs (ap_args_arity ap)
-         (ap_return_arity ap) (resolve (ap_continuation ap) conts)
-         (with_extra_args (resolve (ap_exn_continuation ap) conts) extra)
-         statics hp)
-      as Hcall.
-    destruct (call_function callee (ap_call_kind ap) vs (ap_args_arity ap)
-                (ap_return_arity ap) (resolve (ap_continuation ap) conts)
-                (with_extra_args (resolve (ap_exn_continuation ap) conts)
-                   extra)
-                statics hp)
-      as [t | k exit_vs | ] eqn:Hstep;
-      [ | exact Hcall | exact I ].
-    split; [ exact Hcall | ].
-    rewrite (call_function_statics _ _ _ _ _ _ _ _ _ t Hstep). exact Hagrees.
-  - (* Apply_cont *)
-    destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | exact I ].
-    unfold apply_continuation. rewrite resolve_fold.
-    pose proof
-      (apply_cont_value_fold (resolve (ac_continuation ac) conts) vs statics hp)
-      as Happly.
-    destruct
-      (apply_cont_value (resolve (ac_continuation ac) conts) vs statics hp)
-      as [t | | ] eqn:Hstep;
-      [ | exact Happly | exact I ].
-    split; [ exact Happly | ].
-    rewrite (apply_cont_value_statics _ _ _ _ t Hstep). exact Hagrees.
-  - (* Switch *)
-    destruct (eval_simple vars scrutinee) as [v | ]; [ | exact I ].
-    destruct (naked_immediate_of_value v) as [i | ]; [ | exact I ].
-    destruct (find_arm i arms) as [ac | ]; [ | exact I ].
-    split; [ reflexivity | exact Hagrees ].
-  - exact I.
-Qed.
-
 (* The terms of a state bind the known symbols as is known. *)
 Definition bound_as_inv : state -> Prop :=
   terms_inv (bound_as known sets) (handler_bound_as known sets)
@@ -1042,24 +789,452 @@ Proof.
   - intros [params my_closure ret exn metadata body] H. exact H.
 Qed.
 
-Definition folded_related (s s' : state) : Prop :=
-  s' = fold_state s ∧ bound_as_inv s ∧ agrees (state_statics s).
+(* The second state. The unit may be followed by something, and what
+   may follow a unit is not folded in the second run: it is the same
+   term in the two. So the second state is given by a relation and not
+   as a function of the first: each term that the first state keeps,
+   its expression and the handlers of its continuations, is folded in
+   the second or, if it binds nothing static, left as it is. The code
+   is folded. A term that is left as it is binds no code, so the static
+   environment of the second state is still that of the first with its
+   code folded. *)
+Definition expr_kept (e e' : expr) : Prop :=
+  e' = fold_known S T e ∨ (e' = e ∧ binds_no_static e = true).
 
-Lemma folded_related_step (s s' : state) :
-  folded_related s s' -> result_simulated folded_related (step s) (step s').
+Definition handler_kept (h h' : continuation_handler) : Prop :=
+  h' = fold_known_handler S T h
+  ∨ (h' = h ∧ handler_binds_no_static h = true).
+
+Definition handlers_kept
+    (handlers handlers' : list (continuation * continuation_handler))
+    : Prop :=
+  handlers' = map (fun '(k, h) => (k, fold_known_handler S T h)) handlers
+  ∨ (handlers' = handlers
+     ∧ forallb (fun '(_, h) => handler_binds_no_static h) handlers = true).
+
+#[local] Set Warnings "-register-all".
+Inductive cont_kept : cont_value -> cont_value -> Prop :=
+  | Closure_kept (h h' : continuation_handler) (vars : env)
+      (conts conts' : cont_env)
+      (recursive recursive' : list (continuation * continuation_handler)) :
+    handler_kept h h' ->
+    handlers_kept recursive recursive' ->
+    Forall2
+      (fun kc kc' => fst kc = fst kc' ∧ cont_kept (snd kc) (snd kc'))
+      conts conts' ->
+    cont_kept (Closure h vars conts recursive)
+      (Closure h' vars conts' recursive')
+  | Outer_kept (k : continuation) : cont_kept (Outer k) (Outer k)
+  | Extra_args_kept (c c' : cont_value) (extra : list value) :
+    cont_kept c c' -> cont_kept (Extra_args c extra) (Extra_args c' extra)
+  | Over_application_kept (remaining : list value)
+      (remaining_arity return_arity : arity)
+      (return_to return_to' exn_to exn_to' : cont_value) :
+    cont_kept return_to return_to' ->
+    cont_kept exn_to exn_to' ->
+    cont_kept
+      (Over_application remaining remaining_arity return_arity return_to
+         exn_to)
+      (Over_application remaining remaining_arity return_arity return_to'
+         exn_to').
+
+Definition conts_kept (conts conts' : cont_env) : Prop :=
+  Forall2 (fun kc kc' => fst kc = fst kc' ∧ cont_kept (snd kc) (snd kc'))
+    conts conts'.
+
+Inductive state_kept : state -> state -> Prop :=
+  | State_kept (e e' : expr) (vars : env) (conts conts' : cont_env)
+      (statics : static_env) (hp : heap) :
+    expr_kept e e' ->
+    conts_kept conts conts' ->
+    state_kept (State e vars conts statics hp)
+      (State e' vars conts' (fold_statics statics) hp).
+
+(* What the second run does where the first does something: a step to
+   a state so related, or the same exit. *)
+Definition result_kept (result result' : step_result) : Prop :=
+  match result with
+  | Step t => ∃ t' : state, result' = Step t' ∧ state_kept t t'
+  | Exit k vs hp => result' = Exit k vs hp
+  | Undefined => True
+  end.
+
+Lemma resolve_kept (k : continuation) (conts conts' : cont_env) :
+  conts_kept conts conts' -> cont_kept (resolve k conts) (resolve k conts').
 Proof.
-  intros (-> & Hinv & Hagrees).
+  unfold resolve.
+  induction 1 as [ | [k1 c] [k1' c'] conts conts' [Hk Hc] _ IH]; simpl;
+    [ apply Outer_kept | ].
+  simpl in Hk. subst k1'. destruct (Pos.eqb k k1); [ exact Hc | exact IH ].
+Qed.
+
+Lemma with_extra_args_kept (c c' : cont_value) (extra : list value) :
+  cont_kept c c' ->
+  cont_kept (with_extra_args c extra) (with_extra_args c' extra).
+Proof.
+  destruct extra; intros Hc; [ exact Hc | apply Extra_args_kept; exact Hc ].
+Qed.
+
+Lemma rec_closures_kept
+    (handlers handlers' : list (continuation * continuation_handler))
+    (vars : env) (conts conts' : cont_env) :
+  handlers_kept handlers handlers' ->
+  conts_kept conts conts' ->
+  conts_kept (rec_closures handlers vars conts)
+    (rec_closures handlers' vars conts').
+Proof.
+  intros Hhandlers Hconts. unfold rec_closures.
+  destruct Hhandlers as [-> | [-> Hno]].
+  - assert (Hall :
+      ∀ group : list (continuation * continuation_handler),
+        conts_kept
+          (map (fun '(k, h) => (k, Closure h vars conts handlers)) group)
+          (map
+             (fun '(k, h) =>
+                (k,
+                 Closure h vars conts'
+                   (map (fun '(k, h) => (k, fold_known_handler S T h))
+                      handlers)))
+             (map (fun '(k, h) => (k, fold_known_handler S T h)) group))).
+    { induction group as [ | [k h] group IH]; simpl; constructor;
+        [ | exact IH ].
+      split; [ reflexivity | ].
+      apply Closure_kept;
+        [ left; reflexivity | left; reflexivity | exact Hconts ]. }
+    exact (Hall handlers).
+  - assert (Hall :
+      ∀ group : list (continuation * continuation_handler),
+        forallb (fun '(_, h) => handler_binds_no_static h) group = true ->
+        conts_kept
+          (map (fun '(k, h) => (k, Closure h vars conts handlers)) group)
+          (map (fun '(k, h) => (k, Closure h vars conts' handlers)) group)).
+    { induction group as [ | [k h] group IH]; simpl; [ constructor | ].
+      intros H. apply andb_true_iff in H as [Hh Hrest].
+      constructor; [ | exact (IH Hrest) ].
+      split; [ reflexivity | ].
+      apply Closure_kept;
+        [ right; split; [ reflexivity | exact Hh ]
+        | right; split; [ reflexivity | exact Hno ] | exact Hconts ]. }
+    exact (Hall handlers Hno).
+Qed.
+
+(* A full call. *)
+Lemma call_code_kept (closure : value) (c : code) (vs : list value)
+    (args_arity return_arity : arity)
+    (return_to return_to' exn_to exn_to' : cont_value) (statics : static_env)
+    (hp : heap) :
+  cont_kept return_to return_to' ->
+  cont_kept exn_to exn_to' ->
+  result_kept
+    (call_code closure c vs args_arity return_arity return_to exn_to statics hp)
+    (call_code closure (fold_known_code S T c) vs args_arity return_arity
+       return_to' exn_to' (fold_statics statics) hp).
+Proof.
+  intros Hreturn Hexn. unfold result_kept, call_code.
+  destruct (fold_known_code_parts c)
+    as (Hparams & Hmy_closure & Hret & Hexn_c & Hparams_arity & Hresult_arity
+        & Hbody).
+  rewrite Hparams, Hmy_closure, Hret, Hexn_c, Hbody, fold_known_binds_statics.
+  destruct (binds_statics (code_body c)); [ exact I | ].
+  rewrite Hparams_arity, Hresult_arity.
+  match goal with
+  | |- context [negb ?agrees] => destruct (negb agrees)
+  end;
+    [ exact I | ].
+  destruct (bind_params (code_params c) vs [(code_my_closure c, closure)])
+    as [callee_vars | ];
+    [ | exact I ].
+  eexists. split; [ reflexivity | ].
+  apply State_kept; [ left; reflexivity | ].
+  constructor; [ split; [ reflexivity | exact Hreturn ] | ].
+  constructor; [ split; [ reflexivity | exact Hexn ] | constructor ].
+Qed.
+
+Lemma run_call_kept (return_partial return_partial' : value -> step_result)
+    (shape : call_shape) (return_arity : arity)
+    (return_to return_to' exn_to exn_to' : cont_value) (statics : static_env)
+    (hp : heap) :
+  cont_kept return_to return_to' ->
+  cont_kept exn_to exn_to' ->
+  (∀ partial : value,
+    result_kept (return_partial partial) (return_partial' partial)) ->
+  result_kept
+    (run_call return_partial (Some shape) return_arity return_to exn_to
+       statics hp)
+    (run_call return_partial' (Some (fold_shape shape)) return_arity
+       return_to' exn_to' (fold_statics statics) hp).
+Proof.
+  intros Hreturn Hexn Hpartial.
+  destruct shape
+    as [closure c vs args_arity
+       | closure c vs remaining args_arity remaining_arity | partial];
+    simpl.
+  - apply call_code_kept; assumption.
+  - destruct (fold_known_code_parts c) as (_ & _ & _ & _ & _ & -> & _).
+    apply call_code_kept;
+      [ apply Over_application_kept; assumption | exact Hexn ].
+  - apply Hpartial.
+Qed.
+
+Lemma call_function_kept_from (callee : value) (kind : call_kind)
+    (vs : list value) (args_arity return_arity : arity)
+    (return_to return_to' exn_to exn_to' : cont_value) (statics : static_env)
+    (hp : heap) :
+  cont_kept return_to return_to' ->
+  cont_kept exn_to exn_to' ->
+  (∀ partial : value,
+    result_kept (apply_cont_value return_to [partial] statics hp)
+      (apply_cont_value return_to' [partial] (fold_statics statics) hp)) ->
+  result_kept
+    (call_function callee kind vs args_arity return_arity return_to exn_to
+       statics hp)
+    (call_function callee kind vs args_arity return_arity return_to' exn_to'
+       (fold_statics statics) hp).
+Proof.
+  intros Hreturn Hexn Hpartial. unfold call_function.
+  destruct (shape_of_call statics callee kind vs args_arity return_arity)
+    as [shape | ] eqn:Hshape;
+    [ | exact I ].
+  rewrite (shape_of_call_fold statics callee kind vs args_arity return_arity
+             shape Hshape).
+  apply run_call_kept; assumption.
+Qed.
+
+Lemma apply_cont_value_kept (c c' : cont_value) :
+  cont_kept c c' ->
+  ∀ (vs : list value) (statics : static_env) (hp : heap),
+    result_kept (apply_cont_value c vs statics hp)
+      (apply_cont_value c' vs (fold_statics statics) hp).
+Proof.
+  induction 1
+    as [ h h' def_vars def_conts def_conts' recursive recursive' Hh Hrec
+           Hconts
+       | k | c c' extra Hc IH
+       | remaining remaining_arity return_arity return_to return_to' exn_to
+           exn_to' Hreturn IHreturn Hexn _ ];
+    intros vs statics hp.
+  - assert (Hparts :
+      ∃ (params : list variable) (metadata : handler_metadata)
+        (body body' : expr),
+        h = Handler params metadata body
+        ∧ h' = Handler params metadata body' ∧ expr_kept body body').
+    { destruct h as [params metadata body]. destruct Hh as [-> | [-> Hno]].
+      - exists params, metadata, body, (fold_known S T body).
+        split; [ reflexivity | ]. split; [ reflexivity | ].
+        left. reflexivity.
+      - exists params, metadata, body, body.
+        split; [ reflexivity | ]. split; [ reflexivity | ].
+        right. split; [ reflexivity | exact Hno ]. }
+    destruct Hparts as (params & metadata & body & body' & -> & -> & Hbody).
+    unfold result_kept. simpl.
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+      [ | exact I ].
+    destruct (bind_params params vs def_vars) as [handler_vars | ];
+      [ | exact I ].
+    eexists. split; [ reflexivity | ].
+    apply State_kept; [ exact Hbody | ].
+    apply Forall2_app;
+      [ exact (rec_closures_kept recursive recursive' def_vars def_conts
+                 def_conts' Hrec Hconts)
+      | exact Hconts ].
+  - reflexivity.
+  - simpl. apply IH.
+  - rewrite !apply_cont_value_over_application.
+    destruct vs as [ | v [ | v' vs]]; [ exact I | | exact I ].
+    apply call_function_kept_from; [ exact Hreturn | exact Hexn | ].
+    intros partial. apply IHreturn.
+Qed.
+
+Lemma call_function_kept (callee : value) (kind : call_kind)
+    (vs : list value) (args_arity return_arity : arity)
+    (return_to return_to' exn_to exn_to' : cont_value) (statics : static_env)
+    (hp : heap) :
+  cont_kept return_to return_to' ->
+  cont_kept exn_to exn_to' ->
+  result_kept
+    (call_function callee kind vs args_arity return_arity return_to exn_to
+       statics hp)
+    (call_function callee kind vs args_arity return_arity return_to' exn_to'
+       (fold_statics statics) hp).
+Proof.
+  intros Hreturn Hexn.
+  apply call_function_kept_from; [ exact Hreturn | exact Hexn | ].
+  intros partial. apply apply_cont_value_kept. exact Hreturn.
+Qed.
+
+(* A step of a state that binds the known symbols as is known, and has
+   bound them so, is answered by a step of a state so related, to a
+   state so related. *)
+Lemma kept_step_components (e e' : expr) (vars : env) (conts conts' : cont_env)
+    (statics : static_env) (hp : heap) :
+  expr_kept e e' ->
+  conts_kept conts conts' ->
+  bound_as known sets e = true ->
+  agrees statics ->
+  match step (State e vars conts statics hp) with
+  | Step t =>
+    (∃ t' : state,
+      step (State e' vars conts' (fold_statics statics) hp) = Step t'
+      ∧ state_kept t t')
+    ∧ agrees (state_statics t)
+  | Exit k vs hp' =>
+    step (State e' vars conts' (fold_statics statics) hp) = Exit k vs hp'
+  | Undefined => True
+  end.
+Proof.
+  intros He Hconts Hbound Hagrees.
+  destruct e
+    as [ x xkind d body | bindings body | k h body | handlers body | ap | ac
+       | scrutinee arms | ].
+  - (* Let *)
+    rewrite step_let.
+    destruct (eval_named statics vars d) as [v | ] eqn:Hv; [ | exact I ].
+    destruct (kind_eqb (kind_of_value v) xkind) eqn:Hkind; [ | exact I ].
+    split; [ | exact Hagrees ].
+    destruct He as [-> | [-> Hno]].
+    + simpl fold_known. rewrite step_let, eval_named_fold_statics.
+      rewrite (fold_function_slot_sound_here T statics (proj2 Hagrees) vars _
+                 v
+                 (fold_known_named_sound_here S statics (proj1 Hagrees) vars
+                    d v Hv)),
+        Hkind.
+      eexists. split; [ reflexivity | ].
+      apply State_kept; [ left; reflexivity | exact Hconts ].
+    + rewrite step_let, eval_named_fold_statics, Hv, Hkind.
+      eexists. split; [ reflexivity | ].
+      apply State_kept; [ right; split; [ reflexivity | exact Hno ] | ].
+      exact Hconts.
+  - (* Let_static *)
+    rewrite step_let_static.
+    simpl in Hbound. apply andb_true_iff in Hbound as [Hbound _].
+    apply andb_true_iff in Hbound as [Hbindings _].
+    destruct (eval_static_bindings vars bindings statics) as [statics' | ]
+      eqn:Heval; [ | exact I ].
+    split;
+      [ | exact (eval_static_bindings_agrees vars bindings Hbindings statics
+                   statics' Hagrees Heval) ].
+    destruct He as [-> | [_ Hno]]; [ | discriminate Hno ].
+    simpl fold_known. rewrite step_let_static.
+    rewrite (eval_static_bindings_fold vars bindings statics statics' Heval).
+    eexists. split; [ reflexivity | ].
+    apply State_kept; [ left; reflexivity | exact Hconts ].
+  - (* Let_cont_non_recursive *)
+    rewrite step_let_cont_non_recursive. split; [ | exact Hagrees ].
+    destruct He as [-> | [-> Hno]].
+    + simpl fold_known. rewrite step_let_cont_non_recursive.
+      eexists. split; [ reflexivity | ].
+      apply State_kept; [ left; reflexivity | ].
+      constructor; [ split; [ reflexivity | ] | exact Hconts ].
+      apply Closure_kept;
+        [ left; reflexivity | left; reflexivity | exact Hconts ].
+    + rewrite step_let_cont_non_recursive.
+      simpl in Hno. apply andb_true_iff in Hno as [Hno_h Hno_b].
+      eexists. split; [ reflexivity | ].
+      apply State_kept; [ right; split; [ reflexivity | exact Hno_b ] | ].
+      constructor; [ split; [ reflexivity | ] | exact Hconts ].
+      apply Closure_kept;
+        [ right; split; [ reflexivity | exact Hno_h ] | left; reflexivity
+        | exact Hconts ].
+  - (* Let_cont_recursive *)
+    rewrite step_let_cont_recursive.
+    destruct (handlers_bind_statics handlers) eqn:Hbinds; [ exact I | ].
+    split; [ | exact Hagrees ].
+    destruct He as [-> | [-> Hno]].
+    + simpl fold_known.
+      rewrite step_let_cont_recursive, fold_known_handlers_bind_statics,
+        Hbinds.
+      eexists. split; [ reflexivity | ].
+      apply State_kept; [ left; reflexivity | ].
+      apply Forall2_app; [ | exact Hconts ].
+      apply rec_closures_kept; [ left; reflexivity | exact Hconts ].
+    + rewrite step_let_cont_recursive, Hbinds.
+      simpl in Hno. apply andb_true_iff in Hno as [Hno_hs Hno_b].
+      eexists. split; [ reflexivity | ].
+      apply State_kept; [ right; split; [ reflexivity | exact Hno_b ] | ].
+      apply Forall2_app; [ | exact Hconts ].
+      apply rec_closures_kept;
+        [ right; split; [ reflexivity | exact Hno_hs ] | exact Hconts ].
+  - (* Apply *)
+    assert (He' :
+      step (State e' vars conts' (fold_statics statics) hp)
+      = step (State (Apply ap) vars conts' (fold_statics statics) hp)).
+    { destruct He as [-> | [-> _]]; [ | reflexivity ].
+      simpl fold_known.
+      exact (fold_known_apply_sound_here T (fold_statics statics) hp
+               (proj2 Hagrees) vars conts' ap). }
+    rewrite He'. rewrite !step_apply.
+    destruct (eval_simple vars (ap_callee ap)) as [callee | ]; [ | exact I ].
+    destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | exact I ].
+    destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
+      [ | exact I ].
+    pose proof
+      (call_function_kept callee (ap_call_kind ap) vs (ap_args_arity ap)
+         (ap_return_arity ap) (resolve (ap_continuation ap) conts)
+         (resolve (ap_continuation ap) conts')
+         (with_extra_args (resolve (ap_exn_continuation ap) conts) extra)
+         (with_extra_args (resolve (ap_exn_continuation ap) conts') extra)
+         statics hp (resolve_kept _ conts conts' Hconts)
+         (with_extra_args_kept _ _ extra
+            (resolve_kept _ conts conts' Hconts)))
+      as Hcall.
+    destruct (call_function callee (ap_call_kind ap) vs (ap_args_arity ap)
+                (ap_return_arity ap) (resolve (ap_continuation ap) conts)
+                (with_extra_args (resolve (ap_exn_continuation ap) conts)
+                   extra)
+                statics hp)
+      as [t | k exit_vs | ] eqn:Hstep;
+      [ | exact Hcall | exact I ].
+    split; [ exact Hcall | ].
+    rewrite (call_function_statics _ _ _ _ _ _ _ _ _ t Hstep). exact Hagrees.
+  - (* Apply_cont *)
+    assert (He' : e' = Apply_cont ac)
+      by (destruct He as [-> | [-> _]]; reflexivity).
+    subst e'. rewrite !step_apply_cont.
+    destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | exact I ].
+    unfold apply_continuation.
+    pose proof
+      (apply_cont_value_kept (resolve (ac_continuation ac) conts)
+         (resolve (ac_continuation ac) conts')
+         (resolve_kept _ conts conts' Hconts) vs statics hp)
+      as Happly.
+    destruct
+      (apply_cont_value (resolve (ac_continuation ac) conts) vs statics hp)
+      as [t | | ] eqn:Hstep;
+      [ | exact Happly | exact I ].
+    split; [ exact Happly | ].
+    rewrite (apply_cont_value_statics _ _ _ _ t Hstep). exact Hagrees.
+  - (* Switch *)
+    assert (He' : e' = Switch scrutinee arms)
+      by (destruct He as [-> | [-> _]]; reflexivity).
+    subst e'. rewrite !step_switch.
+    destruct (eval_simple vars scrutinee) as [v | ]; [ | exact I ].
+    destruct (naked_immediate_of_value v) as [i | ]; [ | exact I ].
+    destruct (find_arm i arms) as [ac | ]; [ | exact I ].
+    split; [ | exact Hagrees ].
+    eexists. split; [ reflexivity | ].
+    apply State_kept; [ left; reflexivity | exact Hconts ].
+  - (* Invalid *)
+    rewrite step_invalid. exact I.
+Qed.
+
+Definition kept_related (s s' : state) : Prop :=
+  state_kept s s' ∧ bound_as_inv s ∧ agrees (state_statics s).
+
+Lemma kept_related_step (s s' : state) :
+  kept_related s s' -> result_simulated kept_related (step s) (step s').
+Proof.
+  intros (Hkept & Hinv & Hagrees).
+  destruct Hkept as [e e' vars conts conts' statics hp He Hconts].
   pose proof
-    (fold_step_components (state_expr s) (state_vars s) (state_conts s)
-       (state_statics s) (state_heap s) (proj1 Hinv) Hagrees)
+    (kept_step_components e e' vars conts conts' statics hp He Hconts
+       (proj1 Hinv) Hagrees)
     as Hstep.
-  rewrite <- (state_eta s) in Hstep.
-  pose proof (bound_as_inv_step s) as Hkept.
-  unfold fold_state at 1.
-  destruct (step s) as [t | k vs | ]; simpl; [ | | exact I ].
-  - destruct Hstep as [Hstep Ht]. rewrite Hstep. simpl.
-    split; [ reflexivity | ]. split; [ exact (Hkept t Hinv eq_refl) | ].
-    exact Ht.
+  pose proof (bound_as_inv_step (State e vars conts statics hp)) as Hkept_inv.
+  destruct (step (State e vars conts statics hp)) as [t | k vs | ]; simpl;
+    [ | | exact I ].
+  - destruct Hstep as [(t' & -> & Ht) Hagrees']. simpl.
+    split; [ exact Ht | ].
+    split; [ exact (Hkept_inv t Hinv eq_refl) | exact Hagrees' ].
   - rewrite Hstep. simpl. auto.
 Qed.
 
@@ -1200,9 +1375,102 @@ Proof.
     discriminate Hunbound.
 Qed.
 
+(* A term with no static binding in it binds every known symbol as is
+   known: it binds none. *)
+Fixpoint no_static_bound_as (known sets : list (symbol * static_const))
+    (e : expr) {struct e} :
+  binds_no_static e = true -> bound_as known sets e = true.
+Proof.
+  destruct e
+    as [ x xkind d body | bindings body | k h body | handlers body | ap | ac
+       | scrutinee arms | ];
+    simpl; try (intros _; reflexivity).
+  - apply no_static_bound_as.
+  - discriminate.
+  - destruct h as [params metadata handler]. simpl. intros H.
+    apply andb_true_iff in H as [Hh Hb].
+    rewrite (no_static_bound_as known sets handler Hh),
+      (no_static_bound_as known sets body Hb).
+    reflexivity.
+  - intros H. apply andb_true_iff in H as [Hhs Hb].
+    rewrite (no_static_bound_as known sets body Hb), andb_true_r.
+    induction handlers as [ | [k [params metadata handler]] handlers IH];
+      simpl; [ reflexivity | ].
+    simpl in Hhs. apply andb_true_iff in Hhs as [Hh Hrest].
+    rewrite (no_static_bound_as known sets handler Hh). exact (IH Hrest).
+Qed.
+
+(* What may follow a unit is left as it is, and binds the known symbols
+   as is known. *)
+Lemma observers_kept (known sets : list (symbol * static_const))
+    (slots : list value_slot) (conts : cont_env) :
+  observers slots conts ->
+  conts_kept known sets conts conts
+  ∧ conts_terms_ok (handler_bound_as known sets) conts.
+Proof.
+  unfold observers, conts_kept, conts_terms_ok.
+  induction conts as [ | [k c] conts IH]; simpl;
+    [ intros _; split; [ constructor | exact I ] | ].
+  intros H. inversion H as [ | kc rest Hc Hrest]; subst.
+  destruct (IH Hrest) as [Hkept Hok].
+  assert (Hthis :
+    cont_kept known sets c c
+    ∧ cont_terms_ok (handler_bound_as known sets) c).
+  { revert Hc.
+    destruct c
+      as [ [params metadata body] vars kept recursive | k0 | c0 extra
+         | remaining remaining_arity return_arity return_to exn_to ];
+      simpl; try contradiction;
+      [ | intros _; split; [ apply Outer_kept | exact I ] ].
+    destruct vars; [ | contradiction ].
+    destruct kept; [ | contradiction ].
+    destruct recursive; [ | contradiction ].
+    intros (Hno & _ & _). split.
+    - apply Closure_kept;
+        [ right; split; [ reflexivity | exact Hno ] | left; reflexivity
+        | constructor ].
+    - split; [ exact (no_static_bound_as known sets body Hno) | ].
+      split; [ reflexivity | exact I ]. }
+  destruct Hthis as [Hc_kept Hc_ok].
+  split;
+    [ constructor; [ split; [ reflexivity | exact Hc_kept ] | exact Hkept ]
+    | exact (conj Hc_ok Hok) ].
+Qed.
+
 (* What [fold_known_unit] gives refines the unit, the two run from a
    static environment that holds no code and binds no name that the
-   unit binds, and from any heap. *)
+   unit binds, from any heap, and from a continuation environment of
+   what may follow a unit. *)
+Lemma fold_known_unit_refines_under (slots : list value_slot) (e e' : expr)
+    (conts : cont_env) (statics : static_env) (hp : heap) :
+  fold_known_unit e = Some e' ->
+  static_code statics = [] ->
+  static_names_free_in statics e = true ->
+  observers slots conts ->
+  refines (State e [] conts statics hp) (State e' [] conts statics hp).
+Proof.
+  unfold fold_known_unit. cbv zeta.
+  destruct (bound_as (known_bindings e) (known_sets e) e) eqn:Hbound;
+    [ | discriminate ].
+  intros [= <-] Hno_code Hfree Hobservers.
+  destruct (observers_kept (known_bindings e) (known_sets e) slots conts
+              Hobservers)
+    as [Hkept Hok].
+  apply (simulation_refines
+           (kept_related (known_bindings e) (known_sets e))
+           (kept_related_step (known_bindings e)
+              (known_bindings_have_values e) (known_sets e)
+              (known_sets_have_values e))).
+  split.
+  - destruct statics as [code values]. simpl in Hno_code. subst code.
+    exact (State_kept (known_bindings e) (known_sets e) e _ [] conts conts
+             (Static_env [] values) hp (or_introl eq_refl) Hkept).
+  - split; [ | exact (agrees_from e statics Hfree) ].
+    unfold bound_as_inv, terms_inv. simpl_state.
+    refine (conj Hbound (conj Hok _)).
+    intros id c Hlookup. rewrite Hno_code in Hlookup. discriminate Hlookup.
+Qed.
+
 Lemma fold_known_unit_refines_from (e e' : expr) (statics : static_env)
     (hp : heap) :
   fold_known_unit e = Some e' ->
@@ -1210,22 +1478,9 @@ Lemma fold_known_unit_refines_from (e e' : expr) (statics : static_env)
   static_names_free_in statics e = true ->
   refines (State e [] [] statics hp) (State e' [] [] statics hp).
 Proof.
-  unfold fold_known_unit. cbv zeta.
-  destruct (bound_as (known_bindings e) (known_sets e) e) eqn:Hbound;
-    [ | discriminate ].
-  intros [= <-] Hno_code Hfree.
-  apply (simulation_refines
-           (folded_related (known_bindings e) (known_sets e))
-           (folded_related_step (known_bindings e)
-              (known_bindings_have_values e) (known_sets e)
-              (known_sets_have_values e))).
-  split.
-  - destruct statics as [code values]. simpl in Hno_code. subst code.
-    reflexivity.
-  - split; [ | exact (agrees_from e statics Hfree) ].
-    unfold bound_as_inv, terms_inv. simpl_state.
-    refine (conj Hbound (conj I _)).
-    intros id c Hlookup. rewrite Hno_code in Hlookup. discriminate Hlookup.
+  intros Hfold Hno_code Hfree.
+  exact (fold_known_unit_refines_under [] e e' [] statics hp Hfold Hno_code
+           Hfree (Forall_nil _)).
 Qed.
 
 Theorem fold_known_unit_program_refines :
@@ -1242,6 +1497,15 @@ Proof.
   intros imports e e' Hfold Hfree. unfold unit_refines.
   exact (fold_known_unit_refines_from e e' (imports_statics imports)
            empty_heap Hfold eq_refl Hfree).
+Qed.
+
+Theorem fold_known_unit_refines_observed :
+  fold_known_unit_refines_observed_statement.
+Proof.
+  intros imports conts e e' Hfold Hfree Hobservers.
+  exact (fold_known_unit_refines_under [] e e' conts
+           (imports_statics imports) empty_heap Hfold eq_refl Hfree
+           Hobservers).
 Qed.
 
 (* ======================================================================== *)

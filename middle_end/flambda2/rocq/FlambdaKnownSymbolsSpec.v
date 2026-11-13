@@ -117,7 +117,8 @@ From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaValueSpec FlambdaSemanticsSpec FlambdaNominalSpec
-  FlambdaNormaliseSpec FlambdaUnusedStaticsSpec FlambdaImportsSpec.
+  FlambdaNormaliseSpec FlambdaUnusedStaticsSpec FlambdaImportsSpec
+  FlambdaObserversSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -452,6 +453,24 @@ Definition fold_known_unit_refines_imports_statement : Prop :=
     fold_known_unit e = Some e' ->
     static_names_free_in (imports_statics imports) e = true ->
     unit_refines imports e e'.
+
+(* The same of the unit followed by something: the unit and the unit
+   folded, run from one continuation environment of what may follow a
+   unit (FlambdaObserversSpec.observers: a way out, or a handler with no
+   environment of its own that binds nothing static and names no
+   symbol and no code id) and from the static environment of the
+   imports. The second refines the first, with the same exits: what
+   follows is the same term in the two runs, it is not folded, and it
+   reads the same values. With no continuation it is the statement
+   above. *)
+Definition fold_known_unit_refines_observed_statement : Prop :=
+  ∀ (imports : list (symbol * import_class)) (conts : cont_env)
+    (e e' : expr),
+    fold_known_unit e = Some e' ->
+    static_names_free_in (imports_statics imports) e = true ->
+    observers [] conts ->
+    refines (State e [] conts (imports_statics imports) empty_heap)
+      (State e' [] conts (imports_statics imports) empty_heap).
 
 (* A defining expression is folded to its value: in any static
    environment in which each symbol that [statics] binds is bound to the
