@@ -1659,3 +1659,233 @@ Proof.
              (Hvs v (or_introl eq_refl))).
   - apply IH. intros w Hw. exact (Hvs w (or_intror Hw)).
 Qed.
+
+(* ======================================================================== *)
+(* The rules of the lifting that have no array                              *)
+(* ======================================================================== *)
+
+(* Each is a rule of the relation. *)
+Fixpoint value_lifted_no_array_lifted (statics' : static_env)
+    (v v' : value) (H : value_lifted_no_array statics' v v') {struct H} :
+  value_lifted statics' v v'.
+Proof.
+  destruct H
+    as [ c | s | c | tag fields fields' Hfields
+       | code slots slots' Hslots | fslot decls slots slots' Hslots
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs
+       | c s Hlookup | tag fields fields' s Hlookup Hfields
+       | fslot decls slots slots' s syms Hsym Hsyms Hbound Hslots
+       | code slots slots' s Hlookup Hslots | l ].
+  - apply Lifted_const.
+  - apply Lifted_symbol.
+  - apply Lifted_boxed_number.
+  - apply Lifted_block.
+    revert fields fields' Hfields. fix IH 3.
+    intros fields fields' [ | w w' rest rest' Hhead Htail]; constructor.
+    + exact (value_lifted_no_array_lifted _ _ _ Hhead).
+    + exact (IH _ _ Htail).
+  - apply Lifted_closure.
+    revert slots slots' Hslots. fix IH 3.
+    intros slots slots' [ | w w' rest rest' [Hkey Hhead] Htail];
+      constructor.
+    + split; [ exact Hkey | ].
+      exact (value_lifted_no_array_lifted _ _ _ Hhead).
+    + exact (IH _ _ Htail).
+  - apply Lifted_closure_of_set.
+    revert slots slots' Hslots. fix IH 3.
+    intros slots slots' [ | w w' rest rest' [Hkey Hhead] Htail];
+      constructor.
+    + split; [ exact Hkey | ].
+      exact (value_lifted_no_array_lifted _ _ _ Hhead).
+    + exact (IH _ _ Htail).
+  - apply Lifted_partial_application;
+      [ exact (value_lifted_no_array_lifted _ _ _ Hpcallee) | ].
+    revert pargs pargs' Hpargs. fix IH 3.
+    intros pargs pargs' [ | w w' rest rest' Hhead Htail]; constructor.
+    + exact (value_lifted_no_array_lifted _ _ _ Hhead).
+    + exact (IH _ _ Htail).
+  - apply Lifted_to_boxed_number. exact Hlookup.
+  - apply (Lifted_to_block _ tag fields fields' s Hlookup).
+    clear Hlookup. revert fields fields' Hfields. fix IH 3.
+    intros fields fields' [ | w w' rest rest' Hhead Htail]; constructor.
+    + exact (value_lifted_no_array_lifted _ _ _ Hhead).
+    + exact (IH _ _ Htail).
+  - apply (Lifted_to_closure _ fslot decls slots slots' s syms Hsym Hsyms
+             Hbound).
+    clear Hbound. revert slots slots' Hslots. fix IH 3.
+    intros slots slots' [ | w w' rest rest' [Hkey Hhead] Htail];
+      constructor.
+    + split; [ exact Hkey | ].
+      exact (value_lifted_no_array_lifted _ _ _ Hhead).
+    + exact (IH _ _ Htail).
+  - apply (Lifted_to_unnamed_closure _ code slots slots' s Hlookup).
+    clear Hlookup. revert slots slots' Hslots. fix IH 3.
+    intros slots slots' [ | w w' rest rest' [Hkey Hhead] Htail];
+      constructor.
+    + split; [ exact Hkey | ].
+      exact (value_lifted_no_array_lifted _ _ _ Hhead).
+    + exact (IH _ _ Htail).
+  - apply Lifted_location.
+Qed.
+
+(* What they relate has a first value that holds no array value. *)
+Fixpoint value_lifted_no_array_holds_none (statics' : static_env)
+    (v v' : value) (H : value_lifted_no_array statics' v v') {struct H} :
+  no_array_value v = true.
+Proof.
+  destruct H
+    as [ c | s | c | tag fields fields' Hfields
+       | code slots slots' Hslots | fslot decls slots slots' Hslots
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs
+       | c s Hlookup | tag fields fields' s Hlookup Hfields
+       | fslot decls slots slots' s syms Hsym Hsyms Hbound Hslots
+       | code slots slots' s Hlookup Hslots | l ];
+    simpl; try reflexivity.
+  - revert fields fields' Hfields. fix IH 3.
+    intros fields fields' [ | w w' rest rest' Hhead Htail]; simpl;
+      [ reflexivity | ].
+    rewrite (value_lifted_no_array_holds_none _ _ _ Hhead).
+    exact (IH _ _ Htail).
+  - revert slots slots' Hslots. fix IH 3.
+    intros slots slots' [ | w w' rest rest' [Hkey Hhead] Htail]; simpl;
+      [ reflexivity | ].
+    rewrite (value_lifted_no_array_holds_none _ _ _ Hhead).
+    exact (IH _ _ Htail).
+  - revert slots slots' Hslots. fix IH 3.
+    intros slots slots' [ | w w' rest rest' [Hkey Hhead] Htail]; simpl;
+      [ reflexivity | ].
+    rewrite (value_lifted_no_array_holds_none _ _ _ Hhead).
+    exact (IH _ _ Htail).
+  - rewrite (value_lifted_no_array_holds_none _ _ _ Hpcallee). simpl.
+    revert pargs pargs' Hpargs. fix IH 3.
+    intros pargs pargs' [ | w w' rest rest' Hhead Htail]; simpl;
+      [ reflexivity | ].
+    rewrite (value_lifted_no_array_holds_none _ _ _ Hhead).
+    exact (IH _ _ Htail).
+  - clear Hlookup. revert fields fields' Hfields. fix IH 3.
+    intros fields fields' [ | w w' rest rest' Hhead Htail]; simpl;
+      [ reflexivity | ].
+    rewrite (value_lifted_no_array_holds_none _ _ _ Hhead).
+    exact (IH _ _ Htail).
+  - clear Hbound. revert slots slots' Hslots. fix IH 3.
+    intros slots slots' [ | w w' rest rest' [Hkey Hhead] Htail]; simpl;
+      [ reflexivity | ].
+    rewrite (value_lifted_no_array_holds_none _ _ _ Hhead).
+    exact (IH _ _ Htail).
+  - clear Hlookup. revert slots slots' Hslots. fix IH 3.
+    intros slots slots' [ | w w' rest rest' [Hkey Hhead] Htail]; simpl;
+      [ reflexivity | ].
+    rewrite (value_lifted_no_array_holds_none _ _ _ Hhead).
+    exact (IH _ _ Htail).
+Qed.
+
+(* A derivation of the relation from a value that holds no array value
+   is one by those rules: the two rules of the array have an array
+   value for their first value, and the others relate the parts of the
+   first value. *)
+Fixpoint value_lifted_by_no_array_rule (statics' : static_env)
+    (v v' : value) (H : value_lifted statics' v v') {struct H} :
+  no_array_value v = true -> value_lifted_no_array statics' v v'.
+Proof.
+  destruct H
+    as [ c | s | c | tag fields fields' Hfields | items items' Hitems
+       | code slots slots' Hslots | fslot decls slots slots' Hslots
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs
+       | c s Hlookup | tag fields fields' s Hlookup Hfields
+       | items items' s Hlookup Hitems
+       | fslot decls slots slots' s syms Hsym Hsyms Hbound Hslots
+       | code slots slots' s Hlookup Hslots | l ];
+    simpl; intros Hno; try discriminate Hno.
+  - apply No_array_const.
+  - apply No_array_symbol.
+  - apply No_array_boxed_number.
+  - apply No_array_block.
+    revert fields fields' Hfields Hno. fix IH 3.
+    intros fields fields' [ | w w' rest rest' Hhead Htail]; simpl;
+      intros Hall; constructor;
+      apply andb_true_iff in Hall as [Hw Hrest].
+    + exact (value_lifted_by_no_array_rule _ _ _ Hhead Hw).
+    + exact (IH _ _ Htail Hrest).
+  - apply No_array_closure.
+    revert slots slots' Hslots Hno. fix IH 3.
+    intros slots slots' [ | w w' rest rest' [Hkey Hhead] Htail]; simpl;
+      intros Hall; constructor;
+      apply andb_true_iff in Hall as [Hw Hrest].
+    + split; [ exact Hkey | ].
+      exact (value_lifted_by_no_array_rule _ _ _ Hhead Hw).
+    + exact (IH _ _ Htail Hrest).
+  - apply No_array_closure_of_set.
+    revert slots slots' Hslots Hno. fix IH 3.
+    intros slots slots' [ | w w' rest rest' [Hkey Hhead] Htail]; simpl;
+      intros Hall; constructor;
+      apply andb_true_iff in Hall as [Hw Hrest].
+    + split; [ exact Hkey | ].
+      exact (value_lifted_by_no_array_rule _ _ _ Hhead Hw).
+    + exact (IH _ _ Htail Hrest).
+  - apply andb_true_iff in Hno as [Hcallee Hargs].
+    apply No_array_partial_application;
+      [ exact (value_lifted_by_no_array_rule _ _ _ Hpcallee Hcallee) | ].
+    revert pargs pargs' Hpargs Hargs. fix IH 3.
+    intros pargs pargs' [ | w w' rest rest' Hhead Htail]; simpl;
+      intros Hall; constructor;
+      apply andb_true_iff in Hall as [Hw Hrest].
+    + exact (value_lifted_by_no_array_rule _ _ _ Hhead Hw).
+    + exact (IH _ _ Htail Hrest).
+  - apply No_array_to_boxed_number. exact Hlookup.
+  - apply (No_array_to_block _ tag fields fields' s Hlookup).
+    clear Hlookup. revert fields fields' Hfields Hno. fix IH 3.
+    intros fields fields' [ | w w' rest rest' Hhead Htail]; simpl;
+      intros Hall; constructor;
+      apply andb_true_iff in Hall as [Hw Hrest].
+    + exact (value_lifted_by_no_array_rule _ _ _ Hhead Hw).
+    + exact (IH _ _ Htail Hrest).
+  - apply (No_array_to_closure _ fslot decls slots slots' s syms Hsym Hsyms
+             Hbound).
+    clear Hbound. revert slots slots' Hslots Hno. fix IH 3.
+    intros slots slots' [ | w w' rest rest' [Hkey Hhead] Htail]; simpl;
+      intros Hall; constructor;
+      apply andb_true_iff in Hall as [Hw Hrest].
+    + split; [ exact Hkey | ].
+      exact (value_lifted_by_no_array_rule _ _ _ Hhead Hw).
+    + exact (IH _ _ Htail Hrest).
+  - apply (No_array_to_unnamed_closure _ code slots slots' s Hlookup).
+    clear Hlookup. revert slots slots' Hslots Hno. fix IH 3.
+    intros slots slots' [ | w w' rest rest' [Hkey Hhead] Htail]; simpl;
+      intros Hall; constructor;
+      apply andb_true_iff in Hall as [Hw Hrest].
+    + split; [ exact Hkey | ].
+      exact (value_lifted_by_no_array_rule _ _ _ Hhead Hw).
+    + exact (IH _ _ Htail Hrest).
+  - apply No_array_location.
+Qed.
+
+Theorem value_lifted_no_array_exact : value_lifted_no_array_exact_statement.
+Proof.
+  intros statics' v v'. split.
+  - intros H. split.
+    + exact (value_lifted_no_array_lifted _ _ _ H).
+    + exact (value_lifted_no_array_holds_none _ _ _ H).
+  - intros [H Hno]. exact (value_lifted_by_no_array_rule _ _ _ H Hno).
+Qed.
+
+Theorem lift_simulates_no_array : lift_simulates_no_array_statement.
+Proof.
+  intros u lets known e. cbv zeta. intros Hwf Honly Hmakes k vs hp Hexit.
+  assert (Hvs : ∀ v : value, v ∈ vs -> no_array_value v = true).
+  { destruct Hexit as [fuel Hrun].
+    pose proof
+      (run_free_of_arrays fuel _ (unit_state_free_of_arrays e Hmakes))
+      as Hfree.
+    rewrite Hrun in Hfree. exact (proj1 Hfree). }
+  pose proof (lift_simulates u lets known e) as Hsimulates.
+  cbv zeta in Hsimulates.
+  destruct (proj1 (Hsimulates Hwf Honly) k vs hp Hexit)
+    as (n & last & vs' & Hrun & Hstep & Hlifted).
+  exists n, last, vs'.
+  split; [ exact Hrun | split; [ exact Hstep | ] ].
+  clear Hrun Hstep Hexit. induction Hlifted as [ | v v' vs vs' Hv _ IH];
+    constructor.
+  - exact (value_lifted_by_no_array_rule _ _ _ Hv
+             (Hvs v (or_introl eq_refl))).
+  - apply IH. intros w Hw. exact (Hvs w (or_intror Hw)).
+Qed.

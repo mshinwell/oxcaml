@@ -130,19 +130,33 @@
      go by the head of the first value and relate its parts, and the
      two rules of the array have an array value for their first
      value: so a derivation from a value that holds no array value
-     has neither. That is stated without a copy of the relation as it
-     was. [Lifted_to_array] is the one rule that reads a symbol bound
-     to an immutable array, so under a static environment with those
-     bindings left out ([without_static_arrays]) it relates nothing
-     ([no_array_lifted_to_symbol_statement]), and the relation there
-     is the one that there was before an array value could be lifted
-     to a symbol. A value that holds no array value is lifted to the
-     same values there
-     ([value_lifted_reads_no_static_array_statement]). So of a unit
-     that makes no array, FlambdaLiftSpec.lift_simulates_statement
-     says what it said: the values at its exit hold no array value,
-     and those of the unit lifted are those values lifted with no
-     static array read ([lift_simulates_free_of_arrays_statement]).
+     has neither. That is stated with the rules that have no array
+     named ([value_lifted_no_array]: the rules of the relation but
+     those two, each as it is, under the same static environment).
+     They relate exactly what the relation relates of a first value
+     that holds no array value
+     ([value_lifted_no_array_exact_statement]). That is of the values
+     that hold no array value: it is not said that the relation was
+     ever those rules, and it had [Lifted_array] before it had
+     [Lifted_to_array]. So of a unit that makes no array,
+     FlambdaLiftSpec.lift_simulates_statement gives what it gave: the
+     values at its exit hold no array value, and those of the unit
+     lifted are those values lifted by the rules that have no array,
+     under the static environment of the last state
+     ([lift_simulates_no_array_statement]).
+
+     Three statements say less, with no rule named. [Lifted_to_array]
+     is the one rule that reads a symbol bound to an immutable array,
+     so under a static environment with those bindings left out
+     ([without_static_arrays]) it relates nothing
+     ([no_array_lifted_to_symbol_statement]). Two values that are
+     related, the first of which holds no array value, are related
+     under it ([value_lifted_reads_no_static_array_statement]), and so
+     are the values at the two exits of a unit that makes no array
+     ([lift_simulates_free_of_arrays_statement]). The converse is not
+     claimed, and the relation under that environment is not the
+     relation without the rule: leaving a binding out may uncover
+     another binding of the same symbol.
 
    Nothing here is a premise of another file. *)
 
@@ -152,7 +166,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaPrimitiveModel FlambdaSemanticsSpec FlambdaNominalSpec
   FlambdaEquivarianceSpec FlambdaNormaliseSpec FlambdaHeapSpec
   FlambdaHeapMachineSpec FlambdaHeapEquivarianceSpec FlambdaLiftSpec
-  FlambdaWellFormedSpec FlambdaMyClosureSpec.
+  FlambdaWellFormedSpec FlambdaMyClosureSpec FlambdaClosuresSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -586,19 +600,20 @@ Definition no_array_lifted_to_symbol_statement : Prop :=
     ~ value_lifted (without_static_arrays statics')
         (Value_immutable_array elements) (Value_symbol s).
 
-(* A value that holds no array value is lifted to the same values
-   under it: its derivation reads no static array. *)
+(* Two values that are related, the first of which holds no array
+   value, are related under it: the derivation reads no static array.
+   The converse is not claimed: leaving a binding out may uncover
+   another binding of the same symbol. *)
 Definition value_lifted_reads_no_static_array_statement : Prop :=
   ∀ (statics' : static_env) (v v' : value),
     value_lifted statics' v v' ->
     no_array_value v = true ->
     value_lifted (without_static_arrays statics') v v'.
 
-(* So FlambdaLiftSpec.lift_simulates_statement says of a unit that
-   makes no array what it said before an array value could be lifted
-   to a symbol: the values at the exit of the unit hold no array
-   value, and those at the exit of the unit lifted are those values
-   lifted with no static array read. *)
+(* So of a unit that makes no array: the values at the exit of the
+   unit hold no array value, and those at the exit of the unit lifted
+   are related to them under the static environment of the last state
+   with its static arrays left out. *)
 Definition lift_simulates_free_of_arrays_statement : Prop :=
   ∀ (u : unit_interface) (lets : list (path * lift_to))
     (known : list (code_id * symbol)) (e : expr),
@@ -615,3 +630,102 @@ Definition lift_simulates_free_of_arrays_statement : Prop :=
           ∧ Forall2
               (value_lifted (without_static_arrays (state_statics last)))
               vs vs'.
+
+(* The rules of FlambdaLiftSpec.value_lifted that have no array: its
+   rules but [Lifted_array] and [Lifted_to_array], each as it is
+   there, under the same static environment. It is not said that the
+   relation was ever these rules (it had [Lifted_array] before it had
+   [Lifted_to_array]): the statement that follows says what they are,
+   which is the relation at the values that hold no array value. *)
+(* (The warning silenced is about induction schemes through the lists.) *)
+#[local] Set Warnings "-register-all".
+Inductive value_lifted_no_array (statics' : static_env)
+    : value -> value -> Prop :=
+  | No_array_const (c : const) :
+    value_lifted_no_array statics' (Value_const c) (Value_const c)
+  | No_array_symbol (s : symbol) :
+    value_lifted_no_array statics' (Value_symbol s) (Value_symbol s)
+  | No_array_boxed_number (c : const) :
+    value_lifted_no_array statics' (Value_boxed_number c)
+      (Value_boxed_number c)
+  | No_array_block (tag : Z) (fields fields' : list value) :
+    Forall2 (value_lifted_no_array statics') fields fields' ->
+    value_lifted_no_array statics' (Value_block tag fields)
+      (Value_block tag fields')
+  | No_array_closure (code : code_id)
+      (value_slots value_slots' : list (value_slot * value)) :
+    Forall2 (slot_lifted (value_lifted_no_array statics')) value_slots
+      value_slots' ->
+    value_lifted_no_array statics' (Value_closure code value_slots)
+      (Value_closure code value_slots')
+  | No_array_closure_of_set (slot : function_slot)
+      (function_decls : list (function_slot * code_id))
+      (value_slots value_slots' : list (value_slot * value)) :
+    Forall2 (slot_lifted (value_lifted_no_array statics')) value_slots
+      value_slots' ->
+    value_lifted_no_array statics'
+      (Value_closure_of_set slot function_decls value_slots)
+      (Value_closure_of_set slot function_decls value_slots')
+  | No_array_partial_application (callee callee' : value)
+      (args args' : list value) (args_arity : arity) :
+    value_lifted_no_array statics' callee callee' ->
+    Forall2 (value_lifted_no_array statics') args args' ->
+    value_lifted_no_array statics'
+      (Value_partial_application callee args args_arity)
+      (Value_partial_application callee' args' args_arity)
+  | No_array_to_boxed_number (c : const) (s : symbol) :
+    lookup s (static_values statics')
+    = Some (Static_boxed_number (Value_const c)) ->
+    value_lifted_no_array statics' (Value_boxed_number c) (Value_symbol s)
+  | No_array_to_block (tag : Z) (fields fields' : list value) (s : symbol) :
+    lookup s (static_values statics') = Some (Static_block tag fields') ->
+    Forall2 (value_lifted_no_array statics') fields fields' ->
+    value_lifted_no_array statics' (Value_block tag fields) (Value_symbol s)
+  | No_array_to_closure (slot : function_slot)
+      (function_decls : list (function_slot * code_id))
+      (value_slots value_slots' : list (value_slot * value)) (s : symbol)
+      (closure_symbols : list (function_slot * symbol)) :
+    lookup slot closure_symbols = Some s ->
+    map fst closure_symbols = map fst function_decls ->
+    static_set_bound statics' closure_symbols function_decls value_slots' ->
+    Forall2 (slot_lifted (value_lifted_no_array statics')) value_slots
+      value_slots' ->
+    value_lifted_no_array statics'
+      (Value_closure_of_set slot function_decls value_slots)
+      (Value_symbol s)
+  | No_array_to_unnamed_closure (code : code_id)
+      (value_slots value_slots' : list (value_slot * value)) (s : symbol) :
+    lookup s (static_values statics')
+    = Some (Static_closure code value_slots') ->
+    Forall2 (slot_lifted (value_lifted_no_array statics')) value_slots
+      value_slots' ->
+    value_lifted_no_array statics' (Value_closure code value_slots)
+      (Value_symbol s)
+  | No_array_location (l : location) :
+    value_lifted_no_array statics' (Value_location l) (Value_location l).
+
+(* Those rules relate exactly what the relation of the lifting relates
+   of a first value that holds no array value, under one static
+   environment: nothing is asked of that environment. *)
+Definition value_lifted_no_array_exact_statement : Prop :=
+  ∀ (statics' : static_env) (v v' : value),
+    value_lifted_no_array statics' v v'
+    <-> value_lifted statics' v v' ∧ no_array_value v = true.
+
+(* So of a unit that makes no array, the values at the exit of the unit
+   lifted are those of the unit lifted by the rules that have no array,
+   under the static environment of the last state: the first conclusion
+   of FlambdaLiftSpec.lift_simulates_statement, with those rules. *)
+Definition lift_simulates_no_array_statement : Prop :=
+  ∀ (u : unit_interface) (lets : list (path * lift_to))
+    (known : list (code_id * symbol)) (e : expr),
+    let lifted := bind_my_closures known (lift_expr lets root e) in
+    well_formed_unit u lifted = true ->
+    only_closures_of known lifted = true ->
+    makes_array e = false ->
+    ∀ (k : continuation) (vs : list value) (hp : heap),
+      behaves (State e [] [] empty_static_env empty_heap) (Exits k vs hp) ->
+      ∃ (n : nat) (last : state) (vs' : list value),
+        run n (State lifted [] [] empty_static_env empty_heap) = Step last
+        ∧ step last = Exit k vs' hp
+        ∧ Forall2 (value_lifted_no_array (state_statics last)) vs vs'.
