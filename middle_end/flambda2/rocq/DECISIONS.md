@@ -201,6 +201,13 @@ says so. Only the labels that this tree cites are listed.
 - **C2-9.** An indirect call of a tupled function is made at one
   argument, the tuple, whatever the arity of the code; the model has no
   such mark on code.
+- **C2-10.** Simplify reads the subkind of a parameter into its type
+  and the backend into what the collector does not scan; nothing checks
+  that the value bound is of it.
+- **C2-11.** A use of a continuation whose argument cannot be of the
+  subkind of the parameter is not made `Invalid`.
+- **C2-12.** Simplify gives a parameter that it puts in the place of
+  another no subkind, so the term after asks less of the value.
 - **C2-13.** Nothing checks that a unit does not bind again the name of
   its return or exception continuation, and the model's reading of "at
   toplevel" goes by that name.
@@ -210,10 +217,31 @@ says so. Only the labels that this tree cites are listed.
 - **C2-17.** The handler of a probe is called only while the probe is
   enabled, which a mark on the call says and the text of a term does
   not; the model has no probe.
+- **C2-18.** The kind that `Make_block` gives each field is read by
+  Simplify and by nothing after it, and the text of a term does not
+  write it.
 - **C2-19.** Simplify, with `-g` and phantom lets on, keeps a `Let` whose
   variable is unused as a phantom binding where it would delete it;
   `to_cmm` runs nothing for such a `Let`, and the text of a term does
   not say the mode.
+- **C2-20.** The reader of the text of a term gives a symbol of the
+  unit and a symbol of another unit one identity when their linkage
+  names are the same.
+- **C2-21.** Other units read the data of a unit's module symbol, and
+  the backend ignores what the unit gives its return continuation; the
+  model observes what the unit gives it.
+- **C2-22.** In a unit converted with unnamed function slots the test
+  tool does not read the function slot that a projection of a value
+  slot names; the backend computes the load from it.
+- **C2-23.** The backend lays closures out by offsets made from the
+  free names that Simplify returns beside the term; nothing compares
+  those names with the term.
+- **C2-24.** Nothing compares the kind of the variable of a `Let` with
+  the kind of its defining expression; the backend does not read it,
+  and the model tests the value bound against it.
+- **C2-25.** The backend relies on what a term caches of itself (counts
+  of occurrences, whether code uses its closure, whether a value slot
+  is always an immediate); the conversion reads none of it.
 - **C2-26.** The text of a term writes both forms of `Is_int` as
   `%is_int`, and its reader gives the form for variants.
 - **C2-27.** The text of a term does not write the kind of
@@ -629,6 +657,20 @@ says so. Only the labels that this tree cites are listed.
   identifiers of the variables, which are hashes. The binary meet and
   the n-way meet alike; the model is bottom. T4-10, found by proof,
   reached by a run.
+- **T7-14.** On a line of five equations on four values the model's meet
+  answers bottom and neither meet of the compiler does, in any order of
+  the identifiers: a variable on which a case of a variant has an
+  extension becomes an alias of the variant itself while an equation is
+  being added to it. Bottom is the precise answer. Why the compiler
+  misses it is not established (it ignores an equation on a name to
+  which an equation is being added, which may be where); what the model
+  does otherwise is not known.
+- **T7-15.** With one case in the place of two on that line, the binary
+  meet answers bottom and the n-way meet, and the model, leave the
+  environment as it was. A loss of precision of the n-way meet.
+- **V2-1.** The fexpr printer prints a call of a C function, and a
+  method call, without its allocation mode, in a form that the fexpr
+  parser refuses.
 - **V2-2.** The fexpr printer drops the kinds of the fields of a
   `Make_block`, and the parser reads back `any_value` for each.
 - **V2-3.** The conversion gives a meaning to a local allocation read
@@ -658,6 +700,10 @@ says so. Only the labels that this tree cites are listed.
   answers unknown and drops the relation it has just joined.
 - **X4-1.** The output of Simplify binds the same variable in two
   places: the names stored in a term are not unique.
+- **X4-3.** Where every set of closures in what a check converts (the
+  unit before Simplify, the unit after and the prefix) has one function
+  and nothing there projects a function slot, the test tool leaves the
+  function slot of a closure out of the terms of the model.
 - **X5-2.** The fields of a recursive module are read by immutable
   loads, and `CamlinternalMod.update_mod` overwrites them; a read from
   before the write is reused after it.
@@ -678,3 +724,5 @@ says so. Only the labels that this tree cites are listed.
   arity, and the reader gives its result one value; where the result
   is an unboxed pair or an unboxed number, Simplify stops with a fatal
   error on the term read.
+- **X5-13.** Simplify turns a switch whose arms are all one action into
+  that action only when the arms have the same debugging information.

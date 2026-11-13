@@ -188,6 +188,30 @@ it gave back.
   `middle_end/flambda2/tests/semantics/ocaml/README.md`, "What a
   validation does not say"; the classification of the units in that
   file says which are counted apart, and for which of these reasons.
+- **The compiler's own run, in a second program.**
+  `middle_end/flambda2/tests/tools/ownrun/flsemantics_ownrun.ml` is
+  the compiler's driver with two hooks registered
+  (`driver/compiler_hooks.mli`), and gives the two terms of the
+  compiler's own run, as they are in memory, to the check of the
+  tool (`Flsemantics.check`). No rule of the tree runs it on a unit
+  of the examples; one control runs it
+  (`middle_end/flambda2/tests/semantics/own_run/`). A verdict that
+  it prints does not rest on the entry above: there is no text, no
+  reader and no second run of Simplify. In its place it rests on
+  the two hooks: that `Raw_flambda2` is given the term that the
+  compiler gives to Simplify and `Flambda2` the term that the
+  compiler's Simplify returned, and that these are the terms that
+  the compiler goes on with (`flambda_to_flambda0` in
+  `middle_end/flambda2/flambda2.ml`). The entries below are trusted
+  of it as they are of the tool, with one difference: the `.cmx`
+  files of other units are looked for on the compiler's load path
+  (`Compmisc.init_path`), not only in the directories given with
+  `-I`. Such a verdict says nothing of what the compiler then makes
+  of the term after: the reaper where it is enabled, the
+  translation to Cmm, the back end and the link. The header of the
+  file and the section "The compiler's own run" of
+  `middle_end/flambda2/tests/semantics/ocaml/README.md` say the
+  rest.
 - **The conversion of terms**, in
   `middle_end/flambda2/tests/tools/flsemantics.ml` (`convert_expr` and
   the functions around it, about 230 lines): from the compiler's Flambda
@@ -1148,6 +1172,44 @@ it gave back.
     `Oxcaml_flags.Flambda2.Debug.concrete_types_only_on_canonicals`,
     set for that comparison and put back, and that any stop of the
     compiler under it is a disagreement.
+  - the line (`the_line_of_t7_13`, `immediates_of_the_line`,
+    `variant_of_the_line`): that its steps are the definitions and the
+    equations that the comment before them describes, in each of the
+    three ways; that `scenario` runs them in the compiler by the calls
+    that it runs for the examples of the meet, and
+    `scenario_in_the_model` in the model;
+  - the runs (`run_the_line`, `the_line_of_t7_13_in_every_order`): that
+    the order of a run is that of `Variable.compare` on its three
+    variables, taken before its first step; that a run is said to stop
+    at the compiler's check where the text of the fatal error begins as
+    that of `Typing_env.replace_equation` does; that the check is the
+    flag
+    `Oxcaml_flags.Flambda2.Debug.concrete_types_only_on_canonicals`, set
+    on or off for each batch of runs and put back; that the line fails
+    unless each of the six orders is seen, with one answer in each: an
+    order in which two distinct answers are seen, an order that is
+    missing, or an order that is not one of the six, fails it;
+  - the names with a type that is no alias and a canonical element that
+    is not themselves (`concrete_and_not_canonical`): that they are read
+    from what is seen (`seen_in_the_compiler`, `seen_in_the_model`) of
+    the three names, the type being `find` and the canonical element
+    `get_canonical_simple_exn` at the name mode of types; that there is
+    no answer where no environment is seen or a name is seen without one
+    of the two.
+  - the two lines (`the_line_of_values`): that their steps are the
+    definitions and the equations that the comment before them
+    describes; that `scenario` runs them in the compiler and
+    `scenario_in_the_model` in the model, as for the examples of the
+    meet;
+  - the runs (`run_a_line_of_values`, `the_lines_of_t7_14_and_t7_15`):
+    that the order of a run is that of `Variable.compare` on its four
+    variables, taken before its first step; that an environment is said
+    to be bottom by `is_bottom` of what is seen of it
+    (`seen_is_bottom`), and that nothing is said where no environment is
+    seen; that the line asked fails unless each of the twenty-four
+    orders is seen, with one answer in each: an order in which two
+    distinct answers are seen, an order that is missing, a run that
+    stops, or an order that is not one of the twenty-four, fails it.
 
 Not trusted, though it is OCaml: what the tool proposes to
 `validate_unit` and to `validate_unit_knowing`. Each proposal is
