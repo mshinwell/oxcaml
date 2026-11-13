@@ -358,6 +358,30 @@
    of the join is 2 and its parameter is 3; the constant [1L] is
    written as the number, as the constants of [int64_option_heap] are.
 
+   One body more, for what a handler reads in two places.
+   [matched_twice] is the body of
+
+       fun c x ->
+        let o = if c then Some (x + 1) else None in
+        let a = match o with None -> 0 | Some y -> y in
+        let b = match o with None -> 10 | Some y -> y * 2 in
+        a + b
+
+   The handler of the join tests its parameter twice and loads its
+   field twice, the second test and the second load in the
+   continuation that the first match goes to. Simplify gives the join
+   two parameters, whether the option is an immediate and its
+   contents, and each test and each load is of them. The pass makes
+   the first test a parameter and the second a [Let] of it, and the
+   same for the loads (FlambdaUnboxVariantsSpec.share_reads); the
+   rounds follow those [Let]s
+   ([matched_twice_validated_statement],
+   [matched_twice_refines_statement]). The parameters of the code are
+   [c], 1, and [x], 2; the continuation of the join is 2 and its
+   parameter is 3; the continuations of the two matches are 3 and 4,
+   with parameters 4 and 5. The region of the block is left out, as
+   in [two_tags].
+
    The proofs are in FlambdaUnboxVariantsExamplesProofs.v, which needs
    no review. *)
 
@@ -1385,3 +1409,86 @@ Definition int64_max_validated_statement : Prop :=
 
 Definition int64_max_refines_statement : Prop :=
   expr_refines int64_max_before int64_max_after.
+
+(* ======================================================================== *)
+(* What a handler reads in two places                                       *)
+(* ======================================================================== *)
+
+Definition mul_tagged (a b : simple) : named :=
+  Prim (Binary (Int_arith Standard_tagged_immediate Mul)) [a; b].
+
+Definition matched_twice_before : expr :=
+  Let_cont_non_recursive 2
+    (Handler [3] (make_handler_metadata [Value])
+       (Let_cont_non_recursive 3
+          (Handler [4] (make_handler_metadata [Value])
+             (Let_cont_non_recursive 4
+                (Handler [5] (make_handler_metadata [Value])
+                   (Let 15 Value (add_tagged (Var 4) (Var 5))
+                      (Apply_cont (jump 1 [Var 15]))))
+                (Let_cont_non_recursive 5
+                   (Handler [] (make_handler_metadata [])
+                      (Let 13 Value (field 0 3)
+                         (Let 14 Value (mul_tagged (Var 13) (tagged 2))
+                            (Apply_cont (jump 4 [Var 14])))))
+                   (Let_cont_non_recursive 6
+                      (Handler [] (make_handler_metadata [])
+                         (Apply_cont (jump 5 [])))
+                      (Let 10 naked_immediate (is_int (Var 3))
+                         (Let 11 Value (tag_immediate (Var 10))
+                            (Let 12 naked_immediate (untag (Var 11))
+                               (Switch (Var 12)
+                                  [(0%Z, jump 6 []);
+                                   (1%Z, jump 4 [tagged 10])]))))))))
+          (Let_cont_non_recursive 7
+             (Handler [] (make_handler_metadata [])
+                (Let 9 Value (field 0 3) (Apply_cont (jump 3 [Var 9]))))
+             (Let_cont_non_recursive 8
+                (Handler [] (make_handler_metadata [])
+                   (Apply_cont (jump 7 [])))
+                (Let 6 naked_immediate (is_int (Var 3))
+                   (Let 7 Value (tag_immediate (Var 6))
+                      (Let 8 naked_immediate (untag (Var 7))
+                         (Switch (Var 8)
+                            [(0%Z, jump 8 []);
+                             (1%Z, jump 3 [tagged 0])]))))))))
+    (Let_cont_non_recursive 9
+       (Handler [] (make_handler_metadata [])
+          (Let 16 Value (add_tagged (Var 2) (tagged 1))
+             (Let 17 Value (block_of_one (Var 16))
+                (Apply_cont (jump 2 [Var 17])))))
+       (Let_cont_non_recursive 10
+          (Handler [] (make_handler_metadata []) (Apply_cont (jump 9 [])))
+          (Let 18 naked_immediate (untag (Var 1))
+             (Switch (Var 18)
+                [(0%Z, jump 2 [tagged 0]); (1%Z, jump 10 [])])))).
+
+Definition matched_twice_after : expr :=
+  Let_cont_non_recursive 2
+    (Handler [6; 9] (make_handler_metadata [naked_immediate; Value])
+       (Let_cont_non_recursive 3
+          (Handler [4] (make_handler_metadata [Value])
+             (Let_cont_non_recursive 4
+                (Handler [5] (make_handler_metadata [Value])
+                   (Let 15 Value (add_tagged (Var 4) (Var 5))
+                      (Apply_cont (jump 1 [Var 15]))))
+                (Let_cont_non_recursive 5
+                   (Handler [] (make_handler_metadata [])
+                      (Let 14 Value (mul_tagged (Var 9) (tagged 2))
+                         (Apply_cont (jump 4 [Var 14]))))
+                   (Switch (Var 6)
+                      [(0%Z, jump 5 []); (1%Z, jump 4 [tagged 10])]))))
+          (Switch (Var 6) [(0%Z, jump 3 [Var 9]); (1%Z, jump 3 [tagged 0])])))
+    (Let_cont_non_recursive 9
+       (Handler [] (make_handler_metadata [])
+          (Let 16 Value (add_tagged (Var 2) (tagged 1))
+             (Apply_cont (jump 2 [naked 0; Var 16]))))
+       (Let 18 naked_immediate (untag (Var 1))
+          (Switch (Var 18)
+             [(0%Z, jump 2 [naked 1; poison_value]); (1%Z, jump 9 [])]))).
+
+Definition matched_twice_validated_statement : Prop :=
+  validated_by_first_phase matched_twice_before matched_twice_after.
+
+Definition matched_twice_refines_statement : Prop :=
+  expr_refines matched_twice_before matched_twice_after.

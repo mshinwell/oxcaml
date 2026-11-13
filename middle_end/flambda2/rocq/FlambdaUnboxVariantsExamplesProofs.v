@@ -259,3 +259,11 @@ Theorem int64_max_refines : int64_max_refines_statement.
 Proof.
   exact (validated_by_first_phase_refines _ _ int64_max_validated).
 Qed.
+
+Theorem matched_twice_validated : matched_twice_validated_statement.
+Proof. vm_compute. reflexivity. Qed.
+
+Theorem matched_twice_refines : matched_twice_refines_statement.
+Proof.
+  exact (validated_by_first_phase_refines _ _ matched_twice_validated).
+Qed.
