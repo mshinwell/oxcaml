@@ -1,0 +1,28 @@
+(let $camlInt32_boxed_once_for_two_results__int32_2 = 0l in
+ let $camlInt32_boxed_once_for_two_results__int32_1 = -1l in
+ let $camlInt32_boxed_once_for_two_results__int32_0 = 12345l in
+ let x/30 = %opaque ($camlInt32_boxed_once_for_two_results__int32_0) in
+ let prim/31 =
+   %unbox_num.`int32` ($camlInt32_boxed_once_for_two_results__int32_1)
+ in
+ let prim/32 = %unbox_num.`int32` (x/30) in
+ let prim/33 = %int_barith.`int32`.`and` (prim/32, prim/31) in
+ let kept_by_and/34 = %box_num.`int32`.`toplevel` (prim/33) in
+ let prim/35 =
+   %unbox_num.`int32` ($camlInt32_boxed_once_for_two_results__int32_2)
+ in
+ let prim/36 = %unbox_num.`int32` (x/30) in
+ let prim/37 = %int_barith.`int32`.or (prim/36, prim/35) in
+ let kept_by_or/38 = %box_num.`int32`.`toplevel` (prim/37) in
+ let Pmakeblock/39 = %block.[`0`].`toplevel` (kept_by_and/34, kept_by_or/38)
+ in
+ cont k/5 (Pmakeblock/39))
+  where k/5 define_root_symbol (module_block/27) =
+    let field_0/28 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/27)
+    in
+    let field_1/29 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/27)
+    in
+    let $camlInt32_boxed_once_for_two_results =
+      Block 0 (field_0/28, field_1/29)
+    in
+    cont done ($camlInt32_boxed_once_for_two_results)

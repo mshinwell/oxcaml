@@ -137,6 +137,15 @@ a `CR` at the place in the `Spec` file.
   answers true; and nothing that inspects it has a value. The model says
   less than the program does there, never more. Decided, for the review
   of the human.
+- **D42.** Whether the validation may make two allocations of an
+  immutable value one, as the compiler's sharing of primitives does.
+  Meanwhile for boxed numbers only (`FlambdaCseSpec.shareable` lists
+  `Box_number`): in the model two boxes of one number are one value
+  and `Phys_equal` has no value on two of them (D19), so the pass
+  stays an equivalence there. Blocks and arrays are not shared. The
+  other answer is that no allocation is shared; a pair of terms
+  whose validation needs this sharing may then stay not validated.
+  Decided for the proof; open.
 
 ## Discrepancies with the compiler
 

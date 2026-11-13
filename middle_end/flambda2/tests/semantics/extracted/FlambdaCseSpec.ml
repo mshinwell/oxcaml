@@ -14,7 +14,6 @@ let shareable = function
     | Block_load (_, mut, _) -> ( match mut with Mutable -> false | _ -> true)
     | Is_null -> false
     | Opaque_identity _ -> false
-    | Box_number _ -> false
     | Reinterpret_64_bit_word _ -> false
     | _ -> true)
   | Binary p0 -> (

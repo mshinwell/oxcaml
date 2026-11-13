@@ -96,16 +96,33 @@
    field finds that variable. Left out: [Opaque_identity], which
    Simplify never shares; a [Block_load] marked [Mutable], which is
    not shared; [String_or_bigstring_load], until the model says
-   which strings cannot change; and the primitives that allocate
-   ([Box_number], [Make_block]), which the compiler does share where
-   what is allocated is immutable.
+   which strings cannot change; and the primitives that allocate a
+   block or an array ([Make_block], [Make_immutable_array]), which
+   the compiler does share where what is allocated is immutable.
+
+   [Box_number] allocates too, and is in the list: a later boxing of
+   the same naked number becomes the variable of the first, as in the
+   compiler ([Box_number] is eligible for its sharing). A function
+   that gives its boxed operand back in two results boxes it twice
+   before Simplify and once after. In the model a boxed number is its
+   contents and no more (FlambdaValueSpec.v): two boxes of one number
+   are one value, and [Phys_equal] has no value on two boxed numbers
+   (FlambdaPrimitiveSpec.eval_phys_equal: neither has an identity).
+   So no run that has a meaning tells one box from two, and the
+   statements below say of the pass with [Box_number] in the list
+   what they said without it.
 
    CR mshinwell: sharing an allocation makes two values one, which
-   physical equality can tell apart. The compiler shares immutable
-   allocations all the same. This file does not, so a unit in which
-   Simplify shared one is not validated; whether the model should let it
-   be is the question of what physical equality says of immutable
-   values.
+   physical equality can tell apart in the program. The compiler
+   shares immutable allocations all the same. This file follows it
+   for boxed numbers only: that is sound in the model because
+   [Phys_equal] has no value on two allocated values (decision D19),
+   so the model says nothing of a run that executes a comparison of
+   those two boxed values. Blocks and arrays are not shared here. The
+   other answer would be that the validation never makes two
+   allocations one: [Box_number] would leave [shareable], and a pair
+   of terms whose validation needs this sharing could then stay not
+   validated. Decision D42.
 
    The result refines the term
    ([share_known_primitives_refines_statement]). That it is equivalent
@@ -137,6 +154,7 @@ Definition shareable (p : prim) : bool :=
   match p with
   | Unary
       (Is_int _ | Get_tag | Num_conv _ _ | Boolean_not | Unbox_number _
+      | Box_number _
       | Untag_immediate | Tag_immediate | String_length | Array_length _
       | Unary_int_arith _ _
       | Block_load _ (Immutable | Immutable_unique) _) =>
