@@ -703,7 +703,10 @@ says so. Only the labels that this tree cites are listed.
 - **X4-3.** Where every set of closures in what a check converts (the
   unit before Simplify, the unit after and the prefix) has one function
   and nothing there projects a function slot, the test tool leaves the
-  function slot of a closure out of the terms of the model.
+  function slot of a closure out of the terms of the model: a term
+  after that puts a closure at another function slot than the one from
+  which its code projects is converted to the same term, and one such,
+  written by hand, was validated.
 - **X5-2.** The fields of a recursive module are read by immutable
   loads, and `CamlinternalMod.update_mod` overwrites them; a read from
   before the write is reused after it.

@@ -435,10 +435,36 @@ it gave back.
   output and the assembly are those of the unedited term, for 61 the
   compilation stops and makes no object, one gives the same native
   output with different assembly; 59 are in units that have no native
-  route. None was shown to be
+  route. As they were measured then, none of the 302 was shown to be
   another program. The other 26 are in units converted with named
   function slots (a set of two functions, or a function slot
-  projected): 14 were not validated and 12 not checked (X4-3). With
+  projected): 14 were not validated and 12 not checked (X4-3).
+  One edit of this sort, made since, is validated and compiles to a
+  program that stops where the unit prints 3. It was written by hand
+  in the text of a term after and is not in this tree; it is not a
+  term that the compiler made. The unit has two functions, each
+  alone in its set: one that is not inlined, and a closure given to
+  it that reads a variable of the unit. The term after has that
+  closure at its own function slot, from which its code projects the
+  value slot; the edit, of one word, puts it at the function slot of
+  the other function. All of what follows is at the default
+  optimisation settings. The check of the tool of ea56783099
+  (`Flsemantics.check`), given the term before and the edited text
+  as the term after, with no Simplify run on that text, says
+  "validated", and both runs of the model return the result of the
+  unit, 3. A native route that takes `newer_version_of` out of a
+  text, runs the compiler's Simplify on it again and links the
+  object with the `.cmx` of the unit compiled from its source with
+  `-opaque` gives this: the unit from its source prints 3; the text
+  of the term after, unedited, prints 3; the edited text is compiled
+  and linked, unlike the 61 above, and the program stops as it runs,
+  with "Invalid code" and status 134. Simplify, run again on the
+  edited text, makes the projection of the value slot invalid. As
+  with the 302, that is not a test of the backend on the edited term
+  as it stands. So in this presentation a "validated" does not
+  establish that a closure of the term after is at the function slot
+  from which its code projects. The repair is to convert every unit
+  with named function slots, which this tree does not do. With
   named function slots the conversion keeps `project_from` and the
   slots of a set. No claim is made that every pair with a wrong slot
   is accepted by the validator.
