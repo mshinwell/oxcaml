@@ -181,7 +181,10 @@ unit made from OCaml.
   `-drawflambda` prints, which marks such a kind, for the places
   where the text writes a kind (`middle_end/flambda2/rocq/status/V2.md`
   says what is read); every unit is looked at so before it enters
-  this directory.
+  this directory. For each of the thirteen, the term after of the
+  compiler's own run and the tool's, as printed, have since been
+  found the same up to names (X5; see "What a validation does not
+  say", which says what that comparison leaves out).
 - **the same, not validated**: the two runs came to the same result,
   which is a test of one run and no proof. The validator could not make
   the two terms the same; the table says what it is missing.
@@ -964,7 +967,7 @@ compared.
   are lost for such code as for any other.
 - The printed term loses kinds and marks as well (found by X5, who
   compared the term in the compiler's memory with the term read
-  back; nothing in the tree makes that comparison). Three of the
+  back; nothing in the tree makes that comparison). Four of the
   losses are of something that Simplify reads, and with each the
   tool's Simplify knows less than the compiler's:
   - the kind of the result of an application, where the arity of the
@@ -983,7 +986,21 @@ compared.
   - the mark `[cold]` of a continuation handler, such as the handler
     of a failed bounds check, which is dropped (`DE.mark_as_cold` in
     `middle_end/flambda2/simplify/simplify_let_cont_expr.ml`);
-    `string_get_checked.ml`.
+    `string_get_checked.ml`;
+  - debugging information (discrepancy X5-10). The fields of a
+    static block carry it (`Simple.With_debuginfo.t`, in
+    `middle_end/flambda2/terms/static_const.ml`); the order on static
+    constants compares it; and the constants that may be shared are
+    looked up by that order (`find_shareable_constant` in
+    `middle_end/flambda2/simplify/env/downwards_acc.ml`, asked by
+    `lift` in `middle_end/flambda2/simplify/lifting/reification.ml`).
+    A block that Simplify lifts has the debugging information of its
+    allocation on each field, a constant that the front end makes
+    has none, and the text of terms has none at all. So the tool's
+    Simplify shares a lifted block with an equal constant that the
+    unit binds already, where the compiler's makes a second symbol.
+    No unit of this directory changes verdict by it; three generated
+    units did (`census/README.md`).
 
   One more loss is of something that Simplify does not read: whether
   a value slot always holds an immediate, which the parser reads as
@@ -998,6 +1015,69 @@ compared.
   mean"). None of these losses makes a verdict wrong of the pair that
   the tool validates: they are a distance between that pair and the
   compiler's.
+- That distance has been measured for the units of this directory
+  (by X5, with the tool and the 259 units as they are at ba85db2822;
+  nothing in the tree makes the measure). The check of the tool was
+  given the two terms of the compiler's own run as they are in its
+  memory: the term given to Simplify and the term that the compiler's
+  Simplify returned, taken through the two hooks of
+  `driver/compiler_hooks.mli` (`Raw_flambda2`, `Flambda2`), with no
+  text written or read and no second run of Simplify. The conversion
+  was the tool's with one change: the kinds of the fields of a
+  `Make_block` were dropped, as the text drops them. (As it stands,
+  `convert_variadic_primitive` of
+  `middle_end/flambda2/tests/tools/flsemantics.ml` takes only fields
+  of any value; of the terms in memory it refuses 58 of the 259
+  units, for a subkind in 51 and for a field that is only never null
+  in 7; 57 of the 58 are converted with the change.) What follows is
+  what the check answers with that changed conversion, which is in no
+  tree. It is no proof that dropping those kinds is faithful, and the
+  change is not made to the tool, which refuses such a block on
+  purpose: Simplify takes an argument that is a variable to be of
+  the subkind of its field, and makes the primitive `Invalid` where
+  it cannot be (the comment of `convert_variadic_primitive`). At the
+  default flags, of the 259 units:
+  - 252 are converted in both ways, and for each of them the tool
+    prints of the compiler's pair the lines that it prints of its
+    own: the verdict, the comparison that succeeded, the steps of
+    the two runs, the check of kinds. 242 are validated, 8 are not,
+    2 are undefined before Simplify.
+  - 5 are refused by the conversion in both ways.
+  - 2 are validated of the tool's pair, and of the compiler's pair
+    the term after Simplify is not well-formed: `div_unknown.ml` and
+    `string_get16_checked.ml`. The compiler's Simplify keeps the
+    handler of the raise, which the front end marks `[cold]`, as a
+    handler of its own (`add_non_inlinable_continuation` in
+    `middle_end/flambda2/simplify/env/upwards_env.ml` keeps the
+    handler of a cold continuation unknown to its uses). The binding
+    of the module block is then in a handler whose body can leave
+    through another continuation, which
+    `FlambdaWellFormedSpec.statics_at_toplevel` refuses, and which
+    Simplify refuses too when it is given its own output
+    (discrepancy X5-9, a second shape of C5-11). The tool's
+    Simplify, to which the handler is not cold, puts the raise in
+    the arm of the `Switch`, and the tool validates that term.
+
+  With `-O3`: 228 validated, 22 not, 2 undefined before, the same 5
+  and the same 2, and again the same lines for all 252.
+
+  The two terms after Simplify, as `-dfexpr-to` writes them, compared
+  as texts up to names, are the same for 253 of the 259 units (252
+  with `-O3`). The others are the two above and units in which only a
+  kind that is written differs (`call_result_tested.ml`,
+  `partial_exported.ml`, `tupled_recursive.ml`,
+  `tupled_unknown_pair.ml`; with `-O3`,
+  `exported_funs_in_arms_used.ml` and `returned_closure_of_pair.ml`
+  in place of the first).
+
+  For the 13 units of T4-13, with both sets of flags, the two terms
+  after Simplify as printed are the same up to names, and with the
+  changed conversion the check prints the same lines of the
+  compiler's pair as of the tool's. The comparison of the terms is
+  of texts: it does not compare the kinds and the marks that the
+  text does not write. Nothing is claimed of dropping the kinds of
+  fields. The 13 stay counted apart: the measure is not made in the
+  tree, and is of the units and the tool of that commit.
 
 What no example here validates, because the model has not got it:
 mutable fields and arrays, arithmetic on floats, calls of C functions

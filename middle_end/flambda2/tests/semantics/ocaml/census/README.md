@@ -126,6 +126,17 @@ no proof. In four of the 7 the term before keeps a continuation that
 the term after has not: a handler only makes a block and goes on
 (Simplify makes the block a symbol and has no use for the handler).
 
+Three of the 7 are validated where the check is given the pair that
+the compiler itself makes, converted with the change that the
+measure makes to the conversion (`functions`, seed 6; `known`, seeds
+37 and 46; measured by X5 with the tool as it is at ba85db2822, see
+`../README.md`, "What a validation does not say", for the change and
+what it does not show). The tool's Simplify, which reads the term
+from a text that has no debugging information, shares the block that
+it lifts with an equal constant that the unit binds already, and the
+validator has no such sharing; the compiler's Simplify makes a
+second symbol, and that pair is accepted (discrepancy X5-10).
+
 The eighth unit (`unknown_scalar`, seed 144) had two things. Two
 arms of a `Switch` gave one continuation two arguments, each the
 number of the arm, where the term after has no such continuation;
