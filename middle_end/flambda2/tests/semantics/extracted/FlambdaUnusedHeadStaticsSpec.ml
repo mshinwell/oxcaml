@@ -3,6 +3,7 @@ open FlambdaLiftSpec
 open FlambdaMapSpec
 open FlambdaModel
 open FlambdaUnusedStaticsSpec
+open FlambdaValueSpec
 open FlambdaWellFormedSpec
 open List
 open ListDef
@@ -82,3 +83,13 @@ let add_head_tables tables e =
     if tables_plain tables && head_statics_removable (tables_dropped tables) e'
     then e'
     else e
+
+(** val head_free_in : static_env -> expr -> bool **)
+
+let head_free_in statics e =
+  forallb
+    (fun s -> negb (is_bound s statics.static_values))
+    (flat_map symbols_of_binding (head_bindings e))
+  && forallb
+       (fun id -> negb (is_bound id statics.static_code))
+       (flat_map code_ids_of_binding (head_bindings e))

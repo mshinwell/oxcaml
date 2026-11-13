@@ -120,15 +120,21 @@
    theorem of the validator is of two units run from the empty static
    environment, where such a symbol is bound to nothing. Of two units run from
    their imports there is a theorem for some of its verdicts only
-   (FlambdaValidateImportsSpec.holds_from_imports says which). So for a unit
-   that has imports no line begins "validated:". Where the verdict is one of
-   those, the line begins "validated with its imports", and it is of the two
-   runs shown. Where the validator accepts with another verdict, the line begins
-   "validated with nothing imported", which is what the theorem of the validator
-   says of it, and is followed by a line that begins "not validated with its
-   imports"; the comparison of the two runs shown is then a test and no more,
-   and the unit before is run from the empty static environment as well, to say
-   whether the validation with nothing imported is of a term that is undefined.
+   (FlambdaValidateImportsSpec.holds_from says which: three whatever the imports
+   are, and the one that removes unused static bindings from the head of the
+   term after too where no import is a symbol that the groups at the head of the
+   term after bind, once the validation has normalised and tidied that term; for
+   a verdict of the second asking the term after is the one that the second
+   asking gives the first, as [validate] says where it asks). So for a unit that
+   has imports no line begins "validated:". Where the verdict is one of those,
+   the line begins "validated with its imports", and it is of the two runs
+   shown. Where the validator accepts and that function does not, the line
+   begins "validated with nothing imported", which is what the theorem of the
+   validator says of it, and is followed by a line that begins "not validated
+   with its imports"; the comparison of the two runs shown is then a test and no
+   more, and the unit before is run from the empty static environment as well,
+   to say whether the validation with nothing imported is of a term that is
+   undefined.
 
    The .cmx of other units. The compiler's Simplify reads the .cmx of another
    unit when it meets a symbol of that unit, and uses what the file says: it
@@ -4047,8 +4053,9 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
      alone, for a function that Simplify inlines at one call and not at another:
      there every call inlined on both sides is what makes the two terms the
      same. *)
-  let first = attempt (recursive @ called_directly after.body) in
-  let attempts, (validation, _, _, slots_removed, _) =
+  let kept_first = recursive @ called_directly after.body in
+  let first = attempt kept_first in
+  let attempts, (validation, _, _, slots_removed, _), kept =
     match first with
     | Not_validated, _, _, _, _ ->
       let second = attempt recursive in
@@ -4056,7 +4063,8 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
              after calls",
             first );
           "leaving the calls of recursive code", second ],
-        second )
+        second,
+        recursive )
     | ( ( Same_up_to_bound_names | Same_once_normalised
         | Same_once_unused_statics_removed | Same_once_head_statics_removed
         | Same_once_lifted ),
@@ -4064,21 +4072,39 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
         _,
         _,
         _ ) ->
-      [], first
+      [], first, kept_first
   in
   (* Whether the verdict is of the two runs that were shown. It is for a unit
      that imports nothing. For a unit that has imports it is where the model
-     says that the verdict holds of the unit run from its imports; where it does
-     not, and the validator accepts, what is validated is the unit with nothing
-     imported. No line begins "validated:" for a unit that has imports. Where
-     the two terms have a prefix in front of them, made from the [.cmx] files of
+     says that the verdict holds of the unit run from its imports
+     (FlambdaValidateImportsSpec.holds_from, which is given the static
+     environment of the imports and the term after that the asking which gave
+     the verdict was given: the term after as it is at the first asking, and
+     that term normalised with what its symbols are bound to used at the second,
+     as [validate_unit_knowing] gives it to [validate_unit]; the statements are
+     validate_unit_sound_head_imports_statement and
+     validate_unit_knowing_sound_head_imports_statement); where it does not, and
+     the validator accepts, what is validated is the unit with nothing imported.
+     No line begins "validated:" for a unit that has imports. Where the two
+     terms have a prefix in front of them, made from the [.cmx] files of
      [prefix_units] units, the verdict is of the two terms with it, and the line
      says of how many units the files were used: it rests on those files being
      right, so such a unit is counted apart whatever imports it has left. *)
   let of_the_runs_shown =
     match imports with
     | [] -> true
-    | _ :: _ -> Validate_imports.holds_from_imports validation
+    | _ :: _ ->
+      let after_asked =
+        if !asked_again
+        then
+          Validate_knowing.normalise_knowing
+            (Validate.normalise_after_round kept)
+            rounds after.body
+        else after.body
+      in
+      Validate_imports.holds_from
+        (Imports.imports_statics imports)
+        rounds kept after_asked validation
   in
   let validated =
     match prefix_units, imports with

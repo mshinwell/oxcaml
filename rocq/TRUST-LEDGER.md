@@ -417,8 +417,8 @@ it gave back.
   is reported apart, whatever imports it has left. The line begins
   "validated with its imports, given the .cmx of N of them" where a
   theorem is of the two runs shown: the prefix leaves no import, or
-  `FlambdaValidateImportsSpec.holds_from_imports` accepts the
-  verdict. Otherwise it begins "validated with nothing else imported,
+  `FlambdaValidateImportsSpec.holds_from` accepts the verdict.
+  Otherwise it begins "validated with nothing else imported,
   given the .cmx of N", and is followed by a line that begins "not
   validated with its imports", as for a unit with no prefix (the
   entry "What the tool reports"). Both rest on the two things above.
@@ -442,27 +442,40 @@ it gave back.
   define") the two runs are from its imports. The theorem of the
   validator is of the two units run from the empty static environment,
   where an external symbol is bound to nothing. Of the two units run
-  from their imports there is a theorem for three of its verdicts,
-  which `FlambdaValidateImportsSpec.holds_from_imports` names: the same
-  up to bound names, the same once normalised, and the same once the
-  unused static bindings of the term before are removed as well
-  (`validate_unit_sound_imports_statement`, and
-  `validate_unit_knowing_sound_imports_statement` for the second
-  asking). It is of no other verdict: not of a unit validated once
-  something is lifted, nor of one that rests on a removal of static
-  bindings from the term after. The tool asks that function, as it is
-  extracted, of the verdict, and no line that it prints for a unit that
-  has imports begins "validated:". Where the function accepts the
-  verdict, the line begins "validated with its imports", and the
-  verdict is of the two runs that the tool shows. Where the validator
-  accepts with another verdict, what is validated is the unit run with
-  nothing imported: the line begins "validated with nothing imported"
-  and is followed by a line that begins "not validated with its
-  imports", and the comparison of the two runs from the imports is
-  then an execution of both terms that is compared, not a validated
-  verdict. In that case the tool also runs the unit before from the
-  empty static environment, to say where the validation with nothing
-  imported is vacuous.
+  from their imports there is a theorem for four of its verdicts,
+  which `FlambdaValidateImportsSpec.holds_from` tests
+  (`validate_unit_sound_head_imports_statement`, and
+  `validate_unit_knowing_sound_head_imports_statement` for the second
+  asking). Three hold whatever the imports are: the same up to bound
+  names, the same once normalised, and the same once the unused
+  static bindings of the term before are removed as well. The fourth,
+  the same once unused static bindings are removed from the head of
+  the term after too, holds where no import is a symbol that the
+  groups at the head of the term after bind, once the validation has
+  normalised and tidied that term, and the function tests that. The
+  theorem is of no other verdict: not of a unit validated once
+  something is lifted, nor of the fourth where an import is such a
+  symbol. The tool asks that function, as it is extracted, of the
+  verdict, and no line that it prints for a unit that has imports
+  begins "validated:". Trusted of that call: that what the tool gives
+  the function beside the verdict is what the two statements give
+  it, which is the static environment of the imports that the two
+  runs are from (`imports_statics`, as it is extracted), and the
+  number of rounds, the code whose calls are left and the term after
+  of the asking that gave the verdict. For the second asking that
+  term is the term after normalised with what is known of its names,
+  which the tool computes a second time with `normalise_knowing` and
+  `normalise_after_round` as they are extracted. Where the function
+  accepts the verdict, the line begins "validated with its imports",
+  and the verdict is of the two runs that the tool shows. Where the
+  validator accepts and the function does not, what is validated is
+  the unit run with nothing imported: the line begins "validated
+  with nothing imported" and is followed by a line that begins "not
+  validated with its imports", and the comparison of the two runs
+  from the imports is then an execution of both terms that is
+  compared, not a validated verdict. In that case the tool also runs
+  the unit before from the empty static environment, to say where
+  the validation with nothing imported is vacuous.
 - **The conversion of types**, in
   `middle_end/flambda2/tests/semantics/types/type_converter.ml` with
   `model_numbers.ml` and `model_names.ml`: between `Type_grammar.t` and

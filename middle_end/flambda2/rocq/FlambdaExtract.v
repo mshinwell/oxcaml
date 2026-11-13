@@ -225,7 +225,7 @@ Separate Extraction
   forward_jumps
   forward_kinded
   forward_kinded_in_code
-  holds_from_imports
+  holds_from
   imports_statics
   inline_calls
   inline_known_calls

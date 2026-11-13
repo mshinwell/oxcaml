@@ -3,6 +3,7 @@ open FlambdaLiftSpec
 open FlambdaMapSpec
 open FlambdaModel
 open FlambdaUnusedStaticsSpec
+open FlambdaValueSpec
 open FlambdaWellFormedSpec
 open List
 open ListDef
@@ -28,3 +29,5 @@ val tables_dropped : (symbol * simple list) list -> dropped
 val tables_plain : (symbol * simple list) list -> bool
 
 val add_head_tables : (symbol * simple list) list -> expr -> expr
+
+val head_free_in : static_env -> expr -> bool
