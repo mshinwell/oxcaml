@@ -1,7 +1,7 @@
 (* An immutable array of constants, read at an index that is not known
    and measured. Simplify makes the array a symbol bound to a static
-   array, which the validation does not follow: the two runs are the
-   same, and the unit is not validated. *)
+   array, and the validation lifts it to one: the two runs are the
+   same, and the unit is validated. *)
 
 external opaque : 'a -> 'a = "%opaque"
 

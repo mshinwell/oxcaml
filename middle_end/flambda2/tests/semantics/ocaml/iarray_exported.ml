@@ -1,7 +1,7 @@
 (* The unit exports an immutable array, one of whose elements is not a
-   constant. Simplify makes the array a symbol bound to a static array,
-   which the validation does not follow: the two runs return the same
-   elements, and the unit is not validated. *)
+   constant. Simplify makes the array a symbol bound to a static array and
+   the load from it the element. The validation reads the element and lifts
+   the array: the two runs return the same, and the unit is validated. *)
 
 external opaque : 'a -> 'a = "%opaque"
 
