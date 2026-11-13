@@ -287,6 +287,19 @@ Proof.
     param state' vars conts statics hp Hparam Hremoves Hread Hfacts).
 Qed.
 
+Lemma unbox_loop_param_all_refines (fuel : nat) (known : facts)
+    (k : continuation) (i : nat) (state : loop_state) (vars : env)
+    (conts : cont_env) (statics : static_env) (hp : heap) :
+  facts_hold known vars statics ->
+  refines (State (loop_of k state) vars conts statics hp)
+    (State (loop_of k (unbox_loop_param_all fuel known k i state)) vars conts
+       statics hp).
+Proof.
+  intros Hfacts. unfold unbox_loop_param_all.
+  destruct (reads_left i (unbox_loop_param fuel known k i state));
+    [ apply refines_refl | apply unbox_loop_param_refines, Hfacts ].
+Qed.
+
 Lemma unbox_loop_params_refines (fuel : nat) (known : facts)
     (k : continuation) (positions : list nat) :
   ∀ (state : loop_state) (vars : env) (conts : cont_env)
@@ -300,7 +313,7 @@ Proof.
     intros state vars conts statics hp Hfacts; simpl;
     [ apply refines_refl | ].
   eapply refines_trans; [ | apply IH; exact Hfacts ].
-  apply unbox_loop_param_refines, Hfacts.
+  apply unbox_loop_param_all_refines, Hfacts.
 Qed.
 
 Lemma unbox_loop_reads_refines (known : facts) (k : continuation)

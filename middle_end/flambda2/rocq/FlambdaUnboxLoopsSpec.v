@@ -88,6 +88,24 @@
    nothing else uses it, it is an unused parameter of the loop, which
    FlambdaDeadParamsSpec.drop_dead_params removes.
 
+   A parameter is unboxed only if no read of it is left in the
+   handler once the pass has made parameters of those that it can
+   ([unbox_loop_param_all], by [reads_left]). A read that is left
+   is a primitive that reads a box
+   (FlambdaUnboxParamsSpec.reads_a_box) applied to the parameter
+   itself, anywhere in the handler outside code where the parameter
+   is not bound again ([reads_var]): under a test, under a static
+   binding, or in the handler of a continuation that the handler
+   binds, a recursive one included. No other use of the parameter
+   is one, and neither is a read of another variable that holds the
+   same box, as the parameter of a continuation that is given it
+   is. Where there is a read left, the loop is left as it was for
+   that parameter. The sources that this was seen on are
+   loops over a list or a tree that test [Is_int] of their parameter
+   and load its fields under the test: there Simplify had left the
+   parameter as it was, and the loop with the test alone made a
+   parameter was the loop of neither term.
+
    Not done, and the term is left as it is: an application that would
    need a read bound just before it (Simplify's [New_let_binding]),
    as where the loop is entered with a box that the term does not
@@ -192,6 +210,52 @@ Fixpoint unbox_loop_param (fuel : nat) (known : facts) (k : continuation)
     end
   end.
 
+(* Whether a defining expression is a read of the variable [x]: a
+   primitive that reads a box (FlambdaUnboxParamsSpec.reads_a_box)
+   applied to it. *)
+Definition reads_var_named (x : variable) (d : named) : bool :=
+  match d with
+  | Prim (Unary p) [Var y] => reads_a_box p && Pos.eqb y x
+  | _ => false
+  end.
+
+(* Whether an expression has a read of the variable [x], outside code
+   and where [x] is not bound again: in the expression, under its
+   static bindings, and in the handlers of the continuations that it
+   binds, recursive ones included. *)
+Fixpoint reads_var (x : variable) (e : expr) {struct e} : bool :=
+  match e with
+  | Let y _ d body =>
+    reads_var_named x d || (negb (Pos.eqb y x) && reads_var x body)
+  | Let_static _ body => reads_var x body
+  | Let_cont_non_recursive _ h body =>
+    handler_reads_var x h || reads_var x body
+  | Let_cont_recursive handlers body =>
+    existsb (fun '(_, h) => handler_reads_var x h) handlers
+    || reads_var x body
+  | Apply _ | Apply_cont _ | Switch _ _ | Invalid => false
+  end
+with handler_reads_var (x : variable) (h : continuation_handler) {struct h}
+    : bool :=
+  match h with
+  | Handler params _ handler => negb (among x params) && reads_var x handler
+  end.
+
+(* Whether the handler still reads the parameter at position [i]. *)
+Definition reads_left (i : nat) (state : loop_state) : bool :=
+  let '(params, _, handler, _) := state in
+  match nth_error params i with
+  | Some param => reads_var param handler
+  | None => false
+  end.
+
+(* The reads of the parameter at position [i] made parameters, if that
+   leaves no read of it; the loop as it was, if one is left. *)
+Definition unbox_loop_param_all (fuel : nat) (known : facts)
+    (k : continuation) (i : nat) (state : loop_state) : loop_state :=
+  let unboxed := unbox_loop_param fuel known k i state in
+  if reads_left i unboxed then state else unboxed.
+
 (* The same for each of the positions given, in turn. *)
 Fixpoint unbox_loop_params (fuel : nat) (known : facts) (k : continuation)
     (positions : list nat) (state : loop_state) : loop_state :=
@@ -199,7 +263,7 @@ Fixpoint unbox_loop_params (fuel : nat) (known : facts) (k : continuation)
   | [] => state
   | i :: positions =>
     unbox_loop_params fuel known k positions
-      (unbox_loop_param fuel known k i state)
+      (unbox_loop_param_all fuel known k i state)
   end.
 
 Definition unbox_loop_reads (known : facts) (k : continuation)

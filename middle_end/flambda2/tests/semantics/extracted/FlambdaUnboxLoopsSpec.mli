@@ -1,5 +1,6 @@
 open BinPos
 open Datatypes
+open FlambdaMapSpec
 open FlambdaModel
 open FlambdaNormaliseSpec
 open FlambdaPrimitiveModel
@@ -25,6 +26,17 @@ type loop_state = ((variable list * handler_metadata) * expr) * expr
 val loop_of : continuation -> loop_state -> expr
 
 val unbox_loop_param :
+  nat -> facts -> continuation -> nat -> loop_state -> loop_state
+
+val reads_var_named : variable -> named -> bool
+
+val reads_var : variable -> expr -> bool
+
+val handler_reads_var : variable -> continuation_handler -> bool
+
+val reads_left : nat -> loop_state -> bool
+
+val unbox_loop_param_all :
   nat -> facts -> continuation -> nat -> loop_state -> loop_state
 
 val unbox_loop_params :

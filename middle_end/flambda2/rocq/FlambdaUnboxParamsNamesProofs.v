@@ -1492,6 +1492,65 @@ Proof.
     as [state' | ]; cbn [option_map]; [ apply IH | reflexivity ].
 Qed.
 
+Lemma reads_var_named_renamed (r : renaming) (x : variable) (d : named) :
+  reads_var_named (rename_variable r x) (rename_named r d)
+  = reads_var_named x d.
+Proof.
+  destruct d as [s | pr args | | | | | ]; try reflexivity.
+  destruct pr as [p' | b | v | hp]; try reflexivity.
+  destruct args as [ | [z | sym | c] [ | arg args]]; try reflexivity.
+  cbn [reads_var_named rename_named map rename_simple].
+  rewrite rename_variable_eqb. reflexivity.
+Qed.
+
+Fixpoint reads_var_renamed (r : renaming) (x : variable) (e : expr)
+    {struct e} :
+  reads_var (rename_variable r x) (rename_expr r e) = reads_var x e
+with handler_reads_var_renamed (r : renaming) (x : variable)
+    (h : continuation_handler) {struct h} :
+  handler_reads_var (rename_variable r x) (rename_handler r h)
+  = handler_reads_var x h.
+Proof.
+  - destruct e
+      as [ y kind d body | bindings body | k h body | handlers body | ap
+         | ac | scrutinee arms | ];
+      cbn [rename_expr reads_var]; try reflexivity.
+    + rewrite reads_var_named_renamed, rename_variable_eqb,
+        reads_var_renamed.
+      reflexivity.
+    + apply reads_var_renamed.
+    + rewrite handler_reads_var_renamed, reads_var_renamed. reflexivity.
+    + rewrite reads_var_renamed. f_equal.
+      induction handlers as [ | [k h] handlers IH]; [ reflexivity | ].
+      cbn [map existsb]. rewrite handler_reads_var_renamed, IH.
+      reflexivity.
+  - destruct h as [params metadata handler].
+    cbn [rename_handler handler_reads_var].
+    rewrite among_rename_variable, reads_var_renamed. reflexivity.
+Qed.
+
+Lemma reads_left_renamed (r : renaming) (i : nat) (state : loop_state) :
+  reads_left i (rename_step r state) = reads_left i state.
+Proof.
+  destruct state as [[[params metadata] handler] body].
+  cbn [reads_left rename_step]. rewrite nth_error_map.
+  destruct (nth_error params i) as [param | ]; cbn [option_map];
+    [ | reflexivity ].
+  apply reads_var_renamed.
+Qed.
+
+Lemma unbox_loop_param_all_equivariant (r : renaming) (fuel : nat)
+    (known : facts) (k : continuation) (i : nat) (state : loop_state) :
+  unbox_loop_param_all fuel (rename_facts r known) (rename_continuation r k)
+    i (rename_step r state)
+  = rename_step r (unbox_loop_param_all fuel known k i state).
+Proof.
+  unfold unbox_loop_param_all.
+  rewrite unbox_loop_param_equivariant, reads_left_renamed.
+  destruct (reads_left i (unbox_loop_param fuel known k i state));
+    reflexivity.
+Qed.
+
 Lemma unbox_loop_params_equivariant (r : renaming) (fuel : nat)
     (known : facts) (k : continuation) (positions : list nat) :
   ∀ state : loop_state,
@@ -1501,7 +1560,7 @@ Lemma unbox_loop_params_equivariant (r : renaming) (fuel : nat)
 Proof.
   induction positions as [ | i positions IH]; intros state;
     cbn [unbox_loop_params]; [ reflexivity | ].
-  rewrite unbox_loop_param_equivariant. apply IH.
+  rewrite unbox_loop_param_all_equivariant. apply IH.
 Qed.
 
 Lemma unbox_loop_reads_equivariant (r : renaming) (known : facts)
@@ -2882,6 +2941,17 @@ Proof.
     param state' Hknown Hparam Hremoves Hread).
 Qed.
 
+Lemma unbox_loop_param_all_scoped (fuel : nat) (names : list variable)
+    (known : facts) (k : continuation) (i : nat) (state : loop_state) :
+  facts_within names known ->
+  scoped_under names (loop_of k state)
+    (loop_of k (unbox_loop_param_all fuel known k i state)).
+Proof.
+  intros Hknown. unfold unbox_loop_param_all.
+  destruct (reads_left i (unbox_loop_param fuel known k i state));
+    [ apply scoped_under_refl | apply unbox_loop_param_scoped, Hknown ].
+Qed.
+
 Lemma unbox_loop_params_scoped (fuel : nat) (names : list variable)
     (known : facts) (k : continuation) (positions : list nat) :
   ∀ state : loop_state,
@@ -2892,7 +2962,7 @@ Proof.
   induction positions as [ | i positions IH]; intros state Hknown;
     cbn [unbox_loop_params]; [ apply scoped_under_refl | ].
   eapply scoped_under_trans;
-    [ apply unbox_loop_param_scoped, Hknown | apply IH, Hknown ].
+    [ apply unbox_loop_param_all_scoped, Hknown | apply IH, Hknown ].
 Qed.
 
 Fixpoint unbox_loops_knowing_scoped (e : expr) :

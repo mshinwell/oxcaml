@@ -1,5 +1,6 @@
 open BinPos
 open Datatypes
+open FlambdaMapSpec
 open FlambdaModel
 open FlambdaNormaliseSpec
 open FlambdaPrimitiveModel
@@ -86,6 +87,61 @@ let rec unbox_loop_param fuel known k i state =
     | Some state0 -> unbox_loop_param fuel0 known k i state0
     | None -> state)
 
+(** val reads_var_named : variable -> named -> bool **)
+
+let reads_var_named x = function
+  | Prim (p0, args) -> (
+    match p0 with
+    | Unary p -> (
+      match args with
+      | [] -> false
+      | s :: l -> (
+        match s with
+        | Var y -> (
+          match l with [] -> reads_a_box p && Pos.eqb y x | _ :: _ -> false)
+        | _ -> false))
+    | _ -> false)
+  | _ -> false
+
+(** val reads_var : variable -> expr -> bool **)
+
+let rec reads_var x = function
+  | Let (y, _, d, body) ->
+    reads_var_named x d || (negb (Pos.eqb y x) && reads_var x body)
+  | Let_static (_, body) -> reads_var x body
+  | Let_cont_non_recursive (_, h, body) ->
+    handler_reads_var x h || reads_var x body
+  | Let_cont_recursive (handlers, body) ->
+    existsb
+      (fun pat ->
+        let _, h = pat in
+        handler_reads_var x h)
+      handlers
+    || reads_var x body
+  | _ -> false
+
+(** val handler_reads_var : variable -> continuation_handler -> bool **)
+
+and handler_reads_var x = function
+  | Handler (params, _, handler) -> negb (among x params) && reads_var x handler
+
+(** val reads_left : nat -> loop_state -> bool **)
+
+let reads_left i = function
+  | p, _ -> (
+    let p0, handler = p in
+    let params, _ = p0 in
+    match nth_error params i with
+    | Some param -> reads_var param handler
+    | None -> false)
+
+(** val unbox_loop_param_all : nat -> facts -> continuation -> nat -> loop_state
+    -> loop_state **)
+
+let unbox_loop_param_all fuel known k i state =
+  let unboxed = unbox_loop_param fuel known k i state in
+  if reads_left i unboxed then state else unboxed
+
 (** val unbox_loop_params : nat -> facts -> continuation -> nat list ->
     loop_state -> loop_state **)
 
@@ -94,7 +150,7 @@ let rec unbox_loop_params fuel known k positions state =
   | [] -> state
   | i :: positions0 ->
     unbox_loop_params fuel known k positions0
-      (unbox_loop_param fuel known k i state)
+      (unbox_loop_param_all fuel known k i state)
 
 (** val unbox_loop_reads : facts -> continuation -> variable list ->
     handler_metadata -> expr -> expr -> expr **)
