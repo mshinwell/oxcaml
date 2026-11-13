@@ -296,6 +296,7 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaUnboxVariantsRenameProofs.v \
   FlambdaUnboxVariantsRenameSpec.v \
   FlambdaUnboxVariantsSpec.v \
+  FlambdaUnitFromProofs.v \
   FlambdaUnusedContsProofs.v \
   FlambdaUnusedContsSpec.v \
   FlambdaUnusedParamsProofs.v \

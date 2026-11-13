@@ -397,6 +397,10 @@ pass into the validator.
   - `middle_end/flambda2/rocq/FlambdaSimulationProofs.v` (simulations in
     which one step is answered by one or more; same stream, and used by
     the loops of V4)
+  - `middle_end/flambda2/rocq/FlambdaUnitFromProofs.v` (the two facts
+    of `FlambdaWellFormedSpec.v` about the run of a well-formed unit,
+    for a run from a static environment that holds no code and binds
+    no name that the unit binds; same stream)
   - `middle_end/flambda2/rocq/status/V3.md`
 - S6, unboxing of continuation parameters. Owner: unassigned.
 - S7, the reaper. Out of scope for now, unassigned.
