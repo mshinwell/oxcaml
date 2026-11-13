@@ -54,6 +54,7 @@ open FlambdaUnusedProjectionsSpec
 open FlambdaUnusedSlotsSpec
 open FlambdaUnusedStaticsSpec
 open FlambdaWellFormedSpec
+open FlambdaWrapReturnsSpec
 open List
 
 (** val iterate : nat -> (expr -> expr) -> expr -> expr **)
@@ -82,8 +83,9 @@ let normalise_expr_before e =
                      (fold_same_comparisons
                         (unbox_known_numbers (load_known_blocks e0))))))))
   in
-  drop_unused_params
-    (remove_unused_defined_lets [] (remove_unused_lets (fold_constants e1)))
+  wrap_returns
+    (drop_unused_params
+       (remove_unused_defined_lets [] (remove_unused_lets (fold_constants e1))))
 
 (** val normalise_code_before : expr -> expr **)
 

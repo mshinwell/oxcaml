@@ -292,6 +292,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaLiftFromCodeSpec FlambdaLiftFromArmsSpec FlambdaLiftAroundSpec
   FlambdaHoistStaticsSpec
   FlambdaGuardScopeSpec FlambdaGroupsUpSpec.
+From OxCamlFlambda2 Require Import FlambdaWrapReturnsSpec.
 From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
 From OxCamlFlambda2 Require Import FlambdaKnownSlotsSpec.
 From OxCamlFlambda2 Require Import FlambdaStubCallsSpec.
@@ -353,7 +354,11 @@ Fixpoint iterate (rounds : nat) (f : expr -> expr) (e : expr) : expr :=
    and a value slot that was projected, is not computed or projected
    again ([share_known_primitives], [share_known_projections]). Then
    what removes the bindings and the parameters that are left
-   unused. *)
+   unused; last of all a parameter that is left unused of a
+   continuation that a call returns to, the call returning to a
+   wrapper that takes what the call gives and passes the rest on,
+   which is what Simplify makes
+   (FlambdaWrapReturnsSpec.wrap_returns). *)
 Definition normalise_expr_before (e : expr) : expr :=
   let e :=
     shortcut_switches
@@ -373,8 +378,10 @@ Definition normalise_expr_before (e : expr) : expr :=
                      (fold_same_comparisons
                         (unbox_known_numbers (load_known_blocks e))))))))
   in
-  drop_unused_params
-    (remove_unused_defined_lets [] (remove_unused_lets (fold_constants e))).
+  wrap_returns
+    (drop_unused_params
+       (remove_unused_defined_lets []
+          (remove_unused_lets (fold_constants e)))).
 
 (* One round for the body of code in the term before: the round for an
    expression, and the same for the handler of each of its recursive

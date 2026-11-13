@@ -191,7 +191,11 @@
    piece of code, which the validation applies to the term after; and
    FlambdaUnaliasParamsSpec.unalias_params, which takes away a
    parameter that every application gives one variable, and which the
-   check applies to each term once its continuations are placed. And
+   check applies to each term once its continuations are placed; and
+   FlambdaWrapReturnsSpec.wrap_returns, which takes away a parameter
+   that its handler does not use, of a continuation that a call
+   returns to, the call returning to a wrapper, and which ends a
+   round for an expression of the term before. And
    FlambdaLoopifySpec.loopify_unit, which the validation applies to
    the term before, after the first comparison and before any rewrite
    that makes names: it is given, for the code ids to make loops of,

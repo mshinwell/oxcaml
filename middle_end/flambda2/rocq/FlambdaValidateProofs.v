@@ -55,6 +55,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaShortcutSpec FlambdaShortcutProofs FlambdaSinkContsSpec
   FlambdaSinkContsProofs FlambdaSinkUsesSpec FlambdaSinkUsesProofs
   FlambdaUnaliasParamsSpec FlambdaUnaliasParamsProofs
+  FlambdaWrapReturnsSpec FlambdaWrapReturnsProofs
   FlambdaUnboxSpec FlambdaUnboxProofs
   FlambdaUnboxVariantsSpec FlambdaUnboxVariantsProofs
   FlambdaUnboxParamsSpec FlambdaUnboxInScopeSpec FlambdaUnboxInScopeProofs
@@ -128,6 +129,7 @@ Ltac refinement_step :=
     | apply load_known_blocks_refines
     | apply unbox_known_numbers_refines
     | apply drop_unused_params_refines
+    | apply wrap_returns_refines
     | apply drop_dead_params_refines
     | apply bind_aliased_params_refines
     | apply forward_applications_refines

@@ -54,6 +54,7 @@ open FlambdaUnusedProjectionsSpec
 open FlambdaUnusedSlotsSpec
 open FlambdaUnusedStaticsSpec
 open FlambdaWellFormedSpec
+open FlambdaWrapReturnsSpec
 open List
 
 val iterate : nat -> (expr -> expr) -> expr -> expr
