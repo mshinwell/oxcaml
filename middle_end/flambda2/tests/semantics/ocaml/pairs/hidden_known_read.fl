@@ -1,0 +1,10 @@
+let $camlHidden_known_read__first_const_0 = Block 0 () in
+(let Pfield/14 = %block_load.[`0`] ($Hidden.camlHidden) in
+ let more/15 = %int_barith.add (Pfield/14, 1) in
+ let Pmakeblock/16 = %block.[`0`].`toplevel` (more/15) in
+ cont k/5 (Pmakeblock/16))
+  where k/5 define_root_symbol (module_block/12) =
+    let field_0/13 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/12)
+    in
+    let $camlHidden_known_read = Block 0 (field_0/13) in
+    cont done ($camlHidden_known_read)

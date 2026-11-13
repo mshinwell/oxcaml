@@ -153,6 +153,8 @@ from the others.
 | `lengths_kept_with_exception.ml` | `lengths.ml` | the same, and exports a predefined exception too | the same prefix, and one import left; both runs return a block of the two closures and the imported exception; the same; validated with its imports, given the `.cmx` |
 | `never_called.ml` | `never.ml` | calls a function that is never inlined, whose code has no body in the `.cmx`, in a function and at toplevel | a prefix of two bindings; undefined before and after; validated, with the line that says the validation says nothing |
 | `hidden_read.ml` | `hidden.ml` | a toplevel reads a field of which the `.cmx` says nothing, beside one that it knows | no prefix; undefined before and after; nothing to validate |
+| `hidden_known_read.ml` | `hidden.ml` | a toplevel reads the field that the `.cmx` knows, and not the one of which it says nothing | a prefix of one binding, the module block with a symbol of which nothing is known in the other field, which is the one import left; both runs return the module block; the same; validated with its imports, given the `.cmx` |
+| `partly_tested.ml` | `partly.ml` | a function loads, from its argument, the field of a record of which the `.cmx` says nothing, and adds to it; the toplevel reads the other field and gives the function the record | a prefix of two bindings, the record with a symbol of which nothing is known in that field; undefined before and after, as the addition has no value on such a symbol; validated with its imports, given the `.cmx`, with the line that says the validation says nothing |
 | `parity_called.ml` | `parity.ml` | calls a function that is one of a set of two, in a function and at toplevel | a prefix of three bindings; undefined before and after; validated, with the line that says the validation says nothing |
 | `cycle_read.ml` | `cycle.ml` | a toplevel reads a block that the first unit made by calls of the runtime | no prefix; undefined before and after; validated with its imports, with the line that says the validation says nothing |
 | `probed_called.ml` | `probed.ml` | calls, without inlining it, a function of the first unit whose body has a probe | a prefix of three bindings without the body, which the conversion refuses; the run is undefined before and after, and the validation says nothing of it |
@@ -211,9 +213,22 @@ closures is bound alone in a set of its own, which is less than the
 `.cmx` says of them.
 
 In `hidden_read.ml` the module block of the first unit has a field of
-which the `.cmx` says nothing, so the block is not bound, the unit has
-no prefix, and the load from the block has no value: the unit is as
-it was when the model was told nothing of a `.cmx`.
+which the `.cmx` says nothing, and the unit loads that field: the
+block is not bound, the unit has no prefix, and the load from the
+block has no value: the unit is as it was when the model was told
+nothing of a `.cmx`. `hidden_known_read.ml` loads only the other
+field of the same block. There the block is bound, with a symbol of
+its own in the field of which the `.cmx` says nothing: an import of
+which nothing is known, that a run can pass on and cannot inspect.
+The load has the value that the `.cmx` gives, and the unit is
+validated with that one import left.
+
+`partly_tested.ml` shows that such a symbol is not a value that the
+model computes with. The load of the field is in a function, from
+its argument, which the making of the prefix does not see as a load
+from the record: the record is bound, the function gets the symbol
+of the field, and the addition has no value on it, so the run is
+undefined before and after.
 
 Of `cycle.ml` the `.cmx` says nothing that Simplify can use, and
 nothing that the prefix can bind: the term after of `cycle_read.ml`
@@ -221,9 +236,9 @@ is the term before simplified as a unit of the directory above is,
 and the validator accepts the pair; the unit is undefined all the
 same, as it loads from an import.
 
-The first units `lengths.ml`, `never.ml`, `hidden.ml` and
-`parity.ml` use no other unit; the tool says of each what it says of
-a unit of the directory above, and each is validated.
+The first units `lengths.ml`, `never.ml`, `hidden.ml`, `partly.ml`
+and `parity.ml` use no other unit; the tool says of each what it says
+of a unit of the directory above, and each is validated.
 
 `cycle.ml` is compiled and the tool is not run on it. Its two blocks
 name each other, and the compiler makes them by four calls of C

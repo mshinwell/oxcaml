@@ -784,7 +784,7 @@ it gave back.
   goes when the comparison relates code ids itself (workstream S4; there
   are notes in `flsemantics.ml` and `FlambdaCompareSpec.v`).
 - **Symbols that a unit does not define**, in the same file (`imports`,
-  about 15 lines, and `check`, which runs the two units from them). The
+  about 20 lines, and `check`, which runs the two units from them). The
   conversion lists the external symbols that the two units of a check
   mention: the symbols of another compilation unit, the predefined
   exceptions among them, which are of a unit of their own. A symbol of
@@ -792,9 +792,12 @@ it gave back.
   one of them, and stays bound to nothing. Both units are run from the
   static environment that binds each listed symbol to something
   imported (`FlambdaImportsSpec.imports_statics`), an object whose
-  contents the model does not know. A symbol is given the class
-  `Import_identity` if it is a predefined exception
-  (`Symbol.is_predefined_exception`) and `Import_data` otherwise. Three
+  contents the model does not know. A symbol that the units mention
+  is given the class `Import_identity` if it is a predefined exception
+  (`Symbol.is_predefined_exception`) and `Import_data` otherwise. A
+  symbol that the prefix of the next entry makes for a field of which
+  a `.cmx` file says nothing is none that the units mention, and is
+  given the class `Import_unknown`. Three
   things are trusted. The list is the same for the two units: a symbol
   that one of them mentions is declared for both. A predefined
   exception is an object made once, by the startup code, that nothing
@@ -805,16 +808,20 @@ it gave back.
   `eval_phys_equal`). And the model does not look into an import. It
   can be passed, returned, stored (`Make_block` takes one as a field)
   and given to `Opaque_identity`, which returns it. `Phys_equal`
-  answers false of an import of either class against a tagged
+  answers false of an import of the first two classes against a tagged
   immediate, compares an identity as just said, and has no value of an
   import that is data against an immutable allocated value, another
-  import that is data or itself. That is
+  import that is data or itself. Of an import of the class
+  `Import_unknown` it has no value against anything, itself included,
+  where the program has an answer: the model says less than the
+  program does (decision D41). That is
   `FlambdaPrimitiveSpec.eval_phys_equal`, which the machine that the
   tool runs uses (`FlambdaSemanticsSpec.step`); it has no value on a
   location of the heap, against an import as against anything.
   `Phys_equal` of the machine with a heap (`FlambdaHeapSpec.exec_prim`),
-  which the tool does not run, answers false of an import of either
-  class against a location bound by that heap. No other unary or
+  which the tool does not run, answers false of an import of the
+  first two classes against a location bound by that heap, and has no
+  value of one of the third. No other unary or
   binary primitive has a value on an import. It is not a closure, so a
   call of it is undefined. A run that executes a load from an import,
   or a call of one, is therefore undefined in the model where the
@@ -883,15 +890,55 @@ it gave back.
     comment above `make_prefix`: the code of a closure that is bound
     only as a field of a block is not;
   - a symbol is bound to a block only where the file says that it is
-    an immutable block of values each of whose fields is a constant
-    or a symbol. A field of which the file says nothing, as of a
-    value that the other unit computes when it is initialised, is
-    unknown and not absent, and the model cannot yet say that of a
-    field: a block that has one is not bound at all, neither with
-    fewer fields nor with something made up for the field, and its
-    symbol stays an import. Neither is a block bound that has a
-    field which is a symbol that its own file says is another symbol
-    or a constant;
+    an immutable block of values each of whose fields is a constant,
+    a symbol, or a field of which the file says nothing, as of a
+    value that the other unit computes when it is initialised. Such
+    a field is unknown and not absent. It is given a symbol of its
+    own, which no name of the compiler has, one for each such field
+    of each block, made when the block is bound, and that symbol is
+    declared an import of which nothing is known (`Import_unknown`).
+    The model gives such an import no value in a comparison, a test,
+    a load or a call: a run may pass it on, store it and return it,
+    and is undefined if it does more. So nothing is made up for the
+    field, and the one answer that a run gets which the file does
+    not give is a value that says nothing.
+    One block with such a field is still not bound: a block one of
+    whose fields of that sort is loaded, by either unit or by a body
+    that the prefix binds, from something that the making of the
+    prefix sees to stand for the block; the prefix is made again
+    without it until no such block is left, and one prefix goes in
+    front of both units. That test decides only which blocks are
+    bound, and is trusted for nothing: binding fewer blocks is the
+    prefix saying less, and a load that the test misses leaves a
+    block bound with what the file says of it and no more. Which
+    blocks are bound can change whether a unit is validated, one
+    way or the other; a load that is missed adds no fact to what
+    the file says, and nothing is claimed of the linked program on
+    the strength of the test. It is there because the term
+    after is not read with what the unit binds its symbols to inside
+    code: the normalisation of the term before reads the load as the
+    symbol of the field, the term after keeps the load, and the two
+    are then not the same.
+    A block with a field that is an approximation given in place of
+    a symbol, or a constant that the model has not got, is not
+    bound. Neither is a block bound that has a field which is a
+    symbol that its own file says is another symbol or a constant:
+    Simplify puts that symbol or constant where the load was, and a
+    symbol of which nothing is known in the field would make the two
+    runs differ where Simplify is right.
+    `pairs/hidden_known_read.ml` is a unit that the rule turns,
+    `pairs/hidden_read.ml` one whose block stays unbound, and
+    `pairs/partly_tested.ml` one in which a function inspects such a
+    field through its argument, which the test does not see as a
+    load of the block: the block is bound and the run has no value.
+    Measured outside this tree, on units that use another unit, at
+    the default settings and at `-O3` (190 runs): seven runs come to
+    "validated with its imports, given the .cmx", two of them from a
+    run before that was undefined; none goes to "not validated" or
+    to "DIFFERENT"; and no expected file of this tree moves. Every
+    field that is given a symbol there is one of which the file says
+    nothing; the measure has no field of the other sorts, so nothing
+    is known from it of how often a block stays unbound for them;
   - a symbol of which the file says nothing stays an import;
   - a symbol that is asked for (one that either unit names, that a
     body which the prefix binds names, or that is at a field which

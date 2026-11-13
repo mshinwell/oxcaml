@@ -1654,9 +1654,11 @@ let run ~(statics : Values.static_env) (unit : converted) : outcome * int =
    conversion cannot tell an exception that another unit declares from data. A
    symbol that the prefix binds is not an import, and nor is one that got its
    number from a body which the prefix did not bind in the end ([~bound],
-   [~unmentioned]; see [make_prefix]). *)
-let imports ~(bound : Model.symbol list) ~(unmentioned : Model.symbol list) :
-    (Model.symbol * Values.import_class) list =
+   [~unmentioned]; see [make_prefix]). A symbol that the prefix made for a field
+   of which the files say nothing ([~hidden]) is an import of which nothing is
+   known. *)
+let imports ~(bound : Model.symbol list) ~(unmentioned : Model.symbol list)
+    ~(hidden : Model.symbol list) : (Model.symbol * Values.import_class) list =
   let left_out : (int, unit) Hashtbl.t = Hashtbl.create 64 in
   List.iter
     (fun number -> Hashtbl.replace left_out (int_of_positive number) ())
@@ -1674,6 +1676,7 @@ let imports ~(bound : Model.symbol list) ~(unmentioned : Model.symbol list) :
             then Values.Import_identity
             else Values.Import_data ))
     (Symbols.bindings ())
+  @ List.map (fun symbol -> symbol, Values.Import_unknown) hidden
 
 (* ---- Printing model terms ---------------------------------------------- *)
 
@@ -3021,11 +3024,22 @@ let unit_names (units : (Compilation_unit.t * Digest.t) list) =
    things.
 
    A symbol that is an immutable block of values, each of whose fields is a
-   constant or a symbol, where it is asked for or is a field of a block that is
-   bound: the block. A field that is a symbol is that symbol, whether or not it
-   is bound in turn. A block with any other field is not bound: the model has no
-   way yet to say that nothing is known of a field. Nor is a block with a field
-   that is a symbol which its own file says is another symbol or a constant.
+   constant, a symbol, or a field of which the file says nothing, where it is
+   asked for or is a field of a block that is bound: the block. A field that is
+   a symbol is that symbol, whether or not it is bound in turn. A field of which
+   the file says nothing is a symbol of its own, which no name of the compiler
+   has: one for each such field of each block, made when the block is bound, and
+   declared as an import of which nothing is known ([imports]). A block one of
+   whose such fields is loaded, by either term or by a body that the prefix
+   binds, from something that stands for the block (below) is not bound. Nor is
+   a block with any other field (an approximation given in place of a symbol, a
+   constant that the model has not got), or with a field that is a symbol which
+   its own file says is another symbol or a constant. So the prefix says less
+   than the file and never more: a block that is not bound stays an import, and
+   a field that is given a symbol is one of which the file says nothing. The
+   test of the loads decides only which blocks are bound, which is what a
+   validation can find, and is trusted for nothing: a load that it misses leaves
+   a block bound, with what the file says of it and no more.
 
    A symbol that is a closure, where it is asked for or is a field of a block
    that is bound: the closure, at its function slot, of a set that has this one
@@ -3092,7 +3106,10 @@ type prefix =
     prefix_unasked : (Model.symbol * Model.symbol) list;
     (* The symbols that have a number and that neither the two terms nor the
        prefix mention: those of a body that was not bound in the end. *)
-    prefix_unmentioned : Model.symbol list
+    prefix_unmentioned : Model.symbol list;
+    (* The symbols made for the fields, of the blocks bound, of which the files
+       say nothing. Each is an import of which nothing is known. *)
+    prefix_hidden : Model.symbol list
   }
 
 let no_prefix =
@@ -3100,13 +3117,20 @@ let no_prefix =
     prefix_units = [];
     prefix_symbols = [];
     prefix_unasked = [];
-    prefix_unmentioned = []
+    prefix_unmentioned = [];
+    prefix_hidden = []
   }
 
 (* What the [.cmx] file of its unit says of a symbol. *)
 type approximation = Code_or_metadata.t Value_approximation.t
 
-let make_prefix ~(units : (Compilation_unit.t * Digest.t) list)
+(* The prefix made with some blocks refused: [refused] are the blocks, by the
+   numbers of their symbols, that are not to be bound with a symbol for a field
+   of which the file says nothing. [found] is given the blocks not refused one
+   of whose such fields a term loads; if there is one, the prefix returned is
+   not to be used ([make_prefix]). *)
+let make_prefix_refusing ~(refused : int list) ~(found : int list ref)
+    ~(units : (Compilation_unit.t * Digest.t) list)
     ~(loader : Flambda_cmx.loader Lazy.t) ~units_have_tupled_code
     (terms : Model.expr list) : prefix =
   (* The unit whose file the loader reads for a name of [unit], if the run read
@@ -3236,14 +3260,35 @@ let make_prefix ~(units : (Compilation_unit.t * Digest.t) list)
      or cyclic. *)
   let blocks_to_bind = Queue.create () in
   let blocks_seen : (int, unit) Hashtbl.t = Hashtbl.create 16 in
+  (* The symbols made for the fields of which the files say nothing, each with
+     the block that it is a field of, and the blocks one of whose such fields a
+     term loads. *)
+  let hidden = ref [] in
+  let hidden_of : (int, int) Hashtbl.t = Hashtbl.create 16 in
+  let read_hidden = ref [] in
   let bind_one_block unit sym tag (fields : approximation list) =
     let n = int_of_positive sym in
-    if (not (Hashtbl.mem blocks_seen n)) && List.for_all said fields
+    (* Whether a field is given a symbol of its own. *)
+    let hides (field : approximation) =
+      match field with
+      | Unknown _ -> not (List.mem n refused)
+      | Value_const _ | Value_symbol _ | Closure_approximation _
+      | Block_approximation _ ->
+        false
+    in
+    if
+      (not (Hashtbl.mem blocks_seen n))
+      && List.for_all (fun field -> said field || hides field) fields
     then (
       let fields =
         List.map
           (fun (field : approximation) : Model.simple ->
             match field with
+            | Unknown _ when hides field ->
+              let made = Symbols.fresh () in
+              hidden := made :: !hidden;
+              Hashtbl.replace hidden_of (int_of_positive made) n;
+              Symbol made
             | Value_const c -> Const (convert_const c)
             | Value_symbol symbol ->
               let field = Symbols.find symbol in
@@ -3351,6 +3396,11 @@ let make_prefix ~(units : (Compilation_unit.t * Digest.t) list)
         | Some fields when field >= 0 -> (
           match List.nth_opt fields field with
           | Some (Symbol sym) ->
+            (match Hashtbl.find_opt hidden_of (int_of_positive sym) with
+            | Some block ->
+              if not (List.mem block !read_hidden)
+              then read_hidden := block :: !read_hidden
+            | None -> ());
             ask_symbol sym;
             Hashtbl.replace stands_for (int_of_positive x) sym
           | Some (Var _ | Const _) | None -> ())
@@ -3426,6 +3476,8 @@ let make_prefix ~(units : (Compilation_unit.t * Digest.t) list)
   | [] -> no_prefix
   | _ :: _ ->
     settle ();
+    found
+      := List.filter (fun block -> not (List.mem block refused)) !read_hidden;
     (* The closures, by groups in none of which two are of the same code. *)
     let closure_groups =
       List.fold_left
@@ -3549,8 +3601,26 @@ let make_prefix ~(units : (Compilation_unit.t * Digest.t) list)
             if asked sym || Hashtbl.mem fields_of_blocks (int_of_positive sym)
             then None
             else Some sym)
-          (Symbols.bindings ())
+          (Symbols.bindings ());
+      prefix_hidden = List.rev !hidden
     }
+
+(* The prefix is made with no block refused, and made again with the blocks
+   found added to those refused until none is found. Both terms are gone through
+   each time, and one prefix goes in front of both, so a block is refused for
+   both or for neither; a block once refused stays so; and in the prefix
+   returned no block that is bound has such a field that a term loads from
+   something that stands for the block. *)
+let make_prefix ~units ~loader ~units_have_tupled_code terms =
+  let rec again refused =
+    let found = ref [] in
+    let prefix =
+      make_prefix_refusing ~refused ~found ~units ~loader
+        ~units_have_tupled_code terms
+    in
+    match !found with [] -> prefix | _ :: _ as found -> again (found @ refused)
+  in
+  again []
 
 (* A unit with the prefix in front of it. *)
 let with_prefix (prefix : prefix) (unit : converted) : converted =
@@ -4619,7 +4689,7 @@ let check_or_raise ~filename ~(units : (Compilation_unit.t * Digest.t) list)
   | before, after, prefix ->
     let imports =
       imports ~bound:prefix.prefix_symbols
-        ~unmentioned:prefix.prefix_unmentioned
+        ~unmentioned:prefix.prefix_unmentioned ~hidden:prefix.prefix_hidden
     in
     (* The prefix is checked before it is used: a fault here is one of the
        conversion, and neither of the unit nor of Simplify. *)
