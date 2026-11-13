@@ -247,6 +247,18 @@ says so. Only the labels that this tree cites are listed.
   `%is_int`, and its reader gives the form for variants.
 - **C2-27.** The text of a term does not write the kind of
   `Opaque_identity`, and its reader gives the kind of values.
+- **C2-28.** The reader of the text of a term reads the kind `int32` of
+  `%invalid` and of `%optimised_out` as naked int8, and `int64` as naked
+  int16; the printer has no word for naked int32 and int64 there and
+  stops.
+- **C2-29.** The text of a term does not write the shape of a static
+  block, and its reader gives the shape of values only; Simplify stops
+  with a fatal error on a constant record with an unboxed field that is
+  read back.
+- **C2-30.** The text of a term writes nothing for an argument or a
+  parameter of no kind (the unboxed product of nothing); read back, a
+  partial application or an over-application can be a full application,
+  and a full application a partial one.
 - **C3-1.** Simplify answers a projection that names the wrong function
   slot on one of its two paths and makes it `Invalid` on the other; the
   slot named is not checked where the term is built.
@@ -560,6 +572,10 @@ says so. Only the labels that this tree cites are listed.
   on the term read back, can remove a test of null that the compiler
   keeps. The pair validated is then not the pair that the compiler
   made; the compiler's own code is right.
+- **T4-15.** The text of a closure that holds a variable of an unboxed
+  kind is not read back: the projection, which comes first in the text,
+  makes the value slot at the kind of values, and the definition of the
+  closure then stops the parser with a fatal error.
 - **T5-1.** The assumption stated by the n-way join, that every name of
   the source is defined in every joined environment, is false of its
   callers, and nothing checks it.
