@@ -315,6 +315,104 @@ it gave back.
   or a call of one, is therefore undefined in the model where the
   compiler gives it a meaning. Merely containing such a load or call
   does not make the run undefined.
+- **What the `.cmx` files of other units say**, in the same file
+  (`make_prefix`, `units_read`, `prefix_fault`, `with_prefix`, and
+  `check`, which puts the prefix in front of the two units). This
+  entry awaits the human's confirmation (decision 1 of
+  `middle_end/flambda2/rocq/requests/C5-imports-with-contents.md`).
+  Until it is given, a verdict that rests on a prefix is counted
+  apart, and is not a verdict of the kind that the lines "validated"
+  and "validated with its imports" give.
+  Where the tool is given directories of `.cmx` files and its run of
+  Simplify read the file of another unit, the two units of a check
+  are given one prefix of static bindings, the same in front of
+  both, which binds symbols and code ids of other units to what
+  those files say of them. The two terms that are run and validated
+  are the prefix followed by each unit, from the imports that are
+  left: a symbol that the prefix binds is not an import. The
+  theorems are of those two terms. Where the prefix evaluates from
+  the static environment of the imports, which the tool tests, a
+  refinement of the two terms is a refinement of the two units, each
+  run from the static environment that the prefix makes
+  (`FlambdaImportsSpec.prefix_refines_statement`). Two things are
+  trusted, and they are apart.
+  The first is of the linked program. A load, a projection or a call
+  that a run makes through the prefix has the answer that the prefix
+  gives it, and no theorem says that the unit which the program is
+  linked with gives the same. That rests on each `.cmx` file being
+  right about its unit, which the compiler itself assumes when it
+  reads one, and on the program being linked with the unit that the
+  file was made from. The tool names the units from whose files the
+  prefix is made, and prints the digest of each file where
+  `FLSEMANTICS_PRINT_DIGESTS` is set; nothing compares a digest with
+  a linked program. What the prefix binds is what the symbols of the
+  other unit are once that unit is initialised. Its initialisation is
+  not run: what it does before the unit of the check starts, an
+  exception that it raises included, is in neither term.
+  The second is of the conversion: that `make_prefix` says of a name
+  nothing that the file of its unit does not say. What a file says is
+  read through the compiler: its loader of `.cmx` files
+  (`Flambda_cmx`), and its reduction of the type of a symbol to a
+  block, a closure, another symbol, a constant or nothing
+  (`Flambda_cmx.load_symbol_approx`, which classic mode uses), with
+  the code for which the file has a body. The loader is asked only
+  about the units whose files the tool's Simplify read
+  (`units_read`): making the prefix opens no other file, and of
+  those files it may read the body of code that Simplify did not
+  look at. Nothing that Simplify concluded is used. The loader, the
+  reduction and the conversion of what they give (the entry "The
+  conversion of terms" for a body) are trusted. The prefix says less
+  than the files, and what it leaves out is trusted to make a run
+  undefined or a unit refused, and never to give a run a defined
+  answer that the files do not give:
+  - a closure is bound alone, at its function slot of a set that has
+    this one function and no value slot, so a projection of a value
+    slot of it, or to another function of its set, has no value;
+  - code that is not asked for, code that has no body in the file,
+    tupled code, code with a call of known arity where one of the
+    two units has tupled code, and code whose body the model has not
+    got, are bound to nothing, so a call of them is undefined. What
+    is asked for is in the comment above `make_prefix`: the code of
+    a closure that is bound only as a field of a block is not;
+  - a symbol is bound to a block only where the file says that it is
+    an immutable block of values each of whose fields is a constant
+    or a symbol. A field of which the file says nothing, as of a
+    value that the other unit computes when it is initialised, is
+    unknown and not absent, and the model cannot yet say that of a
+    field: a block that has one is not bound at all, neither with
+    fewer fields nor with something made up for the field, and its
+    symbol stays an import. Neither is a block bound that has a
+    field which is a symbol that its own file says is another symbol
+    or a constant;
+  - a symbol of which the file says nothing stays an import;
+  - a symbol that is asked for (one that either unit names, that a
+    body which the prefix binds names, or that is at a field which
+    a load reads) and that its file says is another symbol, or a
+    constant, is refused, and the unit is not checked.
+
+  The round trip of the conversion does not reach the prefix: the
+  text of terms cannot declare what a prefix binds. What does check
+  it: before a prefix is used the tool tests that it binds each name
+  once, none that either unit binds and none that is still an
+  import, that it evaluates from the static environment of the
+  imports, and that the term after with the prefix in front of it is
+  well-formed; and the prefix is printed for each unit that has one,
+  to be read against the other unit.
+  The lines. A unit whose two terms have a prefix in front of them
+  is reported apart, whatever imports it has left. The line begins
+  "validated with its imports, given the .cmx of N of them" where a
+  theorem is of the two runs shown: the prefix leaves no import, or
+  `FlambdaValidateImportsSpec.holds_from_imports` accepts the
+  verdict. Otherwise it begins "validated with nothing else imported,
+  given the .cmx of N", and is followed by a line that begins "not
+  validated with its imports", as for a unit with no prefix (the
+  entry "What the tool reports"). Both rest on the two things above.
+  The tool's Simplify looks for a `.cmx` file in the directories
+  given with `-I` and in no other, whatever other options of the
+  compiler the tool is given (`init_load_path`). Where it is given
+  none it reads no `.cmx` file, no unit has a prefix, and nothing of
+  this entry is assumed: a symbol of another unit is an import, as
+  the entry "Symbols that a unit does not define" says.
 - **The extraction**: Rocq's extraction to OCaml, by
   `middle_end/flambda2/rocq/FlambdaExtract.v`. It has no directive that
   realises a definition of the model by hand-written OCaml. The extracted
