@@ -347,12 +347,12 @@ Proof.
     + destruct contents; reflexivity.
 Qed.
 
-Lemma is_imported_permute (p : permutation) (statics : static_env)
+Lemma is_imported_pointer_permute (p : permutation) (statics : static_env)
     (v : value) :
-  is_imported (permute_static_env p statics) (permute_value p v)
-  = is_imported statics v.
+  is_imported_pointer (permute_static_env p statics) (permute_value p v)
+  = is_imported_pointer statics v.
 Proof.
-  unfold is_imported. destruct v; simpl; try reflexivity.
+  unfold is_imported_pointer. destruct v; simpl; try reflexivity.
   rewrite lookup_permute_statics.
   destruct (lookup s (static_values statics))
     as [[ | | | | | | class] | ];
@@ -366,7 +366,8 @@ Lemma eval_phys_equal_location_permute (p : permutation)
   = eval_phys_equal_location statics v1 v2.
 Proof.
   rewrite !eval_phys_equal_location_cases, !location_of_permute,
-    !int_of_value_permute, !is_allocated_permute, !is_imported_permute.
+    !int_of_value_permute, !is_allocated_permute,
+    !is_imported_pointer_permute.
   destruct (location_of v1) as [l1 | ], (location_of v2) as [l2 | ]; simpl;
     try reflexivity.
   rewrite permute_eqb. reflexivity.

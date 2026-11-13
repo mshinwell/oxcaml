@@ -140,7 +140,8 @@ Proof.
   { destruct Hv as [Hv | [_ Hv]]; [ | exact Hv ].
     unfold identity_of.
     rewrite (is_allocated_not_imported statics v Hv). reflexivity. }
-  assert (Hother : is_allocated statics v || is_imported statics v = true).
+  assert
+    (Hother : is_allocated statics v || is_imported_pointer statics v = true).
   { destruct Hv as [Hv | [Hv _]]; rewrite Hv;
       [ reflexivity | apply orb_true_r ]. }
   assert (Hint : int_of_value Standard_tagged_immediate v = None).
@@ -148,7 +149,7 @@ Proof.
       [ | reflexivity ].
     exfalso. destruct Hv as [Hv | [Hv _]].
     - destruct v; simpl in Hint, Hv; discriminate.
-    - unfold is_imported in Hv.
+    - unfold is_imported_pointer in Hv.
       destruct v; simpl in Hint, Hv; discriminate. }
   rewrite Hint, Hnone, Hother. split; reflexivity.
 Qed.
@@ -163,6 +164,158 @@ Proof.
   destruct (int_of_value Standard_tagged_immediate v) as [i | ];
     [ discriminate | ].
   split; reflexivity.
+Qed.
+
+Theorem phys_equal_unknown_import : phys_equal_unknown_import_statement.
+Proof.
+  intros statics s v Hs. unfold eval_phys_equal.
+  assert (Hidentity : identity_of statics (Value_symbol s) = None).
+  { unfold identity_of. rewrite Hs. reflexivity. }
+  assert (Hpointer : is_imported_pointer statics (Value_symbol s) = false).
+  { unfold is_imported_pointer. rewrite Hs. reflexivity. }
+  assert (Hallocated : is_allocated statics (Value_symbol s) = false).
+  { destruct (is_allocated statics (Value_symbol s)) eqn:Hallocated;
+      [ | reflexivity ].
+    rewrite (is_allocated_not_imported statics _ Hallocated) in Hs.
+    discriminate. }
+  rewrite !int_of_value_symbol, Hidentity, Hpointer, Hallocated.
+  destruct (int_of_value Standard_tagged_immediate v) as [i | ];
+    [ split; reflexivity | ].
+  destruct (identity_of statics v); split; reflexivity.
+Qed.
+
+Theorem imported_pointer : imported_pointer_statement.
+Proof.
+  split.
+  - intros statics v Hnot. unfold is_imported_pointer, is_imported.
+    destruct (imported_of statics v) as [[s [ | | ]] | ]; try reflexivity.
+    exfalso. exact (Hnot s eq_refl).
+  - intros statics v s Hs. unfold is_imported_pointer, is_imported.
+    rewrite Hs. split; reflexivity.
+Qed.
+
+Lemma pointer_is_imported (statics : static_env) (v : value) :
+  no_import_unknown statics ->
+  is_imported_pointer statics v = is_imported statics v.
+Proof.
+  intros Hno. apply (proj1 imported_pointer).
+  intros s Hs. apply imported_of_symbol in Hs as [_ Hs].
+  exact (Hno s Hs).
+Qed.
+
+Theorem phys_equal_two_classes : phys_equal_two_classes_statement.
+Proof.
+  intros statics v1 v2 Hno. split.
+  - unfold eval_phys_equal, eval_phys_equal_two_classes.
+    rewrite !(pointer_is_imported statics _ Hno). reflexivity.
+  - unfold eval_phys_equal_location, eval_phys_equal_location_two_classes.
+    destruct v1, v2; try reflexivity;
+      rewrite !(pointer_is_imported statics _ Hno); reflexivity.
+Qed.
+
+(* A static binding binds no import. *)
+Lemma eval_static_bindings_no_import_unknown (vars : env)
+    (bindings : list static_binding) :
+  ∀ statics extended : static_env,
+    eval_static_bindings vars bindings statics = Some extended ->
+    no_import_unknown statics -> no_import_unknown extended.
+Proof.
+  induction bindings as [ | binding bindings IH]; intros statics extended;
+    simpl.
+  - intros [= <-] Hno. exact Hno.
+  - destruct binding as [id c | id | sym const].
+    + destruct (lookup id (static_code statics)); [ discriminate | ].
+      intros Heval Hno. exact (IH _ _ Heval Hno).
+    + apply IH.
+    + destruct (lookup sym (static_values statics)); [ discriminate | ].
+      destruct (eval_static_const vars const) as [allocated | ] eqn:Hconst;
+        simpl; [ | discriminate ].
+      intros Heval Hno. apply (IH _ _ Heval).
+      intros s. simpl. destruct (Pos.eqb s sym).
+      * intros [= ->]. destruct const; simpl in Hconst;
+          repeat
+            match type of Hconst with
+            | context [match ?x with _ => _ end] => destruct x
+            end;
+          discriminate.
+      * apply Hno.
+Qed.
+
+Lemma step_no_import_unknown (s s' : state) :
+  step s = Step s' ->
+  no_import_unknown (state_statics s) ->
+  no_import_unknown (state_statics s').
+Proof.
+  intros Hstep. rewrite (state_eta s) in Hstep.
+  set (vars := state_vars s) in *. set (conts := state_conts s) in *.
+  set (statics := state_statics s) in *.
+  destruct (state_expr s)
+    as [x kind d body | bindings body | k h body | handlers body | ap | ac
+       | scrutinee arms | ];
+    autorewrite with step in Hstep.
+  - destruct (eval_named statics vars d) as [v | ]; [ | discriminate ].
+    destruct (kind_eqb (kind_of_value v) kind); [ | discriminate ].
+    injection Hstep as <-. exact (fun H => H).
+  - destruct (eval_static_bindings vars bindings statics) as [extended | ]
+      eqn:Heval; [ | discriminate ].
+    injection Hstep as <-.
+    exact
+      (eval_static_bindings_no_import_unknown vars bindings statics extended
+         Heval).
+  - injection Hstep as <-. exact (fun H => H).
+  - destruct (handlers_bind_statics handlers); [ discriminate | ].
+    injection Hstep as <-. exact (fun H => H).
+  - destruct (eval_simple vars (ap_callee ap)) as [callee | ];
+      [ | discriminate ].
+    destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | discriminate ].
+    destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
+      [ | discriminate ].
+    rewrite (call_function_statics _ _ _ _ _ _ _ _ _ _ Hstep).
+    exact (fun H => H).
+  - destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | discriminate ].
+    unfold apply_continuation in Hstep.
+    rewrite (apply_cont_value_statics _ _ _ _ _ Hstep).
+    exact (fun H => H).
+  - destruct (eval_simple vars scrutinee) as [v | ]; [ | discriminate ].
+    destruct (naked_immediate_of_value v) as [i | ]; [ | discriminate ].
+    destruct (find_arm i arms); [ | discriminate ].
+    injection Hstep as <-. exact (fun H => H).
+  - discriminate.
+Qed.
+
+Lemma imports_statics_no_import_unknown
+    (imports : list (symbol * import_class)) :
+  (∀ (s : symbol) (c : import_class),
+    (s, c) ∈ imports -> c <> Import_unknown) ->
+  no_import_unknown (imports_statics imports).
+Proof.
+  intros Hall s. unfold imports_statics. simpl.
+  induction imports as [ | [s0 c0] imports IH]; simpl; [ discriminate | ].
+  destruct (Pos.eqb s s0).
+  - intros [= ->].
+    exact (Hall s0 Import_unknown (or_introl eq_refl) eq_refl).
+  - apply IH. intros s1 c1 Hin. exact (Hall s1 c1 (or_intror Hin)).
+Qed.
+
+Theorem unit_two_classes : unit_two_classes_statement.
+Proof.
+  assert
+    (Hrun :
+      ∀ (fuel : nat) (s reached : state),
+        run fuel s = Step reached ->
+        no_import_unknown (state_statics s) ->
+        no_import_unknown (state_statics reached)).
+  { intros fuel. induction fuel as [ | fuel IH]; intros s reached; simpl.
+    - intros [= <-] Hno. exact Hno.
+    - destruct (step s) as [next | k vs | ] eqn:Hstep; try discriminate.
+      intros Hreached Hno.
+      exact
+        (IH next reached Hreached (step_no_import_unknown s next Hstep Hno)). }
+  split; [ exact Hrun | ].
+  intros imports e fuel reached Hall Hreached.
+  exact
+    (Hrun fuel _ reached Hreached
+       (imports_statics_no_import_unknown imports Hall)).
 Qed.
 
 Theorem imported_not_read : imported_not_read_statement.
@@ -226,5 +379,13 @@ Theorem catches_with_argument : catches_with_argument_statement.
 Proof.
   unfold catches_with_argument_statement. split.
   - exists 12%nat. vm_compute. reflexivity.
+  - exists 12%nat. vm_compute. reflexivity.
+Qed.
+
+Theorem unknown_import : unknown_import_statement.
+Proof.
+  unfold unknown_import_statement. split; [ | split ].
+  - exists 10%nat. vm_compute. reflexivity.
+  - exists 10%nat. vm_compute. reflexivity.
   - exists 12%nat. vm_compute. reflexivity.
 Qed.

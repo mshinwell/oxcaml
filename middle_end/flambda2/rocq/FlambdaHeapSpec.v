@@ -126,10 +126,14 @@ Definition is_location (v : value) : bool :=
 (* [Phys_equal] where one of the two values is a location: option (b) of
    the request. Two locations are equal when they are the same location.
    A location differs from a tagged immediate, from an immutable
-   allocated value and from an imported symbol of either class, which
-   is an object that was there before the unit ran. Against anything
-   else there is no answer: null, poison, a number that is not a value,
-   a symbol that is not bound.
+   allocated value and from an imported symbol of the class of
+   identities or of data, which is an object that was there before the
+   unit ran. Against an import of the class [Import_unknown] there is
+   no answer, as there is none on such an import against anything
+   (FlambdaPrimitiveSpec.eval_phys_equal): the model knows nothing of
+   it, and says less than the program does (decision D41). Against
+   anything else there is no answer: null, poison, a number that is
+   not a value, a symbol that is not bound.
    Where neither value is a location the comparison is
    FlambdaPrimitiveSpec.eval_phys_equal, which answers of two tagged
    immediates and of one against an allocated value, and has no value on
@@ -142,7 +146,7 @@ Definition eval_phys_equal_location (statics : static_env) (v1 v2 : value)
   | Value_location l1, Value_location l2 => Some (Pos.eqb l1 l2)
   | Value_location _, v | v, Value_location _ =>
     if is_some (int_of_value Standard_tagged_immediate v)
-       || is_allocated statics v || is_imported statics v
+       || is_allocated statics v || is_imported_pointer statics v
     then Some false
     else None
   | _, _ => None

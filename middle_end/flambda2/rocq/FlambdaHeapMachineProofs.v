@@ -2872,18 +2872,20 @@ Proof.
       [ auto | ].
     destruct (is_allocated statics v2) eqn:Hallocated;
       [ rewrite (related_is_allocated _ _ Hsecond Hallocated); auto | ].
-    unfold is_imported.
-    destruct (imported_of statics v2) as [s | ] eqn:Hi; [ | discriminate ].
-    rewrite (related_imported_of _ _ s Hsecond Hi). simpl.
-    rewrite orb_true_r. auto.
+    unfold is_imported_pointer.
+    destruct (imported_of statics v2) as [[s c] | ] eqn:Hi;
+      [ | discriminate ].
+    rewrite (related_imported_of _ _ _ Hsecond Hi).
+    destruct c; simpl; try discriminate; rewrite orb_true_r; auto.
   - destruct (is_some (int_of_value Standard_tagged_immediate v1)); simpl;
       [ auto | ].
     destruct (is_allocated statics v1) eqn:Hallocated;
       [ rewrite (related_is_allocated _ _ Hfirst Hallocated); auto | ].
-    unfold is_imported.
-    destruct (imported_of statics v1) as [s | ] eqn:Hi; [ | discriminate ].
-    rewrite (related_imported_of _ _ s Hfirst Hi). simpl.
-    rewrite orb_true_r. auto.
+    unfold is_imported_pointer.
+    destruct (imported_of statics v1) as [[s c] | ] eqn:Hi;
+      [ | discriminate ].
+    rewrite (related_imported_of _ _ _ Hfirst Hi).
+    destruct c; simpl; try discriminate; rewrite orb_true_r; auto.
   - discriminate.
 Qed.
 

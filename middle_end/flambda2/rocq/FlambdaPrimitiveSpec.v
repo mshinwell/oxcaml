@@ -914,8 +914,11 @@ Definition eval_string_load (statics : static_env)
    one is odd and that of the other a pointer, and as
    [prove_physical_equality] answers.
 
-   An imported symbol ([FlambdaValueSpec.imported_of]) of either class
-   is not a tagged immediate either: it is a pointer.
+   An imported symbol ([FlambdaValueSpec.imported_of]) of the class of
+   identities or of data is not a tagged immediate either: it is a
+   pointer ([FlambdaValueSpec.is_imported_pointer]). Of one of the
+   class [Import_unknown] nothing is known, and the comparison has no
+   value on it against anything.
 
    It has a value where one of the two is an identity: an imported
    symbol of the class [Import_identity]
@@ -923,7 +926,8 @@ Definition eval_string_load (statics : static_env)
    they are one symbol: [prove_physical_equality] answers so of any two
    symbols. An identity is not an allocated value (a block, a closure,
    a boxed number, a string, an immutable array, or a symbol bound to
-   one), and is not an imported symbol of the class [Import_data]. This
+   one), and is not an imported symbol of the class [Import_data]; of
+   one of the class [Import_unknown] it is not known whether it is. This
    is what a handler does to tell which exception it has caught: it
    compares the exception, or its first field, with the symbol of a
    predefined exception (lambda/matching.ml,
@@ -989,19 +993,23 @@ Definition eval_phys_equal (statics : static_env) (v1 v2 : value)
   with
   | Some a, Some b => Some (a =? b)
   | Some _, None =>
-    if is_allocated statics v2 || is_imported statics v2 then Some false
+    if is_allocated statics v2 || is_imported_pointer statics v2
+    then Some false
     else None
   | None, Some _ =>
-    if is_allocated statics v1 || is_imported statics v1 then Some false
+    if is_allocated statics v1 || is_imported_pointer statics v1
+    then Some false
     else None
   | None, None =>
     match identity_of statics v1, identity_of statics v2 with
     | Some s1, Some s2 => Some (Pos.eqb s1 s2)
     | Some _, None =>
-      if is_allocated statics v2 || is_imported statics v2 then Some false
+      if is_allocated statics v2 || is_imported_pointer statics v2
+      then Some false
       else None
     | None, Some _ =>
-      if is_allocated statics v1 || is_imported statics v1 then Some false
+      if is_allocated statics v1 || is_imported_pointer statics v1
+      then Some false
       else None
     | None, None => None
     end
@@ -1676,9 +1684,9 @@ Definition phys_equal_same_statement : Prop :=
    only where one of the two is an identity
    (FlambdaValueSpec.identity_of: an imported symbol of the class of
    exceptions), and the other is an identity, an allocated value or an
-   import. So, as for a value against itself, a term in which the
-   comparison is folded refines the term that has it, and the fold is
-   no equivalence. *)
+   import that is data. So, as for a value against itself, a term in
+   which the comparison is folded refines the term that has it, and
+   the fold is no equivalence. *)
 Definition phys_equal_symbols_statement : Prop :=
   ∀ (statics : static_env) (op : equality_comparison) (s1 s2 : symbol)
     (result : value),

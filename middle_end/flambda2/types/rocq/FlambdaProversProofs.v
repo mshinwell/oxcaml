@@ -4914,11 +4914,11 @@ Proof.
   - intros H. inversion H. apply tagged_immediate_of_int in H1, H2.
     subst v1 v2. rewrite Z.eqb_eq.
     split; [ intros ->; reflexivity | intros Heq; inversion Heq; reflexivity ].
-  - destruct (is_allocated statics v2 || is_imported statics v2);
+  - destruct (is_allocated statics v2 || is_imported_pointer statics v2);
       [ | discriminate ].
     intros H. inversion H. split; [ discriminate | ].
     intros Heq. subst v2. rewrite H1 in H2. discriminate.
-  - destruct (is_allocated statics v1 || is_imported statics v1);
+  - destruct (is_allocated statics v1 || is_imported_pointer statics v1);
       [ | discriminate ].
     intros H. inversion H. split; [ discriminate | ].
     intros Heq. subst v2. rewrite H1 in H2. discriminate.
@@ -4931,11 +4931,11 @@ Proof.
       intros H. inversion H. rewrite Pos.eqb_eq.
       split; [ intros ->; reflexivity | intros Heq; inversion Heq ].
       reflexivity.
-    + destruct (is_allocated statics v2 || is_imported statics v2);
+    + destruct (is_allocated statics v2 || is_imported_pointer statics v2);
         [ | discriminate ].
       intros H. inversion H. split; [ discriminate | ].
       intros Heq. subst v2. rewrite Hi1 in Hi2. discriminate.
-    + destruct (is_allocated statics v1 || is_imported statics v1);
+    + destruct (is_allocated statics v1 || is_imported_pointer statics v1);
         [ | discriminate ].
       intros H. inversion H. split; [ discriminate | ].
       intros Heq. subst v2. rewrite Hi1 in Hi2. discriminate.

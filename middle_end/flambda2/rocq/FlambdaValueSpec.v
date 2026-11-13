@@ -33,8 +33,8 @@
    [block_of], [boxed_number_of], [string_of] and [array_of], and the
    statements that they are exclusive, which FlambdaValueProofs.v
    proves; [import_class],
-   [imported_of] and [identity_of]; and the three readings of a closure
-   as one of a set,
+   [imported_of], [is_imported_pointer] and [identity_of]; and the
+   three readings of a closure as one of a set,
    [closure_in_set], [project_value_slot] and [project_function_slot],
    whose statements are in FlambdaSemanticsSpec.v. The rest is
    definitions. FlambdaSemanticsSpec.v exports this file, so a file that
@@ -71,22 +71,30 @@
    reads (FlambdaPrimitiveSpec.v).
 
    A symbol may also be bound to something that the unit imports
-   ([Static_imported]): an object of another unit (a predefined
-   exception is of a unit of its own), of which the model knows the
-   address and its class ([import_class]) and nothing else. An import
-   of the class [Import_identity] is an object with an identity, which
-   is its symbol ([identity_of]): an exception. One of the class
-   [Import_data] is anything else, and is to the model what an
-   immutable allocated value of the unit is, without its contents.
-   None of the five observations reads an import of either class, so
+   ([Static_imported]): an object or a value of another unit (a
+   predefined exception is of a unit of its own), of which the model
+   knows the symbol and its class ([import_class]) and nothing else.
+   An import of the class [Import_identity] is an object with an
+   identity, which is its symbol ([identity_of]): an exception. One of
+   the class [Import_data] is an object that another unit allocated
+   and that is not an identity, and is to the model what an immutable
+   allocated value of the unit is, without its contents. One of the
+   class [Import_unknown] is a value of which nothing is known: it may
+   be a tagged immediate, an identity, or an object that another unit
+   allocated, mutable or not.
+   None of the five observations reads an import of any class, so
    it is not a closure, a block, a boxed number, a string or an
    immutable array, and is not allocated in the sense of
-   [is_allocated]. Of the unary and binary primitives two have a value
-   on it: the identity, which returns it, and physical equality, which
-   tells an identity from everything else (FlambdaPrimitiveSpec.v); and
-   it can be a field of a block that is made. No static binding of a
-   term makes an import: the static environment in which a unit is run
-   has them (FlambdaImportsSpec.v).
+   [is_allocated]. The identity returns an import of any class, and it
+   can be a field of a block that is made. Physical equality has a
+   value on an import of the first two classes, of which the model
+   knows that they are pointers ([is_imported_pointer]): it tells an
+   identity from everything else (FlambdaPrimitiveSpec.v). On an
+   import of the third class it has no value against anything, itself
+   included; no other unary or binary primitive has a value on an
+   import. No static binding of a term makes an import: the static
+   environment in which a unit is run has them
+   (FlambdaImportsSpec.v).
 
    A closure is one of a set of closures. The closure of a set of one
    function whose function slot has no name is its code and the values
@@ -169,12 +177,24 @@ Definition kind_of_value (v : value) : flambda_kind :=
    an object that is made once and never shared or copied: a predefined
    exception, or an exception that another unit declares. Nothing that a
    unit allocates is it, and two of them are one object exactly when
-   their symbols are one symbol. Anything else that a unit imports is
-   data: its contents are not known here, and the compiler may know
-   them, so it is not told apart from what the unit allocates. *)
+   their symbols are one symbol. An allocated object of another unit
+   that is not an identity is data: its contents are not known here,
+   and the compiler may know them, so it is not told apart from what
+   the unit allocates. Anything else is unknown: a value that another
+   unit computed, of which the model knows nothing, not even that it
+   is a pointer (a field of a module block that holds a number, a
+   mutable object or an identity under another name). *)
+
+(* CR mshinwell: an import of the class [Import_unknown] has no value
+   under [Phys_equal], even against itself, where the program answers
+   true; and nothing that inspects it has a value: no other primitive,
+   no call of it, no [Switch] on it and no load from it. The model says
+   less than the program does, never more: of a run that inspects such
+   an import nothing is proved. Decision D41. *)
 Inductive import_class : Type :=
   | Import_identity
-  | Import_data.
+  | Import_data
+  | Import_unknown.
 
 (* What a symbol points to. [Static_closure_of_set] is the closure at
    [slot] of a static set; [closure_symbols] are the symbols of the
@@ -476,6 +496,16 @@ Definition imported_of (statics : static_env) (v : value)
 
 Definition is_imported (statics : static_env) (v : value) : bool :=
   is_some (imported_of statics v).
+
+(* An imported symbol of which the model knows that it is a pointer to
+   an object of another unit: one of the class of identities or of
+   data. Of an import of the class [Import_unknown] it does not know
+   that. *)
+Definition is_imported_pointer (statics : static_env) (v : value) : bool :=
+  match imported_of statics v with
+  | Some (_, (Import_identity | Import_data)) => true
+  | Some (_, Import_unknown) | None => false
+  end.
 
 (* A value as an identity: an imported symbol of the class
    [Import_identity]. The answer is the symbol, which is the identity:

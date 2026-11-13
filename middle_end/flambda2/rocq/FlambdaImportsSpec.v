@@ -33,11 +33,17 @@
 
    This file is to be reviewed: [imports_statics] and [unit_refines];
    [prefix_refines_statement], of two terms that follow one group of
-   static bindings; the five statements of what a primitive does with
-   an imported symbol, against FlambdaValueSpec.imported_of and
-   identity_of and FlambdaPrimitiveSpec.eval_phys_equal; and the two
+   static bindings; the seven statements of what a primitive does with
+   an imported symbol, against FlambdaValueSpec.imported_of,
+   is_imported_pointer and identity_of and
+   FlambdaPrimitiveSpec.eval_phys_equal; the two statements of a unit
+   whose imports are of the classes of identities and of data, with
+   the two functions that the first is stated with, against
+   FlambdaPrimitiveSpec.eval_phys_equal and
+   FlambdaHeapSpec.eval_phys_equal_location; the two
    examples, against what the front end makes of a handler that matches
-   an exception (lambda/matching.ml, [combine_extension_constructor]).
+   an exception (lambda/matching.ml, [combine_extension_constructor]);
+   and the example of an import of which nothing is known.
 
    A unit mentions symbols that it does not bind. The first that the
    front end makes are the predefined exceptions: a division tests its
@@ -52,8 +58,11 @@
    In the model such a symbol is bound, in the static environment that
    the unit starts with, to [Static_imported] of a class. An import of
    the class [Import_identity] is an object with an identity, which is
-   its symbol: an exception. One of the class [Import_data] is anything
-   else. The model knows the contents of neither. So:
+   its symbol: an exception. One of the class [Import_data] is an
+   object that another unit allocated and that is not an identity. One
+   of the class [Import_unknown] is a value of which nothing is known:
+   it may be a tagged immediate, an identity or an object, mutable or
+   not. The model knows the contents of none. So:
    - [Phys_equal] tells an identity from everything else: two
      identities are the same when they are one symbol, and an identity
      is not a tagged immediate, an allocated value of the unit or an
@@ -64,12 +73,24 @@
      is not a tagged immediate, and [Phys_equal] has no value on it
      against an allocated value, another import that is data, or itself
      ([phys_equal_data_import_statement]);
-   - no other primitive reads an import of either class: of the unary
+   - an import of which nothing is known is compared with nothing:
+     [Phys_equal] has no value on it against any value, itself
+     included ([phys_equal_unknown_import_statement]). What tells the
+     two other classes from it is [is_imported_pointer], which is
+     [is_imported] of a value that is not an import of this class
+     ([imported_pointer_statement]). Where the static environment has
+     no import of this class the comparison, and that of the machine
+     with a heap against a location, are the functions written with
+     [is_imported] ([phys_equal_two_classes_statement]); and a unit
+     whose imports are of the two other classes is run in such
+     environments only ([unit_two_classes_statement]);
+   - no other primitive reads an import of any class: of the unary
      and binary primitives only [Opaque_identity], which returns it,
      and [Phys_equal] have a value on it
      ([imported_not_read_statement]). It may be an argument of a
      continuation or of a call, a field of a block, and what a unit
-     returns or raises;
+     returns or raises ([unknown_import_statement] is an example of
+     the third class);
    - a static binding of the unit cannot bind it again: the machine is
      undefined on a symbol bound twice
      (FlambdaSemanticsSpec.eval_static_bindings).
@@ -107,7 +128,7 @@
    It is wrong only in that nothing is proved of such a program. *)
 
 From Stdlib Require Import ZArith List Bool.
-From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
+From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec FlambdaWellFormedSpec.
 Import ListNotations.
@@ -187,10 +208,11 @@ Definition phys_equal_identities_statement : Prop :=
     eval_phys_equal statics (Value_symbol s1) (Value_symbol s2)
     = Some (Pos.eqb s1 s2).
 
-(* An imported symbol of either class is not a tagged immediate. *)
+(* An imported symbol of the class of identities or of data is not a
+   tagged immediate. *)
 Definition phys_equal_imported_immediate_statement : Prop :=
   ∀ (statics : static_env) (s : symbol) (v : value),
-    is_imported statics (Value_symbol s) = true ->
+    is_imported_pointer statics (Value_symbol s) = true ->
     is_tagged_immediate v = true ->
     eval_phys_equal statics (Value_symbol s) v = Some false
     ∧ eval_phys_equal statics v (Value_symbol s) = Some false.
@@ -201,7 +223,7 @@ Definition phys_equal_identity_other_statement : Prop :=
   ∀ (statics : static_env) (s : symbol) (v : value),
     identity_of statics (Value_symbol s) = Some s ->
     is_allocated statics v = true
-    ∨ is_imported statics v = true ∧ identity_of statics v = None ->
+    ∨ is_imported_pointer statics v = true ∧ identity_of statics v = None ->
     eval_phys_equal statics (Value_symbol s) v = Some false
     ∧ eval_phys_equal statics v (Value_symbol s) = Some false.
 
@@ -216,8 +238,106 @@ Definition phys_equal_data_import_statement : Prop :=
     eval_phys_equal statics (Value_symbol s) v = None
     ∧ eval_phys_equal statics v (Value_symbol s) = None.
 
+(* An import of which nothing is known is compared with nothing: there
+   is no answer against any value, itself included. *)
+Definition phys_equal_unknown_import_statement : Prop :=
+  ∀ (statics : static_env) (s : symbol) (v : value),
+    imported_of statics (Value_symbol s) = Some (s, Import_unknown) ->
+    eval_phys_equal statics (Value_symbol s) v = None
+    ∧ eval_phys_equal statics v (Value_symbol s) = None.
+
+(* Of which imports the model knows that they are pointers: of every
+   one that is not of the class [Import_unknown], and of none that is.
+   Where the value is not an import of that class, [is_imported_pointer]
+   is [is_imported]. *)
+Definition imported_pointer_statement : Prop :=
+  (∀ (statics : static_env) (v : value),
+    (∀ s : symbol, imported_of statics v <> Some (s, Import_unknown)) ->
+    is_imported_pointer statics v = is_imported statics v)
+  ∧ (∀ (statics : static_env) (v : value) (s : symbol),
+      imported_of statics v = Some (s, Import_unknown) ->
+      is_imported statics v = true
+      ∧ is_imported_pointer statics v = false).
+
+(* The comparison of two values as it is of the classes of identities
+   and of data alone: the body of FlambdaPrimitiveSpec.eval_phys_equal
+   with [is_imported] where that has [is_imported_pointer]. It is here
+   for the statement below; nothing else uses it. *)
+Definition eval_phys_equal_two_classes (statics : static_env)
+    (v1 v2 : value) : option bool :=
+  match
+    int_of_value Standard_tagged_immediate v1,
+    int_of_value Standard_tagged_immediate v2
+  with
+  | Some a, Some b => Some (Z.eqb a b)
+  | Some _, None =>
+    if is_allocated statics v2 || is_imported statics v2 then Some false
+    else None
+  | None, Some _ =>
+    if is_allocated statics v1 || is_imported statics v1 then Some false
+    else None
+  | None, None =>
+    match identity_of statics v1, identity_of statics v2 with
+    | Some s1, Some s2 => Some (Pos.eqb s1 s2)
+    | Some _, None =>
+      if is_allocated statics v2 || is_imported statics v2 then Some false
+      else None
+    | None, Some _ =>
+      if is_allocated statics v1 || is_imported statics v1 then Some false
+      else None
+    | None, None => None
+    end
+  end.
+
+(* The same of FlambdaHeapSpec.eval_phys_equal_location. *)
+Definition eval_phys_equal_location_two_classes (statics : static_env)
+    (v1 v2 : value) : option bool :=
+  match v1, v2 with
+  | Value_location l1, Value_location l2 => Some (Pos.eqb l1 l2)
+  | Value_location _, v | v, Value_location _ =>
+    if is_some (int_of_value Standard_tagged_immediate v)
+       || is_allocated statics v || is_imported statics v
+    then Some false
+    else None
+  | _, _ => None
+  end.
+
+(* A static environment that binds no symbol to an import of the class
+   [Import_unknown]. *)
+Definition no_import_unknown (statics : static_env) : Prop :=
+  ∀ s : symbol,
+    lookup s (static_values statics) <> Some (Static_imported Import_unknown).
+
+(* In such an environment the two comparisons are those two functions,
+   of every two values. *)
+Definition phys_equal_two_classes_statement : Prop :=
+  ∀ (statics : static_env) (v1 v2 : value),
+    no_import_unknown statics ->
+    eval_phys_equal statics v1 v2
+    = eval_phys_equal_two_classes statics v1 v2
+    ∧ eval_phys_equal_location statics v1 v2
+      = eval_phys_equal_location_two_classes statics v1 v2.
+
+(* A run that starts in such an environment stays in such environments:
+   a static binding binds no import. So a unit whose imports are of the
+   classes of identities and of data is run in such environments only:
+   the environment of its imports is one, and so is that of every state
+   that its run reaches. *)
+Definition unit_two_classes_statement : Prop :=
+  (∀ (fuel : nat) (s reached : state),
+    run fuel s = Step reached ->
+    no_import_unknown (state_statics s) ->
+    no_import_unknown (state_statics reached))
+  ∧ (∀ (imports : list (symbol * import_class)) (e : expr) (fuel : nat)
+       (reached : state),
+      (∀ (s : symbol) (c : import_class),
+        (s, c) ∈ imports -> c <> Import_unknown) ->
+      run fuel (State e [] [] (imports_statics imports) empty_heap)
+      = Step reached ->
+      no_import_unknown (state_statics reached)).
+
 (* Of the unary primitives only [Opaque_identity] has a value on an
-   imported symbol of either class, which is the symbol; of the binary
+   imported symbol of any class, which is the symbol; of the binary
    primitives only [Phys_equal] has a value where an argument is one. *)
 Definition imported_not_read_statement : Prop :=
   (∀ (statics : static_env) (p : unary_primitive) (v result : value),
@@ -356,4 +476,44 @@ Definition catches_with_argument_statement : Prop :=
   ∧ behaves
       (State (catch_with_argument example_not_found) [] [] statics
          empty_heap)
+      Goes_wrong.
+
+(* ======================================================================== *)
+(* An import of which nothing is known                                      *)
+(* ======================================================================== *)
+
+(* A symbol for a value of another unit of which nothing is known, with
+   the three predefined exceptions. *)
+Definition example_hidden : symbol := 5%positive.
+
+Definition example_imports_hidden : list (symbol * import_class) :=
+  (example_hidden, Import_unknown) :: example_imports.
+
+(* The import is passed through the identity and returned. *)
+Definition carry_hidden : expr :=
+  let kept : variable := 1%positive in
+  Let kept Value
+    (Prim (Unary (Opaque_identity Value)) [Symbol example_hidden])
+    (Apply_cont (Apply_cont_expr example_leave [Var kept] None)).
+
+(* The import is compared with itself. *)
+Definition compare_hidden : expr :=
+  let same : variable := 1%positive in
+  Let same (Naked_number Kind_naked_immediate)
+    (Prim (Binary (Phys_equal Phys_eq))
+       [Symbol example_hidden; Symbol example_hidden])
+    (Apply_cont (Apply_cont_expr example_leave [Var same] None)).
+
+(* An import of which nothing is known is carried: the unit that passes
+   it through the identity returns it. It is not inspected: the run of
+   the unit that compares it with itself goes wrong, and so does that
+   of the handler of [catch_by_name] that has caught it, which compares
+   it with the symbol of an exception. *)
+Definition unknown_import_statement : Prop :=
+  let statics := imports_statics example_imports_hidden in
+  behaves (State carry_hidden [] [] statics empty_heap)
+    (Exits example_leave [Value_symbol example_hidden] empty_heap)
+  ∧ behaves (State compare_hidden [] [] statics empty_heap) Goes_wrong
+  ∧ behaves
+      (State (catch_by_name example_hidden) [] [] statics empty_heap)
       Goes_wrong.

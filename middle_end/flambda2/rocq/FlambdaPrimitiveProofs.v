@@ -339,7 +339,7 @@ Lemma identity_of_imported (statics : static_env) (v : value) (s : symbol) :
   <-> imported_of statics v = Some (s, Import_identity).
 Proof.
   unfold identity_of.
-  destruct (imported_of statics v) as [[s0 [ | ]] | ]; split; intros H;
+  destruct (imported_of statics v) as [[s0 [ | | ]] | ]; split; intros H;
     try discriminate H; injection H as ->; reflexivity.
 Qed.
 
@@ -365,21 +365,21 @@ Proof.
 Qed.
 
 Lemma allocated_or_imported_transfer :
-  is_allocated statics v || is_imported statics v = true ->
-  is_allocated statics' v' || is_imported statics' v' = true.
+  is_allocated statics v || is_imported_pointer statics v = true ->
+  is_allocated statics' v' || is_imported_pointer statics' v' = true.
 Proof.
   intros H. apply orb_true_iff in H as [H | H].
   - rewrite (Hallocated H). reflexivity.
-  - revert H. unfold is_imported.
+  - revert H. unfold is_imported_pointer.
     destruct (imported_of statics v) as [i | ] eqn:Hi; [ | discriminate ].
-    intros _. rewrite (Himported i eq_refl). apply orb_true_r.
+    rewrite (Himported i eq_refl). intros ->. apply orb_true_r.
 Qed.
 
 Lemma not_identity_transfer :
   identity_of statics v = None ->
-  is_allocated statics v || is_imported statics v = true ->
+  is_allocated statics v || is_imported_pointer statics v = true ->
   identity_of statics' v' = None
-  ∧ is_allocated statics' v' || is_imported statics' v' = true.
+  ∧ is_allocated statics' v' || is_imported_pointer statics' v' = true.
 Proof.
   intros Hnone H.
   split; [ | exact (allocated_or_imported_transfer H) ].
@@ -387,8 +387,8 @@ Proof.
   - unfold identity_of.
     rewrite (is_allocated_not_imported statics' v' (Hallocated H)).
     reflexivity.
-  - revert H Hnone. unfold is_imported, identity_of.
-    destruct (imported_of statics v) as [[s [ | ]] | ] eqn:Hi;
+  - revert H Hnone. unfold is_imported_pointer, identity_of.
+    destruct (imported_of statics v) as [[s [ | | ]] | ] eqn:Hi;
       intros H Hnone; try discriminate.
     rewrite (Himported _ eq_refl). reflexivity.
 Qed.
@@ -418,13 +418,13 @@ Proof.
   destruct (int_of_value Standard_tagged_immediate v1),
     (int_of_value Standard_tagged_immediate v2).
   - exact (fun H => H).
-  - destruct (is_allocated statics v2 || is_imported statics v2) eqn:H2;
-      [ | discriminate ].
+  - destruct (is_allocated statics v2 || is_imported_pointer statics v2)
+      eqn:H2; [ | discriminate ].
     rewrite (allocated_or_imported_transfer statics statics' v2 v2' Ha2 Hi2
                H2).
     exact (fun H => H).
-  - destruct (is_allocated statics v1 || is_imported statics v1) eqn:H1;
-      [ | discriminate ].
+  - destruct (is_allocated statics v1 || is_imported_pointer statics v1)
+      eqn:H1; [ | discriminate ].
     rewrite (allocated_or_imported_transfer statics statics' v1 v1' Ha1 Hi1
                H1).
     exact (fun H => H).
@@ -434,15 +434,15 @@ Proof.
         (identity_of_transfer statics statics' v2 v2' Hi2 s2 Hid2).
       exact (fun H => H).
     + rewrite (identity_of_transfer statics statics' v1 v1' Hi1 s1 Hid1).
-      destruct (is_allocated statics v2 || is_imported statics v2) eqn:H2;
-        [ | discriminate ].
+      destruct (is_allocated statics v2 || is_imported_pointer statics v2)
+        eqn:H2; [ | discriminate ].
       destruct
         (not_identity_transfer statics statics' v2 v2' Ha2 Hi2 Hid2 H2)
         as [-> ->].
       exact (fun H => H).
     + rewrite (identity_of_transfer statics statics' v2 v2' Hi2 s2 Hid2).
-      destruct (is_allocated statics v1 || is_imported statics v1) eqn:H1;
-        [ | discriminate ].
+      destruct (is_allocated statics v1 || is_imported_pointer statics v1)
+        eqn:H1; [ | discriminate ].
       destruct
         (not_identity_transfer statics statics' v1 v1' Ha1 Hi1 Hid1 H1)
         as [-> ->].
@@ -487,7 +487,7 @@ Proof.
     rewrite (string_of_static_values statics statics' v1)
       by (intros s ->; apply Hsame; left; reflexivity).
     reflexivity.
-  - unfold eval_phys_equal, identity_of, is_imported.
+  - unfold eval_phys_equal, identity_of, is_imported_pointer.
     rewrite (is_allocated_static_values statics statics' v1)
       by (intros s ->; apply Hsame; left; reflexivity).
     rewrite (is_allocated_static_values statics statics' v2)
@@ -1300,7 +1300,7 @@ Proof.
   { simpl. rewrite Hlookup. reflexivity. }
   assert (Hidentity : identity_of statics (Value_symbol s) = None).
   { unfold identity_of. rewrite Himported. reflexivity. }
-  revert Heval. unfold eval_phys_equal, is_imported.
+  revert Heval. unfold eval_phys_equal, is_imported_pointer.
   destruct Hs as [-> | ->];
     rewrite int_of_value_symbol, Hidentity, Hallocated, Himported.
   - destruct (int_of_value Standard_tagged_immediate v2); [ discriminate | ].
@@ -1541,13 +1541,13 @@ Proof.
 Qed.
 
 Lemma allocated_or_imported_kind (statics : static_env) (v : value) :
-  is_allocated statics v || is_imported statics v = true ->
+  is_allocated statics v || is_imported_pointer statics v = true ->
   kind_of_value v = Value.
 Proof.
   intros H.
   apply orb_true_iff in H as [H | H];
     [ exact (is_allocated_kind statics v H) | ].
-  unfold is_imported in H.
+  unfold is_imported_pointer in H.
   destruct (imported_of statics v) as [i | ] eqn:Hi; [ | discriminate ].
   exact (imported_of_kind statics v i Hi).
 Qed.
@@ -1563,13 +1563,13 @@ Proof.
   - intros _. split.
     + exact (int_of_value_kind _ _ _ Ha).
     + exact (int_of_value_kind _ _ _ Hb).
-  - destruct (is_allocated statics arg2 || is_imported statics arg2) eqn:H2;
-      [ | discriminate ].
+  - destruct (is_allocated statics arg2 || is_imported_pointer statics arg2)
+      eqn:H2; [ | discriminate ].
     intros _. split.
     + exact (int_of_value_kind _ _ _ Ha).
     + exact (allocated_or_imported_kind statics arg2 H2).
-  - destruct (is_allocated statics arg1 || is_imported statics arg1) eqn:H1;
-      [ | discriminate ].
+  - destruct (is_allocated statics arg1 || is_imported_pointer statics arg1)
+      eqn:H1; [ | discriminate ].
     intros _. split.
     + exact (allocated_or_imported_kind statics arg1 H1).
     + exact (int_of_value_kind _ _ _ Hb).
@@ -1578,12 +1578,14 @@ Proof.
     + intros _. split.
       * exact (identity_of_kind _ _ _ Hi1).
       * exact (identity_of_kind _ _ _ Hi2).
-    + destruct (is_allocated statics arg2 || is_imported statics arg2)
+    + destruct
+        (is_allocated statics arg2 || is_imported_pointer statics arg2)
         eqn:H2; [ | discriminate ].
       intros _. split.
       * exact (identity_of_kind _ _ _ Hi1).
       * exact (allocated_or_imported_kind statics arg2 H2).
-    + destruct (is_allocated statics arg1 || is_imported statics arg1)
+    + destruct
+        (is_allocated statics arg1 || is_imported_pointer statics arg1)
         eqn:H1; [ | discriminate ].
       intros _. split.
       * exact (allocated_or_imported_kind statics arg1 H1).
@@ -2444,11 +2446,11 @@ Proof.
     destruct (Pos.eqb_spec s1 s2) as [Heq | _]; [ contradiction | ].
     cbn. intros H. injection H as <-. destruct op; reflexivity.
   - destruct (is_allocated statics (Value_symbol s2)
-              || is_imported statics (Value_symbol s2));
+              || is_imported_pointer statics (Value_symbol s2));
       [ | discriminate ].
     cbn. intros H. injection H as <-. destruct op; reflexivity.
   - destruct (is_allocated statics (Value_symbol s1)
-              || is_imported statics (Value_symbol s1));
+              || is_imported_pointer statics (Value_symbol s1));
       [ | discriminate ].
     cbn. intros H. injection H as <-. destruct op; reflexivity.
   - discriminate.

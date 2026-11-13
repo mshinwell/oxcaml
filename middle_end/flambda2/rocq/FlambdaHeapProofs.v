@@ -820,12 +820,12 @@ Lemma eval_phys_equal_location_cases (st : static_env) (v1 v2 : value) :
     | Some l1, Some l2 => Some (Pos.eqb l1 l2)
     | Some _, None =>
       if is_some (int_of_value Standard_tagged_immediate v2)
-         || is_allocated st v2 || is_imported st v2
+         || is_allocated st v2 || is_imported_pointer st v2
       then Some false
       else None
     | None, Some _ =>
       if is_some (int_of_value Standard_tagged_immediate v1)
-         || is_allocated st v1 || is_imported st v1
+         || is_allocated st v1 || is_imported_pointer st v1
       then Some false
       else None
     | None, None => None
