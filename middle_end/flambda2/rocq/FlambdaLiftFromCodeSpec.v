@@ -157,7 +157,7 @@ From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec FlambdaNominalSpec FlambdaWellFormedSpec
-  FlambdaUnusedStaticsSpec FlambdaLiftSpec.
+  FlambdaUnusedStaticsSpec FlambdaImportsSpec FlambdaLiftSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -318,6 +318,19 @@ Definition lift_from_code_unit (u : unit_interface) (K : lets_in_code)
 Definition lift_from_code_unit_program_refines_statement : Prop :=
   ∀ (u : unit_interface) (K : lets_in_code) (e e' : expr),
     lift_from_code_unit u K e = Some e' -> program_refines e e'.
+
+(* The same of a unit that imports symbols, run from the static
+   environment of its imports: if the result binds no name that the
+   imports bind, it refines the unit. A symbol that the guess gives to
+   a [Let] lifted out and that is an import would be bound twice, and
+   the binding lifted out is executed where the code is bound, whether
+   the code is ever called or not. *)
+Definition lift_from_code_unit_refines_imports_statement : Prop :=
+  ∀ (imports : list (symbol * import_class)) (u : unit_interface)
+    (K : lets_in_code) (e e' : expr),
+    lift_from_code_unit u K e = Some e' ->
+    static_names_free_in (imports_statics imports) e' = true ->
+    unit_refines imports e e'.
 
 (* The rewrite commutes with renaming: a [Let] is named by where it is,
    and one that is lifted out mentions no variable. The renaming is of

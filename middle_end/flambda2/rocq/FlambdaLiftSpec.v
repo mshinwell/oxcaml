@@ -190,7 +190,7 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaPrimitiveModel FlambdaSemanticsSpec FlambdaNominalSpec
   FlambdaWellFormedSpec FlambdaClosuresSpec FlambdaUnusedStaticsSpec
-  FlambdaMyClosureSpec.
+  FlambdaMyClosureSpec FlambdaImportsSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -587,6 +587,18 @@ Definition lift_simulates_statement : Prop :=
 Definition lift_unit_program_refines_statement : Prop :=
   ∀ (L : lifting) (e e' : expr),
     lift_unit L e = Some e' -> program_refines e e'.
+
+(* The same of a unit that imports symbols, run from the static
+   environment of its imports (FlambdaImportsSpec.imports_statics): if
+   the unit lifted binds no name that the imports bind
+   (FlambdaImportsSpec.static_names_free_in), it refines the unit. A
+   symbol that the guess gives to a [Let] and that is an import would
+   be bound twice. *)
+Definition lift_unit_refines_imports_statement : Prop :=
+  ∀ (imports : list (symbol * import_class)) (L : lifting) (e e' : expr),
+    lift_unit L e = Some e' ->
+    static_names_free_in (imports_statics imports) e' = true ->
+    unit_refines imports e e'.
 
 (* Lifting commutes with renaming: a [Let] is named by where it is. The
    renaming is of variables and continuations, in code too: symbols,

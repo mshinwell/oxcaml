@@ -186,7 +186,8 @@ From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaBindersSpec FlambdaSemanticsSpec FlambdaNominalSpec
-  FlambdaWellFormedSpec FlambdaUnusedStaticsSpec FlambdaLiftSpec.
+  FlambdaWellFormedSpec FlambdaUnusedStaticsSpec FlambdaImportsSpec
+  FlambdaLiftSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -461,6 +462,19 @@ Definition lift_around_unit_program_refines_statement : Prop :=
   ∀ (u : unit_interface) (lets : list (path * lift_to))
     (places : list (path * list path)) (e e' : expr),
     lift_around_unit u lets places e = Some e' -> program_refines e e'.
+
+(* The same of a unit that imports symbols, run from the static
+   environment of its imports: if the result binds no name that the
+   imports bind, it refines the unit. A symbol that a group put binds
+   and that is an import would be bound twice, and the group is
+   executed whether the [Let]s that it stands for are reached or not. *)
+Definition lift_around_unit_refines_imports_statement : Prop :=
+  ∀ (imports : list (symbol * import_class)) (u : unit_interface)
+    (lets : list (path * lift_to)) (places : list (path * list path))
+    (e e' : expr),
+    lift_around_unit u lets places e = Some e' ->
+    static_names_free_in (imports_statics imports) e' = true ->
+    unit_refines imports e e'.
 
 (* Groups, renamed: the constants that they bind may mention
    variables. *)

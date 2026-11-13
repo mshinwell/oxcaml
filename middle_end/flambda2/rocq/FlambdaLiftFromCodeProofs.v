@@ -63,8 +63,9 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec FlambdaSemanticsProofs FlambdaSimulationProofs
   FlambdaNominalSpec FlambdaNominalProofs FlambdaWellFormedSpec
   FlambdaWellFormedProofs FlambdaClosuresSpec FlambdaClosuresProofs
-  FlambdaStaticProofs FlambdaUnusedStaticsSpec FlambdaLiftSpec
-  FlambdaLiftProofs FlambdaLiftFromCodeSpec.
+  FlambdaStaticProofs FlambdaUnusedStaticsSpec FlambdaImportsSpec
+  FlambdaUnitFromProofs FlambdaLiftSpec FlambdaLiftProofs
+  FlambdaLiftFromCodeSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -1798,13 +1799,21 @@ Section Unit.
 Variable u : unit_interface.
 Variable e : expr.
 
+(* The static environment and the heap that the two runs start from:
+   the environment holds no code and binds no name that the unit
+   rewritten binds. *)
+Variable statics0 : static_env.
+Variable hp0 : heap.
+
 Hypothesis Hwf : well_formed_unit u (lift_from_code K [] root e) = true.
+Hypothesis Hno_code : static_code statics0 = [].
+Hypothesis Hfree :
+  static_names_free_in statics0 (lift_from_code K [] root e) = true.
 
 (* The second state is one that the run of the unit rewritten reaches. *)
 Definition reached_lifted_out (s' : state) : Prop :=
   ∃ n : nat,
-    run n (State (lift_from_code K [] root e) [] [] empty_static_env empty_heap)
-    = Step s'.
+    run n (State (lift_from_code K [] root e) [] [] statics0 hp0) = Step s'.
 
 (* The states are related, the second is reached, and the first is one
    of a unit that exits with symbols and constants only. *)
@@ -1819,7 +1828,8 @@ Lemma unit_lifted_out_step (s s' : state) :
 Proof.
   intros (Hlifted & [n Hn] & Hplain).
   pose proof (lifted_out_step s s' Hlifted
-    (well_formed_never_faults u _ n s' Hwf Hn)) as Hanswer.
+    (well_formed_never_faults_from u _ statics0 hp0 n s' Hwf Hno_code Hfree
+       Hn)) as Hanswer.
   pose proof (plain_step s Hplain) as Hstep.
   destruct (step s) as [t | k vs | ]; unfold answered in *; [ | | exact I ].
   - destruct Hanswer as (m & t' & Hrun & Ht).
@@ -1833,16 +1843,34 @@ Qed.
 
 Lemma unit_lifted_out_initial :
   exits_plain [] e = true ->
-  unit_lifted_out (State e [] [] empty_static_env empty_heap)
-    (State (lift_from_code K [] root e) [] [] empty_static_env empty_heap).
+  unit_lifted_out (State e [] [] statics0 hp0)
+    (State (lift_from_code K [] root e) [] [] statics0 hp0).
 Proof.
   intros Hplain.
   split;
-    [ | split; [ exists 0; reflexivity | exact (plain_initial e Hplain) ] ].
+    [ | split;
+        [ exists 0; reflexivity
+        | exact (plain_from e statics0 hp0 Hplain Hno_code) ] ].
   apply State_lifted_out;
     [ intros x v [=] | constructor | | apply aliases_bound_nil ].
-  split; [ intros id; reflexivity | ].
-  split; [ intros s a [=] | intros id c [=] ].
+  split; [ intros id; rewrite Hno_code; reflexivity | ].
+  split; [ apply symbols_lifted_refl | ].
+  intros id c Hlookup. rewrite Hno_code in Hlookup. discriminate Hlookup.
+Qed.
+
+(* The unit rewritten refines the unit, the two run from that static
+   environment and that heap. *)
+Lemma unit_lifted_out_refines :
+  exits_plain [] e = true ->
+  refines (State e [] [] statics0 hp0)
+    (State (lift_from_code K [] root e) [] [] statics0 hp0).
+Proof.
+  intros Hplain.
+  apply
+    (stuttering_refines unit_lifted_out (fun _ vs vs' => vs' = vs)
+       unit_lifted_out_step).
+  - intros last vs vs' Hsame. exact Hsame.
+  - exact (unit_lifted_out_initial Hplain).
 Qed.
 
 End Unit.
@@ -1857,11 +1885,20 @@ Proof.
   destruct (well_formed_unit u (lift_from_code K [] root e)) eqn:Hwf;
     [ | discriminate ].
   intros [= <-]. unfold program_refines.
-  apply
-    (stuttering_refines (unit_lifted_out K e) (fun _ vs vs' => vs' = vs)
-       (unit_lifted_out_step K u e Hwf)).
-  - intros last vs vs' Hsame. exact Hsame.
-  - exact (unit_lifted_out_initial K e Hplain).
+  exact (unit_lifted_out_refines K u e empty_static_env empty_heap Hwf
+           eq_refl (free_in_empty _) Hplain).
+Qed.
+
+Theorem lift_from_code_unit_refines_imports :
+  lift_from_code_unit_refines_imports_statement.
+Proof.
+  intros imports u K e e'. unfold lift_from_code_unit. cbv zeta.
+  destruct (exits_plain [] e) eqn:Hplain; [ | discriminate ].
+  destruct (well_formed_unit u (lift_from_code K [] root e)) eqn:Hwf;
+    [ | discriminate ].
+  intros [= <-] Hfree. unfold unit_refines.
+  exact (unit_lifted_out_refines K u e (imports_statics imports) empty_heap
+           Hwf eq_refl Hfree Hplain).
 Qed.
 
 (* ======================================================================== *)

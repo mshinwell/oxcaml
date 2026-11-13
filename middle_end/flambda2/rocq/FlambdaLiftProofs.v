@@ -71,6 +71,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaNominalSpec FlambdaNominalProofs FlambdaWellFormedSpec
   FlambdaWellFormedProofs FlambdaClosuresSpec FlambdaClosuresProofs
   FlambdaUnusedStaticsSpec FlambdaMyClosureSpec FlambdaMyClosureProofs
+  FlambdaImportsSpec FlambdaImportsProofs FlambdaUnitFromProofs
   FlambdaLiftSpec.
 Import ListNotations.
 
@@ -2120,17 +2121,29 @@ Variable u : unit_interface.
 Variable lets : list (path * lift_to).
 Variable e : expr.
 
+(* The static environment and the heap that the two runs start from:
+   the environment holds no code, binds no name that the unit lifted
+   binds, and binds nothing to a closure of the code of [known] but its
+   symbol. The empty one is such, and so is that of the imports of a
+   unit. *)
+Variable statics0 : static_env.
+Variable hp0 : heap.
+
 (* The unit with its [Let]s lifted and [my_closure] bound in its code. *)
 Definition lifted_unit : expr :=
   bind_my_closures known (lift_expr lets root e).
 
 Hypothesis Hwf : well_formed_unit u lifted_unit = true.
 Hypothesis Honly : only_closures_of known lifted_unit = true.
+Hypothesis Hno_code : static_code statics0 = [].
+Hypothesis Hfree : static_names_free_in statics0 lifted_unit = true.
+Hypothesis Hstatics_ok :
+  ∀ (id : code_id) (sym : symbol),
+    lookup id known = Some sym -> statics_ok id sym statics0.
 
 (* The second state is one that the run of the unit lifted reaches. *)
 Definition reached (s' : state) : Prop :=
-  ∃ n : nat, run n (State lifted_unit [] [] empty_static_env empty_heap)
-    = Step s'.
+  ∃ n : nat, run n (State lifted_unit [] [] statics0 hp0) = Step s'.
 
 (* The run of the unit lifted makes no closure of the code of [known]
    but its symbols. *)
@@ -2138,10 +2151,10 @@ Lemma reached_known_ok (s' : state) : reached s' -> known_state_ok s'.
 Proof.
   intros [n Hn] id sym Hsym.
   unfold only_closures_of in Honly. rewrite forallb_forall in Honly.
-  exact (ok_run id sym n _ s'
-           (ok_initial id sym lifted_unit
-              (Honly (id, sym) (lookup_in id sym known Hsym)))
-           Hn).
+  refine (ok_run id sym n _ s' _ Hn).
+  split; [ exact (Honly (id, sym) (lookup_in id sym known Hsym)) | ].
+  split; [ intros x v [=] | ].
+  split; [ constructor | exact (Hstatics_ok id sym Hsym) ].
 Qed.
 
 Lemma reached_run (m : nat) (s' t' : state) :
@@ -2159,7 +2172,8 @@ Proof.
   intros [Hlifted Hreached].
   assert (Hfault : static_fault s' = false).
   { destruct Hreached as [n Hn].
-    exact (well_formed_never_faults u _ n s' Hwf Hn). }
+    exact (well_formed_never_faults_from u _ statics0 hp0 n s' Hwf Hno_code
+             Hfree Hn). }
   pose proof (lifted_step s s' Hlifted Hfault
     (reached_known_ok s' Hreached)) as Hanswer.
   destruct (step s) as [t | k vs | ]; unfold answered in *;
@@ -2170,31 +2184,63 @@ Proof.
 Qed.
 
 Lemma unit_lifted_initial :
-  unit_lifted (State e [] [] empty_static_env empty_heap)
-    (State lifted_unit [] [] empty_static_env empty_heap).
+  unit_lifted (State e [] [] statics0 hp0)
+    (State lifted_unit [] [] statics0 hp0).
 Proof.
   split; [ | exists 0; reflexivity ].
   apply State_lifted;
     [ intros x v [=] | constructor
-    | split; [ intros id; reflexivity | intros s a [=] ] ].
+    | split;
+      [ intros id; rewrite Hno_code; reflexivity
+      | apply symbols_lifted_refl ] ].
 Qed.
 
 End Unit.
 
 End Known.
 
+(* The empty static environment is one that the two runs may start
+   from, and so is that of the imports of a unit. *)
+Lemma statics_ok_empty (id : code_id) (sym : symbol) :
+  statics_ok id sym empty_static_env.
+Proof. split; [ intros id' c [=] | intros s a [=] ]. Qed.
+
+Lemma statics_ok_imports (id : code_id) (sym : symbol)
+    (imports : list (symbol * import_class)) :
+  statics_ok id sym (imports_statics imports).
+Proof.
+  split; [ intros id' c [=] | ].
+  intros s allocated Hs.
+  destruct (imports_statics_imported imports s allocated Hs) as [c ->].
+  reflexivity.
+Qed.
+
 Theorem lift_simulates : lift_simulates_statement.
 Proof.
   intros u lets known e. cbv zeta. intros Hwf Honly. split.
   - intros k vs hp [n Hn].
-    exact (stuttering_exit (unit_lifted known lets e) exit_lifted
-             (unit_lifted_step known u lets e Hwf Honly) n _ _ k vs
-             hp (unit_lifted_initial known lets e) Hn).
+    exact (stuttering_exit
+             (unit_lifted known lets e empty_static_env empty_heap)
+             exit_lifted
+             (unit_lifted_step known u lets e empty_static_env empty_heap Hwf
+                Honly eq_refl (free_in_empty _)
+                (fun id sym _ => statics_ok_empty id sym))
+             n _ _ k vs hp
+             (unit_lifted_initial known lets e empty_static_env empty_heap
+                eq_refl)
+             Hn).
   - intros b Hterm Hb.
     destruct (behaves_ended _ b Hterm Hb) as [m Hended].
-    destruct (stuttering_ends (unit_lifted known lets e) exit_lifted
-                (unit_lifted_step known u lets e Hwf Honly) m _ _ b
-                (unit_lifted_initial known lets e) Hended)
+    destruct (stuttering_ends
+                (unit_lifted known lets e empty_static_env empty_heap)
+                exit_lifted
+                (unit_lifted_step known u lets e empty_static_env empty_heap
+                   Hwf Honly eq_refl (free_in_empty _)
+                   (fun id sym _ => statics_ok_empty id sym))
+                m _ _ b
+                (unit_lifted_initial known lets e empty_static_env empty_heap
+                   eq_refl)
+                Hended)
       as [n [Hwrong | (k & vs & hp & Hexit)]].
     + left. exists n. exact Hwrong.
     + right. exists k, vs, hp, n. exact Hexit.
@@ -2744,13 +2790,24 @@ Proof.
     | discriminate ].
 Qed.
 
+(* The invariant holds of a first state whose static environment holds
+   no code. *)
+Lemma plain_from (e : expr) (statics : static_env) (hp : heap) :
+  exits_plain [] e = true ->
+  static_code statics = [] ->
+  plain_state (State e [] [] statics hp).
+Proof.
+  intros He Hno_code. exists []. simpl.
+  split; [ exact He | ]. split; [ intros k [=] | ].
+  split; [ constructor | ].
+  intros id c Hlookup. rewrite Hno_code in Hlookup. discriminate Hlookup.
+Qed.
+
 Lemma plain_initial (e : expr) :
   exits_plain [] e = true
     -> plain_state (State e [] [] empty_static_env empty_heap).
 Proof.
-  intros He. exists []. simpl.
-  split; [ exact He | ]. split; [ intros k [=] | ].
-  split; [ constructor | intros id c [=] ].
+  intros He. exact (plain_from e empty_static_env empty_heap He eq_refl).
 Qed.
 
 Theorem exits_plain_sound : exits_plain_sound_statement.
@@ -2769,12 +2826,20 @@ Variable known : list (code_id * symbol).
 Variable u : unit_interface.
 Variable lets : list (path * lift_to).
 Variable e : expr.
+Variable statics0 : static_env.
+Variable hp0 : heap.
 Hypothesis Hwf :
   well_formed_unit u (lifted_unit known lets e) = true.
 Hypothesis Honly : only_closures_of known (lifted_unit known lets e) = true.
+Hypothesis Hno_code : static_code statics0 = [].
+Hypothesis Hfree :
+  static_names_free_in statics0 (lifted_unit known lets e) = true.
+Hypothesis Hstatics_ok :
+  ∀ (id : code_id) (sym : symbol),
+    lookup id known = Some sym -> statics_ok id sym statics0.
 
 Definition unit_lifted_plain (s s' : state) : Prop :=
-  unit_lifted known lets e s s' ∧ plain_state s.
+  unit_lifted known lets e statics0 hp0 s s' ∧ plain_state s.
 
 (* The values at an exit are lifted, and are constants and symbols: they
    are the same. *)
@@ -2783,7 +2848,9 @@ Lemma unit_lifted_plain_step (s s' : state) :
   answered unit_lifted_plain (fun _ vs vs' => vs' = vs) (step s) s'.
 Proof.
   intros [Hlifted Hplain].
-  pose proof (unit_lifted_step known u lets e Hwf Honly s s' Hlifted)
+  pose proof
+    (unit_lifted_step known u lets e statics0 hp0 Hwf Honly Hno_code Hfree
+       Hstatics_ok s s' Hlifted)
     as Hanswer.
   pose proof (plain_step s Hplain) as Hstep.
   destruct (step s) as [t | k vs | ]; unfold answered in *; [ | | exact I ].
@@ -2792,6 +2859,23 @@ Proof.
   - destruct Hanswer as (vs' & Hexit & Hvs).
     exists vs'. split; [ exact Hexit | ].
     exact (plain_values_lifted _ vs vs' Hstep Hvs).
+Qed.
+
+(* The unit lifted refines the unit, the two run from that static
+   environment and that heap. *)
+Lemma unit_lifted_refines :
+  exits_plain [] e = true ->
+  refines (State e [] [] statics0 hp0)
+    (State (lifted_unit known lets e) [] [] statics0 hp0).
+Proof.
+  intros Hplain.
+  apply
+    (stuttering_refines unit_lifted_plain (fun _ vs vs' => vs' = vs)
+       unit_lifted_plain_step).
+  - intros last vs vs' Hsame. exact Hsame.
+  - split;
+      [ exact (unit_lifted_initial known lets e statics0 hp0 Hno_code)
+      | exact (plain_from e statics0 hp0 Hplain Hno_code) ].
 Qed.
 
 End Unit_refines.
@@ -2812,14 +2896,32 @@ Proof.
     eqn:Honly;
     [ | discriminate ].
   intros [= <-]. unfold program_refines.
-  apply
-    (stuttering_refines
-       (unit_lifted_plain (lifted_my_closures L) (lifted_lets L) e)
-       (fun _ vs vs' => vs' = vs)
-       (unit_lifted_plain_step (lifted_my_closures L) (lifting_unit L)
-          (lifted_lets L) e Hwf Honly)).
-  - intros last vs vs' Hsame. exact Hsame.
-  - split; [ apply unit_lifted_initial | exact (plain_initial e Hplain) ].
+  exact (unit_lifted_refines (lifted_my_closures L) (lifting_unit L)
+           (lifted_lets L) e empty_static_env empty_heap Hwf Honly eq_refl
+           (free_in_empty _) (fun id sym _ => statics_ok_empty id sym)
+           Hplain).
+Qed.
+
+Theorem lift_unit_refines_imports : lift_unit_refines_imports_statement.
+Proof.
+  intros imports L e e'. unfold lift_unit. cbv zeta.
+  destruct (exits_plain [] e) eqn:Hplain; [ | discriminate ].
+  fold (lifted_unit (lifted_my_closures L) (lifted_lets L) e).
+  destruct
+    (well_formed_unit (lifting_unit L)
+       (lifted_unit (lifted_my_closures L) (lifted_lets L) e))
+    eqn:Hwf;
+    [ | discriminate ].
+  destruct
+    (only_closures_of (lifted_my_closures L)
+       (lifted_unit (lifted_my_closures L) (lifted_lets L) e))
+    eqn:Honly;
+    [ | discriminate ].
+  intros [= <-] Hfree. unfold unit_refines.
+  exact (unit_lifted_refines (lifted_my_closures L) (lifting_unit L)
+           (lifted_lets L) e (imports_statics imports) empty_heap Hwf Honly
+           eq_refl Hfree
+           (fun id sym _ => statics_ok_imports id sym imports) Hplain).
 Qed.
 
 (* ======================================================================== *)

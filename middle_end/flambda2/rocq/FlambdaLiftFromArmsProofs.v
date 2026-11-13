@@ -43,8 +43,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaSemanticsSpec FlambdaSemanticsProofs
   FlambdaSimulationProofs FlambdaNominalSpec FlambdaNominalProofs
   FlambdaWellFormedSpec FlambdaWellFormedProofs FlambdaUnusedStaticsSpec
-  FlambdaLiftSpec FlambdaLiftProofs FlambdaLiftFromCodeSpec
-  FlambdaLiftFromCodeProofs FlambdaLiftFromArmsSpec.
+  FlambdaImportsSpec FlambdaUnitFromProofs FlambdaLiftSpec FlambdaLiftProofs
+  FlambdaLiftFromCodeSpec FlambdaLiftFromCodeProofs FlambdaLiftFromArmsSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -57,6 +57,12 @@ Variable u : unit_interface.
 Variable lets : list (path * lift_to).
 Variable e : expr.
 
+(* The static environment and the heap that the two runs start from:
+   the environment holds no code and binds no name that the unit lifted
+   binds. *)
+Variable statics0 : static_env.
+Variable hp0 : heap.
+
 (* The unit lifted, where something is lifted. *)
 Let bindings : list static_binding :=
   once_each [] (lifted_out_bindings lets root e).
@@ -65,48 +71,58 @@ Let lifted : expr := Let_static bindings (lift_from_code [] lets root e).
 Hypothesis Hwf : well_formed_unit u lifted = true.
 Hypothesis Hplain : exits_plain [] e = true.
 Hypothesis Hsome : bindings <> [].
+Hypothesis Hno_code : static_code statics0 = [].
+Hypothesis Hfree : static_names_free_in statics0 lifted = true.
 
 (* The second state is one that the run of the unit lifted reaches. *)
 Definition reached_lifted (s' : state) : Prop :=
-  ∃ n : nat, run n (State lifted [] [] empty_static_env empty_heap) = Step s'.
+  ∃ n : nat, run n (State lifted [] [] statics0 hp0) = Step s'.
 
 (* The two states are the initial ones; or they are related as in
    FlambdaLiftFromCodeProofs.v, the second is reached, and the first is
    one of a unit that exits with symbols and constants only. *)
 Definition unit_lifted (s s' : state) : Prop :=
-  (s = State e [] [] empty_static_env empty_heap
-   ∧ s' = State lifted [] [] empty_static_env empty_heap)
+  (s = State e [] [] statics0 hp0 ∧ s' = State lifted [] [] statics0 hp0)
   ∨ (state_lifted_out [] s s' ∧ reached_lifted s' ∧ plain_state s).
 
 (* The first step of the second run binds the group; the states are
    then related. *)
 Lemma head_bound :
   ∃ statics' : static_env,
-    step (State lifted [] [] empty_static_env empty_heap)
-    = Step (State (lift_from_code [] lets root e) [] [] statics' empty_heap)
-    ∧ state_lifted_out [] (State e [] [] empty_static_env empty_heap)
-        (State (lift_from_code [] lets root e) [] [] statics' empty_heap).
+    step (State lifted [] [] statics0 hp0)
+    = Step (State (lift_from_code [] lets root e) [] [] statics' hp0)
+    ∧ state_lifted_out [] (State e [] [] statics0 hp0)
+        (State (lift_from_code [] lets root e) [] [] statics' hp0).
 Proof.
-  pose proof (well_formed_never_faults u lifted 0 _ Hwf eq_refl) as Hfault.
+  pose proof
+    (well_formed_never_faults_from u lifted statics0 hp0 0 _ Hwf Hno_code
+       Hfree eq_refl)
+    as Hfault.
   unfold static_fault in Hfault. simpl in Hfault.
   apply orb_false_iff in Hfault as [_ Hfault].
-  destruct (no_rebinding empty_static_env _ Hfault) as [Hdistinct Hfresh].
-  destruct (eval_lifted_out_bindings [] lets root e empty_static_env
-              Hdistinct Hfresh)
+  destruct (no_rebinding statics0 _ Hfault) as [Hdistinct Hfresh].
+  destruct (eval_lifted_out_bindings [] lets root e statics0 Hdistinct Hfresh)
     as (statics' & Heval & Hcode & Hbound).
+  pose proof (eval_static_bindings_extend [] _ statics0 statics' Heval)
+    as Hextend.
   exists statics'. split.
   - unfold lifted. rewrite step_let_static. fold bindings in Heval.
     rewrite Heval. reflexivity.
   - apply State_lifted_out;
       [ intros x v [=] | constructor | | exact Hbound ].
-    split; [ intros id; rewrite Hcode; reflexivity | ].
-    split; [ intros s a [=] | intros id c [=] ].
+    split; [ intros id; rewrite Hcode, Hno_code; reflexivity | ].
+    split.
+    + intros s allocated Hs. exists allocated.
+      split; [ exact (proj2 Hextend s allocated Hs) | ].
+      apply allocated_lifted_refl.
+    + intros id c Hlookup. rewrite Hno_code in Hlookup.
+      discriminate Hlookup.
 Qed.
 
 (* A unit of which something is lifted begins with a [Let] or a
    [Let_cont]: its first step is not an exit. *)
 Lemma first_step_no_exit (k : continuation) (vs : list value) (hp : heap) :
-  step (State e [] [] empty_static_env empty_heap) <> Exit k vs hp.
+  step (State e [] [] statics0 hp0) <> Exit k vs hp.
 Proof.
   unfold bindings in Hsome.
   destruct e
@@ -114,10 +130,10 @@ Proof.
        | scrutinee arms | ];
     simpl in Hsome; try (exfalso; apply Hsome; reflexivity).
   - rewrite step_let.
-    destruct (eval_named empty_static_env [] d) as [v | ]; [ | discriminate ].
+    destruct (eval_named statics0 [] d) as [v | ]; [ | discriminate ].
     destruct (kind_eqb (kind_of_value v) xkind); discriminate.
   - rewrite step_let_static.
-    destruct (eval_static_bindings [] group empty_static_env); discriminate.
+    destruct (eval_static_bindings [] group statics0); discriminate.
   - rewrite step_let_cont_non_recursive. discriminate.
   - rewrite step_let_cont_recursive.
     destruct (handlers_bind_statics handlers); discriminate.
@@ -133,15 +149,16 @@ Proof.
   - destruct head_bound as (statics' & Hhead & Hrelated).
     assert (Hreached :
       reached_lifted
-        (State (lift_from_code [] lets root e) [] [] statics' empty_heap)).
+        (State (lift_from_code [] lets root e) [] [] statics' hp0)).
     { exists 1. simpl. rewrite Hhead. reflexivity. }
     destruct Hreached as [n Hn].
     pose proof (lifted_out_step [] _ _ Hrelated
-      (well_formed_never_faults u _ n _ Hwf Hn)) as Hanswer.
-    pose proof (plain_step _ (plain_initial e Hplain)) as Hstep.
+      (well_formed_never_faults_from u _ statics0 hp0 n _ Hwf Hno_code Hfree
+         Hn)) as Hanswer.
+    pose proof (plain_step _ (plain_from e statics0 hp0 Hplain Hno_code))
+      as Hstep.
     pose proof first_step_no_exit as Hno_exit.
-    destruct (step (State e [] [] empty_static_env empty_heap)) as
-      [t | k vs | ];
+    destruct (step (State e [] [] statics0 hp0)) as [t | k vs | ];
       unfold answered in *; [ | | exact I ].
     + destruct Hanswer as (m & t' & Hrun & Ht).
       exists (S m), t'. split.
@@ -151,7 +168,8 @@ Proof.
         exists (n + S m). rewrite run_add, Hn. exact Hrun.
     + exfalso. exact (Hno_exit k vs hp eq_refl).
   - pose proof (lifted_out_step [] s s' Hlifted
-      (well_formed_never_faults u _ n s' Hwf Hn)) as Hanswer.
+      (well_formed_never_faults_from u _ statics0 hp0 n s' Hwf Hno_code
+         Hfree Hn)) as Hanswer.
     pose proof (plain_step s Hplain_s) as Hstep.
     destruct (step s) as [t | k vs | ]; unfold answered in *; [ | | exact I ].
     + destruct Hanswer as (m & t' & Hrun & Ht).
@@ -164,8 +182,7 @@ Proof.
 Qed.
 
 Lemma unit_lifted_refines :
-  refines (State e [] [] empty_static_env empty_heap)
-    (State lifted [] [] empty_static_env empty_heap).
+  refines (State e [] [] statics0 hp0) (State lifted [] [] statics0 hp0).
 Proof.
   apply (stuttering_refines unit_lifted (fun _ vs vs' => vs' = vs)
            unit_lifted_step).
@@ -194,7 +211,32 @@ Proof.
           (lift_from_code [] lets root e)).
     { unfold lift_to_head. cbv zeta. rewrite Hbindings. reflexivity. }
     rewrite Hshape in Hwf |- *.
-    exact (unit_lifted_refines u lets e Hwf Hplain Hsome).
+    exact (unit_lifted_refines u lets e empty_static_env empty_heap Hwf
+             Hplain Hsome eq_refl (free_in_empty _)).
+Qed.
+
+Theorem lift_to_head_unit_refines_imports :
+  lift_to_head_unit_refines_imports_statement.
+Proof.
+  intros imports u lets e e'. unfold lift_to_head_unit. cbv zeta.
+  destruct (exits_plain [] e) eqn:Hplain; [ | discriminate ].
+  destruct (well_formed_unit u (lift_to_head lets e)) eqn:Hwf;
+    [ | discriminate ].
+  intros [= <-]. unfold unit_refines.
+  destruct (once_each [] (lifted_out_bindings lets root e))
+    as [ | binding rest] eqn:Hbindings.
+  - unfold lift_to_head. cbv zeta. rewrite Hbindings. intros _.
+    apply refines_refl.
+  - assert (Hsome : once_each [] (lifted_out_bindings lets root e) <> [])
+      by (rewrite Hbindings; discriminate).
+    assert (Hshape :
+      lift_to_head lets e
+      = Let_static (once_each [] (lifted_out_bindings lets root e))
+          (lift_from_code [] lets root e)).
+    { unfold lift_to_head. cbv zeta. rewrite Hbindings. reflexivity. }
+    rewrite Hshape in Hwf |- *. intros Hfree.
+    exact (unit_lifted_refines u lets e (imports_statics imports) empty_heap
+             Hwf Hplain Hsome eq_refl Hfree).
 Qed.
 
 (* ======================================================================== *)

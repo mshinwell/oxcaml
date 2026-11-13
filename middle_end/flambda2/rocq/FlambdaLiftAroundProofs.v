@@ -59,8 +59,9 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSimulationProofs FlambdaNominalSpec FlambdaNominalProofs
   FlambdaScopeSpec FlambdaWellFormedSpec FlambdaWellFormedProofs
   FlambdaClosuresSpec FlambdaClosuresProofs FlambdaStaticProofs
-  FlambdaUnusedStaticsSpec FlambdaLiftSpec FlambdaLiftProofs
-  FlambdaLiftFromCodeSpec FlambdaLiftFromCodeProofs FlambdaLiftAroundSpec.
+  FlambdaUnusedStaticsSpec FlambdaImportsSpec FlambdaUnitFromProofs
+  FlambdaLiftSpec FlambdaLiftProofs FlambdaLiftFromCodeSpec
+  FlambdaLiftFromCodeProofs FlambdaLiftAroundSpec.
 From OxCamlFlambda2 Require Import FlambdaAlphaProofs.
 Import ListNotations.
 
@@ -1321,14 +1322,22 @@ Variable lets : list (path * lift_to).
 Variable groups : list (path * list static_binding).
 Variable e : expr.
 
+(* The static environment and the heap that the two runs start from:
+   the environment holds no code and binds no name that the unit
+   rewritten binds. *)
+Variable statics0 : static_env.
+Variable hp0 : heap.
+
 Hypothesis Hwf : well_formed_unit u (lift_around lets groups root e) = true.
 Hypothesis Hok : around_ok lets groups [] root e = true.
+Hypothesis Hno_code : static_code statics0 = [].
+Hypothesis Hfree :
+  static_names_free_in statics0 (lift_around lets groups root e) = true.
 
 (* The second state is one that the run of the unit rewritten reaches. *)
 Definition reached_around (s' : state) : Prop :=
   ∃ n : nat,
-    run n
-      (State (lift_around lets groups root e) [] [] empty_static_env empty_heap)
+    run n (State (lift_around lets groups root e) [] [] statics0 hp0)
     = Step s'.
 
 (* The states are related, the second is reached, and the first is one
@@ -1343,10 +1352,13 @@ Lemma unit_around_step (s s' : state) :
   answered unit_around (fun _ vs vs' => vs' = vs) (step s) s'.
 Proof.
   intros (Hrelated & [n Hn] & Hplain).
-  pose proof (well_formed_names_bound u _ n Hwf) as Hbound.
+  pose proof (well_formed_names_bound_from u _ statics0 hp0 n Hwf Hno_code)
+    as Hbound.
   rewrite Hn in Hbound.
   pose proof (around_step s s' Hrelated
-    (well_formed_never_faults u _ n s' Hwf Hn) Hbound) as Hanswer.
+    (well_formed_never_faults_from u _ statics0 hp0 n s' Hwf Hno_code Hfree
+       Hn)
+    Hbound) as Hanswer.
   pose proof (plain_step s Hplain) as Hstep.
   destruct (step s) as [t | k vs | ]; unfold answered in *; [ | | exact I ].
   - destruct Hanswer as (m & t' & Hrun & Ht).
@@ -1360,16 +1372,34 @@ Qed.
 
 Lemma unit_around_initial :
   exits_plain [] e = true ->
-  unit_around (State e [] [] empty_static_env empty_heap)
-    (State (lift_around lets groups root e) [] [] empty_static_env empty_heap).
+  unit_around (State e [] [] statics0 hp0)
+    (State (lift_around lets groups root e) [] [] statics0 hp0).
 Proof.
   intros Hplain.
   split;
-    [ | split; [ exists 0; reflexivity | exact (plain_initial e Hplain) ] ].
+    [ | split;
+        [ exists 0; reflexivity
+        | exact (plain_from e statics0 hp0 Hplain Hno_code) ] ].
   apply (State_around lets groups []);
     [ intros x v [=] | constructor | | apply known_valid_nil | exact Hok ].
-  split; [ intros id; reflexivity | ].
-  split; [ intros s a [=] | intros id c [=] ].
+  split; [ intros id; rewrite Hno_code; reflexivity | ].
+  split; [ apply symbols_lifted_refl | ].
+  intros id c Hlookup. rewrite Hno_code in Hlookup. discriminate Hlookup.
+Qed.
+
+(* The unit rewritten refines the unit, the two run from that static
+   environment and that heap. *)
+Lemma unit_around_refines :
+  exits_plain [] e = true ->
+  refines (State e [] [] statics0 hp0)
+    (State (lift_around lets groups root e) [] [] statics0 hp0).
+Proof.
+  intros Hplain.
+  apply
+    (stuttering_refines unit_around (fun _ vs vs' => vs' = vs)
+       unit_around_step).
+  - intros last vs vs' Hsame. exact Hsame.
+  - exact (unit_around_initial Hplain).
 Qed.
 
 End Unit.
@@ -1384,11 +1414,22 @@ Proof.
   destruct (well_formed_unit u (lift_around lets groups root e)) eqn:Hwf;
     [ | discriminate ].
   intros [= <-]. unfold program_refines.
-  apply (stuttering_refines (unit_around lets groups e)
-           (fun _ vs vs' => vs' = vs)
-           (unit_around_step u lets groups e Hwf)).
-  - intros last vs vs' Hsame. exact Hsame.
-  - exact (unit_around_initial lets groups e Hok Hplain).
+  exact (unit_around_refines u lets groups e empty_static_env empty_heap Hwf
+           Hok eq_refl (free_in_empty _) Hplain).
+Qed.
+
+Theorem lift_around_unit_refines_imports :
+  lift_around_unit_refines_imports_statement.
+Proof.
+  intros imports u lets places e e'. unfold lift_around_unit. cbv zeta.
+  set (groups := groups_of lets places e).
+  destruct (exits_plain [] e) eqn:Hplain; [ | discriminate ].
+  destruct (around_ok lets groups [] root e) eqn:Hok; [ | discriminate ].
+  destruct (well_formed_unit u (lift_around lets groups root e)) eqn:Hwf;
+    [ | discriminate ].
+  intros [= <-] Hfree. unfold unit_refines.
+  exact (unit_around_refines u lets groups e (imports_statics imports)
+           empty_heap Hwf Hok eq_refl Hfree Hplain).
 Qed.
 
 (* ======================================================================== *)
