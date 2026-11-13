@@ -735,3 +735,32 @@ Definition exec_prim_closed_statement : Prop :=
     (∀ arg : value, arg ∈ vs -> value_closed h arg) ->
     exec_prim statics h p vs = Some (v, h') ->
     memory_closed statics h' ∧ value_closed h' v.
+
+(* ======================================================================== *)
+(* The values that a heap holds                                             *)
+(* ======================================================================== *)
+
+(* [P] holds of every value that a heap holds: of the values of every
+   entry, those of an entry that a later write hides included. *)
+Definition heap_values_all (P : value -> Prop) (h : heap) : Prop :=
+  ∀ (l : location) (c : cell) (v : value),
+    (l, c) ∈ h -> v ∈ values_of_cell c -> P v.
+
+(* A primitive makes its value, and the cells it makes or changes, out of
+   its arguments and of the cells it reads:
+   FlambdaPrimitiveSpec.eval_prim_preserves_statement, on a heap. The
+   property is asked of every location, since an allocation returns
+   one. *)
+Definition exec_prim_preserves_statement : Prop :=
+  ∀ (P : value -> Prop) (statics : static_env) (h h' : heap) (p : prim)
+    (vs : list value) (v : value),
+    holds_of_numbers P ->
+    holds_of_blocks P ->
+    holds_of_arrays P ->
+    holds_in_static_blocks statics P ->
+    holds_in_static_arrays statics P ->
+    (∀ l : location, P (Value_location l)) ->
+    (∀ arg : value, arg ∈ vs -> P arg) ->
+    heap_values_all P h ->
+    exec_prim statics h p vs = Some (v, h') ->
+    P v ∧ heap_values_all P h'.

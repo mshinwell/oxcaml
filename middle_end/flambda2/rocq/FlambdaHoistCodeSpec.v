@@ -341,8 +341,8 @@ Definition allocated_closures_bound (bound : code_id -> bool)
   end.
 
 (* Every closure that the state holds, in a variable, in what a
-   continuation keeps or in what a symbol is bound to, is of code that
-   is bound. *)
+   continuation keeps, in a cell of its heap or in what a symbol is
+   bound to, is of code that is bound. *)
 Definition closures_bound (s : state) : Prop :=
   state_values_all
     (fun statics v => value_closures_bound (code_id_bound statics) v = true)

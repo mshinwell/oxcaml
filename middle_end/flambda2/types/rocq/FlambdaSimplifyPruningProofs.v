@@ -90,7 +90,7 @@ Proof.
 Qed.
 
 Theorem run_valid_statics : run_valid_statics_statement.
-Proof. intros s [_ (_ & _ & Hstatics)]. exact Hstatics. Qed.
+Proof. intros s [_ (_ & _ & Hstatics & _)]. exact Hstatics. Qed.
 
 Theorem run_valid_expr : run_valid_expr_statement.
 Proof.

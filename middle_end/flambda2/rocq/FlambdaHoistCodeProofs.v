@@ -642,6 +642,25 @@ Proof.
              (eval_simple_ok vars closure c Hvars Hc)).
 Qed.
 
+(* The same of [exec_named], with the values that the heap holds. *)
+Lemma exec_named_ok (hp hp' : heap) (vars : env) (d : named) (v : value) :
+  named_closures_bound bound d = true ->
+  env_values_all value_ok vars ->
+  heap_values_all value_ok hp ->
+  exec_named statics hp vars d = Some (v, hp') ->
+  value_ok v ∧ heap_values_all value_ok hp'.
+Proof.
+  intros Hd Hvars Hheap.
+  apply (exec_named_values_all value_ok statics hp hp' vars d v
+           value_ok_of_numbers value_ok_of_blocks value_ok_of_arrays
+           value_ok_in_static_blocks value_ok_in_static_arrays
+           (fun _ => eq_refl) Hheap).
+  - intros p args vs _ Hvs.
+    pose proof (eval_simples_ok vars args vs Hvars Hvs) as Hall.
+    rewrite Forall_forall in Hall. exact Hall.
+  - intros _ w. exact (eval_named_ok vars d w Hd Hvars).
+Qed.
+
 Lemma called_closure_ok (callee : value) :
   value_ok callee -> value_ok (called_closure callee).
 Proof.
@@ -990,14 +1009,15 @@ Proof.
               = true)
            s closures_bound_partial V).
   - intros size tuple fields Htuple Hfields.
-    destruct V as (_ & _ & Hstatics).
+    destruct V as (_ & _ & Hstatics & _).
     exact (tuple_fields_ok (code_id_bound (state_statics s))
              (state_statics s) Hstatics size tuple fields Htuple Hfields).
-  - intros x kind d body v Hexpr Heval. rewrite Hexpr in P.
+  - intros x kind d body v hp' Hexpr Hexec. rewrite Hexpr in P.
     cbn [closures_in_scope] in P. apply andb_true_iff in P as [Pd _].
-    destruct V as (Hvars & _ & Hstatics).
-    exact (eval_named_ok (code_id_bound (state_statics s)) (state_statics s)
-             Hstatics (state_vars s) d v Pd Hvars Heval).
+    destruct V as (Hvars & _ & Hstatics & Hheap).
+    exact (exec_named_ok (code_id_bound (state_statics s)) (state_statics s)
+             Hstatics (state_heap s) hp' (state_vars s) d v Pd Hvars Hheap
+             Hexec).
   - intros bindings body statics' Hexpr Heval. rewrite Hexpr in P.
     cbn [closures_in_scope] in P. apply andb_true_iff in P as [Pbindings _].
     pose proof (eval_static_bindings_code_bound (state_vars s) bindings
@@ -1007,7 +1027,7 @@ Proof.
     { intros id Hid. apply Hle. unfold bound_with. rewrite Hid.
       apply orb_true_r. }
     split; [ intros v; apply value_closures_bound_le, Hle0 | ].
-    destruct V as (Hvars & _ & Hstatics).
+    destruct V as (Hvars & _ & Hstatics & _).
     apply (eval_static_bindings_ok (code_id_bound statics') (state_vars s))
       with (bindings := bindings) (statics := state_statics s).
     + exact
@@ -1052,7 +1072,9 @@ Proof.
     refine (conj _ (conj I _)); [ | intros id c [=] ].
     apply (closures_in_scope_le (fun _ => false)); [ | exact He ].
     intros id [=].
-  - repeat split; simpl; apply Forall_nil.
+  - exact
+      (conj (Forall_nil _)
+         (conj I (conj (Forall_nil _) (heap_values_all_empty _)))).
 Qed.
 
 Lemma scope_inv_run (n : nat) :
@@ -1786,7 +1808,8 @@ Lemma hoist_step_components (e : expr) (vars : env) (conts : cont_env)
        (State (without_code e) vars (hoist_conts conts)
           (code_first_env statics) hp)).
 Proof.
-  intros (W & ((_ & _ & _) & (Vvars & Vconts & Vstatics)) & (_ & K & S)).
+  intros
+    (W & ((_ & _ & _) & (Vvars & Vconts & Vstatics & _)) & (_ & K & S)).
   simpl_state.
   destruct e
     as [ x kind d body | bindings body | k h body | handlers body | ap | ac
@@ -1861,7 +1884,8 @@ End Hoisted.
 
 (* A unit that passes and the unit with its code first behave alike,
    each run from a static environment that holds no code and in which
-   what the symbols are bound to holds no closure, and from any heap. *)
+   what the symbols are bound to holds no closure, and from a heap whose
+   cells hold no closure. *)
 Lemma hoist_code_equivalent_under (slots : list value_slot) (e e' : expr)
     (conts : cont_env) (statics : static_env) (hp : heap) :
   hoist_code e = Some e' ->
@@ -1870,6 +1894,8 @@ Lemma hoist_code_equivalent_under (slots : list value_slot) (e e' : expr)
     (fun binding =>
        allocated_closures_bound (code_id_bound statics) (snd binding) = true)
     (static_values statics) ->
+  heap_values_all
+    (fun v => value_closures_bound (code_id_bound statics) v = true) hp ->
   observers slots conts ->
   equivalent (State e [] conts statics hp) (State e' [] conts statics hp).
 Proof.
@@ -1882,7 +1908,7 @@ Proof.
     eqn:Hcodes; simpl; [ | discriminate ].
   destruct (closures_in_scope (fun _ => false) e) eqn:Hscope;
     [ | discriminate ].
-  intros [= <-] Hno_code Hallocated Hobservers.
+  intros [= <-] Hno_code Hallocated Hheap Hobservers.
   unfold statics_at_toplevel_of_unit in Htoplevel.
   apply existsb_exists in Htoplevel as [unit_exn [_ Htoplevel]].
   assert (Hfresh : ∀ id : code_id, lookup id (static_code statics) = None).
@@ -1915,9 +1941,8 @@ Proof.
         + intros id c Hlookup. rewrite Hfresh in Hlookup.
           discriminate Hlookup.
       - split; [ apply Forall_nil | ].
-        split;
-          [ exact (observers_values_all _ slots conts Hobservers)
-          | exact Hallocated ]. }
+        split; [ exact (observers_values_all _ slots conts Hobservers) | ].
+        split; [ exact Hallocated | exact Hheap ]. }
     unfold known_inv. simpl_state.
     refine (conj Hknown (conj Hconts_known _)).
     intros id c Hlookup. rewrite Hfresh in Hlookup. discriminate Hlookup.
@@ -1933,11 +1958,13 @@ Lemma hoist_code_equivalent_from (e e' : expr) (statics : static_env)
     (fun binding =>
        allocated_closures_bound (code_id_bound statics) (snd binding) = true)
     (static_values statics) ->
+  heap_values_all
+    (fun v => value_closures_bound (code_id_bound statics) v = true) hp ->
   equivalent (State e [] [] statics hp) (State e' [] [] statics hp).
 Proof.
-  intros Hhoist Hno_code Hallocated.
+  intros Hhoist Hno_code Hallocated Hheap.
   exact (hoist_code_equivalent_under [] e e' [] statics hp Hhoist Hno_code
-           Hallocated (Forall_nil _)).
+           Hallocated Hheap (Forall_nil _)).
 Qed.
 
 (* The static environment of the imports of a unit is such: an import
@@ -1958,7 +1985,7 @@ Theorem hoist_code_program_equivalent :
 Proof.
   intros e e' Hhoist.
   exact (hoist_code_equivalent_from e e' empty_static_env empty_heap Hhoist
-           eq_refl (Forall_nil _)).
+           eq_refl (Forall_nil _) (heap_values_all_empty _)).
 Qed.
 
 Theorem hoist_code_equivalent_imports :
@@ -1966,7 +1993,8 @@ Theorem hoist_code_equivalent_imports :
 Proof.
   intros imports e e' Hhoist.
   exact (hoist_code_equivalent_from e e' (imports_statics imports) empty_heap
-           Hhoist eq_refl (imports_closures_bound _ imports)).
+           Hhoist eq_refl (imports_closures_bound _ imports)
+           (heap_values_all_empty _)).
 Qed.
 
 Theorem hoist_code_equivalent_observed :
@@ -1975,7 +2003,7 @@ Proof.
   intros imports conts e e' Hhoist Hobservers.
   exact (hoist_code_equivalent_under [] e e' conts (imports_statics imports)
            empty_heap Hhoist eq_refl (imports_closures_bound _ imports)
-           Hobservers).
+           (heap_values_all_empty _) Hobservers).
 Qed.
 
 (* ======================================================================== *)

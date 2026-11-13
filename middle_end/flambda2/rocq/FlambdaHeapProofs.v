@@ -1389,3 +1389,129 @@ Proof.
       - contradiction (Hnone l Harg). }
     rewrite Hbound in Hall. discriminate Hall.
 Qed.
+
+(* ======================================================================== *)
+(* The values that a heap holds                                             *)
+(* ======================================================================== *)
+
+Theorem exec_prim_preserves : exec_prim_preserves_statement.
+Proof.
+  intros P st h h1 p vs result Hnumbers Hblocks Hof_arrays Hstatic Harrays
+    Hlocations Hvs Hheap Hexec.
+  apply exec_prim_bound in Hexec as [_ Hexec]. revert Hexec.
+  assert (Hpure :
+            (let* v := eval_prim st p vs in Some (v, h)) = Some (result, h1) ->
+            P result ∧ heap_values_all P h1).
+  { destruct (eval_prim st p vs) as [v | ] eqn:Heval; simpl;
+      [ | discriminate ].
+    intros [= <- <-]. split; [ | exact Hheap ].
+    exact
+      (FlambdaPrimitiveProofs.eval_prim_preserves P st p vs v Hnumbers Hblocks
+         Hof_arrays Hstatic Harrays Hvs Heval). }
+  assert (Hconst : ∀ c : const, P (Value_const c)).
+  { intros c. exact (proj1 (Hnumbers c)). }
+  assert (Hcell :
+            ∀ (l : location) (c : cell) (v : value),
+              lookup l h = Some c -> v ∈ values_of_cell c -> P v).
+  { intros l c v Hl Hv. exact (Hheap l c v (lookup_in _ _ _ Hl) Hv). }
+  assert (Hwrite :
+            ∀ (l : location) (c : cell),
+              (∀ v : value, v ∈ values_of_cell c -> P v) ->
+              heap_values_all P ((l, c) :: h)).
+  { intros l c Hc l0 c0 v [[= <- <-] | Hin] Hv;
+      [ exact (Hc v Hv) | exact (Hheap l0 c0 v Hin Hv) ]. }
+  destruct p as [p | p | p | p]; try exact Hpure.
+  - destruct vs as [ | v [ | v2 vs]]; try exact Hpure.
+    2: { destruct v; simpl; discriminate. }
+    rewrite exec_bound_prim_unary.
+    destruct (location_of v) as [l | ] eqn:Hlocation.
+    2: { destruct v; try discriminate; exact Hpure. }
+    destruct v; try discriminate. injection Hlocation as ->.
+    destruct (lookup l h) as [c | ] eqn:Hc; simpl; [ | discriminate ].
+    destruct (exec_unary_on_cell p l c) as [res | ] eqn:Hres; simpl;
+      [ | discriminate ].
+    intros [= <- <-]. split; [ | exact Hheap ].
+    destruct c as [cell_mut tag fields | akind elements].
+    + destruct p; simpl in Hres; try discriminate.
+      * destruct (load_allowed _ cell_mut); [ | discriminate ].
+        apply load_field_in in Hres. exact (Hcell l _ res Hc Hres).
+      * injection Hres as <-. apply Hconst.
+      * injection Hres as <-. apply Hconst.
+      * injection Hres as <-. apply Hconst.
+      * destruct (kind_eqb _ Value); [ | discriminate ].
+        injection Hres as <-. apply Hlocations.
+    + destruct p as [ | [ | ] | | | length_kind | | okind | | | | | | | | ];
+        simpl in Hres; try discriminate.
+      * injection Hres as <-. apply Hconst.
+      * injection Hres as <-. apply Hconst.
+      * unfold array_length_of in Hres.
+        destruct (in_range _ _); [ | discriminate ].
+        injection Hres as <-. apply Hconst.
+      * destruct (kind_eqb _ Value); [ | discriminate ].
+        injection Hres as <-. apply Hlocations.
+  - rewrite exec_bound_prim_binary.
+    destruct (phys_equal_on_location p vs).
+    + destruct p; try discriminate.
+      destruct vs as [ | v1 [ | v2 [ | v3 vs]]]; try discriminate.
+      destruct (eval_phys_equal_location st v1 v2); simpl;
+        [ | discriminate ].
+      intros [= <- <-]. split; [ apply Hconst | exact Hheap ].
+    + destruct (binary_on_cell p vs) as [[l v2] | ]; [ | exact Hpure ].
+      destruct (lookup l h) as [c | ] eqn:Hc; simpl; [ | discriminate ].
+      destruct (exec_binary_on_cell p l c v2) as [res | ] eqn:Hres; simpl;
+        [ | discriminate ].
+      intros [= <- <-]. split; [ | exact Hheap ].
+      destruct c as [cell_mut tag fields | akind elements];
+        [ destruct p; simpl in Hres; discriminate | ].
+      destruct p as [array_kind load_kind mut | | | | | ]; simpl in Hres;
+        try discriminate.
+      destruct (load_allowed mut Cell_mutable); [ | discriminate ].
+      apply FlambdaPrimitiveProofs.array_loaded_element in Hres as [Hin _].
+      exact (Hcell l _ res Hc Hin).
+  - change (exec_bound_prim st h (Heap p) vs)
+      with (exec_heap_primitive st h p vs).
+    destruct p as [mut tag | kind init field | kind | akind set_kind].
+    + simpl. destruct (forallb _ vs) eqn:Hkinds; [ | discriminate ].
+      intros [= <- <-]. split; [ apply Hlocations | ].
+      apply Hwrite. exact Hvs.
+    + destruct vs as [ | v [ | new [ | v3 vs]]]; try (simpl; discriminate).
+      rewrite exec_block_set.
+      destruct (location_of v) as [l | ]; [ | discriminate ].
+      destruct (lookup l h) as [[[ | ] tag fields | akind elements] | ]
+        eqn:Hc;
+        try discriminate.
+      destruct (store_field kind field new tag fields) as [fields1 | ]
+        eqn:Hstore; simpl; [ | discriminate ].
+      intros [= <- <-].
+      destruct (store_field_in _ _ _ _ _ _ Hstore) as [_ Hin].
+      split; [ apply Hconst | ].
+      apply Hwrite. intros v0 Hv0. simpl in Hv0.
+      destruct (Hin v0 Hv0) as [-> | Hold].
+      * apply Hvs. right. left. reflexivity.
+      * exact (Hcell l _ v0 Hc Hold).
+    + simpl. destruct vs as [ | v0 vs0]; [ discriminate | ].
+      destruct (array_made kind (v0 :: vs0)) as [elements | ] eqn:Hmade;
+        simpl; [ | discriminate ].
+      intros [= <- <-].
+      apply FlambdaPrimitiveProofs.array_made_of_arguments in Hmade
+        as [-> Hok].
+      split; [ apply Hlocations | ].
+      apply Hwrite. exact Hvs.
+    + destruct vs as [ | v [ | index [ | new [ | v4 vs]]]];
+        try (simpl; discriminate).
+      rewrite exec_array_set.
+      destruct (location_of v) as [l | ]; [ | discriminate ].
+      destruct (lookup l h) as [[mut tag fields | kind elements] | ] eqn:Hc;
+        try discriminate.
+      destruct (array_stored set_kind kind elements index new)
+        as [stored | ] eqn:Hstore; simpl; [ | discriminate ].
+      intros [= <- <-].
+      destruct
+        (FlambdaPrimitiveProofs.array_stored_elements _ _ _ _ _ _ Hstore)
+        as (_ & _ & Hin).
+      split; [ apply Hconst | ].
+      apply Hwrite. intros v0 Hv0. simpl in Hv0.
+      destruct (Hin v0 Hv0) as [-> | Hold].
+      * apply Hvs. right. right. left. reflexivity.
+      * exact (Hcell l _ v0 Hc Hold).
+Qed.

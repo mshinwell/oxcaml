@@ -1394,6 +1394,36 @@ Proof.
              (eval_simple_among vars closure w Hvars Hclosure Heval)).
 Qed.
 
+(* The same of [exec_named], with the values that the heap holds. *)
+Lemma exec_named_among (statics : static_env) (hp hp' : heap) (vars : env)
+    (d : named) (v : value) :
+  statics_among statics ->
+  env_values_all P vars ->
+  heap_values_all P hp ->
+  named_statics_in_scope syms ids d = true ->
+  exec_named statics hp vars d = Some (v, hp') ->
+  P v ∧ heap_values_all P hp'.
+Proof.
+  intros Hstatics Hvars Hheap Hd.
+  apply (exec_named_values_all P statics hp hp' vars d v).
+  - intros c. split; reflexivity.
+  - intros tag fields. unfold P. simpl. apply forallb_forall.
+  - intros elements. unfold P. simpl. apply forallb_forall.
+  - intros s tag fields _ Hlookup.
+    pose proof (statics_among_lookup statics s _ Hstatics Hlookup)
+      as Hfields.
+    simpl in Hfields. apply forallb_forall. exact Hfields.
+  - intros s elements _ Hlookup.
+    pose proof (statics_among_lookup statics s _ Hstatics Hlookup)
+      as Helements.
+    simpl in Helements. apply forallb_forall. exact Helements.
+  - intros l. reflexivity.
+  - exact Hheap.
+  - intros p args vs -> Hvs. apply forallb_forall.
+    exact (eval_simples_among vars args Hvars vs Hd Hvs).
+  - intros _ w. exact (eval_named_among statics vars d w Hstatics Hvars Hd).
+Qed.
+
 Lemma eval_static_const_among (vars : env) (const : static_const)
     (allocated : statically_allocated_value) :
   env_values_all P vars ->
@@ -1561,7 +1591,7 @@ Lemma values_step (s : state) :
   end.
 Proof.
   intros (P & S & D & U & L & K & C) Hvalues.
-  pose proof Hvalues as (Hvars & Hconts & Hstatics).
+  pose proof Hvalues as (Hvars & Hconts & Hstatics & Hheap).
   apply (step_values_all (value_statics_bound deleted)
            (allocated_statics_bound deleted) s);
     [ | exact Hvalues | | | | | ].
@@ -1575,10 +1605,10 @@ Proof.
     destruct (block_of_cases _ _ _ _ Hblock) as [-> | (sym & -> & Hs)].
     + exact Htuple.
     + exact (statics_among_lookup _ _ (state_statics s) sym _ Hstatics Hs).
-  - intros x kind d body v He Heval. rewrite He in S. simpl in S.
+  - intros x kind d body v hp' He Hexec. rewrite He in S. simpl in S.
     apply andb_true_iff in S as [S _].
-    exact (eval_named_among _ _ (state_statics s) (state_vars s) d v Hstatics
-             Hvars S Heval).
+    exact (exec_named_among _ _ (state_statics s) (state_heap s) hp'
+             (state_vars s) d v Hstatics Hvars Hheap S Hexec).
   - intros bindings body statics' He Heval. rewrite He in S, D.
     cbn [expr_statics_in_scope static_names] in S, D.
     apply andb_true_iff in S as [S _].
@@ -1755,7 +1785,7 @@ Lemma no_scope_fault (s : state) :
   state_statics_bound deleted s ->
   statics_scope_fault deleted s = false.
 Proof.
-  intros (_ & S & _) (Hvars & Hconts & Hstatics).
+  intros (_ & S & _) (Hvars & Hconts & Hstatics & _).
   unfold statics_scope_fault.
   destruct (state_expr s)
     as [ x kind d body | bindings body | k h body | handlers body | ap | ac
@@ -1825,10 +1855,11 @@ Lemma initial_state_inv (imports : list symbol) (u : unit_interface)
   statics_in_scope imports e = true ->
   interface_conts_not_rebound u e = true ->
   imports_bound imports statics ->
+  heap_values_all (fun v => value_statics_among imports [] v = true) hp ->
   terms_inv (unit_exn u) (deleted_code_ids e) (State e [] [] statics hp)
   ∧ state_statics_bound (deleted_code_ids e) (State e [] [] statics hp).
 Proof.
-  intros Hwf Hscope Hconts (Hcode & Hbound & Hvalues).
+  intros Hwf Hscope Hconts (Hcode & Hbound & Hvalues) Hheap.
   assert (Hsyms : sub imports (bound_symbols statics)).
   { intros name Hn. unfold bound_symbols. rewrite <- is_bound_among.
     rewrite <- Hn, <- Hbound. reflexivity. }
@@ -1844,9 +1875,11 @@ Proof.
     + intros k _. apply Good_outer.
     + unfold code_all_fine. rewrite Hcode. apply Forall_nil.
   - unfold state_statics_bound, state_values_all. simpl_state.
-    refine (conj (Forall_nil _) (conj I _)).
-    revert Hvalues. apply Forall_impl. intros binding.
-    apply allocated_among_sub; [ exact Hsyms | apply sub_nil ].
+    refine (conj (Forall_nil _) (conj I (conj _ _))).
+    + revert Hvalues. apply Forall_impl. intros binding.
+      apply allocated_among_sub; [ exact Hsyms | apply sub_nil ].
+    + intros l c v Hin Hv.
+      exact (value_among_sub _ _ _ _ Hsyms (sub_nil _) v (Hheap l c v Hin Hv)).
 Qed.
 
 Lemma inv_run (unit_exn : continuation) (deleted : list code_id) (n : nat) :
@@ -1866,8 +1899,10 @@ Qed.
 
 Theorem statics_bound_in_run : statics_bound_in_run_statement.
 Proof.
-  intros imports u e statics hp n s Hwf Hscope Hconts Himports Hrun.
-  destruct (initial_state_inv imports u e statics hp Hwf Hscope Hconts Himports)
+  intros imports u e statics hp n s Hwf Hscope Hconts Himports Hheap Hrun.
+  destruct
+    (initial_state_inv imports u e statics hp Hwf Hscope Hconts Himports
+       Hheap)
     as [Hterms Hvalues].
   destruct (inv_run (unit_exn u) (deleted_code_ids e) n _ s Hterms Hvalues
               Hrun) as [Hterms' Hvalues'].

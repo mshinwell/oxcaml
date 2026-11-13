@@ -221,13 +221,15 @@ Hypothesis deleted_not_src :
 Lemma hoist_inv_after (last : state) (body : expr) (vars : env) (hp : heap) :
   hoist_inv unit_exn deleted src_code src_values last ->
   env_values_all (value_statics_bound deleted (state_statics last)) vars ->
+  heap_values_all (value_statics_bound deleted (state_statics last)) hp ->
   binds_no_static body = true ->
   expr_statics_in_scope [] [] body = true ->
   ∃ x : continuation,
     hoist_inv x deleted src_code src_values
       (State body vars [] (state_statics last) hp).
 Proof.
-  intros (Hcodes & Hsymbols & Hterms & Hbound & Hknown) Hvars Hno Hscope.
+  intros (Hcodes & Hsymbols & Hterms & Hbound & Hknown) Hvars Hheap Hno
+    Hscope.
   set (taken :=
     bound_continuations body
     ++ flat_map (fun binding => code_bound_continuations (snd binding))
@@ -270,8 +272,8 @@ Proof.
       intros binding Hin. destruct (Hfine binding Hin) as (Pc & Sc & _).
       refine (conj _ (conj Sc (Hx_code binding Hin))).
       rewrite (code_nowhere_any x unit_exn (snd binding)). exact Pc.
-  - destruct Hbound as (_ & _ & Hstatics).
-    exact (conj Hvars (conj I Hstatics)).
+  - destruct Hbound as (_ & _ & Hstatics & _).
+    exact (conj Hvars (conj I (conj Hstatics Hheap))).
   - destruct Hknown as (_ & _ & Hstatics).
     refine (conj _ (conj I Hstatics)).
     apply expr_known_nothing. exact B.
@@ -313,7 +315,11 @@ Proof.
     env_values_all (value_statics_bound deleted (state_statics last)) bound).
   { exact (bind_params_values_all _ params vs [] bound Hvs (Forall_nil _)
              Hbind). }
-  destruct (hoist_inv_after last body bound hp Hinv Hvars Hno Hscope)
+  assert (Hheap :
+    heap_values_all (value_statics_bound deleted (state_statics last)) hp).
+  { rewrite (step_exit_heap last k vs hp Hexit).
+    exact (proj2 (proj2 (proj2 Hbound))). }
+  destruct (hoist_inv_after last body bound hp Hinv Hvars Hheap Hno Hscope)
     as [x Hafter].
   destruct
     (statics_nowhere x code_ids_of_binding body (no_static_nowhere x body Hno))
@@ -345,13 +351,17 @@ Lemma hoist_statics_equivalent_under (slots : list value_slot)
          (snd binding)
        = true)
     (static_values statics) ->
+  heap_values_all
+    (fun v =>
+       value_statics_among (map fst (static_values statics)) [] v = true)
+    hp ->
   observers slots conts ->
   equivalent (State e [] conts statics hp) (State e' [] conts statics hp).
 Proof.
-  intros Hhoist Hno_code Hfree Hamong Hobservers.
+  intros Hhoist Hno_code Hfree Hamong Hheap Hobservers.
   pose proof
     (hoist_statics_equivalent_from u e e' statics hp Hhoist Hno_code Hfree
-       Hamong)
+       Hamong Hheap)
     as Halone.
   unfold hoist_statics in Hhoist.
   destruct (well_formed_unit u e) eqn:Hwf; simpl in Hhoist;
@@ -364,7 +374,7 @@ Proof.
   injection Hhoist as <-.
   destruct
     (hoist_statics_related_from u e statics hp Hwf Hscope Hconts Hapart
-       Hno_code Hfree Hamong)
+       Hno_code Hfree Hamong Hheap)
     as (src_code & src_values & Hdeleted & Hsrc & Hrel).
   pose proof (well_formed_unit_code_closed u e Hwf) as Hclosed.
   pose proof
@@ -423,5 +433,6 @@ Proof.
   intros imports conts u e e' Hhoist Hfree Hobservers.
   exact (hoist_statics_equivalent_under [] u e e' conts
            (imports_statics imports) empty_heap Hhoist eq_refl Hfree
-           (imports_statics_among _ imports) Hobservers).
+           (imports_statics_among _ imports) (heap_values_all_empty _)
+           Hobservers).
 Qed.

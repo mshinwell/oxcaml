@@ -460,9 +460,9 @@ Definition allocated_statics_bound (deleted : list code_id)
 
 (* Everything that a state holds mentions only what its static
    environment binds: the values of its variables, those that its
-   continuations keep, and what its symbols are bound to
-   (FlambdaSemanticsSpec.state_values_all says where a state holds
-   values). *)
+   continuations keep, those of the cells of its heap, and what its
+   symbols are bound to (FlambdaSemanticsSpec.state_values_all says
+   where a state holds values). *)
 Definition state_statics_bound (deleted : list code_id) (s : state) : Prop :=
   state_values_all (value_statics_bound deleted)
     (allocated_statics_bound deleted) s.
@@ -637,9 +637,16 @@ Definition imports_bound (imports : list symbol) (statics : static_env)
       (static_values statics).
 
 (* No state of the run of a well-formed unit, started with its imports
-   bound, holds a symbol that is not bound or a closure of code that is
-   neither bound nor declared deleted, anywhere; nor does its step look
-   one up; and the values that it exits with hold none. *)
+   bound and from a heap whose cells hold values that mention no symbol
+   but the imports and no code id, holds a symbol that is not bound or a
+   closure of code that is neither bound nor declared deleted, anywhere,
+   the cells of its heap included; nor does its step look one up; and
+   the values that it exits with hold none. The premise on the heap is
+   sufficient and not the weakest: it refuses, in a cell of the heap
+   that the unit starts from, any closure that mentions a code id, one
+   of code that the unit declares deleted included, which the
+   conclusion would allow. The heap is empty wherever the statement is
+   used. *)
 Definition statics_bound_in_run_statement : Prop :=
   ∀ (imports : list symbol) (u : unit_interface) (e : expr)
     (statics : static_env) (hp : heap) (n : nat) (s : state),
@@ -647,6 +654,7 @@ Definition statics_bound_in_run_statement : Prop :=
     statics_in_scope imports e = true ->
     interface_conts_not_rebound u e = true ->
     imports_bound imports statics ->
+    heap_values_all (fun v => value_statics_among imports [] v = true) hp ->
     run n (State e [] [] statics hp) = Step s ->
     state_statics_bound (deleted_code_ids e) s
     ∧ statics_scope_fault (deleted_code_ids e) s = false

@@ -1196,6 +1196,13 @@ Definition step_evolves_statement : Prop :=
   ∀ s s' : state,
     step s = Step s' -> heap_evolves (state_heap s) (state_heap s').
 
+(* An exit leaves the heap of the state that exits: the steps that can
+   exit are a call and the application of a continuation, and neither
+   changes the heap. *)
+Definition step_exit_heap_statement : Prop :=
+  ∀ (s : state) (k : continuation) (vs : list value) (hp : heap),
+    step s = Exit k vs hp -> hp = state_heap s.
+
 (* A named expression that is stable (FlambdaHeapSpec.named_stable: not a
    primitive, or a primitive with no effects and no coeffects) and that
    has a value has the same value, and changes nothing, in every heap
@@ -1208,6 +1215,25 @@ Definition exec_named_stable_statement : Prop :=
     heap_evolves hp later ->
     exec_named statics hp vars d = Some (v, hp') ->
     exec_named statics later vars d = Some (v, later).
+
+(* A primitive makes its value, and what it puts in the heap, out of
+   the values of its arguments and of what the heap holds
+   (FlambdaHeapSpec.exec_prim_preserves_statement, which is
+   FlambdaPrimitiveSpec.eval_prim_preserves_statement on a heap). *)
+Definition exec_named_preserves_statement : Prop :=
+  ∀ (P : value -> Prop) (statics : static_env) (hp hp' : heap) (vars : env)
+    (p : prim) (args : list simple) (v : value),
+    holds_of_numbers P ->
+    holds_of_blocks P ->
+    holds_of_arrays P ->
+    holds_in_static_blocks statics P ->
+    holds_in_static_arrays statics P ->
+    (∀ l : location, P (Value_location l)) ->
+    (∀ vs : list value,
+      eval_simples vars args = Some vs -> ∀ arg : value, arg ∈ vs -> P arg) ->
+    heap_values_all P hp ->
+    exec_named statics hp vars (Prim p args) = Some (v, hp') ->
+    P v ∧ heap_values_all P hp'.
 
 (* ======================================================================== *)
 (* Where a state holds values                                               *)
@@ -1247,13 +1273,27 @@ Definition conts_values_all (P : value -> Prop) (conts : cont_env) : Prop :=
     True conts.
 
 (* A state holds values in its variables, in the environments that its
-   continuations keep, and in its static environment. [P] is asked of
-   the values of the first two and [Q] of what each symbol is bound to;
-   what is to hold of the values inside a statically allocated value is
-   for [Q] to say. Both may depend on the static environment of the
-   state. The arguments of an exit are not in a state: the statement
-   covers them. *)
+   continuations keep, in its static environment and in the cells of its
+   heap. [P] is asked of the values of the first two and of the values
+   of every entry of the heap (FlambdaHeapSpec.heap_values_all), and [Q]
+   of what each symbol is bound to; what is to hold of the values inside
+   a statically allocated value is for [Q] to say. Both may depend on
+   the static environment of the state. The arguments of an exit are
+   not in a state: the statement covers them. *)
 Definition state_values_all (P : static_env -> value -> Prop)
+    (Q : static_env -> statically_allocated_value -> Prop) (s : state)
+    : Prop :=
+  env_values_all (P (state_statics s)) (state_vars s)
+  ∧ conts_values_all (P (state_statics s)) (state_conts s)
+  ∧ Forall (fun binding => Q (state_statics s) (snd binding))
+      (static_values (state_statics s))
+  ∧ heap_values_all (P (state_statics s)) (state_heap s).
+
+(* The same without the cells of the heap: the variables, the
+   environments that the continuations keep and the static environment.
+   It is what [state_values_all] asked before the cells were a place
+   where a state holds values. *)
+Definition state_values_all_but_cells (P : static_env -> value -> Prop)
     (Q : static_env -> statically_allocated_value -> Prop) (s : state)
     : Prop :=
   env_values_all (P (state_statics s)) (state_vars s)
@@ -1261,9 +1301,20 @@ Definition state_values_all (P : static_env -> value -> Prop)
   ∧ Forall (fun binding => Q (state_statics s) (snd binding))
       (static_values (state_statics s)).
 
+(* Of a state whose heap is empty the two say the same: the empty heap
+   holds no value. The state that a unit starts in, run on its own or
+   from its imports, is such a state. *)
+Definition state_values_all_empty_heap_statement : Prop :=
+  ∀ (P : static_env -> value -> Prop)
+    (Q : static_env -> statically_allocated_value -> Prop) (s : state),
+    state_heap s = empty_heap ->
+    (state_values_all P Q s <-> state_values_all_but_cells P Q s).
+
 (* A step keeps it, and the arguments of an exit satisfy [P], given of
    the state at hand:
-   - at a [Let], [P] of the value of the defining expression;
+   - at a [Let], [P] of the value of the defining expression and of the
+     values of the heap after ([exec_named_preserves_statement] gives
+     both for a primitive);
    - at a [Let_static] whose bindings evaluate, that [P] is kept by the
      static environment that results, and [Q] of everything bound in it;
    - at an [Apply] and at an [Apply_cont], [P] of the values of the
@@ -1295,10 +1346,12 @@ Definition step_values_all_statement : Prop :=
       tuple_fields (state_statics s) size tuple = Some fields ->
       Forall (P (state_statics s)) fields) ->
     (∀ (x : variable) (kind : flambda_kind) (defining_expr : named)
-       (body : expr) (v : value),
+       (body : expr) (v : value) (hp' : heap),
       state_expr s = Let x kind defining_expr body ->
-      eval_named (state_statics s) (state_vars s) defining_expr = Some v ->
-      P (state_statics s) v) ->
+      exec_named (state_statics s) (state_heap s) (state_vars s)
+        defining_expr
+      = Some (v, hp') ->
+      P (state_statics s) v ∧ heap_values_all (P (state_statics s)) hp') ->
     (∀ (bindings : list static_binding) (body : expr)
        (statics' : static_env),
       state_expr s = Let_static bindings body ->

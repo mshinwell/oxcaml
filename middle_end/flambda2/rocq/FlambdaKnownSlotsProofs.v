@@ -465,7 +465,7 @@ Proof.
            (fun _ allocated => allocated_slots_known known allocated = true)
            s (fun _ => value_slots_known_partial) Hvalid).
   - intros size tuple fields Htuple Hfields.
-    destruct Hvalid as (_ & _ & Hstatics).
+    destruct Hvalid as (_ & _ & Hstatics & _).
     apply (tuple_fields_forall _ (state_statics s) size tuple fields);
       [ | exact Hfields ].
     intros field v Hprim.
@@ -476,15 +476,25 @@ Proof.
               (value_slots_known_in_static_arrays (state_statics s) Hstatics)
               _ Hprim).
     intros w [<- | []]. exact Htuple.
-  - intros x kind d body v Hexpr Heval. rewrite Hexpr in P. simpl in P.
+  - intros x kind d body v hp' Hexpr Hexec. rewrite Hexpr in P. simpl in P.
     apply andb_true_iff in P as [Pd _].
-    destruct Hvalid as (Hvars & _ & Hstatics).
-    exact (eval_named_slots_known (state_statics s) (state_vars s) d v Pd
-             Hvars Hstatics Heval).
+    destruct Hvalid as (Hvars & _ & Hstatics & Hheap).
+    refine (exec_named_values_all Pv (state_statics s) (state_heap s) hp'
+              (state_vars s) d v value_slots_known_of_numbers
+              value_slots_known_of_blocks value_slots_known_of_arrays
+              (value_slots_known_in_static_blocks (state_statics s) Hstatics)
+              (value_slots_known_in_static_arrays (state_statics s) Hstatics)
+              (fun _ => eq_refl) Hheap _ _ Hexec).
+    + intros p args vs _ Hvs.
+      exact (proj1 (forallb_forall _ _)
+               (eval_simples_slots_known (state_vars s) Hvars args vs Hvs)).
+    + intros _ w Heval.
+      exact (eval_named_slots_known (state_statics s) (state_vars s) d w Pd
+               Hvars Hstatics Heval).
   - intros bindings body statics' Hexpr Heval.
     split; [ exact (fun v H => H) | ].
     rewrite Hexpr in P. simpl in P. apply andb_true_iff in P as [Pbindings _].
-    destruct Hvalid as (Hvars & _ & Hstatics).
+    destruct Hvalid as (Hvars & _ & Hstatics & _).
     exact (eval_static_bindings_slots_known (state_vars s) Hvars bindings
              (state_statics s) statics' Pbindings Hstatics Heval).
   - intros ap callee vs extra _ Hcallee Hargs Hextra.
@@ -523,7 +533,9 @@ Lemma slots_inv_initial (e : expr) :
 Proof.
   intros He. split.
   - exact (terms_inv_initial _ _ _ e He).
-  - exact (conj (Forall_nil _) (conj I (Forall_nil _))).
+  - exact
+      (conj (Forall_nil _)
+         (conj I (conj (Forall_nil _) (heap_values_all_empty _)))).
 Qed.
 
 (* The same from a static environment that binds something already. *)
@@ -539,7 +551,9 @@ Proof.
   - unfold terms_inv. simpl_state. refine (conj He (conj I _)).
     intros id c Hlookup. rewrite Forall_forall in Hcode.
     exact (Hcode (id, c) (lookup_in id c _ Hlookup)).
-  - exact (conj (Forall_nil _) (conj I Hvalues)).
+  - exact
+      (conj (Forall_nil _)
+         (conj I (conj Hvalues (heap_values_all_empty _)))).
 Qed.
 
 Lemma slots_inv_run (n : nat) :
@@ -582,7 +596,7 @@ Qed.
 
 Theorem read_slot_sound : read_slot_sound_statement.
 Proof.
-  intros known syms s d v (Hvars & _ & Hstatics).
+  intros known syms s d v (Hvars & _ & Hstatics & _).
   set (statics := state_statics s) in *. set (vars := state_vars s) in *.
   destruct d as [a | p args | code slots | slot decls slots | slot closure
     | project_from slot closure | move_from move_to closure];

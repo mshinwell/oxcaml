@@ -1309,7 +1309,7 @@ Proof.
            (fun _ allocated => allocated_valid allocated = true) s
            (fun _ => value_valid_partial) Hvalid).
   - intros size tuple fields Htuple Hfields.
-    destruct Hvalid as (_ & _ & Hstatics).
+    destruct Hvalid as (_ & _ & Hstatics & _).
     apply (tuple_fields_forall _ (state_statics s) size tuple fields);
       [ | exact Hfields ].
     intros field v Hprim.
@@ -1320,18 +1320,29 @@ Proof.
               (value_valid_in_static_arrays (state_statics s) Hstatics) _
               Hprim).
     intros w [<- | []]. exact Htuple.
-  - intros x kind d body v Hexpr Heval. rewrite Hexpr in P. simpl in P.
+  - intros x kind d body v hp' Hexpr Hexec. rewrite Hexpr in P. simpl in P.
     apply andb_true_iff in P as [Pd _].
-    destruct Hvalid as (Hvars & _ & Hstatics).
-    exact (eval_named_valid (state_statics s) (state_vars s) d v Pd Hvars
-             Hstatics Heval).
+    destruct Hvalid as (Hvars & _ & Hstatics & Hheap).
+    refine (exec_named_values_all (fun v => value_valid v = true)
+              (state_statics s) (state_heap s) hp' (state_vars s) d v
+              value_valid_of_numbers value_valid_of_blocks
+              value_valid_of_arrays
+              (value_valid_in_static_blocks (state_statics s) Hstatics)
+              (value_valid_in_static_arrays (state_statics s) Hstatics)
+              (fun _ => eq_refl) Hheap _ _ Hexec).
+    + intros p args vs _ Hvs.
+      exact (proj1 (forallb_forall _ _)
+               (eval_simples_valid (state_vars s) Hvars args vs Hvs)).
+    + intros _ w Heval.
+      exact (eval_named_valid (state_statics s) (state_vars s) d w Pd Hvars
+               Hstatics Heval).
   - intros bindings body statics' Hexpr Heval.
     split; [ exact (fun v H => H) | ].
     rewrite Hexpr in P. simpl in P.
     apply andb_true_iff in P as [P _].
     apply andb_true_iff in P as [P _].
     apply andb_true_iff in P as [Pwhole _].
-    destruct Hvalid as (Hvars & _ & Hstatics).
+    destruct Hvalid as (Hvars & _ & Hstatics & _).
     exact (eval_static_bindings_valid (state_vars s) bindings Hvars bindings
              (state_statics s) statics' Pwhole Hstatics Heval).
   - intros ap callee vs extra _ Hcallee Hargs Hextra.
@@ -1371,7 +1382,11 @@ Qed.
 (* The state a unit starts in holds no value. *)
 Lemma initial_state_valid (e : expr) :
   state_valid (State e [] [] empty_static_env empty_heap).
-Proof. exact (conj (Forall_nil _) (conj I (Forall_nil _))). Qed.
+Proof.
+  exact
+    (conj (Forall_nil _)
+       (conj I (conj (Forall_nil _) (heap_values_all_empty _)))).
+Qed.
 
 Theorem well_formed_values_valid : well_formed_values_valid_statement.
 Proof.
@@ -1400,7 +1415,7 @@ Proof.
   intros u e n s closure v slot slot' decls slot_values slot_values'
     code Hwf Hrun Hv Hin_set Hclosure Hslot'.
   destruct (well_formed_values_valid u e n s Hwf Hrun)
-    as (Hvars & _ & Hstatics).
+    as (Hvars & _ & Hstatics & _).
   destruct (closure_in_set_valid (state_statics s) v slot decls slot_values
               Hstatics (eval_simple_valid (state_vars s) closure v Hvars Hv)
               Hin_set)
@@ -2199,7 +2214,7 @@ Proof.
               = true)
            s (fun _ => value_sets_are_partial) Hvalid).
   - intros size tuple fields Htuple Hfields.
-    destruct Hvalid as (_ & _ & Hstatics).
+    destruct Hvalid as (_ & _ & Hstatics & _).
     apply (tuple_fields_forall _ (state_statics s) size tuple fields);
       [ | exact Hfields ].
     intros field v Hprim.
@@ -2210,15 +2225,25 @@ Proof.
               (value_sets_are_in_static_arrays (state_statics s) Hstatics) _
               Hprim).
     intros w [<- | []]. exact Htuple.
-  - intros x kind d body v Hexpr Heval. rewrite Hexpr in P. simpl in P.
+  - intros x kind d body v hp' Hexpr Hexec. rewrite Hexpr in P. simpl in P.
     apply andb_true_iff in P as [Pd _].
-    destruct Hvalid as (Hvars & _ & Hstatics).
-    exact (eval_named_sets_are (state_statics s) (state_vars s) d v Pd Hvars
-             Hstatics Heval).
+    destruct Hvalid as (Hvars & _ & Hstatics & Hheap).
+    refine (exec_named_values_all Pv (state_statics s) (state_heap s) hp'
+              (state_vars s) d v value_sets_are_of_numbers
+              value_sets_are_of_blocks value_sets_are_of_arrays
+              (value_sets_are_in_static_blocks (state_statics s) Hstatics)
+              (value_sets_are_in_static_arrays (state_statics s) Hstatics)
+              (fun _ => eq_refl) Hheap _ _ Hexec).
+    + intros p args vs _ Hvs.
+      exact (proj1 (forallb_forall _ _)
+               (eval_simples_sets_are (state_vars s) Hvars args vs Hvs)).
+    + intros _ w Heval.
+      exact (eval_named_sets_are (state_statics s) (state_vars s) d w Pd
+               Hvars Hstatics Heval).
   - intros bindings body statics' Hexpr Heval.
     split; [ exact (fun v H => H) | ].
     rewrite Hexpr in P. simpl in P. apply andb_true_iff in P as [Pbindings _].
-    destruct Hvalid as (Hvars & _ & Hstatics).
+    destruct Hvalid as (Hvars & _ & Hstatics & _).
     exact (eval_static_bindings_sets_are (state_vars s) Hvars bindings
              (state_statics s) statics' Pbindings Hstatics Heval).
   - intros ap callee vs extra _ Hcallee Hargs Hextra.
@@ -2268,7 +2293,8 @@ Proof.
     (state_sets_are_run c function_decls closure_symbols n
        (State e [] [] empty_static_env empty_heap)
        (terms_inv_initial _ _ _ e He)
-       (conj (Forall_nil _) (conj I (Forall_nil _))))
+       (conj (Forall_nil _)
+          (conj I (conj (Forall_nil _) (heap_values_all_empty _)))))
     as H.
   rewrite Hrun in H. exact H.
 Qed.
@@ -2276,7 +2302,7 @@ Qed.
 Theorem closure_of_code : closure_of_code_statement.
 Proof.
   intros c function_decls closure_symbols s closure v slot_values
-    (Hvars & _ & Hstatics) Hv Hclosure.
+    (Hvars & _ & Hstatics & _) Hv Hclosure.
   destruct (proj1 (closure_in_set_of (state_statics s) v c slot_values)
               Hclosure)
     as (slot & decls & Hin_set & Hslot).
@@ -2314,7 +2340,7 @@ Proof.
               slot_values Hsets Hv Hclosure)
     as (at_slot & Hin_set & _).
   destruct (well_formed_values_valid u e n s Hwf Hrun)
-    as (Hvars & _ & Hstatics).
+    as (Hvars & _ & Hstatics & _).
   destruct (closure_in_set_valid (state_statics s) v at_slot function_decls
               slot_values Hstatics
               (eval_simple_valid (state_vars s) closure v Hvars Hv) Hin_set)
@@ -2336,7 +2362,7 @@ Proof.
        closure v slot_values slot Hwf He Hrun Hv Hclosure Hslot)
     as Hin_set.
   destruct (well_formed_values_valid u e n s Hwf Hrun)
-    as (_ & _ & Hstatics).
+    as (_ & _ & Hstatics & _).
   assert (Hbound : is_bound sibling function_decls = true)
     by (unfold is_bound; rewrite Hsibling; reflexivity).
   destruct (project_function_slot_valid (state_statics s) slot sibling v
@@ -2361,7 +2387,7 @@ Proof.
        closure v slot_values slot Hwf He Hrun Hv Hclosure Hslot)
     as Hin_set.
   destruct (sets_are_kept c function_decls (Some symbols) e n s He Hrun)
-    as (Hsets_vars & _ & Hsets_statics).
+    as (Hsets_vars & _ & Hsets_statics & _).
   destruct (closure_in_set_sets_are c function_decls (Some symbols)
               (state_statics s) v slot function_decls slot_values
               Hsets_statics
@@ -2376,7 +2402,7 @@ Proof.
               symbols function_decls slot_values Hbound_symbol)
     as [Hslot_symbol _].
   destruct (well_formed_values_valid u e n s Hwf Hrun)
-    as (_ & _ & Hstatics).
+    as (_ & _ & Hstatics & _).
   pose proof
     (statics_valid_lookup (state_statics s) slot_symbol _ Hstatics
        Hbound_symbol)
@@ -2408,7 +2434,7 @@ Proof.
   destruct (closure_of_code c function_decls (Some symbols) s closure v
               slot_values Hsets Hv Hclosure)
     as (slot & Hin_set & Hslot).
-  destruct Hsets as (Hsets_vars & _ & Hsets_statics).
+  destruct Hsets as (Hsets_vars & _ & Hsets_statics & _).
   destruct (closure_in_set_sets_are c function_decls (Some symbols)
               (state_statics s) v slot function_decls slot_values
               Hsets_statics

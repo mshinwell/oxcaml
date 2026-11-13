@@ -1464,7 +1464,7 @@ Lemma hoist_step_components (e : expr) (vars : env) (conts : cont_env)
        (State (without_hoisted e) vars (hoist_conts conts)
           (hoist_env statics) hp)).
 Proof.
-  intros (W & Ws & (_ & Sc & _) & (Vvars & Vconts & Vstatics)
+  intros (W & Ws & (_ & Sc & _) & (Vvars & Vconts & Vstatics & _)
           & (K & Kc & S)).
   simpl_state.
   destruct e
@@ -1576,7 +1576,8 @@ Qed.
 (* The simulation of a unit that passes, run from a static environment
    that holds no code, binds no name that the unit binds, and binds its
    symbols to things that mention only symbols that it binds; and from
-   any heap. The bindings taken to the head evaluate, with no variable,
+   a heap whose cells hold values that mention only those symbols. The
+   bindings taken to the head evaluate, with no variable,
    to a static environment; the first state of the unit is related to
    the unit without those bindings in that environment, which is what
    the unit with them first steps to. The symbols of the environment
@@ -1596,6 +1597,10 @@ Lemma hoist_statics_related_from (u : unit_interface) (e : expr)
          (snd binding)
        = true)
     (static_values statics) ->
+  heap_values_all
+    (fun v =>
+       value_statics_among (map fst (static_values statics)) [] v = true)
+    hp ->
   ∃ (src_code : list (code_id * code))
     (src_values : list (symbol * statically_allocated_value)),
     (∀ id : code_id,
@@ -1607,7 +1612,7 @@ Lemma hoist_statics_related_from (u : unit_interface) (e : expr)
         (State (without_hoisted e) [] [] (Static_env src_code src_values)
            hp).
 Proof.
-  intros Hwf Hscope Hconts Hapart Hno_code Hfree Hamong.
+  intros Hwf Hscope Hconts Hapart Hno_code Hfree Hamong Hheap.
   pose proof (well_formed_unit_statics_at_toplevel u e Hwf) as Htoplevel.
   pose proof (well_formed_unit_code_ids_distinct u e Hwf) as Hcodes.
   pose proof (well_formed_unit_symbols_distinct u e Hwf) as Hsymbols.
@@ -1708,7 +1713,7 @@ Proof.
   { exact (expr_scope_sub e [] _ [] [] (sub_nil _) (sub_nil _) Hscope). }
   destruct
     (initial_state_inv (map fst (static_values statics)) u e statics hp Hwf
-       Hscope' Hconts Hbound)
+       Hscope' Hconts Hbound Hheap)
     as [Hterms Hvalues].
   refine
     (conj
@@ -1727,7 +1732,7 @@ Proof.
 Qed.
 
 (* A unit that passes and the unit with those bindings first behave
-   alike, each run from such a static environment and from any heap. *)
+   alike, each run from such a static environment and such a heap. *)
 Lemma hoist_statics_equivalent_from (u : unit_interface) (e e' : expr)
     (statics : static_env) (hp : heap) :
   hoist_statics u e = Some e' ->
@@ -1739,6 +1744,10 @@ Lemma hoist_statics_equivalent_from (u : unit_interface) (e e' : expr)
          (snd binding)
        = true)
     (static_values statics) ->
+  heap_values_all
+    (fun v =>
+       value_statics_among (map fst (static_values statics)) [] v = true)
+    hp ->
   equivalent (State e [] [] statics hp) (State e' [] [] statics hp).
 Proof.
   unfold hoist_statics.
@@ -1747,10 +1756,10 @@ Proof.
   destruct (interface_conts_not_rebound u e) eqn:Hconts; simpl;
     [ | discriminate ].
   destruct (static_names_apart [] e) eqn:Hapart; [ | discriminate ].
-  intros [= <-] Hno_code Hfree Hamong.
+  intros [= <-] Hno_code Hfree Hamong Hheap.
   destruct
     (hoist_statics_related_from u e statics hp Hwf Hscope Hconts Hapart
-       Hno_code Hfree Hamong)
+       Hno_code Hfree Hamong Hheap)
     as (src_code & src_values & Hdeleted & Hsrc & Hrel).
   apply (equivalent_trans _
            (State (without_hoisted e) [] [] (Static_env src_code src_values)
@@ -1783,7 +1792,8 @@ Theorem hoist_statics_program_equivalent :
 Proof.
   intros u e e' Hhoist.
   exact (hoist_statics_equivalent_from u e e' empty_static_env empty_heap
-           Hhoist eq_refl (free_in_empty e) (Forall_nil _)).
+           Hhoist eq_refl (free_in_empty e) (Forall_nil _)
+           (heap_values_all_empty _)).
 Qed.
 
 Theorem hoist_statics_equivalent_imports :
@@ -1791,7 +1801,8 @@ Theorem hoist_statics_equivalent_imports :
 Proof.
   intros imports u e e' Hhoist Hfree.
   exact (hoist_statics_equivalent_from u e e' (imports_statics imports)
-           empty_heap Hhoist eq_refl Hfree (imports_statics_among _ imports)).
+           empty_heap Hhoist eq_refl Hfree (imports_statics_among _ imports)
+           (heap_values_all_empty _)).
 Qed.
 
 (* ======================================================================== *)

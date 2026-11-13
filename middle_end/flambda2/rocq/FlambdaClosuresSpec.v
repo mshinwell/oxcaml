@@ -489,10 +489,11 @@ Definition statics_valid (statics : static_env) : Prop :=
   Forall (fun binding => allocated_valid (snd binding) = true)
     (static_values statics).
 
-(* Every value that the state holds is valid: those of its variables and
-   of the environments that its continuations keep, and what each symbol
-   is bound to (FlambdaSemanticsSpec.state_values_all, which says where a
-   state holds values). *)
+(* Every value that the state holds is valid: those of its variables, of
+   the environments that its continuations keep and of the cells of its
+   heap, and what each symbol is bound to
+   (FlambdaSemanticsSpec.state_values_all, which says where a state holds
+   values). *)
 Definition state_valid (s : state) : Prop :=
   state_values_all (fun _ v => value_valid v = true)
     (fun _ allocated => allocated_valid allocated = true) s.

@@ -435,9 +435,10 @@ Definition allocated_slots_known (known : known_slots)
   | Static_string _ | Static_imported _ => true
   end.
 
-(* Every value that the state holds is so: those of its variables and
-   of the environments that its continuations keep, and what each
-   symbol is bound to (FlambdaSemanticsSpec.state_values_all). *)
+(* Every value that the state holds is so: those of its variables, of
+   the environments that its continuations keep and of the cells of its
+   heap, and what each symbol is bound to
+   (FlambdaSemanticsSpec.state_values_all). *)
 Definition state_slots_known (known : known_slots) (s : state) : Prop :=
   state_values_all (fun _ v => value_slots_known known v = true)
     (fun _ allocated => allocated_slots_known known allocated = true) s.
