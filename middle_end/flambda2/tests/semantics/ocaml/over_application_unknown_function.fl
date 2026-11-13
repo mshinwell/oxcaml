@@ -1,0 +1,121 @@
+let $camlOver_application_unknown_function__first_const_0 = Block 0 () in
+(let code size(4)
+       `fn[over_application_unknown_function.ml:14,2--16]_1`
+         (y/114 : imm tagged)
+         my_closure/115 &my_alloc_region/116 my_depth/117
+         -> k/38 * k/39
+         : imm tagged =
+   let next_depth/118 = rec_info (succ my_depth/117) in
+   let x/119 =
+     %project_value_slot.[`fn[over_application_unknown_function.ml:14,2--16]`].[x]
+       (my_closure/115)
+   in
+   let int_add/120 = %int_barith.add (x/119, y/114) in
+   cont k/38 (int_add/120)
+ in
+ let code size(17)
+       adder_0 (x/121 : imm tagged)
+         my_closure/122 &my_alloc_region/123 my_depth/124
+         -> k/40 * k/41
+         : val =
+   let next_depth/125 = rec_info (succ my_depth/124) in
+   let x/126 = %int_barith.mul (x/121, 10) in
+   let `fn[over_application_unknown_function.ml:14,2--16]/127` =
+     closure `fn[over_application_unknown_function.ml:14,2--16]_1`
+       @`fn[over_application_unknown_function.ml:14,2--16]`
+       &my_alloc_region/123
+   with { x = x/126 }
+   in
+   cont k/40 (`fn[over_application_unknown_function.ml:14,2--16]/127`)
+ in
+ let code size(4)
+       `fn[over_application_unknown_function.ml:18,2--16]_3`
+         (y/128 : imm tagged)
+         my_closure/129 &my_alloc_region/130 my_depth/131
+         -> k/42 * k/43
+         : imm tagged =
+   let next_depth/132 = rec_info (succ my_depth/131) in
+   let x/133 =
+     %project_value_slot.[`fn[over_application_unknown_function.ml:18,2--16]`].[x_1]
+       (my_closure/129)
+   in
+   let int_sub/134 = %int_barith.sub (x/133, y/128) in
+   cont k/42 (int_sub/134)
+ in
+ let code size(17)
+       subtracter_2 (x/135 : imm tagged)
+         my_closure/136 &my_alloc_region/137 my_depth/138
+         -> k/44 * k/45
+         : val =
+   let next_depth/139 = rec_info (succ my_depth/138) in
+   let x/140 = %int_barith.mul (x/135, 10) in
+   let `fn[over_application_unknown_function.ml:18,2--16]/141` =
+     closure `fn[over_application_unknown_function.ml:18,2--16]_3`
+       @`fn[over_application_unknown_function.ml:18,2--16]`
+       &my_alloc_region/137
+   with { x_1 = x/140 }
+   in
+   cont k/44 (`fn[over_application_unknown_function.ml:18,2--16]/141`)
+ in
+ let code inline(never) size(6)
+       apply_both_4 (f/142 : val, a/143 : imm tagged, b/144 : imm tagged)
+         my_closure/145 &my_alloc_region/146 my_depth/147
+         -> k/46 * k/47
+         : imm tagged =
+   let next_depth/148 = rec_info (succ my_depth/147) in
+   apply &my_alloc_region/146 f/142 (a/143, b/144) -> k/46 * k/47
+ in
+ let adder/149 = closure adder_0 @adder &toplevel in
+ let subtracter/150 = closure subtracter_2 @subtracter &toplevel in
+ let apply_both/151 = closure apply_both_4 @apply_both &toplevel in
+ (let Popaque/161 = %opaque (1) in
+  let untagged/162 = %untag_imm (Popaque/161) in
+  switch untagged/162
+    | 0 -> k/53 (subtracter/150)
+    | 1 -> k/53 (adder/149))
+   where k/53 (switch_result/160 : val) =
+     apply &toplevel switch_result/160 (4, 2) -> k/48 * error
+   where k/48 (chosen_true/152 : imm tagged) =
+     ((let Popaque/158 = %opaque (0) in
+       let untagged/159 = %untag_imm (Popaque/158) in
+       switch untagged/159
+         | 0 -> k/52 (subtracter/150)
+         | 1 -> k/52 (adder/149))
+        where k/52 (switch_result/157 : val) =
+          apply &toplevel switch_result/157 (4, 2) -> k/49 * error
+        where k/49 (chosen_false/153 : imm tagged) =
+          (apply direct(apply_both_4 &toplevel)
+             (apply_both/151 : _ -> imm tagged)
+               (adder/149, 5, 1)
+               -> k/50 * error
+             where k/50 (through_argument/154 : imm tagged) =
+               (apply direct(apply_both_4 &toplevel)
+                  (apply_both/151 : _ -> imm tagged)
+                    (subtracter/150, 5, 1)
+                    -> k/51 * error
+                  where k/51 (through_argument_other/155 : imm tagged) =
+                    let Pmakeblock/156 =
+                      %block.[`0`].`toplevel`
+                        (chosen_true/152,
+                         chosen_false/153,
+                         through_argument/154,
+                         through_argument_other/155)
+                    in
+                    cont k/37 (Pmakeblock/156)))))
+  where k/37 define_root_symbol (module_block/109) =
+    let field_0/110 =
+      %block_load.tag[`0`].`size`[`4`].[`0`] (module_block/109)
+    in
+    let field_1/111 =
+      %block_load.tag[`0`].`size`[`4`].[`1`] (module_block/109)
+    in
+    let field_2/112 =
+      %block_load.tag[`0`].`size`[`4`].[`2`] (module_block/109)
+    in
+    let field_3/113 =
+      %block_load.tag[`0`].`size`[`4`].[`3`] (module_block/109)
+    in
+    let $camlOver_application_unknown_function =
+      Block 0 (field_0/110, field_1/111, field_2/112, field_3/113)
+    in
+    cont done ($camlOver_application_unknown_function)

@@ -1,0 +1,8 @@
+attr_inlined_never_at_call.fl:
+  before Simplify (27 steps): returns [0: 42]
+  after Simplify (20 steps): returns [0: 42]
+  the check of kinds: passes before, passes after
+  calls outside code: 3 before, 2 after
+  the same
+  calls outside code once those of known code are inlined: 0
+  validated: the same once normalised and unused static bindings removed, at the head of the term after too

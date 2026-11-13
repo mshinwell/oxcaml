@@ -1,0 +1,144 @@
+(let code inline(never) size(104)
+       class__0
+         (t/97 :
+            [ 0 |1 |2 |3 |4 |5 |6 |7 | 0 of imm tagged |1 of imm tagged
+            |2 of imm tagged * imm tagged |3 of imm tagged ])
+         my_closure/98 &my_alloc_region/99 my_depth/100
+         -> k/54 * k/55
+         : imm tagged =
+   let next_depth/101 = rec_info (succ my_depth/100) in
+   (let prim/114 = %is_int (t/97) in
+    let is_scrutinee_int/115 = %tag_imm (prim/114) in
+    let untagged/116 = %untag_imm (is_scrutinee_int/115) in
+    switch untagged/116
+      | 0 -> k/68
+      | 1 -> k/69)
+     where k/69 =
+       let untagged/113 = %untag_imm (t/97) in
+       switch untagged/113
+         | 0 -> k/59
+         | 1 -> k/60
+         | 2 -> k/61
+         | 3 -> k/62
+         | 4 -> k/63
+         | 5 -> k/64
+         | 6 -> k/54 (5)
+         | 7 -> k/54 (4)
+     where k/68 =
+       let prim/110 = %get_tag (t/97) in
+       let scrutinee_tag/111 = %tag_imm (prim/110) in
+       let untagged/112 = %untag_imm (scrutinee_tag/111) in
+       switch untagged/112
+         | 0 -> k/65
+         | 1 -> k/54 (20)
+         | 2 -> k/66
+         | 3 -> k/67
+     where k/67 =
+       let Pfield/108 = %block_load.[`0`] (t/97) in
+       let int_add/109 = %int_barith.add (40, Pfield/108) in
+       cont k/54 (int_add/109)
+     where k/66 =
+       let Pfield/104 = %block_load.[`1`] (t/97) in
+       let Pfield/105 = %block_load.[`0`] (t/97) in
+       let int_add/106 = %int_barith.add (30, Pfield/105) in
+       let int_add/107 = %int_barith.add (int_add/106, Pfield/104) in
+       cont k/54 (int_add/107)
+     where k/65 =
+       let Pfield/102 = %block_load.[`0`] (t/97) in
+       let int_add/103 = %int_barith.add (10, Pfield/102) in
+       cont k/54 (int_add/103)
+     where k/64 =
+       cont k/56
+     where k/63 =
+       cont k/56
+     where k/62 =
+       cont k/57
+     where k/61 =
+       cont k/57
+     where k/60 =
+       cont k/58
+     where k/59 =
+       cont k/58
+     where k/58 =
+       cont k/54 (1)
+     where k/57 =
+       cont k/54 (2)
+     where k/56 =
+       cont k/54 (3)
+ in
+ let $camlVar_twelve_mixed__const_block_1 = Block 1 (0) in
+ let $camlVar_twelve_mixed__const_block_0 = Block 3 (4) in
+ let class_/117 = closure class__0 @class_ &toplevel in
+ (let region/120 = %begin_region () in
+  let ghost_region/121 = %begin_ghost_region () in
+  apply direct(class__0 &toplevel)
+    (class_/117 : _ -> imm tagged)
+      ($camlVar_twelve_mixed__const_block_0)
+      -> k/72 * error
+    where k/72 (apply_result/125 : imm tagged) =
+      ((let Popaque/140 = %opaque (2) in
+        let Pmakeblock/141 =
+          %block.[`2`].`toplevel`.local[region/120] (1, Popaque/140)
+        in
+        apply direct(class__0 &toplevel)
+          (class_/117 : _ -> imm tagged) (Pmakeblock/141) -> k/73 * error)
+         where k/73 (apply_result/126 : imm tagged) =
+           (apply direct(class__0 &toplevel)
+              (class_/117 : _ -> imm tagged)
+                ($camlVar_twelve_mixed__const_block_1)
+                -> k/74 * error
+              where k/74 (apply_result/127 : imm tagged) =
+                ((let Popaque/138 = %opaque (3) in
+                  let Pmakeblock/139 =
+                    %block.[`0`].`toplevel`.local[region/120] (Popaque/138)
+                  in
+                  apply direct(class__0 &toplevel)
+                    (class_/117 : _ -> imm tagged)
+                      (Pmakeblock/139)
+                      -> k/75 * error)
+                   where k/75 (apply_result/128 : imm tagged) =
+                     ((let Popaque/137 = %opaque (7) in
+                       apply direct(class__0 &toplevel)
+                         (class_/117 : _ -> imm tagged)
+                           (Popaque/137)
+                           -> k/76 * error)
+                        where k/76 (apply_result/129 : imm tagged) =
+                          ((let Popaque/136 = %opaque (3) in
+                            apply direct(class__0 &toplevel)
+                              (class_/117 : _ -> imm tagged)
+                                (Popaque/136)
+                                -> k/77 * error)
+                             where k/77 (apply_result/130 : imm tagged) =
+                               let int_add/131 =
+                                 %int_barith.add
+                                   (apply_result/130, apply_result/129)
+                               in
+                               let int_add/132 =
+                                 %int_barith.add
+                                   (int_add/131, apply_result/128)
+                               in
+                               let int_add/133 =
+                                 %int_barith.add
+                                   (int_add/132, apply_result/127)
+                               in
+                               let int_add/134 =
+                                 %int_barith.add
+                                   (int_add/133, apply_result/126)
+                               in
+                               let int_add/135 =
+                                 %int_barith.add
+                                   (int_add/134, apply_result/125)
+                               in
+                               cont k/71 (int_add/135))))))
+    where k/71 (region_return/122 : imm tagged) =
+      let unit/123 = %end_region (region/120) in
+      let unit/124 = %end_ghost_region (ghost_region/121) in
+      cont k/70 (region_return/122))
+   where k/70 (result/118 : imm tagged) =
+     let Pmakeblock/119 = %block.[`0`].`toplevel` (result/118) in
+     cont k/53 (Pmakeblock/119))
+  where k/53 define_root_symbol (module_block/95) =
+    let field_0/96 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/95)
+    in
+    let $camlVar_twelve_mixed = Block 0 (field_0/96) in
+    cont done ($camlVar_twelve_mixed)

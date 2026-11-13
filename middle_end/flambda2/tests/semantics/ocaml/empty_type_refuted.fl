@@ -1,0 +1,25 @@
+let $camlEmpty_type_refuted__first_const_0 = Block 0 () in
+(let region/41 = %begin_region () in
+ let ghost_region/42 = %begin_ghost_region () in
+ (let Popaque/46 = %opaque (5) in
+  let e/47 = %block.[`0`].`toplevel`.local[region/41] (Popaque/46) in
+  let Pfield/48 = %block_load.[`0`] (e/47) in
+  let int_mul/49 = %int_barith.mul (Pfield/48, 2) in
+  let int_mul/50 = %int_barith.mul (int_mul/49, 10) in
+  let Popaque/51 = %opaque (4) in
+  let e/52 = %block.[`0`].`toplevel`.local[region/41] (Popaque/51) in
+  let Pfield/53 = %block_load.[`0`] (e/52) in
+  let int_add/54 = %int_barith.add (Pfield/53, int_mul/50) in
+  cont k/11 (int_add/54))
+   where k/11 (region_return/43 : imm tagged) =
+     let unit/44 = %end_region (region/41) in
+     let unit/45 = %end_ghost_region (ghost_region/42) in
+     cont k/10 (region_return/43))
+  where k/10 (result/39 : imm tagged) =
+    let Pmakeblock/40 = %block.[`0`].`toplevel` (result/39) in
+    cont k/9 (Pmakeblock/40)
+  where k/9 define_root_symbol (module_block/37) =
+    let field_0/38 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/37)
+    in
+    let $camlEmpty_type_refuted = Block 0 (field_0/38) in
+    cont done ($camlEmpty_type_refuted)

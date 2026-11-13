@@ -1,0 +1,88 @@
+(let code size(22)
+       scale_0 (`*opt*by/66` : [ 0 | 0 of imm tagged ], x/67 : imm tagged)
+         my_closure/68 &my_alloc_region/69 my_depth/70
+         -> k/28 * k/29
+         : imm tagged =
+   let next_depth/71 = rec_info (succ my_depth/70) in
+   (let prim/75 = %is_int (`*opt*by/66`) in
+    let Pisint/76 = %tag_imm (prim/75) in
+    (let untagged/77 = %untag_imm (Pisint/76) in
+     switch untagged/77
+       | 0 -> k/32
+       | 1 -> k/30 (10))
+      where k/32 =
+        cont k/31)
+     where k/31 =
+       let Pfield/74 = %block_load.[`0`] (`*opt*by/66`) in
+       cont k/30 (Pfield/74)
+     where k/30 (by/72 : imm tagged) =
+       let int_mul/73 = %int_barith.mul (x/67, by/72) in
+       cont k/28 (int_mul/73)
+ in
+ let $camlOptional_given_omitted_none_some__const_block_2 = Block 0 (7) in
+ let $camlOptional_given_omitted_none_some__const_block_1 = Block 0 (5) in
+ let $camlOptional_given_omitted_none_some__const_block_0 = Block 0 (2) in
+ let scale/78 = closure scale_0 @scale &toplevel in
+ apply direct(scale_0 &toplevel)
+   (scale/78 : _ -> imm tagged) (0, 3) -> k/33 * error
+   where k/33 (omitted/79 : imm tagged) =
+     (apply direct(scale_0 &toplevel)
+        (scale/78 : _ -> imm tagged)
+          ($camlOptional_given_omitted_none_some__const_block_0, 3)
+          -> k/34 * error
+        where k/34 (given/80 : imm tagged) =
+          (apply direct(scale_0 &toplevel)
+             (scale/78 : _ -> imm tagged) (0, 3) -> k/35 * error
+             where k/35 (given_none/81 : imm tagged) =
+               (apply direct(scale_0 &toplevel)
+                  (scale/78 : _ -> imm tagged)
+                    ($camlOptional_given_omitted_none_some__const_block_1, 3)
+                    -> k/36 * error
+                  where k/36 (given_some/82 : imm tagged) =
+                    ((let Popaque/87 = %opaque (0) in
+                      apply direct(scale_0 &toplevel)
+                        (scale/78 : _ -> imm tagged)
+                          (Popaque/87, 3)
+                          -> k/37 * error)
+                       where k/37 (unknown_none/83 : imm tagged) =
+                         ((let Popaque/86 =
+                             %opaque
+                               ($camlOptional_given_omitted_none_some__const_block_2)
+                           in
+                           apply direct(scale_0 &toplevel)
+                             (scale/78 : _ -> imm tagged)
+                               (Popaque/86, 3)
+                               -> k/38 * error)
+                            where k/38 (unknown_some/84 : imm tagged) =
+                              let Pmakeblock/85 =
+                                %block.[`0`].`toplevel`
+                                  (omitted/79,
+                                   given/80,
+                                   given_none/81,
+                                   given_some/82,
+                                   unknown_none/83,
+                                   unknown_some/84)
+                              in
+                              cont k/27 (Pmakeblock/85)))))))
+  where k/27 define_root_symbol (module_block/59) =
+    let field_0/60 = %block_load.tag[`0`].`size`[`6`].[`0`] (module_block/59)
+    in
+    let field_1/61 = %block_load.tag[`0`].`size`[`6`].[`1`] (module_block/59)
+    in
+    let field_2/62 = %block_load.tag[`0`].`size`[`6`].[`2`] (module_block/59)
+    in
+    let field_3/63 = %block_load.tag[`0`].`size`[`6`].[`3`] (module_block/59)
+    in
+    let field_4/64 = %block_load.tag[`0`].`size`[`6`].[`4`] (module_block/59)
+    in
+    let field_5/65 = %block_load.tag[`0`].`size`[`6`].[`5`] (module_block/59)
+    in
+    let $camlOptional_given_omitted_none_some =
+      Block 0 (field_0/60,
+               field_1/61,
+               field_2/62,
+               field_3/63,
+               field_4/64,
+               field_5/65)
+    in
+    cont done ($camlOptional_given_omitted_none_some)

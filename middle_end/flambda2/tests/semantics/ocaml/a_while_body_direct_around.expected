@@ -1,0 +1,10 @@
+a_while_body_direct_around.fl:
+  before Simplify, with its import (324 steps): returns
+                                                  [0: 1026; 114; 1001; 0]
+  after Simplify, with its import (167 steps): returns
+                                                 [0: 1026; 114; 1001; 0]
+  the check of kinds: passes before, passes after
+  calls outside code: 4 before, 4 after
+  the same
+  calls outside code once those of known code are inlined: 0
+  validated with its imports: the same once normalised and unused static bindings removed, at the head of the term after too

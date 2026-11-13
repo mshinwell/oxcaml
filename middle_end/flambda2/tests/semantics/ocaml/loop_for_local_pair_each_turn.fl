@@ -1,0 +1,230 @@
+let $camlLoop_for_local_pair_each_turn__first_const_0 = Block 0 () in
+(let code inline(never) size(9)
+       read2_0 (p/257 : [ 0 of imm tagged * imm tagged ])
+         my_closure/258 &my_alloc_region/259 my_depth/260
+         -> k/70 * k/71
+         : imm tagged =
+   let next_depth/261 = rec_info (succ my_depth/260) in
+   let Pmixedfield/262 = %block_load.[`1`] (p/257) in
+   let Pmixedfield/263 = %block_load.[`0`] (p/257) in
+   let int_mul/264 = %int_barith.mul (Pmixedfield/263, 3) in
+   let int_add/265 = %int_barith.add (int_mul/264, Pmixedfield/262) in
+   cont k/70 (int_add/265)
+ in
+ let code inline(never) size(16)
+       read3_1 (t/266 : [ 0 of imm tagged * imm tagged * imm tagged ])
+         my_closure/267 &my_alloc_region/268 my_depth/269
+         -> k/72 * k/73
+         : imm tagged =
+   let next_depth/270 = rec_info (succ my_depth/269) in
+   let Pmixedfield/271 = %block_load.[`2`] (t/266) in
+   let Pmixedfield/272 = %block_load.[`1`] (t/266) in
+   let int_mul/273 = %int_barith.mul (Pmixedfield/272, 3) in
+   let Pmixedfield/274 = %block_load.[`0`] (t/266) in
+   let int_mul/275 = %int_barith.mul (Pmixedfield/274, 5) in
+   let int_add/276 = %int_barith.add (int_mul/275, int_mul/273) in
+   let int_add/277 = %int_barith.add (int_add/276, Pmixedfield/271) in
+   cont k/72 (int_add/277)
+ in
+ let code inline(never) size(6)
+       call1_2 (f/278 : val, x/279)
+         my_closure/280 &my_alloc_region/281 my_depth/282
+         -> k/74 * k/75 =
+   let next_depth/283 = rec_info (succ my_depth/282) in
+   apply &my_alloc_region/281 f/278 (x/279) -> k/74 * k/75
+ in
+ let code size(6)
+       f_4 (y/284 : imm tagged)
+         my_closure/285 &my_alloc_region/286 my_depth/287
+         -> k/76 * k/77
+         : imm tagged =
+   let next_depth/288 = rec_info (succ my_depth/287) in
+   let x/289 = %project_value_slot.[f].[x] (my_closure/285) in
+   let int_add/290 = %int_barith.add (y/284, x/289) in
+   let int_add/291 = %int_barith.add (int_add/290, 8007) in
+   cont k/76 (int_add/291)
+ in
+ let code inline(never) size(79)
+       noise_3 (x/292 : imm tagged)
+         my_closure/293 &my_alloc_region/294 my_depth/295
+         -> k/78 * k/79
+         : imm tagged =
+   let next_depth/296 = rec_info (succ my_depth/295) in
+   let read2/297 = %project_value_slot.[noise].[read2] (my_closure/293) in
+   let read3/298 = %project_value_slot.[noise].[read3] (my_closure/293) in
+   let call1/299 = %project_value_slot.[noise].[call1] (my_closure/293) in
+   let region/300 = %begin_region () in
+   let ghost_region/301 = %begin_ghost_region () in
+   (let int_add/305 = %int_barith.add (x/292, 2001) in
+    let int_add/306 = %int_barith.add (x/292, 1000) in
+    let a/307 =
+      %block.[`0`].my_alloc_region/294.local[region/300]
+        (int_add/306, int_add/305)
+    in
+    let int_add/308 = %int_barith.add (x/292, 5004) in
+    let int_add/309 = %int_barith.add (x/292, 4003) in
+    let int_add/310 = %int_barith.add (x/292, 3002) in
+    let b/311 =
+      %block.[`0`].my_alloc_region/294.local[region/300]
+        (int_add/310, int_add/309, int_add/308)
+    in
+    let int_add/312 = %int_barith.add (x/292, 7006) in
+    let int_add/313 = %int_barith.add (x/292, 6005) in
+    let c/314 =
+      %block.[`0`].my_alloc_region/294.local[region/300]
+        (int_add/313, int_add/312)
+    in
+    let f/315 = closure f_4 @f &my_alloc_region/294 &region/300
+    with { x = x/292 }
+    in
+    apply direct(call1_2 &my_alloc_region/294)
+      (call1/299 : _ -> imm tagged) (f/315, 7) -> k/81 * k/79
+      where k/81 (apply_result/316 : imm tagged) =
+        (apply direct(read2_0 &my_alloc_region/294)
+           (read2/297 : _ -> imm tagged) (c/314) -> k/82 * k/79
+           where k/82 (apply_result/317 : imm tagged) =
+             (apply direct(read3_1 &my_alloc_region/294)
+                (read3/298 : _ -> imm tagged) (b/311) -> k/83 * k/79
+                where k/83 (apply_result/318 : imm tagged) =
+                  (apply direct(read2_0 &my_alloc_region/294)
+                     (read2/297 : _ -> imm tagged) (a/307) -> k/84 * k/79
+                     where k/84 (apply_result/319 : imm tagged) =
+                       let int_add/320 =
+                         %int_barith.add (apply_result/319, apply_result/318)
+                       in
+                       let int_add/321 =
+                         %int_barith.add (int_add/320, apply_result/317)
+                       in
+                       let int_add/322 =
+                         %int_barith.add (int_add/321, apply_result/316)
+                       in
+                       cont k/80 (int_add/322)))))
+     where k/80 (region_return/302 : imm tagged) =
+       let unit/303 = %end_region (region/300) in
+       let unit/304 = %end_ghost_region (ghost_region/301) in
+       cont k/78 (region_return/302)
+ in
+ let code inline(never) size(68)
+       body_5 (x/323 : imm tagged)
+         my_closure/324 &my_alloc_region/325 my_depth/326
+         -> k/85 * k/86
+         : imm tagged =
+   let next_depth/327 = rec_info (succ my_depth/326) in
+   let read2/328 = %project_value_slot.[body].[read2_1] (my_closure/324) in
+   let noise/329 = %project_value_slot.[body].[noise] (my_closure/324) in
+   let region/330 = %begin_region () in
+   let ghost_region/331 = %begin_ghost_region () in
+   cont k/88 (x/323)
+     where k/88 (let_mutable/335 : imm tagged) =
+       ((let prim/367 = %int_comp.le (0, 9) in
+         let int_lessequal/368 = %tag_imm (prim/367) in
+         (let untagged/369 = %untag_imm (int_lessequal/368) in
+          switch untagged/369
+            | 0 -> k/89 (0, let_mutable/335)
+            | 1 -> k/99)
+           where k/99 =
+             cont k/90 (let_mutable/335))
+          where k/90 (r_38_unboxed0/338 : imm tagged) =
+            let prim/339 = %untag_imm (0) in
+            let for_start_naked/340 = %num_conv.[`imm`].[`int64`] (prim/339)
+            in
+            let prim/341 = %untag_imm (9) in
+            let for_stop_naked/342 = %num_conv.[`imm`].[`int64`] (prim/341)
+            in
+            (cont k/91 (for_start_naked/340, r_38_unboxed0/338)
+               where rec k/91
+                           (for_counter_naked/343 : int64,
+                            r_38_unboxed0/344 : imm tagged) =
+                 let prim/345 =
+                   %num_conv.[`int64`].[`imm`] (for_counter_naked/343)
+                 in
+                 let i/346 = %tag_imm (prim/345) in
+                 let region/347 = %begin_region (region/330) in
+                 let ghost_region/348 =
+                   %begin_ghost_region (ghost_region/331)
+                 in
+                 ((let p/359 =
+                     %block.[`0`].my_alloc_region/325.local[region/347]
+                       (i/346, r_38_unboxed0/344)
+                   in
+                   apply direct(noise_3 &my_alloc_region/325)
+                     (noise/329 : _ -> imm tagged) (i/346) -> k/98 * k/86
+                     where k/98 (return_val0/366 : imm tagged) =
+                       cont k/95 (return_val0/366, r_38_unboxed0/344)
+                     where k/95
+                             (k/360 : imm tagged,
+                              r_38_unboxed0/361 : imm tagged) =
+                       (apply direct(read2_0 &my_alloc_region/325)
+                          (read2/328 : _ -> imm tagged)
+                            (p/359)
+                            -> k/97 * k/86
+                          where k/97 (return_val0/365 : imm tagged) =
+                            cont k/96 (return_val0/365, r_38_unboxed0/361)
+                          where k/96
+                                  (apply_result/362 : imm tagged,
+                                   r_38_unboxed0/363 : imm tagged) =
+                            let int_add/364 =
+                              %int_barith.add (apply_result/362, k/360)
+                            in
+                            cont k/94 (0, int_add/364)))
+                    where k/94
+                            (region_return/355 : imm tagged,
+                             r_38_unboxed0/356 : imm tagged) =
+                      let unit/357 = %end_region (region/347) in
+                      let unit/358 = %end_ghost_region (ghost_region/348) in
+                      cont k/92 (region_return/355, r_38_unboxed0/356)
+                    where k/92
+                            (body_return/349 : imm tagged,
+                             r_38_unboxed0/350 : imm tagged) =
+                      let for_next_naked/351 =
+                        %int_barith.`int64`.add (for_counter_naked/343, 1L)
+                      in
+                      let prim/352 =
+                        %int_comp.`int64`.le
+                          (for_next_naked/351, for_stop_naked/342)
+                      in
+                      let `int64#_lessequal/353` = %tag_imm (prim/352) in
+                      ((let untagged/354 =
+                          %untag_imm (`int64#_lessequal/353`)
+                        in
+                        switch untagged/354
+                          | 0 -> k/89 (0, r_38_unboxed0/350)
+                          | 1 -> k/93)
+                         where k/93 =
+                           cont k/91 (for_next_naked/351, r_38_unboxed0/350))))
+          where k/89
+                  (staticcatch_result/336 : imm tagged,
+                   r_38_unboxed0/337 : imm tagged) =
+            cont k/87 (r_38_unboxed0/337))
+     where k/87 (region_return/332 : imm tagged) =
+       let unit/333 = %end_region (region/330) in
+       let unit/334 = %end_ghost_region (ghost_region/331) in
+       cont k/85 (region_return/332)
+ in
+ let read2/370 = closure read2_0 @read2 &toplevel in
+ let read3/371 = closure read3_1 @read3 &toplevel in
+ let call1/372 = closure call1_2 @call1 &toplevel in
+ let noise/373 = closure noise_3 @noise &toplevel
+ with { read2 = read2/370; read3 = read3/371; call1 = call1/372 }
+ in
+ let body/374 = closure body_5 @body &toplevel
+ with { read2_1 = read2/370; noise = noise/373 }
+ in
+ apply direct(body_5 &toplevel)
+   (body/374 : _ -> imm tagged) (10) -> k/100 * error
+   where k/100 (apply_result/375 : imm tagged) =
+     ((let Popaque/379 = %opaque (3) in
+       apply direct(body_5 &toplevel)
+         (body/374 : _ -> imm tagged) (Popaque/379) -> k/101 * error)
+        where k/101 (apply_result/376 : imm tagged) =
+          let result/377 =
+            %int_barith.add (apply_result/376, apply_result/375)
+          in
+          let Pmakeblock/378 = %block.[`0`].`toplevel` (result/377) in
+          cont k/69 (Pmakeblock/378)))
+  where k/69 define_root_symbol (module_block/255) =
+    let field_0/256 =
+      %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/255)
+    in
+    let $camlLoop_for_local_pair_each_turn = Block 0 (field_0/256) in
+    cont done ($camlLoop_for_local_pair_each_turn)

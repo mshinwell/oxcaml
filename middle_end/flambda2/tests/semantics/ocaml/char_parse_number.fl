@@ -1,0 +1,45 @@
+(let code rec loopify(default tailrec) size(43)
+       parse_0 (s/56 : val, i/57 : imm tagged, acc/58 : imm tagged)
+         my_closure/59 &my_alloc_region/60 my_depth/61
+         -> k/16 * k/17
+         : imm tagged =
+   let next_depth/62 = rec_info (succ my_depth/61) in
+   (let prim/70 = %string_length (s/56) in
+    let Pstringlength/71 = %tag_imm (prim/70) in
+    let prim/72 = %int_comp.lt (i/57, Pstringlength/71) in
+    let int_lessthan/73 = %tag_imm (prim/72) in
+    (let untagged/74 = %untag_imm (int_lessthan/73) in
+     switch untagged/74
+       | 0 -> k/16 (acc/58)
+       | 1 -> k/19)
+      where k/19 =
+        cont k/18)
+     where k/18 =
+       let prim/63 = %num_conv.[tagged_imm].[`nativeint`] (i/57) in
+       let prim/64 = %string_load.[`8`] (s/56, prim/63) in
+       let Pstringrefu/65 = %tag_imm (prim/64) in
+       let int_sub/66 = %int_barith.sub (Pstringrefu/65, 48) in
+       let int_mul/67 = %int_barith.mul (acc/58, 10) in
+       let int_add/68 = %int_barith.add (int_mul/67, int_sub/66) in
+       let int_add/69 = %int_barith.add (i/57, 1) in
+       apply direct(parse_0 &my_alloc_region/60)
+         (my_closure/59 ~ depth my_depth/61 -> next_depth/62
+          : _ -> imm tagged)
+           (s/56, int_add/69, int_add/68)
+           -> k/16 * k/17
+ in
+ let $camlChar_parse_number__immstring_0 = "40213" in
+ let parse/75 = closure parse_0 @parse &toplevel in
+ (let Popaque/78 = %opaque ($camlChar_parse_number__immstring_0) in
+  apply direct(parse_0 &toplevel)
+    (parse/75 : _ -> imm tagged) (Popaque/78, 0, 0) -> k/20 * error)
+   where k/20 (result/76 : imm tagged) =
+     let Pmakeblock/77 = %block.[`0`].`toplevel` (parse/75, result/76) in
+     cont k/15 (Pmakeblock/77))
+  where k/15 define_root_symbol (module_block/53) =
+    let field_0/54 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/53)
+    in
+    let field_1/55 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/53)
+    in
+    let $camlChar_parse_number = Block 0 (field_0/54, field_1/55) in
+    cont done ($camlChar_parse_number)

@@ -1,0 +1,66 @@
+(let code inline(never) size(2)
+       pred_0 (n/65 : [ 0 | 0 of [ 0 | 0 of val ] ])
+         my_closure/66 &my_alloc_region/67 my_depth/68
+         -> k/28 * k/29
+         : [ 0 | 0 of [ 0 | 0 of val ] ] =
+   let next_depth/69 = rec_info (succ my_depth/68) in
+   let Pfield/70 = %block_load.[`0`] (n/65) in
+   cont k/28 (Pfield/70)
+ in
+ let code rec size(23)
+       to_int_1 (n/71 : [ 0 | 0 of [ 0 | 0 of val ] ])
+         my_closure/72 &my_alloc_region/73 my_depth/74
+         -> k/30 * k/31
+         : imm tagged =
+   let next_depth/75 = rec_info (succ my_depth/74) in
+   (let prim/79 = %is_int (n/71) in
+    let Pisint/80 = %tag_imm (prim/79) in
+    (let untagged/81 = %untag_imm (Pisint/80) in
+     switch untagged/81
+       | 0 -> k/34
+       | 1 -> k/30 (0))
+      where k/34 =
+        cont k/32)
+     where k/32 =
+       ((let Pfield/78 = %block_load.[`0`] (n/71) in
+         apply direct(to_int_1 &my_alloc_region/73)
+           (my_closure/72 ~ depth my_depth/74 -> next_depth/75
+            : _ -> imm tagged)
+             (Pfield/78)
+             -> k/33 * k/31)
+          where k/33 (apply_result/76 : imm tagged) =
+            let int_add/77 = %int_barith.add (1, apply_result/76) in
+            cont k/30 (int_add/77))
+ in
+ let $camlGadt_refutation_clause__const_block_0 = Block 0 (0) in
+ let pred/82 = closure pred_0 @pred &toplevel in
+ let to_int/83 = closure to_int_1 @to_int &toplevel in
+ apply direct(pred_0 &toplevel)
+   (pred/82 : _ -> [ 0 | 0 of [ 0 | 0 of val ] ])
+     ($camlGadt_refutation_clause__const_block_0)
+     -> k/38 * error
+   where k/38 (apply_result/93 : [ 0 | 0 of [ 0 | 0 of val ] ]) =
+     apply direct(to_int_1 &toplevel)
+       (to_int/83 : _ -> imm tagged) (apply_result/93) -> k/35 * error
+   where k/35 (apply_result/84 : imm tagged) =
+     ((let Popaque/90 = %opaque ($camlGadt_refutation_clause__const_block_0)
+       in
+       let Pmakeblock/91 = %block.[`0`].`toplevel` (Popaque/90) in
+       let Pmakeblock/92 = %block.[`0`].`toplevel` (Pmakeblock/91) in
+       apply direct(pred_0 &toplevel)
+         (pred/82 : _ -> [ 0 | 0 of [ 0 | 0 of val ] ])
+           (Pmakeblock/92)
+           -> k/37 * error)
+        where k/37 (apply_result/89 : [ 0 | 0 of [ 0 | 0 of val ] ]) =
+          apply direct(to_int_1 &toplevel)
+            (to_int/83 : _ -> imm tagged) (apply_result/89) -> k/36 * error
+        where k/36 (apply_result/85 : imm tagged) =
+          let int_mul/86 = %int_barith.mul (apply_result/85, 10) in
+          let result/87 = %int_barith.add (int_mul/86, apply_result/84) in
+          let Pmakeblock/88 = %block.[`0`].`toplevel` (result/87) in
+          cont k/27 (Pmakeblock/88)))
+  where k/27 define_root_symbol (module_block/63) =
+    let field_0/64 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/63)
+    in
+    let $camlGadt_refutation_clause = Block 0 (field_0/64) in
+    cont done ($camlGadt_refutation_clause)

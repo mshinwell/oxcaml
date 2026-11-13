@@ -1,0 +1,12 @@
+labelled_in_every_order.fl:
+  before Simplify (108 steps): returns
+                                 [0: 123; 123; 123; 123; 123; 123; 123; 123;
+                                  123; 123; 123; 123]
+  after Simplify (94 steps): returns
+                               [0: 123; 123; 123; 123; 123; 123; 123; 123;
+                                123; 123; 123; 123]
+  the check of kinds: passes before, passes after
+  calls outside code: 12 before, 12 after
+  the same
+  calls outside code once those of known code are inlined: 0
+  validated: the same once closures and blocks are lifted to symbols and the terms normalised

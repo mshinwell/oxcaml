@@ -1,0 +1,162 @@
+(let $camlA_for_notrace_direct_value__immstring_1 = "stop" in
+ let $camlA_for_notrace_direct_value__Pmakeblock_2 =
+   Block 0 ($`*predef*`.caml_exn_Failure,
+            $camlA_for_notrace_direct_value__immstring_1)
+ in
+ let code inline(never) size(104)
+       run_0 (n/149 : imm tagged, k/150 : imm tagged)
+         my_closure/151 &my_alloc_region/152 my_depth/153
+         -> k/52 * k/53
+         : imm tagged =
+   let next_depth/154 = rec_info (succ my_depth/153) in
+   cont k/54 (0)
+     where k/54 (let_mutable/155 : imm tagged) =
+       let try_region/156 = %begin_try_region () in
+       let try_ghost_region/157 = %begin_try_ghost_region () in
+       (cont k/61 push(k/55) (let_mutable/155)
+          where k/61 (a_34_unboxed0/173 : imm tagged) =
+            (cont k/62 (n/149, a_34_unboxed0/173)
+               where k/62
+                       (for_stop/174 : imm tagged,
+                        a_34_unboxed0/175 : imm tagged) =
+                 ((let prim/199 = %int_comp.le (1, for_stop/174) in
+                   let int_lessequal/200 = %tag_imm (prim/199) in
+                   (let untagged/201 = %untag_imm (int_lessequal/200) in
+                    switch untagged/201
+                      | 0 -> k/63 (0, a_34_unboxed0/175)
+                      | 1 -> k/70)
+                     where k/70 =
+                       cont k/64 (a_34_unboxed0/175))
+                    where k/64 (a_34_unboxed0/178 : imm tagged) =
+                      let prim/179 = %untag_imm (1) in
+                      let for_start_naked/180 =
+                        %num_conv.[`imm`].[`int64`] (prim/179)
+                      in
+                      let prim/181 = %untag_imm (for_stop/174) in
+                      let for_stop_naked/182 =
+                        %num_conv.[`imm`].[`int64`] (prim/181)
+                      in
+                      (cont k/65 (for_start_naked/180, a_34_unboxed0/178)
+                         where rec k/65
+                                     (for_counter_naked/183 : int64,
+                                      a_34_unboxed0/184 : imm tagged) =
+                           let prim/185 =
+                             %num_conv.[`int64`].[`imm`]
+                               (for_counter_naked/183)
+                           in
+                           let i/186 = %tag_imm (prim/185) in
+                           let int_add/187 =
+                             %int_barith.add (a_34_unboxed0/184, i/186)
+                           in
+                           ((let prim/196 = %phys_eq (i/186, k/150) in
+                             let eq/197 = %tag_imm (prim/196) in
+                             (let untagged/198 = %untag_imm (eq/197) in
+                              switch untagged/198
+                                | 0 -> k/66 (0, int_add/187)
+                                | 1 -> k/69)
+                               where k/69 =
+                                 cont k/68 (int_add/187))
+                              where k/68 (a_34_unboxed0/195 : imm tagged) =
+                                cont k/55
+                                       pop(notrace k/55)
+                                       ($camlA_for_notrace_direct_value__Pmakeblock_2,
+                                        a_34_unboxed0/195)
+                              where k/66
+                                      (staticcatch_result/188 : imm tagged,
+                                       a_34_unboxed0/189 : imm tagged) =
+                                let int_mul/190 =
+                                  %int_barith.mul (a_34_unboxed0/189, 2)
+                                in
+                                let for_next_naked/191 =
+                                  %int_barith.`int64`.add
+                                    (for_counter_naked/183, 1L)
+                                in
+                                let prim/192 =
+                                  %int_comp.`int64`.le
+                                    (for_next_naked/191, for_stop_naked/182)
+                                in
+                                let `int64#_lessequal/193` =
+                                  %tag_imm (prim/192)
+                                in
+                                ((let untagged/194 =
+                                    %untag_imm (`int64#_lessequal/193`)
+                                  in
+                                  switch untagged/194
+                                    | 0 -> k/63 (0, int_mul/190)
+                                    | 1 -> k/67)
+                                   where k/67 =
+                                     cont k/65
+                                            (for_next_naked/191, int_mul/190))))
+                    where k/63
+                            (staticcatch_result/176 : imm tagged,
+                             a_34_unboxed0/177 : imm tagged) =
+                      cont k/60 (a_34_unboxed0/177, a_34_unboxed0/177)))
+          where k/60
+                  (body_result/171 : imm tagged,
+                   a_34_unboxed0/172 : imm tagged) =
+            cont k/52 pop(k/55) (body_result/171)
+          where k/55 exn (exn/158 : val, a_34_unboxed0/159 : imm tagged) =
+            let unit/160 = %end_try_region (try_region/156) in
+            let unit/161 = %end_try_ghost_region (try_ghost_region/157) in
+            ((let Pfield/167 = %block_load.[`0`] (exn/158) in
+              let prim/168 =
+                %phys_eq (Pfield/167, $`*predef*`.caml_exn_Failure)
+              in
+              let eq/169 = %tag_imm (prim/168) in
+              (let untagged/170 = %untag_imm (eq/169) in
+               switch untagged/170
+                 | 0 -> k/58
+                 | 1 -> k/59)
+                where k/59 =
+                  cont k/56 (a_34_unboxed0/159)
+                where k/58 =
+                  cont k/57 (a_34_unboxed0/159))
+               where k/57 (a_34_unboxed0/166 : imm tagged) =
+                 cont k/53 pop(reraise k/53) (exn/158)
+               where k/56 (a_34_unboxed0/162 : imm tagged) =
+                 let int_add/163 = %int_barith.add (1000, 0) in
+                 let int_add/164 =
+                   %int_barith.add (a_34_unboxed0/162, int_add/163)
+                 in
+                 let int_add/165 = %int_barith.add (int_add/164, 5000) in
+                 cont k/52 (int_add/165)))
+ in
+ let $camlA_for_notrace_direct_value__empty_block_0 = Block 0 () in
+ let run/202 = closure run_0 @run &toplevel in
+ (let Popaque/209 = %opaque (4) in
+  let Popaque/210 = %opaque (6) in
+  apply direct(run_0 &toplevel)
+    (run/202 : _ -> imm tagged) (Popaque/210, Popaque/209) -> k/71 * error)
+   where k/71 (stopped/203 : imm tagged) =
+     (apply direct(run_0 &toplevel)
+        (run/202 : _ -> imm tagged) (5, 9) -> k/72 * error
+        where k/72 (finished/204 : imm tagged) =
+          ((let Popaque/208 = %opaque (3) in
+            apply direct(run_0 &toplevel)
+              (run/202 : _ -> imm tagged) (Popaque/208, 1) -> k/73 * error)
+             where k/73 (at_once/205 : imm tagged) =
+               (apply direct(run_0 &toplevel)
+                  (run/202 : _ -> imm tagged) (0, 0) -> k/74 * error
+                  where k/74 (empty/206 : imm tagged) =
+                    let Pmakeblock/207 =
+                      %block.[`0`].`toplevel`
+                        (stopped/203, finished/204, at_once/205, empty/206)
+                    in
+                    cont k/51 (Pmakeblock/207)))))
+  where k/51 define_root_symbol (module_block/144) =
+    let field_0/145 =
+      %block_load.tag[`0`].`size`[`4`].[`0`] (module_block/144)
+    in
+    let field_1/146 =
+      %block_load.tag[`0`].`size`[`4`].[`1`] (module_block/144)
+    in
+    let field_2/147 =
+      %block_load.tag[`0`].`size`[`4`].[`2`] (module_block/144)
+    in
+    let field_3/148 =
+      %block_load.tag[`0`].`size`[`4`].[`3`] (module_block/144)
+    in
+    let $camlA_for_notrace_direct_value =
+      Block 0 (field_0/145, field_1/146, field_2/147, field_3/148)
+    in
+    cont done ($camlA_for_notrace_direct_value)

@@ -1,0 +1,124 @@
+let $camlGuard_falls_to_later_case__first_const_0 = Block 0 () in
+(let code inline(never) size(77)
+       f_0 (v/109 : [ 0 | 0 of imm tagged |1 of imm tagged ])
+         my_closure/110 &my_alloc_region/111 my_depth/112
+         -> k/44 * k/45
+         : imm tagged =
+   let next_depth/113 = rec_info (succ my_depth/112) in
+   (let prim/129 = %is_int (v/109) in
+    let is_scrutinee_int/130 = %tag_imm (prim/129) in
+    let untagged/131 = %untag_imm (is_scrutinee_int/130) in
+    switch untagged/131
+      | 0 -> k/54
+      | 1 -> k/55)
+     where k/55 =
+       let untagged/128 = %untag_imm (v/109) in
+       cont k/44 (100)
+     where k/54 =
+       let prim/125 = %get_tag (v/109) in
+       let scrutinee_tag/126 = %tag_imm (prim/125) in
+       let untagged/127 = %untag_imm (scrutinee_tag/126) in
+       switch untagged/127
+         | 0 -> k/46
+         | 1 -> k/49
+     where k/49 =
+       let x/119 = %block_load.[`0`] (v/109) in
+       ((let prim/122 = %int_comp.gt (x/119, 0) in
+         let int_greaterthan/123 = %tag_imm (prim/122) in
+         (let untagged/124 = %untag_imm (int_greaterthan/123) in
+          switch untagged/124
+            | 0 -> k/52
+            | 1 -> k/53)
+           where k/53 =
+             cont k/50
+           where k/52 =
+             cont k/51)
+          where k/51 =
+            let int_sub/121 = %int_barith.sub (0, 2) in
+            cont k/44 (int_sub/121)
+          where k/50 =
+            let int_mul/120 = %int_barith.mul (x/119, 2) in
+            cont k/44 (int_mul/120))
+     where k/46 =
+       let x/114 = %block_load.[`0`] (v/109) in
+       ((let prim/116 = %int_comp.gt (x/114, 0) in
+         let int_greaterthan/117 = %tag_imm (prim/116) in
+         (let untagged/118 = %untag_imm (int_greaterthan/117) in
+          switch untagged/118
+            | 0 -> k/48
+            | 1 -> k/44 (x/114))
+           where k/48 =
+             cont k/47)
+          where k/47 =
+            let int_sub/115 = %int_barith.sub (0, 1) in
+            cont k/44 (int_sub/115))
+ in
+ let f/132 = closure f_0 @f &toplevel in
+ (let region/135 = %begin_region () in
+  let ghost_region/136 = %begin_ghost_region () in
+  (let Popaque/158 = %opaque (-3) in
+   let Pmakeblock/159 =
+     %block.[`1`].`toplevel`.local[region/135] (Popaque/158)
+   in
+   apply direct(f_0 &toplevel)
+     (f/132 : _ -> imm tagged) (Pmakeblock/159) -> k/58 * error)
+    where k/58 (apply_result/140 : imm tagged) =
+      let int_mul/141 = %int_barith.mul (apply_result/140, 10000) in
+      ((let Popaque/156 = %opaque (3) in
+        let Pmakeblock/157 =
+          %block.[`1`].`toplevel`.local[region/135] (Popaque/156)
+        in
+        apply direct(f_0 &toplevel)
+          (f/132 : _ -> imm tagged) (Pmakeblock/157) -> k/59 * error)
+         where k/59 (apply_result/142 : imm tagged) =
+           let int_mul/143 = %int_barith.mul (apply_result/142, 1000) in
+           (apply direct(f_0 &toplevel)
+              (f/132 : _ -> imm tagged) (0) -> k/60 * error
+              where k/60 (apply_result/144 : imm tagged) =
+                ((let Popaque/154 = %opaque (0) in
+                  let Pmakeblock/155 =
+                    %block.[`0`].`toplevel`.local[region/135] (Popaque/154)
+                  in
+                  apply direct(f_0 &toplevel)
+                    (f/132 : _ -> imm tagged)
+                      (Pmakeblock/155)
+                      -> k/61 * error)
+                   where k/61 (apply_result/145 : imm tagged) =
+                     let int_mul/146 = %int_barith.mul (apply_result/145, 10)
+                     in
+                     ((let Popaque/152 = %opaque (5) in
+                       let Pmakeblock/153 =
+                         %block.[`0`].`toplevel`.local[region/135]
+                           (Popaque/152)
+                       in
+                       apply direct(f_0 &toplevel)
+                         (f/132 : _ -> imm tagged)
+                           (Pmakeblock/153)
+                           -> k/62 * error)
+                        where k/62 (apply_result/147 : imm tagged) =
+                          let int_add/148 =
+                            %int_barith.add (apply_result/147, int_mul/146)
+                          in
+                          let int_add/149 =
+                            %int_barith.add (int_add/148, apply_result/144)
+                          in
+                          let int_add/150 =
+                            %int_barith.add (int_add/149, int_mul/143)
+                          in
+                          let int_add/151 =
+                            %int_barith.add (int_add/150, int_mul/141)
+                          in
+                          cont k/57 (int_add/151)))))
+    where k/57 (region_return/137 : imm tagged) =
+      let unit/138 = %end_region (region/135) in
+      let unit/139 = %end_ghost_region (ghost_region/136) in
+      cont k/56 (region_return/137))
+   where k/56 (result/133 : imm tagged) =
+     let Pmakeblock/134 = %block.[`0`].`toplevel` (result/133) in
+     cont k/43 (Pmakeblock/134))
+  where k/43 define_root_symbol (module_block/107) =
+    let field_0/108 =
+      %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/107)
+    in
+    let $camlGuard_falls_to_later_case = Block 0 (field_0/108) in
+    cont done ($camlGuard_falls_to_later_case)

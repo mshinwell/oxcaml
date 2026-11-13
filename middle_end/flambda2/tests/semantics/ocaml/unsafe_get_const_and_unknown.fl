@@ -1,0 +1,28 @@
+(let $camlUnsafe_get_const_and_unknown__immstring_1 = "hello" in
+ let $camlUnsafe_get_const_and_unknown__immstring_0 = "world" in
+ let Popaque/35 = %opaque ($camlUnsafe_get_const_and_unknown__immstring_0) in
+ let prim/36 = %num_conv.[tagged_imm].[`nativeint`] (0) in
+ let prim/37 = %string_load.[`8`] (Popaque/35, prim/36) in
+ let Pstringrefu/38 = %tag_imm (prim/37) in
+ let Popaque/39 = %opaque (4) in
+ let prim/40 = %num_conv.[tagged_imm].[`nativeint`] (Popaque/39) in
+ let prim/41 =
+   %string_load.[`8`]
+     ($camlUnsafe_get_const_and_unknown__immstring_1, prim/40)
+ in
+ let Pstringrefu/42 = %tag_imm (prim/41) in
+ let prim/43 = %num_conv.[tagged_imm].[`nativeint`] (1) in
+ let prim/44 =
+   %string_load.[`8`]
+     ($camlUnsafe_get_const_and_unknown__immstring_1, prim/43)
+ in
+ let Pstringrefu/45 = %tag_imm (prim/44) in
+ let int_add/46 = %int_barith.add (Pstringrefu/45, Pstringrefu/42) in
+ let result/47 = %int_barith.add (int_add/46, Pstringrefu/38) in
+ let Pmakeblock/48 = %block.[`0`].`toplevel` (result/47) in
+ cont k/5 (Pmakeblock/48))
+  where k/5 define_root_symbol (module_block/33) =
+    let field_0/34 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/33)
+    in
+    let $camlUnsafe_get_const_and_unknown = Block 0 (field_0/34) in
+    cont done ($camlUnsafe_get_const_and_unknown)

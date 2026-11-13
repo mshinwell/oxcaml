@@ -1,0 +1,196 @@
+let $camlFlip_applied_in_full_and_in_part__first_const_0 = Block 0 () in
+(let code size(6)
+       flip_0 (f/196 : val, x/197, y/198)
+         my_closure/199 &my_alloc_region/200 my_depth/201
+         -> k/62 * k/63 =
+   let next_depth/202 = rec_info (succ my_depth/201) in
+   apply &my_alloc_region/200 f/196 (y/198, x/197) -> k/62 * k/63
+ in
+ let code size(7)
+       `fn[flip_applied_in_full_and_in_part.ml:12,20--36]_2` (x/203, y/204)
+         my_closure/205 &my_alloc_region/206 my_depth/207
+         -> k/64 * k/65 =
+   let next_depth/208 = rec_info (succ my_depth/207) in
+   let f/209 =
+     %project_value_slot.[`fn[flip_applied_in_full_and_in_part.ml:12,20--36]`].[f]
+       (my_closure/205)
+   in
+   apply &my_alloc_region/206 f/209 (y/204, x/203) -> k/64 * k/65
+ in
+ let code size(17)
+       flip_staged_1 (f/210 : val)
+         my_closure/211 &my_alloc_region/212 my_depth/213
+         -> k/66 * k/67
+         : val =
+   let next_depth/214 = rec_info (succ my_depth/213) in
+   let `fn[flip_applied_in_full_and_in_part.ml:12,20--36]/215` =
+     closure `fn[flip_applied_in_full_and_in_part.ml:12,20--36]_2`
+       @`fn[flip_applied_in_full_and_in_part.ml:12,20--36]`
+       &my_alloc_region/212
+   with { f = f/210 }
+   in
+   cont k/66 (`fn[flip_applied_in_full_and_in_part.ml:12,20--36]/215`)
+ in
+ let code inline(never) size(7)
+       weigh_3 (a/216 : imm tagged, b/217 : imm tagged)
+         my_closure/218 &my_alloc_region/219 my_depth/220
+         -> k/68 * k/69
+         : imm tagged =
+   let next_depth/221 = rec_info (succ my_depth/220) in
+   let int_mul/222 = %int_barith.mul (a/216, 10) in
+   let int_sub/223 = %int_barith.sub (int_mul/222, b/217) in
+   cont k/68 (int_sub/223)
+ in
+ let code size(7) stub
+       partial_flip_4 (param2/224)
+         my_closure/225 &my_alloc_region/226 my_depth/227
+         -> k/70 * k/71 =
+   let next_depth/228 = rec_info (succ my_depth/227) in
+   let flip/229 = %project_value_slot.[partial_flip].[flip] (my_closure/225)
+   in
+   let weigh/230 =
+     %project_value_slot.[partial_flip].[weigh] (my_closure/225)
+   in
+   let a/231 = %project_value_slot.[partial_flip].[a] (my_closure/225) in
+   apply direct(flip_0 &my_alloc_region/226)
+     flip/229 (weigh/230, a/231, param2/224) -> k/70 * k/71
+ in
+ let code size(6) stub
+       partial_flip_5 (param1/232, param2/233)
+         my_closure/234 &my_alloc_region/235 my_depth/236
+         -> k/72 * k/73 =
+   let next_depth/237 = rec_info (succ my_depth/236) in
+   let flip/238 =
+     %project_value_slot.[partial_flip_1].[flip_1] (my_closure/234)
+   in
+   let weigh/239 =
+     %project_value_slot.[partial_flip_1].[weigh_1] (my_closure/234)
+   in
+   apply direct(flip_0 &my_alloc_region/235)
+     flip/238 (weigh/239, param1/232, param2/233) -> k/72 * k/73
+ in
+ let code size(6) stub
+       partial_flip_6 (param1/240, param2/241)
+         my_closure/242 &my_alloc_region/243 my_depth/244
+         -> k/74 * k/75 =
+   let next_depth/245 = rec_info (succ my_depth/244) in
+   let flip/246 =
+     %project_value_slot.[partial_flip_2].[flip_2] (my_closure/242)
+   in
+   let weigh/247 =
+     %project_value_slot.[partial_flip_2].[weigh_2] (my_closure/242)
+   in
+   apply direct(flip_0 &my_alloc_region/243)
+     flip/246 (weigh/247, param1/240, param2/241) -> k/74 * k/75
+ in
+ let flip/248 = closure flip_0 @flip &toplevel in
+ let flip_staged/249 = closure flip_staged_1 @flip_staged &toplevel in
+ let weigh/250 = closure weigh_3 @weigh &toplevel in
+ let a/251 = %opaque (7) in
+ let b/252 = %opaque (2) in
+ apply direct(flip_0 &toplevel)
+   (flip/248 : _ -> imm tagged) (weigh/250, a/251, b/252) -> k/76 * error
+   where k/76 (in_full/253 : imm tagged) =
+     ((let region/276 = %begin_region () in
+       let ghost_region/277 = %begin_ghost_region () in
+       (let partial_flip/282 =
+          closure partial_flip_4 @partial_flip &toplevel &region/276
+        with { flip = flip/248; weigh = weigh/250; a = a/251 }
+        in
+        cont k/89 (partial_flip/282))
+         where k/89 (waiting/281 : val) =
+           apply direct(partial_flip_4 &toplevel)
+             (waiting/281 : _ -> imm tagged) (b/252) -> k/88 * error
+         where k/88 (region_return/278 : imm tagged) =
+           let unit/279 = %end_region (region/276) in
+           let unit/280 = %end_ghost_region (ghost_region/277) in
+           cont k/77 (region_return/278))
+        where k/77 (function_and_one/254 : imm tagged) =
+          ((let region/269 = %begin_region () in
+            let ghost_region/270 = %begin_ghost_region () in
+            (let partial_flip/275 =
+               closure partial_flip_5 @partial_flip_1 &toplevel &region/269
+             with { flip_1 = flip/248; weigh_1 = weigh/250 }
+             in
+             cont k/87 (partial_flip/275))
+              where k/87 (flipped/274 : val) =
+                apply direct(partial_flip_5 &toplevel)
+                  (flipped/274 : _ -> imm tagged)
+                    (a/251, b/252)
+                    -> k/86 * error
+              where k/86 (region_return/271 : imm tagged) =
+                let unit/272 = %end_region (region/269) in
+                let unit/273 = %end_ghost_region (ghost_region/270) in
+                cont k/78 (region_return/271))
+             where k/78 (function_alone/255 : imm tagged) =
+               (apply direct(flip_staged_1 &toplevel)
+                  flip_staged/249 (weigh/250) -> k/85 * error
+                  where k/85 (func/268) =
+                    apply &toplevel func/268 (a/251, b/252) -> k/79 * error
+                  where k/79 (staged_in_full/256 : imm tagged) =
+                    (apply direct(flip_staged_1 &toplevel)
+                       (flip_staged/249 : _ -> val)
+                         (weigh/250)
+                         -> k/84 * error
+                       where k/84 (flipped/267 : val) =
+                         apply &toplevel
+                           flipped/267 (a/251, b/252) -> k/80 * error
+                       where k/80 (staged_function_alone/257 : imm tagged) =
+                         ((let region/260 = %begin_region () in
+                           let ghost_region/261 = %begin_ghost_region () in
+                           (let partial_flip/266 =
+                              closure partial_flip_6 @partial_flip_2
+                                &toplevel &region/260
+                            with { flip_2 = flip/248; weigh_2 = weigh/250 }
+                            in
+                            cont k/83 (partial_flip/266))
+                             where k/83 (apply_result/265 : val) =
+                               apply direct(flip_0 &toplevel)
+                                 (flip/248 : _ -> imm tagged)
+                                   (apply_result/265, a/251, b/252)
+                                   -> k/82 * error
+                             where k/82 (region_return/262 : imm tagged) =
+                               let unit/263 = %end_region (region/260) in
+                               let unit/264 =
+                                 %end_ghost_region (ghost_region/261)
+                               in
+                               cont k/81 (region_return/262))
+                            where k/81 (flipped_twice/258 : imm tagged) =
+                              let Pmakeblock/259 =
+                                %block.[`0`].`toplevel`
+                                  (in_full/253,
+                                   function_and_one/254,
+                                   function_alone/255,
+                                   staged_in_full/256,
+                                   staged_function_alone/257,
+                                   flipped_twice/258)
+                              in
+                              cont k/61 (Pmakeblock/259)))))))
+  where k/61 define_root_symbol (module_block/189) =
+    let field_0/190 =
+      %block_load.tag[`0`].`size`[`6`].[`0`] (module_block/189)
+    in
+    let field_1/191 =
+      %block_load.tag[`0`].`size`[`6`].[`1`] (module_block/189)
+    in
+    let field_2/192 =
+      %block_load.tag[`0`].`size`[`6`].[`2`] (module_block/189)
+    in
+    let field_3/193 =
+      %block_load.tag[`0`].`size`[`6`].[`3`] (module_block/189)
+    in
+    let field_4/194 =
+      %block_load.tag[`0`].`size`[`6`].[`4`] (module_block/189)
+    in
+    let field_5/195 =
+      %block_load.tag[`0`].`size`[`6`].[`5`] (module_block/189)
+    in
+    let $camlFlip_applied_in_full_and_in_part =
+      Block 0 (field_0/190,
+               field_1/191,
+               field_2/192,
+               field_3/193,
+               field_4/194,
+               field_5/195)
+    in
+    cont done ($camlFlip_applied_in_full_and_in_part)

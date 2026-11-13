@@ -1,0 +1,92 @@
+let $camlPoly_abbreviation_patterns__first_const_0 = Block 0 () in
+(let code inline(never) size(65)
+       f_0 (c/87 : val)
+         my_closure/88 &my_alloc_region/89 my_depth/90
+         -> k/38 * k/39
+         : imm tagged =
+   let next_depth/91 = rec_info (succ my_depth/90) in
+   (let prim/102 = %is_int (c/87) in
+    let Pisint/103 = %tag_imm (prim/102) in
+    (let untagged/104 = %untag_imm (Pisint/103) in
+     switch untagged/104
+       | 0 -> k/46
+       | 1 -> k/47)
+      where k/47 =
+        cont k/40
+      where k/46 =
+        cont k/45)
+     where k/45 =
+       let Pfield/101 = %block_load.[`1`] (c/87) in
+       cont k/38 (Pfield/101)
+     where k/40 =
+       ((let prim/98 = %int_comp.ne (c/87, 749039939) in
+         let int_notequal/99 = %tag_imm (prim/98) in
+         (let untagged/100 = %untag_imm (int_notequal/99) in
+          switch untagged/100
+            | 0 -> k/38 (4)
+            | 1 -> k/44)
+           where k/44 =
+             cont k/41)
+          where k/41 =
+            ((let prim/95 = %int_comp.ne (c/87, 737308346) in
+              let int_notequal/96 = %tag_imm (prim/95) in
+              (let untagged/97 = %untag_imm (int_notequal/96) in
+               switch untagged/97
+                 | 0 -> k/38 (3)
+                 | 1 -> k/43)
+                where k/43 =
+                  cont k/42)
+               where k/42 =
+                 let prim/92 = %int_comp.ge (c/87, 756711075) in
+                 let int_greaterequal/93 = %tag_imm (prim/92) in
+                 let untagged/94 = %untag_imm (int_greaterequal/93) in
+                 switch untagged/94
+                   | 0 -> k/38 (1)
+                   | 1 -> k/38 (2)))
+ in
+ let f/105 = closure f_0 @f &toplevel in
+ (let region/108 = %begin_region () in
+  let ghost_region/109 = %begin_ghost_region () in
+  (let Popaque/126 = %opaque (737308346) in
+   apply direct(f_0 &toplevel)
+     (f/105 : _ -> imm tagged) (Popaque/126) -> k/50 * error)
+    where k/50 (apply_result/113 : imm tagged) =
+      let int_mul/114 = %int_barith.mul (apply_result/113, 1000) in
+      ((let Popaque/124 = %opaque (7) in
+        let Pmakeblock/125 =
+          %block.[`0`].`toplevel`.local[region/108] (-605101559, Popaque/124)
+        in
+        apply direct(f_0 &toplevel)
+          (f/105 : _ -> imm tagged) (Pmakeblock/125) -> k/51 * error)
+         where k/51 (apply_result/115 : imm tagged) =
+           let int_mul/116 = %int_barith.mul (apply_result/115, 100) in
+           ((let Popaque/123 = %opaque (749039939) in
+             apply direct(f_0 &toplevel)
+               (f/105 : _ -> imm tagged) (Popaque/123) -> k/52 * error)
+              where k/52 (apply_result/117 : imm tagged) =
+                let int_mul/118 = %int_barith.mul (apply_result/117, 10) in
+                (apply direct(f_0 &toplevel)
+                   (f/105 : _ -> imm tagged) (756711075) -> k/53 * error
+                   where k/53 (apply_result/119 : imm tagged) =
+                     let int_add/120 =
+                       %int_barith.add (apply_result/119, int_mul/118)
+                     in
+                     let int_add/121 =
+                       %int_barith.add (int_add/120, int_mul/116)
+                     in
+                     let int_add/122 =
+                       %int_barith.add (int_add/121, int_mul/114)
+                     in
+                     cont k/49 (int_add/122))))
+    where k/49 (region_return/110 : imm tagged) =
+      let unit/111 = %end_region (region/108) in
+      let unit/112 = %end_ghost_region (ghost_region/109) in
+      cont k/48 (region_return/110))
+   where k/48 (result/106 : imm tagged) =
+     let Pmakeblock/107 = %block.[`0`].`toplevel` (result/106) in
+     cont k/37 (Pmakeblock/107))
+  where k/37 define_root_symbol (module_block/85) =
+    let field_0/86 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/85)
+    in
+    let $camlPoly_abbreviation_patterns = Block 0 (field_0/86) in
+    cont done ($camlPoly_abbreviation_patterns)

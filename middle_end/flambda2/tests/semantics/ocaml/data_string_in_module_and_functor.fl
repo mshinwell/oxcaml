@@ -1,0 +1,76 @@
+(let code size(10)
+       size_1 (param/85 : imm tagged)
+         my_closure/86 &my_alloc_region/87 my_depth/88
+         -> k/24 * k/25
+         : imm tagged =
+   let next_depth/89 = rec_info (succ my_depth/88) in
+   let N/90 = %project_value_slot.[`size`].[N] (my_closure/86) in
+   let Pfield/91 = %block_load.[`0`] (N/90) in
+   let prim/92 = %string_length (Pfield/91) in
+   let Pstringlength/93 = %tag_imm (prim/92) in
+   cont k/24 (Pstringlength/93)
+ in
+ let code size(9)
+       initial_2 (param/94 : imm tagged)
+         my_closure/95 &my_alloc_region/96 my_depth/97
+         -> k/26 * k/27
+         : imm tagged =
+   let next_depth/98 = rec_info (succ my_depth/97) in
+   let N/99 = %project_value_slot.[initial].[N_1] (my_closure/95) in
+   let Pfield/100 = %block_load.[`0`] (N/99) in
+   let prim/101 = %num_conv.[tagged_imm].[`nativeint`] (0) in
+   let prim/102 = %string_load.[`8`] (Pfield/100, prim/101) in
+   let Pstringrefu/103 = %tag_imm (prim/102) in
+   cont k/26 (Pstringrefu/103)
+ in
+ let code loopify(never) size(43)
+       Describe_0 (N/104 : val)
+         my_closure/105 &my_alloc_region/106 my_depth/107
+         -> k/28 * k/29
+         : val =
+   let next_depth/108 = rec_info (succ my_depth/107) in
+   let size/109 = closure size_1 @`size` &my_alloc_region/106
+   with { N = N/104 }
+   in
+   let initial/110 = closure initial_2 @initial &my_alloc_region/106
+   with { N_1 = N/104 }
+   in
+   let Pmakeblock/111 =
+     %block.[`0`].my_alloc_region/106 (size/109, initial/110)
+   in
+   cont k/28 (Pmakeblock/111)
+ in
+ let $camlData_string_in_module_and_functor__immstring_0 = "module" in
+ let $camlData_string_in_module_and_functor__Pmakeblock_1 =
+   Block 0 ($camlData_string_in_module_and_functor__immstring_0)
+ in
+ let Describe/112 = closure Describe_0 @Describe &toplevel in
+ apply direct(Describe_0 &toplevel)
+   (Describe/112 : _ -> val)
+     ($camlData_string_in_module_and_functor__Pmakeblock_1)
+     -> k/30 * error
+   where k/30 (D/113 : val) =
+     ((let Pfield/119 = %block_load.[`1`] (D/113) in
+       apply &toplevel Pfield/119 (0) -> k/31 * error)
+        where k/31 (apply_result/114 : imm tagged) =
+          ((let Pfield/118 = %block_load.[`0`] (D/113) in
+            apply &toplevel Pfield/118 (0) -> k/32 * error)
+             where k/32 (apply_result/115 : imm tagged) =
+               let result/116 =
+                 %int_barith.add (apply_result/115, apply_result/114)
+               in
+               let Pmakeblock/117 =
+                 %block.[`0`].`toplevel` (Describe/112, D/113, result/116)
+               in
+               cont k/23 (Pmakeblock/117))))
+  where k/23 define_root_symbol (module_block/81) =
+    let field_0/82 = %block_load.tag[`0`].`size`[`3`].[`0`] (module_block/81)
+    in
+    let field_1/83 = %block_load.tag[`0`].`size`[`3`].[`1`] (module_block/81)
+    in
+    let field_2/84 = %block_load.tag[`0`].`size`[`3`].[`2`] (module_block/81)
+    in
+    let $camlData_string_in_module_and_functor =
+      Block 0 (field_0/82, field_1/83, field_2/84)
+    in
+    cont done ($camlData_string_in_module_and_functor)

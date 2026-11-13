@@ -1,0 +1,81 @@
+(let code size(42)
+       size_0 (l/64 : [ 0 | 0 of val |1 of imm tagged ])
+         my_closure/65 &my_alloc_region/66 my_depth/67
+         -> k/26 * k/27
+         : imm tagged =
+   let next_depth/68 = rec_info (succ my_depth/67) in
+   (let prim/77 = %is_int (l/64) in
+    let is_scrutinee_int/78 = %tag_imm (prim/77) in
+    let untagged/79 = %untag_imm (is_scrutinee_int/78) in
+    switch untagged/79
+      | 0 -> k/30
+      | 1 -> k/31)
+     where k/31 =
+       let untagged/76 = %untag_imm (l/64) in
+       cont k/26 (0)
+     where k/30 =
+       let prim/73 = %get_tag (l/64) in
+       let scrutinee_tag/74 = %tag_imm (prim/73) in
+       let untagged/75 = %untag_imm (scrutinee_tag/74) in
+       switch untagged/75
+         | 0 -> k/28
+         | 1 -> k/29
+     where k/29 =
+       let Pfield/72 = %block_load.[`0`] (l/64) in
+       cont k/26 (Pfield/72)
+     where k/28 =
+       let Pfield/69 = %block_load.[`0`] (l/64) in
+       let prim/70 = %string_length (Pfield/69) in
+       let Pstringlength/71 = %tag_imm (prim/70) in
+       cont k/26 (Pstringlength/71)
+ in
+ let $camlData_variant_argument__immstring_3 = "hello" in
+ let $camlData_variant_argument__const_block_4 =
+   Block 0 ($camlData_variant_argument__immstring_3)
+ in
+ let $camlData_variant_argument__immstring_1 = "abc" in
+ let $camlData_variant_argument__const_block_2 =
+   Block 0 ($camlData_variant_argument__immstring_1)
+ in
+ let $camlData_variant_argument__const_block_0 = Block 1 (4) in
+ let size/80 = closure size_0 @`size` &toplevel in
+ apply direct(size_0 &toplevel)
+   (size/80 : _ -> imm tagged)
+     ($camlData_variant_argument__const_block_0)
+     -> k/32 * error
+   where k/32 (apply_result/81 : imm tagged) =
+     ((let Popaque/90 = %opaque (0) in
+       apply direct(size_0 &toplevel)
+         (size/80 : _ -> imm tagged) (Popaque/90) -> k/33 * error)
+        where k/33 (apply_result/82 : imm tagged) =
+          ((let Popaque/89 =
+              %opaque ($camlData_variant_argument__const_block_2)
+            in
+            apply direct(size_0 &toplevel)
+              (size/80 : _ -> imm tagged) (Popaque/89) -> k/34 * error)
+             where k/34 (apply_result/83 : imm tagged) =
+               (apply direct(size_0 &toplevel)
+                  (size/80 : _ -> imm tagged)
+                    ($camlData_variant_argument__const_block_4)
+                    -> k/35 * error
+                  where k/35 (apply_result/84 : imm tagged) =
+                    let int_add/85 =
+                      %int_barith.add (apply_result/84, apply_result/83)
+                    in
+                    let int_add/86 =
+                      %int_barith.add (int_add/85, apply_result/82)
+                    in
+                    let result/87 =
+                      %int_barith.add (int_add/86, apply_result/81)
+                    in
+                    let Pmakeblock/88 =
+                      %block.[`0`].`toplevel` (size/80, result/87)
+                    in
+                    cont k/25 (Pmakeblock/88)))))
+  where k/25 define_root_symbol (module_block/61) =
+    let field_0/62 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/61)
+    in
+    let field_1/63 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/61)
+    in
+    let $camlData_variant_argument = Block 0 (field_0/62, field_1/63) in
+    cont done ($camlData_variant_argument)

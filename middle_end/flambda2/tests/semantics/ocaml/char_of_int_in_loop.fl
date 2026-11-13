@@ -1,0 +1,56 @@
+(let $camlChar_of_int_in_loop__immstring_0 = "0123456789" in
+ let code rec loopify(default tailrec) size(49)
+       count_0 (i/56 : imm tagged, acc/57 : imm tagged)
+         my_closure/58 &my_alloc_region/59 my_depth/60
+         -> k/22 * k/23
+         : imm tagged =
+   let next_depth/61 = rec_info (succ my_depth/60) in
+   (let prim/72 = %int_comp.lt (i/56, 10) in
+    let int_lessthan/73 = %tag_imm (prim/72) in
+    (let untagged/74 = %untag_imm (int_lessthan/73) in
+     switch untagged/74
+       | 0 -> k/22 (acc/57)
+       | 1 -> k/28)
+      where k/28 =
+        cont k/24)
+     where k/24 =
+       let c/62 = %int_barith.add (i/56, 48) in
+       ((let prim/66 = %num_conv.[tagged_imm].[`nativeint`] (i/56) in
+         let prim/67 =
+           %string_load.[`8`]
+             ($camlChar_of_int_in_loop__immstring_0, prim/66)
+         in
+         let Pstringrefu/68 = %tag_imm (prim/67) in
+         let prim/69 = %phys_eq (c/62, Pstringrefu/68) in
+         let eq/70 = %tag_imm (prim/69) in
+         (let untagged/71 = %untag_imm (eq/70) in
+          switch untagged/71
+            | 0 -> k/25 (acc/57)
+            | 1 -> k/27)
+           where k/27 =
+             cont k/26)
+          where k/26 =
+            let int_add/65 = %int_barith.add (acc/57, 1) in
+            cont k/25 (int_add/65)
+          where k/25 (staticcatch_result/63 : imm tagged) =
+            let int_add/64 = %int_barith.add (i/56, 1) in
+            apply direct(count_0 &my_alloc_region/59)
+              (my_closure/58 ~ depth my_depth/60 -> next_depth/61
+               : _ -> imm tagged)
+                (int_add/64, staticcatch_result/63)
+                -> k/22 * k/23)
+ in
+ let count/75 = closure count_0 @count &toplevel in
+ (let Popaque/78 = %opaque (0) in
+  apply direct(count_0 &toplevel)
+    (count/75 : _ -> imm tagged) (Popaque/78, 0) -> k/29 * error)
+   where k/29 (result/76 : imm tagged) =
+     let Pmakeblock/77 = %block.[`0`].`toplevel` (count/75, result/76) in
+     cont k/21 (Pmakeblock/77))
+  where k/21 define_root_symbol (module_block/53) =
+    let field_0/54 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/53)
+    in
+    let field_1/55 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/53)
+    in
+    let $camlChar_of_int_in_loop = Block 0 (field_0/54, field_1/55) in
+    cont done ($camlChar_of_int_in_loop)

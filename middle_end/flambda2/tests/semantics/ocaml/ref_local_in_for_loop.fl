@@ -1,0 +1,79 @@
+let $camlRef_local_in_for_loop__first_const_0 = Block 0 () in
+(let code inline(never) size(49)
+       body_0 (x/85 : imm tagged)
+         my_closure/86 &my_alloc_region/87 my_depth/88
+         -> k/28 * k/29
+         : imm tagged =
+   let next_depth/89 = rec_info (succ my_depth/88) in
+   let region/90 = %begin_region () in
+   let ghost_region/91 = %begin_ghost_region () in
+   cont k/31 (0)
+     where k/31 (let_mutable/95 : imm tagged) =
+       ((let prim/113 = %int_comp.le (1, 10) in
+         let int_lessequal/114 = %tag_imm (prim/113) in
+         (let untagged/115 = %untag_imm (int_lessequal/114) in
+          switch untagged/115
+            | 0 -> k/32 (0, let_mutable/95)
+            | 1 -> k/36)
+           where k/36 =
+             cont k/33 (let_mutable/95))
+          where k/33 (r_14_unboxed0/98 : imm tagged) =
+            let prim/99 = %untag_imm (1) in
+            let for_start_naked/100 = %num_conv.[`imm`].[`int64`] (prim/99)
+            in
+            let prim/101 = %untag_imm (10) in
+            let for_stop_naked/102 = %num_conv.[`imm`].[`int64`] (prim/101)
+            in
+            (cont k/34 (for_start_naked/100, r_14_unboxed0/98)
+               where rec k/34
+                           (for_counter_naked/103 : int64,
+                            r_14_unboxed0/104 : imm tagged) =
+                 let prim/105 =
+                   %num_conv.[`int64`].[`imm`] (for_counter_naked/103)
+                 in
+                 let i/106 = %tag_imm (prim/105) in
+                 let int_mul/107 = %int_barith.mul (i/106, x/85) in
+                 let int_add/108 =
+                   %int_barith.add (r_14_unboxed0/104, int_mul/107)
+                 in
+                 let for_next_naked/109 =
+                   %int_barith.`int64`.add (for_counter_naked/103, 1L)
+                 in
+                 let prim/110 =
+                   %int_comp.`int64`.le
+                     (for_next_naked/109, for_stop_naked/102)
+                 in
+                 let `int64#_lessequal/111` = %tag_imm (prim/110) in
+                 ((let untagged/112 = %untag_imm (`int64#_lessequal/111`) in
+                   switch untagged/112
+                     | 0 -> k/32 (0, int_add/108)
+                     | 1 -> k/35)
+                    where k/35 =
+                      cont k/34 (for_next_naked/109, int_add/108)))
+          where k/32
+                  (staticcatch_result/96 : imm tagged,
+                   r_14_unboxed0/97 : imm tagged) =
+            cont k/30 (r_14_unboxed0/97))
+     where k/30 (region_return/92 : imm tagged) =
+       let unit/93 = %end_region (region/90) in
+       let unit/94 = %end_ghost_region (ghost_region/91) in
+       cont k/28 (region_return/92)
+ in
+ let body/116 = closure body_0 @body &toplevel in
+ apply direct(body_0 &toplevel)
+   (body/116 : _ -> imm tagged) (10) -> k/37 * error
+   where k/37 (apply_result/117 : imm tagged) =
+     ((let Popaque/121 = %opaque (3) in
+       apply direct(body_0 &toplevel)
+         (body/116 : _ -> imm tagged) (Popaque/121) -> k/38 * error)
+        where k/38 (apply_result/118 : imm tagged) =
+          let result/119 =
+            %int_barith.add (apply_result/118, apply_result/117)
+          in
+          let Pmakeblock/120 = %block.[`0`].`toplevel` (result/119) in
+          cont k/27 (Pmakeblock/120)))
+  where k/27 define_root_symbol (module_block/83) =
+    let field_0/84 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/83)
+    in
+    let $camlRef_local_in_for_loop = Block 0 (field_0/84) in
+    cont done ($camlRef_local_in_for_loop)

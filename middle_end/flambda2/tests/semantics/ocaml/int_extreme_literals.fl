@@ -1,0 +1,90 @@
+let $camlInt_extreme_literals__first_const_0 = Block 0 () in
+(let code inline(never) size(63)
+       kind_0 (n/81 : imm tagged)
+         my_closure/82 &my_alloc_region/83 my_depth/84
+         -> k/32 * k/33
+         : imm tagged =
+   let next_depth/85 = rec_info (succ my_depth/84) in
+   (let prim/95 = %int_comp.ne (n/81, 0) in
+    let int_notequal/96 = %tag_imm (prim/95) in
+    (let untagged/97 = %untag_imm (int_notequal/96) in
+     switch untagged/97
+       | 0 -> k/32 (4)
+       | 1 -> k/39)
+      where k/39 =
+        cont k/34)
+     where k/34 =
+       ((let prim/92 = %int_comp.ge (n/81, 4611686018427387902) in
+         let int_greaterequal/93 = %tag_imm (prim/92) in
+         (let untagged/94 = %untag_imm (int_greaterequal/93) in
+          switch untagged/94
+            | 0 -> k/37
+            | 1 -> k/38)
+           where k/38 =
+             cont k/35
+           where k/37 =
+             cont k/36)
+          where k/36 =
+            let prim/89 = %int_comp.ge (n/81, -4611686018427387903) in
+            let int_greaterequal/90 = %tag_imm (prim/89) in
+            let untagged/91 = %untag_imm (int_greaterequal/90) in
+            switch untagged/91
+              | 0 -> k/32 (2)
+              | 1 -> k/32 (5)
+          where k/35 =
+            let prim/86 = %int_comp.ge (n/81, 4611686018427387903) in
+            let int_greaterequal/87 = %tag_imm (prim/86) in
+            let untagged/88 = %untag_imm (int_greaterequal/87) in
+            switch untagged/88
+              | 0 -> k/32 (3)
+              | 1 -> k/32 (1))
+ in
+ let kind/98 = closure kind_0 @kind &toplevel in
+ (let Popaque/117 = %opaque (1) in
+  apply direct(kind_0 &toplevel)
+    (kind/98 : _ -> imm tagged) (Popaque/117) -> k/40 * error)
+   where k/40 (apply_result/99 : imm tagged) =
+     let int_mul/100 = %int_barith.mul (10000, apply_result/99) in
+     ((let Popaque/116 = %opaque (0) in
+       apply direct(kind_0 &toplevel)
+         (kind/98 : _ -> imm tagged) (Popaque/116) -> k/41 * error)
+        where k/41 (apply_result/101 : imm tagged) =
+          let int_mul/102 = %int_barith.mul (1000, apply_result/101) in
+          ((let Popaque/115 = %opaque (4611686018427387902) in
+            apply direct(kind_0 &toplevel)
+              (kind/98 : _ -> imm tagged) (Popaque/115) -> k/42 * error)
+             where k/42 (apply_result/103 : imm tagged) =
+               let int_mul/104 = %int_barith.mul (100, apply_result/103) in
+               ((let Popaque/114 = %opaque (-4611686018427387904) in
+                 apply direct(kind_0 &toplevel)
+                   (kind/98 : _ -> imm tagged) (Popaque/114) -> k/43 * error)
+                  where k/43 (apply_result/105 : imm tagged) =
+                    let int_mul/106 = %int_barith.mul (10, apply_result/105)
+                    in
+                    ((let Popaque/113 = %opaque (4611686018427387903) in
+                      apply direct(kind_0 &toplevel)
+                        (kind/98 : _ -> imm tagged)
+                          (Popaque/113)
+                          -> k/44 * error)
+                       where k/44 (apply_result/107 : imm tagged) =
+                         let int_add/108 =
+                           %int_barith.add (apply_result/107, int_mul/106)
+                         in
+                         let int_add/109 =
+                           %int_barith.add (int_add/108, int_mul/104)
+                         in
+                         let int_add/110 =
+                           %int_barith.add (int_add/109, int_mul/102)
+                         in
+                         let result/111 =
+                           %int_barith.add (int_add/110, int_mul/100)
+                         in
+                         let Pmakeblock/112 =
+                           %block.[`0`].`toplevel` (result/111)
+                         in
+                         cont k/31 (Pmakeblock/112))))))
+  where k/31 define_root_symbol (module_block/79) =
+    let field_0/80 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/79)
+    in
+    let $camlInt_extreme_literals = Block 0 (field_0/80) in
+    cont done ($camlInt_extreme_literals)

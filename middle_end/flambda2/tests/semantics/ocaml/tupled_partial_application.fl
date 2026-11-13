@@ -1,0 +1,152 @@
+(let code inline(never) size(15)
+       pair_first_0
+         (param/125 : [ 0 of imm tagged * imm tagged ], c/126 : imm tagged)
+         my_closure/127 &my_alloc_region/128 my_depth/129
+         -> k/38 * k/39
+         : imm tagged =
+   let next_depth/130 = rec_info (succ my_depth/129) in
+   let Pmixedfield/131 = %block_load.[`1`] (param/125) in
+   let int_mul/132 = %int_barith.mul (Pmixedfield/131, 10) in
+   let Pmixedfield/133 = %block_load.[`0`] (param/125) in
+   let int_mul/134 = %int_barith.mul (Pmixedfield/133, 100) in
+   let int_add/135 = %int_barith.add (int_mul/134, int_mul/132) in
+   let int_add/136 = %int_barith.add (int_add/135, c/126) in
+   cont k/38 (int_add/136)
+ in
+ let code inline(never) size(15)
+       pair_second_1
+         (c/137 : imm tagged, param/138 : [ 0 of imm tagged * imm tagged ])
+         my_closure/139 &my_alloc_region/140 my_depth/141
+         -> k/40 * k/41
+         : imm tagged =
+   let next_depth/142 = rec_info (succ my_depth/141) in
+   let Pmixedfield/143 = %block_load.[`1`] (param/138) in
+   let int_mul/144 = %int_barith.mul (Pmixedfield/143, 10) in
+   let Pmixedfield/145 = %block_load.[`0`] (param/138) in
+   let int_mul/146 = %int_barith.mul (Pmixedfield/145, 100) in
+   let int_add/147 = %int_barith.add (int_mul/146, int_mul/144) in
+   let int_add/148 = %int_barith.add (int_add/147, c/137) in
+   cont k/40 (int_add/148)
+ in
+ let code size(6) stub
+       partial_pair_first_2 (param1/149 : imm tagged)
+         my_closure/150 &my_alloc_region/151 my_depth/152
+         -> k/42 * k/43
+         : imm tagged =
+   let next_depth/153 = rec_info (succ my_depth/152) in
+   let pair_first/154 =
+     %project_value_slot.[partial_pair_first].[pair_first] (my_closure/150)
+   in
+   let Popaque/155 =
+     %project_value_slot.[partial_pair_first].[Popaque] (my_closure/150)
+   in
+   apply direct(pair_first_0 &my_alloc_region/151)
+     (pair_first/154 : _ -> imm tagged)
+       (Popaque/155, param1/149)
+       -> k/42 * k/43
+ in
+ let code size(5) stub
+       partial_pair_second_3 (param1/156 : [ 0 of imm tagged * imm tagged ])
+         my_closure/157 &my_alloc_region/158 my_depth/159
+         -> k/44 * k/45
+         : imm tagged =
+   let next_depth/160 = rec_info (succ my_depth/159) in
+   let pair_second/161 =
+     %project_value_slot.[partial_pair_second].[pair_second] (my_closure/157)
+   in
+   apply direct(pair_second_1 &my_alloc_region/158)
+     (pair_second/161 : _ -> imm tagged) (5, param1/156) -> k/44 * k/45
+ in
+ let $camlTupled_partial_application__const_block_2 = Block 0 (8, 9) in
+ let $camlTupled_partial_application__const_block_1 = Block 0 (6, 7) in
+ let $camlTupled_partial_application__const_block_0 = Block 0 (1, 2) in
+ let pair_first/162 = closure pair_first_0 @pair_first &toplevel in
+ let pair_second/163 = closure pair_second_1 @pair_second &toplevel in
+ (let Popaque/176 = %opaque ($camlTupled_partial_application__const_block_0)
+  in
+  let partial_pair_first/177 =
+    closure partial_pair_first_2 @partial_pair_first &toplevel
+  with { pair_first = pair_first/162; Popaque = Popaque/176 }
+  in
+  cont k/46 (partial_pair_first/177))
+   where k/46 (with_pair/164 : val) =
+     (apply direct(partial_pair_first_2 &toplevel)
+        (with_pair/164 : _ -> imm tagged) (3) -> k/47 * error
+        where k/47 (pair_then_three/165 : imm tagged) =
+          (apply direct(partial_pair_first_2 &toplevel)
+             (with_pair/164 : _ -> imm tagged) (4) -> k/48 * error
+             where k/48 (pair_then_four/166 : imm tagged) =
+               ((let partial_pair_second/175 =
+                   closure partial_pair_second_3 @partial_pair_second
+                     &toplevel
+                 with { pair_second = pair_second/163 }
+                 in
+                 cont k/49 (partial_pair_second/175))
+                  where k/49 (with_number/167 : val) =
+                    (apply direct(partial_pair_second_3 &toplevel)
+                       (with_number/167 : _ -> imm tagged)
+                         ($camlTupled_partial_application__const_block_1)
+                         -> k/50 * error
+                       where k/50 (number_then_pair/168 : imm tagged) =
+                         ((let Popaque/174 =
+                             %opaque
+                               ($camlTupled_partial_application__const_block_2)
+                           in
+                           apply direct(partial_pair_second_3 &toplevel)
+                             (with_number/167 : _ -> imm tagged)
+                               (Popaque/174)
+                               -> k/51 * error)
+                            where k/51
+                                    (number_then_unknown_pair/169 :
+                                       imm tagged) =
+                              (apply direct(pair_second_1 &toplevel)
+                                 (pair_second/163 : _ -> imm tagged)
+                                   (3,
+                                    $camlTupled_partial_application__const_block_0)
+                                   -> k/52 * error
+                                 where k/52 (apply_result/170 : imm tagged) =
+                                   (apply direct(pair_first_0 &toplevel)
+                                      (pair_first/162 : _ -> imm tagged)
+                                        ($camlTupled_partial_application__const_block_0,
+                                         3)
+                                        -> k/53 * error
+                                      where k/53
+                                              (apply_result/171 : imm tagged) =
+                                        let both_at_once/172 =
+                                          %int_barith.add
+                                            (apply_result/171,
+                                             apply_result/170)
+                                        in
+                                        let Pmakeblock/173 =
+                                          %block.[`0`].`toplevel`
+                                            (pair_then_three/165,
+                                             pair_then_four/166,
+                                             number_then_pair/168,
+                                             number_then_unknown_pair/169,
+                                             both_at_once/172)
+                                        in
+                                        cont k/37 (Pmakeblock/173)))))))))
+  where k/37 define_root_symbol (module_block/119) =
+    let field_0/120 =
+      %block_load.tag[`0`].`size`[`5`].[`0`] (module_block/119)
+    in
+    let field_1/121 =
+      %block_load.tag[`0`].`size`[`5`].[`1`] (module_block/119)
+    in
+    let field_2/122 =
+      %block_load.tag[`0`].`size`[`5`].[`2`] (module_block/119)
+    in
+    let field_3/123 =
+      %block_load.tag[`0`].`size`[`5`].[`3`] (module_block/119)
+    in
+    let field_4/124 =
+      %block_load.tag[`0`].`size`[`5`].[`4`] (module_block/119)
+    in
+    let $camlTupled_partial_application =
+      Block 0 (field_0/120,
+               field_1/121,
+               field_2/122,
+               field_3/123,
+               field_4/124)
+    in
+    cont done ($camlTupled_partial_application)

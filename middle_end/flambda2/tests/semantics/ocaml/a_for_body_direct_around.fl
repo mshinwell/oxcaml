@@ -1,0 +1,165 @@
+(let $camlA_for_body_direct_around__immstring_1 = "stop" in
+ let $camlA_for_body_direct_around__Pmakeblock_2 =
+   Block 0 ($`*predef*`.caml_exn_Failure,
+            $camlA_for_body_direct_around__immstring_1)
+ in
+ let code size(103)
+       run_0 (n/151 : imm tagged, k/152 : imm tagged)
+         my_closure/153 &my_alloc_region/154 my_depth/155
+         -> k/54 * k/55
+         : imm tagged =
+   let next_depth/156 = rec_info (succ my_depth/155) in
+   cont k/56 (0)
+     where k/56 (let_mutable/157 : imm tagged) =
+       let try_region/158 = %begin_try_region () in
+       let try_ghost_region/159 = %begin_try_ghost_region () in
+       (cont k/64 push(k/58) (let_mutable/157)
+          where k/64 (a_34_unboxed0/176 : imm tagged) =
+            (cont k/65 (n/151, a_34_unboxed0/176)
+               where k/65
+                       (for_stop/177 : imm tagged,
+                        a_34_unboxed0/178 : imm tagged) =
+                 ((let prim/202 = %int_comp.le (1, for_stop/177) in
+                   let int_lessequal/203 = %tag_imm (prim/202) in
+                   (let untagged/204 = %untag_imm (int_lessequal/203) in
+                    switch untagged/204
+                      | 0 -> k/66 (0, a_34_unboxed0/178)
+                      | 1 -> k/73)
+                     where k/73 =
+                       cont k/67 (a_34_unboxed0/178))
+                    where k/67 (a_34_unboxed0/181 : imm tagged) =
+                      let prim/182 = %untag_imm (1) in
+                      let for_start_naked/183 =
+                        %num_conv.[`imm`].[`int64`] (prim/182)
+                      in
+                      let prim/184 = %untag_imm (for_stop/177) in
+                      let for_stop_naked/185 =
+                        %num_conv.[`imm`].[`int64`] (prim/184)
+                      in
+                      (cont k/68 (for_start_naked/183, a_34_unboxed0/181)
+                         where rec k/68
+                                     (for_counter_naked/186 : int64,
+                                      a_34_unboxed0/187 : imm tagged) =
+                           let prim/188 =
+                             %num_conv.[`int64`].[`imm`]
+                               (for_counter_naked/186)
+                           in
+                           let i/189 = %tag_imm (prim/188) in
+                           let int_add/190 =
+                             %int_barith.add (a_34_unboxed0/187, i/189)
+                           in
+                           ((let prim/199 = %phys_eq (i/189, k/152) in
+                             let eq/200 = %tag_imm (prim/199) in
+                             (let untagged/201 = %untag_imm (eq/200) in
+                              switch untagged/201
+                                | 0 -> k/69 (0, int_add/190)
+                                | 1 -> k/72)
+                               where k/72 =
+                                 cont k/71 (int_add/190))
+                              where k/71 (a_34_unboxed0/198 : imm tagged) =
+                                cont k/58
+                                       pop(regular k/58)
+                                       ($camlA_for_body_direct_around__Pmakeblock_2,
+                                        a_34_unboxed0/198)
+                              where k/69
+                                      (staticcatch_result/191 : imm tagged,
+                                       a_34_unboxed0/192 : imm tagged) =
+                                let int_mul/193 =
+                                  %int_barith.mul (a_34_unboxed0/192, 2)
+                                in
+                                let for_next_naked/194 =
+                                  %int_barith.`int64`.add
+                                    (for_counter_naked/186, 1L)
+                                in
+                                let prim/195 =
+                                  %int_comp.`int64`.le
+                                    (for_next_naked/194, for_stop_naked/185)
+                                in
+                                let `int64#_lessequal/196` =
+                                  %tag_imm (prim/195)
+                                in
+                                ((let untagged/197 =
+                                    %untag_imm (`int64#_lessequal/196`)
+                                  in
+                                  switch untagged/197
+                                    | 0 -> k/66 (0, int_mul/193)
+                                    | 1 -> k/70)
+                                   where k/70 =
+                                     cont k/68
+                                            (for_next_naked/194, int_mul/193))))
+                    where k/66
+                            (staticcatch_result/179 : imm tagged,
+                             a_34_unboxed0/180 : imm tagged) =
+                      cont k/63 (0, a_34_unboxed0/180)))
+          where k/63
+                  (body_result/174 : imm tagged,
+                   a_34_unboxed0/175 : imm tagged) =
+            cont k/57 pop(k/58) (body_result/174, a_34_unboxed0/175)
+          where k/58 exn (exn/162 : val, a_34_unboxed0/163 : imm tagged) =
+            let unit/164 = %end_try_region (try_region/158) in
+            let unit/165 = %end_try_ghost_region (try_ghost_region/159) in
+            ((let Pfield/170 = %block_load.[`0`] (exn/162) in
+              let prim/171 =
+                %phys_eq (Pfield/170, $`*predef*`.caml_exn_Failure)
+              in
+              let eq/172 = %tag_imm (prim/171) in
+              (let untagged/173 = %untag_imm (eq/172) in
+               switch untagged/173
+                 | 0 -> k/61
+                 | 1 -> k/62)
+                where k/62 =
+                  cont k/59 (a_34_unboxed0/163)
+                where k/61 =
+                  cont k/60 (a_34_unboxed0/163))
+               where k/60 (a_34_unboxed0/169 : imm tagged) =
+                 cont k/55 pop(reraise k/55) (exn/162)
+               where k/59 (a_34_unboxed0/166 : imm tagged) =
+                 let int_add/167 = %int_barith.add (1000, 0) in
+                 let int_add/168 =
+                   %int_barith.add (a_34_unboxed0/166, int_add/167)
+                 in
+                 cont k/57 (0, int_add/168))
+          where k/57
+                  (try_with_result/160 : imm tagged,
+                   a_34_unboxed0/161 : imm tagged) =
+            cont k/54 (a_34_unboxed0/161))
+ in
+ let $camlA_for_body_direct_around__empty_block_0 = Block 0 () in
+ let run/205 = closure run_0 @run &toplevel in
+ (let Popaque/212 = %opaque (4) in
+  let Popaque/213 = %opaque (6) in
+  apply direct(run_0 &toplevel)
+    (run/205 : _ -> imm tagged) (Popaque/213, Popaque/212) -> k/74 * error)
+   where k/74 (stopped/206 : imm tagged) =
+     (apply direct(run_0 &toplevel)
+        (run/205 : _ -> imm tagged) (5, 9) -> k/75 * error
+        where k/75 (finished/207 : imm tagged) =
+          ((let Popaque/211 = %opaque (3) in
+            apply direct(run_0 &toplevel)
+              (run/205 : _ -> imm tagged) (Popaque/211, 1) -> k/76 * error)
+             where k/76 (at_once/208 : imm tagged) =
+               (apply direct(run_0 &toplevel)
+                  (run/205 : _ -> imm tagged) (0, 0) -> k/77 * error
+                  where k/77 (empty/209 : imm tagged) =
+                    let Pmakeblock/210 =
+                      %block.[`0`].`toplevel`
+                        (stopped/206, finished/207, at_once/208, empty/209)
+                    in
+                    cont k/53 (Pmakeblock/210)))))
+  where k/53 define_root_symbol (module_block/146) =
+    let field_0/147 =
+      %block_load.tag[`0`].`size`[`4`].[`0`] (module_block/146)
+    in
+    let field_1/148 =
+      %block_load.tag[`0`].`size`[`4`].[`1`] (module_block/146)
+    in
+    let field_2/149 =
+      %block_load.tag[`0`].`size`[`4`].[`2`] (module_block/146)
+    in
+    let field_3/150 =
+      %block_load.tag[`0`].`size`[`4`].[`3`] (module_block/146)
+    in
+    let $camlA_for_body_direct_around =
+      Block 0 (field_0/147, field_1/148, field_2/149, field_3/150)
+    in
+    cont done ($camlA_for_body_direct_around)

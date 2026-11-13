@@ -1,0 +1,8 @@
+dead_division_in_dead_arm.fl:
+  before Simplify, with its import (57 steps): returns [0: 2006]
+  after Simplify, with its import (9 steps): returns [0: 2006]
+  the check of kinds: passes before, passes after
+  calls outside code: 2 before, 0 after
+  the same
+  calls outside code once those of known code are inlined: 0
+  validated with its imports: the same once normalised and unused static bindings removed

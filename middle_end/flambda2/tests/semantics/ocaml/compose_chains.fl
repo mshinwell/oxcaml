@@ -1,0 +1,258 @@
+let $camlCompose_chains__first_const_0 = Block 0 () in
+(let code size(12)
+       compose_0 (f/225 : val, g/226 : val, x/227)
+         my_closure/228 &my_alloc_region/229 my_depth/230
+         -> k/76 * k/77 =
+   let next_depth/231 = rec_info (succ my_depth/230) in
+   apply &my_alloc_region/229 g/226 (x/227) -> k/78 * k/77
+     where k/78 (apply_result/232) =
+       apply &my_alloc_region/229 f/225 (apply_result/232) -> k/76 * k/77
+ in
+ let code inline(never) size(3)
+       add_1 (a/233 : imm tagged, b/234 : imm tagged)
+         my_closure/235 &my_alloc_region/236 my_depth/237
+         -> k/79 * k/80
+         : imm tagged =
+   let next_depth/238 = rec_info (succ my_depth/237) in
+   let int_add/239 = %int_barith.add (a/233, b/234) in
+   cont k/79 (int_add/239)
+ in
+ let code inline(never) size(5)
+       scale_2 (a/240 : imm tagged, b/241 : imm tagged)
+         my_closure/242 &my_alloc_region/243 my_depth/244
+         -> k/81 * k/82
+         : imm tagged =
+   let next_depth/245 = rec_info (succ my_depth/244) in
+   let int_mul/246 = %int_barith.mul (a/240, b/241) in
+   cont k/81 (int_mul/246)
+ in
+ let code size(3)
+       increment_3 (x/247 : imm tagged)
+         my_closure/248 &my_alloc_region/249 my_depth/250
+         -> k/83 * k/84
+         : imm tagged =
+   let next_depth/251 = rec_info (succ my_depth/250) in
+   let int_add/252 = %int_barith.add (x/247, 1) in
+   cont k/83 (int_add/252)
+ in
+ let code size(5)
+       double_4 (x/253 : imm tagged)
+         my_closure/254 &my_alloc_region/255 my_depth/256
+         -> k/85 * k/86
+         : imm tagged =
+   let next_depth/257 = rec_info (succ my_depth/256) in
+   let int_mul/258 = %int_barith.mul (x/253, 2) in
+   cont k/85 (int_mul/258)
+ in
+ let code size(5)
+       square_5 (x/259 : imm tagged)
+         my_closure/260 &my_alloc_region/261 my_depth/262
+         -> k/87 * k/88
+         : imm tagged =
+   let next_depth/263 = rec_info (succ my_depth/262) in
+   let int_mul/264 = %int_barith.mul (x/259, x/259) in
+   cont k/87 (int_mul/264)
+ in
+ let code size(7) stub
+       partial_compose_6 (param2/265)
+         my_closure/266 &my_alloc_region/267 my_depth/268
+         -> k/89 * k/90 =
+   let next_depth/269 = rec_info (succ my_depth/268) in
+   let compose/270 =
+     %project_value_slot.[partial_compose].[compose] (my_closure/266)
+   in
+   let increment/271 =
+     %project_value_slot.[partial_compose].[increment] (my_closure/266)
+   in
+   let double/272 =
+     %project_value_slot.[partial_compose].[double] (my_closure/266)
+   in
+   apply direct(compose_0 &my_alloc_region/267)
+     compose/270 (increment/271, double/272, param2/265) -> k/89 * k/90
+ in
+ let code size(7) stub
+       partial_compose_7 (param2/273)
+         my_closure/274 &my_alloc_region/275 my_depth/276
+         -> k/91 * k/92 =
+   let next_depth/277 = rec_info (succ my_depth/276) in
+   let compose/278 =
+     %project_value_slot.[partial_compose_1].[compose_1] (my_closure/274)
+   in
+   let double/279 =
+     %project_value_slot.[partial_compose_1].[double_1] (my_closure/274)
+   in
+   let square/280 =
+     %project_value_slot.[partial_compose_1].[square] (my_closure/274)
+   in
+   apply direct(compose_0 &my_alloc_region/275)
+     compose/278 (double/279, square/280, param2/273) -> k/91 * k/92
+ in
+ let code size(7) stub
+       partial_compose_8 (param2/281)
+         my_closure/282 &my_alloc_region/283 my_depth/284
+         -> k/93 * k/94 =
+   let next_depth/285 = rec_info (succ my_depth/284) in
+   let compose/286 =
+     %project_value_slot.[partial_compose_2].[compose_2] (my_closure/282)
+   in
+   let increment/287 =
+     %project_value_slot.[partial_compose_2].[increment_1] (my_closure/282)
+   in
+   let square/288 =
+     %project_value_slot.[partial_compose_2].[square_1] (my_closure/282)
+   in
+   apply direct(compose_0 &my_alloc_region/283)
+     compose/286 (square/288, increment/287, param2/281) -> k/93 * k/94
+ in
+ let code size(5) stub
+       partial_scale_9 (param1/289 : imm tagged)
+         my_closure/290 &my_alloc_region/291 my_depth/292
+         -> k/95 * k/96
+         : imm tagged =
+   let next_depth/293 = rec_info (succ my_depth/292) in
+   let scale/294 =
+     %project_value_slot.[partial_scale].[scale] (my_closure/290)
+   in
+   apply direct(scale_2 &my_alloc_region/291)
+     (scale/294 : _ -> imm tagged) (4, param1/289) -> k/95 * k/96
+ in
+ let code size(5) stub
+       partial_add_10 (param1/295 : imm tagged)
+         my_closure/296 &my_alloc_region/297 my_depth/298
+         -> k/97 * k/98
+         : imm tagged =
+   let next_depth/299 = rec_info (succ my_depth/298) in
+   let add/300 = %project_value_slot.[partial_add].[add] (my_closure/296) in
+   apply direct(add_1 &my_alloc_region/297)
+     (add/300 : _ -> imm tagged) (10, param1/295) -> k/97 * k/98
+ in
+ let compose/301 = closure compose_0 @compose &toplevel in
+ let add/302 = closure add_1 @add &toplevel in
+ let scale/303 = closure scale_2 @scale &toplevel in
+ let increment/304 = closure increment_3 @increment &toplevel in
+ let double/305 = closure double_4 @double &toplevel in
+ let square/306 = closure square_5 @square &toplevel in
+ let x/307 = %opaque (3) in
+ apply direct(compose_0 &toplevel)
+   (compose/301 : _ -> imm tagged)
+     (increment/304, double/305, x/307)
+     -> k/99 * error
+   where k/99 (two/308 : imm tagged) =
+     ((let partial_compose/327 =
+         closure partial_compose_6 @partial_compose &toplevel
+       with {
+         compose = compose/301;
+         increment = increment/304;
+         double = double/305
+       }
+       in
+       cont k/110 (partial_compose/327))
+        where k/110 (apply_result/326 : val) =
+          apply direct(compose_0 &toplevel)
+            (compose/301 : _ -> imm tagged)
+              (apply_result/326, square/306, x/307)
+              -> k/100 * error
+        where k/100 (three_left/309 : imm tagged) =
+          ((let partial_compose/325 =
+              closure partial_compose_7 @partial_compose_1 &toplevel
+            with {
+              compose_1 = compose/301;
+              double_1 = double/305;
+              square = square/306
+            }
+            in
+            cont k/109 (partial_compose/325))
+             where k/109 (apply_result/324 : val) =
+               apply direct(compose_0 &toplevel)
+                 (compose/301 : _ -> imm tagged)
+                   (increment/304, apply_result/324, x/307)
+                   -> k/101 * error
+             where k/101 (three_right/310 : imm tagged) =
+               ((let partial_compose/323 =
+                   closure partial_compose_8 @partial_compose_2 &toplevel
+                 with {
+                   compose_2 = compose/301;
+                   increment_1 = increment/304;
+                   square_1 = square/306
+                 }
+                 in
+                 cont k/102 (partial_compose/323))
+                  where k/102 (kept/311 : val) =
+                    (apply direct(partial_compose_8 &toplevel)
+                       (kept/311 : _ -> imm tagged) (x/307) -> k/103 * error
+                       where k/103 (apply_result/312 : imm tagged) =
+                         (apply direct(partial_compose_8 &toplevel)
+                            (kept/311 : _ -> imm tagged) (2) -> k/104 * error
+                            where k/104 (apply_result/313 : imm tagged) =
+                              (apply direct(partial_compose_8 &toplevel)
+                                 (kept/311 : _ -> imm tagged)
+                                   (1)
+                                   -> k/105 * error
+                                 where k/105 (apply_result/314 : imm tagged) =
+                                   let int_add/315 =
+                                     %int_barith.add
+                                       (apply_result/314, apply_result/313)
+                                   in
+                                   let kept_applied/316 =
+                                     %int_barith.add
+                                       (int_add/315, apply_result/312)
+                                   in
+                                   ((let partial_scale/322 =
+                                       closure partial_scale_9 @partial_scale
+                                         &toplevel
+                                     with { scale = scale/303 }
+                                     in
+                                     cont k/107 (partial_scale/322))
+                                      where k/107 (apply_result/319 : val) =
+                                        ((let partial_add/321 =
+                                            closure partial_add_10
+                                              @partial_add &toplevel
+                                          with { add = add/302 }
+                                          in
+                                          cont k/108 (partial_add/321))
+                                           where k/108
+                                                   (apply_result/320 : val) =
+                                             apply
+                                                    direct(compose_0
+                                                    &toplevel)
+                                               (compose/301 : _ -> imm tagged
+                                                )
+                                                 (apply_result/320,
+                                                  apply_result/319,
+                                                  x/307)
+                                                 -> k/106 * error)
+                                      where k/106
+                                              (of_partials/317 : imm tagged) =
+                                        let Pmakeblock/318 =
+                                          %block.[`0`].`toplevel`
+                                            (two/308,
+                                             three_left/309,
+                                             three_right/310,
+                                             kept_applied/316,
+                                             of_partials/317)
+                                        in
+                                        cont k/75 (Pmakeblock/318)))))))))
+  where k/75 define_root_symbol (module_block/219) =
+    let field_0/220 =
+      %block_load.tag[`0`].`size`[`5`].[`0`] (module_block/219)
+    in
+    let field_1/221 =
+      %block_load.tag[`0`].`size`[`5`].[`1`] (module_block/219)
+    in
+    let field_2/222 =
+      %block_load.tag[`0`].`size`[`5`].[`2`] (module_block/219)
+    in
+    let field_3/223 =
+      %block_load.tag[`0`].`size`[`5`].[`3`] (module_block/219)
+    in
+    let field_4/224 =
+      %block_load.tag[`0`].`size`[`5`].[`4`] (module_block/219)
+    in
+    let $camlCompose_chains =
+      Block 0 (field_0/220,
+               field_1/221,
+               field_2/222,
+               field_3/223,
+               field_4/224)
+    in
+    cont done ($camlCompose_chains)

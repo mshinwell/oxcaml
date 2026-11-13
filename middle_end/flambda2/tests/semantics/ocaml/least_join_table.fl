@@ -1,0 +1,36 @@
+let $camlLeast_join_table__first_const_0 = Block 0 () in
+(let code inline(never) size(27)
+       pick_0 (c/43 : imm tagged, a/44 : imm tagged, b/45 : imm tagged)
+         my_closure/46 &my_alloc_region/47 my_depth/48
+         -> k/16 * k/17
+         : imm tagged =
+   let next_depth/49 = rec_info (succ my_depth/48) in
+   (let untagged/52 = %untag_imm (c/43) in
+    switch untagged/52
+      | 0 -> k/18 (b/45)
+      | 1 -> k/18 (a/44))
+     where k/18 (x/50 : imm tagged) =
+       let untagged/51 = %untag_imm (x/50) in
+       switch untagged/51
+         | 0 -> k/16 (7)
+         | 1 -> k/16 (1)
+         | 2 -> k/16 (4)
+ in
+ let pick/53 = closure pick_0 @pick &toplevel in
+ (let Popaque/60 = %opaque (0) in
+  apply direct(pick_0 &toplevel)
+    (pick/53 : _ -> imm tagged) (Popaque/60, 0, 2) -> k/19 * error)
+   where k/19 (apply_result/54 : imm tagged) =
+     let int_mul/55 = %int_barith.mul (apply_result/54, 10) in
+     ((let Popaque/59 = %opaque (1) in
+       apply direct(pick_0 &toplevel)
+         (pick/53 : _ -> imm tagged) (Popaque/59, 0, 2) -> k/20 * error)
+        where k/20 (apply_result/56 : imm tagged) =
+          let result/57 = %int_barith.add (apply_result/56, int_mul/55) in
+          let Pmakeblock/58 = %block.[`0`].`toplevel` (result/57) in
+          cont k/15 (Pmakeblock/58)))
+  where k/15 define_root_symbol (module_block/41) =
+    let field_0/42 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/41)
+    in
+    let $camlLeast_join_table = Block 0 (field_0/42) in
+    cont done ($camlLeast_join_table)

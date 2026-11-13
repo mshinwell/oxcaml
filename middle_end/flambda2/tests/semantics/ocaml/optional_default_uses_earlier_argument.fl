@@ -1,0 +1,123 @@
+(let code size(69)
+       clamp_0
+         (`*opt*low/81` : [ 0 | 0 of imm tagged ],
+          `*opt*high/82` : [ 0 | 0 of imm tagged ],
+          x/83 : imm tagged)
+         my_closure/84 &my_alloc_region/85 my_depth/86
+         -> k/40 * k/41
+         : imm tagged =
+   let next_depth/87 = rec_info (succ my_depth/86) in
+   (let prim/102 = %is_int (`*opt*low/81`) in
+    let Pisint/103 = %tag_imm (prim/102) in
+    (let untagged/104 = %untag_imm (Pisint/103) in
+     switch untagged/104
+       | 0 -> k/51
+       | 1 -> k/42 (0))
+      where k/51 =
+        cont k/50)
+     where k/50 =
+       let Pfield/101 = %block_load.[`0`] (`*opt*low/81`) in
+       cont k/42 (Pfield/101)
+     where k/42 (low/88 : imm tagged) =
+       ((let prim/98 = %is_int (`*opt*high/82`) in
+         let Pisint/99 = %tag_imm (prim/98) in
+         (let untagged/100 = %untag_imm (Pisint/99) in
+          switch untagged/100
+            | 0 -> k/48
+            | 1 -> k/49)
+           where k/49 =
+             cont k/46
+           where k/48 =
+             cont k/47)
+          where k/47 =
+            let Pfield/97 = %block_load.[`0`] (`*opt*high/82`) in
+            cont k/43 (Pfield/97)
+          where k/46 =
+            let int_add/96 = %int_barith.add (low/88, 10) in
+            cont k/43 (int_add/96)
+          where k/43 (high/89 : imm tagged) =
+            ((let prim/93 = %int_comp.lt (x/83, low/88) in
+              let int_lessthan/94 = %tag_imm (prim/93) in
+              (let untagged/95 = %untag_imm (int_lessthan/94) in
+               switch untagged/95
+                 | 0 -> k/45
+                 | 1 -> k/40 (low/88))
+                where k/45 =
+                  cont k/44)
+               where k/44 =
+                 let prim/90 = %int_comp.lt (x/83, high/89) in
+                 let int_lessthan/91 = %tag_imm (prim/90) in
+                 let untagged/92 = %untag_imm (int_lessthan/91) in
+                 switch untagged/92
+                   | 0 -> k/40 (high/89)
+                   | 1 -> k/40 (x/83)))
+ in
+ let $camlOptional_default_uses_earlier_argument__const_block_5 =
+   Block 0 (40)
+ in
+ let $camlOptional_default_uses_earlier_argument__const_block_4 =
+   Block 0 (30)
+ in
+ let $camlOptional_default_uses_earlier_argument__const_block_3 = Block 0 (4)
+ in
+ let $camlOptional_default_uses_earlier_argument__const_block_2 = Block 0 (2)
+ in
+ let $camlOptional_default_uses_earlier_argument__const_block_1 = Block 0 (3)
+ in
+ let $camlOptional_default_uses_earlier_argument__const_block_0 =
+   Block 0 (20)
+ in
+ let clamp/105 = closure clamp_0 @clamp &toplevel in
+ apply direct(clamp_0 &toplevel)
+   (clamp/105 : _ -> imm tagged) (0, 0, 5) -> k/52 * error
+   where k/52 (both_omitted/106 : imm tagged) =
+     (apply direct(clamp_0 &toplevel)
+        (clamp/105 : _ -> imm tagged)
+          ($camlOptional_default_uses_earlier_argument__const_block_0, 0, 5)
+          -> k/53 * error
+        where k/53 (low_given/107 : imm tagged) =
+          (apply direct(clamp_0 &toplevel)
+             (clamp/105 : _ -> imm tagged)
+               (0,
+                $camlOptional_default_uses_earlier_argument__const_block_1,
+                5)
+               -> k/54 * error
+             where k/54 (high_given/108 : imm tagged) =
+               (apply direct(clamp_0 &toplevel)
+                  (clamp/105 : _ -> imm tagged)
+                    ($camlOptional_default_uses_earlier_argument__const_block_2,
+                     $camlOptional_default_uses_earlier_argument__const_block_3,
+                     9)
+                    -> k/55 * error
+                  where k/55 (both_given/109 : imm tagged) =
+                    (apply direct(clamp_0 &toplevel)
+                       (clamp/105 : _ -> imm tagged)
+                         ($camlOptional_default_uses_earlier_argument__const_block_4,
+                          $camlOptional_default_uses_earlier_argument__const_block_5,
+                          100)
+                         -> k/56 * error
+                       where k/56 (high_then_low/110 : imm tagged) =
+                         let Pmakeblock/111 =
+                           %block.[`0`].`toplevel`
+                             (both_omitted/106,
+                              low_given/107,
+                              high_given/108,
+                              both_given/109,
+                              high_then_low/110)
+                         in
+                         cont k/39 (Pmakeblock/111))))))
+  where k/39 define_root_symbol (module_block/75) =
+    let field_0/76 = %block_load.tag[`0`].`size`[`5`].[`0`] (module_block/75)
+    in
+    let field_1/77 = %block_load.tag[`0`].`size`[`5`].[`1`] (module_block/75)
+    in
+    let field_2/78 = %block_load.tag[`0`].`size`[`5`].[`2`] (module_block/75)
+    in
+    let field_3/79 = %block_load.tag[`0`].`size`[`5`].[`3`] (module_block/75)
+    in
+    let field_4/80 = %block_load.tag[`0`].`size`[`5`].[`4`] (module_block/75)
+    in
+    let $camlOptional_default_uses_earlier_argument =
+      Block 0 (field_0/76, field_1/77, field_2/78, field_3/79, field_4/80)
+    in
+    cont done ($camlOptional_default_uses_earlier_argument)

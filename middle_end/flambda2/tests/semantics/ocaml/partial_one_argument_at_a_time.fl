@@ -1,0 +1,179 @@
+let $camlPartial_one_argument_at_a_time__first_const_0 = Block 0 () in
+(let code inline(never) size(31)
+       six_0
+         (a/172 : imm tagged,
+          b/173 : imm tagged,
+          c/174 : imm tagged,
+          d/175 : imm tagged,
+          e/176 : imm tagged,
+          f/177 : imm tagged)
+         my_closure/178 &my_alloc_region/179 my_depth/180
+         -> k/48 * k/49
+         : imm tagged =
+   let next_depth/181 = rec_info (succ my_depth/180) in
+   let int_mul/182 = %int_barith.mul (a/172, 10) in
+   let int_add/183 = %int_barith.add (int_mul/182, b/173) in
+   let int_mul/184 = %int_barith.mul (int_add/183, 10) in
+   let int_add/185 = %int_barith.add (int_mul/184, c/174) in
+   let int_mul/186 = %int_barith.mul (int_add/185, 10) in
+   let int_add/187 = %int_barith.add (int_mul/186, d/175) in
+   let int_mul/188 = %int_barith.mul (int_add/187, 10) in
+   let int_add/189 = %int_barith.add (int_mul/188, e/176) in
+   let int_mul/190 = %int_barith.mul (int_add/189, 10) in
+   let int_add/191 = %int_barith.add (int_mul/190, f/177) in
+   cont k/48 (int_add/191)
+ in
+ let code size(6) stub
+       partial_six_1
+         (param1/192 : imm tagged,
+          param2/193 : imm tagged,
+          param3/194 : imm tagged,
+          param4/195 : imm tagged,
+          param5/196 : imm tagged)
+         my_closure/197 &my_alloc_region/198 my_depth/199
+         -> k/50 * k/51
+         : imm tagged =
+   let next_depth/200 = rec_info (succ my_depth/199) in
+   let six/201 = %project_value_slot.[partial_six].[six] (my_closure/197) in
+   let Popaque/202 =
+     %project_value_slot.[partial_six].[Popaque] (my_closure/197)
+   in
+   apply direct(six_0 &my_alloc_region/198)
+     (six/201 : _ -> imm tagged)
+       (Popaque/202,
+        param1/192,
+        param2/193,
+        param3/194,
+        param4/195,
+        param5/196)
+       -> k/50 * k/51
+ in
+ let code size(5) stub
+       partial_p1_2
+         (param1/203 : imm tagged,
+          param2/204 : imm tagged,
+          param3/205 : imm tagged,
+          param4/206 : imm tagged)
+         my_closure/207 &my_alloc_region/208 my_depth/209
+         -> k/52 * k/53
+         : imm tagged =
+   let next_depth/210 = rec_info (succ my_depth/209) in
+   let p1/211 = %project_value_slot.[partial_p1].[p1] (my_closure/207) in
+   apply direct(partial_six_1 &my_alloc_region/208)
+     (p1/211 : _ -> imm tagged)
+       (2, param1/203, param2/204, param3/205, param4/206)
+       -> k/52 * k/53
+ in
+ let code size(5) stub
+       partial_p2_3
+         (param1/212 : imm tagged,
+          param2/213 : imm tagged,
+          param3/214 : imm tagged)
+         my_closure/215 &my_alloc_region/216 my_depth/217
+         -> k/54 * k/55
+         : imm tagged =
+   let next_depth/218 = rec_info (succ my_depth/217) in
+   let p2/219 = %project_value_slot.[partial_p2].[p2] (my_closure/215) in
+   apply direct(partial_p1_2 &my_alloc_region/216)
+     (p2/219 : _ -> imm tagged)
+       (3, param1/212, param2/213, param3/214)
+       -> k/54 * k/55
+ in
+ let code size(5) stub
+       partial_p3_4 (param1/220 : imm tagged, param2/221 : imm tagged)
+         my_closure/222 &my_alloc_region/223 my_depth/224
+         -> k/56 * k/57
+         : imm tagged =
+   let next_depth/225 = rec_info (succ my_depth/224) in
+   let p3/226 = %project_value_slot.[partial_p3].[p3] (my_closure/222) in
+   apply direct(partial_p2_3 &my_alloc_region/223)
+     (p3/226 : _ -> imm tagged) (4, param1/220, param2/221) -> k/56 * k/57
+ in
+ let code size(5) stub
+       partial_p4_5 (param1/227 : imm tagged)
+         my_closure/228 &my_alloc_region/229 my_depth/230
+         -> k/58 * k/59
+         : imm tagged =
+   let next_depth/231 = rec_info (succ my_depth/230) in
+   let p4/232 = %project_value_slot.[partial_p4].[p4] (my_closure/228) in
+   apply direct(partial_p3_4 &my_alloc_region/229)
+     (p4/232 : _ -> imm tagged) (5, param1/227) -> k/58 * k/59
+ in
+ let six/233 = closure six_0 @six &toplevel in
+ (let Popaque/248 = %opaque (1) in
+  let partial_six/249 = closure partial_six_1 @partial_six &toplevel
+  with { six = six/233; Popaque = Popaque/248 }
+  in
+  cont k/60 (partial_six/249))
+   where k/60 (p1/234 : val) =
+     ((let partial_p1/247 = closure partial_p1_2 @partial_p1 &toplevel
+       with { p1 = p1/234 }
+       in
+       cont k/61 (partial_p1/247))
+        where k/61 (p2/235 : val) =
+          ((let partial_p2/246 = closure partial_p2_3 @partial_p2 &toplevel
+            with { p2 = p2/235 }
+            in
+            cont k/62 (partial_p2/246))
+             where k/62 (p3/236 : val) =
+               ((let partial_p3/245 =
+                   closure partial_p3_4 @partial_p3 &toplevel
+                 with { p3 = p3/236 }
+                 in
+                 cont k/63 (partial_p3/245))
+                  where k/63 (p4/237 : val) =
+                    ((let partial_p4/244 =
+                        closure partial_p4_5 @partial_p4 &toplevel
+                      with { p4 = p4/237 }
+                      in
+                      cont k/64 (partial_p4/244))
+                       where k/64 (p5/238 : val) =
+                         (apply direct(partial_p4_5 &toplevel)
+                            (p5/238 : _ -> imm tagged) (6) -> k/65 * error
+                            where k/65 (whole/239 : imm tagged) =
+                              (apply direct(partial_p4_5 &toplevel)
+                                 (p5/238 : _ -> imm tagged)
+                                   (7)
+                                   -> k/66 * error
+                                 where k/66 (other_end/240 : imm tagged) =
+                                   (apply direct(partial_p2_3 &toplevel)
+                                      (p3/236 : _ -> imm tagged)
+                                        (0, 0, 0)
+                                        -> k/67 * error
+                                      where k/67
+                                              (from_the_middle/241 :
+                                                 imm tagged) =
+                                        (apply
+                                                direct(partial_six_1
+                                                &toplevel)
+                                           (p1/234 : _ -> imm tagged)
+                                             (9, 9, 9, 9, 9)
+                                             -> k/68 * error
+                                           where k/68
+                                                   (from_the_start/242 :
+                                                      imm tagged) =
+                                             let Pmakeblock/243 =
+                                               %block.[`0`].`toplevel`
+                                                 (whole/239,
+                                                  other_end/240,
+                                                  from_the_middle/241,
+                                                  from_the_start/242)
+                                             in
+                                             cont k/47 (Pmakeblock/243))))))))))
+  where k/47 define_root_symbol (module_block/167) =
+    let field_0/168 =
+      %block_load.tag[`0`].`size`[`4`].[`0`] (module_block/167)
+    in
+    let field_1/169 =
+      %block_load.tag[`0`].`size`[`4`].[`1`] (module_block/167)
+    in
+    let field_2/170 =
+      %block_load.tag[`0`].`size`[`4`].[`2`] (module_block/167)
+    in
+    let field_3/171 =
+      %block_load.tag[`0`].`size`[`4`].[`3`] (module_block/167)
+    in
+    let $camlPartial_one_argument_at_a_time =
+      Block 0 (field_0/168, field_1/169, field_2/170, field_3/171)
+    in
+    cont done ($camlPartial_one_argument_at_a_time)

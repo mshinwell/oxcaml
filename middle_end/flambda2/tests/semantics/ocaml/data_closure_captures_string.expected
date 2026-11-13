@@ -1,0 +1,8 @@
+data_closure_captures_string.fl:
+  before Simplify (38 steps): returns [0: <fun>; <fun>; <fun>; 220]
+  after Simplify (33 steps): returns [0: <fun>; <fun>; <fun>; 220]
+  the check of kinds: passes before, passes after
+  calls outside code: 4 before, 4 after
+  the same
+  calls outside code once those of known code are inlined: 2
+  validated: the same once closures and blocks are lifted to symbols and the terms normalised

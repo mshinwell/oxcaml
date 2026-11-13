@@ -43,8 +43,9 @@ compare the term made with `X.fl` and what the tool prints with
 - A function whose inlining an example is about has `[@inline]`: with
   the default flags Simplify inlines only the smallest functions.
 - The sources are formatted by `ocamlformat`, as `make fmt` wants, but
-  for the two that have unboxed tuples, which it does not read
-  (`.ocamlformat-ignore`).
+  for those that it does not read, which `.ocamlformat-ignore` names:
+  the sources that have an unboxed tuple, a parameter marked `local_`
+  or the literal of an immutable array.
 
 ## What the conversion does to a unit
 

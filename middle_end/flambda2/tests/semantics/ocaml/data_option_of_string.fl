@@ -1,0 +1,63 @@
+(let $camlData_option_of_string__immstring_0 = "default" in
+ let code size(17)
+       or_default_0 (o/58 : [ 0 | 0 of val ])
+         my_closure/59 &my_alloc_region/60 my_depth/61
+         -> k/20 * k/21
+         : val =
+   let next_depth/62 = rec_info (succ my_depth/61) in
+   (let prim/64 = %is_int (o/58) in
+    let Pisint/65 = %tag_imm (prim/64) in
+    (let untagged/66 = %untag_imm (Pisint/65) in
+     switch untagged/66
+       | 0 -> k/23
+       | 1 -> k/20 ($camlData_option_of_string__immstring_0))
+      where k/23 =
+        cont k/22)
+     where k/22 =
+       let Pfield/63 = %block_load.[`0`] (o/58) in
+       cont k/20 (Pfield/63)
+ in
+ let $camlData_option_of_string__immstring_3 = "abc" in
+ let $camlData_option_of_string__const_block_4 =
+   Block 0 ($camlData_option_of_string__immstring_3)
+ in
+ let $camlData_option_of_string__immstring_1 = "" in
+ let $camlData_option_of_string__const_block_2 =
+   Block 0 ($camlData_option_of_string__immstring_1)
+ in
+ let or_default/67 = closure or_default_0 @or_default &toplevel in
+ (let Popaque/81 = %opaque ($camlData_option_of_string__const_block_2) in
+  apply direct(or_default_0 &toplevel)
+    (or_default/67 : _ -> val) (Popaque/81) -> k/24 * error)
+   where k/24 (apply_result/68 : val) =
+     let prim/69 = %string_length (apply_result/68) in
+     let Pstringlength/70 = %tag_imm (prim/69) in
+     ((let Popaque/80 = %opaque (0) in
+       apply direct(or_default_0 &toplevel)
+         (or_default/67 : _ -> val) (Popaque/80) -> k/25 * error)
+        where k/25 (apply_result/71 : val) =
+          let prim/72 = %string_length (apply_result/71) in
+          let Pstringlength/73 = %tag_imm (prim/72) in
+          (apply direct(or_default_0 &toplevel)
+             (or_default/67 : _ -> val)
+               ($camlData_option_of_string__const_block_4)
+               -> k/26 * error
+             where k/26 (apply_result/74 : val) =
+               let prim/75 = %string_length (apply_result/74) in
+               let Pstringlength/76 = %tag_imm (prim/75) in
+               let int_add/77 =
+                 %int_barith.add (Pstringlength/76, Pstringlength/73)
+               in
+               let result/78 = %int_barith.add (int_add/77, Pstringlength/70)
+               in
+               let Pmakeblock/79 =
+                 %block.[`0`].`toplevel` (or_default/67, result/78)
+               in
+               cont k/19 (Pmakeblock/79))))
+  where k/19 define_root_symbol (module_block/55) =
+    let field_0/56 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/55)
+    in
+    let field_1/57 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/55)
+    in
+    let $camlData_option_of_string = Block 0 (field_0/56, field_1/57) in
+    cont done ($camlData_option_of_string)

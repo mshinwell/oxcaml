@@ -1,0 +1,41 @@
+let $camlAttr_local_two_uses__first_const_0 = Block 0 () in
+(let code inline(never) size(26)
+       body_0 (x/49 : imm tagged, y/50 : imm tagged)
+         my_closure/51 &my_alloc_region/52 my_depth/53
+         -> k/20 * k/21
+         : imm tagged =
+   let next_depth/54 = rec_info (succ my_depth/53) in
+   (let prim/60 = %int_comp.lt (x/49, y/50) in
+    let int_lessthan/61 = %tag_imm (prim/60) in
+    (let untagged/62 = %untag_imm (int_lessthan/61) in
+     switch untagged/62
+       | 0 -> k/23
+       | 1 -> k/24)
+      where k/24 =
+        cont k/22 (x/49, y/50)
+      where k/23 =
+        cont k/22 (y/50, x/49))
+     where k/22 (a/55 : imm tagged, b/56 : imm tagged) =
+       let int_mul/57 = %int_barith.mul (a/55, 10) in
+       let int_add/58 = %int_barith.add (int_mul/57, b/56) in
+       let int_add/59 = %int_barith.add (int_add/58, x/49) in
+       cont k/20 (int_add/59)
+ in
+ let body/63 = closure body_0 @body &toplevel in
+ (let Popaque/69 = %opaque (2) in
+  apply direct(body_0 &toplevel)
+    (body/63 : _ -> imm tagged) (8, Popaque/69) -> k/25 * error)
+   where k/25 (apply_result/64 : imm tagged) =
+     ((let Popaque/68 = %opaque (3) in
+       apply direct(body_0 &toplevel)
+         (body/63 : _ -> imm tagged) (Popaque/68, 5) -> k/26 * error)
+        where k/26 (apply_result/65 : imm tagged) =
+          let result/66 = %int_barith.add (apply_result/65, apply_result/64)
+          in
+          let Pmakeblock/67 = %block.[`0`].`toplevel` (result/66) in
+          cont k/19 (Pmakeblock/67)))
+  where k/19 define_root_symbol (module_block/47) =
+    let field_0/48 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/47)
+    in
+    let $camlAttr_local_two_uses = Block 0 (field_0/48) in
+    cont done ($camlAttr_local_two_uses)

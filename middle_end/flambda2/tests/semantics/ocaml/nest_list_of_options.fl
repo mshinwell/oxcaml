@@ -1,0 +1,142 @@
+(let code rec size(99)
+       count_pairs_0
+         (l/103 :
+            [ 0 | 0 of [ 0 | 0 of imm tagged ] * [ 0 | 0 of val * val ] ])
+         my_closure/104 &my_alloc_region/105 my_depth/106
+         -> k/48 * k/49
+         : imm tagged =
+   let next_depth/107 = rec_info (succ my_depth/106) in
+   (let prim/133 = %is_int (l/103) in
+    let Pisint/134 = %tag_imm (prim/133) in
+    (let untagged/135 = %untag_imm (Pisint/134) in
+     switch untagged/135
+       | 0 -> k/66
+       | 1 -> k/48 (0))
+      where k/66 =
+        cont k/50)
+     where k/50 =
+       let `*match*/108` = %block_load.[`0`] (l/103) in
+       ((let prim/130 = %is_int (`*match*/108`) in
+         let Pisint/131 = %tag_imm (prim/130) in
+         (let untagged/132 = %untag_imm (Pisint/131) in
+          switch untagged/132
+            | 0 -> k/64
+            | 1 -> k/65)
+           where k/65 =
+             cont k/51
+           where k/64 =
+             cont k/53)
+          where k/53 =
+            let `*match*/112` = %block_load.[`1`] (l/103) in
+            let x/113 = %block_load.[`0`] (`*match*/108`) in
+            ((let prim/127 = %is_int (`*match*/112`) in
+              let Pisint/128 = %tag_imm (prim/127) in
+              (let untagged/129 = %untag_imm (Pisint/128) in
+               switch untagged/129
+                 | 0 -> k/62
+                 | 1 -> k/63)
+                where k/63 =
+                  cont k/54
+                where k/62 =
+                  cont k/55)
+               where k/55 =
+                 let `*match*/115` = %block_load.[`0`] (`*match*/112`) in
+                 ((let prim/124 = %is_int (`*match*/115`) in
+                   let Pisint/125 = %tag_imm (prim/124) in
+                   (let untagged/126 = %untag_imm (Pisint/125) in
+                    switch untagged/126
+                      | 0 -> k/60
+                      | 1 -> k/61)
+                     where k/61 =
+                       cont k/56
+                     where k/60 =
+                       cont k/58)
+                    where k/58 =
+                      ((let Pfield/123 = %block_load.[`1`] (`*match*/112`) in
+                        apply direct(count_pairs_0 &my_alloc_region/105)
+                          (my_closure/104 ~ depth my_depth/106 -> next_depth/107
+                           : _ -> imm tagged)
+                            (Pfield/123)
+                            -> k/59 * k/49)
+                         where k/59 (apply_result/119 : imm tagged) =
+                           let Pfield/120 = %block_load.[`0`] (`*match*/115`)
+                           in
+                           let int_mul/121 =
+                             %int_barith.mul (x/113, Pfield/120)
+                           in
+                           let int_add/122 =
+                             %int_barith.add (int_mul/121, apply_result/119)
+                           in
+                           cont k/48 (int_add/122))
+                    where k/56 =
+                      ((let Pfield/118 = %block_load.[`1`] (`*match*/112`) in
+                        apply direct(count_pairs_0 &my_alloc_region/105)
+                          (my_closure/104 ~ depth my_depth/106 -> next_depth/107
+                           : _ -> imm tagged)
+                            (Pfield/118)
+                            -> k/57 * k/49)
+                         where k/57 (apply_result/116 : imm tagged) =
+                           let int_add/117 =
+                             %int_barith.add (x/113, apply_result/116)
+                           in
+                           cont k/48 (int_add/117)))
+               where k/54 =
+                 let int_sub/114 = %int_barith.sub (0, x/113) in
+                 cont k/48 (int_sub/114))
+          where k/51 =
+            ((let Pfield/111 = %block_load.[`1`] (l/103) in
+              apply direct(count_pairs_0 &my_alloc_region/105)
+                (my_closure/104 ~ depth my_depth/106 -> next_depth/107
+                 : _ -> imm tagged)
+                  (Pfield/111)
+                  -> k/52 * k/49)
+               where k/52 (apply_result/109 : imm tagged) =
+                 let int_add/110 = %int_barith.add (1, apply_result/109) in
+                 cont k/48 (int_add/110)))
+ in
+ let $camlNest_list_of_options__const_block_3 = Block 0 (2) in
+ let $camlNest_list_of_options__const_block_2 = Block 0 (3) in
+ let $camlNest_list_of_options__const_block_0 = Block 0 (5) in
+ let $camlNest_list_of_options__const_block_1 =
+   Block 0 ($camlNest_list_of_options__const_block_0, 0)
+ in
+ let count_pairs/136 = closure count_pairs_0 @count_pairs &toplevel in
+ (let region/139 = %begin_region () in
+  let ghost_region/140 = %begin_ghost_region () in
+  (let Popaque/144 = %opaque (4) in
+   let Pmakeblock/145 =
+     %block.[`0`].`toplevel`.local[region/139] (Popaque/144)
+   in
+   let Pmakeblock/146 =
+     %block.[`0`].`toplevel`.local[region/139]
+       (Pmakeblock/145, $camlNest_list_of_options__const_block_1)
+   in
+   let Pmakeblock/147 =
+     %block.[`0`].`toplevel`.local[region/139]
+       ($camlNest_list_of_options__const_block_2, Pmakeblock/146)
+   in
+   let Pmakeblock/148 =
+     %block.[`0`].`toplevel`.local[region/139] (0, Pmakeblock/147)
+   in
+   let Pmakeblock/149 =
+     %block.[`0`].`toplevel`.local[region/139] (0, Pmakeblock/148)
+   in
+   let Pmakeblock/150 =
+     %block.[`0`].`toplevel`.local[region/139]
+       ($camlNest_list_of_options__const_block_3, Pmakeblock/149)
+   in
+   apply direct(count_pairs_0 &toplevel)
+     (count_pairs/136 : _ -> imm tagged) (Pmakeblock/150) -> k/68 * error)
+    where k/68 (region_return/141 : imm tagged) =
+      let unit/142 = %end_region (region/139) in
+      let unit/143 = %end_ghost_region (ghost_region/140) in
+      cont k/67 (region_return/141))
+   where k/67 (result/137 : imm tagged) =
+     let Pmakeblock/138 = %block.[`0`].`toplevel` (result/137) in
+     cont k/47 (Pmakeblock/138))
+  where k/47 define_root_symbol (module_block/101) =
+    let field_0/102 =
+      %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/101)
+    in
+    let $camlNest_list_of_options = Block 0 (field_0/102) in
+    cont done ($camlNest_list_of_options)

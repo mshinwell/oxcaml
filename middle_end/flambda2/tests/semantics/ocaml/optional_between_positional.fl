@@ -1,0 +1,195 @@
+(let code inline(never) size(53)
+       place_0
+         (`*opt*a/132` : [ 0 | 0 of imm tagged ],
+          x/133 : imm tagged,
+          `*opt*b/134` : [ 0 | 0 of imm tagged ],
+          y/135 : imm tagged)
+         my_closure/136 &my_alloc_region/137 my_depth/138
+         -> k/50 * k/51
+         : imm tagged =
+   let next_depth/139 = rec_info (succ my_depth/138) in
+   (let prim/153 = %is_int (`*opt*a/132`) in
+    let Pisint/154 = %tag_imm (prim/153) in
+    (let untagged/155 = %untag_imm (Pisint/154) in
+     switch untagged/155
+       | 0 -> k/57
+       | 1 -> k/52 (1))
+      where k/57 =
+        cont k/56)
+     where k/56 =
+       let Pfield/152 = %block_load.[`0`] (`*opt*a/132`) in
+       cont k/52 (Pfield/152)
+     where k/52 (a/140 : imm tagged) =
+       ((let prim/149 = %is_int (`*opt*b/134`) in
+         let Pisint/150 = %tag_imm (prim/149) in
+         (let untagged/151 = %untag_imm (Pisint/150) in
+          switch untagged/151
+            | 0 -> k/55
+            | 1 -> k/53 (2))
+           where k/55 =
+             cont k/54)
+          where k/54 =
+            let Pfield/148 = %block_load.[`0`] (`*opt*b/134`) in
+            cont k/53 (Pfield/148)
+          where k/53 (b/141 : imm tagged) =
+            let int_mul/142 = %int_barith.mul (b/141, 10) in
+            let int_mul/143 = %int_barith.mul (x/133, 100) in
+            let int_mul/144 = %int_barith.mul (a/140, 1000) in
+            let int_add/145 = %int_barith.add (int_mul/144, int_mul/143) in
+            let int_add/146 = %int_barith.add (int_add/145, int_mul/142) in
+            let int_add/147 = %int_barith.add (int_add/146, y/135) in
+            cont k/50 (int_add/147))
+ in
+ let code size(5) stub
+       partial_place_1
+         (param2/156 : [ 0 | 0 of imm tagged ], param3/157 : imm tagged)
+         my_closure/158 &my_alloc_region/159 my_depth/160
+         -> k/58 * k/59
+         : imm tagged =
+   let next_depth/161 = rec_info (succ my_depth/160) in
+   let place/162 =
+     %project_value_slot.[partial_place].[place] (my_closure/158)
+   in
+   apply direct(place_0 &my_alloc_region/159)
+     (place/162 : _ -> imm tagged)
+       (0, 9, param2/156, param3/157)
+       -> k/58 * k/59
+ in
+ let $camlOptional_between_positional__const_block_4 = Block 0 (2) in
+ let code size(5) stub
+       partial_place_2
+         (param2/163 : [ 0 | 0 of imm tagged ], param3/164 : imm tagged)
+         my_closure/165 &my_alloc_region/166 my_depth/167
+         -> k/60 * k/61
+         : imm tagged =
+   let next_depth/168 = rec_info (succ my_depth/167) in
+   let place/169 =
+     %project_value_slot.[partial_place_1].[place_1] (my_closure/165)
+   in
+   apply direct(place_0 &my_alloc_region/166)
+     (place/169 : _ -> imm tagged)
+       ($camlOptional_between_positional__const_block_4,
+        9,
+        param2/163,
+        param3/164)
+       -> k/60 * k/61
+ in
+ let $camlOptional_between_positional__const_block_5 = Block 0 (0) in
+ let $camlOptional_between_positional__const_block_3 = Block 0 (8) in
+ let $camlOptional_between_positional__const_block_2 = Block 0 (7) in
+ let $camlOptional_between_positional__const_block_1 = Block 0 (6) in
+ let $camlOptional_between_positional__const_block_0 = Block 0 (5) in
+ let place/170 = closure place_0 @place &toplevel in
+ apply direct(place_0 &toplevel)
+   (place/170 : _ -> imm tagged) (0, 3, 0, 4) -> k/62 * error
+   where k/62 (all_omitted/171 : imm tagged) =
+     (apply direct(place_0 &toplevel)
+        (place/170 : _ -> imm tagged)
+          ($camlOptional_between_positional__const_block_0, 3, 0, 4)
+          -> k/63 * error
+        where k/63 (first_given/172 : imm tagged) =
+          (apply direct(place_0 &toplevel)
+             (place/170 : _ -> imm tagged)
+               (0, 3, $camlOptional_between_positional__const_block_1, 4)
+               -> k/64 * error
+             where k/64 (second_given/173 : imm tagged) =
+               (apply direct(place_0 &toplevel)
+                  (place/170 : _ -> imm tagged)
+                    (0, 3, $camlOptional_between_positional__const_block_1, 4)
+                    -> k/65 * error
+                  where k/65 (second_given_early/174 : imm tagged) =
+                    (apply direct(place_0 &toplevel)
+                       (place/170 : _ -> imm tagged)
+                         ($camlOptional_between_positional__const_block_2,
+                          3,
+                          $camlOptional_between_positional__const_block_3,
+                          4)
+                         -> k/66 * error
+                       where k/66 (both_given/175 : imm tagged) =
+                         ((let partial_place/183 =
+                             closure partial_place_1 @partial_place &toplevel
+                           with { place = place/170 }
+                           in
+                           cont k/67 (partial_place/183))
+                            where k/67 (after_first/176 : val) =
+                              (apply direct(partial_place_1 &toplevel)
+                                 (after_first/176 : _ -> imm tagged)
+                                   (0, 4)
+                                   -> k/68 * error
+                                 where k/68 (rest_plain/177 : imm tagged) =
+                                   (apply direct(partial_place_1 &toplevel)
+                                      (after_first/176 : _ -> imm tagged)
+                                        ($camlOptional_between_positional__const_block_0,
+                                         4)
+                                        -> k/69 * error
+                                      where k/69
+                                              (rest_with_second/178 :
+                                                 imm tagged) =
+                                        ((let partial_place/182 =
+                                            closure partial_place_2
+                                              @partial_place_1 &toplevel
+                                          with { place_1 = place/170 }
+                                          in
+                                          cont k/70 (partial_place/182))
+                                           where k/70
+                                                   (after_first_with_a/179 :
+                                                      val) =
+                                             (apply
+                                                     direct(partial_place_2
+                                                     &toplevel)
+                                                (after_first_with_a/179
+                                                 : _ -> imm tagged)
+                                                  ($camlOptional_between_positional__const_block_5,
+                                                   1)
+                                                  -> k/71 * error
+                                                where k/71
+                                                        (rest_of_that/180 :
+                                                           imm tagged) =
+                                                  let Pmakeblock/181 =
+                                                    %block.[`0`].`toplevel`
+                                                      (all_omitted/171,
+                                                       first_given/172,
+                                                       second_given/173,
+                                                       second_given_early/174,
+                                                       both_given/175,
+                                                       rest_plain/177,
+                                                       rest_with_second/178,
+                                                       rest_of_that/180)
+                                                  in
+                                                  cont k/49 (Pmakeblock/181)))))))))))
+  where k/49 define_root_symbol (module_block/123) =
+    let field_0/124 =
+      %block_load.tag[`0`].`size`[`8`].[`0`] (module_block/123)
+    in
+    let field_1/125 =
+      %block_load.tag[`0`].`size`[`8`].[`1`] (module_block/123)
+    in
+    let field_2/126 =
+      %block_load.tag[`0`].`size`[`8`].[`2`] (module_block/123)
+    in
+    let field_3/127 =
+      %block_load.tag[`0`].`size`[`8`].[`3`] (module_block/123)
+    in
+    let field_4/128 =
+      %block_load.tag[`0`].`size`[`8`].[`4`] (module_block/123)
+    in
+    let field_5/129 =
+      %block_load.tag[`0`].`size`[`8`].[`5`] (module_block/123)
+    in
+    let field_6/130 =
+      %block_load.tag[`0`].`size`[`8`].[`6`] (module_block/123)
+    in
+    let field_7/131 =
+      %block_load.tag[`0`].`size`[`8`].[`7`] (module_block/123)
+    in
+    let $camlOptional_between_positional =
+      Block 0 (field_0/124,
+               field_1/125,
+               field_2/126,
+               field_3/127,
+               field_4/128,
+               field_5/129,
+               field_6/130,
+               field_7/131)
+    in
+    cont done ($camlOptional_between_positional)

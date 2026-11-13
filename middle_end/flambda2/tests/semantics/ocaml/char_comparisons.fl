@@ -1,0 +1,56 @@
+let $camlChar_comparisons__first_const_0 = Block 0 () in
+(let code size(31)
+       order_0 (a/60 : imm tagged, b/61 : imm tagged)
+         my_closure/62 &my_alloc_region/63 my_depth/64
+         -> k/20 * k/21
+         : imm tagged =
+   let next_depth/65 = rec_info (succ my_depth/64) in
+   (let prim/69 = %int_comp.lt (a/60, b/61) in
+    let int_lessthan/70 = %tag_imm (prim/69) in
+    (let untagged/71 = %untag_imm (int_lessthan/70) in
+     switch untagged/71
+       | 0 -> k/23
+       | 1 -> k/20 (1))
+      where k/23 =
+        cont k/22)
+     where k/22 =
+       let prim/66 = %phys_eq (a/60, b/61) in
+       let eq/67 = %tag_imm (prim/66) in
+       let untagged/68 = %untag_imm (eq/67) in
+       switch untagged/68
+         | 0 -> k/20 (3)
+         | 1 -> k/20 (2)
+ in
+ let order/72 = closure order_0 @order &toplevel in
+ let Popaque/73 = %opaque (98) in
+ let prim/74 = %int_comp.qmark (97, Popaque/73) in
+ let int_compare/75 = %tag_imm (prim/74) in
+ (let Popaque/84 = %opaque (113) in
+  apply direct(order_0 &toplevel)
+    (order/72 : _ -> imm tagged) (Popaque/84, 99) -> k/24 * error)
+   where k/24 (apply_result/76 : imm tagged) =
+     ((let Popaque/83 = %opaque (122) in
+       apply direct(order_0 &toplevel)
+         (order/72 : _ -> imm tagged) (Popaque/83, 122) -> k/25 * error)
+        where k/25 (apply_result/77 : imm tagged) =
+          (apply direct(order_0 &toplevel)
+             (order/72 : _ -> imm tagged) (97, 98) -> k/26 * error
+             where k/26 (apply_result/78 : imm tagged) =
+               let int_add/79 =
+                 %int_barith.add (apply_result/78, apply_result/77)
+               in
+               let int_add/80 = %int_barith.add (int_add/79, apply_result/76)
+               in
+               let result/81 = %int_barith.add (int_add/80, int_compare/75)
+               in
+               let Pmakeblock/82 =
+                 %block.[`0`].`toplevel` (order/72, result/81)
+               in
+               cont k/19 (Pmakeblock/82))))
+  where k/19 define_root_symbol (module_block/57) =
+    let field_0/58 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/57)
+    in
+    let field_1/59 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/57)
+    in
+    let $camlChar_comparisons = Block 0 (field_0/58, field_1/59) in
+    cont done ($camlChar_comparisons)

@@ -1,0 +1,179 @@
+let $camlLabelled_in_every_order__first_const_0 = Block 0 () in
+(let code size(13)
+       weigh_0
+         (hundreds/120 : imm tagged,
+          tens/121 : imm tagged,
+          units/122 : imm tagged)
+         my_closure/123 &my_alloc_region/124 my_depth/125
+         -> k/38 * k/39
+         : imm tagged =
+   let next_depth/126 = rec_info (succ my_depth/125) in
+   let int_mul/127 = %int_barith.mul (tens/121, 10) in
+   let int_mul/128 = %int_barith.mul (hundreds/120, 100) in
+   let int_add/129 = %int_barith.add (int_mul/128, int_mul/127) in
+   let int_add/130 = %int_barith.add (int_add/129, units/122) in
+   cont k/38 (int_add/130)
+ in
+ let code inline(never) size(13)
+       weigh_kept_1
+         (hundreds/131 : imm tagged,
+          tens/132 : imm tagged,
+          units/133 : imm tagged)
+         my_closure/134 &my_alloc_region/135 my_depth/136
+         -> k/40 * k/41
+         : imm tagged =
+   let next_depth/137 = rec_info (succ my_depth/136) in
+   let int_mul/138 = %int_barith.mul (tens/132, 10) in
+   let int_mul/139 = %int_barith.mul (hundreds/131, 100) in
+   let int_add/140 = %int_barith.add (int_mul/139, int_mul/138) in
+   let int_add/141 = %int_barith.add (int_add/140, units/133) in
+   cont k/40 (int_add/141)
+ in
+ let weigh/142 = closure weigh_0 @weigh &toplevel in
+ let weigh_kept/143 = closure weigh_kept_1 @weigh_kept &toplevel in
+ let h/144 = %opaque (1) in
+ let t/145 = %opaque (2) in
+ let u/146 = %opaque (3) in
+ apply direct(weigh_0 &toplevel)
+   (weigh/142 : _ -> imm tagged) (h/144, t/145, u/146) -> k/42 * error
+   where k/42 (htu/147 : imm tagged) =
+     (apply direct(weigh_0 &toplevel)
+        (weigh/142 : _ -> imm tagged) (h/144, t/145, u/146) -> k/43 * error
+        where k/43 (hut/148 : imm tagged) =
+          (apply direct(weigh_0 &toplevel)
+             (weigh/142 : _ -> imm tagged)
+               (h/144, t/145, u/146)
+               -> k/44 * error
+             where k/44 (thu/149 : imm tagged) =
+               (apply direct(weigh_0 &toplevel)
+                  (weigh/142 : _ -> imm tagged)
+                    (h/144, t/145, u/146)
+                    -> k/45 * error
+                  where k/45 (tuh/150 : imm tagged) =
+                    (apply direct(weigh_0 &toplevel)
+                       (weigh/142 : _ -> imm tagged)
+                         (h/144, t/145, u/146)
+                         -> k/46 * error
+                       where k/46 (uht/151 : imm tagged) =
+                         (apply direct(weigh_0 &toplevel)
+                            (weigh/142 : _ -> imm tagged)
+                              (h/144, t/145, u/146)
+                              -> k/47 * error
+                            where k/47 (uth/152 : imm tagged) =
+                              (apply direct(weigh_kept_1 &toplevel)
+                                 (weigh_kept/143 : _ -> imm tagged)
+                                   (h/144, t/145, u/146)
+                                   -> k/48 * error
+                                 where k/48 (kept_htu/153 : imm tagged) =
+                                   (apply direct(weigh_kept_1 &toplevel)
+                                      (weigh_kept/143 : _ -> imm tagged)
+                                        (h/144, t/145, u/146)
+                                        -> k/49 * error
+                                      where k/49 (kept_hut/154 : imm tagged) =
+                                        (apply direct(weigh_kept_1 &toplevel)
+                                           (weigh_kept/143 : _ -> imm tagged)
+                                             (h/144, t/145, u/146)
+                                             -> k/50 * error
+                                           where k/50
+                                                   (kept_thu/155 : imm tagged) =
+                                             (apply
+                                                     direct(weigh_kept_1
+                                                     &toplevel)
+                                                (weigh_kept/143
+                                                 : _ -> imm tagged)
+                                                  (h/144, t/145, u/146)
+                                                  -> k/51 * error
+                                                where k/51
+                                                        (kept_tuh/156 :
+                                                           imm tagged) =
+                                                  (apply
+                                                          direct(weigh_kept_1
+                                                          &toplevel)
+                                                     (weigh_kept/143
+                                                      : _ -> imm tagged)
+                                                       (h/144, t/145, u/146)
+                                                       -> k/52 * error
+                                                     where k/52
+                                                             (kept_uht/157 :
+                                                                imm tagged) =
+                                                       (apply
+                                                               direct(weigh_kept_1
+                                                               &toplevel)
+                                                          (weigh_kept/143
+                                                           : _ -> imm tagged)
+                                                            (h/144,
+                                                             t/145,
+                                                             u/146)
+                                                            -> k/53 * error
+                                                          where k/53
+                                                                  (kept_uth/158 :
+                                                                    imm tagged) =
+                                                            let Pmakeblock/159 =
+                                                              %block.[`0`].`toplevel`
+                                                                (htu/147,
+                                                                 hut/148,
+                                                                 thu/149,
+                                                                 tuh/150,
+                                                                 uht/151,
+                                                                 uth/152,
+                                                                 kept_htu/153,
+                                                                 kept_hut/154,
+                                                                 kept_thu/155,
+                                                                 kept_tuh/156,
+                                                                 kept_uht/157,
+                                                                 kept_uth/158)
+                                                            in
+                                                            cont k/37
+                                                                   (Pmakeblock/159)))))))))))))
+  where k/37 define_root_symbol (module_block/107) =
+    let field_0/108 =
+      %block_load.tag[`0`].`size`[`12`].[`0`] (module_block/107)
+    in
+    let field_1/109 =
+      %block_load.tag[`0`].`size`[`12`].[`1`] (module_block/107)
+    in
+    let field_2/110 =
+      %block_load.tag[`0`].`size`[`12`].[`2`] (module_block/107)
+    in
+    let field_3/111 =
+      %block_load.tag[`0`].`size`[`12`].[`3`] (module_block/107)
+    in
+    let field_4/112 =
+      %block_load.tag[`0`].`size`[`12`].[`4`] (module_block/107)
+    in
+    let field_5/113 =
+      %block_load.tag[`0`].`size`[`12`].[`5`] (module_block/107)
+    in
+    let field_6/114 =
+      %block_load.tag[`0`].`size`[`12`].[`6`] (module_block/107)
+    in
+    let field_7/115 =
+      %block_load.tag[`0`].`size`[`12`].[`7`] (module_block/107)
+    in
+    let field_8/116 =
+      %block_load.tag[`0`].`size`[`12`].[`8`] (module_block/107)
+    in
+    let field_9/117 =
+      %block_load.tag[`0`].`size`[`12`].[`9`] (module_block/107)
+    in
+    let field_10/118 =
+      %block_load.tag[`0`].`size`[`12`].[`10`] (module_block/107)
+    in
+    let field_11/119 =
+      %block_load.tag[`0`].`size`[`12`].[`11`] (module_block/107)
+    in
+    let $camlLabelled_in_every_order =
+      Block 0 (field_0/108,
+               field_1/109,
+               field_2/110,
+               field_3/111,
+               field_4/112,
+               field_5/113,
+               field_6/114,
+               field_7/115,
+               field_8/116,
+               field_9/117,
+               field_10/118,
+               field_11/119)
+    in
+    cont done ($camlLabelled_in_every_order)

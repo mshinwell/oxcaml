@@ -1,0 +1,113 @@
+let $camlChar_hex_digit_value__first_const_0 = Block 0 () in
+(let code inline(never) size(97)
+       digit_0 (c/87 : imm tagged)
+         my_closure/88 &my_alloc_region/89 my_depth/90
+         -> k/54 * k/55
+         : imm tagged =
+   let next_depth/91 = rec_info (succ my_depth/90) in
+   (let prim/108 = %int_comp.ge (c/87, 65) in
+    let int_greaterequal/109 = %tag_imm (prim/108) in
+    (let untagged/110 = %untag_imm (int_greaterequal/109) in
+     switch untagged/110
+       | 0 -> k/72
+       | 1 -> k/73)
+      where k/73 =
+        cont k/57
+      where k/72 =
+        cont k/68)
+     where k/68 =
+       ((let int_add/104 = %int_barith.add (c/87, -48) in
+         let prim/105 = %int_comp.unsigned.lt (9, int_add/104) in
+         let Pisout/106 = %tag_imm (prim/105) in
+         (let untagged/107 = %untag_imm (Pisout/106) in
+          switch untagged/107
+            | 0 -> k/70
+            | 1 -> k/71)
+           where k/71 =
+             cont k/56
+           where k/70 =
+             cont k/69)
+          where k/69 =
+            let int_sub/103 = %int_barith.sub (c/87, 48) in
+            cont k/54 (int_sub/103))
+     where k/57 =
+       ((let prim/100 = %int_comp.ge (c/87, 97) in
+         let int_greaterequal/101 = %tag_imm (prim/100) in
+         (let untagged/102 = %untag_imm (int_greaterequal/101) in
+          switch untagged/102
+            | 0 -> k/66
+            | 1 -> k/67)
+           where k/67 =
+             cont k/58
+           where k/66 =
+             cont k/62)
+          where k/62 =
+            ((let prim/97 = %int_comp.ge (c/87, 71) in
+              let int_greaterequal/98 = %tag_imm (prim/97) in
+              (let untagged/99 = %untag_imm (int_greaterequal/98) in
+               switch untagged/99
+                 | 0 -> k/64
+                 | 1 -> k/65)
+                where k/65 =
+                  cont k/56
+                where k/64 =
+                  cont k/63)
+               where k/63 =
+                 let int_sub/96 = %int_barith.sub (c/87, 55) in
+                 cont k/54 (int_sub/96))
+          where k/58 =
+            ((let prim/93 = %int_comp.ge (c/87, 103) in
+              let int_greaterequal/94 = %tag_imm (prim/93) in
+              (let untagged/95 = %untag_imm (int_greaterequal/94) in
+               switch untagged/95
+                 | 0 -> k/60
+                 | 1 -> k/61)
+                where k/61 =
+                  cont k/56
+                where k/60 =
+                  cont k/59)
+               where k/59 =
+                 let int_sub/92 = %int_barith.sub (c/87, 87) in
+                 cont k/54 (int_sub/92)))
+     where k/56 =
+       cont k/54 (-1)
+ in
+ let digit/111 = closure digit_0 @digit &toplevel in
+ (let Popaque/126 = %opaque (103) in
+  apply direct(digit_0 &toplevel)
+    (digit/111 : _ -> imm tagged) (Popaque/126) -> k/74 * error)
+   where k/74 (apply_result/112 : imm tagged) =
+     let int_mul/113 = %int_barith.mul (apply_result/112, 4096) in
+     ((let Popaque/125 = %opaque (70) in
+       apply direct(digit_0 &toplevel)
+         (digit/111 : _ -> imm tagged) (Popaque/125) -> k/75 * error)
+        where k/75 (apply_result/114 : imm tagged) =
+          let int_mul/115 = %int_barith.mul (apply_result/114, 256) in
+          ((let Popaque/124 = %opaque (99) in
+            apply direct(digit_0 &toplevel)
+              (digit/111 : _ -> imm tagged) (Popaque/124) -> k/76 * error)
+             where k/76 (apply_result/116 : imm tagged) =
+               let int_mul/117 = %int_barith.mul (apply_result/116, 16) in
+               ((let Popaque/123 = %opaque (55) in
+                 apply direct(digit_0 &toplevel)
+                   (digit/111 : _ -> imm tagged)
+                     (Popaque/123)
+                     -> k/77 * error)
+                  where k/77 (apply_result/118 : imm tagged) =
+                    let int_add/119 =
+                      %int_barith.add (apply_result/118, int_mul/117)
+                    in
+                    let int_add/120 =
+                      %int_barith.add (int_add/119, int_mul/115)
+                    in
+                    let result/121 =
+                      %int_barith.add (int_add/120, int_mul/113)
+                    in
+                    let Pmakeblock/122 = %block.[`0`].`toplevel` (result/121)
+                    in
+                    cont k/53 (Pmakeblock/122)))))
+  where k/53 define_root_symbol (module_block/85) =
+    let field_0/86 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/85)
+    in
+    let $camlChar_hex_digit_value = Block 0 (field_0/86) in
+    cont done ($camlChar_hex_digit_value)

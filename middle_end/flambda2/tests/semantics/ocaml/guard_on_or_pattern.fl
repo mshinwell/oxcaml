@@ -1,0 +1,109 @@
+let $camlGuard_on_or_pattern__first_const_0 = Block 0 () in
+(let code inline(never) size(55)
+       f_0 (v/101 : [ 0 | 0 of imm tagged |1 of imm tagged ])
+         my_closure/102 &my_alloc_region/103 my_depth/104
+         -> k/36 * k/37
+         : imm tagged =
+   let next_depth/105 = rec_info (succ my_depth/104) in
+   (let prim/117 = %is_int (v/101) in
+    let Pisint/118 = %tag_imm (prim/117) in
+    (let untagged/119 = %untag_imm (Pisint/118) in
+     switch untagged/119
+       | 0 -> k/43
+       | 1 -> k/36 (0))
+      where k/43 =
+        cont k/38)
+     where k/38 =
+       ((let Pfield/113 = %block_load.[`0`] (v/101) in
+         let prim/114 = %phys_eq (Pfield/113, 0) in
+         let eq/115 = %tag_imm (prim/114) in
+         (let untagged/116 = %untag_imm (eq/115) in
+          switch untagged/116
+            | 0 -> k/42
+            | 1 -> k/36 (1))
+           where k/42 =
+             cont k/39)
+          where k/39 =
+            ((let prim/110 = %get_tag (v/101) in
+              let scrutinee_tag/111 = %tag_imm (prim/110) in
+              let untagged/112 = %untag_imm (scrutinee_tag/111) in
+              switch untagged/112
+                | 0 -> k/40
+                | 1 -> k/41)
+               where k/41 =
+                 let Pfield/108 = %block_load.[`0`] (v/101) in
+                 let int_add/109 = %int_barith.add (Pfield/108, 20) in
+                 cont k/36 (int_add/109)
+               where k/40 =
+                 let Pfield/106 = %block_load.[`0`] (v/101) in
+                 let int_add/107 = %int_barith.add (Pfield/106, 10) in
+                 cont k/36 (int_add/107)))
+ in
+ let f/120 = closure f_0 @f &toplevel in
+ (let region/123 = %begin_region () in
+  let ghost_region/124 = %begin_ghost_region () in
+  apply direct(f_0 &toplevel) (f/120 : _ -> imm tagged) (0) -> k/46 * error
+    where k/46 (apply_result/128 : imm tagged) =
+      ((let Popaque/146 = %opaque (5) in
+        let Pmakeblock/147 =
+          %block.[`1`].`toplevel`.local[region/123] (Popaque/146)
+        in
+        apply direct(f_0 &toplevel)
+          (f/120 : _ -> imm tagged) (Pmakeblock/147) -> k/47 * error)
+         where k/47 (apply_result/129 : imm tagged) =
+           let int_mul/130 = %int_barith.mul (apply_result/129, 10000) in
+           ((let Popaque/144 = %opaque (5) in
+             let Pmakeblock/145 =
+               %block.[`0`].`toplevel`.local[region/123] (Popaque/144)
+             in
+             apply direct(f_0 &toplevel)
+               (f/120 : _ -> imm tagged) (Pmakeblock/145) -> k/48 * error)
+              where k/48 (apply_result/131 : imm tagged) =
+                let int_mul/132 = %int_barith.mul (apply_result/131, 100) in
+                ((let Popaque/142 = %opaque (0) in
+                  let Pmakeblock/143 =
+                    %block.[`1`].`toplevel`.local[region/123] (Popaque/142)
+                  in
+                  apply direct(f_0 &toplevel)
+                    (f/120 : _ -> imm tagged)
+                      (Pmakeblock/143)
+                      -> k/49 * error)
+                   where k/49 (apply_result/133 : imm tagged) =
+                     let int_mul/134 = %int_barith.mul (apply_result/133, 10)
+                     in
+                     ((let Popaque/140 = %opaque (0) in
+                       let Pmakeblock/141 =
+                         %block.[`0`].`toplevel`.local[region/123]
+                           (Popaque/140)
+                       in
+                       apply direct(f_0 &toplevel)
+                         (f/120 : _ -> imm tagged)
+                           (Pmakeblock/141)
+                           -> k/50 * error)
+                        where k/50 (apply_result/135 : imm tagged) =
+                          let int_add/136 =
+                            %int_barith.add (apply_result/135, int_mul/134)
+                          in
+                          let int_add/137 =
+                            %int_barith.add (int_add/136, int_mul/132)
+                          in
+                          let int_add/138 =
+                            %int_barith.add (int_add/137, int_mul/130)
+                          in
+                          let int_add/139 =
+                            %int_barith.add (int_add/138, apply_result/128)
+                          in
+                          cont k/45 (int_add/139)))))
+    where k/45 (region_return/125 : imm tagged) =
+      let unit/126 = %end_region (region/123) in
+      let unit/127 = %end_ghost_region (ghost_region/124) in
+      cont k/44 (region_return/125))
+   where k/44 (result/121 : imm tagged) =
+     let Pmakeblock/122 = %block.[`0`].`toplevel` (result/121) in
+     cont k/35 (Pmakeblock/122))
+  where k/35 define_root_symbol (module_block/99) =
+    let field_0/100 =
+      %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/99)
+    in
+    let $camlGuard_on_or_pattern = Block 0 (field_0/100) in
+    cont done ($camlGuard_on_or_pattern)

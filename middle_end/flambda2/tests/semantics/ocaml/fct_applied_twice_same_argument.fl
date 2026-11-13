@@ -1,0 +1,96 @@
+let $camlFct_applied_twice_same_argument__first_const_0 = Block 0 () in
+(let code size(13)
+       apply_1 (x/104 : imm tagged)
+         my_closure/105 &my_alloc_region/106 my_depth/107
+         -> k/38 * k/39
+         : imm tagged =
+   let next_depth/108 = rec_info (succ my_depth/107) in
+   let N/109 = %project_value_slot.[`apply`].[N] (my_closure/105) in
+   let Pfield/110 = %block_load.[`0`] (N/109) in
+   let int_mul/111 = %int_barith.mul (x/104, Pfield/110) in
+   let Pfield/112 = %block_load.[`1`] (N/109) in
+   apply &my_alloc_region/106 Pfield/112 (int_mul/111) -> k/38 * k/39
+ in
+ let code size(9)
+       twice_2 (x/113 : imm tagged)
+         my_closure/114 &my_alloc_region/115 my_depth/116
+         -> k/40 * k/41
+         : imm tagged =
+   let next_depth/117 = rec_info (succ my_depth/116) in
+   let apply/118 = %project_value_slot.[twice].[`apply`] (my_closure/114) in
+   apply direct(apply_1 &my_alloc_region/115)
+     (apply/118 : _ -> imm tagged) (x/113) -> k/42 * k/41
+     where k/42 (apply_result/119 : imm tagged) =
+       apply direct(apply_1 &my_alloc_region/115)
+         (apply/118 : _ -> imm tagged) (apply_result/119) -> k/40 * k/41
+ in
+ let code loopify(never) size(46)
+       Make_0 (N/120 : val)
+         my_closure/121 &my_alloc_region/122 my_depth/123
+         -> k/43 * k/44
+         : val =
+   let next_depth/124 = rec_info (succ my_depth/123) in
+   let apply/125 = closure apply_1 @`apply` &my_alloc_region/122
+   with { N = N/120 }
+   in
+   let twice/126 = closure twice_2 @twice &my_alloc_region/122
+   with { `apply` = apply/125 }
+   in
+   let Pmakeblock/127 =
+     %block.[`0`].my_alloc_region/122 (apply/125, twice/126)
+   in
+   cont k/43 (Pmakeblock/127)
+ in
+ let code size(3)
+       shift_3 (x/128 : imm tagged)
+         my_closure/129 &my_alloc_region/130 my_depth/131
+         -> k/45 * k/46
+         : imm tagged =
+   let next_depth/132 = rec_info (succ my_depth/131) in
+   let int_add/133 = %int_barith.add (x/128, 3) in
+   cont k/45 (int_add/133)
+ in
+ let Make/134 = closure Make_0 @Make &toplevel in
+ (let shift/150 = closure shift_3 @shift &toplevel in
+  let Pmakeblock/151 = %block.[`0`].`toplevel` (4, shift/150) in
+  cont k/47 (Pmakeblock/151))
+   where k/47 (Arg/135 : val) =
+     (apply direct(Make_0 &toplevel)
+        (Make/134 : _ -> val) (Arg/135) -> k/48 * error
+        where k/48 (One/136 : val) =
+          (apply direct(Make_0 &toplevel)
+             (Make/134 : _ -> val) (Arg/135) -> k/49 * error
+             where k/49 (Two/137 : val) =
+               ((let Pfield/149 = %block_load.[`0`] (Two/137) in
+                 apply &toplevel Pfield/149 (2) -> k/53 * error)
+                  where k/53 (apply_result/147 : imm tagged) =
+                    let Pfield/148 = %block_load.[`0`] (One/136) in
+                    apply &toplevel
+                      Pfield/148 (apply_result/147) -> k/50 * error
+                  where k/50 (apply_result/138 : imm tagged) =
+                    ((let Popaque/145 = %opaque (1) in
+                      let Pfield/146 = %block_load.[`1`] (Two/137) in
+                      apply &toplevel
+                        Pfield/146 (Popaque/145) -> k/51 * error)
+                       where k/51 (apply_result/139 : imm tagged) =
+                         ((let Pfield/144 = %block_load.[`1`] (One/136) in
+                           apply &toplevel Pfield/144 (1) -> k/52 * error)
+                            where k/52 (apply_result/140 : imm tagged) =
+                              let int_add/141 =
+                                %int_barith.add
+                                  (apply_result/140, apply_result/139)
+                              in
+                              let result/142 =
+                                %int_barith.add
+                                  (int_add/141, apply_result/138)
+                              in
+                              let Pmakeblock/143 =
+                                %block.[`0`].`toplevel` (result/142)
+                              in
+                              cont k/37 (Pmakeblock/143)))))))
+  where k/37 define_root_symbol (module_block/102) =
+    let field_0/103 =
+      %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/102)
+    in
+    let $camlFct_applied_twice_same_argument = Block 0 (field_0/103) in
+    cont done ($camlFct_applied_twice_same_argument)

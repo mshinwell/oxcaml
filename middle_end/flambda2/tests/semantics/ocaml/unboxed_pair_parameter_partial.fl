@@ -1,0 +1,159 @@
+let $camlUnboxed_pair_parameter_partial__first_const_0 = Block 0 () in
+(let code inline(never) size(13)
+       weigh_0 (p_9_unboxed0/155, p_9_unboxed1/156, c/157 : imm tagged)
+         my_closure/158 &my_alloc_region/159 my_depth/160
+         -> k/42 * k/43
+         : imm tagged =
+   let next_depth/161 = rec_info (succ my_depth/160) in
+   let int_mul/162 = %int_barith.mul (p_9_unboxed1/156, 10) in
+   let int_mul/163 = %int_barith.mul (p_9_unboxed0/155, 100) in
+   let int_add/164 = %int_barith.add (int_mul/163, int_mul/162) in
+   let int_add/165 = %int_barith.add (int_add/164, c/157) in
+   cont k/42 (int_add/165)
+ in
+ let code inline(never) size(11)
+       cross_1
+         (p_15_unboxed0/166,
+          p_15_unboxed1/167,
+          q_16_unboxed0/168,
+          q_16_unboxed1/169)
+         my_closure/170 &my_alloc_region/171 my_depth/172
+         -> k/44 * k/45
+         : imm tagged =
+   let next_depth/173 = rec_info (succ my_depth/172) in
+   let int_mul/174 = %int_barith.mul (p_15_unboxed1/167, q_16_unboxed0/168)
+   in
+   let int_mul/175 = %int_barith.mul (p_15_unboxed0/166, q_16_unboxed1/169)
+   in
+   let int_add/176 = %int_barith.add (int_mul/175, int_mul/174) in
+   cont k/44 (int_add/176)
+ in
+ let code size(5) stub
+       partial_weigh_2 (param1/177 : imm tagged)
+         my_closure/178 &my_alloc_region/179 my_depth/180
+         -> k/46 * k/47
+         : imm tagged =
+   let next_depth/181 = rec_info (succ my_depth/180) in
+   let weigh/182 =
+     %project_value_slot.[partial_weigh].[weigh] (my_closure/178)
+   in
+   apply direct(weigh_0 &my_alloc_region/179)
+     (weigh/182 : _ -> imm tagged) (1, 2, param1/177) -> k/46 * k/47
+ in
+ let code size(7) stub
+       partial_weigh_3 (param1/183 : imm tagged)
+         my_closure/184 &my_alloc_region/185 my_depth/186
+         -> k/48 * k/49
+         : imm tagged =
+   let next_depth/187 = rec_info (succ my_depth/186) in
+   let weigh/188 =
+     %project_value_slot.[partial_weigh_1].[weigh_1] (my_closure/184)
+   in
+   let Pmake_unboxed_product_72_unboxed0/189 =
+     %project_value_slot.[partial_weigh_1].[Popaque_1] (my_closure/184)
+   in
+   let Pmake_unboxed_product_72_unboxed1/190 =
+     %project_value_slot.[partial_weigh_1].[Popaque] (my_closure/184)
+   in
+   apply direct(weigh_0 &my_alloc_region/185)
+     (weigh/188 : _ -> imm tagged)
+       (Pmake_unboxed_product_72_unboxed0/189,
+        Pmake_unboxed_product_72_unboxed1/190,
+        param1/183)
+       -> k/48 * k/49
+ in
+ let code size(5) stub
+       partial_cross_4 (param1/191, param2/192)
+         my_closure/193 &my_alloc_region/194 my_depth/195
+         -> k/50 * k/51
+         : imm tagged =
+   let next_depth/196 = rec_info (succ my_depth/195) in
+   let cross/197 =
+     %project_value_slot.[partial_cross].[cross] (my_closure/193)
+   in
+   apply direct(cross_1 &my_alloc_region/194)
+     (cross/197 : _ -> imm tagged)
+       (2, 3, param1/191, param2/192)
+       -> k/50 * k/51
+ in
+ let weigh/198 = closure weigh_0 @weigh &toplevel in
+ let cross/199 = closure cross_1 @cross &toplevel in
+ (let partial_weigh/214 = closure partial_weigh_2 @partial_weigh &toplevel
+  with { weigh = weigh/198 }
+  in
+  cont k/52 (partial_weigh/214))
+   where k/52 (with_pair/200 : val) =
+     (apply direct(partial_weigh_2 &toplevel)
+        (with_pair/200 : _ -> imm tagged) (3) -> k/53 * error
+        where k/53 (pair_then_three/201 : imm tagged) =
+          (apply direct(partial_weigh_2 &toplevel)
+             (with_pair/200 : _ -> imm tagged) (4) -> k/54 * error
+             where k/54 (pair_then_four/202 : imm tagged) =
+               ((let Popaque/211 = %opaque (6) in
+                 let Popaque/212 = %opaque (5) in
+                 let partial_weigh/213 =
+                   closure partial_weigh_3 @partial_weigh_1 &toplevel
+                 with {
+                   weigh_1 = weigh/198;
+                   Popaque_1 = Popaque/212;
+                   Popaque = Popaque/211
+                 }
+                 in
+                 cont k/55 (partial_weigh/213))
+                  where k/55 (with_unknown_pair/203 : val) =
+                    (apply direct(partial_weigh_3 &toplevel)
+                       (with_unknown_pair/203 : _ -> imm tagged)
+                         (7)
+                         -> k/56 * error
+                       where k/56 (unknown_then_seven/204 : imm tagged) =
+                         ((let partial_cross/210 =
+                             closure partial_cross_4 @partial_cross &toplevel
+                           with { cross = cross/199 }
+                           in
+                           cont k/57 (partial_cross/210))
+                            where k/57 (with_first/205 : val) =
+                              (apply direct(partial_cross_4 &toplevel)
+                                 (with_first/205 : _ -> imm tagged)
+                                   (4, 5)
+                                   -> k/58 * error
+                                 where k/58 (crossed/206 : imm tagged) =
+                                   ((let Popaque/209 = %opaque (1) in
+                                     apply direct(partial_cross_4 &toplevel)
+                                       (with_first/205 : _ -> imm tagged)
+                                         (Popaque/209, 1)
+                                         -> k/59 * error)
+                                      where k/59
+                                              (crossed_again/207 : imm tagged) =
+                                        let Pmakeblock/208 =
+                                          %block.[`0`].`toplevel`
+                                            (pair_then_three/201,
+                                             pair_then_four/202,
+                                             unknown_then_seven/204,
+                                             crossed/206,
+                                             crossed_again/207)
+                                        in
+                                        cont k/41 (Pmakeblock/208)))))))))
+  where k/41 define_root_symbol (module_block/149) =
+    let field_0/150 =
+      %block_load.tag[`0`].`size`[`5`].[`0`] (module_block/149)
+    in
+    let field_1/151 =
+      %block_load.tag[`0`].`size`[`5`].[`1`] (module_block/149)
+    in
+    let field_2/152 =
+      %block_load.tag[`0`].`size`[`5`].[`2`] (module_block/149)
+    in
+    let field_3/153 =
+      %block_load.tag[`0`].`size`[`5`].[`3`] (module_block/149)
+    in
+    let field_4/154 =
+      %block_load.tag[`0`].`size`[`5`].[`4`] (module_block/149)
+    in
+    let $camlUnboxed_pair_parameter_partial =
+      Block 0 (field_0/150,
+               field_1/151,
+               field_2/152,
+               field_3/153,
+               field_4/154)
+    in
+    cont done ($camlUnboxed_pair_parameter_partial)

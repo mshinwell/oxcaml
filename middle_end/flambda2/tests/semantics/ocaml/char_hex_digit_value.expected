@@ -1,0 +1,8 @@
+char_hex_digit_value.fl:
+  before Simplify (144 steps): returns [0: -57]
+  after Simplify (80 steps): returns [0: -57]
+  the check of kinds: passes before, passes after
+  calls outside code: 4 before, 4 after
+  the same
+  calls outside code once those of known code are inlined: 0
+  validated: the same once closures and blocks are lifted to symbols and the terms normalised

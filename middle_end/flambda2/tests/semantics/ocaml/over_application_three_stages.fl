@@ -1,0 +1,122 @@
+let $camlOver_application_three_stages__first_const_0 = Block 0 () in
+(let code size(7)
+       `fn[over_application_three_stages.ml:14,4--23]_2` (d/126 : imm tagged)
+         my_closure/127 &my_alloc_region/128 my_depth/129
+         -> k/42 * k/43
+         : imm tagged =
+   let next_depth/130 = rec_info (succ my_depth/129) in
+   let a/131 =
+     %project_value_slot.[`fn[over_application_three_stages.ml:14,4--23]`].[a]
+       (my_closure/127)
+   in
+   let bc/132 =
+     %project_value_slot.[`fn[over_application_three_stages.ml:14,4--23]`].[bc]
+       (my_closure/127)
+   in
+   let int_add/133 = %int_barith.add (a/131, bc/132) in
+   let int_add/134 = %int_barith.add (int_add/133, d/126) in
+   cont k/42 (int_add/134)
+ in
+ let code size(28)
+       `fn[over_application_three_stages.ml:12,2--73]_1`
+         (b/135 : imm tagged, c/136 : imm tagged)
+         my_closure/137
+           &my_alloc_region/138 &my_region/139 &my_ghost_region/140
+           my_depth/141
+         -> k/44 * k/45
+         : val stack =
+   let next_depth/142 = rec_info (succ my_depth/141) in
+   let a/143 =
+     %project_value_slot.[`fn[over_application_three_stages.ml:12,2--73]`].[a_1]
+       (my_closure/137)
+   in
+   let int_mul/144 = %int_barith.mul (c/136, 10) in
+   let int_mul/145 = %int_barith.mul (b/135, 100) in
+   let bc/146 = %int_barith.add (int_mul/145, int_mul/144) in
+   let `fn[over_application_three_stages.ml:14,4--23]/147` =
+     closure `fn[over_application_three_stages.ml:14,4--23]_2`
+       @`fn[over_application_three_stages.ml:14,4--23]` &my_alloc_region/138
+   with { a = a/143; bc = bc/146 }
+   in
+   cont k/44 (`fn[over_application_three_stages.ml:14,4--23]/147`)
+ in
+ let code inline(never) size(42)
+       stage_0 (a/148 : imm tagged)
+         my_closure/149 &my_alloc_region/150 my_depth/151
+         -> k/46 * k/47
+         : val =
+   let next_depth/152 = rec_info (succ my_depth/151) in
+   let a/153 = %int_barith.mul (a/148, 1000) in
+   let `fn[over_application_three_stages.ml:12,2--73]/154` =
+     closure `fn[over_application_three_stages.ml:12,2--73]_1`
+       @`fn[over_application_three_stages.ml:12,2--73]` &my_alloc_region/150
+   with { a_1 = a/153 }
+   in
+   cont k/46 (`fn[over_application_three_stages.ml:12,2--73]/154`)
+ in
+ let stage/155 = closure stage_0 @stage &toplevel in
+ let w/156 = %opaque (1) in
+ let x/157 = %opaque (2) in
+ let y/158 = %opaque (3) in
+ let z/159 = %opaque (4) in
+ apply direct(stage_0 &toplevel) stage/155 (w/156) -> k/59 * error
+   where k/59 (func/180) =
+     apply &toplevel func/180 (x/157, y/158, z/159) -> k/48 * error
+   where k/48 (all_at_once/160 : imm tagged) =
+     ((let region/173 = %begin_region () in
+       let ghost_region/174 = %begin_ghost_region () in
+       apply direct(stage_0 &toplevel) stage/155 (w/156) -> k/58 * error
+         where k/58 (func/179) =
+           apply &toplevel &region/173 &ghost_region/174
+             func/179 (x/157, y/158) -> k/57 * error
+         where k/57 (last/178 : val) =
+           apply &toplevel last/178 (z/159) -> k/56 * error
+         where k/56 (region_return/175 : imm tagged) =
+           let unit/176 = %end_region (region/173) in
+           let unit/177 = %end_ghost_region (ghost_region/174) in
+           cont k/49 (region_return/175))
+        where k/49 (three_then_one/161 : imm tagged) =
+          (apply direct(stage_0 &toplevel)
+             (stage/155 : _ -> val) (w/156) -> k/55 * error
+             where k/55 (rest/172 : val) =
+               apply &toplevel rest/172 (x/157, y/158, z/159) -> k/50 * error
+             where k/50 (one_then_three/162 : imm tagged) =
+               ((let region/165 = %begin_region () in
+                 let ghost_region/166 = %begin_ghost_region () in
+                 apply direct(stage_0 &toplevel)
+                   stage/155 (w/156) -> k/54 * error
+                   where k/54 (func/171) =
+                     apply &toplevel &region/165 &ghost_region/166
+                       func/171 (x/157) -> k/53 * error
+                   where k/53 (rest/170 : val) =
+                     apply &toplevel rest/170 (y/158, z/159) -> k/52 * error
+                   where k/52 (region_return/167 : imm tagged) =
+                     let unit/168 = %end_region (region/165) in
+                     let unit/169 = %end_ghost_region (ghost_region/166) in
+                     cont k/51 (region_return/167))
+                  where k/51 (two_then_two/163 : imm tagged) =
+                    let Pmakeblock/164 =
+                      %block.[`0`].`toplevel`
+                        (all_at_once/160,
+                         three_then_one/161,
+                         one_then_three/162,
+                         two_then_two/163)
+                    in
+                    cont k/41 (Pmakeblock/164)))))
+  where k/41 define_root_symbol (module_block/121) =
+    let field_0/122 =
+      %block_load.tag[`0`].`size`[`4`].[`0`] (module_block/121)
+    in
+    let field_1/123 =
+      %block_load.tag[`0`].`size`[`4`].[`1`] (module_block/121)
+    in
+    let field_2/124 =
+      %block_load.tag[`0`].`size`[`4`].[`2`] (module_block/121)
+    in
+    let field_3/125 =
+      %block_load.tag[`0`].`size`[`4`].[`3`] (module_block/121)
+    in
+    let $camlOver_application_three_stages =
+      Block 0 (field_0/122, field_1/123, field_2/124, field_3/125)
+    in
+    cont done ($camlOver_application_three_stages)

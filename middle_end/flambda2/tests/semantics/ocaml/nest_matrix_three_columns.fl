@@ -1,0 +1,85 @@
+let $camlNest_matrix_three_columns__first_const_0 = Block 0 () in
+(let code inline(never) size(48)
+       f_0 (a/69 : imm tagged, b/70 : imm tagged, c/71 : imm tagged)
+         my_closure/72 &my_alloc_region/73 my_depth/74
+         -> k/34 * k/35
+         : imm tagged =
+   let next_depth/75 = rec_info (succ my_depth/74) in
+   (let untagged/79 = %untag_imm (b/70) in
+    switch untagged/79
+      | 0 -> k/41
+      | 1 -> k/42)
+     where k/42 =
+       cont k/37
+     where k/41 =
+       cont k/39
+     where k/39 =
+       ((let untagged/78 = %untag_imm (c/71) in
+         switch untagged/78
+           | 0 -> k/40
+           | 1 -> k/34 (1))
+          where k/40 =
+            cont k/36)
+     where k/37 =
+       ((let untagged/77 = %untag_imm (a/69) in
+         switch untagged/77
+           | 0 -> k/34 (2)
+           | 1 -> k/38)
+          where k/38 =
+            cont k/36)
+     where k/36 =
+       let untagged/76 = %untag_imm (c/71) in
+       switch untagged/76
+         | 0 -> k/34 (3)
+         | 1 -> k/34 (4)
+ in
+ let f/80 = closure f_0 @f &toplevel in
+ (let Popaque/99 = %opaque (0) in
+  apply direct(f_0 &toplevel)
+    (f/80 : _ -> imm tagged) (0, 0, Popaque/99) -> k/43 * error)
+   where k/43 (apply_result/81 : imm tagged) =
+     let int_mul/82 = %int_barith.mul (apply_result/81, 10000) in
+     ((let Popaque/98 = %opaque (1) in
+       apply direct(f_0 &toplevel)
+         (f/80 : _ -> imm tagged) (Popaque/98, 1, 1) -> k/44 * error)
+        where k/44 (apply_result/83 : imm tagged) =
+          let int_mul/84 = %int_barith.mul (apply_result/83, 1000) in
+          ((let Popaque/97 = %opaque (0) in
+            apply direct(f_0 &toplevel)
+              (f/80 : _ -> imm tagged) (1, 1, Popaque/97) -> k/45 * error)
+             where k/45 (apply_result/85 : imm tagged) =
+               let int_mul/86 = %int_barith.mul (apply_result/85, 100) in
+               ((let Popaque/96 = %opaque (1) in
+                 apply direct(f_0 &toplevel)
+                   (f/80 : _ -> imm tagged)
+                     (0, Popaque/96, 1)
+                     -> k/46 * error)
+                  where k/46 (apply_result/87 : imm tagged) =
+                    let int_mul/88 = %int_barith.mul (apply_result/87, 10) in
+                    ((let Popaque/95 = %opaque (1) in
+                      apply direct(f_0 &toplevel)
+                        (f/80 : _ -> imm tagged)
+                          (Popaque/95, 0, 1)
+                          -> k/47 * error)
+                       where k/47 (apply_result/89 : imm tagged) =
+                         let int_add/90 =
+                           %int_barith.add (apply_result/89, int_mul/88)
+                         in
+                         let int_add/91 =
+                           %int_barith.add (int_add/90, int_mul/86)
+                         in
+                         let int_add/92 =
+                           %int_barith.add (int_add/91, int_mul/84)
+                         in
+                         let result/93 =
+                           %int_barith.add (int_add/92, int_mul/82)
+                         in
+                         let Pmakeblock/94 =
+                           %block.[`0`].`toplevel` (result/93)
+                         in
+                         cont k/33 (Pmakeblock/94))))))
+  where k/33 define_root_symbol (module_block/67) =
+    let field_0/68 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/67)
+    in
+    let $camlNest_matrix_three_columns = Block 0 (field_0/68) in
+    cont done ($camlNest_matrix_three_columns)

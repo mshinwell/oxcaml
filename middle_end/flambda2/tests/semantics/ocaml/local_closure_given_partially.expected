@@ -1,0 +1,8 @@
+local_closure_given_partially.fl:
+  before Simplify (58 steps): returns [0: 2426]
+  after Simplify (40 steps): returns [0: 2426]
+  the check of kinds: passes before, passes after
+  calls outside code: 2 before, 2 after
+  the same
+  calls outside code once those of known code are inlined: 4
+  validated: the same once closures and blocks are lifted to symbols and the terms normalised

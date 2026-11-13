@@ -1,0 +1,327 @@
+let $camlPartial_two_to_six_parameters__first_const_0 = Block 0 () in
+(let code inline(never) size(7)
+       two_0 (a/283 : imm tagged, b/284 : imm tagged)
+         my_closure/285 &my_alloc_region/286 my_depth/287
+         -> k/76 * k/77
+         : imm tagged =
+   let next_depth/288 = rec_info (succ my_depth/287) in
+   let int_mul/289 = %int_barith.mul (a/283, 10) in
+   let int_add/290 = %int_barith.add (int_mul/289, b/284) in
+   cont k/76 (int_add/290)
+ in
+ let code inline(never) size(13)
+       three_1 (a/291 : imm tagged, b/292 : imm tagged, c/293 : imm tagged)
+         my_closure/294 &my_alloc_region/295 my_depth/296
+         -> k/78 * k/79
+         : imm tagged =
+   let next_depth/297 = rec_info (succ my_depth/296) in
+   let int_mul/298 = %int_barith.mul (a/291, 10) in
+   let int_add/299 = %int_barith.add (int_mul/298, b/292) in
+   let int_mul/300 = %int_barith.mul (int_add/299, 10) in
+   let int_add/301 = %int_barith.add (int_mul/300, c/293) in
+   cont k/78 (int_add/301)
+ in
+ let code inline(never) size(19)
+       four_2
+         (a/302 : imm tagged,
+          b/303 : imm tagged,
+          c/304 : imm tagged,
+          d/305 : imm tagged)
+         my_closure/306 &my_alloc_region/307 my_depth/308
+         -> k/80 * k/81
+         : imm tagged =
+   let next_depth/309 = rec_info (succ my_depth/308) in
+   let int_mul/310 = %int_barith.mul (a/302, 10) in
+   let int_add/311 = %int_barith.add (int_mul/310, b/303) in
+   let int_mul/312 = %int_barith.mul (int_add/311, 10) in
+   let int_add/313 = %int_barith.add (int_mul/312, c/304) in
+   let int_mul/314 = %int_barith.mul (int_add/313, 10) in
+   let int_add/315 = %int_barith.add (int_mul/314, d/305) in
+   cont k/80 (int_add/315)
+ in
+ let code inline(never) size(25)
+       five_3
+         (a/316 : imm tagged,
+          b/317 : imm tagged,
+          c/318 : imm tagged,
+          d/319 : imm tagged,
+          e/320 : imm tagged)
+         my_closure/321 &my_alloc_region/322 my_depth/323
+         -> k/82 * k/83
+         : imm tagged =
+   let next_depth/324 = rec_info (succ my_depth/323) in
+   let int_mul/325 = %int_barith.mul (a/316, 10) in
+   let int_add/326 = %int_barith.add (int_mul/325, b/317) in
+   let int_mul/327 = %int_barith.mul (int_add/326, 10) in
+   let int_add/328 = %int_barith.add (int_mul/327, c/318) in
+   let int_mul/329 = %int_barith.mul (int_add/328, 10) in
+   let int_add/330 = %int_barith.add (int_mul/329, d/319) in
+   let int_mul/331 = %int_barith.mul (int_add/330, 10) in
+   let int_add/332 = %int_barith.add (int_mul/331, e/320) in
+   cont k/82 (int_add/332)
+ in
+ let code inline(never) size(31)
+       six_4
+         (a/333 : imm tagged,
+          b/334 : imm tagged,
+          c/335 : imm tagged,
+          d/336 : imm tagged,
+          e/337 : imm tagged,
+          f/338 : imm tagged)
+         my_closure/339 &my_alloc_region/340 my_depth/341
+         -> k/84 * k/85
+         : imm tagged =
+   let next_depth/342 = rec_info (succ my_depth/341) in
+   let int_mul/343 = %int_barith.mul (a/333, 10) in
+   let int_add/344 = %int_barith.add (int_mul/343, b/334) in
+   let int_mul/345 = %int_barith.mul (int_add/344, 10) in
+   let int_add/346 = %int_barith.add (int_mul/345, c/335) in
+   let int_mul/347 = %int_barith.mul (int_add/346, 10) in
+   let int_add/348 = %int_barith.add (int_mul/347, d/336) in
+   let int_mul/349 = %int_barith.mul (int_add/348, 10) in
+   let int_add/350 = %int_barith.add (int_mul/349, e/337) in
+   let int_mul/351 = %int_barith.mul (int_add/350, 10) in
+   let int_add/352 = %int_barith.add (int_mul/351, f/338) in
+   cont k/84 (int_add/352)
+ in
+ let code size(5) stub
+       partial_two_5 (param1/353 : imm tagged)
+         my_closure/354 &my_alloc_region/355 my_depth/356
+         -> k/86 * k/87
+         : imm tagged =
+   let next_depth/357 = rec_info (succ my_depth/356) in
+   let two/358 = %project_value_slot.[partial_two].[two] (my_closure/354) in
+   apply direct(two_0 &my_alloc_region/355)
+     (two/358 : _ -> imm tagged) (1, param1/353) -> k/86 * k/87
+ in
+ let code size(5) stub
+       partial_three_6 (param2/359 : imm tagged)
+         my_closure/360 &my_alloc_region/361 my_depth/362
+         -> k/88 * k/89
+         : imm tagged =
+   let next_depth/363 = rec_info (succ my_depth/362) in
+   let three/364 =
+     %project_value_slot.[partial_three].[three] (my_closure/360)
+   in
+   apply direct(three_1 &my_alloc_region/361)
+     (three/364 : _ -> imm tagged) (1, 2, param2/359) -> k/88 * k/89
+ in
+ let code size(5) stub
+       partial_four_7 (param3/365 : imm tagged)
+         my_closure/366 &my_alloc_region/367 my_depth/368
+         -> k/90 * k/91
+         : imm tagged =
+   let next_depth/369 = rec_info (succ my_depth/368) in
+   let four/370 = %project_value_slot.[partial_four].[four] (my_closure/366)
+   in
+   apply direct(four_2 &my_alloc_region/367)
+     (four/370 : _ -> imm tagged) (1, 2, 3, param3/365) -> k/90 * k/91
+ in
+ let code size(5) stub
+       partial_five_8 (param4/371 : imm tagged)
+         my_closure/372 &my_alloc_region/373 my_depth/374
+         -> k/92 * k/93
+         : imm tagged =
+   let next_depth/375 = rec_info (succ my_depth/374) in
+   let five/376 = %project_value_slot.[partial_five].[five] (my_closure/372)
+   in
+   apply direct(five_3 &my_alloc_region/373)
+     (five/376 : _ -> imm tagged) (1, 2, 3, 4, param4/371) -> k/92 * k/93
+ in
+ let code size(5) stub
+       partial_six_9 (param5/377 : imm tagged)
+         my_closure/378 &my_alloc_region/379 my_depth/380
+         -> k/94 * k/95
+         : imm tagged =
+   let next_depth/381 = rec_info (succ my_depth/380) in
+   let six/382 = %project_value_slot.[partial_six].[six] (my_closure/378) in
+   apply direct(six_4 &my_alloc_region/379)
+     (six/382 : _ -> imm tagged) (1, 2, 3, 4, 5, param5/377) -> k/94 * k/95
+ in
+ let two/383 = closure two_0 @two &toplevel in
+ let three/384 = closure three_1 @three &toplevel in
+ let four/385 = closure four_2 @four &toplevel in
+ let five/386 = closure five_3 @five &toplevel in
+ let six/387 = closure six_4 @six &toplevel in
+ let last/388 = %opaque (9) in
+ (let partial_two/414 = closure partial_two_5 @partial_two &toplevel
+  with { two = two/383 }
+  in
+  cont k/96 (partial_two/414))
+   where k/96 (two_but_last/389 : val) =
+     (apply direct(partial_two_5 &toplevel)
+        (two_but_last/389 : _ -> imm tagged) (0) -> k/97 * error
+        where k/97 (apply_result/390 : imm tagged) =
+          (apply direct(partial_two_5 &toplevel)
+             (two_but_last/389 : _ -> imm tagged) (last/388) -> k/98 * error
+             where k/98 (apply_result/391 : imm tagged) =
+               let of_two/392 =
+                 %int_barith.add (apply_result/391, apply_result/390)
+               in
+               ((let partial_three/413 =
+                   closure partial_three_6 @partial_three &toplevel
+                 with { three = three/384 }
+                 in
+                 cont k/99 (partial_three/413))
+                  where k/99 (three_but_last/393 : val) =
+                    (apply direct(partial_three_6 &toplevel)
+                       (three_but_last/393 : _ -> imm tagged)
+                         (0)
+                         -> k/100 * error
+                       where k/100 (apply_result/394 : imm tagged) =
+                         (apply direct(partial_three_6 &toplevel)
+                            (three_but_last/393 : _ -> imm tagged)
+                              (last/388)
+                              -> k/101 * error
+                            where k/101 (apply_result/395 : imm tagged) =
+                              let of_three/396 =
+                                %int_barith.add
+                                  (apply_result/395, apply_result/394)
+                              in
+                              ((let partial_four/412 =
+                                  closure partial_four_7 @partial_four
+                                    &toplevel
+                                with { four = four/385 }
+                                in
+                                cont k/102 (partial_four/412))
+                                 where k/102 (four_but_last/397 : val) =
+                                   (apply direct(partial_four_7 &toplevel)
+                                      (four_but_last/397 : _ -> imm tagged)
+                                        (0)
+                                        -> k/103 * error
+                                      where k/103
+                                              (apply_result/398 : imm tagged) =
+                                        (apply
+                                                direct(partial_four_7
+                                                &toplevel)
+                                           (four_but_last/397
+                                            : _ -> imm tagged)
+                                             (last/388)
+                                             -> k/104 * error
+                                           where k/104
+                                                   (apply_result/399 :
+                                                      imm tagged) =
+                                             let of_four/400 =
+                                               %int_barith.add
+                                                 (apply_result/399,
+                                                  apply_result/398)
+                                             in
+                                             ((let partial_five/411 =
+                                                 closure partial_five_8
+                                                   @partial_five &toplevel
+                                               with { five = five/386 }
+                                               in
+                                               cont k/105 (partial_five/411))
+                                                where k/105
+                                                        (five_but_last/401 :
+                                                           val) =
+                                                  (apply
+                                                          direct(partial_five_8
+                                                          &toplevel)
+                                                     (five_but_last/401
+                                                      : _ -> imm tagged)
+                                                       (0)
+                                                       -> k/106 * error
+                                                     where k/106
+                                                             (apply_result/402 :
+                                                                imm tagged) =
+                                                       (apply
+                                                               direct(partial_five_8
+                                                               &toplevel)
+                                                          (five_but_last/401
+                                                           : _ -> imm tagged)
+                                                            (last/388)
+                                                            -> k/107 * error
+                                                          where k/107
+                                                                  (apply_result/403 :
+                                                                    imm tagged) =
+                                                            let of_five/404 =
+                                                              %int_barith.add
+                                                                (apply_result/403,
+                                                                 apply_result/402)
+                                                            in
+                                                            ((let partial_six/410 =
+                                                                closure
+                                                                  partial_six_9
+                                                                  @partial_six
+                                                                  &toplevel
+                                                              with {
+                                                                six = six/387
+                                                              }
+                                                              in
+                                                              cont k/108
+                                                                    (partial_six/410))
+                                                               where 
+                                                                 k/108
+                                                                   (six_but_last/405 :
+                                                                    val) =
+                                                                 (apply
+                                                                     direct(partial_six_9
+                                                                    &toplevel)
+                                                                    (six_but_last/405
+                                                                    : 
+                                                                    _ ->
+                                                                    imm tagged
+                                                                    )
+                                                                    (0)
+                                                                    -> k/109
+                                                                    * error
+                                                                    where 
+                                                                    k/109
+                                                                    (apply_result/406 :
+                                                                    imm tagged) =
+                                                                    (apply
+                                                                     direct(partial_six_9
+                                                                    &toplevel)
+                                                                    (six_but_last/405
+                                                                    : 
+                                                                    _ ->
+                                                                    imm tagged
+                                                                    )
+                                                                    (last/388)
+                                                                    -> k/110
+                                                                    * error
+                                                                    where 
+                                                                    k/110
+                                                                    (apply_result/407 :
+                                                                    imm tagged) =
+                                                                    let of_six/408 =
+                                                                    %int_barith.add
+                                                                    (apply_result/407,
+                                                                    apply_result/406)
+                                                                    in
+                                                                    let Pmakeblock/409 =
+                                                                    %block.[`0`].`toplevel`
+                                                                    (of_two/392,
+                                                                    of_three/396,
+                                                                    of_four/400,
+                                                                    of_five/404,
+                                                                    of_six/408)
+                                                                    in
+                                                                    cont 
+                                                                    k/75
+                                                                    (Pmakeblock/409))))))))))))))))
+  where k/75 define_root_symbol (module_block/277) =
+    let field_0/278 =
+      %block_load.tag[`0`].`size`[`5`].[`0`] (module_block/277)
+    in
+    let field_1/279 =
+      %block_load.tag[`0`].`size`[`5`].[`1`] (module_block/277)
+    in
+    let field_2/280 =
+      %block_load.tag[`0`].`size`[`5`].[`2`] (module_block/277)
+    in
+    let field_3/281 =
+      %block_load.tag[`0`].`size`[`5`].[`3`] (module_block/277)
+    in
+    let field_4/282 =
+      %block_load.tag[`0`].`size`[`5`].[`4`] (module_block/277)
+    in
+    let $camlPartial_two_to_six_parameters =
+      Block 0 (field_0/278,
+               field_1/279,
+               field_2/280,
+               field_3/281,
+               field_4/282)
+    in
+    cont done ($camlPartial_two_to_six_parameters)

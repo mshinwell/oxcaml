@@ -1,0 +1,82 @@
+let $camlLocal_closure_given_partially__first_const_0 = Block 0 () in
+(let code inline(never) size(19)
+       apply_to_both_0 (f/89 : val, a/90 : imm tagged, b/91 : imm tagged)
+         my_closure/92 &my_alloc_region/93 my_depth/94
+         -> k/32 * k/33
+         : imm tagged =
+   let next_depth/95 = rec_info (succ my_depth/94) in
+   apply &my_alloc_region/93 f/89 (a/90) -> k/34 * k/33
+     where k/34 (x/96 : imm tagged) =
+       (apply &my_alloc_region/93 f/89 (b/91) -> k/35 * k/33
+          where k/35 (y/97 : imm tagged) =
+            let int_mul/98 = %int_barith.mul (x/96, 100) in
+            let int_add/99 = %int_barith.add (int_mul/98, y/97) in
+            cont k/32 (int_add/99))
+ in
+ let code size(4)
+       add_offset_1 (x/100 : imm tagged)
+         my_closure/101 &my_alloc_region/102 my_depth/103
+         -> k/36 * k/37
+         : imm tagged =
+   let next_depth/104 = rec_info (succ my_depth/103) in
+   let offset/105 =
+     %project_value_slot.[add_offset].[offset] (my_closure/101)
+   in
+   let int_add/106 = %int_barith.add (x/100, offset/105) in
+   cont k/36 (int_add/106)
+ in
+ let code size(6) stub
+       partial_apply_to_both_2
+         (param1/107 : imm tagged, param2/108 : imm tagged)
+         my_closure/109 &my_alloc_region/110 my_depth/111
+         -> k/38 * k/39
+         : imm tagged =
+   let next_depth/112 = rec_info (succ my_depth/111) in
+   let apply_to_both/113 =
+     %project_value_slot.[partial_apply_to_both].[apply_to_both]
+       (my_closure/109)
+   in
+   let add_offset/114 =
+     %project_value_slot.[partial_apply_to_both].[add_offset]
+       (my_closure/109)
+   in
+   apply direct(apply_to_both_0 &my_alloc_region/110)
+     (apply_to_both/113 : _ -> imm tagged)
+       (add_offset/114, param1/107, param2/108)
+       -> k/38 * k/39
+ in
+ let apply_to_both/115 = closure apply_to_both_0 @apply_to_both &toplevel in
+ (let offset/118 = %opaque (10) in
+  let region/119 = %begin_region () in
+  let ghost_region/120 = %begin_ghost_region () in
+  (let add_offset/124 =
+     closure add_offset_1 @add_offset &toplevel &region/119
+   with { offset = offset/118 }
+   in
+   (let partial_apply_to_both/129 =
+      closure partial_apply_to_both_2 @partial_apply_to_both &toplevel
+        &region/119
+    with { apply_to_both = apply_to_both/115; add_offset = add_offset/124 }
+    in
+    cont k/42 (partial_apply_to_both/129))
+     where k/42 (waiting/125 : val) =
+       (apply direct(partial_apply_to_both_2 &toplevel)
+          (waiting/125 : _ -> imm tagged) (1, 2) -> k/43 * error
+          where k/43 (first/126 : imm tagged) =
+            (apply direct(partial_apply_to_both_2 &toplevel)
+               (waiting/125 : _ -> imm tagged) (3, 4) -> k/44 * error
+               where k/44 (second/127 : imm tagged) =
+                 let int_add/128 = %int_barith.add (first/126, second/127) in
+                 cont k/41 (int_add/128))))
+    where k/41 (region_return/121 : imm tagged) =
+      let unit/122 = %end_region (region/119) in
+      let unit/123 = %end_ghost_region (ghost_region/120) in
+      cont k/40 (region_return/121))
+   where k/40 (result/116 : imm tagged) =
+     let Pmakeblock/117 = %block.[`0`].`toplevel` (result/116) in
+     cont k/31 (Pmakeblock/117))
+  where k/31 define_root_symbol (module_block/87) =
+    let field_0/88 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/87)
+    in
+    let $camlLocal_closure_given_partially = Block 0 (field_0/88) in
+    cont done ($camlLocal_closure_given_partially)

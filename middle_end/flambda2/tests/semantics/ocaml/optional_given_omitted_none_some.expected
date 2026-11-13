@@ -1,0 +1,8 @@
+optional_given_omitted_none_some.fl:
+  before Simplify (98 steps): returns [0: 30; 6; 30; 15; 30; 21]
+  after Simplify (69 steps): returns [0: 30; 6; 30; 15; 30; 21]
+  the check of kinds: passes before, passes after
+  calls outside code: 6 before, 6 after
+  the same
+  calls outside code once those of known code are inlined: 0
+  validated: the same once closures and blocks are lifted to symbols and the terms normalised

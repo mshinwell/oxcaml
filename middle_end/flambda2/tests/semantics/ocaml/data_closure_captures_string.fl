@@ -1,0 +1,71 @@
+(let code size(8)
+       `fn[data_closure_captures_string.ml:12,15--45]_1` (i/64 : imm tagged)
+         my_closure/65 &my_alloc_region/66 my_depth/67
+         -> k/22 * k/23
+         : imm tagged =
+   let next_depth/68 = rec_info (succ my_depth/67) in
+   let s/69 =
+     %project_value_slot.[`fn[data_closure_captures_string.ml:12,15--45]`].[s]
+       (my_closure/65)
+   in
+   let prim/70 = %num_conv.[tagged_imm].[`nativeint`] (i/64) in
+   let prim/71 = %string_load.[`8`] (s/69, prim/70) in
+   let Pstringrefu/72 = %tag_imm (prim/71) in
+   cont k/22 (Pstringrefu/72)
+ in
+ let code size(17)
+       reader_0 (s/73 : val)
+         my_closure/74 &my_alloc_region/75 my_depth/76
+         -> k/24 * k/25
+         : val =
+   let next_depth/77 = rec_info (succ my_depth/76) in
+   let `fn[data_closure_captures_string.ml:12,15--45]/78` =
+     closure `fn[data_closure_captures_string.ml:12,15--45]_1`
+       @`fn[data_closure_captures_string.ml:12,15--45]` &my_alloc_region/75
+   with { s = s/73 }
+   in
+   cont k/24 (`fn[data_closure_captures_string.ml:12,15--45]/78`)
+ in
+ let $camlData_closure_captures_string__immstring_1 = "world" in
+ let $camlData_closure_captures_string__immstring_0 = "hello" in
+ let reader/79 = closure reader_0 @reader &toplevel in
+ apply direct(reader_0 &toplevel)
+   (reader/79 : _ -> val)
+     ($camlData_closure_captures_string__immstring_0)
+     -> k/26 * error
+   where k/26 (from_constant/80 : val) =
+     ((let Popaque/87 =
+         %opaque ($camlData_closure_captures_string__immstring_1)
+       in
+       apply direct(reader_0 &toplevel)
+         (reader/79 : _ -> val) (Popaque/87) -> k/27 * error)
+        where k/27 (from_unknown/81 : val) =
+          ((let Popaque/86 = %opaque (0) in
+            apply &toplevel from_unknown/81 (Popaque/86) -> k/28 * error)
+             where k/28 (apply_result/82 : imm tagged) =
+               (apply &toplevel from_constant/80 (1) -> k/29 * error
+                  where k/29 (apply_result/83 : imm tagged) =
+                    let result/84 =
+                      %int_barith.add (apply_result/83, apply_result/82)
+                    in
+                    let Pmakeblock/85 =
+                      %block.[`0`].`toplevel`
+                        (reader/79,
+                         from_constant/80,
+                         from_unknown/81,
+                         result/84)
+                    in
+                    cont k/21 (Pmakeblock/85)))))
+  where k/21 define_root_symbol (module_block/59) =
+    let field_0/60 = %block_load.tag[`0`].`size`[`4`].[`0`] (module_block/59)
+    in
+    let field_1/61 = %block_load.tag[`0`].`size`[`4`].[`1`] (module_block/59)
+    in
+    let field_2/62 = %block_load.tag[`0`].`size`[`4`].[`2`] (module_block/59)
+    in
+    let field_3/63 = %block_load.tag[`0`].`size`[`4`].[`3`] (module_block/59)
+    in
+    let $camlData_closure_captures_string =
+      Block 0 (field_0/60, field_1/61, field_2/62, field_3/63)
+    in
+    cont done ($camlData_closure_captures_string)

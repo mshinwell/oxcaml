@@ -1,0 +1,140 @@
+let $camlChar_ranges__first_const_0 = Block 0 () in
+(let code size(137)
+       class_of_0 (c/100 : imm tagged)
+         my_closure/101 &my_alloc_region/102 my_depth/103
+         -> k/64 * k/65
+         : imm tagged =
+   let next_depth/104 = rec_info (succ my_depth/103) in
+   (let prim/127 = %int_comp.ge (c/100, 48) in
+    let int_greaterequal/128 = %tag_imm (prim/127) in
+    (let untagged/129 = %untag_imm (int_greaterequal/128) in
+     switch untagged/129
+       | 0 -> k/86
+       | 1 -> k/87)
+      where k/87 =
+        cont k/68
+      where k/86 =
+        cont k/77)
+     where k/77 =
+       ((let prim/124 = %int_comp.ge (c/100, 11) in
+         let int_greaterequal/125 = %tag_imm (prim/124) in
+         (let untagged/126 = %untag_imm (int_greaterequal/125) in
+          switch untagged/126
+            | 0 -> k/84
+            | 1 -> k/85)
+           where k/85 =
+             cont k/78
+           where k/84 =
+             cont k/81)
+          where k/81 =
+            let prim/121 = %int_comp.ge (c/100, 9) in
+            let int_greaterequal/122 = %tag_imm (prim/121) in
+            ((let untagged/123 = %untag_imm (int_greaterequal/122) in
+              switch untagged/123
+                | 0 -> k/82
+                | 1 -> k/83)
+               where k/83 =
+                 cont k/66
+               where k/82 =
+                 cont k/67)
+          where k/78 =
+            let prim/118 = %int_comp.ne (c/100, 32) in
+            let int_notequal/119 = %tag_imm (prim/118) in
+            ((let untagged/120 = %untag_imm (int_notequal/119) in
+              switch untagged/120
+                | 0 -> k/79
+                | 1 -> k/80)
+               where k/80 =
+                 cont k/67
+               where k/79 =
+                 cont k/66))
+     where k/68 =
+       ((let prim/115 = %int_comp.lt (c/100, 91) in
+         let int_lessthan/116 = %tag_imm (prim/115) in
+         (let untagged/117 = %untag_imm (int_lessthan/116) in
+          switch untagged/117
+            | 0 -> k/75
+            | 1 -> k/76)
+           where k/76 =
+             cont k/69
+           where k/75 =
+             cont k/73)
+          where k/73 =
+            let int_add/111 = %int_barith.add (c/100, -97) in
+            let prim/112 = %int_comp.unsigned.lt (25, int_add/111) in
+            let Pisout/113 = %tag_imm (prim/112) in
+            ((let untagged/114 = %untag_imm (Pisout/113) in
+              switch untagged/114
+                | 0 -> k/64 (1)
+                | 1 -> k/74)
+               where k/74 =
+                 cont k/67)
+          where k/69 =
+            ((let prim/108 = %int_comp.ge (c/100, 58) in
+              let int_greaterequal/109 = %tag_imm (prim/108) in
+              (let untagged/110 = %untag_imm (int_greaterequal/109) in
+               switch untagged/110
+                 | 0 -> k/64 (3)
+                 | 1 -> k/72)
+                where k/72 =
+                  cont k/70)
+               where k/70 =
+                 let prim/105 = %int_comp.ge (c/100, 65) in
+                 let int_greaterequal/106 = %tag_imm (prim/105) in
+                 ((let untagged/107 = %untag_imm (int_greaterequal/106) in
+                   switch untagged/107
+                     | 0 -> k/71
+                     | 1 -> k/64 (2))
+                    where k/71 =
+                      cont k/67)))
+     where k/67 =
+       cont k/64 (0)
+     where k/66 =
+       cont k/64 (4)
+ in
+ let class_of/130 = closure class_of_0 @class_of &toplevel in
+ (let Popaque/144 = %opaque (33) in
+  apply direct(class_of_0 &toplevel)
+    (class_of/130 : _ -> imm tagged) (Popaque/144) -> k/88 * error)
+   where k/88 (apply_result/131 : imm tagged) =
+     ((let Popaque/143 = %opaque (32) in
+       apply direct(class_of_0 &toplevel)
+         (class_of/130 : _ -> imm tagged) (Popaque/143) -> k/89 * error)
+        where k/89 (apply_result/132 : imm tagged) =
+          ((let Popaque/142 = %opaque (55) in
+            apply direct(class_of_0 &toplevel)
+              (class_of/130 : _ -> imm tagged) (Popaque/142) -> k/90 * error)
+             where k/90 (apply_result/133 : imm tagged) =
+               ((let Popaque/141 = %opaque (81) in
+                 apply direct(class_of_0 &toplevel)
+                   (class_of/130 : _ -> imm tagged)
+                     (Popaque/141)
+                     -> k/91 * error)
+                  where k/91 (apply_result/134 : imm tagged) =
+                    (apply direct(class_of_0 &toplevel)
+                       (class_of/130 : _ -> imm tagged) (113) -> k/92 * error
+                       where k/92 (apply_result/135 : imm tagged) =
+                         let int_add/136 =
+                           %int_barith.add
+                             (apply_result/135, apply_result/134)
+                         in
+                         let int_add/137 =
+                           %int_barith.add (int_add/136, apply_result/133)
+                         in
+                         let int_add/138 =
+                           %int_barith.add (int_add/137, apply_result/132)
+                         in
+                         let result/139 =
+                           %int_barith.add (int_add/138, apply_result/131)
+                         in
+                         let Pmakeblock/140 =
+                           %block.[`0`].`toplevel` (class_of/130, result/139)
+                         in
+                         cont k/63 (Pmakeblock/140))))))
+  where k/63 define_root_symbol (module_block/97) =
+    let field_0/98 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/97)
+    in
+    let field_1/99 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/97)
+    in
+    let $camlChar_ranges = Block 0 (field_0/98, field_1/99) in
+    cont done ($camlChar_ranges)

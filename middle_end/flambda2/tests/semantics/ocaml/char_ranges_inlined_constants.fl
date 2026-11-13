@@ -1,0 +1,93 @@
+let $camlChar_ranges_inlined_constants__first_const_0 = Block 0 () in
+(let code inline(always) size(85)
+       class_of_0 (c/70 : imm tagged)
+         my_closure/71 &my_alloc_region/72 my_depth/73
+         -> k/42 * k/43
+         : imm tagged =
+   let next_depth/74 = rec_info (succ my_depth/73) in
+   (let prim/88 = %int_comp.ge (c/70, 65) in
+    let int_greaterequal/89 = %tag_imm (prim/88) in
+    (let untagged/90 = %untag_imm (int_greaterequal/89) in
+     switch untagged/90
+       | 0 -> k/54
+       | 1 -> k/55)
+      where k/55 =
+        cont k/45
+      where k/54 =
+        cont k/52)
+     where k/52 =
+       let int_add/84 = %int_barith.add (c/70, -48) in
+       let prim/85 = %int_comp.unsigned.lt (9, int_add/84) in
+       let Pisout/86 = %tag_imm (prim/85) in
+       ((let untagged/87 = %untag_imm (Pisout/86) in
+         switch untagged/87
+           | 0 -> k/42 (3)
+           | 1 -> k/53)
+          where k/53 =
+            cont k/44)
+     where k/45 =
+       ((let prim/81 = %int_comp.ge (c/70, 97) in
+         let int_greaterequal/82 = %tag_imm (prim/81) in
+         (let untagged/83 = %untag_imm (int_greaterequal/82) in
+          switch untagged/83
+            | 0 -> k/50
+            | 1 -> k/51)
+           where k/51 =
+             cont k/46
+           where k/50 =
+             cont k/48)
+          where k/48 =
+            let prim/78 = %int_comp.ge (c/70, 91) in
+            let int_greaterequal/79 = %tag_imm (prim/78) in
+            ((let untagged/80 = %untag_imm (int_greaterequal/79) in
+              switch untagged/80
+                | 0 -> k/42 (2)
+                | 1 -> k/49)
+               where k/49 =
+                 cont k/44)
+          where k/46 =
+            let prim/75 = %int_comp.ge (c/70, 123) in
+            let int_greaterequal/76 = %tag_imm (prim/75) in
+            ((let untagged/77 = %untag_imm (int_greaterequal/76) in
+              switch untagged/77
+                | 0 -> k/42 (1)
+                | 1 -> k/47)
+               where k/47 =
+                 cont k/44))
+     where k/44 =
+       cont k/42 (0)
+ in
+ let class_of/91 = closure class_of_0 @class_of &toplevel in
+ apply direct(class_of_0 &toplevel)
+   (class_of/91 : _ -> imm tagged) (33) -> k/56 * error
+   where k/56 (apply_result/92 : imm tagged) =
+     (apply direct(class_of_0 &toplevel)
+        (class_of/91 : _ -> imm tagged) (55) -> k/57 * error
+        where k/57 (apply_result/93 : imm tagged) =
+          (apply direct(class_of_0 &toplevel)
+             (class_of/91 : _ -> imm tagged) (81) -> k/58 * error
+             where k/58 (apply_result/94 : imm tagged) =
+               (apply direct(class_of_0 &toplevel)
+                  (class_of/91 : _ -> imm tagged) (113) -> k/59 * error
+                  where k/59 (apply_result/95 : imm tagged) =
+                    let int_add/96 =
+                      %int_barith.add (apply_result/95, apply_result/94)
+                    in
+                    let int_add/97 =
+                      %int_barith.add (int_add/96, apply_result/93)
+                    in
+                    let result/98 =
+                      %int_barith.add (int_add/97, apply_result/92)
+                    in
+                    let Pmakeblock/99 =
+                      %block.[`0`].`toplevel` (class_of/91, result/98)
+                    in
+                    cont k/41 (Pmakeblock/99)))))
+  where k/41 define_root_symbol (module_block/67) =
+    let field_0/68 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/67)
+    in
+    let field_1/69 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/67)
+    in
+    let $camlChar_ranges_inlined_constants = Block 0 (field_0/68, field_1/69)
+    in
+    cont done ($camlChar_ranges_inlined_constants)

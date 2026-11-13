@@ -1,0 +1,62 @@
+let $camlHof_closure_in_record__first_const_0 = Block 0 () in
+(let code size(8)
+       `fn[hof_closure_in_record.ml:17,24--48]_1`
+         (a/61 : imm tagged, b/62 : imm tagged)
+         my_closure/63 &my_alloc_region/64 my_depth/65
+         -> k/20 * k/21
+         : imm tagged =
+   let next_depth/66 = rec_info (succ my_depth/65) in
+   let x/67 =
+     %project_value_slot.[`fn[hof_closure_in_record.ml:17,24--48]`].[x]
+       (my_closure/63)
+   in
+   let int_mul/68 = %int_barith.mul (a/61, x/67) in
+   let int_add/69 = %int_barith.add (int_mul/68, b/62) in
+   cont k/20 (int_add/69)
+ in
+ let code inline(never) size(37)
+       body_0 (x/70 : imm tagged)
+         my_closure/71 &my_alloc_region/72 my_depth/73
+         -> k/22 * k/23
+         : imm tagged =
+   let next_depth/74 = rec_info (succ my_depth/73) in
+   let int_add/75 = %int_barith.add (x/70, 1) in
+   let `fn[hof_closure_in_record.ml:17,24--48]/76` =
+     closure `fn[hof_closure_in_record.ml:17,24--48]_1`
+       @`fn[hof_closure_in_record.ml:17,24--48]` &my_alloc_region/72
+   with { x = x/70 }
+   in
+   let ops/77 =
+     %block.[`0`].my_alloc_region/72
+       (`fn[hof_closure_in_record.ml:17,24--48]/76`, int_add/75)
+   in
+   (let Pfield/80 = %block_load.[`1`] (ops/77) in
+    let Pfield/81 = %block_load.[`0`] (ops/77) in
+    apply
+           direct(`fn[hof_closure_in_record.ml:17,24--48]_1`
+           &my_alloc_region/72)
+      (Pfield/81 : _ -> imm tagged) (Pfield/80, 2) -> k/24 * k/23)
+     where k/24 (apply_result/78 : imm tagged) =
+       let Pfield/79 = %block_load.[`0`] (ops/77) in
+       apply
+              direct(`fn[hof_closure_in_record.ml:17,24--48]_1`
+              &my_alloc_region/72)
+         (Pfield/79 : _ -> imm tagged) (apply_result/78, 3) -> k/22 * k/23
+ in
+ let body/82 = closure body_0 @body &toplevel in
+ apply direct(body_0 &toplevel)
+   (body/82 : _ -> imm tagged) (1) -> k/25 * error
+   where k/25 (apply_result/83 : imm tagged) =
+     ((let Popaque/87 = %opaque (3) in
+       apply direct(body_0 &toplevel)
+         (body/82 : _ -> imm tagged) (Popaque/87) -> k/26 * error)
+        where k/26 (apply_result/84 : imm tagged) =
+          let result/85 = %int_barith.add (apply_result/84, apply_result/83)
+          in
+          let Pmakeblock/86 = %block.[`0`].`toplevel` (result/85) in
+          cont k/19 (Pmakeblock/86)))
+  where k/19 define_root_symbol (module_block/59) =
+    let field_0/60 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/59)
+    in
+    let $camlHof_closure_in_record = Block 0 (field_0/60) in
+    cont done ($camlHof_closure_in_record)

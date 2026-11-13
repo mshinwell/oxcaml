@@ -1,0 +1,93 @@
+let $camlDead_division_in_dead_arm__first_const_0 = Block 0 () in
+(let code inline(always) size(37)
+       f_0 (flag/77 : imm tagged, x/78 : imm tagged)
+         my_closure/79 &my_alloc_region/80 my_depth/81
+         -> k/48 * k/49
+         : imm tagged =
+   let next_depth/82 = rec_info (succ my_depth/81) in
+   (let untagged/86 = %untag_imm (flag/77) in
+    switch untagged/86
+      | 0 -> k/55
+      | 1 -> k/56)
+     where k/56 =
+       cont k/50
+     where k/55 =
+       cont k/54
+     where k/54 =
+       let int_add/85 = %int_barith.add (x/78, 2) in
+       cont k/48 (int_add/85)
+     where k/50 =
+       ((let prim/84 = %int_comp.ne (0, 0) in
+         switch prim/84
+           | 0 -> k/52
+           | 1 -> k/53)
+          where k/53 =
+            cont k/51
+          where k/52 =
+            cont k/49
+                   pop(regular k/49)
+                   ($`*predef*`.caml_exn_Division_by_zero)
+          where k/51 =
+            let int_div/83 = %int_barith.div (x/78, 0) in
+            cont k/48 (int_div/83))
+ in
+ let f/87 = closure f_0 @f &toplevel in
+ let try_region/88 = %begin_try_region () in
+ let try_ghost_region/89 = %begin_try_ghost_region () in
+ cont k/68 push(k/64)
+   where k/68 =
+     apply direct(f_0 &toplevel)
+       (f/87 : _ -> imm tagged) (1, 4) -> k/67 * k/64
+   where k/67 (body_result/110 : imm tagged) =
+     cont k/57 pop(k/64) (body_result/110)
+   where k/64 exn (exn/104 : val) =
+     let unit/105 = %end_try_region (try_region/88) in
+     let unit/106 = %end_try_ghost_region (try_ghost_region/89) in
+     ((let prim/107 =
+         %phys_eq (exn/104, $`*predef*`.caml_exn_Division_by_zero)
+       in
+       let eq/108 = %tag_imm (prim/107) in
+       (let untagged/109 = %untag_imm (eq/108) in
+        switch untagged/109
+          | 0 -> k/66
+          | 1 -> k/57 (2000))
+         where k/66 =
+           cont k/65)
+        where k/65 =
+          cont error pop(reraise error) (exn/104))
+   where k/57 (try_with_result/90 : imm tagged) =
+     let try_region/91 = %begin_try_region () in
+     let try_ghost_region/92 = %begin_try_ghost_region () in
+     (cont k/63 push(k/59)
+        where k/63 =
+          let Popaque/103 = %opaque (4) in
+          apply direct(f_0 &toplevel)
+            (f/87 : _ -> imm tagged) (0, Popaque/103) -> k/62 * k/59
+        where k/62 (body_result/102 : imm tagged) =
+          cont k/58 pop(k/59) (body_result/102)
+        where k/59 exn (exn/96 : val) =
+          let unit/97 = %end_try_region (try_region/91) in
+          let unit/98 = %end_try_ghost_region (try_ghost_region/92) in
+          ((let prim/99 =
+              %phys_eq (exn/96, $`*predef*`.caml_exn_Division_by_zero)
+            in
+            let eq/100 = %tag_imm (prim/99) in
+            (let untagged/101 = %untag_imm (eq/100) in
+             switch untagged/101
+               | 0 -> k/61
+               | 1 -> k/58 (1000))
+              where k/61 =
+                cont k/60)
+             where k/60 =
+               cont error pop(reraise error) (exn/96))
+        where k/58 (try_with_result/93 : imm tagged) =
+          let result/94 =
+            %int_barith.add (try_with_result/93, try_with_result/90)
+          in
+          let Pmakeblock/95 = %block.[`0`].`toplevel` (result/94) in
+          cont k/47 (Pmakeblock/95)))
+  where k/47 define_root_symbol (module_block/75) =
+    let field_0/76 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/75)
+    in
+    let $camlDead_division_in_dead_arm = Block 0 (field_0/76) in
+    cont done ($camlDead_division_in_dead_arm)

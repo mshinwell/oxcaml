@@ -1,0 +1,85 @@
+let $camlChar_digit_value__first_const_0 = Block 0 () in
+(let code size(27)
+       digit_0 (c/79 : imm tagged)
+         my_closure/80 &my_alloc_region/81 my_depth/82
+         -> k/34 * k/35
+         : [ 0 | 0 of imm tagged ] =
+   let next_depth/83 = rec_info (succ my_depth/82) in
+   (let int_add/86 = %int_barith.add (c/79, -48) in
+    let prim/87 = %int_comp.unsigned.lt (9, int_add/86) in
+    let Pisout/88 = %tag_imm (prim/87) in
+    (let untagged/89 = %untag_imm (Pisout/88) in
+     switch untagged/89
+       | 0 -> k/37
+       | 1 -> k/34 (0))
+      where k/37 =
+        cont k/36)
+     where k/36 =
+       let int_sub/84 = %int_barith.sub (c/79, 48) in
+       let Pmakeblock/85 = %block.[`0`].my_alloc_region/81 (int_sub/84) in
+       cont k/34 (Pmakeblock/85)
+ in
+ let code size(17)
+       value_1 (o/90 : [ 0 | 0 of imm tagged ])
+         my_closure/91 &my_alloc_region/92 my_depth/93
+         -> k/38 * k/39
+         : imm tagged =
+   let next_depth/94 = rec_info (succ my_depth/93) in
+   (let prim/96 = %is_int (o/90) in
+    let Pisint/97 = %tag_imm (prim/96) in
+    (let untagged/98 = %untag_imm (Pisint/97) in
+     switch untagged/98
+       | 0 -> k/41
+       | 1 -> k/38 (100))
+      where k/41 =
+        cont k/40)
+     where k/40 =
+       let Pfield/95 = %block_load.[`0`] (o/90) in
+       cont k/38 (Pfield/95)
+ in
+ let digit/99 = closure digit_0 @digit &toplevel in
+ let value/100 = closure value_1 @value &toplevel in
+ (let Popaque/111 = %opaque (120) in
+  apply direct(digit_0 &toplevel)
+    (digit/99 : _ -> [ 0 | 0 of imm tagged ]) (Popaque/111) -> k/47 * error)
+   where k/47 (apply_result/110 : [ 0 | 0 of imm tagged ]) =
+     apply direct(value_1 &toplevel)
+       (value/100 : _ -> imm tagged) (apply_result/110) -> k/42 * error
+   where k/42 (apply_result/101 : imm tagged) =
+     ((let Popaque/109 = %opaque (51) in
+       apply direct(digit_0 &toplevel)
+         (digit/99 : _ -> [ 0 | 0 of imm tagged ])
+           (Popaque/109)
+           -> k/46 * error)
+        where k/46 (apply_result/108 : [ 0 | 0 of imm tagged ]) =
+          apply direct(value_1 &toplevel)
+            (value/100 : _ -> imm tagged) (apply_result/108) -> k/43 * error
+        where k/43 (apply_result/102 : imm tagged) =
+          (apply direct(digit_0 &toplevel)
+             (digit/99 : _ -> [ 0 | 0 of imm tagged ]) (55) -> k/45 * error
+             where k/45 (apply_result/107 : [ 0 | 0 of imm tagged ]) =
+               apply direct(value_1 &toplevel)
+                 (value/100 : _ -> imm tagged)
+                   (apply_result/107)
+                   -> k/44 * error
+             where k/44 (apply_result/103 : imm tagged) =
+               let int_add/104 =
+                 %int_barith.add (apply_result/103, apply_result/102)
+               in
+               let result/105 =
+                 %int_barith.add (int_add/104, apply_result/101)
+               in
+               let Pmakeblock/106 =
+                 %block.[`0`].`toplevel` (digit/99, value/100, result/105)
+               in
+               cont k/33 (Pmakeblock/106))))
+  where k/33 define_root_symbol (module_block/75) =
+    let field_0/76 = %block_load.tag[`0`].`size`[`3`].[`0`] (module_block/75)
+    in
+    let field_1/77 = %block_load.tag[`0`].`size`[`3`].[`1`] (module_block/75)
+    in
+    let field_2/78 = %block_load.tag[`0`].`size`[`3`].[`2`] (module_block/75)
+    in
+    let $camlChar_digit_value = Block 0 (field_0/76, field_1/77, field_2/78)
+    in
+    cont done ($camlChar_digit_value)

@@ -1,0 +1,90 @@
+let $camlLocal_argument_partial_application__first_const_0 = Block 0 () in
+(let code inline(never) size(17)
+       pick_0
+         (p/94 : [ 0 of imm tagged * imm tagged ], first/95 : imm tagged)
+         my_closure/96 &my_alloc_region/97 my_depth/98
+         -> k/38 * k/39
+         : imm tagged =
+   let next_depth/99 = rec_info (succ my_depth/98) in
+   (let untagged/102 = %untag_imm (first/95) in
+    switch untagged/102
+      | 0 -> k/42
+      | 1 -> k/43)
+     where k/43 =
+       cont k/40
+     where k/42 =
+       cont k/41
+     where k/41 =
+       let Pmixedfield/101 = %block_load.[`1`] (p/94) in
+       cont k/38 (Pmixedfield/101)
+     where k/40 =
+       let Pmixedfield/100 = %block_load.[`0`] (p/94) in
+       cont k/38 (Pmixedfield/100)
+ in
+ let code size(6) stub
+       partial_pick_2 (param1/103 : imm tagged)
+         my_closure/104 &my_alloc_region/105 my_depth/106
+         -> k/44 * k/45
+         : imm tagged =
+   let next_depth/107 = rec_info (succ my_depth/106) in
+   let pick/108 = %project_value_slot.[partial_pick].[pick] (my_closure/104)
+   in
+   let p/109 = %project_value_slot.[partial_pick].[p] (my_closure/104) in
+   apply direct(pick_0 &my_alloc_region/105)
+     (pick/108 : _ -> imm tagged) (p/109, param1/103) -> k/44 * k/45
+ in
+ let code inline(never) size(42)
+       both_1 (x/110 : imm tagged, y/111 : imm tagged)
+         my_closure/112 &my_alloc_region/113 my_depth/114
+         -> k/46 * k/47
+         : imm tagged =
+   let next_depth/115 = rec_info (succ my_depth/114) in
+   let pick/116 = %project_value_slot.[both].[pick_1] (my_closure/112) in
+   let region/117 = %begin_region () in
+   let ghost_region/118 = %begin_ghost_region () in
+   (let p/122 =
+      %block.[`0`].my_alloc_region/113.local[region/117] (x/110, y/111)
+    in
+    (let partial_pick/128 =
+       closure partial_pick_2 @partial_pick &my_alloc_region/113 &region/117
+     with { pick = pick/116; p = p/122 }
+     in
+     cont k/49 (partial_pick/128))
+      where k/49 (choose/123 : val) =
+        (apply direct(partial_pick_2 &my_alloc_region/113)
+           (choose/123 : _ -> imm tagged) (1) -> k/50 * k/47
+           where k/50 (a/124 : imm tagged) =
+             (apply direct(partial_pick_2 &my_alloc_region/113)
+                (choose/123 : _ -> imm tagged) (0) -> k/51 * k/47
+                where k/51 (b/125 : imm tagged) =
+                  let int_mul/126 = %int_barith.mul (a/124, 10) in
+                  let int_add/127 = %int_barith.add (int_mul/126, b/125) in
+                  cont k/48 (int_add/127))))
+     where k/48 (region_return/119 : imm tagged) =
+       let unit/120 = %end_region (region/117) in
+       let unit/121 = %end_ghost_region (ghost_region/118) in
+       cont k/46 (region_return/119)
+ in
+ let pick/129 = closure pick_0 @pick &toplevel in
+ let both/130 = closure both_1 @both &toplevel with { pick_1 = pick/129 } in
+ (let Popaque/134 = %opaque (4) in
+  let Popaque/135 = %opaque (3) in
+  apply direct(both_1 &toplevel)
+    (both/130 : _ -> imm tagged) (Popaque/135, Popaque/134) -> k/52 * error)
+   where k/52 (result/131 : imm tagged) =
+     (apply direct(both_1 &toplevel)
+        (both/130 : _ -> imm tagged) (5, 6) -> k/53 * error
+        where k/53 (result_again/132 : imm tagged) =
+          let Pmakeblock/133 =
+            %block.[`0`].`toplevel` (result/131, result_again/132)
+          in
+          cont k/37 (Pmakeblock/133)))
+  where k/37 define_root_symbol (module_block/91) =
+    let field_0/92 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/91)
+    in
+    let field_1/93 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/91)
+    in
+    let $camlLocal_argument_partial_application =
+      Block 0 (field_0/92, field_1/93)
+    in
+    cont done ($camlLocal_argument_partial_application)

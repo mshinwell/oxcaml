@@ -1,0 +1,128 @@
+(let code rec loopify(default tailrec) size(189)
+       vowels_0 (s/64 : val, i/65 : imm tagged, acc/66 : imm tagged)
+         my_closure/67 &my_alloc_region/68 my_depth/69
+         -> k/68 * k/69
+         : imm tagged =
+   let next_depth/70 = rec_info (succ my_depth/69) in
+   (let prim/82 = %string_length (s/64) in
+    let Pstringlength/83 = %tag_imm (prim/82) in
+    let prim/84 = %int_comp.lt (i/65, Pstringlength/83) in
+    let int_lessthan/85 = %tag_imm (prim/84) in
+    (let untagged/86 = %untag_imm (int_lessthan/85) in
+     switch untagged/86
+       | 0 -> k/68 (acc/66)
+       | 1 -> k/97)
+      where k/97 =
+        cont k/70)
+     where k/70 =
+       let prim/71 = %num_conv.[tagged_imm].[`nativeint`] (i/65) in
+       let prim/72 = %string_load.[`8`] (s/64, prim/71) in
+       let `*match*/73` = %tag_imm (prim/72) in
+       ((let switcher/77 = %int_barith.add (`*match*/73`, -97) in
+         (let prim/79 = %int_comp.unsigned.lt (20, switcher/77) in
+          let Pisout/80 = %tag_imm (prim/79) in
+          (let untagged/81 = %untag_imm (Pisout/80) in
+           switch untagged/81
+             | 0 -> k/95
+             | 1 -> k/96)
+            where k/96 =
+              cont k/72
+            where k/95 =
+              cont k/73)
+           where k/73 =
+             ((let untagged/78 = %untag_imm (switcher/77) in
+               switch untagged/78
+                 | 0 -> k/74
+                 | 1 -> k/75
+                 | 2 -> k/76
+                 | 3 -> k/77
+                 | 4 -> k/78
+                 | 5 -> k/79
+                 | 6 -> k/80
+                 | 7 -> k/81
+                 | 8 -> k/82
+                 | 9 -> k/83
+                 | 10 -> k/84
+                 | 11 -> k/85
+                 | 12 -> k/86
+                 | 13 -> k/87
+                 | 14 -> k/88
+                 | 15 -> k/89
+                 | 16 -> k/90
+                 | 17 -> k/91
+                 | 18 -> k/92
+                 | 19 -> k/93
+                 | 20 -> k/94)
+                where k/94 =
+                  cont k/71
+                where k/93 =
+                  cont k/72
+                where k/92 =
+                  cont k/72
+                where k/91 =
+                  cont k/72
+                where k/90 =
+                  cont k/72
+                where k/89 =
+                  cont k/72
+                where k/88 =
+                  cont k/71
+                where k/87 =
+                  cont k/72
+                where k/86 =
+                  cont k/72
+                where k/85 =
+                  cont k/72
+                where k/84 =
+                  cont k/72
+                where k/83 =
+                  cont k/72
+                where k/82 =
+                  cont k/71
+                where k/81 =
+                  cont k/72
+                where k/80 =
+                  cont k/72
+                where k/79 =
+                  cont k/72
+                where k/78 =
+                  cont k/71
+                where k/77 =
+                  cont k/72
+                where k/76 =
+                  cont k/72
+                where k/75 =
+                  cont k/72
+                where k/74 =
+                  cont k/71))
+          where k/72 =
+            let int_add/76 = %int_barith.add (i/65, 1) in
+            apply direct(vowels_0 &my_alloc_region/68)
+              (my_closure/67 ~ depth my_depth/69 -> next_depth/70
+               : _ -> imm tagged)
+                (s/64, int_add/76, acc/66)
+                -> k/68 * k/69
+          where k/71 =
+            let int_add/74 = %int_barith.add (acc/66, 1) in
+            let int_add/75 = %int_barith.add (i/65, 1) in
+            apply direct(vowels_0 &my_alloc_region/68)
+              (my_closure/67 ~ depth my_depth/69 -> next_depth/70
+               : _ -> imm tagged)
+                (s/64, int_add/75, int_add/74)
+                -> k/68 * k/69)
+ in
+ let $camlChar_count_in_string__immstring_0 = "a quiet house" in
+ let vowels/87 = closure vowels_0 @vowels &toplevel in
+ (let Popaque/90 = %opaque ($camlChar_count_in_string__immstring_0) in
+  apply direct(vowels_0 &toplevel)
+    (vowels/87 : _ -> imm tagged) (Popaque/90, 0, 0) -> k/98 * error)
+   where k/98 (result/88 : imm tagged) =
+     let Pmakeblock/89 = %block.[`0`].`toplevel` (vowels/87, result/88) in
+     cont k/67 (Pmakeblock/89))
+  where k/67 define_root_symbol (module_block/61) =
+    let field_0/62 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/61)
+    in
+    let field_1/63 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/61)
+    in
+    let $camlChar_count_in_string = Block 0 (field_0/62, field_1/63) in
+    cont done ($camlChar_count_in_string)

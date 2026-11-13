@@ -1,0 +1,170 @@
+let $camlTail_call_after_region__first_const_0 = Block 0 () in
+(let code inline(never) size(9)
+       read2_0 (p/210 : [ 0 of imm tagged * imm tagged ])
+         my_closure/211 &my_alloc_region/212 my_depth/213
+         -> k/53 * k/54
+         : imm tagged =
+   let next_depth/214 = rec_info (succ my_depth/213) in
+   let Pmixedfield/215 = %block_load.[`1`] (p/210) in
+   let Pmixedfield/216 = %block_load.[`0`] (p/210) in
+   let int_mul/217 = %int_barith.mul (Pmixedfield/216, 3) in
+   let int_add/218 = %int_barith.add (int_mul/217, Pmixedfield/215) in
+   cont k/53 (int_add/218)
+ in
+ let code inline(never) size(16)
+       read3_1 (t/219 : [ 0 of imm tagged * imm tagged * imm tagged ])
+         my_closure/220 &my_alloc_region/221 my_depth/222
+         -> k/55 * k/56
+         : imm tagged =
+   let next_depth/223 = rec_info (succ my_depth/222) in
+   let Pmixedfield/224 = %block_load.[`2`] (t/219) in
+   let Pmixedfield/225 = %block_load.[`1`] (t/219) in
+   let int_mul/226 = %int_barith.mul (Pmixedfield/225, 3) in
+   let Pmixedfield/227 = %block_load.[`0`] (t/219) in
+   let int_mul/228 = %int_barith.mul (Pmixedfield/227, 5) in
+   let int_add/229 = %int_barith.add (int_mul/228, int_mul/226) in
+   let int_add/230 = %int_barith.add (int_add/229, Pmixedfield/224) in
+   cont k/55 (int_add/230)
+ in
+ let code inline(never) size(6)
+       call1_2 (f/231 : val, x/232)
+         my_closure/233 &my_alloc_region/234 my_depth/235
+         -> k/57 * k/58 =
+   let next_depth/236 = rec_info (succ my_depth/235) in
+   apply &my_alloc_region/234 f/231 (x/232) -> k/57 * k/58
+ in
+ let code size(6)
+       f_4 (y/237 : imm tagged)
+         my_closure/238 &my_alloc_region/239 my_depth/240
+         -> k/59 * k/60
+         : imm tagged =
+   let next_depth/241 = rec_info (succ my_depth/240) in
+   let x/242 = %project_value_slot.[f].[x] (my_closure/238) in
+   let int_add/243 = %int_barith.add (y/237, x/242) in
+   let int_add/244 = %int_barith.add (int_add/243, 8007) in
+   cont k/59 (int_add/244)
+ in
+ let code inline(never) size(79)
+       noise_3 (x/245 : imm tagged)
+         my_closure/246 &my_alloc_region/247 my_depth/248
+         -> k/61 * k/62
+         : imm tagged =
+   let next_depth/249 = rec_info (succ my_depth/248) in
+   let read2/250 = %project_value_slot.[noise].[read2] (my_closure/246) in
+   let read3/251 = %project_value_slot.[noise].[read3] (my_closure/246) in
+   let call1/252 = %project_value_slot.[noise].[call1] (my_closure/246) in
+   let region/253 = %begin_region () in
+   let ghost_region/254 = %begin_ghost_region () in
+   (let int_add/258 = %int_barith.add (x/245, 2001) in
+    let int_add/259 = %int_barith.add (x/245, 1000) in
+    let a/260 =
+      %block.[`0`].my_alloc_region/247.local[region/253]
+        (int_add/259, int_add/258)
+    in
+    let int_add/261 = %int_barith.add (x/245, 5004) in
+    let int_add/262 = %int_barith.add (x/245, 4003) in
+    let int_add/263 = %int_barith.add (x/245, 3002) in
+    let b/264 =
+      %block.[`0`].my_alloc_region/247.local[region/253]
+        (int_add/263, int_add/262, int_add/261)
+    in
+    let int_add/265 = %int_barith.add (x/245, 7006) in
+    let int_add/266 = %int_barith.add (x/245, 6005) in
+    let c/267 =
+      %block.[`0`].my_alloc_region/247.local[region/253]
+        (int_add/266, int_add/265)
+    in
+    let f/268 = closure f_4 @f &my_alloc_region/247 &region/253
+    with { x = x/245 }
+    in
+    apply direct(call1_2 &my_alloc_region/247)
+      (call1/252 : _ -> imm tagged) (f/268, 7) -> k/64 * k/62
+      where k/64 (apply_result/269 : imm tagged) =
+        (apply direct(read2_0 &my_alloc_region/247)
+           (read2/250 : _ -> imm tagged) (c/267) -> k/65 * k/62
+           where k/65 (apply_result/270 : imm tagged) =
+             (apply direct(read3_1 &my_alloc_region/247)
+                (read3/251 : _ -> imm tagged) (b/264) -> k/66 * k/62
+                where k/66 (apply_result/271 : imm tagged) =
+                  (apply direct(read2_0 &my_alloc_region/247)
+                     (read2/250 : _ -> imm tagged) (a/260) -> k/67 * k/62
+                     where k/67 (apply_result/272 : imm tagged) =
+                       let int_add/273 =
+                         %int_barith.add (apply_result/272, apply_result/271)
+                       in
+                       let int_add/274 =
+                         %int_barith.add (int_add/273, apply_result/270)
+                       in
+                       let int_add/275 =
+                         %int_barith.add (int_add/274, apply_result/269)
+                       in
+                       cont k/63 (int_add/275)))))
+     where k/63 (region_return/255 : imm tagged) =
+       let unit/256 = %end_region (region/253) in
+       let unit/257 = %end_ghost_region (ghost_region/254) in
+       cont k/61 (region_return/255)
+ in
+ let code inline(never) size(5)
+       finish_5 (v/276 : imm tagged)
+         my_closure/277 &my_alloc_region/278 my_depth/279
+         -> k/68 * k/69
+         : imm tagged =
+   let next_depth/280 = rec_info (succ my_depth/279) in
+   let int_mul/281 = %int_barith.mul (v/276, 2) in
+   cont k/68 (int_mul/281)
+ in
+ let code inline(never) size(28)
+       body_6 (x/282 : imm tagged)
+         my_closure/283 &my_alloc_region/284 my_depth/285
+         -> k/70 * k/71
+         : imm tagged =
+   let next_depth/286 = rec_info (succ my_depth/285) in
+   let read2/287 = %project_value_slot.[body].[read2_1] (my_closure/283) in
+   let noise/288 = %project_value_slot.[body].[noise] (my_closure/283) in
+   let finish/289 = %project_value_slot.[body].[finish] (my_closure/283) in
+   let region/290 = %begin_region () in
+   let ghost_region/291 = %begin_ghost_region () in
+   let int_add/292 = %int_barith.add (x/282, 1) in
+   let p/293 =
+     %block.[`0`].my_alloc_region/284.local[region/290] (x/282, int_add/292)
+   in
+   apply direct(noise_3 &my_alloc_region/284)
+     (noise/288 : _ -> imm tagged) (x/282) -> k/72 * k/71
+     where k/72 (n/294 : imm tagged) =
+       (apply direct(read2_0 &my_alloc_region/284)
+          (read2/287 : _ -> imm tagged) (p/293) -> k/73 * k/71
+          where k/73 (apply_result/295 : imm tagged) =
+            let int_add/296 = %int_barith.add (n/294, apply_result/295) in
+            let unit/297 = %end_region (region/290) in
+            let unit/298 = %end_ghost_region (ghost_region/291) in
+            apply direct(finish_5 &my_alloc_region/284)
+              (finish/289 : _ -> imm tagged) (int_add/296) -> k/70 * k/71)
+ in
+ let read2/299 = closure read2_0 @read2 &toplevel in
+ let read3/300 = closure read3_1 @read3 &toplevel in
+ let call1/301 = closure call1_2 @call1 &toplevel in
+ let noise/302 = closure noise_3 @noise &toplevel
+ with { read2 = read2/299; read3 = read3/300; call1 = call1/301 }
+ in
+ let finish/303 = closure finish_5 @finish &toplevel in
+ let body/304 = closure body_6 @body &toplevel
+ with { read2_1 = read2/299; noise = noise/302; finish = finish/303 }
+ in
+ apply direct(body_6 &toplevel)
+   (body/304 : _ -> imm tagged) (10) -> k/74 * error
+   where k/74 (apply_result/305 : imm tagged) =
+     ((let Popaque/309 = %opaque (3) in
+       apply direct(body_6 &toplevel)
+         (body/304 : _ -> imm tagged) (Popaque/309) -> k/75 * error)
+        where k/75 (apply_result/306 : imm tagged) =
+          let result/307 =
+            %int_barith.add (apply_result/306, apply_result/305)
+          in
+          let Pmakeblock/308 = %block.[`0`].`toplevel` (result/307) in
+          cont k/52 (Pmakeblock/308)))
+  where k/52 define_root_symbol (module_block/208) =
+    let field_0/209 =
+      %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/208)
+    in
+    let $camlTail_call_after_region = Block 0 (field_0/209) in
+    cont done ($camlTail_call_after_region)

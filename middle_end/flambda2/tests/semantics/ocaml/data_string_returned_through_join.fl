@@ -1,0 +1,57 @@
+(let code size(11)
+       choose_0 (c/50 : imm tagged, a/51, b/52)
+         my_closure/53 &my_alloc_region/54 my_depth/55
+         -> k/14 * k/15 =
+   let next_depth/56 = rec_info (succ my_depth/55) in
+   let untagged/57 = %untag_imm (c/50) in
+   switch untagged/57
+     | 0 -> k/14 (b/52)
+     | 1 -> k/14 (a/51)
+ in
+ let $camlData_string_returned_through_join__immstring_5 = "right!" in
+ let $camlData_string_returned_through_join__immstring_4 = "left" in
+ let $camlData_string_returned_through_join__immstring_2 = "bcd" in
+ let $camlData_string_returned_through_join__const_block_3 =
+   Block 0 ($camlData_string_returned_through_join__immstring_2, 2)
+ in
+ let $camlData_string_returned_through_join__immstring_0 = "a" in
+ let $camlData_string_returned_through_join__const_block_1 =
+   Block 0 ($camlData_string_returned_through_join__immstring_0, 1)
+ in
+ let choose/58 = closure choose_0 @choose &toplevel in
+ (let Popaque/69 = %opaque (0) in
+  apply direct(choose_0 &toplevel)
+    (choose/58 : _ -> [ 0 of val * imm tagged ])
+      (Popaque/69,
+       $camlData_string_returned_through_join__const_block_1,
+       $camlData_string_returned_through_join__const_block_3)
+      -> k/16 * error)
+   where k/16 (apply_result/59 : [ 0 of val * imm tagged ]) =
+     let Pfield/60 = %block_load.[`0`] (apply_result/59) in
+     let prim/61 = %string_length (Pfield/60) in
+     let Pstringlength/62 = %tag_imm (prim/61) in
+     ((let Popaque/68 = %opaque (1) in
+       apply direct(choose_0 &toplevel)
+         (choose/58 : _ -> val)
+           (Popaque/68,
+            $camlData_string_returned_through_join__immstring_4,
+            $camlData_string_returned_through_join__immstring_5)
+           -> k/17 * error)
+        where k/17 (apply_result/63 : val) =
+          let prim/64 = %string_length (apply_result/63) in
+          let Pstringlength/65 = %tag_imm (prim/64) in
+          let result/66 =
+            %int_barith.add (Pstringlength/65, Pstringlength/62)
+          in
+          let Pmakeblock/67 = %block.[`0`].`toplevel` (choose/58, result/66)
+          in
+          cont k/13 (Pmakeblock/67)))
+  where k/13 define_root_symbol (module_block/47) =
+    let field_0/48 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/47)
+    in
+    let field_1/49 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/47)
+    in
+    let $camlData_string_returned_through_join =
+      Block 0 (field_0/48, field_1/49)
+    in
+    cont done ($camlData_string_returned_through_join)

@@ -1,0 +1,81 @@
+let $camlMom_three_levels__first_const_0 = Block 0 () in
+(let code inline(never) size(93)
+       f_0 (n/81 : imm tagged)
+         my_closure/82 &my_alloc_region/83 my_depth/84
+         -> k/32 * k/33
+         : imm tagged =
+   let next_depth/85 = rec_info (succ my_depth/84) in
+   (let prim/103 = %int_comp.ne (n/81, 0) in
+    let int_notequal/104 = %tag_imm (prim/103) in
+    (let untagged/105 = %untag_imm (int_notequal/104) in
+     switch untagged/105
+       | 0 -> k/37 (1)
+       | 1 -> k/41)
+      where k/41 =
+        cont k/40)
+     where k/40 =
+       let prim/100 = %int_comp.ne (n/81, 1) in
+       let int_notequal/101 = %tag_imm (prim/100) in
+       let untagged/102 = %untag_imm (int_notequal/101) in
+       switch untagged/102
+         | 0 -> k/37 (2)
+         | 1 -> k/37 (0)
+     where k/37 (`*match*/93` : imm tagged) =
+       ((let prim/97 = %int_comp.ne (`*match*/93`, 1) in
+         let int_notequal/98 = %tag_imm (prim/97) in
+         (let untagged/99 = %untag_imm (int_notequal/98) in
+          switch untagged/99
+            | 0 -> k/34 (5)
+            | 1 -> k/39)
+           where k/39 =
+             cont k/38)
+          where k/38 =
+            let prim/94 = %int_comp.ne (`*match*/93`, 2) in
+            let int_notequal/95 = %tag_imm (prim/94) in
+            let untagged/96 = %untag_imm (int_notequal/95) in
+            switch untagged/96
+              | 0 -> k/34 (6)
+              | 1 -> k/34 (7))
+     where k/34 (`*match*/86` : imm tagged) =
+       ((let prim/90 = %int_comp.ne (`*match*/86`, 5) in
+         let int_notequal/91 = %tag_imm (prim/90) in
+         (let untagged/92 = %untag_imm (int_notequal/91) in
+          switch untagged/92
+            | 0 -> k/32 (50)
+            | 1 -> k/36)
+           where k/36 =
+             cont k/35)
+          where k/35 =
+            let prim/87 = %int_comp.ne (`*match*/86`, 6) in
+            let int_notequal/88 = %tag_imm (prim/87) in
+            let untagged/89 = %untag_imm (int_notequal/88) in
+            switch untagged/89
+              | 0 -> k/32 (60)
+              | 1 -> k/32 (70))
+ in
+ let f/106 = closure f_0 @f &toplevel in
+ (let Popaque/117 = %opaque (2) in
+  apply direct(f_0 &toplevel)
+    (f/106 : _ -> imm tagged) (Popaque/117) -> k/42 * error)
+   where k/42 (apply_result/107 : imm tagged) =
+     let int_mul/108 = %int_barith.mul (apply_result/107, 100) in
+     ((let Popaque/116 = %opaque (1) in
+       apply direct(f_0 &toplevel)
+         (f/106 : _ -> imm tagged) (Popaque/116) -> k/43 * error)
+        where k/43 (apply_result/109 : imm tagged) =
+          let int_mul/110 = %int_barith.mul (apply_result/109, 10) in
+          ((let Popaque/115 = %opaque (0) in
+            apply direct(f_0 &toplevel)
+              (f/106 : _ -> imm tagged) (Popaque/115) -> k/44 * error)
+             where k/44 (apply_result/111 : imm tagged) =
+               let int_add/112 =
+                 %int_barith.add (apply_result/111, int_mul/110)
+               in
+               let result/113 = %int_barith.add (int_add/112, int_mul/108) in
+               let Pmakeblock/114 = %block.[`0`].`toplevel` (result/113) in
+               cont k/31 (Pmakeblock/114))))
+  where k/31 define_root_symbol (module_block/79) =
+    let field_0/80 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/79)
+    in
+    let $camlMom_three_levels = Block 0 (field_0/80) in
+    cont done ($camlMom_three_levels)

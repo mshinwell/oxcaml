@@ -1,0 +1,10 @@
+a_for_notrace_direct_value.fl:
+  before Simplify, with its import (332 steps): returns
+                                                  [0: 6026; 114; 6001; 0]
+  after Simplify, with its import (169 steps): returns
+                                                 [0: 6026; 114; 6001; 0]
+  the check of kinds: passes before, passes after
+  calls outside code: 4 before, 4 after
+  the same
+  calls outside code once those of known code are inlined: 0
+  validated with its imports: the same once normalised and unused static bindings removed, at the head of the term after too

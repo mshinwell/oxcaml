@@ -1,0 +1,49 @@
+let $camlSelf_through_closure__first_const_0 = Block 0 () in
+(let code rec size(28)
+       depth_0 (n/51 : imm tagged)
+         my_closure/52 &my_alloc_region/53 my_depth/54
+         -> k/22 * k/23
+         : imm tagged =
+   let next_depth/55 = rec_info (succ my_depth/54) in
+   let region/56 = %begin_region () in
+   let ghost_region/57 = %begin_ghost_region () in
+   (let prim/64 = %phys_eq (n/51, 0) in
+    let eq/65 = %tag_imm (prim/64) in
+    (let untagged/66 = %untag_imm (eq/65) in
+     switch untagged/66
+       | 0 -> k/27
+       | 1 -> k/24 (0))
+      where k/27 =
+        cont k/25)
+     where k/25 =
+       let k/61 = %int_barith.sub (n/51, 1) in
+       (apply direct(depth_0 &my_alloc_region/53)
+          (my_closure/52 ~ depth my_depth/54 -> next_depth/55
+           : _ -> imm tagged)
+            (k/61)
+            -> k/26 * k/23
+          where k/26 (apply_result/62 : imm tagged) =
+            let int_add/63 = %int_barith.add (1, apply_result/62) in
+            cont k/24 (int_add/63))
+     where k/24 (region_return/58 : imm tagged) =
+       let unit/59 = %end_region (region/56) in
+       let unit/60 = %end_ghost_region (ghost_region/57) in
+       cont k/22 (region_return/58)
+ in
+ let depth/67 = closure depth_0 @`depth` &toplevel in
+ (let Popaque/72 = %opaque (3) in
+  apply direct(depth_0 &toplevel)
+    (depth/67 : _ -> imm tagged) (Popaque/72) -> k/28 * error)
+   where k/28 (apply_result/68 : imm tagged) =
+     (apply direct(depth_0 &toplevel)
+        (depth/67 : _ -> imm tagged) (6) -> k/29 * error
+        where k/29 (apply_result/69 : imm tagged) =
+          let result/70 = %int_barith.add (apply_result/69, apply_result/68)
+          in
+          let Pmakeblock/71 = %block.[`0`].`toplevel` (result/70) in
+          cont k/21 (Pmakeblock/71)))
+  where k/21 define_root_symbol (module_block/49) =
+    let field_0/50 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/49)
+    in
+    let $camlSelf_through_closure = Block 0 (field_0/50) in
+    cont done ($camlSelf_through_closure)

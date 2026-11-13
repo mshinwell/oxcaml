@@ -1,0 +1,35 @@
+let $camlAttr_inlined_never_at_call__first_const_0 = Block 0 () in
+(let code inline(always) size(7)
+       f_0 (x/39 : imm tagged)
+         my_closure/40 &my_alloc_region/41 my_depth/42
+         -> k/16 * k/17
+         : imm tagged =
+   let next_depth/43 = rec_info (succ my_depth/42) in
+   let int_mul/44 = %int_barith.mul (x/39, 3) in
+   let int_add/45 = %int_barith.add (int_mul/44, 1) in
+   cont k/16 (int_add/45)
+ in
+ let f/46 = closure f_0 @f &toplevel in
+ (let Popaque/54 = %opaque (1) in
+  apply direct(f_0 &toplevel) inlined(never)
+    (f/46 : _ -> imm tagged) (Popaque/54) -> k/18 * error)
+   where k/18 (apply_result/47 : imm tagged) =
+     ((let Popaque/53 = %opaque (7) in
+       apply direct(f_0 &toplevel)
+         (f/46 : _ -> imm tagged) (Popaque/53) -> k/19 * error)
+        where k/19 (apply_result/48 : imm tagged) =
+          (apply direct(f_0 &toplevel) inlined(never)
+             (f/46 : _ -> imm tagged) (5) -> k/20 * error
+             where k/20 (apply_result/49 : imm tagged) =
+               let int_add/50 =
+                 %int_barith.add (apply_result/49, apply_result/48)
+               in
+               let result/51 = %int_barith.add (int_add/50, apply_result/47)
+               in
+               let Pmakeblock/52 = %block.[`0`].`toplevel` (result/51) in
+               cont k/15 (Pmakeblock/52))))
+  where k/15 define_root_symbol (module_block/37) =
+    let field_0/38 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/37)
+    in
+    let $camlAttr_inlined_never_at_call = Block 0 (field_0/38) in
+    cont done ($camlAttr_inlined_never_at_call)

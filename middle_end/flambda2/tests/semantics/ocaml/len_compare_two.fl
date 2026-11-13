@@ -1,0 +1,51 @@
+(let code size(29)
+       shorter_0 (a/58 : val, b/59 : val)
+         my_closure/60 &my_alloc_region/61 my_depth/62
+         -> k/14 * k/15
+         : val =
+   let next_depth/63 = rec_info (succ my_depth/62) in
+   let prim/64 = %string_length (b/59) in
+   let Pstringlength/65 = %tag_imm (prim/64) in
+   let prim/66 = %string_length (a/58) in
+   let Pstringlength/67 = %tag_imm (prim/66) in
+   let prim/68 = %int_comp.lt (Pstringlength/67, Pstringlength/65) in
+   let int_lessthan/69 = %tag_imm (prim/68) in
+   let untagged/70 = %untag_imm (int_lessthan/69) in
+   switch untagged/70
+     | 0 -> k/14 (b/59)
+     | 1 -> k/14 (a/58)
+ in
+ let $camlLen_compare_two__immstring_3 = "ab" in
+ let $camlLen_compare_two__immstring_2 = "abc" in
+ let $camlLen_compare_two__immstring_1 = "x" in
+ let $camlLen_compare_two__immstring_0 = "yz" in
+ let shorter/71 = closure shorter_0 @shorter &toplevel in
+ (let Popaque/81 = %opaque ($camlLen_compare_two__immstring_0) in
+  apply direct(shorter_0 &toplevel)
+    (shorter/71 : _ -> val)
+      ($camlLen_compare_two__immstring_1, Popaque/81)
+      -> k/16 * error)
+   where k/16 (apply_result/72 : val) =
+     let prim/73 = %string_length (apply_result/72) in
+     let Pstringlength/74 = %tag_imm (prim/73) in
+     ((let Popaque/80 = %opaque ($camlLen_compare_two__immstring_2) in
+       apply direct(shorter_0 &toplevel)
+         (shorter/71 : _ -> val)
+           (Popaque/80, $camlLen_compare_two__immstring_3)
+           -> k/17 * error)
+        where k/17 (apply_result/75 : val) =
+          let prim/76 = %string_length (apply_result/75) in
+          let Pstringlength/77 = %tag_imm (prim/76) in
+          let result/78 =
+            %int_barith.add (Pstringlength/77, Pstringlength/74)
+          in
+          let Pmakeblock/79 = %block.[`0`].`toplevel` (shorter/71, result/78)
+          in
+          cont k/13 (Pmakeblock/79)))
+  where k/13 define_root_symbol (module_block/55) =
+    let field_0/56 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/55)
+    in
+    let field_1/57 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/55)
+    in
+    let $camlLen_compare_two = Block 0 (field_0/56, field_1/57) in
+    cont done ($camlLen_compare_two)

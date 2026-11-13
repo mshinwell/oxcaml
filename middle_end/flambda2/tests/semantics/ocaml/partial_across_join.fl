@@ -1,0 +1,269 @@
+let $camlPartial_across_join__first_const_0 = Block 0 () in
+(let code inline(never) size(3)
+       add_0 (a/246 : imm tagged, b/247 : imm tagged)
+         my_closure/248 &my_alloc_region/249 my_depth/250
+         -> k/92 * k/93
+         : imm tagged =
+   let next_depth/251 = rec_info (succ my_depth/250) in
+   let int_add/252 = %int_barith.add (a/246, b/247) in
+   cont k/92 (int_add/252)
+ in
+ let code inline(never) size(3)
+       sub_1 (a/253 : imm tagged, b/254 : imm tagged)
+         my_closure/255 &my_alloc_region/256 my_depth/257
+         -> k/94 * k/95
+         : imm tagged =
+   let next_depth/258 = rec_info (succ my_depth/257) in
+   let int_sub/259 = %int_barith.sub (a/253, b/254) in
+   cont k/94 (int_sub/259)
+ in
+ let code inline(never) size(13)
+       three_2 (a/260 : imm tagged, b/261 : imm tagged, c/262 : imm tagged)
+         my_closure/263 &my_alloc_region/264 my_depth/265
+         -> k/96 * k/97
+         : imm tagged =
+   let next_depth/266 = rec_info (succ my_depth/265) in
+   let int_mul/267 = %int_barith.mul (b/261, 10) in
+   let int_mul/268 = %int_barith.mul (a/260, 100) in
+   let int_add/269 = %int_barith.add (int_mul/268, int_mul/267) in
+   let int_add/270 = %int_barith.add (int_add/269, c/262) in
+   cont k/96 (int_add/270)
+ in
+ let code size(3)
+       negate_3 (x/271 : imm tagged)
+         my_closure/272 &my_alloc_region/273 my_depth/274
+         -> k/98 * k/99
+         : imm tagged =
+   let next_depth/275 = rec_info (succ my_depth/274) in
+   let int_sub/276 = %int_barith.sub (0, x/271) in
+   cont k/98 (int_sub/276)
+ in
+ let code size(5) stub
+       partial_add_5 (param1/277 : imm tagged)
+         my_closure/278 &my_alloc_region/279 my_depth/280
+         -> k/100 * k/101
+         : imm tagged =
+   let next_depth/281 = rec_info (succ my_depth/280) in
+   let add/282 = %project_value_slot.[partial_add].[add] (my_closure/278) in
+   apply direct(add_0 &my_alloc_region/279)
+     (add/282 : _ -> imm tagged) (2, param1/277) -> k/100 * k/101
+ in
+ let code size(5) stub
+       partial_add_6 (param1/283 : imm tagged)
+         my_closure/284 &my_alloc_region/285 my_depth/286
+         -> k/102 * k/103
+         : imm tagged =
+   let next_depth/287 = rec_info (succ my_depth/286) in
+   let add/288 = %project_value_slot.[partial_add_1].[add_1] (my_closure/284)
+   in
+   apply direct(add_0 &my_alloc_region/285)
+     (add/288 : _ -> imm tagged) (1, param1/283) -> k/102 * k/103
+ in
+ let code inline(never) size(48)
+       same_function_4 (c/289 : imm tagged)
+         my_closure/290 &my_alloc_region/291 my_depth/292
+         -> k/104 * k/105
+         : imm tagged =
+   let next_depth/293 = rec_info (succ my_depth/292) in
+   let add/294 = %project_value_slot.[same_function].[add_2] (my_closure/290)
+   in
+   (let untagged/298 = %untag_imm (c/289) in
+    switch untagged/298
+      | 0 -> k/109
+      | 1 -> k/110)
+     where k/110 =
+       cont k/107
+     where k/109 =
+       cont k/108
+     where k/108 =
+       let partial_add/297 =
+         closure partial_add_5 @partial_add &my_alloc_region/291
+       with { add = add/294 }
+       in
+       cont k/106 (partial_add/297)
+     where k/107 =
+       let partial_add/296 =
+         closure partial_add_6 @partial_add_1 &my_alloc_region/291
+       with { add_1 = add/294 }
+       in
+       cont k/106 (partial_add/296)
+     where k/106 (f/295 : val) =
+       apply &my_alloc_region/291 f/295 (10) -> k/104 * k/105
+ in
+ let code size(5) stub
+       partial_sub_8 (param1/299 : imm tagged)
+         my_closure/300 &my_alloc_region/301 my_depth/302
+         -> k/111 * k/112
+         : imm tagged =
+   let next_depth/303 = rec_info (succ my_depth/302) in
+   let sub/304 = %project_value_slot.[partial_sub].[sub] (my_closure/300) in
+   apply direct(sub_1 &my_alloc_region/301)
+     (sub/304 : _ -> imm tagged) (1, param1/299) -> k/111 * k/112
+ in
+ let code size(5) stub
+       partial_add_9 (param1/305 : imm tagged)
+         my_closure/306 &my_alloc_region/307 my_depth/308
+         -> k/113 * k/114
+         : imm tagged =
+   let next_depth/309 = rec_info (succ my_depth/308) in
+   let add/310 = %project_value_slot.[partial_add_2].[add_3] (my_closure/306)
+   in
+   apply direct(add_0 &my_alloc_region/307)
+     (add/310 : _ -> imm tagged) (1, param1/305) -> k/113 * k/114
+ in
+ let code inline(never) size(49)
+       two_functions_7 (c/311 : imm tagged)
+         my_closure/312 &my_alloc_region/313 my_depth/314
+         -> k/115 * k/116
+         : imm tagged =
+   let next_depth/315 = rec_info (succ my_depth/314) in
+   let add/316 = %project_value_slot.[two_functions].[add_4] (my_closure/312)
+   in
+   let sub/317 = %project_value_slot.[two_functions].[sub_1] (my_closure/312)
+   in
+   (let untagged/321 = %untag_imm (c/311) in
+    switch untagged/321
+      | 0 -> k/120
+      | 1 -> k/121)
+     where k/121 =
+       cont k/118
+     where k/120 =
+       cont k/119
+     where k/119 =
+       let partial_sub/320 =
+         closure partial_sub_8 @partial_sub &my_alloc_region/313
+       with { sub = sub/317 }
+       in
+       cont k/117 (partial_sub/320)
+     where k/118 =
+       let partial_add/319 =
+         closure partial_add_9 @partial_add_2 &my_alloc_region/313
+       with { add_3 = add/316 }
+       in
+       cont k/117 (partial_add/319)
+     where k/117 (f/318 : val) =
+       apply &my_alloc_region/313 f/318 (10) -> k/115 * k/116
+ in
+ let code size(5) stub
+       partial_three_11 (param2/322 : imm tagged)
+         my_closure/323 &my_alloc_region/324 my_depth/325
+         -> k/122 * k/123
+         : imm tagged =
+   let next_depth/326 = rec_info (succ my_depth/325) in
+   let three/327 =
+     %project_value_slot.[partial_three].[three] (my_closure/323)
+   in
+   apply direct(three_2 &my_alloc_region/324)
+     (three/327 : _ -> imm tagged) (1, 2, param2/322) -> k/122 * k/123
+ in
+ let code inline(never) size(34)
+       different_depths_10 (c/328 : imm tagged)
+         my_closure/329 &my_alloc_region/330 my_depth/331
+         -> k/124 * k/125
+         : imm tagged =
+   let next_depth/332 = rec_info (succ my_depth/331) in
+   let three/333 =
+     %project_value_slot.[different_depths].[three_1] (my_closure/329)
+   in
+   let negate/334 =
+     %project_value_slot.[different_depths].[negate] (my_closure/329)
+   in
+   (let untagged/337 = %untag_imm (c/328) in
+    switch untagged/337
+      | 0 -> k/126 (negate/334)
+      | 1 -> k/128)
+     where k/128 =
+       cont k/127
+     where k/127 =
+       let partial_three/336 =
+         closure partial_three_11 @partial_three &my_alloc_region/330
+       with { three = three/333 }
+       in
+       cont k/126 (partial_three/336)
+     where k/126 (f/335 : val) =
+       apply &my_alloc_region/330 f/335 (3) -> k/124 * k/125
+ in
+ let add/338 = closure add_0 @add &toplevel in
+ let sub/339 = closure sub_1 @sub &toplevel in
+ let three/340 = closure three_2 @three &toplevel in
+ let negate/341 = closure negate_3 @negate &toplevel in
+ let same_function/342 = closure same_function_4 @same_function &toplevel
+ with { add_2 = add/338 }
+ in
+ let two_functions/343 = closure two_functions_7 @two_functions &toplevel
+ with { add_4 = add/338; sub_1 = sub/339 }
+ in
+ let different_depths/344 =
+   closure different_depths_10 @different_depths &toplevel
+ with { three_1 = three/340; negate = negate/341 }
+ in
+ (let Popaque/357 = %opaque (1) in
+  apply direct(same_function_4 &toplevel)
+    (same_function/342 : _ -> imm tagged) (Popaque/357) -> k/129 * error)
+   where k/129 (same_true/345 : imm tagged) =
+     ((let Popaque/356 = %opaque (0) in
+       apply direct(same_function_4 &toplevel)
+         (same_function/342 : _ -> imm tagged) (Popaque/356) -> k/130 * error)
+        where k/130 (same_false/346 : imm tagged) =
+          ((let Popaque/355 = %opaque (1) in
+            apply direct(two_functions_7 &toplevel)
+              (two_functions/343 : _ -> imm tagged)
+                (Popaque/355)
+                -> k/131 * error)
+             where k/131 (two_true/347 : imm tagged) =
+               ((let Popaque/354 = %opaque (0) in
+                 apply direct(two_functions_7 &toplevel)
+                   (two_functions/343 : _ -> imm tagged)
+                     (Popaque/354)
+                     -> k/132 * error)
+                  where k/132 (two_false/348 : imm tagged) =
+                    ((let Popaque/353 = %opaque (1) in
+                      apply direct(different_depths_10 &toplevel)
+                        (different_depths/344 : _ -> imm tagged)
+                          (Popaque/353)
+                          -> k/133 * error)
+                       where k/133 (depths_true/349 : imm tagged) =
+                         ((let Popaque/352 = %opaque (0) in
+                           apply direct(different_depths_10 &toplevel)
+                             (different_depths/344 : _ -> imm tagged)
+                               (Popaque/352)
+                               -> k/134 * error)
+                            where k/134 (depths_false/350 : imm tagged) =
+                              let Pmakeblock/351 =
+                                %block.[`0`].`toplevel`
+                                  (same_true/345,
+                                   same_false/346,
+                                   two_true/347,
+                                   two_false/348,
+                                   depths_true/349,
+                                   depths_false/350)
+                              in
+                              cont k/91 (Pmakeblock/351)))))))
+  where k/91 define_root_symbol (module_block/239) =
+    let field_0/240 =
+      %block_load.tag[`0`].`size`[`6`].[`0`] (module_block/239)
+    in
+    let field_1/241 =
+      %block_load.tag[`0`].`size`[`6`].[`1`] (module_block/239)
+    in
+    let field_2/242 =
+      %block_load.tag[`0`].`size`[`6`].[`2`] (module_block/239)
+    in
+    let field_3/243 =
+      %block_load.tag[`0`].`size`[`6`].[`3`] (module_block/239)
+    in
+    let field_4/244 =
+      %block_load.tag[`0`].`size`[`6`].[`4`] (module_block/239)
+    in
+    let field_5/245 =
+      %block_load.tag[`0`].`size`[`6`].[`5`] (module_block/239)
+    in
+    let $camlPartial_across_join =
+      Block 0 (field_0/240,
+               field_1/241,
+               field_2/242,
+               field_3/243,
+               field_4/244,
+               field_5/245)
+    in
+    cont done ($camlPartial_across_join)

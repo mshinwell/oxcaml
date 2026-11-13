@@ -1,0 +1,68 @@
+(let code rec loopify(default tailrec) size(30)
+       total_0
+         (words/47 : [ 0 | 0 of val * [ 0 | 0 of val * val ] ],
+          acc/48 : imm tagged)
+         my_closure/49 &my_alloc_region/50 my_depth/51
+         -> k/16 * k/17
+         : imm tagged =
+   let next_depth/52 = rec_info (succ my_depth/51) in
+   (let prim/58 = %is_int (words/47) in
+    let Pisint/59 = %tag_imm (prim/58) in
+    (let untagged/60 = %untag_imm (Pisint/59) in
+     switch untagged/60
+       | 0 -> k/19
+       | 1 -> k/16 (acc/48))
+      where k/19 =
+        cont k/18)
+     where k/18 =
+       let Pfield/53 = %block_load.[`0`] (words/47) in
+       let prim/54 = %string_length (Pfield/53) in
+       let Pstringlength/55 = %tag_imm (prim/54) in
+       let int_add/56 = %int_barith.add (acc/48, Pstringlength/55) in
+       let Pfield/57 = %block_load.[`1`] (words/47) in
+       apply direct(total_0 &my_alloc_region/50)
+         (my_closure/49 ~ depth my_depth/51 -> next_depth/52
+          : _ -> imm tagged)
+           (Pfield/57, int_add/56)
+           -> k/16 * k/17
+ in
+ let $camlData_list_of_strings__immstring_0 = "one" in
+ let $camlData_list_of_strings__immstring_1 = "three" in
+ let $camlData_list_of_strings__immstring_2 = "" in
+ let $camlData_list_of_strings__immstring_3 = "seventeen" in
+ let $camlData_list_of_strings__const_block_4 =
+   Block 0 ($camlData_list_of_strings__immstring_3, 0)
+ in
+ let $camlData_list_of_strings__const_block_5 =
+   Block 0 ($camlData_list_of_strings__immstring_2,
+            $camlData_list_of_strings__const_block_4)
+ in
+ let $camlData_list_of_strings__const_block_6 =
+   Block 0 ($camlData_list_of_strings__immstring_1,
+            $camlData_list_of_strings__const_block_5)
+ in
+ let $camlData_list_of_strings__const_block_7 =
+   Block 0 ($camlData_list_of_strings__immstring_0,
+            $camlData_list_of_strings__const_block_6)
+ in
+ let total/61 = closure total_0 @total &toplevel in
+ (let Popaque/64 = %opaque ($camlData_list_of_strings__const_block_7) in
+  apply direct(total_0 &toplevel)
+    (total/61 : _ -> imm tagged) (Popaque/64, 0) -> k/20 * error)
+   where k/20 (result/62 : imm tagged) =
+     let Pmakeblock/63 =
+       %block.[`0`].`toplevel`
+         (total/61, $camlData_list_of_strings__const_block_7, result/62)
+     in
+     cont k/15 (Pmakeblock/63))
+  where k/15 define_root_symbol (module_block/44) =
+    let field_0/45 = %block_load.tag[`0`].`size`[`3`].[`0`] (module_block/44)
+    in
+    let field_2/46 = %block_load.tag[`0`].`size`[`3`].[`2`] (module_block/44)
+    in
+    let $camlData_list_of_strings =
+      Block 0 (field_0/45,
+               $camlData_list_of_strings__const_block_7,
+               field_2/46)
+    in
+    cont done ($camlData_list_of_strings)
