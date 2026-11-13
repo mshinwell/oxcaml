@@ -239,6 +239,8 @@ All in `middle_end/flambda2/types/rocq/`, library `OxCamlFlambda2Types`.
   - `middle_end/flambda2/types/rocq/FlambdaTypingEnv*` (the typing
     environment, after `types/env/typing_env.ml`, `typing_env_level.ml`,
     `cached_level.ml` and `typing_env_extension.ml`; what satisfies one)
+  - `middle_end/flambda2/rocq/requests/T2-join-call.md` (a request:
+    the call of the join in the rewrites from the types)
 - T3, aliases. Owner: T3, on `flambda2-rocq/T3-aliases`.
   - `middle_end/flambda2/types/rocq/FlambdaAliases*` (today's, which T3
     replaces; `follow_aliases` is used by the validator, so a change to
