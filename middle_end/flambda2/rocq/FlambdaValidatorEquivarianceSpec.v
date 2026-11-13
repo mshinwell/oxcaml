@@ -183,7 +183,8 @@
    FlambdaCodeLetsSpec.remove_unused_defined_lets_in_code, which
    starts that pass in the body of each piece of code;
    FlambdaParamAliasesSpec.bind_aliased_params;
-   FlambdaForwardSpec.forward_applications;
+   FlambdaForwardSpec.forward_applications, and the same with the
+   calls taken on or not ([forward_applications_with]);
    FlambdaForwardJumpsSpec.forward_jumps;
    FlambdaInlineTailSpec.inline_tail_conts_kinded and
    FlambdaForwardKindedSpec.forward_kinded with
@@ -211,9 +212,17 @@
    continuations ([rename_loopified], which is to be reviewed).
 
    The normalisations of FlambdaValidateSpec.v: [iterate] of a rewrite
-   that commutes, [normalise_before_inlined], [normalise_after],
-   [without_statics], [demote_and_tidy], and [with_code_first], which
-   the check applies to the term after. And [placed], which the check
+   that commutes, the three rounds of the first phase of the term
+   before ([normalise_expr_params], [normalise_code_params],
+   [normalise_params_round]), [normalise_before_inlined],
+   [normalise_after], [without_statics], [demote_and_tidy], and, of
+   those that the check applies to the term after,
+   [without_head_statics] and [with_code_first]. And the calls of the
+   term before taken on when its rounds are over, or the term as it
+   is ([with_returns]), with the test by which the check chooses
+   ([keeps_a_return]): taken or not, the rewrite commutes with
+   renaming and keeps scope, and the test answers the same of a term
+   renamed (the last section). And [placed], which the check
    applies once to each term that it compares after the first
    comparison, which is of the two terms as they are given: it is
    FlambdaSinkUsesSpec.sink_conts_to_uses in the term, in the handlers
@@ -256,7 +265,9 @@
    FlambdaIdentitiesSpec.apply_identities,
    FlambdaMergeSwitchesSpec.merge_switches and
    FlambdaInlineSiblingsSpec.inline_sibling_calls, of a round of the
-   term before, FlambdaUnboxVariantsSpec.unbox_variants_knowing and
+   term before, FlambdaMergeTablesSpec.merge_tables, which a round of
+   the first phase of the term before applies first,
+   FlambdaUnboxVariantsSpec.unbox_variants_knowing and
    FlambdaUnboxLoopsSpec.unbox_loops_knowing, of
    the first phase of the term before, which are given what the static
    bindings in scope make known of their symbols, in code and in
@@ -1382,6 +1393,24 @@ Definition placed_keeps_scope_statement : Prop := keeps_scope placed.
    FlambdaGroupsUpSpec.groups_up, which comes last). *)
 Definition tidied_before_keeps_scope_statement : Prop :=
   ∀ rounds : nat, keeps_scope (tidied_before rounds).
+
+(* Before that, when the rounds of the term before are over, the
+   check takes its calls on, or leaves the term as it is
+   (FlambdaValidateSpec.with_returns): taken or not, the rewrite
+   commutes with every renaming and keeps scope. The check chooses by
+   whether the term after, as it is compared, has a call that would
+   be taken on (FlambdaValidateSpec.keeps_a_return), which is the
+   same of a term renamed: the test compares two rewrites of the term
+   up to bound names. *)
+Definition with_returns_equivariant_statement : Prop :=
+  ∀ taken : bool, rewrite_equivariant (with_returns taken).
+
+Definition with_returns_keeps_scope_statement : Prop :=
+  ∀ taken : bool, keeps_scope (with_returns taken).
+
+Definition keeps_a_return_equivariant_statement : Prop :=
+  ∀ (r : renaming) (e : expr),
+    keeps_a_return (rename_expr r e) = keeps_a_return e.
 
 (* A round of the second phase of the term before, and the
    normalisation of the term before, commute with renaming up to the

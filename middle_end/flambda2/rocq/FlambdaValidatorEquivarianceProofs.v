@@ -7562,10 +7562,9 @@ Proof.
   apply rewrite_code_equivariant, take_returns_on_equivariant.
 Qed.
 
-Lemma with_returns_equivariant (taken : bool) :
-  rewrite_equivariant (with_returns taken).
+Theorem with_returns_equivariant : with_returns_equivariant_statement.
 Proof.
-  intros r e.
+  intros taken r e.
   destruct taken; [ apply returns_taken_on_equivariant | reflexivity ].
 Qed.
 
@@ -7577,10 +7576,9 @@ Proof.
   apply rewrite_code_equivariant, forward_applications_with_equivariant.
 Qed.
 
-Lemma keeps_a_return_renamed (r : renaming) (e : expr) :
-  keeps_a_return (rename_expr r e) = keeps_a_return e.
+Theorem keeps_a_return_equivariant : keeps_a_return_equivariant_statement.
 Proof.
-  unfold keeps_a_return.
+  intros r e. unfold keeps_a_return.
   rewrite !forwarded_in_unit_equivariant, expr_eqb_renamed. reflexivity.
 Qed.
 
@@ -7608,9 +7606,9 @@ Proof.
           take_returns_on_keeps_scope)).
 Qed.
 
-Lemma with_returns_keeps_scope (taken : bool) :
-  keeps_scope (with_returns taken).
+Theorem with_returns_keeps_scope : with_returns_keeps_scope_statement.
 Proof.
+  intros taken.
   destruct taken; [ exact returns_taken_on_keeps_scope | ].
   intros e Hclosed.
   split; [ exact Hclosed | split; intros name Hname; exact Hname ].
@@ -7688,7 +7686,7 @@ Proof.
     as (Hclosed_l0 & _ & _).
   rewrite unit_continuations_renamed.
   rewrite Heq, Heq', normalise_after_equivariant, tidied_after_equivariant,
-    keeps_a_return_renamed, !with_returns_equivariant,
+    keeps_a_return_equivariant, !with_returns_equivariant,
     !tidied_before_equivariant,
     without_head_statics_equivariant,
     without_slots_equivariant, !without_statics_equivariant,
