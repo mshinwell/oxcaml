@@ -994,8 +994,14 @@ it gave back.
   the same once unused static bindings are removed from the head of
   the term after too, passes it where no import is a symbol that the
   groups at the head of the term after bind, once the validation has
-  normalised and tidied that term. The fifth, the same once something
-  is lifted, passes it: where that holds of the head of the term
+  normalised and tidied that term. What a lifting lifts is a closure,
+  an immutable block, a boxed number or an immutable array of values
+  that the unit makes as it runs: in the term lifted it is a symbol
+  bound to a static constant of its parts lifted, which for the array
+  is a static immutable array of its elements lifted (a part that is
+  itself lifted is a symbol there). The fifth, the same once
+  something is lifted, passes it: where that holds of the head of the
+  term
   after, if the checks of the removal of bindings from that head
   pass, whether a binding goes or not; where no import is a name
   that the term binds at each step of the validation of the lifted
