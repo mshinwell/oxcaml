@@ -26,9 +26,9 @@
  ******************************************************************************)
 
 (* Lifting out of the code of a function: a [Let], in the body of code,
-   of a closure, an immutable block or a boxed number whose parts are
-   symbols and constants, made a static binding of a symbol beside the
-   code.
+   of a closure, an immutable block, a boxed number or an immutable
+   array whose parts are symbols and constants, made a static binding
+   of a symbol beside the code.
 
    This file is to be reviewed: [closed_named], [lifted_out],
    [lift_from_code], [lifted_out_bindings] and [once_each], against
@@ -40,15 +40,15 @@
    What Simplify does. The conditions under which it lifts a [Let] do
    not ask that the [Let] is at the toplevel of the unit
    (FlambdaLiftSpec.v has them): a set of closures each of whose value
-   slots is a constant or a symbol, and a block or a boxed number whose
-   type can be rebuilt as a static constant with symbols and constants
-   for its parts, are lifted out of the body of a function too. The
-   binding of the symbol is then placed at toplevel, around the code:
-   a function that needs nothing from around it, given inside another
-   function to a third (the function given to a map over a list), is
-   the common case. FlambdaLiftSpec.lift_expr makes a [Let] a static
-   binding where it stands, which cannot be done in code: the machine
-   has no step for a call of code that binds something static.
+   slots is a constant or a symbol, and a block, a boxed number or an
+   immutable array whose type can be rebuilt as a static constant with
+   symbols and constants for its parts, are lifted out of the body of a
+   function too. The binding of the symbol is then placed at toplevel,
+   around the code: a function that needs nothing from around it, given
+   inside another function to a third (the function given to a map over
+   a list), is the common case. FlambdaLiftSpec.lift_expr makes a [Let]
+   a static binding where it stands, which cannot be done in code: the
+   machine has no step for a call of code that binds something static.
 
    What is here. In the body of the code that the guess names,
    [lift_from_code] makes the [Let]s at the paths given aliases of
@@ -93,41 +93,41 @@
    bodies is refused in the same way.
 
    What is shared has no identity. FlambdaLiftSpec.lift_named lifts a
-   closure, a boxed number and a block made by [Make_block], which is
-   the immutable one (FlambdaLiftSpec.v, "Identity"). A block or an
-   array that a unit allocates with an identity is made by a
-   primitive of the heap (FlambdaPrimitiveModel.heap_primitive: a
-   block that is mutable or unique, a mutable array). [lift_named]
-   lifts none of those, so two
+   closure, a boxed number, a block made by [Make_block], which is the
+   immutable one, and an array made by [Make_immutable_array]
+   (FlambdaLiftSpec.v, "Identity"). A block or an array that a unit
+   allocates with an identity is made by a primitive of the heap
+   (FlambdaPrimitiveModel.heap_primitive: a block that is mutable or
+   unique, a mutable array). [lift_named] lifts none of those, so two
    [Let]s of one are given no symbol, one or two; and the step of
    FlambdaSemanticsSpec.v, which the statements here are about, gives
    such a primitive no value: it is the machine of
-   FlambdaHeapMachineSpec.v that executes one. A
-   [Let] that is lifted out mentions no variable, so what is put once
-   holds symbols and constants only. A location of the heap is a
-   value that only a variable holds, so the constant holds none
-   itself: a closure or a block that is put once may lead, through a
-   symbol, to something that can be written, and is not that thing.
+   FlambdaHeapMachineSpec.v that executes one. A [Let] that is lifted
+   out mentions no variable, so what is put once holds symbols and
+   constants only. A location of the heap is a value that only a
+   variable holds, so the constant holds none itself: a closure or a
+   block that is put once may lead, through a symbol, to something that
+   can be written, and is not that thing.
 
    A [Let] whose parts are variables bound to symbols by an earlier
    lifting is closed once those aliases are followed: the validator
    makes several liftings in turn, each followed by its normalisation
    (FlambdaValidateSpec.lifted_in_turn).
 
-   Why it is right. The first run makes a closure, a block or a boxed
-   number each time the [Let] is executed; the second has the symbol,
-   bound once, when the group of the code is, to the same thing: the
-   parts are symbols and constants, which are the same values whenever
-   they are evaluated. The two values are related by
+   Why it is right. The first run makes a closure, a block, a boxed
+   number or an array each time the [Let] is executed; the second has
+   the symbol, bound once, when the group of the code is, to the same
+   thing: the parts are symbols and constants, which are the same values
+   whenever they are evaluated. The two values are related by
    FlambdaLiftSpec.value_lifted, as for the lifting at toplevel, and no
-   primitive and no rule of the machine tells them apart. They differ
-   at an exit of the unit, so [lift_from_code_unit] makes the same
-   check as FlambdaLiftSpec.lift_unit (FlambdaLiftSpec.exits_plain: the
-   unit gives only symbols and constants to the continuations that it
-   may leave through). It also checks that the result is a well-formed
-   unit: the symbols given are then new and distinct, and the group of
-   the code is executed once. With both, the unit lifted refines the
-   unit, run on its own ([lift_from_code_unit_program_refines_statement]).
+   primitive and no rule of the machine tells them apart. They differ at
+   an exit of the unit, so [lift_from_code_unit] makes the same check as
+   FlambdaLiftSpec.lift_unit (FlambdaLiftSpec.exits_plain: the unit
+   gives only symbols and constants to the continuations that it may
+   leave through). It also checks that the result is a well-formed unit:
+   the symbols given are then new and distinct, and the group of the
+   code is executed once. With both, the unit lifted refines the unit,
+   run on its own ([lift_from_code_unit_program_refines_statement]).
 
    The second run binds the symbol when the group of the code is
    bound, whether or not the code is ever called. That binding cannot

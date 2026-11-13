@@ -44,6 +44,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaEquivarianceSpec FlambdaEquivarianceProofs FlambdaHeapSpec
   FlambdaHeapProofs FlambdaHeapMachineSpec FlambdaHeapMachineProofs
   FlambdaHeapEquivarianceSpec FlambdaHeapEquivarianceProofs FlambdaLiftSpec
+  FlambdaLiftProofs FlambdaWellFormedSpec FlambdaMyClosureSpec
   FlambdaNoArrayValueSpec.
 Import ListNotations.
 
@@ -1431,7 +1432,9 @@ Qed.
 Theorem value_lifted_array : value_lifted_array_statement.
 Proof.
   intros statics' elements v' H. inversion H; subst.
-  eexists. split; [ reflexivity | assumption ].
+  - eexists. split; [ eassumption | left; reflexivity ].
+  - eexists. split; [ eassumption | right ].
+    eexists. split; [ reflexivity | eassumption ].
 Qed.
 
 Theorem value_lifted_to_array : value_lifted_to_array_statement.
@@ -1449,6 +1452,7 @@ Proof.
        | code slots slots' Hslots | fslot decls slots slots' Hslots
        | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs
        | c s Hlookup | tag fields fields' s Hlookup Hfields
+       | items items' s Hlookup Hitems
        | fslot decls slots slots' s syms Hsym Hsyms Hbound Hslots
        | code slots slots' s Hlookup Hslots | l ];
     simpl; try (intros _; reflexivity).
@@ -1483,3 +1487,175 @@ Qed.
 
 Theorem value_lifted_no_array_value : value_lifted_no_array_value_statement.
 Proof. exact value_lifted_keeps_no_array_value. Qed.
+
+(* A binding that a filter keeps is found as it was. *)
+Lemma lookup_filter_kept {A : Type} (keep : positive * A -> bool)
+    (name : positive) (bindings : list (positive * A)) (a : A) :
+  lookup name bindings = Some a ->
+  keep (name, a) = true ->
+  lookup name (filter keep bindings) = Some a.
+Proof.
+  induction bindings as [ | [bound b] bindings IH]; simpl;
+    [ discriminate | ].
+  destruct (Pos.eqb_spec name bound) as [<- | Hne].
+  - intros [= ->] Hkeep. rewrite Hkeep. simpl. rewrite Pos.eqb_refl.
+    reflexivity.
+  - intros Hlookup Hkeep. destruct (keep (bound, b)); simpl.
+    + destruct (Pos.eqb_spec name bound) as [Heq | _];
+        [ contradiction | exact (IH Hlookup Hkeep) ].
+    + exact (IH Hlookup Hkeep).
+Qed.
+
+(* And a binding found in what a filter keeps is one that it keeps. *)
+Lemma lookup_filter_keeps {A : Type} (keep : positive * A -> bool)
+    (name : positive) (bindings : list (positive * A)) (a : A) :
+  lookup name (filter keep bindings) = Some a -> keep (name, a) = true.
+Proof.
+  induction bindings as [ | [bound b] bindings IH]; simpl;
+    [ discriminate | ].
+  destruct (keep (bound, b)) eqn:Hkeep; simpl; [ | exact IH ].
+  destruct (Pos.eqb_spec name bound) as [-> | _]; [ | exact IH ].
+  intros [= <-]. exact Hkeep.
+Qed.
+
+Lemma lookup_without_static_arrays (statics : static_env) (s : symbol)
+    (a : statically_allocated_value) :
+  lookup s (static_values statics) = Some a ->
+  is_static_array a = false ->
+  lookup s (static_values (without_static_arrays statics)) = Some a.
+Proof.
+  intros Hlookup Hnot. unfold without_static_arrays. simpl.
+  apply lookup_filter_kept; [ exact Hlookup | ]. simpl. rewrite Hnot.
+  reflexivity.
+Qed.
+
+Theorem no_array_lifted_to_symbol : no_array_lifted_to_symbol_statement.
+Proof.
+  intros statics' elements s H. inversion H; subst.
+  match goal with
+  | Hlookup : lookup s _ = Some (Static_immutable_array _) |- _ =>
+    apply lookup_filter_keeps in Hlookup; discriminate Hlookup
+  end.
+Qed.
+
+Fixpoint value_lifted_without_static_arrays (statics' : static_env)
+    (v v' : value) (H : value_lifted statics' v v') {struct H} :
+  no_array_value v = true ->
+  value_lifted (without_static_arrays statics') v v'.
+Proof.
+  destruct H
+    as [ c | s | c | tag fields fields' Hfields | items items' Hitems
+       | code slots slots' Hslots | fslot decls slots slots' Hslots
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs
+       | c s Hlookup | tag fields fields' s Hlookup Hfields
+       | items items' s Hlookup Hitems
+       | fslot decls slots slots' s syms Hsym Hsyms Hbound Hslots
+       | code slots slots' s Hlookup Hslots | l ];
+    simpl; intros Hno; try discriminate Hno.
+  - apply Lifted_const.
+  - apply Lifted_symbol.
+  - apply Lifted_boxed_number.
+  - apply Lifted_block.
+    revert fields fields' Hfields Hno. fix IH 3.
+    intros fields fields' [ | w w' rest rest' Hhead Htail]; simpl;
+      intros Hall; constructor;
+      apply andb_true_iff in Hall as [Hw Hrest].
+    + exact (value_lifted_without_static_arrays _ _ _ Hhead Hw).
+    + exact (IH _ _ Htail Hrest).
+  - apply Lifted_closure.
+    revert slots slots' Hslots Hno. fix IH 3.
+    intros slots slots' [ | w w' rest rest' [Hkey Hhead] Htail]; simpl;
+      intros Hall; constructor;
+      apply andb_true_iff in Hall as [Hw Hrest].
+    + split; [ exact Hkey | ].
+      exact (value_lifted_without_static_arrays _ _ _ Hhead Hw).
+    + exact (IH _ _ Htail Hrest).
+  - apply Lifted_closure_of_set.
+    revert slots slots' Hslots Hno. fix IH 3.
+    intros slots slots' [ | w w' rest rest' [Hkey Hhead] Htail]; simpl;
+      intros Hall; constructor;
+      apply andb_true_iff in Hall as [Hw Hrest].
+    + split; [ exact Hkey | ].
+      exact (value_lifted_without_static_arrays _ _ _ Hhead Hw).
+    + exact (IH _ _ Htail Hrest).
+  - apply andb_true_iff in Hno as [Hcallee Hargs].
+    apply Lifted_partial_application;
+      [ exact (value_lifted_without_static_arrays _ _ _ Hpcallee Hcallee)
+      | ].
+    revert pargs pargs' Hpargs Hargs. fix IH 3.
+    intros pargs pargs' [ | w w' rest rest' Hhead Htail]; simpl;
+      intros Hall; constructor;
+      apply andb_true_iff in Hall as [Hw Hrest].
+    + exact (value_lifted_without_static_arrays _ _ _ Hhead Hw).
+    + exact (IH _ _ Htail Hrest).
+  - apply Lifted_to_boxed_number.
+    exact (lookup_without_static_arrays _ _ _ Hlookup eq_refl).
+  - apply (Lifted_to_block _ tag fields fields' s);
+      [ exact (lookup_without_static_arrays _ _ _ Hlookup eq_refl) | ].
+    clear Hlookup. revert fields fields' Hfields Hno. fix IH 3.
+    intros fields fields' [ | w w' rest rest' Hhead Htail]; simpl;
+      intros Hall; constructor;
+      apply andb_true_iff in Hall as [Hw Hrest].
+    + exact (value_lifted_without_static_arrays _ _ _ Hhead Hw).
+    + exact (IH _ _ Htail Hrest).
+  - apply (Lifted_to_closure _ fslot decls slots slots' s syms Hsym Hsyms).
+    + intros slot sym Hin.
+      exact (lookup_without_static_arrays _ _ _ (Hbound slot sym Hin)
+               eq_refl).
+    + clear Hbound. revert slots slots' Hslots Hno. fix IH 3.
+      intros slots slots' [ | w w' rest rest' [Hkey Hhead] Htail]; simpl;
+        intros Hall; constructor;
+        apply andb_true_iff in Hall as [Hw Hrest].
+      * split; [ exact Hkey | ].
+        exact (value_lifted_without_static_arrays _ _ _ Hhead Hw).
+      * exact (IH _ _ Htail Hrest).
+  - apply (Lifted_to_unnamed_closure _ code slots slots' s);
+      [ exact (lookup_without_static_arrays _ _ _ Hlookup eq_refl) | ].
+    clear Hlookup. revert slots slots' Hslots Hno. fix IH 3.
+    intros slots slots' [ | w w' rest rest' [Hkey Hhead] Htail]; simpl;
+      intros Hall; constructor;
+      apply andb_true_iff in Hall as [Hw Hrest].
+    + split; [ exact Hkey | ].
+      exact (value_lifted_without_static_arrays _ _ _ Hhead Hw).
+    + exact (IH _ _ Htail Hrest).
+  - apply Lifted_location.
+Qed.
+
+Theorem value_lifted_reads_no_static_array :
+  value_lifted_reads_no_static_array_statement.
+Proof. exact value_lifted_without_static_arrays. Qed.
+
+(* A unit run on its own starts in a state free of arrays, if it makes
+   none. *)
+Lemma unit_state_free_of_arrays (e : expr) :
+  makes_array e = false ->
+  state_free_of_arrays (State e [] [] empty_static_env empty_heap).
+Proof.
+  intros Hmakes. unfold state_free_of_arrays. simpl.
+  split; [ exact Hmakes | ].
+  repeat split; intros ? ? [].
+Qed.
+
+Theorem lift_simulates_free_of_arrays :
+  lift_simulates_free_of_arrays_statement.
+Proof.
+  intros u lets known e. cbv zeta. intros Hwf Honly Hmakes k vs hp Hexit.
+  assert (Hvs : ∀ v : value, v ∈ vs -> no_array_value v = true).
+  { destruct Hexit as [fuel Hrun].
+    pose proof
+      (run_free_of_arrays fuel _ (unit_state_free_of_arrays e Hmakes))
+      as Hfree.
+    rewrite Hrun in Hfree. exact (proj1 Hfree). }
+  split; [ exact Hvs | ].
+  pose proof (lift_simulates u lets known e) as Hsimulates.
+  cbv zeta in Hsimulates.
+  destruct (proj1 (Hsimulates Hwf Honly) k vs hp Hexit)
+    as (n & last & vs' & Hrun & Hstep & Hlifted).
+  exists n, last, vs'.
+  split; [ exact Hrun | split; [ exact Hstep | ] ].
+  clear Hrun Hstep Hexit. induction Hlifted as [ | v v' vs vs' Hv _ IH];
+    constructor.
+  - exact (value_lifted_reads_no_static_array _ _ _ Hv
+             (Hvs v (or_introl eq_refl))).
+  - apply IH. intros w Hw. exact (Hvs w (or_intror Hw)).
+Qed.

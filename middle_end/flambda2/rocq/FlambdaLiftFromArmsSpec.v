@@ -26,9 +26,9 @@
  ******************************************************************************)
 
 (* Lifting out of the arms of a test at the toplevel of a unit: a
-   [Let], outside code, of a closure, an immutable block or a boxed
-   number whose parts are symbols and constants, made a static binding
-   of a symbol at the head of the unit.
+   [Let], outside code, of a closure, an immutable block, a boxed
+   number or an immutable array whose parts are symbols and constants,
+   made a static binding of a symbol at the head of the unit.
 
    This file is to be reviewed: [lift_to_head], against what Simplify
    does (below); [lift_to_head_unit], which is extracted and run by the
@@ -75,17 +75,17 @@
    or in the unit itself as well as in the arm of a test or in a
    loop.
 
-   Why it is right. As for the lifting out of code: the first run
-   makes a closure, a block or a boxed number when the [Let] is
+   Why it is right. As for the lifting out of code: the first run makes
+   a closure, a block, a boxed number or an array when the [Let] is
    executed, and the second has the symbol, bound before anything else
    of the unit runs, to the same thing; the two values are related by
    FlambdaLiftSpec.value_lifted. The checks are the same
    ([lift_to_head_unit]): the unit exits with symbols and constants
-   only, and the result is a well-formed unit, so that the symbols
-   given are new and distinct. The binding of a symbol cannot itself
-   be undefined, for the reasons given in FlambdaLiftFromCodeSpec.v;
-   so a [Let] that is never executed brings no undefinedness to the
-   unit lifted.
+   only, and the result is a well-formed unit, so that the symbols given
+   are new and distinct. The binding of a symbol cannot itself be
+   undefined, for the reasons given in FlambdaLiftFromCodeSpec.v; so a
+   [Let] that is never executed brings no undefinedness to the unit
+   lifted.
 
    The proofs are in FlambdaLiftFromArmsProofs.v, which needs no
    review. *)

@@ -133,6 +133,7 @@ Ltac lifted_cases H :=
        | code slots slots' Hslots | fslot decls slots slots' Hslots
        | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs
        | c s Hlookup | tag fields fields' s Hlookup Hfields
+       | items items' s Hlookup Hitems
        | fslot decls slots slots' s syms Hsym Hsyms Hbound Hslots
        | code slots slots' s Hlookup Hslots | loc ].
 
@@ -180,6 +181,12 @@ Proof.
       [ exact (proj2 Hextend s _ Hlookup) | ].
     clear Hlookup. revert fields fields' Hfields. fix IH 3.
     intros fields fields' [ | w w' rest rest' Hhead Htail]; constructor;
+      [ exact (value_lifted_extend _ _ Hextend _ _ Hhead)
+      | exact (IH _ _ Htail) ].
+  - apply (Lifted_to_array statics'' items items' s);
+      [ exact (proj2 Hextend s _ Hlookup) | ].
+    clear Hlookup. revert items items' Hitems. fix IH 3.
+    intros items items' [ | w w' rest rest' Hhead Htail]; constructor;
       [ exact (value_lifted_extend _ _ Hextend _ _ Hhead)
       | exact (IH _ _ Htail) ].
   - apply (Lifted_to_closure statics'' fslot decls slots slots' s syms Hsym
@@ -638,6 +645,7 @@ Proof.
     allocated_cases Hallocated; try discriminate.
     intros [= <-]. eauto.
   - intros [= <-]. eauto.
+  - intros [= <-]. rewrite Hlookup. eauto.
 Qed.
 
 Lemma closure_in_set_lifted (v v' : value) (at_slot : function_slot)
@@ -798,6 +806,7 @@ Proof.
           [ | discriminate ].
         destruct (Hsymbols s allocated Hs) as (allocated' & -> & _).
         reflexivity.
+      * rewrite Hlookup. reflexivity.
       * rewrite Hlookup. reflexivity.
       * rewrite Hlookup. reflexivity.
       * rewrite (Hbound fslot s (lookup_in _ _ _ Hsym)). reflexivity.
@@ -1269,25 +1278,46 @@ Proof.
       simpl. rewrite (Hfresh sym (or_introl eq_refl)), Hcontents'. simpl.
       eexists. split; [ reflexivity | ]. split; [ reflexivity | ].
       apply Lifted_to_boxed_number. simpl. apply lookup_head.
-    + (* A block. *)
-      destruct p as [[tag] | kind]; simpl in Hlift; [ | discriminate ].
-      injection Hlift as <- <-. simpl in Heval.
-      destruct (eval_simples vars args) as [vs | ] eqn:Hargs;
-        [ | discriminate ].
-      rewrite eval_prim_variadic in Heval. simpl in Heval.
-      destruct
-        (forallb (fun v => kind_eqb (kind_of_value v) Value) vs
-         && forallb (bound_if_symbol statics) vs);
-        [ | discriminate ].
-      injection Heval as <-.
-      destruct (eval_simples_lifted statics' vars vars' args Hvars vs Hargs)
-        as (vs' & Hargs' & Hvs).
-      simpl. rewrite (Hfresh sym (or_introl eq_refl)), Hargs'. simpl.
-      eexists. split; [ reflexivity | ]. split; [ reflexivity | ].
-      apply (Lifted_to_block _ tag vs vs' sym); [ simpl; apply lookup_head | ].
-      refine (values_lifted_extend _ _ _ _ _ Hvs).
-      exact (statics_extend_symbol statics' sym _
-               (Hfresh sym (or_introl eq_refl))).
+    + (* A block, or an immutable array. *)
+      destruct p as [[tag] | kind]; simpl in Hlift.
+      * injection Hlift as <- <-. simpl in Heval.
+        destruct (eval_simples vars args) as [vs | ] eqn:Hargs;
+          [ | discriminate ].
+        rewrite eval_prim_variadic in Heval. simpl in Heval.
+        destruct
+          (forallb (fun v => kind_eqb (kind_of_value v) Value) vs
+           && forallb (bound_if_symbol statics) vs);
+          [ | discriminate ].
+        injection Heval as <-.
+        destruct (eval_simples_lifted statics' vars vars' args Hvars vs Hargs)
+          as (vs' & Hargs' & Hvs).
+        simpl. rewrite (Hfresh sym (or_introl eq_refl)), Hargs'. simpl.
+        eexists. split; [ reflexivity | ]. split; [ reflexivity | ].
+        apply (Lifted_to_block _ tag vs vs' sym);
+          [ simpl; apply lookup_head | ].
+        refine (values_lifted_extend _ _ _ _ _ Hvs).
+        exact (statics_extend_symbol statics' sym _
+                 (Hfresh sym (or_introl eq_refl))).
+      * (* The array that the [Let] made has the arguments for its
+           elements, and the symbol is bound to an array of what the
+           arguments are in the second run. *)
+        injection Hlift as <- <-. simpl in Heval.
+        destruct (eval_simples vars args) as [vs | ] eqn:Hargs;
+          [ | discriminate ].
+        rewrite eval_prim_variadic in Heval. simpl in Heval.
+        unfold array_made in Heval.
+        destruct (forallb (array_element_ok kind) vs); [ | discriminate ].
+        simpl in Heval.
+        destruct (forallb (bound_if_symbol statics) vs); [ | discriminate ].
+        injection Heval as <-.
+        destruct (eval_simples_lifted statics' vars vars' args Hvars vs Hargs)
+          as (vs' & Hargs' & Hvs).
+        simpl. rewrite (Hfresh sym (or_introl eq_refl)), Hargs'. simpl.
+        eexists. split; [ reflexivity | ]. split; [ reflexivity | ].
+        apply (Lifted_to_array _ vs vs' sym); [ simpl; apply lookup_head | ].
+        refine (values_lifted_extend _ _ _ _ _ Hvs).
+        exact (statics_extend_symbol statics' sym _
+                 (Hfresh sym (or_introl eq_refl))).
   - (* A closure of a set. *)
     destruct d as [ | | | fslot decls slots | | | ]; simpl in Hlift;
       try discriminate.
@@ -1337,8 +1367,8 @@ Proof.
       destruct args as [ | contents [ | arg args]]; simpl in Hlift;
         try discriminate.
       injection Hlift as <- <-. reflexivity.
-    + destruct p as [[tag] | kind]; simpl in Hlift; [ | discriminate ].
-      injection Hlift as <- <-. reflexivity.
+    + destruct p as [[tag] | kind]; simpl in Hlift;
+        injection Hlift as <- <-; reflexivity.
   - destruct d as [ | | | fslot decls slots | | | ]; simpl in Hlift;
       try discriminate.
     destruct (lookup fslot syms) as [s1 | ]; [ | discriminate ].

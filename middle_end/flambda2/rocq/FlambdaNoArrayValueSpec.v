@@ -43,7 +43,8 @@
    as it was too and whose last arm answers [Value] of an array value,
    so that where poison is refined a poison of that kind is refined by
    one. That of the lifting (FlambdaLiftSpec.value_lifted) does by its
-   rule [Lifted_array]. Statements that were proved before the array value
+   rules [Lifted_array] and [Lifted_to_array]. Statements that were
+   proved before the array value
    have one or the other in their conclusions, and some in their
    premises as well. This file says that, of a term that makes no
    array and of memories that hold no array value, those statements
@@ -118,18 +119,30 @@
      that there were.
 
    - The relation of the lifting. Its rules are as they were written
-     but for [Lifted_array]. An array value is lifted to an array
-     value of its elements lifted, and to nothing else
-     ([value_lifted_array_statement]); nothing else is lifted to an
-     array value ([value_lifted_to_array_statement]); and a value that
-     holds no array value is lifted to values that hold none
-     ([value_lifted_no_array_value_statement]; the converse fails, as
-     a symbol holds none whatever it is bound to). The rules go by the
-     head of the first value and relate its parts, so a derivation
-     from a value that holds no array value has no [Lifted_array]. The
-     first statement is of the relation as it is in this tree, where
-     no rule relates an array value to a symbol; a rule that did would
-     be a case more of it.
+     but for [Lifted_array] and [Lifted_to_array]. An array value is
+     lifted to an array value of its elements lifted, or to a symbol
+     bound to an immutable array of its elements lifted, and to
+     nothing else ([value_lifted_array_statement]); nothing else is
+     lifted to an array value ([value_lifted_to_array_statement]); and
+     a value that holds no array value is lifted to values that hold
+     none ([value_lifted_no_array_value_statement]; the converse
+     fails, as a symbol holds none whatever it is bound to). The rules
+     go by the head of the first value and relate its parts, and the
+     two rules of the array have an array value for their first
+     value: so a derivation from a value that holds no array value
+     has neither. That is stated without a copy of the relation as it
+     was. [Lifted_to_array] is the one rule that reads a symbol bound
+     to an immutable array, so under a static environment with those
+     bindings left out ([without_static_arrays]) it relates nothing
+     ([no_array_lifted_to_symbol_statement]), and the relation there
+     is the one that there was before an array value could be lifted
+     to a symbol. A value that holds no array value is lifted to the
+     same values there
+     ([value_lifted_reads_no_static_array_statement]). So of a unit
+     that makes no array, FlambdaLiftSpec.lift_simulates_statement
+     says what it said: the values at its exit hold no array value,
+     and those of the unit lifted are those values lifted with no
+     static array read ([lift_simulates_free_of_arrays_statement]).
 
    Nothing here is a premise of another file. *)
 
@@ -138,7 +151,8 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaPrimitiveModel FlambdaSemanticsSpec FlambdaNominalSpec
   FlambdaEquivarianceSpec FlambdaNormaliseSpec FlambdaHeapSpec
-  FlambdaHeapMachineSpec FlambdaHeapEquivarianceSpec FlambdaLiftSpec.
+  FlambdaHeapMachineSpec FlambdaHeapEquivarianceSpec FlambdaLiftSpec
+  FlambdaWellFormedSpec FlambdaMyClosureSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -521,14 +535,19 @@ Definition outcome_related_no_array_value_statement : Prop :=
 (* The relation of the lifting                                              *)
 (* ======================================================================== *)
 
-(* An array value is lifted to an array value, of its elements lifted,
+(* An array value is lifted to an array value of its elements lifted,
+   or to a symbol bound to an immutable array of its elements lifted,
    and to nothing else. *)
 Definition value_lifted_array_statement : Prop :=
   ∀ (statics' : static_env) (elements : list value) (v' : value),
     value_lifted statics' (Value_immutable_array elements) v' ->
     ∃ elements' : list value,
-      v' = Value_immutable_array elements'
-      ∧ Forall2 (value_lifted statics') elements elements'.
+      Forall2 (value_lifted statics') elements elements'
+      ∧ (v' = Value_immutable_array elements'
+         ∨ ∃ s : symbol,
+             v' = Value_symbol s
+             ∧ lookup s (static_values statics')
+               = Some (Static_immutable_array elements')).
 
 (* Nothing else is lifted to an array value. *)
 Definition value_lifted_to_array_statement : Prop :=
@@ -545,3 +564,54 @@ Definition value_lifted_no_array_value_statement : Prop :=
     value_lifted statics' v v' ->
     no_array_value v = true ->
     no_array_value v' = true.
+
+(* What a symbol is bound to is an immutable array. *)
+Definition is_static_array (a : statically_allocated_value) : bool :=
+  match a with
+  | Static_immutable_array _ => true
+  | _ => false
+  end.
+
+(* A static environment with the symbols that are bound to an immutable
+   array left out. *)
+Definition without_static_arrays (statics : static_env) : static_env :=
+  Static_env (static_code statics)
+    (filter (fun binding => negb (is_static_array (snd binding)))
+       (static_values statics)).
+
+(* Under it no array value is lifted to a symbol: the rule
+   [Lifted_to_array] relates nothing there. *)
+Definition no_array_lifted_to_symbol_statement : Prop :=
+  ∀ (statics' : static_env) (elements : list value) (s : symbol),
+    ~ value_lifted (without_static_arrays statics')
+        (Value_immutable_array elements) (Value_symbol s).
+
+(* A value that holds no array value is lifted to the same values
+   under it: its derivation reads no static array. *)
+Definition value_lifted_reads_no_static_array_statement : Prop :=
+  ∀ (statics' : static_env) (v v' : value),
+    value_lifted statics' v v' ->
+    no_array_value v = true ->
+    value_lifted (without_static_arrays statics') v v'.
+
+(* So FlambdaLiftSpec.lift_simulates_statement says of a unit that
+   makes no array what it said before an array value could be lifted
+   to a symbol: the values at the exit of the unit hold no array
+   value, and those at the exit of the unit lifted are those values
+   lifted with no static array read. *)
+Definition lift_simulates_free_of_arrays_statement : Prop :=
+  ∀ (u : unit_interface) (lets : list (path * lift_to))
+    (known : list (code_id * symbol)) (e : expr),
+    let lifted := bind_my_closures known (lift_expr lets root e) in
+    well_formed_unit u lifted = true ->
+    only_closures_of known lifted = true ->
+    makes_array e = false ->
+    ∀ (k : continuation) (vs : list value) (hp : heap),
+      behaves (State e [] [] empty_static_env empty_heap) (Exits k vs hp) ->
+      (∀ v : value, v ∈ vs -> no_array_value v = true)
+      ∧ ∃ (n : nat) (last : state) (vs' : list value),
+          run n (State lifted [] [] empty_static_env empty_heap) = Step last
+          ∧ step last = Exit k vs' hp
+          ∧ Forall2
+              (value_lifted (without_static_arrays (state_statics last)))
+              vs vs'.

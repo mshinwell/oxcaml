@@ -455,26 +455,44 @@ Proof.
       simpl in Hconst. rewrite Hcontents' in Hconst. simpl in Hconst.
       injection Hconst as <-.
       apply Lifted_to_boxed_number. exact Hsym.
-    + (* A block. *)
-      destruct p as [[tag] | akind]; simpl in Hlift; [ | discriminate ].
-      injection Hlift as <- <-.
-      simpl in Heval.
-      destruct (eval_simples vars args) as [vs | ] eqn:Hargs;
-        [ | discriminate ].
-      rewrite eval_prim_variadic in Heval. simpl in Heval.
-      destruct
-        (forallb (fun v => kind_eqb (kind_of_value v) Value) vs
-         && forallb (bound_if_symbol statics) vs);
-        [ | discriminate ].
-      injection Heval as <-.
-      destruct (eval_simples_lifted statics' vars vars' args Hvars vs Hargs)
-        as (vs' & Hargs' & Hvs).
-      cbn [forallb] in Hknown. apply andb_true_iff in Hknown as [Hknown _].
-      destruct (Hvalid _ _ (constant_known_in _ _ _ Hknown))
-        as (allocated & Hconst & Hsym).
-      simpl in Hconst. rewrite Hargs' in Hconst. simpl in Hconst.
-      injection Hconst as <-.
-      exact (Lifted_to_block _ tag vs vs' sym Hsym Hvs).
+    + (* A block, or an immutable array. *)
+      destruct p as [[tag] | akind]; simpl in Hlift.
+      * injection Hlift as <- <-.
+        simpl in Heval.
+        destruct (eval_simples vars args) as [vs | ] eqn:Hargs;
+          [ | discriminate ].
+        rewrite eval_prim_variadic in Heval. simpl in Heval.
+        destruct
+          (forallb (fun v => kind_eqb (kind_of_value v) Value) vs
+           && forallb (bound_if_symbol statics) vs);
+          [ | discriminate ].
+        injection Heval as <-.
+        destruct (eval_simples_lifted statics' vars vars' args Hvars vs Hargs)
+          as (vs' & Hargs' & Hvs).
+        cbn [forallb] in Hknown. apply andb_true_iff in Hknown as [Hknown _].
+        destruct (Hvalid _ _ (constant_known_in _ _ _ Hknown))
+          as (allocated & Hconst & Hsym).
+        simpl in Hconst. rewrite Hargs' in Hconst. simpl in Hconst.
+        injection Hconst as <-.
+        exact (Lifted_to_block _ tag vs vs' sym Hsym Hvs).
+      * injection Hlift as <- <-.
+        simpl in Heval.
+        destruct (eval_simples vars args) as [vs | ] eqn:Hargs;
+          [ | discriminate ].
+        rewrite eval_prim_variadic in Heval. simpl in Heval.
+        unfold array_made in Heval.
+        destruct (forallb (array_element_ok akind) vs); [ | discriminate ].
+        simpl in Heval.
+        destruct (forallb (bound_if_symbol statics) vs); [ | discriminate ].
+        injection Heval as <-.
+        destruct (eval_simples_lifted statics' vars vars' args Hvars vs Hargs)
+          as (vs' & Hargs' & Hvs).
+        cbn [forallb] in Hknown. apply andb_true_iff in Hknown as [Hknown _].
+        destruct (Hvalid _ _ (constant_known_in _ _ _ Hknown))
+          as (allocated & Hconst & Hsym).
+        simpl in Hconst. rewrite Hargs' in Hconst. simpl in Hconst.
+        injection Hconst as <-.
+        exact (Lifted_to_array _ vs vs' sym Hsym Hvs).
   - (* A closure of a set. *)
     destruct d as [ | | | fslot decls slots | | | ]; simpl in Hlift;
       try discriminate.

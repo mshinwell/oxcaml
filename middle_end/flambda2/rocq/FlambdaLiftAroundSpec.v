@@ -27,8 +27,9 @@
 
 
 (* Lifting to a group of static bindings around: a [Let] of a closure,
-   an immutable block or a boxed number, made an alias of a symbol that
-   a group of static bindings around it binds to what the [Let] makes.
+   an immutable block, a boxed number or an immutable array, made an
+   alias of a symbol that a group of static bindings around it binds to
+   what the [Let] makes.
 
    This file is to be reviewed: [constant_known], [forget],
    [putable_group], [group_in_scope], [lift_around], [around_ok] and
@@ -60,17 +61,17 @@
    times, so no static binding may stand in it, and the constant
    mentions a variable. Simplify binds a symbol to it before the loop.
 
-   Equal constants. Where a [Let] makes a block, a boxed number or a
-   closure equal to the constant that a symbol of the unit is bound to
-   already, Simplify uses that symbol and binds no other: two blocks
-   that hold the same constants are one symbol. Simplify does so for
-   a constant that mentions no variable (reification.ml reuses a
-   constant that [Static_const.can_share] accepts, which asks that it
-   be fully static). The check here asks less: a [Let] may be made an
-   alias of a symbol that is bound to the same constant with variables
-   in it, if none of them is bound again in between ([forget]). That
-   is more than the sharing of Simplify does, and a guess need not
-   use it.
+   Equal constants. Where a [Let] makes a block, a boxed number, an
+   immutable array or a closure equal to the constant that a symbol of
+   the unit is bound to already, Simplify uses that symbol and binds no
+   other: two blocks that hold the same constants are one symbol.
+   Simplify does so for a constant that mentions no variable
+   (reification.ml reuses a constant that [Static_const.can_share]
+   accepts, which asks that it be fully static). The check here asks
+   less: a [Let] may be made an alias of a symbol that is bound to the
+   same constant with variables in it, if none of them is bound again in
+   between ([forget]). That is more than the sharing of Simplify does,
+   and a guess need not use it.
 
    What is here. [lift_around] makes the [Let]s at the paths given
    aliases of symbols, and puts the groups of static bindings given
@@ -116,15 +117,16 @@
    code of functions is not gone into.
 
    What is made an alias is what FlambdaLiftSpec.lift_named lifts and
-   nothing else: an immutable block ([Make_block], which in the model
-   is the immutable one), a boxed number, a closure. A block with
-   identity, a call and a load are never moved or shared. This is a
-   restriction on the constructors, not a claim that the [Let] has a
-   value: a [Let] that boxes a number at a kind that is not its own,
-   or makes a block of a symbol that is bound to nothing, is undefined
-   where the static binding that stands for it has a value. The unit
-   is then undefined there, and the refinement, which is one way, asks
-   nothing of the unit lifted.
+   nothing else: an immutable block ([Make_block], which in the model is
+   the immutable one), a boxed number, an immutable array
+   ([Make_immutable_array]), a closure. A block with identity, a call
+   and a load are never moved or shared. This is a restriction on the
+   constructors, not a claim that the [Let] has a value: a [Let] that
+   boxes a number at a kind that is not its own, or makes a block of a
+   symbol that is bound to nothing, is undefined where the static
+   binding that stands for it has a value. The unit is then undefined
+   there, and the refinement, which is one way, asks nothing of the unit
+   lifted.
 
    Why it is right. The first run makes the block each time the [Let]
    is executed. The second has the symbol, which a group around the
@@ -153,22 +155,22 @@
    a set is put only at a function slot that the set has.
 
    Two [Let]s that are made aliases of one symbol give, in the second
-   run, the same symbol where the first run has two blocks; and a
-   [Let] that is made an alias of a symbol that the unit binds
-   already gives that symbol where the first run has a block of its
-   own. In the model nothing tells them apart. What is made an alias
-   is an immutable block, a boxed number or a closure of this unit,
-   which have no identity in the model. A block or an array of this
-   unit that has one (mutable or unique) is made by a primitive of the
-   heap, which [lift_named] does not lift (FlambdaLiftSpec.v,
-   "Identity") and which the step of the core does not execute; a
-   value with identity that comes from another unit is not itself
-   made an alias by this rewrite. Of the immutable allocated values
-   that this rewrite makes aliases, the physical comparison of two has
-   no value (FlambdaPrimitiveSpec.eval_phys_equal, decision D19), so a
-   unit that compares them is undefined before and after.
-   Physical equality of immutable values is outside the model, and
-   sharing is what it would see.
+   run, the same symbol where the first run has two blocks; and a [Let]
+   that is made an alias of a symbol that the unit binds already gives
+   that symbol where the first run has a block of its own. In the model
+   nothing tells them apart. What is made an alias is an immutable
+   block, a boxed number, an immutable array or a closure of this unit,
+   which have no identity in the model. A block or an array of this unit
+   that has one (mutable or unique) is made by a primitive of the heap,
+   which [lift_named] does not lift (FlambdaLiftSpec.v, "Identity") and
+   which the step of the core does not execute; a value with identity
+   that comes from another unit is not itself made an alias by this
+   rewrite. Of the immutable allocated values that this rewrite makes
+   aliases, the physical comparison of two has no value
+   (FlambdaPrimitiveSpec.eval_phys_equal, decision D19), so a unit that
+   compares them is undefined before and after. Physical equality of
+   immutable values is outside the model, and sharing is what it would
+   see.
 
    A [Let] in a loop that is made an alias of a symbol bound before
    the loop adds nothing to this: the first run makes the block at

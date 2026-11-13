@@ -25,8 +25,8 @@
  * DEALINGS IN THE SOFTWARE.                                                  *
  ******************************************************************************)
 
-(* Lifting: a [Let] of a closure, an immutable block or a boxed number
-   made a static binding of a symbol.
+(* Lifting: a [Let] of a closure, an immutable block, a boxed number or
+   an immutable array of values made a static binding of a symbol.
 
    This file is to be reviewed: [lift_named] and [lift_expr], against
    what Simplify does (below); [exits_plain]; [lift_unit], which is
@@ -83,7 +83,21 @@
      Let_static [Bind_symbol s (Static_const_boxed_number contents)]
        (Let x = Symbol s in body)
 
-   and likewise the closure of a set of one function whose function slot
+     Let x = Make_immutable_array kind elements in body
+       becomes
+     Let_static
+       [Bind_symbol s (Static_const_immutable_value_array elements)]
+       (Let x = Symbol s in body)
+
+   The kind of the array is dropped: the static constant has none, and
+   every array kind of the model is one of values
+   (FlambdaPrimitiveModel.array_kind). The [Let] has no value where an
+   element is not one that its kind holds
+   (FlambdaPrimitiveSpec.array_made), and the binding has one wherever
+   its elements have: the term lifted may be defined where the term
+   was not, which the statements here, of refinements, allow.
+
+   Likewise the closure of a set of one function whose function slot
    is not named ([Set_of_closures], to [Static_const_set_of_closures]):
    the test tool still converts a unit that has only such sets to these
    forms.
@@ -127,15 +141,16 @@
 
    - [lift_simulates_statement]: run on their own, the term and the term
      lifted end alike, with values at the exit that are the same up to
-     [value_lifted]: where the first has a closure, a block or a boxed
-     number, the second may have a symbol bound to it, here and inside
-     closures and blocks. The first premise is that the term lifted is a
-     well-formed unit (FlambdaWellFormedSpec.well_formed_unit), which is
-     what keeps each new binding from being executed twice and each new
-     symbol from being bound already: a [Let] in a loop or in code, or
-     two [Let]s given one symbol, are refused by it. The second is that
-     the term lifted makes one closure only, the symbol, of each code in
-     which [my_closure] was bound to a symbol.
+     [value_lifted]: where the first has a closure, a block, a boxed
+     number or an immutable array, the second may have a symbol bound to
+     it, here and inside closures, blocks and arrays. The first premise
+     is that the term lifted is a well-formed unit
+     (FlambdaWellFormedSpec.well_formed_unit), which is what keeps each
+     new binding from being executed twice and each new symbol from
+     being bound already: a [Let] in a loop or in code, or two [Let]s
+     given one symbol, are refused by it. The second is that the term
+     lifted makes one closure only, the symbol, of each code in which
+     [my_closure] was bound to a symbol.
    - [lift_unit_program_refines_statement]: if moreover the term gives
      only symbols and constants to the continuations it may leave
      through ([exits_plain]), the values at the exit are equal, and the
@@ -165,21 +180,21 @@
      two [Let]s cannot be given the same symbol; the two files just
      named put one binding for two [Let]s of one constant that are
      lifted out of one body (FlambdaLiftFromCodeSpec.once_each);
-   - immutable arrays: [lift_named] has no case for the primitive that
-     makes one, and no rule of [value_lifted] makes an array value a
-     symbol;
    - a unit that gives a variable to its return continuation, or raises
      a variable in code: see the CR at [exits_plain].
 
    Identity. The model's [Make_block] is the immutable one
    (FlambdaPrimitiveModel.v) and its values have no identity, so nothing
-   lifted here has one. A block that is mutable or unique is made by a
-   primitive of the heap
-   (FlambdaPrimitiveModel.Make_block_with_identity), which
-   [lift_named] does not lift. Simplify also lifts a block that is
-   [Immutable_unique] (reification.ml, [create_static_const]), out of
-   functions too, which changes how many blocks there are: no lifting
-   here follows it.
+   lifted here has one. The array of [Make_immutable_array] has none
+   either: the physical comparison of two array values has no value
+   (FlambdaPrimitiveSpec.eval_phys_equal; decision D19 is open), so a
+   unit that could tell one array from two is undefined before it is
+   lifted. A block that is mutable or unique, and a mutable array, are
+   made by primitives of the heap
+   (FlambdaPrimitiveModel.heap_primitive), which [lift_named] does not
+   lift. Simplify also lifts a block that is [Immutable_unique]
+   (reification.ml, [create_static_const]), out of functions too, which
+   changes how many blocks there are: no lifting here follows it.
 
    The proofs are in FlambdaLiftProofs.v, which needs no review. They
    need one law of the primitives that the others do not give: a
@@ -294,6 +309,8 @@ Definition lift_named (target : lift_to) (d : named)
   | Lift_to_symbol s,
     Prim (Variadic (Make_block (Block_kind_values tag))) fields =>
     Some ([Bind_symbol s (Static_const_block tag fields)], s)
+  | Lift_to_symbol s, Prim (Variadic (Make_immutable_array _)) elements =>
+    Some ([Bind_symbol s (Static_const_immutable_value_array elements)], s)
   | Lift_to_symbol s, Prim (Unary (Box_number _)) [contents] =>
     Some ([Bind_symbol s (Static_const_boxed_number contents)], s)
   | Lift_to_symbol s, Set_of_closures code value_slots =>
@@ -456,26 +473,28 @@ Definition lift_unit (L : lifting) (e : expr) : option expr :=
 (* ======================================================================== *)
 
 (* [value_lifted statics' v v']: [v'] is [v], but that where [v] has a
-   closure, a block or a boxed number, here or inside a closure or a
-   block, [v'] may have a symbol that [statics'] binds to it. For a
-   closure of a set with named function slots, [statics'] binds the
-   symbols of the whole set, each to the closure at its slot
-   ([static_set_bound]), and the set has a symbol for each function
-   slot. A constant is lifted to itself only, and so is a symbol. A
-   partial application is lifted to a partial application, of the value
-   it calls lifted, to its arguments lifted, at the same arity: none is
-   made a symbol. An immutable array that a primitive made is lifted to
-   an array of its elements lifted ([Lifted_array]), and none is made a
-   symbol either. A location of the heap is lifted to itself only
-   ([Lifted_location]): the relation is the identity on locations, and
-   says nothing of what the heap holds at one. The rule is used under
-   the others: a block, an array, a closure or a partial application
-   that holds a location, in a field, in an element, in a value slot,
-   or in what it calls or an argument, is lifted to one that holds the
-   same location there; and a block or a closure that holds one may be
-   lifted to a symbol bound to a block or a closure that holds the
-   same, as an array or a partial application may not. It is there so
-   that every value is lifted to itself.
+   closure, a block, a boxed number or an immutable array, here or
+   inside a closure, a block or an array, [v'] may have a symbol that
+   [statics'] binds to it. For a closure of a set with named function
+   slots, [statics'] binds the symbols of the whole set, each to the
+   closure at its slot ([static_set_bound]), and the set has a symbol
+   for each function slot. A constant is lifted to itself only, and so
+   is a symbol. A partial application is lifted to a partial
+   application, of the value it calls lifted, to its arguments lifted,
+   at the same arity: none is made a symbol. An immutable array that a
+   primitive made is lifted to an array of its elements lifted
+   ([Lifted_array]), or to a symbol that [statics'] binds to a static
+   immutable array of its elements lifted ([Lifted_to_array]). A
+   location of the heap is lifted to itself only ([Lifted_location]):
+   the relation is the identity on locations, and says nothing of what
+   the heap holds at one. The rule is used under the others: a block, an
+   array, a closure or a partial application that holds a location, in a
+   field, in an element, in a value slot, or in what it calls or an
+   argument, is lifted to one that holds the same location there; and a
+   block, an array or a closure that holds one may be lifted to a symbol
+   bound to a block, an array or a closure that holds the same, as a
+   partial application may not. It is there so that every value is
+   lifted to itself.
 
    A term run on its own, from no variable, no continuation, the empty
    static environment and the empty heap, with the steps that the
@@ -545,6 +564,11 @@ Inductive value_lifted (statics' : static_env) : value -> value -> Prop :=
     lookup s (static_values statics') = Some (Static_block tag fields') ->
     Forall2 (value_lifted statics') fields fields' ->
     value_lifted statics' (Value_block tag fields) (Value_symbol s)
+  | Lifted_to_array (elements elements' : list value) (s : symbol) :
+    lookup s (static_values statics')
+    = Some (Static_immutable_array elements') ->
+    Forall2 (value_lifted statics') elements elements' ->
+    value_lifted statics' (Value_immutable_array elements) (Value_symbol s)
   | Lifted_to_closure (slot : function_slot)
       (function_decls : list (function_slot * code_id))
       (value_slots value_slots' : list (value_slot * value)) (s : symbol)
