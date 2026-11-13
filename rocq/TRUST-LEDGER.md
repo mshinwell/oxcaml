@@ -1012,6 +1012,33 @@ it gave back.
   compared, not a validated verdict. In that case the tool also runs
   the unit before from the empty static environment, to say where
   the validation with nothing imported is vacuous.
+- **A check that does not establish `refines` is in the model, and
+  the tool does not call it.** This entry awaits the human's
+  confirmation. `FlambdaValidateRelatedSpec.validate_unit_related`
+  accepts units whose exits a lifting changes, which `validate_unit`
+  refuses. What is proved of it is another relation than `refines`,
+  and neither is said to give the other: an exit of the unit before
+  is answered by an exit of the unit after that nothing which may
+  follow a unit tells apart from it
+  (`FlambdaObserversSpec.worlds_observed`), and the unit after ends
+  only if the unit before exits or goes wrong. Of a unit before that
+  goes wrong nothing is said. What may follow a unit is a way out, or
+  a handler with no environment of its own that binds nothing static,
+  names no symbol and no code id, and projects none of the value
+  slots that the check removes: the whole of that class
+  (`FlambdaObserversSpec.observer`), a handler that makes an
+  immutable array included, and no smaller one. It is not claimed
+  that the two exits have the same values, nor that the two memories
+  hold the same; nothing is claimed of a unit linked with another,
+  which names its symbols. The other form of the contract relates the
+  values of the two exits and every entry of the two memories
+  structurally; the choice between the two is the human's. The tool
+  does not call the check, and no line that it prints rests on it.
+  A wiring of the tool is a request of its own, and for which units
+  the tool may call the check is settled with it and not here. If the
+  check comes to be called before the choice is made, its line has
+  not the word "validated", its units are in a table of their own,
+  and they are in no count of the units validated.
 - **The conversion of types**, in
   `middle_end/flambda2/tests/semantics/types/type_converter.ml` with
   `model_numbers.ml` and `model_names.ml`: between `Type_grammar.t` and

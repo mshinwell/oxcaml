@@ -361,6 +361,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaValidateKnowingProofs.v \
   FlambdaValidateKnowingSpec.v \
   FlambdaValidateProofs.v \
+  FlambdaValidateRelatedProofs.v \
+  FlambdaValidateRelatedSpec.v \
   FlambdaValidateScopeProofs.v \
   FlambdaValidateScopeSpec.v \
   FlambdaValidateSpec.v \
