@@ -162,6 +162,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaHeapSpec.v \
   FlambdaHoistCodeProofs.v \
   FlambdaHoistCodeSpec.v \
+  FlambdaHoistStaticsObservedProofs.v \
+  FlambdaHoistStaticsObservedSpec.v \
   FlambdaHoistStaticsProofs.v \
   FlambdaHoistStaticsSpec.v \
   FlambdaIdentitiesProofs.v \

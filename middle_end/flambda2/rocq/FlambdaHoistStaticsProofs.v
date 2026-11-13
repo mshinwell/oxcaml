@@ -1573,15 +1573,21 @@ Proof.
   intros b Hb. apply Hall. right. exact Hb.
 Qed.
 
-(* A unit that passes and the unit with those bindings first behave
-   alike, each run from a static environment that holds no code, binds
-   no name that the unit binds, and binds its symbols to things that
-   mention only symbols that it binds; and from any heap. The symbols
-   of that environment are, for the simulation, symbols bound first:
-   the second run has them bound from its first state too. *)
-Lemma hoist_statics_equivalent_from (u : unit_interface) (e e' : expr)
+(* The simulation of a unit that passes, run from a static environment
+   that holds no code, binds no name that the unit binds, and binds its
+   symbols to things that mention only symbols that it binds; and from
+   any heap. The bindings taken to the head evaluate, with no variable,
+   to a static environment; the first state of the unit is related to
+   the unit without those bindings in that environment, which is what
+   the unit with them first steps to. The symbols of the environment
+   that the run starts from are, for the simulation, symbols bound
+   first: the second run has them bound from its first state too. *)
+Lemma hoist_statics_related_from (u : unit_interface) (e : expr)
     (statics : static_env) (hp : heap) :
-  hoist_statics u e = Some e' ->
+  well_formed_unit u e = true ->
+  statics_in_scope [] e = true ->
+  interface_conts_not_rebound u e = true ->
+  static_names_apart [] e = true ->
   static_code statics = [] ->
   static_names_free_in statics e = true ->
   Forall
@@ -1590,15 +1596,18 @@ Lemma hoist_statics_equivalent_from (u : unit_interface) (e e' : expr)
          (snd binding)
        = true)
     (static_values statics) ->
-  equivalent (State e [] [] statics hp) (State e' [] [] statics hp).
+  ∃ (src_code : list (code_id * code))
+    (src_values : list (symbol * statically_allocated_value)),
+    (∀ id : code_id,
+      among id (deleted_code_ids e) = true -> lookup id src_code = None)
+    ∧ eval_static_bindings [] (hoisted_bindings e) statics
+      = Some (Static_env src_code src_values)
+    ∧ hoisted_related (unit_exn u) (deleted_code_ids e) src_code src_values
+        (State e [] [] statics hp)
+        (State (without_hoisted e) [] [] (Static_env src_code src_values)
+           hp).
 Proof.
-  unfold hoist_statics.
-  destruct (well_formed_unit u e) eqn:Hwf; simpl; [ | discriminate ].
-  destruct (statics_in_scope [] e) eqn:Hscope; simpl; [ | discriminate ].
-  destruct (interface_conts_not_rebound u e) eqn:Hconts; simpl;
-    [ | discriminate ].
-  destruct (static_names_apart [] e) eqn:Hapart; [ | discriminate ].
-  intros [= <-] Hno_code Hfree Hamong.
+  intros Hwf Hscope Hconts Hapart Hno_code Hfree Hamong.
   pose proof (well_formed_unit_statics_at_toplevel u e Hwf) as Htoplevel.
   pose proof (well_formed_unit_code_ids_distinct u e Hwf) as Hcodes.
   pose proof (well_formed_unit_symbols_distinct u e Hwf) as Hsymbols.
@@ -1685,42 +1694,73 @@ Proof.
           split; [ exact Hin | left; reflexivity ]. }
   assert (Hkeep : keep_values src_values (static_values statics) = []).
   { apply keep_values_none. exact Hsym_old. }
+  exists src_code, src_values.
+  refine (conj Hdeleted (conj Hsrc _)).
+  split.
+  { unfold hoist_state, hoist_env. simpl_state. rewrite Hkeep.
+    reflexivity. }
+  assert (Hbound :
+    imports_bound (map fst (static_values statics)) statics).
+  { split; [ exact Hno_code | ]. split; [ | exact Hamong ].
+    intros s. exact (is_bound_among s (static_values statics)). }
+  assert (Hscope' :
+    statics_in_scope (map fst (static_values statics)) e = true).
+  { exact (expr_scope_sub e [] _ [] [] (sub_nil _) (sub_nil _) Hscope). }
+  destruct
+    (initial_state_inv (map fst (static_values statics)) u e statics hp Hwf
+       Hscope' Hconts Hbound)
+    as [Hterms Hvalues].
+  refine
+    (conj
+       (inv_from (unit_exn u) code_ids_of_binding code_id_bound e statics hp
+          (free_in_code_ids statics e Hfree) Hno_code Htoplevel Hcodes)
+       (conj
+          (inv_from (unit_exn u) symbols_of_binding symbol_bound e statics
+             hp (free_in_symbols statics e Hfree) Hno_code Htoplevel
+             Hsymbols)
+          (conj Hterms (conj Hvalues _)))).
+  unfold known_inv. simpl_state.
+  refine (conj (expr_known_of_bindings src_code src_values e Hknown)
+            (conj I (conj _ _))).
+  + intros id c H. rewrite Hfresh_code in H. discriminate H.
+  + intros sym allocated H _. exact (Hsym_old sym allocated H).
+Qed.
+
+(* A unit that passes and the unit with those bindings first behave
+   alike, each run from such a static environment and from any heap. *)
+Lemma hoist_statics_equivalent_from (u : unit_interface) (e e' : expr)
+    (statics : static_env) (hp : heap) :
+  hoist_statics u e = Some e' ->
+  static_code statics = [] ->
+  static_names_free_in statics e = true ->
+  Forall
+    (fun binding =>
+       allocated_statics_among (map fst (static_values statics)) []
+         (snd binding)
+       = true)
+    (static_values statics) ->
+  equivalent (State e [] [] statics hp) (State e' [] [] statics hp).
+Proof.
+  unfold hoist_statics.
+  destruct (well_formed_unit u e) eqn:Hwf; simpl; [ | discriminate ].
+  destruct (statics_in_scope [] e) eqn:Hscope; simpl; [ | discriminate ].
+  destruct (interface_conts_not_rebound u e) eqn:Hconts; simpl;
+    [ | discriminate ].
+  destruct (static_names_apart [] e) eqn:Hapart; [ | discriminate ].
+  intros [= <-] Hno_code Hfree Hamong.
+  destruct
+    (hoist_statics_related_from u e statics hp Hwf Hscope Hconts Hapart
+       Hno_code Hfree Hamong)
+    as (src_code & src_values & Hdeleted & Hsrc & Hrel).
   apply (equivalent_trans _
            (State (without_hoisted e) [] [] (Static_env src_code src_values)
               hp)).
-  - apply (bisimulation_equivalent
+  - exact (bisimulation_equivalent
              (hoisted_related (unit_exn u) (deleted_code_ids e) src_code
                 src_values)
              (hoisted_related_step (unit_exn u) (deleted_code_ids e) src_code
-                src_values Hdeleted)).
-    split.
-    { unfold hoist_state, hoist_env. simpl_state. rewrite Hkeep.
-      reflexivity. }
-    assert (Hbound :
-      imports_bound (map fst (static_values statics)) statics).
-    { split; [ exact Hno_code | ]. split; [ | exact Hamong ].
-      intros s. exact (is_bound_among s (static_values statics)). }
-    assert (Hscope' :
-      statics_in_scope (map fst (static_values statics)) e = true).
-    { exact (expr_scope_sub e [] _ [] [] (sub_nil _) (sub_nil _) Hscope). }
-    destruct
-      (initial_state_inv (map fst (static_values statics)) u e statics hp Hwf
-         Hscope' Hconts Hbound)
-      as [Hterms Hvalues].
-    refine
-      (conj
-         (inv_from (unit_exn u) code_ids_of_binding code_id_bound e statics hp
-            (free_in_code_ids statics e Hfree) Hno_code Htoplevel Hcodes)
-         (conj
-            (inv_from (unit_exn u) symbols_of_binding symbol_bound e statics
-               hp (free_in_symbols statics e Hfree) Hno_code Htoplevel
-               Hsymbols)
-            (conj Hterms (conj Hvalues _)))).
-    unfold known_inv. simpl_state.
-    refine (conj (expr_known_of_bindings src_code src_values e Hknown)
-              (conj I (conj _ _))).
-    + intros id c H. rewrite Hfresh_code in H. discriminate H.
-    + intros sym allocated H _. exact (Hsym_old sym allocated H).
+                src_values Hdeleted)
+             _ _ Hrel).
   - apply equivalent_sym, step_equivalent.
     rewrite step_let_static, Hsrc. reflexivity.
 Qed.
