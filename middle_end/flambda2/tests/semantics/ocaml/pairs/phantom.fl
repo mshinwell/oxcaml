@@ -1,0 +1,18 @@
+let $camlPhantom__first_const_0 = Block 0 () in
+(let code inline(always) size(2)
+       f_0 (b/23 : [ 0 of val * val ])
+         my_closure/24 &my_alloc_region/25 my_depth/26
+         -> k/10 * k/11
+         : imm tagged =
+   let next_depth/27 = rec_info (succ my_depth/26) in
+   let x/28 = %block_load.mut.[`0`] (b/23) in
+   cont k/10 (0)
+ in
+ let f/29 = closure f_0 @f &toplevel in
+ let Pmakeblock/30 = %block.[`0`].`toplevel` (f/29) in
+ cont k/9 (Pmakeblock/30))
+  where k/9 define_root_symbol (module_block/21) =
+    let field_0/22 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/21)
+    in
+    let $camlPhantom = Block 0 (field_0/22) in
+    cont done ($camlPhantom)

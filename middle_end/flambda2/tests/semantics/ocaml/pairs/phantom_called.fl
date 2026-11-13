@@ -1,0 +1,12 @@
+let $camlPhantom_called__first_const_0 = Block 0 () in
+(let Popaque/18 = %opaque (0) in
+ let Pfield/19 = %block_load.[`0`] ($Phantom.camlPhantom) in
+ apply &toplevel Pfield/19 (Popaque/18) -> k/8 * error)
+  where k/8 (r/16 : imm tagged) =
+    let Pmakeblock/17 = %block.[`0`].`toplevel` (r/16) in
+    cont k/7 (Pmakeblock/17)
+  where k/7 define_root_symbol (module_block/14) =
+    let field_0/15 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/14)
+    in
+    let $camlPhantom_called = Block 0 (field_0/15) in
+    cont done ($camlPhantom_called)

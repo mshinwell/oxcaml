@@ -12,7 +12,10 @@
 #
 # As in the directory above, the unit is compiled with no standard library
 # and no initially opened module, and the compilation stops after the middle
-# end.
+# end. A source may give more flags for its own compilation, on a line of its
+# own:
+#
+#   (* flags: -g *)
 
 set -eu
 
@@ -26,6 +29,8 @@ case "$ocamlopt" in
 *) ocamlopt="$PWD/$ocamlopt" ;;
 esac
 
+flags=$(sed -n 's/^(\* flags: \(.*\) \*)$/\1/p' "$source" | head -n 1)
+
 # In a directory of its own, and under the name X.ml, as the names of
 # anonymous functions have the name of the file as it is given. The compiler
 # looks for the .cmi and the .cmx of the first unit in the directory it is
@@ -37,7 +42,7 @@ if [ -n "$first" ]; then
   cp "$first.cmi" "$first.cmx" "$work/"
 fi
 (cd "$work" &&
-  "$ocamlopt" -nopervasives -nostdlib -stop-after middle_end -c \
+  "$ocamlopt" -nopervasives -nostdlib $flags -stop-after middle_end -c \
     "$name.ml" -drawfexpr-to "$name.fl")
 cp "$work/$name.fl" "$name.fl.made"
 cp "$work/$name.cmi" "$work/$name.cmx" .

@@ -9,9 +9,13 @@ set -eu
 
 units=" "
 checked=" "
+here=.
 for file in "$@"; do
   case "$file" in
-  *.ml) units="$units$(basename "$file" .ml) " ;;
+  *.ml)
+    units="$units$(basename "$file" .ml) "
+    here=$(dirname "$file")
+    ;;
   *.expected) checked="$checked$(basename "$file" .expected) " ;;
   esac
 done
@@ -30,8 +34,16 @@ first_of() {
   echo "$found"
 }
 
+# The flags that a source gives for itself, on a line "(* flags: ... *)":
+# from_ocaml.sh compiles the unit with them, and the tool is given them too.
+flags_of() {
+  sed -n 's/^(\* flags: \(.*\) \*)$/\1/p' "$here/$1.ml" | head -n 1
+}
+
 for name in $units; do
   first=$(first_of "$name")
+  flags=$(flags_of "$name")
+  if [ -n "$flags" ]; then flags="$flags "; fi
   needs=
   against=
   if [ -n "$first" ]; then
@@ -61,7 +73,7 @@ RULES
  (action
   (with-stdout-to
    $name.output
-   (run ../../../../tools/flsemantics.exe -I . %{dep:../$name.fl}))))
+   (run ../../../../tools/flsemantics.exe $flags-I . %{dep:../$name.fl}))))
 
 (rule
  (alias runtest)

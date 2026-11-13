@@ -294,22 +294,31 @@ it gave back.
   body the model has not got (the entry on what those files say), the
   unit being still checked; and in the term that Simplify makes of a
   unit, where it inlines such a body, the unit being then not checked.
-  *Phantom bindings*: the conversion does not read the name mode of a
-  bound variable, so a `Let` whose variable is phantom is converted as
-  a `Let` that runs, where the program runs nothing for it. The text of
-  a term does not say the mode. With `-g` and phantom lets on
+  *Phantom bindings*: a binding whose variables are phantom is refused
+  (`convert_let`, before any of its cases). The program runs nothing
+  for such a binding (`To_cmm_expr.let_expr` compiles its body alone),
+  and the model runs every `Let`: converted, the binding could be
+  undefined in the model where the program is defined. On a run where
+  the term before is undefined, any term after refines it in the
+  model, so the theorem of a validation would say nothing of the term
+  after there; this is not to say that the validator accepts every
+  such pair. With `-g` and phantom lets on
   (`-flambda2-expert-phantom-lets`, which
   `-gdwarf-may-alter-codegen-experimental` also sets), Simplify may
-  keep an unused binding as phantom instead of deleting it. The tests
-  do not give those flags and no unit of the tree is compiled with
-  them; a body taken from a `.cmx` compiled with them may have one, and
-  so may the term after if the tool is itself given them. The term of
-  the model can then be undefined where the program is defined
-  (discrepancy C2-19); such a binding is not refused. A validation of
-  a unit whose term before has one therefore may accept a term after
-  that is wrong on a run where the binding is undefined in the model
-  and the program is defined; the one pair of units run for
-  discrepancy C2-19 did not show one, and nothing wider was measured.
+  keep an unused binding as phantom instead of deleting it; the term
+  that the compiler gives to Simplify has none. The refusal goes by
+  the mode that a term in memory has on its bound variables. The text
+  of a term does not say the mode and its reader gives the normal
+  one, so the refusal cannot detect a phantom binding whose mode a
+  text has lost, as for probes. The texts of the tests are of terms
+  before Simplify as the compiler prints them, which have none; the
+  tool reads any text that it is given. The mode is met in a body
+  taken from the `.cmx` of a unit compiled with those flags, which is
+  then left out of the prefix, the unit being still checked; and in
+  the term that Simplify makes of a unit when the tool is itself
+  given them, the unit being then not checked (discrepancy C2-19). A
+  binding whose variables are for types only is refused in the same
+  place; the backend stops on one.
   *The symbol of the unit*: `convert_unit` does not read
   `Flambda_unit.module_symbol`. The tool observes the values given to
   the unit's return continuation, using the static environment at exit.

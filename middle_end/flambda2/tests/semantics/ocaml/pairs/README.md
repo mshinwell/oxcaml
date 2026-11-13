@@ -63,6 +63,10 @@ The alias of `tests/semantics/` runs these rules with the others.
   directory it is run in. The rules of the directory above give it
   none, so what the tool prints of a unit there does not depend on
   any `.cmx`.
+- A source may give flags of its own, on a line `(* flags: ... *)`:
+  the unit is then compiled with them after the others, and the tool
+  is given them when it is run on the unit. A second unit is not
+  given the flags of its first.
 - The `.cmx` of a first unit is made by the build, with the compiler
   that builds the tool. What the tool prints of a second unit depends
   on that file, which is not kept: like `X.fl`, it moves with the
@@ -152,12 +156,15 @@ from the others.
 | `cycle_read.ml` | `cycle.ml` | a toplevel reads a block that the first unit made by calls of the runtime | no prefix; undefined before and after; validated with its imports, with the line that says the validation says nothing |
 | `probed_called.ml` | `probed.ml` | calls, without inlining it, a function of the first unit whose body has a probe | a prefix of three bindings without the body, which the conversion refuses; the run is undefined before and after, and the validation says nothing of it |
 | `probed_inlined.ml` | `probed.ml` | calls the same function and lets Simplify inline it | not checked: the term after Simplify has the call that is a probe, which the conversion refuses |
+| `phantom_called.ml` | `phantom.ml` | calls a function of the first unit whose body, in the `.cmx`, has a phantom binding | a prefix of two bindings without the body, which the conversion refuses; the run before is undefined, the run after returns; nothing to validate |
 
-Sixteen sources. Six are first units; four of them have an expected
-file, and each of those is validated, as a unit of the directory
-above is. Of the ten second units, three are validated given a
-`.cmx`, one of them with an import left; six are undefined in the
-model, four of them with a prefix; one is not checked.
+Eighteen sources. Seven are first units; five of them have an
+expected file: four are validated, as a unit of the directory above
+is, and `phantom.ml` is not checked. Of the eleven second units,
+three are validated given a `.cmx`, one of them with an import left;
+seven are undefined in the model, five of them with a prefix, and
+one of the five, `phantom_called.ml`, before Simplify only; one is
+not checked.
 
 The prefix of the four units that use `lengths.ml` is the same: the
 module block, the closures of `length_from` and of `length`, and the
@@ -245,3 +252,21 @@ then too, as the handler calls `note`, whose code has no body in the
 `.cmx`. In `probed_inlined.ml` the tool's Simplify inlines `bump`,
 the term after has the call that is a probe, and the unit is not
 checked.
+
+`phantom.ml` is compiled with `-g -flambda2-expert-phantom-lets`
+(its first line). With them Simplify may keep an unused binding as
+phantom instead of deleting it, and here keeps the load of a field
+that nothing uses; the program runs nothing for such a binding: the
+code made of the function loads nothing. The body of the function in
+the `.cmx` has that binding. The model runs every `Let`, so the
+conversion refuses a phantom binding, and the prefix of
+`phantom_called.ml` has the closure and not the body. The call is
+then of code that has no body, undefined in the model before
+Simplify; after Simplify, which inlined the body and dropped the
+binding, the unit returns 0, as the program does. The tool as it was
+before took the binding for a `Let` that runs and printed, for this
+unit, a prefix of three bindings with the body and its load; the run
+before was undefined then too, at the load of a field of the number
+0, which the program does not make. On `phantom.ml` itself the tool
+is given the two flags, the term that its Simplify makes has the
+phantom binding, and the unit is not checked.

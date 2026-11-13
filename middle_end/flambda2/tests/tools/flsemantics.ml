@@ -111,6 +111,16 @@
    has one; a body taken from the .cmx of another unit may, and is then left out
    of the prefix, so that a call of it is undefined.
 
+   Phantom bindings. A binding whose variables are phantom is refused by the
+   conversion ([convert_let]): the program runs nothing for it, and the model
+   runs every [Let]. With [-g] and phantom lets on, Simplify may keep an unused
+   binding as phantom instead of deleting it; the term that the compiler gives
+   to Simplify has none. The text of a term does not say the mode of a binding,
+   so the refusal cannot detect a phantom binding whose mode a text has lost, as
+   for probes. A body taken from the .cmx of another unit may have one, and is
+   then left out of the prefix; the term that Simplify makes of a unit may,
+   where the tool is given those flags, and the unit is then not checked.
+
    Imports. The external symbols that the two units of a check mention, those of
    another compilation unit, the predefined exceptions among them, are listed
    once for both ([imports]), each with a class: an identity for a predefined
@@ -918,6 +928,21 @@ and convert_handler ~invariant_params (handler : Flambda.Continuation_handler.t)
 
 and convert_let (pattern : Bound_pattern.t) (defining_expr : Flambda.Named.t)
     body : Model.expr =
+  (* The program runs nothing for a binding whose variables are phantom: the
+     backend compiles its body alone ([To_cmm_expr.let_expr]). The model runs
+     every [Let], so such a binding is refused, whatever it binds and before any
+     case below: converted, it could be undefined in the model where the program
+     is defined. With [-g] and phantom lets on, Simplify may keep an unused
+     binding as phantom instead of deleting it. The text of a term does not say
+     the mode of a binding, so a term read from a text has none, and the refusal
+     cannot detect one whose mode a text has lost. A body taken from a .cmx may
+     have one, and is then not bound, as any body that the conversion refuses
+     ([make_prefix]). A binding whose variables are for types only is not for a
+     term at all. *)
+  (match Bound_pattern.name_mode pattern with
+  | Normal -> ()
+  | Phantom -> unsupported "a phantom binding"
+  | In_types -> unsupported "a binding of a variable that is for types only");
   match pattern, defining_expr with
   | Singleton bound_var, Simple s ->
     let var, kind = convert_bound_var bound_var in

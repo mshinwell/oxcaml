@@ -1,0 +1,11 @@
+phantom_called.fl:
+  given the .cmx of Phantom, a prefix of 2 static bindings:
+    camlPhantom__f_0_1 = closure camlPhantom__f_0_1_code {}
+    camlPhantom = Block 0 (camlPhantom__f_0_1)
+  before Simplify, after the prefix (6 steps): undefined
+  after Simplify, after the prefix (3 steps): returns [0: 0]
+  the check of kinds: passes before, passes after
+  calls outside code: 1 before, 0 after
+  anything goes, as the run before is undefined
+  calls outside code once those of known code are inlined: 1
+  nothing to validate, as the term before is undefined
