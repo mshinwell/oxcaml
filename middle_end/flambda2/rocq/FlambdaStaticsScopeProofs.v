@@ -55,7 +55,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaKeepsScopeProofs FlambdaStaticsScopeSpec.
 From OxCamlFlambda2 Require FlambdaUnaliasParamsNamesProofs
   FlambdaWrapReturnsNamesProofs FlambdaUntagParamsNamesProofs
-  FlambdaGiveScrutineeNamesProofs FlambdaArmNumbersNamesProofs.
+  FlambdaGiveScrutineeNamesProofs FlambdaArmNumbersNamesProofs
+  FlambdaShadowParamsNamesProofs FlambdaTwinParamsNamesProofs.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -1873,3 +1874,13 @@ Proof. exact FlambdaWrapReturnsNamesProofs.wrap_returns_scope. Qed.
 
 Theorem untag_params_keeps_scope : untag_params_keeps_scope_statement.
 Proof. exact FlambdaUntagParamsNamesProofs.untag_params_scope. Qed.
+
+(* ======================================================================== *)
+(* Parameters bound again at the head of their handlers, and their twins    *)
+(* ======================================================================== *)
+
+Theorem shadow_params_keeps_scope : shadow_params_keeps_scope_statement.
+Proof. exact FlambdaShadowParamsNamesProofs.shadow_params_scope. Qed.
+
+Theorem twin_params_keeps_scope : twin_params_keeps_scope_statement.
+Proof. exact FlambdaTwinParamsNamesProofs.twin_params_scope. Qed.

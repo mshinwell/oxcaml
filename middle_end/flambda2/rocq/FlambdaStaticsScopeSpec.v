@@ -187,6 +187,19 @@
      of the untagging of such a parameter is a [Let] of the parameter.
      No variable and no continuation is mentioned that was not
      ([untag_params_keeps_scope_statement]).
+   - FlambdaShadowParamsSpec.shadow_params binds again, at the head
+     of the handler of a continuation, parameters of that handler to
+     themselves: a [Let] that it puts mentions a parameter of the
+     handler and binds it, so no variable is free in the result that
+     was not in the term ([shadow_params_keeps_scope_statement]).
+   - FlambdaTwinParamsSpec.twin_params gives a twin to a parameter
+     of a continuation that the head of its handler binds again. The
+     [Let] goes: its variable is a parameter of the handler in the
+     result, and the twin is the parameter that the [Let] read. An
+     argument or an untagging of that variable that is made the twin
+     is under both. The twins are then untagged as
+     FlambdaUntagParamsSpec.untag_params untags
+     ([twin_params_keeps_scope_statement]).
 
    Nothing is asked of a term but that its code is closed, which
    [keeps_scope] itself asks, and nothing of what a rewrite is given.
@@ -204,7 +217,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec FlambdaFloatCodeSpec
   FlambdaGroupsUpSpec FlambdaKnownSlotsSpec FlambdaStubCallsSpec
   FlambdaUnaliasParamsSpec FlambdaWrapReturnsSpec FlambdaUntagParamsSpec
-  FlambdaGiveScrutineeSpec FlambdaArmNumbersSpec FlambdaValidateSpec
+  FlambdaGiveScrutineeSpec FlambdaArmNumbersSpec FlambdaShadowParamsSpec
+  FlambdaTwinParamsSpec FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec.
 From OxCamlFlambda2 Require Import FlambdaLiftObservedSpec.
 Import ListNotations.
@@ -376,3 +390,13 @@ Definition wrap_returns_keeps_scope_statement : Prop :=
 
 Definition untag_params_keeps_scope_statement : Prop :=
   keeps_scope untag_params.
+
+(* ======================================================================== *)
+(* Parameters bound again at the head of their handlers, and their twins    *)
+(* ======================================================================== *)
+
+Definition shadow_params_keeps_scope_statement : Prop :=
+  keeps_scope shadow_params.
+
+Definition twin_params_keeps_scope_statement : Prop :=
+  keeps_scope twin_params.

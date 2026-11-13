@@ -209,7 +209,12 @@
    FlambdaUntagParamsSpec.untag_params, which untags, for a set of
    positions at once, the parameters of continuations that are only
    untagged or passed on, and which a round of the first phase of the
-   term before applies after the unboxing. And
+   term before applies after the unboxing; and
+   FlambdaShadowParamsSpec.shadow_params, which binds again, at the
+   head of their handlers, the parameters of continuations that are
+   untagged, and FlambdaTwinParamsSpec.twin_params, which gives such
+   a parameter a twin that holds the number, neither of which is
+   applied yet. And
    FlambdaLoopifySpec.loopify_unit, which the validation applies to
    the term before, after the first comparison and before any rewrite
    that makes names: it is given, for the code ids to make loops of,
@@ -379,7 +384,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaInlineTailSpec FlambdaLoopifySpec
   FlambdaDeadParamsSpec FlambdaRenameApartSpec FlambdaUnusedProjectionsSpec
   FlambdaUnaliasParamsSpec FlambdaWrapReturnsSpec FlambdaUntagParamsSpec
-  FlambdaGiveScrutineeSpec FlambdaArmNumbersSpec FlambdaValidateSpec.
+  FlambdaGiveScrutineeSpec FlambdaArmNumbersSpec FlambdaShadowParamsSpec
+  FlambdaTwinParamsSpec FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 From OxCamlFlambda2 Require Import FlambdaLiftObservedSpec.
 Import ListNotations.
@@ -925,6 +931,25 @@ Definition wrap_returns_equivariant_statement : Prop :=
    FlambdaStaticsScopeSpec.v. *)
 Definition untag_params_equivariant_statement : Prop :=
   rewrite_equivariant untag_params.
+
+(* Binding again, at the head of their handlers, the parameters of
+   continuations that hold a tagged immediate and are untagged
+   (FlambdaShadowParamsSpec.v). The positions are computed from the
+   term by tests of equality of names; the [Let]s that are put bind
+   the parameters themselves, so no name is made. That it keeps
+   scope is in FlambdaStaticsScopeSpec.v. *)
+Definition shadow_params_equivariant_statement : Prop :=
+  rewrite_equivariant shadow_params.
+
+(* Giving a twin that holds the number to a parameter of a
+   continuation that the head of its handler binds again
+   (FlambdaTwinParamsSpec.v). The positions are computed from the
+   term by tests of equality of names; the name of a twin is the
+   parameter's own, and the name that takes the place of the
+   parameter is that of a [Let] of the term, so no name is made.
+   That it keeps scope is in FlambdaStaticsScopeSpec.v. *)
+Definition twin_params_equivariant_statement : Prop :=
+  rewrite_equivariant twin_params.
 
 (* FlambdaLoopifySpec.loopify_unit is given, for each code id to make
    a loop of, the continuation of the loop. The action: the

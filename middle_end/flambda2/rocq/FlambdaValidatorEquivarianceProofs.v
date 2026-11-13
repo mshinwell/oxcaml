@@ -85,7 +85,8 @@ From OxCamlFlambda2 Require FlambdaKeepsScopeProofs FlambdaValidateScopeProofs
   FlambdaHoistStaticsProofs FlambdaUnboxParamsNamesProofs
   FlambdaUnaliasParamsNamesProofs FlambdaWrapReturnsNamesProofs
   FlambdaUntagParamsNamesProofs FlambdaGiveScrutineeNamesProofs
-  FlambdaArmNumbersNamesProofs FlambdaAliasLetsProofs.
+  FlambdaArmNumbersNamesProofs FlambdaShadowParamsNamesProofs
+  FlambdaTwinParamsNamesProofs FlambdaAliasLetsProofs.
 From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
 From OxCamlFlambda2 Require FlambdaDemoteProofs.
 From OxCamlFlambda2 Require Import FlambdaLiftObservedSpec.
@@ -4959,6 +4960,15 @@ Proof. exact FlambdaWrapReturnsNamesProofs.wrap_returns_renamed. Qed.
    lemmas are in FlambdaUntagParamsNamesProofs.v. *)
 Theorem untag_params_equivariant : untag_params_equivariant_statement.
 Proof. exact FlambdaUntagParamsNamesProofs.untag_params_renamed. Qed.
+
+(* Binding parameters again at the head of their handlers, and giving
+   them twins: the lemmas are in FlambdaShadowParamsNamesProofs.v and
+   FlambdaTwinParamsNamesProofs.v. *)
+Theorem shadow_params_equivariant : shadow_params_equivariant_statement.
+Proof. exact FlambdaShadowParamsNamesProofs.shadow_params_renamed. Qed.
+
+Theorem twin_params_equivariant : twin_params_equivariant_statement.
+Proof. exact FlambdaTwinParamsNamesProofs.twin_params_renamed. Qed.
 
 (* Following aliases into the handlers of recursive continuations. *)
 Fixpoint follow_aliases_in_loops_equivariant_aux (r : renaming) (e : expr) :
