@@ -403,6 +403,68 @@ Definition exec_prim_locations_bound_statement : Prop :=
     lookup l h <> None.
 
 (* ======================================================================== *)
+(* The primitives on a heap and [eval_prim]                                 *)
+(* ======================================================================== *)
+
+(* The primitives that may have, on a heap, a value that
+   FlambdaPrimitiveSpec.eval_prim does not give them: those of the heap;
+   the unary primitives that read the cell of a location
+   ([exec_unary_on_cell]); [Array_load]; and [Phys_equal], which compares
+   locations. Every other primitive has on a heap the value that
+   [eval_prim] gives it, or none. A primitive that is added and that
+   reads a cell has its case here. *)
+Definition prim_reads_heap (p : prim) : bool :=
+  match p with
+  | Heap _ => true
+  | Unary
+      (Block_load _ _ _ | Get_tag | Is_int _ | Is_null | Opaque_identity _
+      | Array_length _) =>
+    true
+  | Binary (Phys_equal _ | Array_load _ _ _) => true
+  | Unary _ | Binary _ | Variadic _ => false
+  end.
+
+(* Only a primitive of the heap changes the heap. *)
+Definition exec_prim_heap_statement : Prop :=
+  ∀ (statics : static_env) (h h' : heap) (p : prim) (vs : list value)
+    (v : value),
+    (∀ q : heap_primitive, p <> Heap q) ->
+    exec_prim statics h p vs = Some (v, h') ->
+    h' = h.
+
+(* A primitive that does not read the heap and that has a value on a heap
+   has that value by [eval_prim]. *)
+Definition exec_prim_eval_prim_statement : Prop :=
+  ∀ (statics : static_env) (h h' : heap) (p : prim) (vs : list value)
+    (v : value),
+    prim_reads_heap p = false ->
+    exec_prim statics h p vs = Some (v, h') ->
+    eval_prim statics p vs = Some v ∧ h' = h.
+
+(* And it has on a heap the value that [eval_prim] gives it, when the
+   locations among its arguments are bound ([exec_prim] has no value on a
+   location that dangles, whatever the primitive). *)
+Definition eval_prim_exec_prim_statement : Prop :=
+  ∀ (statics : static_env) (h : heap) (p : prim) (vs : list value)
+    (v : value),
+    prim_reads_heap p = false ->
+    (∀ l : location, Value_location l ∈ vs -> is_bound l h = true) ->
+    eval_prim statics p vs = Some v ->
+    exec_prim statics h p vs = Some (v, h).
+
+(* A primitive that is not of the heap, applied to arguments none of
+   which is a location, is [eval_prim], and the heap is returned as it
+   came: so are the reads of a block that is a value or that a symbol is
+   bound to. *)
+Definition exec_prim_no_location_statement : Prop :=
+  ∀ (statics : static_env) (h : heap) (p : prim) (vs : list value),
+    (∀ q : heap_primitive, p <> Heap q) ->
+    (∀ l : location, Value_location l ∉ vs) ->
+    exec_prim statics h p vs
+    = let* v := eval_prim statics p vs in
+      Some (v, h).
+
+(* ======================================================================== *)
 (* Effects and coeffects                                                    *)
 (* ======================================================================== *)
 
@@ -472,6 +534,23 @@ Definition named_has_no_effects (d : named) : bool :=
     match effects_of_prim p with
     | No_effects => true
     | Only_generative_effects _ | Arbitrary_effects => false
+    end
+  | Simple _ | Set_of_closures _ _ | Closure_of_set _ _ _
+  | Project_value_slot _ _ | Project_value_slot_from _ _ _
+  | Project_function_slot _ _ _ =>
+    true
+  end.
+
+(* A named expression whose value, once it has one, is the same in every
+   heap that the heap evolves to: one that is not a primitive, or a
+   primitive with no effects and no coeffects. This is what a fact about
+   the value of a variable needs in order to be kept across a store. *)
+Definition named_stable (d : named) : bool :=
+  match d with
+  | Prim p _ =>
+    match effects_of_prim p, coeffects_of_prim p with
+    | No_effects, No_coeffects => true
+    | _, _ => false
     end
   | Simple _ | Set_of_closures _ _ | Closure_of_set _ _ _
   | Project_value_slot _ _ | Project_value_slot_from _ _ _

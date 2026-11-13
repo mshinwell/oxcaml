@@ -232,9 +232,10 @@
    review. *)
 
 From Stdlib Require Import ZArith List.
-From OxCamlStdlib Require Import OxCamlLogic OxCamlOption.
+From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec.
-From OxCamlFlambda2 Require Export FlambdaValueSpec FlambdaPrimitiveSpec.
+From OxCamlFlambda2 Require Export FlambdaValueSpec FlambdaPrimitiveSpec
+  FlambdaHeapSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -416,6 +417,25 @@ Definition eval_named (statics : static_env) (vars : env)
     let* v := eval_simple vars closure in
     project_function_slot statics move_from move_to v
   end.
+
+(* What a named expression does on a heap: its value, and the heap
+   after. Only a primitive may read the heap, and only a primitive of
+   the heap changes it. *)
+(* CR mshinwell: The primitives of the heap are not run yet. For now the
+   value is that of [eval_named], which neither reads nor changes a
+   heap and has no value on a primitive of the heap, and the heap is
+   returned as it came. FlambdaHeapSpec.exec_prim is what a primitive
+   is to do here: the case of [Prim p args] becomes
+   [exec_prim statics hp p vs] on the values of the arguments. The
+   statements of the section "A [Let] and the heap" below are proved of
+   this definition. They are stated so as to be provable of that one,
+   from the statements of FlambdaHeapSpec.v that the section names;
+   they are not proved of it in this tree. A proof about a step is to
+   use them, and [eval_named] where they give it. *)
+Definition exec_named (statics : static_env) (hp : heap) (vars : env)
+    (defining_expr : named) : option (value * heap) :=
+  let* v := eval_named statics vars defining_expr in
+  Some (v, hp).
 
 (* CR mshinwell: As for [Closure_of_set] in [eval_named]: the constant of
    a closure at a function slot that is not among those of its set has
@@ -1033,10 +1053,10 @@ Definition call_function (callee : value) (kind : call_kind)
 Definition step (s : state) : step_result :=
   match s with
   | State (Let x kind defining_expr body) vars conts statics hp =>
-    match eval_named statics vars defining_expr with
-    | Some v =>
+    match exec_named statics hp vars defining_expr with
+    | Some (v, hp') =>
       if kind_eqb (kind_of_value v) kind
-      then Step (State body ((x, v) :: vars) conts statics hp)
+      then Step (State body ((x, v) :: vars) conts statics hp')
       else Undefined
     | None => Undefined
     end
@@ -1095,6 +1115,99 @@ Fixpoint run (fuel : nat) (s : state) : step_result :=
     | result => result
     end
   end.
+
+(* ======================================================================== *)
+(* A [Let] and the heap                                                     *)
+(* ======================================================================== *)
+
+(* What [exec_named] does, said without saying what the primitives of
+   the heap do. These statements are proved of [exec_named] as it is.
+   They are stated so as to be provable of it when a primitive is run
+   by FlambdaHeapSpec.exec_prim, from statements of FlambdaHeapSpec.v
+   about [exec_prim]: [exec_prim_heap_statement],
+   [exec_prim_eval_prim_statement], [eval_prim_exec_prim_statement],
+   [exec_prim_no_location_statement], [exec_prim_evolves_statement]
+   and [no_coeffects_statement]. They are not proved of that
+   definition in this tree. They are how a proof reasons about the
+   step of a [Let].
+
+   A named expression that is not a primitive does not look at the heap:
+   it has the value that [eval_named] gives it, and the heap is as it
+   came. *)
+Definition exec_named_not_prim_statement : Prop :=
+  ∀ (statics : static_env) (hp : heap) (vars : env) (d : named),
+    (∀ (p : prim) (args : list simple), d <> Prim p args) ->
+    exec_named statics hp vars d
+    = let* v := eval_named statics vars d in
+      Some (v, hp).
+
+(* Only a primitive of the heap changes the heap. *)
+Definition exec_named_heap_statement : Prop :=
+  ∀ (statics : static_env) (hp hp' : heap) (vars : env) (d : named)
+    (v : value),
+    (∀ (q : heap_primitive) (args : list simple), d <> Prim (Heap q) args) ->
+    exec_named statics hp vars d = Some (v, hp') ->
+    hp' = hp.
+
+(* A primitive that does not read the heap
+   (FlambdaHeapSpec.prim_reads_heap) and that has a value has it by
+   [eval_named]. *)
+Definition exec_named_eval_named_statement : Prop :=
+  ∀ (statics : static_env) (hp hp' : heap) (vars : env) (p : prim)
+    (args : list simple) (v : value),
+    prim_reads_heap p = false ->
+    exec_named statics hp vars (Prim p args) = Some (v, hp') ->
+    eval_named statics vars (Prim p args) = Some v ∧ hp' = hp.
+
+(* And it has the value that [eval_named] gives it, when the locations
+   among the values of its arguments are bound in the heap. *)
+Definition eval_named_exec_named_statement : Prop :=
+  ∀ (statics : static_env) (hp : heap) (vars : env) (p : prim)
+    (args : list simple) (vs : list value) (v : value),
+    prim_reads_heap p = false ->
+    eval_simples vars args = Some vs ->
+    (∀ l : location, Value_location l ∈ vs -> is_bound l hp = true) ->
+    eval_named statics vars (Prim p args) = Some v ->
+    exec_named statics hp vars (Prim p args) = Some (v, hp).
+
+(* A primitive that is not of the heap, applied to arguments none of
+   whose values is a location, is as [eval_named] has it: a read of a
+   block that is a value or that a symbol is bound to, for one. *)
+Definition exec_named_no_location_statement : Prop :=
+  ∀ (statics : static_env) (hp : heap) (vars : env) (p : prim)
+    (args : list simple) (vs : list value),
+    (∀ q : heap_primitive, p <> Heap q) ->
+    eval_simples vars args = Some vs ->
+    (∀ l : location, Value_location l ∉ vs) ->
+    exec_named statics hp vars (Prim p args)
+    = let* v := eval_named statics vars (Prim p args) in
+      Some (v, hp).
+
+(* The heap after is one that the heap before evolves to
+   (FlambdaHeapSpec.heap_evolves): what is bound stays bound, and what
+   is not mutable stays as it is. So does the heap of a state at each
+   step. *)
+Definition exec_named_evolves_statement : Prop :=
+  ∀ (statics : static_env) (hp hp' : heap) (vars : env) (d : named)
+    (v : value),
+    exec_named statics hp vars d = Some (v, hp') -> heap_evolves hp hp'.
+
+Definition step_evolves_statement : Prop :=
+  ∀ s s' : state,
+    step s = Step s' -> heap_evolves (state_heap s) (state_heap s').
+
+(* A named expression that is stable (FlambdaHeapSpec.named_stable: not a
+   primitive, or a primitive with no effects and no coeffects) and that
+   has a value has the same value, and changes nothing, in every heap
+   that the heap evolves to. This is what keeps a fact about the value
+   of a variable across the steps that follow, stores among them. *)
+Definition exec_named_stable_statement : Prop :=
+  ∀ (statics : static_env) (hp hp' later : heap) (vars : env) (d : named)
+    (v : value),
+    named_stable d = true ->
+    heap_evolves hp later ->
+    exec_named statics hp vars d = Some (v, hp') ->
+    exec_named statics later vars d = Some (v, later).
 
 (* ======================================================================== *)
 (* Where a state holds values                                               *)
@@ -1242,6 +1355,21 @@ Definition equivalent (s s' : state) : Prop :=
    the excluded middle this is to say that every behaviour of the target is
    one of the source unless the source goes wrong; it is stated of the
    behaviours that end so that it can be proved without. *)
+(* CR mshinwell: An exit is compared with its heap, and the two heaps are
+   to be equal: the same locations, bound to the same cells, entry for
+   entry. This is the interim choice, and the strict one. Different
+   heaps are refused even when the difference is only garbage that is
+   unreachable from the exit, or a consistent correspondence of
+   locations: so a term after that does not allocate a block which the
+   term before allocates and which is unreachable from the exit, and
+   one that allocates two blocks in the other order, each then having
+   the location of the other. (A change of order that leaves the same
+   heap is not refused: a block allocated after a load in place of
+   before it.) The comparison that is intended is up to a
+   correspondence between the locations of the two runs; the
+   prototype's is FlambdaHeapMachineSpec.outcome_related, which relates
+   outcomes that carry their static environments, as an exit here does
+   not. Decision D40. *)
 Definition refines (source target : state) : Prop :=
   (∀ (k : continuation) (vs : list value) (hp : heap),
     behaves source (Exits k vs hp) -> behaves target (Exits k vs hp))

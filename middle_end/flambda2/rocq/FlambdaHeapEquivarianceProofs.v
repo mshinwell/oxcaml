@@ -119,16 +119,16 @@ Lemma exec_prim_renamed (r : renaming) (statics : static_env) (h : heap)
   exec_prim (rename_static_env r statics) h p vs = exec_prim statics h p vs.
 Proof. destruct statics as [codes values]. reflexivity. Qed.
 
-Lemma exec_named_equivariant (r : renaming) (statics : static_env)
+Lemma heap_exec_named_equivariant (r : renaming) (statics : static_env)
     (h : heap) (vars : env) (d : named) :
-  exec_named (rename_static_env r statics) h (rename_env r vars)
+  heap_exec_named (rename_static_env r statics) h (rename_env r vars)
     (rename_named r d)
-  = exec_named statics h vars d.
+  = heap_exec_named statics h vars d.
 Proof.
   pose proof (eval_named_equivariant r statics vars d) as Heval.
   destruct d as [s | p args | code slots | fslot decls slots | slot closure
     | pfrom slot closure | move_from move_to closure];
-    unfold exec_named; cbn [rename_named] in *;
+    unfold heap_exec_named; cbn [rename_named] in *;
     try (rewrite Heval; reflexivity).
   rewrite eval_simples_equivariant.
   destruct (eval_simples vars args) as [vs | ]; [ | reflexivity ].
@@ -247,8 +247,9 @@ Proof.
        | scrutinee arms | ];
     simpl.
   - (* Let *)
-    rewrite exec_named_equivariant.
-    destruct (exec_named statics h vars d) as [[v h'] | ]; [ | reflexivity ].
+    rewrite heap_exec_named_equivariant.
+    destruct (heap_exec_named statics h vars d) as [[v h'] | ];
+      [ | reflexivity ].
     destruct (kind_eqb (kind_of_value v) kind); reflexivity.
   - (* Let_static *)
     rewrite eval_static_bindings_equivariant.

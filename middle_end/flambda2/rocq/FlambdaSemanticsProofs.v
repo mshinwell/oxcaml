@@ -36,6 +36,7 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaSemanticsSpec.
 From OxCamlFlambda2 Require Export FlambdaValueProofs FlambdaPrimitiveProofs.
+From OxCamlFlambda2 Require FlambdaHeapProofs.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -68,6 +69,24 @@ Ltac simpl_state :=
    it names. A change to [step] is then a change to these lemmas, and to
    the proofs that use the lemma of the case that changed. *)
 
+Lemma step_let_exec (x : variable) (kind : flambda_kind)
+    (defining_expr : named) (body : expr) (vars : env) (conts : cont_env)
+    (statics : static_env) (hp : heap) :
+  step (State (Let x kind defining_expr body) vars conts statics hp)
+  = match exec_named statics hp vars defining_expr with
+    | Some (v, hp') =>
+      if kind_eqb (kind_of_value v) kind
+      then Step (State body ((x, v) :: vars) conts statics hp')
+      else Undefined
+    | None => Undefined
+    end.
+Proof. reflexivity. Qed.
+
+(* The step of a [Let] by [eval_named], with the heap as it came. This
+   holds only for as long as [exec_named] does not run the primitives of
+   the heap (FlambdaSemanticsSpec.v): it goes when it does, and a proof
+   that uses it goes over to [step_let_exec] and the laws of
+   [exec_named] below before then. *)
 Lemma step_let (x : variable) (kind : flambda_kind) (defining_expr : named)
     (body : expr) (vars : env) (conts : cont_env) (statics : static_env)
       (hp : heap) :
@@ -79,7 +98,10 @@ Lemma step_let (x : variable) (kind : flambda_kind) (defining_expr : named)
       else Undefined
     | None => Undefined
     end.
-Proof. reflexivity. Qed.
+Proof.
+  rewrite step_let_exec. unfold exec_named.
+  destruct (eval_named statics vars defining_expr); reflexivity.
+Qed.
 
 Lemma step_let_static (bindings : list static_binding) (body : expr)
     (vars : env) (conts : cont_env) (statics : static_env) (hp : heap) :
@@ -598,6 +620,158 @@ Proof.
     [ | left; reflexivity ].
   destruct (find_arm i arms) as [ac | ] eqn:Hfind; [ | left; reflexivity ].
   right. exists v, i, ac. auto.
+Qed.
+
+(* ======================================================================== *)
+(* A [Let] and the heap                                                     *)
+(* ======================================================================== *)
+
+(* A call and the application of a continuation leave the heap as it
+   is. *)
+Lemma call_code_heap (closure : value) (c : code) (vs : list value)
+    (args_arity return_arity : arity) (return_to exn_to : cont_value)
+    (statics : static_env) (hp : heap) (s' : state) :
+  call_code closure c vs args_arity return_arity return_to exn_to statics hp
+  = Step s' ->
+  state_heap s' = hp.
+Proof.
+  unfold call_code.
+  destruct (binds_statics (code_body c)); [ discriminate | ].
+  destruct (negb _); [ discriminate | ].
+  destruct (bind_params _ _ _); [ | discriminate ].
+  intros [= <-]. reflexivity.
+Qed.
+
+Lemma run_call_heap (return_partial : value -> step_result)
+    (shape : option call_shape) (return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) (hp : heap)
+    (s' : state) :
+  (∀ (partial : value) (s' : state),
+    return_partial partial = Step s' -> state_heap s' = hp) ->
+  run_call return_partial shape return_arity return_to exn_to statics hp
+  = Step s' ->
+  state_heap s' = hp.
+Proof.
+  intros Hpartial.
+  destruct shape
+    as [[closure c vs args_arity
+        | closure c vs remaining args_arity remaining_arity | partial] | ];
+    simpl.
+  - apply call_code_heap.
+  - apply call_code_heap.
+  - apply Hpartial.
+  - discriminate.
+Qed.
+
+Lemma apply_cont_value_heap (c : cont_value) (vs : list value)
+    (statics : static_env) (hp : heap) (s' : state) :
+  apply_cont_value c vs statics hp = Step s' -> state_heap s' = hp.
+Proof.
+  revert vs s'.
+  induction c
+    as [handler vars conts recursive | k | c IH extra
+       | remaining remaining_arity return_arity return_to IHreturn exn_to
+           IHexn];
+    intros vs s'; simpl.
+  - destruct handler as [params metadata handler].
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+      [ | discriminate ].
+    destruct (bind_params params vs vars); [ | discriminate ].
+    intros [= <-]. reflexivity.
+  - discriminate.
+  - apply IH.
+  - destruct vs as [ | v [ | v2 vs]]; try discriminate.
+    apply run_call_heap. intros partial s0. apply IHreturn.
+Qed.
+
+Lemma call_function_heap (callee : value) (kind : call_kind)
+    (vs : list value) (args_arity return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) (hp : heap)
+    (s' : state) :
+  call_function callee kind vs args_arity return_arity return_to exn_to
+    statics hp
+  = Step s' ->
+  state_heap s' = hp.
+Proof.
+  unfold call_function. apply run_call_heap. intros partial s0.
+  apply apply_cont_value_heap.
+Qed.
+
+(* The laws of [exec_named]. Each is proved of the definition as it is;
+   FlambdaHeapProofs.v has what proves it of FlambdaHeapSpec.exec_prim
+   ([exec_prim_heap], [exec_prim_eval_prim], [eval_prim_exec_prim],
+   [exec_prim_no_location], [exec_prim_evolves], [no_coeffects]). *)
+Theorem exec_named_not_prim : exec_named_not_prim_statement.
+Proof. intros statics hp vars d _. reflexivity. Qed.
+
+Theorem exec_named_heap : exec_named_heap_statement.
+Proof.
+  intros statics hp hp' vars d v _. unfold exec_named.
+  destruct (eval_named statics vars d); [ | discriminate ].
+  intros [= _ <-]. reflexivity.
+Qed.
+
+Theorem exec_named_eval_named : exec_named_eval_named_statement.
+Proof.
+  intros statics hp hp' vars p args v _. unfold exec_named.
+  destruct (eval_named statics vars (Prim p args)); [ | discriminate ].
+  intros [= <- <-]. split; reflexivity.
+Qed.
+
+Theorem eval_named_exec_named : eval_named_exec_named_statement.
+Proof.
+  intros statics hp vars p args vs v _ _ _ Heval. unfold exec_named.
+  rewrite Heval. reflexivity.
+Qed.
+
+Theorem exec_named_no_location : exec_named_no_location_statement.
+Proof. intros statics hp vars p args vs _ _ _. reflexivity. Qed.
+
+Theorem exec_named_evolves : exec_named_evolves_statement.
+Proof.
+  intros statics hp hp' vars d v. unfold exec_named.
+  destruct (eval_named statics vars d); [ | discriminate ].
+  intros [= _ <-]. apply FlambdaHeapProofs.heap_evolves_refl.
+Qed.
+
+Theorem exec_named_stable : exec_named_stable_statement.
+Proof.
+  intros statics hp hp' later vars d v _ _. unfold exec_named.
+  destruct (eval_named statics vars d); [ | discriminate ].
+  intros [= <- _]. reflexivity.
+Qed.
+
+Theorem step_evolves : step_evolves_statement.
+Proof.
+  intros [e vars conts statics hp] s'.
+  destruct e
+    as [x kind d body | bindings body | k handler body | handlers body | ap
+       | ac | scrutinee arms | ];
+    [ rewrite step_let_exec | simpl .. ].
+  - destruct (exec_named statics hp vars d) as [[v hp'] | ] eqn:Hexec;
+      [ | discriminate ].
+    destruct (kind_eqb (kind_of_value v) kind); [ | discriminate ].
+    intros [= <-]. simpl. exact (exec_named_evolves _ _ _ _ _ _ Hexec).
+  - destruct (eval_static_bindings vars bindings statics);
+      [ | discriminate ].
+    intros [= <-]. apply FlambdaHeapProofs.heap_evolves_refl.
+  - intros [= <-]. apply FlambdaHeapProofs.heap_evolves_refl.
+  - destruct (handlers_bind_statics handlers); [ discriminate | ].
+    intros [= <-]. apply FlambdaHeapProofs.heap_evolves_refl.
+  - destruct (eval_simple vars (ap_callee ap)); [ | discriminate ].
+    destruct (eval_simples vars (ap_args ap)); [ | discriminate ].
+    destruct (eval_simples vars (exn_extra_simples ap)); [ | discriminate ].
+    intros Hstep. rewrite (call_function_heap _ _ _ _ _ _ _ _ _ _ Hstep).
+    apply FlambdaHeapProofs.heap_evolves_refl.
+  - destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | discriminate ].
+    intros Hstep. unfold apply_continuation in Hstep.
+    rewrite (apply_cont_value_heap _ _ _ _ _ Hstep).
+    apply FlambdaHeapProofs.heap_evolves_refl.
+  - destruct (eval_simple vars scrutinee) as [v | ]; [ | discriminate ].
+    destruct (naked_immediate_of_value v) as [i | ]; [ | discriminate ].
+    destruct (find_arm i arms) as [ac | ]; [ | discriminate ].
+    intros [= <-]. apply FlambdaHeapProofs.heap_evolves_refl.
+  - discriminate.
 Qed.
 
 #[global] Opaque step.

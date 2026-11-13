@@ -67,10 +67,10 @@
    the equation holds with [p'] equal to [p] and without the premise.
    It is not stated: it stops being true when [step] runs the
    primitives of the heap, and the statements here are those that stay
-   true then. What a [Let] is to run is FlambdaHeapMachineSpec.exec_named,
+   true then. What a [Let] is to run is FlambdaHeapMachineSpec.heap_exec_named,
    and the two statements about it here
-   ([exec_named_permuted_statement],
-   [exec_named_keeps_locations_bound_statement]) are what the case of
+   ([heap_exec_named_permuted_statement],
+   [heap_exec_named_keeps_locations_bound_statement]) are what the case of
    a [Let] needs then; the other cases of a step do not allocate.
 
    What is not here. The equivalences and refinements of
@@ -168,28 +168,28 @@ Definition behaves_permuted_statement : Prop :=
 (* What a [Let] is to run                                                   *)
 (* ======================================================================== *)
 
-(* FlambdaHeapMachineSpec.exec_named: a primitive is
+(* FlambdaHeapMachineSpec.heap_exec_named: a primitive is
    FlambdaHeapSpec.exec_prim on the heap, and anything else is
    FlambdaSemanticsSpec.eval_named with the heap as it came. *)
-Definition exec_named_permuted_statement : Prop :=
+Definition heap_exec_named_permuted_statement : Prop :=
   ∀ (p : permutation) (statics : static_env) (h : heap) (vars : env)
     (defining_expr : named),
     locations_bound h (locations_of_heap h) ->
     locations_bound h (locations_of_env vars) ->
     ∃ p' : permutation,
       (∀ l : location, is_bound l h = true -> permute p' l = permute p l)
-      ∧ exec_named (permute_static_env p statics) (permute_heap p h)
+      ∧ heap_exec_named (permute_static_env p statics) (permute_heap p h)
           (permute_env p vars) defining_expr
         = option_map (permute_value_and_heap p')
-            (exec_named statics h vars defining_expr).
+            (heap_exec_named statics h vars defining_expr).
 
-Definition exec_named_keeps_locations_bound_statement : Prop :=
+Definition heap_exec_named_keeps_locations_bound_statement : Prop :=
   ∀ (statics : static_env) (h h' : heap) (vars : env)
     (defining_expr : named) (v : value),
     locations_bound h (locations_of_heap h) ->
     locations_bound h (locations_of_env vars) ->
     locations_bound h (locations_of_static_env statics) ->
-    exec_named statics h vars defining_expr = Some (v, h') ->
+    heap_exec_named statics h vars defining_expr = Some (v, h') ->
     locations_bound h' (locations_of_heap h')
     ∧ locations_bound h' (locations_of_value v)
     ∧ (∀ l : location, is_bound l h = true -> is_bound l h' = true).

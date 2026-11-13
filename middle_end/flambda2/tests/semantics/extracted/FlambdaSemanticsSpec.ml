@@ -108,6 +108,14 @@ let eval_named statics vars = function
     | Some v -> project_function_slot statics move_from move_to v
     | None -> None)
 
+(** val exec_named : static_env -> heap -> env -> named -> (value * heap) option
+    **)
+
+let exec_named statics hp vars defining_expr =
+  match eval_named statics vars defining_expr with
+  | Some v -> Some (v, hp)
+  | None -> None
+
 (** val eval_static_const : env -> static_const -> statically_allocated_value
     option **)
 
@@ -500,8 +508,9 @@ let step s =
   in
   match state_expr0 with
   | Let (x, kind, defining_expr, body) -> (
-    match eval_named statics vars defining_expr with
-    | Some v ->
+    match exec_named statics hp vars defining_expr with
+    | Some p ->
+      let v, hp' = p in
       if kind_eqb (kind_of_value v) kind
       then
         Step
@@ -509,7 +518,7 @@ let step s =
             state_vars = (x, v) :: vars;
             state_conts = conts;
             state_statics = statics;
-            state_heap = hp
+            state_heap = hp'
           }
       else Undefined
     | None -> Undefined)

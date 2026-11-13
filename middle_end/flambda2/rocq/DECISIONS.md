@@ -119,6 +119,19 @@ a `CR` at the place in the `Spec` file.
   review of the human; forced by the `Invalid` of Simplify.
 - **D39.** The freshness quantifier of nominal sets is a derived layer;
   the explicit forms stay primary. Decided.
+- **D40.** What an exit observes of the heap. Meanwhile the heap itself:
+  two exits are the same when their values and their heaps are equal,
+  locations included. So different heaps are refused even when the
+  difference is only garbage that is unreachable from the exit (the
+  term after does not allocate a block that nothing at the exit
+  reaches) or a consistent correspondence of locations (two blocks
+  allocated in the other order, each with the location of the other):
+  two defined exits that differ so are not related by this comparison.
+  The comparison intended is up to a correspondence between the
+  locations of two runs (the prototype's is
+  `FlambdaHeapMachineSpec.outcome_related`, of outcomes that carry
+  their static environments); it is not started without the human.
+  Decided for the interim, as the strict side; open.
 
 ## Discrepancies with the compiler
 

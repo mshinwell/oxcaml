@@ -208,9 +208,9 @@ Ltac break_innermost :=
     end
   end.
 
-Lemma exec_named_evolves (statics : static_env) (h h' : heap) (vars : env)
+Lemma heap_exec_named_evolves (statics : static_env) (h h' : heap) (vars : env)
     (d : named) (v : value) :
-  exec_named statics h vars d = Some (v, h') -> heap_evolves h h'.
+  heap_exec_named statics h vars d = Some (v, h') -> heap_evolves h h'.
 Proof.
   assert (Hpure :
             (let* v := eval_named statics vars d in Some (v, h)) = Some (v, h')
@@ -381,10 +381,10 @@ Proof.
   destruct e
     as [x x_kind d body | bindings body | k handler body | handlers body | ap
        | ac | scrutinee arms | ]; simpl.
-  - destruct (exec_named statics h vars d) as [[v h'] | ] eqn:Hexec;
+  - destruct (heap_exec_named statics h vars d) as [[v h'] | ] eqn:Hexec;
       [ | discriminate ].
     destruct (kind_eqb (kind_of_value v) x_kind); [ | discriminate ].
-    intros [= <-]. simpl. exact (exec_named_evolves _ _ _ _ _ _ Hexec).
+    intros [= <-]. simpl. exact (heap_exec_named_evolves _ _ _ _ _ _ Hexec).
   - repeat break_match; try discriminate. intros [= <-].
     apply heap_evolves_refl.
   - intros [= <-]. apply heap_evolves_refl.
@@ -409,7 +409,7 @@ Proof.
   destruct e
     as [x x_kind d body | bindings body | k handler body | handlers body | ap
        | ac | scrutinee arms | ]; simpl.
-  - destruct d; try discriminate; intros _; simpl;
+  - destruct d; try discriminate; intros _; unfold exec_named; simpl;
       repeat (break_innermost; simpl; auto).
   - intros _. destruct (eval_static_bindings vars bindings statics); auto.
   - intros _. auto.
@@ -3312,14 +3312,14 @@ Proof.
 Qed.
 
 (* A named expression respects the relation. *)
-Lemma related_exec_named (needed : variable -> bool) (vars vars' : env)
+Lemma related_heap_exec_named (needed : variable -> bool) (vars vars' : env)
     (d : named) (result : value) (h1 : heap) :
   env_related related needed vars vars' ->
   (∀ x : variable, var_in_named x d = true -> needed x = true) ->
   named_avoids D d = true ->
-  exec_named statics h vars d = Some (result, h1) ->
+  heap_exec_named statics h vars d = Some (result, h1) ->
   ∃ (result' : value) (h1' : heap) (r1 : correspondence),
-    exec_named statics' h' vars' d = Some (result', h1')
+    heap_exec_named statics' h' vars' d = Some (result', h1')
     ∧ exec_related r1 h1 h1' result result'.
 Proof.
   intros Henv Hneeded Havoid.
@@ -4550,7 +4550,8 @@ Proof.
     as [x x_kind d body | bindings body | k handler body | handlers body | ap
        | ac | scrutinee arms | ]; simpl in Hhead |- *.
   - (* Let *)
-    destruct (exec_named st h vars d) as [[v h1] | ] eqn:Hexec; [ | exact I ].
+    destruct (heap_exec_named st h vars d) as [[v h1] | ] eqn:Hexec;
+      [ | exact I ].
     destruct (kind_eqb (kind_of_value v) x_kind) eqn:Hkind; [ | exact I ].
     assert (Hneeded :
               ∀ y : variable,
@@ -4558,8 +4559,8 @@ Proof.
                 var_free_b y (Let x x_kind d body) = true).
     { intros y Hy. simpl. rewrite Hy. reflexivity. }
     destruct
-      (related_exec_named D r st st' h h' Hmemories _ _ _ _ _ _ Henv Hneeded
-         Hhead Hexec)
+      (related_heap_exec_named D r st st' h h' Hmemories _ _ _ _ _ _ Henv
+         Hneeded Hhead Hexec)
       as (v' & h1' & r1 & -> & Hmemories1 & Hlocations & Hvalues & Hv).
     rewrite <- (related_kind D r1 st st' h1 h1' Hmemories1 _ _ Hv), Hkind.
     eexists. split; [ reflexivity | ].
@@ -5176,7 +5177,7 @@ Lemma heap_step_let (x : variable) (x_kind : flambda_kind) (d : named)
     (body : expr) (vars : env) (conts : cont_env) (statics : static_env)
     (h : heap) :
   heap_step (Heap_state (Let x x_kind d body) vars conts statics h)
-  = match exec_named statics h vars d with
+  = match heap_exec_named statics h vars d with
     | Some (v, h') =>
       if kind_eqb (kind_of_value v) x_kind
       then Heap_step (Heap_state body ((x, v) :: vars) conts statics h')
@@ -5267,10 +5268,10 @@ Proof.
     unfold is_bound. destruct (lookup s (static_values statics));
       [ reflexivity | discriminate ]. }
   assert (Hexec :
-            exec_named statics h vars
+            heap_exec_named statics h vars
               (Prim (Unary (Block_load kind mut field)) [Var b])
             = Some (loaded, h)).
-  { cbn [exec_named eval_simples eval_simple]. rewrite Hblock.
+  { cbn [heap_exec_named eval_simples eval_simple]. rewrite Hblock.
     change
       (exec_prim statics h (Unary (Block_load kind mut field)) [block]
        = Some (loaded, h)).
@@ -5284,7 +5285,7 @@ Proof.
   apply (heap_refines_after_source_step _ s1);
     [ rewrite heap_step_let, Hexec, Hkind; reflexivity | ].
   apply (heap_refines_after_target_step _ _ s1).
-  { rewrite heap_step_let. cbn [exec_named eval_named]. rewrite Hknown.
+  { rewrite heap_step_let. cbn [heap_exec_named eval_named]. rewrite Hknown.
     simpl. rewrite Hkind. reflexivity. }
   apply heap_refines_reflexive.
   destruct Hclosed as (Hmemory & Hvars & Hconts).
@@ -5307,7 +5308,8 @@ Qed.
 Theorem delete_unused_let : delete_unused_let_statement.
 Proof.
   intros x x_kind p args body Heffects Hunused vars conts statics h Hclosed.
-  destruct (exec_named statics h vars (Prim p args)) as [[v h1] | ] eqn:Hexec.
+  destruct (heap_exec_named statics h vars (Prim p args)) as [[v h1] | ]
+    eqn:Hexec.
   2: { apply heap_refines_undefined. rewrite heap_step_let, Hexec.
        reflexivity. }
   destruct (kind_eqb (kind_of_value v) x_kind) eqn:Hkind.
@@ -5323,7 +5325,7 @@ Proof.
   assert (Hkept :
             ∀ (l : location) (c : cell),
               lookup l h = Some c -> lookup l h1 = Some c).
-  { cbn [exec_named] in Hexec.
+  { cbn [heap_exec_named] in Hexec.
     destruct (eval_simples vars args) as [vs | ]; [ | discriminate ].
     change (exec_prim statics h p vs = Some (v, h1)) in Hexec.
     unfold at_most_generative_effects in Heffects.
@@ -5493,11 +5495,11 @@ Proof.
   - destruct (project_symbol _ _ _ _ _ Hw) as (t & ->). intros l [ ].
 Qed.
 
-Lemma exec_named_closed (st : static_env) (h h1 : heap) (vars : env)
+Lemma heap_exec_named_closed (st : static_env) (h h1 : heap) (vars : env)
     (d : named) (result : value) :
   memory_closed st h ->
   (∀ (x : variable) (w : value), (x, w) ∈ vars -> value_closed h w) ->
-  exec_named st h vars d = Some (result, h1) ->
+  heap_exec_named st h vars d = Some (result, h1) ->
   memory_closed st h1 ∧ value_closed h1 result.
 Proof.
   intros Hmemory Hvars.
@@ -5809,13 +5811,13 @@ Proof.
     as [x x_kind d body | bindings body | k handler body | handlers body | ap
        | ac | scrutinee arms | ]; simpl.
   - (* Let *)
-    destruct (exec_named st h vars d) as [[v h1] | ] eqn:Hexec;
+    destruct (heap_exec_named st h vars d) as [[v h1] | ] eqn:Hexec;
       [ | discriminate ].
     destruct (kind_eqb (kind_of_value v) x_kind); [ | discriminate ].
     intros [= <-].
-    destruct (exec_named_closed _ _ _ _ _ _ Hmemory Hvars Hexec)
+    destruct (heap_exec_named_closed _ _ _ _ _ _ Hmemory Hvars Hexec)
       as [Hmemory1 Hv].
-    pose proof (exec_named_evolves _ _ _ _ _ _ Hexec) as Hevolves.
+    pose proof (heap_exec_named_evolves _ _ _ _ _ _ Hexec) as Hevolves.
     split; [ exact Hmemory1 | split ]; cbn [hs_vars hs_conts hs_heap].
     + intros y w [[= <- <-] | Hin];
         [ exact Hv
@@ -5896,13 +5898,13 @@ Proof.
   - reflexivity.
 Qed.
 
-Lemma exec_named_prim_unused (st : static_env) (h : heap) (x : variable)
+Lemma heap_exec_named_prim_unused (st : static_env) (h : heap) (x : variable)
     (v : value) (vars : env) (p : prim) (args : list simple) :
   var_in_simples x args = false ->
-  exec_named st h ((x, v) :: vars) (Prim p args)
-  = exec_named st h vars (Prim p args).
+  heap_exec_named st h ((x, v) :: vars) (Prim p args)
+  = heap_exec_named st h vars (Prim p args).
 Proof.
-  intros Hunused. cbn [exec_named].
+  intros Hunused. cbn [heap_exec_named].
   rewrite (eval_simples_unused _ _ _ _ Hunused). reflexivity.
 Qed.
 
@@ -5912,14 +5914,14 @@ Proof.
   intros x y x_kind y_kind p args body Heffects Hcoeffects Hdistinct Hunused
     vars conts st h
     Hclosed.
-  destruct (exec_named st h vars (Prim p args)) as [[v h1] | ] eqn:Hexec.
+  destruct (heap_exec_named st h vars (Prim p args)) as [[v h1] | ] eqn:Hexec.
   2: { apply heap_refines_undefined. rewrite heap_step_let, Hexec.
        reflexivity. }
   destruct (kind_eqb (kind_of_value v) x_kind) eqn:Hkind_x.
   2: { apply heap_refines_undefined. rewrite heap_step_let, Hexec, Hkind_x.
        reflexivity. }
   assert (Hsame : h1 = h).
-  { cbn [exec_named] in Hexec.
+  { cbn [heap_exec_named] in Hexec.
     destruct (eval_simples vars args) as [vs | ]; [ | discriminate ].
     change (exec_prim st h p vs = Some (v, h1)) in Hexec.
     destruct Heffects as [Heff | Heff].
@@ -5944,11 +5946,11 @@ Proof.
   destruct (kind_eqb (kind_of_value v) y_kind) eqn:Hkind_y.
   2: { apply heap_refines_undefined. unfold s1.
        rewrite heap_step_let,
-         (exec_named_prim_unused _ _ _ _ _ _ _ Hunused), Hexec, Hkind_y.
+         (heap_exec_named_prim_unused _ _ _ _ _ _ _ Hunused), Hexec, Hkind_y.
        reflexivity. }
   assert (Hstep2 : heap_step s1 = Heap_step s2).
   { unfold s1.
-    rewrite heap_step_let, (exec_named_prim_unused _ _ _ _ _ _ _ Hunused),
+    rewrite heap_step_let, (heap_exec_named_prim_unused _ _ _ _ _ _ _ Hunused),
       Hexec, Hkind_y.
     reflexivity. }
   apply (heap_refines_after_source_step _ s2 _ Hstep2).
@@ -5958,7 +5960,7 @@ Proof.
           st h)).
   { rewrite heap_step_let, Hexec, Hkind_x. reflexivity. }
   apply (heap_refines_after_target_step _ _ s2).
-  { rewrite heap_step_let. cbn [exec_named eval_named eval_simple]. simpl.
+  { rewrite heap_step_let. cbn [heap_exec_named eval_named eval_simple]. simpl.
     rewrite Pos.eqb_refl, Hkind_y. reflexivity. }
   apply heap_refines_reflexive.
   apply (heap_step_closed s1 s2); [ | exact Hstep2 ].
@@ -5972,7 +5974,7 @@ Proof.
   intros x y x_kind y_kind p q args_p args_q body Heffects Hcoeffects
     Hdistinct Hx Hy vars
     conts st h Hclosed.
-  destruct (exec_named st h vars (Prim p args_p)) as [[vp hp] | ] eqn:Hp.
+  destruct (heap_exec_named st h vars (Prim p args_p)) as [[vp hp] | ] eqn:Hp.
   2: { apply heap_refines_undefined. rewrite heap_step_let, Hp.
        reflexivity. }
   destruct (kind_eqb (kind_of_value vp) x_kind) eqn:Hkind_x.
@@ -5982,7 +5984,7 @@ Proof.
             ∃ vs : list value,
               eval_simples vars args_p = Some vs
               ∧ exec_prim st h p vs = Some (vp, hp)).
-  { cbn [exec_named] in Hp.
+  { cbn [heap_exec_named] in Hp.
     destruct (eval_simples vars args_p) as [vs | ]; [ | discriminate ].
     exists vs. split; [ reflexivity | exact Hp ]. }
   destruct Hpure as (vs & Hvs & Hexec_p).
@@ -6000,19 +6002,20 @@ Proof.
             = Heap_step s1).
   { rewrite heap_step_let, Hp, Hkind_x. reflexivity. }
   apply (heap_refines_after_source_step _ s1 _ Hstep1).
-  destruct (exec_named st h vars (Prim q args_q)) as [[vq h2] | ] eqn:Hq.
+  destruct (heap_exec_named st h vars (Prim q args_q)) as [[vq h2] | ] eqn:Hq.
   2: { apply heap_refines_undefined. unfold s1.
-       rewrite heap_step_let, (exec_named_prim_unused _ _ _ _ _ _ _ Hx), Hq.
+       rewrite heap_step_let, (heap_exec_named_prim_unused _ _ _ _ _ _ _ Hx),
+         Hq.
        reflexivity. }
   destruct (kind_eqb (kind_of_value vq) y_kind) eqn:Hkind_y.
   2: { apply heap_refines_undefined. unfold s1.
-       rewrite heap_step_let, (exec_named_prim_unused _ _ _ _ _ _ _ Hx), Hq,
-         Hkind_y.
+       rewrite heap_step_let, (heap_exec_named_prim_unused _ _ _ _ _ _ _ Hx),
+         Hq, Hkind_y.
        reflexivity. }
   pose (s2 := Heap_state body ((y, vq) :: (x, vp) :: vars) conts st h2).
   assert (Hstep2 : heap_step s1 = Heap_step s2).
   { unfold s1.
-    rewrite heap_step_let, (exec_named_prim_unused _ _ _ _ _ _ _ Hx), Hq,
+    rewrite heap_step_let, (heap_exec_named_prim_unused _ _ _ _ _ _ _ Hx), Hq,
       Hkind_y.
     reflexivity. }
   apply (heap_refines_after_source_step _ s2 _ Hstep2).
@@ -6021,13 +6024,14 @@ Proof.
             conts st h2).
   pose (t2 := Heap_state body ((x, vp) :: (y, vq) :: vars) conts st h2).
   assert (Hp2 :
-            exec_named st h2 ((y, vq) :: vars) (Prim p args_p)
+            heap_exec_named st h2 ((y, vq) :: vars) (Prim p args_p)
             = Some (vp, h2)).
-  { rewrite (exec_named_prim_unused _ _ _ _ _ _ _ Hy). cbn [exec_named].
+  { rewrite (heap_exec_named_prim_unused _ _ _ _ _ _ _ Hy).
+    cbn [heap_exec_named].
     rewrite Hvs.
     exact
       (no_coeffects _ _ _ _ _ _ _ Heffects Hcoeffects
-         (exec_named_evolves _ _ _ _ _ _ Hq) Hexec_p). }
+         (heap_exec_named_evolves _ _ _ _ _ _ Hq) Hexec_p). }
   apply (heap_refines_after_target_step _ _ t1).
   { rewrite heap_step_let, Hq, Hkind_y. reflexivity. }
   apply (heap_refines_after_target_step _ _ t2).
@@ -6252,7 +6256,7 @@ Proof.
        | ac | scrutinee arms | ];
     simpl in Havoid, Hbinds |- *.
   - (* Let *)
-    destruct (exec_named st h vars d) as [[v h1] | ]; [ | discriminate ].
+    destruct (heap_exec_named st h vars d) as [[v h1] | ]; [ | discriminate ].
     destruct (kind_eqb (kind_of_value v) x_kind); [ | discriminate ].
     intros [= <-]. apply andb_true_iff in Havoid as [_ Havoid].
     split; [ exact Havoid | ]. split; [ exact Hbinds | ].
@@ -6644,12 +6648,12 @@ Proof.
     Hbody_binds
     Henvs Hheap_free Hclosed.
   destruct
-    (exec_named statics h vars
+    (heap_exec_named statics h vars
        (Prim (Variadic (Make_block (Block_kind_values tag))) fields))
     as [[v h1] | ] eqn:Hexec.
   2: { apply heap_refines_undefined. rewrite heap_step_let, Hexec.
        reflexivity. }
-  pose proof Hexec as Hexec0. cbn [exec_named] in Hexec.
+  pose proof Hexec as Hexec0. cbn [heap_exec_named] in Hexec.
   destruct (eval_simples vars fields) as [vs | ] eqn:Hvs; [ | discriminate ].
   change
     (exec_prim statics h (Variadic (Make_block (Block_kind_values tag))) vs
@@ -6729,10 +6733,10 @@ Proof.
     Hbody_avoids Hbody_binds Henvs Hheap_free Hclosed.
   destruct (eval_value_slots vars value_slots) as [vs | ] eqn:Hvs.
   2: { apply heap_refines_undefined. rewrite heap_step_let.
-       cbn [exec_named eval_named]. rewrite Hvs. reflexivity. }
+       cbn [heap_exec_named eval_named]. rewrite Hvs. reflexivity. }
   destruct (kind_eqb Value x_kind) eqn:Hkind.
   2: { apply heap_refines_undefined. rewrite heap_step_let.
-       cbn [exec_named eval_named]. rewrite Hvs. cbn [kind_of_value].
+       cbn [heap_exec_named eval_named]. rewrite Hvs. cbn [kind_of_value].
        rewrite Hkind. reflexivity. }
   unfold kind_eqb in Hkind.
   destruct (kind_eq_dec Value x_kind) as [<- | _];
@@ -6741,7 +6745,7 @@ Proof.
   apply
     (heap_refines_after_source_step _
        (Heap_state body ((x, Value_closure code vs) :: vars) conts statics h)).
-  { rewrite heap_step_let. cbn [exec_named eval_named]. rewrite Hvs.
+  { rewrite heap_step_let. cbn [heap_exec_named eval_named]. rewrite Hvs.
     reflexivity. }
   apply
     (heap_refines_after_target_step _ _
@@ -6854,11 +6858,11 @@ Proof.
     [ | exfalso; exact (Hdecls slot s (lookup_in _ _ _ Hslot) Hcode) ].
   destruct (eval_value_slots vars value_slots) as [vs | ] eqn:Hvs.
   2: { apply heap_refines_undefined. rewrite heap_step_let.
-       cbn [exec_named eval_named]. rewrite Hcode. simpl. rewrite Hvs.
+       cbn [heap_exec_named eval_named]. rewrite Hcode. simpl. rewrite Hvs.
        reflexivity. }
   destruct (kind_eqb Value x_kind) eqn:Hkind.
   2: { apply heap_refines_undefined. rewrite heap_step_let.
-       cbn [exec_named eval_named]. rewrite Hcode. cbn [is_some].
+       cbn [heap_exec_named eval_named]. rewrite Hcode. cbn [is_some].
        rewrite Hvs. cbn [kind_of_value]. rewrite Hkind. reflexivity. }
   unfold kind_eqb in Hkind.
   destruct (kind_eq_dec Value x_kind) as [<- | _];
@@ -6872,7 +6876,7 @@ Proof.
     (heap_refines_after_source_step _
        (Heap_state body ((x, Value_closure_of_set slot decls vs) :: vars)
           conts statics h)).
-  { rewrite heap_step_let. cbn [exec_named eval_named]. rewrite Hcode.
+  { rewrite heap_step_let. cbn [heap_exec_named eval_named]. rewrite Hcode.
     simpl. rewrite Hvs. reflexivity. }
   apply
     (heap_refines_after_target_step _ _

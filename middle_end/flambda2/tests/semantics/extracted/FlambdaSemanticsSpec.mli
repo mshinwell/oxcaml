@@ -40,6 +40,8 @@ val eval_value_slots :
 
 val eval_named : static_env -> env -> named -> value option
 
+val exec_named : static_env -> heap -> env -> named -> (value * heap) option
+
 val eval_static_const : env -> static_const -> statically_allocated_value option
 
 val eval_static_bindings :

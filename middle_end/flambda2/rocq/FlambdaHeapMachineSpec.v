@@ -101,7 +101,7 @@ Inductive heap_step_result : Type :=
 
 (* FlambdaSemanticsSpec.eval_named, with the heap. Only a primitive may
    change it. *)
-Definition exec_named (statics : static_env) (h : heap) (vars : env)
+Definition heap_exec_named (statics : static_env) (h : heap) (vars : env)
     (defining_expr : named) : option (value * heap) :=
   match defining_expr with
   | Prim p args =>
@@ -200,7 +200,7 @@ Definition heap_call_function (callee : value) (kind : call_kind)
 Definition heap_step (s : heap_state) : heap_step_result :=
   match s with
   | Heap_state (Let x kind defining_expr body) vars conts statics h =>
-    match exec_named statics h vars defining_expr with
+    match heap_exec_named statics h vars defining_expr with
     | Some (v, h') =>
       if kind_eqb (kind_of_value v) kind
       then Heap_step (Heap_state body ((x, v) :: vars) conts statics h')

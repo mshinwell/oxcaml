@@ -1187,3 +1187,189 @@ Proof.
           | exact (FlambdaPrimitiveProofs.array_element_kind _ _ Hok) ].
       * exact (Hheap l _ v0 Hc Hold).
 Qed.
+
+(* ======================================================================== *)
+(* The primitives on a heap and [eval_prim]                                 *)
+(* ======================================================================== *)
+
+Theorem exec_prim_heap : exec_prim_heap_statement.
+Proof.
+  intros statics h h' p vs v Hnot Hexec.
+  apply exec_prim_bound in Hexec as [_ Hexec].
+  exact (exec_bound_prim_not_heap _ _ _ _ _ _ Hnot Hexec).
+Qed.
+
+(* A primitive that does not read the heap has no value on a location,
+   by [eval_prim] or on a cell. *)
+Local Ltac by_cases_to_none :=
+  repeat match goal with
+         | x : ?T |- _ =>
+           lazymatch T with
+           | static_env => fail
+           | location => fail
+           | value => fail
+           | Z => fail
+           | _ => destruct x
+           end
+         end;
+  reflexivity.
+
+Lemma eval_unary_on_location (statics : static_env) (p : unary_primitive)
+    (l : location) :
+  prim_reads_heap (Unary p) = false ->
+  eval_unary_primitive statics p (Value_location l) = None.
+Proof.
+  intros Hreads.
+  destruct p; try discriminate Hreads; clear Hreads; by_cases_to_none.
+Qed.
+
+Lemma exec_unary_on_cell_reads_heap (p : unary_primitive) (l : location)
+    (c : cell) :
+  prim_reads_heap (Unary p) = false -> exec_unary_on_cell p l c = None.
+Proof.
+  intros Hreads. destruct c; destruct p; try discriminate Hreads; reflexivity.
+Qed.
+
+Lemma eval_binary_on_location (statics : static_env) (p : binary_primitive)
+    (l : location) (v2 : value) :
+  prim_reads_heap (Binary p) = false ->
+  eval_binary_primitive statics p (Value_location l) v2 = None.
+Proof.
+  intros Hreads.
+  destruct p; try discriminate Hreads; clear Hreads; by_cases_to_none.
+Qed.
+
+Lemma exec_binary_on_cell_reads_heap (p : binary_primitive) (l : location)
+    (c : cell) (v2 : value) :
+  prim_reads_heap (Binary p) = false -> exec_binary_on_cell p l c v2 = None.
+Proof.
+  intros Hreads. destruct c; destruct p; try discriminate Hreads; reflexivity.
+Qed.
+
+(* A primitive that does not read the heap is [eval_prim] on arguments
+   that are bound. *)
+Lemma exec_bound_prim_eval_prim (statics : static_env) (h : heap) (p : prim)
+    (vs : list value) :
+  prim_reads_heap p = false ->
+  exec_bound_prim statics h p vs
+  = let* v := eval_prim statics p vs in
+    Some (v, h).
+Proof.
+  intros Hreads.
+  destruct p as [p | p | p | q]; [ | | reflexivity | discriminate Hreads ].
+  - destruct vs as [ | v0 [ | v1 vs]];
+      [ reflexivity | | destruct v0; reflexivity ].
+    rewrite exec_bound_prim_unary.
+    destruct (location_of v0) as [l | ] eqn:Hl; [ | reflexivity ].
+    destruct v0; try discriminate Hl. injection Hl as ->.
+    change (eval_prim statics (Unary p) [Value_location l])
+      with (eval_unary_primitive statics p (Value_location l)).
+    rewrite (eval_unary_on_location _ _ _ Hreads).
+    destruct (lookup l h) as [c | ]; simpl; [ | reflexivity ].
+    rewrite (exec_unary_on_cell_reads_heap _ _ _ Hreads). reflexivity.
+  - rewrite exec_bound_prim_binary.
+    destruct (phys_equal_on_location p vs) eqn:Hphys.
+    + destruct p; try discriminate Hphys. discriminate Hreads.
+    + destruct (binary_on_cell p vs) as [[l v2] | ] eqn:Hcell;
+        [ | reflexivity ].
+      assert (Hvs : vs = [Value_location l; v2]).
+      { destruct p; try discriminate Hcell;
+          destruct vs as [ | v1 [ | v2' [ | v3 vs]]]; try discriminate Hcell;
+          destruct v1; try discriminate Hcell;
+          injection Hcell as -> ->; reflexivity. }
+      subst vs.
+      change (eval_prim statics (Binary p) [Value_location l; v2])
+        with (eval_binary_primitive statics p (Value_location l) v2).
+      rewrite (eval_binary_on_location _ _ _ _ Hreads).
+      destruct (lookup l h) as [c | ]; simpl; [ | reflexivity ].
+      rewrite (exec_binary_on_cell_reads_heap _ _ _ _ Hreads). reflexivity.
+Qed.
+
+Theorem exec_prim_eval_prim : exec_prim_eval_prim_statement.
+Proof.
+  intros statics h h' p vs v Hreads Hexec.
+  apply exec_prim_bound in Hexec as [_ Hexec].
+  rewrite (exec_bound_prim_eval_prim _ _ _ _ Hreads) in Hexec.
+  destruct (eval_prim statics p vs) as [v0 | ]; [ | discriminate ].
+  injection Hexec as <- <-. split; reflexivity.
+Qed.
+
+Theorem eval_prim_exec_prim : eval_prim_exec_prim_statement.
+Proof.
+  intros statics h p vs v Hreads Hbound Heval.
+  unfold exec_prim.
+  assert (Hall : forallb (argument_bound statics h) vs = true).
+  { apply forallb_forall. intros arg Harg.
+    destruct arg as [c | code slots | fslot decls slots | s | tag fields | c
+                    | l | callee applied applied_arity];
+      try reflexivity.
+    - simpl. unfold is_bound.
+      pose proof
+        (FlambdaPrimitiveProofs.eval_prim_symbols_bound _ _ _ _ _ Heval Harg)
+        as Hs.
+      destruct (lookup s (static_values statics)); [ reflexivity | ].
+      contradiction Hs. reflexivity.
+    - exact (Hbound l Harg). }
+  rewrite Hall, (exec_bound_prim_eval_prim _ _ _ _ Hreads), Heval.
+  reflexivity.
+Qed.
+
+(* A primitive that is not of the heap is [eval_prim] on arguments that
+   are bound and none of which is a location. *)
+Lemma exec_bound_prim_no_location (statics : static_env) (h : heap)
+    (p : prim) (vs : list value) :
+  (∀ q : heap_primitive, p <> Heap q) ->
+  (∀ l : location, Value_location l ∉ vs) ->
+  exec_bound_prim statics h p vs
+  = let* v := eval_prim statics p vs in
+    Some (v, h).
+Proof.
+  intros Hnot Hnone.
+  assert (Hfirst :
+            ∀ (l : location) (rest : list value),
+              vs = Value_location l :: rest -> False).
+  { intros l rest ->. apply (Hnone l). left. reflexivity. }
+  assert (Hsecond :
+            ∀ (v1 : value) (l : location) (rest : list value),
+              vs = v1 :: Value_location l :: rest -> False).
+  { intros v1 l rest ->. apply (Hnone l). right. left. reflexivity. }
+  destruct p as [p | p | p | q];
+    [ | | reflexivity | contradiction (Hnot q eq_refl) ].
+  - destruct vs as [ | v0 [ | v1 vs]];
+      [ reflexivity | | destruct v0; reflexivity ].
+    destruct v0; try reflexivity.
+    contradiction (Hfirst _ _ eq_refl).
+  - destruct vs as [ | v1 [ | v2 [ | v3 vs]]].
+    + destruct p; reflexivity.
+    + destruct v1; destruct p; reflexivity.
+    + destruct v1; try contradiction (Hfirst _ _ eq_refl);
+        destruct v2; try contradiction (Hsecond _ _ _ eq_refl);
+        destruct p; reflexivity.
+    + destruct v1; destruct p; reflexivity.
+Qed.
+
+Theorem exec_prim_no_location : exec_prim_no_location_statement.
+Proof.
+  intros statics h p vs Hnot Hnone.
+  unfold exec_prim.
+  destruct (forallb (argument_bound statics h) vs) eqn:Hall.
+  - exact (exec_bound_prim_no_location _ _ _ _ Hnot Hnone).
+  - (* An argument that is not bound is a symbol, and [eval_prim] has no
+       value on it. *)
+    destruct (eval_prim statics p vs) as [v | ] eqn:Heval; [ | reflexivity ].
+    exfalso.
+    assert (Hbound : forallb (argument_bound statics h) vs = true).
+    { apply forallb_forall. intros arg Harg.
+      destruct arg as [c | code slots | fslot decls slots | s | tag fields | c
+                      | l | callee applied applied_arity];
+        try reflexivity.
+      - simpl. unfold is_bound.
+        pose proof
+          (FlambdaPrimitiveProofs.eval_prim_symbols_bound _ _ _ _ _ Heval
+             Harg)
+          as Hs.
+        destruct (lookup s (static_values statics)); [ reflexivity | ].
+        contradiction Hs. reflexivity.
+      - contradiction (Hnone l Harg). }
+    rewrite Hbound in Hall. discriminate Hall.
+Qed.

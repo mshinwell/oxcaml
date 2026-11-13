@@ -880,20 +880,20 @@ Proof.
        v l Heval Hl).
 Qed.
 
-Theorem exec_named_permuted : exec_named_permuted_statement.
+Theorem heap_exec_named_permuted : heap_exec_named_permuted_statement.
 Proof.
   intros p statics h vars d Hheap Hvars.
   destruct d as [s | prim args | code slots | fslot decls slots
     | slot closure | pfrom slot closure | move_from move_to closure];
     try
-      (exists p; split; [ reflexivity | ]; unfold exec_named;
+      (exists p; split; [ reflexivity | ]; unfold heap_exec_named;
        rewrite eval_named_permuted;
        match goal with
        | |- context [eval_named statics vars ?d] =>
          destruct (eval_named statics vars d)
        end;
        reflexivity).
-  unfold exec_named. rewrite eval_simples_permuted.
+  unfold heap_exec_named. rewrite eval_simples_permuted.
   destruct (eval_simples vars args) as [vs | ] eqn:Hargs; simpl.
   - apply exec_prim_permuted; [ exact Hheap | ].
     intros l Hl. apply Hvars.
@@ -901,14 +901,14 @@ Proof.
   - exists p. split; reflexivity.
 Qed.
 
-Theorem exec_named_keeps_locations_bound :
-  exec_named_keeps_locations_bound_statement.
+Theorem heap_exec_named_keeps_locations_bound :
+  heap_exec_named_keeps_locations_bound_statement.
 Proof.
   intros statics h h' vars d v Hheap Hvars Hstatics Hexec.
   destruct d as [s | prim args | code slots | fslot decls slots
     | slot closure | pfrom slot closure | move_from move_to closure];
     try
-      (unfold exec_named in Hexec;
+      (unfold heap_exec_named in Hexec;
        match type of Hexec with
        | context [eval_named statics vars ?d] =>
          destruct (eval_named statics vars d) as [v0 | ] eqn:Heval;
@@ -923,7 +923,7 @@ Proof.
             (eval_named_locations statics vars _ v0 l Heval Hl))
          as [Hin | Hin];
        [ exact (Hstatics l Hin) | exact (Hvars l Hin) ]).
-  unfold exec_named in Hexec.
+  unfold heap_exec_named in Hexec.
   destruct (eval_simples vars args) as [vs | ] eqn:Hargs; [ | discriminate ].
   apply (exec_prim_keeps_locations_bound statics h h' prim vs v Hheap);
     [ | exact Hstatics | exact Hexec ].
