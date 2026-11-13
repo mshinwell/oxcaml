@@ -132,6 +132,11 @@ a `CR` at the place in the `Spec` file.
   `FlambdaHeapMachineSpec.outcome_related`, of outcomes that carry
   their static environments); it is not started without the human.
   Decided for the interim, as the strict side; open.
+- **D41.** An import of which nothing is known (`Import_unknown`) has no
+  value under `Phys_equal`, even against itself, where the program
+  answers true; and nothing that inspects it has a value. The model says
+  less than the program does there, never more. Decided, for the review
+  of the human.
 
 ## Discrepancies with the compiler
 

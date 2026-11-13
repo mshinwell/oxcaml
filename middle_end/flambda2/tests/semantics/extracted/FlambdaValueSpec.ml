@@ -27,6 +27,7 @@ let kind_of_value = function Value_const c -> kind_of_const c | _ -> Value
 type import_class =
   | Import_identity
   | Import_data
+  | Import_unknown
 
 type statically_allocated_value =
   | Static_closure of code_id * (value_slot * value) list
@@ -254,9 +255,14 @@ let imported_of statics = function
     | None -> None)
   | _ -> None
 
-(** val is_imported : static_env -> value -> bool **)
+(** val is_imported_pointer : static_env -> value -> bool **)
 
-let is_imported statics v = is_some (imported_of statics v)
+let is_imported_pointer statics v =
+  match imported_of statics v with
+  | Some p -> (
+    let _, i = p in
+    match i with Import_unknown -> false | _ -> true)
+  | None -> false
 
 (** val identity_of : static_env -> value -> symbol option **)
 
@@ -264,5 +270,5 @@ let identity_of statics v =
   match imported_of statics v with
   | Some p -> (
     let s, i = p in
-    match i with Import_identity -> Some s | Import_data -> None)
+    match i with Import_identity -> Some s | _ -> None)
   | None -> None

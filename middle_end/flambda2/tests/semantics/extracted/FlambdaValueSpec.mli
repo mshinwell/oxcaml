@@ -25,6 +25,7 @@ val kind_of_value : value -> flambda_kind
 type import_class =
   | Import_identity
   | Import_data
+  | Import_unknown
 
 type statically_allocated_value =
   | Static_closure of code_id * (value_slot * value) list
@@ -89,6 +90,6 @@ val is_allocated : static_env -> value -> bool
 
 val imported_of : static_env -> value -> (symbol * import_class) option
 
-val is_imported : static_env -> value -> bool
+val is_imported_pointer : static_env -> value -> bool
 
 val identity_of : static_env -> value -> symbol option
