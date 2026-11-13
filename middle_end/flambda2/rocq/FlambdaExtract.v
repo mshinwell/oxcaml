@@ -68,7 +68,7 @@ From OxCamlFlambda2 Require Import FlambdaMapSpec FlambdaModel
   FlambdaUnboxSpec
   FlambdaUnusedContsSpec FlambdaUnusedParamsSpec FlambdaUnusedStaticsSpec
   FlambdaValidateImportsSpec
-  FlambdaValidateSpec FlambdaValidateKnowingSpec.
+  FlambdaValidateSpec FlambdaValidateKnowingSpec FlambdaValidateRelatedSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
 From OxCamlFlambda2Types Require Import FlambdaBindingTime.
 From OxCamlFlambda2Types Require Import FlambdaJoinEnv.
@@ -274,6 +274,7 @@ Separate Extraction
   unit_exn_handlers_well_formed
   validate_unit
   validate_unit_knowing
+  validate_unit_related
   verdict_holds_from
   verdict_knowing_holds_from
   well_formed_unit
