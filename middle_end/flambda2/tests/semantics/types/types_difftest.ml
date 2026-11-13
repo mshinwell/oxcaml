@@ -5869,8 +5869,8 @@ let the_line_of_t7_13_in_every_order () =
    of tag 0 and one field: the variable 1 has tag 0, and its field, the variable
    3, is the variable 2, which is the variable 1; and the extension of tag 0
    gives the variable 3 two fields, where the variable 1 has one. No value has
-   both. The model answers bottom. Neither meet of the compiler does, in any
-   order of the identifiers.
+   both. The model answers bottom. Neither meet of the compiler does, in each of
+   the twenty-four orders of the identifiers of the four variables.
 
    Between the model and the n-way meet the difference is T4-21, which the owner
    of the meet found by a trace of the model on this line; the compiler was not

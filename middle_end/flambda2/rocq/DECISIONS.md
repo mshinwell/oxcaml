@@ -690,10 +690,11 @@ says so. Only the labels that this tree cites are listed.
   the n-way meet alike; the model is bottom. T4-10, found by proof,
   reached by a run.
 - **T7-14.** On a line of five equations on four values the model's meet
-  answers bottom and neither meet of the compiler does, in any order of
-  the identifiers: a variable on which a case of a variant has an
-  extension becomes an alias of the variant itself while an equation is
-  being added to it. Bottom is the precise answer. Between the model
+  answers bottom and neither meet of the compiler does, in each of the
+  twenty-four orders of the identifiers of its four variables: a
+  variable on which a case of a variant has an extension becomes an
+  alias of the variant itself while an equation is being added to it.
+  Bottom is the precise answer. Between the model
   and the n-way meet it is T4-21, found by a trace of the model: the
   model adds equations on the same names again in opposite orders, the
   compiler in the order of the names each time. With either order
