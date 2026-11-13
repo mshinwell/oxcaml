@@ -1,0 +1,56 @@
+let $camlCall_of_call_tested__first_const_0 = Block 0 () in
+(let code inline(never) size(3)
+       next_0 (n/61 : imm tagged)
+         my_closure/62 &my_alloc_region/63 my_depth/64
+         -> k/26 * k/27
+         : imm tagged =
+   let next_depth/65 = rec_info (succ my_depth/64) in
+   let int_add/66 = %int_barith.add (n/61, 1) in
+   cont k/26 (int_add/66)
+ in
+ let code inline(never) size(5)
+       small_1 (n/67 : imm tagged)
+         my_closure/68 &my_alloc_region/69 my_depth/70
+         -> k/28 * k/29
+         : imm tagged =
+   let next_depth/71 = rec_info (succ my_depth/70) in
+   let prim/72 = %int_comp.lt (n/67, 10) in
+   let int_lessthan/73 = %tag_imm (prim/72) in
+   cont k/28 (int_lessthan/73)
+ in
+ let next/74 = closure next_0 @next &toplevel in
+ let small/75 = closure small_1 @small &toplevel in
+ (let Popaque/87 = %opaque (40) in
+  apply direct(next_0 &toplevel)
+    (next/74 : _ -> imm tagged) (Popaque/87) -> k/35 * error)
+   where k/35 (apply_result/86 : imm tagged) =
+     apply direct(small_1 &toplevel)
+       (small/75 : _ -> [ 0 |1 ]) (apply_result/86) -> k/34 * error
+   where k/34 (apply_result/84 : [ 0 |1 ]) =
+     let untagged/85 = %untag_imm (apply_result/84) in
+     switch untagged/85
+       | 0 -> k/30 (20)
+       | 1 -> k/30 (10)
+   where k/30 (switch_result/76 : imm tagged) =
+     ((let Popaque/83 = %opaque (4) in
+       apply direct(next_0 &toplevel)
+         (next/74 : _ -> imm tagged) (Popaque/83) -> k/33 * error)
+        where k/33 (apply_result/82 : imm tagged) =
+          apply direct(small_1 &toplevel)
+            (small/75 : _ -> [ 0 |1 ]) (apply_result/82) -> k/32 * error
+        where k/32 (apply_result/80 : [ 0 |1 ]) =
+          let untagged/81 = %untag_imm (apply_result/80) in
+          switch untagged/81
+            | 0 -> k/31 (2)
+            | 1 -> k/31 (1)
+        where k/31 (switch_result/77 : imm tagged) =
+          let result/78 =
+            %int_barith.add (switch_result/77, switch_result/76)
+          in
+          let Pmakeblock/79 = %block.[`0`].`toplevel` (result/78) in
+          cont k/25 (Pmakeblock/79)))
+  where k/25 define_root_symbol (module_block/59) =
+    let field_0/60 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/59)
+    in
+    let $camlCall_of_call_tested = Block 0 (field_0/60) in
+    cont done ($camlCall_of_call_tested)

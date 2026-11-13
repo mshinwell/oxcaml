@@ -943,6 +943,16 @@ removed it:
   continuations moves a binding down as far as the bindings under
   it allow, where it moved one only if it reached a use
   (`FlambdaSinkUsesSpec.sink_conts_to_uses`, V4's).
+- A continuation that the term after binds in the handler of another
+  (`call_of_call_tested.ml`): the result of a call is the argument of
+  a second call, whose boolean result is tested. The front end binds
+  the continuation that tests above the one that the first call
+  returns to; Simplify, which untags the boolean, makes the second
+  call return to a new continuation, bound at that call, in the
+  handler of the first. The placing of continuations takes a binding
+  into the handler of a continuation that is not recursive where
+  only that handler names it (`FlambdaSinkUsesSpec.sink_to_use`,
+  V4's).
 - An application that Simplify leaves going through a continuation
   whose handler is one jump (`local_block_matched.ml`,
   `local_block_matched_argument.ml`, `loop_result_passed_round.ml`,
