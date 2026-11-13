@@ -45,13 +45,20 @@ compare the term made with `X.fl` and what the tool prints with
 - `from_ocaml.sh` refuses a unit of whose term the text loses
   something that the tool cannot give back. It compiles the unit once
   more, for what `-drawflambda` prints of the term before Simplify,
-  and fails on two things. The test of being an integer that is for
+  and fails on three things. The test of being an integer that is for
   any value (`Is_int_generic`), which the text writes as the test for
   variants (label C2-26), unless `generic_is_int.txt` names the unit.
   A call that is a probe: the text does not say that it is one, and
   the program runs the handler of a probe only while the probe is
-  enabled (label C2-17). `script/` has a unit with a probe and the
-  same unit without it, and what the script says of each.
+  enabled (label C2-17). A call of unknown arity, where such a call
+  has an unboxed product among its arguments or code of the unit has
+  one among its parameters, the product of nothing included: the
+  text groups neither the arguments of a call nor the parameters of
+  code, and writes nothing for one of no kind, so that a partial
+  application or an over-application may be read as a full one
+  (labels C2-5 and C2-30). `script/` has a unit for each of these
+  refusals and, for most, the same unit without the reason for it,
+  with what the script says of each.
 - The sources are formatted by `ocamlformat`, as `make fmt` wants, but
   for those that it does not read, which `.ocamlformat-ignore` names:
   the sources that have an unboxed tuple, a parameter marked `local_`
@@ -1385,7 +1392,7 @@ compared.
   the kind of an `Opaque_identity`, and the reader gives every one
   the kind of values. The tool gives each the kind of its argument,
   as the reader has it, before anything else is done with a unit
-  read from a text (`with_opaque_kinds` in
+  read from a text (`with_lost_kinds` in
   `middle_end/flambda2/tests/tools/flsemantics.ml`; discrepancy
   C2-27). That is the kind which the compiler's term had on two
   conditions: the kind that the reader has for the argument is the
@@ -1406,6 +1413,34 @@ compared.
   not put that right. No unit of this directory has the test that
   is for any value, and `from_ocaml.sh` fails on a unit that has it
   and that `generic_is_int.txt` does not name; that list is empty.
+- Of a call the text loses the arity of its arguments, where the
+  call is direct or of unknown arity, and the reader gives such a
+  call one value for each argument: a unit that gives a function an
+  unboxed number was undefined in the model as read (discrepancy
+  C2-5). In the same step as for an `Opaque_identity`, the tool
+  gives a direct call the kinds of the parameters of the code that
+  it names, which is what the conversion from Lambda made the arity
+  of such a call, and a call of unknown arity the kinds of its
+  arguments as the reader has them, on the two conditions said
+  above (`unboxed_float_argument.ml` and the three units beside it,
+  each undefined as read before). What it cannot give back is the
+  grouping: in the compiler's term an argument that is an unboxed
+  product is one component of several kinds, or of none, which an
+  application counts as one against the parameters of the code, and
+  the text has as many arguments as kinds, at a call and in the
+  parameters of code alike. A direct call has the parameters of its
+  code. Of a call of unknown arity nothing tells: read flat, a
+  partial application that stops before a parameter of no kind is
+  a full application, and so is an over-application whose last
+  argument has no kind (discrepancy C2-30; the tool printed an
+  integer where the program has a closure, and a closure where it
+  has an integer, of two units that are not here). So
+  `from_ocaml.sh` fails on a unit that has a call of unknown arity
+  if such a call has a product among its arguments or code of the
+  unit has one among its parameters; no unit of this directory is
+  one. The text does not say that a call is a probe either
+  (discrepancy C2-17), and `from_ocaml.sh` fails on a unit that has
+  one.
 - Two things that the tool refuses, to stay clear of two ways in
   which the term of the model may not be the program. Neither
   refusal shows that it is not: each refuses more than it need. A
@@ -1533,8 +1568,10 @@ It differs from the first way in three things:
   (`result_arity_lost`) is not made: the term has the arity. Nor is
   the term changed as a term read from a text is before it is checked
   (`as_read_from_text`, which gives each `Opaque_identity` the kind
-  of its argument and every parameter of code the mode unknown): the
-  term in memory has its kinds and its modes.
+  of its argument, each direct call and each call of unknown arity
+  an arity for its arguments, and every parameter of code the mode
+  unknown): the term in memory has its kinds, its arities and its
+  modes.
 - No second Simplify. The first way runs Simplify itself on the term
   read. Here the term after is the one that the compiler's Simplify
   returned, in the compilation that made the term before.

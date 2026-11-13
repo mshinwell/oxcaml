@@ -1,0 +1,37 @@
+let $camlUnboxed_pair_with_float_argument__first_const_0 = Block 0 () in
+(let code inline(never) size(15)
+       f_0
+         (param_12_unboxed0/42 : float,
+          param_12_unboxed1/43,
+          m/44 : imm tagged)
+         my_closure/45 &my_alloc_region/46 my_depth/47
+         -> k/12 * k/13
+         : [ 0 of float boxed * imm tagged ] =
+   let next_depth/48 = rec_info (succ my_depth/47) in
+   let int_add/49 = %int_barith.add (param_12_unboxed1/43, m/44) in
+   let `float_of_float#/50` =
+     %box_num.`float`.my_alloc_region/46 (param_12_unboxed0/42)
+   in
+   let Pmakeblock/51 =
+     %block.[`0`].my_alloc_region/46 (`float_of_float#/50`, int_add/49)
+   in
+   cont k/12 (Pmakeblock/51)
+ in
+ let f/52 = closure f_0 @f &toplevel in
+ (let Popaque/55 = %opaque (3) in
+  apply direct(f_0 &toplevel)
+    (f/52 : _ -> [ 0 of float boxed * imm tagged ])
+      (0x1.8p+0, Popaque/55, 4)
+      -> k/14 * error)
+   where k/14 (result/53 : [ 0 of float boxed * imm tagged ]) =
+     let Pmakeblock/54 = %block.[`0`].`toplevel` (f/52, result/53) in
+     cont k/11 (Pmakeblock/54))
+  where k/11 define_root_symbol (module_block/39) =
+    let field_0/40 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/39)
+    in
+    let field_1/41 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/39)
+    in
+    let $camlUnboxed_pair_with_float_argument =
+      Block 0 (field_0/40, field_1/41)
+    in
+    cont done ($camlUnboxed_pair_with_float_argument)

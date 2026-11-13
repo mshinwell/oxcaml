@@ -124,7 +124,7 @@ it gave back.
   keeps both the variant flag and the opaque identity's kind; the text
   loses them first.
   A unit read from a text is normalised before Simplify and the
-  conversion see it (`with_opaque_kinds`, called in `check_file`; the
+  conversion see it (`with_lost_kinds`, called in `check_file`; the
   round trip of the conversion applies it to the unit of the file and
   to each unit that it reads back): every `Opaque_identity` is given
   the kind of its argument as the reader has it, which is the kind of
@@ -178,6 +178,101 @@ it gave back.
   it there; this does not say that the validator accepts every such
   pair. Neither comparing the two model runs nor proving refinement of
   that pair recovers the meaning lost from the program's term.
+  The text loses the arity of the arguments of a direct call and of a
+  call of unknown arity as well, and the reader gives such a call one
+  value for each argument (C2-5); a call of known arity has its arity
+  in the text. A unit that gives a function an unboxed number was
+  therefore undefined in the model as read, and the tool's Simplify
+  made a direct call of it `Invalid`. The same pass over a unit read
+  gives each such call an arity. A direct call is given the kinds of
+  the parameters of the code that it names, where the unit binds that
+  code and the call has as many arguments as the code has parameters.
+  The conversion from Lambda makes a call direct only where the arity
+  of its arguments is, parameter for parameter, that of the code
+  (`from_lambda/closure_conversion.ml`,
+  `close_exact_or_unknown_apply`, which makes any other `Invalid`),
+  and with the flags of the tests it knows no code but the unit's
+  own. So that is the arity which the compiler's call had, subkinds
+  and the grouping of unboxed products aside. Where the unit does not
+  bind the code, or the numbers differ, and an argument is not a
+  value, the unit is not checked (`kinds_call_unbound.fl`). A call of
+  unknown arity is given one kind for each argument, the kind that
+  the term read has for it. That is the arity which the compiler's
+  call had, subkinds aside, on three conditions. For each argument,
+  the kind obtained
+  for it is the kind of that argument in the compiler's term, which
+  can fail as it can for the argument of an `Opaque_identity`,
+  above. The arity of the compiler's call gave each argument the
+  kind of that argument: the compiler does not see to it, and
+  Simplify makes `Invalid` a call of which it is not so. And that
+  arity had one singleton component for each argument, with no
+  component that is an unboxed product.
+  The tool checks none of the three. Together they suffice, and they
+  are not necessary; where one fails no recovery of the compiler's
+  arity is claimed. Where the kind of an argument comes from a word
+  that the reader may misread, the unit is not checked
+  (`kinds_call_misread.fl`).
+  The arity so given is flat, one component for each argument that
+  the text writes, as the reader's was. The compiler's arity groups
+  the kinds of an argument that is an unboxed product, which may be
+  the product of nothing, and then the text does not write the
+  argument at all; and an application counts the groups against the
+  parameters of the code, to tell a full application from a partial
+  application or an over-application. The text has no grouping, at a
+  call or in the parameters that it writes for code, so the third
+  condition is one that the tool cannot test. A direct call is given
+  the parameters of its code, which are flattened alike. Of a call
+  of unknown arity, as far as the grouping goes and that alone (the
+  kinds are as said above, and the text loses the other things that
+  this entry lists): the call runs in the term read as in the
+  compiler's if neither the call nor the code that it reaches has a
+  group. If one of them has, it may not. A partial application that
+  stops before a parameter of no kind is read as a full application,
+  and so is an over-application whose last argument has no kind
+  (C2-30): the tool as it was printed, of two units not in this
+  tree, an integer where the program has a closure and a closure
+  where the program has an integer, with a bare "validated". The
+  loss is the text's: a term in memory has the component, the
+  conversion makes of it an unboxed product of no component, which
+  is one component of the arity of the model, and the model's
+  application counts it; the driver of the compiler's own run, of
+  the same two units, has the closure and the integer that the
+  programs have. And
+  where the call and the code group the same kinds differently,
+  which is ill-kinded in the compiler's term, the term read may be
+  defined where the compiler's is not. All of that was so before
+  this step of a call whose arguments are all values, which the
+  reader has always read flat; what the step would add is the same
+  of a call with an argument that is not a value, which was
+  undefined as read.
+  The scripts that make the texts of `tests/semantics/ocaml` refuse
+  the units in which that can happen, where the tool is to be run on
+  the unit (`from_ocaml.sh` there and in `pairs/`; `script/` there
+  has a unit for each refusal and, for most, the same unit without
+  the reason for it). From what `-drawflambda` prints of the term, a
+  unit that has a call of unknown arity is refused if such a call
+  has a group among its arguments, or if code that the unit binds
+  has one among its parameters. So in a unit that they let through,
+  no call of unknown arity has a group, and the code of the unit,
+  which is all that such a call can reach of what is read from the
+  text, has none: there the grouping is the compiler's. (Code of
+  another unit is not read from a text: it is taken from the `.cmx`
+  of that unit, with the arity that the compiler gave it.) No unit
+  of that directory was refused when the rules came. The refusal is
+  in the scripts and not in the tool: the tool cannot tell that a
+  text is of such a unit, and reads any text that it is given. So
+  the refusal does not protect a text that is given to the tool by
+  hand, or that anything but those scripts made: of such a text what
+  is said above of a group stands.
+  Trusted of this step, beside what is trusted of the pass: that the
+  conversion from Lambda keeps to that rule for a direct call, which
+  is read from its source and tested by nothing here; and of the
+  refusals of the scripts, that the compiler prints a call and code
+  as they expect: the arity of the arguments of a call, then that of
+  its result, then its kind; the arity of the parameters of code,
+  then their modes; a product with `#(`, or `void` for the product
+  of nothing. A unit in whose print those fields are not found is
+  refused.
   What is still not claimed: the model erases the regions of
   allocations and their lifetimes (the entry "What the conversion of
   terms leaves out"). Equal outcomes in the model do not establish

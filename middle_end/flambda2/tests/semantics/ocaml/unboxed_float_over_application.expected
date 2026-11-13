@@ -1,0 +1,12 @@
+unboxed_float_over_application.fl:
+  before Simplify (19 steps): returns
+                                [0: <fun>; <fun>;
+                                 (boxed #4609434218613702656:float)]
+  after Simplify (13 steps): returns
+                               [0: <fun>; <fun>;
+                                (boxed #4609434218613702656:float)]
+  the check of kinds: passes before, passes after
+  calls outside code: 1 before, 1 after
+  the same
+  calls outside code once those of known code are inlined: 1
+  validated: the same once closures and blocks are lifted to symbols, the terms normalised and unused value slots removed

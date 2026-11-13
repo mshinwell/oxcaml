@@ -1,0 +1,9 @@
+let code inline(never) size(1) five (x : imm) my_closure &my_region my_depth
+    -> k * e =
+  cont k (5)
+in
+let $Five = closure five &toplevel in
+apply direct(five &toplevel) $Five (3) -> k1 * error
+  where k1 (r) =
+    let $camlKinds_call_direct_wrong = Block 0 (r) in
+    cont done ($camlKinds_call_direct_wrong)

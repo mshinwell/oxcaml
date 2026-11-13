@@ -239,10 +239,12 @@ hold what the calls returned.
 `probed.ml` has no expected file: the text of its term does not say
 that a call is a probe, so a verdict of the tool on it would be of a
 term that is not the compiler's. `from_ocaml.sh` here refuses what
-that of the directory above refuses, and a call that is a probe only
-where the unit has an expected file: so `probed.ml` is compiled for
-its second units, and would be refused if it were given an expected
-file. Its `.cmx` has the body of `bump`,
+that of the directory above refuses, and what it refuses for a probe
+or for a call of unknown arity (an unboxed product among the
+arguments of such a call, or among the parameters of code of the
+unit), only where the unit has an expected file: so `probed.ml` is
+compiled for its second units, and would be refused if it were given
+an expected file. Its `.cmx` has the body of `bump`,
 in which the call of the handler of the probe is marked as one. The
 program runs that handler only while the probe is enabled, and the
 model has nothing of that, so the conversion refuses a call that is

@@ -9,10 +9,13 @@ does the same of the unit that Simplify makes of the one in the file.
 The rules of this directory run it on every example of the directory
 above and of `../ocaml`; `dune` says how the answers are checked.
 A unit read from a text, the unit of the file and each unit read
-back, is first normalised as the check of a unit normalises it: each
+back, is first normalised as the check of a unit normalises it
+(`with_lost_kinds` in `../../tools/flsemantics.ml`): each
 `Opaque_identity`, whose kind the text does not write, is given the
-kind of its argument (`with_opaque_kinds` in
-`../../tools/flsemantics.ml`).
+kind of its argument; and each direct call and call of unknown arity,
+the arity of whose arguments the text does not write, is given one, a
+direct call that of the parameters of its code and a call of unknown
+arity the kinds of its arguments.
 
 The conversion is trusted (`rocq/TRUST-LEDGER.md`). What this adds is a
 second reading of each of its cases, in the other direction, and a
@@ -36,17 +39,22 @@ in the order of the term.
 
 ## Answers that are not "round trip the same"
 
-Each has a file here with what the tool prints, and its reason below.
+Each would have a file here with what the tool prints, and its reason
+below. There is none today.
 
-- `kinds_direct_naked.expected`, the unit after Simplify. Simplify
-  makes the call of `$Add_naked` a direct call of its code, at the
-  arity of two naked immediates. The printer writes that arity; the
-  parser of fexpr gives a direct call the arity of as many values as
-  it has arguments, whatever is written
-  (`middle_end/flambda2/parser/fexpr_to_flambda.ml`, the case of
-  `Function (Direct ...)`; discrepancies C2-5 and R2-12). So the unit
-  read back is not the unit printed. A limit of fexpr, not of the
-  conversion: the example is there to show it.
+There was one, `kinds_direct_naked.fl` after Simplify, until a unit
+read from a text was given the arity of the arguments of its calls.
+Simplify makes the call of `$Add_naked` a direct call of its code, at
+the arity of two naked immediates. The printer writes that arity; the
+parser of fexpr gives a direct call the arity of as many values as it
+has arguments, whatever is written
+(`middle_end/flambda2/parser/fexpr_to_flambda.ml`, the case of
+`Function (Direct ...)`; discrepancies C2-5 and R2-12). So the unit
+read back was not the unit printed. It is a limit of fexpr and it is
+still there: the round trip no longer shows it, as the unit read back
+is given the arity of the parameters of the code before it is
+converted. What the round trip shows of such a call is that the
+conversion and the printer agree once that is done.
 
 ## What cannot be printed
 

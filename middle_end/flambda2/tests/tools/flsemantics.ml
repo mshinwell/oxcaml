@@ -106,30 +106,40 @@
 
    What the text loses of a call. The text of a term does not give the arity of
    a call of unknown arity, which is read with one value for each argument and
-   one value for its result (label C2-5), and it does not say that a call is a
-   probe. A unit with a call of unknown arity that returns to a continuation
-   whose parameters are not one value is not checked ([result_arity_lost]): the
-   term read is not the compiler's, and Simplify may stop on it. A method call
-   is read with one value for its result too; the conversion refuses a method
-   call, and the reader does not read one as the compiler prints it. A call that
-   is a probe is refused by the conversion ([convert_apply]), as the program
-   runs its handler only while the probe is enabled. No unit read from its text
-   has one; a body taken from the .cmx of another unit may, and is then left out
-   of the prefix, so that a call of it is undefined.
+   one value for its result, nor the arity of the arguments of a direct call,
+   which is read with one value for each (label C2-5); and it does not say that
+   a call is a probe. A unit with a call of unknown arity that returns to a
+   continuation whose parameters are not one value is not checked
+   ([result_arity_lost]): the term read is not the compiler's, and Simplify may
+   stop on it. The arity of the arguments is given back to a unit read from a
+   text ([with_lost_kinds], which says from what and where it cannot be): a
+   direct call has that of the parameters of the code that it names, and a call
+   of unknown arity one kind for each argument. A method call is read with one
+   value for its result too; the conversion refuses a method call, and the
+   reader does not read one as the compiler prints it. A call that is a probe is
+   refused by the conversion ([convert_apply]), as the program runs its handler
+   only while the probe is enabled. The term read from a text never has the
+   mark, whatever the source had: such a unit is read as one with a plain call,
+   and it is for whatever makes the text to refuse it (the scripts of
+   tests/semantics/ocaml do). A body taken from the .cmx of another unit may
+   have the mark, and is then left out of the prefix, so that a call of it is
+   undefined.
 
    What the text loses of a primitive. The text does not write the kind of an
    [Opaque_identity], and its reader gives every one the kind of values. A unit
    read from a text is normalised before anything else is done with it: each
-   [Opaque_identity] is given the kind of its argument ([with_opaque_kinds],
-   which says what is done to the variables bound to one). The kind so given is
-   the one that the text lost where the kind obtained for the argument is its
-   kind in the compiler's term and the primitive there had that kind
-   ([with_opaque_kinds] says where the first may fail). If not, the term read is
-   not the compiler's, after this step as before it, and nothing here finds that
-   out: the step is not a check of the kinds of the compiler's terms. The text
-   writes the two forms of [Is_int] alike, and its reader gives the form that is
-   for variants; that is not put right, and a unit whose term had the other form
-   is checked as it is read (label C2-26).
+   [Opaque_identity] is given the kind of its argument ([with_lost_kinds], which
+   says what is done to the variables bound to one). The kind so given is the
+   one that the text lost where the kind obtained for the argument is its kind
+   in the compiler's term and the primitive there had that kind
+   ([with_lost_kinds] says where the first may fail). Those two conditions
+   suffice; where either fails no recovery of the compiler's kind is claimed,
+   the term read may not be the compiler's, and nothing here finds that out: the
+   step is not a check of the kinds of the compiler's terms. The text writes the
+   two forms of [Is_int] alike, and its reader gives the form that is for
+   variants; that is not put right here. The scripts of tests/semantics/ocaml
+   refuse a unit whose term had the other form; a text from elsewhere is checked
+   as it is read (label C2-26).
 
    Phantom bindings. A binding whose variables are phantom is refused by the
    conversion ([convert_let]): the program runs nothing for it, and the model
@@ -4722,11 +4732,13 @@ let with_unknown_param_modes (unit : Flambda_unit.t) : Flambda_unit.t =
    bound to it, the [Let] binds a new variable of that kind, with the same name,
    and the body is renamed to it before it is gone into, so that every later
    use, and every later defining expression, sees a variable of the right kind.
-   Nothing else is changed: the kinds of parameters, of arities and of value
-   slots are those that the text wrote. The handlers of continuations and the
-   bodies of code are gone into. A unit that has no primitive to put right is
-   not gone through at all, and is the unit as it was read
-   ([opaque_kind_lost_in_expr]).
+   For an [Opaque_identity] nothing else is changed: the kinds of parameters and
+   of value slots are those that the text wrote, and so are the arities but for
+   the arity of the arguments of a direct call and of a call of unknown arity,
+   which the same pass gives (below). The handlers of continuations and the
+   bodies of code are gone into. A unit that has no such primitive and no such
+   call to put right is not gone through at all, and is the unit as it was read
+   ([kind_lost_in_expr]).
 
    This is a normalisation of a unit read from a text. The kind that it gives an
    [Opaque_identity] is the kind that the compiler's term had there, and that
@@ -4737,16 +4749,17 @@ let with_unknown_param_modes (unit : Flambda_unit.t) : Flambda_unit.t =
    expression (the conversion does not test that either: [convert_bound_var]),
    and an [Opaque_identity] above may have had another kind than its argument's.
    Where both hold all the way down, the kinds are the compiler's from the top
-   down. Where either fails, the primitive there, the variable bound to it and
-   what is bound below to them may be given kinds that the compiler's term had
-   not: the term read differs from the compiler's, here as before, and nothing
-   here finds that out. It is not a check of kinds and refuses no term for its
-   kinds; of the compiler's own terms nothing is compared. It is applied to a
-   unit read from a text only: not to what Simplify makes, nor to a body taken
-   from the .cmx of another unit, which have the kinds that the compiler gave
-   them. The text loses whether the primitive is for the middle end only as
-   well; that is left as the reader gives it, as neither the model nor Simplify
-   reads it.
+   down. The two conditions suffice and are not necessary. Where either fails,
+   no recovery of the compiler's kind is claimed: the primitive there, the
+   variable bound to it and what is bound below to them may be given kinds that
+   the compiler's term had not, even where the kind of values that the reader
+   gave was the compiler's, and nothing here finds that out. It is not a check
+   of kinds and refuses no term for its kinds; of the compiler's own terms
+   nothing is compared. It is applied to a unit read from a text only: not to
+   what Simplify makes, nor to a body taken from the .cmx of another unit, which
+   have the kinds that the compiler gave them. The text loses whether the
+   primitive is for the middle end only as well; that is left as the reader
+   gives it, as neither the model nor Simplify reads it.
 
    The reader has one more kind wrong that is known: its table of kinds for the
    nullary primitives that carry one gives two of the kinds for two words each
@@ -4755,14 +4768,107 @@ let with_unknown_param_modes (unit : Flambda_unit.t) : Flambda_unit.t =
    two and comes from such a primitive, directly or by [Let]s that bind a
    variable to a variable, the unit is not checked. (The conversion refuses
    every nullary primitive today, so such a unit is not checked for that reason
-   either.) *)
-exception Opaque_kind_not_known
+   either.)
+
+   The arity of the arguments of a call. The text does not write it for a direct
+   call, nor for a call of unknown arity, and the reader gives such a call one
+   value for each argument ([Fexpr_to_flambda]; label C2-5). The machine has no
+   step for a call whose arguments are not of the kinds of its arity, or whose
+   arity is not that of the code called, and Simplify makes such a call
+   [Invalid]: so a unit that gives a function an unboxed number was undefined as
+   read. In the same pass each such call is given an arity
+   ([arity_of_arguments]); a call of known arity has its arity in the text and
+   is left alone.
+
+   A direct call is given the arity of the parameters of the code that it names,
+   each kind without a subkind, where the unit binds that code and the call has
+   as many arguments as the code has parameters. In the term that the compiler
+   gives to Simplify that is the arity which the call had, subkinds and the
+   grouping of unboxed products aside: the conversion from Lambda makes a call
+   direct only where the arity of its arguments is, parameter for parameter,
+   that of the code ([Closure_conversion.close_exact_or_unknown_apply], which
+   makes any other [Invalid]), and with the flags of the tests it knows no code
+   but the unit's own. The kinds of the arguments are not looked at for this:
+   where an argument is not of the kind of its parameter, the call is ill-kinded
+   in the term read as it was written. Where the unit does not bind the code, or
+   the numbers differ, nothing gives the arity: the call is left as it was read
+   if every argument is a value, and otherwise the unit is not checked.
+
+   A call of unknown arity is given one kind for each argument, the kind that
+   the term read has for it. That is the arity that the compiler's call had,
+   subkinds aside, on three conditions, none of which this pass checks. For each
+   argument, the kind obtained for it is the kind of that argument in the
+   compiler's term: that can fail as it can for the argument of an
+   [Opaque_identity], above. The arity of the compiler's call gave each argument
+   the kind of that argument: the compiler does not see to it, and Simplify
+   makes [Invalid] a call of which it is not so. And that arity had one
+   singleton component for each argument, with no component that is an unboxed
+   product. The three together suffice and are not necessary; where one fails no
+   recovery of the compiler's arity is claimed. Where the kind of an argument
+   comes from one of the two words that the reader may misread, the unit is not
+   checked.
+
+   The arity so given is flat, one component for each argument that the text
+   writes, as the reader's was. The compiler's arity may group arguments: an
+   argument that is an unboxed product is one component of several kinds, or of
+   none, and then the text does not write the argument at all; and an
+   application counts the components against the parameters of the code to tell
+   a full application from a partial application or an over-application. The
+   text has no grouping, neither at a call nor in the parameters that it writes
+   for code: nothing in it tells a call that gives an unboxed pair from one that
+   gives two arguments, nor says that a call, or a piece of code, has one more
+   component, of no kind. So the grouping is not given back, here or anywhere,
+   and the third condition is one that this pass cannot test. A direct call and
+   its code are flattened alike, the call having the parameters of the code. For
+   a call of unknown arity, the term read is the compiler's with every group
+   flattened, at the call and in the code of the unit. As far as the grouping
+   goes, and that alone (the kinds are as said above, and the text loses other
+   things), such a call runs in the term read as in the compiler's if neither
+   the call nor the code that it reaches has a group. If one of them has, it may
+   not. A partial application that stops before a parameter of no kind is read
+   as a full application, and so is an over-application whose last argument has
+   no kind (label C2-30). And where the call and the code group the same kinds
+   differently, which is ill-kinded in the compiler's term, the term read may be
+   defined where the compiler's is not. All of that was so before this step of a
+   call whose arguments are all values, which the reader has always read flat;
+   what the step would add is the same of a call with an argument that is not a
+   value, which was undefined as read.
+
+   The scripts that make the texts of tests/semantics/ocaml refuse the units in
+   which that can happen, from what the compiler prints of the term: a unit that
+   has a call of unknown arity is refused if such a call has a group among its
+   arguments, or if code that the unit binds has one among its parameters. In a
+   unit that they let through, no call of unknown arity has a group, and the
+   code of the unit, which is all that such a call can reach of what is read
+   from the text, has none: there the grouping is the compiler's. (Code of
+   another unit is not read from a text: it is taken from the .cmx of that unit,
+   with the arity that the compiler gave it.) This pass cannot tell that a text
+   is of such a unit: the refusal of the scripts does not protect a text that is
+   given to the tool by hand, which is read as it is. A term in memory has the
+   component of no kind, and [convert_arity] keeps it.
+
+   Like the rest of the pass this is a normalisation of a unit read from a text
+   and not a check of kinds: it refuses a unit only where it cannot tell what to
+   give, and compares nothing of the compiler's own terms. *)
+exception Lost_kind_not_known of string
 
 let opaque_kind_not_known_message =
   "the text does not say the kind of an Opaque_identity, and the kind of its \
    argument is one that the reader may have misread: it comes from a nullary \
    primitive whose kind the text writes with a word that the reader takes for \
    two kinds"
+
+let arity_of_unknown_call_not_known_message =
+  "the text does not give the arity of the arguments of a call of unknown \
+   arity, and the kind of one of its arguments is one that the reader may have \
+   misread: it comes from a nullary primitive whose kind the text writes with \
+   a word that the reader takes for two kinds"
+
+let arity_of_direct_call_not_known_message =
+  "the text does not give the arity of the arguments of a direct call, one of \
+   which is not a value, and nothing else gives it: the unit does not bind the \
+   code that the call names, or that code has not as many parameters as the \
+   call has arguments"
 
 let kind_that_the_reader_may_misread (kind : Flambda_kind.t) =
   Flambda_kind.equal kind Flambda_kind.naked_int8
@@ -4774,13 +4880,124 @@ let variable_of_misread_kind ~misread (simple : Simple.t) =
     ~symbol:(fun _ ~coercion:_ -> false)
     ~const:(fun _ -> false)
 
-let rec with_opaque_kinds_of_expr ~misread (e : Flambda.Expr.t) : Flambda.Expr.t
-    =
+(* The kinds of the parameters, unarized, of each piece of code that a unit
+   binds, wherever it binds it. The unit is looked at as for printing and
+   nothing is built ([kind_lost_in_expr] says why that matters). *)
+let rec params_of_code_in_expr (e : Flambda.Expr.t)
+    (found : Flambda_kind.t list Code_id.Map.t) :
+    Flambda_kind.t list Code_id.Map.t =
+  match Flambda.Expr.descr e with
+  | Let let_expr ->
+    let found =
+      params_of_code_in_named (Flambda.Let_expr.defining_expr let_expr) found
+    in
+    Flambda.Let_expr.pattern_match_for_printing let_expr ~f:(fun _ ~body ->
+        params_of_code_in_expr body found)
+  | Let_cont (Non_recursive { handler; _ }) ->
+    let found =
+      params_of_code_in_handler
+        (Flambda.Non_recursive_let_cont_handler.handler handler)
+        found
+    in
+    Flambda.Non_recursive_let_cont_handler.pattern_match_for_printing handler
+      ~f:(fun _ ~body -> params_of_code_in_expr body found)
+  | Let_cont (Recursive handlers) ->
+    Flambda.Recursive_let_cont_handlers.pattern_match_for_printing handlers
+      ~f:(fun ~invariant_params:_ ~body handlers ->
+        List.fold_left
+          (fun found handler -> params_of_code_in_handler handler found)
+          (params_of_code_in_expr body found)
+          (Continuation.Lmap.data
+             (Flambda.Continuation_handlers.to_map handlers)))
+  | Apply _ | Apply_cont _ | Switch _ | Invalid _ -> found
+
+and params_of_code_in_named (named : Flambda.Named.t)
+    (found : Flambda_kind.t list Code_id.Map.t) :
+    Flambda_kind.t list Code_id.Map.t =
+  match named with
+  | Static_consts group ->
+    List.fold_left
+      (fun found const ->
+        match Flambda.Static_const_or_code.to_code const with
+        | Some code ->
+          let found =
+            Code_id.Map.add (Code.code_id code)
+              (List.map Flambda_kind.With_subkind.kind
+                 (Flambda_arity.unarize (Code.params_arity code)))
+              found
+          in
+          Flambda.Function_params_and_body.pattern_match_for_printing
+            (Code.params_and_body code)
+            ~f:(fun
+                ~return_continuation:_
+                ~exn_continuation:_
+                _
+                ~body
+                ~my_closure:_
+                ~is_my_closure_used:_
+                ~my_alloc_mode:_
+                ~my_depth:_
+                ~free_names_of_body:_
+              -> params_of_code_in_expr body found)
+        | None -> found)
+      found
+      (Flambda.Static_const_group.to_list group)
+  | Simple _ | Prim _ | Set_of_closures _ | Rec_info _ -> found
+
+and params_of_code_in_handler (handler : Flambda.Continuation_handler.t)
+    (found : Flambda_kind.t list Code_id.Map.t) :
+    Flambda_kind.t list Code_id.Map.t =
+  Flambda.Continuation_handler.pattern_match_for_printing handler
+    ~f:(fun _ ~handler -> params_of_code_in_expr handler found)
+
+(* What the pass gives a call for the arity of its arguments. *)
+type arity_of_arguments =
+  | As_read  (** The arity that the call has is the one to give it. *)
+  | Given of [`Complex] Flambda_arity.t
+  | Not_known of string  (** Nothing gives it; why. *)
+
+(* [code_params] has the parameters of the code that the unit binds
+   ([params_of_code_in_expr]); [misread], the variables whose kind may be one
+   that the reader misread. *)
+let arity_of_arguments ~code_params ~misread (apply : Flambda.Apply.t) :
+    arity_of_arguments =
+  let args = Flambda.Apply.args apply in
+  let given (kinds : Flambda_kind.t list) =
+    let as_read =
+      List.map Flambda_kind.With_subkind.kind
+        (Flambda_arity.unarize (Flambda.Apply.args_arity apply))
+    in
+    if List.equal Flambda_kind.equal kinds as_read
+    then As_read
+    else
+      Given
+        (Flambda_arity.create_singletons
+           (List.map Flambda_kind.With_subkind.anything kinds))
+  in
+  match Flambda.Apply.call_kind apply with
+  | Function { function_call = Direct code_id; _ } -> (
+    match Code_id.Map.find_opt code_id code_params with
+    | Some params when List.compare_lengths params args = 0 -> given params
+    | Some _ | None ->
+      if List.for_all (fun arg -> Flambda_kind.is_value (Simple.kind arg)) args
+      then As_read
+      else Not_known arity_of_direct_call_not_known_message)
+  | Function { function_call = Indirect_unknown_arity; _ } -> (
+    match given (List.map Simple.kind args) with
+    | Given _ when List.exists (variable_of_misread_kind ~misread) args ->
+      Not_known arity_of_unknown_call_not_known_message
+    | (As_read | Given _ | Not_known _) as arity -> arity)
+  | Function { function_call = Indirect_known_arity _; _ }
+  | Method _ | C_call _ | Effect _ ->
+    As_read
+
+let rec with_lost_kinds_of_expr ~code_params ~misread (e : Flambda.Expr.t) :
+    Flambda.Expr.t =
   match Flambda.Expr.descr e with
   | Let let_expr ->
     Flambda.Let_expr.pattern_match let_expr ~f:(fun pattern ~body ->
         let named =
-          with_opaque_kinds_of_named ~misread
+          with_lost_kinds_of_named ~code_params ~misread
             (Flambda.Let_expr.defining_expr let_expr)
         in
         let pattern, body, misread =
@@ -4823,31 +5040,39 @@ let rec with_opaque_kinds_of_expr ~misread (e : Flambda.Expr.t) : Flambda.Expr.t
         in
         Flambda.Expr.create_let
           (Flambda.Let_expr.create pattern named
-             ~body:(with_opaque_kinds_of_expr ~misread body)
+             ~body:(with_lost_kinds_of_expr ~code_params ~misread body)
              ~free_names_of_body:Unknown))
   | Let_cont (Non_recursive { handler; _ }) ->
     Flambda.Non_recursive_let_cont_handler.pattern_match handler
       ~f:(fun k ~body ->
         Flambda.Let_cont_expr.create_non_recursive k
-          (with_opaque_kinds_of_handler ~misread
+          (with_lost_kinds_of_handler ~code_params ~misread
              (Flambda.Non_recursive_let_cont_handler.handler handler))
-          ~body:(with_opaque_kinds_of_expr ~misread body)
+          ~body:(with_lost_kinds_of_expr ~code_params ~misread body)
           ~free_names_of_body:Unknown)
   | Let_cont (Recursive handlers) ->
     Flambda.Recursive_let_cont_handlers.pattern_match handlers
       ~f:(fun ~invariant_params ~body handlers ->
         Flambda.Let_cont_expr.create_recursive ~invariant_params
           (Continuation.Lmap.map
-             (with_opaque_kinds_of_handler ~misread)
+             (with_lost_kinds_of_handler ~code_params ~misread)
              (Flambda.Continuation_handlers.to_map handlers))
-          ~body:(with_opaque_kinds_of_expr ~misread body))
-  | Apply _ | Apply_cont _ | Switch _ | Invalid _ -> e
+          ~body:(with_lost_kinds_of_expr ~code_params ~misread body))
+  | Apply apply -> (
+    match arity_of_arguments ~code_params ~misread apply with
+    | As_read -> e
+    | Given args_arity ->
+      Flambda.Expr.create_apply
+        (Flambda.Apply.with_args apply (Flambda.Apply.args apply) ~args_arity)
+    | Not_known why -> raise (Lost_kind_not_known why))
+  | Apply_cont _ | Switch _ | Invalid _ -> e
 
-and with_opaque_kinds_of_named ~misread (named : Flambda.Named.t) :
+and with_lost_kinds_of_named ~code_params ~misread (named : Flambda.Named.t) :
     Flambda.Named.t =
   match named with
   | Prim (Unary (Opaque_identity { middle_end_only; kind }, arg), dbg) ->
-    if variable_of_misread_kind ~misread arg then raise Opaque_kind_not_known;
+    if variable_of_misread_kind ~misread arg
+    then raise (Lost_kind_not_known opaque_kind_not_known_message);
     let kind_of_arg = Simple.kind arg in
     if Flambda_kind.equal kind kind_of_arg
     then named
@@ -4861,21 +5086,21 @@ and with_opaque_kinds_of_named ~misread (named : Flambda.Named.t) :
            match Flambda.Static_const_or_code.to_code const with
            | Some code ->
              Flambda.Static_const_or_code.create_code
-               (with_opaque_kinds_of_code ~misread code)
+               (with_lost_kinds_of_code ~code_params ~misread code)
            | None -> const))
   | Simple _ | Prim _ | Set_of_closures _ | Rec_info _ -> named
 
-and with_opaque_kinds_of_handler ~misread
+and with_lost_kinds_of_handler ~code_params ~misread
     (handler : Flambda.Continuation_handler.t) : Flambda.Continuation_handler.t
     =
   let is_exn_handler = Flambda.Continuation_handler.is_exn_handler handler in
   let is_cold = Flambda.Continuation_handler.is_cold handler in
   Flambda.Continuation_handler.pattern_match handler ~f:(fun params ~handler ->
       Flambda.Continuation_handler.create params
-        ~handler:(with_opaque_kinds_of_expr ~misread handler)
+        ~handler:(with_lost_kinds_of_expr ~code_params ~misread handler)
         ~free_names_of_handler:Unknown ~is_exn_handler ~is_cold)
 
-and with_opaque_kinds_of_code ~misread (code : Code.t) : Code.t =
+and with_lost_kinds_of_code ~code_params ~misread (code : Code.t) : Code.t =
   let params_and_body =
     Flambda.Function_params_and_body.pattern_match (Code.params_and_body code)
       ~f:(fun
@@ -4891,7 +5116,7 @@ and with_opaque_kinds_of_code ~misread (code : Code.t) : Code.t =
         ->
         Flambda.Function_params_and_body.create ~return_continuation
           ~exn_continuation params
-          ~body:(with_opaque_kinds_of_expr ~misread body)
+          ~body:(with_lost_kinds_of_expr ~code_params ~misread body)
           ~free_names_of_body ~my_closure ~my_alloc_mode ~my_depth)
   in
   Code.create_with_metadata ~params_and_body
@@ -4899,39 +5124,46 @@ and with_opaque_kinds_of_code ~misread (code : Code.t) : Code.t =
     ~code_metadata:(Code.code_metadata code)
 
 (* Whether a unit has an [Opaque_identity] whose kind is not the kind of its
-   argument, as the reader has them: whether the pass above has anything to do.
-   The first such primitive from the top is one that this finds, as nothing
-   above it is changed. The unit is looked at as a term is for printing
-   ([pattern_match_for_printing]) and nothing is built, so a unit that has no
-   such primitive is left as it was read. Opened so, the bound names of a term
-   are not made fresh, unless the tool is given the flag that makes them fresh
-   where a term is printed ([Flambda_features.freshen_when_printing]), which the
-   tests do not give. So with the flags of the tests looking at a unit uses up
-   no name, and the names which the tool prints of a unit that has no such
-   primitive are those that it printed before this step was there. The test that
-   this look makes, whether an [Opaque_identity] and its argument have different
-   kinds, is the same with either setting of the flag. *)
-let rec opaque_kind_lost_in_expr (e : Flambda.Expr.t) : bool =
+   argument, or a call that is not to keep the arity of its arguments, as the
+   reader has them: whether the pass above has anything to do. The first such
+   primitive or call from the top is one that this finds, as nothing above it is
+   changed. The unit is looked at as a term is for printing
+   ([pattern_match_for_printing]) and nothing is built, so a unit that has
+   neither is left as it was read. Opened so, the bound names of a term are not
+   made fresh, unless the tool is given the flag that makes them fresh where a
+   term is printed ([Flambda_features.freshen_when_printing]), which the tests
+   do not give. So with the flags of the tests looking at a unit uses up no
+   name, and the names which the tool prints of a unit that has neither are
+   those that it printed before this step was there. The tests that this look
+   makes, whether an [Opaque_identity] and its argument have different kinds and
+   what [arity_of_arguments] says of a call, are the same with either setting of
+   the flag. *)
+let rec kind_lost_in_expr ~code_params (e : Flambda.Expr.t) : bool =
   match Flambda.Expr.descr e with
   | Let let_expr ->
-    opaque_kind_lost_in_named (Flambda.Let_expr.defining_expr let_expr)
+    kind_lost_in_named ~code_params (Flambda.Let_expr.defining_expr let_expr)
     || Flambda.Let_expr.pattern_match_for_printing let_expr ~f:(fun _ ~body ->
-        opaque_kind_lost_in_expr body)
+        kind_lost_in_expr ~code_params body)
   | Let_cont (Non_recursive { handler; _ }) ->
-    opaque_kind_lost_in_handler
+    kind_lost_in_handler ~code_params
       (Flambda.Non_recursive_let_cont_handler.handler handler)
     || Flambda.Non_recursive_let_cont_handler.pattern_match_for_printing handler
-         ~f:(fun _ ~body -> opaque_kind_lost_in_expr body)
+         ~f:(fun _ ~body -> kind_lost_in_expr ~code_params body)
   | Let_cont (Recursive handlers) ->
     Flambda.Recursive_let_cont_handlers.pattern_match_for_printing handlers
       ~f:(fun ~invariant_params:_ ~body handlers ->
-        opaque_kind_lost_in_expr body
-        || List.exists opaque_kind_lost_in_handler
+        kind_lost_in_expr ~code_params body
+        || List.exists
+             (kind_lost_in_handler ~code_params)
              (Continuation.Lmap.data
                 (Flambda.Continuation_handlers.to_map handlers)))
-  | Apply _ | Apply_cont _ | Switch _ | Invalid _ -> false
+  | Apply apply -> (
+    match arity_of_arguments ~code_params ~misread:Variable.Set.empty apply with
+    | As_read -> false
+    | Given _ | Not_known _ -> true)
+  | Apply_cont _ | Switch _ | Invalid _ -> false
 
-and opaque_kind_lost_in_named (named : Flambda.Named.t) : bool =
+and kind_lost_in_named ~code_params (named : Flambda.Named.t) : bool =
   match named with
   | Prim (Unary (Opaque_identity { middle_end_only = _; kind }, arg), _) ->
     not (Flambda_kind.equal kind (Simple.kind arg))
@@ -4952,26 +5184,26 @@ and opaque_kind_lost_in_named (named : Flambda.Named.t) : bool =
                 ~my_alloc_mode:_
                 ~my_depth:_
                 ~free_names_of_body:_
-              -> opaque_kind_lost_in_expr body)
+              -> kind_lost_in_expr ~code_params body)
         | None -> false)
       (Flambda.Static_const_group.to_list group)
   | Simple _ | Prim _ | Set_of_closures _ | Rec_info _ -> false
 
-and opaque_kind_lost_in_handler (handler : Flambda.Continuation_handler.t) :
-    bool =
+and kind_lost_in_handler ~code_params (handler : Flambda.Continuation_handler.t)
+    : bool =
   Flambda.Continuation_handler.pattern_match_for_printing handler
-    ~f:(fun _ ~handler -> opaque_kind_lost_in_expr handler)
+    ~f:(fun _ ~handler -> kind_lost_in_expr ~code_params handler)
 
-let with_opaque_kinds (unit : Flambda_unit.t) : (Flambda_unit.t, string) result
-    =
-  if not (opaque_kind_lost_in_expr (Flambda_unit.body unit))
+let with_lost_kinds (unit : Flambda_unit.t) : (Flambda_unit.t, string) result =
+  let body = Flambda_unit.body unit in
+  let code_params = params_of_code_in_expr body Code_id.Map.empty in
+  if not (kind_lost_in_expr ~code_params body)
   then Ok unit
   else
     match
-      with_opaque_kinds_of_expr ~misread:Variable.Set.empty
-        (Flambda_unit.body unit)
+      with_lost_kinds_of_expr ~code_params ~misread:Variable.Set.empty body
     with
-    | exception Opaque_kind_not_known -> Error opaque_kind_not_known_message
+    | exception Lost_kind_not_known why -> Error why
     | body ->
       Ok
         (Flambda_unit.create_from_metadata_and_body
@@ -4981,7 +5213,7 @@ let with_opaque_kinds (unit : Flambda_unit.t) : (Flambda_unit.t, string) result
 (* A unit read from a text, as it is checked and as Simplify is given it. *)
 let as_read_from_text (unit : Flambda_unit.t) : (Flambda_unit.t, string) result
     =
-  Result.map with_unknown_param_modes (with_opaque_kinds unit)
+  Result.map with_unknown_param_modes (with_lost_kinds unit)
 
 let check_file filename : checked =
   match Parse_flambda.parse_fexpr filename with
@@ -5035,7 +5267,7 @@ let conversion_for_round_trip : Flroundtrip.conversion =
         | exception Unsupported what -> Error (Format.asprintf "%t" what)
         | { body; return_continuation; exn_continuation } ->
           Ok { body; return_continuation; exn_continuation });
-    as_read = with_opaque_kinds;
+    as_read = with_lost_kinds;
     reset = reset_conversion;
     value_slot_kind =
       (fun slot -> Option.map convert_kind (List.assoc_opt slot !slot_kinds));
