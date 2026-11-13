@@ -27,6 +27,12 @@
 
 (* Checks Simplify against the Rocq semantics of Flambda 2 on one example.
 
+   This file has no command line of its own and does nothing when it is linked:
+   flsemantics_main.ml is the program, and calls [main]. A program that has the
+   two terms of a unit already calls [check], which prints what the command line
+   prints of them and returns what the check came to ([checked]) where the
+   command line exits.
+
    An [.fl] file is parsed to a Flambda unit, which Simplify then rewrites. (The
    text has no modes for the parameters of code: the unit that is checked, and
    that Simplify is given, is the unit read with, in the place of the mode of
@@ -4330,7 +4336,7 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
         Format.printf
           "  with nothing imported the term before is undefined in the model, \
            so that validation says nothing of this unit@.");
-  match validation with
+  (match validation with
   | Not_validated when Sys.getenv_opt "FLSEMANTICS_PRINT_TERMS" <> None ->
     (* A pair of terms that the validation compared, for each guess of the calls
        to leave ([ask] says which pair): the static bindings of the term before
@@ -4347,7 +4353,8 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
   | Not_validated | Same_up_to_bound_names | Same_once_normalised
   | Same_once_unused_statics_removed | Same_once_head_statics_removed
   | Same_once_lifted ->
-    ()
+    ());
+  validation
 
 (* ---- The .cmx of other units ------------------------------------------- *)
 
@@ -4394,28 +4401,57 @@ let units_read () : (Compilation_unit.t * Digest.t) list =
       | None -> None)
     infos.Cmx_format.ui_imports_cmx
 
-let check ~filename ~(units : (Compilation_unit.t * Digest.t) list)
-    (before : Flambda_unit.t) (after : Flambda_unit.t) =
+(* What a check came to. The lines that it printed say more: this is for a
+   caller that goes on after the check, and for the status with which the
+   command line exits. *)
+type checked =
+  | Not_checked
+      (** No verdict. From [check]: the model has not got something of the unit,
+          or one of the two terms fails the test that each use of its return
+          continuation gives it the symbol of the unit, a test of the syntax
+          that refuses a call that returns there and another name for the symbol
+          too. From [check_file] also: the text has lost something of the unit,
+          or the term before Simplify is not well-formed ([well_formed_before]).
+      *)
+  | Failed
+      (** The text could not be read, the term after Simplify is not
+          well-formed, the prefix made from the .cmx files has a fault, or the
+          two runs differ. The command line exits 1. *)
+  | Compared of Validate.validation
+      (** The two runs were made and no difference between them was found: they
+          gave the same, or the run before is undefined, or one of them was not
+          over when the steps allowed ran out, as the lines printed say. With
+          it, the verdict of the validator, which may be that the unit is not
+          validated; the last lines printed say with what it is of. *)
+
+(* Raised where a check has failed, after the line that says how is printed. *)
+exception Check_failed
+
+let check_or_raise ~filename ~(units : (Compilation_unit.t * Digest.t) list)
+    (before : Flambda_unit.t) (after : Flambda_unit.t) :
+    Validate.validation option =
   match convert_both ~units before after with
   | exception Unsupported what ->
     Format.printf "%s: not checked: the model has not got %s@." filename
-      (Format.asprintf "%t" what)
+      (Format.asprintf "%t" what);
+    None
   | before_converted, after_converted, _
     when Option.is_some (return_not_of_own_symbol before before_converted)
-         || Option.is_some (return_not_of_own_symbol after after_converted) -> (
-    match
-      ( return_not_of_own_symbol before before_converted,
-        return_not_of_own_symbol after after_converted )
-    with
+         || Option.is_some (return_not_of_own_symbol after after_converted) ->
+    (match
+       ( return_not_of_own_symbol before before_converted,
+         return_not_of_own_symbol after after_converted )
+     with
     | Some reason, _ -> Format.printf "%s: not checked: %s@." filename reason
     | None, Some reason ->
       Format.printf "%s: not checked: after Simplify, %s@." filename reason
-    | None, None -> ())
+    | None, None -> ());
+    None
   | _, after, _ when not (well_formed after) ->
     Format.printf "%s: the term after Simplify is NOT WELL-FORMED (%s)@."
       filename
       (why_not_well_formed after);
-    exit 1
+    raise Check_failed
   | before, after, prefix ->
     let imports =
       imports ~bound:prefix.prefix_symbols
@@ -4429,7 +4465,7 @@ let check ~filename ~(units : (Compilation_unit.t * Digest.t) list)
         "%s: not checked: the prefix made from the .cmx files %s, which is a \
          fault of the conversion@."
         filename fault;
-      exit 1
+      raise Check_failed
     | None -> ());
     let before = with_prefix prefix before in
     let after = with_prefix prefix after in
@@ -4443,7 +4479,7 @@ let check ~filename ~(units : (Compilation_unit.t * Digest.t) list)
            of it the term after Simplify is not well-formed (%s)@."
           filename
           (why_not_well_formed after);
-        exit 1));
+        raise Check_failed));
     let statics = Imports.imports_statics imports in
     let outcome_before, steps_before = run ~statics before in
     let outcome_after, steps_after = run ~statics after in
@@ -4490,10 +4526,30 @@ let check ~filename ~(units : (Compilation_unit.t * Digest.t) list)
         else "DIFFERENT", false
     in
     Format.printf "  %s@." verdict;
-    validate ~imports
-      ~prefix_units:(List.length prefix.prefix_units)
-      ~outcome_before before after;
-    if not ok then exit 1
+    let validation =
+      validate ~imports
+        ~prefix_units:(List.length prefix.prefix_units)
+        ~outcome_before before after
+    in
+    if not ok then raise Check_failed;
+    Some validation
+
+(* The check of the two terms of a unit, the first as Simplify was given it and
+   the second as Simplify returned it. It prints, under the name given, what the
+   command line prints of a unit, and exits nowhere.
+
+   It does not test that the first term is well-formed. That is for the caller,
+   before Simplify is run, which is entitled to fail on a term that is not:
+   [well_formed_before], which prints the line "not checked" where it says no,
+   and after which the caller is to make no check. [check_file] does so. A first
+   term that is not well-formed and is given here all the same is run and
+   compared as it is: nothing here refuses it. *)
+let check ~filename ~(units : (Compilation_unit.t * Digest.t) list)
+    (before : Flambda_unit.t) (after : Flambda_unit.t) : checked =
+  match check_or_raise ~filename ~units before after with
+  | exception Check_failed -> Failed
+  | None -> Not_checked
+  | Some validation -> Compared validation
 
 (* The text of fexpr has no syntax for the mode of a parameter of code, and the
    reader gives every parameter the mode heap ([Fexpr_to_flambda]). In the
@@ -4859,11 +4915,11 @@ let as_read_from_text (unit : Flambda_unit.t) : (Flambda_unit.t, string) result
     =
   Result.map with_unknown_param_modes (with_opaque_kinds unit)
 
-let check_file filename =
+let check_file filename : checked =
   match Parse_flambda.parse_fexpr filename with
   | Error e ->
     Test_utils.dump_error e;
-    exit 1
+    Failed
   | Ok unit -> (
     named_function_slots := false;
     let unit_info = Parse_flambda.make_unit_info ~filename in
@@ -4874,15 +4930,19 @@ let check_file filename =
     let fl2 = Fexpr_to_flambda.conv comp_unit unit in
     let filename_shown = Filename.basename filename in
     if result_arity_lost unit
-    then
+    then (
       Format.printf "%s: not checked: %s@." filename_shown
-        result_arity_lost_message
+        result_arity_lost_message;
+      Not_checked)
     else
       match as_read_from_text fl2.unit with
-      | Error why -> Format.printf "%s: not checked: %s@." filename_shown why
+      | Error why ->
+        Format.printf "%s: not checked: %s@." filename_shown why;
+        Not_checked
       | Ok before ->
-        if well_formed_before ~filename:filename_shown before
-        then
+        if not (well_formed_before ~filename:filename_shown before)
+        then Not_checked
+        else
           let null_formatter =
             Format.make_formatter (fun _ _ _ -> ()) (fun () -> ())
           in
@@ -4950,9 +5010,12 @@ let simplify_for_round_trip ~filename (text : Fexpr.flambda_unit)
         in
         Ok result.flambda
 
-module Options = Oxcaml_args.Make_optcomp_options (Oxcaml_args.Default.Optmain)
-
-let () =
+(* The command line: the options of the compiler, [-round-trip], and one [.fl]
+   file. It exits 1 where the check has failed ([checked]). *)
+let main () =
+  let module Options =
+    Oxcaml_args.Make_optcomp_options (Oxcaml_args.Default.Optmain)
+  in
   Clflags.set_target Clflags.Target.Native;
   let round_trip = ref false in
   let files = ref [] in
@@ -4979,14 +5042,17 @@ let () =
      reason that is not its own. *)
   match !files with
   | [] -> ()
-  | [file] ->
+  | [file] -> (
     if !round_trip
     then (
       reset_conversion ();
       Flroundtrip.check_file conversion_for_round_trip
         ~simplify:(simplify_for_round_trip ~filename:file)
         file)
-    else check_file file
+    else
+      match check_file file with
+      | Failed -> exit 1
+      | Not_checked | Compared _ -> ())
   | _ :: _ :: _ ->
     Misc.fatal_error
       "flsemantics checks one .fl file: run it once for each file"
