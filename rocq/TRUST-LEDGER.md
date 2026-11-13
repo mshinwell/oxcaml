@@ -954,14 +954,30 @@ it gave back.
   that the term binds at each step of the validation of the lifted
   term whose law from the imports asks it (the result of each lifting
   that is made; the term in which what the unit binds its symbols to
-  is used, in each round in which it is; and both terms whose static
+  is used, in each round in which it is, after each lifting and,
+  after the last, after the demotion of the exception handlers; and
+  both terms whose static
   bindings are taken first, where the verdict is of that comparison);
   and where, for a lifting that is given a table to put at the head
   of the unit, no import is a symbol that the groups at the head of
   the unit bind once that step is done, whether the table is put or
   not. The test computes
   those terms a second time, as the validation does; it is
-  sufficient, not necessary. The theorem is of no verdict that does
+  sufficient, not necessary. The rounds that follow the demotion
+  are those of `FlambdaValidateSpec.demote_and_tidy_known`, and
+  their test is
+  `FlambdaValidateImportsSpec.demote_and_tidy_known_free_in`: of
+  each of those rounds that is executed, the one at which they stop
+  included, it asks that no import is a name that the term binds
+  (`static_names_free_in`), of the term that the round gives
+  `fold_known_unit` (the term of the round once
+  `use_known_closures` is applied to it), where `fold_known_unit`
+  gives a term. Nothing was asked after the last lifting when the
+  validation did not use, after the demotion, what the unit binds
+  its symbols to; so for this verdict the test asks more than it
+  did. No inclusion of the verdicts that it accepted then is
+  claimed or proved: a unit that had this verdict from its imports
+  could lose it. The theorem is of no verdict that does
   not pass the test, and of the test with the verdict that the
   validator gives of the same arguments. The tool
   asks those two functions, as they are
