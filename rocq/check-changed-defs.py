@@ -4,8 +4,9 @@
 #   check-changed-defs.py --reach REV NAME [MAX]
 #
 # The first form, for the range BASE..TIP: the definitions of *Spec.v
-# files (and of FlambdaModel.v) whose body differs between BASE and TIP
-# and that are not statements, and for each the statements
+# files (and of FlambdaModel.v, FlambdaPrimitiveModel.v and
+# FlambdaKindModel.v) whose body differs between BASE and TIP and that
+# are not statements, and for each the statements
 # (Definition ..._statement) of TIP in which its name occurs, directly
 # or through other definitions of those files. The second form: the
 # statements of REV in which the one definition NAME occurs, directly
@@ -20,6 +21,15 @@
 # name counts for both (the search may list too much, never too little
 # for that reason). An item is the sentence that begins at its keyword:
 # text between its full stop and the next item is not compared.
+#
+# FlambdaKindModel.v and FlambdaPrimitiveModel.v import no other file of
+# the model, so an item of theirs is searched for the names that those
+# two files define and for no other: a constructor argument named as a
+# definition of a later file is not a use of that definition. As long
+# as no name is defined both in the two files and elsewhere, what a
+# definition of any other file reaches is what it reached before the
+# two files were read; what they add is their own definitions, with
+# what each reaches.
 import re, subprocess, sys, collections
 reach = len(sys.argv) > 1 and sys.argv[1] == '--reach'
 args = sys.argv[2:] if reach else sys.argv[1:]
@@ -28,10 +38,14 @@ if len(args) < 2:
 MAX = int(args[2]) if len(args) > 2 else 40
 def git(*a):
     return subprocess.check_output(('git',) + a).decode('utf-8', 'replace')
+LEAVES = ('FlambdaKindModel.v', 'FlambdaPrimitiveModel.v')
+def short(f):
+    return f.split('/')[-1]
 def spec_files(rev):
     out = git('ls-tree', '-r', '--name-only', rev, '--', 'middle_end/flambda2', 'rocq')
     return [f for f in out.split('\n')
-            if f.endswith('Spec.v') or f.endswith('/FlambdaModel.v')]
+            if f.endswith('Spec.v') or f.endswith('/FlambdaModel.v')
+            or short(f) in LEAVES]
 def strip_comments(s):
     out, depth, i, n = [], 0, 0, len(s)
     while i < n:
@@ -50,8 +64,6 @@ head = re.compile(r'^(?:Local |Global |#\[[^\]]*\]\s*)?(?:Definition|Fixpoint|In
 sentence_end = re.compile(r'(?<!\.)\.(?=\s|$)')
 proof_start = re.compile(r'\s*Proof\b')
 proof_end = re.compile(r'\b(?:Qed|Defined|Admitted)\.')
-def short(f):
-    return f.split('/')[-1]
 def items(rev):
     res = {}
     for f in spec_files(rev):
@@ -91,9 +103,12 @@ def index(new):
         defined_names[k[1]].append(k)
     # users[name] = the items whose body mentions the name
     users = collections.defaultdict(set)
+    leaf_names = set(k[1] for k in new if k[0] in LEAVES)
     for k, b in new.items():
         for w in set(word.findall(b)):
             if w in defined_names and w != k[1]:
+                if k[0] in LEAVES and w not in leaf_names:
+                    continue
                 users[w].add(k)
     return defined_names, users
 def reached(users, starts):

@@ -1203,9 +1203,10 @@ not clear which side is wrong.
   needs the regenerated extracted files is in the last commit, and no
   document or comment cites a commit that is not on the integration
   branch or a file that is not in the tree.
-- A change to the body of a definition of a Spec file comes with the
-  list of the statements already in the tree that the definition
-  reaches, directly or through other definitions, and with what
+- A change to the body of a definition of a Spec file, or of
+  `FlambdaModel.v`, `FlambdaPrimitiveModel.v` or `FlambdaKindModel.v`,
+  comes with the list of the statements already in the tree that the
+  definition reaches, directly or through other definitions, and with what
   happens to each: a premise is strengthened, a conclusion is
   weakened, or neither. `python3 rocq/check-changed-defs.py BASE TIP`
   lists, for the commits from BASE to TIP, the definitions whose body
