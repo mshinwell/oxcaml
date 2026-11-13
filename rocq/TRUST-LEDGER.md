@@ -955,8 +955,8 @@ it gave back.
   term whose law from the imports asks it (the result of each lifting
   that is made; the term in which what the unit binds its symbols to
   is used, in each round in which it is, after each lifting and,
-  after the last, after the demotion of the exception handlers; and
-  both terms whose static
+  after the last, after the read of the known value slots and the
+  demotion of the exception handlers; and both terms whose static
   bindings are taken first, where the verdict is of that comparison);
   and where, for a lifting that is given a table to put at the head
   of the unit, no import is a symbol that the groups at the head of
@@ -972,12 +972,24 @@ it gave back.
   (`static_names_free_in`), of the term that the round gives
   `fold_known_unit` (the term of the round once
   `use_known_closures` is applied to it), where `fold_known_unit`
-  gives a term. Nothing was asked after the last lifting when the
-  validation did not use, after the demotion, what the unit binds
-  its symbols to; so for this verdict the test asks more than it
-  did. No inclusion of the verdicts that it accepted then is
-  claimed or proved: a unit that had this verdict from its imports
-  could lose it. The theorem is of no verdict that does
+  gives a term. Before the demotion the validation reads the known
+  value slots of the term that the last lifting leaves, with every
+  symbol that the unit binds taken to be in scope
+  (`FlambdaKnownSlotsSpec.read_known_slots_anywhere`). For that
+  read the test asks nothing: its law from the imports
+  (`read_known_slots_anywhere_refines_imports_statement`) has no
+  premise. The demotion and the rounds are given the term read, and
+  their test is asked of that term. Nothing was asked after the
+  last lifting when the validation did not use, after the demotion,
+  what the unit binds its symbols to; and when it used that and did
+  not read first, the test was asked of the term that the last
+  lifting leaves. So for this verdict the test is not the one that
+  it was before either change, and the validation that gives the
+  verdict is not either. No inclusion of the verdicts accepted
+  from the imports before either change is claimed or proved, in
+  either direction: a unit that had this verdict from its imports
+  could lose it, and a unit that had not could have it. The
+  theorem is of no verdict that does
   not pass the test, and of the test with the verdict that the
   validator gives of the same arguments. The tool
   asks those two functions, as they are
