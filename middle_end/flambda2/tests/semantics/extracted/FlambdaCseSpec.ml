@@ -13,7 +13,6 @@ let shareable = function
     match p0 with
     | Block_load (_, mut, _) -> ( match mut with Mutable -> false | _ -> true)
     | Is_null -> false
-    | Array_length _ -> false
     | Opaque_identity _ -> false
     | Box_number _ -> false
     | Reinterpret_64_bit_word _ -> false

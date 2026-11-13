@@ -78,7 +78,13 @@
    or look at a value without reading memory that can change: the
    length of a string is among them, as the compiler shares it too
    ([String_length] has no effects and no coeffects in
-   [Flambda_primitive]), and so is a [Block_load] marked [Immutable]
+   [Flambda_primitive]); so is the length of an array, which the
+   compiler shares ([Flambda_primitive.unary_primitive_eligible_for_cse]
+   says yes of [Array_length]) and which does not change once the
+   array is made, whether the array can be written or not (here the
+   primitive has a value on a symbol bound to an immutable array only;
+   of a cell of the heap, FlambdaHeapSpec.heap_evolves says that it
+   keeps its number of elements); and so is a [Block_load] marked [Immutable]
    or [Immutable_unique], a load of a field that is not written
    (FlambdaPrimitiveSpec.v says what the mark is for). The compiler
    has the second of two such loads stand for the first by another
@@ -131,7 +137,7 @@ Definition shareable (p : prim) : bool :=
   match p with
   | Unary
       (Is_int _ | Get_tag | Num_conv _ _ | Boolean_not | Unbox_number _
-      | Untag_immediate | Tag_immediate | String_length
+      | Untag_immediate | Tag_immediate | String_length | Array_length _
       | Unary_int_arith _ _
       | Block_load _ (Immutable | Immutable_unique) _) =>
     true
