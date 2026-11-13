@@ -139,7 +139,60 @@ it gave back.
   the conversion from Lambda knows nothing of the code of another
   unit and names none (`from_lambda/closure_conversion_aux.ml`).
   Nothing is said here of a text that is given to the tool by hand,
-  or that anything else made: the tool reads it as it is.
+  or that anything else made: the tool reads it as it is. Of the
+  compiler's text of a term after, of a pair not in this tree,
+  given by hand as a unit, in which the call is in code that the
+  run does not reach, the tool printed a validation: it is of the
+  unit read, whose code calls a code id that nothing binds.
+  A closure over code of another unit is written with the bare
+  name of that code as well, and there the reader does stop: it
+  looks for the code of every closure among the code that the text
+  binds, and raises `Not_found` where there is none
+  (`bind_all_code_ids_and_function_slots` in
+  `parser/fexpr_to_flambda.ml`; X2-9, which is of the direct call
+  above as well). The compiler writes such a
+  closure in a term after, where Simplify has inlined a function of
+  another unit that makes one; a term before that is compiled
+  outside classic mode has none, so no text of those scripts has
+  one. Given by hand the compiler's text of such a term after, of a
+  pair not in this tree, the tool ended on that exception, which
+  it does not catch, with status 2 and no verdict. In the round
+  trip of the conversion of the same unit, read from its term
+  before, the text that the tool writes of its own term after has
+  the closure, and the tool said in words that it is not read back.
+  Two more texts that the compiler prints are not read, and the
+  tool gives no verdict of the unit. The printer writes a variable
+  as its name, a `/` and its stamp; the reader cuts what it reads
+  at every `/` and stops with a fatal error where that gives more
+  than two pieces (`chop_stamp` in
+  `parser/fexpr_to_flambda_commons.ml`; X2-8). A variable has a `/`
+  in its own name where it is an operator with a `/` in its name
+  that the unit binds, as a function or as a parameter; where it
+  is of an anonymous function and the source was given with a
+  directory; and where the reaper made its name from those of
+  others, which is of a term after. The scripts compile a copy of
+  the source in a directory of its own, under its bare name, so
+  the second does not arise through them. Of a unit that binds
+  such an operator they make the text, and the tool ended on the
+  fatal error, which it does not catch, with status 2; `/` and
+  `/.` were run.
+  And the printer writes the kinds of unboxed 8-bit and 16-bit
+  integers as `int8` and `int16`, which the grammar of the reader
+  has not got as the kind of a number
+  (`parser/flambda_parser.mly`, `naked_number_kind`; X2-10): of a
+  unit with a parameter of such a kind the scripts make the text,
+  and the tool printed a syntax error with the file and the line
+  and ended with status 1. That is also the status of a check that
+  fails: a status that is not 0 is not by itself a verdict. A rule
+  of the tests fails on either, and what the tool printed says
+  which it is. The three were observed of units not in this tree.
+  Each is a stop and not a wrong verdict: nothing is printed of the
+  two runs or of a validation. The loss is the reader's: the model
+  has the two kinds (`FlambdaKindModel.Kind_naked_int8`,
+  `Kind_naked_int16`) and its variables are numbers
+  (`FlambdaModel.variable`), and the driver of the compiler's own
+  run, which reads no text, validates the unit with the operator
+  and the unit with the parameter.
   Two primitive annotations are also lost by the text; the tool
   reconstructs the second from the argument and leaves the first. The
   printer writes both forms

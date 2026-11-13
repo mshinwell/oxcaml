@@ -756,6 +756,15 @@ says so. Only the labels that this tree cites are listed.
 - **V4-3.** Simplify makes no shortcut through an exception handler and
   keeps its exception parameter though unused, where the machine would
   allow both.
+- **X2-8.** The reader of the text of terms stops with a fatal error on
+  a variable whose name has a `/` in it: an operator with a `/` in its
+  name, an anonymous function when the path of the source has a
+  directory, or a variable that the reaper names from others.
+- **X2-9.** The text of a term names code of another unit like code of
+  its own; the reader stops on a closure over it and reads a direct
+  call of it as a call of code that does not exist.
+- **X2-10.** The kinds of unboxed 8-bit and 16-bit integers are printed
+  in the text of a term and are not in the grammar of the reader.
 - **X3-5.** The n-way join of two variants that carry only a relation
   answers unknown and drops the relation it has just joined.
 - **X4-1.** The output of Simplify binds the same variable in two
