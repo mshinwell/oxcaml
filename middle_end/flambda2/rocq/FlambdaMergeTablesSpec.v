@@ -55,10 +55,29 @@
             = Int_arith tagged_immediate Add (tagged, -d)   otherwise
      arg    = Array_load (kind, load kind, Immutable) (table, index)
 
-   where the array kind and the load kind are those of immediates if
-   every element is a tagged immediate constant, and those of values
-   otherwise. A poison constant in an arm is some number in the table;
-   that is not modelled, and such a [Switch] is not merged here.
+   where, for an argument of kind value, the array kind and the load
+   kind are those of immediates if every element is a tagged immediate
+   constant, and those of values otherwise. The table is then an
+   immutable array of values, and a poison constant of kind value in
+   an arm is that constant in the table. For an argument that is in
+   every arm a constant of one kind of naked number (naked immediate,
+   float32, float, int8, int16, int32, int64, nativeint, vec128,
+   vec256, vec512 or mask) the table is an immutable array of those
+   numbers, with the array kind and the load kind of that array, and a
+   poison constant in an arm is some number in the table
+   ([create_lookup_table_array_const]).
+
+   What of that is here. The model has no static array but that of
+   values (FlambdaModel.Static_const_immutable_value_array), so only
+   the tables for an argument of kind value are tables here. An
+   argument that is in some arm a constant that is not of kind value,
+   a poison of such a kind too, is not merged: an array that has that
+   constant is not one of immediates, and the load of values does not
+   take an element that is not of kind value ([all_immediates],
+   [element_taken]). A poison constant of kind value is an element as
+   another is: it is not a tagged immediate, the load of values takes
+   it, and an arm whose argument is that constant is loaded from a
+   table that has it at the index of the arm.
 
    What is here. The term before Simplify has no table: the validation
    is to bind, at the head of the term before, the tables that the
@@ -103,11 +122,13 @@
    and the offset were found.
 
    What it costs where there is no table. The tables are looked at
-   before [merge_switch] is computed, and with none in scope nothing
-   is computed of a [Switch] but its merged arguments; what is
-   computed once for a [Switch] or for a table (the offset, whether
-   the elements are all immediates) is not computed again for each
-   arm.
+   before [merge_switch] is computed. With none in scope, what is
+   computed of a [Switch] on a variable that has three arms or more
+   is its merged arguments, whether the variable is among them and,
+   where it is, the offset; no arm is tested against a table, and
+   [merge_switch] is not computed. What is computed once for a
+   [Switch] or for a table (the offset, whether the elements are all
+   immediates) is not computed again for each arm.
 
    The variable of the scrutinee is bound again by each [Let], as in
    [merge_switch], so the rewrite makes no name, and one table serves
