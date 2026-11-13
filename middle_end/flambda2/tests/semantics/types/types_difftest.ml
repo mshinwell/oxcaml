@@ -5335,6 +5335,507 @@ let the_meet_of_t7_13_in_every_order () =
       | Some (Ok _) -> true
       | Some Bottom | None -> false))
 
+(* ======================================================================== *)
+(* A line of equations that leaves a type that is no alias on a name that   *)
+(* is not canonical, in every order of the identifiers                      *)
+(* ======================================================================== *)
+
+(* T7-13 in a second shape. Three variables, defined in the order of their
+   numbers: [m], the variable 1, a value; and two naked immediates, [jv] and
+   [t].
+
+   First, [t] is the tag of [m]: its type is that relation and nothing else,
+   which is what the unboxing of a parameter that is a variant gives the
+   variable of the tag. Then [jv] is 0 or 1. Then [m] is the immediate 0, or a
+   block of tag 0 or 1: its type names [jv] as its tag and says, for when it is
+   a block, that [t] is [jv] and that [jv] is the tag of [m]. Last, [t] is 0 or
+   1.
+
+   After the third equation [t] and [jv] are both canonical: that they are
+   aliases is said only in the extension of the variant for a block. The last
+   equation is added on [t], which has the relation. The meet of the two reduces
+   the relation ([reduce_inverse_relations], the step that T1-1 is about): [m]
+   is a block of tag 0 or 1. What the type of [m] says for a block is then added
+   to the environment, and [t] becomes an alias of [jv], which was defined
+   before it, while its own equation is being added. The compiler then gives [t]
+   the type that the meet answered, which is no alias
+   ([Meet_env.add_concrete_equation_on_canonical_name]).
+
+   The first three equations are what was observed of the environment at a
+   handler whose parameter, a variant, is unboxed, in a compilation with the
+   n-way join of a unit that is not in this tree; by reading, the last is what a
+   later join adds where it names by [t] what its uses know of the tag.
+
+   There is no join here, and what is answered is the same in every order of the
+   identifiers, unlike the scenario above. The line is run many times, with new
+   variables each time, with each meet of the compiler, without and with its
+   check for concrete types on canonical names only; the model is run once.
+
+   The type of [m] is given in three ways: written whole; by two equations, of
+   which the first names [jv] as the tag and the second, after the relation on
+   [t], names [t], as the shape of an unboxing does; and by the relation that
+   the library adds for a tag ([Typing_env.add_get_tag_relation], which gives
+   [t] the relation and [m] a type that names [t]), followed by the type that
+   names [jv].
+
+   Two controls: with [t] defined before [jv], [jv] is the one that becomes an
+   alias; with [t] given one number in the place of "0 or 1", [t] becomes an
+   alias of that number.
+
+   What is asked: of the model with the compiler's choices, that [t] and no
+   other name has a type that is no alias and a canonical element that is not
+   itself, which is [jv] (in the controls, that no name has); of each meet of
+   the compiler without the check, in each order of the identifiers, that it
+   sees what that model sees; and with the check, that it stops with the fatal
+   error of the check (in the controls, that it sees what the model sees). The
+   model with the choices that are to be proved is run too, and what it has of
+   such names is printed: nothing is asked of it. *)
+
+(* A type of naked immediates: the numbers given, or any number where none is
+   given; with the relation "the tag of the variable [tag_of]" where one is
+   given. *)
+let immediates_of_the_line (numbers : int list) ~(tag_of : int option) :
+    MT.flambda_type =
+  Type_naked_immediate
+    (Ok
+       (No_alias
+          { naked_immediates =
+              (match numbers with
+              | [] -> Unknown
+              | _ :: _ -> Known (List.map N.z_of_int numbers));
+            inverse_relations =
+              (match tag_of with
+              | None -> []
+              | Some m ->
+                [(Get_tag : MT.Relation.t), Name_var (N.positive_of_int m)])
+          }))
+
+(* The variant of the line: the immediate 0, or a block of tag 0, of one field,
+   or of tag 1, of two. Its type names the variable [get_tag] as its tag, and
+   has the equations [when_block] in its extension for a block. *)
+let variant_of_the_line ~(get_tag : int)
+    ~(when_block : (int * MT.flambda_type) list) : MT.flambda_type =
+  let unknown = MT.unknown Value in
+  let head : MT.head_of_kind_value_non_null =
+    Variant
+      ( None,
+        Known (immediates_of_the_line [0] ~tag_of:None),
+        Some (N.positive_of_int get_tag),
+        Known
+          (Row_like_for_blocks
+             ( List.map
+                 (fun (tag, fields) :
+                      (_ * MT.row_like_block_case MT.Or_unknown.t) ->
+                   ( N.z_of_int tag,
+                     Known
+                       { case_maps_to = fields;
+                         case_index =
+                           { index_domain =
+                               Known (N.nat_of_int (List.length fields));
+                             index_shape = Scannable Value_only
+                           };
+                         case_env_extension = MT.empty_env_extension
+                       } ))
+                 [0, [unknown]; 1, [unknown; unknown]],
+               Bottom,
+               Heap )),
+        (match when_block with
+        | [] -> No_extensions
+        | _ :: _ ->
+          Ext
+            ( MT.empty_env_extension,
+              Env_extension
+                (List.map
+                   (fun (i, t) : (MT.name * MT.flambda_type) ->
+                     Name_var (N.positive_of_int i), t)
+                   when_block) )),
+        false )
+  in
+  Type_value (Ok (No_alias (Head_of_kind_value (Ok head, Not_null))))
+
+type how_the_line_gives_m =
+  | Written_whole
+  | By_two_equations
+      (** A type that names [jv] as the tag; then the relation on [t] and a type
+          that names [t]. *)
+  | By_the_relation_of_the_library
+      (** The relation on [t], added as the library adds it, which gives [m] a
+          type that names [t]; then a type that names [jv]. *)
+
+(* The steps of the line: [jv] and [t] are the variables 2 and 3, one way or the
+   other; [last] is the type that [t] is given last. *)
+let the_line_of_t7_13 ~(jv : int) ~(t : int) (how : how_the_line_gives_m)
+    ~(last : MT.flambda_type) : step list =
+  let m = 1 in
+  let alias_of_jv =
+    MT.alias_type_of (Naked_number Kind_naked_immediate)
+      (Var (N.positive_of_int jv))
+  in
+  let the_tag_of_m = immediates_of_the_line [] ~tag_of:(Some m) in
+  let zero_or_one = immediates_of_the_line [0; 1] ~tag_of:None in
+  let zero_or_one_the_tag_of_m =
+    immediates_of_the_line [0; 1] ~tag_of:(Some m)
+  in
+  [Define 1; Define 2; Define 3]
+  @ (match how with
+    | Written_whole ->
+      [ Equation (t, the_tag_of_m);
+        Equation (jv, zero_or_one);
+        Equation
+          ( m,
+            variant_of_the_line ~get_tag:jv
+              ~when_block:[t, alias_of_jv; jv, zero_or_one_the_tag_of_m] ) ]
+    | By_two_equations ->
+      [ Equation (jv, zero_or_one);
+        Equation
+          ( m,
+            variant_of_the_line ~get_tag:jv
+              ~when_block:[jv, zero_or_one_the_tag_of_m] );
+        Equation (t, the_tag_of_m);
+        Equation (m, variant_of_the_line ~get_tag:t ~when_block:[]) ]
+    | By_the_relation_of_the_library ->
+      [ Relation { relation = Get_tag; result = t; scrutinee = m };
+        Equation (jv, zero_or_one);
+        Equation
+          ( m,
+            variant_of_the_line ~get_tag:jv
+              ~when_block:[jv, zero_or_one_the_tag_of_m] ) ])
+  @ [Equation (t, last)]
+
+let the_kinds_of_the_line : MK.flambda_kind list =
+  [Value; Naked_number Kind_naked_immediate; Naked_number Kind_naked_immediate]
+
+let the_names_of_the_line : MT.name list =
+  List.map (fun i : MT.name -> Name_var (N.positive_of_int i)) [1; 2; 3]
+
+(* What one of the two meets of the compiler answers on the line in one run. *)
+type answer_of_the_line =
+  | Sees_after_the_line of seen
+  | Line_is_refused_by_the_check
+  | Line_stops_otherwise of string
+
+let same_answer_of_the_line (answer : answer_of_the_line)
+    (answer' : answer_of_the_line) : bool =
+  match answer, answer' with
+  | Sees_after_the_line seen, Sees_after_the_line seen' ->
+    same_seen ~threshold:3 seen seen'
+  | Line_is_refused_by_the_check, Line_is_refused_by_the_check -> true
+  | Line_stops_otherwise why, Line_stops_otherwise why' -> String.equal why why'
+  | ( ( Sees_after_the_line _ | Line_is_refused_by_the_check
+      | Line_stops_otherwise _ ),
+      _ ) ->
+    false
+
+let print_answer_of_the_line (answer : answer_of_the_line) : string =
+  match answer with
+  | Sees_after_the_line seen -> print_seen ~threshold:3 seen
+  | Line_is_refused_by_the_check ->
+    "the compiler stops: a concrete type is given to a name that is not \
+     canonical"
+  | Line_stops_otherwise why -> "the compiler stops: " ^ why
+
+(* The six orders of the identifiers of the three variables, least first. *)
+let the_orders_of_the_line : string list =
+  [ "jv < m < t";
+    "jv < t < m";
+    "m < jv < t";
+    "m < t < jv";
+    "t < jv < m";
+    "t < m < jv" ]
+
+(* One run, with new variables: the order of their identifiers, least first, and
+   the answer. As for the scenario above, the variables are told before a step
+   is run. *)
+let run_the_line ~(jv : int) ~(t : int) (implementation : implementation)
+    (steps : step list) : string option * answer_of_the_line =
+  let order = ref None in
+  let made (variable : int -> Variable.t) =
+    let role i =
+      if Int.equal i jv then "jv" else if Int.equal i t then "t" else "m"
+    in
+    order
+      := Some
+           (String.concat " < "
+              (List.map
+                 (fun (i, (_ : Variable.t)) -> role i)
+                 (List.sort
+                    (fun ((_ : int), x) ((_ : int), y) -> Variable.compare x y)
+                    (List.map (fun i -> i, variable i) [1; 2; 3]))))
+  in
+  let answer =
+    or_fatal_error (fun () ->
+        let { numbering; variable = _; after_the_steps } =
+          scenario ~made implementation the_kinds_of_the_line steps
+        in
+        match after_the_steps with
+        | Error why -> Line_stops_otherwise why
+        | Ok env ->
+          Sees_after_the_line
+            (seen_in_the_compiler numbering ~threshold:3 the_names_of_the_line
+               None env))
+  in
+  ( !order,
+    match answer with
+    | Ok answer -> answer
+    | Error line ->
+      if
+        String.starts_with
+          ~prefix:"Trying to add equation giving concrete type on" line
+      then Line_is_refused_by_the_check
+      else Line_stops_otherwise (general line) )
+
+(* The names that have, in what is seen, a type that is no alias and a canonical
+   element that is not themselves, each with that element. No answer where no
+   environment is seen, or where a name is seen without its type or without its
+   canonical element. *)
+let concrete_and_not_canonical (seen : seen) : (MT.name * M.simple) list option
+    =
+  match seen with
+  | Nothing_seen _ | Bottom_seen -> None
+  | Seen { answer = _; env_is_bottom = _; of_names; of_others = _ } ->
+    List.fold_right
+      (fun ((name : MT.name), (t : MT.flambda_type option), canonical) found ->
+        match found, t, canonical with
+        | None, (Some _ | None), (Some _ | None)
+        | Some _, None, (Some _ | None)
+        | Some _, Some _, None ->
+          None
+        | Some found, Some t, Some (canonical : M.simple) ->
+          if
+            Option.is_none (MT.get_alias_opt t)
+            && not (Stdlib.( = ) canonical (MT.simple_of_name name))
+          then Some ((name, canonical) :: found)
+          else Some found)
+      of_names (Some [])
+
+let print_concrete_and_not_canonical (found : (MT.name * M.simple) list option)
+    : string =
+  match found with
+  | None -> "not seen"
+  | Some [] -> "none"
+  | Some (_ :: _ as found) ->
+    String.concat ", "
+      (List.map
+         (fun (name, canonical) ->
+           Format.asprintf "%a, of which the canonical element is %a"
+             Model_type.print_name name Model_type.print_simple canonical)
+         found)
+
+let the_line_of_t7_13_in_every_order () =
+  let runs = 240 in
+  Format.printf
+    "@.A line of equations that leaves a type that is no alias on a name that \
+     is not canonical (T7-13, T4-10; through the reduction of T1-1), run %d \
+     times with new variables with each meet of the compiler, without and with \
+     its check for concrete types on canonical names only. m, the variable 1, \
+     is a value; jv and t are naked immediates. t is the tag of m; jv is 0 or \
+     1; m is the immediate 0 or a block of tag 0 or 1, names jv as its tag, \
+     and says for when it is a block that t is jv and that jv is its tag; \
+     last, t is given \"0 or 1\"@."
+    runs;
+  let check what holds =
+    if holds
+    then Format.printf "  %s: yes@." what
+    else (
+      incr failures;
+      Format.printf "  %s: NO@." what)
+  in
+  (* For each order seen, the answers seen in it; the check of the compiler is
+     put back whatever happens. *)
+  let answers_by_order ~jv ~t (implementation : implementation) steps
+      ~(with_the_check : bool) : (string * answer_of_the_line list) list =
+    let flag = Oxcaml_flags.Flambda2.Debug.concrete_types_only_on_canonicals in
+    let before = !flag in
+    flag := with_the_check;
+    let seen = ref [] in
+    Fun.protect
+      ~finally:(fun () -> flag := before)
+      (fun () ->
+        for _ = 1 to runs do
+          let order, answer = run_the_line ~jv ~t implementation steps in
+          let order =
+            Option.value order ~default:"the variables were not made"
+          in
+          let answers = Option.value (List.assoc_opt order !seen) ~default:[] in
+          if not (List.exists (same_answer_of_the_line answer) answers)
+          then
+            seen := (order, answer :: answers) :: List.remove_assoc order !seen
+        done);
+    List.sort
+      (fun (order, (_ : answer_of_the_line list)) (order', _) ->
+        String.compare order order')
+      !seen
+  in
+  let zero_or_one = immediates_of_the_line [0; 1] ~tag_of:None in
+  let one = MT.this_naked_immediate (N.z_of_int 1) in
+  let has (seen : seen) (expected : (MT.name * M.simple) list) : bool =
+    Option.equal (List.equal Stdlib.( = ))
+      (concrete_and_not_canonical seen)
+      (Some expected)
+  in
+  let such_names =
+    "with a type that is no alias and a canonical element that is not itself"
+  in
+  List.iter
+    (fun (title, jv, t, how, last, (is_the_line : bool)) ->
+      Format.printf "  %s (jv is v%d and t is v%d)@." title jv t;
+      let steps = the_line_of_t7_13 ~jv ~t how ~last in
+      (* What is to be seen of such names: [t], with [jv] for its canonical
+         element; in a control, none. *)
+      let expected : (MT.name * M.simple) list =
+        if is_the_line
+        then [Name_var (N.positive_of_int t), Var (N.positive_of_int jv)]
+        else []
+      in
+      let in_the_model choices : seen =
+        match
+          scenario_in_the_model (the_model choices) the_kinds_of_the_line steps
+        with
+        | Error why -> Nothing_seen why
+        | Ok env ->
+          seen_in_the_model ~threshold:3 the_names_of_the_line None env
+      in
+      let model = in_the_model Of_the_compiler in
+      Format.printf
+        "    @[<v>the model, with the compiler's choices, sees:@ %a@]@."
+        print_lines
+        (print_seen ~threshold:3 model);
+      Format.printf "    there, %s: %s@." such_names
+        (print_concrete_and_not_canonical (concrete_and_not_canonical model));
+      check
+        (if is_the_line
+         then "    that is t, with jv for its canonical element, and no other"
+         else "    no name is")
+        (has model expected);
+      Format.printf
+        "    the model, with the choices that are to be proved: %s: %s@."
+        such_names
+        (print_concrete_and_not_canonical
+           (concrete_and_not_canonical (in_the_model To_be_proved)));
+      List.iter
+        (fun ((implementation : implementation), with_the_check) ->
+          let by_order =
+            answers_by_order ~jv ~t implementation steps ~with_the_check
+          in
+          let in_every_order (holds : answer_of_the_line -> bool) =
+            List.for_all
+              (fun ((_ : string), answers) ->
+                match answers with
+                | [answer] -> holds answer
+                | [] | _ :: _ :: _ -> false)
+              by_order
+          in
+          let stops = with_the_check && is_the_line in
+          let as_expected =
+            List.equal String.equal
+              (List.map
+                 (fun (order, (_ : answer_of_the_line list)) -> order)
+                 by_order)
+              the_orders_of_the_line
+            &&
+            if stops
+            then
+              in_every_order (fun answer ->
+                  match answer with
+                  | Line_is_refused_by_the_check -> true
+                  | Sees_after_the_line _ | Line_stops_otherwise _ -> false)
+            else
+              in_every_order (fun answer ->
+                  match answer with
+                  | Sees_after_the_line seen ->
+                    same_seen ~threshold:3 model seen && has seen expected
+                  | Line_is_refused_by_the_check | Line_stops_otherwise _ ->
+                    false)
+          in
+          check
+            (Printf.sprintf
+               "  the %s meet, %s the check: each of the six orders is seen, \
+                and in each %s"
+               implementation.implementation
+               (if with_the_check then "with" else "without")
+               (if stops
+                then
+                  "the compiler stops: a concrete type is given to a name that \
+                   is not canonical"
+                else "the compiler sees what the model sees"))
+            as_expected;
+          if not as_expected
+          then
+            List.iter
+              (fun (order, answers) ->
+                Format.printf "      @[<v>%s:%a@]@." order
+                  (fun ppf ->
+                    List.iter (fun answer ->
+                        Format.fprintf ppf "@ %a" print_lines
+                          (print_answer_of_the_line answer)))
+                  answers)
+              by_order)
+        [binary, false; binary, true; n_way, false; n_way, true])
+    [ "the type of m written whole", 2, 3, Written_whole, zero_or_one, true;
+      ( "the type of m by two equations: one that names jv as the tag; then, \
+         after the relation on t, one that names t",
+        2,
+        3,
+        By_two_equations,
+        zero_or_one,
+        true );
+      ( "the relation on t added as the library adds it, which gives m a type \
+         that names t; then a type of m that names jv",
+        2,
+        3,
+        By_the_relation_of_the_library,
+        zero_or_one,
+        true );
+      ( "a control: t defined before jv (the type of m written whole)",
+        3,
+        2,
+        Written_whole,
+        zero_or_one,
+        false );
+      ( "a control: t given the number 1 in the place of \"0 or 1\" (the type \
+         of m written whole)",
+        2,
+        3,
+        Written_whole,
+        one,
+        false ) ];
+  (* Where the names of that sort are not all to be read, none is said to be
+     there, and none is said not to be. *)
+  let a_name : MT.name = Name_var (N.positive_of_int 1) in
+  let a_type = MT.unknown Value in
+  let not_read (seen : seen) =
+    Option.is_none (concrete_and_not_canonical seen)
+  in
+  check
+    "a control: of such names nothing is said where nothing is seen, where the \
+     meet is bottom, and where a name is seen without its type or without its \
+     canonical element"
+    (not_read (Nothing_seen "taken away")
+    && not_read Bottom_seen
+    && not_read
+         (Seen
+            { answer = None;
+              env_is_bottom = false;
+              of_names = [a_name, None, Some (MT.simple_of_name a_name)];
+              of_others = []
+            })
+    && not_read
+         (Seen
+            { answer = None;
+              env_is_bottom = false;
+              of_names = [a_name, Some a_type, None];
+              of_others = []
+            })
+    && not
+         (not_read
+            (Seen
+               { answer = None;
+                 env_is_bottom = false;
+                 of_names =
+                   [a_name, Some a_type, Some (MT.simple_of_name a_name)];
+                 of_others = []
+               })))
+
 (* The environment of the tests, in the model: the variables and the symbols
    that [names.env] defines, of which nothing is known. *)
 let env_of_model (names : names) : Model_env.t * MT.name list =
@@ -9991,6 +10492,7 @@ let () =
   chosen_meets ();
   scenarios_in_the_model ();
   the_meet_of_t7_13_in_every_order ();
+  the_line_of_t7_13_in_every_order ();
   control_of_the_alias_kept ();
   let model_and_compiler ~title ~seed ~count ~equations:shape kind =
     run ~title ~seed ~count

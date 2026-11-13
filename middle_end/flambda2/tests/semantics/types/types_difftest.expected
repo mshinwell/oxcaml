@@ -1085,6 +1085,136 @@ A meet whose answer depends on the identifiers of its variables (T7-13, T4-10), 
     in every order, refused by the check: yes
   the model, with the compiler's choices, on the control: not bottom: yes
 
+A line of equations that leaves a type that is no alias on a name that is not canonical (T7-13, T4-10; through the reduction of T1-1), run 240 times with new variables with each meet of the compiler, without and with its check for concrete types on canonical names only. m, the variable 1, is a value; jv and t are naked immediates. t is the tag of m; jv is 0 or 1; m is the immediate 0 or a block of tag 0 or 1, names jv as its tag, and says for when it is a block that t is jv and that jv is its tag; last, t is given "0 or 1"
+  the type of m written whole (jv is v2 and t is v3)
+    the model, with the compiler's choices, sees:
+    the environment
+    v1 : (Value
+          ((Variant (is_int None) (immediates (Known (Naked_immediate Bottom)))
+            (get_tag (Some v2))
+            (blocks (Known
+                     ((known_tags [0 ->
+                                    (Known
+                                     ((Known 1) Value_only [(Value Unknown)] []));
+                                   1 ->
+                                    (Known
+                                     ((Known 2) Value_only
+                                      [(Value Unknown); (Value Unknown)] 
+                                      []))]) (other_tags Bottom)
+                      (alloc_mode Heap)))) (extensions No_extensions)
+            (is_unique false)) Not_null)), of which the canonical element is v1
+    v2 : (Naked_immediate ((Known [0; 1]) [Get_tag v1])), of which the canonical element is v2
+    v3 : (Naked_immediate ((Known [0; 1]) [Get_tag v1])), of which the canonical element is v2
+    there, with a type that is no alias and a canonical element that is not itself: v3, of which the canonical element is v2
+      that is t, with jv for its canonical element, and no other: yes
+    the model, with the choices that are to be proved: with a type that is no alias and a canonical element that is not itself: none
+    the binary meet, without the check: each of the six orders is seen, and in each the compiler sees what the model sees: yes
+    the binary meet, with the check: each of the six orders is seen, and in each the compiler stops: a concrete type is given to a name that is not canonical: yes
+    the n-way meet, without the check: each of the six orders is seen, and in each the compiler sees what the model sees: yes
+    the n-way meet, with the check: each of the six orders is seen, and in each the compiler stops: a concrete type is given to a name that is not canonical: yes
+  the type of m by two equations: one that names jv as the tag; then, after the relation on t, one that names t (jv is v2 and t is v3)
+    the model, with the compiler's choices, sees:
+    the environment
+    v1 : (Value
+          ((Variant (is_int None) (immediates (Known (Naked_immediate Bottom)))
+            (get_tag (Some v3))
+            (blocks (Known
+                     ((known_tags [0 ->
+                                    (Known
+                                     ((Known 1) Value_only [(Value Unknown)] []));
+                                   1 ->
+                                    (Known
+                                     ((Known 2) Value_only
+                                      [(Value Unknown); (Value Unknown)] 
+                                      []))]) (other_tags Bottom)
+                      (alloc_mode Heap)))) (extensions No_extensions)
+            (is_unique false)) Not_null)), of which the canonical element is v1
+    v2 : (Naked_immediate ((Known [0; 1]) [Get_tag v1])), of which the canonical element is v2
+    v3 : (Naked_immediate ((Known [0; 1]) [Get_tag v1])), of which the canonical element is v2
+    there, with a type that is no alias and a canonical element that is not itself: v3, of which the canonical element is v2
+      that is t, with jv for its canonical element, and no other: yes
+    the model, with the choices that are to be proved: with a type that is no alias and a canonical element that is not itself: none
+    the binary meet, without the check: each of the six orders is seen, and in each the compiler sees what the model sees: yes
+    the binary meet, with the check: each of the six orders is seen, and in each the compiler stops: a concrete type is given to a name that is not canonical: yes
+    the n-way meet, without the check: each of the six orders is seen, and in each the compiler sees what the model sees: yes
+    the n-way meet, with the check: each of the six orders is seen, and in each the compiler stops: a concrete type is given to a name that is not canonical: yes
+  the relation on t added as the library adds it, which gives m a type that names t; then a type of m that names jv (jv is v2 and t is v3)
+    the model, with the compiler's choices, sees:
+    the environment
+    v1 : (Value
+          ((Variant (is_int None) (immediates (Known (Naked_immediate Bottom)))
+            (get_tag (Some v2))
+            (blocks (Known
+                     ((known_tags [0 ->
+                                    (Known
+                                     ((Known 1) Value_only [(Value Unknown)] []));
+                                   1 ->
+                                    (Known
+                                     ((Known 2) Value_only
+                                      [(Value Unknown); (Value Unknown)] 
+                                      []))]) (other_tags Bottom)
+                      (alloc_mode Heap)))) (extensions No_extensions)
+            (is_unique false)) Not_null)), of which the canonical element is v1
+    v2 : (Naked_immediate ((Known [0; 1]) [Get_tag v1])), of which the canonical element is v2
+    v3 : (Naked_immediate ((Known [0; 1]) [Get_tag v1])), of which the canonical element is v2
+    there, with a type that is no alias and a canonical element that is not itself: v3, of which the canonical element is v2
+      that is t, with jv for its canonical element, and no other: yes
+    the model, with the choices that are to be proved: with a type that is no alias and a canonical element that is not itself: none
+    the binary meet, without the check: each of the six orders is seen, and in each the compiler sees what the model sees: yes
+    the binary meet, with the check: each of the six orders is seen, and in each the compiler stops: a concrete type is given to a name that is not canonical: yes
+    the n-way meet, without the check: each of the six orders is seen, and in each the compiler sees what the model sees: yes
+    the n-way meet, with the check: each of the six orders is seen, and in each the compiler stops: a concrete type is given to a name that is not canonical: yes
+  a control: t defined before jv (the type of m written whole) (jv is v3 and t is v2)
+    the model, with the compiler's choices, sees:
+    the environment
+    v1 : (Value
+          ((Variant (is_int None) (immediates (Known (Naked_immediate Bottom)))
+            (get_tag (Some v3))
+            (blocks (Known
+                     ((known_tags [0 ->
+                                    (Known
+                                     ((Known 1) Value_only [(Value Unknown)] []));
+                                   1 ->
+                                    (Known
+                                     ((Known 2) Value_only
+                                      [(Value Unknown); (Value Unknown)] 
+                                      []))]) (other_tags Bottom)
+                      (alloc_mode Heap)))) (extensions No_extensions)
+            (is_unique false)) Not_null)), of which the canonical element is v1
+    v2 : (Naked_immediate ((Known [0; 1]) [Get_tag v1])), of which the canonical element is v2
+    v3 : (Naked_immediate (= v2)), of which the canonical element is v2
+    there, with a type that is no alias and a canonical element that is not itself: none
+      no name is: yes
+    the model, with the choices that are to be proved: with a type that is no alias and a canonical element that is not itself: none
+    the binary meet, without the check: each of the six orders is seen, and in each the compiler sees what the model sees: yes
+    the binary meet, with the check: each of the six orders is seen, and in each the compiler sees what the model sees: yes
+    the n-way meet, without the check: each of the six orders is seen, and in each the compiler sees what the model sees: yes
+    the n-way meet, with the check: each of the six orders is seen, and in each the compiler sees what the model sees: yes
+  a control: t given the number 1 in the place of "0 or 1" (the type of m written whole) (jv is v2 and t is v3)
+    the model, with the compiler's choices, sees:
+    the environment
+    v1 : (Value
+          ((Variant (is_int None) (immediates (Known (Naked_immediate Bottom)))
+            (get_tag (Some v2))
+            (blocks (Known
+                     ((known_tags [1 ->
+                                    (Known
+                                     ((Known 2) Value_only
+                                      [(Value Unknown); (Value Unknown)] 
+                                      []))]) (other_tags Bottom)
+                      (alloc_mode Heap)))) (extensions No_extensions)
+            (is_unique false)) Not_null)), of which the canonical element is v1
+    v2 : (Naked_immediate (= # 1)), of which the canonical element is # 1
+    v3 : (Naked_immediate (= # 1)), of which the canonical element is # 1
+    there, with a type that is no alias and a canonical element that is not itself: none
+      no name is: yes
+    the model, with the choices that are to be proved: with a type that is no alias and a canonical element that is not itself: none
+    the binary meet, without the check: each of the six orders is seen, and in each the compiler sees what the model sees: yes
+    the binary meet, with the check: each of the six orders is seen, and in each the compiler sees what the model sees: yes
+    the n-way meet, without the check: each of the six orders is seen, and in each the compiler sees what the model sees: yes
+    the n-way meet, with the check: each of the six orders is seen, and in each the compiler sees what the model sees: yes
+  a control: of such names nothing is said where nothing is seen, where the meet is bottom, and where a name is seen without its type or without its canonical element: yes
+
 What is the same up to the alias that a name keeps (10 cases): 10 as expected
 
 Two types of kind value, for the meet of the model and the n-way meet of the compiler (1000 cases, seeds 90000 to 90999)
