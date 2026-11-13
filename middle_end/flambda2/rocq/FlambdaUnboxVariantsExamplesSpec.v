@@ -382,6 +382,29 @@
    with parameters 4 and 5. The region of the block is left out, as
    in [two_tags].
 
+   One body more, for a loop. [pair_loop] is the body of
+
+       fun n ->
+        let rec turn i p =
+          let a, b = p in
+          if i + 1 < n then turn (i + 1) (b, a + b) else b
+        in
+        turn 1 (0, 1)
+
+   written by hand in the shape of what the front end makes of a
+   reference that holds a pair and that a [for] loop sets at every
+   turn: the pair is a parameter of the loop, which is entered with a
+   pair that a [Let] makes and given, at each turn, a pair that a
+   [Let] of the handler makes. Simplify gives the loop the two fields
+   for parameters, the second first. The pass that the round applies
+   after the unboxing of joins
+   (FlambdaUnboxLoopsSpec.unbox_loops_knowing) makes the two loads,
+   which the handler begins with, parameters, and the rewrites that
+   come after it remove the pairs and the parameter that held them
+   ([pair_loop_validated_statement], [pair_loop_refines_statement]).
+   The parameter of the code is [n], 1; the continuation of the loop
+   is 2 and its parameters are the counter, 3, and the pair, 4.
+
    The proofs are in FlambdaUnboxVariantsExamplesProofs.v, which needs
    no review. *)
 
@@ -1492,3 +1515,42 @@ Definition matched_twice_validated_statement : Prop :=
 
 Definition matched_twice_refines_statement : Prop :=
   expr_refines matched_twice_before matched_twice_after.
+
+(* ======================================================================== *)
+(* A loop that is given a pair at every turn                                *)
+(* ======================================================================== *)
+
+Definition pair_loop_before : expr :=
+  Let 5 Value (pair_of (tagged 0) (tagged 1))
+    (Let_cont_recursive
+       [(2,
+         Handler [3; 4] (make_handler_metadata [Value; Value])
+           (Let 6 Value (field 1 4)
+              (Let 7 Value (field 0 4)
+                 (Let 8 Value (add_tagged (Var 7) (Var 6))
+                    (Let 9 Value (pair_of (Var 6) (Var 8))
+                       (Let 10 Value (add_tagged (Var 3) (tagged 1))
+                          (Let 11 naked_immediate
+                             (less_tagged (Var 10) (Var 1))
+                             (Switch (Var 11)
+                                [(0%Z, jump 1 [Var 6]);
+                                 (1%Z, jump 2 [Var 10; Var 9])]))))))))]
+       (Apply_cont (jump 2 [tagged 1; Var 5]))).
+
+Definition pair_loop_after : expr :=
+  Let_cont_recursive
+    [(2,
+      Handler [3; 6; 7] (make_handler_metadata [Value; Value; Value])
+        (Let 8 Value (add_tagged (Var 7) (Var 6))
+           (Let 10 Value (add_tagged (Var 3) (tagged 1))
+              (Let 11 naked_immediate (less_tagged (Var 10) (Var 1))
+                 (Switch (Var 11)
+                    [(0%Z, jump 1 [Var 6]);
+                     (1%Z, jump 2 [Var 10; Var 8; Var 6])])))))]
+    (Apply_cont (jump 2 [tagged 1; tagged 1; tagged 0])).
+
+Definition pair_loop_validated_statement : Prop :=
+  validated_by_first_phase pair_loop_before pair_loop_after.
+
+Definition pair_loop_refines_statement : Prop :=
+  expr_refines pair_loop_before pair_loop_after.

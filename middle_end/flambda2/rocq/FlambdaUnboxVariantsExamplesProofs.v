@@ -277,3 +277,11 @@ Theorem matched_twice_refines : matched_twice_refines_statement.
 Proof.
   exact (validated_by_first_phase_refines _ _ matched_twice_validated).
 Qed.
+
+Theorem pair_loop_validated : pair_loop_validated_statement.
+Proof. vm_compute. reflexivity. Qed.
+
+Theorem pair_loop_refines : pair_loop_refines_statement.
+Proof.
+  exact (validated_by_first_phase_refines _ _ pair_loop_validated).
+Qed.
