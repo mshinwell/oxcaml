@@ -118,14 +118,13 @@
      no statement here is of that verdict from a static environment
      that is not that of the imports. The statements used for it are
      those of the four liftings (FlambdaLiftFromArmsSpec,
-     FlambdaLiftFromCodeSpec, FlambdaLiftSpec, FlambdaLiftAroundSpec)
-     and of what is done to a lifted term (FlambdaKnownSymbolsSpec,
+     FlambdaLiftFromCodeSpec, FlambdaLiftSpec, FlambdaLiftAroundSpec),
+     of the tables that a lifting puts at the head of the unit
+     (FlambdaUnusedHeadStaticsSpec.add_head_tables) and of what is
+     done to a lifted term (FlambdaKnownSymbolsSpec,
      FlambdaKnownSlotsSpec, FlambdaUnusedSlotsSpec,
-     FlambdaHoistCodeSpec, FlambdaHoistStaticsSpec) from the static
-     environment of the imports; the tables that a lifting puts at
-     the head of the unit
-     (FlambdaUnusedHeadStaticsSpec.add_head_tables) have a statement
-     from the empty one only. From the imports that verdict is the
+     FlambdaHoistCodeSpec, FlambdaHoistStaticsSpec), from the static
+     environment of the imports. From the imports that verdict is the
      last section of this file;
    - the machine with a stack of handlers (FlambdaTrapSpec.v). Its
      agreement with this one is stated from any static environment
@@ -153,9 +152,10 @@
    checks of the removal of bindings from it pass, whether a binding
    goes or not. The law of the tables put at the head of the unit
    (FlambdaUnusedHeadStaticsSpec.add_head_tables, the last step of a
-   lifting) is stated from the empty static environment only: a
-   lifting that is given a table is refused, whether the table would
-   be put or not. The tests are sufficient, not necessary.
+   lifting) asks that the imports bind no name that the groups at the
+   head of its result bind: it is tested where a lifting is given a
+   table, whether the table is put or not. The tests are sufficient,
+   not necessary.
    [verdict_holds_from] is that test for the verdict that lifts and
    [holds_from] for the others; what is stated of it is at the static
    environment of the imports, and of the verdict that the validator
@@ -349,19 +349,23 @@ Definition made_free_in (statics : static_env) (made : option expr) : bool :=
   | None => true
   end.
 
-(* Whether a lifting is given no table to put at the head of the unit
+(* Where a lifting is given a table to put at the head of the unit
    (FlambdaUnusedHeadStaticsSpec.add_head_tables, the last step of
-   [with_lifting]). The law of that step is stated from the empty
-   static environment only: a lifting that is given a table is refused
-   here, whether the checks of that step pass or not. *)
-Definition no_tables_put (L : lifting) : bool :=
+   [with_lifting]), whether the static environment binds no name that
+   the groups at the head of the result of that step bind
+   (FlambdaUnusedHeadStaticsSpec.head_free_in): the premise of
+   FlambdaUnusedHeadStaticsSpec.add_head_tables_refines_imports_statement.
+   It is asked whether the checks of the step pass or not; where they
+   do not, the result is the term that the step was given. *)
+Definition tables_free_in (statics : static_env) (L : lifting) (e : expr)
+    : bool :=
   match tables_put L with
   | [] => true
-  | _ :: _ => false
+  | _ :: _ => head_free_in statics (add_head_tables (tables_put L) e)
   end.
 
-(* That, of each of the four liftings of [with_lifting L e], and no
-   table to put. The terms are those of [with_lifting]. *)
+(* That, of each of the four liftings of [with_lifting L e], and the
+   test of the tables. The terms are those of [with_lifting]. *)
 Definition lifting_free_in (statics : static_env) (L : lifting) (e : expr)
     : bool :=
   let to_head := lift_to_head_unit (lifting_unit L) (lifted_to_head L) e in
@@ -387,12 +391,20 @@ Definition lifting_free_in (statics : static_env) (L : lifting) (e : expr)
     | None => e
     end
   in
+  let around :=
+    lift_around_unit (lifting_unit L) (lifted_around L) (groups_put L) e
+  in
+  let e :=
+    match around with
+    | Some e' => e'
+    | None => e
+    end
+  in
   made_free_in statics to_head
   && made_free_in statics from_code
   && made_free_in statics where_bound
-  && made_free_in statics
-       (lift_around_unit (lifting_unit L) (lifted_around L) (groups_put L) e)
-  && no_tables_put L.
+  && made_free_in statics around
+  && tables_free_in statics L e.
 
 (* Whether, in each round of [normalise_lifted] that uses what the
    unit binds its symbols to ([with_known], where [fold_known_unit]

@@ -686,9 +686,10 @@ it gave back.
   that is made; the term in which what the unit binds its symbols to
   is used, in each round in which it is; and both terms whose static
   bindings are taken first, where the verdict is of that comparison);
-  and where no lifting is given a table to put at the head of the
-  unit, whether the table is put or not: the law of that step is
-  stated from the empty static environment only. The test computes
+  and where, for a lifting that is given a table to put at the head
+  of the unit, no import is a symbol that the groups at the head of
+  the unit bind once that step is done, whether the table is put or
+  not. The test computes
   those terms a second time, as the validation does; it is
   sufficient, not necessary. The theorem is of no verdict that does
   not pass the test, and of the test with the verdict that the

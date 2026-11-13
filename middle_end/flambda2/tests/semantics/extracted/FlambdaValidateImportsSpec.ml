@@ -41,9 +41,12 @@ let made_free_in statics = function
   | Some e' -> static_names_free_in statics e'
   | None -> true
 
-(** val no_tables_put : lifting -> bool **)
+(** val tables_free_in : static_env -> lifting -> expr -> bool **)
 
-let no_tables_put l = match l.tables_put with [] -> true | _ :: _ -> false
+let tables_free_in statics l e =
+  match l.tables_put with
+  | [] -> true
+  | _ :: _ -> head_free_in statics (add_head_tables l.tables_put e)
 
 (** val lifting_free_in : static_env -> lifting -> expr -> bool **)
 
@@ -54,11 +57,14 @@ let lifting_free_in statics l e =
   let e1 = match from_code with Some e' -> e' | None -> e0 in
   let where_bound = lift_unit l e1 in
   let e2 = match where_bound with Some e' -> e' | None -> e1 in
+  let around =
+    lift_around_unit l.lifting_unit l.lifted_around l.groups_put e2
+  in
+  let e3 = match around with Some e' -> e' | None -> e2 in
   (((made_free_in statics to_head && made_free_in statics from_code)
    && made_free_in statics where_bound)
-  && made_free_in statics
-       (lift_around_unit l.lifting_unit l.lifted_around l.groups_put e2))
-  && no_tables_put l
+  && made_free_in statics around)
+  && tables_free_in statics l e3
 
 (** val known_free_in : static_env -> nat -> continuation list -> code_id list
     -> expr -> bool **)

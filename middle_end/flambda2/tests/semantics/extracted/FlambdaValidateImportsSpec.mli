@@ -28,7 +28,7 @@ val holds_from : static_env -> nat -> code_id list -> expr -> validation -> bool
 
 val made_free_in : static_env -> expr option -> bool
 
-val no_tables_put : lifting -> bool
+val tables_free_in : static_env -> lifting -> expr -> bool
 
 val lifting_free_in : static_env -> lifting -> expr -> bool
 

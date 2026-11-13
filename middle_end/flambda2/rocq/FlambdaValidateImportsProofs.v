@@ -398,9 +398,12 @@ Proof.
   apply andb_true_iff in Hfree as [Hfree Haround_free].
   apply andb_true_iff in Hfree as [Hfree Hlift_free].
   apply andb_true_iff in Hfree as [Hhead_free Hout_free].
-  unfold no_tables_put in Htables.
-  destruct (tables_put L) as [ | table tables]; [ | discriminate ].
-  cbn [add_head_tables].
+  apply (refines_trans _ (State around [] [] statics empty_heap));
+    [ | revert Htables; unfold tables_free_in;
+        destruct (tables_put L) as [ | table tables];
+          [ intros _; apply refines_refl
+          | exact (add_head_tables_refines_imports imports (table :: tables)
+                     around) ] ].
   apply (refines_trans _ (State at_head [] [] statics empty_heap)).
   - subst at_head.
     destruct (lift_to_head_unit (lifting_unit L) (lifted_to_head L) e)
