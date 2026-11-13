@@ -1,0 +1,123 @@
+let $camlWhile_flag_or_two_tests__first_const_0 = Block 0 () in
+(let code inline(never) size(74)
+       steps_until_0 (n/104 : imm tagged, m/105 : imm tagged)
+         my_closure/106 &my_alloc_region/107 my_depth/108
+         -> k/40 * k/41
+         : imm tagged =
+   let next_depth/109 = rec_info (succ my_depth/108) in
+   cont k/42 (0)
+     where k/42 (let_mutable/110 : imm tagged) =
+       (cont k/43 (0, let_mutable/110)
+          where k/43
+                  (let_mutable/111 : imm tagged,
+                   stop_20_unboxed0/112 : imm tagged) =
+            (cont k/45 (stop_20_unboxed0/112, let_mutable/111)
+               where rec k/45
+                           (stop_20_unboxed0/116 : imm tagged,
+                            i_21_unboxed0/117 : imm tagged) =
+                 ((let untagged/144 = %untag_imm (stop_20_unboxed0/116) in
+                   switch untagged/144
+                     | 0 -> k/55
+                     | 1 -> k/46 (1, stop_20_unboxed0/116, i_21_unboxed0/117))
+                    where k/55 =
+                      cont k/52 (stop_20_unboxed0/116, i_21_unboxed0/117)
+                    where k/52
+                            (stop_20_unboxed0/135 : imm tagged,
+                             i_21_unboxed0/136 : imm tagged) =
+                      ((let prim/141 =
+                          %int_comp.gt (i_21_unboxed0/136, n/104)
+                        in
+                        let int_greaterthan/142 = %tag_imm (prim/141) in
+                        (let untagged/143 = %untag_imm (int_greaterthan/142)
+                         in
+                         switch untagged/143
+                           | 0 -> k/54
+                           | 1 ->
+                             k/46
+                               (1, stop_20_unboxed0/135, i_21_unboxed0/136))
+                          where k/54 =
+                            cont k/53
+                                   (stop_20_unboxed0/135, i_21_unboxed0/136))
+                         where k/53
+                                 (stop_20_unboxed0/137 : imm tagged,
+                                  i_21_unboxed0/138 : imm tagged) =
+                           let prim/139 =
+                             %int_comp.gt (i_21_unboxed0/138, m/105)
+                           in
+                           let int_greaterthan/140 = %tag_imm (prim/139) in
+                           cont k/46
+                                  (int_greaterthan/140,
+                                   stop_20_unboxed0/137,
+                                   i_21_unboxed0/138))
+                    where k/46
+                            (staticcatch_result/118 : imm tagged,
+                             stop_20_unboxed0/119 : imm tagged,
+                             i_21_unboxed0/120 : imm tagged) =
+                      let while_cond_result/121 =
+                        %boolean_not (staticcatch_result/118)
+                      in
+                      ((let untagged/134 = %untag_imm (while_cond_result/121)
+                        in
+                        switch untagged/134
+                          | 0 ->
+                            k/44 (0, stop_20_unboxed0/119, i_21_unboxed0/120)
+                          | 1 -> k/51)
+                         where k/51 =
+                           cont k/47
+                                  (stop_20_unboxed0/119, i_21_unboxed0/120)
+                         where k/47
+                                 (stop_20_unboxed0/122 : imm tagged,
+                                  i_21_unboxed0/123 : imm tagged) =
+                           let int_add/124 =
+                             %int_barith.add (i_21_unboxed0/123, 1)
+                           in
+                           ((let int_mul/130 =
+                               %int_barith.mul (int_add/124, int_add/124)
+                             in
+                             let prim/131 = %int_comp.gt (int_mul/130, 20) in
+                             let int_greaterthan/132 = %tag_imm (prim/131) in
+                             (let untagged/133 =
+                                %untag_imm (int_greaterthan/132)
+                              in
+                              switch untagged/133
+                                | 0 ->
+                                  k/48 (0, stop_20_unboxed0/122, int_add/124)
+                                | 1 -> k/50)
+                               where k/50 =
+                                 cont k/49
+                                        (stop_20_unboxed0/122, int_add/124))
+                              where k/49
+                                      (stop_20_unboxed0/128 : imm tagged,
+                                       i_21_unboxed0/129 : imm tagged) =
+                                cont k/48 (0, 1, i_21_unboxed0/129)
+                              where k/48
+                                      (staticcatch_result/125 : imm tagged,
+                                       stop_20_unboxed0/126 : imm tagged,
+                                       i_21_unboxed0/127 : imm tagged) =
+                                cont k/45
+                                       (stop_20_unboxed0/126,
+                                        i_21_unboxed0/127))))
+               where k/44
+                       (staticcatch_result/113 : imm tagged,
+                        stop_20_unboxed0/114 : imm tagged,
+                        i_21_unboxed0/115 : imm tagged) =
+                 cont k/40 (i_21_unboxed0/115)))
+ in
+ let steps_until/145 = closure steps_until_0 @steps_until &toplevel in
+ (let Popaque/148 = %opaque (9) in
+  apply direct(steps_until_0 &toplevel)
+    (steps_until/145 : _ -> imm tagged) (Popaque/148, 7) -> k/56 * error)
+   where k/56 (result/146 : imm tagged) =
+     let Pmakeblock/147 =
+       %block.[`0`].`toplevel` (steps_until/145, result/146)
+     in
+     cont k/39 (Pmakeblock/147))
+  where k/39 define_root_symbol (module_block/101) =
+    let field_0/102 =
+      %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/101)
+    in
+    let field_1/103 =
+      %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/101)
+    in
+    let $camlWhile_flag_or_two_tests = Block 0 (field_0/102, field_1/103) in
+    cont done ($camlWhile_flag_or_two_tests)

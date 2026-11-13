@@ -1,0 +1,171 @@
+let $camlWhile_flag_chooses_test__first_const_0 = Block 0 () in
+(let code inline(never) size(68)
+       two_phases_0 (n/126 : imm tagged)
+         my_closure/127 &my_alloc_region/128 my_depth/129
+         -> k/42 * k/43
+         : imm tagged =
+   let next_depth/130 = rec_info (succ my_depth/129) in
+   cont k/44 (0)
+     where k/44 (let_mutable/131 : imm tagged) =
+       (cont k/45 (0, let_mutable/131)
+          where k/45
+                  (let_mutable/132 : imm tagged,
+                   found_18_unboxed0/133 : imm tagged) =
+            (cont k/46 (0, found_18_unboxed0/133, let_mutable/132)
+               where k/46
+                       (let_mutable/134 : imm tagged,
+                        found_18_unboxed0/135 : imm tagged,
+                        i_19_unboxed0/136 : imm tagged) =
+                 (cont k/48
+                         (found_18_unboxed0/135,
+                          i_19_unboxed0/136,
+                          let_mutable/134)
+                    where rec k/48
+                                (found_18_unboxed0/142 : imm tagged,
+                                 i_19_unboxed0/143 : imm tagged,
+                                 s_20_unboxed0/144 : imm tagged) =
+                      ((let untagged/176 = %untag_imm (found_18_unboxed0/142)
+                        in
+                        switch untagged/176
+                          | 0 -> k/57
+                          | 1 -> k/58)
+                         where k/58 =
+                           cont k/55
+                                  (found_18_unboxed0/142,
+                                   i_19_unboxed0/143,
+                                   s_20_unboxed0/144)
+                         where k/57 =
+                           cont k/56
+                                  (found_18_unboxed0/142,
+                                   i_19_unboxed0/143,
+                                   s_20_unboxed0/144)
+                         where k/56
+                                 (found_18_unboxed0/170 : imm tagged,
+                                  i_19_unboxed0/171 : imm tagged,
+                                  s_20_unboxed0/172 : imm tagged) =
+                           let int_add/173 =
+                             %int_barith.add (i_19_unboxed0/171, 1)
+                           in
+                           let prim/174 = %int_comp.lt (int_add/173, n/126)
+                           in
+                           let int_lessthan/175 = %tag_imm (prim/174) in
+                           cont k/49
+                                  (int_lessthan/175,
+                                   found_18_unboxed0/170,
+                                   int_add/173,
+                                   s_20_unboxed0/172)
+                         where k/55
+                                 (found_18_unboxed0/164 : imm tagged,
+                                  i_19_unboxed0/165 : imm tagged,
+                                  s_20_unboxed0/166 : imm tagged) =
+                           let int_add/167 =
+                             %int_barith.add (s_20_unboxed0/166, 1)
+                           in
+                           let prim/168 = %int_comp.lt (int_add/167, 3) in
+                           let int_lessthan/169 = %tag_imm (prim/168) in
+                           cont k/49
+                                  (int_lessthan/169,
+                                   found_18_unboxed0/164,
+                                   i_19_unboxed0/165,
+                                   int_add/167)
+                         where k/49
+                                 (while_cond_result/145 : imm tagged,
+                                  found_18_unboxed0/146 : imm tagged,
+                                  i_19_unboxed0/147 : imm tagged,
+                                  s_20_unboxed0/148 : imm tagged) =
+                           ((let untagged/163 =
+                               %untag_imm (while_cond_result/145)
+                             in
+                             switch untagged/163
+                               | 0 ->
+                                 k/47
+                                   (0,
+                                    found_18_unboxed0/146,
+                                    i_19_unboxed0/147,
+                                    s_20_unboxed0/148)
+                               | 1 -> k/54)
+                              where k/54 =
+                                cont k/50
+                                       (found_18_unboxed0/146,
+                                        i_19_unboxed0/147,
+                                        s_20_unboxed0/148)
+                              where k/50
+                                      (found_18_unboxed0/149 : imm tagged,
+                                       i_19_unboxed0/150 : imm tagged,
+                                       s_20_unboxed0/151 : imm tagged) =
+                                ((let int_mul/159 =
+                                    %int_barith.mul
+                                      (i_19_unboxed0/150, i_19_unboxed0/150)
+                                  in
+                                  let prim/160 =
+                                    %int_comp.gt (int_mul/159, 20)
+                                  in
+                                  let int_greaterthan/161 =
+                                    %tag_imm (prim/160)
+                                  in
+                                  (let untagged/162 =
+                                     %untag_imm (int_greaterthan/161)
+                                   in
+                                   switch untagged/162
+                                     | 0 ->
+                                       k/51
+                                         (0,
+                                          found_18_unboxed0/149,
+                                          i_19_unboxed0/150,
+                                          s_20_unboxed0/151)
+                                     | 1 -> k/53)
+                                    where k/53 =
+                                      cont k/52
+                                             (found_18_unboxed0/149,
+                                              i_19_unboxed0/150,
+                                              s_20_unboxed0/151))
+                                   where k/52
+                                           (found_18_unboxed0/156 :
+                                              imm tagged,
+                                            i_19_unboxed0/157 : imm tagged,
+                                            s_20_unboxed0/158 : imm tagged) =
+                                     cont k/51
+                                            (0,
+                                             1,
+                                             i_19_unboxed0/157,
+                                             s_20_unboxed0/158)
+                                   where k/51
+                                           (staticcatch_result/152 :
+                                              imm tagged,
+                                            found_18_unboxed0/153 :
+                                              imm tagged,
+                                            i_19_unboxed0/154 : imm tagged,
+                                            s_20_unboxed0/155 : imm tagged) =
+                                     cont k/48
+                                            (found_18_unboxed0/153,
+                                             i_19_unboxed0/154,
+                                             s_20_unboxed0/155))))
+                    where k/47
+                            (staticcatch_result/137 : imm tagged,
+                             found_18_unboxed0/138 : imm tagged,
+                             i_19_unboxed0/139 : imm tagged,
+                             s_20_unboxed0/140 : imm tagged) =
+                      let int_add/141 =
+                        %int_barith.add
+                          (s_20_unboxed0/140, i_19_unboxed0/139)
+                      in
+                      cont k/42 (int_add/141))))
+ in
+ let two_phases/177 = closure two_phases_0 @two_phases &toplevel in
+ (let Popaque/180 = %opaque (9) in
+  apply direct(two_phases_0 &toplevel)
+    (two_phases/177 : _ -> imm tagged) (Popaque/180) -> k/59 * error)
+   where k/59 (result/178 : imm tagged) =
+     let Pmakeblock/179 =
+       %block.[`0`].`toplevel` (two_phases/177, result/178)
+     in
+     cont k/41 (Pmakeblock/179))
+  where k/41 define_root_symbol (module_block/123) =
+    let field_0/124 =
+      %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/123)
+    in
+    let field_1/125 =
+      %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/123)
+    in
+    let $camlWhile_flag_chooses_test = Block 0 (field_0/124, field_1/125) in
+    cont done ($camlWhile_flag_chooses_test)
