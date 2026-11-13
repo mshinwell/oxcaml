@@ -1,0 +1,119 @@
+(let code inline(always) size(39)
+       value_of_0
+         (a/107 : [ 0 | 0 of imm tagged |1 of imm tagged ],
+          base/108 : imm tagged)
+         my_closure/109 &my_alloc_region/110 my_depth/111
+         -> k/38 * k/39
+         : imm tagged =
+   let next_depth/112 = rec_info (succ my_depth/111) in
+   (let prim/120 = %is_int (a/107) in
+    let is_scrutinee_int/121 = %tag_imm (prim/120) in
+    let untagged/122 = %untag_imm (is_scrutinee_int/121) in
+    switch untagged/122
+      | 0 -> k/42
+      | 1 -> k/43)
+     where k/43 =
+       let untagged/119 = %untag_imm (a/107) in
+       cont k/38 (0)
+     where k/42 =
+       let prim/116 = %get_tag (a/107) in
+       let scrutinee_tag/117 = %tag_imm (prim/116) in
+       let untagged/118 = %untag_imm (scrutinee_tag/117) in
+       switch untagged/118
+         | 0 -> k/40
+         | 1 -> k/41
+     where k/41 =
+       let Pfield/114 = %block_load.[`0`] (a/107) in
+       let int_mul/115 = %int_barith.mul (base/108, Pfield/114) in
+       cont k/38 (int_mul/115)
+     where k/40 =
+       let Pfield/113 = %block_load.[`0`] (a/107) in
+       cont k/38 (Pfield/113)
+ in
+ let code inline(never) size(41)
+       price_1
+         (a/123 : [ 0 | 0 of imm tagged |1 of imm tagged ],
+          base/124 : imm tagged)
+         my_closure/125 &my_alloc_region/126 my_depth/127
+         -> k/44 * k/45
+         : imm tagged =
+   let next_depth/128 = rec_info (succ my_depth/127) in
+   let value_of/129 = %project_value_slot.[price].[value_of] (my_closure/125)
+   in
+   (let prim/137 = %is_int (a/123) in
+    let is_scrutinee_int/138 = %tag_imm (prim/137) in
+    let untagged/139 = %untag_imm (is_scrutinee_int/138) in
+    switch untagged/139
+      | 0 -> k/49
+      | 1 -> k/50)
+     where k/50 =
+       let untagged/136 = %untag_imm (a/123) in
+       cont k/44 (0)
+     where k/49 =
+       let prim/133 = %get_tag (a/123) in
+       let scrutinee_tag/134 = %tag_imm (prim/133) in
+       let untagged/135 = %untag_imm (scrutinee_tag/134) in
+       switch untagged/135
+         | 0 -> k/46
+         | 1 -> k/48
+     where k/48 =
+       let Pfield/132 = %block_load.[`0`] (a/123) in
+       cont k/44 (Pfield/132)
+     where k/46 =
+       (apply direct(value_of_0 &my_alloc_region/126)
+          (value_of/129 : _ -> imm tagged) (a/123, base/124) -> k/47 * k/45
+          where k/47 (apply_result/130 : imm tagged) =
+            let int_add/131 = %int_barith.add (apply_result/130, 1) in
+            cont k/44 (int_add/131))
+ in
+ let $camlTag_known_in_arm__const_block_1 = Block 0 (4) in
+ let $camlTag_known_in_arm__const_block_0 = Block 1 (3) in
+ let value_of/140 = closure value_of_0 @value_of &toplevel in
+ let price/141 = closure price_1 @price &toplevel
+ with { value_of = value_of/140 }
+ in
+ (let Popaque/152 = %opaque (10) in
+  let Popaque/153 = %opaque (0) in
+  apply direct(price_1 &toplevel)
+    (price/141 : _ -> imm tagged) (Popaque/153, Popaque/152) -> k/51 * error)
+   where k/51 (apply_result/142 : imm tagged) =
+     ((let Popaque/150 = %opaque (10) in
+       let Popaque/151 = %opaque ($camlTag_known_in_arm__const_block_0) in
+       apply direct(price_1 &toplevel)
+         (price/141 : _ -> imm tagged)
+           (Popaque/151, Popaque/150)
+           -> k/52 * error)
+        where k/52 (apply_result/143 : imm tagged) =
+          ((let Popaque/148 = %opaque (10) in
+            let Popaque/149 = %opaque ($camlTag_known_in_arm__const_block_1)
+            in
+            apply direct(price_1 &toplevel)
+              (price/141 : _ -> imm tagged)
+                (Popaque/149, Popaque/148)
+                -> k/53 * error)
+             where k/53 (apply_result/144 : imm tagged) =
+               let int_add/145 =
+                 %int_barith.add (apply_result/144, apply_result/143)
+               in
+               let result/146 =
+                 %int_barith.add (int_add/145, apply_result/142)
+               in
+               let Pmakeblock/147 =
+                 %block.[`0`].`toplevel`
+                   (value_of/140, price/141, result/146)
+               in
+               cont k/37 (Pmakeblock/147))))
+  where k/37 define_root_symbol (module_block/103) =
+    let field_0/104 =
+      %block_load.tag[`0`].`size`[`3`].[`0`] (module_block/103)
+    in
+    let field_1/105 =
+      %block_load.tag[`0`].`size`[`3`].[`1`] (module_block/103)
+    in
+    let field_2/106 =
+      %block_load.tag[`0`].`size`[`3`].[`2`] (module_block/103)
+    in
+    let $camlTag_known_in_arm =
+      Block 0 (field_0/104, field_1/105, field_2/106)
+    in
+    cont done ($camlTag_known_in_arm)
