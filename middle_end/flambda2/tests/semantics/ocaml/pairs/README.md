@@ -112,9 +112,10 @@ then "after the prefix".
   still an import, and that it evaluates from the imports.
 - **validated with nothing else imported, given the .cmx of N**,
   followed by **not validated with its imports**: the validator
-  accepted the two terms with the prefix in front by a comparison
-  that has no theorem from the imports, and an import is left. What
-  is proved is of the two terms run with no import at all.
+  accepted the two terms with the prefix in front with a verdict
+  that does not pass the test from the imports (`../README.md`,
+  "What the verdicts mean"), and an import is left. What is proved
+  is of the two terms run with no import at all.
 - The other outcomes are those of the directory above, of the two
   terms with the prefix in front: "not validated"; "nothing to
   validate, as the term before is undefined", where the term before

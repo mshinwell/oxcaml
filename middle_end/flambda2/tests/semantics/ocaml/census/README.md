@@ -125,6 +125,17 @@ given the form that the term after has, the tables bound at the
 head of the term before, an unused parameter removed from a
 continuation that a call returns to, and the verdict asked of
 `FlambdaValidateImportsSpec.holds_from`.
+Between the tool of 87cdbf3e01 and the tool of this tree, of each of
+the 600 the tool prints what it printed, byte for byte, with what
+has come between: the load from a table in place of a `Switch`, the
+test from the imports of the verdict that lifts, the calls of the
+term before taken on when its rounds are over, the parameters of
+loops untagged and given their scrutinee, what a handler reads in
+two places made one parameter, the reads of a loop unboxed, an
+`Opaque_identity` given the kind of its argument in a unit read
+from a text, the refusal of a phantom binding and of a unit that
+does not give
+its return continuation its own symbol, and the rounds that stop.
 No unit that was validated at one of these points is not at a later
 one. The
 day before, 336 were validated, 256 were not and 8 were not checked;
@@ -207,22 +218,37 @@ tool gave no answer. `run.sh` allows a unit 60 seconds of processor
 time, user and system together. Until now it allowed 60 seconds of
 the clock, which measured what else the machine was running:
 `loops_scalar`, seed 55, which was without an answer in 60 seconds
-the day before, then took 16 seconds of processor time, then 4, and
-takes 7 now, the most of the 240. The 240 take 73 seconds of
-processor time together (69 user, 4 system); they took 51 (47 and
-5) with the tool of ecb8c49042, and 204 the day before that (198
-and 6). Of the tools built between that commit and this tree, one
-built before the rewrites from the types went into a term in which
-something was lifted took 58 seconds, and one built after them,
-and after the reads in scope given to a join, took 81, in one run
-of each; two runs of one tool have differed by a tenth on this
-machine. The 600 take 33 seconds, as they did. A tool that
+the day before, then took 16 seconds of processor time, then 4,
+then 7 with the tool of 87cdbf3e01, and takes 0.6 now, the most of
+the 240. The 240 took 12 seconds of processor time together in one
+run (8 user, 3 system), and 14 in a second run of the same tool,
+made while other builds ran on the machine (9 and 5). They took 73
+(69 and 4) with the tool of
+87cdbf3e01, 51 (47 and 5) with the tool of ecb8c49042, and 204 the
+day before that (198 and 6). Of the tools built between ecb8c49042
+and 87cdbf3e01, one built before the rewrites from the types went
+into a term in which something was lifted took 58 seconds, and one
+built after them, and after the reads in scope given to a join,
+took 81, in one run of each; two runs of one tool have differed by
+a tenth on this machine. Between the tool of 87cdbf3e01 and this
+one, a run of rounds of the validation was made to stop after the
+first round that gives back its term
+(`FlambdaValidateSpec.iterate`), where every run made all its fifty
+rounds. That change was measured alone, on the tree where it was
+made, with the tool before it and the tool after: 79 seconds and 12
+for the 240, 30 and 16 for the 600, and no output of the 840
+differs between the two. What else came between the two tools was
+not measured for its cost on these units one change at a time. The
+600 took 14 seconds in the first of those two runs (7 user, 8
+system) and 20 in the second (8 and 12); they took 33 with the tool
+of 87cdbf3e01. Most of what the 600 take now is the system's part,
+which is the part that differs between the two runs. A tool that
 a signal other than that of the limit ends
 is reported as that, with its status, and counted as no answer.
 
 | Profile | Units | Validated | Validated with its imports | Validated with nothing imported only | Not validated | Not checked |
 |---------|-------|-----------|----------------------------|--------------------------------------|---------------|-------------|
-| `exceptions` | 60 | 33 | 13 | 14 | 0 | 0 |
+| `exceptions` | 60 | 33 | 27 | 0 | 0 | 0 |
 | `exceptions_scalar` | 60 | 35 | 23 | 0 | 2 | 0 |
 | `loops` | 60 | 49 | 0 | 0 | 9 | 2 |
 | `loops_scalar` | 60 | 44 | 0 | 0 | 16 | 0 |
@@ -230,14 +256,19 @@ is reported as that, with its status, and counted as no answer.
 A unit that names a predefined exception has an import, and the
 tool runs it from its imports (`../README.md`, "What the verdicts
 mean"): 51 of the 120 units with exceptions. The validator accepts
-50 of them, as it did before the tool ran units so. 36 are accepted
-with a verdict that is proved of the two units run from their
-imports. The other 14, all in the profile that keeps a function,
-are accepted once closures are lifted, which is proved of the two
-units run with nothing imported only: they are not validated with
-their imports. One of the two units with exceptions that are not
-validated has an import. The validator accepts 211 of the 240; 161
-of them import nothing. Four are validated since it accepted 207,
+50 of them, as it did before the tool ran units so, and all 50 are
+validated with their imports. 36 are accepted with a verdict that
+holds from the imports whatever they are. The other 14, all in the
+profile that keeps a function, are accepted once closures are
+lifted, a verdict that holds from the imports where it passes a
+test (`FlambdaValidateImportsSpec.lifted_holds_from`, C5's;
+`../README.md`), which the 14 pass. With the tool of 87cdbf3e01,
+which had no such test, they were validated with nothing imported
+only; of the other 226 units the tool of this tree prints what
+that one printed, byte for byte. One of the two units with
+exceptions that are not validated has an import. The validator
+accepts 211 of the 240; 161 of them import nothing. Four are
+validated since it accepted 207,
 none lost: three by the liftings to a group of static bindings
 around (`FlambdaLiftAroundSpec.lift_around_unit`, V3's; `loops`,
 seeds 7, 17 and 27), and one by the removal of an unused parameter
