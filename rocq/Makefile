@@ -320,6 +320,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaUnusedContsSpec.v \
   FlambdaUnusedParamsProofs.v \
   FlambdaUnusedParamsSpec.v \
+  FlambdaUnusedSlotsObservedProofs.v \
+  FlambdaUnusedSlotsObservedSpec.v \
   FlambdaUnusedSlotsProofs.v \
   FlambdaUnusedSlotsSpec.v \
   FlambdaUnusedProjectionsProofs.v \
