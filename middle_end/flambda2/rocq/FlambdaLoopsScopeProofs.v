@@ -38,6 +38,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaUnusedContsProofs FlambdaDeadParamsSpec FlambdaForwardSpec
   FlambdaLoopAliasesSpec FlambdaLoopLetsSpec FlambdaLoopifySpec
   FlambdaParamAliasesSpec FlambdaRecHandlersSpec FlambdaShortcutSpec
+  FlambdaSameHandlersSpec
   FlambdaSinkContsSpec FlambdaSinkUsesSpec FlambdaUnusedParamsSpec
   FlambdaValidatorEquivarianceSpec FlambdaScopedProofs
   FlambdaKeepsScopeProofs FlambdaLoopsScopeSpec.
@@ -1657,6 +1658,88 @@ Theorem forward_applications_with_keeps_scope :
 Proof.
   intros calls. apply keeps_scope_intro, forward_applications_with_scoped.
 Qed.
+
+(* A continuation whose handler is that of a continuation bound around
+   it applies that one. The handler that is put names that continuation
+   and its own parameters. *)
+Lemma free_variables_of_params (params : list variable) :
+  free_variables_of_simples (map Var params) = params.
+Proof.
+  induction params as [ | param params IH]; [ reflexivity | ].
+  unfold free_variables_of_simples in IH |- *.
+  cbn [map flat_map free_variables_of_simple app]. rewrite IH. reflexivity.
+Qed.
+
+Fixpoint share_with_scoped (k : continuation) (h : continuation_handler)
+    (e : expr) {struct e} :
+  ∀ (xs : list variable) (ks : list continuation),
+    scoped_among [] [k] e (share_with k h xs ks e).
+Proof.
+  destruct e
+    as [ x kind d body | bindings body | k' [params metadata handler] body
+       | handlers body | ap | ac | scrutinee arms | ];
+    intros xs ks; cbn [share_with]; try apply scoped_among_refl.
+  - apply scoped_among_let, share_with_scoped.
+  - apply scoped_among_let_static, share_with_scoped.
+  - destruct (Pos.eqb k' k); [ apply scoped_among_refl | ].
+    destruct (same_handler h xs ks (Handler params metadata handler)).
+    + pose proof (share_with_scoped k h body xs (k' :: ks)) as Hbody.
+      intros Hclosed. scope_in Hclosed. scope.
+      apply andb_true_iff in Hclosed. destruct Hclosed as [_ Hrest].
+      destruct (Hbody Hrest) as (Hrest' & Hv & Hk).
+      rewrite Hrest'. split; [ reflexivity | split ].
+      * intros y Hy. apply in_app_or in Hy. destruct Hy as [Hy | Hy].
+        -- apply in_without in Hy. destruct Hy as [Hy Hparams].
+           unfold free_variables_of_apply_cont in Hy. cbn [ac_args] in Hy.
+           rewrite free_variables_of_params in Hy. contradiction.
+        -- apply Hv in Hy. rewrite app_nil_r in Hy |- *.
+           apply in_or_app. right. exact Hy.
+      * intros j Hj. apply in_app_or in Hj. destruct Hj as [Hj | Hj].
+        -- cbn in Hj. destruct Hj as [<- | []].
+           apply in_or_app. right. left. reflexivity.
+        -- apply in_without in Hj. destruct Hj as [Hj Hout].
+           apply Hk, in_app_or in Hj. apply in_or_app.
+           destruct Hj as [Hj | Hj]; [ left | right; exact Hj ].
+           apply in_or_app. right. apply in_without. split; assumption.
+    + apply (scoped_among_let_cont [] [] [k] []);
+        [ intros y [] | intros j [] | apply scoped_among_refl
+        | apply share_with_scoped ].
+Qed.
+
+Lemma share_under_scoped (k : continuation) (h : continuation_handler)
+    (body : expr) :
+  scoped (Let_cont_non_recursive k h body)
+    (Let_cont_non_recursive k h (share_with k h [] [k] body)).
+Proof.
+  pose proof (share_with_scoped k h body [] [k]) as Hbody.
+  intros Hclosed. scope_in Hclosed. scope.
+  apply andb_true_iff in Hclosed. destruct Hclosed as [Hfirst Hrest].
+  destruct (Hbody Hrest) as (Hrest' & Hv & Hk).
+  rewrite Hfirst, Hrest'. split; [ reflexivity | split ].
+  - apply incl_app_app; [ apply incl_refl | ].
+    rewrite app_nil_r in Hv. exact Hv.
+  - apply incl_app_app; [ apply incl_refl | ].
+    intros j Hj. apply in_without in Hj. destruct Hj as [Hj Hout].
+    apply Hk, in_app_or in Hj.
+    destruct Hj as [Hj | Hj]; [ | contradiction ].
+    apply in_without. split; assumption.
+Qed.
+
+Fixpoint share_handlers_scoped (e : expr) : scoped e (share_handlers e).
+Proof.
+  destruct e
+    as [x kind d body | bindings body | k [params metadata handler] body
+       | handlers body | ap | ac | scrutinee arms | ];
+    cbn [share_handlers]; cbv zeta;
+    try (scoped_under_binders share_handlers_scoped).
+  destruct (sharable (Handler params metadata (share_handlers handler))).
+  - eapply scoped_trans; [ | apply share_under_scoped ].
+    scoped_under_binders share_handlers_scoped.
+  - scoped_under_binders share_handlers_scoped.
+Qed.
+
+Theorem share_handlers_keeps_scope : share_handlers_keeps_scope_statement.
+Proof. apply keeps_scope_intro, share_handlers_scoped. Qed.
 
 (* Loopify. *)
 

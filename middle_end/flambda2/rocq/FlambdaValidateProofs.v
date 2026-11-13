@@ -53,7 +53,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaRecoverComparisonSpec FlambdaRecoverComparisonProofs
   FlambdaSameComparisonSpec FlambdaSameComparisonProofs
   FlambdaShareProjectionsSpec FlambdaShareProjectionsProofs
-  FlambdaShortcutSpec FlambdaShortcutProofs FlambdaSinkContsSpec
+  FlambdaShortcutSpec FlambdaShortcutProofs FlambdaSameHandlersSpec
+  FlambdaSameHandlersProofs FlambdaSinkContsSpec
   FlambdaSinkContsProofs FlambdaSinkUsesSpec FlambdaSinkUsesProofs
   FlambdaUnaliasParamsSpec FlambdaUnaliasParamsProofs
   FlambdaGiveScrutineeSpec FlambdaGiveScrutineeProofs
@@ -120,6 +121,7 @@ Ltac equivalence_step :=
     | apply sink_let_conts_equivalent
     | apply follow_aliases_in_loops_equivalent
     | apply shortcut_switches_equivalent
+    | apply share_handlers_equivalent
     | apply remove_unused_defined_lets_in_loops_equivalent
     | apply inline_tail_conts_kinded_equivalent
     | apply forward_kinded_equivalent

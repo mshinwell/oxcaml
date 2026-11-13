@@ -36,6 +36,7 @@
    those that a round applies as they are
    (FlambdaSinkContsSpec.sink_let_conts,
    FlambdaShortcutSpec.shortcut_switches,
+   FlambdaSameHandlersSpec.share_handlers,
    FlambdaUnusedParamsSpec.drop_unused_params,
    FlambdaDeadParamsSpec.drop_dead_params,
    FlambdaParamAliasesSpec.bind_aliased_params,
@@ -66,6 +67,9 @@
    scope because the variable was free already: in the body of the
    [Let_cont], as an argument of an application there, or in the
    handler.
+   [share_handlers] puts a continuation in a handler that did not
+   name it: the one whose [Let_cont] the handler is under, which is
+   bound there and so is not free in the term.
 
    Nothing is trusted here. The proofs are in
    FlambdaLoopsScopeProofs.v, which needs no review. *)
@@ -76,8 +80,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec FlambdaBindersSpec FlambdaNormaliseSpec
   FlambdaDeadParamsSpec FlambdaForwardSpec FlambdaLoopAliasesSpec
   FlambdaLoopLetsSpec FlambdaLoopifySpec FlambdaParamAliasesSpec
-  FlambdaRecHandlersSpec FlambdaShortcutSpec FlambdaSinkContsSpec
-  FlambdaSinkUsesSpec
+  FlambdaRecHandlersSpec FlambdaShortcutSpec FlambdaSameHandlersSpec
+  FlambdaSinkContsSpec FlambdaSinkUsesSpec
   FlambdaUnusedParamsSpec FlambdaValidatorEquivarianceSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
 Import ListNotations.
@@ -88,6 +92,9 @@ Definition sink_let_conts_keeps_scope_statement : Prop :=
 
 Definition shortcut_switches_keeps_scope_statement : Prop :=
   keeps_scope shortcut_switches.
+
+Definition share_handlers_keeps_scope_statement : Prop :=
+  keeps_scope share_handlers.
 
 Definition drop_unused_params_keeps_scope_statement : Prop :=
   keeps_scope drop_unused_params.

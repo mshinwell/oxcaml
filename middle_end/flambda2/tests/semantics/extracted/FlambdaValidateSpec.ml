@@ -39,6 +39,7 @@ open FlambdaRecHandlersSpec
 open FlambdaRecoverComparisonSpec
 open FlambdaRenameApartSpec
 open FlambdaSameComparisonSpec
+open FlambdaSameHandlersSpec
 open FlambdaShareProjectionsSpec
 open FlambdaShortcutSpec
 open FlambdaSimplifyCarriedSpec
@@ -78,11 +79,12 @@ let rec iterate rounds f e =
 let normalise_expr_before e =
   let e0 =
     shortcut_switches
-      (thread_switches
-         (inline_tail_conts
-            (sink_let_conts
-               (remove_unused_conts
-                  (merge_switches (collapse_switches (fold_constants e)))))))
+      (share_handlers
+         (thread_switches
+            (inline_tail_conts
+               (sink_let_conts
+                  (remove_unused_conts
+                     (merge_switches (collapse_switches (fold_constants e))))))))
   in
   let e1 =
     apply_identities
@@ -126,11 +128,12 @@ let normalise_before_round kept e = normalise_before_round_avoiding [] kept e
 let normalise_expr_params_knowing known e =
   let e0 =
     shortcut_switches
-      (thread_switches
-         (inline_tail_conts
-            (sink_let_conts
-               (remove_unused_conts
-                  (merge_switches (collapse_switches (fold_constants e)))))))
+      (share_handlers
+         (thread_switches
+            (inline_tail_conts
+               (sink_let_conts
+                  (remove_unused_conts
+                     (merge_switches (collapse_switches (fold_constants e))))))))
   in
   let e1 = remove_unused_conts (forward_applications e0) in
   let e2 =

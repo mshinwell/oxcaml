@@ -173,6 +173,7 @@
    into the handlers of recursive continuations and commutes when the
    rewrite does; FlambdaSinkContsSpec.sink_let_conts;
    FlambdaShortcutSpec.shortcut_switches;
+   FlambdaSameHandlersSpec.share_handlers;
    FlambdaUnusedParamsSpec.drop_unused_params;
    FlambdaDeadParamsSpec.drop_dead_params;
    FlambdaLoopAliasesSpec.follow_aliases_in_loops, which carries a
@@ -370,7 +371,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaBindersSpec FlambdaWellFormedSpec FlambdaWellKindedSpec
   FlambdaLiftSpec FlambdaCompareSpec FlambdaRecHandlersSpec
   FlambdaSinkContsSpec FlambdaSinkUsesSpec FlambdaShortcutSpec
-  FlambdaUnusedParamsSpec
+  FlambdaSameHandlersSpec FlambdaUnusedParamsSpec
   FlambdaLoopAliasesSpec FlambdaLoopLetsSpec FlambdaCodeLetsSpec
   FlambdaParamAliasesSpec
   FlambdaForwardSpec FlambdaForwardJumpsSpec FlambdaForwardKindedSpec
@@ -800,6 +801,11 @@ Definition sink_conts_to_uses_equivariant_statement : Prop :=
    another (FlambdaShortcutSpec.v). *)
 Definition shortcut_switches_equivariant_statement : Prop :=
   rewrite_equivariant shortcut_switches.
+
+(* A continuation whose handler is that of a continuation bound around
+   it applies that one (FlambdaSameHandlersSpec.v). *)
+Definition share_handlers_equivariant_statement : Prop :=
+  rewrite_equivariant share_handlers.
 
 (* Removing the parameters of a continuation that its handler does not
    use (FlambdaUnusedParamsSpec.v). *)

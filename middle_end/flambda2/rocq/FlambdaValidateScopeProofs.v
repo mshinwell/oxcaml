@@ -45,7 +45,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaCseSpec FlambdaIdentitiesSpec FlambdaRenameApartSpec
   FlambdaUnboxSpec FlambdaUnusedContsSpec FlambdaForwardSpec
   FlambdaLoopAliasesSpec FlambdaLoopLetsSpec FlambdaParamAliasesSpec
-  FlambdaRecHandlersSpec FlambdaShortcutSpec FlambdaSinkContsSpec
+  FlambdaRecHandlersSpec FlambdaShortcutSpec FlambdaSameHandlersSpec
+  FlambdaSinkContsSpec
   FlambdaUnusedParamsSpec FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec FlambdaScopedProofs
   FlambdaKeepsScopeProofs FlambdaLoopsScopeSpec FlambdaLoopsScopeProofs
@@ -105,7 +106,8 @@ Create HintDb scoped.
   drop_deleted_code_scoped merge_statics_scoped rewrite_code_scoped
   load_known_blocks_scoped unbox_known_numbers_scoped
   share_known_primitives_scoped follow_aliases_scoped sink_let_conts_scoped
-  shortcut_switches_scoped follow_aliases_in_loops_scoped
+  shortcut_switches_scoped share_handlers_scoped
+  follow_aliases_in_loops_scoped
   drop_unused_params_scoped drop_dead_params_scoped
   rewrite_rec_handlers_scoped bind_aliased_params_scoped
   forward_applications_scoped remove_unused_defined_lets_in_loops_scoped

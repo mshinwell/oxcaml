@@ -274,6 +274,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaSameComparisonScopeProofs.v \
   FlambdaSameComparisonScopeSpec.v \
   FlambdaSameComparisonSpec.v \
+  FlambdaSameHandlersProofs.v \
+  FlambdaSameHandlersSpec.v \
   FlambdaRoundsProofs.v \
   FlambdaRunUnderProofs.v \
   FlambdaRunUnderSpec.v \

@@ -350,6 +350,7 @@ From OxCamlFlambda2 Require Import FlambdaKnownSlotsSpec.
 From OxCamlFlambda2 Require Import FlambdaStubCallsSpec.
 From OxCamlFlambda2 Require Import FlambdaNeverReturnsSpec.
 From OxCamlFlambda2 Require Import FlambdaUnusedHeadStaticsSpec.
+From OxCamlFlambda2 Require Import FlambdaSameHandlersSpec.
 From OxCamlFlambda2 Require Import FlambdaUnboxParamsSpec
   FlambdaUnboxInScopeSpec FlambdaUnboxLoopsSpec FlambdaUnboxTogetherSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
@@ -402,7 +403,13 @@ Fixpoint iterate (rounds : nat) (f : expr -> expr) (e : expr) : expr :=
    applied and inlined there ([sink_let_conts], then [inline_tail_conts]),
    before an arm of a [Switch] is made to go where its continuation
    goes ([shortcut_switches]), as Simplify makes no shortcut to a
-   continuation that it inlines. Then what follows the values, into the
+   continuation that it inlines; and before that last, the handler of
+   a continuation that is the same as that of a continuation bound
+   around it becomes the application of that one
+   (FlambdaSameHandlersSpec.share_handlers), which Simplify records
+   as a shortcut to it, so that the arms of a [Switch] that do the
+   same thing go to one continuation. Then what follows the values,
+   into the
    handlers of the recursive continuations too for what is known where
    they are defined ([follow_aliases_in_loops]): among them a
    [Phys_equal] of a simple against itself becomes its answer, as
@@ -428,11 +435,13 @@ Fixpoint iterate (rounds : nat) (f : expr -> expr) (e : expr) : expr :=
 Definition normalise_expr_before (e : expr) : expr :=
   let e :=
     shortcut_switches
-      (thread_switches
-         (inline_tail_conts
-            (sink_let_conts
-               (remove_unused_conts
-                  (merge_switches (collapse_switches (fold_constants e)))))))
+      (share_handlers
+         (thread_switches
+            (inline_tail_conts
+               (sink_let_conts
+                  (remove_unused_conts
+                     (merge_switches
+                        (collapse_switches (fold_constants e))))))))
   in
   let e :=
     apply_identities
@@ -492,7 +501,10 @@ Definition normalise_before_round (kept : list code_id) (e : expr) : expr :=
    continuation goes, every application of a continuation whose handler
    only applies another is, wherever it is, a call that returns to
    it excepted ([forward_applications]; the continuations that this
-   leaves unused are removed). Once the
+   leaves unused are removed): among them the applications of a
+   continuation that FlambdaSameHandlersSpec.share_handlers has just
+   made to apply another, which [shortcut_switches] takes there only
+   where they are arms of the [Switch] under its [Let_cont]. Once the
    values are followed, a parameter of a continuation that its handler
    reads as a box, where every application gives something that the
    term shows, is unboxed as Simplify unboxes it: each read becomes a
@@ -529,11 +541,13 @@ Definition normalise_expr_params_knowing (known : facts) (e : expr)
     : expr :=
   let e :=
     shortcut_switches
-      (thread_switches
-         (inline_tail_conts
-            (sink_let_conts
-               (remove_unused_conts
-                  (merge_switches (collapse_switches (fold_constants e)))))))
+      (share_handlers
+         (thread_switches
+            (inline_tail_conts
+               (sink_let_conts
+                  (remove_unused_conts
+                     (merge_switches
+                        (collapse_switches (fold_constants e))))))))
   in
   let e := remove_unused_conts (forward_applications e) in
   let e :=

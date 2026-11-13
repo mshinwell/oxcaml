@@ -542,6 +542,9 @@ units with loops (`while`, `for`, tail-recursive functions).
   the handler that alone uses it)
 - `middle_end/flambda2/rocq/FlambdaShortcut*` (an arm of a switch that
   applies a continuation which only applies another)
+- `middle_end/flambda2/rocq/FlambdaSameHandlers*` (a continuation
+  whose handler is that of a continuation bound around it applies that
+  one)
 - `middle_end/flambda2/rocq/FlambdaUnusedParams*` (removing the
   parameters of a continuation that its handler does not use)
 - `middle_end/flambda2/rocq/FlambdaLoopAliases*` (following, inside a

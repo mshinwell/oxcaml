@@ -59,7 +59,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaHoistCodeSpec FlambdaHoistCodeProofs
   FlambdaInlineFreshProofs FlambdaRecHandlersSpec
   FlambdaSinkContsSpec FlambdaSinkUsesSpec FlambdaShortcutSpec
-  FlambdaUnusedParamsSpec
+  FlambdaSameHandlersSpec FlambdaUnusedParamsSpec
   FlambdaLoopAliasesSpec FlambdaLoopLetsSpec FlambdaParamAliasesSpec
   FlambdaForwardSpec FlambdaForwardJumpsSpec FlambdaForwardKindedSpec
   FlambdaInlineTailSpec FlambdaDeadParamsSpec
@@ -3487,6 +3487,130 @@ Qed.
 Lemma shortcut_switches_equivariant : rewrite_equivariant shortcut_switches.
 Proof. exact shortcut_switches_equivariant_aux. Qed.
 
+(* A continuation whose handler is that of a continuation bound around
+   it applies that one. *)
+Lemma may_be_static_renamed (r : renaming) (d : named) :
+  may_be_static (rename_named r d) = may_be_static d.
+Proof. destruct d; reflexivity. Qed.
+
+Fixpoint straight_renamed (r : renaming) (e : expr) {struct e} :
+  ∀ lets : nat, straight lets (rename_expr r e) = straight lets e.
+Proof.
+  destruct e as [ x kind d body | | | | | ac | | ]; intros lets;
+    cbn [rename_expr straight]; try reflexivity.
+  - rewrite may_be_static_renamed.
+    destruct (may_be_static d), lets; try reflexivity.
+    apply straight_renamed.
+  - apply no_trap_action_renamed.
+Qed.
+
+Lemma sharable_renamed (r : renaming) (h : continuation_handler) :
+  sharable (rename_handler r h) = sharable h.
+Proof.
+  destruct h as [params metadata handler].
+  destruct handler as [ x kind d body | | | | | | | ]; try reflexivity.
+  cbn [rename_handler].
+  change (sharable
+            (Handler (map (rename_variable r) params) metadata
+               (rename_expr r (Let x kind d body))))
+    with (negb (hm_is_exn_handler metadata)
+          && straight 31 (rename_expr r (Let x kind d body))).
+  rewrite straight_renamed. reflexivity.
+Qed.
+
+(* The comparison of two handlers with no names paired. *)
+Lemma handler_eqb_closed_equivariant (r : renaming)
+    (h h' : continuation_handler) :
+  handler_eqb [] [] (rename_handler r h) (rename_handler r h')
+  = handler_eqb [] [] h h'.
+Proof.
+  pose proof (expr_eqb_equivariant r [] []
+    (Let_cont_non_recursive 1%positive h Invalid)
+    (Let_cont_non_recursive 1%positive h' Invalid)) as Heq.
+  cbn [rename_name_map map rename_expr expr_eqb] in Heq.
+  rewrite !andb_true_r in Heq. exact Heq.
+Qed.
+
+Lemma same_handler_renamed (r : renaming) (h : continuation_handler)
+    (xs : list variable) (ks : list continuation)
+    (h' : continuation_handler) :
+  same_handler (rename_handler r h) (map (rename_variable r) xs)
+    (map (rename_continuation r) ks) (rename_handler r h')
+  = same_handler h xs ks h'.
+Proof.
+  unfold same_handler. rewrite handler_eqb_closed_equivariant.
+  rewrite
+    (existsb_map_with
+       (fun x => var_free_in_handler_b x (rename_handler r h'))
+       (rename_variable r) (fun x => var_free_in_handler_b x h') xs
+       (fun x => var_free_in_handler_b_equivariant r x h')),
+    (existsb_map_with
+       (fun c => cont_free_in_handler_b c (rename_handler r h'))
+       (rename_continuation r) (fun c => cont_free_in_handler_b c h') ks
+       (fun c => cont_free_in_handler_b_equivariant r c h')).
+  destruct h' as [params' metadata' handler'].
+  cbn [rename_handler handler_params].
+  rewrite distinct_names_renamed. reflexivity.
+Qed.
+
+Fixpoint share_with_equivariant (r : renaming) (k : continuation)
+    (h : continuation_handler) (e : expr) {struct e} :
+  ∀ (xs : list variable) (ks : list continuation),
+    share_with (rename_continuation r k) (rename_handler r h)
+      (map (rename_variable r) xs) (map (rename_continuation r) ks)
+      (rename_expr r e)
+    = rename_expr r (share_with k h xs ks e).
+Proof.
+  destruct e
+    as [ x kind d body | bindings body | k' [params metadata handler] body
+       | handlers body | ap | ac | scrutinee arms | ];
+    intros xs ks; cbn [rename_expr rename_handler share_with];
+    try reflexivity.
+  - rewrite <- (share_with_equivariant r k h body (x :: xs) ks).
+    reflexivity.
+  - rewrite (share_with_equivariant r k h body xs ks). reflexivity.
+  - rewrite rename_continuation_eqb.
+    destruct (Pos.eqb k' k); [ reflexivity | ].
+    cbn [rename_expr].
+    change (Handler (map (rename_variable r) params) metadata
+              (rename_expr r handler))
+      with (rename_handler r (Handler params metadata handler)).
+    rewrite same_handler_renamed.
+    rewrite <- (share_with_equivariant r k h body xs (k' :: ks)).
+    destruct (same_handler h xs ks (Handler params metadata handler));
+      cbn [rename_expr rename_handler map]; [ | reflexivity ].
+    unfold rename_apply_cont. cbn [ac_continuation ac_args ac_trap_action].
+    rewrite !map_map. reflexivity.
+Qed.
+
+Fixpoint share_handlers_equivariant_aux (r : renaming) (e : expr) :
+  share_handlers (rename_expr r e) = rename_expr r (share_handlers e).
+Proof.
+  destruct e
+    as [ x kind d body | bindings body | k [params metadata handler] body
+       | handlers body | ap | ac | scrutinee arms | ];
+    cbn [rename_expr rename_handler share_handlers]; cbv zeta;
+    try reflexivity.
+  - rewrite share_handlers_equivariant_aux. reflexivity.
+  - rewrite share_handlers_equivariant_aux. reflexivity.
+  - rewrite !share_handlers_equivariant_aux.
+    change (Handler (map (rename_variable r) params) metadata
+              (rename_expr r (share_handlers handler)))
+      with (rename_handler r
+              (Handler params metadata (share_handlers handler))).
+    rewrite sharable_renamed.
+    destruct (sharable (Handler params metadata (share_handlers handler)));
+      [ | reflexivity ].
+    rewrite <- (share_with_equivariant r k
+                  (Handler params metadata (share_handlers handler))
+                  (share_handlers body) [] [k]).
+    reflexivity.
+  - rewrite share_handlers_equivariant_aux. reflexivity.
+Qed.
+
+Lemma share_handlers_equivariant : rewrite_equivariant share_handlers.
+Proof. exact share_handlers_equivariant_aux. Qed.
+
 (* Removing the parameters of a continuation that its handler does not
    use. The masks are keyed by continuations, which are renamed. *)
 Lemma keep_map {A B : Type} (g : A -> B) (mask : list bool) :
@@ -5178,6 +5302,7 @@ Ltac rename_outwards :=
       | rewrite merge_statics_equivariant_aux
       | rewrite sink_let_conts_equivariant_aux
       | rewrite shortcut_switches_equivariant_aux
+      | rewrite share_handlers_equivariant_aux
       | rewrite follow_aliases_in_loops_unknowing_equivariant
       | rewrite drop_unused_params_equivariant
       | rewrite wrap_returns_equivariant
