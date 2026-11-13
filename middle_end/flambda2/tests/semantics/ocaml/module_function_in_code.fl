@@ -1,0 +1,71 @@
+let $camlModule_function_in_code__first_const_0 = Block 0 () in
+(let code size(32)
+       within_0 (x/74 : imm tagged)
+         my_closure/75 &my_alloc_region/76 my_depth/77
+         -> k/24 * k/25
+         : imm tagged =
+   let next_depth/78 = rec_info (succ my_depth/77) in
+   let floor/79 = %project_value_slot.[within].[floor] (my_closure/75) in
+   (let prim/83 = %int_comp.lt (x/74, floor/79) in
+    let int_lessthan/84 = %tag_imm (prim/83) in
+    (let untagged/85 = %untag_imm (int_lessthan/84) in
+     switch untagged/85
+       | 0 -> k/27
+       | 1 -> k/24 (floor/79))
+      where k/27 =
+        cont k/26)
+     where k/26 =
+       let prim/80 = %int_comp.lt (9, x/74) in
+       let int_lessthan/81 = %tag_imm (prim/80) in
+       let untagged/82 = %untag_imm (int_lessthan/81) in
+       switch untagged/82
+         | 0 -> k/24 (x/74)
+         | 1 -> k/24 (9)
+ in
+ let code size(8)
+       step_1 (x/86 : imm tagged)
+         my_closure/87 &my_alloc_region/88 my_depth/89
+         -> k/28 * k/29
+         : imm tagged =
+   let next_depth/90 = rec_info (succ my_depth/89) in
+   let Bounds/91 = %project_value_slot.[step].[Bounds] (my_closure/87) in
+   let int_add/92 = %int_barith.add (x/86, 2) in
+   let Pfield/93 = %block_load.[`2`] (Bounds/91) in
+   apply direct(within_0 &my_alloc_region/88)
+     (Pfield/93 : _ -> imm tagged) (int_add/92) -> k/28 * k/29
+ in
+ (let floor/101 = %opaque (1) in
+  let within/102 = closure within_0 @within &toplevel
+  with { floor = floor/101 }
+  in
+  let Pmakeblock/103 = %block.[`0`].`toplevel` (floor/101, 9, within/102) in
+  cont k/30 (Pmakeblock/103))
+   where k/30 (Bounds/94 : val) =
+     let step/95 = closure step_1 @step &toplevel
+     with { Bounds = Bounds/94 }
+     in
+     (apply direct(step_1 &toplevel)
+        (step/95 : _ -> imm tagged) (20) -> k/31 * error
+        where k/31 (apply_result/96 : imm tagged) =
+          ((let Popaque/100 = %opaque (0) in
+            apply direct(step_1 &toplevel)
+              (step/95 : _ -> imm tagged) (Popaque/100) -> k/32 * error)
+             where k/32 (apply_result/97 : imm tagged) =
+               let result/98 =
+                 %int_barith.add (apply_result/97, apply_result/96)
+               in
+               let Pmakeblock/99 =
+                 %block.[`0`].`toplevel` (Bounds/94, step/95, result/98)
+               in
+               cont k/23 (Pmakeblock/99))))
+  where k/23 define_root_symbol (module_block/70) =
+    let field_0/71 = %block_load.tag[`0`].`size`[`3`].[`0`] (module_block/70)
+    in
+    let field_1/72 = %block_load.tag[`0`].`size`[`3`].[`1`] (module_block/70)
+    in
+    let field_2/73 = %block_load.tag[`0`].`size`[`3`].[`2`] (module_block/70)
+    in
+    let $camlModule_function_in_code =
+      Block 0 (field_0/71, field_1/72, field_2/73)
+    in
+    cont done ($camlModule_function_in_code)
