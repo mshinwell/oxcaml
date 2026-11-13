@@ -7212,6 +7212,11 @@ Lemma read_known_slots_rewrite_equivariant :
   rewrite_equivariant read_known_slots.
 Proof. exact FlambdaKnownSlotsProofs.read_known_slots_equivariant. Qed.
 
+Lemma read_known_slots_anywhere_scope : keeps_scope read_known_slots_anywhere.
+Proof.
+  exact FlambdaStaticsScopeProofs.read_known_slots_anywhere_keeps_scope.
+Qed.
+
 Definition use_known (e : expr) : expr :=
   read_known_slots (with_known (use_known_closures e)).
 
@@ -7421,7 +7426,13 @@ Lemma lifted_in_turn_scope (rounds : nat) (avoid : list continuation)
   keeps_scope (lifted_in_turn rounds avoid Ls kept).
 Proof.
   induction Ls as [ | L Ls IH]; intros e Hclosed; cbn [lifted_in_turn].
-  - exact (demote_and_tidy_known_scope rounds e Hclosed).
+  - destruct (read_known_slots_anywhere_scope e Hclosed)
+      as (Hclosed1 & Hv1 & Hk1).
+    destruct (demote_and_tidy_known_scope rounds _ Hclosed1)
+      as (Hclosed2 & Hv2 & Hk2).
+    split; [ exact Hclosed2 | split ].
+    + intros x Hx. apply Hv1, Hv2, Hx.
+    + intros k Hk. apply Hk1, Hk2, Hk.
   - destruct (with_lifting_scope L e Hclosed) as (Hclosed1 & Hv1 & Hk1).
     destruct
       (normalise_lifted_keeps_scope rounds avoid kept (with_lifting L e)
@@ -7473,11 +7484,16 @@ Proof.
   induction Ls as [ | L Ls IH]; intros Hunits r1 e Hclosed Halike Havoid;
     cbn [map lifted_in_turn].
   - exists r1. split; [ | split; [ exact Havoid | ] ].
-    + exact
+    + destruct
+        (renames_alike_kept read_known_slots_anywhere r r1 e
+           read_known_slots_anywhere_scope Hclosed Halike)
+        as (Hclosed1 & Halike1).
+      exact
         (proj2
-           (renames_alike_kept (demote_and_tidy_known rounds) r r1 e
-              (demote_and_tidy_known_scope rounds) Hclosed Halike)).
-    + apply demote_and_tidy_known_equivariant.
+           (renames_alike_kept (demote_and_tidy_known rounds) r r1 _
+              (demote_and_tidy_known_scope rounds) Hclosed1 Halike1)).
+    + rewrite FlambdaKnownSlotsProofs.read_known_slots_anywhere_equivariant.
+      apply demote_and_tidy_known_equivariant.
   - destruct (Hunits L (or_introl eq_refl)) as [Hret Hexn].
     rewrite (rename_lifting_alike r r1 L avoid Havoid Hret Hexn),
       with_lifting_renamed.

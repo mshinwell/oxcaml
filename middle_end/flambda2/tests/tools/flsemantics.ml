@@ -4096,10 +4096,14 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
          few times at most. *)
       let rec guessed banned again =
         let liftings, lifted = liftings_from banned 0 [] looped 4 in
-        (* After the last lifting [validate_unit] demotes the exception handlers
-           that no call can raise to, takes the calls on where it does for the
-           term that is not lifted, and then places the continuations and
-           tidies. *)
+        (* After the last lifting [validate_unit] reads the known value slots
+           with every symbol of the unit in scope, demotes the exception
+           handlers that no call can raise to and uses what is known of the
+           symbols again: the case of no lifting left of
+           [Validate.lifted_in_turn], which is called here for that case, so
+           that the term guessed from is the one that [validate_unit] computes.
+           Then it takes the calls on where it does for the term that is not
+           lifted, places the continuations and tidies. *)
         let lifted =
           Validate.tidied_before rounds
             (Validate.with_returns taken

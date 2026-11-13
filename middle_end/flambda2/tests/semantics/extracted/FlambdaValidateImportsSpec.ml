@@ -126,7 +126,8 @@ let demote_and_tidy_known_free_in statics rounds e =
 
 let rec lifted_free_in statics rounds avoid ls kept e =
   match ls with
-  | [] -> demote_and_tidy_known_free_in statics rounds e
+  | [] ->
+    demote_and_tidy_known_free_in statics rounds (read_known_slots_anywhere e)
   | l :: ls0 ->
     (lifting_free_in statics l e
     && normalise_lifted_free_in statics rounds avoid kept (with_lifting l e))

@@ -130,6 +130,15 @@
    those): a lifting checks the unit by the names of those two
    continuations, which the term may no longer mention once it is
    normalised, so a binder made in a round must not take one of them.
+   After the last of the liftings it reads the known value slots once
+   more, with every symbol that the unit binds taken to be in scope
+   (FlambdaKnownSlotsSpec.read_known_slots_anywhere): in code that
+   the text of the unit binds above the symbol too, where Simplify
+   reads the slot and row 4 would not let it be read. No lifting
+   comes after, and what comes after and tests row 4
+   (FlambdaHoistStaticsSpec.hoist_statics, in [with_statics_first])
+   tests the term that it is given and leaves it as it is if the
+   test fails.
    Then it removes from the static sets of closures the value slots
    given, if nothing projects them
    (FlambdaUnusedSlotsSpec.drop_unused_slots), and after them the
@@ -908,15 +917,22 @@ Definition demote_and_tidy_known (rounds : nat) (e : expr) : expr :=
    [Let]s of the term that those before it give. The continuations to
    avoid are the same at every step: [validate_unit] gives those of
    the units of all the liftings, so that no round, before or after
-   any of them, makes one. After the last, the exception handlers are
-   demoted, as at the end of [normalise_before], and what is known of
-   the symbols is used again ([demote_and_tidy_known]); the rounds
-   that follow the demotion inline no call and rename nothing apart,
-   so they make no name. *)
+   any of them, makes one. After the last, the value slots that are
+   known are read once more, with every symbol that the unit binds
+   taken to be in scope
+   (FlambdaKnownSlotsSpec.read_known_slots_anywhere): Simplify reads a
+   slot also in code that the text of the unit binds above the symbol
+   that the slot holds, and no lifting comes after this to ask row 4
+   of the term. What it gives need not pass row 4; nothing that
+   [validate_unit] does after it relies on row 4 without testing it.
+   Then the exception handlers are demoted, as at the end of
+   [normalise_before], and what is known of the symbols is used again
+   ([demote_and_tidy_known]); the rounds that follow the demotion
+   inline no call and rename nothing apart, so they make no name. *)
 Fixpoint lifted_in_turn (rounds : nat) (avoid : list continuation)
     (Ls : list lifting) (kept : list code_id) (e : expr) : expr :=
   match Ls with
-  | [] => demote_and_tidy_known rounds e
+  | [] => demote_and_tidy_known rounds (read_known_slots_anywhere e)
   | L :: Ls =>
     lifted_in_turn rounds avoid Ls kept
       (normalise_lifted rounds avoid kept (with_lifting L e))

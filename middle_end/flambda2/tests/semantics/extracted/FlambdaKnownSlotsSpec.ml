@@ -199,3 +199,11 @@ and read_slots_in_code known syms = function
 let read_known_slots e =
   let known = slots_known (slots_made e) in
   if closed_slots known && slots_as known e then read_slots known [] e else e
+
+(** val read_known_slots_anywhere : expr -> expr **)
+
+let read_known_slots_anywhere e =
+  let known = slots_known (slots_made e) in
+  if closed_slots known && slots_as known e
+  then read_slots known (static_names symbols_of_binding e) e
+  else e

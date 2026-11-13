@@ -560,7 +560,11 @@ Lemma lifted_in_turn_unit_refines (imports : list (symbol * import_class))
 Proof.
   induction Ls as [ | L Ls IH]; intros e;
     cbn [lifted_free_in lifted_in_turn].
-  - exact (demote_and_tidy_known_unit_refines imports rounds e).
+  - intros Hfree.
+    apply (refines_trans _ _ _
+      (FlambdaKnownSlotsProofs.read_known_slots_anywhere_refines_imports
+         imports e)).
+    exact (demote_and_tidy_known_unit_refines imports rounds _ Hfree).
   - intros Hfree.
     apply andb_true_iff in Hfree as [Hfree Hrest].
     apply andb_true_iff in Hfree as [Hlifting Hknown].

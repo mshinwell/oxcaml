@@ -34,11 +34,12 @@
    FlambdaStaticsInScopeSpec.v; [read_known_slots], which is extracted
    and run by the validation of middle_end/flambda2/tests/semantics/;
    [read_known_slots_anywhere], the same with every symbol that the
-   unit binds taken to be in scope; and the statements, the last six
-   of which are the rewrites computed on small units: a slot read, a
-   slot that one set gives a variable, a symbol that is not in scope,
-   a projection in the code of a stub, a set that the code of a stub
-   makes, and the symbol that is not in scope read all the same.
+   unit binds taken to be in scope, which the validation runs after
+   its last lifting; and the statements, the last six of which are
+   the rewrites computed on small units: a slot read, a slot that one
+   set gives a variable, a symbol that is not in scope, a projection
+   in the code of a stub, a set that the code of a stub makes, and
+   the symbol that is not in scope read all the same.
 
    What Simplify does. It simplifies the code of a function where it
    simplifies the set of closures that the function is of, and gives
@@ -101,7 +102,8 @@
    closure that calls the function is bound at the head of the unit,
    where that symbol is not in scope. The projection stays there;
    Simplify, which simplifies that code where the closure is made,
-   puts the symbol. The unit is not validated.
+   puts the symbol. [read_known_slots_anywhere], below, reads it, and
+   with it the unit is validated.
 
    [read_slots known syms e] replaces, in the whole of [e], in code and
    in handlers too, the defining expression of a [Let] that is the

@@ -51,3 +51,5 @@ val read_slots_in_binding :
 val read_slots_in_code : known_slots -> symbol list -> code -> code
 
 val read_known_slots : expr -> expr
+
+val read_known_slots_anywhere : expr -> expr

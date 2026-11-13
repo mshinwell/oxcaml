@@ -298,7 +298,7 @@ let demote_and_tidy_known rounds e =
 
 let rec lifted_in_turn rounds avoid ls kept e =
   match ls with
-  | [] -> demote_and_tidy_known rounds e
+  | [] -> demote_and_tidy_known rounds (read_known_slots_anywhere e)
   | l :: ls0 ->
     lifted_in_turn rounds avoid ls0 kept
       (normalise_lifted rounds avoid kept (with_lifting l e))

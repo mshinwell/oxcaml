@@ -3,9 +3,9 @@
    holds the value, so its symbol is bound in the handler of the test; the code
    of the function returned is bound at the head of the unit, and reads the
    function from a value slot. Simplify makes that code call the symbol. The
-   validation does not: it puts a symbol in the place of a value slot only where
-   the symbol is in scope (FlambdaKnownSlotsSpec.v), and this one is bound below
-   the code. Not validated. *)
+   validation does too, once it has no more to lift: it then reads a known value
+   slot with every symbol that the unit binds taken to be in scope
+   (FlambdaKnownSlotsSpec.read_known_slots_anywhere). Validated. *)
 
 external ( + ) : int -> int -> int = "%addint"
 

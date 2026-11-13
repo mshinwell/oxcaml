@@ -474,12 +474,17 @@ Definition demote_and_tidy_known_free_in (statics : static_env)
   tidy_known_free_in statics rounds rounds (demote_and_tidy rounds e).
 
 (* The two, of each of the liftings as [lifted_in_turn] applies
-   them, and after the last that of what ends the normalisation. *)
+   them, and after the last that of what ends the normalisation, asked
+   of the term that the normalisation ends: the term with its known
+   value slots read with every symbol in scope
+   (FlambdaKnownSlotsSpec.read_known_slots_anywhere), for which
+   nothing is asked, as its law from the imports has no premise. *)
 Fixpoint lifted_free_in (statics : static_env) (rounds : nat)
     (avoid : list continuation) (Ls : list lifting) (kept : list code_id)
     (e : expr) : bool :=
   match Ls with
-  | [] => demote_and_tidy_known_free_in statics rounds e
+  | [] =>
+    demote_and_tidy_known_free_in statics rounds (read_known_slots_anywhere e)
   | L :: Ls =>
     lifting_free_in statics L e
     && normalise_lifted_free_in statics rounds avoid kept (with_lifting L e)

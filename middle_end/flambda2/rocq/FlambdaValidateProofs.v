@@ -738,8 +738,10 @@ Lemma lifted_in_turn_program_refines (rounds : nat)
     (avoid : list continuation) (Ls : list lifting) (kept : list code_id) :
   ∀ e : expr, program_refines e (lifted_in_turn rounds avoid Ls kept e).
 Proof.
-  induction Ls as [ | L Ls IH]; intros e; cbn [lifted_in_turn];
-    [ apply demote_and_tidy_known_program_refines | ].
+  induction Ls as [ | L Ls IH]; intros e; cbn [lifted_in_turn].
+  { apply (refines_trans _ _ _
+      (read_known_slots_anywhere_program_refines e)).
+    apply demote_and_tidy_known_program_refines. }
   apply (refines_trans _ _ _ (with_lifting_program_refines L _)).
   apply (refines_trans _ _ _
     (normalise_lifted_program_refines rounds avoid kept _)).
