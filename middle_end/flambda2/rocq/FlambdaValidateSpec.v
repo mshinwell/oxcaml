@@ -221,7 +221,11 @@
    primitive, the variable is in scope at the handler: where the
    checks of FlambdaUnaliasParamsSpec.unalias_params pass, the
    parameter is taken away and the handler begins with a [Let] of it
-   to the variable, in both terms;
+   to the variable, in both terms. On a path through an arm of a
+   [Switch] on the result, what Simplify gives for the parameter is
+   the number of the arm; such an argument is first made the
+   scrutinee (FlambdaGiveScrutineeSpec.give_scrutinees), where that
+   lets the parameter be taken away. Then
    what the handler of the term before computes again is shared with
    the first computation ([share_known_primitives]); aliases are
    followed and the [Let]s left unused are removed. The same is done
@@ -231,7 +235,8 @@
    [Let_cont] stood between and that Simplify did not share, and the
    two terms must come out of it alike. Each rewrite of the tidying
    of the term after is an equivalence
-   (FlambdaUnaliasParamsSpec.unalias_params_equivalent_statement,
+   (FlambdaGiveScrutineeSpec.give_scrutinees_equivalent_statement,
+   FlambdaUnaliasParamsSpec.unalias_params_equivalent_statement,
    FlambdaCseEquivalentSpec.share_known_primitives_equivalent_statement).
    The tidying is not in a round of the normalisations for the reason
    that the placing is not: it needs the continuations placed, and
@@ -313,7 +318,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaHoistStaticsSpec
   FlambdaGuardScopeSpec FlambdaGroupsUpSpec.
 From OxCamlFlambda2 Require Import FlambdaWrapReturnsSpec
-  FlambdaUntagParamsSpec.
+  FlambdaUntagParamsSpec FlambdaGiveScrutineeSpec.
 From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
 From OxCamlFlambda2 Require Import FlambdaKnownSlotsSpec.
 From OxCamlFlambda2 Require Import FlambdaStubCallsSpec.
@@ -899,7 +904,11 @@ Definition placed (e : expr) : expr :=
 
 (* What is done to each of the terms that are compared once its
    continuations are placed, in rounds. One round for an expression of
-   the term before: a parameter of a continuation that every
+   the term before: an argument that is the number of the arm that it
+   is in, of a [Switch] on a variable, is made that variable where a
+   parameter can then be taken away
+   (FlambdaGiveScrutineeSpec.give_scrutinees); a parameter of a
+   continuation that every
    application gives one variable, which is at the handler what it is
    at the applications, is taken away where the checks of
    FlambdaUnaliasParamsSpec.unalias_params pass, and the handler
@@ -911,7 +920,8 @@ Definition tidy_expr_before (e : expr) : expr :=
   remove_unused_defined_lets []
     (remove_unused_lets
        (follow_aliases_in_loops []
-          (follow_aliases [] (share_known_primitives (unalias_params e))))).
+          (follow_aliases []
+             (share_known_primitives (unalias_params (give_scrutinees e)))))).
 
 (* The same for the body of code: that round, and the same for the
    handler of each of its recursive continuations. *)
@@ -937,7 +947,8 @@ Definition tidied_before (rounds : nat) (e : expr) : expr :=
 Definition tidy_expr_after (e : expr) : expr :=
   remove_unused_defined_lets_in_loops []
     (follow_aliases_in_loops []
-       (follow_aliases [] (share_known_primitives (unalias_params e)))).
+       (follow_aliases []
+          (share_known_primitives (unalias_params (give_scrutinees e))))).
 
 Definition tidy_code_after (body : expr) : expr :=
   rewrite_rec_handlers tidy_expr_after (tidy_expr_after body).

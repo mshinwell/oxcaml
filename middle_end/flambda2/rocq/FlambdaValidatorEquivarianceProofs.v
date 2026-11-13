@@ -7426,23 +7426,32 @@ Proof.
           remove_unused_lets
             (follow_aliases_in_loops []
                (follow_aliases []
-                  (share_known_primitives (unalias_params e)))))
+                  (share_known_primitives
+                     (unalias_params (give_scrutinees e))))))
        (remove_unused_defined_lets [])
        (keeps_scope_compose
           (fun e =>
              follow_aliases_in_loops []
                (follow_aliases []
-                  (share_known_primitives (unalias_params e))))
+                  (share_known_primitives
+                     (unalias_params (give_scrutinees e)))))
           remove_unused_lets
           (keeps_scope_compose
              (fun e =>
-                follow_aliases [] (share_known_primitives (unalias_params e)))
+                follow_aliases []
+                  (share_known_primitives
+                     (unalias_params (give_scrutinees e))))
              (follow_aliases_in_loops [])
              (keeps_scope_compose
-                (fun e => share_known_primitives (unalias_params e))
+                (fun e =>
+                   share_known_primitives (unalias_params (give_scrutinees e)))
                 (follow_aliases [])
-                (keeps_scope_compose unalias_params share_known_primitives
-                   FlambdaStaticsScopeProofs.unalias_params_keeps_scope
+                (keeps_scope_compose
+                   (fun e => unalias_params (give_scrutinees e))
+                   share_known_primitives
+                   (keeps_scope_compose give_scrutinees unalias_params
+                      FlambdaStaticsScopeProofs.give_scrutinees_keeps_scope
+                      FlambdaStaticsScopeProofs.unalias_params_keeps_scope)
                    FlambdaKeepsScopeProofs.share_known_primitives_keeps_scope)
                 FlambdaKeepsScopeProofs.follow_aliases_keeps_scope)
              FlambdaLoopsScopeProofs.follow_aliases_in_loops_keeps_scope)

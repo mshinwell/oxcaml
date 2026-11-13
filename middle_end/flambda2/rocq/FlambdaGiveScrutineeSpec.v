@@ -32,7 +32,12 @@
    equivalence.
 
    This file is to be reviewed: [give_scrutinees] and what it is made
-   of, and the two statements. Nothing applies the pass yet.
+   of, which are extracted and run by the validation of
+   middle_end/flambda2/tests/semantics/, and the two statements. The
+   validation applies the pass to each of the two terms that it
+   compares, once it has placed their continuations, just before
+   FlambdaUnaliasParamsSpec.unalias_params
+   (FlambdaValidateSpec.tidied_before, [tidied_after]).
 
    Simplify gives a continuation a parameter for a primitive that has
    been computed on every path to it

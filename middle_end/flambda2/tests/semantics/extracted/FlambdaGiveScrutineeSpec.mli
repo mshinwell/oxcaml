@@ -1,0 +1,58 @@
+open BinInt
+open BinNums
+open BinPos
+open Datatypes
+open FlambdaMapSpec
+open FlambdaModel
+open FlambdaUnaliasParamsSpec
+open List
+open ListDef
+
+val first_arm_of : continuation -> (coq_Z * apply_cont) list -> coq_Z option
+
+val only_arm : continuation -> coq_Z -> (coq_Z * apply_cont) list -> bool
+
+val arm_fact : variable -> continuation -> expr -> coq_Z option
+
+val arm_known : variable -> simple -> coq_Z -> coq_Z option -> coq_Z option
+
+val known_under : variable -> variable list -> coq_Z option -> coq_Z option
+
+val give_nth : variable -> coq_Z -> nat -> simple list -> simple list
+
+val give_in_apply_cont :
+  variable -> continuation -> nat -> coq_Z option -> apply_cont -> apply_cont
+
+val give_scrutinee :
+  variable -> continuation -> nat -> coq_Z option -> expr -> expr
+
+val give_in_handler :
+  variable ->
+  continuation ->
+  nat ->
+  coq_Z option ->
+  continuation_handler ->
+  continuation_handler
+
+val scrutinee_by :
+  continuation -> nat -> variable option -> apply_cont -> variable option option
+
+val scrutinee_var : variable option -> simple -> variable option
+
+val scrutinee_of : variable option -> expr -> variable option
+
+val first_scrutinee :
+  continuation -> nat -> variable option -> expr -> variable option option
+
+val handler_first_scrutinee :
+  continuation ->
+  nat ->
+  variable option ->
+  continuation_handler ->
+  variable option option
+
+val give_at : nat -> continuation -> continuation_handler -> expr -> expr
+
+val give_from : nat -> continuation -> continuation_handler -> expr -> expr
+
+val give_scrutinees : expr -> expr
