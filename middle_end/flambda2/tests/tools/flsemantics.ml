@@ -2296,14 +2296,18 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list) ~around
     sym
   in
   (* The function declarations of the closures that the term after makes by a
-     [Let], anywhere. *)
-  let made_after =
+     [Let], anywhere, and the tag and the number of fields of the blocks that it
+     makes by one. *)
+  let made_after, blocks_made_after =
     let made = ref [] in
+    let blocks = ref [] in
     let rec in_term (e : Model.expr) =
       match e with
       | Let (_, _, d, body) ->
         (match d with
         | Closure_of_set (_, decls, _) -> made := decls :: !made
+        | Prim (Variadic (Make_block (Block_kind_values tag)), fields) ->
+          blocks := (tag, List.length fields) :: !blocks
         | _ -> ());
         in_term body
       | Let_static (bindings, body) ->
@@ -2326,7 +2330,52 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list) ~around
       | Apply _ | Apply_cont _ | Switch _ | Invalid -> ()
     in
     in_term after;
-    !made
+    !made, !blocks
+  in
+  (* The variables that a closure of the term before, made by a [Let] or bound
+     to a symbol, anywhere, holds in a value slot. *)
+  let held_in_slots =
+    let held = ref [] in
+    let of_slots (slots : (Model.value_slot * Model.simple) list) =
+      List.iter
+        (fun ((_, s) : Model.value_slot * Model.simple) ->
+          match s with Var x -> held := x :: !held | Symbol _ | Const _ -> ())
+        slots
+    in
+    let rec in_term (e : Model.expr) =
+      match e with
+      | Let (_, _, d, body) ->
+        (match d with
+        | Closure_of_set (_, _, slots) | Set_of_closures (_, slots) ->
+          of_slots slots
+        | _ -> ());
+        in_term body
+      | Let_static (bindings, body) ->
+        List.iter
+          (fun (binding : Model.static_binding) ->
+            match binding with
+            | Bind_code (_, Code (_, _, _, _, _, code_body)) ->
+              in_term code_body
+            | Bind_symbol
+                ( _,
+                  ( Static_const_closure_of_set (_, _, _, slots)
+                  | Static_const_set_of_closures (_, slots) ) ) ->
+              of_slots slots
+            | Bind_deleted_code _ | Bind_symbol _ -> ())
+          bindings;
+        in_term body
+      | Let_cont_non_recursive (_, Handler (_, _, handler), body) ->
+        in_term handler;
+        in_term body
+      | Let_cont_recursive (handlers, body) ->
+        List.iter
+          (fun (_, Model.Handler (_, _, handler)) -> in_term handler)
+          handlers;
+        in_term body
+      | Apply _ | Apply_cont _ | Switch _ | Invalid -> ()
+    in
+    in_term before;
+    !held
   in
   let lets = ref [] in
   let lift x path (target : Lift.lift_to) =
@@ -2435,6 +2484,12 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list) ~around
   in
   let to_head = ref [] in
   let to_head_given = ref [] in
+  (* A symbol, a constant, or a variable met that stands for one. *)
+  let known_simple (s : Model.simple) =
+    match s with
+    | Symbol _ | Const _ -> true
+    | Var x -> List.mem_assoc x !known_simples
+  in
   let rec in_expr (path : Numbers.positive) (e : Model.expr) =
     match e with
     | Let (x, _, d, body) ->
@@ -2476,13 +2531,8 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list) ~around
              has inlined every call. It is given symbols that neither of the two
              terms given here has, so that a value slot that holds it holds a
              symbol. *)
-          let known (s : Model.simple) =
-            match s with
-            | Symbol _ | Const _ -> true
-            | Var x -> List.mem_assoc x !known_simples
-          in
           if
-            List.for_all (fun (_, s) -> known s) slots
+            List.for_all (fun (_, s) -> known_simple s) slots
             && not (List.mem decls made_after)
           then (
             let symbols =
@@ -2502,7 +2552,24 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list) ~around
               | _ -> false)
         with
         | Some (sym, _) -> lift x path (Lift_to_symbol sym)
-        | None -> ())
+        | None ->
+          (* A block whose fields are symbols, constants or variables made
+             aliases of symbols, that a closure of the term before holds in a
+             value slot, and that the term after neither binds to a symbol nor
+             makes, with that tag and that many fields. The case aimed at is the
+             block of a structure given to a functor: the closure of a function
+             of the functor's result holds it (a closure that an earlier lifting
+             has bound to a symbol, with the variable in its slot), and Simplify
+             has resolved every load from it. It is given a symbol that neither
+             of the two terms given here has, so that the value slot holds a
+             symbol. The lifted term has no use for that symbol once the loads
+             are resolved, which is as it should be: the search does not take it
+             for a symbol given to the wrong [Let]. *)
+          if
+            List.for_all known_simple fields
+            && List.mem x held_in_slots
+            && not (List.mem (tag, List.length fields) blocks_made_after)
+          then lift x path (Lift_to_symbol (fresh_symbol ())))
       | Prim (Unary (Box_number _), [contents]) -> (
         match
           take path (fun (const : Model.static_const) ->
@@ -4093,7 +4160,10 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
          (the argument of a match that is resolved, say), where the term after
          binds it to a block made later. Such a symbol is not used in the term
          lifted: the sequence is guessed again with that [Let] banned for it, a
-         few times at most. *)
+         few times at most. A symbol that the term after does not bind is one
+         that the guess made for a constant that Simplify has no use for, and is
+         not such a symbol. *)
+      let bound_after = snd (static_names normalised_after) in
       let rec guessed banned again =
         let liftings, lifted = liftings_from banned 0 [] looped 4 in
         (* After the last lifting [validate_unit] reads the known value slots
@@ -4120,7 +4190,8 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
                    (fun (path, (target : Lift.lift_to)) ->
                      match target with
                      | Lift_to_symbol sym
-                       when List.mem sym unused.dropped_symbols ->
+                       when List.mem sym unused.dropped_symbols
+                            && List.mem (Symbol_name sym) bound_after ->
                        Some (stage, path, sym)
                      | Lift_to_symbol _ | Lift_to_closure_symbols _ -> None)
                    lifting.lifted_lets)

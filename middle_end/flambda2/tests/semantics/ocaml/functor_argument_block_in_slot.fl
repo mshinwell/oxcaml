@@ -1,0 +1,75 @@
+let $camlFunctor_argument_block_in_slot__first_const_0 = Block 0 () in
+(let code size(3)
+       plus_0 (a/87 : imm tagged, b/88 : imm tagged)
+         my_closure/89 &my_alloc_region/90 my_depth/91
+         -> k/30 * k/31
+         : imm tagged =
+   let next_depth/92 = rec_info (succ my_depth/91) in
+   let int_add/93 = %int_barith.add (a/87, b/88) in
+   cont k/30 (int_add/93)
+ in
+ let code size(6) stub
+       partial_plus_1 (param1/94 : imm tagged)
+         my_closure/95 &my_alloc_region/96 my_depth/97
+         -> k/32 * k/33
+         : imm tagged =
+   let next_depth/98 = rec_info (succ my_depth/97) in
+   let plus/99 = %project_value_slot.[partial_plus].[plus] (my_closure/95) in
+   let Popaque/100 =
+     %project_value_slot.[partial_plus].[Popaque] (my_closure/95)
+   in
+   apply direct(plus_0 &my_alloc_region/96)
+     (plus/99 : _ -> imm tagged) (Popaque/100, param1/94) -> k/32 * k/33
+ in
+ let code size(16)
+       go_2 (x/101 : imm tagged)
+         my_closure/102 &my_alloc_region/103 my_depth/104
+         -> k/34 * k/35
+         : imm tagged =
+   let next_depth/105 = rec_info (succ my_depth/104) in
+   let U/106 = %project_value_slot.[go].[U] (my_closure/102) in
+   (let Pfield/111 = %block_load.[`0`] (U/106) in
+    apply direct(partial_plus_1 &my_alloc_region/103)
+      (Pfield/111 : _ -> imm tagged) (x/101) -> k/37 * k/35)
+     where k/37 (apply_result/109 : imm tagged) =
+       let Pfield/110 = %block_load.[`0`] (U/106) in
+       apply direct(partial_plus_1 &my_alloc_region/103)
+         (Pfield/110 : _ -> imm tagged) (apply_result/109) -> k/36 * k/35
+     where k/36 (apply_result/107 : imm tagged) =
+       let Pfield/108 = %block_load.[`0`] (U/106) in
+       apply direct(partial_plus_1 &my_alloc_region/103)
+         (Pfield/108 : _ -> imm tagged) (apply_result/107) -> k/34 * k/35
+ in
+ let plus/112 = closure plus_0 @plus &toplevel in
+ (let Popaque/122 = %opaque (2) in
+  let partial_plus/123 = closure partial_plus_1 @partial_plus &toplevel
+  with { plus = plus/112; Popaque = Popaque/122 }
+  in
+  cont k/41 (partial_plus/123))
+   where k/41 (f/120 : val) =
+     let Pmakeblock/121 = %block.[`0`].`toplevel` (f/120) in
+     cont k/40 (Pmakeblock/121)
+   where k/40 (U/117 : val) =
+     let go/118 = closure go_2 @go &toplevel with { U = U/117 } in
+     let Pmakeblock/119 = %block.[`0`].`toplevel` (go/118) in
+     cont k/38 (Pmakeblock/119)
+   where k/38 (M/113 : val) =
+     ((let Pfield/116 = %block_load.[`0`] (M/113) in
+       apply direct(go_2 &toplevel)
+         (Pfield/116 : _ -> imm tagged) (1) -> k/39 * error)
+        where k/39 (answer/114 : imm tagged) =
+          let Pmakeblock/115 =
+            %block.[`0`].`toplevel` (plus/112, M/113, answer/114)
+          in
+          cont k/29 (Pmakeblock/115)))
+  where k/29 define_root_symbol (module_block/83) =
+    let field_0/84 = %block_load.tag[`0`].`size`[`3`].[`0`] (module_block/83)
+    in
+    let field_1/85 = %block_load.tag[`0`].`size`[`3`].[`1`] (module_block/83)
+    in
+    let field_2/86 = %block_load.tag[`0`].`size`[`3`].[`2`] (module_block/83)
+    in
+    let $camlFunctor_argument_block_in_slot =
+      Block 0 (field_0/84, field_1/85, field_2/86)
+    in
+    cont done ($camlFunctor_argument_block_in_slot)
