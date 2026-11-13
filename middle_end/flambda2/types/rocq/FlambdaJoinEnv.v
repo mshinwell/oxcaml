@@ -178,6 +178,27 @@
      ([candidate_canonical_in_source_env] answers the same for every
      order of the indices); which variable is imported first, and so
      which names are made, does.
+     [define_or_eliminate_variables_and_add_equations] adds the
+     equations in the order of the list that it ends with: first the
+     equations that it moves to, or makes for, the variables of the
+     target that replace an existential variable ([move_equation] and
+     the fold over the demoted aliases both put in front), then what is
+     left of [types_in_target_env], which [add_equation_in_target_env]
+     builds by putting each equation in front. Where one environment is
+     joined, the variables of the target that its level has an equation
+     for are met in the order of the level
+     ([names_with_equations_everywhere]) and no join is delayed, so
+     their equations stand in the reverse of the order of the level;
+     the equation of a variable that is imported on the way stands
+     where the variable was imported, whatever its place in the level.
+     The meet that called the join may then add them again:
+     [direct_return] of [meet_disjunction] cuts the level of its scope,
+     which holds what the join added, and goes through it in the
+     level's order, the equation added last first (FlambdaMeet.v, "The
+     order of what is gone through"). That is the reverse of the order
+     in which the join added them, where the compiler goes through a
+     map of names both times; the two orders can decide whether the
+     meet answers bottom (T4-21).
    - Two variables of the source with one binding time are ordered by
      the compiler by their names ([Typing_env.stable_compare_simples]);
      [Source_env.latest_bound] answers [None] for them. A well-formed

@@ -576,6 +576,16 @@ says so. Only the labels that this tree cites are listed.
   kind is not read back: the projection, which comes first in the text,
   makes the value slot at the kind of values, and the definition of the
   closure then stops the parser with a fatal error.
+- **T4-21.** The model's meet can add equations on the same names again
+  in opposite orders: where one environment is joined, the join adds
+  the equations that the level has for variables of the target in the
+  order in which they were added, and `direct_return` of the meet of
+  the disjunction around it then cuts the level of its own scope and
+  adds it last added first. The compiler's n-way meet adds them in the
+  order of the names each time. So the model can answer bottom where
+  the compiler's n-way meet does not, in each of the twenty-four orders
+  of the identifiers that the test of the types goes through (the line
+  of T7-14).
 - **T5-1.** The assumption stated by the n-way join, that every name of
   the source is defined in every joined environment, is false of its
   callers, and nothing checks it.

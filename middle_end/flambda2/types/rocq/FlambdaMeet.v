@@ -200,7 +200,29 @@
      up to the order of bindings and to binding times; until one does,
      a comparison with the compiler is to be made up to those, and a
      difference beyond them is to be looked at, not assumed to be the
-     order.
+     order. One such difference is known (T4-21). What a meet adds in
+     a scope is added again when the scope is left, and so more than
+     once where scopes are nested: by the join that [meet_row_like]
+     calls ([Join_env.define_or_eliminate_variables_and_add_equations])
+     and then by [direct_return] of each [meet_disjunction] around it.
+     The compiler's n-way meet goes through a map of names each time
+     (as its source reads: [Typing_env_extension.fold], a
+     [Name.Map.fold]), so each time in the order of the names. In the
+     model a level is a list with the equation added last in front.
+     The join of one environment adds the equations that the level has
+     for variables of the target from the back, in the order in which
+     they were added (FlambdaJoinEnv.v, "Order"). [direct_return] adds
+     the level that it cuts from the front ([extension_of_level]), so
+     in the reverse of the order in which its equations were added;
+     and that level holds what the join added. So, where at least two
+     distinct names are involved, two addings that follow each other
+     can go through the same names in opposite orders in the model,
+     and no single order of names gives both; and the order can decide
+     whether the answer is bottom: on the line of T7-14 in the tests
+     of the types ([the_lines_of_t7_14_and_t7_15],
+     tests/semantics/types/types_difftest.ml) the model answers bottom
+     and the compiler's n-way meet, in each of the twenty-four orders
+     of the identifiers of the four variables of that line, does not.
    - Names to avoid. The compiler's join makes variables with
      [Variable.create], which are new by construction. The model's
      join is to avoid the names of [Meet_env.names_to_avoid]
