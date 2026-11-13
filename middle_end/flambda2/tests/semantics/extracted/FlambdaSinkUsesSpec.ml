@@ -2,6 +2,7 @@ open BinPos
 open Datatypes
 open FlambdaModel
 open FlambdaNormaliseSpec
+open FlambdaSinkContsSpec
 open FlambdaUnusedContsSpec
 
 (** val sink_to_use : continuation -> continuation_handler -> expr -> expr **)
@@ -21,6 +22,12 @@ let rec sink_to_use k h body =
     then
       Let_cont_non_recursive
         (k', Handler (params', metadata', handler'), sink_to_use k h rest)
+    else if
+      (negb (cont_free_b k rest) && negb (cont_free_in_handler_b k h))
+      && params_not_free params' h
+    then
+      Let_cont_non_recursive
+        (k', Handler (params', metadata', sink_to_use k h handler'), rest)
     else Let_cont_non_recursive (k, h, body)
   | _ -> Let_cont_non_recursive (k, h, body)
 

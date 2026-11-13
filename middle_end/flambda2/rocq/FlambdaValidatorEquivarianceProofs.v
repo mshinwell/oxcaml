@@ -3378,11 +3378,17 @@ Proof.
       (sink_to_use_equivariant r k h body).
     destruct (var_free_in_handler_b x h); reflexivity.
   - rewrite (sink_to_use_equivariant r k h body). reflexivity.
-  - rewrite cont_free_b_equivariant_aux, cont_free_in_handler_b_equivariant,
-      rename_continuation_eqb, (sink_to_use_equivariant r k h body).
+  - rewrite !cont_free_b_equivariant_aux,
+      !cont_free_in_handler_b_equivariant, params_not_free_equivariant,
+      rename_continuation_eqb, (sink_to_use_equivariant r k h body),
+      (sink_to_use_equivariant r k h handler').
     destruct
       (negb (Pos.eqb k k') && negb (cont_free_b k handler')
        && negb (cont_free_in_handler_b k' h));
+      [ reflexivity | ].
+    destruct
+      (negb (cont_free_b k body) && negb (cont_free_in_handler_b k h)
+       && params_not_free params' h);
       reflexivity.
 Qed.
 

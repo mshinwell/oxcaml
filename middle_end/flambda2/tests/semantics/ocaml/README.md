@@ -843,7 +843,10 @@ removed it:
   guards of the pass permit. It passes a `Let` whose variable its
   handler does not use, a static binding, and the binding of another
   continuation that is not recursive if neither handler names the
-  other; anything else between the two leaves it where it was
+  other; failing that, it goes into the handler of the other where
+  nothing under the two bindings names it and the parameters of
+  that handler are not used in its own; anything else between the
+  two leaves it where it was
   (`FlambdaSinkUsesSpec.sink_conts_to_uses`, an equivalence, in
   `FlambdaValidateSpec.placed`).
 - Code and a closure that Simplify leaves bound at the head of the

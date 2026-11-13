@@ -30,8 +30,8 @@
 
    Each move of a [Let_cont] is one of those of
    FlambdaSinkContsProofs.v: past a [Let], past a [Let_static], past
-   another [Let_cont]. FlambdaContextProofs.plug_equivalent puts it
-   where it is made. *)
+   another [Let_cont], into the handler of another [Let_cont].
+   FlambdaContextProofs.plug_equivalent puts it where it is made. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
@@ -68,27 +68,48 @@ Proof.
     + apply let_cont_past_let_static.
     + exact (plug_equivalent (Let_static_body bindings Hole) _ _ (not_many _)
         (sink_to_use_equivalent body k h)).
-  - (* past another Let_cont *)
+  - (* another Let_cont *)
     destruct
       (negb (Pos.eqb k k') && negb (cont_free_b k handler')
        && negb (cont_free_in_handler_b k' h))
-      eqn:Hpast; [ | intros vars conts statics; apply equivalent_refl ].
-    apply andb_true_iff in Hpast as [Hpast Hk'].
-    apply andb_true_iff in Hpast as [Hne Hk].
-    apply negb_true_iff in Hne, Hk, Hk'. apply Pos.eqb_neq in Hne.
-    apply (expr_equivalent_trans _
-      (Let_cont_non_recursive k' (Handler params' metadata' handler')
-         (Let_cont_non_recursive k h body))).
-    + apply let_cont_past_let_cont; [ exact Hne | | ].
-      * intros Hfree. simpl in Hfree.
-        apply cont_free_b_sound in Hfree. congruence.
-      * intros Hfree. apply cont_free_in_handler_b_sound in Hfree.
-        congruence.
-    + exact (plug_equivalent
-        (Let_cont_non_recursive_body k'
-           (Handler params' metadata' handler') Hole)
-        _ _ (not_many _)
-        (sink_to_use_equivalent body k h)).
+      eqn:Hpast.
+    + (* past it *)
+      apply andb_true_iff in Hpast as [Hpast Hk'].
+      apply andb_true_iff in Hpast as [Hne Hk].
+      apply negb_true_iff in Hne, Hk, Hk'. apply Pos.eqb_neq in Hne.
+      apply (expr_equivalent_trans _
+        (Let_cont_non_recursive k' (Handler params' metadata' handler')
+           (Let_cont_non_recursive k h body))).
+      * apply let_cont_past_let_cont; [ exact Hne | | ].
+        -- intros Hfree. simpl in Hfree.
+           apply cont_free_b_sound in Hfree. congruence.
+        -- intros Hfree. apply cont_free_in_handler_b_sound in Hfree.
+           congruence.
+      * exact (plug_equivalent
+          (Let_cont_non_recursive_body k'
+             (Handler params' metadata' handler') Hole)
+          _ _ (not_many _)
+          (sink_to_use_equivalent body k h)).
+    + (* into its handler *)
+      destruct
+        (negb (cont_free_b k body) && negb (cont_free_in_handler_b k h)
+         && params_not_free params' h)
+        eqn:Hinto; [ | intros vars conts statics; apply equivalent_refl ].
+      apply andb_true_iff in Hinto as [Hinto Hparams].
+      apply andb_true_iff in Hinto as [Hbody Hh].
+      apply negb_true_iff in Hbody, Hh.
+      apply (expr_equivalent_trans _
+        (Let_cont_non_recursive k'
+           (Handler params' metadata' (Let_cont_non_recursive k h handler'))
+           body)).
+      * apply let_cont_into_handler.
+        -- intros Hk. apply cont_free_b_sound in Hk. congruence.
+        -- intros Hk. apply cont_free_in_handler_b_sound in Hk. congruence.
+        -- apply params_not_free_sound, Hparams.
+      * exact (plug_equivalent
+          (Let_cont_non_recursive_handler k' params' metadata' Hole body)
+          _ _ (not_many _)
+          (sink_to_use_equivalent handler' k h)).
 Qed.
 
 (* Each layer is a context around what the induction gives; then the

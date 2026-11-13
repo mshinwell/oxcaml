@@ -2,6 +2,7 @@ open BinPos
 open Datatypes
 open FlambdaModel
 open FlambdaNormaliseSpec
+open FlambdaSinkContsSpec
 open FlambdaUnusedContsSpec
 
 val sink_to_use : continuation -> continuation_handler -> expr -> expr

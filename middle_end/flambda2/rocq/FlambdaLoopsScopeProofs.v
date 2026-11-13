@@ -233,8 +233,8 @@ Qed.
 Theorem sink_let_conts_keeps_scope : sink_let_conts_keeps_scope_statement.
 Proof. apply keeps_scope_intro, sink_let_conts_scoped. Qed.
 
-(* A continuation moved down past the bindings under it: the moves
-   are three of those above. *)
+(* A continuation moved down past the bindings under it, or into the
+   handler under it: the moves are those above. *)
 Fixpoint sink_to_use_scoped (k : continuation)
     (h : continuation_handler) (body : expr) {struct body} :
   scoped (Let_cont_non_recursive k h body) (sink_to_use k h body).
@@ -247,14 +247,22 @@ Proof.
     apply scoped_let_cont_past_let, sink_to_use_scoped.
   - apply scoped_let_cont_past_let_static, sink_to_use_scoped.
   - match goal with
-    | |- scoped _ (if ?test then _ else _) =>
-      destruct test eqn:Hpast; [ | apply scoped_refl ]
+    | |- scoped _ (if ?test then _ else _) => destruct test eqn:Hpast
     end.
-    apply andb_true_iff in Hpast. destruct Hpast as [Hpast _].
-    apply andb_true_iff in Hpast. destruct Hpast as [_ Hunused].
-    apply negb_true_iff in Hunused.
-    apply scoped_let_cont_past_let_cont;
-      [ exact Hunused | apply sink_to_use_scoped ].
+    + apply andb_true_iff in Hpast. destruct Hpast as [Hpast _].
+      apply andb_true_iff in Hpast. destruct Hpast as [_ Hunused].
+      apply negb_true_iff in Hunused.
+      apply scoped_let_cont_past_let_cont;
+        [ exact Hunused | apply sink_to_use_scoped ].
+    + match goal with
+      | |- scoped _ (if ?test then _ else _) =>
+        destruct test eqn:Hinto; [ | apply scoped_refl ]
+      end.
+      apply andb_true_iff in Hinto. destruct Hinto as [Hinto _].
+      apply andb_true_iff in Hinto. destruct Hinto as [Hunused _].
+      apply negb_true_iff in Hunused.
+      apply scoped_let_cont_into_handler;
+        [ exact Hunused | apply sink_to_use_scoped ].
 Qed.
 
 Fixpoint sink_conts_to_uses_scoped (e : expr) :

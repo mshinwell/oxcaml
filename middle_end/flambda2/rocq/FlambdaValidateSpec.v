@@ -198,12 +198,14 @@
    are given, each of the terms that are compared has first had its
    continuations placed ([placed]): a non-recursive [Let_cont] goes
    down past the [Let]s and the other bindings under it that allow
-   it, as far as it can (FlambdaSinkUsesSpec.sink_conts_to_uses, an
-   equivalence), in the bodies of code and in the handlers of
-   recursive continuations too. It then stands at the call that
-   returns to its continuation, at the test of which an arm names it
-   or at the loop that leaves by it, where nothing that it cannot
-   pass is between the two. It is done once, when the rounds are
+   it, and into the handler of a non-recursive [Let_cont] under it
+   that alone names its continuation, as far as it can
+   (FlambdaSinkUsesSpec.sink_conts_to_uses, an equivalence), in the
+   bodies of code and in the handlers of recursive continuations
+   too. It then stands at the call that returns to its continuation,
+   at the test of which an arm names it or at the loop that leaves
+   by it, where nothing that it can neither pass nor enter is
+   between the two. It is done once, when the rounds are
    over: to the term before normalised, to the term after normalised,
    and to the term before with the liftings made. Simplify binds a
    continuation that it makes for a call at the call, under the [Let]s
@@ -909,7 +911,8 @@ Definition with_statics_first (Ls : list lifting) (e : expr) : expr :=
 (* What is done once, when the rounds are over, to each of the terms
    that are then compared; the first comparison, of the two terms as
    they are given, comes before it. A non-recursive [Let_cont] goes
-   down past the bindings under it, as far as
+   down past the bindings under it, and into the handler under it
+   that alone names its continuation, as far as
    FlambdaSinkUsesSpec.sink_conts_to_uses can move it: in the term and
    in the handlers of its recursive continuations ([place_conts]), and
    the same in the body of each piece of code. Not in a round: the

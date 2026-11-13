@@ -25,8 +25,9 @@
  * DEALINGS IN THE SOFTWARE.                                                  *
  ******************************************************************************)
 
-(* Moving a continuation down past the bindings under it: a
-   normalisation that is an equivalence.
+(* Moving a continuation down past the bindings under it, and into the
+   handler under it that alone names it: a normalisation that is an
+   equivalence.
 
    This file is to be reviewed: [sink_conts_to_uses] and [sink_to_use],
    which are extracted and run by the validation of
@@ -104,28 +105,55 @@
      switch y | 0 -> k () | 1 -> k1 ()
                                     switch y | 0 -> k () | 1 -> k1 ()
 
+   And where the result of a call is the argument of a second call,
+   whose result is tested ([if small (next x) then .. else ..],
+   neither function inlined). The first call returns to a
+   continuation that makes the second, and the front end binds the
+   continuation that tests before that one. Simplify untags the
+   boolean that is tested, so the second call returns to a new
+   continuation bound at that call, as above, which is in the handler
+   of the continuation that the first call returns to; and the
+   continuation that tests, once inlined in the new one, stands in
+   that handler too:
+
+     let_cont k (b) = test in       let x = d in
+     let x = d in                   let_cont k1 (y) =
+     let_cont k1 (y) =                let_cont k' (b) = test in
+       apply g (y) -> k               apply g (y) -> k'
+     in                             in
+     apply f (x) -> k1              apply f (x) -> k1
+
    [sink_conts_to_uses] gives the two terms one order: a non-recursive
-   [Let_cont] goes down past the bindings under it, as far as it can.
-   [sink_to_use k h body] is [Let_cont_non_recursive k h body] with the
-   binding of [k] so moved. The binding goes
+   [Let_cont] goes down past the bindings under it, and into the
+   handler under it that alone names its continuation, as far as it
+   can. [sink_to_use k h body] is [Let_cont_non_recursive k h body]
+   with the binding of [k] so moved. The binding goes
    - past a [Let] whose variable is not free in the handler [h], which
      would otherwise come to mean that variable;
    - past a [Let_static], with no condition;
    - past a non-recursive [Let_cont] of another name, if [k] is not
-     free in the handler of that one and its name is not free in [h].
-   It stops above the first thing that it cannot pass: a [Let] or a
-   [Let_cont] that does not meet these conditions, a [Let_cont] of
-   recursive continuations, or the [Apply], the [Apply_cont], the
-   [Switch] or the [Invalid] that the bindings end with. So the
-   binding of the continuation that a call returns to stands directly
-   above the call, where only bindings that it can pass are between
-   the two; that of a continuation that an arm of a test names,
-   directly above the test or above the continuations of the other
-   arms that apply it; that of the way out of a loop, directly above
-   the loop. Each of the three moves is one of
-   FlambdaSinkContsSpec.sink_into_handler; this pass does not move a
-   binding into a handler, nor past a [Let_cont] of recursive
-   continuations.
+     free in the handler of that one and its name is not free in [h];
+   - failing that, into the handler of a non-recursive [Let_cont], if
+     [k] is not free in the body of that [Let_cont], nor in [h] itself
+     (where it would stand for a continuation bound outside), and no
+     parameter of that handler is free in [h]. There it goes on, as
+     far as it can.
+   It stops above the first thing that it can neither pass nor enter:
+   a [Let] or a [Let_cont] that does not meet these conditions, a
+   [Let_cont] of recursive continuations, or the [Apply], the
+   [Apply_cont], the [Switch] or the [Invalid] that the bindings end
+   with. So the binding of the continuation that a call returns to
+   stands directly above the call, where only bindings that it can
+   pass are between the two; that of a continuation that an arm of a
+   test names, directly above the test or above the continuations of
+   the other arms that apply it; that of the way out of a loop,
+   directly above the loop; that of a continuation that only the
+   handler of another names, in that handler, placed there in the
+   same way. Each of the four moves is one of
+   FlambdaSinkContsSpec.sink_into_handler, which makes the last only
+   where the continuation is then inlined; this pass does not move a
+   binding past a [Let_cont] of recursive continuations, nor into the
+   handler of one.
 
    The tests of freedom are FlambdaNormaliseSpec.var_free_in_handler_b
    and FlambdaUnusedContsSpec.cont_free_b, which may say that a name is
@@ -158,7 +186,7 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaNormaliseSpec FlambdaUnusedContsSpec.
+  FlambdaNormaliseSpec FlambdaUnusedContsSpec FlambdaSinkContsSpec.
 Import ListNotations.
 
 Fixpoint sink_to_use (k : continuation) (h : continuation_handler)
@@ -175,6 +203,13 @@ Fixpoint sink_to_use (k : continuation) (h : continuation_handler)
     then
       Let_cont_non_recursive k' (Handler params' metadata' handler')
         (sink_to_use k h rest)
+    else if
+      negb (cont_free_b k rest)
+      && negb (cont_free_in_handler_b k h)
+      && params_not_free params' h
+    then
+      Let_cont_non_recursive k'
+        (Handler params' metadata' (sink_to_use k h handler')) rest
     else Let_cont_non_recursive k h body
   | Let_cont_recursive _ _ | Apply _ | Apply_cont _ | Switch _ _ | Invalid =>
     Let_cont_non_recursive k h body
