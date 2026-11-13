@@ -951,6 +951,26 @@ Proof.
   destruct v; try apply incl_refl; apply incl_nil_l.
 Qed.
 
+Lemma fold_block_load_free (sets : static_env) (d : named) :
+  incl (free_variables_of_named (fold_block_load sets d))
+    (free_variables_of_named d).
+Proof.
+  unfold fold_block_load.
+  destruct d as [s | p args | code slots | slot decls slots | slot closure
+                | pfrom slot closure | move_from move_to closure];
+    try apply incl_refl.
+  destruct p as [p | p | p | p]; try apply incl_refl.
+  destruct p; try apply incl_refl.
+  destruct mut; try apply incl_refl;
+    (destruct args as [ | [x | sym | c] [ | arg args]]; try apply incl_refl;
+     match goal with
+     | |- context [eval_named ?sets ?vars ?d] =>
+       destruct (eval_named sets vars d) as [v | ]
+     end;
+     [ | apply incl_refl ];
+     destruct v; try apply incl_refl; apply incl_nil_l).
+Qed.
+
 Lemma fold_known_apply_scoped (sets : static_env) (ap : apply_expr) :
   scoped (Apply ap) (Apply (fold_known_apply sets ap)).
 Proof.
@@ -977,8 +997,9 @@ Proof.
                   | ap | ac | scrutinee arms | ];
       cbn [fold_known]; try apply scoped_refl.
     + apply scoped_let; [ | apply fold_known_scoped ].
-      exact (incl_tran (fold_function_slot_free sets _)
-               (fold_known_named_free statics d)).
+      exact (incl_tran (fold_block_load_free sets _)
+               (incl_tran (fold_function_slot_free sets _)
+                  (fold_known_named_free statics d))).
     + apply scoped_let_static; [ | apply fold_known_scoped ].
       induction bindings as [ | binding bindings IH]; cbn [map];
         [ apply scoped_bindings_nil | ].

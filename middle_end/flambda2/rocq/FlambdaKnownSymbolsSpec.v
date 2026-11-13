@@ -73,7 +73,17 @@
    symbol is replaced by the symbol of the other closure
    ([fold_function_slot]); and it says which code the closure is of, so
    an indirect call of such a symbol is made a direct call of that code
-   ([fold_known_apply]). The value
+   ([fold_known_apply]). Of a static block one of whose fields is a
+   variable, the tag and the other fields are known, whatever the
+   variable holds ([known_sets] lists the block with [unknown_field]
+   for such a field): a load of a field that is a symbol or a constant
+   is replaced by it ([fold_block_load]), as Simplify replaces one from
+   the type of the block
+   (simplify/simplify_unary_primitive.ml,
+   [simplify_immutable_block_load]). That is how the code of a function
+   comes to call a function of a module of the unit by its symbol,
+   where the module also holds a value computed when the unit runs.
+   The value
    is computed by the evaluation of the machine itself
    (FlambdaSemanticsSpec.eval_named), so there is no list of primitives
    here, and nothing to keep in step with them. The one primitive that
@@ -92,7 +102,9 @@
    to something else, so this is no rewrite under all environments. For
    a unit run on its own it is enough that every static binding of such
    a symbol in the unit binds it to the one constant (for a symbol of
-   [known_sets]: to a closure at that slot of that set), which is what
+   [known_sets]: to a closure at that slot of that set, or to a block
+   of that tag with those fields where they are not variables), which
+   is what
    [bound_as] checks; the symbol is then bound to it or to nothing, and
    where it is bound to nothing the defining expression has no value in
    the unit as it was (every operation on a symbol bound to nothing is
@@ -107,8 +119,11 @@
    that it puts in place of projections.
 
    What is not here: what a value slot holds, of a closure one of whose
-   value slots holds a variable (a value computed when the unit runs);
-   the variable is in scope where the symbol is bound and not in code.
+   value slots holds a variable (a value computed when the unit runs),
+   and what a field that is a variable holds; the variable is in scope
+   where the symbol is bound and not in code. [Is_int] and [Get_tag] of
+   a static block one of whose fields is a variable are not folded
+   either.
 
    The proofs are in FlambdaKnownSymbolsProofs.v, which needs no
    review. *)
@@ -194,9 +209,17 @@ Definition known_statics (known : list (symbol * static_const))
     : static_env :=
   Static_env [] (flat_map known_value known).
 
+(* What stands, in what is known of a static block, for a field that is
+   a variable: a constant that is not of kind [Value]. A load from a
+   block of values has no value on such a field
+   (FlambdaPrimitiveSpec.eval_block_load), so none is folded to it. *)
+Definition unknown_field : const := Naked_immediate 0.
+
 (* What is known of a closure of a static set whatever its value slots
    hold: the same closure with no value slot, which has a value if its
-   function slot is one of the set. *)
+   function slot is one of the set. And of a static block whatever its
+   fields that are variables hold: the same block with [unknown_field]
+   for those. *)
 Definition set_of_binding (binding : static_binding)
     : list (symbol * static_const) :=
   match binding with
@@ -208,11 +231,18 @@ Definition set_of_binding (binding : static_binding)
     | Some _ => [(s, set)]
     | None => []
     end
+  | Bind_symbol s (Static_const_block tag fields) =>
+    [(s,
+      Static_const_block tag
+        (map
+           (fun field =>
+              if closed_simple field then field else Const unknown_field)
+           fields))]
   | Bind_symbol _ _ | Bind_code _ _ | Bind_deleted_code _ => []
   end.
 
-(* The symbols that the expression binds to closures of static sets,
-   outside code, with that. *)
+(* The symbols that the expression binds to closures of static sets and
+   to static blocks, outside code, with that. *)
 Fixpoint known_sets (e : expr) : list (symbol * static_const) :=
   match e with
   | Let _ _ _ body => known_sets body
@@ -233,7 +263,9 @@ with known_sets_of_handler (h : continuation_handler)
 
 (* Two closures at one function slot of one static set, whatever their
    value slots hold; for a set of one function with no name for its
-   slot, two closures of one code. *)
+   slot, two closures of one code. And two blocks of one tag and as
+   many fields, the second with each field of the first that is not
+   [unknown_field]. *)
 Definition same_set (allocated allocated' : statically_allocated_value)
     : Prop :=
   match allocated, allocated' with
@@ -241,6 +273,12 @@ Definition same_set (allocated allocated' : statically_allocated_value)
   | Static_closure_of_set slot symbols decls _,
     Static_closure_of_set slot' symbols' decls' _ =>
     slot' = slot ∧ symbols' = symbols ∧ decls' = decls
+  | Static_block tag fields, Static_block tag' fields' =>
+    tag' = tag
+    ∧ Forall2
+        (fun known actual =>
+           known = Value_const unknown_field ∨ actual = known)
+        fields fields'
   | _, _ => False
   end.
 
@@ -303,6 +341,24 @@ Definition fold_function_slot (sets : static_env) (d : named) : named :=
   | _ => d
   end.
 
+(* The load of a field from a symbol, where the load is not marked
+   [Mutable], or the constant or the symbol that it gives under [sets]:
+   the evaluation of the machine reads the tag, the number of fields
+   and that field, and has no value on a field that is
+   [unknown_field]. A load marked [Mutable] is left alone, as Simplify
+   leaves one whose argument is not a constant
+   (FlambdaBlockLoadSpec.v). *)
+Definition fold_block_load (sets : static_env) (d : named) : named :=
+  match d with
+  | Prim (Unary (Block_load _ (Immutable | Immutable_unique) _)) [Symbol _] =>
+    match eval_named sets [] d with
+    | Some (Value_const c) => Simple (Const c)
+    | Some (Value_symbol s) => Simple (Symbol s)
+    | _ => d
+    end
+  | _ => d
+  end.
+
 (* An indirect call of a symbol that [sets] binds to a closure, made a
    direct call of the code of that closure. *)
 Definition fold_known_apply (sets : static_env) (ap : apply_expr)
@@ -321,12 +377,15 @@ Definition fold_known_apply (sets : static_env) (ap : apply_expr)
 
 (* Every [Let] of the expression, in handlers and in code too, with its
    defining expression folded: by what [statics] binds, and then, if it
-   is still the projection of a function slot, by what [sets] binds. And
-   every call, with its kind folded by what [sets] binds. *)
+   is still the projection of a function slot or the load of a field, by
+   what [sets] binds. And every call, with its kind folded by what
+   [sets] binds. *)
 Fixpoint fold_known (statics sets : static_env) (e : expr) : expr :=
   match e with
   | Let x kind d body =>
-    Let x kind (fold_function_slot sets (fold_known_named statics d))
+    Let x kind
+      (fold_block_load sets
+         (fold_function_slot sets (fold_known_named statics d)))
       (fold_known statics sets body)
   | Let_static bindings body =>
     Let_static (map (fold_known_binding statics sets) bindings)
@@ -366,7 +425,8 @@ with fold_known_code (statics sets : static_env) (c : code) : code :=
 (* If [known] gives the symbol a constant, the binding binds it to that
    constant, which has no variable in it; and if [sets] gives it a
    closure of a set, the binding binds it to a closure at that slot of
-   that set. *)
+   that set, and if a block, to a block of that tag with those fields
+   where they are not variables. *)
 Definition binding_bound_as (known sets : list (symbol * static_const))
     (binding : static_binding) : bool :=
   match binding with
@@ -425,8 +485,10 @@ with code_bound_as (known sets : list (symbol * static_const)) (c : code)
   end.
 
 (* The unit with what it binds its symbols to used wherever they are, if
-   it binds each of them to one constant, and each symbol of a closure
-   of a set to closures at one slot of one set. *)
+   it binds each of them to one constant, each symbol of a closure of a
+   set to closures at one slot of one set, and each symbol of a block
+   to blocks of one tag that have the same fields where they are not
+   variables, and variables at the same places. *)
 Definition fold_known_unit (e : expr) : option expr :=
   let known := known_bindings e in
   let sets := known_sets e in
@@ -487,7 +549,8 @@ Definition fold_known_named_sound_statement : Prop :=
 
 (* The projection of a function slot is folded to its value: in any
    static environment in which each symbol that [sets] binds is bound
-   to a closure at the same slot of the same set or to nothing, if the
+   to a closure at the same slot of the same set, to a block of the
+   same tag with the fields that are known, or to nothing, if the
    expression has a value, the expression folded has that value. *)
 Definition fold_function_slot_sound_statement : Prop :=
   ∀ (sets run_statics : static_env) (vars : env) (d : named) (v : value),
@@ -497,6 +560,17 @@ Definition fold_function_slot_sound_statement : Prop :=
       same_set allocated allocated') ->
     eval_named run_statics vars d = Some v ->
     eval_named run_statics vars (fold_function_slot sets d) = Some v.
+
+(* The load of a field is folded to its value, in any such static
+   environment. *)
+Definition fold_block_load_sound_statement : Prop :=
+  ∀ (sets run_statics : static_env) (vars : env) (d : named) (v : value),
+    (∀ (s : symbol) (allocated allocated' : statically_allocated_value),
+      lookup s (static_values sets) = Some allocated ->
+      lookup s (static_values run_statics) = Some allocated' ->
+      same_set allocated allocated') ->
+    eval_named run_statics vars d = Some v ->
+    eval_named run_statics vars (fold_block_load sets d) = Some v.
 
 (* A call is folded to a call that steps as it does, in any such static
    environment. *)

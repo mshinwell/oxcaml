@@ -269,6 +269,7 @@ Proof.
     try contradiction.
   - rewrite Hknown in Hrun. exact Hrun.
   - destruct Hsame as (-> & -> & ->). rewrite Hknown in Hrun. exact Hrun.
+  - discriminate Hknown.
 Qed.
 
 (* A symbol that [sets] binds to a closure of code is, in the run, a
@@ -292,6 +293,101 @@ Proof.
   - destruct Hsame as (-> & -> & ->).
     destruct (lookup fslot decls) as [c | ]; simpl; [ | discriminate ].
     intros [= <- _] [= <- _]. reflexivity.
+  - discriminate.
+Qed.
+
+(* The fields of two blocks, the second with each field of the first
+   that is known: where the first has a field, the second has one, the
+   same if that of the first is known. *)
+Lemma known_field_nth (fields fields' : list value) (n : nat) (known : value) :
+  Forall2
+    (fun known actual => known = Value_const unknown_field ∨ actual = known)
+    fields fields' ->
+  nth_error fields n = Some known ->
+  ∃ actual : value,
+    nth_error fields' n = Some actual
+    ∧ (known = Value_const unknown_field ∨ actual = known).
+Proof.
+  intros H. revert n.
+  induction H as [ | k a fields fields' Hfirst _ IH]; intros [ | n]; simpl;
+    try discriminate.
+  - intros [= <-]. exists a. split; [ reflexivity | exact Hfirst ].
+  - apply IH.
+Qed.
+
+(* The load of a field of a block that [sets] binds has, in the run,
+   the value that it has under [sets], or none. *)
+Lemma eval_block_load_sets (kind : block_access_kind) (field : Z)
+    (s : symbol) (w v : value) :
+  eval_block_load sets kind field (Value_symbol s) = Some w ->
+  eval_block_load run_statics kind field (Value_symbol s) = Some v ->
+  v = w.
+Proof.
+  destruct kind as [tag size field_kind]. unfold eval_block_load, block_of.
+  destruct (lookup s (static_values sets)) as [allocated | ] eqn:Hs;
+    [ | discriminate ].
+  destruct (lookup s (static_values run_statics)) as [allocated' | ] eqn:Hs';
+    [ | discriminate ].
+  pose proof (Hsets s allocated allocated' Hs Hs') as Hsame.
+  destruct allocated as [c sl | fslot syms decls sl | btag fields | | | | ];
+    try discriminate.
+  destruct allocated' as [c' sl' | fslot' syms' decls' sl' | btag' fields'
+                         | | | | ];
+    try contradiction.
+  destruct Hsame as [-> Hfields]. simpl.
+  rewrite <- (Forall2_length Hfields).
+  destruct
+    (known_is tag btag && known_is size (Z.of_nat (length fields))
+     && (0 <=? field)%Z);
+    [ | discriminate ].
+  destruct (nth_error fields (Z.to_nat field)) as [known | ] eqn:Hknown;
+    simpl; [ | discriminate ].
+  destruct (known_field_nth fields fields' _ known Hfields Hknown)
+    as (actual & -> & Hactual).
+  simpl. intros Hw.
+  destruct Hactual as [-> | ->].
+  - destruct field_kind; discriminate Hw.
+  - destruct
+      (match field_kind with
+       | Any_value => kind_eqb (kind_of_value known) Value
+       | Immediate => is_tagged_immediate known
+       end);
+      [ | discriminate Hw ].
+    injection Hw as <-. intros [= <-]. reflexivity.
+Qed.
+
+Lemma fold_block_load_sound_here (vars : env) (d : named) (v : value) :
+  eval_named run_statics vars d = Some v ->
+  eval_named run_statics vars (fold_block_load sets d) = Some v.
+Proof.
+  destruct d as [s | p args | code slots | fslot decls slots | slot closure
+    | pfrom slot closure | move_from move_to closure];
+    try exact (fun H => H).
+  destruct p as [p | p | p | p]; try exact (fun H => H).
+  destruct p; try exact (fun H => H).
+  destruct args as [ | [x | s | c] [ | arg args]]; try exact (fun H => H);
+    try (destruct mut; exact (fun H => H)).
+  set (load := Prim (Unary (Block_load kind mut field)) [Symbol s]).
+  assert (Hload :
+    eval_named run_statics vars load = Some v ->
+    eval_named run_statics vars
+      match eval_named sets [] load with
+      | Some (Value_const c) => Simple (Const c)
+      | Some (Value_symbol s') => Simple (Symbol s')
+      | _ => load
+      end
+    = Some v).
+  { intros Hrun.
+    destruct (eval_named sets [] load) as [w | ] eqn:Hknown;
+      [ | exact Hrun ].
+    unfold load in Hknown, Hrun.
+    assert (Hv : v = w).
+    { cbn [eval_named eval_simples eval_simple] in Hknown, Hrun.
+      simpl in Hknown, Hrun.
+      rewrite eval_prim_unary in Hknown, Hrun.
+      exact (eval_block_load_sets kind field s w v Hknown Hrun). }
+    subst w. destruct v; solve [ exact Hrun | reflexivity ]. }
+  destruct mut; [ exact (fun H => H) | exact Hload | exact Hload ].
 Qed.
 
 (* An indirect call of such a symbol and the direct call of that code
@@ -337,6 +433,12 @@ Theorem fold_function_slot_sound : fold_function_slot_sound_statement.
 Proof.
   intros sets run_statics vars d v Hsets.
   exact (fold_function_slot_sound_here sets run_statics Hsets vars d v).
+Qed.
+
+Theorem fold_block_load_sound : fold_block_load_sound_statement.
+Proof.
+  intros sets run_statics vars d v Hsets.
+  exact (fold_block_load_sound_here sets run_statics Hsets vars d v).
 Qed.
 
 Theorem fold_known_apply_sound : fold_known_apply_sound_statement.
@@ -390,6 +492,56 @@ Proof.
     apply known_bindings_have_values.
 Qed.
 
+(* The fields of a static block, with [unknown_field] for those that are
+   variables, have values with no variable in scope; and those values
+   are the fields that the block is made with wherever they are not
+   [unknown_field]. *)
+Definition masked (fields : list simple) : list simple :=
+  map (fun field => if closed_simple field then field else Const unknown_field)
+    fields.
+
+Lemma masked_fields_have_values (fields : list simple) :
+  ∃ vs : list value, eval_simples [] (masked fields) = Some vs.
+Proof.
+  unfold masked.
+  induction fields as [ | field fields [vs IH]]; simpl; [ eauto | ].
+  rewrite IH.
+  destruct field as [x | s | c]; simpl; eauto.
+Qed.
+
+Lemma masked_fields_known (vars : env) (fields : list simple) :
+  ∀ known actual : list value,
+    eval_simples [] (masked fields) = Some known ->
+    eval_simples vars fields = Some actual ->
+    Forall2
+      (fun known actual => known = Value_const unknown_field ∨ actual = known)
+      known actual.
+Proof.
+  unfold masked.
+  induction fields as [ | field fields IH]; simpl; intros known actual.
+  - intros [= <-] [= <-]. constructor.
+  - destruct
+      (eval_simples []
+         (map
+            (fun field =>
+               if closed_simple field then field else Const unknown_field)
+            fields))
+      as [known_rest | ] eqn:Hrest;
+      [ | destruct (closed_simple field);
+          [ destruct (eval_simple [] field) | ]; discriminate ].
+    destruct (eval_simple vars field) as [v | ] eqn:Hv; simpl;
+      [ | discriminate ].
+    destruct (eval_simples vars fields) as [actual_rest | ]; simpl;
+      [ | destruct (closed_simple field);
+          [ destruct (eval_simple [] field) | ]; discriminate ].
+    destruct (closed_simple field) eqn:Hclosed.
+    + rewrite <- (eval_closed_simple vars field Hclosed), Hv. simpl.
+      intros [= <-] [= <-].
+      constructor; [ right; reflexivity | exact (IH _ _ eq_refl eq_refl) ].
+    + simpl. intros [= <-] [= <-].
+      constructor; [ left; reflexivity | exact (IH _ _ eq_refl eq_refl) ].
+Qed.
+
 Lemma set_of_binding_have_values (binding : static_binding) :
   all_have_values (set_of_binding binding).
 Proof.
@@ -405,7 +557,11 @@ Proof.
       eqn:Hconst;
       constructor; [ | constructor ].
     cbn [snd]. rewrite Hconst. discriminate.
-  - constructor.
+  - unfold all_have_values, set_of_binding.
+    constructor; [ | constructor ].
+    cbn [snd eval_static_const].
+    destruct (masked_fields_have_values fields) as [vs Hvs].
+    unfold masked in Hvs. rewrite Hvs. discriminate.
   - constructor.
   - constructor.
   - constructor.
@@ -529,19 +685,34 @@ Proof.
       destruct (eval_value_slots vars slots) as [vs | ]; simpl in Hmade;
         [ | discriminate ].
       injection Hmade as <-. reflexivity. }
-    simpl in Hmade.
-    destruct (lookup fslot decls) as [code | ] eqn:Hcode;
-      cbn -[static_const_eq_dec] in Hsym, Hmade;
-      [ | discriminate ].
+    { simpl in Hmade.
+      destruct (lookup fslot decls) as [code | ] eqn:Hcode;
+        cbn -[static_const_eq_dec] in Hsym, Hmade;
+        [ | discriminate ].
+      destruct
+        (static_const_eq_dec (Static_const_closure_of_set fslot syms decls [])
+           expected)
+        as [<- | ];
+        [ | discriminate ].
+      simpl in Hs. rewrite Hcode in Hs. simpl in Hs. injection Hs as <-.
+      destruct (eval_value_slots vars slots) as [vs | ]; simpl in Hmade;
+        [ | discriminate ].
+      injection Hmade as <-. simpl. auto. }
+    cbn -[static_const_eq_dec] in Hsym.
+    fold (masked fields) in Hsym.
     destruct
-      (static_const_eq_dec (Static_const_closure_of_set fslot syms decls [])
-         expected)
+      (static_const_eq_dec (Static_const_block tag (masked fields)) expected)
       as [<- | ];
       [ | discriminate ].
-    simpl in Hs. rewrite Hcode in Hs. simpl in Hs. injection Hs as <-.
-    destruct (eval_value_slots vars slots) as [vs | ]; simpl in Hmade;
+    cbn [eval_static_const] in Hs, Hmade.
+    destruct (eval_simples [] (masked fields)) as [known_fields | ] eqn:Hkf;
+      simpl in Hs; [ | discriminate ].
+    injection Hs as <-.
+    destruct (eval_simples vars fields) as [vs | ] eqn:Hvs; simpl in Hmade;
       [ | discriminate ].
-    injection Hmade as <-. simpl. auto.
+    injection Hmade as <-.
+    split; [ reflexivity | ].
+    exact (masked_fields_known vars fields known_fields vs Hkf Hvs).
 Qed.
 
 Lemma eval_static_bindings_agrees_known (vars : env)
@@ -1093,10 +1264,11 @@ Proof.
     split; [ | exact Hagrees ].
     destruct He as [-> | [-> Hno]].
     + simpl fold_known. rewrite step_let, eval_named_fold_statics.
-      rewrite (fold_function_slot_sound_here T statics (proj2 Hagrees) vars _
-                 v
-                 (fold_known_named_sound_here S statics (proj1 Hagrees) vars
-                    d v Hv)),
+      rewrite (fold_block_load_sound_here T statics (proj2 Hagrees) vars _ v
+                 (fold_function_slot_sound_here T statics (proj2 Hagrees)
+                    vars _ v
+                    (fold_known_named_sound_here S statics (proj1 Hagrees)
+                       vars d v Hv))),
         Hkind.
       eexists. split; [ reflexivity | ].
       apply State_kept; [ left; reflexivity | exact Hconts ].
@@ -1568,6 +1740,24 @@ Proof.
   destruct w; reflexivity.
 Qed.
 
+(* The load of a field that is folded is from a symbol. *)
+Lemma fold_block_load_rename (r : renaming) (sets : static_env) (d : named) :
+  rename_named r (fold_block_load sets d)
+  = fold_block_load sets (rename_named r d).
+Proof.
+  destruct d as [s | p args | code slots | fslot decls slots | slot closure
+    | pfrom slot closure | move_from move_to closure];
+    try reflexivity.
+  destruct p as [p | p | p | p]; try reflexivity.
+  destruct p; try reflexivity.
+  destruct args as [ | [x | s | c] [ | arg args]];
+    try (destruct mut; reflexivity).
+  unfold fold_block_load. cbn [rename_named rename_simple map].
+  destruct mut; try reflexivity;
+    (destruct (eval_named sets [] _) as [w | ]; [ | reflexivity ]);
+    destruct w; reflexivity.
+Qed.
+
 Lemma fold_known_apply_rename (r : renaming) (sets : static_env)
     (ap : apply_expr) :
   rename_apply r (fold_known_apply sets ap)
@@ -1606,8 +1796,8 @@ Proof.
       as [ x xkind d body | bindings body | k h body | handlers body | ap | ac
          | scrutinee arms | ];
       simpl; try reflexivity.
-    + rewrite fold_function_slot_rename, fold_known_named_rename,
-        fold_known_rename.
+    + rewrite fold_block_load_rename, fold_function_slot_rename,
+        fold_known_named_rename, fold_known_rename.
       reflexivity.
     + rewrite fold_known_rename. f_equal. rewrite !map_map.
       induction bindings as [ | binding bindings IH]; simpl; [ reflexivity | ].

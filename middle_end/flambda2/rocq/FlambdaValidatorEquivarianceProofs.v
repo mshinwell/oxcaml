@@ -6118,7 +6118,17 @@ Lemma set_of_binding_renamed (r : renaming) (binding : static_binding) :
   set_of_binding (rename_static_binding r binding) = set_of_binding binding.
 Proof.
   destruct binding as [id c | id | sym const]; try reflexivity.
-  destruct const; reflexivity.
+  destruct const
+    as [code slots | fslot syms decls slots | tag fields | contents | bytes
+        | elements];
+    try reflexivity.
+  simpl. rewrite map_map.
+  rewrite
+    (map_ext _
+       (fun field =>
+          if closed_simple field then field else Const unknown_field));
+    [ reflexivity | ].
+  intros [x | s | c]; reflexivity.
 Qed.
 
 Fixpoint known_sets_renamed (r : renaming) (e : expr) {struct e} :

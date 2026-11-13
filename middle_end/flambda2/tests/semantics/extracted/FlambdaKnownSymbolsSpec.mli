@@ -1,3 +1,4 @@
+open BinNums
 open Datatypes
 open FlambdaMapSpec
 open FlambdaModel
@@ -25,6 +26,8 @@ val known_value :
 
 val known_statics : (symbol * static_const) list -> static_env
 
+val unknown_field : const
+
 val set_of_binding : static_binding -> (symbol * static_const) list
 
 val known_sets : expr -> (symbol * static_const) list
@@ -40,6 +43,8 @@ val named_known : static_env -> named -> bool
 val fold_known_named : static_env -> named -> named
 
 val fold_function_slot : static_env -> named -> named
+
+val fold_block_load : static_env -> named -> named
 
 val fold_known_apply : static_env -> apply_expr -> apply_expr
 

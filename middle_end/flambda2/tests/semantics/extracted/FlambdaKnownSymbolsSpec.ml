@@ -1,3 +1,4 @@
+open BinNums
 open Datatypes
 open FlambdaMapSpec
 open FlambdaModel
@@ -29,11 +30,11 @@ let closed_static_const = function
 (** val known_of_binding : static_binding -> (symbol * static_const) list **)
 
 let known_of_binding = function
-  | Bind_symbol (s, const) ->
-    if closed_static_const const
+  | Bind_symbol (s, const0) ->
+    if closed_static_const const0
     then
-      match eval_static_const [] const with
-      | Some _ -> (s, const) :: []
+      match eval_static_const [] const0 with
+      | Some _ -> (s, const0) :: []
       | None -> []
     else []
   | _ -> []
@@ -75,11 +76,15 @@ let known_value binding =
 let known_statics known =
   { static_code = []; static_values = flat_map known_value known }
 
+(** val unknown_field : const **)
+
+let unknown_field = Naked_immediate Z0
+
 (** val set_of_binding : static_binding -> (symbol * static_const) list **)
 
 let set_of_binding = function
-  | Bind_symbol (s, const) -> (
-    match const with
+  | Bind_symbol (s, const0) -> (
+    match const0 with
     | Static_const_set_of_closures (code0, _) ->
       (s, Static_const_set_of_closures (code0, [])) :: []
     | Static_const_closure_of_set (slot, symbols, decls, _) -> (
@@ -87,6 +92,15 @@ let set_of_binding = function
       match eval_static_const [] set with
       | Some _ -> (s, set) :: []
       | None -> [])
+    | Static_const_block (tag, fields) ->
+      ( s,
+        Static_const_block
+          ( tag,
+            map
+              (fun field ->
+                if closed_simple field then field else Const unknown_field)
+              fields ) )
+      :: []
     | _ -> [])
   | _ -> []
 
@@ -166,6 +180,38 @@ let fold_function_slot sets d =
     | _ -> d)
   | _ -> d
 
+(** val fold_block_load : static_env -> named -> named **)
+
+let fold_block_load sets d =
+  match d with
+  | Prim (p, args) -> (
+    match p with
+    | Unary p0 -> (
+      match p0 with
+      | Block_load (_, mut, _) -> (
+        match mut with
+        | Mutable -> d
+        | _ -> (
+          match args with
+          | [] -> d
+          | s :: l -> (
+            match s with
+            | Symbol _ -> (
+              match l with
+              | [] -> (
+                match eval_named sets [] d with
+                | Some v -> (
+                  match v with
+                  | Value_const c -> Simple (Const c)
+                  | Value_symbol s0 -> Simple (Symbol s0)
+                  | _ -> d)
+                | None -> d)
+              | _ :: _ -> d)
+            | _ -> d)))
+      | _ -> d)
+    | _ -> d)
+  | _ -> d
+
 (** val fold_known_apply : static_env -> apply_expr -> apply_expr **)
 
 let fold_known_apply sets ap =
@@ -197,7 +243,8 @@ let rec fold_known statics sets e =
     Let
       ( x,
         kind,
-        fold_function_slot sets (fold_known_named statics d),
+        fold_block_load sets
+          (fold_function_slot sets (fold_known_named statics d)),
         fold_known statics sets body )
   | Let_static (bindings, body) ->
     Let_static
@@ -243,11 +290,11 @@ and fold_known_code statics sets = function
 
 let binding_bound_as known sets binding =
   match binding with
-  | Bind_symbol (s, const) -> (
+  | Bind_symbol (s, const0) -> (
     (match lookup s known with
       | Some expected ->
-        closed_static_const const
-        && if static_const_eq_dec const expected then true else false
+        closed_static_const const0
+        && if static_const_eq_dec const0 expected then true else false
       | None -> true)
     &&
     match lookup s sets with
