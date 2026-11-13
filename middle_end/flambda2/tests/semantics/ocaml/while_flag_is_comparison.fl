@@ -1,0 +1,63 @@
+let $camlWhile_flag_is_comparison__first_const_0 = Block 0 () in
+(let code inline(never) size(24)
+       count_up_to_0 (n/66 : imm tagged)
+         my_closure/67 &my_alloc_region/68 my_depth/69
+         -> k/26 * k/27
+         : imm tagged =
+   let next_depth/70 = rec_info (succ my_depth/69) in
+   cont k/28 (1)
+     where k/28 (let_mutable/71 : imm tagged) =
+       (cont k/29 (0, let_mutable/71)
+          where k/29
+                  (let_mutable/72 : imm tagged,
+                   go_16_unboxed0/73 : imm tagged) =
+            (cont k/31 (go_16_unboxed0/73, let_mutable/72)
+               where rec k/31
+                           (go_16_unboxed0/77 : imm tagged,
+                            i_17_unboxed0/78 : imm tagged) =
+                 (cont k/32
+                         (go_16_unboxed0/77,
+                          go_16_unboxed0/77,
+                          i_17_unboxed0/78)
+                    where k/32
+                            (while_cond_result/79 : imm tagged,
+                             go_16_unboxed0/80 : imm tagged,
+                             i_17_unboxed0/81 : imm tagged) =
+                      ((let untagged/87 = %untag_imm (while_cond_result/79)
+                        in
+                        switch untagged/87
+                          | 0 ->
+                            k/30 (0, go_16_unboxed0/80, i_17_unboxed0/81)
+                          | 1 -> k/34)
+                         where k/34 =
+                           cont k/33 (go_16_unboxed0/80, i_17_unboxed0/81)
+                         where k/33
+                                 (go_16_unboxed0/82 : imm tagged,
+                                  i_17_unboxed0/83 : imm tagged) =
+                           let int_add/84 =
+                             %int_barith.add (i_17_unboxed0/83, 1)
+                           in
+                           let prim/85 = %int_comp.lt (int_add/84, n/66) in
+                           let int_lessthan/86 = %tag_imm (prim/85) in
+                           cont k/31 (int_lessthan/86, int_add/84)))
+               where k/30
+                       (staticcatch_result/74 : imm tagged,
+                        go_16_unboxed0/75 : imm tagged,
+                        i_17_unboxed0/76 : imm tagged) =
+                 cont k/26 (i_17_unboxed0/76)))
+ in
+ let count_up_to/88 = closure count_up_to_0 @count_up_to &toplevel in
+ (let Popaque/91 = %opaque (7) in
+  apply direct(count_up_to_0 &toplevel)
+    (count_up_to/88 : _ -> imm tagged) (Popaque/91) -> k/35 * error)
+   where k/35 (result/89 : imm tagged) =
+     let Pmakeblock/90 = %block.[`0`].`toplevel` (count_up_to/88, result/89)
+     in
+     cont k/25 (Pmakeblock/90))
+  where k/25 define_root_symbol (module_block/63) =
+    let field_0/64 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/63)
+    in
+    let field_1/65 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/63)
+    in
+    let $camlWhile_flag_is_comparison = Block 0 (field_0/64, field_1/65) in
+    cont done ($camlWhile_flag_is_comparison)
