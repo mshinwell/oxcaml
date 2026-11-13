@@ -140,14 +140,13 @@ Proof.
   destruct (lookup (ac_continuation ac) K) as [kinds | ] eqn:Hkinds;
     [ | apply Goes_same ].
   destruct
-    (Nat.eqb (length (ac_args ac)) (length params) && no_trap_action ac
-     && no_trap_action target && have_kinds G (ac_args ac) kinds)
+    (Nat.eqb (length (ac_args ac)) (length params) && no_trap_action target
+     && have_kinds G (ac_args ac) kinds)
     eqn:Hcheck; [ | apply Goes_same ].
   apply andb_true_iff in Hcheck as [Hcheck Hhave].
-  apply andb_true_iff in Hcheck as [Hcheck _].
   apply andb_true_iff in Hcheck as [Hlength _].
   apply Nat.eqb_eq in Hlength.
-  apply Goes_on; [ exact Hk | exact Hlength | ].
+  apply Goes_keeping; [ exact Hk | exact Hlength | ].
   intros _. exists kinds.
   split; [ exact Hkinds | exact (have_kinds_sound G _ kinds Hhave) ].
 Qed.

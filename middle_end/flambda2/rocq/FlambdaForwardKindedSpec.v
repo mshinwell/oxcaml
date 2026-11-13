@@ -73,7 +73,16 @@
    that continuation is the two primitives that end the region and
    then an [Apply_cont]. The model has no regions: the conversion
    drops those primitives, and the handler is one [Apply_cont] that
-   passes the parameter on, in both terms.
+   passes the parameter on, in both terms. Where the function returns
+   what the [try] gives, the body of the [try] applies that
+   continuation with the trap action that pops the handler:
+
+     let sum_or_zero g l =
+       try fold_left (fun acc x -> acc + g x) 0 l with _ -> 0
+
+   (the function has a region, in which the closure given to
+   [fold_left] is allocated, and the continuation that follows the
+   [try] ends it).
 
    In both cases the term before has its applications forwarded:
    FlambdaForwardSpec.forward_applications does not look for what
@@ -105,9 +114,14 @@
    The application then runs the [Apply_cont] of the handler under the
    variables of the [Let_cont] with the parameters bound, and the
    [Apply_cont] put in its place is that one with the arguments put
-   for the parameters (FlambdaForwardSpec.forwarded), whose names mean
-   the same where the application is (FlambdaForwardSpec.forwarding
-   has checked it).
+   for the parameters, whose names mean the same where the
+   application is (FlambdaForwardSpec.forwarding has checked it), and
+   with the trap action of the application, if it has one
+   (FlambdaForwardSpec.forwarded_keeping). The machine does not
+   execute trap actions, so the one that is kept changes no run. It
+   is kept for the comparison of the two terms, which tells a trap
+   action from none: the term before keeps it
+   (FlambdaForwardSpec.forward_apply_cont_keeping), as Simplify does.
 
    What the pass keeps, going down a term: the kinds of the variables
    bound around the point ([G]); for each continuation bound around
@@ -135,8 +149,7 @@
      [forward_kinded_in_code] is for them;
    - an argument whose kind is not that of the parameter: the
      application is undefined;
-   - a trap action, on the application or on the [Apply_cont] of the
-     handler;
+   - a trap action on the [Apply_cont] of the handler;
    - recursive continuations are not forwarded, and an [Apply] that
      returns to a continuation still does: the results of a call are
      tested where they are returned, and their kinds are not known
@@ -227,17 +240,18 @@ Definition kinded_entry (k : continuation) (params : list variable)
   else None.
 
 (* An [Apply_cont] made to go where the handler of its continuation
-   goes, if neither has a trap action and its arguments have the kinds
-   of the parameters. *)
+   goes, if the [Apply_cont] of the handler has no trap action and its
+   arguments have the kinds of the parameters. It keeps its own trap
+   action, if it has one. *)
 Definition forward_kinded_apply_cont (G : kinds_in_scope) (K : cont_kinds)
     (F : forwards) (ac : apply_cont) : apply_cont :=
   match forward_of F (ac_continuation ac), lookup (ac_continuation ac) K with
   | Some (params, target), Some kinds =>
     if
       Nat.eqb (length (ac_args ac)) (length params)
-      && no_trap_action ac && no_trap_action target
+      && no_trap_action target
       && have_kinds G (ac_args ac) kinds
-    then forwarded params (ac_args ac) target
+    then forwarded_keeping (ac_trap_action ac) params (ac_args ac) target
     else ac
   | _, _ => ac
   end.

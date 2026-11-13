@@ -753,7 +753,8 @@ Definition normalise_before (rounds : nat) (kept : list code_id) (e : expr)
    is given to (a variable by the [Let] or the handler that binds it
    in the term, a constant by itself, a symbol being of kind
    [Value]), the handler gives as many kinds as it has parameters,
-   neither [Apply_cont] has a trap action, and nothing that the
+   the [Apply_cont] of the handler has no trap action (the
+   application keeps its own, if it has one), and nothing that the
    [Apply_cont] of the handler names is bound again in the body of
    the [Let_cont].
    It is an equivalence. A continuation that this leaves unused is
@@ -769,7 +770,9 @@ Definition normalise_before (rounds : nat) (kept : list code_id) (e : expr)
    function leaves so for the return continuation with what it has
    computed). Or the handler ended a region before it passed its
    parameter on, which the model does not have (the continuation
-   that follows a [try] whose result is matched). In all three the
+   that follows a [try] whose result is matched, or is returned: the
+   body of the [try] then applies it with the trap action that pops
+   the handler). In all three the
    term before has the same handler, and
    FlambdaForwardSpec.forward_applications has forwarded its
    applications.

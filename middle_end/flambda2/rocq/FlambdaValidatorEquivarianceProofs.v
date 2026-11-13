@@ -4764,10 +4764,12 @@ Proof.
     with (map (rename_simple r) (ac_args ac)).
   rewrite !length_map, !no_trap_action_renamed, have_kinds_equivariant.
   destruct
-    (Nat.eqb (length (ac_args ac)) (length params)
-     && no_trap_action ac && no_trap_action target
+    (Nat.eqb (length (ac_args ac)) (length params) && no_trap_action target
      && have_kinds G (ac_args ac) kinds);
-    [ apply forwarded_equivariant | reflexivity ].
+    [ | reflexivity ].
+  change (ac_trap_action (rename_apply_cont r ac))
+    with (option_map (rename_trap_action r) (ac_trap_action ac)).
+  apply forwarded_keeping_equivariant.
 Qed.
 
 Fixpoint forward_kinded_under_equivariant (r : renaming) (e : expr) :

@@ -42,10 +42,9 @@ let forward_kinded_apply_cont g k f ac =
     match lookup ac.ac_continuation k with
     | Some kinds ->
       if
-        ((Nat.eqb (length ac.ac_args) (length params) && no_trap_action ac)
-        && no_trap_action target)
+        (Nat.eqb (length ac.ac_args) (length params) && no_trap_action target)
         && have_kinds g ac.ac_args kinds
-      then forwarded params ac.ac_args target
+      then forwarded_keeping ac.ac_trap_action params ac.ac_args target
       else ac
     | None -> ac)
   | None -> ac
