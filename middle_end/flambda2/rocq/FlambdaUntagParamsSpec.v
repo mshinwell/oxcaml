@@ -31,11 +31,13 @@
    normalisation that refines.
 
    This file is to be reviewed: [untag_at] and what it is made of,
-   and the statement. The pass is for the term before Simplify, in
-   the validation of middle_end/flambda2/tests/semantics/; nothing
-   applies it yet. Nothing is believed of the positions that it is
-   to be run with ([untag_positions]): the statement is about any
-   positions.
+   which are extracted and run by the validation of
+   middle_end/flambda2/tests/semantics/, and the statement. A round
+   of the first phase of the validation applies the pass to the term
+   before Simplify (FlambdaValidateSpec.normalise_expr_params_knowing).
+   The positions that the pass is run with ([untag_positions]) are
+   extracted and run too, and nothing is believed of them: the
+   statement is about any positions.
 
    Simplify unboxes the parameters of a continuation
    (simplify/unboxing/): where the type of a parameter says that it is

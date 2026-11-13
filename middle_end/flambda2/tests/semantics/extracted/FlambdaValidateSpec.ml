@@ -48,6 +48,7 @@ open FlambdaUnboxInScopeSpec
 open FlambdaUnboxParamsSpec
 open FlambdaUnboxSpec
 open FlambdaUnboxVariantsSpec
+open FlambdaUntagParamsSpec
 open FlambdaUnusedContsSpec
 open FlambdaUnusedHeadStaticsSpec
 open FlambdaUnusedParamsSpec
@@ -124,9 +125,10 @@ let normalise_expr_params_knowing known e =
   in
   let e1 = remove_unused_conts (forward_applications e0) in
   let e2 =
-    unbox_variants_knowing known
-      (follow_aliases_in_loops []
-         (follow_aliases [] (unbox_known_numbers (load_known_blocks e1))))
+    untag_params
+      (unbox_variants_knowing known
+         (follow_aliases_in_loops []
+            (follow_aliases [] (unbox_known_numbers (load_known_blocks e1)))))
   in
   drop_dead_params
     (bind_aliased_params

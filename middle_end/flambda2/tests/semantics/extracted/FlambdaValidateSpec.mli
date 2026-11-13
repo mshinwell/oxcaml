@@ -48,6 +48,7 @@ open FlambdaUnboxInScopeSpec
 open FlambdaUnboxParamsSpec
 open FlambdaUnboxSpec
 open FlambdaUnboxVariantsSpec
+open FlambdaUntagParamsSpec
 open FlambdaUnusedContsSpec
 open FlambdaUnusedHeadStaticsSpec
 open FlambdaUnusedParamsSpec

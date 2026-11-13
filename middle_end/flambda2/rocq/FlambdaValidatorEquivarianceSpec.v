@@ -195,7 +195,11 @@
    FlambdaWrapReturnsSpec.wrap_returns, which takes away a parameter
    that its handler does not use, of a continuation that a call
    returns to, the call returning to a wrapper, and which ends a
-   round for an expression of the term before. And
+   round for an expression of the term before; and
+   FlambdaUntagParamsSpec.untag_params, which untags, for a set of
+   positions at once, the parameters of continuations that are only
+   untagged or passed on, and which a round of the first phase of the
+   term before applies after the unboxing. And
    FlambdaLoopifySpec.loopify_unit, which the validation applies to
    the term before, after the first comparison and before any rewrite
    that makes names: it is given, for the code ids to make loops of,
