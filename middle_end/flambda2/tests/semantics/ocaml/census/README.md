@@ -39,14 +39,15 @@ that the conversion refused.
 | Profile | Units | Validated | Not validated |
 |---------|-------|-----------|---------------|
 | `known_scalar` | 150 | 150 | 0 |
-| `unknown_scalar` | 150 | 149 | 1 |
+| `unknown_scalar` | 150 | 150 | 0 |
 | `known` | 100 | 98 | 2 |
 | `unknown` | 100 | 98 | 2 |
 | `functions` | 100 | 97 | 3 |
 
-592 of the 600 are validated. On the same 600 terms, earlier the
-same day: 509 before the term after lost the continuations that are
-applied once (`FlambdaValidateSpec.inline_once_applied_after`); 555
+593 of the 600 are validated (592 on 2026-11-12). On the same 600
+terms, earlier that day: 509 before the term after lost the
+continuations that are applied once
+(`FlambdaValidateSpec.inline_once_applied_after`); 555
 with that, and still 555 with the unused `Let`s of the parameters of
 code removed from the term after; 577 with the tool guessing again
 what was lifted where its first guess gave a symbol to a block that
@@ -94,42 +95,53 @@ unused static bindings from the head of the term after
 (`FlambdaUnusedHeadStaticsSpec.v`), the liftings going into the
 handlers of recursive continuations, the unboxing of a join going by
 the box that each arm has, or the conversion of a call that never
-returns: of each of the 600 the tool prints what it printed. No unit
-that was validated at one of these points is not at a later one. The
+returns: of each of the 600 the tool prints what it printed. One
+more on 2026-11-13 (`unknown_scalar`, seed 144), with the arms of a
+`Switch` merged in more ways, the number of the arm passed as it is
+among them (`FlambdaMergeSwitchesSpec.merge_switches`, T1's), and the
+`Switch`es of the term after threaded
+(`FlambdaNormaliseSpec.thread_switches`, in
+`FlambdaValidateSpec.inline_once_applied_after`). Of the other 599
+the tool prints what it printed, with everything else that the
+validation has gained since: a call returning where its result is
+passed on, a continuation going down as far as the bindings under it
+allow, the applications with known arguments forwarded in the term
+after, the code of a stub left as Simplify leaves it, the fold of a
+comparison of a value with itself, the load of a byte of a known
+string left, the unused `Let`s removed after the value slots, and
+the groups of static bindings put above the continuation bindings.
+No unit that was validated at one of these points is not at a later
+one. The
 day before, 336 were validated, 256 were not and 8 were not checked;
 of the units that keep a function, none was.
 
-What the 8 units that are not validated lack, read off the two
-terms that the tool shows of each:
+What the 7 units that are not validated lack, read off the two
+terms that the tool shows of each: a block that Simplify makes a
+symbol and the term before still makes with a `Let`. The block is
+made in a handler and Simplify binds the symbol outside it, or the
+guess of the tool does not find it (`functions`, seeds 6, 18 and 22;
+`known`, seeds 37 and 46; `unknown`, seeds 2 and 72). That is in the
+tool only: nothing is believed of its guesses, and a better one needs
+no proof. In four of the 7 the term before keeps a continuation that
+the term after has not: a handler only makes a block and goes on
+(Simplify makes the block a symbol and has no use for the handler).
 
-| What is missing | `unknown_scalar` (1) | The other three (7) |
-|-----------------|----------------------|---------------------|
-| A block that Simplify makes a symbol and the term before still makes with a `Let`: the block is made in a handler and Simplify binds the symbol outside it, or the guess of the tool does not find it | 0 | 7 |
-| A `Switch` that Simplify removes with what it knows of the variable tested | 1 | 0 |
-
-The unit of the second row (seed 144) has two things. Two arms of
-a `Switch` give one continuation two arguments, each the number of
-the arm, where the term after has no such continuation; and below
-it a `Switch` is on a variable that a `Switch` around it has tested.
+The eighth unit (`unknown_scalar`, seed 144) had two things. Two
+arms of a `Switch` gave one continuation two arguments, each the
+number of the arm, where the term after has no such continuation;
+and below it a `Switch` was on a variable that a `Switch` around it
+had tested. It is validated since 2026-11-13 (above).
 
 Five of the 600 have the constant `poison` after Simplify, which
 unboxes a variant where two branches meet and gives the fields that a
 branch has not got that constant. The conversion makes it the poison
-of the model, so they are run and compared; four are validated
-(`functions`, seeds 27 and 55; `unknown_scalar`, seeds 1 and 100),
-and the other is in the second row.
+of the model, so they are run and compared; all five are validated
+(`functions`, seeds 27 and 55; `unknown_scalar`, seeds 1, 100 and
+144).
 
-In five of the 8 the term before keeps a continuation that the
-term after has not: the one of the second row, and four where a
-handler only makes a block and goes on (Simplify makes the block a
-symbol and has no use for the handler).
-
-The first row is in the tool only: nothing is believed of its
-guesses, and a better one needs no proof.
-
-So, for units of this kind: when every input is known and the result
-is a number, all are validated; with unknown inputs and numbers, 149
-of 150; of the units that keep a function, 97 of 100.
+So, for units of this kind: when the result is a number, all are
+validated, whether the inputs are known or not; of the units that
+keep a function, 97 of 100.
 
 ## Two more profiles: exceptions, loops
 
@@ -149,23 +161,24 @@ function that the unit exports takes any number.
     sh census/run.sh <ocamlopt> <flsemantics.exe> 1 60 census-output \
       exceptions exceptions_scalar loops loops_scalar
 
-Seeds 1 to 60 of each, 240 units, on 2026-11-12. No unit on which the
+Seeds 1 to 60 of each, 240 units, on 2026-11-13. No unit on which the
 two runs differ, none undefined before Simplify, none on which the
-tool gave no answer after two units that timed out were run again.
-Of `loops_scalar`, seed 55, the tool says nothing within the 60
-seconds that `run.sh` allows a unit: run on its own it answers in
-about 70 seconds, 16 of them of processor time of its own. Of
-`loops`, seed 40, it said nothing within 60 seconds where eight
-units were run at a time, and answered in 50 when the two units
-that had timed out were run again together. Neither is validated,
-with the output that each had before; they are counted so below.
+tool gave no answer. `run.sh` allows a unit 60 seconds of processor
+time, user and system together. Until now it allowed 60 seconds of
+the clock, which measured what else the machine was running:
+`loops_scalar`, seed 55, which was without an answer in 60 seconds
+the day before, then took 16 seconds of processor time, and takes 4
+now, the most of the 240. The 240 take 51 seconds of processor time
+together (47 user, 5 system), where they took 204 the day before
+(198 and 6). A tool that a signal other than that of the limit ends
+is reported as that, with its status, and counted as no answer.
 
 | Profile | Units | Validated | Validated with its imports | Validated with nothing imported only | Not validated | Not checked |
 |---------|-------|-----------|----------------------------|--------------------------------------|---------------|-------------|
 | `exceptions` | 60 | 33 | 13 | 14 | 0 | 0 |
-| `exceptions_scalar` | 60 | 34 | 23 | 0 | 3 | 0 |
-| `loops` | 60 | 40 | 0 | 0 | 18 | 2 |
-| `loops_scalar` | 60 | 38 | 0 | 0 | 22 | 0 |
+| `exceptions_scalar` | 60 | 35 | 23 | 0 | 2 | 0 |
+| `loops` | 60 | 45 | 0 | 0 | 13 | 2 |
+| `loops_scalar` | 60 | 44 | 0 | 0 | 16 | 0 |
 
 A unit that names a predefined exception has an import, and the
 tool runs it from its imports (`../README.md`, "What the verdicts
@@ -175,9 +188,26 @@ with a verdict that is proved of the two units run from their
 imports. The other 14, all in the profile that keeps a function,
 are accepted once closures are lifted, which is proved of the two
 units run with nothing imported only: they are not validated with
-their imports. One of the three units that are not validated has an
-import. The validator accepts 195 of the 240; 145 of them import
-nothing. It accepted 189 before the liftings went into the handlers
+their imports. One of the two units with exceptions that are not
+validated has an import. The validator accepts 207 of the 240; 157
+of them import nothing. It accepted 195 the day before, and twelve
+units are validated since, none lost (`exceptions_scalar`, seed 16;
+`loops`, seeds 5, 15, 25, 35 and 37; `loops_scalar`, seeds 5, 9, 18,
+24, 28 and 34). `middle_end/flambda2/rocq/status/V4.md` has the
+measures, on these 240 units, of three rewrites that came that day:
+seven units by a call that returns where the handler of its return
+continuation passes its results on
+(`FlambdaForwardSpec.forward_applications`), two by a continuation
+going down as far as the bindings under it allow
+(`FlambdaSinkUsesSpec.sink_conts_to_uses`: the way out of a loop
+that only the handler of the loop names, and the continuation after
+an inlined test), and one by the applications with known arguments
+forwarded in the term after, the term before no longer guessing
+what Simplify left (`FlambdaForwardKindedSpec.forward_kinded`). The
+twelve were not attributed one by one here. `exceptions`, seed 50,
+is validated at the first asking where it was at the second. Of the
+other 227 units the tool prints what it printed. The day before
+that it accepted 189, before the liftings went into the handlers
 of recursive continuations (`FlambdaLiftFromCodeSpec.v`, V3's): six
 units with loops, in which a local function that captures nothing
 is made in a loop and is a symbol in the term after, are validated
@@ -212,9 +242,11 @@ What the 46 units with loops that were not validated lacked, before
 the liftings went into the handlers of recursive continuations. One
 unit of each kind was read; the counts are of the units whose two
 terms, as the tool showed them, differed by the same kinds of line.
-The six units that are validated since are of the first kind; 40
-units with loops are not validated now, and the eleven others of the
-first kind were not read again.
+The six units that were validated next are of the first kind, and
+the eleven others of the first kind were not read again. The third
+kind is what a call returning where its result is passed on removes;
+seven units are validated by it (above). 29 units with loops are not
+validated now; they were not sorted again.
 
 - A closure of no value slot that the term before makes by a `Let`
   and the term after has as a symbol (17 units). A local recursive
