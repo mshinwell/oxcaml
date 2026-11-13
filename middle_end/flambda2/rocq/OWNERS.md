@@ -580,6 +580,9 @@ Owner: N1.
 - `middle_end/flambda2/rocq/FlambdaExitWorldActions*` (the renamings
   and the permutations of locations on what a run leaves at an exit;
   the files of the exit itself are not N1's)
+- `middle_end/flambda2/rocq/FlambdaObserversActions*` (the renamings
+  and the permutations of locations on what may follow a unit; the
+  files of what may follow a unit are not N1's)
 - `middle_end/flambda2/types/rocq/FlambdaEnvRenameJoinTypesProofs.v`
   (N1's, though it is in the types library and its name matches the
   pattern of N3's files on the join under renaming: lemmas only, the
