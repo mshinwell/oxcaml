@@ -202,6 +202,33 @@ it gave back.
   and the unit with the parameter. All of this was seen with the
   scripts and the tool of 2abcee6155, and was not run again on what
   has come since.
+  A fourth text that the reader does not read is of a number
+  (C1-11), and units of this tree have it. The printer writes a
+  naked integer of 64 bits, or of the width of the machine, with
+  all its digits and the suffix `L` or `n` (`parser/print_fexpr.ml`).
+  The reader gives the digits of a constant that stands in an
+  expression to `int_of_string` before it looks at the suffix
+  (`parser/flambda_parser.mly`, `make_const_int`), and that fails
+  outside the 63 bits of its own integers, with an exception that
+  nothing catches. A number that is static data is read another way
+  (`make_boxed_const_int`). Simplify can put such a number bare in
+  an argument, as it does where two boxed numbers meet and it
+  removes the box. Four units of `tests/semantics/ocaml/library`
+  have one so in their term after (`int64_identities.ml`,
+  `int64_laws_more.ml`, `nativeint_identities.ml`,
+  `nativeint_laws_more.ml`). The terms before of these four have
+  the numbers as static data: their texts are read, and each is
+  validated, the check making its term after in memory and reading
+  no text of it. The compiler's text of the term after of each is
+  not read. And the round trip of the conversion, which reads back
+  a text of the term after, says "round trip the same" of the unit
+  of the file and then ends on that exception, with status 2, where
+  it says "not read back" of a text that the parser refuses in
+  words. No rule of the tests runs the round trip on that
+  directory. That was seen with the tool of the tree that first had
+  those units together with all that came in with them. It is a
+  stop and no verdict, and nothing of what is said of the round trip
+  holds of the term after of those four units.
   Two primitive annotations are also lost by the text; the tool
   reconstructs the second from the argument and leaves the first. The
   printer writes both forms

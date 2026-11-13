@@ -56,6 +56,40 @@ is given the arity of the parameters of the code before it is
 converted. What the round trip shows of such a call is that the
 conversion and the printer agree once that is done.
 
+## Units on which the round trip stops
+
+The rules of this directory do not run the round trip on
+`../ocaml/library`. Run by hand on its twenty units, with the tool of
+the tree that first had them together with all that came in with
+them, it is the same before and after Simplify for sixteen. For four
+(`int64_identities.fl`,
+`int64_laws_more.fl`, `nativeint_identities.fl`,
+`nativeint_laws_more.fl`) it says "round trip the same" of the unit of
+the file, and then the tool ends on an exception that it does not
+catch, `Failure "int_of_string"`, with status 2 and no second line.
+
+The term after Simplify of each has a naked 64-bit or native integer
+at an end of its range as the argument of a continuation
+(`k (-9223372036854775808L)`), where Simplify has removed the box of
+two numbers that meet. The printer of fexpr writes such a number with
+all its digits and its suffix. The parser gives the digits of a
+constant that stands in an expression to `int_of_string` before it
+looks at the suffix (`middle_end/flambda2/parser/flambda_parser.mly`,
+`make_const_int`), and that fails outside 63 bits (discrepancy
+C1-11). The exception comes out of the parser itself: `read_back`
+(`../../tools/flroundtrip.ml`) makes a line "not read back" of what
+the parser reports as an error and of what the conversion raises, and
+not of that. The term before of each of the four has the same
+numbers as static data, which the parser reads another way
+(`make_boxed_const_int`).
+
+It is a limit of fexpr and not a fault of the conversion or of the
+printer of the model, which writes the number that the term has; the
+compiler's own text of the term after of each of the four stops the
+parser at the same place. The round trip says nothing of the term
+after of those four units. The check of a unit reads no text of its
+term after, so their verdicts are not touched.
+
 ## What cannot be printed
 
 `flmodel_to_fexpr.ml` lists at its head what it refuses, with the
