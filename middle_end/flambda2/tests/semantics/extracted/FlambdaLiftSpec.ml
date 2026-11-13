@@ -65,12 +65,12 @@ let lift_named target d =
   match target with
   | Lift_to_symbol s -> (
     match d with
-    | Prim (p, fields) -> (
+    | Prim (p, elements) -> (
       match p with
       | Unary p0 -> (
         match p0 with
         | Box_number _ -> (
-          match fields with
+          match elements with
           | [] -> None
           | contents :: l -> (
             match l with
@@ -82,8 +82,11 @@ let lift_named target d =
         match p0 with
         | Make_block kind ->
           let (Block_kind_values tag) = kind in
-          Some (Bind_symbol (s, Static_const_block (tag, fields)) :: [], s)
-        | Make_immutable_array _ -> None)
+          Some (Bind_symbol (s, Static_const_block (tag, elements)) :: [], s)
+        | Make_immutable_array _ ->
+          Some
+            ( Bind_symbol (s, Static_const_immutable_value_array elements) :: [],
+              s ))
       | _ -> None)
     | Set_of_closures (code0, value_slots) ->
       Some

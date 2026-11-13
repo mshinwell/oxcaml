@@ -2140,11 +2140,12 @@ let unused_statics (e : Model.expr) : Unused_statics.dropped =
    the two terms the rest. The symbols to give are those that the term after
    binds and the term before does not. Each goes to the first [Let] that makes
    what the symbol is bound to: a closure of the same code, a block of the same
-   tag whose fields agree, a boxed number. Two fields agree if the first is a
-   variable of which nothing is known, or if they are the same symbol or
-   constant; a variable bound to a symbol or a constant, or whose own [Let] is
-   lifted here, counts as that symbol or constant. A [Let] is named by its path,
-   as FlambdaLiftSpec.lift_expr counts it. A symbol is not given to a [Let] that
+   tag whose fields agree, an immutable array of as many elements that agree, a
+   boxed number. Two fields agree if the first is a variable of which nothing is
+   known, or if they are the same symbol or constant; a variable bound to a
+   symbol or a constant, or whose own [Let] is lifted here, counts as that
+   symbol or constant. A [Let] is named by its path, as
+   FlambdaLiftSpec.lift_expr counts it. A symbol is not given to a [Let] that
    [banned] pairs it with: the caller asks again, with the pair banned, where a
    symbol went to a [Let] whose block nothing uses in the end.
 
@@ -2457,6 +2458,17 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list) ~around
         with
         | Some (sym, _) -> lift_out (Lift.Lift_to_symbol sym)
         | None -> ())
+      | Prim (Variadic (Make_immutable_array _), elements)
+        when List.for_all plain elements -> (
+        match
+          take path (fun (const : Model.static_const) ->
+              match const with
+              | Static_const_immutable_value_array elements' ->
+                elements = elements'
+              | _ -> false)
+        with
+        | Some (sym, _) -> lift_out (Lift.Lift_to_symbol sym)
+        | None -> ())
       | Prim (Unary (Box_number _), [contents]) when plain contents -> (
         match
           take path (fun (const : Model.static_const) ->
@@ -2578,6 +2590,16 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list) ~around
             && List.mem x held_in_slots
             && not (List.mem (tag, List.length fields) blocks_made_after)
           then lift x path (Lift_to_symbol (fresh_symbol ())))
+      | Prim (Variadic (Make_immutable_array _), elements) -> (
+        match
+          take path (fun (const : Model.static_const) ->
+              match const with
+              | Static_const_immutable_value_array elements' ->
+                fields_agree elements elements'
+              | _ -> false)
+        with
+        | Some (sym, _) -> lift x path (Lift_to_symbol sym)
+        | None -> ())
       | Prim (Unary (Box_number _), [contents]) -> (
         match
           take path (fun (const : Model.static_const) ->
@@ -2737,6 +2759,9 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list) ~around
     | ( Prim (Variadic (Make_block (Block_kind_values tag)), fields),
         Static_const_block (tag', fields') ) ->
       tag = tag' && fields_agree fields fields'
+    | ( Prim (Variadic (Make_immutable_array _), elements),
+        Static_const_immutable_value_array elements' ) ->
+      fields_agree elements elements'
     | ( Prim (Unary (Box_number _), [contents]),
         Static_const_boxed_number contents' ) ->
       fields_agree [contents] [contents']
@@ -4191,7 +4216,24 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
         let lifting =
           match made with
           | [] ->
-            { lifting with tables_put = tables_guess lifted normalised_after }
+            (* A symbol that this lifting gives to a [Let] is not a table: an
+               immutable array of the source that is lifted is given its binding
+               by this lifting already. *)
+            let given =
+              List.filter_map
+                (fun (_, (target : Lift.lift_to)) ->
+                  match target with
+                  | Lift_to_symbol sym -> Some sym
+                  | Lift_to_closure_symbols _ -> None)
+                (lifting.lifted_lets @ lifting.lifted_to_head
+                @ List.concat_map snd lifting.lifted_out_of_code)
+            in
+            { lifting with
+              tables_put =
+                List.filter
+                  (fun (sym, _) -> not (List.mem sym given))
+                  (tables_guess lifted normalised_after)
+            }
           | _ :: _ -> lifting
         in
         let stop =
