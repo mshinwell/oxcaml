@@ -106,8 +106,13 @@ def leaves_condition(rev, new):
     for f in spec_files(rev):
         if short(f) in LEAVES:
             text = strip_comments(git('show', rev + ':' + f))
-            for m in re.finditer(r'\bRequire\s+(?:Import|Export)\s+([^.]*)\.', text):
-                for mod in m.group(1).split():
+            # Every form of Require, with or without Import or Export,
+            # and a module given with the path of its library.
+            for m in re.finditer(r'\bRequire\b', text):
+                stop = sentence_end.search(text, m.end())
+                names = text[m.end():stop.start() if stop else len(text)].split()
+                for mod in names:
+                    mod = mod.split('.')[-1]
                     if mod.startswith('Flambda') and mod + '.v' not in LEAVES:
                         notes.append('%s imports %s' % (short(f), mod))
     for n in notes:
