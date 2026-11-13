@@ -151,6 +151,14 @@
      binder on the way binds it; the applications lose an argument
      and mention no continuation more
      ([unalias_params_keeps_scope_statement]).
+   - FlambdaWrapReturnsSpec.wrap_returns takes away a parameter that
+     its handler does not use, of a continuation that a call returns
+     to: the applications lose an argument, and each call returns to
+     a wrapper bound around it, which has the name of the
+     continuation and the parameters of its handler, and applies the
+     continuation to the parameters that are left. The wrapper
+     mentions the continuation, which is in scope where the call was,
+     and its own parameters ([wrap_returns_keeps_scope_statement]).
 
    Nothing is asked of a term but that its code is closed, which
    [keeps_scope] itself asks, and nothing of what a rewrite is given.
@@ -167,7 +175,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaUnusedSlotsSpec
   FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec FlambdaFloatCodeSpec
   FlambdaGroupsUpSpec FlambdaKnownSlotsSpec FlambdaStubCallsSpec
-  FlambdaUnaliasParamsSpec
+  FlambdaUnaliasParamsSpec FlambdaWrapReturnsSpec
   FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec.
 Import ListNotations.
@@ -303,3 +311,10 @@ Definition with_statics_first_keeps_scope_statement : Prop :=
 
 Definition unalias_params_keeps_scope_statement : Prop :=
   keeps_scope unalias_params.
+
+(* ======================================================================== *)
+(* An unused parameter of a continuation that a call returns to             *)
+(* ======================================================================== *)
+
+Definition wrap_returns_keeps_scope_statement : Prop :=
+  keeps_scope wrap_returns.

@@ -74,14 +74,14 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaStaticsOrderProofs FlambdaRenameApartSpec FlambdaRenameApartProofs
   FlambdaInlineSiblingsSpec FlambdaInlineSiblingsProofs
   FlambdaUnusedProjectionsSpec FlambdaUnboxVariantsSpec
-  FlambdaUnaliasParamsSpec FlambdaValidateSpec
+  FlambdaUnaliasParamsSpec FlambdaWrapReturnsSpec FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec FlambdaValidatorEquivarianceBaseProofs.
 From OxCamlFlambda2 Require FlambdaKeepsScopeProofs FlambdaValidateScopeProofs
   FlambdaLoopsScopeProofs
   FlambdaStaticsScopeProofs FlambdaLiftFromArmsProofs
   FlambdaLiftAroundProofs
   FlambdaHoistStaticsProofs FlambdaUnboxParamsNamesProofs
-  FlambdaUnaliasParamsNamesProofs.
+  FlambdaUnaliasParamsNamesProofs FlambdaWrapReturnsNamesProofs.
 From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
 From OxCamlFlambda2 Require FlambdaDemoteProofs.
 From OxCamlFlambda2 Require Import FlambdaKnownSlotsSpec.
@@ -4761,6 +4761,11 @@ Proof. exact inline_tail_conts_kinded_equivariant_aux. Qed.
 Theorem unalias_params_equivariant : unalias_params_equivariant_statement.
 Proof. exact FlambdaUnaliasParamsNamesProofs.unalias_params_renamed. Qed.
 
+(* Removing an unused parameter of a continuation that a call returns
+   to: the lemmas are in FlambdaWrapReturnsNamesProofs.v. *)
+Theorem wrap_returns_equivariant : wrap_returns_equivariant_statement.
+Proof. exact FlambdaWrapReturnsNamesProofs.wrap_returns_renamed. Qed.
+
 (* Following aliases into the handlers of recursive continuations. *)
 Fixpoint follow_aliases_in_loops_equivariant_aux (r : renaming) (e : expr) :
   ∀ tenv : typing_env,
@@ -5084,6 +5089,7 @@ Ltac rename_outwards :=
       | rewrite shortcut_switches_equivariant_aux
       | rewrite follow_aliases_in_loops_unknowing_equivariant
       | rewrite drop_unused_params_equivariant
+      | rewrite wrap_returns_equivariant
       | rewrite drop_dead_params_equivariant
       | rewrite bind_aliased_params_equivariant
       | rewrite forward_applications_equivariant

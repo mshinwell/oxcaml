@@ -341,7 +341,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaForwardSpec FlambdaForwardJumpsSpec FlambdaForwardKindedSpec
   FlambdaInlineTailSpec FlambdaLoopifySpec
   FlambdaDeadParamsSpec FlambdaRenameApartSpec FlambdaUnusedProjectionsSpec
-  FlambdaUnaliasParamsSpec FlambdaValidateSpec.
+  FlambdaUnaliasParamsSpec FlambdaWrapReturnsSpec FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -840,6 +840,14 @@ Definition inline_tail_conts_kinded_equivariant_statement : Prop :=
    FlambdaStaticsScopeSpec.v. *)
 Definition unalias_params_equivariant_statement : Prop :=
   rewrite_equivariant unalias_params.
+
+(* Removing a parameter that its handler does not use, of a
+   continuation that a call returns to, with a wrapper for the call
+   (FlambdaWrapReturnsSpec.v). The wrapper has the name of the
+   continuation and the parameters of its handler, so no name is made.
+   That it keeps scope is in FlambdaStaticsScopeSpec.v. *)
+Definition wrap_returns_equivariant_statement : Prop :=
+  rewrite_equivariant wrap_returns.
 
 (* FlambdaLoopifySpec.loopify_unit is given, for each code id to make
    a loop of, the continuation of the loop. The action: the

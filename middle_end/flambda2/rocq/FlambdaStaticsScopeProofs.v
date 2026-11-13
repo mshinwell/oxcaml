@@ -52,7 +52,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec FlambdaScopedProofs
   FlambdaKeepsScopeProofs FlambdaStaticsScopeSpec.
-From OxCamlFlambda2 Require FlambdaUnaliasParamsNamesProofs.
+From OxCamlFlambda2 Require FlambdaUnaliasParamsNamesProofs
+  FlambdaWrapReturnsNamesProofs.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -1751,3 +1752,10 @@ Qed.
 
 Theorem unalias_params_keeps_scope : unalias_params_keeps_scope_statement.
 Proof. exact FlambdaUnaliasParamsNamesProofs.unalias_params_scope. Qed.
+
+(* ======================================================================== *)
+(* An unused parameter of a continuation that a call returns to             *)
+(* ======================================================================== *)
+
+Theorem wrap_returns_keeps_scope : wrap_returns_keeps_scope_statement.
+Proof. exact FlambdaWrapReturnsNamesProofs.wrap_returns_scope. Qed.
