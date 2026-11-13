@@ -8,12 +8,25 @@ For the human, C0 (the values), C4 (the heap), V3 (the lifting), V2
 primitives), R1 (what is trusted, and how the statements reached are
 classed) and R3 (the boundary with the lifting).
 
-Nothing of it is in this tree: no definition, no proof, no
-conversion. The definitions of section 3 were written and compiled,
-with no proof, to find every definition that changes and what it
-reaches (section 5). The measure of section 7 was made with an edit
-of the test tool that is not the conversion. The series comes after
-this request is approved.
+When it was written nothing of it was in the tree: no definition,
+no proof, no conversion. The definitions of section 3 were written
+and compiled, with no proof, to find every definition that changes
+and what it reaches (section 5). The measure of section 7 was made
+with an edit of the test tool that is not the conversion.
+
+Since it was approved a first cut of it is in this tree: the value
+and the primitive (section 3), the rule of the lifting between two
+array values, and the theorems that section 5 asks for. The case of
+`lift_named` and the rule from an array value to a symbol (section
+4.2) are not, and nor is the conversion (section 6).
+`status/P1.md`, "An immutable array made when the program runs",
+has what the cut is and its record, counted on the series itself;
+the counts of section 5 and of the appendix are those of the
+prototype. Since it was written the machine with a heap of its own,
+its relation and the statements about them moved from
+`FlambdaHeapSpec.v` to `FlambdaHeapMachineSpec.v`, and their proofs
+to `FlambdaHeapMachineProofs.v`: where this request names the first
+for one of them, it is now in the second.
 
 ## 1. Why
 
@@ -359,7 +372,11 @@ the four additions it asked for are marked.
    bound to an array, with related elements, as `Step_block` does
    for blocks. `cell_related`, `heap_evolves`,
    `arrays_hold_their_kinds` and `exec_heap_primitive` are not
-   touched.
+   touched. *(Added with the series, at the word of the owner of
+   the heap.)* `Step_poison` comes to relate more as well, with no
+   change of text: `kind_of_value` answers `Value` of the new value
+   (item 8), so where poison is refined a poison of kind `Value` is
+   refined by an array value.
 6. *(Added.)* The heap has a law of the form of
    `eval_prim_preserves_statement`, with the same premises, that is
    not in this tree. It takes the premise that section 5 adds, when
@@ -622,7 +639,11 @@ arrays had.
 `value_step` does not change its text. Its rule `Step_array` is
 stated through `array_of`, so it comes to relate an array value to
 an array value and to a symbol bound to an array, either way round,
-with related elements; and what holds one, as above. Through
+with related elements; and what holds one, as above. *(Added with
+the series.)* Its rule `Step_poison` is stated through
+`kind_of_value`, which answers `Value` of an array value, so with
+`poison_refines` it comes to relate a poison of kind `Value` to an
+array value. Through
 `value_related`, `outcome_related` and its two instances,
 `states_related`, `heap_refines` and `heap_expr_refines` it reaches
 27 statements, of `FlambdaHeapSpec.v` and of
@@ -665,6 +686,14 @@ needed.*
   that is not used whose removal is no refinement. Newly claimed:
   that the witness, a write, still is none against outcomes that
   are related by more. The witness has no array.
+  *(Corrected with the series, at the word of the owner of the
+  heap.)* That is true of its proof and not of the statement, which
+  is an existence: in the tree with the array value it may be
+  witnessed by a term that makes an array, or shown under a state
+  that holds an array value, so it says less than it did and does
+  not give the statement as it was. The series has a statement for
+  that, `delete_write_wrong_free_of_arrays_statement`
+  (`status/P1.md` has the account).
 
 *(iv) On both sides of an implication or of an equivalence: 11
 statements. Authorised in principle, as named, on two theorems.*
