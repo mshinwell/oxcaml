@@ -285,3 +285,11 @@ Theorem pair_loop_refines : pair_loop_refines_statement.
 Proof.
   exact (validated_by_first_phase_refines _ _ pair_loop_validated).
 Qed.
+
+Theorem int64_passed_on_validated : int64_passed_on_validated_statement.
+Proof. vm_compute. reflexivity. Qed.
+
+Theorem int64_passed_on_refines : int64_passed_on_refines_statement.
+Proof.
+  exact (validated_by_rounds_refines _ _ int64_passed_on_validated).
+Qed.

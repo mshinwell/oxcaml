@@ -405,6 +405,38 @@
    The parameter of the code is [n], 1; the continuation of the loop
    is 2 and its parameters are the counter, 3, and the pair, 4.
 
+   One term more, for a box that one join passes on to another.
+   [int64_passed_on] is the code of
+
+       fun a b x ->
+        let t = if b then add x 1L else add x 2L in
+        let y = if a then t else 3L in
+        add y y
+
+   on boxed 64-bit integers, under the binding of the symbol of the
+   constant [3L]. The join of the first [if] is given a box that each
+   arm makes, and only gives it to the join of the second, whose
+   other arm gives the symbol; the handler of the second unboxes what
+   it is given. Simplify gives both joins the number: the first, what
+   each arm computed; the second, the parameter of the first or the
+   constant 3. The handler of the first join does not read its
+   parameter, and an arm of the second gives a parameter, of which
+   the term shows nothing: the unboxing of the parameters of joins
+   leaves both. The pass that the round applies after the untagging
+   (FlambdaUnboxTogetherSpec.unbox_together_knowing) unboxes the two
+   parameters at once: an argument is then a parameter that is
+   unboxed with them, the number that a [Let] in scope boxed, or the
+   number of the symbol ([int64_passed_on_validated_statement],
+   [int64_passed_on_refines_statement]; the rounds are those for a
+   whole term, in which the code knows the symbol). The parameters of
+   the code are [a], 1, [b], 2, and [x], 3; its closure variable is 4
+   and its return and exception continuations are 1 and 2; the joins
+   are the continuations 3 and 4, with parameters 5 and 6; the symbol
+   is 1 and the code id is 1. The constants [1L] and [2L] are written
+   as the numbers, as those of [int64_option_heap] are. The code is
+   not called: the body of the term returns a constant, and only the
+   bindings matter.
+
    The proofs are in FlambdaUnboxVariantsExamplesProofs.v, which needs
    no review. *)
 
@@ -1554,3 +1586,97 @@ Definition pair_loop_validated_statement : Prop :=
 
 Definition pair_loop_refines_statement : Prop :=
   expr_refines pair_loop_before pair_loop_after.
+
+(* ======================================================================== *)
+(* A box that one join passes on to another                                 *)
+(* ======================================================================== *)
+
+Definition int64_passed_on_body_before : expr :=
+  Let_cont_non_recursive 3
+    (Handler [5] (make_handler_metadata [Value])
+       (Let_cont_non_recursive 4
+          (Handler [6] (make_handler_metadata [Value])
+             (Let 7 naked_int64 (unbox_int64 (Var 6))
+                (Let 8 naked_int64 (unbox_int64 (Var 6))
+                   (Let 9 naked_int64 (int64_arith Add (Var 8) (Var 7))
+                      (Let 10 Value (box_int64 (Var 9))
+                         (Apply_cont (jump 1 [Var 10])))))))
+          (Let 11 naked_immediate (untag (Var 1))
+             (Switch (Var 11)
+                [(0%Z, jump 4 [Symbol 1]); (1%Z, jump 4 [Var 5])]))))
+    (Let_cont_non_recursive 5
+       (Handler [] (make_handler_metadata [])
+          (Let 12 naked_int64 (unbox_int64 (Var 3))
+             (Let 13 naked_int64
+                (int64_arith Add (Var 12) (Const (Naked_int64 1)))
+                (Let 14 Value (box_int64 (Var 13))
+                   (Apply_cont (jump 3 [Var 14]))))))
+       (Let_cont_non_recursive 6
+          (Handler [] (make_handler_metadata [])
+             (Let 15 naked_int64 (unbox_int64 (Var 3))
+                (Let 16 naked_int64
+                   (int64_arith Add (Var 15) (Const (Naked_int64 2)))
+                   (Let 17 Value (box_int64 (Var 16))
+                      (Apply_cont (jump 3 [Var 17]))))))
+          (Let_cont_non_recursive 7
+             (Handler [] (make_handler_metadata []) (Apply_cont (jump 5 [])))
+             (Let_cont_non_recursive 8
+                (Handler [] (make_handler_metadata [])
+                   (Apply_cont (jump 6 [])))
+                (Let 18 naked_immediate (untag (Var 2))
+                   (Switch (Var 18)
+                      [(0%Z, jump 8 []); (1%Z, jump 7 [])])))))).
+
+Definition int64_passed_on_body_after : expr :=
+  Let_cont_non_recursive 3
+    (Handler [5] (make_handler_metadata [naked_int64])
+       (Let_cont_non_recursive 4
+          (Handler [6] (make_handler_metadata [naked_int64])
+             (Let 9 naked_int64 (int64_arith Add (Var 6) (Var 6))
+                (Let 10 Value (box_int64 (Var 9))
+                   (Apply_cont (jump 1 [Var 10])))))
+          (Let 11 naked_immediate (untag (Var 1))
+             (Switch (Var 11)
+                [(0%Z, jump 4 [Const (Naked_int64 3)]);
+                 (1%Z, jump 4 [Var 5])]))))
+    (Let_cont_non_recursive 5
+       (Handler [] (make_handler_metadata [])
+          (Let 12 naked_int64 (unbox_int64 (Var 3))
+             (Let 13 naked_int64
+                (int64_arith Add (Var 12) (Const (Naked_int64 1)))
+                (Apply_cont (jump 3 [Var 13])))))
+       (Let_cont_non_recursive 6
+          (Handler [] (make_handler_metadata [])
+             (Let 15 naked_int64 (unbox_int64 (Var 3))
+                (Let 16 naked_int64
+                   (int64_arith Add (Var 15) (Const (Naked_int64 2)))
+                   (Apply_cont (jump 3 [Var 16])))))
+          (Let 18 naked_immediate (untag (Var 2))
+             (Switch (Var 18) [(0%Z, jump 6 []); (1%Z, jump 5 [])])))).
+
+Definition boxed_three : static_const :=
+  Static_const_boxed_number (Const (Naked_int64 3)).
+
+Definition passed_on_code (body : expr) : code :=
+  Code [1; 2; 3] 4 1 2
+    (make_code_metadata [Singleton Value; Singleton Value; Singleton Value]
+       [Singleton Value])
+    body.
+
+Definition int64_passed_on_before : expr :=
+  Let_static
+    [Bind_symbol 1 boxed_three;
+     Bind_code 1 (passed_on_code int64_passed_on_body_before)]
+    (Apply_cont (jump 1 [tagged 0])).
+
+Definition int64_passed_on_after : expr :=
+  Let_static
+    [Bind_symbol 1 boxed_three;
+     Bind_code 1 (passed_on_code int64_passed_on_body_after)]
+    (Apply_cont (jump 1 [tagged 0])).
+
+Definition int64_passed_on_validated_statement : Prop :=
+  validated_by_rounds int64_passed_on_before int64_passed_on_after.
+
+Definition int64_passed_on_refines_statement : Prop :=
+  expr_refines int64_passed_on_before int64_passed_on_after.
