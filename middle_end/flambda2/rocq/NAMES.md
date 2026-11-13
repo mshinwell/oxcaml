@@ -37,9 +37,9 @@ here.
 | That a term makes no immutable array and that a state is free of arrays (it holds no array value and may come to run nothing that makes one); the refinement of expressions of the machine of `FlambdaHeapMachineSpec.v` restricted to the closed whole source states that are free of arrays | `FlambdaNoArrayValueSpec.v` | the owner of that file |
 | The free names; the three conditions on binders; `alpha_equivalent` | `FlambdaAlphaSpec.v` | N1 |
 | The comparison `expr_eqb` | `FlambdaCompareAlphaSpec.v` | N1 |
-| The rewrites of the normalisation, the passes for loops, the sharing of a handler that is the same as one bound around it, the checks of well-formedness (exception handlers and trap actions among them), the check of kinds, the normalisation of the term after and the first phase of that of the term before | `FlambdaValidatorEquivarianceSpec.v` | N3 |
+| The rewrites of the normalisation, the passes for loops, the sharing of a handler that is the same as one bound around it, the parameters bound again at the head of their handlers and their twins, the checks of well-formedness (exception handlers and trap actions among them), the check of kinds, the normalisation of the term after and the first phase of that of the term before | `FlambdaValidatorEquivarianceSpec.v` | N3 |
 | The normalisation of the term before and that of a term in which something was lifted: up to the names that a round makes. `validate_unit`: where the code of the term before is closed | `FlambdaValidatorEquivarianceSpec.v` | N3 |
-| Identities of primitives, lifting, lifting out of code, the binding of `my_closure`, ranges, sharing of primitives and of projections, the recovery of comparisons, folding at known symbols, unused and known value slots, the order of static bindings, the static closures in sight, code moved up, code and static bindings bound first, lifting out of the arms of a test, inlining within a group of code, the unboxing of parameters, of the reads of a loop and of the boxed numbers that continuations pass to one another, the merging of the arms of a `Switch` and their merging into a load from a table, the continuations that a handler binds on its way to its `Switch` bound outside it, the demotion of exception handlers, the rewrite of the calls of code that never returns, the fold of a `Phys_equal` of a simple against itself, the calls of the unit's other code made indirect in the code of a stub, the lifting to a group around, a `Let` of a variable to the variable just bound made one `Let` with it | the `Spec` file of each pass | the owner of each |
+| Identities of primitives, lifting, lifting out of code, the binding of `my_closure`, ranges, sharing of primitives and of projections, the recovery of comparisons, folding at known symbols, unused and known value slots, the order of static bindings, the static closures in sight, code moved up, code and static bindings bound first, lifting out of the arms of a test, inlining within a group of code, the unboxing of parameters, of the reads of a loop and of the boxed numbers that continuations pass to one another, the merging of the arms of a `Switch` and their merging into a load from a table, the continuations that a handler binds on its way to its `Switch` bound outside it, the demotion of exception handlers, the rewrite of the calls of code that never returns, the fold of a `Phys_equal` of a simple against itself, the calls of the unit's other code made indirect in the code of a stub, the lifting to a group around, a `Let` of a variable to the variable just bound made one `Let` with it, the reading of a known immutable array | the `Spec` file of each pass | the owner of each |
 | The second asking of the validation, `validate_unit_knowing`: where the code of the term before is closed | `FlambdaValidateKnowingSpec.v` | the owner of that file, N3 |
 | Typing environments and their levels, extensions, aliases, types, provers | the types library (`FlambdaEnvRenameSpec.v`, `FlambdaTypeRenameSpec.v`, `FlambdaEnvAliasesRenamingSpec.v`, `FlambdaTypingEnvExtensionSpec.v`, `FlambdaProversRenameSpec.v`) | N3 and the owners |
 | The model of Simplify: the function that rewrites a term from the types, the same with pruning, the rewrites of a `Switch`, following aliases with the aliases of the library | the types library (section 7 has the files) | the owners of those files |
@@ -745,7 +745,12 @@ of a continuation whose handler only applies another, where it is an
 equivalence: with no parameters (`FlambdaForwardJumpsSpec.v`), and
 with arguments known to have the kinds of the parameters, which the
 validation applies to the term after, in the bodies of code too
-(`FlambdaForwardKindedSpec.v`); the
+(`FlambdaForwardKindedSpec.v`; an application keeps its own trap
+action there too, where the handler's own application has none, and
+with it the continuation that the action names;
+`forward_kinded_equivariant_statement` and
+`forward_kinded_in_code_equivariant_statement` have the texts that
+they had); the
 removal, in the body of code, of the unused `Let`s of its parameters
 (`FlambdaCodeLetsSpec.v`); the removal of a parameter that its
 handler does not use, of a continuation that a call returns to, the
@@ -819,17 +824,30 @@ commutes with every renaming by an equation,
 `FlambdaStaticsScopeSpec.give_scrutinees_keeps_scope_statement`);
 a parameter that every application gives one variable is taken away
 where the checks of `FlambdaUnaliasParamsSpec.unalias_params` pass,
-the scrutinee of a `Switch` is made the number of the arm in the
-arguments of the applications of continuations in the arm and in the
-handler that only arms of that number apply
-(`FlambdaArmNumbersSpec.numbers_in_arms`, which puts a constant for
-a variable, compares names by equality only and makes none, commutes
+the scrutinee of a `Switch` is made the number of the arm at the reads
+that the header of `FlambdaArmNumbersSpec.v` lists, in the arm and in
+the handler that only arms of that number apply (an argument of an
+application of a continuation, a defining expression that is the
+variable, an argument of a primitive, the scrutinee of a `Switch`; a
+call, a set of closures, a projection and a static binding keep the
+variable), and the variable that it is the untagging of is made the
+tagged number at the last three of those reads
+(`FlambdaArmNumbersSpec.numbers_in_arms`, which puts constants for
+variables, compares names by equality only and makes none, commutes
 with every renaming by an equation,
 `numbers_in_arms_equivariant_statement`, and keeps scope,
-`FlambdaStaticsScopeSpec.numbers_in_arms_keeps_scope_statement`), in
-the term before the arms of a `Switch` that then apply one
-continuation are merged (`FlambdaMergeSwitchesSpec.merge_switches`,
-as in the rounds),
+`FlambdaStaticsScopeSpec.numbers_in_arms_keeps_scope_statement`), what
+that has made a primitive on constants or a `Switch` on a constant is
+folded (`fold_constants`); in the term before a `Switch` whose arms
+are then all the same is made that arm, and one whose arms then apply
+one continuation to arguments that are computed from their numbers is
+made that application (`collapse_switches`,
+`FlambdaMergeSwitchesSpec.merge_switches`, as in the rounds); a
+continuation that this leaves unused is then removed, and one that it
+leaves applied once has its handler put at its application
+(`remove_unused_conts`, `sink_let_conts`, and `inline_tail_conts` or,
+in the term after, `FlambdaInlineTailSpec.inline_tail_conts_kinded`);
+all are rewrites of the rounds and none makes a name;
 primitives are shared, aliases are followed and the `Let`s left
 unused are removed; and then, once, the groups of static bindings at
 the head of the body of a continuation binding are bound before it
@@ -929,6 +947,32 @@ for each loop that it makes of the self tail calls of a function
 (`FlambdaLoopifySpec.loopify_unit`, which it applies to the term
 before ahead of every rewrite that makes names).
 
+Where a round of the second phase has settled the term, the parameters
+of continuations that hold a tagged immediate and are untagged are
+bound again at the head of their handlers
+(`FlambdaShadowParamsSpec.shadow_params`, which makes no name: the
+`Let` that it puts binds the parameter's own name under the parameter,
+so that the result has that name bound twice on one path, which
+`binders_distinct` does not forbid, being about the names of one
+binder; it commutes with every renaming by an equation,
+`shadow_params_equivariant_statement`, and keeps scope,
+`FlambdaStaticsScopeSpec.shadow_params_keeps_scope_statement`);
+`rename_apart_avoiding` comes just after and gives every binder a name
+of its own; and such a parameter gets a twin that holds the number
+(`FlambdaTwinParamsSpec.twin_params`, which makes no name either: the
+`Let` goes, its variable is the parameter and the parameter is one
+more parameter, the twin; it compares names by equality only, commutes
+with every renaming by an equation,
+`twin_params_equivariant_statement`, and keeps scope,
+`FlambdaStaticsScopeSpec.twin_params_keeps_scope_statement`). The
+round asks the comparison twice, to decide whether the twins are
+looked for and whether one was made, and applies
+`rename_apart_avoiding` a second time where it looks for them
+(`FlambdaValidateSpec.with_twins`); its two statements keep their
+texts and are proved of the round with the twins
+(`normalise_before_round_keeps_scope_statement`,
+`normalise_before_round_equivariant_up_to_statement`).
+
 The liftings are made in turn, each followed by a normalisation, and
 each holds the two continuations of its unit. The term that a later
 lifting is applied to need not mention them. The normalisation before
@@ -983,7 +1027,10 @@ follow a unit are about the relations that it concludes and not about
 its answer. It is owed. It makes names where `validate_unit` does, in
 the rounds that follow a lifting, which are given the continuations of
 the units of the liftings to avoid, and it asks that the code of the
-two units be closed. The tool does not call the check.
+two units be closed. The test tool asks the check only of a unit
+that it reports as not validated, and prints what the check accepts
+on a line of its own, which has not the word "validated"; such a
+unit stays not validated and is in no count of the units validated.
 
 Proved by the owner of the meet and the third prover, in the types
 library (`FlambdaMeetRenameSpec.v`): the meet of types, of expanded
@@ -1032,6 +1079,18 @@ compares variables by equality and makes no name;
 `merge_alias_lets_renamed_statement`, an equation that holds of
 every term; it has no statement that it keeps scope, and it is
 applied to the term after only, where no round makes a name), the
+reading of a known immutable array (`FlambdaArrayLoadSpec.v`:
+`load_known_arrays_equivariant_statement`, an equation that holds of
+every term; `load_arrays_knowing_equivariant_statement`, the same
+with what is known renamed with the term by `rename_known_arrays`,
+which renames the variables that are known to be arrays and the
+variables that their elements are known to hold, and leaves the
+symbols and the numbers of elements as they are; the pass makes no
+name and compares variables and symbols by equality only; that it
+keeps scope,
+`FlambdaArrayLoadScopeSpec.load_known_arrays_keeps_scope_statement`;
+a round of the term before applies it, after the reading of known
+blocks), the
 removal of unused
 value slots (`FlambdaUnusedSlotsSpec.v`), the reading of a value slot
 that every set of closures of the unit gives the same symbol or
@@ -1204,7 +1263,10 @@ Owed:
   continuation into a value.
 - **A statement that renames.** The premise that code is closed, or a
   reason why it is not needed.
-- **A fresh name.** `fresh_name`, never a count of your own.
+- **A fresh name.** `fresh_name`, never a count of your own. A pass
+  that needs a new name does not make one: it puts a binder under a
+  name that the term has and leaves the naming to
+  `rename_apart_avoiding`, as `shadow_params` does for `twin_params`.
 - **The name of an action.** The action of the renamings on a type is
   `rename_` followed by what the type is of (`rename_known_closures`,
   `rename_known_blocks`). A new one does not take a short name that a
