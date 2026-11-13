@@ -327,6 +327,9 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaUnboxParamsSpec.v \
   FlambdaUnboxProofs.v \
   FlambdaUnboxSpec.v \
+  FlambdaUnboxTogetherNamesProofs.v \
+  FlambdaUnboxTogetherProofs.v \
+  FlambdaUnboxTogetherSpec.v \
   FlambdaUnboxVariantsExamplesProofs.v \
   FlambdaUnboxVariantsExamplesSpec.v \
   FlambdaUnboxVariantsProofs.v \
