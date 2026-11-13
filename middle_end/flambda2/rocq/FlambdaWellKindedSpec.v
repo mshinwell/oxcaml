@@ -539,7 +539,8 @@ Fixpoint value_well_kinded (v : value) : bool :=
          has_kind (lookup slot slots) (kind_of_value v)
          && value_well_kinded v)
       value_slots
-  | Value_block _ fields => forallb value_well_kinded fields
+  | Value_block _ fields | Value_immutable_array fields =>
+    forallb value_well_kinded fields
   | Value_partial_application callee args _ =>
     value_well_kinded callee && forallb value_well_kinded args
   end.

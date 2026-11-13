@@ -727,8 +727,9 @@ Lemma closure_in_set_closure_of (statics : static_env) (v : value)
   ∃ code : code_id,
     lookup slot decls = Some code ∧ closure_of statics v = Some (code, slots).
 Proof.
-  destruct v as [c | code slots' | slot' decls' slots' | s | tag fields | c
-    | l | callee0 applied applied_arity]; simpl; try discriminate.
+  destruct v as [c | code slots' | slot' decls' slots' | s | tag fields
+    | elements | c | l | callee0 applied applied_arity];
+    simpl; try discriminate.
   - intros [= <- <- <-]. exists code. rewrite lookup_head. auto.
   - destruct (lookup slot' decls') as [code | ] eqn:Hslot; simpl;
       [ | discriminate ].
@@ -750,8 +751,9 @@ Lemma closure_of_closure_in_set (statics : static_env) (v : value)
     closure_in_set statics v = Some (slot, decls, slots)
     ∧ lookup slot decls = Some code.
 Proof.
-  destruct v as [c | code' slots' | slot decls slots' | s | tag fields | c
-    | l | callee0 applied applied_arity]; simpl; try discriminate.
+  destruct v as [c | code' slots' | slot decls slots' | s | tag fields
+    | elements | c | l | callee0 applied applied_arity];
+    simpl; try discriminate.
   - intros [= <- <-]. eexists _, _. split; [ reflexivity | ].
     apply lookup_head.
   - destruct (lookup slot decls) as [code' | ] eqn:Hslot; simpl;
@@ -794,8 +796,8 @@ Lemma project_set_bound (st : static_env) (v : value) (slot : function_slot)
       project_function_slot st slot move_to v = Some x ->
       set_bound st x ∧ closure_in_set st x = Some (move_to, decls, slots)).
 Proof.
-  destruct v as [c | code vs | slot' decls' vs | s | tag fields | c | l
-    | callee0 applied applied_arity];
+  destruct v as [c | code vs | slot' decls' vs | s | tag fields
+    | elements | c | l | callee0 applied applied_arity];
     cbn -[Pos.eqb]; try discriminate.
   - intros _ [= <- <- <-].
     destruct (Pos.eqb_spec move_to unnamed_function_slot) as [-> | Hne].
@@ -898,7 +900,7 @@ Lemma project_function_slot_closure (st : static_env) (v w : value)
     (slots : list (value_slot * value)),
     closure_in_set st v = Some (move_from, decls, slots).
 Proof.
-  destruct v as [c | code vs | slot decls vs | s | tag fields | c | l
+  destruct v as [c | code vs | slot decls vs | s | tag fields | elements | c | l
     | callee0 applied applied_arity];
     cbn -[Pos.eqb]; try discriminate.
   - destruct (Pos.eqb_spec move_from unnamed_function_slot) as [-> | _];
@@ -1123,8 +1125,9 @@ Qed.
 Lemma value_avoids_nothing (v : value) : value_avoids nothing_dropped v = true.
 Proof.
   induction v
-    as [c | code slots IH | fslot decls slots IH | s | tag fields IH | c
-       | l | callee0 applied applied_arity IHcallee IHapplied]
+    as [c | code slots IH | fslot decls slots IH | s | tag fields IH
+       | elements IH | c | l
+       | callee0 applied applied_arity IHcallee IHapplied]
     using value_induction; try reflexivity; simpl.
   - apply forallb_forall. intros [name v] Hin. rewrite Forall_forall in IH.
     exact (IH _ Hin).
@@ -1132,6 +1135,8 @@ Proof.
     + apply forallb_forall. intros decl _. reflexivity.
     + apply forallb_forall. intros [name v] Hin.
       rewrite Forall_forall in IH. exact (IH _ Hin).
+  - apply forallb_forall. intros v Hin. rewrite Forall_forall in IH.
+    exact (IH _ Hin).
   - apply forallb_forall. intros v Hin. rewrite Forall_forall in IH.
     exact (IH _ Hin).
   - rewrite IHcallee. simpl. apply forallb_forall. intros v Hin.
@@ -1153,8 +1158,9 @@ Lemma value_related_same (D : dropped) (poison_refines : bool)
 Proof.
   intros Hsymbols.
   induction v
-    as [c | code slots IH | fslot decls slots IH | s | tag fields IH | c
-       | l | callee0 applied applied_arity IHcallee IHapplied]
+    as [c | code slots IH | fslot decls slots IH | s | tag fields IH
+       | elements IH | c | l
+       | callee0 applied applied_arity IHcallee IHapplied]
     using value_induction; intros Havoids Hlocations.
   - apply related_const.
   - simpl in Havoids. apply andb_true_iff in Havoids as [_ Havoids].
@@ -1190,6 +1196,15 @@ Proof.
       exact (Havoids field Hfield).
     + intros l Hl. apply Hlocations. simpl. apply in_flat_map.
       exists field. auto.
+  - apply Related_step.
+    apply (Step_array _ _ _ _ _ _ _ elements elements);
+      [ reflexivity | reflexivity | ].
+    apply Forall2_same. intros element Helement.
+    rewrite Forall_forall in IH. apply (IH element Helement).
+    + simpl in Havoids. rewrite forallb_forall in Havoids.
+      exact (Havoids element Helement).
+    + intros l Hl. apply Hlocations. simpl. apply in_flat_map.
+      exists element. auto.
   - apply Related_step, Step_same_boxed_number.
   - apply related_location. apply Hlocations. left. reflexivity.
   - simpl in Havoids. apply andb_true_iff in Havoids as [Hcallee Hargs].
@@ -2489,7 +2504,7 @@ Lemma related_partial_application_of (v v' callee : value)
     ∧ Forall2 related args args'.
 Proof.
   intros Hrelated Hpartial. apply related_step in Hrelated.
-  destruct v as [ | | | | | | | callee0 args0 arity0];
+  destruct v as [ | | | | | | | | callee0 args0 arity0];
     simpl in Hpartial; try discriminate Hpartial.
   injection Hpartial as -> -> ->.
   inversion Hrelated; subst; simpl in *; try discriminate.
@@ -2726,7 +2741,7 @@ Qed.
 Lemma related_respects_observations :
   respects_observations related statics statics'.
 Proof.
-  split; [ split | split; [ split | ] ].
+  split; [ split | split; [ split; [ | split ] | ] ].
   - intros c v' Hv. exact (related_const_left c v' Hv).
   - intros v c Hv. pose proof (related_const_of _ _ Hv) as Hconst.
     destruct v; try discriminate. simpl in Hconst. injection Hconst as ->.
@@ -2736,6 +2751,11 @@ Proof.
   - intros tag fields fields' Hfields.
     apply (related_block _ _ _ _ _ _ tag fields fields');
       [ reflexivity | reflexivity | exact Hfields ].
+  - intros elements elements' Helements. apply Related_step.
+    exact
+      (Step_array _ _ _ _ _ (Value_immutable_array elements)
+         (Value_immutable_array elements') elements elements' eq_refl
+         eq_refl Helements).
   - intros v v' Hv. split; [ | split; [ | split; [ | split ] ] ].
     + intros tag fields Hblock. exact (related_block_of _ _ _ _ Hv Hblock).
     + intros c Hboxed. exact (related_boxed_number_of _ _ _ Hv Hboxed).
@@ -4704,7 +4724,7 @@ Proof.
       as (v' & -> & Hv').
     destruct (naked_immediate_of_value v) as [i | ] eqn:Hi; [ | exact I ].
     assert (Hsame : v' = v).
-    { destruct v as [c | | | | | | | ]; try discriminate.
+    { destruct v as [c | | | | | | | | ]; try discriminate.
       exact (related_const_left D r st st' h h' Hmemories c v' Hv'). }
     subst v'. rewrite Hi.
     destruct (find_arm i arms) as [ac | ] eqn:Harm; [ | exact I ].
@@ -5480,8 +5500,8 @@ Lemma project_function_slot_closed (st : static_env) (h : heap)
   value_closed h w.
 Proof.
   intros Hclosed Hw.
-  destruct v as [c | code vs | slot decls' vs | s | tag fields | c | l
-    | callee0 applied applied_arity];
+  destruct v as [c | code vs | slot decls' vs | s | tag fields
+    | elements | c | l | callee0 applied applied_arity];
     try discriminate.
   - cbn -[Pos.eqb] in Hw.
     destruct (Pos.eqb move_from unnamed_function_slot); [ | discriminate ].

@@ -92,9 +92,9 @@ Lemma null_or_not {A : Type} (v : value) (a b : A) :
        end
        = b).
 Proof.
-  destruct v as [c | code slots | slot decls slots | s | tag fields | c'
-    | l | pa_callee pa_args pa_arity];
-    [ destruct c | | | | | | | ];
+  destruct v as [c | code slots | slot decls slots | s | tag fields
+    | elements | c' | l | pa_callee pa_args pa_arity];
+    [ destruct c | | | | | | | | ];
     first
       [ left; split; reflexivity
       | right; split; [ discriminate | reflexivity ] ].
@@ -115,9 +115,9 @@ Lemma tagged_immediate_or_not {A : Type} (v : value) (a : Z -> A) (b : A) :
        end
        = b).
 Proof.
-  destruct v as [c | code slots | slot decls slots | s | tag fields | c'
-    | l | pa_callee pa_args pa_arity];
-    [ destruct c | | | | | | | ];
+  destruct v as [c | code slots | slot decls slots | s | tag fields
+    | elements | c' | l | pa_callee pa_args pa_arity];
+    [ destruct c | | | | | | | | ];
     first
       [ left; eexists; split; reflexivity
       | right; split; [ intros ?; discriminate | reflexivity ] ].
@@ -138,9 +138,9 @@ Lemma naked_immediate_or_not {A : Type} (v : value) (a : Z -> A) (b : A) :
        end
        = b).
 Proof.
-  destruct v as [c | code slots | slot decls slots | s | tag fields | c'
-    | l | pa_callee pa_args pa_arity];
-    [ destruct c | | | | | | | ];
+  destruct v as [c | code slots | slot decls slots | s | tag fields
+    | elements | c' | l | pa_callee pa_args pa_arity];
+    [ destruct c | | | | | | | | ];
     first
       [ left; eexists; split; reflexivity
       | right; split; [ intros ?; discriminate | reflexivity ] ].
@@ -650,8 +650,8 @@ Qed.
 Lemma tagged_immediate_is_immediate (v : value) :
   FlambdaPrimitiveSpec.is_tagged_immediate v = true -> is_immediate v.
 Proof.
-  destruct v as [c | code slots | slot decls slots | s | tag fields | c
-    | l | pa_callee pa_args pa_arity];
+  destruct v as [c | code slots | slot decls slots | s | tag fields
+    | elements | c | l | pa_callee pa_args pa_arity];
     try discriminate.
   destruct c; try discriminate. intros _. eexists. reflexivity.
 Qed.
@@ -660,8 +660,8 @@ Lemma allocated_not_null (statics : static_env) (v : value) :
   is_allocated statics v = true ->
   kind_of_value v = Value ∧ v <> Value_const Null.
 Proof.
-  destruct v as [c | code slots | slot decls slots | s | tag fields | c
-    | l | pa_callee pa_args pa_arity];
+  destruct v as [c | code slots | slot decls slots | s | tag fields
+    | elements | c | l | pa_callee pa_args pa_arity];
     try discriminate; intros _; (split; [ reflexivity | discriminate ]).
 Qed.
 
@@ -1893,8 +1893,8 @@ Hypothesis Hextend : statics_extend statics statics'.
 Lemma block_of_extend (v : value) (block : Z * list value) :
   block_of statics v = Some block -> block_of statics' v = Some block.
 Proof.
-  destruct v as [c | code slots | slot decls slots | s | tag fields | c
-    | l | pa_callee pa_args pa_arity];
+  destruct v as [c | code slots | slot decls slots | s | tag fields
+    | elements | c | l | pa_callee pa_args pa_arity];
     simpl; try discriminate; auto.
   destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hlookup;
     [ | discriminate ].
@@ -1904,8 +1904,8 @@ Qed.
 Lemma boxed_number_of_extend (v : value) (c : const) :
   boxed_number_of statics v = Some c -> boxed_number_of statics' v = Some c.
 Proof.
-  destruct v as [c' | code slots | slot decls slots | s | tag fields | c'
-    | l | pa_callee pa_args pa_arity];
+  destruct v as [c' | code slots | slot decls slots | s | tag fields
+    | elements | c' | l | pa_callee pa_args pa_arity];
     simpl; try discriminate; auto.
   destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hlookup;
     [ | discriminate ].
@@ -1915,8 +1915,8 @@ Qed.
 Lemma string_of_extend (v : value) (bytes : list Z) :
   string_of statics v = Some bytes -> string_of statics' v = Some bytes.
 Proof.
-  destruct v as [c | code slots | slot decls slots | s | tag fields | c
-    | l | pa_callee pa_args pa_arity];
+  destruct v as [c | code slots | slot decls slots | s | tag fields
+    | elements | c | l | pa_callee pa_args pa_arity];
     simpl; try discriminate; auto.
   destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hlookup;
     [ | discriminate ].
@@ -1943,8 +1943,8 @@ Lemma closure_in_set_extend (v : value)
   closure_in_set statics v = Some closure ->
   closure_in_set statics' v = Some closure.
 Proof.
-  destruct v as [c | code slots | slot decls slots | s | tag fields | c
-    | l | pa_callee pa_args pa_arity];
+  destruct v as [c | code slots | slot decls slots | s | tag fields
+    | elements | c | l | pa_callee pa_args pa_arity];
     simpl; try discriminate; auto.
   destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hlookup;
     [ | discriminate ].
@@ -1962,8 +1962,8 @@ Lemma project_function_slot_extend (v : value)
   = project_function_slot statics move_from move_to v.
 Proof.
   unfold project_function_slot.
-  destruct v as [c | code slots | slot decls slots | s | tag fields | c
-    | l | pa_callee pa_args pa_arity];
+  destruct v as [c | code slots | slot decls slots | s | tag fields
+    | elements | c | l | pa_callee pa_args pa_arity];
     simpl; try discriminate; try (intros _; reflexivity).
   destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hlookup;
     [ | discriminate ].

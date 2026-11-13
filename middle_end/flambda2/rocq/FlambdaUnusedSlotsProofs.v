@@ -215,7 +215,7 @@ Lemma closure_of_drop (statics : static_env) (v : value) (code : code_id)
     ∧ same_kept_slots slots slots'.
 Proof.
   destruct v
-    as [ c | vcode vslots | vslot vdecls vslots | s | tag fields | c
+    as [ c | vcode vslots | vslot vdecls vslots | s | tag fields | elements | c
        | loc | callee args args_arity ];
     simpl; try discriminate.
   - intros H. exists slots. split; [ exact H | intros kept _; reflexivity ].
@@ -240,7 +240,7 @@ Lemma closure_in_set_drop (statics : static_env) (v : value)
     ∧ same_kept_slots slots slots'.
 Proof.
   destruct v
-    as [ c | vcode vslots | vslot vdecls vslots | s | tag fields | c
+    as [ c | vcode vslots | vslot vdecls vslots | s | tag fields | elements | c
        | loc | callee args args_arity ];
     simpl; try discriminate.
   - intros H. exists slots. split; [ exact H | intros kept _; reflexivity ].
@@ -263,9 +263,11 @@ Lemma drop_statics_respects (statics : static_env) :
 Proof.
   split; [ | split ].
   - split; intros; subst; reflexivity.
-  - split; [ intros c; split; reflexivity | ].
-    intros tag fields fields' Hfields.
-    rewrite (forall2_eq fields fields' Hfields). reflexivity.
+  - split; [ intros c; split; reflexivity | split ].
+    + intros tag fields fields' Hfields.
+      rewrite (forall2_eq fields fields' Hfields). reflexivity.
+    + intros elements elements' Helements.
+      rewrite (forall2_eq elements elements' Helements). reflexivity.
   - intros v v' <-.
     split;
       [ | split; [ | split; [ | split; [ | split; [ | split; [ | split ] ] ] ] ]

@@ -317,7 +317,8 @@ Fixpoint value_closures_bound (bound : code_id -> bool) (v : value) : bool :=
   | Value_closure_of_set _ decls slots =>
     decls_bound bound decls
     && forallb (fun slot => value_closures_bound bound (snd slot)) slots
-  | Value_block _ fields => forallb (value_closures_bound bound) fields
+  | Value_block _ fields | Value_immutable_array fields =>
+    forallb (value_closures_bound bound) fields
   | Value_partial_application callee args _ =>
     value_closures_bound bound callee
     && forallb (value_closures_bound bound) args

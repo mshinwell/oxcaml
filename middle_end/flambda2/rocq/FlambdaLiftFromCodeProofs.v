@@ -249,8 +249,8 @@ Proof.
       simpl. rewrite (Hfresh sym (or_introl eq_refl)), Hcontents. simpl.
       eexists. split; reflexivity.
     + (* A block. *)
-      destruct p as [[tag]]. simpl in Hlift. injection Hlift as <- <-.
-      simpl in Hclosed.
+      destruct p as [[tag] | kind]; simpl in Hlift; [ | discriminate ].
+      injection Hlift as <- <-. simpl in Hclosed.
       destruct (eval_plain_simples_some vars' args Hclosed) as [vs Hargs].
       simpl. rewrite (Hfresh sym (or_introl eq_refl)), Hargs. simpl.
       eexists. split; reflexivity.
@@ -490,7 +490,7 @@ Proof.
       destruct (eval_simple [] contents) as [w | ] eqn:Hcontents;
         [ | discriminate ].
       rewrite eval_prim_unary in Heval. simpl in Heval.
-      destruct w as [number | | | | | | | ]; try discriminate.
+      destruct w as [number | | | | | | | | ]; try discriminate.
       destruct (is_number_of_kind kind number); [ | discriminate ].
       injection Heval as <-.
       destruct (eval_simple_lifted statics' [] [] contents _ Hvars Hcontents)
@@ -502,8 +502,8 @@ Proof.
       injection Hconst as <-.
       apply Lifted_to_boxed_number. exact Hsym.
     + (* A block. *)
-      destruct p as [[tag]]. simpl in Hlift. injection Hlift as <- <-.
-      simpl in Heval.
+      destruct p as [[tag] | kind]; simpl in Hlift; [ | discriminate ].
+      injection Hlift as <- <-. simpl in Heval.
       destruct (eval_simples [] args) as [vs | ] eqn:Hargs;
         [ | discriminate ].
       rewrite eval_prim_variadic in Heval. simpl in Heval.
@@ -592,8 +592,8 @@ Proof.
       * intros vars vars'.
         rewrite (eval_plain_simple vars vars' contents Hclosed).
         reflexivity.
-    + destruct p as [[tag]]. simpl in Hlift. injection Hlift as <- <-.
-      simpl in Hclosed.
+    + destruct p as [[tag] | kind]; simpl in Hlift; [ | discriminate ].
+      injection Hlift as <- <-. simpl in Hclosed.
       constructor; [ | constructor ]. simpl. split.
       * destruct (eval_plain_simples_some [] args Hclosed) as [vs ->].
         simpl. eauto.

@@ -88,8 +88,8 @@ Lemma closure_of_permuted (p : permutation) (statics : static_env)
   = option_map (fun called => (fst called, permute_slots p (snd called)))
       (closure_of statics v).
 Proof.
-  destruct v as [c | code slots | fslot decls slots | s | tag fields | c
-    | l | callee applied applied_arity];
+  destruct v as [c | code slots | fslot decls slots | s | tag fields
+    | elements | c | l | callee applied applied_arity];
     simpl; try reflexivity.
   - destruct (lookup fslot decls); reflexivity.
   - rewrite lookup_permute_statics.
@@ -106,8 +106,8 @@ Lemma closure_in_set_permuted (p : permutation) (statics : static_env)
       (fun set => (fst (fst set), snd (fst set), permute_slots p (snd set)))
       (closure_in_set statics v).
 Proof.
-  destruct v as [c | code slots | fslot decls slots | s | tag fields | c
-    | l | callee applied applied_arity];
+  destruct v as [c | code slots | fslot decls slots | s | tag fields
+    | elements | c | l | callee applied applied_arity];
     simpl; try reflexivity.
   - destruct (lookup fslot decls); reflexivity.
   - rewrite lookup_permute_statics.
@@ -146,8 +146,8 @@ Lemma project_function_slot_permuted (p : permutation)
   = option_map (permute_value p)
       (project_function_slot statics move_from move_to v).
 Proof.
-  destruct v as [c | code slots | fslot decls slots | s | tag fields | c
-    | l | callee applied applied_arity];
+  destruct v as [c | code slots | fslot decls slots | s | tag fields
+    | elements | c | l | callee applied applied_arity];
     simpl; try reflexivity.
   - by_cases.
   - by_cases.

@@ -186,7 +186,7 @@ Proof.
   - destruct (forallb _ vs); [ | discriminate ]. intros [= <- <-].
     apply heap_evolves_fresh.
   - destruct vs as [ | v1 [ | v2 [ | v3 vs]]]; try discriminate.
-    destruct v1 as [c | code slots | fslot decls slots | s | tag fields | c
+    destruct v1 as [c | code slots | fslot decls slots | s | tag fields | | c
       | l | callee0 applied applied_arity];
       try discriminate.
     destruct (lookup l h) as [[[ | ] tag fields | akind elements] | ]
@@ -205,7 +205,7 @@ Proof.
     intros [= <- <-]. apply heap_evolves_fresh.
   - (* [Array_set] *)
     destruct vs as [ | v1 [ | v2 [ | v3 [ | v4 vs]]]]; try discriminate.
-    destruct v1 as [c | code slots | fslot decls slots | s | tag fields | c
+    destruct v1 as [c | code slots | fslot decls slots | s | tag fields | | c
       | l | callee0 applied applied_arity];
       try discriminate.
     destruct (lookup l h) as [[mut tag fields | akind elements] | ] eqn:Hcell;
@@ -384,7 +384,7 @@ Proof.
       destruct (Pos.eqb l _);
         [ discriminate | exact (Harrays _ _ _ _ Hl Hw) ].
     - destruct vs as [ | v1 [ | v2 [ | v3 vs]]]; try discriminate.
-      destruct v1 as [c | code slots | fslot decls slots | s | tag fields | c
+      destruct v1 as [c | code slots | fslot decls slots | s | tag fields | | c
         | l | callee0 applied applied_arity];
         try discriminate.
       destruct (lookup l h) as [[[ | ] tag fields | akind elements] | ];
@@ -409,7 +409,7 @@ Proof.
       + exact (Harrays _ _ _ _ Hl Hw).
     - (* [Array_set]: so is the new value. *)
       destruct vs as [ | v1 [ | v2 [ | v3 [ | v4 vs]]]]; try discriminate.
-      destruct v1 as [c | code slots | fslot decls slots | s | tag fields | c
+      destruct v1 as [c | code slots | fslot decls slots | s | tag fields | | c
         | l | callee0 applied applied_arity];
         try discriminate.
       destruct (lookup l h) as [[mut tag fields | kind elements] | ] eqn:Hcell;
@@ -500,7 +500,7 @@ Proof.
   - destruct p; simpl in Heffects; try discriminate.
     injection Heffects as <-. reflexivity.
   - destruct p; discriminate.
-  - destruct p. simpl in Heffects. injection Heffects as <-. reflexivity.
+  - destruct p; simpl in Heffects; injection Heffects as <-; reflexivity.
 Qed.
 
 Theorem no_coeffects : no_coeffects_statement.
@@ -516,8 +516,8 @@ Proof.
     intros [= <- _]. reflexivity. }
   destruct p as [p | p | p | p].
   - destruct vs as [ | v1 [ | v2 vs]]; try exact (Hpure Hexec);
-      destruct v1 as [c | code slots | fslot decls slots | s | tag fields | c
-      | l | callee0 applied applied_arity];
+      destruct v1 as [c | code slots | fslot decls slots | s | tag fields
+      | elements | c | l | callee0 applied applied_arity];
       try exact (Hpure Hexec).
     simpl in Hexec |- *.
     destruct (lookup l h1) as [[cell_mut tag fields | akind elements] | ]
@@ -744,6 +744,8 @@ Lemma value_induction (P : value -> Prop) :
   (∀ s : symbol, P (Value_symbol s)) ->
   (∀ (tag : Z) (fields : list value),
     Forall P fields -> P (Value_block tag fields)) ->
+  (∀ elements : list value,
+    Forall P elements -> P (Value_immutable_array elements)) ->
   (∀ c : const, P (Value_boxed_number c)) ->
   (∀ l : location, P (Value_location l)) ->
   (∀ (callee : value) (args : list value) (args_arity : arity),
@@ -752,11 +754,11 @@ Lemma value_induction (P : value -> Prop) :
     P (Value_partial_application callee args args_arity)) ->
   ∀ v : value, P v.
 Proof.
-  intros Hconst Hclosure Hclosure_of_set Hsymbol Hblock Hboxed Hlocation
-    Hpartial.
+  intros Hconst Hclosure Hclosure_of_set Hsymbol Hblock Harray Hboxed
+    Hlocation Hpartial.
   fix IH 1.
-  intros [c | code slots | slot decls slots | s | tag fields | c | l
-         | callee args args_arity].
+  intros [c | code slots | slot decls slots | s | tag fields | elements | c
+         | l | callee args args_arity].
   - apply Hconst.
   - apply Hclosure.
     exact
@@ -785,6 +787,14 @@ Proof.
           | field :: fields => Forall_cons _ (IH field) (go fields)
           end)
          fields).
+  - apply Harray.
+    exact
+      ((fix go (elements : list value) : Forall P elements :=
+          match elements with
+          | [] => Forall_nil _
+          | element :: elements => Forall_cons _ (IH element) (go elements)
+          end)
+         elements).
   - apply Hboxed.
   - apply Hlocation.
   - apply Hpartial; [ apply IH | ].
@@ -921,8 +931,8 @@ Lemma closure_slots_closed (st : static_env) (h : heap) (v : value)
   value_closed h w.
 Proof.
   intros [_ Hstatics] Hclosed Hclosure Hw.
-  destruct v as [c | code0 slots0 | fslot decls slots0 | s | tag fields | c
-    | l | callee0 applied applied_arity];
+  destruct v as [c | code0 slots0 | fslot decls slots0 | s | tag fields
+    | elements | c | l | callee0 applied applied_arity];
     simpl in Hclosure; try discriminate.
   - injection Hclosure as <- <-. intros l Hl. apply Hclosed. simpl.
     apply in_flat_map. apply in_map_iff in Hw as (slot & <- & Hslot).
@@ -960,6 +970,12 @@ Proof.
     + intros Hfields l Hl. simpl in Hl.
       apply in_flat_map in Hl as (field & Hfield & Hl).
       exact (Hfields field Hfield l Hl).
+  - intros elements. split.
+    + intros Harray v Hv l Hl. apply Harray. simpl. apply in_flat_map.
+      exists v. auto.
+    + intros Helements l Hl. simpl in Hl.
+      apply in_flat_map in Hl as (element & Helement & Hl).
+      exact (Helements element Helement l Hl).
   - intros s tag fields _ Hs v Hv. exact (proj2 Hmemory s _ v Hs Hv).
   - intros s elements _ Hs v Hv. exact (proj2 Hmemory s _ v Hs Hv).
 Qed.
@@ -1300,8 +1316,8 @@ Proof.
   unfold exec_prim.
   assert (Hall : forallb (argument_bound statics h) vs = true).
   { apply forallb_forall. intros arg Harg.
-    destruct arg as [c | code slots | fslot decls slots | s | tag fields | c
-                    | l | callee applied applied_arity];
+    destruct arg as [c | code slots | fslot decls slots | s | tag fields
+                    | elements | c | l | callee applied applied_arity];
       try reflexivity.
     - simpl. unfold is_bound.
       pose proof
@@ -1360,8 +1376,8 @@ Proof.
     exfalso.
     assert (Hbound : forallb (argument_bound statics h) vs = true).
     { apply forallb_forall. intros arg Harg.
-      destruct arg as [c | code slots | fslot decls slots | s | tag fields | c
-                      | l | callee applied applied_arity];
+      destruct arg as [c | code slots | fslot decls slots | s | tag fields
+                      | elements | c | l | callee applied applied_arity];
         try reflexivity.
       - simpl. unfold is_bound.
         pose proof

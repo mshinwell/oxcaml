@@ -46,7 +46,8 @@
      eight bytes from a string, [Phys_equal], and [Int_arith],
      [Int_shift] and [Int_comp], at every [Standard_int.t];
    - of [variadic_primitive]: [Make_block] of an immutable block of
-     values;
+     values, and [Make_array] of an immutable array of values (here
+     [Make_immutable_array]);
    - under [Heap], with the primitives of C4's prototype: [Make_array]
      of a mutable array of values (here [Make_mutable_array]), and the
      ternary [Array_set] into one.
@@ -57,8 +58,13 @@
    Differences from the compiler:
    - [Opaque_identity] has no [middle_end_only], which has no effect on
      execution.
-   - [Box_number] and [Make_block] have no allocation mode: they are the
-     allocations on the heap, and the conversion must refuse a local one.
+   - [Box_number], [Make_block] and [Make_immutable_array] have no
+     allocation mode. The values they make are immutable and have no
+     identity, so nothing in the model tells an allocation in a region
+     from one on the heap, and the conversion of the test tool, which
+     drops the regions, reads a local one as an ordinary one where it
+     converts the primitive (decision D37, which is open;
+     rocq/TRUST-LEDGER.md, "Regions").
    - [Make_block] has no mutability: it is that of immutable blocks
      ([Immutable], not [Immutable_unique]), and the conversion must
      refuse the others. So every block of the model is immutable.
@@ -125,13 +131,14 @@
      model has no array of floats, and the conversion must refuse the
      load and the store that the front end makes for the case of
      floats.
-   - [Make_array] is [Make_mutable_array], with no mutability and no
-     allocation mode: it is the allocation on the heap of an array
-     that is [Mutable], and the conversion must refuse the others.
-     ([Immutable_unique] is not a mutability of arrays: Simplify stops
-     on a [Make_array] that has it. An array made [Immutable] is a
-     value with no identity, as an immutable block is, and the values
-     of the model have not got one yet.)
+   - [Make_array] is two primitives, by its mutability, and neither
+     carries it. At [Mutable] it is [Make_mutable_array], under [Heap],
+     with no allocation mode: the allocation on the heap of an array
+     that has an identity. At [Immutable] it is [Make_immutable_array],
+     a variadic primitive, which makes a value with no identity, as
+     [Make_block] makes an immutable block. [Immutable_unique] is not a
+     mutability of arrays: Simplify stops on a [Make_array] that has
+     it, and the conversion must refuse it.
    - The conversion must refuse an [Array_set] whose array kind is
      [Values] and whose set kind is not. The front end makes none, and
      Simplify stops on one unless the type of the array lets it change
@@ -276,7 +283,8 @@ Inductive block_kind : Type :=
 
 (* [Flambda_primitive.variadic_primitive]. *)
 Inductive variadic_primitive : Type :=
-  | Make_block (kind : block_kind).
+  | Make_block (kind : block_kind)
+  | Make_immutable_array (kind : array_kind).
 
 (* C4's prototype. The primitives of the heap that are not above, under
    one constructor of [prim] so that the prototype changes no

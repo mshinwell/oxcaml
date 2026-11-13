@@ -450,7 +450,8 @@ Fixpoint value_valid (v : value) : bool :=
   | Value_closure_of_set slot function_decls value_slots =>
     set_well_formed slot function_decls
     && forallb (fun '(_, contents) => value_valid contents) value_slots
-  | Value_block _ fields => forallb value_valid fields
+  | Value_block _ fields | Value_immutable_array fields =>
+    forallb value_valid fields
   | Value_partial_application callee args _ =>
     value_valid callee && forallb value_valid args
   end.
@@ -876,7 +877,7 @@ Fixpoint value_sets_are (c : code_id)
          (fun '(_, contents) =>
             value_sets_are c function_decls closure_symbols contents)
          value_slots
-  | Value_block _ fields =>
+  | Value_block _ fields | Value_immutable_array fields =>
     forallb (value_sets_are c function_decls closure_symbols) fields
   | Value_partial_application callee args _ =>
     value_sets_are c function_decls closure_symbols callee

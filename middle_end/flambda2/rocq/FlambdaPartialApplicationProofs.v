@@ -608,7 +608,7 @@ Lemma shape_of_call_callee_kind (statics : static_env) (callee : value)
   shape_of_call statics callee kind vs args_arity return_arity = Some shape ->
   kind_of_value callee = Value.
 Proof.
-  intros Hshape. destruct callee as [k | | | | | | | ]; try reflexivity.
+  intros Hshape. destruct callee as [k | | | | | | | | ]; try reflexivity.
   exfalso.
   destruct (shape_of_call_cases _ _ _ _ _ _ _ Hshape)
     as [Hclosure | (closure & applied & applied_arity & _ & Hcallee & _)];

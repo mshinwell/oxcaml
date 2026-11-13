@@ -791,7 +791,7 @@ Theorem closure_in_set_of : closure_in_set_of_statement.
 Proof.
   intros statics v code value_slots. unfold closure_of, closure_in_set.
   destruct v as [c | code' slots | slot decls slots | s | tag fields
-    | contents | l | pa_callee pa_args pa_arity];
+    | | contents | l | pa_callee pa_args pa_arity];
     [ | | | | split; [ discriminate | intros (slot & decls & [=] & _) ] .. ].
   - split; [ discriminate | intros (slot & decls & [=] & _) ].
   - split.
@@ -823,7 +823,7 @@ Qed.
 Theorem closure_in_set_slot : closure_in_set_slot_statement.
 Proof.
   intros statics v slot decls slots. unfold closure_in_set, is_bound.
-  destruct v as [c | code vs | fslot fdecls vs | s | tag fields | contents
+  destruct v as [c | code vs | fslot fdecls vs | s | tag fields | | contents
     | l | pa_callee pa_args pa_arity];
     [ | | | | discriminate .. ].
   - discriminate.
@@ -894,7 +894,7 @@ Proof.
   intros statics move_from move_to v w.
   unfold project_function_slot, closure_in_set.
   destruct v as [c | code slots | slot decls slots | s | tag fields
-    | contents | l | pa_callee pa_args pa_arity];
+    | | contents | l | pa_callee pa_args pa_arity];
     [ | | | | discriminate .. ].
   - discriminate.
   - intros Hproject.
@@ -1655,7 +1655,7 @@ Lemma block_of_cases (statics : static_env) (v : value) (tag : Z)
       ∧ lookup s (static_values statics) = Some (Static_block tag fields).
 Proof.
   destruct v as [c | code slots | slot decls slots | s | tag' fields'
-    | contents | l | callee args args_arity];
+    | | contents | l | callee args args_arity];
     simpl; try discriminate.
   - destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hs;
       [ | discriminate ].
@@ -2103,7 +2103,7 @@ Proof.
   unfold shape_of_call.
   destruct kind as [named | ]; [ intros Hshape; left; exact Hshape | ].
   destruct callee
-    as [k | code slots | slot decls slots | s | tag fields | contents
+    as [k | code slots | slot decls slots | s | tag fields | | contents
        | l | closure applied applied_arity];
     simpl; try (intros Hshape; left; exact Hshape).
   destruct args_arity as [ | component args_arity]; [ discriminate | ].
@@ -2538,7 +2538,7 @@ Proof.
   intros Hclosure Hcodes Hprim. unfold shape_of_call.
   destruct kind as [named | ];
     destruct callee
-      as [k | code slots | slot decls slots | s | tag fields | contents
+      as [k | code slots | slot decls slots | s | tag fields | | contents
          | l | closure applied applied_arity];
     simpl in Hclosure, Hcodes, Hprim |- *;
     try (apply shape_of_closure_call_related; assumption).

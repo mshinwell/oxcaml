@@ -297,7 +297,7 @@ Lemma closure_of_erased (statics statics' : static_env) (v : value) :
 Proof.
   intros (_ & _ & Hvalues & Hvalues_avoid).
   destruct v as [c | code slots | fslot decls slots | s | tag fields
-    | contents | l | pa_callee pa_args pa_arity]; simpl.
+    | elements | contents | l | pa_callee pa_args pa_arity]; simpl.
   - intros _. split; [ reflexivity | discriminate ].
   - intros Hv. apply andb_true_iff in Hv as [Hcode Hslots].
     split; [ reflexivity | ]. intros called slots' [= <- <-]. auto.
@@ -332,6 +332,7 @@ Proof.
   - intros _. split; [ reflexivity | discriminate ].
   - intros _. split; [ reflexivity | discriminate ].
   - intros _. split; [ reflexivity | discriminate ].
+  - intros _. split; [ reflexivity | discriminate ].
 Qed.
 
 (* A value that refers to no name removed is the same closure of a set
@@ -348,7 +349,7 @@ Lemma closure_in_set_erased (statics statics' : static_env) (v : value) :
 Proof.
   intros (_ & _ & Hvalues & Hvalues_avoid).
   destruct v as [c | code slots | fslot decls slots | s | tag fields
-    | contents | l | pa_callee pa_args pa_arity]; simpl.
+    | elements | contents | l | pa_callee pa_args pa_arity]; simpl.
   - intros _. split; [ reflexivity | discriminate ].
   - intros Hv. apply andb_true_iff in Hv as [_ Hslots].
     split; [ reflexivity | ]. intros at_slot decls slots' [= _ _ <-].
@@ -368,6 +369,7 @@ Proof.
     + intros [= _ _ <-]. exact Hslots.
     + destruct (lookup fslot decls'); [ | discriminate ].
       simpl. intros [= _ _ <-]. exact Hslots.
+  - intros _. split; [ reflexivity | discriminate ].
   - intros _. split; [ reflexivity | discriminate ].
   - intros _. split; [ reflexivity | discriminate ].
   - intros _. split; [ reflexivity | discriminate ].
@@ -423,7 +425,7 @@ Proof.
     destruct (Pos.eqb move_to unnamed_function_slot); [ | discriminate ].
     intros [= <-]. exact Hv. }
   destruct v as [c | code slots | fslot decls slots | s | tag fields
-    | contents | l | pa_callee pa_args pa_arity]; simpl.
+    | elements | contents | l | pa_callee pa_args pa_arity]; simpl.
   - split; [ reflexivity | discriminate ].
   - split; [ reflexivity | exact Hunnamed ].
   - split; [ reflexivity | ]. intros w.
@@ -452,6 +454,7 @@ Proof.
   - split; [ reflexivity | discriminate ].
   - split; [ reflexivity | discriminate ].
   - split; [ reflexivity | discriminate ].
+  - split; [ reflexivity | discriminate ].
 Qed.
 
 (* The primitives introduce no symbols and no code ids: referring to no
@@ -468,6 +471,7 @@ Proof.
   apply (eval_prim_preserves (fun w => value_avoids D w = true)).
   - intros c. split; reflexivity.
   - intros tag fields. simpl. apply forallb_forall.
+  - intros elements. simpl. apply forallb_forall.
   - intros s tag fields Hkept Hlookup.
     pose proof (Hvalues_avoid s _ Hkept Hlookup) as Hfields.
     simpl in Hfields. apply forallb_forall. exact Hfields.

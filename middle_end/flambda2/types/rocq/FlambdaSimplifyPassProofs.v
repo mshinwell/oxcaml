@@ -658,7 +658,9 @@ Lemma simplify_variadic_sound (tenv : Typing_env.t) (p : variadic_primitive)
   Forall2 (argument_type tenv) args tys ->
   outcome_sound tenv (Prim (Variadic p) args) (simplify_variadic p tys).
 Proof.
-  intros Htys. destruct p as [[tag]]. simpl.
+  intros Htys. destruct p as [[tag] | kind]; simpl.
+  2: { exact (prim_kind_sound tenv (Variadic (Make_immutable_array kind))
+                args). }
   destruct (tag <? no_scan_tag) eqn:Htag.
   - intros statics vars v Hsat Hnamed.
     exact (make_block_typed tenv statics vars tag args tys v

@@ -909,7 +909,7 @@ Proof.
   intros statics move_from move_to v w Hbound.
   unfold project_function_slot.
   destruct v as [c | code slots | slot decls slots | s | tag fields
-    | contents | l | pa_callee pa_args pa_arity];
+    | | contents | l | pa_callee pa_args pa_arity];
     [ | | | | discriminate .. ].
   - discriminate.
   - intros Hproject.
@@ -984,7 +984,7 @@ Proof.
   intros statics v slot decls slot_values Hstatics Hv.
   unfold closure_in_set.
   destruct v as [c | code slots | at_slot set_decls slots | s | tag fields
-    | contents | l | pa_callee pa_args pa_arity];
+    | | contents | l | pa_callee pa_args pa_arity];
     [ | | | | discriminate .. ].
   - discriminate.
   - intros [= <- <- <-]. split; [ exact (unnamed_set_well_formed code) | ].
@@ -1029,7 +1029,7 @@ Proof.
   intros statics move_from move_to v decls slot_values Hstatics.
   unfold closure_in_set, project_function_slot.
   destruct v as [c | code slots | at_slot set_decls slots | s | tag fields
-    | contents | l | pa_callee pa_args pa_arity];
+    | | contents | l | pa_callee pa_args pa_arity];
     [ | | | | discriminate .. ].
   - discriminate.
   - intros [= <- <- <-]. exact (project_unnamed_defined move_to code _).
@@ -1106,6 +1106,9 @@ Proof. intros c. split; reflexivity. Qed.
 Lemma value_valid_of_blocks : holds_of_blocks (fun v => value_valid v = true).
 Proof. intros tag fields. exact (forallb_forall value_valid fields). Qed.
 
+Lemma value_valid_of_arrays : holds_of_arrays (fun v => value_valid v = true).
+Proof. intros elements. exact (forallb_forall value_valid elements). Qed.
+
 Lemma value_valid_in_static_blocks (statics : static_env) :
   statics_valid statics ->
   holds_in_static_blocks statics (fun v => value_valid v = true).
@@ -1133,7 +1136,7 @@ Lemma project_function_slot_keeps_valid (statics : static_env)
 Proof.
   intros Hv. unfold project_function_slot.
   destruct v as [c | code slots | at_slot decls slots | s | tag fields
-    | contents | l | pa_callee pa_args pa_arity];
+    | | contents | l | pa_callee pa_args pa_arity];
     [ | | | | discriminate .. ].
   - discriminate.
   - intros Hproject.
@@ -1174,6 +1177,7 @@ Proof.
     simpl. intros Hprim.
     apply (eval_prim_preserves (fun v => value_valid v = true) statics p vs
              v value_valid_of_numbers value_valid_of_blocks
+             value_valid_of_arrays
              (value_valid_in_static_blocks statics Hstatics)
              (value_valid_in_static_arrays statics Hstatics));
       [ | exact Hprim ].
@@ -1311,7 +1315,7 @@ Proof.
     intros field v Hprim.
     refine (eval_prim_preserves (fun v => value_valid v = true)
               (state_statics s) _ [tuple] v value_valid_of_numbers
-              value_valid_of_blocks
+              value_valid_of_blocks value_valid_of_arrays
               (value_valid_in_static_blocks (state_statics s) Hstatics)
               (value_valid_in_static_arrays (state_statics s) Hstatics) _
               Hprim).
@@ -1939,7 +1943,7 @@ Lemma closure_in_set_sets_are (statics : static_env) (v : value)
 Proof.
   intros Hstatics Hv. unfold closure_in_set.
   destruct v as [k | code slots | at_slot set_decls slots | s | tag fields
-    | contents | l | pa_callee pa_args pa_arity];
+    | elements | contents | l | pa_callee pa_args pa_arity];
     [ | | | | discriminate .. ].
   - discriminate.
   - unfold Pv in Hv. simpl in Hv. apply andb_true_iff in Hv as [Hset Hslots].
@@ -1991,6 +1995,13 @@ Proof.
            fields).
 Qed.
 
+Lemma value_sets_are_of_arrays : holds_of_arrays Pv.
+Proof.
+  intros elements.
+  exact (forallb_forall (value_sets_are c function_decls closure_symbols)
+           elements).
+Qed.
+
 Lemma value_sets_are_in_static_blocks (statics : static_env) :
   Forall (fun binding => Qv (snd binding)) (static_values statics) ->
   holds_in_static_blocks statics Pv.
@@ -2017,7 +2028,7 @@ Lemma project_function_slot_sets_are (statics : static_env)
 Proof.
   intros Hv. unfold project_function_slot.
   destruct v as [k | code slots | at_slot decls slots | s | tag fields
-    | contents | l | pa_callee pa_args pa_arity];
+    | elements | contents | l | pa_callee pa_args pa_arity];
     [ | | | | discriminate .. ].
   - discriminate.
   - intros Hproject.
@@ -2058,7 +2069,7 @@ Proof.
       [ | discriminate ].
     simpl. intros Hprim.
     apply (eval_prim_preserves Pv statics p vs v value_sets_are_of_numbers
-             value_sets_are_of_blocks
+             value_sets_are_of_blocks value_sets_are_of_arrays
              (value_sets_are_in_static_blocks statics Hstatics)
              (value_sets_are_in_static_arrays statics Hstatics));
       [ | exact Hprim ].
@@ -2194,6 +2205,7 @@ Proof.
     intros field v Hprim.
     refine (eval_prim_preserves Pv (state_statics s) _ [tuple] v
               value_sets_are_of_numbers value_sets_are_of_blocks
+              value_sets_are_of_arrays
               (value_sets_are_in_static_blocks (state_statics s) Hstatics)
               (value_sets_are_in_static_arrays (state_statics s) Hstatics) _
               Hprim).

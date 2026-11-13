@@ -384,7 +384,7 @@ Definition value_is (a : simple) (v : value) : bool :=
   | Value_symbol s => same_simple (Symbol s) a
   | Value_const c => same_simple (Const c) a
   | Value_closure _ _ | Value_closure_of_set _ _ _ | Value_block _ _
-  | Value_boxed_number _ | Value_location _
+  | Value_immutable_array _ | Value_boxed_number _ | Value_location _
   | Value_partial_application _ _ _ =>
     false
   end.
@@ -414,7 +414,8 @@ Fixpoint value_slots_known (known : known_slots) (v : value) : bool :=
     slot_values_as known slot_values
     && forallb (fun '(_, contents) => value_slots_known known contents)
          slot_values
-  | Value_block _ fields => forallb (value_slots_known known) fields
+  | Value_block _ fields | Value_immutable_array fields =>
+    forallb (value_slots_known known) fields
   | Value_partial_application callee args _ =>
     value_slots_known known callee
     && forallb (value_slots_known known) args

@@ -74,10 +74,12 @@ Proof.
     + intros v c Hv. unfold moved in Hv.
       destruct v; simpl in Hv; try discriminate.
       injection Hv as ->. reflexivity.
-  - split.
+  - split; [ | split ].
     + intros c. split; reflexivity.
     + intros tag fields fields' Hfields. apply Forall2_moved in Hfields.
       subst fields'. reflexivity.
+    + intros elements elements' Helements.
+      apply Forall2_moved in Helements. subst elements'. reflexivity.
   - intros v v' ->.
     split;
       [ | split; [ | split; [ | split; [ | split; [ | split; [ | split ]]]]]].
@@ -128,11 +130,13 @@ Proof.
       exact Himported.
     + intros elements Harray.
       destruct v; simpl in Harray |- *; try discriminate.
-      statics_lookup.
-      destruct (lookup s (static_values statics))
-        as [[ | | | | | elements0 | ] | ]; try discriminate.
-      injection Harray as <-. simpl. eexists.
-      split; [ reflexivity | apply Forall2_moved; reflexivity ].
+      * statics_lookup.
+        destruct (lookup s (static_values statics))
+          as [[ | | | | | elements0 | ] | ]; try discriminate.
+        injection Harray as <-. simpl. eexists.
+        split; [ reflexivity | apply Forall2_moved; reflexivity ].
+      * injection Harray as <-. eexists.
+        split; [ reflexivity | apply Forall2_moved; reflexivity ].
 Qed.
 
 Lemma eval_prim_moved (p : permutation) (statics : static_env) (prim : prim)
@@ -655,13 +659,19 @@ Proof.
   apply
     (FlambdaPrimitiveProofs.eval_prim_preserves
        (fun w => locations_bound h (locations_of_value w)) statics prim vs v);
-    [ | | | | | exact Heval ].
+    [ | | | | | | exact Heval ].
   - intros c. split; intros l [ ].
   - intros tag fields. split.
     + intros Hblock w Hw l Hl. apply Hblock. simpl. apply in_flat_map.
       exists w. split; assumption.
     + intros Hfields l Hl. simpl in Hl.
       apply in_flat_map in Hl as (w & Hw & Hl). exact (Hfields w Hw l Hl).
+  - intros elements. split.
+    + intros Harray w Hw l Hl. apply Harray. simpl. apply in_flat_map.
+      exists w. split; assumption.
+    + intros Helements l Hl. simpl in Hl.
+      apply in_flat_map in Hl as (w & Hw & Hl).
+      exact (Helements w Hw l Hl).
   - intros s tag fields _ Hs w Hw l Hl. apply Hstatics. apply in_flat_map.
     exists (s, Static_block tag fields).
     split; [ exact (lookup_in _ _ _ Hs) | ].

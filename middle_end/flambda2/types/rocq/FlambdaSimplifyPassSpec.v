@@ -635,6 +635,7 @@ Definition simplify_variadic (p : variadic_primitive)
     if tag <? no_scan_tag
     then Stays_with_type (make_block_type tag tys)
     else Stays_with_kind Value
+  | Make_immutable_array _ => Stays_with_kind Value
   end.
 
 (* ======================================================================== *)

@@ -64,7 +64,8 @@ Fixpoint value_free (v : value) : bool :=
   | Value_closure_of_set _ decls slots =>
     negb (among id (map snd decls))
     && forallb (fun '(_, v) => value_free v) slots
-  | Value_block _ fields => forallb value_free fields
+  | Value_block _ fields | Value_immutable_array fields =>
+    forallb value_free fields
   | Value_partial_application callee args _ =>
     value_free callee && forallb value_free args
   end.
@@ -226,7 +227,8 @@ Lemma closure_of_free (statics : static_env) (v : value) (code : code_id)
 Proof.
   intros [_ Hvalues].
   destruct v as [c | code' slots' | fslot decls slots' | sym | tag fields
-    | contents | loc | callee args args_arity]; simpl; try discriminate.
+    | elements | contents | loc | callee args args_arity];
+    simpl; try discriminate.
   - intros Hv [= <- <-]. apply andb_true_iff in Hv as [Hcode Hslots].
     split; [ exact Hslots | ]. intros ->.
     rewrite Pos.eqb_refl in Hcode. discriminate.
@@ -260,7 +262,8 @@ Lemma closure_in_set_free (statics : static_env) (v : value)
 Proof.
   intros [_ Hvalues].
   destruct v as [c | code' slots' | fslot decls' slots' | sym | tag fields
-    | contents | loc | callee args args_arity]; simpl; try discriminate.
+    | elements | contents | loc | callee args args_arity];
+    simpl; try discriminate.
   - intros Hv [= _ _ <-]. apply andb_true_iff in Hv as [_ Hslots].
     exact Hslots.
   - intros Hv. apply andb_true_iff in Hv as [_ Hslots].
@@ -295,7 +298,7 @@ Proof.
     destruct (Pos.eqb move_to unnamed_function_slot); [ | discriminate ].
     intros [= <-]. exact Hv. }
   destruct v as [c | code' slots' | fslot decls slots' | sym | tag fields
-    | contents | loc | callee args args_arity]; try discriminate.
+    | elements | contents | loc | callee args args_arity]; try discriminate.
   - exact Hunnamed.
   - destruct (Pos.eqb fslot move_from); [ | discriminate ].
     destruct (lookup fslot decls); [ | discriminate ].
@@ -325,6 +328,7 @@ Proof.
   apply (eval_prim_preserves (fun w => value_free w = true)).
   - intros c. split; reflexivity.
   - intros tag fields. simpl. apply forallb_forall.
+  - intros elements. simpl. apply forallb_forall.
   - intros sym tag fields _ Hsym.
     pose proof (Hvalues sym _ Hsym) as Hok. simpl in Hok.
     apply forallb_forall. exact Hok.

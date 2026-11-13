@@ -141,6 +141,8 @@ Fixpoint permute_value (p : permutation) (v : value) : value :=
       (map (fun slot => (fst slot, permute_value p (snd slot))) slots)
   | Value_symbol s => Value_symbol s
   | Value_block tag fields => Value_block tag (map (permute_value p) fields)
+  | Value_immutable_array elements =>
+    Value_immutable_array (map (permute_value p) elements)
   | Value_boxed_number c => Value_boxed_number c
   | Value_location l => Value_location (permute p l)
   | Value_partial_application callee args args_arity =>

@@ -485,7 +485,8 @@ Definition effects_of_prim (p : prim) : effects :=
   | Unary (Opaque_identity _) => Arbitrary_effects
   | Unary (Box_number _) => Only_generative_effects Immutable
   | Unary _ | Binary _ => No_effects
-  | Variadic (Make_block _) => Only_generative_effects Immutable
+  | Variadic (Make_block _) | Variadic (Make_immutable_array _) =>
+    Only_generative_effects Immutable
   | Heap (Make_block_with_identity Cell_mutable _) =>
     Only_generative_effects Mutable
   | Heap (Make_block_with_identity Cell_immutable_unique _) =>
@@ -686,7 +687,8 @@ Fixpoint locations_of_value (v : value) : list location :=
   | Value_const _ | Value_symbol _ | Value_boxed_number _ => []
   | Value_closure _ slots | Value_closure_of_set _ _ slots =>
     flat_map (fun slot => locations_of_value (snd slot)) slots
-  | Value_block _ fields => flat_map locations_of_value fields
+  | Value_block _ fields | Value_immutable_array fields =>
+    flat_map locations_of_value fields
   | Value_location l => [l]
   | Value_partial_application callee args _ =>
     locations_of_value callee ++ flat_map locations_of_value args

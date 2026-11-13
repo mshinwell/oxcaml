@@ -101,7 +101,8 @@ Fixpoint value_avoids (D : dropped) (v : value) : bool :=
   | Value_closure_of_set _ decls slots =>
     function_decls_avoid D decls
     && forallb (fun '(_, v) => value_avoids D v) slots
-  | Value_block _ fields => forallb (value_avoids D) fields
+  | Value_block _ fields | Value_immutable_array fields =>
+    forallb (value_avoids D) fields
   | Value_boxed_number _ => true
   | Value_location _ => true
   | Value_partial_application callee args _ =>

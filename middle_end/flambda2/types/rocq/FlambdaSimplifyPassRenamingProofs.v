@@ -270,7 +270,7 @@ Lemma simplify_variadic_equivariant (r : renaming) (p : variadic_primitive)
   simplify_variadic p (map (rename_type r) tys)
   = rename_outcome r (simplify_variadic p tys).
 Proof.
-  destruct p as [[tag]]. cbn [simplify_variadic].
+  destruct p as [[tag] | kind]; cbn [simplify_variadic]; [ | reflexivity ].
   destruct (tag <? no_scan_tag); [ | reflexivity ].
   cbn [rename_outcome]. f_equal. unfold make_block_type. symmetry.
   exact (proj2 (proj2 (proj2

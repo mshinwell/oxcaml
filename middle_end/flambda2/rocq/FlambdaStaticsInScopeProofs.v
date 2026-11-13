@@ -1035,8 +1035,8 @@ Fixpoint value_among_sub (syms syms' : list symbol) (ids ids' : list code_id)
   value_statics_among syms' ids' v = true.
 Proof.
   destruct v
-    as [c | code slots | slot decls slots | s | tag fields | c | l
-       | callee args arity];
+    as [c | code slots | slot decls slots | s | tag fields | elements | c
+       | l | callee args arity];
     simpl; auto.
   - rewrite !andb_true_iff. intros [Hc Hslots].
     split; [ exact (Hi code Hc) | ].
@@ -1054,6 +1054,11 @@ Proof.
     induction fields as [ | v fields IH]; simpl in Hfields |- *;
       [ reflexivity | ].
     apply andb_true_iff in Hfields as [Hv Hrest]. apply andb_true_iff.
+    split; [ exact (value_among_sub _ _ _ _ Hs Hi v Hv) | exact (IH Hrest) ].
+  - intros Helements.
+    induction elements as [ | v elements IH]; simpl in Helements |- *;
+      [ reflexivity | ].
+    apply andb_true_iff in Helements as [Hv Hrest]. apply andb_true_iff.
     split; [ exact (value_among_sub _ _ _ _ Hs Hi v Hv) | exact (IH Hrest) ].
   - rewrite !andb_true_iff. intros [Hcallee Hargs].
     split; [ exact (value_among_sub _ _ _ _ Hs Hi callee Hcallee) | ].
@@ -1208,8 +1213,8 @@ Lemma closure_in_set_among (statics : static_env) (v : value)
 Proof.
   intros Hstatics Hv. unfold P in Hv.
   destruct v
-    as [c | code vslots | vslot vdecls vslots | s | tag fields | c | l
-       | callee args arity];
+    as [c | code vslots | vslot vdecls vslots | s | tag fields
+       | elements | c | l | callee args arity];
     simpl in Hv |- *; try discriminate.
   - intros [= <- <- <-]. apply andb_true_iff in Hv as [Hc Hslots].
     split; [ | exact Hslots ]. simpl. rewrite Hc. reflexivity.
@@ -1276,8 +1281,8 @@ Proof.
     destruct (Pos.eqb move_to unnamed_function_slot); [ | discriminate ].
     intros [= <-]. exact Hv. }
   destruct v
-    as [c | code vslots | vslot vdecls vslots | s | tag fields | c | l
-       | callee args arity];
+    as [c | code vslots | vslot vdecls vslots | s | tag fields
+       | elements | c | l | callee args arity];
     try discriminate.
   - exact Hunnamed.
   - destruct (Pos.eqb vslot move_from); [ | discriminate ].
@@ -1317,6 +1322,7 @@ Proof.
   apply (eval_prim_preserves P).
   - intros c. split; reflexivity.
   - intros tag fields. unfold P. simpl. apply forallb_forall.
+  - intros elements. unfold P. simpl. apply forallb_forall.
   - intros s tag fields _ Hlookup.
     pose proof (statics_among_lookup statics s _ Hstatics Hlookup)
       as Hfields.

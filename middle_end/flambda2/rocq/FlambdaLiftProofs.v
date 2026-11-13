@@ -129,6 +129,7 @@ Qed.
 Ltac lifted_cases H :=
   destruct H
     as [ c | s | c | tag fields fields' Hfields
+       | items items' Hitems
        | code slots slots' Hslots | fslot decls slots slots' Hslots
        | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs
        | c s Hlookup | tag fields fields' s Hlookup Hfields
@@ -149,6 +150,11 @@ Proof.
   - apply Lifted_block.
     revert fields fields' Hfields. fix IH 3.
     intros fields fields' [ | w w' rest rest' Hhead Htail]; constructor;
+      [ exact (value_lifted_extend _ _ Hextend _ _ Hhead)
+      | exact (IH _ _ Htail) ].
+  - apply Lifted_array.
+    revert items items' Hitems. fix IH 3.
+    intros items items' [ | w w' rest rest' Hhead Htail]; constructor;
       [ exact (value_lifted_extend _ _ Hextend _ _ Hhead)
       | exact (IH _ _ Htail) ].
   - apply Lifted_closure.
@@ -359,7 +365,7 @@ Fixpoint value_lifted_refl (statics' : static_env) (v : value) {struct v} :
   value_lifted statics' v v.
 Proof.
   destruct v
-    as [ c | code slots | fslot decls slots | s | tag fields | c | l
+    as [ c | code slots | fslot decls slots | s | tag fields | elements | c | l
        | callee args args_arity ].
   - apply Lifted_const.
   - apply Lifted_closure. revert slots. fix IH 1.
@@ -374,6 +380,9 @@ Proof.
   - apply Lifted_block. revert fields. fix IH 1.
     intros [ | w fields]; constructor;
       [ exact (value_lifted_refl statics' w) | exact (IH fields) ].
+  - apply Lifted_array. revert elements. fix IH 1.
+    intros [ | w elements]; constructor;
+      [ exact (value_lifted_refl statics' w) | exact (IH elements) ].
   - apply Lifted_boxed_number.
   - apply Lifted_location.
   - apply Lifted_partial_application;
@@ -623,11 +632,12 @@ Lemma array_of_lifted (v v' : value) (elements : list value) :
     ∧ Forall2 (value_lifted statics') elements elements'.
 Proof.
   intros Hv. lifted_cases Hv; simpl; try discriminate.
-  destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hs;
-    [ | discriminate ].
-  destruct (Hsymbols s allocated Hs) as (allocated' & -> & Hallocated).
-  allocated_cases Hallocated; try discriminate.
-  intros [= <-]. eauto.
+  - destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hs;
+      [ | discriminate ].
+    destruct (Hsymbols s allocated Hs) as (allocated' & -> & Hallocated).
+    allocated_cases Hallocated; try discriminate.
+    intros [= <-]. eauto.
+  - intros [= <-]. eauto.
 Qed.
 
 Lemma closure_in_set_lifted (v v' : value) (at_slot : function_slot)
@@ -762,9 +772,10 @@ Proof.
   - split.
     + intros c v' Hv. inversion Hv. reflexivity.
     + intros v c Hv. inversion Hv. reflexivity.
-  - split.
+  - split; [ | split ].
     + intros c. split; constructor.
     + intros tag fields fields' Hfields. constructor. exact Hfields.
+    + intros elements elements' Helements. constructor. exact Helements.
   - intros v v' Hv.
     split;
       [ | split; [ | split; [ | split; [ | split; [ | split; [ | split ] ] ] ] ]
@@ -1248,7 +1259,7 @@ Proof.
       destruct (eval_simple vars contents) as [w | ] eqn:Hcontents;
         [ | discriminate ].
       rewrite eval_prim_unary in Heval. simpl in Heval.
-      destruct w as [number | | | | | | | ]; try discriminate.
+      destruct w as [number | | | | | | | | ]; try discriminate.
       destruct (is_number_of_kind kind number); [ | discriminate ].
       injection Heval as <-.
       destruct (eval_simple_lifted statics' vars vars' contents _ Hvars
@@ -1259,8 +1270,8 @@ Proof.
       eexists. split; [ reflexivity | ]. split; [ reflexivity | ].
       apply Lifted_to_boxed_number. simpl. apply lookup_head.
     + (* A block. *)
-      destruct p as [[tag]]. simpl in Hlift. injection Hlift as <- <-.
-      simpl in Heval.
+      destruct p as [[tag] | kind]; simpl in Hlift; [ | discriminate ].
+      injection Hlift as <- <-. simpl in Heval.
       destruct (eval_simples vars args) as [vs | ] eqn:Hargs;
         [ | discriminate ].
       rewrite eval_prim_variadic in Heval. simpl in Heval.
@@ -1326,8 +1337,8 @@ Proof.
       destruct args as [ | contents [ | arg args]]; simpl in Hlift;
         try discriminate.
       injection Hlift as <- <-. reflexivity.
-    + destruct p as [[tag]]. simpl in Hlift. injection Hlift as <- <-.
-      reflexivity.
+    + destruct p as [[tag] | kind]; simpl in Hlift; [ | discriminate ].
+      injection Hlift as <- <-. reflexivity.
   - destruct d as [ | | | fslot decls slots | | | ]; simpl in Hlift;
       try discriminate.
     destruct (lookup fslot syms) as [s1 | ]; [ | discriminate ].
@@ -3250,7 +3261,7 @@ Proof.
   - destruct p as [p | p | p | p]; try reflexivity.
     + destruct p; try reflexivity.
       destruct args as [ | contents [ | arg args]]; reflexivity.
-    + destruct p as [[tag]]. reflexivity.
+    + destruct p as [[tag] | kind]; reflexivity.
   - destruct (lookup fslot syms) as [s | ]; [ | reflexivity ].
     destruct (list_eq_dec Pos.eq_dec (map fst syms) (map fst decls));
       [ | reflexivity ].

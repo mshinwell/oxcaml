@@ -42,10 +42,11 @@
 
    A value is a constant (a tagged immediate, a naked number of any kind,
    null or poison), a pointer to what a symbol is bound to, or something
-   allocated that is immutable: a closure, a block of values, a boxed
-   number. An allocated value is its contents: two of them are the same
-   value when they have the same contents, and nothing tells one
-   allocation from another. There is no mutable memory.
+   allocated that is immutable: a closure, a block of values, an
+   immutable array of values, a boxed number. An allocated value is its
+   contents: two of them are the same value when they have the same
+   contents, and nothing tells one allocation from another. There is no
+   mutable memory.
 
    A symbol is a value by itself, whether or not it is bound, and what it
    points to is in the static environment. So a block made by a primitive
@@ -57,14 +58,17 @@
    boxed number, a string and an immutable array
    ([observations_disjoint_statement], [array_of_disjoint_statement]).
 
-   A symbol may be bound to an immutable array of values
-   ([Static_immutable_array]): the table that Simplify makes of a
-   [Switch] whose arms give one continuation constants
+   An immutable array of values is a value that a primitive makes
+   ([Value_immutable_array], made by [Make_immutable_array]:
+   FlambdaPrimitiveSpec.eval_variadic_primitive), or what a symbol is
+   bound to ([Static_immutable_array]): the table that Simplify makes
+   of a [Switch] whose arms give one continuation constants
    (simplify/simplify_switch_expr.ml), or an immutable array that it
-   lifts. It is static data, as a static block is, and not a location
-   of the heap: nothing writes it. [array_of] reads it, by its
-   elements. There is no value that is an immutable array, only a
-   symbol bound to one: no primitive of the model makes one.
+   lifts. Either is immutable data, as a block is, and not a location
+   of the heap: nothing writes it. [array_of] reads both, by the
+   elements. The value keeps no array kind: an array of the model
+   holds values of kind [Value], and a load says at which kind it
+   reads (FlambdaPrimitiveSpec.v).
 
    A symbol may also be bound to something that the unit imports
    ([Static_imported]): an object of another unit (a predefined
@@ -126,18 +130,19 @@ Import ListNotations.
 Definition location : Type := positive.
 
 (* The values of variables: constants, closures made by a [Let], pointers
-   to what symbols are bound to, and the immutable blocks and the boxed
-   numbers that primitives make. A closure of a set of one function is
-   the code of its function and the values of its value slots
-   ([Value_closure]). A closure of a set of functions at named slots is
-   the slot it is at, the code of each function slot of the set, and the
-   values of the value slots ([Value_closure_of_set]). The contents of a
-   boxed number are a constant, whose constructor says which number it
-   is. A partial application ([Value_partial_application]) is what a
-   call that gives a function fewer arguments than it has parameters
-   comes to: the value called, the arguments given so far, and the arity
-   they were given at. (The warning silenced is about induction schemes
-   through the lists, which nothing uses yet.) *)
+   to what symbols are bound to, and the immutable blocks, the immutable
+   arrays and the boxed numbers that primitives make. A closure of a set
+   of one function is the code of its function and the values of its
+   value slots ([Value_closure]). A closure of a set of functions at
+   named slots is the slot it is at, the code of each function slot of
+   the set, and the values of the value slots ([Value_closure_of_set]).
+   The contents of a boxed number are a constant, whose constructor says
+   which number it is. A partial application
+   ([Value_partial_application]) is what a call that gives a function
+   fewer arguments than it has parameters comes to: the value called,
+   the arguments given so far, and the arity they were given at. (The
+   warning silenced is about induction schemes through the lists, which
+   nothing uses yet.) *)
 #[local] Set Warnings "-register-all".
 Inductive value : Type :=
   | Value_const (c : const)
@@ -147,6 +152,7 @@ Inductive value : Type :=
       (value_slots : list (value_slot * value))
   | Value_symbol (s : symbol)
   | Value_block (tag : Z) (fields : list value)
+  | Value_immutable_array (elements : list value)
   | Value_boxed_number (contents : const)
   | Value_location (l : location)
   | Value_partial_application (callee : value) (args : list value)
@@ -416,12 +422,14 @@ Definition string_of (statics : static_env) (v : value) : option (list Z) :=
   | _ => None
   end.
 
-(* A value as an immutable array of values, by its elements: a symbol
-   bound to one. A location of the heap that holds an array is not
-   one: that array may be written, and is read through the heap. *)
+(* A value as an immutable array of values, by its elements: one that a
+   primitive made, or a symbol bound to one. A location of the heap
+   that holds an array is not one: that array may be written, and is
+   read through the heap. *)
 Definition array_of (statics : static_env) (v : value)
     : option (list value) :=
   match v with
+  | Value_immutable_array elements => Some elements
   | Value_symbol s =>
     match lookup s (static_values statics) with
     | Some (Static_immutable_array elements) => Some elements
@@ -442,9 +450,8 @@ Definition partial_application_of (v : value)
 
 (* Whether a value is allocated: a closure, a block, a boxed number, a
    string, an immutable array or a partial application. A symbol bound
-   to nothing is not,
-   and nor is an imported symbol, of which no observation here says
-   anything. *)
+   to nothing is not, and nor is an imported symbol, of which no
+   observation here says anything. *)
 Definition is_allocated (statics : static_env) (v : value) : bool :=
   is_some (closure_of statics v)
   || is_some (block_of statics v)

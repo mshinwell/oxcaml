@@ -165,7 +165,9 @@
      two [Let]s cannot be given the same symbol; the two files just
      named put one binding for two [Let]s of one constant that are
      lifted out of one body (FlambdaLiftFromCodeSpec.once_each);
-   - immutable arrays, which the model has not got;
+   - immutable arrays: [lift_named] has no case for the primitive that
+     makes one, and no rule of [value_lifted] makes an array value a
+     symbol;
    - a unit that gives a variable to its return continuation, or raises
      a variable in code: see the CR at [exits_plain].
 
@@ -462,16 +464,18 @@ Definition lift_unit (L : lifting) (e : expr) : option expr :=
    slot. A constant is lifted to itself only, and so is a symbol. A
    partial application is lifted to a partial application, of the value
    it calls lifted, to its arguments lifted, at the same arity: none is
-   made a symbol. A location of the heap is lifted to itself only
+   made a symbol. An immutable array that a primitive made is lifted to
+   an array of its elements lifted ([Lifted_array]), and none is made a
+   symbol either. A location of the heap is lifted to itself only
    ([Lifted_location]): the relation is the identity on locations, and
    says nothing of what the heap holds at one. The rule is used under
-   the others: a block, a closure or a partial application that holds
-   a location, in a field, in a value slot, or in what it calls or an
-   argument, is lifted to one that holds the same location there; and
-   a block or a closure that holds one may be lifted to a symbol bound
-   to a block or a closure that holds the same, as a partial
-   application may not. It is there so that every value is lifted to
-   itself.
+   the others: a block, an array, a closure or a partial application
+   that holds a location, in a field, in an element, in a value slot,
+   or in what it calls or an argument, is lifted to one that holds the
+   same location there; and a block or a closure that holds one may be
+   lifted to a symbol bound to a block or a closure that holds the
+   same, as an array or a partial application may not. It is there so
+   that every value is lifted to itself.
 
    A term run on its own, from no variable, no continuation, the empty
    static environment and the empty heap, with the steps that the
@@ -510,6 +514,10 @@ Inductive value_lifted (statics' : static_env) : value -> value -> Prop :=
   | Lifted_block (tag : Z) (fields fields' : list value) :
     Forall2 (value_lifted statics') fields fields' ->
     value_lifted statics' (Value_block tag fields) (Value_block tag fields')
+  | Lifted_array (elements elements' : list value) :
+    Forall2 (value_lifted statics') elements elements' ->
+    value_lifted statics' (Value_immutable_array elements)
+      (Value_immutable_array elements')
   | Lifted_closure (code : code_id)
       (value_slots value_slots' : list (value_slot * value)) :
     Forall2 (slot_lifted (value_lifted statics')) value_slots value_slots' ->

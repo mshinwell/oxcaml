@@ -87,14 +87,16 @@
    Arrays. An array that has an identity is a cell of the heap
    (FlambdaHeapSpec.v), and [eval_prim] has no value on an access to
    one, as it has none on the primitives of the heap. An immutable
-   array of values is what a symbol may be bound to
+   array of values is a value that [Make_immutable_array] makes of its
+   arguments, or what a symbol may be bound to
    (FlambdaValueSpec.array_of): the table that Simplify makes of a
-   [Switch] whose arms give one continuation constants. It is static
-   data and not a location, and [eval_prim] has a value on
-   [Array_length] and on [Array_load] of such a symbol. The section
+   [Switch] whose arms give one continuation constants. Either is
+   immutable data and not a location, and [eval_prim] has a value on
+   [Array_length] and on [Array_load] of one. The section
    "Arrays" says what the four primitives of arrays compute on the
    elements of an array, which is what FlambdaHeapSpec.v applies to a
-   cell and what is applied here to the elements of a static array;
+   cell and what is applied here to the elements of an immutable
+   array;
    it is to be reviewed against
    [Simplify_common.specialise_array_kind] and the functions for
    arrays of the four files of Simplify above, and against
@@ -362,10 +364,10 @@ Definition eval_int_comp (width : Z) (behaviour : int_comparison_behaviour)
 (* What the primitives of arrays compute on the elements of an array,
    given as a list, and on the kind that the array was made at. The
    array itself is a cell of the heap (FlambdaHeapSpec.v), or, for an
-   immutable array, what a symbol is bound to
+   immutable array, a value or what a symbol is bound to
    (FlambdaValueSpec.array_of), which [eval_prim] reads with the same
-   functions; a static array has no kind, and only its length and its
-   elements are read.
+   functions; an immutable array has no kind, and only its length and
+   its elements are read.
 
    An array keeps the kind it was made at, and each of its elements is
    a value that this kind holds ([array_element_ok]): a tagged
@@ -700,10 +702,10 @@ Definition eval_reinterpret_64_bit_word
      a closure, a boxed number, a string and an immutable array
      included: Simplify takes its argument to be a variant that is not
      null ([Flambda2_types.add_get_tag_relation]).
-   - [Array_length] is the number of elements of an immutable array
-     that a symbol is bound to ([array_length_of], above), and has no
-     value on anything else. An array of the heap is a location, which
-     FlambdaHeapSpec.v reads.
+   - [Array_length] is the number of elements of an immutable array,
+     one that a primitive made or one that a symbol is bound to
+     ([array_length_of], above), and has no value on anything else. An
+     array of the heap is a location, which FlambdaHeapSpec.v reads.
    - [String_length] is the number of bytes of an immutable string, and
      has no value on anything else: Simplify makes it [Invalid] where
      its argument cannot be a string
@@ -780,9 +782,9 @@ Definition eval_unary_primitive (statics : static_env) (p : unary_primitive)
   | Get_tag =>
     let* '(tag, _) := block_of statics v in
     Some (Value_const (Naked_immediate tag))
-  (* The length of an immutable array that a symbol is bound to. An
-     array that can be written is a cell of the heap, and has no value
-     here (the section "Arrays"). *)
+  (* The length of an immutable array, a value or what a symbol is
+     bound to. An array that can be written is a cell of the heap, and
+     has no value here (the section "Arrays"). *)
   | Array_length _ =>
     let* elements := array_of statics v in
     array_length_of elements
@@ -1014,16 +1016,18 @@ Definition eval_phys_equal (statics : static_env) (v1 v2 : value)
 Definition eval_binary_primitive (statics : static_env)
     (p : binary_primitive) (v1 v2 : value) : option value :=
   match p with
-  (* A load from an immutable array that a symbol is bound to: the
-     element at the index, where the index is one that the array has
-     and the element one that the load kind takes
+  (* A load from an immutable array, a value or what a symbol is bound
+     to: the element at the index, where the index is one that the
+     array has and the element one that the load kind takes
      ([array_loaded]). The array kind and the mark that the load
      carries are not looked at. An array that can be written is a cell
      of the heap, and has no value here (the section "Arrays"). *)
-  (* CR mshinwell: A static immutable array is read at any load kind
-     that its elements fit: a table of tagged immediates has a value
-     read at [Load_values]. The compiler's constant has no kind
-     either ([Static_const.Immutable_value_array]); the symbol has the
+  (* CR mshinwell: An immutable array is read at any load kind that
+     its elements fit, whatever kind it was made at: a table of tagged
+     immediates has a value read at [Load_values], and so has an array
+     value made at [Array_immediates]. The compiler's constant has no
+     kind either ([Static_const.Immutable_value_array]); the symbol has
+     the
      type of an array of the kind that Simplify made it for
      (simplify/simplify_switch_expr.ml,
      [rebuild_mergeable_argument]), and Simplify makes no load from it
@@ -1073,7 +1077,14 @@ Definition eval_binary_primitive (statics : static_env)
    made like another: the compiler's backend refuses to allocate one
    ([To_cmm_primitive.check_alloc_fields]) and relies on Simplify's
    having made it a symbol, which is an obligation of the compiler and
-   not a reason for the term to be undefined. *)
+   not a reason for the term to be undefined.
+   [Make_immutable_array] makes an immutable array of its arguments
+   ([Value_immutable_array]): the compiler's [Make_array] at the
+   mutability [Immutable]. It has no value if an argument is not a
+   value that its array kind holds ([array_made]), or is a symbol that
+   is bound to nothing. The array made does not keep the kind. An
+   array of no elements is made like another, and is told from no
+   other: no array value has an identity. *)
 (* CR mshinwell: A [Make_block] says nothing of its fields but that each
    is of kind [Value]: the block kind of the model has not the subkind
    that the compiler gives each field, and the conversion refuses a
@@ -1091,6 +1102,11 @@ Definition eval_variadic_primitive (statics : static_env)
     if forallb (fun v => kind_eqb (kind_of_value v) Value) vs
        && forallb (bound_if_symbol statics) vs
     then Some (Value_block tag vs)
+    else None
+  | Make_immutable_array kind =>
+    let* elements := array_made kind vs in
+    if forallb (bound_if_symbol statics) vs
+    then Some (Value_immutable_array elements)
     else None
   end.
 
@@ -1307,6 +1323,7 @@ Definition binary_primitive_in_range (p : binary_primitive) : bool :=
 Definition variadic_primitive_in_range (p : variadic_primitive) : bool :=
   match p with
   | Make_block (Block_kind_values tag) => tag_in_range tag
+  | Make_immutable_array _ => true
   end.
 
 (* C4's prototype: the primitives of the heap carry the numbers of the
@@ -1346,6 +1363,7 @@ Fixpoint value_in_range (v : value) : bool :=
   | Value_symbol _ | Value_location _ => true
   | Value_block tag fields =>
     tag_in_range tag && forallb value_in_range fields
+  | Value_immutable_array elements => forallb value_in_range elements
   | Value_partial_application callee args _ =>
     value_in_range callee && forallb value_in_range args
   end.
@@ -1441,14 +1459,14 @@ Definition result_kind_of_binary_primitive (p : binary_primitive)
 Definition args_kind_of_variadic_primitive (p : variadic_primitive)
     : flambda_kind :=
   match p with
-  | Make_block _ => Value
+  | Make_block _ | Make_immutable_array _ => Value
   end.
 
 (* [Flambda_primitive.result_kind_of_variadic_primitive']. *)
 Definition result_kind_of_variadic_primitive (p : variadic_primitive)
     : flambda_kind :=
   match p with
-  | Make_block _ => Value
+  | Make_block _ | Make_immutable_array _ => Value
   end.
 
 (* C4's prototype: the kinds of the results of the primitives of the
@@ -1552,13 +1570,15 @@ Definition eval_prim_kinds_statement : Prop :=
     ∧ kind_of_value v = prim_result_kind p.
 
 (* A primitive makes its value out of its arguments: it returns a number,
-   one of its arguments, a block of them, a field of a block that is
-   one of them, or an element of an immutable array that is one of
-   them. So a property of values that holds of numbers, that holds of a
-   block exactly when it holds of its fields, and that holds of the
-   fields of the static block, and of the elements of the static
-   array, that a symbol with the property is bound to, holds of the
-   value of a primitive whose arguments have it. That no
+   one of its arguments, a block or an immutable array of them, a field
+   of a block that is one of them, or an element of an immutable array
+   that is one of them. So a property of values that holds of numbers,
+   that holds of a block exactly when it holds of its fields and of an
+   immutable array exactly when it holds of its elements
+   ([holds_of_arrays]), and that holds of the fields of the static
+   block, and of the elements of the static array, that a symbol with
+   the property is bound to, holds of the value of a primitive whose
+   arguments have it. That no
    primitive brings in a symbol or a code id is a case
    (FlambdaUnusedStaticsProofs.eval_prim_avoids). *)
 Definition holds_of_numbers (P : value -> Prop) : Prop :=
@@ -1567,6 +1587,11 @@ Definition holds_of_numbers (P : value -> Prop) : Prop :=
 Definition holds_of_blocks (P : value -> Prop) : Prop :=
   ∀ (tag : Z) (fields : list value),
     P (Value_block tag fields) <-> (∀ v : value, v ∈ fields -> P v).
+
+Definition holds_of_arrays (P : value -> Prop) : Prop :=
+  ∀ elements : list value,
+    P (Value_immutable_array elements)
+    <-> (∀ v : value, v ∈ elements -> P v).
 
 Definition holds_in_static_blocks (statics : static_env)
     (P : value -> Prop) : Prop :=
@@ -1588,6 +1613,7 @@ Definition eval_prim_preserves_statement : Prop :=
     (v : value),
     holds_of_numbers P ->
     holds_of_blocks P ->
+    holds_of_arrays P ->
     holds_in_static_blocks statics P ->
     holds_in_static_arrays statics P ->
     (∀ arg : value, arg ∈ vs -> P arg) ->
@@ -1674,8 +1700,9 @@ Definition phys_equal_symbols_statement : Prop :=
    - related values are the same constant, or neither is a constant
      ([relates_constants]);
    - a constant and a boxed number are related to themselves, and blocks
-     made alike of related fields are related ([relates_made]): what a
-     primitive makes of related arguments is related;
+     made alike of related fields, and immutable arrays of related
+     elements, are related ([relates_made]): what a primitive makes of
+     related arguments is related;
    - what an observation answers of the first value it answers of the
      second, with related parts; if the first is a closure or a partial
      application so is the second; if the first is not a symbol bound
@@ -1717,7 +1744,11 @@ Definition relates_made (R : value -> value -> Prop) : Prop :=
     ∧ R (Value_boxed_number c) (Value_boxed_number c))
   ∧ (∀ (tag : Z) (fields fields' : list value),
       Forall2 R fields fields' ->
-      R (Value_block tag fields) (Value_block tag fields')).
+      R (Value_block tag fields) (Value_block tag fields'))
+  ∧ (∀ elements elements' : list value,
+      Forall2 R elements elements' ->
+      R (Value_immutable_array elements)
+        (Value_immutable_array elements')).
 
 Definition relates_observations (R : value -> value -> Prop)
     (statics statics' : static_env) : Prop :=

@@ -760,9 +760,8 @@ be proved correct, built a fragment at a time. The files follow the same Spec/Pr
   value is, use an observation (`closure_of`, `block_of`,
   `boxed_number_of`, `string_of`, `array_of`, and `kind_of_value`): it
   takes the static environment, and answers the same for a value made
-  as the term runs and for a symbol bound to the same thing (`array_of`
-  reads a symbol only: an immutable array of values is static data,
-  which nothing makes as the term runs). Do not match on the
+  as the term runs and for a symbol bound to the same thing. Do not
+  match on the
   constructors of `value` for that. Where a definition by cases on
   `value` treats what is left alike, end it with a wildcard, so that a
   new form of value does not stop it compiling; a proof by cases names

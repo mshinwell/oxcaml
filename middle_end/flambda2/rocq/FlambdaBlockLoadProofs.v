@@ -204,7 +204,7 @@ Proof.
     | pfrom slot closure | move_from move_to closure];
     try discriminate.
   destruct p as [u | b | v | hp]; try discriminate.
-  destruct v as [kind]. destruct kind as [tag].
+  destruct v as [kind | kind]; [ | discriminate ]. destruct kind as [tag].
   simpl. intros [= <-]. exists args. auto.
 Qed.
 

@@ -442,7 +442,7 @@ Proof.
       destruct (eval_simple vars contents) as [w | ] eqn:Hcontents;
         [ | discriminate ].
       rewrite eval_prim_unary in Heval. simpl in Heval.
-      destruct w as [number | | | | | | | ]; try discriminate.
+      destruct w as [number | | | | | | | | ]; try discriminate.
       destruct (is_number_of_kind kind number); [ | discriminate ].
       injection Heval as <-.
       destruct (eval_simple_lifted statics' vars vars' contents _ Hvars
@@ -456,7 +456,8 @@ Proof.
       injection Hconst as <-.
       apply Lifted_to_boxed_number. exact Hsym.
     + (* A block. *)
-      destruct p as [[tag]]. simpl in Hlift. injection Hlift as <- <-.
+      destruct p as [[tag] | akind]; simpl in Hlift; [ | discriminate ].
+      injection Hlift as <- <-.
       simpl in Heval.
       destruct (eval_simples vars args) as [vs | ] eqn:Hargs;
         [ | discriminate ].

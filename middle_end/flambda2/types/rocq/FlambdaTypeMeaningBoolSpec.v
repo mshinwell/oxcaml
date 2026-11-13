@@ -98,6 +98,8 @@ Fixpoint value_eqb (v v' : value) : bool :=
   | Value_symbol s, Value_symbol s' => Pos.eqb s s'
   | Value_block tag fields, Value_block tag' fields' =>
     Z.eqb tag tag' && lists_eqb value_eqb fields fields'
+  | Value_immutable_array elements, Value_immutable_array elements' =>
+    lists_eqb value_eqb elements elements'
   | Value_boxed_number c, Value_boxed_number c' => const_eqb c c'
   | Value_location l, Value_location l' => Pos.eqb l l'
   | Value_partial_application callee args args_arity,

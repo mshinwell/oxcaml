@@ -282,13 +282,16 @@ Lemma permute_value_identity (v : value) :
   permute_value identity_permutation v = v.
 Proof.
   induction v as [c | code slots IH | slot decls slots IH | s | tag fields IH
-                 | c | l | callee args args_arity IHcallee IHargs]
+                 | elements IH | c | l
+                 | callee args args_arity IHcallee IHargs]
     using value_induction; simpl; try reflexivity.
   - rewrite (map_slots_Forall_ext _ (fun v => v) slots IH), map_slots_id.
     reflexivity.
   - rewrite (map_slots_Forall_ext _ (fun v => v) slots IH), map_slots_id.
     reflexivity.
   - rewrite (map_Forall_ext _ (fun v => v) fields IH), map_id. reflexivity.
+  - rewrite (map_Forall_ext _ (fun v => v) elements IH), map_id.
+    reflexivity.
   - rewrite IHcallee, (map_Forall_ext _ (fun v => v) args IHargs), map_id.
     reflexivity.
 Qed.
@@ -298,7 +301,8 @@ Lemma permute_value_compose (second first : permutation) (v : value) :
   = permute_value second (permute_value first v).
 Proof.
   induction v as [c | code slots IH | slot decls slots IH | s | tag fields IH
-                 | c | l | callee args args_arity IHcallee IHargs]
+                 | elements IH | c | l
+                 | callee args args_arity IHcallee IHargs]
     using value_induction; simpl; try reflexivity.
   - rewrite map_slots_map_slots.
     rewrite (map_slots_Forall_ext _
@@ -315,6 +319,11 @@ Proof.
                (fun v => permute_value second (permute_value first v)) fields
                IH).
     reflexivity.
+  - rewrite map_map.
+    rewrite (map_Forall_ext _
+               (fun v => permute_value second (permute_value first v))
+               elements IH).
+    reflexivity.
   - unfold compose_permutation. rewrite permute_app. reflexivity.
   - rewrite IHcallee, map_map.
     rewrite (map_Forall_ext _
@@ -328,10 +337,12 @@ Lemma locations_of_permute_value (p : permutation) (v : value) :
   = map (permute p) (locations_of_value v).
 Proof.
   induction v as [c | code slots IH | slot decls slots IH | s | tag fields IH
-                 | c | l | callee args args_arity IHcallee IHargs]
+                 | elements IH | c | l
+                 | callee args args_arity IHcallee IHargs]
     using value_induction; simpl; try reflexivity.
   - apply (flat_map_slots_Forall (permute_value p) locations_of_value), IH.
   - apply (flat_map_slots_Forall (permute_value p) locations_of_value), IH.
+  - apply (flat_map_map_Forall (permute_value p) locations_of_value), IH.
   - apply (flat_map_map_Forall (permute_value p) locations_of_value), IH.
   - rewrite map_app, IHcallee. f_equal.
     exact (flat_map_map_Forall (permute_value p) locations_of_value
@@ -343,13 +354,16 @@ Lemma permute_value_ext (p p' : permutation) (v : value) :
   permute_value p v = permute_value p' v.
 Proof.
   induction v as [c | code slots IH | slot decls slots IH | s | tag fields IH
-                 | c | l | callee args args_arity IHcallee IHargs]
+                 | elements IH | c | l
+                 | callee args args_arity IHcallee IHargs]
     using value_induction; simpl; intros Hagree; try reflexivity.
   - rewrite (map_slots_agree _ _ locations_of_value _ slots IH Hagree).
     reflexivity.
   - rewrite (map_slots_agree _ _ locations_of_value _ slots IH Hagree).
     reflexivity.
   - rewrite (map_agree _ _ locations_of_value _ fields IH Hagree).
+    reflexivity.
+  - rewrite (map_agree _ _ locations_of_value _ elements IH Hagree).
     reflexivity.
   - rewrite Hagree; [ reflexivity | left; reflexivity ].
   - rewrite IHcallee, (map_agree _ _ locations_of_value _ args IHargs);
@@ -697,4 +711,4 @@ Theorem lookup_permute_env : lookup_permute_env_statement.
 Proof. intros p vars x. apply lookup_map_values. Qed.
 
 Theorem kind_of_permute_value : kind_of_permute_value_statement.
-Proof. intros p [ | | | | | | | ]; reflexivity. Qed.
+Proof. intros p [ | | | | | | | | ]; reflexivity. Qed.

@@ -60,7 +60,7 @@ Lemma value_is_eval (a : simple) (v : value) (vars : env) :
   value_is a v = true -> eval_simple vars a = Some v.
 Proof.
   destruct v as [k | code slots | at_slot decls slots | s | tag fields
-    | contents | l | callee args args_arity];
+    | elements | contents | l | callee args args_arity];
     simpl; try discriminate.
   - intros H. apply same_simple_eq in H. subst a. reflexivity.
   - intros H. apply same_simple_eq in H. subst a. reflexivity.
@@ -218,7 +218,7 @@ Lemma closure_in_set_slots_known (statics : static_env) (v : value)
 Proof.
   intros Hstatics Hv. unfold closure_in_set.
   destruct v as [k | code slots | at_slot set_decls slots | s | tag fields
-    | contents | l | pa_callee pa_args pa_arity];
+    | elements | contents | l | pa_callee pa_args pa_arity];
     [ | | | | discriminate .. ].
   - discriminate.
   - unfold Pv in Hv. simpl in Hv. apply andb_true_iff in Hv as [Has Hslots].
@@ -256,6 +256,12 @@ Proof.
   exact (forallb_forall (value_slots_known known) fields).
 Qed.
 
+Lemma value_slots_known_of_arrays : holds_of_arrays Pv.
+Proof.
+  intros elements.
+  exact (forallb_forall (value_slots_known known) elements).
+Qed.
+
 Lemma value_slots_known_in_static_blocks (statics : static_env) :
   Forall (fun binding => Qv (snd binding)) (static_values statics) ->
   holds_in_static_blocks statics Pv.
@@ -282,7 +288,7 @@ Lemma project_function_slot_slots_known (statics : static_env)
 Proof.
   intros Hv. unfold project_function_slot.
   destruct v as [k | code slots | at_slot decls slots | s | tag fields
-    | contents | l | pa_callee pa_args pa_arity];
+    | elements | contents | l | pa_callee pa_args pa_arity];
     [ | | | | discriminate .. ].
   - discriminate.
   - intros Hproject.
@@ -323,7 +329,7 @@ Proof.
       [ | discriminate ].
     simpl. intros Hprim.
     apply (eval_prim_preserves Pv statics p vs v value_slots_known_of_numbers
-             value_slots_known_of_blocks
+             value_slots_known_of_blocks value_slots_known_of_arrays
              (value_slots_known_in_static_blocks statics Hstatics)
              (value_slots_known_in_static_arrays statics Hstatics));
       [ | exact Hprim ].
@@ -465,6 +471,7 @@ Proof.
     intros field v Hprim.
     refine (eval_prim_preserves Pv (state_statics s) _ [tuple] v
               value_slots_known_of_numbers value_slots_known_of_blocks
+              value_slots_known_of_arrays
               (value_slots_known_in_static_blocks (state_statics s) Hstatics)
               (value_slots_known_in_static_arrays (state_statics s) Hstatics)
               _ Hprim).

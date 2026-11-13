@@ -405,7 +405,8 @@ Fixpoint value_statics_among (syms : list symbol) (ids : list code_id)
   | Value_closure_of_set _ function_decls value_slots =>
     all_among (map snd function_decls) ids
     && forallb (fun '(_, v) => value_statics_among syms ids v) value_slots
-  | Value_block _ fields => forallb (value_statics_among syms ids) fields
+  | Value_block _ fields | Value_immutable_array fields =>
+    forallb (value_statics_among syms ids) fields
   | Value_partial_application callee args _ =>
     value_statics_among syms ids callee
     && forallb (value_statics_among syms ids) args

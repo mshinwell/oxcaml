@@ -796,7 +796,7 @@ Proof.
     intros Hk vs handler_vars Hargs Hkinds Hbind Hinv_handler.
     assert (Hvalue : v = Value_const (Naked_immediate i)).
     { unfold naked_immediate_of_value in Hi.
-      destruct v as [c | | | | | | | ]; try discriminate Hi.
+      destruct v as [c | | | | | | | | ]; try discriminate Hi.
       destruct c; try discriminate Hi. injection Hi as <-. reflexivity. }
     assert (Hin :
       (arm_env tenv scrutinee i, ac_args ac)

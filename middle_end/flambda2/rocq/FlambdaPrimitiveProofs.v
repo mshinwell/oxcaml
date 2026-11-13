@@ -180,23 +180,26 @@ Lemma array_of_kind (statics : static_env) (v : value)
   array_of statics v = Some elements -> kind_of_value v = Value.
 Proof. destruct v; simpl; try discriminate; reflexivity. Qed.
 
-(* An immutable array is what a symbol is bound to. *)
-Lemma array_of_symbol (statics : static_env) (v : value)
+(* An immutable array is one made by a primitive, or what a symbol is
+   bound to. *)
+Lemma array_of_cases (statics : static_env) (v : value)
     (elements : list value) :
   array_of statics v = Some elements ->
-  ∃ s : symbol,
-    v = Value_symbol s
-    ∧ lookup s (static_values statics)
-      = Some (Static_immutable_array elements).
+  v = Value_immutable_array elements
+  ∨ ∃ s : symbol,
+      v = Value_symbol s
+      ∧ lookup s (static_values statics)
+        = Some (Static_immutable_array elements).
 Proof.
-  destruct v; simpl; try discriminate.
+  destruct v; simpl; try discriminate;
+    try (intros [= <-]; left; reflexivity).
   match goal with
   | |- context [lookup ?s ?values] =>
     destruct (lookup s values) as [allocated | ] eqn:Hlookup;
       [ destruct allocated | ]
   end;
     try discriminate.
-  intros [= <-]. eexists. split; [ reflexivity | exact Hlookup ].
+  intros [= <-]. right. eexists. split; [ reflexivity | exact Hlookup ].
 Qed.
 
 (* A block is one made by a primitive, or what a symbol is bound to. *)
@@ -314,7 +317,7 @@ Lemma imported_of_symbol (statics : static_env) (v : value) (s : symbol)
   v = Value_symbol s
   ∧ lookup s (static_values statics) = Some (Static_imported c).
 Proof.
-  destruct v as [ | | | s0 | | | | ]; simpl; try discriminate.
+  destruct v as [ | | | s0 | | | | | ]; simpl; try discriminate.
   destruct (lookup s0 (static_values statics)) as [[ | | | | | | c0] | ]
     eqn:Hlookup; try discriminate.
   intros [= <- <-]. split; [ reflexivity | exact Hlookup ].
@@ -323,7 +326,7 @@ Qed.
 Lemma is_allocated_not_imported (statics : static_env) (v : value) :
   is_allocated statics v = true -> imported_of statics v = None.
 Proof.
-  destruct v as [ | | | s | | | | ]; try reflexivity.
+  destruct v as [ | | | s | | | | | ]; try reflexivity.
   unfold is_allocated. simpl.
   destruct (lookup s (static_values statics)) as [[ | | | | | | c] | ];
     try (intros _; reflexivity).
@@ -505,9 +508,11 @@ Lemma eval_variadic_primitive_static_values (statics statics' : static_env)
   eval_variadic_primitive statics p vs
   = eval_variadic_primitive statics' p vs.
 Proof.
-  intros Hsame. destruct p as [[tag]]; simpl.
-  rewrite (forallb_bound_if_symbol_static_values statics statics' vs Hsame).
-  reflexivity.
+  intros Hsame. destruct p as [[tag] | kind]; simpl.
+  - rewrite (forallb_bound_if_symbol_static_values statics statics' vs Hsame).
+    reflexivity.
+  - rewrite (forallb_bound_if_symbol_static_values statics statics' vs Hsame).
+    reflexivity.
 Qed.
 
 Theorem eval_prim_static_values : eval_prim_static_values_statement.
@@ -1047,7 +1052,7 @@ Proof.
   - exact (fun H => H).
   - destruct (is_allocated statics v) eqn:Hallocated.
     + rewrite (is_allocated_statics_extend Hallocated). exact (fun H => H).
-    + destruct v as [[ ] | | | | | | | ]; simpl; try discriminate;
+    + destruct v as [[ ] | | | | | | | | ]; simpl; try discriminate;
         exact (fun H => H).
 Qed.
 
@@ -1201,15 +1206,23 @@ Lemma eval_variadic_primitive_statics_extend
   eval_variadic_primitive statics p vs = Some result ->
   eval_variadic_primitive statics' p vs = Some result.
 Proof.
-  intros Hextend. destruct p as [[tag]]; simpl.
-  destruct (forallb (fun v => kind_eqb (kind_of_value v) Value) vs);
-    [ | discriminate ].
-  destruct (forallb (bound_if_symbol statics) vs) eqn:Hbound;
-    [ | discriminate ].
-  rewrite
-    (forallb_bound_if_symbol_statics_extend statics statics' vs Hextend
-       Hbound).
-  exact (fun H => H).
+  intros Hextend. destruct p as [[tag] | kind]; simpl.
+  - destruct (forallb (fun v => kind_eqb (kind_of_value v) Value) vs);
+      [ | discriminate ].
+    destruct (forallb (bound_if_symbol statics) vs) eqn:Hbound;
+      [ | discriminate ].
+    rewrite
+      (forallb_bound_if_symbol_statics_extend statics statics' vs Hextend
+         Hbound).
+    exact (fun H => H).
+  - destruct (array_made kind vs) as [elements | ]; simpl;
+      [ | discriminate ].
+    destruct (forallb (bound_if_symbol statics) vs) eqn:Hbound;
+      [ | discriminate ].
+    rewrite
+      (forallb_bound_if_symbol_statics_extend statics statics' vs Hextend
+         Hbound).
+    exact (fun H => H).
 Qed.
 
 Theorem eval_prim_statics_extend : eval_prim_statics_extend_statement.
@@ -1355,14 +1368,21 @@ Proof.
     exact (eval_unary_primitive_symbol_bound statics p' s v Hp).
   - apply (eval_binary_primitive_symbol_bound statics p' s v1 v2 v Hp).
     destruct Hin as [<- | [<- | [ ]]]; auto.
-  - revert Hp. destruct p' as [[tag]]; simpl.
-    destruct (forallb (fun v => kind_eqb (kind_of_value v) Value) vs);
-      [ | discriminate ].
-    destruct (forallb (bound_if_symbol statics) vs) eqn:Hbound;
-      [ | discriminate ].
-    intros _. rewrite forallb_forall in Hbound.
-    specialize (Hbound _ Hin). simpl in Hbound.
-    destruct (lookup s (static_values statics)); discriminate.
+  - revert Hp. destruct p' as [[tag] | kind]; simpl.
+    + destruct (forallb (fun v => kind_eqb (kind_of_value v) Value) vs);
+        [ | discriminate ].
+      destruct (forallb (bound_if_symbol statics) vs) eqn:Hbound;
+        [ | discriminate ].
+      intros _. rewrite forallb_forall in Hbound.
+      specialize (Hbound _ Hin). simpl in Hbound.
+      destruct (lookup s (static_values statics)); discriminate.
+    + destruct (array_made kind vs) as [elements | ]; simpl;
+        [ | discriminate ].
+      destruct (forallb (bound_if_symbol statics) vs) eqn:Hbound;
+        [ | discriminate ].
+      intros _. rewrite forallb_forall in Hbound.
+      specialize (Hbound _ Hin). simpl in Hbound.
+      destruct (lookup s (static_values statics)); discriminate.
 Qed.
 
 (* ======================================================================== *)
@@ -1642,15 +1662,24 @@ Lemma eval_variadic_primitive_kinds (statics : static_env)
   = true
   ∧ kind_of_value v = result_kind_of_variadic_primitive p.
 Proof.
-  destruct p as [[tag]]; simpl.
-  destruct (forallb (fun v => kind_eqb (kind_of_value v) Value) args)
-    eqn:Hargs;
-    [ | discriminate ].
-  destruct (forallb (bound_if_symbol statics) args); [ | discriminate ].
-  intros [= <-]. split; [ | reflexivity ]. clear tag.
-  induction args as [ | arg args IH]; simpl in *; [ reflexivity | ].
-  apply andb_true_iff in Hargs as [Harg Hargs]. rewrite Harg.
-  exact (IH Hargs).
+  destruct p as [[tag] | kind]; simpl.
+  - destruct (forallb (fun v => kind_eqb (kind_of_value v) Value) args)
+      eqn:Hargs;
+      [ | discriminate ].
+    destruct (forallb (bound_if_symbol statics) args); [ | discriminate ].
+    intros [= <-]. split; [ | reflexivity ]. clear tag.
+    induction args as [ | arg args IH]; simpl in *; [ reflexivity | ].
+    apply andb_true_iff in Hargs as [Harg Hargs]. rewrite Harg.
+    exact (IH Hargs).
+  - destruct (array_made kind args) as [elements | ] eqn:Hmade; simpl;
+      [ | discriminate ].
+    destruct (forallb (bound_if_symbol statics) args); [ | discriminate ].
+    intros [= <-]. split; [ | reflexivity ].
+    destruct (array_made_of_arguments kind args elements Hmade) as [_ Hok].
+    clear Hmade.
+    induction args as [ | arg args IH]; simpl; [ reflexivity | ].
+    rewrite (array_element_kind kind arg (Hok arg (or_introl eq_refl))).
+    exact (IH (fun v Hv => Hok v (or_intror Hv))).
 Qed.
 
 Theorem eval_prim_kinds : eval_prim_kinds_statement.
@@ -1677,6 +1706,9 @@ Variable P : value -> Prop.
 Variable statics : static_env.
 Hypothesis Hnumbers : holds_of_numbers P.
 Hypothesis Hblocks : holds_of_blocks P.
+Hypothesis Helements :
+  ∀ elements : list value,
+    P (Value_immutable_array elements) -> ∀ v : value, v ∈ elements -> P v.
 Hypothesis Hstatic : holds_in_static_blocks statics P.
 Hypothesis Harrays : holds_in_static_arrays statics P.
 
@@ -1690,9 +1722,10 @@ Lemma array_of_elements_preserved (arg : value) (elements : list value) :
   ∀ v : value, v ∈ elements -> P v.
 Proof.
   intros Harg Harray.
-  destruct (array_of_symbol statics arg elements Harray)
-    as (s & -> & Hlookup).
-  exact (Harrays s elements Harg Hlookup).
+  destruct (array_of_cases statics arg elements Harray)
+    as [-> | (s & -> & Hlookup)].
+  - exact (Helements elements Harg).
+  - exact (Harrays s elements Harg Hlookup).
 Qed.
 
 (* The fields of a block with the property have it, whether the block
@@ -1826,25 +1859,55 @@ Proof.
     intros [= <-]. apply Hnumbers.
 Qed.
 
-(* By cases on the variadic primitives. *)
+(* By cases on the variadic primitives. That the property holds of an
+   array of which it holds of the elements is asked of the primitive
+   that makes one only. *)
 Lemma eval_variadic_primitive_preserves (p : variadic_primitive)
     (args : list value) (v : value) :
+  (∀ kind : array_kind,
+    p = Make_immutable_array kind ->
+    (∀ arg : value, arg ∈ args -> P arg) ->
+    P (Value_immutable_array args)) ->
   (∀ arg : value, arg ∈ args -> P arg) ->
   eval_variadic_primitive statics p args = Some v ->
   P v.
 Proof.
-  intros Hargs. destruct p as [[tag]]; simpl.
-  destruct (forallb (fun v => kind_eqb (kind_of_value v) Value) args);
-    [ | discriminate ].
-  destruct (forallb (bound_if_symbol statics) args); [ | discriminate ].
-  intros [= <-]. exact (proj2 (Hblocks tag args) Hargs).
+  intros Hmade_array Hargs. destruct p as [[tag] | kind]; simpl.
+  - destruct (forallb (fun v => kind_eqb (kind_of_value v) Value) args);
+      [ | discriminate ].
+    destruct (forallb (bound_if_symbol statics) args); [ | discriminate ].
+    intros [= <-]. exact (proj2 (Hblocks tag args) Hargs).
+  - destruct (array_made kind args) as [elements | ] eqn:Hmade; simpl;
+      [ | discriminate ].
+    destruct (forallb (bound_if_symbol statics) args); [ | discriminate ].
+    intros [= <-].
+    destruct (array_made_of_arguments kind args elements Hmade) as [-> _].
+    exact (Hmade_array kind eq_refl Hargs).
 Qed.
 
 End Preserves.
 
-Theorem eval_prim_preserves : eval_prim_preserves_statement.
+(* The law with what it asks of an array value in its two directions:
+   from the array to its elements, of every primitive; from the
+   elements to the array, of the primitive that makes one. *)
+Lemma eval_prim_preserves_directed (P : value -> Prop)
+    (statics : static_env) (p : prim) (vs : list value) (v : value) :
+  holds_of_numbers P ->
+  holds_of_blocks P ->
+  (∀ elements : list value,
+    P (Value_immutable_array elements) ->
+    ∀ w : value, w ∈ elements -> P w) ->
+  (∀ kind : array_kind,
+    p = Variadic (Make_immutable_array kind) ->
+    (∀ arg : value, arg ∈ vs -> P arg) ->
+    P (Value_immutable_array vs)) ->
+  holds_in_static_blocks statics P ->
+  holds_in_static_arrays statics P ->
+  (∀ arg : value, arg ∈ vs -> P arg) ->
+  eval_prim statics p vs = Some v ->
+  P v.
 Proof.
-  intros P statics p vs v Hnumbers Hblocks Hstatic Harrays Hargs Heval.
+  intros Hnumbers Hblocks Helements Hmade Hstatic Harrays Hargs Heval.
   destruct (eval_prim_arity statics p vs v Heval)
     as [(p' & v1 & -> & -> & Hp)
        | [(p' & v1 & v2 & -> & -> & Hp) | (p' & -> & Hp)]].
@@ -1854,12 +1917,21 @@ Proof.
       [ | exact Hp ].
     apply Hargs. left. reflexivity.
   - apply
-      (eval_binary_primitive_preserves P statics Hnumbers Harrays p' v1 v2
-         v);
+      (eval_binary_primitive_preserves P statics Hnumbers Helements Harrays
+         p' v1 v2 v);
       [ | exact Hp ].
     apply Hargs. left. reflexivity.
-  - exact
-      (eval_variadic_primitive_preserves P statics Hblocks p' vs v Hargs Hp).
+  - apply (eval_variadic_primitive_preserves P statics Hblocks p' vs v);
+      [ | exact Hargs | exact Hp ].
+    intros kind ->. exact (Hmade kind eq_refl).
+Qed.
+
+Theorem eval_prim_preserves : eval_prim_preserves_statement.
+Proof.
+  intros P statics p vs v Hnumbers Hblocks Hmade.
+  apply (eval_prim_preserves_directed P statics p vs v Hnumbers Hblocks).
+  - intros elements. exact (proj1 (Hmade elements)).
+  - intros kind _. exact (proj2 (Hmade vs)).
 Qed.
 
 (* ======================================================================== *)
@@ -2599,10 +2671,11 @@ Lemma eval_binary_primitive_in_range (p : binary_primitive)
     Value_symbol s ∈ [arg1; arg2] ->
     lookup s (static_values statics) = Some allocated ->
     allocated_in_range allocated = true) ->
+  value_in_range arg1 = true ->
   eval_binary_primitive statics p arg1 arg2 = Some v ->
   value_in_range v = true.
 Proof.
-  intros Hsymbols.
+  intros Hsymbols Harg1.
   destruct p as [array_kind load_kind mut | width | op | kind op | kind op
                 | kind behaviour];
     cbn [eval_binary_primitive].
@@ -2610,13 +2683,17 @@ Proof.
     destruct (array_of statics arg1) as [elements | ] eqn:Harray;
       [ | discriminate ].
     intros Hloaded.
-    destruct (array_of_symbol statics arg1 elements Harray)
-      as (s & -> & Hlookup).
-    pose proof (Hsymbols s _ (or_introl eq_refl) Hlookup) as Helements.
-    cbn [allocated_in_range] in Helements.
-    exact
-      (proj1 (forallb_forall _ _) Helements v
-         (proj1 (array_loaded_element _ _ _ _ Hloaded))).
+    destruct (array_of_cases statics arg1 elements Harray)
+      as [-> | (s & -> & Hlookup)].
+    + cbn [value_in_range] in Harg1.
+      exact
+        (proj1 (forallb_forall _ _) Harg1 v
+           (proj1 (array_loaded_element _ _ _ _ Hloaded))).
+    + pose proof (Hsymbols s _ (or_introl eq_refl) Hlookup) as Helements.
+      cbn [allocated_in_range] in Helements.
+      exact
+        (proj1 (forallb_forall _ _) Helements v
+           (proj1 (array_loaded_element _ _ _ _ Hloaded))).
   - (* [String_or_bigstring_load] *)
     unfold eval_string_load.
     destruct (string_of statics arg1) as [bytes | ]; [ | discriminate ].
@@ -2668,13 +2745,20 @@ Lemma eval_variadic_primitive_in_range (p : variadic_primitive)
   eval_variadic_primitive statics p args = Some v ->
   value_in_range v = true.
 Proof.
-  intros Hp Hargs. destruct p as [[tag]].
-  cbn [variadic_primitive_in_range] in Hp. cbn [eval_variadic_primitive].
-  destruct (forallb (fun v => kind_eqb (kind_of_value v) Value) args);
-    [ | discriminate ].
-  destruct (forallb (bound_if_symbol statics) args); [ | discriminate ].
-  intros [= <-]. cbn [value_in_range]. rewrite Hp.
-  apply forallb_forall. exact Hargs.
+  intros Hp Hargs. destruct p as [[tag] | kind].
+  - cbn [variadic_primitive_in_range] in Hp. cbn [eval_variadic_primitive].
+    destruct (forallb (fun v => kind_eqb (kind_of_value v) Value) args);
+      [ | discriminate ].
+    destruct (forallb (bound_if_symbol statics) args); [ | discriminate ].
+    intros [= <-]. cbn [value_in_range]. rewrite Hp.
+    apply forallb_forall. exact Hargs.
+  - cbn [eval_variadic_primitive].
+    destruct (array_made kind args) as [elements | ] eqn:Hmade; simpl;
+      [ | discriminate ].
+    destruct (forallb (bound_if_symbol statics) args); [ | discriminate ].
+    intros [= <-].
+    destruct (array_made_of_arguments kind args elements Hmade) as [-> _].
+    cbn [value_in_range]. apply forallb_forall. exact Hargs.
 Qed.
 
 End In_range.
@@ -2688,7 +2772,9 @@ Proof.
   - apply (eval_unary_primitive_in_range statics p' v1 v);
       [ exact Hsymbols | | exact Hp' ].
     apply Hargs. left. reflexivity.
-  - exact (eval_binary_primitive_in_range statics p' v1 v2 v Hsymbols Hp').
+  - apply (eval_binary_primitive_in_range statics p' v1 v2 v Hsymbols);
+      [ | exact Hp' ].
+    apply Hargs. left. reflexivity.
   - exact
       (eval_variadic_primitive_in_range statics p' vs v Hp Hargs Hp').
 Qed.
@@ -2716,7 +2802,11 @@ Let Hnumber : ∀ c : const,
 Let Hblock : ∀ (tag : Z) (fields fields' : list value),
     Forall2 R fields fields' ->
     R (Value_block tag fields) (Value_block tag fields') :=
-  proj2 (proj1 (proj2 Hrespects)).
+  proj1 (proj2 (proj1 (proj2 Hrespects))).
+Let Harray : ∀ elements elements' : list value,
+    Forall2 R elements elements' ->
+    R (Value_immutable_array elements) (Value_immutable_array elements') :=
+  proj2 (proj2 (proj1 (proj2 Hrespects))).
 Let Hobserved : relates_observations R statics statics' :=
   proj2 (proj2 Hrespects).
 
@@ -3071,24 +3161,41 @@ Lemma eval_variadic_primitive_related (p : variadic_primitive)
   ∃ result' : value,
     eval_variadic_primitive statics' p vs' = Some result' ∧ R result result'.
 Proof.
-  intros Hargs. destruct p as [[tag]]; simpl.
-  destruct (forallb (fun v => kind_eqb (kind_of_value v) Value) vs)
-    eqn:Hkinds;
-    [ | discriminate ].
-  destruct (forallb (bound_if_symbol statics) vs) eqn:Hbound;
-    [ | discriminate ].
-  intros [= <-]. exists (Value_block tag vs').
-  split; [ | apply Hblock, Hargs ].
-  assert (Hkinds' :
-    forallb (fun v => kind_eqb (kind_of_value v) Value) vs' = true).
-  { revert Hkinds. apply (forall2_forallb R); [ | exact Hargs ].
-    intros v v' Hr. rewrite (related_same_kind v v' Hr). exact (fun H => H). }
-  assert (Hbound' : forallb (bound_if_symbol statics') vs' = true).
-  { revert Hbound. apply (forall2_forallb R); [ | exact Hargs ].
+  intros Hargs.
+  assert (Hbound' :
+    forallb (bound_if_symbol statics) vs = true ->
+    forallb (bound_if_symbol statics') vs' = true).
+  { apply (forall2_forallb R); [ | exact Hargs ].
     intros v v' Hr.
     exact
       (proj1 (proj2 (proj2 (proj2 (proj2 (proj2 (Hobserved v v' Hr))))))). }
-  rewrite Hkinds', Hbound'. reflexivity.
+  destruct p as [[tag] | kind]; simpl.
+  - destruct (forallb (fun v => kind_eqb (kind_of_value v) Value) vs)
+      eqn:Hkinds;
+      [ | discriminate ].
+    destruct (forallb (bound_if_symbol statics) vs) eqn:Hbound;
+      [ | discriminate ].
+    intros [= <-]. exists (Value_block tag vs').
+    split; [ | apply Hblock, Hargs ].
+    assert (Hkinds' :
+      forallb (fun v => kind_eqb (kind_of_value v) Value) vs' = true).
+    { revert Hkinds. apply (forall2_forallb R); [ | exact Hargs ].
+      intros v v' Hr. rewrite (related_same_kind v v' Hr).
+      exact (fun H => H). }
+    rewrite Hkinds', (Hbound' eq_refl). reflexivity.
+  - destruct (array_made kind vs) as [elements | ] eqn:Hmade; simpl;
+      [ | discriminate ].
+    destruct (forallb (bound_if_symbol statics) vs) eqn:Hbound;
+      [ | discriminate ].
+    intros [= <-].
+    destruct
+      (array_made_related_in R
+         (relates_constants_numbers R (proj1 Hrespects)) kind vs vs'
+         elements Hargs Hmade)
+      as (elements' & Hmade' & Helements).
+    exists (Value_immutable_array elements').
+    split; [ | apply Harray, Helements ].
+    rewrite Hmade'. simpl. rewrite (Hbound' eq_refl). reflexivity.
 Qed.
 
 End Related.
@@ -4102,6 +4209,94 @@ Proof. reflexivity. Qed.
 Example phys_equal_of_static_array_and_immediate :
   eval_prim a_table (Binary (Phys_equal Phys_eq))
     [Value_symbol 1%positive; tagged 8]
+  = Some (naked 0).
+Proof. reflexivity. Qed.
+
+(* An immutable array made as the term runs: the array of the
+   arguments, each a value that the array kind holds and none a symbol
+   bound to nothing. It is read as a static one is. *)
+Definition an_array_value : value :=
+  Value_immutable_array [tagged 8; tagged 6; Value_symbol 2%positive].
+
+Example make_immutable_array :
+  eval_prim a_table (Variadic (Make_immutable_array Array_values))
+    [tagged 8; tagged 6; Value_symbol 2%positive]
+  = Some an_array_value.
+Proof. reflexivity. Qed.
+
+Example make_immutable_array_of_nothing :
+  eval_prim empty_static_env (Variadic (Make_immutable_array Array_values))
+    []
+  = Some (Value_immutable_array []).
+Proof. reflexivity. Qed.
+
+Example make_immutable_array_of_immediates_with_a_symbol :
+  eval_prim a_table (Variadic (Make_immutable_array Array_immediates))
+    [tagged 8; Value_symbol 2%positive]
+  = None.
+Proof. reflexivity. Qed.
+
+Example make_immutable_array_of_a_naked_number :
+  eval_prim empty_static_env (Variadic (Make_immutable_array Array_values))
+    [naked 2]
+  = None.
+Proof. reflexivity. Qed.
+
+Example make_immutable_array_of_an_unbound_symbol :
+  eval_prim empty_static_env (Variadic (Make_immutable_array Array_values))
+    [Value_symbol 2%positive]
+  = None.
+Proof. reflexivity. Qed.
+
+Example array_value_length :
+  unary empty_static_env (Array_length (Array_kind Array_values))
+    an_array_value
+  = Some (tagged 3).
+Proof. reflexivity. Qed.
+
+Example array_value_load :
+  table_load Load_immediates an_array_value (tagged 1) = Some (tagged 6).
+Proof. reflexivity. Qed.
+
+Example array_value_load_a_symbol :
+  table_load Load_values an_array_value (tagged 2)
+  = Some (Value_symbol 2%positive).
+Proof. reflexivity. Qed.
+
+Example array_value_load_a_symbol_as_an_immediate :
+  table_load Load_immediates an_array_value (tagged 2) = None.
+Proof. reflexivity. Qed.
+
+Example array_value_load_past_the_end :
+  table_load Load_values an_array_value (tagged 3) = None.
+Proof. reflexivity. Qed.
+
+Example block_load_from_array_value :
+  unary a_table (load None None 0) an_array_value = None.
+Proof. reflexivity. Qed.
+
+Example get_tag_of_array_value :
+  unary a_table Get_tag an_array_value = None.
+Proof. reflexivity. Qed.
+
+Example is_int_of_array_value :
+  unary a_table (Is_int false) an_array_value = Some (naked 0).
+Proof. reflexivity. Qed.
+
+Example is_null_of_array_value :
+  unary a_table Is_null an_array_value = Some (naked 0).
+Proof. reflexivity. Qed.
+
+(* Two allocated values: no value, as for two blocks, and as for the
+   array against itself. *)
+Example phys_equal_of_array_value_and_itself :
+  eval_prim a_table (Binary (Phys_equal Phys_eq))
+    [an_array_value; an_array_value]
+  = None.
+Proof. reflexivity. Qed.
+
+Example phys_equal_of_array_value_and_immediate :
+  eval_prim a_table (Binary (Phys_equal Phys_eq)) [an_array_value; tagged 8]
   = Some (naked 0).
 Proof. reflexivity. Qed.
 

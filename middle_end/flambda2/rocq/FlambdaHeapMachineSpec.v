@@ -373,10 +373,11 @@ Definition contents_related (c c' : const) : Prop :=
    - Immutable values are compared by their contents, read through the
      observations, so through a symbol on either side: a block made by a
      primitive is a symbol bound to a static block with related fields.
-     An immutable array that a symbol is bound to
-     (FlambdaValueSpec.array_of) is one with related elements
-     ([Step_array]); it is static data and not a location, and an
-     array of the heap is a location.
+     An immutable array (FlambdaValueSpec.array_of), one that a
+     primitive made or one that a symbol is bound to, is one with
+     related elements ([Step_array]), so through a symbol on either
+     side as a block is; it is immutable data and not a location, and
+     an array of the heap is a location.
    - A closure is read as one of a set ([closure_in_set]): the same
      function slot of a set with the same function declarations, with
      value slots of the same names and related values. And the closures

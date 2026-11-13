@@ -4509,7 +4509,7 @@ Lemma tagged_immediate_of_value (v : value) (i : Z) :
   v = Value_const (Tagged_immediate i).
 Proof.
   destruct v
-    as [c | code slots | slot decls slots | s | tag fields | c
+    as [c | code slots | slot decls slots | s | tag fields | elements | c
        | l | callee args args_arity];
     try discriminate.
   destruct c; try discriminate. simpl.
@@ -4550,7 +4550,7 @@ Lemma eval_is_null_cases (statics : static_env) (v : value) (b : bool) :
 Proof.
   intros H.
   assert (Hnull : v = Value_const Null ∨ v <> Value_const Null).
-  { destruct v as [c | | | | | | | ]; [ destruct c | | | | | | | ];
+  { destruct v as [c | | | | | | | | ]; [ destruct c | | | | | | | | ];
       first [ left; reflexivity | right; discriminate ]. }
   destruct Hnull as [-> | Hnot_null].
   - unfold eval_is_null in H. injection H as <-. split; reflexivity.
@@ -4560,7 +4560,7 @@ Proof.
         then Some false
         else None).
     { unfold eval_is_null.
-      destruct v as [c | | | | | | | ]; [ destruct c | | | | | | | ];
+      destruct v as [c | | | | | | | | ]; [ destruct c | | | | | | | | ];
         first [ reflexivity | exfalso; apply Hnot_null; reflexivity ]. }
     rewrite Heq in H.
     destruct (is_tagged_immediate v) eqn:Htagged; simpl in H.

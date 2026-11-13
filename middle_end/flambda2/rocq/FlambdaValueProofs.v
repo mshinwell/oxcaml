@@ -51,7 +51,7 @@ Theorem array_of_disjoint : array_of_disjoint_statement.
 Proof.
   intros statics v.
   unfold array_of, closure_of, block_of, boxed_number_of, string_of.
-  destruct v; try congruence.
+  destruct v; try congruence; try (intros _; repeat split; reflexivity).
   match goal with
   | |- context [lookup ?s (static_values statics)] =>
     destruct (lookup s (static_values statics)) as [allocated | ];

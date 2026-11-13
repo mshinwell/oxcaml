@@ -200,8 +200,8 @@ Lemma value_closures_bound_le (bound bound' : code_id -> bool) (v : value) :
 Proof.
   intros Hle.
   induction v
-    as [ c | code slots IH | slot decls slots IH | s | tag fields IH | c | l
-       | callee args args_arity IHcallee IHargs ]
+    as [ c | code slots IH | slot decls slots IH | s | tag fields IH
+       | elements IH | c | l | callee args args_arity IHcallee IHargs ]
     using value_induction;
     simpl; try (intros _; reflexivity).
   - intros H. apply andb_true_iff in H as [Hcode Hslots].
@@ -214,6 +214,8 @@ Proof.
     intros vslot Hin. exact (IH vslot Hin (Hslots vslot Hin)).
   - intros H. rewrite forallb_forall in H |- *. rewrite Forall_forall in IH.
     intros field Hin. exact (IH field Hin (H field Hin)).
+  - intros H. rewrite forallb_forall in H |- *. rewrite Forall_forall in IH.
+    intros element Hin. exact (IH element Hin (H element Hin)).
   - intros H. apply andb_true_iff in H as [Hcallee Hargs].
     rewrite (IHcallee Hcallee). simpl.
     rewrite forallb_forall in Hargs |- *. rewrite Forall_forall in IHargs.
@@ -455,6 +457,12 @@ Proof.
   reflexivity.
 Qed.
 
+Lemma value_ok_of_arrays : holds_of_arrays value_ok.
+Proof.
+  intros elements. unfold value_ok. simpl. rewrite forallb_forall.
+  reflexivity.
+Qed.
+
 Lemma value_ok_in_static_blocks : holds_in_static_blocks statics value_ok.
 Proof.
   intros s tag fields _ Hlookup v Hin.
@@ -482,7 +490,7 @@ Proof.
   intros field v Hv.
   refine
     (eval_prim_preserves value_ok statics _ [tuple] v value_ok_of_numbers
-       value_ok_of_blocks value_ok_in_static_blocks
+       value_ok_of_blocks value_ok_of_arrays value_ok_in_static_blocks
        value_ok_in_static_arrays _ Hv).
   intros w [<- | [ ]]. exact Htuple.
 Qed.
@@ -498,8 +506,8 @@ Lemma closure_in_set_ok (v : value) (slot : function_slot)
 Proof.
   unfold value_ok. intros Hv.
   destruct v
-    as [ c | code vslots | vslot vdecls vslots | s | tag fields | c | l
-       | callee args args_arity ];
+    as [ c | code vslots | vslot vdecls vslots | s | tag fields
+       | elements | c | l | callee args args_arity ];
     simpl in Hv |- *; try discriminate.
   - intros [= <- <- <-]. apply andb_true_iff in Hv as [Hcode Hslots].
     split; [ | exact Hslots ]. unfold decls_bound. simpl. rewrite Hcode.
@@ -549,8 +557,8 @@ Lemma project_function_slot_ok (move_from move_to : function_slot)
 Proof.
   unfold value_ok, project_function_slot. intros Hc.
   destruct c
-    as [ k | code vslots | vslot vdecls vslots | s | tag fields | k | l
-       | callee args args_arity ];
+    as [ k | code vslots | vslot vdecls vslots | s | tag fields
+       | elements | k | l | callee args args_arity ];
     try discriminate.
   - destruct (Pos.eqb move_from unnamed_function_slot); [ | discriminate ].
     destruct (Pos.eqb move_to unnamed_function_slot); [ | discriminate ].
@@ -589,7 +597,7 @@ Proof.
       [ | discriminate ].
     intros Hprim.
     apply (eval_prim_preserves value_ok statics p vs v value_ok_of_numbers
-             value_ok_of_blocks value_ok_in_static_blocks
+             value_ok_of_blocks value_ok_of_arrays value_ok_in_static_blocks
              value_ok_in_static_arrays);
       [ | exact Hprim ].
     pose proof (eval_simples_ok vars args vs Hvars Hargs) as Hvs.

@@ -243,7 +243,7 @@ Lemma closure_of_well_kinded (statics : static_env) (v : value)
   value_wk (Value_closure code vs) = true.
 Proof.
   intros Hv Hstatics.
-  destruct v as [c | code' vs' | slot decls vs' | sym | tag fields | c
+  destruct v as [c | code' vs' | slot decls vs' | sym | tag fields | | c
     | l | pa_callee pa_args pa_arity];
     simpl; try discriminate.
   - intros [= <- <-]. exact Hv.
@@ -252,8 +252,7 @@ Proof.
   - apply andb_true_iff in Hstatics as [_ Hvalues].
     destruct (lookup sym (static_values statics))
       as [[code' vs' | slot syms decls vs' | tag fields | contents | bytes
-           | elements | ]
-         | ] eqn:Hsym;
+           | elements | ] | ] eqn:Hsym;
       try discriminate.
     + intros [= <- <-].
       exact
@@ -274,7 +273,7 @@ Lemma closure_in_set_well_kinded (statics : static_env) (v : value)
   value_wk (Value_closure_of_set slot decls vs) = true.
 Proof.
   intros Hv Hstatics.
-  destruct v as [c | code' vs' | slot' decls' vs' | sym | tag fields | c
+  destruct v as [c | code' vs' | slot' decls' vs' | sym | tag fields | | c
     | l | pa_callee pa_args pa_arity];
     simpl; try discriminate.
   - intros [= <- <- <-]. exact Hv.
@@ -283,8 +282,7 @@ Proof.
   - apply andb_true_iff in Hstatics as [_ Hvalues].
     destruct (lookup sym (static_values statics))
       as [[code' vs' | slot' syms decls' vs' | tag fields | contents | bytes
-           | elements | ]
-         | ] eqn:Hsym;
+           | elements | ] | ] eqn:Hsym;
       try discriminate.
     + intros [= <- <- <-].
       exact
@@ -305,7 +303,7 @@ Lemma project_function_slot_well_kinded (statics : static_env)
   kind_of_value w = Value ∧ value_wk w = true.
 Proof.
   intros Hv. unfold project_function_slot.
-  destruct v as [c | code vs | slot decls vs | sym | tag fields | c
+  destruct v as [c | code vs | slot decls vs | sym | tag fields | | c
     | l | pa_callee pa_args pa_arity];
     try discriminate.
   - destruct (Pos.eqb move_from unnamed_function_slot); [ | discriminate ].
@@ -342,6 +340,7 @@ Proof.
   apply (eval_prim_preserves (fun v => value_wk v = true) statics p vs v).
   - intros c. split; reflexivity.
   - intros tag fields. simpl. apply forallb_forall.
+  - intros elements. simpl. apply forallb_forall.
   - intros s tag fields _ Hlookup field Hin.
     apply andb_true_iff in Hstatics as [_ Hvalues].
     pose proof
