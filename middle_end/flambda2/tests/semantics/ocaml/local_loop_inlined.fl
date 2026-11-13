@@ -1,0 +1,48 @@
+let $camlLocal_loop_inlined__first_const_0 = Block 0 () in
+(let code rec inline(always) loopify(default tailrec) size(24)
+       go_1 (total/52 : imm tagged, i/53 : imm tagged)
+         my_closure/54 &my_alloc_region/55 my_depth/56
+         -> k/20 * k/21
+         : imm tagged =
+   let next_depth/57 = rec_info (succ my_depth/56) in
+   (let prim/60 = %phys_eq (i/53, 0) in
+    let eq/61 = %tag_imm (prim/60) in
+    (let untagged/62 = %untag_imm (eq/61) in
+     switch untagged/62
+       | 0 -> k/23
+       | 1 -> k/20 (total/52))
+      where k/23 =
+        cont k/22)
+     where k/22 =
+       let int_sub/58 = %int_barith.sub (i/53, 1) in
+       let int_add/59 = %int_barith.add (total/52, i/53) in
+       apply direct(go_1 &my_alloc_region/55)
+         (my_closure/54 ~ depth my_depth/56 -> next_depth/57
+          : _ -> imm tagged)
+           (int_add/59, int_sub/58)
+           -> k/20 * k/21
+ in
+ let code size(36)
+       sum_to_0 (n/63 : imm tagged)
+         my_closure/64 &my_alloc_region/65 my_depth/66
+         -> k/24 * k/25
+         : imm tagged =
+   let next_depth/67 = rec_info (succ my_depth/66) in
+   let go/68 = closure go_1 @go &my_alloc_region/65 in
+   apply direct(go_1 &my_alloc_region/65)
+     (go/68 : _ -> imm tagged) (0, n/63) -> k/24 * k/25
+ in
+ let sum_to/69 = closure sum_to_0 @sum_to &toplevel in
+ (let Popaque/72 = %opaque (4) in
+  apply direct(sum_to_0 &toplevel)
+    (sum_to/69 : _ -> imm tagged) (Popaque/72) -> k/26 * error)
+   where k/26 (result/70 : imm tagged) =
+     let Pmakeblock/71 = %block.[`0`].`toplevel` (sum_to/69, result/70) in
+     cont k/19 (Pmakeblock/71))
+  where k/19 define_root_symbol (module_block/49) =
+    let field_0/50 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/49)
+    in
+    let field_1/51 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/49)
+    in
+    let $camlLocal_loop_inlined = Block 0 (field_0/50, field_1/51) in
+    cont done ($camlLocal_loop_inlined)
