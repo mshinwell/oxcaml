@@ -39,7 +39,15 @@
    terms and all the code bound ([hoist_state]). A call finds its code
    in both, because the closure called is of code that the first run
    has bound; a group of static bindings binds its symbols in both,
-   because the first run does not stop on the code of the group. *)
+   because the first run does not stop on the code of the group.
+
+   The two runs may start from a continuation environment of what may
+   follow a unit (FlambdaObserversSpec.observers), the empty one for
+   the statements of a unit run on its own. What may follow a unit
+   binds no code, so the second state has it as it is
+   ([observers_hoist]); it names no code id, so the closures that it
+   makes are of code that is bound, whatever is bound
+   ([observers_in_scope]); and it keeps no value. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
@@ -48,7 +56,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaPrimitiveProofs FlambdaSemanticsSpec FlambdaSemanticsProofs
   FlambdaNominalSpec FlambdaNormaliseSpec FlambdaWellFormedSpec
   FlambdaWellFormedProofs FlambdaHeapProofs FlambdaUnusedSlotsProofs
-  FlambdaImportsSpec FlambdaUnitFromProofs FlambdaHoistCodeSpec.
+  FlambdaImportsSpec FlambdaStaticsInScopeSpec FlambdaObserversSpec
+  FlambdaUnitFromProofs FlambdaHoistCodeSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -734,6 +743,84 @@ Definition code_in_scope (statics : static_env) : Prop :=
     lookup id (static_code statics) = Some c ->
     code_closures_in_scope (code_id_bound statics) c = true.
 
+(* What may follow a unit names no code id, so the closures that it
+   makes are of code that is bound, whatever is bound: it makes none
+   of the code of a function. *)
+Lemma named_no_code_closures_bound (bound : code_id -> bool)
+    (syms : list symbol) (d : named) :
+  named_statics_in_scope syms [] d = true ->
+  named_closures_bound bound d = true.
+Proof.
+  destruct d as [ | | code slots | slot decls slots | | | ]; simpl;
+    try reflexivity.
+  - discriminate.
+  - intros H. apply andb_true_iff in H as [Hdecls _].
+    destruct decls as [ | decl decls]; [ reflexivity | ].
+    simpl in Hdecls. discriminate Hdecls.
+Qed.
+
+Fixpoint observer_closures_in_scope (bound : code_id -> bool) (e : expr)
+    {struct e} :
+  binds_no_static e = true ->
+  expr_statics_in_scope [] [] e = true ->
+  closures_in_scope bound e = true.
+Proof.
+  destruct e
+    as [ x xkind d body | bindings body | k h body | handlers body | ap | ac
+       | scrutinee arms | ];
+    simpl; try (intros _ _; reflexivity).
+  - intros Hno H. apply andb_true_iff in H as [Hd Hbody].
+    rewrite (named_no_code_closures_bound bound [] d Hd).
+    exact (observer_closures_in_scope bound body Hno Hbody).
+  - discriminate.
+  - destruct h as [params metadata handler]. simpl. intros Hno H.
+    apply andb_true_iff in Hno as [Hno_h Hno_b].
+    apply andb_true_iff in H as [Hh Hb].
+    rewrite (no_static_names symbols_of_binding body Hno_b),
+      (no_static_names declared_code_ids_of_binding body Hno_b)
+      in Hh.
+    simpl in Hh.
+    rewrite (observer_closures_in_scope bound handler Hno_h Hh),
+      (observer_closures_in_scope bound body Hno_b Hb).
+    reflexivity.
+  - intros Hno H. apply andb_true_iff in Hno as [Hno_hs Hno_b].
+    apply andb_true_iff in H as [Hhs Hb].
+    rewrite (observer_closures_in_scope bound body Hno_b Hb), andb_true_r.
+    rewrite (no_static_names symbols_of_binding body Hno_b),
+      (no_static_names declared_code_ids_of_binding body Hno_b)
+      in Hhs.
+    simpl in Hhs.
+    induction handlers as [ | [k [params metadata handler]] handlers IH];
+      simpl; [ reflexivity | ].
+    simpl in Hno_hs, Hhs.
+    apply andb_true_iff in Hno_hs as [Hno_h Hno_rest].
+    apply andb_true_iff in Hhs as [Hh Hrest].
+    rewrite (observer_closures_in_scope bound handler Hno_h Hh).
+    exact (IH Hno_rest Hrest).
+Qed.
+
+Lemma observers_in_scope (bound : code_id -> bool) (slots : list value_slot)
+    (conts : cont_env) :
+  observers slots conts -> conts_in_scope bound conts.
+Proof.
+  unfold observers, conts_in_scope.
+  induction conts as [ | [k c] conts IH]; simpl;
+    [ intros _; exact I | ].
+  intros H. inversion H as [ | kc rest Hc Hrest]; subst.
+  split; [ | exact (IH Hrest) ].
+  revert Hc.
+  destruct c
+    as [ [params metadata body] vars kept recursive | k0 | c0 extra
+       | remaining remaining_arity return_arity return_to exn_to ];
+    simpl; try contradiction; [ | intros _; exact I ].
+  destruct vars; [ | contradiction ].
+  destruct kept; [ | contradiction ].
+  destruct recursive; [ | contradiction ].
+  intros (Hno & Hscope & _).
+  split; [ exact (observer_closures_in_scope bound body Hno Hscope) | ].
+  split; [ reflexivity | exact I ].
+Qed.
+
 Definition terms_in_scope (s : state) : Prop :=
   closures_in_scope (code_id_bound (state_statics s)) (state_expr s) = true
   ∧ conts_in_scope (code_id_bound (state_statics s)) (state_conts s)
@@ -1237,6 +1324,39 @@ Proof.
   intros id c [].
 Qed.
 
+(* What may follow a unit binds no code: it is the same in the second
+   state, and nothing is asked of it. *)
+Lemma observers_hoist (slots : list value_slot) (conts : cont_env) :
+  observers slots conts -> hoist_conts conts = conts ∧ conts_known conts.
+Proof.
+  unfold observers, hoist_conts, conts_known.
+  induction conts as [ | [k c] conts IH]; simpl;
+    [ intros _; split; [ reflexivity | exact I ] | ].
+  intros H. inversion H as [ | kc rest Hc Hrest]; subst.
+  destruct (IH Hrest) as [-> Hknown].
+  assert (Hthis : hoist_cont c = c ∧ cont_known c).
+  { revert Hc.
+    destruct c
+      as [ [params metadata body] vars kept recursive | k0 | c0 extra
+         | remaining remaining_arity return_arity return_to exn_to ];
+      simpl; try contradiction;
+      [ | intros _; split; [ reflexivity | exact I ] ].
+    destruct vars; [ | contradiction ].
+    destruct kept; [ | contradiction ].
+    destruct recursive; [ | contradiction ].
+    intros (Hno & _ & _).
+    destruct
+      (statics_nowhere 1%positive symbols_of_binding body
+         (no_static_nowhere 1%positive body Hno))
+      as (_ & Hbinds & _).
+    destruct (without_code_nothing body Hbinds) as [Hsame Hnone].
+    simpl. rewrite Hsame, Hnone.
+    split; [ reflexivity | ].
+    split; [ intros id c1 [] | ]. split; [ reflexivity | exact I ]. }
+  destruct Hthis as [-> Hc_known].
+  split; [ reflexivity | exact (conj Hc_known Hknown) ].
+Qed.
+
 Definition known_inv (s : state) : Prop :=
   codes_known (code_bindings (state_expr s))
   ∧ conts_known (state_conts s)
@@ -1734,15 +1854,16 @@ End Hoisted.
 (* A unit that passes and the unit with its code first behave alike,
    each run from a static environment that holds no code and in which
    what the symbols are bound to holds no closure, and from any heap. *)
-Lemma hoist_code_equivalent_from (e e' : expr) (statics : static_env)
-    (hp : heap) :
+Lemma hoist_code_equivalent_under (slots : list value_slot) (e e' : expr)
+    (conts : cont_env) (statics : static_env) (hp : heap) :
   hoist_code e = Some e' ->
   static_code statics = [] ->
   Forall
     (fun binding =>
        allocated_closures_bound (code_id_bound statics) (snd binding) = true)
     (static_values statics) ->
-  equivalent (State e [] [] statics hp) (State e' [] [] statics hp).
+  observers slots conts ->
+  equivalent (State e [] conts statics hp) (State e' [] conts statics hp).
 Proof.
   unfold hoist_code. cbv zeta.
   destruct (statics_at_toplevel_of_unit e) eqn:Htoplevel; simpl;
@@ -1753,7 +1874,7 @@ Proof.
     eqn:Hcodes; simpl; [ | discriminate ].
   destruct (closures_in_scope (fun _ => false) e) eqn:Hscope;
     [ | discriminate ].
-  intros [= <-] Hno_code Hallocated.
+  intros [= <-] Hno_code Hallocated Hobservers.
   unfold statics_at_toplevel_of_unit in Htoplevel.
   apply existsb_exists in Htoplevel as [unit_exn [_ Htoplevel]].
   assert (Hfresh : ∀ id : code_id, lookup id (static_code statics) = None).
@@ -1761,30 +1882,54 @@ Proof.
   destruct (bind_codes_from (code_bindings e) statics
               (code_bindings_are_code e) Hcodes (fun id _ => Hfresh id))
     as (src & Hsrc & Hknown & _).
+  destruct (observers_hoist src slots conts Hobservers)
+    as [Hhoist Hconts_known].
   apply
     (equivalent_trans _
-       (State (without_code e) [] [] (Static_env src (static_values statics))
-          hp)).
+       (State (without_code e) [] conts
+          (Static_env src (static_values statics)) hp)).
   - apply (bisimulation_equivalent (hoisted_related unit_exn src)
              (hoisted_related_step unit_exn src)).
-    split; [ reflexivity | ].
     split.
-    { apply inv_from; [ | exact Hno_code | exact Htoplevel | exact Hnames ].
+    { unfold hoist_state, code_first_env. simpl_state. rewrite Hhoist.
+      reflexivity. }
+    split.
+    { apply (inv_under _ _ _ slots);
+        [ | exact Hno_code | exact Hobservers | exact Htoplevel
+        | exact Hnames ].
       intros n _. unfold code_id_bound. rewrite Hfresh. reflexivity. }
     split.
     { split.
       - unfold terms_in_scope. simpl_state.
-        refine (conj _ (conj I _)).
+        refine (conj _ (conj (observers_in_scope _ slots conts Hobservers) _)).
         + apply (closures_in_scope_le (fun _ => false)); [ | exact Hscope ].
           intros id [=].
         + intros id c Hlookup. rewrite Hfresh in Hlookup.
           discriminate Hlookup.
-      - repeat split; simpl; first [ apply Forall_nil | exact Hallocated ]. }
+      - split; [ apply Forall_nil | ].
+        split;
+          [ exact (observers_values_all _ slots conts Hobservers)
+          | exact Hallocated ]. }
     unfold known_inv. simpl_state.
-    refine (conj Hknown (conj I _)).
+    refine (conj Hknown (conj Hconts_known _)).
     intros id c Hlookup. rewrite Hfresh in Hlookup. discriminate Hlookup.
   - apply equivalent_sym, step_equivalent.
     rewrite step_let_static, Hsrc. reflexivity.
+Qed.
+
+Lemma hoist_code_equivalent_from (e e' : expr) (statics : static_env)
+    (hp : heap) :
+  hoist_code e = Some e' ->
+  static_code statics = [] ->
+  Forall
+    (fun binding =>
+       allocated_closures_bound (code_id_bound statics) (snd binding) = true)
+    (static_values statics) ->
+  equivalent (State e [] [] statics hp) (State e' [] [] statics hp).
+Proof.
+  intros Hhoist Hno_code Hallocated.
+  exact (hoist_code_equivalent_under [] e e' [] statics hp Hhoist Hno_code
+           Hallocated (Forall_nil _)).
 Qed.
 
 (* The static environment of the imports of a unit is such: an import
@@ -1814,6 +1959,15 @@ Proof.
   intros imports e e' Hhoist.
   exact (hoist_code_equivalent_from e e' (imports_statics imports) empty_heap
            Hhoist eq_refl (imports_closures_bound _ imports)).
+Qed.
+
+Theorem hoist_code_equivalent_observed :
+  hoist_code_equivalent_observed_statement.
+Proof.
+  intros imports conts e e' Hhoist Hobservers.
+  exact (hoist_code_equivalent_under [] e e' conts (imports_statics imports)
+           empty_heap Hhoist eq_refl (imports_closures_bound _ imports)
+           Hobservers).
 Qed.
 
 (* ======================================================================== *)

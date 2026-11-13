@@ -90,7 +90,7 @@ From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaValueSpec FlambdaSemanticsSpec FlambdaNominalSpec
-  FlambdaWellFormedSpec FlambdaImportsSpec.
+  FlambdaWellFormedSpec FlambdaImportsSpec FlambdaObserversSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -285,6 +285,23 @@ Definition hoist_code_equivalent_imports_statement : Prop :=
     hoist_code e = Some e' ->
     equivalent (State e [] [] (imports_statics imports) empty_heap)
       (State e' [] [] (imports_statics imports) empty_heap).
+
+(* The same of the two units followed by something: run from one
+   continuation environment of what may follow a unit
+   (FlambdaObserversSpec.observers: a way out, or a handler with no
+   environment of its own that binds nothing static and names no
+   symbol and no code id), the two behave alike. With no continuation
+   it is the statement above. What may follow names no code id, so it
+   makes no closure of code that the unit has not bound yet; it may
+   call a closure that the unit gave it, whose code the unit has
+   bound. *)
+Definition hoist_code_equivalent_observed_statement : Prop :=
+  ∀ (imports : list (symbol * import_class)) (conts : cont_env)
+    (e e' : expr),
+    hoist_code e = Some e' ->
+    observers [] conts ->
+    equivalent (State e [] conts (imports_statics imports) empty_heap)
+      (State e' [] conts (imports_statics imports) empty_heap).
 
 (* What the check of closures is for. The closures in a value, or in
    what a symbol is bound to, are of code that [bound] has: every
