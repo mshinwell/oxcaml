@@ -1,0 +1,94 @@
+let $camlTry_returned_exported__first_const_0 = Block 0 () in
+(let code rec loopify(default tailrec) size(27)
+       fold_left_0
+         (f/95 : val,
+          acc/96 : imm tagged,
+          l/97 : [ 0 | 0 of imm tagged * [ 0 | 0 of imm tagged * val ] ])
+         my_closure/98 &my_alloc_region/99 my_depth/100
+         -> k/34 * k/35
+         : imm tagged =
+   let next_depth/101 = rec_info (succ my_depth/100) in
+   (let prim/105 = %is_int (l/97) in
+    let Pisint/106 = %tag_imm (prim/105) in
+    (let untagged/107 = %untag_imm (Pisint/106) in
+     switch untagged/107
+       | 0 -> k/38
+       | 1 -> k/34 (acc/96))
+      where k/38 =
+        cont k/36)
+     where k/36 =
+       let Pfield/102 = %block_load.[`1`] (l/97) in
+       ((let Pfield/104 = %block_load.[`0`] (l/97) in
+         apply &my_alloc_region/99 f/95 (acc/96, Pfield/104) -> k/37 * k/35)
+          where k/37 (apply_result/103 : imm tagged) =
+            apply direct(fold_left_0 &my_alloc_region/99)
+              (my_closure/98 ~ depth my_depth/100 -> next_depth/101
+               : _ -> imm tagged)
+                (f/95, apply_result/103, Pfield/102)
+                -> k/34 * k/35)
+ in
+ let code size(10)
+       `fn[try_returned_exported.ml:12,16--40]_2`
+         (acc/108 : imm tagged, x/109 : imm tagged)
+         my_closure/110 &my_alloc_region/111 my_depth/112
+         -> k/39 * k/40
+         : imm tagged =
+   let next_depth/113 = rec_info (succ my_depth/112) in
+   let g/114 =
+     %project_value_slot.[`fn[try_returned_exported.ml:12,16--40]`].[g]
+       (my_closure/110)
+   in
+   apply &my_alloc_region/111 g/114 (x/109) -> k/41 * k/40
+     where k/41 (apply_result/115 : imm tagged) =
+       let int_add/116 = %int_barith.add (acc/108, apply_result/115) in
+       cont k/39 (int_add/116)
+ in
+ let code size(38)
+       sum_or_zero_1
+         (g/117 : val,
+          l/118 : [ 0 | 0 of imm tagged * [ 0 | 0 of imm tagged * val ] ])
+         my_closure/119 &my_alloc_region/120 my_depth/121
+         -> k/42 * k/43
+         : imm tagged =
+   let next_depth/122 = rec_info (succ my_depth/121) in
+   let fold_left/123 =
+     %project_value_slot.[sum_or_zero].[fold_left] (my_closure/119)
+   in
+   let region/124 = %begin_region () in
+   let ghost_region/125 = %begin_ghost_region () in
+   (let try_region/129 = %begin_try_region (region/124) in
+    let try_ghost_region/130 = %begin_try_ghost_region (ghost_region/125) in
+    cont k/47 push(k/45)
+      where k/47 =
+        let `fn[try_returned_exported.ml:12,16--40]/135` =
+          closure `fn[try_returned_exported.ml:12,16--40]_2`
+            @`fn[try_returned_exported.ml:12,16--40]` &my_alloc_region/120
+            &region/124
+        with { g = g/117 }
+        in
+        apply direct(fold_left_0 &my_alloc_region/120)
+          (fold_left/123 : _ -> imm tagged)
+            (`fn[try_returned_exported.ml:12,16--40]/135`, 0, l/118)
+            -> k/46 * k/45
+      where k/46 (body_result/134 : imm tagged) =
+        cont k/44 pop(k/45) (body_result/134)
+      where k/45 exn (exn/131 : val) =
+        let unit/132 = %end_try_region (try_region/129) in
+        let unit/133 = %end_try_ghost_region (try_ghost_region/130) in
+        cont k/44 (0))
+     where k/44 (region_return/126 : imm tagged) =
+       let unit/127 = %end_region (region/124) in
+       let unit/128 = %end_ghost_region (ghost_region/125) in
+       cont k/42 (region_return/126)
+ in
+ let fold_left/136 = closure fold_left_0 @fold_left &toplevel in
+ let sum_or_zero/137 = closure sum_or_zero_1 @sum_or_zero &toplevel
+ with { fold_left = fold_left/136 }
+ in
+ let Pmakeblock/138 = %block.[`0`].`toplevel` (sum_or_zero/137) in
+ cont k/33 (Pmakeblock/138))
+  where k/33 define_root_symbol (module_block/93) =
+    let field_0/94 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/93)
+    in
+    let $camlTry_returned_exported = Block 0 (field_0/94) in
+    cont done ($camlTry_returned_exported)
