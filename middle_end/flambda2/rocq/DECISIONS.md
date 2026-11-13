@@ -201,8 +201,10 @@ says so. Only the labels that this tree cites are listed.
   naked immediate to 0, and of a tagged immediate to -1.
 - **C1-10.** fexpr reads `%is_int` as the variant-only `Is_int`, and
   prints the other one the same way.
-- **C1-11.** fexpr cannot write an integer constant beyond 63 bits, and
-  wraps an out-of-range `int8` or `int16` literal without a word.
+- **C1-11.** The reader of the text of terms fails on an integer constant
+  beyond 63 bits where it stands in an expression, though the printer
+  writes it, and wraps an out-of-range `int8` or `int16` literal without
+  a word.
 - **C1-12.** A constant of the model holds any integer; the compiler's
   constants are in the range of their kind by construction.
 - **C1-13.** The kinds of the fields of a `Make_block` come from the
