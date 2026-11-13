@@ -772,6 +772,14 @@ Owed:
 - **A statement that renames.** The premise that code is closed, or a
   reason why it is not needed.
 - **A fresh name.** `fresh_name`, never a count of your own.
+- **The name of an action.** The action of the renamings on a type is
+  `rename_` followed by what the type is of (`rename_known_closures`,
+  `rename_known_blocks`). A new one does not take a short name that a
+  file which can be imported with it already uses for another type: a
+  statement must not read differently according to the order of the
+  imports. A few older actions share a short name (`rename_outcome`,
+  `rename_answer`, and `rename_known` in the types library); a file
+  that imports two of them writes the name in full.
 
 ## 9. Not done
 
