@@ -1,0 +1,16 @@
+let code size(5) add_one (x) my_closure &my_region my_depth -> k * e =
+  let y = %int_barith.`add` (x, 1) in
+  cont k (y)
+in
+let $Add_one = closure add_one @add_one &toplevel in
+cont loop (5, 0)
+  where rec (n) loop (i) =
+    let c = %int_comp.`lt` (i, n) in
+    (switch c
+       | 0 -> finish (i)
+       | 1 -> again
+       where again =
+         apply &toplevel $Add_one (i) -> loop * error)
+  where finish (r) =
+    let $camlArity_text_recursive_invariant = Block 0 (r) in
+    cont done ($camlArity_text_recursive_invariant)

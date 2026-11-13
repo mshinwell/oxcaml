@@ -149,6 +149,8 @@ from the others.
 | `hidden_read.ml` | `hidden.ml` | a toplevel reads a field of which the `.cmx` says nothing, beside one that it knows | no prefix; undefined before and after; nothing to validate |
 | `parity_called.ml` | `parity.ml` | calls a function that is one of a set of two, in a function and at toplevel | a prefix of three bindings; undefined before and after; validated, with the line that says the validation says nothing |
 | `cycle_read.ml` | `cycle.ml` | a toplevel reads a block that the first unit made by calls of the runtime | no prefix; undefined before and after; validated with its imports, with the line that says the validation says nothing |
+| `probed_called.ml` | `probed.ml` | calls, without inlining it, a function of the first unit whose body has a probe | a prefix of three bindings without the body, which the conversion refuses; the run is undefined before and after, and the validation says nothing of it |
+| `probed_inlined.ml` | `probed.ml` | calls the same function and lets Simplify inline it | not checked: the term after Simplify has the call that is a probe, which the conversion refuses |
 
 The prefix of the three units that use `lengths.ml` is the same: the
 module block, the closures of `length_from` and of `length`, and the
@@ -207,3 +209,21 @@ with no region, and the parser asks for one after `ccall`
 `middle_end/flambda2/parser/flambda_parser.mly`, rule `call_kind`).
 So the `.cmx` of that unit says nothing of its two fields, which
 hold what the calls returned.
+
+`probed.ml` has no expected file: the text of its term does not say
+that a call is a probe, so a verdict of the tool on it would be of a
+term that is not the compiler's. Its `.cmx` has the body of `bump`,
+in which the call of the handler of the probe is marked as one. The
+program runs that handler only while the probe is enabled, and the
+model has nothing of that, so the conversion refuses a call that is
+a probe. In `probed_called.ml`, which forbids the inlining of `bump`,
+the body is therefore left out of the prefix, as a body that the
+model has not got is: the closure of `bump` is bound, its code is
+bound to nothing, and the call is undefined before and after. The
+tool as it was when the prefix came in took the probe for a plain
+call and printed, for this unit, a prefix of six bindings with the
+body of `bump` and the code of the handler; both runs were undefined
+then too, as the handler calls `note`, whose code has no body in the
+`.cmx`. In `probed_inlined.ml` the tool's Simplify inlines `bump`,
+the term after has the call that is a probe, and the unit is not
+checked.

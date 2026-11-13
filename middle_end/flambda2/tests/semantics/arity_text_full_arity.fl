@@ -1,0 +1,9 @@
+let code size(1) both (x) my_closure &my_region my_depth -> k * e
+    : val * val =
+  cont k (x, x)
+in
+let $Both = closure both @both &toplevel in
+apply &toplevel ($Both : val -> val * val) (1) -> k1 * error
+  where k1 (a, b) =
+    let $camlArity_text_full_arity = Block 0 (a, b) in
+    cont done ($camlArity_text_full_arity)

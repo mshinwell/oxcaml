@@ -1,0 +1,8 @@
+let code size(1) same (x) my_closure &my_region my_depth -> k * e =
+  cont k (x)
+in
+let $Same = closure same @same &toplevel in
+apply &toplevel $Same (1) -> k1 * error
+  where k1 =
+    let $camlArity_text_no_parameter = Block 0 () in
+    cont done ($camlArity_text_no_parameter)

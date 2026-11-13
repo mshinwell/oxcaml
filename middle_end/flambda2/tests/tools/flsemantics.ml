@@ -98,6 +98,19 @@
    called is bound in sight, its body does not mention its return continuation,
    and the other checks of that rewrite pass.
 
+   What the text loses of a call. The text of a term does not give the arity of
+   a call of unknown arity, which is read with one value for each argument and
+   one value for its result (label C2-5), and it does not say that a call is a
+   probe. A unit with a call of unknown arity that returns to a continuation
+   whose parameters are not one value is not checked ([result_arity_lost]): the
+   term read is not the compiler's, and Simplify may stop on it. A method call
+   is read with one value for its result too; the conversion refuses a method
+   call, and the reader does not read one as the compiler prints it. A call that
+   is a probe is refused by the conversion ([convert_apply]), as the program
+   runs its handler only while the probe is enabled. No unit read from its text
+   has one; a body taken from the .cmx of another unit may, and is then left out
+   of the prefix, so that a call of it is undefined.
+
    Imports. The external symbols that the two units of a check mention, those of
    another compilation unit, the predefined exceptions among them, are listed
    once for both ([imports]), each with a class: an identity for a predefined
@@ -1166,6 +1179,14 @@ and convert_code (code : Flambda.Function_params_and_body.t Code0.t) :
           convert_expr body ))
 
 and convert_apply (apply : Apply_expr.t) : Model.expr =
+  (* The program runs the handler of a probe only while the probe is enabled,
+     and the model has nothing of that: a call that is a probe is refused. The
+     text of a term does not say that a call is a probe, so no unit read from
+     its text has one. A body taken from a .cmx may have one; it is then not
+     bound, as any body that the conversion refuses ([make_prefix]). *)
+  (match Apply_expr.probe apply with
+  | None -> ()
+  | Some _ -> unsupported "a call that is a probe");
   let callee =
     match Apply_expr.callee apply with
     | Some callee -> convert_simple callee
@@ -3489,6 +3510,101 @@ let why_not_well_formed (unit : converted) =
 let interface (unit : converted) : Well_formed.unit_interface =
   { unit_return = unit.return_continuation; unit_exn = unit.exn_continuation }
 
+(* The text of a term does not give the arity of a call of unknown arity, and
+   such a call is read with one value for its result (the CRs of
+   parser/fexpr_to_flambda.ml; label C2-5). Where the result of the compiler's
+   call was something else, an unboxed pair or an unboxed number, the term read
+   is not the compiler's, and Simplify, which is entitled to, stops on it with a
+   fatal error. This says whether the text has such a call that can be told: a
+   call of unknown arity that returns to a continuation whose parameters are not
+   one value, where the continuation is bound in sight by a [Let_cont] or is the
+   return continuation of the code that the call is in. A call is of unknown
+   arity as the reader has it: one with no arity written, or with the arity of
+   its result written and not that of its arguments, which the reader drops. The
+   test goes by the identifiers of the text as it was parsed and makes no name
+   of the compiler. *)
+let result_arity_lost (unit : Fexpr.flambda_unit) : bool =
+  let one_value (kinds : Fexpr.kind_with_subkind option list) =
+    match kinds with
+    | [(None | Some (Value _))] -> true
+    | [Some (Naked_number _ | Region | Rec_info)] | [] | _ :: _ :: _ -> false
+  in
+  (* [others] are the names of the continuations in sight whose parameters are
+     not one value; a name that is bound again hides the one before. *)
+  let bind (name : Fexpr.continuation_id) kinds others =
+    let others =
+      List.filter (fun other -> not (String.equal other name.txt)) others
+    in
+    if one_value kinds then others else name.txt :: others
+  in
+  let rec expr others (e : Fexpr.expr) =
+    match e with
+    | Let { bindings = _; value_slots = _; body } -> expr others body
+    | Let_cont { recursive; body; bindings } ->
+      let invariant_params =
+        match recursive with
+        | Nonrecursive -> []
+        | Recursive invariant_params -> invariant_params
+      in
+      let with_bindings =
+        List.fold_left
+          (fun others (binding : Fexpr.continuation_binding) ->
+            bind binding.name
+              (List.map
+                 (fun (param : Fexpr.kinded_parameter) -> param.kind)
+                 (invariant_params @ binding.params))
+              others)
+          others bindings
+      in
+      let in_handlers =
+        match recursive with
+        | Nonrecursive -> others
+        | Recursive _ -> with_bindings
+      in
+      List.exists
+        (fun (binding : Fexpr.continuation_binding) ->
+          expr in_handlers binding.handler)
+        bindings
+      || expr with_bindings body
+    | Let_symbol { bindings; value_slots = _; body } ->
+      List.exists
+        (fun (binding : Fexpr.symbol_binding) ->
+          match binding with
+          | Code code ->
+            let result : Fexpr.kind_with_subkind option list =
+              match code.ret_arity with
+              | None -> [None]
+              | Some arity -> List.map Option.some arity
+            in
+            expr
+              (bind code.params_and_body.ret_cont result [])
+              code.params_and_body.body
+          | Data _ | Deleted_code _ | Closure _ | Set_of_closures _ -> false)
+        bindings
+      || expr others body
+    | Apply
+        { call_kind = Function Indirect;
+          arities = None | Some { params_arity = None; ret_arity = _ };
+          continuation = Return (Named k);
+          _
+        } ->
+      List.mem k.txt others
+    | Apply _ | Apply_cont _ | Invalid -> false
+    | Switch { scrutinee = _; cases } ->
+      List.exists
+        (fun ((_, case) : int * Fexpr.apply_or_inlined_cont) ->
+          match case with
+          | Inlined_goto e -> expr others e
+          | Named_cont _ -> false)
+        cases
+  in
+  expr [] unit.body
+
+let result_arity_lost_message =
+  "a call of unknown arity returns to a continuation whose parameters are not \
+   one value; the text does not give the arity of such a call, which is read \
+   with one value for its result"
+
 (* The term before is checked before Simplify sees it, which is entitled to fail
    on one that is not well-formed. *)
 let well_formed_before ~filename (before : Flambda_unit.t) =
@@ -4210,7 +4326,11 @@ let check_file filename =
     let fl2 = Fexpr_to_flambda.conv comp_unit unit in
     let before = with_unknown_param_modes fl2.unit in
     let filename_shown = Filename.basename filename in
-    if well_formed_before ~filename:filename_shown before
+    if result_arity_lost unit
+    then
+      Format.printf "%s: not checked: %s@." filename_shown
+        result_arity_lost_message
+    else if well_formed_before ~filename:filename_shown before
     then
       let null_formatter =
         Format.make_formatter (fun _ _ _ -> ()) (fun () -> ())
@@ -4251,15 +4371,18 @@ let conversion_for_round_trip : Flroundtrip.conversion =
 
 (* Simplify, for that check: run as [check_file] runs it, and on the same
    units. *)
-let simplify_for_round_trip ~filename (parsed : Fexpr_to_flambda.conv_result) =
+let simplify_for_round_trip ~filename (text : Fexpr.flambda_unit)
+    (parsed : Fexpr_to_flambda.conv_result) =
   let before = with_unknown_param_modes parsed.unit in
   let well_formed_or_not_converted =
     match with_function_slots (fun () -> convert_unit before) with
     | exception Unsupported _ -> true
     | before -> well_formed before
   in
-  if not well_formed_or_not_converted
-  then None
+  if result_arity_lost text
+  then Error result_arity_lost_message
+  else if not well_formed_or_not_converted
+  then Error "the unit is not well-formed"
   else
     let null_formatter =
       Format.make_formatter (fun _ _ _ -> ()) (fun () -> ())
@@ -4270,7 +4393,7 @@ let simplify_for_round_trip ~filename (parsed : Fexpr_to_flambda.conv_result) =
         ~machine_width:Sixty_four ~code_slot_offsets:parsed.code_slot_offsets
         before
     in
-    Some result.flambda
+    Ok result.flambda
 
 module Options = Oxcaml_args.Make_optcomp_options (Oxcaml_args.Default.Optmain)
 

@@ -1,0 +1,10 @@
+let code size(1) same (x) my_closure &my_region my_depth -> k * e =
+  cont k (x)
+in
+let $Same = closure same @same &toplevel in
+(apply &toplevel $Same (1) -> k1 * error
+   where k1 (a, b) =
+     cont k1 (a))
+  where k1 (r) =
+    let $camlArity_text_hidden_by_two_values = Block 0 (r) in
+    cont done ($camlArity_text_hidden_by_two_values)

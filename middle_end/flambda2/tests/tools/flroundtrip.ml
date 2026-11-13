@@ -508,12 +508,15 @@ let print_outcome ~filename (outcome : outcome) =
        back@."
       filename (one_line reason)
 
-(* [simplify] runs Simplify on the unit of the file, or answers [None] where it
-   is not to be run: on a unit that is not well-formed, on which Simplify is
-   entitled to fail. *)
+(* [simplify] runs Simplify on the unit of the file, given as its text was
+   parsed and as a term, or says why it is not to be run: on a unit that is not
+   well-formed, or that is not the compiler's because its text has lost the
+   arity of a call, Simplify is entitled to fail. *)
 let check_file (conversion : conversion)
-    ~(simplify : Fexpr_to_flambda.conv_result -> Flambda_unit.t option) filename
-    =
+    ~(simplify :
+       Fexpr.flambda_unit ->
+       Fexpr_to_flambda.conv_result ->
+       (Flambda_unit.t, string) Result.t) filename =
   match Parse_flambda.parse_fexpr filename with
   | Error e ->
     Test_utils.dump_error e;
@@ -544,10 +547,8 @@ let check_file (conversion : conversion)
     in
     check ~filename parsed.unit;
     let filename = filename ^ ", after Simplify" in
-    match simplify parsed with
-    | Some simplified -> check ~filename simplified
-    | None ->
-      Format.printf
-        "%s: not converted: Simplify is not run, as the unit is not \
-         well-formed@."
-        filename)
+    match simplify fexpr parsed with
+    | Ok simplified -> check ~filename simplified
+    | Error why ->
+      Format.printf "%s: not converted: Simplify is not run, as %s@." filename
+        why)

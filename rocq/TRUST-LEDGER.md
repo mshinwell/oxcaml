@@ -193,7 +193,19 @@ it gave back.
   call of tupled code that the unit binds is refused, and so is a call
   of known arity in a unit that binds tupled code (the entry above);
   it is what keeps a call that gives code the components from being
-  run as the model's call, which gives it the tuple.
+  run as the model's call, which gives it the tuple. *Probes*: a call that
+  is a probe is refused (`convert_apply`). The program runs the handler
+  of a probe only while the probe is enabled, and the model has no
+  notion of a probe being enabled. The refusal goes by the mark that a
+  term in memory has on such a call. The text of a term has no such
+  mark and its reader gives none, so the refusal does not detect a
+  probe whose mark the text has lost: a unit that has a probe of its
+  own is read, from its text, as a unit with a plain call, and is
+  checked as one. The mark is met in a body taken from the `.cmx` of
+  another unit, which is then left out of the prefix, as code whose
+  body the model has not got (the entry on what those files say), the
+  unit being still checked; and in the term that Simplify makes of a
+  unit, where it inlines such a body, the unit being then not checked.
 - **Calls that never return**, in the same file (`convert_apply`). A
   call whose result continuation is `Never_returns`, whatever its call
   kind among those that the conversion takes (a method call, a C call

@@ -1,0 +1,47 @@
+(let code inline(never) size(16)
+       through_0 (f/57 : val, x/58 : int64 boxed)
+         my_closure/59 &my_alloc_region/60 my_depth/61
+         -> k/18 * k/19
+         : imm tagged =
+   let next_depth/62 = rec_info (succ my_depth/61) in
+   apply &my_alloc_region/60 f/57 (x/58) -> k/20 * k/19
+     where k/20 (apply_result/63 : int64) =
+       let `int64_of_int64#/64` =
+         %box_num.`int64`.my_alloc_region/60 (apply_result/63)
+       in
+       let prim/65 = %unbox_num.`int64` (`int64_of_int64#/64`) in
+       let prim/66 = %num_conv.[`int64`].[`imm`] (prim/65) in
+       let int_of_int64/67 = %tag_imm (prim/66) in
+       cont k/18 (int_of_int64/67)
+ in
+ let code inline(never) size(3)
+       same_1 (x/68 : int64 boxed)
+         my_closure/69 &my_alloc_region/70 my_depth/71
+         -> k/21 * k/22
+         : int64 =
+   let next_depth/72 = rec_info (succ my_depth/71) in
+   let `int64#_of_int64/73` = %unbox_num.`int64` (x/68) in
+   cont k/21 (`int64#_of_int64/73`)
+ in
+ let $camlUnknown_arity_result_int64__int64_0 = 3L in
+ let through/74 = closure through_0 @through &toplevel in
+ let same/75 = closure same_1 @same &toplevel in
+ (let Popaque/78 = %opaque ($camlUnknown_arity_result_int64__int64_0) in
+  apply direct(through_0 &toplevel)
+    (through/74 : _ -> imm tagged) (same/75, Popaque/78) -> k/23 * error)
+   where k/23 (result/76 : imm tagged) =
+     let Pmakeblock/77 =
+       %block.[`0`].`toplevel` (through/74, same/75, result/76)
+     in
+     cont k/17 (Pmakeblock/77))
+  where k/17 define_root_symbol (module_block/53) =
+    let field_0/54 = %block_load.tag[`0`].`size`[`3`].[`0`] (module_block/53)
+    in
+    let field_1/55 = %block_load.tag[`0`].`size`[`3`].[`1`] (module_block/53)
+    in
+    let field_2/56 = %block_load.tag[`0`].`size`[`3`].[`2`] (module_block/53)
+    in
+    let $camlUnknown_arity_result_int64 =
+      Block 0 (field_0/54, field_1/55, field_2/56)
+    in
+    cont done ($camlUnknown_arity_result_int64)

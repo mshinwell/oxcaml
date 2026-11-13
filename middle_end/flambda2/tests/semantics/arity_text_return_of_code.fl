@@ -1,0 +1,12 @@
+let code size(1) both (x) my_closure &my_region my_depth -> k * e
+    : val * val =
+  cont k (x, x)
+in
+let code size(5) through (f, x) my_closure &my_region my_depth -> k * e
+    : val * val =
+  apply &my_region f (x) -> k * e
+in
+let $Both = closure both @both &toplevel in
+let $Through = closure through @through &toplevel in
+let $camlArity_text_return_of_code = Block 0 ($Both, $Through) in
+cont done ($camlArity_text_return_of_code)

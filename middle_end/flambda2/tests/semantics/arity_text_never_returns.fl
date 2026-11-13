@@ -1,0 +1,15 @@
+let code size(1) same (x) my_closure &my_region my_depth -> k * e =
+  cont k (x)
+in
+let $Same = closure same @same &toplevel in
+(let o = %opaque (0) in
+ let c = %untag_imm (o) in
+ switch c
+   | 0 -> k1 (1, 2)
+   | 1 -> k2)
+  where k2 =
+    let f = %opaque ($Same) in
+    apply &toplevel f (1) -> never * error
+  where k1 (a, b) =
+    let $camlArity_text_never_returns = Block 0 (a, b) in
+    cont done ($camlArity_text_never_returns)

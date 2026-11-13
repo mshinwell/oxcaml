@@ -1,0 +1,14 @@
+cont k (1, 2)
+  where k (a, b) =
+    let code size(1) same (x) my_closure &my_region my_depth -> k * e =
+      cont k (x)
+    in
+    let code size(5) once (f, x) my_closure &my_region my_depth -> k * e =
+      apply &my_region f (x) -> k * e
+    in
+    let $Same = closure same @same &toplevel in
+    let $Once = closure once @once &toplevel in
+    (apply direct(once &toplevel) $Once ($Same, a) -> k1 * error
+       where k1 (r) =
+         let $camlArity_text_code_in_handler = Block 0 (r, b) in
+         cont done ($camlArity_text_code_in_handler))
