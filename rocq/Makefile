@@ -311,6 +311,9 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaUnboxVariantsRenameSpec.v \
   FlambdaUnboxVariantsSpec.v \
   FlambdaUnitFromProofs.v \
+  FlambdaUntagParamsNamesProofs.v \
+  FlambdaUntagParamsProofs.v \
+  FlambdaUntagParamsSpec.v \
   FlambdaUnusedContsProofs.v \
   FlambdaUnusedContsSpec.v \
   FlambdaUnusedParamsProofs.v \
