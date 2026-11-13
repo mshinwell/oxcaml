@@ -91,6 +91,24 @@ Proof.
   - discriminate.
 Qed.
 
+(* A state that the first run reaches is related to one that the second
+   reaches. *)
+Lemma stuttering_reaches (n : nat) :
+  ∀ s s' last : state,
+    R s s' ->
+    run n s = Step last ->
+    ∃ (m : nat) (last' : state), run m s' = Step last' ∧ R last last'.
+Proof.
+  induction n as [ | n IH]; intros s s' last Hrel; simpl.
+  - intros [= <-]. exists 0, s'. split; [ reflexivity | exact Hrel ].
+  - pose proof (R_step s s' Hrel) as Hanswer.
+    destruct (step s) as [t | k vs hp | ]; unfold answered in Hanswer;
+      [ | discriminate | discriminate ].
+    destruct Hanswer as (j & t' & Hrun & Hrel'). intros Hlast.
+    destruct (IH t t' last Hrel' Hlast) as (m & last' & Hm & Hrel'').
+    exists (S j + m), last'. rewrite run_add, Hrun. auto.
+Qed.
+
 (* If the second run has ended, so has the first: each of its steps
    uses up at least one of the second's. *)
 Lemma stuttering_ends (m : nat) :
