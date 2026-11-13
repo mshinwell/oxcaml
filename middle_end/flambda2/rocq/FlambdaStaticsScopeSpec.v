@@ -113,7 +113,9 @@
      given lists symbols and constants only
      ([read_slots_keeps_scope_statement]); [read_known_slots] is that,
      with what it has checked, or the term as it is
-     ([read_known_slots_keeps_scope_statement]).
+     ([read_known_slots_keeps_scope_statement]), and so is
+     [read_known_slots_anywhere], with other symbols taken to be in
+     scope ([read_known_slots_anywhere_keeps_scope_statement]).
    - FlambdaStubCallsSpec.demote_stub_calls makes, in the code of the
      stubs of a unit, a direct call an indirect call of the same
      callee with the same arguments
@@ -291,6 +293,9 @@ Definition read_slots_keeps_scope_statement : Prop :=
 
 Definition read_known_slots_keeps_scope_statement : Prop :=
   keeps_scope read_known_slots.
+
+Definition read_known_slots_anywhere_keeps_scope_statement : Prop :=
+  keeps_scope read_known_slots_anywhere.
 
 (* ======================================================================== *)
 (* The direct calls of the code of a stub                                   *)

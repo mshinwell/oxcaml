@@ -1409,6 +1409,62 @@ Proof.
   injection Heq as _ <-. reflexivity.
 Qed.
 
+(* What the static environment of the imports binds its symbols to has
+   no value slot. *)
+Lemma imports_slots_known (known : known_slots)
+    (imports : list (symbol * import_class)) :
+  Forall (fun binding => allocated_slots_known known (snd binding) = true)
+    (static_values (imports_statics imports)).
+Proof.
+  unfold imports_statics. cbn [static_values]. apply Forall_forall.
+  intros [s allocated] Hin.
+  apply in_map_iff in Hin as ([s' c] & Heq & _).
+  injection Heq as _ <-. reflexivity.
+Qed.
+
+Theorem read_known_slots_anywhere_program_refines :
+  read_known_slots_anywhere_program_refines_statement.
+Proof.
+  intros e. unfold read_known_slots_anywhere. cbv zeta.
+  destruct
+    (closed_slots (slots_known (slots_made e))
+     && slots_as (slots_known (slots_made e)) e)
+    eqn:Hcheck;
+    [ | apply refines_refl ].
+  apply andb_true_iff in Hcheck as [Hclosed Has].
+  exact (read_slots_program_refines _ _ e Hclosed Has).
+Qed.
+
+Theorem read_known_slots_anywhere_refines_imports :
+  read_known_slots_anywhere_refines_imports_statement.
+Proof.
+  intros imports e. unfold unit_refines, read_known_slots_anywhere. cbv zeta.
+  destruct
+    (closed_slots (slots_known (slots_made e))
+     && slots_as (slots_known (slots_made e)) e)
+    eqn:Hcheck;
+    [ | apply refines_refl ].
+  apply andb_true_iff in Hcheck as [Hclosed Has].
+  exact (read_slots_refines_from _ _ e (imports_statics imports) Hclosed Has
+           (Forall_nil _) (imports_slots_known _ imports)).
+Qed.
+
+Theorem read_known_slots_anywhere_refines_observed :
+  read_known_slots_anywhere_refines_observed_statement.
+Proof.
+  intros imports conts e Hobservers. unfold read_known_slots_anywhere.
+  cbv zeta.
+  destruct
+    (closed_slots (slots_known (slots_made e))
+     && slots_as (slots_known (slots_made e)) e)
+    eqn:Hcheck;
+    [ | apply refines_refl ].
+  apply andb_true_iff in Hcheck as [Hclosed Has].
+  exact (read_slots_refines_observed _ _ e conts (imports_statics imports)
+           Hclosed Has (Forall_nil _) (imports_slots_known _ imports)
+           Hobservers).
+Qed.
+
 (* ======================================================================== *)
 (* Row 4                                                                    *)
 (* ======================================================================== *)
@@ -1996,6 +2052,20 @@ Proof.
   exact (read_slots_renamed r _ Hclosed e []).
 Qed.
 
+Theorem read_known_slots_anywhere_equivariant :
+  read_known_slots_anywhere_equivariant_statement.
+Proof.
+  intros r e. unfold read_known_slots_anywhere. cbv zeta.
+  rewrite slots_made_renamed, slots_known_renamed.
+  destruct (closed_slots (slots_known (slots_made e))) eqn:Hclosed;
+    cbn [andb]; [ | reflexivity ].
+  rewrite (slots_as_renamed r _ Hclosed e).
+  destruct (slots_as (slots_known (slots_made e)) e); [ | reflexivity ].
+  rewrite (static_names_of_renamed r symbols_of_binding
+             (symbols_of_binding_renamed r) e).
+  exact (read_slots_renamed r _ Hclosed e _).
+Qed.
+
 (* ======================================================================== *)
 (* Five units                                                               *)
 (* ======================================================================== *)
@@ -2005,6 +2075,10 @@ Proof. reflexivity. Qed.
 
 Theorem read_known_slots_variable : read_known_slots_variable_statement.
 Proof. reflexivity. Qed.
+
+Theorem read_known_slots_anywhere_out_of_scope :
+  read_known_slots_anywhere_out_of_scope_statement.
+Proof. split; reflexivity. Qed.
 
 Theorem read_known_slots_out_of_scope :
   read_known_slots_out_of_scope_statement.

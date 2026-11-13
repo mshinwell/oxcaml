@@ -1128,6 +1128,17 @@ Proof.
     [ apply read_slots_scoped, Hclosed | apply scoped_refl ].
 Qed.
 
+Theorem read_known_slots_anywhere_keeps_scope :
+  read_known_slots_anywhere_keeps_scope_statement.
+Proof.
+  apply keeps_scope_intro. intros e. unfold read_known_slots_anywhere.
+  cbv zeta.
+  destruct (closed_slots (slots_known (slots_made e))) eqn:Hclosed;
+    cbn [andb]; [ | apply scoped_refl ].
+  destruct (slots_as (slots_known (slots_made e)) e);
+    [ apply read_slots_scoped, Hclosed | apply scoped_refl ].
+Qed.
+
 (* ======================================================================== *)
 (* The direct calls of the code of a stub                                   *)
 (* ======================================================================== *)

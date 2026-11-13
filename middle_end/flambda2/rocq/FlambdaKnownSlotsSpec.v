@@ -33,10 +33,12 @@
    [read_slot], the rewrite, against the rule of scope of
    FlambdaStaticsInScopeSpec.v; [read_known_slots], which is extracted
    and run by the validation of middle_end/flambda2/tests/semantics/;
-   and the statements, the last five of which are the rewrite
-   computed on small units: a slot read, a slot that one set gives a
-   variable, a symbol that is not in scope, a projection in the code
-   of a stub, a set that the code of a stub makes.
+   [read_known_slots_anywhere], the same with every symbol that the
+   unit binds taken to be in scope; and the statements, the last six
+   of which are the rewrites computed on small units: a slot read, a
+   slot that one set gives a variable, a symbol that is not in scope,
+   a projection in the code of a stub, a set that the code of a stub
+   makes, and the symbol that is not in scope read all the same.
 
    What Simplify does. It simplifies the code of a function where it
    simplifies the set of closures that the function is of, and gives
@@ -145,6 +147,18 @@
    unit (FlambdaObserversSpec.observers) binds no code and names no
    code id, so it makes no closure, and the closures that it has are
    those that the unit gave it.
+
+   The test of scope is there for row 4 and for nothing else: the
+   refinement holds whatever symbols are taken to be in scope. Simplify
+   reads the slot also where the code is bound above the symbol in the
+   text of the unit, as it binds the new version of the code where the
+   set of closures is. [read_known_slots_anywhere] does the same: it
+   takes every symbol that the unit binds to be in scope. What it
+   gives need not pass row 4, so it is for where nothing that follows
+   relies on row 4 of the term without testing it; what tests it may
+   then refuse. It refines the unit as [read_known_slots] does
+   ([read_known_slots_anywhere_program_refines_statement], and the
+   two statements after it).
 
    What is not here: a slot that holds a variable; a slot that two sets
    give different symbols, where the code that reads it is the code of
@@ -380,6 +394,16 @@ Definition read_known_slots (e : expr) : expr :=
   then read_slots known [] e
   else e.
 
+(* The same with every symbol that the unit binds taken to be in scope
+   (FlambdaWellFormedSpec.static_names): a projection is read also in
+   code that is bound above the symbol that the slot holds. What this
+   gives need not pass row 4. *)
+Definition read_known_slots_anywhere (e : expr) : expr :=
+  let known := slots_known (slots_made e) in
+  if closed_slots known && slots_as known e
+  then read_slots known (static_names symbols_of_binding e) e
+  else e.
+
 (* ======================================================================== *)
 (* The statements                                                           *)
 (* ======================================================================== *)
@@ -552,6 +576,22 @@ Definition read_known_slots_refines_observed_statement : Prop :=
       (State (read_known_slots e) [] conts (imports_statics imports)
          empty_heap).
 
+(* The same three of [read_known_slots_anywhere]: the refinement does
+   not go by the symbols taken to be in scope. *)
+Definition read_known_slots_anywhere_program_refines_statement : Prop :=
+  ∀ e : expr, program_refines e (read_known_slots_anywhere e).
+
+Definition read_known_slots_anywhere_refines_imports_statement : Prop :=
+  ∀ (imports : list (symbol * import_class)) (e : expr),
+    unit_refines imports e (read_known_slots_anywhere e).
+
+Definition read_known_slots_anywhere_refines_observed_statement : Prop :=
+  ∀ (imports : list (symbol * import_class)) (conts : cont_env) (e : expr),
+    observers [] conts ->
+    refines (State e [] conts (imports_statics imports) empty_heap)
+      (State (read_known_slots_anywhere e) [] conts
+         (imports_statics imports) empty_heap).
+
 (* The rewrite keeps row 4: where every symbol and code id that a term
    mentions is in scope, given the symbols [syms'] and the code ids
    [ids] in scope around it, the same holds of the term rewritten with
@@ -575,11 +615,18 @@ Definition read_known_slots_equivariant_statement : Prop :=
   ∀ (r : renaming) (e : expr),
     read_known_slots (rename_expr r e) = rename_expr r (read_known_slots e).
 
+(* So does [read_known_slots_anywhere]: a renaming renames no symbol,
+   so the symbols that the unit binds are the same. *)
+Definition read_known_slots_anywhere_equivariant_statement : Prop :=
+  ∀ (r : renaming) (e : expr),
+    read_known_slots_anywhere (rename_expr r e)
+    = rename_expr r (read_known_slots_anywhere e).
+
 (* ======================================================================== *)
-(* Five units                                                               *)
+(* Six units                                                                *)
 (* ======================================================================== *)
 
-(* What the rewrite makes of five small units, computed. In each, the
+(* What the rewrites make of six small units, computed. In each, the
    code [reader] is that of a closure with two value slots, which it
    projects from [my_closure]; the code [maker] makes that closure,
    with what it is given in the first slot and its parameter in the
@@ -671,6 +718,21 @@ Definition read_known_slots_variable_statement : Prop :=
 Definition read_known_slots_out_of_scope_statement : Prop :=
   statics_in_scope [] example_out_of_scope = true
   ∧ read_known_slots example_out_of_scope = example_out_of_scope.
+
+(* The same unit with the projection of the first slot read. *)
+Definition example_out_of_scope_read : expr :=
+  Let_static [Bind_code reader (example_reader (Simple (Symbol held)))]
+    (Let_static
+       [Bind_symbol held example_block;
+        Bind_code maker (example_maker (Symbol held))]
+       (Apply_cont (Apply_cont_expr done [Symbol held] None))).
+
+(* With every symbol that the unit binds taken to be in scope, the
+   projection is read there too, and what results does not pass
+   row 4. *)
+Definition read_known_slots_anywhere_out_of_scope_statement : Prop :=
+  read_known_slots_anywhere example_out_of_scope = example_out_of_scope_read
+  ∧ statics_in_scope [] example_out_of_scope_read = false.
 
 (* The same code, marked as a stub. *)
 Definition example_stub (c : code) : code :=
