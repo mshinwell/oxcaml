@@ -61,6 +61,9 @@ Owner: C0. Phase 0 was done as C0, and what it created is C0's.
   as for `FlambdaExtract.v`)
 - `rocq/HACKING.md`
 - `rocq/review-pdf.pl`
+- `rocq/check-changed-defs.py` (the search for the statements that a
+  changed definition reaches: `rocq/HACKING.md`, "Checklist before
+  pushing")
 - the integration branch
 
 Files that exist and that the plan gives to no stream. They are C0's

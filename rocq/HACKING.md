@@ -1203,3 +1203,18 @@ not clear which side is wrong.
   needs the regenerated extracted files is in the last commit, and no
   document or comment cites a commit that is not on the integration
   branch or a file that is not in the tree.
+- A change to the body of a definition of a Spec file comes with the
+  list of the statements already in the tree that the definition
+  reaches, directly or through other definitions, and with what
+  happens to each: a premise is strengthened, a conclusion is
+  weakened, or neither. `python3 rocq/check-changed-defs.py BASE TIP`
+  lists, for the commits from BASE to TIP, the definitions whose body
+  changes and the statements that each reaches, named where there
+  are at most 40 and counted otherwise;
+  `python3 rocq/check-changed-defs.py --reach REV NAME` does the same
+  for one definition at one commit. Both are run from the root of
+  the tree, and the record is counted on the tree that it is
+  committed on. It is a search over names: what happens to each
+  statement is read, not computed. Do not write that a function
+  "validates more" as if it were a statement: say what the function
+  now does, and give what was measured as a measure.
