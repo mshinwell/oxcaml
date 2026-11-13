@@ -211,6 +211,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaMapSpec.v \
   FlambdaMergeSwitchesProofs.v \
   FlambdaMergeSwitchesSpec.v \
+  FlambdaMergeTablesProofs.v \
+  FlambdaMergeTablesSpec.v \
   FlambdaModel.v \
   FlambdaMyClosureProofs.v \
   FlambdaMyClosureSpec.v \

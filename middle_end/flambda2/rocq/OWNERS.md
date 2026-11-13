@@ -366,6 +366,8 @@ pass into the validator.
     a rewrite of a whole term, for the validator: the arguments that
     differ from arm to arm are the number of the arm tagged, or that
     negated, and the variable of the scrutinee is bound again)
+  - `middle_end/flambda2/rocq/FlambdaMergeTables*` (the same where
+    the argument is loaded from a static table that is in scope; T1's)
 - S3, continuations. Owner: unassigned.
 - S4, calls. Owner of the first slice: T4, on
   `flambda2-rocq/T4-meet-rename`; the rest unassigned.
