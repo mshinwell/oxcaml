@@ -1270,7 +1270,7 @@ Two lines of equations on four values on which the model and the two meets of th
                                      ((Known 1) Value_only [(Value (= v2))] []))])
                       (other_tags Bottom) (alloc_mode Heap))))
             (extensions No_extensions) (is_unique false)) Not_null)), of which the canonical element is v4
-  a control: the last two equations replaced by one that says of v2 itself that it is a block of one field that is v2
+  a control, of which no value has the equations either: the last two equations replaced by one that says of v2 itself that it is a block of one field that is v2
     the model is not bottom: yes
     the binary meet: each of the twenty-four orders is seen, and in each the compiler sees what the model sees: yes
     the n-way meet: each of the twenty-four orders is seen, and in each the compiler sees what the model sees: yes

@@ -5865,11 +5865,12 @@ let the_line_of_t7_13_in_every_order () =
    3, is the variable 2, which is the variable 1; and the extension of tag 0
    gives the variable 3 two fields, where the variable 1 has one. No value has
    both. The model answers bottom. Neither meet of the compiler does, in any
-   order of the identifiers: an equation on a name to which an equation is being
-   added is ignored
-   ([Meet_env.add_or_delay_concrete_equation_on_canonical_name]; that this is
-   where the contradiction goes is by reading, not traced). Which difference of
-   the model with the compiler this is, is not known.
+   order of the identifiers. Why is not established: neither line was traced.
+   The compiler ignores an equation on a name to which an equation is being
+   added ([Meet_env.add_or_delay_concrete_equation_on_canonical_name]), and the
+   line has such an equation, so that rule may be where the contradiction is
+   lost; the model has the same rule, and which difference of the model with the
+   compiler this is, is not known.
 
    The line of T7-15 is the same with one case in the place of two: the variable
    1 is a variant whose blocks, of tag 0, hold the variable 3, and then one
@@ -5883,7 +5884,12 @@ let the_line_of_t7_13_in_every_order () =
    of the identifiers; the model is run once. A control: with the last two
    equations of the line of T7-14 replaced by one that says of the variable 2
    itself that it is a block of tag 0 and one field that is the variable 2, the
-   model and both meets see the same, and it is not bottom. *)
+   model and both meets see the same, and it is not bottom. No value has those
+   equations either: the variable 1 then has tag 0, its field, the variable 3,
+   is the variable 1, and the extension of tag 0 gives the variable 3 two
+   fields. So the control is not a line that has a value: on it the same
+   contradiction is reached by another route, and the model misses it as both
+   meets do. *)
 type line_of_values =
   | Line_of_t7_14
   | Line_of_t7_15
@@ -6174,8 +6180,9 @@ let the_lines_of_t7_14_and_t7_15 () =
   | [] | [_] | _ :: _ :: _ :: _ -> check "  two meets are run" false);
   (* The control. *)
   Format.printf
-    "  a control: the last two equations replaced by one that says of v2 \
-     itself that it is a block of one field that is v2@.";
+    "  a control, of which no value has the equations either: the last two \
+     equations replaced by one that says of v2 itself that it is a block of \
+     one field that is v2@.";
   let on_v2 = the_line_of_values Line_of_t7_14_on_v2 in
   let model_on_v2 = in_the_model Of_the_compiler on_v2 in
   check "  the model is not bottom" (is_bottom false model_on_v2);
