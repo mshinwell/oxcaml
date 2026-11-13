@@ -3817,9 +3817,15 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
         (Never_returns.cut_returns []
            (Stub_calls.demote_stub_calls before.body))
     in
-    let normalised_before = Validate.normalise_before rounds kept looped in
     let normalised_after = Validate.normalise_after rounds kept after.body in
     let tidied_after = Validate.tidied_after rounds normalised_after in
+    (* Whether the calls of the term before are taken on when its rounds are
+       over, as [validate_unit] decides it: not where the term after, as it is
+       compared, has a call that would be. *)
+    let taken = not (Validate.keeps_a_return tidied_after) in
+    let normalised_before =
+      Validate.with_returns taken (Validate.normalise_before rounds kept looped)
+    in
     (* The names that the term after binds and does not use are added to those
        of the term before, where the term before can do without them too: the
        one list is for both terms (FlambdaValidateSpec.without_head_statics). *)
@@ -3946,10 +3952,13 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
       let rec guessed banned again =
         let liftings, lifted = liftings_from banned 0 [] looped 4 in
         (* After the last lifting [validate_unit] demotes the exception handlers
-           that no call can raise to, and then places the continuations and
+           that no call can raise to, takes the calls on where it does for the
+           term that is not lifted, and then places the continuations and
            tidies. *)
         let lifted =
-          Validate.tidied_before rounds (Validate.demote_and_tidy rounds lifted)
+          Validate.tidied_before rounds
+            (Validate.with_returns taken
+               (Validate.demote_and_tidy rounds lifted))
         in
         let slots = unused_slots_guess lifted normalised_after in
         let lifted = Validate.without_slots slots lifted in
