@@ -11,8 +11,9 @@
 # what -drawfexpr prints, the unit as it is after the conversion from Lambda
 # and before Simplify.
 #
-# A unit whose term has the test of being an integer that is for any value is
-# refused, unless generic_is_int.txt names it (see below).
+# A unit is refused if the text loses of its term something that the tool
+# cannot give back (see below): the test of being an integer that is for any
+# value, unless generic_is_int.txt names the unit; a call that is a probe.
 
 set -eu
 
@@ -70,6 +71,22 @@ if grep -q 'Is_int_generic' "$work/$name.raw"; then
     echo "generic_is_int.txt says how such a unit may be kept." >&2
     exit 1
   fi
+fi
+
+# What the compiler printed, as one line with single spaces: it cuts what it
+# prints into lines by their width.
+tr '\n' ' ' <"$work/$name.raw" | tr -s ' ' >"$work/$name.line"
+
+# The text does not say that a call is a probe, and the call is read as a
+# plain one (label C2-17); the program runs the handler of a probe only while
+# the probe is enabled. The compiler prints "(probe NAME)" in a call that is
+# one and "(probe ())" in any other. A unit whose term has one is refused.
+if grep -q '(probe [^(]' "$work/$name.line"; then
+  echo "$name.ml: the term that the compiler gives to Simplify has a call" >&2
+  echo "that is a probe. The text does not say so, and the call is read" >&2
+  echo "as a plain call, which is always made: the unit read is not the" >&2
+  echo "compiler's." >&2
+  exit 1
 fi
 
 cp "$work/$name.fl" "$target"

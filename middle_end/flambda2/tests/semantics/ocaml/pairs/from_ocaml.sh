@@ -16,6 +16,12 @@
 # own:
 #
 #   (* flags: -g *)
+#
+# As in the directory above, a unit is refused if the text loses of its term
+# something that the tool cannot give back (see below). The refusal of a
+# probe is of a unit that the tool is run on, one that has X.expected beside
+# its source: a unit that has none is compiled for the unit that uses it, and
+# no verdict is given of its text.
 
 set -eu
 
@@ -74,6 +80,24 @@ if grep -q 'Is_int_generic' "$work/$name.raw"; then
     echo "generic_is_int.txt says how such a unit may be kept." >&2
     exit 1
   fi
+fi
+
+# What the compiler printed, as one line with single spaces: it cuts what it
+# prints into lines by their width.
+tr '\n' ' ' <"$work/$name.raw" | tr -s ' ' >"$work/$name.line"
+
+# The text does not say that a call is a probe, and the call is read as a
+# plain one (label C2-17); the program runs the handler of a probe only while
+# the probe is enabled. The compiler prints "(probe NAME)" in a call that is
+# one and "(probe ())" in any other. A unit whose term has one is refused if
+# the tool is run on it.
+if [ -f "$dir/$name.expected" ] &&
+  grep -q '(probe [^(]' "$work/$name.line"; then
+  echo "$name.ml: the term that the compiler gives to Simplify has a call" >&2
+  echo "that is a probe. The text does not say so, and the call is read" >&2
+  echo "as a plain call, which is always made: the unit read is not the" >&2
+  echo "compiler's." >&2
+  exit 1
 fi
 
 cp "$work/$name.fl" "$name.fl.made"

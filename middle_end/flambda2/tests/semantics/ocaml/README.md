@@ -42,6 +42,16 @@ compare the term made with `X.fl` and what the tool prints with
   that.
 - A function whose inlining an example is about has `[@inline]`: with
   the default flags Simplify inlines only the smallest functions.
+- `from_ocaml.sh` refuses a unit of whose term the text loses
+  something that the tool cannot give back. It compiles the unit once
+  more, for what `-drawflambda` prints of the term before Simplify,
+  and fails on two things. The test of being an integer that is for
+  any value (`Is_int_generic`), which the text writes as the test for
+  variants (label C2-26), unless `generic_is_int.txt` names the unit.
+  A call that is a probe: the text does not say that it is one, and
+  the program runs the handler of a probe only while the probe is
+  enabled (label C2-17). `script/` has a unit with a probe and the
+  same unit without it, and what the script says of each.
 - The sources are formatted by `ocamlformat`, as `make fmt` wants, but
   for those that it does not read, which `.ocamlformat-ignore` names:
   the sources that have an unboxed tuple, a parameter marked `local_`
@@ -604,7 +614,8 @@ values and the array with no element are converted
 `empty_array_tested.ml`, `empty_array_in_record.ml`,
 `empty_arrays_of_two_types.ml`, `empty_immutable_array.ml`; P1's).
 The conversion refuses a call that is a probe as well; no unit of
-this directory has one (`pairs/README.md`).
+this directory has one (`pairs/README.md`), and `from_ocaml.sh`
+refuses a unit that has one.
 
 What was on this list and is not any more, with the rewrite that
 removed it:

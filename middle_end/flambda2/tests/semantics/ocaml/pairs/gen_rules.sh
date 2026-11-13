@@ -47,8 +47,12 @@ for name in $units; do
   needs=
   against=
   # from_ocaml.sh reads the list of the units that may have the test of
-  # being an integer that is for any value.
+  # being an integer that is for any value, and looks whether the unit has
+  # an expected file.
   made_needs="../generic_is_int.txt"
+  case "$checked" in
+  *" $name "*) made_needs="$made_needs ../$name.expected" ;;
+  esac
   if [ -n "$first" ]; then
     needs="
  (deps $first.cmi $first.cmx)"

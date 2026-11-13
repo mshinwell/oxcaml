@@ -359,7 +359,13 @@ it gave back.
   mark and its reader gives none, so the refusal does not detect a
   probe whose mark the text has lost: a unit that has a probe of its
   own is read, from its text, as a unit with a plain call, and is
-  checked as one. The mark is met in a body taken from the `.cmx` of
+  checked as one. The scripts that make the texts of
+  `tests/semantics/ocaml` refuse a unit whose term has a call that is
+  a probe, by the mark that `-drawflambda` prints of such a call,
+  where the tool is to be run on the unit (`from_ocaml.sh` there and
+  in `pairs/`; `script/` there has a unit that is refused and the
+  same unit without the probe); the tool reads any text that it is
+  given. The mark is met in a body taken from the `.cmx` of
   another unit, which is then left out of the prefix, as code whose
   body the model has not got (the entry on what those files say), the
   unit being still checked; and in the term that Simplify makes of a
