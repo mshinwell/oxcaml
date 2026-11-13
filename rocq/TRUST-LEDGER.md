@@ -146,12 +146,14 @@ it gave back.
   where the reader takes the kind of the expression (C2-24; the
   paragraph on the kind of the variable of a `Let`, in the entry on
   what the conversion of terms leaves out), and an `Opaque_identity`
-  above may have had another kind than its argument's. The lost kind
-  is recovered on those two conditions only. Where either fails, the
-  primitive there, the variable bound to it and what
-  is bound below to them may be given kinds that the compiler's term
-  had not; the term read differs from the compiler's after this step
-  as it did before, and nothing in the text shows it. The step is not
+  above may have had another kind than its argument's. Those two
+  conditions suffice to recover the lost kind. Where either fails, no
+  recovery of the compiler's kind is claimed: the primitive there,
+  the variable bound to it and what is bound below to them may be
+  given kinds that the compiler's term had not, even where the kind
+  of values that the reader gave was the compiler's. The text does
+  not record the lost annotation, so nothing in it shows which is the
+  case. The step is not
   a check of the compiler's term. What the compiler prints with
   `-drawflambda` has the kind, and no rule of the tests reads it.
   Trusted of this step, as of the one that sets the modes of
