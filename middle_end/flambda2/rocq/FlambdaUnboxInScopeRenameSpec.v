@@ -59,6 +59,16 @@
    application is given is a constant, a symbol, or something in scope
    in the term.
 
+   The unboxing of the reads of a loop
+   (FlambdaUnboxLoopsSpec.unbox_loops_knowing) is such a rewrite too.
+   It commutes with renaming in the same way
+   ([unbox_loops_knowing_equivariant_statement] of
+   FlambdaUnboxVariantsRenameSpec.v), and it keeps scope
+   ([unbox_loops_knowing_symbols_keeps_scope_statement]): the new
+   parameter is bound where the [Let] bound it, and an application is
+   given a constant, a symbol, or a variable in scope where it
+   stands, in the handler the new parameter among them.
+
    With these and the statements of FlambdaUnboxInScopeSpec.v the two
    are in a round of the validation
    (FlambdaValidateSpec.normalise_params_round): the validation is
@@ -73,7 +83,7 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaNominalSpec
   FlambdaValidatorEquivarianceSpec FlambdaUnboxParamsSpec
   FlambdaUnboxParamsRenameSpec FlambdaUnboxVariantsSpec
-  FlambdaUnboxInScopeSpec.
+  FlambdaUnboxInScopeSpec FlambdaUnboxLoopsSpec.
 Import ListNotations.
 
 (* A rewrite that takes what is known of symbols commutes with
@@ -118,3 +128,6 @@ Definition rewrite_rec_handlers_in_scope_keeps_scope_statement : Prop :=
 
 Definition unbox_variants_knowing_symbols_keeps_scope_statement : Prop :=
   keeps_scope_where_known unbox_variants_knowing.
+
+Definition unbox_loops_knowing_symbols_keeps_scope_statement : Prop :=
+  keeps_scope_where_known unbox_loops_knowing.

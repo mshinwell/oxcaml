@@ -79,6 +79,16 @@
    the validation is still sound, answers the same under a renaming
    and keeps scope with it.
 
+   The unboxing of the reads of a loop
+   (FlambdaUnboxLoopsSpec.unbox_loops_knowing) is made of the same
+   things: the first read of a parameter, the applications extended,
+   and what is known. It makes
+   no name either, and given what is known, renamed with the term, it
+   gives the term that it gave, renamed
+   ([unbox_loops_knowing_equivariant_statement]). That it keeps scope
+   is stated with what is known of symbols alone, in
+   FlambdaUnboxInScopeRenameSpec.v.
+
    The proofs are in FlambdaUnboxVariantsRenameProofs.v, which needs no
    review. *)
 
@@ -87,7 +97,8 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaKindModel FlambdaModel
   FlambdaPrimitiveModel FlambdaNominalSpec FlambdaBlockLoadSpec
   FlambdaUnboxSpec FlambdaValidatorEquivarianceSpec FlambdaUnboxParamsSpec
-  FlambdaUnboxParamsRenameSpec FlambdaUnboxVariantsSpec.
+  FlambdaUnboxParamsRenameSpec FlambdaUnboxVariantsSpec
+  FlambdaUnboxLoopsSpec.
 Import ListNotations.
 
 (* A read that was found, renamed. *)
@@ -146,3 +157,8 @@ Definition unbox_variant_params_equivariant_statement : Prop :=
 
 Definition unbox_variant_params_keeps_scope_statement : Prop :=
   keeps_scope unbox_variant_params.
+
+Definition unbox_loops_knowing_equivariant_statement : Prop :=
+  ∀ (r : renaming) (known : facts) (e : expr),
+    unbox_loops_knowing (rename_facts r known) (rename_expr r e)
+    = rename_expr r (unbox_loops_knowing known e).

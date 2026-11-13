@@ -54,7 +54,8 @@ From OxCamlFlambda2 Require Import FlambdaKindModel FlambdaModel FlambdaMapSpec
   FlambdaCompareAlphaProofs FlambdaCseSpec FlambdaCseProofs
   FlambdaUnboxParamsSpec FlambdaUnboxParamsProofs
   FlambdaUnboxParamsRenameSpec FlambdaUnboxVariantsSpec
-  FlambdaUnboxVariantsProofs FlambdaUnboxVariantsRenameSpec.
+  FlambdaUnboxVariantsProofs FlambdaUnboxVariantsRenameSpec
+  FlambdaUnboxLoopsSpec.
 Import ListNotations.
 
 (* The comparison answers the same when both terms are renamed
@@ -1399,6 +1400,155 @@ Proof.
   intros r e. exact (unbox_variants_knowing_equivariant_aux r e no_facts).
 Qed.
 
+(* ======================================================================== *)
+(* The reads of a loop                                                      *)
+(* ======================================================================== *)
+
+Lemma on_spine_renamed (r : renaming) (x : variable) (e : expr) :
+  on_spine (rename_variable r x) (rename_expr r e) = on_spine x e.
+Proof.
+  induction e
+    as [ y kind d body IH | bindings body _ | k0 h body _ | handlers body _
+       | ap | ac | scrutinee arms | ];
+    cbn [rename_expr on_spine]; try reflexivity.
+  rewrite rename_variable_eqb, IH. reflexivity.
+Qed.
+
+Lemma unbox_loop_read_equivariant (r : renaming) (known : facts)
+    (k : continuation) (params : list variable) (metadata : handler_metadata)
+    (handler body : expr) (found : read) :
+  unbox_loop_read (rename_facts r known) (rename_continuation r k)
+    (map (rename_variable r) params) metadata (rename_expr r handler)
+    (rename_expr r body) (rename_read r found)
+  = option_map (rename_step r)
+      (unbox_loop_read known k params metadata handler body found).
+Proof.
+  unfold unbox_loop_read.
+  cbn [rename_read read_variable read_kind read_primitive read_position
+       read_without].
+  rewrite nth_error_map.
+  destruct (nth_error params (read_position found)) as [x | ];
+    cbn [option_map]; [ | reflexivity ].
+  rewrite may_take_renamed, var_free_b_equivariant, on_spine_renamed.
+  destruct
+    (may_take params metadata (read_variable found)
+     && negb (var_free_b (read_variable found) handler)
+     && on_spine (read_variable found) handler);
+    [ | reflexivity ].
+  rewrite extend_applications_equivariant.
+  destruct
+    (extend_applications known k (read_position found)
+       (read_primitive found) body)
+    as [body' | ]; cbn [option_map]; [ | reflexivity ].
+  rewrite facts_under_params_equivariant.
+  change (Prim (Unary (read_primitive found)) [Var (rename_variable r x)])
+    with (rename_named r (Prim (Unary (read_primitive found)) [Var x])).
+  rewrite facts_under_let_equivariant, extend_applications_equivariant.
+  destruct
+    (extend_applications
+       (facts_under_let (facts_under_params known params)
+          (read_variable found)
+          (Prim (Unary (read_primitive found)) [Var x]))
+       k (read_position found) (read_primitive found) (read_without found))
+    as [without' | ]; cbn [option_map rename_step];
+    [ rewrite map_app; reflexivity | reflexivity ].
+Qed.
+
+Lemma loop_of_renamed (r : renaming) (k : continuation) (state : loop_state) :
+  rename_expr r (loop_of k state)
+  = loop_of (rename_continuation r k) (rename_step r state).
+Proof. destruct state as [[[params metadata] handler] body]. reflexivity. Qed.
+
+Lemma unbox_loop_param_equivariant (r : renaming) (fuel : nat) :
+  ∀ (known : facts) (k : continuation) (i : nat) (state : loop_state),
+    unbox_loop_param fuel (rename_facts r known) (rename_continuation r k) i
+      (rename_step r state)
+    = rename_step r (unbox_loop_param fuel known k i state).
+Proof.
+  induction fuel as [ | fuel IH]; intros known k i state; [ reflexivity | ].
+  destruct state as [[[params metadata] handler] body].
+  cbn [unbox_loop_param rename_step].
+  rewrite nth_error_map.
+  destruct (nth_error params i) as [param | ]; cbn [option_map];
+    [ | reflexivity ].
+  pose proof (next_read_equivariant r [param] handler) as Hnext.
+  cbn [map] in Hnext. rewrite Hnext.
+  destruct (next_read [param] handler) as [found | ]; cbn [option_map];
+    [ | reflexivity ].
+  change
+    (Read (read_variable (rename_read r found))
+       (read_kind (rename_read r found))
+       (read_primitive (rename_read r found)) i
+       (read_without (rename_read r found)))
+    with
+      (rename_read r
+         (Read (read_variable found) (read_kind found)
+            (read_primitive found) i (read_without found))).
+  rewrite unbox_loop_read_equivariant.
+  destruct
+    (unbox_loop_read known k params metadata handler body
+       (Read (read_variable found) (read_kind found) (read_primitive found)
+          i (read_without found)))
+    as [state' | ]; cbn [option_map]; [ apply IH | reflexivity ].
+Qed.
+
+Lemma unbox_loop_params_equivariant (r : renaming) (fuel : nat)
+    (known : facts) (k : continuation) (positions : list nat) :
+  ∀ state : loop_state,
+    unbox_loop_params fuel (rename_facts r known) (rename_continuation r k)
+      positions (rename_step r state)
+    = rename_step r (unbox_loop_params fuel known k positions state).
+Proof.
+  induction positions as [ | i positions IH]; intros state;
+    cbn [unbox_loop_params]; [ reflexivity | ].
+  rewrite unbox_loop_param_equivariant. apply IH.
+Qed.
+
+Lemma unbox_loop_reads_equivariant (r : renaming) (known : facts)
+    (k : continuation) (params : list variable) (metadata : handler_metadata)
+    (handler body : expr) :
+  unbox_loop_reads (rename_facts r known) (rename_continuation r k)
+    (map (rename_variable r) params) metadata (rename_expr r handler)
+    (rename_expr r body)
+  = rename_expr r (unbox_loop_reads known k params metadata handler body).
+Proof.
+  unfold unbox_loop_reads.
+  rewrite lets_in_renamed, length_map, loop_of_renamed,
+    <- unbox_loop_params_equivariant.
+  reflexivity.
+Qed.
+
+Fixpoint unbox_loops_knowing_equivariant_aux (r : renaming) (e : expr) :
+  ∀ known : facts,
+    unbox_loops_knowing (rename_facts r known) (rename_expr r e)
+    = rename_expr r (unbox_loops_knowing known e).
+Proof.
+  destruct e
+    as [ x kind d body | bindings body | k h body | handlers body | ap
+       | ac | scrutinee arms | ];
+    intros known; try reflexivity.
+  - cbn [rename_expr unbox_loops_knowing].
+    rewrite facts_under_let_equivariant, unbox_loops_knowing_equivariant_aux.
+    reflexivity.
+  - cbn [rename_expr unbox_loops_knowing].
+    rewrite facts_under_statics_equivariant,
+      unbox_loops_knowing_equivariant_aux.
+    reflexivity.
+  - destruct h as [params metadata handler].
+    cbn [rename_expr rename_handler unbox_loops_knowing].
+    rewrite facts_under_params_equivariant,
+      !unbox_loops_knowing_equivariant_aux.
+    reflexivity.
+  - destruct handlers as [ | [k [params metadata handler]] [ | h2 handlers]];
+      cbn [rename_expr rename_handler map unbox_loops_knowing];
+      rewrite unbox_loops_knowing_equivariant_aux;
+      [ reflexivity | apply unbox_loop_reads_equivariant | reflexivity ].
+Qed.
+
+Theorem unbox_loops_knowing_equivariant :
+  unbox_loops_knowing_equivariant_statement.
+Proof. intros r known e. apply unbox_loops_knowing_equivariant_aux. Qed.
+
 End Renamed.
 
 (* ======================================================================== *)
@@ -2621,4 +2771,154 @@ Proof.
   apply keeps_scope_intro. intros e.
   apply scoped_under_none, unbox_variants_knowing_scoped.
   split; [ split; intros entry [] | split; intros entry [] ].
+Qed.
+
+(* ======================================================================== *)
+(* The reads of a loop keep scope                                           *)
+(* ======================================================================== *)
+
+(* A read of a loop made a parameter: what is left of the handler
+   mentions what the handler did and the new parameter, which it now
+   binds; an application is given something in scope where it stands,
+   in the handler the parameter read and the new one among them. *)
+Lemma unbox_loop_read_scoped (names : list variable) (known : facts)
+    (k : continuation) (params : list variable) (metadata : handler_metadata)
+    (handler body : expr) (found : read) (x : variable)
+    (state : loop_state) :
+  facts_within names known ->
+  nth_error params (read_position found) = Some x ->
+  removes (read_variable found) (read_kind found) (read_primitive found) x
+    handler (read_without found) ->
+  unbox_loop_read known k params metadata handler body found = Some state ->
+  scoped_under names (loop_of k (params, metadata, handler, body))
+    (loop_of k state).
+Proof.
+  intros Hknown Hx Hremoves Hstep.
+  destruct found as [f kind p i rest]. simpl in Hx, Hremoves.
+  unfold unbox_loop_read in Hstep. simpl in Hstep. rewrite Hx in Hstep.
+  simpl in Hstep.
+  destruct
+    (may_take params metadata f && negb (var_free_b f handler)
+     && on_spine f handler);
+    [ | discriminate ].
+  destruct (extend_applications known k i p body) as [body' | ] eqn:Hbody;
+    [ | discriminate ].
+  simpl in Hstep.
+  destruct
+    (extend_applications
+       (facts_under_let (facts_under_params known params) f
+          (Prim (Unary p) [Var x]))
+       k i p rest)
+    as [rest' | ] eqn:Hrest; [ | discriminate ].
+  simpl in Hstep. injection Hstep as <-.
+  pose proof (extend_applications_scoped body names known k i p body' Hknown
+    Hbody) as Hin_body.
+  pose proof (extend_applications_scoped rest _ _ k i p rest'
+    (facts_under_let_within names _ f (Prim (Unary p) [Var x])
+       (facts_under_params_within names known params Hknown))
+    Hrest) as Hin_handler.
+  unfold loop_of. intros Hclosed. scope_in Hclosed. scope.
+  cbn [forallb flat_map map fst] in Hclosed |- *.
+  scope_in Hclosed. scope.
+  rewrite ?app_nil_r, ?andb_true_r in Hclosed.
+  rewrite ?app_nil_r, ?andb_true_r.
+  apply andb_true_iff in Hclosed. destruct Hclosed as [Hfirst Hbody_closed].
+  destruct (removes_scoped f kind p x handler rest Hremoves Hfirst)
+    as (Hfirst0 & Hv0 & Hk0).
+  destruct (Hin_handler Hfirst0) as (Hfirst' & Hv & Hk).
+  destruct (Hin_body Hbody_closed) as (Hbody_closed' & Hv' & Hk').
+  rewrite Hfirst', Hbody_closed'. split; [ reflexivity | split ].
+  - intros y Hy. apply in_app_or in Hy. apply in_or_app.
+    destruct Hy as [Hy | Hy].
+    + apply in_without in Hy. destruct Hy as [Hy Hparams].
+      apply Hv, in_app_or in Hy.
+      destruct Hy as [Hy | [Heq | Hy]].
+      * destruct (Hv0 y Hy) as [Heq | Hin];
+          [ exfalso; apply Hparams, in_or_app; right; left; exact Heq | ].
+        left. apply in_or_app. left. apply in_without.
+        split; [ exact Hin | ].
+        intros Hin'. apply Hparams, in_or_app. left. exact Hin'.
+      * exfalso. apply Hparams, in_or_app. right. left. exact Heq.
+      * apply in_app_or in Hy.
+        destruct Hy as [Hy | Hy]; [ right; exact Hy | ].
+        cbn in Hy. destruct Hy as [<- | []].
+        exfalso. apply Hparams, in_or_app. left.
+        exact (nth_error_In params i Hx).
+    + apply Hv', in_app_or in Hy.
+      destruct Hy as [Hy | Hy];
+        [ left; apply in_or_app; right; exact Hy | right; exact Hy ].
+  - apply incl_without, incl_app_app;
+      [ exact (incl_tran Hk Hk0) | exact Hk' ].
+Qed.
+
+Lemma unbox_loop_param_scoped (fuel : nat) :
+  ∀ (names : list variable) (known : facts) (k : continuation) (i : nat)
+    (state : loop_state),
+    facts_within names known ->
+    scoped_under names (loop_of k state)
+      (loop_of k (unbox_loop_param fuel known k i state)).
+Proof.
+  induction fuel as [ | fuel IH]; intros names known k i state Hknown;
+    [ apply scoped_under_refl | ].
+  destruct state as [[[params metadata] handler] body].
+  cbn [unbox_loop_param].
+  destruct (nth_error params i) as [param | ] eqn:Hparam;
+    [ | apply scoped_under_refl ].
+  destruct (next_read [param] handler) as [r | ] eqn:Hnext;
+    [ | apply scoped_under_refl ].
+  destruct
+    (unbox_loop_read known k params metadata handler body
+       (Read (read_variable r) (read_kind r) (read_primitive r) i
+          (read_without r)))
+    as [state' | ] eqn:Hread; [ | apply scoped_under_refl ].
+  eapply scoped_under_trans; [ | apply IH; exact Hknown ].
+  destruct (next_read_first [param] handler r Hnext) as [wanted Hfirst].
+  destruct (first_read_removes handler wanted [param] [] r Hfirst)
+    as (x & Hposition & _ & _ & Hremoves).
+  apply position_single in Hposition. subst x.
+  exact (unbox_loop_read_scoped names known k params metadata handler body
+    (Read (read_variable r) (read_kind r) (read_primitive r) i
+       (read_without r))
+    param state' Hknown Hparam Hremoves Hread).
+Qed.
+
+Lemma unbox_loop_params_scoped (fuel : nat) (names : list variable)
+    (known : facts) (k : continuation) (positions : list nat) :
+  ∀ state : loop_state,
+    facts_within names known ->
+    scoped_under names (loop_of k state)
+      (loop_of k (unbox_loop_params fuel known k positions state)).
+Proof.
+  induction positions as [ | i positions IH]; intros state Hknown;
+    cbn [unbox_loop_params]; [ apply scoped_under_refl | ].
+  eapply scoped_under_trans;
+    [ apply unbox_loop_param_scoped, Hknown | apply IH, Hknown ].
+Qed.
+
+Fixpoint unbox_loops_knowing_scoped (e : expr) :
+  ∀ (names : list variable) (known : facts),
+    facts_within names known ->
+    scoped_under names e (unbox_loops_knowing known e).
+Proof.
+  destruct e
+    as [ x kind d body | bindings body | k [params metadata handler] body
+       | handlers body | ap | ac | scrutinee arms | ];
+    intros names known Hknown; cbn [unbox_loops_knowing];
+    try apply scoped_under_refl.
+  - apply scoped_under_let; [ apply incl_appl, incl_refl | ].
+    apply unbox_loops_knowing_scoped, facts_under_let_within, Hknown.
+  - apply scoped_under_let_static.
+    apply unbox_loops_knowing_scoped, facts_under_statics_within, Hknown.
+  - apply scoped_under_let_cont; apply unbox_loops_knowing_scoped;
+      [ apply facts_under_params_within, Hknown | exact Hknown ].
+  - assert (Hbody :
+      scoped_under names (Let_cont_recursive handlers body)
+        (Let_cont_recursive handlers (unbox_loops_knowing known body)))
+      by (apply scoped_under_let_cont_recursive, unbox_loops_knowing_scoped,
+            Hknown).
+    destruct handlers as [ | [k [params metadata handler]] [ | h2 handlers]];
+      try exact Hbody.
+    eapply scoped_under_trans; [ exact Hbody | ].
+    exact (unbox_loop_params_scoped _ names known k _
+      (params, metadata, handler, unbox_loops_knowing known body) Hknown).
 Qed.

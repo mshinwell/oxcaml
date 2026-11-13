@@ -105,7 +105,11 @@
    handler are of the continuation itself, and the two go on in step.
    It is a refinement and not an equivalence: where the read has no
    value of its kind the term goes wrong, and the result, which no
-   longer makes the read, may run on. *)
+   longer makes the read, may run on.
+
+   That the pass commutes with renaming is stated in
+   FlambdaUnboxVariantsRenameSpec.v, and that it keeps scope in
+   FlambdaUnboxInScopeRenameSpec.v. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
