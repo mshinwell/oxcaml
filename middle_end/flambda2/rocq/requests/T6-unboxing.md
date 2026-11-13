@@ -917,6 +917,17 @@ parameter is the read of the parameter read, in the form of "A read
 that is in scope" above. The parameter that held the box is left,
 and goes with the unused parameters of loops.
 
+What the pass does for a parameter is kept only where the handler
+is then left with no read of that parameter
+(`unbox_loop_param_all`): no primitive that reads a box applied to
+the parameter itself, anywhere in the handler outside code where
+the parameter is not bound again (`reads_var`). A read of another
+variable that holds the same box is not looked for. A loop that
+tests its parameter and loads from it under the test would
+otherwise have the test for a parameter and the loads still on the
+box, which is the loop of neither term where Simplify left the
+parameter as it was.
+
 Why under `Let`s only. The read is made a parameter in two steps,
 and the first takes it to the head of the handler. The proof of
 that step uses that every run of the handler comes to the read or
