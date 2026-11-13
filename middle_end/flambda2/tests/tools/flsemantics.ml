@@ -220,6 +220,33 @@
    is made from fewer units than were read, a line names the units read. A unit
    for which no .cmx was read has no prefix and no such line.
 
+   The second check. Where every attempt of the validation that the tool makes
+   has refused a unit, and the run of the term before that is shown is not
+   reported undefined, the tool asks
+   FlambdaValidateRelatedSpec.validate_unit_related of the same two terms, with
+   the imports. The liftings are guessed again, each made without its test that
+   the unit exits with symbols and constants only
+   (FlambdaLiftObservedSpec.with_lifting_observed in the place of
+   FlambdaLiftSpec's lifting with [exits_plain]; the other tests of a lifting,
+   of well-formedness, of fresh names and of closed code, and the comparisons,
+   are those of the function), for the same lists of calls in the same order;
+   the check is asked with no value slot to remove and, if it refuses, with the
+   slots guessed. What it accepts is not said to be validated: the line "not
+   validated" stays, [validate] gives [Not_validated], and one line more begins
+   "related once lifted". What is proved of such a pair is
+   validate_unit_related_sound_statement, of the two terms that the check was
+   given, run from the static environment of the imports that it was given: an
+   exit of the first is answered by an exit of the second that no observer of
+   the class of that statement tells apart from it, and the second ends only if
+   the first exits or goes wrong. The values of the two exits need not be the
+   same. The function tests itself what the statement asks of the imports, so
+   there is no test of the verdict beside it; the head of the line says whether
+   the list of imports was empty. Where a prefix was made from the .cmx of other
+   units, the two terms are the two units each with the prefix in front of it,
+   and the statement is of those: that the files are right about the units
+   linked, and what a linked program does when it initialises them, are limits
+   of every verdict with a prefix, and of this line too.
+
    Stubs. The conversion gives code the compiler's flag that says whether it is
    a stub ([Code.stub]). The machine does not read it and the checks of
    well-formedness do not; the comparison of the validator does, so two terms
@@ -251,6 +278,8 @@ module Validate = Flambda2_rocq_semantics.FlambdaValidateSpec
 module Validate_knowing = Flambda2_rocq_semantics.FlambdaValidateKnowingSpec
 module Validate_imports = Flambda2_rocq_semantics.FlambdaValidateImportsSpec
 module Lift = Flambda2_rocq_semantics.FlambdaLiftSpec
+module Lift_observed = Flambda2_rocq_semantics.FlambdaLiftObservedSpec
+module Validate_related = Flambda2_rocq_semantics.FlambdaValidateRelatedSpec
 module My_closure = Flambda2_rocq_semantics.FlambdaMyClosureSpec
 module Unused_slots = Flambda2_rocq_semantics.FlambdaUnusedSlotsSpec
 module Float_code = Flambda2_rocq_semantics.FlambdaFloatCodeSpec
@@ -4181,8 +4210,12 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
      does to each term that it compares after the first comparison
      ([tidied_before], [tidied_after]). The liftings are guessed from the terms
      as the rounds leave them; the value slots and the static bindings to remove
-     from a lifted term are guessed from that term placed and tidied. *)
-  let ask validate_unit (before : converted) (after : converted) kept =
+     from a lifted term are guessed from that term placed and tidied.
+     [with_lifting] is the function that applies a lifting in the search: that
+     of the validator, unless the function asked makes its liftings by
+     another. *)
+  let ask ?(with_lifting = Validate.with_lifting) validate_unit
+      (before : converted) (after : converted) kept =
     (* No table is bound until a first lifting of this asking binds one: a
        verdict of this asking that is reached with no lifting proposed must not
        read what an asking before it left. *)
@@ -4328,7 +4361,7 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
              trusted. It says nothing of the checks of a lifting: a lifting
              whose checks pass may give the same term back, and then the search
              stops; one that gives a term rebuilt but equal may continue. *)
-          let lifted' = Validate.with_lifting lifting lifted in
+          let lifted' = with_lifting lifting lifted in
           (match made with
           | [] -> tables_were_bound := tables_bound lifting.tables_put lifted'
           | _ :: _ -> ());
@@ -4657,6 +4690,111 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
     Format.printf
       "  (at the second asking, of the two terms normalised with what their \
        symbols are bound to used)@.";
+  (* The second check, FlambdaValidateRelatedSpec.validate_unit_related, of the
+     two terms and the imports, for each list of calls that the attempts above
+     were made with, in their order. The liftings are guessed as for the
+     validator, each applied without its test of the exits
+     (FlambdaLiftObservedSpec.with_lifting_observed), which is how the function
+     asked applies them. For each guess the function is asked with no value slot
+     to remove and, if it refuses and slots are guessed, with those. The answer
+     is that of the first list that is accepted with no value slot removed or,
+     if there is none, of the first that is accepted with the slots: whether
+     slots were given, and whether the liftings of that asking bound tables; or
+     nothing, if no list is accepted. [ask] takes an answer in the type of the
+     verdicts of the validator and searches on where it is [Not_validated]:
+     [Same_once_lifted] stands for [Related_once_lifted] between the function
+     given to [ask] and the match on what [ask] returns, here and nowhere else,
+     and is no verdict of the validator. *)
+  let related () : (bool * bool) option =
+    let asked kept =
+      let with_slots = ref false in
+      let answer, _, _, _, _ =
+        ask ~with_lifting:Lift_observed.with_lifting_observed
+          (fun unused slots liftings ->
+            let related slots =
+              match
+                Validate_related.validate_unit_related imports rounds unused
+                  slots loops liftings kept before.body after.body
+              with
+              | Related_once_lifted -> true
+              | Not_related -> false
+            in
+            if related []
+            then (
+              with_slots := false;
+              Validate.Same_once_lifted)
+            else
+              match slots with
+              | [] -> Validate.Not_validated
+              | _ :: _ ->
+                if related slots
+                then (
+                  with_slots := true;
+                  Validate.Same_once_lifted)
+                else Validate.Not_validated)
+          before after kept
+      in
+      match answer with
+      | Same_once_lifted -> Some (!with_slots, !tables_were_bound)
+      | Not_validated | Same_up_to_bound_names | Same_once_normalised
+      | Same_once_unused_statics_removed | Same_once_head_statics_removed ->
+        None
+    in
+    let rec search lists with_the_slots =
+      match lists with
+      | [] -> with_the_slots
+      | kept :: lists -> (
+        match asked kept, with_the_slots with
+        | (Some (false, _) as accepted), _ -> accepted
+        | (Some (true, _) as accepted), None -> search lists accepted
+        | Some (true, _), Some _ | None, _ -> search lists with_the_slots)
+    in
+    search
+      (first_guess :: recursive
+      :: (if another_guess then [once_looped_guess] else []))
+      None
+  in
+  (* The line of the second check, under the line "not validated" and nowhere
+     else: not where the run of the term before that is shown is undefined,
+     where the line is another. Its head says what the check was given: imports
+     or none, and whether the two terms have a prefix in front of them. *)
+  (match validation with
+  | Not_validated when outcome_before <> Undefined -> (
+    match related () with
+    | None -> ()
+    | Some (with_slots, tables) ->
+      let head =
+        match prefix_units, imports with
+        | 0, [] -> "related once lifted"
+        | 0, _ :: _ -> "related once lifted, with its imports"
+        | n, _ :: _ ->
+          Printf.sprintf
+            "related once lifted, with its imports, given the .cmx of %d of \
+             them"
+            n
+        | n, [] ->
+          Printf.sprintf
+            "related once lifted, with no remaining imports, given the .cmx of \
+             %d of them"
+            n
+      in
+      Format.printf
+        "  %s: the same once values are lifted to symbols without the \
+         liftings' symbols-and-constants-only exit test%s%s@."
+        head
+        (if tables
+         then ", the tables of the term after bound in the term before"
+         else "")
+        (if with_slots
+         then ", the terms normalised and unused value slots removed"
+         else ", and the terms normalised; no value slots removed");
+      Format.printf
+        "  (in the model, an exit before is matched by one after under the \
+         restricted observer class; exit values may differ)@.")
+  | Not_validated | Same_up_to_bound_names | Same_once_normalised
+  | Same_once_unused_statics_removed | Same_once_head_statics_removed
+  | Same_once_lifted ->
+    ());
   (* A term before that is undefined is refined by anything: the validation is
      right and says nothing. *)
   (match validation with

@@ -22,6 +22,7 @@ profiles=${*:-known unknown functions known_scalar unknown_scalar}
 here=$(dirname "$0")
 mkdir -p "$out"
 : >"$out/verdicts.txt"
+: >"$out/related.txt"
 seed=$first
 while [ "$seed" -lt $((first + count)) ]; do
   for profile in $profiles; do
@@ -55,6 +56,13 @@ while [ "$seed" -lt $((first + count)) ]; do
         verdict="undefined before Simplify"
       elif grep -q "not decided" "$unit.out"; then
         verdict="not decided"
+      elif grep -q "^  related once lifted" "$unit.out"; then
+        # The line of the second check is under "not validated", and the
+        # unit is counted so; what the check answered of it is counted apart.
+        verdict="not validated"
+        echo "$profile | $(sed -n \
+          's/^  \(related once lifted[^:]*\):.*/\1/p' "$unit.out")" \
+          >>"$out/related.txt"
       else
         verdict=$(tail -1 "$unit.out" | sed 's/^ *//')
       fi
@@ -66,3 +74,7 @@ while [ "$seed" -lt $((first + count)) ]; do
   seed=$((seed + 1))
 done
 sort "$out/verdicts.txt" | uniq -c | sort -k2,2 -k1,1nr
+if [ -s "$out/related.txt" ]; then
+  echo "of the units not validated, the second check answers of:"
+  sort "$out/related.txt" | uniq -c
+fi

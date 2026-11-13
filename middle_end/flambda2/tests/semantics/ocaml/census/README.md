@@ -10,6 +10,12 @@ run from the directory above, makes for each seed from 1 to 150 one
 unit of each profile (`gen.py`), makes its term (`from_ocaml.sh`), runs
 the tool on it and prints the counts. Nothing here is run by the tests.
 
+A unit that has the line of the second check under "not validated"
+(`../README.md`, "What the verdicts mean") is counted as not
+validated, and what that line says of it is counted apart, after the
+counts. Measured with the tool of this tree, at the default flags
+and with `-O3`: no unit of the 600 or of the 240 below has the line.
+
 ## What a generated unit is
 
 One to three inlined functions of two integers and a boolean, each

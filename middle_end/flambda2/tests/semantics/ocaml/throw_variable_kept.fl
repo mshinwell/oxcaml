@@ -1,0 +1,82 @@
+let $camlThrow_variable_kept__first_const_0 = Block 0 () in
+(let code inline(never) size(19)
+       throw_if_negative_0 (e/79 : val, n/80 : imm tagged)
+         my_closure/81 &my_alloc_region/82 my_depth/83
+         -> k/38 * k/39
+         : imm tagged =
+   let next_depth/84 = rec_info (succ my_depth/83) in
+   (let prim/85 = %int_comp.lt (n/80, 0) in
+    let int_lessthan/86 = %tag_imm (prim/85) in
+    (let untagged/87 = %untag_imm (int_lessthan/86) in
+     switch untagged/87
+       | 0 -> k/38 (n/80)
+       | 1 -> k/41)
+      where k/41 =
+        cont k/40)
+     where k/40 =
+       cont k/39 pop(regular k/39) (e/79)
+ in
+ let throw_if_negative/88 =
+   closure throw_if_negative_0 @throw_if_negative &toplevel
+ in
+ let try_region/89 = %begin_try_region () in
+ let try_ghost_region/90 = %begin_try_ghost_region () in
+ cont k/53 push(k/49)
+   where k/53 =
+     let Popaque/112 = %opaque (-3) in
+     apply direct(throw_if_negative_0 &toplevel)
+       (throw_if_negative/88 : _ -> imm tagged)
+         ($`*predef*`.caml_exn_End_of_file, Popaque/112)
+         -> k/52 * k/49
+   where k/52 (body_result/111 : imm tagged) =
+     cont k/42 pop(k/49) (body_result/111)
+   where k/49 exn (exn/105 : val) =
+     let unit/106 = %end_try_region (try_region/89) in
+     let unit/107 = %end_try_ghost_region (try_ghost_region/90) in
+     ((let prim/108 = %phys_eq (exn/105, $`*predef*`.caml_exn_End_of_file) in
+       let eq/109 = %tag_imm (prim/108) in
+       (let untagged/110 = %untag_imm (eq/109) in
+        switch untagged/110
+          | 0 -> k/51
+          | 1 -> k/42 (200))
+         where k/51 =
+           cont k/50)
+        where k/50 =
+          cont error pop(reraise error) (exn/105))
+   where k/42 (try_with_result/91 : imm tagged) =
+     let try_region/92 = %begin_try_region () in
+     let try_ghost_region/93 = %begin_try_ghost_region () in
+     (cont k/48 push(k/44)
+        where k/48 =
+          let Popaque/104 = %opaque (3) in
+          apply direct(throw_if_negative_0 &toplevel)
+            (throw_if_negative/88 : _ -> imm tagged)
+              ($`*predef*`.caml_exn_Not_found, Popaque/104)
+              -> k/47 * k/44
+        where k/47 (body_result/103 : imm tagged) =
+          cont k/43 pop(k/44) (body_result/103)
+        where k/44 exn (exn/97 : val) =
+          let unit/98 = %end_try_region (try_region/92) in
+          let unit/99 = %end_try_ghost_region (try_ghost_region/93) in
+          ((let prim/100 = %phys_eq (exn/97, $`*predef*`.caml_exn_Not_found)
+            in
+            let eq/101 = %tag_imm (prim/100) in
+            (let untagged/102 = %untag_imm (eq/101) in
+             switch untagged/102
+               | 0 -> k/46
+               | 1 -> k/43 (100))
+              where k/46 =
+                cont k/45)
+             where k/45 =
+               cont error pop(reraise error) (exn/97))
+        where k/43 (try_with_result/94 : imm tagged) =
+          let result/95 =
+            %int_barith.add (try_with_result/94, try_with_result/91)
+          in
+          let Pmakeblock/96 = %block.[`0`].`toplevel` (result/95) in
+          cont k/37 (Pmakeblock/96)))
+  where k/37 define_root_symbol (module_block/77) =
+    let field_0/78 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/77)
+    in
+    let $camlThrow_variable_kept = Block 0 (field_0/78) in
+    cont done ($camlThrow_variable_kept)

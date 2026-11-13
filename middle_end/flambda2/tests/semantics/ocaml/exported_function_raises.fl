@@ -1,0 +1,74 @@
+let $camlExported_function_raises__first_const_0 = Block 0 () in
+(let code size(23)
+       pred_0 (n/71 : imm tagged)
+         my_closure/72 &my_alloc_region/73 my_depth/74
+         -> k/34 * k/35
+         : imm tagged =
+   let next_depth/75 = rec_info (succ my_depth/74) in
+   (let prim/77 = %int_comp.lt (n/71, 1) in
+    let int_lessthan/78 = %tag_imm (prim/77) in
+    (let untagged/79 = %untag_imm (int_lessthan/78) in
+     switch untagged/79
+       | 0 -> k/38
+       | 1 -> k/39)
+      where k/39 =
+        cont k/36
+      where k/38 =
+        cont k/37)
+     where k/37 =
+       let int_sub/76 = %int_barith.sub (n/71, 1) in
+       cont k/34 (int_sub/76)
+     where k/36 =
+       cont k/35 pop(regular k/35) ($`*predef*`.caml_exn_Not_found)
+ in
+ let code size(34)
+       pred_or_zero_1 (n/80 : imm tagged)
+         my_closure/81 &my_alloc_region/82 my_depth/83
+         -> k/40 * k/41
+         : imm tagged =
+   let next_depth/84 = rec_info (succ my_depth/83) in
+   let pred/85 = %project_value_slot.[pred_or_zero].[pred] (my_closure/81) in
+   let try_region/86 = %begin_try_region () in
+   let try_ghost_region/87 = %begin_try_ghost_region () in
+   cont k/46 push(k/42)
+     where k/46 =
+       apply direct(pred_0 &my_alloc_region/82)
+         (pred/85 : _ -> imm tagged) (n/80) -> k/45 * k/42
+     where k/45 (body_result/94 : imm tagged) =
+       cont k/40 pop(k/42) (body_result/94)
+     where k/42 exn (exn/88 : val) =
+       let unit/89 = %end_try_region (try_region/86) in
+       let unit/90 = %end_try_ghost_region (try_ghost_region/87) in
+       ((let prim/91 = %phys_eq (exn/88, $`*predef*`.caml_exn_Not_found) in
+         let eq/92 = %tag_imm (prim/91) in
+         (let untagged/93 = %untag_imm (eq/92) in
+          switch untagged/93
+            | 0 -> k/44
+            | 1 -> k/40 (0))
+           where k/44 =
+             cont k/43)
+          where k/43 =
+            cont k/41 pop(reraise k/41) (exn/88))
+ in
+ let pred/95 = closure pred_0 @pred &toplevel in
+ let pred_or_zero/96 = closure pred_or_zero_1 @pred_or_zero &toplevel
+ with { pred = pred/95 }
+ in
+ apply direct(pred_or_zero_1 &toplevel)
+   (pred_or_zero/96 : _ -> imm tagged) (0) -> k/47 * error
+   where k/47 (result/97 : imm tagged) =
+     let Pmakeblock/98 =
+       %block.[`0`].`toplevel` (pred/95, pred_or_zero/96, result/97)
+     in
+     cont k/33 (Pmakeblock/98))
+  where k/33 define_root_symbol (module_block/67) =
+    let field_0/68 = %block_load.tag[`0`].`size`[`3`].[`0`] (module_block/67)
+    in
+    let field_1/69 = %block_load.tag[`0`].`size`[`3`].[`1`] (module_block/67)
+    in
+    let field_2/70 = %block_load.tag[`0`].`size`[`3`].[`2`] (module_block/67)
+    in
+    let $camlExported_function_raises =
+      Block 0 (field_0/68, field_1/69, field_2/70)
+    in
+    cont done ($camlExported_function_raises)

@@ -263,6 +263,90 @@ unit made from OCaml.
 - **the same, not validated**: the two runs came to the same result,
   which is a test of one run and no proof. The validator could not make
   the two terms the same; the table says what it is missing.
+- **related once lifted**, a line under "not validated" (it awaits
+  the human's choice, decision D43): the validator refused the
+  pair for every list of calls that the tool tries, and the tool
+  then asked a second check of the same two terms,
+  `FlambdaValidateRelatedSpec.validate_unit_related`. That check
+  makes each lifting without the test that the unit exits with
+  symbols and constants only
+  (`FlambdaLiftObservedSpec.with_lifting_observed`; the test is
+  `FlambdaLiftSpec.exits_plain`), keeps every other test of a
+  lifting, and then compares the two terms as the validator
+  compares two lifted terms.
+  What is proved of a pair that it accepts
+  (`validate_unit_related_sound_statement`) is not that the unit
+  after refines the unit before. It is one-way, and it is this:
+  an exit of the unit before is answered by an exit of the unit
+  after that no observer of a class tells apart from it
+  (`FlambdaObserversSpec.worlds_observed`), and the unit after
+  ends only if the unit before exits or goes wrong. Of a unit
+  before that goes wrong it says nothing. It is no claim that the
+  two units are equivalent under what may follow them.
+  The class is the whole of `FlambdaObserversSpec.observer` at
+  the value slots that the check was given to remove, and no
+  smaller one: a way out, or a handler with no captured
+  environment, in which there is no static binding, which names
+  no symbol and no code id, and which projects none of those
+  value slots (there are none unless the line ends "unused value
+  slots removed"). Such a handler may read, store, allocate,
+  project and call; one that makes an immutable array is in the
+  class. So the line says nothing of the unit linked with another
+  unit, which names its symbols.
+  What two such exits have in common
+  (`worlds_observed_way_out_statement`): they are by the same
+  continuation; where a value of either is a constant or a
+  location, the value at the same place of the other is the same;
+  and the two heaps bind the same locations in the same order.
+  What an allocated value of an exit holds, and what the cells of
+  the heaps hold, need not be equal: an exit of the unit after
+  may carry a symbol where the exit of the unit before carries
+  the value that the symbol is bound to.
+  "validated" requires equal exit values and equal heaps; this
+  line does not require those equalities, so says less in that
+  respect. Its observer comparison also uses the static
+  environment at each exit. No implication between the two
+  relations, or inclusion between the two checks' acceptances, is
+  claimed.
+  The head of the line says what the check was given. "with its
+  imports": a list of imports that is not empty; the statement is
+  of the two terms run from the static environment of those
+  imports, and the function tests what the laws of its steps ask
+  of them. "given the .cmx of N of them": the two terms are the
+  two units each with the prefix made from those files in front
+  of it, and the statement is of those two terms; that the files
+  are right about the units linked, and how a linked program
+  initialises them, are the limits that `rocq/TRUST-LEDGER.md`
+  states of a verdict with a prefix. "with no remaining imports":
+  the prefix left no import.
+  An observer names no symbol, hence no imported exception
+  symbol: it cannot compare a value with a specified predefined
+  exception by naming that exception. No theorem that the two
+  exits carry the same named predefined exception, alone or in a
+  block, is claimed here. The check compares the terms, including
+  their symbol names; that is not a proved same-exception
+  guarantee for its answer.
+  Such a unit is not validated and is counted so: no count of
+  this file, of the census or of the tool changes for it. The
+  units that have the line are in a table of their own below,
+  those whose check was given imports apart from those with
+  none. Whether a relation of this kind is what a verdict is to
+  mean is the human's to choose, between this form and one that
+  relates the values of the two exits and the two heaps
+  structurally (decision D43; `rocq/TRUST-LEDGER.md`, "A check
+  that does not establish `refines`"); until then these units are
+  added to no count of units validated.
+  The tool asks the check only under the line "not validated":
+  where the run of the term before that is shown is reported
+  undefined the line is another, and the check is not asked.
+  That the run shown is not undefined does not establish that
+  the unit before never goes wrong. The check is asked with no
+  value slot to remove first. Of an import of which nothing is
+  known (the class `Import_unknown`): where a run executes an
+  inspection of such an import it goes wrong in the model, and
+  the statement says nothing of that source run. The way-out
+  consequence excludes a constant or a location opposite such an
+  import; the full observer relation is still what is concluded.
 - **nothing to validate, as the term before is undefined**: the machine
   has no step somewhere in the run of the term before, so anything
   refines it and a validation would say nothing. The compiler runs
@@ -615,12 +699,53 @@ before. What each shows, and what its validation uses besides:
 
 | Source | Steps | What the validator lacks |
 |--------|-------|--------------------------|
+| `exported_function_raises.ml` | 40, 23 | code raises a variable, and a lifting is made only where the unit gives symbols and constants to the continuations that it may leave through (`FlambdaLiftSpec.exits_plain`, and the CR there); related once lifted (the tables below) |
 | `iarray_exported.ml` | 10, 3 | an immutable array that Simplify makes a symbol bound to a static array: the lifting of an array is not in the validation (P1, V3) |
 | `iarray_literal.ml` | 11, 5 | as `iarray_exported.ml` |
 | `pair_join.ml` | 31, 28 | one branch gives a parameter of the function, and Simplify loads its fields at that use, which only the subkind of the parameter justifies; the model has no subkinds (T6-7) |
 | `pair_kept.ml` | 35, 33 | as `pair_join.ml` |
 | `pair_loop.ml` | 192, 85 | as `pair_join.ml`, at the entry of a loop, whose parameter Simplify unboxes from its subkind without looking at the uses (T6-7) |
+| `raise_parameter.ml` | 11, 7 | as `exported_function_raises.ml` |
 | `rec_helper_called_outside.ml` | 27, 13 | two functions defined together, neither of them recursive: Simplify inlines the second where the unit calls it and leaves the call of it in the code of the first. The validation inlines no call of code that the term after still calls, so it inlines neither: the calls that are not inlined are chosen by code and not by call (V2; `status/V2.md`, a known limit, here in a source with no attribute at a call) |
+| `reraise_in_kept_function.ml` | 47, 35 | as `exported_function_raises.ml` |
+| `throw_variable_kept.ml` | 49, 31 | as `exported_function_raises.ml` |
+
+### Related once lifted, and not validated
+
+These units are among those of the table above: each is "not
+validated", and the second check answers of it. They are counted
+in no row of the validated.
+
+The check given no import:
+
+| Source | What it is | The line |
+|--------|------------|----------|
+| `raise_parameter.ml` | a function that raises its parameter, and one that catches whatever the first raises; neither is called | related once lifted; unused value slots removed |
+| `reraise_in_kept_function.ml` | a function that stays, with a handler that raises again what it caught unless a test says otherwise; nothing in the unit names an exception (source by T5b) | related once lifted; no value slots removed |
+
+The check given imports:
+
+| Source | What it is | The line |
+|--------|------------|----------|
+| `exported_function_raises.ml` | an exported function raises `Not_found`, and a second catches it by name, with the arm that the front end adds, which raises again the variable caught (source by T5b) | related once lifted, with its imports; unused value slots removed |
+| `throw_variable_kept.ml` | a function that raises the exception that it is given, and stays a function; two handlers by name (source by T5b) | related once lifted, with its imports; no value slots removed |
+
+`pair_join.ml`, of the table above, is a unit that the check refuses:
+what the tool prints of it ends with the line "not validated". Of the
+terms written by hand in the directory above, `../uncaught.fl` has
+the line, with no import and no value slot removed: it leaves by its
+exception continuation with a block that it made.
+
+Measured: on the sources that the tool of this tree was run on, in
+this tree and outside it, every unit that has the line has an
+import, apart from the examples added here to exercise the no-import
+case, two more of their shape that are not in this tree, and that
+term written by hand. The import is a predefined exception or, in a
+unit that uses another unit, an exception or another symbol of that
+unit. A declaration of a fresh exception uses the runtime call
+`caml_fresh_oo_id`. A term in which that call remains has no
+verdict: the tool does not convert C calls. Those examples exercise
+the line with no import.
 
 ### Undefined in the model
 
