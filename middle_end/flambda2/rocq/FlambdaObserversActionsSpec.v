@@ -74,6 +74,23 @@
      left: it holds no variables or continuations.
    None of these has a premise.
 
+   A class of what may follow a unit. FlambdaObserversSpec.v has the two
+   relations over a class of continuation values that is given, in the
+   place of the observers ([worlds_observed_by], [refines_observed_by]);
+   the two over the observers are those at the class [observer slots].
+   For every class that a renaming keeps, in that what is in the class
+   is in it renamed, the two relations, and the comparison of two units
+   by the first, hold exactly when they hold of what is renamed
+   ([worlds_observed_by_equivariant_statement],
+   [refines_world_observed_by_equivariant_statement],
+   [refines_observed_by_equivariant_statement]). The three statements
+   above that have a universal over the observers on each side are
+   these at the class [observer slots], which a renaming keeps
+   ([observer_equivariant_statement]); and these say the same of a
+   class of some of the observers, where a renaming keeps it. The class
+   is under an outer universal and nothing is asked of it but that: no
+   observer is named.
+
    A permutation of locations. One permutation, applied to both sides.
    - A value is a constant or a location exactly when the value moved
      is ([scalar_permuted_statement]), so two lists of values have the
@@ -178,6 +195,43 @@ Definition refines_under_observers_equivariant_statement : Prop :=
     refines_under_observers slots (rename_static_env r statics) hp
       (rename_expr r source) (rename_expr r target)
     <-> refines_under_observers slots statics hp source target.
+
+(* ======================================================================== *)
+(* A class of what may follow a unit                                        *)
+(* ======================================================================== *)
+
+(* Of a class of continuation values that a renaming keeps: what is in
+   the class is in it renamed. The other way follows, by the inverse
+   renaming. No two worlds are told apart by the class exactly when the
+   two renamed are not. *)
+Definition worlds_observed_by_equivariant_statement : Prop :=
+  ∀ O : cont_value -> Prop,
+    (∀ (r : renaming) (c : cont_value), O c -> O (rename_cont_value r c)) ->
+    ∀ (r : renaming) (w w' : exit_world),
+      worlds_observed_by O (rename_exit_world r w) (rename_exit_world r w')
+      <-> worlds_observed_by O w w'.
+
+(* So the comparison of two units by the class is that of the two
+   renamed. *)
+Definition refines_world_observed_by_equivariant_statement : Prop :=
+  ∀ O : cont_value -> Prop,
+    (∀ (r : renaming) (c : cont_value), O c -> O (rename_cont_value r c)) ->
+    ∀ (r : renaming) (source target : state),
+      refines_world (worlds_observed_by O) (rename_state r source)
+        (rename_state r target)
+      <-> refines_world (worlds_observed_by O) source target.
+
+(* The form in which a pass proves it, from the continuation
+   environments of the class: of the two terms and of the code of the
+   static environment renamed. *)
+Definition refines_observed_by_equivariant_statement : Prop :=
+  ∀ O : cont_value -> Prop,
+    (∀ (r : renaming) (c : cont_value), O c -> O (rename_cont_value r c)) ->
+    ∀ (r : renaming) (statics : static_env) (hp : heap)
+      (source target : expr),
+      refines_observed_by O (rename_static_env r statics) hp
+        (rename_expr r source) (rename_expr r target)
+      <-> refines_observed_by O statics hp source target.
 
 (* ======================================================================== *)
 (* A permutation of locations                                               *)

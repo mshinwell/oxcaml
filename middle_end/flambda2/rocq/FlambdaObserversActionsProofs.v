@@ -36,6 +36,13 @@
    the static names in scope is renamed in
    FlambdaValidatorEquivarianceProofs.v.
 
+   A class. The three statements over a class of continuation values
+   are proved as those over the observers were, with the premise in
+   the place of [observer_equivariant]: what is in the class is the
+   renaming of what is in it, renamed back. The three over the
+   observers are then proved as their instances at the class
+   [observer slots], so that the kernel checks that each is one.
+
    A permutation of locations. A value moved is moved back by the
    inverse, so moving is injective; a constant and a location keep
    their form. *)
@@ -189,10 +196,13 @@ Proof.
     + apply IH. exact Hrest.
 Qed.
 
-Lemma worlds_observed_renamed (r : renaming) (slots : list value_slot)
-    (w w' : exit_world) :
-  worlds_observed slots w w' ->
-  worlds_observed slots (rename_exit_world r w) (rename_exit_world r w').
+(* ---- A class of what may follow a unit --------------------------------- *)
+
+Lemma worlds_observed_by_renamed (O : cont_value -> Prop)
+    (HO : ∀ (r : renaming) (c : cont_value), O c -> O (rename_cont_value r c))
+    (r : renaming) (w w' : exit_world) :
+  worlds_observed_by O w w' ->
+  worlds_observed_by O (rename_exit_world r w) (rename_exit_world r w').
 Proof.
   intros [Hk Hobserved]. split.
   - simpl. rewrite Hk. reflexivity.
@@ -200,46 +210,63 @@ Proof.
     rewrite <- (rename_cont_value_inverse_r r c).
     rewrite !apply_cont_value_equivariant.
     apply observed_refines_renamed, Hobserved.
-    apply (proj2 (observer_equivariant (inverse_renaming r) slots c)).
-    exact Hc.
+    apply (HO (inverse_renaming r)). exact Hc.
 Qed.
 
-Theorem worlds_observed_equivariant :
-  worlds_observed_equivariant_statement.
+Theorem worlds_observed_by_equivariant :
+  worlds_observed_by_equivariant_statement.
 Proof.
-  intros r slots w w'. split; [ | apply worlds_observed_renamed ].
+  intros O HO r w w'. split; [ | apply worlds_observed_by_renamed, HO ].
   intros Hobserved.
-  apply (worlds_observed_renamed (inverse_renaming r)) in Hobserved.
+  apply (worlds_observed_by_renamed O HO (inverse_renaming r)) in Hobserved.
   rewrite !(proj1 (rename_exit_world_inverse r _)) in Hobserved.
   exact Hobserved.
 Qed.
 
-Lemma refines_world_observed_renamed (r : renaming)
-    (slots : list value_slot) (source target : state) :
-  refines_world (worlds_observed slots) source target ->
-  refines_world (worlds_observed slots) (rename_state r source)
+Lemma refines_world_observed_by_renamed (O : cont_value -> Prop)
+    (HO : ∀ (r : renaming) (c : cont_value), O c -> O (rename_cont_value r c))
+    (r : renaming) (source target : state) :
+  refines_world (worlds_observed_by O) source target ->
+  refines_world (worlds_observed_by O) (rename_state r source)
     (rename_state r target).
 Proof.
   intros Hrefines. apply refines_world_kept; [ | exact Hrefines ].
-  intros w w'. apply worlds_observed_renamed.
+  intros w w'. apply worlds_observed_by_renamed, HO.
 Qed.
 
-Theorem refines_world_observed_equivariant :
-  refines_world_observed_equivariant_statement.
+Theorem refines_world_observed_by_equivariant :
+  refines_world_observed_by_equivariant_statement.
 Proof.
-  intros r slots source target.
-  split; [ | apply refines_world_observed_renamed ].
+  intros O HO r source target.
+  split; [ | apply refines_world_observed_by_renamed, HO ].
   intros Hrefines.
-  apply (refines_world_observed_renamed (inverse_renaming r)) in Hrefines.
+  apply (refines_world_observed_by_renamed O HO (inverse_renaming r))
+    in Hrefines.
   rewrite !(proj1 (rename_state_inverse r _)) in Hrefines.
   exact Hrefines.
 Qed.
 
-Lemma refines_under_observers_renamed (r : renaming)
-    (slots : list value_slot) (statics : static_env) (hp : heap)
+(* A continuation environment of the class, renamed, is one. *)
+Lemma class_env_renamed (O : cont_value -> Prop)
+    (HO : ∀ (r : renaming) (c : cont_value), O c -> O (rename_cont_value r c))
+    (r : renaming) (conts : cont_env) :
+  Forall (fun kc => O (snd kc)) conts ->
+  Forall (fun kc => O (snd kc)) (rename_cont_env r conts).
+Proof.
+  unfold rename_cont_env.
+  induction conts as [ | [k c] conts IH]; simpl; intros H.
+  - constructor.
+  - inversion H as [ | kc rest Hc Hrest]; subst. constructor.
+    + apply HO. exact Hc.
+    + apply IH. exact Hrest.
+Qed.
+
+Lemma refines_observed_by_renamed (O : cont_value -> Prop)
+    (HO : ∀ (r : renaming) (c : cont_value), O c -> O (rename_cont_value r c))
+    (r : renaming) (statics : static_env) (hp : heap)
     (source target : expr) :
-  refines_under_observers slots statics hp source target ->
-  refines_under_observers slots (rename_static_env r statics) hp
+  refines_observed_by O statics hp source target ->
+  refines_observed_by O (rename_static_env r statics) hp
     (rename_expr r source) (rename_expr r target).
 Proof.
   intros Hrefines conts Hconts.
@@ -251,20 +278,80 @@ Proof.
                     (rename_cont_env (inverse_renaming r) conts) statics
                     hp))).
   apply Hrefines.
-  apply (proj2 (observers_equivariant (inverse_renaming r) slots conts)).
-  exact Hconts.
+  apply class_env_renamed; [ exact HO | exact Hconts ].
+Qed.
+
+Theorem refines_observed_by_equivariant :
+  refines_observed_by_equivariant_statement.
+Proof.
+  intros O HO r statics hp source target.
+  split; [ | apply refines_observed_by_renamed, HO ].
+  intros Hrefines.
+  apply (refines_observed_by_renamed O HO (inverse_renaming r)) in Hrefines.
+  rewrite rename_static_env_inverse_l in Hrefines.
+  rewrite !rename_expr_inverse in Hrefines.
+  exact Hrefines.
+Qed.
+
+(* ---- The observers: the class [observer slots] -------------------------- *)
+
+Lemma observer_renamed (slots : list value_slot) (r : renaming)
+    (c : cont_value) :
+  observer slots c -> observer slots (rename_cont_value r c).
+Proof. apply (proj2 (observer_equivariant r slots c)). Qed.
+
+Lemma worlds_observed_renamed (r : renaming) (slots : list value_slot)
+    (w w' : exit_world) :
+  worlds_observed slots w w' ->
+  worlds_observed slots (rename_exit_world r w) (rename_exit_world r w').
+Proof.
+  exact (worlds_observed_by_renamed (observer slots) (observer_renamed slots)
+           r w w').
+Qed.
+
+Theorem worlds_observed_equivariant :
+  worlds_observed_equivariant_statement.
+Proof.
+  intros r slots w w'.
+  exact (worlds_observed_by_equivariant (observer slots)
+           (observer_renamed slots) r w w').
+Qed.
+
+Lemma refines_world_observed_renamed (r : renaming)
+    (slots : list value_slot) (source target : state) :
+  refines_world (worlds_observed slots) source target ->
+  refines_world (worlds_observed slots) (rename_state r source)
+    (rename_state r target).
+Proof.
+  exact (refines_world_observed_by_renamed (observer slots)
+           (observer_renamed slots) r source target).
+Qed.
+
+Theorem refines_world_observed_equivariant :
+  refines_world_observed_equivariant_statement.
+Proof.
+  intros r slots source target.
+  exact (refines_world_observed_by_equivariant (observer slots)
+           (observer_renamed slots) r source target).
+Qed.
+
+Lemma refines_under_observers_renamed (r : renaming)
+    (slots : list value_slot) (statics : static_env) (hp : heap)
+    (source target : expr) :
+  refines_under_observers slots statics hp source target ->
+  refines_under_observers slots (rename_static_env r statics) hp
+    (rename_expr r source) (rename_expr r target).
+Proof.
+  exact (refines_observed_by_renamed (observer slots) (observer_renamed slots)
+           r statics hp source target).
 Qed.
 
 Theorem refines_under_observers_equivariant :
   refines_under_observers_equivariant_statement.
 Proof.
   intros r slots statics hp source target.
-  split; [ | apply refines_under_observers_renamed ].
-  intros Hrefines.
-  apply (refines_under_observers_renamed (inverse_renaming r)) in Hrefines.
-  rewrite rename_static_env_inverse_l in Hrefines.
-  rewrite !rename_expr_inverse in Hrefines.
-  exact Hrefines.
+  exact (refines_observed_by_equivariant (observer slots)
+           (observer_renamed slots) r statics hp source target).
 Qed.
 
 (* ======================================================================== *)
