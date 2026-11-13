@@ -163,6 +163,14 @@
      continuation to the parameters that are left. The wrapper
      mentions the continuation, which is in scope where the call was,
      and its own parameters ([wrap_returns_keeps_scope_statement]).
+   - FlambdaUntagParamsSpec.untag_params untags, for a set of positions
+     at once, parameters of continuations that hold a tagged immediate
+     and are only untagged or passed on: the handler has those
+     parameters after the others, an application has its arguments in
+     that order with a naked constant for a tagged one, and the [Let]
+     of the untagging of such a parameter is a [Let] of the parameter.
+     No variable and no continuation is mentioned that was not
+     ([untag_params_keeps_scope_statement]).
 
    Nothing is asked of a term but that its code is closed, which
    [keeps_scope] itself asks, and nothing of what a rewrite is given.
@@ -179,7 +187,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaUnusedSlotsSpec
   FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec FlambdaFloatCodeSpec
   FlambdaGroupsUpSpec FlambdaKnownSlotsSpec FlambdaStubCallsSpec
-  FlambdaUnaliasParamsSpec FlambdaWrapReturnsSpec
+  FlambdaUnaliasParamsSpec FlambdaWrapReturnsSpec FlambdaUntagParamsSpec
   FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec.
 From OxCamlFlambda2 Require Import FlambdaLiftObservedSpec.
@@ -328,3 +336,10 @@ Definition unalias_params_keeps_scope_statement : Prop :=
 
 Definition wrap_returns_keeps_scope_statement : Prop :=
   keeps_scope wrap_returns.
+
+(* ======================================================================== *)
+(* Parameters that are only untagged or passed on                           *)
+(* ======================================================================== *)
+
+Definition untag_params_keeps_scope_statement : Prop :=
+  keeps_scope untag_params.

@@ -75,14 +75,16 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaStaticsOrderProofs FlambdaRenameApartSpec FlambdaRenameApartProofs
   FlambdaInlineSiblingsSpec FlambdaInlineSiblingsProofs
   FlambdaUnusedProjectionsSpec FlambdaUnboxVariantsSpec
-  FlambdaUnaliasParamsSpec FlambdaWrapReturnsSpec FlambdaValidateSpec
+  FlambdaUnaliasParamsSpec FlambdaWrapReturnsSpec FlambdaUntagParamsSpec
+  FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec FlambdaValidatorEquivarianceBaseProofs.
 From OxCamlFlambda2 Require FlambdaKeepsScopeProofs FlambdaValidateScopeProofs
   FlambdaLoopsScopeProofs
   FlambdaStaticsScopeProofs FlambdaLiftFromArmsProofs
   FlambdaLiftAroundProofs
   FlambdaHoistStaticsProofs FlambdaUnboxParamsNamesProofs
-  FlambdaUnaliasParamsNamesProofs FlambdaWrapReturnsNamesProofs.
+  FlambdaUnaliasParamsNamesProofs FlambdaWrapReturnsNamesProofs
+  FlambdaUntagParamsNamesProofs.
 From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
 From OxCamlFlambda2 Require FlambdaDemoteProofs.
 From OxCamlFlambda2 Require Import FlambdaLiftObservedSpec.
@@ -4773,6 +4775,11 @@ Proof. exact FlambdaUnaliasParamsNamesProofs.unalias_params_renamed. Qed.
 Theorem wrap_returns_equivariant : wrap_returns_equivariant_statement.
 Proof. exact FlambdaWrapReturnsNamesProofs.wrap_returns_renamed. Qed.
 
+(* Untagging the parameters that are only untagged or passed on: the
+   lemmas are in FlambdaUntagParamsNamesProofs.v. *)
+Theorem untag_params_equivariant : untag_params_equivariant_statement.
+Proof. exact FlambdaUntagParamsNamesProofs.untag_params_renamed. Qed.
+
 (* Following aliases into the handlers of recursive continuations. *)
 Fixpoint follow_aliases_in_loops_equivariant_aux (r : renaming) (e : expr) :
   ∀ tenv : typing_env,
@@ -5097,6 +5104,7 @@ Ltac rename_outwards :=
       | rewrite follow_aliases_in_loops_unknowing_equivariant
       | rewrite drop_unused_params_equivariant
       | rewrite wrap_returns_equivariant
+      | rewrite untag_params_equivariant
       | rewrite drop_dead_params_equivariant
       | rewrite bind_aliased_params_equivariant
       | rewrite forward_applications_equivariant

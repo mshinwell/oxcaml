@@ -350,7 +350,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaForwardSpec FlambdaForwardJumpsSpec FlambdaForwardKindedSpec
   FlambdaInlineTailSpec FlambdaLoopifySpec
   FlambdaDeadParamsSpec FlambdaRenameApartSpec FlambdaUnusedProjectionsSpec
-  FlambdaUnaliasParamsSpec FlambdaWrapReturnsSpec FlambdaValidateSpec.
+  FlambdaUnaliasParamsSpec FlambdaWrapReturnsSpec FlambdaUntagParamsSpec
+  FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 From OxCamlFlambda2 Require Import FlambdaLiftObservedSpec.
 Import ListNotations.
@@ -863,6 +864,16 @@ Definition unalias_params_equivariant_statement : Prop :=
    That it keeps scope is in FlambdaStaticsScopeSpec.v. *)
 Definition wrap_returns_equivariant_statement : Prop :=
   rewrite_equivariant wrap_returns.
+
+(* Untagging, for a set of positions at once, the parameters of
+   continuations that hold a tagged immediate and are only untagged or
+   passed on (FlambdaUntagParamsSpec.v). The positions are computed
+   from the term by tests of equality of names, so those of the
+   renamed term are those of the term with the continuations renamed;
+   no name is made. That it keeps scope is in
+   FlambdaStaticsScopeSpec.v. *)
+Definition untag_params_equivariant_statement : Prop :=
+  rewrite_equivariant untag_params.
 
 (* FlambdaLoopifySpec.loopify_unit is given, for each code id to make
    a loop of, the continuation of the loop. The action: the

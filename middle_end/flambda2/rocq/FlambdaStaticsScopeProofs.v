@@ -54,7 +54,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaValidatorEquivarianceSpec FlambdaScopedProofs
   FlambdaKeepsScopeProofs FlambdaStaticsScopeSpec.
 From OxCamlFlambda2 Require FlambdaUnaliasParamsNamesProofs
-  FlambdaWrapReturnsNamesProofs.
+  FlambdaWrapReturnsNamesProofs FlambdaUntagParamsNamesProofs.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -1819,3 +1819,10 @@ Proof. exact FlambdaUnaliasParamsNamesProofs.unalias_params_scope. Qed.
 
 Theorem wrap_returns_keeps_scope : wrap_returns_keeps_scope_statement.
 Proof. exact FlambdaWrapReturnsNamesProofs.wrap_returns_scope. Qed.
+
+(* ======================================================================== *)
+(* Parameters that are only untagged or passed on                           *)
+(* ======================================================================== *)
+
+Theorem untag_params_keeps_scope : untag_params_keeps_scope_statement.
+Proof. exact FlambdaUntagParamsNamesProofs.untag_params_scope. Qed.
