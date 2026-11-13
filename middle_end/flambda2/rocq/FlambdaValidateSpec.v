@@ -251,12 +251,24 @@
    lets the parameter be taken away. Where it does not, the argument
    stays, and the term before has the scrutinee where Simplify has
    the number, as for a flag that a loop tests before it sets it: the
-   scrutinee is made the number in the arguments of an arm and of the
-   handler that only that arm applies
-   (FlambdaArmNumbersSpec.numbers_in_arms), in both terms. The arms
-   of a [Switch] of the term before may then all give their numbers,
-   and such a [Switch] is the application of its continuation to the
-   scrutinee, as Simplify makes it
+   scrutinee is made the number where it is read in an arm and in
+   the handler that only that arm applies, and the variable that it
+   is the untagging of the tagged number where a primitive or a
+   [Switch] reads it (FlambdaArmNumbersSpec.numbers_in_arms), in
+   both terms. What that makes a primitive on constants or a
+   [Switch] on a constant is folded, in both terms
+   ([fold_constants]): Simplify, which simplifies the handler
+   knowing the number, has the value and the arm. What the fold
+   leaves is taken away as a round of the normalisation takes it,
+   no round following the placing: a continuation left unused, and
+   one left applied once, whose handler is put at its application
+   ([remove_unused_conts], [sink_let_conts], and [inline_tail_conts]
+   or, for the term after,
+   FlambdaInlineTailSpec.inline_tail_conts_kinded). The arms
+   of a [Switch] of the term before may then all be the same, and
+   the [Switch] is that arm ([collapse_switches]), or all give their
+   numbers, and such a [Switch] is the application of its
+   continuation to the scrutinee, as Simplify makes it
    (FlambdaMergeSwitchesSpec.merge_switches, which the rounds apply
    before the scrutinee is a number there). Then
    what the handler of the term before computes again is shared with
@@ -271,6 +283,10 @@
    (FlambdaGiveScrutineeSpec.give_scrutinees_equivalent_statement,
    FlambdaUnaliasParamsSpec.unalias_params_equivalent_statement,
    FlambdaArmNumbersSpec.numbers_in_arms_equivalent_statement,
+   FlambdaNormaliseSpec.fold_constants_equivalent_statement,
+   FlambdaUnusedContsSpec.remove_unused_conts_equivalent_statement,
+   FlambdaSinkContsSpec.sink_let_conts_equivalent_statement,
+   FlambdaInlineTailSpec.inline_tail_conts_kinded_equivalent_statement,
    FlambdaCseEquivalentSpec.share_known_primitives_equivalent_statement).
    The tidying is not in a round of the normalisations for the reason
    that the placing is not: it needs the continuations placed, and
@@ -1089,13 +1105,24 @@ Definition placed (e : expr) : expr :=
    application gives one variable, which is at the handler what it is
    at the applications, is taken away where the checks of
    FlambdaUnaliasParamsSpec.unalias_params pass, and the handler
-   begins with a [Let] of it to that variable; the scrutinee of a
-   [Switch] is made the number of the arm in the arguments of the arm
-   and of the handler that only that arm applies
-   (FlambdaArmNumbersSpec.numbers_in_arms); a [Switch] whose arms
-   then apply one continuation to arguments that are computed from
-   their numbers is made the application
-   (FlambdaMergeSwitchesSpec.merge_switches); a primitive that was
+   begins with a [Let] of it to that variable; the variable that a
+   [Switch] tests is made the number of the arm where it is read in
+   the arm and in the handler that only that arm applies, and the
+   variable that it is the untagging of the tagged number where a
+   primitive or a [Switch] reads it
+   (FlambdaArmNumbersSpec.numbers_in_arms). A primitive may then be
+   on constants and a [Switch] on a constant, as they are for
+   Simplify, which simplifies the handler knowing the number: they
+   are folded ([fold_constants]), a [Switch] whose arms are then all
+   the same is that arm ([collapse_switches]), and a [Switch] whose
+   arms then apply one continuation to arguments that are computed
+   from their numbers is made the application
+   (FlambdaMergeSwitchesSpec.merge_switches); a continuation that
+   this leaves unused is removed, and one that it leaves applied
+   once is moved to its application and its handler put there
+   ([remove_unused_conts], [sink_let_conts], [inline_tail_conts]): a
+   round of the normalisation does as much after its own fold, and
+   no round of it follows the placing. Then a primitive that was
    computed is not computed again; aliases are followed, into the
    handlers of recursive continuations too for what is known where
    they are defined; the [Let]s left unused are removed. *)
@@ -1105,8 +1132,15 @@ Definition tidy_expr_before (e : expr) : expr :=
        (follow_aliases_in_loops []
           (follow_aliases []
              (share_known_primitives
-                (merge_switches
-                   (numbers_in_arms (unalias_params (give_scrutinees e)))))))).
+                (inline_tail_conts
+                   (sink_let_conts
+                      (remove_unused_conts
+                         (merge_switches
+                            (collapse_switches
+                               (fold_constants
+                                  (numbers_in_arms
+                                     (unalias_params
+                                        (give_scrutinees e))))))))))))).
 
 (* The same for the body of code: that round, and the same for the
    handler of each of its recursive continuations. *)
@@ -1127,15 +1161,23 @@ Definition tidied_before (rounds : nat) (e : expr) : expr :=
   groups_up (iterate rounds tidy_before_round (placed e)).
 
 (* The same for the term after, with rewrites that are equivalences
-   only: the arms of a [Switch] are not merged, and of the [Let]s
-   left unused, those that are sure to have a value are removed, as
-   in the normalisation of the term after. *)
+   only: the arms of a [Switch] are not merged, nor a [Switch] whose
+   arms are all the same made that arm; the handler of a
+   continuation applied once is put at its application where
+   FlambdaInlineTailSpec.inline_tail_conts_kinded allows; and of the
+   [Let]s left unused, those that are sure to have a value are
+   removed, as in the normalisation of the term after. *)
 Definition tidy_expr_after (e : expr) : expr :=
   remove_unused_defined_lets_in_loops []
     (follow_aliases_in_loops []
        (follow_aliases []
           (share_known_primitives
-             (numbers_in_arms (unalias_params (give_scrutinees e)))))).
+             (inline_tail_conts_kinded
+                (sink_let_conts
+                   (remove_unused_conts
+                      (fold_constants
+                         (numbers_in_arms
+                            (unalias_params (give_scrutinees e)))))))))).
 
 Definition tidy_code_after (body : expr) : expr :=
   rewrite_rec_handlers tidy_expr_after (tidy_expr_after body).

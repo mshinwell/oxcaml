@@ -369,8 +369,14 @@ let tidy_expr_before e =
        (follow_aliases_in_loops []
           (follow_aliases []
              (share_known_primitives
-                (merge_switches
-                   (numbers_in_arms (unalias_params (give_scrutinees e))))))))
+                (inline_tail_conts
+                   (sink_let_conts
+                      (remove_unused_conts
+                         (merge_switches
+                            (collapse_switches
+                               (fold_constants
+                                  (numbers_in_arms
+                                     (unalias_params (give_scrutinees e)))))))))))))
 
 (** val tidy_code_before : expr -> expr **)
 
@@ -393,7 +399,11 @@ let tidy_expr_after e =
     (follow_aliases_in_loops []
        (follow_aliases []
           (share_known_primitives
-             (numbers_in_arms (unalias_params (give_scrutinees e))))))
+             (inline_tail_conts_kinded
+                (sink_let_conts
+                   (remove_unused_conts
+                      (fold_constants
+                         (numbers_in_arms (unalias_params (give_scrutinees e))))))))))
 
 (** val tidy_code_after : expr -> expr **)
 
