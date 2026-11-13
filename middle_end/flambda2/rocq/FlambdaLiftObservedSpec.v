@@ -30,7 +30,9 @@
    may follow a unit.
 
    This file is to be reviewed: the four functions, each against the
-   function that it stands beside, and the four statements.
+   function that it stands beside; [liftings_observed] and
+   [with_lifting_observed], against FlambdaValidateSpec.with_lifting;
+   and the six statements.
 
    Each of the four liftings has a function that makes it of a unit if
    its conditions hold: FlambdaLiftFromArmsSpec.lift_to_head_unit,
@@ -74,6 +76,20 @@
    (FlambdaImportsSpec.static_names_free_in). With no import it holds
    of every term.
 
+   [liftings_observed] makes the four in turn, each where its
+   conditions hold, and [with_lifting_observed] is
+   FlambdaValidateSpec.with_lifting with the four functions here in
+   place of the four with the test: it ends by binding the tables that
+   the guess gives at the head of the unit
+   (FlambdaUnusedHeadStaticsSpec.add_head_tables). The four in turn are
+   stated as each is ([liftings_observed_refines_statement]), and so is
+   [with_lifting_observed]
+   ([with_lifting_observed_refines_statement]): the tables bound at
+   the head refine the term under continuations in which their symbols
+   do not occur
+   (FlambdaUnusedHeadStaticsSpec.add_head_tables_refines_under_statement),
+   and what may follow a unit names no symbol.
+
    Whether this is what the verdict on a unit that is lifted is to
    mean has not been decided (FlambdaObserversSpec.v). No function of
    the validation calls the functions here.
@@ -86,7 +102,8 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec FlambdaWellFormedSpec FlambdaImportsSpec
   FlambdaObserversSpec FlambdaMyClosureSpec FlambdaLiftSpec
-  FlambdaLiftFromCodeSpec FlambdaLiftFromArmsSpec FlambdaLiftAroundSpec.
+  FlambdaLiftFromCodeSpec FlambdaLiftFromArmsSpec FlambdaLiftAroundSpec
+  FlambdaUnusedHeadStaticsSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -134,6 +151,55 @@ Definition lift_around_unit_observed (u : unit_interface)
   else None.
 
 (* ======================================================================== *)
+(* The four in turn                                                         *)
+(* ======================================================================== *)
+
+(* Each of the four, made of the term where its conditions hold; the
+   term as it is where they do not. The guess is that of
+   FlambdaValidateSpec.with_lifting. *)
+Definition to_head_observed (L : lifting) (e : expr) : expr :=
+  match lift_to_head_unit_observed (lifting_unit L) (lifted_to_head L) e with
+  | Some e' => e'
+  | None => e
+  end.
+
+Definition out_of_code_observed (L : lifting) (e : expr) : expr :=
+  match
+    lift_from_code_unit_observed (lifting_unit L) (lifted_out_of_code L) e
+  with
+  | Some e' => e'
+  | None => e
+  end.
+
+Definition lets_observed (L : lifting) (e : expr) : expr :=
+  match lift_unit_observed L e with
+  | Some e' => e'
+  | None => e
+  end.
+
+Definition around_observed (L : lifting) (e : expr) : expr :=
+  match
+    lift_around_unit_observed (lifting_unit L) (lifted_around L)
+      (groups_put L) e
+  with
+  | Some e' => e'
+  | None => e
+  end.
+
+(* The four in the order of FlambdaValidateSpec.with_lifting: to the
+   head of the unit, out of code, where the [Let]s stand, to a group
+   around. The paths of each are paths in the term that it is given. *)
+Definition liftings_observed (L : lifting) (e : expr) : expr :=
+  around_observed L
+    (lets_observed L (out_of_code_observed L (to_head_observed L e))).
+
+(* FlambdaValidateSpec.with_lifting without the test of the exits: the
+   four in turn, and then the tables of the guess bound at the head of
+   the unit. *)
+Definition with_lifting_observed (L : lifting) (e : expr) : expr :=
+  add_head_tables (tables_put L) (liftings_observed L e).
+
+(* ======================================================================== *)
 (* The statements                                                           *)
 (* ======================================================================== *)
 
@@ -168,3 +234,35 @@ Definition lift_around_unit_observed_refines_statement : Prop :=
     lift_around_unit_observed u lets places e = Some e' ->
     static_names_free_in (imports_statics imports) e' = true ->
     refines_under_observers [] (imports_statics imports) empty_heap e e'.
+
+(* The four in turn give the unit, up to what may follow a unit, if what
+   each of the four gives binds no name that the imports bind. With no
+   import that is so of every term. *)
+Definition liftings_observed_refines_statement : Prop :=
+  ∀ (imports : list (symbol * import_class)) (L : lifting) (e : expr),
+    let statics := imports_statics imports in
+    let at_head := to_head_observed L e in
+    let out_of_code := out_of_code_observed L at_head in
+    let lifted := lets_observed L out_of_code in
+    static_names_free_in statics at_head = true ->
+    static_names_free_in statics out_of_code = true ->
+    static_names_free_in statics lifted = true ->
+    static_names_free_in statics (liftings_observed L e) = true ->
+    refines_under_observers [] statics empty_heap e (liftings_observed L e).
+
+(* The same with the tables of the guess bound at the head after: the
+   lifting without the test of the exits gives the unit, up to what may
+   follow a unit. The premise on the fourth lifting is now of the whole
+   result, which binds what the fourth gives and the tables. *)
+Definition with_lifting_observed_refines_statement : Prop :=
+  ∀ (imports : list (symbol * import_class)) (L : lifting) (e : expr),
+    let statics := imports_statics imports in
+    let at_head := to_head_observed L e in
+    let out_of_code := out_of_code_observed L at_head in
+    let lifted := lets_observed L out_of_code in
+    static_names_free_in statics at_head = true ->
+    static_names_free_in statics out_of_code = true ->
+    static_names_free_in statics lifted = true ->
+    static_names_free_in statics (with_lifting_observed L e) = true ->
+    refines_under_observers [] statics empty_heap e
+      (with_lifting_observed L e).
