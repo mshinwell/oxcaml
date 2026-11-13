@@ -949,7 +949,9 @@ compared.
   simplifies it. The printed term has no mark for a functor, for
   `[@cold]`, for opaque code or for the modes of parameters, and the
   parser gives each a default
-  (`middle_end/flambda2/parser/fexpr_to_flambda.ml`). Simplify reads
+  (`middle_end/flambda2/parser/fexpr_to_flambda.ml`); for the modes
+  of parameters the tool puts the least that can be said in the
+  place of the default (below, with X5-11). Simplify reads
   them. So the tool's Simplify can decide otherwise than the
   compiler's on the same unit. One case is known. For code with no
   inlining attribute, the decision made at its declaration
@@ -1015,6 +1017,60 @@ compared.
   mean"). None of these losses makes a verdict wrong of the pair that
   the tool validates: they are a distance between that pair and the
   compiler's.
+
+  With one more still the reader says more than the compiler's term
+  does, and the tool takes it back before its Simplify runs. The
+  text has no modes for the parameters of code, and the reader gives
+  every parameter the mode of a value on the heap (`param_modes` in
+  `middle_end/flambda2/parser/fexpr_to_flambda.ml`). Simplify, run on
+  a term read so, can prove that a parameter which may be on the
+  stack is a block of the heap, and return that block where the
+  compiler makes a copy of it on the heap (discrepancy X5-11). The
+  compiler, which does not read its terms from text, is not
+  affected. It was seen on a unit that is not in the tree (by X5;
+  nothing in the tree reproduces it): compiled through the text,
+  the program read a block of the stack that a later call had
+  written over, and compiled directly it was right. So the tool
+  gives every parameter of every piece of code that the unit binds
+  the least that the compiler can say of where a value is
+  (`Alloc_mode.For_types.unknown ()`: heap or stack, and heap in a
+  compiler configured without stack allocation, where nothing is on
+  the stack), before anything else is done with the unit
+  (`with_unknown_param_modes` in
+  `middle_end/flambda2/tests/tools/flsemantics.ml`). Of where a
+  parameter of that code is, the modes then tell the tool's Simplify
+  no more than those of the compiler's term tell the compiler's,
+  and less where the compiler's term says heap and the compiler
+  allocates on the stack: a loss like those above, a distance and
+  not an error. That is of these modes only.
+  What else the reader gives a default for stays as the reader gives
+  it (the marks named above), and code of another unit, which
+  Simplify reads from a `.cmx` file, has the modes that the compiler
+  wrote there. No verdict rests on the reader's mode heap for a
+  parameter of code that the unit binds, and no unit is counted
+  apart for it. In the compiler's own term (`param_modes` in what
+  `-drawflambda` prints) 20 of the 331 units that this directory
+  had on 2026-11-13 have a parameter whose mode is not heap, each
+  of them heap or stack: `curry`, `inline_record`,
+  `labelled_optional`, `let_polymorphism`, `list_head`,
+  `list_length`, `list_map`, `list_sum`, `match_guard`,
+  `match_variant_local`, `nested_record`, `nested_tuple`,
+  `option_bind`, `option_map`, `polymorphic_variant`,
+  `project_record_two_levels`, `record_update`, `result_map`,
+  `same_field_chain_twice` and `tree_root`. What was run for the
+  change of the tool: the tests of this directory before and after
+  it, in which no expected file has another verdict or another
+  count of steps, those of the 20 units among them (two files have
+  other names of variables in the message of a primitive that the
+  model has not got, as the unit is built again with fresh names
+  for what it binds); and the tool on the 840 generated units of
+  `census/` before and after it, which have the verdicts they had.
+
+  The model erases the regions of allocation and their lifetimes
+  (the conversion makes of a local allocation one on the heap,
+  discrepancy V2-3): equal outcomes of the two runs, or a
+  validation, whether plain or counted apart, do not establish that
+  a block which is returned is still alive.
 - That distance has been measured for the units of this directory
   (by X5, with the tool and the 259 units as they are at ba85db2822;
   nothing in the tree makes the measure). The check of the tool was
