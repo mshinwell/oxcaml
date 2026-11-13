@@ -251,26 +251,30 @@
    lets the parameter be taken away. Where it does not, the argument
    stays, and the term before has the scrutinee where Simplify has
    the number, as for a flag that a loop tests before it sets it: the
-   scrutinee is made the number where it is read in an arm and in
-   the handler that only that arm applies, and the variable that it
-   is the untagging of the tagged number where a primitive or a
-   [Switch] reads it (FlambdaArmNumbersSpec.numbers_in_arms), in
-   both terms. What that makes a primitive on constants or a
-   [Switch] on a constant is folded, in both terms
-   ([fold_constants]): Simplify, which simplifies the handler
-   knowing the number, has the value and the arm. What the fold
-   leaves is taken away as a round of the normalisation takes it,
-   no round following the placing: a continuation left unused, and
-   one left applied once, whose handler is put at its application
+   scrutinee is made the number of the arm, in the arm and in the
+   handler that only that arm applies, at the reads that
+   FlambdaArmNumbersSpec.v lists (an argument of an application of a
+   continuation, a defining expression that is the variable, an
+   argument of a primitive, the scrutinee of a [Switch]; a call, a
+   set of closures, a projection and a static binding keep the
+   variable), and the variable that it is the untagging of is made
+   the tagged number at the last three of those reads
+   (FlambdaArmNumbersSpec.numbers_in_arms), in both terms. What that
+   makes a primitive on constants or a [Switch] on a constant is
+   folded, in both terms ([fold_constants]): Simplify, which
+   simplifies the handler knowing the number, has the value and the
+   arm. The arms of a [Switch] of the term before may then all be
+   the same, and the [Switch] is that arm ([collapse_switches]), or
+   all give their numbers, and such a [Switch] is the application of
+   its continuation to the scrutinee, as Simplify makes it
+   (FlambdaMergeSwitchesSpec.merge_switches, which the rounds apply
+   before the scrutinee is a number there). What this leaves is then
+   taken away as a round of the normalisation takes it, no round
+   following the placing: a continuation left unused, and one left
+   applied once, whose handler is put at its application
    ([remove_unused_conts], [sink_let_conts], and [inline_tail_conts]
    or, for the term after,
-   FlambdaInlineTailSpec.inline_tail_conts_kinded). The arms
-   of a [Switch] of the term before may then all be the same, and
-   the [Switch] is that arm ([collapse_switches]), or all give their
-   numbers, and such a [Switch] is the application of its
-   continuation to the scrutinee, as Simplify makes it
-   (FlambdaMergeSwitchesSpec.merge_switches, which the rounds apply
-   before the scrutinee is a number there). Then
+   FlambdaInlineTailSpec.inline_tail_conts_kinded). Then
    what the handler of the term before computes again is shared with
    the first computation ([share_known_primitives]); aliases are
    followed and the [Let]s left unused are removed. The same is done
@@ -1106,17 +1110,17 @@ Definition placed (e : expr) : expr :=
    at the applications, is taken away where the checks of
    FlambdaUnaliasParamsSpec.unalias_params pass, and the handler
    begins with a [Let] of it to that variable; the variable that a
-   [Switch] tests is made the number of the arm where it is read in
-   the arm and in the handler that only that arm applies, and the
-   variable that it is the untagging of the tagged number where a
-   primitive or a [Switch] reads it
-   (FlambdaArmNumbersSpec.numbers_in_arms). A primitive may then be
-   on constants and a [Switch] on a constant, as they are for
-   Simplify, which simplifies the handler knowing the number: they
-   are folded ([fold_constants]), a [Switch] whose arms are then all
-   the same is that arm ([collapse_switches]), and a [Switch] whose
-   arms then apply one continuation to arguments that are computed
-   from their numbers is made the application
+   [Switch] tests is made the number of the arm, in the arm and in
+   the handler that only that arm applies, at the reads that
+   FlambdaArmNumbersSpec.v lists, and the variable that it is the
+   untagging of is made the tagged number at those that the file
+   lists for it (FlambdaArmNumbersSpec.numbers_in_arms). A primitive
+   may then be on constants and a [Switch] on a constant, as they
+   are for Simplify, which simplifies the handler knowing the
+   number: they are folded ([fold_constants]), a [Switch] whose arms
+   are then all the same is that arm ([collapse_switches]), and a
+   [Switch] whose arms then apply one continuation to arguments that
+   are computed from their numbers is made the application
    (FlambdaMergeSwitchesSpec.merge_switches); a continuation that
    this leaves unused is removed, and one that it leaves applied
    once is moved to its application and its handler put there
