@@ -700,6 +700,9 @@ Owner: N3, on `flambda2-rocq/N3-equivariance` for the validator and on
   a flag that a loop tests before it sets it: an equivalence, for
   both terms; and the lemmas for its laws of renaming and of scope,
   which are stated in the files above)
+- `middle_end/flambda2/rocq/FlambdaLaggingProofs.v` (a way of proving
+  a refinement in which the first run takes steps that the second
+  does not answer, with a number that bounds them; proofs only)
 - `middle_end/flambda2/rocq/FlambdaCseEquivalent*` (the sharing of
   primitives of `FlambdaCseSpec.v` gives a term that is equivalent to
   the one it is given, which is what a rewrite of the term after
