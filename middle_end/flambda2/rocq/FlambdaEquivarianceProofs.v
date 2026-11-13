@@ -1173,6 +1173,35 @@ Proof.
   reflexivity.
 Qed.
 
+(* The test that a direct call may be split, and the call split. *)
+Lemma over_applied_b_equivariant (r : renaming) (ap : apply_expr) (c : code) :
+  over_applied_b (rename_apply r ap) (rename_code r c)
+  = over_applied_b ap c.
+Proof.
+  destruct c as [params my_closure ret exn metadata body].
+  destruct ap as [f kind args k k_exn extra args_arity return_arity].
+  unfold over_applied_b, exn_extra_simples. simpl.
+  rewrite map_map. simpl.
+  replace
+    (map (fun arg : simple * flambda_kind => rename_simple r (fst arg)) extra)
+    with (map (rename_simple r) (map fst extra))
+    by (rewrite map_map; reflexivity).
+  rewrite skipn_map, !var_in_simples_equivariant, rename_continuation_eqb,
+    length_map.
+  reflexivity.
+Qed.
+
+Lemma split_over_application_equivariant (r : renaming) (called : code_id)
+    (c : code) (ap : apply_expr) :
+  split_over_application called (rename_code r c) (rename_apply r ap)
+  = rename_expr r (split_over_application called c ap).
+Proof.
+  destruct c as [params my_closure ret exn metadata body].
+  destruct ap as [f kind args k k_exn extra args_arity return_arity].
+  unfold split_over_application. simpl. unfold rename_apply. simpl.
+  rewrite firstn_map, skipn_map. reflexivity.
+Qed.
+
 Lemma codes_of_equivariant (r : renaming) (bindings : list static_binding) :
   ∀ known : list (code_id * code),
     codes_of (map (rename_static_binding r) bindings)
@@ -1295,8 +1324,10 @@ Proof.
   destruct (negb (among called kept) && inlinable_b ap c) eqn:Hinlinable;
     [ apply inlined_body_equivariant | ].
   destruct (negb (among called kept) && tupled_inlinable_b ap c);
-    [ | reflexivity ].
-  apply inlined_tupled_call_equivariant.
+    [ apply inlined_tupled_call_equivariant | ].
+  rewrite over_applied_b_equivariant.
+  destruct (over_applied_b ap c); [ | reflexivity ].
+  apply split_over_application_equivariant.
 Qed.
 
 Fixpoint inline_calls_equivariant_aux (r : renaming) (kept : list code_id)

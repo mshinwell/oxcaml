@@ -57,12 +57,32 @@
    rewritten with what was known before its group of bindings, so nothing
    is inlined into itself; and what a group makes known is its code as
    rewritten. A call of code whose id is among those given ([kept]) is
-   left as it is. The caller chooses them, and they are not trusted:
-   leaving a call is always sound. They are there for the code that
-   Simplify does not inline, recursive functions above all: a call of
-   one, inlined, leaves a call of the same code to inline in the next
-   round, and so on for as many rounds as there are, where Simplify
-   leaves the first call alone.
+   not inlined; one that gives the code more arguments than it has
+   parameters may still be split (below). The caller chooses them, and
+   they are not trusted: not inlining a call is always sound. They are
+   there for the code that Simplify does not inline, recursive
+   functions above all: a call of one, inlined, leaves a call of the
+   same code to inline in the next round, and so on for as many rounds
+   as there are, where Simplify leaves the first call alone.
+
+   A direct call that gives known code more arguments than it has
+   parameters is not inlined as it stands. Simplify splits it
+   (simplify/simplify_common.ml, [split_direct_over_application]):
+   the full call, with the first arguments, returns to a new
+   continuation whose handler calls the result with the arguments
+   that remain. [inline_calls] does the same
+   ([split_over_application], where [over_applied_b] says that it
+   may), whether or not the code is among those whose calls are left:
+   the full call is then one that a later round may inline, and
+   where it is left it is the call that the term after has. The
+   machine does this with an over-application already
+   (FlambdaPartialApplicationSpec.over_application_split_statement),
+   so the term split refines the call
+   ([split_over_application_refines_statement]). The continuation
+   takes the name of the return continuation of the code and its
+   parameter the name of the closure variable of the code: names of
+   the term, as the names that an inlined body brings are, so no
+   name is made.
 
    [expr_in_scope] is the check that code is closed. It is a sufficient
    condition, by its soundness (in the Proofs file); nothing is claimed
@@ -275,6 +295,55 @@ Definition tupled_inlinable_b (ap : apply_expr) (c : code) : bool :=
   && negb (Nat.eqb (length (code_params c)) 0)
   && negb (binds_statics (code_body c)).
 
+(* A direct call of the code [c] that may be split: the code is not
+   tupled; the call gives more arguments than the code has parameters,
+   by the arities, and as many values at least as the parameters are
+   variables; the return continuation of the code, which the new
+   continuation is named after, is not the exception continuation of
+   the call; and the closure variable of the code, which the parameter
+   of its handler is named after, is not among the arguments that
+   remain nor among the extra arguments of the exception continuation.
+   Enough for the premises of
+   FlambdaPartialApplicationSpec.over_application_split_statement that
+   are about the term; those about the run (the callee is a closure of
+   the code called, which is bound) hold wherever the call is
+   defined. *)
+Definition over_applied_b (ap : apply_expr) (c : code) : bool :=
+  negb (code_is_tupled c)
+  && Nat.ltb (length (code_params_arity c)) (length (ap_args_arity ap))
+  && Nat.leb (cardinal_unarized (code_params_arity c)) (length (ap_args ap))
+  && negb (Pos.eqb (code_return_continuation c) (ap_exn_continuation ap))
+  && negb
+       (var_in_simples (code_my_closure c)
+          (skipn (cardinal_unarized (code_params_arity c)) (ap_args ap)))
+  && negb (var_in_simples (code_my_closure c) (exn_extra_simples ap)).
+
+(* The over-application split: the full call of the code [called],
+   direct, with the first arguments, at the two arities of the code,
+   returns to a continuation whose handler takes its result, one
+   [Value], and calls it, indirectly, with the arguments that remain,
+   at the arity that remains and the return arity of the call. Both
+   calls have the exception continuation of the call, with its extra
+   arguments. The arguments are split where the machine splits them
+   (FlambdaSemanticsSpec.shape_of_code_call). *)
+Definition split_over_application (called : code_id) (c : code)
+    (ap : apply_expr) : expr :=
+  let size := cardinal_unarized (code_params_arity c) in
+  let params := length (code_params_arity c) in
+  let k := code_return_continuation c in
+  let p := code_my_closure c in
+  Let_cont_non_recursive k
+    (Handler [p] (make_handler_metadata [Value])
+       (Apply
+          (Apply_expr (Var p) Indirect (skipn size (ap_args ap))
+             (ap_continuation ap) (ap_exn_continuation ap)
+             (ap_exn_extra_args ap)
+             (skipn params (ap_args_arity ap)) (ap_return_arity ap))))
+    (Apply
+       (Apply_expr (ap_callee ap) (Direct called) (firstn size (ap_args ap))
+          k (ap_exn_continuation ap) (ap_exn_extra_args ap)
+          (code_params_arity c) (code_result_arity c))).
+
 (* The code that a group of bindings adds to what is known, the last
    bound first, as FlambdaSemanticsSpec.eval_static_bindings adds it to
    the static environment. *)
@@ -307,6 +376,8 @@ Definition inline_apply (kept : list code_id)
              (code_exn_continuation c) (ap_continuation ap)
              (ap_exn_continuation ap))
           ap
+      else if over_applied_b ap c
+      then split_over_application called c ap
       else Apply ap
     | None => Apply ap
     end
@@ -350,6 +421,18 @@ with inline_calls_in_code (kept : list code_id)
   | Code params my_closure ret exn metadata body =>
     Code params my_closure ret exn metadata (inline_calls kept known body)
   end.
+
+(* A direct call that passes [over_applied_b] for the code that the
+   static environment binds the code id called to is refined by the
+   call split. *)
+Definition split_over_application_refines_statement : Prop :=
+  ∀ (called : code_id) (c : code) (ap : apply_expr) (vars : env)
+    (conts : cont_env) (statics : static_env) (hp : heap),
+    ap_call_kind ap = Direct called ->
+    lookup called (static_code statics) = Some c ->
+    over_applied_b ap c = true ->
+    refines (State (Apply ap) vars conts statics hp)
+      (State (split_over_application called c ap) vars conts statics hp).
 
 Definition inline_calls_refines_statement : Prop :=
   ∀ (kept : list code_id) (e : expr),

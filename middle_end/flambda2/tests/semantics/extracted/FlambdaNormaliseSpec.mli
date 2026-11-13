@@ -42,6 +42,10 @@ val inlinable_b : apply_expr -> code -> bool
 
 val tupled_inlinable_b : apply_expr -> code -> bool
 
+val over_applied_b : apply_expr -> code -> bool
+
+val split_over_application : code_id -> code -> apply_expr -> expr
+
 val codes_of :
   static_binding list -> (code_id * code) list -> (code_id * code) list
 

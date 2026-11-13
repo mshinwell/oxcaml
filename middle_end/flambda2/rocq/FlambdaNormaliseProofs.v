@@ -28,7 +28,7 @@
 (* Proofs of the statements of FlambdaNormaliseSpec.v. Nothing here needs
    review. *)
 
-From Stdlib Require Import ZArith List Bool Arith.
+From Stdlib Require Import ZArith List Bool Arith Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaSemanticsSpec FlambdaWellFormedSpec
@@ -36,7 +36,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaNominalProofs FlambdaControlFlowSpec FlambdaControlFlowProofs
   FlambdaContextSpec FlambdaContextProofs FlambdaApplySpec FlambdaApplyProofs
   FlambdaStaticSpec FlambdaStaticProofs FlambdaCompareSpec
-  FlambdaTupledSpec FlambdaTupledProofs FlambdaNormaliseSpec.
+  FlambdaTupledSpec FlambdaTupledProofs FlambdaPartialApplicationSpec
+  FlambdaPartialApplicationProofs FlambdaNormaliseSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -400,6 +401,96 @@ Proof.
       apply IH. exact Hknow.
 Qed.
 
+(* A direct call whose callee is not a closure of the code called is
+   undefined. *)
+Lemma step_direct_not_closure (ap : apply_expr) (called : code_id)
+    (vars : env) (conts : cont_env) (statics : static_env) (hp : heap)
+    (callee : value) :
+  ap_call_kind ap = Direct called ->
+  eval_simple vars (ap_callee ap) = Some callee ->
+  (∀ slots : list (value_slot * value),
+    closure_of statics callee <> Some (called, slots)) ->
+  step (State (Apply ap) vars conts statics hp) = Undefined.
+Proof.
+  intros Hkind Hf Hother. rewrite step_apply, Hf, Hkind.
+  destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | reflexivity ].
+  destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
+    [ | reflexivity ].
+  unfold call_function, shape_of_call.
+  replace
+    (match partial_application_of callee with
+     | Some _ | None =>
+       shape_of_closure_call statics callee (Direct called) vs
+         (ap_args_arity ap) (ap_return_arity ap)
+     end)
+    with
+      (shape_of_closure_call statics callee (Direct called) vs
+         (ap_args_arity ap) (ap_return_arity ap))
+    by (destruct (partial_application_of callee); reflexivity).
+  unfold shape_of_closure_call.
+  destruct (closure_of statics callee) as [[called' slots] | ] eqn:Hclosure;
+    [ | reflexivity ].
+  destruct (Pos.eqb called' called) eqn:Heq; [ | reflexivity ].
+  apply Pos.eqb_eq in Heq. subst called'. destruct (Hother slots eq_refl).
+Qed.
+
+Theorem split_over_application_refines :
+  split_over_application_refines_statement.
+Proof.
+  intros called c ap vars conts statics hp Hkind Hcode Hcheck.
+  unfold over_applied_b in Hcheck.
+  apply andb_true_iff in Hcheck as [Hcheck Hextra].
+  apply andb_true_iff in Hcheck as [Hcheck Hrest].
+  apply andb_true_iff in Hcheck as [Hcheck Hexn].
+  apply andb_true_iff in Hcheck as [Hcheck Hsize].
+  apply andb_true_iff in Hcheck as [Htupled Hlonger].
+  apply negb_true_iff in Htupled, Hexn, Hrest, Hextra.
+  apply Pos.eqb_neq in Hexn. apply Nat.ltb_lt in Hlonger.
+  apply Nat.leb_le in Hsize.
+  (* the callee has no value, or is not a closure of the code called *)
+  destruct (eval_simple vars (ap_callee ap)) as [callee | ] eqn:Hf.
+  2: { apply step_undefined_refines. rewrite step_apply, Hf. reflexivity. }
+  assert (Hclosure :
+    (∃ slots : list (value_slot * value),
+      closure_of statics callee = Some (called, slots))
+    ∨ ∀ slots : list (value_slot * value),
+        closure_of statics callee <> Some (called, slots)).
+  { destruct (closure_of statics callee) as [[called' slots] | ];
+      [ | right; intros slots; discriminate ].
+    destruct (Pos.eq_dec called' called) as [-> | Hother];
+      [ left; exists slots; reflexivity | ].
+    right. intros slots' [= Heq _]. exact (Hother Heq). }
+  destruct Hclosure as [[slots Hclosure] | Hother].
+  2: { apply step_undefined_refines.
+       exact (step_direct_not_closure ap called vars conts statics hp callee
+                Hkind Hf Hother). }
+  destruct ap as [f kind args k' exn' extra args_arity return_arity].
+  unfold exn_extra_simples in Hextra.
+  cbn [ap_callee ap_call_kind ap_args ap_continuation ap_exn_continuation
+       ap_exn_extra_args ap_args_arity ap_return_arity]
+    in *.
+  subst kind. unfold split_over_application.
+  cbn [ap_callee ap_call_kind ap_args ap_continuation ap_exn_continuation
+       ap_exn_extra_args ap_args_arity ap_return_arity].
+  pose proof
+    (over_application_split f (Direct called)
+       (firstn (cardinal_unarized (code_params_arity c)) args)
+       (skipn (cardinal_unarized (code_params_arity c)) args)
+       (code_return_continuation c) k' exn' extra (code_my_closure c)
+       (firstn (length (code_params_arity c)) args_arity)
+       (skipn (length (code_params_arity c)) args_arity) return_arity vars
+       conts statics hp callee called slots c Hf Hclosure Hcode Htupled)
+    as Hsplit.
+  rewrite !firstn_skipn in Hsplit. apply Hsplit.
+  - apply firstn_length_le. lia.
+  - apply firstn_length_le. exact Hsize.
+  - intros Hnil. apply (f_equal (@length _)) in Hnil.
+    rewrite length_skipn in Hnil. simpl in Hnil. lia.
+  - exact Hexn.
+  - intros Hfree. apply var_in_simples_sound in Hfree. congruence.
+  - intros Hfree. apply var_in_simples_sound in Hfree. congruence.
+Qed.
+
 Section Kept.
 
 (* The code whose calls are left alone. *)
@@ -421,15 +512,18 @@ Proof.
       (Hknow called c Hlookup) (inlinable_b_sound ap c Hinlinable)).
   - (* tupled code, given its tuple *)
     destruct (negb (among called kept) && tupled_inlinable_b ap c)
-      eqn:Htupled;
-      [ | apply refines_refl ].
-    apply andb_true_iff in Htupled as [_ Htupled].
-    unfold inlined_tupled_call.
-    destruct (ap_args ap) as [ | tuple [ | arg args]] eqn:Hargs;
-      try apply refines_refl.
-    exact (inline_tupled ap called c _ tuple vars conts statics _ Hkind
-      (Hknow called c Hlookup)
-      (tupled_inlinable_b_sound ap c tuple Htupled Hargs)).
+      eqn:Htupled.
+    + apply andb_true_iff in Htupled as [_ Htupled].
+      unfold inlined_tupled_call.
+      destruct (ap_args ap) as [ | tuple [ | arg args]] eqn:Hargs;
+        try apply refines_refl.
+      exact (inline_tupled ap called c _ tuple vars conts statics _ Hkind
+        (Hknow called c Hlookup)
+        (tupled_inlinable_b_sound ap c tuple Htupled Hargs)).
+    + (* more arguments than the code has parameters: the call split *)
+      destruct (over_applied_b ap c) eqn:Hover; [ | apply refines_refl ].
+      exact (split_over_application_refines called c ap vars conts statics
+               hp Hkind (Hknow called c Hlookup) Hover).
 Qed.
 
 Lemma statics_know_extend (known : list (code_id * code))
@@ -514,7 +608,7 @@ Proof.
     exact (inlinable_b_binds_statics ap c Hinlinable).
   - destruct (negb (among called kept) && tupled_inlinable_b ap c)
       eqn:Htupled;
-      [ | reflexivity ].
+      [ | destruct (over_applied_b ap c); reflexivity ].
     apply andb_true_iff in Htupled as [_ Htupled].
     apply inlined_tupled_call_binds_statics.
     exact (tupled_inlinable_b_binds_statics ap c Htupled).

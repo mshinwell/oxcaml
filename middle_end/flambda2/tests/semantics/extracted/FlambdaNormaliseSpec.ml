@@ -151,6 +151,51 @@ let tupled_inlinable_b ap c =
   && negb (Nat.eqb (length (code_params c)) O))
   && negb (binds_statics (code_body c))
 
+(** val over_applied_b : apply_expr -> code -> bool **)
+
+let over_applied_b ap c =
+  ((((negb (code_is_tupled c)
+     && Nat.ltb (length (code_params_arity c)) (length ap.ap_args_arity))
+    && Nat.leb (cardinal_unarized (code_params_arity c)) (length ap.ap_args))
+   && negb (Pos.eqb (code_return_continuation c) ap.ap_exn_continuation))
+  && negb
+       (var_in_simples (code_my_closure c)
+          (skipn (cardinal_unarized (code_params_arity c)) ap.ap_args)))
+  && negb (var_in_simples (code_my_closure c) (exn_extra_simples ap))
+
+(** val split_over_application : code_id -> code -> apply_expr -> expr **)
+
+let split_over_application called c ap =
+  let size = cardinal_unarized (code_params_arity c) in
+  let params = length (code_params_arity c) in
+  let k = code_return_continuation c in
+  let p = code_my_closure c in
+  Let_cont_non_recursive
+    ( k,
+      Handler
+        ( p :: [],
+          make_handler_metadata (Value :: []),
+          Apply
+            { ap_callee = Var p;
+              ap_call_kind = Indirect;
+              ap_args = skipn size ap.ap_args;
+              ap_continuation = ap.ap_continuation;
+              ap_exn_continuation = ap.ap_exn_continuation;
+              ap_exn_extra_args = ap.ap_exn_extra_args;
+              ap_args_arity = skipn params ap.ap_args_arity;
+              ap_return_arity = ap.ap_return_arity
+            } ),
+      Apply
+        { ap_callee = ap.ap_callee;
+          ap_call_kind = Direct called;
+          ap_args = firstn size ap.ap_args;
+          ap_continuation = k;
+          ap_exn_continuation = ap.ap_exn_continuation;
+          ap_exn_extra_args = ap.ap_exn_extra_args;
+          ap_args_arity = code_params_arity c;
+          ap_return_arity = code_result_arity c
+        } )
+
 (** val codes_of : static_binding list -> (code_id * code) list -> (code_id *
     code) list **)
 
@@ -184,6 +229,8 @@ let inline_apply kept known ap =
              (code_return_continuation c)
              (code_exn_continuation c) ap.ap_continuation ap.ap_exn_continuation)
           ap
+      else if over_applied_b ap c
+      then split_over_application called c ap
       else Apply ap
     | None -> Apply ap)
   | Indirect -> Apply ap

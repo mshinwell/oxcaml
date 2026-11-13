@@ -314,6 +314,45 @@ Proof.
       subst j; [ left | right; left ]; congruence.
 Qed.
 
+(* A call split into the full call and the call of its result keeps
+   the scope of the call: the two calls have its callee, its
+   arguments, its extra arguments and its two continuations between
+   them, and the continuation and the variable that the term binds
+   are bound. *)
+Lemma split_over_application_scoped (called : code_id) (c : code)
+    (ap : apply_expr) :
+  scoped (Apply ap) (split_over_application called c ap).
+Proof.
+  intros _. unfold split_over_application. scope.
+  split; [ reflexivity | split ].
+  - intros x Hx. unfold free_variables_of_apply, exn_extra_simples in *.
+    cbn [ap_callee ap_args ap_exn_extra_args] in Hx.
+    rewrite <- (firstn_skipn (cardinal_unarized (code_params_arity c))
+                  (ap_args ap)) at 1.
+    unfold free_variables_of_simples in *. rewrite flat_map_app.
+    apply in_app_or in Hx. destruct Hx as [Hx | Hx].
+    + apply in_without in Hx. destruct Hx as [Hx Hbound].
+      cbn [flat_map free_variables_of_simple app] in Hx.
+      destruct Hx as [Hx | Hx].
+      * destruct Hbound. left. exact Hx.
+      * apply in_app_or in Hx. destruct Hx as [Hx | Hx].
+        -- apply in_or_app. right. apply in_or_app. left.
+           apply in_or_app. right. exact Hx.
+        -- apply in_or_app. right. apply in_or_app. right. exact Hx.
+    + apply in_app_or in Hx. destruct Hx as [Hx | Hx];
+        [ apply in_or_app; left; exact Hx | ].
+      apply in_app_or in Hx. destruct Hx as [Hx | Hx].
+      * apply in_or_app. right. apply in_or_app. left.
+        apply in_or_app. left. exact Hx.
+      * apply in_or_app. right. apply in_or_app. right. exact Hx.
+  - intros k Hk. cbn [ap_continuation ap_exn_continuation] in Hk.
+    apply in_app_or in Hk. destruct Hk as [Hk | Hk]; [ exact Hk | ].
+    apply in_without in Hk. destruct Hk as [Hk Hbound].
+    destruct Hk as [Hk | [Hk | []]].
+    + destruct Hbound. left. exact Hk.
+    + right. left. exact Hk.
+Qed.
+
 (* The body of code in place of a call of it keeps the scope of the
    call: the test says that the free variables and continuations of the
    body are bound by the code. *)
@@ -327,7 +366,8 @@ Proof.
   destruct (negb (among called kept) && inlinable_b ap c) eqn:Hinline;
     [ | destruct (negb (among called kept) && tupled_inlinable_b ap c)
           eqn:Htupled;
-        [ | apply scoped_refl ];
+        [ | destruct (over_applied_b ap c);
+            [ apply split_over_application_scoped | apply scoped_refl ] ];
       apply andb_true_iff in Htupled; destruct Htupled as [_ Htupled];
       exact (inlined_tupled_call_scoped ap c Htupled) ].
   unfold inlinable_b in Hinline. split_tests.
