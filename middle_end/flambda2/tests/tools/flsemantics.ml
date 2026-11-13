@@ -2584,6 +2584,70 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list) ~around
   if around then scan [] None Lift.root lifted;
   { first with lifted_around = List.rev !aliases; groups_put = !places }
 
+(* ---- Tables that Simplify made ----------------------------------------- *)
+
+(* The symbols that the term after binds to an immutable array of constants and
+   symbols, outside code, that the term before does not bind and that the term
+   after uses. Simplify makes such a table of a [Switch] whose arms give
+   constants, and loads from it ([Simplify_switch_expr]); the term before has
+   the [Switch] and no table. This is a guess:
+   FlambdaUnusedHeadStaticsSpec.add_head_tables binds the tables at the head of
+   the term before only where its checks pass, and the comparison of the two
+   terms says the rest. *)
+let tables_guess (before : Model.expr) (after : Model.expr) :
+    (Model.symbol * Model.simple list) list =
+  let _, bound_before = static_names before in
+  let unused_after = unused_statics after in
+  let plain (s : Model.simple) =
+    match s with Symbol _ | Const _ -> true | Var _ -> false
+  in
+  let tables = ref [] in
+  let rec in_expr (e : Model.expr) =
+    match e with
+    | Let (_, _, _, body) -> in_expr body
+    | Let_static (bindings, body) ->
+      List.iter
+        (fun (binding : Model.static_binding) ->
+          match binding with
+          | Bind_symbol (sym, Static_const_immutable_value_array elements)
+            when List.for_all plain elements
+                 && (not (List.mem (Symbol_name sym) bound_before))
+                 && not (List.mem sym unused_after.dropped_symbols) ->
+            tables := (sym, elements) :: !tables
+          | Bind_symbol _ | Bind_code _ | Bind_deleted_code _ -> ())
+        bindings;
+      in_expr body
+    | Let_cont_non_recursive (_, Handler (_, _, handler), body) ->
+      in_expr handler;
+      in_expr body
+    | Let_cont_recursive (handlers, body) ->
+      List.iter
+        (fun (_, Model.Handler (_, _, handler)) -> in_expr handler)
+        handlers;
+      in_expr body
+    | Apply _ | Apply_cont _ | Switch _ | Invalid -> ()
+  in
+  in_expr after;
+  List.rev !tables
+
+(* Whether a term begins with the group of static bindings of the tables given,
+   as FlambdaUnusedHeadStaticsSpec.add_head_tables leaves it where it binds
+   them. *)
+let tables_bound (tables : (Model.symbol * Model.simple list) list)
+    (e : Model.expr) =
+  match tables, e with
+  | [], _ -> false
+  | _ :: _, Let_static (bindings, _) ->
+    bindings
+    = List.map
+        (fun (sym, elements) ->
+          Model.Bind_symbol (sym, Static_const_immutable_value_array elements))
+        tables
+  | ( _ :: _,
+      ( Let _ | Let_cont_non_recursive _ | Let_cont_recursive _ | Apply _
+      | Apply_cont _ | Switch _ | Invalid ) ) ->
+    false
+
 (* ---- Value slots that Simplify removed --------------------------------- *)
 
 (* The value slots that the static sets of closures of the term before have and
@@ -3685,6 +3749,10 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
   in
   (* The code to loopify. *)
   let loops = loopify_guess () in
+  (* Whether the liftings of the last asking bound tables at the head of the
+     term before: read for the line of a verdict that lifts. Each asking sets it
+     to false first. *)
+  let tables_were_bound = ref false in
   (* The validation asked once, with the code whose calls it is told to leave.
      [validate_unit] is the function asked, which has the two terms of the unit
      already and takes the other guesses; [before] and [after] are the two terms
@@ -3704,6 +3772,10 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
      as the rounds leave them; the value slots and the static bindings to remove
      from a lifted term are guessed from that term placed and tidied. *)
   let ask validate_unit (before : converted) (after : converted) kept =
+    (* No table is bound until a first lifting of this asking binds one: a
+       verdict of this asking that is reached with no lifting proposed must not
+       read what an asking before it left. *)
+    tables_were_bound := false;
     (* The term before with the direct calls of the code of its stubs made
        indirect, its direct calls of code that never returns which pass the
        checks of that rewrite put under a binding of their return continuation
@@ -3763,7 +3835,8 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
          each one after it from the term that those before it give, normalised:
          for the [Let]s that inlining a call has brought out of a function, and
          for those to make aliases of symbols bound around them, which are
-         guessed from the second lifting on. A second is always tried; one after
+         guessed from the second lifting on. The tables to bind at the head of
+         the unit are guessed for the first. A second is always tried; one after
          it only if it lifts something; and there are four at most. After each,
          as [validate_unit] does, the value slots of static closures are read
          and what the unit binds its symbols to is used in every round of the
@@ -3789,6 +3862,14 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
             ~around:(match made with [] -> false | _ :: _ -> true)
             lifted normalised_after
         in
+        (* The first lifting also binds, at the head of the unit, the tables
+           that the term after has and the term before has not. *)
+        let lifting =
+          match made with
+          | [] ->
+            { lifting with tables_put = tables_guess lifted normalised_after }
+          | _ :: _ -> lifting
+        in
         let stop =
           match
             ( remaining,
@@ -3806,14 +3887,17 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
         then List.rev made, lifted
         else
           (* As [validate_unit] applies a lifting: to the head of the unit, out
-             of code, where the [Let]s stand, then to groups around them. After
-             the first lifting, the sequence ends here if the term comes back as
-             the same value in memory. That comparison of two pointers is a
-             shortcut of this search, which is bounded and not trusted. It says
-             nothing of the checks of a lifting: a lifting whose checks pass may
-             give the same term back, and then the search stops; one that gives
-             a term rebuilt but equal may continue. *)
+             of code, where the [Let]s stand, then to groups around them, and
+             last the tables. After the first lifting, the sequence ends here if
+             the term comes back as the same value in memory. That comparison of
+             two pointers is a shortcut of this search, which is bounded and not
+             trusted. It says nothing of the checks of a lifting: a lifting
+             whose checks pass may give the same term back, and then the search
+             stops; one that gives a term rebuilt but equal may continue. *)
           let lifted' = Validate.with_lifting lifting lifted in
+          (match made with
+          | [] -> tables_were_bound := tables_bound lifting.tables_put lifted'
+          | _ :: _ -> ());
           if lifted' == lifted && match made with [] -> false | _ :: _ -> true
           then List.rev made, lifted
           else
@@ -4036,15 +4120,18 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
       ^ ": the same once normalised and unused static bindings removed, at the \
          head of the term after too"
     | Same_once_lifted ->
+      let lifted =
+        if !tables_were_bound
+        then
+          ": the same once closures and blocks are lifted to symbols, the \
+           tables of the term after bound in the term before"
+        else ": the same once closures and blocks are lifted to symbols"
+      in
       if slots_removed
       then
-        validated
-        ^ ": the same once closures and blocks are lifted to symbols, the \
-           terms normalised and unused value slots removed"
-      else
-        validated
-        ^ ": the same once closures and blocks are lifted to symbols and the \
-           terms normalised"
+        validated ^ lifted
+        ^ ", the terms normalised and unused value slots removed"
+      else validated ^ lifted ^ " and the terms normalised"
     | Not_validated ->
       if outcome_before = Undefined
       then "nothing to validate, as the term before is undefined"
