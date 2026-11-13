@@ -29,7 +29,8 @@
 # as no name is defined both in the two files and elsewhere, what a
 # definition of any other file reaches is what it reached before the
 # two files were read; what they add is their own definitions, with
-# what each reaches.
+# what each reaches. The search tests both conditions on the commit that
+# it reads and says so first where one fails.
 import re, subprocess, sys, collections
 reach = len(sys.argv) > 1 and sys.argv[1] == '--reach'
 args = sys.argv[2:] if reach else sys.argv[1:]
@@ -94,6 +95,24 @@ def items(rev):
                 # a name defined twice in one file (sections): keep both bodies
                 res[key] = res[key] + ' ;; ' + body if key in res else body
     return res
+def leaves_condition(rev, new):
+    # The two things that the rule for LEAVES rests on.
+    notes = []
+    leaf_names = set(k[1] for k in new if k[0] in LEAVES)
+    for k in sorted(new):
+        if k[0] not in LEAVES and k[1] in leaf_names:
+            notes.append('%s is defined in %s and in one of %s'
+                         % (k[1], k[0], ' and '.join(LEAVES)))
+    for f in spec_files(rev):
+        if short(f) in LEAVES:
+            text = strip_comments(git('show', rev + ':' + f))
+            for m in re.finditer(r'\bRequire\s+(?:Import|Export)\s+([^.]*)\.', text):
+                for mod in m.group(1).split():
+                    if mod.startswith('Flambda') and mod + '.v' not in LEAVES:
+                        notes.append('%s imports %s' % (short(f), mod))
+    for n in notes:
+        print('!! the items of %s are searched for their own names only, and %s'
+              % (' and '.join(LEAVES), n))
 def is_stmt(key):
     return key[1].endswith('_statement')
 word = re.compile(r"[A-Za-z_][A-Za-z0-9_']*")
@@ -132,6 +151,7 @@ def reached(users, starts):
 if reach:
     rev, name = args[0], args[1]
     new = items(rev)
+    leaves_condition(rev, new)
     defined_names, users = index(new)
     starts = defined_names[name]
     if not starts:
@@ -153,6 +173,7 @@ if reach:
     sys.exit(0)
 base, tip = args[0], args[1]
 old, new = items(base), items(tip)
+leaves_condition(tip, new)
 changed = sorted(k for k in new if not is_stmt(k) and k in old and old[k] != new[k])
 added = sorted(k for k in new if not is_stmt(k) and k not in old)
 removed = sorted(k for k in old if not is_stmt(k) and k not in new)
