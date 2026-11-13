@@ -60,10 +60,12 @@
 From Stdlib Require Import ZArith List Bool Arith Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaKindModel FlambdaModel
-  FlambdaMapSpec FlambdaMapProofs FlambdaSemanticsSpec FlambdaSemanticsProofs
-  FlambdaContextSpec FlambdaContextProofs
+  FlambdaMapSpec FlambdaMapProofs FlambdaPrimitiveModel FlambdaValueSpec
+  FlambdaPrimitiveSpec FlambdaPrimitiveProofs FlambdaSemanticsSpec
+  FlambdaSemanticsProofs FlambdaContextSpec FlambdaContextProofs
   FlambdaNormaliseSpec FlambdaNormaliseProofs FlambdaUnusedContsSpec
   FlambdaUnaliasParamsSpec FlambdaUnaliasParamsProofs
+  FlambdaUntagParamsSpec FlambdaUntagParamsProofs
   FlambdaGiveScrutineeSpec FlambdaArmNumbersSpec.
 From OxCamlFlambda2 Require FlambdaGiveScrutineeProofs.
 Import ListNotations.
@@ -93,39 +95,40 @@ Lemma number_in_apply_cont_continuation (x : variable) (known : option Z)
   ac_continuation (number_in_apply_cont x known ac) = ac_continuation ac.
 Proof. unfold number_in_apply_cont. destruct known; reflexivity. Qed.
 
-Fixpoint number_in_arms_binds_statics (x : variable)
-    (known : option Z) (e : expr) {struct e} :
-  binds_statics (number_in_arms x known e) = binds_statics e
+Fixpoint number_in_region_binds_statics (x : variable)
+    (source : option variable) (known : option Z) (e : expr) {struct e} :
+  binds_statics (number_in_region x source known e) = binds_statics e
 with number_in_handler_binds_statics (x : variable)
-    (known : option Z) (h : continuation_handler) {struct h} :
-  handler_binds_statics (number_in_handler x known h)
+    (source : option variable) (known : option Z) (h : continuation_handler)
+    {struct h} :
+  handler_binds_statics (number_in_handler x source known h)
   = handler_binds_statics h.
 Proof.
   - destruct e as [y kind d body | bindings body | k' hh body | handlers body
                   | ap | ac | scrutinee arms | ];
-      cbn [number_in_arms binds_statics]; try reflexivity.
-    + apply number_in_arms_binds_statics.
-    + rewrite number_in_arms_binds_statics. reflexivity.
-    + rewrite number_in_handler_binds_statics, number_in_arms_binds_statics.
+      cbn [number_in_region binds_statics]; try reflexivity.
+    + apply number_in_region_binds_statics.
+    + rewrite number_in_region_binds_statics. reflexivity.
+    + rewrite number_in_handler_binds_statics, number_in_region_binds_statics.
       reflexivity.
-    + rewrite number_in_arms_binds_statics. f_equal.
+    + rewrite number_in_region_binds_statics. f_equal.
       induction handlers as [ | [k' hh] handlers IH]; [ reflexivity | ].
       cbn [map existsb].
       rewrite number_in_handler_binds_statics, IH. reflexivity.
   - destruct h as [params metadata handler].
     cbn [number_in_handler handler_binds_statics].
-    apply number_in_arms_binds_statics.
+    apply number_in_region_binds_statics.
 Qed.
 
-Definition number_handlers (x : variable)
+Definition number_handlers (x : variable) (source : option variable)
     (known : option Z) (handlers : list (continuation * continuation_handler))
     : list (continuation * continuation_handler) :=
-  map (fun '(k', h) => (k', number_in_handler x known h)) handlers.
+  map (fun '(k', h) => (k', number_in_handler x source known h)) handlers.
 
 Lemma number_handlers_bind_statics (x : variable)
-    (known : option Z)
+    (source : option variable) (known : option Z)
     (handlers : list (continuation * continuation_handler)) :
-  handlers_bind_statics (number_handlers x known handlers)
+  handlers_bind_statics (number_handlers x source known handlers)
   = handlers_bind_statics handlers.
 Proof.
   unfold handlers_bind_statics, number_handlers.
@@ -134,11 +137,11 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma lookup_number_handlers (x : variable)
+Lemma lookup_number_handlers (x : variable) (source : option variable)
     (known : option Z) (k1 : continuation)
     (handlers : list (continuation * continuation_handler)) :
-  lookup k1 (number_handlers x known handlers)
-  = option_map (number_in_handler x known) (lookup k1 handlers).
+  lookup k1 (number_handlers x source known handlers)
+  = option_map (number_in_handler x source known) (lookup k1 handlers).
 Proof.
   unfold number_handlers.
   induction handlers as [ | [k' hh] handlers IH]; [ reflexivity | ].
@@ -181,6 +184,58 @@ Proof.
   cbn [eval_simple]. rewrite Hx. reflexivity.
 Qed.
 
+(* A variable read is worth what it was where the variable holds the
+   number, and the one that it is the untagging of the tagged
+   number. *)
+Lemma eval_simple_read (x : variable) (source : option variable) (c : Z)
+    (vars : env) (s : simple) :
+  lookup x vars = Some (Value_const (Naked_immediate c)) ->
+  (∀ t : variable,
+     source = Some t ->
+     lookup t vars = Some (Value_const (Tagged_immediate c))) ->
+  eval_simple vars (number_read x source c s) = eval_simple vars s.
+Proof.
+  intros Hx Ht. destruct s as [y | sym | c0]; try reflexivity.
+  cbn [number_read]. destruct (Pos.eqb_spec y x) as [-> | _].
+  - cbn [eval_simple]. rewrite Hx. reflexivity.
+  - destruct source as [t | ]; [ | reflexivity ].
+    destruct (Pos.eqb_spec y t) as [-> | _]; [ | reflexivity ].
+    cbn [eval_simple]. rewrite (Ht t eq_refl). reflexivity.
+Qed.
+
+Lemma eval_simples_read (x : variable) (source : option variable) (c : Z)
+    (vars : env) :
+  lookup x vars = Some (Value_const (Naked_immediate c)) ->
+  (∀ t : variable,
+     source = Some t ->
+     lookup t vars = Some (Value_const (Tagged_immediate c))) ->
+  ∀ args : list simple,
+    eval_simples vars (map (number_read x source c) args)
+    = eval_simples vars args.
+Proof.
+  intros Hx Ht. induction args as [ | a args IH]; [ reflexivity | ].
+  cbn [map eval_simples].
+  rewrite IH, (eval_simple_read x source c vars a Hx Ht). reflexivity.
+Qed.
+
+(* What the untagging of a variable gives, and what the variable
+   holds then. *)
+Lemma eval_untag_var (statics : static_env) (vars : env) (t : variable)
+    (v : value) :
+  eval_named statics vars (Prim (Unary Untag_immediate) [Var t]) = Some v ->
+  ∃ i : Z,
+    lookup t vars = Some (Value_const (Tagged_immediate i))
+    ∧ v = Value_const (Naked_immediate i).
+Proof.
+  cbn [eval_named eval_simples eval_simple].
+  destruct (lookup t vars) as [w | ]; [ | discriminate ].
+  simpl. rewrite eval_prim_unary. cbn [eval_unary_primitive].
+  destruct (int_of_value Standard_tagged_immediate w) as [i | ] eqn:Hint;
+    [ | discriminate ].
+  intros [= <-]. exists i.
+  apply int_of_value_const in Hint as [-> _]. split; reflexivity.
+Qed.
+
 (* ======================================================================== *)
 (* One variable                                                             *)
 (* ======================================================================== *)
@@ -193,6 +248,106 @@ Variables (x : variable).
 Definition holds (known : option Z) (vars : env) : Prop :=
   ∀ c : Z,
     known = Some c -> lookup x vars = Some (Value_const (Naked_immediate c)).
+
+(* The variable that [x] is said to be the untagging of holds the
+   tagged immediate of the number that [x] holds. *)
+Definition sourced (source : option variable) (vars : env) : Prop :=
+  ∀ t : variable,
+    source = Some t ->
+    ∃ i : Z,
+      lookup t vars = Some (Value_const (Tagged_immediate i))
+      ∧ lookup x vars = Some (Value_const (Naked_immediate i)).
+
+Lemma sourced_none (vars : env) : sourced None vars.
+Proof. intros t [=]. Qed.
+
+Lemma sourced_tagged (source : option variable) (c : Z) (vars : env) :
+  sourced source vars ->
+  lookup x vars = Some (Value_const (Naked_immediate c)) ->
+  ∀ t : variable,
+    source = Some t ->
+    lookup t vars = Some (Value_const (Tagged_immediate c)).
+Proof.
+  intros Hsourced Hx t Ht. destruct (Hsourced t Ht) as (i & Hti & Hxi).
+  rewrite Hx in Hxi. injection Hxi as ->. exact Hti.
+Qed.
+
+(* A defining expression and the scrutinee of a [Switch] are worth what
+   they were. *)
+Lemma eval_named_number (source : option variable) (known : option Z)
+    (statics : static_env) (vars : env) (d : named) :
+  holds known vars ->
+  sourced source vars ->
+  eval_named statics vars (number_in_named x source known d)
+  = eval_named statics vars d.
+Proof.
+  intros Hholds Hsourced. unfold number_in_named.
+  destruct known as [c | ]; [ | reflexivity ].
+  pose proof (Hholds c eq_refl) as Hx.
+  pose proof (sourced_tagged source c vars Hsourced Hx) as Ht.
+  destruct d as [s | p args | | | | | ]; try reflexivity.
+  - cbn [eval_named]. apply eval_simple_read; assumption.
+  - cbn [eval_named]. rewrite eval_simples_read by assumption. reflexivity.
+Qed.
+
+Lemma eval_scrutinee_number (source : option variable) (known : option Z)
+    (vars : env) (scrutinee : simple) :
+  holds known vars ->
+  sourced source vars ->
+  eval_simple vars (number_in_scrutinee x source known scrutinee)
+  = eval_simple vars scrutinee.
+Proof.
+  intros Hholds Hsourced. unfold number_in_scrutinee.
+  destruct known as [c | ]; [ | reflexivity ].
+  pose proof (Hholds c eq_refl) as Hx.
+  exact
+    (eval_simple_read x source c vars scrutinee Hx
+       (sourced_tagged source c vars Hsourced Hx)).
+Qed.
+
+(* The variable that [x] is the untagging of under a [Let], and in a
+   handler. *)
+Lemma sourced_let (source : option variable) (statics : static_env)
+    (vars : env) (y : variable) (d : named) (v : value) :
+  sourced source vars ->
+  eval_named statics vars d = Some v ->
+  sourced (source_under_let x y d source) ((y, v) :: vars).
+Proof.
+  intros Hsourced Hv t Ht. unfold source_under_let in Ht.
+  destruct (Pos.eqb_spec y x) as [-> | Hyx].
+  - destruct (untag_of d) as [t' | ] eqn:Huntag; [ | discriminate Ht ].
+    destruct (Pos.eqb_spec t' x) as [-> | Hne]; [ discriminate Ht | ].
+    injection Ht as <-. apply untag_of_some in Huntag. subst d.
+    destruct (eval_untag_var statics vars t' v Hv) as (i & Ht' & ->).
+    exists i. rewrite !lookup_cons, Pos.eqb_refl.
+    apply Pos.eqb_neq in Hne. rewrite Hne. split; [ exact Ht' | reflexivity ].
+  - destruct source as [t' | ]; [ | discriminate Ht ].
+    destruct (Pos.eqb_spec y t') as [-> | Hyt]; [ discriminate Ht | ].
+    injection Ht as <-.
+    destruct (Hsourced t' eq_refl) as (i & Ht' & Hx).
+    exists i. rewrite !lookup_cons.
+    assert (Hty : Pos.eqb t' y = false) by (apply Pos.eqb_neq; congruence).
+    assert (Hxy : Pos.eqb x y = false) by (apply Pos.eqb_neq; congruence).
+    rewrite Hty, Hxy. split; assumption.
+Qed.
+
+Lemma sourced_params (source : option variable) (params : list variable)
+    (vs : list value) (vars bound : env) :
+  sourced source vars ->
+  bind_params params vs vars = Some bound ->
+  sourced (source_under x params source) bound.
+Proof.
+  intros Hsourced Hbound t Ht. unfold source_under in Ht.
+  destruct (among x params) eqn:Hx; [ discriminate Ht | ].
+  destruct source as [t' | ]; [ | discriminate Ht ].
+  destruct (among t' params) eqn:Ht'; [ discriminate Ht | ].
+  injection Ht as <-.
+  destruct (Hsourced t' eq_refl) as (i & Hti & Hxi).
+  exists i.
+  rewrite (lookup_bind_params_out params vs vars bound t' Ht' Hbound),
+    (lookup_bind_params_out params vs vars bound x Hx Hbound).
+  split; assumption.
+Qed.
 
 Lemma eval_args_given (known : option Z) (vars : env) (ac : apply_cont) :
   holds known vars ->
@@ -240,16 +395,17 @@ Inductive cont_rel : cont_value -> cont_value -> Prop :=
        closure_mentions hh recursive k1 = true ->
        cont_rel (resolve k1 dc) (resolve k1 dc')) ->
     cont_rel (Closure hh dv dc recursive) (Closure hh dv dc' recursive)
-  | Rel_given (known : option Z) (hh : continuation_handler) (dv : env)
-      (dc dc' : cont_env)
+  | Rel_given (source : option variable) (known : option Z)
+      (hh : continuation_handler) (dv : env) (dc dc' : cont_env)
       (recursive : list (continuation * continuation_handler)) :
     holds known dv ->
+    sourced source dv ->
     (∀ k1 : continuation,
        closure_mentions hh recursive k1 = true ->
        cont_rel (resolve k1 dc) (resolve k1 dc')) ->
     cont_rel (Closure hh dv dc recursive)
-      (Closure (number_in_handler x known hh) dv dc'
-         (number_handlers x known recursive))
+      (Closure (number_in_handler x source known hh) dv dc'
+         (number_handlers x source known recursive))
   | Rel_extra (c c' : cont_value) (extra : list value) :
     cont_rel c c' -> cont_rel (Extra_args c extra) (Extra_args c' extra)
   | Rel_over (remaining : list value) (remaining_arity return_arity : arity)
@@ -271,10 +427,11 @@ Inductive cont_rel : cont_value -> cont_value -> Prop :=
    same expression. And the arm that a [Switch] takes, of which only
    the continuation that it applies need be related. *)
 Inductive state_rel : state -> state -> Prop :=
-  | Rel_state (dead : list (continuation * Z)) (known : option Z) (e : expr)
-      (vars : env) (conts conts' : cont_env) (statics : static_env)
-      (hp : heap) :
+  | Rel_state (dead : list (continuation * Z)) (source : option variable)
+      (known : option Z) (e : expr) (vars : env) (conts conts' : cont_env)
+      (statics : static_env) (hp : heap) :
     holds known vars ->
+    sourced source vars ->
     (∀ (k2 : continuation) (c : Z),
        (k2, c) ∈ dead ->
        arm_fact x k2 e = Some c
@@ -284,7 +441,7 @@ Inductive state_rel : state -> state -> Prop :=
        k1 ∉ map fst dead ->
        cont_rel (resolve k1 conts) (resolve k1 conts')) ->
     state_rel (State e vars conts statics hp)
-      (State (number_in_arms x known e) vars conts' statics hp)
+      (State (number_in_region x source known e) vars conts' statics hp)
   | Rel_state_same (e : expr) (vars : env) (conts conts' : cont_env)
       (statics : static_env) (hp : heap) :
     (∀ k1 : continuation,
@@ -350,10 +507,11 @@ Proof.
   split; [ exact (lookup_in k1 hh handlers Hlookup) | exact Hk2 ].
 Qed.
 
-Lemma rec_conts_given (known : option Z)
+Lemma rec_conts_given (source : option variable) (known : option Z)
     (handlers : list (continuation * continuation_handler))
     (vars : env) (conts conts' : cont_env) (k1 : continuation) :
   holds known vars ->
+  sourced source vars ->
   (∀ k2 : continuation,
      existsb (fun '(_, h) => cont_free_in_handler_b k2 h) handlers = true ->
      cont_rel (resolve k2 conts) (resolve k2 conts')) ->
@@ -361,14 +519,15 @@ Lemma rec_conts_given (known : option Z)
    cont_rel (resolve k1 conts) (resolve k1 conts')) ->
   cont_rel (resolve k1 (rec_closures handlers vars conts ++ conts))
     (resolve k1
-       (rec_closures (number_handlers x known handlers) vars conts'
+       (rec_closures (number_handlers x source known handlers) vars conts'
         ++ conts')).
 Proof.
-  intros Hholds Hgroup Hout.
+  intros Hholds Hsourced Hgroup Hout.
   rewrite !resolve_rec_closures, lookup_number_handlers.
   destruct (lookup k1 handlers) as [hh | ] eqn:Hlookup; cbn [option_map];
     [ | exact (Hout eq_refl) ].
-  apply Rel_given; [ exact Hholds | ]. intros k2 Hk2. apply Hgroup.
+  apply Rel_given; [ exact Hholds | exact Hsourced | ].
+  intros k2 Hk2. apply Hgroup.
   unfold closure_mentions in Hk2.
   apply orb_true_iff in Hk2 as [Hk2 | Hk2]; [ | exact Hk2 ].
   apply existsb_exists. exists (k1, hh).
@@ -441,7 +600,7 @@ Proof.
   induction Hc
     as [c
        | [ps m he] dv dc dc' recursive Hdc _
-       | known [ps m he] dv dc dc' recursive Hholds Hdc _
+       | source known [ps m he] dv dc dc' recursive Hholds Hsourced Hdc _
        | c c' extra Hc IHc
        | remaining remaining_arity return_arity return_to return_to' exn_to
            exn_to' Hreturn IHreturn Hraise _];
@@ -461,13 +620,15 @@ Proof.
       [ | exact I ].
     destruct (bind_params ps vs dv) as [bound | ] eqn:Hbound; [ | exact I ].
     cbn [result_related].
-    apply (Rel_state [] (known_under x ps known)).
+    apply (Rel_state [] (source_under x ps source) (known_under x ps known)).
     + unfold known_under. destruct (among x ps) eqn:Hx; intros c Hc;
         [ discriminate | ].
       rewrite (lookup_bind_params_out ps vs dv bound x Hx Hbound).
       exact (Hholds c Hc).
+    + exact (sourced_params source ps vs dv bound Hsourced Hbound).
     + intros k2 c [].
-    + intros k1 Hk1 _. apply rec_conts_given; [ exact Hholds | | ].
+    + intros k1 Hk1 _.
+      apply rec_conts_given; [ exact Hholds | exact Hsourced | | ].
       * intros k2 Hk2. apply Hdc. unfold closure_mentions. rewrite Hk2.
         apply orb_true_r.
       * intros _. apply Hdc. unfold closure_mentions.
@@ -500,17 +661,19 @@ Qed.
 (* A closure of the handler of a non-recursive [Let_cont], rewritten
    for something that holds, is related to the closure of the handler
    where the continuations that the handler mentions are. *)
-Lemma closure_given (known : option Z) (hh : continuation_handler)
-    (vars : env) (conts conts' : cont_env) :
+Lemma closure_given (source : option variable) (known : option Z)
+    (hh : continuation_handler) (vars : env) (conts conts' : cont_env) :
   holds known vars ->
+  sourced source vars ->
   (∀ k1 : continuation,
      cont_free_in_handler_b k1 hh = true ->
      cont_rel (resolve k1 conts) (resolve k1 conts')) ->
   cont_rel (Closure hh vars conts [])
-    (Closure (number_in_handler x known hh) vars conts' []).
+    (Closure (number_in_handler x source known hh) vars conts' []).
 Proof.
-  intros Hholds Hconts.
-  apply (Rel_given known hh vars conts conts' []); [ exact Hholds | ].
+  intros Hholds Hsourced Hconts.
+  apply (Rel_given source known hh vars conts conts' []);
+    [ exact Hholds | exact Hsourced | ].
   intros k1 Hk1. apply Hconts. unfold closure_mentions in Hk1.
   cbn [existsb] in Hk1. rewrite orb_false_r in Hk1. exact Hk1.
 Qed.
@@ -520,24 +683,27 @@ Lemma number_step (s s' : state) :
   state_rel s s' -> result_related state_rel (step s) (step s').
 Proof.
   intros
-    [dead known e vars conts conts' statics hp Hholds Hdead Hconts
+    [dead source known e vars conts conts' statics hp Hholds Hsourced Hdead
+       Hconts
     | e vars conts conts' statics hp Hconts
     | known ac vars conts conts' statics hp Hholds Hk].
   - (* an expression and the same rewritten *)
     destruct e as [y kind1 d body | bindings body | k1 hh body
                   | handlers body | ap | ac | scrutinee arms | ];
-      cbn [number_in_arms].
+      cbn [number_in_region].
     + assert (Hnil : dead = [])
         by (apply (no_dead dead (Let y kind1 d body) vars);
             [ intros k2; reflexivity | exact Hdead ]).
       subst dead.
-      rewrite !step_let.
-      destruct (eval_named statics vars d) as [v | ]; [ | exact I ].
+      rewrite !step_let,
+        (eval_named_number source known statics vars d Hholds Hsourced).
+      destruct (eval_named statics vars d) as [v | ] eqn:Hv; [ | exact I ].
       destruct (kind_eqb (kind_of_value v) kind1); [ | exact I ].
       cbn [result_related]. apply (Rel_state []).
       * intros c Hc. destruct (Pos.eqb_spec y x) as [-> | Hyx];
           [ discriminate | ].
         rewrite lookup_other by congruence. exact (Hholds c Hc).
+      * exact (sourced_let source statics vars y d v Hsourced Hv).
       * intros k2 c [].
       * intros k1 Hk1 _. apply Hconts; [ exact Hk1 | intros [] ].
     + assert (Hnil : dead = [])
@@ -546,7 +712,8 @@ Proof.
       subst dead.
       rewrite !step_let_static.
       destruct (eval_static_bindings vars bindings statics); [ | exact I ].
-      cbn [result_related]. apply (Rel_state []); [ exact Hholds | | ].
+      cbn [result_related].
+      apply (Rel_state []); [ exact Hholds | exact Hsourced | | ].
       * intros k2 c [].
       * intros k1 Hk1 _. apply Hconts; [ exact Hk1 | intros [] ].
     + rewrite !step_let_cont_non_recursive. cbn [result_related].
@@ -589,7 +756,7 @@ Proof.
             (resolve k3
                ((k1,
                  Closure
-                   (number_in_handler x
+                   (number_in_handler x source
                       match arm_fact x k1 body with
                       | Some c => Some c
                       | None => known
@@ -601,41 +768,42 @@ Proof.
         apply Pos.eqb_neq in Hne. rewrite Hne. apply orb_true_r. }
       destruct (arm_fact x k1 body) as [c | ] eqn:Hfact.
       * destruct (holds_or_not c vars) as [Hc | Hnot].
-        -- apply (Rel_state dead known body);
-             [ exact Hholds | exact Hbody_dead | ].
+        -- apply (Rel_state dead source known body);
+             [ exact Hholds | exact Hsourced | exact Hbody_dead | ].
            intros k3 Hk3 Hk3dead.
            destruct (Pos.eq_dec k3 k1) as [-> | Hne];
              [ | exact (Hrest k3 Hk3 Hne Hk3dead) ].
            rewrite !resolve_head.
-           apply closure_given; [ | exact Hhandler ].
+           apply closure_given; [ | exact Hsourced | exact Hhandler ].
            intros c' [= <-]. exact Hc.
-        -- apply (Rel_state ((k1, c) :: dead) known body);
-             [ exact Hholds | | ].
+        -- apply (Rel_state ((k1, c) :: dead) source known body);
+             [ exact Hholds | exact Hsourced | | ].
            ++ intros k2 c2 [[= <- <-] | Hin];
                 [ split; assumption | exact (Hbody_dead k2 c2 Hin) ].
            ++ intros k3 Hk3 Hk3dead. cbn [map fst] in Hk3dead.
               apply Hrest; [ exact Hk3 | | ].
               ** intros ->. apply Hk3dead. left. reflexivity.
               ** intros Hin. apply Hk3dead. right. exact Hin.
-      * apply (Rel_state dead known body);
-          [ exact Hholds | exact Hbody_dead | ].
+      * apply (Rel_state dead source known body);
+          [ exact Hholds | exact Hsourced | exact Hbody_dead | ].
         intros k3 Hk3 Hk3dead.
         destruct (Pos.eq_dec k3 k1) as [-> | Hne];
           [ | exact (Hrest k3 Hk3 Hne Hk3dead) ].
         rewrite !resolve_head.
-        apply closure_given; [ exact Hholds | exact Hhandler ].
+        apply closure_given; [ exact Hholds | exact Hsourced | exact Hhandler ].
     + assert (Hnil : dead = [])
         by (apply (no_dead dead (Let_cont_recursive handlers body) vars);
             [ intros k2; reflexivity | exact Hdead ]).
       subst dead.
       rewrite !step_let_cont_recursive.
-      fold (number_handlers x known handlers).
+      fold (number_handlers x source known handlers).
       rewrite number_handlers_bind_statics.
       destruct (handlers_bind_statics handlers); [ exact I | ].
-      cbn [result_related]. apply (Rel_state [] known body);
-        [ exact Hholds | | ].
+      cbn [result_related]. apply (Rel_state [] source known body);
+        [ exact Hholds | exact Hsourced | | ].
       * intros k2 c [].
-      * intros k3 Hk3 _. apply rec_conts_given; [ exact Hholds | | ].
+      * intros k3 Hk3 _.
+        apply rec_conts_given; [ exact Hholds | exact Hsourced | | ].
         -- intros k2 Hk2. apply Hconts; [ | intros [] ].
            cbn [cont_free_b]. rewrite Hk2. reflexivity.
         -- intros _. apply Hconts; [ | intros [] ].
@@ -663,7 +831,8 @@ Proof.
       unfold apply_continuation.
       apply apply_cont_value_rel, Hconts;
         [ apply ac_continuation_free | intros [] ].
-    + rewrite !step_switch.
+    + rewrite !step_switch,
+        (eval_scrutinee_number source known vars scrutinee Hholds Hsourced).
       destruct (eval_simple vars scrutinee) as [v | ] eqn:Hv; [ | exact I ].
       destruct (naked_immediate_of_value v) as [j | ] eqn:Hj; [ | exact I ].
       rewrite find_arm_number.
@@ -751,7 +920,8 @@ Lemma number_in_arms_equivalent (e : expr) :
 Proof.
   intros vars conts statics hp.
   apply (bisimulation_equivalent state_rel number_step).
-  apply (Rel_state [] None); [ intros c; discriminate | intros k2 c [] | ].
+  apply (Rel_state [] None None);
+    [ intros c; discriminate | apply sourced_none | intros k2 c [] | ].
   intros k1 _ _. apply Rel_same.
 Qed.
 
