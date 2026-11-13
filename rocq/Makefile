@@ -193,6 +193,7 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaKnownSlotsSpec.v \
   FlambdaKnownSymbolsProofs.v \
   FlambdaKnownSymbolsSpec.v \
+  FlambdaLaggingProofs.v \
   FlambdaLiftAroundProofs.v \
   FlambdaLiftAroundSpec.v \
   FlambdaLiftContsNamesProofs.v \
@@ -284,6 +285,9 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaScopedProofs.v \
   FlambdaSemanticsProofs.v \
   FlambdaSemanticsSpec.v \
+  FlambdaShadowParamsNamesProofs.v \
+  FlambdaShadowParamsProofs.v \
+  FlambdaShadowParamsSpec.v \
   FlambdaShareProjectionsProofs.v \
   FlambdaShareProjectionsScopeProofs.v \
   FlambdaShareProjectionsScopeSpec.v \
@@ -311,6 +315,9 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaTrapSpec.v \
   FlambdaTupledProofs.v \
   FlambdaTupledSpec.v \
+  FlambdaTwinParamsNamesProofs.v \
+  FlambdaTwinParamsProofs.v \
+  FlambdaTwinParamsSpec.v \
   FlambdaUnaliasParamsNamesProofs.v \
   FlambdaUnaliasParamsProofs.v \
   FlambdaUnaliasParamsSpec.v \
