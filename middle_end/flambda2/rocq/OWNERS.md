@@ -164,6 +164,10 @@ design out; that is the request, not the change.
     `middle_end/flambda2/rocq/FlambdaRunUnderProofs.v` (a unit run
     under a continuation environment is the unit run on its own and
     then what the environment binds the continuation of its exit to)
+  - `middle_end/flambda2/rocq/FlambdaObserversSpec.v` and
+    `middle_end/flambda2/rocq/FlambdaObserversProofs.v` (what may
+    follow a unit, and two exits that nothing that may follow tells
+    apart)
   - `middle_end/flambda2/rocq/status/C4.md`
 - C5, exceptions. Owner: C5, on `flambda2-rocq/C5-epoch`.
   - `middle_end/flambda2/rocq/requests/C5-exceptions.md` (the request)
