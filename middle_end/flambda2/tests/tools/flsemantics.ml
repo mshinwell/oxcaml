@@ -4189,7 +4189,7 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
      computed only where it is read. *)
   let statics_of_imports = Imports.imports_statics imports in
   let last_asking_holds = ref (fun () -> false) in
-  let attempt kept =
+  let attempt ?(again = true) kept =
     let first =
       ask
         (fun unused slots liftings ->
@@ -4206,7 +4206,7 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
         before after kept
     in
     match first with
-    | Not_validated, _, _, _, _ -> (
+    | Not_validated, _, _, _, _ when again -> (
       let knowing round (unit : converted) =
         { unit with
           body = Validate_knowing.normalise_knowing round rounds unit.body
@@ -4242,7 +4242,7 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
           _ ) as second ->
         asked_again := true;
         second)
-    | ( ( Same_up_to_bound_names | Same_once_normalised
+    | ( ( Not_validated | Same_up_to_bound_names | Same_once_normalised
         | Same_once_unused_statics_removed | Same_once_head_statics_removed
         | Same_once_lifted ),
         _,
@@ -4251,22 +4251,61 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
         _ ) ->
       first
   in
-  (* Which calls the validation is told to leave: two guesses, tried in turn.
+  (* Which calls the validation is told to leave: three guesses, tried in turn.
      First the recursive code and the code that the term after still calls
      directly, which Simplify chose not to inline. Then the recursive code
      alone, for a function that Simplify inlines at one call and not at another:
      there every call inlined on both sides is what makes the two terms the
-     same. *)
-  let first = attempt (recursive @ called_directly after.body) in
+     same. Then the first guess again, with the recursive code of the term
+     before taken from the term that the validation normalises: the direct calls
+     of its stubs made indirect, its calls of code that never returns cut, its
+     loops made. Code whose self tail calls have all become jumps is not
+     recursive there, and Simplify inlines it where it would inline any other:
+     that is the case that the guess is for. The third is tried only where some
+     code of the first list is not in it. It is asked once: the second asking
+     normalises the term before as it is given, before its loops are made, and
+     each of its rounds would inline such code into itself once more. *)
+  let called_after = called_directly after.body in
+  let first_guess = recursive @ called_after in
+  let once_looped_guess =
+    recursive_code
+      (Loopify.loopify_unit loops
+         (Never_returns.cut_returns []
+            (Stub_calls.demote_stub_calls before.body)))
+    @ recursive_code after.body @ called_after
+  in
+  let another_guess =
+    List.exists
+      (fun code_id -> not (List.mem code_id once_looped_guess))
+      first_guess
+  in
+  let first = attempt first_guess in
   let attempts, (validation, _, _, slots_removed, _) =
     match first with
-    | Not_validated, _, _, _, _ ->
+    | Not_validated, _, _, _, _ -> (
       let second = attempt recursive in
-      ( [ ( "leaving the calls of recursive code and of the code that the term \
+      let two =
+        [ ( "leaving the calls of recursive code and of the code that the term \
              after calls",
             first );
-          "leaving the calls of recursive code", second ],
-        second )
+          "leaving the calls of recursive code", second ]
+      in
+      match second with
+      | Not_validated, _, _, _, _ when another_guess ->
+        let third = attempt ~again:false once_looped_guess in
+        ( two
+          @ [ ( "leaving the calls of the code that is recursive once the \
+                 loops are made and of the code that the term after calls",
+                third ) ],
+          third )
+      | ( ( Not_validated | Same_up_to_bound_names | Same_once_normalised
+          | Same_once_unused_statics_removed | Same_once_head_statics_removed
+          | Same_once_lifted ),
+          _,
+          _,
+          _,
+          _ ) ->
+        two, second)
     | ( ( Same_up_to_bound_names | Same_once_normalised
         | Same_once_unused_statics_removed | Same_once_head_statics_removed
         | Same_once_lifted ),
@@ -4285,11 +4324,12 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
      validated, the asking made last is the one whose verdict is reported: [ask]
      asks a second time only where its first asking does not validate, and gives
      the answer of the second; [attempt] asks [validate_unit_knowing] only where
-     [validate_unit] does not validate; and the second attempt is made only
-     where the first does not validate. Where the model does not say so, and the
-     validator accepts, what is validated is the unit with nothing imported. No
-     line begins "validated:" for a unit that has imports. Where the two terms
-     have a prefix in front of them, made from the [.cmx] files of
+     [validate_unit] does not validate, and not at all for the third attempt;
+     the second attempt is made only where the first does not validate, and the
+     third only where the first two do not. Where the model does not say so, and
+     the validator accepts, what is validated is the unit with nothing imported.
+     No line begins "validated:" for a unit that has imports. Where the two
+     terms have a prefix in front of them, made from the [.cmx] files of
      [prefix_units] units, the verdict is of the two terms with it, and the line
      says of how many units the files were used: it rests on those files being
      right, so such a unit is counted apart whatever imports it has left. *)
