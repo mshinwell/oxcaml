@@ -1,0 +1,93 @@
+(let $camlInt64_sum_in_loop__int64_0 = 0L in
+ let code inline(never) size(61)
+       sum_0 (n/93 : imm tagged)
+         my_closure/94 &my_alloc_region/95 my_depth/96
+         -> k/26 * k/27
+         : imm tagged =
+   let next_depth/97 = rec_info (succ my_depth/96) in
+   cont k/28 ($camlInt64_sum_in_loop__int64_0)
+     where k/28 (let_mutable/98 : int64 boxed) =
+       (cont k/29 (n/93, $camlInt64_sum_in_loop__int64_0)
+          where k/29
+                  (for_stop/99 : imm tagged,
+                   acc_17_unboxed0/100 : int64 boxed) =
+            ((let prim/126 = %int_comp.le (1, for_stop/99) in
+              let int_lessequal/127 = %tag_imm (prim/126) in
+              (let untagged/128 = %untag_imm (int_lessequal/127) in
+               switch untagged/128
+                 | 0 -> k/30 (0, $camlInt64_sum_in_loop__int64_0)
+                 | 1 -> k/34)
+                where k/34 =
+                  cont k/31 ($camlInt64_sum_in_loop__int64_0))
+               where k/31 (acc_17_unboxed0/106 : int64 boxed) =
+                 let prim/107 = %untag_imm (1) in
+                 let for_start_naked/108 =
+                   %num_conv.[`imm`].[`int64`] (prim/107)
+                 in
+                 let prim/109 = %untag_imm (for_stop/99) in
+                 let for_stop_naked/110 =
+                   %num_conv.[`imm`].[`int64`] (prim/109)
+                 in
+                 (cont k/32
+                         (for_start_naked/108,
+                          $camlInt64_sum_in_loop__int64_0)
+                    where rec k/32
+                                (for_counter_naked/111 : int64,
+                                 acc_17_unboxed0/112 : int64 boxed) =
+                      let prim/113 =
+                        %num_conv.[`int64`].[`imm`] (for_counter_naked/111)
+                      in
+                      let i/114 = %tag_imm (prim/113) in
+                      let prim/115 = %untag_imm (i/114) in
+                      let prim/116 = %num_conv.[`imm`].[`int64`] (prim/115)
+                      in
+                      let int64_of_int/117 =
+                        %box_num.`int64`.my_alloc_region/95 (prim/116)
+                      in
+                      let prim/118 = %unbox_num.`int64` (int64_of_int/117) in
+                      let prim/119 = %unbox_num.`int64` (acc_17_unboxed0/112)
+                      in
+                      let prim/120 =
+                        %int_barith.`int64`.add (prim/119, prim/118)
+                      in
+                      let int64_add/121 =
+                        %box_num.`int64`.my_alloc_region/95 (prim/120)
+                      in
+                      let for_next_naked/122 =
+                        %int_barith.`int64`.add (for_counter_naked/111, 1L)
+                      in
+                      let prim/123 =
+                        %int_comp.`int64`.le
+                          (for_next_naked/122, for_stop_naked/110)
+                      in
+                      let `int64#_lessequal/124` = %tag_imm (prim/123) in
+                      ((let untagged/125 =
+                          %untag_imm (`int64#_lessequal/124`)
+                        in
+                        switch untagged/125
+                          | 0 -> k/30 (0, int64_add/121)
+                          | 1 -> k/33)
+                         where k/33 =
+                           cont k/32 (for_next_naked/122, int64_add/121)))
+               where k/30
+                       (staticcatch_result/101 : imm tagged,
+                        acc_17_unboxed0/102 : int64 boxed) =
+                 let prim/103 = %unbox_num.`int64` (acc_17_unboxed0/102) in
+                 let prim/104 = %num_conv.[`int64`].[`imm`] (prim/103) in
+                 let int_of_int64/105 = %tag_imm (prim/104) in
+                 cont k/26 (int_of_int64/105)))
+ in
+ let sum/129 = closure sum_0 @sum &toplevel in
+ (let Popaque/132 = %opaque (10) in
+  apply direct(sum_0 &toplevel)
+    (sum/129 : _ -> imm tagged) (Popaque/132) -> k/35 * error)
+   where k/35 (result/130 : imm tagged) =
+     let Pmakeblock/131 = %block.[`0`].`toplevel` (sum/129, result/130) in
+     cont k/25 (Pmakeblock/131))
+  where k/25 define_root_symbol (module_block/90) =
+    let field_0/91 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/90)
+    in
+    let field_1/92 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/90)
+    in
+    let $camlInt64_sum_in_loop = Block 0 (field_0/91, field_1/92) in
+    cont done ($camlInt64_sum_in_loop)

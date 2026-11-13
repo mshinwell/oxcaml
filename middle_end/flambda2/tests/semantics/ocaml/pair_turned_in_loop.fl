@@ -1,0 +1,98 @@
+(let $camlPair_turned_in_loop__const_block_0 = Block 0 (0, 1) in
+ let code inline(never) size(54)
+       fib_0 (n/87 : imm tagged)
+         my_closure/88 &my_alloc_region/89 my_depth/90
+         -> k/28 * k/29
+         : imm tagged =
+   let next_depth/91 = rec_info (succ my_depth/90) in
+   cont k/30 ($camlPair_turned_in_loop__const_block_0)
+     where k/30 (let_mutable/92 : [ 0 of imm tagged * imm tagged ]) =
+       (cont k/31 (n/87, $camlPair_turned_in_loop__const_block_0)
+          where k/31
+                  (for_stop/93 : imm tagged,
+                   p_16_unboxed0/94 : [ 0 of imm tagged * imm tagged ]) =
+            ((let prim/117 = %int_comp.le (1, for_stop/93) in
+              let int_lessequal/118 = %tag_imm (prim/117) in
+              (let untagged/119 = %untag_imm (int_lessequal/118) in
+               switch untagged/119
+                 | 0 -> k/32 (0, $camlPair_turned_in_loop__const_block_0)
+                 | 1 -> k/37)
+                where k/37 =
+                  cont k/33 ($camlPair_turned_in_loop__const_block_0))
+               where k/33
+                       (p_16_unboxed0/98 : [ 0 of imm tagged * imm tagged ]) =
+                 let prim/99 = %untag_imm (1) in
+                 let for_start_naked/100 =
+                   %num_conv.[`imm`].[`int64`] (prim/99)
+                 in
+                 let prim/101 = %untag_imm (for_stop/93) in
+                 let for_stop_naked/102 =
+                   %num_conv.[`imm`].[`int64`] (prim/101)
+                 in
+                 (cont k/34
+                         (for_start_naked/100,
+                          $camlPair_turned_in_loop__const_block_0)
+                    where rec k/34
+                                (for_counter_naked/103 : int64,
+                                 p_16_unboxed0/104 :
+                                   [ 0 of imm tagged * imm tagged ]) =
+                      let prim/105 =
+                        %num_conv.[`int64`].[`imm`] (for_counter_naked/103)
+                      in
+                      let _for/106 = %tag_imm (prim/105) in
+                      (cont k/35 (p_16_unboxed0/104, p_16_unboxed0/104)
+                         where k/35
+                                 (`*match*/107` :
+                                    [ 0 of imm tagged * imm tagged ],
+                                  p_16_unboxed0/108 :
+                                    [ 0 of imm tagged * imm tagged ]) =
+                           let b/109 = %block_load.[`1`] (`*match*/107`) in
+                           let Pmixedfield/110 =
+                             %block_load.[`0`] (`*match*/107`)
+                           in
+                           let int_add/111 =
+                             %int_barith.add (Pmixedfield/110, b/109)
+                           in
+                           let Pmakeblock/112 =
+                             %block.[`0`].my_alloc_region/89
+                               (b/109, int_add/111)
+                           in
+                           let for_next_naked/113 =
+                             %int_barith.`int64`.add
+                               (for_counter_naked/103, 1L)
+                           in
+                           let prim/114 =
+                             %int_comp.`int64`.le
+                               (for_next_naked/113, for_stop_naked/102)
+                           in
+                           let `int64#_lessequal/115` = %tag_imm (prim/114)
+                           in
+                           ((let untagged/116 =
+                               %untag_imm (`int64#_lessequal/115`)
+                             in
+                             switch untagged/116
+                               | 0 -> k/32 (0, Pmakeblock/112)
+                               | 1 -> k/36)
+                              where k/36 =
+                                cont k/34
+                                       (for_next_naked/113, Pmakeblock/112))))
+               where k/32
+                       (staticcatch_result/95 : imm tagged,
+                        p_16_unboxed0/96 : [ 0 of imm tagged * imm tagged ]) =
+                 let Pfield/97 = %block_load.[`0`] (p_16_unboxed0/96) in
+                 cont k/28 (Pfield/97)))
+ in
+ let fib/120 = closure fib_0 @fib &toplevel in
+ (let Popaque/123 = %opaque (10) in
+  apply direct(fib_0 &toplevel)
+    (fib/120 : _ -> imm tagged) (Popaque/123) -> k/38 * error)
+   where k/38 (result/121 : imm tagged) =
+     let Pmakeblock/122 = %block.[`0`].`toplevel` (fib/120, result/121) in
+     cont k/27 (Pmakeblock/122))
+  where k/27 define_root_symbol (module_block/84) =
+    let field_0/85 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/84)
+    in
+    let field_1/86 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/84)
+    in
+    let $camlPair_turned_in_loop = Block 0 (field_0/85, field_1/86) in
+    cont done ($camlPair_turned_in_loop)
