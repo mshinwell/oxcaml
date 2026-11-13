@@ -700,6 +700,18 @@ Owner: N3, on `flambda2-rocq/N3-equivariance` for the validator and on
   a flag that a loop tests before it sets it: an equivalence, for
   both terms; and the lemmas for its laws of renaming and of scope,
   which are stated in the files above)
+- `middle_end/flambda2/rocq/FlambdaShadowParams*` (the parameters of
+  continuations that hold a tagged immediate and are untagged are
+  bound again to themselves at the head of their handlers, which
+  gives the rewrite that makes names a binder to name: an
+  equivalence, for the term before; and the lemmas for its laws of
+  renaming and of scope, which are stated in the files above)
+- `middle_end/flambda2/rocq/FlambdaTwinParams*` (a parameter of a
+  continuation that holds a tagged immediate, and that the head of
+  its handler binds again, gets a twin that holds the number, as
+  Simplify has it for a flag that a loop both tests and keeps: a
+  refinement, for the term before; and the lemmas for its laws of
+  renaming and of scope, which are stated in the files above)
 - `middle_end/flambda2/rocq/FlambdaLaggingProofs.v` (a way of proving
   a refinement in which the first run takes steps that the second
   does not answer, with a number that bounds them; proofs only)
