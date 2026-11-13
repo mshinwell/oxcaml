@@ -116,7 +116,7 @@ Ltac lifted_cases H :=
        | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs
        | c s Hlookup | tag fields fields' s Hlookup Hfields
        | fslot decls slots slots' s syms Hsym Hsyms Hbound Hslots
-       | code slots slots' s Hlookup Hslots ].
+       | code slots slots' s Hlookup Hslots | loc ].
 
 (* A value lifted under a static environment is lifted under one that
    extends it: a symbol stays bound to what it was bound to. *)
@@ -174,6 +174,7 @@ Proof.
       [ split;
         [ exact Hkey | exact (value_lifted_extend _ _ Hextend _ _ Hhead) ]
       | exact (IH _ _ Htail) ].
+  - apply Lifted_location.
 Qed.
 
 Lemma values_lifted_extend (statics' statics'' : static_env)
@@ -322,6 +323,66 @@ Definition symbols_lifted (statics statics' : static_env) : Prop :=
     ∃ allocated' : statically_allocated_value,
       lookup s (static_values statics') = Some allocated'
       ∧ allocated_lifted statics' allocated allocated'.
+
+(* Every value is lifted to itself, and so is what a symbol is bound
+   to: a static environment is lifted to itself, whatever it binds. *)
+Fixpoint value_lifted_refl (statics' : static_env) (v : value) {struct v} :
+  value_lifted statics' v v.
+Proof.
+  destruct v
+    as [ c | code slots | fslot decls slots | s | tag fields | c | l
+       | callee args args_arity ].
+  - apply Lifted_const.
+  - apply Lifted_closure. revert slots. fix IH 1.
+    intros [ | [slot w] slots]; constructor;
+      [ split; [ reflexivity | exact (value_lifted_refl statics' w) ]
+      | exact (IH slots) ].
+  - apply Lifted_closure_of_set. revert slots. fix IH 1.
+    intros [ | [slot w] slots]; constructor;
+      [ split; [ reflexivity | exact (value_lifted_refl statics' w) ]
+      | exact (IH slots) ].
+  - apply Lifted_symbol.
+  - apply Lifted_block. revert fields. fix IH 1.
+    intros [ | w fields]; constructor;
+      [ exact (value_lifted_refl statics' w) | exact (IH fields) ].
+  - apply Lifted_boxed_number.
+  - apply Lifted_location.
+  - apply Lifted_partial_application;
+      [ exact (value_lifted_refl statics' callee) | ].
+    revert args. fix IH 1.
+    intros [ | w args]; constructor;
+      [ exact (value_lifted_refl statics' w) | exact (IH args) ].
+Qed.
+
+Lemma values_lifted_refl (statics' : static_env) (vs : list value) :
+  Forall2 (value_lifted statics') vs vs.
+Proof.
+  induction vs as [ | v vs IH]; constructor;
+    [ apply value_lifted_refl | exact IH ].
+Qed.
+
+Lemma slots_lifted_refl (statics' : static_env)
+    (slots : list (value_slot * value)) :
+  Forall2 (slot_lifted (value_lifted statics')) slots slots.
+Proof.
+  induction slots as [ | [slot v] slots IH]; constructor;
+    [ split; [ reflexivity | apply value_lifted_refl ] | exact IH ].
+Qed.
+
+Lemma allocated_lifted_refl (statics' : static_env)
+    (allocated : statically_allocated_value) :
+  allocated_lifted statics' allocated allocated.
+Proof.
+  destruct allocated; constructor;
+    auto using value_lifted_refl, values_lifted_refl, slots_lifted_refl.
+Qed.
+
+Lemma symbols_lifted_refl (statics : static_env) :
+  symbols_lifted statics statics.
+Proof.
+  intros s allocated Hs. exists allocated.
+  split; [ exact Hs | apply allocated_lifted_refl ].
+Qed.
 
 Section Known.
 

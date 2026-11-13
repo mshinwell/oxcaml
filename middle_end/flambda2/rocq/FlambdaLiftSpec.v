@@ -457,7 +457,26 @@ Definition lift_unit (L : lifting) (e : expr) : option expr :=
    slot. A constant is lifted to itself only, and so is a symbol. A
    partial application is lifted to a partial application, of the value
    it calls lifted, to its arguments lifted, at the same arity: none is
-   made a symbol.
+   made a symbol. A location of the heap is lifted to itself only
+   ([Lifted_location]): the relation is the identity on locations, and
+   says nothing of what the heap holds at one. The rule is used under
+   the others: a block, a closure or a partial application that holds
+   a location, in a field, in a value slot, or in what it calls or an
+   argument, is lifted to one that holds the same location there; and
+   a block or a closure that holds one may be lifted to a symbol bound
+   to a block or a closure that holds the same, as a partial
+   application may not. It is there so that every value is lifted to
+   itself.
+
+   A term run on its own, from no variable, no continuation, the empty
+   static environment and the empty heap, with the steps that the
+   machine has, reaches no value that holds a location, at any depth:
+   its first state holds none, the heap of a state binds every
+   location of the state
+   (FlambdaLocationsMachineSpec.run_keeps_locations_bound_statement),
+   and no step changes the heap. So the rule relates no pair that such
+   a run reaches. A run from an environment that holds a location may
+   reach one.
 
    The relation speaks of the second static environment only. A symbol
    is related to itself whatever it is bound to, in either run
@@ -529,7 +548,9 @@ Inductive value_lifted (statics' : static_env) : value -> value -> Prop :=
     lookup s (static_values statics')
     = Some (Static_closure code value_slots') ->
     Forall2 (slot_lifted (value_lifted statics')) value_slots value_slots' ->
-    value_lifted statics' (Value_closure code value_slots) (Value_symbol s).
+    value_lifted statics' (Value_closure code value_slots) (Value_symbol s)
+  | Lifted_location (l : location) :
+    value_lifted statics' (Value_location l) (Value_location l).
 
 (* ======================================================================== *)
 (* The statements                                                           *)
