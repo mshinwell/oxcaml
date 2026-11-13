@@ -953,6 +953,15 @@ removed it:
   into the handler of a continuation that is not recursive where
   only that handler names it (`FlambdaSinkUsesSpec.sink_to_use`,
   V4's).
+- An application that has a trap action and whose continuation only
+  applies another (`value_arm_constant.ml`): the value arm of a
+  `match .. with exception` gives a constant, and the application
+  that pops the handler goes through a continuation that passes the
+  constant on. Simplify makes it go there directly and keeps the
+  pop. The forwarding of the term before left an application that
+  has a trap action; it now takes it on with that trap action, where
+  the application of the handler has none
+  (`FlambdaForwardSpec.forward_apply_cont_keeping`, V4's).
 - An application that Simplify leaves going through a continuation
   whose handler is one jump (`local_block_matched.ml`,
   `local_block_matched_argument.ml`, `loop_result_passed_round.ml`,

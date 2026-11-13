@@ -1,0 +1,61 @@
+let $camlValue_arm_constant__first_const_0 = Block 0 () in
+(let code inline(never) size(19)
+       check_0 (n/67 : imm tagged)
+         my_closure/68 &my_alloc_region/69 my_depth/70
+         -> k/33 * k/34
+         : imm tagged =
+   let next_depth/71 = rec_info (succ my_depth/70) in
+   (let prim/72 = %int_comp.lt (n/67, 0) in
+    let int_lessthan/73 = %tag_imm (prim/72) in
+    (let untagged/74 = %untag_imm (int_lessthan/73) in
+     switch untagged/74
+       | 0 -> k/33 (0)
+       | 1 -> k/36)
+      where k/36 =
+        cont k/35)
+     where k/35 =
+       cont k/34 pop(regular k/34) ($`*predef*`.caml_exn_Not_found)
+ in
+ let code inline(never) size(18)
+       ok_1 (n/75 : imm tagged)
+         my_closure/76 &my_alloc_region/77 my_depth/78
+         -> k/37 * k/38
+         : imm tagged =
+   let next_depth/79 = rec_info (succ my_depth/78) in
+   let check/80 = %project_value_slot.[ok].[check] (my_closure/76) in
+   (let try_region/82 = %begin_try_region () in
+    let try_ghost_region/83 = %begin_try_ghost_region () in
+    cont k/41 push(k/40)
+      where k/41 =
+        (apply direct(check_0 &my_alloc_region/77)
+           (check/80 : _ -> imm tagged) (n/75) -> k/42 * k/40
+           where k/42 (apply_result/87 : imm tagged) =
+             (cont k/43 pop(k/40)
+                where k/43 =
+                  cont k/39 (apply_result/87)))
+      where k/40 exn (exn/84 : val) =
+        let unit/85 = %end_try_region (try_region/82) in
+        let unit/86 = %end_try_ghost_region (try_ghost_region/83) in
+        cont k/37 (0))
+     where k/39 (val/81 : imm tagged) =
+       cont k/37 (1)
+ in
+ let check/88 = closure check_0 @check &toplevel in
+ let ok/89 = closure ok_1 @ok &toplevel with { check = check/88 } in
+ (let Popaque/95 = %opaque (-3) in
+  apply direct(ok_1 &toplevel)
+    (ok/89 : _ -> imm tagged) (Popaque/95) -> k/44 * error)
+   where k/44 (apply_result/90 : imm tagged) =
+     ((let Popaque/94 = %opaque (3) in
+       apply direct(ok_1 &toplevel)
+         (ok/89 : _ -> imm tagged) (Popaque/94) -> k/45 * error)
+        where k/45 (apply_result/91 : imm tagged) =
+          let result/92 = %int_barith.add (apply_result/91, apply_result/90)
+          in
+          let Pmakeblock/93 = %block.[`0`].`toplevel` (result/92) in
+          cont k/32 (Pmakeblock/93)))
+  where k/32 define_root_symbol (module_block/65) =
+    let field_0/66 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/65)
+    in
+    let $camlValue_arm_constant = Block 0 (field_0/66) in
+    cont done ($camlValue_arm_constant)
