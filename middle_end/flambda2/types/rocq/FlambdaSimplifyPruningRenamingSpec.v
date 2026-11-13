@@ -76,10 +76,12 @@
    [use_env_keeps_fit_equivariant_statement],
    [leaf_uses_keep_fit_equivariant_statement],
    [let_env_keeps_fit_equivariant_statement],
-   [find_use_keeps_fit_equivariant_statement]), and so does the test
+   [find_use_keeps_fit_equivariant_statement]), and so do the test
    for the applications that are gathered
-   ([gather_uses_keeps_fit_equivariant_statement]); that the functions
-   themselves commute with renaming is in
+   ([gather_uses_keeps_fit_equivariant_statement]) and the test for
+   the one application under whose environment the function rewrites
+   the handler ([find_one_use_keeps_fit_equivariant_statement]); that
+   the functions themselves commute with renaming is in
    FlambdaSimplifyPassRenamingSpec.v.
 
    Nothing is trusted here. The proofs are in
@@ -204,6 +206,13 @@ Definition gather_uses_keeps_fit_equivariant_statement : Prop :=
     gather_uses_keeps_fit (rename_typing_env r tenv)
       (rename_continuation r k) (rename_handler r h) (rename_expr r body)
     = gather_uses_keeps_fit tenv k h body.
+
+Definition find_one_use_keeps_fit_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (k : continuation)
+    (h : continuation_handler) (body : expr),
+    find_one_use_keeps_fit (rename_typing_env r tenv)
+      (rename_continuation r k) (rename_handler r h) (rename_expr r body)
+    = find_one_use_keeps_fit tenv k h body.
 
 (* ======================================================================== *)
 (* The function                                                             *)

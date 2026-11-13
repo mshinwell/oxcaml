@@ -74,7 +74,7 @@
    conditions ([let_step_of], [outcome_keeps_fit]: the cases of
    [simplify_let] and of FlambdaSimplifyPruningSpec.let_keeps_fit).
    And the functions that answer an environment answer its boolean
-   with it.
+   with it ([gather_uses_carried], one with each application).
 
    Not here. FlambdaTypingEnvInvariantSpec.types_well_formed_b, which
    FlambdaSimplifyPassSpec.v tests where a prover of tagged immediates
@@ -349,6 +349,92 @@ Fixpoint find_use_carried (fit : bool) (scope tenv : Typing_env.t)
   | Let_static _ _ | Let_cont_recursive _ _ | Apply _ | Invalid => None
   end.
 
+(* FlambdaSimplifyPassSpec.gather_uses, each application with the
+   boolean of its environment. [fit] is the boolean of [tenv]. *)
+Fixpoint gather_uses_carried (fit : bool) (tenv : Typing_env.t)
+    (k : continuation) (h : continuation_handler) (body : expr)
+    : option
+        (list (Typing_env.t * bool * list simple) * list variable
+         * list continuation) :=
+  match body with
+  | Let x declared defining_expr rest =>
+    if var_free_in_handler_b x h then None
+    else
+      match let_env_carried fit tenv x declared defining_expr with
+      | Some (tenv', fit') =>
+        match gather_uses_carried fit' tenv' k h rest with
+        | Some (uses, xs, ks) => Some (uses, x :: xs, ks)
+        | None => None
+        end
+      | None => None
+      end
+  | Let_cont_non_recursive k' h' rest =>
+    if negb (Pos.eqb k k') && negb (cont_free_in_handler_b k' h)
+    then
+      match gather_uses_carried fit tenv k h rest with
+      | Some (uses, xs, ks) =>
+        if cont_free_in_handler_b k h'
+        then
+          match h' with
+          | Handler params' metadata' body' =>
+            if
+              negb (cont_free_in_handler_b k h)
+              && forallb (fun x => negb (var_free_in_handler_b x h)) params'
+            then
+              match handler_env_carried fit tenv params' metadata' with
+              | Some tenv_handler =>
+                match gather_uses_carried fit tenv_handler k h body' with
+                | Some (uses', xs', ks') =>
+                  Some
+                    (uses' ++ uses, params' ++ xs' ++ xs,
+                     k :: k' :: ks' ++ ks)
+                | None => None
+                end
+              | None => None
+              end
+            else None
+          end
+        else Some (uses, xs, k' :: ks)
+      | None => None
+      end
+    else None
+  | Apply_cont _ | Switch _ _ =>
+    match leaf_uses tenv k body with
+    | Some uses =>
+      Some
+        (map
+           (fun use =>
+              (fst use, fit && leaf_uses_keep_fit tenv k body, snd use))
+           uses,
+         [], [])
+    | None => None
+    end
+  | Let_static _ _ | Let_cont_recursive _ _ | Apply _ | Invalid => None
+  end.
+
+(* FlambdaSimplifyPassSpec.find_gathered_use, with the boolean of the
+   environment that it answers. *)
+Definition find_gathered_use_carried (fit : bool) (tenv : Typing_env.t)
+    (k : continuation) (h : continuation_handler) (body : expr)
+    : option (Typing_env.t * bool * list variable * list continuation) :=
+  match h, gather_uses_carried fit tenv k h body with
+  | Handler params metadata _, Some ([(tenv_use, fit_use, args)], xs, ks) =>
+    match use_env_carried fit_use tenv tenv_use params metadata args with
+    | Some (target, fit_target) => Some (target, fit_target, xs, ks)
+    | None => None
+    end
+  | Handler _ _ _, (Some (([] | _ :: _ :: _), _, _) | None) => None
+  end.
+
+(* FlambdaSimplifyPassSpec.find_one_use. *)
+Definition find_one_use_carried (fit : bool) (tenv : Typing_env.t)
+    (k : continuation) (h : continuation_handler) (body : expr)
+    : option (Typing_env.t * bool * list variable * list continuation) :=
+  match find_use_carried fit tenv tenv k h body with
+  | Some found => Some found
+  | None => find_gathered_use_carried fit tenv k h body
+  end.
+
 (* ======================================================================== *)
 (* A term                                                                   *)
 (* ======================================================================== *)
@@ -383,7 +469,7 @@ Fixpoint simplify_expr_carried (fit : bool) (tenv : Typing_env.t) (e : expr)
     Let_cont_non_recursive k
       (match handler with
        | Handler params metadata handler_body =>
-         match find_use_carried fit tenv tenv k handler body' with
+         match find_one_use_carried fit tenv k handler body' with
          | Some (target, fit_target, xs, ks) =>
            let rewritten :=
              Handler params metadata

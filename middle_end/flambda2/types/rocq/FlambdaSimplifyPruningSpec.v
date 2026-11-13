@@ -98,12 +98,21 @@
      ([find_use_refines_from_valid_statement]; the statement for every
      state is FlambdaSimplifyPassSpec.find_use_refines_statement).
    - Of the applications that FlambdaSimplifyPassSpec.gather_uses
-     gathers, which the function does not call: a test
-     ([gather_uses_keeps_fit]) under which each of their environments
-     has the two conditions ([gather_uses_known_to_fit_statement]),
-     and is satisfied only by valuations that satisfy the environment
-     of the body ([gather_uses_weaken_statement]). The second is for
-     the day a join is called on them.
+     gathers: a test ([gather_uses_keeps_fit]) under which each of
+     their environments has the two conditions
+     ([gather_uses_known_to_fit_statement]), and is satisfied only by
+     valuations that satisfy the environment of the body
+     ([gather_uses_weaken_statement]). The second is for the day a
+     join is called on them. And
+     FlambdaSimplifyPassSpec.gather_uses_refines_statement from the
+     states that have [run_valid], for a rewrite of the handler that
+     is right from them ([gather_uses_refines_from_valid_statement]).
+   - The step by which the function, as the first, rewrites the
+     handler under the environment of the one application gathered
+     where [find_use] finds none
+     (FlambdaSimplifyPassSpec.find_one_use): the test of the two
+     conditions for the environment that it answers
+     ([find_one_use_keeps_fit], [find_one_use_known_to_fit_statement]).
    - With the transcribed meet that the contract is proved of
      ([meet_to_prove], FlambdaMeetSpec.v):
      [simplify_by_types_pruning_with join fuel] refines a unit with
@@ -732,6 +741,61 @@ Definition gather_uses_weaken_statement : Prop :=
     typing_env_satisfied_strictly statics valuation (fst use) ->
     typing_env_satisfied_strictly statics valuation tenv.
 
+(* FlambdaSimplifyPassSpec.gather_uses_refines_statement, from the
+   states that have [run_valid]: the handler may be rewritten under an
+   environment that every application gathered admits, by a rewrite
+   that is right from those states. The sets of what the handler
+   becomes are to be well formed: where the continuation is applied
+   in the handler of another, the handler as rewritten is run there. *)
+Definition gather_uses_refines_from_valid_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (k : continuation) (params : list variable)
+    (metadata : handler_metadata) (handler handler' body : expr)
+    (target : Typing_env.t) (uses : list (Typing_env.t * list simple))
+    (xs : list variable) (ks : list continuation),
+    gather_uses tenv k (Handler params metadata handler) body
+    = Some (uses, xs, ks) ->
+    binders_not_free xs ks (Handler params metadata handler') = true ->
+    sets_well_formed
+      (Let_cont_non_recursive k (Handler params metadata handler) body)
+    = true ->
+    sets_well_formed handler' = true ->
+    (∀ use : Typing_env.t * list simple,
+      use ∈ uses ->
+      application_admits params metadata (fst use) (snd use) target) ->
+    expr_refines_from_valid target handler handler' ->
+    expr_refines_from_valid tenv
+      (Let_cont_non_recursive k (Handler params metadata handler) body)
+      (Let_cont_non_recursive k (Handler params metadata handler') body).
+
+(* [find_gathered_use]: the test of the gathering, and that of
+   [use_env] for the one application. *)
+Definition find_gathered_use_keeps_fit (tenv : Typing_env.t)
+    (k : continuation) (h : continuation_handler) (body : expr) : bool :=
+  match h, gather_uses tenv k h body with
+  | Handler params metadata _, Some ([(tenv_use, args)], _, _) =>
+    gather_uses_keeps_fit tenv k h body
+    && use_env_keeps_fit tenv tenv_use params metadata args
+  | Handler _ _ _, (Some (([] | _ :: _ :: _), _, _) | None) => true
+  end.
+
+(* [find_one_use]. *)
+Definition find_one_use_keeps_fit (tenv : Typing_env.t) (k : continuation)
+    (h : continuation_handler) (body : expr) : bool :=
+  match find_use tenv tenv k h body with
+  | Some _ => find_use_keeps_fit tenv tenv k h body
+  | None => find_gathered_use_keeps_fit tenv k h body
+  end.
+
+(* The environment that [find_one_use] answers has the two conditions
+   if the environment of the body has them and the test passes. *)
+Definition find_one_use_known_to_fit_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (fit : bool) (k : continuation)
+    (h : continuation_handler) (body : expr) (target : Typing_env.t)
+    (xs : list variable) (ks : list continuation),
+    known_to_fit tenv fit ->
+    find_one_use tenv k h body = Some (target, xs, ks) ->
+    known_to_fit target (fit && find_one_use_keeps_fit tenv k h body).
+
 (* ======================================================================== *)
 (* The function                                                             *)
 (* ======================================================================== *)
@@ -798,12 +862,12 @@ Fixpoint simplify_expr_pruning (prune : switch_rewrite) (tenv : Typing_env.t)
     Let_cont_non_recursive k
       (match handler with
        | Handler params metadata handler_body =>
-         match find_use tenv tenv k handler body' with
+         match find_one_use tenv k handler body' with
          | Some (target, xs, ks) =>
            let rewritten :=
              Handler params metadata
                (simplify_expr_pruning prune target
-                  (fit && find_use_keeps_fit tenv tenv k handler body')
+                  (fit && find_one_use_keeps_fit tenv k handler body')
                   handler_body)
            in
            if binders_not_free xs ks rewritten then rewritten

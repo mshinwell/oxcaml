@@ -463,6 +463,36 @@ Proof.
   intros r tenv k h body. apply gather_uses_keeps_fit_equivariant_aux.
 Qed.
 
+Lemma find_gathered_use_keeps_fit_equivariant (r : renaming)
+    (tenv : Typing_env.t) (k : continuation) (h : continuation_handler)
+    (body : expr) :
+  find_gathered_use_keeps_fit (rename_typing_env r tenv)
+    (rename_continuation r k) (rename_handler r h) (rename_expr r body)
+  = find_gathered_use_keeps_fit tenv k h body.
+Proof.
+  destruct h as [params metadata handler].
+  unfold find_gathered_use_keeps_fit. cbn [rename_handler].
+  change (Handler (map (rename_variable r) params) metadata
+            (rename_expr r handler))
+    with (rename_handler r (Handler params metadata handler)).
+  rewrite gather_uses_equivariant, gather_uses_keeps_fit_equivariant.
+  destruct (gather_uses tenv k (Handler params metadata handler) body)
+    as [[[uses xs] ks] | ];
+    cbn [option_map rename_gathered fst snd]; [ | reflexivity ].
+  destruct uses as [ | [tenv_use args] [ | second others]];
+    cbn [map rename_application fst snd]; try reflexivity.
+  rewrite use_env_keeps_fit_equivariant. reflexivity.
+Qed.
+
+Theorem find_one_use_keeps_fit_equivariant
+    : find_one_use_keeps_fit_equivariant_statement.
+Proof.
+  intros r tenv k h body. unfold find_one_use_keeps_fit.
+  rewrite find_use_equivariant, find_use_keeps_fit_equivariant,
+    find_gathered_use_keeps_fit_equivariant.
+  destruct (find_use tenv tenv k h body) as [found | ]; reflexivity.
+Qed.
+
 (* ======================================================================== *)
 (* The function                                                             *)
 (* ======================================================================== *)
@@ -569,8 +599,8 @@ Proof.
       change (Handler (map (rename_variable r) params) metadata
                 (rename_expr r handler))
         with (rename_handler r (Handler params metadata handler)).
-      rewrite find_use_equivariant, find_use_keeps_fit_equivariant.
-      destruct (find_use tenv tenv k (Handler params metadata handler)
+      rewrite find_one_use_equivariant, find_one_use_keeps_fit_equivariant.
+      destruct (find_one_use tenv k (Handler params metadata handler)
                   (simplify_expr_pruning prune tenv fit body))
         as [[[target xs] ks] | ];
         cbn [option_map rename_use fst snd];

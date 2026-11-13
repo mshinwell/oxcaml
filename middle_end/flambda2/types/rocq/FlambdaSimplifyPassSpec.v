@@ -147,17 +147,31 @@
    a theorem of its own and one example. The function that prunes
    (FlambdaSimplifyPruningSpec.v) makes the same step.
 
-   Several applications. There is a statement for them and no rewrite
-   yet. [gather_uses] gathers the applications of a continuation at
-   the end of the body and in the handlers of the continuations that
-   the body defines, each with the environment that the function has
-   there; the handler may be rewritten under any environment that
-   each of them admits ([application_admits],
+   The applications gathered. [gather_uses] gathers the applications
+   of a continuation at the end of the body and in the handlers of
+   the continuations that the body defines, each with the environment
+   that the function has there; the handler may be rewritten under
+   any environment that each of them admits ([application_admits],
    [gather_uses_refines_statement]). Simplify gathers the uses of a
-   continuation in the same places, as it goes down the body, and
-   gives the handler their join. Neither function calls
-   [gather_uses]: it gives no environment, and none is computed until
-   a join is called.
+   continuation in the same places, as it goes down the body.
+
+   One application gathered. Where [find_use] finds no application
+   and [gather_uses] gathers one and no more (one in the handler of a
+   continuation that the body defines, say), the handler is rewritten
+   under the environment made for that application
+   ([find_gathered_use]: [use_env] of it, the parameters made aliases
+   of the arguments that may occur in terms at the [Let_cont]), and
+   kept on the same condition on the binders passed ([find_one_use]
+   is [find_use] and then this). Simplify gives the handler the
+   environment of its uses where the continuation has at most one,
+   whatever the flags (simplify/join_points.ml, [should_do_join]).
+   The function that prunes makes the same step.
+
+   Several applications. There is the statement above for them and no
+   rewrite yet: where two or more are gathered no environment is
+   computed, and none is until a join is called. Simplify gives the
+   handler the join of the environments of its uses there, under
+   -flambda2-join-points.
 
    What Simplify does and this does not:
    - There are no joins of the environments at the uses of a
@@ -168,9 +182,9 @@
      parameter but its kind in every handler of a recursive
      [Let_cont], and in the handler of a non-recursive one whose
      continuation is applied at more than one place, or at a place
-     that [find_use] does not reach: under a handler, under a
-     [Let_static] or a recursive [Let_cont], or by a call that returns
-     or raises to it.
+     that neither [find_use] nor [gather_uses] reaches: under a
+     [Let_static] or a recursive [Let_cont], or by a call that
+     returns or raises to it.
    - In the body of code nothing is known of a parameter but its
      kind, nor of [my_closure] but that it is a value: Simplify gives
      [my_closure] the type of the closure. The code is rewritten
@@ -1111,6 +1125,36 @@ Fixpoint gather_uses (tenv : Typing_env.t) (k : continuation)
   | Let_static _ _ | Let_cont_recursive _ _ | Apply _ | Invalid => None
   end.
 
+(* Where [gather_uses] gathers one application and no more, the
+   environment that [use_env] makes for it, and the binders passed.
+   [tenv] is the environment of the [Let_cont], and is the scope that
+   [use_env] is given: a parameter is made an alias of its argument
+   only if the argument may occur in terms there. [None] where the
+   gathering answers nothing, no application or several, or where
+   [use_env] answers nothing. *)
+Definition find_gathered_use (tenv : Typing_env.t) (k : continuation)
+    (h : continuation_handler) (body : expr)
+    : option (Typing_env.t * list variable * list continuation) :=
+  match h, gather_uses tenv k h body with
+  | Handler params metadata _, Some ([(tenv_use, args)], xs, ks) =>
+    match use_env tenv tenv_use params metadata args with
+    | Some target => Some (target, xs, ks)
+    | None => None
+    end
+  | Handler _ _ _, (Some (([] | _ :: _ :: _), _, _) | None) => None
+  end.
+
+(* The one application under whose environment the handler of [k] is
+   rewritten: the one that [find_use] finds from the environment of
+   the [Let_cont], and where it finds none, the one gathered. *)
+Definition find_one_use (tenv : Typing_env.t) (k : continuation)
+    (h : continuation_handler) (body : expr)
+    : option (Typing_env.t * list variable * list continuation) :=
+  match find_use tenv tenv k h body with
+  | Some found => Some found
+  | None => find_gathered_use tenv k h body
+  end.
+
 (* ======================================================================== *)
 (* A term                                                                   *)
 (* ======================================================================== *)
@@ -1139,7 +1183,7 @@ Fixpoint simplify_expr (tenv : Typing_env.t) (e : expr) : expr :=
     Let_cont_non_recursive k
       (match handler with
        | Handler params metadata handler_body =>
-         match find_use tenv tenv k handler body' with
+         match find_one_use tenv k handler body' with
          | Some (target, xs, ks) =>
            let rewritten :=
              Handler params metadata (simplify_expr target handler_body)

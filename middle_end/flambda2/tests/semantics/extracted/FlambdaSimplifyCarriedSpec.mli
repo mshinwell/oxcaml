@@ -82,6 +82,32 @@ val find_use_carried :
   expr ->
   (((Typing_env.t * bool) * variable list) * continuation list) option
 
+val gather_uses_carried :
+  bool ->
+  Typing_env.t ->
+  continuation ->
+  continuation_handler ->
+  expr ->
+  ((((Typing_env.t * bool) * simple list) list * variable list)
+  * continuation list)
+  option
+
+val find_gathered_use_carried :
+  bool ->
+  Typing_env.t ->
+  continuation ->
+  continuation_handler ->
+  expr ->
+  (((Typing_env.t * bool) * variable list) * continuation list) option
+
+val find_one_use_carried :
+  bool ->
+  Typing_env.t ->
+  continuation ->
+  continuation_handler ->
+  expr ->
+  (((Typing_env.t * bool) * variable list) * continuation list) option
+
 val simplify_expr_carried : bool -> Typing_env.t -> expr -> expr
 
 val simplify_handler_carried :

@@ -76,9 +76,10 @@
      (each application is renamed with its environment:
      [rename_application]), [let_env], [find_use] (the environment
      and the binders passed are renamed: [rename_use]),
-     [binders_not_free] and [gather_uses] (the applications and the
-     binders passed are renamed: [rename_gathered]); and, after the
-     function, [rewrite_handler_at_use]. The two tests of free names that
+     [binders_not_free], [gather_uses] (the applications and the
+     binders passed are renamed: [rename_gathered]) and [find_one_use]
+     (as [find_use]); and, after the function,
+     [rewrite_handler_at_use]. The two tests of free names that
      [find_use] and [binders_not_free] make are the validator's, and
      that they commute with renaming is proved in the validator's
      proof file (../../rocq/FlambdaValidatorEquivarianceProofs.v),
@@ -247,6 +248,13 @@ Definition gather_uses_equivariant_statement : Prop :=
     gather_uses (rename_typing_env r tenv) (rename_continuation r k)
       (rename_handler r h) (rename_expr r body)
     = option_map (rename_gathered r) (gather_uses tenv k h body).
+
+Definition find_one_use_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (k : continuation)
+    (h : continuation_handler) (body : expr),
+    find_one_use (rename_typing_env r tenv) (rename_continuation r k)
+      (rename_handler r h) (rename_expr r body)
+    = option_map (rename_use r) (find_one_use tenv k h body).
 
 (* ======================================================================== *)
 (* The function                                                             *)

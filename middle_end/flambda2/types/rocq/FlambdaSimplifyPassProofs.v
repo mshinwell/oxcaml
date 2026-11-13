@@ -1321,150 +1321,6 @@ Proof.
            handler').
 Qed.
 
-(* By recursion on the term: the bodies of the code that a [Let_static]
-   binds are inside its list of bindings, which the induction principle
-   of terms does not go into. The bodies are rewritten one binding at a
-   time. *)
-Fixpoint simplify_expr_sound (e : expr) {struct e} :
-  ∀ tenv : Typing_env.t, expr_refines_under tenv e (simplify_expr tenv e).
-Proof.
-  destruct e
-    as [x declared d body | bindings body | k handler body
-        | handlers body | ap | ac | scrutinee arms | ];
-    intros tenv; cbn [simplify_expr].
-  - pose proof (resolve_value_slot_refines tenv x declared d body)
-      as Hresolve.
-    pose proof (simplify_let_sound tenv x (resolve_value_slot tenv declared d))
-      as Hlet.
-    destruct (simplify_let tenv x (resolve_value_slot tenv declared d))
-      as [ | d' tenv' | ].
-    + eapply expr_refines_under_trans; [ exact Hresolve | ].
-      apply expr_equivalent_under_refines. exact (Hlet declared body).
-    + eapply expr_refines_under_trans; [ exact Hresolve | ].
-      exact (Hlet declared body (simplify_expr tenv' body)
-               (simplify_expr_sound body tenv')).
-    + destruct (declare_variable tenv x declared) as [tenv' | ] eqn:Hdeclare;
-        [ | apply expr_refines_under_refl ].
-      revert Hdeclare. unfold declare_variable.
-      destruct (typing_env_well_formed tenv
-                && negb (Typing_env.mem None tenv (Name_var x))) eqn:Htests;
-        [ | discriminate ].
-      intros [= <-]. apply andb_true_iff in Htests.
-      destruct Htests as [Hwf Hfresh]. apply negb_true_iff in Hfresh.
-      apply (let_declared_refines_under tenv x declared d body _ Hwf Hfresh).
-      apply simplify_expr_sound.
-  - cbv zeta.
-    assert (Hbindings :
-      ∀ (tenv' : Typing_env.t) (before : list static_binding),
-        add_static_bindings tenv (before ++ bindings) = tenv' ->
-        expr_refines_under tenv (Let_static (before ++ bindings) body)
-          (Let_static
-             (before ++ map (simplify_static_binding tenv') bindings) body)).
-    { intros tenv'.
-      induction bindings as [ | binding bindings IH]; intros before Henv;
-        [ apply expr_refines_under_refl | ].
-      cbn [map].
-      apply (expr_refines_under_trans tenv _
-               (Let_static
-                  (before ++ simplify_static_binding tenv' binding :: bindings)
-                  body)
-               _).
-      - destruct binding as [id c | id | sym const];
-          cbn [simplify_static_binding]; try apply expr_refines_under_refl.
-        destruct c as [params my_closure ret exn metadata code_body].
-        cbn [simplify_code].
-        destruct (code_env_in tenv' params my_closure metadata)
-          as [tenv_code | ] eqn:Hcode; [ | apply expr_refines_under_refl ].
-        cbv zeta.
-        destruct (binds_statics code_body) eqn:Hsource; cbn [negb andb];
-          [ apply expr_refines_under_refl | ].
-        destruct (binds_statics (simplify_expr tenv_code code_body))
-          eqn:Htarget; cbn [negb];
-          [ apply expr_refines_under_refl | ].
-        apply (let_static_code_typed tenv before id params my_closure ret exn
-                 metadata code_body _ bindings body tenv_code);
-          [ rewrite Henv; exact Hcode | exact Hsource | exact Htarget | ].
-        apply (simplify_expr_sound code_body tenv_code).
-      - specialize
-          (IH (before ++ [simplify_static_binding tenv' binding])).
-        rewrite <- !app_assoc in IH. cbn [app] in IH. apply IH.
-        rewrite <- Henv.
-        destruct binding as [id c | id | sym const];
-          cbn [simplify_static_binding]; try reflexivity.
-        apply add_static_bindings_code. }
-    eapply expr_refines_under_trans.
-    + exact (Hbindings (add_static_bindings tenv bindings) [] eq_refl).
-    + apply let_static_typed. rewrite add_static_bindings_simplify.
-      apply simplify_expr_sound.
-  - cbv zeta. eapply expr_refines_under_trans.
-    + apply let_cont_body_refines_under. apply (simplify_expr_sound body).
-    + destruct handler as [params metadata handler].
-      generalize (simplify_expr tenv body). intros body'.
-      assert (Hdefault :
-        expr_refines_under tenv
-          (Let_cont_non_recursive k (Handler params metadata handler) body')
-          (Let_cont_non_recursive k
-             (simplify_handler false tenv (Handler params metadata handler))
-             body')).
-      { cbn [simplify_handler].
-        destruct (handler_env tenv params metadata) as [tenv_handler | ]
-          eqn:Henv; [ | apply expr_refines_under_refl ].
-        cbv zeta. cbn [negb orb].
-        exact (let_cont_handler_typed tenv k params metadata handler _ _
-                 tenv_handler Henv
-                 (simplify_expr_sound handler tenv_handler)). }
-      destruct (find_use tenv tenv k (Handler params metadata handler) body')
-        as [[[target xs] ks] | ] eqn:Hfind; [ | exact Hdefault ].
-      destruct (binders_not_free xs ks
-                  (Handler params metadata (simplify_expr target handler)))
-        eqn:Hfree; [ | exact Hdefault ].
-      exact (find_use_refines_aux body' tenv tenv k params metadata handler
-               _ target xs ks Hfind Hfree
-               (simplify_expr_sound handler target)).
-  - eapply expr_refines_under_trans.
-    + apply let_cont_recursive_body_refines_under.
-      apply (simplify_expr_sound body).
-    + generalize (simplify_expr tenv body). intros body'.
-      assert (Hhandlers :
-        ∀ before : list (continuation * continuation_handler),
-          expr_refines_under tenv
-            (Let_cont_recursive (before ++ handlers) body')
-            (Let_cont_recursive
-               (before
-                ++ map (fun '(k, h) => (k, simplify_handler true tenv h))
-                     handlers)
-               body')).
-      { induction handlers as [ | [k h] handlers IH]; intros before;
-          [ apply expr_refines_under_refl | ].
-        cbn [map].
-        apply (expr_refines_under_trans tenv _
-                 (Let_cont_recursive
-                    (before ++ (k, simplify_handler true tenv h) :: handlers)
-                    body')
-                 _).
-        - destruct h as [params metadata handler]. cbn [simplify_handler].
-          destruct (handler_env tenv params metadata) as [tenv_handler | ]
-            eqn:Henv; [ | apply expr_refines_under_refl ].
-          cbv zeta. cbn [negb orb].
-          destruct (Bool.eqb (binds_statics handler)
-                      (binds_statics (simplify_expr tenv_handler handler)))
-            eqn:Hbinds; [ | apply expr_refines_under_refl ].
-          apply (let_cont_recursive_handler_typed tenv before k params
-                   metadata handler _ handlers body' tenv_handler Henv);
-            [ apply eqb_prop; exact Hbinds
-            | apply (simplify_expr_sound handler tenv_handler) ].
-        - specialize (IH (before ++ [(k, simplify_handler true tenv h)])).
-          rewrite <- !app_assoc in IH. exact IH. }
-      exact (Hhandlers []).
-  - apply simplify_apply_refines_under.
-  - apply expr_equivalent_under_refines. apply simplify_apply_cont_equivalent.
-  - apply simplify_switch_refines.
-  - apply expr_refines_under_refl.
-Qed.
-
-Theorem simplify_expr_refines_under : simplify_expr_refines_under_statement.
-Proof. intros tenv e. apply simplify_expr_sound. Qed.
-
 (* ======================================================================== *)
 (* Several applications                                                     *)
 (* ======================================================================== *)
@@ -1795,6 +1651,204 @@ Proof.
   exact (gather_uses_refines_aux body tenv k params metadata handler
            handler' target uses xs ks).
 Qed.
+
+(* The one application gathered: the environment that [use_env] makes
+   for it is one that it admits. *)
+Lemma find_gathered_use_refines (tenv : Typing_env.t) (k : continuation)
+    (params : list variable) (metadata : handler_metadata)
+    (handler handler' body : expr) (target : Typing_env.t)
+    (xs : list variable) (ks : list continuation) :
+  find_gathered_use tenv k (Handler params metadata handler) body
+  = Some (target, xs, ks) ->
+  binders_not_free xs ks (Handler params metadata handler') = true ->
+  expr_refines_under target handler handler' ->
+  expr_refines_under tenv
+    (Let_cont_non_recursive k (Handler params metadata handler) body)
+    (Let_cont_non_recursive k (Handler params metadata handler') body).
+Proof.
+  unfold find_gathered_use. intros Hfind Hfree Hhandler.
+  destruct (gather_uses tenv k (Handler params metadata handler) body)
+    as [[[uses xs'] ks'] | ] eqn:Hgather; [ | discriminate ].
+  destruct uses as [ | [tenv_use args] [ | second others]];
+    try discriminate.
+  destruct (use_env tenv tenv_use params metadata args) as [target' | ]
+    eqn:Huse; [ | discriminate ].
+  injection Hfind as <- <- <-.
+  apply (gather_uses_refines_aux body tenv k params metadata handler
+           handler' target' [(tenv_use, args)] xs' ks' Hgather Hfree);
+    [ | exact Hhandler ].
+  intros use [<- | []]. cbn [fst snd].
+  intros statics vars vs handler_vars Hsat Hargs Hkinds Hbind.
+  exact (use_env_satisfied tenv tenv_use params metadata args target'
+           statics vars vs handler_vars Huse Hsat Hargs Hkinds Hbind).
+Qed.
+
+(* [find_use], and where it finds none, the one gathered. *)
+Lemma find_one_use_refines (tenv : Typing_env.t) (k : continuation)
+    (params : list variable) (metadata : handler_metadata)
+    (handler handler' body : expr) (target : Typing_env.t)
+    (xs : list variable) (ks : list continuation) :
+  find_one_use tenv k (Handler params metadata handler) body
+  = Some (target, xs, ks) ->
+  binders_not_free xs ks (Handler params metadata handler') = true ->
+  expr_refines_under target handler handler' ->
+  expr_refines_under tenv
+    (Let_cont_non_recursive k (Handler params metadata handler) body)
+    (Let_cont_non_recursive k (Handler params metadata handler') body).
+Proof.
+  unfold find_one_use. intros Hfind Hfree Hhandler.
+  destruct (find_use tenv tenv k (Handler params metadata handler) body)
+    as [found | ] eqn:Huse.
+  - injection Hfind as ->.
+    exact (find_use_refines_aux body tenv tenv k params metadata handler
+             handler' target xs ks Huse Hfree Hhandler).
+  - exact (find_gathered_use_refines tenv k params metadata handler
+             handler' body target xs ks Hfind Hfree Hhandler).
+Qed.
+
+(* By recursion on the term: the bodies of the code that a [Let_static]
+   binds are inside its list of bindings, which the induction principle
+   of terms does not go into. The bodies are rewritten one binding at a
+   time. *)
+Fixpoint simplify_expr_sound (e : expr) {struct e} :
+  ∀ tenv : Typing_env.t, expr_refines_under tenv e (simplify_expr tenv e).
+Proof.
+  destruct e
+    as [x declared d body | bindings body | k handler body
+        | handlers body | ap | ac | scrutinee arms | ];
+    intros tenv; cbn [simplify_expr].
+  - pose proof (resolve_value_slot_refines tenv x declared d body)
+      as Hresolve.
+    pose proof (simplify_let_sound tenv x (resolve_value_slot tenv declared d))
+      as Hlet.
+    destruct (simplify_let tenv x (resolve_value_slot tenv declared d))
+      as [ | d' tenv' | ].
+    + eapply expr_refines_under_trans; [ exact Hresolve | ].
+      apply expr_equivalent_under_refines. exact (Hlet declared body).
+    + eapply expr_refines_under_trans; [ exact Hresolve | ].
+      exact (Hlet declared body (simplify_expr tenv' body)
+               (simplify_expr_sound body tenv')).
+    + destruct (declare_variable tenv x declared) as [tenv' | ] eqn:Hdeclare;
+        [ | apply expr_refines_under_refl ].
+      revert Hdeclare. unfold declare_variable.
+      destruct (typing_env_well_formed tenv
+                && negb (Typing_env.mem None tenv (Name_var x))) eqn:Htests;
+        [ | discriminate ].
+      intros [= <-]. apply andb_true_iff in Htests.
+      destruct Htests as [Hwf Hfresh]. apply negb_true_iff in Hfresh.
+      apply (let_declared_refines_under tenv x declared d body _ Hwf Hfresh).
+      apply simplify_expr_sound.
+  - cbv zeta.
+    assert (Hbindings :
+      ∀ (tenv' : Typing_env.t) (before : list static_binding),
+        add_static_bindings tenv (before ++ bindings) = tenv' ->
+        expr_refines_under tenv (Let_static (before ++ bindings) body)
+          (Let_static
+             (before ++ map (simplify_static_binding tenv') bindings) body)).
+    { intros tenv'.
+      induction bindings as [ | binding bindings IH]; intros before Henv;
+        [ apply expr_refines_under_refl | ].
+      cbn [map].
+      apply (expr_refines_under_trans tenv _
+               (Let_static
+                  (before ++ simplify_static_binding tenv' binding :: bindings)
+                  body)
+               _).
+      - destruct binding as [id c | id | sym const];
+          cbn [simplify_static_binding]; try apply expr_refines_under_refl.
+        destruct c as [params my_closure ret exn metadata code_body].
+        cbn [simplify_code].
+        destruct (code_env_in tenv' params my_closure metadata)
+          as [tenv_code | ] eqn:Hcode; [ | apply expr_refines_under_refl ].
+        cbv zeta.
+        destruct (binds_statics code_body) eqn:Hsource; cbn [negb andb];
+          [ apply expr_refines_under_refl | ].
+        destruct (binds_statics (simplify_expr tenv_code code_body))
+          eqn:Htarget; cbn [negb];
+          [ apply expr_refines_under_refl | ].
+        apply (let_static_code_typed tenv before id params my_closure ret exn
+                 metadata code_body _ bindings body tenv_code);
+          [ rewrite Henv; exact Hcode | exact Hsource | exact Htarget | ].
+        apply (simplify_expr_sound code_body tenv_code).
+      - specialize
+          (IH (before ++ [simplify_static_binding tenv' binding])).
+        rewrite <- !app_assoc in IH. cbn [app] in IH. apply IH.
+        rewrite <- Henv.
+        destruct binding as [id c | id | sym const];
+          cbn [simplify_static_binding]; try reflexivity.
+        apply add_static_bindings_code. }
+    eapply expr_refines_under_trans.
+    + exact (Hbindings (add_static_bindings tenv bindings) [] eq_refl).
+    + apply let_static_typed. rewrite add_static_bindings_simplify.
+      apply simplify_expr_sound.
+  - cbv zeta. eapply expr_refines_under_trans.
+    + apply let_cont_body_refines_under. apply (simplify_expr_sound body).
+    + destruct handler as [params metadata handler].
+      generalize (simplify_expr tenv body). intros body'.
+      assert (Hdefault :
+        expr_refines_under tenv
+          (Let_cont_non_recursive k (Handler params metadata handler) body')
+          (Let_cont_non_recursive k
+             (simplify_handler false tenv (Handler params metadata handler))
+             body')).
+      { cbn [simplify_handler].
+        destruct (handler_env tenv params metadata) as [tenv_handler | ]
+          eqn:Henv; [ | apply expr_refines_under_refl ].
+        cbv zeta. cbn [negb orb].
+        exact (let_cont_handler_typed tenv k params metadata handler _ _
+                 tenv_handler Henv
+                 (simplify_expr_sound handler tenv_handler)). }
+      destruct (find_one_use tenv k (Handler params metadata handler) body')
+        as [[[target xs] ks] | ] eqn:Hfind; [ | exact Hdefault ].
+      destruct (binders_not_free xs ks
+                  (Handler params metadata (simplify_expr target handler)))
+        eqn:Hfree; [ | exact Hdefault ].
+      exact (find_one_use_refines tenv k params metadata handler _ body'
+               target xs ks Hfind Hfree
+               (simplify_expr_sound handler target)).
+  - eapply expr_refines_under_trans.
+    + apply let_cont_recursive_body_refines_under.
+      apply (simplify_expr_sound body).
+    + generalize (simplify_expr tenv body). intros body'.
+      assert (Hhandlers :
+        ∀ before : list (continuation * continuation_handler),
+          expr_refines_under tenv
+            (Let_cont_recursive (before ++ handlers) body')
+            (Let_cont_recursive
+               (before
+                ++ map (fun '(k, h) => (k, simplify_handler true tenv h))
+                     handlers)
+               body')).
+      { induction handlers as [ | [k h] handlers IH]; intros before;
+          [ apply expr_refines_under_refl | ].
+        cbn [map].
+        apply (expr_refines_under_trans tenv _
+                 (Let_cont_recursive
+                    (before ++ (k, simplify_handler true tenv h) :: handlers)
+                    body')
+                 _).
+        - destruct h as [params metadata handler]. cbn [simplify_handler].
+          destruct (handler_env tenv params metadata) as [tenv_handler | ]
+            eqn:Henv; [ | apply expr_refines_under_refl ].
+          cbv zeta. cbn [negb orb].
+          destruct (Bool.eqb (binds_statics handler)
+                      (binds_statics (simplify_expr tenv_handler handler)))
+            eqn:Hbinds; [ | apply expr_refines_under_refl ].
+          apply (let_cont_recursive_handler_typed tenv before k params
+                   metadata handler _ handlers body' tenv_handler Henv);
+            [ apply eqb_prop; exact Hbinds
+            | apply (simplify_expr_sound handler tenv_handler) ].
+        - specialize (IH (before ++ [(k, simplify_handler true tenv h)])).
+          rewrite <- !app_assoc in IH. exact IH. }
+      exact (Hhandlers []).
+  - apply simplify_apply_refines_under.
+  - apply expr_equivalent_under_refines. apply simplify_apply_cont_equivalent.
+  - apply simplify_switch_refines.
+  - apply expr_refines_under_refl.
+Qed.
+
+Theorem simplify_expr_refines_under : simplify_expr_refines_under_statement.
+Proof. intros tenv e. apply simplify_expr_sound. Qed.
 
 Theorem rewrite_handler_at_use_refines
     : rewrite_handler_at_use_refines_statement.

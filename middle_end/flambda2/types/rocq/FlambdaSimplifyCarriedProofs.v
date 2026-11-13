@@ -371,6 +371,153 @@ Proof.
     split; [ reflexivity | exact Htarget ].
 Qed.
 
+(* The applications of the end of a body, without the boolean that
+   [gather_uses_carried] gives each. *)
+Lemma forget_booleans (b : bool)
+    (uses : list (Typing_env.t * list simple)) :
+  map
+    (fun use : Typing_env.t * bool * list simple =>
+       (fst (fst use), snd use))
+    (map (fun use => (fst use, b, snd use)) uses)
+  = uses.
+Proof.
+  induction uses as [ | [tenv_use args] uses IH]; [ reflexivity | ].
+  cbn [map fst snd]. rewrite IH. reflexivity.
+Qed.
+
+(* The applications gathered, each with an environment that its
+   boolean is right about. *)
+Fixpoint gather_uses_carried_spec (body : expr) {struct body} :
+  ∀ (fit : bool) (tenv : Typing_env.t) (k : continuation)
+    (h : continuation_handler),
+    known_to_fit tenv fit ->
+    match gather_uses_carried fit tenv k h body with
+    | Some (uses, xs, ks) =>
+      gather_uses tenv k h body
+      = Some (map (fun use => (fst (fst use), snd use)) uses, xs, ks)
+      ∧ ∀ use : Typing_env.t * bool * list simple,
+          use ∈ uses -> known_to_fit (fst (fst use)) (snd (fst use))
+    | None => gather_uses tenv k h body = None
+    end.
+Proof.
+  destruct body
+    as [x declared d rest | bindings rest | k' h' rest | handlers rest | ap
+        | ac | scrutinee arms | ];
+    intros fit tenv k h Hknown; cbn [gather_uses_carried gather_uses];
+    try reflexivity.
+  - destruct (var_free_in_handler_b x h); [ reflexivity | ].
+    pose proof (let_env_carried_spec fit tenv x declared d Hknown) as Henv.
+    destruct (let_env_carried fit tenv x declared d) as [[tenv' fit'] | ];
+      [ | rewrite Henv; reflexivity ].
+    destruct Henv as [Henv Hknown']. rewrite Henv.
+    pose proof (gather_uses_carried_spec rest fit' tenv' k h Hknown') as IH.
+    destruct (gather_uses_carried fit' tenv' k h rest)
+      as [[[uses xs] ks] | ];
+      [ | rewrite IH; reflexivity ].
+    destruct IH as [IH Huses]. rewrite IH.
+    split; [ reflexivity | exact Huses ].
+  - destruct (negb (Pos.eqb k k') && negb (cont_free_in_handler_b k' h));
+      [ | reflexivity ].
+    pose proof (gather_uses_carried_spec rest fit tenv k h Hknown) as IH.
+    destruct (gather_uses_carried fit tenv k h rest)
+      as [[[uses xs] ks] | ];
+      [ | rewrite IH; reflexivity ].
+    destruct IH as [IH Huses]. rewrite IH.
+    destruct (cont_free_in_handler_b k h');
+      [ | split; [ reflexivity | exact Huses ] ].
+    destruct h' as [params' metadata' body'].
+    destruct (negb (cont_free_in_handler_b k h)
+              && forallb (fun x => negb (var_free_in_handler_b x h)) params');
+      [ | reflexivity ].
+    rewrite (handler_env_carried_eq fit tenv params' metadata' Hknown).
+    destruct (handler_env tenv params' metadata') as [tenv_handler | ]
+      eqn:Henv; [ | reflexivity ].
+    pose proof (gather_uses_carried_spec body' fit tenv_handler k h
+                  (handler_env_known_to_fit tenv fit params' metadata'
+                     tenv_handler Hknown Henv))
+      as IHh.
+    destruct (gather_uses_carried fit tenv_handler k h body')
+      as [[[uses' xs'] ks'] | ];
+      [ | rewrite IHh; reflexivity ].
+    destruct IHh as [IHh Huses']. rewrite IHh, map_app.
+    split; [ reflexivity | ].
+    intros use Hin. apply in_app_or in Hin.
+    destruct Hin as [Hin | Hin]; [ exact (Huses' use Hin) | ].
+    exact (Huses use Hin).
+  - destruct (leaf_uses tenv k (Apply_cont ac)) as [uses | ] eqn:Hleaf;
+      [ | reflexivity ].
+    rewrite forget_booleans.
+    split; [ reflexivity | ].
+    intros use Hin. apply in_map_iff in Hin.
+    destruct Hin as [[tenv_use args] [<- Hin]]. cbn [fst snd].
+    intros Hfit. apply andb_true_iff in Hfit.
+    destruct Hfit as [Hfit Hkeeps].
+    exact (leaf_uses_carried tenv k _ uses tenv_use args (Hknown Hfit)
+             Hleaf Hkeeps Hin).
+  - destruct (leaf_uses tenv k (Switch scrutinee arms)) as [uses | ]
+      eqn:Hleaf; [ | reflexivity ].
+    rewrite forget_booleans.
+    split; [ reflexivity | ].
+    intros use Hin. apply in_map_iff in Hin.
+    destruct Hin as [[tenv_use args] [<- Hin]]. cbn [fst snd].
+    intros Hfit. apply andb_true_iff in Hfit.
+    destruct Hfit as [Hfit Hkeeps].
+    exact (leaf_uses_carried tenv k _ uses tenv_use args (Hknown Hfit)
+             Hleaf Hkeeps Hin).
+Qed.
+
+Lemma find_gathered_use_carried_spec (fit : bool) (tenv : Typing_env.t)
+    (k : continuation) (h : continuation_handler) (body : expr) :
+  known_to_fit tenv fit ->
+  match find_gathered_use_carried fit tenv k h body with
+  | Some (target, fit_target, xs, ks) =>
+    find_gathered_use tenv k h body = Some (target, xs, ks)
+    ∧ known_to_fit target fit_target
+  | None => find_gathered_use tenv k h body = None
+  end.
+Proof.
+  intros Hknown. destruct h as [params metadata handler].
+  unfold find_gathered_use_carried, find_gathered_use.
+  pose proof (gather_uses_carried_spec body fit tenv k
+                (Handler params metadata handler) Hknown)
+    as Hgather.
+  destruct (gather_uses_carried fit tenv k (Handler params metadata handler)
+              body)
+    as [[[uses xs] ks] | ];
+    [ | rewrite Hgather; reflexivity ].
+  destruct Hgather as [Hgather Huses]. rewrite Hgather.
+  destruct uses as [ | [[tenv_use fit_use] args] [ | second others]];
+    cbn [map fst snd]; try reflexivity.
+  pose proof (use_env_carried_spec fit_use tenv tenv_use params metadata args
+                (Huses (tenv_use, fit_use, args) (or_introl eq_refl)))
+    as Huse.
+  destruct (use_env_carried fit_use tenv tenv_use params metadata args)
+    as [[target fit_target] | ];
+    [ | rewrite Huse; reflexivity ].
+  destruct Huse as [Huse Htarget]. rewrite Huse.
+  split; [ reflexivity | exact Htarget ].
+Qed.
+
+Lemma find_one_use_carried_spec (fit : bool) (tenv : Typing_env.t)
+    (k : continuation) (h : continuation_handler) (body : expr) :
+  known_to_fit tenv fit ->
+  match find_one_use_carried fit tenv k h body with
+  | Some (target, fit_target, xs, ks) =>
+    find_one_use tenv k h body = Some (target, xs, ks)
+    ∧ known_to_fit target fit_target
+  | None => find_one_use tenv k h body = None
+  end.
+Proof.
+  intros Hknown. unfold find_one_use_carried, find_one_use.
+  pose proof (find_use_carried_spec body fit tenv tenv k h Hknown) as Hfind.
+  destruct (find_use_carried fit tenv tenv k h body)
+    as [[[[target fit_target] xs] ks] | ].
+  - destruct Hfind as [Hfind Htarget]. rewrite Hfind.
+    split; [ reflexivity | exact Htarget ].
+  - rewrite Hfind.
+    exact (find_gathered_use_carried_spec fit tenv k h body Hknown).
+Qed.
+
 (* ======================================================================== *)
 (* A term                                                                   *)
 (* ======================================================================== *)
@@ -441,10 +588,11 @@ Proof.
                  (handler_env_known_to_fit tenv fit params metadata
                     tenv_handler Hknown Henv)).
       reflexivity. }
-    pose proof (find_use_carried_spec (simplify_expr tenv body) fit tenv tenv
-                  k (Handler params metadata handler) Hknown)
+    pose proof (find_one_use_carried_spec fit tenv k
+                  (Handler params metadata handler)
+                  (simplify_expr tenv body) Hknown)
       as Hfind.
-    destruct (find_use_carried fit tenv tenv k
+    destruct (find_one_use_carried fit tenv k
                 (Handler params metadata handler) (simplify_expr tenv body))
       as [[[[target fit_target] xs] ks] | ];
       [ | rewrite Hfind; exact Hdefault ].

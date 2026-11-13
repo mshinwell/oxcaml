@@ -260,6 +260,113 @@ let rec find_use_carried fit scope tenv k h body =
     | None -> None)
   | _ -> None
 
+(** val gather_uses_carried : bool -> Typing_env.t -> continuation ->
+    continuation_handler -> expr -> ((((Typing_env.t * bool) * simple list) list
+    * variable list) * continuation list) option **)
+
+let rec gather_uses_carried fit tenv k h body =
+  match body with
+  | Let (x, declared, defining_expr, rest) -> (
+    if var_free_in_handler_b x h
+    then None
+    else
+      match let_env_carried fit tenv x declared defining_expr with
+      | Some p -> (
+        let tenv', fit' = p in
+        match gather_uses_carried fit' tenv' k h rest with
+        | Some p0 ->
+          let p1, ks = p0 in
+          let uses, xs = p1 in
+          Some ((uses, x :: xs), ks)
+        | None -> None)
+      | None -> None)
+  | Let_cont_non_recursive (k', h', rest) ->
+    if negb (Pos.eqb k k') && negb (cont_free_in_handler_b k' h)
+    then
+      match gather_uses_carried fit tenv k h rest with
+      | Some p ->
+        let p0, ks = p in
+        let uses, xs = p0 in
+        if cont_free_in_handler_b k h'
+        then
+          let (Handler (params', metadata', body')) = h' in
+          if
+            negb (cont_free_in_handler_b k h)
+            && forallb (fun x -> negb (var_free_in_handler_b x h)) params'
+          then
+            match handler_env_carried fit tenv params' metadata' with
+            | Some tenv_handler -> (
+              match gather_uses_carried fit tenv_handler k h body' with
+              | Some p1 ->
+                let p2, ks' = p1 in
+                let uses', xs' = p2 in
+                Some
+                  ( (app uses' uses, app params' (app xs' xs)),
+                    k :: k' :: app ks' ks )
+              | None -> None)
+            | None -> None
+          else None
+        else Some ((uses, xs), k' :: ks)
+      | None -> None
+    else None
+  | Apply_cont _ -> (
+    match leaf_uses tenv k body with
+    | Some uses ->
+      Some
+        ( ( map
+              (fun use ->
+                (fst use, fit && leaf_uses_keep_fit tenv k body), snd use)
+              uses,
+            [] ),
+          [] )
+    | None -> None)
+  | Switch (_, _) -> (
+    match leaf_uses tenv k body with
+    | Some uses ->
+      Some
+        ( ( map
+              (fun use ->
+                (fst use, fit && leaf_uses_keep_fit tenv k body), snd use)
+              uses,
+            [] ),
+          [] )
+    | None -> None)
+  | _ -> None
+
+(** val find_gathered_use_carried : bool -> Typing_env.t -> continuation ->
+    continuation_handler -> expr -> (((Typing_env.t * bool) * variable list) *
+    continuation list) option **)
+
+let find_gathered_use_carried fit tenv k h body =
+  let (Handler (params, metadata, handler)) = h in
+  match
+    gather_uses_carried fit tenv k (Handler (params, metadata, handler)) body
+  with
+  | Some p -> (
+    let p0, ks = p in
+    let l, xs = p0 in
+    match l with
+    | [] -> None
+    | p1 :: l0 -> (
+      let p2, args = p1 in
+      let tenv_use, fit_use = p2 in
+      match l0 with
+      | [] -> (
+        match use_env_carried fit_use tenv tenv_use params metadata args with
+        | Some p3 -> Some ((p3, xs), ks)
+        | None -> None)
+      | _ :: _ -> None))
+  | None -> None
+
+(** val find_one_use_carried : bool -> Typing_env.t -> continuation ->
+    continuation_handler -> expr -> (((Typing_env.t * bool) * variable list) *
+    continuation list) option **)
+
+let find_one_use_carried fit tenv k h body =
+  match find_use_carried fit tenv tenv k h body with
+  | Some found -> Some found
+  | None -> find_gathered_use_carried fit tenv k h body
+
 (** val simplify_expr_carried : bool -> Typing_env.t -> expr -> expr **)
 
 let rec simplify_expr_carried fit tenv e =
@@ -293,7 +400,7 @@ let rec simplify_expr_carried fit tenv e =
     Let_cont_non_recursive
       ( k,
         (let (Handler (params, metadata, handler_body)) = handler in
-         match find_use_carried fit tenv tenv k handler body' with
+         match find_one_use_carried fit tenv k handler body' with
          | Some p ->
            let p0, ks = p in
            let p1, xs = p0 in
