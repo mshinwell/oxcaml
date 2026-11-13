@@ -393,9 +393,29 @@ it gave back.
   not in this tree. The backend reads the function slot to compute the
   load's offset (`to_cmm/to_cmm_primitive.ml`). Thus this conversion
   can fault a correct Simplify, and the model does not detect a wrong
-  function slot in the term after in this presentation. With named
-  function slots the conversion keeps `project_from`. No claim is made
-  that every pair with a wrong slot is accepted by the validator.
+  function slot in the term after in this presentation. In the same
+  presentation the function slot at which a set of closures has its
+  one function is not read either (`only_function`): a term after
+  that puts a closure at another function slot converts to the same
+  term of the model, and the validator is not asked about the slot.
+  In a set of edits of terms after, made with the tool of bddccfade8
+  at the default flags and not in this tree, 302 edits put a closure
+  at another function slot. The 276 in units converted in this
+  presentation were all validated. Where a native route was
+  available, the compilation of the edited text was attempted, by a
+  route that removes the `Let`s that only rename a variable and runs
+  Simplify on the text again, so that what follows is not a test of
+  the backend on the edited term as it stands: for 155 the native
+  output and the assembly are those of the unedited term, for 61 the
+  compilation stops and makes no object, one gives the same native
+  output with different assembly; 59 are in units that have no native
+  route. None was shown to be
+  another program. The other 26 are in units converted with named
+  function slots (a set of two functions, or a function slot
+  projected): 14 were not validated and 12 not checked (X4-3). With
+  named function slots the conversion keeps `project_from` and the
+  slots of a set. No claim is made that every pair with a wrong slot
+  is accepted by the validator.
   *What Simplify returns beside the term*: the tool converts
   `Flambda2.flambda_result.flambda`, not the other fields of the result.
   In particular it does not compare the slot offsets with the term. The
