@@ -256,8 +256,9 @@
    FlambdaIdentitiesSpec.apply_identities,
    FlambdaMergeSwitchesSpec.merge_switches and
    FlambdaInlineSiblingsSpec.inline_sibling_calls, of a round of the
-   term before, FlambdaUnboxVariantsSpec.unbox_variants_knowing, of
-   the first phase of the term before, which is given what the static
+   term before, FlambdaUnboxVariantsSpec.unbox_variants_knowing and
+   FlambdaUnboxLoopsSpec.unbox_loops_knowing, of
+   the first phase of the term before, which are given what the static
    bindings in scope make known of their symbols, in code and in
    loops (FlambdaUnboxVariantsRenameSpec.v; what is known of symbols
    alone is not changed by a renaming, and the two functions that

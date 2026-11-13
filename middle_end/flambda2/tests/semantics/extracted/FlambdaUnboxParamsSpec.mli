@@ -36,7 +36,34 @@ val projection_of : facts -> unary_primitive -> simple -> simple option
 val extend_args :
   facts -> nat -> unary_primitive -> simple list -> simple list option
 
+val extend_apply_cont :
+  facts ->
+  continuation ->
+  nat ->
+  unary_primitive ->
+  apply_cont ->
+  apply_cont option
+
+val extend_arms :
+  facts ->
+  continuation ->
+  nat ->
+  unary_primitive ->
+  (coq_Z * apply_cont) list ->
+  (coq_Z * apply_cont) list option
+
 val all_some : 'a1 option list -> 'a1 list option
+
+val extend_applications :
+  facts -> continuation -> nat -> unary_primitive -> expr -> expr option
+
+val extend_in_handler :
+  facts ->
+  continuation ->
+  nat ->
+  unary_primitive ->
+  continuation_handler ->
+  continuation_handler option
 
 val extend_apply_cont_by :
   (facts -> simple list -> simple list option) ->

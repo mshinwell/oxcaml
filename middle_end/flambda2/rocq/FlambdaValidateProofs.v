@@ -62,6 +62,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaUnboxSpec FlambdaUnboxProofs
   FlambdaUnboxVariantsSpec FlambdaUnboxVariantsProofs
   FlambdaUnboxParamsSpec FlambdaUnboxInScopeSpec FlambdaUnboxInScopeProofs
+  FlambdaUnboxLoopsSpec FlambdaUnboxLoopsProofs
   FlambdaUnusedContsSpec FlambdaUnusedContsProofs FlambdaUnusedParamsSpec
   FlambdaUnusedParamsProofs FlambdaUnusedProjectionsSpec
   FlambdaUnusedProjectionsProofs FlambdaUnusedStaticsSpec
@@ -209,10 +210,15 @@ Proof.
   match goal with
   | |- context [unbox_variants_knowing known ?x] =>
     apply (refines_trans _
-      (State (unbox_variants_knowing known x) vars conts statics hp));
-      [ apply (refines_trans _ (State x vars conts statics hp));
-          [ | exact (unbox_variants_knowing_symbols_refines known x vars
-                conts statics hp Honly Hbound) ]
+      (State (unbox_loops_knowing known (unbox_variants_knowing known x))
+         vars conts statics hp));
+      [ apply (refines_trans _
+          (State (unbox_variants_knowing known x) vars conts statics hp));
+          [ apply (refines_trans _ (State x vars conts statics hp));
+              [ | exact (unbox_variants_knowing_symbols_refines known x vars
+                    conts statics hp Honly Hbound) ]
+          | exact (unbox_loops_knowing_symbols_refines known _ vars conts
+              statics hp Honly Hbound) ]
       | ]
   end; apply expr_refines_at;
     repeat (eapply expr_refines_trans; [ | solve [ refinement_step ] ]);

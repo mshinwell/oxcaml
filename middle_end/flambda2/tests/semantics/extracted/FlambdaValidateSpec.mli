@@ -46,6 +46,7 @@ open FlambdaStaticsOrderSpec
 open FlambdaStubCallsSpec
 open FlambdaUnaliasParamsSpec
 open FlambdaUnboxInScopeSpec
+open FlambdaUnboxLoopsSpec
 open FlambdaUnboxParamsSpec
 open FlambdaUnboxSpec
 open FlambdaUnboxVariantsSpec

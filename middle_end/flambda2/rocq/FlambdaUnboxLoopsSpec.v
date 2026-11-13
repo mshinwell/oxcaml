@@ -30,7 +30,12 @@
    that refines.
 
    This file is to be reviewed: [unbox_loops_knowing] and what it is
-   made of, and the statement. Nothing applies the pass yet.
+   made of, which are extracted and run by the validation of
+   middle_end/flambda2/tests/semantics/, and the statement. A round
+   of the first phase of the validation applies the pass to the term
+   before Simplify, after
+   FlambdaUnboxVariantsSpec.unbox_variants_knowing
+   (FlambdaValidateSpec.normalise_expr_params_knowing).
 
    Simplify unboxes the parameters of a recursive continuation as it
    does those of a join (simplify/unboxing/), with two differences

@@ -325,7 +325,7 @@ From OxCamlFlambda2 Require Import FlambdaStubCallsSpec.
 From OxCamlFlambda2 Require Import FlambdaNeverReturnsSpec.
 From OxCamlFlambda2 Require Import FlambdaUnusedHeadStaticsSpec.
 From OxCamlFlambda2 Require Import FlambdaUnboxParamsSpec
-  FlambdaUnboxInScopeSpec.
+  FlambdaUnboxInScopeSpec FlambdaUnboxLoopsSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
 From OxCamlFlambda2Types Require FlambdaSimplifyPassSpec.
 From OxCamlFlambda2Types Require FlambdaSimplifyCarriedSpec.
@@ -477,10 +477,14 @@ Definition normalise_before_round (kept : list code_id) (e : expr) : expr :=
    is the round with nothing known, in which that is
    FlambdaUnboxVariantsSpec.unbox_variant_params); the boxed
    parameter, where nothing else uses it, is then one of the unused
-   ones. Then the parameters that hold a tagged immediate and are only
-   untagged or passed on, as a flag that is kept in a reference and
-   set in a loop is, are untagged where they are given, in all the
-   continuations that pass them at once
+   ones. The same is then done for a loop: a read of a parameter that
+   its handler comes to before any test becomes a parameter, where
+   the entry and every turn give something that the term shows
+   (FlambdaUnboxLoopsSpec.unbox_loops_knowing, given what is known as
+   the other is). Then the parameters that hold a tagged immediate
+   and are only untagged or passed on, as a flag that is kept in a
+   reference and set in a loop is, are untagged where they are given,
+   in all the continuations that pass them at once
    (FlambdaUntagParamsSpec.untag_params). After the
    bindings that are left unused are removed, a parameter that every
    application gives the same thing is bound to it at the start of the
@@ -502,9 +506,11 @@ Definition normalise_expr_params_knowing (known : facts) (e : expr)
   let e := remove_unused_conts (forward_applications e) in
   let e :=
     untag_params
-      (unbox_variants_knowing known
-         (follow_aliases_in_loops []
-            (follow_aliases [] (unbox_known_numbers (load_known_blocks e)))))
+      (unbox_loops_knowing known
+         (unbox_variants_knowing known
+            (follow_aliases_in_loops []
+               (follow_aliases []
+                  (unbox_known_numbers (load_known_blocks e))))))
   in
   drop_dead_params
     (bind_aliased_params

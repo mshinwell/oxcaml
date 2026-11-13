@@ -112,6 +112,36 @@ let extend_args known i p args =
     | None -> None)
   | None -> None
 
+(** val extend_apply_cont : facts -> continuation -> nat -> unary_primitive ->
+    apply_cont -> apply_cont option **)
+
+let extend_apply_cont known k i p ac =
+  if Pos.eqb ac.ac_continuation k
+  then
+    match extend_args known i p ac.ac_args with
+    | Some args ->
+      Some
+        { ac_continuation = ac.ac_continuation;
+          ac_args = args;
+          ac_trap_action = ac.ac_trap_action
+        }
+    | None -> None
+  else Some ac
+
+(** val extend_arms : facts -> continuation -> nat -> unary_primitive -> (coq_Z
+    * apply_cont) list -> (coq_Z * apply_cont) list option **)
+
+let rec extend_arms known k i p = function
+  | [] -> Some []
+  | p0 :: arms0 -> (
+    let discriminant, ac = p0 in
+    match extend_apply_cont known k i p ac with
+    | Some ac0 -> (
+      match extend_arms known k i p arms0 with
+      | Some arms1 -> Some ((discriminant, ac0) :: arms1)
+      | None -> None)
+    | None -> None)
+
 (** val all_some : 'a1 option list -> 'a1 list option **)
 
 let rec all_some = function
@@ -120,6 +150,75 @@ let rec all_some = function
     match a with
     | Some a0 -> (
       match all_some l0 with Some l1 -> Some (a0 :: l1) | None -> None)
+    | None -> None)
+
+(** val extend_applications : facts -> continuation -> nat -> unary_primitive ->
+    expr -> expr option **)
+
+let rec extend_applications known k i p e =
+  match e with
+  | Let (x, kind, d, body) -> (
+    match extend_applications (facts_under_let known x d) k i p body with
+    | Some body0 -> Some (Let (x, kind, d, body0))
+    | None -> None)
+  | Let_static (bindings, body) -> (
+    match
+      extend_applications (facts_under_statics known bindings) k i p body
+    with
+    | Some body0 -> Some (Let_static (bindings, body0))
+    | None -> None)
+  | Let_cont_non_recursive (k', h, body) -> (
+    match extend_in_handler known k i p h with
+    | Some h0 -> (
+      if Pos.eqb k' k
+      then Some (Let_cont_non_recursive (k', h0, body))
+      else
+        match extend_applications known k i p body with
+        | Some body0 -> Some (Let_cont_non_recursive (k', h0, body0))
+        | None -> None)
+    | None -> None)
+  | Let_cont_recursive (handlers, body) -> (
+    if is_bound k handlers
+    then Some e
+    else
+      match
+        all_some
+          (map
+             (fun pat ->
+               let k', h = pat in
+               match extend_in_handler known k i p h with
+               | Some h0 -> Some (k', h0)
+               | None -> None)
+             handlers)
+      with
+      | Some handlers0 -> (
+        match extend_applications known k i p body with
+        | Some body0 -> Some (Let_cont_recursive (handlers0, body0))
+        | None -> None)
+      | None -> None)
+  | Apply ap ->
+    if Pos.eqb ap.ap_continuation k || Pos.eqb ap.ap_exn_continuation k
+    then None
+    else Some e
+  | Apply_cont ac -> (
+    match extend_apply_cont known k i p ac with
+    | Some ac0 -> Some (Apply_cont ac0)
+    | None -> None)
+  | Switch (scrutinee, arms) -> (
+    match extend_arms known k i p arms with
+    | Some arms0 -> Some (Switch (scrutinee, arms0))
+    | None -> None)
+  | Invalid -> Some e
+
+(** val extend_in_handler : facts -> continuation -> nat -> unary_primitive ->
+    continuation_handler -> continuation_handler option **)
+
+and extend_in_handler known k i p = function
+  | Handler (params, metadata, handler) -> (
+    match
+      extend_applications (facts_under_params known params) k i p handler
+    with
+    | Some handler0 -> Some (Handler (params, metadata, handler0))
     | None -> None)
 
 (** val extend_apply_cont_by : (facts -> simple list -> simple list option) ->

@@ -80,9 +80,9 @@
    and keeps scope with it.
 
    The unboxing of the reads of a loop
-   (FlambdaUnboxLoopsSpec.unbox_loops_knowing) is made of the same
-   things: the first read of a parameter, the applications extended,
-   and what is known. It makes
+   (FlambdaUnboxLoopsSpec.unbox_loops_knowing), which the same round
+   applies next, is made of the same things: the first read of a
+   parameter, the applications extended, and what is known. It makes
    no name either, and given what is known, renamed with the term, it
    gives the term that it gave, renamed
    ([unbox_loops_knowing_equivariant_statement]). That it keeps scope
