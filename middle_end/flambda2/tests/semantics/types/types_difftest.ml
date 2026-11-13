@@ -7371,13 +7371,16 @@ let ranges_of_numbers () =
    goes once the model is made to give the symbol of each such constant the type
    that its environment has for the variable.
 
-   Not generated: closures and code (Simplify would simplify the code), the
+   Not generated: closures and code (Simplify would simplify the code); the
    constants that the model has not (mutable blocks, blocks of a mixed shape,
-   arrays), a tag that is not one of a block that is scanned (the compiler
-   cannot build the constant), a variable that the environment does not define.
-   Simplify chooses its meet by the flag of the join algorithm: it is run with
-   the n-way one, which the model transcribes, and with the binary one, the
-   default, for a comparison of the two. *)
+   arrays of naked numbers or of floats); an immutable array of values, empty or
+   not, which the model has and to which it gives no type, and which is not
+   converted here ([static_const_of_model] refuses it); a tag that is not one of
+   a block that is scanned (the compiler cannot build the constant); a variable
+   that the environment does not define. Simplify chooses its meet by the flag
+   of the join algorithm: it is run with the n-way one, which the model
+   transcribes, and with the binary one, the default, for a comparison of the
+   two. *)
 module Model_statics = Flambda2_rocq_semantics.FlambdaSimplifyStaticsSpec
 module DE = Flambda2_simplify.Downwards_env
 module DA = Flambda2_simplify.Downwards_acc
