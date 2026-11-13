@@ -951,6 +951,63 @@ Several recursive continuations in one `Let_cont`.
 `pair_loop` of `FlambdaUnboxVariantsExamplesSpec.v` is such a loop,
 computed.
 
+### Boxed numbers that continuations pass to one another
+
+For
+
+    let acc = ref 0L in
+    for i = 1 to n do
+      if i land 1 = 0 then acc := add !acc (of_int i)
+    done;
+    !acc
+
+the front end makes the reference a parameter of the loop and of
+the join after the test in its body. The loop is entered with the
+boxed constant and given, at each turn, the parameter of the join;
+the join is given the parameter of the loop, on the turns that do
+not set the reference, or a box that the other arm has just made.
+Simplify unboxes both: once a parameter is unboxed its type says
+that it is the box of the new parameter, and that is what the next
+continuation is given where it is passed on.
+
+Neither pass above does this: each takes one continuation, and
+asks that every application gives something that the term shows.
+`FlambdaUnboxTogetherSpec.unbox_together_knowing` takes a set of
+positions at once, in the way of
+`FlambdaUntagParamsSpec.untag_params`, whose definitions it uses.
+A parameter of the set is only unboxed or given to another
+position of the set. An application gives a position of the set a
+parameter of the set, which stays, or a box that the term shows,
+for which it gives the number: the constant of a static boxed
+number in scope, or what a `Let` in scope boxed. The parameter
+then holds the number, and the `Let` of its unboxing is a `Let` of
+it. The set is found by taking every parameter of kind `Value` and
+removing what the test refuses until nothing is refused; the test
+is run again on what is left, and nothing is claimed of the search.
+The pass is run for each sort of box that the term unboxes, after
+the untagging of parameters.
+
+Why it refines. In the run of the result a parameter of the set
+holds a value of the kind of the number, which is what the
+unboxing has on what the parameter holds in the run of the term,
+if that unboxing has a value; the two runs are in step, and no
+parameter of the set is given to a continuation of the
+environment, so the two terms give their continuations the same
+values. What the term shows of a box is what is known where the
+application stands, which holds in every state whose static
+environment binds the symbols as they are known to be; the
+statement is `refines_where_known`, as for the two passes above.
+
+Not covered. A box that something else uses as a box (a loop that
+returns its accumulator boxed): Simplify keeps the boxed parameter
+beside the number. A continuation that is given a parameter of the
+function or the result of a call: section 5. A box that the term
+has read above and has not made. Floats, of which the model has no
+arithmetic.
+
+`int64_passed_on` of `FlambdaUnboxVariantsExamplesSpec.v` is two
+joins of which the first gives its box to the second, computed.
+
 ## 8. What else is owed for pairs and numbers
 
 - **A number that one use is given** (`int64_join`): Simplify binds
@@ -1195,6 +1252,17 @@ reference to a boxed number that a `for` loop sums into),
 replaces) and `pair_loop_in_loop` (two loops, the inner one over a
 pair that the outer one makes). Over the same units the change
 moves no verdict and no line of any output.
+
+With boxed numbers that continuations pass to one another unboxed
+together (section 7), three more sources are validated that were
+not: `int64_sum_on_some_turns` (a reference to a boxed number that
+a `for` loop adds to on some turns), `int64_passed_on` (a box that
+the join of one test gives to the join of another) and
+`sums_of_two_sorts` (a loop with a 64-bit and a 32-bit
+accumulator). Over the units that were in the directory, the units
+written by hand, the 600 of `census/README.md` and the 240
+generated units, the change moves no verdict and no line of any
+output.
 
 ## 10. Asked of others
 
