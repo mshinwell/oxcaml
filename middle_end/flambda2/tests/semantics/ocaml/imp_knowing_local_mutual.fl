@@ -1,0 +1,116 @@
+let $camlImp_knowing_local_mutual__first_const_0 = Block 0 () in
+(let code inline(always) size(6)
+       apply_0 (f/119 : val, x/120)
+         my_closure/121 &my_alloc_region/122 my_depth/123
+         -> k/44 * k/45 =
+   let next_depth/124 = rec_info (succ my_depth/123) in
+   apply &my_alloc_region/122 f/119 (x/120) -> k/44 * k/45
+ in
+ let code rec size(24)
+       down_2 (k/125 : imm tagged)
+         my_closure/126 &my_alloc_region/127 my_depth/128
+         -> k/46 * k/47
+         : imm tagged =
+   let next_depth/129 = rec_info (succ my_depth/128) in
+   let n/130 = %project_value_slot.[down].[n] (my_closure/126) in
+   let up/131 = %project_function_slot.[down].[up] (my_closure/126) in
+   (let prim/133 = %phys_eq (k/125, 0) in
+    let eq/134 = %tag_imm (prim/133) in
+    (let untagged/135 = %untag_imm (eq/134) in
+     switch untagged/135
+       | 0 -> k/49
+       | 1 -> k/46 (n/130))
+      where k/49 =
+        cont k/48)
+     where k/48 =
+       let int_sub/132 = %int_barith.sub (k/125, 1) in
+       apply direct(up_3 &my_alloc_region/127)
+         (up/131 ~ depth my_depth/128 -> next_depth/129 : _ -> imm tagged)
+           (int_sub/132)
+           -> k/46 * k/47
+ and code rec size(28)
+       up_3 (k/136 : imm tagged)
+         my_closure/137 &my_alloc_region/138 my_depth/139
+         -> k/50 * k/51
+         : imm tagged =
+   let next_depth/140 = rec_info (succ my_depth/139) in
+   let n/141 = %project_value_slot.[up].[n] (my_closure/137) in
+   let down/142 = %project_function_slot.[up].[down] (my_closure/137) in
+   (let prim/145 = %phys_eq (k/136, 0) in
+    let eq/146 = %tag_imm (prim/145) in
+    (let untagged/147 = %untag_imm (eq/146) in
+     switch untagged/147
+       | 0 -> k/54
+       | 1 -> k/55)
+      where k/55 =
+        cont k/52
+      where k/54 =
+        cont k/53)
+     where k/53 =
+       let int_sub/144 = %int_barith.sub (k/136, 1) in
+       apply direct(down_2 &my_alloc_region/138)
+         (down/142 ~ depth my_depth/139 -> next_depth/140 : _ -> imm tagged)
+           (int_sub/144)
+           -> k/50 * k/51
+     where k/52 =
+       let int_add/143 = %int_barith.add (n/141, 1) in
+       cont k/50 (int_add/143)
+ in
+ let code size(75)
+       run_1 (n/148 : imm tagged)
+         my_closure/149 &my_alloc_region/150 my_depth/151
+         -> k/56 * k/57
+         : imm tagged =
+   let next_depth/152 = rec_info (succ my_depth/151) in
+   let apply/153 = %project_value_slot.[run].[`apply`] (my_closure/149) in
+   let down/154 = closure down_2 @down &my_alloc_region/150
+   and up/155 = closure up_3 @up &my_alloc_region/150
+   with { n = n/148 }
+   in
+   apply direct(apply_0 &my_alloc_region/150)
+     (apply/153 : _ -> imm tagged) (up/155, n/148) -> k/58 * k/57
+     where k/58 (apply_result/156 : imm tagged) =
+       (apply direct(apply_0 &my_alloc_region/150)
+          (apply/153 : _ -> imm tagged) (down/154, 3) -> k/59 * k/57
+          where k/59 (apply_result/157 : imm tagged) =
+            let int_add/158 =
+              %int_barith.add (apply_result/157, apply_result/156)
+            in
+            cont k/56 (int_add/158))
+ in
+ let code size(3)
+       missing_4 (param/159 : imm tagged)
+         my_closure/160 &my_alloc_region/161 my_depth/162
+         -> k/60 * k/61
+         : val =
+   let next_depth/163 = rec_info (succ my_depth/162) in
+   cont k/61 pop(regular k/61) ($`*predef*`.caml_exn_Not_found)
+ in
+ let apply/164 = closure apply_0 @`apply` &toplevel in
+ let run/165 = closure run_1 @run &toplevel with { `apply` = apply/164 } in
+ let missing/166 = closure missing_4 @missing &toplevel in
+ (let Popaque/169 = %opaque (4) in
+  apply direct(run_1 &toplevel)
+    (run/165 : _ -> imm tagged) (Popaque/169) -> k/62 * error)
+   where k/62 (result/167 : imm tagged) =
+     let Pmakeblock/168 =
+       %block.[`0`].`toplevel` (apply/164, run/165, missing/166, result/167)
+     in
+     cont k/43 (Pmakeblock/168))
+  where k/43 define_root_symbol (module_block/114) =
+    let field_0/115 =
+      %block_load.tag[`0`].`size`[`4`].[`0`] (module_block/114)
+    in
+    let field_1/116 =
+      %block_load.tag[`0`].`size`[`4`].[`1`] (module_block/114)
+    in
+    let field_2/117 =
+      %block_load.tag[`0`].`size`[`4`].[`2`] (module_block/114)
+    in
+    let field_3/118 =
+      %block_load.tag[`0`].`size`[`4`].[`3`] (module_block/114)
+    in
+    let $camlImp_knowing_local_mutual =
+      Block 0 (field_0/115, field_1/116, field_2/117, field_3/118)
+    in
+    cont done ($camlImp_knowing_local_mutual)

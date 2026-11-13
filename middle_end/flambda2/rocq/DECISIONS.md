@@ -311,7 +311,11 @@ says so. Only the labels that this tree cites are listed.
   its region, so the handler is never a shortcut and a branch that goes
   nowhere else stays.
 - **C5-11.** Simplify's output can bind a symbol inside an exception
-  handler, which Simplify refuses as input.
+  handler, which Simplify refuses as input. In a term not taken from
+  an OCaml source it binds one under a handler beside which it has
+  kept an arm of a `Switch` that it made invalid: by the rule read in
+  its source that handler is not at toplevel; Simplify was not run on
+  it.
 - **N1-1.** `Compare` writes the reverse maps of function slots and
   value slots into the forward maps.
 - **N1-2.** `pattern_match_pair` on code and on recursive handlers stops

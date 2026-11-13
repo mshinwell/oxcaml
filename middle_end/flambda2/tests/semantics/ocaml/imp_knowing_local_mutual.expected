@@ -1,0 +1,12 @@
+imp_knowing_local_mutual.fl:
+  before Simplify, with its import (148 steps): returns
+                                                  [0: <fun>; <fun>; <fun>;
+                                                   10]
+  after Simplify, with its import (100 steps): returns
+                                                 [0: <fun>; <fun>; <fun>; 10]
+  the check of kinds: passes before, passes after
+  calls outside code: 1 before, 1 after
+  the same
+  calls outside code once those of known code are inlined: 2
+  validated with its imports: the same once closures and blocks are lifted to symbols, the terms normalised and unused value slots removed
+  (at the second asking, of the two terms normalised with what their symbols are bound to used)
