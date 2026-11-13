@@ -1,0 +1,53 @@
+(let $camlArray_length_twice__string_0 = "index out of bounds" in
+ let $camlArray_length_twice__block_1 =
+   Block 0 ($`*predef*`.caml_exn_Invalid_argument,
+            $camlArray_length_twice__string_0)
+ in
+ let code rec loopify(default tailrec) size(45)
+       sum_0 (a/48 : imm array, i/49 : imm tagged, total/50 : imm tagged)
+         my_closure/51 &my_alloc_region/52 my_depth/53
+         -> k/22 * k/23
+         : imm tagged =
+   let next_depth/54 = rec_info (succ my_depth/53) in
+   (let Parraylength/60 = %array_length.`imm` (a/48) in
+    let prim/61 = %phys_eq (i/49, Parraylength/60) in
+    let eq/62 = %tag_imm (prim/61) in
+    (let untagged/63 = %untag_imm (eq/62) in
+     switch untagged/63
+       | 0 -> k/28
+       | 1 -> k/22 (total/50))
+      where k/28 =
+        cont k/24)
+     where k/24 =
+       ((let prim/58 = %array_length.`imm` (a/48) in
+         let prim/59 = %int_comp.unsigned.lt (i/49, prim/58) in
+         switch prim/59
+           | 0 -> k/26
+           | 1 -> k/27)
+          where k/27 =
+            cont k/25
+          where k/26 =
+            cont k/23 pop(regular k/23) ($camlArray_length_twice__block_1)
+          where k/25 =
+            let Parrayrefs/55 = %array_load.`imm`.mut (a/48, i/49) in
+            let int_add/56 = %int_barith.add (total/50, Parrayrefs/55) in
+            let int_add/57 = %int_barith.add (i/49, 1) in
+            apply direct(sum_0 &my_alloc_region/52)
+              (my_closure/51 ~ depth my_depth/53 -> next_depth/54
+               : _ -> imm tagged)
+                (a/48, int_add/57, int_add/56)
+                -> k/22 * k/23)
+ in
+ let $camlArray_length_twice__empty_array_2 = Empty_array in
+ let sum/64 = closure sum_0 @sum &toplevel in
+ (let Popaque/67 = %opaque ($camlArray_length_twice__empty_array_2) in
+  apply direct(sum_0 &toplevel)
+    (sum/64 : _ -> imm tagged) (Popaque/67, 0, 100) -> k/29 * error)
+   where k/29 (result/65 : imm tagged) =
+     let Pmakeblock/66 = %block.[`0`].`toplevel` (result/65) in
+     cont k/21 (Pmakeblock/66))
+  where k/21 define_root_symbol (module_block/46) =
+    let field_0/47 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/46)
+    in
+    let $camlArray_length_twice = Block 0 (field_0/47) in
+    cont done ($camlArray_length_twice)

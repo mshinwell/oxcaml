@@ -1,0 +1,9 @@
+array_length_twice.fl:
+  before Simplify, with its import (21 steps): returns [0: 100]
+  after Simplify, with its import (18 steps): returns [0: 100]
+  the check of kinds: passes before, passes after
+  calls outside code: 1 before, 1 after
+  the same
+  calls outside code once those of known code are inlined: 1
+  validated with nothing imported: the same once closures and blocks are lifted to symbols and the terms normalised
+  not validated with its imports: this verdict is outside what is proved of runs with imports

@@ -1,0 +1,19 @@
+(let $camlEmpty_array_in_record__empty_array_0 = Empty_array in
+ let $camlEmpty_array_in_record__immstring_1 = "nobody" in
+ let $camlEmpty_array_in_record__basket_2 =
+   Block 0 ($camlEmpty_array_in_record__immstring_1,
+            $camlEmpty_array_in_record__empty_array_0)
+ in
+ let Popaque/24 = %opaque ($camlEmpty_array_in_record__basket_2) in
+ let Pfield/25 = %block_load.[`1`] (Popaque/24) in
+ let Parraylength/26 = %array_length.`imm` (Pfield/25) in
+ let prim/27 = %string_length ($camlEmpty_array_in_record__immstring_1) in
+ let Pstringlength/28 = %tag_imm (prim/27) in
+ let result/29 = %int_barith.add (Pstringlength/28, Parraylength/26) in
+ let Pmakeblock/30 = %block.[`0`].`toplevel` (result/29) in
+ cont k/5 (Pmakeblock/30))
+  where k/5 define_root_symbol (module_block/22) =
+    let field_0/23 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/22)
+    in
+    let $camlEmpty_array_in_record = Block 0 (field_0/23) in
+    cont done ($camlEmpty_array_in_record)
