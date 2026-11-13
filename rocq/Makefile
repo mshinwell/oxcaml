@@ -85,6 +85,8 @@ EXTRACT := $(LOOP_DIR)/Extract.v
 # nothing: make takes the dependencies from rocq dep, and the review
 # document puts the files in dependency order itself (review-pdf.pl).
 FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
+  FlambdaAliasLetsProofs.v \
+  FlambdaAliasLetsSpec.v \
   FlambdaAlphaFreshProofs.v \
   FlambdaAlphaFreshSpec.v \
   FlambdaAlphaGroupProofs.v \

@@ -58,6 +58,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaUnaliasParamsSpec FlambdaUnaliasParamsProofs
   FlambdaGiveScrutineeSpec FlambdaGiveScrutineeProofs
   FlambdaArmNumbersSpec FlambdaArmNumbersProofs
+  FlambdaAliasLetsSpec FlambdaAliasLetsProofs
   FlambdaWrapReturnsSpec FlambdaWrapReturnsProofs
   FlambdaUntagParamsSpec FlambdaUntagParamsProofs
   FlambdaUnboxSpec FlambdaUnboxProofs
@@ -124,6 +125,7 @@ Ltac equivalence_step :=
     | apply unalias_params_equivalent
     | apply give_scrutinees_equivalent
     | apply numbers_in_arms_equivalent
+    | apply merge_alias_lets_equivalent
     | apply share_known_primitives_equivalent ].
 
 Ltac refinement_step :=

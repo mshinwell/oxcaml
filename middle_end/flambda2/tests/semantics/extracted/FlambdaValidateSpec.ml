@@ -1,4 +1,5 @@
 open Datatypes
+open FlambdaAliasLetsSpec
 open FlambdaAliasesSpec
 open FlambdaArmNumbersSpec
 open FlambdaBlockLoadSpec
@@ -190,7 +191,8 @@ let normalise_expr_after e =
     (remove_unused_projections
        (fold_constants
           (follow_aliases_in_loops []
-             (follow_aliases [] (inline_once_applied_after e)))))
+             (follow_aliases []
+                (merge_alias_lets (inline_once_applied_after e))))))
 
 (** val normalise_code_after : expr -> expr **)
 
@@ -212,7 +214,8 @@ let normalise_after_round kept e =
                             (inline_known_calls kept [] []
                                (follow_aliases_in_loops []
                                   (follow_aliases []
-                                     (inline_once_applied_after e))))))))))))
+                                     (merge_alias_lets
+                                        (inline_once_applied_after e)))))))))))))
 
 (** val normalise_after : nat -> code_id list -> expr -> expr **)
 

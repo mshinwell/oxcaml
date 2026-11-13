@@ -1,4 +1,5 @@
 open Datatypes
+open FlambdaAliasLetsSpec
 open FlambdaAliasesSpec
 open FlambdaArmNumbersSpec
 open FlambdaBlockLoadSpec

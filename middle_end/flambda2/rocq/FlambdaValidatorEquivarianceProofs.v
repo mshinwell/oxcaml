@@ -85,7 +85,7 @@ From OxCamlFlambda2 Require FlambdaKeepsScopeProofs FlambdaValidateScopeProofs
   FlambdaHoistStaticsProofs FlambdaUnboxParamsNamesProofs
   FlambdaUnaliasParamsNamesProofs FlambdaWrapReturnsNamesProofs
   FlambdaUntagParamsNamesProofs FlambdaGiveScrutineeNamesProofs
-  FlambdaArmNumbersNamesProofs.
+  FlambdaArmNumbersNamesProofs FlambdaAliasLetsProofs.
 From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
 From OxCamlFlambda2 Require FlambdaDemoteProofs.
 From OxCamlFlambda2 Require Import FlambdaLiftObservedSpec.
@@ -5191,7 +5191,8 @@ Ltac rename_outwards :=
       | rewrite inline_tail_conts_kinded_equivariant_aux
       | rewrite FlambdaUnaliasParamsNamesProofs.unalias_params_renamed
       | rewrite FlambdaGiveScrutineeNamesProofs.give_scrutinees_renamed
-      | rewrite FlambdaArmNumbersNamesProofs.numbers_in_arms_renamed ].
+      | rewrite FlambdaArmNumbersNamesProofs.numbers_in_arms_renamed
+      | rewrite FlambdaAliasLetsProofs.merge_alias_lets_renamed ].
 
 Lemma normalise_expr_before_equivariant :
   rewrite_equivariant normalise_expr_before.

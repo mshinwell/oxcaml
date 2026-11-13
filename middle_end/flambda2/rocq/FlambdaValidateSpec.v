@@ -332,6 +332,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaGuardScopeSpec FlambdaGroupsUpSpec.
 From OxCamlFlambda2 Require Import FlambdaWrapReturnsSpec
   FlambdaUntagParamsSpec FlambdaGiveScrutineeSpec FlambdaArmNumbersSpec.
+From OxCamlFlambda2 Require Import FlambdaAliasLetsSpec.
 From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
 From OxCamlFlambda2 Require Import FlambdaKnownSlotsSpec.
 From OxCamlFlambda2 Require Import FlambdaStubCallsSpec.
@@ -695,7 +696,15 @@ Definition inline_once_applied_after (e : expr) : expr :=
        (forward_kinded
           (inline_tail_conts_kinded (sink_let_conts (remove_unused_conts e))))).
 
-(* The same for the term after. Every rewrite is an equivalence. The
+(* The same for the term after. Every rewrite is an equivalence.
+   Before the aliases are followed, a [Let] of a variable to the
+   variable that the [Let] around it has just bound, and that is not
+   free in what follows, is made one [Let] with it
+   (FlambdaAliasLetsSpec.merge_alias_lets): the copy of a body that is
+   inlined ends with such a [Let] of the result of the call, and the
+   aliases cannot be followed past a second copy of the same body,
+   which binds the same names, as nothing is renamed apart in the term
+   after. The
    unused [Let]s that are sure to have a value are removed in the
    handlers of recursive continuations too, with what is in scope there
    ([remove_unused_defined_lets_in_loops]): Simplify leaves such a [Let]
@@ -723,7 +732,8 @@ Definition normalise_expr_after (e : expr) : expr :=
     (remove_unused_projections
        (fold_constants
           (follow_aliases_in_loops []
-             (follow_aliases [] (inline_once_applied_after e))))).
+             (follow_aliases []
+                (merge_alias_lets (inline_once_applied_after e)))))).
 
 Definition normalise_code_after (body : expr) : expr :=
   rewrite_rec_handlers normalise_expr_after (normalise_expr_after body).
@@ -741,7 +751,9 @@ Definition normalise_after_round (kept : list code_id) (e : expr) : expr :=
                             (inline_known_calls kept [] []
                                (follow_aliases_in_loops []
                                   (follow_aliases []
-                                     (inline_once_applied_after e)))))))))))).
+                                     (merge_alias_lets
+                                        (inline_once_applied_after
+                                           e))))))))))))).
 
 Definition normalise_after (rounds : nat) (kept : list code_id) (e : expr)
     : expr :=
