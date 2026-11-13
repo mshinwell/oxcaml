@@ -1,0 +1,36 @@
+let $camlImp_head_inlined_at_one_call__first_const_0 = Block 0 () in
+(let code size(7)
+       square_plus_one_0 (x/36 : imm tagged)
+         my_closure/37 &my_alloc_region/38 my_depth/39
+         -> k/14 * k/15
+         : imm tagged =
+   let next_depth/40 = rec_info (succ my_depth/39) in
+   let int_mul/41 = %int_barith.mul (x/36, x/36) in
+   let int_add/42 = %int_barith.add (int_mul/41, 1) in
+   cont k/14 (int_add/42)
+ in
+ let square_plus_one/43 =
+   closure square_plus_one_0 @square_plus_one &toplevel
+ in
+ (let Popaque/49 = %opaque (4) in
+  apply direct(square_plus_one_0 &toplevel) inlined(never)
+    (square_plus_one/43 : _ -> imm tagged) (Popaque/49) -> k/16 * error)
+   where k/16 (apply_result/44 : imm tagged) =
+     ((let Popaque/48 = %opaque (3) in
+       apply direct(square_plus_one_0 &toplevel) inlined(always)
+         (square_plus_one/43 : _ -> imm tagged) (Popaque/48) -> k/17 * error)
+        where k/17 (apply_result/45 : imm tagged) =
+          let result/46 = %int_barith.add (apply_result/45, apply_result/44)
+          in
+          let Pmakeblock/47 =
+            %block.[`0`].`toplevel`
+              (result/46, $`*predef*`.caml_exn_Not_found)
+          in
+          cont k/13 (Pmakeblock/47)))
+  where k/13 define_root_symbol (module_block/34) =
+    let field_0/35 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/34)
+    in
+    let $camlImp_head_inlined_at_one_call =
+      Block 0 (field_0/35, $`*predef*`.caml_exn_Not_found)
+    in
+    cont done ($camlImp_head_inlined_at_one_call)

@@ -1,0 +1,73 @@
+let $camlImp_head_closure_uses_unit_function_only__first_const_0 = Block 0 ()
+in
+(let code inline(never) size(5)
+       double_0 (x/68 : imm tagged)
+         my_closure/69 &my_alloc_region/70 my_depth/71
+         -> k/28 * k/29
+         : imm tagged =
+   let next_depth/72 = rec_info (succ my_depth/71) in
+   let int_mul/73 = %int_barith.mul (x/68, 2) in
+   cont k/28 (int_mul/73)
+ in
+ let code size(7)
+       `fn[imp_head_closure_uses_unit_function_only.ml:16,32--55]_2`
+         (x/74 : imm tagged)
+         my_closure/75 &my_alloc_region/76 my_depth/77
+         -> k/30 * k/31
+         : imm tagged =
+   let next_depth/78 = rec_info (succ my_depth/77) in
+   let double/79 =
+     %project_value_slot.[`fn[imp_head_closure_uses_unit_function_only.ml:16,32--55]`].[double]
+       (my_closure/75)
+   in
+   let int_add/80 = %int_barith.add (x/74, 1) in
+   apply direct(double_0 &my_alloc_region/76)
+     (double/79 : _ -> imm tagged) (int_add/80) -> k/30 * k/31
+ in
+ let code inline(never) size(17)
+       doubler_1 (param/81 : imm tagged)
+         my_closure/82 &my_alloc_region/83 my_depth/84
+         -> k/32 * k/33
+         : val =
+   let next_depth/85 = rec_info (succ my_depth/84) in
+   let double/86 = %project_value_slot.[doubler].[double_1] (my_closure/82)
+   in
+   let `fn[imp_head_closure_uses_unit_function_only.ml:16,32--55]/87` =
+     closure `fn[imp_head_closure_uses_unit_function_only.ml:16,32--55]_2`
+       @`fn[imp_head_closure_uses_unit_function_only.ml:16,32--55]`
+       &my_alloc_region/83
+   with { double = double/86 }
+   in
+   cont k/32 (`fn[imp_head_closure_uses_unit_function_only.ml:16,32--55]/87`)
+ in
+ let double/88 = closure double_0 @double &toplevel in
+ let doubler/89 = closure doubler_1 @doubler &toplevel
+ with { double_1 = double/88 }
+ in
+ apply direct(doubler_1 &toplevel)
+   (doubler/89 : _ -> val) (0) -> k/35 * error
+   where k/35 (f/92 : val) =
+     (apply direct(doubler_1 &toplevel)
+        (doubler/89 : _ -> val) (0) -> k/36 * error
+        where k/36 (g/93 : val) =
+          (apply &toplevel g/93 (4) -> k/37 * error
+             where k/37 (apply_result/94 : imm tagged) =
+               ((let Popaque/97 = %opaque (2) in
+                 apply &toplevel f/92 (Popaque/97) -> k/38 * error)
+                  where k/38 (apply_result/95 : imm tagged) =
+                    let int_add/96 =
+                      %int_barith.add (apply_result/95, apply_result/94)
+                    in
+                    cont k/34 (int_add/96))))
+   where k/34 (result/90 : imm tagged) =
+     let Pmakeblock/91 =
+       %block.[`0`].`toplevel` (result/90, $`*predef*`.caml_exn_Not_found)
+     in
+     cont k/27 (Pmakeblock/91))
+  where k/27 define_root_symbol (module_block/66) =
+    let field_0/67 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/66)
+    in
+    let $camlImp_head_closure_uses_unit_function_only =
+      Block 0 (field_0/67, $`*predef*`.caml_exn_Not_found)
+    in
+    cont done ($camlImp_head_closure_uses_unit_function_only)
