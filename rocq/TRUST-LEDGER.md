@@ -383,9 +383,12 @@ it gave back.
   - code that is not asked for, code that has no body in the file,
     tupled code, code with a call of known arity where one of the
     two units has tupled code, and code whose body the model has not
-    got, are bound to nothing, so a call of them is undefined. What
-    is asked for is in the comment above `make_prefix`: the code of
-    a closure that is bound only as a field of a block is not;
+    got, are bound to nothing, so a call of them is undefined. A
+    body with a call that is a probe is one that the model has not
+    got: the conversion refuses such a call (the entry "What the
+    conversion of terms leaves out"). What is asked for is in the
+    comment above `make_prefix`: the code of a closure that is bound
+    only as a field of a block is not;
   - a symbol is bound to a block only where the file says that it is
     an immutable block of values each of whose fields is a constant
     or a symbol. A field of which the file says nothing, as of a
