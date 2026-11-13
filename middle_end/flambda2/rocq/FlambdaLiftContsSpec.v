@@ -102,10 +102,13 @@
      parameter of a handler binds, between its binding and an
      application of it, one of the parameters that it takes
      ([only_applied]).
-   Where one of these fails for any of them the [Let_cont] of [k] is
-   left as it is. The handlers of recursive continuations and the
-   bodies of code are not gone into: FlambdaNormaliseSpec.rewrite_code
-   and FlambdaRecHandlersSpec.rewrite_rec_handlers take a pass there.
+   Where one of these fails for any of them no continuation is moved
+   out at that [Let_cont]: it keeps its handler and its body, which
+   are those that the pass has made of the handler and the body of
+   the term, and may have continuations moved inside them. The
+   handlers of recursive continuations and the bodies of code are not
+   gone into: FlambdaNormaliseSpec.rewrite_code and
+   FlambdaRecHandlersSpec.rewrite_rec_handlers take a pass there.
 
    The tests of freedom are FlambdaNormaliseSpec.var_free_b and
    FlambdaUnusedContsSpec.cont_free_b, which may say that a name is
