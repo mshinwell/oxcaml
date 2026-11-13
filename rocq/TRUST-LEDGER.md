@@ -54,6 +54,72 @@ tool reports a pair of terms as validated, the theorem
 and what follows is why they stand for what Simplify was given and what
 it gave back.
 
+- **The term that Simplify is given is read from text.** The tool
+  does not take its two terms from the compiler's own run. The
+  compiler writes the unit as it is before Simplify as text
+  (`-drawfexpr-to`); the tool reads that text with the compiler's
+  parser (`parser/fexpr_to_flambda.ml`), changes the unit read in
+  the one way that is said below, and runs Simplify on the result. A
+  verdict is about the conversions to the model of that pair, the
+  unit read so changed and what Simplify makes of it, under what the
+  entries below trust of the conversion. It is not about the terms
+  of the compiler's own run. The text does not carry everything of a
+  term. It has no modes for the parameters of code, and the reader
+  gives every parameter the mode heap (`param_modes`; discrepancy
+  X5-11). Simplify on a term as the reader makes it can replace a
+  copy on the heap of a parameter that is local by the parameter
+  itself. X5 found a program that is right when it is compiled
+  directly, and that reads a block of the stack which a later call
+  has written over when it is compiled through the text; nothing in
+  this tree reproduces it. That is a failure of the path through the
+  text, and not of the compiler's own run of Simplify.
+  The tool does not give Simplify the unit as the reader makes it.
+  It gives every parameter of every piece of code that the unit
+  binds the mode that says least under the compiler's setting for
+  allocation: heap or stack where the compiler allocates on the
+  stack, heap where it does not (`with_unknown_param_modes`, by
+  `Alloc_mode.For_types.unknown`). In a check (`check_file`) the
+  unit so changed is the one that is checked for well-formedness,
+  that Simplify is given, and that is converted as the unit before.
+  In the round trip of the conversion (`simplify_for_round_trip`) it
+  is the unit that Simplify is given; the first conversion of the
+  round trip is of the unit as it was read, and the model has no
+  modes, so the two convert to the same term up to bound names.
+  From the modes of those parameters the tool's Simplify then learns
+  no more than the compiler's own does, and may learn less: where
+  the compiler allocates on the stack, a parameter that the
+  compiler's term says is on the heap has in the tool's the mode
+  that says nothing, so the term after that is checked may keep
+  what the compiler's own run removes. That is said of these modes
+  alone, and not of anything else that Simplify infers. Trusted of
+  that step: that the unit which it builds again is the unit read up
+  to the variables and the continuations that it binds outside the
+  bodies of code, which may be made fresh, and but for those modes;
+  symbols and code ids are not made fresh. The free names that the
+  compiler keeps with a `Let`, a `Let_cont` or a handler are given
+  as not known, as the reader gives them; a piece of code has its
+  own body and its own free names, as they were read. It replaces
+  this one default of the reader, for the parameters of the code
+  that this unit binds.
+  The other defaults of the reader stay as they are. One is
+  `first_complex_local_param`, which the reader gives as: no
+  parameter is local and complex; Simplify reads it for where the
+  closure of a partial application is allocated
+  (`simplify/simplify_apply_expr.ml`), and with the reader's value
+  that closure is on the heap. The modes that the text does write,
+  of an allocation and of the result of a call, are read as written;
+  and code of another unit that Simplify reads from a `.cmx` file
+  has the modes that the compiler wrote there.
+  What is still not claimed: the model erases the regions of
+  allocations and their lifetimes (the entry "What the conversion of
+  terms leaves out"). Equal outcomes in the model do not establish
+  that a block returned is still alive, and no validation, whether
+  plain or counted apart, is a check of that. Other things that the
+  text loses, the kind of a value that may be null among them
+  (T4-13), are described in
+  `middle_end/flambda2/tests/semantics/ocaml/README.md`, "What a
+  validation does not say"; the classification of the units in that
+  file says which are counted apart, and for which of these reasons.
 - **The conversion of terms**, in
   `middle_end/flambda2/tests/tools/flsemantics.ml` (`convert_expr` and
   the functions around it, about 230 lines): from the compiler's Flambda
@@ -206,6 +272,80 @@ it gave back.
   body the model has not got (the entry on what those files say), the
   unit being still checked; and in the term that Simplify makes of a
   unit, where it inlines such a body, the unit being then not checked.
+  *Phantom bindings*: the conversion does not read the name mode of a
+  bound variable, so a `Let` whose variable is phantom is converted as
+  a `Let` that runs, where the program runs nothing for it. The text of
+  a term does not say the mode. With `-g` and phantom lets on
+  (`-flambda2-expert-phantom-lets`, which
+  `-gdwarf-may-alter-codegen-experimental` also sets), Simplify may
+  keep an unused binding as phantom instead of deleting it. The tests
+  do not give those flags and no unit of the tree is compiled with
+  them; a body taken from a `.cmx` compiled with them may have one, and
+  so may the term after if the tool is itself given them. The term of
+  the model can then be undefined where the program is defined
+  (discrepancy C2-19); such a binding is not refused. A validation of
+  a unit whose term before has one therefore may accept a term after
+  that is wrong on a run where the binding is undefined in the model
+  and the program is defined; the one pair of units run for
+  discrepancy C2-19 did not show one, and nothing wider was measured.
+  *The symbol of the unit*: `convert_unit` does not read
+  `Flambda_unit.module_symbol`. The tool observes the values given to
+  the unit's return continuation, using the static environment at exit.
+  Other units read the data of the unit's symbol; the backend's handler
+  for the return of the unit ignores its argument and returns the unit
+  value (`to_cmm/to_cmm.ml`). Returning the unit's symbol makes the tool
+  start its observation at that symbol, but the tool does not check this
+  of either term. A hand-written text can return another symbol and be
+  validated; this was observed on a text that is not in this tree. No
+  agreement with what a linked program observes follows from that
+  verdict, nor is such agreement established merely by returning the
+  right symbol.
+  *The function slot of a value-slot projection*: where a unit is
+  converted with unnamed function slots, `convert_prim` drops
+  `project_from` from `Project_value_slot`. In that presentation the
+  model cannot test that the closure has the function slot named. A
+  hand-written text that names the wrong slot was observed to return a
+  value before Simplify in the model and to be undefined after it;
+  Simplify makes that projection `Invalid` (decision D3). The text is
+  not in this tree. The backend reads the function slot to compute the
+  load's offset (`to_cmm/to_cmm_primitive.ml`). Thus this conversion
+  can fault a correct Simplify, and the model does not detect a wrong
+  function slot in the term after in this presentation. With named
+  function slots the conversion keeps `project_from`. No claim is made
+  that every pair with a wrong slot is accepted by the validator.
+  *What Simplify returns beside the term*: the tool converts
+  `Flambda2.flambda_result.flambda`, not the other fields of the result.
+  In particular it does not compare the slot offsets with the term. The
+  offsets used by the backend are computed using the free names that
+  Simplify reports (`Flambda2.finalize_offsets`). A projection of a slot
+  whose offset says that it is dead becomes invalid code in the backend
+  (`to_cmm/to_cmm_primitive.ml`); the model has no such offset table. A
+  verdict does not establish that the reported names and offsets agree
+  with the term, so that kind of error in the term after's compilation
+  is not checked. This is a limit read from the code, not an exhibited
+  wrong result of Simplify.
+  *The kind of the variable of a `Let`*: `convert_bound_var` uses
+  `Variable.kind`, and the machine tests the value bound against that
+  kind. The conversion does not compare it with the kind of the defining
+  expression. The reader of a text computes it from that expression
+  (`parser/fexpr_to_flambda.ml`); the backend translates the expression,
+  rather than testing the bound variable's kind. If those kinds disagree
+  in a term in memory whose defining expression the program can execute,
+  the model's run can be undefined where the program's is defined. No
+  such compiler-produced term is exhibited here. The conversion and the
+  validation do not establish that the two kinds agree.
+  *Facts stored with the term and its names*: the conversion does not
+  read cached occurrence counts of bound variables and continuations,
+  the mark that a continuation is applied with a trap action, the marks
+  saying whether code uses its closure, or the mark that a value slot is
+  always an immediate. The backend uses these for the placing of
+  expressions and handlers, the closure argument of a call and the
+  parameters of code, and the representation and scanning of closure
+  fields (`to_cmm/to_cmm_expr.ml`, `to_cmm/to_cmm_set_of_closures.ml`).
+  A validation does not check that the facts agree with the term and its
+  values. No term with such an incorrect fact is exhibited here; their
+  being copied or computed by the compiler is not a proof of that
+  agreement supplied by the validation.
 - **Calls that never return**, in the same file (`convert_apply`). A
   call whose result continuation is `Never_returns`, whatever its call
   kind among those that the conversion takes (a method call, a C call
@@ -845,6 +985,49 @@ it gave back.
     that is no alias and `v1` for its canonical element by
     `Typing_env.find` and `get_canonical_simple_exn` on the
     environment answered.
+  - what is seen, as text (`print_seen`,
+    `without_the_names_above`): that where the first text comes to
+    two variables numbered above the threshold inside one set, it
+    has them in the order of the texts of their types with every
+    such variable written alike, and in the order of their numbers
+    where those texts are the same; that a set which the two sides
+    then write differently is reported as a difference;
+  - the comparisons (`run` of `type_comparisons.ml`): that an
+    input on which a comparison disagrees is shrunk only where it
+    is shown (one of each recorded entry, and the first three of
+    the others); the counts are of the inputs as generated;
+  - the steps (`run_joined_steps`): that a join is given every
+    use, also one whose environment is bottom; that a use is said
+    to be bottom by `is_bottom` of the model's environment at its
+    end, and that nothing which is run depends on the answer;
+  - what the side of the model tells (`events_of_joins`,
+    `sides_of_joins`): that the variables said to be made by a
+    meet or by a join of the model are those that the environment
+    after it has and the environments before it have not
+    (`variables_of_env`); that a variable is said to be made twice
+    where two such tellings of one run have it (`run_after_meets`);
+  - the variable for each use (`a_variable_for_each_use`): that
+    the model's first environment, and its environment after each
+    `Further_scope`, are given a variable of kind value, for types
+    only, numbered 1000, 2000 and so on, which no type mentions and
+    the compiler's environments have not; that the comparisons run
+    with it ask that no variable is made twice;
+  - the generator (`generate_joined_steps ~meets_of_cases`): that
+    the variants which it adds mention only the values 7 to 12,
+    that no step gives one of those a type, and that without the
+    argument the programs are those of the tenth series;
+  - the outcomes (`outcome_with_a_variable_for_each_use`,
+    `outcome_without_a_variable_for_each_use`,
+    `the_check_of_the_compiler_passes`): that a run without a
+    variable for each use is recorded under T7-11 only where the
+    two do not see the same or only one of the two answers, a
+    variable is made twice in it, and the run of the same program
+    with a variable for each use agrees; that a run in which
+    neither answers is counted as not run; that the compiler's
+    check is the flag
+    `Oxcaml_flags.Flambda2.Debug.concrete_types_only_on_canonicals`,
+    set for that comparison and put back, and that any stop of the
+    compiler under it is a disagreement.
 
 Not trusted, though it is OCaml: what the tool proposes to
 `validate_unit` and to `validate_unit_knowing`. Each proposal is

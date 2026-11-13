@@ -207,6 +207,13 @@ says so. Only the labels that this tree cites are listed.
 - **C2-14.** The printer of fexpr writes the name of a poison constant
   without quotes and the parser reads a string there, so the compiler's
   own fexpr text of a term with poison is not read back.
+- **C2-17.** The handler of a probe is called only while the probe is
+  enabled, which a mark on the call says and the text of a term does
+  not; the model has no probe.
+- **C2-19.** Simplify, with `-g` and phantom lets on, keeps a `Let` whose
+  variable is unused as a phantom binding where it would delete it;
+  `to_cmm` runs nothing for such a `Let`, and the text of a term does
+  not say the mode.
 - **C3-1.** Simplify answers a projection that names the wrong function
   slot on one of its two paths and makes it `Invalid` on the other; the
   slot named is not checked where the term is built.
@@ -435,6 +442,15 @@ says so. Only the labels that this tree cites are listed.
 - **T2-8.** `Typing_env.replace_equation` gives a variable a type of any
   kind; only its callers in `Meet_env` keep the kind that the variable
   was defined with.
+- **T2-9.** `Typing_env.add_alias` changes the aliases only; that the
+  name demoted then has an alias type is left to its two callers in
+  `Meet_env`, and the n-way join does not see an alias that has no such
+  equation.
+- **T2-10.** Simplify keeps `x lxor 0`, `x + 0` and `x * 1` where the
+  type of `x` is a set of two or more constants, and rewrites them to
+  `x` where nothing is known of `x`; so `-O2` and `-O3`, which give a
+  parameter such a type where two branches meet, leave arithmetic that
+  the default flags remove.
 - **T3-1.** Ordering two variables of the unit being compiled that have
   one binding time is a fatal error in the compiler's resolver; the
   model's resolver is total, and the typing environment's invariant asks
@@ -587,12 +603,13 @@ says so. Only the labels that this tree cites are listed.
   again in the order of `Name.Map`. The model adds them in the order in
   which they were made. The type answered and the canonical elements are
   the same.
-- **T7-11.** The model's join of environments takes for one two
-  variables that sibling joins made: it makes a variable one greater
-  than the names that it is told to avoid, and two environments built
-  apart may each have been given the same one. The compiler's variables
-  are distinct on every path. A hole in the contract of the model's
-  join, not a difference with the compiler.
+- **T7-11.** The model takes for one two variables that sibling joins or
+  meets made: a join makes a variable one greater than the names that it
+  is told to avoid, a meet one greater than those that its environment
+  knows, and two environments built apart may each have been given the
+  same one. The compiler's variables are distinct on every path. A hole
+  in the contract of the model's meet and join, not a difference with
+  the compiler.
 - **T7-12.** The type "any value" has two forms: `any_value`
   (`Unknown`), and the head whose part that is not null is unknown and
   which may be null, with no variable for whether it is, which
@@ -649,3 +666,11 @@ says so. Only the labels that this tree cites are listed.
 - **X5-10.** Simplify shares a lifted block with an equal static
   constant only when the debugging information of their fields is
   equal too; the text of terms has none.
+- **X5-11.** The reader of the text of terms gives every parameter of
+  code the mode heap; Simplify, run on a term read from text, then
+  proves a `local_` parameter a block of the heap and returns the block
+  of the stack where the compiler copies it to the heap.
+- **X5-12.** The text of a term gives no arity for a call of unknown
+  arity, and the reader gives its result one value; where the result
+  is an unboxed pair or an unboxed number, Simplify stops with a fatal
+  error on the term read.
