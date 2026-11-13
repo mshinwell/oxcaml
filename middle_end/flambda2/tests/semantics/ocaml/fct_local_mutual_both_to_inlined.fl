@@ -1,0 +1,130 @@
+let $camlFct_local_mutual_both_to_inlined__first_const_0 = Block 0 () in
+(let code inline(always) size(6)
+       apply_0 (f/136 : val, x/137)
+         my_closure/138 &my_alloc_region/139 my_depth/140
+         -> k/46 * k/47 =
+   let next_depth/141 = rec_info (succ my_depth/140) in
+   apply &my_alloc_region/139 f/136 (x/137) -> k/46 * k/47
+ in
+ let code rec size(30)
+       down_3 (k/142 : imm tagged)
+         my_closure/143 &my_alloc_region/144 my_depth/145
+         -> k/48 * k/49
+         : imm tagged =
+   let next_depth/146 = rec_info (succ my_depth/145) in
+   let n/147 = %project_value_slot.[down].[n] (my_closure/143) in
+   let S/148 = %project_value_slot.[down].[S] (my_closure/143) in
+   let up/149 = %project_function_slot.[down].[up] (my_closure/143) in
+   (let prim/153 = %phys_eq (k/142, 0) in
+    let eq/154 = %tag_imm (prim/153) in
+    (let untagged/155 = %untag_imm (eq/154) in
+     switch untagged/155
+       | 0 -> k/52
+       | 1 -> k/53)
+      where k/53 =
+        cont k/50
+      where k/52 =
+        cont k/51)
+     where k/51 =
+       let int_sub/152 = %int_barith.sub (k/142, 1) in
+       apply direct(up_4 &my_alloc_region/144)
+         (up/149 ~ depth my_depth/145 -> next_depth/146 : _ -> imm tagged)
+           (int_sub/152)
+           -> k/48 * k/49
+     where k/50 =
+       let Pfield/150 = %block_load.[`0`] (S/148) in
+       let int_add/151 = %int_barith.add (n/147, Pfield/150) in
+       cont k/48 (int_add/151)
+ and code rec size(25)
+       up_4 (k/156 : imm tagged)
+         my_closure/157 &my_alloc_region/158 my_depth/159
+         -> k/54 * k/55
+         : imm tagged =
+   let next_depth/160 = rec_info (succ my_depth/159) in
+   let n/161 = %project_value_slot.[up].[n] (my_closure/157) in
+   let S/162 = %project_value_slot.[up].[S] (my_closure/157) in
+   let down/163 = %project_function_slot.[up].[down] (my_closure/157) in
+   (let prim/165 = %phys_eq (k/156, 0) in
+    let eq/166 = %tag_imm (prim/165) in
+    (let untagged/167 = %untag_imm (eq/166) in
+     switch untagged/167
+       | 0 -> k/57
+       | 1 -> k/54 (n/161))
+      where k/57 =
+        cont k/56)
+     where k/56 =
+       let int_sub/164 = %int_barith.sub (k/156, 1) in
+       apply direct(down_3 &my_alloc_region/158)
+         (down/163 ~ depth my_depth/159 -> next_depth/160 : _ -> imm tagged)
+           (int_sub/164)
+           -> k/54 * k/55
+ in
+ let code size(80)
+       run_2 (n/168 : imm tagged)
+         my_closure/169 &my_alloc_region/170 my_depth/171
+         -> k/58 * k/59
+         : imm tagged =
+   let next_depth/172 = rec_info (succ my_depth/171) in
+   let apply/173 = %project_value_slot.[run].[`apply`] (my_closure/169) in
+   let S/174 = %project_value_slot.[run].[S_1] (my_closure/169) in
+   let down/175 = closure down_3 @down &my_alloc_region/170
+   and up/176 = closure up_4 @up &my_alloc_region/170
+   with { n = n/168; S = S/174 }
+   in
+   apply direct(apply_0 &my_alloc_region/170)
+     (apply/173 : _ -> imm tagged) (up/176, n/168) -> k/60 * k/59
+     where k/60 (apply_result/177 : imm tagged) =
+       (apply direct(apply_0 &my_alloc_region/170)
+          (apply/173 : _ -> imm tagged) (down/175, 2) -> k/61 * k/59
+          where k/61 (apply_result/178 : imm tagged) =
+            let int_add/179 =
+              %int_barith.add (apply_result/178, apply_result/177)
+            in
+            cont k/58 (int_add/179))
+ in
+ let code inline(never) loopify(never) size(97)
+       Make_1 (S/180 : val)
+         my_closure/181 &my_alloc_region/182 my_depth/183
+         -> k/62 * k/63
+         : val =
+   let next_depth/184 = rec_info (succ my_depth/183) in
+   let apply/185 = %project_value_slot.[Make].[apply_1] (my_closure/181) in
+   let run/186 = closure run_2 @run &my_alloc_region/182
+   with { `apply` = apply/185; S_1 = S/180 }
+   in
+   let Pmakeblock/187 = %block.[`0`].my_alloc_region/182 (run/186) in
+   cont k/62 (Pmakeblock/187)
+ in
+ let apply/188 = closure apply_0 @`apply` &toplevel in
+ let Make/189 = closure Make_1 @Make &toplevel
+ with { apply_1 = apply/188 }
+ in
+ (let by/194 = %opaque (2) in
+  let Pmakeblock/195 = %block.[`0`].`toplevel` (by/194) in
+  apply direct(Make_1 &toplevel)
+    (Make/189 : _ -> val) (Pmakeblock/195) -> k/64 * error)
+   where k/64 (M/190 : val) =
+     ((let Pfield/193 = %block_load.[`0`] (M/190) in
+       apply &toplevel Pfield/193 (3) -> k/65 * error)
+        where k/65 (result/191 : imm tagged) =
+          let Pmakeblock/192 =
+            %block.[`0`].`toplevel` (apply/188, Make/189, M/190, result/191)
+          in
+          cont k/45 (Pmakeblock/192)))
+  where k/45 define_root_symbol (module_block/131) =
+    let field_0/132 =
+      %block_load.tag[`0`].`size`[`4`].[`0`] (module_block/131)
+    in
+    let field_1/133 =
+      %block_load.tag[`0`].`size`[`4`].[`1`] (module_block/131)
+    in
+    let field_2/134 =
+      %block_load.tag[`0`].`size`[`4`].[`2`] (module_block/131)
+    in
+    let field_3/135 =
+      %block_load.tag[`0`].`size`[`4`].[`3`] (module_block/131)
+    in
+    let $camlFct_local_mutual_both_to_inlined =
+      Block 0 (field_0/132, field_1/133, field_2/134, field_3/135)
+    in
+    cont done ($camlFct_local_mutual_both_to_inlined)

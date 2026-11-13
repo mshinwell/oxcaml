@@ -1,0 +1,51 @@
+let $camlRec_helper_called_outside__first_const_0 = Block 0 () in
+(let code size(6)
+       second_1 (x/55 : imm tagged)
+         my_closure/56 &my_alloc_region/57 my_depth/58
+         -> k/18 * k/19
+         : imm tagged =
+   let next_depth/59 = rec_info (succ my_depth/58) in
+   let first/60 = %project_function_slot.[second].[first] (my_closure/56) in
+   let int_mul/61 = %int_barith.mul (x/55, 3) in
+   cont k/18 (int_mul/61)
+ in
+ let code size(7)
+       first_0 (x/62 : imm tagged)
+         my_closure/63 &my_alloc_region/64 my_depth/65
+         -> k/20 * k/21
+         : imm tagged =
+   let next_depth/66 = rec_info (succ my_depth/65) in
+   let second/67 = %project_function_slot.[first].[second] (my_closure/63) in
+   let int_add/68 = %int_barith.add (x/62, 1) in
+   apply direct(second_1 &my_alloc_region/64)
+     (second/67 ~ depth my_depth/65 -> next_depth/66 : _ -> imm tagged)
+       (int_add/68)
+       -> k/20 * k/21
+ in
+ let first/69 = closure first_0 @first &toplevel
+ and second/70 = closure second_1 @second &toplevel
+ in
+ apply direct(second_1 &toplevel)
+   (second/70 : _ -> imm tagged) (1) -> k/22 * error
+   where k/22 (apply_result/71 : imm tagged) =
+     ((let Popaque/75 = %opaque (2) in
+       apply direct(first_0 &toplevel)
+         (first/69 : _ -> imm tagged) (Popaque/75) -> k/23 * error)
+        where k/23 (apply_result/72 : imm tagged) =
+          let result/73 = %int_barith.add (apply_result/72, apply_result/71)
+          in
+          let Pmakeblock/74 =
+            %block.[`0`].`toplevel` (first/69, second/70, result/73)
+          in
+          cont k/17 (Pmakeblock/74)))
+  where k/17 define_root_symbol (module_block/51) =
+    let field_0/52 = %block_load.tag[`0`].`size`[`3`].[`0`] (module_block/51)
+    in
+    let field_1/53 = %block_load.tag[`0`].`size`[`3`].[`1`] (module_block/51)
+    in
+    let field_2/54 = %block_load.tag[`0`].`size`[`3`].[`2`] (module_block/51)
+    in
+    let $camlRec_helper_called_outside =
+      Block 0 (field_0/52, field_1/53, field_2/54)
+    in
+    cont done ($camlRec_helper_called_outside)

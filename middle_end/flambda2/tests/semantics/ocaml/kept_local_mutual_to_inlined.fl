@@ -1,0 +1,104 @@
+let $camlKept_local_mutual_to_inlined__first_const_0 = Block 0 () in
+(let code inline(always) size(6)
+       apply_0 (f/103 : val, x/104)
+         my_closure/105 &my_alloc_region/106 my_depth/107
+         -> k/40 * k/41 =
+   let next_depth/108 = rec_info (succ my_depth/107) in
+   apply &my_alloc_region/106 f/103 (x/104) -> k/40 * k/41
+ in
+ let code rec size(24)
+       down_2 (k/109 : imm tagged)
+         my_closure/110 &my_alloc_region/111 my_depth/112
+         -> k/42 * k/43
+         : imm tagged =
+   let next_depth/113 = rec_info (succ my_depth/112) in
+   let n/114 = %project_value_slot.[down].[n] (my_closure/110) in
+   let up/115 = %project_function_slot.[down].[up] (my_closure/110) in
+   (let prim/117 = %phys_eq (k/109, 0) in
+    let eq/118 = %tag_imm (prim/117) in
+    (let untagged/119 = %untag_imm (eq/118) in
+     switch untagged/119
+       | 0 -> k/45
+       | 1 -> k/42 (n/114))
+      where k/45 =
+        cont k/44)
+     where k/44 =
+       let int_sub/116 = %int_barith.sub (k/109, 1) in
+       apply direct(up_3 &my_alloc_region/111)
+         (up/115 ~ depth my_depth/112 -> next_depth/113 : _ -> imm tagged)
+           (int_sub/116)
+           -> k/42 * k/43
+ and code rec size(28)
+       up_3 (k/120 : imm tagged)
+         my_closure/121 &my_alloc_region/122 my_depth/123
+         -> k/46 * k/47
+         : imm tagged =
+   let next_depth/124 = rec_info (succ my_depth/123) in
+   let n/125 = %project_value_slot.[up].[n] (my_closure/121) in
+   let down/126 = %project_function_slot.[up].[down] (my_closure/121) in
+   (let prim/129 = %phys_eq (k/120, 0) in
+    let eq/130 = %tag_imm (prim/129) in
+    (let untagged/131 = %untag_imm (eq/130) in
+     switch untagged/131
+       | 0 -> k/50
+       | 1 -> k/51)
+      where k/51 =
+        cont k/48
+      where k/50 =
+        cont k/49)
+     where k/49 =
+       let int_sub/128 = %int_barith.sub (k/120, 1) in
+       apply direct(down_2 &my_alloc_region/122)
+         (down/126 ~ depth my_depth/123 -> next_depth/124 : _ -> imm tagged)
+           (int_sub/128)
+           -> k/46 * k/47
+     where k/48 =
+       let int_add/127 = %int_barith.add (n/125, 1) in
+       cont k/46 (int_add/127)
+ in
+ let code inline(never) size(75)
+       run_1 (n/132 : imm tagged)
+         my_closure/133 &my_alloc_region/134 my_depth/135
+         -> k/52 * k/53
+         : imm tagged =
+   let next_depth/136 = rec_info (succ my_depth/135) in
+   let apply/137 = %project_value_slot.[run].[`apply`] (my_closure/133) in
+   let down/138 = closure down_2 @down &my_alloc_region/134
+   and up/139 = closure up_3 @up &my_alloc_region/134
+   with { n = n/132 }
+   in
+   apply direct(apply_0 &my_alloc_region/134)
+     (apply/137 : _ -> imm tagged) (up/139, n/132) -> k/54 * k/53
+     where k/54 (apply_result/140 : imm tagged) =
+       (apply direct(apply_0 &my_alloc_region/134)
+          (apply/137 : _ -> imm tagged) (down/138, 3) -> k/55 * k/53
+          where k/55 (apply_result/141 : imm tagged) =
+            let int_add/142 =
+              %int_barith.add (apply_result/141, apply_result/140)
+            in
+            cont k/52 (int_add/142))
+ in
+ let apply/143 = closure apply_0 @`apply` &toplevel in
+ let run/144 = closure run_1 @run &toplevel with { `apply` = apply/143 } in
+ (let Popaque/147 = %opaque (4) in
+  apply direct(run_1 &toplevel)
+    (run/144 : _ -> imm tagged) (Popaque/147) -> k/56 * error)
+   where k/56 (result/145 : imm tagged) =
+     let Pmakeblock/146 =
+       %block.[`0`].`toplevel` (apply/143, run/144, result/145)
+     in
+     cont k/39 (Pmakeblock/146))
+  where k/39 define_root_symbol (module_block/99) =
+    let field_0/100 =
+      %block_load.tag[`0`].`size`[`3`].[`0`] (module_block/99)
+    in
+    let field_1/101 =
+      %block_load.tag[`0`].`size`[`3`].[`1`] (module_block/99)
+    in
+    let field_2/102 =
+      %block_load.tag[`0`].`size`[`3`].[`2`] (module_block/99)
+    in
+    let $camlKept_local_mutual_to_inlined =
+      Block 0 (field_0/100, field_1/101, field_2/102)
+    in
+    cont done ($camlKept_local_mutual_to_inlined)
