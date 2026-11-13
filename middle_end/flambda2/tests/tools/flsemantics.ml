@@ -4103,7 +4103,7 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
         let lifted =
           Validate.tidied_before rounds
             (Validate.with_returns taken
-               (Validate.demote_and_tidy rounds lifted))
+               (Validate.lifted_in_turn rounds avoid [] kept lifted))
         in
         let slots = unused_slots_guess lifted normalised_after in
         let lifted = Validate.without_slots slots lifted in
