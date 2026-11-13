@@ -1,0 +1,96 @@
+(let code size(6)
+       `fn[v_of_closures.ml:5,23--39]_1` (n/80 : imm tagged)
+         my_closure/81 &my_alloc_region/82 my_depth/83
+         -> k/38 * k/39
+         : imm tagged =
+   let next_depth/84 = rec_info (succ my_depth/83) in
+   let k/85 =
+     %project_value_slot.[`fn[v_of_closures.ml:5,23--39]`].[k]
+       (my_closure/81)
+   in
+   let int_mul/86 = %int_barith.mul (n/80, k/85) in
+   cont k/38 (int_mul/86)
+ in
+ let code size(4)
+       `fn[v_of_closures.ml:5,5--21]_2` (n/87 : imm tagged)
+         my_closure/88 &my_alloc_region/89 my_depth/90
+         -> k/40 * k/41
+         : imm tagged =
+   let next_depth/91 = rec_info (succ my_depth/90) in
+   let k/92 =
+     %project_value_slot.[`fn[v_of_closures.ml:5,5--21]`].[k_1]
+       (my_closure/88)
+   in
+   let int_add/93 = %int_barith.add (n/87, k/92) in
+   cont k/40 (int_add/93)
+ in
+ let code inline(never) size(34)
+       ops_0 (k/94 : imm tagged)
+         my_closure/95 &my_alloc_region/96 my_depth/97
+         -> k/42 * k/43
+         : val array =
+   let next_depth/98 = rec_info (succ my_depth/97) in
+   let `fn[v_of_closures.ml:5,23--39]/99` =
+     closure `fn[v_of_closures.ml:5,23--39]_1`
+       @`fn[v_of_closures.ml:5,23--39]` &my_alloc_region/96
+   with { k = k/94 }
+   in
+   let `fn[v_of_closures.ml:5,5--21]/100` =
+     closure `fn[v_of_closures.ml:5,5--21]_2` @`fn[v_of_closures.ml:5,5--21]`
+       &my_alloc_region/96
+   with { k_1 = k/94 }
+   in
+   let Pmakearray/101 =
+     %array.my_alloc_region/96
+       (`fn[v_of_closures.ml:5,5--21]/100`,
+        `fn[v_of_closures.ml:5,23--39]/99`)
+   in
+   cont k/42 (Pmakearray/101)
+ in
+ let $camlV_of_closures__string_0 = "index out of bounds" in
+ let $camlV_of_closures__block_1 =
+   Block 0 ($`*predef*`.caml_exn_Invalid_argument,
+            $camlV_of_closures__string_0)
+ in
+ let ops/102 = closure ops_0 @ops &toplevel in
+ apply direct(ops_0 &toplevel) (ops/102 : _ -> val array) (3) -> k/50 * error
+   where k/50 (apply_result/111 : val array) =
+     ((let prim/113 = %array_length (apply_result/111) in
+       let prim/114 = %int_comp.unsigned.lt (0, prim/113) in
+       switch prim/114
+         | 0 -> k/52
+         | 1 -> k/53)
+        where k/53 =
+          cont k/51
+        where k/52 =
+          cont error pop(regular error) ($camlV_of_closures__block_1)
+        where k/51 =
+          let Parrayrefs/112 = %array_load (apply_result/111, 0) in
+          apply &toplevel Parrayrefs/112 (5) -> k/44 * error)
+   where k/44 (add/103 : imm tagged) =
+     ((let Popaque/110 = %opaque (3) in
+       apply direct(ops_0 &toplevel)
+         (ops/102 : _ -> val array) (Popaque/110) -> k/46 * error)
+        where k/46 (apply_result/106 : val array) =
+          ((let prim/108 = %array_length (apply_result/106) in
+            let prim/109 = %int_comp.unsigned.lt (1, prim/108) in
+            switch prim/109
+              | 0 -> k/48
+              | 1 -> k/49)
+             where k/49 =
+               cont k/47
+             where k/48 =
+               cont error pop(regular error) ($camlV_of_closures__block_1)
+             where k/47 =
+               let Parrayrefs/107 = %array_load (apply_result/106, 1) in
+               apply &toplevel Parrayrefs/107 (5) -> k/45 * error)
+        where k/45 (mul/104 : imm tagged) =
+          let Pmakeblock/105 = %block.[`0`].`toplevel` (add/103, mul/104) in
+          cont k/37 (Pmakeblock/105)))
+  where k/37 define_root_symbol (module_block/77) =
+    let field_0/78 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/77)
+    in
+    let field_1/79 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/77)
+    in
+    let $camlV_of_closures = Block 0 (field_0/78, field_1/79) in
+    cont done ($camlV_of_closures)

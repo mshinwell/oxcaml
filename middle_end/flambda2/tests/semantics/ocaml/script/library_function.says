@@ -1,0 +1,7 @@
+library_function.ml: the term that the compiler gives to Simplify names a
+symbol of another unit, or of the runtime:
+  $Stdlib__List
+The units kept here need nothing but themselves: a unit that
+uses a function or a value that the standard library defines, or
+a function of the runtime, is not one of them.
+refused

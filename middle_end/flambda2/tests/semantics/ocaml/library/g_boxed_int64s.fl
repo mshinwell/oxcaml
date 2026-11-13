@@ -1,0 +1,52 @@
+(let $camlG_boxed_int64s__int64_0 = 7L in
+ let code inline(never) size(8)
+       make_0 (x/46 : int64 boxed)
+         my_closure/47 &my_alloc_region/48 my_depth/49
+         -> k/20 * k/21
+         : val array =
+   let next_depth/50 = rec_info (succ my_depth/49) in
+   let Pmakearray/51 =
+     %array.my_alloc_region/48 (x/46, $camlG_boxed_int64s__int64_0)
+   in
+   cont k/20 (Pmakearray/51)
+ in
+ let $camlG_boxed_int64s__string_2 = "index out of bounds" in
+ let $camlG_boxed_int64s__block_3 =
+   Block 0 ($`*predef*`.caml_exn_Invalid_argument,
+            $camlG_boxed_int64s__string_2)
+ in
+ let $camlG_boxed_int64s__int64_1 = 3L in
+ let make/52 = closure make_0 @make &toplevel in
+ let Popaque/53 = %opaque (0) in
+ apply direct(make_0 &toplevel)
+   (make/52 : _ -> val array) ($camlG_boxed_int64s__int64_1) -> k/22 * error
+   where k/22 (apply_result/54 : val array) =
+     ((let prim/62 = %array_length (apply_result/54) in
+       let prim/63 = %int_comp.unsigned.lt (Popaque/53, prim/62) in
+       switch prim/63
+         | 0 -> k/25
+         | 1 -> k/26)
+        where k/26 =
+          cont k/23
+        where k/25 =
+          cont error pop(regular error) ($camlG_boxed_int64s__block_3)
+        where k/23 =
+          let Parrayrefs/55 = %array_load (apply_result/54, Popaque/53) in
+          let prim/56 = %unbox_num.`int64` (Parrayrefs/55) in
+          let prim/57 = %num_conv.[`int64`].[`imm`] (prim/56) in
+          let v/58 = %tag_imm (prim/57) in
+          (apply direct(make_0 &toplevel)
+             (make/52 : _ -> val array)
+               ($camlG_boxed_int64s__int64_1)
+               -> k/24 * error
+             where k/24 (apply_result/59 : val array) =
+               let n/60 = %array_length (apply_result/59) in
+               let Pmakeblock/61 = %block.[`0`].`toplevel` (v/58, n/60) in
+               cont k/19 (Pmakeblock/61))))
+  where k/19 define_root_symbol (module_block/43) =
+    let field_0/44 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/43)
+    in
+    let field_1/45 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/43)
+    in
+    let $camlG_boxed_int64s = Block 0 (field_0/44, field_1/45) in
+    cont done ($camlG_boxed_int64s)

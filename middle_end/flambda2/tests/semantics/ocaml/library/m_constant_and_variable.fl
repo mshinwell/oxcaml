@@ -1,0 +1,73 @@
+(let code inline(never) size(9)
+       make_0 (x/51 : imm tagged)
+         my_closure/52 &my_alloc_region/53 my_depth/54
+         -> k/32 * k/33
+         : imm array =
+   let next_depth/55 = rec_info (succ my_depth/54) in
+   let Pmakearray/56 = %array.`imm`.my_alloc_region/53 (1, x/51, 3) in
+   cont k/32 (Pmakearray/56)
+ in
+ let $camlM_constant_and_variable__string_0 = "index out of bounds" in
+ let $camlM_constant_and_variable__block_1 =
+   Block 0 ($`*predef*`.caml_exn_Invalid_argument,
+            $camlM_constant_and_variable__string_0)
+ in
+ let make/57 = closure make_0 @make &toplevel in
+ (let Popaque/72 = %opaque (20) in
+  apply direct(make_0 &toplevel)
+    (make/57 : _ -> imm array) (Popaque/72) -> k/35 * error)
+   where k/35 (a/60 : imm array) =
+     ((let prim/70 = %array_length.`imm` (a/60) in
+       let prim/71 = %int_comp.unsigned.lt (2, prim/70) in
+       switch prim/71
+         | 0 -> k/43
+         | 1 -> k/44)
+        where k/44 =
+          cont k/36
+        where k/43 =
+          cont error
+                 pop(regular error)
+                 ($camlM_constant_and_variable__block_1)
+        where k/36 =
+          let Parrayrefs/61 = %array_load.`imm` (a/60, 2) in
+          ((let prim/68 = %array_length.`imm` (a/60) in
+            let prim/69 = %int_comp.unsigned.lt (1, prim/68) in
+            switch prim/69
+              | 0 -> k/41
+              | 1 -> k/42)
+             where k/42 =
+               cont k/37
+             where k/41 =
+               cont error
+                      pop(regular error)
+                      ($camlM_constant_and_variable__block_1)
+             where k/37 =
+               let Parrayrefs/62 = %array_load.`imm` (a/60, 1) in
+               ((let prim/66 = %array_length.`imm` (a/60) in
+                 let prim/67 = %int_comp.unsigned.lt (0, prim/66) in
+                 switch prim/67
+                   | 0 -> k/39
+                   | 1 -> k/40)
+                  where k/40 =
+                    cont k/38
+                  where k/39 =
+                    cont error
+                           pop(regular error)
+                           ($camlM_constant_and_variable__block_1)
+                  where k/38 =
+                    let Parrayrefs/63 = %array_load.`imm` (a/60, 0) in
+                    let int_add/64 =
+                      %int_barith.add (Parrayrefs/63, Parrayrefs/62)
+                    in
+                    let int_add/65 =
+                      %int_barith.add (int_add/64, Parrayrefs/61)
+                    in
+                    cont k/34 (int_add/65))))
+   where k/34 (s/58 : imm tagged) =
+     let Pmakeblock/59 = %block.[`0`].`toplevel` (s/58) in
+     cont k/31 (Pmakeblock/59))
+  where k/31 define_root_symbol (module_block/49) =
+    let field_0/50 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/49)
+    in
+    let $camlM_constant_and_variable = Block 0 (field_0/50) in
+    cont done ($camlM_constant_and_variable)

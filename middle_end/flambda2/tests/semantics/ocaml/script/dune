@@ -3,7 +3,9 @@
 ;; reason that it prints, then "refused" (says.sh). Most units go by twos: one
 ;; that the script refuses, for something that the text of a term loses and
 ;; the tool cannot give back, and the same unit without it. `dune promote`
-;; updates X.says.
+;; updates X.says. The last two are given to the script with the directory
+;; of the standard library, as the units of ../library/ are: one that calls
+;; a function of the library, which is refused, and one that does not.
 
 (rule
  (with-stdout-to
@@ -102,3 +104,39 @@
  (alias runtest)
  (action
   (diff void_parameter.says void_parameter.says.out)))
+
+(rule
+ (enabled_if
+  (= %{context_name} "main"))
+ (deps
+  (glob_files %{ocaml_where}/*.cmi))
+ (action
+  (with-stdout-to
+   library_function.says.out
+   (run sh %{dep:says.sh} %{dep:../from_ocaml.sh} %{ocamlopt}
+    %{dep:library_function.ml} %{ocaml_where}))))
+
+(rule
+ (alias runtest)
+ (enabled_if
+  (= %{context_name} "main"))
+ (action
+  (diff library_function.says library_function.says.out)))
+
+(rule
+ (enabled_if
+  (= %{context_name} "main"))
+ (deps
+  (glob_files %{ocaml_where}/*.cmi))
+ (action
+  (with-stdout-to
+   library_function_not.says.out
+   (run sh %{dep:says.sh} %{dep:../from_ocaml.sh} %{ocamlopt}
+    %{dep:library_function_not.ml} %{ocaml_where}))))
+
+(rule
+ (alias runtest)
+ (enabled_if
+  (= %{context_name} "main"))
+ (action
+  (diff library_function_not.says library_function_not.says.out)))

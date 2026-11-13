@@ -1,0 +1,50 @@
+(let code inline(never) size(8)
+       make_0 (x/44 : imm tagged, y/45 : imm tagged)
+         my_closure/46 &my_alloc_region/47 my_depth/48
+         -> k/24 * k/25
+         : imm array =
+   let next_depth/49 = rec_info (succ my_depth/48) in
+   let Pmakearray/50 = %array.`imm`.my_alloc_region/47 (x/44, y/45) in
+   cont k/24 (Pmakearray/50)
+ in
+ let $camlV_two_parameters__string_0 = "index out of bounds" in
+ let $camlV_two_parameters__block_1 =
+   Block 0 ($`*predef*`.caml_exn_Invalid_argument,
+            $camlV_two_parameters__string_0)
+ in
+ let make/51 = closure make_0 @make &toplevel in
+ (let Popaque/60 = %opaque (4) in
+  apply direct(make_0 &toplevel)
+    (make/51 : _ -> imm array) (3, Popaque/60) -> k/26 * error)
+   where k/26 (a/52 : imm array) =
+     ((let prim/58 = %array_length.`imm` (a/52) in
+       let prim/59 = %int_comp.unsigned.lt (0, prim/58) in
+       switch prim/59
+         | 0 -> k/31
+         | 1 -> k/32)
+        where k/32 =
+          cont k/27
+        where k/31 =
+          cont error pop(regular error) ($camlV_two_parameters__block_1)
+        where k/27 =
+          let p/53 = %array_load.`imm` (a/52, 0) in
+          ((let prim/56 = %array_length.`imm` (a/52) in
+            let prim/57 = %int_comp.unsigned.lt (1, prim/56) in
+            switch prim/57
+              | 0 -> k/29
+              | 1 -> k/30)
+             where k/30 =
+               cont k/28
+             where k/29 =
+               cont error pop(regular error) ($camlV_two_parameters__block_1)
+             where k/28 =
+               let q/54 = %array_load.`imm` (a/52, 1) in
+               let Pmakeblock/55 = %block.[`0`].`toplevel` (p/53, q/54) in
+               cont k/23 (Pmakeblock/55))))
+  where k/23 define_root_symbol (module_block/41) =
+    let field_0/42 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/41)
+    in
+    let field_1/43 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/41)
+    in
+    let $camlV_two_parameters = Block 0 (field_0/42, field_1/43) in
+    cont done ($camlV_two_parameters)

@@ -1,0 +1,32 @@
+nativeint_identities.fl:
+  before Simplify (184 steps): returns
+                                 [0: (boxed #-9223372036854775808:nativeint);
+                                  (boxed #-9223372036854775808:nativeint);
+                                  (boxed #-9223372036854775808:nativeint);
+                                  (boxed #0:nativeint); (boxed #0:nativeint);
+                                  (boxed #0:nativeint); (boxed #0:nativeint);
+                                  (boxed #0:nativeint); (boxed #0:nativeint);
+                                  (boxed #-9223372036854775808:nativeint);
+                                  (boxed #-9223372036854775808:nativeint);
+                                  (boxed #-9223372036854775808:nativeint);
+                                  (boxed #-9223372036854775808:nativeint);
+                                  (boxed #-9223372036854775808:nativeint);
+                                  (boxed #-9223372036854775808:nativeint)]
+  after Simplify (51 steps): returns
+                               [0: (boxed #-9223372036854775808:nativeint);
+                                (boxed #-9223372036854775808:nativeint);
+                                (boxed #-9223372036854775808:nativeint);
+                                (boxed #0:nativeint); (boxed #0:nativeint);
+                                (boxed #0:nativeint); (boxed #0:nativeint);
+                                (boxed #0:nativeint); (boxed #0:nativeint);
+                                (boxed #-9223372036854775808:nativeint);
+                                (boxed #-9223372036854775808:nativeint);
+                                (boxed #-9223372036854775808:nativeint);
+                                (boxed #-9223372036854775808:nativeint);
+                                (boxed #-9223372036854775808:nativeint);
+                                (boxed #-9223372036854775808:nativeint)]
+  the check of kinds: passes before, passes after
+  calls outside code: 21 before, 0 after
+  the same
+  calls outside code once those of known code are inlined: 0
+  validated: the same once closures and blocks are lifted to symbols and the terms normalised

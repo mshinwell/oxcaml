@@ -1,0 +1,73 @@
+(let $camlR_out_of_bounds_caught__string_0 = "index out of bounds" in
+ let $camlR_out_of_bounds_caught__block_1 =
+   Block 0 ($`*predef*`.caml_exn_Invalid_argument,
+            $camlR_out_of_bounds_caught__string_0)
+ in
+ let code inline(never) size(31)
+       read_0 (a/70 : imm array, i/71 : imm tagged)
+         my_closure/72 &my_alloc_region/73 my_depth/74
+         -> k/34 * k/35
+         : imm tagged =
+   let next_depth/75 = rec_info (succ my_depth/74) in
+   let try_region/76 = %begin_try_region () in
+   let try_ghost_region/77 = %begin_try_ghost_region () in
+   cont k/38 push(k/36)
+     where k/38 =
+       ((let prim/83 = %array_length.`imm` (a/70) in
+         let prim/84 = %int_comp.unsigned.lt (i/71, prim/83) in
+         switch prim/84
+           | 0 -> k/40
+           | 1 -> k/41)
+          where k/41 =
+            cont k/39
+          where k/40 =
+            cont k/36
+                   pop(regular k/36)
+                   ($camlR_out_of_bounds_caught__block_1)
+          where k/39 =
+            let Parrayrefs/82 = %array_load.`imm` (a/70, i/71) in
+            cont k/37 (Parrayrefs/82))
+     where k/37 (body_result/81 : imm tagged) =
+       cont k/34 pop(k/36) (body_result/81)
+     where k/36 exn (exn/78 : val) =
+       let unit/79 = %end_try_region (try_region/76) in
+       let unit/80 = %end_try_ghost_region (try_ghost_region/77) in
+       cont k/34 (-1)
+ in
+ let code inline(never) size(10)
+       make_1 (x/85 : imm tagged)
+         my_closure/86 &my_alloc_region/87 my_depth/88
+         -> k/42 * k/43
+         : imm array =
+   let next_depth/89 = rec_info (succ my_depth/88) in
+   let int_add/90 = %int_barith.add (x/85, 1) in
+   let Pmakearray/91 = %array.`imm`.my_alloc_region/87 (x/85, int_add/90) in
+   cont k/42 (Pmakearray/91)
+ in
+ let read/92 = closure read_0 @read &toplevel in
+ let make/93 = closure make_1 @make &toplevel in
+ apply direct(make_1 &toplevel)
+   (make/93 : _ -> imm array) (5) -> k/47 * error
+   where k/47 (apply_result/99 : imm array) =
+     apply direct(read_0 &toplevel)
+       (read/92 : _ -> imm tagged) (apply_result/99, 1) -> k/44 * error
+   where k/44 (inside/94 : imm tagged) =
+     ((let Popaque/97 = %opaque (2) in
+       apply direct(make_1 &toplevel)
+         (make/93 : _ -> imm array) (5) -> k/46 * error
+         where k/46 (apply_result/98 : imm array) =
+           apply direct(read_0 &toplevel)
+             (read/92 : _ -> imm tagged)
+               (apply_result/98, Popaque/97)
+               -> k/45 * error)
+        where k/45 (outside/95 : imm tagged) =
+          let Pmakeblock/96 = %block.[`0`].`toplevel` (inside/94, outside/95)
+          in
+          cont k/33 (Pmakeblock/96)))
+  where k/33 define_root_symbol (module_block/67) =
+    let field_0/68 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/67)
+    in
+    let field_1/69 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/67)
+    in
+    let $camlR_out_of_bounds_caught = Block 0 (field_0/68, field_1/69) in
+    cont done ($camlR_out_of_bounds_caught)

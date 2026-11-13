@@ -1,0 +1,9 @@
+nativeint_laws_more.fl:
+  before Simplify (302 steps): returns
+                                 [0: 0; 0; 0; 1; 1; 1; 0; 0; 0; 0; 0; 0]
+  after Simplify (63 steps): returns [0: 0; 0; 0; 1; 1; 1; 0; 0; 0; 0; 0; 0]
+  the check of kinds: passes before, passes after
+  calls outside code: 20 before, 0 after
+  the same
+  calls outside code once those of known code are inlined: 0
+  validated: the same once normalised and unused static bindings removed

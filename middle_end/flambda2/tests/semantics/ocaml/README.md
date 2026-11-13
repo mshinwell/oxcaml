@@ -35,7 +35,13 @@ compare the term made with `X.fl` and what the tool prints with
 - `-nopervasives -nostdlib`: the unit refers to no other unit, so each
   source declares the primitives it uses (`external ( + ) : int -> int ->
   int = "%addint"`). This changes nothing in what the front end makes of
-  an expression.
+  an expression. The sources of `library/` are written against the
+  standard library instead: given the directory of the library as a
+  fourth argument, `from_ocaml.sh` compiles a unit with it and refuses
+  the unit if its term names a symbol of another unit, so that the
+  terms kept there need nothing but themselves either
+  (`library/README.md`). The counts and the tables below are of this
+  directory and not of that one.
 - `X.mli` exports `result` only, in most units. A function that the
   unit exports is a field of the module block, and Simplify makes its
   closure a symbol; the units named `..._exported.ml` are about
@@ -58,12 +64,13 @@ compare the term made with `X.fl` and what the tool prints with
   application or an over-application may be read as a full one
   (labels C2-5 and C2-30). `script/` has a unit for each of these
   refusals and, for most, the same unit without the reason for it,
-  with what the script says of each.
+  with what the script says of each; and two more for the refusal
+  that is of `library/` only.
 - The sources are formatted by `ocamlformat`, as `make fmt` wants, but
   for those that it does not read, which `.ocamlformat-ignore` names:
-  the sources, here and in `script/`, that have an unboxed tuple, an
-  unboxed number, a parameter marked `local_` or the literal of an
-  immutable array.
+  the sources, here, in `script/` and in `library/`, that have an
+  unboxed tuple, an unboxed number, a parameter marked `local_` or
+  the literal of an immutable array.
 
 ## What the conversion does to a unit
 

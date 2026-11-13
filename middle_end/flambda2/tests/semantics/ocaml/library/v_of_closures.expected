@@ -1,0 +1,8 @@
+v_of_closures.fl:
+  before Simplify, with its import (53 steps): returns [0: 8; 15]
+  after Simplify, with its import (45 steps): returns [0: 8; 15]
+  the check of kinds: passes before, passes after
+  calls outside code: 4 before, 4 after
+  the same
+  calls outside code once those of known code are inlined: 2
+  validated with its imports: the same once closures and blocks are lifted to symbols and the terms normalised

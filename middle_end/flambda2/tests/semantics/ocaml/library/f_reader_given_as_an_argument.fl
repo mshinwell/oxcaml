@@ -1,0 +1,81 @@
+(let code inline(never) size(18)
+       apply_0 (f/80 : val, x/81 : imm tagged)
+         my_closure/82 &my_alloc_region/83 my_depth/84
+         -> k/30 * k/31
+         : imm tagged =
+   let next_depth/85 = rec_info (succ my_depth/84) in
+   let int_add/86 = %int_barith.add (x/81, 2) in
+   let int_add/87 = %int_barith.add (x/81, 1) in
+   let Pmakearray/88 =
+     %array.`imm`.my_alloc_region/83 (x/81, int_add/87, int_add/86)
+   in
+   apply &my_alloc_region/83 f/80 (Pmakearray/88) -> k/30 * k/31
+ in
+ let $camlF_reader_given_as_an_argument__string_0 = "index out of bounds" in
+ let $camlF_reader_given_as_an_argument__block_1 =
+   Block 0 ($`*predef*`.caml_exn_Invalid_argument,
+            $camlF_reader_given_as_an_argument__string_0)
+ in
+ let code inline(never) size(20)
+       middle_1 (a/89 : imm array)
+         my_closure/90 &my_alloc_region/91 my_depth/92
+         -> k/32 * k/33
+         : imm tagged =
+   let next_depth/93 = rec_info (succ my_depth/92) in
+   (let prim/95 = %array_length.`imm` (a/89) in
+    let prim/96 = %int_comp.unsigned.lt (1, prim/95) in
+    switch prim/96
+      | 0 -> k/35
+      | 1 -> k/36)
+     where k/36 =
+       cont k/34
+     where k/35 =
+       cont k/33
+              pop(regular k/33)
+              ($camlF_reader_given_as_an_argument__block_1)
+     where k/34 =
+       let Parrayrefs/94 = %array_load.`imm` (a/89, 1) in
+       cont k/32 (Parrayrefs/94)
+ in
+ let code size(3)
+       `fn[f_reader_given_as_an_argument.ml:11,20--46]_2` (a/97 : imm array)
+         my_closure/98 &my_alloc_region/99 my_depth/100
+         -> k/37 * k/38
+         : imm tagged =
+   let next_depth/101 = rec_info (succ my_depth/100) in
+   let Parraylength/102 = %array_length.`imm` (a/97) in
+   cont k/37 (Parraylength/102)
+ in
+ let apply/103 = closure apply_0 @`apply` &toplevel in
+ let middle/104 = closure middle_1 @middle &toplevel in
+ apply direct(apply_0 &toplevel)
+   (apply/103 : _ -> imm tagged) (middle/104, 10) -> k/39 * error
+   where k/39 (p/105 : imm tagged) =
+     ((let region/108 = %begin_region () in
+       let ghost_region/109 = %begin_ghost_region () in
+       (let Popaque/113 = %opaque (10) in
+        let `fn[f_reader_given_as_an_argument.ml:11,20--46]/114` =
+          closure `fn[f_reader_given_as_an_argument.ml:11,20--46]_2`
+            @`fn[f_reader_given_as_an_argument.ml:11,20--46]` &toplevel
+            &region/108
+        in
+        apply direct(apply_0 &toplevel)
+          (apply/103 : _ -> imm tagged)
+            (`fn[f_reader_given_as_an_argument.ml:11,20--46]/114`,
+             Popaque/113)
+            -> k/41 * error)
+         where k/41 (region_return/110 : imm tagged) =
+           let unit/111 = %end_region (region/108) in
+           let unit/112 = %end_ghost_region (ghost_region/109) in
+           cont k/40 (region_return/110))
+        where k/40 (q/106 : imm tagged) =
+          let Pmakeblock/107 = %block.[`0`].`toplevel` (p/105, q/106) in
+          cont k/29 (Pmakeblock/107)))
+  where k/29 define_root_symbol (module_block/77) =
+    let field_0/78 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/77)
+    in
+    let field_1/79 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/77)
+    in
+    let $camlF_reader_given_as_an_argument = Block 0 (field_0/78, field_1/79)
+    in
+    cont done ($camlF_reader_given_as_an_argument)

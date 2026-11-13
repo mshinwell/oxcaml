@@ -1,0 +1,29 @@
+let $camlC_exported__first_const_0 = Block 0 () in
+(let code inline(never) size(13)
+       make_0 (x/36 : imm tagged)
+         my_closure/37 &my_alloc_region/38 my_depth/39
+         -> k/12 * k/13
+         : imm array =
+   let next_depth/40 = rec_info (succ my_depth/39) in
+   let int_add/41 = %int_barith.add (x/36, 2) in
+   let int_add/42 = %int_barith.add (x/36, 1) in
+   let Pmakearray/43 =
+     %array.`imm`.my_alloc_region/38 (x/36, int_add/42, int_add/41)
+   in
+   cont k/12 (Pmakearray/43)
+ in
+ let make/44 = closure make_0 @make &toplevel in
+ (let Popaque/48 = %opaque (4) in
+  apply direct(make_0 &toplevel)
+    (make/44 : _ -> imm array) (Popaque/48) -> k/14 * error)
+   where k/14 (table/45 : imm array) =
+     let n/46 = %array_length.`imm` (table/45) in
+     let Pmakeblock/47 = %block.[`0`].`toplevel` (table/45, n/46) in
+     cont k/11 (Pmakeblock/47))
+  where k/11 define_root_symbol (module_block/33) =
+    let field_0/34 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/33)
+    in
+    let field_1/35 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/33)
+    in
+    let $camlC_exported = Block 0 (field_0/34, field_1/35) in
+    cont done ($camlC_exported)

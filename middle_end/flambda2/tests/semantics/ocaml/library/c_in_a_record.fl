@@ -1,0 +1,71 @@
+(let code inline(never) size(17)
+       make_0 (id/71 : imm tagged, x/72 : imm tagged)
+         my_closure/73 &my_alloc_region/74 my_depth/75
+         -> k/30 * k/31
+         : [ 0 of imm tagged * imm array ] =
+   let next_depth/76 = rec_info (succ my_depth/75) in
+   let int_add/77 = %int_barith.add (x/72, 1) in
+   let Pmakearray/78 = %array.`imm`.my_alloc_region/74 (x/72, int_add/77) in
+   let Pmakeblock/79 = %block.[`0`].my_alloc_region/74 (id/71, Pmakearray/78)
+   in
+   cont k/30 (Pmakeblock/79)
+ in
+ let $camlC_in_a_record__string_0 = "index out of bounds" in
+ let $camlC_in_a_record__block_1 =
+   Block 0 ($`*predef*`.caml_exn_Invalid_argument,
+            $camlC_in_a_record__string_0)
+ in
+ let code inline(never) size(50)
+       weight_1 (s/80 : [ 0 of imm tagged * imm array ])
+         my_closure/81 &my_alloc_region/82 my_depth/83
+         -> k/32 * k/33
+         : imm tagged =
+   let next_depth/84 = rec_info (succ my_depth/83) in
+   let Pfield/85 = %block_load.[`1`] (s/80) in
+   (let prim/95 = %array_length.`imm` (Pfield/85) in
+    let prim/96 = %int_comp.unsigned.lt (1, prim/95) in
+    switch prim/96
+      | 0 -> k/38
+      | 1 -> k/39)
+     where k/39 =
+       cont k/34
+     where k/38 =
+       cont k/33 pop(regular k/33) ($camlC_in_a_record__block_1)
+     where k/34 =
+       let Parrayrefs/86 = %array_load.`imm` (Pfield/85, 1) in
+       let Pfield/87 = %block_load.[`1`] (s/80) in
+       ((let prim/93 = %array_length.`imm` (Pfield/87) in
+         let prim/94 = %int_comp.unsigned.lt (0, prim/93) in
+         switch prim/94
+           | 0 -> k/36
+           | 1 -> k/37)
+          where k/37 =
+            cont k/35
+          where k/36 =
+            cont k/33 pop(regular k/33) ($camlC_in_a_record__block_1)
+          where k/35 =
+            let Parrayrefs/88 = %array_load.`imm` (Pfield/87, 0) in
+            let Pfield/89 = %block_load.[`0`] (s/80) in
+            let int_mul/90 = %int_barith.mul (Pfield/89, 100) in
+            let int_add/91 = %int_barith.add (int_mul/90, Parrayrefs/88) in
+            let int_add/92 = %int_barith.add (int_add/91, Parrayrefs/86) in
+            cont k/32 (int_add/92))
+ in
+ let make/97 = closure make_0 @make &toplevel in
+ let weight/98 = closure weight_1 @weight &toplevel in
+ (let Popaque/102 = %opaque (5) in
+  apply direct(make_0 &toplevel)
+    (make/97 : _ -> [ 0 of imm tagged * imm array ])
+      (2, Popaque/102)
+      -> k/41 * error)
+   where k/41 (apply_result/101 : [ 0 of imm tagged * imm array ]) =
+     apply direct(weight_1 &toplevel)
+       (weight/98 : _ -> imm tagged) (apply_result/101) -> k/40 * error
+   where k/40 (w/99 : imm tagged) =
+     let Pmakeblock/100 = %block.[`0`].`toplevel` (w/99) in
+     cont k/29 (Pmakeblock/100))
+  where k/29 define_root_symbol (module_block/69) =
+    let field_0/70 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/69)
+    in
+    let $camlC_in_a_record = Block 0 (field_0/70) in
+    cont done ($camlC_in_a_record)

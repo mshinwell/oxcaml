@@ -1,0 +1,410 @@
+(let code size(1) stub
+       opaque_0 (prim/227)
+         my_closure/228 &my_alloc_region/229 my_depth/230
+         -> k/82 * k/83 =
+   let next_depth/231 = rec_info (succ my_depth/230) in
+   let Popaque/232 = %opaque (prim/227) in
+   cont k/82 (Popaque/232)
+ in
+ let $camlInt32_identities__int32_0 = -1l in
+ let code inline(always) size(12)
+       and_ones_1 (x/233 : int32 boxed)
+         my_closure/234 &my_alloc_region/235 my_depth/236
+         -> k/84 * k/85
+         : int32 boxed =
+   let next_depth/237 = rec_info (succ my_depth/236) in
+   let prim/238 = %unbox_num.`int32` ($camlInt32_identities__int32_0) in
+   let prim/239 = %unbox_num.`int32` (x/233) in
+   let prim/240 = %int_barith.`int32`.`and` (prim/239, prim/238) in
+   let int32_and/241 = %box_num.`int32`.my_alloc_region/235 (prim/240) in
+   cont k/84 (int32_and/241)
+ in
+ let code inline(always) size(12)
+       xor_self_2 (x/242 : int32 boxed)
+         my_closure/243 &my_alloc_region/244 my_depth/245
+         -> k/86 * k/87
+         : int32 boxed =
+   let next_depth/246 = rec_info (succ my_depth/245) in
+   let prim/247 = %unbox_num.`int32` (x/242) in
+   let prim/248 = %unbox_num.`int32` (x/242) in
+   let prim/249 = %int_barith.`int32`.xor (prim/248, prim/247) in
+   let int32_xor/250 = %box_num.`int32`.my_alloc_region/244 (prim/249) in
+   cont k/86 (int32_xor/250)
+ in
+ let code inline(always) size(12)
+       sub_self_3 (x/251 : int32 boxed)
+         my_closure/252 &my_alloc_region/253 my_depth/254
+         -> k/88 * k/89
+         : int32 boxed =
+   let next_depth/255 = rec_info (succ my_depth/254) in
+   let prim/256 = %unbox_num.`int32` (x/251) in
+   let prim/257 = %unbox_num.`int32` (x/251) in
+   let prim/258 = %int_barith.`int32`.sub (prim/257, prim/256) in
+   let int32_sub/259 = %box_num.`int32`.my_alloc_region/253 (prim/258) in
+   cont k/88 (int32_sub/259)
+ in
+ let code inline(always) size(12)
+       mul_minus_one_4 (x/260 : int32 boxed)
+         my_closure/261 &my_alloc_region/262 my_depth/263
+         -> k/90 * k/91
+         : int32 boxed =
+   let next_depth/264 = rec_info (succ my_depth/263) in
+   let prim/265 = %unbox_num.`int32` ($camlInt32_identities__int32_0) in
+   let prim/266 = %unbox_num.`int32` (x/260) in
+   let prim/267 = %int_barith.`int32`.mul (prim/266, prim/265) in
+   let int32_mul/268 = %box_num.`int32`.my_alloc_region/262 (prim/267) in
+   cont k/90 (int32_mul/268)
+ in
+ let code inline(always) size(11)
+       shift_zero_5 (x/269 : int32 boxed)
+         my_closure/270 &my_alloc_region/271 my_depth/272
+         -> k/92 * k/93
+         : int32 boxed =
+   let next_depth/273 = rec_info (succ my_depth/272) in
+   let prim/274 = %untag_imm (0) in
+   let prim/275 = %unbox_num.`int32` (x/269) in
+   let prim/276 = %int_shift.`int32`.lsl (prim/275, prim/274) in
+   let int32_lsl/277 = %box_num.`int32`.my_alloc_region/271 (prim/276) in
+   cont k/92 (int32_lsl/277)
+ in
+ let $camlInt32_identities__int32_3 = 2147483647l in
+ let $camlInt32_identities__int32_2 = 0l in
+ let $camlInt32_identities__int32_1 = -2147483648l in
+ let opaque/278 = closure opaque_0 @opaque &toplevel in
+ apply direct(opaque_0 &toplevel)
+   (opaque/278 : _ -> imm tagged) (1) -> k/94 * error
+   where k/94 (flag/279 : imm tagged) =
+     let and_ones/280 = closure and_ones_1 @and_ones &toplevel in
+     let xor_self/281 = closure xor_self_2 @xor_self &toplevel in
+     let sub_self/282 = closure sub_self_3 @sub_self &toplevel in
+     let mul_minus_one/283 = closure mul_minus_one_4 @mul_minus_one &toplevel
+     in
+     let shift_zero/284 = closure shift_zero_5 @shift_zero &toplevel in
+     (apply direct(and_ones_1 &toplevel)
+        (and_ones/280 : _ -> int32 boxed)
+          ($camlInt32_identities__int32_1)
+          -> k/95 * error
+        where k/95 (and_ones_min/285 : int32 boxed) =
+          (apply direct(opaque_0 &toplevel)
+             (opaque/278 : _ -> int32 boxed)
+               ($camlInt32_identities__int32_1)
+               -> k/119 * error
+             where k/119 (apply_result/315 : int32 boxed) =
+               apply direct(and_ones_1 &toplevel)
+                 (and_ones/280 : _ -> int32 boxed)
+                   (apply_result/315)
+                   -> k/96 * error
+             where k/96 (and_ones_min_unknown/286 : int32 boxed) =
+               ((let untagged/314 = %untag_imm (flag/279) in
+                 switch untagged/314
+                   | 0 -> k/118 ($camlInt32_identities__int32_2)
+                   | 1 -> k/118 ($camlInt32_identities__int32_1))
+                  where k/118 (switch_result/313 : int32 boxed) =
+                    apply direct(and_ones_1 &toplevel)
+                      (and_ones/280 : _ -> int32 boxed)
+                        (switch_result/313)
+                        -> k/97 * error
+                  where k/97 (and_ones_min_joined/287 : int32 boxed) =
+                    (apply direct(xor_self_2 &toplevel)
+                       (xor_self/281 : _ -> int32 boxed)
+                         ($camlInt32_identities__int32_1)
+                         -> k/98 * error
+                       where k/98 (xor_self_min/288 : int32 boxed) =
+                         (apply direct(opaque_0 &toplevel)
+                            (opaque/278 : _ -> int32 boxed)
+                              ($camlInt32_identities__int32_1)
+                              -> k/117 * error
+                            where k/117 (apply_result/312 : int32 boxed) =
+                              apply direct(xor_self_2 &toplevel)
+                                (xor_self/281 : _ -> int32 boxed)
+                                  (apply_result/312)
+                                  -> k/99 * error
+                            where k/99
+                                    (xor_self_min_unknown/289 : int32 boxed) =
+                              ((let untagged/311 = %untag_imm (flag/279) in
+                                switch untagged/311
+                                  | 0 ->
+                                    k/116 ($camlInt32_identities__int32_2)
+                                  | 1 ->
+                                    k/116 ($camlInt32_identities__int32_1))
+                                 where k/116
+                                         (switch_result/310 : int32 boxed) =
+                                   apply direct(xor_self_2 &toplevel)
+                                     (xor_self/281 : _ -> int32 boxed)
+                                       (switch_result/310)
+                                       -> k/100 * error
+                                 where k/100
+                                         (xor_self_min_joined/290 :
+                                            int32 boxed) =
+                                   (apply direct(sub_self_3 &toplevel)
+                                      (sub_self/282 : _ -> int32 boxed)
+                                        ($camlInt32_identities__int32_3)
+                                        -> k/101 * error
+                                      where k/101
+                                              (sub_self_max/291 : int32 boxed) =
+                                        (apply direct(opaque_0 &toplevel)
+                                           (opaque/278 : _ -> int32 boxed)
+                                             ($camlInt32_identities__int32_3)
+                                             -> k/115 * error
+                                           where k/115
+                                                   (apply_result/309 :
+                                                      int32 boxed) =
+                                             apply
+                                                    direct(sub_self_3
+                                                    &toplevel)
+                                               (sub_self/282
+                                                : _ -> int32 boxed)
+                                                 (apply_result/309)
+                                                 -> k/102 * error
+                                           where k/102
+                                                   (sub_self_max_unknown/292 :
+                                                      int32 boxed) =
+                                             ((let untagged/308 =
+                                                 %untag_imm (flag/279)
+                                               in
+                                               switch untagged/308
+                                                 | 0 ->
+                                                   k/114
+                                                     ($camlInt32_identities__int32_2)
+                                                 | 1 ->
+                                                   k/114
+                                                     ($camlInt32_identities__int32_3))
+                                                where k/114
+                                                        (switch_result/307 :
+                                                           int32 boxed) =
+                                                  apply
+                                                         direct(sub_self_3
+                                                         &toplevel)
+                                                    (sub_self/282
+                                                     : _ -> int32 boxed)
+                                                      (switch_result/307)
+                                                      -> k/103 * error
+                                                where k/103
+                                                        (sub_self_max_joined/293 :
+                                                           int32 boxed) =
+                                                  (apply
+                                                          direct(mul_minus_one_4
+                                                          &toplevel)
+                                                     (mul_minus_one/283
+                                                      : _ -> int32 boxed)
+                                                       ($camlInt32_identities__int32_1)
+                                                       -> k/104 * error
+                                                     where k/104
+                                                             (mul_minus_one_min/294 :
+                                                                int32 boxed) =
+                                                       (apply
+                                                               direct(opaque_0
+                                                               &toplevel)
+                                                          (opaque/278
+                                                           : _ -> int32 boxed
+                                                           )
+                                                            ($camlInt32_identities__int32_1)
+                                                            -> k/113 * error
+                                                          where k/113
+                                                                  (apply_result/306 :
+                                                                    int32 boxed) =
+                                                            apply
+                                                                   direct(mul_minus_one_4
+                                                                   &toplevel)
+                                                              (mul_minus_one/283
+                                                               : _ ->
+                                                                 int32 boxed
+                                                               )
+                                                                (apply_result/306)
+                                                                -> k/105
+                                                                * error
+                                                          where k/105
+                                                                  (mul_minus_one_min_unknown/295 :
+                                                                    int32 boxed) =
+                                                            ((let untagged/305 =
+                                                                %untag_imm
+                                                                  (flag/279)
+                                                              in
+                                                              switch untagged/305
+                                                                | 0 ->
+                                                                  k/112
+                                                                    (
+                                                                    $camlInt32_identities__int32_2)
+                                                                | 1 ->
+                                                                  k/112
+                                                                    (
+                                                                    $camlInt32_identities__int32_1))
+                                                               where 
+                                                                 k/112
+                                                                   (switch_result/304 :
+                                                                    int32 boxed) =
+                                                                 apply
+                                                                    direct(mul_minus_one_4
+                                                                    &toplevel)
+                                                                   (mul_minus_one/283
+                                                                    : 
+                                                                    _ ->
+                                                                    int32 boxed
+                                                                    )
+                                                                    (switch_result/304)
+                                                                    -> k/106
+                                                                    * error
+                                                               where 
+                                                                 k/106
+                                                                   (mul_minus_one_min_joined/296 :
+                                                                    int32 boxed) =
+                                                                 (apply
+                                                                     direct(shift_zero_5
+                                                                    &toplevel)
+                                                                    (shift_zero/284
+                                                                    : 
+                                                                    _ ->
+                                                                    int32 boxed
+                                                                    )
+                                                                    ($camlInt32_identities__int32_1)
+                                                                    -> k/107
+                                                                    * error
+                                                                    where 
+                                                                    k/107
+                                                                    (shift_zero_min/297 :
+                                                                    int32 boxed) =
+                                                                    (apply
+                                                                     direct(opaque_0
+                                                                    &toplevel)
+                                                                    (opaque/278
+                                                                    : 
+                                                                    _ ->
+                                                                    int32 boxed
+                                                                    )
+                                                                    ($camlInt32_identities__int32_1)
+                                                                    -> k/111
+                                                                    * error
+                                                                    where 
+                                                                    k/111
+                                                                    (apply_result/303 :
+                                                                    int32 boxed) =
+                                                                    apply
+                                                                     direct(shift_zero_5
+                                                                    &toplevel)
+                                                                    (shift_zero/284
+                                                                    : 
+                                                                    _ ->
+                                                                    int32 boxed
+                                                                    )
+                                                                    (apply_result/303)
+                                                                    -> k/108
+                                                                    * error
+                                                                    where 
+                                                                    k/108
+                                                                    (shift_zero_min_unknown/298 :
+                                                                    int32 boxed) =
+                                                                    ((let untagged/302 =
+                                                                    %untag_imm
+                                                                    (flag/279)
+                                                                    in
+                                                                    switch untagged/302
+                                                                    | 0 ->
+                                                                    k/110
+                                                                    ($camlInt32_identities__int32_2)
+                                                                    | 1 ->
+                                                                    k/110
+                                                                    ($camlInt32_identities__int32_1))
+                                                                    where 
+                                                                    k/110
+                                                                    (switch_result/301 :
+                                                                    int32 boxed) =
+                                                                    apply
+                                                                     direct(shift_zero_5
+                                                                    &toplevel)
+                                                                    (shift_zero/284
+                                                                    : 
+                                                                    _ ->
+                                                                    int32 boxed
+                                                                    )
+                                                                    (switch_result/301)
+                                                                    -> k/109
+                                                                    * error
+                                                                    where 
+                                                                    k/109
+                                                                    (shift_zero_min_joined/299 :
+                                                                    int32 boxed) =
+                                                                    let Pmakeblock/300 =
+                                                                    %block.[`0`].`toplevel`
+                                                                    (and_ones_min/285,
+                                                                    and_ones_min_unknown/286,
+                                                                    and_ones_min_joined/287,
+                                                                    xor_self_min/288,
+                                                                    xor_self_min_unknown/289,
+                                                                    xor_self_min_joined/290,
+                                                                    sub_self_max/291,
+                                                                    sub_self_max_unknown/292,
+                                                                    sub_self_max_joined/293,
+                                                                    mul_minus_one_min/294,
+                                                                    mul_minus_one_min_unknown/295,
+                                                                    mul_minus_one_min_joined/296,
+                                                                    shift_zero_min/297,
+                                                                    shift_zero_min_unknown/298,
+                                                                    shift_zero_min_joined/299)
+                                                                    in
+                                                                    cont 
+                                                                    k/81
+                                                                    (Pmakeblock/300)))))))))))))))))
+  where k/81 define_root_symbol (module_block/211) =
+    let field_0/212 =
+      %block_load.tag[`0`].`size`[`15`].[`0`] (module_block/211)
+    in
+    let field_1/213 =
+      %block_load.tag[`0`].`size`[`15`].[`1`] (module_block/211)
+    in
+    let field_2/214 =
+      %block_load.tag[`0`].`size`[`15`].[`2`] (module_block/211)
+    in
+    let field_3/215 =
+      %block_load.tag[`0`].`size`[`15`].[`3`] (module_block/211)
+    in
+    let field_4/216 =
+      %block_load.tag[`0`].`size`[`15`].[`4`] (module_block/211)
+    in
+    let field_5/217 =
+      %block_load.tag[`0`].`size`[`15`].[`5`] (module_block/211)
+    in
+    let field_6/218 =
+      %block_load.tag[`0`].`size`[`15`].[`6`] (module_block/211)
+    in
+    let field_7/219 =
+      %block_load.tag[`0`].`size`[`15`].[`7`] (module_block/211)
+    in
+    let field_8/220 =
+      %block_load.tag[`0`].`size`[`15`].[`8`] (module_block/211)
+    in
+    let field_9/221 =
+      %block_load.tag[`0`].`size`[`15`].[`9`] (module_block/211)
+    in
+    let field_10/222 =
+      %block_load.tag[`0`].`size`[`15`].[`10`] (module_block/211)
+    in
+    let field_11/223 =
+      %block_load.tag[`0`].`size`[`15`].[`11`] (module_block/211)
+    in
+    let field_12/224 =
+      %block_load.tag[`0`].`size`[`15`].[`12`] (module_block/211)
+    in
+    let field_13/225 =
+      %block_load.tag[`0`].`size`[`15`].[`13`] (module_block/211)
+    in
+    let field_14/226 =
+      %block_load.tag[`0`].`size`[`15`].[`14`] (module_block/211)
+    in
+    let $camlInt32_identities =
+      Block 0 (field_0/212,
+               field_1/213,
+               field_2/214,
+               field_3/215,
+               field_4/216,
+               field_5/217,
+               field_6/218,
+               field_7/219,
+               field_8/220,
+               field_9/221,
+               field_10/222,
+               field_11/223,
+               field_12/224,
+               field_13/225,
+               field_14/226)
+    in
+    cont done ($camlInt32_identities)

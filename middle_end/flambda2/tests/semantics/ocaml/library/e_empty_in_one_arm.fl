@@ -1,0 +1,49 @@
+(let $camlE_empty_in_one_arm__empty_array_0 = Empty_array in
+ let code inline(never) size(28)
+       run_0 (c/51 : imm tagged, x/52 : imm tagged)
+         my_closure/53 &my_alloc_region/54 my_depth/55
+         -> k/26 * k/27
+         : imm tagged =
+   let next_depth/56 = rec_info (succ my_depth/55) in
+   let region/57 = %begin_region () in
+   let ghost_region/58 = %begin_ghost_region () in
+   (let untagged/65 = %untag_imm (c/51) in
+    switch untagged/65
+      | 0 -> k/32
+      | 1 -> k/33)
+     where k/33 =
+       cont k/30
+     where k/32 =
+       cont k/31
+     where k/31 =
+       let Pmakearray/64 =
+         %array.`imm`.my_alloc_region/54.local[region/57] (x/52, x/52)
+       in
+       cont k/29 (Pmakearray/64)
+     where k/30 =
+       cont k/29 ($camlE_empty_in_one_arm__empty_array_0)
+     where k/29 (a/62 : imm array) =
+       let Parraylength/63 = %array_length.`imm` (a/62) in
+       cont k/28 (Parraylength/63)
+     where k/28 (region_return/59 : imm tagged) =
+       let unit/60 = %end_region (region/57) in
+       let unit/61 = %end_ghost_region (ghost_region/58) in
+       cont k/26 (region_return/59)
+ in
+ let run/66 = closure run_0 @run &toplevel in
+ (let Popaque/70 = %opaque (1) in
+  apply direct(run_0 &toplevel)
+    (run/66 : _ -> imm tagged) (Popaque/70, 3) -> k/34 * error)
+   where k/34 (zero/67 : imm tagged) =
+     (apply direct(run_0 &toplevel)
+        (run/66 : _ -> imm tagged) (0, 3) -> k/35 * error
+        where k/35 (two/68 : imm tagged) =
+          let Pmakeblock/69 = %block.[`0`].`toplevel` (zero/67, two/68) in
+          cont k/25 (Pmakeblock/69)))
+  where k/25 define_root_symbol (module_block/48) =
+    let field_0/49 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/48)
+    in
+    let field_1/50 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/48)
+    in
+    let $camlE_empty_in_one_arm = Block 0 (field_0/49, field_1/50) in
+    cont done ($camlE_empty_in_one_arm)

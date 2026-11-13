@@ -1,0 +1,60 @@
+(let code inline(never) size(13)
+       make_0 (x/48 : imm tagged)
+         my_closure/49 &my_alloc_region/50 my_depth/51
+         -> k/26 * k/27
+         : imm array =
+   let next_depth/52 = rec_info (succ my_depth/51) in
+   let int_add/53 = %int_barith.add (x/48, 2) in
+   let int_add/54 = %int_barith.add (x/48, 1) in
+   let Pmakearray/55 =
+     %array.`imm`.my_alloc_region/50 (x/48, int_add/54, int_add/53)
+   in
+   cont k/26 (Pmakearray/55)
+ in
+ let $camlR_constant_index__string_0 = "index out of bounds" in
+ let $camlR_constant_index__block_1 =
+   Block 0 ($`*predef*`.caml_exn_Invalid_argument,
+            $camlR_constant_index__string_0)
+ in
+ let make/56 = closure make_0 @make &toplevel in
+ apply direct(make_0 &toplevel)
+   (make/56 : _ -> imm array) (10) -> k/28 * error
+   where k/28 (apply_result/57 : imm array) =
+     ((let prim/65 = %array_length.`imm` (apply_result/57) in
+       let prim/66 = %int_comp.unsigned.lt (0, prim/65) in
+       switch prim/66
+         | 0 -> k/34
+         | 1 -> k/35)
+        where k/35 =
+          cont k/29
+        where k/34 =
+          cont error pop(regular error) ($camlR_constant_index__block_1)
+        where k/29 =
+          let a/58 = %array_load.`imm` (apply_result/57, 0) in
+          ((let Popaque/64 = %opaque (10) in
+            apply direct(make_0 &toplevel)
+              (make/56 : _ -> imm array) (Popaque/64) -> k/30 * error)
+             where k/30 (apply_result/59 : imm array) =
+               ((let prim/62 = %array_length.`imm` (apply_result/59) in
+                 let prim/63 = %int_comp.unsigned.lt (2, prim/62) in
+                 switch prim/63
+                   | 0 -> k/32
+                   | 1 -> k/33)
+                  where k/33 =
+                    cont k/31
+                  where k/32 =
+                    cont error
+                           pop(regular error)
+                           ($camlR_constant_index__block_1)
+                  where k/31 =
+                    let b/60 = %array_load.`imm` (apply_result/59, 2) in
+                    let Pmakeblock/61 = %block.[`0`].`toplevel` (a/58, b/60)
+                    in
+                    cont k/25 (Pmakeblock/61)))))
+  where k/25 define_root_symbol (module_block/45) =
+    let field_0/46 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/45)
+    in
+    let field_1/47 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/45)
+    in
+    let $camlR_constant_index = Block 0 (field_0/46, field_1/47) in
+    cont done ($camlR_constant_index)

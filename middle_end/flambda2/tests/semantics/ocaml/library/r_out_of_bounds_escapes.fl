@@ -1,0 +1,62 @@
+(let code inline(never) size(10)
+       make_0 (x/46 : imm tagged)
+         my_closure/47 &my_alloc_region/48 my_depth/49
+         -> k/26 * k/27
+         : imm array =
+   let next_depth/50 = rec_info (succ my_depth/49) in
+   let int_add/51 = %int_barith.add (x/46, 1) in
+   let Pmakearray/52 = %array.`imm`.my_alloc_region/48 (x/46, int_add/51) in
+   cont k/26 (Pmakearray/52)
+ in
+ let $camlR_out_of_bounds_escapes__string_0 = "index out of bounds" in
+ let $camlR_out_of_bounds_escapes__block_1 =
+   Block 0 ($`*predef*`.caml_exn_Invalid_argument,
+            $camlR_out_of_bounds_escapes__string_0)
+ in
+ let make/53 = closure make_0 @make &toplevel in
+ apply direct(make_0 &toplevel)
+   (make/53 : _ -> imm array) (5) -> k/28 * error
+   where k/28 (apply_result/54 : imm array) =
+     ((let prim/62 = %array_length.`imm` (apply_result/54) in
+       let prim/63 = %int_comp.unsigned.lt (1, prim/62) in
+       switch prim/63
+         | 0 -> k/34
+         | 1 -> k/35)
+        where k/35 =
+          cont k/29
+        where k/34 =
+          cont error
+                 pop(regular error)
+                 ($camlR_out_of_bounds_escapes__block_1)
+        where k/29 =
+          let inside/55 = %array_load.`imm` (apply_result/54, 1) in
+          let Popaque/56 = %opaque (7) in
+          (apply direct(make_0 &toplevel)
+             (make/53 : _ -> imm array) (5) -> k/30 * error
+             where k/30 (apply_result/57 : imm array) =
+               ((let prim/60 = %array_length.`imm` (apply_result/57) in
+                 let prim/61 = %int_comp.unsigned.lt (Popaque/56, prim/60) in
+                 switch prim/61
+                   | 0 -> k/32
+                   | 1 -> k/33)
+                  where k/33 =
+                    cont k/31
+                  where k/32 =
+                    cont error
+                           pop(regular error)
+                           ($camlR_out_of_bounds_escapes__block_1)
+                  where k/31 =
+                    let outside/58 =
+                      %array_load.`imm` (apply_result/57, Popaque/56)
+                    in
+                    let Pmakeblock/59 =
+                      %block.[`0`].`toplevel` (inside/55, outside/58)
+                    in
+                    cont k/25 (Pmakeblock/59)))))
+  where k/25 define_root_symbol (module_block/43) =
+    let field_0/44 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/43)
+    in
+    let field_1/45 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/43)
+    in
+    let $camlR_out_of_bounds_escapes = Block 0 (field_0/44, field_1/45) in
+    cont done ($camlR_out_of_bounds_escapes)

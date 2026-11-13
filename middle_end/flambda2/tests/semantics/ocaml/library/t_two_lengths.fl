@@ -1,0 +1,63 @@
+(let $camlT_two_lengths__string_0 = "index out of bounds" in
+ let $camlT_two_lengths__block_1 =
+   Block 0 ($`*predef*`.caml_exn_Invalid_argument,
+            $camlT_two_lengths__string_0)
+ in
+ let code inline(never) size(53)
+       last_0
+         (c/54 : imm tagged,
+          x/55 : imm tagged,
+          y/56 : imm tagged,
+          z/57 : imm tagged)
+         my_closure/58 &my_alloc_region/59 my_depth/60
+         -> k/30 * k/31
+         : imm tagged =
+   let next_depth/61 = rec_info (succ my_depth/60) in
+   (let untagged/70 = %untag_imm (c/54) in
+    switch untagged/70
+      | 0 -> k/38
+      | 1 -> k/39)
+     where k/39 =
+       cont k/36
+     where k/38 =
+       cont k/37
+     where k/37 =
+       let Pmakearray/69 = %array.`imm`.my_alloc_region/59 (x/55, y/56, z/57)
+       in
+       cont k/32 (Pmakearray/69)
+     where k/36 =
+       let Pmakearray/68 = %array.`imm`.my_alloc_region/59 (x/55) in
+       cont k/32 (Pmakearray/68)
+     where k/32 (a/62 : imm array) =
+       let Parraylength/63 = %array_length.`imm` (a/62) in
+       let int_sub/64 = %int_barith.sub (Parraylength/63, 1) in
+       ((let prim/66 = %array_length.`imm` (a/62) in
+         let prim/67 = %int_comp.unsigned.lt (int_sub/64, prim/66) in
+         switch prim/67
+           | 0 -> k/34
+           | 1 -> k/35)
+          where k/35 =
+            cont k/33
+          where k/34 =
+            cont k/31 pop(regular k/31) ($camlT_two_lengths__block_1)
+          where k/33 =
+            let Parrayrefs/65 = %array_load.`imm` (a/62, int_sub/64) in
+            cont k/30 (Parrayrefs/65))
+ in
+ let last/71 = closure last_0 @last &toplevel in
+ apply direct(last_0 &toplevel)
+   (last/71 : _ -> imm tagged) (1, 4, 5, 6) -> k/40 * error
+   where k/40 (one/72 : imm tagged) =
+     ((let Popaque/75 = %opaque (0) in
+       apply direct(last_0 &toplevel)
+         (last/71 : _ -> imm tagged) (Popaque/75, 4, 5, 6) -> k/41 * error)
+        where k/41 (three/73 : imm tagged) =
+          let Pmakeblock/74 = %block.[`0`].`toplevel` (one/72, three/73) in
+          cont k/29 (Pmakeblock/74)))
+  where k/29 define_root_symbol (module_block/51) =
+    let field_0/52 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/51)
+    in
+    let field_1/53 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/51)
+    in
+    let $camlT_two_lengths = Block 0 (field_0/52, field_1/53) in
+    cont done ($camlT_two_lengths)

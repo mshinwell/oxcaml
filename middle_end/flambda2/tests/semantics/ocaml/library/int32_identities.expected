@@ -1,0 +1,31 @@
+int32_identities.fl:
+  before Simplify (184 steps): returns
+                                 [0: (boxed #-2147483648:int32);
+                                  (boxed #-2147483648:int32);
+                                  (boxed #-2147483648:int32);
+                                  (boxed #0:int32); (boxed #0:int32);
+                                  (boxed #0:int32); (boxed #0:int32);
+                                  (boxed #0:int32); (boxed #0:int32);
+                                  (boxed #-2147483648:int32);
+                                  (boxed #-2147483648:int32);
+                                  (boxed #-2147483648:int32);
+                                  (boxed #-2147483648:int32);
+                                  (boxed #-2147483648:int32);
+                                  (boxed #-2147483648:int32)]
+  after Simplify (51 steps): returns
+                               [0: (boxed #-2147483648:int32);
+                                (boxed #-2147483648:int32);
+                                (boxed #-2147483648:int32); (boxed #0:int32);
+                                (boxed #0:int32); (boxed #0:int32);
+                                (boxed #0:int32); (boxed #0:int32);
+                                (boxed #0:int32); (boxed #-2147483648:int32);
+                                (boxed #-2147483648:int32);
+                                (boxed #-2147483648:int32);
+                                (boxed #-2147483648:int32);
+                                (boxed #-2147483648:int32);
+                                (boxed #-2147483648:int32)]
+  the check of kinds: passes before, passes after
+  calls outside code: 21 before, 0 after
+  the same
+  calls outside code once those of known code are inlined: 0
+  validated: the same once closures and blocks are lifted to symbols and the terms normalised

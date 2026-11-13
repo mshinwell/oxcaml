@@ -1,0 +1,82 @@
+(let $camlL_summed_by_a_recursive_function__string_0 = "index out of bounds"
+ in
+ let $camlL_summed_by_a_recursive_function__block_1 =
+   Block 0 ($`*predef*`.caml_exn_Invalid_argument,
+            $camlL_summed_by_a_recursive_function__string_0)
+ in
+ let code rec loopify(default tailrec) size(45)
+       sum_0 (a/72 : imm array, i/73 : imm tagged, acc/74 : imm tagged)
+         my_closure/75 &my_alloc_region/76 my_depth/77
+         -> k/32 * k/33
+         : imm tagged =
+   let next_depth/78 = rec_info (succ my_depth/77) in
+   (let Parraylength/84 = %array_length.`imm` (a/72) in
+    let prim/85 = %phys_eq (i/73, Parraylength/84) in
+    let eq/86 = %tag_imm (prim/85) in
+    (let untagged/87 = %untag_imm (eq/86) in
+     switch untagged/87
+       | 0 -> k/38
+       | 1 -> k/32 (acc/74))
+      where k/38 =
+        cont k/34)
+     where k/34 =
+       ((let prim/82 = %array_length.`imm` (a/72) in
+         let prim/83 = %int_comp.unsigned.lt (i/73, prim/82) in
+         switch prim/83
+           | 0 -> k/36
+           | 1 -> k/37)
+          where k/37 =
+            cont k/35
+          where k/36 =
+            cont k/33
+                   pop(regular k/33)
+                   ($camlL_summed_by_a_recursive_function__block_1)
+          where k/35 =
+            let Parrayrefs/79 = %array_load.`imm` (a/72, i/73) in
+            let int_add/80 = %int_barith.add (acc/74, Parrayrefs/79) in
+            let int_add/81 = %int_barith.add (i/73, 1) in
+            apply direct(sum_0 &my_alloc_region/76)
+              (my_closure/75 ~ depth my_depth/77 -> next_depth/78
+               : _ -> imm tagged)
+                (a/72, int_add/81, int_add/80)
+                -> k/32 * k/33)
+ in
+ let code inline(never) size(11)
+       make_1 (x/88 : imm tagged, y/89 : imm tagged)
+         my_closure/90 &my_alloc_region/91 my_depth/92
+         -> k/39 * k/40
+         : imm array =
+   let next_depth/93 = rec_info (succ my_depth/92) in
+   let Pmakearray/94 =
+     %array.`imm`.my_alloc_region/91 (x/88, y/89, x/88, y/89, x/88)
+   in
+   cont k/39 (Pmakearray/94)
+ in
+ let sum/95 = closure sum_0 @sum &toplevel in
+ let make/96 = closure make_1 @make &toplevel in
+ apply direct(make_1 &toplevel)
+   (make/96 : _ -> imm array) (2, 3) -> k/44 * error
+   where k/44 (apply_result/102 : imm array) =
+     apply direct(sum_0 &toplevel)
+       (sum/95 : _ -> imm tagged) (apply_result/102, 0, 0) -> k/41 * error
+   where k/41 (s/97 : imm tagged) =
+     ((let Popaque/101 = %opaque (1) in
+       apply direct(make_1 &toplevel)
+         (make/96 : _ -> imm array) (Popaque/101, 10) -> k/43 * error)
+        where k/43 (apply_result/100 : imm array) =
+          apply direct(sum_0 &toplevel)
+            (sum/95 : _ -> imm tagged)
+              (apply_result/100, 0, 0)
+              -> k/42 * error
+        where k/42 (t/98 : imm tagged) =
+          let Pmakeblock/99 = %block.[`0`].`toplevel` (s/97, t/98) in
+          cont k/31 (Pmakeblock/99)))
+  where k/31 define_root_symbol (module_block/69) =
+    let field_0/70 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/69)
+    in
+    let field_1/71 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/69)
+    in
+    let $camlL_summed_by_a_recursive_function =
+      Block 0 (field_0/70, field_1/71)
+    in
+    cont done ($camlL_summed_by_a_recursive_function)
