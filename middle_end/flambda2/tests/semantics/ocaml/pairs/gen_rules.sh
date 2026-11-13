@@ -46,14 +46,19 @@ for name in $units; do
   if [ -n "$flags" ]; then flags="$flags "; fi
   needs=
   against=
+  # from_ocaml.sh reads the list of the units that may have the test of
+  # being an integer that is for any value.
+  made_needs="../generic_is_int.txt"
   if [ -n "$first" ]; then
     needs="
  (deps $first.cmi $first.cmx)"
     against=" $first"
+    made_needs="$made_needs $first.cmi $first.cmx"
   fi
   cat <<RULES
 (rule
- (targets $name.fl.made $name.cmi $name.cmx)$needs
+ (targets $name.fl.made $name.cmi $name.cmx)
+ (deps $made_needs)
  (action
   (run sh %{dep:../from_ocaml.sh} %{ocamlopt} %{dep:../$name.ml}
    $name$against)))
