@@ -126,41 +126,68 @@ Proof.
   rewrite Forall_forall in Hconts. exact (Hconts (k, c) Hlookup).
 Qed.
 
+(* The way out alone. *)
+Theorem observed_refines_way_out : observed_refines_way_out_statement.
+Proof.
+  intros k vs vs' statics statics' hp hp' [Hexits _].
+  destruct (Hexits k vs hp eq_refl)
+    as (vs'' & hp'' & Hexit & Hscalars & Hdomain).
+  simpl in Hexit. injection Hexit as <- <-.
+  split; assumption.
+Qed.
+
 Theorem worlds_observed_way_out : worlds_observed_way_out_statement.
 Proof.
   intros slots w w' [Hk Hobservers]. split; [ exact Hk | ].
-  destruct (Hobservers (Outer (exit_cont w)) I) as [Hexits _].
-  destruct (Hexits (exit_cont w) (exit_values w) (exit_heap w) eq_refl)
-    as (vs' & hp' & Hexit & Hscalars & Hdomain).
-  simpl in Hexit. injection Hexit as <- <-.
-  split; assumption.
+  exact (observed_refines_way_out _ _ _ _ _ _ _
+           (Hobservers (Outer (exit_cont w)) I)).
 Qed.
 
 (* ======================================================================== *)
 (* The form in which a pass proves it                                       *)
 (* ======================================================================== *)
 
-Theorem expr_refines_under_observers :
-  expr_refines_under_observers_statement.
+(* Of two states. *)
+Theorem refines_gives_observed_refines :
+  refines_gives_observed_refines_statement.
 Proof.
-  intros slots statics hp source target Hrefines conts _.
-  destruct (Hrefines [] conts statics hp) as [Hexits Hends]. split.
-  - intros k vs hp' Hsource. exists vs, hp'.
-    split; [ exact (Hexits k vs hp' Hsource) | ].
+  intros source target [Hexits Hends]. split.
+  - intros k vs hp Hsource. exists vs, hp.
+    split; [ exact (Hexits k vs hp Hsource) | ].
     split; [ apply same_scalars_refl | reflexivity ].
   - intros b Hnot Htarget.
     destruct (Hends b Hnot Htarget) as [Hsource | Hwrong];
       [ | left; exact Hwrong ].
-    destruct b as [k vs hp' | | ];
-      [ right; exists k, vs, hp'; exact Hsource | left; exact Hsource
+    destruct b as [k vs hp | | ];
+      [ right; exists k, vs, hp; exact Hsource | left; exact Hsource
       | contradiction Hnot; reflexivity ].
+Qed.
+
+Theorem expr_refines_under_observers :
+  expr_refines_under_observers_statement.
+Proof.
+  intros slots statics hp source target Hrefines conts _.
+  exact (refines_gives_observed_refines _ _ (Hrefines [] conts statics hp)).
+Qed.
+
+(* The two relations of the observers are the two of a class. *)
+Theorem worlds_observed_by_observer : worlds_observed_by_observer_statement.
+Proof. intros slots. reflexivity. Qed.
+
+Theorem refines_observed_by_observer :
+  refines_observed_by_observer_statement.
+Proof. intros slots. reflexivity. Qed.
+
+Theorem refines_observed_by_trans : refines_observed_by_trans_statement.
+Proof.
+  intros O statics hp e1 e2 e3 H12 H23 conts Hconts.
+  exact (observed_refines_trans _ _ _ (H12 conts Hconts) (H23 conts Hconts)).
 Qed.
 
 Theorem refines_under_observers_trans :
   refines_under_observers_trans_statement.
 Proof.
-  intros slots statics hp e1 e2 e3 H12 H23 conts Hconts.
-  exact (observed_refines_trans _ _ _ (H12 conts Hconts) (H23 conts Hconts)).
+  intros slots. exact (refines_observed_by_trans (observer slots)).
 Qed.
 
 (* ======================================================================== *)
@@ -222,8 +249,47 @@ Proof.
   - left. exists n. exact Hrun.
 Qed.
 
-(* Two units that leave worlds which no observer tells apart are
-   related from every continuation environment of observers. *)
+(* What a continuation stands for in an environment of a class that has
+   every way out. *)
+Lemma class_resolve (O : cont_value -> Prop) (conts : cont_env)
+    (k : continuation) :
+  (∀ k' : continuation, O (Outer k')) ->
+  Forall (fun kc => O (snd kc)) conts -> O (resolve k conts).
+Proof.
+  intros Hout Hconts. unfold resolve.
+  destruct (lookup k conts) as [c | ] eqn:Hlookup; [ | apply Hout ].
+  apply lookup_in in Hlookup. rewrite Forall_forall in Hconts.
+  exact (Hconts (k, c) Hlookup).
+Qed.
+
+(* Two units that leave worlds which nothing in a class tells apart are
+   related from every continuation environment of the class, if the
+   class has every way out. *)
+Lemma worlds_under_by (O : cont_value -> Prop) (conts : cont_env)
+    (statics : static_env) (hp : heap) (source target : expr)
+    (w w' : exit_world) :
+  (∀ k : continuation, O (Outer k)) ->
+  code_closed source = true ->
+  code_closed target = true ->
+  static_code_closed statics ->
+  Forall (fun kc => O (snd kc)) conts ->
+  exits_world (State source [] [] statics hp) w ->
+  exits_world (State target [] [] statics hp) w' ->
+  worlds_observed_by O w w' ->
+  observed_refines (Step (State source [] conts statics hp))
+    (Step (State target [] conts statics hp)).
+Proof.
+  intros Hout Hsource Htarget Hstatics Hconts Hw Hw' [Hk Hworlds].
+  refine
+    (observed_refines_ext _ _ _ _ _ _
+       (Hworlds _ (class_resolve O conts (exit_cont w) Hout Hconts))).
+  - intros b. exact (under_world conts source statics hp w b Hsource
+                       Hstatics Hw).
+  - intros b. rewrite Hk.
+    exact (under_world conts target statics hp w' b Htarget Hstatics Hw').
+Qed.
+
+(* The same of the observers. *)
 Lemma worlds_under (slots : list value_slot) (conts : cont_env)
     (statics : static_env) (hp : heap) (source target : expr)
     (w w' : exit_world) :
@@ -237,20 +303,14 @@ Lemma worlds_under (slots : list value_slot) (conts : cont_env)
   observed_refines (Step (State source [] conts statics hp))
     (Step (State target [] conts statics hp)).
 Proof.
-  intros Hsource Htarget Hstatics Hconts Hw Hw' [Hk Hworlds].
-  refine
-    (observed_refines_ext _ _ _ _ _ _
-       (Hworlds _ (observers_resolve slots conts (exit_cont w) Hconts))).
-  - intros b. exact (under_world conts source statics hp w b Hsource
-                       Hstatics Hw).
-  - intros b. rewrite Hk.
-    exact (under_world conts target statics hp w' b Htarget Hstatics Hw').
+  exact (worlds_under_by (observer slots) conts statics hp source target w
+           w' (fun _ => I)).
 Qed.
 
-Theorem under_observers_worlds : under_observers_worlds_statement.
+Theorem refines_observed_by_worlds : refines_observed_by_worlds_statement.
 Proof.
-  intros slots statics hp source target Hsource Htarget Hstatics. split.
-  - (* From every environment of observers to the worlds. *)
+  intros O statics hp source target Hout Hsource Htarget Hstatics. split.
+  - (* From every environment of the class to the worlds. *)
     intros Hunder.
     destruct (Hunder [] (Forall_nil _)) as [Hexits0 Hends0]. split.
     + intros w Hw.
@@ -261,7 +321,7 @@ Proof.
       exists (Exit_world (exit_cont w) vs' statics' hp').
       split; [ exact Hw' | ]. split; [ reflexivity | ].
       intros c Hc.
-      assert (Hconts : observers slots [(exit_cont w, c)])
+      assert (Hconts : Forall (fun kc => O (snd kc)) [(exit_cont w, c)])
         by (apply Forall_cons; [ exact Hc | apply Forall_nil ]).
       refine (observed_refines_ext _ _ _ _ _ _ (Hunder _ Hconts)).
       * intros b. symmetry.
@@ -278,7 +338,7 @@ Proof.
         [ left; exact Hwrong | right ].
       destruct (proj1 (exits_world_behaves _ _ _ _) Hexit) as [statics' Hw].
       exists (Exit_world k vs statics' hp'). exact Hw.
-  - (* From the worlds to every environment of observers. *)
+  - (* From the worlds to every environment of the class. *)
     intros [Hexits Hends] conts Hconts.
     assert (Hfrom :
       ∀ w : exit_world,
@@ -286,8 +346,8 @@ Proof.
         observed_refines (Step (State source [] conts statics hp))
           (Step (State target [] conts statics hp))).
     { intros w Hw. destruct (Hexits w Hw) as (w' & Hw' & Hworlds).
-      exact (worlds_under slots conts statics hp source target w w' Hsource
-               Htarget Hstatics Hconts Hw Hw' Hworlds). }
+      exact (worlds_under_by O conts statics hp source target w w' Hout
+               Hsource Htarget Hstatics Hconts Hw Hw' Hworlds). }
     split.
     + intros k vs hp' HS.
       destruct
@@ -314,4 +374,11 @@ Proof.
       * left.
         exact (under_wrong conts source statics hp Hsource Hstatics Hwrong).
       * exact (proj2 (Hfrom w Hw) b Hnot HT).
+Qed.
+
+Theorem under_observers_worlds : under_observers_worlds_statement.
+Proof.
+  intros slots statics hp source target.
+  exact (refines_observed_by_worlds (observer slots) statics hp source
+           target (fun _ => I)).
 Qed.

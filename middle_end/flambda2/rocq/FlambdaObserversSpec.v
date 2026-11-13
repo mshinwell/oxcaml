@@ -30,7 +30,8 @@
 
    This file is to be reviewed: [scalar], [same_scalars],
    [observed_refines], [binds_no_static], [observer], [observers],
-   [worlds_observed], [refines_under_observers], and the statements.
+   [worlds_observed], [refines_under_observers], [worlds_observed_by],
+   [refines_observed_by], and the statements.
 
    [FlambdaSemanticsSpec.refines] asks of two exits the same values. A
    pass that changes a value that a unit exits with cannot be stated
@@ -65,6 +66,28 @@
    Refinement under all environments gives the second form
    ([expr_refines_under_observers_statement]), and the second form
    composes ([refines_under_observers_trans_statement]).
+
+   The two relations are about every observer. A term that the language
+   gains is a term that an observer may be written with, so with it
+   there are observers more, and the two relations ask more of the same
+   worlds and of the same units. The last part of the file has the two
+   of a class of what a continuation may stand for, given by a
+   predicate ([worlds_observed_by], [refines_observed_by]); the
+   observers are one class, and the two relations above are the two of
+   that class. What is stated above with one of the two relations in a
+   premise is stated there again in a form that has none: of one way
+   out, with no observer ([observed_refines_way_out_statement]); of
+   two states, with no observer and no environment
+   ([refines_gives_observed_refines_statement]); and of every class,
+   the composition ([refines_observed_by_trans_statement]) and the two
+   forms ([refines_observed_by_worlds_statement], for a class that has
+   every way out). To a statement in such a form a term more adds
+   cases and takes none: a class of the continuation values that
+   there were is a class still, and of it the statement reads as it
+   did. [observer slots] is not that class after a term more, as it
+   has the handlers written with the term: the observers that there
+   were are the class of the observers in which the term does not
+   occur, and a file that adds a term may state these for it.
 
    The units start with no variable, from a static environment and a
    heap that are given: the empty ones, or those of the imports of a
@@ -264,5 +287,92 @@ Definition under_observers_worlds_statement : Prop :=
     static_code_closed statics ->
     (refines_under_observers slots statics hp source target
      <-> refines_world (worlds_observed slots)
+           (State source [] [] statics hp)
+           (State target [] [] statics hp)).
+
+(* ======================================================================== *)
+(* A class of what may follow a unit                                        *)
+(* ======================================================================== *)
+
+(* [worlds_observed] of a class of what a continuation may stand for:
+   the two exits are by the same continuation, and everything in the
+   class, applied to the values of the first under its static
+   environment and heap and to the values of the second under its own,
+   comes to results that [observed_refines] relates. *)
+Definition worlds_observed_by (O : cont_value -> Prop) (w w' : exit_world)
+    : Prop :=
+  exit_cont w = exit_cont w'
+  ∧ ∀ c : cont_value,
+      O c ->
+      observed_refines
+        (apply_cont_value c (exit_values w) (exit_statics w) (exit_heap w))
+        (apply_cont_value c (exit_values w') (exit_statics w')
+           (exit_heap w')).
+
+(* [refines_under_observers] of a class: the two units, run from one
+   continuation environment every entry of which is in the class, the
+   ones that an earlier entry hides included, come to results that
+   [observed_refines] relates, whatever the environment. *)
+Definition refines_observed_by (O : cont_value -> Prop)
+    (statics : static_env) (hp : heap) (source target : expr) : Prop :=
+  ∀ conts : cont_env,
+    Forall (fun kc => O (snd kc)) conts ->
+    observed_refines (Step (State source [] conts statics hp))
+      (Step (State target [] conts statics hp)).
+
+(* The observers of some value slots are a class, and the two relations
+   of the parts above are the two of that class. *)
+Definition worlds_observed_by_observer_statement : Prop :=
+  ∀ slots : list value_slot,
+    worlds_observed slots = worlds_observed_by (observer slots).
+
+Definition refines_observed_by_observer_statement : Prop :=
+  ∀ slots : list value_slot,
+    refines_under_observers slots = refines_observed_by (observer slots).
+
+(* [worlds_observed_way_out_statement] with no observer in it. One way
+   out is applied to two lists of values, each under a static
+   environment and a heap. If [observed_refines] relates the two
+   results, the two lists have the same constants and the same
+   locations at the same places, and the two heaps bind the same
+   locations, in the same order. So two worlds that a class with their
+   way out in it does not tell apart are so related. *)
+Definition observed_refines_way_out_statement : Prop :=
+  ∀ (k : continuation) (vs vs' : list value)
+    (statics statics' : static_env) (hp hp' : heap),
+    observed_refines (apply_cont_value (Outer k) vs statics hp)
+      (apply_cont_value (Outer k) vs' statics' hp') ->
+    same_scalars vs vs' ∧ map fst hp = map fst hp'.
+
+(* [expr_refines_under_observers_statement] of two states, with no
+   observer and no environment quantified in it: [refines] of two
+   states gives [observed_refines] of the two as results that are
+   still to run, [Step source] and [Step target]. *)
+Definition refines_gives_observed_refines_statement : Prop :=
+  ∀ source target : state,
+    refines source target ->
+    observed_refines (Step source) (Step target).
+
+(* [refines_under_observers_trans_statement] of every class. *)
+Definition refines_observed_by_trans_statement : Prop :=
+  ∀ (O : cont_value -> Prop) (statics : static_env) (hp : heap)
+    (e1 e2 e3 : expr),
+    refines_observed_by O statics hp e1 e2 ->
+    refines_observed_by O statics hp e2 e3 ->
+    refines_observed_by O statics hp e1 e3.
+
+(* [under_observers_worlds_statement] of every class that has every way
+   out. The premise on the class is used from the worlds to the
+   environments: what an environment does not bind stands for a way
+   out. *)
+Definition refines_observed_by_worlds_statement : Prop :=
+  ∀ (O : cont_value -> Prop) (statics : static_env) (hp : heap)
+    (source target : expr),
+    (∀ k : continuation, O (Outer k)) ->
+    code_closed source = true ->
+    code_closed target = true ->
+    static_code_closed statics ->
+    (refines_observed_by O statics hp source target
+     <-> refines_world (worlds_observed_by O)
            (State source [] [] statics hp)
            (State target [] [] statics hp)).
