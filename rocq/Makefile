@@ -234,6 +234,10 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaNeverReturnsScopeProofs.v \
   FlambdaNeverReturnsScopeSpec.v \
   FlambdaNeverReturnsSpec.v \
+  FlambdaNoArrayValueObserversProofs.v \
+  FlambdaNoArrayValueObserversSpec.v \
+  FlambdaNoArrayValueProofs.v \
+  FlambdaNoArrayValueSpec.v \
   FlambdaNominalInstancesProofs.v \
   FlambdaNominalInstancesSpec.v \
   FlambdaNominalProofs.v \
