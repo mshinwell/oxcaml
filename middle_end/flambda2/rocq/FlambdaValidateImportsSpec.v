@@ -445,13 +445,41 @@ Definition normalise_lifted_free_in (statics : static_env) (rounds : nat)
        (guard_scope FlambdaSimplifyCarriedSpec.simplify_by_types_carried
           (iterate rounds (normalise_lifted_round avoid kept) e)).
 
+(* The same test in each round of
+   FlambdaValidateSpec.demote_and_tidy_known that uses what the unit
+   binds its symbols to. The terms are those of
+   [demote_and_tidy_known_round], with [inner] the number of rounds
+   that it gives [demote_and_tidy], and the rounds are those of
+   [iterate]: the test stops where [iterate] stops. *)
+Fixpoint tidy_known_free_in (statics : static_env) (inner rounds : nat)
+    (e : expr) : bool :=
+  match rounds with
+  | O => true
+  | S rounds =>
+    let given := use_known_closures e in
+    let rest (e' : expr) : bool :=
+      if expr_eqb [] [] e e' then true
+      else tidy_known_free_in statics inner rounds e'
+    in
+    match fold_known_unit given with
+    | Some folded =>
+      static_names_free_in statics given
+      && rest (demote_and_tidy inner (read_known_slots folded))
+    | None => rest (demote_and_tidy inner (read_known_slots given))
+    end
+  end.
+
+Definition demote_and_tidy_known_free_in (statics : static_env)
+    (rounds : nat) (e : expr) : bool :=
+  tidy_known_free_in statics rounds rounds (demote_and_tidy rounds e).
+
 (* The two, of each of the liftings as [lifted_in_turn] applies
-   them. *)
+   them, and after the last that of what ends the normalisation. *)
 Fixpoint lifted_free_in (statics : static_env) (rounds : nat)
     (avoid : list continuation) (Ls : list lifting) (kept : list code_id)
     (e : expr) : bool :=
   match Ls with
-  | [] => true
+  | [] => demote_and_tidy_known_free_in statics rounds e
   | L :: Ls =>
     lifting_free_in statics L e
     && normalise_lifted_free_in statics rounds avoid kept (with_lifting L e)

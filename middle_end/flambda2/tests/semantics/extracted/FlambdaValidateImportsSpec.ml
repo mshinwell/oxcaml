@@ -97,12 +97,36 @@ let normalise_lifted_free_in statics rounds avoid kept e =
        (guard_scope simplify_by_types_carried
           (iterate rounds (normalise_lifted_round avoid kept) e0))
 
+(** val tidy_known_free_in : static_env -> nat -> nat -> expr -> bool **)
+
+let rec tidy_known_free_in statics inner rounds e =
+  match rounds with
+  | O -> true
+  | S rounds0 -> (
+    let given = use_known_closures e in
+    let rest =
+     fun e' ->
+      if expr_eqb [] [] e e'
+      then true
+      else tidy_known_free_in statics inner rounds0 e'
+    in
+    match fold_known_unit given with
+    | Some folded ->
+      static_names_free_in statics given
+      && rest (demote_and_tidy inner (read_known_slots folded))
+    | None -> rest (demote_and_tidy inner (read_known_slots given)))
+
+(** val demote_and_tidy_known_free_in : static_env -> nat -> expr -> bool **)
+
+let demote_and_tidy_known_free_in statics rounds e =
+  tidy_known_free_in statics rounds rounds (demote_and_tidy rounds e)
+
 (** val lifted_free_in : static_env -> nat -> continuation list -> lifting list
     -> code_id list -> expr -> bool **)
 
 let rec lifted_free_in statics rounds avoid ls kept e =
   match ls with
-  | [] -> true
+  | [] -> demote_and_tidy_known_free_in statics rounds e
   | l :: ls0 ->
     (lifting_free_in statics l e
     && normalise_lifted_free_in statics rounds avoid kept (with_lifting l e))

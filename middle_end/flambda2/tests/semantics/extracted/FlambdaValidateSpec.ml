@@ -283,12 +283,22 @@ let normalise_lifted rounds avoid kept e =
 let unit_continuations ls =
   flat_map (fun l -> [l.lifting_unit.unit_return; l.lifting_unit.unit_exn]) ls
 
+(** val demote_and_tidy_known_round : nat -> expr -> expr **)
+
+let demote_and_tidy_known_round rounds e =
+  demote_and_tidy rounds (read_known_slots (with_known (use_known_closures e)))
+
+(** val demote_and_tidy_known : nat -> expr -> expr **)
+
+let demote_and_tidy_known rounds e =
+  iterate rounds (demote_and_tidy_known_round rounds) (demote_and_tidy rounds e)
+
 (** val lifted_in_turn : nat -> continuation list -> lifting list -> code_id
     list -> expr -> expr **)
 
 let rec lifted_in_turn rounds avoid ls kept e =
   match ls with
-  | [] -> demote_and_tidy rounds e
+  | [] -> demote_and_tidy_known rounds e
   | l :: ls0 ->
     lifted_in_turn rounds avoid ls0 kept
       (normalise_lifted rounds avoid kept (with_lifting l e))

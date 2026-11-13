@@ -486,6 +486,71 @@ Proof.
   exact (refines_trans _ _ _ Hround (IH _ Hrest)).
 Qed.
 
+(* The rounds that end the normalisation of a term in which something
+   was lifted, where the test passes: each use of what the unit binds
+   its symbols to is one of a term that binds no name of the imports. *)
+Lemma tidy_known_unit_refines (imports : list (symbol * import_class))
+    (inner : nat) :
+  ∀ (rounds : nat) (e : expr),
+    tidy_known_free_in (imports_statics imports) inner rounds e = true ->
+    unit_refines imports e
+      (iterate rounds (demote_and_tidy_known_round inner) e).
+Proof.
+  induction rounds as [ | rounds IH]; intros e;
+    cbn [tidy_known_free_in iterate];
+    [ intros _; apply refines_refl | ].
+  cbv zeta.
+  set (given := use_known_closures e).
+  intros Hfree.
+  assert (Hround :
+    unit_refines imports e (demote_and_tidy_known_round inner e)
+    ∧ (if expr_eqb [] [] e (demote_and_tidy_known_round inner e) then true
+       else
+         tidy_known_free_in (imports_statics imports) inner rounds
+           (demote_and_tidy_known_round inner e))
+      = true).
+  { assert (Hgiven_refines :
+      refines (State e [] [] (imports_statics imports) empty_heap)
+        (State given [] [] (imports_statics imports) empty_heap)).
+    { exact (use_known_closures_refines _ [] [] (imports_statics imports)
+               empty_heap). }
+    unfold demote_and_tidy_known_round. fold given. unfold with_known.
+    destruct (fold_known_unit given) as [folded | ] eqn:Hfold.
+    - apply andb_true_iff in Hfree as [Hgiven Hfree].
+      split; [ | exact Hfree ].
+      apply (refines_trans _ _ _ Hgiven_refines).
+      apply (refines_trans _ _ _
+        (fold_known_unit_refines_imports imports given folded Hfold Hgiven)).
+      apply (refines_trans _ _ _
+        (FlambdaKnownSlotsProofs.read_known_slots_refines_imports imports
+           folded)).
+      exact (demote_and_tidy_refines inner _ [] [] (imports_statics imports)
+               empty_heap).
+    - split; [ | exact Hfree ].
+      apply (refines_trans _ _ _ Hgiven_refines).
+      apply (refines_trans _ _ _
+        (FlambdaKnownSlotsProofs.read_known_slots_refines_imports imports
+           given)).
+      exact (demote_and_tidy_refines inner _ [] [] (imports_statics imports)
+               empty_heap). }
+  destruct Hround as [Hround Hrest].
+  destruct (expr_eqb [] [] e (demote_and_tidy_known_round inner e));
+    [ exact Hround | ].
+  exact (refines_trans _ _ _ Hround (IH _ Hrest)).
+Qed.
+
+Lemma demote_and_tidy_known_unit_refines
+    (imports : list (symbol * import_class)) (rounds : nat) (e : expr) :
+  demote_and_tidy_known_free_in (imports_statics imports) rounds e = true ->
+  unit_refines imports e (demote_and_tidy_known rounds e).
+Proof.
+  unfold demote_and_tidy_known_free_in, demote_and_tidy_known. intros Hfree.
+  apply (refines_trans _ _ _
+    (demote_and_tidy_refines rounds e [] [] (imports_statics imports)
+       empty_heap)).
+  exact (tidy_known_unit_refines imports rounds rounds _ Hfree).
+Qed.
+
 Lemma lifted_in_turn_unit_refines (imports : list (symbol * import_class))
     (rounds : nat) (avoid : list continuation) (Ls : list lifting)
     (kept : list code_id) :
@@ -495,9 +560,7 @@ Lemma lifted_in_turn_unit_refines (imports : list (symbol * import_class))
 Proof.
   induction Ls as [ | L Ls IH]; intros e;
     cbn [lifted_free_in lifted_in_turn].
-  - intros _.
-    exact (demote_and_tidy_refines rounds e [] [] (imports_statics imports)
-             empty_heap).
+  - exact (demote_and_tidy_known_unit_refines imports rounds e).
   - intros Hfree.
     apply andb_true_iff in Hfree as [Hfree Hrest].
     apply andb_true_iff in Hfree as [Hlifting Hknown].

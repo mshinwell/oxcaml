@@ -112,6 +112,10 @@ val normalise_lifted : nat -> continuation list -> code_id list -> expr -> expr
 
 val unit_continuations : lifting list -> continuation list
 
+val demote_and_tidy_known_round : nat -> expr -> expr
+
+val demote_and_tidy_known : nat -> expr -> expr
+
 val lifted_in_turn :
   nat -> continuation list -> lifting list -> code_id list -> expr -> expr
 

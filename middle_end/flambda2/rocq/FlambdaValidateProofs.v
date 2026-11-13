@@ -703,12 +703,43 @@ Proof.
   apply iterate_lifted_program_refines.
 Qed.
 
+(* What ends the normalisation of a term in which something was
+   lifted: the demotion with its rounds, and then the rounds that use
+   what is known, each followed by the demotion with its rounds. *)
+Lemma demote_and_tidy_known_round_program_refines (inner : nat) (e : expr) :
+  program_refines e (demote_and_tidy_known_round inner e).
+Proof.
+  unfold demote_and_tidy_known_round.
+  apply (refines_trans _ _ _
+    (expr_refines_program _ _ (use_known_closures_refines _))).
+  apply (refines_trans _ _ _ (with_known_program_refines _)).
+  apply (refines_trans _ _ _ (read_known_slots_program_refines _)).
+  apply expr_refines_program, demote_and_tidy_refines.
+Qed.
+
+Lemma demote_and_tidy_known_program_refines (rounds : nat) (e : expr) :
+  program_refines e (demote_and_tidy_known rounds e).
+Proof.
+  unfold demote_and_tidy_known.
+  apply (refines_trans _ _ _
+    (expr_refines_program _ _ (demote_and_tidy_refines rounds e))).
+  generalize (demote_and_tidy rounds e). generalize rounds at 1 as n.
+  induction n as [ | n IH]; intros e0; cbn [iterate];
+    [ apply refines_refl | ].
+  cbv zeta.
+  destruct (expr_eqb [] [] e0 (demote_and_tidy_known_round rounds e0));
+    [ apply demote_and_tidy_known_round_program_refines | ].
+  exact
+    (refines_trans _ _ _
+       (demote_and_tidy_known_round_program_refines rounds e0) (IH _)).
+Qed.
+
 Lemma lifted_in_turn_program_refines (rounds : nat)
     (avoid : list continuation) (Ls : list lifting) (kept : list code_id) :
   ∀ e : expr, program_refines e (lifted_in_turn rounds avoid Ls kept e).
 Proof.
   induction Ls as [ | L Ls IH]; intros e; cbn [lifted_in_turn];
-    [ apply expr_refines_program, demote_and_tidy_refines | ].
+    [ apply demote_and_tidy_known_program_refines | ].
   apply (refines_trans _ _ _ (with_lifting_program_refines L _)).
   apply (refines_trans _ _ _
     (normalise_lifted_program_refines rounds avoid kept _)).

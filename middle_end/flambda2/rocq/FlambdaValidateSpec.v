@@ -271,7 +271,10 @@
    all of whose raises it sees, and then going through its rounds
    again ([demote_and_tidy]): the term after has a jump where the term
    before has a raise, and the comparison tells a trap action from
-   none. The same is done after the last of the liftings. The rewrite
+   none. The same is done after the last of the liftings, and there
+   what is known of the symbols of the unit is then used again
+   ([demote_and_tidy_known]): a handler that is demoted may come to be
+   applied to a symbol that a lifting bound. The rewrite
    is applied with no name in scope. It takes the names in scope so as
    to leave alone a handler whose name is also that of a continuation
    around the term, and a term that passes the checks of exception
@@ -871,19 +874,49 @@ Definition unit_continuations (Ls : list lifting) : list continuation :=
   flat_map
     (fun L => [unit_return (lifting_unit L); unit_exn (lifting_unit L)]) Ls.
 
+(* What ends the normalisation of a term in which something was
+   lifted. The exception handlers are demoted and the rounds gone
+   through again, as at the end of [normalise_before]
+   ([demote_and_tidy]). A handler that is demoted is a continuation
+   like another, and the rounds may then put a symbol that a lifting
+   bound where the handler read its parameter. The case observed: a
+   function raises an exception that it makes, a block that the
+   lifting binds to a symbol beside the code, and the handler of a
+   [try] around the raise loads the first field of what it is given
+   and tests it against the constructor. Simplify, which knows what
+   the symbol is bound to when it comes to the handler, gives the
+   load its value and so resolves the test and the [Switch] on it;
+   the rounds of [normalise_lifted], which use what is known of the
+   symbols, are over before the demotion. So what
+   [normalise_lifted_round] uses after its round is used here, in
+   rounds of its own, each followed by [demote_and_tidy] again: what
+   is known of the static closures in sight, what the unit binds its
+   symbols to, and the value slots that every set of closures of the
+   unit gives one symbol or constant. No call is inlined and nothing
+   is renamed apart, so these rounds make no name; a call that they
+   make direct stays a call. *)
+Definition demote_and_tidy_known_round (rounds : nat) (e : expr) : expr :=
+  demote_and_tidy rounds
+    (read_known_slots (with_known (use_known_closures e))).
+
+Definition demote_and_tidy_known (rounds : nat) (e : expr) : expr :=
+  iterate rounds (demote_and_tidy_known_round rounds)
+    (demote_and_tidy rounds e).
+
 (* The term with each of the liftings given applied in turn, each
    followed by that normalisation. A lifting after the first names
    [Let]s of the term that those before it give. The continuations to
    avoid are the same at every step: [validate_unit] gives those of
    the units of all the liftings, so that no round, before or after
    any of them, makes one. After the last, the exception handlers are
-   demoted, as at the end of [normalise_before]; the rounds that
-   follow the demotion inline no call and rename nothing apart, so
-   they make no name. *)
+   demoted, as at the end of [normalise_before], and what is known of
+   the symbols is used again ([demote_and_tidy_known]); the rounds
+   that follow the demotion inline no call and rename nothing apart,
+   so they make no name. *)
 Fixpoint lifted_in_turn (rounds : nat) (avoid : list continuation)
     (Ls : list lifting) (kept : list code_id) (e : expr) : expr :=
   match Ls with
-  | [] => demote_and_tidy rounds e
+  | [] => demote_and_tidy_known rounds e
   | L :: Ls =>
     lifted_in_turn rounds avoid Ls kept
       (normalise_lifted rounds avoid kept (with_lifting L e))

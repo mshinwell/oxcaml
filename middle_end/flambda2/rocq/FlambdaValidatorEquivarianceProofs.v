@@ -7232,6 +7232,48 @@ Proof.
   apply read_known_slots_rewrite_equivariant.
 Qed.
 
+(* What ends the normalisation of a term in which something was
+   lifted: the demotion with its rounds, and then the rounds that use
+   what is known, each followed by the demotion with its rounds. None
+   of them makes a name. *)
+Lemma demote_and_tidy_known_round_scope (rounds : nat) :
+  keeps_scope (demote_and_tidy_known_round rounds).
+Proof.
+  exact
+    (keeps_scope_compose use_known (demote_and_tidy rounds) use_known_scope
+       (demote_and_tidy_scope rounds)).
+Qed.
+
+Lemma demote_and_tidy_known_round_equivariant (rounds : nat) :
+  rewrite_equivariant (demote_and_tidy_known_round rounds).
+Proof.
+  intros r e. unfold demote_and_tidy_known_round.
+  rewrite use_known_closures_rewrite_equivariant, with_known_equivariant,
+    read_known_slots_rewrite_equivariant.
+  apply demote_and_tidy_equivariant.
+Qed.
+
+Lemma demote_and_tidy_known_scope (rounds : nat) :
+  keeps_scope (demote_and_tidy_known rounds).
+Proof.
+  exact
+    (keeps_scope_compose (demote_and_tidy rounds)
+       (iterate rounds (demote_and_tidy_known_round rounds))
+       (demote_and_tidy_scope rounds)
+       (keeps_scope_iterate rounds (demote_and_tidy_known_round rounds)
+          (demote_and_tidy_known_round_scope rounds))).
+Qed.
+
+Lemma demote_and_tidy_known_equivariant (rounds : nat) :
+  rewrite_equivariant (demote_and_tidy_known rounds).
+Proof.
+  intros r e. unfold demote_and_tidy_known.
+  rewrite demote_and_tidy_equivariant.
+  exact
+    (iterate_equivariant rounds (demote_and_tidy_known_round rounds)
+       (demote_and_tidy_known_round_equivariant rounds) r _).
+Qed.
+
 (* A round of the normalisation of a term in which something was
    lifted: a round that avoids the continuations given, then that
    rewrite. *)
@@ -7379,7 +7421,7 @@ Lemma lifted_in_turn_scope (rounds : nat) (avoid : list continuation)
   keeps_scope (lifted_in_turn rounds avoid Ls kept).
 Proof.
   induction Ls as [ | L Ls IH]; intros e Hclosed; cbn [lifted_in_turn].
-  - exact (demote_and_tidy_scope rounds e Hclosed).
+  - exact (demote_and_tidy_known_scope rounds e Hclosed).
   - destruct (with_lifting_scope L e Hclosed) as (Hclosed1 & Hv1 & Hk1).
     destruct
       (normalise_lifted_keeps_scope rounds avoid kept (with_lifting L e)
@@ -7433,9 +7475,9 @@ Proof.
   - exists r1. split; [ | split; [ exact Havoid | ] ].
     + exact
         (proj2
-           (renames_alike_kept (demote_and_tidy rounds) r r1 e
-              (demote_and_tidy_scope rounds) Hclosed Halike)).
-    + apply demote_and_tidy_equivariant.
+           (renames_alike_kept (demote_and_tidy_known rounds) r r1 e
+              (demote_and_tidy_known_scope rounds) Hclosed Halike)).
+    + apply demote_and_tidy_known_equivariant.
   - destruct (Hunits L (or_introl eq_refl)) as [Hret Hexn].
     rewrite (rename_lifting_alike r r1 L avoid Havoid Hret Hexn),
       with_lifting_renamed.
