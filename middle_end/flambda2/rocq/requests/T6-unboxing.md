@@ -594,10 +594,11 @@ Two things had to be got right, and are where to look.
   stops for that handler (below, "A load of two tags"). A read that
   comes after it in the order of the pass is then not made a
   parameter.
-- A field that the handler reads in two places becomes two
-  parameters, where Simplify has one. A pass that makes one of two
-  parameters that every application gives the same argument would
-  mend it.
+- What the handler reads in two places is one parameter (below,
+  "What a handler reads in two places"), but for the loads of one
+  field of a variant for which, taken together, tags that differ
+  are known: those are a parameter for each place, also where two
+  of the places are under one tag.
 - A read that a `Let` in scope has made of the argument is given
   only to the read that the handler begins with (below, "A read
   that is in scope"). A read taken elsewhere in the handler is not
@@ -813,6 +814,70 @@ variables, and the code and the loop are run under other variables.
 
 `int64_max` of `FlambdaUnboxVariantsExamplesSpec.v` is this body,
 computed.
+
+### What a handler reads in two places
+
+For
+
+    let o = if c then Some (x + 1) else None in
+    let a = match o with None -> 0 | Some y -> y in
+    let b = match o with None -> 10 | Some y -> y * 2 in
+    a + b
+
+the handler of the join tests `o` twice and loads its field twice,
+the second test and the second load in the continuation that the
+first match goes to. Simplify's unboxing makes the parameters from
+what the parameter is, whether it is an immediate and the field of
+its one constructor with an argument, and makes the type of the
+parameter say so; each test and each load in the handler then
+becomes the one parameter. The pass goes by the reads, one `Let` at
+a time, and made a parameter for each: four, where the term after
+has two.
+
+Now the read that is made a parameter takes the others with it.
+What is left of the handler once its `Let` is removed is gone
+through as `first_read` goes through a handler (`share_reads`), and
+each other `Let` of a variable to the same primitive applied to the
+same parameter becomes a `Let` of that variable to the variable of
+the read. Under such a `Let` its variable holds what the new
+parameter holds, so a unary primitive applied to it is applied to
+the new parameter, and a `Switch` on it is on the new parameter.
+The first matters for a box in a box: the contents of an option
+that is the first component of a pair, loaded in two places, are
+then one parameter whose own test and load the pass can take in the
+same round. The second matters for the constant that is given in
+place of a read: an application is shown not to come to a read by
+the arms that it takes (`never_reads`), and the second test must be
+seen to be the first. The `Let`s that are left are followed and
+removed by the rounds.
+
+The applications are given their argument against what is left of
+the handler with the reads shared, so the constant is given only to
+an application that comes to none of the places.
+
+For loads the tag counts. Simplify's parameters for the fields of a
+variant are tag by tag, so the loads of the first field in the arms
+of two constructors are two parameters, and the pass must keep them
+two. It shares the loads of a field only where the tags that are
+known for them, taken together, do not differ (`shares_reads`: the
+test of "A load of two tags" above, made of the read with the others
+shared). The tags are those of that section: of the arguments that
+the term shows to be blocks that were made, in every application
+but those that it shows to come to none of the loads. An argument
+that is not such a block has no tag, so the loads are shared also
+where no tag is known, or one, and blocks of other tags may then
+come to them. The test chooses what is shared and nothing more; the
+refinement does not rest on it. Otherwise the read is taken alone,
+as before.
+
+For the refinement nothing new is asked: the step already has that
+the new parameter holds what the primitive has on the parameter
+read, if it has a value, and under that fact each `Let` of the
+parameter binds what the `Let` of the primitive bound, or the
+handler has no value there.
+
+`matched_twice` of `FlambdaUnboxVariantsExamplesSpec.v` is this
+body, computed.
 
 ## 8. What else is owed for pairs and numbers
 
@@ -1041,6 +1106,15 @@ boxed number, then an addition). Over the units that were in the
 directory (317), the units written by hand (111), the 600 of
 `census/README.md` and the 240 generated units, the change moves no
 verdict and no line of any output.
+
+With what a handler reads in two places made one parameter (section
+7), three more sources are validated that were not:
+`option_matched_twice` (an option matched twice after the arms
+meet), `two_options_matched` (two options matched together) and
+`option_in_pair` (a pair whose first component is an option). Over
+the units that were in the directory (338), the units written by
+hand (118), the 600 of `census/README.md` and the 240 generated
+units, the change moves no verdict and no line of any output.
 
 ## 10. Asked of others
 
