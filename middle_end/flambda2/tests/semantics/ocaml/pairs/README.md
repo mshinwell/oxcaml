@@ -145,6 +145,7 @@ from the others.
 | `lengths_called_in_function.ml` | `lengths.ml` | a function calls a function of the first unit | a prefix of four bindings; both runs return the module block; the same; validated with its imports, given the `.cmx` |
 | `lengths_called_at_toplevel.ml` | `lengths.ml` | a toplevel calls one | the same prefix; undefined before and after; validated, with the line that says the validation says nothing of a unit whose term before is undefined |
 | `lengths_included.ml` | `lengths.ml` | a toplevel reads the fields of the first unit and keeps them (`include`) | the same prefix; both runs return a block of the two closures; the same; validated with its imports, given the `.cmx` |
+| `lengths_kept_with_exception.ml` | `lengths.ml` | the same, and exports a predefined exception too | the same prefix, and one import left; both runs return a block of the two closures and the imported exception; the same; validated with its imports, given the `.cmx` |
 | `never_called.ml` | `never.ml` | calls a function that is never inlined, whose code has no body in the `.cmx`, in a function and at toplevel | a prefix of two bindings; undefined before and after; validated, with the line that says the validation says nothing |
 | `hidden_read.ml` | `hidden.ml` | a toplevel reads a field of which the `.cmx` says nothing, beside one that it knows | no prefix; undefined before and after; nothing to validate |
 | `parity_called.ml` | `parity.ml` | calls a function that is one of a set of two, in a function and at toplevel | a prefix of three bindings; undefined before and after; validated, with the line that says the validation says nothing |
@@ -152,12 +153,18 @@ from the others.
 | `probed_called.ml` | `probed.ml` | calls, without inlining it, a function of the first unit whose body has a probe | a prefix of three bindings without the body, which the conversion refuses; the run is undefined before and after, and the validation says nothing of it |
 | `probed_inlined.ml` | `probed.ml` | calls the same function and lets Simplify inline it | not checked: the term after Simplify has the call that is a probe, which the conversion refuses |
 
-The prefix of the three units that use `lengths.ml` is the same: the
+Sixteen sources. Six are first units; four of them have an expected
+file, and each of those is validated, as a unit of the directory
+above is. Of the ten second units, three are validated given a
+`.cmx`, one of them with an import left; six are undefined in the
+model, four of them with a prefix; one is not checked.
+
+The prefix of the four units that use `lengths.ml` is the same: the
 module block, the closures of `length_from` and of `length`, and the
 code of `length`, whose body the `.cmx` has. That body calls the code
 of `length_from` directly; `length_from` is recursive, its code has
 no body in the `.cmx`, and so its code id is bound to nothing. No
-import is left.
+import is left in the first three.
 
 In `lengths_called_in_function.ml` the unit only makes its closure, so
 both runs are defined. The term before loads `length` from the module
@@ -171,6 +178,17 @@ terms the same once the closure of the unit is lifted.
 In `lengths_included.ml` the term before loads the two fields of the
 module block and the term after names the two closure symbols; with
 the prefix both runs are defined and return the block of the two.
+
+`lengths_kept_with_exception.ml` is that unit with a predefined
+exception exported too, which stays an import: the unit has a
+prefix and an import. The validator accepts the two terms once the
+unused static bindings are removed, at the head of the term after
+too. That verdict has a theorem from the imports where no import is
+a name that the groups at the head of the term after bind, once the
+validation has normalised and tidied that term (`../README.md`,
+"What the verdicts mean", has the test and its statements). The
+exception is not such a name: the line begins "validated with its
+imports, given the .cmx of 1 of them".
 
 `lengths_called_at_toplevel.ml`, `never_called.ml` and
 `parity_called.ml` call, as they are initialised, code that has no

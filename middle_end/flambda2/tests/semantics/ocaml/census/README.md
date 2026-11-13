@@ -40,11 +40,12 @@ that the conversion refused.
 |---------|-------|-----------|---------------|
 | `known_scalar` | 150 | 150 | 0 |
 | `unknown_scalar` | 150 | 150 | 0 |
-| `known` | 100 | 98 | 2 |
-| `unknown` | 100 | 98 | 2 |
-| `functions` | 100 | 97 | 3 |
+| `known` | 100 | 100 | 0 |
+| `unknown` | 100 | 100 | 0 |
+| `functions` | 100 | 99 | 1 |
 
-593 of the 600 are validated (592 on 2026-11-12). On the same 600
+599 of the 600 are validated (593 before the liftings to a group
+around, below; 592 on 2026-11-12). On the same 600
 terms, earlier that day: 509 before the term after lost the
 continuations that are applied once
 (`FlambdaValidateSpec.inline_once_applied_after`); 555
@@ -110,32 +111,60 @@ after, the code of a stub left as Simplify leaves it, the fold of a
 comparison of a value with itself, the load of a byte of a known
 string left, the unused `Let`s removed after the value slots, and
 the groups of static bindings put above the continuation bindings.
+Six more later on 2026-11-13, with the liftings to a group of
+static bindings around (`FlambdaLiftAroundSpec.lift_around_unit`,
+V3's; `functions`, seeds 6 and 22; `known`, seeds 37 and 46;
+`unknown`, seeds 2 and 72). Of the other 594 the tool prints what
+it printed, with what else the validation and the tool have gained
+since: the length of an array among the primitives that are not
+computed twice, the modes of the parameters of code made unknown
+before the tool's Simplify runs, the rewrites from the types in a
+term in which something was lifted, a join given what a `Let` in
+scope has read of its argument, a call of code that never returns
+given the form that the term after has, the tables bound at the
+head of the term before, an unused parameter removed from a
+continuation that a call returns to, and the verdict asked of
+`FlambdaValidateImportsSpec.holds_from`.
 No unit that was validated at one of these points is not at a later
 one. The
 day before, 336 were validated, 256 were not and 8 were not checked;
 of the units that keep a function, none was.
 
-What the 7 units that are not validated lack, read off the two
-terms that the tool shows of each: a block that Simplify makes a
-symbol and the term before still makes with a `Let`. The block is
-made in a handler and Simplify binds the symbol outside it, or the
-guess of the tool does not find it (`functions`, seeds 6, 18 and 22;
-`known`, seeds 37 and 46; `unknown`, seeds 2 and 72). That is in the
-tool only: nothing is believed of its guesses, and a better one needs
-no proof. In four of the 7 the term before keeps a continuation that
+What the 7 units that were not validated before those liftings
+lacked, read off the two terms that the tool showed of each: a block
+that Simplify makes a symbol and the term before still made with a
+`Let`. The block is made in a handler and Simplify binds the symbol
+outside it, or the guess of the tool did not find it (`functions`,
+seeds 6, 18 and 22; `known`, seeds 37 and 46; `unknown`, seeds 2
+and 72). In four of the 7 the term before kept a continuation that
 the term after has not: a handler only makes a block and goes on
 (Simplify makes the block a symbol and has no use for the handler).
+Six of the 7 are validated now.
 
-Three of the 7 are validated where the check is given the pair that
-the compiler itself makes, converted with the change that the
-measure makes to the conversion (`functions`, seed 6; `known`, seeds
-37 and 46; measured by X5 with the tool as it is at ba85db2822, see
-`../README.md`, "What a validation does not say", for the change and
-what it does not show). The tool's Simplify, which reads the term
-from a text that has no debugging information, shares the block that
-it lifts with an equal constant that the unit binds already, and the
-validator has no such sharing; the compiler's Simplify makes a
-second symbol, and that pair is accepted (discrepancy X5-10).
+The unit that is left (`functions`, seed 18) makes three blocks of
+one shape, each with one field that is a variable. The guess of the
+tool gives a symbol of the term after to the first `Let` that makes
+a block of its shape, and a field that is a variable agrees with
+anything: the three `Let`s get the three symbols in another order
+than Simplify gave them, and the two terms that are compared differ
+only by which symbol each block has. Symbols are not bound names,
+so the comparison does not match them. That is in the tool only:
+nothing is believed of its guesses, and a better one needs no
+proof.
+
+Three of the 7 were validated already where the check was given the
+pair that the compiler itself makes, converted with the change that
+the measure makes to the conversion (`functions`, seed 6; `known`,
+seeds 37 and 46; measured by X5 with the tool as it is at
+ba85db2822, see `../README.md`, "What a validation does not say",
+for the change and what it does not show). The tool's Simplify,
+which reads the term from a text that has no debugging information,
+shares the block that it lifts with an equal constant that the unit
+binds already, where the compiler's Simplify makes a second symbol
+(discrepancy X5-10). The validator had no such sharing. With the
+lifting to a group around, a `Let` that makes what a symbol in
+scope is bound to becomes that symbol, and the three are validated
+of the tool's pair too.
 
 The eighth unit (`unknown_scalar`, seed 144) had two things. Two
 arms of a `Switch` gave one continuation two arguments, each the
@@ -152,7 +181,7 @@ of the model, so they are run and compared; all five are validated
 
 So, for units of this kind: when the result is a number, all are
 validated, whether the inputs are known or not; of the units that
-keep a function, 97 of 100.
+keep a function, 99 of 100.
 
 ## Two more profiles: exceptions, loops
 
@@ -178,17 +207,24 @@ tool gave no answer. `run.sh` allows a unit 60 seconds of processor
 time, user and system together. Until now it allowed 60 seconds of
 the clock, which measured what else the machine was running:
 `loops_scalar`, seed 55, which was without an answer in 60 seconds
-the day before, then took 16 seconds of processor time, and takes 4
-now, the most of the 240. The 240 take 51 seconds of processor time
-together (47 user, 5 system), where they took 204 the day before
-(198 and 6). A tool that a signal other than that of the limit ends
+the day before, then took 16 seconds of processor time, then 4, and
+takes 7 now, the most of the 240. The 240 take 73 seconds of
+processor time together (69 user, 4 system); they took 51 (47 and
+5) with the tool of ecb8c49042, and 204 the day before that (198
+and 6). Of the tools built between that commit and this tree, one
+built before the rewrites from the types went into a term in which
+something was lifted took 58 seconds, and one built after them,
+and after the reads in scope given to a join, took 81, in one run
+of each; two runs of one tool have differed by a tenth on this
+machine. The 600 take 33 seconds, as they did. A tool that
+a signal other than that of the limit ends
 is reported as that, with its status, and counted as no answer.
 
 | Profile | Units | Validated | Validated with its imports | Validated with nothing imported only | Not validated | Not checked |
 |---------|-------|-----------|----------------------------|--------------------------------------|---------------|-------------|
 | `exceptions` | 60 | 33 | 13 | 14 | 0 | 0 |
 | `exceptions_scalar` | 60 | 35 | 23 | 0 | 2 | 0 |
-| `loops` | 60 | 45 | 0 | 0 | 13 | 2 |
+| `loops` | 60 | 49 | 0 | 0 | 9 | 2 |
 | `loops_scalar` | 60 | 44 | 0 | 0 | 16 | 0 |
 
 A unit that names a predefined exception has an import, and the
@@ -200,9 +236,20 @@ imports. The other 14, all in the profile that keeps a function,
 are accepted once closures are lifted, which is proved of the two
 units run with nothing imported only: they are not validated with
 their imports. One of the two units with exceptions that are not
-validated has an import. The validator accepts 207 of the 240; 157
-of them import nothing. It accepted 195 the day before, and twelve
-units are validated since, none lost (`exceptions_scalar`, seed 16;
+validated has an import. The validator accepts 211 of the 240; 161
+of them import nothing. Four are validated since it accepted 207,
+none lost: three by the liftings to a group of static bindings
+around (`FlambdaLiftAroundSpec.lift_around_unit`, V3's; `loops`,
+seeds 7, 17 and 27), and one by the removal of an unused parameter
+of a continuation that a call returns to
+(`FlambdaWrapReturnsSpec.wrap_returns`, N3's; `loops`, seed 34). Of
+the two units that are not checked the tool prints other names of
+variables in the message that says what the model has not got, as
+the unit is built again with fresh names where the modes of the
+parameters of code are made unknown; of the other 234 it prints
+what it printed. It accepted 195 the day before the 207, and twelve
+units were validated between the two, none lost
+(`exceptions_scalar`, seed 16;
 `loops`, seeds 5, 15, 25, 35 and 37; `loops_scalar`, seeds 5, 9, 18,
 24, 28 and 34). `middle_end/flambda2/rocq/status/V4.md` has the
 measures, on these 240 units, of three rewrites that came that day:
@@ -256,7 +303,7 @@ terms, as the tool showed them, differed by the same kinds of line.
 The six units that were validated next are of the first kind, and
 the eleven others of the first kind were not read again. The third
 kind is what a call returning where its result is passed on removes;
-seven units are validated by it (above). 29 units with loops are not
+seven units are validated by it (above). 25 units with loops are not
 validated now; they were not sorted again.
 
 - A closure of no value slot that the term before makes by a `Let`
