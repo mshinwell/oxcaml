@@ -160,6 +160,10 @@ design out; that is the request, not the change.
     `middle_end/flambda2/rocq/FlambdaExitWorldProofs.v` (what a run
     leaves at an exit, with the static environment of its last state,
     and refinement with two such worlds related)
+  - `middle_end/flambda2/rocq/FlambdaRunUnderSpec.v` and
+    `middle_end/flambda2/rocq/FlambdaRunUnderProofs.v` (a unit run
+    under a continuation environment is the unit run on its own and
+    then what the environment binds the continuation of its exit to)
   - `middle_end/flambda2/rocq/status/C4.md`
 - C5, exceptions. Owner: C5, on `flambda2-rocq/C5-epoch`.
   - `middle_end/flambda2/rocq/requests/C5-exceptions.md` (the request)
