@@ -614,10 +614,12 @@ Lemma give_at_equivalent (i : nat) (k : continuation)
     (Let_cont_non_recursive k h (give_at i k h body)).
 Proof.
   unfold give_at.
-  destruct (first_scrutinee k i None body) as [[x | ] | ];
-    try (intros vars conts statics hp; apply equivalent_refl).
-  destruct (unalias_param i k h (give_scrutinee x k i None body));
+  destruct (first_scrutinee k i [] body) as [xs | ];
     [ | intros vars conts statics hp; apply equivalent_refl ].
+  induction xs as [ | x xs IH]; cbn [give_first];
+    [ intros vars conts statics hp; apply equivalent_refl | ].
+  destruct (unalias_param i k h (give_scrutinee x k i None body));
+    [ | exact IH ].
   exact (plug_equivalent (Let_cont_non_recursive_body k h Hole) _ _
     (not_many _) (give_scrutinee_equivalent x k i body)).
 Qed.

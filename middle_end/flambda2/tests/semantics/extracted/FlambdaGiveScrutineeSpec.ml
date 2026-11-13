@@ -136,8 +136,8 @@ and give_in_handler x k i known = function
         metadata,
         give_scrutinee x k i (known_under x params known) handler )
 
-(** val scrutinee_by : continuation -> nat -> variable option -> apply_cont ->
-    variable option option **)
+(** val scrutinee_by : continuation -> nat -> variable list -> apply_cont ->
+    variable list option **)
 
 let scrutinee_by k i current ac =
   if Pos.eqb ac.ac_continuation k
@@ -146,24 +146,24 @@ let scrutinee_by k i current ac =
       (match nth_error ac.ac_args i with
       | Some s -> (
         match s with
-        | Var y -> Some y
-        | Symbol _ -> None
-        | Const c -> ( match c with Naked_immediate _ -> current | _ -> None))
-      | None -> None)
+        | Var y -> y :: []
+        | Symbol _ -> []
+        | Const c -> ( match c with Naked_immediate _ -> current | _ -> []))
+      | None -> [])
   else None
 
-(** val scrutinee_var : variable option -> simple -> variable option **)
+(** val scrutinee_var : variable list -> simple -> variable list **)
 
-let scrutinee_var current = function Var y -> Some y | _ -> current
+let scrutinee_var current = function Var y -> y :: current | _ -> current
 
-(** val scrutinee_of : variable option -> expr -> variable option **)
+(** val scrutinee_of : variable list -> expr -> variable list **)
 
 let scrutinee_of current = function
   | Switch (scrutinee, _) -> scrutinee_var current scrutinee
   | _ -> current
 
-(** val first_scrutinee : continuation -> nat -> variable option -> expr ->
-    variable option option **)
+(** val first_scrutinee : continuation -> nat -> variable list -> expr ->
+    variable list option **)
 
 let rec first_scrutinee k i current = function
   | Let (_, _, _, body) -> first_scrutinee k i current body
@@ -191,22 +191,29 @@ let rec first_scrutinee k i current = function
       arms
   | _ -> None
 
-(** val handler_first_scrutinee : continuation -> nat -> variable option ->
-    continuation_handler -> variable option option **)
+(** val handler_first_scrutinee : continuation -> nat -> variable list ->
+    continuation_handler -> variable list option **)
 
 and handler_first_scrutinee k i current = function
   | Handler (_, _, handler) -> first_scrutinee k i current handler
 
+(** val give_first : variable list -> nat -> continuation ->
+    continuation_handler -> expr -> expr **)
+
+let rec give_first xs i k h body =
+  match xs with
+  | [] -> body
+  | x :: xs0 -> (
+    let body' = give_scrutinee x k i None body in
+    match unalias_param i k h body' with
+    | Some _ -> body'
+    | None -> give_first xs0 i k h body)
+
 (** val give_at : nat -> continuation -> continuation_handler -> expr -> expr **)
 
 let give_at i k h body =
-  match first_scrutinee k i None body with
-  | Some o -> (
-    match o with
-    | Some x -> (
-      let body' = give_scrutinee x k i None body in
-      match unalias_param i k h body' with Some _ -> body' | None -> body)
-    | None -> body)
+  match first_scrutinee k i [] body with
+  | Some xs -> give_first xs i k h body
   | None -> body
 
 (** val give_from : nat -> continuation -> continuation_handler -> expr -> expr

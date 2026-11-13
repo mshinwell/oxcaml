@@ -87,15 +87,20 @@
    only where the variable holds the constant. The pass
    ([give_scrutinees]) chooses them. For each non-recursive
    [Let_cont], and each position of its handler from the last to the
-   first, it takes the variable from the first application of the
-   continuation in the body ([first_scrutinee]: the variable that it
-   gives, or the scrutinee of the [Switch] that it is under if it
-   gives a naked immediate), makes the rewrite, and keeps the result
-   only if FlambdaUnaliasParamsSpec.unalias_param would then take the
-   parameter away: every application now gives that one variable,
-   and the other conditions of that pass hold. Otherwise the body is
-   left as it was. That test is for the use of the result, and
-   neither statement depends on it.
+   first, it takes the variables to try from the first application of
+   the continuation in the body ([first_scrutinee]: the variable that
+   it gives, or the scrutinees of the [Switch]es that it is under,
+   the nearest first, if it gives a naked immediate), makes the
+   rewrite for each in turn ([give_first]), and keeps the first
+   result for which FlambdaUnaliasParamsSpec.unalias_param would then
+   take the parameter away: every application now gives that one
+   variable, and the other conditions of that pass hold. If there is
+   none the body is left as it was. That test is for the use of the
+   result, and neither statement depends on it. The nearest [Switch]
+   is not always the one: where an arm applies a continuation whose
+   handler tests something else and applies the continuation in the
+   arms of that test, the number given is that of the arm of the
+   first [Switch].
 
    The handlers of recursive continuations and the bodies of code are
    not gone into by the pass: FlambdaNormaliseSpec.rewrite_code and
@@ -241,33 +246,34 @@ Definition give_scrutinee_equivalent_statement : Prop :=
 (* The pass                                                                 *)
 (* ======================================================================== *)
 
-(* What an application of [k] says of the variable to take: the
-   variable that it gives, or [current], the scrutinee of the [Switch]
-   that it is under, if it gives a naked immediate. *)
+(* What an application of [k] says of the variables to try: the
+   variable that it gives, or [current], the scrutinees of the
+   [Switch]es that it is under, the nearest first, if it gives a naked
+   immediate. *)
 Definition scrutinee_by (k : continuation) (i : nat)
-    (current : option variable) (ac : apply_cont)
-    : option (option variable) :=
+    (current : list variable) (ac : apply_cont)
+    : option (list variable) :=
   if Pos.eqb (ac_continuation ac) k
   then
     Some
       match nth_error (ac_args ac) i with
-      | Some (Var y) => Some y
+      | Some (Var y) => [y]
       | Some (Const (Naked_immediate _)) => current
-      | _ => None
+      | _ => []
       end
   else None.
 
-(* A scrutinee that is a variable; and that of an expression that is a
-   [Switch]. *)
-Definition scrutinee_var (current : option variable) (scrutinee : simple)
-    : option variable :=
+(* A scrutinee that is a variable, before those that there were; and
+   that of an expression that is a [Switch]. *)
+Definition scrutinee_var (current : list variable) (scrutinee : simple)
+    : list variable :=
   match scrutinee with
-  | Var y => Some y
+  | Var y => y :: current
   | _ => current
   end.
 
-Definition scrutinee_of (current : option variable) (e : expr)
-    : option variable :=
+Definition scrutinee_of (current : list variable) (e : expr)
+    : list variable :=
   match e with
   | Switch scrutinee _ => scrutinee_var current scrutinee
   | _ => current
@@ -275,8 +281,8 @@ Definition scrutinee_of (current : option variable) (e : expr)
 
 (* What the first application of [k] says. *)
 Fixpoint first_scrutinee (k : continuation) (i : nat)
-    (current : option variable) (e : expr) {struct e}
-    : option (option variable) :=
+    (current : list variable) (e : expr) {struct e}
+    : option (list variable) :=
   match e with
   | Let _ _ _ body => first_scrutinee k i current body
   | Let_static _ body => first_scrutinee k i current body
@@ -301,26 +307,35 @@ Fixpoint first_scrutinee (k : continuation) (i : nat)
   | Apply _ | Invalid => None
   end
 with handler_first_scrutinee (k : continuation) (i : nat)
-    (current : option variable) (h : continuation_handler) {struct h}
-    : option (option variable) :=
+    (current : list variable) (h : continuation_handler) {struct h}
+    : option (list variable) :=
   match h with
   | Handler _ _ handler => first_scrutinee k i current handler
   end.
 
 (* The body of the [Let_cont] of [k], whose handler is [h], with the
-   variable given at position [i], where
+   first of the variables [xs] given at position [i] for which
    FlambdaUnaliasParamsSpec.unalias_param would then take the parameter
-   away; the body as it is otherwise. *)
-Definition give_at (i : nat) (k : continuation) (h : continuation_handler)
-    (body : expr) : expr :=
-  match first_scrutinee k i None body with
-  | Some (Some x) =>
+   away; the body as it is if there is none. *)
+Fixpoint give_first (xs : list variable) (i : nat) (k : continuation)
+    (h : continuation_handler) (body : expr) : expr :=
+  match xs with
+  | [] => body
+  | x :: xs =>
     let body' := give_scrutinee x k i None body in
     match unalias_param i k h body' with
     | Some _ => body'
-    | None => body
+    | None => give_first xs i k h body
     end
-  | _ => body
+  end.
+
+(* The same for the variables that the first application of [k] in
+   the body says to try. *)
+Definition give_at (i : nat) (k : continuation) (h : continuation_handler)
+    (body : expr) : expr :=
+  match first_scrutinee k i [] body with
+  | Some xs => give_first xs i k h body
+  | None => body
   end.
 
 (* The same for every position below [i], the last first. *)

@@ -35,21 +35,24 @@ val give_in_handler :
   continuation_handler
 
 val scrutinee_by :
-  continuation -> nat -> variable option -> apply_cont -> variable option option
+  continuation -> nat -> variable list -> apply_cont -> variable list option
 
-val scrutinee_var : variable option -> simple -> variable option
+val scrutinee_var : variable list -> simple -> variable list
 
-val scrutinee_of : variable option -> expr -> variable option
+val scrutinee_of : variable list -> expr -> variable list
 
 val first_scrutinee :
-  continuation -> nat -> variable option -> expr -> variable option option
+  continuation -> nat -> variable list -> expr -> variable list option
 
 val handler_first_scrutinee :
   continuation ->
   nat ->
-  variable option ->
+  variable list ->
   continuation_handler ->
-  variable option option
+  variable list option
+
+val give_first :
+  variable list -> nat -> continuation -> continuation_handler -> expr -> expr
 
 val give_at : nat -> continuation -> continuation_handler -> expr -> expr
 

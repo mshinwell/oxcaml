@@ -175,10 +175,10 @@ Proof.
 Qed.
 
 Lemma scrutinee_by_equivariant (r : renaming) (k : continuation) (i : nat)
-    (current : option variable) (ac : apply_cont) :
+    (current : list variable) (ac : apply_cont) :
   scrutinee_by (rename_continuation r k) i
-    (option_map (rename_variable r) current) (rename_apply_cont r ac)
-  = rename_given r (scrutinee_by k i current ac).
+    (map (rename_variable r) current) (rename_apply_cont r ac)
+  = option_map (map (rename_variable r)) (scrutinee_by k i current ac).
 Proof.
   unfold scrutinee_by, rename_apply_cont.
   cbn [ac_continuation ac_args].
@@ -189,33 +189,34 @@ Proof.
   destruct c; reflexivity.
 Qed.
 
-Lemma scrutinee_var_equivariant (r : renaming) (current : option variable)
+Lemma scrutinee_var_equivariant (r : renaming) (current : list variable)
     (scrutinee : simple) :
-  scrutinee_var (option_map (rename_variable r) current)
+  scrutinee_var (map (rename_variable r) current)
     (rename_simple r scrutinee)
-  = option_map (rename_variable r) (scrutinee_var current scrutinee).
+  = map (rename_variable r) (scrutinee_var current scrutinee).
 Proof. destruct scrutinee; reflexivity. Qed.
 
-Lemma scrutinee_of_equivariant (r : renaming) (current : option variable)
+Lemma scrutinee_of_equivariant (r : renaming) (current : list variable)
     (e : expr) :
-  scrutinee_of (option_map (rename_variable r) current) (rename_expr r e)
-  = option_map (rename_variable r) (scrutinee_of current e).
+  scrutinee_of (map (rename_variable r) current) (rename_expr r e)
+  = map (rename_variable r) (scrutinee_of current e).
 Proof.
   destruct e; try reflexivity. cbn [rename_expr scrutinee_of].
   apply scrutinee_var_equivariant.
 Qed.
 
 Fixpoint first_scrutinee_equivariant (r : renaming) (k : continuation)
-    (i : nat) (current : option variable) (e : expr) {struct e} :
+    (i : nat) (current : list variable) (e : expr) {struct e} :
   first_scrutinee (rename_continuation r k) i
-    (option_map (rename_variable r) current) (rename_expr r e)
-  = rename_given r (first_scrutinee k i current e)
+    (map (rename_variable r) current) (rename_expr r e)
+  = option_map (map (rename_variable r)) (first_scrutinee k i current e)
 with handler_first_scrutinee_equivariant (r : renaming) (k : continuation)
-    (i : nat) (current : option variable) (h : continuation_handler)
+    (i : nat) (current : list variable) (h : continuation_handler)
     {struct h} :
   handler_first_scrutinee (rename_continuation r k) i
-    (option_map (rename_variable r) current) (rename_handler r h)
-  = rename_given r (handler_first_scrutinee k i current h).
+    (map (rename_variable r) current) (rename_handler r h)
+  = option_map (map (rename_variable r))
+      (handler_first_scrutinee k i current h).
 Proof.
   - destruct e as [y kind d body | bindings body | k' hh body | handlers body
                   | ap | ac | scrutinee arms | ];
@@ -231,10 +232,10 @@ Proof.
         first_answer
           (fun '(_, h) =>
              handler_first_scrutinee (rename_continuation r k) i
-               (option_map (rename_variable r) current) h)
+               (map (rename_variable r) current) h)
           (map (fun '(k0, h) => (rename_continuation r k0, rename_handler r h))
              handlers)
-        = rename_given r
+        = option_map (map (rename_variable r))
             (first_answer
                (fun '(_, h) => handler_first_scrutinee k i current h)
                handlers)).
@@ -259,6 +260,19 @@ Proof.
     apply first_scrutinee_equivariant.
 Qed.
 
+Lemma give_first_equivariant (r : renaming) (xs : list variable) (i : nat)
+    (k : continuation) (h : continuation_handler) (body : expr) :
+  give_first (map (rename_variable r) xs) i (rename_continuation r k)
+    (rename_handler r h) (rename_expr r body)
+  = rename_expr r (give_first xs i k h body).
+Proof.
+  induction xs as [ | x xs IH]; cbn [map give_first]; [ reflexivity | ].
+  rewrite give_scrutinee_equivariant, unalias_param_equivariant.
+  destruct (unalias_param i k h (give_scrutinee x k i None body))
+    as [[h' body'] | ];
+    [ reflexivity | exact IH ].
+Qed.
+
 Lemma give_at_equivariant (r : renaming) (i : nat) (k : continuation)
     (h : continuation_handler) (body : expr) :
   give_at i (rename_continuation r k) (rename_handler r h)
@@ -266,14 +280,11 @@ Lemma give_at_equivariant (r : renaming) (i : nat) (k : continuation)
   = rename_expr r (give_at i k h body).
 Proof.
   unfold give_at.
-  pose proof (first_scrutinee_equivariant r k i None body) as Hfirst.
-  cbn [option_map] in Hfirst. rewrite Hfirst.
-  destruct (first_scrutinee k i None body) as [[x | ] | ];
-    cbn [rename_given option_map]; try reflexivity.
-  rewrite give_scrutinee_equivariant, unalias_param_equivariant.
-  destruct (unalias_param i k h (give_scrutinee x k i None body))
-    as [[h' body'] | ];
-    reflexivity.
+  pose proof (first_scrutinee_equivariant r k i [] body) as Hfirst.
+  cbn [map] in Hfirst. rewrite Hfirst.
+  destruct (first_scrutinee k i [] body) as [xs | ];
+    cbn [option_map]; [ | reflexivity ].
+  apply give_first_equivariant.
 Qed.
 
 Lemma give_from_equivariant (r : renaming) (i : nat) :
@@ -528,10 +539,10 @@ Lemma give_at_scoped (i : nat) (k : continuation) (h : continuation_handler)
     (Let_cont_non_recursive k h (give_at i k h body)).
 Proof.
   unfold give_at.
-  destruct (first_scrutinee k i None body) as [[x | ] | ];
-    try apply scoped_refl.
+  destruct (first_scrutinee k i [] body) as [xs | ]; [ | apply scoped_refl ].
+  induction xs as [ | x xs IH]; cbn [give_first]; [ apply scoped_refl | ].
   destruct (unalias_param i k h (give_scrutinee x k i None body));
-    [ | apply scoped_refl ].
+    [ | exact IH ].
   apply scoped_let_cont;
     [ apply scoped_handler_refl | apply give_scrutinee_scoped ].
 Qed.
