@@ -98,6 +98,10 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaArmNumbersNamesProofs.v \
   FlambdaArmNumbersProofs.v \
   FlambdaArmNumbersSpec.v \
+  FlambdaArrayLoadProofs.v \
+  FlambdaArrayLoadScopeProofs.v \
+  FlambdaArrayLoadScopeSpec.v \
+  FlambdaArrayLoadSpec.v \
   FlambdaBindersProofs.v \
   FlambdaBindersSpec.v \
   FlambdaBlockLoadProofs.v \
