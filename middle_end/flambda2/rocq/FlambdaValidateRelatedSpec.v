@@ -28,20 +28,24 @@
 (* A second check of a unit against the unit it came from, for the
    units whose exits a lifting changes.
 
-   This file awaits the human's confirmation. What it proves of the
-   check is not [refines]; whether it is what a verdict is to mean is
-   the human's to decide, between this form and a structural one
-   (below, "What that is, and is not"). The tool does not call the
-   check.
+   This file awaits the human's confirmation (decision D43). What it
+   proves of the check is not [refines]; whether it is what a verdict
+   is to mean is the human's to decide, between this form and a
+   structural one (below, "What that is, and is not"). The test tool
+   asks the check only of a unit that it reports as not validated, and
+   prints what the check accepts on a line of its own, which has not
+   the word "validated": such a unit stays not validated, and is in no
+   count of the units validated.
 
    This file is to be reviewed: the definitions and the statements.
 
    FlambdaValidateSpec.validate_unit answers [Same_once_lifted] of a
    unit only where each lifting passes its test of the exits
    (FlambdaLiftSpec.exits_plain): a lifting gives a symbol where the
-   unit before gave a block or a closure, and
-   FlambdaSemanticsSpec.refines asks of two exits the same values. A
-   unit that exits with something that Simplify lifted is so refused.
+   unit before gave the value that it lifts
+   (FlambdaLiftSpec.lift_named), and FlambdaSemanticsSpec.refines asks
+   of two exits the same values. A unit that exits with something that
+   Simplify lifted is so refused.
 
    The check here follows the two comparisons of lifted terms of
    [validate_unit], with the liftings made without that test
@@ -72,7 +76,10 @@
    a term more in the language there are observers more, and the two
    statements then conclude more. So nothing is said here of two
    units that are linked: a unit that follows another names its
-   symbols. Two exits so related have
+   symbols. Nor does what may follow name an import: of two exits
+   that each carry an imported symbol, a predefined exception for
+   one, alone or inside a block, it is not said that it is the same
+   symbol. Two exits so related have
    the same constants and the same locations among their values, and
    heaps that bind the same locations
    (FlambdaObserversSpec.worlds_observed_way_out_statement); of an
@@ -81,7 +88,9 @@
    pass that changes values is to mean has not been decided: the
    other form would relate the values of the two exits and every
    entry of the two memories structurally. The verdict has a type of
-   its own ([related_validation]) and is no [validation].
+   its own ([related_validation]) and is no [validation]. The check
+   does not ask what [validate_unit] answers of the two terms: it is
+   the tool that asks it only of a unit not validated.
 
    The route. The unit before is prepared as [validate_unit] prepares
    it; each lifting given is applied without the test of the exits

@@ -146,6 +146,22 @@ a `CR` at the place in the `Spec` file.
   other answer is that no allocation is shared; a pair of terms
   whose validation needs this sharing may then stay not validated.
   Decided for the proof; open.
+- **D43.** What a verdict is to mean of a unit whose exits a lifting
+  changes. The form that is in the model: an exit of the unit before
+  is answered by an exit of the unit after that nothing which may
+  follow a unit tells apart from it (`FlambdaValidateRelatedSpec.v`,
+  proved, over the whole class `FlambdaObserversSpec.observer`). It
+  does not establish `refines`, which asks of two exits the same
+  values. What may follow names no symbol, so no import: of two exits
+  that each carry a predefined exception it does not say that it is
+  the same exception. Allowing what may follow to name imports would
+  be a separate proposed strengthening; it is neither defined nor
+  proved here. The alternative is structural, a relation of the
+  values of the two exits and of every entry of the two memories; it
+  is not defined here. Meanwhile the first is in the model beside the
+  validation and changes none of it: the tool prints what it accepts
+  on a line of its own under "not validated", and such a unit is in
+  no count of the units validated. Open: the human's to choose.
 
 ## Discrepancies with the compiler
 

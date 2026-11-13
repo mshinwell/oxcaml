@@ -1128,8 +1128,9 @@ it gave back.
   the unit before from the empty static environment, to say where
   the validation with nothing imported is vacuous.
 - **A check that does not establish `refines` is in the model, and
-  the tool does not call it.** This entry awaits the human's
-  confirmation. `FlambdaValidateRelatedSpec.validate_unit_related`
+  what it accepts the tool prints on a line of its own, never as
+  validated.** This entry awaits the human's confirmation (decision
+  D43). `FlambdaValidateRelatedSpec.validate_unit_related`
   accepts units whose exits a lifting changes, which `validate_unit`
   refuses. What is proved of it is another relation than `refines`,
   and neither is said to give the other: an exit of the unit before
@@ -1145,15 +1146,44 @@ it gave back.
   immutable array included, and no smaller one. It is not claimed
   that the two exits have the same values, nor that the two memories
   hold the same; nothing is claimed of a unit linked with another,
-  which names its symbols. The other form of the contract relates the
+  which names its symbols. What may follow names no import either:
+  of two exits that each carry an imported symbol, a predefined
+  exception for one, alone or inside a block, it is not claimed that
+  it is the same symbol. The other form of the contract relates the
   values of the two exits and every entry of the two memories
   structurally; the choice between the two is the human's. The tool
-  does not call the check, and no line that it prints rests on it.
-  A wiring of the tool is a request of its own, and for which units
-  the tool may call the check is settled with it and not here. If the
-  check comes to be called before the choice is made, its line has
-  not the word "validated", its units are in a table of their own,
-  and they are in no count of the units validated.
+  asks the check only of a unit that it reports as not validated: the
+  validation has refused the unit for every list of calls that the
+  tool tries, and the run of the term before that the tool shows is
+  not reported undefined. The function does not test that; the tool
+  does. The tool asks first with no value slot removed, and with the
+  value
+  slots that it guesses only if that is refused; the class of what
+  may follow is then the smaller one, and the line says which was
+  asked. What the check accepts is printed under the line "not
+  validated", on a line that begins "related once lifted" and has not
+  the word "validated". The head of the line says what the check was
+  given: whether its list of imports was empty, and whether a prefix
+  made from the `.cmx` files of other units stood in front of the
+  two terms, with the imports that the prefix left or with none
+  left. The statement is of the two terms as they were given, the
+  prefix in front where there is one, run from the list of imports
+  given; with a prefix the line rests on the entry on the `.cmx`
+  files, within its limits, as a line of a verdict does. That list
+  may have an import of which nothing is known (the class
+  `Import_unknown`): the statement is of every list of imports, and
+  of such an import at an exit it claims no more than of another.
+  The unit
+  stays not validated: it is in no count of the units validated, of
+  this tree, of the census or of the tool, and
+  the units that have the line are in a table of their own, those
+  with an import apart from those with none. That stands until the
+  human has chosen. The line rests on
+  `validate_unit_related_sound_statement` and, as every line of the
+  tool does, on the conversion of the two terms and on the imports
+  that the tool gives the function. What the tool guesses for the
+  check (the calls to leave, the liftings, the value slots, the
+  rounds) is not trusted: the statement is of every such guess.
 - **The conversion of types**, in
   `middle_end/flambda2/tests/semantics/types/type_converter.ml` with
   `model_numbers.ml` and `model_names.ml`: between `Type_grammar.t` and
