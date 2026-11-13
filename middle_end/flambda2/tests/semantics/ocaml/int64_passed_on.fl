@@ -1,0 +1,61 @@
+(let $camlInt64_passed_on__int64_0 = 2L in
+ let $camlInt64_passed_on__int64_1 = 1L in
+ let $camlInt64_passed_on__int64_2 = 3L in
+ let code inline(never) size(57)
+       f_0 (a/68 : imm tagged, b/69 : imm tagged, x/70 : int64 boxed)
+         my_closure/71 &my_alloc_region/72 my_depth/73
+         -> k/24 * k/25
+         : int64 boxed =
+   let next_depth/74 = rec_info (succ my_depth/73) in
+   (let untagged/90 = %untag_imm (b/69) in
+    switch untagged/90
+      | 0 -> k/30
+      | 1 -> k/31)
+     where k/31 =
+       cont k/28
+     where k/30 =
+       cont k/29
+     where k/29 =
+       let prim/86 = %unbox_num.`int64` ($camlInt64_passed_on__int64_0) in
+       let prim/87 = %unbox_num.`int64` (x/70) in
+       let prim/88 = %int_barith.`int64`.add (prim/87, prim/86) in
+       let int64_add/89 = %box_num.`int64`.my_alloc_region/72 (prim/88) in
+       cont k/26 (int64_add/89)
+     where k/28 =
+       let prim/82 = %unbox_num.`int64` ($camlInt64_passed_on__int64_1) in
+       let prim/83 = %unbox_num.`int64` (x/70) in
+       let prim/84 = %int_barith.`int64`.add (prim/83, prim/82) in
+       let int64_add/85 = %box_num.`int64`.my_alloc_region/72 (prim/84) in
+       cont k/26 (int64_add/85)
+     where k/26 (t/75 : int64 boxed) =
+       ((let untagged/81 = %untag_imm (a/68) in
+         switch untagged/81
+           | 0 -> k/27 ($camlInt64_passed_on__int64_2)
+           | 1 -> k/27 (t/75))
+          where k/27 (y/76 : int64 boxed) =
+            let prim/77 = %unbox_num.`int64` (y/76) in
+            let prim/78 = %unbox_num.`int64` (y/76) in
+            let prim/79 = %int_barith.`int64`.add (prim/78, prim/77) in
+            let int64_add/80 = %box_num.`int64`.my_alloc_region/72 (prim/79)
+            in
+            cont k/24 (int64_add/80))
+ in
+ let $camlInt64_passed_on__int64_3 = 5L in
+ let f/91 = closure f_0 @f &toplevel in
+ (let Popaque/94 = %opaque ($camlInt64_passed_on__int64_3) in
+  let Popaque/95 = %opaque (0) in
+  let Popaque/96 = %opaque (1) in
+  apply direct(f_0 &toplevel)
+    (f/91 : _ -> int64 boxed)
+      (Popaque/96, Popaque/95, Popaque/94)
+      -> k/32 * error)
+   where k/32 (result/92 : int64 boxed) =
+     let Pmakeblock/93 = %block.[`0`].`toplevel` (f/91, result/92) in
+     cont k/23 (Pmakeblock/93))
+  where k/23 define_root_symbol (module_block/65) =
+    let field_0/66 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/65)
+    in
+    let field_1/67 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/65)
+    in
+    let $camlInt64_passed_on = Block 0 (field_0/66, field_1/67) in
+    cont done ($camlInt64_passed_on)

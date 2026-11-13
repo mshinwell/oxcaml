@@ -1,0 +1,203 @@
+(let $camlSums_of_two_sorts__int64_0 = 0L in
+ let $camlSums_of_two_sorts__int32_1 = 0l in
+ let code inline(never) size(107)
+       sums_0 (n/151 : imm tagged)
+         my_closure/152 &my_alloc_region/153 my_depth/154
+         -> k/38 * k/39
+         : imm tagged =
+   let next_depth/155 = rec_info (succ my_depth/154) in
+   cont k/40 ($camlSums_of_two_sorts__int64_0)
+     where k/40 (let_mutable/156 : int64 boxed) =
+       (cont k/41
+               ($camlSums_of_two_sorts__int32_1,
+                $camlSums_of_two_sorts__int64_0)
+          where k/41
+                  (let_mutable/157 : int32 boxed,
+                   evens_23_unboxed0/158 : int64 boxed) =
+            (cont k/42
+                    (n/151,
+                     $camlSums_of_two_sorts__int64_0,
+                     $camlSums_of_two_sorts__int32_1)
+               where k/42
+                       (for_stop/159 : imm tagged,
+                        evens_23_unboxed0/160 : int64 boxed,
+                        odds_24_unboxed0/161 : int32 boxed) =
+                 ((let prim/212 = %int_comp.le (1, for_stop/159) in
+                   let int_lessequal/213 = %tag_imm (prim/212) in
+                   (let untagged/214 = %untag_imm (int_lessequal/213) in
+                    switch untagged/214
+                      | 0 ->
+                        k/43
+                          (0,
+                           $camlSums_of_two_sorts__int64_0,
+                           $camlSums_of_two_sorts__int32_1)
+                      | 1 -> k/52)
+                     where k/52 =
+                       cont k/44
+                              ($camlSums_of_two_sorts__int64_0,
+                               $camlSums_of_two_sorts__int32_1))
+                    where k/44
+                            (evens_23_unboxed0/172 : int64 boxed,
+                             odds_24_unboxed0/173 : int32 boxed) =
+                      let prim/174 = %untag_imm (1) in
+                      let for_start_naked/175 =
+                        %num_conv.[`imm`].[`int64`] (prim/174)
+                      in
+                      let prim/176 = %untag_imm (for_stop/159) in
+                      let for_stop_naked/177 =
+                        %num_conv.[`imm`].[`int64`] (prim/176)
+                      in
+                      (cont k/45
+                              (for_start_naked/175,
+                               $camlSums_of_two_sorts__int64_0,
+                               $camlSums_of_two_sorts__int32_1)
+                         where rec k/45
+                                     (for_counter_naked/178 : int64,
+                                      evens_23_unboxed0/179 : int64 boxed,
+                                      odds_24_unboxed0/180 : int32 boxed) =
+                           let prim/181 =
+                             %num_conv.[`int64`].[`imm`]
+                               (for_counter_naked/178)
+                           in
+                           let i/182 = %tag_imm (prim/181) in
+                           ((let int_and/208 = %int_barith.`and` (i/182, 1)
+                             in
+                             let prim/209 = %phys_eq (int_and/208, 0) in
+                             let eq/210 = %tag_imm (prim/209) in
+                             (let untagged/211 = %untag_imm (eq/210) in
+                              switch untagged/211
+                                | 0 -> k/50
+                                | 1 -> k/51)
+                               where k/51 =
+                                 cont k/48
+                                        (evens_23_unboxed0/179,
+                                         odds_24_unboxed0/180)
+                               where k/50 =
+                                 cont k/49
+                                        (evens_23_unboxed0/179,
+                                         odds_24_unboxed0/180))
+                              where k/49
+                                      (evens_23_unboxed0/199 : int64 boxed,
+                                       odds_24_unboxed0/200 : int32 boxed) =
+                                let prim/201 = %untag_imm (i/182) in
+                                let prim/202 =
+                                  %num_conv.[`imm`].[`int32`] (prim/201)
+                                in
+                                let int32_of_int/203 =
+                                  %box_num.`int32`.my_alloc_region/153
+                                    (prim/202)
+                                in
+                                let prim/204 =
+                                  %unbox_num.`int32` (int32_of_int/203)
+                                in
+                                let prim/205 =
+                                  %unbox_num.`int32` (odds_24_unboxed0/200)
+                                in
+                                let prim/206 =
+                                  %int_barith.`int32`.add
+                                    (prim/205, prim/204)
+                                in
+                                let int32_add/207 =
+                                  %box_num.`int32`.my_alloc_region/153
+                                    (prim/206)
+                                in
+                                cont k/46
+                                       (0,
+                                        evens_23_unboxed0/199,
+                                        int32_add/207)
+                              where k/48
+                                      (evens_23_unboxed0/190 : int64 boxed,
+                                       odds_24_unboxed0/191 : int32 boxed) =
+                                let prim/192 = %untag_imm (i/182) in
+                                let prim/193 =
+                                  %num_conv.[`imm`].[`int64`] (prim/192)
+                                in
+                                let int64_of_int/194 =
+                                  %box_num.`int64`.my_alloc_region/153
+                                    (prim/193)
+                                in
+                                let prim/195 =
+                                  %unbox_num.`int64` (int64_of_int/194)
+                                in
+                                let prim/196 =
+                                  %unbox_num.`int64` (evens_23_unboxed0/190)
+                                in
+                                let prim/197 =
+                                  %int_barith.`int64`.add
+                                    (prim/196, prim/195)
+                                in
+                                let int64_add/198 =
+                                  %box_num.`int64`.my_alloc_region/153
+                                    (prim/197)
+                                in
+                                cont k/46
+                                       (0,
+                                        int64_add/198,
+                                        odds_24_unboxed0/191)
+                              where k/46
+                                      (staticcatch_result/183 : imm tagged,
+                                       evens_23_unboxed0/184 : int64 boxed,
+                                       odds_24_unboxed0/185 : int32 boxed) =
+                                let for_next_naked/186 =
+                                  %int_barith.`int64`.add
+                                    (for_counter_naked/178, 1L)
+                                in
+                                let prim/187 =
+                                  %int_comp.`int64`.le
+                                    (for_next_naked/186, for_stop_naked/177)
+                                in
+                                let `int64#_lessequal/188` =
+                                  %tag_imm (prim/187)
+                                in
+                                ((let untagged/189 =
+                                    %untag_imm (`int64#_lessequal/188`)
+                                  in
+                                  switch untagged/189
+                                    | 0 ->
+                                      k/43
+                                        (0,
+                                         evens_23_unboxed0/184,
+                                         odds_24_unboxed0/185)
+                                    | 1 -> k/47)
+                                   where k/47 =
+                                     cont k/45
+                                            (for_next_naked/186,
+                                             evens_23_unboxed0/184,
+                                             odds_24_unboxed0/185))))
+                    where k/43
+                            (staticcatch_result/162 : imm tagged,
+                             evens_23_unboxed0/163 : int64 boxed,
+                             odds_24_unboxed0/164 : int32 boxed) =
+                      let prim/165 =
+                        %unbox_num.`int32` (odds_24_unboxed0/164)
+                      in
+                      let prim/166 = %num_conv.[`int32`].[`imm`] (prim/165)
+                      in
+                      let int_of_int32/167 = %tag_imm (prim/166) in
+                      let prim/168 =
+                        %unbox_num.`int64` (evens_23_unboxed0/163)
+                      in
+                      let prim/169 = %num_conv.[`int64`].[`imm`] (prim/168)
+                      in
+                      let int_of_int64/170 = %tag_imm (prim/169) in
+                      let int_add/171 =
+                        %int_barith.add (int_of_int64/170, int_of_int32/167)
+                      in
+                      cont k/38 (int_add/171))))
+ in
+ let sums/215 = closure sums_0 @sums &toplevel in
+ (let Popaque/218 = %opaque (10) in
+  apply direct(sums_0 &toplevel)
+    (sums/215 : _ -> imm tagged) (Popaque/218) -> k/53 * error)
+   where k/53 (result/216 : imm tagged) =
+     let Pmakeblock/217 = %block.[`0`].`toplevel` (sums/215, result/216) in
+     cont k/37 (Pmakeblock/217))
+  where k/37 define_root_symbol (module_block/148) =
+    let field_0/149 =
+      %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/148)
+    in
+    let field_1/150 =
+      %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/148)
+    in
+    let $camlSums_of_two_sorts = Block 0 (field_0/149, field_1/150) in
+    cont done ($camlSums_of_two_sorts)

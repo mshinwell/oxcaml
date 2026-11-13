@@ -1,0 +1,118 @@
+(let $camlInt64_sum_on_some_turns__int64_0 = 0L in
+ let code inline(never) size(79)
+       sum_even_0 (n/107 : imm tagged)
+         my_closure/108 &my_alloc_region/109 my_depth/110
+         -> k/32 * k/33
+         : imm tagged =
+   let next_depth/111 = rec_info (succ my_depth/110) in
+   cont k/34 ($camlInt64_sum_on_some_turns__int64_0)
+     where k/34 (let_mutable/112 : int64 boxed) =
+       (cont k/35 (n/107, $camlInt64_sum_on_some_turns__int64_0)
+          where k/35
+                  (for_stop/113 : imm tagged,
+                   acc_19_unboxed0/114 : int64 boxed) =
+            ((let prim/147 = %int_comp.le (1, for_stop/113) in
+              let int_lessequal/148 = %tag_imm (prim/147) in
+              (let untagged/149 = %untag_imm (int_lessequal/148) in
+               switch untagged/149
+                 | 0 -> k/36 (0, $camlInt64_sum_on_some_turns__int64_0)
+                 | 1 -> k/43)
+                where k/43 =
+                  cont k/37 ($camlInt64_sum_on_some_turns__int64_0))
+               where k/37 (acc_19_unboxed0/120 : int64 boxed) =
+                 let prim/121 = %untag_imm (1) in
+                 let for_start_naked/122 =
+                   %num_conv.[`imm`].[`int64`] (prim/121)
+                 in
+                 let prim/123 = %untag_imm (for_stop/113) in
+                 let for_stop_naked/124 =
+                   %num_conv.[`imm`].[`int64`] (prim/123)
+                 in
+                 (cont k/38
+                         (for_start_naked/122,
+                          $camlInt64_sum_on_some_turns__int64_0)
+                    where rec k/38
+                                (for_counter_naked/125 : int64,
+                                 acc_19_unboxed0/126 : int64 boxed) =
+                      let prim/127 =
+                        %num_conv.[`int64`].[`imm`] (for_counter_naked/125)
+                      in
+                      let i/128 = %tag_imm (prim/127) in
+                      ((let int_and/143 = %int_barith.`and` (i/128, 1) in
+                        let prim/144 = %phys_eq (int_and/143, 0) in
+                        let eq/145 = %tag_imm (prim/144) in
+                        (let untagged/146 = %untag_imm (eq/145) in
+                         switch untagged/146
+                           | 0 -> k/39 (0, acc_19_unboxed0/126)
+                           | 1 -> k/42)
+                          where k/42 =
+                            cont k/41 (acc_19_unboxed0/126))
+                         where k/41 (acc_19_unboxed0/135 : int64 boxed) =
+                           let prim/136 = %untag_imm (i/128) in
+                           let prim/137 =
+                             %num_conv.[`imm`].[`int64`] (prim/136)
+                           in
+                           let int64_of_int/138 =
+                             %box_num.`int64`.my_alloc_region/109 (prim/137)
+                           in
+                           let prim/139 =
+                             %unbox_num.`int64` (int64_of_int/138)
+                           in
+                           let prim/140 =
+                             %unbox_num.`int64` (acc_19_unboxed0/135)
+                           in
+                           let prim/141 =
+                             %int_barith.`int64`.add (prim/140, prim/139)
+                           in
+                           let int64_add/142 =
+                             %box_num.`int64`.my_alloc_region/109 (prim/141)
+                           in
+                           cont k/39 (0, int64_add/142)
+                         where k/39
+                                 (staticcatch_result/129 : imm tagged,
+                                  acc_19_unboxed0/130 : int64 boxed) =
+                           let for_next_naked/131 =
+                             %int_barith.`int64`.add
+                               (for_counter_naked/125, 1L)
+                           in
+                           let prim/132 =
+                             %int_comp.`int64`.le
+                               (for_next_naked/131, for_stop_naked/124)
+                           in
+                           let `int64#_lessequal/133` = %tag_imm (prim/132)
+                           in
+                           ((let untagged/134 =
+                               %untag_imm (`int64#_lessequal/133`)
+                             in
+                             switch untagged/134
+                               | 0 -> k/36 (0, acc_19_unboxed0/130)
+                               | 1 -> k/40)
+                              where k/40 =
+                                cont k/38
+                                       (for_next_naked/131,
+                                        acc_19_unboxed0/130))))
+               where k/36
+                       (staticcatch_result/115 : imm tagged,
+                        acc_19_unboxed0/116 : int64 boxed) =
+                 let prim/117 = %unbox_num.`int64` (acc_19_unboxed0/116) in
+                 let prim/118 = %num_conv.[`int64`].[`imm`] (prim/117) in
+                 let int_of_int64/119 = %tag_imm (prim/118) in
+                 cont k/32 (int_of_int64/119)))
+ in
+ let sum_even/150 = closure sum_even_0 @sum_even &toplevel in
+ (let Popaque/153 = %opaque (10) in
+  apply direct(sum_even_0 &toplevel)
+    (sum_even/150 : _ -> imm tagged) (Popaque/153) -> k/44 * error)
+   where k/44 (result/151 : imm tagged) =
+     let Pmakeblock/152 = %block.[`0`].`toplevel` (sum_even/150, result/151)
+     in
+     cont k/31 (Pmakeblock/152))
+  where k/31 define_root_symbol (module_block/104) =
+    let field_0/105 =
+      %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/104)
+    in
+    let field_1/106 =
+      %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/104)
+    in
+    let $camlInt64_sum_on_some_turns = Block 0 (field_0/105, field_1/106) in
+    cont done ($camlInt64_sum_on_some_turns)
