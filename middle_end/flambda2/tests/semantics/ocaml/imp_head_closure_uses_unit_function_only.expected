@@ -9,5 +9,4 @@ imp_head_closure_uses_unit_function_only.fl:
   calls outside code: 4 before, 4 after
   the same
   calls outside code once those of known code are inlined: 2
-  validated with its imports: the same once normalised and unused static bindings removed, at the head of the term after too
-  (at the second asking, of the two terms normalised with what their symbols are bound to used)
+  validated with its imports: the same once closures and blocks are lifted to symbols, the terms normalised and unused value slots removed

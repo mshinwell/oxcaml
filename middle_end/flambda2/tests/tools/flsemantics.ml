@@ -2148,7 +2148,10 @@ let unused_statics (e : Model.expr) : Unused_statics.dropped =
    A symbol that no [Let] outside code takes goes to the first [Let] in the body
    of code that makes just what the symbol is bound to and mentions no variable,
    in the handler of a recursive continuation too:
-   FlambdaLiftFromCodeSpec.lift_from_code lifts it out of the code.
+   FlambdaLiftFromCodeSpec.lift_from_code lifts it out of the code. In this and
+   in the case before it, a closure may have more value slots than the closure
+   that the symbol is bound to, which Simplify has dropped: see where the two
+   are matched.
 
    In both of these, a later [Let] that makes just what a symbol given earlier
    in the same place is bound to (at the head of the unit, or in the body of the
@@ -2339,13 +2342,22 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list) ~around
           Some (sym, const)
         | None -> List.find_opt (fun (_, const) -> matches const) !given
       in
+      (* A closure fits a symbol of the term after if it is of the same code, or
+         declarations, and the value slots of the closure that the symbol is
+         bound to are among its own, each with the same symbol or constant.
+         Simplify drops the slots that nothing reads once the code reads the
+         symbol, so the closure of the term after may have fewer;
+         FlambdaValidateSpec.without_slots removes them from the term before
+         after the lifting. Nothing is believed of this: the validation checks
+         the lifting, and a wrong guess is a unit that is not validated. *)
       (match d with
       | Set_of_closures (code, slots) when plain_slots slots -> (
         match
           take path (fun (const : Model.static_const) ->
               match const with
               | Static_const_set_of_closures (code', slots') ->
-                code = code' && slots = slots'
+                code = code'
+                && List.for_all (fun slot' -> List.mem slot' slots) slots'
               | _ -> false)
         with
         | Some (sym, _) -> lift_out (Lift.Lift_to_symbol sym)
@@ -2355,7 +2367,8 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list) ~around
           take path (fun (const : Model.static_const) ->
               match const with
               | Static_const_closure_of_set (_, _, decls', slots') ->
-                decls = decls' && slots = slots'
+                decls = decls'
+                && List.for_all (fun slot' -> List.mem slot' slots) slots'
               | _ -> false)
         with
         | Some (_, Static_const_closure_of_set (_, symbols, _, _)) ->
