@@ -674,6 +674,218 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
+(* The other reads of the same parameter by the same primitive              *)
+(* ======================================================================== *)
+
+Lemma reads_same_spec (p : unary_primitive) (x : variable) (d : named) :
+  reads_same p x d = true -> d = Prim (Unary p) [Var x].
+Proof.
+  destruct d as [s | pr args | | | | | ]; try discriminate.
+  destruct pr as [p' | b | v | hp]; try discriminate.
+  destruct args as [ | [x' | sym | c] [ | arg args]]; try discriminate.
+  cbn [reads_same]. intros Hsame.
+  apply andb_true_iff in Hsame as [Hp Hx].
+  apply Pos.eqb_eq in Hx. subst x'.
+  unfold prim_eqb in Hp.
+  destruct (prim_eq_dec (Unary p') (Unary p)) as [Heq | ];
+    [ | discriminate ].
+  injection Heq as ->. reflexivity.
+Qed.
+
+(* A unary primitive applied to a variable that holds what [f] holds
+   has the value that it has applied to [f]. *)
+Lemma read_of_same_eval (f : variable) (same : list variable) (u : value)
+    (vars : env) (statics : static_env) (d : named) :
+  lookup f vars = Some u ->
+  (∀ z : variable, among z same = true -> lookup z vars = Some u) ->
+  eval_named statics vars (read_of_same f same d) = eval_named statics vars d.
+Proof.
+  intros Hf Hsame.
+  destruct d as [s | pr args | | | | | ]; try reflexivity.
+  destruct pr as [p' | b | v | hp]; try reflexivity.
+  destruct args as [ | [z | sym | c] [ | arg args]]; try reflexivity.
+  cbn [read_of_same]. destruct (among z same) eqn:Hz; [ | reflexivity ].
+  cbn [eval_named eval_simples eval_simple]. rewrite Hf, (Hsame z Hz).
+  reflexivity.
+Qed.
+
+(* Under variables that give [x] a value, and [f] and each of the
+   variables [same] what the primitive has on it, the expression with
+   the reads shared refines the expression. *)
+Fixpoint share_reads_refines (p : unary_primitive) (x f : variable)
+    (v u : value) (e : expr) :
+  ∀ (same : list variable) (vars : env) (conts : cont_env)
+    (statics : static_env) (hp : heap),
+    lookup x vars = Some v ->
+    lookup f vars = Some u ->
+    gives p v u statics ->
+    (∀ z : variable, among z same = true -> lookup z vars = Some u) ->
+    refines (State e vars conts statics hp)
+      (State (share_reads p x f same e) vars conts statics hp).
+Proof.
+  destruct e
+    as [ y kind d body | bindings body | k [params metadata handler] body
+       | handlers body | ap | ac | scrutinee arms | ];
+    intros same vars conts statics hp Hx Hf Hgives Hsame;
+    cbn [share_reads]; try apply refines_refl.
+  - pose proof (read_of_same_eval f same u vars statics d Hf Hsame) as Hd.
+    destruct (reads_same p x (read_of_same f same d)) eqn:Hshared.
+    + apply reads_same_spec in Hshared. rewrite Hshared in Hd.
+      simpl in Hd. rewrite Hx in Hd. simpl in Hd.
+      destruct (eval_prim statics (Unary p) [v]) as [w | ] eqn:Hprim;
+        [ | apply step_undefined_refines; rewrite step_let, <- Hd;
+            reflexivity ].
+      pose proof (Hgives statics (statics_extend_refl statics) w Hprim)
+        as ->.
+      apply let_refines_step;
+        [ rewrite <- Hd; cbn [eval_named eval_simple]; exact Hf | ].
+      intros w Hw _. rewrite <- Hd in Hw. injection Hw as <-.
+      destruct (Pos.eqb_spec y x) as [-> | Hyx]; cbn [orb];
+        [ apply refines_refl | ].
+      destruct (Pos.eqb_spec y f) as [-> | Hyf]; [ apply refines_refl | ].
+      apply (share_reads_refines p x f v u);
+        [ rewrite lookup_other by congruence; exact Hx
+        | rewrite lookup_other by congruence; exact Hf | exact Hgives | ].
+      intros z Hz. destruct (Pos.eq_dec z y) as [-> | Hne];
+        [ apply lookup_head | ].
+      rewrite lookup_other by exact Hne. apply Hsame.
+      rewrite among_cons in Hz. apply orb_true_iff in Hz as [Hz | Hz];
+        [ apply Pos.eqb_eq in Hz; contradiction | exact Hz ].
+    + apply let_refines_step; [ exact Hd | ].
+      intros w _ _.
+      destruct (Pos.eqb_spec y x) as [-> | Hyx]; cbn [orb];
+        [ apply refines_refl | ].
+      destruct (Pos.eqb_spec y f) as [-> | Hyf]; [ apply refines_refl | ].
+      apply (share_reads_refines p x f v u);
+        [ rewrite lookup_other by congruence; exact Hx
+        | rewrite lookup_other by congruence; exact Hf | exact Hgives | ].
+      intros z Hz. rewrite among_without in Hz.
+      apply andb_true_iff in Hz as [Hz Hy].
+      rewrite lookup_other; [ exact (Hsame z Hz) | ].
+      intros ->. rewrite among_cons, Pos.eqb_refl in Hy. discriminate.
+  - apply (refines_trans _
+      (State
+         (Let_cont_non_recursive k
+            (Handler params metadata
+               (if among x params || among f params
+                then handler
+                else share_reads p x f (without params same) handler))
+            body)
+         vars conts statics hp)).
+    + destruct (among x params) eqn:Hxp; cbn [orb]; [ apply refines_refl | ].
+      destruct (among f params) eqn:Hfp; [ apply refines_refl | ].
+      apply (let_cont_handler_refines_where (gives p v u)
+        (gives_extend p v u)); [ exact Hgives | ].
+      intros vs handler_vars conts0 statics0 hp' Hgives0 _ Hbind.
+      apply (share_reads_refines p x f v u); [ | | exact Hgives0 | ].
+      * rewrite (bind_params_other params x vs vars handler_vars Hxp Hbind).
+        exact Hx.
+      * rewrite (bind_params_other params f vs vars handler_vars Hfp Hbind).
+        exact Hf.
+      * intros z Hz. rewrite among_without in Hz.
+        apply andb_true_iff in Hz as [Hz Hparams].
+        apply negb_true_iff in Hparams.
+        rewrite (bind_params_other params z vs vars handler_vars Hparams
+          Hbind).
+        exact (Hsame z Hz).
+    + apply let_cont_non_recursive_refines_step.
+      apply (share_reads_refines p x f v u); assumption.
+  - destruct scrutinee as [z | sym | c]; try apply refines_refl.
+    destruct (among z same) eqn:Hz; [ | apply refines_refl ].
+    apply equivalent_refines, step_eq_equivalent. rewrite !step_switch.
+    cbn [eval_simple]. rewrite Hf, (Hsame z Hz). reflexivity.
+Qed.
+
+(* The read with the other reads shared is the read, but for what is
+   left of the handler. *)
+Lemma with_reads_shared_variable (share : bool) (params : list variable)
+    (r : read) :
+  read_variable (with_reads_shared share params r) = read_variable r.
+Proof.
+  unfold with_reads_shared. destruct share; [ | reflexivity ].
+  destruct (nth_error params (read_position r)); reflexivity.
+Qed.
+
+Lemma with_reads_shared_kind (share : bool) (params : list variable)
+    (r : read) :
+  read_kind (with_reads_shared share params r) = read_kind r.
+Proof.
+  unfold with_reads_shared. destruct share; [ | reflexivity ].
+  destruct (nth_error params (read_position r)); reflexivity.
+Qed.
+
+Lemma with_reads_shared_primitive (share : bool) (params : list variable)
+    (r : read) :
+  read_primitive (with_reads_shared share params r) = read_primitive r.
+Proof.
+  unfold with_reads_shared. destruct share; [ | reflexivity ].
+  destruct (nth_error params (read_position r)); reflexivity.
+Qed.
+
+Lemma with_reads_shared_position (share : bool) (params : list variable)
+    (r : read) :
+  read_position (with_reads_shared share params r) = read_position r.
+Proof.
+  unfold with_reads_shared. destruct share; [ | reflexivity ].
+  destruct (nth_error params (read_position r)); reflexivity.
+Qed.
+
+(* What is left of the handler with the other reads shared refines
+   what is left of it, where the variable of the read holds what the
+   primitive has on the parameter read. *)
+Lemma with_reads_shared_refines (share : bool) (params : list variable)
+    (r : read) (x : variable) (v u : value) (vars : env) (conts : cont_env)
+    (statics : static_env) (hp : heap) :
+  nth_error params (read_position r) = Some x ->
+  lookup x vars = Some v ->
+  lookup (read_variable r) vars = Some u ->
+  gives (read_primitive r) v u statics ->
+  refines (State (read_without r) vars conts statics hp)
+    (State (read_without (with_reads_shared share params r)) vars conts
+       statics hp).
+Proof.
+  intros Hnth Hx Hf Hgives. unfold with_reads_shared.
+  destruct share; [ | apply refines_refl ]. rewrite Hnth.
+  cbn [read_without].
+  apply (share_reads_refines _ _ _ v u); try assumption.
+  intros z Hz. discriminate.
+Qed.
+
+(* A handler refines what is left of it with the other reads shared,
+   where the new parameter holds what the read gives. *)
+Lemma shared_read_fits_refines (share : bool) (params : list variable)
+    (r : read) (x : variable) (handler : expr) (def_vars bound : env)
+    (conts : cont_env) (statics : static_env) (hp : heap) (vs : list value)
+    (u : value) :
+  removes (read_variable r) (read_kind r) (read_primitive r) x handler
+    (read_without r) ->
+  var_free_b (read_variable r) handler = false ->
+  Pos.eqb x (read_variable r) = false ->
+  distinct params = true ->
+  nth_error params (read_position r) = Some x ->
+  bind_params params vs def_vars = Some bound ->
+  read_fits (read_position r) (read_primitive r) statics vs u ->
+  refines (State handler bound conts statics hp)
+    (State (read_without (with_reads_shared share params r))
+       ((read_variable r, u) :: bound) conts statics hp).
+Proof.
+  intros Hremoves Hfree Hne Hdistinct Hx Hbind Hfits.
+  apply (refines_trans _
+    (State (read_without r) ((read_variable r, u) :: bound) conts statics
+       hp)).
+  - exact (read_fits_refines (read_variable r) (read_kind r)
+      (read_primitive r) x (read_position r) params handler (read_without r)
+      def_vars bound conts statics hp vs u Hremoves Hfree Hne Hdistinct Hx
+      Hbind Hfits).
+  - destruct Hfits as (v & Hv & Hgives).
+    apply (with_reads_shared_refines share params r x v u);
+      [ exact Hx | | apply lookup_head | exact Hgives ].
+    rewrite lookup_other by (apply Pos.eqb_neq; exact Hne).
+    exact (bind_params_nth params vs def_vars bound (read_position r) x v
+      Hdistinct Hbind Hx Hv).
+Qed.
+
+(* ======================================================================== *)
 (* The pass                                                                 *)
 (* ======================================================================== *)
 
@@ -772,11 +984,11 @@ Qed.
 Lemma head_step_refines (known : facts) (k : continuation)
     (params params' : list variable) (metadata metadata' : handler_metadata)
     (handler handler' body body' : expr) (head : read) (vars : env)
-    (conts : cont_env) (statics : static_env) (hp : heap) :
+    (conts : cont_env) (statics : static_env) (hp : heap) (share : bool) :
   head_read params handler = Some head ->
   unbox_read
     (fun known => extend_args known (read_position head) (read_primitive head))
-    known k params metadata handler body head
+    known k params metadata handler body (with_reads_shared share params head)
   = Some (params', metadata', handler', body') ->
   facts_hold known vars statics ->
   refines
@@ -793,14 +1005,19 @@ Proof.
   simpl in Hhead. injection Hhead as <-.
   destruct (param_read_spec reads_any params [] f d p i Hread)
     as (x & -> & Hposition & _ & _).
-  exact (unbox_read_refines _ (read_fits i p) known k params params'
-    metadata metadata' _ handler' body body' _ x Hstep Hposition
-    (extend_args_gives i p f x kind rest)
+  pose proof
+    (unbox_read_refines _ (read_fits i p) known k params params' metadata
+       metadata' _ handler' body body'
+       (with_reads_shared share params (Read f kind p i rest)) x Hstep)
+    as Hgoal.
+  rewrite with_reads_shared_position, with_reads_shared_kind,
+    with_reads_shared_variable in Hgoal.
+  exact (Hgoal Hposition (extend_args_gives i p f x kind rest)
     (fun Hfree Hne Hdistinct _ def_vars bound conts0 statics0 hp vs u Hbind
        Hfits =>
-       read_fits_refines f kind p x i params _ rest def_vars bound conts0
-         statics0 _ vs u (Removes_here f kind p x rest) Hfree Hne Hdistinct
-         (position_nth x params i Hposition) Hbind Hfits)
+       shared_read_fits_refines share params (Read f kind p i rest) x _ def_vars
+         bound conts0 statics0 _ vs u (Removes_here f kind p x rest) Hfree
+         Hne Hdistinct (position_nth x params i Hposition) Hbind Hfits)
     vars conts statics hp Hfacts).
 Qed.
 
@@ -809,13 +1026,16 @@ Lemma certain_step_refines (known : facts) (k : continuation)
     (params params' : list variable) (metadata metadata' : handler_metadata)
     (handler handler' body body' : expr) (r : read) (vars : env)
     (conts : cont_env) (statics : static_env) (hp : heap) (variant : bool)
-    (tests : list variable) :
+    (tests : list variable) (share : bool) :
   next_read params handler = Some r ->
   unbox_read
     (fun known =>
-       extend_args_certain variant tests params handler (read_without r)
-         known (read_position r) (read_primitive r) (read_kind r))
-    known k params metadata handler body r
+       extend_args_certain variant tests params handler
+         (read_without (with_reads_shared share params r)) known
+         (read_position (with_reads_shared share params r))
+         (read_primitive (with_reads_shared share params r))
+         (read_kind (with_reads_shared share params r)))
+    known k params metadata handler body (with_reads_shared share params r)
   = Some (params', metadata', handler', body') ->
   facts_hold known vars statics ->
   refines
@@ -829,28 +1049,36 @@ Proof.
   destruct (next_read_first params handler r Hnext) as [wanted Hfirst].
   destruct (first_read_removes handler wanted params [] r Hfirst)
     as (x & Hposition & _ & _ & Hremoves).
-  apply (unbox_read_refines _
-    (certain_fits params handler (read_without r) (read_position r)
-       (read_primitive r))
-    known k params params' metadata metadata' handler handler' body body' r
-    x Hstep Hposition);
-    [ | | exact Hfacts ].
+  rewrite with_reads_shared_position, with_reads_shared_kind,
+    with_reads_shared_primitive in Hstep.
+  pose proof
+    (unbox_read_refines _
+       (certain_fits params handler
+          (read_without (with_reads_shared share params r)) (read_position r)
+          (read_primitive r))
+       known k params params' metadata metadata' handler handler' body body'
+       (with_reads_shared share params r) x Hstep)
+    as Hgoal.
+  rewrite with_reads_shared_position, with_reads_shared_kind,
+    with_reads_shared_variable in Hgoal.
+  apply Hgoal; [ exact Hposition | | | exact Hfacts ].
   - intros known0 vars0 statics0 hp' args args' vs v Hfacts0 Hextend Hvs Hv.
     left.
     exact (extend_args_certain_gives variant tests params handler
-      (read_without r) (read_position r) (read_primitive r) (read_kind r)
-      known0 vars0 statics0 args args' vs v Hfacts0 Hextend Hvs Hv).
+      (read_without (with_reads_shared share params r)) (read_position r)
+      (read_primitive r) (read_kind r) known0 vars0 statics0 args args' vs v
+      Hfacts0 Hextend Hvs Hv).
   - intros Hfree Hne Hdistinct Hfresh def_vars bound conts0 statics0 hp' vs
       u Hbind [Hfits | (consts & Hnever & Hvalues)].
-    + exact (read_fits_refines (read_variable r) (read_kind r)
-        (read_primitive r) x (read_position r) params handler
-        (read_without r) def_vars bound conts0 statics0 hp' vs u Hremoves Hfree
-        Hne Hdistinct (position_nth x params _ Hposition) Hbind Hfits).
+    + exact (shared_read_fits_refines share params r x handler def_vars bound
+        conts0 statics0 hp' vs u Hremoves Hfree Hne Hdistinct
+        (position_nth x params _ Hposition) Hbind Hfits).
     + apply (refines_trans _
         (State handler ((read_variable r, u) :: bound) conts0 statics0 hp'));
         [ apply unread_refines, Hfree | ].
-      apply (never_reads_refines consts handler (read_without r) _ conts0
-        statics0 _ Hnever).
+      apply (never_reads_refines consts handler
+        (read_without (with_reads_shared share params r)) _ conts0 statics0 _
+        Hnever).
       intros t c Ht. destruct (Hvalues t c Ht) as (j & Hparam & Hvalue).
       rewrite lookup_other.
       * exact (bind_params_nth params vs def_vars bound j t _ Hdistinct Hbind
@@ -859,6 +1087,8 @@ Proof.
 Qed.
 
 #[local] Arguments loads_of_two_tags : simpl never.
+#[local] Arguments with_reads_shared : simpl never.
+#[local] Arguments shares_reads : simpl never.
 
 (* The reads of a handler, one after the other. Where the pass stops
    at a load to which blocks of more than one tag may come, the term
@@ -879,8 +1109,12 @@ Proof.
     intros known k made above params metadata handler body vars conts statics
       hp Hfacts;
     simpl; [ apply refines_refl | ].
-  destruct (next_read params handler) as [r | ] eqn:Hnext; simpl;
+  destruct (next_read params handler) as [r0 | ] eqn:Hnext; simpl;
     [ | apply refines_refl ].
+  set (share :=
+    shares_reads known k (tests_of (read_position r0) made above) params
+      handler body r0).
+  set (r := with_reads_shared share params r0).
   destruct
     (loads_of_two_tags known k (tests_of (read_position r) made above) params
        handler body r);
@@ -924,8 +1158,8 @@ Proof.
       [ | apply refines_refl ].
     eapply refines_trans; [ | apply IH; exact Hfacts ].
     exact (certain_step_refines known k params params' metadata metadata'
-      handler handler' body body' r vars conts statics _ variant tests Hnext
-      Hstep Hfacts). }
+      handler handler' body body' r0 vars conts statics _ variant tests share
+      Hnext Hstep Hfacts). }
   destruct (head_read params handler) as [head | ] eqn:Hhead;
     [ | exact Hcertain ].
   destruct (Pos.eqb (read_variable head) (read_variable r));
@@ -934,12 +1168,13 @@ Proof.
     (unbox_read
        (fun known =>
           extend_args known (read_position head) (read_primitive head))
-       known k params metadata handler body head)
+       known k params metadata handler body
+       (with_reads_shared share params head))
     as [[[[params' metadata'] handler'] body'] | ] eqn:Hstep;
     [ | apply refines_refl ].
   eapply refines_trans; [ | apply IH; exact Hfacts ].
   exact (head_step_refines known k params params' metadata metadata' handler
-    handler' body body' head vars conts statics _ Hhead Hstep Hfacts).
+    handler' body body' head vars conts statics _ share Hhead Hstep Hfacts).
 Qed.
 
 (* The handler of each non-recursive [Let_cont] and its body, by the

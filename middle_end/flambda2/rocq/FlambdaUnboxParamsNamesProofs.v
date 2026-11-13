@@ -1060,6 +1060,99 @@ Qed.
 
 (* The parameters, the metadata, the handler and the body that a step
    gives, renamed. *)
+(* The reads shared are those of the renamed expression. *)
+Lemma reads_same_renamed (r : renaming) (p : unary_primitive) (x : variable)
+    (d : named) :
+  reads_same p (rename_variable r x) (rename_named r d) = reads_same p x d.
+Proof.
+  destruct d as [s | pr args | | | | | ]; try reflexivity.
+  destruct pr as [p' | b | v | hp]; try reflexivity.
+  destruct args as [ | [x' | sym | c] [ | arg args]]; try reflexivity.
+  cbn [reads_same rename_named map rename_simple].
+  rewrite rename_variable_eqb. reflexivity.
+Qed.
+
+Lemma read_of_same_renamed (r : renaming) (f : variable)
+    (same : list variable) (d : named) :
+  read_of_same (rename_variable r f) (map (rename_variable r) same)
+    (rename_named r d)
+  = rename_named r (read_of_same f same d).
+Proof.
+  destruct d as [s | pr args | | | | | ]; try reflexivity.
+  destruct pr as [p' | b | v | hp]; try reflexivity.
+  destruct args as [ | [z | sym | c] [ | arg args]]; try reflexivity.
+  cbn [read_of_same rename_named map rename_simple].
+  rewrite among_rename_variable. destruct (among z same); reflexivity.
+Qed.
+
+Fixpoint share_reads_renamed (r : renaming) (p : unary_primitive)
+    (e : expr) :
+  ∀ (x f : variable) (same : list variable),
+    share_reads p (rename_variable r x) (rename_variable r f)
+      (map (rename_variable r) same) (rename_expr r e)
+    = rename_expr r (share_reads p x f same e).
+Proof.
+  destruct e
+    as [ y kind d body | bindings body | k [params metadata handler] body
+       | handlers body | ap | ac | scrutinee arms | ];
+    intros x f same; cbn [rename_expr rename_handler share_reads];
+    try reflexivity.
+  - rewrite read_of_same_renamed, reads_same_renamed, !rename_variable_eqb.
+    destruct (reads_same p x (read_of_same f same d));
+      destruct (Pos.eqb y x || Pos.eqb y f);
+      cbn [rename_expr rename_named rename_simple]; try reflexivity.
+    + change (rename_variable r y :: map (rename_variable r) same)
+        with (map (rename_variable r) (y :: same)).
+      rewrite share_reads_renamed. reflexivity.
+    + change [rename_variable r y] with (map (rename_variable r) [y]).
+      rewrite
+        (without_map_injective (rename_variable r) (rename_variable_eqb r)),
+        share_reads_renamed.
+      reflexivity.
+  - rewrite !among_rename_variable.
+    destruct (among x params || among f params);
+      cbn [rename_expr rename_handler];
+      rewrite
+        ?(without_map_injective (rename_variable r) (rename_variable_eqb r)),
+        !share_reads_renamed;
+      reflexivity.
+  - destruct scrutinee as [z | sym | c];
+      cbn [rename_simple share_reads rename_expr]; try reflexivity.
+    rewrite among_rename_variable.
+    destruct (among z same); reflexivity.
+Qed.
+
+Lemma with_reads_shared_renamed (r : renaming) (share : bool)
+    (params : list variable) (found : read) :
+  with_reads_shared share (map (rename_variable r) params)
+    (rename_read r found)
+  = rename_read r (with_reads_shared share params found).
+Proof.
+  unfold with_reads_shared. destruct share; [ | reflexivity ].
+  cbn [rename_read read_variable read_kind read_primitive read_position
+       read_without].
+  rewrite nth_error_map.
+  destruct (nth_error params (read_position found)) as [x | ];
+    cbn [option_map]; [ | reflexivity ].
+  cbn [rename_read read_variable read_kind read_primitive read_position
+       read_without].
+  change (@nil variable) with (map (rename_variable r) []) at 1.
+  rewrite share_reads_renamed. reflexivity.
+Qed.
+
+(* Whether the reads are shared is the same of the renamed term. *)
+Lemma shares_reads_renamed (r : renaming) (known : facts) (k : continuation)
+    (tests params : list variable) (handler body : expr) (found : read) :
+  shares_reads (rename_facts r known) (rename_continuation r k)
+    (map (rename_variable r) tests) (map (rename_variable r) params)
+    (rename_expr r handler) (rename_expr r body) (rename_read r found)
+  = shares_reads known k tests params handler body found.
+Proof.
+  unfold shares_reads.
+  rewrite with_reads_shared_renamed, loads_of_two_tags_renamed.
+  reflexivity.
+Qed.
+
 Definition rename_step (r : renaming)
     (step : list variable * handler_metadata * expr * expr)
     : list variable * handler_metadata * expr * expr :=
@@ -1094,22 +1187,23 @@ Qed.
 
 Lemma head_step_equivariant (r : renaming) (known : facts)
     (k : continuation) (params : list variable) (metadata : handler_metadata)
-    (handler body : expr) (found : read) :
+    (handler body : expr) (found : read) (share : bool) :
   unbox_read
     (fun known =>
        extend_args known (read_position (rename_read r found))
          (read_primitive (rename_read r found)))
     (rename_facts r known) (rename_continuation r k)
     (map (rename_variable r) params) metadata (rename_expr r handler)
-    (rename_expr r body) (rename_read r found)
+    (rename_expr r body) (rename_read r (with_reads_shared share params found))
   = option_map (rename_step r)
       (unbox_read
          (fun known =>
             extend_args known (read_position found) (read_primitive found))
-         known k params metadata handler body found).
+         known k params metadata handler body
+         (with_reads_shared share params found)).
 Proof.
   exact (unbox_read_equivariant r _ _ known k params metadata handler body
-    found
+    (with_reads_shared share params found)
     (fun known args =>
        extend_args_equivariant r known (read_position found)
          (read_primitive found) args)).
@@ -1160,8 +1254,16 @@ Proof.
     intros known k made above params metadata handler body;
     cbn [unbox_reads]; [ reflexivity | ].
   rewrite next_read_equivariant, head_read_equivariant.
-  destruct (next_read params handler) as [found | ]; cbn [option_map];
+  destruct (next_read params handler) as [found0 | ]; cbn [option_map];
     [ | reflexivity ].
+  change (read_position (rename_read r found0)) with (read_position found0).
+  rewrite (tests_of_renamed r (read_position found0) made above),
+    shares_reads_renamed.
+  set (share :=
+    shares_reads known k (tests_of (read_position found0) made above) params
+      handler body found0).
+  rewrite with_reads_shared_renamed.
+  set (found := with_reads_shared share params found0).
   change (read_position (rename_read r found)) with (read_position found).
   change (read_primitive (rename_read r found)) with (read_primitive found).
   change (read_kind (rename_read r found)) with (read_kind found).
@@ -1253,12 +1355,13 @@ Proof.
   rewrite rename_variable_eqb.
   destruct (Pos.eqb (read_variable head) (read_variable found));
     [ | exact Hcertain ].
-  rewrite head_step_equivariant.
+  rewrite with_reads_shared_renamed, head_step_equivariant.
   destruct
     (unbox_read
        (fun known =>
           extend_args known (read_position head) (read_primitive head))
-       known k params metadata handler body head)
+       known k params metadata handler body
+       (with_reads_shared share params head))
     as [[[[params' metadata'] handler'] body'] | ];
     cbn [option_map rename_step]; [ apply IH | reflexivity ].
 Qed.
@@ -2179,12 +2282,175 @@ Proof.
     + apply incl_app_app; [ apply incl_refl | apply incl_without, Hk ].
 Qed.
 
+(* What a primitive applied to [f] in the place of one of the variables
+   [same] mentions, and what a [Let] of [f] mentions. *)
+Lemma shared_named_free (p : unary_primitive) (x f : variable)
+    (same : list variable) (d : named) :
+  incl
+    (free_variables_of_named
+       (if reads_same p x (read_of_same f same d)
+        then Simple (Var f)
+        else read_of_same f same d))
+    (f :: free_variables_of_named d).
+Proof.
+  destruct (reads_same p x (read_of_same f same d)).
+  - intros z [<- | []]. left. reflexivity.
+  - destruct d as [s | pr args | | | | | ]; try (apply incl_tl, incl_refl).
+    destruct pr as [p' | b | v | hp]; try (apply incl_tl, incl_refl).
+    destruct args as [ | [z | sym | c] [ | arg args]];
+      try (apply incl_tl, incl_refl).
+    cbn [read_of_same].
+    destruct (among z same); [ | apply incl_tl, incl_refl ].
+    intros y [<- | []]. left. reflexivity.
+Qed.
+
+(* An expression with reads shared: its code is closed as the code of
+   the expression is, its free variables are those of the expression
+   and the variable of the read, and its free continuations are those
+   of the expression. *)
+Fixpoint share_reads_scoped (p : unary_primitive) (x f : variable)
+    (e : expr) :
+  ∀ same : list variable,
+    code_closed (share_reads p x f same e) = code_closed e
+    ∧ incl (free_variables_of_expr (share_reads p x f same e))
+        (f :: free_variables_of_expr e)
+    ∧ free_continuations_of_expr (share_reads p x f same e)
+      = free_continuations_of_expr e.
+Proof.
+  destruct e
+    as [ y kind d body | bindings body | k [params metadata handler] body
+       | handlers body | ap | ac | scrutinee arms | ];
+    intros same; cbn [share_reads];
+    try (split; [ reflexivity
+                | split; [ apply incl_tl, incl_refl | reflexivity ] ]).
+  - set (shared := reads_same p x (read_of_same f same d)).
+    set (same' := if shared then y :: same else without [y] same).
+    assert (Hbody :
+      code_closed
+        (if Pos.eqb y x || Pos.eqb y f
+         then body
+         else share_reads p x f same' body)
+      = code_closed body
+      ∧ incl
+          (without [y]
+             (free_variables_of_expr
+                (if Pos.eqb y x || Pos.eqb y f
+                 then body
+                 else share_reads p x f same' body)))
+          (f :: without [y] (free_variables_of_expr body))
+      ∧ free_continuations_of_expr
+          (if Pos.eqb y x || Pos.eqb y f
+           then body
+           else share_reads p x f same' body)
+        = free_continuations_of_expr body).
+    { destruct (Pos.eqb_spec y x) as [-> | Hyx]; cbn [orb];
+        [ split; [ reflexivity
+                 | split; [ apply incl_tl, incl_refl | reflexivity ] ] | ].
+      destruct (Pos.eqb_spec y f) as [-> | Hyf];
+        [ split; [ reflexivity
+                 | split; [ apply incl_tl, incl_refl | reflexivity ] ] | ].
+      destruct (share_reads_scoped p x f body same') as (Hc & Hv & Hk).
+      split; [ exact Hc | split; [ | exact Hk ] ].
+      intros z Hz. apply in_without in Hz. destruct Hz as [Hz Hy].
+      destruct (Hv z Hz) as [<- | Hin]; [ left; reflexivity | right ].
+      apply in_without. split; assumption. }
+    destruct Hbody as (Hc & Hv & Hk). scope.
+    split; [ exact Hc | split; [ | exact Hk ] ].
+    intros z Hz. apply in_app_or in Hz. destruct Hz as [Hz | Hz].
+    + destruct (shared_named_free p x f same d z Hz) as [<- | Hin];
+        [ left; reflexivity | right; apply in_or_app; left; exact Hin ].
+    + destruct (Hv z Hz) as [<- | Hin];
+        [ left; reflexivity | right; apply in_or_app; right; exact Hin ].
+  - destruct (share_reads_scoped p x f body same) as (Hc & Hv & Hk).
+    assert (Hhandler :
+      code_closed
+        (if among x params || among f params
+         then handler
+         else share_reads p x f (without params same) handler)
+      = code_closed handler
+      ∧ incl
+          (without params
+             (free_variables_of_expr
+                (if among x params || among f params
+                 then handler
+                 else share_reads p x f (without params same) handler)))
+          (f :: without params (free_variables_of_expr handler))
+      ∧ free_continuations_of_expr
+          (if among x params || among f params
+           then handler
+           else share_reads p x f (without params same) handler)
+        = free_continuations_of_expr handler).
+    { destruct (among x params) eqn:Hxp; cbn [orb];
+        [ split; [ reflexivity
+                 | split; [ apply incl_tl, incl_refl | reflexivity ] ] | ].
+      destruct (among f params) eqn:Hfp;
+        [ split; [ reflexivity
+                 | split; [ apply incl_tl, incl_refl | reflexivity ] ] | ].
+      destruct (share_reads_scoped p x f handler (without params same))
+        as (Hc' & Hv' & Hk').
+      split; [ exact Hc' | split; [ | exact Hk' ] ].
+      intros z Hz. apply in_without in Hz. destruct Hz as [Hz Hparams].
+      destruct (Hv' z Hz) as [<- | Hin]; [ left; reflexivity | right ].
+      apply in_without. split; assumption. }
+    destruct Hhandler as (Hc' & Hv' & Hk'). scope.
+    rewrite Hc, Hc', Hk, Hk'.
+    split; [ reflexivity | split; [ | reflexivity ] ].
+    intros z Hz. apply in_app_or in Hz. destruct Hz as [Hz | Hz].
+    + destruct (Hv' z Hz) as [<- | Hin];
+        [ left; reflexivity | right; apply in_or_app; left; exact Hin ].
+    + destruct (Hv z Hz) as [<- | Hin];
+        [ left; reflexivity | right; apply in_or_app; right; exact Hin ].
+  - destruct scrutinee as [z | sym | c];
+      try (split; [ reflexivity
+                  | split; [ apply incl_tl, incl_refl | reflexivity ] ]).
+    destruct (among z same);
+      [ | split; [ reflexivity
+                 | split; [ apply incl_tl, incl_refl | reflexivity ] ] ].
+    scope. split; [ reflexivity | split; [ | reflexivity ] ].
+    intros y Hy. cbn [free_variables_of_simple app] in Hy |- *.
+    destruct Hy as [<- | Hy]; [ left; reflexivity | right; right; exact Hy ].
+Qed.
+
+(* What is left of a handler once a read is removed and the others are
+   shared. *)
+Lemma shared_without_scoped (share : bool) (params : list variable)
+    (found : read) (x : variable) (handler : expr) :
+  removes (read_variable found) (read_kind found) (read_primitive found) x
+    handler (read_without found) ->
+  code_closed handler = true ->
+  code_closed (read_without (with_reads_shared share params found)) = true
+  ∧ incl
+      (free_variables_of_expr
+         (read_without (with_reads_shared share params found)))
+      (read_variable (with_reads_shared share params found)
+       :: free_variables_of_expr handler)
+  ∧ incl
+      (free_continuations_of_expr
+         (read_without (with_reads_shared share params found)))
+      (free_continuations_of_expr handler).
+Proof.
+  intros Hremoves Hclosed.
+  destruct (removes_scoped _ _ _ _ _ _ Hremoves Hclosed)
+    as (Hclosed' & Hv & Hk).
+  rewrite with_reads_shared_variable. unfold with_reads_shared.
+  destruct share; [ | split; [ exact Hclosed' | split; assumption ] ].
+  destruct (nth_error params (read_position found)) as [x' | ];
+    cbn [read_without]; [ | split; [ exact Hclosed' | split; assumption ] ].
+  destruct
+    (share_reads_scoped (read_primitive found) x' (read_variable found)
+       (read_without found) [])
+    as (Hc & Hv' & Hk').
+  rewrite Hc, Hk'. split; [ exact Hclosed' | split; [ | exact Hk ] ].
+  intros z Hz.
+  destruct (Hv' z Hz) as [<- | Hin]; [ left; reflexivity | exact (Hv z Hin) ].
+Qed.
+
 (* One read made a parameter. *)
 Lemma unbox_read_scoped
     (extend : facts -> list simple -> option (list simple))
     (names : list variable) (known : facts) (k : continuation)
     (params params' : list variable) (metadata metadata' : handler_metadata)
-    (handler handler' body body' : expr) (found : read) (x : variable) :
+    (handler handler' body body' : expr) (found : read) :
   (∀ (names : list variable) (known : facts) (args args' : list simple),
     facts_within names known ->
     extend known args = Some args' ->
@@ -2193,13 +2459,17 @@ Lemma unbox_read_scoped
   facts_within names known ->
   unbox_read extend known k params metadata handler body found
   = Some (params', metadata', handler', body') ->
-  removes (read_variable found) (read_kind found) (read_primitive found) x
-    handler (read_without found) ->
+  (code_closed handler = true ->
+   code_closed (read_without found) = true
+   ∧ incl (free_variables_of_expr (read_without found))
+       (read_variable found :: free_variables_of_expr handler)
+   ∧ incl (free_continuations_of_expr (read_without found))
+       (free_continuations_of_expr handler)) ->
   scoped_under names
     (Let_cont_non_recursive k (Handler params metadata handler) body)
     (Let_cont_non_recursive k (Handler params' metadata' handler') body').
 Proof.
-  intros Hextend Hknown Hstep Hremoves. unfold unbox_read in Hstep.
+  intros Hextend Hknown Hstep Hwithout. unfold unbox_read in Hstep.
   destruct
     (may_take params metadata (read_variable found)
      && negb (var_free_b (read_variable found) handler));
@@ -2211,8 +2481,7 @@ Proof.
     k extended Hknown Hbody) as Hin_body.
   intros Hclosed. scope_in Hclosed. scope.
   apply andb_true_iff in Hclosed. destruct Hclosed as [Hfirst Hrest].
-  destruct (removes_scoped _ _ _ _ _ _ Hremoves Hfirst)
-    as (Hfirst' & Hv & Hk).
+  destruct (Hwithout Hfirst) as (Hfirst' & Hv & Hk).
   destruct (Hin_body Hrest) as (Hrest' & Hv' & Hk').
   rewrite Hfirst', Hrest'. split; [ reflexivity | split ].
   - intros y Hy. apply in_app_or in Hy. apply in_or_app.
@@ -2242,13 +2511,16 @@ Proof.
   induction fuel as [ | fuel IH];
     intros names known k made above params metadata handler body Hknown;
     cbn [unbox_reads]; [ apply scoped_under_refl | ].
-  destruct (next_read params handler) as [found | ] eqn:Hnext;
-    [ | apply scoped_under_refl ].
+  destruct (next_read params handler) as [found0 | ] eqn:Hnext;
+    cbn [option_map]; [ | apply scoped_under_refl ].
+  set (share :=
+    shares_reads known k (tests_of (read_position found0) made above) params
+      handler body found0).
+  set (found := with_reads_shared share params found0).
   destruct
     (loads_of_two_tags known k (tests_of (read_position found) made above)
        params handler body found);
     [ apply scoped_under_refl | ].
-  simpl.
   set (made' :=
     if reads_test (read_primitive found)
     then (read_variable found, read_position found) :: made
@@ -2285,16 +2557,17 @@ Proof.
       as [[[[params' metadata'] handler'] body'] | ] eqn:Hstep;
       [ | apply scoped_under_refl ].
     eapply scoped_under_trans; [ | apply IH; exact Hknown ].
-    destruct (next_read_first params handler found Hnext)
+    destruct (next_read_first params handler found0 Hnext)
       as [wanted Hfirst].
-    destruct (first_read_removes handler wanted params [] found Hfirst)
+    destruct (first_read_removes handler wanted params [] found0 Hfirst)
       as (x & _ & _ & _ & Hremoves).
     exact (unbox_read_scoped _ names known k params params' metadata
-      metadata' handler handler' body body' found x
+      metadata' handler handler' body body' found
       (extend_args_certain_free variant tests params handler
          (read_without found) (read_position found) (read_primitive found)
          (read_kind found))
-      Hknown Hstep Hremoves). }
+      Hknown Hstep
+      (shared_without_scoped share params found0 x handler Hremoves)). }
   destruct (head_read params handler) as [head | ] eqn:Hhead;
     [ | exact Hcertain ].
   destruct (Pos.eqb (read_variable head) (read_variable found));
@@ -2303,7 +2576,8 @@ Proof.
     (unbox_read
        (fun known =>
           extend_args known (read_position head) (read_primitive head))
-       known k params metadata handler body head)
+       known k params metadata handler body
+       (with_reads_shared share params head))
     as [[[[params' metadata'] handler'] body'] | ] eqn:Hstep;
     [ | apply scoped_under_refl ].
   eapply scoped_under_trans; [ | apply IH; exact Hknown ].
@@ -2315,8 +2589,9 @@ Proof.
   destruct (param_read_spec reads_any params [] f d p i Hread)
     as (x & -> & _).
   exact (unbox_read_scoped _ names known k params params' metadata
-    metadata' _ handler' body body' _ x (extend_args_free i p) Hknown Hstep
-    (Removes_here f kind p x rest)).
+    metadata' _ handler' body body' _ (extend_args_free i p) Hknown Hstep
+    (shared_without_scoped share params (Read f kind p i rest) x _
+       (Removes_here f kind p x rest))).
 Qed.
 
 Fixpoint unbox_variants_knowing_scoped (e : expr) :

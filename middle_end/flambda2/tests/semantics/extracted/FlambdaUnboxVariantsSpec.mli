@@ -9,6 +9,7 @@ open FlambdaMapSpec
 open FlambdaModel
 open FlambdaNormaliseSpec
 open FlambdaPrimitiveModel
+open FlambdaPrimitiveSpec
 open FlambdaSemanticsSpec
 open FlambdaUnboxParamsSpec
 open FlambdaUnboxSpec
@@ -155,6 +156,25 @@ val all_same : coq_Z list -> bool
 val reads_field : unary_primitive -> bool
 
 val loads_of_two_tags :
+  facts ->
+  continuation ->
+  variable list ->
+  variable list ->
+  expr ->
+  expr ->
+  read ->
+  bool
+
+val reads_same : unary_primitive -> variable -> named -> bool
+
+val read_of_same : variable -> variable list -> named -> named
+
+val share_reads :
+  unary_primitive -> variable -> variable -> variable list -> expr -> expr
+
+val with_reads_shared : bool -> variable list -> read -> read
+
+val shares_reads :
   facts ->
   continuation ->
   variable list ->

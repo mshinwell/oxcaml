@@ -9,6 +9,7 @@ open FlambdaMapSpec
 open FlambdaModel
 open FlambdaNormaliseSpec
 open FlambdaPrimitiveModel
+open FlambdaPrimitiveSpec
 open FlambdaSemanticsSpec
 open FlambdaUnboxParamsSpec
 open FlambdaUnboxSpec
@@ -165,10 +166,10 @@ let rec take_arms consts e =
 
 (** val never_reads : (variable * coq_Z) list -> expr -> expr -> bool **)
 
-let never_reads consts handler without =
+let never_reads consts handler without0 =
   expr_eqb [] []
     (remove_unused_conts (take_arms consts handler))
-    (remove_unused_conts (take_arms consts without))
+    (remove_unused_conts (take_arms consts without0))
 
 (** val only_of : variable list -> (variable * coq_Z) list -> (variable * coq_Z)
     list **)
@@ -179,12 +180,14 @@ let only_of tests consts = filter (fun entry -> among (fst entry) tests) consts
     expr -> facts -> nat -> unary_primitive -> flambda_kind -> simple list ->
     simple list option **)
 
-let extend_args_certain variant tests params handler without known i p kind args
-    =
+let extend_args_certain variant tests params handler without0 known i p kind
+    args =
   match nth_error args i with
   | Some arg -> (
     if
-      never_reads (only_of tests (known_immediates params args)) handler without
+      never_reads
+        (only_of tests (known_immediates params args))
+        handler without0
     then Some (app args (Const (dummy_of variant p kind) :: []))
     else
       match certain_projection known p kind arg with
@@ -478,11 +481,13 @@ and tags_given_in_handler tag_of known k = function
 (** val tag_read : variable list -> variable list -> expr -> expr -> nat ->
     facts -> simple list -> coq_Z list **)
 
-let tag_read tests params handler without i known args =
+let tag_read tests params handler without0 i known args =
   match nth_error args i with
   | Some arg -> (
     if
-      never_reads (only_of tests (known_immediates params args)) handler without
+      never_reads
+        (only_of tests (known_immediates params args))
+        handler without0
     then []
     else
       match known_block_of known.facts_blocks arg with
@@ -509,6 +514,103 @@ let loads_of_two_tags known k tests params handler body r =
              (tag_read tests params handler r.read_without r.read_position)
              known k body))
 
+(** val reads_same : unary_primitive -> variable -> named -> bool **)
+
+let reads_same p x = function
+  | Prim (p0, args) -> (
+    match p0 with
+    | Unary p' -> (
+      match args with
+      | [] -> false
+      | s :: l -> (
+        match s with
+        | Var x' -> (
+          match l with
+          | [] -> prim_eqb (Unary p') (Unary p) && Pos.eqb x' x
+          | _ :: _ -> false)
+        | _ -> false))
+    | _ -> false)
+  | _ -> false
+
+(** val read_of_same : variable -> variable list -> named -> named **)
+
+let read_of_same f same d =
+  match d with
+  | Prim (p, args) -> (
+    match p with
+    | Unary p' -> (
+      match args with
+      | [] -> d
+      | s :: l -> (
+        match s with
+        | Var z -> (
+          match l with
+          | [] -> if among z same then Prim (Unary p', Var f :: []) else d
+          | _ :: _ -> d)
+        | _ -> d))
+    | _ -> d)
+  | _ -> d
+
+(** val share_reads : unary_primitive -> variable -> variable -> variable list
+    -> expr -> expr **)
+
+let rec share_reads p x f same e =
+  match e with
+  | Let (y, kind, d, body) ->
+    let d0 = read_of_same f same d in
+    let shared = reads_same p x d0 in
+    Let
+      ( y,
+        kind,
+        (if shared then Simple (Var f) else d0),
+        if Pos.eqb y x || Pos.eqb y f
+        then body
+        else
+          share_reads p x f
+            (if shared then y :: same else without (y :: []) same)
+            body )
+  | Let_cont_non_recursive (k, handler0, body) ->
+    let (Handler (params, metadata, handler)) = handler0 in
+    Let_cont_non_recursive
+      ( k,
+        Handler
+          ( params,
+            metadata,
+            if among x params || among f params
+            then handler
+            else share_reads p x f (without params same) handler ),
+        share_reads p x f same body )
+  | Switch (scrutinee, arms) -> (
+    match scrutinee with
+    | Var z -> if among z same then Switch (Var f, arms) else e
+    | _ -> e)
+  | _ -> e
+
+(** val with_reads_shared : bool -> variable list -> read -> read **)
+
+let with_reads_shared share params r =
+  if share
+  then
+    match nth_error params r.read_position with
+    | Some x ->
+      { read_variable = r.read_variable;
+        read_kind = r.read_kind;
+        read_primitive = r.read_primitive;
+        read_position = r.read_position;
+        read_without =
+          share_reads r.read_primitive x r.read_variable [] r.read_without
+      }
+    | None -> r
+  else r
+
+(** val shares_reads : facts -> continuation -> variable list -> variable list
+    -> expr -> expr -> read -> bool **)
+
+let shares_reads known k tests params handler body r =
+  negb
+    (loads_of_two_tags known k tests params handler body
+       (with_reads_shared true params r))
+
 (** val unbox_reads : nat -> facts -> continuation -> (variable * nat) list ->
     (nat * nat list) list -> variable list -> handler_metadata -> expr -> expr
     -> expr **)
@@ -531,8 +633,18 @@ let rec unbox_reads fuel known k made above params metadata handler body =
             r.read_primitive r.read_kind)
         known k params metadata handler body r
     in
-    match next_read params handler with
-    | Some r -> (
+    match
+      option_map
+        (fun found ->
+          ( shares_reads known k
+              (tests_of found.read_position made above)
+              params handler body found,
+            found ))
+        (next_read params handler)
+    with
+    | Some p -> (
+      let share, found = p in
+      let r = with_reads_shared share params found in
       if
         loads_of_two_tags known k
           (tests_of r.read_position made above)
@@ -547,15 +659,16 @@ let rec unbox_reads fuel known k made above params metadata handler body =
               unbox_read
                 (fun known0 ->
                   extend_args known0 head.read_position head.read_primitive)
-                known k params metadata handler body head
+                known k params metadata handler body
+                (with_reads_shared share params head)
             else certain r
           | None -> certain r
         in
         match step with
-        | Some p ->
-          let p0, body0 = p in
-          let p1, handler0 = p0 in
-          let params', metadata0 = p1 in
+        | Some p0 ->
+          let p1, body0 = p0 in
+          let p2, handler0 = p1 in
+          let params', metadata0 = p2 in
           unbox_reads fuel0 known k
             (if reads_test r.read_primitive
              then (r.read_variable, r.read_position) :: made

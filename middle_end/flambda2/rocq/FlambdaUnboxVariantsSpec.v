@@ -131,6 +131,30 @@
      the constant above); an argument that is not such a block has
      no tag here.
 
+   - Where a read is made a parameter, the other [Let]s of the handler
+     that read the same parameter by the same primitive become [Let]s
+     of the variable of the read ([with_reads_shared], by
+     [share_reads]): Simplify has one parameter for what a handler
+     reads in several places. Below such a [Let], a unary primitive
+     applied to its variable and a [Switch] on it are of the variable
+     of the read; so a read of what was read twice is a read of the
+     new parameter, and a test that was made twice is one test for
+     [never_reads]. The rounds of the validation then follow those
+     [Let]s and remove them. Loads are shared only where the tags
+     that are known for them, taken together, do not differ
+     ([shares_reads], which is [loads_of_two_tags] of the read with
+     the others shared): Simplify's parameters for the fields of a
+     variant are tag by tag, so the loads of one field under two
+     tags are two parameters. The tags are those above: of the
+     arguments that the term shows to be blocks that were made, in
+     every application but those that it shows to come to none of
+     the loads. An argument that is not such a block has no tag
+     here, so loads are shared also where no tag is known, or one,
+     and blocks of other tags may then come to them. The test
+     chooses what is shared and nothing more: the refinement does
+     not rest on it. Where the loads are not shared the read is
+     taken alone.
+
    An application does not come to a read ([never_reads]) where the
    term shows it by the constants that the application gives. The
    parameters that it gives a constant naked immediate are known
@@ -682,13 +706,98 @@ Definition loads_of_two_tags (known : facts) (k : continuation)
                 (read_position r))
              known k body)).
 
+(* Whether a [Let] is of a variable to the primitive [p] applied to
+   [x]. *)
+Definition reads_same (p : unary_primitive) (x : variable) (d : named)
+    : bool :=
+  match d with
+  | Prim (Unary p') [Var x'] =>
+    prim_eqb (Unary p') (Unary p) && Pos.eqb x' x
+  | _ => false
+  end.
+
+(* A unary primitive applied to one of the variables [same], applied
+   to [f] in its place. *)
+Definition read_of_same (f : variable) (same : list variable) (d : named)
+    : named :=
+  match d with
+  | Prim (Unary p') [Var z] =>
+    if among z same then Prim (Unary p') [Var f] else d
+  | _ => d
+  end.
+
+(* The expression with every other [Let] of a variable to the primitive
+   [p] applied to [x] made a [Let] of that variable to [f], going down
+   through the bodies of [Let]s and through the handlers and the bodies
+   of non-recursive [Let_cont]s, as far as neither [x] nor [f] is
+   bound again. [same] is the variables so bound that are in scope:
+   each holds what [f] holds, so a unary primitive applied to one of
+   them is applied to [f], and a [Switch] on one of them is on [f]. *)
+Fixpoint share_reads (p : unary_primitive) (x f : variable)
+    (same : list variable) (e : expr) : expr :=
+  match e with
+  | Let y kind d body =>
+    let d := read_of_same f same d in
+    let shared := reads_same p x d in
+    Let y kind (if shared then Simple (Var f) else d)
+      (if Pos.eqb y x || Pos.eqb y f
+       then body
+       else
+         share_reads p x f
+           (if shared then y :: same else without [y] same) body)
+  | Let_cont_non_recursive k (Handler params metadata handler) body =>
+    Let_cont_non_recursive k
+      (Handler params metadata
+         (if among x params || among f params
+          then handler
+          else share_reads p x f (without params same) handler))
+      (share_reads p x f same body)
+  | Switch (Var z) arms =>
+    if among z same then Switch (Var f) arms else e
+  | Switch (Symbol _ | Const _) _ | Let_static _ _ | Let_cont_recursive _ _
+  | Apply _ | Apply_cont _ | Invalid =>
+    e
+  end.
+
+(* The read with, if [share] says so, the other reads of the same
+   parameter by the same primitive, in what is left of the handler,
+   made [Let]s of its variable. *)
+Definition with_reads_shared (share : bool) (params : list variable)
+    (r : read) : read :=
+  if share
+  then
+    match nth_error params (read_position r) with
+    | Some x =>
+      Read (read_variable r) (read_kind r) (read_primitive r)
+        (read_position r)
+        (share_reads (read_primitive r) x (read_variable r) []
+           (read_without r))
+    | None => r
+    end
+  else r.
+
+(* Whether the other reads of the same parameter by the same primitive
+   are shared with the read: always, but for loads of which, taken
+   together, [loads_of_two_tags] holds: of the applications that may
+   come to one of them, two give blocks that were made, of different
+   tags. So the loads are shared where no application is known to
+   give such a block, and where those that are known are all of one
+   tag; blocks of other tags may then come to them. *)
+Definition shares_reads (known : facts) (k : continuation)
+    (tests params : list variable) (handler body : expr) (r : read) : bool :=
+  negb
+    (loads_of_two_tags known k tests params handler body
+       (with_reads_shared true params r)).
+
 (* The [Let_cont] of [k], with the reads of its parameters made
    parameters one after the other, in the order of [next_read], as
    long as each can be: not a load to which blocks of more than one
    tag may come ([loads_of_two_tags]); if it is the [Let] that the
    handler begins
    with, as FlambdaUnboxParamsSpec.unbox_heads does it; otherwise with
-   arguments that are certain. [made] is the tests made parameters so
+   arguments that are certain. Each is taken with the other reads of
+   the same parameter by the same primitive shared, where
+   [shares_reads] says so. [made] is the tests made parameters so
    far, each with the position that it read, and [above], for each
    parameter made so far, its position and those of the parameters
    that it was read from. *)
@@ -712,8 +821,16 @@ Fixpoint unbox_reads (fuel : nat) (known : facts) (k : continuation)
              (read_position r) (read_primitive r) (read_kind r))
         known k params metadata handler body r
     in
-    match next_read params handler with
-    | Some r =>
+    match
+      option_map
+        (fun found =>
+           (shares_reads known k (tests_of (read_position found) made above)
+              params handler body found,
+            found))
+        (next_read params handler)
+    with
+    | Some (share, found) =>
+      let r := with_reads_shared share params found in
       if loads_of_two_tags known k (tests_of (read_position r) made above)
            params handler body r
       then unchanged
@@ -727,7 +844,8 @@ Fixpoint unbox_reads (fuel : nat) (known : facts) (k : continuation)
                 (fun known =>
                    extend_args known (read_position head)
                      (read_primitive head))
-                known k params metadata handler body head
+                known k params metadata handler body
+                (with_reads_shared share params head)
             else certain r
           | None => certain r
           end
