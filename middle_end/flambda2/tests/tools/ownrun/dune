@@ -1,0 +1,44 @@
+;; The driver that checks the compiler's own run (flsemantics_ownrun.ml).
+;;
+;; It is the compiler, so it is linked with the library unix, as
+;; oxcaml_main_native is. The system compiler cannot build that library
+;; (the comment on boot_ocamlopt in the dune file at the root), so the
+;; program is built in the main context only. `make boot-compiler` does
+;; not type-check it. What builds it, in the main context: the alias `all`
+;; of the directory above, and the semantics tests, for the control of
+;; ../../semantics/own_run/ and for each unit of ../../semantics/ocaml/
+;; that has X.own_expected.
+;;
+;; The modules of the check are those of the directory above, copied: the
+;; programs above are not a library, and dune does not let one module be in
+;; two stanzas of executables (as in driver/dune).
+
+(copy_files
+ (enabled_if
+  (= %{context_name} "main"))
+ (files ../{import,test_utils,flmodel_to_fexpr,flroundtrip,flsemantics}.ml))
+
+(copy_files
+ (enabled_if
+  (= %{context_name} "main"))
+ (files ../test_utils.mli))
+
+(executable
+ (name flsemantics_ownrun)
+ (enabled_if
+  (= %{context_name} "main"))
+ (modes native)
+ (libraries
+  ocamlfrontend
+  ocamloptcomp
+  flambda2
+  flambda2_compare
+  flambda2_parser
+  flambda2_terms
+  flambda2_cmx
+  flambda2_kinds
+  flambda2_numbers
+  flambda2_bound_identifiers
+  flambda2_term_basics
+  flambda2_rocq_semantics
+  unix))
