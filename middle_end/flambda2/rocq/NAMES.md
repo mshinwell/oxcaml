@@ -30,6 +30,7 @@ here.
 | What | Where | By |
 |------|-------|----|
 | The machine: a step, a run, a behaviour; equivalence and refinement, of states and of expressions | `FlambdaEquivarianceSpec.v` | N1 |
+| What a run leaves at an exit: that a state leaves a world, and refinement with the worlds of the two exits related | `FlambdaExitWorldActionsSpec.v` | N1 |
 | The machine with a stack of exception handlers and of calls | `FlambdaTrapSpec.v` | the owner of exceptions |
 | The machine of `FlambdaHeapSpec.v`, which runs the primitives of the heap, and its refinements; the heap is left as it is | `FlambdaHeapEquivarianceSpec.v` | N1 |
 | The free names; the three conditions on binders; `alpha_equivalent` | `FlambdaAlphaSpec.v` | N1 |
@@ -147,6 +148,7 @@ which gives a name outside a list of names.
 | `FlambdaLocationsSpec.v` | The action of the permutations of locations on what the machine holds; each thing that holds locations obeys the laws of the interface, with its locations for its names; the action commutes with that of the renamings; lookups go through it |
 | `FlambdaLocationsPrimitiveSpec.v` | A primitive under a permutation of locations: an equation where it binds no location; every primitive up to the location chosen, where the heap binds the locations of all its entries; that premise is kept; a heap with a hidden entry where it fails |
 | `FlambdaLocationsMachineSpec.v` | A step, a run and a behaviour under a permutation of locations, up to the locations allocated, for a state whose heap binds every location of the state; a step, a run and the action keep that; the same of what a `Let` is to run when a step allocates |
+| `FlambdaExitWorldActionsSpec.v` | The two actions on what a run leaves at an exit: a state leaves a world exactly when the state renamed leaves the world renamed; refinement with the worlds related, the relation renamed; under a permutation of locations, the world that a state leaves, up to the locations allocated |
 | `FlambdaFreshQuantifierSpec.v`, `FlambdaFreshAbstractionSpec.v` | The quantifier "for all but finitely many names"; `fresh_names`; equal abstractions of one name and of a list of distinct names, said with the quantifier |
 | `FlambdaFreshBindersSpec.v`, `FlambdaAlphaFreshSpec.v`, `FlambdaAlphaGroupSpec.v` | For each binder, the rule that compares two binders at fresh names, and that it can be read both ways on terms with distinct binders and closed code; the recursive group as a name abstraction |
 | `FlambdaCompareConverseSpec.v` | What the comparison accepts is alpha-equivalent, on terms with distinct binders and closed code |
@@ -244,6 +246,24 @@ action by an equation, as does every primitive of the heap but the
 two that bind a location; so of the machine as it is `p'` is `p`. The
 statements are in the form that stays true when a step runs the
 primitives of the heap.
+
+What a run leaves at an exit (`FlambdaExitWorldSpec.exit_world`: the
+continuation, the values, the heap, and the static environment of the
+last state) has the two actions too (`FlambdaExitWorldActionsSpec.v`).
+A renaming renames the continuation and the code of the static
+environment. A state leaves a world exactly when the state renamed
+leaves the world renamed, and refinement with the worlds related
+(`refines_world`) is kept with the relation renamed as the two states
+are; so it is kept at the relation itself where the renaming keeps
+the relation, as every renaming keeps `same_exit`. A permutation of
+locations moves the values, the static environment and the heap. A
+state whose heap binds every location of the state leaves a world
+whose heap binds every location of the world, and the state moved by
+`p` leaves the world moved by some `p'` that agrees with `p` on the
+locations that the heap of the state binds. Nothing is stated of
+`refines_world` under a permutation of locations: `same_exit`
+compares values and heaps by equality, and one permutation applied to
+both worlds keeps it, where two independent permutations need not.
 
 ## 5. The same up to bound names
 
