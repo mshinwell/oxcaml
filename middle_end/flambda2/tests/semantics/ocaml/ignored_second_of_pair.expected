@@ -1,0 +1,8 @@
+ignored_second_of_pair.fl:
+  before Simplify (30 steps): returns [0: <fun>; <fun>; 4]
+  after Simplify (22 steps): returns [0: <fun>; <fun>; 4]
+  the check of kinds: passes before, passes after
+  calls outside code: 1 before, 1 after
+  the same
+  calls outside code once those of known code are inlined: 0
+  validated: the same once closures and blocks are lifted to symbols, the terms normalised and unused value slots removed

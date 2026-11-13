@@ -1,0 +1,56 @@
+let $camlIgnored_call_of_three__first_const_0 = Block 0 () in
+(let code inline(never) size(3)
+       twice_0 (x/57 : imm tagged)
+         my_closure/58 &my_alloc_region/59 my_depth/60
+         -> k/22 * k/23
+         : imm tagged =
+   let next_depth/61 = rec_info (succ my_depth/60) in
+   let int_add/62 = %int_barith.add (x/57, x/57) in
+   cont k/22 (int_add/62)
+ in
+ let code inline(never) size(30)
+       ignored_1 (c/63 : imm tagged, x/64 : imm tagged)
+         my_closure/65 &my_alloc_region/66 my_depth/67
+         -> k/24 * k/25
+         : imm tagged =
+   let next_depth/68 = rec_info (succ my_depth/67) in
+   let twice/69 = %project_value_slot.[ignored].[twice] (my_closure/65) in
+   (let untagged/73 = %untag_imm (c/63) in
+    switch untagged/73
+      | 0 -> k/27
+      | 1 -> k/26 (8)
+      | 2 -> k/28)
+     where k/28 =
+       let int_add/72 = %int_barith.add (x/64, 1) in
+       apply direct(twice_0 &my_alloc_region/66)
+         (twice/69 : _ -> imm tagged) (int_add/72) -> k/26 * k/25
+     where k/27 =
+       apply direct(twice_0 &my_alloc_region/66)
+         (twice/69 : _ -> imm tagged) (x/64) -> k/26 * k/25
+     where k/26 (switch_result/70 : imm tagged) =
+       let int_add/71 = %int_barith.add (x/64, 1) in
+       cont k/24 (int_add/71)
+ in
+ let twice/74 = closure twice_0 @twice &toplevel in
+ let ignored/75 = closure ignored_1 @ignored &toplevel
+ with { twice = twice/74 }
+ in
+ (let Popaque/78 = %opaque (2) in
+  apply direct(ignored_1 &toplevel)
+    (ignored/75 : _ -> imm tagged) (Popaque/78, 3) -> k/29 * error)
+   where k/29 (result/76 : imm tagged) =
+     let Pmakeblock/77 =
+       %block.[`0`].`toplevel` (twice/74, ignored/75, result/76)
+     in
+     cont k/21 (Pmakeblock/77))
+  where k/21 define_root_symbol (module_block/53) =
+    let field_0/54 = %block_load.tag[`0`].`size`[`3`].[`0`] (module_block/53)
+    in
+    let field_1/55 = %block_load.tag[`0`].`size`[`3`].[`1`] (module_block/53)
+    in
+    let field_2/56 = %block_load.tag[`0`].`size`[`3`].[`2`] (module_block/53)
+    in
+    let $camlIgnored_call_of_three =
+      Block 0 (field_0/54, field_1/55, field_2/56)
+    in
+    cont done ($camlIgnored_call_of_three)

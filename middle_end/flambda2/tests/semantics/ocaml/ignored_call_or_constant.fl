@@ -1,0 +1,53 @@
+let $camlIgnored_call_or_constant__first_const_0 = Block 0 () in
+(let code inline(never) size(3)
+       twice_0 (x/55 : imm tagged)
+         my_closure/56 &my_alloc_region/57 my_depth/58
+         -> k/22 * k/23
+         : imm tagged =
+   let next_depth/59 = rec_info (succ my_depth/58) in
+   let int_add/60 = %int_barith.add (x/55, x/55) in
+   cont k/22 (int_add/60)
+ in
+ let code inline(never) size(20)
+       ignored_1 (c/61 : imm tagged, x/62 : imm tagged)
+         my_closure/63 &my_alloc_region/64 my_depth/65
+         -> k/24 * k/25
+         : imm tagged =
+   let next_depth/66 = rec_info (succ my_depth/65) in
+   let twice/67 = %project_value_slot.[ignored].[twice] (my_closure/63) in
+   (let untagged/70 = %untag_imm (c/61) in
+    switch untagged/70
+      | 0 -> k/26 (8)
+      | 1 -> k/28)
+     where k/28 =
+       cont k/27
+     where k/27 =
+       apply direct(twice_0 &my_alloc_region/64)
+         (twice/67 : _ -> imm tagged) (x/62) -> k/26 * k/25
+     where k/26 (staticcatch_result/68 : imm tagged) =
+       let int_add/69 = %int_barith.add (x/62, 1) in
+       cont k/24 (int_add/69)
+ in
+ let twice/71 = closure twice_0 @twice &toplevel in
+ let ignored/72 = closure ignored_1 @ignored &toplevel
+ with { twice = twice/71 }
+ in
+ (let Popaque/75 = %opaque (1) in
+  apply direct(ignored_1 &toplevel)
+    (ignored/72 : _ -> imm tagged) (Popaque/75, 3) -> k/29 * error)
+   where k/29 (result/73 : imm tagged) =
+     let Pmakeblock/74 =
+       %block.[`0`].`toplevel` (twice/71, ignored/72, result/73)
+     in
+     cont k/21 (Pmakeblock/74))
+  where k/21 define_root_symbol (module_block/51) =
+    let field_0/52 = %block_load.tag[`0`].`size`[`3`].[`0`] (module_block/51)
+    in
+    let field_1/53 = %block_load.tag[`0`].`size`[`3`].[`1`] (module_block/51)
+    in
+    let field_2/54 = %block_load.tag[`0`].`size`[`3`].[`2`] (module_block/51)
+    in
+    let $camlIgnored_call_or_constant =
+      Block 0 (field_0/52, field_1/53, field_2/54)
+    in
+    cont done ($camlIgnored_call_or_constant)
