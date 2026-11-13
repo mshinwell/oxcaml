@@ -36,7 +36,7 @@ here.
 | The comparison `expr_eqb` | `FlambdaCompareAlphaSpec.v` | N1 |
 | The rewrites of the normalisation, the passes for loops, the checks of well-formedness (exception handlers and trap actions among them), the check of kinds, the normalisation of the term after and the first phase of that of the term before | `FlambdaValidatorEquivarianceSpec.v` | N3 |
 | The normalisation of the term before and that of a term in which something was lifted: up to the names that a round makes. `validate_unit`: where the code of the term before is closed | `FlambdaValidatorEquivarianceSpec.v` | N3 |
-| Identities of primitives, lifting, lifting out of code, the binding of `my_closure`, ranges, sharing of primitives and of projections, the recovery of comparisons, folding at known symbols, unused and known value slots, the order of static bindings, the static closures in sight, code moved up, code and static bindings bound first, lifting out of the arms of a test, inlining within a group of code, the unboxing of parameters, the merging of the arms of a `Switch`, the demotion of exception handlers, the rewrite of the calls of code that never returns | the `Spec` file of each pass | the owner of each |
+| Identities of primitives, lifting, lifting out of code, the binding of `my_closure`, ranges, sharing of primitives and of projections, the recovery of comparisons, folding at known symbols, unused and known value slots, the order of static bindings, the static closures in sight, code moved up, code and static bindings bound first, lifting out of the arms of a test, inlining within a group of code, the unboxing of parameters, the merging of the arms of a `Switch`, the demotion of exception handlers, the rewrite of the calls of code that never returns, the fold of a `Phys_equal` of a simple against itself, the calls of the unit's other code made indirect in the code of a stub | the `Spec` file of each pass | the owner of each |
 | The second asking of the validation, `validate_unit_knowing`: where the code of the term before is closed | `FlambdaValidateKnowingSpec.v` | the owner of that file, N3 |
 | Typing environments and their levels, extensions, aliases, types, provers | the types library (`FlambdaEnvRenameSpec.v`, `FlambdaTypeRenameSpec.v`, `FlambdaEnvAliasesRenamingSpec.v`, `FlambdaTypingEnvExtensionSpec.v`, `FlambdaProversRenameSpec.v`) | N3 and the owners |
 | The model of Simplify: the function that rewrites a term from the types, the same with pruning, the rewrites of a `Switch`, following aliases with the aliases of the library | the types library (section 7 has the files) | the owners of those files |
@@ -546,9 +546,12 @@ actions among them; the check of kinds; the passes for loops
 `FlambdaLoopAliasesSpec.v`, `FlambdaLoopifySpec.v`, those of the
 second series, `FlambdaParamAliasesSpec.v`, `FlambdaForwardSpec.v`,
 `FlambdaInlineTailSpec.v`, `FlambdaLoopLetsSpec.v`, and that of the
-third, `FlambdaDeadParamsSpec.v`); the forwarding, in the term
-after, of an application of a continuation of no parameters whose
-handler only applies another (`FlambdaForwardJumpsSpec.v`); the
+third, `FlambdaDeadParamsSpec.v`); the forwarding of an application
+of a continuation whose handler only applies another, where it is an
+equivalence: with no parameters (`FlambdaForwardJumpsSpec.v`), and
+with arguments known to have the kinds of the parameters, which the
+validation applies to the term after, in the bodies of code too
+(`FlambdaForwardKindedSpec.v`); the
 removal, in the body of code, of the unused `Let`s of its parameters
 (`FlambdaCodeLetsSpec.v`); the
 test for inlining a call that gives tupled code a tuple; the demotion
@@ -561,12 +564,17 @@ tidying in rounds that follows it (`tidied_before`, `tidied_after`:
 a parameter that every application gives one variable is taken away
 where the checks of `FlambdaUnaliasParamsSpec.unalias_params` pass,
 primitives are shared, aliases are followed and the `Let`s left
-unused are removed). That pass and the two tidyings commute with
+unused are removed; and then, once, the groups of static bindings at
+the head of the body of a continuation binding are bound before it
+(`FlambdaGroupsUpSpec.groups_up`), which commutes with every renaming
+by an equation (`groups_up_equivariant_statement`) and keeps scope
+(`FlambdaStaticsScopeSpec.groups_up_keeps_scope_statement`)).
+`unalias_params` and the two tidyings commute with
 every renaming, each by an equation, the tidyings for every number
 of rounds (`unalias_params_equivariant_statement`,
 `tidied_before_equivariant_statement`,
-`tidied_after_equivariant_statement`); the pass and the tidying of
-the term before keep scope
+`tidied_after_equivariant_statement`); `unalias_params` and the
+tidying of the term before keep scope
 (`FlambdaStaticsScopeSpec.unalias_params_keeps_scope_statement`,
 `tidied_before_keeps_scope_statement`). Every one is an equation
 that holds of every term. Other functions that the check applies are
@@ -672,11 +680,22 @@ of the comparison that a three-way result is tested for
 (`FlambdaRecoverComparisonSpec.v`:
 `recover_known_comparisons_equivariant_statement`, an equation that
 holds of every term; that it keeps scope,
-`FlambdaRecoverComparisonScopeSpec.v`), the folding
+`FlambdaRecoverComparisonScopeSpec.v`), the fold of a `Phys_equal` of
+a simple against itself (`FlambdaSameComparisonSpec.v`:
+`fold_same_comparisons_equivariant_statement`, an equation that holds
+of every term; that it keeps scope,
+`FlambdaSameComparisonScopeSpec.v`), the folding
 at known symbols (`FlambdaKnownSymbolsSpec.v`), the removal of unused
 value slots (`FlambdaUnusedSlotsSpec.v`), the reading of a value slot
 that every set of closures of the unit gives the same symbol or
-constant (`FlambdaKnownSlotsSpec.v`), the order of static bindings
+constant, outside the code of a stub (`FlambdaKnownSlotsSpec.v`), the
+direct calls of the unit's code that is not a stub, made indirect in
+the code of a stub
+(`FlambdaStubCallsSpec.v`: `demote_stub_calls_equivariant_statement`,
+an equation that holds of every term, the rewrite making no name and
+a renaming leaving what code says of itself as it is; that it keeps
+scope, `FlambdaStaticsScopeSpec.demote_stub_calls_keeps_scope_statement`),
+the order of static bindings
 (`FlambdaStaticsOrderSpec.v`), the use of the static closures in
 sight (`FlambdaKnownClosuresSpec.v`), the move of code to the head of
 what it is in (`FlambdaFloatCodeSpec.v`), the binding first of the
