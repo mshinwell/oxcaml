@@ -2192,8 +2192,14 @@ let unused_statics (e : Model.expr) : Unused_statics.dropped =
    the first [Let] that makes what the symbol is bound to and mentions no
    variable bound in the handler: its binding is put before the [Let_cont] of
    the outermost such handler around the [Let]. A group is given by the paths of
-   the [Let]s whose bindings make it. The caller asks for this from the second
-   lifting on, where the term is normalised. *)
+   the [Let]s whose bindings make it. A closure of a set whose function slots
+   are named is so treated with the closures of its set: the [Let] is made an
+   alias of the symbols of the set (FlambdaLiftSpec.Lift_to_closure_symbols),
+   which are given together and bound by the bindings of that one [Let]. This
+   part is a guess as the others are: FlambdaLiftAroundSpec.around_ok checks the
+   aliases and the groups, and the comparison of the two terms the rest. The
+   caller asks for this from the second lifting on, where the term is
+   normalised. *)
 let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list) ~around
     (before : Model.expr) (after : Model.expr) : Lift.lifting =
   (* The symbols bound outside code, in the order in which they are bound when
@@ -2622,10 +2628,31 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list) ~around
   let forget bound known =
     List.filter (fun (_, const) -> not (mentions bound const)) known
   in
-  let const_of (d : Model.named) sym =
-    match Lift.lift_named (Lift_to_symbol sym) d with
-    | Some ([Bind_symbol (_, const)], _) -> Some const
-    | Some _ | None -> None
+  (* What a [Let] of [d] is lifted to, where a symbol bound to [const] is to
+     stand for it: that symbol, or, for a closure of a set whose function slots
+     are named, the symbols of the closures of the set. *)
+  let target_of (d : Model.named) sym (const : Model.static_const) :
+      Lift.lift_to =
+    match d, const with
+    | Closure_of_set _, Static_const_closure_of_set (_, symbols, _, _) ->
+      Lift_to_closure_symbols symbols
+    | _, _ -> Lift_to_symbol sym
+  in
+  (* The symbols that stand for the [Let] of [d] lifted to [target], each with
+     its constant: one, but for a set of several closures. *)
+  let consts_of (d : Model.named) (target : Lift.lift_to) =
+    match Lift.lift_named target d with
+    | Some (bindings, _) ->
+      let consts =
+        List.filter_map
+          (fun (binding : Model.static_binding) ->
+            match binding with
+            | Bind_symbol (sym, const) -> Some (sym, const)
+            | Bind_code _ | Bind_deleted_code _ -> None)
+          bindings
+      in
+      if List.length consts = List.length bindings then Some consts else None
+    | None -> None
   in
   let makes (d : Model.named) (const : Model.static_const) =
     match d, const with
@@ -2640,6 +2667,11 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list) ~around
       code = code'
       && List.map fst slots = List.map fst slots'
       && fields_agree (List.map snd slots) (List.map snd slots')
+    | ( Closure_of_set (slot, decls, slots),
+        Static_const_closure_of_set (slot', _, decls', slots') ) ->
+      slot = slot' && decls = decls'
+      && List.map fst slots = List.map fst slots'
+      && fields_agree (List.map snd slots) (List.map snd slots')
     | _ -> false
   in
   let rec scan known arm (path : Numbers.positive) (e : Model.expr) =
@@ -2647,10 +2679,20 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list) ~around
     | Let (x, _, d, body) ->
       let known =
         match
-          List.find_opt (fun (sym, const) -> const_of d sym = Some const) known
+          List.find_map
+            (fun (sym, const) ->
+              let target = target_of d sym const in
+              match consts_of d target with
+              | Some consts
+                when List.mem (sym, const) consts
+                     && List.for_all (fun bound -> List.mem bound known) consts
+                ->
+                Some target
+              | Some _ | None -> None)
+            known
         with
-        | Some (sym, _) ->
-          aliases := (path, Lift.Lift_to_symbol sym) :: !aliases;
+        | Some target ->
+          aliases := (path, target) :: !aliases;
           known
         | None -> (
           match arm with
@@ -2660,13 +2702,17 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list) ~around
                       (fun x -> List.mem x bound)
                       (Binders.free_variables_of_named d)) -> (
             match List.find_opt (fun (_, const) -> makes d const) !left with
-            | Some (sym, _) -> (
-              match const_of d sym with
-              | Some const ->
-                left := List.filter (fun (sym', _) -> sym' <> sym) !left;
-                aliases := (path, Lift.Lift_to_symbol sym) :: !aliases;
+            | Some (sym, const) -> (
+              let target = target_of d sym const in
+              match consts_of d target with
+              | Some consts ->
+                left
+                  := List.filter
+                       (fun (sym', _) -> not (List.mem_assoc sym' consts))
+                       !left;
+                aliases := (path, target) :: !aliases;
                 put arm_path path;
-                (sym, const) :: known
+                consts @ known
               | None -> known)
             | None -> known)
           | Some _ | None -> known)
