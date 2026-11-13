@@ -1,0 +1,56 @@
+let $camlStack_argument_result_returned__first_const_0 = Block 0 () in
+(let code inline(never) size(5)
+       total_0 (p/65 : [ 0 of imm tagged * imm tagged ])
+         my_closure/66 &my_alloc_region/67 my_depth/68
+         -> k/18 * k/19
+         : imm tagged =
+   let next_depth/69 = rec_info (succ my_depth/68) in
+   let Pmixedfield/70 = %block_load.[`1`] (p/65) in
+   let Pmixedfield/71 = %block_load.[`0`] (p/65) in
+   let int_add/72 = %int_barith.add (Pmixedfield/71, Pmixedfield/70) in
+   cont k/18 (int_add/72)
+ in
+ let code inline(never) size(17)
+       sum_with_next_1 (x/73 : imm tagged)
+         my_closure/74 &my_alloc_region/75 my_depth/76
+         -> k/20 * k/21
+         : imm tagged =
+   let next_depth/77 = rec_info (succ my_depth/76) in
+   let total/78 = %project_value_slot.[sum_with_next].[total] (my_closure/74)
+   in
+   let region/79 = %begin_region () in
+   let ghost_region/80 = %begin_ghost_region () in
+   (let int_add/84 = %int_barith.add (x/73, 1) in
+    let Pmakeblock/85 =
+      %block.[`0`].my_alloc_region/75.local[region/79] (x/73, int_add/84)
+    in
+    apply direct(total_0 &my_alloc_region/75)
+      (total/78 : _ -> imm tagged) (Pmakeblock/85) -> k/22 * k/21)
+     where k/22 (region_return/81 : imm tagged) =
+       let unit/82 = %end_region (region/79) in
+       let unit/83 = %end_ghost_region (ghost_region/80) in
+       cont k/20 (region_return/81)
+ in
+ let total/86 = closure total_0 @total &toplevel in
+ let sum_with_next/87 = closure sum_with_next_1 @sum_with_next &toplevel
+ with { total = total/86 }
+ in
+ (let Popaque/90 = %opaque (3) in
+  apply direct(sum_with_next_1 &toplevel)
+    (sum_with_next/87 : _ -> imm tagged) (Popaque/90) -> k/23 * error)
+   where k/23 (result/88 : imm tagged) =
+     let Pmakeblock/89 =
+       %block.[`0`].`toplevel` (total/86, sum_with_next/87, result/88)
+     in
+     cont k/17 (Pmakeblock/89))
+  where k/17 define_root_symbol (module_block/61) =
+    let field_0/62 = %block_load.tag[`0`].`size`[`3`].[`0`] (module_block/61)
+    in
+    let field_1/63 = %block_load.tag[`0`].`size`[`3`].[`1`] (module_block/61)
+    in
+    let field_2/64 = %block_load.tag[`0`].`size`[`3`].[`2`] (module_block/61)
+    in
+    let $camlStack_argument_result_returned =
+      Block 0 (field_0/62, field_1/63, field_2/64)
+    in
+    cont done ($camlStack_argument_result_returned)
