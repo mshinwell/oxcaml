@@ -496,6 +496,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaSimplifyArmsSpec.v \
   FlambdaSimplifyBoxingProofs.v \
   FlambdaSimplifyBoxingSpec.v \
+  FlambdaSimplifyCarriedProofs.v \
+  FlambdaSimplifyCarriedSpec.v \
   FlambdaSimplifyCodeEnvProofs.v \
   FlambdaSimplifyCodeEnvSpec.v \
   FlambdaSimplifyHandlersProofs.v \
