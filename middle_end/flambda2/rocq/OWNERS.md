@@ -172,7 +172,9 @@ design out; that is the request, not the change.
     `middle_end/flambda2/rocq/FlambdaValidateRelatedProofs.v` (a second
     check of a unit against the unit it came from, for the units whose
     exits a lifting changes: nothing that may follow a unit tells the
-    two exits apart; the tool does not call it)
+    two exits apart; the test tool asks it only of a unit that it
+    reports as not validated, and prints what it accepts on a line of
+    its own, never as validated)
   - `middle_end/flambda2/rocq/status/C4.md`
 - C5, exceptions. Owner: C5, on `flambda2-rocq/C5-epoch`.
   - `middle_end/flambda2/rocq/requests/C5-exceptions.md` (the request)
