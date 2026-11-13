@@ -504,6 +504,9 @@ tool), delegated by the orchestrator, and:
 - `middle_end/flambda2/rocq/FlambdaIdentities*` (a normalisation for
   the validator: the identities of integer arithmetic that Simplify
   applies; V1's once it is staffed)
+- `middle_end/flambda2/rocq/FlambdaArrayLoad*` (another: the length
+  of an immutable array that is known from the term, and a load from
+  it at a constant index; V1's once it is staffed)
 - `middle_end/flambda2/rocq/FlambdaExtcall*` (what some C functions
   of the runtime compute, as a table that nothing uses; whoever owns
   calls of C functions once they have a meaning)
