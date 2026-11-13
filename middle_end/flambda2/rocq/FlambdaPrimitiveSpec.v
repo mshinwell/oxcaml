@@ -1179,8 +1179,8 @@ Definition array_load_after_other_store_statement : Prop :=
    related values is of the kind of the first, and is every integer
    that the first is. A relation that [relates_constants]
    (the section "The laws of every primitive") is one, and so is the
-   relation of FlambdaHeapSpec.v between the values of two runs, which
-   relates a poison to any value of its kind. As for
+   relation of FlambdaHeapMachineSpec.v between the values of two
+   runs, which relates a poison to any value of its kind. As for
    [eval_prim_related_statement], the statements go one way. *)
 Definition relates_numbers (R : value -> value -> Prop) : Prop :=
   ∀ v v' : value,

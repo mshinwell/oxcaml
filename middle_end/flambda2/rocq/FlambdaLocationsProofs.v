@@ -43,7 +43,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaNominalProofs FlambdaAlphaSpec FlambdaAlphaProofs
   FlambdaNameAbstractionSpec FlambdaNameAbstractionProofs
   FlambdaEquivarianceSpec FlambdaHeapSpec FlambdaHeapProofs
-  FlambdaLocationsSpec.
+  FlambdaHeapMachineProofs FlambdaLocationsSpec.
 Import ListNotations.
 Import Nominal.
 

@@ -101,8 +101,8 @@
    lifts none of those, so two
    [Let]s of one are given no symbol, one or two; and the step of
    FlambdaSemanticsSpec.v, which the statements here are about, gives
-   such a primitive no value: it is the machine of FlambdaHeapSpec.v
-   that executes one. A
+   such a primitive no value: it is the machine of
+   FlambdaHeapMachineSpec.v that executes one. A
    [Let] that is lifted out mentions no variable, so what is put once
    holds symbols and constants only. A location of the heap is a
    value that only a variable holds, so the constant holds none

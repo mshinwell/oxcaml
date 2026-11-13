@@ -179,9 +179,10 @@ Definition validate_unit_knowing_sound_imports_statement : Prop :=
 (* CR mshinwell: the heap is any heap because no step of this machine
    reads or changes it. When a step runs the primitives of the heap,
    the premise [heap_free_of unused hp = true] (the names removed
-   occur in no value of a cell of the heap; FlambdaHeapSpec.heap_free_of
-   in this tree, which is to move beside [statics_free_of] with that
-   change) is to be added here, as it is to be added to
+   occur in no value of a cell of the heap;
+   FlambdaHeapMachineSpec.heap_free_of in this tree, which is to move
+   beside [statics_free_of] with that change) is to be added here, as
+   it is to be added to
    FlambdaUnusedStaticsSpec.drop_statics_refines_statement: a symbol
    that only the heap names is otherwise removed from under a read. *)
 Definition validate_unit_sound_from_statement : Prop :=

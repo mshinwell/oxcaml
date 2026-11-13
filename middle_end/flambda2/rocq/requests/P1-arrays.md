@@ -202,8 +202,9 @@ of cell. `replace_nth` and its three lemmas moved to
 `heap_step`, `heap_apply_cont_value` or `heap_call_function` is
 touched.
 
-The proofs that go by cases on `cell` are in `FlambdaHeapProofs.v`
-and, for one lemma, in `FlambdaHeapEquivarianceProofs.v`
+The proofs that go by cases on `cell` are in `FlambdaHeapProofs.v`,
+in `FlambdaHeapMachineProofs.v` and, for one lemma, in
+`FlambdaHeapEquivarianceProofs.v`
 (`outcome_related_code`).
 
 ## 7. Added after the review of the first series
@@ -226,7 +227,8 @@ proved in `FlambdaHeapProofs.v`:
   elements are immediates, and keeps the load kind and the set kind;
   in the model that rewrite changes nothing, on any array.
 
-Examples (`Array_of_a_partial_application`, in `FlambdaHeapProofs.v`):
+Examples (`Array_of_a_partial_application`, in
+`FlambdaHeapMachineProofs.v`):
 an array that holds a partial application that holds the location of
 a mutable cell, run on the machine with a heap. The call completed
 after a write to the cell returns what the cell holds then. With a

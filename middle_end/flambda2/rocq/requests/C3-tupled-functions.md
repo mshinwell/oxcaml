@@ -371,9 +371,9 @@ is a symbol).
   related tuples have related fields, which its relation gives by the
   same law of the primitives; and the invariant that every location
   of a state is allocated needs that the fields of a closed tuple are
-  closed. The repair in the series (`FlambdaHeapProofs.v`, two lemmas
-  and one new one) is a stand-in, for the owner of those proofs to
-  read. No statement of `FlambdaHeapSpec.v` changes.
+  closed. The repair in the series (`FlambdaHeapMachineProofs.v`, two
+  lemmas and one new one) is a stand-in, for the owner of those proofs
+  to read. No statement of `FlambdaHeapMachineSpec.v` changes.
 - Loopify (`FlambdaLoopifySpec.v`): a self tail call is made a jump
   that binds the parameters to the arguments of the call; of tupled
   code the call would take its first argument apart. So `loopable`

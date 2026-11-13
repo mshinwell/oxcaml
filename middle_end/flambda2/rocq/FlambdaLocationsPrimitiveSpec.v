@@ -91,7 +91,7 @@
    What is not here. A step of the machine and a run, up to such a
    permutation, under the premise that the heap of the state binds
    every location of the state. The link with the relation between
-   outcomes of FlambdaHeapSpec.v, which pairs locations by a
+   outcomes of FlambdaHeapMachineSpec.v, which pairs locations by a
    correspondence.
 
    Nothing is trusted here. The proofs are in

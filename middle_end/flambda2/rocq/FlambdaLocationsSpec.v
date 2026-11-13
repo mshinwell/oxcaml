@@ -111,7 +111,7 @@
    of the machine. A step of the machine does not run the primitives
    of the heap yet, so no step allocates; the statements about a
    step are in the form that stays true when one does. The link with
-   the relation between outcomes of FlambdaHeapSpec.v, which pairs
+   the relation between outcomes of FlambdaHeapMachineSpec.v, which pairs
    locations by a correspondence, is not stated.
 
    Nothing is trusted here. The proofs are in

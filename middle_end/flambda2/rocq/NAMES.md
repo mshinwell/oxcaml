@@ -32,7 +32,7 @@ here.
 | The machine: a step, a run, a behaviour; equivalence and refinement, of states and of expressions | `FlambdaEquivarianceSpec.v` | N1 |
 | What a run leaves at an exit: that a state leaves a world, and refinement with the worlds of the two exits related | `FlambdaExitWorldActionsSpec.v` | N1 |
 | The machine with a stack of exception handlers and of calls | `FlambdaTrapSpec.v` | the owner of exceptions |
-| The machine of `FlambdaHeapSpec.v`, which runs the primitives of the heap, and its refinements; the heap is left as it is | `FlambdaHeapEquivarianceSpec.v` | N1 |
+| The machine of `FlambdaHeapMachineSpec.v`, which runs the primitives of the heap, and its refinements; the heap is left as it is | `FlambdaHeapEquivarianceSpec.v` | N1 |
 | The free names; the three conditions on binders; `alpha_equivalent` | `FlambdaAlphaSpec.v` | N1 |
 | The comparison `expr_eqb` | `FlambdaCompareAlphaSpec.v` | N1 |
 | The rewrites of the normalisation, the passes for loops, the checks of well-formedness (exception handlers and trap actions among them), the check of kinds, the normalisation of the term after and the first phase of that of the term before | `FlambdaValidatorEquivarianceSpec.v` | N3 |
@@ -51,7 +51,7 @@ round of the term before makes names.
 
 **What has a finite support.** Every expression and every state
 (`FlambdaStateSupportSpec.v`); a state with a stack (the same file); a
-state of the machine of `FlambdaHeapSpec.v`
+state of the machine of `FlambdaHeapMachineSpec.v`
 (`FlambdaHeapEquivarianceSpec.v`). So what each of the three machines
 runs is a nominal set, and its execution is an equivariant function.
 None of the three is an instance of the interface; section 6 says
@@ -127,7 +127,10 @@ nothing in a term, so the two actions commute
 
 Names are compared by equality only. The one function that looks at
 the number of a name is `fresh_name` (`FlambdaNameAbstractionSpec.v`),
-which gives a name outside a list of names.
+which gives a name outside a list of names. `fresh_location`
+(`FlambdaHeapSpec.v`) is that function on the domain of a heap, written
+out there because the primitives of the heap come before the semantics
+(`FlambdaHeapMachineSpec.fresh_location_fresh_name_statement`).
 
 ## 2. Where things are
 
@@ -224,7 +227,7 @@ Execution commutes with renaming, with no condition:
 names is correct with every other. The action leaves the heap of a
 state as it is, since a cell holds values.
 
-The same holds of the machine of `FlambdaHeapSpec.v`, which runs the
+The same holds of the machine of `FlambdaHeapMachineSpec.v`, which runs the
 primitives of the heap (`heap_step`, `heap_run`, `heap_behaves`, and
 its refinements `heap_refines` and `heap_expr_refines`).
 

@@ -957,7 +957,8 @@ and an argument more to an `intros` where a lemma hands the fact.
 ### Over the first step of the heap
 
 The first step of the heap has a machine of its own beside `step`
-(`FlambdaHeapSpec.heap_step`): a copy of it with one component more.
+(`FlambdaHeapMachineSpec.heap_step`): a copy of it with one component
+more.
 The two tests go into the copy, in two definitions of that file:
 
 - `heap_apply_cont_value`, in its case of a handler: no step unless

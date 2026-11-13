@@ -223,9 +223,10 @@ content:
   `FlambdaIdentitiesProofs.v`: one proof (a value is the same as
   itself).
 - C4: `FlambdaHeapSpec.v`, one disjunct in
-  `eval_phys_equal_location`, and one clause in each of
-  `names_related` and `states_related`: the two memories import the
-  same symbols, each as the same class. `FlambdaHeapProofs.v`: the
+  `eval_phys_equal_location`; `FlambdaHeapMachineSpec.v`, one clause
+  in each of `names_related` and `states_related`: the two memories
+  import the same symbols, each as the same class.
+  `FlambdaHeapProofs.v` and `FlambdaHeapMachineProofs.v`: the
   new part of the premise of the law, four places where a relation is
   built, and cases. C4's relation already had the form for a symbol
   of another unit (`Step_opaque_symbol`), which is kept as it is.

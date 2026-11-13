@@ -67,7 +67,7 @@
    the equation holds with [p'] equal to [p] and without the premise.
    It is not stated: it stops being true when [step] runs the
    primitives of the heap, and the statements here are those that stay
-   true then. What a [Let] is to run is FlambdaHeapSpec.exec_named,
+   true then. What a [Let] is to run is FlambdaHeapMachineSpec.exec_named,
    and the two statements about it here
    ([exec_named_permuted_statement],
    [exec_named_keeps_locations_bound_statement]) are what the case of
@@ -77,7 +77,7 @@
    FlambdaSemanticsSpec.v compare exits by [=], values and heap, so a
    state and the state moved need not be equivalent in that sense; a
    relation between exits that pairs locations is in
-   FlambdaHeapSpec.v, for the machine with a heap of its own, and the
+   FlambdaHeapMachineSpec.v, for the machine with a heap of its own, and the
    link between it and the action is not stated.
 
    Nothing is trusted here. The proofs are in
@@ -87,7 +87,7 @@ From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec FlambdaNominalSpec FlambdaHeapSpec
-  FlambdaLocationsSpec FlambdaLocationsPrimitiveSpec.
+  FlambdaHeapMachineSpec FlambdaLocationsSpec FlambdaLocationsPrimitiveSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -168,7 +168,7 @@ Definition behaves_permuted_statement : Prop :=
 (* What a [Let] is to run                                                   *)
 (* ======================================================================== *)
 
-(* FlambdaHeapSpec.exec_named: a primitive is
+(* FlambdaHeapMachineSpec.exec_named: a primitive is
    FlambdaHeapSpec.exec_prim on the heap, and anything else is
    FlambdaSemanticsSpec.eval_named with the heap as it came. *)
 Definition exec_named_permuted_statement : Prop :=

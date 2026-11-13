@@ -162,8 +162,8 @@ The statements that change with it, each in a `Spec` file:
   the elements of the static array that a symbol with the property
   is bound to. It is `holds_in_static_blocks` for an array, and each
   use of the law gives it as it gives that one.
-- `FlambdaHeapSpec.value_step`, which relates the values of two
-  runs by their heads, has one rule more, `Step_array`: two values
+- `FlambdaHeapMachineSpec.value_step`, which relates the values of
+  two runs by their heads, has one rule more, `Step_array`: two values
   that `array_of` reads are related where their elements are, one
   by one. It is the rule of two blocks without the tag.
 
@@ -254,7 +254,8 @@ the arguments of tupled code (`tuple_fields_from_related`,
 premise. They are used with `value_lifted`
 (`FlambdaLiftProofs.v`, `FlambdaLiftFromCodeProofs.v`) and with the
 relation of the heap, from the invariant on the two memories that
-it had (`FlambdaHeapProofs.related_shape_of_closure_call`), and
+it had
+(`FlambdaHeapMachineProofs.related_shape_of_closure_call`), and
 each of the two relations is shown to have the conjunct. So nothing
 travels up to the theorem of the validation.
 
@@ -593,8 +594,9 @@ Reaching at most 40 statements:
   Through other definitions in `parity_sets_are_statement`,
   `set_of_code_bound_statement`, `sets_are_kept_statement`,
   `sibling_of_code_statement`, `sibling_symbol_of_code_statement`.
-- `value_step` (`FlambdaHeapSpec.v`): the domain widens. Through other
-  definitions in `heap_expr_refines_equivariant_statement`,
+- `value_step` (`FlambdaHeapMachineSpec.v`): the domain widens.
+  Through other definitions in
+  `heap_expr_refines_equivariant_statement`,
   `heap_refines_equivariant_statement`,
   `outcome_related_equivariant_statement`,
   `aliasing_observed_statement`, `block_and_symbol_related_statement`,

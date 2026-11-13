@@ -504,7 +504,7 @@ be proved correct, built a fragment at a time. The files follow the same Spec/Pr
   moves a value past one, is a refinement, and an equivalence only
   where the kind is known on the term; a `Let` that a rewrite makes
   must give the kind of the value it binds. The machine with a heap
-  (`FlambdaHeapSpec.heap_step`) has the same two tests. A call that
+  (`FlambdaHeapMachineSpec.heap_step`) has the same two tests. A call that
   fails its test is one that Simplify replaces by `Invalid`, and
   well-typed programs give rise to them in branches that never run,
   so it has to be undefined; so has a primitive on an argument of
@@ -571,18 +571,18 @@ be proved correct, built a fragment at a time. The files follow the same Spec/Pr
   `Phys_equal`. The length and the load of an array are `Array_length`
   and `Array_load`. A cell of the heap is a block or an array
   (`FlambdaValueSpec.cell`). Nothing makes a location yet: the state
-  has no heap, and the conversion of the test tool refuses the
-  primitives.
-  `FlambdaHeapSpec.v` is the prototype that the design
+  carries a heap, which no step reads or changes, and the conversion
+  of the test tool refuses the primitives.
+  `FlambdaHeapMachineSpec.v` is the prototype that the design
   (`middle_end/flambda2/rocq/requests/C4-heap.md`) rests on: a machine
   of its own beside `step`, with a heap carried along and an exit that
   carries the memory, the relation on what is observed at exit up to
   a correspondence between the locations of two runs, and the
   rewrites that Simplify needs, proved for that machine. It is
-  evidence for the design and not the change: no statement about
-  `step` speaks of memory. A proof by cases on values or on
-  primitives has the new case, and so has OCaml code that matches on
-  the extracted `value` or `prim` without a wildcard.
+  evidence for the design and not the change: `step` carries the
+  heap and does not run these primitives yet. A proof by cases on
+  values or on primitives has the new case, and so has OCaml code
+  that matches on the extracted `value` or `prim` without a wildcard.
 - A unit is well-formed with respect to its interface
   (`FlambdaWellFormedSpec.unit_interface`: the continuation it returns
   to and its exception continuation). `well_formed_unit` is to be the

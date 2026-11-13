@@ -39,10 +39,11 @@ From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaSemanticsSpec FlambdaSemanticsProofs
-  FlambdaNominalSpec FlambdaNominalProofs FlambdaAlphaSpec
-  FlambdaAlphaProofs FlambdaNameAbstractionSpec FlambdaEquivarianceSpec
-  FlambdaEquivarianceProofs FlambdaStateSupportSpec FlambdaStateSupportProofs
-  FlambdaHeapSpec FlambdaHeapProofs FlambdaHeapEquivarianceSpec.
+  FlambdaNominalSpec FlambdaNominalProofs FlambdaAlphaSpec FlambdaAlphaProofs
+  FlambdaNameAbstractionSpec FlambdaEquivarianceSpec FlambdaEquivarianceProofs
+  FlambdaStateSupportSpec FlambdaStateSupportProofs FlambdaHeapSpec
+  FlambdaHeapMachineSpec FlambdaHeapProofs FlambdaHeapMachineProofs
+  FlambdaHeapEquivarianceSpec.
 Import ListNotations.
 
 (* ======================================================================== *)

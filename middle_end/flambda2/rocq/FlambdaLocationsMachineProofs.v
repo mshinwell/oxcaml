@@ -34,8 +34,9 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaSemanticsSpec FlambdaSemanticsProofs
   FlambdaNominalSpec FlambdaNominalProofs FlambdaAlphaProofs
   FlambdaNameAbstractionSpec FlambdaNameAbstractionProofs FlambdaHeapSpec
-  FlambdaLocationsSpec FlambdaLocationsProofs FlambdaLocationsPrimitiveSpec
-  FlambdaLocationsPrimitiveProofs FlambdaLocationsMachineSpec.
+  FlambdaHeapMachineSpec FlambdaLocationsSpec FlambdaLocationsProofs
+  FlambdaLocationsPrimitiveSpec FlambdaLocationsPrimitiveProofs
+  FlambdaLocationsMachineSpec.
 Import ListNotations.
 
 (* ======================================================================== *)

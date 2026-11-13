@@ -32,7 +32,7 @@
    [rename_outcome], [rename_heap_result], [rename_heap_behaviour]) and
    the statements.
 
-   FlambdaHeapSpec.v has a machine whose states are those of
+   FlambdaHeapMachineSpec.v has a machine whose states are those of
    FlambdaSemanticsSpec.v with a heap. FlambdaEquivarianceSpec.v says
    that the renamings of variables and of continuations act on the
    states without a heap and that a step, a run and a behaviour commute
@@ -53,13 +53,14 @@
    outcomes, by any two renamings, does not change whether they are
    related).
 
-   Two runs are compared in FlambdaHeapSpec.v up to a correspondence
-   between their locations ([outcome_related]). That is another relation
-   than the renaming of bound names, on another sort of thing, and the
-   two do not meet: the statements here are equations, for one run and
-   its renaming, with the same locations on both sides. The action of
-   the permutations of locations is in FlambdaLocationsSpec.v, and what
-   the primitives and a step of FlambdaSemanticsSpec.v do with it is in
+   Two runs are compared in FlambdaHeapMachineSpec.v up to a
+   correspondence between their locations ([outcome_related]). That is
+   another relation than the renaming of bound names, on another sort
+   of thing, and the two do not meet: the statements here are
+   equations, for one run and its renaming, with the same locations on
+   both sides. The action of the permutations of locations is in
+   FlambdaLocationsSpec.v, and what the primitives and a step of
+   FlambdaSemanticsSpec.v do with it is in
    FlambdaLocationsPrimitiveSpec.v and FlambdaLocationsMachineSpec.v;
    nothing is said there of a step of the machine of this file.
 
@@ -81,7 +82,8 @@ From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec FlambdaNominalSpec FlambdaAlphaSpec
-  FlambdaNameAbstractionSpec FlambdaEquivarianceSpec FlambdaHeapSpec.
+  FlambdaNameAbstractionSpec FlambdaEquivarianceSpec FlambdaHeapSpec
+  FlambdaHeapMachineSpec.
 Import ListNotations.
 
 (* ======================================================================== *)

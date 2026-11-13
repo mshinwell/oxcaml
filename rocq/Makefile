@@ -156,6 +156,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaGuardScopeSpec.v \
   FlambdaHeapEquivarianceProofs.v \
   FlambdaHeapEquivarianceSpec.v \
+  FlambdaHeapMachineProofs.v \
+  FlambdaHeapMachineSpec.v \
   FlambdaHeapProofs.v \
   FlambdaHeapSpec.v \
   FlambdaHoistCodeProofs.v \

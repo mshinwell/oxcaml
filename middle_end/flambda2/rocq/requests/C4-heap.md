@@ -14,6 +14,18 @@ is redefined (section 3.2), with transitivity now proved; and the
 front end has been read for decision 4, which the human has ruled on
 in part.
 
+**Since this was written the prototype is in two pairs of files.**
+`FlambdaHeapSpec.v` and `FlambdaHeapProofs.v` keep what comes before
+the semantics: allocation, what the primitives of the heap do, the
+classification by effects and coeffects with its laws, what a run may
+do to a heap, and closed memories. The machine with a heap, the
+relation at exit, the relation on states and the statements about
+refinement are in `FlambdaHeapMachineSpec.v` and
+`FlambdaHeapMachineProofs.v`. Where this request names
+`FlambdaHeapSpec.v` or `FlambdaHeapProofs.v` for one of those
+(`heap_step`, `heap_refines`, `state_closed`, the relation between
+outcomes, the examples), read the second pair.
+
 Paths are in `middle_end/flambda2/` unless they say otherwise. The base
 is the integration branch at fcd6e9c15c: C1's epoch, with its law that
 no primitive has a value on a symbol bound to nothing, and its numbers

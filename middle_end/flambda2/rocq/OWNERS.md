@@ -149,9 +149,13 @@ design out; that is the request, not the change.
     `requests/C4-heap-fallout.md` (what each step costs the other
     owners)
   - `middle_end/flambda2/rocq/FlambdaHeapSpec.v` and
-    `middle_end/flambda2/rocq/FlambdaHeapProofs.v` (the prototype: a
-    machine with a heap beside the machine that exists;
-    `FlambdaHeapEquivariance*` are N1's)
+    `middle_end/flambda2/rocq/FlambdaHeapProofs.v` (the primitives of
+    the heap, their effects and coeffects, closed memories; they come
+    before the semantics)
+  - `middle_end/flambda2/rocq/FlambdaHeapMachineSpec.v` and
+    `middle_end/flambda2/rocq/FlambdaHeapMachineProofs.v` (the
+    prototype: a machine that runs those primitives, beside the machine
+    that exists; `FlambdaHeapEquivariance*` are N1's)
   - `middle_end/flambda2/rocq/FlambdaExitWorldSpec.v` and
     `middle_end/flambda2/rocq/FlambdaExitWorldProofs.v` (what a run
     leaves at an exit, with the static environment of its last state,
