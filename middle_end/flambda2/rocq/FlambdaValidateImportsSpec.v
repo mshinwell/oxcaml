@@ -29,8 +29,9 @@
 
    This file is to be reviewed: [holds_from_imports], which is extracted
    and read by the test tool of middle_end/flambda2/tests/semantics/;
-   [holds_from], which that tool is to read in its place; and the
-   eight statements.
+   [holds_from], which that tool is to read in its place; the eight
+   statements of the validation; and
+   [static_names_free_in_head_statement].
 
    FlambdaValidateSpec.validate_unit_sound_statement is of the two
    units run from the empty static environment
