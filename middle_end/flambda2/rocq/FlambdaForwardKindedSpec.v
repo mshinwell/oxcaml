@@ -158,9 +158,10 @@
      (FlambdaNormaliseSpec.rewrite_code takes the pass there, with
      nothing known of the parameters of the code).
 
-   With no parameters this is FlambdaForwardJumpsSpec.forward_jumps:
-   a handler of no parameters that gives no kinds, applied to no
-   arguments.
+   With no parameters, and no trap action on the application, this
+   is FlambdaForwardJumpsSpec.forward_jumps: a handler of no
+   parameters that gives no kinds, applied to no arguments. That pass
+   leaves an application that has a trap action.
 
    [forward_kinded_in_code] applies the pass to the body of every
    piece of code that a term binds, wherever the binding is, as
