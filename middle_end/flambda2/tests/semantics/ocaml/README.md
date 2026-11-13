@@ -1287,3 +1287,117 @@ with `%field0_immut` and `%field1_immut`, a load that cannot change,
 with a tag and a size that are not known: `fst_snd.ml`. It is `!`, and
 `%field0` written by hand, that load a field marked as one that may
 change.)
+
+## The compiler's own run
+
+`../../tools/ownrun/flsemantics_ownrun.ml` is a second way to check a
+unit, beside the first and not in its place: every count in this file,
+but those of this section, is of the first.
+
+    sh own_run.sh <flsemantics_ownrun.exe> X.ml
+
+which is, in a directory of its own,
+
+    flsemantics_ownrun.exe -nopervasives -nostdlib -stop-after middle_end \
+      -c [X.mli] X.ml
+
+The program is the compiler: its driver (`driver/oxcaml_main.ml`) with
+two hooks registered (`driver/compiler_hooks.mli`). The hook
+`Raw_flambda2` is given the term that the compiler gives to Simplify,
+and the hook `Flambda2` the term that the compiler's own Simplify
+returned (`flambda_to_flambda0` in `middle_end/flambda2/flambda2.ml`).
+The two terms are given, as they are in memory, to the check of the
+tool (`Flsemantics.check`), which prints what it prints in the first
+way, under the name `X.fl`.
+
+It differs from the first way in three things:
+
+- No text. The first way checks the term that the reader makes of
+  `X.fl`, the text that `-drawfexpr` printed. Here the term before is
+  the one in the compiler's memory, which has what the text does not
+  write ("What a validation does not say"). The test made of the text
+  for a call of unknown arity whose result is not one value
+  (`result_arity_lost`) is not made: the term has the arity. Nor is
+  the term changed as a term read from a text is before it is checked
+  (`as_read_from_text`, which gives each `Opaque_identity` the kind
+  of its argument and every parameter of code the mode unknown): the
+  term in memory has its kinds and its modes.
+- No second Simplify. The first way runs Simplify itself on the term
+  read. Here the term after is the one that the compiler's Simplify
+  returned, in the compilation that made the term before.
+- The load path. The first way looks for the `.cmx` files of other
+  units only in the directories given by `-I` (`init_load_path`). The
+  program has the compiler's load path (`Compmisc.init_path`): the
+  current directory unless `-nocwd` is given, the directories of `-I`
+  and `-H`, and the standard library unless `-nostdlib` is given.
+  `own_run.sh` gives `-nostdlib` and no `-I`, and runs the program in
+  a directory that has only the unit. So the rule of a unit of this
+  directory finds no `.cmx` file of another unit, where nothing else
+  adds to the compiler's load path (`OCAMLPARAM`); a run by hand
+  reads what the compiler would read.
+
+The rest is the first way's, the same code and the same extracted
+model: the conversion, the test that the term before is well-formed,
+the two runs and their comparison, the validator, and the units asked
+about (those whose `.cmx` file the compilation has read).
+
+So a verdict printed in this way is of the pair that the compiler
+made: of two terms, as a verdict of the first way is, with the same
+labels and the theorems that those labels have. Like a verdict of the
+first way it rests on the conversion. It does not rest on the
+printer, on the reader or on the tool's run of Simplify being the
+compiler's; in their place it rests on the two hooks being given the
+terms that the compiler goes on with. What a verdict of the first way
+does not say ("What a validation does not say"), this one does not
+say either, but for the losses of the text. And it says nothing of
+what the compiler then makes of the term after: the reaper, where
+that is enabled, the translation to Cmm, the back end and the link
+are not looked at. Of a unit on which the compiler does not run
+Simplify (`-Oclassic`, or an attribute of the unit) the program says
+"not checked".
+
+What it finds of the 347 units of this directory at 87cdbf3e01. It
+was measured with the program of this section on the tree at that
+commit, at the default flags; no `X.own_expected` is in the tree, so
+no rule of the tree makes the measure again. The units of `pairs/`
+are not run: `own_run.sh` does not give the program the `.cmx` file
+of a first unit.
+
+- Of the 325 units that the first way validates at that commit (the
+  tables above), this one validates 241 and says "not checked" of 78,
+  for one clause of the conversion. Of a `Make_block` it takes only
+  fields of any value (in `convert_variadic_primitive` of
+  `flsemantics.ml`, the test that the kind of each field is
+  `Flambda_kind.With_subkind.any_value`), and the term in memory has
+  the kinds of the fields, which the text has not. With that clause
+  changed to ask only that each field is a value, a change that is in
+  no tree and of which nothing is proved, it validates 319 of the 325,
+  and no unit that the first way does not.
+  `empty_array_phys_equal.ml`, whose run is undefined in the model in
+  both ways, is not among the 325, and prints in this way what it
+  prints in the first.
+- The 6 others have the handler of a failed check (of a divisor, of an
+  index), which the front end marks `[cold]`; the text does not carry
+  the mark. The compiler's Simplify keeps a cold handler as a handler
+  of its own; the tool's, to which it is not cold, puts the raise in
+  the arm of the `Switch`. Of `div_unknown.ml`,
+  `string_get16_checked.ml` and `string_get_twice.ml` the compiler's
+  term after then binds the module block in a handler whose body can
+  leave through another continuation, and is not well-formed
+  (discrepancy X5-9, above): the program exits 1, as the tool does of
+  such a term, so these three can have no `X.own_expected` as long as
+  that stands. Of `string_get_in_branch.ml`,
+  `string_get_two_indices.ml` and `string_length_after_join.ml` the
+  two runs agree, and the validator does not accept the pair in which
+  the handler is kept: "not validated".
+
+A unit that has `X.own_expected` beside it is checked in this way by
+the rules of this directory, which compare what the program prints
+with that file; a unit that has none is checked in the first way
+only.
+
+The program checks one unit in a process, as the tool does. Given a
+second, it says of it "not checked: a second unit in one process",
+checks nothing from then on, and exits with 2; `../own_run/` has a
+control of that, in which the compiler does not run Simplify on the
+first unit.

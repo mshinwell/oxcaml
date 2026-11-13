@@ -11,13 +11,18 @@
 ;; To add an example, add X.ml (and X.mli), X.fl and X.expected, and
 ;; nothing else. As in the directory above, the rules are included by
 ;; run/dune and not by this file.
+;;
+;; A unit that has X.own_expected too is compiled by the driver that checks
+;; the compiler's own run (own_run.sh), and what that prints is compared
+;; with X.own_expected (README.md, "The compiler's own run").
 
 (rule
  (deps
   (glob_files *.ml)
   (glob_files *.mli)
   (glob_files *.fl)
-  (glob_files *.expected))
+  (glob_files *.expected)
+  (glob_files *.own_expected))
  (action
   (with-stdout-to
    dune.inc

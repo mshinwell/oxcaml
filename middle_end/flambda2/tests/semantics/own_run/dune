@@ -1,0 +1,29 @@
+;; Controls of the driver that checks the compiler's own run
+;; (../../tools/ownrun/flsemantics_ownrun.ml), apart from the examples of
+;; ../ocaml/. The driver is built in the main context only, so the rules are
+;; for that context.
+;;
+;; two_units: the driver given two units in one process, of which the first
+;; asks for the classic mode. The compiler does not run Simplify on the
+;; first, so the driver still holds its term when the second comes. It must
+;; say of the second that it is not checked, compare nothing, and exit
+;; with 2.
+
+(rule
+ (enabled_if
+  (= %{context_name} "main"))
+ (action
+  (with-stdout-to
+   two_units.output
+   (with-accepted-exit-codes
+    2
+    (run sh %{dep:../ocaml/own_run.sh}
+     %{dep:../../tools/ownrun/flsemantics_ownrun.exe}
+     %{dep:two_units_classic.ml} %{dep:two_units_second.ml})))))
+
+(rule
+ (alias runtest)
+ (enabled_if
+  (= %{context_name} "main"))
+ (action
+  (diff two_units.expected two_units.output)))
