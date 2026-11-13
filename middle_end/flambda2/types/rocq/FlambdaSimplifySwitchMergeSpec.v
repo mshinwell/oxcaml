@@ -150,8 +150,10 @@
    - Lookup tables. Where the arguments are constants or symbols of
      one kind, the numbers of the arms are consecutive, and there are
      three arms or more, Simplify makes a static array of the
-     arguments and loads from it ([Lookup_table_argument]). The model
-     has no arrays, and nothing is merged there.
+     arguments and loads from it ([Lookup_table_argument]). This
+     slice has no table, and nothing is merged there. The rewrite of
+     the validation that merges into a load from a table that is in
+     scope is FlambdaMergeTablesSpec.merge_tables.
    - The names. Simplify makes a new variable for each primitive that
      it binds. Here the names are given, and are taken in order; where
      there are not enough, nothing is merged. An argument binds three
