@@ -11,12 +11,12 @@ the tool and the corpus), and the reviewers R3 (the lifting), R1
 validation).
 
 Two changes are asked, each a series of its own, the second after
-the first. Nothing of either is in this tree. The definitions of
-sections 2 and 3 were written and compiled, with no proof, on
-a5e4605469, whose `.v` files and tools are those of 3270ad86ed; the
-test tool was built with them, and the measures of section 4 were
-made with that tool. No statement was proved, and nothing here is a
-verdict on any unit.
+the first. When this was written nothing of either was in the tree.
+The definitions of sections 2 and 3 were written and compiled, with
+no proof, on a5e4605469, whose `.v` files and tools are those of
+3270ad86ed; the test tool was built with them, and the measures of
+section 4 were made with that tool. No statement was proved then,
+and nothing here is a verdict on any unit.
 
 Since it was written the orchestrator has permitted both, the first
 as an explicit change of the relation `value_lifted`, on conditions
@@ -25,6 +25,16 @@ that sections 2.2 to 2.7 now meet or name; and the statements of
 with `lift_simulates_statement` taken as a hypothesis. The first
 series is written by the owner of the lifting, in its files, with
 this stream's two files; the second by this stream.
+
+The first series is in the tree now. Four things in this file are
+of the series as it went in and not as it was asked: the end of
+section 2.3 (what is proved of a unit that makes no array); in
+section 2.4 the classes of the statements that have the relation
+and the counts made on the tree that has the series, which has
+gained statements since the request was written; and at the end of
+the first paragraph of section 2.6 what is said of an array of the
+source that only a later lifting gives a symbol. `status/V3.md`
+says what becomes of each statement.
 
 ## 1. Why
 
@@ -191,7 +201,51 @@ out:
 The third follows from the theorem of `lift_simulates_statement`,
 from `run_free_of_arrays_statement` and from the second.
 
+As it went in. The sentence above that the relation without the
+rule is the relation under the static environment with those
+bindings left out is not true as it stands, and the three
+statements do not say it: a static environment may bind a symbol
+twice, and leaving the binding to an array out uncovers the other.
+What the second proves is one direction, from the relation to the
+relation under that environment; the converse is not claimed. So
+the series has, beside the three, the rules named and two
+statements under the static environment as it is, which are what
+keeps the old reading:
+
+    value_lifted_no_array statics' :=
+      the rules of value_lifted but Lifted_array and
+      Lifted_to_array, each as it is, under statics'
+
+    value_lifted_no_array_exact_statement:
+      value_lifted_no_array statics' v v'
+      <-> value_lifted statics' v v' /\ no_array_value v = true
+
+    lift_simulates_no_array_statement:
+      (the premises of lift_simulates_statement) ->
+      makes_array e = false ->
+      behaves (the unit, run on its own) (Exits k vs hp) ->
+      exists n last vs',
+        run n (the unit lifted, run on its own) = Step last
+        /\ step last = Exit k vs' hp
+        /\ Forall2 (value_lifted_no_array (state_statics last))
+             vs vs'
+
+The rules named are not said to be the relation as it once was,
+which had `Lifted_array` before it had `Lifted_to_array`: they are
+what the relation is at the values that hold no array value.
+
 ### 2.4 What each changed definition reaches
+
+Three conclusions become weaker, and no other. That of
+`lift_simulates_statement`, whose text is the same: the relation in
+it relates one more kind of pair. That of
+`value_lifted_array_statement`, whose text changes (2.3). And that
+of `value_lifted_to_array_statement`, whose text is the same, in
+the relation of the elements only: what is lifted to an array value
+is still an array value, and its elements are related to those of
+the other by the relation, which now relates an array of one empty
+array to an array of one symbol bound to an empty static array. The
+request as it was written named the first two and not the third.
 
 Counted by `rocq/check-changed-defs.py` between a5e4605469 and the
 definitions of 2.2 alone: no statement added or removed, no
@@ -205,10 +259,17 @@ statement as it is.)
 `lifted_in_turn`, `validate_unit` and what is built on them). The
 function gives the bindings of one more form of `Let` where it
 gave none. No premise is added to any of them and no conclusion is
-lost; each is then a statement about the function as extended, so
-the case of the array is new proof in each proof that goes by the
+lost, apart from the weaker conclusion of
+`lift_simulates_statement`, which is at the head of this section;
+each is then a statement about the function as extended, so the
+case of the array is new proof in each proof that goes by the
 cases of `lift_named` or by the rules of `value_lifted`. A guess
-that names no `Let` of an array gives what it gave.
+that names no `Let` of an array gives what it gave. Of a guess that
+names such a `Let` no inclusion is claimed in either direction:
+`lift_expr` left the `Let` as it was and went on, and now lifts it,
+so a lifting may give another term, or none where it gave one, and
+the lifted term may fail a check that the term with the `Let` left
+passed.
 
 `value_lifted` is in the text of four statements and of no other:
 searched as a word in every `.v` file of the two libraries, it is
@@ -248,10 +309,19 @@ reproved as conclusions.
 
 The statements of the verdict that lifts are among the 82, and
 none has `value_lifted` in its text. What "validated once lifted"
-allows from now on, in each of them: an immutable array of values
-that the unit makes as it runs may be, in the term that is compared
-with the term after, a symbol bound to a static immutable array of
-the same elements, lifted. They are:
+allows from now on: an immutable array of values that the unit
+makes as it runs may be, in the term that is compared with the term
+after, a symbol bound to a static immutable array of the same
+elements, lifted. That is of the statements whose premise the
+verdict that lifts satisfies. Of the fourteen of the validation
+below those are four: `validate_unit_sound_statement`,
+`validate_unit_knowing_sound_statement` and the two whose names end
+`_sound_verdict_imports_statement`. The ten others (the two whose
+names end `_sound_everywhere_statement`, and the eight others of
+`FlambdaValidateImportsSpec.v`) accept only verdicts that are
+decided before anything is lifted: they are in the list because
+the search reaches them through the name of `validate_unit`, and
+nothing in them changes. They are:
 
 - of a unit run on its own: `validate_unit_sound_statement`,
   `validate_unit_sound_everywhere_statement`,
@@ -307,6 +377,49 @@ related values the first of which is read as an array by
 `array_of`, that the second is and that the elements are related,
 which the rule gives.
 
+As counted on the tree that has the series, by the same search over
+its two commits of definitions and proofs: one statement changes
+text (`value_lifted_array_statement`); five are added (the three of
+2.3 and the two of its end); three definitions are added
+(`is_static_array`, `without_static_arrays`,
+`value_lifted_no_array`); two change (`lift_named`,
+`value_lifted`).
+
+`value_lifted` is directly in eight statements and in no other: the
+four above and four of the five added (the fifth has the rules
+named in its place). Of the four that were there: three have a
+weaker conclusion (`lift_simulates_statement`;
+`value_lifted_array_statement` and
+`value_lifted_to_array_statement`, whose premise is weaker too, the
+relation being their premise; the last in the relation of its
+elements only, as said at the head of this section) and one a
+weaker premise only, so that it says of more pairs what it said
+(`value_lifted_no_array_value_statement`).
+
+`lift_named` reaches 87 statements, none directly, where it reached
+82. Of the 87, 34 are reached only through the name `alias_of`. Of
+the 53 that are left, 49 are those above, and two are added:
+`lift_simulates_free_of_arrays_statement` and
+`lift_simulates_no_array_statement`. So the statements listed
+above for the verdict that lifts are 29 with
+`lift_simulates_statement` (that one, the 8 of the four liftings,
+the 6 up to what may follow a unit, and the 14 of the validation,
+of which four have a premise that the verdict that lifts
+satisfies), and 31 with the two added.
+
+The two others are apart: `validate_unit_related_sound_statement`
+and `validate_unit_related_under_observers_statement`, of
+`FlambdaValidateRelatedSpec.v`, the statements of a second check of
+a unit that the tree has gained. They reach `lift_named` through
+`with_lifting_observed`. They are not of the verdict that lifts:
+the answer of that check, `Related_once_lifted`, is of a type of
+its own and no verdict of the validation, and the tool does not
+call the check. Neither has `value_lifted` in its text. The check
+makes its liftings without the test of the exits, so the exits of
+a pair that it accepts may now differ by an array value against a
+symbol bound to a static immutable array of the same elements
+lifted.
+
 ### 2.5 The comments
 
 `FlambdaLiftSpec.v`: the item "immutable arrays" of "What is not
@@ -337,8 +450,10 @@ them. The symbols that the first lifting gives to `Let`s are left
 out of its tables. An array of the source that only a later
 lifting gives a symbol (one whose elements are closures that are
 lifted first, or one made an alias of a symbol bound around it) is
-still taken for a table at the first: the filter does not cover
-it, and such a unit is not validated.
+still taken for a table at the first lifting: the filter does not
+cover it, and such a unit may stay not validated. It is not said
+that it does: where the table is bound at the head of the term
+before, a later lifting may make the `Let` an alias of it.
 
 All of it is a guess: `lift_unit` and its fellows check it, and a
 wrong guess is a unit that is not validated. Nothing of the
