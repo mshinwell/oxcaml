@@ -395,6 +395,10 @@ extension; V4's pass for a parameter that every application gives the
 same thing, which is in review, has the shape of the condition for a
 loop.
 
+Built since, for a loop that the term shows the boxes of: section 7,
+"The parameters of a loop". V4's example is not that pass's: its
+flag is given the parameter of a join, and not a box made in scope.
+
 **The heap** (confirmed by C4). The pass knows a block only through
 `FlambdaBlockLoadSpec.known_blocks`: a variable bound to the model's
 `Make_block`, which is immutable and gives a structural value, or a
@@ -879,6 +883,63 @@ handler has no value there.
 `matched_twice` of `FlambdaUnboxVariantsExamplesSpec.v` is this
 body, computed.
 
+### The parameters of a loop
+
+For
+
+    let p = ref (0, 1) in
+    for _ = 1 to n do let a, b = !p in p := (b, a + b) done
+
+the front end makes the reference a parameter of the loop, which
+holds a pair: the loop is entered with the pair of the two constants
+and each turn gives it a pair that it has just made. Simplify
+unboxes the parameters of a recursive continuation before it has
+seen an application (`simplify_single_recursive_handler`): the
+handler is gone into with parameters of unknown type, the decision
+is what the kind of the parameter says, with no filter by the
+applications and none by benefit (`make_decisions` at `Recursive`),
+and each application is then given the fields, something in scope
+where its type shows one and otherwise a load that is bound just
+before it. Here every application shows the fields, and the loop
+after has them for parameters.
+
+`FlambdaUnboxLoopsSpec.unbox_loops_knowing` does this where the term
+shows it. For a recursive continuation that is alone in its
+`Let_cont`, a `Let` of the handler that reads a parameter becomes a
+parameter where the `Let` is under `Let`s only, the handler may take
+its variable, and every application can be given what the read
+gives of its argument (`extend_args`, as for the read that a join
+begins with): at the entry a constant or what a `Let` or a
+`Let_static` in scope shows, and at a turn the same, or the new
+parameter where the turn passes the box on as it was given. For
+that, what is known in the handler has the fact that the new
+parameter is the read of the parameter read, in the form of "A read
+that is in scope" above. The parameter that held the box is left,
+and goes with the unused parameters of loops.
+
+Why under `Let`s only. The read is made a parameter in two steps,
+and the first takes it to the head of the handler. The proof of
+that step uses that every run of the handler comes to the read or
+goes wrong before it. Without that, a read under a test may have no
+value in a turn that the test keeps from it, and the term with the
+read at the head would go wrong there. With the read at the head,
+the loop before and the loop after run in step: an application
+gives the new parameter what the read would give, and the handler
+before, one step later, is where the handler after is. The proof is
+the simulation of section 4 with one more case, the closures of a
+recursive continuation.
+
+Not covered. An application that needs a load bound just before it
+(Simplify's `New_let_binding`), as where a loop is entered with a
+parameter of the function or with the result of a call: that is
+section 5 again, since the load that Simplify puts there says the
+tag and the size of the block. A read that is under a test in the
+handler, with the box passed on through a join inside the loop.
+Several recursive continuations in one `Let_cont`.
+
+`pair_loop` of `FlambdaUnboxVariantsExamplesSpec.v` is such a loop,
+computed.
+
 ## 8. What else is owed for pairs and numbers
 
 - **A number that one use is given** (`int64_join`): Simplify binds
@@ -1115,6 +1176,14 @@ meet), `two_options_matched` (two options matched together) and
 the units that were in the directory (338), the units written by
 hand (118), the 600 of `census/README.md` and the 240 generated
 units, the change moves no verdict and no line of any output.
+
+With the reads of a loop made parameters (section 7), three more
+sources are validated that were not: `int64_sum_in_loop` (a
+reference to a boxed number that a `for` loop sums into),
+`pair_turned_in_loop` (a reference to a pair that every turn
+replaces) and `pair_loop_in_loop` (two loops, the inner one over a
+pair that the outer one makes). Over the same units the change
+moves no verdict and no line of any output.
 
 ## 10. Asked of others
 
