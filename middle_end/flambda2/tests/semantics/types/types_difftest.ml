@@ -5844,6 +5844,386 @@ let the_line_of_t7_13_in_every_order () =
                  of_others = []
                })))
 
+(* ======================================================================== *)
+(* Two lines of equations on which the model and the two meets of the       *)
+(* compiler do not answer alike, in every order of the identifiers          *)
+(* ======================================================================== *)
+
+(* T7-14 and T7-15. Four values, defined in the order of their numbers; the
+   variants are never immediates ([variant_of_blocks]).
+
+   The line of T7-14. The variable 1 is a variant whose blocks, of tag 0 or 1,
+   hold the variable 3; and then one whose blocks hold a block of two fields
+   that are the variable 2, for tag 0, or a block of one field that is the
+   variable 3, for tag 1: each case of the variable 1 then has an extension that
+   says which block the variable 3 is. The variable 2 is the variable 1. The
+   variable 4 is a variant whose blocks, of tag 0, hold the variable 2; and then
+   one whose blocks hold a block of tag 0 and one field that is the variable 2.
+
+   The last equation meets the variable 2, which is the variable 1, with a block
+   of tag 0 and one field: the variable 1 has tag 0, and its field, the variable
+   3, is the variable 2, which is the variable 1; and the extension of tag 0
+   gives the variable 3 two fields, where the variable 1 has one. No value has
+   both. The model answers bottom. Neither meet of the compiler does, in any
+   order of the identifiers: an equation on a name to which an equation is being
+   added is ignored
+   ([Meet_env.add_or_delay_concrete_equation_on_canonical_name]; that this is
+   where the contradiction goes is by reading, not traced). Which difference of
+   the model with the compiler this is, is not known.
+
+   The line of T7-15 is the same with one case in the place of two: the variable
+   1 is a variant whose blocks, of tag 0, hold the variable 3, and then one
+   whose blocks hold a block of two fields that are the variable 2, so that the
+   variable 3 is that block in the environment. The binary meet answers bottom.
+   The n-way meet and the model see after the last equation what they see before
+   it.
+
+   Each line is run many times, with new variables each time, with each meet of
+   the compiler, and what is answered is asked in each of the twenty-four orders
+   of the identifiers; the model is run once. A control: with the last two
+   equations of the line of T7-14 replaced by one that says of the variable 2
+   itself that it is a block of tag 0 and one field that is the variable 2, the
+   model and both meets see the same, and it is not bottom. *)
+type line_of_values =
+  | Line_of_t7_14
+  | Line_of_t7_15
+  | Line_of_t7_14_on_v2
+
+(* The steps of a line; without its last equation where [whole] is not set. *)
+let the_line_of_values ?(whole = true) (line : line_of_values) : step list =
+  let alias i = MT.alias_type_of Value (Var (N.positive_of_int i)) in
+  let blocks = variant_of_blocks in
+  let two_cases : step list =
+    [ Equation (1, blocks [0, [alias 3]; 1, [alias 3]]);
+      Equation
+        ( 1,
+          blocks
+            [0, [blocks [0, [alias 2; alias 2]]]; 1, [blocks [0, [alias 3]]]] );
+      Equation (2, alias 1) ]
+  in
+  let one_case : step list =
+    [ Equation (1, blocks [0, [alias 3]]);
+      Equation (1, blocks [0, [blocks [0, [alias 2; alias 2]]]]);
+      Equation (2, alias 1) ]
+  in
+  let through_v4 : step list =
+    [Equation (4, blocks [0, [alias 2]])]
+    @ if whole then [Equation (4, blocks [0, [blocks [0, [alias 2]]]])] else []
+  in
+  let on_v2 : step list =
+    if whole then [Equation (2, blocks [0, [alias 2]])] else []
+  in
+  [Define 1; Define 2; Define 3; Define 4]
+  @
+  match line with
+  | Line_of_t7_14 -> two_cases @ through_v4
+  | Line_of_t7_15 -> one_case @ through_v4
+  | Line_of_t7_14_on_v2 -> two_cases @ on_v2
+
+let the_kinds_of_the_lines_of_values : MK.flambda_kind list =
+  [Value; Value; Value; Value]
+
+let the_names_of_the_lines_of_values : MT.name list =
+  List.map (fun i : MT.name -> Name_var (N.positive_of_int i)) [1; 2; 3; 4]
+
+(* One run of a line of values, with new variables: the order of their
+   identifiers, least first, taken before the first step, and what is seen after
+   the steps, or the fatal error. *)
+let run_a_line_of_values (implementation : implementation) (steps : step list) :
+    string option * (seen, string) result =
+  let order = ref None in
+  let made (variable : int -> Variable.t) =
+    order
+      := Some
+           (String.concat " < "
+              (List.map
+                 (fun (i, (_ : Variable.t)) -> Printf.sprintf "v%d" i)
+                 (List.sort
+                    (fun ((_ : int), x) ((_ : int), y) -> Variable.compare x y)
+                    (List.map (fun i -> i, variable i) [1; 2; 3; 4]))))
+  in
+  let answer =
+    or_fatal_error (fun () ->
+        let { numbering; variable = _; after_the_steps } =
+          scenario ~made implementation the_kinds_of_the_lines_of_values steps
+        in
+        match after_the_steps with
+        | Error why -> Error why
+        | Ok env ->
+          Ok
+            (seen_in_the_compiler numbering ~threshold:4
+               the_names_of_the_lines_of_values None env))
+  in
+  ( !order,
+    match answer with
+    | Ok answer -> answer
+    | Error line -> Error ("a fatal error: " ^ general line) )
+
+(* The twenty-four orders of the identifiers of four variables, least first, in
+   the order of their texts. *)
+let the_orders_of_four : string list =
+  let rec orders (left : int list) : int list list =
+    match left with
+    | [] -> [[]]
+    | _ :: _ ->
+      List.concat_map
+        (fun i ->
+          List.map
+            (fun rest -> i :: rest)
+            (orders (List.filter (fun j -> j <> i) left)))
+        left
+  in
+  List.sort String.compare
+    (List.map
+       (fun order ->
+         String.concat " < " (List.map (Printf.sprintf "v%d") order))
+       (orders [1; 2; 3; 4]))
+
+(* Whether what is seen is an environment that is bottom; no answer where no
+   environment is seen. *)
+let seen_is_bottom (seen : seen) : bool option =
+  match seen with
+  | Seen { answer = _; env_is_bottom; of_names = _; of_others = _ } ->
+    Some env_is_bottom
+  | Nothing_seen _ | Bottom_seen -> None
+
+let the_lines_of_t7_14_and_t7_15 () =
+  let runs = 480 in
+  Format.printf
+    "@.Two lines of equations on four values on which the model and the two \
+     meets of the compiler do not answer alike (T7-14, T7-15), each run %d \
+     times with new variables with each meet of the compiler: what is \
+     answered, in the twenty-four orders of the identifiers@."
+    runs;
+  let check what holds =
+    if holds
+    then Format.printf "  %s: yes@." what
+    else (
+      incr failures;
+      Format.printf "  %s: NO@." what)
+  in
+  (* For each order seen, the answers seen in it. *)
+  let answers_by_order (implementation : implementation) steps :
+      (string * (seen, string) result list) list =
+    let same (answer : (seen, string) result) (answer' : (seen, string) result)
+        =
+      match answer, answer' with
+      | Ok seen, Ok seen' -> same_seen ~threshold:4 seen seen'
+      | Error why, Error why' -> String.equal why why'
+      | Ok _, Error _ | Error _, Ok _ -> false
+    in
+    let found = ref [] in
+    for _ = 1 to runs do
+      let order, answer = run_a_line_of_values implementation steps in
+      let order = Option.value order ~default:"the variables were not made" in
+      let answers = Option.value (List.assoc_opt order !found) ~default:[] in
+      if not (List.exists (same answer) answers)
+      then found := (order, answer :: answers) :: List.remove_assoc order !found
+    done;
+    List.sort
+      (fun (order, (_ : (seen, string) result list)) (order', _) ->
+        String.compare order order')
+      !found
+  in
+  (* Each of the twenty-four orders is seen, with one answer, which is an
+     environment of which [holds]. *)
+  let in_every_order by_order (holds : seen -> bool) : bool =
+    List.equal String.equal
+      (List.map
+         (fun (order, (_ : (seen, string) result list)) -> order)
+         by_order)
+      the_orders_of_four
+    && List.for_all
+         (fun ((_ : string), answers) ->
+           match answers with
+           | [Ok seen] -> holds seen
+           | [Error (_ : string)] | [] | _ :: _ :: _ -> false)
+         by_order
+  in
+  let print_by_order by_order =
+    List.iter
+      (fun (order, answers) ->
+        Format.printf "      @[<v>%s:%a@]@." order
+          (fun ppf ->
+            List.iter (fun (answer : (seen, string) result) ->
+                Format.fprintf ppf "@ %a" print_lines
+                  (match answer with
+                  | Ok seen -> print_seen ~threshold:4 seen
+                  | Error why -> "the compiler stops: " ^ why)))
+          answers)
+      by_order
+  in
+  let in_the_model choices steps : seen =
+    match
+      scenario_in_the_model (the_model choices) the_kinds_of_the_lines_of_values
+        steps
+    with
+    | Error why -> Nothing_seen why
+    | Ok env ->
+      seen_in_the_model ~threshold:4 the_names_of_the_lines_of_values None env
+  in
+  let is_bottom expected (seen : seen) =
+    Option.equal Bool.equal (seen_is_bottom seen) (Some expected)
+  in
+  let asked ~title (implementation : implementation) steps
+      (holds : seen -> bool) =
+    let by_order = answers_by_order implementation steps in
+    let as_expected = in_every_order by_order holds in
+    check
+      (Printf.sprintf
+         "  the %s meet: each of the twenty-four orders is seen, and in each %s"
+         implementation.implementation title)
+      as_expected;
+    if not as_expected then print_by_order by_order;
+    by_order
+  in
+  (* The line of T7-14. *)
+  Format.printf
+    "  T7-14: v1 is a variant whose blocks, of tag 0 or 1, hold v3, and then \
+     one whose blocks hold a block of two fields that are v2, for tag 0, or of \
+     one field that is v3, for tag 1; v2 is v1; v4 is a variant whose blocks, \
+     of tag 0, hold v2, and then one whose blocks hold a block of one field \
+     that is v2@.";
+  let before = the_line_of_values ~whole:false Line_of_t7_14 in
+  let whole = the_line_of_values Line_of_t7_14 in
+  let model_before = in_the_model Of_the_compiler before in
+  check "  before the last equation, the model is not bottom"
+    (is_bottom false model_before);
+  List.iter
+    (fun (implementation : implementation) ->
+      ignore
+        (asked
+           ~title:
+             "the compiler sees what the model sees, before the last equation"
+           implementation before (fun seen ->
+             same_seen ~threshold:4 model_before seen)
+          : (string * (seen, string) result list) list))
+    [binary; n_way];
+  List.iter
+    (fun (choices, name) ->
+      check
+        (Printf.sprintf
+           "  after the last equation, the model, with %s, is bottom" name)
+        (is_bottom true (in_the_model choices whole)))
+    [ Of_the_compiler, "the compiler's choices";
+      To_be_proved, "the choices that are to be proved" ];
+  let after =
+    List.map
+      (fun (implementation : implementation) ->
+        asked ~title:"the compiler is not bottom, after the last equation"
+          implementation whole (is_bottom false))
+      [binary; n_way]
+  in
+  (match after with
+  | [of_binary; of_n_way] ->
+    check "  in each order the two meets see the same"
+      (List.equal
+         (fun (order, answers) (order', answers') ->
+           String.equal order order'
+           &&
+           match answers, answers' with
+           | [Ok seen], [Ok seen'] -> same_seen ~threshold:4 seen seen'
+           | ( ([] | [Error _] | [Ok _] | _ :: _ :: _),
+               ([] | [Error _] | [Ok _] | _ :: _ :: _) ) ->
+             false)
+         of_binary of_n_way);
+    (* What the n-way meet sees, as distinct texts with the orders of each. *)
+    let texts =
+      List.fold_left
+        (fun texts (order, answers) ->
+          match answers with
+          | [Ok seen] ->
+            let text = print_seen ~threshold:4 seen in
+            let orders = Option.value (List.assoc_opt text texts) ~default:[] in
+            (text, orders @ [order]) :: List.remove_assoc text texts
+          | [] | [Error _] | _ :: _ :: _ -> texts)
+        [] of_n_way
+    in
+    let v1_before_v3 order =
+      match
+        ( List.find_index (String.equal "v1") (String.split_on_char ' ' order),
+          List.find_index (String.equal "v3") (String.split_on_char ' ' order) )
+      with
+      | Some i, Some j -> Some (i < j)
+      | None, (Some _ | None) | Some _, None -> None
+    in
+    check
+      "  the n-way meet sees one of two things, according to whether the \
+       identifier of v1 is less than that of v3"
+      (match texts with
+      | [(_, orders); (_, orders')] ->
+        let all expected orders =
+          List.for_all
+            (fun order ->
+              Option.equal Bool.equal (v1_before_v3 order) (Some expected))
+            orders
+        in
+        (all true orders && all false orders')
+        || (all false orders && all true orders')
+      | [] | [_] | _ :: _ :: _ :: _ -> false);
+    List.iter
+      (fun (text, orders) ->
+        Format.printf "    @[<v>in %d orders, of which %s:@ %a@]@."
+          (List.length orders)
+          (match orders with order :: _ -> order | [] -> "none")
+          print_lines text)
+      (List.sort
+         (fun ((_ : string), orders) ((_ : string), orders') ->
+           compare orders orders')
+         texts)
+  | [] | [_] | _ :: _ :: _ :: _ -> check "  two meets are run" false);
+  (* The control. *)
+  Format.printf
+    "  a control: the last two equations replaced by one that says of v2 \
+     itself that it is a block of one field that is v2@.";
+  let on_v2 = the_line_of_values Line_of_t7_14_on_v2 in
+  let model_on_v2 = in_the_model Of_the_compiler on_v2 in
+  check "  the model is not bottom" (is_bottom false model_on_v2);
+  List.iter
+    (fun (implementation : implementation) ->
+      ignore
+        (asked ~title:"the compiler sees what the model sees" implementation
+           on_v2 (fun seen -> same_seen ~threshold:4 model_on_v2 seen)
+          : (string * (seen, string) result list) list))
+    [binary; n_way];
+  (* The line of T7-15. *)
+  Format.printf
+    "  T7-15: the same with one case: v1 is a variant whose blocks, of tag 0, \
+     hold v3, and then one whose blocks hold a block of two fields that are \
+     v2@.";
+  let before = the_line_of_values ~whole:false Line_of_t7_15 in
+  let whole = the_line_of_values Line_of_t7_15 in
+  let model_before = in_the_model Of_the_compiler before in
+  let model_after = in_the_model Of_the_compiler whole in
+  check "  before the last equation, the model is not bottom"
+    (is_bottom false model_before);
+  check
+    "  after the last equation, the model, with the compiler's choices, sees \
+     what it sees before it"
+    (is_bottom false model_after
+    && same_seen ~threshold:4 model_before model_after);
+  check "  and the model with the choices that are to be proved sees the same"
+    (same_seen ~threshold:4 model_after (in_the_model To_be_proved whole));
+  List.iter
+    (fun (implementation : implementation) ->
+      ignore
+        (asked
+           ~title:
+             "the compiler sees what the model sees, before the last equation"
+           implementation before (fun seen ->
+             same_seen ~threshold:4 model_before seen)
+          : (string * (seen, string) result list) list))
+    [binary; n_way];
+  ignore
+    (asked ~title:"the compiler is bottom, after the last equation" binary whole
+       (is_bottom true)
+      : (string * (seen, string) result list) list);
+  ignore
+    (asked
+       ~title:"the compiler sees what the model sees, after the last equation"
+       n_way whole (fun seen -> same_seen ~threshold:4 model_after seen)
+      : (string * (seen, string) result list) list)
+
 (* The environment of the tests, in the model: the variables and the symbols
    that [names.env] defines, of which nothing is known. *)
 let env_of_model (names : names) : Model_env.t * MT.name list =
@@ -10501,6 +10881,7 @@ let () =
   scenarios_in_the_model ();
   the_meet_of_t7_13_in_every_order ();
   the_line_of_t7_13_in_every_order ();
+  the_lines_of_t7_14_and_t7_15 ();
   control_of_the_alias_kept ();
   let model_and_compiler ~title ~seed ~count ~equations:shape kind =
     run ~title ~seed ~count

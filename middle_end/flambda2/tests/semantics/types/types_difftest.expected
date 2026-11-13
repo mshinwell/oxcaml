@@ -1215,6 +1215,74 @@ A line of equations that leaves a type that is no alias on a name that is not ca
     the n-way meet, with the check: each of the six orders is seen, and in each the compiler sees what the model sees: yes
   a control: of such names nothing is said where nothing is seen, where the meet is bottom, and where a name is seen without its type or without its canonical element: yes
 
+Two lines of equations on four values on which the model and the two meets of the compiler do not answer alike (T7-14, T7-15), each run 480 times with new variables with each meet of the compiler: what is answered, in the twenty-four orders of the identifiers
+  T7-14: v1 is a variant whose blocks, of tag 0 or 1, hold v3, and then one whose blocks hold a block of two fields that are v2, for tag 0, or of one field that is v3, for tag 1; v2 is v1; v4 is a variant whose blocks, of tag 0, hold v2, and then one whose blocks hold a block of one field that is v2
+    before the last equation, the model is not bottom: yes
+    the binary meet: each of the twenty-four orders is seen, and in each the compiler sees what the model sees, before the last equation: yes
+    the n-way meet: each of the twenty-four orders is seen, and in each the compiler sees what the model sees, before the last equation: yes
+    after the last equation, the model, with the compiler's choices, is bottom: yes
+    after the last equation, the model, with the choices that are to be proved, is bottom: yes
+    the binary meet: each of the twenty-four orders is seen, and in each the compiler is not bottom, after the last equation: yes
+    the n-way meet: each of the twenty-four orders is seen, and in each the compiler is not bottom, after the last equation: yes
+    in each order the two meets see the same: yes
+    the n-way meet sees one of two things, according to whether the identifier of v1 is less than that of v3: yes
+    in 12 orders, of which v1 < v2 < v3 < v4:
+    the environment
+    v1 : (Value
+          ((Variant (is_int None) (immediates (Known (Naked_immediate Bottom)))
+            (get_tag None)
+            (blocks (Known
+                     ((known_tags [0 ->
+                                    (Known
+                                     ((Known 1) Value_only [(Value (= v2))] []))])
+                      (other_tags Bottom) (alloc_mode Heap))))
+            (extensions No_extensions) (is_unique false)) Not_null)), of which the canonical element is v1
+    v2 : (Value (= v1)), of which the canonical element is v1
+    v3 : (Value (= v1)), of which the canonical element is v1
+    v4 : (Value
+          ((Variant (is_int None) (immediates (Known (Naked_immediate Bottom)))
+            (get_tag None)
+            (blocks (Known
+                     ((known_tags [0 ->
+                                    (Known
+                                     ((Known 1) Value_only [(Value (= v2))] []))])
+                      (other_tags Bottom) (alloc_mode Heap))))
+            (extensions No_extensions) (is_unique false)) Not_null)), of which the canonical element is v4
+    in 12 orders, of which v2 < v3 < v1 < v4:
+    the environment
+    v1 : (Value
+          ((Variant (is_int None) (immediates (Known (Naked_immediate Bottom)))
+            (get_tag None)
+            (blocks (Known
+                     ((known_tags [0 ->
+                                    (Known
+                                     ((Known 1) Value_only [(Value (= v3))] []))])
+                      (other_tags Bottom) (alloc_mode Heap))))
+            (extensions No_extensions) (is_unique false)) Not_null)), of which the canonical element is v1
+    v2 : (Value (= v1)), of which the canonical element is v1
+    v3 : (Value (= v1)), of which the canonical element is v1
+    v4 : (Value
+          ((Variant (is_int None) (immediates (Known (Naked_immediate Bottom)))
+            (get_tag None)
+            (blocks (Known
+                     ((known_tags [0 ->
+                                    (Known
+                                     ((Known 1) Value_only [(Value (= v2))] []))])
+                      (other_tags Bottom) (alloc_mode Heap))))
+            (extensions No_extensions) (is_unique false)) Not_null)), of which the canonical element is v4
+  a control: the last two equations replaced by one that says of v2 itself that it is a block of one field that is v2
+    the model is not bottom: yes
+    the binary meet: each of the twenty-four orders is seen, and in each the compiler sees what the model sees: yes
+    the n-way meet: each of the twenty-four orders is seen, and in each the compiler sees what the model sees: yes
+  T7-15: the same with one case: v1 is a variant whose blocks, of tag 0, hold v3, and then one whose blocks hold a block of two fields that are v2
+    before the last equation, the model is not bottom: yes
+    after the last equation, the model, with the compiler's choices, sees what it sees before it: yes
+    and the model with the choices that are to be proved sees the same: yes
+    the binary meet: each of the twenty-four orders is seen, and in each the compiler sees what the model sees, before the last equation: yes
+    the n-way meet: each of the twenty-four orders is seen, and in each the compiler sees what the model sees, before the last equation: yes
+    the binary meet: each of the twenty-four orders is seen, and in each the compiler is bottom, after the last equation: yes
+    the n-way meet: each of the twenty-four orders is seen, and in each the compiler sees what the model sees, after the last equation: yes
+
 What is the same up to the alias that a name keeps (10 cases): 10 as expected
 
 Two types of kind value, for the meet of the model and the n-way meet of the compiler (1000 cases, seeds 90000 to 90999)
