@@ -50,6 +50,8 @@ Owner: C0. Phase 0 was done as C0, and what it created is C0's.
 - `middle_end/flambda2/rocq/DECISIONS.md` (the index of the labels of
   decisions and discrepancies that the tree cites; the integrator adds
   a label's line when a merge brings the label)
+- `middle_end/flambda2/rocq/requests/C0-well-formed.md` and
+  `requests/C0-toplevel-try-body.md` (requests)
 - `middle_end/flambda2/rocq/status/phase0.md` (Phase 0)
 - `middle_end/flambda2/tests/semantics/extracted/` (generated; only the
   integrator commits it, see `rocq/HACKING.md`)

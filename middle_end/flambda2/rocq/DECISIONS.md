@@ -222,6 +222,9 @@ says so. Only the labels that this tree cites are listed.
 - **C3-10.** `simplify_direct_tuple_application` takes the tuple and the
   remaining arity apart by two different counts, and splits an
   over-application without the test that the code returns one value.
+- **C3-11.** At the default flags Simplify does not simplify the code of
+  a stub where it simplifies its set of closures, and makes the direct
+  call in it indirect.
 - **C4-1.** Simplify lifts an `Immutable_unique` block out of a function
   to one symbol.
 - **C4-2.** Nothing checks that a field loaded as immutable is never
@@ -522,6 +525,8 @@ says so. Only the labels that this tree cites are listed.
   that input is 0, poison included.
 - **T5b-3.** The n-way join of types takes what `Expand_head` answers to
   be of the kind of the types joined, and nothing gives it that.
+- **T5b-4.** The body of a `try` at the top of a unit is at toplevel
+  for Simplify and not for the model.
 - **T6-1.** A prover answers what the environment says of a name, which
   is not true of a name that holds poison (one case reaches a number
   that is not poison).
@@ -624,3 +629,6 @@ says so. Only the labels that this tree cites are listed.
 - **X5-3.** A load from a string has no coeffect,
   `Bytes.unsafe_to_string` is erased, and `to_cmm` moves the load after
   a write to the bytes.
+- **X5-9.** Simplify leaves the module block bound in a handler that
+  its own rule does not hold to be at toplevel, where a cold handler
+  stays out of line.
