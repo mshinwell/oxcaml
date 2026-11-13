@@ -54,7 +54,15 @@
    symbol twice (FlambdaWellFormedProofs.well_formed_never_faults).
    That the values at the exit are equal is from the invariant of the
    first run that FlambdaLiftProofs.v has for the check of the exits
-   ([plain_state]). *)
+   ([plain_state]).
+
+   The two runs may start from a continuation environment of what may
+   follow a unit (FlambdaObserversSpec.observers), the empty one for
+   the statements of FlambdaLiftFromCodeSpec.v: what may follow a unit
+   binds nothing static, so the rewrite leaves it as it is
+   ([observer_lifted_out]). Without the test of the exits, the values
+   of two exits that answer each other are lifted
+   ([unit_lifted_out_observed], for FlambdaLiftObservedSpec.v). *)
 
 From Stdlib Require Import ZArith List Bool Arith Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
@@ -64,8 +72,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaNominalSpec FlambdaNominalProofs FlambdaWellFormedSpec
   FlambdaWellFormedProofs FlambdaClosuresSpec FlambdaClosuresProofs
   FlambdaStaticProofs FlambdaUnusedStaticsSpec FlambdaImportsSpec
-  FlambdaUnitFromProofs FlambdaLiftSpec FlambdaLiftProofs
-  FlambdaLiftFromCodeSpec.
+  FlambdaObserversSpec FlambdaUnitFromProofs FlambdaLiftSpec
+  FlambdaLiftProofs FlambdaLiftFromCodeSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -1166,6 +1174,53 @@ Definition conts_lifted_out (statics' : static_env)
        fst kc = fst kc' ∧ cont_lifted_out statics' (snd kc) (snd kc'))
     conts conts'.
 
+(* What may follow a unit is the same in the two runs: it binds nothing
+   static, so it has no code to rewrite, and no [Let] of it is lifted
+   out. *)
+Lemma observer_lifted_out (statics' : static_env) (slots : list value_slot)
+    (c : cont_value) :
+  observer slots c -> cont_lifted_out statics' c c.
+Proof.
+  destruct c
+    as [ [params metadata body] vars conts recursive | k | c extra
+       | remaining remaining_arity return_arity return_to exn_to ];
+    simpl; try contradiction.
+  - destruct vars; [ | contradiction ].
+    destruct conts; [ | contradiction ].
+    destruct recursive; [ | contradiction ].
+    intros (Hno & _ & _).
+    destruct
+      (statics_nowhere 1%positive symbols_of_binding body
+         (no_static_nowhere 1%positive body Hno))
+      as (_ & Hbinds & _).
+    assert (H :
+      cont_lifted_out statics' (Closure (Handler params metadata body) [] [] [])
+        (Closure
+           (handler_lift_from_code K [] root (Handler params metadata body))
+           [] []
+           (rec_handlers_map (handler_lift_from_code K []) root []))).
+    { apply Closure_lifted_out;
+        [ intros x v [=] | constructor | apply handler_aliases_bound_nil
+        | exact I | reflexivity ]. }
+    rewrite
+      (handler_lift_from_code_nil K root (Handler params metadata body)
+         Hbinds)
+      in H.
+    exact H.
+  - intros _. apply Outer_lifted_out.
+Qed.
+
+Lemma observers_lifted_out (statics' : static_env) (slots : list value_slot)
+    (conts : cont_env) :
+  observers slots conts -> conts_lifted_out statics' conts conts.
+Proof.
+  unfold observers, conts_lifted_out.
+  induction conts as [ | [k c] conts IH]; intros H; [ constructor | ].
+  inversion H as [ | kc rest Hc Hrest]; subst.
+  constructor; [ | exact (IH Hrest) ].
+  split; [ reflexivity | exact (observer_lifted_out statics' slots c Hc) ].
+Qed.
+
 Fixpoint cont_lifted_out_extend (statics' statics'' : static_env)
     (Hextend : statics_extend statics' statics'') (c c' : cont_value)
     (H : cont_lifted_out statics' c c') {struct H} :
@@ -1801,7 +1856,77 @@ Variable e : expr.
 
 (* The static environment and the heap that the two runs start from:
    the environment holds no code and binds no name that the unit
-   rewritten binds. *)
+   rewritten binds. And the continuation environment that they start
+   from: what may follow a unit (FlambdaObserversSpec.observers); the
+   empty one is such. *)
+Variable statics0 : static_env.
+Variable hp0 : heap.
+Variable conts0 : cont_env.
+
+Hypothesis Hwf : well_formed_unit u (lift_from_code K [] root e) = true.
+Hypothesis Hno_code : static_code statics0 = [].
+Hypothesis Hfree :
+  static_names_free_in statics0 (lift_from_code K [] root e) = true.
+Hypothesis Hobservers : observers [] conts0.
+
+(* The second state is one that the run of the unit rewritten reaches. *)
+Definition reached_lifted_out (s' : state) : Prop :=
+  ∃ n : nat,
+    run n (State (lift_from_code K [] root e) [] conts0 statics0 hp0)
+    = Step s'.
+
+(* The states are related and the second is reached. *)
+Definition unit_lifted_out (s s' : state) : Prop :=
+  state_lifted_out s s' ∧ reached_lifted_out s'.
+
+Lemma unit_lifted_out_step (s s' : state) :
+  unit_lifted_out s s' ->
+  answered unit_lifted_out exit_lifted_out (step s) s'.
+Proof.
+  intros (Hlifted & [n Hn]).
+  pose proof (lifted_out_step s s' Hlifted
+    (well_formed_never_faults_under u [] _ conts0 statics0 hp0 n s' Hwf
+       Hno_code Hfree Hobservers Hn)) as Hanswer.
+  destruct (step s) as [t | k vs | ]; unfold answered in *;
+    [ | exact Hanswer | exact I ].
+  destruct Hanswer as (m & t' & Hrun & Ht).
+  exists m, t'. split; [ exact Hrun | ].
+  split; [ exact Ht | ].
+  exists (n + S m). rewrite run_add, Hn. exact Hrun.
+Qed.
+
+Lemma unit_lifted_out_initial :
+  unit_lifted_out (State e [] conts0 statics0 hp0)
+    (State (lift_from_code K [] root e) [] conts0 statics0 hp0).
+Proof.
+  split; [ | exists 0; reflexivity ].
+  apply State_lifted_out;
+    [ intros x v [=]
+    | exact (observers_lifted_out statics0 [] conts0 Hobservers) |
+    | apply aliases_bound_nil ].
+  split; [ intros id; rewrite Hno_code; reflexivity | ].
+  split; [ apply symbols_lifted_refl | ].
+  intros id c Hlookup. rewrite Hno_code in Hlookup. discriminate Hlookup.
+Qed.
+
+(* The unit rewritten, run from what may follow a unit, comes to what
+   the unit comes to, up to what an exit is compared by. *)
+Lemma unit_lifted_out_observed :
+  observed_refines (Step (State e [] conts0 statics0 hp0))
+    (Step (State (lift_from_code K [] root e) [] conts0 statics0 hp0)).
+Proof.
+  apply (stuttering_observed unit_lifted_out exit_lifted_out);
+    [ intros last vs vs' Hvs; exact (lifted_same_scalars _ vs vs' Hvs)
+    | exact unit_lifted_out_step | exact unit_lifted_out_initial ].
+Qed.
+
+End Unit.
+
+(* With the test of the exits, from no continuation. *)
+Section Unit_refines.
+
+Variable u : unit_interface.
+Variable e : expr.
 Variable statics0 : static_env.
 Variable hp0 : heap.
 
@@ -1810,52 +1935,29 @@ Hypothesis Hno_code : static_code statics0 = [].
 Hypothesis Hfree :
   static_names_free_in statics0 (lift_from_code K [] root e) = true.
 
-(* The second state is one that the run of the unit rewritten reaches. *)
-Definition reached_lifted_out (s' : state) : Prop :=
-  ∃ n : nat,
-    run n (State (lift_from_code K [] root e) [] [] statics0 hp0) = Step s'.
-
 (* The states are related, the second is reached, and the first is one
    of a unit that exits with symbols and constants only. *)
-Definition unit_lifted_out (s s' : state) : Prop :=
-  state_lifted_out s s' ∧ reached_lifted_out s' ∧ plain_state s.
+Definition unit_lifted_out_plain (s s' : state) : Prop :=
+  unit_lifted_out e statics0 hp0 [] s s' ∧ plain_state s.
 
 (* The values at an exit are lifted, and are constants and symbols: they
    are the same. *)
-Lemma unit_lifted_out_step (s s' : state) :
-  unit_lifted_out s s' ->
-  answered unit_lifted_out (fun _ vs vs' => vs' = vs) (step s) s'.
+Lemma unit_lifted_out_plain_step (s s' : state) :
+  unit_lifted_out_plain s s' ->
+  answered unit_lifted_out_plain (fun _ vs vs' => vs' = vs) (step s) s'.
 Proof.
-  intros (Hlifted & [n Hn] & Hplain).
-  pose proof (lifted_out_step s s' Hlifted
-    (well_formed_never_faults_from u _ statics0 hp0 n s' Hwf Hno_code Hfree
-       Hn)) as Hanswer.
+  intros [Hlifted Hplain].
+  pose proof
+    (unit_lifted_out_step u e statics0 hp0 [] Hwf Hno_code Hfree
+       (Forall_nil _) s s' Hlifted)
+    as Hanswer.
   pose proof (plain_step s Hplain) as Hstep.
   destruct (step s) as [t | k vs | ]; unfold answered in *; [ | | exact I ].
   - destruct Hanswer as (m & t' & Hrun & Ht).
-    exists m, t'. split; [ exact Hrun | ].
-    split; [ exact Ht | ]. split; [ | exact Hstep ].
-    exists (n + S m). rewrite run_add, Hn. exact Hrun.
+    exists m, t'. split; [ exact Hrun | split; assumption ].
   - destruct Hanswer as (vs' & Hexit & Hvs).
     exists vs'. split; [ exact Hexit | ].
     exact (plain_values_lifted _ vs vs' Hstep Hvs).
-Qed.
-
-Lemma unit_lifted_out_initial :
-  exits_plain [] e = true ->
-  unit_lifted_out (State e [] [] statics0 hp0)
-    (State (lift_from_code K [] root e) [] [] statics0 hp0).
-Proof.
-  intros Hplain.
-  split;
-    [ | split;
-        [ exists 0; reflexivity
-        | exact (plain_from e statics0 hp0 Hplain Hno_code) ] ].
-  apply State_lifted_out;
-    [ intros x v [=] | constructor | | apply aliases_bound_nil ].
-  split; [ intros id; rewrite Hno_code; reflexivity | ].
-  split; [ apply symbols_lifted_refl | ].
-  intros id c Hlookup. rewrite Hno_code in Hlookup. discriminate Hlookup.
 Qed.
 
 (* The unit rewritten refines the unit, the two run from that static
@@ -1867,13 +1969,16 @@ Lemma unit_lifted_out_refines :
 Proof.
   intros Hplain.
   apply
-    (stuttering_refines unit_lifted_out (fun _ vs vs' => vs' = vs)
-       unit_lifted_out_step).
+    (stuttering_refines unit_lifted_out_plain (fun _ vs vs' => vs' = vs)
+       unit_lifted_out_plain_step).
   - intros last vs vs' Hsame. exact Hsame.
-  - exact (unit_lifted_out_initial Hplain).
+  - split;
+      [ exact (unit_lifted_out_initial e statics0 hp0 [] Hno_code
+                 (Forall_nil _))
+      | exact (plain_from e statics0 hp0 Hplain Hno_code) ].
 Qed.
 
-End Unit.
+End Unit_refines.
 
 End From_code.
 

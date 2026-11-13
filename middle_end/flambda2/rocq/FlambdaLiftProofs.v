@@ -61,7 +61,22 @@
    an invariant of the first run alone ([plain_state]): the
    continuations in scope never stand for a way out ([cont_closed]),
    so a value that is not a constant or a symbol, a partial application
-   included, is given to a handler. *)
+   included, is given to a handler.
+
+   The two runs may start from a continuation environment of what may
+   follow a unit (FlambdaObserversSpec.observers), the empty one for
+   the statements of FlambdaLiftSpec.v. What may follow a unit has no
+   [Let] that is lifted and no code, so it is related to itself
+   ([observer_lifted]), and it makes no closure of the code of a
+   function ([observer_closure_ok]). Without the test of the exits the
+   values of two exits that answer each other are lifted, so they have
+   the same constants and the same locations ([lifted_same_scalars]):
+   that is the statement of FlambdaLiftObservedSpec.v
+   ([unit_lifted_observed]). With no [Let] lifted and no code named,
+   the simulation is also that of one term run on values lifted, under
+   static environments with the same code, and it serves a pass after
+   whose two exits what follows is the same term
+   ([observer_applied_lifted]). *)
 
 From Stdlib Require Import ZArith List Bool Arith Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
@@ -71,8 +86,9 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaNominalSpec FlambdaNominalProofs FlambdaWellFormedSpec
   FlambdaWellFormedProofs FlambdaClosuresSpec FlambdaClosuresProofs
   FlambdaUnusedStaticsSpec FlambdaMyClosureSpec FlambdaMyClosureProofs
-  FlambdaImportsSpec FlambdaImportsProofs FlambdaUnitFromProofs
-  FlambdaLiftSpec.
+  FlambdaImportsSpec FlambdaImportsProofs FlambdaStaticsInScopeSpec
+  FlambdaRunUnderSpec FlambdaObserversSpec FlambdaObserversProofs
+  FlambdaUnitFromProofs FlambdaLiftSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -215,6 +231,18 @@ Proof.
     IH;
     [ reflexivity | ].
   intros w Hw. apply Hplain. right. exact Hw.
+Qed.
+
+(* Values lifted have the same constants and the same locations at the
+   same places: a constant is lifted to itself only and from itself
+   only, and so is a location. *)
+Lemma lifted_same_scalars (statics' : static_env) (vs vs' : list value) :
+  Forall2 (value_lifted statics') vs vs' -> same_scalars vs vs'.
+Proof.
+  unfold same_scalars.
+  induction 1 as [ | v v' vs vs' Hv _ IH]; constructor; [ | exact IH ].
+  intros [[[c ->] | [l ->]] | [[c ->] | [l ->]]];
+    inversion Hv; reflexivity.
 Qed.
 
 (* A value lifted has the kind of the value: a symbol stands for what is
@@ -383,6 +411,124 @@ Lemma symbols_lifted_refl (statics : static_env) :
 Proof.
   intros s allocated Hs. exists allocated.
   split; [ exact Hs | apply allocated_lifted_refl ].
+Qed.
+
+(* With no code id named, [my_closure] is bound nowhere: the term is
+   left as it is. *)
+Fixpoint bind_my_closures_nothing (e : expr) {struct e} :
+  bind_my_closures [] e = e
+with bind_my_closures_in_handler_nothing (h : continuation_handler)
+    {struct h} :
+  bind_my_closures_in_handler [] h = h
+with bind_my_closures_in_binding_nothing (binding : static_binding)
+    {struct binding} :
+  bind_my_closures_in_binding [] binding = binding
+with bind_my_closure_nothing (id : code_id) (c : code) {struct c} :
+  bind_my_closure [] id c = c.
+Proof.
+  - destruct e
+      as [ x xkind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      simpl; try reflexivity.
+    + rewrite bind_my_closures_nothing. reflexivity.
+    + rewrite bind_my_closures_nothing. f_equal.
+      induction bindings as [ | binding bindings IH]; simpl;
+        [ reflexivity | ].
+      rewrite bind_my_closures_in_binding_nothing, IH. reflexivity.
+    + rewrite bind_my_closures_in_handler_nothing, bind_my_closures_nothing.
+      reflexivity.
+    + rewrite bind_my_closures_nothing. f_equal.
+      induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
+      rewrite bind_my_closures_in_handler_nothing, IH. reflexivity.
+  - destruct h as [params metadata handler]. simpl.
+    rewrite bind_my_closures_nothing. reflexivity.
+  - destruct binding as [id c | id | sym const]; simpl; try reflexivity.
+    rewrite bind_my_closure_nothing. reflexivity.
+  - destruct c as [params my_closure ret exn metadata body]. simpl.
+    rewrite bind_my_closures_nothing. reflexivity.
+Qed.
+
+(* What may follow a unit names no code id, so it makes no closure of
+   the code of a function: the check of FlambdaMyClosureSpec.v passes of
+   it, for whatever code id and symbol. *)
+Lemma named_in_scope_makes_no_closure (id : code_id) (syms : list symbol)
+    (d : named) :
+  named_statics_in_scope syms [] d = true ->
+  named_makes_no_closure_of id d = true.
+Proof.
+  destruct d as [ | | code slots | slot decls slots | | | ]; simpl;
+    try reflexivity.
+  - discriminate.
+  - intros H. apply andb_true_iff in H as [Hdecls _].
+    destruct (map snd decls) as [ | code codes];
+      [ reflexivity | discriminate Hdecls ].
+Qed.
+
+Fixpoint observer_only_closure_of (id : code_id) (s : symbol) (e : expr)
+    {struct e} :
+  binds_no_static e = true ->
+  expr_statics_in_scope [] [] e = true ->
+  only_closure_of id s e = true.
+Proof.
+  destruct e
+    as [ x xkind d body | bindings body | k h body | handlers body | ap | ac
+       | scrutinee arms | ];
+    simpl; try (intros _ _; reflexivity).
+  - intros Hno H. apply andb_true_iff in H as [Hd Hbody].
+    rewrite (named_in_scope_makes_no_closure id [] d Hd).
+    exact (observer_only_closure_of id s body Hno Hbody).
+  - discriminate.
+  - destruct h as [params metadata handler]. simpl. intros Hno H.
+    apply andb_true_iff in Hno as [Hno_h Hno_b].
+    apply andb_true_iff in H as [Hh Hb].
+    rewrite (no_static_names symbols_of_binding body Hno_b),
+      (no_static_names declared_code_ids_of_binding body Hno_b)
+      in Hh.
+    simpl in Hh.
+    rewrite (observer_only_closure_of id s handler Hno_h Hh),
+      (observer_only_closure_of id s body Hno_b Hb).
+    reflexivity.
+  - intros Hno H. apply andb_true_iff in Hno as [Hno_hs Hno_b].
+    apply andb_true_iff in H as [Hhs Hb].
+    rewrite (observer_only_closure_of id s body Hno_b Hb), andb_true_r.
+    rewrite (no_static_names symbols_of_binding body Hno_b),
+      (no_static_names declared_code_ids_of_binding body Hno_b)
+      in Hhs.
+    simpl in Hhs.
+    induction handlers as [ | [k [params metadata handler]] handlers IH];
+      simpl; [ reflexivity | ].
+    simpl in Hno_hs, Hhs.
+    apply andb_true_iff in Hno_hs as [Hno_h Hno_rest].
+    apply andb_true_iff in Hhs as [Hh Hrest].
+    rewrite (observer_only_closure_of id s handler Hno_h Hh).
+    exact (IH Hno_rest Hrest).
+Qed.
+
+Lemma observer_closure_ok (id : code_id) (s : symbol)
+    (slots : list value_slot) (c : cont_value) :
+  observer slots c -> cont_ok id s c.
+Proof.
+  destruct c
+    as [ [params metadata body] vars conts recursive | k | c extra
+       | remaining remaining_arity return_arity return_to exn_to ];
+    simpl; try contradiction.
+  - destruct vars; [ | contradiction ].
+    destruct conts; [ | contradiction ].
+    destruct recursive; [ | contradiction ].
+    intros (Hno & Hscope & _).
+    apply Closure_ok;
+      [ exact (observer_only_closure_of id s body Hno Hscope)
+      | intros x v [=] | constructor | reflexivity ].
+  - intros _. apply Outer_ok.
+Qed.
+
+Lemma observers_closures_ok (id : code_id) (s : symbol)
+    (slots : list value_slot) (conts : cont_env) :
+  observers slots conts -> conts_ok id s conts.
+Proof.
+  unfold observers, conts_ok. intros H.
+  induction H as [ | [k c] conts Hc _ IH]; constructor;
+    [ exact (observer_closure_ok id s slots c Hc) | exact IH ].
 Qed.
 
 Section Known.
@@ -1221,6 +1367,31 @@ Definition bind_my_closures_in_handlers
     : list (continuation * continuation_handler) :=
   map (fun '(k, h) => (k, bind_my_closures_in_handler known h)) handlers.
 
+(* A term with no static binding in it binds no code, so [my_closure]
+   is bound nowhere in it: it is left as it is. *)
+Fixpoint bind_my_closures_no_static (e : expr) {struct e} :
+  binds_no_static e = true -> bind_my_closures known e = e.
+Proof.
+  destruct e
+    as [ x xkind d body | bindings body | k h body | handlers body | ap | ac
+       | scrutinee arms | ];
+    simpl; try (intros _; reflexivity).
+  - intros H. rewrite (bind_my_closures_no_static body H). reflexivity.
+  - discriminate.
+  - destruct h as [params metadata handler]. simpl. intros H.
+    apply andb_true_iff in H as [Hh Hb].
+    rewrite (bind_my_closures_no_static handler Hh),
+      (bind_my_closures_no_static body Hb).
+    reflexivity.
+  - intros H. apply andb_true_iff in H as [Hhs Hb].
+    rewrite (bind_my_closures_no_static body Hb). f_equal.
+    induction handlers as [ | [k [params metadata handler]] handlers IH];
+      simpl; [ reflexivity | ].
+    simpl in Hhs. apply andb_true_iff in Hhs as [Hh Hrest].
+    rewrite (bind_my_closures_no_static handler Hh), (IH Hrest).
+    reflexivity.
+Qed.
+
 (* A continuation of the first run and one of the second: the same way
    out, or closures of a handler and of that handler rewritten, with
    lifted environments, or what is left of the same over-application,
@@ -1263,6 +1434,43 @@ Definition conts_lifted (statics' : static_env) (conts conts' : cont_env)
   Forall2
     (fun kc kc' => fst kc = fst kc' ∧ cont_lifted statics' (snd kc) (snd kc'))
     conts conts'.
+
+(* What may follow a unit is the same in the two runs: it has no [Let]
+   that is lifted and no code. *)
+Lemma observer_lifted (statics' : static_env) (slots : list value_slot)
+    (c : cont_value) :
+  observer slots c -> cont_lifted statics' c c.
+Proof.
+  destruct c
+    as [ [params metadata body] vars conts recursive | k | c extra
+       | remaining remaining_arity return_arity return_to exn_to ];
+    simpl; try contradiction.
+  - destruct vars; [ | contradiction ].
+    destruct conts; [ | contradiction ].
+    destruct recursive; [ | contradiction ].
+    intros (Hno & _ & _).
+    assert (H :
+      cont_lifted statics' (Closure (Handler params metadata body) [] [] [])
+        (Closure
+           (bind_my_closures_in_handler known
+              (lift_handler [] root (Handler params metadata body)))
+           [] [] (bind_my_closures_in_handlers []))).
+    { apply Closure_lifted; [ intros x v [=] | constructor ]. }
+    rewrite lift_handler_nil in H. simpl in H.
+    rewrite (bind_my_closures_no_static body Hno) in H. exact H.
+  - intros _. apply Outer_lifted.
+Qed.
+
+Lemma observers_lifted (statics' : static_env) (slots : list value_slot)
+    (conts : cont_env) :
+  observers slots conts -> conts_lifted statics' conts conts.
+Proof.
+  unfold observers, conts_lifted.
+  induction conts as [ | [k c] conts IH]; intros H; [ constructor | ].
+  inversion H as [ | kc rest Hc Hrest]; subst.
+  constructor; [ | exact (IH Hrest) ].
+  split; [ reflexivity | exact (observer_lifted statics' slots c Hc) ].
+Qed.
 
 Fixpoint cont_lifted_extend (statics' statics'' : static_env)
     (Hextend : statics_extend statics' statics'') (c c' : cont_value)
@@ -2129,6 +2337,11 @@ Variable e : expr.
 Variable statics0 : static_env.
 Variable hp0 : heap.
 
+(* The continuation environment that the two runs start from: what may
+   follow a unit (FlambdaObserversSpec.observers). The empty one is
+   such. *)
+Variable conts0 : cont_env.
+
 (* The unit with its [Let]s lifted and [my_closure] bound in its code. *)
 Definition lifted_unit : expr :=
   bind_my_closures known (lift_expr lets root e).
@@ -2140,10 +2353,11 @@ Hypothesis Hfree : static_names_free_in statics0 lifted_unit = true.
 Hypothesis Hstatics_ok :
   ∀ (id : code_id) (sym : symbol),
     lookup id known = Some sym -> statics_ok id sym statics0.
+Hypothesis Hobservers : observers [] conts0.
 
 (* The second state is one that the run of the unit lifted reaches. *)
 Definition reached (s' : state) : Prop :=
-  ∃ n : nat, run n (State lifted_unit [] [] statics0 hp0) = Step s'.
+  ∃ n : nat, run n (State lifted_unit [] conts0 statics0 hp0) = Step s'.
 
 (* The run of the unit lifted makes no closure of the code of [known]
    but its symbols. *)
@@ -2154,7 +2368,9 @@ Proof.
   refine (ok_run id sym n _ s' _ Hn).
   split; [ exact (Honly (id, sym) (lookup_in id sym known Hsym)) | ].
   split; [ intros x v [=] | ].
-  split; [ constructor | exact (Hstatics_ok id sym Hsym) ].
+  split;
+    [ exact (observers_closures_ok id sym [] conts0 Hobservers)
+    | exact (Hstatics_ok id sym Hsym) ].
 Qed.
 
 Lemma reached_run (m : nat) (s' t' : state) :
@@ -2172,8 +2388,8 @@ Proof.
   intros [Hlifted Hreached].
   assert (Hfault : static_fault s' = false).
   { destruct Hreached as [n Hn].
-    exact (well_formed_never_faults_from u _ statics0 hp0 n s' Hwf Hno_code
-             Hfree Hn). }
+    exact (well_formed_never_faults_under u [] _ conts0 statics0 hp0 n s'
+             Hwf Hno_code Hfree Hobservers Hn). }
   pose proof (lifted_step s s' Hlifted Hfault
     (reached_known_ok s' Hreached)) as Hanswer.
   destruct (step s) as [t | k vs | ]; unfold answered in *;
@@ -2184,20 +2400,112 @@ Proof.
 Qed.
 
 Lemma unit_lifted_initial :
-  unit_lifted (State e [] [] statics0 hp0)
-    (State lifted_unit [] [] statics0 hp0).
+  unit_lifted (State e [] conts0 statics0 hp0)
+    (State lifted_unit [] conts0 statics0 hp0).
 Proof.
   split; [ | exists 0; reflexivity ].
   apply State_lifted;
-    [ intros x v [=] | constructor
+    [ intros x v [=] | exact (observers_lifted statics0 [] conts0 Hobservers)
     | split;
       [ intros id; rewrite Hno_code; reflexivity
       | apply symbols_lifted_refl ] ].
 Qed.
 
+(* The unit lifted, run from what may follow a unit, comes to what the
+   unit comes to, up to what an exit is compared by. *)
+Lemma unit_lifted_observed :
+  observed_refines (Step (State e [] conts0 statics0 hp0))
+    (Step (State lifted_unit [] conts0 statics0 hp0)).
+Proof.
+  apply (stuttering_observed unit_lifted exit_lifted);
+    [ intros last vs vs' Hvs; exact (lifted_same_scalars _ vs vs' Hvs)
+    | exact unit_lifted_step | exact unit_lifted_initial ].
+Qed.
+
 End Unit.
 
 End Known.
+
+(* ======================================================================== *)
+(* What may follow a unit, after two exits that are lifted                  *)
+(* ======================================================================== *)
+
+Lemma nothing_known (P : code_id -> symbol -> Prop) (id : code_id)
+    (sym : symbol) :
+  lookup id ([] : list (code_id * symbol)) = Some sym -> P id sym.
+Proof. intros [=]. Qed.
+
+(* What may follow a unit, applied to the values of an exit and to the
+   same values lifted, under static environments of which the second
+   is the first lifted, with the same code: the two come to results
+   that differ in nothing that an exit is compared by. It is the
+   simulation of this file with no [Let] lifted and no code named, from
+   the two states that the handler starts in. The second run is asked
+   to make no static fault. *)
+Lemma observer_applied_lifted (slots : list value_slot) (c : cont_value)
+    (vs vs' : list value) (statics statics' : static_env) (hp : heap) :
+  observer slots c ->
+  Forall2 (value_lifted statics') vs vs' ->
+  statics_lifted [] statics statics' ->
+  (∀ s' : state,
+    apply_cont_value c vs' statics' hp = Step s' ->
+    ∀ (m : nat) (t' : state), run m s' = Step t' -> static_fault t' = false) ->
+  observed_refines (apply_cont_value c vs statics hp)
+    (apply_cont_value c vs' statics' hp).
+Proof.
+  intros Hobserver Hvs Hstatics Hfaults.
+  assert (Hfree : Forall (known_free []) vs').
+  { apply Forall_forall. intros v _. exact (nothing_known _). }
+  pose proof
+    (apply_cont_value_lifted [] statics' c c
+       (observer_lifted [] statics' slots c Hobserver) vs vs' statics hp Hvs
+       Hstatics (nothing_known _) (nothing_known _) Hfree)
+    as Hresult.
+  destruct (apply_cont_value c vs statics hp) as [t | k exit_vs hp1 | ];
+    simpl in Hresult.
+  - destruct Hresult as (n & u' & t' & Htarget & Hrun & Hlifted).
+    rewrite Htarget.
+    set (R2 :=
+      fun s s' : state =>
+        state_lifted [] s s'
+        ∧ ∀ (m : nat) (t'' : state),
+            run m s' = Step t'' -> static_fault t'' = false).
+    assert (R2_step :
+      ∀ s s' : state, R2 s s' -> answered R2 exit_lifted (step s) s').
+    { intros s s' [Hl Hf].
+      pose proof
+        (lifted_step [] s s' Hl (Hf 0 s' eq_refl) (nothing_known _))
+        as Hanswer.
+      destruct (step s) as [t0 | k0 vs0 hp0 | ]; unfold answered in *;
+        [ | exact Hanswer | exact I ].
+      destruct Hanswer as (j & t0' & Hrun0 & Hl0).
+      exists j, t0'. split; [ exact Hrun0 | ]. split; [ exact Hl0 | ].
+      intros m t'' Hm. apply (Hf (S j + m) t'').
+      rewrite run_add, Hrun0. exact Hm. }
+    assert (Hobserved : observed_refines (Step t) (Step t')).
+    { apply (stuttering_observed R2 exit_lifted);
+        [ intros last vs0 vs0' H0; exact (lifted_same_scalars _ vs0 vs0' H0)
+        | exact R2_step | ].
+      split; [ exact Hlifted | ].
+      intros m t'' Hm. apply (Hfaults u' Htarget (n + m) t'').
+      rewrite run_add, Hrun. exact Hm. }
+    refine
+      (observed_refines_ext (Step t) (Step t) (Step t') (Step u') _ _
+         Hobserved).
+    + intros b. reflexivity.
+    + intros b. simpl. rewrite (run_behaves n u' b), Hrun. reflexivity.
+  - destruct Hresult as (exit_vs' & Htarget & Hexit). rewrite Htarget. split.
+    + intros k0 vs0 hp0 H. simpl in H. injection H as -> -> ->.
+      exists exit_vs', hp1.
+      split; [ reflexivity | ].
+      split;
+        [ exact (lifted_same_scalars _ exit_vs exit_vs' Hexit)
+        | reflexivity ].
+    + intros b _ _. right. exists k, exit_vs, hp1. reflexivity.
+  - split.
+    + intros k0 vs0 hp0 H. simpl in H. discriminate H.
+    + intros b _ _. left. reflexivity.
+Qed.
 
 (* The empty static environment is one that the two runs may start
    from, and so is that of the imports of a unit. *)
@@ -2220,26 +2528,26 @@ Proof.
   intros u lets known e. cbv zeta. intros Hwf Honly. split.
   - intros k vs hp [n Hn].
     exact (stuttering_exit
-             (unit_lifted known lets e empty_static_env empty_heap)
+             (unit_lifted known lets e empty_static_env empty_heap [])
              exit_lifted
-             (unit_lifted_step known u lets e empty_static_env empty_heap Hwf
-                Honly eq_refl (free_in_empty _)
-                (fun id sym _ => statics_ok_empty id sym))
+             (unit_lifted_step known u lets e empty_static_env empty_heap []
+                Hwf Honly eq_refl (free_in_empty _)
+                (fun id sym _ => statics_ok_empty id sym) (Forall_nil _))
              n _ _ k vs hp
-             (unit_lifted_initial known lets e empty_static_env empty_heap
-                eq_refl)
+             (unit_lifted_initial known lets e empty_static_env empty_heap []
+                eq_refl (Forall_nil _))
              Hn).
   - intros b Hterm Hb.
     destruct (behaves_ended _ b Hterm Hb) as [m Hended].
     destruct (stuttering_ends
-                (unit_lifted known lets e empty_static_env empty_heap)
+                (unit_lifted known lets e empty_static_env empty_heap [])
                 exit_lifted
                 (unit_lifted_step known u lets e empty_static_env empty_heap
-                   Hwf Honly eq_refl (free_in_empty _)
-                   (fun id sym _ => statics_ok_empty id sym))
+                   [] Hwf Honly eq_refl (free_in_empty _)
+                   (fun id sym _ => statics_ok_empty id sym) (Forall_nil _))
                 m _ _ b
                 (unit_lifted_initial known lets e empty_static_env empty_heap
-                   eq_refl)
+                   [] eq_refl (Forall_nil _))
                 Hended)
       as [n [Hwrong | (k & vs & hp & Hexit)]].
     + left. exists n. exact Hwrong.
@@ -2839,7 +3147,7 @@ Hypothesis Hstatics_ok :
     lookup id known = Some sym -> statics_ok id sym statics0.
 
 Definition unit_lifted_plain (s s' : state) : Prop :=
-  unit_lifted known lets e statics0 hp0 s s' ∧ plain_state s.
+  unit_lifted known lets e statics0 hp0 [] s s' ∧ plain_state s.
 
 (* The values at an exit are lifted, and are constants and symbols: they
    are the same. *)
@@ -2849,8 +3157,8 @@ Lemma unit_lifted_plain_step (s s' : state) :
 Proof.
   intros [Hlifted Hplain].
   pose proof
-    (unit_lifted_step known u lets e statics0 hp0 Hwf Honly Hno_code Hfree
-       Hstatics_ok s s' Hlifted)
+    (unit_lifted_step known u lets e statics0 hp0 [] Hwf Honly Hno_code Hfree
+       Hstatics_ok (Forall_nil _) s s' Hlifted)
     as Hanswer.
   pose proof (plain_step s Hplain) as Hstep.
   destruct (step s) as [t | k vs | ]; unfold answered in *; [ | | exact I ].
@@ -2874,7 +3182,8 @@ Proof.
        unit_lifted_plain_step).
   - intros last vs vs' Hsame. exact Hsame.
   - split;
-      [ exact (unit_lifted_initial known lets e statics0 hp0 Hno_code)
+      [ exact (unit_lifted_initial known lets e statics0 hp0 [] Hno_code
+                 (Forall_nil _))
       | exact (plain_from e statics0 hp0 Hplain Hno_code) ].
 Qed.
 

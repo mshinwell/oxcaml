@@ -49,7 +49,22 @@
    (FlambdaWellFormedProofs.well_formed_names_bound), so a group that is
    put is evaluated. That the values at the exit are equal is from the
    invariant of the first run that FlambdaLiftProofs.v has for the
-   check of the exits ([plain_state]). *)
+   check of the exits ([plain_state]).
+
+   Without the test of the exits (FlambdaLiftObservedSpec.v), the two
+   runs are not started from what may follow a unit: such a term may
+   read a variable that has no value, and the step lemma here asks
+   that the second run reads none. The two units are run on their own
+   to their exits, which are from two states related
+   ([stuttering_reaches]), and what may follow is then the same term in
+   the two runs, on values lifted and under static environments with
+   the same code: the simulation of FlambdaLiftProofs.v with nothing
+   lifted ([observer_applied_lifted]), in which no group is put. That
+   gives the statement about the two exits ([unit_around_worlds]), and
+   FlambdaObserversSpec.under_observers_worlds_statement gives from it
+   the one about the runs from what may follow a unit
+   ([unit_around_observed]); the code of the unit is closed because
+   that of the unit rewritten is ([lift_around_code_closed]). *)
 
 From Stdlib Require Import ZArith List Bool Arith Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
@@ -59,9 +74,11 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSimulationProofs FlambdaNominalSpec FlambdaNominalProofs
   FlambdaScopeSpec FlambdaWellFormedSpec FlambdaWellFormedProofs
   FlambdaClosuresSpec FlambdaClosuresProofs FlambdaStaticProofs
-  FlambdaUnusedStaticsSpec FlambdaImportsSpec FlambdaUnitFromProofs
-  FlambdaLiftSpec FlambdaLiftProofs FlambdaLiftFromCodeSpec
-  FlambdaLiftFromCodeProofs FlambdaLiftAroundSpec.
+  FlambdaUnusedStaticsSpec FlambdaImportsSpec FlambdaExitWorldSpec
+  FlambdaExitWorldProofs FlambdaRunUnderSpec FlambdaObserversSpec
+  FlambdaObserversProofs FlambdaUnitFromProofs FlambdaLiftSpec
+  FlambdaLiftProofs FlambdaLiftFromCodeSpec FlambdaLiftFromCodeProofs
+  FlambdaLiftAroundSpec.
 From OxCamlFlambda2 Require Import FlambdaAlphaProofs.
 Import ListNotations.
 
@@ -1315,6 +1332,118 @@ Qed.
 (* The run of the unit rewritten                                            *)
 (* ======================================================================== *)
 
+(* With no code named and no [Let] lifted out of code, the static
+   environments of the two runs are those of FlambdaLiftProofs.v with
+   no code named: the same code, and the symbols lifted. *)
+Lemma statics_lifted_out_nothing (statics statics' : static_env) :
+  statics_lifted_out [] statics statics' -> statics_lifted [] statics statics'.
+Proof.
+  intros (Hcode & Hsymbols & _). split; [ | exact Hsymbols ].
+  intros id. rewrite (Hcode id).
+  destruct (lookup id (static_code statics)) as [c | ]; simpl;
+    [ | reflexivity ].
+  rewrite code_lifted_out_nothing, bind_my_closure_nothing. reflexivity.
+Qed.
+
+(* A group that may be put binds no code, and the rewrite leaves the
+   code of the unit as it is: so the code of the unit rewritten is
+   closed exactly when that of the unit is. *)
+Lemma putable_group_code_closed (bindings : list static_binding) :
+  putable_group bindings = true ->
+  forallb binding_code_closed bindings = true.
+Proof.
+  unfold putable_group.
+  induction bindings as [ | [id c | id | sym const] bindings IH]; simpl;
+    try discriminate; [ intros _; reflexivity | ].
+  intros H. apply andb_true_iff in H as [_ Hrest]. exact (IH Hrest).
+Qed.
+
+Fixpoint lift_around_code_closed (lets : list (path * lift_to))
+    (groups : list (path * list static_binding)) (known : known_constants)
+    (at_path : path) (e : expr) {struct e} :
+  around_ok lets groups known at_path e = true ->
+  code_closed (lift_around lets groups at_path e) = code_closed e
+with lift_around_handler_code_closed (lets : list (path * lift_to))
+    (groups : list (path * list static_binding)) (known : known_constants)
+    (at_path : path) (h : continuation_handler) {struct h} :
+  handler_around_ok lets groups known at_path h = true ->
+  handler_code_closed (lift_around_handler lets groups at_path h)
+  = handler_code_closed h.
+Proof.
+  - destruct e
+      as [ x xkind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      try (intros _; reflexivity).
+    + simpl. intros H. apply andb_true_iff in H as [_ Hbody].
+      destruct (alias_of lets at_path d) as [[bs s] | ]; simpl;
+        exact (lift_around_code_closed lets groups _ _ body Hbody).
+    + simpl. intros H.
+      rewrite (lift_around_code_closed lets groups _ _ body H). reflexivity.
+    + simpl. intros H.
+      apply andb_true_iff in H as [H Hbody].
+      apply andb_true_iff in H as [H Hh].
+      apply andb_true_iff in H as [Hput _].
+      assert (Hrest :
+        code_closed
+          (Let_cont_non_recursive k
+             (lift_around_handler lets groups (xI at_path) h)
+             (lift_around lets groups (xO at_path) body))
+        = handler_code_closed h && code_closed body).
+      { simpl.
+        rewrite (lift_around_handler_code_closed lets groups _ _ h Hh),
+          (lift_around_code_closed lets groups _ _ body Hbody).
+        reflexivity. }
+      revert Hput.
+      destruct (group_at groups at_path) as [ | binding bindings];
+        intros Hput; [ exact Hrest | ].
+      change
+        (forallb binding_code_closed (binding :: bindings)
+         && code_closed
+              (Let_cont_non_recursive k
+                 (lift_around_handler lets groups (xI at_path) h)
+                 (lift_around lets groups (xO at_path) body))
+         = handler_code_closed h && code_closed body).
+      rewrite (putable_group_code_closed _ Hput). exact Hrest.
+    + simpl. intros H.
+      apply andb_true_iff in H as [H Hbody].
+      apply andb_true_iff in H as [H Hhandlers].
+      apply andb_true_iff in H as [H _].
+      apply andb_true_iff in H as [Hput _].
+      assert (Hrest :
+        code_closed
+          (Let_cont_recursive
+             (rec_handlers_map (lift_around_handler lets groups) (xI at_path)
+                handlers)
+             (lift_around lets groups (xO at_path) body))
+        = forallb (fun '(_, h) => handler_code_closed h) handlers
+          && code_closed body).
+      { simpl.
+        rewrite (lift_around_code_closed lets groups _ _ body Hbody).
+        f_equal. revert Hhandlers. generalize (xI at_path).
+        induction handlers as [ | [k1 h1] handlers IH]; intros q Hhandlers;
+          [ reflexivity | ].
+        cbn [rec_handlers_map rec_handlers_forall forallb] in Hhandlers |- *.
+        apply andb_true_iff in Hhandlers as [Hh Hrest].
+        rewrite (lift_around_handler_code_closed lets groups _ _ h1 Hh),
+          (IH _ Hrest).
+        reflexivity. }
+      revert Hput.
+      destruct (group_at groups at_path) as [ | binding bindings];
+        intros Hput; [ exact Hrest | ].
+      change
+        (forallb binding_code_closed (binding :: bindings)
+         && code_closed
+              (Let_cont_recursive
+                 (rec_handlers_map (lift_around_handler lets groups)
+                    (xI at_path) handlers)
+                 (lift_around lets groups (xO at_path) body))
+         = forallb (fun '(_, h) => handler_code_closed h) handlers
+           && code_closed body).
+      rewrite (putable_group_code_closed _ Hput). exact Hrest.
+  - destruct h as [params metadata handler]. simpl. intros H.
+    exact (lift_around_code_closed lets groups _ _ handler H).
+Qed.
+
 Section Unit.
 
 Variable u : unit_interface.
@@ -1340,18 +1469,14 @@ Definition reached_around (s' : state) : Prop :=
     run n (State (lift_around lets groups root e) [] [] statics0 hp0)
     = Step s'.
 
-(* The states are related, the second is reached, and the first is one
-   of a unit that exits with symbols and constants only. *)
+(* The states are related and the second is reached. *)
 Definition unit_around (s s' : state) : Prop :=
-  state_around s s' ∧ reached_around s' ∧ plain_state s.
+  state_around s s' ∧ reached_around s'.
 
-(* The values at an exit are lifted, and are constants and symbols: they
-   are the same. *)
 Lemma unit_around_step (s s' : state) :
-  unit_around s s' ->
-  answered unit_around (fun _ vs vs' => vs' = vs) (step s) s'.
+  unit_around s s' -> answered unit_around exit_around (step s) s'.
 Proof.
-  intros (Hrelated & [n Hn] & Hplain).
+  intros (Hrelated & [n Hn]).
   pose proof (well_formed_names_bound_from u _ statics0 hp0 n Hwf Hno_code)
     as Hbound.
   rewrite Hn in Hbound.
@@ -1359,32 +1484,150 @@ Proof.
     (well_formed_never_faults_from u _ statics0 hp0 n s' Hwf Hno_code Hfree
        Hn)
     Hbound) as Hanswer.
-  pose proof (plain_step s Hplain) as Hstep.
-  destruct (step s) as [t | k vs | ]; unfold answered in *; [ | | exact I ].
-  - destruct Hanswer as (m & t' & Hrun & Ht).
-    exists m, t'. split; [ exact Hrun | ].
-    split; [ exact Ht | ]. split; [ | exact Hstep ].
-    exists (n + S m). rewrite run_add, Hn. exact Hrun.
-  - destruct Hanswer as (vs' & Hexit & Hvs).
-    exists vs'. split; [ exact Hexit | ].
-    exact (plain_values_lifted _ vs vs' Hstep Hvs).
+  destruct (step s) as [t | k vs | ]; unfold answered in *;
+    [ | exact Hanswer | exact I ].
+  destruct Hanswer as (m & t' & Hrun & Ht).
+  exists m, t'. split; [ exact Hrun | ].
+  split; [ exact Ht | ].
+  exists (n + S m). rewrite run_add, Hn. exact Hrun.
 Qed.
 
 Lemma unit_around_initial :
-  exits_plain [] e = true ->
   unit_around (State e [] [] statics0 hp0)
     (State (lift_around lets groups root e) [] [] statics0 hp0).
 Proof.
-  intros Hplain.
-  split;
-    [ | split;
-        [ exists 0; reflexivity
-        | exact (plain_from e statics0 hp0 Hplain Hno_code) ] ].
+  split; [ | exists 0; reflexivity ].
   apply (State_around lets groups []);
     [ intros x v [=] | constructor | | apply known_valid_nil | exact Hok ].
   split; [ intros id; rewrite Hno_code; reflexivity | ].
   split; [ apply symbols_lifted_refl | ].
   intros id c Hlookup. rewrite Hno_code in Hlookup. discriminate Hlookup.
+Qed.
+
+(* An exit of the unit is answered by an exit of the unit rewritten
+   that nothing that may follow a unit tells apart from it; and the
+   unit rewritten ends only if the unit exits or goes wrong. After the
+   two exits, what follows is the same term in the two runs, run on
+   values lifted under static environments with the same code: the
+   simulation of FlambdaLiftProofs.v with no [Let] lifted and no code
+   named. No group is put there, so nothing is asked there of the
+   variables that are read. *)
+Lemma unit_around_worlds :
+  refines_world (worlds_observed [])
+    (State e [] [] statics0 hp0)
+    (State (lift_around lets groups root e) [] [] statics0 hp0).
+Proof.
+  split.
+  - intros w (n & last & Hrun & Hstep & Hstatics).
+    destruct
+      (stuttering_reaches unit_around exit_around unit_around_step n _ _ last
+         unit_around_initial Hrun)
+      as (m & last' & Hm & Hrelated & Hreached).
+    pose proof (unit_around_step last last' (conj Hrelated Hreached))
+      as Hanswer.
+    rewrite Hstep in Hanswer. destruct Hanswer as (vs' & Hstep' & Hvs).
+    exists (Exit_world (exit_cont w) vs' (state_statics last') (exit_heap w)).
+    split; [ exists m, last'; auto | ].
+    split; [ reflexivity | ].
+    intros c Hobserver. simpl. rewrite <- Hstatics.
+    apply
+      (observer_applied_lifted [] c (exit_values w) vs' (state_statics last)
+         (state_statics last') (exit_heap w) Hobserver Hvs).
+    + apply statics_lifted_out_nothing.
+      destruct Hrelated; simpl; assumption.
+    + intros s' Happly j t' Hj.
+      destruct
+        (observer_applied_step [] c vs' (state_statics last') (exit_heap w)
+           s' Hobserver Happly)
+        as (body & vars & Hno & ->).
+      exact (never_faults_after u _ statics0 hp0 m last' body vars
+               (exit_heap w) j t' Hwf Hno_code Hfree Hm Hno Hj).
+  - intros b Hterm Hb.
+    destruct (behaves_ended _ b Hterm Hb) as [j Hended].
+    destruct
+      (stuttering_ends unit_around exit_around unit_around_step j _ _ b
+         unit_around_initial Hended)
+      as [n [Hwrong | (k & vs & hp & Hexit)]].
+    + left. exists n. exact Hwrong.
+    + right.
+      destruct
+        (proj1 (exits_world_behaves (State e [] [] statics0 hp0) k vs hp)
+           (ex_intro _ n Hexit))
+        as [statics Hw].
+      exists (Exit_world k vs statics hp). exact Hw.
+Qed.
+
+End Unit.
+
+(* The unit rewritten, run from what may follow a unit, comes to what
+   the unit comes to, up to what an exit is compared by: the form of
+   FlambdaObserversSpec.v that a pass states, from the one about the
+   two exits. *)
+Lemma unit_around_observed (u : unit_interface) (lets : list (path * lift_to))
+    (groups : list (path * list static_binding)) (e : expr)
+    (statics0 : static_env) (hp0 : heap) (conts : cont_env) :
+  well_formed_unit u (lift_around lets groups root e) = true ->
+  around_ok lets groups [] root e = true ->
+  static_code statics0 = [] ->
+  static_names_free_in statics0 (lift_around lets groups root e) = true ->
+  observers [] conts ->
+  observed_refines (Step (State e [] conts statics0 hp0))
+    (Step (State (lift_around lets groups root e) [] conts statics0 hp0)).
+Proof.
+  intros Hwf Hok Hno_code Hfree Hobservers.
+  pose proof (well_formed_unit_code_closed u _ Hwf) as Hclosed'.
+  assert (Hclosed : code_closed e = true).
+  { rewrite <- (lift_around_code_closed lets groups [] root e Hok).
+    exact Hclosed'. }
+  assert (Hstatics : static_code_closed statics0).
+  { unfold static_code_closed. rewrite Hno_code. constructor. }
+  exact (proj2
+           (under_observers_worlds [] statics0 hp0 e _ Hclosed Hclosed'
+              Hstatics)
+           (unit_around_worlds u lets groups e statics0 hp0 Hwf Hok Hno_code
+              Hfree)
+           conts Hobservers).
+Qed.
+
+(* With the test of the exits. *)
+Section Unit_refines.
+
+Variable u : unit_interface.
+Variable lets : list (path * lift_to).
+Variable groups : list (path * list static_binding).
+Variable e : expr.
+Variable statics0 : static_env.
+Variable hp0 : heap.
+
+Hypothesis Hwf : well_formed_unit u (lift_around lets groups root e) = true.
+Hypothesis Hok : around_ok lets groups [] root e = true.
+Hypothesis Hno_code : static_code statics0 = [].
+Hypothesis Hfree :
+  static_names_free_in statics0 (lift_around lets groups root e) = true.
+
+(* The states are related, the second is reached, and the first is one
+   of a unit that exits with symbols and constants only. *)
+Definition unit_around_plain (s s' : state) : Prop :=
+  unit_around lets groups e statics0 hp0 s s' ∧ plain_state s.
+
+(* The values at an exit are lifted, and are constants and symbols: they
+   are the same. *)
+Lemma unit_around_plain_step (s s' : state) :
+  unit_around_plain s s' ->
+  answered unit_around_plain (fun _ vs vs' => vs' = vs) (step s) s'.
+Proof.
+  intros [Hrelated Hplain].
+  pose proof
+    (unit_around_step u lets groups e statics0 hp0 Hwf Hno_code Hfree s s'
+       Hrelated)
+    as Hanswer.
+  pose proof (plain_step s Hplain) as Hstep.
+  destruct (step s) as [t | k vs | ]; unfold answered in *; [ | | exact I ].
+  - destruct Hanswer as (m & t' & Hrun & Ht).
+    exists m, t'. split; [ exact Hrun | split; assumption ].
+  - destruct Hanswer as (vs' & Hexit & Hvs).
+    exists vs'. split; [ exact Hexit | ].
+    exact (plain_values_lifted _ vs vs' Hstep Hvs).
 Qed.
 
 (* The unit rewritten refines the unit, the two run from that static
@@ -1396,13 +1639,15 @@ Lemma unit_around_refines :
 Proof.
   intros Hplain.
   apply
-    (stuttering_refines unit_around (fun _ vs vs' => vs' = vs)
-       unit_around_step).
+    (stuttering_refines unit_around_plain (fun _ vs vs' => vs' = vs)
+       unit_around_plain_step).
   - intros last vs vs' Hsame. exact Hsame.
-  - exact (unit_around_initial Hplain).
+  - split;
+      [ exact (unit_around_initial lets groups e statics0 hp0 Hok Hno_code)
+      | exact (plain_from e statics0 hp0 Hplain Hno_code) ].
 Qed.
 
-End Unit.
+End Unit_refines.
 
 Theorem lift_around_unit_program_refines :
   lift_around_unit_program_refines_statement.
