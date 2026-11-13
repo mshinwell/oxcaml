@@ -757,6 +757,24 @@ used in a guess with the number assigned by the conversion above. That
 identification of names is trusted, as said there; a guess adds nothing
 to it.
 
+**The mark of a stub** (`FlambdaModel.cm_is_stub`) is not trusted for
+soundness either. The converter gives code the compiler's flag
+(`Code.stub`), but no theorem assumes that this flag is right. The
+machine and the checks of well-formedness do not read it. The
+comparison reads it and is stricter for a fixed pair of terms. Two
+rewrites of the validation read it:
+`FlambdaKnownSlotsSpec.read_known_slots`, through `read_slots` under
+its checks, and `FlambdaStubCallsSpec.demote_stub_calls`. Their
+refinement statements hold whatever the flag says: the first for a
+unit run on its own, the second under all environments. A wrong flag
+can change which pairs are validated, but does not make an accepted
+pair unsound in the model. The absence of lost verdicts measured at
+the default flags on the sets named in
+`middle_end/flambda2/rocq/status/C3.md` is a measurement of the
+series, not a theorem that every formerly accepted pair is still
+accepted. That status also records losses with
+`-flambda2-simplify-stubs`.
+
 ## The SSA loop passes
 
 The libraries `OxCamlStdlib` (`rocq/`), `OxCamlBackend` (`backend/rocq/`),
