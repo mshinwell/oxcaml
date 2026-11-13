@@ -69,6 +69,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaRecoverComparisonSpec FlambdaRecoverComparisonProofs
   FlambdaSameComparisonSpec FlambdaSameComparisonProofs
   FlambdaShareProjectionsSpec FlambdaShareProjectionsProofs
+  FlambdaArrayLoadSpec FlambdaArrayLoadProofs
   FlambdaIdentitiesSpec FlambdaIdentitiesProofs
   FlambdaMergeSwitchesSpec FlambdaMergeSwitchesProofs
   FlambdaMergeTablesSpec FlambdaMergeTablesProofs FlambdaStaticsOrderSpec
@@ -5296,6 +5297,7 @@ Ltac rename_outwards :=
       | rewrite inline_tail_conts_equivariant_aux
       | rewrite thread_switches_equivariant_aux
       | rewrite load_known_blocks_equivariant
+      | rewrite load_known_arrays_equivariant
       | rewrite unbox_known_numbers_equivariant
       | rewrite recover_known_comparisons_equivariant
       | rewrite fold_same_comparisons_equivariant

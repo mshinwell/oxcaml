@@ -335,6 +335,7 @@ From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaCompareSpec FlambdaNormaliseSpec FlambdaBlockLoadSpec
+  FlambdaArrayLoadSpec
   FlambdaCodeLetsSpec FlambdaCseSpec FlambdaDeadParamsSpec FlambdaForwardSpec
   FlambdaForwardKindedSpec
   FlambdaIdentitiesSpec FlambdaMergeSwitchesSpec FlambdaMergeTablesSpec
@@ -424,7 +425,12 @@ Fixpoint iterate (rounds : nat) (f : expr -> expr) (e : expr) : expr :=
    same thing go to one continuation. Then what follows the values,
    into the
    handlers of the recursive continuations too for what is known where
-   they are defined ([follow_aliases_in_loops]): among them a
+   they are defined ([follow_aliases_in_loops]): among them the length
+   of an immutable array that the term makes or binds to a symbol,
+   and a load from one at a constant index within its bounds, become
+   the number of its elements and the element
+   (FlambdaArrayLoadSpec.load_known_arrays; it comes with the load of
+   a field of a known block, before the values are followed); a
    [Phys_equal] of a simple against itself becomes its answer, as
    Simplify makes it
    (FlambdaSameComparisonSpec.fold_same_comparisons; it comes before
@@ -464,7 +470,8 @@ Definition normalise_expr_before (e : expr) : expr :=
                (share_known_primitives
                   (recover_known_comparisons
                      (fold_same_comparisons
-                        (unbox_known_numbers (load_known_blocks e))))))))
+                        (unbox_known_numbers
+                           (load_known_arrays (load_known_blocks e)))))))))
   in
   wrap_returns
     (drop_unused_params
@@ -608,7 +615,8 @@ Definition normalise_expr_params_knowing (known : facts) (e : expr)
             (unbox_variants_knowing known
                (follow_aliases_in_loops []
                   (follow_aliases []
-                     (unbox_known_numbers (load_known_blocks e)))))))
+                     (unbox_known_numbers
+                        (load_known_arrays (load_known_blocks e))))))))
   in
   drop_dead_params
     (bind_aliased_params

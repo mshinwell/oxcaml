@@ -35,6 +35,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaSemanticsProofs FlambdaCompareSpec FlambdaCompareProofs
   FlambdaNormaliseSpec FlambdaNormaliseProofs FlambdaBlockLoadSpec
   FlambdaBlockLoadProofs FlambdaCodeLetsSpec FlambdaCodeLetsProofs
+  FlambdaArrayLoadSpec FlambdaArrayLoadProofs
   FlambdaCseSpec FlambdaCseProofs
   FlambdaCseEquivalentSpec FlambdaCseEquivalentProofs
   FlambdaDeadParamsSpec FlambdaDeadParamsProofs
@@ -140,6 +141,7 @@ Ltac refinement_step :=
     | apply inline_tail_conts_refines
     | apply remove_unused_lets_refines
     | apply load_known_blocks_refines
+    | apply load_known_arrays_refines
     | apply unbox_known_numbers_refines
     | apply drop_unused_params_refines
     | apply wrap_returns_refines
