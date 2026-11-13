@@ -30,7 +30,8 @@
 # definition of any other file reaches is what it reached before the
 # two files were read; what they add is their own definitions, with
 # what each reaches. The search tests both conditions on the commit that
-# it reads and says so first where one fails.
+# it reads and says so first where one fails; its exit status is then 1,
+# and what it prints after that is not to be relied on.
 import re, subprocess, sys, collections
 reach = len(sys.argv) > 1 and sys.argv[1] == '--reach'
 args = sys.argv[2:] if reach else sys.argv[1:]
@@ -118,6 +119,7 @@ def leaves_condition(rev, new):
     for n in notes:
         print('!! the items of %s are searched for their own names only, and %s'
               % (' and '.join(LEAVES), n))
+    return 1 if notes else 0
 def is_stmt(key):
     return key[1].endswith('_statement')
 word = re.compile(r"[A-Za-z_][A-Za-z0-9_']*")
@@ -156,7 +158,7 @@ def reached(users, starts):
 if reach:
     rev, name = args[0], args[1]
     new = items(rev)
-    leaves_condition(rev, new)
+    status = leaves_condition(rev, new)
     defined_names, users = index(new)
     starts = defined_names[name]
     if not starts:
@@ -175,10 +177,10 @@ if reach:
         by_file = collections.Counter(k[0] for k in indirect)
         for f, n in sorted(by_file.items(), key=lambda x: (-x[1], x[0])):
             print('  %4d  %s' % (n, f))
-    sys.exit(0)
+    sys.exit(status)
 base, tip = args[0], args[1]
 old, new = items(base), items(tip)
-leaves_condition(tip, new)
+status = leaves_condition(tip, new)
 changed = sorted(k for k in new if not is_stmt(k) and k in old and old[k] != new[k])
 added = sorted(k for k in new if not is_stmt(k) and k not in old)
 removed = sorted(k for k in old if not is_stmt(k) and k not in new)
@@ -208,3 +210,4 @@ for d in changed:
     else:
         print('   directly in %d: %s' % (len(direct), names(direct[:MAX]) + (' ...' if len(direct) > MAX else '')))
         print('   through other definitions in %d statements (more than %d in all: not listed)' % (len(indirect), MAX))
+sys.exit(status)
