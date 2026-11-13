@@ -445,30 +445,43 @@ Proof.
   induction rounds as [ | rounds IH]; intros e;
     cbn [known_free_in iterate];
     [ intros _; apply refines_refl | ].
-  cbv zeta. unfold normalise_lifted_round at 2.
+  cbv zeta.
   set (given :=
     use_known_closures (normalise_before_round_avoiding avoid kept e)).
   intros Hfree.
-  apply (refines_trans _
-    (State given [] [] (imports_statics imports) empty_heap)).
-  { apply (refines_trans _ _ _
-      (normalise_before_round_avoiding_refines avoid kept e [] []
-         (imports_statics imports) empty_heap)).
-    exact (use_known_closures_refines _ [] [] (imports_statics imports)
-             empty_heap). }
-  unfold with_known.
-  destruct (fold_known_unit given) as [folded | ] eqn:Hfold.
-  - apply andb_true_iff in Hfree as [Hgiven Hfree].
-    apply (refines_trans _ _ _
-      (fold_known_unit_refines_imports imports given folded Hfold Hgiven)).
-    apply (refines_trans _ _ _
-      (FlambdaKnownSlotsProofs.read_known_slots_refines_imports imports
-         folded)).
-    exact (IH _ Hfree).
-  - apply (refines_trans _ _ _
-      (FlambdaKnownSlotsProofs.read_known_slots_refines_imports imports
-         given)).
-    exact (IH _ Hfree).
+  (* One round, and what the test says of the rounds after it. The test
+     goes on through every round, where [iterate] may stop: where it
+     stops, the round made is the first, and what the test says of the
+     others is not used. *)
+  assert (Hround :
+    unit_refines imports e (normalise_lifted_round avoid kept e)
+    ∧ known_free_in (imports_statics imports) rounds avoid kept
+        (normalise_lifted_round avoid kept e) = true).
+  { assert (Hgiven_refines :
+      refines (State e [] [] (imports_statics imports) empty_heap)
+        (State given [] [] (imports_statics imports) empty_heap)).
+    { apply (refines_trans _ _ _
+        (normalise_before_round_avoiding_refines avoid kept e [] []
+           (imports_statics imports) empty_heap)).
+      exact (use_known_closures_refines _ [] [] (imports_statics imports)
+               empty_heap). }
+    unfold normalise_lifted_round. fold given. unfold with_known.
+    destruct (fold_known_unit given) as [folded | ] eqn:Hfold.
+    - apply andb_true_iff in Hfree as [Hgiven Hfree].
+      split; [ | exact Hfree ].
+      apply (refines_trans _ _ _ Hgiven_refines).
+      apply (refines_trans _ _ _
+        (fold_known_unit_refines_imports imports given folded Hfold Hgiven)).
+      exact (FlambdaKnownSlotsProofs.read_known_slots_refines_imports imports
+               folded).
+    - split; [ | exact Hfree ].
+      apply (refines_trans _ _ _ Hgiven_refines).
+      exact (FlambdaKnownSlotsProofs.read_known_slots_refines_imports imports
+               given). }
+  destruct Hround as [Hround Hrest].
+  destruct (expr_eqb [] [] e (normalise_lifted_round avoid kept e));
+    [ exact Hround | ].
+  exact (refines_trans _ _ _ Hround (IH _ Hrest)).
 Qed.
 
 Lemma lifted_in_turn_unit_refines (imports : list (symbol * import_class))

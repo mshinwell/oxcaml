@@ -5016,11 +5016,32 @@ Qed.
 (* The normalisations of FlambdaValidateSpec.v                              *)
 (* ======================================================================== *)
 
+(* The comparison answers the same when both terms are renamed
+   (FlambdaCompareAlphaProofs.expr_eqb_equivariant), here with no names
+   paired. *)
+Lemma expr_eqb_renamed (r : renaming) (e e' : expr) :
+  expr_eqb [] [] (rename_expr r e) (rename_expr r e') = expr_eqb [] [] e e'.
+Proof. exact (expr_eqb_equivariant r [] [] e e'). Qed.
+
+(* The comparison answers the same of two terms in either order. *)
+Lemma expr_eqb_swap (e e' : expr) :
+  expr_eqb [] [] e e' = expr_eqb [] [] e' e.
+Proof.
+  destruct (expr_eqb [] [] e e') eqn:He.
+  - symmetry. exact (expr_eqb_symmetric _ _ He).
+  - destruct (expr_eqb [] [] e' e) eqn:He'; [ | reflexivity ].
+    rewrite (expr_eqb_symmetric _ _ He') in He. discriminate.
+Qed.
+
+(* The comparison after which [iterate] stops answers the same of the
+   term renamed, so the same number of applications is made. *)
 Theorem iterate_equivariant : iterate_equivariant_statement.
 Proof.
   intros rounds f f_equivariant.
-  induction rounds as [ | rounds IH]; intros r e; simpl; [ reflexivity | ].
-  rewrite f_equivariant. apply IH.
+  induction rounds as [ | rounds IH]; intros r e; cbn [iterate];
+    [ reflexivity | ].
+  cbv zeta. rewrite f_equivariant, expr_eqb_renamed.
+  destruct (expr_eqb [] [] e (f e)); [ reflexivity | apply IH ].
 Qed.
 
 (* The rewrites as the validation applies them: with nothing in scope and
@@ -5627,13 +5648,6 @@ Qed.
 (* ======================================================================== *)
 (* The check                                                                *)
 (* ======================================================================== *)
-
-(* The comparison answers the same when both terms are renamed
-   (FlambdaCompareAlphaProofs.expr_eqb_equivariant), here with no names
-   paired. *)
-Lemma expr_eqb_renamed (r : renaming) (e e' : expr) :
-  expr_eqb [] [] (rename_expr r e) (rename_expr r e') = expr_eqb [] [] e e'.
-Proof. exact (expr_eqb_equivariant r [] [] e e'). Qed.
 
 (* The lifting: its rewrites and its checks commute with renaming by
    the statements of their own files. *)
@@ -6518,29 +6532,13 @@ Theorem keeps_scope_iterate : keeps_scope_iterate_statement.
 Proof.
   intros rounds f Kf. induction rounds as [ | rounds IH]; intros e Hclosed.
   - split; [ exact Hclosed | ]. split; intros; assumption.
-  - cbn [iterate].
+  - cbn [iterate]. cbv zeta.
+    destruct (expr_eqb [] [] e (f e)); [ exact (Kf e Hclosed) | ].
     destruct (Kf e Hclosed) as (Hclosed_f & Hvars_f & Hconts_f).
     destruct (IH (f e) Hclosed_f) as (Hclosed' & Hvars' & Hconts').
     split; [ exact Hclosed' | ]. split.
     + intros x Hx. apply Hvars_f, Hvars', Hx.
     + intros k Hk. apply Hconts_f, Hconts', Hk.
-Qed.
-
-Theorem equivariant_up_to_iterate : equivariant_up_to_iterate_statement.
-Proof.
-  intros rounds f Kf Hf.
-  induction rounds as [ | rounds IH]; intros r e Hclosed.
-  - exists r. split; [ split; intros; reflexivity | reflexivity ].
-  - cbn [iterate].
-    destruct (Hf r e Hclosed) as (r1 & [Hvars1 Hconts1] & Heq1).
-    destruct (Kf e Hclosed) as (Hclosed_f & _ & _).
-    destruct (IH r1 (f e) Hclosed_f) as (r2 & [Hvars2 Hconts2] & Heq2).
-    destruct (keeps_scope_iterate rounds f Kf (f e) Hclosed_f)
-      as (_ & Hvars' & Hconts').
-    exists r2. split; [ split | ].
-    + intros x Hx. rewrite (Hvars2 x Hx). apply Hvars1, Hvars', Hx.
-    + intros k Hk. rewrite (Hconts2 k Hk). apply Hconts1, Hconts', Hk.
-    + rewrite Heq1. exact Heq2.
 Qed.
 
 (* Two renamings of a term with closed code that rename its free names
@@ -6587,6 +6585,43 @@ Proof.
   split; [ exact Hclosed_f | ]. split.
   - intros x Hx. apply Hvars, Hvars_f, Hx.
   - intros k Hk. apply Hconts, Hconts_f, Hk.
+Qed.
+
+(* Where a rewrite commutes with renaming up to the names it makes, the
+   comparison of a term with what the rewrite makes of it answers the
+   same of the term renamed: the renaming of the term and the one that
+   the rewrite's result is under rename alike the free names of that
+   result. *)
+Lemma same_after_renamed (r r1 : renaming) (e e' : expr) :
+  code_closed e' = true ->
+  renames_alike r r1 e' ->
+  expr_eqb [] [] (rename_expr r e) (rename_expr r1 e') = expr_eqb [] [] e e'.
+Proof.
+  intros Hclosed Halike.
+  rewrite (expr_eqb_swap (rename_expr r e)),
+    (expr_eqb_renamed_alike r r1 e' e Hclosed Halike).
+  apply expr_eqb_swap.
+Qed.
+
+Theorem equivariant_up_to_iterate : equivariant_up_to_iterate_statement.
+Proof.
+  intros rounds f Kf Hf.
+  induction rounds as [ | rounds IH]; intros r e Hclosed.
+  - exists r. split; [ split; intros; reflexivity | reflexivity ].
+  - cbn [iterate]. cbv zeta.
+    destruct (Hf r e Hclosed) as (r1 & Halike1 & Heq1).
+    destruct (Kf e Hclosed) as (Hclosed_f & _ & _).
+    rewrite Heq1, (same_after_renamed r r1 e (f e) Hclosed_f Halike1).
+    destruct (expr_eqb [] [] e (f e));
+      [ exists r1; split; [ exact Halike1 | reflexivity ] | ].
+    destruct Halike1 as [Hvars1 Hconts1].
+    destruct (IH r1 (f e) Hclosed_f) as (r2 & [Hvars2 Hconts2] & Heq2).
+    destruct (keeps_scope_iterate rounds f Kf (f e) Hclosed_f)
+      as (_ & Hvars' & Hconts').
+    exists r2. split; [ split | ].
+    + intros x Hx. rewrite (Hvars2 x Hx). apply Hvars1, Hvars', Hx.
+    + intros k Hk. rewrite (Hconts2 k Hk). apply Hconts1, Hconts', Hk.
+    + exact Heq2.
 Qed.
 
 (* The second of three renamings does to the free names of a term what
@@ -6653,9 +6688,14 @@ Proof.
   induction rounds as [ | rounds IH]; intros r avoid e Hclosed.
   - exists r. split; [ split; intros; reflexivity | ].
     split; [ intros k _; reflexivity | reflexivity ].
-  - cbn [iterate].
+  - cbn [iterate]. cbv zeta.
     destruct (Hf r avoid e Hclosed) as (r1 & Halike1 & Havoid1 & Heq1).
     destruct (Kf avoid e Hclosed) as (Hclosed_f & _ & _).
+    rewrite Heq1,
+      (same_after_renamed r r1 e (f avoid e) Hclosed_f Halike1).
+    destruct (expr_eqb [] [] e (f avoid e)).
+    { exists r1. split; [ exact Halike1 | ].
+      split; [ exact Havoid1 | reflexivity ]. }
     destruct (IH r1 avoid (f avoid e) Hclosed_f)
       as (r2 & Halike2 & Havoid2 & Heq2).
     rewrite (map_rename_conts_alike r r1 avoid Havoid1) in Heq2.
@@ -6665,7 +6705,7 @@ Proof.
            (keeps_scope_iterate rounds (f avoid) (Kf avoid)) Hclosed_f
            Halike1 Halike2).
     + intros k Hk. rewrite (Havoid2 k Hk). apply Havoid1, Hk.
-    + rewrite Heq1. exact Heq2.
+    + exact Heq2.
 Qed.
 
 Theorem equivariant_up_to_avoiding_nothing :
@@ -6674,16 +6714,6 @@ Proof.
   intros f Hf r e Hclosed.
   destruct (Hf r [] e Hclosed) as (r' & Halike & _ & Heq).
   exists r'. split; [ exact Halike | exact Heq ].
-Qed.
-
-(* The comparison answers the same of two terms in either order. *)
-Lemma expr_eqb_swap (e e' : expr) :
-  expr_eqb [] [] e e' = expr_eqb [] [] e' e.
-Proof.
-  destruct (expr_eqb [] [] e e') eqn:He.
-  - symmetry. exact (expr_eqb_symmetric _ _ He).
-  - destruct (expr_eqb [] [] e' e) eqn:He'; [ | reflexivity ].
-    rewrite (expr_eqb_symmetric _ _ He') in He. discriminate.
 Qed.
 
 Theorem keeps_scope_unless_same : keeps_scope_unless_same_statement.

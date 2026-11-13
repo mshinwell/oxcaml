@@ -59,9 +59,14 @@ Qed.
 Lemma rounds_with_unboxing_refine (rounds : nat) :
   ∀ e : expr, expr_refines e (iterate rounds round_with_unboxing e).
 Proof.
-  induction rounds as [ | rounds IH]; intros e; simpl.
+  induction rounds as [ | rounds IH]; intros e; cbn [iterate].
   - apply expr_refines_refl.
-  - exact (expr_refines_trans _ _ _ (round_with_unboxing_refines e)
+  - cbv zeta.
+    match goal with
+    | |- context [if ?same then _ else _] =>
+      destruct same; [ apply round_with_unboxing_refines | ]
+    end.
+    exact (expr_refines_trans _ _ _ (round_with_unboxing_refines e)
       (IH (round_with_unboxing e))).
 Qed.
 

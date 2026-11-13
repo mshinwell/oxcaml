@@ -63,7 +63,11 @@ open List
 (** val iterate : nat -> (expr -> expr) -> expr -> expr **)
 
 let rec iterate rounds f e =
-  match rounds with O -> e | S rounds0 -> iterate rounds0 f (f e)
+  match rounds with
+  | O -> e
+  | S rounds0 ->
+    let e' = f e in
+    if expr_eqb [] [] e e' then e' else iterate rounds0 f e'
 
 (** val normalise_expr_before : expr -> expr **)
 

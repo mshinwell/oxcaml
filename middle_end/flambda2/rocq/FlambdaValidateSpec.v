@@ -335,10 +335,23 @@ Import ListNotations.
 (* The normalisations                                                       *)
 (* ======================================================================== *)
 
+(* A rewrite applied [rounds] times at most. It stops after the first
+   application that gives back the term it was given, up to bound
+   names (FlambdaCompareSpec.expr_eqb), and the result is what that
+   application gave: so, where [rounds] is not zero, the rewrite has
+   been applied once at least, and the result has what the rewrite
+   does to bound names (a rewrite of the validation that makes names
+   gives every binder a name of its own, and later rewrites read
+   that). The rounds after that one are not made. No claim is made
+   that further applications would leave the term unchanged, even up
+   to bound names: what is stated of [iterate] holds of any number of
+   applications. *)
 Fixpoint iterate (rounds : nat) (f : expr -> expr) (e : expr) : expr :=
   match rounds with
   | O => e
-  | S rounds => iterate rounds f (f e)
+  | S rounds =>
+    let e' := f e in
+    if expr_eqb [] [] e e' then e' else iterate rounds f e'
   end.
 
 (* One round for an expression of the term before: the rewrites that

@@ -61,9 +61,14 @@ Qed.
 Lemma rounds_with_variants_refine (rounds : nat) :
   ∀ e : expr, expr_refines e (iterate rounds round_with_variants e).
 Proof.
-  induction rounds as [ | rounds IH]; intros e; simpl.
+  induction rounds as [ | rounds IH]; intros e; cbn [iterate].
   - apply expr_refines_refl.
-  - exact (expr_refines_trans _ _ _ (round_with_variants_refines e)
+  - cbv zeta.
+    match goal with
+    | |- context [if ?same then _ else _] =>
+      destruct same; [ apply round_with_variants_refines | ]
+    end.
+    exact (expr_refines_trans _ _ _ (round_with_variants_refines e)
       (IH (round_with_variants e))).
 Qed.
 
@@ -160,9 +165,14 @@ Proof. repeat split; vm_compute; reflexivity. Qed.
 Lemma first_phase_rounds_refine (rounds : nat) :
   ∀ e : expr, expr_refines e (iterate rounds normalise_expr_params e).
 Proof.
-  induction rounds as [ | rounds IH]; intros e; simpl.
+  induction rounds as [ | rounds IH]; intros e; cbn [iterate].
   - apply expr_refines_refl.
-  - exact (expr_refines_trans _ _ _ (normalise_expr_params_refines e)
+  - cbv zeta.
+    match goal with
+    | |- context [if ?same then _ else _] =>
+      destruct same; [ apply normalise_expr_params_refines | ]
+    end.
+    exact (expr_refines_trans _ _ _ (normalise_expr_params_refines e)
       (IH (normalise_expr_params e))).
 Qed.
 

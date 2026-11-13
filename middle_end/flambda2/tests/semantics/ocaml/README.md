@@ -1046,7 +1046,9 @@ The tool gives the validator fifty rounds. A round applies each
 normalisation once to the whole term, and the normalisations are at
 worst quadratic in the size of the term; the rounds are there because
 one rewrite makes room for another, and most units are done in three or
-four. A round inlines every direct call of known code but for the code
+four: a run of rounds stops after the first one that gives back the
+term it was given, up to bound names (`FlambdaValidateSpec.iterate`).
+A round inlines every direct call of known code but for the code
 that the tool names to the validator, a guess that is not trusted. The
 tool tries two lists in turn: the code that is recursive (that calls
 itself, at once or through other code, in either term) with the code

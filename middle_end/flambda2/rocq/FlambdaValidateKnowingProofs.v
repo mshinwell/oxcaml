@@ -75,22 +75,34 @@ Qed.
 Theorem normalise_knowing_refines : normalise_knowing_refines_statement.
 Proof.
   intros round rounds e Hround. revert e. unfold normalise_knowing.
-  induction rounds as [ | rounds IH]; intros e; simpl;
+  assert (Hone : ∀ e : expr, expr_refines e (knowing_round round e)).
+  { intros e. unfold knowing_round.
+    eapply expr_refines_trans; [ | apply Hround ].
+    apply expr_equivalent_refines.
+    apply follow_aliases_knowing_equivalent. }
+  induction rounds as [ | rounds IH]; intros e; cbn [iterate];
     [ apply expr_refines_refl | ].
-  refine (expr_refines_trans _ _ _ _ (IH _)). unfold knowing_round.
-  eapply expr_refines_trans; [ | apply Hround ].
-  apply expr_equivalent_refines.
-  apply follow_aliases_knowing_equivalent.
+  cbv zeta.
+  match goal with
+  | |- context [if ?same then _ else _] => destruct same; [ apply Hone | ]
+  end.
+  exact (expr_refines_trans _ _ _ (Hone e) (IH _)).
 Qed.
 
 Theorem normalise_knowing_equivalent : normalise_knowing_equivalent_statement.
 Proof.
   intros round rounds e Hround. revert e. unfold normalise_knowing.
-  induction rounds as [ | rounds IH]; intros e; simpl;
+  assert (Hone : ∀ e : expr, expr_equivalent e (knowing_round round e)).
+  { intros e. unfold knowing_round.
+    eapply expr_equivalent_trans; [ | apply Hround ].
+    apply follow_aliases_knowing_equivalent. }
+  induction rounds as [ | rounds IH]; intros e; cbn [iterate];
     [ apply expr_equivalent_refl | ].
-  refine (expr_equivalent_trans _ _ _ _ (IH _)). unfold knowing_round.
-  eapply expr_equivalent_trans; [ | apply Hround ].
-  apply follow_aliases_knowing_equivalent.
+  cbv zeta.
+  match goal with
+  | |- context [if ?same then _ else _] => destruct same; [ apply Hone | ]
+  end.
+  exact (expr_equivalent_trans _ _ _ (Hone e) (IH _)).
 Qed.
 
 Theorem validate_knowing_sound : validate_knowing_sound_statement.
@@ -172,10 +184,10 @@ Qed.
 Theorem normalise_knowing_equivariant
     : normalise_knowing_equivariant_statement.
 Proof.
-  intros round rounds Hround r. unfold normalise_knowing.
-  induction rounds as [ | rounds IH]; intros e; simpl; [ reflexivity | ].
-  rewrite <- IH. f_equal. unfold knowing_round.
-  rewrite (rename_follow_aliases_knowing r e).
+  intros round rounds Hround r e. unfold normalise_knowing.
+  apply (iterate_equivariant rounds (knowing_round round)).
+  intros r' e'. unfold knowing_round.
+  rewrite (rename_follow_aliases_knowing r' e').
   apply Hround.
 Qed.
 

@@ -264,8 +264,9 @@ Lemma iterate_refines (f : expr -> expr) :
   ∀ (rounds : nat) (e : expr), expr_refines e (iterate rounds f e).
 Proof.
   intros Hf rounds.
-  induction rounds as [ | rounds IH]; intros e; simpl;
+  induction rounds as [ | rounds IH]; intros e; cbn [iterate];
     [ apply expr_refines_refl | ].
+  cbv zeta. destruct (expr_eqb [] [] e (f e)); [ apply Hf | ].
   exact (expr_refines_trans _ _ _ (Hf e) (IH _)).
 Qed.
 
@@ -336,8 +337,11 @@ Lemma normalise_after_equivalent (rounds : nat) (kept : list code_id) :
   ∀ e : expr, expr_equivalent e (normalise_after rounds kept e).
 Proof.
   unfold normalise_after.
-  induction rounds as [ | rounds IH]; intros e; simpl;
+  induction rounds as [ | rounds IH]; intros e; cbn [iterate];
     [ apply expr_equivalent_refl | ].
+  cbv zeta.
+  destruct (expr_eqb [] [] e (normalise_after_round kept e));
+    [ apply normalise_after_round_equivalent | ].
   exact (expr_equivalent_trans _ _ _ (normalise_after_round_equivalent kept e)
     (IH _)).
 Qed.
@@ -428,8 +432,11 @@ Proof.
   refine (expr_equivalent_trans _ _ _ _ (groups_up_equivalent _)).
   apply (expr_equivalent_trans _ _ _ (placed_equivalent e)).
   generalize (placed e). clear e.
-  induction rounds as [ | rounds IH]; intros e; simpl;
+  induction rounds as [ | rounds IH]; intros e; cbn [iterate];
     [ apply expr_equivalent_refl | ].
+  cbv zeta.
+  destruct (expr_eqb [] [] e (tidy_after_round e));
+    [ apply tidy_after_round_equivalent | ].
   exact (expr_equivalent_trans _ _ _ (tidy_after_round_equivalent e) (IH _)).
 Qed.
 
@@ -650,16 +657,22 @@ Lemma iterate_lifted_program_refines (rounds : nat)
   ∀ e : expr,
     program_refines e (iterate rounds (normalise_lifted_round avoid kept) e).
 Proof.
-  induction rounds as [ | rounds IH]; intros e; simpl;
+  assert (Hround :
+    ∀ e : expr, program_refines e (normalise_lifted_round avoid kept e)).
+  { intros e. unfold normalise_lifted_round.
+    apply (refines_trans _ _ _
+      (expr_refines_program _ _
+         (normalise_before_round_avoiding_refines avoid kept e))).
+    apply (refines_trans _ _ _
+      (expr_refines_program _ _ (use_known_closures_refines _))).
+    apply (refines_trans _ _ _ (with_known_program_refines _)).
+    apply read_known_slots_program_refines. }
+  induction rounds as [ | rounds IH]; intros e; cbn [iterate];
     [ apply refines_refl | ].
-  apply (refines_trans _ _ _
-    (expr_refines_program _ _
-       (normalise_before_round_avoiding_refines avoid kept e))).
-  apply (refines_trans _ _ _
-    (expr_refines_program _ _ (use_known_closures_refines _))).
-  apply (refines_trans _ _ _ (with_known_program_refines _)).
-  apply (refines_trans _ _ _ (read_known_slots_program_refines _)).
-  apply IH.
+  cbv zeta.
+  destruct (expr_eqb [] [] e (normalise_lifted_round avoid kept e));
+    [ apply Hround | ].
+  exact (refines_trans _ _ _ (Hround e) (IH _)).
 Qed.
 
 Lemma normalise_lifted_program_refines (rounds : nat)
