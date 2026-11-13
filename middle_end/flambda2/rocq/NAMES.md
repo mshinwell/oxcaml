@@ -31,14 +31,15 @@ here.
 |------|-------|----|
 | The machine: a step, a run, a behaviour; equivalence and refinement, of states and of expressions | `FlambdaEquivarianceSpec.v` | N1 |
 | What a run leaves at an exit: that a state leaves a world, and refinement with the worlds of the two exits related | `FlambdaExitWorldActionsSpec.v` | N1 |
-| What may follow a unit: that a continuation stands for an observer, that no observer tells two worlds apart, and the refinement of two terms up to what may follow | `FlambdaObserversActionsSpec.v` | N1 |
+| What may follow a unit: that a continuation stands for an observer, that no observer tells two worlds apart, and the refinement of two terms up to what may follow; the last two of every class of what a continuation may stand for that a renaming keeps | `FlambdaObserversActionsSpec.v`; of the observers that make no array, `FlambdaNoArrayValueObserversSpec.v` | N1; the owner of that file |
 | The machine with a stack of exception handlers and of calls | `FlambdaTrapSpec.v` | the owner of exceptions |
 | The machine of `FlambdaHeapMachineSpec.v`, which runs the primitives of the heap, and its refinements; the heap is left as it is | `FlambdaHeapEquivarianceSpec.v` | N1 |
+| That a term makes no immutable array and that a state is free of arrays (it holds no array value and may come to run nothing that makes one); the refinement of expressions of the machine of `FlambdaHeapMachineSpec.v` restricted to the closed whole source states that are free of arrays | `FlambdaNoArrayValueSpec.v` | the owner of that file |
 | The free names; the three conditions on binders; `alpha_equivalent` | `FlambdaAlphaSpec.v` | N1 |
 | The comparison `expr_eqb` | `FlambdaCompareAlphaSpec.v` | N1 |
 | The rewrites of the normalisation, the passes for loops, the checks of well-formedness (exception handlers and trap actions among them), the check of kinds, the normalisation of the term after and the first phase of that of the term before | `FlambdaValidatorEquivarianceSpec.v` | N3 |
 | The normalisation of the term before and that of a term in which something was lifted: up to the names that a round makes. `validate_unit`: where the code of the term before is closed | `FlambdaValidatorEquivarianceSpec.v` | N3 |
-| Identities of primitives, lifting, lifting out of code, the binding of `my_closure`, ranges, sharing of primitives and of projections, the recovery of comparisons, folding at known symbols, unused and known value slots, the order of static bindings, the static closures in sight, code moved up, code and static bindings bound first, lifting out of the arms of a test, inlining within a group of code, the unboxing of parameters and of the reads of a loop, the merging of the arms of a `Switch` and their merging into a load from a table, the continuations that a handler binds on its way to its `Switch` bound outside it, the demotion of exception handlers, the rewrite of the calls of code that never returns, the fold of a `Phys_equal` of a simple against itself, the calls of the unit's other code made indirect in the code of a stub, the lifting to a group around | the `Spec` file of each pass | the owner of each |
+| Identities of primitives, lifting, lifting out of code, the binding of `my_closure`, ranges, sharing of primitives and of projections, the recovery of comparisons, folding at known symbols, unused and known value slots, the order of static bindings, the static closures in sight, code moved up, code and static bindings bound first, lifting out of the arms of a test, inlining within a group of code, the unboxing of parameters and of the reads of a loop, the merging of the arms of a `Switch` and their merging into a load from a table, the continuations that a handler binds on its way to its `Switch` bound outside it, the demotion of exception handlers, the rewrite of the calls of code that never returns, the fold of a `Phys_equal` of a simple against itself, the calls of the unit's other code made indirect in the code of a stub, the lifting to a group around, a `Let` of a variable to the variable just bound made one `Let` with it | the `Spec` file of each pass | the owner of each |
 | The second asking of the validation, `validate_unit_knowing`: where the code of the term before is closed | `FlambdaValidateKnowingSpec.v` | the owner of that file, N3 |
 | Typing environments and their levels, extensions, aliases, types, provers | the types library (`FlambdaEnvRenameSpec.v`, `FlambdaTypeRenameSpec.v`, `FlambdaEnvAliasesRenamingSpec.v`, `FlambdaTypingEnvExtensionSpec.v`, `FlambdaProversRenameSpec.v`) | N3 and the owners |
 | The model of Simplify: the function that rewrites a term from the types, the same with pruning, the rewrites of a `Switch`, following aliases with the aliases of the library | the types library (section 7 has the files) | the owners of those files |
@@ -154,7 +155,7 @@ out there because the primitives of the heap come before the semantics
 | `FlambdaLocationsPrimitiveSpec.v` | A primitive under a permutation of locations: an equation where it binds no location; every primitive up to the location chosen, where the heap binds the locations of all its entries; that premise is kept; a heap with a hidden entry where it fails |
 | `FlambdaLocationsMachineSpec.v` | A step, a run and a behaviour under a permutation of locations, up to the locations allocated, for a state whose heap binds every location of the state; a step, a run and the action keep that; the same of what a `Let` is to run when a step allocates |
 | `FlambdaExitWorldActionsSpec.v` | The two actions on what a run leaves at an exit: a state leaves a world exactly when the state renamed leaves the world renamed; refinement with the worlds related, the relation renamed; under a permutation of locations, the world that a state leaves, up to the locations allocated |
-| `FlambdaObserversActionsSpec.v` | The two actions on what may follow a unit: under a renaming, a continuation stands for an observer, no observer tells two worlds apart, and two terms are refined up to what may follow, exactly when the same holds of them renamed; under one permutation of locations applied to both sides, what the way out compares of two worlds |
+| `FlambdaObserversActionsSpec.v` | The two actions on what may follow a unit: under a renaming, a continuation stands for an observer, no observer tells two worlds apart, and two terms are refined up to what may follow, exactly when the same holds of them renamed; under a renaming also, the two relations of a class of what a continuation may stand for, for every class that a renaming keeps; under one permutation of locations applied to both sides, what the way out compares of two worlds, and nothing of the relations of a class |
 | `FlambdaFreshQuantifierSpec.v`, `FlambdaFreshAbstractionSpec.v` | The quantifier "for all but finitely many names"; `fresh_names`; equal abstractions of one name and of a list of distinct names, said with the quantifier |
 | `FlambdaFreshBindersSpec.v`, `FlambdaAlphaFreshSpec.v`, `FlambdaAlphaGroupSpec.v` | For each binder, the rule that compares two binders at fresh names, and that it can be read both ways on terms with distinct binders and closed code; the recursive group as a name abstraction |
 | `FlambdaCompareConverseSpec.v` | What the comparison accepts is alpha-equivalent, on terms with distinct binders and closed code |
@@ -234,6 +235,38 @@ The same holds of the machine of `FlambdaHeapMachineSpec.v`, which runs the
 primitives of the heap (`heap_step`, `heap_run`, `heap_behaves`, and
 its refinements `heap_refines` and `heap_expr_refines`).
 
+An immutable array may be a value that a primitive makes as the term
+runs (`Value_immutable_array`, made by `Make_immutable_array`). It
+holds values, so no variable and no continuation, and a permutation of
+locations moves the locations of its elements
+(`FlambdaLocationsSpec.permute_value`). `FlambdaNoArrayValueSpec.v` is
+about the states that are free of arrays: a state that holds no array
+value (in its variables, in what its continuations keep, in what its
+symbols are bound to, in its heap) and may come to run nothing that
+makes one (its expression, the handlers that its continuations keep,
+its code). No one statement of it says that what was proved before the
+array value says what it said. It has laws of those states and of the
+values that hold no array value: a step keeps a state free of arrays;
+the observation that reads an array answers of a value that is not an
+array value as it did; a derivation of the relation of the machine
+with a heap between values that hold no array value, under memories
+that hold none, stays among such values; and a value that holds none
+is lifted to values that hold none. With the clauses of the
+definitions whose text did not change, which are read and not stated,
+those give the statements that have one of the two relations in them
+the reading that they had (`status/P1.md` has the reading, statement
+by statement). Under renaming it has four statements. Whether the
+primitive is somewhere in a term is the same of the term renamed
+(`makes_array_renamed_statement`). A state is free of arrays exactly
+when the state renamed is, for the machine and for the machine with a
+heap (`state_free_of_arrays_renamed_statement`,
+`heap_state_free_of_arrays_renamed_statement`). And the refinement of
+expressions of the machine with a heap, restricted to the closed whole
+source states that are free of arrays, is kept by renaming
+(`heap_expr_refines_free_of_arrays_equivariant_statement`); the
+statement of that refinement for all states does not give it, as its
+premise is about more of them.
+
 Under a permutation of locations the statement has another form. A
 step that allocates chooses a location that the heap does not bind
 (`FlambdaHeapSpec.fresh_location`), and no choice of a name commutes
@@ -288,15 +321,60 @@ code ids and value slots, none of which a renaming moves, and an exit
 is compared by its continuation, renamed on both sides, and by values
 and a heap, which hold no variable and no continuation. So every
 renaming keeps `worlds_observed`, and the comparison of two units up
-to what may follow is that of the two renamed. Under a permutation of
-locations four things are stated, each of one permutation applied to
-both sides: a value is a constant or a location exactly when the
-value moved is; two lists of values have the same constants and the
-same locations at the same places exactly when the two lists moved
-have; the locations that a heap moved binds are those that the heap
-binds, moved, in their order and as many times; and what the way out
-compares of two worlds is the same of the two exactly when it is the
-same of the two moved.
+to what may follow is that of the two renamed.
+
+A class is a predicate on continuation values, and it is the whole of
+what may follow a unit, not a condition added to `observer`:
+`worlds_observed_by O` relates two worlds that exit by the same
+continuation when everything in `O`, applied to the values of each
+under its static environment and heap, comes to results that
+`observed_refines` relates, and `refines_observed_by O` relates two
+units when they come to such results from every continuation
+environment each entry of which is in `O`, the hidden ones included;
+at `observer slots` the two are `worlds_observed slots` and
+`refines_under_observers slots`, by unfolding
+(`FlambdaObserversSpec.v`).
+
+For every class that a renaming keeps, in that what is in the class is
+in it renamed, the two relations, and the comparison of two states by
+the first (`refines_world`), hold exactly when they hold of what is
+renamed (`worlds_observed_by_equivariant_statement`,
+`refines_world_observed_by_equivariant_statement`,
+`refines_observed_by_equivariant_statement`). The class is under an
+outer universal and nothing else is asked of it: no observer is named.
+The three statements above that have a universal over the observers on
+each side (of `worlds_observed`, of the comparison of two states by
+it, and of `refines_under_observers`) are these at the class
+`observer slots`, which a renaming keeps
+(`observer_equivariant_statement`). A term that the language gains is
+a term that an observer may be written with, so `observer slots` has
+more in it after such a change, and the three statements at that class
+are then about more observers on each side: they are not the
+statements that they were. The three of a class are about a predicate
+that is given. Of a class of the continuation values that there were
+they read as they did on inputs that are wholly of the tree before the
+change: the worlds, the states, the static environment and the two
+terms, with their code and with what they hold. The same class may be
+asked of worlds and of units that have the new term, and of those
+nothing is as it was by this.
+
+The observers that make no array are such a class
+(`FlambdaNoArrayValueObserversSpec.observer_free_of_arrays`: an
+observer in which the primitive that makes an immutable array does not
+occur; a renaming brings the primitive neither in nor out), and the
+three are stated of it in that file
+(`worlds_observed_free_of_arrays_equivariant_statement`,
+`refines_world_observed_free_of_arrays_equivariant_statement`,
+`refines_observed_free_of_arrays_equivariant_statement`).
+
+Under a permutation of locations four things are stated, each of one
+permutation applied to both sides: a value is a constant or a location
+exactly when the value moved is; two lists of values have the same
+constants and the same locations at the same places exactly when the
+two lists moved have; the locations that a heap moved binds are those
+that the heap binds, moved, in their order and as many times; and what
+the way out compares of two worlds is the same of the two exactly when
+it is the same of the two moved.
 Nothing is stated of `observed_refines` nor of `worlds_observed`
 under a permutation of locations. What is proved of a run gives each
 of the two runs its exit up to a second permutation of its own, the
@@ -547,6 +625,17 @@ known of the typing environment in place of a test of it at every
 `Let`, and which is that function, of every term
 (`simplify_by_types_carried_eq_statement`): so what is stated of
 that function under renaming holds of what is called.
+Where that function rewrites the handler of a continuation under what
+is known at its one application, the application may be in the handler
+of another continuation of the body (`find_one_use`,
+`types/rocq/FlambdaSimplifyPassSpec.v`): it makes no name, it compares
+names only to keep the rewritten handler where no binder passed on the
+way to the application is free in it, and the environment and the
+binders that it answers are renamed with the term
+(`find_one_use_equivariant_statement`). With pruning, the test
+`find_one_use_keeps_fit` answers the same on renamed arguments
+(`find_one_use_keeps_fit_equivariant_statement`,
+`types/rocq/FlambdaSimplifyPruningRenamingSpec.v`).
 
 Rewrites that have both compose and iterate, a rewrite that commutes
 with renaming has the first, and the comparison answers the same on
@@ -662,12 +751,18 @@ scope, `FlambdaStaticsScopeSpec.wrap_returns_keeps_scope_statement`);
 the untagging of the parameters of continuations that hold a tagged
 immediate and are only untagged or passed on, in all the
 continuations that pass them at once (`FlambdaUntagParamsSpec.v`: a
-parameter keeps its name and no name is made;
+parameter keeps its name and no name is made; an argument that a
+`Let` in scope binds to the tagging of a variable becomes that
+variable, which is in scope where the argument is;
 `untag_params_equivariant_statement`; that it keeps scope,
 `FlambdaStaticsScopeSpec.untag_params_keeps_scope_statement`); the
 forwarding of applications with the calls taken on or not
 (`FlambdaForwardSpec.forward_applications_with`, of which the pass
-of the rounds is the case without the calls:
+of the rounds is the case without the calls; an application that is
+made to go where the handler of its continuation goes keeps its own
+trap action where the handler's own application has none,
+`forward_apply_cont_keeping`, and with it the continuation that the
+action names:
 `forward_applications_with_equivariant_statement`; that it keeps
 scope,
 `FlambdaLoopsScopeSpec.forward_applications_with_keeps_scope_statement`);
@@ -687,7 +782,12 @@ the term after: the test compares two rewrites of a term up to bound
 names, and answers the same of the term renamed
 (`keeps_a_return_equivariant_statement`); the placing of continuations
 that the check makes of each term that it compares
-(`FlambdaValidateSpec.placed`), which also keeps scope, and the
+(`FlambdaValidateSpec.placed`: the binding of a continuation goes
+down past the bindings under it, and into the handler under it that
+alone names the continuation, where the tests of
+`FlambdaSinkUsesSpec.sink_to_use` pass; no name is made, and the
+statements have the texts that they had), which also keeps scope,
+and the
 tidying in rounds that follows it (`tidied_before`, `tidied_after`:
 an argument that is the number of the arm of a `Switch` that it is
 in is made the scrutinee where the parameter can then be taken away
@@ -697,6 +797,17 @@ commutes with every renaming by an equation,
 `FlambdaStaticsScopeSpec.give_scrutinees_keeps_scope_statement`);
 a parameter that every application gives one variable is taken away
 where the checks of `FlambdaUnaliasParamsSpec.unalias_params` pass,
+the scrutinee of a `Switch` is made the number of the arm in the
+arguments of the applications of continuations in the arm and in the
+handler that only arms of that number apply
+(`FlambdaArmNumbersSpec.numbers_in_arms`, which puts a constant for
+a variable, compares names by equality only and makes none, commutes
+with every renaming by an equation,
+`numbers_in_arms_equivariant_statement`, and keeps scope,
+`FlambdaStaticsScopeSpec.numbers_in_arms_keeps_scope_statement`), in
+the term before the arms of a `Switch` that then apply one
+continuation are merged (`FlambdaMergeSwitchesSpec.merge_switches`,
+as in the rounds),
 primitives are shared, aliases are followed and the `Let`s left
 unused are removed; and then, once, the groups of static bindings at
 the head of the body of a continuation binding are bound before it
@@ -741,7 +852,14 @@ stated there: `lifted_in_turn`, which keeps
 scope, and commutes with renaming up to the names made where the
 continuations that it is given to avoid have among them those of the
 units of the liftings (`lifted_in_turn_keeps_scope_statement`,
-`lifted_in_turn_equivariant_up_to_statement`); and
+`lifted_in_turn_equivariant_up_to_statement`); after the last
+lifting the validation uses what is known of the symbols once more,
+in rounds that make no name
+(`FlambdaValidateSpec.demote_and_tidy_known`): that the rounds
+commute with every renaming and keep scope are lemmas of
+`FlambdaValidatorEquivarianceProofs.v` and not statements, and the
+two statements of `lifted_in_turn`, whose texts are as they were, are
+of the function with those rounds; and
 `with_statics_first`, which reads the continuations of the units: it
 commutes with a renaming of the term where the liftings are under
 another renaming that does to those continuations what it does
@@ -856,7 +974,24 @@ a simple against itself (`FlambdaSameComparisonSpec.v`:
 `fold_same_comparisons_equivariant_statement`, an equation that holds
 of every term; that it keeps scope,
 `FlambdaSameComparisonScopeSpec.v`), the folding
-at known symbols (`FlambdaKnownSymbolsSpec.v`), the removal of unused
+at known symbols (`FlambdaKnownSymbolsSpec.v`; of a static block one
+of whose fields is a variable, what is known has a constant in the
+place of the variable, `unknown_field`, to which no load is folded:
+so what is known holds no variable, a renaming leaves it as it is,
+and the statement has the text that it had,
+`fold_known_equivariant_statement`), the two
+`Let`s that the copy of an inlined body ends with made one in the
+term after (`FlambdaAliasLetsSpec.merge_alias_lets`: a `Let` of a
+variable to the variable that the `Let` around it has just bound, at
+the same kind, where the variable of the outer `Let` is not free in
+the body of the inner one (which may bind a variable of that name
+again and use it), is made one `Let` with it, before the aliases are
+followed; the pass
+compares variables by equality and makes no name;
+`merge_alias_lets_renamed_statement`, an equation that holds of
+every term; it has no statement that it keeps scope, and it is
+applied to the term after only, where no round makes a name), the
+removal of unused
 value slots (`FlambdaUnusedSlotsSpec.v`), the reading of a value slot
 that every set of closures of the unit gives the same symbol or
 constant, outside the code of a stub (`FlambdaKnownSlotsSpec.v`), the
@@ -890,12 +1025,17 @@ is known of symbols alone,
 one continuation (`FlambdaMergeSwitchesSpec.v`), the merging of such
 arms into a load from a static table that is in scope
 (`FlambdaMergeTablesSpec.merge_tables`, which reads the tables off
-the term and makes no name, the variable of the scrutinee being bound
-again as the other merging binds it:
+the term and makes no name: where one table has the arms, the
+variable of the scrutinee is bound again as the other merging binds
+it; where there is a way for each argument, the `Let`s bind the
+parameters of the continuation that the arms apply, which is bound
+around the `Switch`, as
+`FlambdaMergeSwitchesSpec.merge_switch_by_arguments` binds them, and
+the scrutinee is not bound again:
 `merge_tables_equivariant_statement`, an equation that holds of every
 term; that it keeps scope, `FlambdaMergeTablesScopeSpec.v`, where the
-symbol of the table is not counted, `keeps_scope` saying nothing of
-symbols), the binding, outside a handler, of the continuations that
+symbols of the tables are not counted, `keeps_scope` saying nothing
+of symbols), the binding, outside a handler, of the continuations that
 the handler binds on its way to its `Switch`
 (`FlambdaLiftContsSpec.lift_handler_conts`: a continuation that is
 moved keeps its name and takes, under their own names, the
