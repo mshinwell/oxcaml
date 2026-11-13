@@ -37,7 +37,7 @@ here.
 | The comparison `expr_eqb` | `FlambdaCompareAlphaSpec.v` | N1 |
 | The rewrites of the normalisation, the passes for loops, the checks of well-formedness (exception handlers and trap actions among them), the check of kinds, the normalisation of the term after and the first phase of that of the term before | `FlambdaValidatorEquivarianceSpec.v` | N3 |
 | The normalisation of the term before and that of a term in which something was lifted: up to the names that a round makes. `validate_unit`: where the code of the term before is closed | `FlambdaValidatorEquivarianceSpec.v` | N3 |
-| Identities of primitives, lifting, lifting out of code, the binding of `my_closure`, ranges, sharing of primitives and of projections, the recovery of comparisons, folding at known symbols, unused and known value slots, the order of static bindings, the static closures in sight, code moved up, code and static bindings bound first, lifting out of the arms of a test, inlining within a group of code, the unboxing of parameters, the merging of the arms of a `Switch`, the demotion of exception handlers, the rewrite of the calls of code that never returns, the fold of a `Phys_equal` of a simple against itself, the calls of the unit's other code made indirect in the code of a stub | the `Spec` file of each pass | the owner of each |
+| Identities of primitives, lifting, lifting out of code, the binding of `my_closure`, ranges, sharing of primitives and of projections, the recovery of comparisons, folding at known symbols, unused and known value slots, the order of static bindings, the static closures in sight, code moved up, code and static bindings bound first, lifting out of the arms of a test, inlining within a group of code, the unboxing of parameters, the merging of the arms of a `Switch`, the demotion of exception handlers, the rewrite of the calls of code that never returns, the fold of a `Phys_equal` of a simple against itself, the calls of the unit's other code made indirect in the code of a stub, the lifting to a group around | the `Spec` file of each pass | the owner of each |
 | The second asking of the validation, `validate_unit_knowing`: where the code of the term before is closed | `FlambdaValidateKnowingSpec.v` | the owner of that file, N3 |
 | Typing environments and their levels, extensions, aliases, types, provers | the types library (`FlambdaEnvRenameSpec.v`, `FlambdaTypeRenameSpec.v`, `FlambdaEnvAliasesRenamingSpec.v`, `FlambdaTypingEnvExtensionSpec.v`, `FlambdaProversRenameSpec.v`) | N3 and the owners |
 | The model of Simplify: the function that rewrites a term from the types, the same with pruning, the rewrites of a `Switch`, following aliases with the aliases of the library | the types library (section 7 has the files) | the owners of those files |
@@ -501,7 +501,9 @@ rewrite is, it is the rewrite where the rewrite keeps scope, and it
 commutes with renaming where the rewrite does
 (`FlambdaValidateScopeSpec.v`). The normalisation of the term before
 applies so, once, between its rounds, the function of the model of
-Simplify that rewrites a term from the types (below).
+Simplify that rewrites a term from the types (below); that of a term
+in which something was lifted applies it so too, once, between its
+rounds and the same rounds again.
 
 Rewrites that have both compose and iterate, a rewrite that commutes
 with renaming has the first, and the comparison answers the same on
@@ -517,6 +519,17 @@ the first does, and it does to the names given what the first does.
 It is kept by a rewrite that commutes with renaming and keeps scope,
 applied before or after, and by the rewrite applied a number of times
 with the same names; with no name given it is `equivariant_up_to`.
+
+A rewrite, then a second one, and then a third only where the
+comparison finds that the second changed the term, keeps scope and
+commutes with renaming up to the names made where the three do
+(`keeps_scope_unless_same_statement`,
+`equivariant_up_to_unless_same_statement`,
+`equivariant_up_to_avoiding_unless_same_statement`; in the last the
+first and the third are given the same continuations to avoid, and
+the second commutes with renaming by an equation): the comparison
+answers of the two results for the renamed term what it answers of
+them for the term, so the same branch is taken.
 
 Where the names made stay free in the answer, the second is about
 answers up to a renaming of the names made, and says less. The join
@@ -576,7 +589,13 @@ with arguments known to have the kinds of the parameters, which the
 validation applies to the term after, in the bodies of code too
 (`FlambdaForwardKindedSpec.v`); the
 removal, in the body of code, of the unused `Let`s of its parameters
-(`FlambdaCodeLetsSpec.v`); the
+(`FlambdaCodeLetsSpec.v`); the removal of a parameter that its
+handler does not use, of a continuation that a call returns to, the
+call returning to a wrapper (`FlambdaWrapReturnsSpec.v`: the wrapper
+is bound to the name of the continuation and its parameters have the
+names of those of the handler, so no name is made; that it keeps
+scope, `FlambdaStaticsScopeSpec.wrap_returns_keeps_scope_statement`);
+the
 test for inlining a call that gives tupled code a tuple; the demotion
 of exception handlers with the rounds that tidy after it
 (`demote_and_tidy`); the normalisation of the term after and the
@@ -605,7 +624,22 @@ stated there as well: `with_lifting`, with the lifting renamed with
 the term, `without_slots` and `with_known`, each an equation
 (`with_lifting_equivariant_statement`,
 `without_slots_equivariant_statement`,
-`with_known_equivariant_statement`); `lifted_in_turn`, which keeps
+`with_known_equivariant_statement`). Of a lifting the two
+continuations of its unit are renamed and the rest is passed as it
+is: paths, symbols and code ids; for the lifting to a group around,
+the places where groups are put (the groups themselves are read off
+the term, `FlambdaLiftAroundSpec.groups_of`); and the tables to bind
+at the head, of constants and symbols (where an element of a table
+is a variable no table is bound,
+`FlambdaUnusedHeadStaticsSpec.add_head_tables`). The
+lifting to a group around, its check and the reading of its groups
+commute with every renaming, the groups and what the check knows
+being renamed with the term (`lift_around_equivariant_statement`,
+`around_ok_equivariant_statement`, `groups_of_equivariant_statement`
+in `FlambdaLiftAroundSpec.v`, with `rename_groups` and
+`rename_known_constants`), and it keeps scope
+(`FlambdaStaticsScopeSpec.lift_around_keeps_scope_statement`). Also
+stated there: `lifted_in_turn`, which keeps
 scope, and commutes with renaming up to the names made where the
 continuations that it is given to avoid have among them those of the
 units of the liftings (`lifted_in_turn_keeps_scope_statement`,
@@ -619,6 +653,9 @@ where its checks pass (`FlambdaValidateSpec.without_head_statics`), is
 stated there too: an equation, for every set of names to remove
 (`without_head_statics_equivariant_statement`); the checks read the
 same of a term renamed, as a renaming moves no symbol and no code id.
+The premise that some statements of a unit run from its imports add
+(`FlambdaImportsSpec.static_names_free_in`) is a test on symbols and
+code ids only; no statement says it of a term renamed.
 By the same prover, in the types library (`FlambdaEnvRenameSpec.v`):
 the functions of typing environments.
 
@@ -778,7 +815,11 @@ the model, which makes variables, is not.
   renaming, for such a meet and such a rewrite of an `Apply_cont`:
   that is what the function with pruning asks of the rewrite that it
   is given. The rewrite that merges the arms, with its variables kept
-  as they are, is not such a rewrite.
+  as they are, is not such a rewrite. `FlambdaSimplifyArmsSpec.v`
+  has the arms of a `Switch` each rewritten under what its arm
+  knows, with no meet (`simplify_arm_args`,
+  `simplify_switch_and_arms`): each an equation with no premise.
+  Nothing calls it yet.
 - Following aliases in a term with the aliases of the library
   (`FlambdaEnvAliasesFollowSpec.v`; that it keeps scope,
   `FlambdaEnvAliasesFollowScopeSpec.v`), and the sets of aliases
