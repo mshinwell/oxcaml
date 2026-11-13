@@ -117,7 +117,7 @@ From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaValueSpec FlambdaSemanticsSpec FlambdaNominalSpec
-  FlambdaNormaliseSpec FlambdaUnusedStaticsSpec.
+  FlambdaNormaliseSpec FlambdaUnusedStaticsSpec FlambdaImportsSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -440,6 +440,18 @@ Definition fold_known_unit (e : expr) : option expr :=
 (* What [fold_known_unit] gives refines the unit, run on its own. *)
 Definition fold_known_unit_program_refines_statement : Prop :=
   ∀ e e' : expr, fold_known_unit e = Some e' -> program_refines e e'.
+
+(* The same of a unit that imports symbols, run from the static
+   environment of its imports: if the unit binds no name that the
+   imports bind, the result refines it. The rewrite puts, for a symbol,
+   what the unit binds it to, wherever the symbol is used: also before
+   the binding is executed, where a symbol that is an import still has
+   what the import is. *)
+Definition fold_known_unit_refines_imports_statement : Prop :=
+  ∀ (imports : list (symbol * import_class)) (e e' : expr),
+    fold_known_unit e = Some e' ->
+    static_names_free_in (imports_statics imports) e = true ->
+    unit_refines imports e e'.
 
 (* A defining expression is folded to its value: in any static
    environment in which each symbol that [statics] binds is bound to the

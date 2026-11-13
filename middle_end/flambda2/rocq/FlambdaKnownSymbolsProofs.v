@@ -45,6 +45,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaPrimitiveSpec FlambdaPrimitiveProofs FlambdaSemanticsSpec
   FlambdaSemanticsProofs FlambdaNominalSpec FlambdaNormaliseSpec
   FlambdaClosuresProofs FlambdaUnusedStaticsSpec FlambdaUnusedSlotsProofs
+  FlambdaWellFormedSpec FlambdaImportsSpec FlambdaUnitFromProofs
   FlambdaKnownSymbolsSpec.
 Import ListNotations.
 
@@ -1064,21 +1065,183 @@ Qed.
 
 End Unit.
 
-Theorem fold_known_unit_program_refines :
-  fold_known_unit_program_refines_statement.
+(* A symbol of which something is known is one that the expression
+   binds, outside code. *)
+Lemma known_of_binding_symbol (binding : static_binding) (s : symbol) :
+  In s (map fst (known_of_binding binding)) ->
+  In s (symbols_of_binding binding).
 Proof.
-  intros e e'. unfold fold_known_unit. cbv zeta.
+  destruct binding as [id c | id | s1 const]; simpl; try tauto.
+  destruct (closed_static_const const); simpl; [ | tauto ].
+  destruct (eval_static_const [] const); simpl; tauto.
+Qed.
+
+Lemma set_of_binding_symbol (binding : static_binding) (s : symbol) :
+  In s (map fst (set_of_binding binding)) ->
+  In s (symbols_of_binding binding).
+Proof.
+  destruct binding as [id c | id | s1 const]; simpl; try tauto.
+  destruct const; simpl; try tauto.
+  repeat
+    match goal with
+    | |- context [match ?x with _ => _ end] => destruct x; simpl
+    end;
+    tauto.
+Qed.
+
+Fixpoint known_bindings_symbols (e : expr) (s : symbol) {struct e} :
+  In s (map fst (known_bindings e)) ->
+  In s (static_names symbols_of_binding e)
+with known_bindings_of_handler_symbols (h : continuation_handler)
+    (s : symbol) {struct h} :
+  In s (map fst (known_bindings_of_handler h)) ->
+  In s (handler_static_names symbols_of_binding h).
+Proof.
+  - destruct e
+      as [ x xkind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      simpl; try tauto.
+    + apply known_bindings_symbols.
+    + rewrite map_app, !in_app_iff.
+      intros [H | H];
+        [ left | right; exact (known_bindings_symbols body s H) ].
+      induction bindings as [ | binding bindings IH]; simpl in H |- *;
+        [ exact H | ].
+      rewrite map_app, in_app_iff in H. apply in_or_app.
+      destruct H as [H | H];
+        [ left; exact (known_of_binding_symbol binding s H)
+        | right; exact (IH H) ].
+    + rewrite map_app, !in_app_iff.
+      intros [H | H];
+        [ left; exact (known_bindings_of_handler_symbols h s H)
+        | right; exact (known_bindings_symbols body s H) ].
+    + rewrite map_app, !in_app_iff.
+      intros [H | H];
+        [ left | right; exact (known_bindings_symbols body s H) ].
+      induction handlers as [ | [k1 h1] handlers IH]; simpl in H |- *;
+        [ exact H | ].
+      rewrite map_app, in_app_iff in H. apply in_or_app.
+      destruct H as [H | H];
+        [ left; exact (known_bindings_of_handler_symbols h1 s H)
+        | right; exact (IH H) ].
+  - destruct h as [params metadata handler]. simpl.
+    apply known_bindings_symbols.
+Qed.
+
+Fixpoint known_sets_symbols (e : expr) (s : symbol) {struct e} :
+  In s (map fst (known_sets e)) -> In s (static_names symbols_of_binding e)
+with known_sets_of_handler_symbols (h : continuation_handler) (s : symbol)
+    {struct h} :
+  In s (map fst (known_sets_of_handler h)) ->
+  In s (handler_static_names symbols_of_binding h).
+Proof.
+  - destruct e
+      as [ x xkind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      simpl; try tauto.
+    + apply known_sets_symbols.
+    + rewrite map_app, !in_app_iff.
+      intros [H | H]; [ left | right; exact (known_sets_symbols body s H) ].
+      induction bindings as [ | binding bindings IH]; simpl in H |- *;
+        [ exact H | ].
+      rewrite map_app, in_app_iff in H. apply in_or_app.
+      destruct H as [H | H];
+        [ left; exact (set_of_binding_symbol binding s H)
+        | right; exact (IH H) ].
+    + rewrite map_app, !in_app_iff.
+      intros [H | H];
+        [ left; exact (known_sets_of_handler_symbols h s H)
+        | right; exact (known_sets_symbols body s H) ].
+    + rewrite map_app, !in_app_iff.
+      intros [H | H]; [ left | right; exact (known_sets_symbols body s H) ].
+      induction handlers as [ | [k1 h1] handlers IH]; simpl in H |- *;
+        [ exact H | ].
+      rewrite map_app, in_app_iff in H. apply in_or_app.
+      destruct H as [H | H];
+        [ left; exact (known_sets_of_handler_symbols h1 s H)
+        | right; exact (IH H) ].
+  - destruct h as [params metadata handler]. simpl.
+    apply known_sets_symbols.
+Qed.
+
+Lemma known_statics_symbol (known : list (symbol * static_const))
+    (s : symbol) (allocated : statically_allocated_value) :
+  lookup s (static_values (known_statics known)) = Some allocated ->
+  In s (map fst known).
+Proof.
+  intros H. apply lookup_in in H. unfold known_statics in H.
+  cbn [static_values] in H.
+  apply in_flat_map in H as [[s1 const] [Hin H]].
+  unfold known_value in H. cbn [fst snd] in H.
+  destruct (eval_static_const [] const); [ | destruct H ].
+  destruct H as [[= <- _] | []].
+  apply in_map_iff. exists (s1, const). split; [ reflexivity | exact Hin ].
+Qed.
+
+(* A static environment that binds no name that the unit binds agrees
+   with what is known of the unit: it binds none of its symbols. *)
+Lemma agrees_from (e : expr) (statics : static_env) :
+  static_names_free_in statics e = true ->
+  agrees (known_bindings e) (known_sets e) statics.
+Proof.
+  intros Hfree. split; intros s allocated allocated' Hknown Hrun; exfalso.
+  - pose proof
+      (free_in_symbols statics e Hfree s
+         (known_bindings_symbols e s
+            (known_statics_symbol _ s allocated Hknown)))
+      as Hunbound.
+    unfold symbol_bound in Hunbound. rewrite Hrun in Hunbound.
+    discriminate Hunbound.
+  - pose proof
+      (free_in_symbols statics e Hfree s
+         (known_sets_symbols e s (known_statics_symbol _ s allocated Hknown)))
+      as Hunbound.
+    unfold symbol_bound in Hunbound. rewrite Hrun in Hunbound.
+    discriminate Hunbound.
+Qed.
+
+(* What [fold_known_unit] gives refines the unit, the two run from a
+   static environment that holds no code and binds no name that the
+   unit binds, and from any heap. *)
+Lemma fold_known_unit_refines_from (e e' : expr) (statics : static_env)
+    (hp : heap) :
+  fold_known_unit e = Some e' ->
+  static_code statics = [] ->
+  static_names_free_in statics e = true ->
+  refines (State e [] [] statics hp) (State e' [] [] statics hp).
+Proof.
+  unfold fold_known_unit. cbv zeta.
   destruct (bound_as (known_bindings e) (known_sets e) e) eqn:Hbound;
     [ | discriminate ].
-  intros [= <-]. unfold program_refines.
+  intros [= <-] Hno_code Hfree.
   apply (simulation_refines
            (folded_related (known_bindings e) (known_sets e))
            (folded_related_step (known_bindings e)
               (known_bindings_have_values e) (known_sets e)
               (known_sets_have_values e))).
-  split; [ reflexivity | ].
-  split; [ apply terms_inv_initial; exact Hbound | ].
-  split; intros s allocated allocated' _ [=].
+  split.
+  - destruct statics as [code values]. simpl in Hno_code. subst code.
+    reflexivity.
+  - split; [ | exact (agrees_from e statics Hfree) ].
+    unfold bound_as_inv, terms_inv. simpl_state.
+    refine (conj Hbound (conj I _)).
+    intros id c Hlookup. rewrite Hno_code in Hlookup. discriminate Hlookup.
+Qed.
+
+Theorem fold_known_unit_program_refines :
+  fold_known_unit_program_refines_statement.
+Proof.
+  intros e e' Hfold. unfold program_refines.
+  exact (fold_known_unit_refines_from e e' empty_static_env empty_heap Hfold
+           eq_refl (free_in_empty e)).
+Qed.
+
+Theorem fold_known_unit_refines_imports :
+  fold_known_unit_refines_imports_statement.
+Proof.
+  intros imports e e' Hfold Hfree. unfold unit_refines.
+  exact (fold_known_unit_refines_from e e' (imports_statics imports)
+           empty_heap Hfold eq_refl Hfree).
 Qed.
 
 (* ======================================================================== *)

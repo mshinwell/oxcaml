@@ -45,7 +45,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaPrimitiveModel FlambdaValueSpec
   FlambdaPrimitiveSpec FlambdaPrimitiveProofs FlambdaSemanticsSpec
   FlambdaSemanticsProofs FlambdaNominalSpec FlambdaClosuresProofs
-  FlambdaUnusedStaticsSpec FlambdaUnusedSlotsSpec.
+  FlambdaUnusedStaticsSpec FlambdaImportsSpec FlambdaUnusedSlotsSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -801,16 +801,55 @@ Qed.
 
 End Dropped.
 
+(* What [drop_unused_slots] gives refines the unit, the two run from a
+   static environment that holds no code and binds no closure with a
+   slot removed, and from any heap. *)
+Lemma drop_unused_slots_refines_from (dropped : list value_slot)
+    (e e' : expr) (statics : static_env) (hp : heap) :
+  drop_unused_slots dropped e = Some e' ->
+  static_code statics = [] ->
+  trim_statics dropped statics = statics ->
+  refines (State e [] [] statics hp) (State e' [] [] statics hp).
+Proof.
+  unfold drop_unused_slots.
+  destruct (slots_unused dropped e) eqn:Hunused; [ | discriminate ].
+  intros [= <-] Hno_code Htrim.
+  apply (simulation_refines (dropped_related dropped)
+           (dropped_related_step dropped)).
+  split.
+  - unfold trim_state. simpl_state. rewrite Htrim. reflexivity.
+  - unfold slots_unused_inv, terms_inv. simpl_state.
+    refine (conj Hunused (conj I _)).
+    intros id c Hlookup. rewrite Hno_code in Hlookup. discriminate Hlookup.
+Qed.
+
+(* The static environment of the imports of a unit is such: an import
+   is no closure. *)
+Lemma trim_statics_imports (dropped : list value_slot)
+    (imports : list (symbol * import_class)) :
+  trim_statics dropped (imports_statics imports) = imports_statics imports.
+Proof.
+  unfold trim_statics, imports_statics. cbn [static_code static_values map].
+  f_equal.
+  induction imports as [ | [s c] imports IH];
+    cbn [map fst snd trim_allocated]; [ reflexivity | ].
+  rewrite IH. reflexivity.
+Qed.
+
 Theorem drop_unused_slots_program_refines :
   drop_unused_slots_program_refines_statement.
 Proof.
-  intros dropped e e'. unfold drop_unused_slots.
-  destruct (slots_unused dropped e) eqn:Hunused; [ | discriminate ].
-  intros [= <-]. unfold program_refines.
-  apply (simulation_refines (dropped_related dropped)
-           (dropped_related_step dropped)).
-  split; [ reflexivity | ].
-  apply terms_inv_initial. exact Hunused.
+  intros dropped e e' Hdrop. unfold program_refines.
+  exact (drop_unused_slots_refines_from dropped e e' empty_static_env
+           empty_heap Hdrop eq_refl eq_refl).
+Qed.
+
+Theorem drop_unused_slots_refines_imports :
+  drop_unused_slots_refines_imports_statement.
+Proof.
+  intros imports dropped e e' Hdrop. unfold unit_refines.
+  exact (drop_unused_slots_refines_from dropped e e' (imports_statics imports)
+           empty_heap Hdrop eq_refl (trim_statics_imports dropped imports)).
 Qed.
 
 (* ======================================================================== *)

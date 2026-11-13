@@ -82,7 +82,8 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaSemanticsSpec FlambdaNominalSpec FlambdaUnusedStaticsSpec.
+  FlambdaSemanticsSpec FlambdaNominalSpec FlambdaUnusedStaticsSpec
+  FlambdaImportsSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -208,6 +209,15 @@ Definition drop_unused_slots (dropped : list value_slot) (e : expr)
 Definition drop_unused_slots_program_refines_statement : Prop :=
   ∀ (dropped : list value_slot) (e e' : expr),
     drop_unused_slots dropped e = Some e' -> program_refines e e'.
+
+(* The same of a unit that imports symbols, run from the static
+   environment of its imports. Nothing more is asked: an import is no
+   closure, so none has a slot to remove, and the rewrite moves no
+   binding. *)
+Definition drop_unused_slots_refines_imports_statement : Prop :=
+  ∀ (imports : list (symbol * import_class)) (dropped : list value_slot)
+    (e e' : expr),
+    drop_unused_slots dropped e = Some e' -> unit_refines imports e e'.
 
 (* The rewrite makes no projection and removes none: a term passes the
    check before it if and only if it does after. *)
