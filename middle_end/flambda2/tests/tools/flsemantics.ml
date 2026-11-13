@@ -27,8 +27,12 @@
 
 (* Checks Simplify against the Rocq semantics of Flambda 2 on one example.
 
-   An [.fl] file is parsed to a Flambda unit, which Simplify then rewrites. The
-   unit before and the unit after are each converted to a term of the Rocq model
+   An [.fl] file is parsed to a Flambda unit, which Simplify then rewrites. (The
+   text has no modes for the parameters of code: the unit that is checked, and
+   that Simplify is given, is the unit read with, in the place of the mode of
+   each, the least that the compiler can say of where a value is,
+   [with_unknown_param_modes].) The unit before and the unit after are each
+   converted to a term of the Rocq model
    (middle_end/flambda2/rocq/FlambdaModel.v) and run on the machine extracted
    from FlambdaSemanticsSpec.v. What the two runs come to is printed and
    compared: Simplify is right on the example if, unless the run before is
@@ -3223,6 +3227,88 @@ let check ~filename ~units (before : Flambda_unit.t) (after : Flambda_unit.t) =
     validate ~imports ~outcome_before before after;
     if not ok then exit 1
 
+(* The text of fexpr has no syntax for the mode of a parameter of code, and the
+   reader gives every parameter the mode heap ([Fexpr_to_flambda]). In the
+   compiler's own term a parameter may have the mode that allows the stack, and
+   Simplify reads the mode: it is what the type of the parameter says of where
+   the value is ([Simplify_set_of_closures]). So that the tool's Simplify takes
+   nothing from the reader's mode, every parameter of every piece of code that
+   the unit read binds is given, before anything else is done with the unit, the
+   least that the compiler can say of where a value is
+   ([Alloc_mode.For_types.unknown ()]: heap or stack, and heap in a compiler
+   configured without stack allocation, where nothing is on the stack). Only
+   these modes are changed: the other defaults of the reader stay, and code of
+   another unit, which Simplify reads from a .cmx file, has the modes that the
+   compiler wrote there. The bodies of code are not gone into: a unit that binds
+   code there is not well-formed, and no verdict is given of it
+   ([well_formed_before]). A [Let], a [Let_cont] and a handler are built again
+   as the reader builds them, with fresh names for what they bind. *)
+let with_unknown_param_modes_of_code (code : Code.t) : Code.t =
+  let code_metadata =
+    Code_metadata.with_param_modes
+      (List.map
+         (fun (_ : Alloc_mode.For_types.t) -> Alloc_mode.For_types.unknown ())
+         (Code.param_modes code))
+      (Code.code_metadata code)
+  in
+  Code.create_with_metadata
+    ~params_and_body:(Code.params_and_body code)
+    ~free_names_of_params_and_body:(Code.free_names_of_params_and_body code)
+    ~code_metadata
+
+let rec with_unknown_param_modes_of_expr (e : Flambda.Expr.t) : Flambda.Expr.t =
+  match Flambda.Expr.descr e with
+  | Let let_expr ->
+    Flambda.Let_expr.pattern_match let_expr ~f:(fun pattern ~body ->
+        let named : Flambda.Named.t =
+          match Flambda.Let_expr.defining_expr let_expr with
+          | Static_consts group ->
+            Flambda.Named.create_static_consts
+              (Flambda.Static_const_group.map group ~f:(fun const ->
+                   match Flambda.Static_const_or_code.to_code const with
+                   | Some code ->
+                     Flambda.Static_const_or_code.create_code
+                       (with_unknown_param_modes_of_code code)
+                   | None -> const))
+          | (Simple _ | Prim _ | Set_of_closures _ | Rec_info _) as named ->
+            named
+        in
+        Flambda.Expr.create_let
+          (Flambda.Let_expr.create pattern named
+             ~body:(with_unknown_param_modes_of_expr body)
+             ~free_names_of_body:Unknown))
+  | Let_cont (Non_recursive { handler; _ }) ->
+    Flambda.Non_recursive_let_cont_handler.pattern_match handler
+      ~f:(fun k ~body ->
+        Flambda.Let_cont_expr.create_non_recursive k
+          (with_unknown_param_modes_of_handler
+             (Flambda.Non_recursive_let_cont_handler.handler handler))
+          ~body:(with_unknown_param_modes_of_expr body)
+          ~free_names_of_body:Unknown)
+  | Let_cont (Recursive handlers) ->
+    Flambda.Recursive_let_cont_handlers.pattern_match handlers
+      ~f:(fun ~invariant_params ~body handlers ->
+        Flambda.Let_cont_expr.create_recursive ~invariant_params
+          (Continuation.Lmap.map with_unknown_param_modes_of_handler
+             (Flambda.Continuation_handlers.to_map handlers))
+          ~body:(with_unknown_param_modes_of_expr body))
+  | Apply _ | Apply_cont _ | Switch _ | Invalid _ -> e
+
+and with_unknown_param_modes_of_handler
+    (handler : Flambda.Continuation_handler.t) : Flambda.Continuation_handler.t
+    =
+  let is_exn_handler = Flambda.Continuation_handler.is_exn_handler handler in
+  let is_cold = Flambda.Continuation_handler.is_cold handler in
+  Flambda.Continuation_handler.pattern_match handler ~f:(fun params ~handler ->
+      Flambda.Continuation_handler.create params
+        ~handler:(with_unknown_param_modes_of_expr handler)
+        ~free_names_of_handler:Unknown ~is_exn_handler ~is_cold)
+
+let with_unknown_param_modes (unit : Flambda_unit.t) : Flambda_unit.t =
+  Flambda_unit.create_from_metadata_and_body
+    (Flambda_unit.metadata unit)
+    (with_unknown_param_modes_of_expr (Flambda_unit.body unit))
+
 let check_file filename =
   match Parse_flambda.parse_fexpr filename with
   | Error e ->
@@ -3236,8 +3322,9 @@ let check_file filename =
        .cmx of the other units for the current one. *)
     Compilenv.reset unit_info;
     let fl2 = Fexpr_to_flambda.conv comp_unit unit in
+    let before = with_unknown_param_modes fl2.unit in
     let filename_shown = Filename.basename filename in
-    if well_formed_before ~filename:filename_shown fl2.unit
+    if well_formed_before ~filename:filename_shown before
     then
       let null_formatter =
         Format.make_formatter (fun _ _ _ -> ()) (fun () -> ())
@@ -3246,9 +3333,9 @@ let check_file filename =
         Flambda2.flambda_to_flambda ~ppf_dump:null_formatter
           ~prefixname:(Filename.chop_extension filename)
           ~machine_width:Sixty_four ~code_slot_offsets:fl2.code_slot_offsets
-          fl2.unit
+          before
       in
-      check ~filename:filename_shown ~units:(units_read ()) fl2.unit
+      check ~filename:filename_shown ~units:(units_read ()) before
         result.flambda
 
 (* The conversion, for the check that takes a term of the model through fexpr
@@ -3279,8 +3366,9 @@ let conversion_for_round_trip : Flroundtrip.conversion =
 (* Simplify, for that check: run as [check_file] runs it, and on the same
    units. *)
 let simplify_for_round_trip ~filename (parsed : Fexpr_to_flambda.conv_result) =
+  let before = with_unknown_param_modes parsed.unit in
   let well_formed_or_not_converted =
-    match with_function_slots (fun () -> convert_unit parsed.unit) with
+    match with_function_slots (fun () -> convert_unit before) with
     | exception Unsupported _ -> true
     | before -> well_formed before
   in
@@ -3294,7 +3382,7 @@ let simplify_for_round_trip ~filename (parsed : Fexpr_to_flambda.conv_result) =
       Flambda2.flambda_to_flambda ~ppf_dump:null_formatter
         ~prefixname:(Filename.chop_extension filename)
         ~machine_width:Sixty_four ~code_slot_offsets:parsed.code_slot_offsets
-        parsed.unit
+        before
     in
     Some result.flambda
 
