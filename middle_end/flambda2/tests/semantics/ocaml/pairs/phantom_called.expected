@@ -1,6 +1,8 @@
 phantom_called.fl:
   given the .cmx of Phantom, a prefix of 2 static bindings:
-    camlPhantom__f_0_1 = closure camlPhantom__f_0_1_code {}
+    camlPhantom__f_0_1 = closure Phantom.f_0 of
+      {Phantom.f_0 = camlPhantom__f_0_1_code}
+      at {Phantom.f_0 = camlPhantom__f_0_1} {}
     camlPhantom = Block 0 (camlPhantom__f_0_1)
   before Simplify, after the prefix (6 steps): undefined
   after Simplify, after the prefix (3 steps): returns [0: 0]

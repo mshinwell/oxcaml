@@ -231,8 +231,9 @@ says so. Only the labels that this tree cites are listed.
   the backend ignores what the unit gives its return continuation; the
   model observes what the unit gives it.
 - **C2-22.** In a unit converted with unnamed function slots the test
-  tool does not read the function slot that a projection of a value
-  slot names; the backend computes the load from it.
+  tool did not read the function slot that a projection of a value
+  slot names; the backend computes the load from it. Every unit is now
+  converted with named function slots.
 - **C2-23.** The backend lays closures out by offsets made from the
   free names that Simplify returns beside the term; nothing compares
   those names with the term.
@@ -704,13 +705,14 @@ says so. Only the labels that this tree cites are listed.
   answers unknown and drops the relation it has just joined.
 - **X4-1.** The output of Simplify binds the same variable in two
   places: the names stored in a term are not unique.
-- **X4-3.** Where every set of closures in what a check converts (the
-  unit before Simplify, the unit after and the prefix) has one function
-  and nothing there projects a function slot, the test tool leaves the
+- **X4-3.** Where every set of closures in what a check converted (the
+  unit before Simplify, the unit after and the prefix) had one function
+  and nothing there projected a function slot, the test tool left the
   function slot of a closure out of the terms of the model: a term
-  after that puts a closure at another function slot than the one from
-  which its code projects is converted to the same term, and one such,
-  written by hand, was validated.
+  after that put a closure at another function slot than the one from
+  which its code projects was converted to the same term, and one such,
+  written by hand, was validated. Every unit is now converted with
+  named function slots.
 - **X5-2.** The fields of a recursive module are read by immutable
   loads, and `CamlinternalMod.update_mod` overwrites them; a read from
   before the write is reused after it.

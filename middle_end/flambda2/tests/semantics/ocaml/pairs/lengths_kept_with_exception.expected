@@ -3,9 +3,12 @@ lengths_kept_with_exception.fl:
     camlLengths__length_1_3_code (v1) v2 -> k1 * k2 =
       apply direct(camlLengths__length_from_0_2_code) camlLengths__length_from_0_1
         (0, v1) -> k1 * k2
-    camlLengths__length_from_0_1 = closure camlLengths__length_from_0_2_code
-      {}
-    camlLengths__length_1_2 = closure camlLengths__length_1_3_code {}
+    camlLengths__length_from_0_1 = closure Lengths.length_from_0 of
+      {Lengths.length_from_0 = camlLengths__length_from_0_2_code}
+      at {Lengths.length_from_0 = camlLengths__length_from_0_1} {}
+    camlLengths__length_1_2 = closure Lengths.length_1 of
+      {Lengths.length_1 = camlLengths__length_1_3_code}
+      at {Lengths.length_1 = camlLengths__length_1_2} {}
     camlLengths = Block 0 (camlLengths__length_from_0_1,
       camlLengths__length_1_2)
   before Simplify, after the prefix, with its import (10 steps): returns

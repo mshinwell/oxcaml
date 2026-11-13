@@ -1,0 +1,46 @@
+(* The term that Simplify makes of a unit of two functions, each alone in its
+   set of closures: [call g = g 1], which is not inlined, and a closure given to
+   it that reads a variable of the unit, [fun y -> x + y] with [x] an opaque 2.
+   The closure is at its own function slot, from which its code projects the
+   value slot [x]. The unit returns 3.
+
+   closure_at_other_slot.fl is this text with one word changed: the closure is
+   put at the function slot of [call] (label X4-3). *)
+let code call_0 deleted in
+let code `fn_1` deleted in
+let code inline(never) loopify(never) size(6) newer_version_of(call_0)
+      call_0_1 (g/83 : val)
+        my_closure/84 &my_alloc_region/85 my_depth/86
+        -> k/32 * k/33 =
+  apply &my_alloc_region/85 g/83 (1) -> k/32 * k/33
+in
+let $camlClosure_at_own_slot__call_1_0 = closure call_0_1 @call &toplevel in
+let region/87 = %begin_region () in
+(let x/90 = %opaque (2) in
+ let code loopify(never) size(4) newer_version_of(`fn_1`)
+       `fn_1_1` (y/91 : imm tagged)
+         my_closure/92 &my_alloc_region/93 my_depth/94
+         -> k/35 * k/36
+         : imm tagged =
+   let x/95 =
+     %project_value_slot.[`fn`].[x] (my_closure/92)
+   in
+   let int_add/96 = %int_barith.add (x/95, y/91) in
+   cont k/35 (int_add/96)
+ in
+ let `fn/97` =
+   closure `fn_1_1` @`fn`
+     &toplevel &region/87
+ with { x = x/90 }
+ in
+ apply direct(call_0_1 &toplevel)
+   ($camlClosure_at_own_slot__call_1_0 : _ -> imm tagged)
+     (`fn/97`)
+     -> k/34 * error)
+  where k/34 (region_return/88 : imm tagged) =
+    let unit/89 = %end_region (region/87) in
+    let $camlClosure_at_own_slot =
+      Block 0 ($camlClosure_at_own_slot__call_1_0, region_return/88)
+    in
+    cont done ($camlClosure_at_own_slot)
+

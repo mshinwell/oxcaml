@@ -1,6 +1,8 @@
 never_called.fl:
   given the .cmx of Never, a prefix of 2 static bindings:
-    camlNever__add_one_0_1 = closure camlNever__add_one_0_1_code {}
+    camlNever__add_one_0_1 = closure Never.add_one_0 of
+      {Never.add_one_0 = camlNever__add_one_0_1_code}
+      at {Never.add_one_0 = camlNever__add_one_0_1} {}
     camlNever = Block 0 (camlNever__add_one_0_1)
   before Simplify, after the prefix (7 steps): undefined
   after Simplify, after the prefix (5 steps): undefined

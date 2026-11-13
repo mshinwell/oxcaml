@@ -338,10 +338,9 @@ it gave back.
   closure symbol of the compiler's pattern is given with the function
   slot it is bound at; the tool refuses a pattern whose function slots
   are not those of the set, in order, and `well_formed_unit` checks the
-  result again. And the choice between the model's two presentations of
-  a set: one for a whole unit, the same for the two units of a check,
-  the unnamed one only where every set has one function and no function
-  slot is projected. What the compiler's two patterns expand to is not
+  result again. And the presentation of a set: the model has two, and
+  every set is converted in the one that names its function slots,
+  whatever the unit has. What the compiler's two patterns expand to is not
   in the OCaml: it is `let_closures` and `bind_closures`, in Rocq, with
   statements.
 - **The kinds and arities that the conversion gives**, in the same file
@@ -510,25 +509,33 @@ it gave back.
   term survives a round trip through its text does not ask it.
   Returning the right symbol does not by itself establish agreement
   with what a linked program observes.
-  *The function slot of a value-slot projection*: where a unit is
-  converted with unnamed function slots, `convert_prim` drops
-  `project_from` from `Project_value_slot`. In that presentation the
-  model cannot test that the closure has the function slot named. A
-  hand-written text that names the wrong slot was observed to return a
-  value before Simplify in the model and to be undefined after it;
-  Simplify makes that projection `Invalid` (decision D3). The text is
-  not in this tree. The backend reads the function slot to compute the
-  load's offset (`to_cmm/to_cmm_primitive.ml`). Thus this conversion
-  can fault a correct Simplify, and the model does not detect a wrong
-  function slot in the term after in this presentation. In the same
-  presentation the function slot at which a set of closures has its
-  one function is not read either (`only_function`): a term after
-  that puts a closure at another function slot converts to the same
-  term of the model, and the validator is not asked about the slot.
+  *The function slot of a closure and of a value-slot projection*:
+  every unit is converted with named function slots. A closure is at
+  the function slot that the Flambda term given to the conversion
+  has for it, and
+  `convert_prim` keeps `project_from` of `Project_value_slot`: in the
+  model a projection that names another function slot than that of
+  the closure has no value (decision D3). Simplify makes such a
+  projection `Invalid`, and the backend reads the function slot to
+  compute the load's offset (`to_cmm/to_cmm_primitive.ml`).
+  It was not so before this change, and what the tool reported until
+  then is not made good by it. Where every set of closures in what a
+  check converted (the unit before Simplify, the unit after and the
+  prefix) had one function, and nothing there projected a function
+  slot, the conversion left the function slots out: it dropped
+  `project_from`, and did not read the function slot at which a set
+  had its one function. The model could then not test that a closure
+  had the function slot named, and two terms that differed in such a
+  slot only were one term of the model. Both consequences were
+  observed. A hand-written text, not in this tree, that names the
+  wrong slot returned a value before Simplify in the model and was
+  undefined after it: a correct Simplify was faulted. And a term
+  after that put a closure at another function slot was validated,
+  as follows.
   In a set of edits of terms after, made with the tool of bddccfade8
   at the default flags and not in this tree, 302 edits put a closure
-  at another function slot. The 276 in units converted in this
-  presentation were all validated. Where a native route was
+  at another function slot. The 276 in units converted with unnamed
+  function slots were all validated. Where a native route was
   available, the compilation of the edited text was attempted, by a
   route that removes the `Let`s that only rename a variable and runs
   Simplify on the text again, so that what follows is not a test of
@@ -562,13 +569,41 @@ it gave back.
   with "Invalid code" and status 134. Simplify, run again on the
   edited text, makes the projection of the value slot invalid. As
   with the 302, that is not a test of the backend on the edited term
-  as it stands. So in this presentation a "validated" does not
-  establish that a closure of the term after is at the function slot
-  from which its code projects. The repair is to convert every unit
-  with named function slots, which this tree does not do. With
-  named function slots the conversion keeps `project_from` and the
-  slots of a set. No claim is made that every pair with a wrong slot
-  is accepted by the validator.
+  as it stands. So a "validated" of a check converted with unnamed
+  function slots did not establish that a closure of the term after
+  is at the function slot from which its code projects.
+  With the conversion as it is, the unedited text and the edited one
+  are two terms of the model. `closure_at_own_slot.fl` and
+  `closure_at_other_slot.fl`, in `tests/semantics/`, are the text of
+  that term after and the same text with that one word changed (the
+  names of the unit and of the anonymous function are others). Given
+  to the tool as units, the first returns 3 and the second is
+  undefined in the model before Simplify; with the conversion as it
+  was, both returned 3 and were validated.
+  The check of the term before of that unit against the edited text
+  as the term after, with no Simplify run on that text, was made
+  again with the conversion as it is, by a program not in this tree
+  that calls `Flsemantics.check`: the run before returns 3, the run
+  after is undefined, and the tool says "DIFFERENT" and "not
+  validated", with status 1; against the unedited text it says
+  "validated".
+  The tool reads one text and makes the term after itself, so that
+  pair is not among the tests of this tree.
+  What the change moved in `tests/semantics`: no verdict. Of the
+  units from sources, seven are validated by another route (by the
+  lifting of closures where it was by the removal of unused static
+  bindings, or at the second asking) and one at the first asking
+  where it was at the second; the eight second units of `pairs/`
+  print the function slot of each closure of their prefix; two texts
+  by hand change their route.
+  No claim is made that the validator refuses every pair in which a
+  function slot is wrong. What is claimed is that the conversion
+  keeps the named function slots of the Flambda term that it is
+  given, up to the numbering that the two terms of a check share.
+  Whether that term is the compiler's is another matter: of a term
+  read from a text it is subject to what this entry says that the
+  text loses. The change removes the loss that the unnamed
+  presentation made, and no other.
   *What Simplify returns beside the term*: the tool converts
   `Flambda2.flambda_result.flambda`, not the other fields of the result.
   In particular it does not compare the slot offsets with the term. The
@@ -676,8 +711,11 @@ it gave back.
   function slot of the compiler gets a number, the same throughout a
   unit. Trusted: that the compiler's names are fresh, so that one name
   stands for one thing. A function slot of the compiler may get the
-  number 1, which is also the model's `unnamed_function_slot`; the two
-  are not in one unit, by the choice of presentation above.
+  number 1, which is also the model's `unnamed_function_slot`, the
+  function slot that the model's other presentation of a set gives
+  its one function. No conversion makes a term in that presentation,
+  so in a converted unit that number is the function slot that was
+  given it and nothing else.
 - **The identification of names across the two terms**, in the same
   file (`convert_both` with `code_id_used`, about 70 lines). The two
   units are converted with one numbering, the return and exception

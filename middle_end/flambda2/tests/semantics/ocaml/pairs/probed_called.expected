@@ -1,6 +1,8 @@
 probed_called.fl:
   given the .cmx of Probed, a prefix of 3 static bindings:
-    camlProbed__bump_1_2 = closure camlProbed__bump_1_4_code {}
+    camlProbed__bump_1_2 = closure Probed.bump_1 of
+      {Probed.bump_1 = camlProbed__bump_1_4_code}
+      at {Probed.bump_1 = camlProbed__bump_1_2} {}
     camlProbed = Block 0 (camlProbed__note_0_1, camlProbed__bump_1_2)
     and 1 closure of camlProbed that nothing asks for
   before Simplify, after the prefix (6 steps): undefined

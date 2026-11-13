@@ -1,6 +1,8 @@
 parity_called.fl:
   given the .cmx of Parity, a prefix of 3 static bindings:
-    camlParity__even_0_1 = closure camlParity__even_0_2_code {}
+    camlParity__even_0_1 = closure Parity.even_0 of
+      {Parity.even_0 = camlParity__even_0_2_code}
+      at {Parity.even_0 = camlParity__even_0_1} {}
     camlParity = Block 0 (camlParity__even_0_1, camlParity__odd_1_2)
     and 1 closure of camlParity that nothing asks for
   before Simplify, after the prefix (7 steps): undefined

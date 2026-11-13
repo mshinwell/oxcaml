@@ -136,7 +136,6 @@ let on_raw_flambda (unit : Flambda2_terms.Flambda_unit.t) =
   let shown = shown () in
   match !state with
   | No_unit_yet ->
-    Flsemantics.named_function_slots := false;
     state := Given_to_simplify { unit; well_formed = false; shown };
     guarded ~shown "the term given to Simplify" (fun () ->
         let well_formed = Flsemantics.well_formed_before ~filename:shown unit in
