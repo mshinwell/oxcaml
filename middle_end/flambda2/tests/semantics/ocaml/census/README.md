@@ -225,14 +225,18 @@ time, user and system together. Until now it allowed 60 seconds of
 the clock, which measured what else the machine was running:
 `loops_scalar`, seed 55, which was without an answer in 60 seconds
 the day before, then took 16 seconds of processor time, then 4,
-then 7 with the tool of 87cdbf3e01, and takes 0.9 now, the most of the
-240. The 240 took 16.6 seconds of processor time together in one run
-(9.6 user, 7.0 system), and 16.0 in a second run of the same tool (10.4
-and 5.7). Other builds ran on the machine during both: in two runs made
-one after the other in the same conditions, the tool of 3270ad86ed took
-12.1 and the tool of this tree 12.4. When it was measured at that
-commit, the tool of 3270ad86ed took 10.7 and 10.4. They took 73 (69 and
-4) with the tool of
+then 7 with the tool of 87cdbf3e01, and takes 1.6 now, the most of the
+240. The 240 took 16.7 seconds of processor time together in one run
+(13.2 user, 3.5 system), and 16.7 in a second run of the same tool (13.2
+and 3.5). Other builds ran on the machine during both: in two runs made
+one after the other in the same conditions, the tool of ae5e546274 took
+13.8 and the tool of this tree 17.1. The tool of this tree searches the
+second check for each unit that is not validated, 25 of the 240: in two
+more runs made one after the other, the tool of 93703d211b, which has
+the model and the tool of this tree but for that search, took 14.2 (10.2
+of user time) and the tool of this tree 18.3 (14.0). When it was
+measured at that commit, the tool of ae5e546274 took 16.6 and 16.0. They
+took 73 (69 and 4) with the tool of
 87cdbf3e01, 51 (47 and 5) with the tool of ecb8c49042, and 204 the
 day before that (198 and 6). Of the tools built between ecb8c49042
 and 87cdbf3e01, one built before the rewrites from the types went
@@ -248,10 +252,10 @@ made, with the tool before it and the tool after: 79 seconds and 12
 for the 240, 30 and 16 for the 600, and no output of the 840
 differs between the two. What else came between the two tools was
 not measured for its cost on these units one change at a time. The 600
-took 16.1 seconds in the first of those two runs (6.7 user, 9.4 system)
-and 25.1 in the second (8.3 and 16.8), and 14.7 in the run made just
-after that of the tool of 3270ad86ed, which took 14.2; when it was
-measured at that commit, the tool of 3270ad86ed took 11.7 and 12.1. They
+took 17.1 seconds in the first of those two runs (7.2 user, 9.8 system)
+and 14.7 in the second (6.7 and 8.0), and 17.8 in the run made just
+after that of the tool of ae5e546274, which took 15.2; when it was
+measured at that commit, the tool of ae5e546274 took 16.1 and 25.1. They
 took 33 with the tool of 87cdbf3e01. More than half of what the 600 take
 now is the system's part. A tool that
 a signal other than that of the limit ends

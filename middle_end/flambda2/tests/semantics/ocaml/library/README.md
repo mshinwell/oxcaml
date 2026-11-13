@@ -99,5 +99,14 @@ Simplify of those four and of `e_empty_in_one_arm` has an allocation
 mode that names a region; `../README.md` says what the tool and the
 conversion make of both.
 
+The text of the term after Simplify of four of the six on the
+fixed-width integers (`int64_identities`, `int64_laws_more`,
+`nativeint_identities`, `nativeint_laws_more`) is not read by the
+reader of the text of terms, which stops on a naked integer outside
+63 bits (discrepancy C1-11). The verdicts above are not touched: the
+check of a unit reads no text of its term after. The round trip of
+the conversion does, and stops on those four; no rule runs it on this
+directory (`../../roundtrip/README.md`).
+
 The sources with the syntax of immutable arrays are not formatted
 (`../.ocamlformat-ignore`).

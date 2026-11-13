@@ -161,12 +161,12 @@ from the others.
 | `probed_inlined.ml` | `probed.ml` | calls the same function and lets Simplify inline it | not checked: the term after Simplify has the call that is a probe, which the conversion refuses |
 | `phantom_called.ml` | `phantom.ml` | calls a function of the first unit whose body, in the `.cmx`, has a phantom binding | a prefix of two bindings without the body, which the conversion refuses; the run before is undefined, the run after returns; nothing to validate |
 
-Eighteen sources. Seven are first units; five of them have an
-expected file: four are validated, as a unit of the directory above
-is, and `phantom.ml` is not checked. Of the eleven second units,
-three are validated given a `.cmx`, one of them with an import left;
-seven are undefined in the model, five of them with a prefix, and
-one of the five, `phantom_called.ml`, before Simplify only; one is
+Twenty-one sources. Eight are first units; six of them have an
+expected file: five are validated, as a unit of the directory above
+is, and `phantom.ml` is not checked. Of the thirteen second units,
+four are validated given a `.cmx`, two of them with an import left;
+eight are undefined in the model, six of them with a prefix, and
+one of the six, `phantom_called.ml`, before Simplify only; one is
 not checked.
 
 The prefix of the four units that use `lengths.ml` is the same: the
