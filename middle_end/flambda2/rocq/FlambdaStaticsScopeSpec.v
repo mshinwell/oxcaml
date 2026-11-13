@@ -166,8 +166,10 @@
      between, so it is free in the term
      ([give_scrutinees_keeps_scope_statement]).
    - FlambdaArmNumbersSpec.numbers_in_arms puts a constant for a
-     variable in arguments of continuations, so a free variable of
-     the result is one of the term
+     variable where it is read (in the arguments of continuations,
+     in a defining expression that is the variable, in the arguments
+     of primitives and in the scrutinee of a [Switch]), so a free
+     variable of the result is one of the term
      ([numbers_in_arms_keeps_scope_statement]).
    - FlambdaWrapReturnsSpec.wrap_returns takes away a parameter that
      its handler does not use, of a continuation that a call returns

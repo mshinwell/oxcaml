@@ -198,8 +198,9 @@
    just before it and which gives such a parameter the scrutinee of a
    [Switch] where every application gives it the number of its arm;
    and FlambdaArmNumbersSpec.numbers_in_arms, which the check applies
-   just after it and which puts, for the scrutinee of a [Switch] in
-   the arguments of an arm, the number of the arm;
+   just after it and which puts the number of an arm for the
+   scrutinee of its [Switch], and the tagged number for the variable
+   that the scrutinee is the untagging of, where the arm reads them;
    and
    FlambdaWrapReturnsSpec.wrap_returns, which takes away a parameter
    that its handler does not use, of a continuation that a call
@@ -897,11 +898,13 @@ Definition unalias_params_equivariant_statement : Prop :=
 Definition give_scrutinees_equivariant_statement : Prop :=
   rewrite_equivariant give_scrutinees.
 
-(* Putting the number of an arm for the scrutinee of its [Switch], in
-   the arguments of the arm and of the handler that only that arm
-   applies (FlambdaArmNumbersSpec.v). The variables are found by tests
-   of equality of names, in the order of the term, and no name is
-   made. That it keeps scope is in FlambdaStaticsScopeSpec.v. *)
+(* Putting the number of an arm for the scrutinee of its [Switch],
+   and the tagged number for the variable that the scrutinee is the
+   untagging of, where the arm and the handler that only that arm
+   applies read them (FlambdaArmNumbersSpec.v, which says in which
+   places). The variables are found by tests of equality of names, in
+   the order of the term, and no name is made. That it keeps scope is
+   in FlambdaStaticsScopeSpec.v. *)
 Definition numbers_in_arms_equivariant_statement : Prop :=
   rewrite_equivariant numbers_in_arms.
 
