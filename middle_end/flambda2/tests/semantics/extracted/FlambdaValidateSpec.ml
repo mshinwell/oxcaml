@@ -1,5 +1,6 @@
 open Datatypes
 open FlambdaAliasesSpec
+open FlambdaArmNumbersSpec
 open FlambdaBlockLoadSpec
 open FlambdaCodeLetsSpec
 open FlambdaCompareSpec
@@ -329,7 +330,9 @@ let tidy_expr_before e =
     (remove_unused_lets
        (follow_aliases_in_loops []
           (follow_aliases []
-             (share_known_primitives (unalias_params (give_scrutinees e))))))
+             (share_known_primitives
+                (merge_switches
+                   (numbers_in_arms (unalias_params (give_scrutinees e))))))))
 
 (** val tidy_code_before : expr -> expr **)
 
@@ -351,7 +354,8 @@ let tidy_expr_after e =
   remove_unused_defined_lets_in_loops []
     (follow_aliases_in_loops []
        (follow_aliases []
-          (share_known_primitives (unalias_params (give_scrutinees e)))))
+          (share_known_primitives
+             (numbers_in_arms (unalias_params (give_scrutinees e))))))
 
 (** val tidy_code_after : expr -> expr **)
 

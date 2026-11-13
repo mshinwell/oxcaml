@@ -32,7 +32,12 @@
    equivalence.
 
    This file is to be reviewed: [numbers_in_arms] and what it is made
-   of, and the two statements. Nothing applies the pass yet.
+   of, which are extracted and run by the validation of
+   middle_end/flambda2/tests/semantics/, and the two statements. The
+   validation applies the pass to each of the two terms that it
+   compares, once it has placed their continuations, just after
+   FlambdaUnaliasParamsSpec.unalias_params
+   (FlambdaValidateSpec.tidied_before, [tidied_after]).
 
    Simplify simplifies the arguments of an arm of a [Switch] in an
    environment in which the scrutinee is the number of the arm
@@ -87,7 +92,10 @@
    other way; the pass of that file keeps its rewrite only where
    FlambdaUnaliasParamsSpec.unalias_param would then take the
    parameter away. Applied to the result of that pass as it is, this
-   one puts the numbers back.
+   one puts the numbers back. The validation applies that pass, then
+   [unalias_params], which takes the parameter away and with it the
+   arguments that were made the variable, and then this one: there
+   it undoes nothing.
 
    The result is equivalent to the term
    ([numbers_in_arms_equivalent_statement]), under all environments.

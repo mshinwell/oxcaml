@@ -196,6 +196,9 @@
    FlambdaGiveScrutineeSpec.give_scrutinees, which the check applies
    just before it and which gives such a parameter the scrutinee of a
    [Switch] where every application gives it the number of its arm;
+   and FlambdaArmNumbersSpec.numbers_in_arms, which the check applies
+   just after it and which puts, for the scrutinee of a [Switch] in
+   the arguments of an arm, the number of the arm;
    and
    FlambdaWrapReturnsSpec.wrap_returns, which takes away a parameter
    that its handler does not use, of a continuation that a call
@@ -230,7 +233,9 @@
    commutes with renaming, and it keeps scope
    ([placed_keeps_scope_statement], in the last section). And what
    the check makes of each of those terms: its continuations placed,
-   then rounds of [unalias_params], of
+   then rounds of [give_scrutinees], of [unalias_params], of
+   [numbers_in_arms], for the term before of
+   FlambdaMergeSwitchesSpec.merge_switches, of
    FlambdaCseSpec.share_known_primitives, of following aliases and of
    removing the [Let]s left unused, and then
    FlambdaGroupsUpSpec.groups_up ([tidied_before], [tidied_after]);

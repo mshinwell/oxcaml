@@ -5190,7 +5190,8 @@ Ltac rename_outwards :=
       | rewrite remove_unused_defined_lets_in_loops_closed_equivariant
       | rewrite inline_tail_conts_kinded_equivariant_aux
       | rewrite FlambdaUnaliasParamsNamesProofs.unalias_params_renamed
-      | rewrite FlambdaGiveScrutineeNamesProofs.give_scrutinees_renamed ].
+      | rewrite FlambdaGiveScrutineeNamesProofs.give_scrutinees_renamed
+      | rewrite FlambdaArmNumbersNamesProofs.numbers_in_arms_renamed ].
 
 Lemma normalise_expr_before_equivariant :
   rewrite_equivariant normalise_expr_before.
@@ -7530,6 +7531,15 @@ Qed.
 
 (* The tidying of the term before that follows the placing keeps
    scope: each rewrite of its rounds does. *)
+Lemma give_then_unalias_keeps_scope :
+  keeps_scope (fun e => unalias_params (give_scrutinees e)).
+Proof.
+  exact
+    (keeps_scope_compose give_scrutinees unalias_params
+       FlambdaStaticsScopeProofs.give_scrutinees_keeps_scope
+       FlambdaStaticsScopeProofs.unalias_params_keeps_scope).
+Qed.
+
 Lemma tidy_expr_before_keeps_scope : keeps_scope tidy_expr_before.
 Proof.
   exact
@@ -7539,31 +7549,51 @@ Proof.
             (follow_aliases_in_loops []
                (follow_aliases []
                   (share_known_primitives
-                     (unalias_params (give_scrutinees e))))))
+                     (merge_switches
+                        (numbers_in_arms
+                           (unalias_params (give_scrutinees e))))))))
        (remove_unused_defined_lets [])
        (keeps_scope_compose
           (fun e =>
              follow_aliases_in_loops []
                (follow_aliases []
                   (share_known_primitives
-                     (unalias_params (give_scrutinees e)))))
+                     (merge_switches
+                        (numbers_in_arms
+                           (unalias_params (give_scrutinees e)))))))
           remove_unused_lets
           (keeps_scope_compose
              (fun e =>
                 follow_aliases []
                   (share_known_primitives
-                     (unalias_params (give_scrutinees e))))
+                     (merge_switches
+                        (numbers_in_arms
+                           (unalias_params (give_scrutinees e))))))
              (follow_aliases_in_loops [])
              (keeps_scope_compose
                 (fun e =>
-                   share_known_primitives (unalias_params (give_scrutinees e)))
+                   share_known_primitives
+                     (merge_switches
+                        (numbers_in_arms
+                           (unalias_params (give_scrutinees e)))))
                 (follow_aliases [])
                 (keeps_scope_compose
-                   (fun e => unalias_params (give_scrutinees e))
+                   (fun e =>
+                      merge_switches
+                        (numbers_in_arms
+                           (unalias_params (give_scrutinees e))))
                    share_known_primitives
-                   (keeps_scope_compose give_scrutinees unalias_params
-                      FlambdaStaticsScopeProofs.give_scrutinees_keeps_scope
-                      FlambdaStaticsScopeProofs.unalias_params_keeps_scope)
+                   (keeps_scope_compose
+                      (fun e =>
+                         numbers_in_arms
+                           (unalias_params (give_scrutinees e)))
+                      merge_switches
+                      (keeps_scope_compose
+                         (fun e => unalias_params (give_scrutinees e))
+                         numbers_in_arms
+                         give_then_unalias_keeps_scope
+                         FlambdaStaticsScopeProofs.numbers_in_arms_keeps_scope)
+                      FlambdaKeepsScopeProofs.merge_switches_keeps_scope)
                    FlambdaKeepsScopeProofs.share_known_primitives_keeps_scope)
                 FlambdaKeepsScopeProofs.follow_aliases_keeps_scope)
              FlambdaLoopsScopeProofs.follow_aliases_in_loops_keeps_scope)

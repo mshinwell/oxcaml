@@ -35,7 +35,12 @@
    middle_end/flambda2/tests/semantics/ applies: in a round of each of
    its two phases it follows [collapse_switches]
    (FlambdaValidateSpec.normalise_expr_before and
-   [normalise_expr_params]). It is extracted and run with them.
+   [normalise_expr_params]). It is extracted and run with them. The
+   tidying of the term before that follows the placing of
+   continuations applies it too ([tidy_expr_before]), after
+   FlambdaArmNumbersSpec.numbers_in_arms has put the number of an arm
+   for a scrutinee that the arm passes on: the arms of a [Switch] may
+   give their numbers only then.
 
    What Simplify does. Where the arms of a [Switch] all apply the same
    continuation with no trap action, and each argument is either the

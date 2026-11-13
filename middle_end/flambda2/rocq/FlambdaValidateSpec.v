@@ -227,7 +227,17 @@
    [Switch] on the result, what Simplify gives for the parameter is
    the number of the arm; such an argument is first made the
    scrutinee (FlambdaGiveScrutineeSpec.give_scrutinees), where that
-   lets the parameter be taken away. Then
+   lets the parameter be taken away. Where it does not, the argument
+   stays, and the term before has the scrutinee where Simplify has
+   the number, as for a flag that a loop tests before it sets it: the
+   scrutinee is made the number in the arguments of an arm and of the
+   handler that only that arm applies
+   (FlambdaArmNumbersSpec.numbers_in_arms), in both terms. The arms
+   of a [Switch] of the term before may then all give their numbers,
+   and such a [Switch] is the application of its continuation to the
+   scrutinee, as Simplify makes it
+   (FlambdaMergeSwitchesSpec.merge_switches, which the rounds apply
+   before the scrutinee is a number there). Then
    what the handler of the term before computes again is shared with
    the first computation ([share_known_primitives]); aliases are
    followed and the [Let]s left unused are removed. The same is done
@@ -239,6 +249,7 @@
    of the term after is an equivalence
    (FlambdaGiveScrutineeSpec.give_scrutinees_equivalent_statement,
    FlambdaUnaliasParamsSpec.unalias_params_equivalent_statement,
+   FlambdaArmNumbersSpec.numbers_in_arms_equivalent_statement,
    FlambdaCseEquivalentSpec.share_known_primitives_equivalent_statement).
    The tidying is not in a round of the normalisations for the reason
    that the placing is not: it needs the continuations placed, and
@@ -320,7 +331,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaHoistStaticsSpec
   FlambdaGuardScopeSpec FlambdaGroupsUpSpec.
 From OxCamlFlambda2 Require Import FlambdaWrapReturnsSpec
-  FlambdaUntagParamsSpec FlambdaGiveScrutineeSpec.
+  FlambdaUntagParamsSpec FlambdaGiveScrutineeSpec FlambdaArmNumbersSpec.
 From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
 From OxCamlFlambda2 Require Import FlambdaKnownSlotsSpec.
 From OxCamlFlambda2 Require Import FlambdaStubCallsSpec.
@@ -934,7 +945,13 @@ Definition placed (e : expr) : expr :=
    application gives one variable, which is at the handler what it is
    at the applications, is taken away where the checks of
    FlambdaUnaliasParamsSpec.unalias_params pass, and the handler
-   begins with a [Let] of it to that variable; a primitive that was
+   begins with a [Let] of it to that variable; the scrutinee of a
+   [Switch] is made the number of the arm in the arguments of the arm
+   and of the handler that only that arm applies
+   (FlambdaArmNumbersSpec.numbers_in_arms); a [Switch] whose arms
+   then apply one continuation to arguments that are computed from
+   their numbers is made the application
+   (FlambdaMergeSwitchesSpec.merge_switches); a primitive that was
    computed is not computed again; aliases are followed, into the
    handlers of recursive continuations too for what is known where
    they are defined; the [Let]s left unused are removed. *)
@@ -943,7 +960,9 @@ Definition tidy_expr_before (e : expr) : expr :=
     (remove_unused_lets
        (follow_aliases_in_loops []
           (follow_aliases []
-             (share_known_primitives (unalias_params (give_scrutinees e)))))).
+             (share_known_primitives
+                (merge_switches
+                   (numbers_in_arms (unalias_params (give_scrutinees e)))))))).
 
 (* The same for the body of code: that round, and the same for the
    handler of each of its recursive continuations. *)
@@ -964,13 +983,15 @@ Definition tidied_before (rounds : nat) (e : expr) : expr :=
   groups_up (iterate rounds tidy_before_round (placed e)).
 
 (* The same for the term after, with rewrites that are equivalences
-   only: of the [Let]s left unused, those that are sure to have a
-   value are removed, as in the normalisation of the term after. *)
+   only: the arms of a [Switch] are not merged, and of the [Let]s
+   left unused, those that are sure to have a value are removed, as
+   in the normalisation of the term after. *)
 Definition tidy_expr_after (e : expr) : expr :=
   remove_unused_defined_lets_in_loops []
     (follow_aliases_in_loops []
        (follow_aliases []
-          (share_known_primitives (unalias_params (give_scrutinees e))))).
+          (share_known_primitives
+             (numbers_in_arms (unalias_params (give_scrutinees e)))))).
 
 Definition tidy_code_after (body : expr) : expr :=
   rewrite_rec_handlers tidy_expr_after (tidy_expr_after body).
