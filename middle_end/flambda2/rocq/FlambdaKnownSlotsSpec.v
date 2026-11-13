@@ -132,6 +132,14 @@
    is not a closure, or from a closure that has not got the slot) has
    one once rewritten.
 
+   The same holds from a static environment that binds something
+   already, where the code in it makes its sets of closures as what
+   is known says and what it binds its symbols to has its value
+   slots so ([read_slots_refines_from_statement]). A unit is run so
+   from its imports (FlambdaImportsSpec.imports_statics), which are
+   no code and no closure:
+   [read_known_slots_refines_imports_statement].
+
    What is not here: a slot that holds a variable; a slot that two sets
    give different symbols, where the code that reads it is the code of
    one of them only (Simplify knows that; this file would need the test
@@ -148,6 +156,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaValueSpec FlambdaSemanticsSpec FlambdaNominalSpec
   FlambdaWellFormedSpec FlambdaStaticsInScopeSpec FlambdaUnusedStaticsSpec
   FlambdaKnownSymbolsSpec.
+From OxCamlFlambda2 Require Import FlambdaImportsSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -473,6 +482,31 @@ Definition read_slots_program_refines_statement : Prop :=
    own. *)
 Definition read_known_slots_program_refines_statement : Prop :=
   ∀ e : expr, program_refines e (read_known_slots e).
+
+(* The same from a static environment that binds something already:
+   the code that it has makes its sets of closures as [known] says,
+   and what it binds its symbols to has its value slots so. The heap
+   is empty. *)
+Definition read_slots_refines_from_statement : Prop :=
+  ∀ (known : known_slots) (syms : list symbol) (e : expr)
+    (statics : static_env),
+    closed_slots known = true ->
+    slots_as known e = true ->
+    Forall (fun binding => code_slots_as known (snd binding) = true)
+      (static_code statics) ->
+    Forall
+      (fun binding => allocated_slots_known known (snd binding) = true)
+      (static_values statics) ->
+    refines (State e [] [] statics empty_heap)
+      (State (read_slots known syms e) [] [] statics empty_heap).
+
+(* So what [read_known_slots] gives refines the unit, each run on its
+   own from the same imports (FlambdaImportsSpec.unit_refines): the
+   static environment of the imports has no code, and binds each
+   symbol to something imported, which has no value slot. *)
+Definition read_known_slots_refines_imports_statement : Prop :=
+  ∀ (imports : list (symbol * import_class)) (e : expr),
+    unit_refines imports e (read_known_slots e).
 
 (* The rewrite keeps row 4: where every symbol and code id that a term
    mentions is in scope, given the symbols [syms'] and the code ids

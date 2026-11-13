@@ -36,7 +36,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaNominalProofs FlambdaWellFormedSpec FlambdaWellFormedProofs
   FlambdaStaticsInScopeSpec FlambdaUnusedStaticsSpec FlambdaKnownSymbolsSpec
   FlambdaClosuresSpec FlambdaClosuresProofs FlambdaContextWhereSpec
-  FlambdaContextWhereProofs FlambdaKnownSlotsSpec.
+  FlambdaContextWhereProofs FlambdaImportsSpec FlambdaKnownSlotsSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -517,6 +517,22 @@ Proof.
   intros He. split.
   - exact (terms_inv_initial _ _ _ e He).
   - exact (conj (Forall_nil _) (conj I (Forall_nil _))).
+Qed.
+
+(* The same from a static environment that binds something already. *)
+Lemma slots_inv_from (e : expr) (statics : static_env) :
+  slots_as known e = true ->
+  Forall (fun binding => code_slots_as known (snd binding) = true)
+    (static_code statics) ->
+  Forall (fun binding => allocated_slots_known known (snd binding) = true)
+    (static_values statics) ->
+  slots_inv (State e [] [] statics empty_heap).
+Proof.
+  intros He Hcode Hvalues. split.
+  - unfold terms_inv. simpl_state. refine (conj He (conj I _)).
+    intros id c Hlookup. rewrite Forall_forall in Hcode.
+    exact (Hcode (id, c) (lookup_in id c _ Hlookup)).
+  - exact (conj (Forall_nil _) (conj I Hvalues)).
 Qed.
 
 Lemma slots_inv_run (n : nat) :
@@ -1016,6 +1032,31 @@ Proof.
     [ | apply refines_refl ].
   apply andb_true_iff in Hcheck as [Hclosed Has].
   exact (read_slots_program_refines _ [] e Hclosed Has).
+Qed.
+
+Theorem read_slots_refines_from : read_slots_refines_from_statement.
+Proof.
+  intros known syms e statics Hclosed Has Hcode Hvalues.
+  apply (read_slots_refines_aux known Hclosed).
+  exact (slots_inv_from known e statics Has Hcode Hvalues).
+Qed.
+
+Theorem read_known_slots_refines_imports :
+  read_known_slots_refines_imports_statement.
+Proof.
+  intros imports e. unfold unit_refines, read_known_slots. cbv zeta.
+  destruct
+    (closed_slots (slots_known (slots_made e))
+     && slots_as (slots_known (slots_made e)) e)
+    eqn:Hcheck;
+    [ | apply refines_refl ].
+  apply andb_true_iff in Hcheck as [Hclosed Has].
+  apply (read_slots_refines_from _ [] e (imports_statics imports) Hclosed Has).
+  - apply Forall_nil.
+  - unfold imports_statics. cbn [static_values]. apply Forall_forall.
+    intros [s allocated] Hin.
+    apply in_map_iff in Hin as ([s' c] & Heq & _).
+    injection Heq as _ <-. reflexivity.
 Qed.
 
 (* ======================================================================== *)
