@@ -45,7 +45,12 @@
      the two expressions are the same one, and so are the
      continuations; a [Let_static] there binds no name removed, as
      erasing it changes nothing, so what it binds is fresh in both
-     static environments or in neither. *)
+     static environments or in neither.
+
+   The two runs may start under continuations, the same in both, in
+   which the names removed do not occur: such a continuation is its
+   own erasure (FlambdaUnusedStaticsProofs.cont_free_of_erased), and
+   the groups at the head do not look at the continuations. *)
 
 From Stdlib Require Import ZArith List Bool Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
@@ -55,7 +60,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaWellFormedSpec FlambdaWellFormedProofs FlambdaNormaliseSpec
   FlambdaUnusedStaticsSpec FlambdaUnusedStaticsProofs FlambdaLiftSpec
   FlambdaShareProjectionsSpec FlambdaShareProjectionsProofs
-  FlambdaUnusedHeadStaticsSpec.
+  FlambdaImportsSpec FlambdaImportsProofs FlambdaUnusedHeadStaticsSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -756,13 +761,15 @@ Definition head_ok (e : expr) (statics : static_env) : Prop :=
    them: in the head, or under it, where the two differ by their static
    environments only. *)
 Inductive related : state -> state -> Prop :=
-  | Related_head (e : expr) (statics' statics : static_env) (hp : heap) :
+  | Related_head (e : expr) (conts : cont_env)
+      (statics' statics : static_env) (hp : heap) :
     expr_avoids D e = true ->
     head_ok e statics ->
+    conts_erased D conts conts ->
     statics_erased D statics statics' ->
     only_more statics' statics ->
-    related (State (erase_expr D e) [] [] statics' hp)
-      (State e [] [] statics hp)
+    related (State (erase_expr D e) [] conts statics' hp)
+      (State e [] conts statics hp)
   | Related_under (e : expr) (vars : env) (conts : cont_env)
       (statics' statics : static_env) (hp : heap) :
     state_erased D (State e vars conts statics hp)
@@ -826,7 +833,7 @@ Qed.
 Lemma related_step (s' s : state) :
   related s' s -> result_simulated related (step s') (step s).
 Proof.
-  intros [e statics' statics hp Havoids Hok Hstatics Hmore
+  intros [e conts statics' statics hp Havoids Hok Hconts Hstatics Hmore
          | e vars conts statics' statics hp Herased Hmore];
     [ | exact (under_step e vars conts statics' statics hp Herased Hmore) ].
   destruct (let_static_or_not e) as [(bindings & body & ->) | Hnot].
@@ -865,7 +872,7 @@ Proof.
       as (extended & Heval & Hmore' & Hs & Hc).
     rewrite Heval. simpl.
     simpl in Havoids. apply andb_true_iff in Havoids as [Hbindings Hbody].
-    apply Related_head; [ exact Hbody | | | exact Hmore' ].
+    apply Related_head; [ exact Hbody | | exact Hconts | | exact Hmore' ].
     + repeat split; try assumption.
       * intros sym Hsym. apply Hs; [ exact (Hsyms_apart sym Hsym) | ].
         apply Hfresh_s.
@@ -882,10 +889,10 @@ Proof.
     assert (Hunder : under_head e = e)
       by (destruct e; try reflexivity; exfalso; eapply Hnot; reflexivity).
     destruct Hok as [Hkept _]. rewrite Hunder in Hkept.
-    pose proof (State_erased D e [] [] [] statics statics' hp Havoids
-      env_avoids_nil (Forall2_nil _) Hstatics) as Herased.
+    pose proof (State_erased D e [] conts conts statics statics' hp Havoids
+      env_avoids_nil Hconts Hstatics) as Herased.
     rewrite (erase_binds_only_kept D e Hkept) in Herased |- *.
-    exact (under_step e [] [] statics' statics hp Herased Hmore).
+    exact (under_step e [] conts statics' statics hp Herased Hmore).
 Qed.
 
 End Head.
@@ -927,10 +934,23 @@ Proof.
   split; apply forallb_forall; intros name _; reflexivity.
 Qed.
 
-Theorem drop_head_statics_refines_from :
-  drop_head_statics_refines_from_statement.
+(* Continuations in which the names removed do not occur are their own
+   erasure. *)
+Lemma conts_free_of_erased (D : dropped) (conts : cont_env) :
+  forallb (fun '(_, c) => cont_free_of D c) conts = true ->
+  conts_erased D conts conts.
 Proof.
-  intros D e e' statics hp. unfold drop_head_statics.
+  induction conts as [ | [k c] conts IH]; simpl;
+    [ intros _; apply Forall2_nil | ].
+  intros Hconts. apply andb_true_iff in Hconts as [Hc Hrest].
+  apply Forall2_cons; [ | exact (IH Hrest) ].
+  split; [ reflexivity | exact (cont_free_of_erased D c Hc) ].
+Qed.
+
+Theorem drop_head_statics_refines_under :
+  drop_head_statics_refines_under_statement.
+Proof.
+  intros D e e' conts statics hp. unfold drop_head_statics.
   destruct (head_statics_removable D e) eqn:Hchecks; [ | discriminate ].
   unfold head_statics_removable in Hchecks.
   apply andb_true_iff in Hchecks as [Hchecks Htotal].
@@ -941,14 +961,26 @@ Proof.
   rewrite symbols_bound_by_flat_map in Hsyms.
   rewrite code_bound_by_flat_map in Hcodes.
   unfold drop_statics. rewrite Havoids. intros [= <-] Hfree Hhead.
+  unfold envs_free_of in Hfree.
+  apply andb_true_iff in Hfree as [Hfree Hstatics].
+  apply andb_true_iff in Hfree as [_ Hconts].
   apply (simulation_refines (related D) (related_step D)).
   apply Related_head.
   - exact Havoids.
   - repeat split; try assumption.
     + intros s. apply head_free_in_symbols, Hhead.
     + intros id. apply head_free_in_code, Hhead.
-  - exact (statics_free_of_erased D statics Hfree).
+  - exact (conts_free_of_erased D conts Hconts).
+  - exact (statics_free_of_erased D statics Hstatics).
   - split; [ apply statics_extend_refl | split; intros; assumption ].
+Qed.
+
+Theorem drop_head_statics_refines_from :
+  drop_head_statics_refines_from_statement.
+Proof.
+  intros D e e' statics hp Hdrop Hfree Hhead.
+  exact (drop_head_statics_refines_under D e e' [] statics hp Hdrop Hfree
+           Hhead).
 Qed.
 
 Theorem drop_head_statics_program_refines :
@@ -991,21 +1023,23 @@ Proof. apply step_equivalent. reflexivity. Qed.
 
 (* The term without the tables is the removal of their symbols from the
    term with them, up to a group of no binding; the removal is a
-   refinement the other way by [drop_head_statics_program_refines], and
+   refinement the other way by [drop_head_statics_refines_under], and
    removing those symbols from the term itself, which binds none of
    them and mentions none, is a refinement by
-   FlambdaUnusedStaticsProofs.drop_statics_program_refines. *)
-Theorem add_head_tables_program_refines :
-  add_head_tables_program_refines_statement.
+   FlambdaUnusedStaticsProofs.drop_statics_refines. Both are from one
+   static environment and under one continuation environment. *)
+Theorem add_head_tables_refines_under :
+  add_head_tables_refines_under_statement.
 Proof.
-  intros tables e. unfold add_head_tables.
-  destruct tables as [ | table tables]; [ apply refines_refl | ].
+  intros tables e conts statics hp. unfold add_head_tables.
+  destruct tables as [ | table tables]; [ intros _ _; apply refines_refl | ].
   cbv zeta.
   set (all := table :: tables).
   set (D := tables_dropped all).
   set (e' := Let_static (map table_binding all) e).
   destruct (tables_plain all && head_statics_removable D e') eqn:Hchecks;
-    [ | apply refines_refl ].
+    [ | intros _ _; apply refines_refl ].
+  intros Hfree Hfresh.
   apply andb_true_iff in Hchecks as [_ Hchecks].
   assert (Havoids' : expr_avoids D e' = true).
   { unfold head_statics_removable in Hchecks.
@@ -1028,16 +1062,31 @@ Proof.
     (Hhead : drop_head_statics D e' = Some (Let_static [] (erase_expr D e))).
   { unfold drop_head_statics. rewrite Hchecks. unfold drop_statics.
     rewrite Havoids', Herased. reflexivity. }
-  unfold program_refines.
-  apply
-    (refines_trans _
-       (State (erase_expr D e) [] [] empty_static_env empty_heap)).
-  - apply (drop_statics_program_refines D e).
-    unfold drop_statics. rewrite Havoids. reflexivity.
+  apply (refines_trans _ (State (erase_expr D e) [] conts statics hp)).
+  - apply (drop_statics_refines D e (erase_expr D e));
+      [ unfold drop_statics; rewrite Havoids; reflexivity | exact Hfree ].
   - apply
       (refines_trans _
-         (State (Let_static [] (erase_expr D e)) [] [] empty_static_env
-            empty_heap)).
+         (State (Let_static [] (erase_expr D e)) [] conts statics hp)).
     + apply equivalent_refines, equivalent_sym, empty_group_equivalent.
-    + exact (drop_head_statics_program_refines D e' _ Hhead).
+    + exact (drop_head_statics_refines_under D e' _ conts statics hp Hhead
+               Hfree Hfresh).
+Qed.
+
+Theorem add_head_tables_program_refines :
+  add_head_tables_program_refines_statement.
+Proof.
+  intros tables e.
+  exact (add_head_tables_refines_under tables e [] empty_static_env
+           empty_heap eq_refl (head_free_in_empty _)).
+Qed.
+
+(* The static environment of the imports holds nothing in which a name
+   removed could occur (FlambdaImportsProofs.imports_statics_free_of). *)
+Theorem add_head_tables_refines_imports :
+  add_head_tables_refines_imports_statement.
+Proof.
+  intros imports tables e Hfresh.
+  exact (add_head_tables_refines_under tables e [] (imports_statics imports)
+           empty_heap (imports_statics_free_of _ imports) Hfresh).
 Qed.

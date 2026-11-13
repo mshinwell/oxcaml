@@ -32,7 +32,7 @@
    is made of ([head_bindings], [under_head], [static_const_total],
    [removed_binding_total], [kept_code_binds_only_kept]), and
    [add_head_tables], which are extracted and run by the validation of
-   middle_end/flambda2/tests/semantics/; [head_free_in]; and the three
+   middle_end/flambda2/tests/semantics/; [head_free_in]; and the six
    statements.
 
    FlambdaUnusedStaticsSpec.drop_statics removes static bindings that
@@ -73,7 +73,10 @@
    ([head_free_in]), and that the names removed occur in none of the
    code and the values that it holds
    (FlambdaUnusedStaticsSpec.statics_free_of). The first statement is
-   the second at the empty static environment.
+   the second at the empty static environment. A third is of a term
+   run under continuations as well, in which the names removed do not
+   occur either ([drop_head_statics_refines_under_statement]): the
+   second is the third with no continuation.
 
    Which names to remove is for the caller to find; a wrong guess is
    refused, not believed.
@@ -96,8 +99,14 @@
    the head of the term before, so that a rewrite of the term before
    which makes the load finds the table bound; that the term with
    them refines the term, each run on its own, is
-   [add_head_tables_program_refines_statement]. Which tables to put
-   is for the caller to find. Where the checks fail, the term is
+   [add_head_tables_program_refines_statement]. The same is stated
+   of a term run from a static environment that binds something and
+   under continuations ([add_head_tables_refines_under_statement]),
+   where the static environment binds no name of the head of the
+   result and the symbols of the tables occur in nothing that the
+   environments hold; and, as a case of it, of a unit run from its
+   imports ([add_head_tables_refines_imports_statement]). Which tables
+   to put is for the caller to find. Where the checks fail, the term is
    left as it is. Where they pass, the tables are bound whatever
    they hold: a table that nothing will use, or that is not one that
    Simplify made, is bound all the same, and the statement holds of
@@ -111,7 +120,7 @@ From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec FlambdaWellFormedSpec FlambdaNormaliseSpec
-  FlambdaUnusedStaticsSpec FlambdaLiftSpec.
+  FlambdaUnusedStaticsSpec FlambdaLiftSpec FlambdaImportsSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -286,3 +295,55 @@ Definition drop_head_statics_refines_from_statement : Prop :=
     statics_free_of D statics = true ->
     head_free_in statics e = true ->
     refines (State e' [] [] statics hp) (State e [] [] statics hp).
+
+(* The same under continuations: the term refines its result, each run
+   with no variable in scope from one static environment, one heap and
+   one continuation environment, where the names removed occur in
+   nothing that the continuations and the static environment hold
+   (FlambdaUnusedStaticsSpec.envs_free_of: no handler of a continuation
+   refers to a name removed or binds one) and the static environment
+   binds no name of the head of the term. A continuation whose handler
+   binds a name removed would make the term undefined where its result
+   is not, when the handler runs; one whose handler refers to a name
+   removed is refused with it, though the result would only go wrong
+   there. The statement above is this one with no continuation. *)
+(* CR mshinwell: the heap is any heap, as above; the same premise is to
+   be added when a step runs the primitives of the heap. *)
+Definition drop_head_statics_refines_under_statement : Prop :=
+  ∀ (D : dropped) (e e' : expr) (conts : cont_env) (statics : static_env)
+    (hp : heap),
+    drop_head_statics D e = Some e' ->
+    envs_free_of D [] conts statics = true ->
+    head_free_in statics e = true ->
+    refines (State e' [] conts statics hp) (State e [] conts statics hp).
+
+(* Tables bound at the head, from a static environment that binds
+   something and under continuations: the result refines the term, each
+   run with no variable in scope from one static environment, one heap
+   and one continuation environment, where the symbols of the tables
+   occur in nothing that the continuations and the static environment
+   hold, and the static environment binds no name of the head of the
+   result. Where [add_head_tables] leaves the term as it is, the second
+   premise is of the head of the term, and nothing is used of either.
+   [add_head_tables_program_refines_statement] is this at the empty
+   environments. *)
+(* CR mshinwell: the heap is any heap, as above. *)
+Definition add_head_tables_refines_under_statement : Prop :=
+  ∀ (tables : list (symbol * list simple)) (e : expr) (conts : cont_env)
+    (statics : static_env) (hp : heap),
+    envs_free_of (tables_dropped tables) [] conts statics = true ->
+    head_free_in statics (add_head_tables tables e) = true ->
+    refines (State e [] conts statics hp)
+      (State (add_head_tables tables e) [] conts statics hp).
+
+(* Of a unit run from its imports (FlambdaImportsSpec.unit_refines):
+   the static environment of the imports holds no code and no value in
+   which a symbol could occur, so what is left to ask is that no import
+   is a name that the groups at the head of the result bind.
+   FlambdaImportsSpec.static_names_free_in of the result gives that
+   (FlambdaValidateImportsSpec.static_names_free_in_head_statement). *)
+Definition add_head_tables_refines_imports_statement : Prop :=
+  ∀ (imports : list (symbol * import_class))
+    (tables : list (symbol * list simple)) (e : expr),
+    head_free_in (imports_statics imports) (add_head_tables tables e) = true ->
+    unit_refines imports e (add_head_tables tables e).
