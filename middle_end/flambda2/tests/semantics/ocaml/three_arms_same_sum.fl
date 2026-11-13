@@ -1,0 +1,38 @@
+let $camlThree_arms_same_sum__first_const_0 = Block 0 () in
+(let code size(23)
+       pick_0 (n/40 : imm tagged, x/41 : imm tagged)
+         my_closure/42 &my_alloc_region/43 my_depth/44
+         -> k/20 * k/21
+         : imm tagged =
+   let next_depth/45 = rec_info (succ my_depth/44) in
+   (let prim/48 = %int_comp.unsigned.lt (1, n/40) in
+    let Pisout/49 = %tag_imm (prim/48) in
+    (let untagged/50 = %untag_imm (Pisout/49) in
+     switch untagged/50
+       | 0 -> k/24
+       | 1 -> k/25)
+      where k/25 =
+        cont k/22
+      where k/24 =
+        cont k/23)
+     where k/23 =
+       let int_add/47 = %int_barith.add (x/41, 1) in
+       cont k/20 (int_add/47)
+     where k/22 =
+       let int_add/46 = %int_barith.add (x/41, 1) in
+       cont k/20 (int_add/46)
+ in
+ let pick/51 = closure pick_0 @pick &toplevel in
+ (let Popaque/54 = %opaque (1) in
+  apply direct(pick_0 &toplevel)
+    (pick/51 : _ -> imm tagged) (Popaque/54, 2) -> k/26 * error)
+   where k/26 (result/52 : imm tagged) =
+     let Pmakeblock/53 = %block.[`0`].`toplevel` (pick/51, result/52) in
+     cont k/19 (Pmakeblock/53))
+  where k/19 define_root_symbol (module_block/37) =
+    let field_0/38 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/37)
+    in
+    let field_1/39 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/37)
+    in
+    let $camlThree_arms_same_sum = Block 0 (field_0/38, field_1/39) in
+    cont done ($camlThree_arms_same_sum)

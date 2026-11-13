@@ -1,0 +1,43 @@
+(let code size(18)
+       unpack_0 (p/39 : [ 0 of imm tagged * val ])
+         my_closure/40 &my_alloc_region/41 my_depth/42
+         -> k/22 * k/23
+         : imm tagged =
+   let next_depth/43 = rec_info (succ my_depth/42) in
+   (let Pfield/46 = %block_load.[`0`] (p/39) in
+    (let untagged/47 = %untag_imm (Pfield/46) in
+     switch untagged/47
+       | 0 -> k/26
+       | 1 -> k/27)
+      where k/27 =
+        cont k/24
+      where k/26 =
+        cont k/25)
+     where k/25 =
+       let Pfield/45 = %block_load.[`1`] (p/39) in
+       cont k/22 (Pfield/45)
+     where k/24 =
+       let Pfield/44 = %block_load.[`1`] (p/39) in
+       cont k/22 (Pfield/44)
+ in
+ let $camlGadt_existential_match__const_block_1 = Block 0 (0, 7) in
+ let $camlGadt_existential_match__const_block_0 = Block 0 (1, 1) in
+ let unpack/48 = closure unpack_0 @unpack &toplevel in
+ (let Popaque/54 = %opaque ($camlGadt_existential_match__const_block_0) in
+  apply direct(unpack_0 &toplevel)
+    (unpack/48 : _ -> imm tagged) (Popaque/54) -> k/28 * error)
+   where k/28 (apply_result/49 : imm tagged) =
+     ((let Popaque/53 = %opaque ($camlGadt_existential_match__const_block_1)
+       in
+       apply direct(unpack_0 &toplevel)
+         (unpack/48 : _ -> imm tagged) (Popaque/53) -> k/29 * error)
+        where k/29 (apply_result/50 : imm tagged) =
+          let result/51 = %int_barith.add (apply_result/50, apply_result/49)
+          in
+          let Pmakeblock/52 = %block.[`0`].`toplevel` (result/51) in
+          cont k/21 (Pmakeblock/52)))
+  where k/21 define_root_symbol (module_block/37) =
+    let field_0/38 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/37)
+    in
+    let $camlGadt_existential_match = Block 0 (field_0/38) in
+    cont done ($camlGadt_existential_match)
