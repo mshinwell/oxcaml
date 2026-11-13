@@ -374,6 +374,38 @@ Proof.
     statics hp Hall Hvs Hs).
 Qed.
 
+(* With no table in scope no table has the arms. *)
+Lemma merge_switch_by_table_nil (scrutinee : simple)
+    (arms : list (Z * apply_cont)) :
+  merge_switch_by_table [] scrutinee arms = None.
+Proof.
+  unfold merge_switch_by_table.
+  destruct scrutinee as [v | sym | c]; try reflexivity.
+  destruct arms as [ | [first ac] [ | arm1 [ | arm2 others]]];
+    try reflexivity.
+  cbv zeta. destruct (var_in_simples v _); reflexivity.
+Qed.
+
+(* The test for no table at all changes nothing of the answer. *)
+Lemma merge_switch_with_tables_unfold (tables : known_tables)
+    (scrutinee : simple) (arms : list (Z * apply_cont)) :
+  merge_switch_with_tables tables scrutinee arms
+  = match merge_switch_by_table tables scrutinee arms with
+    | Some merged =>
+      match merge_switch scrutinee arms with
+      | Switch _ _ => merged
+      | Let _ _ _ _ | Let_static _ _ | Let_cont_non_recursive _ _ _
+      | Let_cont_recursive _ _ | Apply _ | Apply_cont _ | Invalid =>
+        Switch scrutinee arms
+      end
+    | None => Switch scrutinee arms
+    end.
+Proof.
+  unfold merge_switch_with_tables.
+  destruct tables as [ | table tables]; [ | reflexivity ].
+  rewrite merge_switch_by_table_nil. reflexivity.
+Qed.
+
 Lemma merge_switch_with_tables_refines (tables : known_tables)
     (scrutinee : simple) (arms : list (Z * apply_cont)) (vars : env)
     (conts : cont_env) (statics : static_env) (hp : heap) :
@@ -382,7 +414,7 @@ Lemma merge_switch_with_tables_refines (tables : known_tables)
     (State (merge_switch_with_tables tables scrutinee arms) vars conts
        statics hp).
 Proof.
-  intros Hbound. unfold merge_switch_with_tables.
+  intros Hbound. rewrite merge_switch_with_tables_unfold.
   destruct (merge_switch_by_table tables scrutinee arms) as [merged | ]
     eqn:Hmerged; [ | apply refines_refl ].
   destruct (merge_switch scrutinee arms); try apply refines_refl.
@@ -499,7 +531,7 @@ Lemma merge_switch_with_tables_binds_statics (tables : known_tables)
     (scrutinee : simple) (arms : list (Z * apply_cont)) :
   binds_statics (merge_switch_with_tables tables scrutinee arms) = false.
 Proof.
-  unfold merge_switch_with_tables.
+  rewrite merge_switch_with_tables_unfold.
   destruct (merge_switch_by_table tables scrutinee arms) as [merged | ]
     eqn:Hmerged; [ | reflexivity ].
   destruct (merge_switch scrutinee arms); try reflexivity.
@@ -1058,7 +1090,7 @@ Lemma merge_switch_with_tables_renamed (r : renaming) (tables : known_tables)
     (map (fun arm => (fst arm, rename_apply_cont r (snd arm))) arms)
   = rename_expr r (merge_switch_with_tables tables scrutinee arms).
 Proof.
-  intros Hclosed. unfold merge_switch_with_tables.
+  intros Hclosed. rewrite !merge_switch_with_tables_unfold.
   rewrite merge_switch_equivariant,
     (merge_switch_by_table_renamed r tables scrutinee arms Hclosed).
   destruct (merge_switch_by_table tables scrutinee arms); [ | reflexivity ].
@@ -1186,20 +1218,6 @@ Qed.
 (* A term with no table                                                     *)
 (* ======================================================================== *)
 
-Lemma merge_switch_without_tables (scrutinee : simple)
-    (arms : list (Z * apply_cont)) :
-  merge_switch_with_tables [] scrutinee arms = Switch scrutinee arms.
-Proof.
-  unfold merge_switch_with_tables.
-  replace (merge_switch_by_table [] scrutinee arms) with (@None expr);
-    [ reflexivity | ].
-  unfold merge_switch_by_table.
-  destruct scrutinee as [v | sym | c]; try reflexivity.
-  destruct arms as [ | [first ac] [ | arm1 [ | arm2 others]]];
-    try reflexivity.
-  cbv zeta. destruct (var_in_simples v _); reflexivity.
-Qed.
-
 Lemma no_tables_under_statics (bindings : list static_binding) :
   forallb binding_binds_no_table bindings = true ->
   tables_under_statics [] bindings = [].
@@ -1239,7 +1257,6 @@ Proof.
       rewrite (merge_tables_in_handler_without_tables h Hhandler),
         (IH Hhandlers).
       reflexivity.
-    + apply merge_switch_without_tables.
   - destruct h as [params metadata handler].
     cbn [handler_binds_no_table merge_tables_in_handler]. intros Hnone.
     rewrite (merge_tables_knowing_without_tables handler Hnone). reflexivity.

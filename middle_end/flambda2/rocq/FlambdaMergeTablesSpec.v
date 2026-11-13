@@ -121,14 +121,17 @@
    order, on the length of the table or on how the merged arguments
    and the offset were found.
 
-   What it costs where there is no table. The tables are looked at
-   before [merge_switch] is computed. With none in scope, what is
-   computed of a [Switch] on a variable that has three arms or more
-   is its merged arguments, whether the variable is among them and,
-   where it is, the offset; no arm is tested against a table, and
-   [merge_switch] is not computed. What is computed once for a
-   [Switch] or for a table (the offset, whether the elements are all
-   immediates) is not computed again for each arm.
+   What it costs. With no table in scope a [Switch] is left as it
+   is, and nothing is computed of it ([merge_switch_with_tables]);
+   the term is still gone through. With a table in scope the tables
+   are looked at before [merge_switch] is computed: of a [Switch] on
+   a variable that has three arms or more, the merged arguments are
+   computed, whether the variable is among them and, where it is,
+   the offset; then the tables are tested in turn until one has the
+   arms, and [merge_switch] is computed only where one has. What is
+   computed once for a [Switch] or for a table (the offset, whether
+   the elements are all immediates) is not computed again for each
+   arm.
 
    The variable of the scrutinee is bound again by each [Let], as in
    [merge_switch], so the rewrite makes no name, and one table serves
@@ -378,19 +381,24 @@ Definition merge_switch_by_table (tables : known_tables) (scrutinee : simple)
 
 (* A [Switch] merged where a table in scope has the arguments of its
    arms, if [merge_switch] leaves it: one that [merge_switch] merges is
-   left to it. The tables are looked at first: where none is in scope,
-   or none has the arms, [merge_switch] is not computed. *)
+   left to it. With no table in scope the [Switch] is left as it is,
+   and nothing is computed of it. Otherwise the tables are looked at
+   first: where none has the arms, [merge_switch] is not computed. *)
 Definition merge_switch_with_tables (tables : known_tables)
     (scrutinee : simple) (arms : list (Z * apply_cont)) : expr :=
-  match merge_switch_by_table tables scrutinee arms with
-  | Some merged =>
-    match merge_switch scrutinee arms with
-    | Switch _ _ => merged
-    | Let _ _ _ _ | Let_static _ _ | Let_cont_non_recursive _ _ _
-    | Let_cont_recursive _ _ | Apply _ | Apply_cont _ | Invalid =>
-      Switch scrutinee arms
+  match tables with
+  | [] => Switch scrutinee arms
+  | _ :: _ =>
+    match merge_switch_by_table tables scrutinee arms with
+    | Some merged =>
+      match merge_switch scrutinee arms with
+      | Switch _ _ => merged
+      | Let _ _ _ _ | Let_static _ _ | Let_cont_non_recursive _ _ _
+      | Let_cont_recursive _ _ | Apply _ | Apply_cont _ | Invalid =>
+        Switch scrutinee arms
+      end
+    | None => Switch scrutinee arms
     end
-  | None => Switch scrutinee arms
   end.
 
 (* Down a term, with the tables in scope: into the handlers of
