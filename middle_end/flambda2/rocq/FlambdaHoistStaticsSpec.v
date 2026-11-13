@@ -70,7 +70,8 @@
    imports nothing, with what that file asks beside it of the names of
    the unit): no state of the run then holds or looks up a symbol
    that is not bound, or a closure of code that is neither bound nor
-   declared deleted (FlambdaStaticsInScopeSpec.statics_bound_in_run).
+   declared deleted
+   (FlambdaStaticsInScopeSpec.statics_bound_in_run_statement).
    A closure may be of code that the unit declares deleted; a call of
    it is undefined, and stays so with the bindings first, as the unit
    binds no code id that it declares deleted
@@ -87,7 +88,7 @@ From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaValueSpec FlambdaSemanticsSpec FlambdaNominalSpec
-  FlambdaWellFormedSpec FlambdaStaticsInScopeSpec.
+  FlambdaWellFormedSpec FlambdaStaticsInScopeSpec FlambdaImportsSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -175,6 +176,28 @@ Definition hoist_statics_program_equivalent_statement : Prop :=
     hoist_statics u e = Some e' ->
     equivalent (State e [] [] empty_static_env empty_heap)
       (State e' [] [] empty_static_env empty_heap).
+
+(* The same of a unit that imports symbols: if the unit binds no name
+   that the imports bind, the two, each run from the static environment
+   of its imports, behave alike. A binding that is taken to the head is
+   executed before the bindings it was after, where a name that is an
+   import is bound already.
+
+   This is of the pass as it is, which asks that the unit mention no
+   symbol that it does not bind ([statics_in_scope] with no import): a
+   unit that mentions a symbol that only its imports bind does not
+   pass, and is left as it is by the functions that call the pass. The
+   pass is not given the imports: a unit that binds a symbol that is
+   also an import may pass, and the premise here is then false of it.
+   A pass that takes the imports of the unit to be in scope is not in
+   this tree. *)
+Definition hoist_statics_equivalent_imports_statement : Prop :=
+  ∀ (imports : list (symbol * import_class)) (u : unit_interface)
+    (e e' : expr),
+    hoist_statics u e = Some e' ->
+    static_names_free_in (imports_statics imports) e = true ->
+    equivalent (State e [] [] (imports_statics imports) empty_heap)
+      (State e' [] [] (imports_statics imports) empty_heap).
 
 (* The parts of the pass commute with renaming, which moves no symbol
    and no code id: a constant that has a value in the empty environment

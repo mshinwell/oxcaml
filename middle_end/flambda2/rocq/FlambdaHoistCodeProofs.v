@@ -48,7 +48,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaPrimitiveProofs FlambdaSemanticsSpec FlambdaSemanticsProofs
   FlambdaNominalSpec FlambdaNormaliseSpec FlambdaWellFormedSpec
   FlambdaWellFormedProofs FlambdaHeapProofs FlambdaUnusedSlotsProofs
-  FlambdaHoistCodeSpec.
+  FlambdaImportsSpec FlambdaUnitFromProofs FlambdaHoistCodeSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -1731,10 +1731,20 @@ Qed.
 
 End Hoisted.
 
-Theorem hoist_code_program_equivalent :
-  hoist_code_program_equivalent_statement.
+(* A unit that passes and the unit with its code first behave alike,
+   each run from a static environment that holds no code and in which
+   what the symbols are bound to holds no closure, and from any heap. *)
+Lemma hoist_code_equivalent_from (e e' : expr) (statics : static_env)
+    (hp : heap) :
+  hoist_code e = Some e' ->
+  static_code statics = [] ->
+  Forall
+    (fun binding =>
+       allocated_closures_bound (code_id_bound statics) (snd binding) = true)
+    (static_values statics) ->
+  equivalent (State e [] [] statics hp) (State e' [] [] statics hp).
 Proof.
-  intros e e'. unfold hoist_code. cbv zeta.
+  unfold hoist_code. cbv zeta.
   destruct (statics_at_toplevel_of_unit e) eqn:Htoplevel; simpl;
     [ | discriminate ].
   destruct (distinct (static_names code_ids_of_binding e)) eqn:Hnames; simpl;
@@ -1743,28 +1753,67 @@ Proof.
     eqn:Hcodes; simpl; [ | discriminate ].
   destruct (closures_in_scope (fun _ => false) e) eqn:Hscope;
     [ | discriminate ].
-  intros [= <-].
+  intros [= <-] Hno_code Hallocated.
   unfold statics_at_toplevel_of_unit in Htoplevel.
   apply existsb_exists in Htoplevel as [unit_exn [_ Htoplevel]].
-  destruct (bind_codes_from (code_bindings e) empty_static_env
-              (code_bindings_are_code e) Hcodes (fun _ _ => eq_refl))
+  assert (Hfresh : ∀ id : code_id, lookup id (static_code statics) = None).
+  { intros id. rewrite Hno_code. reflexivity. }
+  destruct (bind_codes_from (code_bindings e) statics
+              (code_bindings_are_code e) Hcodes (fun id _ => Hfresh id))
     as (src & Hsrc & Hknown & _).
   apply
     (equivalent_trans _
-       (State (without_code e) [] [] (Static_env src []) empty_heap)).
+       (State (without_code e) [] [] (Static_env src (static_values statics))
+          hp)).
   - apply (bisimulation_equivalent (hoisted_related unit_exn src)
              (hoisted_related_step unit_exn src)).
     split; [ reflexivity | ].
-    split;
-      [ exact (well_formed_inv unit_exn code_ids_of_binding code_id_bound e
-                 (fun _ => eq_refl) Htoplevel Hnames)
-      | ].
-    split; [ exact (scope_inv_initial e Hscope) | ].
+    split.
+    { apply inv_from; [ | exact Hno_code | exact Htoplevel | exact Hnames ].
+      intros n _. unfold code_id_bound. rewrite Hfresh. reflexivity. }
+    split.
+    { split.
+      - unfold terms_in_scope. simpl_state.
+        refine (conj _ (conj I _)).
+        + apply (closures_in_scope_le (fun _ => false)); [ | exact Hscope ].
+          intros id [=].
+        + intros id c Hlookup. rewrite Hfresh in Hlookup.
+          discriminate Hlookup.
+      - repeat split; simpl; first [ apply Forall_nil | exact Hallocated ]. }
     unfold known_inv. simpl_state.
-    exact (conj Hknown (conj I (fun id c (H : None = Some c) =>
-                                  match H with end))).
+    refine (conj Hknown (conj I _)).
+    intros id c Hlookup. rewrite Hfresh in Hlookup. discriminate Hlookup.
   - apply equivalent_sym, step_equivalent.
     rewrite step_let_static, Hsrc. reflexivity.
+Qed.
+
+(* The static environment of the imports of a unit is such: an import
+   is no closure. *)
+Lemma imports_closures_bound (bound : code_id -> bool)
+    (imports : list (symbol * import_class)) :
+  Forall
+    (fun binding => allocated_closures_bound bound (snd binding) = true)
+    (static_values (imports_statics imports)).
+Proof.
+  unfold imports_statics. cbn [static_values].
+  induction imports as [ | [s c] imports IH]; cbn [map]; constructor;
+    [ reflexivity | exact IH ].
+Qed.
+
+Theorem hoist_code_program_equivalent :
+  hoist_code_program_equivalent_statement.
+Proof.
+  intros e e' Hhoist.
+  exact (hoist_code_equivalent_from e e' empty_static_env empty_heap Hhoist
+           eq_refl (Forall_nil _)).
+Qed.
+
+Theorem hoist_code_equivalent_imports :
+  hoist_code_equivalent_imports_statement.
+Proof.
+  intros imports e e' Hhoist.
+  exact (hoist_code_equivalent_from e e' (imports_statics imports) empty_heap
+           Hhoist eq_refl (imports_closures_bound _ imports)).
 Qed.
 
 (* ======================================================================== *)

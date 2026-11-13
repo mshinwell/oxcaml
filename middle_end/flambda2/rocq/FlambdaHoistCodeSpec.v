@@ -90,7 +90,7 @@ From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaValueSpec FlambdaSemanticsSpec FlambdaNominalSpec
-  FlambdaWellFormedSpec.
+  FlambdaWellFormedSpec FlambdaImportsSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -275,6 +275,16 @@ Definition hoist_code_program_equivalent_statement : Prop :=
     hoist_code e = Some e' ->
     equivalent (State e [] [] empty_static_env empty_heap)
       (State e' [] [] empty_static_env empty_heap).
+
+(* The same of a unit that imports symbols: the two, each run from the
+   static environment of its imports, behave alike. Nothing more is
+   asked: that environment holds no code, so no code id of the unit is
+   bound in it, and the pass moves code only. *)
+Definition hoist_code_equivalent_imports_statement : Prop :=
+  ∀ (imports : list (symbol * import_class)) (e e' : expr),
+    hoist_code e = Some e' ->
+    equivalent (State e [] [] (imports_statics imports) empty_heap)
+      (State e' [] [] (imports_statics imports) empty_heap).
 
 (* What the check of closures is for. The closures in a value, or in
    what a symbol is bound to, are of code that [bound] has: every
