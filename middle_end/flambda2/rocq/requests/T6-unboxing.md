@@ -224,8 +224,8 @@ where `x` is a parameter and `p` reads a box (a `Block_load` not marked
 application of `k` in the body of the `Let_cont`, inside the handlers
 of other continuations and in the arms of a `Switch` too, gets one
 more argument, the last: what `p` is known to give of the argument it
-has for `x`. That is known from the term alone, in the three ways the
-validation already has:
+has for `x`. That is known from the term alone, in four ways, the
+first three of which the validation already has:
 
 - the argument is a variable bound to a `Make_block`, or a symbol bound
   to a static block (`FlambdaBlockLoadSpec.load_known_named`);
@@ -233,7 +233,10 @@ validation already has:
   symbol bound to a static boxed number
   (`FlambdaUnboxSpec.unbox_known_named`);
 - it is a constant on which the primitive has a value
-  (`FlambdaNormaliseSpec.fold_named`).
+  (`FlambdaNormaliseSpec.fold_named`);
+- it is a variable of which a `Let` in scope has made the same read:
+  the argument is the variable of that `Let` (section 7, "A read
+  that is in scope").
 
 If some application does not say, if an `Apply` returns or raises to
 `k`, or if `k` is an exception handler, nothing is done. Then the same
@@ -595,6 +598,10 @@ Two things had to be got right, and are where to look.
   parameters, where Simplify has one. A pass that makes one of two
   parameters that every application gives the same argument would
   mend it.
+- A read that a `Let` in scope has made of the argument is given
+  only to the read that the handler begins with (below, "A read
+  that is in scope"). A read taken elsewhere in the handler is not
+  given it.
 - The validation runs it in the first phase of the term before
   only (`FlambdaValidateSpec.normalise_expr_params`), once the
   values are followed and before the passes that bind or remove
@@ -754,6 +761,57 @@ term, which holds as the tags are numbers and every test on the way
 is one that already commuted with renaming.
 
 `two_tags` of `FlambdaUnboxVariantsExamplesSpec.v` is this body,
+computed.
+
+### A read that is in scope
+
+For
+
+    let m = if less a b then b else a in add m 1L
+
+on boxed 64-bit integers, the comparison unboxes `a` and `b` above
+the test, each arm gives the join one of the two boxes, and the
+handler begins by unboxing `m`. Neither box is made in the term:
+they are parameters of the function. Simplify unboxes `m` all the
+same. Where it simplified the two unboxings it made the type of each
+box say that it holds the number read
+(`Simplify_unary_primitive.simplify_unbox_number`, by
+`Simplify_common.simplify_projection`; the loads and the tests of a
+variant go the same way), so at each application the number to give
+is already in scope (`Unboxing_epa.unbox_arg`), and the join takes
+the number where it took the box.
+
+The pass has it from the term. What is known (`facts`) keeps, with
+the blocks and the wrapped numbers that were made, the reads that
+the `Let`s in scope have made: for a `Let` of `x` to a primitive
+that reads a box, applied to a variable `y` other than `x`, that `x`
+is that primitive of `y` (`reads_under_let`). They are kept as the
+sharing of primitives keeps what is computed
+(`FlambdaCseSpec.computed`): a read that mentions a variable is
+forgotten where that variable is bound again, as a parameter or by a
+`Let`. `projection_of` looks the read up
+(`FlambdaCseSpec.computed_by`) where its three other ways say
+nothing, and gives the variable.
+
+For the refinement, what is known holds in a state if, besides what
+it asked, each variable kept is bound to the value of its primitive
+on the value of its argument (`FlambdaCseSpec.all_computed`). A
+`Let` that has run establishes it, and the argument of the new
+parameter then has the value that the `Let` in the handler would
+have computed. Only the read that the handler begins with is given
+such a variable (`extend_args`). Where the pass takes a read that is
+elsewhere in the handler, the application may not come to the read,
+so what it gives must be certain to be of the kind of the `Let`
+that is removed (`certain_projection`), and what is kept of a read
+does not say the kind of the `Let` that made it. The machine tests
+the kind at that `Let`, so the kind could be kept with the read. Not
+built.
+
+What is known of symbols alone (`facts_of_symbols`, for the rewrites
+that go into code and into loops) has no read: a read is of
+variables, and the code and the loop are run under other variables.
+
+`int64_max` of `FlambdaUnboxVariantsExamplesSpec.v` is this body,
 computed.
 
 ## 8. What else is owed for pairs and numbers
@@ -975,6 +1033,14 @@ that matches). Over the units that were in the directory (305), the
 units written by hand (111), the 600 of `census/README.md` and the
 240 generated units, the change moves no verdict and no line of any
 output.
+
+With a read in scope given (section 7), two more sources are
+validated that were not: `int64_max` (the greater of two boxed
+numbers, then an addition) and `int64_clamp` (zero for a negative
+boxed number, then an addition). Over the units that were in the
+directory (317), the units written by hand (111), the 600 of
+`census/README.md` and the 240 generated units, the change moves no
+verdict and no line of any output.
 
 ## 10. Asked of others
 
