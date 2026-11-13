@@ -413,12 +413,15 @@ and `validate_unit_related_under_observers_statement`, of
 a unit that the tree has gained. They reach `lift_named` through
 `with_lifting_observed`. They are not of the verdict that lifts:
 the answer of that check, `Related_once_lifted`, is of a type of
-its own and no verdict of the validation, and the tool does not
-call the check. Neither has `value_lifted` in its text. The check
-makes its liftings without the test of the exits, so the exits of
-a pair that it accepts may now differ by an array value against a
-symbol bound to a static immutable array of the same elements
-lifted.
+its own and no verdict of the validation. When the counts of this
+section were made the tool did not call the check. The test tool
+now asks the check only of a unit that it reports as not validated,
+and prints what the check accepts on a line of its own, which has
+not the word "validated". Neither has `value_lifted` in its text.
+The check makes its liftings without the test of the exits, so the
+exits of a pair that it accepts may now differ by an array value
+against a symbol bound to a static immutable array of the same
+elements lifted.
 
 ### 2.5 The comments
 
