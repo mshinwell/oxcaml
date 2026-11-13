@@ -190,6 +190,11 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaKnownSymbolsSpec.v \
   FlambdaLiftAroundProofs.v \
   FlambdaLiftAroundSpec.v \
+  FlambdaLiftContsNamesProofs.v \
+  FlambdaLiftContsProofs.v \
+  FlambdaLiftContsScopeProofs.v \
+  FlambdaLiftContsScopeSpec.v \
+  FlambdaLiftContsSpec.v \
   FlambdaLiftFromArmsProofs.v \
   FlambdaLiftFromArmsSpec.v \
   FlambdaLiftFromCodeProofs.v \

@@ -630,6 +630,10 @@ Owner: N2.
   of the validation keeps scope)
 - `middle_end/flambda2/rocq/FlambdaValidateScope*` (N2's, though it is
   about the rounds of `FlambdaValidateSpec.v`: each keeps scope)
+- `middle_end/flambda2/rocq/FlambdaLiftConts*` (N2's, though it is a
+  normalisation written for the validation, which does not apply it:
+  the continuations that a handler binds on its way to its `Switch`,
+  bound outside the handler)
 - `middle_end/flambda2/rocq/requests/N2-fresh-quantifier.md`
 
 ## N3: what commutes with renaming
