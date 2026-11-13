@@ -234,7 +234,9 @@
    the check makes of the first three ([with_lifting],
    [without_slots], [with_known]: the rewrites where their tests
    pass, the term as it is where they do not) is stated in the
-   section of the check. Other
+   section of the check, and beside the first the same of
+   FlambdaLiftObservedSpec.with_lifting_observed, which leaves out
+   the test of the exits and which the check does not apply. Other
    rewrites that the check applies are stated to commute with
    renaming in their own files:
    FlambdaDemoteSpec.demote_handlers, of the end of the normalisation
@@ -347,6 +349,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaDeadParamsSpec FlambdaRenameApartSpec FlambdaUnusedProjectionsSpec
   FlambdaUnaliasParamsSpec FlambdaWrapReturnsSpec FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
+From OxCamlFlambda2 Require Import FlambdaLiftObservedSpec.
 Import ListNotations.
 
 (* A rewrite of terms that takes nothing but the term commutes with
@@ -1068,6 +1071,15 @@ Definition with_lifting_equivariant_statement : Prop :=
   ∀ (r : renaming) (L : lifting) (e : expr),
     with_lifting (rename_lifting r L) (rename_expr r e)
     = rename_expr r (with_lifting L e).
+
+(* The same of the lifting without the test of the exits
+   (FlambdaLiftObservedSpec.with_lifting_observed): its other tests go
+   by the two continuations of its unit, as those of [with_lifting]
+   do. *)
+Definition with_lifting_observed_equivariant_statement : Prop :=
+  ∀ (r : renaming) (L : lifting) (e : expr),
+    with_lifting_observed (rename_lifting r L) (rename_expr r e)
+    = rename_expr r (with_lifting_observed L e).
 
 Definition without_slots_equivariant_statement : Prop :=
   ∀ slots : list value_slot, rewrite_equivariant (without_slots slots).

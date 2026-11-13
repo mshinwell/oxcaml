@@ -84,6 +84,7 @@ From OxCamlFlambda2 Require FlambdaKeepsScopeProofs FlambdaValidateScopeProofs
   FlambdaUnaliasParamsNamesProofs FlambdaWrapReturnsNamesProofs.
 From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
 From OxCamlFlambda2 Require FlambdaDemoteProofs.
+From OxCamlFlambda2 Require Import FlambdaLiftObservedSpec.
 From OxCamlFlambda2 Require Import FlambdaKnownSlotsSpec.
 From OxCamlFlambda2 Require FlambdaKnownSlotsProofs.
 From OxCamlFlambda2 Require Import FlambdaStubCallsSpec.
@@ -5791,6 +5792,109 @@ Qed.
 
 Theorem with_lifting_equivariant : with_lifting_equivariant_statement.
 Proof. exact with_lifting_renamed. Qed.
+
+(* The four liftings without the test of the exits
+   (FlambdaLiftObservedSpec.v), as the four with it: the other checks
+   answer the same on the renamed unit, and each rewrite commutes with
+   the renaming. *)
+Lemma lift_unit_observed_renamed (r : renaming) (L : lifting) (e : expr) :
+  lift_unit_observed (rename_lifting r L) (rename_expr r e)
+  = option_map (rename_expr r) (lift_unit_observed L e).
+Proof.
+  unfold lift_unit_observed, rename_lifting.
+  cbn [lifting_unit lifted_lets lifted_my_closures lifted_out_of_code
+       lifted_to_head].
+  cbv zeta.
+  rewrite <- lift_expr_equivariant, <- bind_my_closures_equivariant.
+  rewrite well_formed_unit_equivariant, only_closures_of_renamed.
+  match goal with
+  | |- (if ?c then _ else _) = _ => destruct c
+  end;
+    reflexivity.
+Qed.
+
+Lemma lift_from_code_unit_observed_renamed (r : renaming)
+    (u : unit_interface) (K : lets_in_code) (e : expr) :
+  lift_from_code_unit_observed (rename_unit_interface r u) K
+    (rename_expr r e)
+  = option_map (rename_expr r) (lift_from_code_unit_observed u K e).
+Proof.
+  unfold lift_from_code_unit_observed. cbv zeta.
+  rewrite <- lift_from_code_equivariant, well_formed_unit_equivariant.
+  destruct (well_formed_unit u (lift_from_code K [] root e)); reflexivity.
+Qed.
+
+Lemma lift_to_head_unit_observed_renamed (r : renaming) (u : unit_interface)
+    (lets : list (path * lift_to)) (e : expr) :
+  lift_to_head_unit_observed (rename_unit_interface r u) lets
+    (rename_expr r e)
+  = option_map (rename_expr r) (lift_to_head_unit_observed u lets e).
+Proof.
+  unfold lift_to_head_unit_observed. cbv zeta.
+  rewrite <- FlambdaLiftFromArmsProofs.lift_to_head_equivariant,
+    well_formed_unit_equivariant.
+  destruct (well_formed_unit u (lift_to_head lets e)); reflexivity.
+Qed.
+
+Lemma lift_around_unit_observed_renamed (r : renaming) (u : unit_interface)
+    (lets : list (path * lift_to)) (places : list (path * list path))
+    (e : expr) :
+  lift_around_unit_observed (rename_unit_interface r u) lets places
+    (rename_expr r e)
+  = option_map (rename_expr r) (lift_around_unit_observed u lets places e).
+Proof.
+  unfold lift_around_unit_observed. cbv zeta.
+  rewrite FlambdaLiftAroundProofs.groups_of_equivariant,
+    <- FlambdaLiftAroundProofs.lift_around_equivariant,
+    well_formed_unit_equivariant.
+  pose proof
+    (FlambdaLiftAroundProofs.around_ok_equivariant r lets
+       (groups_of lets places e) [] root e)
+    as Hok.
+  cbn [rename_known_constants map] in Hok. rewrite Hok.
+  destruct
+    (around_ok lets (groups_of lets places e) [] root e
+     && well_formed_unit u
+          (lift_around lets (groups_of lets places e) root e));
+    reflexivity.
+Qed.
+
+Lemma with_lifting_observed_renamed (r : renaming) (L : lifting) (e : expr) :
+  with_lifting_observed (rename_lifting r L) (rename_expr r e)
+  = rename_expr r (with_lifting_observed L e).
+Proof.
+  unfold with_lifting_observed, liftings_observed, around_observed,
+    lets_observed, out_of_code_observed, to_head_observed.
+  change (tables_put (rename_lifting r L)) with (tables_put L).
+  rewrite <- add_head_tables_renamed. f_equal.
+  change (lifting_unit (rename_lifting r L))
+    with (rename_unit_interface r (lifting_unit L)).
+  change (lifted_out_of_code (rename_lifting r L))
+    with (lifted_out_of_code L).
+  change (lifted_to_head (rename_lifting r L)) with (lifted_to_head L).
+  change (lifted_around (rename_lifting r L)) with (lifted_around L).
+  change (groups_put (rename_lifting r L)) with (groups_put L).
+  rewrite lift_to_head_unit_observed_renamed.
+  destruct
+    (lift_to_head_unit_observed (lifting_unit L) (lifted_to_head L) e)
+    as [at_head | ];
+    cbn [option_map]; rewrite lift_from_code_unit_observed_renamed;
+    destruct
+      (lift_from_code_unit_observed (lifting_unit L) (lifted_out_of_code L)
+         _)
+      as [e' | ];
+    cbn [option_map]; rewrite lift_unit_observed_renamed;
+    destruct (lift_unit_observed L _) as [lifted | ];
+    cbn [option_map]; rewrite lift_around_unit_observed_renamed;
+    destruct
+      (lift_around_unit_observed (lifting_unit L) (lifted_around L)
+         (groups_put L) _);
+    reflexivity.
+Qed.
+
+Theorem with_lifting_observed_equivariant :
+  with_lifting_observed_equivariant_statement.
+Proof. exact with_lifting_observed_renamed. Qed.
 
 (* The removal of unused value slots. *)
 Lemma without_slots_equivariant (slots : list value_slot) :
