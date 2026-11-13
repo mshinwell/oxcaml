@@ -45,8 +45,10 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaValidatorEquivarianceSpec FlambdaScopedProofs
   FlambdaKeepsScopeProofs FlambdaUnboxParamsSpec FlambdaUnboxParamsRenameSpec
   FlambdaUnboxVariantsSpec FlambdaUnboxInScopeSpec FlambdaUnboxInScopeProofs
-  FlambdaUnboxInScopeRenameSpec FlambdaUnboxLoopsSpec.
+  FlambdaUnboxInScopeRenameSpec FlambdaUnboxLoopsSpec
+  FlambdaUnboxTogetherSpec.
 From OxCamlFlambda2 Require FlambdaUnboxParamsNamesProofs.
+From OxCamlFlambda2 Require FlambdaUnboxTogetherNamesProofs.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -399,5 +401,14 @@ Proof.
   intros known Honly. apply keeps_scope_intro. intros e.
   apply scoped_under_none.
   apply FlambdaUnboxParamsNamesProofs.unbox_loops_knowing_scoped.
+  exact (symbols_only_within known Honly).
+Qed.
+
+Theorem unbox_together_knowing_symbols_keeps_scope :
+  unbox_together_knowing_symbols_keeps_scope_statement.
+Proof.
+  intros known Honly. apply keeps_scope_intro. intros e.
+  apply scoped_under_none.
+  apply FlambdaUnboxTogetherNamesProofs.unbox_together_knowing_scoped.
   exact (symbols_only_within known Honly).
 Qed.

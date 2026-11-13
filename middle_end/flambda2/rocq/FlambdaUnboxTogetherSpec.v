@@ -163,7 +163,11 @@
 
    Renaming: the functions here compare names by equality only and
    make none. FlambdaUnboxTogetherNamesProofs.v has the lemmas that
-   the pass commutes with renaming and keeps scope.
+   the pass commutes with renaming and keeps scope; the statements
+   are [unbox_together_knowing_equivariant_statement] in
+   FlambdaUnboxVariantsRenameSpec.v and
+   [unbox_together_knowing_symbols_keeps_scope_statement] in
+   FlambdaUnboxInScopeRenameSpec.v.
 
    The proofs are in FlambdaUnboxTogetherProofs.v, which needs no
    review. *)

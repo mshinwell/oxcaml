@@ -38,8 +38,10 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaNominalSpec
   FlambdaBlockLoadSpec FlambdaUnboxSpec FlambdaValidatorEquivarianceSpec
   FlambdaValidatorEquivarianceProofs FlambdaUnboxParamsSpec
   FlambdaUnboxParamsRenameSpec FlambdaUnboxVariantsSpec
-  FlambdaUnboxVariantsRenameSpec FlambdaUnboxLoopsSpec.
+  FlambdaUnboxVariantsRenameSpec FlambdaUnboxLoopsSpec
+  FlambdaUnboxTogetherSpec.
 From OxCamlFlambda2 Require FlambdaUnboxParamsNamesProofs.
+From OxCamlFlambda2 Require FlambdaUnboxTogetherNamesProofs.
 Import ListNotations.
 
 Module Names := FlambdaUnboxParamsNamesProofs.
@@ -91,3 +93,11 @@ Proof. exact Names.unbox_variant_params_keeps_scope. Qed.
 Theorem unbox_loops_knowing_equivariant :
   unbox_loops_knowing_equivariant_statement.
 Proof. apply Names.unbox_loops_knowing_equivariant; known_renamed. Qed.
+
+Theorem unbox_together_knowing_equivariant :
+  unbox_together_knowing_equivariant_statement.
+Proof.
+  intros r known e.
+  apply FlambdaUnboxTogetherNamesProofs.unbox_together_knowing_renamed;
+    known_renamed.
+Qed.

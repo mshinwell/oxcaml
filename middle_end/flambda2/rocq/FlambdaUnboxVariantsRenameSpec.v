@@ -89,6 +89,16 @@
    is stated with what is known of symbols alone, in
    FlambdaUnboxInScopeRenameSpec.v.
 
+   The unboxing of boxed numbers that continuations pass to one
+   another (FlambdaUnboxTogetherSpec.unbox_together_knowing) takes
+   what is known too, for the arguments that the term shows to be
+   boxes. It compares names by equality and makes none: the positions
+   that it unboxes are computed from the term, and those of the term
+   renamed are those positions renamed. Given what is known, renamed
+   with the term, it gives the term that it gave, renamed
+   ([unbox_together_knowing_equivariant_statement]). That it keeps
+   scope is stated in FlambdaUnboxInScopeRenameSpec.v too.
+
    The proofs are in FlambdaUnboxVariantsRenameProofs.v, which needs no
    review. *)
 
@@ -98,7 +108,7 @@ From OxCamlFlambda2 Require Import FlambdaKindModel FlambdaModel
   FlambdaPrimitiveModel FlambdaNominalSpec FlambdaBlockLoadSpec
   FlambdaUnboxSpec FlambdaValidatorEquivarianceSpec FlambdaUnboxParamsSpec
   FlambdaUnboxParamsRenameSpec FlambdaUnboxVariantsSpec
-  FlambdaUnboxLoopsSpec.
+  FlambdaUnboxLoopsSpec FlambdaUnboxTogetherSpec.
 Import ListNotations.
 
 (* A read that was found, renamed. *)
@@ -162,3 +172,8 @@ Definition unbox_loops_knowing_equivariant_statement : Prop :=
   ∀ (r : renaming) (known : facts) (e : expr),
     unbox_loops_knowing (rename_facts r known) (rename_expr r e)
     = rename_expr r (unbox_loops_knowing known e).
+
+Definition unbox_together_knowing_equivariant_statement : Prop :=
+  ∀ (r : renaming) (known : facts) (e : expr),
+    unbox_together_knowing (rename_facts r known) (rename_expr r e)
+    = rename_expr r (unbox_together_knowing known e).

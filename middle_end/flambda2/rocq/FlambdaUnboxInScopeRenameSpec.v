@@ -69,6 +69,18 @@
    given a constant, a symbol, or a variable in scope where it
    stands, in the handler the new parameter among them.
 
+   So is the unboxing of boxed numbers that continuations pass to one
+   another (FlambdaUnboxTogetherSpec.unbox_together_knowing). It
+   commutes with renaming in the same way
+   ([unbox_together_knowing_equivariant_statement] of
+   FlambdaUnboxVariantsRenameSpec.v), and it keeps scope
+   ([unbox_together_knowing_symbols_keeps_scope_statement]): the
+   parameters of a handler are those that it had, in another order;
+   the [Let] of a parameter has the variable that the unboxing had;
+   and an application is given an argument that it had, a constant,
+   or what a [Let] in scope boxed, which is in scope where the
+   application stands.
+
    With these and the statements of FlambdaUnboxInScopeSpec.v the two
    are in a round of the validation
    (FlambdaValidateSpec.normalise_params_round): the validation is
@@ -83,7 +95,7 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaNominalSpec
   FlambdaValidatorEquivarianceSpec FlambdaUnboxParamsSpec
   FlambdaUnboxParamsRenameSpec FlambdaUnboxVariantsSpec
-  FlambdaUnboxInScopeSpec FlambdaUnboxLoopsSpec.
+  FlambdaUnboxInScopeSpec FlambdaUnboxLoopsSpec FlambdaUnboxTogetherSpec.
 Import ListNotations.
 
 (* A rewrite that takes what is known of symbols commutes with
@@ -131,3 +143,6 @@ Definition unbox_variants_knowing_symbols_keeps_scope_statement : Prop :=
 
 Definition unbox_loops_knowing_symbols_keeps_scope_statement : Prop :=
   keeps_scope_where_known unbox_loops_knowing.
+
+Definition unbox_together_knowing_symbols_keeps_scope_statement : Prop :=
+  keeps_scope_where_known unbox_together_knowing.
