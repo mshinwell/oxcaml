@@ -230,6 +230,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaNominalSpec.v \
   FlambdaNormaliseProofs.v \
   FlambdaNormaliseSpec.v \
+  FlambdaObserversActionsProofs.v \
+  FlambdaObserversActionsSpec.v \
   FlambdaObserversProofs.v \
   FlambdaObserversSpec.v \
   FlambdaParamAliasesProofs.v \
