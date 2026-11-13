@@ -1,0 +1,73 @@
+let $camlOption_matched_twice__first_const_0 = Block 0 () in
+(let code inline(never) size(65)
+       twice_0 (c/75 : imm tagged, x/76 : imm tagged)
+         my_closure/77 &my_alloc_region/78 my_depth/79
+         -> k/34 * k/35
+         : imm tagged =
+   let next_depth/80 = rec_info (succ my_depth/79) in
+   let region/81 = %begin_region () in
+   let ghost_region/82 = %begin_ghost_region () in
+   (let untagged/101 = %untag_imm (c/75) in
+    switch untagged/101
+      | 0 -> k/37 (0)
+      | 1 -> k/45)
+     where k/45 =
+       cont k/44
+     where k/44 =
+       let int_add/99 = %int_barith.add (x/76, 1) in
+       let Pmakeblock/100 =
+         %block.[`0`].my_alloc_region/78.local[region/81] (int_add/99)
+       in
+       cont k/37 (Pmakeblock/100)
+     where k/37 (o/86 : [ 0 | 0 of imm tagged ]) =
+       ((let prim/96 = %is_int (o/86) in
+         let Pisint/97 = %tag_imm (prim/96) in
+         (let untagged/98 = %untag_imm (Pisint/97) in
+          switch untagged/98
+            | 0 -> k/43
+            | 1 -> k/38 (0))
+           where k/43 =
+             cont k/42)
+          where k/42 =
+            let Pfield/95 = %block_load.[`0`] (o/86) in
+            cont k/38 (Pfield/95)
+          where k/38 (a/87 : imm tagged) =
+            ((let prim/92 = %is_int (o/86) in
+              let Pisint/93 = %tag_imm (prim/92) in
+              (let untagged/94 = %untag_imm (Pisint/93) in
+               switch untagged/94
+                 | 0 -> k/41
+                 | 1 -> k/39 (10))
+                where k/41 =
+                  cont k/40)
+               where k/40 =
+                 let Pfield/90 = %block_load.[`0`] (o/86) in
+                 let int_mul/91 = %int_barith.mul (Pfield/90, 2) in
+                 cont k/39 (int_mul/91)
+               where k/39 (b/88 : imm tagged) =
+                 let int_add/89 = %int_barith.add (a/87, b/88) in
+                 cont k/36 (int_add/89)))
+     where k/36 (region_return/83 : imm tagged) =
+       let unit/84 = %end_region (region/81) in
+       let unit/85 = %end_ghost_region (ghost_region/82) in
+       cont k/34 (region_return/83)
+ in
+ let twice/102 = closure twice_0 @twice &toplevel in
+ (let Popaque/108 = %opaque (0) in
+  apply direct(twice_0 &toplevel)
+    (twice/102 : _ -> imm tagged) (Popaque/108, 4) -> k/46 * error)
+   where k/46 (apply_result/103 : imm tagged) =
+     ((let Popaque/107 = %opaque (1) in
+       apply direct(twice_0 &toplevel)
+         (twice/102 : _ -> imm tagged) (Popaque/107, 4) -> k/47 * error)
+        where k/47 (apply_result/104 : imm tagged) =
+          let result/105 =
+            %int_barith.add (apply_result/104, apply_result/103)
+          in
+          let Pmakeblock/106 = %block.[`0`].`toplevel` (result/105) in
+          cont k/33 (Pmakeblock/106)))
+  where k/33 define_root_symbol (module_block/73) =
+    let field_0/74 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/73)
+    in
+    let $camlOption_matched_twice = Block 0 (field_0/74) in
+    cont done ($camlOption_matched_twice)

@@ -1,0 +1,8 @@
+two_options_matched.fl:
+  before Simplify (180 steps): returns [0: 213]
+  after Simplify (83 steps): returns [0: 213]
+  the check of kinds: passes before, passes after
+  calls outside code: 4 before, 4 after
+  the same
+  calls outside code once those of known code are inlined: 0
+  validated: the same once closures and blocks are lifted to symbols and the terms normalised

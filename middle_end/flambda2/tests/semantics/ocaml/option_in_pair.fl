@@ -1,0 +1,64 @@
+let $camlOption_in_pair__first_const_0 = Block 0 () in
+(let code inline(never) size(61)
+       total_0 (c/63 : imm tagged, x/64 : imm tagged, y/65 : imm tagged)
+         my_closure/66 &my_alloc_region/67 my_depth/68
+         -> k/32 * k/33
+         : imm tagged =
+   let next_depth/69 = rec_info (succ my_depth/68) in
+   (let untagged/83 = %untag_imm (c/63) in
+    switch untagged/83
+      | 0 -> k/41
+      | 1 -> k/42)
+     where k/42 =
+       cont k/39
+     where k/41 =
+       cont k/40
+     where k/40 =
+       let int_add/81 = %int_barith.add (y/65, 1) in
+       let Pmakeblock/82 = %block.[`0`].my_alloc_region/67 (0, int_add/81) in
+       cont k/34 (Pmakeblock/82)
+     where k/39 =
+       let Pmakeblock/79 = %block.[`0`].my_alloc_region/67 (x/64) in
+       let Pmakeblock/80 =
+         %block.[`0`].my_alloc_region/67 (Pmakeblock/79, y/65)
+       in
+       cont k/34 (Pmakeblock/80)
+     where k/34 (p/70 : [ 0 of [ 0 | 0 of imm tagged ] * imm tagged ]) =
+       let `*match*/71` = %block_load.[`0`] (p/70) in
+       ((let prim/76 = %is_int (`*match*/71`) in
+         let Pisint/77 = %tag_imm (prim/76) in
+         (let untagged/78 = %untag_imm (Pisint/77) in
+          switch untagged/78
+            | 0 -> k/37
+            | 1 -> k/38)
+           where k/38 =
+             cont k/35
+           where k/37 =
+             cont k/36)
+          where k/36 =
+            let Pfield/73 = %block_load.[`1`] (p/70) in
+            let Pfield/74 = %block_load.[`0`] (`*match*/71`) in
+            let int_add/75 = %int_barith.add (Pfield/74, Pfield/73) in
+            cont k/32 (int_add/75)
+          where k/35 =
+            let Pfield/72 = %block_load.[`1`] (p/70) in
+            cont k/32 (Pfield/72))
+ in
+ let total/84 = closure total_0 @total &toplevel in
+ (let Popaque/90 = %opaque (0) in
+  apply direct(total_0 &toplevel)
+    (total/84 : _ -> imm tagged) (Popaque/90, 5, 30) -> k/43 * error)
+   where k/43 (apply_result/85 : imm tagged) =
+     ((let Popaque/89 = %opaque (1) in
+       apply direct(total_0 &toplevel)
+         (total/84 : _ -> imm tagged) (Popaque/89, 5, 30) -> k/44 * error)
+        where k/44 (apply_result/86 : imm tagged) =
+          let result/87 = %int_barith.add (apply_result/86, apply_result/85)
+          in
+          let Pmakeblock/88 = %block.[`0`].`toplevel` (result/87) in
+          cont k/31 (Pmakeblock/88)))
+  where k/31 define_root_symbol (module_block/61) =
+    let field_0/62 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/61)
+    in
+    let $camlOption_in_pair = Block 0 (field_0/62) in
+    cont done ($camlOption_in_pair)
