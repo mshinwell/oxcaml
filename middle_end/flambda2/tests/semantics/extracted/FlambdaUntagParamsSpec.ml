@@ -42,24 +42,66 @@ let rec moved_from us i = function
 
 let untagged_kind = Naked_number Kind_naked_immediate
 
-(** val untag_simple : simple -> simple **)
+type tags = (variable * variable) list
 
-let untag_simple s =
+(** val tag_of : named -> variable option **)
+
+let tag_of = function
+  | Prim (p, args) -> (
+    match p with
+    | Unary p0 -> (
+      match p0 with
+      | Tag_immediate -> (
+        match args with
+        | [] -> None
+        | s :: l -> (
+          match s with
+          | Var n -> ( match l with [] -> Some n | _ :: _ -> None)
+          | _ -> None))
+      | _ -> None)
+    | _ -> None)
+  | _ -> None
+
+(** val tags_without : variable list -> tags -> tags **)
+
+let tags_without xs tagged =
+  filter
+    (fun pat ->
+      let v, n = pat in
+      negb (among v xs) && negb (among n xs))
+    tagged
+
+(** val tags_under_let : variable -> named -> tags -> tags **)
+
+let tags_under_let x d tagged =
+  match tag_of d with
+  | Some n ->
+    if Pos.eqb n x
+    then tags_without (x :: []) tagged
+    else (x, n) :: tags_without (x :: []) tagged
+  | None -> tags_without (x :: []) tagged
+
+(** val untag_simple : tags -> simple -> simple **)
+
+let untag_simple tagged s =
   match s with
+  | Var v -> ( match lookup v tagged with Some n -> Var n | None -> s)
+  | Symbol _ -> s
   | Const c -> (
     match c with Tagged_immediate i -> Const (Naked_immediate i) | _ -> s)
-  | _ -> s
 
-(** val untag_args : nat list -> simple list -> simple list **)
+(** val untag_args : nat list -> tags -> simple list -> simple list **)
 
-let untag_args us args =
-  app (kept_from us O args) (rev (map untag_simple (moved_from us O args)))
+let untag_args us tagged args =
+  app (kept_from us O args)
+    (rev (map (untag_simple tagged) (moved_from us O args)))
 
-(** val untag_apply_cont : positions -> apply_cont -> apply_cont **)
+(** val untag_apply_cont : positions -> tags -> apply_cont -> apply_cont **)
 
-let untag_apply_cont active ac =
+let untag_apply_cont active tagged ac =
   { ac_continuation = ac.ac_continuation;
-    ac_args = untag_args (positions_of active ac.ac_continuation) ac.ac_args;
+    ac_args =
+      untag_args (positions_of active ac.ac_continuation) tagged ac.ac_args;
     ac_trap_action = ac.ac_trap_action
   }
 
@@ -123,23 +165,29 @@ let active_under sites handlers active =
        handlers)
     active
 
-(** val untag_expr : positions -> positions -> variable list -> expr -> expr **)
+(** val untag_expr : positions -> positions -> variable list -> tags -> expr ->
+    expr **)
 
-let rec untag_expr sites active untagged e =
+let rec untag_expr sites active untagged tagged e =
   match e with
   | Let (x, kind, d, body) ->
     Let
       ( x,
         kind,
         untag_named untagged d,
-        untag_expr sites active (without (x :: []) untagged) body )
+        untag_expr sites active
+          (without (x :: []) untagged)
+          (tags_under_let x d tagged)
+          body )
   | Let_static (bindings, body) ->
-    Let_static (bindings, untag_expr sites active untagged body)
+    Let_static (bindings, untag_expr sites active untagged tagged body)
   | Let_cont_non_recursive (k, h, body) ->
     Let_cont_non_recursive
       ( k,
-        untag_handler sites active untagged (positions_of sites k) h,
-        untag_expr sites ((k, positions_of sites k) :: active) untagged body )
+        untag_handler sites active untagged tagged (positions_of sites k) h,
+        untag_expr sites
+          ((k, positions_of sites k) :: active)
+          untagged tagged body )
   | Let_cont_recursive (handlers, body) ->
     Let_cont_recursive
       ( map
@@ -148,51 +196,59 @@ let rec untag_expr sites active untagged e =
             ( k,
               untag_handler sites
                 (active_under sites handlers active)
-                untagged (positions_of sites k) h ))
+                untagged tagged (positions_of sites k) h ))
           handlers,
-        untag_expr sites (active_under sites handlers active) untagged body )
-  | Apply_cont ac -> Apply_cont (untag_apply_cont active ac)
+        untag_expr sites
+          (active_under sites handlers active)
+          untagged tagged body )
+  | Apply_cont ac -> Apply_cont (untag_apply_cont active tagged ac)
   | Switch (scrutinee, arms) ->
     Switch
       ( scrutinee,
         map
           (fun pat ->
             let i, ac = pat in
-            i, untag_apply_cont active ac)
+            i, untag_apply_cont active tagged ac)
           arms )
   | _ -> e
 
-(** val untag_handler : positions -> positions -> variable list -> nat list ->
-    continuation_handler -> continuation_handler **)
+(** val untag_handler : positions -> positions -> variable list -> tags -> nat
+    list -> continuation_handler -> continuation_handler **)
 
-and untag_handler sites active untagged us = function
+and untag_handler sites active untagged tagged us = function
   | Handler (params, metadata, handler) ->
     Handler
       ( untag_params_list us params,
         untag_metadata us metadata,
-        untag_expr sites active (untagged_under us params untagged) handler )
+        untag_expr sites active
+          (untagged_under us params untagged)
+          (tags_without params tagged)
+          handler )
 
 (** val none_in : variable list -> (variable -> bool) -> bool **)
 
 let none_in untagged mentions = forallb (fun p -> negb (mentions p)) untagged
 
-(** val untagged_arg : variable list -> simple -> bool **)
+(** val untagged_arg : variable list -> tags -> simple -> bool **)
 
-let untagged_arg untagged = function
-  | Var x -> among x untagged
+let untagged_arg untagged tagged = function
+  | Var x -> (
+    among x untagged
+    || match lookup x tagged with Some _ -> true | None -> false)
   | Symbol _ -> false
   | Const c -> ( match c with Tagged_immediate _ -> true | _ -> false)
 
-(** val args_ok : variable list -> nat list -> simple list -> bool **)
+(** val args_ok : variable list -> tags -> nat list -> simple list -> bool **)
 
-let args_ok untagged us args =
+let args_ok untagged tagged us args =
   none_in untagged (fun p -> var_in_simples p (kept_from us O args))
-  && forallb (untagged_arg untagged) (moved_from us O args)
+  && forallb (untagged_arg untagged tagged) (moved_from us O args)
 
-(** val apply_cont_ok : positions -> variable list -> apply_cont -> bool **)
+(** val apply_cont_ok : positions -> variable list -> tags -> apply_cont -> bool
+    **)
 
-let apply_cont_ok active untagged ac =
-  args_ok untagged (positions_of active ac.ac_continuation) ac.ac_args
+let apply_cont_ok active untagged tagged ac =
+  args_ok untagged tagged (positions_of active ac.ac_continuation) ac.ac_args
 
 (** val reads_untagged : variable list -> named -> bool **)
 
@@ -215,55 +271,62 @@ let handler_fits us params metadata =
   distinct params
   && match us with [] -> true | _ :: _ -> negb metadata.hm_is_exn_handler
 
-(** val untag_ok : positions -> positions -> variable list -> expr -> bool **)
+(** val untag_ok : positions -> positions -> variable list -> tags -> expr ->
+    bool **)
 
-let rec untag_ok sites active untagged = function
+let rec untag_ok sites active untagged tagged = function
   | Let (x, _, d, body) ->
     named_ok untagged d
-    && untag_ok sites active (without (x :: []) untagged) body
+    && untag_ok sites active
+         (without (x :: []) untagged)
+         (tags_under_let x d tagged)
+         body
   | Let_static (bindings, body) ->
     none_in untagged (fun p -> existsb (var_in_static_binding p) bindings)
-    && untag_ok sites active untagged body
+    && untag_ok sites active untagged tagged body
   | Let_cont_non_recursive (k, h, body) ->
-    handler_ok sites active untagged (positions_of sites k) h
-    && untag_ok sites ((k, positions_of sites k) :: active) untagged body
+    handler_ok sites active untagged tagged (positions_of sites k) h
+    && untag_ok sites ((k, positions_of sites k) :: active) untagged tagged body
   | Let_cont_recursive (handlers, body) ->
     forallb
       (fun pat ->
         let k, h = pat in
         handler_ok sites
           (active_under sites handlers active)
-          untagged (positions_of sites k) h)
+          untagged tagged (positions_of sites k) h)
       handlers
-    && untag_ok sites (active_under sites handlers active) untagged body
+    && untag_ok sites (active_under sites handlers active) untagged tagged body
   | Apply ap ->
     (none_in untagged (fun p ->
          (var_in_simple p ap.ap_callee || var_in_simples p ap.ap_args)
          || var_in_simples p (exn_extra_simples ap))
     && no_positions active ap.ap_continuation)
     && no_positions active ap.ap_exn_continuation
-  | Apply_cont ac -> apply_cont_ok active untagged ac
+  | Apply_cont ac -> apply_cont_ok active untagged tagged ac
   | Switch (scrutinee, arms) ->
     none_in untagged (fun p -> var_in_simple p scrutinee)
     && forallb
          (fun pat ->
            let _, ac = pat in
-           apply_cont_ok active untagged ac)
+           apply_cont_ok active untagged tagged ac)
          arms
   | Invalid -> true
 
-(** val handler_ok : positions -> positions -> variable list -> nat list ->
-    continuation_handler -> bool **)
+(** val handler_ok : positions -> positions -> variable list -> tags -> nat list
+    -> continuation_handler -> bool **)
 
-and handler_ok sites active untagged us = function
+and handler_ok sites active untagged tagged us = function
   | Handler (params, metadata, handler) ->
     handler_fits us params metadata
-    && untag_ok sites active (untagged_under us params untagged) handler
+    && untag_ok sites active
+         (untagged_under us params untagged)
+         (tags_without params tagged)
+         handler
 
 (** val untag_at : positions -> expr -> expr **)
 
 let untag_at sites e =
-  if untag_ok sites [] [] e then untag_expr sites [] [] e else e
+  if untag_ok sites [] [] [] e then untag_expr sites [] [] [] e else e
 
 (** val value_positions : nat -> flambda_kind list -> nat list **)
 
@@ -335,52 +398,54 @@ let origins_under k us params origin =
          negb (among x params))
        origin)
 
-(** val args_blame : origin_map -> continuation -> nat list -> nat -> simple
-    list -> (continuation * nat) list **)
+(** val args_blame : origin_map -> tags -> continuation -> nat list -> nat ->
+    simple list -> (continuation * nat) list **)
 
-let rec args_blame origin k us i = function
+let rec args_blame origin tagged k us i = function
   | [] -> []
   | a :: args0 ->
     app
       (if at_position us i
-       then if untagged_arg (map fst origin) a then [] else (k, i) :: []
+       then if untagged_arg (map fst origin) tagged a then [] else (k, i) :: []
        else origins origin (fun x -> var_in_simple x a))
-      (args_blame origin k us (S i) args0)
+      (args_blame origin tagged k us (S i) args0)
 
-(** val apply_cont_blame : positions -> origin_map -> apply_cont ->
+(** val apply_cont_blame : positions -> origin_map -> tags -> apply_cont ->
     (continuation * nat) list **)
 
-let apply_cont_blame active origin ac =
-  args_blame origin ac.ac_continuation
+let apply_cont_blame active origin tagged ac =
+  args_blame origin tagged ac.ac_continuation
     (positions_of active ac.ac_continuation)
     O ac.ac_args
 
-(** val blame : positions -> positions -> origin_map -> expr -> (continuation *
-    nat) list **)
+(** val blame : positions -> positions -> origin_map -> tags -> expr ->
+    (continuation * nat) list **)
 
-let rec blame sites active origin = function
+let rec blame sites active origin tagged = function
   | Let (x, _, d, body) ->
     app
       (if reads_untagged (map fst origin) d
        then []
        else origins origin (fun y -> var_in_named y d))
-      (blame sites active (unbind x origin) body)
+      (blame sites active (unbind x origin) (tags_under_let x d tagged) body)
   | Let_static (bindings, body) ->
     app
       (origins origin (fun y -> existsb (var_in_static_binding y) bindings))
-      (blame sites active origin body)
+      (blame sites active origin tagged body)
   | Let_cont_non_recursive (k, h, body) ->
     app
-      (handler_blame sites active origin k h)
-      (blame sites ((k, positions_of sites k) :: active) origin body)
+      (handler_blame sites active origin tagged k h)
+      (blame sites ((k, positions_of sites k) :: active) origin tagged body)
   | Let_cont_recursive (handlers, body) ->
     app
       (flat_map
          (fun pat ->
            let k, h = pat in
-           handler_blame sites (active_under sites handlers active) origin k h)
+           handler_blame sites
+             (active_under sites handlers active)
+             origin tagged k h)
          handlers)
-      (blame sites (active_under sites handlers active) origin body)
+      (blame sites (active_under sites handlers active) origin tagged body)
   | Apply ap ->
     app
       (origins origin (fun y ->
@@ -389,21 +454,21 @@ let rec blame sites active origin = function
       (app
          (all_of active ap.ap_continuation)
          (all_of active ap.ap_exn_continuation))
-  | Apply_cont ac -> apply_cont_blame active origin ac
+  | Apply_cont ac -> apply_cont_blame active origin tagged ac
   | Switch (scrutinee, arms) ->
     app
       (origins origin (fun y -> var_in_simple y scrutinee))
       (flat_map
          (fun pat ->
            let _, ac = pat in
-           apply_cont_blame active origin ac)
+           apply_cont_blame active origin tagged ac)
          arms)
   | Invalid -> []
 
-(** val handler_blame : positions -> positions -> origin_map -> continuation ->
-    continuation_handler -> (continuation * nat) list **)
+(** val handler_blame : positions -> positions -> origin_map -> tags ->
+    continuation -> continuation_handler -> (continuation * nat) list **)
 
-and handler_blame sites active origin k = function
+and handler_blame sites active origin tagged k = function
   | Handler (params, metadata, handler) ->
     app
       (if handler_fits (positions_of sites k) params metadata
@@ -411,6 +476,7 @@ and handler_blame sites active origin k = function
        else map (fun u -> k, u) (positions_of sites k))
       (blame sites active
          (origins_under k (positions_of sites k) params origin)
+         (tags_without params tagged)
          handler)
 
 (** val blamed : (continuation * nat) list -> continuation -> nat -> bool **)
@@ -437,7 +503,7 @@ let rec settle_positions fuel sites e =
   match fuel with
   | O -> sites
   | S fuel0 -> (
-    match blame sites [] [] e with
+    match blame sites [] [] [] e with
     | [] -> sites
     | p :: l -> settle_positions fuel0 (prune (p :: l) sites) e)
 

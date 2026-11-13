@@ -36,7 +36,8 @@
    rewrite and the test for renamed positions, and the positions that
    the validation uses, which are computed from the term. For the
    scope: the arguments of an application are the same in another
-   order, but for constants; the parameters of a handler are the same
+   order, but for constants and for the variables that the tags read,
+   which a [Let] in scope read; the parameters of a handler are the same
    in another order; and the [Let] of a parameter mentions the
    variable that the untagging mentioned. *)
 
@@ -93,14 +94,68 @@ Qed.
 (* The rewrite commutes with renaming                                       *)
 (* ======================================================================== *)
 
-Lemma untag_simple_renamed (r : renaming) (s : simple) :
-  untag_simple (rename_simple r s) = rename_simple r (untag_simple s).
-Proof. destruct s as [x | sym | c]; [ | | destruct c ]; reflexivity. Qed.
+(* The tags, with both variables of each renamed. *)
+Definition rename_tags (r : renaming) (tagged : tags) : tags :=
+  map (fun t => (rename_variable r (fst t), rename_variable r (snd t)))
+    tagged.
 
-Lemma untag_args_renamed (r : renaming) (us : list nat)
+Lemma lookup_rename_tags (r : renaming) (tagged : tags) (x : variable) :
+  lookup (rename_variable r x) (rename_tags r tagged)
+  = option_map (rename_variable r) (lookup x tagged).
+Proof.
+  unfold rename_tags.
+  induction tagged as [ | [v n] tagged IH]; [ reflexivity | ].
+  cbn [map fst snd]. rewrite !lookup_cons, rename_variable_eqb.
+  destruct (Pos.eqb x v); [ reflexivity | exact IH ].
+Qed.
+
+Lemma tags_without_renamed (r : renaming) (xs : list variable)
+    (tagged : tags) :
+  tags_without (map (rename_variable r) xs) (rename_tags r tagged)
+  = rename_tags r (tags_without xs tagged).
+Proof.
+  unfold tags_without, rename_tags.
+  induction tagged as [ | [v n] tagged IH]; [ reflexivity | ].
+  cbn [map filter fst snd]. rewrite !among_rename_variable.
+  destruct (negb (among v xs) && negb (among n xs)); cbn [map fst snd];
+    rewrite IH; reflexivity.
+Qed.
+
+Lemma tag_of_renamed (r : renaming) (d : named) :
+  tag_of (rename_named r d) = option_map (rename_variable r) (tag_of d).
+Proof.
+  destruct d as [s | [[] | | | ] [ | [x | sym | c] [ | a args]] | | | | | ];
+    reflexivity.
+Qed.
+
+Lemma tags_under_let_renamed (r : renaming) (x : variable) (d : named)
+    (tagged : tags) :
+  tags_under_let (rename_variable r x) (rename_named r d)
+    (rename_tags r tagged)
+  = rename_tags r (tags_under_let x d tagged).
+Proof.
+  unfold tags_under_let. rewrite tag_of_renamed.
+  pose proof (tags_without_renamed r [x] tagged) as Hwithout.
+  cbn [map] in Hwithout.
+  destruct (tag_of d) as [n | ]; cbn [option_map]; [ | exact Hwithout ].
+  rewrite rename_variable_eqb.
+  destruct (Pos.eqb n x); [ exact Hwithout | ].
+  rewrite Hwithout. reflexivity.
+Qed.
+
+Lemma untag_simple_renamed (r : renaming) (tagged : tags) (s : simple) :
+  untag_simple (rename_tags r tagged) (rename_simple r s)
+  = rename_simple r (untag_simple tagged s).
+Proof.
+  destruct s as [x | sym | c]; [ | reflexivity | destruct c; reflexivity ].
+  cbn [rename_simple untag_simple]. rewrite lookup_rename_tags.
+  destruct (lookup x tagged); reflexivity.
+Qed.
+
+Lemma untag_args_renamed (r : renaming) (us : list nat) (tagged : tags)
     (args : list simple) :
-  untag_args us (map (rename_simple r) args)
-  = map (rename_simple r) (untag_args us args).
+  untag_args us (rename_tags r tagged) (map (rename_simple r) args)
+  = map (rename_simple r) (untag_args us tagged args).
 Proof.
   unfold untag_args.
   rewrite kept_from_map, moved_from_map, map_app, map_rev, !map_map.
@@ -108,9 +163,10 @@ Proof.
 Qed.
 
 Lemma untag_apply_cont_renamed (r : renaming) (active : positions)
-    (ac : apply_cont) :
-  untag_apply_cont (rename_keyed r active) (rename_apply_cont r ac)
-  = rename_apply_cont r (untag_apply_cont active ac).
+    (tagged : tags) (ac : apply_cont) :
+  untag_apply_cont (rename_keyed r active) (rename_tags r tagged)
+    (rename_apply_cont r ac)
+  = rename_apply_cont r (untag_apply_cont active tagged ac).
 Proof.
   unfold untag_apply_cont, rename_apply_cont.
   cbn [ac_continuation ac_args ac_trap_action].
@@ -166,21 +222,24 @@ Proof.
 Qed.
 
 Fixpoint untag_expr_renamed (r : renaming) (sites active : positions)
-    (untagged : list variable) (e : expr) {struct e} :
+    (untagged : list variable) (tagged : tags) (e : expr) {struct e} :
   untag_expr (rename_keyed r sites) (rename_keyed r active)
-    (map (rename_variable r) untagged) (rename_expr r e)
-  = rename_expr r (untag_expr sites active untagged e)
+    (map (rename_variable r) untagged) (rename_tags r tagged)
+    (rename_expr r e)
+  = rename_expr r (untag_expr sites active untagged tagged e)
 with untag_handler_renamed (r : renaming) (sites active : positions)
-    (untagged : list variable) (us : list nat) (h : continuation_handler)
-    {struct h} :
+    (untagged : list variable) (tagged : tags) (us : list nat)
+    (h : continuation_handler) {struct h} :
   untag_handler (rename_keyed r sites) (rename_keyed r active)
-    (map (rename_variable r) untagged) us (rename_handler r h)
-  = rename_handler r (untag_handler sites active untagged us h).
+    (map (rename_variable r) untagged) (rename_tags r tagged) us
+    (rename_handler r h)
+  = rename_handler r (untag_handler sites active untagged tagged us h).
 Proof.
   - destruct e as [y kind d body | bindings body | k' hh body | handlers body
                   | ap | ac | scrutinee arms | ];
       cbn [rename_expr untag_expr]; try reflexivity.
-    + rewrite untag_named_renamed, without_one_renamed, untag_expr_renamed.
+    + rewrite untag_named_renamed, without_one_renamed,
+        tags_under_let_renamed, untag_expr_renamed.
       reflexivity.
     + rewrite untag_expr_renamed. reflexivity.
     + rewrite positions_of_renamed, untag_handler_renamed.
@@ -200,7 +259,7 @@ Proof.
   - destruct h as [params metadata handler].
     cbn [rename_handler untag_handler].
     rewrite untag_params_list_renamed, untagged_under_renamed,
-      untag_expr_renamed.
+      tags_without_renamed, untag_expr_renamed.
     reflexivity.
 Qed.
 
@@ -220,18 +279,22 @@ Proof.
 Qed.
 
 Lemma untagged_arg_renamed (r : renaming) (untagged : list variable)
-    (s : simple) :
-  untagged_arg (map (rename_variable r) untagged) (rename_simple r s)
-  = untagged_arg untagged s.
+    (tagged : tags) (s : simple) :
+  untagged_arg (map (rename_variable r) untagged) (rename_tags r tagged)
+    (rename_simple r s)
+  = untagged_arg untagged tagged s.
 Proof.
   destruct s as [x | sym | c]; cbn [rename_simple untagged_arg];
-    [ apply among_rename_variable | reflexivity | reflexivity ].
+    [ | reflexivity | reflexivity ].
+  rewrite among_rename_variable, lookup_rename_tags.
+  destruct (lookup x tagged); reflexivity.
 Qed.
 
 Lemma args_ok_renamed (r : renaming) (untagged : list variable)
-    (us : list nat) (args : list simple) :
-  args_ok (map (rename_variable r) untagged) us (map (rename_simple r) args)
-  = args_ok untagged us args.
+    (tagged : tags) (us : list nat) (args : list simple) :
+  args_ok (map (rename_variable r) untagged) (rename_tags r tagged) us
+    (map (rename_simple r) args)
+  = args_ok untagged tagged us args.
 Proof.
   unfold args_ok. rewrite kept_from_map, moved_from_map. f_equal.
   - apply none_in_renamed. intros p. apply var_in_simples_equivariant.
@@ -240,10 +303,10 @@ Proof.
 Qed.
 
 Lemma apply_cont_ok_renamed (r : renaming) (active : positions)
-    (untagged : list variable) (ac : apply_cont) :
+    (untagged : list variable) (tagged : tags) (ac : apply_cont) :
   apply_cont_ok (rename_keyed r active) (map (rename_variable r) untagged)
-    (rename_apply_cont r ac)
-  = apply_cont_ok active untagged ac.
+    (rename_tags r tagged) (rename_apply_cont r ac)
+  = apply_cont_ok active untagged tagged ac.
 Proof.
   unfold apply_cont_ok, rename_apply_cont. cbn [ac_continuation ac_args].
   rewrite positions_of_renamed. apply args_ok_renamed.
@@ -296,21 +359,24 @@ Proof.
 Qed.
 
 Fixpoint untag_ok_renamed (r : renaming) (sites active : positions)
-    (untagged : list variable) (e : expr) {struct e} :
+    (untagged : list variable) (tagged : tags) (e : expr) {struct e} :
   untag_ok (rename_keyed r sites) (rename_keyed r active)
-    (map (rename_variable r) untagged) (rename_expr r e)
-  = untag_ok sites active untagged e
+    (map (rename_variable r) untagged) (rename_tags r tagged)
+    (rename_expr r e)
+  = untag_ok sites active untagged tagged e
 with handler_ok_renamed (r : renaming) (sites active : positions)
-    (untagged : list variable) (us : list nat) (h : continuation_handler)
-    {struct h} :
+    (untagged : list variable) (tagged : tags) (us : list nat)
+    (h : continuation_handler) {struct h} :
   handler_ok (rename_keyed r sites) (rename_keyed r active)
-    (map (rename_variable r) untagged) us (rename_handler r h)
-  = handler_ok sites active untagged us h.
+    (map (rename_variable r) untagged) (rename_tags r tagged) us
+    (rename_handler r h)
+  = handler_ok sites active untagged tagged us h.
 Proof.
   - destruct e as [y kind d body | bindings body | k' hh body | handlers body
                   | ap | ac | scrutinee arms | ];
       cbn [rename_expr untag_ok]; try reflexivity.
-    + rewrite named_ok_renamed, without_one_renamed, untag_ok_renamed.
+    + rewrite named_ok_renamed, without_one_renamed, tags_under_let_renamed,
+        untag_ok_renamed.
       reflexivity.
     + rewrite untag_ok_renamed. f_equal.
       apply none_in_renamed. intros p. apply existsb_map_with.
@@ -340,7 +406,8 @@ Proof.
         reflexivity.
   - destruct h as [params metadata handler].
     cbn [rename_handler handler_ok].
-    rewrite handler_fits_renamed, untagged_under_renamed, untag_ok_renamed.
+    rewrite handler_fits_renamed, untagged_under_renamed,
+      tags_without_renamed, untag_ok_renamed.
     reflexivity.
 Qed.
 
@@ -349,9 +416,9 @@ Lemma untag_at_renamed (r : renaming) (sites : positions) (e : expr) :
   = rename_expr r (untag_at sites e).
 Proof.
   unfold untag_at.
-  rewrite (untag_ok_renamed r sites [] [] e : untag_ok _ [] [] _ = _).
-  destruct (untag_ok sites [] [] e); [ | reflexivity ].
-  exact (untag_expr_renamed r sites [] [] e).
+  rewrite (untag_ok_renamed r sites [] [] [] e : untag_ok _ [] [] [] _ = _).
+  destruct (untag_ok sites [] [] [] e); [ | reflexivity ].
+  exact (untag_expr_renamed r sites [] [] [] e).
 Qed.
 
 (* ======================================================================== *)
@@ -463,25 +530,26 @@ Proof.
 Qed.
 
 Lemma args_blame_renamed (r : renaming) (origin : origin_map)
-    (k : continuation) (us : list nat) (args : list simple) :
+    (tagged : tags) (k : continuation) (us : list nat)
+    (args : list simple) :
   ∀ i : nat,
-    args_blame (rename_origin r origin) (rename_continuation r k) us i
-      (map (rename_simple r) args)
-    = rename_keyed r (args_blame origin k us i args).
+    args_blame (rename_origin r origin) (rename_tags r tagged)
+      (rename_continuation r k) us i (map (rename_simple r) args)
+    = rename_keyed r (args_blame origin tagged k us i args).
 Proof.
   induction args as [ | a args IH]; intros i; [ reflexivity | ].
   cbn [map args_blame]. rewrite IH, rename_keyed_app. f_equal.
   destruct (at_position us i).
   - rewrite map_fst_rename_origin, untagged_arg_renamed.
-    destruct (untagged_arg (map fst origin) a); reflexivity.
+    destruct (untagged_arg (map fst origin) tagged a); reflexivity.
   - apply origins_renamed. intros x. apply var_in_simple_equivariant.
 Qed.
 
 Lemma apply_cont_blame_renamed (r : renaming) (active : positions)
-    (origin : origin_map) (ac : apply_cont) :
+    (origin : origin_map) (tagged : tags) (ac : apply_cont) :
   apply_cont_blame (rename_keyed r active) (rename_origin r origin)
-    (rename_apply_cont r ac)
-  = rename_keyed r (apply_cont_blame active origin ac).
+    (rename_tags r tagged) (rename_apply_cont r ac)
+  = rename_keyed r (apply_cont_blame active origin tagged ac).
 Proof.
   unfold apply_cont_blame, rename_apply_cont.
   cbn [ac_continuation ac_args].
@@ -489,22 +557,23 @@ Proof.
 Qed.
 
 Fixpoint blame_renamed (r : renaming) (sites active : positions)
-    (origin : origin_map) (e : expr) {struct e} :
+    (origin : origin_map) (tagged : tags) (e : expr) {struct e} :
   blame (rename_keyed r sites) (rename_keyed r active)
-    (rename_origin r origin) (rename_expr r e)
-  = rename_keyed r (blame sites active origin e)
+    (rename_origin r origin) (rename_tags r tagged) (rename_expr r e)
+  = rename_keyed r (blame sites active origin tagged e)
 with handler_blame_renamed (r : renaming) (sites active : positions)
-    (origin : origin_map) (k : continuation) (h : continuation_handler)
-    {struct h} :
+    (origin : origin_map) (tagged : tags) (k : continuation)
+    (h : continuation_handler) {struct h} :
   handler_blame (rename_keyed r sites) (rename_keyed r active)
-    (rename_origin r origin) (rename_continuation r k) (rename_handler r h)
-  = rename_keyed r (handler_blame sites active origin k h).
+    (rename_origin r origin) (rename_tags r tagged)
+    (rename_continuation r k) (rename_handler r h)
+  = rename_keyed r (handler_blame sites active origin tagged k h).
 Proof.
   - destruct e as [y kind d body | bindings body | k' hh body | handlers body
                   | ap | ac | scrutinee arms | ];
       cbn [rename_expr blame]; try reflexivity.
     + rewrite map_fst_rename_origin, reads_untagged_renamed, unbind_renamed,
-        blame_renamed, rename_keyed_app.
+        tags_under_let_renamed, blame_renamed, rename_keyed_app.
       f_equal.
       destruct (reads_untagged (map fst origin) d); [ reflexivity | ].
       apply origins_renamed. intros x. apply var_in_named_equivariant.
@@ -537,7 +606,7 @@ Proof.
   - destruct h as [params metadata handler].
     cbn [rename_handler handler_blame].
     rewrite positions_of_renamed, handler_fits_renamed, origins_under_renamed,
-      blame_renamed, rename_keyed_app.
+      tags_without_renamed, blame_renamed, rename_keyed_app.
     f_equal.
     destruct (handler_fits (positions_of sites k) params metadata);
       [ reflexivity | ].
@@ -570,8 +639,8 @@ Lemma settle_renamed (r : renaming) (fuel : nat) :
 Proof.
   induction fuel as [ | fuel IH]; intros sites e; [ reflexivity | ].
   cbn [settle_positions].
-  rewrite (blame_renamed r sites [] [] e : blame _ [] [] _ = _).
-  destruct (blame sites [] [] e) as [ | refused0 refused] eqn:Hblame;
+  rewrite (blame_renamed r sites [] [] [] e : blame _ [] [] [] _ = _).
+  destruct (blame sites [] [] [] e) as [ | refused0 refused] eqn:Hblame;
     [ reflexivity | ].
   cbn [rename_keyed map].
   exact (eq_trans
@@ -624,26 +693,63 @@ Proof.
   - intros H. right. exact (IH _ H).
 Qed.
 
-Lemma untag_apply_cont_free_variables (active : positions)
-    (ac : apply_cont) :
-  incl (free_variables_of_apply_cont (untag_apply_cont active ac))
-    (free_variables_of_apply_cont ac).
+Lemma in_snd_tags_without (xs : list variable) (tagged : tags)
+    (a : variable) :
+  In a (map snd (tags_without xs tagged)) -> In a (map snd tagged).
+Proof.
+  unfold tags_without. intros Ha.
+  apply in_map_iff in Ha as (t & <- & Ht). apply filter_In in Ht as [Ht _].
+  exact (in_map snd tagged t Ht).
+Qed.
+
+(* The second variable of a tag under a [Let] is one of a tag that
+   there was, or the variable that the [Let] tags. *)
+Lemma in_snd_tags_under_let (x : variable) (d : named) (tagged : tags)
+    (a : variable) :
+  In a (map snd (tags_under_let x d tagged)) ->
+  In a (free_variables_of_named d) ∨ In a (map snd tagged).
+Proof.
+  unfold tags_under_let.
+  destruct (tag_of d) as [n | ] eqn:Htag;
+    [ | intros Ha; right; exact (in_snd_tags_without [x] tagged a Ha) ].
+  destruct (Pos.eqb n x);
+    [ intros Ha; right; exact (in_snd_tags_without [x] tagged a Ha) | ].
+  cbn [map snd]. intros [<- | Ha];
+    [ | right; exact (in_snd_tags_without [x] tagged a Ha) ].
+  left. apply tag_of_some in Htag. subst d. cbn. left. reflexivity.
+Qed.
+
+(* A free variable of an application rewritten is one of the
+   application, or the second variable of a tag. *)
+Lemma untag_apply_cont_free_variables (active : positions) (tagged : tags)
+    (ac : apply_cont) (a : variable) :
+  In a (free_variables_of_apply_cont (untag_apply_cont active tagged ac)) ->
+  In a (free_variables_of_apply_cont ac) ∨ In a (map snd tagged).
 Proof.
   unfold free_variables_of_apply_cont, free_variables_of_simples,
     untag_apply_cont, untag_args.
-  cbn [ac_args]. intros a Ha. apply in_flat_map in Ha as (s & Hs & Ha).
+  cbn [ac_args]. intros Ha. apply in_flat_map in Ha as (s & Hs & Ha).
   apply in_app_or in Hs as [Hs | Hs].
-  - apply in_flat_map. exists s.
+  - left. apply in_flat_map. exists s.
     split; [ exact (in_kept_from _ s _ 0 Hs) | exact Ha ].
   - apply in_rev in Hs. apply in_map_iff in Hs as (s0 & <- & Hs0).
-    apply in_flat_map. exists s0.
-    split; [ exact (in_moved_from _ s0 _ 0 Hs0) | ].
-    destruct s0 as [x | sym | c]; [ exact Ha | exact Ha | ].
-    destruct c; exact Ha.
+    destruct s0 as [x | sym | c].
+    + cbn [untag_simple] in Ha.
+      destruct (lookup x tagged) as [n | ] eqn:Hn.
+      * right. cbn [free_variables_of_simple] in Ha.
+        destruct Ha as [<- | []].
+        exact (in_map snd tagged (x, n) (lookup_in x n tagged Hn)).
+      * left. apply in_flat_map. eexists.
+        split; [ exact (in_moved_from _ _ _ 0 Hs0) | exact Ha ].
+    + left. apply in_flat_map. eexists.
+      split; [ exact (in_moved_from _ _ _ 0 Hs0) | exact Ha ].
+    + left. apply in_flat_map. eexists.
+      split; [ exact (in_moved_from _ _ _ 0 Hs0) | destruct c; exact Ha ].
 Qed.
 
-Lemma untag_apply_cont_continuations (active : positions) (ac : apply_cont) :
-  apply_cont_continuations (untag_apply_cont active ac)
+Lemma untag_apply_cont_continuations (active : positions) (tagged : tags)
+    (ac : apply_cont) :
+  apply_cont_continuations (untag_apply_cont active tagged ac)
   = apply_cont_continuations ac.
 Proof. reflexivity. Qed.
 
@@ -657,74 +763,173 @@ Proof.
   apply untag_of_some in Huntag. subst d. intros a Ha. exact Ha.
 Qed.
 
-Lemma untag_handler_scoped_intro (us : list nat) (params : list variable)
-    (metadata : handler_metadata) (handler handler' : expr) :
-  scoped handler handler' ->
-  scoped_handler (Handler params metadata handler)
-    (Handler (untag_params_list us params) (untag_metadata us metadata)
-       handler').
-Proof.
-  intros Hhandler Hclosed.
-  cbn [handler_code_closed free_variables_of_handler
-       free_continuations_of_handler] in Hclosed |- *.
-  destruct (Hhandler Hclosed) as (Hclosed' & Hv & Hk).
-  split; [ exact Hclosed' | split; [ | exact Hk ] ].
-  intros a Ha. apply in_without in Ha as [Ha Hnot]. apply in_without.
-  split; [ exact (Hv a Ha) | ].
-  intros Hin. apply Hnot. unfold untag_params_list.
-  exact (Permutation_in a (kept_moved_permutation us params 0) Hin).
-Qed.
-
-Fixpoint untag_expr_scoped (sites active : positions)
-    (untagged : list variable) (e : expr) {struct e} :
-  scoped e (untag_expr sites active untagged e)
-with untag_handler_scoped (sites active : positions)
-    (untagged : list variable) (us : list nat) (h : continuation_handler)
-    {struct h} :
-  scoped_handler h (untag_handler sites active untagged us h).
+Fixpoint untag_expr_code_closed (sites active : positions)
+    (untagged : list variable) (tagged : tags) (e : expr) {struct e} :
+  code_closed (untag_expr sites active untagged tagged e) = code_closed e
+with untag_handler_code_closed (sites active : positions)
+    (untagged : list variable) (tagged : tags) (us : list nat)
+    (h : continuation_handler) {struct h} :
+  handler_code_closed (untag_handler sites active untagged tagged us h)
+  = handler_code_closed h.
 Proof.
   - destruct e as [y kind d body | bindings body | k' hh body | handlers body
                   | ap | ac | scrutinee arms | ];
-      cbn [untag_expr]; try apply scoped_refl.
-    + apply scoped_let;
-        [ apply untag_named_free_variables | apply untag_expr_scoped ].
-    + apply scoped_let_static;
-        [ apply scoped_bindings_refl | apply untag_expr_scoped ].
-    + apply scoped_let_cont;
-        [ apply untag_handler_scoped | apply untag_expr_scoped ].
-    + apply scoped_let_cont_recursive; [ | | apply untag_expr_scoped ].
-      * rewrite map_map. apply map_ext. intros [k' hh]. reflexivity.
-      * generalize (active_under sites handlers active). intros active'.
-        induction handlers as [ | [k' hh] handlers IH]; cbn [map];
-          [ apply scoped_handlers_nil | ].
-        apply scoped_handlers_cons;
-          [ apply untag_handler_scoped | exact IH ].
-    + intros _.
-      cbn [code_closed free_variables_of_expr free_continuations_of_expr].
-      split; [ reflexivity | split ].
-      * apply untag_apply_cont_free_variables.
-      * rewrite untag_apply_cont_continuations. apply incl_refl.
-    + intros _.
-      cbn [code_closed free_variables_of_expr free_continuations_of_expr].
-      split; [ reflexivity | split ].
-      * apply incl_app_app; [ apply incl_refl | ].
-        induction arms as [ | [n ac] arms IH]; [ apply incl_refl | ].
-        cbn [map flat_map snd].
-        apply incl_app_app;
-          [ apply untag_apply_cont_free_variables | exact IH ].
-      * induction arms as [ | [n ac] arms IH]; [ apply incl_refl | ].
-        cbn [map flat_map snd]. rewrite untag_apply_cont_continuations.
-        apply incl_app_app; [ apply incl_refl | exact IH ].
-  - destruct h as [params metadata handler]. cbn [untag_handler].
-    apply untag_handler_scoped_intro, untag_expr_scoped.
+      cbn [untag_expr code_closed]; try reflexivity.
+    + apply untag_expr_code_closed.
+    + rewrite untag_expr_code_closed. reflexivity.
+    + rewrite untag_handler_code_closed, untag_expr_code_closed.
+      reflexivity.
+    + rewrite untag_expr_code_closed. f_equal.
+      generalize (active_under sites handlers active). intros active'.
+      induction handlers as [ | [k' hh] handlers IH]; [ reflexivity | ].
+      cbn [map forallb].
+      rewrite untag_handler_code_closed, IH. reflexivity.
+  - destruct h as [params metadata handler].
+    cbn [untag_handler handler_code_closed].
+    apply untag_expr_code_closed.
+Qed.
+
+Fixpoint untag_expr_free_continuations (sites active : positions)
+    (untagged : list variable) (tagged : tags) (e : expr) {struct e} :
+  free_continuations_of_expr (untag_expr sites active untagged tagged e)
+  = free_continuations_of_expr e
+with untag_handler_free_continuations (sites active : positions)
+    (untagged : list variable) (tagged : tags) (us : list nat)
+    (h : continuation_handler) {struct h} :
+  free_continuations_of_handler
+    (untag_handler sites active untagged tagged us h)
+  = free_continuations_of_handler h.
+Proof.
+  - destruct e as [y kind d body | bindings body | k' hh body | handlers body
+                  | ap | ac | scrutinee arms | ];
+      cbn [untag_expr free_continuations_of_expr]; try reflexivity.
+    + apply untag_expr_free_continuations.
+    + rewrite untag_expr_free_continuations. reflexivity.
+    + rewrite untag_handler_free_continuations,
+        untag_expr_free_continuations.
+      reflexivity.
+    + rewrite untag_expr_free_continuations.
+      generalize (active_under sites handlers active). intros active'.
+      f_equal.
+      * induction handlers as [ | [k' hh] handlers IH]; [ reflexivity | ].
+        cbn [map fst]. rewrite IH. reflexivity.
+      * f_equal.
+        induction handlers as [ | [k' hh] handlers IH]; [ reflexivity | ].
+        cbn [map flat_map].
+        rewrite untag_handler_free_continuations, IH. reflexivity.
+    + induction arms as [ | [n ac] arms IH]; [ reflexivity | ].
+      cbn [map flat_map snd].
+      rewrite untag_apply_cont_continuations, IH. reflexivity.
+  - destruct h as [params metadata handler].
+    cbn [untag_handler free_continuations_of_handler].
+    apply untag_expr_free_continuations.
+Qed.
+
+(* A free variable of the result is one of the term, or the second
+   variable of a tag: the variable that a [Let] in scope tags, which
+   is free where the [Let] is and is not bound again on the way. *)
+Fixpoint untag_expr_free_variables (sites : positions) (a : variable)
+    (e : expr) {struct e} :
+  ∀ (active : positions) (untagged : list variable) (tagged : tags),
+    In a
+      (free_variables_of_expr (untag_expr sites active untagged tagged e)) ->
+    In a (free_variables_of_expr e) ∨ In a (map snd tagged)
+with untag_handler_free_variables (sites : positions) (a : variable)
+    (h : continuation_handler) {struct h} :
+  ∀ (active : positions) (untagged : list variable) (tagged : tags)
+    (us : list nat),
+    In a
+      (free_variables_of_handler
+         (untag_handler sites active untagged tagged us h)) ->
+    In a (free_variables_of_handler h) ∨ In a (map snd tagged).
+Proof.
+  - destruct e as [y kind d body | bindings body | k' hh body | handlers body
+                  | ap | ac | scrutinee arms | ];
+      intros active untagged tagged;
+      cbn [untag_expr free_variables_of_expr];
+      try (intros Hin; left; exact Hin).
+    + intros Hin. apply in_app_or in Hin as [Hin | Hin].
+      * left. apply in_or_app. left.
+        exact (untag_named_free_variables untagged d a Hin).
+      * apply in_without in Hin as [Hin Hy].
+        destruct (untag_expr_free_variables sites a body _ _ _ Hin)
+          as [Hin' | Hin'].
+        -- left. apply in_or_app. right. apply in_without.
+           split; assumption.
+        -- destruct (in_snd_tags_under_let y d tagged a Hin')
+             as [Hd | Htagged]; [ | right; exact Htagged ].
+           left. apply in_or_app. left. exact Hd.
+    + intros Hin. apply in_app_or in Hin as [Hin | Hin];
+        [ left; apply in_or_app; left; exact Hin | ].
+      destruct (untag_expr_free_variables sites a body _ _ _ Hin)
+        as [Hin' | Hx]; [ | right; exact Hx ].
+      left. apply in_or_app. right. exact Hin'.
+    + intros Hin. apply in_app_or in Hin as [Hin | Hin].
+      * destruct (untag_handler_free_variables sites a hh _ _ _ _ Hin)
+          as [Hin' | Hx]; [ | right; exact Hx ].
+        left. apply in_or_app. left. exact Hin'.
+      * destruct (untag_expr_free_variables sites a body _ _ _ Hin)
+          as [Hin' | Hx]; [ | right; exact Hx ].
+        left. apply in_or_app. right. exact Hin'.
+    + intros Hin. apply in_app_or in Hin as [Hin | Hin].
+      * assert (Hhandlers :
+          In a (flat_map (fun '(_, h) => free_variables_of_handler h) handlers)
+          ∨ In a (map snd tagged)).
+        { revert Hin.
+          generalize (active_under sites handlers active). intros active'.
+          induction handlers as [ | [k' hh] handlers IH];
+            cbn [map flat_map]; [ intros [] | ].
+          intros Hin. apply in_app_or in Hin as [Hin | Hin].
+          - destruct (untag_handler_free_variables sites a hh _ _ _ _ Hin)
+              as [Hin' | Hx]; [ | right; exact Hx ].
+            left. apply in_or_app. left. exact Hin'.
+          - destruct (IH Hin) as [Hin' | Hx]; [ | right; exact Hx ].
+            left. apply in_or_app. right. exact Hin'. }
+        destruct Hhandlers as [Hin' | Hx]; [ | right; exact Hx ].
+        left. apply in_or_app. left. exact Hin'.
+      * destruct (untag_expr_free_variables sites a body _ _ _ Hin)
+          as [Hin' | Hx]; [ | right; exact Hx ].
+        left. apply in_or_app. right. exact Hin'.
+    + apply untag_apply_cont_free_variables.
+    + intros Hin. apply in_app_or in Hin as [Hin | Hin];
+        [ left; apply in_or_app; left; exact Hin | ].
+      assert (Harms :
+        In a (flat_map (fun arm => free_variables_of_apply_cont (snd arm)) arms)
+        ∨ In a (map snd tagged)).
+      { induction arms as [ | [n ac] arms IH];
+          cbn [map flat_map snd] in Hin |- *; [ contradiction | ].
+        apply in_app_or in Hin as [Hin | Hin].
+        - destruct (untag_apply_cont_free_variables active tagged ac a Hin)
+            as [Hin' | Hx]; [ | right; exact Hx ].
+          left. apply in_or_app. left. exact Hin'.
+        - destruct (IH Hin) as [Hin' | Hx]; [ | right; exact Hx ].
+          left. apply in_or_app. right. exact Hin'. }
+      destruct Harms as [Hin' | Hx]; [ | right; exact Hx ].
+      left. apply in_or_app. right. exact Hin'.
+  - destruct h as [params metadata handler].
+    intros active untagged tagged us.
+    cbn [untag_handler free_variables_of_handler]. intros Hin.
+    apply in_without in Hin as [Hin Hparams].
+    destruct (untag_expr_free_variables sites a handler _ _ _ Hin)
+      as [Hin' | Hx].
+    + left. apply in_without. split; [ exact Hin' | ].
+      intros Hp. apply Hparams. unfold untag_params_list.
+      exact (Permutation_in a (kept_moved_permutation us params 0) Hp).
+    + right. exact (in_snd_tags_without params tagged a Hx).
 Qed.
 
 Lemma untag_at_scoped (sites : positions) (e : expr) :
   scoped e (untag_at sites e).
 Proof.
   unfold untag_at.
-  destruct (untag_ok sites [] [] e);
-    [ apply untag_expr_scoped | apply scoped_refl ].
+  destruct (untag_ok sites [] [] [] e); [ | apply scoped_refl ].
+  intros Hclosed. rewrite untag_expr_code_closed.
+  split; [ exact Hclosed | split ].
+  - intros a Ha.
+    destruct (untag_expr_free_variables sites a e [] [] [] Ha)
+      as [Hin | []].
+    exact Hin.
+  - rewrite untag_expr_free_continuations. apply incl_refl.
 Qed.
 
 Lemma untag_params_scoped (e : expr) : scoped e (untag_params e).

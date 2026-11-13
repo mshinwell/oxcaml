@@ -35,7 +35,10 @@
    the same rewritten, under variables that agree but for the untagged
    ones, which hold a tagged immediate in the first run and the naked
    immediate of the same number in the second, and under continuations
-   that are closures of a handler and of that handler rewritten. That
+   that are closures of a handler and of that handler rewritten. A
+   variable of the tags holds, in the first run, the tagged immediate
+   of the number that the variable it tags holds naked ([tags_ok]);
+   that one is not untagged, so it holds the same in the second. That
    the result refines the term is then
    FlambdaSemanticsProofs.simulation_refines. *)
 
@@ -142,7 +145,8 @@ Qed.
 
 (* With no position, the rewrite of the arguments, of the parameters
    and of the metadata changes nothing. *)
-Lemma untag_args_nil (args : list simple) : untag_args [] args = args.
+Lemma untag_args_nil (tagged : tags) (args : list simple) :
+  untag_args [] tagged args = args.
 Proof.
   unfold untag_args. rewrite kept_from_nil, moved_from_nil. apply app_nil_r.
 Qed.
@@ -223,6 +227,97 @@ Proof.
   apply among_In in Hamong.
   rewrite forallb_forall in Hnone. specialize (Hnone x Hamong).
   rewrite Hx in Hnone. discriminate Hnone.
+Qed.
+
+(* What the tags say holds of the variables of the first run: the
+   variable of a tag holds the tagged immediate of the number that the
+   other variable holds naked, and the other is not untagged, so it
+   holds the same in the second run. *)
+Definition tags_ok (untagged : list variable) (tagged : tags) (vars : env)
+    : Prop :=
+  ∀ v n : variable,
+    In (v, n) tagged ->
+    among n untagged = false
+    ∧ ∃ i : Z,
+        lookup v vars = Some (Value_const (Tagged_immediate i))
+        ∧ lookup n vars = Some (Value_const (Naked_immediate i)).
+
+Lemma tags_ok_nil (untagged : list variable) (vars : env) :
+  tags_ok untagged [] vars.
+Proof. intros v n []. Qed.
+
+Lemma in_tags_without (xs : list variable) (tagged : tags) (v n : variable) :
+  In (v, n) (tags_without xs tagged) ->
+  In (v, n) tagged ∧ among v xs = false ∧ among n xs = false.
+Proof.
+  unfold tags_without. rewrite filter_In. intros [Hin Hf].
+  cbn beta iota in Hf. apply andb_true_iff in Hf as [Hv Hn].
+  apply negb_true_iff in Hv. apply negb_true_iff in Hn.
+  split; [ exact Hin | split; assumption ].
+Qed.
+
+(* What a defining expression that tags a variable is, and what it
+   gives. *)
+Lemma tag_of_some (d : named) (n : variable) :
+  tag_of d = Some n -> d = Prim (Unary Tag_immediate) [Var n].
+Proof.
+  destruct d as [s | [[] | | | ] [ | [x | sym | c] [ | a args]] | | | | | ];
+    simpl; try discriminate.
+  intros [= ->]. reflexivity.
+Qed.
+
+Lemma eval_tagging (statics : static_env) (vars : env) (n : variable)
+    (v : value) :
+  eval_named statics vars (Prim (Unary Tag_immediate) [Var n]) = Some v ->
+  ∃ i : Z,
+    lookup n vars = Some (Value_const (Naked_immediate i))
+    ∧ v = Value_const (Tagged_immediate i).
+Proof.
+  cbn [eval_named eval_simples eval_simple].
+  destruct (lookup n vars) as [w | ]; [ | discriminate ].
+  simpl. rewrite eval_prim_unary. cbn [eval_unary_primitive].
+  destruct (int_of_value Standard_naked_immediate w) as [i | ] eqn:Hint;
+    [ | discriminate ].
+  intros [= <-]. exists i.
+  apply int_of_value_const in Hint as [-> _]. split; reflexivity.
+Qed.
+
+(* The tags under a [Let] hold of the variables with the one bound. *)
+Lemma tags_ok_let (untagged : list variable) (tagged : tags)
+    (statics : static_env) (vars : env) (x : variable) (d : named)
+    (v : value) :
+  named_ok untagged d = true ->
+  tags_ok untagged tagged vars ->
+  eval_named statics vars d = Some v ->
+  tags_ok (without [x] untagged) (tags_under_let x d tagged)
+    ((x, v) :: vars).
+Proof.
+  intros Hd Htags Hv.
+  assert (Hrest :
+    tags_ok (without [x] untagged) (tags_without [x] tagged)
+      ((x, v) :: vars)).
+  { intros v0 n0 Hin. apply in_tags_without in Hin as (Hin & Hv0 & Hn0).
+    destruct (Htags v0 n0 Hin) as (Hnot & i & Hv0' & Hn0').
+    rewrite among_cons in Hv0, Hn0. cbn [among existsb] in Hv0, Hn0.
+    rewrite orb_false_r in Hv0, Hn0.
+    split.
+    - rewrite among_without, Hnot. reflexivity.
+    - exists i. rewrite !lookup_cons, Hv0, Hn0. split; assumption. }
+  unfold tags_under_let.
+  destruct (tag_of d) as [n | ] eqn:Htag; [ | exact Hrest ].
+  destruct (Pos.eqb_spec n x) as [-> | Hne]; [ exact Hrest | ].
+  intros v0 n0 [[= <- <-] | Hin]; [ | exact (Hrest v0 n0 Hin) ].
+  apply tag_of_some in Htag. subst d.
+  destruct (eval_tagging statics vars n v Hv) as (i & Hn & ->).
+  assert (Hnot : among n untagged = false).
+  { unfold named_ok, reads_untagged in Hd. cbn [untag_of orb] in Hd.
+    apply (none_in_not_among untagged _ n Hd).
+    cbn. rewrite Pos.eqb_refl. reflexivity. }
+  split.
+  - rewrite among_without, Hnot. reflexivity.
+  - exists i. rewrite !lookup_cons, Pos.eqb_refl.
+    destruct (Pos.eqb_spec n x) as [Heq | _]; [ contradiction | ].
+    split; [ reflexivity | exact Hn ].
 Qed.
 
 Lemma eval_simple_plain (untagged : list variable) (vars vars' : env)
@@ -320,16 +415,18 @@ Qed.
 
 (* The arguments at the untagged positions: each is a tagged
    immediate in the first run and the naked one in the second. *)
-Lemma eval_simples_untagged (untagged : list variable) (vars vars' : env)
-    (args : list simple) :
+Lemma eval_simples_untagged (untagged : list variable) (tagged : tags)
+    (vars vars' : env) (args : list simple) :
   vars_rel untagged vars vars' ->
-  forallb (untagged_arg untagged) args = true ->
+  tags_ok untagged tagged vars ->
+  forallb (untagged_arg untagged tagged) args = true ->
   ∀ vs : list value,
     eval_simples vars args = Some vs ->
-    eval_simples vars' (map untag_simple args) = Some (map untag_value vs)
+    eval_simples vars' (map (untag_simple tagged) args)
+    = Some (map untag_value vs)
     ∧ Forall is_tagged vs.
 Proof.
-  intros Hvars.
+  intros Hvars Htags.
   induction args as [ | s args IH]; intros Hok vs; simpl.
   - intros [= <-]. split; [ reflexivity | constructor ].
   - simpl in Hok. apply andb_true_iff in Hok as [Hs Hargs].
@@ -339,13 +436,23 @@ Proof.
     intros [= <-]. destruct (IH Hargs rest eq_refl) as [Heval Htagged].
     rewrite Heval.
     assert (Hhead :
-      eval_simple vars' (untag_simple s) = Some (untag_value v)
+      eval_simple vars' (untag_simple tagged s) = Some (untag_value v)
       ∧ is_tagged v).
-    { destruct s as [x | sym | c]; simpl in Hs; try discriminate Hs.
-      - pose proof (Hvars x) as Hx. rewrite Hs in Hx.
-        destruct Hx as (i & Hx & Hx'). simpl in Hv. rewrite Hx in Hv.
-        injection Hv as <-. simpl. rewrite Hx'.
-        split; [ reflexivity | exists i; reflexivity ].
+    { destruct s as [x | sym | c]; cbn [untagged_arg] in Hs;
+        try discriminate Hs.
+      - cbn [untag_simple].
+        destruct (lookup x tagged) as [n | ] eqn:Hn.
+        + destruct (Htags x n (lookup_in x n tagged Hn))
+            as (Hnot & i & Hx & Hn').
+          simpl in Hv. rewrite Hx in Hv. injection Hv as <-.
+          pose proof (Hvars n) as Hrel. rewrite Hnot in Hrel.
+          cbn [eval_simple untag_value]. rewrite <- Hrel.
+          split; [ exact Hn' | exists i; reflexivity ].
+        + rewrite orb_false_r in Hs.
+          pose proof (Hvars x) as Hx. rewrite Hs in Hx.
+          destruct Hx as (i & Hx & Hx'). simpl in Hv. rewrite Hx in Hv.
+          injection Hv as <-. simpl. rewrite Hx'.
+          split; [ reflexivity | exists i; reflexivity ].
       - destruct c; try discriminate Hs. simpl in Hv. injection Hv as <-.
         split; [ reflexivity | eexists; reflexivity ]. }
     destruct Hhead as [Hhead Hv_tagged]. rewrite Hhead.
@@ -353,19 +460,22 @@ Proof.
 Qed.
 
 (* The arguments of an application that the test accepts. *)
-Lemma eval_untag_args (untagged : list variable) (us : list nat)
-    (vars vars' : env) (args : list simple) (vs : list value) :
+Lemma eval_untag_args (untagged : list variable) (tagged : tags)
+    (us : list nat) (vars vars' : env) (args : list simple)
+    (vs : list value) :
   vars_rel untagged vars vars' ->
-  args_ok untagged us args = true ->
+  tags_ok untagged tagged vars ->
+  args_ok untagged tagged us args = true ->
   eval_simples vars args = Some vs ->
-  eval_simples vars' (untag_args us args) = Some (untag_values us vs)
+  eval_simples vars' (untag_args us tagged args) = Some (untag_values us vs)
   ∧ Forall is_tagged (moved_from us 0 vs).
 Proof.
-  intros Hvars Hok Hvs. unfold args_ok in Hok.
+  intros Hvars Htags Hok Hvs. unfold args_ok in Hok.
   apply andb_true_iff in Hok as [Hkept Hmoved].
   destruct (eval_simples_split us vars args 0 vs Hvs) as [Hk Hm].
   destruct
-    (eval_simples_untagged untagged vars vars' _ Hvars Hmoved _ Hm)
+    (eval_simples_untagged untagged tagged vars vars' _ Hvars Htags Hmoved _
+       Hm)
     as [Hm' Htagged].
   split; [ | exact Htagged ].
   unfold untag_args, untag_values.
@@ -575,6 +685,33 @@ Proof.
       exact (Hvars x).
 Qed.
 
+(* The tags that are left under the parameters hold of the variables
+   of the handler entered. *)
+Lemma tags_ok_params (untagged : list variable) (tagged : tags)
+    (us : list nat) (params : list variable) (vs : list value)
+    (vars bound : env) :
+  distinct params = true ->
+  tags_ok untagged tagged vars ->
+  bind_params params vs vars = Some bound ->
+  tags_ok (untagged_under us params untagged) (tags_without params tagged)
+    bound.
+Proof.
+  intros Hdistinct Htags Hbind v n Hin.
+  apply in_tags_without in Hin as (Hin & Hv & Hn).
+  destruct (Htags v n Hin) as (Hnot & i & Hv' & Hn').
+  split.
+  - unfold untagged_under. rewrite among_app, among_without, Hnot.
+    cbn [andb]. rewrite orb_false_r.
+    destruct (among n (moved_from us 0 params)) eqn:Hmoved;
+      [ | reflexivity ].
+    rewrite (among_moved_from us n params 0 Hmoved) in Hn. discriminate Hn.
+  - exists i.
+    rewrite !(lookup_bind_params params vs vars bound _ Hdistinct Hbind),
+      (lookup_combine_none v params vs Hv),
+      (lookup_combine_none n params vs Hn).
+    split; assumption.
+Qed.
+
 (* The kinds of the values in the order of the rewrite are those of the
    metadata rewritten. *)
 Lemma kinds_untagged (us : list nat) (vs : list value)
@@ -602,12 +739,12 @@ Qed.
 (* ======================================================================== *)
 
 Fixpoint untag_expr_binds_statics (sites active : positions)
-    (untagged : list variable) (e : expr) {struct e} :
-  binds_statics (untag_expr sites active untagged e) = binds_statics e
+    (untagged : list variable) (tagged : tags) (e : expr) {struct e} :
+  binds_statics (untag_expr sites active untagged tagged e) = binds_statics e
 with untag_handler_binds_statics (sites active : positions)
-    (untagged : list variable) (us : list nat) (h : continuation_handler)
-    {struct h} :
-  handler_binds_statics (untag_handler sites active untagged us h)
+    (untagged : list variable) (tagged : tags) (us : list nat)
+    (h : continuation_handler) {struct h} :
+  handler_binds_statics (untag_handler sites active untagged tagged us h)
   = handler_binds_statics h.
 Proof.
   - destruct e as [y kind d body | bindings body | k' hh body | handlers body
@@ -628,17 +765,18 @@ Proof.
 Qed.
 
 Definition untag_handlers (sites active : positions) (untagged : list variable)
-    (handlers : list (continuation * continuation_handler))
+    (tagged : tags) (handlers : list (continuation * continuation_handler))
     : list (continuation * continuation_handler) :=
   map
     (fun '(k, h) =>
-       (k, untag_handler sites active untagged (positions_of sites k) h))
+       (k,
+        untag_handler sites active untagged tagged (positions_of sites k) h))
     handlers.
 
 Lemma untag_handlers_bind_statics (sites active : positions)
-    (untagged : list variable)
+    (untagged : list variable) (tagged : tags)
     (handlers : list (continuation * continuation_handler)) :
-  handlers_bind_statics (untag_handlers sites active untagged handlers)
+  handlers_bind_statics (untag_handlers sites active untagged tagged handlers)
   = handlers_bind_statics handlers.
 Proof.
   unfold handlers_bind_statics, untag_handlers.
@@ -647,10 +785,11 @@ Proof.
 Qed.
 
 Lemma lookup_untag_handlers (sites active : positions)
-    (untagged : list variable) (k1 : continuation)
+    (untagged : list variable) (tagged : tags) (k1 : continuation)
     (handlers : list (continuation * continuation_handler)) :
-  lookup k1 (untag_handlers sites active untagged handlers)
-  = option_map (untag_handler sites active untagged (positions_of sites k1))
+  lookup k1 (untag_handlers sites active untagged tagged handlers)
+  = option_map
+      (untag_handler sites active untagged tagged (positions_of sites k1))
       (lookup k1 handlers).
 Proof.
   unfold untag_handlers.
@@ -687,10 +826,11 @@ Proof.
   rewrite Hlookup. destruct (lookup k1 handlers); reflexivity.
 Qed.
 
-Lemma find_arm_untag (active : positions) (j : Z)
+Lemma find_arm_untag (active : positions) (tagged : tags) (j : Z)
     (arms : list (Z * apply_cont)) :
-  find_arm j (map (fun '(n, ac) => (n, untag_apply_cont active ac)) arms)
-  = option_map (untag_apply_cont active) (find_arm j arms).
+  find_arm j
+    (map (fun '(n, ac) => (n, untag_apply_cont active tagged ac)) arms)
+  = option_map (untag_apply_cont active tagged) (find_arm j arms).
 Proof.
   induction arms as [ | [n ac] arms IH]; [ reflexivity | ].
   cbn [map find_arm]. destruct (Z.eqb j n); [ reflexivity | exact IH ].
@@ -714,9 +854,11 @@ Section Runs.
 Variable sites : positions.
 
 Definition handlers_ok (active : positions) (untagged : list variable)
-    (handlers : list (continuation * continuation_handler)) : bool :=
+    (tagged : tags) (handlers : list (continuation * continuation_handler))
+    : bool :=
   forallb
-    (fun '(k, h) => handler_ok sites active untagged (positions_of sites k) h)
+    (fun '(k, h) =>
+       handler_ok sites active untagged tagged (positions_of sites k) h)
     handlers.
 
 (* What a continuation name stands for in the two runs, and which of
@@ -735,21 +877,24 @@ Inductive cont_rel : list nat -> cont_value -> cont_value -> Prop :=
   | Rel_inside (us : list nat) (hh : continuation_handler) (dv dv' : env)
       (dc dc' : cont_env)
       (recursive : list (continuation * continuation_handler))
-      (active : positions) (untagged : list variable) :
-    handler_ok sites (active_under sites recursive active) untagged us hh
+      (active : positions) (untagged : list variable) (tagged : tags) :
+    handler_ok sites (active_under sites recursive active) untagged tagged us
+      hh
     = true ->
-    handlers_ok (active_under sites recursive active) untagged recursive
+    handlers_ok (active_under sites recursive active) untagged tagged
+      recursive
     = true ->
     vars_rel untagged dv dv' ->
+    tags_ok untagged tagged dv ->
     (∀ k1 : continuation,
       cont_rel (positions_of active k1) (resolve k1 dc) (resolve k1 dc')) ->
     cont_rel us (Closure hh dv dc recursive)
       (Closure
          (untag_handler sites (active_under sites recursive active) untagged
-            us hh)
+            tagged us hh)
          dv' dc'
          (untag_handlers sites (active_under sites recursive active) untagged
-            recursive))
+            tagged recursive))
   | Rel_extra (c c' : cont_value) (extra : list value) :
     cont_rel [] c c' -> cont_rel [] (Extra_args c extra) (Extra_args c' extra)
   | Rel_over (remaining : list value) (remaining_arity return_arity : arity)
@@ -775,12 +920,14 @@ Inductive state_rel : state -> state -> Prop :=
     state_rel (State e vars conts statics hp) (State e vars conts' statics hp)
   | Rel_state_inside (e : expr) (vars vars' : env) (conts conts' : cont_env)
       (statics : static_env) (hp : heap) (active : positions)
-      (untagged : list variable) :
-    untag_ok sites active untagged e = true ->
+      (untagged : list variable) (tagged : tags) :
+    untag_ok sites active untagged tagged e = true ->
     vars_rel untagged vars vars' ->
+    tags_ok untagged tagged vars ->
     conts_rel active conts conts' ->
     state_rel (State e vars conts statics hp)
-      (State (untag_expr sites active untagged e) vars' conts' statics hp).
+      (State (untag_expr sites active untagged tagged e) vars' conts' statics
+         hp).
 
 Lemma state_rel_refl (s : state) : state_rel s s.
 Proof.
@@ -818,19 +965,21 @@ Qed.
 Lemma rec_conts_inside
     (handlers : list (continuation * continuation_handler))
     (vars vars' : env) (conts conts' : cont_env) (active : positions)
-    (untagged : list variable) :
-  handlers_ok (active_under sites handlers active) untagged handlers = true ->
+    (untagged : list variable) (tagged : tags) :
+  handlers_ok (active_under sites handlers active) untagged tagged handlers
+  = true ->
   vars_rel untagged vars vars' ->
+  tags_ok untagged tagged vars ->
   conts_rel active conts conts' ->
   conts_rel (active_under sites handlers active)
     (rec_closures handlers vars conts ++ conts)
     (rec_closures
        (untag_handlers sites (active_under sites handlers active) untagged
-          handlers)
+          tagged handlers)
        vars' conts'
      ++ conts').
 Proof.
-  intros Hok Hvars Hconts k1.
+  intros Hok Hvars Htags Hconts k1.
   rewrite !resolve_rec_closures, lookup_untag_handlers,
     positions_of_active_under.
   destruct (lookup k1 handlers) as [hh | ] eqn:Hlookup; cbn [option_map];
@@ -910,8 +1059,8 @@ Proof.
   induction Hc
     as [c
        | [ps m he] dv dc dc' recursive Hdc _
-       | us [ps m he] dv dv' dc dc' recursive active untagged Hok Hrec Hvars
-           Hdc _
+       | us [ps m he] dv dv' dc dc' recursive active untagged tagged Hok
+           Hrec Hvars Htags Hdc _
        | c c' extra Hc IHc
        | remaining remaining_arity return_arity return_to return_to' exn_to
            exn_to' Hreturn IHreturn Hraise _];
@@ -936,8 +1085,11 @@ Proof.
          Hbound)
       as (bound' & Hbound' & Hrel).
     rewrite Hbound'.
-    apply Rel_state_inside; [ exact Hok | exact Hrel | ].
-    apply rec_conts_inside; assumption.
+    apply Rel_state_inside; [ exact Hok | exact Hrel | | ].
+    + exact
+        (tags_ok_params untagged tagged us ps vs dv bound Hdistinct Htags
+           Hbound).
+    + apply rec_conts_inside; assumption.
   - rewrite untag_values_nil. cbn [apply_cont_value].
     specialize (IHc (vs ++ extra)). rewrite untag_values_nil in IHc.
     apply IHc. rewrite moved_from_nil. constructor.
@@ -1001,7 +1153,8 @@ Lemma untag_step (s s' : state) :
 Proof.
   intros
     [e vars conts conts' statics hp Hconts
-    | e vars vars' conts conts' statics hp active untagged Hok Hvars Hconts].
+    | e vars vars' conts conts' statics hp active untagged tagged Hok Hvars
+        Htags Hconts].
   - (* the same expression *)
     destruct e as [y kind1 d body | bindings body | k1 hh body
                   | handlers body | ap | ac | scrutinee arms | ].
@@ -1061,7 +1214,8 @@ Proof.
       rewrite Hv'.
       destruct (kind_eqb (kind_of_value v) kind1); [ | exact I ].
       apply Rel_state_inside;
-        [ exact Hbody | apply vars_rel_cons, Hvars | exact Hconts ].
+        [ exact Hbody | apply vars_rel_cons, Hvars | | exact Hconts ].
+      exact (tags_ok_let untagged tagged statics vars y d v Hd Htags Hv).
     + apply andb_true_iff in Hok as [Hbindings Hbody].
       rewrite !step_let_static,
         (eval_static_bindings_plain untagged vars vars' bindings statics Hvars
@@ -1070,22 +1224,22 @@ Proof.
       apply Rel_state_inside; assumption.
     + apply andb_true_iff in Hok as [Hhh Hbody].
       rewrite !step_let_cont_non_recursive.
-      apply Rel_state_inside; [ exact Hbody | exact Hvars | ].
+      apply Rel_state_inside; [ exact Hbody | exact Hvars | exact Htags | ].
       intros k2. rewrite positions_of_cons.
       destruct (Pos.eqb_spec k2 k1) as [-> | Hne].
       * rewrite !resolve_head.
         exact
           (Rel_inside (positions_of sites k1) hh vars vars' conts conts' []
-             active untagged Hhh eq_refl Hvars Hconts).
+             active untagged tagged Hhh eq_refl Hvars Htags Hconts).
       * rewrite !(resolve_other k2 k1) by exact Hne. exact (Hconts k2).
     + apply andb_true_iff in Hok as [Hhandlers Hbody].
       rewrite !step_let_cont_recursive.
       fold
         (untag_handlers sites (active_under sites handlers active) untagged
-           handlers).
+           tagged handlers).
       rewrite untag_handlers_bind_statics.
       destruct (handlers_bind_statics handlers); [ exact I | ].
-      apply Rel_state_inside; [ exact Hbody | exact Hvars | ].
+      apply Rel_state_inside; [ exact Hbody | exact Hvars | exact Htags | ].
       apply rec_conts_inside; assumption.
     + apply andb_true_iff in Hok as [Hok Hraise].
       apply andb_true_iff in Hok as [Hargs Hreturn].
@@ -1133,7 +1287,8 @@ Proof.
         [ | exact I ].
       unfold apply_cont_ok in Hok.
       destruct
-        (eval_untag_args untagged _ vars vars' (ac_args ac) vs Hvars Hok Hvs)
+        (eval_untag_args untagged tagged _ vars vars' (ac_args ac) vs Hvars
+           Htags Hok Hvs)
         as [Hvs' Htagged].
       rewrite Hvs'. unfold apply_continuation.
       exact
@@ -1150,8 +1305,8 @@ Proof.
       rewrite forallb_forall in Harms.
       exact
         (Rel_state_inside (Apply_cont ac) vars vars' conts conts' statics hp
-           active untagged (Harms (j, ac) (find_arm_in j arms ac Hfind)) Hvars
-           Hconts).
+           active untagged tagged
+           (Harms (j, ac) (find_arm_in j arms ac Hfind)) Hvars Htags Hconts).
     + rewrite !step_invalid. exact I.
 Qed.
 
@@ -1167,9 +1322,10 @@ End Runs.
 Theorem untag_at_refines : untag_at_refines_statement.
 Proof.
   intros sites e vars conts statics hp. unfold untag_at.
-  destruct (untag_ok sites [] [] e) eqn:Hok; [ | apply refines_refl ].
+  destruct (untag_ok sites [] [] [] e) eqn:Hok; [ | apply refines_refl ].
   apply (related_refines sites).
-  apply Rel_state_inside; [ exact Hok | apply vars_rel_nil | ].
+  apply Rel_state_inside;
+    [ exact Hok | apply vars_rel_nil | apply tags_ok_nil | ].
   intros k1. apply Rel_same.
 Qed.
 

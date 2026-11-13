@@ -21,11 +21,19 @@ val moved_from : nat list -> nat -> 'a1 list -> 'a1 list
 
 val untagged_kind : flambda_kind
 
-val untag_simple : simple -> simple
+type tags = (variable * variable) list
 
-val untag_args : nat list -> simple list -> simple list
+val tag_of : named -> variable option
 
-val untag_apply_cont : positions -> apply_cont -> apply_cont
+val tags_without : variable list -> tags -> tags
+
+val tags_under_let : variable -> named -> tags -> tags
+
+val untag_simple : tags -> simple -> simple
+
+val untag_args : nat list -> tags -> simple list -> simple list
+
+val untag_apply_cont : positions -> tags -> apply_cont -> apply_cont
 
 val untag_of : named -> variable option
 
@@ -43,23 +51,24 @@ val active_under :
   positions ->
   positions
 
-val untag_expr : positions -> positions -> variable list -> expr -> expr
+val untag_expr : positions -> positions -> variable list -> tags -> expr -> expr
 
 val untag_handler :
   positions ->
   positions ->
   variable list ->
+  tags ->
   nat list ->
   continuation_handler ->
   continuation_handler
 
 val none_in : variable list -> (variable -> bool) -> bool
 
-val untagged_arg : variable list -> simple -> bool
+val untagged_arg : variable list -> tags -> simple -> bool
 
-val args_ok : variable list -> nat list -> simple list -> bool
+val args_ok : variable list -> tags -> nat list -> simple list -> bool
 
-val apply_cont_ok : positions -> variable list -> apply_cont -> bool
+val apply_cont_ok : positions -> variable list -> tags -> apply_cont -> bool
 
 val reads_untagged : variable list -> named -> bool
 
@@ -69,12 +78,13 @@ val no_positions : positions -> continuation -> bool
 
 val handler_fits : nat list -> variable list -> handler_metadata -> bool
 
-val untag_ok : positions -> positions -> variable list -> expr -> bool
+val untag_ok : positions -> positions -> variable list -> tags -> expr -> bool
 
 val handler_ok :
   positions ->
   positions ->
   variable list ->
+  tags ->
   nat list ->
   continuation_handler ->
   bool
@@ -101,6 +111,7 @@ val origins_under :
 
 val args_blame :
   origin_map ->
+  tags ->
   continuation ->
   nat list ->
   nat ->
@@ -108,15 +119,21 @@ val args_blame :
   (continuation * nat) list
 
 val apply_cont_blame :
-  positions -> origin_map -> apply_cont -> (continuation * nat) list
+  positions -> origin_map -> tags -> apply_cont -> (continuation * nat) list
 
 val blame :
-  positions -> positions -> origin_map -> expr -> (continuation * nat) list
+  positions ->
+  positions ->
+  origin_map ->
+  tags ->
+  expr ->
+  (continuation * nat) list
 
 val handler_blame :
   positions ->
   positions ->
   origin_map ->
+  tags ->
   continuation ->
   continuation_handler ->
   (continuation * nat) list

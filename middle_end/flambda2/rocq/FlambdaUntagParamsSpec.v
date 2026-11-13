@@ -81,15 +81,18 @@
      order, and at those positions a tagged constant is the naked
      constant of the same number ([untag_args]); an argument there
      that is a variable is one of the parameters that are untagged,
-     and stays;
+     and stays, or one that a [Let] in scope binds to the tagging of
+     a variable, and is that variable ([untag_simple]);
    - a [Let] of the untagging of such a parameter is a [Let] of the
      parameter ([untag_named]). The rounds follow the alias.
 
    What the pass asks ([untag_ok]), given which continuations in scope
-   are untagged ([active]) and which variables in scope are untagged
-   parameters:
-   - an argument at a position that is untagged is a tagged constant
-     or a variable that is an untagged parameter ([untagged_arg]);
+   are untagged ([active]), which variables in scope are untagged
+   parameters, and which variables in scope a [Let] binds to the
+   tagging of which variable ([tags]):
+   - an argument at a position that is untagged is a tagged constant,
+     a variable that is an untagged parameter, or a variable that
+     such a [Let] binds ([untagged_arg]);
    - a variable that is an untagged parameter occurs nowhere but as
      such an argument and in the [Let] of its untagging: not in
      another defining expression, not in a static binding, not in a
@@ -106,11 +109,14 @@
    scope, what an outer binding of that name had ([active] is a map in
    which the first binding of a name is the one in scope); a variable
    bound again is no longer an untagged parameter
-   (FlambdaMapSpec.without). The handlers of recursive continuations
-   are gone into, as a loop is where such parameters are; the bodies
-   of code are not: FlambdaNormaliseSpec.rewrite_code takes a pass
-   there, and a continuation of the code has nothing to do with one
-   of the same name outside it.
+   (FlambdaMapSpec.without), and what was known of the tagging that
+   it names or reads is dropped ([tags_without]): the variable that
+   is put for an argument is in scope where the argument is, and
+   holds there what the [Let] read. The handlers of recursive
+   continuations are gone into, as a loop is where such parameters
+   are; the bodies of code are not: FlambdaNormaliseSpec.rewrite_code
+   takes a pass there, and a continuation of the code has nothing to
+   do with one of the same name outside it.
 
    [untag_at] is the term rewritten where the test passes for the
    whole term, with nothing in scope untagged, and the term as it is
@@ -120,11 +126,12 @@
    all environments, whatever the positions. Why it holds: every
    variable that is an untagged parameter holds a tagged immediate in
    the term and the naked immediate of the same number in the result,
-   as each was given a constant or another such variable; the two runs
-   are in step, and the two terms give their continuations the same
-   values, as no such variable is given to a continuation of the
-   environment. It is stated as a refinement, which is what a rewrite
-   of the term before owes; where the term is undefined (the
+   as each was given a constant, another such variable, or in the
+   term the tagging of a number and in the result that number; the
+   two runs are in step, and the two terms give their continuations
+   the same values, as no such variable is given to a continuation of
+   the environment. It is stated as a refinement, which is what a
+   rewrite of the term before owes; where the term is undefined (the
    untagging of a tagged immediate that is out of range) the result
    may run.
 
@@ -135,23 +142,25 @@
    position is refused with the others of its continuation where a
    call returns or raises to the continuation or its handler does not
    fit, alone where an application gives it something else than a
-   tagged constant or an untagged parameter, and for a variable that
-   occurs where it may not, the position of that variable. Nothing
-   is claimed of what is left: not that the test accepts it, and not
-   that it is the largest set that the test accepts. The test is run
-   again on it by [untag_at], which leaves the term as it is where
-   the test refuses.
+   tagged constant, an untagged parameter or the tagging of a
+   variable, and for a variable that occurs where it may not, the
+   position of that variable. Nothing is claimed of what is left: not
+   that the test accepts it, and not that it is the largest set that
+   the test accepts. The test is run again on it by [untag_at], which
+   leaves the term as it is where the test refuses.
 
    What it is not: it does not decide as Simplify decides. Simplify
    untags where the type of the parameter says a tagged immediate,
-   which the type of an argument that is the tagging of a number in
-   scope, or of a comparison, also says; this pass asks for a
-   constant or an untagged parameter. And Simplify keeps the tagged
-   parameter beside the naked one where something else uses it; this
-   pass leaves such a parameter tagged. Where the two differ the
-   two terms may stay different. Nothing is said here of which pairs
-   of terms a validation that applies the pass accepts: what this
-   file states is the refinement.
+   which the type of an argument may say whatever defines it, and
+   then Simplify makes the number where the argument is given; this
+   pass asks for a constant, an untagged parameter, or a variable
+   that a [Let] in scope binds to the tagging of a variable, and
+   makes no name. And Simplify keeps the tagged parameter beside the
+   naked one where something else uses it; this pass leaves such a
+   parameter tagged. Where the two differ the two terms may stay
+   different. Nothing is said here of which pairs of terms a
+   validation that applies the pass accepts: what this file states is
+   the refinement.
 
    Renaming: the functions here compare names by equality only and
    make none. FlambdaUntagParamsNamesProofs.v has the lemmas that the
@@ -213,23 +222,59 @@ Fixpoint moved_from {A : Type} (us : list nat) (i : nat) (l : list A)
 (* The kind of an untagged parameter. *)
 Definition untagged_kind : flambda_kind := Naked_number Kind_naked_immediate.
 
-(* The naked constant of a tagged one. *)
-Definition untag_simple (s : simple) : simple :=
+(* The variables in scope that a [Let] binds to the tagging of another
+   variable, each with that other, which is in scope too and is the
+   one that the [Let] read. *)
+Definition tags : Type := list (variable * variable).
+
+(* The variable that a defining expression tags, if it is the tagging
+   of a variable. *)
+Definition tag_of (d : named) : option variable :=
+  match d with
+  | Prim (Unary Tag_immediate) [Var n] => Some n
+  | _ => None
+  end.
+
+(* The tags that mention none of the variables given, which are bound
+   again. *)
+Definition tags_without (xs : list variable) (tagged : tags) : tags :=
+  filter (fun '(v, n) => negb (among v xs) && negb (among n xs)) tagged.
+
+(* The tags under a [Let] of [x] to [d]. *)
+Definition tags_under_let (x : variable) (d : named) (tagged : tags) : tags :=
+  match tag_of d with
+  | Some n =>
+    if Pos.eqb n x then tags_without [x] tagged
+    else (x, n) :: tags_without [x] tagged
+  | None => tags_without [x] tagged
+  end.
+
+(* The naked constant of a tagged one, and the variable that a
+   variable is the tagging of. *)
+Definition untag_simple (tagged : tags) (s : simple) : simple :=
   match s with
   | Const (Tagged_immediate i) => Const (Naked_immediate i)
+  | Var v =>
+    match lookup v tagged with
+    | Some n => Var n
+    | None => s
+    end
   | _ => s
   end.
 
 (* The arguments of an application of a continuation whose positions
    [us] are untagged: the others first, then those, the last first. *)
-Definition untag_args (us : list nat) (args : list simple) : list simple :=
-  kept_from us 0 args ++ rev (map untag_simple (moved_from us 0 args)).
+Definition untag_args (us : list nat) (tagged : tags) (args : list simple)
+    : list simple :=
+  kept_from us 0 args
+  ++ rev (map (untag_simple tagged) (moved_from us 0 args)).
 
-Definition untag_apply_cont (active : positions) (ac : apply_cont)
-    : apply_cont :=
+Definition untag_apply_cont (active : positions) (tagged : tags)
+    (ac : apply_cont) : apply_cont :=
   {| ac_continuation := ac_continuation ac;
      ac_args :=
-       untag_args (positions_of active (ac_continuation ac)) (ac_args ac);
+       untag_args (positions_of active (ac_continuation ac)) tagged
+         (ac_args ac);
      ac_trap_action := ac_trap_action ac |}.
 
 (* The variable that a defining expression untags, if it is the
@@ -275,40 +320,44 @@ Definition active_under (sites : positions)
   map (fun '(k, _) => (k, positions_of sites k)) handlers ++ active.
 
 Fixpoint untag_expr (sites active : positions) (untagged : list variable)
-    (e : expr) {struct e} : expr :=
+    (tagged : tags) (e : expr) {struct e} : expr :=
   match e with
   | Let x kind d body =>
     Let x kind (untag_named untagged d)
-      (untag_expr sites active (without [x] untagged) body)
+      (untag_expr sites active (without [x] untagged)
+         (tags_under_let x d tagged) body)
   | Let_static bindings body =>
-    Let_static bindings (untag_expr sites active untagged body)
+    Let_static bindings (untag_expr sites active untagged tagged body)
   | Let_cont_non_recursive k h body =>
     Let_cont_non_recursive k
-      (untag_handler sites active untagged (positions_of sites k) h)
-      (untag_expr sites ((k, positions_of sites k) :: active) untagged body)
+      (untag_handler sites active untagged tagged (positions_of sites k) h)
+      (untag_expr sites ((k, positions_of sites k) :: active) untagged tagged
+         body)
   | Let_cont_recursive handlers body =>
     Let_cont_recursive
       (map
          (fun '(k, h) =>
             (k,
              untag_handler sites (active_under sites handlers active) untagged
-               (positions_of sites k) h))
+               tagged (positions_of sites k) h))
          handlers)
-      (untag_expr sites (active_under sites handlers active) untagged body)
+      (untag_expr sites (active_under sites handlers active) untagged tagged
+         body)
   | Apply _ => e
-  | Apply_cont ac => Apply_cont (untag_apply_cont active ac)
+  | Apply_cont ac => Apply_cont (untag_apply_cont active tagged ac)
   | Switch scrutinee arms =>
     Switch scrutinee
-      (map (fun '(i, ac) => (i, untag_apply_cont active ac)) arms)
+      (map (fun '(i, ac) => (i, untag_apply_cont active tagged ac)) arms)
   | Invalid => e
   end
 with untag_handler (sites active : positions) (untagged : list variable)
-    (us : list nat) (h : continuation_handler) {struct h}
+    (tagged : tags) (us : list nat) (h : continuation_handler) {struct h}
     : continuation_handler :=
   match h with
   | Handler params metadata handler =>
     Handler (untag_params_list us params) (untag_metadata us metadata)
-      (untag_expr sites active (untagged_under us params untagged) handler)
+      (untag_expr sites active (untagged_under us params untagged)
+         (tags_without params tagged) handler)
   end.
 
 (* ======================================================================== *)
@@ -321,21 +370,28 @@ Definition none_in (untagged : list variable) (mentions : variable -> bool)
   forallb (fun p => negb (mentions p)) untagged.
 
 (* What an untagged position may be given. *)
-Definition untagged_arg (untagged : list variable) (s : simple) : bool :=
+Definition untagged_arg (untagged : list variable) (tagged : tags)
+    (s : simple) : bool :=
   match s with
   | Const (Tagged_immediate _) => true
-  | Var x => among x untagged
+  | Var x =>
+    among x untagged
+    || match lookup x tagged with
+       | Some _ => true
+       | None => false
+       end
   | _ => false
   end.
 
-Definition args_ok (untagged : list variable) (us : list nat)
-    (args : list simple) : bool :=
+Definition args_ok (untagged : list variable) (tagged : tags)
+    (us : list nat) (args : list simple) : bool :=
   none_in untagged (fun p => var_in_simples p (kept_from us 0 args))
-  && forallb (untagged_arg untagged) (moved_from us 0 args).
+  && forallb (untagged_arg untagged tagged) (moved_from us 0 args).
 
 Definition apply_cont_ok (active : positions) (untagged : list variable)
-    (ac : apply_cont) : bool :=
-  args_ok untagged (positions_of active (ac_continuation ac)) (ac_args ac).
+    (tagged : tags) (ac : apply_cont) : bool :=
+  args_ok untagged tagged (positions_of active (ac_continuation ac))
+    (ac_args ac).
 
 (* A defining expression is the untagging of an untagged variable, or
    mentions none. *)
@@ -366,23 +422,27 @@ Definition handler_fits (us : list nat) (params : list variable)
      end.
 
 Fixpoint untag_ok (sites active : positions) (untagged : list variable)
-    (e : expr) {struct e} : bool :=
+    (tagged : tags) (e : expr) {struct e} : bool :=
   match e with
   | Let x _ d body =>
-    named_ok untagged d && untag_ok sites active (without [x] untagged) body
+    named_ok untagged d
+    && untag_ok sites active (without [x] untagged)
+         (tags_under_let x d tagged) body
   | Let_static bindings body =>
     none_in untagged (fun p => existsb (var_in_static_binding p) bindings)
-    && untag_ok sites active untagged body
+    && untag_ok sites active untagged tagged body
   | Let_cont_non_recursive k h body =>
-    handler_ok sites active untagged (positions_of sites k) h
-    && untag_ok sites ((k, positions_of sites k) :: active) untagged body
+    handler_ok sites active untagged tagged (positions_of sites k) h
+    && untag_ok sites ((k, positions_of sites k) :: active) untagged tagged
+         body
   | Let_cont_recursive handlers body =>
     forallb
       (fun '(k, h) =>
          handler_ok sites (active_under sites handlers active) untagged
-           (positions_of sites k) h)
+           tagged (positions_of sites k) h)
       handlers
-    && untag_ok sites (active_under sites handlers active) untagged body
+    && untag_ok sites (active_under sites handlers active) untagged tagged
+         body
   | Apply ap =>
     none_in untagged
       (fun p =>
@@ -390,24 +450,26 @@ Fixpoint untag_ok (sites active : positions) (untagged : list variable)
          || var_in_simples p (exn_extra_simples ap))
     && no_positions active (ap_continuation ap)
     && no_positions active (ap_exn_continuation ap)
-  | Apply_cont ac => apply_cont_ok active untagged ac
+  | Apply_cont ac => apply_cont_ok active untagged tagged ac
   | Switch scrutinee arms =>
     none_in untagged (fun p => var_in_simple p scrutinee)
-    && forallb (fun '(_, ac) => apply_cont_ok active untagged ac) arms
+    && forallb (fun '(_, ac) => apply_cont_ok active untagged tagged ac) arms
   | Invalid => true
   end
 with handler_ok (sites active : positions) (untagged : list variable)
-    (us : list nat) (h : continuation_handler) {struct h} : bool :=
+    (tagged : tags) (us : list nat) (h : continuation_handler) {struct h}
+    : bool :=
   match h with
   | Handler params metadata handler =>
     handler_fits us params metadata
-    && untag_ok sites active (untagged_under us params untagged) handler
+    && untag_ok sites active (untagged_under us params untagged)
+         (tags_without params tagged) handler
   end.
 
 (* The pass, for the positions given: the term rewritten where the
    test passes, with nothing untagged in scope. *)
 Definition untag_at (sites : positions) (e : expr) : expr :=
-  if untag_ok sites [] [] e then untag_expr sites [] [] e else e.
+  if untag_ok sites [] [] [] e then untag_expr sites [] [] [] e else e.
 
 (* The result refines the term, under all environments, whatever the
    positions. *)
@@ -477,45 +539,47 @@ Definition origins_under (k : continuation) (us : list nat)
   ++ filter (fun '(x, _) => negb (among x params)) origin.
 
 (* The positions that an application refuses: a position that is not
-   given a tagged constant or an untagged variable, and that of an
-   untagged variable given at another position. *)
-Fixpoint args_blame (origin : origin_map) (k : continuation) (us : list nat)
-    (i : nat) (args : list simple) : list (continuation * nat) :=
+   given a tagged constant, an untagged variable or a variable of the
+   tags, and that of an untagged variable given at another position. *)
+Fixpoint args_blame (origin : origin_map) (tagged : tags) (k : continuation)
+    (us : list nat) (i : nat) (args : list simple)
+    : list (continuation * nat) :=
   match args with
   | [] => []
   | a :: args =>
     (if at_position us i
-     then if untagged_arg (map fst origin) a then [] else [(k, i)]
+     then if untagged_arg (map fst origin) tagged a then [] else [(k, i)]
      else origins origin (fun x => var_in_simple x a))
-    ++ args_blame origin k us (S i) args
+    ++ args_blame origin tagged k us (S i) args
   end.
 
 Definition apply_cont_blame (active : positions) (origin : origin_map)
-    (ac : apply_cont) : list (continuation * nat) :=
-  args_blame origin (ac_continuation ac)
+    (tagged : tags) (ac : apply_cont) : list (continuation * nat) :=
+  args_blame origin tagged (ac_continuation ac)
     (positions_of active (ac_continuation ac)) 0 (ac_args ac).
 
 (* The positions that the test refuses in a term. *)
-Fixpoint blame (sites active : positions) (origin : origin_map) (e : expr)
-    {struct e} : list (continuation * nat) :=
+Fixpoint blame (sites active : positions) (origin : origin_map)
+    (tagged : tags) (e : expr) {struct e} : list (continuation * nat) :=
   match e with
   | Let x _ d body =>
     (if reads_untagged (map fst origin) d then []
      else origins origin (fun y => var_in_named y d))
-    ++ blame sites active (unbind x origin) body
+    ++ blame sites active (unbind x origin) (tags_under_let x d tagged) body
   | Let_static bindings body =>
     origins origin
       (fun y => existsb (var_in_static_binding y) bindings)
-    ++ blame sites active origin body
+    ++ blame sites active origin tagged body
   | Let_cont_non_recursive k h body =>
-    handler_blame sites active origin k h
-    ++ blame sites ((k, positions_of sites k) :: active) origin body
+    handler_blame sites active origin tagged k h
+    ++ blame sites ((k, positions_of sites k) :: active) origin tagged body
   | Let_cont_recursive handlers body =>
     flat_map
       (fun '(k, h) =>
-         handler_blame sites (active_under sites handlers active) origin k h)
+         handler_blame sites (active_under sites handlers active) origin
+           tagged k h)
       handlers
-    ++ blame sites (active_under sites handlers active) origin body
+    ++ blame sites (active_under sites handlers active) origin tagged body
   | Apply ap =>
     origins origin
       (fun y =>
@@ -523,21 +587,23 @@ Fixpoint blame (sites active : positions) (origin : origin_map) (e : expr)
          || var_in_simples y (exn_extra_simples ap))
     ++ all_of active (ap_continuation ap)
     ++ all_of active (ap_exn_continuation ap)
-  | Apply_cont ac => apply_cont_blame active origin ac
+  | Apply_cont ac => apply_cont_blame active origin tagged ac
   | Switch scrutinee arms =>
     origins origin (fun y => var_in_simple y scrutinee)
-    ++ flat_map (fun '(_, ac) => apply_cont_blame active origin ac) arms
+    ++ flat_map (fun '(_, ac) => apply_cont_blame active origin tagged ac)
+         arms
   | Invalid => []
   end
 with handler_blame (sites active : positions) (origin : origin_map)
-    (k : continuation) (h : continuation_handler) {struct h}
+    (tagged : tags) (k : continuation) (h : continuation_handler) {struct h}
     : list (continuation * nat) :=
   match h with
   | Handler params metadata handler =>
     (if handler_fits (positions_of sites k) params metadata then []
      else map (fun u => (k, u)) (positions_of sites k))
     ++ blame sites active
-         (origins_under k (positions_of sites k) params origin) handler
+         (origins_under k (positions_of sites k) params origin)
+         (tags_without params tagged) handler
   end.
 
 (* The positions without those refused. *)
@@ -558,7 +624,7 @@ Fixpoint settle_positions (fuel : nat) (sites : positions) (e : expr)
   match fuel with
   | O => sites
   | S fuel =>
-    match blame sites [] [] e with
+    match blame sites [] [] [] e with
     | [] => sites
     | refused => settle_positions fuel (prune refused sites) e
     end
