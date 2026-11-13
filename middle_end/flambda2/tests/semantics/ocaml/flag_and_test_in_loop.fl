@@ -1,0 +1,99 @@
+let $camlFlag_and_test_in_loop__first_const_0 = Block 0 () in
+(let code inline(never) size(62)
+       every_double_below_0 (n/89 : imm tagged, limit/90 : imm tagged)
+         my_closure/91 &my_alloc_region/92 my_depth/93
+         -> k/32 * k/33
+         : imm tagged =
+   let next_depth/94 = rec_info (succ my_depth/93) in
+   cont k/34 (1)
+     where k/34 (let_mutable/95 : imm tagged) =
+       (cont k/35 (n/89, let_mutable/95)
+          where k/35
+                  (for_stop/96 : imm tagged, all_18_unboxed0/97 : imm tagged) =
+            ((let prim/120 = %int_comp.le (0, for_stop/96) in
+              let int_lessequal/121 = %tag_imm (prim/120) in
+              (let untagged/122 = %untag_imm (int_lessequal/121) in
+               switch untagged/122
+                 | 0 -> k/36 (0, all_18_unboxed0/97)
+                 | 1 -> k/43)
+                where k/43 =
+                  cont k/37 (all_18_unboxed0/97))
+               where k/37 (all_18_unboxed0/100 : imm tagged) =
+                 let prim/101 = %untag_imm (0) in
+                 let for_start_naked/102 =
+                   %num_conv.[`imm`].[`int64`] (prim/101)
+                 in
+                 let prim/103 = %untag_imm (for_stop/96) in
+                 let for_stop_naked/104 =
+                   %num_conv.[`imm`].[`int64`] (prim/103)
+                 in
+                 (cont k/38 (for_start_naked/102, all_18_unboxed0/100)
+                    where rec k/38
+                                (for_counter_naked/105 : int64,
+                                 all_18_unboxed0/106 : imm tagged) =
+                      let prim/107 =
+                        %num_conv.[`int64`].[`imm`] (for_counter_naked/105)
+                      in
+                      let i/108 = %tag_imm (prim/107) in
+                      ((let untagged/119 = %untag_imm (all_18_unboxed0/106)
+                        in
+                        switch untagged/119
+                          | 0 -> k/39 (0, all_18_unboxed0/106)
+                          | 1 -> k/42)
+                         where k/42 =
+                           cont k/41 (all_18_unboxed0/106)
+                         where k/41 (all_18_unboxed0/115 : imm tagged) =
+                           let int_mul/116 = %int_barith.mul (i/108, 2) in
+                           let prim/117 =
+                             %int_comp.lt (int_mul/116, limit/90)
+                           in
+                           let int_lessthan/118 = %tag_imm (prim/117) in
+                           cont k/39 (int_lessthan/118, all_18_unboxed0/115)
+                         where k/39
+                                 (staticcatch_result/109 : imm tagged,
+                                  all_18_unboxed0/110 : imm tagged) =
+                           let for_next_naked/111 =
+                             %int_barith.`int64`.add
+                               (for_counter_naked/105, 1L)
+                           in
+                           let prim/112 =
+                             %int_comp.`int64`.le
+                               (for_next_naked/111, for_stop_naked/104)
+                           in
+                           let `int64#_lessequal/113` = %tag_imm (prim/112)
+                           in
+                           ((let untagged/114 =
+                               %untag_imm (`int64#_lessequal/113`)
+                             in
+                             switch untagged/114
+                               | 0 -> k/36 (0, staticcatch_result/109)
+                               | 1 -> k/40)
+                              where k/40 =
+                                cont k/38
+                                       (for_next_naked/111,
+                                        staticcatch_result/109))))
+               where k/36
+                       (staticcatch_result/98 : imm tagged,
+                        all_18_unboxed0/99 : imm tagged) =
+                 cont k/32 (all_18_unboxed0/99)))
+ in
+ let every_double_below/123 =
+   closure every_double_below_0 @every_double_below &toplevel
+ in
+ (let Popaque/126 = %opaque (5) in
+  apply direct(every_double_below_0 &toplevel)
+    (every_double_below/123 : _ -> imm tagged)
+      (Popaque/126, 30)
+      -> k/44 * error)
+   where k/44 (result/124 : imm tagged) =
+     let Pmakeblock/125 =
+       %block.[`0`].`toplevel` (every_double_below/123, result/124)
+     in
+     cont k/31 (Pmakeblock/125))
+  where k/31 define_root_symbol (module_block/86) =
+    let field_0/87 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/86)
+    in
+    let field_1/88 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/86)
+    in
+    let $camlFlag_and_test_in_loop = Block 0 (field_0/87, field_1/88) in
+    cont done ($camlFlag_and_test_in_loop)
