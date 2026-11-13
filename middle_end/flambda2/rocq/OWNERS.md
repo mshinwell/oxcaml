@@ -354,6 +354,10 @@ pass into the validator.
     of the scrutinee excludes; its theorem is of the states of the run
     of a unit whose sets of closures are well formed; and that it
     commutes with renaming, `FlambdaSimplifyPruningRenaming*`)
+  - `middle_end/flambda2/types/rocq/FlambdaSimplifyCarried*` (the
+    first function without the test of the environment at every
+    `Let`: it carries what is known of the environment, as the second
+    does, and is proved equal to the first; the validation calls it)
 - S2, switch. Owner of the first three slices: T1, on
   `flambda2-rocq/T1-grammar`; the rest unassigned.
   - `middle_end/flambda2/types/rocq/FlambdaSimplifySwitch*` (the arms
