@@ -661,6 +661,12 @@ Owner: N3, on `flambda2-rocq/N3-equivariance` for the validator and on
   Simplify has them: a refinement, for the term before; and the
   lemmas for its laws of renaming and of scope, which are stated in
   the files above)
+- `middle_end/flambda2/rocq/FlambdaGiveScrutinee*` (an argument of a
+  continuation that is the number of the arm that it is in, of a
+  `Switch` on a variable, is made that variable where the parameter
+  can then be taken away, as for the flag of a `while` loop: an
+  equivalence, for both terms; and the lemmas for its laws of renaming
+  and of scope, which are stated in the files above)
 - `middle_end/flambda2/rocq/FlambdaCseEquivalent*` (the sharing of
   primitives of `FlambdaCseSpec.v` gives a term that is equivalent to
   the one it is given, which is what a rewrite of the term after
