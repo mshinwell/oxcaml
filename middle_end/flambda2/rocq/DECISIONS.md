@@ -693,13 +693,23 @@ says so. Only the labels that this tree cites are listed.
   answers bottom and neither meet of the compiler does, in any order of
   the identifiers: a variable on which a case of a variant has an
   extension becomes an alias of the variant itself while an equation is
-  being added to it. Bottom is the precise answer. Why the compiler
-  misses it is not established (it ignores an equation on a name to
-  which an equation is being added, which may be where); what the model
-  does otherwise is not known.
+  being added to it. Bottom is the precise answer. Between the model
+  and the n-way meet it is T4-21, found by a trace of the model: the
+  model adds equations on the same names again in opposite orders, the
+  compiler in the order of the names each time. With either order
+  reversed the model is not bottom, sees what the meets see in twelve
+  of the twenty-four orders, and loses the contradiction where it
+  ignores an equation on a name to which an equation is being added;
+  that the compiler loses it there is not established by a trace of
+  the compiler.
 - **T7-15.** With one case in the place of two on that line, the binary
   meet answers bottom and the n-way meet, and the model, leave the
-  environment as it was. A loss of precision of the n-way meet.
+  environment as it was. A loss of precision of the n-way meet: by a
+  trace of the model, and by the source of the n-way meet, read and
+  not traced, the join inside the meet finds the contradiction and
+  marks its target bottom, and the meet of the variant then adds the
+  empty level of that environment to the environment before the
+  scope, which drops the mark.
 - **V2-1.** The fexpr printer prints a call of a C function, and a
   method call, without its allocation mode, in a form that the fexpr
   parser refuses.
