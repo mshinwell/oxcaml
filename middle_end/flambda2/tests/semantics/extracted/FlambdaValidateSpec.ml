@@ -27,6 +27,7 @@ open FlambdaLoopAliasesSpec
 open FlambdaLoopLetsSpec
 open FlambdaLoopifySpec
 open FlambdaMergeSwitchesSpec
+open FlambdaMergeTablesSpec
 open FlambdaModel
 open FlambdaNeverReturnsSpec
 open FlambdaNormaliseSpec
@@ -145,7 +146,7 @@ let normalise_code_params body = normalise_code_params_knowing no_facts body
 
 let normalise_params_round e =
   rewrite_code_in_scope normalise_code_params_knowing no_facts
-    (normalise_code_params e)
+    (normalise_code_params (merge_tables e))
 
 (** val demote_and_tidy : nat -> expr -> expr **)
 

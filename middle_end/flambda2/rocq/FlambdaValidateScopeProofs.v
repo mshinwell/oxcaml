@@ -64,6 +64,8 @@ From OxCamlFlambda2 Require Import FlambdaRecoverComparisonSpec
   FlambdaRecoverComparisonScopeProofs.
 From OxCamlFlambda2 Require Import FlambdaSameComparisonSpec
   FlambdaSameComparisonScopeProofs.
+From OxCamlFlambda2 Require Import FlambdaMergeTablesSpec
+  FlambdaMergeTablesScopeProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -93,6 +95,7 @@ Create HintDb scoped.
 #[export] Hint Resolve keeps_scope_intro rename_apart_scoped
   rename_apart_avoiding_scoped
   fold_constants_scoped collapse_switches_scoped merge_switches_scoped
+  merge_tables_scoped
   remove_unused_conts_scoped
   remove_unused_lets_scoped remove_unused_defined_lets_scoped
   apply_identities_scoped inline_tail_conts_scoped thread_switches_scoped
@@ -194,6 +197,7 @@ Lemma normalise_params_round_scoped (e : expr) :
   scoped e (normalise_params_round e).
 Proof.
   unfold normalise_params_round.
+  eapply scoped_trans; [ apply merge_tables_scoped | ].
   eapply scoped_trans; [ apply normalise_code_params_scoped | ].
   apply keeps_scope_scoped.
   exact (rewrite_code_in_scope_keeps_scope _

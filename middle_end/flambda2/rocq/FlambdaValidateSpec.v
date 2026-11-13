@@ -295,7 +295,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaCompareSpec FlambdaNormaliseSpec FlambdaBlockLoadSpec
   FlambdaCodeLetsSpec FlambdaCseSpec FlambdaDeadParamsSpec FlambdaForwardSpec
   FlambdaForwardKindedSpec
-  FlambdaIdentitiesSpec FlambdaMergeSwitchesSpec
+  FlambdaIdentitiesSpec FlambdaMergeSwitchesSpec FlambdaMergeTablesSpec
   FlambdaInlineSiblingsSpec FlambdaInlineTailSpec FlambdaLoopAliasesSpec
   FlambdaLoopLetsSpec
   FlambdaParamAliasesSpec FlambdaRecHandlersSpec
@@ -506,7 +506,13 @@ Definition normalise_code_params_knowing (known : facts) (body : expr)
 Definition normalise_code_params (body : expr) : expr :=
   normalise_code_params_knowing no_facts body.
 
-(* One round of the first phase for the term before: the round above on
+(* One round of the first phase for the term before. First, in the
+   whole term and in the bodies of its code, a [Switch] whose arms
+   give a continuation the elements of a table becomes the load from
+   that table, where the table is a static immutable array that is in
+   scope (FlambdaMergeTablesSpec.merge_tables, which gives back as it
+   is a term that binds no such array); Simplify makes that load, of
+   a table that it binds itself. Then the round above on
    the term itself, with nothing known at the start, and on the body of
    each piece of code, with what is known of the symbols in scope where
    the code is bound: the static blocks and boxed numbers of the
@@ -517,7 +523,7 @@ Definition normalise_code_params (body : expr) : expr :=
    call is inlined. *)
 Definition normalise_params_round (e : expr) : expr :=
   rewrite_code_in_scope normalise_code_params_knowing no_facts
-    (normalise_code_params e).
+    (normalise_code_params (merge_tables e)).
 
 (* What ends the normalisation of the term before. The exception
    handlers that no call can raise to are made ordinary continuations

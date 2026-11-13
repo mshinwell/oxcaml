@@ -70,7 +70,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSameComparisonSpec FlambdaSameComparisonProofs
   FlambdaShareProjectionsSpec FlambdaShareProjectionsProofs
   FlambdaIdentitiesSpec FlambdaIdentitiesProofs
-  FlambdaMergeSwitchesSpec FlambdaMergeSwitchesProofs FlambdaStaticsOrderSpec
+  FlambdaMergeSwitchesSpec FlambdaMergeSwitchesProofs
+  FlambdaMergeTablesSpec FlambdaMergeTablesProofs FlambdaStaticsOrderSpec
   FlambdaStaticsOrderProofs FlambdaRenameApartSpec FlambdaRenameApartProofs
   FlambdaInlineSiblingsSpec FlambdaInlineSiblingsProofs
   FlambdaUnusedProjectionsSpec FlambdaUnboxVariantsSpec
@@ -5189,7 +5190,7 @@ Lemma normalise_params_round_equivariant :
   rewrite_equivariant normalise_params_round.
 Proof.
   intros r e. unfold normalise_params_round.
-  rewrite normalise_code_params_equivariant.
+  rewrite merge_tables_equivariant, normalise_code_params_equivariant.
   exact (rewrite_code_in_scope_equivariant _
     normalise_code_params_knowing_equivariant no_facts no_facts_only r _).
 Qed.

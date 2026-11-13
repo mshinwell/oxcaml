@@ -30,10 +30,10 @@
    normalisation that refines.
 
    This file is to be reviewed: [merge_tables] and what it is made of,
-   and the statements. The rewrite is to be one of the normalisations
-   of the term before Simplify that the validation of
+   and the statements. The rewrite is one of the normalisations of the
+   term before Simplify that the validation of
    middle_end/flambda2/tests/semantics/ applies, once in a round for a
-   whole term; it is not applied yet.
+   whole term (FlambdaValidateSpec.normalise_params_round).
 
    What Simplify does. Where the arms of a [Switch] all apply the same
    continuation, and an argument is in every arm a constant or a
@@ -79,14 +79,18 @@
    it, and an arm whose argument is that constant is loaded from a
    table that has it at the index of the arm.
 
-   What is here. The term before Simplify has no table: the validation
-   is to bind, at the head of the term before, the tables that the
-   term after has (FlambdaValidateSpec.v; a guess that is checked,
-   whose soundness is that of
-   FlambdaUnusedHeadStaticsSpec.drop_head_statics read the other
-   way). [merge_tables] then merges a [Switch] where a table that is
-   in scope has the arguments of its arms. Nothing is guessed here:
-   the tables are read off the term.
+   What is here. [merge_tables] merges a [Switch] where a table that
+   is in scope has the arguments of its arms. Nothing is guessed
+   here: the tables are read off the term. The term before Simplify
+   has not the tables that Simplify makes. The validation binds, at
+   the head of the term before, the tables that a lifting is given,
+   where the checks of FlambdaUnusedHeadStaticsSpec.add_head_tables
+   pass (FlambdaValidateSpec.with_lifting; where they fail the term
+   is left as it is), and normalises the term after that. So in the
+   comparisons of a term with a lifting a [Switch] is merged where a
+   table that was bound so, or an array that the term binds itself,
+   has the arguments of its arms. In the other comparisons it is
+   merged only where the term binds such an array itself.
 
    The tables in scope ([known_tables], [tables_under_statics]). A
    table is a symbol that a [Let_static] binds to an immutable array
@@ -166,7 +170,8 @@
    it makes no name, a renaming moves no symbol, and the elements of
    a table have no variable. A term that binds no symbol to an
    immutable array is given back as it is
-   ([merge_tables_without_tables_statement]).
+   ([merge_tables_without_tables_statement]). That it keeps scope is
+   stated in FlambdaMergeTablesScopeSpec.v.
 
    Two terms as checks of the definitions
    ([merge_tables_example_statement], and

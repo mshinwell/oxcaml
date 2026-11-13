@@ -42,6 +42,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaForwardKindedSpec FlambdaForwardKindedProofs
   FlambdaIdentitiesSpec FlambdaIdentitiesProofs
   FlambdaMergeSwitchesSpec FlambdaMergeSwitchesProofs
+  FlambdaMergeTablesSpec FlambdaMergeTablesProofs
   FlambdaInlineSiblingsSpec FlambdaInlineSiblingsProofs
   FlambdaInlineTailSpec FlambdaInlineTailProofs
   FlambdaRenameApartSpec
@@ -250,7 +251,8 @@ Proof.
   eapply expr_refines_trans;
     [ | apply rewrite_code_in_scope_expr_refines,
           normalise_code_params_knowing_refines ].
-  apply normalise_code_params_refines.
+  eapply expr_refines_trans;
+    [ apply merge_tables_refines | apply normalise_code_params_refines ].
 Qed.
 
 Lemma iterate_refines (f : expr -> expr) :

@@ -27,6 +27,7 @@ open FlambdaLoopAliasesSpec
 open FlambdaLoopLetsSpec
 open FlambdaLoopifySpec
 open FlambdaMergeSwitchesSpec
+open FlambdaMergeTablesSpec
 open FlambdaModel
 open FlambdaNeverReturnsSpec
 open FlambdaNormaliseSpec
