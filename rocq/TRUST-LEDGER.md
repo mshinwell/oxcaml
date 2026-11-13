@@ -110,6 +110,36 @@ it gave back.
   of an allocation and of the result of a call, are read as written;
   and code of another unit that Simplify reads from a `.cmx` file
   has the modes that the compiler wrote there.
+  The text writes a code id, a function slot and a value slot by
+  its name alone, without the unit that made it (`parser/fexpr.ml`; a
+  symbol is written with its unit). The reader takes such a name to
+  be the one of that name that it has already made for the unit that
+  it is reading, and makes a new one of that unit where there is
+  none: it does not fail (`fresh_or_existing_code_id` and its
+  fellows in `parser/fexpr_to_flambda_commons.ml`). So a direct call
+  of code of another unit, read from a text, loses where its code
+  comes from. Where the text binds code of that name, the call is
+  read as a call of that code; nothing here rules that out. Where it
+  binds none, the call has a new code id with no code, and is
+  undefined in the model where the compiler's call is defined.
+  The second was observed, of the text of a term after: the compiler
+  writes such a call, in the term after of the second unit of a
+  pair, as a direct call of a bare name beside the symbol of the
+  other unit, which keeps its unit; and a check that reads its term
+  after from that text, in a program not in this tree, says "not
+  validated" of a pair that the tool validates (X4-4). The fault
+  observed is of a right term refused. In an ordinary check
+  (`check_file`) the tool reads from a text only the term before,
+  and makes the term after in memory; the round trip of the
+  conversion also reads back a text of the term after, which the
+  tool's own printer of the terms of the model writes, and nothing
+  is said of it here. Of the texts that the scripts of
+  `tests/semantics/ocaml` make, at the settings that they use: each
+  is of a term before Simplify compiled outside classic mode, where
+  the conversion from Lambda knows nothing of the code of another
+  unit and names none (`from_lambda/closure_conversion_aux.ml`).
+  Nothing is said here of a text that is given to the tool by hand,
+  or that anything else made: the tool reads it as it is.
   Two primitive annotations are also lost by the text; the tool
   reconstructs the second from the argument and leaves the first. The
   printer writes both forms
@@ -237,7 +267,31 @@ it gave back.
   is one component of the arity of the model, and the model's
   application counts it; the driver of the compiler's own run, of
   the same two units, has the closure and the integer that the
-  programs have. And
+  programs have. The loss shows the other way too. Code of another
+  unit comes from its `.cmx` with the component, and a call that
+  gives it an argument of no kind is written without that argument:
+  a full application can then be run as a partial application. That
+  was observed of a unit not in this tree, which the compiler
+  compiles rightly and which gives a function of another unit its
+  last argument, of no kind: the tool printed "DIFFERENT" and "not
+  validated", with status 1, where the driver of the compiler's own
+  run validates it: a false alarm.
+  A measure was made outside this tree, of 112 units from sources
+  that apply functions with unboxed products among their parameters
+  or their arguments. It is a report of those units and proves
+  nothing of others. What it compares is the module block that a run
+  is printed to return with the one that the program has, in which a
+  function shows only as a function and not by what it does; and a
+  unit is counted by the worse of what was printed of it at the
+  default settings and at `-O3`. Through the text, the tool printed
+  of 12 a run that is not the program's with no line that says so, a
+  bare "validated" of 11, each with a component of no kind at the
+  edge of an application; of the units in which every product has a
+  field of some kind, it printed no such run. Through the compiler's
+  own two terms it printed none (right on 99, undefined on 7 for
+  want of code in a `.cmx`, not run on 6). The refusal of the
+  scripts, below, refuses 69 of the 112, those 12 and the unit of
+  the false "DIFFERENT" among them. And
   where the call and the code group the same kinds differently,
   which is ill-kinded in the compiler's term, the term read may be
   defined where the compiler's is not. All of that was so before

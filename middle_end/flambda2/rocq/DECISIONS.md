@@ -713,6 +713,10 @@ says so. Only the labels that this tree cites are listed.
   which its code projects was converted to the same term, and one such,
   written by hand, was validated. Every unit is now converted with
   named function slots.
+- **X4-4.** The text of a term writes the code id of a direct call of
+  code of another unit by its name alone, and the reader takes it for
+  a code id of the unit read: the one of that name if the text binds
+  one, and otherwise a new one that nothing binds.
 - **X5-2.** The fields of a recursive module are read by immutable
   loads, and `CamlinternalMod.update_mod` overwrites them; a read from
   before the write is reused after it.
