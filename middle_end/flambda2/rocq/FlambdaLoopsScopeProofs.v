@@ -1542,24 +1542,26 @@ Proof.
 Qed.
 
 Fixpoint forward_applications_scoped_among (e : expr) :
-  ∀ F : forwards,
+  ∀ (calls : bool) (F : forwards),
     scoped_among (flat_map forward_variables F)
-      (flat_map forward_continuations F) e (forward_applications_under F e).
+      (flat_map forward_continuations F) e
+      (forward_applications_under calls F e).
 Proof.
   destruct e
     as [x kind d body | bindings body | k [params metadata handler] body
        | handlers body | ap | ac | scrutinee arms | ];
-    intros F;
+    intros calls F;
     cbn [forward_applications_under forward_applications_in_handler];
     cbv zeta.
   - apply scoped_among_let, forward_applications_scoped_among.
   - apply scoped_among_let_static, forward_applications_scoped_among.
-  - pose proof (forward_applications_scoped_among handler F) as Hhandler.
+  - pose proof (forward_applications_scoped_among handler calls F)
+      as Hhandler.
     pose proof
-      (forward_applications_scoped_among body
+      (forward_applications_scoped_among body calls
          ((k,
            forwarding k params metadata
-             (forward_applications_under F handler) body)
+             (forward_applications_under calls F handler) body)
           :: F))
       as Hbody.
     cbn [flat_map] in Hbody.
@@ -1569,7 +1571,7 @@ Proof.
     + unfold forward_variables. cbn [snd].
       destruct
         (forwarding k params metadata
-           (forward_applications_under F handler) body)
+           (forward_applications_under calls F handler) body)
         as [[params' target] | ] eqn:Hforwarding;
         [ | intros y [] ].
       apply forwarding_some in Hforwarding.
@@ -1578,7 +1580,7 @@ Proof.
     + unfold forward_continuations. cbn [snd].
       destruct
         (forwarding k params metadata
-           (forward_applications_under F handler) body)
+           (forward_applications_under calls F handler) body)
         as [[params' target] | ] eqn:Hforwarding;
         [ | intros j [] ].
       apply forwarding_some in Hforwarding.
@@ -1597,7 +1599,8 @@ Proof.
     + rewrite <- (forwards_none_variables handlers F),
         <- (forwards_none_continuations handlers F).
       apply forward_applications_scoped_among.
-  - intros _. scope. destruct (forward_apply_scope F ap) as [Hv Hk].
+  - destruct calls; [ | apply scoped_among_refl ].
+    intros _. scope. destruct (forward_apply_scope F ap) as [Hv Hk].
     split; [ reflexivity | split; [ | exact Hk ] ].
     rewrite Hv. apply incl_appl, incl_refl.
   - intros _. scope. destruct (forward_apply_cont_scope F ac) as [Hv Hk].
@@ -1616,15 +1619,26 @@ Proof.
   - apply scoped_among_refl.
 Qed.
 
+Lemma forward_applications_with_scoped (calls : bool) (e : expr) :
+  scoped e (forward_applications_with calls e).
+Proof.
+  apply scoped_among_none.
+  exact (forward_applications_scoped_among e calls []).
+Qed.
+
 Lemma forward_applications_scoped (e : expr) :
   scoped e (forward_applications e).
-Proof.
-  apply scoped_among_none. exact (forward_applications_scoped_among e []).
-Qed.
+Proof. exact (forward_applications_with_scoped false e). Qed.
 
 Theorem forward_applications_keeps_scope :
   forward_applications_keeps_scope_statement.
 Proof. apply keeps_scope_intro, forward_applications_scoped. Qed.
+
+Theorem forward_applications_with_keeps_scope :
+  forward_applications_with_keeps_scope_statement.
+Proof.
+  intros calls. apply keeps_scope_intro, forward_applications_with_scoped.
+Qed.
 
 (* Loopify. *)
 

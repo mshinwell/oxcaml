@@ -135,6 +135,16 @@ val tidy_after_round : expr -> expr
 
 val tidied_after : nat -> expr -> expr
 
+val take_returns_on : expr -> expr
+
+val returns_taken_on : expr -> expr
+
+val forwarded_in_unit : bool -> expr -> expr
+
+val keeps_a_return : expr -> bool
+
+val with_returns : bool -> expr -> expr
+
 type validation =
   | Same_up_to_bound_names
   | Same_once_normalised

@@ -905,8 +905,13 @@ removed it:
   (`call_result_passed_on.ml`): where the handler of the return
   continuation of a call applies another continuation to its
   parameters as they are, Simplify makes the call return there, and
-  so does the forwarding of the term before
-  (`FlambdaForwardSpec.forward_applications`, V4's).
+  so does the validation for the term before, once, when its rounds
+  are over (`FlambdaValidateSpec.with_returns`, with
+  `FlambdaForwardSpec.forward_applications_with`, V4's). It leaves
+  the calls of the term before where the term after still has such a
+  call. In the unit that showed it, Simplify left the call because
+  the handler ended the region of a block on the caller's stack
+  before it passed the result on, which the conversion drops.
 - A continuation that the two terms bind on either side of a `Let`
   (`inlined_test_join.ml`, `loop_exit_inlined.ml`): the placing of
   continuations moves a binding down as far as the bindings under

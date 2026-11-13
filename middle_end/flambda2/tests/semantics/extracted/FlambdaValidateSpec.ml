@@ -357,6 +357,32 @@ let tidy_after_round e =
 let tidied_after rounds e =
   groups_up (iterate rounds tidy_after_round (placed e))
 
+(** val take_returns_on : expr -> expr **)
+
+let take_returns_on e =
+  rewrite_rec_handlers remove_unused_conts
+    (remove_unused_conts (forward_applications_with true e))
+
+(** val returns_taken_on : expr -> expr **)
+
+let returns_taken_on e = rewrite_code take_returns_on (take_returns_on e)
+
+(** val forwarded_in_unit : bool -> expr -> expr **)
+
+let forwarded_in_unit calls e =
+  rewrite_code
+    (forward_applications_with calls)
+    (forward_applications_with calls e)
+
+(** val keeps_a_return : expr -> bool **)
+
+let keeps_a_return e =
+  negb (expr_eqb [] [] (forwarded_in_unit true e) (forwarded_in_unit false e))
+
+(** val with_returns : bool -> expr -> expr **)
+
+let with_returns taken e = if taken then returns_taken_on e else e
+
 type validation =
   | Same_up_to_bound_names
   | Same_once_normalised
@@ -373,10 +399,12 @@ let validate_unit rounds unused slots g ls kept before after =
   then Same_up_to_bound_names
   else
     let before0 = loopify_unit g (cut_returns [] (demote_stub_calls before)) in
-    let normalised =
-      tidied_before rounds (normalise_before rounds kept before0)
-    in
     let after0 = tidied_after rounds (normalise_after rounds kept after) in
+    let taken = negb (keeps_a_return after0) in
+    let normalised =
+      tidied_before rounds
+        (with_returns taken (normalise_before rounds kept before0))
+    in
     if expr_eqb [] [] (order_statics_as after0 normalised) after0
     then Same_once_normalised
     else if
@@ -399,8 +427,9 @@ let validate_unit rounds unused slots g ls kept before after =
                 (without_statics unused
                    (without_slots slots
                       (tidied_before rounds
-                         (lifted_in_turn rounds (unit_continuations ls) ls kept
-                            before0))))))
+                         (with_returns taken
+                            (lifted_in_turn rounds (unit_continuations ls) ls
+                               kept before0)))))))
           (float_code (with_code_first after1))
       then Same_once_lifted
       else if
@@ -411,8 +440,9 @@ let validate_unit rounds unused slots g ls kept before after =
                 (without_statics unused
                    (without_slots slots
                       (tidied_before rounds
-                         (lifted_in_turn rounds (unit_continuations ls) ls kept
-                            before0))))))
+                         (with_returns taken
+                            (lifted_in_turn rounds (unit_continuations ls) ls
+                               kept before0)))))))
           (with_statics_first ls after1)
       then Same_once_lifted
       else Not_validated

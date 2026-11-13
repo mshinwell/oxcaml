@@ -87,28 +87,33 @@ Proof.
     generalize (loopify_unit G (cut_returns [] (demote_stub_calls before))).
     clear before. intros before.
     set (a := tidied_after rounds (normalise_after rounds kept after)).
+    set (taken := negb (keeps_a_return a)).
     destruct (expr_eqb [] []
                 (order_statics_as a
                    (tidied_before rounds
-                      (normalise_before rounds kept before)))
+                      (with_returns taken
+                         (normalise_before rounds kept before))))
                 a)
       eqn:Hnormalised.
     + intros _.
-      exact (normalised_refines rounds kept before after Hnormalised
+      exact (normalised_refines rounds kept taken before after Hnormalised
                [] [] statics hp).
     + destruct (expr_eqb [] []
                   (order_statics_as a
                      (without_statics unused
                         (tidied_before rounds
-                           (normalise_before rounds kept before))))
+                           (with_returns taken
+                              (normalise_before rounds kept before)))))
                   a) eqn:Hremoved.
       * intros _.
         apply (refines_trans _
           (State
-             (tidied_before rounds (normalise_before rounds kept before))
+             (tidied_before rounds
+             (with_returns taken (normalise_before rounds kept before)))
              [] [] statics hp)).
         { apply (expr_refines_trans _ _ _
-            (normalise_before_refines rounds kept before)
+            (normalise_before_refines rounds kept before)).
+          apply (expr_refines_trans _ _ _ (with_returns_refines taken _)
             (tidied_before_refines rounds _)). }
         apply (refines_trans _ _ _
           (without_statics_refines_from statics hp unused _ Hfree)).
@@ -248,17 +253,20 @@ Proof.
   generalize (loopify_unit G (cut_returns [] (demote_stub_calls before))).
   clear before. intros before.
   set (a := tidied_after rounds (normalise_after rounds kept after)) in *.
+  set (taken := negb (keeps_a_return a)) in *.
   destruct (expr_eqb [] []
               (order_statics_as a
                  (tidied_before rounds
-                    (normalise_before rounds kept before)))
+                    (with_returns taken
+                       (normalise_before rounds kept before))))
               a);
     [ discriminate | ].
   destruct (expr_eqb [] []
               (order_statics_as a
                  (without_statics unused
                     (tidied_before rounds
-                       (normalise_before rounds kept before))))
+                       (with_returns taken
+                          (normalise_before rounds kept before)))))
               a);
     [ discriminate | ].
   set (c := without_head_statics unused a).
@@ -266,14 +274,17 @@ Proof.
               (order_statics_as c
                  (without_statics unused
                     (tidied_before rounds
-                       (normalise_before rounds kept before))))
+                       (with_returns taken
+                          (normalise_before rounds kept before)))))
               c) eqn:Hremoved_head.
   - intros _.
     apply (refines_trans _
-      (State (tidied_before rounds (normalise_before rounds kept before))
+      (State (tidied_before rounds
+             (with_returns taken (normalise_before rounds kept before)))
          [] [] statics hp)).
     { apply (expr_refines_trans _ _ _
-        (normalise_before_refines rounds kept before)
+        (normalise_before_refines rounds kept before)).
+      apply (expr_refines_trans _ _ _ (with_returns_refines taken _)
         (tidied_before_refines rounds _)). }
     apply (refines_trans _ _ _
       (without_statics_refines_from statics hp unused _ Hfree)).

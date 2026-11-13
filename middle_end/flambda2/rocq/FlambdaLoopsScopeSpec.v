@@ -101,6 +101,11 @@ Definition bind_aliased_params_keeps_scope_statement : Prop :=
 Definition forward_applications_keeps_scope_statement : Prop :=
   keeps_scope forward_applications.
 
+(* The same with the calls taken on or not
+   (FlambdaForwardSpec.forward_applications_with). *)
+Definition forward_applications_with_keeps_scope_statement : Prop :=
+  ∀ calls : bool, keeps_scope (forward_applications_with calls).
+
 (* Whatever the variables that are taken to be in scope, and the kinds
    they are taken to have. *)
 Definition remove_unused_defined_lets_in_loops_keeps_scope_statement : Prop :=

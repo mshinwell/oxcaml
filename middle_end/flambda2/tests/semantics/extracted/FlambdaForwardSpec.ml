@@ -139,20 +139,21 @@ let forwarding k params metadata handler body =
     else Some (params, target)
   | _ -> None
 
-(** val forward_applications_under : forwards -> expr -> expr **)
+(** val forward_applications_under : bool -> forwards -> expr -> expr **)
 
-let rec forward_applications_under f e =
+let rec forward_applications_under calls f e =
   match e with
-  | Let (x, kind, d, body) -> Let (x, kind, d, forward_applications_under f body)
+  | Let (x, kind, d, body) ->
+    Let (x, kind, d, forward_applications_under calls f body)
   | Let_static (bindings, body) ->
-    Let_static (bindings, forward_applications_under f body)
+    Let_static (bindings, forward_applications_under calls f body)
   | Let_cont_non_recursive (k, handler0, body) ->
     let (Handler (params, metadata, handler)) = handler0 in
-    let handler1 = forward_applications_under f handler in
+    let handler1 = forward_applications_under calls f handler in
     Let_cont_non_recursive
       ( k,
         Handler (params, metadata, handler1),
-        forward_applications_under
+        forward_applications_under calls
           ((k, forwarding k params metadata handler1 body) :: f)
           body )
   | Let_cont_recursive (handlers, body) ->
@@ -169,22 +170,26 @@ let rec forward_applications_under f e =
       ( map
           (fun pat ->
             let k, h = pat in
-            k, forward_applications_in_handler f0 h)
+            k, forward_applications_in_handler calls f0 h)
           handlers,
-        forward_applications_under f0 body )
-  | Apply ap -> Apply (forward_apply f ap)
+        forward_applications_under calls f0 body )
+  | Apply ap -> Apply (if calls then forward_apply f ap else ap)
   | Apply_cont ac -> Apply_cont (forward_apply_cont f ac)
   | Switch (scrutinee, arms) ->
     Switch (scrutinee, map (fun arm -> fst arm, forward_arm f (snd arm)) arms)
   | Invalid -> e
 
-(** val forward_applications_in_handler : forwards -> continuation_handler ->
-    continuation_handler **)
+(** val forward_applications_in_handler : bool -> forwards ->
+    continuation_handler -> continuation_handler **)
 
-and forward_applications_in_handler f = function
+and forward_applications_in_handler calls f = function
   | Handler (params, metadata, handler) ->
-    Handler (params, metadata, forward_applications_under f handler)
+    Handler (params, metadata, forward_applications_under calls f handler)
+
+(** val forward_applications_with : bool -> expr -> expr **)
+
+let forward_applications_with calls e = forward_applications_under calls [] e
 
 (** val forward_applications : expr -> expr **)
 
-let forward_applications e = forward_applications_under [] e
+let forward_applications e = forward_applications_with false e

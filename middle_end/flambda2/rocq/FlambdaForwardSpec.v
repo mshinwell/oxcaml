@@ -28,9 +28,10 @@
 (* An application of a continuation whose handler only applies another
    applies that other: a normalisation that refines.
 
-   This file is to be reviewed: [forward_applications] and what it is
-   made of, which are extracted and run by the validation of
-   middle_end/flambda2/tests/semantics/, and the statement.
+   This file is to be reviewed: [forward_applications_with],
+   [forward_applications] and what they are made of, which are
+   extracted and run by the validation of
+   middle_end/flambda2/tests/semantics/, and the statements.
 
    Simplify does not go through a non-recursive continuation whose
    handler, once rebuilt, is a single [Apply_cont]:
@@ -65,7 +66,8 @@
    parameters bound some way above; the way out of a [try] is a
    continuation that passes its parameter on.
 
-   [forward_applications] does it wherever the continuation is applied.
+   [forward_applications_with] does it wherever the continuation is
+   applied, with the calls or without them ([calls]).
    Going down the term it keeps, for the non-recursive continuations in
    scope whose handler, once done itself, is one [Apply_cont], the
    parameters and that [Apply_cont] ([forwards]). An application of such
@@ -74,14 +76,28 @@
    neither it nor that of the handler has a trap action
    ([forward_apply_cont]); an arm of a [Switch] in the same way, and a
    goto to a continuation of no parameters whatever the trap action of
-   the handler ([forward_arm]). An [Apply] that returns to such a
-   continuation returns to the one that its handler applies, if the
-   [Apply_cont] of the handler has no trap action and its arguments
-   are the parameters, in their order ([passes_on], [alias_of],
-   [forward_apply]); the exception continuation of the call is left,
-   no entry being kept for an exception handler. The [Let_cont] stays;
+   the handler ([forward_arm]). Where the calls are taken, an [Apply]
+   that returns to such a continuation returns to the one that its
+   handler applies, if the [Apply_cont] of the handler has no trap
+   action and its arguments are the parameters, in their order
+   ([passes_on], [alias_of], [forward_apply]); the exception
+   continuation of the call is left, no entry being kept for an
+   exception handler. The [Let_cont] stays;
    FlambdaUnusedContsSpec.remove_unused_conts removes it if nothing
    names its continuation any more.
+
+   [forward_applications] is the pass without the calls, which the
+   rounds of the term before apply. The calls of the term before are
+   taken on once, when its rounds are over, and only if the term
+   after has no call left that the pass would take on
+   (FlambdaValidateSpec.with_returns). A handler that ends a
+   region before it passes its parameters on is not an alias for
+   Simplify, which leaves the call returning to it; it is one here,
+   the model having no regions; and the term after cannot be rid of
+   such a continuation by an equivalence, since the handler's test of
+   the kinds of the results would go with it. So where Simplify left
+   such a call, the calls of the term before are left too. The term
+   before is refined either way.
 
    What stops it ([forwarding]):
    - a continuation that the [Apply_cont] of the handler names, the one
@@ -125,10 +141,13 @@
    applications still go through it. The pass does not look for
    those cases. The validation forwards those applications of the
    term after too, by an equivalence
-   (FlambdaForwardKindedSpec.forward_kinded).
+   (FlambdaForwardKindedSpec.forward_kinded), which takes no call on:
+   hence the choice above for the calls.
 
-   The result refines the term ([forward_applications_refines_statement]),
-   under all environments. It is not an equivalence as it is stated: an
+   The result refines the term, whether the calls are taken or not
+   ([forward_applications_with_refines_statement]; the pass of the
+   rounds is [forward_applications_refines_statement]), under all
+   environments. It is not an equivalence as it is stated: an
    application of the first term binds the parameters, so one with a
    parameter that the handler does not pass on is undefined where its
    argument has no value, and the second term does not look at that
@@ -299,36 +318,49 @@ Definition forwarding (k : continuation) (params : list variable)
 (* The pass                                                                 *)
 (* ======================================================================== *)
 
-Fixpoint forward_applications_under (F : forwards) (e : expr) : expr :=
+(* [calls]: whether a call that returns to a continuation which is
+   another name for one is made to return to that one. *)
+Fixpoint forward_applications_under (calls : bool) (F : forwards)
+    (e : expr) : expr :=
   match e with
-  | Let x kind d body => Let x kind d (forward_applications_under F body)
+  | Let x kind d body =>
+    Let x kind d (forward_applications_under calls F body)
   | Let_static bindings body =>
-    Let_static bindings (forward_applications_under F body)
+    Let_static bindings (forward_applications_under calls F body)
   | Let_cont_non_recursive k (Handler params metadata handler) body =>
-    let handler := forward_applications_under F handler in
+    let handler := forward_applications_under calls F handler in
     Let_cont_non_recursive k (Handler params metadata handler)
-      (forward_applications_under
+      (forward_applications_under calls
          ((k, forwarding k params metadata handler body) :: F) body)
   | Let_cont_recursive handlers body =>
     let F := map (fun '(k, _) => (k, None)) handlers ++ F in
     Let_cont_recursive
-      (map (fun '(k, h) => (k, forward_applications_in_handler F h)) handlers)
-      (forward_applications_under F body)
-  | Apply ap => Apply (forward_apply F ap)
+      (map (fun '(k, h) => (k, forward_applications_in_handler calls F h))
+         handlers)
+      (forward_applications_under calls F body)
+  | Apply ap => Apply (if calls then forward_apply F ap else ap)
   | Invalid => e
   | Apply_cont ac => Apply_cont (forward_apply_cont F ac)
   | Switch scrutinee arms =>
     Switch scrutinee (map (fun arm => (fst arm, forward_arm F (snd arm))) arms)
   end
-with forward_applications_in_handler (F : forwards)
+with forward_applications_in_handler (calls : bool) (F : forwards)
     (h : continuation_handler) : continuation_handler :=
   match h with
   | Handler params metadata handler =>
-    Handler params metadata (forward_applications_under F handler)
+    Handler params metadata (forward_applications_under calls F handler)
   end.
 
+Definition forward_applications_with (calls : bool) (e : expr) : expr :=
+  forward_applications_under calls [] e.
+
+(* The pass of the rounds: the calls are left. *)
 Definition forward_applications (e : expr) : expr :=
-  forward_applications_under [] e.
+  forward_applications_with false e.
+
+Definition forward_applications_with_refines_statement : Prop :=
+  ∀ (calls : bool) (e : expr),
+    expr_refines e (forward_applications_with calls e).
 
 Definition forward_applications_refines_statement : Prop :=
   ∀ e : expr, expr_refines e (forward_applications e).

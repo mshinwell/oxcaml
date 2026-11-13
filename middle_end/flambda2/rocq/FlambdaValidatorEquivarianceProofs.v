@@ -4372,38 +4372,38 @@ Proof.
 Qed.
 
 Fixpoint forward_applications_under_equivariant (r : renaming) (e : expr) :
-  ∀ F : forwards,
-    forward_applications_under (rename_forwards r F) (rename_expr r e)
-    = rename_expr r (forward_applications_under F e)
+  ∀ (calls : bool) (F : forwards),
+    forward_applications_under calls (rename_forwards r F) (rename_expr r e)
+    = rename_expr r (forward_applications_under calls F e)
 with forward_applications_in_handler_equivariant (r : renaming)
     (h : continuation_handler) :
-  ∀ F : forwards,
-    forward_applications_in_handler (rename_forwards r F)
+  ∀ (calls : bool) (F : forwards),
+    forward_applications_in_handler calls (rename_forwards r F)
       (rename_handler r h)
-    = rename_handler r (forward_applications_in_handler F h).
+    = rename_handler r (forward_applications_in_handler calls F h).
 Proof.
   - destruct e
       as [ x kind d body | bindings body | k [params metadata handler] body
          | handlers body | ap | ac | scrutinee arms | ];
-      intros F; try reflexivity.
+      intros calls F; try reflexivity.
     + cbn [rename_expr forward_applications_under].
       rewrite forward_applications_under_equivariant. reflexivity.
     + cbn [rename_expr forward_applications_under].
       rewrite forward_applications_under_equivariant. reflexivity.
     + cbn [rename_expr rename_handler forward_applications_under]. cbv zeta.
-      rewrite (forward_applications_under_equivariant r handler F),
+      rewrite (forward_applications_under_equivariant r handler calls F),
         forwarding_equivariant.
       change
         ((rename_continuation r k,
           rename_forward_entry r
             (forwarding k params metadata
-               (forward_applications_under F handler) body))
+               (forward_applications_under calls F handler) body))
          :: rename_forwards r F)
         with
           (rename_forwards r
              ((k,
                forwarding k params metadata
-                 (forward_applications_under F handler) body)
+                 (forward_applications_under calls F handler) body)
               :: F)).
       rewrite (forward_applications_under_equivariant r body). reflexivity.
     + cbn [rename_expr forward_applications_under]. cbv zeta.
@@ -4422,25 +4422,30 @@ Proof.
                     handlers ++ F).
       intros F'.
       induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
-      rewrite (forward_applications_in_handler_equivariant r h F'), IH.
+      rewrite (forward_applications_in_handler_equivariant r h calls F'), IH.
       reflexivity.
     + cbn [rename_expr forward_applications_under].
+      destruct calls; [ | reflexivity ].
       rewrite forward_apply_equivariant. reflexivity.
     + cbn [rename_expr forward_applications_under].
       rewrite forward_apply_cont_equivariant. reflexivity.
     + cbn [rename_expr forward_applications_under]. f_equal.
       rewrite !map_map. apply map_ext. intros [i ac]. cbn [fst snd].
       rewrite forward_arm_equivariant. reflexivity.
-  - destruct h as [params metadata handler]. intros F.
+  - destruct h as [params metadata handler]. intros calls F.
     cbn [rename_handler forward_applications_in_handler].
     rewrite forward_applications_under_equivariant. reflexivity.
 Qed.
 
+Lemma forward_applications_with_equivariant (calls : bool) :
+  rewrite_equivariant (forward_applications_with calls).
+Proof.
+  intros r e. exact (forward_applications_under_equivariant r e calls []).
+Qed.
+
 Lemma forward_applications_equivariant :
   rewrite_equivariant forward_applications.
-Proof.
-  intros r e. exact (forward_applications_under_equivariant r e []).
-Qed.
+Proof. exact (forward_applications_with_equivariant false). Qed.
 
 (* The same for the continuations of no parameters
    (FlambdaForwardJumpsSpec.v): the entry is that of [forwarding] or
@@ -7356,10 +7361,85 @@ Proof.
        FlambdaStaticsScopeProofs.groups_up_keeps_scope).
 Qed.
 
+(* The calls of the term before taken on when its rounds are over
+   (FlambdaValidateSpec.with_returns): taken or not, it commutes with
+   renaming and keeps scope; and whether a term has a call that would
+   be taken on is the same of the term renamed. *)
+Lemma take_returns_on_equivariant : rewrite_equivariant take_returns_on.
+Proof.
+  intros r e. unfold take_returns_on.
+  rewrite (forward_applications_with_equivariant true r e),
+    remove_unused_conts_equivariant.
+  apply rewrite_rec_handlers_equivariant, remove_unused_conts_equivariant.
+Qed.
+
+Lemma returns_taken_on_equivariant : rewrite_equivariant returns_taken_on.
+Proof.
+  intros r e. unfold returns_taken_on. rewrite take_returns_on_equivariant.
+  apply rewrite_code_equivariant, take_returns_on_equivariant.
+Qed.
+
+Lemma with_returns_equivariant (taken : bool) :
+  rewrite_equivariant (with_returns taken).
+Proof.
+  intros r e.
+  destruct taken; [ apply returns_taken_on_equivariant | reflexivity ].
+Qed.
+
+Lemma forwarded_in_unit_equivariant (calls : bool) :
+  rewrite_equivariant (forwarded_in_unit calls).
+Proof.
+  intros r e. unfold forwarded_in_unit.
+  rewrite (forward_applications_with_equivariant calls r e).
+  apply rewrite_code_equivariant, forward_applications_with_equivariant.
+Qed.
+
+Lemma keeps_a_return_renamed (r : renaming) (e : expr) :
+  keeps_a_return (rename_expr r e) = keeps_a_return e.
+Proof.
+  unfold keeps_a_return.
+  rewrite !forwarded_in_unit_equivariant, expr_eqb_renamed. reflexivity.
+Qed.
+
+Lemma take_returns_on_keeps_scope : keeps_scope take_returns_on.
+Proof.
+  exact
+    (keeps_scope_compose
+       (fun e => remove_unused_conts (forward_applications_with true e))
+       (rewrite_rec_handlers remove_unused_conts)
+       (keeps_scope_compose (forward_applications_with true)
+          remove_unused_conts
+          (FlambdaLoopsScopeProofs.forward_applications_with_keeps_scope
+             true)
+          FlambdaKeepsScopeProofs.remove_unused_conts_keeps_scope)
+       (FlambdaLoopsScopeProofs.rewrite_rec_handlers_keeps_scope _
+          FlambdaKeepsScopeProofs.remove_unused_conts_keeps_scope)).
+Qed.
+
+Lemma returns_taken_on_keeps_scope : keeps_scope returns_taken_on.
+Proof.
+  exact
+    (keeps_scope_compose take_returns_on (rewrite_code take_returns_on)
+       take_returns_on_keeps_scope
+       (FlambdaKeepsScopeProofs.rewrite_code_keeps_scope _
+          take_returns_on_keeps_scope)).
+Qed.
+
+Lemma with_returns_keeps_scope (taken : bool) :
+  keeps_scope (with_returns taken).
+Proof.
+  destruct taken; [ exact returns_taken_on_keeps_scope | ].
+  intros e Hclosed.
+  split; [ exact Hclosed | split; intros name Hname; exact Hname ].
+Qed.
+
 (* The term before normalised is, under the renaming, that term under a
    second renaming; the term before with the liftings made in turn is
    that term under a third, since each normalisation after a lifting
-   avoids the continuations of the units of the liftings. The placing
+   avoids the continuations of the units of the liftings. Whether
+   the calls of the term before are taken on is the same for the
+   pair renamed, the term after being under the first renaming. The
+   taking on of those calls, the placing
    of continuations and the tidying, which come next, the removal of
    static bindings,
    the removal of value slots, the moving up of the bindings of code
@@ -7416,11 +7496,6 @@ Proof.
   destruct (normalise_before_keeps_scope rounds kept before Hclosed)
     as (Hclosed_b0 & _ & _).
   destruct
-    (renames_alike_kept (tidied_before rounds) r r'
-       (normalise_before rounds kept before)
-       (tidied_before_keeps_scope rounds) Hclosed_b0 Halike0)
-    as (Hclosed_b & Halike).
-  destruct
     (lifted_in_turn_up_to r rounds (unit_continuations Ls) kept Ls
        (unit_continuations_has Ls) r1 before Hclosed Halike1 Hunits)
     as (r'' & Halike0' & Havoid' & Heq').
@@ -7428,28 +7503,50 @@ Proof.
     (lifted_in_turn_scope rounds (unit_continuations Ls) kept Ls before
        Hclosed)
     as (Hclosed_l0 & _ & _).
-  destruct
-    (renames_alike_kept (tidied_before rounds) r r''
-       (lifted_in_turn rounds (unit_continuations Ls) Ls kept before)
-       (tidied_before_keeps_scope rounds) Hclosed_l0 Halike0')
-    as (Hclosed_l & Halike').
   rewrite unit_continuations_renamed.
-  rewrite Heq, Heq', normalise_after_equivariant,
-    !tidied_before_equivariant, tidied_after_equivariant,
+  rewrite Heq, Heq', normalise_after_equivariant, tidied_after_equivariant,
+    keeps_a_return_renamed, !with_returns_equivariant,
+    !tidied_before_equivariant,
     without_head_statics_equivariant,
     without_slots_equivariant, !without_statics_equivariant,
     with_code_first_equivariant, !float_code_rewrite_equivariant,
     (with_statics_first_renamed_alike r r Ls _ (fun k _ => eq_refl)),
     (with_statics_first_renamed_alike r r'' Ls _ Havoid'),
     !order_statics_as_equivariant.
-  set (b := tidied_before rounds (normalise_before rounds kept before))
+  set (a := tidied_after rounds (normalise_after rounds kept after)).
+  generalize (negb (keeps_a_return a)). intros taken.
+  destruct
+    (renames_alike_kept (with_returns taken) r r'
+       (normalise_before rounds kept before)
+       (with_returns_keeps_scope taken) Hclosed_b0 Halike0)
+    as (Hclosed_bt & Halike_bt).
+  destruct
+    (renames_alike_kept (tidied_before rounds) r r'
+       (with_returns taken (normalise_before rounds kept before))
+       (tidied_before_keeps_scope rounds) Hclosed_bt Halike_bt)
+    as (Hclosed_b & Halike).
+  destruct
+    (renames_alike_kept (with_returns taken) r r''
+       (lifted_in_turn rounds (unit_continuations Ls) Ls kept before)
+       (with_returns_keeps_scope taken) Hclosed_l0 Halike0')
+    as (Hclosed_lt & Halike_lt).
+  destruct
+    (renames_alike_kept (tidied_before rounds) r r''
+       (with_returns taken
+          (lifted_in_turn rounds (unit_continuations Ls) Ls kept before))
+       (tidied_before_keeps_scope rounds) Hclosed_lt Halike_lt)
+    as (Hclosed_l & Halike').
+  set
+    (b :=
+      tidied_before rounds
+        (with_returns taken (normalise_before rounds kept before)))
     in *.
   set
     (l :=
       tidied_before rounds
-        (lifted_in_turn rounds (unit_continuations Ls) Ls kept before))
+        (with_returns taken
+           (lifted_in_turn rounds (unit_continuations Ls) Ls kept before)))
     in *.
-  set (a := tidied_after rounds (normalise_after rounds kept after)).
   set (a' := without_head_statics unused a).
   set (c := float_code (with_code_first a')).
   set (c' := with_statics_first Ls a').

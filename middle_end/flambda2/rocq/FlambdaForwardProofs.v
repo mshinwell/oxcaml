@@ -1432,13 +1432,13 @@ Qed.
 (* ======================================================================== *)
 
 Fixpoint forward_applications_binds_statics (e : expr) :
-  ∀ F : forwards,
-    binds_statics (forward_applications_under F e) = binds_statics e.
+  ∀ (calls : bool) (F : forwards),
+    binds_statics (forward_applications_under calls F e) = binds_statics e.
 Proof.
   destruct e
     as [ x kind d body | bindings body | k [params metadata handler] body
        | handlers body | ap | ac | scrutinee arms | ];
-    intros F; simpl; try reflexivity.
+    intros calls F; simpl; try reflexivity.
   - apply forward_applications_binds_statics.
   - rewrite forward_applications_binds_statics. reflexivity.
   - rewrite !forward_applications_binds_statics. reflexivity.
@@ -1699,13 +1699,13 @@ Proof.
 Qed.
 
 Fixpoint forward_applications_fwd (e : expr) :
-  ∀ (G : kinds_in_scope) (K : kinds_of_conts) (F : forwards),
-    safe F e -> fwd false G K F e (forward_applications_under F e).
+  ∀ (calls : bool) (G : kinds_in_scope) (K : kinds_of_conts) (F : forwards),
+    safe F e -> fwd false G K F e (forward_applications_under calls F e).
 Proof.
   destruct e
     as [ x kind d body | bindings body | k [params metadata handler] body
        | handlers body | ap | ac | scrutinee arms | ];
-    intros G K F Hsafe; simpl.
+    intros calls G K F Hsafe; simpl.
   - destruct (safe_let F x kind d body Hsafe) as [Hbody Hx].
     apply Fwd_let; [ exact Hx | apply forward_applications_fwd, Hbody ].
   - apply Fwd_let_static, forward_applications_fwd. exact Hsafe.
@@ -1713,13 +1713,13 @@ Proof.
       as (Hhandler & Hbody & Hparams & Hk).
     destruct
       (forwarding_fits false k params metadata metadata
-         (forward_applications_under F handler) body)
+         (forward_applications_under calls F handler) body)
       as (Hfits & Hvars & Hconts);
       [ intros Hstrict; discriminate Hstrict | ].
     apply (Fwd_let_cont false G K F k params metadata metadata handler
-      (forward_applications_under F handler)
-      (forwarding k params metadata (forward_applications_under F handler)
-         body));
+      (forward_applications_under calls F handler)
+      (forwarding k params metadata
+         (forward_applications_under calls F handler) body));
       [ apply forward_applications_fwd, Hhandler | reflexivity
       | exact Hparams | exact Hk | exact Hfits | ].
     apply forward_applications_fwd, safe_cons; assumption.
@@ -1757,7 +1757,9 @@ Proof.
         simpl; [ reflexivity | ].
       rewrite forward_applications_binds_statics, IH. reflexivity.
     + apply forward_applications_fwd, safe_plain, Hbody.
-  - apply Fwd_apply, returns_forward_apply.
+  - destruct calls;
+      [ apply Fwd_apply, returns_forward_apply
+      | apply Fwd_apply, Returns_same ].
   - apply Fwd_apply_cont, goes_forward_apply_cont.
   - apply Fwd_switch. clear Hsafe.
     induction arms as [ | arm arms IH]; simpl; [ apply Forall2_nil | ].
@@ -1766,11 +1768,15 @@ Proof.
   - apply Fwd_invalid.
 Qed.
 
-Theorem forward_applications_refines : forward_applications_refines_statement.
+Theorem forward_applications_with_refines :
+  forward_applications_with_refines_statement.
 Proof.
-  intros e vars conts statics hp.
+  intros calls e vars conts statics hp.
   apply (rounds_refines (state_fwd false) (fwd_round false)).
   apply (State_fwd false [] [] []);
     [ apply forward_applications_fwd, safe_none; reflexivity
     | intros k; apply Same_fwd | apply held_nil | apply kinds_hold_nil ].
 Qed.
+
+Theorem forward_applications_refines : forward_applications_refines_statement.
+Proof. intros e. exact (forward_applications_with_refines false e). Qed.

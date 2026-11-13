@@ -37,9 +37,11 @@ val forwarding :
   expr ->
   (variable list * apply_cont) option
 
-val forward_applications_under : forwards -> expr -> expr
+val forward_applications_under : bool -> forwards -> expr -> expr
 
 val forward_applications_in_handler :
-  forwards -> continuation_handler -> continuation_handler
+  bool -> forwards -> continuation_handler -> continuation_handler
+
+val forward_applications_with : bool -> expr -> expr
 
 val forward_applications : expr -> expr

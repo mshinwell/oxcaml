@@ -459,14 +459,40 @@ Proof.
   apply expr_equivalent_sym, tidied_after_normalised_equivalent.
 Qed.
 
+(* The calls of the term before taken on, or not: it is refined. *)
+Lemma take_returns_on_refines (e : expr) :
+  expr_refines e (take_returns_on e).
+Proof.
+  unfold take_returns_on.
+  apply (expr_refines_trans _ _ _ (forward_applications_with_refines true e)).
+  apply expr_equivalent_refines.
+  exact (expr_equivalent_trans _ _ _ (remove_unused_conts_equivalent _)
+    (rewrite_rec_handlers_equivalent _ remove_unused_conts_equivalent _)).
+Qed.
+
+Lemma returns_taken_on_refines (e : expr) :
+  expr_refines e (returns_taken_on e).
+Proof.
+  unfold returns_taken_on.
+  exact (expr_refines_trans _ _ _ (take_returns_on_refines e)
+    (rewrite_code_refines _ take_returns_on_refines _)).
+Qed.
+
+Lemma with_returns_refines (taken : bool) (e : expr) :
+  expr_refines e (with_returns taken e).
+Proof.
+  destruct taken; [ apply returns_taken_on_refines | apply expr_refines_refl ].
+Qed.
+
 (* The two normalised terms being the same up to bound names, once the
    static bindings of the first are in the order of the second, the term
    after refines the term before. *)
-Lemma normalised_refines (rounds : nat) (kept : list code_id)
+Lemma normalised_refines (rounds : nat) (kept : list code_id) (taken : bool)
     (before after : expr) :
   expr_eqb [] []
     (order_statics_as (tidied_after rounds (normalise_after rounds kept after))
-       (tidied_before rounds (normalise_before rounds kept before)))
+       (tidied_before rounds
+          (with_returns taken (normalise_before rounds kept before))))
     (tidied_after rounds (normalise_after rounds kept after))
   = true ->
   expr_refines before after.
@@ -474,6 +500,7 @@ Proof.
   intros Heq.
   apply (expr_refines_trans _ _ _
     (normalise_before_refines rounds kept before)).
+  apply (expr_refines_trans _ _ _ (with_returns_refines taken _)).
   apply (expr_refines_trans _ _ _ (tidied_before_refines rounds _)).
   apply expr_equivalent_refines.
   exact (ordered_same_equivalent rounds kept _ after Heq).
@@ -717,18 +744,22 @@ Proof.
     generalize (loopify_unit G (cut_returns [] (demote_stub_calls before))).
     clear before. intros before.
     set (a := tidied_after rounds (normalise_after rounds kept after)).
+    set (taken := negb (keeps_a_return a)).
     destruct (expr_eqb [] []
                 (order_statics_as a
                    (tidied_before rounds
-                      (normalise_before rounds kept before)))
+                      (with_returns taken
+                         (normalise_before rounds kept before))))
                 a)
       eqn:Hnormalised.
-    + intros _. exact (normalised_refines rounds kept before after Hnormalised).
+    + intros _.
+      exact (normalised_refines rounds kept taken before after Hnormalised).
     + destruct (expr_eqb [] []
                   (order_statics_as a
                      (without_statics unused
                         (tidied_before rounds
-                           (normalise_before rounds kept before))))
+                           (with_returns taken
+                              (normalise_before rounds kept before)))))
                   a);
         [ intros [H | H]; discriminate H | ].
       set (c := without_head_statics unused a).
@@ -736,7 +767,8 @@ Proof.
                   (order_statics_as c
                      (without_statics unused
                         (tidied_before rounds
-                           (normalise_before rounds kept before))))
+                           (with_returns taken
+                              (normalise_before rounds kept before)))))
                   c);
         [ intros [H | H]; discriminate H | ].
       destruct
@@ -746,8 +778,9 @@ Proof.
                  (without_statics unused
                     (without_slots slots
                        (tidied_before rounds
-                          (lifted_in_turn rounds (unit_continuations Ls) Ls
-                             kept before))))))
+                          (with_returns taken
+                             (lifted_in_turn rounds (unit_continuations Ls)
+                                Ls kept before)))))))
            (float_code (with_code_first c)));
         [ intros [H | H]; discriminate H | ].
       destruct
@@ -757,8 +790,9 @@ Proof.
                  (without_statics unused
                     (without_slots slots
                        (tidied_before rounds
-                          (lifted_in_turn rounds (unit_continuations Ls) Ls
-                             kept before))))))
+                          (with_returns taken
+                             (lifted_in_turn rounds (unit_continuations Ls)
+                                Ls kept before)))))))
            (with_statics_first Ls c));
         intros [H | H]; discriminate H.
 Qed.
@@ -784,26 +818,31 @@ Proof.
     generalize (loopify_unit G (cut_returns [] (demote_stub_calls before))).
     clear before. intros before.
     set (a := tidied_after rounds (normalise_after rounds kept after)).
+    set (taken := negb (keeps_a_return a)).
     destruct (expr_eqb [] []
                 (order_statics_as a
                    (tidied_before rounds
-                      (normalise_before rounds kept before)))
+                      (with_returns taken
+                         (normalise_before rounds kept before))))
                 a)
       eqn:Hnormalised.
     + intros _. apply expr_refines_program.
-      exact (normalised_refines rounds kept before after Hnormalised).
+      exact (normalised_refines rounds kept taken before after Hnormalised).
     + assert (Hbefore :
         program_refines before
-          (tidied_before rounds (normalise_before rounds kept before))).
+          (tidied_before rounds
+             (with_returns taken (normalise_before rounds kept before)))).
       { apply expr_refines_program.
         apply (expr_refines_trans _ _ _
           (normalise_before_refines rounds kept before)).
+        apply (expr_refines_trans _ _ _ (with_returns_refines taken _)).
         apply tidied_before_refines. }
       destruct (expr_eqb [] []
                   (order_statics_as a
                      (without_statics unused
                         (tidied_before rounds
-                           (normalise_before rounds kept before))))
+                           (with_returns taken
+                              (normalise_before rounds kept before)))))
                   a) eqn:Hremoved.
       * intros _. apply (refines_trans _ _ _ Hbefore).
         apply (refines_trans _ _ _
@@ -824,7 +863,8 @@ Proof.
                     (order_statics_as c
                        (without_statics unused
                           (tidied_before rounds
-                             (normalise_before rounds kept before))))
+                             (with_returns taken
+                                (normalise_before rounds kept before)))))
                     c) eqn:Hremoved_head;
           [ intros _; apply (refines_trans _ _ _ Hbefore);
             apply (refines_trans _ _ _
@@ -841,12 +881,15 @@ Proof.
           without_statics unused
             (without_slots slots
                (tidied_before rounds
-                  (lifted_in_turn rounds (unit_continuations Ls) Ls kept
-                     before)))).
+                  (with_returns taken
+                     (lifted_in_turn rounds (unit_continuations Ls)
+                        Ls kept before))))).
         assert (Hlifting : program_refines before lifted).
         { apply (refines_trans _ _ _
             (lifted_in_turn_program_refines rounds (unit_continuations Ls) Ls
                kept _)).
+          apply (refines_trans _ _ _
+            (expr_refines_program _ _ (with_returns_refines taken _))).
           apply (refines_trans _ _ _
             (expr_refines_program _ _ (tidied_before_refines rounds _))).
           apply (refines_trans _ _ _ (without_slots_program_refines slots _)).

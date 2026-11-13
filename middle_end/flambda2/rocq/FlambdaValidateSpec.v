@@ -174,6 +174,26 @@
    (FlambdaStaticsOrderSpec.order_statics_as): Simplify builds the group
    of a set of closures again, in an order of its own.
 
+   When the rounds of the term before are over, and before its
+   continuations are placed, its calls are taken on ([with_returns]):
+   a call that returns to a continuation whose handler passes its
+   parameters on as they are returns to the continuation that the
+   handler applies (FlambdaForwardSpec.forward_applications_with,
+   with the calls), in the handlers of recursive continuations and
+   in the bodies of code too, and the continuations that this leaves
+   unused are removed ([returns_taken_on]). Simplify does so for a
+   call (FlambdaForwardSpec.v says where). It is not done in a
+   round, and it is not done at all if the term after, as it is
+   compared, has a call that the same rewrite would take on
+   ([keeps_a_return]). In the pair that showed it, Simplify left that
+   call because the handler ended a region before it passed its
+   parameters on, which the model has not got. Whatever left the
+   call there, the term after cannot be given the rewrite, which is
+   not an equivalence; the term before then keeps its calls where
+   they return. Either way the term before is refined, so the choice
+   is the validator's own and nothing is asked of it. The same is
+   done to the term before with the liftings made.
+
    Apart from the first comparison, which is of the two terms as they
    are given, each of the terms that are compared has first had its
    continuations placed ([placed]): a non-recursive [Let_cont] goes
@@ -424,8 +444,9 @@ Definition normalise_before_round (kept : list code_id) (e : expr) : expr :=
    [normalise_expr_before] with what Simplify does to the parameters of
    continuations. After an arm of a [Switch] is made to go where its
    continuation goes, every application of a continuation whose handler
-   only applies another is, wherever it is ([forward_applications]; the
-   continuations that this leaves unused are removed). Once the
+   only applies another is, wherever it is, a call that returns to
+   it excepted ([forward_applications]; the continuations that this
+   leaves unused are removed). Once the
    values are followed, a parameter of a continuation that its handler
    reads as a box, where every application gives something that the
    term shows, is unboxed as Simplify unboxes it: each read becomes a
@@ -912,6 +933,40 @@ Definition tidy_after_round (e : expr) : expr :=
 Definition tidied_after (rounds : nat) (e : expr) : expr :=
   groups_up (iterate rounds tidy_after_round (placed e)).
 
+(* The calls of the term before, when its rounds are over. A call
+   that returns to a continuation whose handler passes its
+   parameters on as they are is made to return to the continuation
+   that the handler applies
+   (FlambdaForwardSpec.forward_applications_with, with the calls),
+   and the continuations that this leaves unused are removed: in a
+   term and in the handlers of its recursive continuations
+   ([take_returns_on]), and the same in the body of each piece of
+   code. *)
+Definition take_returns_on (e : expr) : expr :=
+  rewrite_rec_handlers remove_unused_conts
+    (remove_unused_conts (forward_applications_with true e)).
+
+Definition returns_taken_on (e : expr) : expr :=
+  rewrite_code take_returns_on (take_returns_on e).
+
+(* Whether a term has a call that would be taken on: the forwarding
+   with the calls, in the term and in the bodies of its code, gives
+   another term than the forwarding without them. *)
+Definition forwarded_in_unit (calls : bool) (e : expr) : expr :=
+  rewrite_code (forward_applications_with calls)
+    (forward_applications_with calls e).
+
+Definition keeps_a_return (e : expr) : bool :=
+  negb
+    (expr_eqb [] [] (forwarded_in_unit true e) (forwarded_in_unit false e)).
+
+(* The term before with its calls taken on, or as it is. [taken] is
+   for [validate_unit] to choose: it says no where the term after, as
+   it is compared, has a call that would be taken on, which this
+   rewrite cannot in general take on by an equivalence. *)
+Definition with_returns (taken : bool) (e : expr) : expr :=
+  if taken then returns_taken_on e else e.
+
 (* ======================================================================== *)
 (* The check                                                                *)
 (* ======================================================================== *)
@@ -939,10 +994,12 @@ Definition validate_unit (rounds : nat) (unused : dropped)
     let before :=
       loopify_unit G (cut_returns [] (demote_stub_calls before))
     in
-    let normalised :=
-      tidied_before rounds (normalise_before rounds kept before)
-    in
     let after := tidied_after rounds (normalise_after rounds kept after) in
+    let taken := negb (keeps_a_return after) in
+    let normalised :=
+      tidied_before rounds
+        (with_returns taken (normalise_before rounds kept before))
+    in
     if expr_eqb [] [] (order_statics_as after normalised) after
     then Same_once_normalised
     else if
@@ -962,8 +1019,9 @@ Definition validate_unit (rounds : nat) (unused : dropped)
               (without_statics unused
                  (without_slots slots
                     (tidied_before rounds
-                       (lifted_in_turn rounds (unit_continuations Ls) Ls kept
-                          before))))))
+                       (with_returns taken
+                          (lifted_in_turn rounds (unit_continuations Ls) Ls
+                             kept before)))))))
         (float_code (with_code_first after))
     then Same_once_lifted
     else if
@@ -973,8 +1031,9 @@ Definition validate_unit (rounds : nat) (unused : dropped)
               (without_statics unused
                  (without_slots slots
                     (tidied_before rounds
-                       (lifted_in_turn rounds (unit_continuations Ls) Ls kept
-                          before))))))
+                       (with_returns taken
+                          (lifted_in_turn rounds (unit_continuations Ls) Ls
+                             kept before)))))))
         (with_statics_first Ls after)
     then Same_once_lifted
     else Not_validated.

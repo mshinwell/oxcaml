@@ -817,6 +817,11 @@ Definition bind_aliased_params_equivariant_statement : Prop :=
 Definition forward_applications_equivariant_statement : Prop :=
   rewrite_equivariant forward_applications.
 
+(* The same with the calls taken on or not
+   (FlambdaForwardSpec.forward_applications_with). *)
+Definition forward_applications_with_equivariant_statement : Prop :=
+  ∀ calls : bool, rewrite_equivariant (forward_applications_with calls).
+
 (* The same for the continuations of no parameters, where it is an
    equivalence (FlambdaForwardJumpsSpec.v). *)
 Definition forward_jumps_equivariant_statement : Prop :=
