@@ -64,7 +64,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaUnboxSpec FlambdaUnboxProofs
   FlambdaUnboxVariantsSpec FlambdaUnboxVariantsProofs
   FlambdaUnboxParamsSpec FlambdaUnboxInScopeSpec FlambdaUnboxInScopeProofs
-  FlambdaUnboxLoopsSpec FlambdaUnboxLoopsProofs
+  FlambdaUnboxLoopsSpec FlambdaUnboxLoopsProofs FlambdaUnboxTogetherSpec
   FlambdaUnusedContsSpec FlambdaUnusedContsProofs FlambdaUnusedParamsSpec
   FlambdaUnusedParamsProofs FlambdaUnusedProjectionsSpec
   FlambdaUnusedProjectionsProofs FlambdaUnusedStaticsSpec
@@ -94,6 +94,7 @@ From OxCamlFlambda2Types Require Import FlambdaAliasesSpec
   FlambdaAliasesProofs.
 From OxCamlFlambda2Types Require FlambdaSimplifyCarriedSpec
   FlambdaSimplifyCarriedProofs.
+From OxCamlFlambda2 Require FlambdaUnboxTogetherProofs.
 Import ListNotations.
 
 Lemma expr_equivalent_refl (e : expr) : expr_equivalent e e.
@@ -214,15 +215,33 @@ Proof.
   match goal with
   | |- context [unbox_variants_knowing known ?x] =>
     apply (refines_trans _
-      (State (unbox_loops_knowing known (unbox_variants_knowing known x))
+      (State
+         (unbox_together_knowing known
+            (untag_params
+               (unbox_loops_knowing known (unbox_variants_knowing known x))))
          vars conts statics hp));
       [ apply (refines_trans _
-          (State (unbox_variants_knowing known x) vars conts statics hp));
-          [ apply (refines_trans _ (State x vars conts statics hp));
-              [ | exact (unbox_variants_knowing_symbols_refines known x vars
-                    conts statics hp Honly Hbound) ]
-          | exact (unbox_loops_knowing_symbols_refines known _ vars conts
-              statics hp Honly Hbound) ]
+          (State
+             (untag_params
+                (unbox_loops_knowing known (unbox_variants_knowing known x)))
+             vars conts statics hp));
+          [ apply (refines_trans _
+              (State
+                 (unbox_loops_knowing known (unbox_variants_knowing known x))
+                 vars conts statics hp));
+              [ apply (refines_trans _
+                  (State (unbox_variants_knowing known x) vars conts statics
+                     hp));
+                  [ apply (refines_trans _ (State x vars conts statics hp));
+                      [ | exact (unbox_variants_knowing_symbols_refines known
+                            x vars conts statics hp Honly Hbound) ]
+                  | exact (unbox_loops_knowing_symbols_refines known _ vars
+                      conts statics hp Honly Hbound) ]
+              | apply expr_refines_at, untag_params_refines ]
+          | exact
+              (FlambdaUnboxTogetherProofs
+               .unbox_together_knowing_symbols_refines known _ vars conts
+                 statics hp Honly Hbound) ]
       | ]
   end; apply expr_refines_at;
     repeat (eapply expr_refines_trans; [ | solve [ refinement_step ] ]);

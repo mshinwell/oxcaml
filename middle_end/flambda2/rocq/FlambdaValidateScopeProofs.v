@@ -54,7 +54,7 @@ From OxCamlFlambda2 Require FlambdaUnboxParamsNamesProofs.
 From OxCamlFlambda2 Require Import FlambdaUnboxParamsSpec
   FlambdaUnboxInScopeSpec FlambdaUnboxInScopeProofs
   FlambdaUnboxInScopeRenameSpec FlambdaUnboxInScopeRenameProofs
-  FlambdaUnboxLoopsSpec.
+  FlambdaUnboxLoopsSpec FlambdaUnboxTogetherSpec.
 From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
 From OxCamlFlambda2 Require FlambdaDemoteScopeProofs.
 From OxCamlFlambda2 Require Import FlambdaShareProjectionsSpec
@@ -160,6 +160,15 @@ Proof.
 Qed.
 
 #[export] Hint Resolve unbox_loops_knowing_symbols_scoped : scoped.
+
+Lemma unbox_together_knowing_symbols_scoped (known : facts) (e : expr) :
+  symbols_only known -> scoped e (unbox_together_knowing known e).
+Proof.
+  intros Honly. apply keeps_scope_scoped.
+  exact (unbox_together_knowing_symbols_keeps_scope known Honly).
+Qed.
+
+#[export] Hint Resolve unbox_together_knowing_symbols_scoped : scoped.
 
 Lemma normalise_expr_params_knowing_scoped (known : facts) (e : expr) :
   symbols_only known -> scoped e (normalise_expr_params_knowing known e).

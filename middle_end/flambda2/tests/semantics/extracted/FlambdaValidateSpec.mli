@@ -51,6 +51,7 @@ open FlambdaUnboxInScopeSpec
 open FlambdaUnboxLoopsSpec
 open FlambdaUnboxParamsSpec
 open FlambdaUnboxSpec
+open FlambdaUnboxTogetherSpec
 open FlambdaUnboxVariantsSpec
 open FlambdaUntagParamsSpec
 open FlambdaUnusedContsSpec

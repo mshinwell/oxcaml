@@ -272,8 +272,9 @@
    FlambdaInlineSiblingsSpec.inline_sibling_calls, of a round of the
    term before, FlambdaMergeTablesSpec.merge_tables, which a round of
    the first phase of the term before applies first,
-   FlambdaUnboxVariantsSpec.unbox_variants_knowing and
-   FlambdaUnboxLoopsSpec.unbox_loops_knowing, of
+   FlambdaUnboxVariantsSpec.unbox_variants_knowing,
+   FlambdaUnboxLoopsSpec.unbox_loops_knowing and
+   FlambdaUnboxTogetherSpec.unbox_together_knowing, of
    the first phase of the term before, which are given what the static
    bindings in scope make known of their symbols, in code and in
    loops (FlambdaUnboxVariantsRenameSpec.v; what is known of symbols

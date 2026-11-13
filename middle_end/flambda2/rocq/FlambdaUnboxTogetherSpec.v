@@ -31,10 +31,14 @@
    positions at once: a normalisation that refines.
 
    This file is to be reviewed: [unbox_together_knowing] and what it
-   is made of, and the statement. Nothing applies the pass yet. The
-   positions that the pass is run with ([together_positions]) are
-   computed from the term, and nothing is believed of them:
-   [together_at] tests the positions that it is given.
+   is made of, which are extracted and run by the validation of
+   middle_end/flambda2/tests/semantics/, and the statement. A round
+   of the first phase of the validation applies the pass to the term
+   before Simplify, after FlambdaUntagParamsSpec.untag_params
+   (FlambdaValidateSpec.normalise_expr_params_knowing). The positions
+   that the pass is run with ([together_positions]) are extracted and
+   run too, and nothing is believed of them: [together_at] tests the
+   positions that it is given.
 
    Simplify unboxes the parameters of a continuation
    (simplify/unboxing/): where the type of a parameter says that it

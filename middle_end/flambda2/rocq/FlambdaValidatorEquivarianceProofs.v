@@ -99,7 +99,8 @@ From OxCamlFlambda2 Require FlambdaNeverReturnsProofs
 From OxCamlFlambda2 Require Import FlambdaUnboxParamsSpec
   FlambdaUnboxVariantsSpec FlambdaUnboxInScopeSpec FlambdaUnboxInScopeProofs
   FlambdaUnboxInScopeRenameSpec FlambdaUnboxInScopeRenameProofs
-  FlambdaUnboxLoopsSpec.
+  FlambdaUnboxLoopsSpec FlambdaUnboxTogetherSpec.
+From OxCamlFlambda2 Require FlambdaUnboxTogetherNamesProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 From OxCamlFlambda2 Require FlambdaGuardScopeSpec.
 From OxCamlFlambda2Types Require FlambdaSimplifyCarriedSpec
@@ -5264,6 +5265,28 @@ Proof.
       | exact unbox_known_named_equivariant ].
 Qed.
 
+Lemma unbox_together_knowing_symbols_renamed :
+  equivariant_where_known unbox_together_knowing.
+Proof.
+  intros known Honly r e.
+  rewrite <- (symbols_only_renamed r known Honly) at 1.
+  apply FlambdaUnboxTogetherNamesProofs.unbox_together_knowing_renamed;
+    first
+      [ exact var_free_b_equivariant
+      | exact remove_unused_conts_equivariant
+      | exact forget_vars_equivariant
+      | exact known_under_let_equivariant
+      | exact known_under_statics_equivariant
+      | exact known_block_of_equivariant
+      | exact field_loaded_equivariant
+      | exact load_known_named_equivariant
+      | exact forget_wrapped_vars_equivariant
+      | exact numbers_under_let_equivariant
+      | exact numbers_under_statics_equivariant
+      | exact unwrapped_equivariant
+      | exact unbox_known_named_equivariant ].
+Qed.
+
 Lemma normalise_expr_params_knowing_equivariant :
   equivariant_where_known normalise_expr_params_knowing.
 Proof.
@@ -5271,6 +5294,8 @@ Proof.
   rename_outwards.
   rewrite (unbox_variants_knowing_symbols_renamed known Honly),
     (unbox_loops_knowing_symbols_renamed known Honly).
+  rename_outwards.
+  rewrite (unbox_together_knowing_symbols_renamed known Honly).
   rename_outwards. reflexivity.
 Qed.
 
