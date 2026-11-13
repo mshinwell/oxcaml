@@ -150,6 +150,9 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaFreshBindersSpec.v \
   FlambdaFreshQuantifierProofs.v \
   FlambdaFreshQuantifierSpec.v \
+  FlambdaGiveScrutineeNamesProofs.v \
+  FlambdaGiveScrutineeProofs.v \
+  FlambdaGiveScrutineeSpec.v \
   FlambdaGroupsUpProofs.v \
   FlambdaGroupsUpSpec.v \
   FlambdaGuardScopeProofs.v \
