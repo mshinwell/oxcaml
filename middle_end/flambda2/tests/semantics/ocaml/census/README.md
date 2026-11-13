@@ -219,11 +219,12 @@ time, user and system together. Until now it allowed 60 seconds of
 the clock, which measured what else the machine was running:
 `loops_scalar`, seed 55, which was without an answer in 60 seconds
 the day before, then took 16 seconds of processor time, then 4,
-then 7 with the tool of 87cdbf3e01, and takes 0.6 now, the most of
-the 240. The 240 took 12 seconds of processor time together in one
-run (8 user, 3 system), and 14 in a second run of the same tool,
-made while other builds ran on the machine (9 and 5). They took 73
-(69 and 4) with the tool of
+then 7 with the tool of 87cdbf3e01, and takes 0.7 now, the most of
+the 240. The 240 took 10.7 seconds of processor time together in
+one run (8.1 user, 2.6 system), and 10.4 in a second run of the
+same tool (7.9 and 2.5); with the tool of ea56783099 they took 12
+and 14, the second while other builds ran on the machine. They took
+73 (69 and 4) with the tool of
 87cdbf3e01, 51 (47 and 5) with the tool of ecb8c49042, and 204 the
 day before that (198 and 6). Of the tools built between ecb8c49042
 and 87cdbf3e01, one built before the rewrites from the types went
@@ -239,10 +240,11 @@ made, with the tool before it and the tool after: 79 seconds and 12
 for the 240, 30 and 16 for the 600, and no output of the 840
 differs between the two. What else came between the two tools was
 not measured for its cost on these units one change at a time. The
-600 took 14 seconds in the first of those two runs (7 user, 8
-system) and 20 in the second (8 and 12); they took 33 with the tool
-of 87cdbf3e01. Most of what the 600 take now is the system's part,
-which is the part that differs between the two runs. A tool that
+600 took 11.7 seconds in the first of those two runs (5.5 user, 6.3
+system) and 12.1 in the second (5.7 and 6.4); with the tool of
+ea56783099 they took 14 and 20, and 33 with the tool of 87cdbf3e01.
+More than half of what the 600 take now is the system's part. A
+tool that
 a signal other than that of the limit ends
 is reported as that, with its status, and counted as no answer.
 
@@ -250,8 +252,8 @@ is reported as that, with its status, and counted as no answer.
 |---------|-------|-----------|----------------------------|--------------------------------------|---------------|-------------|
 | `exceptions` | 60 | 33 | 27 | 0 | 0 | 0 |
 | `exceptions_scalar` | 60 | 35 | 23 | 0 | 2 | 0 |
-| `loops` | 60 | 49 | 0 | 0 | 9 | 2 |
-| `loops_scalar` | 60 | 44 | 0 | 0 | 16 | 0 |
+| `loops` | 60 | 50 | 0 | 0 | 8 | 2 |
+| `loops_scalar` | 60 | 45 | 0 | 0 | 15 | 0 |
 
 A unit that names a predefined exception has an import, and the
 tool runs it from its imports (`../README.md`, "What the verdicts
@@ -264,21 +266,29 @@ lifted, a verdict that holds from the imports where it passes a
 test (`FlambdaValidateImportsSpec.lifted_holds_from`, C5's;
 `../README.md`), which the 14 pass. With the tool of 87cdbf3e01,
 which had no such test, they were validated with nothing imported
-only; of the other 226 units the tool of this tree prints what
+only; of the other 226 units the tool of ea56783099 printed what
 that one printed, byte for byte. One of the two units with
 exceptions that are not validated has an import. The validator
-accepts 211 of the 240; 161 of them import nothing. Four are
+accepts 213 of the 240; 163 of them import nothing. Six are
 validated since it accepted 207,
 none lost: three by the liftings to a group of static bindings
 around (`FlambdaLiftAroundSpec.lift_around_unit`, V3's; `loops`,
-seeds 7, 17 and 27), and one by the removal of an unused parameter
+seeds 7, 17 and 27), one by the removal of an unused parameter
 of a continuation that a call returns to
-(`FlambdaWrapReturnsSpec.wrap_returns`, N3's; `loops`, seed 34). Of
-the two units that are not checked the tool prints other names of
-variables in the message that says what the model has not got, as
-the unit is built again with fresh names where the modes of the
-parameters of code are made unknown; of the other 234 it prints
-what it printed. It accepted 195 the day before the 207, and twelve
+(`FlambdaWrapReturnsSpec.wrap_returns`, N3's; `loops`, seed 34),
+and two by the placing that takes a continuation into the handler
+under it that alone names it (`FlambdaSinkUsesSpec.sink_to_use`,
+V4's; `loops`, seed 40, and `loops_scalar`, seed 17). When
+it accepted 211, with the first four of the six, the tool printed
+of the two units that are not checked other names of variables in
+the message that says what the model has not got, as the unit is
+built again with fresh names where the modes of the parameters of
+code are made unknown; of the other 234 it printed what it had
+printed when it accepted 207. Between the tool of ea56783099, which
+accepted 211, and the tool of this tree, the two units of V4's
+placing are the only ones of the 240 of which the tool prints
+anything else, and of each of the 600 it prints what it printed,
+byte for byte. It accepted 195 the day before the 207, and twelve
 units were validated between the two, none lost
 (`exceptions_scalar`, seed 16;
 `loops`, seeds 5, 15, 25, 35 and 37; `loops_scalar`, seeds 5, 9, 18,
@@ -334,7 +344,7 @@ terms, as the tool showed them, differed by the same kinds of line.
 The six units that were validated next are of the first kind, and
 the eleven others of the first kind were not read again. The third
 kind is what a call returning where its result is passed on removes;
-seven units are validated by it (above). 25 units with loops are not
+seven units are validated by it (above). 23 units with loops are not
 validated now; they were not sorted again.
 
 - A closure of no value slot that the term before makes by a `Let`
