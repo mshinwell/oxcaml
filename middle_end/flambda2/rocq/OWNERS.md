@@ -501,7 +501,9 @@ tool), delegated by the orchestrator, and:
 - `middle_end/flambda2/rocq/FlambdaNoArrayValue*` (what the immutable
   array as a value leaves as it was: the states that hold none stay
   so, and the relations of the heap and of the lifting relate, where
-  none is held, what they related)
+  none is held, what they related; and, in
+  `FlambdaNoArrayValueObservers*`, the laws of what may follow a unit
+  for the observers that make no array)
 - `middle_end/flambda2/rocq/status/P1.md`
 - `middle_end/flambda2/rocq/requests/P1-floats.md`,
   `requests/P1-c-calls.md`, `requests/P1-arrays.md`,

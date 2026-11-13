@@ -773,7 +773,14 @@ be proved correct, built a fragment at a time. The files follow the same Spec/Pr
   memories that hold none the two relations that came to relate arrays
   relate what they related. Statements of that kind are owed when a
   new form of value makes a relation of a landed statement relate
-  more pairs.
+  more pairs. A primitive more is also a term more that a handler may
+  be written with: a relation with a universal over such terms inside
+  (`FlambdaObserversSpec.worlds_observed`, `refines_under_observers`)
+  then asks more of what it relates, and a statement that has it in a
+  premise, or on both sides, is owed for a class of them
+  (`worlds_observed_by`, `refines_observed_by`) or for those that
+  there were. `FlambdaNoArrayValueObserversSpec.v` has those of the
+  primitive that makes an array.
 
 - A rewrite between expressions applies inside any term
   (`FlambdaContextSpec.v`: `plug_refines`, `plug_equivalent`). The proof
