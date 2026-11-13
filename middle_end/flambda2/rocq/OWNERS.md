@@ -694,9 +694,10 @@ Owner: N3, on `flambda2-rocq/N3-equivariance` for the validator and on
   equivalence, for both terms; and the lemmas for its laws of renaming
   and of scope, which are stated in the files above)
 - `middle_end/flambda2/rocq/FlambdaArmNumbers*` (the scrutinee of a
-  `Switch` is made the number of the arm in the arguments of the arm
-  and of the handler that only that arm applies, as Simplify has it
-  for a flag that a loop tests before it sets it: an equivalence, for
+  `Switch` is made the number of the arm where the arm, and the
+  handler that only that arm applies, read it, and the variable that
+  it is the untagging of the tagged number, as Simplify has them for
+  a flag that a loop tests before it sets it: an equivalence, for
   both terms; and the lemmas for its laws of renaming and of scope,
   which are stated in the files above)
 - `middle_end/flambda2/rocq/FlambdaCseEquivalent*` (the sharing of
