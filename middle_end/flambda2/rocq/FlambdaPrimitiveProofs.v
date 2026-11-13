@@ -1934,6 +1934,33 @@ Proof.
   - intros kind _. exact (proj2 (Hmade vs)).
 Qed.
 
+(* Of a primitive that makes no array, the law asks one direction only:
+   that the property holds of the elements of an array of which it
+   holds. So a property that holds of no array value at all, such as
+   to have none inside (FlambdaNoArrayValueSpec.no_array_value), is
+   kept by every other primitive, though it is not one that holds of
+   an array exactly when it holds of its elements. *)
+Lemma eval_prim_preserves_making_no_array (P : value -> Prop)
+    (statics : static_env) (p : prim) (vs : list value) (v : value) :
+  (∀ kind : array_kind, p <> Variadic (Make_immutable_array kind)) ->
+  holds_of_numbers P ->
+  holds_of_blocks P ->
+  (∀ elements : list value,
+    P (Value_immutable_array elements) ->
+    ∀ w : value, w ∈ elements -> P w) ->
+  holds_in_static_blocks statics P ->
+  holds_in_static_arrays statics P ->
+  (∀ arg : value, arg ∈ vs -> P arg) ->
+  eval_prim statics p vs = Some v ->
+  P v.
+Proof.
+  intros Hp Hnumbers Hblocks Helements.
+  apply
+    (eval_prim_preserves_directed P statics p vs v Hnumbers Hblocks
+       Helements).
+  intros kind Heq. destruct (Hp kind Heq).
+Qed.
+
 (* ======================================================================== *)
 (* The integers are those of rocq/                                          *)
 (* ======================================================================== *)

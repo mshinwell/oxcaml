@@ -498,10 +498,15 @@ tool), delegated by the orchestrator, and:
 - `middle_end/flambda2/rocq/FlambdaExtcall*` (what some C functions
   of the runtime compute, as a table that nothing uses; whoever owns
   calls of C functions once they have a meaning)
+- `middle_end/flambda2/rocq/FlambdaNoArrayValue*` (what the immutable
+  array as a value leaves as it was: the states that hold none stay
+  so, and the relations of the heap and of the lifting relate, where
+  none is held, what they related)
 - `middle_end/flambda2/rocq/status/P1.md`
 - `middle_end/flambda2/rocq/requests/P1-floats.md`,
-  `requests/P1-c-calls.md`, `requests/P1-arrays.md` and
-  `requests/P1-immutable-arrays.md`
+  `requests/P1-c-calls.md`, `requests/P1-arrays.md`,
+  `requests/P1-immutable-arrays.md` and
+  `requests/P1-immutable-array-values.md`
 - the section "Arrays" of `FlambdaPrimitiveSpec.v` and of its proofs
   (what the primitives of arrays compute on the elements of an
   array); the cases of arrays in `FlambdaHeapSpec.v` and
