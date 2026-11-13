@@ -1,0 +1,50 @@
+let $camlOver_inlined_maker_run__first_const_0 = Block 0 () in
+(let code size(4)
+       add_1 (x/57 : imm tagged)
+         my_closure/58 &my_alloc_region/59 my_depth/60
+         -> k/22 * k/23
+         : imm tagged =
+   let next_depth/61 = rec_info (succ my_depth/60) in
+   let n/62 = %project_value_slot.[add].[n] (my_closure/58) in
+   let int_add/63 = %int_barith.add (x/57, n/62) in
+   cont k/22 (int_add/63)
+ in
+ let code size(2)
+       `fn[over_inlined_maker_run.ml:15,10--18]_2` (param/64 : imm tagged)
+         my_closure/65 &my_alloc_region/66 my_depth/67
+         -> k/24 * k/25
+         : val =
+   let next_depth/68 = rec_info (succ my_depth/67) in
+   let add/69 =
+     %project_value_slot.[`fn[over_inlined_maker_run.ml:15,10--18]`].[add]
+       (my_closure/65)
+   in
+   cont k/24 (add/69)
+ in
+ let code inline(always) size(23)
+       make_0 (n/70 : imm tagged)
+         my_closure/71 &my_alloc_region/72 my_depth/73
+         -> k/26 * k/27
+         : val =
+   let next_depth/74 = rec_info (succ my_depth/73) in
+   let add/75 = closure add_1 @add &my_alloc_region/72 with { n = n/70 } in
+   let `fn[over_inlined_maker_run.ml:15,10--18]/76` =
+     closure `fn[over_inlined_maker_run.ml:15,10--18]_2`
+       @`fn[over_inlined_maker_run.ml:15,10--18]` &my_alloc_region/72
+   with { add = add/75 }
+   in
+   cont k/26 (`fn[over_inlined_maker_run.ml:15,10--18]/76`)
+ in
+ let make/77 = closure make_0 @make &toplevel in
+ (let Popaque/80 = %opaque (3) in
+  apply direct(make_0 &toplevel) make/77 (Popaque/80) -> k/29 * error
+    where k/29 (func/81) =
+      apply &toplevel func/81 (0, 4) -> k/28 * error)
+   where k/28 (result/78 : imm tagged) =
+     let Pmakeblock/79 = %block.[`0`].`toplevel` (result/78) in
+     cont k/21 (Pmakeblock/79))
+  where k/21 define_root_symbol (module_block/55) =
+    let field_0/56 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/55)
+    in
+    let $camlOver_inlined_maker_run = Block 0 (field_0/56) in
+    cont done ($camlOver_inlined_maker_run)
