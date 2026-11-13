@@ -3,6 +3,7 @@ open BinNums
 open BinPos
 open Datatypes
 open FlambdaKindModel
+open FlambdaMapSpec
 open FlambdaMergeSwitchesSpec
 open FlambdaModel
 open FlambdaNormaliseSpec
@@ -201,10 +202,227 @@ let merge_switch_by_table tables scrutinee arms =
           else None)))
   | _ -> None
 
-(** val merge_switch_with_tables : known_tables -> simple -> (coq_Z *
-    apply_cont) list -> expr **)
+type table_way =
+  | Without_table of argument_way
+  | From_table of symbol * simple list * bool
 
-let merge_switch_with_tables tables scrutinee arms =
+(** val is_from_table : table_way -> bool **)
+
+let is_from_table = function
+  | Without_table _ -> false
+  | From_table (_, _, _) -> true
+
+(** val argument_by_table_way : coq_Z -> coq_Z -> coq_Z -> table_way -> simple
+    option **)
+
+let argument_by_table_way first offset i = function
+  | Without_table way0 -> argument_in_arm i way0
+  | From_table (_, elements, immediates) -> (
+    match table_element first offset elements i with
+    | Some element ->
+      if element_taken immediates element then Some element else None
+    | None -> None)
+
+(** val arguments_by_table_ways : coq_Z -> coq_Z -> coq_Z -> table_way list ->
+    simple list option **)
+
+let rec arguments_by_table_ways first offset i = function
+  | [] -> Some []
+  | way :: ways0 -> (
+    match argument_by_table_way first offset i way with
+    | Some s -> (
+      match arguments_by_table_ways first offset i ways0 with
+      | Some args -> Some (s :: args)
+      | None -> None)
+    | None -> None)
+
+(** val arm_has_table_ways : continuation -> coq_Z -> coq_Z -> table_way list ->
+    (coq_Z * apply_cont) -> bool **)
+
+let arm_has_table_ways k first offset ways arm =
+  match arguments_by_table_ways first offset (fst arm) ways with
+  | Some args ->
+    if
+      apply_cont_eq_dec (snd arm)
+        { ac_continuation = k; ac_args = args; ac_trap_action = None }
+    then true
+    else false
+  | None -> false
+
+(** val table_has_column : coq_Z -> coq_Z -> (coq_Z * simple) list -> (symbol *
+    simple list) -> bool **)
+
+let table_has_column first offset column table =
+  Nat.eqb (length (snd table)) (length column)
+  &&
+  let immediates = all_immediates (snd table) in
+  forallb
+    (fun entry ->
+      match table_element first offset (snd table) (fst entry) with
+      | Some element ->
+        element_taken immediates element
+        && if simple_eq_dec (snd entry) element then true else false
+      | None -> false)
+    column
+
+(** val table_way_of_column : known_tables -> coq_Z -> coq_Z -> (coq_Z * simple)
+    list -> table_way option **)
+
+let table_way_of_column tables first offset column =
+  match way_of_column column with
+  | Some way -> Some (Without_table way)
+  | None -> (
+    match find (table_has_column first offset column) tables with
+    | Some p ->
+      let s, elements = p in
+      Some (From_table (s, elements, all_immediates elements))
+    | None -> None)
+
+(** val table_ways_of_arguments : known_tables -> coq_Z -> coq_Z -> nat ->
+    (coq_Z * simple list) list -> table_way list option **)
+
+let rec table_ways_of_arguments tables first offset count rows =
+  match count with
+  | O -> Some []
+  | S count0 -> (
+    match column_of_arms rows with
+    | Some column -> (
+      match table_way_of_column tables first offset column with
+      | Some way -> (
+        match
+          table_ways_of_arguments tables first offset count0 (rest_of_arms rows)
+        with
+        | Some ways -> Some (way :: ways)
+        | None -> None)
+      | None -> None)
+    | None -> None)
+
+(** val bind_table_load_to : variable -> variable -> symbol -> coq_Z -> coq_Z ->
+    bool -> expr -> expr **)
+
+let bind_table_load_to v x s first offset immediates body =
+  bind_tagged_to v x
+    (bind_table_offset x first offset
+       (Let
+          ( x,
+            Value,
+            Prim
+              ( Binary
+                  (Array_load
+                     ( table_array_kind immediates,
+                       table_load_kind immediates,
+                       Immutable )),
+                [Symbol s; Var x] ),
+            body )))
+
+(** val bind_table_way : coq_Z -> coq_Z -> variable -> variable -> table_way ->
+    expr -> expr **)
+
+let bind_table_way first offset v x way body =
+  match way with
+  | Without_table way0 -> (
+    match way0 with
+    | Same_in_every_arm _ -> body
+    | Computed how -> bind_way how v x body)
+  | From_table (s, _, immediates) ->
+    bind_table_load_to v x s first offset immediates body
+
+(** val bind_table_ways : coq_Z -> coq_Z -> variable -> variable list ->
+    table_way list -> expr -> expr **)
+
+let rec bind_table_ways first offset v names ways body =
+  match names with
+  | [] -> body
+  | x :: names0 -> (
+    match ways with
+    | [] -> body
+    | way :: ways0 ->
+      bind_table_way first offset v x way
+        (bind_table_ways first offset v names0 ways0 body))
+
+(** val merged_by_table_way : variable -> variable -> table_way -> simple **)
+
+let merged_by_table_way v x = function
+  | Without_table way0 -> (
+    match way0 with
+    | Same_in_every_arm s -> s
+    | Computed how -> ( match how with As_it_is -> Var v | _ -> Var x))
+  | From_table (_, _, _) -> Var x
+
+(** val merged_by_table_ways : variable -> variable list -> table_way list ->
+    simple list **)
+
+let rec merged_by_table_ways v names ways =
+  match names with
+  | [] -> []
+  | x :: names0 -> (
+    match ways with
+    | [] -> []
+    | way :: ways0 ->
+      merged_by_table_way v x way :: merged_by_table_ways v names0 ways0)
+
+(** val table_names_usable : variable -> variable list -> table_way list -> bool
+    **)
+
+let table_names_usable v names ways =
+  ((Nat.eqb (length names) (length ways) && distinct names)
+  && negb (among v names))
+  && forallb
+       (fun way ->
+         match way with
+         | Without_table way0 -> (
+           match way0 with
+           | Same_in_every_arm s ->
+             negb (existsb (fun x -> var_in_simple x s) names)
+           | Computed _ -> true)
+         | From_table (_, _, _) -> true)
+       ways
+
+(** val merge_switch_by_table_ways : known_continuations -> known_tables ->
+    simple -> (coq_Z * apply_cont) list -> expr option **)
+
+let merge_switch_by_table_ways known tables scrutinee arms =
+  match scrutinee with
+  | Var v -> (
+    match arms with
+    | [] -> None
+    | p :: l -> (
+      let first, ac = p in
+      match l with
+      | [] -> None
+      | _ :: l0 -> (
+        match l0 with
+        | [] -> None
+        | _ :: _ -> (
+          let k = ac.ac_continuation in
+          match lookup k known with
+          | Some names -> (
+            let offset = table_offset first in
+            match
+              table_ways_of_arguments tables first offset (length ac.ac_args)
+                (map (fun arm -> fst arm, (snd arm).ac_args) arms)
+            with
+            | Some ways ->
+              if
+                (existsb is_from_table ways && table_names_usable v names ways)
+                && forallb (arm_has_table_ways k first offset ways) arms
+              then
+                Some
+                  (bind_table_ways first offset v names ways
+                     (Apply_cont
+                        { ac_continuation = k;
+                          ac_args = merged_by_table_ways v names ways;
+                          ac_trap_action = None
+                        }))
+              else None
+            | None -> None)
+          | None -> None))))
+  | _ -> None
+
+(** val merge_switch_with_tables : known_continuations -> known_tables -> simple
+    -> (coq_Z * apply_cont) list -> expr **)
+
+let merge_switch_with_tables known tables scrutinee arms =
   match tables with
   | [] -> Switch (scrutinee, arms)
   | _ :: _ -> (
@@ -213,37 +431,57 @@ let merge_switch_with_tables tables scrutinee arms =
       match merge_switch scrutinee arms with
       | Switch (_, _) -> merged
       | _ -> Switch (scrutinee, arms))
-    | None -> Switch (scrutinee, arms))
+    | None -> (
+      match merge_switch_by_table_ways known tables scrutinee arms with
+      | Some merged -> merged
+      | None -> Switch (scrutinee, arms)))
 
-(** val merge_tables_knowing : known_tables -> expr -> expr **)
+(** val merge_tables_under : known_continuations -> known_tables -> expr -> expr
+    **)
 
-let rec merge_tables_knowing tables e =
+let rec merge_tables_under known tables e =
   match e with
-  | Let (x, kind, d, body) -> Let (x, kind, d, merge_tables_knowing tables body)
+  | Let (x, kind, d, body) ->
+    Let (x, kind, d, merge_tables_under known tables body)
   | Let_static (bindings, body) ->
     Let_static
       ( bindings,
-        merge_tables_knowing (tables_under_statics tables bindings) body )
+        merge_tables_under known (tables_under_statics tables bindings) body )
   | Let_cont_non_recursive (k, h, body) ->
     Let_cont_non_recursive
-      (k, merge_tables_in_handler tables h, merge_tables_knowing tables body)
+      ( k,
+        merge_tables_in_handler known tables h,
+        merge_tables_under ((k, parameters_of_handler h) :: known) tables body
+      )
   | Let_cont_recursive (handlers, body) ->
+    let known0 =
+      app
+        (map
+           (fun entry -> fst entry, parameters_of_handler (snd entry))
+           handlers)
+        known
+    in
     Let_cont_recursive
       ( map
           (fun pat ->
             let k, h = pat in
-            k, merge_tables_in_handler tables h)
+            k, merge_tables_in_handler known0 tables h)
           handlers,
-        merge_tables_knowing tables body )
-  | Switch (scrutinee, arms) -> merge_switch_with_tables tables scrutinee arms
+        merge_tables_under known0 tables body )
+  | Switch (scrutinee, arms) ->
+    merge_switch_with_tables known tables scrutinee arms
   | _ -> e
 
-(** val merge_tables_in_handler : known_tables -> continuation_handler ->
-    continuation_handler **)
+(** val merge_tables_in_handler : known_continuations -> known_tables ->
+    continuation_handler -> continuation_handler **)
 
-and merge_tables_in_handler tables = function
+and merge_tables_in_handler known tables = function
   | Handler (params, metadata, handler) ->
-    Handler (params, metadata, merge_tables_knowing tables handler)
+    Handler (params, metadata, merge_tables_under known tables handler)
+
+(** val merge_tables_knowing : known_tables -> expr -> expr **)
+
+let merge_tables_knowing tables e = merge_tables_under [] tables e
 
 (** val merge_tables_in_code : known_tables -> expr -> expr **)
 

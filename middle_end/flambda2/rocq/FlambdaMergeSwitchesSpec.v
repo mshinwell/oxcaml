@@ -89,9 +89,8 @@
    its position ([merge_switch_by_arguments]). The arms an argument
    of which Simplify loads from a table of the constants of the arms
    ([Lookup_table_argument]) are not merged here: that is
-   FlambdaMergeTablesSpec.merge_tables, for a [Switch] that one
-   table in scope serves. A table is not one of the ways for an
-   argument.
+   FlambdaMergeTablesSpec.merge_tables, where a table is one more way
+   for an argument.
 
    How it decides ([merge_switch]). The scrutinee must be a variable
    and there must be two arms or more. The application that the

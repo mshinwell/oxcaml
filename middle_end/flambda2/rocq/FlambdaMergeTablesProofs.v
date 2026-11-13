@@ -34,10 +34,16 @@
    with an element of the table in place of the variable; the merged
    term binds the variable to the value of that element in the steps
    of its [Let]s, the last of which is the load, and then the two
-   apply the same continuation to the same values. The load has that
-   value because the table is bound to the values of its elements
-   ([tables_bound]), which a group of static bindings that has a value
-   makes true of its own tables and keeps true of the others
+   apply the same continuation to the same values. With a way for
+   each argument it goes as
+   FlambdaMergeSwitchesProofs.merge_switch_by_arguments_refines: the
+   [Let]s of a way leave its name bound to the value that the
+   argument has in the arm, those of a table by the same steps as
+   above, and the names bound after it change no argument that is
+   the same in every arm. The load has that value because the table
+   is bound to the values of its elements ([tables_bound]), which a
+   group of static bindings that has a value makes true of its own
+   tables and keeps true of the others
    ([tables_under_statics_bound]). Down a term and in the bodies of
    code, the recursion is that of
    FlambdaUnboxInScopeProofs.rewrite_code_in_scope_refines_aux, with
@@ -386,42 +392,6 @@ Proof.
   cbv zeta. destruct (var_in_simples v _); reflexivity.
 Qed.
 
-(* The test for no table at all changes nothing of the answer. *)
-Lemma merge_switch_with_tables_unfold (tables : known_tables)
-    (scrutinee : simple) (arms : list (Z * apply_cont)) :
-  merge_switch_with_tables tables scrutinee arms
-  = match merge_switch_by_table tables scrutinee arms with
-    | Some merged =>
-      match merge_switch scrutinee arms with
-      | Switch _ _ => merged
-      | Let _ _ _ _ | Let_static _ _ | Let_cont_non_recursive _ _ _
-      | Let_cont_recursive _ _ | Apply _ | Apply_cont _ | Invalid =>
-        Switch scrutinee arms
-      end
-    | None => Switch scrutinee arms
-    end.
-Proof.
-  unfold merge_switch_with_tables.
-  destruct tables as [ | table tables]; [ | reflexivity ].
-  rewrite merge_switch_by_table_nil. reflexivity.
-Qed.
-
-Lemma merge_switch_with_tables_refines (tables : known_tables)
-    (scrutinee : simple) (arms : list (Z * apply_cont)) (vars : env)
-    (conts : cont_env) (statics : static_env) (hp : heap) :
-  tables_bound tables statics ->
-  refines (State (Switch scrutinee arms) vars conts statics hp)
-    (State (merge_switch_with_tables tables scrutinee arms) vars conts
-       statics hp).
-Proof.
-  intros Hbound. rewrite merge_switch_with_tables_unfold.
-  destruct (merge_switch_by_table tables scrutinee arms) as [merged | ]
-    eqn:Hmerged; [ | apply refines_refl ].
-  destruct (merge_switch scrutinee arms); try apply refines_refl.
-  exact (merge_switch_by_table_refines tables scrutinee arms merged vars conts
-    statics hp Hbound Hmerged).
-Qed.
-
 (* ======================================================================== *)
 (* The tables are bound                                                     *)
 (* ======================================================================== *)
@@ -506,6 +476,519 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
+(* A way for each argument                                                  *)
+(* ======================================================================== *)
+
+(* An element that has a value with no variable has it under any. *)
+Lemma eval_closed_element (vars : env) (element : simple) (w : value) :
+  eval_simple [] element = Some w -> eval_simple vars element = Some w.
+Proof. destruct element as [x | sym | c]; [ discriminate | | ]; exact id. Qed.
+
+(* The tables of the ways are bound, and each is kept with whether
+   its elements are all immediates. *)
+Definition ways_bound (ways : list table_way) (statics : static_env) : Prop :=
+  ∀ (s : symbol) (elements : list simple) (immediates : bool),
+    From_table s elements immediates ∈ ways ->
+    immediates = all_immediates elements
+    ∧ ∃ vs : list value,
+        eval_simples [] elements = Some vs
+        ∧ lookup s (static_values statics) = Some (Static_immutable_array vs).
+
+Lemma table_ways_of_arguments_bound (tables : known_tables)
+    (first offset : Z) (statics : static_env) :
+  tables_bound tables statics ->
+  ∀ (count : nat) (rows : list (Z * list simple)) (ways : list table_way),
+    table_ways_of_arguments tables first offset count rows = Some ways ->
+    ways_bound ways statics.
+Proof.
+  intros Hbound.
+  induction count as [ | count IH]; intros rows ways Hways;
+    cbn [table_ways_of_arguments] in Hways.
+  - injection Hways as <-. intros s elements immediates [].
+  - destruct (column_of_arms rows) as [column | ]; [ | discriminate ].
+    cbn beta iota in Hways.
+    destruct (table_way_of_column tables first offset column) as [way | ]
+      eqn:Hway; [ | discriminate ].
+    cbn beta iota in Hways.
+    destruct
+      (table_ways_of_arguments tables first offset count (rest_of_arms rows))
+      as [ways0 | ] eqn:Hways0; [ | discriminate ].
+    injection Hways as <-.
+    intros s elements immediates [Hin | Hin];
+      [ | exact (IH _ _ Hways0 s elements immediates Hin) ].
+    subst way. unfold table_way_of_column in Hway.
+    destruct (way_of_column column); [ discriminate | ].
+    destruct (find _ tables) as [[s0 elements0] | ] eqn:Hfind;
+      [ | discriminate ].
+    injection Hway as -> -> <-.
+    apply find_some in Hfind as [Hin _].
+    split; [ reflexivity | exact (Hbound s elements Hin) ].
+Qed.
+
+(* The [Let]s of a load bind the variable to the element of the table
+   for the arm, and leave the other variables as they are. *)
+Lemma bind_table_load_to_equivalent (v x : variable) (s : symbol)
+    (first offset i : Z) (elements : list simple) (vs : list value)
+    (element : simple) (body : expr) (vars : env) (conts : cont_env)
+    (statics : static_env) (hp : heap) :
+  lookup v vars = Some (Value_const (Naked_immediate i)) ->
+  table_element first offset elements i = Some element ->
+  element_taken (all_immediates elements) element = true ->
+  eval_simples [] elements = Some vs ->
+  lookup s (static_values statics) = Some (Static_immutable_array vs) ->
+  ∃ (w : value) (vars' : env),
+    eval_simple [] element = Some w
+    ∧ (∀ y : variable, y <> x -> lookup y vars' = lookup y vars)
+    ∧ lookup x vars' = Some w
+    ∧ equivalent
+        (State
+           (bind_table_load_to v x s first offset (all_immediates elements)
+              body)
+           vars conts statics hp)
+        (State body vars' conts statics hp).
+Proof.
+  intros Hv Helement Htaken Hvs Hs.
+  pose proof Helement as Hnth_element. unfold table_element in Hnth_element.
+  destruct (table_index first offset i) as [index | ] eqn:Hindex;
+    [ | discriminate ].
+  cbn beta iota in Hnth_element.
+  destruct ((0 <=? index) && (index <? Z.of_nat (length elements)))
+    eqn:Hbounds; [ | discriminate ].
+  apply andb_prop in Hbounds as [Hlow Hhigh].
+  apply Z.leb_le in Hlow. apply Z.ltb_lt in Hhigh.
+  destruct (eval_simples_nth elements vs _ element Hvs Hnth_element)
+    as (w & Hw & Hnth).
+  pose proof
+    (element_taken_ok elements element w (nth_error_In _ _ Hnth_element) Hw
+       Htaken)
+    as Hok.
+  assert (Hrange : in_range (int_width Standard_naked_immediate) i = true).
+  { unfold table_index in Hindex. cbv zeta in Hindex.
+    destruct (in_range (int_width Standard_naked_immediate) i);
+      [ reflexivity | discriminate ]. }
+  unfold bind_table_load_to.
+  destruct
+    (bind_table_offset_equivalent x first offset i index
+       (Let x Value
+          (Prim
+             (Binary
+                (Array_load (table_array_kind (all_immediates elements))
+                   (table_load_kind (all_immediates elements)) Immutable))
+             [Symbol s; Var x])
+          body)
+       ((x, Value_const (Tagged_immediate i)) :: vars) conts statics hp)
+    as (vars1 & Hx1 & Hagree1 & Hindex_range & Hequiv1);
+    [ simpl; rewrite Pos.eqb_refl; reflexivity | exact Hindex | ].
+  exists w, ((x, w) :: vars1).
+  split; [ exact Hw | split; [ | split ] ].
+  - intros y Hne.
+    rewrite (lookup_other_variable y x _ _ Hne), (Hagree1 y Hne).
+    apply lookup_other_variable, Hne.
+  - simpl. rewrite Pos.eqb_refl. reflexivity.
+  - eapply equivalent_trans;
+      [ apply step_equivalent, (step_bind_tagged_to v x i);
+        [ exact Hv | exact Hrange ]
+      | ].
+    eapply equivalent_trans; [ exact Hequiv1 | ].
+    apply step_equivalent. rewrite step_let.
+    cbn [eval_named eval_simples eval_simple]. rewrite Hx1.
+    cbn beta iota.
+    rewrite
+      (array_load_of_static statics s vs _ _ Immutable
+         (Value_const (Tagged_immediate index)) w index Hs);
+      [ rewrite (array_element_ok_value _ w Hok); reflexivity
+      | cbn [int_of_value]; rewrite Hindex_range; reflexivity
+      | rewrite (eval_simples_length [] elements vs Hvs); lia
+      | exact Hnth | exact Hok ].
+Qed.
+
+(* The arguments that are the same in every arm mention none of the
+   variables of a list: the test of [table_names_usable]. *)
+Definition table_same_avoid (avoid : list variable) (ways : list table_way)
+    : bool :=
+  forallb
+    (fun way =>
+       match way with
+       | Without_table (Same_in_every_arm s) =>
+         negb (existsb (fun x => var_in_simple x s) avoid)
+       | Without_table (Computed _) | From_table _ _ _ => true
+       end)
+    ways.
+
+(* So the arguments of an arm have the same values in two
+   environments that differ on those variables only. *)
+Lemma arguments_by_table_ways_eval (first offset i : Z)
+    (avoid : list variable) (statics : static_env) (vars vars' : env)
+    (ways : list table_way) :
+  ways_bound ways statics ->
+  ∀ args : list simple,
+    arguments_by_table_ways first offset i ways = Some args ->
+    table_same_avoid avoid ways = true ->
+    (∀ y : variable, among y avoid = false -> lookup y vars' = lookup y vars) ->
+    eval_simples vars' args = eval_simples vars args.
+Proof.
+  induction ways as [ | way ways IH]; intros Hbound args Hargs Hsame Hagree;
+    cbn [arguments_by_table_ways] in Hargs.
+  - injection Hargs as <-. reflexivity.
+  - destruct (argument_by_table_way first offset i way) as [s | ] eqn:Hs;
+      [ | discriminate ].
+    cbn beta iota in Hargs.
+    destruct (arguments_by_table_ways first offset i ways) as [args0 | ];
+      [ | discriminate ].
+    injection Hargs as <-.
+    unfold table_same_avoid in Hsame. cbn [forallb] in Hsame.
+    apply andb_prop in Hsame as [Hway Hsame].
+    cbn [eval_simples].
+    rewrite
+      (IH
+         (fun s0 elements immediates Hin =>
+            Hbound s0 elements immediates (or_intror Hin))
+         args0 eq_refl Hsame Hagree).
+    replace (eval_simple vars' s) with (eval_simple vars s); [ reflexivity | ].
+    destruct way as [[s0 | how] | s0 elements immediates];
+      cbn [argument_by_table_way argument_in_arm] in Hs.
+    + injection Hs as <-. symmetry.
+      apply (eval_simple_avoiding avoid); [ | exact Hagree ].
+      apply negb_true_iff, Hway.
+    + destruct (constant_of_arm how i); [ | discriminate ].
+      injection Hs as <-. reflexivity.
+    + destruct (table_element first offset elements i) as [element | ]
+        eqn:Helement; [ | discriminate ].
+      cbn beta iota in Hs.
+      destruct (element_taken _ element); [ | discriminate ].
+      injection Hs as <-.
+      destruct (Hbound s0 elements immediates (or_introl eq_refl))
+        as (_ & vs & Hvs & _).
+      unfold table_element in Helement.
+      destruct (table_index first offset i); [ | discriminate ].
+      cbn beta iota in Helement.
+      destruct (_ && _); [ | discriminate ].
+      destruct (eval_simples_nth elements vs _ element Hvs Helement)
+        as (w & Hw & _).
+      rewrite (eval_closed_element vars element w Hw),
+        (eval_closed_element vars' element w Hw).
+      reflexivity.
+Qed.
+
+(* The [Let]s for the arguments leave an environment in which the
+   merged arguments have the values of the arguments of the arm. *)
+Lemma bind_table_ways_equivalent (first offset : Z) (v : variable) (i : Z)
+    (avoid : list variable) (body : expr) (conts : cont_env)
+    (statics : static_env) (hp : heap) (names : list variable) :
+  ∀ (ways : list table_way) (args : list simple) (vars : env),
+    ways_bound ways statics ->
+    lookup v vars = Some (Value_const (Naked_immediate i)) ->
+    length names = length ways ->
+    distinct names = true ->
+    among v names = false ->
+    (∀ x : variable, among x names = true -> among x avoid = true) ->
+    table_same_avoid avoid ways = true ->
+    arguments_by_table_ways first offset i ways = Some args ->
+    ∃ vars' : env,
+      (∀ y : variable, among y names = false -> lookup y vars' = lookup y vars)
+      ∧ equivalent
+          (State (bind_table_ways first offset v names ways body) vars conts
+             statics hp)
+          (State body vars' conts statics hp)
+      ∧ eval_simples vars' (merged_by_table_ways v names ways)
+        = eval_simples vars args.
+Proof.
+  induction names as [ | x names IH];
+    intros [ | way ways] args vars Hbound Hv Hlength Hdistinct Hvnames Havoid
+      Hsame Hargs;
+    try discriminate.
+  - injection Hargs as <-. exists vars.
+    split; [ reflexivity | split; [ apply equivalent_refl | reflexivity ] ].
+  - injection Hlength as Hlength.
+    cbn [distinct] in Hdistinct.
+    apply andb_prop in Hdistinct as [Hxnames Hdistinct].
+    apply negb_true_iff in Hxnames.
+    unfold among in Hvnames. cbn [existsb] in Hvnames.
+    apply orb_false_elim in Hvnames as [Hvx Hvnames].
+    apply Pos.eqb_neq in Hvx.
+    assert (Hxavoid : among x avoid = true).
+    { apply Havoid. unfold among. cbn [existsb]. rewrite Pos.eqb_refl.
+      reflexivity. }
+    assert
+      (Havoid' :
+        ∀ y : variable, among y names = true -> among y avoid = true).
+    { intros y Hy. apply Havoid. unfold among in *. cbn [existsb].
+      rewrite Hy. apply orb_true_r. }
+    assert
+      (Hoff :
+        ∀ (vars1 vars2 : env),
+          (∀ y : variable,
+             among y names = false -> lookup y vars2 = lookup y vars1) ->
+          ∀ y : variable,
+            among y avoid = false -> lookup y vars2 = lookup y vars1).
+    { intros vars1 vars2 Hagree y Hy. apply Hagree.
+      destruct (among y names) eqn:Hin; [ | reflexivity ].
+      rewrite (Havoid' y Hin) in Hy. discriminate. }
+    assert (Hbound' : ways_bound ways statics).
+    { intros s elements immediates Hin. apply Hbound. right. exact Hin. }
+    pose proof Hsame as Hsame'.
+    unfold table_same_avoid in Hsame'. cbn [forallb] in Hsame'.
+    apply andb_prop in Hsame' as [Hway Hrest].
+    cbn [arguments_by_table_ways] in Hargs.
+    destruct (argument_by_table_way first offset i way) as [s0 | ] eqn:Hs0;
+      [ | discriminate ].
+    cbn beta iota in Hargs.
+    destruct (arguments_by_table_ways first offset i ways) as [args0 | ]
+      eqn:Hargs0; [ | discriminate ].
+    injection Hargs as <-.
+    destruct way as [[s | how] | s elements immediates];
+      cbn [argument_by_table_way argument_in_arm] in Hs0.
+    + injection Hs0 as <-.
+      destruct
+        (IH ways args0 vars Hbound' Hv Hlength Hdistinct Hvnames Havoid' Hrest
+           Hargs0)
+        as (vars' & Hagree & Hequiv & Heval).
+      exists vars'. split.
+      { intros y Hy. apply Hagree. unfold among in *. cbn [existsb] in Hy.
+        apply orb_false_elim in Hy as [_ Hy]. exact Hy. }
+      split; [ exact Hequiv | ].
+      cbn [merged_by_table_ways merged_by_table_way eval_simples].
+      rewrite Heval.
+      rewrite (eval_simple_avoiding avoid s vars vars');
+        [ reflexivity | apply negb_true_iff, Hway
+        | exact (Hoff vars vars' Hagree) ].
+    + destruct (constant_of_arm how i) as [c | ] eqn:Hc; [ | discriminate ].
+      injection Hs0 as <-.
+      destruct
+        (bind_way_equivalent how v x i c
+           (bind_table_ways first offset v names ways body) vars conts statics
+           hp Hv Hc)
+        as (vars1 & Hagree1 & Hx1 & Hequiv1).
+      assert (Hv1 : lookup v vars1 = Some (Value_const (Naked_immediate i))).
+      { rewrite (Hagree1 v Hvx). exact Hv. }
+      destruct
+        (IH ways args0 vars1 Hbound' Hv1 Hlength Hdistinct Hvnames Havoid'
+           Hrest Hargs0)
+        as (vars' & Hagree & Hequiv & Heval).
+      exists vars'. split.
+      { intros y Hy. unfold among in Hy. cbn [existsb] in Hy.
+        apply orb_false_elim in Hy as [Hyx Hy].
+        rewrite (Hagree y Hy). apply Hagree1, Pos.eqb_neq, Hyx. }
+      split; [ exact (equivalent_trans _ _ _ Hequiv1 Hequiv) | ].
+      cbn [bind_table_ways bind_table_way merged_by_table_ways eval_simples].
+      rewrite Heval.
+      rewrite
+        (arguments_by_table_ways_eval first offset i avoid statics vars vars1
+           ways Hbound' args0 Hargs0 Hrest).
+      2: { intros y Hy. apply Hagree1. intros ->.
+           rewrite Hxavoid in Hy. discriminate. }
+      replace
+        (eval_simple vars'
+           (merged_by_table_way v x (Without_table (Computed how))))
+        with (Some (Value_const c)); [ reflexivity | ].
+      symmetry.
+      destruct how as [ | | | kind offset' slope];
+        cbn [merged_by_table_way eval_simple].
+      * rewrite (Hagree x Hxnames). exact (Hx1 eq_refl).
+      * rewrite (Hagree x Hxnames). exact (Hx1 eq_refl).
+      * rewrite (Hagree v Hvnames), Hv1. cbn [constant_of_arm] in Hc.
+        injection Hc as <-. reflexivity.
+      * rewrite (Hagree x Hxnames). exact (Hx1 eq_refl).
+    + destruct (Hbound s elements immediates (or_introl eq_refl))
+        as (-> & vs & Hvs & Hs).
+      destruct (table_element first offset elements i) as [element | ]
+        eqn:Helement; [ | discriminate ].
+      cbn beta iota in Hs0.
+      destruct (element_taken (all_immediates elements) element) eqn:Htaken;
+        [ | discriminate ].
+      injection Hs0 as <-.
+      destruct
+        (bind_table_load_to_equivalent v x s first offset i elements vs
+           element (bind_table_ways first offset v names ways body) vars conts
+           statics hp Hv Helement Htaken Hvs Hs)
+        as (w & vars1 & Hw & Hagree1 & Hx1 & Hequiv1).
+      assert (Hv1 : lookup v vars1 = Some (Value_const (Naked_immediate i))).
+      { rewrite (Hagree1 v Hvx). exact Hv. }
+      destruct
+        (IH ways args0 vars1 Hbound' Hv1 Hlength Hdistinct Hvnames Havoid'
+           Hrest Hargs0)
+        as (vars' & Hagree & Hequiv & Heval).
+      exists vars'. split.
+      { intros y Hy. unfold among in Hy. cbn [existsb] in Hy.
+        apply orb_false_elim in Hy as [Hyx Hy].
+        rewrite (Hagree y Hy). apply Hagree1, Pos.eqb_neq, Hyx. }
+      split; [ exact (equivalent_trans _ _ _ Hequiv1 Hequiv) | ].
+      cbn [bind_table_ways bind_table_way merged_by_table_ways
+        merged_by_table_way eval_simples eval_simple].
+      rewrite Heval.
+      rewrite
+        (arguments_by_table_ways_eval first offset i avoid statics vars vars1
+           ways Hbound' args0 Hargs0 Hrest).
+      2: { intros y Hy. apply Hagree1. intros ->.
+           rewrite Hxavoid in Hy. discriminate. }
+      rewrite (Hagree x Hxnames), Hx1,
+        (eval_closed_element vars element w Hw).
+      reflexivity.
+Qed.
+
+(* The arm that a [Switch] goes to is one that the test has looked at. *)
+Lemma arm_has_table_ways_found (k : continuation) (first offset : Z)
+    (ways : list table_way) (arms : list (Z * apply_cont)) (i : Z)
+    (ac : apply_cont) :
+  forallb (arm_has_table_ways k first offset ways) arms = true ->
+  find_arm i arms = Some ac ->
+  ∃ args : list simple,
+    arguments_by_table_ways first offset i ways = Some args
+    ∧ ac = Apply_cont_expr k args None.
+Proof.
+  intros Hall Hfind. apply find_arm_in in Hfind.
+  rewrite forallb_forall in Hall. specialize (Hall (i, ac) Hfind).
+  unfold arm_has_table_ways in Hall. simpl in Hall.
+  destruct (arguments_by_table_ways first offset i ways) as [args | ];
+    [ | discriminate ].
+  exists args. split; [ reflexivity | ].
+  destruct (apply_cont_eq_dec ac _) as [Heq | ]; [ exact Heq | discriminate ].
+Qed.
+
+Lemma merge_switch_by_table_ways_refines (known : known_continuations)
+    (tables : known_tables) (scrutinee : simple)
+    (arms : list (Z * apply_cont)) (merged : expr) (vars : env)
+    (conts : cont_env) (statics : static_env) (hp : heap) :
+  tables_bound tables statics ->
+  merge_switch_by_table_ways known tables scrutinee arms = Some merged ->
+  refines (State (Switch scrutinee arms) vars conts statics hp)
+    (State merged vars conts statics hp).
+Proof.
+  intros Hbound. unfold merge_switch_by_table_ways.
+  destruct scrutinee as [v | sym | c]; try discriminate.
+  destruct arms as [ | [first ac0] [ | arm1 [ | arm2 others]]];
+    try discriminate.
+  cbv zeta.
+  destruct (lookup (ac_continuation ac0) known) as [names | ];
+    [ | discriminate ].
+  cbn beta iota.
+  destruct (table_ways_of_arguments _ _ _ _ _) as [ways | ] eqn:Hways;
+    [ | discriminate ].
+  cbn beta iota.
+  destruct (existsb is_from_table ways && _ && _) eqn:Hok; [ | discriminate ].
+  intros [= <-].
+  apply andb_prop in Hok as [Hok Hall].
+  apply andb_prop in Hok as [_ Husable].
+  unfold table_names_usable in Husable.
+  apply andb_prop in Husable as [Husable Hsame].
+  apply andb_prop in Husable as [Husable Hvnames].
+  apply andb_prop in Husable as [Hlength Hdistinct].
+  apply Nat.eqb_eq in Hlength. apply negb_true_iff in Hvnames.
+  pose proof
+    (table_ways_of_arguments_bound tables first (table_offset first) statics
+       Hbound _ _ ways Hways)
+    as Hways_bound.
+  destruct
+    (step_switch_cases (Var v) ((first, ac0) :: arm1 :: arm2 :: others) vars
+       conts statics hp)
+    as [Hwrong | (w & i & ac & Hv & Hi & Hfind & Hstep)];
+    [ apply step_undefined_refines, Hwrong | ].
+  apply naked_immediate_of_value_some in Hi. subst w.
+  destruct (arm_has_table_ways_found _ _ _ _ _ _ _ Hall Hfind)
+    as (args & Hargs & ->).
+  destruct
+    (bind_table_ways_equivalent first (table_offset first) v i names
+       (Apply_cont
+          (Apply_cont_expr (ac_continuation ac0)
+             (merged_by_table_ways v names ways) None))
+       conts statics hp names ways args vars Hways_bound Hv Hlength Hdistinct
+       Hvnames (fun x Hx => Hx) Hsame Hargs)
+    as (vars' & _ & Hequiv & Heval).
+  apply equivalent_refines.
+  eapply equivalent_trans; [ apply step_equivalent, Hstep | ].
+  apply equivalent_sym.
+  eapply equivalent_trans; [ exact Hequiv | ].
+  apply step_eq_equivalent. rewrite !step_apply_cont.
+  cbn [ac_args ac_continuation]. rewrite Heval. reflexivity.
+Qed.
+
+(* With no table in scope no way is a table. *)
+Lemma table_ways_without_tables (first offset : Z) :
+  ∀ (count : nat) (rows : list (Z * list simple)) (ways : list table_way),
+    table_ways_of_arguments [] first offset count rows = Some ways ->
+    existsb is_from_table ways = false.
+Proof.
+  induction count as [ | count IH]; intros rows ways Hways;
+    cbn [table_ways_of_arguments] in Hways.
+  - injection Hways as <-. reflexivity.
+  - destruct (column_of_arms rows) as [column | ]; [ | discriminate ].
+    cbn beta iota in Hways.
+    unfold table_way_of_column in Hways.
+    destruct (way_of_column column) as [way | ]; [ | discriminate ].
+    cbn beta iota in Hways.
+    destruct
+      (table_ways_of_arguments [] first offset count (rest_of_arms rows))
+      as [ways0 | ] eqn:Hways0; [ | discriminate ].
+    injection Hways as <-.
+    cbn [existsb is_from_table]. exact (IH _ _ Hways0).
+Qed.
+
+Lemma merge_switch_by_table_ways_nil (known : known_continuations)
+    (scrutinee : simple) (arms : list (Z * apply_cont)) :
+  merge_switch_by_table_ways known [] scrutinee arms = None.
+Proof.
+  unfold merge_switch_by_table_ways.
+  destruct scrutinee as [v | sym | c]; try reflexivity.
+  destruct arms as [ | [first ac] [ | arm1 [ | arm2 others]]];
+    try reflexivity.
+  cbv zeta.
+  destruct (lookup (ac_continuation ac) known) as [names | ];
+    [ | reflexivity ].
+  cbn beta iota.
+  destruct (table_ways_of_arguments _ _ _ _ _) as [ways | ] eqn:Hways;
+    [ | reflexivity ].
+  cbn beta iota.
+  rewrite (table_ways_without_tables _ _ _ _ ways Hways). reflexivity.
+Qed.
+
+(* The test for no table at all changes nothing of the answer. *)
+Lemma merge_switch_with_tables_unfold (known : known_continuations)
+    (tables : known_tables) (scrutinee : simple)
+    (arms : list (Z * apply_cont)) :
+  merge_switch_with_tables known tables scrutinee arms
+  = match merge_switch_by_table tables scrutinee arms with
+    | Some merged =>
+      match merge_switch scrutinee arms with
+      | Switch _ _ => merged
+      | Let _ _ _ _ | Let_static _ _ | Let_cont_non_recursive _ _ _
+      | Let_cont_recursive _ _ | Apply _ | Apply_cont _ | Invalid =>
+        Switch scrutinee arms
+      end
+    | None =>
+      match merge_switch_by_table_ways known tables scrutinee arms with
+      | Some merged => merged
+      | None => Switch scrutinee arms
+      end
+    end.
+Proof.
+  unfold merge_switch_with_tables.
+  destruct tables as [ | table tables]; [ | reflexivity ].
+  rewrite merge_switch_by_table_nil, merge_switch_by_table_ways_nil.
+  reflexivity.
+Qed.
+
+Lemma merge_switch_with_tables_refines (known : known_continuations)
+    (tables : known_tables) (scrutinee : simple)
+    (arms : list (Z * apply_cont)) (vars : env) (conts : cont_env)
+    (statics : static_env) (hp : heap) :
+  tables_bound tables statics ->
+  refines (State (Switch scrutinee arms) vars conts statics hp)
+    (State (merge_switch_with_tables known tables scrutinee arms) vars conts
+       statics hp).
+Proof.
+  intros Hbound. rewrite merge_switch_with_tables_unfold.
+  destruct (merge_switch_by_table tables scrutinee arms) as [merged | ]
+    eqn:Hmerged.
+  - destruct (merge_switch scrutinee arms); try apply refines_refl.
+    exact (merge_switch_by_table_refines tables scrutinee arms merged vars
+      conts statics hp Hbound Hmerged).
+  - destruct (merge_switch_by_table_ways known tables scrutinee arms)
+      as [merged | ] eqn:Hways; [ | apply refines_refl ].
+    exact (merge_switch_by_table_ways_refines known tables scrutinee arms
+      merged vars conts statics hp Hbound Hways).
+Qed.
+
+(* ======================================================================== *)
 (* Down a term                                                              *)
 (* ======================================================================== *)
 
@@ -527,70 +1010,138 @@ Proof.
   destruct (first =? 0); reflexivity.
 Qed.
 
-Lemma merge_switch_with_tables_binds_statics (tables : known_tables)
-    (scrutinee : simple) (arms : list (Z * apply_cont)) :
-  binds_statics (merge_switch_with_tables tables scrutinee arms) = false.
+Lemma bind_arithmetic_steps_binds_statics (standard : standard_int)
+    (v : variable) (body : expr) (steps : list arithmetic_step) :
+  binds_statics (bind_arithmetic_steps standard v steps body)
+  = binds_statics body.
+Proof.
+  induction steps as [ | step steps IH]; [ reflexivity | ].
+  cbn [bind_arithmetic_steps]. destruct step; exact IH.
+Qed.
+
+Lemma bind_table_way_binds_statics (first offset : Z) (v x : variable)
+    (way : table_way) (body : expr) :
+  binds_statics (bind_table_way first offset v x way body)
+  = binds_statics body.
+Proof.
+  destruct way as [[s | how] | s elements immediates]; cbn [bind_table_way];
+    [ reflexivity | | ].
+  - destruct how as [ | | | kind offset' slope]; try reflexivity.
+    cbn [bind_way]. cbv zeta.
+    destruct kind; cbn [bind_tagged_to bind_same_to binds_statics];
+      apply bind_arithmetic_steps_binds_statics.
+  - unfold bind_table_load_to, bind_tagged_to, bind_table_offset.
+    destruct (first =? 0); reflexivity.
+Qed.
+
+Lemma bind_table_ways_binds_statics (first offset : Z) (v : variable)
+    (body : expr) (names : list variable) :
+  ∀ ways : list table_way,
+    binds_statics (bind_table_ways first offset v names ways body)
+    = binds_statics body.
+Proof.
+  induction names as [ | x names IH]; intros [ | way ways]; try reflexivity.
+  cbn [bind_table_ways]. rewrite bind_table_way_binds_statics. apply IH.
+Qed.
+
+Lemma merge_switch_by_table_ways_binds_statics (known : known_continuations)
+    (tables : known_tables) (scrutinee : simple)
+    (arms : list (Z * apply_cont)) (merged : expr) :
+  merge_switch_by_table_ways known tables scrutinee arms = Some merged ->
+  binds_statics merged = false.
+Proof.
+  unfold merge_switch_by_table_ways.
+  destruct scrutinee as [v | sym | c]; try discriminate.
+  destruct arms as [ | [first ac] [ | arm1 [ | arm2 others]]];
+    try discriminate.
+  cbv zeta.
+  destruct (lookup (ac_continuation ac) known) as [names | ];
+    [ | discriminate ].
+  cbn beta iota.
+  destruct (table_ways_of_arguments _ _ _ _ _) as [ways | ];
+    [ | discriminate ].
+  cbn beta iota.
+  destruct (_ && _ && _); [ | discriminate ].
+  intros [= <-]. rewrite bind_table_ways_binds_statics. reflexivity.
+Qed.
+
+Lemma merge_switch_with_tables_binds_statics (known : known_continuations)
+    (tables : known_tables) (scrutinee : simple)
+    (arms : list (Z * apply_cont)) :
+  binds_statics (merge_switch_with_tables known tables scrutinee arms)
+  = false.
 Proof.
   rewrite merge_switch_with_tables_unfold.
   destruct (merge_switch_by_table tables scrutinee arms) as [merged | ]
-    eqn:Hmerged; [ | reflexivity ].
-  destruct (merge_switch scrutinee arms); try reflexivity.
-  exact (merge_switch_by_table_binds_statics tables scrutinee arms merged
-    Hmerged).
+    eqn:Hmerged.
+  - destruct (merge_switch scrutinee arms); try reflexivity.
+    exact (merge_switch_by_table_binds_statics tables scrutinee arms merged
+      Hmerged).
+  - destruct (merge_switch_by_table_ways known tables scrutinee arms)
+      as [merged | ] eqn:Hways; [ | reflexivity ].
+    exact (merge_switch_by_table_ways_binds_statics known tables scrutinee
+      arms merged Hways).
 Qed.
 
-Fixpoint merge_tables_knowing_binds_statics (e : expr) :
-  ∀ tables : known_tables,
-    binds_statics (merge_tables_knowing tables e) = binds_statics e.
+Fixpoint merge_tables_under_binds_statics (e : expr) :
+  ∀ (known : known_continuations) (tables : known_tables),
+    binds_statics (merge_tables_under known tables e) = binds_statics e.
 Proof.
   destruct e
     as [ x kind d body | bindings body | k h body | handlers body
        | ap | ac | scrutinee arms | ];
-    intros tables;
-    cbn [merge_tables_knowing merge_tables_in_handler binds_statics];
+    intros known tables;
+    cbn [merge_tables_under merge_tables_in_handler binds_statics];
     try reflexivity.
-  - apply merge_tables_knowing_binds_statics.
-  - rewrite merge_tables_knowing_binds_statics. reflexivity.
+  - apply merge_tables_under_binds_statics.
+  - rewrite merge_tables_under_binds_statics. reflexivity.
   - destruct h as [params metadata handler].
     cbn [merge_tables_in_handler handler_binds_statics].
-    rewrite !merge_tables_knowing_binds_statics. reflexivity.
-  - rewrite merge_tables_knowing_binds_statics. f_equal.
+    rewrite !merge_tables_under_binds_statics. reflexivity.
+  - cbv zeta. rewrite merge_tables_under_binds_statics. f_equal.
+    generalize
+      (map (fun entry => (fst entry, parameters_of_handler (snd entry)))
+         handlers
+       ++ known).
+    intros known'.
     induction handlers as [ | [k [params metadata handler]] handlers IH];
       simpl; [ reflexivity | ].
-    rewrite merge_tables_knowing_binds_statics, IH. reflexivity.
+    rewrite merge_tables_under_binds_statics, IH. reflexivity.
   - apply merge_switch_with_tables_binds_statics.
 Qed.
 
-Lemma merge_tables_knowing_handlers_bind_statics (tables : known_tables)
+Lemma merge_tables_under_handlers_bind_statics (known : known_continuations)
+    (tables : known_tables)
     (handlers : list (continuation * continuation_handler)) :
   handlers_bind_statics
-    (map (fun '(k, h) => (k, merge_tables_in_handler tables h)) handlers)
+    (map (fun '(k, h) => (k, merge_tables_in_handler known tables h))
+       handlers)
   = handlers_bind_statics handlers.
 Proof.
   unfold handlers_bind_statics.
   induction handlers as [ | [k [params metadata handler]] handlers IH]; simpl;
     [ reflexivity | ].
-  rewrite merge_tables_knowing_binds_statics, IH. reflexivity.
+  rewrite merge_tables_under_binds_statics, IH. reflexivity.
 Qed.
 
-Fixpoint merge_tables_knowing_refines_aux (e : expr) :
-  ∀ (tables : known_tables) (vars : env) (conts : cont_env)
-    (statics : static_env) (hp : heap),
+Fixpoint merge_tables_under_refines_aux (e : expr) :
+  ∀ (known : known_continuations) (tables : known_tables) (vars : env)
+    (conts : cont_env) (statics : static_env) (hp : heap),
     tables_bound tables statics ->
     refines (State e vars conts statics hp)
-      (State (merge_tables_knowing tables e) vars conts statics hp).
+      (State (merge_tables_under known tables e) vars conts statics hp).
 Proof.
   destruct e
     as [ x kind d body | bindings body | k h body | handlers body
        | ap | ac | scrutinee arms | ];
-    intros tables vars conts statics hp Hbound;
-    cbn [merge_tables_knowing]; try apply refines_refl.
+    intros known tables vars conts statics hp Hbound;
+    cbn [merge_tables_under]; try apply refines_refl.
   - apply let_refines_step; [ reflexivity | intros v _ _ ].
-    apply merge_tables_knowing_refines_aux, Hbound.
+    apply merge_tables_under_refines_aux, Hbound.
   - apply let_static_refines_step.
     destruct (eval_static_bindings vars bindings statics) as [extended | ]
       eqn:Hbindings; [ | exact I ].
-    apply merge_tables_knowing_refines_aux.
+    apply merge_tables_under_refines_aux.
     exact (tables_under_statics_bound tables bindings vars statics extended
       Hbound Hbindings).
   - destruct h as [params metadata handler].
@@ -598,25 +1149,32 @@ Proof.
     apply (refines_trans _
       (State
          (Let_cont_non_recursive k
-            (Handler params metadata (merge_tables_knowing tables handler))
+            (Handler params metadata
+               (merge_tables_under known tables handler))
             body)
          vars conts statics hp)).
     + apply (let_cont_handler_refines_where (tables_bound tables)
         (tables_bound_extend tables)); [ exact Hbound | ].
       intros vs handler_vars conts' statics' hp' Hbound' _ _.
-      apply merge_tables_knowing_refines_aux, Hbound'.
+      apply merge_tables_under_refines_aux, Hbound'.
     + apply let_cont_non_recursive_refines_step,
-        merge_tables_knowing_refines_aux, Hbound.
-  - apply (refines_trans _
+        merge_tables_under_refines_aux, Hbound.
+  - cbv zeta.
+    generalize
+      (map (fun entry => (fst entry, parameters_of_handler (snd entry)))
+         handlers
+       ++ known).
+    intros known'.
+    apply (refines_trans _
       (State
          (Let_cont_recursive
-            (map (fun '(k, h) => (k, merge_tables_in_handler tables h))
+            (map (fun '(k, h) => (k, merge_tables_in_handler known' tables h))
                handlers)
             body)
          vars conts statics hp)).
     + assert (Hhandlers :
         handlers_refine (tables_bound tables) vars handlers
-          (map (fun '(k, h) => (k, merge_tables_in_handler tables h))
+          (map (fun '(k, h) => (k, merge_tables_in_handler known' tables h))
              handlers)).
       { induction handlers
           as [ | [k [params metadata handler]] handlers IH];
@@ -626,16 +1184,33 @@ Proof.
           split; (apply Forall2_cons; [ | assumption ]);
             (split; [ reflexivity | ]); apply Handler_related;
             intros vs handler_vars conts' statics' hp' Hbound' _ _;
-            apply merge_tables_knowing_refines_aux, Hbound'. }
+            apply merge_tables_under_refines_aux, Hbound'. }
       destruct Hhandlers as [Hforwards Hbackwards].
       apply (let_cont_recursive_handlers_refine_where
         (tables_bound tables) (tables_bound_extend tables));
         try assumption.
-      symmetry. apply merge_tables_knowing_handlers_bind_statics.
+      symmetry. apply merge_tables_under_handlers_bind_statics.
     + apply let_cont_recursive_refines_step; [ reflexivity | intros _ ].
-      apply merge_tables_knowing_refines_aux, Hbound.
+      apply merge_tables_under_refines_aux, Hbound.
   - apply merge_switch_with_tables_refines, Hbound.
 Qed.
+
+Theorem merge_tables_under_refines : merge_tables_under_refines_statement.
+Proof.
+  intros known tables e vars conts statics hp Hbound.
+  apply merge_tables_under_refines_aux, Hbound.
+Qed.
+
+Lemma merge_tables_knowing_binds_statics (e : expr) (tables : known_tables) :
+  binds_statics (merge_tables_knowing tables e) = binds_statics e.
+Proof. apply merge_tables_under_binds_statics. Qed.
+
+Lemma merge_tables_knowing_refines_aux (e : expr) (tables : known_tables)
+    (vars : env) (conts : cont_env) (statics : static_env) (hp : heap) :
+  tables_bound tables statics ->
+  refines (State e vars conts statics hp)
+    (State (merge_tables_knowing tables e) vars conts statics hp).
+Proof. apply merge_tables_under_refines_aux. Qed.
 
 Theorem merge_tables_knowing_refines : merge_tables_knowing_refines_statement.
 Proof.
@@ -1083,58 +1658,416 @@ Proof.
     exact (Hclosed s elements Hin).
 Qed.
 
-Lemma merge_switch_with_tables_renamed (r : renaming) (tables : known_tables)
+(* A way for each argument, renamed: a table is as it was, its
+   elements having no variable. *)
+Definition rename_table_way (r : renaming) (way : table_way) : table_way :=
+  match way with
+  | Without_table way => Without_table (rename_way r way)
+  | From_table s elements immediates => From_table s elements immediates
+  end.
+
+Definition table_way_closed (way : table_way) : bool :=
+  match way with
+  | Without_table _ => true
+  | From_table _ elements _ => forallb element_closed elements
+  end.
+
+Lemma argument_by_table_way_renamed (r : renaming) (first offset i : Z)
+    (way : table_way) :
+  table_way_closed way = true ->
+  argument_by_table_way first offset i (rename_table_way r way)
+  = option_map (rename_simple r) (argument_by_table_way first offset i way).
+Proof.
+  intros Hclosed.
+  destruct way as [way | s elements immediates];
+    cbn [rename_table_way argument_by_table_way];
+    [ apply argument_in_arm_renamed | ].
+  destruct (table_element first offset elements i) as [element | ]
+    eqn:Helement; [ | reflexivity ].
+  cbn beta iota.
+  destruct (element_taken _ element); [ | reflexivity ].
+  cbn [option_map].
+  rewrite
+    (closed_element_renamed r element
+       (table_element_closed first offset elements i element Hclosed
+          Helement)).
+  reflexivity.
+Qed.
+
+Lemma arguments_by_table_ways_renamed (r : renaming) (first offset i : Z)
+    (ways : list table_way) :
+  forallb table_way_closed ways = true ->
+  arguments_by_table_ways first offset i (map (rename_table_way r) ways)
+  = option_map (map (rename_simple r))
+      (arguments_by_table_ways first offset i ways).
+Proof.
+  induction ways as [ | way ways IH]; [ reflexivity | ].
+  cbn [forallb]. intros Hclosed.
+  apply andb_prop in Hclosed as [Hway Hclosed].
+  cbn [map arguments_by_table_ways].
+  rewrite (argument_by_table_way_renamed r first offset i way Hway),
+    (IH Hclosed).
+  destruct (argument_by_table_way first offset i way); [ | reflexivity ].
+  destruct (arguments_by_table_ways first offset i ways); reflexivity.
+Qed.
+
+Lemma arm_has_table_ways_renamed (r : renaming) (k : continuation)
+    (first offset : Z) (ways : list table_way) (arm : Z * apply_cont) :
+  forallb table_way_closed ways = true ->
+  arm_has_table_ways (rename_continuation r k) first offset
+    (map (rename_table_way r) ways) (fst arm, rename_apply_cont r (snd arm))
+  = arm_has_table_ways k first offset ways arm.
+Proof.
+  intros Hclosed. unfold arm_has_table_ways. cbn [fst snd].
+  rewrite
+    (arguments_by_table_ways_renamed r first offset (fst arm) ways Hclosed).
+  destruct (arguments_by_table_ways first offset (fst arm) ways)
+    as [args | ]; [ | reflexivity ].
+  cbn [option_map].
+  change
+    (Apply_cont_expr (rename_continuation r k) (map (rename_simple r) args)
+       None)
+    with (rename_apply_cont r (Apply_cont_expr k args None)).
+  destruct (apply_cont_eq_dec (snd arm) (Apply_cont_expr k args None))
+    as [-> | Hne],
+    (apply_cont_eq_dec (rename_apply_cont r _) (rename_apply_cont r _))
+      as [Heq | Hne'];
+    try reflexivity; [ contradiction | ].
+  elim Hne. exact (renamed_apply_cont_same r _ _ Heq).
+Qed.
+
+Lemma table_has_column_renamed (r : renaming) (first offset : Z)
+    (column : list (Z * simple)) (table : symbol * list simple) :
+  forallb element_closed (snd table) = true ->
+  table_has_column first offset (map (rename_entry r) column) table
+  = table_has_column first offset column table.
+Proof.
+  intros Hclosed. unfold table_has_column. rewrite length_map. f_equal.
+  cbv zeta. apply forallb_under_map. intros entry.
+  cbn [rename_entry fst snd].
+  destruct (table_element first offset (snd table) (fst entry))
+    as [element | ] eqn:Helement; [ | reflexivity ].
+  f_equal.
+  pose proof (simple_is_renamed r (snd entry) element) as Hsame.
+  rewrite
+    (closed_element_renamed r element
+       (table_element_closed first offset _ _ element Hclosed Helement))
+    in Hsame.
+  exact Hsame.
+Qed.
+
+Lemma table_way_of_column_renamed (r : renaming) (tables : known_tables)
+    (first offset : Z) (column : list (Z * simple)) :
+  tables_closed tables ->
+  table_way_of_column tables first offset (map (rename_entry r) column)
+  = option_map (rename_table_way r)
+      (table_way_of_column tables first offset column).
+Proof.
+  intros Hclosed. unfold table_way_of_column.
+  rewrite way_of_column_renamed.
+  destruct (way_of_column column) as [way | ]; [ reflexivity | ].
+  cbn [option_map].
+  rewrite (find_same_among _ (table_has_column first offset column) tables).
+  - destruct (find _ tables) as [[s elements] | ]; reflexivity.
+  - intros [s elements] Hin. apply table_has_column_renamed.
+    exact (Hclosed s elements Hin).
+Qed.
+
+Lemma table_ways_of_arguments_renamed (r : renaming) (tables : known_tables)
+    (first offset : Z) :
+  tables_closed tables ->
+  ∀ (count : nat) (rows : list (Z * list simple)),
+    table_ways_of_arguments tables first offset count
+      (map (rename_row r) rows)
+    = option_map (map (rename_table_way r))
+        (table_ways_of_arguments tables first offset count rows).
+Proof.
+  intros Hclosed.
+  induction count as [ | count IH]; intros rows; [ reflexivity | ].
+  cbn [table_ways_of_arguments]. rewrite column_of_arms_renamed.
+  destruct (column_of_arms rows) as [column | ]; [ | reflexivity ].
+  cbn [option_map].
+  rewrite (table_way_of_column_renamed r tables first offset column Hclosed).
+  destruct (table_way_of_column tables first offset column) as [way | ];
+    [ | reflexivity ].
+  cbn [option_map]. rewrite rest_of_arms_renamed, IH.
+  destruct
+    (table_ways_of_arguments tables first offset count (rest_of_arms rows));
+    reflexivity.
+Qed.
+
+Lemma table_ways_of_arguments_closed (tables : known_tables)
+    (first offset : Z) :
+  tables_closed tables ->
+  ∀ (count : nat) (rows : list (Z * list simple)) (ways : list table_way),
+    table_ways_of_arguments tables first offset count rows = Some ways ->
+    forallb table_way_closed ways = true.
+Proof.
+  intros Hclosed.
+  induction count as [ | count IH]; intros rows ways Hways;
+    cbn [table_ways_of_arguments] in Hways.
+  - injection Hways as <-. reflexivity.
+  - destruct (column_of_arms rows) as [column | ]; [ | discriminate ].
+    cbn beta iota in Hways.
+    destruct (table_way_of_column tables first offset column) as [way | ]
+      eqn:Hway; [ | discriminate ].
+    cbn beta iota in Hways.
+    destruct
+      (table_ways_of_arguments tables first offset count (rest_of_arms rows))
+      as [ways0 | ] eqn:Hways0; [ | discriminate ].
+    injection Hways as <-.
+    cbn [forallb]. rewrite (IH _ _ Hways0), andb_true_r.
+    unfold table_way_of_column in Hway.
+    destruct (way_of_column column); [ injection Hway as <-; reflexivity | ].
+    destruct (find _ tables) as [[s elements] | ] eqn:Hfind;
+      [ | discriminate ].
+    injection Hway as <-.
+    apply find_some in Hfind as [Hin _]. exact (Hclosed s elements Hin).
+Qed.
+
+Lemma bind_table_load_to_renamed (r : renaming) (v x : variable) (s : symbol)
+    (first offset : Z) (immediates : bool) (body : expr) :
+  rename_expr r (bind_table_load_to v x s first offset immediates body)
+  = bind_table_load_to (rename_variable r v) (rename_variable r x) s first
+      offset immediates (rename_expr r body).
+Proof.
+  unfold bind_table_load_to, bind_tagged_to, bind_table_offset.
+  destruct (first =? 0); reflexivity.
+Qed.
+
+Lemma bind_table_ways_renamed (r : renaming) (first offset : Z)
+    (v : variable) (body : expr) (names : list variable) :
+  ∀ ways : list table_way,
+    rename_expr r (bind_table_ways first offset v names ways body)
+    = bind_table_ways first offset (rename_variable r v)
+        (map (rename_variable r) names) (map (rename_table_way r) ways)
+        (rename_expr r body).
+Proof.
+  induction names as [ | x names IH];
+    intros [ | [[s | how] | s elements immediates] ways];
+    cbn [bind_table_ways bind_table_way map rename_table_way rename_way];
+    try reflexivity.
+  - apply IH.
+  - rewrite bind_way_renamed, IH. reflexivity.
+  - rewrite bind_table_load_to_renamed, IH. reflexivity.
+Qed.
+
+Lemma merged_by_table_ways_renamed (r : renaming) (v : variable)
+    (names : list variable) :
+  ∀ ways : list table_way,
+    map (rename_simple r) (merged_by_table_ways v names ways)
+    = merged_by_table_ways (rename_variable r v)
+        (map (rename_variable r) names) (map (rename_table_way r) ways).
+Proof.
+  induction names as [ | x names IH];
+    intros [ | [[s | how] | s elements immediates] ways];
+    cbn [merged_by_table_ways merged_by_table_way map rename_table_way
+      rename_way];
+    try reflexivity; rewrite IH; try reflexivity.
+  destruct how; reflexivity.
+Qed.
+
+Lemma table_names_usable_renamed (r : renaming) (v : variable)
+    (names : list variable) (ways : list table_way) :
+  table_names_usable (rename_variable r v) (map (rename_variable r) names)
+    (map (rename_table_way r) ways)
+  = table_names_usable v names ways.
+Proof.
+  unfold table_names_usable.
+  rewrite !length_map, distinct_names_renamed, among_names_renamed.
+  f_equal. apply forallb_under_map.
+  intros [[s | how] | s elements immediates]; try reflexivity.
+  cbn [rename_table_way rename_way]. rewrite names_in_simple_renamed.
+  reflexivity.
+Qed.
+
+Lemma is_from_table_renamed (r : renaming) (ways : list table_way) :
+  existsb is_from_table (map (rename_table_way r) ways)
+  = existsb is_from_table ways.
+Proof.
+  induction ways as [ | [way | s elements immediates] ways IH];
+    [ reflexivity | | ];
+    cbn [map existsb rename_table_way is_from_table]; rewrite ?IH;
+    reflexivity.
+Qed.
+
+Lemma merge_switch_by_table_ways_renamed (r : renaming)
+    (known : known_continuations) (tables : known_tables)
     (scrutinee : simple) (arms : list (Z * apply_cont)) :
   tables_closed tables ->
-  merge_switch_with_tables tables (rename_simple r scrutinee)
+  merge_switch_by_table_ways (rename_known_continuations r known) tables
+    (rename_simple r scrutinee)
     (map (fun arm => (fst arm, rename_apply_cont r (snd arm))) arms)
-  = rename_expr r (merge_switch_with_tables tables scrutinee arms).
+  = option_map (rename_expr r)
+      (merge_switch_by_table_ways known tables scrutinee arms).
+Proof.
+  intros Hclosed.
+  destruct scrutinee as [v | sym | c]; try reflexivity.
+  destruct arms as [ | [first ac] [ | arm1 [ | arm2 others]]];
+    try reflexivity.
+  set (arms := (first, ac) :: arm1 :: arm2 :: others).
+  set (offset := table_offset first).
+  assert
+    (Hrows :
+      map (fun arm => (fst arm, ac_args (snd arm)))
+        (map (fun arm => (fst arm, rename_apply_cont r (snd arm))) arms)
+      = map (rename_row r)
+          (map (fun arm => (fst arm, ac_args (snd arm))) arms)).
+  { rewrite !map_map. apply map_ext. intros arm. reflexivity. }
+  change
+    (merge_switch_by_table_ways (rename_known_continuations r known) tables
+       (rename_simple r (Var v))
+       (map (fun arm => (fst arm, rename_apply_cont r (snd arm))) arms))
+    with
+      (let* names :=
+         lookup (rename_continuation r (ac_continuation ac))
+           (rename_known_continuations r known)
+       in
+       let* ways :=
+         table_ways_of_arguments tables first offset
+           (length (map (rename_simple r) (ac_args ac)))
+           (map (fun arm => (fst arm, ac_args (snd arm)))
+              (map (fun arm => (fst arm, rename_apply_cont r (snd arm)))
+                 arms))
+       in
+       if existsb is_from_table ways
+          && table_names_usable (rename_variable r v) names ways
+          && forallb
+               (arm_has_table_ways
+                  (rename_continuation r (ac_continuation ac)) first offset
+                  ways)
+               (map (fun arm => (fst arm, rename_apply_cont r (snd arm)))
+                  arms)
+       then
+         Some
+           (bind_table_ways first offset (rename_variable r v) names ways
+              (Apply_cont
+                 (Apply_cont_expr (rename_continuation r (ac_continuation ac))
+                    (merged_by_table_ways (rename_variable r v) names ways)
+                    None)))
+       else None).
+  change (merge_switch_by_table_ways known tables (Var v) arms)
+    with
+      (let* names := lookup (ac_continuation ac) known in
+       let* ways :=
+         table_ways_of_arguments tables first offset (length (ac_args ac))
+           (map (fun arm => (fst arm, ac_args (snd arm))) arms)
+       in
+       if existsb is_from_table ways
+          && table_names_usable v names ways
+          && forallb (arm_has_table_ways (ac_continuation ac) first offset ways)
+               arms
+       then
+         Some
+           (bind_table_ways first offset v names ways
+              (Apply_cont
+                 (Apply_cont_expr (ac_continuation ac)
+                    (merged_by_table_ways v names ways) None)))
+       else None).
+  rewrite lookup_known_renamed.
+  destruct (lookup (ac_continuation ac) known) as [names | ];
+    [ | reflexivity ].
+  cbn [option_map].
+  rewrite Hrows, length_map,
+    (table_ways_of_arguments_renamed r tables first offset Hclosed).
+  destruct (table_ways_of_arguments _ _ _ _ _) as [ways | ] eqn:Hways;
+    [ | reflexivity ].
+  cbn [option_map].
+  pose proof
+    (table_ways_of_arguments_closed tables first offset Hclosed _ _ ways
+       Hways)
+    as Hways_closed.
+  rewrite is_from_table_renamed, table_names_usable_renamed,
+    (forallb_under_map _ _
+       (arm_has_table_ways (ac_continuation ac) first offset ways))
+    by (intros arm; apply arm_has_table_ways_renamed, Hways_closed).
+  destruct (_ && _ && _); [ | reflexivity ].
+  cbn [option_map]. rewrite bind_table_ways_renamed.
+  cbn [rename_expr]. unfold rename_apply_cont.
+  cbn [ac_continuation ac_args ac_trap_action option_map].
+  rewrite merged_by_table_ways_renamed. reflexivity.
+Qed.
+
+Lemma merge_switch_with_tables_renamed (r : renaming)
+    (known : known_continuations) (tables : known_tables)
+    (scrutinee : simple) (arms : list (Z * apply_cont)) :
+  tables_closed tables ->
+  merge_switch_with_tables (rename_known_continuations r known) tables
+    (rename_simple r scrutinee)
+    (map (fun arm => (fst arm, rename_apply_cont r (snd arm))) arms)
+  = rename_expr r (merge_switch_with_tables known tables scrutinee arms).
 Proof.
   intros Hclosed. rewrite !merge_switch_with_tables_unfold.
   rewrite merge_switch_equivariant,
-    (merge_switch_by_table_renamed r tables scrutinee arms Hclosed).
-  destruct (merge_switch_by_table tables scrutinee arms); [ | reflexivity ].
-  cbn [option_map].
-  destruct (merge_switch scrutinee arms); reflexivity.
+    (merge_switch_by_table_renamed r tables scrutinee arms Hclosed),
+    (merge_switch_by_table_ways_renamed r known tables scrutinee arms
+       Hclosed).
+  destruct (merge_switch_by_table tables scrutinee arms); cbn [option_map].
+  - destruct (merge_switch scrutinee arms); reflexivity.
+  - destruct (merge_switch_by_table_ways known tables scrutinee arms);
+      reflexivity.
 Qed.
 
-Fixpoint merge_tables_knowing_equivariant (r : renaming) (e : expr) :
-  ∀ tables : known_tables,
+Fixpoint merge_tables_under_equivariant (r : renaming) (e : expr) :
+  ∀ (known : known_continuations) (tables : known_tables),
     tables_closed tables ->
-    merge_tables_knowing tables (rename_expr r e)
-    = rename_expr r (merge_tables_knowing tables e)
+    merge_tables_under (rename_known_continuations r known) tables
+      (rename_expr r e)
+    = rename_expr r (merge_tables_under known tables e)
 with merge_tables_in_handler_equivariant (r : renaming)
     (h : continuation_handler) :
-  ∀ tables : known_tables,
+  ∀ (known : known_continuations) (tables : known_tables),
     tables_closed tables ->
-    merge_tables_in_handler tables (rename_handler r h)
-    = rename_handler r (merge_tables_in_handler tables h).
+    merge_tables_in_handler (rename_known_continuations r known) tables
+      (rename_handler r h)
+    = rename_handler r (merge_tables_in_handler known tables h).
 Proof.
   - destruct e
       as [ x kind d body | bindings body | k h body | handlers body | ap | ac
          | scrutinee arms | ];
-      intros tables Hclosed; cbn [rename_expr merge_tables_knowing];
+      intros known tables Hclosed; cbn [rename_expr merge_tables_under];
       try reflexivity.
-    + rewrite (merge_tables_knowing_equivariant r body tables Hclosed).
+    + rewrite (merge_tables_under_equivariant r body known tables Hclosed).
       reflexivity.
     + rewrite tables_under_statics_renamed,
-        (merge_tables_knowing_equivariant r body _
+        (merge_tables_under_equivariant r body known _
            (tables_under_statics_closed tables bindings Hclosed)).
       reflexivity.
-    + rewrite (merge_tables_in_handler_equivariant r h tables Hclosed),
-        (merge_tables_knowing_equivariant r body tables Hclosed).
+    + destruct h as [params metadata handler].
+      cbn [rename_handler merge_tables_in_handler parameters_of_handler].
+      change
+        ((rename_continuation r k, map (rename_variable r) params)
+         :: rename_known_continuations r known)
+        with (rename_known_continuations r ((k, params) :: known)).
+      rewrite (merge_tables_under_equivariant r handler known tables Hclosed),
+        (merge_tables_under_equivariant r body _ tables Hclosed).
       reflexivity.
-    + rewrite (merge_tables_knowing_equivariant r body tables Hclosed).
+    + cbv zeta.
+      rewrite known_of_handlers_renamed,
+        (merge_tables_under_equivariant r body _ tables Hclosed).
       f_equal.
+      generalize
+        (map (fun entry => (fst entry, parameters_of_handler (snd entry)))
+           handlers
+         ++ known).
+      intros known'.
       induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
-      rewrite (merge_tables_in_handler_equivariant r h tables Hclosed), IH.
+      rewrite (merge_tables_in_handler_equivariant r h known' tables Hclosed),
+        IH.
       reflexivity.
     + apply merge_switch_with_tables_renamed, Hclosed.
-  - destruct h as [params metadata handler]. intros tables Hclosed.
+  - destruct h as [params metadata handler]. intros known tables Hclosed.
     cbn [rename_handler merge_tables_in_handler].
-    rewrite (merge_tables_knowing_equivariant r handler tables Hclosed).
+    rewrite (merge_tables_under_equivariant r handler known tables Hclosed).
     reflexivity.
 Qed.
+
+Lemma merge_tables_knowing_equivariant (r : renaming) (e : expr)
+    (tables : known_tables) :
+  tables_closed tables ->
+  merge_tables_knowing tables (rename_expr r e)
+  = rename_expr r (merge_tables_knowing tables e).
+Proof. exact (merge_tables_under_equivariant r e [] tables). Qed.
 
 Lemma merged_body_renamed (tables : known_tables) (r : renaming)
     (body : expr) :
@@ -1230,37 +2163,51 @@ Proof.
   destruct const; try reflexivity. discriminate Hbinding.
 Qed.
 
-Fixpoint merge_tables_knowing_without_tables (e : expr) :
-  binds_no_table e = true -> merge_tables_knowing [] e = e
+Fixpoint merge_tables_under_without_tables (e : expr) :
+  ∀ known : known_continuations,
+    binds_no_table e = true -> merge_tables_under known [] e = e
 with merge_tables_in_handler_without_tables (h : continuation_handler) :
-  handler_binds_no_table h = true -> merge_tables_in_handler [] h = h.
+  ∀ known : known_continuations,
+    handler_binds_no_table h = true ->
+    merge_tables_in_handler known [] h = h.
 Proof.
   - destruct e
       as [ x kind d body | bindings body | k h body | handlers body | ap | ac
          | scrutinee arms | ];
-      cbn [binds_no_table merge_tables_knowing]; intros Hnone;
+      intros known; cbn [binds_no_table merge_tables_under]; intros Hnone;
       try reflexivity.
-    + rewrite (merge_tables_knowing_without_tables body Hnone). reflexivity.
+    + rewrite (merge_tables_under_without_tables body known Hnone).
+      reflexivity.
     + apply andb_prop in Hnone as [Hbindings Hbody].
       rewrite (no_tables_under_statics bindings Hbindings),
-        (merge_tables_knowing_without_tables body Hbody).
+        (merge_tables_under_without_tables body known Hbody).
       reflexivity.
     + apply andb_prop in Hnone as [Hhandler Hbody].
-      rewrite (merge_tables_in_handler_without_tables h Hhandler),
-        (merge_tables_knowing_without_tables body Hbody).
+      rewrite (merge_tables_in_handler_without_tables h known Hhandler),
+        (merge_tables_under_without_tables body _ Hbody).
       reflexivity.
-    + apply andb_prop in Hnone as [Hhandlers Hbody].
-      rewrite (merge_tables_knowing_without_tables body Hbody). f_equal.
+    + cbv zeta. apply andb_prop in Hnone as [Hhandlers Hbody].
+      rewrite (merge_tables_under_without_tables body _ Hbody). f_equal.
+      generalize
+        (map (fun entry => (fst entry, parameters_of_handler (snd entry)))
+           handlers
+         ++ known).
+      intros known'.
       induction handlers as [ | [k h] handlers IH]; [ reflexivity | ].
       cbn [forallb map] in Hhandlers |- *.
       apply andb_prop in Hhandlers as [Hhandler Hhandlers].
-      rewrite (merge_tables_in_handler_without_tables h Hhandler),
+      rewrite (merge_tables_in_handler_without_tables h known' Hhandler),
         (IH Hhandlers).
       reflexivity.
-  - destruct h as [params metadata handler].
+  - destruct h as [params metadata handler]. intros known.
     cbn [handler_binds_no_table merge_tables_in_handler]. intros Hnone.
-    rewrite (merge_tables_knowing_without_tables handler Hnone). reflexivity.
+    rewrite (merge_tables_under_without_tables handler known Hnone).
+    reflexivity.
 Qed.
+
+Lemma merge_tables_knowing_without_tables (e : expr) :
+  binds_no_table e = true -> merge_tables_knowing [] e = e.
+Proof. apply merge_tables_under_without_tables. Qed.
 
 Lemma merged_binding_without_tables (binding : static_binding) :
   binding_binds_no_table binding = true ->
@@ -1324,7 +2271,7 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
-(* Two terms                                                                *)
+(* Four terms                                                               *)
 (* ======================================================================== *)
 
 Theorem merge_tables_example : merge_tables_example_statement.
@@ -1332,4 +2279,12 @@ Proof. vm_compute. reflexivity. Qed.
 
 Theorem merge_tables_equal_elements_example :
   merge_tables_equal_elements_example_statement.
+Proof. vm_compute. reflexivity. Qed.
+
+Theorem merge_tables_two_tables_example :
+  merge_tables_two_tables_example_statement.
+Proof. vm_compute. reflexivity. Qed.
+
+Theorem merge_tables_table_and_line_example :
+  merge_tables_table_and_line_example_statement.
 Proof. vm_compute. reflexivity. Qed.
