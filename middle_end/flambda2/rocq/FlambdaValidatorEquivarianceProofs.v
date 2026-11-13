@@ -7130,12 +7130,16 @@ Proof.
   apply inline_sibling_calls_equivariant.
 Qed.
 
-(* A round in which the names made avoid the continuations given: the
-   inlinings before the rewrite that makes names, and the rest of the
-   round after it, commute with renaming and keep scope. *)
-Lemma normalise_before_round_avoiding_scope (avoid : list continuation)
-    (kept : list code_id) :
-  keeps_scope (normalise_before_round_avoiding avoid kept).
+(* What a round does before it looks for twins, in which the names
+   made avoid the continuations given: the inlinings before the
+   rewrite that makes names, and the rest after it, commute with
+   renaming and keep scope. *)
+Definition settle_round (kept : list code_id) (avoid : list continuation)
+    (e : expr) : expr :=
+  normalise_before_inlined (rename_apart_avoiding avoid (inline_both kept e)).
+
+Lemma settle_round_scope (avoid : list continuation) (kept : list code_id) :
+  keeps_scope (settle_round kept avoid).
 Proof.
   exact
     (keeps_scope_compose
@@ -7146,9 +7150,8 @@ Proof.
        normalise_before_inlined_scope).
 Qed.
 
-Lemma normalise_before_round_avoiding_up_to (kept : list code_id) :
-  equivariant_up_to_avoiding
-    (fun avoid => normalise_before_round_avoiding avoid kept).
+Lemma settle_round_up_to (kept : list code_id) :
+  equivariant_up_to_avoiding (settle_round kept).
 Proof.
   exact
     (equivariant_up_to_avoiding_after
@@ -7162,6 +7165,144 @@ Proof.
           (inline_both kept) (inline_both_scope kept)
           (inline_both_equivariant kept)
           rename_apart_avoiding_commutes_up_to)).
+Qed.
+
+(* The twins, where a round has settled the term: the parameters
+   bound again and the twins made, each in the term and then in the
+   bodies of code, commute with renaming and keep scope; the rewrite
+   that makes names is between them; and the comparison that says
+   whether a twin was made answers the same of the two terms under one
+   renaming. *)
+Definition shadow_all (e : expr) : expr :=
+  rewrite_code FlambdaShadowParamsSpec.shadow_params
+    (FlambdaShadowParamsSpec.shadow_params e).
+
+Definition twin_all (e : expr) : expr :=
+  rewrite_code FlambdaTwinParamsSpec.twin_params
+    (FlambdaTwinParamsSpec.twin_params e).
+
+Lemma shadow_all_scope : keeps_scope shadow_all.
+Proof.
+  exact
+    (keeps_scope_compose FlambdaShadowParamsSpec.shadow_params
+       (rewrite_code FlambdaShadowParamsSpec.shadow_params)
+       FlambdaStaticsScopeProofs.shadow_params_keeps_scope
+       (FlambdaKeepsScopeProofs.rewrite_code_keeps_scope _
+          FlambdaStaticsScopeProofs.shadow_params_keeps_scope)).
+Qed.
+
+Lemma shadow_all_equivariant : rewrite_equivariant shadow_all.
+Proof.
+  intros r e. unfold shadow_all. rewrite (shadow_params_equivariant r e).
+  apply rewrite_code_equivariant, shadow_params_equivariant.
+Qed.
+
+Lemma twin_all_scope : keeps_scope twin_all.
+Proof.
+  exact
+    (keeps_scope_compose FlambdaTwinParamsSpec.twin_params
+       (rewrite_code FlambdaTwinParamsSpec.twin_params)
+       FlambdaStaticsScopeProofs.twin_params_keeps_scope
+       (FlambdaKeepsScopeProofs.rewrite_code_keeps_scope _
+          FlambdaStaticsScopeProofs.twin_params_keeps_scope)).
+Qed.
+
+Lemma twin_all_equivariant : rewrite_equivariant twin_all.
+Proof.
+  intros r e. unfold twin_all. rewrite (twin_params_equivariant r e).
+  apply rewrite_code_equivariant, twin_params_equivariant.
+Qed.
+
+Lemma with_twins_unfold (avoid : list continuation) (e : expr) :
+  with_twins avoid e
+  = if expr_eqb [] [] (rename_apart_avoiding avoid (shadow_all e))
+         (twin_all (rename_apart_avoiding avoid (shadow_all e)))
+    then e
+    else
+      normalise_before_inlined
+        (twin_all (rename_apart_avoiding avoid (shadow_all e))).
+Proof. reflexivity. Qed.
+
+Lemma with_twins_scope (avoid : list continuation) :
+  keeps_scope (with_twins avoid).
+Proof. exact (FlambdaValidateScopeProofs.with_twins_keeps_scope avoid). Qed.
+
+Lemma with_twins_up_to : equivariant_up_to_avoiding with_twins.
+Proof.
+  intros r avoid e Hclosed.
+  destruct
+    (equivariant_up_to_avoiding_before rename_apart_avoiding shadow_all
+       shadow_all_scope shadow_all_equivariant
+       rename_apart_avoiding_commutes_up_to r avoid e Hclosed)
+    as (r1 & Halike1 & Havoid1 & Heq1).
+  destruct
+    (keeps_scope_compose shadow_all (rename_apart_avoiding avoid)
+       shadow_all_scope (rename_apart_avoiding_scope avoid) e Hclosed)
+    as (Hclosed1 & _ & _).
+  cbv beta in Halike1, Heq1, Hclosed1.
+  rewrite !with_twins_unfold, Heq1, (twin_all_equivariant r1 _).
+  set (shadowed := rename_apart_avoiding avoid (shadow_all e)) in *.
+  rewrite
+    (expr_eqb_renamed_alike r1 r1 shadowed (twin_all shadowed) Hclosed1
+       (conj (fun _ _ => eq_refl) (fun _ _ => eq_refl))).
+  destruct (expr_eqb [] [] shadowed (twin_all shadowed)).
+  - exists r. split; [ split; intros; reflexivity | ].
+    split; [ intros k _; reflexivity | reflexivity ].
+  - exists r1. split; [ | split; [ exact Havoid1 | ] ].
+    + exact
+        (proj2
+           (renames_alike_kept
+              (fun x => normalise_before_inlined (twin_all x)) r r1 shadowed
+              (keeps_scope_compose twin_all normalise_before_inlined
+                 twin_all_scope normalise_before_inlined_scope)
+              Hclosed1 Halike1)).
+    + apply normalise_before_inlined_equivariant.
+Qed.
+
+(* A round: what it does before it looks for twins and, where that
+   has left the term as it was, the twins. The comparison answers the
+   same of the term renamed. *)
+Lemma normalise_before_round_avoiding_unfold (avoid : list continuation)
+    (kept : list code_id) (e : expr) :
+  normalise_before_round_avoiding avoid kept e
+  = if expr_eqb [] [] e (settle_round kept avoid e)
+    then with_twins avoid (settle_round kept avoid e)
+    else settle_round kept avoid e.
+Proof. reflexivity. Qed.
+
+Lemma normalise_before_round_avoiding_scope (avoid : list continuation)
+    (kept : list code_id) :
+  keeps_scope (normalise_before_round_avoiding avoid kept).
+Proof.
+  exact
+    (FlambdaValidateScopeProofs.normalise_before_round_avoiding_keeps_scope
+       avoid kept).
+Qed.
+
+Lemma normalise_before_round_avoiding_up_to (kept : list code_id) :
+  equivariant_up_to_avoiding
+    (fun avoid => normalise_before_round_avoiding avoid kept).
+Proof.
+  intros r avoid e Hclosed. cbv beta.
+  rewrite !normalise_before_round_avoiding_unfold.
+  destruct (settle_round_up_to kept r avoid e Hclosed)
+    as (r1 & Halike1 & Havoid1 & Heq1).
+  destruct (settle_round_scope avoid kept e Hclosed) as (Hclosed1 & _ & _).
+  rewrite Heq1,
+    (same_after_renamed r r1 e (settle_round kept avoid e) Hclosed1 Halike1).
+  destruct (expr_eqb [] [] e (settle_round kept avoid e)).
+  - destruct (with_twins_up_to r1 avoid (settle_round kept avoid e) Hclosed1)
+      as (r2 & Halike2 & Havoid2 & Heq2).
+    rewrite (map_rename_conts_alike r r1 avoid Havoid1) in Heq2.
+    exists r2. split; [ | split ].
+    + exact
+        (renames_alike_then (with_twins avoid) r r1 r2
+           (settle_round kept avoid e) (with_twins_scope avoid) Hclosed1
+           Halike1 Halike2).
+    + intros k Hk. rewrite (Havoid2 k Hk). apply Havoid1, Hk.
+    + exact Heq2.
+  - exists r1. split; [ exact Halike1 | ].
+    split; [ exact Havoid1 | reflexivity ].
 Qed.
 
 (* A round of the term before is that round with nothing to avoid. *)

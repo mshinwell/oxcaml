@@ -81,6 +81,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaHoistStaticsSpec FlambdaGuardScopeSpec FlambdaGuardScopeProofs
   FlambdaValidateSpec.
 From OxCamlFlambda2 Require FlambdaHoistStaticsProofs.
+From OxCamlFlambda2 Require FlambdaShadowParamsProofs FlambdaTwinParamsProofs.
 From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
 From OxCamlFlambda2 Require Import FlambdaUnusedHeadStaticsSpec
   FlambdaUnusedHeadStaticsProofs.
@@ -183,16 +184,44 @@ Proof.
   apply normalise_code_before_refines.
 Qed.
 
+(* The twins: each rewrite refines, and the term is given back where
+   no twin was made. *)
+Lemma with_twins_refines (avoid : list continuation) (e : expr) :
+  expr_refines e (with_twins avoid e).
+Proof.
+  unfold with_twins. cbv zeta.
+  destruct (expr_eqb [] [] _ _); [ apply expr_refines_refl | ].
+  eapply expr_refines_trans; [ | apply normalise_before_inlined_refines ].
+  eapply expr_refines_trans;
+    [ | apply rewrite_code_refines,
+          FlambdaTwinParamsProofs.twin_params_refines ].
+  eapply expr_refines_trans;
+    [ | apply FlambdaTwinParamsProofs.twin_params_refines ].
+  eapply expr_refines_trans;
+    [ | apply expr_equivalent_refines, rename_apart_avoiding_equivalent ].
+  eapply expr_refines_trans;
+    [ | apply rewrite_code_refines,
+          FlambdaShadowParamsProofs.shadow_params_refines ].
+  apply FlambdaShadowParamsProofs.shadow_params_refines.
+Qed.
+
 Lemma normalise_before_round_avoiding_refines (avoid : list continuation)
     (kept : list code_id) (e : expr) :
   expr_refines e (normalise_before_round_avoiding avoid kept e).
 Proof.
-  unfold normalise_before_round_avoiding.
-  eapply expr_refines_trans; [ | apply normalise_before_inlined_refines ].
-  eapply expr_refines_trans;
-    [ | apply expr_equivalent_refines, rename_apart_avoiding_equivalent ].
-  eapply expr_refines_trans; [ | apply inline_sibling_calls_refines ].
-  apply inline_calls_refines.
+  unfold normalise_before_round_avoiding. cbv zeta.
+  assert (Hround :
+    expr_refines e
+      (normalise_before_inlined
+         (rename_apart_avoiding avoid
+            (inline_sibling_calls kept (inline_calls kept [] e))))).
+  { eapply expr_refines_trans; [ | apply normalise_before_inlined_refines ].
+    eapply expr_refines_trans;
+      [ | apply expr_equivalent_refines, rename_apart_avoiding_equivalent ].
+    eapply expr_refines_trans; [ | apply inline_sibling_calls_refines ].
+    apply inline_calls_refines. }
+  destruct (expr_eqb [] [] e _); [ | exact Hround ].
+  exact (expr_refines_trans _ _ _ Hround (with_twins_refines avoid _)).
 Qed.
 
 Lemma normalise_before_round_refines (kept : list code_id) (e : expr) :

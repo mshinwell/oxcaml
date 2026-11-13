@@ -40,6 +40,7 @@ open FlambdaRecoverComparisonSpec
 open FlambdaRenameApartSpec
 open FlambdaSameComparisonSpec
 open FlambdaSameHandlersSpec
+open FlambdaShadowParamsSpec
 open FlambdaShareProjectionsSpec
 open FlambdaShortcutSpec
 open FlambdaSimplifyCarriedSpec
@@ -47,6 +48,7 @@ open FlambdaSinkContsSpec
 open FlambdaSinkUsesSpec
 open FlambdaStaticsOrderSpec
 open FlambdaStubCallsSpec
+open FlambdaTwinParamsSpec
 open FlambdaUnaliasParamsSpec
 open FlambdaUnboxInScopeSpec
 open FlambdaUnboxLoopsSpec
@@ -111,13 +113,27 @@ let normalise_before_inlined e =
   rewrite_code normalise_code_before
     (merge_statics (drop_deleted_code (normalise_code_before e)))
 
+(** val with_twins : continuation list -> expr -> expr **)
+
+let with_twins avoid e =
+  let shadowed =
+    rename_apart_avoiding avoid (rewrite_code shadow_params (shadow_params e))
+  in
+  let twinned = rewrite_code twin_params (twin_params shadowed) in
+  if expr_eqb [] [] shadowed twinned
+  then e
+  else normalise_before_inlined twinned
+
 (** val normalise_before_round_avoiding : continuation list -> code_id list ->
     expr -> expr **)
 
 let normalise_before_round_avoiding avoid kept e =
-  normalise_before_inlined
-    (rename_apart_avoiding avoid
-       (inline_sibling_calls kept (inline_calls kept [] e)))
+  let e' =
+    normalise_before_inlined
+      (rename_apart_avoiding avoid
+         (inline_sibling_calls kept (inline_calls kept [] e)))
+  in
+  if expr_eqb [] [] e e' then with_twins avoid e' else e'
 
 (** val normalise_before_round : code_id list -> expr -> expr **)
 

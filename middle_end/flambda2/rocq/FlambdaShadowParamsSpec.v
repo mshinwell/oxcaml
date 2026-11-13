@@ -32,11 +32,14 @@
    an equivalence, and that prepares FlambdaTwinParamsSpec.twin_params.
 
    This file is to be reviewed: [shadow_expr] and what it is made of,
-   and the statement. The pass is for the term before Simplify, in
-   the validation of middle_end/flambda2/tests/semantics/, where
-   FlambdaRenameApartSpec.rename_apart_avoiding is to come just
-   after it; nothing applies it yet. Nothing is believed of the
-   positions that it is to be run with ([shadow_positions]): the
+   which are extracted and run by the validation of
+   middle_end/flambda2/tests/semantics/, and the statement. A round
+   of the second phase of the validation applies the pass to the term
+   before Simplify once it has settled the term, just before
+   FlambdaRenameApartSpec.rename_apart_avoiding
+   (FlambdaValidateSpec.with_twins). The
+   positions that the pass is run with ([shadow_positions]) are
+   extracted and run too, and nothing is believed of them: the
    statement is about any positions.
 
    Why. Where Simplify unboxes a parameter of a continuation that

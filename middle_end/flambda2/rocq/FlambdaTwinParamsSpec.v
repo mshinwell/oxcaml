@@ -32,13 +32,16 @@
    normalisation that refines.
 
    This file is to be reviewed: [twin_expr], [twin_ok], [twin_at] and
-   [twin_untag_at] and what they are made of, and the two statements.
-   The pass is for the term before Simplify, in the validation of
-   middle_end/flambda2/tests/semantics/, where it is to come after
-   FlambdaShadowParamsSpec.shadow_params and
-   FlambdaRenameApartSpec.rename_apart_avoiding; nothing applies it
-   yet. Nothing is believed of the positions that it is to be run
-   with ([twin_positions]): the statements are about any positions.
+   [twin_untag_at] and what they are made of, which are extracted and
+   run by the validation of middle_end/flambda2/tests/semantics/, and
+   the two statements. A round of the second phase of the validation
+   applies the pass to the term before Simplify once it has settled
+   the term, just after FlambdaRenameApartSpec.rename_apart_avoiding
+   (FlambdaValidateSpec.with_twins, which says why only then), which
+   FlambdaShadowParamsSpec.shadow_params comes just before. The
+   positions that the pass is run with ([twin_positions]) are
+   extracted and run too, and nothing is believed of them: the
+   statements are about any positions.
 
    Simplify unboxes the parameters of a continuation
    (simplify/unboxing/): where the type of a parameter says that it is

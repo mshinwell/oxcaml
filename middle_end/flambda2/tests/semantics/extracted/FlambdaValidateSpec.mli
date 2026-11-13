@@ -40,6 +40,7 @@ open FlambdaRecoverComparisonSpec
 open FlambdaRenameApartSpec
 open FlambdaSameComparisonSpec
 open FlambdaSameHandlersSpec
+open FlambdaShadowParamsSpec
 open FlambdaShareProjectionsSpec
 open FlambdaShortcutSpec
 open FlambdaSimplifyCarriedSpec
@@ -47,6 +48,7 @@ open FlambdaSinkContsSpec
 open FlambdaSinkUsesSpec
 open FlambdaStaticsOrderSpec
 open FlambdaStubCallsSpec
+open FlambdaTwinParamsSpec
 open FlambdaUnaliasParamsSpec
 open FlambdaUnboxInScopeSpec
 open FlambdaUnboxLoopsSpec
@@ -72,6 +74,8 @@ val normalise_expr_before : expr -> expr
 val normalise_code_before : expr -> expr
 
 val normalise_before_inlined : expr -> expr
+
+val with_twins : continuation list -> expr -> expr
 
 val normalise_before_round_avoiding :
   continuation list -> code_id list -> expr -> expr

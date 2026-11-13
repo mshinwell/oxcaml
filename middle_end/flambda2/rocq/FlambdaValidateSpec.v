@@ -183,6 +183,18 @@
    (FlambdaStaticsOrderSpec.order_statics_as): Simplify builds the group
    of a set of closures again, in an order of its own.
 
+   A round of the second phase of the term before that has left the
+   term as it was, up to bound names, makes the twins of the
+   parameters of continuations that hold a tagged immediate
+   ([with_twins]): the continuation of a parameter that its handler
+   untags gets one parameter more, which holds the number, and the
+   handler reads the number there; the parameter stays for its other
+   uses. Simplify unboxes such a parameter so, and keeps it beside
+   the number where something else uses it.
+   FlambdaShadowParamsSpec.v and FlambdaTwinParamsSpec.v say which
+   parameters, and where the second has its name from; the comment
+   at [with_twins] says why this is not done in every round.
+
    When the rounds of the term before are over, and before its
    continuations are placed, its calls are taken on ([with_returns]):
    a call that returns to a continuation whose handler passes its
@@ -343,7 +355,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaHoistStaticsSpec
   FlambdaGuardScopeSpec FlambdaGroupsUpSpec.
 From OxCamlFlambda2 Require Import FlambdaWrapReturnsSpec
-  FlambdaUntagParamsSpec FlambdaGiveScrutineeSpec FlambdaArmNumbersSpec.
+  FlambdaUntagParamsSpec FlambdaGiveScrutineeSpec FlambdaArmNumbersSpec
+  FlambdaShadowParamsSpec FlambdaTwinParamsSpec.
 From OxCamlFlambda2 Require Import FlambdaAliasLetsSpec.
 From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
 From OxCamlFlambda2 Require Import FlambdaKnownSlotsSpec.
@@ -473,6 +486,40 @@ Definition normalise_before_inlined (e : expr) : expr :=
   rewrite_code normalise_code_before
     (merge_statics (drop_deleted_code (normalise_code_before e))).
 
+(* The twins of the parameters that hold a tagged immediate, for a
+   term that a round has left as it was. The parameters of
+   continuations that are untagged are bound again at the head of
+   their handlers (FlambdaShadowParamsSpec.shadow_params), in the
+   term and in the body of each piece of code;
+   FlambdaRenameApartSpec.rename_apart_avoiding gives those binders
+   names of their own; and FlambdaTwinParamsSpec.twin_params makes
+   the twins, in the term and in the body of each piece of code.
+   Where a twin was made (the comparison up to bound names,
+   FlambdaCompareSpec.expr_eqb, finds a difference) the round for a
+   term whose calls are inlined follows; where none was the term is
+   given back as it was. Every rewrite refines.
+
+   Why only then. Where the handler of a parameter that holds a
+   tagged immediate untags it for a [Switch] whose arms can be
+   merged into arithmetic, Simplify, which knows that the parameter
+   is the tagging of the number, makes the arithmetic on the
+   parameter and has no use for the number. A round here does the
+   same in two steps, which may take it two passes: the merge
+   (FlambdaMergeSwitchesSpec.merge_switches) tags the scrutinee, and
+   the sharing of primitives finds that the tagging of an untagging
+   is the variable that was untagged. A twin made before those steps
+   takes the place of the untagging, and nothing here knows that the
+   tagging of a twin is the parameter. Seen in a unit that is not in
+   this tree, at [-O3]: a function on a type of three constant
+   constructors that is inlined in another. *)
+Definition with_twins (avoid : list continuation) (e : expr) : expr :=
+  let shadowed :=
+    rename_apart_avoiding avoid (rewrite_code shadow_params (shadow_params e))
+  in
+  let twinned := rewrite_code twin_params (twin_params shadowed) in
+  if expr_eqb [] [] shadowed twinned then e
+  else normalise_before_inlined twinned.
+
 (* One round for the term before: the calls of known code inlined, but
    for the code given, in the bodies of code those of the other code of
    its group too (FlambdaInlineSiblingsSpec.inline_sibling_calls); then
@@ -481,13 +528,17 @@ Definition normalise_before_inlined (e : expr) : expr :=
    continuations given (the body of a function that is inlined twice
    is copied twice, with the names it binds), and which keeps the
    candidate only where its own comparison finds it the same as the
-   term, and the term as it is otherwise; then the round above. Every
-   rewrite refines. *)
+   term, and the term as it is otherwise; then the round above; and,
+   where all that has left the term as it was, up to bound names, the
+   twins ([with_twins]). Every rewrite refines. *)
 Definition normalise_before_round_avoiding (avoid : list continuation)
     (kept : list code_id) (e : expr) : expr :=
-  normalise_before_inlined
-    (rename_apart_avoiding avoid
-       (inline_sibling_calls kept (inline_calls kept [] e))).
+  let e' :=
+    normalise_before_inlined
+      (rename_apart_avoiding avoid
+         (inline_sibling_calls kept (inline_calls kept [] e)))
+  in
+  if expr_eqb [] [] e e' then with_twins avoid e' else e'.
 
 (* With no continuation to avoid: the round of the comparisons in which
    nothing is lifted, where no check goes by a name that the term does

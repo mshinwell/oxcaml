@@ -71,6 +71,8 @@ From OxCamlFlambda2 Require Import FlambdaSameComparisonSpec
 From OxCamlFlambda2 Require Import FlambdaMergeTablesSpec
   FlambdaMergeTablesScopeProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
+From OxCamlFlambda2 Require FlambdaShadowParamsNamesProofs
+  FlambdaTwinParamsNamesProofs.
 Import ListNotations.
 
 Lemma rename_apart_scoped (e : expr) : scoped e (rename_apart e).
@@ -567,9 +569,40 @@ Theorem normalise_before_inlined_keeps_scope :
   normalise_before_inlined_keeps_scope_statement.
 Proof. apply keeps_scope_intro, normalise_before_inlined_scoped. Qed.
 
+(* The twins, where a round has settled the term. *)
+#[export] Hint Resolve FlambdaShadowParamsNamesProofs.shadow_params_scoped
+  FlambdaTwinParamsNamesProofs.twin_params_scoped : scoped.
+
+Lemma with_twins_scoped (avoid : list continuation) (e : expr) :
+  scoped e (with_twins avoid e).
+Proof.
+  unfold with_twins. cbv zeta.
+  destruct (FlambdaCompareSpec.expr_eqb [] [] _ _);
+    [ apply scoped_refl | scoped_chain ].
+Qed.
+
+#[export] Hint Resolve with_twins_scoped : scoped.
+
+Lemma with_twins_keeps_scope (avoid : list continuation) :
+  keeps_scope (with_twins avoid).
+Proof. apply keeps_scope_intro, with_twins_scoped. Qed.
+
+Lemma normalise_before_round_avoiding_scoped (avoid : list continuation)
+    (kept : list code_id) (e : expr) :
+  scoped e (normalise_before_round_avoiding avoid kept e).
+Proof.
+  unfold normalise_before_round_avoiding. cbv zeta.
+  destruct (FlambdaCompareSpec.expr_eqb [] [] e _); scoped_chain.
+Qed.
+
+Lemma normalise_before_round_avoiding_keeps_scope
+    (avoid : list continuation) (kept : list code_id) :
+  keeps_scope (normalise_before_round_avoiding avoid kept).
+Proof. apply keeps_scope_intro, normalise_before_round_avoiding_scoped. Qed.
+
 Lemma normalise_before_round_scoped (kept : list code_id) (e : expr) :
   scoped e (normalise_before_round kept e).
-Proof. unfold normalise_before_round. scoped_chain. Qed.
+Proof. apply normalise_before_round_avoiding_scoped. Qed.
 
 #[export] Hint Resolve normalise_before_round_scoped : scoped.
 

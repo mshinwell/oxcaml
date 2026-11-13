@@ -213,8 +213,10 @@
    FlambdaShadowParamsSpec.shadow_params, which binds again, at the
    head of their handlers, the parameters of continuations that are
    untagged, and FlambdaTwinParamsSpec.twin_params, which gives such
-   a parameter a twin that holds the number, neither of which is
-   applied yet. And
+   a parameter a twin that holds the number, both of which a round of
+   the second phase of the term before applies once it has settled
+   the term, on either side of
+   FlambdaRenameApartSpec.rename_apart_avoiding. And
    FlambdaLoopifySpec.loopify_unit, which the validation applies to
    the term before, after the first comparison and before any rewrite
    that makes names: it is given, for the code ids to make loops of,
