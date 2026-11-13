@@ -1,0 +1,48 @@
+(let $camlInt64_clamp__int64_0 = 0L in
+ let $camlInt64_clamp__int64_1 = 1L in
+ let code inline(never) size(30)
+       above_0 (a/63 : int64 boxed)
+         my_closure/64 &my_alloc_region/65 my_depth/66
+         -> k/16 * k/17
+         : int64 boxed =
+   let next_depth/67 = rec_info (succ my_depth/66) in
+   (let prim/73 = %unbox_num.`int64` ($camlInt64_clamp__int64_0) in
+    let prim/74 = %unbox_num.`int64` (a/63) in
+    let prim/75 = %int_comp.`int64`.lt (prim/74, prim/73) in
+    let int64_lessthan/76 = %tag_imm (prim/75) in
+    let untagged/77 = %untag_imm (int64_lessthan/76) in
+    switch untagged/77
+      | 0 -> k/18 (a/63)
+      | 1 -> k/18 ($camlInt64_clamp__int64_0))
+     where k/18 (v/68 : int64 boxed) =
+       let prim/69 = %unbox_num.`int64` ($camlInt64_clamp__int64_1) in
+       let prim/70 = %unbox_num.`int64` (v/68) in
+       let prim/71 = %int_barith.`int64`.add (prim/70, prim/69) in
+       let int64_add/72 = %box_num.`int64`.my_alloc_region/65 (prim/71) in
+       cont k/16 (int64_add/72)
+ in
+ let $camlInt64_clamp__int64_3 = 5L in
+ let $camlInt64_clamp__int64_2 = -5L in
+ let above/78 = closure above_0 @above &toplevel in
+ (let Popaque/90 = %opaque ($camlInt64_clamp__int64_2) in
+  apply direct(above_0 &toplevel)
+    (above/78 : _ -> int64 boxed) (Popaque/90) -> k/19 * error)
+   where k/19 (apply_result/79 : int64 boxed) =
+     ((let Popaque/89 = %opaque ($camlInt64_clamp__int64_3) in
+       apply direct(above_0 &toplevel)
+         (above/78 : _ -> int64 boxed) (Popaque/89) -> k/20 * error)
+        where k/20 (apply_result/80 : int64 boxed) =
+          let prim/81 = %unbox_num.`int64` (apply_result/79) in
+          let prim/82 = %unbox_num.`int64` (apply_result/80) in
+          let prim/83 = %int_barith.`int64`.add (prim/82, prim/81) in
+          let int64_add/84 = %box_num.`int64`.`toplevel` (prim/83) in
+          let prim/85 = %unbox_num.`int64` (int64_add/84) in
+          let prim/86 = %num_conv.[`int64`].[`imm`] (prim/85) in
+          let result/87 = %tag_imm (prim/86) in
+          let Pmakeblock/88 = %block.[`0`].`toplevel` (result/87) in
+          cont k/15 (Pmakeblock/88)))
+  where k/15 define_root_symbol (module_block/61) =
+    let field_0/62 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/61)
+    in
+    let $camlInt64_clamp = Block 0 (field_0/62) in
+    cont done ($camlInt64_clamp)

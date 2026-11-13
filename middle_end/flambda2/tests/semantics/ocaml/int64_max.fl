@@ -1,0 +1,53 @@
+(let $camlInt64_max__int64_0 = 1L in
+ let code inline(never) size(30)
+       next_max_0 (a/65 : int64 boxed, b/66 : int64 boxed)
+         my_closure/67 &my_alloc_region/68 my_depth/69
+         -> k/16 * k/17
+         : int64 boxed =
+   let next_depth/70 = rec_info (succ my_depth/69) in
+   (let prim/76 = %unbox_num.`int64` (b/66) in
+    let prim/77 = %unbox_num.`int64` (a/65) in
+    let prim/78 = %int_comp.`int64`.lt (prim/77, prim/76) in
+    let int64_lessthan/79 = %tag_imm (prim/78) in
+    let untagged/80 = %untag_imm (int64_lessthan/79) in
+    switch untagged/80
+      | 0 -> k/18 (a/65)
+      | 1 -> k/18 (b/66))
+     where k/18 (m/71 : int64 boxed) =
+       let prim/72 = %unbox_num.`int64` ($camlInt64_max__int64_0) in
+       let prim/73 = %unbox_num.`int64` (m/71) in
+       let prim/74 = %int_barith.`int64`.add (prim/73, prim/72) in
+       let int64_add/75 = %box_num.`int64`.my_alloc_region/68 (prim/74) in
+       cont k/16 (int64_add/75)
+ in
+ let $camlInt64_max__int64_4 = 4L in
+ let $camlInt64_max__int64_3 = 3L in
+ let $camlInt64_max__int64_2 = 5L in
+ let $camlInt64_max__int64_1 = 6L in
+ let next_max/81 = closure next_max_0 @next_max &toplevel in
+ (let Popaque/93 = %opaque ($camlInt64_max__int64_1) in
+  apply direct(next_max_0 &toplevel)
+    (next_max/81 : _ -> int64 boxed)
+      (Popaque/93, $camlInt64_max__int64_2)
+      -> k/19 * error)
+   where k/19 (apply_result/82 : int64 boxed) =
+     ((let Popaque/92 = %opaque ($camlInt64_max__int64_3) in
+       apply direct(next_max_0 &toplevel)
+         (next_max/81 : _ -> int64 boxed)
+           (Popaque/92, $camlInt64_max__int64_4)
+           -> k/20 * error)
+        where k/20 (apply_result/83 : int64 boxed) =
+          let prim/84 = %unbox_num.`int64` (apply_result/82) in
+          let prim/85 = %unbox_num.`int64` (apply_result/83) in
+          let prim/86 = %int_barith.`int64`.add (prim/85, prim/84) in
+          let int64_add/87 = %box_num.`int64`.`toplevel` (prim/86) in
+          let prim/88 = %unbox_num.`int64` (int64_add/87) in
+          let prim/89 = %num_conv.[`int64`].[`imm`] (prim/88) in
+          let result/90 = %tag_imm (prim/89) in
+          let Pmakeblock/91 = %block.[`0`].`toplevel` (result/90) in
+          cont k/15 (Pmakeblock/91)))
+  where k/15 define_root_symbol (module_block/63) =
+    let field_0/64 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/63)
+    in
+    let $camlInt64_max = Block 0 (field_0/64) in
+    cont done ($camlInt64_max)
