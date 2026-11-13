@@ -5870,19 +5870,43 @@ let the_line_of_t7_13_in_every_order () =
    3, is the variable 2, which is the variable 1; and the extension of tag 0
    gives the variable 3 two fields, where the variable 1 has one. No value has
    both. The model answers bottom. Neither meet of the compiler does, in any
-   order of the identifiers. Why is not established: neither line was traced.
-   The compiler ignores an equation on a name to which an equation is being
-   added ([Meet_env.add_or_delay_concrete_equation_on_canonical_name]), and the
-   line has such an equation, so that rule may be where the contradiction is
-   lost; the model has the same rule, and which difference of the model with the
-   compiler this is, is not known.
+   order of the identifiers.
+
+   Between the model and the n-way meet the difference is T4-21, which the owner
+   of the meet found by a trace of the model on this line; the compiler was not
+   traced. What a meet adds in a scope is added again when the scope is left: by
+   the join that the meet of the cases calls, and then by the meet of the
+   variant around it when it returns. The n-way meet, as its source reads, goes
+   through a map of names each time, so each time in the order of the names. The
+   model goes through lists, and here it adds the equations on the variables 3
+   and 1 in one order and then in the other, which no order of names gives; that
+   is how it reaches the contradiction. Run outside this tree with either adding
+   reversed, the model is not bottom, and sees what both meets see in the twelve
+   orders in which the identifier of the variable 1 is less than that of the
+   variable 3, or what they see in the twelve others; in both runs, by that
+   trace, it ignores the extension of tag 0 because an equation is being added
+   to the variable 1
+   ([Meet_env.add_or_delay_concrete_equation_on_canonical_name]), and that is
+   where the model then loses the contradiction. That the compiler loses it at
+   that rule is what its source and those runs of the model suggest; no trace of
+   the compiler establishes it. Why the binary meet is not bottom was not looked
+   at.
 
    The line of T7-15 is the same with one case in the place of two: the variable
    1 is a variant whose blocks, of tag 0, hold the variable 3, and then one
    whose blocks hold a block of two fields that are the variable 2, so that the
    variable 3 is that block in the environment. The binary meet answers bottom.
    The n-way meet and the model see after the last equation what they see before
-   it.
+   it. By a trace of the model, which the owner of the meet ran, and by the
+   source of the n-way meet, which was read and not traced: the join that the
+   meet of the cases ends with finds the contradiction when it adds the
+   equations of the case to its target, and answers the target marked bottom,
+   with none of them ([Meet_env.add_env_extension], called by
+   [Join_env.define_or_eliminate_variables_and_add_equations]); the meet of the
+   cases answers that environment; and the meet of the variant, when it returns,
+   cuts the level of that environment, which has no equation, and adds it to the
+   environment before the scope, which is not bottom ([direct_return] of
+   [meet_disjunction]). The mark is lost there, and nothing is learnt.
 
    Each line is run many times, with new variables each time, with each meet of
    the compiler, and what is answered is asked in each of the twenty-four orders
