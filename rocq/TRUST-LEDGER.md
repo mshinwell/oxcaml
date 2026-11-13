@@ -153,8 +153,15 @@ it gave back.
   above as well). The compiler writes such a
   closure in a term after, where Simplify has inlined a function of
   another unit that makes one; a term before that is compiled
-  outside classic mode has none, so no text of those scripts has
-  one. Given by hand the compiler's text of such a term after, of a
+  outside classic mode has none, so no text that those scripts make
+  at those settings has one. A source of `pairs/` may ask for
+  classic mode on its line of flags, and none of this tree does. Of
+  one that did, not in this tree, the script made the text, with a
+  direct call of code of the other unit in it, and the tool, given
+  the flags of the source as the rules of `pairs/` give them, ended
+  on the compiler's fatal error that classic mode is not supported
+  where the middle end is run alone (`flambda2.ml`), with status 2.
+  Given by hand the compiler's text of such a term after, of a
   pair not in this tree, the tool ended on that exception, which
   it does not catch, with status 2 and no verdict. In the round
   trip of the conversion of the same unit, read from its term
@@ -192,7 +199,9 @@ it gave back.
   `Kind_naked_int16`) and its variables are numbers
   (`FlambdaModel.variable`), and the driver of the compiler's own
   run, which reads no text, validates the unit with the operator
-  and the unit with the parameter.
+  and the unit with the parameter. All of this was seen with the
+  scripts and the tool of 2abcee6155, and was not run again on what
+  has come since.
   Two primitive annotations are also lost by the text; the tool
   reconstructs the second from the argument and leaves the first. The
   printer writes both forms
