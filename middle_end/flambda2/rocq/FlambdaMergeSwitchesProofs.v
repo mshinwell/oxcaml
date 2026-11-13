@@ -1093,8 +1093,8 @@ Definition rename_row (r : renaming) (row : Z * list simple)
 Definition rename_entry (r : renaming) (entry : Z * simple) : Z * simple :=
   (fst entry, rename_simple r (snd entry)).
 
-Definition rename_known (r : renaming) (known : known_continuations)
-    : known_continuations :=
+Definition rename_known_continuations (r : renaming)
+    (known : known_continuations) : known_continuations :=
   map
     (fun entry =>
        (rename_continuation r (fst entry),
@@ -1438,18 +1438,20 @@ Qed.
 
 Lemma lookup_known_renamed (r : renaming) (k : continuation)
     (known : known_continuations) :
-  lookup (rename_continuation r k) (rename_known r known)
+  lookup (rename_continuation r k) (rename_known_continuations r known)
   = option_map (map (rename_variable r)) (lookup k known).
 Proof.
   induction known as [ | [k' names] known IH]; [ reflexivity | ].
-  cbn [rename_known map fst snd lookup]. rewrite rename_continuation_eqb.
+  cbn [rename_known_continuations map fst snd lookup].
+  rewrite rename_continuation_eqb.
   destruct (Pos.eqb k k'); [ reflexivity | exact IH ].
 Qed.
 
 Lemma merge_switch_knowing_renamed (r : renaming)
     (known : known_continuations) (scrutinee : simple)
     (arms : list (Z * apply_cont)) :
-  merge_switch_knowing (rename_known r known) (rename_simple r scrutinee)
+  merge_switch_knowing (rename_known_continuations r known)
+    (rename_simple r scrutinee)
     (map (fun arm => (fst arm, rename_apply_cont r (snd arm))) arms)
   = rename_expr r (merge_switch_knowing known scrutinee arms).
 Proof.
@@ -1466,7 +1468,9 @@ Proof.
        Switch (rename_simple r scrutinee)
          (map (fun arm => (fst arm, rename_apply_cont r (snd arm))) arms)
      | (_, ac0) :: _ =>
-       match lookup (ac_continuation ac0) (rename_known r known) with
+       match
+         lookup (ac_continuation ac0) (rename_known_continuations r known)
+       with
        | Some names =>
          match
            merge_switch_by_arguments names (rename_simple r scrutinee)
@@ -1485,7 +1489,7 @@ Proof.
     with
       (match
          lookup (rename_continuation r (ac_continuation ac))
-           (rename_known r known)
+           (rename_known_continuations r known)
        with
        | Some names =>
          match
@@ -1514,19 +1518,19 @@ Lemma known_of_handlers_renamed (r : renaming)
   map (fun entry => (fst entry, parameters_of_handler (snd entry)))
     (map (fun '(k, h) => (rename_continuation r k, rename_handler r h))
        handlers)
-  ++ rename_known r known
-  = rename_known r
+  ++ rename_known_continuations r known
+  = rename_known_continuations r
       (map (fun entry => (fst entry, parameters_of_handler (snd entry)))
          handlers
        ++ known).
 Proof.
-  unfold rename_known. rewrite map_app, !map_map. f_equal.
+  unfold rename_known_continuations. rewrite map_app, !map_map. f_equal.
   apply map_ext. intros [k [params metadata handler]]. reflexivity.
 Qed.
 
 Fixpoint merge_switches_knowing_equivariant (r : renaming)
     (known : known_continuations) (e : expr) {struct e} :
-  merge_switches_knowing (rename_known r known) (rename_expr r e)
+  merge_switches_knowing (rename_known_continuations r known) (rename_expr r e)
   = rename_expr r (merge_switches_knowing known e).
 Proof.
   destruct e
@@ -1537,8 +1541,8 @@ Proof.
   - rewrite merge_switches_knowing_equivariant. reflexivity.
   - change
       ((rename_continuation r k, map (rename_variable r) params)
-       :: rename_known r known)
-      with (rename_known r ((k, params) :: known)).
+       :: rename_known_continuations r known)
+      with (rename_known_continuations r ((k, params) :: known)).
     rewrite !merge_switches_knowing_equivariant. reflexivity.
   - rewrite known_of_handlers_renamed, merge_switches_knowing_equivariant.
     reflexivity.
