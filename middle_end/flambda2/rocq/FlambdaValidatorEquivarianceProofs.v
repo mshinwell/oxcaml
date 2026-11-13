@@ -86,6 +86,9 @@ From OxCamlFlambda2 Require Import FlambdaKnownSlotsSpec.
 From OxCamlFlambda2 Require FlambdaKnownSlotsProofs.
 From OxCamlFlambda2 Require Import FlambdaStubCallsSpec.
 From OxCamlFlambda2 Require FlambdaStubCallsProofs.
+From OxCamlFlambda2 Require Import FlambdaNeverReturnsSpec.
+From OxCamlFlambda2 Require FlambdaNeverReturnsProofs
+  FlambdaNeverReturnsScopeProofs.
 From OxCamlFlambda2 Require Import FlambdaUnboxParamsSpec
   FlambdaUnboxVariantsSpec FlambdaUnboxInScopeSpec FlambdaUnboxInScopeProofs
   FlambdaUnboxInScopeRenameSpec FlambdaUnboxInScopeRenameProofs.
@@ -7124,6 +7127,7 @@ Proof.
   assert (Hloops : rename_conts_alike r r1 (map snd G)).
   { intros k Hk. apply Hheld. rewrite among_app, Hk. apply orb_true_r. }
   rewrite FlambdaStubCallsProofs.demote_stub_calls_equivariant,
+    FlambdaNeverReturnsProofs.cut_returns_unit_equivariant,
     (rename_loopified_alike r r1 G Hloops), loopify_unit_equivariant.
   destruct
     (renames_alike_kept demote_stub_calls r r1 before
@@ -7131,12 +7135,20 @@ Proof.
        Halike1)
     as (Hclosed0 & Halike0).
   destruct
-    (renames_alike_kept (loopify_unit G) r r1 (demote_stub_calls before)
-       (FlambdaLoopsScopeProofs.loopify_unit_keeps_scope G) Hclosed0 Halike0)
+    (renames_alike_kept (cut_returns []) r r1 (demote_stub_calls before)
+       (FlambdaNeverReturnsScopeProofs.cut_returns_keeps_scope [])
+       Hclosed0 Halike0)
+    as (Hclosed00 & Halike00).
+  destruct
+    (renames_alike_kept (loopify_unit G) r r1
+       (cut_returns [] (demote_stub_calls before))
+       (FlambdaLoopsScopeProofs.loopify_unit_keeps_scope G) Hclosed00
+       Halike00)
     as (Hclosed' & Halike1').
-  clear Hclosed Halike1 Hheld Hloops Hclosed0 Halike0.
+  clear Hclosed Halike1 Hheld Hloops Hclosed0 Halike0 Hclosed00 Halike00.
   revert Hclosed' Halike1'.
-  generalize (loopify_unit G (demote_stub_calls before)). clear before.
+  generalize (loopify_unit G (cut_returns [] (demote_stub_calls before))).
+  clear before.
   intros before Hclosed Halike1.
   destruct (normalise_before_equivariant_up_to rounds kept r1 before Hclosed)
     as (r' & Halike_b & Heq).

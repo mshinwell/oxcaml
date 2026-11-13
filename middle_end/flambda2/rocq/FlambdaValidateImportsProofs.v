@@ -44,6 +44,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaImportsSpec FlambdaImportsProofs FlambdaValidateImportsSpec.
 From OxCamlFlambda2 Require Import FlambdaStubCallsSpec
   FlambdaStubCallsProofs.
+From OxCamlFlambda2 Require Import FlambdaNeverReturnsSpec
+  FlambdaNeverReturnsProofs.
 Import ListNotations.
 
 Lemma envs_free_of_statics (D : dropped) (statics : static_env) :
@@ -77,10 +79,13 @@ Proof.
     apply (refines_trans _ _ _
       (demote_stub_calls_refines before [] [] statics hp)).
     apply (refines_trans _ _ _
-      (loopify_unit_refines G (demote_stub_calls before) [] [] statics hp)).
+      (cut_returns_refines (demote_stub_calls before) [] [] statics hp)).
+    apply (refines_trans _ _ _
+      (loopify_unit_refines G (cut_returns [] (demote_stub_calls before))
+         [] [] statics hp)).
     revert Hvalidated. clear Hsame.
-    generalize (loopify_unit G (demote_stub_calls before)). clear before.
-    intros before.
+    generalize (loopify_unit G (cut_returns [] (demote_stub_calls before))).
+    clear before. intros before.
     set (a := tidied_after rounds (normalise_after rounds kept after)).
     destruct (expr_eqb [] []
                 (order_statics_as a
@@ -235,10 +240,13 @@ Proof.
   apply (refines_trans _ _ _
     (demote_stub_calls_refines before [] [] statics hp)).
   apply (refines_trans _ _ _
-    (loopify_unit_refines G (demote_stub_calls before) [] [] statics hp)).
+    (cut_returns_refines (demote_stub_calls before) [] [] statics hp)).
+  apply (refines_trans _ _ _
+    (loopify_unit_refines G (cut_returns [] (demote_stub_calls before))
+       [] [] statics hp)).
   revert Hverdict. clear Hsame.
-  generalize (loopify_unit G (demote_stub_calls before)). clear before.
-  intros before.
+  generalize (loopify_unit G (cut_returns [] (demote_stub_calls before))).
+  clear before. intros before.
   set (a := tidied_after rounds (normalise_after rounds kept after)) in *.
   destruct (expr_eqb [] []
               (order_statics_as a

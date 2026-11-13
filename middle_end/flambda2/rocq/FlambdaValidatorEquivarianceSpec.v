@@ -1386,7 +1386,12 @@ Definition with_statics_first_renamed_alike_statement : Prop :=
    of the stubs of the term before are made indirect
    (FlambdaStubCallsSpec.demote_stub_calls), which commutes with the
    renaming, as that renames no code id and keeps what code is
-   annotated with, and keeps the code closed; and the self tail calls
+   annotated with, and keeps the code closed; the direct calls of
+   code that never returns are put under a binding of their return
+   continuation to a handler that is [Invalid]
+   (FlambdaNeverReturnsSpec.cut_returns), which commutes with the
+   renaming exactly, as it makes no name, and keeps the code closed
+   (FlambdaNeverReturnsScopeSpec.v); and the self tail calls
    of the code named are made jumps (FlambdaLoopifySpec.loopify_unit),
    which commutes with the renaming, the names given for the loops
    being renamed with the term ([rename_loopified]), and keeps the

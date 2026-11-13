@@ -80,6 +80,8 @@ From OxCamlFlambda2 Require Import FlambdaKnownSlotsSpec
   FlambdaKnownSlotsProofs.
 From OxCamlFlambda2 Require Import FlambdaStubCallsSpec
   FlambdaStubCallsProofs.
+From OxCamlFlambda2 Require Import FlambdaNeverReturnsSpec
+  FlambdaNeverReturnsProofs.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec
   FlambdaAliasesProofs.
 From OxCamlFlambda2Types Require FlambdaSimplifyPassSpec
@@ -642,10 +644,12 @@ Proof.
   - cbv zeta. intros Hvalidated.
     apply (expr_refines_trans _ _ _ (demote_stub_calls_refines before)).
     apply (expr_refines_trans _ _ _
-      (loopify_unit_refines G (demote_stub_calls before))).
+      (cut_returns_refines (demote_stub_calls before))).
+    apply (expr_refines_trans _ _ _
+      (loopify_unit_refines G (cut_returns [] (demote_stub_calls before)))).
     revert Hvalidated. clear Hsame.
-    generalize (loopify_unit G (demote_stub_calls before)). clear before.
-    intros before.
+    generalize (loopify_unit G (cut_returns [] (demote_stub_calls before))).
+    clear before. intros before.
     set (a := tidied_after rounds (normalise_after rounds kept after)).
     destruct (expr_eqb [] []
                 (order_statics_as a
@@ -705,10 +709,14 @@ Proof.
       (expr_refines_program _ _ (demote_stub_calls_refines before))).
     apply (refines_trans _ _ _
       (expr_refines_program _ _
-         (loopify_unit_refines G (demote_stub_calls before)))).
+         (cut_returns_refines (demote_stub_calls before)))).
+    apply (refines_trans _ _ _
+      (expr_refines_program _ _
+         (loopify_unit_refines G
+            (cut_returns [] (demote_stub_calls before))))).
     revert Hvalidated. clear Hsame.
-    generalize (loopify_unit G (demote_stub_calls before)). clear before.
-    intros before.
+    generalize (loopify_unit G (cut_returns [] (demote_stub_calls before))).
+    clear before. intros before.
     set (a := tidied_after rounds (normalise_after rounds kept after)).
     destruct (expr_eqb [] []
                 (order_statics_as a

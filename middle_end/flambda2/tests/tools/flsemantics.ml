@@ -88,7 +88,11 @@
    returns: if a run of the term after returns from such a call it becomes
    undefined, and where the term before has a defined outcome the two runs, once
    completed, then differ. The term of the model has a continuation that the
-   compiler's term has not.
+   compiler's term has not. The term before has, for the same call, the return
+   continuation that the front end gave it; the validation gives it the same
+   form by a rewrite that is proved (FlambdaNeverReturnsSpec.v), where the code
+   called is bound in sight, its body does not mention its return continuation,
+   and the other checks of that rewrite pass.
 
    Imports. The external symbols that the two units of a check mention, those of
    another compilation unit, the predefined exceptions among them, are listed
@@ -162,6 +166,7 @@ module Unused_slots = Flambda2_rocq_semantics.FlambdaUnusedSlotsSpec
 module Float_code = Flambda2_rocq_semantics.FlambdaFloatCodeSpec
 module Loopify = Flambda2_rocq_semantics.FlambdaLoopifySpec
 module Stub_calls = Flambda2_rocq_semantics.FlambdaStubCallsSpec
+module Never_returns = Flambda2_rocq_semantics.FlambdaNeverReturnsSpec
 module Statics_order = Flambda2_rocq_semantics.FlambdaStaticsOrderSpec
 module Lift_from_code = Flambda2_rocq_semantics.FlambdaLiftFromCodeSpec
 module Lift_from_arms = Flambda2_rocq_semantics.FlambdaLiftFromArmsSpec
@@ -2444,16 +2449,19 @@ let well_formed_before ~filename (before : Flambda_unit.t) =
    lifted and which slots are guesses too. Before any of this, where the two
    terms are not the same as they are given, [validate_unit] makes indirect the
    direct calls in the code of the stubs of the term before, as Simplify does
-   where it simplifies that code (FlambdaStubCallsSpec.v), and makes jumps of
-   the self tail calls of the code named here, as Simplify does for the code
-   that the front end marks for loopify; which code that is, with a name for
-   each loop, is a guess again, and the guesses above are made of the term that
-   this gives. Failing all of that, the whole is asked a second time, of
-   [validate_unit_knowing], extracted from FlambdaValidateKnowingSpec.v, where
-   it is proved that what it accepts is correct for the unit in the same way. It
-   is [validate_unit] of the two terms normalised by rounds in front of each of
-   which the aliases are followed knowing what the symbols are bound to; the
-   guesses are made again, from those two terms. *)
+   where it simplifies that code (FlambdaStubCallsSpec.v), puts each direct call
+   of code that never returns, under the checks of that rewrite, under a binding
+   of its return continuation to a handler that is [Invalid]
+   (FlambdaNeverReturnsSpec.v), and makes jumps of the self tail calls of the
+   code named here, as Simplify does for the code that the front end marks for
+   loopify; which code that is, with a name for each loop, is a guess again, and
+   the guesses above are made of the term that this gives. Failing all of that,
+   the whole is asked a second time, of [validate_unit_knowing], extracted from
+   FlambdaValidateKnowingSpec.v, where it is proved that what it accepts is
+   correct for the unit in the same way. It is [validate_unit] of the two terms
+   normalised by rounds in front of each of which the aliases are followed
+   knowing what the symbols are bound to; the guesses are made again, from those
+   two terms. *)
 
 (* The code that the front end marks for loopify, each with a name for its loop
    that no continuation of the two units has. *)
@@ -2500,10 +2508,14 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
      from a lifted term are guessed from that term placed and tidied. *)
   let ask validate_unit (before : converted) (after : converted) kept =
     (* The term before with the direct calls of the code of its stubs made
-       indirect and its self tail calls made jumps: the term that the function
-       asked normalises and lifts in. *)
+       indirect, its direct calls of code that never returns which pass the
+       checks of that rewrite put under a binding of their return continuation
+       to a handler that is [Invalid], and its self tail calls made jumps: the
+       term that the function asked normalises and lifts in. *)
     let looped =
-      Loopify.loopify_unit loops (Stub_calls.demote_stub_calls before.body)
+      Loopify.loopify_unit loops
+        (Never_returns.cut_returns []
+           (Stub_calls.demote_stub_calls before.body))
     in
     let normalised_before = Validate.normalise_before rounds kept looped in
     let normalised_after = Validate.normalise_after rounds kept after.body in

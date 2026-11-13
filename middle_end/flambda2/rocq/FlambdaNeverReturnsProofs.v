@@ -474,6 +474,11 @@ Proof. intros r known e. apply cut_returns_equivariant_aux. Qed.
 (* Two examples                                                             *)
 (* ======================================================================== *)
 
+(* With no code known, as the validation applies the rewrite. *)
+Lemma cut_returns_unit_equivariant (r : renaming) (e : expr) :
+  cut_returns [] (rename_expr r e) = rename_expr r (cut_returns [] e).
+Proof. exact (cut_returns_equivariant r [] e). Qed.
+
 Theorem cut_returns_example : cut_returns_example_statement.
 Proof. intros callee. reflexivity. Qed.
 

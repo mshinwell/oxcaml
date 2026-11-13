@@ -27,6 +27,7 @@ open FlambdaLoopLetsSpec
 open FlambdaLoopifySpec
 open FlambdaMergeSwitchesSpec
 open FlambdaModel
+open FlambdaNeverReturnsSpec
 open FlambdaNormaliseSpec
 open FlambdaParamAliasesSpec
 open FlambdaRecHandlersSpec

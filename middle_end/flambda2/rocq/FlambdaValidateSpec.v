@@ -39,7 +39,22 @@
    the code of each stub of the term before, the direct calls of code
    of the unit that is not a stub, as Simplify does where it
    simplifies the code of a stub
-   (FlambdaStubCallsSpec.demote_stub_calls), and it makes jumps of the
+   (FlambdaStubCallsSpec.demote_stub_calls); it puts each direct call
+   of code in sight whose body does not mention its return
+   continuation, where the other checks of the rewrite pass
+   (FlambdaNeverReturnsSpec.never_returns_b and [invalid_params]: the
+   call is not a partial application, the code is not tupled, the two
+   continuations of the call are two names, and the code binds as
+   many names as the call has results), under a
+   binding of the call's own return continuation to a handler that is
+   [Invalid], which is the form that the term after has for a call to
+   which Simplify gives no return continuation
+   (FlambdaNeverReturnsSpec.cut_returns; after the demotion in the
+   code of stubs, so that a direct call there of code of the unit
+   that is not a stub is indirect by then and is left: at the default
+   flags Simplify keeps the return continuation of a call, in the
+   code of a stub, whose callee is projected from the closure of the
+   stub); and it makes jumps of the
    self tail calls of the code named, each with the name given for its
    loop (FlambdaLoopifySpec.loopify_unit, which says what a self tail
    call is and leaves alone the code that it may not change), as
@@ -272,6 +287,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
 From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
 From OxCamlFlambda2 Require Import FlambdaKnownSlotsSpec.
 From OxCamlFlambda2 Require Import FlambdaStubCallsSpec.
+From OxCamlFlambda2 Require Import FlambdaNeverReturnsSpec.
 From OxCamlFlambda2 Require Import FlambdaUnusedHeadStaticsSpec.
 From OxCamlFlambda2 Require Import FlambdaUnboxParamsSpec
   FlambdaUnboxInScopeSpec.
@@ -869,7 +885,9 @@ Definition validate_unit (rounds : nat) (unused : dropped)
     (kept : list code_id) (before after : expr) : validation :=
   if expr_eqb [] [] before after then Same_up_to_bound_names
   else
-    let before := loopify_unit G (demote_stub_calls before) in
+    let before :=
+      loopify_unit G (cut_returns [] (demote_stub_calls before))
+    in
     let normalised :=
       tidied_before rounds (normalise_before rounds kept before)
     in

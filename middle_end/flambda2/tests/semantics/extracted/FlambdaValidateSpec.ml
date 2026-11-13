@@ -27,6 +27,7 @@ open FlambdaLoopLetsSpec
 open FlambdaLoopifySpec
 open FlambdaMergeSwitchesSpec
 open FlambdaModel
+open FlambdaNeverReturnsSpec
 open FlambdaNormaliseSpec
 open FlambdaParamAliasesSpec
 open FlambdaRecHandlersSpec
@@ -359,7 +360,7 @@ let validate_unit rounds unused slots g ls kept before after =
   if expr_eqb [] [] before after
   then Same_up_to_bound_names
   else
-    let before0 = loopify_unit g (demote_stub_calls before) in
+    let before0 = loopify_unit g (cut_returns [] (demote_stub_calls before)) in
     let normalised =
       tidied_before rounds (normalise_before rounds kept before0)
     in

@@ -30,9 +30,9 @@
 
    This file is to be reviewed: [never_returns_b], [invalid_params],
    [cut_return], [returns_to_invalid] and [cut_returns], which the
-   validation of middle_end/flambda2/tests/semantics/ is to run on the
-   term before (it does not yet: FlambdaValidateSpec.v does not name
-   them, and nothing extracts them), and the statements.
+   validation applies to the term before
+   (FlambdaValidateSpec.validate_unit, with no code known at the head
+   of the unit), and the statements.
 
    Simplify gives a call no return continuation where the type of the
    callee's result is bottom ([Never_returns]; simplify_apply_expr.ml).
