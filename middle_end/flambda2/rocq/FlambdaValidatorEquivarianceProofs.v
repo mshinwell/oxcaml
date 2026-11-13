@@ -76,7 +76,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaInlineSiblingsSpec FlambdaInlineSiblingsProofs
   FlambdaUnusedProjectionsSpec FlambdaUnboxVariantsSpec
   FlambdaUnaliasParamsSpec FlambdaWrapReturnsSpec FlambdaUntagParamsSpec
-  FlambdaGiveScrutineeSpec FlambdaValidateSpec
+  FlambdaGiveScrutineeSpec FlambdaArmNumbersSpec FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec FlambdaValidatorEquivarianceBaseProofs.
 From OxCamlFlambda2 Require FlambdaKeepsScopeProofs FlambdaValidateScopeProofs
   FlambdaLoopsScopeProofs
@@ -84,7 +84,8 @@ From OxCamlFlambda2 Require FlambdaKeepsScopeProofs FlambdaValidateScopeProofs
   FlambdaLiftAroundProofs
   FlambdaHoistStaticsProofs FlambdaUnboxParamsNamesProofs
   FlambdaUnaliasParamsNamesProofs FlambdaWrapReturnsNamesProofs
-  FlambdaUntagParamsNamesProofs FlambdaGiveScrutineeNamesProofs.
+  FlambdaUntagParamsNamesProofs FlambdaGiveScrutineeNamesProofs
+  FlambdaArmNumbersNamesProofs.
 From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
 From OxCamlFlambda2 Require FlambdaDemoteProofs.
 From OxCamlFlambda2 Require Import FlambdaLiftObservedSpec.
@@ -4818,6 +4819,11 @@ Proof. exact FlambdaUnaliasParamsNamesProofs.unalias_params_renamed. Qed.
    FlambdaGiveScrutineeNamesProofs.v. *)
 Theorem give_scrutinees_equivariant : give_scrutinees_equivariant_statement.
 Proof. exact FlambdaGiveScrutineeNamesProofs.give_scrutinees_renamed. Qed.
+
+(* Putting the number of an arm for the scrutinee in the arguments of
+   the arm: the lemmas are in FlambdaArmNumbersNamesProofs.v. *)
+Theorem numbers_in_arms_equivariant : numbers_in_arms_equivariant_statement.
+Proof. exact FlambdaArmNumbersNamesProofs.numbers_in_arms_renamed. Qed.
 
 (* Removing an unused parameter of a continuation that a call returns
    to: the lemmas are in FlambdaWrapReturnsNamesProofs.v. *)

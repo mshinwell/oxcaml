@@ -50,12 +50,12 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec
   FlambdaKnownSlotsSpec FlambdaStubCallsSpec FlambdaStaticsInScopeSpec
   FlambdaFloatCodeSpec FlambdaGroupsUpSpec FlambdaUnaliasParamsSpec
-  FlambdaValidateSpec
+  FlambdaArmNumbersSpec FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec FlambdaScopedProofs
   FlambdaKeepsScopeProofs FlambdaStaticsScopeSpec.
 From OxCamlFlambda2 Require FlambdaUnaliasParamsNamesProofs
   FlambdaWrapReturnsNamesProofs FlambdaUntagParamsNamesProofs
-  FlambdaGiveScrutineeNamesProofs.
+  FlambdaGiveScrutineeNamesProofs FlambdaArmNumbersNamesProofs.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -1841,6 +1841,13 @@ Proof. exact FlambdaUnaliasParamsNamesProofs.unalias_params_scope. Qed.
 
 Theorem give_scrutinees_keeps_scope : give_scrutinees_keeps_scope_statement.
 Proof. exact FlambdaGiveScrutineeNamesProofs.give_scrutinees_scope. Qed.
+
+(* ======================================================================== *)
+(* The scrutinee is the number of the arm                                   *)
+(* ======================================================================== *)
+
+Theorem numbers_in_arms_keeps_scope : numbers_in_arms_keeps_scope_statement.
+Proof. exact FlambdaArmNumbersNamesProofs.numbers_in_arms_scope. Qed.
 
 (* ======================================================================== *)
 (* An unused parameter of a continuation that a call returns to             *)

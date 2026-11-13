@@ -371,7 +371,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaInlineTailSpec FlambdaLoopifySpec
   FlambdaDeadParamsSpec FlambdaRenameApartSpec FlambdaUnusedProjectionsSpec
   FlambdaUnaliasParamsSpec FlambdaWrapReturnsSpec FlambdaUntagParamsSpec
-  FlambdaGiveScrutineeSpec FlambdaValidateSpec.
+  FlambdaGiveScrutineeSpec FlambdaArmNumbersSpec FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 From OxCamlFlambda2 Require Import FlambdaLiftObservedSpec.
 Import ListNotations.
@@ -884,6 +884,14 @@ Definition unalias_params_equivariant_statement : Prop :=
    keeps scope is in FlambdaStaticsScopeSpec.v. *)
 Definition give_scrutinees_equivariant_statement : Prop :=
   rewrite_equivariant give_scrutinees.
+
+(* Putting the number of an arm for the scrutinee of its [Switch], in
+   the arguments of the arm and of the handler that only that arm
+   applies (FlambdaArmNumbersSpec.v). The variables are found by tests
+   of equality of names, in the order of the term, and no name is
+   made. That it keeps scope is in FlambdaStaticsScopeSpec.v. *)
+Definition numbers_in_arms_equivariant_statement : Prop :=
+  rewrite_equivariant numbers_in_arms.
 
 (* Removing a parameter that its handler does not use, of a
    continuation that a call returns to, with a wrapper for the call

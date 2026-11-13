@@ -163,6 +163,10 @@
      number apply, or under those where no binder of the variable is
      between, so it is free in the term
      ([give_scrutinees_keeps_scope_statement]).
+   - FlambdaArmNumbersSpec.numbers_in_arms puts a constant for a
+     variable in arguments of continuations, so a free variable of
+     the result is one of the term
+     ([numbers_in_arms_keeps_scope_statement]).
    - FlambdaWrapReturnsSpec.wrap_returns takes away a parameter that
      its handler does not use, of a continuation that a call returns
      to: the applications lose an argument, and each call returns to
@@ -196,7 +200,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec FlambdaFloatCodeSpec
   FlambdaGroupsUpSpec FlambdaKnownSlotsSpec FlambdaStubCallsSpec
   FlambdaUnaliasParamsSpec FlambdaWrapReturnsSpec FlambdaUntagParamsSpec
-  FlambdaGiveScrutineeSpec FlambdaValidateSpec
+  FlambdaGiveScrutineeSpec FlambdaArmNumbersSpec FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec.
 From OxCamlFlambda2 Require Import FlambdaLiftObservedSpec.
 Import ListNotations.
@@ -344,6 +348,13 @@ Definition unalias_params_keeps_scope_statement : Prop :=
 
 Definition give_scrutinees_keeps_scope_statement : Prop :=
   keeps_scope give_scrutinees.
+
+(* ======================================================================== *)
+(* The scrutinee is the number of the arm                                   *)
+(* ======================================================================== *)
+
+Definition numbers_in_arms_keeps_scope_statement : Prop :=
+  keeps_scope numbers_in_arms.
 
 (* ======================================================================== *)
 (* An unused parameter of a continuation that a call returns to             *)
