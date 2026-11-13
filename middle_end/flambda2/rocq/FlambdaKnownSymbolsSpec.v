@@ -103,8 +103,8 @@
    a unit run on its own it is enough that every static binding of such
    a symbol in the unit binds it to the one constant (for a symbol of
    [known_sets]: to a closure at that slot of that set, or to a block
-   of that tag with those fields where they are not variables), which
-   is what
+   that is the same block once each field that is a variable is
+   replaced by [unknown_field]), which is what
    [bound_as] checks; the symbol is then bound to it or to nothing, and
    where it is bound to nothing the defining expression has no value in
    the unit as it was (every operation on a symbol bound to nothing is
@@ -425,8 +425,14 @@ with fold_known_code (statics sets : static_env) (c : code) : code :=
 (* If [known] gives the symbol a constant, the binding binds it to that
    constant, which has no variable in it; and if [sets] gives it a
    closure of a set, the binding binds it to a closure at that slot of
-   that set, and if a block, to a block of that tag with those fields
-   where they are not variables. *)
+   that set, and if a block, to a block that is the same block once
+   each field that is a variable is replaced by [unknown_field]: one
+   of that tag, with as many fields, and with the same field wherever
+   neither has a variable. The test is the equality of the two blocks
+   so replaced, so a variable in one may stand where the other has a
+   variable or the constant [unknown_field] itself; a load of that
+   field from the block so replaced has no value, so none is folded
+   to it. *)
 Definition binding_bound_as (known sets : list (symbol * static_const))
     (binding : static_binding) : bool :=
   match binding with
@@ -451,7 +457,9 @@ Definition binding_bound_as (known sets : list (symbol * static_const))
 
 (* Every static binding of the expression, in handlers and in code too,
    binds a symbol of [known] to the constant that [known] gives it, and
-   one of [sets] to a closure of the set that [sets] gives it. *)
+   one of [sets] to a closure of the set that [sets] gives it, or to a
+   block that is, with its fields that are variables replaced, the
+   block that [sets] gives it. *)
 Fixpoint bound_as (known sets : list (symbol * static_const)) (e : expr)
     : bool :=
   match e with
@@ -487,8 +495,8 @@ with code_bound_as (known sets : list (symbol * static_const)) (c : code)
 (* The unit with what it binds its symbols to used wherever they are, if
    it binds each of them to one constant, each symbol of a closure of a
    set to closures at one slot of one set, and each symbol of a block
-   to blocks of one tag that have the same fields where they are not
-   variables, and variables at the same places. *)
+   to blocks that are the same once each field that is a variable is
+   replaced by [unknown_field]. *)
 Definition fold_known_unit (e : expr) : option expr :=
   let known := known_bindings e in
   let sets := known_sets e in
