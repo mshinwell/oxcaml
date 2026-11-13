@@ -14,7 +14,7 @@ open FlambdaLiftSpec
 open FlambdaLoopifySpec
 open FlambdaModel
 open FlambdaNeverReturnsSpec
-open FlambdaSimplifyPassSpec
+open FlambdaSimplifyCarriedSpec
 open FlambdaStaticsOrderSpec
 open FlambdaStubCallsSpec
 open FlambdaUnusedHeadStaticsSpec
@@ -83,7 +83,7 @@ let normalise_lifted_free_in statics rounds avoid kept e =
   let e0 = iterate rounds normalise_params_round e in
   known_free_in statics rounds avoid kept e0
   && known_free_in statics rounds avoid kept
-       (guard_scope simplify_by_types
+       (guard_scope simplify_by_types_carried
           (iterate rounds (normalise_lifted_round avoid kept) e0))
 
 (** val lifted_free_in : static_env -> nat -> continuation list -> lifting list

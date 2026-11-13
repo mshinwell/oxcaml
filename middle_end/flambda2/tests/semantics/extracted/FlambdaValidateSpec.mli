@@ -38,7 +38,7 @@ open FlambdaRenameApartSpec
 open FlambdaSameComparisonSpec
 open FlambdaShareProjectionsSpec
 open FlambdaShortcutSpec
-open FlambdaSimplifyPassSpec
+open FlambdaSimplifyCarriedSpec
 open FlambdaSinkContsSpec
 open FlambdaSinkUsesSpec
 open FlambdaStaticsOrderSpec

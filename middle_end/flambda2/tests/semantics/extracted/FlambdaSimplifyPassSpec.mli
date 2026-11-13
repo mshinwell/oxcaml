@@ -1,7 +1,6 @@
 open BinInt
 open BinNums
 open BinPos
-open Bool
 open Datatypes
 open FlambdaBindingTime
 open FlambdaKindModel
@@ -14,11 +13,8 @@ open FlambdaProvers
 open FlambdaSemanticsSpec
 open FlambdaSimplifyApplySpec
 open FlambdaSimplifyArithSpec
-open FlambdaSimplifyCodeEnvSpec
-open FlambdaSimplifyHandlersSpec
 open FlambdaSimplifyPrimitivesSpec
 open FlambdaSimplifyProjectionsSpec
-open FlambdaSimplifyStaticsSpec
 open FlambdaSimplifyValueSlotsSpec
 open FlambdaTypeGrammar
 open FlambdaTypingEnv
@@ -125,12 +121,7 @@ val bind_simple : Typing_env.t -> variable -> simple -> let_step
 
 val type_in_scope_b : Typing_env.t -> flambda_type -> bool
 
-val simplify_let : Typing_env.t -> variable -> named -> let_step
-
 val resolve_value_slot : Typing_env.t -> flambda_kind -> named -> named
-
-val declare_variable :
-  Typing_env.t -> variable -> flambda_kind -> Typing_env.t option
 
 val simplify_apply_cont : Typing_env.t -> apply_cont -> apply_cont
 
@@ -139,21 +130,7 @@ val simplify_switch :
 
 val arm_env : Typing_env.t -> simple -> coq_Z -> Typing_env.t
 
-val bind_params_to_args :
-  (simple -> bool) ->
-  Typing_env.t ->
-  ((variable * flambda_kind) * simple) list ->
-  Typing_env.t option
-
 val not_among : variable list -> simple -> bool
-
-val use_env :
-  Typing_env.t ->
-  Typing_env.t ->
-  variable list ->
-  handler_metadata ->
-  simple list ->
-  Typing_env.t option
 
 val leaf_uses :
   Typing_env.t ->
@@ -161,27 +138,5 @@ val leaf_uses :
   expr ->
   (Typing_env.t * simple list) list option
 
-val let_env :
-  Typing_env.t -> variable -> flambda_kind -> named -> Typing_env.t option
-
-val find_use :
-  Typing_env.t ->
-  Typing_env.t ->
-  continuation ->
-  continuation_handler ->
-  expr ->
-  ((Typing_env.t * variable list) * continuation list) option
-
 val binders_not_free :
   variable list -> continuation list -> continuation_handler -> bool
-
-val simplify_expr : Typing_env.t -> expr -> expr
-
-val simplify_handler :
-  bool -> Typing_env.t -> continuation_handler -> continuation_handler
-
-val simplify_static_binding : Typing_env.t -> static_binding -> static_binding
-
-val simplify_code : Typing_env.t -> code -> code
-
-val simplify_by_types : expr -> expr

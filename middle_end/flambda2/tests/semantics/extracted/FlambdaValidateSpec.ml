@@ -38,7 +38,7 @@ open FlambdaRenameApartSpec
 open FlambdaSameComparisonSpec
 open FlambdaShareProjectionsSpec
 open FlambdaShortcutSpec
-open FlambdaSimplifyPassSpec
+open FlambdaSimplifyCarriedSpec
 open FlambdaSinkContsSpec
 open FlambdaSinkUsesSpec
 open FlambdaStaticsOrderSpec
@@ -160,7 +160,7 @@ let normalise_before rounds kept e =
   demote_and_tidy rounds
     (iterate rounds
        (normalise_before_round kept)
-       (guard_scope simplify_by_types
+       (guard_scope simplify_by_types_carried
           (iterate rounds
              (normalise_before_round kept)
              (iterate rounds normalise_params_round e))))
@@ -260,7 +260,7 @@ let normalise_lifted_round avoid kept e =
 let normalise_lifted rounds avoid kept e =
   iterate rounds
     (normalise_lifted_round avoid kept)
-    (guard_scope simplify_by_types
+    (guard_scope simplify_by_types_carried
        (iterate rounds
           (normalise_lifted_round avoid kept)
           (iterate rounds normalise_params_round e)))

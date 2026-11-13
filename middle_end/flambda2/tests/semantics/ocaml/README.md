@@ -797,7 +797,8 @@ removed it:
   resolves the second. The rewrites that Simplify makes from the
   types are applied to the term before once, between two runs of the
   rounds of its second phase
-  (`FlambdaSimplifyPassSpec.simplify_by_types`, in
+  (`FlambdaSimplifyPassSpec.simplify_by_types`, computed by
+  `FlambdaSimplifyCarriedSpec.simplify_by_types_carried`, in
   `FlambdaValidateSpec.normalise_before`): a handler that is applied
   once is rewritten under what is known where it is applied.
 - A closure that calls a function of its module, made by a function

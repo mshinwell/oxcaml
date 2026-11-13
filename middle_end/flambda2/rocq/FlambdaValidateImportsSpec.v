@@ -176,7 +176,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaFloatCodeSpec FlambdaGuardScopeSpec
   FlambdaValidateSpec FlambdaValidateKnowingSpec
   FlambdaImportsSpec.
-From OxCamlFlambda2Types Require FlambdaSimplifyPassSpec.
+From OxCamlFlambda2Types Require FlambdaSimplifyCarriedSpec.
 Import ListNotations.
 
 (* Whether a verdict of [validate_unit] is one that holds of the unit
@@ -425,7 +425,7 @@ Definition normalise_lifted_free_in (statics : static_env) (rounds : nat)
   let e := iterate rounds normalise_params_round e in
   known_free_in statics rounds avoid kept e
   && known_free_in statics rounds avoid kept
-       (guard_scope FlambdaSimplifyPassSpec.simplify_by_types
+       (guard_scope FlambdaSimplifyCarriedSpec.simplify_by_types_carried
           (iterate rounds (normalise_lifted_round avoid kept) e)).
 
 (* The two, of each of the liftings as [lifted_in_turn] applies

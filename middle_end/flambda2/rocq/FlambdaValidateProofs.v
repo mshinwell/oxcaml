@@ -87,8 +87,8 @@ From OxCamlFlambda2 Require Import FlambdaNeverReturnsSpec
   FlambdaNeverReturnsProofs.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec
   FlambdaAliasesProofs.
-From OxCamlFlambda2Types Require FlambdaSimplifyPassSpec
-  FlambdaSimplifyPassProofs.
+From OxCamlFlambda2Types Require FlambdaSimplifyCarriedSpec
+  FlambdaSimplifyCarriedProofs.
 Import ListNotations.
 
 Lemma expr_equivalent_refl (e : expr) : expr_equivalent e e.
@@ -322,7 +322,7 @@ Proof.
                  rounds _) ].
   eapply expr_refines_trans;
     [ | apply guard_scope_refines,
-          FlambdaSimplifyPassProofs.simplify_by_types_refines ].
+          FlambdaSimplifyCarriedProofs.simplify_by_types_carried_refines ].
   exact (expr_refines_trans _ _ _
     (iterate_refines _ normalise_params_round_refines rounds e)
     (iterate_refines _ (normalise_before_round_refines kept) rounds _)).
@@ -671,7 +671,8 @@ Proof.
   apply (refines_trans _ _ _
     (expr_refines_program _ _
        (guard_scope_refines _ _
-          (FlambdaSimplifyPassProofs.simplify_by_types_refines _)))).
+          (FlambdaSimplifyCarriedProofs.simplify_by_types_carried_refines
+             _)))).
   apply iterate_lifted_program_refines.
 Qed.
 

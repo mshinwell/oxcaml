@@ -1,7 +1,6 @@
 open BinInt
 open BinNums
 open BinPos
-open Bool
 open Datatypes
 open FlambdaBindingTime
 open FlambdaKindModel
@@ -14,11 +13,8 @@ open FlambdaProvers
 open FlambdaSemanticsSpec
 open FlambdaSimplifyApplySpec
 open FlambdaSimplifyArithSpec
-open FlambdaSimplifyCodeEnvSpec
-open FlambdaSimplifyHandlersSpec
 open FlambdaSimplifyPrimitivesSpec
 open FlambdaSimplifyProjectionsSpec
-open FlambdaSimplifyStaticsSpec
 open FlambdaSimplifyValueSlotsSpec
 open FlambdaTypeGrammar
 open FlambdaTypingEnv
@@ -489,11 +485,11 @@ let simplify_named tenv = function
         | Heap _ -> Not_known
       else Becomes_invalid
     | None -> Not_known)
-  | Set_of_closures (code0, value_slots) -> (
+  | Set_of_closures (code, value_slots) -> (
     match simplify_simples tenv (map snd value_slots) with
     | Some answers ->
       Stays_with_type
-        (set_of_closures_type code0 (map fst value_slots) (map fst answers))
+        (set_of_closures_type code (map fst value_slots) (map fst answers))
     | None -> Stays_with_kind Value)
   | Closure_of_set (slot, function_decls, value_slots) -> (
     match simplify_simples tenv (map snd value_slots) with
@@ -572,31 +568,6 @@ let type_in_scope_b tenv ty =
     (fun y -> Typing_env.mem (Some Name_mode.normal) tenv (Name_var y))
     (free_variables ty)
 
-(** val simplify_let : Typing_env.t -> variable -> named -> let_step **)
-
-let simplify_let tenv x defining_expr =
-  if typing_env_well_formed tenv && negb (Typing_env.mem None tenv (Name_var x))
-  then
-    match simplify_named tenv defining_expr with
-    | Becomes_invalid -> Step_invalid
-    | Becomes_simple s -> bind_simple tenv x s
-    | Stays_with_type ty ->
-      if type_in_scope_b tenv ty
-      then
-        Step_let
-          ( canonical_named tenv defining_expr,
-            Typing_env.replace_equation
-              (Typing_env.add_variable_definition tenv x (kind ty)
-                 Name_mode.normal)
-              (Name_var x) ty )
-      else Step_stop
-    | Stays_with_kind kind0 ->
-      Step_let
-        ( canonical_named tenv defining_expr,
-          Typing_env.add_variable_definition tenv x kind0 Name_mode.normal )
-    | Not_known -> Step_stop
-  else Step_stop
-
 (** val resolve_value_slot : Typing_env.t -> flambda_kind -> named -> named **)
 
 let resolve_value_slot tenv declared defining_expr =
@@ -618,15 +589,6 @@ let resolve_value_slot tenv declared defining_expr =
       | None -> defining_expr)
     | None -> defining_expr)
   | _ -> defining_expr
-
-(** val declare_variable : Typing_env.t -> variable -> flambda_kind ->
-    Typing_env.t option **)
-
-let declare_variable tenv x declared =
-  if typing_env_well_formed tenv && negb (Typing_env.mem None tenv (Name_var x))
-  then
-    Some (Typing_env.add_variable_definition tenv x declared Name_mode.normal)
-  else None
 
 (** val simplify_apply_cont : Typing_env.t -> apply_cont -> apply_cont **)
 
@@ -679,58 +641,9 @@ let arm_env tenv scrutinee d =
     | _ -> tenv)
   | None -> tenv
 
-(** val bind_params_to_args : (simple -> bool) -> Typing_env.t -> ((variable *
-    flambda_kind) * simple) list -> Typing_env.t option **)
-
-let rec bind_params_to_args aliased tenv = function
-  | [] -> Some tenv
-  | p :: bindings0 ->
-    let p0, canonical = p in
-    let x, kind0 = p0 in
-    if
-      typing_env_well_formed tenv
-      && negb (Typing_env.mem None tenv (Name_var x))
-    then
-      let defined =
-        Typing_env.add_variable_definition tenv x kind0 Name_mode.normal
-      in
-      bind_params_to_args aliased
-        (if
-           (aliased canonical && simple_in_terms_b tenv canonical)
-           && simple_of_kind_b tenv canonical kind0
-         then
-           match Typing_env.add_alias defined (Var x) canonical with
-           | Some o -> (
-             match o with
-             | Ok result -> result.Typing_env.add_alias_result_t
-             | _ -> defined)
-           | None -> defined
-         else defined)
-        bindings0
-    else None
-
 (** val not_among : variable list -> simple -> bool **)
 
 let not_among xs = function Var x -> negb (among x xs) | _ -> true
-
-(** val use_env : Typing_env.t -> Typing_env.t -> variable list ->
-    handler_metadata -> simple list -> Typing_env.t option **)
-
-let use_env scope tenv params metadata args =
-  let kinds = metadata.hm_params_kinds in
-  match simplify_simples tenv args with
-  | Some answers ->
-    if
-      Nat.eqb (length kinds) (length params)
-      && Nat.eqb (length answers) (length params)
-    then
-      bind_params_to_args
-        (fun canonical ->
-          simple_in_terms_b scope canonical && not_among params canonical)
-        tenv
-        (combine (combine params kinds) (map snd answers))
-    else None
-  | None -> None
 
 (** val leaf_uses : Typing_env.t -> continuation -> expr -> (Typing_env.t *
     simple list) list option **)
@@ -748,170 +661,9 @@ let leaf_uses tenv k = function
          arms)
   | _ -> None
 
-(** val let_env : Typing_env.t -> variable -> flambda_kind -> named ->
-    Typing_env.t option **)
-
-let let_env tenv x declared defining_expr =
-  match
-    simplify_let tenv x (resolve_value_slot tenv declared defining_expr)
-  with
-  | Step_invalid -> None
-  | Step_let (_, tenv') -> Some tenv'
-  | Step_stop -> declare_variable tenv x declared
-
-(** val find_use : Typing_env.t -> Typing_env.t -> continuation ->
-    continuation_handler -> expr -> ((Typing_env.t * variable list) *
-    continuation list) option **)
-
-let rec find_use scope tenv k h body =
-  match body with
-  | Let (x, declared, defining_expr, rest) -> (
-    if var_free_in_handler_b x h
-    then None
-    else
-      match let_env tenv x declared defining_expr with
-      | Some tenv' -> (
-        match find_use scope tenv' k h rest with
-        | Some p ->
-          let p0, ks = p in
-          let target, xs = p0 in
-          Some ((target, x :: xs), ks)
-        | None -> None)
-      | None -> None)
-  | Let_cont_non_recursive (k', h', rest) ->
-    if
-      (negb (Pos.eqb k k') && negb (cont_free_in_handler_b k h'))
-      && negb (cont_free_in_handler_b k' h)
-    then
-      match find_use scope tenv k h rest with
-      | Some p ->
-        let p0, ks = p in
-        Some (p0, k' :: ks)
-      | None -> None
-    else None
-  | Apply_cont _ -> (
-    let (Handler (params, metadata, _)) = h in
-    match leaf_uses tenv k body with
-    | Some l -> (
-      match l with
-      | [] -> None
-      | p :: l0 -> (
-        let tenv_use, args = p in
-        match l0 with
-        | [] -> (
-          match use_env scope tenv_use params metadata args with
-          | Some target -> Some ((target, []), [])
-          | None -> None)
-        | _ :: _ -> None))
-    | None -> None)
-  | Switch (_, _) -> (
-    let (Handler (params, metadata, _)) = h in
-    match leaf_uses tenv k body with
-    | Some l -> (
-      match l with
-      | [] -> None
-      | p :: l0 -> (
-        let tenv_use, args = p in
-        match l0 with
-        | [] -> (
-          match use_env scope tenv_use params metadata args with
-          | Some target -> Some ((target, []), [])
-          | None -> None)
-        | _ :: _ -> None))
-    | None -> None)
-  | _ -> None
-
 (** val binders_not_free : variable list -> continuation list ->
     continuation_handler -> bool **)
 
 let binders_not_free xs ks h =
   forallb (fun x -> negb (var_free_in_handler_b x h)) xs
   && forallb (fun k -> negb (cont_free_in_handler_b k h)) ks
-
-(** val simplify_expr : Typing_env.t -> expr -> expr **)
-
-let rec simplify_expr tenv e =
-  match e with
-  | Let (x, declared, defining_expr, body) -> (
-    match
-      simplify_let tenv x (resolve_value_slot tenv declared defining_expr)
-    with
-    | Step_invalid -> Invalid
-    | Step_let (defining_expr', tenv') ->
-      Let (x, declared, defining_expr', simplify_expr tenv' body)
-    | Step_stop -> (
-      match declare_variable tenv x declared with
-      | Some tenv' -> Let (x, declared, defining_expr, simplify_expr tenv' body)
-      | None -> e))
-  | Let_static (bindings, body) ->
-    let tenv' = add_static_bindings tenv bindings in
-    Let_static
-      (map (simplify_static_binding tenv') bindings, simplify_expr tenv' body)
-  | Let_cont_non_recursive (k, handler, body) ->
-    let body' = simplify_expr tenv body in
-    Let_cont_non_recursive
-      ( k,
-        (let (Handler (params, metadata, handler_body)) = handler in
-         match find_use tenv tenv k handler body' with
-         | Some p ->
-           let p0, ks = p in
-           let target, xs = p0 in
-           let rewritten =
-             Handler (params, metadata, simplify_expr target handler_body)
-           in
-           if binders_not_free xs ks rewritten
-           then rewritten
-           else simplify_handler false tenv handler
-         | None -> simplify_handler false tenv handler),
-        body' )
-  | Let_cont_recursive (handlers, body) ->
-    Let_cont_recursive
-      ( map
-          (fun pat ->
-            let k, h = pat in
-            k, simplify_handler true tenv h)
-          handlers,
-        simplify_expr tenv body )
-  | Apply ap -> simplify_apply tenv ap
-  | Apply_cont ac -> Apply_cont (simplify_apply_cont tenv ac)
-  | Switch (scrutinee, arms) -> simplify_switch tenv scrutinee arms
-  | Invalid -> Invalid
-
-(** val simplify_handler : bool -> Typing_env.t -> continuation_handler ->
-    continuation_handler **)
-
-and simplify_handler recursive tenv h =
-  match h with
-  | Handler (params, metadata, handler) -> (
-    match handler_env tenv params metadata with
-    | Some tenv_handler ->
-      let handler' = simplify_expr tenv_handler handler in
-      if negb recursive || eqb (binds_statics handler) (binds_statics handler')
-      then Handler (params, metadata, handler')
-      else h
-    | None -> h)
-
-(** val simplify_static_binding : Typing_env.t -> static_binding ->
-    static_binding **)
-
-and simplify_static_binding tenv binding =
-  match binding with
-  | Bind_code (id, c) -> Bind_code (id, simplify_code tenv c)
-  | _ -> binding
-
-(** val simplify_code : Typing_env.t -> code -> code **)
-
-and simplify_code tenv c =
-  match c with
-  | Code (params, my_closure, ret, exn, metadata, body) -> (
-    match code_env_in tenv params my_closure metadata with
-    | Some tenv_code ->
-      let body' = simplify_expr tenv_code body in
-      if negb (binds_statics body) && negb (binds_statics body')
-      then Code (params, my_closure, ret, exn, metadata, body')
-      else c
-    | None -> c)
-
-(** val simplify_by_types : expr -> expr **)
-
-let simplify_by_types e = simplify_expr Typing_env.create e

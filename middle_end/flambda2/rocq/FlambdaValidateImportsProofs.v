@@ -55,8 +55,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaValidateKnowingSpec FlambdaValidateKnowingProofs
   FlambdaImportsSpec FlambdaImportsProofs FlambdaValidateImportsSpec.
 From OxCamlFlambda2 Require FlambdaHoistStaticsProofs.
-From OxCamlFlambda2Types Require FlambdaSimplifyPassSpec
-  FlambdaSimplifyPassProofs.
+From OxCamlFlambda2Types Require FlambdaSimplifyCarriedSpec
+  FlambdaSimplifyCarriedProofs.
 From OxCamlFlambda2 Require Import FlambdaStubCallsSpec
   FlambdaStubCallsProofs.
 From OxCamlFlambda2 Require Import FlambdaNeverReturnsSpec
@@ -498,7 +498,9 @@ Proof.
         (iterate_lifted_unit_refines imports rounds avoid kept _ Hfirst)).
       apply (refines_trans _ _ _
         (guard_scope_refines _ _
-           (FlambdaSimplifyPassProofs.simplify_by_types_refines _) [] []
+           (FlambdaSimplifyCarriedProofs.simplify_by_types_carried_refines
+              _)
+           [] []
            (imports_statics imports) empty_heap)).
       exact (iterate_lifted_unit_refines imports rounds avoid kept _
                Hsecond).

@@ -322,6 +322,7 @@ From OxCamlFlambda2 Require Import FlambdaUnboxParamsSpec
   FlambdaUnboxInScopeSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
 From OxCamlFlambda2Types Require FlambdaSimplifyPassSpec.
+From OxCamlFlambda2Types Require FlambdaSimplifyCarriedSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -572,7 +573,10 @@ Definition demote_and_tidy (rounds : nat) (e : expr) : expr :=
    goes down the whole term with a typing environment: into the
    handlers of continuations, where a handler that is applied once is
    rewritten under the environment of that application, and into the
-   bodies of code), under the test of
+   bodies of code; it is computed by
+   ../types/rocq/FlambdaSimplifyCarriedSpec.simplify_by_types_carried,
+   which is that function, of every term, without the test of the
+   environment that it makes at every [Let]), under the test of
    FlambdaGuardScopeSpec.guard_scope: of a term whose code is closed,
    what they give is taken only if it keeps scope, and the term is
    left as it was otherwise; of a term whose code is not closed the
@@ -585,7 +589,7 @@ Definition normalise_before (rounds : nat) (kept : list code_id) (e : expr)
     : expr :=
   demote_and_tidy rounds
     (iterate rounds (normalise_before_round kept)
-       (guard_scope FlambdaSimplifyPassSpec.simplify_by_types
+       (guard_scope FlambdaSimplifyCarriedSpec.simplify_by_types_carried
           (iterate rounds (normalise_before_round kept)
              (iterate rounds normalise_params_round e)))).
 
@@ -801,7 +805,7 @@ Definition normalise_lifted_round (avoid : list continuation)
 Definition normalise_lifted (rounds : nat) (avoid : list continuation)
     (kept : list code_id) (e : expr) : expr :=
   iterate rounds (normalise_lifted_round avoid kept)
-    (guard_scope FlambdaSimplifyPassSpec.simplify_by_types
+    (guard_scope FlambdaSimplifyCarriedSpec.simplify_by_types_carried
        (iterate rounds (normalise_lifted_round avoid kept)
           (iterate rounds normalise_params_round e))).
 

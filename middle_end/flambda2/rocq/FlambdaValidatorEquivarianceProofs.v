@@ -98,8 +98,8 @@ From OxCamlFlambda2 Require Import FlambdaUnboxParamsSpec
   FlambdaUnboxInScopeRenameSpec FlambdaUnboxInScopeRenameProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 From OxCamlFlambda2 Require FlambdaGuardScopeSpec.
-From OxCamlFlambda2Types Require FlambdaSimplifyPassSpec
-  FlambdaSimplifyPassRenamingProofs.
+From OxCamlFlambda2Types Require FlambdaSimplifyCarriedSpec
+  FlambdaSimplifyCarriedProofs.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -6983,22 +6983,22 @@ Qed.
    one rewrite: it commutes with renaming, since the function does and
    the test reads the same of a renamed term. *)
 Definition by_types (e : expr) : expr :=
-  FlambdaGuardScopeSpec.guard_scope FlambdaSimplifyPassSpec.simplify_by_types
-    e.
+  FlambdaGuardScopeSpec.guard_scope
+    FlambdaSimplifyCarriedSpec.simplify_by_types_carried e.
 
 Lemma by_types_scope : keeps_scope by_types.
 Proof.
   exact
     (FlambdaValidateScopeProofs.guard_scope_keeps_scope
-       FlambdaSimplifyPassSpec.simplify_by_types).
+       FlambdaSimplifyCarriedSpec.simplify_by_types_carried).
 Qed.
 
 Lemma by_types_equivariant : rewrite_equivariant by_types.
 Proof.
   exact
     (FlambdaValidateScopeProofs.guard_scope_equivariant
-       FlambdaSimplifyPassSpec.simplify_by_types
-       FlambdaSimplifyPassRenamingProofs.simplify_by_types_equivariant).
+       FlambdaSimplifyCarriedSpec.simplify_by_types_carried
+       FlambdaSimplifyCarriedProofs.simplify_by_types_carried_equivariant).
 Qed.
 
 Lemma by_types_up_to : equivariant_up_to by_types.

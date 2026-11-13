@@ -266,6 +266,9 @@
    of its second phase and those rounds once more, commute with
    renaming by the statement of the types library
    (FlambdaSimplifyPassRenamingSpec.simplify_by_types_equivariant_statement);
+   the function that the normalisation calls for them is equal to the
+   one of that statement
+   (FlambdaSimplifyCarriedSpec.simplify_by_types_carried_eq_statement);
    they are applied under a test that what they give keeps scope
    (FlambdaGuardScopeSpec.guard_scope), which keeps scope whatever
    the rewrite is and commutes with renaming where the rewrite does
@@ -1320,7 +1323,8 @@ Definition rename_apart_commutes_up_to_statement : Prop :=
    the first phase, then those of the second, then the rewrites from
    the types where what they give keeps scope
    (FlambdaGuardScopeSpec.guard_scope of
-   FlambdaSimplifyPassSpec.simplify_by_types, of the types library),
+   FlambdaSimplifyCarriedSpec.simplify_by_types_carried, of the types
+   library, which is FlambdaSimplifyPassSpec.simplify_by_types),
    then the rounds of the second phase once more, then the demotion
    of the exception handlers that no call can raise to and the rounds
    that follow it (FlambdaValidateSpec.demote_and_tidy), which
