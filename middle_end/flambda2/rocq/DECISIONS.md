@@ -214,6 +214,10 @@ says so. Only the labels that this tree cites are listed.
   variable is unused as a phantom binding where it would delete it;
   `to_cmm` runs nothing for such a `Let`, and the text of a term does
   not say the mode.
+- **C2-26.** The text of a term writes both forms of `Is_int` as
+  `%is_int`, and its reader gives the form for variants.
+- **C2-27.** The text of a term does not write the kind of
+  `Opaque_identity`, and its reader gives the kind of values.
 - **C3-1.** Simplify answers a projection that names the wrong function
   slot on one of its two paths and makes it `Invalid` on the other; the
   slot named is not checked where the term is built.

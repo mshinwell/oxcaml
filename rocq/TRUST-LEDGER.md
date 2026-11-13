@@ -110,6 +110,28 @@ it gave back.
   of an allocation and of the result of a call, are read as written;
   and code of another unit that Simplify reads from a `.cmx` file
   has the modes that the compiler wrote there.
+  Two primitive annotations are also lost by the text, and the tool
+  does not restore them. The printer writes both forms of `Is_int` as
+  `%is_int`, and the reader gives `variant_only = true`, even where the
+  compiler had the generic form (`parser/fexpr_prim.ml`; C2-26). A
+  generic test of a closure gives 0; the form for variants has no value
+  on that closure in the model. The printer writes `Opaque_identity`
+  as `%opaque` without its kind, and the reader gives the kind of
+  values, even where the compiler had a naked number (C2-27). The
+  model's opaque identity has no value on an argument of another kind.
+  The conversion from a term in memory keeps both the variant flag and
+  the opaque identity's kind; the text loses them first.
+  Three examples not in this tree show these losses: the compiler's
+  own term is defined, but the term read before Simplify is undefined
+  in the model. In one example of each loss, the tool's Simplify makes
+  the unit `Invalid`. In all three the tool prints a validation and the
+  warning that it says nothing of the unit because the term before is
+  undefined. That verdict is of the pair
+  obtained through the text, not the compiler's own pair. Where this
+  loss makes the source undefined in the model, every target refines
+  it there; this does not say that the validator accepts every such
+  pair. Neither comparing the two model runs nor proving refinement of
+  that pair recovers the meaning lost from the program's term.
   What is still not claimed: the model erases the regions of
   allocations and their lifetimes (the entry "What the conversion of
   terms leaves out"). Equal outcomes in the model do not establish
