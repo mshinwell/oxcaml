@@ -76,7 +76,9 @@
 
    What fexpr can write and its parser reads differently is written all the
    same, so that the check shows it: the arity of the arguments of a direct
-   call, the flag of [Is_int], the kind of [Opaque_identity].
+   call, the flag of [Is_int]. The kind of an [Opaque_identity] has no place in
+   the text; the round trip gives each one of a unit that it reads the kind of
+   its argument (flroundtrip.ml).
 
    A poison constant is written with a name of its own, in quotes. The model
    keeps no name for it, and the printer of fexpr writes a name as it is where

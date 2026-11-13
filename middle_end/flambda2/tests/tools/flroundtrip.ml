@@ -52,13 +52,22 @@
    not, or something that fexpr writes and its parser reads differently; - "not
    printable", with the reason: the term has something that fexpr cannot write,
    or that the printer does not cover; - "not read back": the compiler's parser,
-   or its conversion of fexpr to Flambda, fails on the text printed; - "names
-   not read back", with the reason: the term read back uses a symbol, a code id
-   or a slot whose name is not one that the printer makes, or two of them have
-   one name or one number. This is a mistake of the printer or of the
-   conversion; - "not converted", with the reason: the unit of the file has
-   something that the model has not got; "not converted back" is the same of the
-   unit read back, and is a mistake of the printer.
+   or its conversion of fexpr to Flambda, fails on the text printed, or the text
+   printed is one that the normalisation below refuses; - "names not read back",
+   with the reason: the term read back uses a symbol, a code id or a slot whose
+   name is not one that the printer makes, or two of them have one name or one
+   number. This is a mistake of the printer or of the conversion; - "not
+   converted", with the reason: the unit of the file has something that the
+   model has not got, or its text is one that the normalisation below refuses;
+   "not converted back" is the same of the unit read back, and is a mistake of
+   the printer.
+
+   A unit read from a text is first normalised as the check of a unit normalises
+   it (flsemantics.ml, [with_opaque_kinds]): each [Opaque_identity], whose kind
+   the text does not write, is given the kind of its argument. That is done to
+   the unit of the file and to each unit read back. So the round trip does not
+   show that loss; it shows that the conversion and the printer agree once both
+   units are so normalised.
 
    What this does not check: the kinds of the value slots, which are not in the
    term; the order of the value slots of a set of closures, which the text
@@ -89,11 +98,17 @@ type converted =
   }
 
 (* The conversion, as flsemantics.ml gives it. [convert] answers the reason when
-   the unit has something that the model has not got. [reset] forgets every name
+   the unit has something that the model has not got. [as_read] is what the
+   check of a unit does to a unit read from a text before anything else (it
+   gives each [Opaque_identity], whose kind the text does not write, the kind of
+   its argument), or the reason why such a unit is not checked; it is applied to
+   the unit of the file and to each unit read back, and not to the unit that
+   Simplify makes, which is not read from a text. [reset] forgets every name
    numbered so far. The four lists are the global names numbered since the last
    [reset], each with its number. *)
 type conversion =
   { convert : Flambda_unit.t -> (converted, string) result;
+    as_read : Flambda_unit.t -> (Flambda_unit.t, string) result;
     reset : unit -> unit;
     value_slot_kind : Model.value_slot -> Kinds.flambda_kind option;
     symbols : unit -> (string * Numbers.positive) list;
@@ -365,8 +380,9 @@ let renaming_of (conversion : conversion) : renaming =
 (* ---- Reading back ------------------------------------------------------ *)
 
 (* The text printed is read as the file was: by the compiler's parser, for the
-   same compilation unit. *)
-let read_back ~comp_unit text : (Flambda_unit.t, string) result =
+   same compilation unit, and then normalised as the unit of the file was. *)
+let read_back (conversion : conversion) ~comp_unit text :
+    (Flambda_unit.t, string) result =
   let file = Filename.temp_file "flroundtrip" ".fl" in
   Misc.try_finally
     ~always:(fun () -> Misc.remove_file file)
@@ -383,7 +399,7 @@ let read_back ~comp_unit text : (Flambda_unit.t, string) result =
              Flambda_lex.pp_error error)
       | Ok fexpr -> (
         match Fexpr_to_flambda.conv comp_unit fexpr with
-        | result -> Ok result.unit
+        | result -> conversion.as_read result.unit
         | exception exn ->
           Error
             ("the conversion of fexpr to Flambda fails: "
@@ -449,7 +465,7 @@ let round_trip (conversion : conversion) ~comp_unit (unit : Flambda_unit.t) :
     match printed ~value_slot_kind first with
     | Error reason -> Not_printable reason
     | Ok fexpr -> (
-      match read_back ~comp_unit (Printer.to_string fexpr) with
+      match read_back conversion ~comp_unit (Printer.to_string fexpr) with
       | Error reason -> Not_read_back reason
       | Ok unit_read -> (
         conversion.reset ();
@@ -545,7 +561,10 @@ let check_file (conversion : conversion)
           | Ok fexpr -> print_string (Printer.to_string fexpr)
           | Error _ -> ()))
     in
-    check ~filename parsed.unit;
+    (match conversion.as_read parsed.unit with
+    | Ok unit -> check ~filename unit
+    | Error why ->
+      Format.printf "%s: not converted: %s@." filename (one_line why));
     let filename = filename ^ ", after Simplify" in
     match simplify fexpr parsed with
     | Ok simplified -> check ~filename simplified

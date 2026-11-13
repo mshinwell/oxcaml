@@ -110,23 +110,67 @@ it gave back.
   of an allocation and of the result of a call, are read as written;
   and code of another unit that Simplify reads from a `.cmx` file
   has the modes that the compiler wrote there.
-  Two primitive annotations are also lost by the text, and the tool
-  does not restore them. The printer writes both forms of `Is_int` as
-  `%is_int`, and the reader gives `variant_only = true`, even where the
-  compiler had the generic form (`parser/fexpr_prim.ml`; C2-26). A
-  generic test of a closure gives 0; the form for variants has no value
-  on that closure in the model. The printer writes `Opaque_identity`
-  as `%opaque` without its kind, and the reader gives the kind of
-  values, even where the compiler had a naked number (C2-27). The
-  model's opaque identity has no value on an argument of another kind.
-  The conversion from a term in memory keeps both the variant flag and
-  the opaque identity's kind; the text loses them first.
-  Three examples not in this tree show these losses: the compiler's
-  own term is defined, but the term read before Simplify is undefined
-  in the model. In one example of each loss, the tool's Simplify makes
-  the unit `Invalid`. In all three the tool prints a validation and the
-  warning that it says nothing of the unit because the term before is
-  undefined. That verdict is of the pair
+  Two primitive annotations are also lost by the text; the tool
+  reconstructs the second from the argument and leaves the first. The
+  printer writes both forms
+  of `Is_int` as `%is_int`, and the reader gives `variant_only = true`,
+  even where the compiler had the generic form
+  (`parser/fexpr_prim.ml`; C2-26). A generic test of a closure gives
+  0; the form for variants has no value on that closure in the model.
+  The printer writes `Opaque_identity` as `%opaque` without its kind,
+  and the reader gives the kind of values, even where the compiler had
+  a naked number (C2-27). The model's opaque identity has no value on
+  an argument of another kind. The conversion from a term in memory
+  keeps both the variant flag and the opaque identity's kind; the text
+  loses them first.
+  A unit read from a text is normalised before Simplify and the
+  conversion see it (`with_opaque_kinds`, called in `check_file`; the
+  round trip of the conversion applies it to the unit of the file and
+  to each unit that it reads back): every `Opaque_identity` is given
+  the kind of its argument as the reader has it, which is the kind of
+  a constant, that of values for a symbol, and for a variable the
+  kind that the reader made it with, from the kind written at a
+  parameter or from the defining expression of its `Let`. A `Let`
+  whose variable the reader made at the kind of values for want of
+  that kind binds a new variable of the kind given; the bodies of
+  code are gone into; a unit that has no `Opaque_identity` at another
+  kind than its argument's is not gone through and is the unit as
+  read. The compiler takes the argument of the primitive to have the
+  kind that the primitive carries
+  (`Flambda_primitive.arg_kind_of_unary_primitive`). So the kind
+  given to an `Opaque_identity` is the compiler's kind where the kind
+  now obtained for its argument is the kind of that argument in the
+  compiler's term and the annotation of the primitive there agrees
+  with it. The first need not hold: the compiler's term may bind a
+  variable at another kind than that of its defining expression,
+  where the reader takes the kind of the expression (C2-24; the
+  paragraph on the kind of the variable of a `Let`, in the entry on
+  what the conversion of terms leaves out), and an `Opaque_identity`
+  above may have had another kind than its argument's. The lost kind
+  is recovered on those two conditions only. Where either fails, the
+  primitive there, the variable bound to it and what
+  is bound below to them may be given kinds that the compiler's term
+  had not; the term read differs from the compiler's after this step
+  as it did before, and nothing in the text shows it. The step is not
+  a check of the compiler's term. What the compiler prints with
+  `-drawflambda` has the kind, and no rule of the tests reads it.
+  Trusted of this step, as of the one that sets the modes of
+  parameters: that the unit which it builds again is the unit read,
+  but for those kinds and for the variables and continuations that
+  are made fresh. Where the kind of the argument comes from a nullary
+  primitive at one of the two kinds that the reader's table of kinds
+  gives for two words each (`parser/fexpr_prim.ml`, `kind`), the unit
+  is not checked (`kinds_opaque_misread.fl`, in `tests/semantics/`).
+  The units there whose names begin with `kinds_opaque_` show the
+  step: before it, a unit that applies the primitive to a naked
+  number was undefined in the model as read, the tool's Simplify made
+  it `Invalid`, and the tool printed a validation that said nothing.
+  The flag of `Is_int` is not restored. Two examples not in this tree
+  show that loss: the compiler's own term is defined, but the term
+  read before Simplify is undefined in the model. In one of them the
+  tool's Simplify makes the unit `Invalid`. In both the tool prints a
+  validation and the warning that it says nothing of the unit because
+  the term before is undefined. That verdict is of the pair
   obtained through the text, not the compiler's own pair. Where this
   loss makes the source undefined in the model, every target refines
   it there; this does not say that the validator accepts every such

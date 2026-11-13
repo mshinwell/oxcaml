@@ -1,0 +1,18 @@
+let $camlKinds_opaque_pair__first_const_0 = Block 0 () in
+(let `*match*_14_unboxed0/25` = %opaque (1) in
+ let `*match*_14_unboxed1/26` = %opaque (0x1.4p+1) in
+ let `float_of_float#/27` =
+   %box_num.`float`.`toplevel` (`*match*_14_unboxed1/26`)
+ in
+ let Pmakeblock/28 =
+   %block.[`0`].`toplevel` (`*match*_14_unboxed0/25`, `float_of_float#/27`)
+ in
+ cont k/8 (Pmakeblock/28))
+  where k/8 (result/23 : [ 0 of imm tagged * float boxed ]) =
+    let Pmakeblock/24 = %block.[`0`].`toplevel` (result/23) in
+    cont k/7 (Pmakeblock/24)
+  where k/7 define_root_symbol (module_block/21) =
+    let field_0/22 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/21)
+    in
+    let $camlKinds_opaque_pair = Block 0 (field_0/22) in
+    cont done ($camlKinds_opaque_pair)

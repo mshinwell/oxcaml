@@ -1,0 +1,9 @@
+let x = %opaque (1i) in
+let y = x in
+cont k (y)
+  where k (p : imm) =
+    let q = %opaque (p) in
+    let r = q in
+    let s = %tag_imm (r) in
+    let $camlKinds_opaque_handler = Block 0 (s) in
+    cont done ($camlKinds_opaque_handler)

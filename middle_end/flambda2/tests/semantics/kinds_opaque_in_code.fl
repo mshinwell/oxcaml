@@ -1,0 +1,35 @@
+(let code inline(never) size(7)
+       f_0 (x/35 : float boxed)
+         my_closure/36 &my_alloc_region/37 my_depth/38
+         -> k/14 * k/15
+         : float boxed =
+   let next_depth/39 = rec_info (succ my_depth/38) in
+   let `float#_of_float/40` = %unbox_num.`float` (x/35) in
+   let y/41 = %opaque (`float#_of_float/40`) in
+   let z/42 = %opaque (y/41) in
+   let `float_of_float#/43` = %box_num.`float`.my_alloc_region/37 (z/42) in
+   cont k/14 (`float_of_float#/43`)
+ in
+ let $camlKinds_opaque_in_code__float_1 = 0x1.4p+1 in
+ let $camlKinds_opaque_in_code__float_0 = 0x1.8p+0 in
+ let f/44 = closure f_0 @f &toplevel in
+ apply direct(f_0 &toplevel)
+   (f/44 : _ -> float boxed)
+     ($camlKinds_opaque_in_code__float_0)
+     -> k/16 * error
+   where k/16 (apply_result/45 : float boxed) =
+     (apply direct(f_0 &toplevel)
+        (f/44 : _ -> float boxed)
+          ($camlKinds_opaque_in_code__float_1)
+          -> k/17 * error
+        where k/17 (apply_result/46 : float boxed) =
+          let result/47 =
+            %block.[`0`].`toplevel` (apply_result/46, apply_result/45)
+          in
+          let Pmakeblock/48 = %block.[`0`].`toplevel` (result/47) in
+          cont k/13 (Pmakeblock/48)))
+  where k/13 define_root_symbol (module_block/33) =
+    let field_0/34 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/33)
+    in
+    let $camlKinds_opaque_in_code = Block 0 (field_0/34) in
+    cont done ($camlKinds_opaque_in_code)

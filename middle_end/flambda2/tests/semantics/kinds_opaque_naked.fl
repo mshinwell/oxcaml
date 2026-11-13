@@ -1,0 +1,4 @@
+let x = %opaque (1i) in
+let y = %tag_imm (x) in
+let $camlKinds_opaque_naked = Block 0 (y) in
+cont done ($camlKinds_opaque_naked)

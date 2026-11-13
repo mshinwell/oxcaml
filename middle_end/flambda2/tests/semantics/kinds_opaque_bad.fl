@@ -1,3 +1,4 @@
 let x = %opaque (1i) in
-let $camlKinds_opaque_bad = Block 0 (x) in
+let b = %block.[`0`].`toplevel` (x) in
+let $camlKinds_opaque_bad = Block 0 (b) in
 cont done ($camlKinds_opaque_bad)

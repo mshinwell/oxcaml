@@ -111,6 +111,20 @@
    has one; a body taken from the .cmx of another unit may, and is then left out
    of the prefix, so that a call of it is undefined.
 
+   What the text loses of a primitive. The text does not write the kind of an
+   [Opaque_identity], and its reader gives every one the kind of values. A unit
+   read from a text is normalised before anything else is done with it: each
+   [Opaque_identity] is given the kind of its argument ([with_opaque_kinds],
+   which says what is done to the variables bound to one). The kind so given is
+   the one that the text lost where the kind obtained for the argument is its
+   kind in the compiler's term and the primitive there had that kind
+   ([with_opaque_kinds] says where the first may fail). If not, the term read is
+   not the compiler's, after this step as before it, and nothing here finds that
+   out: the step is not a check of the kinds of the compiler's terms. The text
+   writes the two forms of [Is_int] alike, and its reader gives the form that is
+   for variants; that is not put right, and a unit whose term had the other form
+   is checked as it is read (label C2-26).
+
    Phantom bindings. A binding whose variables are phantom is refused by the
    conversion ([convert_let]): the program runs nothing for it, and the model
    runs every [Let]. With [-g] and phantom lets on, Simplify may keep an unused
@@ -4549,12 +4563,294 @@ let with_unknown_param_modes (unit : Flambda_unit.t) : Flambda_unit.t =
     (Flambda_unit.metadata unit)
     (with_unknown_param_modes_of_expr (Flambda_unit.body unit))
 
+(* The text of fexpr does not write the kind of an [Opaque_identity], and the
+   reader gives every one the kind of values ([Fexpr_prim]); the compiler makes
+   one of each component of an unboxed argument, at the kind of that component
+   ([Lambda_to_flambda_primitives]). The compiler takes the argument of the
+   primitive to have the kind that the primitive carries
+   ([Flambda_primitive.arg_kind_of_unary_primitive]), so in a unit read from a
+   text every [Opaque_identity] is given here the kind of its argument, as the
+   reader has it: the kind of a constant, that of values for a symbol, and for a
+   variable the kind that the reader made it with, which is the kind written at
+   a parameter or the kind of the defining expression of a [Let]
+   ([Fexpr_to_flambda]: [Flambda.Named.kind]).
+
+   The primitive is not all that the reader got wrong for want of that kind: the
+   variable that the [Let] of such a primitive binds was made with the kind of
+   values, and so was each variable bound after it to that variable, or to an
+   [Opaque_identity] of it. So the unit is gone through from the top, and each
+   [Let] is put right after its defining expression: where the kind of the
+   defining expression is no longer the kind of the variable that the reader
+   bound to it, the [Let] binds a new variable of that kind, with the same name,
+   and the body is renamed to it before it is gone into, so that every later
+   use, and every later defining expression, sees a variable of the right kind.
+   Nothing else is changed: the kinds of parameters, of arities and of value
+   slots are those that the text wrote. The handlers of continuations and the
+   bodies of code are gone into. A unit that has no primitive to put right is
+   not gone through at all, and is the unit as it was read
+   ([opaque_kind_lost_in_expr]).
+
+   This is a normalisation of a unit read from a text. The kind that it gives an
+   [Opaque_identity] is the kind that the compiler's term had there, and that
+   the text lost, where the kind obtained for the argument is the kind of that
+   argument in the compiler's term and the primitive there had that kind. The
+   first need not hold: the compiler's term may bind a variable at another kind
+   than that of its defining expression, where the reader takes the kind of the
+   expression (the conversion does not test that either: [convert_bound_var]),
+   and an [Opaque_identity] above may have had another kind than its argument's.
+   Where both hold all the way down, the kinds are the compiler's from the top
+   down. Where either fails, the primitive there, the variable bound to it and
+   what is bound below to them may be given kinds that the compiler's term had
+   not: the term read differs from the compiler's, here as before, and nothing
+   here finds that out. It is not a check of kinds and refuses no term for its
+   kinds; of the compiler's own terms nothing is compared. It is applied to a
+   unit read from a text only: not to what Simplify makes, nor to a body taken
+   from the .cmx of another unit, which have the kinds that the compiler gave
+   them. The text loses whether the primitive is for the middle end only as
+   well; that is left as the reader gives it, as neither the model nor Simplify
+   reads it.
+
+   The reader has one more kind wrong that is known: its table of kinds for the
+   nullary primitives that carry one gives two of the kinds for two words each
+   ([Fexpr_prim.kind]), so that a text does not say which kind such a primitive
+   had. Where the kind of the argument of an [Opaque_identity] is one of those
+   two and comes from such a primitive, directly or by [Let]s that bind a
+   variable to a variable, the unit is not checked. (The conversion refuses
+   every nullary primitive today, so such a unit is not checked for that reason
+   either.) *)
+exception Opaque_kind_not_known
+
+let opaque_kind_not_known_message =
+  "the text does not say the kind of an Opaque_identity, and the kind of its \
+   argument is one that the reader may have misread: it comes from a nullary \
+   primitive whose kind the text writes with a word that the reader takes for \
+   two kinds"
+
+let kind_that_the_reader_may_misread (kind : Flambda_kind.t) =
+  Flambda_kind.equal kind Flambda_kind.naked_int8
+  || Flambda_kind.equal kind Flambda_kind.naked_int16
+
+let variable_of_misread_kind ~misread (simple : Simple.t) =
+  Simple.pattern_match' simple
+    ~var:(fun var ~coercion:_ -> Variable.Set.mem var misread)
+    ~symbol:(fun _ ~coercion:_ -> false)
+    ~const:(fun _ -> false)
+
+let rec with_opaque_kinds_of_expr ~misread (e : Flambda.Expr.t) : Flambda.Expr.t
+    =
+  match Flambda.Expr.descr e with
+  | Let let_expr ->
+    Flambda.Let_expr.pattern_match let_expr ~f:(fun pattern ~body ->
+        let named =
+          with_opaque_kinds_of_named ~misread
+            (Flambda.Let_expr.defining_expr let_expr)
+        in
+        let pattern, body, misread =
+          match (pattern : Bound_pattern.t) with
+          | Set_of_closures _ | Static _ -> pattern, body, misread
+          | Singleton bound_var ->
+            let var = Bound_var.var bound_var in
+            let kind = Flambda.Named.kind named in
+            let var, pattern, body =
+              if Flambda_kind.equal kind (Variable.kind var)
+              then var, pattern, body
+              else
+                let user_visible =
+                  if Variable.user_visible var then Some () else None
+                in
+                let new_var =
+                  Variable.create ?user_visible (Variable.name var) kind
+                in
+                ( new_var,
+                  Bound_pattern.singleton
+                    (Bound_var.create new_var
+                       (Bound_var.debug_uid bound_var)
+                       (Bound_var.name_mode bound_var)),
+                  Flambda.Expr.apply_renaming body
+                    (Flambda2_nominal.Renaming.add_variable
+                       Flambda2_nominal.Renaming.empty var new_var) )
+            in
+            let misread =
+              match named with
+              | Prim (Nullary (Invalid kind | Optimised_out kind), _)
+                when kind_that_the_reader_may_misread kind ->
+                Variable.Set.add var misread
+              | Simple simple when variable_of_misread_kind ~misread simple ->
+                Variable.Set.add var misread
+              | Simple _ | Prim _ | Set_of_closures _ | Static_consts _
+              | Rec_info _ ->
+                misread
+            in
+            pattern, body, misread
+        in
+        Flambda.Expr.create_let
+          (Flambda.Let_expr.create pattern named
+             ~body:(with_opaque_kinds_of_expr ~misread body)
+             ~free_names_of_body:Unknown))
+  | Let_cont (Non_recursive { handler; _ }) ->
+    Flambda.Non_recursive_let_cont_handler.pattern_match handler
+      ~f:(fun k ~body ->
+        Flambda.Let_cont_expr.create_non_recursive k
+          (with_opaque_kinds_of_handler ~misread
+             (Flambda.Non_recursive_let_cont_handler.handler handler))
+          ~body:(with_opaque_kinds_of_expr ~misread body)
+          ~free_names_of_body:Unknown)
+  | Let_cont (Recursive handlers) ->
+    Flambda.Recursive_let_cont_handlers.pattern_match handlers
+      ~f:(fun ~invariant_params ~body handlers ->
+        Flambda.Let_cont_expr.create_recursive ~invariant_params
+          (Continuation.Lmap.map
+             (with_opaque_kinds_of_handler ~misread)
+             (Flambda.Continuation_handlers.to_map handlers))
+          ~body:(with_opaque_kinds_of_expr ~misread body))
+  | Apply _ | Apply_cont _ | Switch _ | Invalid _ -> e
+
+and with_opaque_kinds_of_named ~misread (named : Flambda.Named.t) :
+    Flambda.Named.t =
+  match named with
+  | Prim (Unary (Opaque_identity { middle_end_only; kind }, arg), dbg) ->
+    if variable_of_misread_kind ~misread arg then raise Opaque_kind_not_known;
+    let kind_of_arg = Simple.kind arg in
+    if Flambda_kind.equal kind kind_of_arg
+    then named
+    else
+      Flambda.Named.create_prim
+        (Unary (Opaque_identity { middle_end_only; kind = kind_of_arg }, arg))
+        dbg
+  | Static_consts group ->
+    Flambda.Named.create_static_consts
+      (Flambda.Static_const_group.map group ~f:(fun const ->
+           match Flambda.Static_const_or_code.to_code const with
+           | Some code ->
+             Flambda.Static_const_or_code.create_code
+               (with_opaque_kinds_of_code ~misread code)
+           | None -> const))
+  | Simple _ | Prim _ | Set_of_closures _ | Rec_info _ -> named
+
+and with_opaque_kinds_of_handler ~misread
+    (handler : Flambda.Continuation_handler.t) : Flambda.Continuation_handler.t
+    =
+  let is_exn_handler = Flambda.Continuation_handler.is_exn_handler handler in
+  let is_cold = Flambda.Continuation_handler.is_cold handler in
+  Flambda.Continuation_handler.pattern_match handler ~f:(fun params ~handler ->
+      Flambda.Continuation_handler.create params
+        ~handler:(with_opaque_kinds_of_expr ~misread handler)
+        ~free_names_of_handler:Unknown ~is_exn_handler ~is_cold)
+
+and with_opaque_kinds_of_code ~misread (code : Code.t) : Code.t =
+  let params_and_body =
+    Flambda.Function_params_and_body.pattern_match (Code.params_and_body code)
+      ~f:(fun
+          ~return_continuation
+          ~exn_continuation
+          params
+          ~body
+          ~my_closure
+          ~is_my_closure_used:_
+          ~my_alloc_mode
+          ~my_depth
+          ~free_names_of_body
+        ->
+        Flambda.Function_params_and_body.create ~return_continuation
+          ~exn_continuation params
+          ~body:(with_opaque_kinds_of_expr ~misread body)
+          ~free_names_of_body ~my_closure ~my_alloc_mode ~my_depth)
+  in
+  Code.create_with_metadata ~params_and_body
+    ~free_names_of_params_and_body:(Code.free_names_of_params_and_body code)
+    ~code_metadata:(Code.code_metadata code)
+
+(* Whether a unit has an [Opaque_identity] whose kind is not the kind of its
+   argument, as the reader has them: whether the pass above has anything to do.
+   The first such primitive from the top is one that this finds, as nothing
+   above it is changed. The unit is looked at as a term is for printing
+   ([pattern_match_for_printing]) and nothing is built, so a unit that has no
+   such primitive is left as it was read. Opened so, the bound names of a term
+   are not made fresh, unless the tool is given the flag that makes them fresh
+   where a term is printed ([Flambda_features.freshen_when_printing]), which the
+   tests do not give. So with the flags of the tests looking at a unit uses up
+   no name, and the names which the tool prints of a unit that has no such
+   primitive are those that it printed before this step was there. The test that
+   this look makes, whether an [Opaque_identity] and its argument have different
+   kinds, is the same with either setting of the flag. *)
+let rec opaque_kind_lost_in_expr (e : Flambda.Expr.t) : bool =
+  match Flambda.Expr.descr e with
+  | Let let_expr ->
+    opaque_kind_lost_in_named (Flambda.Let_expr.defining_expr let_expr)
+    || Flambda.Let_expr.pattern_match_for_printing let_expr ~f:(fun _ ~body ->
+        opaque_kind_lost_in_expr body)
+  | Let_cont (Non_recursive { handler; _ }) ->
+    opaque_kind_lost_in_handler
+      (Flambda.Non_recursive_let_cont_handler.handler handler)
+    || Flambda.Non_recursive_let_cont_handler.pattern_match_for_printing handler
+         ~f:(fun _ ~body -> opaque_kind_lost_in_expr body)
+  | Let_cont (Recursive handlers) ->
+    Flambda.Recursive_let_cont_handlers.pattern_match_for_printing handlers
+      ~f:(fun ~invariant_params:_ ~body handlers ->
+        opaque_kind_lost_in_expr body
+        || List.exists opaque_kind_lost_in_handler
+             (Continuation.Lmap.data
+                (Flambda.Continuation_handlers.to_map handlers)))
+  | Apply _ | Apply_cont _ | Switch _ | Invalid _ -> false
+
+and opaque_kind_lost_in_named (named : Flambda.Named.t) : bool =
+  match named with
+  | Prim (Unary (Opaque_identity { middle_end_only = _; kind }, arg), _) ->
+    not (Flambda_kind.equal kind (Simple.kind arg))
+  | Static_consts group ->
+    List.exists
+      (fun const ->
+        match Flambda.Static_const_or_code.to_code const with
+        | Some code ->
+          Flambda.Function_params_and_body.pattern_match_for_printing
+            (Code.params_and_body code)
+            ~f:(fun
+                ~return_continuation:_
+                ~exn_continuation:_
+                _
+                ~body
+                ~my_closure:_
+                ~is_my_closure_used:_
+                ~my_alloc_mode:_
+                ~my_depth:_
+                ~free_names_of_body:_
+              -> opaque_kind_lost_in_expr body)
+        | None -> false)
+      (Flambda.Static_const_group.to_list group)
+  | Simple _ | Prim _ | Set_of_closures _ | Rec_info _ -> false
+
+and opaque_kind_lost_in_handler (handler : Flambda.Continuation_handler.t) :
+    bool =
+  Flambda.Continuation_handler.pattern_match_for_printing handler
+    ~f:(fun _ ~handler -> opaque_kind_lost_in_expr handler)
+
+let with_opaque_kinds (unit : Flambda_unit.t) : (Flambda_unit.t, string) result
+    =
+  if not (opaque_kind_lost_in_expr (Flambda_unit.body unit))
+  then Ok unit
+  else
+    match
+      with_opaque_kinds_of_expr ~misread:Variable.Set.empty
+        (Flambda_unit.body unit)
+    with
+    | exception Opaque_kind_not_known -> Error opaque_kind_not_known_message
+    | body ->
+      Ok
+        (Flambda_unit.create_from_metadata_and_body
+           (Flambda_unit.metadata unit)
+           body)
+
+(* A unit read from a text, as it is checked and as Simplify is given it. *)
+let as_read_from_text (unit : Flambda_unit.t) : (Flambda_unit.t, string) result
+    =
+  Result.map with_unknown_param_modes (with_opaque_kinds unit)
+
 let check_file filename =
   match Parse_flambda.parse_fexpr filename with
   | Error e ->
     Test_utils.dump_error e;
     exit 1
-  | Ok unit ->
+  | Ok unit -> (
     named_function_slots := false;
     let unit_info = Parse_flambda.make_unit_info ~filename in
     let comp_unit = Unit_info.modname unit_info in
@@ -4562,25 +4858,28 @@ let check_file filename =
        .cmx of the other units for the current one. *)
     Compilenv.reset unit_info;
     let fl2 = Fexpr_to_flambda.conv comp_unit unit in
-    let before = with_unknown_param_modes fl2.unit in
     let filename_shown = Filename.basename filename in
     if result_arity_lost unit
     then
       Format.printf "%s: not checked: %s@." filename_shown
         result_arity_lost_message
-    else if well_formed_before ~filename:filename_shown before
-    then
-      let null_formatter =
-        Format.make_formatter (fun _ _ _ -> ()) (fun () -> ())
-      in
-      let result =
-        Flambda2.flambda_to_flambda ~ppf_dump:null_formatter
-          ~prefixname:(Filename.chop_extension filename)
-          ~machine_width:Sixty_four ~code_slot_offsets:fl2.code_slot_offsets
-          before
-      in
-      check ~filename:filename_shown ~units:(units_read ()) before
-        result.flambda
+    else
+      match as_read_from_text fl2.unit with
+      | Error why -> Format.printf "%s: not checked: %s@." filename_shown why
+      | Ok before ->
+        if well_formed_before ~filename:filename_shown before
+        then
+          let null_formatter =
+            Format.make_formatter (fun _ _ _ -> ()) (fun () -> ())
+          in
+          let result =
+            Flambda2.flambda_to_flambda ~ppf_dump:null_formatter
+              ~prefixname:(Filename.chop_extension filename)
+              ~machine_width:Sixty_four ~code_slot_offsets:fl2.code_slot_offsets
+              before
+          in
+          check ~filename:filename_shown ~units:(units_read ()) before
+            result.flambda)
 
 (* The conversion, for the check that takes a term of the model through fexpr
    and back (flroundtrip.ml). *)
@@ -4594,6 +4893,7 @@ let conversion_for_round_trip : Flroundtrip.conversion =
         | exception Unsupported what -> Error (Format.asprintf "%t" what)
         | { body; return_continuation; exn_continuation } ->
           Ok { body; return_continuation; exn_continuation });
+    as_read = with_opaque_kinds;
     reset = reset_conversion;
     value_slot_kind =
       (fun slot -> Option.map convert_kind (List.assoc_opt slot !slot_kinds));
@@ -4611,27 +4911,30 @@ let conversion_for_round_trip : Flroundtrip.conversion =
    units. *)
 let simplify_for_round_trip ~filename (text : Fexpr.flambda_unit)
     (parsed : Fexpr_to_flambda.conv_result) =
-  let before = with_unknown_param_modes parsed.unit in
-  let well_formed_or_not_converted =
-    match with_function_slots (fun () -> convert_unit before) with
-    | exception Unsupported _ -> true
-    | before -> well_formed before
-  in
   if result_arity_lost text
   then Error result_arity_lost_message
-  else if not well_formed_or_not_converted
-  then Error "the unit is not well-formed"
   else
-    let null_formatter =
-      Format.make_formatter (fun _ _ _ -> ()) (fun () -> ())
-    in
-    let result =
-      Flambda2.flambda_to_flambda ~ppf_dump:null_formatter
-        ~prefixname:(Filename.chop_extension filename)
-        ~machine_width:Sixty_four ~code_slot_offsets:parsed.code_slot_offsets
-        before
-    in
-    Ok result.flambda
+    match as_read_from_text parsed.unit with
+    | Error why -> Error why
+    | Ok before ->
+      let well_formed_or_not_converted =
+        match with_function_slots (fun () -> convert_unit before) with
+        | exception Unsupported _ -> true
+        | before -> well_formed before
+      in
+      if not well_formed_or_not_converted
+      then Error "the unit is not well-formed"
+      else
+        let null_formatter =
+          Format.make_formatter (fun _ _ _ -> ()) (fun () -> ())
+        in
+        let result =
+          Flambda2.flambda_to_flambda ~ppf_dump:null_formatter
+            ~prefixname:(Filename.chop_extension filename)
+            ~machine_width:Sixty_four
+            ~code_slot_offsets:parsed.code_slot_offsets before
+        in
+        Ok result.flambda
 
 module Options = Oxcaml_args.Make_optcomp_options (Oxcaml_args.Default.Optmain)
 

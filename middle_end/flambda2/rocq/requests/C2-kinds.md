@@ -571,7 +571,15 @@ the fragment is the repair; it is not in this request.
   The two negative cases are examples in the Proofs file
   (`example_opaque_undefined`, `example_is_int_undefined`) and in
   `tests/semantics/` (`kinds_opaque_bad.fl`, `kinds_is_int_bad.fl`):
-  both pass the check and are undefined before Simplify.
+  both pass the check and are undefined before Simplify. (Later: the
+  test tool gives each `Opaque_identity` of a unit read from a text
+  the kind of its argument, as the text does not write its kind, so a
+  text can no longer say an opaque identity at another kind than its
+  argument's.
+  `kinds_opaque_bad.fl` is since then a block made of the naked
+  result of one, still a primitive on an argument of another kind,
+  executed; the negative case of the primitive itself is the example
+  of the Proofs file.)
 - B3 (the check is stricter than the compiler on code that Simplify
   removes before it looks): the check is a diagnostic and a sufficient
   condition; headers and this text say "where it visits"; the dead-arm

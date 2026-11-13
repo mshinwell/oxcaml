@@ -8,6 +8,11 @@ the model with the model's comparison (`../../tools/flroundtrip.ml`). It
 does the same of the unit that Simplify makes of the one in the file.
 The rules of this directory run it on every example of the directory
 above and of `../ocaml`; `dune` says how the answers are checked.
+A unit read from a text, the unit of the file and each unit read
+back, is first normalised as the check of a unit normalises it: each
+`Opaque_identity`, whose kind the text does not write, is given the
+kind of its argument (`with_opaque_kinds` in
+`../../tools/flsemantics.ml`).
 
 The conversion is trusted (`rocq/TRUST-LEDGER.md`). What this adds is a
 second reading of each of its cases, in the other direction, and a
