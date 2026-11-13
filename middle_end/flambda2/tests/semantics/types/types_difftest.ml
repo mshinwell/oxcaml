@@ -5361,10 +5361,18 @@ let the_meet_of_t7_13_in_every_order () =
    the type that the meet answered, which is no alias
    ([Meet_env.add_concrete_equation_on_canonical_name]).
 
-   The first three equations are what was observed of the environment at a
-   handler whose parameter, a variant, is unboxed, in a compilation with the
-   n-way join of a unit that is not in this tree; by reading, the last is what a
-   later join adds where it names by [t] what its uses know of the tag.
+   The first three equations are a reduced form of what was observed of the
+   environment at a handler whose parameter, a variant, is unboxed, in a
+   compilation with the n-way join of a unit that is not in this tree. Kept: the
+   variable of the tag has the relation and nothing else; the type of the
+   parameter may be an immediate, names as its tag a variable that an earlier
+   join made, and says for when it is a block that the variable of the tag is
+   that variable and that that variable is its tag; that variable is 0 or 1. Not
+   kept: the variable that the type names for whether it is an immediate; its
+   immediates, an alias of a variable there, the number 0 here; what it says for
+   when it is an immediate; the fields of its blocks of tag 1, three there, two
+   here. By reading, the last equation is what a later join adds where it names
+   by [t] what its uses know of the tag.
 
    There is no join here, and what is answered is the same in every order of the
    identifiers, unlike the scenario above. The line is run many times, with new
