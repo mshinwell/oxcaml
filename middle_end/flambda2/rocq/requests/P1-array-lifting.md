@@ -18,6 +18,14 @@ test tool was built with them, and the measures of section 4 were
 made with that tool. No statement was proved, and nothing here is a
 verdict on any unit.
 
+Since it was written the orchestrator has permitted both, the first
+as an explicit change of the relation `value_lifted`, on conditions
+that sections 2.2 to 2.7 now meet or name; and the statements of
+2.3 were compiled against the two definitions, the last of them
+with `lift_simulates_statement` taken as a hypothesis. The first
+series is written by the owner of the lifting, in its files, with
+this stream's two files; the second by this stream.
+
 ## 1. Why
 
 The immutable array as a value is in the tree
@@ -102,10 +110,16 @@ What the case does that the `Let` did not:
   lifting shares (out of one body of code, or as aliases of a
   symbol bound around them). No array value has an identity in the
   model: `Phys_equal` of two has no value
-  (`FlambdaPrimitiveSpec.eval_phys_equal`), so a unit that could
-  tell is undefined before it is lifted. The compiler's own choice
-  between one symbol and two is by the debugging information of
-  the elements; the model has no part in it.
+  (`FlambdaPrimitiveSpec.eval_phys_equal`; decision D19), so a unit
+  that could tell is undefined before it is lifted. The compiler's
+  own choice between one symbol and two is by the debugging
+  information of the elements and by how the copies were made
+  (T5-11); the model has no part in it.
+- Nothing of a mutable array, and nothing of an array whose kind is
+  not one of values: the primitive lifted is
+  `Make_immutable_array`, which the conversion makes of a
+  `Make_array` marked `Immutable` at one of the three array kinds
+  of values and of nothing else.
 - The empty array: Simplify binds `Empty_array`, which the
   conversion reads as the static immutable array of no element.
   A `Make_immutable_array` of no argument is lifted to it like
@@ -140,6 +154,43 @@ who signed the text that is there. The header of that file says of
 it "a rule that did would be a case more of it": that sentence
 goes, and the paragraph says what the statement then says.
 
+Three statements are added after it in the same file, so that what
+`lift_simulates_statement` said before the rule it says, as a
+proved statement, of a unit that makes no array. No copy of the
+relation as it was is kept. The rule is the only one that reads a
+symbol bound to an immutable array, so the relation without it is
+the relation under the static environment with those bindings left
+out:
+
+    without_static_arrays statics :=
+      the static environment with the symbols that are bound to an
+      immutable array left out
+
+    no_array_lifted_to_symbol_statement:
+      ~ value_lifted (without_static_arrays statics')
+          (Value_immutable_array elements) (Value_symbol s)
+
+    value_lifted_reads_no_static_array_statement:
+      value_lifted statics' v v' ->
+      no_array_value v = true ->
+      value_lifted (without_static_arrays statics') v v'
+
+    lift_simulates_free_of_arrays_statement:
+      (the premises of lift_simulates_statement) ->
+      makes_array e = false ->
+      behaves (the unit, run on its own) (Exits k vs hp) ->
+      (forall v, v in vs -> no_array_value v = true)
+      /\ exists n last vs',
+           run n (the unit lifted, run on its own) = Step last
+           /\ step last = Exit k vs' hp
+           /\ Forall2
+                (value_lifted
+                   (without_static_arrays (state_statics last)))
+                vs vs'
+
+The third follows from the theorem of `lift_simulates_statement`,
+from `run_free_of_arrays_statement` and from the second.
+
 ### 2.4 What each changed definition reaches
 
 Counted by `rocq/check-changed-defs.py` between a5e4605469 and the
@@ -159,7 +210,12 @@ the case of the array is new proof in each proof that goes by the
 cases of `lift_named` or by the rules of `value_lifted`. A guess
 that names no `Let` of an array gives what it gave.
 
-`value_lifted` reaches four statements, each directly:
+`value_lifted` is in the text of four statements and of no other:
+searched as a word in every `.v` file of the two libraries, it is
+outside comments in `FlambdaLiftSpec.v`, in
+`FlambdaNoArrayValueSpec.v` and in the files of proofs of the
+lifting and of that file; no definition of a `Spec` file is made
+with it but the relation itself. The four, each directly:
 
 - `lift_simulates_statement` has it in its conclusion: the values
   at the exit of the term lifted are those of the term up to it.
@@ -172,8 +228,8 @@ that names no `Let` of an array gives what it gave.
   (`FlambdaNoArrayValueSpec.run_free_of_arrays_statement`), the
   new rule has an array value for its first value, as
   `Lifted_array` has, and a derivation goes by the head of the
-  first value; `value_lifted_no_array_value_statement` and the
-  statement of 2.3 are the two that say so.
+  first value. `lift_simulates_free_of_arrays_statement` (2.3) is
+  that, as a statement to be proved in the series.
 - `value_lifted_array_statement`: 2.3.
 - `value_lifted_to_array_statement` (nothing but an array value is
   lifted to an array value) and
@@ -189,6 +245,60 @@ leave with one is refused as before. The six statements of
 `FlambdaLiftObservedSpec.v` are among the 82: no primitive is
 added, so what may follow a unit is what it was, and they are
 reproved as conclusions.
+
+The statements of the verdict that lifts are among the 82, and
+none has `value_lifted` in its text. What "validated once lifted"
+allows from now on, in each of them: an immutable array of values
+that the unit makes as it runs may be, in the term that is compared
+with the term after, a symbol bound to a static immutable array of
+the same elements, lifted. They are:
+
+- of a unit run on its own: `validate_unit_sound_statement`,
+  `validate_unit_sound_everywhere_statement`,
+  `validate_unit_knowing_sound_statement`,
+  `validate_unit_knowing_sound_everywhere_statement`;
+- of a unit run from its imports, the ten of
+  `FlambdaValidateImportsSpec.v`:
+  `validate_unit_sound_imports_statement`,
+  `validate_unit_sound_verdict_imports_statement`,
+  `validate_unit_sound_from_statement`,
+  `validate_unit_sound_head_from_statement`,
+  `validate_unit_sound_head_imports_statement`, and the five of the
+  second asking, whose names have `knowing` after `validate_unit`;
+- of the four liftings, each on its own and from the imports:
+  `lift_unit_program_refines_statement`,
+  `lift_unit_refines_imports_statement`,
+  `lift_from_code_unit_program_refines_statement`,
+  `lift_from_code_unit_refines_imports_statement`,
+  `lift_to_head_unit_program_refines_statement`,
+  `lift_to_head_unit_refines_imports_statement`,
+  `lift_around_unit_program_refines_statement`,
+  `lift_around_unit_refines_imports_statement`;
+- up to what may follow a unit, the six of
+  `FlambdaLiftObservedSpec.v`:
+  `lift_unit_observed_refines_statement`,
+  `lift_from_code_unit_observed_refines_statement`,
+  `lift_to_head_unit_observed_refines_statement`,
+  `lift_around_unit_observed_refines_statement`,
+  `liftings_observed_refines_statement`,
+  `with_lifting_observed_refines_statement`.
+
+With `lift_simulates_statement` those are 29. Of the 82, 33 are
+reached only through the name `alias_of`, which
+`FlambdaForwardSpec.v` defines as well as `FlambdaLiftAroundSpec.v`
+(the search counts a use of a name for every file that defines
+it): the statements of `forward_applications`, those of the rounds
+of the first phase, and thirteen that an example is validated;
+`lift_named` is in none of them. The 20 that are left are of
+renaming (thirteen: the four liftings and what they are made of,
+`with_lifting`, `lifted_in_turn`, `validate_unit`,
+`validate_unit_knowing`) and of scope (seven: the six of
+`FlambdaStaticsScopeSpec.v` and
+`lifted_in_turn_keeps_scope_statement`).
+
+The passage of `rocq/TRUST-LEDGER.md` on what the tool reports says
+of the fifth verdict that something is lifted; what may be lifted,
+with the array, is added to it in the series.
 
 The law of the primitives that the lifting uses
 (`FlambdaPrimitiveSpec.eval_prim_related_statement`) is not
@@ -224,7 +334,11 @@ source that the same lifting gives to a `Let` is one of those and
 is no table, and with it among the tables the check of
 `FlambdaUnusedHeadStaticsSpec.add_head_tables` fails for all of
 them. The symbols that the first lifting gives to `Let`s are left
-out of its tables.
+out of its tables. An array of the source that only a later
+lifting gives a symbol (one whose elements are closures that are
+lifted first, or one made an alias of a symbol bound around it) is
+still taken for a table at the first: the filter does not cover
+it, and such a unit is not validated.
 
 All of it is a guess: `lift_unit` and its fellows check it, and a
 wrong guess is a unit that is not validated. Nothing of the
@@ -232,8 +346,9 @@ conversion changes, and nothing of the trust ledger.
 
 ### 2.7 Proofs, and who writes them
 
-This stream, with the word of the owner of the lifting on the
-patch to its files, as for `Lifted_array`. The case of the array
+The owner of the lifting, in its files; this stream writes the
+patch of `FlambdaNoArrayValueSpec.v` and of its proofs (2.3), and
+each has the other's word on its files. The case of the array
 follows that of the block without its tag: in this tree
 `Lifted_to_block` is named in `FlambdaLiftProofs.v` (twice: the
 relation under a larger static environment, and the step of a
@@ -414,6 +529,16 @@ Asked:
    `value_lifted_array_statement` (its text) and of
    `lift_simulates_statement` (by the rule), with 2.4 as their
    record; and whether section 3 is a series of this stream.
+   Ruled: both are permitted. The first on conditions: the record
+   of 2.4 with every statement that has the relation; both texts
+   of the restated statement (2.3); the old reading kept as a
+   proved statement for a unit that makes no array (2.3);
+   immutable arrays of values only (2.2); the words of item 2 to
+   4, and those of the owners of the form from the imports and of
+   the observed forms; and the measure of section 4 made again
+   with the tool of the series, with the processor time on the
+   census. The second under the ordinary gate of a changed
+   definition, written by this stream.
 2. Of the owner of the lifting: its word on 2.2, on the comments
    of 2.5, and on the patch to its proofs when it is written.
 3. Of the owner of the validation: the two lines of 3.3, and the

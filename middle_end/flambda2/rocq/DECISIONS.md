@@ -625,6 +625,9 @@ says so. Only the labels that this tree cites are listed.
 - **T5-10.** The n-way join takes every variable that a joined
   environment knows to have a value there, where it puts a relation back
   on a scrutinee and where it drops a bottom type.
+- **T5-11.** Whether two equal constant immutable arrays are one symbol
+  depends on their debugging information, which the text of a term has
+  not, and on how the copies were made.
 - **T5b-1.** The join of types has no bound on its depth that is always
   reached; on two inputs that are an alias and a type in turn, both the
   n-way join and the binary join overflow the stack.
