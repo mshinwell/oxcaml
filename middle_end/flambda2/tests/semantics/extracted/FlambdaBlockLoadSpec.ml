@@ -55,10 +55,12 @@ let rec forget_vars xs known =
 let block_made = function
   | Prim (p, fields) -> (
     match p with
-    | Variadic p0 ->
-      let (Make_block kind) = p0 in
-      let (Block_kind_values tag) = kind in
-      Some (tag, map (fun x -> Some x) fields)
+    | Variadic p0 -> (
+      match p0 with
+      | Make_block kind ->
+        let (Block_kind_values tag) = kind in
+        Some (tag, map (fun x -> Some x) fields)
+      | Make_immutable_array _ -> None)
     | _ -> None)
   | _ -> None
 

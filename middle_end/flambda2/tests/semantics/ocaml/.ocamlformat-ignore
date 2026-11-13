@@ -2,6 +2,11 @@ clos_partial_local.ml
 empty_immutable_array.ml
 exclave_after_local_work.ml
 exclave_pair.ml
+iarray_exported.ml
+iarray_in_function.ml
+iarray_literal.ml
+iarray_phys_equal.ml
+iarray_read_in_function.ml
 ignored_second_of_pair.ml
 inl_callee_region_twice.ml
 late_three_values_interleaved.ml

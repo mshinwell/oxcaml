@@ -643,7 +643,13 @@ let convert_binary_primitive (p : P.binary_primitive) :
    [Invalid] ([Simplify_variadic_primitive]). The model's [Make_block] has no
    such annotation and makes a block of whatever values it is given. So the only
    annotation converted is the one that says nothing, [any_value] for every
-   field; a block kind that says more of a field is not in the model. *)
+   field; a block kind that says more of a field is not in the model.
+
+   A [Make_array] is converted when it is [Immutable] and its elements are of
+   kind [Value]: it is the model's [Make_immutable_array], which makes a value
+   with no identity. A [Mutable] one is an allocation with an identity, which
+   the conversion does not make, and [Immutable_unique] is not a mutability of
+   arrays. *)
 let convert_variadic_primitive (p : P.variadic_primitive) ~num_args :
     Primitives.variadic_primitive option =
   match p with
@@ -657,6 +663,14 @@ let convert_variadic_primitive (p : P.variadic_primitive) ~num_args :
                   Flambda_kind.With_subkind.any_value)
               kinds ->
     Some (Make_block (Block_kind_values (z_of_int (Tag.Scannable.to_int tag))))
+  (* CR mshinwell: an array made in a region is converted as one made on the
+     heap; see [region_variables]. *)
+  | Make_array (Immediates, Immutable, (Heap _ | Local _)) ->
+    Some (Make_immutable_array Array_immediates)
+  | Make_array (Gc_ignorable_values, Immutable, (Heap _ | Local _)) ->
+    Some (Make_immutable_array Array_gc_ignorable_values)
+  | Make_array (Values, Immutable, (Heap _ | Local _)) ->
+    Some (Make_immutable_array Array_values)
   | _ -> None
 
 (* ---- Conversion of terms ---------------------------------------------- *)
@@ -1346,6 +1360,8 @@ let rec observe depth (statics : Values.static_env) (v : Values.value) :
       Function
     | Value_block (tag, fields) ->
       Block (int_of_z tag, List.map (observe (depth - 1) statics) fields)
+    | Value_immutable_array elements ->
+      Array (List.map (observe (depth - 1) statics) elements)
     | Value_boxed_number c ->
       Boxed (observe (depth - 1) statics (Values.Value_const c))
     | Value_location l -> Location (int_of_positive l)
@@ -1882,6 +1898,12 @@ let print_prim ppf (p : Primitives.prim) =
       (int_comp behaviour)
   | Variadic (Make_block (Block_kind_values tag)) ->
     Format.fprintf ppf "Make_block %d" (int_of_z tag)
+  | Variadic (Make_immutable_array kind) ->
+    Format.fprintf ppf "Make_immutable_array %s"
+      (match kind with
+      | Array_immediates -> "immediates"
+      | Array_gc_ignorable_values -> "gc_ignorable_values"
+      | Array_values -> "values")
   | Heap _ ->
     (* The converter makes no primitive of the heap. *)
     Format.pp_print_string ppf "<primitive of the heap>"

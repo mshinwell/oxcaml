@@ -2041,8 +2041,8 @@ and values_for_head names world (head : MT.head_of_kind_value_non_null) :
                 (fun i : V.value -> Value_const (Tagged_immediate i))
                 (naked_immediate_of_const c)
             | Value_closure _ | Value_closure_of_set _ | Value_symbol _
-            | Value_block _ | Value_boxed_number _ | Value_location _
-            | Value_partial_application _ ->
+            | Value_block _ | Value_immutable_array _ | Value_boxed_number _
+            | Value_location _ | Value_partial_application _ ->
               None)
           (values_for names world t))
     @
@@ -2066,8 +2066,8 @@ and values_for_head names world (head : MT.head_of_kind_value_non_null) :
         match v with
         | Value_const c -> Some (Value_boxed_number c)
         | Value_closure _ | Value_closure_of_set _ | Value_symbol _
-        | Value_block _ | Value_boxed_number _ | Value_location _
-        | Value_partial_application _ ->
+        | Value_block _ | Value_immutable_array _ | Value_boxed_number _
+        | Value_location _ | Value_partial_application _ ->
           None)
       (values_for names world contents)
   | Closures (Row_like_for_closures cases, _) ->
@@ -2138,7 +2138,8 @@ let rec parts_of_value (v : V.value) : V.value list =
   (match v with
   | Value_const _ | Value_symbol _ | Value_boxed_number _ | Value_location _ ->
     []
-  | Value_block (_, fields) -> List.concat_map parts_of_value fields
+  | Value_block (_, fields) | Value_immutable_array fields ->
+    List.concat_map parts_of_value fields
   | Value_closure (_, value_slots) | Value_closure_of_set (_, _, value_slots) ->
     List.concat_map (fun (_, v) -> parts_of_value v) value_slots
   | Value_partial_application (callee, args, _) ->
@@ -2222,6 +2223,10 @@ let print_value ppf (v : V.value) =
       Format.fprintf ppf "@[<hov 1>(block %a@ %a)@]" N.print_z tag
         (Model_type.print_list print)
         fields
+    | Value_immutable_array elements ->
+      Format.fprintf ppf "@[<hov 1>(array@ %a)@]"
+        (Model_type.print_list print)
+        elements
     | Value_boxed_number c ->
       Format.fprintf ppf "(boxed %a)" Model_type.print_const c
     | Value_location l -> Format.fprintf ppf "<location %a>" N.print_positive l

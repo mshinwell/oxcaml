@@ -1,0 +1,13 @@
+let $camlIarray_exported__first_const_0 = Block 0 () in
+(let Popaque/18 = %opaque (3) in
+ let weights/19 = %array.`imm`.`toplevel` (5, Popaque/18, 8) in
+ let result/20 = %array_load.`imm` (weights/19, 1) in
+ let Pmakeblock/21 = %block.[`0`].`toplevel` (weights/19, result/20) in
+ cont k/5 (Pmakeblock/21))
+  where k/5 define_root_symbol (module_block/15) =
+    let field_0/16 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/15)
+    in
+    let field_1/17 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/15)
+    in
+    let $camlIarray_exported = Block 0 (field_0/16, field_1/17) in
+    cont done ($camlIarray_exported)

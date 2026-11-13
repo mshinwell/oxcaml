@@ -1,0 +1,33 @@
+let $camlIarray_in_function__first_const_0 = Block 0 () in
+(let code inline(never) size(11)
+       three_0 (a/44 : imm tagged, b/45 : imm tagged)
+         my_closure/46 &my_alloc_region/47 my_depth/48
+         -> k/14 * k/15
+         : imm array =
+   let next_depth/49 = rec_info (succ my_depth/48) in
+   let int_add/50 = %int_barith.add (a/44, b/45) in
+   let Pmakearray/51 =
+     %array.`imm`.my_alloc_region/47 (a/44, b/45, int_add/50)
+   in
+   cont k/14 (Pmakearray/51)
+ in
+ let three/52 = closure three_0 @three &toplevel in
+ (let Popaque/59 = %opaque (5) in
+  let Popaque/60 = %opaque (2) in
+  apply direct(three_0 &toplevel)
+    (three/52 : _ -> imm array) (Popaque/60, Popaque/59) -> k/17 * error)
+   where k/17 (values/55 : imm array) =
+     let Parraylength/56 = %array_length.`imm` (values/55) in
+     let Parrayrefu/57 = %array_load.`imm` (values/55, 2) in
+     let int_add/58 = %int_barith.add (Parrayrefu/57, Parraylength/56) in
+     cont k/16 (int_add/58)
+   where k/16 (result/53 : imm tagged) =
+     let Pmakeblock/54 = %block.[`0`].`toplevel` (three/52, result/53) in
+     cont k/13 (Pmakeblock/54))
+  where k/13 define_root_symbol (module_block/41) =
+    let field_0/42 = %block_load.tag[`0`].`size`[`2`].[`0`] (module_block/41)
+    in
+    let field_1/43 = %block_load.tag[`0`].`size`[`2`].[`1`] (module_block/41)
+    in
+    let $camlIarray_in_function = Block 0 (field_0/42, field_1/43) in
+    cont done ($camlIarray_in_function)

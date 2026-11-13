@@ -78,10 +78,12 @@ let lift_named target d =
               Some (Bind_symbol (s, Static_const_boxed_number contents) :: [], s)
             | _ :: _ -> None))
         | _ -> None)
-      | Variadic p0 ->
-        let (Make_block kind) = p0 in
-        let (Block_kind_values tag) = kind in
-        Some (Bind_symbol (s, Static_const_block (tag, fields)) :: [], s)
+      | Variadic p0 -> (
+        match p0 with
+        | Make_block kind ->
+          let (Block_kind_values tag) = kind in
+          Some (Bind_symbol (s, Static_const_block (tag, fields)) :: [], s)
+        | Make_immutable_array _ -> None)
       | _ -> None)
     | Set_of_closures (code0, value_slots) ->
       Some

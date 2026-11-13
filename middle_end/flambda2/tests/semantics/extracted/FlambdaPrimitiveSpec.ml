@@ -257,6 +257,11 @@ let array_element_ok kind v =
   | Array_immediates -> is_tagged_immediate v
   | _ -> kind_eqb (kind_of_value v) Value
 
+(** val array_made : array_kind -> value list -> value list option **)
+
+let array_made kind vs =
+  if forallb (array_element_ok kind) vs then Some vs else None
+
 (** val array_length_of : value list -> value option **)
 
 let array_length_of elements =
@@ -597,13 +602,21 @@ let eval_binary_primitive statics p v1 v2 =
     -> value option **)
 
 let eval_variadic_primitive statics p vs =
-  let (Make_block kind) = p in
-  let (Block_kind_values tag) = kind in
-  if
-    forallb (fun v -> kind_eqb (kind_of_value v) Value) vs
-    && forallb (bound_if_symbol statics) vs
-  then Some (Value_block (tag, vs))
-  else None
+  match p with
+  | Make_block kind ->
+    let (Block_kind_values tag) = kind in
+    if
+      forallb (fun v -> kind_eqb (kind_of_value v) Value) vs
+      && forallb (bound_if_symbol statics) vs
+    then Some (Value_block (tag, vs))
+    else None
+  | Make_immutable_array kind -> (
+    match array_made kind vs with
+    | Some elements ->
+      if forallb (bound_if_symbol statics) vs
+      then Some (Value_immutable_array elements)
+      else None
+    | None -> None)
 
 (** val eval_prim : static_env -> prim -> value list -> value option **)
 
@@ -717,6 +730,7 @@ let variadic_primitive_in_range = function
   | Make_block kind ->
     let (Block_kind_values tag) = kind in
     tag_in_range tag
+  | Make_immutable_array _ -> true
 
 (** val access_in_range : block_access_kind -> coq_Z -> bool **)
 
@@ -2307,34 +2321,52 @@ let prim_eq_dec p p' =
   | Variadic p0 -> (
     match p' with
     | Variadic p1 -> (
-      let (Make_block kind) = p0 in
-      let (Make_block kind0) = p1 in
-      let (Block_kind_values tag) = kind in
-      let (Block_kind_values tag0) = kind0 in
-      match tag with
-      | Z0 -> ( match tag0 with Z0 -> true | _ -> false)
-      | Zpos p2 -> (
-        match tag0 with
-        | Zpos p3 ->
-          let rec f p4 x =
-            match p4 with
-            | Coq_xI p5 -> ( match x with Coq_xI p6 -> f p5 p6 | _ -> false)
-            | Coq_xO p5 -> ( match x with Coq_xO p6 -> f p5 p6 | _ -> false)
-            | Coq_xH -> ( match x with Coq_xH -> true | _ -> false)
-          in
-          f p2 p3
-        | _ -> false)
-      | Zneg p2 -> (
-        match tag0 with
-        | Zneg p3 ->
-          let rec f p4 x =
-            match p4 with
-            | Coq_xI p5 -> ( match x with Coq_xI p6 -> f p5 p6 | _ -> false)
-            | Coq_xO p5 -> ( match x with Coq_xO p6 -> f p5 p6 | _ -> false)
-            | Coq_xH -> ( match x with Coq_xH -> true | _ -> false)
-          in
-          f p2 p3
-        | _ -> false))
+      match p0 with
+      | Make_block kind -> (
+        match p1 with
+        | Make_block kind0 -> (
+          let (Block_kind_values tag) = kind in
+          let (Block_kind_values tag0) = kind0 in
+          match tag with
+          | Z0 -> ( match tag0 with Z0 -> true | _ -> false)
+          | Zpos p2 -> (
+            match tag0 with
+            | Zpos p3 ->
+              let rec f p4 x =
+                match p4 with
+                | Coq_xI p5 -> (
+                  match x with Coq_xI p6 -> f p5 p6 | _ -> false)
+                | Coq_xO p5 -> (
+                  match x with Coq_xO p6 -> f p5 p6 | _ -> false)
+                | Coq_xH -> ( match x with Coq_xH -> true | _ -> false)
+              in
+              f p2 p3
+            | _ -> false)
+          | Zneg p2 -> (
+            match tag0 with
+            | Zneg p3 ->
+              let rec f p4 x =
+                match p4 with
+                | Coq_xI p5 -> (
+                  match x with Coq_xI p6 -> f p5 p6 | _ -> false)
+                | Coq_xO p5 -> (
+                  match x with Coq_xO p6 -> f p5 p6 | _ -> false)
+                | Coq_xH -> ( match x with Coq_xH -> true | _ -> false)
+              in
+              f p2 p3
+            | _ -> false))
+        | Make_immutable_array _ -> false)
+      | Make_immutable_array kind -> (
+        match p1 with
+        | Make_block _ -> false
+        | Make_immutable_array kind0 -> (
+          match kind with
+          | Array_immediates -> (
+            match kind0 with Array_immediates -> true | _ -> false)
+          | Array_gc_ignorable_values -> (
+            match kind0 with Array_gc_ignorable_values -> true | _ -> false)
+          | Array_values -> (
+            match kind0 with Array_values -> true | _ -> false))))
     | _ -> false)
   | Heap p0 -> (
     match p' with

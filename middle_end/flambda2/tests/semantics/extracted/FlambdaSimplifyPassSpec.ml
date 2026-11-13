@@ -432,11 +432,13 @@ let simplify_binary tenv p arg1 ty1 arg2 ty2 =
 (** val simplify_variadic : variadic_primitive -> flambda_type list -> outcome **)
 
 let simplify_variadic p tys =
-  let (Make_block kind0) = p in
-  let (Block_kind_values tag) = kind0 in
-  if Z.ltb tag no_scan_tag
-  then Stays_with_type (make_block_type tag tys)
-  else Stays_with_kind Value
+  match p with
+  | Make_block kind0 ->
+    let (Block_kind_values tag) = kind0 in
+    if Z.ltb tag no_scan_tag
+    then Stays_with_type (make_block_type tag tys)
+    else Stays_with_kind Value
+  | Make_immutable_array _ -> Stays_with_kind Value
 
 (** val simplify_named : Typing_env.t -> named -> outcome **)
 

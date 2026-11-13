@@ -15,6 +15,7 @@ type value =
       function_slot * (function_slot * code_id) list * (value_slot * value) list
   | Value_symbol of symbol
   | Value_block of coq_Z * value list
+  | Value_immutable_array of value list
   | Value_boxed_number of const
   | Value_location of location
   | Value_partial_application of value * value list * arity
@@ -224,6 +225,7 @@ let array_of statics = function
       | Static_immutable_array elements -> Some elements
       | _ -> None)
     | None -> None)
+  | Value_immutable_array elements -> Some elements
   | _ -> None
 
 (** val partial_application_of : value -> ((value * value list) * arity) option

@@ -479,6 +479,8 @@ let variadic_primitive (p : Primitives.variadic_primitive) ~num_args :
             List.init num_args (fun _ -> Flambda_kind.With_subkind.any_value) ),
         Immutable,
         on_the_heap () )
+  | Make_immutable_array kind ->
+    Make_array (array_kind kind, Immutable, on_the_heap ())
 
 (* The region that the compiler's description wrote as the toplevel one is the
    region of where the primitive is. *)

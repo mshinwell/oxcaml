@@ -60,6 +60,10 @@ let rec value_eqb v v' =
     | Value_block (tag', fields') ->
       Z.eqb tag tag' && lists_eqb value_eqb fields fields'
     | _ -> false)
+  | Value_immutable_array elements -> (
+    match v' with
+    | Value_immutable_array elements' -> lists_eqb value_eqb elements elements'
+    | _ -> false)
   | Value_boxed_number c -> (
     match v' with Value_boxed_number c' -> const_eqb c c' | _ -> false)
   | Value_location l -> (

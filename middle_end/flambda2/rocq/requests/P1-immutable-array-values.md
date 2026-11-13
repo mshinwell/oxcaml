@@ -16,9 +16,9 @@ with an edit of the test tool that is not the conversion.
 
 Since it was approved a first cut of it is in this tree: the value
 and the primitive (section 3), the rule of the lifting between two
-array values, and the theorems that section 5 asks for. The case of
-`lift_named` and the rule from an array value to a symbol (section
-4.2) are not, and nor is the conversion (section 6).
+array values, the theorems that section 5 asks for, and the
+conversion (section 6). The case of `lift_named` and the rule from
+an array value to a symbol (section 4.2) are not.
 `status/P1.md`, "An immutable array made when the program runs",
 has what the cut is and its record, counted on the series itself;
 the counts of section 5 and of the appendix are those of the

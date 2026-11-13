@@ -540,7 +540,12 @@ it gave back.
   primitives that allocate or load, that is: a block that is not
   immutable or not of values; and, for `Make_block`, a kind of a field
   that says more than `any_value`, as the model has no subkinds and
-  Simplify uses them. An allocation in a region is not refused: it is
+  Simplify uses them. A `Make_array` is converted where it is marked
+  `Immutable` and is of one of the three array kinds of values, to
+  the model's `Make_immutable_array` at that kind, which is not the
+  primitive of the same name: the model's carries no mutability and
+  makes a value with no identity. One marked `Mutable` is refused.
+  An allocation in a region is not refused: it is
   converted as one on the heap, which is not a renaming of constructors
   and is one of the exceptions of the entry above (*Regions*). What a
   primitive computes is not here: it is

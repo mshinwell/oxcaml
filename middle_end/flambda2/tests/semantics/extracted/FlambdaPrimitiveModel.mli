@@ -105,7 +105,9 @@ type binary_primitive =
 
 type block_kind = Block_kind_values of coq_Z
 
-type variadic_primitive = Make_block of block_kind
+type variadic_primitive =
+  | Make_block of block_kind
+  | Make_immutable_array of array_kind
 
 type cell_mutability =
   | Cell_mutable

@@ -1,0 +1,13 @@
+let $camlIarray_literal__first_const_0 = Block 0 () in
+(let primes/19 = %array.`imm`.`toplevel` (2, 3, 5, 7, 11) in
+ let Parraylength/20 = %array_length.`imm` (primes/19) in
+ let Popaque/21 = %opaque (3) in
+ let Parrayrefu/22 = %array_load.`imm` (primes/19, Popaque/21) in
+ let result/23 = %int_barith.add (Parrayrefu/22, Parraylength/20) in
+ let Pmakeblock/24 = %block.[`0`].`toplevel` (result/23) in
+ cont k/5 (Pmakeblock/24))
+  where k/5 define_root_symbol (module_block/17) =
+    let field_0/18 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/17)
+    in
+    let $camlIarray_literal = Block 0 (field_0/18) in
+    cont done ($camlIarray_literal)

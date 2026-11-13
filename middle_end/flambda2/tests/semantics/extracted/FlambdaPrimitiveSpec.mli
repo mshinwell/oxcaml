@@ -50,6 +50,8 @@ val array_kind_of_load_kind : array_load_kind -> array_kind
 
 val array_element_ok : array_kind -> value -> bool
 
+val array_made : array_kind -> value list -> value list option
+
 val array_length_of : value list -> value option
 
 val array_index : value list -> value -> nat option
