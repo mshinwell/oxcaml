@@ -140,6 +140,12 @@
    no code and no closure:
    [read_known_slots_refines_imports_statement].
 
+   It holds too of the unit followed by something
+   ([read_known_slots_refines_observed_statement]): what may follow a
+   unit (FlambdaObserversSpec.observers) binds no code and names no
+   code id, so it makes no closure, and the closures that it has are
+   those that the unit gave it.
+
    What is not here: a slot that holds a variable; a slot that two sets
    give different symbols, where the code that reads it is the code of
    one of them only (Simplify knows that; this file would need the test
@@ -156,7 +162,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaValueSpec FlambdaSemanticsSpec FlambdaNominalSpec
   FlambdaWellFormedSpec FlambdaStaticsInScopeSpec FlambdaUnusedStaticsSpec
   FlambdaKnownSymbolsSpec.
-From OxCamlFlambda2 Require Import FlambdaImportsSpec.
+From OxCamlFlambda2 Require Import FlambdaImportsSpec FlambdaObserversSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -509,6 +515,42 @@ Definition read_slots_refines_from_statement : Prop :=
 Definition read_known_slots_refines_imports_statement : Prop :=
   ∀ (imports : list (symbol * import_class)) (e : expr),
     unit_refines imports e (read_known_slots e).
+
+(* The same of the unit followed by something: the unit and the unit
+   rewritten, run from one continuation environment of what may follow
+   a unit (FlambdaObserversSpec.observers: a way out, or a handler with
+   no environment of its own that binds nothing static and names no
+   symbol and no code id). What follows is the same term in the two
+   runs: it is not rewritten. It may project a value slot from a
+   closure that the unit gave it, and call one; it makes no closure,
+   since it names no code id, and a set of closures that has no
+   function has no value (FlambdaSemanticsSpec.eval_named). So every
+   closure of the run is still made by a set of the unit or of the
+   code that the static environment has. With no continuation this is
+   [read_slots_refines_from_statement]. *)
+Definition read_slots_refines_observed_statement : Prop :=
+  ∀ (known : known_slots) (syms : list symbol) (e : expr) (conts : cont_env)
+    (statics : static_env),
+    closed_slots known = true ->
+    slots_as known e = true ->
+    Forall (fun binding => code_slots_as known (snd binding) = true)
+      (static_code statics) ->
+    Forall
+      (fun binding => allocated_slots_known known (snd binding) = true)
+      (static_values statics) ->
+    observers [] conts ->
+    refines (State e [] conts statics empty_heap)
+      (State (read_slots known syms e) [] conts statics empty_heap).
+
+(* So what [read_known_slots] gives refines the unit, the two followed
+   by the same thing and run from the same imports, with the same
+   exits. *)
+Definition read_known_slots_refines_observed_statement : Prop :=
+  ∀ (imports : list (symbol * import_class)) (conts : cont_env) (e : expr),
+    observers [] conts ->
+    refines (State e [] conts (imports_statics imports) empty_heap)
+      (State (read_known_slots e) [] conts (imports_statics imports)
+         empty_heap).
 
 (* The rewrite keeps row 4: where every symbol and code id that a term
    mentions is in scope, given the symbols [syms'] and the code ids

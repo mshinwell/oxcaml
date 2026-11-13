@@ -36,7 +36,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaNominalProofs FlambdaWellFormedSpec FlambdaWellFormedProofs
   FlambdaStaticsInScopeSpec FlambdaUnusedStaticsSpec FlambdaKnownSymbolsSpec
   FlambdaClosuresSpec FlambdaClosuresProofs FlambdaContextWhereSpec
-  FlambdaContextWhereProofs FlambdaImportsSpec FlambdaKnownSlotsSpec.
+  FlambdaContextWhereProofs FlambdaImportsSpec FlambdaObserversSpec
+  FlambdaUnitFromProofs FlambdaKnownSlotsSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -206,6 +207,75 @@ Lemma code_slots_as_checked (known : known_slots) (c : code) :
 Proof.
   destruct c as [params my_closure ret exn metadata body].
   cbn [code_slots_as code_slots_checked]. apply slots_as_checked.
+Qed.
+
+(* What may follow a unit passes it, whatever is known: a term with no
+   static binding in it, where no code id is in scope, makes no set of
+   closures but one that has no function. *)
+Fixpoint no_static_slots_checked (known : known_slots) (e : expr) {struct e} :
+  ∀ syms : list symbol,
+    binds_no_static e = true ->
+    expr_statics_in_scope syms [] e = true ->
+    slots_checked known e = true.
+Proof.
+  destruct e
+    as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+       | scrutinee arms | ];
+    intros syms Hno Hscope; cbn [slots_checked]; try reflexivity.
+  - cbn [binds_no_static] in Hno. cbn [expr_statics_in_scope] in Hscope.
+    apply andb_true_iff in Hscope as [Hd Hbody].
+    rewrite (no_static_slots_checked known body syms Hno Hbody), andb_true_r.
+    destruct d as [a | p args | code slots | slot [ | decl decls] slots
+      | slot closure | project_from slot closure | move_from move_to closure];
+      try reflexivity; discriminate Hd.
+  - discriminate Hno.
+  - destruct h as [params metadata handler].
+    cbn [binds_no_static handler_binds_no_static] in Hno.
+    apply andb_true_iff in Hno as [Hh Hb].
+    cbn [expr_statics_in_scope handler_statics_in_scope] in Hscope.
+    rewrite !(no_static_names _ body Hb) in Hscope. cbn [app] in Hscope.
+    apply andb_true_iff in Hscope as [Sh Sb].
+    cbn [handler_slots_checked].
+    rewrite (no_static_slots_checked known handler syms Hh Sh),
+      (no_static_slots_checked known body syms Hb Sb).
+    reflexivity.
+  - cbn [binds_no_static] in Hno. apply andb_true_iff in Hno as [Hhs Hb].
+    cbn [expr_statics_in_scope] in Hscope.
+    rewrite !(no_static_names _ body Hb) in Hscope. cbn [app] in Hscope.
+    apply andb_true_iff in Hscope as [Shs Sb].
+    rewrite (no_static_slots_checked known body syms Hb Sb), andb_true_r.
+    induction handlers as [ | [k [params metadata handler]] handlers IH];
+      cbn [forallb] in *; [ reflexivity | ].
+    apply andb_true_iff in Hhs as [Hh Hrest].
+    apply andb_true_iff in Shs as [Sh Srest].
+    cbn [handler_binds_no_static] in Hh.
+    cbn [handler_statics_in_scope] in Sh.
+    cbn [handler_slots_checked].
+    rewrite (no_static_slots_checked known handler syms Hh Sh).
+    exact (IH Hrest Srest).
+Qed.
+
+Lemma observers_slots_checked (known : known_slots)
+    (slots : list value_slot) (conts : cont_env) :
+  observers slots conts ->
+  conts_terms_ok (handler_slots_checked known) conts.
+Proof.
+  unfold observers, conts_terms_ok.
+  induction conts as [ | [k c] conts IH]; simpl;
+    [ intros _; exact I | ].
+  intros H. inversion H as [ | kc rest Hc Hrest]; subst.
+  split; [ | exact (IH Hrest) ].
+  revert Hc.
+  destruct c
+    as [ [params metadata body] vars kept recursive | k0 | c0 extra
+       | remaining remaining_arity return_arity return_to exn_to ];
+    simpl; try contradiction; [ | intros _; exact I ].
+  destruct vars; [ | contradiction ].
+  destruct kept; [ | contradiction ].
+  destruct recursive; [ | contradiction ].
+  intros (Hno & Hscope & _).
+  split; [ exact (no_static_slots_checked known body [] Hno Hscope) | ].
+  split; [ reflexivity | exact I ].
 Qed.
 
 (* ======================================================================== *)
@@ -681,6 +751,31 @@ Proof.
   - exact
       (conj (Forall_nil _)
          (conj I (conj Hvalues (heap_values_all_empty _)))).
+Qed.
+
+(* The same with what may follow the unit in the continuation
+   environment. *)
+Lemma slots_inv_observed (slots : list value_slot) (e : expr)
+    (conts : cont_env) (statics : static_env) :
+  slots_as known e = true ->
+  Forall (fun binding => code_slots_as known (snd binding) = true)
+    (static_code statics) ->
+  Forall (fun binding => allocated_slots_known known (snd binding) = true)
+    (static_values statics) ->
+  observers slots conts ->
+  slots_inv (State e [] conts statics empty_heap).
+Proof.
+  intros He Hcode Hvalues Hobservers. split.
+  - unfold terms_inv. simpl_state.
+    refine
+      (conj (slots_as_checked known e He)
+         (conj (observers_slots_checked known slots conts Hobservers) _)).
+    intros id c Hlookup. rewrite Forall_forall in Hcode.
+    exact (code_slots_as_checked known c
+             (Hcode (id, c) (lookup_in id c _ Hlookup))).
+  - exact (conj (Forall_nil _)
+             (conj (observers_values_all _ slots conts Hobservers)
+                (conj Hvalues (heap_values_all_empty _)))).
 Qed.
 
 Lemma slots_inv_run (n : nat) :
@@ -1284,6 +1379,34 @@ Proof.
     intros [s allocated] Hin.
     apply in_map_iff in Hin as ([s' c] & Heq & _).
     injection Heq as _ <-. reflexivity.
+Qed.
+
+Theorem read_slots_refines_observed : read_slots_refines_observed_statement.
+Proof.
+  intros known syms e conts statics Hclosed Has Hcode Hvalues Hobservers.
+  apply (read_slots_refines_aux known Hclosed).
+  exact (slots_inv_observed known [] e conts statics Has Hcode Hvalues
+           Hobservers).
+Qed.
+
+Theorem read_known_slots_refines_observed :
+  read_known_slots_refines_observed_statement.
+Proof.
+  intros imports conts e Hobservers. unfold read_known_slots. cbv zeta.
+  destruct
+    (closed_slots (slots_known (slots_made e))
+     && slots_as (slots_known (slots_made e)) e)
+    eqn:Hcheck;
+    [ | apply refines_refl ].
+  apply andb_true_iff in Hcheck as [Hclosed Has].
+  apply
+    (read_slots_refines_observed _ [] e conts (imports_statics imports)
+       Hclosed Has);
+    [ apply Forall_nil | | exact Hobservers ].
+  unfold imports_statics. cbn [static_values]. apply Forall_forall.
+  intros [s allocated] Hin.
+  apply in_map_iff in Hin as ([s' c] & Heq & _).
+  injection Heq as _ <-. reflexivity.
 Qed.
 
 (* ======================================================================== *)
