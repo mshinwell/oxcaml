@@ -710,10 +710,7 @@ it gave back.
   of the unit, no import is a symbol that the groups at the head of
   the unit bind once that step is done, whether the table is put or
   not. The test computes
-  those terms a second time, as the validation does; for the rounds
-  of a lifted term it may go on past where the validation stops, and
-  asks the same condition there too, so a unit may fail it for such
-  a round. It is
+  those terms a second time, as the validation does; it is
   sufficient, not necessary. The theorem is of no verdict that does
   not pass the test, and of the test with the verdict that the
   validator gives of the same arguments. The tool

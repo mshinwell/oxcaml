@@ -411,9 +411,10 @@ Definition lifting_free_in (statics : static_env) (L : lifting) (e : expr)
    gives a term), the static environment binds no name that the term
    given to [fold_known_unit] binds: the premise of
    FlambdaKnownSymbolsSpec.fold_known_unit_refines_imports_statement.
-   The terms are those of [normalise_lifted_round]. The test goes
-   through all the rounds, also those that [iterate] does not make
-   once a round has given back its term. *)
+   The terms are those of [normalise_lifted_round], and the rounds
+   are those of [iterate]: the test stops where [iterate] stops, after
+   the first round that gives back the term it was given, up to bound
+   names. *)
 Fixpoint known_free_in (statics : static_env) (rounds : nat)
     (avoid : list continuation) (kept : list code_id) (e : expr) : bool :=
   match rounds with
@@ -422,11 +423,14 @@ Fixpoint known_free_in (statics : static_env) (rounds : nat)
     let given :=
       use_known_closures (normalise_before_round_avoiding avoid kept e)
     in
+    let rest (e' : expr) : bool :=
+      if expr_eqb [] [] e e' then true
+      else known_free_in statics rounds avoid kept e'
+    in
     match fold_known_unit given with
     | Some folded =>
-      static_names_free_in statics given
-      && known_free_in statics rounds avoid kept (read_known_slots folded)
-    | None => known_free_in statics rounds avoid kept (read_known_slots given)
+      static_names_free_in statics given && rest (read_known_slots folded)
+    | None => rest (read_known_slots given)
     end
   end.
 

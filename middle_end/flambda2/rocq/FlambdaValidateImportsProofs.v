@@ -449,14 +449,16 @@ Proof.
   set (given :=
     use_known_closures (normalise_before_round_avoiding avoid kept e)).
   intros Hfree.
-  (* One round, and what the test says of the rounds after it. The test
-     goes on through every round, where [iterate] may stop: where it
-     stops, the round made is the first, and what the test says of the
-     others is not used. *)
+  (* One round, and what the test says after it: nothing where the
+     round gives back the term it was given, which is where [iterate]
+     stops, and the test of the other rounds otherwise. *)
   assert (Hround :
     unit_refines imports e (normalise_lifted_round avoid kept e)
-    ∧ known_free_in (imports_statics imports) rounds avoid kept
-        (normalise_lifted_round avoid kept e) = true).
+    ∧ (if expr_eqb [] [] e (normalise_lifted_round avoid kept e) then true
+       else
+         known_free_in (imports_statics imports) rounds avoid kept
+           (normalise_lifted_round avoid kept e))
+      = true).
   { assert (Hgiven_refines :
       refines (State e [] [] (imports_statics imports) empty_heap)
         (State given [] [] (imports_statics imports) empty_heap)).

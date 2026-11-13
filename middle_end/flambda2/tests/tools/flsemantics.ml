@@ -158,19 +158,16 @@
    and, where a lifting is given a table to put at the head of the unit, no
    import is a symbol that the groups at the head of the unit bind after that
    step, whether the table is put or not. The test computes the terms that the
-   validation compares a second time. For the rounds of a lifted term it may go
-   on past where the validation stops, and asks the same there too: a unit may
-   fail it for a round that the validation does not make. For a verdict of the
-   second asking the two terms are those that the second asking gives the first.
-   So for a unit that has imports no line begins "validated:". Where the verdict
-   passes the test, the line begins "validated with its imports", and it is of
-   the two runs shown. Where the validator accepts and the test does not, the
-   line begins "validated with nothing imported", which is what the theorem of
-   the validator says of it, and is followed by a line that begins "not
-   validated with its imports"; the comparison of the two runs shown is then a
-   test and no more, and the unit before is run from the empty static
-   environment as well, to say whether the validation with nothing imported is
-   of a term that is undefined.
+   validation compares a second time. For a verdict of the second asking the two
+   terms are those that the second asking gives the first. So for a unit that
+   has imports no line begins "validated:". Where the verdict passes the test,
+   the line begins "validated with its imports", and it is of the two runs
+   shown. Where the validator accepts and the test does not, the line begins
+   "validated with nothing imported", which is what the theorem of the validator
+   says of it, and is followed by a line that begins "not validated with its
+   imports"; the comparison of the two runs shown is then a test and no more,
+   and the unit before is run from the empty static environment as well, to say
+   whether the validation with nothing imported is of a term that is undefined.
 
    The .cmx of other units. The compiler's Simplify reads the .cmx of another
    unit when it meets a symbol of that unit, and uses what the file says: it

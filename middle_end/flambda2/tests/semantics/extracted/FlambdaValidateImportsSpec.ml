@@ -76,11 +76,16 @@ let rec known_free_in statics rounds avoid kept e =
     let given =
       use_known_closures (normalise_before_round_avoiding avoid kept e)
     in
+    let rest =
+     fun e' ->
+      if expr_eqb [] [] e e'
+      then true
+      else known_free_in statics rounds0 avoid kept e'
+    in
     match fold_known_unit given with
     | Some folded ->
-      static_names_free_in statics given
-      && known_free_in statics rounds0 avoid kept (read_known_slots folded)
-    | None -> known_free_in statics rounds0 avoid kept (read_known_slots given))
+      static_names_free_in statics given && rest (read_known_slots folded)
+    | None -> rest (read_known_slots given))
 
 (** val normalise_lifted_free_in : static_env -> nat -> continuation list ->
     code_id list -> expr -> bool **)
