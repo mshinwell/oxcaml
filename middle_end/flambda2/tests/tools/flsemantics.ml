@@ -2526,9 +2526,12 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list) ~around
         | Some _ -> ()
         | None ->
           (* A closure whose value slots hold symbols, constants or variables
-             made aliases of symbols, and that the term after neither binds to a
-             symbol nor makes. The case aimed at is a function of which Simplify
-             has inlined every call. It is given symbols that neither of the two
+             made aliases of symbols, for which the guess has no symbol left to
+             take (the term after may bind one to such a closure: it is then one
+             that the term before binds, that another [Let] took, or that an
+             earlier attempt banned), and that the term after does not make by a
+             [Let]. The case aimed at is a function of which Simplify has
+             inlined every call. It is given symbols that neither of the two
              terms given here has, so that a value slot that holds it holds a
              symbol. *)
           if
@@ -2555,13 +2558,15 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list) ~around
         | None ->
           (* A block whose fields are symbols, constants or variables made
              aliases of symbols, that a closure of the term before holds in a
-             value slot, and that the term after neither binds to a symbol nor
-             makes, with that tag and that many fields. The case aimed at is the
-             block of a structure given to a functor: the closure of a function
-             of the functor's result holds it (a closure that an earlier lifting
-             has bound to a symbol, with the variable in its slot), and Simplify
-             has resolved every load from it. It is given a symbol that neither
-             of the two terms given here has, so that the value slot holds a
+             value slot, for which the guess has no symbol left to take (as for
+             the closure above: the term after may still bind one to a block of
+             that shape), and of whose tag and number of fields the term after
+             makes no block by a [Let]. The case aimed at is the block of a
+             structure given to a functor: the closure of a function of the
+             functor's result holds it (a closure that an earlier lifting has
+             bound to a symbol, with the variable in its slot), and Simplify has
+             resolved every load from it. It is given a symbol that neither of
+             the two terms given here has, so that the value slot holds a
              symbol. The lifted term has no use for that symbol once the loads
              are resolved, which is as it should be: the search does not take it
              for a symbol given to the wrong [Let]. *)
