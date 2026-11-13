@@ -2144,10 +2144,13 @@ let unused_statics (e : Model.expr) : Unused_statics.dropped =
    boxed number. Two fields agree if the first is a variable of which nothing is
    known, or if they are the same symbol or constant; a variable bound to a
    symbol or a constant, or whose own [Let] is lifted here, counts as that
-   symbol or constant. A [Let] is named by its path, as
-   FlambdaLiftSpec.lift_expr counts it. A symbol is not given to a [Let] that
-   [banned] pairs it with: the caller asks again, with the pair banned, where a
-   symbol went to a [Let] whose block nothing uses in the end.
+   symbol or constant. A [Let] one of whose parts is a variable of which nothing
+   is known does not take a symbol bound to a constant that some [Let] of the
+   term makes of symbols and constants alone: the symbol is left for that one. A
+   [Let] is named by its path, as FlambdaLiftSpec.lift_expr counts it. A symbol
+   is not given to a [Let] that [banned] pairs it with: the caller asks again,
+   with the pair banned, where a symbol went to a [Let] whose block nothing uses
+   in the end.
 
    In a handler that is not at toplevel
    (FlambdaWellFormedSpec.handler_at_toplevel: the arm of a test, say) and in
@@ -2278,6 +2281,67 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list) ~around
            | (Symbol _ | Const _), Var _ -> false
            | (Symbol _ | Const _), (Symbol _ | Const _) -> field = field')
          fields fields'
+  in
+  (* The constants that a [Let] of the term before makes of symbols and
+     constants alone, anywhere. A symbol that the term after binds to one of
+     them is left for such a [Let]: at toplevel, a [Let] with a variable among
+     its parts that stands for no symbol and no constant, which agrees with
+     anything there, does not take it. The case aimed at is a boxed constant
+     that a rewrite of Simplify makes, among boxes of numbers computed when the
+     unit runs: the first [Let] of a box met would take the symbol of the
+     constant. The list is made once, from the term before as it is given: a
+     part counts if it is a symbol or a constant there, not a variable that the
+     guess comes to know stands for one; and the bodies of code are gone into,
+     so a constant that only code makes holds back a [Let] at toplevel too. *)
+  let made_exactly : Model.static_const list =
+    let made = ref [] in
+    let plain (s : Model.simple) =
+      match s with Symbol _ | Const _ -> true | Var _ -> false
+    in
+    let rec in_term (e : Model.expr) =
+      match e with
+      | Let (_, _, d, body) ->
+        (match d with
+        | Prim (Variadic (Make_block (Block_kind_values tag)), fields)
+          when List.for_all plain fields ->
+          made := Model.Static_const_block (tag, fields) :: !made
+        | Prim (Variadic (Make_immutable_array _), elements)
+          when List.for_all plain elements ->
+          made := Model.Static_const_immutable_value_array elements :: !made
+        | Prim (Unary (Box_number _), [contents]) when plain contents ->
+          made := Model.Static_const_boxed_number contents :: !made
+        | _ -> ());
+        in_term body
+      | Let_static (bindings, body) ->
+        List.iter
+          (fun (binding : Model.static_binding) ->
+            match binding with
+            | Bind_code (_, Code (_, _, _, _, _, code_body)) ->
+              in_term code_body
+            | Bind_deleted_code _ | Bind_symbol _ -> ())
+          bindings;
+        in_term body
+      | Let_cont_non_recursive (_, Handler (_, _, handler), body) ->
+        in_term handler;
+        in_term body
+      | Let_cont_recursive (handlers, body) ->
+        List.iter
+          (fun (_, Model.Handler (_, _, handler)) -> in_term handler)
+          handlers;
+        in_term body
+      | Apply _ | Apply_cont _ | Switch _ | Invalid -> ()
+    in
+    in_term before;
+    !made
+  in
+  let kept_from parts (const : Model.static_const) =
+    List.mem const made_exactly
+    && List.exists
+         (fun (part : Model.simple) ->
+           match part with
+           | Var x -> not (List.mem_assoc x !known_simples)
+           | Symbol _ | Const _ -> false)
+         parts
   in
   (* A symbol that neither [before] nor [after], as they are given here, binds
      or mentions. *)
@@ -2566,7 +2630,9 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list) ~around
           take path (fun (const : Model.static_const) ->
               match const with
               | Static_const_block (tag', fields') ->
-                tag = tag' && fields_agree fields fields'
+                tag = tag'
+                && fields_agree fields fields'
+                && not (kept_from fields const)
               | _ -> false)
         with
         | Some (sym, _) -> lift x path (Lift_to_symbol sym)
@@ -2596,6 +2662,7 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list) ~around
               match const with
               | Static_const_immutable_value_array elements' ->
                 fields_agree elements elements'
+                && not (kept_from elements const)
               | _ -> false)
         with
         | Some (sym, _) -> lift x path (Lift_to_symbol sym)
@@ -2606,6 +2673,7 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list) ~around
               match const with
               | Static_const_boxed_number contents' ->
                 fields_agree [contents] [contents']
+                && not (kept_from [contents] const)
               | _ -> false)
         with
         | Some (sym, _) -> lift x path (Lift_to_symbol sym)
