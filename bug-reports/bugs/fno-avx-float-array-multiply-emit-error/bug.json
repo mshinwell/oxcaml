@@ -1,0 +1,40 @@
+{
+  "title": "With -fno-avx, the compiler stops on x *. Array.unsafe_get a i",
+  "category": "compiler-error",
+  "summary": "With `-fno-avx` (also `-fno-sse3`, `-fno-ssse3`, `-fno-sse41`, `-fno-sse42`) the compiler stops on `x *. Array.unsafe_get a i` with \"Exception whilst emitting instruction\" and `Invalid_argument(\"index out of bounds\")`.",
+  "commands": [
+    "ocamlopt -fno-avx test.ml -o test",
+    "./test"
+  ],
+  "expected": {
+    "text": "Prints `result 6`.",
+    "output": "result 6",
+    "exit": 0
+  },
+  "actual": {
+    "text": "The compiler stops with `Exception whilst emitting instruction` and `Fatal error: exception Invalid_argument(\"index out of bounds\")`, exit status 2.",
+    "output": "Invalid_argument(\"index out of bounds\")",
+    "exit": 2
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": false,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [
+      "-fno-avx"
+    ],
+    "safe-subst": "no"
+  },
+  "upstream": null,
+  "cause": "`backend/amd64/cfg_selection.ml`, `pseudoregs_for_operation`: with two-operand float instructions, the arguments of `Ifloatarithmem` lose the index register of the address.",
+  "fix": null,
+  "labels": [
+    "backend",
+    "amd64",
+    "compiler-error"
+  ],
+  "status": "open",
+  "reference": "possibly related: issue #7919, PR #8019"
+}

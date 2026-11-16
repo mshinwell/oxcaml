@@ -1,0 +1,40 @@
+{
+  "title": "The body of an array comprehension has no region",
+  "category": "question",
+  "summary": "The body of an array comprehension has no region of its own, so what it allocates on the local stack stays until the function returns: 24 bytes for each element here, where the same body in a `for` loop uses 24 bytes in all. Under `ulimit -v 200000` a comprehension of 4,000,000 elements ends with `Local allocation stack overflow`.",
+  "commands": [
+    "ocamlopt -extension comprehensions test.ml -o test",
+    "ulimit -v 200000",
+    "./test"
+  ],
+  "expected": {
+    "text": "Prints `result 4000000`.",
+    "output": "result 4000000",
+    "exit": 0
+  },
+  "actual": {
+    "text": "Prints `Fatal error: Local allocation stack overflow - out of memory`; exit status 134.",
+    "output": "Local allocation stack overflow",
+    "exit": 134
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [
+      "-extension comprehensions"
+    ],
+    "safe-subst": "no"
+  },
+  "upstream": null,
+  "cause": "`lambda/transl_array_comprehension.ml` builds its `Lfor` with the body as it is, where `translcore` wraps the body of a source loop in a region.",
+  "fix": null,
+  "labels": [
+    "comprehensions",
+    "local-allocation",
+    "question"
+  ],
+  "status": "open"
+}

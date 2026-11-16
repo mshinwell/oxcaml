@@ -1,0 +1,46 @@
+{
+  "title": "With `-flambda2-match-in-match`, a constant lifted from the toplevel code of a unit is left unwritten",
+  "category": "wrong-code",
+  "summary": "At `-O2` and `-O3` with `-flambda2-match-in-match` this program prints `result 0` instead of `result 2`: the block of `After delay_s` is a lifted constant whose field is never written. Whether it shows depends on the name of the file (keep `test.ml`); other programs end with a segmentation fault or stop the compiler. Issues #7763 and #7977 show the same fault with other programs (a stop of the compiler, and a segmentation fault).",
+  "commands": [
+    "ocamlopt -O3 -flambda2-match-in-match test.ml -o test",
+    "./test"
+  ],
+  "reference_commands": [
+    "ocamlopt -O3 test.ml -o test",
+    "./test"
+  ],
+  "expected": {
+    "text": "Prints `result 2`.",
+    "output": "result 2",
+    "exit": 0
+  },
+  "actual": {
+    "text": "Prints `result 0`.",
+    "output": "result 0",
+    "exit": 0
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": false,
+    "default": false,
+    "-O2": true,
+    "-O3": true,
+    "flags": [
+      "-flambda2-match-in-match"
+    ],
+    "safe-subst": "no"
+  },
+  "upstream": null,
+  "cause": "Each specialised copy of a handler in the toplevel code is simplified as toplevel code (`middle_end/flambda2/simplify/simplify_let_cont_expr.ml`), so a lifted constant waiting to be bound is bound inside the copy rebuilt first and used through the other.",
+  "fix": {
+    "file": "fix.diff",
+    "text": "One line in `simplify_let_cont_expr.ml`: a specialised copy of a handler is simplified as not being at unit toplevel. Builds; `test.ml` then prints the expected result; testsuite unchanged. A compiler built with only this change also compiles and runs rightly the programs of issues #7763 and #7977. Regression tests exist and are not included here."
+  },
+  "labels": [
+    "flambda2",
+    "wrong-code"
+  ],
+  "status": "open",
+  "reference": "same cause as issues #7763 and #7977"
+}

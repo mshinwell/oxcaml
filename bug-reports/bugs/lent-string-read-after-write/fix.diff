@@ -1,0 +1,18 @@
+diff --git a/middle_end/flambda2/terms/flambda_primitive.ml b/middle_end/flambda2/terms/flambda_primitive.ml
+index e8a3f2b..7c5c67c 100644
+--- a/middle_end/flambda2/terms/flambda_primitive.ml
++++ b/middle_end/flambda2/terms/flambda_primitive.ml
+@@ -2105,9 +2105,10 @@ let effects_and_coeffects_of_binary_primitive p : Effects_and_coeffects.t =
+   | Array_load (array_kind, _load_kind, mut) ->
+     reading_from_an_array array_kind mut
+   | Bigarray_load (_, kind, _) -> reading_from_a_bigarray kind
+-  | String_or_bigstring_load (String, _) ->
+-    reading_from_a_string_or_bigstring Immutable
+-  | String_or_bigstring_load ((Bytes | Bigstring), _) ->
++  | String_or_bigstring_load ((String | Bytes | Bigstring), _) ->
++    (* A string can be some bytes ([Bytes.unsafe_to_string]): the load of a
++       string has the coeffect of the load of bytes, so that it is not moved
++       past a store to those bytes. *)
+     reading_from_a_string_or_bigstring Mutable
+   | Phys_equal _ ->
+     No_effects, No_coeffects, Strict, Can't_move_before_any_branch

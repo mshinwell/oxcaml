@@ -1,0 +1,41 @@
+{
+  "title": "A raise in a shared match arm is reported at the line of the first arm",
+  "category": "diagnostic",
+  "summary": "Arms of a match that differ only by their place are shared in native code, so a raise in the second arm is reported at the line of the first. Bytecode reports the right line.",
+  "commands": [
+    "ocamlopt -g test.ml -o test",
+    "./test"
+  ],
+  "reference_commands": [
+    "ocamlc -g test.ml -o test.byte",
+    "./test.byte"
+  ],
+  "expected": {
+    "text": "Prints `result line 6`.",
+    "output": "result line 6",
+    "exit": 0
+  },
+  "actual": {
+    "text": "Prints `result line 5`.",
+    "output": "result line 5",
+    "exit": 0
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [
+      "-g"
+    ],
+    "safe-subst": "no"
+  },
+  "upstream": true,
+  "cause": "`lambda/lambda.ml`, `make_key`, puts `Loc_unknown` in the key by which arms are shared.",
+  "fix": null,
+  "labels": [
+    "backtraces"
+  ],
+  "status": "open"
+}

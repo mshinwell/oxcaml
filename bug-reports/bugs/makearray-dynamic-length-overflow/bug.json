@@ -1,0 +1,43 @@
+{
+  "title": "%makearray_dynamic at an unboxed product does not test the length for overflow",
+  "category": "runtime",
+  "summary": "`%makearray_dynamic` at an unboxed product does not test the length times the number of components for overflow. With four `int64#` components and length `min_int + 1` it returns an array of length 1; other lengths give an array of length 0 or a segmentation fault. Bytecode raises `Invalid_argument`.",
+  "commands": [
+    "ocamlopt test.ml -o test",
+    "./test"
+  ],
+  "reference_commands": [
+    "ocamlc test.ml -o test.byte",
+    "./test.byte"
+  ],
+  "expected": {
+    "text": "Prints `result Invalid_argument`.",
+    "output": "result Invalid_argument",
+    "exit": 0
+  },
+  "actual": {
+    "text": "Prints `result length 1`.",
+    "output": "result length 1",
+    "exit": 0
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": false,
+  "cause": "`runtime/array.c`: `size = non_unarized_length * num_components` (and `* num_initializers`) is computed before the test against `Max_array_wosize`, so a product that wraps passes the test.",
+  "fix": {
+    "file": "fix.diff",
+    "text": "Tests the length against `Max_array_wosize` divided by the number of components before the multiplication, in both functions. Builds; `test.ml` then prints the expected result; testsuite unchanged."
+  },
+  "labels": [
+    "runtime",
+    "layouts"
+  ],
+  "status": "open"
+}

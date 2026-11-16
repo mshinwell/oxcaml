@@ -1,0 +1,38 @@
+{
+  "title": "Backtrace of a raise of the last raised exception continues the earlier one",
+  "category": "diagnostic",
+  "summary": "A raise of the exception value that was raised last, here `Exit`, continues the backtrace of the earlier raise, which was handled: the backtrace starts at `first` and says `Re-raised at Test.second`. OCaml 5.4.0 starts it at `second`.",
+  "commands": [
+    "ocamlopt -g test.ml -o test",
+    "./test"
+  ],
+  "expected": {
+    "text": "Prints `result 2 frames`.",
+    "output": "result 2 frames",
+    "exit": 0
+  },
+  "actual": {
+    "text": "Prints `result 4 frames`.",
+    "output": "result 4 frames",
+    "exit": 0
+  },
+  "affects": {
+    "bytecode": true,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [
+      "-g"
+    ],
+    "safe-subst": "no"
+  },
+  "upstream": false,
+  "cause": "`stdlib/stdlib.ml`: `raise` is `%reraise`; `runtime/backtrace_nat.c` and `backtrace_byt.c` keep the backtrace when the exception is the one raised last.",
+  "fix": null,
+  "labels": [
+    "backtraces",
+    "stdlib"
+  ],
+  "status": "open"
+}

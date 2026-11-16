@@ -1,0 +1,36 @@
+{
+  "title": "[@poll error] is not checked unless -enable-poll-insertion is given",
+  "category": "diagnostic",
+  "summary": "`[@poll error]` is not checked unless `-enable-poll-insertion` is given: `let[@poll error] f x = (x, x + 1)` is accepted with no diagnostic. With the flag it is refused, since an allocation is a polling point.",
+  "commands": [
+    "ocamlopt test.ml -o test",
+    "./test"
+  ],
+  "expected": {
+    "text": "`Error: Function with poll-error attribute contains polling points`; exit status 2.",
+    "output": "Function with poll-error attribute contains polling points",
+    "exit": 2
+  },
+  "actual": {
+    "text": "Compiles; the program prints `result 7`.",
+    "output": "result 7",
+    "exit": 0
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": false,
+  "cause": "`backend/cfg/cfg_polling.ml`, `instrument_fundecl`: the check is inside the pass that inserts polls, which returns at once when poll insertion is disabled (the default of `configure`).",
+  "fix": null,
+  "labels": [
+    "backend",
+    "attributes"
+  ],
+  "status": "open"
+}

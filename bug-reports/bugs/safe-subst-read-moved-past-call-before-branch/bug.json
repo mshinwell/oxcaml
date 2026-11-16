@@ -1,0 +1,46 @@
+{
+  "title": "With -flambda2-expert-cmm-safe-subst, a read is still moved past a call when a branch follows the call",
+  "category": "wrong-code",
+  "summary": "`-flambda2-expert-cmm-safe-subst` keeps a delayed read before a later call, but not when a test, a join, an exception handler or a loop stands between the call and the use. Here the read of a string lent by `Bytes.unsafe_to_string` is done after a call that writes the bytes.",
+  "commands": [
+    "ocamlopt -flambda2-expert-cmm-safe-subst test.ml -o test",
+    "./test"
+  ],
+  "reference_commands": [
+    "ocamlc test.ml -o test.byte",
+    "./test.byte"
+  ],
+  "expected": {
+    "text": "Prints `result a`.",
+    "output": "result a",
+    "exit": 0
+  },
+  "actual": {
+    "text": "Prints `result z`.",
+    "output": "result z",
+    "exit": 0
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [
+      "-flambda2-expert-cmm-safe-subst"
+    ],
+    "safe-subst": null
+  },
+  "upstream": null,
+  "cause": "`middle_end/flambda2/to_cmm/to_cmm_env.ml`, `flush_delayed_lets` in mode `Branching_point`: the call is emitted, the pure read is kept, and the validity stages are rebuilt from the bindings kept, so the record that a call came after the read is lost.",
+  "fix": {
+    "file": "fix.diff",
+    "text": "Keeps that record when the stages are rebuilt. Builds; with it `test.ml` prints the expected result; testsuite unchanged."
+  },
+  "labels": [
+    "flambda2",
+    "wrong-code"
+  ],
+  "status": "open",
+  "reference": "related: issue #4803 (a call moved after a load; not the same)"
+}

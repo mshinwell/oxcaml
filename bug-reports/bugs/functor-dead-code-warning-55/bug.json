@@ -1,0 +1,39 @@
+{
+  "title": "The code of a functor inlined at all its uses stays in the object file, and an `[@inlined]` call in it gets warning 55",
+  "category": "diagnostic",
+  "summary": "`Make` is inlined at both applications, and in each copy of `run` the call `(X.step [@inlined]) x` is inlined. The code of `run` made for the functor's own body stays in the object file, called by nothing, and the compiler gives warning 55 for the call in it.",
+  "commands": [
+    "ocamlopt -w @55 test.ml -o test",
+    "./test"
+  ],
+  "reference_commands": [
+    "ocamlc -w @55 test.ml -o test.byte",
+    "./test.byte"
+  ],
+  "expected": {
+    "text": "Compiles without warning 55; prints `result 42`.",
+    "output": "result 42",
+    "exit": 0
+  },
+  "actual": {
+    "text": "`Error (warning 55 [inlining-impossible])`: the optimizer did not know what function was being applied.",
+    "output": "the optimizer did not know what function was being applied",
+    "exit": 2
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": false,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": null,
+  "cause": "`reachable_older_code_ids` in `middle_end/flambda2/simplify/flow/data_flow_graph.ml` makes an older version of code live when two live pieces of code are newer versions of it.",
+  "fix": null,
+  "labels": [
+    "flambda2"
+  ],
+  "status": "open"
+}

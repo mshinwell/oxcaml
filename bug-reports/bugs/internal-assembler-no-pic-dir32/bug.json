@@ -1,0 +1,39 @@
+{
+  "title": "-internal-assembler -fno-PIC: \"cannot generate dir32\" on any unit with an exception handler",
+  "category": "compiler-error",
+  "summary": "With `-internal-assembler` and `-fno-PIC` together, the compiler stops on any unit with an exception handler with `Fatal error: exception Failure(\"cannot generate dir32\")`. Each option alone compiles it.",
+  "commands": [
+    "ocamlopt -internal-assembler -fno-PIC test.ml -o test",
+    "./test"
+  ],
+  "expected": {
+    "text": "Prints `result 0`.",
+    "output": "result 0",
+    "exit": 0
+  },
+  "actual": {
+    "text": "The compiler stops with `Fatal error: exception Failure(\"cannot generate dir32\")`, exit status 2.",
+    "output": "cannot generate dir32",
+    "exit": 2
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [
+      "-internal-assembler",
+      "-fno-PIC"
+    ],
+    "safe-subst": "no"
+  },
+  "upstream": null,
+  "cause": "`backend/internal_assembler/relocation_entry.ml`, `create_relocation`, has no case for a 32-bit absolute relocation and fails with an uncaught exception.",
+  "fix": null,
+  "labels": [
+    "backend",
+    "compiler-error"
+  ],
+  "status": "open"
+}

@@ -1,0 +1,44 @@
+{
+  "title": "Read of a string from Bytes.unsafe_to_string is moved after a later write to the bytes",
+  "category": "wrong-code",
+  "summary": "`let c = String.get (Bytes.unsafe_to_string b) 0 in Bytes.set b 0 'z'; c` returns `'z'`: the read of the string is done after the write, in a use that the documentation of `Bytes.unsafe_to_string` allows. With `-flambda2-expert-cmm-safe-subst` the read stays in place when the write is a call, not when it is an inline store as here.",
+  "commands": [
+    "ocamlopt test.ml -o test",
+    "./test"
+  ],
+  "reference_commands": [
+    "ocamlc test.ml -o test.byte",
+    "./test.byte"
+  ],
+  "expected": {
+    "text": "Prints `result a`.",
+    "output": "result a",
+    "exit": 0
+  },
+  "actual": {
+    "text": "Prints `result z`.",
+    "output": "result z",
+    "exit": 0
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": false,
+  "cause": "`Bytes.unsafe_to_string` is erased in `middle_end/flambda2/from_lambda/lambda_to_lambda_transforms.ml` and a string load has no coeffect (`middle_end/flambda2/terms/flambda_primitive.ml`), so the translation to Cmm substitutes the load, used once, past the write.",
+  "fix": {
+    "file": "fix.diff",
+    "text": "Gives the load of a string the coeffect of the load of bytes. Builds; `test.ml` then prints the expected result; testsuite unchanged."
+  },
+  "labels": [
+    "flambda2",
+    "wrong-code"
+  ],
+  "status": "open",
+  "reference": "related: issue #4803 (a call moved after a load; not the same)"
+}

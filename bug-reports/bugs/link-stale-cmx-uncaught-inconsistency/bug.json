@@ -1,0 +1,40 @@
+{
+  "title": "Native link with a library compiled again after its client: uncaught Consistbl.Inconsistency",
+  "category": "diagnostic",
+  "summary": "When a library is compiled again after a client was compiled against it, `ocamlopt` refuses the link, as it must, but with an uncaught exception, `Consistbl.Make(...).Inconsistency`, in place of the \"make inconsistent assumptions over implementation\" error.",
+  "commands": [
+    "echo 'val limit : int' > lib.mli",
+    "echo 'let limit = 100' > lib.ml",
+    "ocamlopt -c lib.mli lib.ml test.ml",
+    "echo 'let limit = 200' > lib.ml",
+    "ocamlopt -c lib.ml",
+    "ocamlopt lib.cmx test.cmx -o test"
+  ],
+  "expected": {
+    "text": "The link fails with `Error: Files test.cmx and lib.cmx make inconsistent assumptions over implementation Lib`.",
+    "output": "make inconsistent assumptions over implementation Lib",
+    "exit": 2
+  },
+  "actual": {
+    "text": "The link fails with `Fatal error: exception Consistbl.Make(Module_name)(Data).Inconsistency(\"Lib\", \"lib.cmx\", \"test.cmx\", 0, 0)`.",
+    "output": "Fatal error: exception Consistbl",
+    "exit": 2
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": false,
+  "cause": "`check_consistency` in the native linker checks a unit's own digest against what earlier units said of it outside the handler that turns `Inconsistency` into an error; the client is read first, so the library's own check is the one that fails.",
+  "fix": null,
+  "labels": [
+    "linker",
+    "diagnostic"
+  ],
+  "status": "open"
+}

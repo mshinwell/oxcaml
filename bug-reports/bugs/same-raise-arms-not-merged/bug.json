@@ -1,0 +1,36 @@
+{
+  "title": "A test whose two arms raise the same exception is kept when the arms come from two places in the source",
+  "category": "performance",
+  "summary": "`if strict then raise Not_found else raise Not_found` is compiled to a test of `strict` and two copies of the raise, at every native level. Arms that are the same action are merged only when their debugging information is the same.",
+  "commands": [
+    "ocamlopt -S test.ml -o test",
+    "echo \"raises of Not_found: $(grep -c caml_exn_Not_found test.s)\""
+  ],
+  "expected": {
+    "text": "`raises of Not_found: 1`.",
+    "output": "raises of Not_found: 1",
+    "exit": 0
+  },
+  "actual": {
+    "text": "`raises of Not_found: 2`.",
+    "output": "raises of Not_found: 2",
+    "exit": 0
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": null,
+  "cause": "`create_switch` in `middle_end/flambda2/simplify/expr_builder.ml` merges the arms through an `Apply_cont_expr.Set`, and `compare` in `terms/apply_cont_expr.ml` compares the debugging information, so the set has two elements.",
+  "fix": null,
+  "labels": [
+    "flambda2"
+  ],
+  "status": "open",
+  "reference": "related: issue #6751, PR #6753 (identical arms not shared; not about debugging information)"
+}

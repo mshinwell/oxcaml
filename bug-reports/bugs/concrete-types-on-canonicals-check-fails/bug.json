@@ -1,0 +1,38 @@
+{
+  "title": "With the n-way join, -flambda2-debug-concrete-types-only-on-canonicals stops the compiler",
+  "category": "compiler-error",
+  "summary": "With `-flambda2-join-algorithm n-way` and `-flambda2-debug-concrete-types-only-on-canonicals` at `-O2` or `-O3`, Simplify stops on a function that matches a variant twice around a loop: \"Trying to add equation giving concrete type on ... which is not canonical\". Whether it stops depends on the name of the unit (`prog.ml` stops).",
+  "commands": [
+    "cp test.ml prog.ml",
+    "ocamlopt -c -O3 -flambda2-join-algorithm n-way -flambda2-debug-concrete-types-only-on-canonicals prog.ml"
+  ],
+  "expected": {
+    "text": "Compiles.",
+    "exit": 0
+  },
+  "actual": {
+    "text": "The compiler stops with `Trying to add equation giving concrete type on ... which is not canonical`, exit status 2.",
+    "output": "which is not canonical",
+    "exit": 2
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": false,
+    "default": false,
+    "-O2": true,
+    "-O3": true,
+    "flags": [
+      "-flambda2-join-algorithm n-way",
+      "-flambda2-debug-concrete-types-only-on-canonicals"
+    ],
+    "safe-subst": "no"
+  },
+  "upstream": null,
+  "cause": "`middle_end/flambda2/types/env/meet_env.ml`, `add_concrete_equation_on_canonical_name`, is called while the n-way join adds its equations (`join_env.ml`) on a name that is no longer canonical.",
+  "fix": null,
+  "labels": [
+    "flambda2",
+    "compiler-error"
+  ],
+  "status": "open"
+}

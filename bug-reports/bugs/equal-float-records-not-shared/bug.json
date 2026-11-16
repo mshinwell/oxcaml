@@ -1,0 +1,38 @@
+{
+  "title": "Equal constant float records are not shared in native code",
+  "category": "performance",
+  "summary": "Native code shares equal structured constants, so `p1 == p2` is true for two equal constant pairs, but two equal constant records of floats stay two blocks. OCaml 5.4.0 shares both.",
+  "commands": [
+    "ocamlopt test.ml -o test",
+    "./test"
+  ],
+  "expected": {
+    "text": "Prints `result true true`.",
+    "output": "result true true",
+    "exit": 0
+  },
+  "actual": {
+    "text": "Prints `result true false`.",
+    "output": "result true false",
+    "exit": 0
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": false,
+  "cause": "`compare` in `middle_end/flambda2/terms/static_const.ml` matches `Immutable_float_block` against `Immutable_float_array` where `Immutable_float_block` is meant, so two float blocks compare as -1 and the map of shareable constants never finds one.",
+  "fix": {
+    "file": "fix.diff",
+    "text": "Compares two `Immutable_float_block`s by their fields. Builds; `test.ml` then prints the expected result; testsuite unchanged."
+  },
+  "labels": [
+    "flambda2"
+  ],
+  "status": "open"
+}

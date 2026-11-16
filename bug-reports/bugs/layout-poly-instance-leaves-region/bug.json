@@ -1,0 +1,44 @@
+{
+  "title": "An instance of a local `let poly_` function leaves its region: segmentation fault",
+  "category": "crash",
+  "summary": "With `-extension layout_poly_alpha`, an instance of a local `let poly_` function that captures a stack block is a closure allocated on the local stack, but the type checker gives it the mode of the function. Here `instance ()` returns `pick` out of its region, a later stack allocation overwrites it, and the call through it ends with a segmentation fault.",
+  "commands": [
+    "ocamlopt -extension layout_poly_alpha test.ml -o test",
+    "./test"
+  ],
+  "expected": {
+    "text": "The compiler refuses the program: `This value is local but is expected to be local to the parent region or global`.",
+    "output": "This value is local",
+    "exit": 2
+  },
+  "actual": {
+    "text": "The program ends with a segmentation fault (bytecode prints `result 10`).",
+    "exit": 139
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [
+      "-extension layout_poly_alpha"
+    ],
+    "safe-subst": "no"
+  },
+  "upstream": null,
+  "cause": "`typing/typecore.ml`, the case `Pexp_ident`: an instance of a `let poly_` function (`Texp_apply_layout`) is checked at the mode of the name, while the translation allocates its closure in the region open where the name is written.",
+  "fix": {
+    "file": "fix.diff",
+    "text": "Checks the instance a second time at the mode of the name with \"regional\" replaced by \"local\". Builds; the compiler then refuses `test.ml`; testsuite unchanged."
+  },
+  "labels": [
+    "typing",
+    "local-allocation"
+  ],
+  "status": "open",
+  "reference_commands": [
+    "ocamlc -extension layout_poly_alpha test.ml -o test.byte",
+    "./test.byte"
+  ]
+}

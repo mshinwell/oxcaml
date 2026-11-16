@@ -1,0 +1,35 @@
+{
+  "title": "Dynarray.blit with src_pos max_int raises and leaves the destination corrupt",
+  "category": "stdlib",
+  "summary": "`Dynarray.blit ~src_pos:max_int ~len:1` with `~dst_pos` at the end of the destination raises `Invalid_argument`, as documented, but leaves the destination one element longer with no element there. Every later traversal of it raises.",
+  "commands": [
+    "ocamlopt test.ml -o test",
+    "./test"
+  ],
+  "expected": {
+    "text": "Prints `result 7 8 9`.",
+    "output": "result 7 8 9",
+    "exit": 0
+  },
+  "actual": {
+    "text": "Prints `result Invalid_argument \"Invalid dynarray (unsynchronized concurrent length change): missing element at position 3 < length 4\"`.",
+    "output": "result Invalid_argument \"Invalid dynarray",
+    "exit": 0
+  },
+  "affects": {
+    "bytecode": true,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": true,
+  "cause": "`stdlib/dynarray.ml`, `blit`: `src_pos + len` overflows in the bounds test, and the length of the destination is set before `Array.blit` refuses.",
+  "fix": null,
+  "labels": [
+    "stdlib"
+  ],
+  "status": "open"
+}

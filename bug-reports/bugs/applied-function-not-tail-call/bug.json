@@ -1,0 +1,46 @@
+{
+  "title": "The tail call inside a function applied where it is written (`e |> fun a -> f a`) is lost when the caller allocates locally",
+  "category": "lost-tail-call",
+  "summary": "`e |> fun a -> loop (n - 1) a` as the last expression of a function that allocates on the local stack (here a comparison of two tuples) does not run in constant stack in native code; so do `(fun a -> ...) @@ e` and `(fun m a -> ...) n e`. Bytecode and OCaml 5.4.0 run it in constant stack.",
+  "commands": [
+    "ocamlopt test.ml -o test",
+    "ulimit -s 8192",
+    "./test"
+  ],
+  "reference_commands": [
+    "ocamlc test.ml -o test.byte",
+    "ulimit -s 8192",
+    "OCAMLRUNPARAM=l=1M ./test.byte"
+  ],
+  "expected": {
+    "text": "Prints `result 10000000`.",
+    "output": "result 10000000",
+    "exit": 0
+  },
+  "actual": {
+    "text": "`Fatal error: exception Stack_overflow`.",
+    "output": "Stack_overflow",
+    "exit": 2
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": false,
+  "cause": "`simplify_lets` in `lambda/simplif.ml` (with `beta_reduce`) puts the body of the applied function in place of the application and drops its `Rc_close_at_apply` mark, so the call in the body becomes a plain call at the end of the caller's region.",
+  "fix": {
+    "file": "fix.diff",
+    "text": "Puts the reduced body under `Lexclave` when the application was marked to end the region before the call. Builds; `test.ml` then prints the expected result; testsuite unchanged."
+  },
+  "labels": [
+    "lambda",
+    "local-allocation",
+    "tail-call"
+  ],
+  "status": "open"
+}

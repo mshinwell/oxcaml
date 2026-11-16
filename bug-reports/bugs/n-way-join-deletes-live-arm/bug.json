@@ -1,0 +1,46 @@
+{
+  "title": "With `-flambda2-join-algorithm n-way`, Simplify deletes an arm of a match that is taken",
+  "category": "wrong-code",
+  "summary": "At `-O2` and `-O3` with `-flambda2-join-algorithm n-way` (or with `-flambda2-match-in-match`), the arm for `Y2` of the last match on `d` is deleted and `f false Y2 true 5` is 3035 instead of 3055. Other programs abort with `Invalid code: unreachable switch case` or end with a segmentation fault.",
+  "commands": [
+    "ocamlopt -O3 -flambda2-join-algorithm n-way test.ml -o test",
+    "./test"
+  ],
+  "reference_commands": [
+    "ocamlopt -O3 test.ml -o test",
+    "./test"
+  ],
+  "expected": {
+    "text": "Prints `result 3055`.",
+    "output": "result 3055",
+    "exit": 0
+  },
+  "actual": {
+    "text": "Prints `result 3035`.",
+    "output": "result 3035",
+    "exit": 0
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": false,
+    "default": false,
+    "-O2": true,
+    "-O3": true,
+    "flags": [
+      "-flambda2-join-algorithm n-way"
+    ],
+    "safe-subst": "no"
+  },
+  "upstream": null,
+  "cause": "`n_way_join_round` in `middle_end/flambda2/types/env/join_env.ml` recovers the relation \"the number of `d` is the tag of `x`\" for `x`, which has a value on one path only.",
+  "fix": {
+    "file": "fix.diff",
+    "text": "Recovers such a relation only for a variable that has a value at every use of the join. Builds; `test.ml` then prints the expected result; testsuite unchanged."
+  },
+  "labels": [
+    "flambda2",
+    "wrong-code"
+  ],
+  "status": "open",
+  "reference": "related: PR #6502 (merged), a neighbouring fix to the relations the n-way join recovers"
+}

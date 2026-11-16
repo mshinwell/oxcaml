@@ -1,0 +1,41 @@
+{
+  "title": "With -dflambda-heavy-invariants, \"Cannot rebind\" on a match on a variant",
+  "category": "compiler-error",
+  "summary": "With `-dflambda-heavy-invariants` at `-O2` or `-O3` (the default join), Simplify stops on an ordinary match on a variant with constant and non-constant constructors: \"Cannot rebind prim/... in environment\".",
+  "commands": [
+    "ocamlopt -O3 -dflambda-heavy-invariants test.ml -o test",
+    "./test"
+  ],
+  "expected": {
+    "text": "Prints `result 4`.",
+    "output": "result 4",
+    "exit": 0
+  },
+  "actual": {
+    "text": "The compiler stops with `Cannot rebind ... in environment`, exit status 2.",
+    "output": "Cannot rebind",
+    "exit": 2
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": false,
+    "default": false,
+    "-O2": true,
+    "-O3": true,
+    "flags": [
+      "-dflambda-heavy-invariants"
+    ],
+    "safe-subst": "no"
+  },
+  "upstream": null,
+  "cause": "The level that the binary join builds (`middle_end/flambda2/types/join_levels_old.ml`) lists one variable under two binding times, so it is defined twice.",
+  "fix": {
+    "file": "fix.diff",
+    "text": "Lists each variable under the binding time of the first use that defines it. Builds; `test.ml` then prints the expected result; testsuite unchanged."
+  },
+  "labels": [
+    "flambda2",
+    "compiler-error"
+  ],
+  "status": "open"
+}

@@ -1,0 +1,43 @@
+{
+  "title": "`[@unboxable]` on the result of a recursive function makes its recursive call not a tail call",
+  "category": "lost-tail-call",
+  "summary": "A function marked `[@unboxable]` that calls itself last does not run in constant stack at the default level, `-O2` and `-O3`: the recursive call goes through the stub that boxes the result. `-Oclassic` ignores the attribute.",
+  "commands": [
+    "ocamlopt test.ml -o test",
+    "ulimit -s 8192",
+    "./test"
+  ],
+  "reference_commands": [
+    "ocamlc test.ml -o test.byte",
+    "ulimit -s 8192",
+    "OCAMLRUNPARAM=l=1M ./test.byte"
+  ],
+  "expected": {
+    "text": "Prints `result 10000000`.",
+    "output": "result 10000000",
+    "exit": 0
+  },
+  "actual": {
+    "text": "`Fatal error: exception Stack_overflow`.",
+    "output": "Stack_overflow",
+    "exit": 2
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": false,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": false,
+  "cause": "`middle_end/flambda2/from_lambda/closure_conversion.ml` makes the code with the unboxed result and a stub that boxes it; in that code the recursive call is a call of the stub, and its continuation unboxes the result instead of returning.",
+  "fix": null,
+  "labels": [
+    "flambda2",
+    "tail-call"
+  ],
+  "status": "open",
+  "reference": "related: PR #7810 (closed without merging) reports the same lost tail call"
+}

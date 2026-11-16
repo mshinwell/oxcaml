@@ -1,0 +1,41 @@
+{
+  "title": "Effect.Deep.try_with keeps stack for every effect in bytecode",
+  "category": "stdlib",
+  "summary": "In bytecode, a handler installed with `Effect.Deep.try_with` or `match_with` keeps stack for every effect it handles: with the stacks limited to 8 MB, a million effects end with `Stack_overflow`. Native code and OCaml 5.4.0 run it in constant stack.",
+  "commands": [
+    "ocamlc test.ml -o test",
+    "OCAMLRUNPARAM=l=1M ./test"
+  ],
+  "reference_commands": [
+    "ocamlopt test.ml -o test.opt",
+    "./test.opt"
+  ],
+  "expected": {
+    "text": "Prints `result 1000000`.",
+    "output": "result 1000000",
+    "exit": 0
+  },
+  "actual": {
+    "text": "Prints `Fatal error: exception Stack overflow`; exit status 2.",
+    "output": "Fatal error: exception Stack overflow",
+    "exit": 2
+  },
+  "affects": {
+    "bytecode": true,
+    "-Oclassic": false,
+    "default": false,
+    "-O2": false,
+    "-O3": false,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": false,
+  "cause": "`stdlib/effect.ml`, `match_with` and `try_with`: `to_continuation f (Cont k) [@nontail]` where OCaml 5.4.0 has `f k`; native code is right because `to_continuation` is inlined.",
+  "fix": null,
+  "labels": [
+    "stdlib",
+    "effects"
+  ],
+  "status": "open",
+  "reference": "related: issue #7918 (bytecode fiber stack grown by a memprof callback; not the same)"
+}

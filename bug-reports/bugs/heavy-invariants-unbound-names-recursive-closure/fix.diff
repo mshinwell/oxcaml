@@ -1,0 +1,21 @@
+diff --git a/middle_end/flambda2/simplify/simplify_set_of_closures.ml b/middle_end/flambda2/simplify/simplify_set_of_closures.ml
+index 1e42d3b..919cdf8 100644
+--- a/middle_end/flambda2/simplify/simplify_set_of_closures.ml
++++ b/middle_end/flambda2/simplify/simplify_set_of_closures.ml
+@@ -811,6 +811,16 @@ let simplify_and_lift_set_of_closures dacc ~closure_bound_vars_inverse
+   let closure_bound_names_inside =
+     C.closure_bound_names_inside_functions_exactly_one_set context
+   in
++  let dacc =
++    (* The constants lifted out of the function bodies are added to this
++       environment as each body is finished, and their types can mention the
++       closure symbols: define those first. *)
++    DA.map_denv dacc ~f:(fun denv ->
++        Function_slot.Lmap.fold
++          (fun _function_slot symbol denv ->
++            DE.define_symbol denv symbol K.value)
++          closure_symbols denv)
++  in
+   let { set_of_closures; dacc } =
+     simplify_set_of_closures0 dacc context set_of_closures
+       (Alloc_mode.For_allocations.as_type alloc_mode)

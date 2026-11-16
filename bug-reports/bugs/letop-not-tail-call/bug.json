@@ -1,0 +1,47 @@
+{
+  "title": "`let*` as the last expression of a function is not a tail call when the function allocates locally",
+  "category": "lost-tail-call",
+  "summary": "`let* a = e in loop (n - 1) a` as the last expression of a function is not compiled as a tail call when the function allocates on the local stack; a comparison of two tuples is enough, with no `local_` in the source. A loop written so ends with `Stack_overflow` in native code; bytecode and OCaml 5.4.0 run it in constant stack.",
+  "commands": [
+    "ocamlopt test.ml -o test",
+    "ulimit -s 8192",
+    "./test"
+  ],
+  "reference_commands": [
+    "ocamlc test.ml -o test.byte",
+    "ulimit -s 8192",
+    "OCAMLRUNPARAM=l=1M ./test.byte"
+  ],
+  "expected": {
+    "text": "Prints `result 10000000`.",
+    "output": "result 10000000",
+    "exit": 0
+  },
+  "actual": {
+    "text": "`Fatal error: exception Stack_overflow`.",
+    "output": "Stack_overflow",
+    "exit": 2
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": false,
+  "cause": "`Texp_letop` has no position, and `transl_letop` in `lambda/translcore.ml` builds the application of the operator with `Rc_normal` always, so the region of the function is ended after the call returns.",
+  "fix": {
+    "file": "fix.diff",
+    "text": "Records the position of a let-operator in the typed tree and gives the application of the `let` operator that position. Builds; `test.ml` then prints the expected result; testsuite unchanged."
+  },
+  "labels": [
+    "typing",
+    "lambda",
+    "local-allocation",
+    "tail-call"
+  ],
+  "status": "open"
+}

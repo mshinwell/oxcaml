@@ -1,0 +1,42 @@
+{
+  "title": "With -dflambda-heavy-invariants, \"New equation ... has unbound local names\" on a recursive function",
+  "category": "compiler-error",
+  "summary": "With `-dflambda-heavy-invariants`, Simplify stops on `let rec f (Node l) = List.iter (fun x -> List.iter (fun y -> f y) x) l` with \"New equation ... has unbound local names\".",
+  "commands": [
+    "ocamlopt -dflambda-heavy-invariants test.ml -o test",
+    "./test"
+  ],
+  "expected": {
+    "text": "Prints `result done`.",
+    "output": "result done",
+    "exit": 0
+  },
+  "actual": {
+    "text": "The compiler stops with `New equation ... has unbound local names`, exit status 2.",
+    "output": "has unbound local names",
+    "exit": 2
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": false,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [
+      "-dflambda-heavy-invariants"
+    ],
+    "safe-subst": "no"
+  },
+  "upstream": null,
+  "cause": "`middle_end/flambda2/simplify/simplify_set_of_closures.ml`, `simplify_set_of_closures0`: a constant lifted out of the body of a recursive function gets its type outside the set of closures before the function's symbol is defined there.",
+  "fix": {
+    "file": "fix.diff",
+    "text": "Defines the closure symbols in the environment before the bodies are simplified, since the types of the constants lifted out of them can name those symbols. Builds; `test.ml` then prints the expected result; testsuite unchanged."
+  },
+  "labels": [
+    "flambda2",
+    "compiler-error"
+  ],
+  "status": "open",
+  "reference": "related: PR #7588 (merged), a neighbouring case"
+}

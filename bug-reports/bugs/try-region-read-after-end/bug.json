@@ -1,0 +1,45 @@
+{
+  "title": "Field of a stack block is read after the region of a try has ended",
+  "category": "wrong-code",
+  "summary": "Inside a `try`, a field read from a stack-allocated block and passed in the raised exception is computed in the handler, after the region of the `try` has ended and the slot has been reused. With a string field the program ends with a segmentation fault; the wrong value can also reach the caller inside the exception.",
+  "commands": [
+    "ocamlopt test.ml -o test",
+    "./test"
+  ],
+  "reference_commands": [
+    "ocamlc test.ml -o test.byte",
+    "./test.byte"
+  ],
+  "expected": {
+    "text": "Prints `result 10`.",
+    "output": "result 10",
+    "exit": 0
+  },
+  "actual": {
+    "text": "Prints `result 1020`.",
+    "output": "result 1020",
+    "exit": 0
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": false,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": false,
+  "cause": "After Simplify the handler is an ordinary continuation with one use, so `middle_end/flambda2/to_cmm` inlines it and holds the pure read across `End_try_region`; the flush in `to_cmm_expr.ml` is done for `End_region` only.",
+  "fix": {
+    "file": "fix.diff",
+    "text": "Flushes delayed bindings at `End_try_region` as at `End_region`. Builds; `test.ml` then prints the expected result; testsuite unchanged."
+  },
+  "labels": [
+    "flambda2",
+    "local-allocation",
+    "wrong-code"
+  ],
+  "status": "open",
+  "reference": "related: issue #4803 (a call moved after a load; not the same)"
+}

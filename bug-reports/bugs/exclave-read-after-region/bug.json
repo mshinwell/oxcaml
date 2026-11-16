@@ -1,0 +1,45 @@
+{
+  "title": "Field of a stack block is read after its region has ended (exclave_ in both arms of an if)",
+  "category": "wrong-code",
+  "summary": "A field read from a stack-allocated block is computed after the region has ended when the function ends with `exclave_` calls of a local function in both arms of an `if`; the slot has been reused by then. With a string field the program ends with a segmentation fault.",
+  "commands": [
+    "ocamlopt test.ml -o test",
+    "./test"
+  ],
+  "reference_commands": [
+    "ocamlc test.ml -o test.byte",
+    "./test.byte"
+  ],
+  "expected": {
+    "text": "Prints `result 10`.",
+    "output": "result 10",
+    "exit": 0
+  },
+  "actual": {
+    "text": "Prints `result 1001`.",
+    "output": "result 1001",
+    "exit": 0
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": false,
+  "cause": "In `middle_end/flambda2/to_cmm/`, the pure load, used once, is substituted into the handler of a continuation with two uses (`to_cmm_expr.ml`, `let_cont_not_inlined`), which runs after `End_region` in each arm; the flush before `End_region` finds no use of it in the arm.",
+  "fix": {
+    "file": "fix.diff",
+    "text": "Translates the handler of a continuation that is not inlined in an environment from which no delayed binding is substituted, and flushes before the continuation every binding that the handler uses. Builds; `test.ml` then prints the expected result; testsuite unchanged."
+  },
+  "labels": [
+    "flambda2",
+    "local-allocation",
+    "wrong-code"
+  ],
+  "status": "open",
+  "reference": "related: issue #4803 (a call moved after a load; not the same)"
+}

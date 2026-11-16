@@ -1,0 +1,43 @@
+{
+  "title": "Backtrace lacks the caller of a function that never returns",
+  "category": "diagnostic",
+  "summary": "The backtrace of an exception raised in a function that never returns lacks the frame of its caller when the call is not in tail position: `Called from Test.check` is missing. Bytecode and `-Oclassic` have it.",
+  "commands": [
+    "ocamlopt -g test.ml -o test",
+    "./test"
+  ],
+  "reference_commands": [
+    "ocamlc -g test.ml -o test.byte",
+    "./test.byte"
+  ],
+  "expected": {
+    "text": "The backtrace has `Called from Test.check`; prints `result 3 frames`.",
+    "output": "result 3 frames",
+    "exit": 0
+  },
+  "actual": {
+    "text": "Prints `result 2 frames`.",
+    "output": "result 2 frames",
+    "exit": 0
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": false,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [
+      "-g"
+    ],
+    "safe-subst": "no"
+  },
+  "upstream": false,
+  "cause": "Simplify gives the call no return continuation (its result type is bottom) and `middle_end/flambda2/to_cmm` emits it as a tail call.",
+  "fix": null,
+  "labels": [
+    "flambda2",
+    "backtraces"
+  ],
+  "status": "open",
+  "reference": "related: PR #7642 (marks calls that never return in To_cmm, but only where they cannot be tail calls)"
+}

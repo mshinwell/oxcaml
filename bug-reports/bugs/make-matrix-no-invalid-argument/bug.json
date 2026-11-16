@@ -1,0 +1,34 @@
+{
+  "title": "Array.make_matrix 0 max_int returns where Invalid_argument is documented",
+  "category": "stdlib",
+  "summary": "`Array.make_matrix 0 max_int 0` returns an empty matrix, where the documentation says `Invalid_argument` for a dimension greater than `Sys.max_array_length`. `Array.init_matrix 0 max_int` and `Bytes.extend b min_int max_int` also return where `Invalid_argument` is documented.",
+  "commands": [
+    "ocamlopt test.ml -o test",
+    "./test"
+  ],
+  "expected": {
+    "text": "Prints `result Invalid_argument`.",
+    "output": "result Invalid_argument",
+    "exit": 0
+  },
+  "actual": {
+    "text": "Prints `result 0 rows`.",
+    "output": "result 0 rows",
+    "exit": 0
+  },
+  "affects": {
+    "bytecode": true,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": true,
+  "fix": null,
+  "labels": [
+    "stdlib"
+  ],
+  "status": "open"
+}

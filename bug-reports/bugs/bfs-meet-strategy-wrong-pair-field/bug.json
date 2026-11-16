@@ -1,0 +1,41 @@
+{
+  "title": "With `-X flambda2-meet-strategy=bfs`, `snd p` of a pair built in two branches gives the value of one branch",
+  "category": "wrong-code",
+  "summary": "At `-O2` and `-O3` with `-X flambda2-meet-strategy=bfs`, `f` is simplified to a function that returns 1 whatever `c` is, so `f false 5` is 1 instead of 5. The strategies `dfs` (the default) and `hybrid` are right.",
+  "commands": [
+    "ocamlopt -O3 -X flambda2-meet-strategy=bfs test.ml -o test",
+    "./test"
+  ],
+  "reference_commands": [
+    "ocamlopt -O3 test.ml -o test",
+    "./test"
+  ],
+  "expected": {
+    "text": "Prints `result 5`.",
+    "output": "result 5",
+    "exit": 0
+  },
+  "actual": {
+    "text": "Prints `result 1`.",
+    "output": "result 1",
+    "exit": 0
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": false,
+    "default": false,
+    "-O2": true,
+    "-O3": true,
+    "flags": [
+      "-X flambda2-meet-strategy=bfs"
+    ],
+    "safe-subst": "no"
+  },
+  "upstream": null,
+  "fix": null,
+  "labels": [
+    "flambda2",
+    "wrong-code"
+  ],
+  "status": "open"
+}

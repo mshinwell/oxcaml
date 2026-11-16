@@ -1,0 +1,39 @@
+{
+  "title": "Compiler stops with Stack overflow in the join of types at -O3",
+  "category": "compiler-error",
+  "summary": "At `-O3` the compiler stops with `Fatal error: exception Stack overflow` on a function that joins closures of two instances of a recursive set. The join of types recurses without end when one side is an alias and the other is not.",
+  "commands": [
+    "ocamlopt -O3 test.ml -o test",
+    "./test"
+  ],
+  "expected": {
+    "text": "Prints `result done`.",
+    "output": "result done",
+    "exit": 0
+  },
+  "actual": {
+    "text": "The compiler stops with `Fatal error: exception Stack overflow`, exit status 2.",
+    "output": "Stack overflow",
+    "exit": 2
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": false,
+    "default": false,
+    "-O2": false,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": false,
+  "cause": "`middle_end/flambda2/types/meet_and_join.ml` and `meet_and_n_way_join.ml`: the test for a cycle is made only when both types are aliases.",
+  "fix": {
+    "file": "fix.diff",
+    "text": "Stops the join from following aliases on one side without end. Builds; `test.ml` then prints the expected result; testsuite unchanged."
+  },
+  "labels": [
+    "flambda2",
+    "compiler-error"
+  ],
+  "status": "open"
+}

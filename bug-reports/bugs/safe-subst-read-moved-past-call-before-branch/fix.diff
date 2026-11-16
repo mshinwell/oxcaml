@@ -1,0 +1,85 @@
+diff --git a/middle_end/flambda2/to_cmm/to_cmm_env.ml b/middle_end/flambda2/to_cmm/to_cmm_env.ml
+index f94e918..849afee 100644
+--- a/middle_end/flambda2/to_cmm/to_cmm_env.ml
++++ b/middle_end/flambda2/to_cmm/to_cmm_env.ml
+@@ -1172,6 +1172,29 @@ let flush_bindings order_map flushed_symbol_inits e free_vars symbol_inits =
+     order_map
+     (e, free_vars, symbol_inits)
+ 
++(* The variables of the bindings that are older than a control flow point (a
++   call, typically) that is still held in the environment. With
++   [-flambda2-expert-cmm-safe-subst] such a binding cannot be substituted (see
++   [can_substitute_wrt_validity]). It must not be kept across a flush either:
++   the flush emits the control flow point, so a binding that is kept would be
++   computed after it, at its use in an arm of the branch or in a handler. *)
++let behind_a_control_flow_point env =
++  if not (Flambda_features.Expert.cmm_safe_subst ())
++  then Variable.Set.empty
++  else
++    let rec aux ~seen_control_flow_point acc stages =
++      match stages with
++      | [] -> acc
++      | Control_flow_point _ :: stages ->
++        aux ~seen_control_flow_point:true acc stages
++      | Depend_on_control_flow vars :: stages ->
++        let acc =
++          if seen_control_flow_point then Variable.Set.union vars acc else acc
++        in
++        aux ~seen_control_flow_point acc stages
++    in
++    aux ~seen_control_flow_point:false Variable.Set.empty env.validity_stages
++
+ let flush_delayed_lets ~mode env res =
+   (* CR-someday mshinwell: work out a criterion for allowing substitutions into
+      loops. CR gbury: this is now done by creating a binding with the inline
+@@ -1187,9 +1210,13 @@ let flush_delayed_lets ~mode env res =
+         b.bound_expr;
+     bindings_to_flush := M.add b.order binding !bindings_to_flush
+   in
++  let behind = behind_a_control_flow_point env in
+   let bindings_to_keep =
+     Variable.Map.filter_map_sharing
+-      (fun _ (Binding b as binding) ->
++      (fun var (Binding b as binding) ->
++        let mode =
++          if Variable.Set.mem var behind then Flush_everything else mode
++        in
+         match b.inline with
+         | Do_not_inline ->
+           flush binding;
+@@ -1258,7 +1285,13 @@ let flush_delayed_lets ~mode env res =
+              valid (after a control flow point), it can never lose that
+              validity. At worst a load that was **before** a length check may be
+              moved down after it, transforming a segfault into a raise at
+-             execution, which seems okay. *)
++             execution, which seems okay.
++
++             That does not hold of a call, which can change what a load reads
++             (a block that is filled late, a string that is some bytes): with
++             [-flambda2-expert-cmm-safe-subst] the bindings that are older
++             than a control flow point which this flush emits are flushed
++             with it ([behind_a_control_flow_point], above). *)
+           | ( (Pure | Generative_immutable),
+               (Can_move_anywhere | Can't_move_before_any_branch) ) -> (
+             match mode with
+diff --git a/middle_end/flambda2/to_cmm/to_cmm_expr.ml b/middle_end/flambda2/to_cmm/to_cmm_expr.ml
+index 9c68292..c922da8 100644
+--- a/middle_end/flambda2/to_cmm/to_cmm_expr.ml
++++ b/middle_end/flambda2/to_cmm/to_cmm_expr.ml
+@@ -994,7 +994,15 @@ and apply_expr env res apply =
+            destruct the output which is a tuple. When we get a way to
+            destructure Ctuples, we should use this constructor here instead. *)
+         let wrap, env, res =
+-          Env.flush_delayed_lets ~mode:Branching_point env res
++          (* The call is emitted here, before its handler, and it is not a
++             binding of the environment: with
++             [-flambda2-expert-cmm-safe-subst] nothing is kept past it. *)
++          Env.flush_delayed_lets
++            ~mode:
++              (if Flambda_features.Expert.cmm_safe_subst ()
++               then Flush_everything
++               else Branching_point)
++            env res
+         in
+         let env, cmm_params =
+           Env.create_bound_parameters env

@@ -1,0 +1,43 @@
+{
+  "title": "Read of a mutable field inside a try is done after a later call that raises",
+  "category": "wrong-code",
+  "summary": "Inside a `try`, `r := q.m` followed by a call that changes `q.m` and raises leaves the new value of `q.m` in `r`: the read is moved after the call. The same happens with a reference or an array element in place of the field, and with a `let mutable` variable in place of the reference.",
+  "commands": [
+    "ocamlopt test.ml -o test",
+    "./test"
+  ],
+  "reference_commands": [
+    "ocamlc test.ml -o test.byte",
+    "./test.byte"
+  ],
+  "expected": {
+    "text": "Prints `result 5`.",
+    "output": "result 5",
+    "exit": 0
+  },
+  "actual": {
+    "text": "Prints `result 105`.",
+    "output": "result 105",
+    "exit": 0
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": false,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": false,
+  "cause": "`middle_end/flambda2/to_cmm/to_cmm_expr.ml`, `translate_apply`: the extra arguments of the exception continuation are translated after the call is built and before it is in the environment, so a load used once is substituted into the handler, after the call.",
+  "fix": {
+    "file": "fix.diff",
+    "text": "Binds the extra arguments of the exception continuation before the call. Builds; `test.ml` then prints the expected result; testsuite unchanged."
+  },
+  "labels": [
+    "flambda2",
+    "wrong-code"
+  ],
+  "status": "open"
+}

@@ -1,0 +1,113 @@
+diff --git a/lambda/translcore.ml b/lambda/translcore.ml
+index 06f3189..025baf8 100644
+--- a/lambda/translcore.ml
++++ b/lambda/translcore.ml
+@@ -1410,11 +1410,11 @@ and transl_exp0 ~in_new_scope ~scopes (layout : Lambda.layout) e =
+           cl_attributes = [];
+          }
+   | Texp_letop{let_; ands; param; param_debug_uid; param_sort; body; body_sort;
+-               partial} ->
++               partial; position} ->
+       let body_sort = Jkind.Sort.default_for_transl_and_get body_sort in
+       event_after ~scopes e
+         (transl_letop ~scopes e.exp_loc e.exp_env let_ ands
+-           param param_debug_uid param_sort body body_sort partial)
++           param param_debug_uid param_sort body body_sort partial position)
+   | Texp_unreachable ->
+       raise (Error (e.exp_loc, Unreachable_reached))
+   | Texp_open (od, e) ->
+@@ -3210,7 +3210,7 @@ and transl_handler ~scopes ~return_layout ~body_layout e body
+         of_location ~scopes e.exp_loc)
+ 
+ and transl_letop ~scopes loc env let_ ands param param_debug_uid param_sort case
+-      case_sort partial =
++      case_sort partial position =
+   let rec loop prev_layout prev_lam = function
+     | [] -> prev_lam
+     | and_ :: rest ->
+@@ -3305,7 +3305,10 @@ and transl_letop ~scopes loc env let_ ands param param_debug_uid param_sort case
+     ap_result_layout=
+       function2_return_layout env let_.bop_loc let_bop_op_return_sort
+         let_.bop_op_type;
+-    ap_region_close=Rc_normal;
++    (* The application of the [let] operator has the position of the whole
++       expression: where that is the last action of a function, the region
++       of the function is ended before the call, as for an application. *)
++    ap_region_close=transl_apply_position position;
+     ap_mode=not_alloc_stack;
+     (* CR aspsmith: More precise inference for yielding once
+        let-operators have mode inference *)
+diff --git a/typing/tast_mapper.ml b/typing/tast_mapper.ml
+index acdd928..282b7cf 100644
+--- a/typing/tast_mapper.ml
++++ b/typing/tast_mapper.ml
+@@ -728,7 +728,7 @@ let expr sub x =
+     | Texp_pack mexpr ->
+         Texp_pack (sub.module_expr sub mexpr)
+     | Texp_letop {let_; ands; param; param_debug_uid; param_sort;
+-                  body; body_sort; partial} ->
++                  body; body_sort; partial; position} ->
+         Texp_letop{
+           let_ = sub.binding_op sub let_;
+           ands = List.map (sub.binding_op sub) ands;
+@@ -738,6 +738,7 @@ let expr sub x =
+           body = sub.case sub body;
+           body_sort;
+           partial;
++          position;
+         }
+     | Texp_unreachable ->
+         Texp_unreachable
+diff --git a/typing/typecore.ml b/typing/typecore.ml
+index 9c94cfb..3af93f5 100644
+--- a/typing/typecore.ml
++++ b/typing/typecore.ml
+@@ -9387,9 +9387,21 @@ and type_expect_
+           bop_exp_sort = exp_sort;
+           bop_loc = slet.pbop_loc; }
+       in
++      (* The application of the [let] operator is the last action of the
++         function when this expression is. All that the application is given
++         (the operator, the bound expressions, the function made of the body)
++         is typed at the legacy mode above, and so is its result: nothing of
++         the current region can be reached from the call, and the region can
++         be ended before it, as for an application in the same place (see
++         [position_and_mode]; attributes are not looked at here). *)
++      let position : apply_position =
++        match expected_mode.position with
++        | RTail (_, FTail) -> Tail
++        | RNontail | RTail (_, FNontail) -> Default
++      in
+       let desc =
+         Texp_letop{let_; ands; param; param_debug_uid; param_sort; body;
+-                   body_sort; partial}
++                   body_sort; partial; position}
+       in
+       rue { exp_desc = desc;
+             exp_loc = sexp.pexp_loc;
+diff --git a/typing/typedtree.ml b/typing/typedtree.ml
+index fc28969..a3d6382 100644
+--- a/typing/typedtree.ml
++++ b/typing/typedtree.ml
+@@ -442,6 +442,7 @@ and expression_desc =
+       body : value case;
+       body_sort : Jkind.sort;
+       partial : partial;
++      position : apply_position;
+     }
+   | Texp_unreachable
+   | Texp_extension_constructor of Longident.t loc * Path.t
+diff --git a/typing/typedtree.mli b/typing/typedtree.mli
+index 63d8339..ca959db 100644
+--- a/typing/typedtree.mli
++++ b/typing/typedtree.mli
+@@ -731,6 +731,9 @@ and expression_desc =
+       body : value case;
+       body_sort : Jkind.sort;
+       partial : partial;
++      position : apply_position;
++          (** The position of the application of the [let] operator: [Tail]
++              when the expression is the last action of a function. *)
+     }
+   | Texp_unreachable
+   | Texp_extension_constructor of Longident.t loc * Path.t

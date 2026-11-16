@@ -1,0 +1,35 @@
+{
+  "title": "ldexp uses only the low 32 bits of the exponent",
+  "category": "runtime",
+  "summary": "`ldexp x n` uses only the low 32 bits of `n`: `ldexp 1.0 (1 lsl 32)` is 1.0 and `ldexp 1.0 (1 lsl 31)` is 0.0. `Float32.ldexp`, `Float32_u.ldexp` and `Float_u.ldexp` do the same.",
+  "commands": [
+    "ocamlopt test.ml -o test",
+    "./test"
+  ],
+  "expected": {
+    "text": "Prints `result infinity`.",
+    "output": "result infinity",
+    "exit": 0
+  },
+  "actual": {
+    "text": "Prints `result 0x1p+0`.",
+    "output": "result 0x1p+0",
+    "exit": 0
+  },
+  "affects": {
+    "bytecode": true,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": true,
+  "cause": "The runtime gives the exponent to C's `ldexp` (`ldexpf`) as an `int` (`runtime/floats.c`, `runtime/float32.c`).",
+  "fix": null,
+  "labels": [
+    "runtime"
+  ],
+  "status": "open"
+}

@@ -1,0 +1,44 @@
+diff --git a/lambda/simplif.ml b/lambda/simplif.ml
+index e1f5e70..b92cda7 100644
+--- a/lambda/simplif.ml
++++ b/lambda/simplif.ml
+@@ -855,6 +855,30 @@ and emit_tail_infos_lfunction _is_tail lfun =
+ 
+ let split_default_wrapper ~id:fun_id ~debug_uid:fun_duid ~kind ~params ~return
+       ~body ~attr ~loc ~mode ~ret_mode =
++  (* The wrapper keeps a region when the bindings of the defaults may
++     allocate locally. Its last action is the call of the inner function,
++     and that call must then end the region first ([Rc_close_at_apply]), or
++     it is not a last call and a function that calls itself last through the
++     wrapper grows the stack. Ending the region before the call is right
++     when nothing that the call is given lives in the region: the inner
++     function is not made in it; the arguments are the parameters of the
++     wrapper, which were given to it, and the values of the defaults. A
++     default is typed at the legacy mode, so its value is on the heap; what
++     comes out of the option of an optional argument has the mode of that
++     parameter. So it is right when no parameter is local, which is the
++     case here ([nlocal = 0], checked below before anything is split); the
++     test on the modes of the parameters is kept so that this does not
++     depend on that check. Otherwise the call is left as it was. *)
++  let no_local_param =
++    List.for_all (fun (p : Lambda.lparam) -> Lambda.is_heap_mode p.mode) params
++  in
++  let rec close_region_at_call_of_inner = function
++    | Llet (str, k, id, duid, def, body) when no_local_param ->
++        Llet (str, k, id, duid, def, close_region_at_call_of_inner body)
++    | Lapply ({ ap_region_close = Rc_normal; _ } as ap) when no_local_param ->
++        Lapply { ap with ap_region_close = Rc_close_at_apply }
++    | lam -> lam
++  in
+   let rec aux map add_region = function
+     (* When compiling [fun ?(x=expr) -> body], this is first translated
+        to:
+@@ -886,7 +910,7 @@ let split_default_wrapper ~id:fun_id ~debug_uid:fun_duid ~kind ~params ~return
+     | Lregion (rest, ret) ->
+         let wrapper_body, inner = aux map true rest in
+         if may_allocate_in_region wrapper_body then
+-          Lregion (wrapper_body, ret), inner
++          Lregion (close_region_at_call_of_inner wrapper_body, ret), inner
+         else wrapper_body, inner
+     | Lexclave rest -> aux map true rest
+     | _ when map = [] -> raise Exit

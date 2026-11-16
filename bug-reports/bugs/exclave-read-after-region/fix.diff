@@ -1,0 +1,133 @@
+diff --git a/middle_end/flambda2/to_cmm/to_cmm_env.ml b/middle_end/flambda2/to_cmm/to_cmm_env.ml
+index f94e918..480e5b4 100644
+--- a/middle_end/flambda2/to_cmm/to_cmm_env.ml
++++ b/middle_end/flambda2/to_cmm/to_cmm_env.ml
+@@ -30,6 +30,12 @@ module Symbol_inits = struct
+ 
+   let merge t t' = Backend_var.Map.union_merge List.append t t'
+ 
++  let vars (t : t) =
++    Backend_var.Map.fold
++      (fun v inits acc ->
++        match inits with [] -> acc | _ :: _ -> Backend_var.Set.add v acc)
++      t Backend_var.Set.empty
++
+   let print ppf t =
+     let pp = Format.pp_print_list Printcmm.expression in
+     Backend_var.Map.print pp ppf t
+@@ -1172,7 +1178,31 @@ let flush_bindings order_map flushed_symbol_inits e free_vars symbol_inits =
+     order_map
+     (e, free_vars, symbol_inits)
+ 
+-let flush_delayed_lets ~mode env res =
++(* The environment in which the handler of a continuation that is not inlined
++   is translated: nothing that is held can be substituted into it. Such a
++   handler runs after the whole of the body, so a binding substituted into it
++   would be computed after everything that the body does: a store, a call,
++   the end of the region of a block that the binding reads. Only the bindings
++   that are duplicated at each use and are trivial (a variable, a constant, a
++   symbol) stay. The bindings that the handler uses are then flushed before
++   the continuation ([flush_delayed_lets ~used_by_handler]). *)
++let for_handler_of_continuation_not_inlined env =
++  let keep (type a) (b : a binding) =
++    match b.inline with
++    | Must_inline_and_duplicate -> (
++      match b.bound_expr with
++      | Split { cmm_expr; free_vars = _ } -> is_cmm_simple cmm_expr
++      | Splittable_prim _ -> false)
++    | Do_not_inline | May_inline_once | Must_inline_once -> false
++  in
++  { env with
++    bindings = Variable.Map.filter (fun _ (Binding b) -> keep b) env.bindings;
++    effect_stages = [];
++    validity_stages = [];
++    symbol_inits = Backend_var.Map.empty
++  }
++
++let flush_delayed_lets ?(used_by_handler = Backend_var.Set.empty) ~mode env res =
+   (* CR-someday mshinwell: work out a criterion for allowing substitutions into
+      loops. CR gbury: this is now done by creating a binding with the inline
+      status `Must_inline_and_duplicate`, so the caller of `to_cmm_env` has to
+@@ -1190,6 +1220,14 @@ let flush_delayed_lets ~mode env res =
+   let bindings_to_keep =
+     Variable.Map.filter_map_sharing
+       (fun _ (Binding b as binding) ->
++        let mode =
++          if
++            Backend_var.Set.mem
++              (Backend_var.With_provenance.var b.cmm_var)
++              used_by_handler
++          then Flush_everything
++          else mode
++        in
+         match b.inline with
+         | Do_not_inline ->
+           flush binding;
+diff --git a/middle_end/flambda2/to_cmm/to_cmm_env.mli b/middle_end/flambda2/to_cmm/to_cmm_env.mli
+index abb77bb..9904d6a 100644
+--- a/middle_end/flambda2/to_cmm/to_cmm_env.mli
++++ b/middle_end/flambda2/to_cmm/to_cmm_env.mli
+@@ -29,6 +29,9 @@ module Symbol_inits : sig
+ 
+   val merge : t -> t -> t
+ 
++  (** The variables at whose binding an initialization is to be placed. *)
++  val vars : t -> Backend_var.Set.t
++
+   val is_empty : t -> bool
+ 
+   val print : Format.formatter -> t -> unit
+@@ -311,9 +314,17 @@ type flush_mode =
+   | Branching_point
+   | Flush_everything
+ 
++(** The environment in which to translate the handler of a continuation that
++    is not inlined: none of the delayed let bindings can be substituted into
++    it (but for trivial ones). To be followed by [flush_delayed_lets] with the
++    free variables of the translated handler as [used_by_handler]. *)
++val for_handler_of_continuation_not_inlined : t -> t
++
+ (** Wrap the given Cmm expression with all the delayed let bindings accumulated
+-    in the environment. *)
++    in the environment. The bindings of the variables in [used_by_handler] are
++    flushed whatever the mode. *)
+ val flush_delayed_lets :
++  ?used_by_handler:free_vars ->
+   mode:flush_mode ->
+   t ->
+   To_cmm_result.t ->
+diff --git a/middle_end/flambda2/to_cmm/to_cmm_expr.ml b/middle_end/flambda2/to_cmm/to_cmm_expr.ml
+index 9c68292..27125bb 100644
+--- a/middle_end/flambda2/to_cmm/to_cmm_expr.ml
++++ b/middle_end/flambda2/to_cmm/to_cmm_expr.ml
+@@ -739,11 +739,28 @@ and let_cont_not_inlined env res k handler body =
+   (* CR gbury: "split" the environment according to which variables the handler
+      and the body uses, to allow for inlining to proceed within each
+      expression. *)
+-  let wrap, env, res = Env.flush_delayed_lets ~mode:Branching_point env res in
+   let is_exn_handler = Continuation_handler.is_exn_handler handler in
+   let is_cold = Continuation_handler.is_cold handler in
++  (* The handler is translated first, in an environment from which nothing is
++     substituted into it: it runs after the whole of the body, and a binding
++     moved into it would be computed after the stores, the calls and the ends
++     of regions of the body. What the handler uses is then bound here, before
++     the continuation. *)
+   let vars, arity, handler, free_vars_of_handler, handler_symbol_inits, res =
+-    continuation_handler env res handler
++    continuation_handler
++      (Env.for_handler_of_continuation_not_inlined env)
++      res handler
++  in
++  (* A static update that the handler leaves to be placed where a variable is
++     bound (the keys of [handler_symbol_inits]) names a variable that is not
++     among the free variables of the handler's expression: its binding is
++     flushed here too, so that the update is placed with it below. *)
++  let used_by_handler =
++    Backend_var.Set.union free_vars_of_handler
++      (Env.Symbol_inits.vars handler_symbol_inits)
++  in
++  let wrap, env, res =
++    Env.flush_delayed_lets ~used_by_handler ~mode:Branching_point env res
+   in
+   let catch_id, env =
+     Env.add_jump_cont env k ~param_types:(List.map snd vars)

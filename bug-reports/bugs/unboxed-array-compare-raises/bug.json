@@ -1,0 +1,40 @@
+{
+  "title": "compare on an int64# array raises in native code and answers in bytecode",
+  "category": "runtime",
+  "summary": "`compare`, `=`, `Hashtbl.hash` and `Marshal` on an `int64#` array or a `#(int * int)` array raise `Invalid_argument` (\"mixed block value\") in native code and give an answer in bytecode. `float#` arrays are compared in both.",
+  "commands": [
+    "ocamlopt test.ml -o test",
+    "./test"
+  ],
+  "reference_commands": [
+    "ocamlc test.ml -o test.byte",
+    "./test.byte"
+  ],
+  "expected": {
+    "text": "Prints `result 0`, as bytecode does.",
+    "output": "result 0",
+    "exit": 0
+  },
+  "actual": {
+    "text": "Prints `result Invalid_argument \"compare: mixed block value\"`.",
+    "output": "result Invalid_argument",
+    "exit": 0
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": false,
+  "cause": "`runtime/compare.c`, `hash.c` and `extern.c` raise on a mixed block; in bytecode an unboxed array is not one.",
+  "fix": null,
+  "labels": [
+    "runtime",
+    "layouts"
+  ],
+  "status": "open"
+}

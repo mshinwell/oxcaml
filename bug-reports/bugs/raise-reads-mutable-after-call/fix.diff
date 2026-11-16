@@ -1,0 +1,45 @@
+diff --git a/middle_end/flambda2/to_cmm/to_cmm_expr.ml b/middle_end/flambda2/to_cmm/to_cmm_expr.ml
+index 9c68292..5a4e2ac 100644
+--- a/middle_end/flambda2/to_cmm/to_cmm_expr.ml
++++ b/middle_end/flambda2/to_cmm/to_cmm_expr.ml
+@@ -405,6 +405,28 @@ let translate_apply env res apply =
+         extra_args
+     in
+     let extra_args = List.rev extra_args_rev in
++    (* The extra arguments are used in the handler below, which runs after the
++       call has raised. An expression that the environment has substituted for
++       one of them (a load, typically: the call is not yet a binding of the
++       environment, so nothing has stopped the substitution) must be computed
++       before the call: it is bound here, around the wrapper. As for the
++       arguments of the call, the last one is computed first. *)
++    let extra_args_bindings, extra_args =
++      List.fold_left_map
++        (fun bindings (extra_arg : Cmm.expression) ->
++          match extra_arg with
++          | Cvar _ | Cconst_int _ | Cconst_natint _ | Cconst_float32 _
++          | Cconst_float _ | Cconst_symbol _ | Cconst_vec128 _
++          | Cconst_vec256 _ | Cconst_vec512 _ | Cconst_mask _ ->
++            bindings, extra_arg
++          | Clet _ | Cphantom_let _ | Cname_for_debugger _ | Ctuple _ | Cop _
++          | Csequence _ | Cifthenelse _ | Cswitch _ | Ccatch _ | Cexit _
++          | Cinvalid _ ->
++            let var = Backend_var.create_local "*extra_arg*" in
++            ( (Backend_var.With_provenance.create var, extra_arg) :: bindings,
++              Cmm.Cvar var ))
++        [] extra_args
++    in
+     let exn_var = Backend_var.create_local "*exn*" in
+     let result_var = Backend_var.create_local "*res*" in
+     let result_type =
+@@ -442,6 +464,11 @@ let translate_apply env res apply =
+         ~exn_var:(Backend_var.With_provenance.create exn_var)
+         ~extra_args:[] ~dbg:(Apply.dbg apply) ~body ~handler_cont ~handler ()
+     in
++    let cmm =
++      List.fold_right
++        (fun (var, defining_expr) body -> C.letin var ~defining_expr ~body)
++        extra_args_bindings cmm
++    in
+     cmm, free_vars, env, res, effs
+ 
+ (* Helpers for the translation of [Switch] expressions. *)

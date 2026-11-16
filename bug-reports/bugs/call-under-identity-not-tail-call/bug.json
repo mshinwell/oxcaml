@@ -1,0 +1,47 @@
+{
+  "title": "A call under `Fun.id` (or `%identity`, an unboxed field or constructor) is not a tail call when the function allocates locally",
+  "category": "lost-tail-call",
+  "summary": "`Fun.id (loop (n - 1) (acc + 1))` as the last expression of a function that allocates on the local stack (here a comparison of two tuples) is not a tail call in native code; so is a call under `%identity`, `Obj.magic`, the field of an unboxed record or an unboxed constructor. Bytecode and OCaml 5.4.0 run it in constant stack.",
+  "commands": [
+    "ocamlopt test.ml -o test",
+    "ulimit -s 8192",
+    "./test"
+  ],
+  "reference_commands": [
+    "ocamlc test.ml -o test.byte",
+    "ulimit -s 8192",
+    "OCAMLRUNPARAM=l=1M ./test.byte"
+  ],
+  "expected": {
+    "text": "Prints `result 10000000`.",
+    "output": "result 10000000",
+    "exit": 0
+  },
+  "actual": {
+    "text": "`Fatal error: exception Stack_overflow`.",
+    "output": "Stack_overflow",
+    "exit": 2
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": false,
+  "cause": "For the type checker the call is an argument, so it is translated with `Rc_normal`; the translation then leaves no code around it (`lambda/translprim.ml` for `%identity`, `lambda/translcore.ml` for unboxed fields and constructors), and the region is ended after the call returns.",
+  "fix": {
+    "file": "fix.diff",
+    "text": "Gives such a call in tail position the mark that ends the region first when no argument can be local to the region (not for `Obj.magic`, nor for an unboxed constructor matched again). Builds; `test.ml` then prints the expected result; testsuite unchanged."
+  },
+  "labels": [
+    "typing",
+    "lambda",
+    "local-allocation",
+    "tail-call"
+  ],
+  "status": "open"
+}

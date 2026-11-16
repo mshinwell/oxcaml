@@ -1,0 +1,43 @@
+{
+  "title": "A call of an unexported helper with one argument more than its parameters is not a tail call",
+  "category": "lost-tail-call",
+  "summary": "`call step (n - 1) acc`, where `call f x = f x` is not exported by its unit, is not a tail call in native code: the type checker infers that the result of `call` may be local, and closure conversion puts a region around the over-application. A loop written so ends with `Stack_overflow`; bytecode and OCaml 5.4.0 run it in constant stack.",
+  "commands": [
+    "ocamlopt test.ml -o test",
+    "ulimit -s 8192",
+    "./test"
+  ],
+  "reference_commands": [
+    "ocamlc test.ml -o test.byte",
+    "ulimit -s 8192",
+    "OCAMLRUNPARAM=l=1M ./test.byte"
+  ],
+  "expected": {
+    "text": "Prints `result 10000000`.",
+    "output": "result 10000000",
+    "exit": 0
+  },
+  "actual": {
+    "text": "`Fatal error: exception Stack_overflow`.",
+    "output": "Stack_overflow",
+    "exit": 2
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": false,
+  "cause": "`wrap_over_application` in `middle_end/flambda2/from_lambda/closure_conversion.ml` begins a region for an over-application when the result of the first application may be local and the result of the whole is not; the helper that is not exported is typed with a result that may be local.",
+  "fix": null,
+  "labels": [
+    "flambda2",
+    "local-allocation",
+    "tail-call"
+  ],
+  "status": "open"
+}

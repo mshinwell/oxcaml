@@ -1,0 +1,214 @@
+diff --git a/middle_end/flambda2/simplify/flow/data_flow_graph.ml b/middle_end/flambda2/simplify/flow/data_flow_graph.ml
+index dd4828e..a33c671 100644
+--- a/middle_end/flambda2/simplify/flow/data_flow_graph.ml
++++ b/middle_end/flambda2/simplify/flow/data_flow_graph.ml
+@@ -259,6 +259,7 @@ let add_continuation_info map ~return_continuation ~exn_continuation
+         direct_aliases;
+         mutable_let_prims_rev;
+         defined = _;
++        ended_regions = _;
+         code_ids;
+         value_slots;
+         continuation = _;
+@@ -411,6 +412,108 @@ let add_continuation_info map ~return_continuation ~exn_continuation
+           rewrite_ids t)
+     apply_cont_args t
+ 
++(* An [End_region] is not recorded as a use of its region, and is deleted when
++   the name it is given is not required (see [Simplify_let_expr]). That is right
++   as long as this name is the one bound by the [Begin_region]: the region is
++   then begun and ended, or neither. It is not when the name is a parameter of a
++   continuation which stands for the regions passed for it (the lifting of
++   continuations makes such parameters): these regions can be required, by the
++   allocations made in them, while the parameter is not, and would then never be
++   ended.
++
++   So, for every variable given to an [End_region] which is a parameter, and for
++   every variable [arg] passed for it, we add the dependency "if [arg] is used
++   then the parameter is used"; and likewise for [arg] if it is itself a
++   parameter, since it stands for the same regions. With the dependency in the
++   other direction, which every parameter has, the parameter and the regions
++   passed for it are then all required or all not required: the [Begin_region]s
++   and the [End_region] are all kept, or all deleted. *)
++let add_region_dependencies (map : T.Continuation_info.t Continuation.Map.t) t =
++  let ended_regions =
++    Continuation.Map.fold
++      (fun _ (elt : T.Continuation_info.t) acc ->
++        Variable.Set.union elt.ended_regions acc)
++      map Variable.Set.empty
++  in
++  if Variable.Set.is_empty ended_regions
++  then t
++  else
++    (* The continuations that have parameters of kind [Region], with the indexes
++       of these parameters. *)
++    let region_params =
++      Continuation.Map.filter_map
++        (fun _ (elt : T.Continuation_info.t) ->
++          let _, region_params =
++            List.fold_left
++              (fun (i, region_params) param ->
++                let is_region =
++                  Flambda_kind.equal
++                    (Flambda_kind.With_subkind.kind
++                       (Bound_parameter.kind param))
++                    Flambda_kind.region
++                in
++                ( i + 1,
++                  if is_region
++                  then (i, Bound_parameter.var param) :: region_params
++                  else region_params ))
++              (0, [])
++              (Bound_parameters.to_list elt.params)
++          in
++          match region_params with [] -> None | _ :: _ -> Some region_params)
++        map
++    in
++    (* The variables passed for each of these parameters. *)
++    let args_of_region_params =
++      Continuation.Map.fold
++        (fun _ (elt : T.Continuation_info.t) acc ->
++          Continuation.Map.fold
++            (fun k rewrite_ids acc ->
++              match Continuation.Map.find_opt k region_params with
++              | None -> acc
++              | Some region_params ->
++                Apply_cont_rewrite_id.Map.fold
++                  (fun _rewrite_id args acc ->
++                    List.fold_left
++                      (fun acc (i, param) ->
++                        match Numeric_types.Int.Map.find_opt i args with
++                        | Some (T.Cont_arg.Simple simple) -> (
++                          match Simple.must_be_var simple with
++                          | None -> acc
++                          | Some (arg, _coercion) ->
++                            Variable.Map.update param
++                              (function
++                                | None -> Some (Variable.Set.singleton arg)
++                                | Some args -> Some (Variable.Set.add arg args))
++                              acc)
++                        | Some
++                            ( T.Cont_arg.Function_result
++                            | T.Cont_arg.New_let_binding _ )
++                        | None ->
++                          acc)
++                      acc region_params)
++                  rewrite_ids acc)
++            elt.apply_cont_args acc)
++        map Variable.Map.empty
++    in
++    let rec loop t seen = function
++      | [] -> t
++      | param :: todo -> (
++        match Variable.Map.find_opt param args_of_region_params with
++        | None -> loop t seen todo
++        | Some args ->
++          let t =
++            Variable.Set.fold
++              (fun arg t ->
++                add_dependency ~src:(Name.var arg) ~dst:(Name.var param) t)
++              args t
++          in
++          let new_args = Variable.Set.diff args seen in
++          loop t
++            (Variable.Set.union new_args seen)
++            (Variable.Set.elements new_args @ todo))
++    in
++    loop t ended_regions (Variable.Set.elements ended_regions)
++
+ let create ~return_continuation ~exn_continuation ~code_age_relation
+     ~used_value_slots ~code_ids_to_never_delete map =
+   (* Build the dependencies using the regular params and args of continuations,
+@@ -427,7 +530,7 @@ let create ~return_continuation ~exn_continuation ~code_age_relation
+       map
+       (empty code_age_relation is_toplevel ~code_ids_to_never_delete)
+   in
+-  t
++  add_region_dependencies map t
+ 
+ let required_names
+     ({ code_age_relation = _;
+diff --git a/middle_end/flambda2/simplify/flow/flow_acc.ml b/middle_end/flambda2/simplify/flow/flow_acc.ml
+index 0350912..de14194 100644
+--- a/middle_end/flambda2/simplify/flow/flow_acc.ml
++++ b/middle_end/flambda2/simplify/flow/flow_acc.ml
+@@ -77,6 +77,7 @@ let enter_continuation continuation ~recursive ~is_exn_handler params (t : t) =
+       direct_aliases = Variable.Map.empty;
+       mutable_let_prims_rev = [];
+       defined = Variable.Set.empty;
++      ended_regions = Variable.Set.empty;
+       code_ids = Code_id.Map.empty;
+       value_slots = Value_slot.Map.empty;
+       used_in_handler;
+@@ -357,9 +358,17 @@ let record_let_binding ~rewrite_id ~generate_phantom_lets ~let_bound
+       let bound_var = Bound_pattern.must_be_singleton let_bound in
+       let var = Bound_var.var bound_var in
+       match[@ocaml.warning "-4"] original_prim with
+-      | Unary (End_region { ghost = _ }, _region) ->
+-        (* Uses of region variables in [End_region] don't count as uses. *)
+-        t
++      | Unary (End_region { ghost = _ }, region) -> (
++        (* Uses of region variables in [End_region] don't count as uses, so that
++           a region in which nothing is allocated can be deleted together with
++           its [End_region]. They are recorded apart: [Data_flow_graph] needs
++           them when the region is a parameter of a continuation. *)
++        match Simple.must_be_var region with
++        | None -> t
++        | Some (region, _coercion) ->
++          update_top_of_stack ~t ~f:(fun elt ->
++              let ended_regions = Variable.Set.add region elt.ended_regions in
++              { elt with ended_regions }))
+       | Unary (Is_int _, simple) -> (
+         match Simple.must_be_var simple with
+         | Some (v, _) ->
+diff --git a/middle_end/flambda2/simplify/flow/flow_types.ml b/middle_end/flambda2/simplify/flow/flow_types.ml
+index f754472..5db6189 100644
+--- a/middle_end/flambda2/simplify/flow/flow_types.ml
++++ b/middle_end/flambda2/simplify/flow/flow_types.ml
+@@ -128,6 +128,7 @@ module Continuation_info = struct
+       direct_aliases : Simple.t Variable.Map.t;
+       mutable_let_prims_rev : Mutable_let_prim.List.t;
+       defined : Variable.Set.t;
++      ended_regions : Variable.Set.t;
+       code_ids : Name_occurrences.t Code_id.Map.t;
+       value_slots : Name_occurrences.t Name.Map.t Value_slot.Map.t;
+       apply_cont_args :
+@@ -145,6 +146,7 @@ module Continuation_info = struct
+         direct_aliases;
+         mutable_let_prims_rev;
+         defined;
++        ended_regions;
+         code_ids;
+         value_slots;
+         apply_cont_args
+@@ -160,6 +162,7 @@ module Continuation_info = struct
+         @[<hov 1>(direct_aliases %a)@]@ \
+         @[<hov 1>(ref_prims %a)@]@ \
+         @[<hov 1>(defined %a)@]@ \
++        @[<hov 1>(ended_regions %a)@]@ \
+         @[<hov 1>(code_ids %a)@]@ \
+         @[<hov 1>(value_slots %a)@]@ \
+         @[<hov 1>(apply_cont_args %a)@]\
+@@ -176,6 +179,8 @@ module Continuation_info = struct
+       Mutable_let_prim.List.print_rev mutable_let_prims_rev
+       Variable.Set.print
+       defined
++      Variable.Set.print
++      ended_regions
+       (Code_id.Map.print Name_occurrences.print)
+       code_ids
+       (Value_slot.Map.print (Name.Map.print Name_occurrences.print))
+diff --git a/middle_end/flambda2/simplify/flow/flow_types.mli b/middle_end/flambda2/simplify/flow/flow_types.mli
+index 65c0d57..a764fe7 100644
+--- a/middle_end/flambda2/simplify/flow/flow_types.mli
++++ b/middle_end/flambda2/simplify/flow/flow_types.mli
+@@ -96,6 +96,9 @@ module Continuation_info : sig
+       direct_aliases : Simple.t Variable.Map.t;
+       mutable_let_prims_rev : Mutable_let_prim.List.t;
+       defined : Variable.Set.t;
++      ended_regions : Variable.Set.t;
++          (** The variables given to an [End_region] in the handler. These are
++              not uses (see [Flow_acc.record_let_binding]). *)
+       code_ids : Name_occurrences.t Code_id.Map.t;
+       value_slots : Name_occurrences.t Name.Map.t Value_slot.Map.t;
+       apply_cont_args :

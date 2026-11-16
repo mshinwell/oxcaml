@@ -1,0 +1,36 @@
+{
+  "title": "Assertion failure in typecore.ml on a binding operator declared with external",
+  "category": "compiler-error",
+  "summary": "`external ( let& ) : 'a -> ('a -> 'b) -> 'b = \"%revapply\"` and then `let& y = x + 1 in y * 2` stop the compiler with an assertion failure. OCaml 5.4.0 compiles it.",
+  "commands": [
+    "ocamlopt test.ml -o test",
+    "./test"
+  ],
+  "expected": {
+    "text": "Prints `result 42`.",
+    "output": "result 42",
+    "exit": 0
+  },
+  "actual": {
+    "text": "The compiler stops with `Fatal error: exception File \"typing/typecore.ml\", ...: Assertion failed`, exit status 2.",
+    "output": "Assertion failed",
+    "exit": 2
+  },
+  "affects": {
+    "bytecode": true,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": false,
+  "cause": "`typing/typecore.ml`, `type_binding_op_ident`: `assert (kind = Id_value)`, under a comment that asks whether `external (let+)` is valid.",
+  "fix": null,
+  "labels": [
+    "typing",
+    "compiler-error"
+  ],
+  "status": "open"
+}

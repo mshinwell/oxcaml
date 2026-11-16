@@ -1,0 +1,38 @@
+{
+  "title": "[@inlined] on a function with an optional argument is not honoured and gets no warning",
+  "category": "diagnostic",
+  "summary": "`(f [@inlined]) ~x:1 y`, for an exported `f` with an optional argument with a default, inlines only the wrapper that fills in the default; the call of the function proper stays, with no warning 55. At `-O2` or with `-stubs-forward-inlining` it is inlined.",
+  "commands": [
+    "ocamlopt -S -c test.mli test.ml",
+    "awk '/^caml.*:$/ {p = /^camlTest__caller/; n = 0} p && /(call|jmp).*f_inner/ {n++} p && /@function/ {print \"calls of f_inner in caller:\", n}' test.s"
+  ],
+  "expected": {
+    "text": "`f` is inlined in `caller` (or warning 55): prints `calls of f_inner in caller: 0`.",
+    "output": "calls of f_inner in caller: 0",
+    "exit": 0
+  },
+  "actual": {
+    "text": "No warning; prints `calls of f_inner in caller: 1`.",
+    "output": "calls of f_inner in caller: 1",
+    "exit": 0
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": false,
+    "-O3": false,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": null,
+  "cause": "`lambda/simplif.ml`, `split_default_wrapper`: the wrapper's call of `f_inner` carries the default inlining attribute, not the caller's, unless `-stubs-forward-inlining` is given.",
+  "fix": null,
+  "labels": [
+    "flambda2",
+    "inlining",
+    "warnings"
+  ],
+  "status": "open",
+  "reference": "related: issue #7724, PR #6037 (adds -stubs-forward-inlining, off by default)"
+}

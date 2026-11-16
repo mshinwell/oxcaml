@@ -1,0 +1,47 @@
+{
+  "title": "A recursive call of a function whose optional argument has a default that allocates locally is not a tail call",
+  "category": "lost-tail-call",
+  "summary": "A function with an optional argument whose default allocates on the local stack (here a comparison of two tuples) does not call itself in constant stack in native code. A loop written so ends with `Stack_overflow`; bytecode and OCaml 5.4.0 run it in constant stack.",
+  "commands": [
+    "ocamlopt test.ml -o test",
+    "ulimit -s 8192",
+    "./test"
+  ],
+  "reference_commands": [
+    "ocamlc test.ml -o test.byte",
+    "ulimit -s 8192",
+    "OCAMLRUNPARAM=l=1M ./test.byte"
+  ],
+  "expected": {
+    "text": "Prints `result 10000000`.",
+    "output": "result 10000000",
+    "exit": 0
+  },
+  "actual": {
+    "text": "`Fatal error: exception Stack_overflow`.",
+    "output": "Stack_overflow",
+    "exit": 2
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": false,
+  "cause": "`split_default_wrapper` in `lambda/simplif.ml` keeps a region in the wrapper when a default may allocate locally, and calls the inner function with `Rc_normal`, so the region is ended after that call returns.",
+  "fix": {
+    "file": "fix.diff",
+    "text": "Ends the region of the wrapper before its call of the inner function when no parameter is local. Builds; `test.ml` then prints the expected result; testsuite unchanged."
+  },
+  "labels": [
+    "lambda",
+    "local-allocation",
+    "tail-call"
+  ],
+  "status": "open",
+  "reference": "related: issues #7724 and #4797 (the wrapper allocating; not the same)"
+}

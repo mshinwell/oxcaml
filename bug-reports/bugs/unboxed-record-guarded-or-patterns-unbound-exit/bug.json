@@ -1,0 +1,41 @@
+{
+  "title": "Compiler stops with \"Unbound static exception\" on guarded or-patterns over an unboxed record",
+  "category": "compiler-error",
+  "summary": "A match over an unboxed record with two guarded cases in a row, each an or-pattern with the record on both sides, stops the compiler: \"Unbound static exception\" in native code, \"exit(2) outside appropriated catch\" in bytecode.",
+  "commands": [
+    "ocamlopt test.ml -o test",
+    "./test"
+  ],
+  "expected": {
+    "text": "Prints `result 3`.",
+    "output": "result 3",
+    "exit": 0
+  },
+  "actual": {
+    "text": "The compiler stops with `Fatal error: Unbound static exception 2`, exit status 2.",
+    "output": "Unbound static exception",
+    "exit": 2
+  },
+  "affects": {
+    "bytecode": true,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": false,
+  "cause": "`typing/parmatch.ml`, `lub`, has no case for two unboxed record patterns, so the context of the or-pattern's handler is empty and the last case is not emitted.",
+  "fix": {
+    "file": "fix.diff",
+    "text": "Adds the missing cases to `lub` (the same fix as for the wrong case taken in a match over an unboxed record). Builds; `test.ml` then compiles and prints the expected result; testsuite unchanged."
+  },
+  "labels": [
+    "typing",
+    "pattern-matching",
+    "compiler-error"
+  ],
+  "status": "open",
+  "reference": "related: PR #7450 (merged) mended the same fault in Parmatch.Compat.compat; a review comment there says lub has it too"
+}

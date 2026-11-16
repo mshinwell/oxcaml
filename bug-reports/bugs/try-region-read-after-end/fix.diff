@@ -1,0 +1,28 @@
+diff --git a/middle_end/flambda2/to_cmm/to_cmm_expr.ml b/middle_end/flambda2/to_cmm/to_cmm_expr.ml
+index 9c68292..7fa52ff 100644
+--- a/middle_end/flambda2/to_cmm/to_cmm_expr.ml
++++ b/middle_end/flambda2/to_cmm/to_cmm_expr.ml
+@@ -635,7 +635,8 @@ and let_expr0 env res let_expr (bound_pattern : Bound_pattern.t)
+     ->
+     let env = Env.enter_inlined_apply env dbg in
+     expr env res body
+-  | Singleton v, Prim ((Unary (End_region _, _) as p), dbg) ->
++  | ( Singleton v,
++      Prim ((Unary ((End_region _ | End_try_region _), _) as p), dbg) ) ->
+     (* CR gbury: this is a hack to prevent moving of expressions past an
+        End_region. We have to do this manually because we currently have effects
+        and coeffects that are not precise enough. Particularly, an immutable
+@@ -643,7 +644,12 @@ and let_expr0 env res let_expr (bound_pattern : Bound_pattern.t)
+        moved past an end_region. Here we also need to flush everything,
+        including must_inline bindings, particularly projections that may project
+        from locally allocated closures (and that must not be moved past an
+-       end_region). *)
++       end_region).
++
++       The same holds of [End_try_region], which frees what the body of a
++       try-with allocated on the stack: where the handler has become an
++       ordinary continuation with one use, it is inlined after the read of
++       such a block, with that read still held. *)
+     let wrap, env, res =
+       Env.flush_delayed_lets ~mode:Flush_everything env res
+     in

@@ -1,0 +1,33 @@
+{
+  "title": "[@tailcall] on a local function or a method call is not checked",
+  "category": "diagnostic",
+  "summary": "`[@tailcall]` on a call of a local function that is not a tail call (`1 + (g [@tailcall]) x`) gets no warning 51, because the function has been made a continuation before the check; `ocamlc -g` gives the warning. `[@tailcall]` on a method call is dropped without a word.",
+  "commands": [
+    "ocamlopt -warn-error +51 -c test.ml"
+  ],
+  "expected": {
+    "text": "Warning 51 (`expected tailcall`) at lines 3 and 7, here an error; exit status 2.",
+    "output": "Error (warning 51",
+    "exit": 2
+  },
+  "actual": {
+    "text": "No warning; exit status 0.",
+    "exit": 0
+  },
+  "affects": {
+    "bytecode": true,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": true,
+  "cause": "`lambda/simplif.ml`: `simplify_local_functions` runs before `emit_tail_infos`, except with `ocamlc -g`.",
+  "fix": null,
+  "labels": [
+    "warnings"
+  ],
+  "status": "open"
+}

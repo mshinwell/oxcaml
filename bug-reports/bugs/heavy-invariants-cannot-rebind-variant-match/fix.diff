@@ -1,0 +1,33 @@
+diff --git a/middle_end/flambda2/types/join_levels_old.ml b/middle_end/flambda2/types/join_levels_old.ml
+index fc76dee..d32c073 100644
+--- a/middle_end/flambda2/types/join_levels_old.ml
++++ b/middle_end/flambda2/types/join_levels_old.ml
+@@ -173,6 +173,7 @@ let construct_joined_level envs_with_levels ~env_at_fork ~allowed ~joined_types
+   let defined_vars, binding_times =
+     List.fold_left
+       (fun (defined_vars, binding_times) (_env_at_use, _id, _use_kind, t) ->
++        let defined_vars_of_earlier_uses = defined_vars in
+         let defined_vars_this_level =
+           Variable.Map.filter
+             (fun var _ -> variable_is_in_new_level var)
+@@ -193,7 +194,19 @@ let construct_joined_level envs_with_levels ~env_at_fork ~allowed ~joined_types
+         let binding_times_this_level =
+           Binding_time.Map.filter_map
+             (fun _ vars ->
+-              let vars = Variable.Set.filter variable_is_in_new_level vars in
++              let vars =
++                Variable.Set.filter
++                  (fun var ->
++                    variable_is_in_new_level var
++                    (* A variable can have different binding times in the levels
++                       of different uses. It must be listed under one only,
++                       since the level's variables are defined by going through
++                       [binding_times]: keep the one of the first use that
++                       defines it, which is also the use whose definition
++                       [join_types] keeps. *)
++                    && not (Variable.Map.mem var defined_vars_of_earlier_uses))
++                  vars
++              in
+               if Variable.Set.is_empty vars then None else Some vars)
+             (TEL.variables_by_binding_time t)
+         in

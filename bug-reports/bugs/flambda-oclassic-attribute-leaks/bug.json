@@ -1,0 +1,37 @@
+{
+  "title": "[@@@ocaml.flambda_oclassic] stays in force for the next units of the same command",
+  "category": "diagnostic",
+  "summary": "`[@@@ocaml.flambda_oclassic]` in one unit stays in force for the units compiled after it by the same command. `ocamlopt -c classic.ml test.ml` compiles `test.ml` without Simplify and its `[@zero_alloc]` check fails; `ocamlopt -c test.ml` succeeds.",
+  "commands": [
+    "ocamlopt -c classic.ml test.ml"
+  ],
+  "reference_commands": [
+    "ocamlopt -c test.ml"
+  ],
+  "expected": {
+    "text": "Compiles, exit status 0.",
+    "exit": 0
+  },
+  "actual": {
+    "text": "`Error: Annotation check for zero_alloc failed on function Test.add3`; exit status 2.",
+    "output": "Annotation check for zero_alloc failed",
+    "exit": 2
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": false,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": false,
+  "cause": "`parsing/builtin_attributes.ml` sets `opt_level` (`driver/oxcaml_flags.ml`), one reference for the process, which is not restored between files.",
+  "fix": null,
+  "labels": [
+    "flambda2",
+    "attributes"
+  ],
+  "status": "open"
+}

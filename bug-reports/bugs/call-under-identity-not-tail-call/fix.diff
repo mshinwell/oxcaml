@@ -1,0 +1,330 @@
+diff --git a/lambda/translcore.ml b/lambda/translcore.ml
+index 06f3189..22fd128 100644
+--- a/lambda/translcore.ml
++++ b/lambda/translcore.ml
+@@ -189,6 +189,17 @@ let transl_apply_position position =
+   | Tail ->
+     if Config.stack_allocation then Rc_close_at_apply
+     else Rc_normal
++  | Tail_if_not_local mode ->
++    (* The last thing that the function does, although not typed in tail
++       position: see [Typecore.regain_tail_position]. Inference is over: the
++       function, the arguments and the result are local to the region of the
++       function, or are not. *)
++    if not Config.stack_allocation then Rc_normal
++    else begin
++      match Mode.Regionality.zap_to_floor mode with
++      | Some (Global | Regional) -> Rc_close_at_apply
++      | Some Local | None -> Rc_normal
++    end
+ 
+ let maybe_region get_layout lam =
+   let rec remove_tail_markers_and_exclave = function
+diff --git a/typing/printtyped.ml b/typing/printtyped.ml
+index a5ec461..5ac1a52 100644
+--- a/typing/printtyped.ml
++++ b/typing/printtyped.ml
+@@ -742,7 +742,8 @@ and expression i ppf x =
+         (match m with
+          | Tail -> "Tail"
+          | Nontail -> "Nontail"
+-         | Default -> "Default");
++         | Default -> "Default"
++         | Tail_if_not_local _ -> "Tail_if_not_local");
+       return_mode i ppf am;
+       yielding_mode i ppf ym;
+       Option.iter (zero_alloc_assume i ppf) za;
+diff --git a/typing/typecore.ml b/typing/typecore.ml
+index 9c94cfb..e05859f 100644
+--- a/typing/typecore.ml
++++ b/typing/typecore.ml
+@@ -687,6 +687,18 @@ let position_and_mode_default = {
+   return_from_exclave = None;
+ }
+ 
++(* The application typed last at position [Default], with the modes that
++   decide whether it may be a tail call: those of the function and of the
++   arguments, and the mode of the result. See [regain_tail_position]. *)
++type untaken_tail_call =
++  { ut_desc : expression_desc;
++    (* The application, by the identity of its description. *)
++    ut_passed : With_regionality.l list;
++    ut_ap_mode : Locality.l;
++  }
++
++let untaken_tail_call : untaken_tail_call option ref = Local_store.s_ref None
++
+ (** Decides the runtime tail call behaviour based on lexical structures and user
+     annotation. *)
+ let position_and_mode env (expected_mode : expected_mode) sexp
+@@ -742,7 +754,7 @@ let check_tail_call_local_returning loc env ap_mode {apply_position; _} =
+       | Ok () -> ()
+       | Error _ -> Error.log_and_raise loc env (Tail_call_local_returning)
+     end
+-  | Nontail | Default -> ()
++  | Nontail | Default | Tail_if_not_local _ -> ()
+ 
+ let meet_regional ?hint:h mode =
+   let mode = With_regionality.disallow_left mode in
+@@ -1039,7 +1051,7 @@ let mode_argument ~funct ~index ~lbl ~position_and_mode ~partial_app marg =
+   | Texp_ident { kind = Id_prim _; _ }, _ ->
+      (* Other primitives cannot be tail-called *)
+      mode_default vmode, vmode
+-  | _, (Nontail | Default) ->
++  | _, (Nontail | Default | Tail_if_not_local _) ->
+      mode_default vmode, vmode
+   | _, Tail -> begin
+     With_regionality.submode_exn
+@@ -5153,6 +5165,104 @@ let is_prim ~name funct =
+       prim_name = name
+   | _ -> false
+ 
++(* [regain_tail_position exp], for an expression [exp] that is in tail
++   position of its function.
++
++   Some expressions leave no code around their argument: the field of an
++   unboxed record, an unboxed constructor, the construction of an unboxed
++   record, the primitive "%identity" ([Translcore] and [Translprim] give the
++   translation of the argument itself). If the argument is an application,
++   that application is the last thing that the function does, but it was
++   typed as an argument, at position [Default]: the region of the function,
++   if it has one, is ended only after the call returns, and a loop written so
++   does not run in constant stack (in upstream OCaml the same source does).
++
++   Such an application could be a tail call under the conditions that [Tail]
++   imposes on an application written in tail position: the function, the
++   arguments and the result are not local to the region (see the [Tail]
++   cases of [mode_argument] and of [Pexp_apply], and
++   [check_tail_call_local_returning]). Imposing them here would refuse
++   programs that are accepted (one that passes a value on the stack to such
++   a call), and whether they hold is not known yet: the modes are still
++   being inferred. So the application is only given the position
++   [Tail_if_not_local], with the join of these modes, and [Translcore]
++   decides when inference is over. No constraint is added: no program is
++   refused, no mode and no allocation changes. *)
++let rec regain_tail_position (exp : expression) : expression =
++  let no_region =
++    List.for_all
++      (function
++        | (Texp_ghost_region | Texp_borrowed), _, _ -> false
++        | _ -> true)
++      exp.exp_extra
++  in
++  if not no_region then exp else
++  match exp.exp_desc with
++  | Texp_apply (funct, [lbl, Arg (arg, sort)], ((Tail | Default) as pos),
++                ap_mode, ap_yielding, zero_alloc)
++    when is_prim ~name:"%identity" funct ->
++      let arg' = regain_tail_position arg in
++      if arg' == arg then exp
++      else
++        { exp with
++          exp_desc =
++            Texp_apply (funct, [lbl, Arg (arg', sort)], pos, ap_mode,
++                        ap_yielding, zero_alloc) }
++  | Texp_apply (funct, args, Default, ap_mode, ap_yielding, zero_alloc) ->
++      begin match !untaken_tail_call with
++      | Some ut when ut.ut_desc == exp.exp_desc ->
++          let mode =
++            Regionality.join
++              (locality_as_regionality ut.ut_ap_mode
++               :: List.map (With_regionality.proj_comonadic Areality)
++                    ut.ut_passed)
++          in
++          let mode =
++            (* As for the other modes kept in the typed tree. *)
++            if Language_extension.(is_at_least Mode_polymorphism Alpha)
++            then fst (Regionality.newvar_above 0 mode)
++            else mode
++          in
++          { exp with
++            exp_desc =
++              Texp_apply (funct, args, Tail_if_not_local mode, ap_mode,
++                          ap_yielding, zero_alloc) }
++      | Some _ | None -> exp
++      end
++  | Texp_field
++      ({ record;
++         record_repres =
++           (Record_unboxed | Record_inlined (_, _, Variant_unboxed));
++         _ } as field) ->
++      let record' = regain_tail_position record in
++      if record' == record then exp
++      else { exp with exp_desc = Texp_field { field with record = record' } }
++  | Texp_construct (lid, cstr, repr, [sort, arg], alloc_mode)
++    when (match cstr.cstr_tag, cstr.cstr_repr with
++          | Ordinary _, (Variant_unboxed | Variant_with_null) -> true
++          | _ -> false) ->
++      let arg' = regain_tail_position arg in
++      if arg' == arg then exp
++      else
++        { exp with
++          exp_desc = Texp_construct (lid, cstr, repr, [sort, arg'], alloc_mode)
++        }
++  | Texp_record
++      ({ fields = [| label, sort, Overridden (lid, arg) |];
++         representation =
++           (Record_unboxed | Record_inlined (Ordinary _, _, Variant_unboxed));
++         extended_expression = None;
++         _ } as record) ->
++      let arg' = regain_tail_position arg in
++      if arg' == arg then exp
++      else
++        { exp with
++          exp_desc =
++            Texp_record
++              { record with
++                fields = [| label, sort, Overridden (lid, arg') |] } }
++  | _ -> exp
++
+ (* List labels in a function type, and whether return type is a variable *)
+ let rec list_labels_aux env visited ls ty_fun =
+   let ty = expand_head env ty_fun in
+@@ -7334,8 +7444,17 @@ and type_expect ?recarg ?(overwrite=No_overwrite) env
+       try
+         Builtin_attributes.warning_scope sexp.pexp_attributes
+           (fun () ->
+-             type_expect_ ?recarg ~overwrite env expected_mode
+-               sexp ty_expected_explained)
++             let exp =
++               type_expect_ ?recarg ~overwrite env expected_mode
++                 sexp ty_expected_explained
++             in
++             match sexp.pexp_desc, expected_mode.position with
++             | (Pexp_field _ | Pexp_construct _ | Pexp_record _
++               | Pexp_apply _), RTail (_, FTail) ->
++                 (* An expression that may leave no code, in tail position
++                    of a function. *)
++                 regain_tail_position exp
++             | _, (RNontail | RTail (_, (FTail | FNontail))) -> exp)
+       with exn when !Clflags.typing_recovery
+                  && Typing_recovery.is_recoverable exn ->
+         Typing_recovery.erroneous_type_register ty_expected_explained.ty;
+@@ -8052,7 +8171,8 @@ and type_expect_
+                 { Const.max with areality = Regional }))
+           in
+           mode
+-        | Nontail | Default -> With_regionality.newvar (get_current_level ())
++        | Nontail | Default | Tail_if_not_local _ ->
++          With_regionality.newvar (get_current_level ())
+       in
+       let funct_expected_mode = mode_default funct_mode in
+       let outer_level = get_current_level () in
+@@ -8114,7 +8234,7 @@ and type_expect_
+         | _ ->
+             (rt, funct), sargs
+       in
+-      let (args, ty_ret, mode_ret, pm, ap_yielding) =
++      let (args, ty_ret, mode_ret, pm, ap_yielding, passed_modes) =
+         type_application env loc expected_mode pm funct funct_mode sargs rt
+           ty_expected
+       in
+@@ -8150,6 +8270,19 @@ and type_expect_
+       in
+       submode ~loc ~env ~reason:(Application ty_ret) mode_ret expected_mode;
+       check_tail_call_local_returning loc env ap_mode pm;
++      begin match pm.apply_position, passed_modes, funct.exp_desc with
++      | Default, Some _, Texp_ident { kind = Id_prim _; _ } ->
++          (* Not a call. What is kept is not replaced: the application may be
++             of "%identity", around the application that was kept. *)
++          ()
++      | Default, Some passed, _ when not is_bor ->
++          (* See [regain_tail_position]. *)
++          untaken_tail_call :=
++            Some { ut_desc = exp.exp_desc;
++                   ut_passed = passed;
++                   ut_ap_mode = ap_mode }
++      | (Default | Tail | Nontail | Tail_if_not_local _), _, _ -> ()
++      end;
+       exp
+       end
+   | Pexp_match(sarg, caselist) ->
+@@ -11481,7 +11614,7 @@ and type_application env app_loc expected_mode position_and_mode
+       check_partial_application ~statement:false exp;
+       ([Nolabel, Arg (exp, arg_sort), None],
+        ty_ret, ret_mode, position_and_mode,
+-       Yielding.disallow_right Yielding.yielding)
++       Yielding.disallow_right Yielding.yielding, None)
+   | _ ->
+     (* See Note [Type-checking applications] for an overview *)
+       let ty = funct.exp_type in
+@@ -11502,9 +11635,9 @@ and type_application env app_loc expected_mode position_and_mode
+            true)
+         end
+       in
+-      let ty_ret, mode_ret, args, position_and_mode, ap_yielding =
++      let ty_ret, mode_ret, args, position_and_mode, ap_yielding, passed_modes =
+         with_local_level_generalize_structure_if_principal
+-          ~before_generalize:(fun (ty_ret, _, _, _, _) ->
++          ~before_generalize:(fun (ty_ret, _, _, _, _, _) ->
+             generalize_structure ty_ret)
+           begin fun () ->
+           (* Consider for example the application
+@@ -11574,6 +11707,21 @@ and type_application env app_loc expected_mode position_and_mode
+                                | Omitted _ -> [] ))
+                           args)))
+           in
++          (* The modes of the function and of the arguments that it is given,
++             for [regain_tail_position]. *)
++          let passed_modes =
++            if partial_app then None
++            else
++              Some
++                (With_regionality.disallow_right funct_mode
++                 :: List.filter_map
++                      (fun (_, arg, _, ~mode_fun:_) ->
++                         match arg with
++                         | Arg (_, mode_arg, _) ->
++                             Some (With_regionality.disallow_right mode_arg)
++                         | Omitted _ -> None)
++                      args)
++          in
+           let args =
+             List.map (fun (lbl, arg, sch, ~mode_fun:_) ->
+               (lbl, arg, sch))
+@@ -11593,10 +11741,10 @@ and type_application env app_loc expected_mode position_and_mode
+              [args] becomes [(Label "a", Omitted ());
+                              (Optional "opt", Arg None);
+                              (Nolabel, Arg n)] *)
+-          ty_ret, mode_ret, args, position_and_mode, ap_yielding
++          ty_ret, mode_ret, args, position_and_mode, ap_yielding, passed_modes
+         end
+       in
+-      args, ty_ret, mode_ret, position_and_mode, ap_yielding
++      args, ty_ret, mode_ret, position_and_mode, ap_yielding, passed_modes
+ 
+ and type_tuple ~is_unboxed ~overwrite ~loc ~env ~(expected_mode : expected_mode)
+     ~ty_expected ~explanation ~attributes sexpl =
+diff --git a/typing/typedtree.ml b/typing/typedtree.ml
+index fc28969..10553df 100644
+--- a/typing/typedtree.ml
++++ b/typing/typedtree.ml
+@@ -585,6 +585,7 @@ and apply_position =
+   | Tail
+   | Nontail
+   | Default
++  | Tail_if_not_local of Mode.Regionality.l
+ 
+ (* Value expressions for the class language *)
+ 
+diff --git a/typing/typedtree.mli b/typing/typedtree.mli
+index 63d8339..2888bd2 100644
+--- a/typing/typedtree.mli
++++ b/typing/typedtree.mli
+@@ -925,6 +925,16 @@ and apply_position =
+   | Tail          (* must be tail-call optimised *)
+   | Nontail       (* must not be tail-call optimised *)
+   | Default       (* tail-call optimised if in tail position *)
++  | Tail_if_not_local of Mode.Regionality.l
++      (* An application that the type checker did not find in tail position
++         ([Default]), but that is the last thing its function does: between
++         it and the tail of the function there is only what leaves no code
++         (the field of an unboxed record, an unboxed constructor, the
++         primitive "%identity"). The mode is the join of the modes of the
++         function, of the arguments and of where the result is allocated.
++         Tail-call optimised if that mode is not local once inference is
++         over, which is the condition that [Tail] imposes; left as [Default]
++         otherwise. See [Typecore.regain_tail_position]. *)
+ 
+ (* Value expressions for the class language *)
+ 

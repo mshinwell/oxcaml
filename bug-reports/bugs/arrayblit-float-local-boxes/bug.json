@@ -1,0 +1,43 @@
+{
+  "title": "%arrayblit between float arrays keeps a local box for each element at -Oclassic",
+  "category": "performance",
+  "summary": "At `-Oclassic`, `%arrayblit` between two float arrays allocates a boxed float on the local stack for each element and keeps them until the copy ends. Copying 10,000,000 elements grows the local stack to 256 MB; under `ulimit -v 450000` the program ends with `Local allocation stack overflow`.",
+  "commands": [
+    "ocamlopt -Oclassic test.ml -o test",
+    "ulimit -v 450000",
+    "./test"
+  ],
+  "reference_commands": [
+    "ocamlopt test.ml -o test",
+    "ulimit -v 450000",
+    "./test"
+  ],
+  "expected": {
+    "text": "Prints `result 1.5`.",
+    "output": "result 1.5",
+    "exit": 0
+  },
+  "actual": {
+    "text": "Prints `Fatal error: Local allocation stack overflow - out of memory`; exit status 134.",
+    "output": "Local allocation stack overflow",
+    "exit": 134
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": true,
+    "default": false,
+    "-O2": false,
+    "-O3": false,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": false,
+  "cause": "`middle_end/flambda2/from_lambda/lambda_to_lambda_transforms.ml`, `arrayblit_expanded`, reads the source element with a local allocation that Simplify is expected to remove; at `-Oclassic` it stays.",
+  "fix": null,
+  "labels": [
+    "flambda2",
+    "local-allocation",
+    "performance"
+  ],
+  "status": "open"
+}

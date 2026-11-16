@@ -1,0 +1,53 @@
+diff --git a/lambda/simplif.ml b/lambda/simplif.ml
+index e1f5e70..569a122 100644
+--- a/lambda/simplif.ml
++++ b/lambda/simplif.ml
+@@ -417,6 +417,22 @@ let beta_reduce params body args =
+       Llet(Strict, param.layout, param.name, param.debug_uid, arg, l))
+     body params args
+ 
++(* [beta_reduce] for the application [ap] of the function [lf] to exactly its
++   arguments. An application marked [Rc_close_at_apply] ends the current
++   region before the function is called: its body is then evaluated after
++   the end of that region, and the calls that are last in it are last calls.
++   The reduced body takes the place of the application, so it is put under
++   [Lexclave] to keep that. The arguments are bound outside the [Lexclave]:
++   they are evaluated before the region ends, as they were. (The first pass
++   of [simplify_lets] does not move a binding into an [Lexclave].) *)
++let beta_reduce_application (ap : lambda_apply) (lf : lfunction) args =
++  let body =
++    match ap.ap_region_close with
++    | Rc_close_at_apply -> Lexclave lf.body
++    | Rc_normal | Rc_nontail -> lf.body
++  in
++  beta_reduce lf.params body args
++
+ (* Simplification of lets *)
+ 
+ let simplify_lets lam ~restrict_to_upstream_dwarf ~gdwarf_may_alter_codegen =
+@@ -483,14 +499,14 @@ let simplify_lets lam ~restrict_to_upstream_dwarf ~gdwarf_may_alter_codegen =
+   | Lvar v ->
+      use_var bv v 1
+   | Lmutvar _ -> ()
+-  | Lapply{ap_func = ll; ap_args = args} ->
++  | Lapply ({ap_func = ll; ap_args = args} as ap) ->
+       let no_opt () = count bv ll; List.iter (count bv) args in
+       begin match ll with
+       | Lfunction lf when optimize ->
+           begin match exact_application lf args with
+           | None -> no_opt ()
+           | Some exact_args ->
+-              count bv (beta_reduce lf.params lf.body exact_args)
++              count bv (beta_reduce_application ap lf exact_args)
+           end
+       | _ -> no_opt ()
+       end
+@@ -616,7 +632,7 @@ let simplify_lets lam ~restrict_to_upstream_dwarf ~gdwarf_may_alter_codegen =
+           begin match exact_application lf args with
+           | None -> no_opt ()
+           | Some exact_args ->
+-              simplif (beta_reduce lf.params lf.body exact_args)
++              simplif (beta_reduce_application ap lf exact_args)
+           end
+       | _ -> no_opt ()
+       end

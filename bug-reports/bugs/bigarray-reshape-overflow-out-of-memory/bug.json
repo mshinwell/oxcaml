@@ -1,0 +1,35 @@
+{
+  "title": "Bigarray.reshape raises Out_of_memory when the product of the dimensions wraps",
+  "category": "runtime",
+  "summary": "`Bigarray.reshape` to dimensions whose product wraps raises `Out_of_memory` in place of the documented `Invalid_argument`. Here 5 x 3689348814741910324 is 4 modulo 2^64, the size of the array.",
+  "commands": [
+    "ocamlopt test.ml -o test",
+    "./test"
+  ],
+  "expected": {
+    "text": "Prints `result Invalid_argument(\"Bigarray.reshape: size mismatch\")`.",
+    "output": "result Invalid_argument",
+    "exit": 0
+  },
+  "actual": {
+    "text": "Prints `result Out of memory`.",
+    "output": "result Out of memory",
+    "exit": 0
+  },
+  "affects": {
+    "bytecode": true,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": true,
+  "fix": null,
+  "labels": [
+    "runtime",
+    "bigarray"
+  ],
+  "status": "open"
+}

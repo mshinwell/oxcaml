@@ -1,0 +1,41 @@
+{
+  "title": "Match over an unboxed record takes the wrong case",
+  "category": "wrong-code",
+  "summary": "A match whose or-pattern is made of unboxed record patterns takes a case without testing another component of the scrutinee, with no warning. With a variant in place of the boolean the code reads the argument of a constant constructor (segmentation fault); `#()` and `#true | #false` patterns do the same.",
+  "commands": [
+    "ocamlopt test.ml -o test",
+    "./test"
+  ],
+  "expected": {
+    "text": "Prints `result 5`.",
+    "output": "result 5",
+    "exit": 0
+  },
+  "actual": {
+    "text": "Prints `result 4`.",
+    "output": "result 4",
+    "exit": 0
+  },
+  "affects": {
+    "bytecode": true,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": false,
+  "cause": "`typing/parmatch.ml`, `lub`, has no case for two unboxed record patterns (nor for `#()` or `#true`/`#false`), so the context of the or-pattern's handler loses a row and `lambda/matching.ml` leaves out a test.",
+  "fix": {
+    "file": "fix.diff",
+    "text": "Adds the missing cases to `lub`. Builds; `test.ml` then prints the expected result; testsuite unchanged."
+  },
+  "labels": [
+    "typing",
+    "pattern-matching",
+    "wrong-code"
+  ],
+  "status": "open",
+  "reference": "related: PR #7450 (merged) mended the same fault in Parmatch.Compat.compat; a review comment there says lub has it too"
+}

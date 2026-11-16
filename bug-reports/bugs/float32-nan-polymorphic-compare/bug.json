@@ -1,0 +1,36 @@
+{
+  "title": "Polymorphic equality on float32 nan returns true",
+  "category": "runtime",
+  "summary": "Polymorphic `=` on two boxed `float32` nans returns `true`; `<>`, `<`, `<=`, `>` and `>=` also give the opposite of the IEEE answers. With the type known at the comparison the answers are right, so a result can change with inlining.",
+  "commands": [
+    "ocamlopt test.ml -o test",
+    "./test"
+  ],
+  "expected": {
+    "text": "Prints `result false`.",
+    "output": "result false",
+    "exit": 0
+  },
+  "actual": {
+    "text": "Prints `result true`.",
+    "output": "result true",
+    "exit": 0
+  },
+  "affects": {
+    "bytecode": true,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": false,
+  "cause": "`runtime/float32.c`, `float32_cmp`, returns the total order and never sets `Caml_state->compare_unordered`, as `runtime/bigarray.c` does.",
+  "fix": null,
+  "labels": [
+    "runtime",
+    "float32"
+  ],
+  "status": "open"
+}

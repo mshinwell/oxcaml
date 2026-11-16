@@ -1,0 +1,36 @@
+diff --git a/runtime/array.c b/runtime/array.c
+index 9d69772..c377fb3 100644
+--- a/runtime/array.c
++++ b/runtime/array.c
+@@ -504,6 +504,16 @@ CAMLprim value caml_makearray_dynamic_non_scannable_unboxed_product(
+   // custom block, and is packed.
+   int reserved = Reserved_mixed_block_scannable_wosize_native(0);
+ 
++  /* Test the length before it is multiplied.  [mlsize_t] arithmetic is modulo
++     2^64, so the product of a length that is too large (or negative: a very
++     large [mlsize_t]) and the number of components can be a small number,
++     which the test on [size] below would accept. */
++  if (num_components >= 1
++      && non_unarized_length > Max_array_wosize / num_components) {
++    caml_invalid_argument(
++      "%makearray_dynamic: array size too large (> Max_array_wosize)");
++  }
++
+   size = non_unarized_length * num_components;
+   if (size == 0) {
+     res = Atom(0);
+@@ -559,6 +569,14 @@ CAMLprim value caml_makearray_dynamic_scannable_unboxed_product(
+ 
+   int tag = 0;
+ 
++  /* As in [caml_makearray_dynamic_non_scannable_unboxed_product]: test the
++     length before it is multiplied. */
++  if (num_initializers >= 1
++      && non_unarized_length > Max_array_wosize / num_initializers) {
++    caml_invalid_argument(
++      "%makearray_dynamic: array size too large (> Max_array_wosize)");
++  }
++
+   size = non_unarized_length * num_initializers;
+   if (size == 0) {
+     res = Atom(0);

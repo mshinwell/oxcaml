@@ -1,0 +1,36 @@
+{
+  "title": "A double stored in a float16 Bigarray is rounded twice",
+  "category": "runtime",
+  "summary": "A double stored in a `float16` Bigarray is rounded to `float` first, then to 16 bits, so it can be rounded the wrong way: `0x1.0020000001p+0` is stored as 1, where the nearest `float16` is `0x1.004p+0`.",
+  "commands": [
+    "ocamlopt test.ml -o test",
+    "./test"
+  ],
+  "expected": {
+    "text": "Prints `result 0x1.004p+0`.",
+    "output": "result 0x1.004p+0",
+    "exit": 0
+  },
+  "actual": {
+    "text": "Prints `result 0x1p+0`.",
+    "output": "result 0x1p+0",
+    "exit": 0
+  },
+  "affects": {
+    "bytecode": true,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": true,
+  "cause": "`runtime/bigarray.c`: `caml_float16_of_double`, `caml_ba_set_aux` and `caml_ba_fill` convert through `(float)`.",
+  "fix": null,
+  "labels": [
+    "runtime",
+    "bigarray"
+  ],
+  "status": "open"
+}

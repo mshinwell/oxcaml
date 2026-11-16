@@ -1,0 +1,36 @@
+{
+  "title": "Out_of_memory cannot be caught for Array.make or Bytes.create",
+  "category": "question",
+  "summary": "`Array.make` or `Bytes.create` of 2^40 elements ends the program with `Fatal error: Out of memory` in place of raising `Out_of_memory`, in native code and bytecode. OCaml 5.4.0 raises, and `stdlib.mli` documents the exception for array creation.",
+  "commands": [
+    "ocamlopt test.ml -o test",
+    "./test"
+  ],
+  "expected": {
+    "text": "Prints `result Out_of_memory`.",
+    "output": "result Out_of_memory",
+    "exit": 0
+  },
+  "actual": {
+    "text": "Prints `Fatal error: Out of memory`; exit status 134.",
+    "output": "Fatal error: Out of memory",
+    "exit": 134
+  },
+  "affects": {
+    "bytecode": true,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": false,
+  "cause": "`runtime/memory.c`, `alloc_shr`, calls `caml_fatal_out_of_memory`.",
+  "fix": null,
+  "labels": [
+    "runtime",
+    "question"
+  ],
+  "status": "open"
+}

@@ -1,0 +1,44 @@
+{
+  "title": "`[@unboxable]` on a local parameter makes the last calls of the function not tail calls",
+  "category": "lost-tail-call",
+  "summary": "With `[@unboxable]` on a local parameter, a function that calls itself last does not run in constant stack at the default level, `-O2` and `-O3`. `-Oclassic` ignores the attribute; without it the loop runs in constant stack.",
+  "commands": [
+    "ocamlopt test.ml -o test",
+    "ulimit -s 8192",
+    "./test"
+  ],
+  "reference_commands": [
+    "ocamlc test.ml -o test.byte",
+    "ulimit -s 8192",
+    "OCAMLRUNPARAM=l=1M ./test.byte"
+  ],
+  "expected": {
+    "text": "Prints `result 70000000`.",
+    "output": "result 70000000",
+    "exit": 0
+  },
+  "actual": {
+    "text": "`Fatal error: exception Stack_overflow`.",
+    "output": "Stack_overflow",
+    "exit": 2
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": false,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": false,
+  "cause": "`compute_body_of_unboxed_function` in `middle_end/flambda2/from_lambda/closure_conversion.ml` begins a region at the start of the function to rebuild the block of the parameter, and replaces the return continuation of the body by one that ends the region, so every last call returns to it.",
+  "fix": null,
+  "labels": [
+    "flambda2",
+    "local-allocation",
+    "tail-call"
+  ],
+  "status": "open",
+  "reference": "related: PR #7810 (closed), the same loss for an [@unboxable] result"
+}

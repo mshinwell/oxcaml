@@ -1,0 +1,62 @@
+diff --git a/middle_end/flambda2/types/env/join_env.ml b/middle_end/flambda2/types/env/join_env.ml
+index 5bfba91..d70f5ed 100644
+--- a/middle_end/flambda2/types/env/join_env.ml
++++ b/middle_end/flambda2/types/env/join_env.ml
+@@ -1406,6 +1406,42 @@ let recover_inverse_relations ~exists_in_all_joined_envs inverse_relations name
+   | Region _ ->
+     ty, inverse_relations
+ 
++(* A variable of the target environment has a value on every run through every
++   use if, at each use, what it stands for is available at normal name mode
++   there: a variable of the term in scope at the use, or a constant. This is not
++   so for a variable that an earlier join imported from only some of its uses,
++   nor for an existential variable that stands for such a variable at some use:
++   those are in the environment at [In_types] mode, with a type, on paths where
++   nothing was ever bound to them. *)
++let has_a_value_in_all_joined_envs t var types =
++  let source_env = Bindings_in_target_env.source_env t.bindings in
++  match
++    Source_env.exists_at_name_mode ~min_name_mode:Name_mode.normal source_env
++      (var : Variable_in_target_env.t :> Variable.t)
++  with
++  | Some _ -> true
++  | None ->
++    let simples : Simple.t Index.Map.t =
++      match
++        Variable_in_target_env.Map.find_opt var t.definitions_of_existentials
++      with
++      | Some (simples, _kind) ->
++        (simples : Simples_in_joined_envs.t :> Simple.t Index.Map.t)
++      | None ->
++        Index.Map.map
++          (fun _ -> Simple.var (var : Variable_in_target_env.t :> Variable.t))
++          types
++    in
++    Index.Map.for_all
++      (fun index simple ->
++        let env = Joined_envs.get_nth_joined_env t.joined_envs index in
++        match
++          TE.get_canonical_simple_exn env simple ~min_name_mode:Name_mode.normal
++        with
++        | exception Not_found -> false
++        | (_ : Simple.t) -> true)
++      simples
++
+ let n_way_join_round ~(n_way_join_type : n_way_join_type) t equations_to_join
+     inverse_relations =
+   Variable_in_target_env.Map.fold
+@@ -1438,7 +1474,13 @@ let n_way_join_round ~(n_way_join_type : n_way_join_type) t equations_to_join
+             TG.print ty (Index.Map.print TG.print)
+             (types : Type_in_one_joined_env.t Index.Map.t :> TG.t Index.Map.t);
+         let ty, inverse_relations =
+-          if exists_in_all_joined_envs
++          (* A relation recovered here says that a variable holds the result of
++             [Is_int], [Get_tag] or [Is_null] of [name]. That is meaningful only
++             on runs where [name] has a value, so it is not enough that every
++             joined environment has a type for [name]. *)
++          if
++            exists_in_all_joined_envs
++            && has_a_value_in_all_joined_envs t var types
+           then
+             recover_inverse_relations ~exists_in_all_joined_envs
+               inverse_relations

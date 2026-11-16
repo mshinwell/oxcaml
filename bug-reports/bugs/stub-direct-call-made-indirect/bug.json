@@ -1,0 +1,41 @@
+{
+  "title": "Simplify makes the direct call in the wrapper of a function with an optional argument indirect",
+  "category": "performance",
+  "summary": "The wrapper made for a function with an optional argument (also for `[@unboxable]`) calls the inner function directly before Simplify and through the closure after it, at the default level, `-O2` and `-O3`. So `[@zero_alloc]` on such a function fails with `called function may allocate (indirect tailcall)`; with `-flambda2-simplify-stubs` the call stays direct and the check passes.",
+  "commands": [
+    "ocamlopt test.ml -o test",
+    "./test"
+  ],
+  "reference_commands": [
+    "ocamlopt -flambda2-simplify-stubs test.ml -o test",
+    "./test"
+  ],
+  "expected": {
+    "text": "Compiles; prints `result 42`.",
+    "output": "result 42",
+    "exit": 0
+  },
+  "actual": {
+    "text": "The zero_alloc check fails: `Error: called function may allocate (indirect tailcall)`.",
+    "output": "called function may allocate (indirect tailcall)",
+    "exit": 2
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": false,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": false,
+  "cause": "A stub is simplified apart from its set of closures (`middle_end/flambda2/simplify/simplify_static_const.ml`), and the code id of its callee is among `code_ids_never_simplified`, so the direct call is not kept.",
+  "fix": null,
+  "labels": [
+    "flambda2",
+    "zero-alloc"
+  ],
+  "status": "open",
+  "reference": "related: PR #2745 (merged; it followed PR #2663, reverted) makes such calls indirect on purpose"
+}

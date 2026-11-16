@@ -1,0 +1,20 @@
+diff --git a/middle_end/flambda2/simplify/simplify_let_cont_expr.ml b/middle_end/flambda2/simplify/simplify_let_cont_expr.ml
+index ee7ccf6..8aad6e8 100644
+--- a/middle_end/flambda2/simplify/simplify_let_cont_expr.ml
++++ b/middle_end/flambda2/simplify/simplify_let_cont_expr.ml
+@@ -1104,6 +1104,15 @@ let rec compute_specialized_continuation ~replay ~simplify_expr ~original_cont
+     let lifted_params = original.lifted_params in
+     let is_exn_handler = original.is_exn_handler in
+     let denv = data.after_downwards_traversal_of_body.denv_for_join in
++    (* A specialized copy is reached from one use only, so it does not
++       postdominate the body of the [Let_cont], and it must not be treated as
++       being at unit toplevel whatever the state of [denv_for_join] is (the
++       generic handler was not: see
++       [Simplify_switch_expr.decide_continuation_specialization0]). Otherwise a
++       lifted constant coming from elsewhere, for example from a continuation
++       lifted out of the handler, can be placed inside one copy although it is
++       used on a path that goes through another copy. *)
++    let denv = DE.set_at_unit_toplevel_state denv false in
+     let arg_types_by_use_id =
+       let uses =
+         Continuation_uses.create cont (Bound_parameters.arity params)

@@ -1,0 +1,41 @@
+{
+  "title": "x *. -1. on a NaN gives a sign bit that differs from bytecode",
+  "category": "question",
+  "summary": "Simplify rewrites `x *. 1.` and `x /. 1.` to `x`, and `x *. -1.` and `x /. -1.` to a negation. For a NaN the result differs from what the machine computes: `Float.sign_bit (nan *. -1.)` is true in native code and false in bytecode and at `-Oclassic`; the same for `float32`, and a signalling NaN times 1. stays signalling.",
+  "commands": [
+    "ocamlopt test.ml -o test",
+    "./test"
+  ],
+  "reference_commands": [
+    "ocamlc test.ml -o test.byte",
+    "./test.byte"
+  ],
+  "expected": {
+    "text": "Prints `result false`.",
+    "output": "result false",
+    "exit": 0
+  },
+  "actual": {
+    "text": "Prints `result true`.",
+    "output": "result true",
+    "exit": 0
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": false,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": false,
+  "cause": "`middle_end/flambda2/simplify/simplify_binary_primitive.ml`: the identities are applied under a comment that says they keep the bit pattern.",
+  "fix": null,
+  "labels": [
+    "flambda2",
+    "float",
+    "question"
+  ],
+  "status": "open"
+}

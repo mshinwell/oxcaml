@@ -1,0 +1,33 @@
+diff --git a/typing/typecore.ml b/typing/typecore.ml
+index 9c94cfb..bc24e85 100644
+--- a/typing/typecore.ml
++++ b/typing/typecore.ml
+@@ -7809,6 +7809,28 @@ and type_expect_
+         exp_env = env }
+       in
+       submode ~loc ~env actual_mode expected_mode;
++      (* An instance of a layout-polymorphic function is not the function
++         itself: it is a closure made at this place. If the function is
++         global the closure is on the heap; if not, it is on the stack of
++         local allocations, in the region that is open here. So the instance
++         must also be accepted at the mode of the function with "in a region
++         further out" replaced by "in the current region": an instance of a
++         local function may not leave the region where it is written (it may
++         not be the result of the function around, be kept in a variable of
++         an outer region, or be the function or an argument of a tail call).
++         Where the mode of the function is still open, such a use makes the
++         function global, as a partial application that must be global
++         already does. The check above is kept for its message: where the
++         function itself is refused, the message is the one of the
++         function. *)
++      if not (List.is_empty layout_args) then begin
++        let instance_mode =
++          actual_mode
++          |> with_regionality_to_locality_r2l
++          |> with_locality_as_regionality
++        in
++        submode ~loc ~env instance_mode expected_mode
++      end;
+       if List.is_empty layout_args then exp
+       else { exp with exp_desc = Texp_apply_layout (exp, layout_args) }
+   | Pexp_constant({pconst_desc = Pconst_string (str, _, _); _} as cst) -> (

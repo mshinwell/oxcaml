@@ -1,0 +1,38 @@
+{
+  "title": "Bytecode and native code evaluate the object of a method call at different times",
+  "category": "question",
+  "summary": "In `(make ())#pack (say \"a\" 1) (say \"b\" 2)` bytecode evaluates the object after the arguments, native code before them. The order is unspecified; the two differ.",
+  "commands": [
+    "ocamlopt test.ml -o test",
+    "./test"
+  ],
+  "reference_commands": [
+    "ocamlc test.ml -o test.byte",
+    "./test.byte"
+  ],
+  "expected": {
+    "text": "The same order as bytecode: prints `result bao 12`.",
+    "output": "result bao 12",
+    "exit": 0
+  },
+  "actual": {
+    "text": "Prints `result oba 12`.",
+    "output": "result oba 12",
+    "exit": 0
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": true,
+    "default": true,
+    "-O2": true,
+    "-O3": true,
+    "flags": [],
+    "safe-subst": "no"
+  },
+  "upstream": true,
+  "fix": null,
+  "labels": [
+    "question"
+  ],
+  "status": "open"
+}

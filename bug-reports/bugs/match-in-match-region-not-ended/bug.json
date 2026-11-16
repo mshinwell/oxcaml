@@ -1,0 +1,47 @@
+{
+  "title": "With `-flambda2-match-in-match`, a region begun in a loop is never ended",
+  "category": "crash",
+  "summary": "At `-O2` and `-O3` with `-flambda2-match-in-match`, the region of `g`, inlined into the loop, is begun in every turn and never ended, so the local stack grows until the program stops with `Local allocation stack overflow - out of memory`. With a `try` or an `exclave_` in the region, the lost end also gives wrong values.",
+  "commands": [
+    "ocamlopt -O3 -flambda2-match-in-match test.ml -o test",
+    "ulimit -v 200000",
+    "./test"
+  ],
+  "reference_commands": [
+    "ocamlopt -O3 test.ml -o test",
+    "ulimit -v 200000",
+    "./test"
+  ],
+  "expected": {
+    "text": "Prints `result 500000020000000`.",
+    "output": "result 500000020000000",
+    "exit": 0
+  },
+  "actual": {
+    "text": "`Fatal error: Local allocation stack overflow - out of memory`.",
+    "output": "Local allocation stack overflow",
+    "exit": 134
+  },
+  "affects": {
+    "bytecode": false,
+    "-Oclassic": false,
+    "default": false,
+    "-O2": true,
+    "-O3": true,
+    "flags": [
+      "-flambda2-match-in-match"
+    ],
+    "safe-subst": "no"
+  },
+  "upstream": null,
+  "cause": "After the handler is specialised, the region is a parameter of a lifted continuation used only by `End_region`; the flow analysis (`middle_end/flambda2/simplify/flow/flow_acc.ml`) does not count that use, and `simplify_let_expr.ml` deletes an `End_region` whose region is not required.",
+  "fix": {
+    "file": "fix.diff",
+    "text": "Makes a region parameter given to `End_region` required whenever a region passed for it is. Builds; `test.ml` then prints the expected result; testsuite unchanged."
+  },
+  "labels": [
+    "flambda2",
+    "local-allocation"
+  ],
+  "status": "open"
+}
