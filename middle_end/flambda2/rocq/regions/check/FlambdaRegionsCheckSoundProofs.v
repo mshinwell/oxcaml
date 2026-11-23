@@ -25,7 +25,7 @@
  * DEALINGS IN THE SOFTWARE.                                                  *
  ******************************************************************************)
 
-(* Proofs of the eight statements of FlambdaRegionsCheckSoundSpec.v. That
+(* Proofs of the eleven statements of FlambdaRegionsCheckSoundSpec.v. That
    where a run stops because [step] has no step the run of the term with
    its regions dropped goes wrong is C3's, of FlambdaRegionsNoStepProofs.v,
    whose last theorem has the text of the statement. That the check is
@@ -34,10 +34,15 @@
    statement asks of the states of the run. The two statements about a run
    of Simplify of which [refines] is a premise are those of
    FlambdaRegionsCheckProofs.v, with the soundness of the check for their
-   premise [regions_add_no_fault]. The two of a unit with its imports
+   premise [regions_add_no_fault]. The two with less than [refines]
+   for their premise are proved as those two are: the first from the
+   soundness of the check, the second from it and from the two
+   statements of the erasure about exits. [refines] gives their
+   premises by its definition. The two of a unit with its imports
    and [unit_refines] of the two terms with their regions dropped are
-   those two at the static environment of the imports: that premise
-   is their premise [refines], by computation. The two of a unit with
+   instances of the two with less than [refines], at the static
+   environment of the imports: [unit_refines] there is [refines] of
+   the first states, by computation. The two of a unit with
    its imports and a verdict follow from them: the theorem of the
    validation with imports gives [unit_refines] of the two terms that
    the validation is given, the comparison up to bound names is
@@ -51,7 +56,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaRegionsErasureSpec FlambdaRegionsCheckSpec FlambdaRegionsCheckedSpec
   FlambdaRegionsCheckSoundSpec.
 From OxCamlFlambda2 Require Import FlambdaSemanticsProofs FlambdaCompareProofs
-  FlambdaValidateImportsProofs FlambdaRegionsNoStepProofs.
+  FlambdaValidateImportsProofs FlambdaRegionsErasureProofs
+  FlambdaRegionsNoStepProofs.
 From OxCamlFlambda2 Require Import FlambdaRegionsCheckedProofs
   FlambdaRegionsCheckProofs.
 Import ListNotations.
@@ -113,6 +119,60 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
+(* The same, with less than a refinement                                    *)
+(* ======================================================================== *)
+
+Theorem refines_erased_related : refines_erased_related_statement.
+Proof.
+  intros statics before after [Hexits Hback].
+  split.
+  - intros Hwrong.
+    assert (Hne : Goes_wrong <> Diverges) by discriminate.
+    destruct (Hback Goes_wrong Hne Hwrong) as [H | H]; exact H.
+  - intros k vs hp Hbehaves. exists vs, hp.
+    split; [ exact (Hexits k vs hp Hbehaves) | split; reflexivity ].
+Qed.
+
+(* The check gives that the regions of the term after add no fault to
+   it; so where its run stopped without a step, the term after, and
+   then the term before, would go wrong with its regions dropped. *)
+Theorem related_and_checked_safe : related_and_checked_safe_statement.
+Proof.
+  intros cert statics base before after Honly Hdefined Hcheck Hfresh
+    Herasable fuel fault Hrun.
+  exact
+    (Hdefined
+       (Honly
+          (region_check_sound cert statics base after Hcheck Hfresh
+             Herasable fuel fault Hrun))).
+Qed.
+
+(* The exit of the term before with its regions is erased to an exit
+   of the term before with its regions dropped; the premise gives an
+   exit of the term after with its regions dropped that is related to
+   it; and where that term exits, the term after with its regions
+   exits alike, as it never stops without a step. *)
+Theorem related_and_checked_exits : related_and_checked_exits_statement.
+Proof.
+  intros R cert statics base before after Hfresh Hfresh' Herasable
+    Herasable' Hexits Honly Hdefined Hcheck fuel k vs rs Hrun.
+  pose proof
+    (related_and_checked_safe cert statics base before after Honly Hdefined
+       Hcheck Hfresh' Herasable')
+    as Hsafe.
+  destruct
+    (erasure_exits before statics base fuel k vs rs Hfresh Herasable Hrun)
+    as (us & hp & Hbehaves & Hvs).
+  destruct (Hexits k us hp Hbehaves) as (us' & hp' & Hbehaves' & Hrelated).
+  destruct
+    (erasure_adds_no_exit after statics base k us' hp' Hfresh' Herasable'
+       Hbehaves')
+    as [fuel' [[fault Hfault] | (ws & rs' & Hrun' & Hws)]].
+  - contradiction (Hsafe fuel' fault Hfault).
+  - exists fuel', ws, rs', us, us', hp, hp'. auto 10.
+Qed.
+
+(* ======================================================================== *)
 (* The same, of a unit with its imports and a refinement of the two terms   *)
 (* with their regions dropped                                               *)
 (* ======================================================================== *)
@@ -133,21 +193,31 @@ Theorem unit_refined_and_checked_safe :
 Proof.
   intros imports cert base before after statics Hrefines Hdefined Hcheck
     Hfresh Herasable.
+  destruct
+    (refines_erased_related statics before after
+       (unit_refines_erased imports before after Hrefines))
+    as [Honly _].
   exact
-    (refined_and_checked_safe cert statics base before after
-       (unit_refines_erased imports before after Hrefines) Hdefined Hcheck
-       Hfresh Herasable).
+    (related_and_checked_safe cert statics base before after Honly Hdefined
+       Hcheck Hfresh Herasable).
 Qed.
 
 Theorem unit_refined_and_checked_exits_agree :
   unit_refined_and_checked_exits_agree_statement.
 Proof.
   intros imports cert base before after statics Hfresh Hfresh' Herasable
-    Herasable' Hrefines Hdefined Hcheck.
-  exact
-    (refined_and_checked_exits_agree cert statics base before after Hfresh
-       Hfresh' Herasable Herasable'
-       (unit_refines_erased imports before after Hrefines) Hdefined Hcheck).
+    Herasable' Hrefines Hdefined Hcheck fuel k vs rs Hrun.
+  destruct
+    (refines_erased_related statics before after
+       (unit_refines_erased imports before after Hrefines))
+    as [Honly Hexits].
+  destruct
+    (related_and_checked_exits _ cert statics base before after Hfresh
+       Hfresh' Herasable Herasable' Hexits Honly Hdefined Hcheck fuel k vs rs
+       Hrun)
+    as (fuel' & ws & rs' & us & us' & hp & hp' & Hrun' & _ & _ & Hvs & Hws
+        & -> & _).
+  exists fuel', ws, rs', us. auto.
 Qed.
 
 (* ======================================================================== *)

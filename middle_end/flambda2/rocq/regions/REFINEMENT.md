@@ -83,6 +83,54 @@ refinement. `unit_refines` of the two units with their regions dropped
 is that `refines` at the static environment of the imports: one
 proposition, by computation.
 
+## Where the statement about the pass is less than `refines`
+
+A pass that removes what nothing reads, as the rebuild of the reaper
+does, need not give `refines`: the unit after may exit with closures
+that have fewer value slots, and with other cells in its heap. A
+statement about such a pass compares the exits of the two units in one
+of three ways:
+
+1. The exits are equal: `refines`, `unit_refines`. The two statements
+   above are for it.
+2. The heaps are equal and the values are related by less than equality:
+   closures are compared without their value slots, say.
+3. The values and the heaps are related up to a correspondence of the
+   locations of the two heaps.
+
+For the second and the third, two statements of the same file,
+`related_and_checked_safe_statement` and
+`related_and_checked_exits_statement`, take what the two above use of
+`refines` and no more. They are of any static environment; at that of
+the imports, `erased_initial_state e statics` is the state from which
+`unit_refines` runs `erase [] e`.
+
+- `erased_after_wrong_only_if_before`: where the unit after, with its
+  regions dropped, goes wrong, the unit before, with its regions dropped,
+  does. For "never stops without a step" it is the only premise about
+  the pass. A statement of any of the three kinds gives it, if it says
+  that the unit after goes wrong only where the unit before does.
+- `erased_exits_related R`: an exit of the unit before, with its regions
+  dropped, is matched by an exit of the unit after, with its regions
+  dropped, through the same continuation, and `R` holds of the values and
+  the heaps of the two. `R` is the comparison of the statement about the
+  pass: for the second kind, the same heap and the values related; for
+  the third, the relation of values and heaps up to the correspondence.
+
+Given an exit of the unit before with its regions, the statement of the
+exits supplies an exit of the unit after at the same continuation. It
+also supplies an exit of each erased unit at that continuation. The
+values of each run with regions are related to the values of its own
+erased exit by `value_erased_if_usable`; `R` holds of the values and
+heaps of the two erased exits. This does not give `R` of the values or
+heaps of the runs with regions.
+
+`refines` gives the two premises, with equality of values and heap for
+`R` (`refines_erased_related_statement`). The two statements of a unit,
+above, are proved using this instance. In the statement of the exits of
+that pair, the two lists of values of the runs with regions are related
+to one common list of erased values.
+
 ## What does not follow
 
 - No safety conclusion for the unit before with its regions, and no

@@ -34,14 +34,14 @@
 
    This file is to be reviewed: all of it. It adds nothing to the
    machine, to the check or to the property of states.
-   FlambdaRegionsCheckSoundProofs.v proves its eight statements.
+   FlambdaRegionsCheckSoundProofs.v proves its eleven statements.
 
-   Every statement here is of runs from the first state of a term in
-   a static environment ([initial_region_state]), under those two
-   premises, which each statement writes out: of the one term where
-   one term is run, of the term after where only its run on the
-   machine of regions is spoken of, of both terms where an exit of
-   the term before is.
+   Each statement here about a run on the machine of regions is of a
+   run from the first state of a term in a static environment
+   ([initial_region_state]), under those two premises, which it
+   writes out: of the one term where one term is run, of the term
+   after where only its run on the machine of regions is spoken of,
+   of both terms where an exit of the term before is.
 
    WHAT IT ADDS TO THE STATEMENT OF THE CHECK
 
@@ -61,9 +61,11 @@
 
    The two statements of FlambdaRegionsCheckSpec.v about a run of
    Simplify take [regions_add_no_fault] of the term after as a
-   premise. The last six statements here are those two with the
-   check in the place of that premise: each in two forms, and in the
-   first form again of a unit with its imports.
+   premise. The last nine statements here are those two with the
+   check in the place of that premise: each in two forms; in the
+   first form again with less than [refines] for its premise, with
+   the statement that [refines] gives that premise; and in the first
+   form again of a unit with its imports.
 
    In the first form ([refined_and_checked_safe_statement],
    [refined_and_checked_exits_agree_statement]) a premise is
@@ -76,6 +78,30 @@
    a step; and, under the freshness and [erasable] of both terms, an
    exit of the term before with its regions is an exit of the term
    after with its regions.
+
+   The first form uses two things of [refines] and no more. Each is a
+   premise of the first form with less than a refinement
+   ([related_and_checked_safe_statement],
+   [related_and_checked_exits_statement]). The first: where the term
+   after, with its regions dropped, goes wrong, the term before, with
+   its regions dropped, does ([erased_after_wrong_only_if_before]).
+   The second, for the exits: an exit of the term before, with its
+   regions dropped, is matched by an exit of the term after, with its
+   regions dropped, through the same continuation, and a relation [R]
+   that the statement is given holds of the values and the heaps of
+   the two exits ([erased_exits_related]). With the first, the term
+   after, with its regions, never stops without a step. With both, an
+   exit of the term before with its regions is matched by one of the
+   term after with its regions: the values of each are related by
+   [value_erased_if_usable] to those of an exit of its term with its
+   regions dropped, and [R] holds of those two erased exits' values
+   and heaps. It is for a statement about a pass that compares the
+   exits of the two terms by less than equality: a pass that removes
+   what nothing reads may leave a closure at an exit with fewer value
+   slots, or leave different cells in the heap. [refines]
+   gives the two premises, the second with equality for [R]
+   ([refines_erased_related_statement]), and the first form of a unit
+   with its imports is proved so.
 
    The first form of a unit with its imports
    ([unit_refined_and_checked_safe_statement],
@@ -265,6 +291,97 @@ Definition refined_and_checked_exits_agree_statement : Prop :=
         = Region_exit k ws rs'
         ∧ Forall2 (value_erased_if_usable rs) vs us
         ∧ Forall2 (value_erased_if_usable rs') ws us.
+
+(* Where the term after, with its regions dropped, goes wrong, the
+   term before, with its regions dropped, does. *)
+Definition erased_after_wrong_only_if_before (before after : expr)
+    (statics : static_env) : Prop :=
+  behaves (erased_initial_state after statics) Goes_wrong ->
+  behaves (erased_initial_state before statics) Goes_wrong.
+
+(* An exit of the term before, with its regions dropped, is matched by
+   an exit of the term after, with its regions dropped, through the
+   same continuation, and [R] holds of the values and the heap of the
+   first and of those of the second. *)
+Definition erased_exits_related
+    (R : list value -> heap -> list value -> heap -> Prop)
+    (before after : expr) (statics : static_env) : Prop :=
+  ∀ (k : continuation) (vs : list value) (hp : heap),
+    behaves (erased_initial_state before statics) (Exits k vs hp) ->
+    ∃ (vs' : list value) (hp' : heap),
+      behaves (erased_initial_state after statics) (Exits k vs' hp')
+      ∧ R vs hp vs' hp'.
+
+(* [refines] of the first states of the two terms with their regions
+   dropped gives both: the second with, for [R], the same values and
+   the same heap. *)
+Definition refines_erased_related_statement : Prop :=
+  ∀ (statics : static_env) (before after : expr),
+    refines (erased_initial_state before statics)
+      (erased_initial_state after statics) ->
+    erased_after_wrong_only_if_before before after statics
+    ∧ erased_exits_related (fun vs hp vs' hp' => vs' = vs ∧ hp' = hp) before
+        after statics.
+
+(* [refined_and_checked_safe_statement] with what it uses of [refines]
+   in the place of [refines]. The first two premises together imply
+   that the term after, with its regions dropped, does not go wrong.
+   With non-wrongness of the erased term before fixed, the first
+   premise is equivalent to non-wrongness of the erased term after.
+   Nothing else of the term before is used. Nothing is asked of the
+   regions of the term before. *)
+Definition related_and_checked_safe_statement : Prop :=
+  ∀ (cert : certificate) (statics : static_env) (base : symbol)
+    (before after : expr),
+    erased_after_wrong_only_if_before before after statics ->
+    ~ behaves (erased_initial_state before statics) Goes_wrong ->
+    region_check cert statics after = true ->
+    region_names_fresh base after statics = true ->
+    erasable after statics = true ->
+    region_safe (initial_region_state after statics base).
+
+(* And the exits, with a relation [R] of the exits of the two terms
+   with their regions dropped in the place of their equality. An exit
+   of the term before with its regions is matched by an exit of the
+   term after with its regions, through the same continuation. The
+   values of the first are erased, where they may be evaluated or are
+   locations, to those of an exit of the term before with its regions
+   dropped; the values of the second, in the same way, to those of an
+   exit of the term after with its regions dropped; and [R] holds of
+   those two exits, values and heaps.
+
+   [R] is any relation. With one that nothing satisfies,
+   [erased_exits_related] says that the term before, with its regions
+   dropped, has no exit; the term before with its regions then has
+   none (FlambdaRegionsErasureSpec.erasure_exits_statement), and the
+   statement says nothing. With one that everything satisfies, the
+   conclusion is still that the term after with its regions exits
+   through the same continuation, with values erased to those of an
+   exit of the term after with its regions dropped. *)
+Definition related_and_checked_exits_statement : Prop :=
+  ∀ (R : list value -> heap -> list value -> heap -> Prop)
+    (cert : certificate) (statics : static_env) (base : symbol)
+    (before after : expr),
+    region_names_fresh base before statics = true ->
+    region_names_fresh base after statics = true ->
+    erasable before statics = true ->
+    erasable after statics = true ->
+    erased_exits_related R before after statics ->
+    erased_after_wrong_only_if_before before after statics ->
+    ~ behaves (erased_initial_state before statics) Goes_wrong ->
+    region_check cert statics after = true ->
+    ∀ (fuel : nat) (k : continuation) (vs : list value) (rs : region_state),
+      region_run fuel (initial_region_state before statics base)
+      = Region_exit k vs rs ->
+      ∃ (fuel' : nat) (ws : list value) (rs' : region_state)
+        (us us' : list value) (hp hp' : heap),
+        region_run fuel' (initial_region_state after statics base)
+        = Region_exit k ws rs'
+        ∧ behaves (erased_initial_state before statics) (Exits k us hp)
+        ∧ behaves (erased_initial_state after statics) (Exits k us' hp')
+        ∧ Forall2 (value_erased_if_usable rs) vs us
+        ∧ Forall2 (value_erased_if_usable rs') ws us'
+        ∧ R us hp us' hp'.
 
 (* [refined_and_checked_safe_statement] of a unit with its imports,
    for a refinement that is proved on the machine of
