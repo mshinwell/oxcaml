@@ -3447,4 +3447,32 @@ A control: one of the generated meets of the code age relation, with the links l
   with no link in the environment of the compiler: a disagreement: yes
   with each link the other way round in the environment of the model: a disagreement: yes
 
+Relations between code ids of three compilation units, for the two meets of the code age relation of the model and of the compiler (2000 cases, seeds 190000 to 191999)
+  2000 converted
+  meet of two code ids: the model and the compiler: 2000 agree
+  of which those where the two code ids are one: 228 agree
+  of which those where they are two and the compiler answers one of them, the newer: 354 agree
+  of which those where the compiler answers bottom: 996 agree
+  of which those where the compiler answers that it is not known: 422 agree
+  of which those where the compiler asks the resolver: 1445 agree
+  of which those where it asks for a unit whose relation the resolver has: 1126 agree
+  meet of two code ids: the model, the compiler and the links as the test reads them: 2000 agree
+  of which those where a walk that went on in the first relation, after the resolver gave the relation of a unit, would answer otherwise: 66 agree
+  meet_set of two sets of code ids: the model and the compiler: 2000 agree
+  of which those where the two sets are one set: 423 agree
+  of which those where the compiler answers bottom: 198 agree
+  of which those where the two sets are two and the compiler answers one of them: 447 agree
+  of which those where the compiler answers a set that is neither of the two: 932 agree
+  of which those where the compiler asks the resolver: 1461 agree
+  of which those where it asks for a unit whose relation the resolver has: 1229 agree
+  the older version of each code id, in the relation and in each relation that the resolver has: the model and the compiler: 2000 agree
+
+A control: two of the generated meets of two code ids, with one step for the model, and with no relation for the resolver of the model
+  the first meet on which the compiler answers a code id after it has asked the resolver for a unit whose relation the resolver has: seed 190000
+  the model answers the same, and asks the resolver for the same units: yes
+  with one step, the model has no answer: yes
+  the first meet on which the compiler answers a code id and the links, as the test reads them, give another answer where the resolver has no relation: seed 190000
+  the model answers the same, and asks the resolver for the same units: yes
+  with no relation for the resolver of the model: the answer of the model is not that of the compiler: yes
+
 No disagreement.

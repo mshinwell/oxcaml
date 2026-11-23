@@ -37,7 +37,12 @@
    two code ids reads it ([Meet_env.code_age_relation],
    FlambdaMeetEnv.v) and goes by [meet] ([meet_code_id], FlambdaMeet.v;
    the files FlambdaMeetCodeAge* have the statements). The extraction
-   writes the module with them, for the tests of types. Outside the
+   writes the module with them, for the tests of types; one of those
+   tests runs [meet] and [meet_set] beside the compiler's own, on
+   relations of three compilation units
+   (tests/semantics/types/types_difftest.ml), and FlambdaExtract.v
+   names [empty], [add], [get_older_version_of], [meet] and [meet_set]
+   for it. Outside the
    files FlambdaTypingEnv*, FlambdaMeet*, FlambdaCodeAgeRelation* and
    FlambdaCodeAgeCalls*, no definition of the tree names these. The
    terms of the model do not say of which code their code is a newer

@@ -11313,6 +11313,812 @@ let control_of_the_code_ages (names : names) ~seed ~count =
             }))
 
 (* ======================================================================== *)
+(* The code age relation itself                                             *)
+(* ======================================================================== *)
+
+(* [Code_age_relation.meet] and [Code_age_relation.meet_set] of the compiler
+   beside their transcriptions (FlambdaCodeAgeRelation.v, extracted), on
+   generated relations, with no typing environment and no type. The code ids are
+   of three compilation units: the current unit and two others, whose relations
+   the resolver has, or has not (a .cmx file that is missing). So what the two
+   functions do with a code id of another unit is run here. The tests of the
+   meet of types above cannot run it: the typing environment of the model has
+   one unit.
+
+   The transcriptions are bounded: they are given a number of steps, one for
+   each code id that a walk looks at, and have no answer when the steps run out.
+   Every link of every relation of these tests goes from a code id to one before
+   it in one list. So a walk looks at a code id once at most, whichever
+   relations it goes through: one step more than there are code ids is enough,
+   and the functions of the compiler, which have no bound, return. *)
+module Model_code_ages =
+  Flambda2_rocq_semantics.FlambdaCodeAgeRelation.Code_age_relation
+
+type units_of_code_ids =
+  { (* The current unit, then two others. *)
+    units : Compilation_unit.t list;
+    (* The code ids, each with the position of its unit in [units], in the order
+       in which the links go: from a code id to one before it. *)
+    code_ids_of_units : (M.code_id * int) list
+  }
+
+(* Nine code ids, numbered after every code id numbered before: four of the
+   current unit, three of the first other unit and two of the second. *)
+let code_ids_of_three_units (names : names) : units_of_code_ids =
+  let units =
+    [ Current_unit.get_cu_exn ();
+      Compilation_unit.of_string "Types_difftest_a";
+      Compilation_unit.of_string "Types_difftest_b" ]
+  in
+  let code_ids_of_units =
+    List.map
+      (fun (name, position) ->
+        ( names.numbering.code_ids.number
+            (Code_id.create ~name ~debug:Debuginfo.none
+               (List.nth units position)),
+          position ))
+      [ "m0", 0;
+        "a1", 1;
+        "m2", 0;
+        "b3", 2;
+        "a4", 1;
+        "m5", 0;
+        "b6", 2;
+        "a7", 1;
+        "m8", 0 ]
+  in
+  { units; code_ids_of_units }
+
+(* The relation that the two functions are given, what the resolver answers for
+   each of the two other units (nothing, or the links of a relation), two code
+   ids for [meet], and two sets of code ids, each without repetition, for
+   [meet_set]. A relation is the links that were added to the empty one, in
+   their order. *)
+type meets_of_code_ids =
+  { relation : (M.code_id * M.code_id) list;
+    of_other_units : (M.code_id * M.code_id) list option list;
+    two_code_ids : M.code_id * M.code_id;
+    two_sets : M.code_id list * M.code_id list
+  }
+
+(* The links of a relation that is mostly about the code ids of the unit at a
+   position: a code id of that unit is, six times in ten, a newer version of one
+   of those before it in the list, and another code id two times in ten; then
+   one in ten of the code ids from the third is given a link once more, which
+   the relation keeps in the place of the first where it had one. *)
+let generate_links_about ({ units = _; code_ids_of_units } : units_of_code_ids)
+    ~(position : int) r : (M.code_id * M.code_id) list =
+  let older_of i = fst (List.nth code_ids_of_units (G.below r i)) in
+  let first =
+    List.concat
+      (List.mapi
+         (fun i (code_id, position') ->
+           let percent = if position = position' then 60 else 20 in
+           if i >= 1 && G.chance r ~percent then [code_id, older_of i] else [])
+         code_ids_of_units)
+  in
+  let again =
+    List.concat
+      (List.mapi
+         (fun i (code_id, (_ : int)) ->
+           if i >= 2 && G.chance r ~percent:10
+           then [code_id, older_of i]
+           else [])
+         code_ids_of_units)
+  in
+  first @ again
+
+(* The resolver has the relation of each other unit three times in four. The two
+   sets have each code id three times in ten; two times in ten the second set is
+   the first. *)
+let generate_meets_of_code_ids (units : units_of_code_ids) r : meets_of_code_ids
+    =
+  let relation = generate_links_about units ~position:0 r in
+  let of_other_unit position =
+    if G.chance r ~percent:75
+    then Some (generate_links_about units ~position r)
+    else None
+  in
+  let first_other = of_other_unit 1 in
+  let second_other = of_other_unit 2 in
+  let code_id () = fst (G.pick r units.code_ids_of_units) in
+  let first_code_id = code_id () in
+  let second_code_id = code_id () in
+  let set () =
+    List.filter_map
+      (fun (code_id, (_ : int)) ->
+        if G.chance r ~percent:30 then Some code_id else None)
+      units.code_ids_of_units
+  in
+  let first_set = set () in
+  let second_set = if G.chance r ~percent:20 then first_set else set () in
+  { relation;
+    of_other_units = [first_other; second_other];
+    two_code_ids = first_code_id, second_code_id;
+    two_sets = first_set, second_set
+  }
+
+(* The position of the unit of a code id of these tests. *)
+let position_of_unit ({ units = _; code_ids_of_units } : units_of_code_ids)
+    (code_id : M.code_id) : int =
+  match
+    List.find_opt
+      (fun (code_id', (_ : int)) -> same_code_id code_id code_id')
+      code_ids_of_units
+  with
+  | Some ((_ : M.code_id), position) -> position
+  | None -> raise (Converter.Not_in_the_compiler "a code id of no unit")
+
+let print_meets_of_code_ids (units : units_of_code_ids) ppf
+    { relation; of_other_units; two_code_ids = id1, id2; two_sets = ids1, ids2 }
+    =
+  let code_id ppf code_id =
+    Format.fprintf ppf "code%a%s" N.print_positive code_id
+      (match position_of_unit units code_id with
+      | 0 -> ""
+      | 1 -> " (of the first other unit)"
+      | _ -> " (of the second other unit)")
+  in
+  let links ppf links =
+    match links with
+    | [] -> Format.pp_print_string ppf "no link"
+    | _ :: _ ->
+      Format.pp_print_list
+        ~pp_sep:(fun ppf () -> Format.fprintf ppf ";@ ")
+        (fun ppf (newer, older) ->
+          Format.fprintf ppf "%a a newer version of %a" code_id newer code_id
+            older)
+        ppf links
+  in
+  let set ppf ids =
+    Format.fprintf ppf "{%a}"
+      (Format.pp_print_list
+         ~pp_sep:(fun ppf () -> Format.fprintf ppf ",@ ")
+         code_id)
+      ids
+  in
+  Format.fprintf ppf "@[<v>the relation: @[%a@]@ " links relation;
+  List.iteri
+    (fun i (of_unit : (M.code_id * M.code_id) list option) ->
+      Format.fprintf ppf "the resolver, for the %s other unit: @[%a@]@ "
+        (if i = 0 then "first" else "second")
+        (fun ppf (of_unit : (M.code_id * M.code_id) list option) ->
+          match of_unit with
+          | None -> Format.pp_print_string ppf "nothing"
+          | Some of_unit -> links ppf of_unit)
+        of_unit)
+    of_other_units;
+  Format.fprintf ppf "the two code ids: %a and %a@ the two sets: %a and %a@]"
+    code_id id1 code_id id2 set ids1 set ids2
+
+let shrink_meets_of_code_ids
+    ({ relation; of_other_units; two_code_ids = _; two_sets = ids1, ids2 } as
+     input) : meets_of_code_ids list =
+  let without i items = List.filteri (fun j _ -> i <> j) items in
+  List.mapi (fun i _ -> { input with relation = without i relation }) relation
+  @ List.concat
+      (List.mapi
+         (fun position (of_unit : (M.code_id * M.code_id) list option) ->
+           match of_unit with
+           | None -> []
+           | Some links ->
+             List.mapi
+               (fun i _ ->
+                 { input with
+                   of_other_units =
+                     List.mapi
+                       (fun position' of_unit' ->
+                         if position = position'
+                         then Some (without i links)
+                         else of_unit')
+                       of_other_units
+                 })
+               links)
+         of_other_units)
+  @ List.mapi (fun i _ -> { input with two_sets = without i ids1, ids2 }) ids1
+  @ List.mapi (fun i _ -> { input with two_sets = ids1, without i ids2 }) ids2
+
+(* What [meet] answers. *)
+type meet_of_code_ids =
+  | No_step_left_for_meet
+  | Unknown_meet
+  | Bottom_meet
+  | Newer_code_id of M.code_id
+
+(* What [meet_set] answers: the set as its code ids in the order of their
+   numbers, each once. *)
+type meet_of_sets =
+  | No_step_left_for_meet_set
+  | Bottom_meet_set
+  | Code_ids of M.code_id list
+
+(* An answer, and the units that the resolver was asked for on the way, by their
+   positions, in the order of the positions. *)
+type 'answer asked_of_resolver =
+  { answer : 'answer;
+    asked : int list
+  }
+
+let set_of_code_ids (code_ids : M.code_id list) : M.code_id list =
+  List.sort_uniq N.compare_positive code_ids
+
+(* The steps that are enough for the functions of the model on these tests: one
+   more than there are code ids. *)
+let enough_steps (units : units_of_code_ids) : int =
+  List.length units.code_ids_of_units + 1
+
+(* The two functions of the model, given a number of steps, and the two of the
+   compiler, on an input. *)
+let meets_of_code_ids_in_the_model (units : units_of_code_ids) ~(steps : int)
+    ({ relation;
+       of_other_units;
+       two_code_ids = id1, id2;
+       two_sets = ids1, ids2
+     } :
+      meets_of_code_ids) :
+    meet_of_code_ids asked_of_resolver * meet_of_sets asked_of_resolver =
+  let of_links links : Model_code_ages.t =
+    List.fold_left
+      (fun relation (newer, older) -> Model_code_ages.add relation newer older)
+      Model_code_ages.empty links
+  in
+  let steps = N.nat_of_int steps in
+  let asking f =
+    let asked = ref [] in
+    let resolver position =
+      asked := position :: !asked;
+      if position >= 1 && position <= List.length of_other_units
+      then Option.map of_links (List.nth of_other_units (position - 1))
+      else None
+    in
+    let answer = f resolver in
+    { answer; asked = List.sort Int.compare !asked }
+  in
+  let unit_of = position_of_unit units in
+  let relation = of_links relation in
+  let meet =
+    asking (fun resolver : meet_of_code_ids ->
+        match
+          Model_code_ages.meet unit_of 0 Int.equal steps relation resolver id1
+            id2
+        with
+        | None -> No_step_left_for_meet
+        | Some Unknown -> Unknown_meet
+        | Some Bottom -> Bottom_meet
+        | Some (Ok code_id) -> Newer_code_id code_id)
+  in
+  let meet_set =
+    asking (fun resolver : meet_of_sets ->
+        match
+          Model_code_ages.meet_set unit_of 0 Int.equal steps relation resolver
+            ids1 ids2
+        with
+        | None -> No_step_left_for_meet_set
+        | Some Bottom -> Bottom_meet_set
+        | Some (Ok code_ids) -> Code_ids (set_of_code_ids code_ids))
+  in
+  meet, meet_set
+
+let meets_of_code_ids_in_the_compiler (names : names)
+    (units : units_of_code_ids)
+    ({ relation;
+       of_other_units;
+       two_code_ids = id1, id2;
+       two_sets = ids1, ids2
+     } :
+      meets_of_code_ids) :
+    meet_of_code_ids asked_of_resolver * meet_of_sets asked_of_resolver =
+  let of_model = Converter.code_id_of_model names.numbering in
+  let to_model = Converter.code_id_to_model names.numbering in
+  let of_links links : Code_ages.t =
+    List.fold_left
+      (fun relation (newer, older) ->
+        Code_ages.add relation ~newer:(of_model newer) ~older:(of_model older))
+      Code_ages.empty links
+  in
+  let position_of (unit : Compilation_unit.t) : int option =
+    List.find_map
+      (fun (position, unit') ->
+        if Compilation_unit.equal unit unit' then Some position else None)
+      (List.mapi (fun position unit' -> position, unit') units.units)
+  in
+  let asking f =
+    let asked = ref [] in
+    let resolver unit =
+      match position_of unit with
+      | None ->
+        asked := -1 :: !asked;
+        None
+      | Some position ->
+        asked := position :: !asked;
+        if position >= 1 && position <= List.length of_other_units
+        then Option.map of_links (List.nth of_other_units (position - 1))
+        else None
+    in
+    let answer = f (of_links relation) resolver in
+    { answer; asked = List.sort Int.compare !asked }
+  in
+  let set ids = Code_id.Set.of_list (List.map of_model ids) in
+  let meet =
+    asking (fun relation resolver : meet_of_code_ids ->
+        match
+          Code_ages.meet relation ~resolver (of_model id1) (of_model id2)
+        with
+        | Unknown -> Unknown_meet
+        | Bottom -> Bottom_meet
+        | Ok code_id -> Newer_code_id (to_model code_id))
+  in
+  let meet_set =
+    asking (fun relation resolver : meet_of_sets ->
+        match Code_ages.meet_set relation ~resolver (set ids1) (set ids2) with
+        | Bottom -> Bottom_meet_set
+        | Ok code_ids ->
+          Code_ids
+            (set_of_code_ids
+               (List.map to_model (Code_id.Set.elements code_ids))))
+  in
+  meet, meet_set
+
+let print_meet_of_code_ids ppf (answer : meet_of_code_ids) =
+  match answer with
+  | No_step_left_for_meet -> Format.pp_print_string ppf "no step left"
+  | Unknown_meet -> Format.pp_print_string ppf "unknown"
+  | Bottom_meet -> Format.pp_print_string ppf "bottom"
+  | Newer_code_id code_id ->
+    Format.fprintf ppf "code%a" N.print_positive code_id
+
+let print_meet_of_sets ppf (answer : meet_of_sets) =
+  match answer with
+  | No_step_left_for_meet_set -> Format.pp_print_string ppf "no step left"
+  | Bottom_meet_set -> Format.pp_print_string ppf "bottom"
+  | Code_ids code_ids ->
+    Format.fprintf ppf "{%a}"
+      (Format.pp_print_list
+         ~pp_sep:(fun ppf () -> Format.fprintf ppf ",@ ")
+         (fun ppf code_id ->
+           Format.fprintf ppf "code%a" N.print_positive code_id))
+      code_ids
+
+let same_meet_of_code_ids (answer : meet_of_code_ids)
+    (answer' : meet_of_code_ids) : bool =
+  match answer, answer' with
+  | No_step_left_for_meet, No_step_left_for_meet
+  | Unknown_meet, Unknown_meet
+  | Bottom_meet, Bottom_meet ->
+    true
+  | Newer_code_id code_id, Newer_code_id code_id' ->
+    same_code_id code_id code_id'
+  | (No_step_left_for_meet | Unknown_meet | Bottom_meet | Newer_code_id _), _ ->
+    false
+
+let same_meet_of_sets (answer : meet_of_sets) (answer' : meet_of_sets) : bool =
+  match answer, answer' with
+  | No_step_left_for_meet_set, No_step_left_for_meet_set
+  | Bottom_meet_set, Bottom_meet_set ->
+    true
+  | Code_ids code_ids, Code_ids code_ids' ->
+    List.equal same_code_id code_ids code_ids'
+  | (No_step_left_for_meet_set | Bottom_meet_set | Code_ids _), _ -> false
+
+(* [meet] as the test reads the links itself, without the model and without the
+   compiler: whether a code id reaches another by the links, each code id having
+   the older version of the link added last for it in the relation that the walk
+   is in. Where a code id has no link there, it reaches nothing if it is of the
+   current unit; else the walk asks for the relation of its unit, stops as not
+   known if the resolver has none, and goes on in that relation.
+
+   With [~goes_on_in_the_first:true] the walk is not that of the compiler: after
+   the relation of a unit has given the older version of a code id, it goes on
+   in the relation that the function was given. It is here to count the inputs
+   on which that walk answers otherwise. *)
+type reaches =
+  | Reaches
+  | Does_not_reach
+  | Not_known
+
+let meet_by_the_links (units : units_of_code_ids)
+    ({ relation; of_other_units; two_code_ids = id1, id2; two_sets = _ } :
+      meets_of_code_ids) ~(goes_on_in_the_first : bool) : meet_of_code_ids =
+  (* A walk looks at a code id once at most: every link goes to a code id that
+     is before in the list. *)
+  let rec reaches links (code_id : M.code_id) (other : M.code_id) : reaches =
+    if same_code_id code_id other
+    then Reaches
+    else
+      match older_version_by links code_id with
+      | Some older -> reaches links older other
+      | None -> (
+        match position_of_unit units code_id with
+        | 0 -> Does_not_reach
+        | position -> (
+          match List.nth of_other_units (position - 1) with
+          | None -> Not_known
+          | Some of_unit -> (
+            match older_version_by of_unit code_id with
+            | None -> Does_not_reach
+            | Some older ->
+              reaches
+                (if goes_on_in_the_first then relation else of_unit)
+                older other)))
+  in
+  if same_code_id id1 id2
+  then Newer_code_id id1
+  else
+    match reaches relation id2 id1, reaches relation id1 id2 with
+    | Reaches, (Reaches | Does_not_reach | Not_known) -> Newer_code_id id2
+    | (Does_not_reach | Not_known), Reaches -> Newer_code_id id1
+    | Does_not_reach, Does_not_reach -> Bottom_meet
+    | Not_known, (Does_not_reach | Not_known) | Does_not_reach, Not_known ->
+      Unknown_meet
+
+(* The model against the compiler: the answer, and the units that the resolver
+   was asked for. Each function asks the resolver the same number of times in
+   the model and in the compiler, though not in one order: the compiler's [meet]
+   makes its two walks in the order in which a pair is evaluated, and its
+   [meet_set] goes through a set in the order of the code ids. *)
+let comparisons_of_code_ids (names : names) (units : units_of_code_ids) :
+    meets_of_code_ids comparison list =
+  let both input =
+    ( meets_of_code_ids_in_the_model units ~steps:(enough_steps units) input,
+      meets_of_code_ids_in_the_compiler names units input )
+  in
+  let print_asked ppf asked =
+    Format.fprintf ppf "[%a]"
+      (Format.pp_print_list
+         ~pp_sep:(fun ppf () -> Format.fprintf ppf ";@ ")
+         Format.pp_print_int)
+      asked
+  in
+  let compared ~same ~print (in_the_model : _ asked_of_resolver)
+      (in_the_compiler : _ asked_of_resolver) : outcome =
+    if
+      same in_the_model.answer in_the_compiler.answer
+      && List.equal Int.equal in_the_model.asked in_the_compiler.asked
+    then Agree
+    else
+      Disagree
+        (Format.asprintf
+           "@[<v>the model: %a, the resolver asked for the units at %a@ the \
+            compiler: %a, the resolver asked for the units at %a@]"
+           print in_the_model.answer print_asked in_the_model.asked print
+           in_the_compiler.answer print_asked in_the_compiler.asked)
+  in
+  let of_meet ~(selects : meet_of_code_ids asked_of_resolver -> bool) input =
+    let (in_the_model, _), (in_the_compiler, _) = both input in
+    if selects in_the_compiler
+    then
+      compared ~same:same_meet_of_code_ids ~print:print_meet_of_code_ids
+        in_the_model in_the_compiler
+    else Not_this_comparison
+  in
+  let of_the_three input =
+    let (in_the_model, _), (in_the_compiler, _) = both input in
+    let by_the_links =
+      meet_by_the_links units input ~goes_on_in_the_first:false
+    in
+    if
+      same_meet_of_code_ids in_the_model.answer by_the_links
+      && same_meet_of_code_ids in_the_compiler.answer by_the_links
+    then Agree
+    else
+      Disagree
+        (Format.asprintf "@[<v>the model: %a@ the compiler: %a@ the test: %a@]"
+           print_meet_of_code_ids in_the_model.answer print_meet_of_code_ids
+           in_the_compiler.answer print_meet_of_code_ids by_the_links)
+  in
+  let of_meet_set ~(selects : meet_of_sets asked_of_resolver -> bool) input =
+    let (_, in_the_model), (_, in_the_compiler) = both input in
+    if selects in_the_compiler
+    then
+      compared ~same:same_meet_of_sets ~print:print_meet_of_sets in_the_model
+        in_the_compiler
+    else Not_this_comparison
+  in
+  let has_the_relation_of (input : meets_of_code_ids) position =
+    position >= 1
+    && position <= List.length input.of_other_units
+    && Option.is_some (List.nth input.of_other_units (position - 1))
+  in
+  [ { name = "meet of two code ids: the model and the compiler";
+      compare = of_meet ~selects:(fun _ -> true)
+    };
+    { name = "of which those where the two code ids are one";
+      compare =
+        (fun input ->
+          let id1, id2 = input.two_code_ids in
+          if same_code_id id1 id2
+          then of_meet ~selects:(fun _ -> true) input
+          else Not_this_comparison)
+    };
+    { name =
+        "of which those where they are two and the compiler answers one of \
+         them, the newer";
+      compare =
+        (fun input ->
+          let id1, id2 = input.two_code_ids in
+          if same_code_id id1 id2
+          then Not_this_comparison
+          else
+            of_meet
+              ~selects:(fun { answer; asked = _ } ->
+                match answer with
+                | Newer_code_id _ -> true
+                | No_step_left_for_meet | Unknown_meet | Bottom_meet -> false)
+              input)
+    };
+    { name = "of which those where the compiler answers bottom";
+      compare =
+        of_meet ~selects:(fun { answer; asked = _ } ->
+            match answer with
+            | Bottom_meet -> true
+            | No_step_left_for_meet | Unknown_meet | Newer_code_id _ -> false)
+    };
+    { name = "of which those where the compiler answers that it is not known";
+      compare =
+        of_meet ~selects:(fun { answer; asked = _ } ->
+            match answer with
+            | Unknown_meet -> true
+            | No_step_left_for_meet | Bottom_meet | Newer_code_id _ -> false)
+    };
+    { name = "of which those where the compiler asks the resolver";
+      compare =
+        of_meet ~selects:(fun { answer = _; asked } ->
+            match asked with [] -> false | _ :: _ -> true)
+    };
+    { name =
+        "of which those where it asks for a unit whose relation the resolver \
+         has";
+      compare =
+        (fun input ->
+          of_meet
+            ~selects:(fun { answer = _; asked } ->
+              List.exists (has_the_relation_of input) asked)
+            input)
+    };
+    { name =
+        "meet of two code ids: the model, the compiler and the links as the \
+         test reads them";
+      compare = (fun input -> of_the_three input)
+    };
+    { name =
+        "of which those where a walk that went on in the first relation, after \
+         the resolver gave the relation of a unit, would answer otherwise";
+      compare =
+        (fun input ->
+          if
+            same_meet_of_code_ids
+              (meet_by_the_links units input ~goes_on_in_the_first:false)
+              (meet_by_the_links units input ~goes_on_in_the_first:true)
+          then Not_this_comparison
+          else of_the_three input)
+    };
+    { name = "meet_set of two sets of code ids: the model and the compiler";
+      compare = of_meet_set ~selects:(fun _ -> true)
+    };
+    { name = "of which those where the two sets are one set";
+      compare =
+        (fun input ->
+          let ids1, ids2 = input.two_sets in
+          if
+            List.equal same_code_id (set_of_code_ids ids1)
+              (set_of_code_ids ids2)
+          then of_meet_set ~selects:(fun _ -> true) input
+          else Not_this_comparison)
+    };
+    { name = "of which those where the compiler answers bottom";
+      compare =
+        of_meet_set ~selects:(fun { answer; asked = _ } ->
+            match answer with
+            | Bottom_meet_set -> true
+            | No_step_left_for_meet_set | Code_ids _ -> false)
+    };
+    { name =
+        "of which those where the two sets are two and the compiler answers \
+         one of them";
+      compare =
+        (fun input ->
+          let ids1, ids2 = input.two_sets in
+          let ids1 = set_of_code_ids ids1 in
+          let ids2 = set_of_code_ids ids2 in
+          if List.equal same_code_id ids1 ids2
+          then Not_this_comparison
+          else
+            of_meet_set
+              ~selects:(fun { answer; asked = _ } ->
+                match answer with
+                | Code_ids code_ids ->
+                  List.equal same_code_id code_ids ids1
+                  || List.equal same_code_id code_ids ids2
+                | No_step_left_for_meet_set | Bottom_meet_set -> false)
+              input)
+    };
+    { name =
+        "of which those where the compiler answers a set that is neither of \
+         the two";
+      compare =
+        (fun input ->
+          let ids1, ids2 = input.two_sets in
+          of_meet_set
+            ~selects:(fun { answer; asked = _ } ->
+              match answer with
+              | Code_ids code_ids ->
+                (not (List.equal same_code_id code_ids (set_of_code_ids ids1)))
+                && not (List.equal same_code_id code_ids (set_of_code_ids ids2))
+              | No_step_left_for_meet_set | Bottom_meet_set -> false)
+            input)
+    };
+    { name = "of which those where the compiler asks the resolver";
+      compare =
+        of_meet_set ~selects:(fun { answer = _; asked } ->
+            match asked with [] -> false | _ :: _ -> true)
+    };
+    { name =
+        "of which those where it asks for a unit whose relation the resolver \
+         has";
+      compare =
+        (fun input ->
+          of_meet_set
+            ~selects:(fun { answer = _; asked } ->
+              List.exists (has_the_relation_of input) asked)
+            input)
+    };
+    { name =
+        "the older version of each code id, in the relation and in each \
+         relation that the resolver has: the model and the compiler";
+      compare =
+        (fun input ->
+          let of_model = Converter.code_id_of_model names.numbering in
+          let to_model = Converter.code_id_to_model names.numbering in
+          let same_in links =
+            let in_the_model =
+              List.fold_left
+                (fun relation (newer, older) ->
+                  Model_code_ages.add relation newer older)
+                Model_code_ages.empty links
+            in
+            let in_the_compiler =
+              List.fold_left
+                (fun relation (newer, older) ->
+                  Code_ages.add relation ~newer:(of_model newer)
+                    ~older:(of_model older))
+                Code_ages.empty links
+            in
+            List.for_all
+              (fun (code_id, (_ : int)) ->
+                Option.equal same_code_id
+                  (Model_code_ages.get_older_version_of in_the_model code_id)
+                  (Option.map to_model
+                     (Code_ages.get_older_version_of in_the_compiler
+                        (of_model code_id))))
+              units.code_ids_of_units
+          in
+          if
+            List.for_all same_in
+              (input.relation :: List.filter_map Fun.id input.of_other_units)
+          then Agree
+          else Disagree "a code id has not the same older version in the two")
+    } ]
+
+(* A control of the comparison of [meet], on two of the generated inputs, each
+   the first of its sort by its seed.
+
+   The first is one on which the compiler answers a code id after it has asked
+   the resolver for a unit whose relation the resolver has. The model answers
+   the same and asks the resolver for the same units; given one step, it has no
+   answer.
+
+   The second is one on which the compiler answers a code id and the links, as
+   the test reads them, give another answer where the resolver has no relation:
+   the answer itself depends on a relation of the resolver. The model answers
+   the same and asks for the same units; where its resolver alone has no
+   relation, its answer is not that of the compiler. That last check is of the
+   two answers alone: other units asked of the resolver, with the same answer,
+   do not pass it. *)
+let control_of_the_meets_of_code_ids (names : names) (units : units_of_code_ids)
+    ~seed ~count =
+  let check what holds =
+    if holds
+    then Format.printf "  %s: yes@." what
+    else (
+      incr failures;
+      Format.printf "  %s: NO@." what)
+  in
+  Format.printf
+    "@.A control: two of the generated meets of two code ids, with one step \
+     for the model, and with no relation for the resolver of the model@.";
+  let has_the_relation_of (input : meets_of_code_ids) position =
+    position >= 1
+    && position <= List.length input.of_other_units
+    && Option.is_some (List.nth input.of_other_units (position - 1))
+  in
+  let without_relations (input : meets_of_code_ids) : meets_of_code_ids =
+    { input with
+      of_other_units =
+        List.map
+          (fun (_ : (M.code_id * M.code_id) list option) -> None)
+          input.of_other_units
+    }
+  in
+  let in_the_compiler (input : meets_of_code_ids) :
+      meet_of_code_ids asked_of_resolver =
+    fst (meets_of_code_ids_in_the_compiler names units input)
+  in
+  let in_the_model ?(steps = enough_steps units) (input : meets_of_code_ids) :
+      meet_of_code_ids asked_of_resolver =
+    fst (meets_of_code_ids_in_the_model units ~steps input)
+  in
+  (* The first input, by its seed, on which the compiler answers a code id and
+     that [selects]. *)
+  let first
+      (selects :
+        meets_of_code_ids -> meet_of_code_ids asked_of_resolver -> bool) :
+      (int * meets_of_code_ids) option =
+    let rec from case_seed =
+      if case_seed >= seed + count
+      then None
+      else
+        let input =
+          generate_meets_of_code_ids units (Random.of_int case_seed)
+        in
+        let answered = in_the_compiler input in
+        match answered.answer with
+        | Newer_code_id _ ->
+          if selects input answered
+          then Some (case_seed, input)
+          else from (case_seed + 1)
+        | No_step_left_for_meet | Unknown_meet | Bottom_meet ->
+          from (case_seed + 1)
+    in
+    from seed
+  in
+  let the_same_answer_and_units (input : meets_of_code_ids) : bool =
+    let of_the_model = in_the_model input in
+    let of_the_compiler = in_the_compiler input in
+    same_meet_of_code_ids of_the_model.answer of_the_compiler.answer
+    && List.equal Int.equal of_the_model.asked of_the_compiler.asked
+  in
+  (match
+     first (fun input ({ answer = _; asked } : _ asked_of_resolver) ->
+         List.exists (has_the_relation_of input) asked)
+   with
+  | None -> check "there is a meet of the first sort" false
+  | Some (case_seed, input) ->
+    Format.printf
+      "  the first meet on which the compiler answers a code id after it has \
+       asked the resolver for a unit whose relation the resolver has: seed \
+       %d@."
+      case_seed;
+    check "the model answers the same, and asks the resolver for the same units"
+      (the_same_answer_and_units input);
+    check "with one step, the model has no answer"
+      (match (in_the_model ~steps:1 input).answer with
+      | No_step_left_for_meet -> true
+      | Unknown_meet | Bottom_meet | Newer_code_id _ -> false));
+  match
+    first (fun input (_ : meet_of_code_ids asked_of_resolver) ->
+        not
+          (same_meet_of_code_ids
+             (meet_by_the_links units input ~goes_on_in_the_first:false)
+             (meet_by_the_links units (without_relations input)
+                ~goes_on_in_the_first:false)))
+  with
+  | None -> check "there is a meet of the second sort" false
+  | Some (case_seed, input) ->
+    Format.printf
+      "  the first meet on which the compiler answers a code id and the links, \
+       as the test reads them, give another answer where the resolver has no \
+       relation: seed %d@."
+      case_seed;
+    check "the model answers the same, and asks the resolver for the same units"
+      (the_same_answer_and_units input);
+    check
+      "with no relation for the resolver of the model: the answer of the model \
+       is not that of the compiler"
+      (not
+         (same_meet_of_code_ids (in_the_model (without_relations input)).answer
+            (in_the_compiler input).answer))
+
+(* ======================================================================== *)
 (* The tests                                                                *)
 (* ======================================================================== *)
 
@@ -11955,6 +12761,19 @@ let () =
     ~shrink:shrink_meet_with_code_ages ~print:print_meet_with_code_ages
     (meets_with_code_ages names_of_code_ages);
   control_of_the_code_ages names_of_code_ages ~seed:180000 ~count:1000;
+  let units_of_code_ids = code_ids_of_three_units names in
+  run
+    ~title:
+      "Relations between code ids of three compilation units, for the two \
+       meets of the code age relation of the model and of the compiler"
+    ~seed:190000 ~count:2000
+    ~generate:(generate_meets_of_code_ids units_of_code_ids)
+    ~prepare:(fun input -> input)
+    ~shrink:shrink_meets_of_code_ids
+    ~print:(print_meets_of_code_ids units_of_code_ids)
+    (comparisons_of_code_ids names units_of_code_ids);
+  control_of_the_meets_of_code_ids names units_of_code_ids ~seed:190000
+    ~count:2000;
   Format.printf "@.%s@."
     (if !failures = 0
      then "No disagreement."

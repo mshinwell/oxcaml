@@ -77,6 +77,7 @@ From OxCamlFlambda2 Require Import FlambdaMapSpec FlambdaModel
   FlambdaValidateCopyingSpec FlambdaValidateDemotedSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
 From OxCamlFlambda2Types Require Import FlambdaBindingTime.
+From OxCamlFlambda2Types Require Import FlambdaCodeAgeRelation.
 From OxCamlFlambda2Types Require Import FlambdaJoinEnv.
 From OxCamlFlambda2Types Require Import FlambdaJoinMeet.
 From OxCamlFlambda2Types Require Import FlambdaMeet.
@@ -106,6 +107,11 @@ Set Extraction Output Directory ".".
 Separate Extraction
   FlambdaBindingTime.Name_mode.in_types
   FlambdaBindingTime.Name_mode.normal
+  FlambdaCodeAgeRelation.Code_age_relation.add
+  FlambdaCodeAgeRelation.Code_age_relation.empty
+  FlambdaCodeAgeRelation.Code_age_relation.get_older_version_of
+  FlambdaCodeAgeRelation.Code_age_relation.meet
+  FlambdaCodeAgeRelation.Code_age_relation.meet_set
   FlambdaJoinEnv.Analysis.definitions_at_uses
   FlambdaJoinEnv.Analysis.simple_refined_at_join_of
   FlambdaJoinEnv.Analysis.values_at_uses

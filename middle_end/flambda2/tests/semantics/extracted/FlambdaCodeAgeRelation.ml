@@ -11,6 +11,10 @@ module Code_age_relation = struct
 
   let empty = []
 
+  (** val get_older_version_of : t -> code_id -> code_id option **)
+
+  let get_older_version_of rel id = lookup id rel
+
   (** val add : t -> code_id -> code_id -> t **)
 
   let add rel newer older = (newer, older) :: rel
@@ -44,6 +48,64 @@ module Code_age_relation = struct
                   compilation_unit_equal steps0 rel0 resolver older candidates
               | None -> Some (Or_unknown.Known false))
             | None -> Some Or_unknown.Unknown))
+
+  (** val should_keep_id : (code_id -> 'a1) -> 'a1 -> ('a1 -> 'a1 -> bool) ->
+      nat -> t -> ('a1 -> t option) -> code_id list -> code_id -> bool option **)
+
+  let should_keep_id get_compilation_unit current_unit compilation_unit_equal
+      steps rel resolver other_ids id =
+    match
+      has_older_version_in get_compilation_unit current_unit
+        compilation_unit_equal steps rel resolver id other_ids
+    with
+    | Some t0 -> (
+      match t0 with
+      | Or_unknown.Known has_older_version_in_other_ids ->
+        Some has_older_version_in_other_ids
+      | Or_unknown.Unknown -> Some true)
+    | None -> None
+
+  (** val filter_ids : (code_id -> bool option) -> code_id list -> code_id list
+      option **)
+
+  let rec filter_ids keep = function
+    | [] -> Some []
+    | id :: ids0 -> (
+      match keep id with
+      | Some kept -> (
+        match filter_ids keep ids0 with
+        | Some ids1 -> Some (if kept then id :: ids1 else ids1)
+        | None -> None)
+      | None -> None)
+
+  (** val meet_set : (code_id -> 'a1) -> 'a1 -> ('a1 -> 'a1 -> bool) -> nat -> t
+      -> ('a1 -> t option) -> code_id list -> code_id list -> code_id list
+      Or_bottom.t option **)
+
+  let meet_set get_compilation_unit current_unit compilation_unit_equal steps
+      rel resolver ids1 ids2 =
+    if all_among ids1 ids2 && all_among ids2 ids1
+    then Some (Or_bottom.Ok ids1)
+    else
+      match
+        filter_ids
+          (should_keep_id get_compilation_unit current_unit
+             compilation_unit_equal steps rel resolver ids1)
+          ids2
+      with
+      | Some kept2 -> (
+        match
+          filter_ids
+            (should_keep_id get_compilation_unit current_unit
+               compilation_unit_equal steps rel resolver ids2)
+            ids1
+        with
+        | Some kept1 -> (
+          match app kept2 kept1 with
+          | [] -> Some Or_bottom.Bottom
+          | c :: l -> Some (Or_bottom.Ok (c :: l)))
+        | None -> None)
+      | None -> None
 
   (** val meet : (code_id -> 'a1) -> 'a1 -> ('a1 -> 'a1 -> bool) -> nat -> t ->
       ('a1 -> t option) -> code_id -> code_id -> code_id or_unknown_or_bottom
