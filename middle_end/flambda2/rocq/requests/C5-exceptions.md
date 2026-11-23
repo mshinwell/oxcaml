@@ -159,9 +159,10 @@ with extra arguments exits with the exception followed by them: a way
 out takes any number of values, as it does today when an `Apply_cont`
 applies it. The exception continuation of a unit, or of code, takes
 the exception alone. The machine cannot test that, since a way out has
-no arity, and after C2 it still cannot: C2's machine tests kinds in
-`call_function` only, and the number of values only where a handler
-binds its parameters. `Extra_args` holds values and keeps no kinds;
+no arity, and after C2 it still cannot: C2's machine tests the kinds
+and the number of values where variables are bound and, since decision
+D81, where code returns (`Return_at`), and nowhere else, and a way out
+binds no variable. `Extra_args` holds values and keeps no kinds;
 where it is around a handler, a wrong number of values is undefined at
 the raise. No check of kinds is relied on for this. What rules the
 case out is a condition of well-formedness (section 7): no call gives
@@ -170,17 +171,31 @@ code, does not bind. That is an invariant of what the front end and
 the transformations build (extra arguments go only to handlers of
 `try`, and inlining wraps), and Simplify stops on a call that breaks
 it, by accident (C5-5). A way out applied directly to the wrong number
-of values stays defined: that gap is older than this request and is
-not closed by it; it closes when a way out has an arity. There is a CR
-at `with_extra_args` that says so.
+of values stays defined on the machine, which has no arity to test a
+way out against: that gap is older than this request and is not closed
+by it. There is a CR at `with_extra_args` that says so. Two later
+changes bear on it, for the continuations of a unit and of code and
+for no other way out. A well-formed unit gives one value to each of
+its two continuations and to the exception continuation of each piece
+of its code, wherever they are used (`unit_exits_one_value`, row 13 of
+the table of `requests/C0-well-formed.md`): a condition on the term,
+not a test of the machine. And what the return continuation of code
+stands for is applied only to values of the kinds of the return arity
+of the call that runs the code (`Return_at`, decision D81).
 
 The kinds that C2 gives the extra arguments (below) are not tested by
-the machine, like the kinds of every binder (C2's CR for D10). Simplify
-does not look at the simples either: at the use it gives the handler
-unknown types of the declared kinds (C5-5). Should D10 come to be
-"undefined where executed", the test for extra arguments belongs in
-`step` at the `Apply`, where the values and the declared kinds are
-both at hand.
+the machine at the call: `Extra_args` holds the values and keeps no
+kinds, and nothing at the `Apply` compares the values with the kinds
+that the call declares for them. Where the exception reaches a
+handler, the handler tests the exception and the extra arguments after
+it against the kinds of its own parameters, as it tests any values
+that it is applied to (decision D10); a way out tests nothing. The
+test of what code returns (`Return_at`) is of the values that code
+returns, not of these. Simplify does not look at the simples either:
+at the use it gives the handler unknown types of the declared kinds
+(C5-5). A test of the extra arguments against the kinds that the call
+declares would belong in `step` at the `Apply`, where the values and
+the declared kinds are both at hand; there is none.
 
 ### Names: renaming, free names, comparison, scope
 
@@ -571,8 +586,11 @@ establishes it.
   arities that has a message (C5-5). This is not a claim that a
   mismatch of arities can be ruled out statically: it is about who may
   be given extra arguments, which the front end and inlining decide,
-  and a way out applied directly to the wrong number of values is left
-  as it is.
+  and this condition leaves a way out applied directly to the wrong
+  number of values as it is. A later condition, `unit_exits_one_value`
+  (row 13 of the table of `requests/C0-well-formed.md`), refuses that
+  of the two continuations of a unit and of the exception continuation
+  of code.
 - A `Pop`, a raise and the exception continuation of a call name the
   handler installed last. `traps_well_formed`. For a `Pop` of a jump
   or of a return: `backend/select_utils.ml`,
