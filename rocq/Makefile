@@ -792,6 +792,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_DIR)/, \
   types/naive/FlambdaTypesProofs.v \
   types/naive/FlambdaTypesSpec.v \
   types/env/FlambdaTypingEnv.v \
+  types/env/FlambdaTypingEnvCodeAgeProofs.v \
+  types/env/FlambdaTypingEnvCodeAgeSpec.v \
   types/env/FlambdaTypingEnvExamplesProofs.v \
   types/env/FlambdaTypingEnvExamplesSpec.v \
   types/env/FlambdaTypingEnvExtension.v \
@@ -808,6 +810,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_DIR)/, \
   types/env/FlambdaTypingEnvRangeSpec.v \
   types/env/FlambdaTypingEnvRefinementProofs.v \
   types/env/FlambdaTypingEnvRefinementSpec.v \
+  types/env/FlambdaTypingEnvSerializableProofs.v \
+  types/env/FlambdaTypingEnvSerializableSpec.v \
   types/env/FlambdaTypingEnvSpec.v \
 )
 

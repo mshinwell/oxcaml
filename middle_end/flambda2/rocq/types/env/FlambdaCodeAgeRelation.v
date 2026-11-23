@@ -27,12 +27,20 @@
 
    This file is to be reviewed, line by line against
    middle_end/flambda2/types/env/code_age_relation.ml, as FlambdaModel.v
-   is against flambda.mli. It holds definitions only. Nothing here is
-   extracted, and no function of the tree calls these but those of the
-   files FlambdaCodeAgeRelation* and FlambdaCodeAgeCalls*: the terms of
-   the model do not say of which code their code is a newer version
-   (FlambdaModel.code_metadata has no such field), so no relation is read
-   off a term. FlambdaCodeAgeRelationSpec.v has the order that a relation
+   is against flambda.mli. It holds definitions only. A typing
+   environment of the model has a relation (FlambdaTypingEnv.v: [empty]
+   in [Typing_env.create] and in
+   [Typing_env.Serializable.predefined_exceptions], [add] in
+   [Typing_env.add_to_code_age_relation], [union] in
+   [Typing_env.Serializable.merge]; the files FlambdaTypingEnvCodeAge*
+   and FlambdaTypingEnvSerializable* have the statements), and the
+   extraction writes the module with the environment, for the tests of
+   types. Outside the files FlambdaTypingEnv*, FlambdaCodeAgeRelation*
+   and FlambdaCodeAgeCalls*, no definition of the tree names these. The
+   terms of the model do not say of which code their code is a newer
+   version (FlambdaModel.code_metadata has no such field), so no
+   relation is read off a term.
+   FlambdaCodeAgeRelationSpec.v has the order that a relation
    stands for and what these functions answer in terms of it, and
    FlambdaCodeAgeCallsSpec.v a machine that is given a relation.
 

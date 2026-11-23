@@ -40,8 +40,9 @@
    name mode, as [rename_cached_level] does of the same map), and one
    for an extension with its existential variables
    ([Typing_env_extension.With_extra_variables.apply_renaming]). The
-   model has not the first structure; the second, with its action, is
-   in FlambdaTypingEnvExtension.v. The action is here
+   model has the first structure ([Typing_env.Serializable.t],
+   FlambdaTypingEnv.v) and not its [apply_renaming]; the second, with
+   its action, is in FlambdaTypingEnvExtension.v. The action is here
    because everything that holds names is to have its renaming and its
    free names, with the laws of the interface for things that contain
    names (FlambdaNameAbstractionSpec.v), and the
@@ -49,7 +50,8 @@
 
    A renaming (FlambdaNominalSpec.renaming) permutes variables; a typing
    environment holds no continuation. Symbols, constants, kinds, scopes,
-   binding times and name modes are not renamed. The action renames
+   binding times, name modes and the code ids of the code age relation
+   are not renamed. The action renames
    every variable that the environment writes:
    - in a level, the variables that the level defines, in both of the
      maps that list them, and its equations: the name that each is on
@@ -169,6 +171,7 @@ Definition rename_one_level (r : renaming)
 Definition rename_typing_env (r : renaming) (tenv : Typing_env.t)
     : Typing_env.t :=
   {| Typing_env.defined_symbols := Typing_env.defined_symbols tenv;
+     Typing_env.code_age_relation := Typing_env.code_age_relation tenv;
      Typing_env.prev_levels :=
        map (rename_one_level r) (Typing_env.prev_levels tenv);
      Typing_env.current_level :=

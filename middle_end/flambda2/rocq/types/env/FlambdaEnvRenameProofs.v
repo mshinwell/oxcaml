@@ -420,6 +420,7 @@ Lemma typing_env_eq (tenv : Typing_env.t)
   current_level = Typing_env.current_level tenv ->
   just_after_level = Typing_env.just_after_level tenv ->
   {| Typing_env.defined_symbols := Typing_env.defined_symbols tenv;
+     Typing_env.code_age_relation := Typing_env.code_age_relation tenv;
      Typing_env.prev_levels := prev_levels;
      Typing_env.current_level := current_level;
      Typing_env.just_after_level := just_after_level;

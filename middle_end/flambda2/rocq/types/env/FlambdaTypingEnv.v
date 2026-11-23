@@ -103,10 +103,21 @@
      resolver stops with a fatal error for a name of the current unit;
      no two variables of one environment have the same binding time, so
      it is not asked.
-   - [code_age_relation] is left out, with [add_to_code_age_relation]
-     and [with_code_age_relation]: a function type of the model names
-     its code exactly (FlambdaTypeMeaningSpec.v). It is for the
-     workstream on calls (S4) to add.
+   - [code_age_relation]: in full, with [add_to_code_age_relation] and
+     [with_code_age_relation]. The relation is that of
+     FlambdaCodeAgeRelation.v (types/env/code_age_relation.ml): it says
+     of which code a piece of code is a newer version. [create] has
+     the empty one; those two functions change it; the other
+     functions of [Typing_env] that answer an environment keep the
+     one of their argument; eight functions that look a name up, give
+     the aliases or cut the levels do not read it
+     (FlambdaTypingEnvCodeAgeSpec.v names them). What it is for the
+     values of a run to satisfy an environment does not read it
+     (FlambdaTypingEnvSpec.v): a function type of the model names its
+     code exactly (FlambdaTypeMeaningSpec.v).
+     [code_age_relation_resolver] is left out: it asks [resolver],
+     which is left out (the item before), for the relation of another
+     unit.
 
    [Typing_env_level.t]: [defined_vars], [binding_times] and [equations]
    in full. [symbol_projections] is left out, there and in
@@ -116,11 +127,24 @@
    function here does. It is for the workstream on lifting (S5) to add,
    with what it means.
 
+   [Serializable.t], which is the record [serializable] of the compiler:
+   what a compilation unit exports of its typing environment.
+   [defined_symbols_without_equations], [code_age_relation] and
+   [names_to_types]: in full. Of the functions of [Serializable],
+   [predefined_exceptions] and [merge] are here; no function of the
+   model makes a [Serializable.t] from an environment or an environment
+   from one (the items below, and the item on [resolver] above).
+
    The functions that are left out:
-   - what a unit exports and imports: [Serializable],
-     [Pre_serializable], [Cached_level.clean_for_export],
-     [remove_unused_value_slots_and_shortcut_aliases],
-     [create_from_closure_conversion_approx],
+   - of what a unit exports and imports: [Pre_serializable];
+     [Serializable.create], which takes one and a [Name_occurrences.t],
+     which the model has not, and calls [One_level.clean_for_export]
+     (with [Cached_level.clean_for_export]) and
+     [Code_age_relation.clean_for_export], which are left out;
+     [remove_unused_value_slots_and_shortcut_aliases]; of
+     [Serializable] also [create_from_closure_conversion_approx],
+     [free_function_slots_and_value_slots], [ids_for_export],
+     [apply_renaming] and [extract_symbol_approx]; and
      [Typing_env_level.ids_for_export];
    - [Meet_or_join_env_base] and [Join_env], which are for join;
    - [find_params]: the parameters of the model have no kinds yet;
@@ -164,6 +188,23 @@
      alias is given to a canonical name only. That is not here.
    - [add_alias] never answers [Unknown], which the compiler answers
      where a .cmx file is missing.
+   - [add_to_code_age_relation] is written with
+     [with_code_age_relation], which the compiler defines after it; in
+     the compiler each of the two writes the record.
+   - [Serializable.merge] answers [None] where the compiler stops:
+     where [Code_age_relation.union] does (the two relations give one
+     code id two different older versions) and where
+     [Name.Map.disjoint_union] does (a name that both maps bind). There
+     is one more case in which it answers [None], and in which the
+     compiler does not stop: [Name.Map.disjoint_union] looks at no name
+     and answers its first argument when its two arguments are one map
+     in memory (algorithms/patricia_tree.ml). The model cannot tell
+     that: of a [Serializable.t] that binds a name, merged with itself,
+     it answers [None] (FlambdaTypingEnvSerializableSpec.v).
+   - [Serializable.predefined_exceptions] takes a set of symbols,
+     which is a list here, and keeps the list as it is given, where
+     the compiler lists the symbols of its set, each once, in its order
+     on symbols.
    - [find_with_binding_time_and_mode] makes the pair of the binding
      time and the scoped name mode anew; the compiler returns the pair
      it found if the name mode is unchanged, which is the same pair.
@@ -196,7 +237,7 @@ From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar FlambdaBindingTime
-  FlambdaEnvAliases.
+  FlambdaEnvAliases FlambdaCodeAgeRelation.
 Import ListNotations.
 
 Local Open Scope Z_scope.
@@ -430,6 +471,7 @@ Module Typing_env.
      types. *)
   Record t : Type := {
     defined_symbols : list symbol;
+    code_age_relation : Code_age_relation.t;
     prev_levels : list One_level.t;
     current_level : One_level.t;
     just_after_level : Cached_level.t;
@@ -440,6 +482,7 @@ Module Typing_env.
 
   Definition make_bottom (tenv : t) : t :=
     {| defined_symbols := defined_symbols tenv;
+       code_age_relation := code_age_relation tenv;
        prev_levels := prev_levels tenv;
        current_level := current_level tenv;
        just_after_level := just_after_level tenv;
@@ -462,6 +505,7 @@ Module Typing_env.
      is a scope before it to cut after. *)
   Definition create : t :=
     {| defined_symbols := [];
+       code_age_relation := Code_age_relation.empty;
        prev_levels := [];
        current_level := One_level.create_empty (Scope.next Scope.initial);
        just_after_level := Cached_level.empty;
@@ -472,6 +516,7 @@ Module Typing_env.
   Definition with_current_level (tenv : t) (current_level : One_level.t)
       (just_after_level : Cached_level.t) : t :=
     {| defined_symbols := defined_symbols tenv;
+       code_age_relation := code_age_relation tenv;
        prev_levels := prev_levels tenv;
        current_level := current_level;
        just_after_level := just_after_level;
@@ -483,6 +528,7 @@ Module Typing_env.
       (current_level : One_level.t) (just_after_level : Cached_level.t)
       (next_binding_time : Binding_time.t) : t :=
     {| defined_symbols := defined_symbols tenv;
+       code_age_relation := code_age_relation tenv;
        prev_levels := prev_levels tenv;
        current_level := current_level;
        just_after_level := just_after_level;
@@ -499,6 +545,7 @@ Module Typing_env.
   (* A new level, with nothing in it yet, becomes the current one. *)
   Definition increment_scope (tenv : t) : t :=
     {| defined_symbols := defined_symbols tenv;
+       code_age_relation := code_age_relation tenv;
        prev_levels := current_level tenv :: prev_levels tenv;
        current_level :=
          One_level.create (Scope.next (current_scope tenv))
@@ -667,6 +714,7 @@ Module Typing_env.
 
   Definition add_symbol_definition (tenv : t) (sym : symbol) : t :=
     {| defined_symbols := sym :: defined_symbols tenv;
+       code_age_relation := code_age_relation tenv;
        prev_levels := prev_levels tenv;
        current_level := current_level tenv;
        just_after_level := just_after_level tenv;
@@ -676,6 +724,7 @@ Module Typing_env.
 
   Definition add_symbol_definitions (tenv : t) (syms : list symbol) : t :=
     {| defined_symbols := syms ++ defined_symbols tenv;
+       code_age_relation := code_age_relation tenv;
        prev_levels := prev_levels tenv;
        current_level := current_level tenv;
        just_after_level := just_after_level tenv;
@@ -706,6 +755,31 @@ Module Typing_env.
          add_variable_definition tenv (fst param) (snd param)
            Name_mode.normal)
       params tenv.
+
+  (* [Typing_env.with_code_age_relation]. *)
+  Definition with_code_age_relation (tenv : t) (rel : Code_age_relation.t)
+      : t :=
+    {| defined_symbols := defined_symbols tenv;
+       code_age_relation := rel;
+       prev_levels := prev_levels tenv;
+       current_level := current_level tenv;
+       just_after_level := just_after_level tenv;
+       next_binding_time := next_binding_time tenv;
+       min_binding_time := min_binding_time tenv;
+       is_bottom := is_bottom tenv |}.
+
+  (* [Typing_env.add_to_code_age_relation]. *)
+  Definition add_to_code_age_relation (tenv : t) (new_code_id : code_id)
+      (old_code_id : option code_id) : t :=
+    let rel :=
+      match old_code_id with
+      | None => code_age_relation tenv
+      | Some old_code_id =>
+        Code_age_relation.add (code_age_relation tenv) new_code_id
+          old_code_id
+      end
+    in
+    with_code_age_relation tenv rel.
 
   (* The type of a name becomes [ty]: an equation is added to the
      current level, and the type that the environment has for the name
@@ -881,11 +955,59 @@ Module Typing_env.
   Definition closure_env (tenv : t) : t :=
     increment_scope
       {| defined_symbols := defined_symbols tenv;
+         code_age_relation := code_age_relation tenv;
          prev_levels := prev_levels tenv;
          current_level := current_level tenv;
          just_after_level := just_after_level tenv;
          next_binding_time := next_binding_time tenv;
          min_binding_time := next_binding_time tenv;
          is_bottom := is_bottom tenv |}.
+
+  (* [Typing_env.Serializable]: what a compilation unit exports of its
+     typing environment. *)
+  Module Serializable.
+
+    (* The compiler's record [serializable]. *)
+    Record t : Type := {
+      defined_symbols_without_equations : list symbol;
+      code_age_relation : Code_age_relation.t;
+      names_to_types :
+        Keyed.finite_map name (flambda_type * Binding_time.With_name_mode.t)
+    }.
+
+    Definition predefined_exceptions (symbols : list symbol) : t :=
+      {| defined_symbols_without_equations := symbols;
+         code_age_relation := Code_age_relation.empty;
+         names_to_types := [] |}.
+
+    (* [None]: the two relations give one code id two different older
+       versions, where [Code_age_relation.union] stops; or a name is
+       bound in both maps, where [Name.Map.disjoint_union] stops, but
+       for one case in which the compiler answers and this function
+       does not: the two maps are one map in memory, which binds a
+       name (the head of this file, "The differences"). *)
+    Definition merge (t1 t2 : t) : option t :=
+      let defined_symbols_without_equations :=
+        defined_symbols_without_equations t1
+        ++ defined_symbols_without_equations t2
+      in
+      let* code_age_relation :=
+        Code_age_relation.union (code_age_relation t1) (code_age_relation t2)
+      in
+      let* names_to_types :=
+        if Keyed.is_empty
+             (Keyed.inter name_eqb
+                (Keyed.domain name_eqb (names_to_types t1))
+                (Keyed.domain name_eqb (names_to_types t2)))
+        then Some (names_to_types t1 ++ names_to_types t2)
+        else None
+      in
+      Some
+        {| defined_symbols_without_equations :=
+             defined_symbols_without_equations;
+           code_age_relation := code_age_relation;
+           names_to_types := names_to_types |}.
+
+  End Serializable.
 
 End Typing_env.
