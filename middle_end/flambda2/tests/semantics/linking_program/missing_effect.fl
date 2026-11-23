@@ -1,0 +1,4 @@
+apply effect(perform 0) &toplevel -> k1 * error
+  where k1 (r) =
+    let $camlMissing_effect = Block 0 (r) in
+    cont done ($camlMissing_effect)

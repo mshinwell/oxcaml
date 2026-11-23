@@ -1,0 +1,4 @@
+apply ccall &toplevel (_ : val? -> val?) (0) -> k1 * error
+  where k1 (r) =
+    let $camlMissing_c_call = Block 0 (r) in
+    cont done ($camlMissing_c_call)

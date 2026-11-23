@@ -1,0 +1,40 @@
+;; A control of what a program that links ../../tools/flsemantics.ml may ask
+;; of it and its command line may not: set of the numbering of names, the
+;; reference poison_missing_callee, and the refusal of the checks while that
+;; reference is set. No text given to the tool reaches them. The program of
+;; ../../tools/linking_program_control.ml asks them of numberings and of the
+;; six texts that are here, which are not examples of the tool: no rule runs
+;; the tool on them. What it prints on its two outputs is compared with
+;; control.expected: a fatal error of flsemantics.ml writes its words on the
+;; error output.
+;;
+;; missing_c_call, missing_method: a call of a C function and a call of a
+;; method with no callee, which the compiler does not make: the reader is
+;; refused.
+;;
+;; missing_effect, missing_probe: an operation of effects, and a direct call
+;; that is a probe and has no callee, which the conversion refuses with the
+;; reference set as without it.
+;;
+;; given: a direct call of a function, with its callee.
+;;
+;; missing: the same call with no callee, which the conversion refuses with
+;; the reference unset and gives a poison callee with it set.
+
+(rule
+ (action
+  (with-outputs-to
+   control.output
+   (run
+    %{dep:../../tools/linking_program_control.exe}
+    %{dep:missing_c_call.fl}
+    %{dep:missing_method.fl}
+    %{dep:missing_effect.fl}
+    %{dep:missing_probe.fl}
+    %{dep:given.fl}
+    %{dep:missing.fl}))))
+
+(rule
+ (alias runtest)
+ (action
+  (diff control.expected control.output)))

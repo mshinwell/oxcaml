@@ -1,5 +1,6 @@
 (executables
   (names fldiff fexprc roundtrip flsemantics_main flknownaritylists
+   linking_program_control
    scope_diagnosis_control prefix_fault_control)
   (modes native)
   (libraries

@@ -1,0 +1,84 @@
+THE NUMBERING OF NAMES
+find first = 1; set a 40: find a = 40; then fresh = 41; then find b = 42
+set c 5, a number below: find c = 5; then fresh = 43
+set b 7, where b had 42: find b = 7
+set d 40, the number of a: find d = 40; find a = 40
+find e = 44; set f to it: find f = 44; the name of that number: e
+set e 9: find e = 9; the name of 44: e; the name of 9: none
+the name of 40, which set alone gave: none; of 41, which fresh made: none; of 42, which find gave to b: b
+the names: a 40, b 7, c 5, d 40, e 9, f 44, first 1
+>> Fatal error: flsemantics: a name is to be given a number that is greater than the numbers of names
+set g to the greatest int: refused: yes; the names as they were: yes; then fresh = 45
+a positive of which int_of_positive makes 1: it is greater than the numbers of names; its name: none
+>> Fatal error: flsemantics: a name is to be given a number that is greater than the numbers of names
+set g to it: refused: yes; the names as they were: yes; then fresh = 46
+set y to the last number but one: find y = the last number but one; then fresh = the last number
+>> Fatal error: flsemantics: no number is left to give to a name
+>> Fatal error: flsemantics: no number is left to give to a name
+>> Fatal error: flsemantics: no number is left to give to a name
+then fresh: refused: yes; find of a new name: refused: yes; alias to a new name: refused: yes; the names as they were: yes
+set x to the last number: find x = the last number; find a = 40
+reset: no name is left: yes; find a = 1; the name of 40: none
+THE NUMBERING OF VALUE SLOTS
+set the first slot 12: find of it = 12; find of a second = 13; the name of 12: none; the name of 13: second
+reset_conversion: value slots numbered: 0
+CALLS WITH NO CALLEE THAT THE COMPILER DOES NOT MAKE
+missing_c_call.fl: read: refused by a fatal error: yes; its first words: Missing callee
+missing_method.fl: read: refused by a fatal error: yes; its first words: Missing callee
+CALLS THAT ARE REFUSED WITH THE REFERENCE SET AS WITHOUT IT
+missing_effect.fl: with the reference unset: refused, "a call with no callee"; set: refused, "the call (the call is printed here)"
+missing_probe.fl: with the reference unset: refused, "a call that is a probe"; set: refused, "a call that is a probe"
+A CALL THAT HAS A CALLEE
+given.fl: converted; with the reference set, to the same term: yes; its callee: a symbol; its run: returns [0: 7]
+the checks of given.fl against itself, with the reference unset:
+check:
+given.fl:
+  before Simplify (6 steps): returns [0: 7]
+  after Simplify (6 steps): returns [0: 7]
+  the check of kinds: passes before, passes after
+  the check of static names: passes before, passes after
+  calls outside code: 1 before, 1 after
+  the same
+  calls outside code once those of known code are inlined: 0
+  validated: the same up to bound names
+check: the two runs were made and compared
+check_or_raise:
+given.fl:
+  before Simplify (6 steps): returns [0: 7]
+  after Simplify (6 steps): returns [0: 7]
+  the check of kinds: passes before, passes after
+  the check of static names: passes before, passes after
+  calls outside code: 1 before, 1 after
+  the same
+  calls outside code once those of known code are inlined: 0
+  validated: the same up to bound names
+check_or_raise: a validation was asked
+check_regions: names that the conversion has numbered after it: some
+A CALL OF A FUNCTION THAT HAS NO CALLEE
+missing.fl: with the reference unset: refused, "a call with no callee"
+with the reference set, after reset_conversion: the reference is still set: yes
+missing.fl: with the reference set: converted; its callee: the poison constant of the kind of values
+  the kind of the call as of the call of given.fl: yes
+  the arguments as of the call of given.fl: yes
+  the two arities as of the call of given.fl: yes
+  the two continuations and the extra arguments as of the call of given.fl: yes
+the reference is unset again: yes
+the run of that term, by run, which is not guarded: undefined
+the checks of missing.fl against itself, with the reference unset:
+check:
+missing.fl: not checked: the model has not got a call with no callee
+check: not checked
+check_or_raise:
+missing.fl: not checked: the model has not got a call with no callee
+check_or_raise: not checked
+  the check of regions: not run (the model has not got a call with no callee)
+check_regions: names that the conversion has numbered after it: some
+the checks of missing.fl against itself, with the reference set:
+>> Fatal error: flsemantics: check is asked while poison_missing_callee is set, and no check is made of terms converted with it: a call that was given a poison callee is undefined on the machine of the model, and the check would say nothing of Simplify
+check: refused: yes
+>> Fatal error: flsemantics: check_or_raise is asked while poison_missing_callee is set, and no check is made of terms converted with it: a call that was given a poison callee is undefined on the machine of the model, and the check would say nothing of Simplify
+check_or_raise: refused: yes
+>> Fatal error: flsemantics: check_regions is asked while poison_missing_callee is set, and no check is made of terms converted with it: a call that was given a poison callee is undefined on the machine of the model, and the check would say nothing of Simplify
+check_regions: refused: yes
+after the three: names that the conversion has numbered: 0; the terms of the last comparison are still there: yes; the mark that regions were met is still there: yes; regions are kept: no
+what is asked with the reference set raises: yes; the reference is unset again: yes

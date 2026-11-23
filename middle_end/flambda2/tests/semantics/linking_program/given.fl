@@ -1,0 +1,8 @@
+let code size(1) first_given (x) my_closure &my_region my_depth -> k * e =
+  cont k (x)
+in
+let $First_given = closure first_given &toplevel in
+apply direct(first_given &toplevel) $First_given (7) -> k1 * error
+  where k1 (r) =
+    let $camlGiven = Block 0 (r) in
+    cont done ($camlGiven)

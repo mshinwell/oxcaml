@@ -1,0 +1,7 @@
+let code size(1) first_missing (x) my_closure &my_region my_depth -> k * e =
+  cont k (x)
+in
+apply direct(first_missing &toplevel) (7) -> k1 * error
+  where k1 (r) =
+    let $camlMissing = Block 0 (r) in
+    cont done ($camlMissing)

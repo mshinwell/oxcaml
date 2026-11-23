@@ -633,6 +633,13 @@ Owner: V2, on `flambda2-rocq/V2-examples`, for the corpus; the tool
 stays C0's for now.
 
 - `middle_end/flambda2/tests/tools/flsemantics.ml`
+- `middle_end/flambda2/tests/tools/linking_program_control.ml` and the
+  directory `middle_end/flambda2/tests/semantics/linking_program/` (a
+  control of what a program that links the test tool may ask of it and
+  its command line may not: `set` of the numbering of names, the
+  reference `poison_missing_callee`, and the refusal of the checks
+  while that reference is set; the rule, the six texts and the stored
+  file)
 - `middle_end/flambda2/tests/semantics/*.fl` and their `.expected`
   files, but for an example that a stream adds for its own work, which
   is that stream's

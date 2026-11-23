@@ -1,0 +1,4 @@
+apply mcall(public 0) &toplevel (7) -> k1 * error
+  where k1 (r) =
+    let $camlMissing_method = Block 0 (r) in
+    cont done ($camlMissing_method)

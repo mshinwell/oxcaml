@@ -108,6 +108,18 @@
    called is bound in sight, its body does not mention its return continuation,
    and the other checks of that rewrite pass.
 
+   Calls with no callee. The call of the model has a callee, and the machine
+   takes the closure of a call from it
+   (FlambdaSemanticsSpec.shape_of_closure_call): a call to which the compiler's
+   term gives no callee is reported as unsupported ([convert_apply]). A program
+   that links this file may set [poison_missing_callee], which the command line
+   of this tool has no way to set: the conversion then gives a call of a
+   function that has no callee a poison constant for its callee. That is for a
+   program that compares the term with a term of the model in which such a call
+   has a poison callee. On the machine of the model the call is undefined, and a
+   check of terms so converted would say nothing of Simplify: [check],
+   [check_or_raise] and [check_regions] refuse to run while it is set.
+
    What a text may lose of a call. The printer of texts writes the arities of a
    direct call and of a call of unknown arity, beside the callee or in its place
    where a direct call has none, unless they are one value for each argument and
@@ -471,9 +483,35 @@ let int64_of_z (z : Numbers.coq_Z) =
 
 (* ---- Names ------------------------------------------------------------ *)
 
+(* The numbers that names are given are the integers from 1 to this one. A
+   numbering counts in an [int] the number that it gives next, which goes one
+   above the numbers given: so the greatest [int] is no number of a name. *)
+let last_number = max_int - 1
+
+(* The integer that a positive of the model is, where it is one of the numbers
+   that names are given, and none where it is greater. [int_of_positive] is not
+   asked: of a positive that is no [int] it makes another integer. *)
+let number_of_positive (number : Numbers.positive) : int option =
+  (* The digits of an [int] that are not its sign, and the digit of [number]
+     that is looked at, with the integer that the digits below it make. *)
+  let digits = Sys.int_size - 1 in
+  let rec go (p : Numbers.positive) ~digit ~below =
+    if digit >= digits
+    then None
+    else
+      match p with
+      | Coq_xH ->
+        let n = below + (1 lsl digit) in
+        if n <= last_number then Some n else None
+      | Coq_xO p -> go p ~digit:(digit + 1) ~below
+      | Coq_xI p -> go p ~digit:(digit + 1) ~below:(below + (1 lsl digit))
+  in
+  go number ~digit:0 ~below:0
+
 (* Each sort of name of the compiler is numbered from 1 as it is met. The names
    the compiler gives when it opens a binder are fresh, so a name stands for one
-   thing throughout a unit. *)
+   thing throughout a unit. A program that has a term of the model already may
+   give a name the number that the term has for it ([set]). *)
 module Numbering (Id : sig
   type t
 
@@ -486,33 +524,61 @@ struct
 
   let next = ref 1
 
-  (* The name that each number was first given to. *)
+  (* The name that [find] gave each number to. *)
   let named : (int, Id.t) Hashtbl.t = Hashtbl.create 64
+
+  (* The number that is given next, which is then given no more. After
+     [last_number] there is none: that is a fatal error, and nothing is
+     changed. *)
+  let take () =
+    let n = !next in
+    if n > last_number
+    then Misc.fatal_error "flsemantics: no number is left to give to a name";
+    next := n + 1;
+    n
 
   let find id =
     match Map.find_opt id !numbers with
     | Some n -> positive_of_int n
     | None ->
-      let n = !next in
-      incr next;
+      let n = take () in
       numbers := Map.add id n !numbers;
       Hashtbl.replace named n id;
       positive_of_int n
 
-  (* The name that has a number: the first, where [alias] gave the number to a
-     second; none for a number that [fresh] made. *)
-  let name_of number = Hashtbl.find_opt named (int_of_positive number)
+  (* The name that has a number: the first, where [alias] or [set] gave the
+     number to a second; none for a number that [fresh] made, for one that no
+     name has but by [set], and for a positive that is greater than the numbers
+     of names. *)
+  let name_of number =
+    Option.bind (number_of_positive number) (Hashtbl.find_opt named)
 
-  (* A number that no name has, or will have. *)
-  let fresh () =
-    let n = !next in
-    incr next;
-    positive_of_int n
+  (* A number that no name has, and that [find] gives to none. A caller may give
+     it to a name by [set]. *)
+  let fresh () = positive_of_int (take ())
 
   (* Gives [id] the number of [same_as]. *)
   let alias id ~same_as =
     ignore (find same_as : Numbers.positive);
     numbers := Map.add id (Map.find same_as !numbers) !numbers
+
+  (* Gives [id] the number [number], which the caller has from a term of the
+     model. Afterwards [find] gives it to no name that has no number yet, and
+     [fresh] does not make it. Where [find] gave it to another name before, the
+     two names have it, as with [alias]. A name that had a number takes this
+     one. Nothing changes in what [name_of] answers: the number gets no name by
+     this, and a number that [find] gave [id] before keeps [id] as its name. A
+     positive that is greater than the numbers of names ([last_number]) is
+     refused, by a fatal error, and nothing is changed. *)
+  let set id (number : Numbers.positive) =
+    match number_of_positive number with
+    | None ->
+      Misc.fatal_error
+        "flsemantics: a name is to be given a number that is greater than the \
+         numbers of names"
+    | Some n ->
+      numbers := Map.add id n !numbers;
+      if !next <= n then next := n + 1
 
   (* Forgets every name numbered so far. *)
   let reset () =
@@ -1105,6 +1171,42 @@ let kept_regions : Variable.Set.t ref = ref Variable.Set.empty
 let code_regions : Variable.Set.t ref = ref Variable.Set.empty
 
 let regions_met : bool ref = ref false
+
+(* What the conversion makes of a call that has no callee. The call of the model
+   has one, and the machine takes the closure of a call from it
+   (FlambdaSemanticsSpec.shape_of_closure_call). Unset, as it is unless a
+   program that links this file sets it, the conversion refuses such a call.
+   Set, the conversion gives a call of a function that has no callee a poison
+   constant of the kind of values for its callee: that is for a program that
+   compares the term with a term of the model in which such a call has a poison
+   callee. The compiler makes a call with no callee of a function that is called
+   directly and of an operation of effects, and of nothing else
+   ([Apply_expr.invariant]). An operation of effects is refused all the same,
+   for its kind, and so is a call that is a probe.
+
+   On the machine of the model a call whose callee is a poison constant is
+   undefined. So a check of terms so converted would say nothing of Simplify: it
+   would pass for nothing where the run before reaches such a call, and say that
+   the two runs differ where the run after alone does. [check], [check_or_raise]
+   and [check_regions] refuse to run while this is set
+   ([no_check_while_poisoning]), and the command line of this tool has no way to
+   set it. [run] and [run_to_end] are not guarded: they give what the run of one
+   term comes to, which is undefined at such a call, and no verdict on a pair of
+   terms. *)
+let poison_missing_callee : bool ref = ref false
+
+(* The refusal of a check while [poison_missing_callee] is set, by a fatal
+   error. [what] is the function that is asked: it calls this before it does
+   anything else. *)
+let no_check_while_poisoning what =
+  if !poison_missing_callee
+  then
+    Misc.fatal_errorf
+      "flsemantics: %s is asked while poison_missing_callee is set, and no \
+       check is made of terms converted with it: a call that was given a \
+       poison callee is undefined on the machine of the model, and the check \
+       would say nothing of Simplify"
+      what
 
 (* A region as a parameter of a continuation. Simplify makes one where it lifts
    a handler out of another: the region that the handler ends, or allocates in,
@@ -2524,7 +2626,11 @@ and convert_apply (apply : Apply_expr.t) : Model.expr =
   let callee =
     match Apply_expr.callee apply with
     | Some callee -> convert_simple callee
-    | None -> unsupported "a call with no callee"
+    | None ->
+      (* See [poison_missing_callee]. *)
+      if !poison_missing_callee
+      then Model.Const (Poison Value)
+      else unsupported "a call with no callee"
   in
   let args_arity = convert_arity (Apply_expr.args_arity apply) in
   let return_arity = convert_arity (Apply_expr.return_arity apply) in
@@ -9358,9 +9464,12 @@ exception List_left_open
    [check_regions]. *)
 let terms_compared : (converted * converted) option ref = ref None
 
+(* What [check] asks first. As [check], it refuses to run, by a fatal error,
+   while [poison_missing_callee] is set. *)
 let check_or_raise ~filename ~(units : (Compilation_unit.t * Digest.t) list)
     (before : Flambda_unit.t) (after : Flambda_unit.t) :
     Validate.validation option =
+  no_check_while_poisoning "check_or_raise";
   terms_compared := None;
   match convert_both ~units before after with
   | exception Unsupported what ->
@@ -10185,6 +10294,9 @@ let print_region_ends ~(statics : Values.static_env) (before : converted)
    [reset_conversion] clears) are those of this second conversion, and whatever
    is linked with this file and reads them after [check] reads those.
 
+   As [check], it refuses to run, by a fatal error, while
+   [poison_missing_callee] is set.
+
    CR mshinwell: the line says of each term whether its run on the machine of
    FlambdaRegionsSpec.v reached its end with no value allocated in a region used
    after the region was gone, no allocation on the heap holding such a value,
@@ -10196,6 +10308,7 @@ let print_region_ends ~(statics : Values.static_env) (before : converted)
    still drops regions (decision D37). *)
 let check_regions ~(units : (Compilation_unit.t * Digest.t) list)
     (before : Flambda_unit.t) (after : Flambda_unit.t) : unit =
+  no_check_while_poisoning "check_regions";
   let compared = !terms_compared in
   regions_met := false;
   keep_regions := true;
@@ -10286,9 +10399,13 @@ let check_regions ~(units : (Compilation_unit.t * Digest.t) list)
    is one ([check_or_raise]). A first term that fails one of them is neither run
    nor compared, whoever the caller is. It is "not checked" where its test is
    reached: what is looked for before that, a term after that is not well-formed
-   and a fault of the prefix, is what is reported where it is found. *)
+   and a fault of the prefix, is what is reported where it is found.
+
+   It refuses to run, by a fatal error, while [poison_missing_callee] is set:
+   see there. *)
 let check ~filename ~(units : (Compilation_unit.t * Digest.t) list)
     (before : Flambda_unit.t) (after : Flambda_unit.t) : checked =
+  no_check_while_poisoning "check";
   match check_or_raise ~filename ~units before after with
   | exception Check_failed -> Failed
   | exception List_left_open -> Not_checked
