@@ -160,9 +160,11 @@
 
    Code ids. The code answered is the very code of the closure
    ([single_closures_entry_holds], FlambdaProversSpec.v, which has the
-   CR): the model has no code age relation. So a call that is direct
-   already, whose code id Simplify meets with the one of the type as
-   said above, keeps its code id here.
+   CR): the environment of the model has a code age relation, and the
+   meet of two code ids reads it (FlambdaMeetCodeAgeSpec.v), but the
+   meaning of a type and the provers do not read it. So a call that
+   is direct already, whose code id Simplify meets with the one of
+   the type as said above, keeps its code id here.
 
    What is assumed.
    - Strict satisfaction ([env_satisfies_strictly]), as for every

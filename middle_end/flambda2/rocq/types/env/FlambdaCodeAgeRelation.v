@@ -33,10 +33,13 @@
    [Typing_env.Serializable.predefined_exceptions], [add] in
    [Typing_env.add_to_code_age_relation], [union] in
    [Typing_env.Serializable.merge]; the files FlambdaTypingEnvCodeAge*
-   and FlambdaTypingEnvSerializable* have the statements), and the
-   extraction writes the module with the environment, for the tests of
-   types. Outside the files FlambdaTypingEnv*, FlambdaCodeAgeRelation*
-   and FlambdaCodeAgeCalls*, no definition of the tree names these. The
+   and FlambdaTypingEnvSerializable* have the statements). The meet of
+   two code ids reads it ([Meet_env.code_age_relation],
+   FlambdaMeetEnv.v) and goes by [meet] ([meet_code_id], FlambdaMeet.v;
+   the files FlambdaMeetCodeAge* have the statements). The extraction
+   writes the module with them, for the tests of types. Outside the
+   files FlambdaTypingEnv*, FlambdaMeet*, FlambdaCodeAgeRelation* and
+   FlambdaCodeAgeCalls*, no definition of the tree names these. The
    terms of the model do not say of which code their code is a newer
    version (FlambdaModel.code_metadata has no such field), so no
    relation is read off a term.

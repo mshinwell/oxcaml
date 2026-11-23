@@ -454,12 +454,23 @@ new variables by looking at the names it is given.
   bottom or a type. `meet_bottom_env`: in a bottom environment the
   answer is bottom before the kinds are looked at (`Meet.meet` tests
   `is_bottom` first).
-- Code ids: the model has no code age relation. Its `meet_code_id` will
-  answer bottom for two different code ids; the compiler answers the
-  newer when one is a later version of the other, and either input when
-  it cannot tell. The contract claims nothing about inputs whose code
-  ids the relation relates (T4-4), and nothing about which code a
-  closure runs.
+- Code ids: `meet_code_id` goes by the code age relation of the
+  environment (`Meet_env.code_age_relation`), as the compiler's does,
+  by `Code_age_relation.meet` for one compilation unit. It answers the
+  newer when one code id is a later version of the other, and bottom
+  when neither is; `FlambdaMeetCodeAgeSpec.v` says so, of a relation
+  in which no code id is a newer version of itself. The compiler
+  answers either input when it cannot tell, which is for code of
+  another unit; the model has one unit and never answers so (T4-4).
+  The meaning of a function type is still the very code that it names,
+  so, for two versions of one code, the clause of the contract that no
+  value is lost holds because no value has both types. What the
+  contract asks of every answer that is not bottom stays: the
+  environment answered extends the one given and fits, the type
+  answered fits it, and `new_names_avoided` holds. That a closure of a
+  newer version has the type that names the older code is for the
+  meaning to say, and nothing is claimed about which code a closure
+  runs.
 - Allocation modes and `is_unique`: transcribed, no claim.
 - Physical equality (D30 as revised): in the meet it is only a
   shortcut (`meet_inverse_relations`; `reduce_head_of_kind_naked_

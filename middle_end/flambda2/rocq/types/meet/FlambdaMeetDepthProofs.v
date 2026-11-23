@@ -61,7 +61,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar FlambdaBindingTime
   FlambdaEnvAliases FlambdaTypingEnv FlambdaMeetGrammar FlambdaExpandHead
   FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec FlambdaMeetTerminationSpec
-  FlambdaMeetTerminationProofs FlambdaMeetDepthSpec.
+  FlambdaMeetTerminationProofs FlambdaMeetDepthSpec FlambdaMeetCodeAgeSpec
+  FlambdaMeetCodeAgeProofs.
 From OxCamlFlambda2Types Require FlambdaMeetExamplesSpec FlambdaJoinEnv
   FlambdaJoinMeet FlambdaJoinNothingSpec FlambdaJoinNothingProofs.
 Import ListNotations.
@@ -997,8 +998,13 @@ Lemma meet_function_type_steady :
 Proof.
   intros env [f1 | ] [f2 | ] _ _; unfold meet_function_type;
     try apply same_kept_ok.
-  unfold meet_code_id. destruct (Pos.eqb _ _); cbn;
-    [ apply same_kept_ok | apply same_kept_bottom ].
+  split; [ reflexivity | ]. intros r env' H.
+  destruct
+    (meet_code_id env (function_type_code_id f1) (function_type_code_id f2))
+    as [[rb | rr env0] | ] eqn:Hmeet; cbn in H;
+    [ discriminate | | discriminate ].
+  destruct (meet_code_id_ok env env0 _ _ rr Hmeet) as [-> _].
+  destruct rr; cbn in H; injection H as _ <-; reflexivity.
 Qed.
 
 (* The step is taken for two meets of less fuel, [mh] and [mh'], and

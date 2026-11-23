@@ -402,18 +402,24 @@
    code that answers a wrong number (the reproduction of discrepancy
    T5-10).
 
-   Code ids. A function type names its code exactly
-   (FlambdaTypeMeaningSpec.v); the code age relation is not in the
-   model's environment. So the model's [meet_code_id] answers bottom
-   for two different code ids, which is right for that meaning where
-   the set has the function (condition (b) above). The compiler
-   answers the newer of the two if one is a later version of the other
-   ([Code_age_relation.meet]), and either input if it cannot tell. The
-   contract claims nothing of that: the model and the compiler part
-   ways on two code ids that the relation relates, and the differential
-   tests are to leave those inputs out or expect the difference
-   (discrepancy T4-4). A claim that the code named by a meet is the
-   code of the closure at run time needs code age (workstream S4).
+   Code ids. [meet_code_id] is the compiler's: it reads the code age
+   relation of the environment ([Code_age_relation.meet], for one
+   compilation unit). On a relation that is well formed (following its
+   links from a code id never comes back to it) it answers the newer
+   of two code ids of which one is a newer version of the other, and
+   bottom for two that are not so related; on a relation with a cycle
+   its steps can run out, and then there is no answer.
+   FlambdaMeetCodeAgeSpec.v says what it answers, and what an answer
+   entails of every relation.
+   The meaning of a function type does not follow it: a function type
+   names its code exactly (FlambdaTypeMeaningSpec.v). For that meaning
+   no closure has two function types that name two different codes,
+   where the set has the function (condition (b) above). So the
+   contract loses no value whatever the answer for two such codes, and
+   it says nothing of the closures of the newer code (discrepancy
+   T4-4). A claim that the code named by a meet is the code of the
+   closure at run time, or an older version of it, needs the meaning to
+   read the relation (workstream S4).
 
    Allocation modes and uniqueness mean nothing in the meaning of
    types, so the contract says nothing of [meet_alloc_mode] or of

@@ -661,6 +661,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_DIR)/, \
   types/meet/FlambdaMeetChoicesSpec.v \
   types/meet/FlambdaMeetClosuresProofs.v \
   types/meet/FlambdaMeetClosuresSpec.v \
+  types/meet/FlambdaMeetCodeAgeProofs.v \
+  types/meet/FlambdaMeetCodeAgeSpec.v \
   types/meet/FlambdaMeetDepthProofs.v \
   types/meet/FlambdaMeetDepthSpec.v \
   types/meet/FlambdaMeetEnv.v \

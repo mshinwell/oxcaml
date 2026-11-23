@@ -304,13 +304,17 @@ Definition meet_int_indexed_product_length_statement : Prop :=
 (* The type of the function at a slot is true of a set of closures: the
    set has a function at the slot, whose code is the one that the type
    names, if it names one. *)
-(* CR mshinwell: the meet of two function types that name two codes is
-   bottom here. The compiler asks the code age relation, and answers
-   the newer of the two if one is a newer version of the other
-   ([meet_code_id]); the meaning of a function type here is the very
-   code of the closure, with no newer version. So nothing is claimed
-   of the compiler's meet of the function types of two versions of one
-   code. Discrepancy T4-4. *)
+(* CR mshinwell: the meaning of a function type here is the very code
+   of the closure, with no newer version. [meet_code_id] is the
+   compiler's: it asks the code age relation of the environment, and,
+   where that relation is well formed, answers the newer of two codes
+   of which one is a newer version of the other
+   (FlambdaMeetCodeAgeSpec.v). For this meaning no closure
+   has two function types that name two different codes. So the
+   statement below says of such an answer what it says of every answer
+   that is not bottom, and nothing of the closures of the newer code:
+   that a closure of a newer version has the type that names the older
+   code is for the meaning to say. Discrepancy T4-4. *)
 Definition function_type_satisfied
     (functions : list (function_slot * code_id)) (slot : function_slot)
     (_ : static_env) (_ : env) (function_type : Or_unknown.t function_type)

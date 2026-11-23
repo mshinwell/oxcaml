@@ -141,11 +141,17 @@
      a type of its own, and is used with two and with three. Here
      there is a function for each, [combine_results2] and
      [combine_results3].
-   - [meet_code_id]: without the code age relation, which the model's
-     environment has not. Two different code ids are bottom. The
-     compiler answers the newer of two that the relation relates, and
-     both inputs if it cannot tell (FlambdaMeetSpec.v, discrepancy
-     T4-4).
+   - [meet_code_id]: in full, with [Code_age_relation.meet]
+     (FlambdaCodeAgeRelation.v) for one compilation unit. That function
+     is a bounded one here: it is given one step more than the relation
+     has pairs, and where the steps run out the answer is [None]. That
+     is a relation with a cycle, on which the compiler's function need
+     not return. No relation of another unit is asked for, so the
+     answer [Unknown] of [Code_age_relation.meet], for which the
+     compiler answers both inputs, does not arise. What [meet_code_id]
+     answers is FlambdaMeetCodeAgeSpec.v. The meaning of a function
+     type is still the very code of the closure (FlambdaMeetSpec.v,
+     discrepancy T4-4).
    - [reduce_head_of_kind_naked_immediate], [meet_inverse_relations],
      [reduce_inverse_relations], [meet_head_of_kind_naked_immediate]:
      in full. A set of names per relation is a list of pairs of a
@@ -274,8 +280,8 @@ From OxCamlStdlib Require Import OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningBoolSpec FlambdaTypeEqualSpec FlambdaBindingTime
-  FlambdaEnvAliases FlambdaTypingEnv FlambdaMeetGrammar FlambdaExpandHead
-  FlambdaMeetEnv.
+  FlambdaEnvAliases FlambdaCodeAgeRelation FlambdaTypingEnv
+  FlambdaMeetGrammar FlambdaExpandHead FlambdaMeetEnv.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -523,13 +529,34 @@ Definition combine_results3 {A B C D : Type} (env : Meet_env.t)
 (* The meets that need no other                                             *)
 (* ======================================================================== *)
 
-(* [meet_code_id], without the code age relation: two different code
-   ids have no code in common. *)
+(* [meet_code_id]. [Code_age_relation.meet] is that of
+   FlambdaCodeAgeRelation.v, for one compilation unit: the type of
+   compilation units has one element, which is the unit of every code
+   id and the current unit. The number is its steps: one more than the
+   relation has pairs. Where they run out there is no answer. The
+   compiler has a comment at the answer [Unknown]: either input is
+   correct there, and each may lose information that the other has. *)
 Definition meet_code_id (env : Meet_env.t) (code_id1 code_id2 : code_id)
-    : Meet_result.t code_id :=
+    : option (Meet_result.t code_id) :=
   if Pos.eqb code_id1 code_id2
-  then Meet_result.Ok Both_inputs env
-  else Meet_result.Bottom (New_result tt).
+  then Some (Meet_result.Ok Both_inputs env)
+  else
+    let rel := Meet_env.code_age_relation env in
+    match
+      Code_age_relation.meet unit (fun _ => tt) tt (fun _ _ => true)
+        (S (length rel)) rel (Meet_env.code_age_relation_resolver env)
+        code_id1 code_id2
+    with
+    | None => None
+    | Some Bottom => Some (Meet_result.Bottom (New_result tt))
+    | Some Unknown => Some (Meet_result.Ok Both_inputs env)
+    | Some (Ok code_id) =>
+      if Pos.eqb code_id code_id1
+      then Some (Meet_result.Ok Left_input env)
+      else if Pos.eqb code_id code_id2
+      then Some (Meet_result.Ok Right_input env)
+      else Some (Meet_result.Ok (New_result code_id) env)
+    end.
 
 (* [meet_alloc_mode]. *)
 Definition meet_alloc_mode (env : Meet_env.t)
@@ -1430,12 +1457,15 @@ Definition meet_function_type (env : Meet_env.t)
   | _, Or_unknown.Unknown => Some (Meet_result.Ok Left_input env)
   | Or_unknown.Unknown, _ => Some (Meet_result.Ok Right_input env)
   | Or_unknown.Known func_type1, Or_unknown.Known func_type2 =>
+    let* result :=
+      meet_code_id env
+        (function_type_code_id func_type1)
+        (function_type_code_id func_type2)
+    in
     Some
       (map_result
          (fun code_id => Or_unknown.Known (Function_type code_id))
-         (meet_code_id env
-            (function_type_code_id func_type1)
-            (function_type_code_id func_type2)))
+         result)
   end.
 
 (* [meet_array_of_types]: the meet of two lists of types, position by

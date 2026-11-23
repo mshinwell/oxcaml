@@ -52,6 +52,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaEnvRenameProofs FlambdaMeetGrammar FlambdaExpandHead
   FlambdaProversRenameSpec FlambdaMeetEnv FlambdaMeet FlambdaMeetRenameSpec
   FlambdaEnvRenameMeetProofs.
+From OxCamlFlambda2Types Require FlambdaCodeAgeRelationSpec
+  FlambdaMeetCodeAgeProofs.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -301,13 +303,32 @@ Qed.
 (* ======================================================================== *)
 
 (* A code id is not renamed, nor an allocation mode; whatever [g] is,
-   neither meet answers a new result. *)
+   neither meet answers a new result. The meet of two code ids reads
+   the code age relation of the environment, which a renaming of
+   variables keeps. *)
 Lemma meet_code_id_renamed (r : renaming) (g : code_id -> code_id)
     (env : Meet_env.t) (code_id1 code_id2 : code_id) :
   meet_code_id (rename_meet_env r env) code_id1 code_id2
-  = rename_meet_result r g (meet_code_id env code_id1 code_id2).
+  = option_map (rename_meet_result r g)
+      (meet_code_id env code_id1 code_id2).
 Proof.
-  unfold meet_code_id. destruct (Pos.eqb code_id1 code_id2); reflexivity.
+  rewrite !FlambdaMeetCodeAgeProofs.meet_code_id_eq.
+  change (Meet_env.code_age_relation (rename_meet_env r env))
+    with (Meet_env.code_age_relation env).
+  destruct (Pos.eqb_spec code_id1 code_id2) as [Heq | Hne];
+    [ reflexivity | ].
+  destruct
+    (FlambdaCodeAgeRelationSpec.meet_in_unit _
+       (Meet_env.code_age_relation env) code_id1 code_id2)
+    as [answer | ] eqn:Hmeet; [ | reflexivity ].
+  destruct
+    (FlambdaMeetCodeAgeProofs.meet_in_unit_some _ _ _ answer Hne Hmeet)
+    as [[-> _] | [[-> _] | [-> _]]].
+  - assert (Hne' : Pos.eqb code_id2 code_id1 = false)
+      by (apply Pos.eqb_neq; intros Heq; apply Hne; symmetry; exact Heq).
+    rewrite Hne', Pos.eqb_refl. reflexivity.
+  - rewrite Pos.eqb_refl. reflexivity.
+  - reflexivity.
 Qed.
 
 Lemma meet_alloc_mode_renamed (r : renaming)

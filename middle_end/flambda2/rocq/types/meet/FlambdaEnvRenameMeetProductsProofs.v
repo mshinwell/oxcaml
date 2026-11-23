@@ -58,6 +58,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaProversRenameSpec FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec
   FlambdaMeetRenameSpec FlambdaEnvRenameMeetProofs
   FlambdaEnvRenameMeetPartsProofs.
+From OxCamlFlambda2Types Require FlambdaMeetCodeAgeProofs.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -147,10 +148,14 @@ Lemma meet_function_type_renamed (r : renaming)
 Proof.
   destruct func_type1 as [func_type1 | ], func_type2 as [func_type2 | ];
     cbn [meet_function_type option_map]; try reflexivity.
-  unfold meet_code_id.
+  rewrite (meet_code_id_renamed r (fun code_id => code_id)).
   destruct
-    (Pos.eqb (function_type_code_id func_type1)
-       (function_type_code_id func_type2));
+    (meet_code_id env (function_type_code_id func_type1)
+       (function_type_code_id func_type2))
+    as [[res | res env'] | ] eqn:Hmeet; [ reflexivity | | reflexivity ].
+  destruct
+    (FlambdaMeetCodeAgeProofs.meet_code_id_ok env env' _ _ res Hmeet)
+    as [-> [[-> _] | [[-> _] | [-> _]]]];
     reflexivity.
 Qed.
 

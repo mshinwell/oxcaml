@@ -54,8 +54,13 @@
      stops and the compiler does not (below, "A name that is no longer
      canonical").
    - [t]: [typing_env] and [adding_equations_for_names] in full, the
-     latter as a list of names. [create], [with_typing_env],
-     [map_typing_env], [current_typing_env], [make_bottom]: in full.
+     latter as a list of names. [create], [code_age_relation],
+     [with_typing_env], [map_typing_env], [current_typing_env],
+     [make_bottom]: in full.
+   - [code_age_relation_resolver]: for one compilation unit. The
+     compiler's gives the relation of another unit, read from its .cmx
+     file, or none; the model has one unit and reads no .cmx file
+     (FlambdaTypingEnv.v), so this one gives none.
    - [replace_concrete_equation],
      [add_concrete_equation_on_canonical_name],
      [adding_equation_for_name],
@@ -82,9 +87,8 @@
    [add_env_extension_from_level] (the first needs extensions with
    extra variables, which FlambdaTypingEnv.v has not yet; the second is
    for the binary join); [add_symbol_projection] (symbol projections
-   are not in the model's environment); [code_age_relation],
-   [code_age_relation_resolver] and [machine_width] (neither is in the
-   model's environment).
+   are not in the model's environment); [machine_width] (it is not in
+   the model's environment).
 
    The differences:
    - Strategies. [delayed_equations] is left out, with
@@ -166,7 +170,8 @@ From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar FlambdaBindingTime
-  FlambdaEnvAliases FlambdaTypingEnv FlambdaMeetGrammar FlambdaExpandHead.
+  FlambdaEnvAliases FlambdaCodeAgeRelation FlambdaTypingEnv
+  FlambdaMeetGrammar FlambdaExpandHead.
 Import ListNotations.
 
 (* [Meet_env.meet_return_value]: the result of a meet is one of its
@@ -237,6 +242,16 @@ Module Meet_env.
     {| typing_env := typing_env;
        adding_equations_for_names := [];
        names_to_avoid := [] |}.
+
+  (* [Meet_env.code_age_relation]. *)
+  Definition code_age_relation (env : t) : Code_age_relation.t :=
+    Typing_env.code_age_relation (typing_env env).
+
+  (* [Meet_env.code_age_relation_resolver], for one compilation unit: no
+     other unit has a relation to give. *)
+  Definition code_age_relation_resolver (_ : t) (_ : unit)
+      : option Code_age_relation.t :=
+    None.
 
   Definition with_typing_env (env : t) (typing_env : Typing_env.t) : t :=
     {| typing_env := typing_env;

@@ -40,7 +40,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypingEnvKindedSpec FlambdaMeetGrammar FlambdaExpandHead
   FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec FlambdaMeetStepsSpec
   FlambdaMeetStepsProofs FlambdaMeetEnvSpec FlambdaMeetEnvProofs
-  FlambdaMeetProductsSpec.
+  FlambdaMeetProductsSpec FlambdaMeetCodeAgeSpec FlambdaMeetCodeAgeProofs.
 Import ListNotations.
 
 (* The proofs below, as far as the end of the section, are for any
@@ -701,17 +701,29 @@ Proof.
   intros functions slot menv ft1 ft2 result Henv _ _ Hmeet.
   unfold meet_function_type in Hmeet.
   destruct ft1 as [ ft1 | ], ft2 as [ ft2 | ].
-  - injection Hmeet as <-. unfold meet_code_id.
-    destruct (Pos.eqb (function_type_code_id ft1) (function_type_code_id ft2))
-      eqn:Hcode.
-    + cbn [map_result].
+  - destruct
+      (meet_code_id menv (function_type_code_id ft1)
+         (function_type_code_id ft2))
+      as [answer | ] eqn:Hcode; cbn in Hmeet; [ | discriminate ].
+    injection Hmeet as <-.
+    destruct
+      (Pos.eq_dec (function_type_code_id ft1) (function_type_code_id ft2))
+      as [Heq | Hne].
+    + rewrite Heq, meet_code_id_same in Hcode. injection Hcode as <-.
+      cbn [map_result].
       apply (meet_call_ok_same_env _ _ menv _ _ Both_inputs Henv I).
       intros statics valuation _ H1 _. exact H1.
-    + cbn [map_result]. apply meet_call_ok_bottom.
-      intros statics valuation _ _ (code1 & Hcode1 & H1)
-        (code2 & Hcode2 & H2).
-      rewrite Hcode1 in Hcode2. injection Hcode2 as <-. subst code1.
-      rewrite H2, Pos.eqb_refl in Hcode. discriminate Hcode.
+    + destruct (meet_code_id_different menv _ _ answer Hne Hcode)
+        as [[-> _] | [[-> _] | [-> _]]]; cbn [map_result].
+      * apply (meet_call_ok_same_env _ _ menv _ _ Right_input Henv I).
+        intros statics valuation _ _ H2. exact H2.
+      * apply (meet_call_ok_same_env _ _ menv _ _ Left_input Henv I).
+        intros statics valuation _ H1 _. exact H1.
+      * apply meet_call_ok_bottom.
+        intros statics valuation _ _ (code1 & Hcode1 & H1)
+          (code2 & Hcode2 & H2).
+        rewrite Hcode1 in Hcode2. injection Hcode2 as <-. subst code1.
+        exact (Hne H2).
   - injection Hmeet as <-.
     apply (meet_call_ok_same_env _ _ menv _ _ Left_input Henv I).
     intros statics valuation _ H1 _. exact H1.
