@@ -777,6 +777,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_DIR)/, \
   types/grammar/FlambdaTypeGrammarProofs.v \
   types/grammar/FlambdaTypeMeaningBoolProofs.v \
   types/grammar/FlambdaTypeMeaningBoolSpec.v \
+  types/grammar/FlambdaTypeMeaningHeapProofs.v \
+  types/grammar/FlambdaTypeMeaningHeapSpec.v \
   types/grammar/FlambdaTypeMeaningProofs.v \
   types/grammar/FlambdaTypeMeaningSpec.v \
   types/grammar/FlambdaTypeNominalProofs.v \
