@@ -635,7 +635,9 @@ Definition arm_held (F : arm_forwards) (vars : env) (conts' : cont_env)
    are in turn so related and for which those entries hold, the second
    handler giving the kinds of the first; or two that are related, with
    the same extra arguments; or what is left of the same
-   over-application, to return and to raise to two that are related.
+   over-application, to return and to raise to two that are related;
+   or what the return continuation of code stands for, at the same
+   kinds, of two that are related.
    The variables of related closures are of what is known of them
    (FlambdaStatedScopeSpec.stated_hold), which is said under a static
    environment: the relation is that of the continuations of a state
@@ -676,7 +678,12 @@ Inductive arm_cont_fwd (statics : static_env)
       (Over_application remaining remaining_arity return_arity return_to
          exn_to)
       (Over_application remaining remaining_arity return_arity return_to'
-         exn_to').
+         exn_to')
+  | Arm_return_at_fwd (kinds : list flambda_kind)
+      (return_to return_to' : cont_value) :
+    arm_cont_fwd statics return_to return_to' ->
+    arm_cont_fwd statics (Return_at kinds return_to)
+      (Return_at kinds return_to').
 
 (* A static environment that extends another keeps the relation: what
    a value is of, it is still of. *)
@@ -694,12 +701,14 @@ Proof.
            Hdef_conts IHdef_conts Hheld Htyped Hscope
        | c c' extra Hc IH
        | remaining remaining_arity return_arity return_to return_to' exn_to
-           exn_to' Hreturn IHreturn Hraise IHraise ].
+           exn_to' Hreturn IHreturn Hraise IHraise
+       | kinds return_to return_to' _ IHreturn_at ].
   - apply Arm_same_fwd.
   - apply (Arm_closure_fwd statics' G St F); try assumption.
     exact (stated_hold_extend statics statics' St def_vars Hextend Hscope).
   - apply Arm_extra_args_fwd, IH.
   - apply Arm_over_fwd; assumption.
+  - apply Arm_return_at_fwd, IHreturn_at.
 Qed.
 
 Inductive arm_state_fwd : state -> state -> Prop :=
@@ -963,7 +972,8 @@ Proof.
       [ apply arm_fwd_refl; reflexivity | | apply arm_held_nil
       | apply kinds_hold_nil | apply stated_hold_nil ].
     intros k'. unfold resolve. simpl.
-    destruct (Pos.eqb k' (code_return_continuation c)); [ exact Hreturn | ].
+    destruct (Pos.eqb k' (code_return_continuation c));
+      [ apply Arm_return_at_fwd, Hreturn | ].
     destruct (Pos.eqb k' (code_exn_continuation c));
       [ exact Hraise | apply Arm_same_fwd ].
 Qed.
@@ -1049,7 +1059,8 @@ Proof.
            Hdef_conts IHdef_conts Hheld Htyped Hscope
        | c c' extra Hc [IHsame _]
        | remaining remaining_arity return_arity return_to return_to' exn_to
-           exn_to' Hreturn [IHreturn _] Hraise _ ].
+           exn_to' Hreturn [IHreturn _] Hraise _
+       | kinds return_to return_to' _ [IHreturn_at _] ].
   - (* the same continuation *)
     split;
       [ intros vs hp; exists 0; rewrite run_on_zero;
@@ -1237,6 +1248,15 @@ Proof.
       unfold call_function.
       apply arm_run_call_fwd; [ exact Hreturn | exact Hraise | ].
       intros partial. apply IHreturn.
+    + intros params metadata' p arms' def_vars0 def_conts0 i n target args vs
+        vars conts' hp rd Hc'.
+      discriminate Hc'.
+  - (* what the return continuation of code stands for *)
+    split.
+    + intros vs hp rd. cbn [apply_cont_value].
+      destruct (kinds_eqb (map kind_of_value vs) kinds);
+        [ apply IHreturn_at
+        | exists 0; rewrite run_on_zero; apply arm_answer_undefined ].
     + intros params metadata' p arms' def_vars0 def_conts0 i n target args vs
         vars conts' hp rd Hc'.
       discriminate Hc'.

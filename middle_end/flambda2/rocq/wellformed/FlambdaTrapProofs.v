@@ -992,7 +992,8 @@ Qed.
    environment; their continuations differ where a call was made, since
    the body of code runs with its return and exception continuations
    bound to those of the caller on the one machine, and bound to nothing
-   on the other. *)
+   on the other. On both, the return continuation is under the test of
+   the kinds of the values (FlambdaSemanticsSpec.Return_at). *)
 
 (* The handlers installed since the call in progress was made, or since
    the unit started. *)
@@ -1002,17 +1003,19 @@ Fixpoint handlers_of (st : stack) : list cont_value :=
   | [] | Call _ _ _ _ :: _ | Call_then _ _ _ _ _ _ _ :: _ => []
   end.
 
-(* What is running: the unit, or the body of code. *)
+(* What is running: the unit, or the body of code, which a call runs
+   for values of the kinds [kinds]. *)
 Inductive frame_kind : Type :=
   | Unit_frame (unit_exn : continuation)
-  | Code_frame (ret exn : continuation).
+  | Code_frame (ret exn : continuation) (kinds : list flambda_kind).
 
 (* The continuations with which the machine with the stack starts what is
    running. *)
 Definition bottom_conts (f : frame_kind) : cont_env :=
   match f with
   | Unit_frame _ => []
-  | Code_frame ret exn => [(ret, Outer ret); (exn, Outer exn)]
+  | Code_frame ret exn kinds =>
+    [(ret, Return_at kinds (Outer ret)); (exn, Outer exn)]
   end.
 
 (* What the check asks of a demand on a continuation that what is running
@@ -1022,7 +1025,7 @@ Definition bottom_ok (f : frame_kind) (k : continuation) (ts : trap_stack)
     : Prop :=
   match f with
   | Unit_frame unit_exn => ts = if Pos.eqb k unit_exn then [] else [unit_exn]
-  | Code_frame ret exn =>
+  | Code_frame ret exn _ =>
     ret <> exn ∧ if Pos.eqb k exn then ts = [] else k = ret ∧ ts = [exn]
   end.
 
@@ -1030,7 +1033,9 @@ Definition bottom_ok (f : frame_kind) (k : continuation) (ts : trap_stack)
    in order, for [n] steps: if [k] stands for a handler, the names of
    [ts] stand for the same in its environment as here, it passes the
    check under [ts], and what it demands is in order; if [k] stands for
-   nothing, the demand is one that the check allows. *)
+   nothing, or for nothing once the kinds of the values are tested, as
+   the return continuation of code does, the demand is one that the
+   check allows. *)
 Fixpoint target_ok (n : nat) (f : frame_kind) (conts : cont_env)
     (k : continuation) (ts : trap_stack) : Prop :=
   match n with
@@ -1046,6 +1051,7 @@ Fixpoint target_ok (n : nat) (f : frame_kind) (conts : cont_env)
           ∧ ∀ d : continuation * trap_stack,
               In d ds -> target_ok n f conts_h (fst d) (snd d)
     | Outer k0 => k0 = k ∧ bottom_ok f k ts
+    | Return_at _ return_to => return_to = Outer k ∧ bottom_ok f k ts
     | Extra_args _ _ | Over_application _ _ _ _ _ => False
     end
   end.
@@ -1063,6 +1069,7 @@ Lemma target_ok_S (n : nat) (f : frame_kind) (conts : cont_env)
           ∧ ∀ d : continuation * trap_stack,
               In d ds -> target_ok n f conts_h (fst d) (snd d)
     | Outer k0 => k0 = k ∧ bottom_ok f k ts
+    | Return_at _ return_to => return_to = Outer k ∧ bottom_ok f k ts
     | Extra_args _ _ | Over_application _ _ _ _ _ => False
     end.
 Proof. reflexivity. Qed.
@@ -1078,8 +1085,9 @@ Proof.
   rewrite target_ok_S in H. rewrite target_ok_S.
   destruct (resolve k conts)
     as [h vars def_conts recursive | k0 | c extra
-       | remaining remaining_arity return_arity return_to exn_to];
-    [ | exact H | exact H | exact H ].
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
+    [ | exact H | exact H | exact H | exact H ].
   destruct H as (Hagree & ds & Hh & Hds). split; [ exact Hagree | ].
   exists ds. split; [ exact Hh | ]. intros d Hd. apply IH. exact (Hds d Hd).
 Qed.
@@ -1104,8 +1112,10 @@ Proof.
   rewrite !target_ok_S. intros Hk Hts. rewrite Hk.
   destruct (resolve k conts)
     as [h vars def_conts recursive | k0 | c extra
-       | remaining remaining_arity return_arity return_to exn_to];
-    [ | exact (fun H => H) | exact (fun H => H) | exact (fun H => H) ].
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
+    [ | exact (fun H => H) | exact (fun H => H) | exact (fun H => H)
+      | exact (fun H => H) ].
   intros (Hagree & ds & Hh & Hds). split.
   - intros k' Hin. rewrite (Hts k' Hin). exact (Hagree k' Hin).
   - exists ds. split; assumption.
@@ -1167,7 +1177,8 @@ Qed.
    differ in the entry that the stack has, and in what the return
    continuation of the code is bound to on the machine that goes by
    names: what the return continuation of the call stands for, or what
-   is left of the over-application. *)
+   is left of the over-application, to be applied to values of the
+   kinds that the call runs the code for. *)
 Inductive call_frame : Type :=
   | Plain_call
   | First_call (remaining : list value)
@@ -1216,6 +1227,7 @@ Inductive stack_sim (n : nat) : frame_kind -> stack -> cont_env -> Prop :=
       (bottom : cont_env) :
       stack_sim n f st bottom -> stack_sim n f (Trap c :: st) bottom
   | Sim_call (frame : call_frame) (ret exn : continuation)
+      (kinds : list flambda_kind)
       (extra : list value) (rest : stack) (f : frame_kind)
       (bottom conts_n conts_s : cont_env) (k_ret k_exn : continuation)
       (ts : trap_stack) :
@@ -1224,11 +1236,12 @@ Inductive stack_sim (n : nat) : frame_kind -> stack -> cont_env -> Prop :=
       map (fun k => resolve k conts_s) (k_exn :: ts) = handlers_of rest ->
       env_rel f bottom conts_n conts_s ->
       stack_sim n f rest bottom ->
-      stack_sim n (Code_frame ret exn)
+      stack_sim n (Code_frame ret exn kinds)
         (call_entry frame ret exn (resolve k_ret conts_s) extra :: rest)
         [(ret,
-          call_return frame (resolve k_ret conts_n)
-            (with_extra_args (resolve k_exn conts_n) extra));
+          Return_at kinds
+            (call_return frame (resolve k_ret conts_n)
+               (with_extra_args (resolve k_exn conts_n) extra)));
          (exn, with_extra_args (resolve k_exn conts_n) extra)].
 
 Lemma stack_sim_weaken (n : nat) (f : frame_kind) (st : stack)
@@ -1238,12 +1251,12 @@ Proof.
   intros Hsim.
   induction Hsim
     as [ unit_exn | f c st bottom _ IH
-       | frame ret exn extra rest f bottom conts_n conts_s k_ret k_exn ts
-           Hret Hexn Hcorr Henv _ IH ].
+       | frame ret exn kinds extra rest f bottom conts_n conts_s k_ret
+           k_exn ts Hret Hexn Hcorr Henv _ IH ].
   - apply Sim_unit.
   - apply Sim_trap. exact IH.
-  - apply (Sim_call n frame ret exn extra rest f bottom conts_n conts_s
-             k_ret k_exn ts);
+  - apply (Sim_call n frame ret exn kinds extra rest f bottom conts_n
+             conts_s k_ret k_exn ts);
       try assumption; apply target_ok_weaken; assumption.
 Qed.
 
@@ -1320,8 +1333,8 @@ Proof.
   intros Hsim.
   induction Hsim
     as [ unit_exn | f c st bottom Hsim IH
-       | frame ret exn extra rest f bottom conts_n conts_s k_ret k_exn ts
-           Hret Hexn Hcorr Henv _ _ ];
+       | frame ret exn kinds extra rest f bottom conts_n conts_s k_ret
+           k_exn ts Hret Hexn Hcorr Henv _ _ ];
     intros u Hf; [ | | discriminate ].
   - split; [ reflexivity | ]. intros k vs statics hp rd _. reflexivity.
   - destruct (IH u Hf) as [-> Hexit]. split; [ reflexivity | ].
@@ -1342,8 +1355,8 @@ Proof.
   intros Hsim. remember (Trap c :: st) as st0 eqn:Heq.
   destruct Hsim
     as [ unit_exn | f c0 st1 bottom Hsim
-       | frame ret exn extra rest f bottom conts_n conts_s k_ret k_exn ts
-           _ _ _ _ _ ].
+       | frame ret exn kinds extra rest f bottom conts_n conts_s k_ret
+           k_exn ts _ _ _ _ _ ].
   - discriminate.
   - injection Heq as <- <-. exact Hsim.
   - injection Heq as Heq _. exfalso.
@@ -1352,9 +1365,9 @@ Qed.
 
 (* A stack of the body of code with no handler installed has the call on
    top. *)
-Lemma stack_sim_call_inv (n : nat) (ret exn : continuation) (st : stack)
-    (bottom : cont_env) :
-  stack_sim n (Code_frame ret exn) st bottom ->
+Lemma stack_sim_call_inv (n : nat) (ret exn : continuation)
+    (kinds : list flambda_kind) (st : stack) (bottom : cont_env) :
+  stack_sim n (Code_frame ret exn kinds) st bottom ->
   handlers_of st = [] ->
   ∃ (frame : call_frame) (extra : list value) (rest : stack)
     (f : frame_kind) (bottom' conts_n conts_s : cont_env)
@@ -1362,8 +1375,9 @@ Lemma stack_sim_call_inv (n : nat) (ret exn : continuation) (st : stack)
     st = call_entry frame ret exn (resolve k_ret conts_s) extra :: rest
     ∧ bottom
       = [(ret,
-          call_return frame (resolve k_ret conts_n)
-            (with_extra_args (resolve k_exn conts_n) extra));
+          Return_at kinds
+            (call_return frame (resolve k_ret conts_n)
+               (with_extra_args (resolve k_exn conts_n) extra)));
          (exn, with_extra_args (resolve k_exn conts_n) extra)]
     ∧ target_ok n f conts_s k_ret (k_exn :: ts)
     ∧ target_ok n f conts_s k_exn ts
@@ -1372,20 +1386,22 @@ Lemma stack_sim_call_inv (n : nat) (ret exn : continuation) (st : stack)
     ∧ stack_sim n f rest bottom'.
 Proof.
   intros Hsim Hnone.
-  remember (Code_frame ret exn) as f0 eqn:Hf.
+  remember (Code_frame ret exn kinds) as f0 eqn:Hf.
   destruct Hsim
     as [ unit_exn | f c st bottom Hsim
-       | frame ret0 exn0 extra rest f bottom conts_n conts_s k_ret k_exn ts
-           Hret Hexn Hcorr Henv Hsim ].
+       | frame ret0 exn0 kinds0 extra rest f bottom conts_n conts_s k_ret
+           k_exn ts Hret Hexn Hcorr Henv Hsim ].
   - discriminate.
   - discriminate.
-  - injection Hf as <- <-.
+  - injection Hf as <- <- <-.
     exists frame, extra, rest, f, bottom, conts_n, conts_s, k_ret, k_exn, ts.
     auto 8.
 Qed.
 
-Lemma resolve_bottom_code (ret exn k : continuation) :
-  resolve k [(ret, Outer ret); (exn, Outer exn)] = Outer k.
+Lemma resolve_bottom_code (ret exn k : continuation)
+    (kinds : list flambda_kind) :
+  resolve k [(ret, Return_at kinds (Outer ret)); (exn, Outer exn)]
+  = if Pos.eqb k ret then Return_at kinds (Outer ret) else Outer k.
 Proof.
   unfold resolve. simpl.
   destruct (Pos.eqb_spec k ret) as [-> | _]; [ reflexivity | ].
@@ -1397,17 +1413,19 @@ Qed.
 (* The body of code that a call starts, on the two machines: the two are
    in step, whatever call it is that is in progress. *)
 Lemma callee_inv (statics : static_env) (hp : heap) (rd : read_record) (n : nat)
-    (c : code)
+    (c : code) (kinds : list flambda_kind)
     (callee_vars : env) (st : stack) (bottom : cont_env) :
   code_ok statics ->
   code_full_well_formed c = true ->
   stack_sim n
-    (Code_frame (code_return_continuation c) (code_exn_continuation c)) st
-    bottom ->
+    (Code_frame (code_return_continuation c) (code_exn_continuation c)
+       kinds)
+    st bottom ->
   handlers_of st = [] ->
   inv n (State (code_body c) callee_vars bottom statics hp rd)
     (State (code_body c) callee_vars
-       [(code_return_continuation c, Outer (code_return_continuation c));
+       [(code_return_continuation c,
+         Return_at kinds (Outer (code_return_continuation c)));
         (code_exn_continuation c, Outer (code_exn_continuation c))]
        statics hp rd)
     (Trap (Outer (code_exn_continuation c)) :: st).
@@ -1423,15 +1441,23 @@ Proof.
   split; [ reflexivity | ]. split; [ reflexivity | ].
   split; [ reflexivity | ]. split; [ reflexivity | ].
   split; [ reflexivity | ].
-  exists (Code_frame ret exn), bottom, [exn], ds_c.
+  exists (Code_frame ret exn kinds), bottom, [exn], ds_c.
   split; [ apply Env_bottom | ]. split; [ exact Hbody | ].
-  split; [ simpl; rewrite resolve_bottom_code, Hnone; reflexivity | ].
+  split.
+  { simpl. rewrite resolve_bottom_code, Hnone.
+    replace (Pos.eqb exn ret) with false; [ reflexivity | ].
+    symmetry. apply Pos.eqb_neq. intros Heq. exact (Hne (eq_sym Heq)). }
   split.
   { intros d Hd. destruct n as [ | m]; [ exact I | ].
-    rewrite target_ok_S, resolve_bottom_code.
-    split; [ reflexivity | ].
+    rewrite target_ok_S. simpl bottom_conts.
+    rewrite resolve_bottom_code.
     unfold code_demands_met in Hc. rewrite forallb_forall in Hc.
     specialize (Hc d Hd). destruct d as [k0 ts0]. simpl in Hc |- *.
+    assert (Hbottom : ret <> exn
+              ∧ if Pos.eqb k0 exn then ts0 = []
+                else k0 = ret ∧ ts0 = [exn]);
+      [ | destruct (Pos.eqb_spec k0 ret) as [-> | _];
+          (split; [ reflexivity | exact Hbottom ]) ].
     split; [ exact Hne | ]. revert Hc.
     destruct (Pos.eqb k0 exn); intros Hc;
       [ apply trap_stack_eqb_eq; exact Hc | ].
@@ -1478,17 +1504,18 @@ Proof.
       (call_code_cases closure c vs args_arity return_arity statics hp rd)
       as [Hundef | (callee_vars & Hstep)];
       [ rewrite !Hundef; exact I | rewrite !Hstep ].
-    refine (callee_inv statics _ rd_ n c callee_vars
+    refine (callee_inv statics _ rd_ n c (unarize return_arity) callee_vars
               (call_entry Plain_call (code_return_continuation c)
                  (code_exn_continuation c) (resolve k_ret conts_s) extra
                :: rest)
               [(code_return_continuation c,
-                call_return Plain_call (resolve k_ret conts_n)
-                  (with_extra_args (resolve k_exn conts_n) extra));
+                Return_at (unarize return_arity)
+                  (call_return Plain_call (resolve k_ret conts_n)
+                     (with_extra_args (resolve k_exn conts_n) extra)));
                (code_exn_continuation c,
                 with_extra_args (resolve k_exn conts_n) extra)]
               Hcode (Hcode called c Hlookup) _ _);
-      [ exact (Sim_call n _ _ _ extra rest f bottom conts_n conts_s k_ret
+      [ exact (Sim_call n _ _ _ _ extra rest f bottom conts_n conts_s k_ret
                  k_exn ts Hret Hexn Hcorr Henv Hsim)
       | apply handlers_of_call_entry ].
   - (* The first call of an over-application. *)
@@ -1498,20 +1525,22 @@ Proof.
                 statics hp rd)
       as [Hundef | (callee_vars & Hstep)];
       [ rewrite !Hundef; exact I | rewrite !Hstep ].
-    refine (callee_inv statics _ rd_ n c callee_vars
+    refine (callee_inv statics _ rd_ n c (unarize (code_result_arity c))
+              callee_vars
               (call_entry (First_call remaining remaining_arity return_arity)
                  (code_return_continuation c) (code_exn_continuation c)
                  (resolve k_ret conts_s) extra
                :: rest)
               [(code_return_continuation c,
-                call_return
-                  (First_call remaining remaining_arity return_arity)
-                  (resolve k_ret conts_n)
-                  (with_extra_args (resolve k_exn conts_n) extra));
+                Return_at (unarize (code_result_arity c))
+                  (call_return
+                     (First_call remaining remaining_arity return_arity)
+                     (resolve k_ret conts_n)
+                     (with_extra_args (resolve k_exn conts_n) extra)));
                (code_exn_continuation c,
                 with_extra_args (resolve k_exn conts_n) extra)]
               Hcode (Hcode called c Hlookup) _ _);
-      [ exact (Sim_call n _ _ _ extra rest f bottom conts_n conts_s k_ret
+      [ exact (Sim_call n _ _ _ _ extra rest f bottom conts_n conts_s k_ret
                  k_exn ts Hret Hexn Hcorr Henv Hsim)
       | apply handlers_of_call_entry ].
 Qed.
@@ -1556,7 +1585,7 @@ Proof.
     split; [ exact Hds | ].
     split; [ apply stack_sim_weaken; exact Hsim | exact Hcode ].
   - (* What is running is left. *)
-    destruct f as [unit_exn | ret exn].
+    destruct f as [unit_exn | ret exn kinds].
     + (* The unit ends. *)
       destruct (stack_sim_unit (S n) _ st bottom Hsim unit_exn eq_refl)
         as [-> Hexit].
@@ -1567,11 +1596,17 @@ Proof.
       destruct (Pos.eqb k unit_exn); simpl; lia.
     + (* The body of code is left. *)
       simpl bottom_conts in *. rewrite resolve_bottom_code in Htarget |- *.
-      destruct Htarget as [_ [Hne Hbottom]]. revert Hbottom.
+      assert (Hbottom : ret <> exn
+                ∧ if Pos.eqb k exn then ts = [] else k = ret ∧ ts = [exn]).
+      { revert Htarget. destruct (Pos.eqb k ret); intros [_ H]; exact H. }
+      clear Htarget. destruct Hbottom as [Hne Hbottom]. revert Hbottom.
       destruct (Pos.eqb_spec k exn) as [-> | Hk]; intros Hbottom.
       * (* By its exception continuation: a raise in the caller. *)
+        replace (Pos.eqb exn ret) with false
+          by (symmetry; apply Pos.eqb_neq; intros Heq;
+              exact (Hne (eq_sym Heq))).
         subst ts. simpl in Hcorr.
-        destruct (stack_sim_call_inv (S n) ret exn st bottom Hsim
+        destruct (stack_sim_call_inv (S n) ret exn kinds st bottom Hsim
                     (eq_sym Hcorr))
           as (frame & extra & rest & f & bottom' & conts_n' & conts_s'
               & k_ret & k_exn & ts & -> & -> & _ & Hexn & Hcorr' & Henv'
@@ -1588,16 +1623,21 @@ Proof.
         refine (IH rest' _ n f bottom' conts_n' conts_s' k_exn ts
                   (vs ++ extra) Hsim' Henv' Hexn (eq_sym Hrest')).
         simpl in Hlen. lia.
-      * (* By its return continuation. *)
-        destruct Hbottom as [-> ->]. simpl in Hcorr.
+      * (* By its return continuation: the two machines make the same
+           test of the kinds of the values. *)
+        destruct Hbottom as [-> ->]. rewrite Pos.eqb_refl.
+        simpl in Hcorr.
         destruct (handlers_of_cons st _ _ (eq_sym Hcorr))
           as (st' & -> & Hst').
         apply stack_sim_trap_inv in Hsim.
-        destruct (stack_sim_call_inv (S n) ret exn st' bottom Hsim Hst')
+        destruct (stack_sim_call_inv (S n) ret exn kinds st' bottom Hsim
+                    Hst')
           as (frame & extra & rest & f & bottom' & conts_n' & conts_s'
               & k_ret & k_exn & ts & -> & -> & Hret & Hexn & Hcorr' & Henv'
               & Hsim').
         rewrite resolve_head. unfold stack_enter.
+        cbn [apply_cont_value].
+        destruct (kinds_eqb (map kind_of_value vs) kinds); [ | exact I ].
         destruct frame as [ | remaining remaining_arity return_arity];
           simpl; rewrite Pos.eqb_refl.
         -- (* A return to the caller. *)

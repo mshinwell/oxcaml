@@ -495,6 +495,8 @@ Proof.
     revert Hholds. apply Forall2_impl_right with (P := closed);
       [ | exact Hc_remaining ].
     intros l0 v Hv. exact (grows_caller_holds a l0 v Hv Hbounded Hnext).
+  - intros a l kinds return_to Hret IH Hc Hbounded Hnext.
+    exact (Ret_at cert codes rs' a l kinds return_to (IH Hc Hbounded Hnext)).
   - intros a l l' c Hlasts Hret IH Hc Hbounded Hnext.
     exact (Ret_longer cert codes rs' a l l' c Hlasts (IH Hc Hbounded Hnext)).
   - intros a k simples extra c Heval Hholds Hjump Hsome IH Houter Hc Hbounded
@@ -855,6 +857,10 @@ Proof.
         | exact (IHraise Hbounded Hdecrease Hnext) ].
     revert Hholds. apply Forall2_impl. intros l0 v.
     exact (cut_caller_holds a l0 v Hbounded Hdecrease Hnext).
+  - intros a l kinds return_to Hret IH Hbounded Hdecrease Hnext.
+    exact
+      (Ret_at cert codes rs' a l kinds return_to
+         (IH Hbounded Hdecrease Hnext)).
   - intros a l l' c Hlasts Hret IH Hbounded Hdecrease Hnext.
     exact
       (Ret_longer cert codes rs' a l l' c Hlasts (IH Hbounded Hdecrease Hnext)).

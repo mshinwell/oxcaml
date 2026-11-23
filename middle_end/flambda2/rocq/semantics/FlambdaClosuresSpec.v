@@ -558,7 +558,9 @@ Definition eval_static_const_valid_statement : Prop :=
 (* The handlers that a continuation keeps, and those of the continuations
    that it keeps, have well-formed sets. What is left of an
    over-application keeps no term: it is so when the two continuations
-   that it keeps are. *)
+   that it keeps are. What the return continuation of code stands for
+   keeps none either: it is so when the continuation that the call
+   returns to is. *)
 Fixpoint cont_sets_ok (c : cont_value) : Prop :=
   match c with
   | Outer _ => True
@@ -569,6 +571,7 @@ Fixpoint cont_sets_ok (c : cont_value) : Prop :=
     ∧ fold_right (fun kc acc => cont_sets_ok (snd kc) ∧ acc) True conts
   | Over_application _ _ _ return_to exn_to =>
     cont_sets_ok return_to ∧ cont_sets_ok exn_to
+  | Return_at _ return_to => cont_sets_ok return_to
   end.
 
 Definition conts_sets_ok (conts : cont_env) : Prop :=

@@ -109,7 +109,9 @@ Lemma observers_any_slots (slots : list value_slot) (conts : cont_env) :
   observers slots conts -> observers [] conts.
 Proof.
   unfold observers. apply Forall_impl. intros [k c]. simpl.
-  destruct c as [h vars cs recursive | k' | c extra | remaining ra rr rt et];
+  destruct c
+    as [h vars cs recursive | k' | c extra | remaining ra rr rt et
+       | kinds rt];
     try (intros H; exact H).
   destruct h as [params metadata body].
   destruct vars; try (intros H; exact H).

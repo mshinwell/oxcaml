@@ -269,7 +269,9 @@ with code_makes_array (c : code) : bool :=
    variables hold none, and what its continuations stand for is free of
    them; a continuation with extra arguments, and what is left of an
    over-application, when the arguments hold none and the
-   continuations inside are free of them. *)
+   continuations inside are free of them; what the return continuation
+   of code stands for, when the continuation that the call returns to
+   is free of them. *)
 Inductive cont_free_of_arrays : cont_value -> Prop :=
   | Outer_free_of_arrays (k : continuation) :
     cont_free_of_arrays (Outer k)
@@ -295,7 +297,11 @@ Inductive cont_free_of_arrays : cont_value -> Prop :=
     cont_free_of_arrays exn_to ->
     cont_free_of_arrays
       (Over_application remaining remaining_arity return_arity return_to
-         exn_to).
+         exn_to)
+  | Return_at_free_of_arrays (kinds : list flambda_kind)
+      (return_to : cont_value) :
+    cont_free_of_arrays return_to ->
+    cont_free_of_arrays (Return_at kinds return_to).
 
 Definition conts_free_of_arrays (conts : cont_env) : Prop :=
   ∀ (k : continuation) (c : cont_value),

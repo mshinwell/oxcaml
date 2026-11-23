@@ -48,7 +48,9 @@
      arguments of a call kept ([Extra_args]) is renamed inside, the
      arguments being values, which hold no variables or continuations;
      what is left of an over-application has its two continuations
-     renamed, and the values it keeps hold no names;
+     renamed, and the values it keeps hold no names; what the return
+     continuation of code stands for is renamed inside, the kinds that
+     it keeps holding no names;
    - the static environment has its code renamed. Symbols, code ids and
      slots are fixed by the action;
    - a state, the result of a step and a behaviour are renamed
@@ -131,6 +133,7 @@ Fixpoint rename_cont_value (r : renaming) (c : cont_value) : cont_value :=
   | Over_application remaining remaining_arity return_arity return_to exn_to =>
     Over_application remaining remaining_arity return_arity
       (rename_cont_value r return_to) (rename_cont_value r exn_to)
+  | Return_at kinds return_to => Return_at kinds (rename_cont_value r return_to)
   end.
 
 Definition rename_cont_env (r : renaming) (conts : cont_env) : cont_env :=

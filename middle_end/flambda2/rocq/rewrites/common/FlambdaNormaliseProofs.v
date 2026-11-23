@@ -39,7 +39,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaTupledSpec FlambdaTupledProofs FlambdaPartialApplicationSpec
   FlambdaPartialApplicationProofs FlambdaStatedScopeSpec
   FlambdaStatedSymbolsSpec
-  FlambdaStatedContextProofs FlambdaNormaliseSpec.
+  FlambdaStatedContextProofs FlambdaWellKindedSpec FlambdaNormaliseSpec.
 From OxCamlFlambda2 Require FlambdaHeapProofs FlambdaStatedScopeProofs
   FlambdaStatedSymbolsProofs.
 Import ListNotations.
@@ -1785,10 +1785,11 @@ Proof.
   destruct
     (negb (among called kept)
      && (Pos.eqb code called && inlinable_b ap c
-         && call_agrees_stated Y S ap c))
+         && call_agrees_stated Y S ap c && code_returns_at_kinds c))
     eqn:Hcheck;
     [ | apply equivalent_refl ].
   apply andb_true_iff in Hcheck as [_ Hcheck].
+  apply andb_true_iff in Hcheck as [Hcheck Hreturns].
   apply andb_true_iff in Hcheck as [Hcheck Hagrees].
   apply andb_true_iff in Hcheck as [Hsame Hinlinable].
   apply Pos.eqb_eq in Hsame. subst code.
@@ -1804,7 +1805,7 @@ Proof.
     [ exact Hkind | rewrite Hcallee; reflexivity
     | exact Hclosure | exact (Hcode called c Hc)
     | exact (inlinable_b_sound ap c Hinlinable) | exact Hargs_arity
-    | exact Hreturn_arity | exact Hparams_kinds | ].
+    | exact Hreturn_arity | exact Hparams_kinds | exact Hreturns | ].
   intros vs Hvs.
   exact
     (FlambdaStatedSymbolsProofs.are_stated_knowing_sound statics Y S vars
@@ -1852,10 +1853,11 @@ Proof.
   destruct
     (negb (among called kept)
      && (Pos.eqb code called && inlinable_b ap c
-         && call_agrees_stated Y S ap c))
+         && call_agrees_stated Y S ap c && code_returns_at_kinds c))
     eqn:Hcheck;
     [ | reflexivity ].
   apply andb_true_iff in Hcheck as [_ Hcheck].
+  apply andb_true_iff in Hcheck as [Hcheck _].
   apply andb_true_iff in Hcheck as [Hcheck _].
   apply andb_true_iff in Hcheck as [_ Hinlinable].
   rewrite inlined_body_binds_statics.

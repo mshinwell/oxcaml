@@ -247,7 +247,8 @@ Fixpoint apply_cont_value_more (c : cont_value) :
 Proof.
   destruct c
     as [h def_vars def_conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     intros vs hp rd; simpl.
   - destruct h as [params metadata handler].
     destruct (kinds_eqb _ _); [ | exact I ].
@@ -266,6 +267,8 @@ Proof.
                 remaining_arity return_arity));
       [ intros partial; apply apply_cont_value_more
       | intros sh; apply shape_of_call_more ].
+  - destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ apply apply_cont_value_more | exact I ].
 Qed.
 
 Lemma call_function_more (callee : value) (kind : call_kind)

@@ -442,8 +442,10 @@ Definition handlers_say_at_least (vm km : name_map)
    of where they were defined, with environments that match on the names
    free in the handlers: those of the handler itself and of the handlers
    defined with it, any of which it may come to run; or what is left of
-   the same over-application, with continuations that are related. The
-   relation is not symmetric. *)
+   the same over-application, with continuations that are related; or
+   what the return continuation of code stands for, at the same kinds,
+   with continuations that are related. The relation is not
+   symmetric. *)
 #[local] Set Warnings "-register-all".
 Inductive cont_ordered : cont_value -> cont_value -> Prop :=
   | Same_ordered (c : cont_value) : cont_ordered c c
@@ -478,7 +480,11 @@ Inductive cont_ordered : cont_value -> cont_value -> Prop :=
       (Over_application remaining remaining_arity return_arity return_to
          exn_to)
       (Over_application remaining remaining_arity return_arity return_to'
-         exn_to').
+         exn_to')
+  | Return_at_ordered (kinds : list flambda_kind)
+      (return_to return_to' : cont_value) :
+    cont_ordered return_to return_to' ->
+    cont_ordered (Return_at kinds return_to) (Return_at kinds return_to').
 
 Lemma with_extra_args_ordered (c c' : cont_value) (extra : list value) :
   cont_ordered c c' ->
@@ -798,7 +804,8 @@ Proof.
     try contradiction; simpl; [ | exact I ].
   apply (State_ordered vm [(ret, ret'); (exn, exn')]);
     [ exact Hc | exact Hbound | | exact Hstatics ].
-  apply (conts_ordered_cons (fun _ => True)); [ auto | | exact Hreturn ].
+  apply (conts_ordered_cons (fun _ => True));
+    [ auto | | apply Return_at_ordered, Hreturn ].
   apply (conts_ordered_cons (fun _ => True));
     [ auto | apply conts_ordered_same | exact Hexn ].
 Qed.
@@ -948,12 +955,13 @@ Proof.
     - intros partial. apply IHreturn. exact Hreturn. }
   induction c
     as [h vars conts recursive | exit | c IHc extra
-       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _
+       | kinds return_to IHreturn_at]
     using cont_value_over_ind;
     intros c' vs Hc.
   - inversion Hc
       as [c0 | vm km km' h0 h' vars0 vars' conts0 conts' recursive0
-                 recursive' Hnames Hh Hrec Hvars Hconts | | ];
+                 recursive' Hnames Hh Hrec Hvars Hconts | | | ];
       subst.
     + destruct (closure_ordered_itself h vars conts recursive)
         as (km' & Hnames & Hh & Hrec).
@@ -968,10 +976,14 @@ Proof.
   - inversion Hc
       as [c0 | |
          | remaining0 remaining_arity0 return_arity0 return_to0 return_to'
-             exn_to0 exn_to' Hreturn Hexn];
+             exn_to0 exn_to' Hreturn Hexn | ];
       subst.
     + apply Hover; [ exact IHreturn | apply Same_ordered .. ].
     + apply Hover; assumption.
+  - inversion Hc as [c0 | | | | kinds0 return_to0 return_to' Hreturn];
+      subst; simpl;
+      (destruct (kinds_eqb (map kind_of_value vs) kinds); [ | exact I ]);
+      apply IHreturn_at; [ apply Same_ordered | exact Hreturn ].
 Qed.
 
 (* The same call under static environments that are related, returning

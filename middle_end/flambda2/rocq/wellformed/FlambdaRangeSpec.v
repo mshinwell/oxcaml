@@ -108,7 +108,8 @@ Definition env_in_range (vars : env) : Prop :=
    handlers defined with it are; a continuation with extra arguments is
    when the continuation inside and the extra arguments are; what is
    left of an over-application is when the arguments that remain and its
-   two continuations are. *)
+   two continuations are; what the return continuation of code stands
+   for is when the continuation that the call returns to is. *)
 Inductive cont_in_range : cont_value -> Prop :=
   | Outer_in_range (k : continuation) : cont_in_range (Outer k)
   | Extra_args_in_range (c : cont_value) (extra : list value) :
@@ -133,7 +134,10 @@ Inductive cont_in_range : cont_value -> Prop :=
     cont_in_range exn_to ->
     cont_in_range
       (Over_application remaining remaining_arity return_arity return_to
-         exn_to).
+         exn_to)
+  | Return_at_in_range (kinds : list flambda_kind) (return_to : cont_value) :
+    cont_in_range return_to ->
+    cont_in_range (Return_at kinds return_to).
 
 Definition conts_in_range (conts : cont_env) : Prop :=
   ∀ (k : continuation) (c : cont_value), (k, c) ∈ conts -> cont_in_range c.

@@ -1266,7 +1266,11 @@ Inductive cont_kept : cont_value -> cont_value -> Prop :=
       (Over_application remaining remaining_arity return_arity return_to
          exn_to)
       (Over_application remaining remaining_arity return_arity return_to'
-         exn_to').
+         exn_to')
+  | Return_at_kept (kinds : list flambda_kind)
+      (return_to return_to' : cont_value) :
+    cont_kept return_to return_to' ->
+    cont_kept (Return_at kinds return_to) (Return_at kinds return_to').
 
 Definition conts_kept (conts conts' : cont_env) : Prop :=
   Forall2 (fun kc kc' => fst kc = fst kc' ∧ cont_kept (snd kc) (snd kc'))
@@ -1381,7 +1385,8 @@ Proof.
     [ | exact I ].
   eexists. split; [ reflexivity | ].
   apply State_kept; [ left; reflexivity | ].
-  constructor; [ split; [ reflexivity | exact Hreturn ] | ].
+  constructor;
+    [ split; [ reflexivity | apply Return_at_kept, Hreturn ] | ].
   constructor; [ split; [ reflexivity | exact Hexn ] | constructor ].
 Qed.
 
@@ -1446,7 +1451,8 @@ Proof.
            Hconts
        | k | c c' extra Hc IH
        | remaining remaining_arity return_arity return_to return_to' exn_to
-           exn_to' Hreturn IHreturn Hexn _ ];
+           exn_to' Hreturn IHreturn Hexn _
+       | kinds return_to return_to' _ IHreturn_at ];
     intros vs statics hp rd.
   - assert (Hparts :
       ∃ (params : list variable) (metadata : handler_metadata)
@@ -1482,6 +1488,8 @@ Proof.
     destruct vs as [ | v [ | v' vs]]; [ exact I | | exact I ].
     apply call_function_kept_from; [ exact Hreturn | exact Hexn | ].
     intros partial. apply IHreturn.
+  - simpl. destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ apply IHreturn_at | exact I ].
 Qed.
 
 Lemma call_function_kept (callee : value) (kind : call_kind)
@@ -1882,7 +1890,8 @@ Proof.
   { revert Hc.
     destruct c
       as [ [params metadata body] vars kept recursive | k0 | c0 extra
-         | remaining remaining_arity return_arity return_to exn_to ];
+         | remaining remaining_arity return_arity return_to exn_to
+         | kinds return_to];
       simpl; try contradiction;
       [ | intros _; split; [ apply Outer_kept | exact I ] ].
     destruct vars; [ | contradiction ].

@@ -524,7 +524,9 @@ Definition held (vars : env) (f : fate) (def_vars : env) : Prop :=
    whose handler is related under its own fate with its parameters; or
    two that are related with nothing said, with the same extra
    arguments; or what is left of the same over-application, to return
-   and to raise to two that are related with nothing said. *)
+   and to raise to two that are related with nothing said; or what the
+   return continuation of code stands for, at the same kinds, of two
+   that are related with nothing said. *)
 Inductive cont_aliased : env -> fate -> cont_value -> cont_value -> Prop :=
   | Same_aliased (vars : env) (f : fate) (c : cont_value) :
     no_alias f -> cont_aliased vars f c c
@@ -591,7 +593,13 @@ Inductive cont_aliased : env -> fate -> cont_value -> cont_value -> Prop :=
       (Over_application remaining remaining_arity return_arity return_to
          exn_to)
       (Over_application remaining remaining_arity return_arity return_to'
-         exn_to').
+         exn_to')
+  | Return_at_aliased (vars : env) (f : fate) (kinds : list flambda_kind)
+      (return_to return_to' : cont_value) :
+    no_alias f ->
+    cont_aliased vars f return_to return_to' ->
+    cont_aliased vars f (Return_at kinds return_to)
+      (Return_at kinds return_to').
 
 Inductive state_aliased : state -> state -> Prop :=
   | State_aliased (K : fates) (e e' : expr) (vars vars' : env)
@@ -644,7 +652,8 @@ Proof.
        | vars f c c' extra Hno Hc IHc
        | vars f f_ret f_exn remaining remaining_arity return_arity return_to
            return_to' exn_to exn_to' Hno Hno_ret Hno_exn Hreturn IHreturn
-           Hraise IHraise ];
+           Hraise IHraise
+       | vars f kinds return_to return_to' Hno _ IHreturn_at ];
     intros vars2 Hsame.
   - apply Same_aliased, Hno.
   - apply (Closure_aliased vars2 f K); try assumption.
@@ -657,6 +666,7 @@ Proof.
       exact (no_alias_unfrozen _ x Hno_ret Hx).
     + apply IHraise. intros x Hx. exfalso.
       exact (no_alias_unfrozen _ x Hno_exn Hx).
+  - apply Return_at_aliased; [ exact Hno | ]. apply IHreturn_at, Hsame.
 Qed.
 
 (* The closures of the handlers of a recursive [Let_cont] of which
@@ -786,7 +796,8 @@ Proof.
     + reflexivity.
     + intros k'. rewrite fate_of_pair, !resolve_pair.
       destruct (Pos.eqb k' (code_return_continuation c)).
-      { apply (cont_aliased_env vars); [ exact Hreturn | ].
+      { apply Return_at_aliased; [ exact Hno_ret | ].
+        apply (cont_aliased_env vars); [ exact Hreturn | ].
         intros y Hy. exfalso. exact (no_alias_unfrozen _ y Hno_ret Hy). }
       destruct (Pos.eqb k' (code_exn_continuation c));
         [ | apply Same_aliased, no_alias_nil ].
@@ -876,7 +887,8 @@ Proof.
        | vars f c c' extra Hno Hc IHc
        | vars f f_ret f_exn remaining remaining_arity return_arity return_to
            return_to' exn_to exn_to' Hno Hno_ret Hno_exn Hreturn IHreturn
-           Hraise _ ];
+           Hraise _
+       | vars f kinds return_to return_to' Hno _ IHreturn_at ];
     intros vs statics hp rd Hgiven.
   - (* the same continuation *)
     destruct (apply_cont_value c vs statics _ rd_) as [t | k vs0 | ];
@@ -1000,6 +1012,9 @@ Proof.
          statics _ rd_ Hno_ret Hno_exn Hreturn Hraise).
     intros partial. apply IHreturn. intros i s Hs. exfalso.
     exact (Hno_ret i s Hs).
+  - (* what the return continuation of code stands for *)
+    simpl. destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ exact (IHreturn_at vs statics hp rd Hgiven) | exact I ].
 Qed.
 
 (* The same call, returning and raising to related continuations of

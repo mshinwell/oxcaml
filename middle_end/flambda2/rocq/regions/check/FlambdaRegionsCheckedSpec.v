@@ -618,6 +618,13 @@ with ret_ok (rs : region_state) : caller -> lifetime -> cont_value -> Prop :=
     ret_ok rs a l
       (Over_application remaining remaining_arity return_arity return_to
          exn_to)
+  (* What the return continuation of the code called stands for: the
+     continuation that the call returns to, with the kinds of the
+     return arity of the call (FlambdaSemanticsSpec.call_code). *)
+  | Ret_at (a : caller) (l : lifetime) (kinds : list flambda_kind)
+      (return_to : cont_value) :
+    ret_ok rs a l return_to ->
+    ret_ok rs a l (Return_at kinds return_to)
   (* What takes a value of a lifetime takes one that lasts longer. *)
   | Ret_longer (a : caller) (l l' : lifetime) (c : cont_value) :
     lasts (cs_open (caller_check a)) l l' = true ->
@@ -930,13 +937,15 @@ Definition head_conts (rs : region_state) : list cont_value :=
    with too many, and then, where the call of the value with them
    makes a partial application, those of the continuation that this
    is given to. FlambdaSemanticsSpec.apply_cont_value goes down the
-   same way. *)
+   same way. What the return continuation of code stands for gives its
+   values on to the continuation that the call returns to. *)
 Fixpoint cont_spine_values (c : cont_value) : list value :=
   match c with
   | Closure _ _ _ _ | Outer _ => []
   | Extra_args c extra => extra ++ cont_spine_values c
   | Over_application remaining _ _ return_to _ =>
     remaining ++ cont_spine_values return_to
+  | Return_at _ return_to => cont_spine_values return_to
   end.
 
 (* What is asked of the region arguments and of symbols read as
@@ -995,7 +1004,9 @@ Definition regions_given (rs : region_state) : bool :=
       let places := region_params (Handler params metadata handler) in
       forallb negb (skipn (length (ac_args ac)) places)
       && forallb negb (skipn (length params) places)
-    | Outer _ | Extra_args _ _ | Over_application _ _ _ _ _ => true
+    | Outer _ | Extra_args _ _ | Over_application _ _ _ _ _
+    | Return_at _ _ =>
+      true
     end
   | _ => true
   end.

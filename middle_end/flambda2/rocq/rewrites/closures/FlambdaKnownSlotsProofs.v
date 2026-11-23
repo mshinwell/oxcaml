@@ -273,7 +273,8 @@ Proof.
   revert Hc.
   destruct c
     as [ [params metadata body] vars kept recursive | k0 | c0 extra
-       | remaining remaining_arity return_arity return_to exn_to ];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     simpl; try contradiction; [ | intros _; exact I ].
   destruct vars; [ | contradiction ].
   destruct kept; [ | contradiction ].

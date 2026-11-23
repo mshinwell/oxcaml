@@ -473,7 +473,8 @@ Proof.
   induction c
     as [[params metadata handler] def_vars def_conts recursive | k
        | c IH extra
-       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _
+       | kinds return_to IHreturn_at]
     using cont_value_over_ind;
     intros vs statics hp rd.
   - simpl. rewrite kinds_permuted.
@@ -494,6 +495,9 @@ Proof.
     rewrite shape_of_call_permuted.
     apply run_call_permuted. intros partial.
     exact (IHreturn [partial] statics hp rd_).
+  - simpl. rewrite kinds_permuted.
+    destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ apply IHreturn_at | reflexivity ].
 Qed.
 
 Lemma with_extra_args_permuted (p : permutation) (c : cont_value)
@@ -714,7 +718,8 @@ Proof.
   induction c
     as [[params metadata handler] def_vars def_conts recursive | k
        | c IH extra
-       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _
+       | kinds return_to IHreturn_at]
     using cont_value_over_ind;
     intros vs statics hp rd.
   - simpl.
@@ -728,6 +733,8 @@ Proof.
   - destruct vs as [ | v [ | v' vs]]; try exact I.
     cbn [apply_cont_value]. apply run_call_heap. intros partial.
     apply IHreturn.
+  - simpl. destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ apply IHreturn_at | exact I ].
 Qed.
 
 Lemma step_not_let_heap (s : state) :

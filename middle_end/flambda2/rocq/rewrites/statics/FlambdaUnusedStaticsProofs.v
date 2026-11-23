@@ -768,7 +768,11 @@ Inductive cont_erased : cont_value -> cont_value -> Prop :=
       (Over_application remaining remaining_arity return_arity return_to
          exn_to)
       (Over_application remaining remaining_arity return_arity return_to'
-         exn_to').
+         exn_to')
+  | Return_at_erased (kinds : list flambda_kind)
+      (return_to return_to' : cont_value) :
+    cont_erased return_to return_to' ->
+    cont_erased (Return_at kinds return_to) (Return_at kinds return_to').
 
 Lemma with_extra_args_erased (c c' : cont_value) (extra : list value) :
   cont_erased c c' ->
@@ -1051,7 +1055,8 @@ Proof.
   - apply (bind_params_avoids params vs [(my_closure, closure)] bound Hvs);
       [ | exact Hbind ].
     apply env_avoids_cons; [ exact Hclosure | ]. intros x v [=].
-  - apply Forall2_cons; [ split; [ reflexivity | exact Hreturn ] | ].
+  - apply Forall2_cons;
+      [ split; [ reflexivity | apply Return_at_erased, Hreturn ] | ].
     apply Forall2_cons; [ split; [ reflexivity | exact Hexn ] | ].
     apply Forall2_nil.
   - exact Hstatics.
@@ -1109,7 +1114,8 @@ Proof.
            Hconts Hrec
        | c c' extra Hc IH Hextra
        | remaining remaining_arity return_arity return_to return_to'
-           exn_to exn_to' Hremaining Hreturn IHreturn Hexn _];
+           exn_to exn_to' Hremaining Hreturn IHreturn Hexn _
+       | kinds return_to return_to' _ IHreturn_at];
     intros vs Hvs.
   - simpl. auto.
   - simpl.
@@ -1144,6 +1150,8 @@ Proof.
         | apply forallb_Forall; exact Hremaining ].
     + intros partial Hpartial. apply IHreturn. simpl.
       rewrite Hpartial. reflexivity.
+  - simpl. destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ exact (IHreturn_at vs Hvs) | exact I ].
 Qed.
 
 Lemma call_function_erased (callee : value) (kind : call_kind)
@@ -1347,7 +1355,8 @@ Fixpoint cont_free_of_erased (D : dropped) (c : cont_value) :
 Proof.
   destruct c
     as [h vars conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     simpl;
     [ | intros _; apply Outer_erased
     | intros Hfree; apply andb_true_iff in Hfree as [Hc Hextra];
@@ -1358,7 +1367,11 @@ Proof.
       exact (Over_application_erased D remaining remaining_arity
                return_arity return_to return_to exn_to exn_to Hremaining
                (cont_free_of_erased D return_to Hreturn)
-               (cont_free_of_erased D exn_to Hexn)) ].
+               (cont_free_of_erased D exn_to Hexn))
+    | intros Hfree;
+      exact
+        (Return_at_erased D kinds return_to return_to
+           (cont_free_of_erased D return_to Hfree)) ].
   intros Hfree.
   apply andb_true_iff in Hfree as [Hfree Hrecursive].
   apply andb_true_iff in Hfree as [Hfree Hconts].

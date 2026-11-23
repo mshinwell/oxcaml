@@ -873,8 +873,11 @@ Definition region_params (h : continuation_handler) : list bool :=
    [Apply_cont]. No argument of a continuation that is not bound to a
    handler is at the place of a region: a way out of the term, a
    continuation with extra arguments, what is left of an
-   over-application. An argument beyond the handler's list of the
-   kinds of its parameters is not either. *)
+   over-application, what the return continuation of code stands for
+   (FlambdaSemanticsSpec.Return_at; so the body of code gives no
+   region to the continuation that its call returns to, whatever that
+   is). An argument beyond the handler's list of the kinds of its
+   parameters is not either. *)
 Definition region_places (rs : region_state) : list bool :=
   match state_expr (rs_state rs) with
   | Apply_cont ac =>

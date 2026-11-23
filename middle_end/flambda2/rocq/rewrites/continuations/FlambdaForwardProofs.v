@@ -655,7 +655,9 @@ Proof. intros Hentry. unfold no_entry. rewrite Hentry. reflexivity. Qed.
    what is known of them under the static environment given; or two
    that are related, with
    the same extra arguments; or what is left of the same
-   over-application, to return and to raise to two that are related.
+   over-application, to return and to raise to two that are related;
+   or what the return continuation of code stands for, at the same
+   kinds, of two that are related.
 
    Those are the pairs of the relation at [false]. At [true] there is
    one more: the second is what the handler of a closure passes its
@@ -714,7 +716,12 @@ Inductive cont_fwd (statics : static_env)
          def_conts' []) ->
     NoDup params ->
     ac_args target = map Var params ->
-    cont_fwd statics true c (resolve (ac_continuation target) def_conts').
+    cont_fwd statics true c (resolve (ac_continuation target) def_conts')
+  | Return_at_fwd (b : bool) (kinds : list flambda_kind)
+      (return_to return_to' : cont_value) :
+    cont_fwd statics true return_to return_to' ->
+    cont_fwd statics b (Return_at kinds return_to)
+      (Return_at kinds return_to').
 
 (* A pair at [false] is one at [true]. *)
 Lemma cont_fwd_any (statics : static_env) (b : bool) (c c' : cont_value) :
@@ -725,6 +732,7 @@ Proof.
   - apply (Closure_fwd statics b Y G T K F); assumption.
   - apply Extra_args_fwd. assumption.
   - apply Over_fwd; assumption.
+  - apply Return_at_fwd. assumption.
 Qed.
 
 Lemma conts_any (statics : static_env) (F : forwards)
@@ -756,7 +764,8 @@ Proof.
        | b remaining remaining_arity return_arity return_to return_to'
            exn_to exn_to' Hreturn IHreturn Hraise IHraise
        | c params metadata' target def_vars def_conts' Hstrict Hc IHc Hnodup
-           Hpasses ].
+           Hpasses
+       | b kinds return_to return_to' _ IHreturn_at ].
   - apply Same_fwd.
   - apply (Closure_fwd statics' b Y G T K F); try assumption.
     + exact (stated_hold_extend statics statics' T def_vars Hextend Hstated).
@@ -765,6 +774,7 @@ Proof.
   - apply Over_fwd; assumption.
   - apply (Alias_fwd statics' c params metadata' target def_vars def_conts'
       Hstrict); assumption.
+  - apply Return_at_fwd, IHreturn_at.
 Qed.
 
 Inductive state_fwd : state -> state -> Prop :=
@@ -1131,7 +1141,8 @@ Proof.
       [ apply fwd_refl; reflexivity | | apply held_nil | apply kinds_hold_nil
       | apply stated_hold_nil | apply symbols_hold_nil ].
     intros k'. change (no_entry [] k') with true. unfold resolve. simpl.
-    destruct (Pos.eqb k' (code_return_continuation c)); [ exact Hreturn | ].
+    destruct (Pos.eqb k' (code_return_continuation c));
+      [ apply Return_at_fwd, Hreturn | ].
     destruct (Pos.eqb k' (code_exn_continuation c));
       [ exact Hraise | apply Same_fwd ].
 Qed.
@@ -1219,7 +1230,8 @@ Proof.
        | plain remaining remaining_arity return_arity return_to return_to'
            exn_to exn_to' Hreturn [IHreturn _] Hraise _
        | c params metadata' target def_vars def_conts' Hstrict Hc
-           [IHclosure IHon] Hnodup Hpasses ].
+           [IHclosure IHon] Hnodup Hpasses
+       | plain kinds return_to return_to' _ [IHreturn_at _] ].
   - (* the same continuation *)
     split;
       [ intros vs; exists 0; rewrite run_on_zero; apply answer_refl | ].
@@ -1421,6 +1433,15 @@ Proof.
       rewrite Hundefined in Hanswer.
       rewrite (answer_undefined_inv _ Hanswer). intros Hs.
       rewrite Hstrict in Hs. discriminate Hs.
+  - (* what the return continuation of code stands for *)
+    split.
+    + intros vs hp rd. cbn [apply_cont_value].
+      destruct (kinds_eqb (map kind_of_value vs) kinds);
+        [ apply IHreturn_at
+        | exists 0; rewrite run_on_zero; apply answer_undefined ].
+    + intros _ params target metadata' def_vars0 def_conts0 args vs vars conts'
+        hp rd Hc'.
+      discriminate Hc'.
 Qed.
 
 (* ======================================================================== *)

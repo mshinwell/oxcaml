@@ -175,6 +175,7 @@ and about two pairs of annotations. Nothing is tested when the body
 returns: the third test is that the return arity of the call is the
 result arity of the code, an equality of two annotations, and the values
 that the body then gives its return continuation are not looked at.
+(They are since decision D81: section 13.)
 
 ## 2. Kinds of values
 
@@ -706,7 +707,8 @@ What the tests do not reach:
   is tested where it arrives: against the kinds of the handler that the
   return continuation stands for, if it stands for one. The comparison
   of the two return arities at the call (step B) is a comparison of
-  annotations, as before;
+  annotations, as before. (Since decision D81 it is tested where the
+  code returns: section 13);
 - the extra arguments of the exception continuation of a call, against
   the kinds that the call gives them. They are tested where they
   arrive, as above.
@@ -1105,6 +1107,127 @@ branch as it is with C5's epoch of exceptions. The reviewer has read
 the three new statements, the changed ones and the four functions of
 `FlambdaNormaliseSpec.v` on the version before that rebase, and reads
 what each rebase changed.
+
+## 13. What code returns is of the kinds of the call (decision D81)
+
+Sections 1 and 12 left one thing untested: the values that the body of
+code gives its return continuation. The human ruled on 23 November
+2026 that a return of the wrong kinds is undefined. This section is
+the change that makes it so.
+
+### The test
+
+`FlambdaSemanticsSpec.cont_value` has one constructor more:
+
+    Return_at (kinds : list flambda_kind) (return_to : cont_value)
+
+It is what the return continuation of code stands for while a call
+runs the code. `call_code` binds the return continuation of the code
+to `Return_at (unarize return_arity) return_to`, where it bound it to
+`return_to`; `apply_cont_value` applies `return_to` if the values are
+of the kinds kept, in number and each in its place, and has no step
+otherwise. Nothing else of the machine changes, and no step is added:
+a run that passes the test has the states that it had, but for the
+`Return_at` in what continuations stand for.
+
+So the test is made where the code returns (an `Apply_cont`, an arm of
+a `Switch`, a call in tail position that returns there) and not where
+it is called. Code with a return of the wrong kinds in an arm that is
+not run may be called. A call in tail position is given what the
+return continuation of its caller stands for, so the `Return_at` of
+the caller stays under its own, and the values that return through
+such a chain of tail calls are tested against each stored list of
+kinds; where two of those lists differ the return has no step. The
+kinds are those of the result arity of the code, unarized: a call
+that has a step is made at that arity (step B).
+
+The copy of the machine for the heap
+(`FlambdaHeapMachineSpec.v`) has the same case, and the machine with
+the stack of handlers (`FlambdaTrapSpec.v`) needs none: it runs the
+body through `call_code` and `apply_cont_value`, so it makes the test
+where the body leaves by its return continuation.
+
+### What it costs: inlining is an equivalence only with a test
+
+The copy of the body that takes the place of an inlined call returns
+to the continuation of the call, with no test. So:
+
+- inlining is still a refinement of the call
+  (`FlambdaApplySpec.inline_statement`, unchanged): the test can only
+  make the call undefined
+  (`FlambdaWellKindedSpec.return_at_refines_statement`);
+- inlining is no longer an equivalence for all code. It is one for
+  code whose body passes `FlambdaWellKindedSpec.code_returns_at_kinds`:
+  every `Apply_cont` of the return continuation has arguments whose
+  kinds, read from their binders, are those of the result arity; every
+  call that returns to it is made at a return arity of those kinds; no
+  call raises to it; no `Let_cont` binds it again.
+  `returns_at_kinds_equivalent_statement` and
+  `code_returns_at_kinds_equivalent_statement` say that such a body
+  runs alike with and without the `Return_at`.
+
+Three statements of equivalence were false as they stood and are
+mended with that test: the validation's inlining of a call of known
+code in the term after, which now asks the test before it inlines
+(`FlambdaNormaliseSpec.inline_known_apply`; the statements of
+`inline_known_calls` and of the calls of siblings are unchanged in
+their text), and `FlambdaTupledSpec.inline_tupled_equivalent_statement`,
+which takes it as a premise. The test is a sufficient condition: it
+looks at every branch and reads kinds from binders.
+
+### What is not tested
+
+- What the code states of its results beyond their kinds
+  (`cm_result_subkinds`). Simplify gives the results of a call the
+  types of the arity, which have what the arity states; the return
+  arity of a call of the model states nothing beyond kinds.
+- The extra arguments of the exception continuation of a call, against
+  the kinds that the call gives them. They are tested where they
+  arrive, as before.
+
+Both are asked of the human, each with a review comment in
+`FlambdaSemanticsSpec.v`.
+
+### Statements
+
+New, in `FlambdaWellKindedSpec.v`, all proved:
+`return_at_wrong_kinds_undefined_statement`,
+`call_returns_at_kinds_statement`,
+`returns_at_kinds_equivalent_statement`,
+`code_returns_at_kinds_equivalent_statement`,
+`return_at_refines_statement`. Changed:
+`FlambdaTupledSpec.inline_tupled_equivalent_statement` (one premise
+more). Changed in their meaning and not in their text, through
+`call_code`, `apply_cont_value` and `inline_known_apply`: every
+statement about `step`, and every statement about the validation.
+
+### The proofs
+
+Every simulation of the tree relates what continuations stand for in
+two runs, and gets one case: the two `Return_at` at the same kinds, of
+related continuations. The following proofs needed more than that
+case.
+
+- `FlambdaLoopifyProofs.v`. A self tail call inside a loop makes the
+  first run call the code again, so its return continuation stands
+  for a `Return_at` of a `Return_at`; the second run jumps and has
+  one. The two are at the same kinds (the result arity of the code),
+  so the second test of the first run passes when the first does: the
+  relation has a case for it.
+- `FlambdaTrapProofs.v`. The frame of the body of code keeps the kinds
+  of the call, and the two machines make the same test where the body
+  returns.
+- `FlambdaApplyProofs.v`, `FlambdaTupledProofs.v`. Inlining goes
+  through `return_at_refines_statement` for the refinement and
+  through `code_returns_at_kinds_equivalent_statement` for the
+  equivalence.
+- The regions. `FlambdaRegionsSpec.region_places` gives the place of
+  a region to an argument of a handler only, and what the return
+  continuation of code stands for is no longer the handler of the
+  caller: the body of code cannot give a region to the continuation
+  that its call returns to. The erasure already asked that this
+  continuation take no region, and no statement of the regions
+  changes its text.
 
 ## What is unfinished
 

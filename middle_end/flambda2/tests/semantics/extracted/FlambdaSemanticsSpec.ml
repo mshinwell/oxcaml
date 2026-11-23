@@ -25,6 +25,7 @@ type cont_value =
   | Outer of continuation
   | Extra_args of cont_value * value list
   | Over_application of value list * arity * arity * cont_value * cont_value
+  | Return_at of flambda_kind list * cont_value
 
 type cont_env = (continuation * cont_value) list
 
@@ -292,7 +293,8 @@ let call_code closure c vs args_arity return_arity return_to exn_to statics hp
         { state_expr = code_body c;
           state_vars = callee_vars;
           state_conts =
-            [ code_return_continuation c, return_to;
+            [ ( code_return_continuation c,
+                Return_at (unarize return_arity, return_to) );
               code_exn_continuation c, exn_to ];
           state_statics = statics;
           state_heap = hp;
@@ -521,6 +523,10 @@ let rec apply_cont_value c vs statics hp rd =
              remaining_arity return_arity)
           return_arity return_to exn_to statics hp rd
       | _ :: _ -> Undefined))
+  | Return_at (kinds, return_to) ->
+    if kinds_eqb (map kind_of_value vs) kinds
+    then apply_cont_value return_to vs statics hp rd
+    else Undefined
 
 (** val apply_continuation : continuation -> value list -> cont_env ->
     static_env -> heap -> read_record -> step_result **)

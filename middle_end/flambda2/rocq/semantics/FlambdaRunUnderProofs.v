@@ -151,7 +151,11 @@ Inductive under : cont_value -> cont_value -> Prop :=
       (Over_application remaining remaining_arity return_arity return_to
          exn_to)
       (Over_application remaining remaining_arity return_arity return_to'
-         exn_to').
+         exn_to')
+  | Under_return_at (kinds : list flambda_kind)
+      (return_to return_to' : cont_value) :
+    under return_to return_to' ->
+    under (Return_at kinds return_to) (Return_at kinds return_to').
 
 (* The two environments, at the free continuations of a term. *)
 Definition conts_under (e : expr) (conts conts' : cont_env) : Prop :=
@@ -266,7 +270,7 @@ Proof.
   pose proof (all_among_among _ _ k Hbody Hk) as Hamong.
   rewrite !among_cons in Hamong. change (among k []) with false in Hamong.
   destruct (Pos.eqb_spec k (code_return_continuation c)) as [-> | Hne].
-  - rewrite !resolve_head. exact Hreturn.
+  - rewrite !resolve_head. apply Under_return_at, Hreturn.
   - rewrite !(resolve_other _ _ _ _ Hne).
     destruct (Pos.eqb_spec k (code_exn_continuation c)) as [-> | Hne'].
     + rewrite !resolve_head. exact Hexn.
@@ -319,7 +323,8 @@ Proof.
            Hconts _
        | c c' extra _ IH
        | remaining remaining_arity return_arity return_to return_to' exn_to
-           exn_to' Hreturn IHreturn Hexn _ ];
+           exn_to' Hreturn IHreturn Hexn _
+       | kinds return_to return_to' _ IHreturn_at];
     intros vs statics hp rd Hstatics.
   - exact eq_refl.
   - cbn [apply_cont_value].
@@ -339,6 +344,9 @@ Proof.
     apply (run_call_under _ _ Indirect_unknown_arity); try assumption.
     + apply shape_of_call_calls.
     + intros partial. apply IHreturn. exact Hstatics.
+  - cbn [apply_cont_value].
+    destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ apply IHreturn_at; exact Hstatics | exact eq_refl ].
 Qed.
 
 (* A step of the two states. *)

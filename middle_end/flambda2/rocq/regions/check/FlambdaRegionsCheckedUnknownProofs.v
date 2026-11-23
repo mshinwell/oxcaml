@@ -320,6 +320,8 @@ Proof.
         (Ret_over cert codes rs a l' l3 ls remaining remaining_arity
            return_arity return_to exn_to Hholds Hcall (IHret Hdead2 l3)
            Hraise).
+  - intros a l kinds return_to Hret IH Hdead l'.
+    exact (Ret_at cert codes rs a l' kinds return_to (IH Hdead l')).
   - intros a l l2 c Hlasts Hret IH Hdead l'. apply IH.
     pose proof (lasts_rank _ _ _ Hlasts). lia.
 Qed.

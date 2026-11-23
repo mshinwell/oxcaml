@@ -815,6 +815,13 @@ with ret_ends (rs : region_state) : ends_caller -> cont_value -> Prop :=
     ret_ends rs a
       (Over_application remaining remaining_arity return_arity return_to
          exn_to)
+  (* What the return continuation of the code called stands for: the
+     continuation that the call returns to, with the kinds of the
+     return arity of the call (FlambdaSemanticsSpec.call_code). *)
+  | Ends_ret_at (a : ends_caller) (kinds : list flambda_kind)
+      (return_to : cont_value) :
+    ret_ends rs a return_to ->
+    ret_ends rs a (Return_at kinds return_to)
 with raise_ends (rs : region_state) : ends_caller -> cont_value -> Prop :=
   (* A continuation of the caller, with the values that the extra
      arguments of the call had in the caller, as

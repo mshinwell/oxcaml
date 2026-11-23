@@ -20,6 +20,12 @@ does what the line says). Dates are of 2026.
   Nov); where a `let` binds it or a handler is applied to it
   (provisional). Not tested: a field of a static block or a value slot
   where it is stored, a value given to a way out of the term (open).
+- **D81.** What code returns is of the kinds of the return arity of the
+  call that runs it: a return of another number of values, or of a
+  value of another kind, is undefined where the code returns (ruled 23
+  Nov). Not tested: what the code states of its results beyond their
+  kinds, and the extra arguments of the exception continuation of a
+  call against the kinds that the call gives them (open).
 - **D25.** Subkinds. A run is undefined where a parameter of a
   continuation or of code is bound to a value that is not of what its
   subkind states (ruled 18 Nov). Null passes only where it is allowed, a

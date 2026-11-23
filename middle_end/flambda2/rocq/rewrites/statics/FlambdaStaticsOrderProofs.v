@@ -391,14 +391,16 @@ Fixpoint cont_free_of_nothing (c : cont_value) :
   cont_free_of nothing c = true.
 Proof.
   destruct c as [h vars conts recursive | k | c extra
-    | remaining remaining_arity return_arity return_to exn_to];
+    | remaining remaining_arity return_arity return_to exn_to
+    | kinds return_to];
     simpl;
     [ | reflexivity
     | rewrite (cont_free_of_nothing c); simpl;
       apply forallb_always, value_avoids_nothing
     | rewrite (cont_free_of_nothing return_to),
         (cont_free_of_nothing exn_to), !andb_true_r;
-      apply forallb_always, value_avoids_nothing ].
+      apply forallb_always, value_avoids_nothing
+    | apply cont_free_of_nothing ].
   rewrite handler_free_of_nothing, env_free_of_nothing. simpl.
   replace
     (forallb (fun '(_, h) => handler_free_of nothing h) recursive)

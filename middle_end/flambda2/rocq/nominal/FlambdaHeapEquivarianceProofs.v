@@ -204,7 +204,8 @@ Proof.
   induction c
     as [[params metadata handler] def_vars def_conts recursive | k
        | c IH extra
-       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _
+       | kinds return_to IHreturn_at]
     using cont_value_over_ind;
     intros vs statics h.
   - simpl.
@@ -226,6 +227,8 @@ Proof.
     cbn [rename_cont_value heap_apply_cont_value].
     rewrite shape_of_call_equivariant.
     apply heap_run_call_equivariant. intros partial. apply IHreturn.
+  - simpl. destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ apply IHreturn_at | reflexivity ].
 Qed.
 
 Lemma heap_call_function_equivariant (r : renaming) (callee : value)
@@ -625,7 +628,8 @@ Fixpoint cont_value_closed_renamed (r : renaming) (h : heap)
 Proof.
   destruct c
     as [hd vars conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     simpl;
     [ | exact (fun H => H)
     | intros [Hextra Hc]; split;
@@ -633,7 +637,8 @@ Proof.
     | intros (Hremaining & Hreturn & Hexn); split; [ exact Hremaining | ];
       split;
       [ exact (cont_value_closed_renamed r h return_to Hreturn)
-      | exact (cont_value_closed_renamed r h exn_to Hexn) ] ].
+      | exact (cont_value_closed_renamed r h exn_to Hexn) ]
+    | exact (cont_value_closed_renamed r h return_to) ].
   intros [Hvars Hconts]. split.
   - exact (env_closed_renamed r h vars Hvars).
   - induction conts as [ | [k c] conts IH]; simpl; [ exact I | ].

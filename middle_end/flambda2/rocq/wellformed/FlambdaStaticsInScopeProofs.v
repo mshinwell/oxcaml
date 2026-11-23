@@ -1333,7 +1333,11 @@ Inductive cont_good : list symbol -> list code_id -> cont_value -> Prop :=
       lookup k (handler_exits declared_code_ids_of_binding h') = Some i ->
       among k (map fst recursive) = false ->
       cont_good (s ++ syms) (i ++ ids) (resolve k conts)) ->
-    cont_good syms ids (Closure h vars conts recursive).
+    cont_good syms ids (Closure h vars conts recursive)
+  | Good_return_at (syms : list symbol) (ids : list code_id)
+      (kinds : list flambda_kind) (return_to : cont_value) :
+    cont_good syms ids return_to ->
+    cont_good syms ids (Return_at kinds return_to).
 
 Lemma cont_good_sub (syms : list symbol) (ids : list code_id)
     (c : cont_value) :
@@ -1345,8 +1349,10 @@ Proof.
     as [ syms ids k | syms ids c extra _ IH
        | syms ids remaining remaining_arity return_arity return_to exn_to
            _ IHreturn _ IHexn
-       | syms ids h vars conts recursive Hh Hrec _ IH];
-    intros syms' ids' Hs Hi.
+       | syms ids h vars conts recursive Hh Hrec _ IH
+       | syms ids kinds return_to _ IHreturn_at];
+    intros syms' ids' Hs Hi; [ | | | | apply Good_return_at, IHreturn_at;
+                                       assumption ].
   - apply Good_outer.
   - apply Good_extra, IH; assumption.
   - apply Good_over; [ apply IHreturn | apply IHexn ]; assumption.
@@ -1435,7 +1441,8 @@ Proof.
     (conj (outside_weaken body P) (conj S (conj eq_refl (conj _ Hcode)))).
   intros k syms ids _ _. unfold resolve. rewrite !lookup_cons.
   destruct (Pos.eqb k ret);
-    [ exact (cont_good_sub _ _ _ Hreturn _ _ (sub_app_r _ _) (sub_app_r _ _))
+    [ apply Good_return_at;
+      exact (cont_good_sub _ _ _ Hreturn _ _ (sub_app_r _ _) (sub_app_r _ _))
     | ].
   destruct (Pos.eqb k exn); [ | apply Good_outer ].
   exact (cont_good_sub _ _ _ Hexn _ _ (sub_app_r _ _) (sub_app_r _ _)).
@@ -1490,7 +1497,7 @@ Lemma sibling_good (syms : list symbol) (ids : list code_id)
 Proof.
   intros Hgood Hlookup.
   inversion Hgood
-    as [ | | | syms0 ids0 h0 vars0 conts0 recursive0 Hh Hrec Hconts];
+    as [ | | | syms0 ids0 h0 vars0 conts0 recursive0 Hh Hrec Hconts | ];
     subst.
   assert (Hin : (k, h') ∈ recursive) by exact (lookup_in _ _ _ Hlookup).
   pose proof (proj1 (Forall_forall _ _) Hrec _ Hin) as Hh'. simpl in Hh'.
@@ -1513,7 +1520,8 @@ Proof.
   induction c
     as [[params metadata handler] def_vars def_conts recursive | k
        | c IHc extra
-       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _
+       | kinds return_to IHreturn_at]
     using cont_value_over_ind;
     intros vs statics hp rd s' Hcode Hgood Hstep.
   - simpl in Hstep.
@@ -1524,7 +1532,7 @@ Proof.
     destruct (bind_params params vs def_vars); [ | discriminate ].
     injection Hstep as <-.
     inversion Hgood
-      as [ | | | syms0 ids0 h0 vars0 conts0 recursive0 Hh Hrec Hconts];
+      as [ | | | syms0 ids0 h0 vars0 conts0 recursive0 Hh Hrec Hconts | ];
       subst.
     destruct Hh as (P & S & D). simpl in P, S, D.
     unfold terms_inv. simpl_state.
@@ -1544,13 +1552,18 @@ Proof.
     exact (IHc (vs ++ extra) statics hp rd_ s' Hcode ltac:(assumption) Hstep).
   - rewrite apply_cont_value_over_application in Hstep.
     destruct vs as [ | v [ | v' vs]]; [ discriminate | | discriminate ].
-    inversion Hgood as [ | | syms0 ids0 r ra rta rt et Hreturn Hexn | ]; subst.
+    inversion Hgood as [ | | syms0 ids0 r ra rta rt et Hreturn Hexn | | ];
+      subst.
     unfold call_function in Hstep.
     apply (run_call_terms _ Indirect_unknown_arity _ _ _ _ statics _ rd_ s'
              Hcode (shape_of_call_calls _ _ _ _ _ _) Hreturn Hexn)
       in Hstep; [ exact Hstep | ].
     intros partial Hpartial.
     exact (IHreturn [partial] statics hp rd_ s' Hcode Hreturn Hpartial).
+  - simpl in Hstep.
+    destruct (kinds_eqb (map kind_of_value vs) kinds); [ | discriminate ].
+    inversion Hgood; subst.
+    exact (IHreturn_at vs statics hp rd_ s' Hcode ltac:(assumption) Hstep).
 Qed.
 
 Lemma call_function_terms (callee : value) (kind : call_kind)
@@ -2519,13 +2532,17 @@ Lemma called_by_cont_bound (P : value -> Prop) (c : cont_value) :
 Proof.
   induction c
     as [ h vars conts recursive | k | c IH extra
-       | kept remaining_arity return_arity return_to _ exn_to _];
+       | kept remaining_arity return_arity return_to _ exn_to _
+       | kinds return_to IHreturn_at];
     intros vs v remaining; simpl; try discriminate.
   - intros [Hextra Hc] Hvs. apply IH; [ exact Hc | ].
     apply Forall_app. auto.
   - intros (Hkept & _) Hvs.
     destruct vs as [ | v' [ | v'' vs]]; try discriminate.
     intros [= <- <-]. split; [ exact (Forall_inv Hvs) | exact Hkept ].
+  - intros Hc Hvs.
+    destruct (kinds_eqb (map kind_of_value vs) kinds); [ | discriminate ].
+    exact (IHreturn_at vs v remaining Hc Hvs).
 Qed.
 
 (* The tuple that a call reads is one of the values that the call has in

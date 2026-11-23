@@ -1364,14 +1364,15 @@ Definition handler_takes_no_region (h : continuation_handler) : bool :=
 
 (* What a continuation stands for takes no region: it is not the
    closure of a handler that has a region parameter. A way out, a
-   continuation with extra arguments and what is left of an
-   over-application are never given a region: the machine of regions
-   has no step for a mark given to one
-   (FlambdaRegionsSpec.region_places). *)
+   continuation with extra arguments, what is left of an
+   over-application and what the return continuation of code stands
+   for are never given a region: the machine of regions has no step
+   for a mark given to one (FlambdaRegionsSpec.region_places). *)
 Definition cont_takes_no_region (c : cont_value) : Prop :=
   match c with
   | Closure h _ _ _ => handler_takes_no_region h = true
-  | Outer _ | Extra_args _ _ | Over_application _ _ _ _ _ => True
+  | Outer _ | Extra_args _ _ | Over_application _ _ _ _ _ | Return_at _ _ =>
+    True
   end.
 
 (* The list of continuations that [erase] is given agrees with what the
@@ -1408,7 +1409,8 @@ Definition erase_handlers (rconts : region_conts)
    group in front, with related environments; the same continuation
    with extra arguments, or what is left of the same over-application,
    with the values kept related where they may be evaluated or are
-   locations.
+   locations; what the return continuation of code stands for, at the
+   same kinds.
 
    The closure of a handler carries what a state carries for its
    expression: the handler, and those of its group, have no call that
@@ -1454,7 +1456,12 @@ Inductive cont_erased (rs : region_state) : cont_value -> cont_value -> Prop :=
       (Over_application remaining remaining_arity return_arity return_to
          exn_to)
       (Over_application remaining' remaining_arity return_arity return_to'
-         exn_to').
+         exn_to')
+  | Erased_return_at (kinds : list flambda_kind)
+      (return_to return_to' : cont_value) :
+    cont_takes_no_region return_to ->
+    cont_erased rs return_to return_to' ->
+    cont_erased rs (Return_at kinds return_to) (Return_at kinds return_to').
 
 Definition conts_erased (rs : region_state) (conts conts' : cont_env) : Prop :=
   Forall2
@@ -1473,7 +1480,8 @@ Proof.
        | c0 c0' extra extra' Htakes Hc0 Hextra
        | remaining remaining' remaining_arity return_arity return_to
            return_to' exn_to exn_to' Hremaining Hreturn_takes Hexn_takes
-           Hreturn Hexn ].
+           Hreturn Hexn
+       | kinds return_to return_to' Hreturn_takes Hreturn ].
   - apply Erased_outer.
   - apply Erased_handler;
       [ exact Hh | exact Hrecursive | exact Hagree
@@ -1492,6 +1500,9 @@ Proof.
       | exact Hreturn_takes | exact Hexn_takes
       | exact (cont_erased_extend _ _ Hextends _ _ Hreturn)
       | exact (cont_erased_extend _ _ Hextends _ _ Hexn) ].
+  - apply Erased_return_at;
+      [ exact Hreturn_takes
+      | exact (cont_erased_extend _ _ Hextends _ _ Hreturn) ].
 Qed.
 
 Lemma conts_erased_extend (rs rs1 : region_state) (conts conts' : cont_env) :
@@ -1625,7 +1636,7 @@ Proof.
 Qed.
 
 (* And in the body of code: nothing is listed, and the return and
-   exception continuations stand for what the caller's do. *)
+   exception continuations stand for things that take no region. *)
 Lemma conts_agree_call (ret exn : continuation)
     (return_to exn_to : cont_value) :
   cont_takes_no_region return_to ->

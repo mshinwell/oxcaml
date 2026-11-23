@@ -400,6 +400,7 @@ Fixpoint cont_names (c : cont_value) : list positive :=
   | Extra_args c _ => cont_names c
   | Over_application _ _ _ return_to exn_to =>
     cont_names return_to ++ cont_names exn_to
+  | Return_at _ return_to => cont_names return_to
   end.
 
 Definition conts_names (conts : cont_env) : list positive :=
@@ -419,6 +420,7 @@ Fixpoint cont_ok (c : cont_value) : Prop :=
   | Extra_args c _ => cont_ok c
   | Over_application _ _ _ return_to exn_to =>
     cont_ok return_to ∧ cont_ok exn_to
+  | Return_at _ return_to => cont_ok return_to
   end.
 
 (* Extra arguments change nothing: what holds of a continuation holds of
@@ -429,8 +431,9 @@ Lemma cont_target_ok (c : cont_value) :
 Proof.
   induction c
     as [h def_vars def_conts recursive | k | c IH extra
-       | remaining remaining_arity return_arity return_to _ exn_to _];
-    simpl; [ auto | auto | exact IH | auto ].
+       | remaining remaining_arity return_arity return_to _ exn_to _
+       | kinds return_to IHreturn_at];
+    simpl; [ auto | auto | exact IH | auto | auto ].
 Qed.
 
 Lemma with_extra_args_ok (c : cont_value) (extra : list value) :
@@ -640,7 +643,8 @@ Proof.
   induction c
     as [[params metadata handler] def_vars def_conts recursive | k
        | c IHc extra
-       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _
+       | kinds return_to IHreturn_at]
     using cont_value_over_ind;
     intros vs statics hp rd s' S [Cr Nr] Hstep.
   - simpl in Hstep.
@@ -680,6 +684,9 @@ Proof.
       in Hstep; [ exact Hstep | ].
     intros partial Hpartial.
     exact (IHreturn [partial] statics hp rd_ s' S Hreturn Hpartial).
+  - simpl in Hstep.
+    destruct (kinds_eqb (map kind_of_value vs) kinds); [ | discriminate ].
+    exact (IHreturn_at vs statics hp rd_ s' S (conj Cr Nr) Hstep).
 Qed.
 
 Lemma call_function_inv (callee : value) (kind : call_kind)

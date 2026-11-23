@@ -759,7 +759,8 @@ Qed.
 
 (* A full call. The body of the code is run under no continuation that
    [erase] lists: its return and exception continuations stand for what
-   the caller's do, which take no region. *)
+   the caller's do, which take no region, the first under the test of
+   the kinds of the values (FlambdaSemanticsSpec.Return_at). *)
 Lemma call_code_erased (rs : region_state) (statics' : static_env)
     (closure closure' : value) (c : code) (vs vs' : list value)
     (args_arity return_arity : arity)
@@ -816,9 +817,12 @@ Proof.
   eexists. split; [ reflexivity | ].
   apply state_erased_plain_next.
   - exact (code_body_returns_no_region c Hc).
-  - apply conts_agree_call; assumption.
+  - apply conts_agree_call; [ exact I | exact Hexn_takes ].
   - exact Hbound.
-  - constructor; [ split; [ reflexivity | exact Hreturn ] | ].
+  - constructor;
+      [ split; [ reflexivity | ];
+        apply Erased_return_at; [ exact Hreturn_takes | exact Hreturn ]
+      | ].
     constructor; [ split; [ reflexivity | exact Hexn ] | ].
     constructor.
   - exact Hstatics.
@@ -942,7 +946,8 @@ Proof.
        | c c' extra extra' Htakes Hc IH Hextra
        | remaining remaining' remaining_arity return_arity return_to
            return_to' exn_to exn_to' Hremaining Hreturn_takes Hexn_takes
-           Hreturn IHreturn Hexn _ ];
+           Hreturn IHreturn Hexn _
+       | kinds return_to return_to' Hreturn_takes _ IHreturn_at ];
     intros Htop Hstatics vs vs' hp hp' rd Hvs Hheaps.
   - simpl. exists vs', hp'. split; [ reflexivity | ].
     split; [ exact Hheaps | exact Hvs ].
@@ -984,6 +989,10 @@ Proof.
     apply IHreturn; [ exact Hreturn_takes | exact Hstatics | | exact Hheaps ].
     constructor; [ | constructor ].
     exact (value_erased_if_usable_intro rs _ _ Hpartial).
+  - cbn [apply_cont_value].
+    rewrite (kinds_of_values_if_usable rs vs vs' Hvs).
+    destruct (kinds_eqb (map kind_of_value vs) kinds); [ | exact I ].
+    exact (IHreturn_at Hreturn_takes Hstatics vs vs' hp hp' rd Hvs Hheaps).
 Qed.
 
 (* A call. *)
@@ -1054,7 +1063,8 @@ Proof.
   intros Hkinds.
   destruct c
     as [ [params metadata handler] vars conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to ];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     try (right; exact I).
   cbn [apply_cont_value].
   destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata))

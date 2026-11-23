@@ -233,7 +233,7 @@ Proof.
   split; [ exact Hall | ].
   intros ac0 Heq. injection Heq as <-.
   destruct (resolve (ac_continuation ac) (state_conts (rs_state rs)))
-    as [ [params metadata handler] def_vars def_conts recursive | | | ];
+    as [ [params metadata handler] def_vars def_conts recursive | | | | ];
     try exact I.
   apply andb_true_iff in Hgiven as [Hgiven_args _].
   unfold cont_takes_no_region, handler_takes_no_region.
@@ -860,7 +860,8 @@ Proof.
   unfold region_apply_cont.
   destruct (resolve (ac_continuation ac) (state_conts (rs_state rs)))
     as [ h def_vars def_conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to ]
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to]
     eqn:Hresolve;
     try (exfalso;
          pose proof (simples_fault_mark_place rs _ [] Hfault Hmark) as H;
@@ -889,6 +890,7 @@ Proof.
     as [
        | rconts0 h1 vars1 vars1' conts1 conts1' recursive1 Hh Hrecursive
            Hagree0 Hvars0 Hconts0
+       |
        |
        | ].
   subst h1 vars1 conts1 recursive1.

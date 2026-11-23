@@ -39,7 +39,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaNominalProofs FlambdaAlphaSpec FlambdaAlphaProofs
   FlambdaNormaliseSpec FlambdaEquivarianceSpec FlambdaEquivarianceProofs
   FlambdaUnusedContsSpec FlambdaStatedScopeSpec FlambdaStatedSymbolsSpec
-  FlambdaStatedScopeNamesProofs FlambdaStatedSymbolsNamesProofs.
+  FlambdaStatedScopeNamesProofs FlambdaStatedSymbolsNamesProofs
+  FlambdaWellKindedSpec.
 Import ListNotations.
 
 Lemma existsb_map_with {A B : Type} (f : B -> bool) (g : A -> B)
@@ -195,6 +196,114 @@ Proof.
   rewrite length_map, are_stated_knowing_equivariant. reflexivity.
 Qed.
 
+(* The test of what code returns reads the kinds of the variables in
+   scope, which are renamed as the variables are, and the two
+   continuations of the code. The kinds in scope are a map keyed by
+   variables: its keys are renamed ([Keyed.map_keys]), which is what
+   FlambdaValidatorEquivarianceSpec.rename_kind_env does; that file is
+   not imported here, so the lemmas are stated of the map. *)
+Lemma lookup_kinds_keys_renamed (r : renaming) (x : variable)
+    (kinds : kind_env) :
+  lookup (rename_variable r x) (Keyed.map_keys (rename_variable r) kinds)
+  = lookup x kinds.
+Proof.
+  unfold Keyed.map_keys, Keyed.map_bindings.
+  induction kinds as [ | [y kind] kinds IH]; simpl; [ reflexivity | ].
+  rewrite rename_variable_eqb, IH. reflexivity.
+Qed.
+
+Lemma kinds_of_simples_renamed (r : renaming) (kinds : kind_env)
+    (args : list simple) :
+  kinds_of_simples (Keyed.map_keys (rename_variable r) kinds)
+    (map (rename_simple r) args)
+  = kinds_of_simples kinds args.
+Proof.
+  induction args as [ | s args IH]; simpl; [ reflexivity | ].
+  rewrite IH. destruct s as [x | sym | c]; simpl; try reflexivity.
+  rewrite lookup_kinds_keys_renamed. reflexivity.
+Qed.
+
+Lemma bind_param_kinds_renamed (r : renaming) (params : list variable) :
+  ∀ (params_kinds : list flambda_kind) (kinds : kind_env),
+    bind_param_kinds (map (rename_variable r) params) params_kinds
+      (Keyed.map_keys (rename_variable r) kinds)
+    = option_map (Keyed.map_keys (rename_variable r))
+        (bind_param_kinds params params_kinds kinds).
+Proof.
+  induction params as [ | x params IH]; intros [ | kind params_kinds] kinds;
+    simpl; try reflexivity.
+  exact (IH params_kinds ((x, kind) :: kinds)).
+Qed.
+
+Lemma apply_cont_returns_at_kinds_renamed (r : renaming)
+    (ret : continuation) (result : list flambda_kind) (kinds : kind_env)
+    (ac : apply_cont) :
+  apply_cont_returns_at_kinds (rename_continuation r ret) result
+    (Keyed.map_keys (rename_variable r) kinds) (rename_apply_cont r ac)
+  = apply_cont_returns_at_kinds ret result kinds ac.
+Proof.
+  unfold apply_cont_returns_at_kinds. simpl.
+  rewrite rename_continuation_eqb, kinds_of_simples_renamed. reflexivity.
+Qed.
+
+Fixpoint returns_at_kinds_renamed (r : renaming) (ret : continuation)
+    (result : list flambda_kind) (e : expr) :
+  ∀ kinds : kind_env,
+    returns_at_kinds (rename_continuation r ret) result
+      (Keyed.map_keys (rename_variable r) kinds) (rename_expr r e)
+    = returns_at_kinds ret result kinds e
+with handler_returns_at_kinds_renamed (r : renaming) (ret : continuation)
+    (result : list flambda_kind) (h : continuation_handler) :
+  ∀ kinds : kind_env,
+    handler_returns_at_kinds (rename_continuation r ret) result
+      (Keyed.map_keys (rename_variable r) kinds) (rename_handler r h)
+    = handler_returns_at_kinds ret result kinds h.
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      intros kinds; simpl.
+    + exact (returns_at_kinds_renamed r ret result body ((x, kind) :: kinds)).
+    + apply returns_at_kinds_renamed.
+    + rewrite rename_continuation_eqb, handler_returns_at_kinds_renamed,
+        returns_at_kinds_renamed.
+      reflexivity.
+    + rewrite returns_at_kinds_renamed. f_equal. f_equal.
+      * f_equal. unfold is_bound.
+        change
+          (map (fun '(k, h) => (rename_continuation r k, rename_handler r h))
+             handlers)
+          with (rename_handlers r handlers).
+        rewrite lookup_rename_handlers.
+        destruct (lookup ret handlers); reflexivity.
+      * induction handlers as [ | [k h] handlers IH]; simpl;
+          [ reflexivity | ].
+        rewrite handler_returns_at_kinds_renamed, IH. reflexivity.
+    + unfold apply_returns_at_kinds. simpl.
+      rewrite !rename_continuation_eqb. reflexivity.
+    + apply apply_cont_returns_at_kinds_renamed.
+    + induction arms as [ | [i ac] arms IH]; simpl; [ reflexivity | ].
+      rewrite apply_cont_returns_at_kinds_renamed, IH. reflexivity.
+    + reflexivity.
+  - destruct h as [params metadata handler]. intros kinds. simpl.
+    rewrite bind_param_kinds_renamed.
+    destruct (bind_param_kinds params (hm_params_kinds metadata) kinds)
+      as [handler_kinds | ]; simpl;
+      [ apply returns_at_kinds_renamed | reflexivity ].
+Qed.
+
+Lemma code_returns_at_kinds_renamed (r : renaming) (c : code) :
+  code_returns_at_kinds (rename_code r c) = code_returns_at_kinds c.
+Proof.
+  destruct c as [params my_closure ret exn metadata body].
+  unfold code_returns_at_kinds. simpl.
+  change [(rename_variable r my_closure, Value)]
+    with (Keyed.map_keys (rename_variable r) [(my_closure, Value)]).
+  rewrite bind_param_kinds_renamed.
+  destruct (bind_param_kinds params _ [(my_closure, Value)]) as [kinds | ];
+    simpl; [ apply returns_at_kinds_renamed | reflexivity ].
+Qed.
+
 Lemma inline_known_apply_equivariant (r : renaming) (S : stated_in_scope)
     (kept : list code_id) (known_code : list (code_id * code))
     (known_symbols : list (symbol * option code_id)) (Y : symbols_stated)
@@ -218,11 +327,11 @@ Proof.
   destruct (lookup called known_code) as [c | ]; cbn [option_map];
     [ | reflexivity ].
   rewrite FlambdaEquivarianceProofs.inlinable_b_equivariant,
-    call_agrees_stated_renamed.
+    call_agrees_stated_renamed, code_returns_at_kinds_renamed.
   destruct
     (negb (among called kept)
      && (Pos.eqb code called && inlinable_b ap c
-         && call_agrees_stated Y S ap c));
+         && call_agrees_stated Y S ap c && code_returns_at_kinds c));
     [ | reflexivity ].
   apply inlined_body_equivariant.
 Qed.

@@ -338,6 +338,13 @@ Proof.
          (Forall_inv Hlive_vs) (Forall_inv Hholds_vs) Hgood_remaining Hholds
          Hunknown Hret Hraise (IHret Hcaller Hgood_ret) Hgood_ret Hgood_exn
          Hstep).
+  - (* What the return continuation of the code called stands for. *)
+    intros a l kinds return_to Hret IH Hcaller Hgood_c vs s' Hgood_vs
+      Hlive_vs Hholds_vs Hstep.
+    cbn [apply_cont_value] in Hstep.
+    destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ | discriminate Hstep ].
+    exact (IH Hcaller Hgood_c vs s' Hgood_vs Hlive_vs Hholds_vs Hstep).
   - (* A longer lifetime. *)
     intros a l l' c Hlasts Hret IH Hcaller Hgood_c vs s' Hgood_vs Hlive_vs
       Hholds_vs Hstep.

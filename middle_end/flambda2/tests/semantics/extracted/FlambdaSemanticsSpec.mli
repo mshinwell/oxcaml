@@ -25,6 +25,7 @@ type cont_value =
   | Outer of continuation
   | Extra_args of cont_value * value list
   | Over_application of value list * arity * arity * cont_value * cont_value
+  | Return_at of flambda_kind list * cont_value
 
 type cont_env = (continuation * cont_value) list
 

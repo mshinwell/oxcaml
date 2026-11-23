@@ -1013,6 +1013,8 @@ Qed.
    that are in turn so related; or two that are related with all their
    parameters kept, with the same extra arguments; or what is left of
    the same over-application, to return and to raise to two that are
+   related with all their parameters kept; or what the return
+   continuation of code stands for, at the same kinds, of two that are
    related with all their parameters kept. *)
 Inductive cont_drops : option (list bool) -> cont_value -> cont_value -> Prop :=
   | Same_drops (c : cont_value) : cont_drops None c c
@@ -1047,7 +1049,11 @@ Inductive cont_drops : option (list bool) -> cont_value -> cont_value -> Prop :=
       (Over_application remaining remaining_arity return_arity return_to
          exn_to)
       (Over_application remaining remaining_arity return_arity return_to'
-         exn_to').
+         exn_to')
+  | Return_at_drops (kinds : list flambda_kind)
+      (return_to return_to' : cont_value) :
+    cont_drops None return_to return_to' ->
+    cont_drops None (Return_at kinds return_to) (Return_at kinds return_to').
 
 Lemma with_extra_args_drops (c c' : cont_value) (extra : list value) :
   cont_drops None c c' ->
@@ -1129,7 +1135,7 @@ Proof.
       [ apply drops_refl; reflexivity | reflexivity | ].
     intros k'.
     destruct (Pos.eq_dec k' (code_return_continuation c)) as [-> | Hne];
-      [ rewrite !resolve_head; exact Hreturn | ].
+      [ rewrite !resolve_head; apply Return_at_drops, Hreturn | ].
     rewrite !(resolve_other k' (code_return_continuation c)) by exact Hne.
     destruct (Pos.eq_dec k' (code_exn_continuation c)) as [-> | Hne'];
       [ rewrite !resolve_head; exact Hraise | ].
@@ -1185,7 +1191,8 @@ Proof.
            Hrecursive Hhandler Hfits Hkinds Hdef_vars Hdef_conts _
        | c c' extra Hc IHc
        | remaining remaining_arity return_arity return_to return_to' exn_to
-           exn_to' Hreturn IHreturn Hraise _];
+           exn_to' Hreturn IHreturn Hraise _
+       | kinds return_to return_to' _ IHreturn_at];
     intros vs.
   - (* the same continuation *)
     simpl.
@@ -1218,6 +1225,10 @@ Proof.
     unfold call_function.
     apply run_call_drops; [ exact Hreturn | exact Hraise | ].
     intros partial. exact (IHreturn [partial]).
+  - (* what the return continuation of code stands for *)
+    cbn [keep_all_or]. simpl.
+    destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ exact (IHreturn_at vs) | exact I ].
 Qed.
 
 (* ======================================================================== *)

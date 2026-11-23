@@ -76,13 +76,32 @@
    kind of the binder that the term has in scope there follows from
    them where no other binder of the same name comes between: that is
    the scoping of the term, and nothing here says it. What the tests do
-   not reach: a value given to a way out of the term; and what is put
+   not reach: a value that the term itself gives to a way out of it
+   (what code returns is tested: the next paragraph); and what is put
    in a field of a static block or in a value slot, which is not tested
    where it is stored. (A block that a primitive makes has its fields
    tested, as arguments of the primitive.) What is read back is tested
    where it is used: a load asks of the field the kind it is given
    (FlambdaPrimitiveSpec.v), and the [Let] that binds what was read
    tests its kind.
+
+   What code returns, with no premise either. Code that a call runs
+   returns only values of the kinds of the return arity of the call,
+   unarized, which are those of the result arity of the code: a return
+   of another number of values, or of a value of another kind, has no
+   step ([return_at_wrong_kinds_undefined_statement],
+   [call_returns_at_kinds_statement]; FlambdaSemanticsSpec.call_code,
+   [Return_at]; decision D81). That test can only make a run
+   undefined ([return_at_refines_statement]). There is also a test of
+   a term, [returns_at_kinds], under which it never fails
+   ([returns_at_kinds_equivalent_statement],
+   [code_returns_at_kinds_equivalent_statement]): it is what the
+   inlining of a call asks of the code where the inlining is to be an
+   equivalence (FlambdaNormaliseSpec.inline_known_apply), as the copy
+   of the body is run by no call and what it returns is not tested.
+   It is not part of the check below, and asks less: of the kinds
+   that a term carries, only those of what is given to one
+   continuation.
 
    The check. [well_kinded] is a boolean function: under the kinds of
    the variables in scope and the kinds of the parameters of the
@@ -212,7 +231,9 @@
      ([well_kinded_exit_statement]);
    - the three together for a unit run on its own
      ([well_kinded_unit_never_faults_statement],
-     [well_kinded_unit_exits_statement]).
+     [well_kinded_unit_exits_statement]);
+   - what code returns: the test of the machine, and the test of a
+     term under which it never fails (the last section).
 
    What a well-kinded state may still do that is undefined: reach
    [Invalid]; apply a primitive that has no value, as it has none on
@@ -571,7 +592,9 @@ Definition kinds_of_env (vars : env) : kind_env :=
    function total. A continuation that has extra arguments takes what
    the continuation inside does but for the last ones, which the extra
    arguments are. The continuation of the full call inside an
-   over-application takes its one result, a value. *)
+   over-application takes its one result, a value. What the return
+   continuation of code stands for takes values of the kinds that it
+   keeps. *)
 Fixpoint arity_of_cont (outer : arity_env) (c : cont_value)
     : list flambda_kind :=
   match c with
@@ -585,6 +608,7 @@ Fixpoint arity_of_cont (outer : arity_env) (c : cont_value)
     let params_kinds := arity_of_cont outer c in
     firstn (length params_kinds - length extra) params_kinds
   | Over_application _ _ _ _ _ => [Value]
+  | Return_at kinds _ => kinds
   end.
 
 (* The kinds of the parameters of the continuations of an environment;
@@ -602,7 +626,9 @@ Definition arities_of_conts (outer : arity_env) (conts : cont_env)
    continuation of the full call inside an over-application keeps
    well-kinded arguments and two well-kinded continuations: the one it
    returns to takes the results of the whole call, and the one for
-   exceptions a value. *)
+   exceptions a value. What the return continuation of code stands for
+   keeps a well-kinded continuation, which takes the kinds that it
+   keeps. *)
 Fixpoint cont_well_kinded (outer : arity_env) (c : cont_value) : bool :=
   match c with
   | Outer k => is_bound k outer
@@ -628,6 +654,9 @@ Fixpoint cont_well_kinded (outer : arity_env) (c : cont_value) : bool :=
     && cont_well_kinded outer exn_to
     && kinds_eqb (arity_of_cont outer return_to) (unarize return_arity)
     && kinds_eqb (arity_of_cont outer exn_to) [Value]
+  | Return_at kinds return_to =>
+    cont_well_kinded outer return_to
+    && kinds_eqb (arity_of_cont outer return_to) kinds
   end.
 
 Definition conts_well_kinded (outer : arity_env) (conts : cont_env) : bool :=
@@ -723,7 +752,9 @@ Definition unbound (vars : env) (s : simple) : bool :=
 (* The continuation stands for a handler that has not as many parameters
    as the values it is given: [given] of them, and the extra arguments
    that the continuation has. The continuation of the full call inside
-   an over-application takes one. *)
+   an over-application takes one. What the return continuation of code
+   stands for takes as many as the kinds that it keeps, and gives them
+   to the continuation that the call returns to. *)
 Fixpoint wrong_number_given (c : cont_value) (given : nat) : bool :=
   match c with
   | Closure (Handler params _ _) _ _ _ =>
@@ -731,6 +762,8 @@ Fixpoint wrong_number_given (c : cont_value) (given : nat) : bool :=
   | Outer _ => false
   | Extra_args c extra => wrong_number_given c (given + length extra)
   | Over_application _ _ _ _ _ => negb (Nat.eqb 1 given)
+  | Return_at kinds return_to =>
+    negb (Nat.eqb (length kinds) given) || wrong_number_given return_to given
   end.
 
 Definition wrong_number_of_arguments (ac : apply_cont) (conts : cont_env)
@@ -754,7 +787,9 @@ Definition wrong_kind_bound (statics : static_env) (hp : heap)
    kinds than those of the values it is given: [given], followed by the
    kinds of the extra arguments that the continuation has. What is left
    of an over-application takes one [Value], the function to call with
-   the arguments that remain. *)
+   the arguments that remain. What the return continuation of code
+   stands for takes the kinds that it keeps, and gives the values to
+   the continuation that the call returns to. *)
 Fixpoint wrong_kinds_given (c : cont_value) (given : list flambda_kind)
     : bool :=
   match c with
@@ -764,6 +799,8 @@ Fixpoint wrong_kinds_given (c : cont_value) (given : list flambda_kind)
   | Extra_args c extra =>
     wrong_kinds_given c (given ++ map kind_of_value extra)
   | Over_application _ _ _ _ _ => negb (kinds_eqb given [Value])
+  | Return_at kinds return_to =>
+    negb (kinds_eqb given kinds) || wrong_kinds_given return_to given
   end.
 
 Definition wrong_kinds_of_arguments (ac : apply_cont) (vars : env)
@@ -956,3 +993,183 @@ Definition well_kinded_unit_exits_statement : Prop :=
       ->
     (k = unit_return ∨ k = unit_exn)
     ∧ ∃ v : value, vs = [v] ∧ kind_of_value v = Value.
+
+(* ======================================================================== *)
+(* What code returns                                                        *)
+(* ======================================================================== *)
+
+(* The machine tests what code returns, where it returns: the return
+   continuation of code that a call runs stands for a [Return_at]
+   (FlambdaSemanticsSpec.call_code, [apply_cont_value]; decision D81).
+   A return of another number of values than the kinds kept, or of a
+   value of another kind, has no step, whatever is returned to. *)
+Definition return_at_wrong_kinds_undefined_statement : Prop :=
+  ∀ (kinds : list flambda_kind) (return_to : cont_value) (vs : list value)
+    (statics : static_env) (hp : heap) (rd : read_record),
+    map kind_of_value vs <> kinds ->
+    apply_cont_value (Return_at kinds return_to) vs statics hp rd = Undefined.
+
+(* The kinds kept are those of the return arity of the call, unarized,
+   which are those of the result arity of the code, unarized: a full
+   call that has a step is made at the result arity of the code. *)
+Definition call_returns_at_kinds_statement : Prop :=
+  ∀ (closure : value) (c : code) (vs : list value)
+    (args_arity return_arity : arity) (return_to exn_to : cont_value)
+    (statics : static_env) (hp : heap) (rd : read_record) (s : state),
+    call_code closure c vs args_arity return_arity return_to exn_to statics hp
+      rd
+    = Step s ->
+    unarize return_arity = code_result_kinds c
+    ∧ resolve (code_return_continuation c) (state_conts s)
+      = Return_at (code_result_kinds c) return_to.
+
+(* A test of a term, under which that test of the machine never fails.
+   [ret] is a continuation, [result] the kinds that it is to be given,
+   and [kinds] the kinds of the variables in scope. The test is on
+   every place where the expression gives something to [ret]:
+   - an [Apply_cont] of [ret], also as the arm of a [Switch], has
+     arguments in scope whose kinds, read from their binders, are
+     [result], in number and in order;
+   - a call that returns to [ret] is made at a return arity that is
+     [result], unarized: what its callee returns is tested against
+     that arity by the machine;
+   - no call has [ret] for its exception continuation;
+   - no [Let_cont] binds [ret] again.
+   A [Let] adds its variable at its kind, and a handler its parameters
+   at their kinds, of which there must be one for each: the machine
+   binds them to values of those kinds, and to no others
+   ([let_binds_at_kind_statement],
+   [handler_binds_at_kinds_statement]). The bodies of code that a
+   [Let_static] binds are not looked at: [ret] is not in scope there.
+
+   The test is a sufficient condition. It looks at every branch, also
+   one that is never run; it does not follow a variable to the value
+   that it is bound to, so the kind of an argument is the one its
+   binder gives, which the value has in every run. The last two
+   conditions are there to keep it simple: the compiler's terms have
+   fresh names for their continuations, and do not raise to a return
+   continuation. *)
+Definition apply_cont_returns_at_kinds (ret : continuation)
+    (result : list flambda_kind) (kinds : kind_env) (ac : apply_cont)
+    : bool :=
+  negb (Pos.eqb (ac_continuation ac) ret)
+  || has_arity (kinds_of_simples kinds (ac_args ac)) result.
+
+Definition apply_returns_at_kinds (ret : continuation)
+    (result : list flambda_kind) (ap : apply_expr) : bool :=
+  negb (Pos.eqb (ap_exn_continuation ap) ret)
+  && (negb (Pos.eqb (ap_continuation ap) ret)
+      || kinds_eqb (unarize (ap_return_arity ap)) result).
+
+Fixpoint returns_at_kinds (ret : continuation) (result : list flambda_kind)
+    (kinds : kind_env) (e : expr) : bool :=
+  match e with
+  | Let x kind _ body => returns_at_kinds ret result ((x, kind) :: kinds) body
+  | Let_static _ body => returns_at_kinds ret result kinds body
+  | Let_cont_non_recursive k h body =>
+    negb (Pos.eqb k ret)
+    && handler_returns_at_kinds ret result kinds h
+    && returns_at_kinds ret result kinds body
+  | Let_cont_recursive handlers body =>
+    negb (is_bound ret handlers)
+    && forallb
+         (fun '(_, h) => handler_returns_at_kinds ret result kinds h)
+         handlers
+    && returns_at_kinds ret result kinds body
+  | Apply ap => apply_returns_at_kinds ret result ap
+  | Apply_cont ac => apply_cont_returns_at_kinds ret result kinds ac
+  | Switch _ arms =>
+    forallb
+      (fun arm => apply_cont_returns_at_kinds ret result kinds (snd arm))
+      arms
+  | Invalid => true
+  end
+with handler_returns_at_kinds (ret : continuation)
+    (result : list flambda_kind) (kinds : kind_env)
+    (h : continuation_handler) : bool :=
+  match h with
+  | Handler params metadata handler =>
+    match bind_param_kinds params (hm_params_kinds metadata) kinds with
+    | Some handler_kinds => returns_at_kinds ret result handler_kinds handler
+    | None => false
+    end
+  end.
+
+(* The test of code: of its body, for its return continuation and the
+   kinds of its result arity, unarized, under its parameters at the
+   kinds of its parameter arity, unarized, and [my_closure] at
+   [Value]. A call that has a step binds them to values of those kinds
+   ([call_binds_at_kinds_statement],
+   [called_closure_at_kind_statement]). *)
+Definition code_returns_at_kinds (c : code) : bool :=
+  match
+    bind_param_kinds (code_params c) (code_params_kinds c)
+      [(code_my_closure c, Value)]
+  with
+  | Some kinds =>
+    returns_at_kinds (code_return_continuation c) (code_result_kinds c) kinds
+      (code_body c)
+  | None => false
+  end.
+
+(* The variables that [kinds] gives a kind hold, where they are bound,
+   values of that kind. *)
+Definition env_at_kinds (kinds : kind_env) (vars : env) : Prop :=
+  ∀ (x : variable) (kind : flambda_kind) (v : value),
+    lookup x kinds = Some kind ->
+    lookup x vars = Some v ->
+    kind_of_value v = kind.
+
+(* An expression that passes the test runs alike whether [ret] stands
+   for a continuation or for the [Return_at] of that continuation at
+   [result]: every return through [ret] passes the test of the
+   machine. *)
+Definition returns_at_kinds_equivalent_statement : Prop :=
+  ∀ (ret : continuation) (result : list flambda_kind) (kinds : kind_env)
+    (e : expr) (vars : env) (return_to : cont_value) (conts : cont_env)
+    (statics : static_env) (hp : heap) (rd : read_record),
+    returns_at_kinds ret result kinds e = true ->
+    env_at_kinds kinds vars ->
+    equivalent
+      (State e vars ((ret, Return_at result return_to) :: conts) statics hp rd)
+      (State e vars ((ret, return_to) :: conts) statics hp rd).
+
+(* The same of the body of code as a call enters it
+   (FlambdaSemanticsSpec.call_code): with the test, the body runs as it
+   would with its return continuation standing for the continuation
+   that the call returns to. This is what the inlining of a call needs
+   in order to be an equivalence
+   (FlambdaNormaliseSpec.inline_known_apply): the copy of the body
+   that takes the place of the call is given that continuation. *)
+Definition code_returns_at_kinds_equivalent_statement : Prop :=
+  ∀ (c : code) (closure : value) (vs : list value) (callee_vars : env)
+    (return_to exn_to : cont_value) (statics : static_env) (hp : heap)
+    (rd : read_record),
+    code_returns_at_kinds c = true ->
+    kind_of_value closure = Value ->
+    map kind_of_value vs = code_params_kinds c ->
+    bind_params (code_params c) vs [(code_my_closure c, closure)]
+    = Some callee_vars ->
+    equivalent
+      (State (code_body c) callee_vars
+         [(code_return_continuation c,
+           Return_at (code_result_kinds c) return_to);
+          (code_exn_continuation c, exn_to)]
+         statics hp rd)
+      (State (code_body c) callee_vars
+         [(code_return_continuation c, return_to);
+          (code_exn_continuation c, exn_to)]
+         statics hp rd).
+
+(* With no test of the term: the test of the machine can only make a
+   run undefined. A state in which [ret] stands for a [Return_at] is
+   refined by the same state with [ret] standing for the continuation
+   inside. So the inlining of a call stays a refinement of the call,
+   whatever the code returns (FlambdaApplySpec.inline_statement). *)
+Definition return_at_refines_statement : Prop :=
+  ∀ (ret : continuation) (result : list flambda_kind) (e : expr) (vars : env)
+    (return_to : cont_value) (conts : cont_env) (statics : static_env)
+    (hp : heap) (rd : read_record),
+    refines
+      (State e vars ((ret, Return_at result return_to) :: conts) statics hp rd)
+      (State e vars ((ret, return_to) :: conts) statics hp rd).

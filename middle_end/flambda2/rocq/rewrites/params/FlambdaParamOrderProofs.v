@@ -601,7 +601,8 @@ Definition order_handlers_apply
    scope of [k] and of that handler with the arguments of [k] in the
    order, under continuations that have the two closures of [k]; or
    two so related with the same extra arguments; or what is left of
-   the same over-application. *)
+   the same over-application; or what the return continuation of code
+   stands for, at the same kinds, of two so related. *)
 Inductive order_cont_rel : cont_value -> cont_value -> Prop :=
   | Order_same (c : cont_value) : order_cont_rel c c
   | Order_plain (hh : continuation_handler) (dv dv' : env) (dc dc' : cont_env)
@@ -632,7 +633,11 @@ Inductive order_cont_rel : cont_value -> cont_value -> Prop :=
       (Over_application remaining remaining_arity return_arity return_to
          exn_to)
       (Over_application remaining remaining_arity return_arity return_to'
-         exn_to').
+         exn_to')
+  | Order_return_at (kinds : list flambda_kind)
+      (return_to return_to' : cont_value) :
+    order_cont_rel return_to return_to' ->
+    order_cont_rel (Return_at kinds return_to) (Return_at kinds return_to').
 
 Definition order_conts_plain (conts conts' : cont_env) : Prop :=
   ∀ k1 : continuation, order_cont_rel (resolve k1 conts) (resolve k1 conts').
@@ -751,7 +756,7 @@ Proof.
     apply Order_state_plain; [ apply agree_refl | ].
     intros k'.
     destruct (Pos.eq_dec k' (code_return_continuation c)) as [-> | Hne];
-      [ rewrite !resolve_head; exact Hreturn | ].
+      [ rewrite !resolve_head; apply Order_return_at, Hreturn | ].
     rewrite !(resolve_other k' (code_return_continuation c)) by exact Hne.
     destruct (Pos.eq_dec k' (code_exn_continuation c)) as [-> | Hne'];
       [ rewrite !resolve_head; exact Hraise | ].
@@ -802,7 +807,8 @@ Proof.
        | [ps m he] dv dv' dc dc' recursive Hdv Hhh Hrec Hk Hk' Hdc _
        | c c' extra Hc IHc
        | remaining remaining_arity return_arity return_to return_to' exn_to
-           exn_to' Hreturn IHreturn Hraise _];
+           exn_to' Hreturn IHreturn Hraise _
+       | kinds return_to return_to' _ IHreturn_at ];
     intros vs.
   - apply result_related_refl, order_site_rel_refl.
   - simpl.
@@ -834,6 +840,8 @@ Proof.
     unfold call_function.
     apply order_run_call_rel; [ exact Hreturn | exact Hraise | ].
     intros partial. exact (IHreturn [partial]).
+  - simpl. destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ exact (IHreturn_at vs) | exact I ].
 Qed.
 
 Lemma order_call_function_rel (callee : value) (call_kind : call_kind)

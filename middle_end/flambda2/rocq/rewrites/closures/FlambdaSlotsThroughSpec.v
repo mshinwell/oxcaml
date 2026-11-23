@@ -624,6 +624,7 @@ Fixpoint cont_slots_through (c : code_id) (f : function_slot)
   | Over_application _ _ _ return_to exn_to =>
     cont_slots_through c f a b d return_to
     ∧ cont_slots_through c f a b d exn_to
+  | Return_at _ return_to => cont_slots_through c f a b d return_to
   end.
 
 Definition conts_slots_through (c : code_id) (f : function_slot)

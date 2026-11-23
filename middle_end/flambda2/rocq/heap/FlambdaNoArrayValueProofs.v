@@ -563,7 +563,8 @@ Proof.
   - apply (bind_params_no_array_value _ _ _ _ Hvs) in Hbind;
       [ exact Hbind | ].
     intros y w [[= <- <-] | []]. exact Hclosure.
-  - intros k c' [[= <- <-] | [[= <- <-] | []]]; assumption.
+  - intros k c' [[= <- <-] | [[= <- <-] | []]];
+      [ apply Return_at_free_of_arrays | ]; assumption.
   - exact Hcode.
   - exact Hstatics.
   - exact Hheap.
@@ -612,7 +613,8 @@ Proof.
        | [params metadata handler] vars conts recursive Hh Hvars Hconts _
            Hrecursive
        | remaining remaining_arity return_arity return_to exn_to Hremaining
-           Hreturn IHreturn Hexn _];
+           Hreturn IHreturn Hexn _
+       | kinds return_to _ IHreturn_at ];
     intros vs Hvs.
   - split; [ exact Hvs | exact Hheap ].
   - simpl. apply IH. rewrite forallb_app, Hvs, Hextra. reflexivity.
@@ -645,6 +647,8 @@ Proof.
         | apply forallb_Forall; exact Hremaining ].
     + intros partial Hpartial. apply IHreturn. simpl.
       rewrite Hpartial. reflexivity.
+  - simpl. destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ exact (IHreturn_at vs Hvs) | exact I ].
 Qed.
 
 Lemma with_extra_args_free_of_arrays (c : cont_value) (extra : list value) :
@@ -1065,7 +1069,8 @@ Proof.
     as [k | c extra Hc IH Hextra
        | h vars conts recursive Hh Hvars Hconts IHconts Hrecursive
        | remaining remaining_arity return_arity return_to exn_to Hremaining
-           Hreturn IHreturn Hexn IHexn];
+           Hreturn IHreturn Hexn IHexn
+       | kinds return_to _ IHreturn_at ];
     simpl.
   - constructor.
   - constructor; assumption.
@@ -1080,6 +1085,7 @@ Proof.
       injection Heq as <- <-. rewrite rename_handler_makes_array.
       exact (Hrecursive k' h0 Hin).
   - constructor; assumption.
+  - constructor. exact IHreturn_at.
 Qed.
 
 Lemma rename_state_free_of_arrays (r : renaming) (s : state) :

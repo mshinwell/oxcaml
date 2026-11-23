@@ -36,7 +36,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaPrimitiveSpec FlambdaSemanticsSpec FlambdaSemanticsProofs
   FlambdaNominalSpec FlambdaNominalProofs FlambdaCompareProofs
   FlambdaApplyProofs FlambdaPartialApplicationProofs FlambdaWellFormedSpec
-  FlambdaWellKindedSpec FlambdaTupledSpec.
+  FlambdaWellKindedSpec FlambdaWellKindedProofs FlambdaTupledSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -605,8 +605,12 @@ Proof.
   destruct
     (bind_params (code_params c) fields [(code_my_closure c, callee)])
     as [callee_vars | ] eqn:Hbind; [ | exact (Hwrong Hstep) ].
+  eapply refines_trans;
+    [ exact (equivalent_refines _ _ (step_equivalent _ _ Hstep)) | ].
+  (* the test of what the code returns can only make the call
+     undefined *)
+  eapply refines_trans; [ apply return_at_refines | ].
   apply equivalent_refines.
-  eapply equivalent_trans; [ exact (step_equivalent _ _ Hstep) | ].
   exact (inline_tupled_meet ap called c r tuple callee tv slots fields
            callee_vars vars conts statics _ rd_ Hinlinable Hcallee Hclosure
              Htuple
@@ -618,7 +622,7 @@ Qed.
 Theorem inline_tupled_equivalent : inline_tupled_equivalent_statement.
 Proof.
   intros ap called c r tuple callee slots vars conts statics hp rd Hkind
-    Hcallee Hclosure Hcode Hinlinable Hreturn Hvalue Hnothing.
+    Hcallee Hclosure Hcode Hinlinable Hreturn Hvalue Hnothing Hreturns.
   pose proof Hinlinable as
     (_ & _ & _ & _ & _ & Hextra & Hargs_eq & Harity & Hmy_closure & Hparams
      & Htupled & Hvalues & Hsome & Hstatic).
@@ -679,6 +683,16 @@ Proof.
   { rewrite (tuple_fields_length _ _ _ _ Hfields). reflexivity. }
   rewrite Hbind in Hstep.
   eapply equivalent_trans; [ exact (step_equivalent _ _ Hstep) | ].
+  (* with the test of the term, the test of what the code returns
+     never fails *)
+  eapply equivalent_trans.
+  { apply
+      (code_returns_at_kinds_equivalent c callee fields callee_vars _ _
+         statics hp rd Hreturns (closure_of_kind _ _ _ _ Hclosure));
+      [ | exact Hbind ].
+    unfold code_params_kinds.
+    rewrite Hvalues, unarize_arity_of_kinds.
+    exact (tuple_fields_kinds _ _ _ _ Hfields). }
   exact (inline_tupled_meet ap called c r tuple callee tv slots fields
            callee_vars vars conts statics _ rd_ Hinlinable Hcallee Hclosure
            Htuple Hfields Hbind).

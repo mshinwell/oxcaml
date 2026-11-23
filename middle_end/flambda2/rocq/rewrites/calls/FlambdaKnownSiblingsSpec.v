@@ -64,10 +64,14 @@
    binds to a closure of the code called, that code is the code of
    another binding of the group and is not among the code whose calls
    are left ([kept]), and the call passes the tests of
-   FlambdaNormaliseSpec.inline_known_apply: [inlinable_b] and
-   [call_agrees_stated]. The second asks that the arities agree and
-   that each argument be known to be of what the code called states of
-   its parameter (decision D25, at parameters). What is known of an
+   FlambdaNormaliseSpec.inline_known_apply: [inlinable_b],
+   [call_agrees_stated] and
+   FlambdaWellKindedSpec.code_returns_at_kinds. The second asks that
+   the arities agree and that each argument be known to be of what
+   the code called states of its parameter (decision D25, at
+   parameters). The third asks that what the body of the code called
+   gives to its return continuation be of the kinds of its result
+   arity (decision D81). What is known of an
    argument that is a variable is read from the binders passed in the
    body on the way to the call; the body starts with its parameters
    known as what its own code states of them
@@ -115,11 +119,15 @@
    call is undefined where the callee is not a closure of the code
    called, or the arities of the call are not those of the code, or an
    argument is not of what the code states of its parameter
-   (FlambdaSemanticsSpec.call_function, [call_code]), and the copy of
-   the body need not be. [inline_known_calls] inlines only where none
-   of the three can be: the callee is a symbol known to be bound to a
-   closure of the code called, the arities agree, and each argument is
-   known to be of what the code states of its parameter. Here the first
+   (FlambdaSemanticsSpec.call_function, [call_code]); and the run is
+   undefined where the code then returns values of other kinds than
+   those of the return arity of the call ([apply_cont_value], at the
+   [Return_at] that [call_code] puts). The copy of the body need not
+   be, in any of the four. [inline_known_calls] inlines only where
+   none of the four can be: the callee is a symbol known to be
+   bound to a closure of the code called, the arities agree, each
+   argument is known to be of what the code states of its parameter,
+   and the code passes the test of what it returns. Here the first
    is known of the static environment in which the body of the code
    runs, which is one that the group has extended: it binds each symbol
    of the group to what its binding says, and the code of each other

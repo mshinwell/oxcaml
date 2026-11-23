@@ -188,7 +188,8 @@ Fixpoint cont_sets_have_terms (k : cont_value) {struct k} :
 Proof.
   destruct k
     as [ h vars conts recursive | k0 | k' extra
-       | remaining remaining_arity return_arity return_to exn_to ];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     cbn [cont_terms_ok cont_sets_have].
   - assert (Hconts :
       fold_right (fun kc acc => cont_terms_ok Ph (snd kc) ∧ acc) True conts
@@ -202,6 +203,7 @@ Proof.
   - apply cont_sets_have_terms.
   - rewrite (cont_sets_have_terms return_to), (cont_sets_have_terms exn_to).
     reflexivity.
+  - apply cont_sets_have_terms.
 Qed.
 
 Lemma conts_sets_have_terms (conts : cont_env) :

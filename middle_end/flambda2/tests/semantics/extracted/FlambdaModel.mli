@@ -229,6 +229,8 @@ val code_is_stub : code -> bool
 
 val code_params_kinds : code -> flambda_kind list
 
+val code_result_kinds : code -> flambda_kind list
+
 val handler_params_subkinds : continuation_handler -> param_subkind list
 
 val code_params_subkinds : code -> param_subkind list

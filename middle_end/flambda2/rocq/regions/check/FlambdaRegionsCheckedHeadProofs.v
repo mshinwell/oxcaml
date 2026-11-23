@@ -295,6 +295,7 @@ Proof.
              Hjump'); [ | exact Houter ].
     intros ce Hk. exact (conj (Hsome ce Hk) (IH ce Hk)).
   - intros. exact I.
+  - intros. exact I.
   - intros a l l' c Hlasts Hret IH. exact IH.
   - intros a k simples extra c Heval Hholds Hjump Hsome IH Houter.
     destruct extra as [ | v extra]; [ | exact I ].

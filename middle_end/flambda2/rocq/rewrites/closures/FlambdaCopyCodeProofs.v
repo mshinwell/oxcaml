@@ -170,6 +170,7 @@ Fixpoint copy_cont (c : cont_value) : cont_value :=
   | Over_application remaining remaining_arity return_arity return_to exn_to =>
     Over_application remaining remaining_arity return_arity
       (copy_cont return_to) (copy_cont exn_to)
+  | Return_at kinds return_to => Return_at kinds (copy_cont return_to)
   end.
 
 Definition copy_conts (conts : cont_env) : cont_env :=
@@ -967,7 +968,8 @@ Proof.
   induction c
     as [[params metadata handler] def_vars def_conts recursive | k
        | c IH extra
-       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _
+       | kinds return_to IHreturn_at]
     using cont_value_over_ind;
     intros vs statics hp rd Hno.
   - unfold result_copied. simpl.
@@ -990,6 +992,8 @@ Proof.
     apply call_function_copy_from;
       [ exact Hno | apply kind_follows_indirect | ].
     intros partial. apply IHreturn. exact Hno.
+  - simpl. destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ apply IHreturn_at; exact Hno | exact I ].
 Qed.
 
 Lemma call_function_copy (callee : value) (kind kind' : call_kind)
@@ -1371,7 +1375,8 @@ Proof.
   revert Hc.
   destruct c
     as [ [params metadata body] vars kept recursive | k0 | c0 extra
-       | remaining remaining_arity return_arity return_to exn_to ];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     simpl; try contradiction;
     [ | intros _; rewrite Hsame; split; [ reflexivity | ];
         split; [ exact I | exact Hok ] ].

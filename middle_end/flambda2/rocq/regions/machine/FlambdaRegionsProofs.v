@@ -410,7 +410,8 @@ Proof.
   intros Hnot Hends. unfold region_apply_cont.
   destruct (resolve (ac_continuation ac) (state_conts (rs_state rs)))
     as [[params metadata handler] def_vars def_conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     try (apply plain_step_shape; assumption).
   destruct (eval_simples (state_vars (rs_state rs)) (ac_args ac)) as [vs | ];
     [ | discriminate ].
@@ -768,7 +769,8 @@ Proof.
   intros rs ac He Hmarks. unfold region_apply_cont.
   destruct (resolve (ac_continuation ac) (state_conts (rs_state rs)))
     as [[params metadata handler] def_vars def_conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to]
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to]
     eqn:Hresolve;
     try reflexivity.
   unfold plain_step.

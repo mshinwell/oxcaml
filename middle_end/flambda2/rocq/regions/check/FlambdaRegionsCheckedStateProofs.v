@@ -392,8 +392,9 @@ Proof.
     + intros k ce. unfold resolve. rewrite !lookup_cons.
       destruct (Pos.eqb k ret) eqn:Hk.
       * intros [= <-].
-        apply (Ok_return cert codes rs _ (ce_returns_local entry) a return_to);
-          [ | exact Hret ].
+        apply (Ok_return cert codes rs _ (ce_returns_local entry) a
+                 (Return_at _ return_to));
+          [ | apply Ret_at; exact Hret ].
         destruct Hcaller as [H1 H2 H3 H4 H5].
         split; [ exact H1 | ]. split; [ exact H2 | ]. split; [ exact H3 | ].
         split; [ exact H4 | ].

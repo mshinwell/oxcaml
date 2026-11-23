@@ -183,21 +183,24 @@ Lemma step_invalid (vars : env) (conts : cont_env) (statics : static_env)
 Proof. reflexivity. Qed.
 
 (* A continuation with extra arguments is, in the end, a handler, a way
-   out or what is left of an over-application, applied to more
-   arguments: [cont_target] is which, and [cont_args] the arguments it
-   is applied to when the continuation is applied to [vs]. A proof about
-   applying a continuation rewrites with [apply_cont_value_target] and
-   goes by the three cases of [cont_target_cases]. *)
+   out, what is left of an over-application or what the return
+   continuation of code stands for, applied to more arguments:
+   [cont_target] is which, and [cont_args] the arguments it is applied
+   to when the continuation is applied to [vs]. A proof about applying
+   a continuation rewrites with [apply_cont_value_target] and goes by
+   the four cases of [cont_target_cases]. *)
 Fixpoint cont_target (c : cont_value) : cont_value :=
   match c with
   | Extra_args c _ => cont_target c
-  | Closure _ _ _ _ | Outer _ | Over_application _ _ _ _ _ => c
+  | Closure _ _ _ _ | Outer _ | Over_application _ _ _ _ _ | Return_at _ _ =>
+    c
   end.
 
 Fixpoint cont_args (c : cont_value) (vs : list value) : list value :=
   match c with
   | Extra_args c extra => cont_args c (vs ++ extra)
-  | Closure _ _ _ _ | Outer _ | Over_application _ _ _ _ _ => vs
+  | Closure _ _ _ _ | Outer _ | Over_application _ _ _ _ _ | Return_at _ _ =>
+    vs
   end.
 
 Lemma apply_cont_value_target (c : cont_value) (vs : list value)
@@ -208,8 +211,10 @@ Proof.
   revert vs.
   induction c
     as [h def_vars def_conts recursive | k | c IH extra
-       | remaining remaining_arity return_arity return_to _ exn_to _];
-    intros vs; [ reflexivity | reflexivity | apply IH | reflexivity ].
+       | remaining remaining_arity return_arity return_to _ exn_to _
+       | kinds return_to _];
+    intros vs;
+    [ reflexivity | reflexivity | apply IH | reflexivity | reflexivity ].
 Qed.
 
 Lemma cont_target_cases (c : cont_value) :
@@ -221,18 +226,22 @@ Lemma cont_target_cases (c : cont_value) :
        (return_to exn_to : cont_value),
       cont_target c
       = Over_application remaining remaining_arity return_arity return_to
-          exn_to).
+          exn_to)
+  ∨ (∃ (kinds : list flambda_kind) (return_to : cont_value),
+      cont_target c = Return_at kinds return_to).
 Proof.
   induction c
     as [h def_vars def_conts recursive | k | c IH extra
-       | remaining remaining_arity return_arity return_to _ exn_to _];
+       | remaining remaining_arity return_arity return_to _ exn_to _
+       | kinds return_to _];
     simpl.
   - left. exists h, def_vars, def_conts, recursive. reflexivity.
   - right. left. exists k. reflexivity.
   - exact IH.
-  - right. right.
+  - right. right. left.
     exists remaining, remaining_arity, return_arity, return_to, exn_to.
     reflexivity.
+  - right. right. right. exists kinds, return_to. reflexivity.
 Qed.
 
 Lemma cont_target_not_extra_args (c c' : cont_value) (extra : list value) :
@@ -241,8 +250,9 @@ Proof.
   destruct (cont_target_cases c)
     as [(h & def_vars & def_conts & recursive & ->)
        | [(k & ->)
-         | (remaining & remaining_arity & return_arity & return_to & exn_to
-            & ->)]];
+         | [(remaining & remaining_arity & return_arity & return_to & exn_to
+             & ->)
+           | (kinds & return_to & ->)]]];
     discriminate.
 Qed.
 
@@ -571,7 +581,9 @@ Lemma step_apply_closure (ap : apply_expr) (vars : env) (conts : cont_env)
   step (State (Apply ap) vars conts statics hp rd)
   = Step
       (State (code_body c) callee_vars
-         [(code_return_continuation c, resolve (ap_continuation ap) conts);
+         [(code_return_continuation c,
+           Return_at (unarize (ap_return_arity ap))
+             (resolve (ap_continuation ap) conts));
           (code_exn_continuation c,
            with_extra_args (resolve (ap_exn_continuation ap) conts) extra)]
          statics hp rd).
@@ -680,7 +692,8 @@ Proof.
   induction c
     as [handler vars conts recursive | k | c IH extra
        | remaining remaining_arity return_arity return_to IHreturn exn_to
-           IHexn];
+           IHexn
+       | kinds return_to IHreturn];
     intros vs s'; simpl.
   - destruct handler as [params metadata handler].
     destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
@@ -693,6 +706,8 @@ Proof.
   - apply IH.
   - destruct vs as [ | v [ | v2 vs]]; try discriminate.
     apply run_call_heap. intros partial s0. apply IHreturn.
+  - destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ apply IHreturn | discriminate ].
 Qed.
 
 Lemma call_function_heap (callee : value) (kind : call_kind)
@@ -759,7 +774,8 @@ Proof.
   induction c
     as [handler vars conts recursive | k0 | c IH extra
        | remaining remaining_arity return_arity return_to IHreturn exn_to
-           IHexn];
+           IHexn
+       | kinds return_to IHreturn];
     intros vs k vs' hp' rd'; simpl.
   - destruct handler as [params metadata handler].
     destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
@@ -771,6 +787,8 @@ Proof.
   - apply IH.
   - destruct vs as [ | v [ | v2 vs]]; try discriminate.
     apply run_call_exit_heap. intros partial k1 vs1 hp1 rd1. apply IHreturn.
+  - destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ apply IHreturn | discriminate ].
 Qed.
 
 Lemma call_function_exit_heap (callee : value) (kind : call_kind)
@@ -2558,9 +2576,10 @@ Lemma apply_cont_value_over_application (remaining : list value)
     end.
 Proof. destruct vs as [ | v [ | v' vs]]; reflexivity. Qed.
 
-(* Induction on what a continuation stands for, through extra arguments
-   and what is left of an over-application; the continuations that a
-   closure keeps are not gone into. *)
+(* Induction on what a continuation stands for, through extra
+   arguments, what is left of an over-application and what the return
+   continuation of code stands for; the continuations that a closure
+   keeps are not gone into. *)
 Lemma cont_value_over_ind (P : cont_value -> Prop) :
   (∀ (h : continuation_handler) (vars : env)
      (conts : list (continuation * cont_value))
@@ -2573,15 +2592,19 @@ Lemma cont_value_over_ind (P : cont_value -> Prop) :
     P return_to -> P exn_to ->
     P (Over_application remaining remaining_arity return_arity return_to
          exn_to)) ->
+  (∀ (kinds : list flambda_kind) (return_to : cont_value),
+    P return_to -> P (Return_at kinds return_to)) ->
   ∀ c : cont_value, P c.
 Proof.
-  intros Hclosure Houter Hextra Hover.
+  intros Hclosure Houter Hextra Hover Hreturn.
   fix IH 1. intros [h vars conts recursive | k | c extra
-    | remaining remaining_arity return_arity return_to exn_to].
+    | remaining remaining_arity return_arity return_to exn_to
+    | kinds return_to].
   - apply Hclosure.
   - apply Houter.
   - apply Hextra, IH.
   - apply Hover; apply IH.
+  - apply Hreturn, IH.
 Qed.
 
 (* A full call that is not undefined: the body binds nothing static,
@@ -2603,7 +2626,8 @@ Lemma call_code_step (closure : value) (c : code) (vs : list value)
       = Some callee_vars
     ∧ s
       = State (code_body c) callee_vars
-          [(code_return_continuation c, return_to);
+          [(code_return_continuation c,
+            Return_at (unarize return_arity) return_to);
            (code_exn_continuation c, exn_to)]
           statics hp rd.
 Proof.
@@ -2643,7 +2667,8 @@ Qed.
 
 (* A full call is undefined, or runs the body of the code under
    variables that depend on the closure and the arguments only, with the
-   code's two continuations bound to what the caller gave. *)
+   code's two continuations bound to what the caller gave, the first
+   to be applied to values of the kinds of the return arity only. *)
 Lemma call_code_cases (closure : value) (c : code) (vs : list value)
     (args_arity return_arity : arity) (statics : static_env) (hp : heap)
       (rd : read_record) :
@@ -2657,7 +2682,8 @@ Lemma call_code_cases (closure : value) (c : code) (vs : list value)
           statics hp rd
         = Step
             (State (code_body c) callee_vars
-               [(code_return_continuation c, return_to);
+               [(code_return_continuation c,
+                 Return_at (unarize return_arity) return_to);
                 (code_exn_continuation c, exn_to)]
                statics hp rd)).
 Proof.
@@ -2937,7 +2963,8 @@ Proof.
   induction c
     as [[params metadata handler] def_vars def_conts recursive | k
        | c IH extra
-       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _
+       | kinds return_to IHreturn]
     using cont_value_over_ind;
     intros vs statics hp rd s' Hstep.
   - simpl in Hstep.
@@ -2954,6 +2981,9 @@ Proof.
     unfold call_function in Hstep.
     apply run_call_statics in Hstep; [ exact Hstep | ].
     intros partial. apply IHreturn.
+  - simpl in Hstep.
+    destruct (kinds_eqb (map kind_of_value vs) kinds); [ | discriminate ].
+    exact (IHreturn _ _ _ _ _ Hstep).
 Qed.
 
 Lemma call_function_statics (callee : value) (kind : call_kind)
@@ -2974,8 +3004,10 @@ Qed.
    body of code that is bound, with the two continuations of the code
    standing for continuations of which [Kc] holds; or on the handler of
    a closure of which [Kc] holds. [Kc] of a continuation with extra
-   arguments gives [Kc] of the continuation inside, and [Kc] of what is
-   left of an over-application is [Kc] of its two continuations. *)
+   arguments gives [Kc] of the continuation inside, [Kc] of what is
+   left of an over-application is [Kc] of its two continuations, and
+   [Kc] of what the return continuation of code stands for is [Kc] of
+   the continuation inside. *)
 Section Lands.
 
 Variable statics : static_env.
@@ -2994,6 +3026,10 @@ Hypothesis Kc_over :
       (Over_application remaining remaining_arity return_arity return_to
          exn_to)
     <-> Kc return_to ∧ Kc exn_to.
+
+Hypothesis Kc_return :
+  ∀ (kinds : list flambda_kind) (return_to : cont_value),
+    Kc (Return_at kinds return_to) <-> Kc return_to.
 
 Hypothesis Q_code :
   ∀ (called : code_id) (c : code) (callee_vars : env)
@@ -3030,7 +3066,8 @@ Lemma call_code_lands (closure : value) (called : code_id) (c : code)
 Proof.
   intros Hcode Hreturn Hexn Hstep.
   apply call_code_step in Hstep as (callee_vars & _ & _ & _ & _ & _ & ->).
-  exact (Q_code called c callee_vars return_to exn_to Hcode Hreturn Hexn).
+  apply (Q_code called c callee_vars _ exn_to Hcode); [ | exact Hexn ].
+  apply Kc_return, Hreturn.
 Qed.
 
 Lemma run_call_lands (return_partial : value -> step_result)
@@ -3066,7 +3103,8 @@ Proof.
   induction c
     as [[params metadata handler] def_vars def_conts recursive | k
        | c IH extra
-       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _
+       | kinds return_to IHreturn]
     using cont_value_over_ind;
     intros vs s' Hc Hstep.
   - simpl in Hstep.
@@ -3089,6 +3127,9 @@ Proof.
              (shape_of_call_calls _ _ _ _ _ _) Hreturn Hexn)
       in Hstep; [ exact Hstep | ].
     intros partial. exact (IHreturn [partial] s' Hreturn).
+  - simpl in Hstep.
+    destruct (kinds_eqb (map kind_of_value vs) kinds); [ | discriminate ].
+    exact (IHreturn _ s' (proj1 (Kc_return kinds return_to) Hc) Hstep).
 Qed.
 
 Lemma call_function_lands (callee : value) (kind : call_kind)
@@ -3284,14 +3325,16 @@ Lemma call_code_alike (closure : value) (c c' : code) (vs : list value)
           statics hp rd
         = Step
             (State (code_body c) callee_vars
-               [(code_return_continuation c, return_to);
+               [(code_return_continuation c,
+                 Return_at (unarize return_arity) return_to);
                 (code_exn_continuation c, exn_to)]
                statics hp rd)
         ∧ call_code closure c' vs args_arity return_arity return_to' exn_to'
             statics' hp rd
           = Step
               (State (code_body c') callee_vars
-                 [(code_return_continuation c, return_to');
+                 [(code_return_continuation c,
+                   Return_at (unarize return_arity) return_to');
                   (code_exn_continuation c, exn_to')]
                  statics' hp rd)).
 Proof.
@@ -3947,7 +3990,8 @@ Proof.
   induction c
     as [[params metadata handler] def_vars def_conts recursive | k
        | c IH extra
-       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _
+       | kinds return_to IHreturn]
     using cont_value_over_ind;
     intros vs Hc Hvs.
   - simpl. destruct Hc as [Hdef_vars Hdef_conts].
@@ -3974,6 +4018,8 @@ Proof.
     + intros partial Hpartial.
       apply IHreturn; [ exact Hreturn | ].
       apply Forall_cons; [ exact Hpartial | apply Forall_nil ].
+  - simpl. destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ exact (IHreturn vs Hc Hvs) | exact I ].
 Qed.
 
 (* The exception continuation that a call gives its callee. *)
@@ -4027,8 +4073,9 @@ Fixpoint cont_values_all_impl (P P' : value -> Prop)
 Proof.
   destruct c
     as [h vars conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to];
-    simpl; [ | auto | | ].
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
+    simpl; [ | auto | | | ].
   - intros [Hvars Hconts]. split.
     + exact (Forall_impl _ (fun binding => Himpl (snd binding)) Hvars).
     + induction conts as [ | [k c] conts IH]; simpl; [ exact I | ].
@@ -4043,6 +4090,7 @@ Proof.
     exact (conj (Forall_impl _ Himpl Hremaining)
              (conj (cont_values_all_impl P P' Himpl return_to Hreturn)
                 (cont_values_all_impl P P' Himpl exn_to Hexn))).
+  - exact (cont_values_all_impl P P' Himpl return_to).
 Qed.
 
 Lemma conts_values_all_impl (P P' : value -> Prop) (conts : cont_env) :
@@ -4209,7 +4257,8 @@ Proof.
   induction c
     as [[params metadata handler] def_vars def_conts recursive | k
        | c IH extra
-       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _
+       | kinds return_to IHreturn]
     using cont_value_over_ind;
     intros vs statics hp rd1 rd2.
   - simpl.
@@ -4224,6 +4273,8 @@ Proof.
     destruct vs as [ | v [ | v' vs]]; try reflexivity.
     unfold call_function. apply run_call_with_reads.
     intros partial. apply IHreturn.
+  - simpl. destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ apply IHreturn | reflexivity ].
 Qed.
 
 Theorem step_ignores_reads : step_ignores_reads_statement.

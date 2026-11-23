@@ -676,8 +676,9 @@ Qed.
    out, or closures of a handler and of that handler rewritten, with
    lifted environments, the check passing of the handler for constants
    that are known in the variables kept; or what is left of the same
-   over-application. The handlers of a recursive group are the same in
-   both. *)
+   over-application; or what the return continuation of code stands
+   for, at the same kinds. The handlers of a recursive group are the
+   same in both. *)
 #[local] Set Warnings "-register-all".
 Inductive cont_around (statics' : static_env)
     : cont_value -> cont_value -> Prop :=
@@ -717,7 +718,12 @@ Inductive cont_around (statics' : static_env)
       (Over_application remaining remaining_arity return_arity return_to
          exn_to)
       (Over_application remaining' remaining_arity return_arity return_to'
-         exn_to').
+         exn_to')
+  | Return_at_around (kinds : list flambda_kind)
+      (return_to return_to' : cont_value) :
+    cont_around statics' return_to return_to' ->
+    cont_around statics' (Return_at kinds return_to)
+      (Return_at kinds return_to').
 
 Definition conts_around (statics' : static_env) (conts conts' : cont_env)
     : Prop :=
@@ -736,7 +742,8 @@ Proof.
            group_groups q recursive Hvars Hconts Hvalid Hok Hgroup
        | c0 c0' extra extra' Hc0 Hextra
        | remaining remaining' remaining_arity return_arity return_to
-           return_to' exn_to exn_to' Hremaining Hreturn Hexn ].
+           return_to' exn_to exn_to' Hremaining Hreturn Hexn
+       | kinds return_to return_to' Hreturn ].
   - apply Outer_around.
   - apply (Closure_around statics'' lets groups known);
       [ exact (env_lifted_extend _ _ _ _ Hextend Hvars) |
@@ -755,6 +762,8 @@ Proof.
       [ exact (values_lifted_extend _ _ _ _ Hextend Hremaining)
       | exact (cont_around_extend _ _ Hextend _ _ Hreturn)
       | exact (cont_around_extend _ _ Hextend _ _ Hexn) ].
+  - apply Return_at_around.
+    exact (cont_around_extend _ _ Hextend _ _ Hreturn).
 Qed.
 
 Lemma with_extra_args_around (statics' : static_env) (c c' : cont_value)
@@ -953,7 +962,8 @@ Proof.
   rewrite Hbind'. eexists. split; [ reflexivity | ].
   apply state_around_same;
     [ exact Hbound_vars | | exact Hstatics | exact Hheap ].
-  constructor; [ split; [ reflexivity | exact Hreturn ] | ].
+  constructor;
+    [ split; [ reflexivity | apply Return_at_around, Hreturn ] | ].
   constructor; [ split; [ reflexivity | exact Hexn ] | ].
   constructor.
 Qed.
@@ -1047,7 +1057,8 @@ Proof.
            Hgroup
        | c c' extra extra' Hc IH Hextra
        | remaining remaining' remaining_arity return_arity return_to
-           return_to' exn_to exn_to' Hremaining Hreturn IHreturn Hexn _ ];
+           return_to' exn_to exn_to' Hremaining Hreturn IHreturn Hexn _
+       | kinds return_to return_to' _ IHreturn_at ];
     intros vs vs' statics hp hp' rd rd' Hvs Hstatics Hheap.
   - simpl. exists vs', hp', rd'.
     split; [ reflexivity | split; [ exact Hvs | exact Hheap ] ].
@@ -1082,6 +1093,9 @@ Proof.
     apply IHreturn;
       [ constructor; [ exact Hpartial | constructor ] | exact Hstatics
       | exact Hheap ].
+  - simpl. rewrite (kinds_of_values_lifted statics' vs vs' Hvs).
+    destruct (kinds_eqb (map kind_of_value vs) kinds); [ | exact I ].
+    exact (IHreturn_at vs vs' statics hp hp' rd rd' Hvs Hstatics Hheap).
 Qed.
 
 (* A call. *)

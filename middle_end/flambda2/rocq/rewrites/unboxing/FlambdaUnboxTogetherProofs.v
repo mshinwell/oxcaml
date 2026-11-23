@@ -719,7 +719,8 @@ Definition handlers_ok (active : positions) (unboxed : list variable)
    the values that it is given are unboxed in the second: as in
    FlambdaUntagParamsProofs.v, with what is known where the closure
    was made, which holds of its variables at the heap and the record
-   of the state that holds the continuations. *)
+   of the state that holds the continuations; what the return
+   continuation of code stands for is related at the same kinds. *)
 Inductive cont_rel (statics : static_env) (hp : heap) (rd : read_record)
     : list nat -> cont_value -> cont_value -> Prop :=
   | Rel_same (c : cont_value) : cont_rel statics hp rd [] c c
@@ -761,7 +762,12 @@ Inductive cont_rel (statics : static_env) (hp : heap) (rd : read_record)
       (Over_application remaining remaining_arity return_arity return_to
          exn_to)
       (Over_application remaining remaining_arity return_arity return_to'
-         exn_to').
+         exn_to')
+  | Rel_return_at (kinds : list flambda_kind)
+      (return_to return_to' : cont_value) :
+    cont_rel statics hp rd [] return_to return_to' ->
+    cont_rel statics hp rd [] (Return_at kinds return_to)
+      (Return_at kinds return_to').
 
 Definition conts_rel (statics : static_env) (hp : heap) (rd : read_record)
     (active : positions) (conts conts' : cont_env) : Prop :=
@@ -783,7 +789,8 @@ Proof.
            Hfacts Hdc IH
        | c c' extra Hc IH
        | remaining remaining_arity return_arity return_to return_to' exn_to
-           exn_to' Hreturn IHreturn Hraise IHraise].
+           exn_to' Hreturn IHreturn Hraise IHraise
+       | kinds return_to return_to' _ IHreturn_at ].
   - apply Rel_same.
   - apply Rel_plain. exact IH.
   - apply Rel_inside; try assumption.
@@ -791,6 +798,7 @@ Proof.
     + exact (facts_hold_extend known dv statics statics' hp rd Hfacts Hmore).
   - apply Rel_extra, IH.
   - apply Rel_over; assumption.
+  - apply Rel_return_at, IHreturn_at.
 Qed.
 
 Lemma conts_rel_extend (statics statics' : static_env) (hp : heap)
@@ -818,13 +826,15 @@ Proof.
            Hfacts Hdc IH
        | c c' extra Hc IH
        | remaining remaining_arity return_arity return_to return_to' exn_to
-           exn_to' Hreturn IHreturn Hraise IHraise].
+           exn_to' Hreturn IHreturn Hraise IHraise
+       | kinds return_to return_to' _ IHreturn_at ].
   - apply Rel_same.
   - apply Rel_plain. exact IH.
   - apply Rel_inside; try assumption.
     exact (facts_hold_evolves known dv statics hp hp' rd rd' Hfacts Hevolves).
   - apply Rel_extra, IH.
   - apply Rel_over; assumption.
+  - apply Rel_return_at, IHreturn_at.
 Qed.
 
 Lemma conts_rel_evolves (statics : static_env) (hp hp' : heap)
@@ -940,7 +950,7 @@ Proof.
     apply Rel_state_plain.
     intros k'. cbn [positions_of lookup].
     destruct (Pos.eq_dec k' (code_return_continuation c)) as [-> | Hne];
-      [ rewrite !resolve_head; exact Hreturn | ].
+      [ rewrite !resolve_head; apply Rel_return_at, Hreturn | ].
     rewrite !(resolve_other k' (code_return_continuation c)) by exact Hne.
     destruct (Pos.eq_dec k' (code_exn_continuation c)) as [-> | Hne'];
       [ rewrite !resolve_head; exact Hraise | ].
@@ -995,7 +1005,8 @@ Proof.
            Hvars Hfacts Hdc _
        | c c' extra Hc IHc
        | remaining remaining_arity return_arity return_to return_to' exn_to
-           exn_to' Hreturn IHreturn Hraise _];
+           exn_to' Hreturn IHreturn Hraise _
+       | kinds return_to return_to' _ IHreturn_at ];
     intros vs ws Hrel.
   - rewrite (plain_values vs ws Hrel).
     apply simulated_of_related, result_related_refl, state_rel_refl.
@@ -1039,6 +1050,12 @@ Proof.
     rewrite Untag.kept_from_nil in IHreturn. cbn [rev] in IHreturn.
     rewrite app_nil_r in IHreturn.
     apply IHreturn. rewrite Untag.moved_from_nil. constructor.
+  - rewrite (plain_values vs ws Hrel). cbn [apply_cont_value].
+    specialize (IHreturn_at vs []).
+    rewrite Untag.kept_from_nil in IHreturn_at. cbn [rev] in IHreturn_at.
+    rewrite app_nil_r in IHreturn_at.
+    destruct (kinds_eqb (map kind_of_value vs) kinds); [ | exact I ].
+    apply IHreturn_at. rewrite Untag.moved_from_nil. constructor.
 Qed.
 
 Lemma apply_cont_value_plain (statics : static_env) (c c' : cont_value)

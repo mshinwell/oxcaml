@@ -583,6 +583,7 @@ Fixpoint hoist_cont (c : cont_value) : cont_value :=
   | Over_application remaining remaining_arity return_arity return_to exn_to =>
     Over_application remaining remaining_arity return_arity
       (hoist_cont return_to) (hoist_cont exn_to)
+  | Return_at kinds return_to => Return_at kinds (hoist_cont return_to)
   end.
 
 Definition hoist_conts (conts : cont_env) : cont_env :=
@@ -738,6 +739,7 @@ Fixpoint cont_known (c : cont_value) : Prop :=
   | Extra_args c _ => cont_known c
   | Over_application _ _ _ return_to exn_to =>
     cont_known return_to ∧ cont_known exn_to
+  | Return_at _ return_to => cont_known return_to
   end.
 
 Definition conts_known (conts : cont_env) : Prop :=
@@ -931,7 +933,9 @@ Proof.
     refine
       (call_function_lands statics _ rd_ cont_known known_inv
          (fun c extra H => H)
-         known_inv_over (known_inv_code statics _ rd_ S Scode)
+         known_inv_over
+         (fun kinds return_to => iff_refl _)
+         (known_inv_code statics _ rd_ S Scode)
          (known_inv_handler statics _ rd_ S) _ _ _ _ _ _ _ s'
          (resolve_known _ conts C) _ Hstep).
     apply with_extra_args_known, resolve_known, C.
@@ -941,6 +945,7 @@ Proof.
     exact
       (apply_cont_value_lands statics _ rd_ cont_known known_inv
          (fun c extra H => H) known_inv_over
+         (fun kinds return_to => iff_refl _)
          (known_inv_code statics _ rd_ S Scode)
          (known_inv_handler statics _ rd_ S) _ vs s' (resolve_known _ conts C)
          Hstep).
@@ -1505,7 +1510,8 @@ Proof.
   induction c
     as [[params metadata handler] def_vars def_conts recursive | k
        | c IH extra
-       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _
+       | kinds return_to IHreturn_at]
     using cont_value_over_ind;
     intros vs Hknown Hvalues Hvs.
   - unfold result_hoisted. simpl.
@@ -1534,6 +1540,9 @@ Proof.
     intros partial Hpartial.
     apply IHreturn; [ exact Kreturn | exact Vreturn | ].
     apply Forall_cons; [ exact Hpartial | apply Forall_nil ].
+  - simpl in Hknown, Hvalues |- *.
+    destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ exact (IHreturn_at vs Hknown Hvalues Hvs) | reflexivity ].
 Qed.
 
 Lemma call_function_hoist (statics : static_env) (hp : heap) (rd : read_record)

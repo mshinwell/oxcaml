@@ -687,6 +687,7 @@ Fixpoint cont_in_scope (bound : code_id -> bool) (c : cont_value) : Prop :=
   | Extra_args c _ => cont_in_scope bound c
   | Over_application _ _ _ return_to exn_to =>
     cont_in_scope bound return_to ∧ cont_in_scope bound exn_to
+  | Return_at _ return_to => cont_in_scope bound return_to
   end.
 
 Definition conts_in_scope (bound : code_id -> bool) (conts : cont_env)
@@ -699,8 +700,10 @@ Fixpoint cont_in_scope_le (bound bound' : code_id -> bool)
 Proof.
   destruct c
     as [h vars conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to];
-    simpl; [ | auto | apply cont_in_scope_le, Hle | ].
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
+    simpl;
+    [ | auto | apply cont_in_scope_le, Hle | | apply cont_in_scope_le, Hle ].
   - intros (Hh & Hrec & Hconts).
     refine
       (conj (handler_closures_in_scope_le bound bound' h Hle Hh)
@@ -839,7 +842,8 @@ Proof.
   revert Hc.
   destruct c
     as [ [params metadata body] vars kept recursive | k0 | c0 extra
-       | remaining remaining_arity return_arity return_to exn_to ];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     simpl; try contradiction; [ | intros _; exact I ].
   destruct vars; [ | contradiction ].
   destruct kept; [ | contradiction ].
@@ -966,6 +970,7 @@ Proof.
       (call_function_lands statics _ rd_ (cont_in_scope (code_id_bound statics))
          terms_in_scope (fun c extra H => H)
          (terms_in_scope_over (code_id_bound statics))
+         (fun kinds return_to => iff_refl _)
          (terms_in_scope_code statics _ rd_ S)
            (terms_in_scope_handler statics _ rd_ S)
          _ _ _ _ _ _ _ s' (resolve_in_scope _ _ conts C) _ Hstep).
@@ -978,6 +983,7 @@ Proof.
          (cont_in_scope (code_id_bound statics))
          terms_in_scope (fun c extra H => H)
          (terms_in_scope_over (code_id_bound statics))
+         (fun kinds return_to => iff_refl _)
          (terms_in_scope_code statics _ rd_ S)
            (terms_in_scope_handler statics _ rd_ S)
          _ vs s' (resolve_in_scope _ _ conts C) Hstep).
@@ -1252,6 +1258,7 @@ Fixpoint hoist_cont (c : cont_value) : cont_value :=
   | Over_application remaining remaining_arity return_arity return_to exn_to =>
     Over_application remaining remaining_arity return_arity
       (hoist_cont return_to) (hoist_cont exn_to)
+  | Return_at kinds return_to => Return_at kinds (hoist_cont return_to)
   end.
 
 Definition hoist_conts (conts : cont_env) : cont_env :=
@@ -1328,6 +1335,7 @@ Fixpoint cont_known (c : cont_value) : Prop :=
   | Extra_args c _ => cont_known c
   | Over_application _ _ _ return_to exn_to =>
     cont_known return_to ∧ cont_known exn_to
+  | Return_at _ return_to => cont_known return_to
   end.
 
 Definition conts_known (conts : cont_env) : Prop :=
@@ -1385,7 +1393,8 @@ Proof.
   { revert Hc.
     destruct c
       as [ [params metadata body] vars kept recursive | k0 | c0 extra
-         | remaining remaining_arity return_arity return_to exn_to ];
+         | remaining remaining_arity return_arity return_to exn_to
+         | kinds return_to];
       simpl; try contradiction;
       [ | intros _; split; [ reflexivity | exact I ] ].
     destruct vars; [ | contradiction ].
@@ -1533,7 +1542,9 @@ Proof.
     refine
       (call_function_lands statics _ rd_ cont_known known_inv
          (fun c extra H => H)
-         known_inv_over (known_inv_code statics _ rd_ Scode)
+         known_inv_over
+         (fun kinds return_to => iff_refl _)
+         (known_inv_code statics _ rd_ Scode)
          (known_inv_handler statics _ rd_ S) _ _ _ _ _ _ _ s'
          (resolve_known _ conts C) _ Hstep).
     apply with_extra_args_known, resolve_known, C.
@@ -1543,6 +1554,7 @@ Proof.
     exact
       (apply_cont_value_lands statics _ rd_ cont_known known_inv
          (fun c extra H => H) known_inv_over
+         (fun kinds return_to => iff_refl _)
            (known_inv_code statics _ rd_ Scode)
          (known_inv_handler statics _ rd_ S) _ vs s' (resolve_known _ conts C)
          Hstep).
@@ -1771,7 +1783,8 @@ Proof.
   induction c
     as [[params metadata handler] def_vars def_conts recursive | k
        | c IH extra
-       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _
+       | kinds return_to IHreturn_at]
     using cont_value_over_ind;
     intros vs Hknown Hvalues Hvs.
   - unfold result_hoisted. simpl.
@@ -1801,6 +1814,9 @@ Proof.
     intros partial Hpartial.
     apply IHreturn; [ exact Kreturn | exact Vreturn | ].
     apply Forall_cons; [ exact Hpartial | apply Forall_nil ].
+  - simpl in Hknown, Hvalues |- *.
+    destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ exact (IHreturn_at vs Hknown Hvalues Hvs) | reflexivity ].
 Qed.
 
 Lemma call_function_hoist (callee : value) (kind : call_kind)

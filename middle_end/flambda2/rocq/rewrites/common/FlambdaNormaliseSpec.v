@@ -138,7 +138,15 @@
    is a symbol is known as what the [Let_static]s passed on the way
    have bound it to (FlambdaStatedSymbolsSpec.statics_stated; in the
    body of code, those passed on the way to the code). Code that
-   states nothing of its parameters passes. It goes where
+   states nothing of its parameters passes. And the call cannot be
+   undefined for what the code returns: the call tests the values
+   that the code returns against its return arity
+   (FlambdaSemanticsSpec.call_code; decision D81), and the inlined
+   body gives them to the continuation of the call as they are. So
+   the code must pass the test of a term under which that test of the
+   call never fails (FlambdaWellKindedSpec.code_returns_at_kinds):
+   where its body gives something to its return continuation, the
+   kinds are those of its result arity. It goes where
    [inline_calls] goes, and it too inlines no call of code whose id
    is among those given ([kept]).
 
@@ -172,7 +180,8 @@ From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec FlambdaNominalSpec FlambdaApplySpec FlambdaCompareSpec
-  FlambdaTupledSpec FlambdaStatedScopeSpec FlambdaStatedSymbolsSpec.
+  FlambdaTupledSpec FlambdaStatedScopeSpec FlambdaStatedSymbolsSpec
+  FlambdaWellKindedSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -952,6 +961,11 @@ Definition call_agrees_stated (Y : symbols_stated) (S : stated_in_scope)
   && Nat.eqb (length (code_params c)) (length (code_params_kinds c))
   && are_stated_knowing Y S (ap_args ap) (code_params_subkinds c).
 
+(* A call is inlined where it passes the tests above and the code
+   passes the test of what it returns
+   (FlambdaWellKindedSpec.code_returns_at_kinds): the call tests the
+   values that the code returns against its return arity, and the
+   inlined body does not. *)
 Definition inline_known_apply (S : stated_in_scope) (kept : list code_id)
     (known_code : list (code_id * code))
     (known_symbols : list (symbol * option code_id)) (Y : symbols_stated)
@@ -962,7 +976,7 @@ Definition inline_known_apply (S : stated_in_scope) (kept : list code_id)
     | Some (Some code), Some c =>
       if negb (among called kept)
          && (Pos.eqb code called && inlinable_b ap c
-             && call_agrees_stated Y S ap c)
+             && call_agrees_stated Y S ap c && code_returns_at_kinds c)
       then
         inlined_body c
           (inline_renaming (code_return_continuation c)

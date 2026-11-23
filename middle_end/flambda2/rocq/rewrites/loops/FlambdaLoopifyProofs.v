@@ -419,7 +419,7 @@ Record frame : Type := Frame {
   frame_code : code;
   frame_closure : value;
   frame_entry : env;
-  frame_return : cont_value;
+  frame_return_to : cont_value;
   frame_raise : cont_value
 }.
 
@@ -437,6 +437,13 @@ Definition frame_ret (F : frame) : continuation :=
 
 Definition frame_exn (F : frame) : continuation :=
   code_exn_continuation (frame_code F).
+
+(* What the return continuation of the code stands for in the second
+   run: the continuation that the call at the entry returns to, to be
+   applied to values of the kinds of the result arity of the code,
+   which is the return arity of a call of it that has a step. *)
+Definition frame_return (F : frame) : cont_value :=
+  Return_at (unarize (code_result_arity (frame_code F))) (frame_return_to F).
 
 (* The body of the frame's code, or a part of it, with the self tail calls
    made jumps. *)
@@ -572,7 +579,13 @@ Definition vars_rel (F : frame) (vars vars' : env) : Prop :=
    of the loop, and of which the return and exception continuations
    stand in the second for what they stood for at the entry; or related
    things, with the same extra arguments; or what is left of the same
-   over-application, to return and to raise to related things. *)
+   over-application, to return and to raise to related things; or what
+   the return continuation of code stands for, at the same kinds, of
+   related things; or the same, where the first returns to a thing
+   that is related to the second whole. That last is a self tail call
+   inside a loop: the first run calls the code again, and tests the
+   kinds of what returns once more, where the second run jumps and
+   tests them once. *)
 Inductive cont_rel (statics : static_env) : cont_value -> cont_value -> Prop :=
   | Rel_same (c : cont_value) : cont_rel statics c c
   | Rel_out (h : continuation_handler) (vars : env) (conts conts' : cont_env)
@@ -609,7 +622,15 @@ Inductive cont_rel (statics : static_env) : cont_value -> cont_value -> Prop :=
       (Over_application remaining remaining_arity return_arity return_to
          exn_to)
       (Over_application remaining remaining_arity return_arity return_to'
-         exn_to').
+         exn_to')
+  | Rel_return_at (kinds : list flambda_kind)
+      (return_to return_to' : cont_value) :
+    cont_rel statics return_to return_to' ->
+    cont_rel statics (Return_at kinds return_to) (Return_at kinds return_to')
+  | Rel_return_again (kinds : list flambda_kind)
+      (return_to return_to' : cont_value) :
+    cont_rel statics return_to (Return_at kinds return_to') ->
+    cont_rel statics (Return_at kinds return_to) (Return_at kinds return_to').
 
 Lemma with_extra_args_rel (statics : static_env) (c c' : cont_value)
     (extra : list value) :
@@ -643,13 +664,17 @@ Proof.
            Hself Hret Hexn
        | c c' extra _ IH
        | remaining remaining_arity return_arity return_to return_to' exn_to
-           exn_to' _ IHreturn _ IHraise ].
+           exn_to' _ IHreturn _ IHraise
+       | kinds return_to return_to' _ IHreturn_at
+       | kinds return_to return_to' _ IHreturn_again ].
   - apply Rel_same.
   - apply Rel_out, IH.
   - apply Rel_in; try assumption.
     exact (frame_statics_extend F statics statics' Hextend Hstatics).
   - apply Rel_extra_args, IH.
   - apply Rel_over_application; assumption.
+  - apply Rel_return_at, IHreturn_at.
+  - apply Rel_return_again, IHreturn_again.
 Qed.
 
 Lemma in_conts_extend (F : frame) (statics statics' : static_env)
@@ -874,7 +899,7 @@ Proof.
     cbn [result_loops]. eexists _, 0, _.
     split; [ reflexivity | ]. split; [ reflexivity | ].
     apply Loops_out; [ exact Hstatics | ].
-    apply pair_conts_rel; [ exact Hr | intros _; exact Hx ].
+    apply pair_conts_rel; [ apply Rel_return_at, Hr | intros _; exact Hx ].
   - destruct (looped_code_fields self c)
       as (Hsame_params & Hsame_closure & Hsame_ret & Hsame_exn
           & Hsame_params_arity & Hsame_result_arity).
@@ -888,16 +913,20 @@ Proof.
             (proj2 Hstatics)).
     destruct (binds_statics (code_body c)) eqn:Hbinds; [ exact I | ].
     destruct (negb (kinds_eqb _ _ && _ && _)) eqn:Hagrees; [ exact I | ].
+    pose proof Hagrees as Hresult. apply negb_false_iff in Hresult.
+    apply andb_true_iff in Hresult as [_ Hresult].
+    apply arity_eqb_eq in Hresult. subst return_arity.
     destruct (values_of_subkinds statics vs (code_params_subkinds c))
       eqn:Hsubkinds; [ | exact I ].
     cbn [negb].
     destruct (bind_params (code_params c) vs [(code_my_closure c, closure)])
       as [entry | ] eqn:Hbind; [ | exact I ].
     destruct (enter_loop self c vs _ entry
-                [(code_return_continuation c, r');
+                [(code_return_continuation c,
+                  Return_at (unarize (code_result_arity c)) r');
                  (code_exn_continuation c, x')]
                 statics' hp rd Hbinds (loopable_distinct self c Hloopable)
-                (agreed_kinds vs args_arity return_arity c Hagrees)
+                (agreed_kinds vs args_arity (code_result_arity c) c Hagrees)
                 (eq_trans
                    (eq_sym
                       (values_of_subkinds_same_values statics statics' vs _
@@ -919,7 +948,8 @@ Proof.
     + split; [ exact Hext | exact Hmy_closure ].
     + split; [ | split; [ | split ] ].
       * intros k Hk. rewrite (resolve_other k self) by exact Hk.
-        apply pair_conts_rel; [ exact Hr | intros _; exact Hx ].
+        apply pair_conts_rel;
+          [ apply Rel_return_at, Hr | intros _; exact Hx ].
       * apply resolve_head.
       * apply resolve_other. intros Heq. apply Hret. symmetry. exact Heq.
       * apply resolve_other. intros Heq. apply Hexn. symmetry. exact Heq.
@@ -1015,13 +1045,16 @@ Proof.
            Hfstatics Hh Hrec Hvars Hconts _ Hself Hret Hexn
        | c c' extra _ IH
        | remaining remaining_arity return_arity return_to return_to' exn_to
-           exn_to' Hreturn IHreturn Hraise _ ];
+           exn_to' Hreturn IHreturn Hraise _
+       | kinds return_to return_to' _ IHreturn_at
+       | kinds return_to return_to' _ IHreturn_again ];
     intros vs.
   - revert vs.
     induction c
       as [[params metadata handler] vars conts recursive | k | c IH extra
          | remaining remaining_arity return_arity return_to IHreturn exn_to
-             _];
+             _
+         | kinds return_to IHreturn_at];
       intros vs.
     + simpl.
       destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
@@ -1042,6 +1075,8 @@ Proof.
         [ exact Hstatics | apply shape_of_call_loops, Hstatics
         | apply shape_of_call_calls | apply Rel_same | apply Rel_same | ].
       intros partial. apply IHreturn.
+    + simpl. destruct (kinds_eqb (map kind_of_value vs) kinds);
+        [ apply IHreturn_at | exact I ].
   - simpl.
     destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
       [ | exact I ].
@@ -1085,6 +1120,12 @@ Proof.
       [ exact Hstatics | apply shape_of_call_loops, Hstatics
       | apply shape_of_call_calls | exact Hreturn | exact Hraise | ].
     intros partial. apply IHreturn.
+  - simpl. destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ apply IHreturn_at | exact I ].
+  - specialize (IHreturn_again vs).
+    cbn [apply_cont_value] in IHreturn_again |- *.
+    destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ exact IHreturn_again | exact I ].
 Qed.
 
 (* The same call under the two static environments, returning to
@@ -1196,6 +1237,9 @@ Proof.
   rewrite Hfull, Nat.eqb_refl. cbn [run_call].
   unfold call_code. rewrite Hbinds.
   destruct (negb (kinds_eqb _ _ && _ && _)) eqn:Hagrees; [ exact I | ].
+  pose proof Hagrees as Hresult. apply negb_false_iff in Hresult.
+  apply andb_true_iff in Hresult as [_ Hresult].
+  apply arity_eqb_eq in Hresult. subst return_arity.
   apply agreed_kinds, kinds_eqb_eq in Hagrees.
   destruct
     (values_of_subkinds statics vs (code_params_subkinds (frame_code F)))
@@ -1228,7 +1272,9 @@ Proof.
       apply pair_conts_rel.
       * pose proof (Hconts (frame_ret F) (not_eq_sym Hret)) as Hreturn.
         rewrite Hr in Hreturn. unfold frame_base in Hreturn.
-        rewrite resolve_head in Hreturn. exact Hreturn.
+        rewrite resolve_head in Hreturn.
+        unfold frame_return in Hreturn |- *.
+        apply Rel_return_again. exact Hreturn.
       * intros Hne.
         pose proof (Hconts (frame_exn F) (not_eq_sym Hexn)) as Hraise.
         rewrite Hx in Hraise. unfold frame_base in Hraise.

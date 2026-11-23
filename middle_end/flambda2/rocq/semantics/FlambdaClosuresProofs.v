@@ -828,7 +828,8 @@ Proof.
       [ | discriminate ].
     refine
       (call_function_lands statics _ rd_ cont_sets_ok sets_inv
-         (fun c extra H => H) sets_inv_over (sets_inv_code statics _ rd_ S B)
+         (fun c extra H => H) sets_inv_over
+         (fun kinds return_to => iff_refl _) (sets_inv_code statics _ rd_ S B)
          (sets_inv_handler statics _ rd_ S B) _ _ _ _ _ _ _ s'
          (resolve_sets_ok _ conts C) _ Hstep).
     apply with_extra_args_sets_ok, resolve_sets_ok, C.
@@ -837,7 +838,8 @@ Proof.
     unfold apply_continuation in Hstep.
     exact
       (apply_cont_value_lands statics _ rd_ cont_sets_ok sets_inv
-         (fun c extra H => H) sets_inv_over (sets_inv_code statics _ rd_ S B)
+         (fun c extra H => H) sets_inv_over
+         (fun kinds return_to => iff_refl _) (sets_inv_code statics _ rd_ S B)
          (sets_inv_handler statics _ rd_ S B) _ vs s'
            (resolve_sets_ok _ conts C)
          Hstep).
@@ -1540,6 +1542,7 @@ Fixpoint cont_terms_ok (c : cont_value) : Prop :=
   | Extra_args c' _ => cont_terms_ok c'
   | Over_application _ _ _ return_to exn_to =>
     cont_terms_ok return_to ∧ cont_terms_ok exn_to
+  | Return_at _ return_to => cont_terms_ok return_to
   end.
 
 Definition conts_terms_ok (conts : cont_env) : Prop :=
@@ -1713,7 +1716,8 @@ Proof.
       [ | discriminate ].
     refine
       (call_function_lands statics _ rd_ cont_terms_ok terms_inv
-         (fun c extra H => H) terms_inv_over (terms_inv_code statics _ rd_ S)
+         (fun c extra H => H) terms_inv_over
+         (fun kinds return_to => iff_refl _) (terms_inv_code statics _ rd_ S)
          (terms_inv_handler statics _ rd_ S) _ _ _ _ _ _ _ s'
          (resolve_terms_ok _ conts C) _ Hstep).
     apply with_extra_args_terms_ok, resolve_terms_ok, C.
@@ -1722,7 +1726,8 @@ Proof.
     unfold apply_continuation in Hstep.
     exact
       (apply_cont_value_lands statics _ rd_ cont_terms_ok terms_inv
-         (fun c extra H => H) terms_inv_over (terms_inv_code statics _ rd_ S)
+         (fun c extra H => H) terms_inv_over
+         (fun kinds return_to => iff_refl _) (terms_inv_code statics _ rd_ S)
          (terms_inv_handler statics _ rd_ S) _ vs s'
            (resolve_terms_ok _ conts C)
          Hstep).

@@ -41,9 +41,10 @@
    region by a rule of its own (FlambdaRegionsSpec.region_apply_cont),
    whose test of kinds is not that of
    FlambdaSemanticsSpec.apply_cont_value. So the lemmas are of
-   [apply_unkinded], which is [apply_cont_value] without its test: a
-   function of these proofs, not a rule of the machine. Nothing here
-   needs review. *)
+   [apply_unkinded], which is [apply_cont_value] without its tests of
+   kinds (that of a handler, and that of what the return continuation
+   of code stands for): a function of these proofs, not a rule of the
+   machine. Nothing here needs review. *)
 
 From Stdlib Require Import ZArith List Bool Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
@@ -88,6 +89,7 @@ Fixpoint apply_unkinded (c : cont_value) (vs : list value)
         return_arity return_to exn_to statics hp rd
     | _ => Undefined
     end
+  | Return_at _ return_to => apply_unkinded return_to vs statics hp rd
   end.
 
 (* Applying a continuation is undefined, or is that. *)
@@ -99,7 +101,8 @@ Proof.
   induction c
     as [[params metadata handler] def_vars def_conts recursive | k
        | c IH extra
-       | remaining remaining_arity return_arity return_to IHret exn_to IHexn];
+       | remaining remaining_arity return_arity return_to IHret exn_to IHexn
+       | kinds return_to IHreturn_at];
     intros vs statics hp rd; cbn [apply_cont_value apply_unkinded].
   - destruct (kinds_eqb _ _); [ | left; reflexivity ].
     destruct (values_of_subkinds _ _ _);
@@ -117,6 +120,8 @@ Proof.
     + right. reflexivity.
     + exact (IHret _ _ _ _).
     + left. reflexivity.
+  - destruct (kinds_eqb _ _); [ exact (IHreturn_at _ _ _ _) | ].
+    left. reflexivity.
 Qed.
 
 Lemma apply_unkinded_extra (c : cont_value) (extra vs : list value)
@@ -144,7 +149,8 @@ Lemma call_code_cases (closure : value) (c : code) (vs : list value)
         hp rd
       = Step
           (State (code_body c) callee_vars
-             [(code_return_continuation c, return_to);
+             [(code_return_continuation c,
+               Return_at (unarize return_arity) return_to);
               (code_exn_continuation c, exn_to)]
              statics hp rd).
 Proof.
@@ -420,7 +426,8 @@ Proof.
     cbn [lands]. intros rs' Hexpr' Hvars' Hconts' Hstatics' Hframes' Hnext'.
     cbn [state_expr state_vars state_conts] in *.
     exact
-      (call_entered a c return_to exn_to rs' Hrests (Hcode id c Hid) Hret
+      (call_entered a c _ exn_to rs' Hrests (Hcode id c Hid)
+         (Ends_ret_at cert opts ret bottom rs a _ return_to Hret)
          Hraise Hexpr' Hconts' Hstatics' Hframes' Hnext').
   - destruct Hbound as [id Hid]. rewrite Hlive in Hid.
     destruct
@@ -433,8 +440,9 @@ Proof.
     cbn [state_expr state_vars state_conts] in *.
     exact
       (call_entered a c _ exn_to rs' Hrests (Hcode id c Hid)
-         (Ends_ret_over cert opts ret bottom rs a remaining remaining_arity
-            return_arity return_to exn_to Hret Hraise)
+         (Ends_ret_at cert opts ret bottom rs a _ _
+            (Ends_ret_over cert opts ret bottom rs a remaining
+               remaining_arity return_arity return_to exn_to Hret Hraise))
          Hraise Hexpr' Hconts' Hstatics' Hframes' Hnext').
   - exact (Hpartial partial).
   - exact I.
@@ -657,6 +665,8 @@ Proof.
          Hraise Hlive);
       [ apply shape_of_call_bound | ].
     intros partial. exact (IHret Hrests [partial] live hp rd Hlive).
+  - intros a kinds return_to Hret IH Hrests vs live hp rd Hlive.
+    cbn [apply_unkinded]. exact (IH Hrests vs live hp rd Hlive).
   - intros a k simples extra c Heval Hraise_to Hconts IH u Hbottom Hnext
       Hcalled vs live hp rd Hlive.
     rewrite apply_unkinded_extra.

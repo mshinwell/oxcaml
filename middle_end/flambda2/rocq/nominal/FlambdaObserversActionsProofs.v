@@ -174,7 +174,8 @@ Proof.
   intros r slots c.
   destruct c
     as [[params metadata body] vars conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     simpl; try reflexivity.
   destruct vars; destruct conts; destruct recursive; simpl;
     try reflexivity.

@@ -429,7 +429,8 @@ Proof.
        | c c' extra extra' Htakes Hc IH Hextra
        | remaining remaining' remaining_arity return_arity return_to
            return_to' exn_to exn_to' Hremaining Hreturn_takes Hexn_takes
-           Hreturn IHreturn Hexn _ ];
+           Hreturn IHreturn Hexn _
+       | kinds return_to return_to' Hreturn_takes _ IHreturn_at ];
     intros Htop Hspine vs' vs hp hp' rd Hvs.
   - simpl. intros _. discriminate.
   - simpl in Htop.
@@ -472,6 +473,11 @@ Proof.
     + intros partial' partial Hpartial.
       apply (IHreturn Hreturn_takes Hspine).
       constructor; [ exact Hpartial | constructor ].
+  - cbn [apply_cont_value]. cbn [cont_spine_values] in Hspine.
+    rewrite (back_values_kinds rs vs' vs Hvs).
+    destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ | exact (fun H => H) ].
+    exact (IHreturn_at Hreturn_takes Hspine vs' vs hp hp' rd Hvs).
 Qed.
 
 (* A call. *)

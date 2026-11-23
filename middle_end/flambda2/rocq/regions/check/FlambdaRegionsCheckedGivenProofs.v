@@ -107,7 +107,7 @@ Proof.
     + pose proof (proj1 (callers_take_no_region cert codes rs) _ _ _ Hconts)
         as Hno.
       destruct (resolve k (state_conts (rs_state rs)))
-        as [[params metadata handler] vars conts recursive | | | ];
+        as [[params metadata handler] vars conts recursive | | | | ];
         try reflexivity.
       cbn [takes_no_region] in Hno.
       apply andb_true_iff.
@@ -115,7 +115,7 @@ Proof.
     + pose proof (proj1 (callers_take_no_region cert codes rs) _ _ _ Hconts)
         as Hno.
       destruct (resolve k (state_conts (rs_state rs)))
-        as [[params metadata handler] vars conts recursive | | | ];
+        as [[params metadata handler] vars conts recursive | | | | ];
         try reflexivity.
       cbn [takes_no_region] in Hno.
       apply andb_true_iff.

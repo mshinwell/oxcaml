@@ -33,7 +33,7 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaSemanticsSpec FlambdaSemanticsProofs
   FlambdaNominalSpec FlambdaNominalProofs FlambdaCompareProofs
-  FlambdaApplySpec.
+  FlambdaApplySpec FlambdaWellKindedSpec FlambdaWellKindedProofs.
 Import ListNotations.
 
 Theorem apply_indirect_known : apply_indirect_known_statement.
@@ -155,7 +155,8 @@ Lemma step_apply_direct (ap : apply_expr) (callee : value) (called : code_id)
       | Some callee_vars =>
         Step (State (code_body c) callee_vars
           [(code_return_continuation c,
-            resolve (ap_continuation ap) conts);
+            Return_at (unarize (ap_return_arity ap))
+              (resolve (ap_continuation ap) conts));
            (code_exn_continuation c,
             resolve (ap_exn_continuation ap) conts)]
           statics hp rd)
@@ -174,10 +175,16 @@ Proof.
 Qed.
 
 (* The call goes wrong, or it steps to the body under the callee's
-   variables. The inlined body runs its [Let]s to the renamed body under
-   those variables followed by the caller's. The two are a state and its
-   renaming: the body's free variables are bound alike, and its return and
-   exception continuations stand for those of the call. *)
+   variables, with the return continuation of the code standing for
+   that of the call, to be given values of the kinds of the return
+   arity only. That test can only make the run undefined
+   (FlambdaWellKindedProofs.return_at_refines), so the body refines
+   itself with the return continuation of the code standing for that
+   of the call as it is. The inlined body runs its [Let]s to the
+   renamed body under those variables followed by the caller's. The
+   two are a state and its renaming: the body's free variables are
+   bound alike, and its return and exception continuations stand for
+   those of the call. *)
 Theorem inline : inline_statement.
 Proof.
   intros ap called c r vars conts statics hp rd Hkind Hcode
@@ -226,9 +233,12 @@ Proof.
     [ | exact (Hwrong Hstep) ].
   destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
     as [callee_vars | ] eqn:Hbind; [ | exact (Hwrong Hstep) ].
-  apply equivalent_refines.
   (* the call *)
-  eapply equivalent_trans; [ exact (step_equivalent _ _ Hstep) | ].
+  eapply refines_trans;
+    [ exact (equivalent_refines _ _ (step_equivalent _ _ Hstep)) | ].
+  (* the test of what the code returns *)
+  eapply refines_trans; [ apply return_at_refines | ].
+  apply equivalent_refines.
   (* the inlined body *)
   destruct (let_params_run (code_params c) (code_params_kinds c)
               (ap_args ap) vs ((code_my_closure c, callee) :: vars)
@@ -410,7 +420,10 @@ Qed.
    [Let] of the inlined body; and if they have no values both go
    wrong. The values of the arguments, where they have values, must
    be of what the code states of its parameters: the call tests what
-   it states, and a [Let] of the inlined body tests the kind only. *)
+   it states, and a [Let] of the inlined body tests the kind only.
+   And the code must pass the test of what it returns: the call tests
+   the values that the code returns, and the inlined body does not
+   (FlambdaWellKindedProofs.code_returns_at_kinds_equivalent). *)
 Lemma inline_equivalent (ap : apply_expr) (called : code_id) (c : code)
     (r : renaming) (callee : value) (slots : list (value_slot * value))
     (vars : env) (conts : cont_env) (statics : static_env) (hp : heap)
@@ -424,6 +437,7 @@ Lemma inline_equivalent (ap : apply_expr) (called : code_id) (c : code)
   = unarize_per_parameter (code_params_arity c) ->
   ap_return_arity ap = code_result_arity c ->
   length (code_params c) = length (code_params_kinds c) ->
+  code_returns_at_kinds c = true ->
   (∀ vs : list value,
     eval_simples vars (ap_args ap) = Some vs ->
     values_of_subkinds statics vs (code_params_subkinds c) = true) ->
@@ -433,7 +447,7 @@ Proof.
   intros Hkind Hcallee Hclosure Hcode
     (Hclosed_vars & Hclosed_conts & Hvars & Hret & Hexn & Hextra
      & Hmy_closure & Hparams & Harity & Hfull & Hstatic & Htupled)
-    Hargs_arity Hreturn_arity Hparams_kinds Hstated.
+    Hargs_arity Hreturn_arity Hparams_kinds Hreturns Hstated.
   destruct (eval_simples vars (ap_args ap)) as [vs | ] eqn:Hargs;
     [ destruct
         (list_eq_dec kind_eq_dec (map kind_of_value vs)
@@ -456,6 +470,14 @@ Proof.
     { rewrite (eval_simples_length vars _ vs Hargs). exact Harity. }
     rewrite Hbind in Hstep.
     eapply equivalent_trans; [ exact (step_equivalent _ _ Hstep) | ].
+    eapply equivalent_trans.
+    { apply
+        (code_returns_at_kinds_equivalent c callee vs callee_vars _ _ statics
+           hp rd Hreturns (closure_of_kind _ _ _ _ Hclosure));
+        [ | exact Hbind ].
+      unfold code_params_kinds.
+      rewrite <- (unarize_per_parameter_eq _ _ Hargs_arity).
+      exact Hkinds. }
     destruct (let_params_run (code_params c) (code_params_kinds c)
                 (ap_args ap) vs ((code_my_closure c, callee) :: vars)
                 (callee_vars ++ vars) (rename_expr r (code_body c)) conts

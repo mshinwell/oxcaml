@@ -568,6 +568,10 @@ let code_is_stub = function
 
 let code_params_kinds c = unarize (code_params_arity c)
 
+(** val code_result_kinds : code -> flambda_kind list **)
+
+let code_result_kinds c = unarize (code_result_arity c)
+
 (** val handler_params_subkinds : continuation_handler -> param_subkind list **)
 
 let handler_params_subkinds = function

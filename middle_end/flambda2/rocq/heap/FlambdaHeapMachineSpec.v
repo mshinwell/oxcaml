@@ -135,7 +135,8 @@ Definition heap_call_code (closure : value) (c : code) (vs : list value)
     | Some callee_vars =>
       Heap_step
         (Heap_state (code_body c) callee_vars
-           [(code_return_continuation c, return_to);
+           [(code_return_continuation c,
+             Return_at (unarize return_arity) return_to);
             (code_exn_continuation c, exn_to)]
            statics h)
     | None => Heap_undefined
@@ -192,6 +193,10 @@ Fixpoint heap_apply_cont_value (c : cont_value) (vs : list value)
         return_arity return_to exn_to statics h
     | _ => Heap_undefined
     end
+  | Return_at kinds return_to =>
+    if kinds_eqb (map kind_of_value vs) kinds
+    then heap_apply_cont_value return_to vs statics h
+    else Heap_undefined
   end.
 
 (* FlambdaSemanticsSpec.call_function, with the heap carried along. *)
@@ -673,6 +678,7 @@ Fixpoint cont_value_closed (h : heap) (c : cont_value) : Prop :=
     (∀ v : value, v ∈ remaining -> value_closed h v)
     ∧ cont_value_closed h return_to
     ∧ cont_value_closed h exn_to
+  | Return_at _ return_to => cont_value_closed h return_to
   end.
 
 Definition state_closed (s : heap_state) : Prop :=
@@ -724,7 +730,9 @@ Definition needed_by_closure (h : continuation_handler)
    same handlers, under related environments and related continuations;
    or related continuations with related extra arguments; or what is
    left of two over-applications at the same arities, with related
-   arguments that remain and related continuations. *)
+   arguments that remain and related continuations; or what the
+   return continuations of code stand for, at the same kinds, with
+   related continuations to return to. *)
 #[local] Set Warnings "-register-all".
 Inductive cont_related (R : value -> value -> Prop)
     : cont_value -> cont_value -> Prop :=
@@ -752,7 +760,11 @@ Inductive cont_related (R : value -> value -> Prop)
       (Over_application remaining remaining_arity return_arity return_to
          exn_to)
       (Over_application remaining' remaining_arity return_arity return_to'
-         exn_to').
+         exn_to')
+  | Related_return_at (kinds : list flambda_kind)
+      (return_to return_to' : cont_value) :
+    cont_related R return_to return_to' ->
+    cont_related R (Return_at kinds return_to) (Return_at kinds return_to').
 
 Definition conts_related (R : value -> value -> Prop)
     (conts conts' : cont_env) : Prop :=
@@ -899,6 +911,7 @@ Fixpoint cont_code_free_of (D : dropped) (c : cont_value) : bool :=
   | Extra_args c _ => cont_code_free_of D c
   | Over_application _ _ _ return_to exn_to =>
     cont_code_free_of D return_to && cont_code_free_of D exn_to
+  | Return_at _ return_to => cont_code_free_of D return_to
   end.
 
 Definition conts_code_free_of (D : dropped) (conts : cont_env) : bool :=

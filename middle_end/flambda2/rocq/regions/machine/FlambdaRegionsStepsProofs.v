@@ -343,7 +343,8 @@ Proof.
     as Hc.
   destruct (resolve (ac_continuation ac) (state_conts (rs_state rs)))
     as [[params metadata handler] def_vars def_conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     try (apply plain_step_values;
          [ exact Hfields | exact Hvals
          | intros x kind d body v hp' rd' Hlet; rewrite He in Hlet;
@@ -445,6 +446,7 @@ Proof.
     refine
       (call_function_lands statics _ rd_ (cont_terms_ok Ph) (terms_inv Pe Ph Pc)
          (fun c extra H => H) (terms_inv_over Ph)
+         (fun kinds return_to => iff_refl _)
          (terms_inv_code Pe Ph Pc Pc_body statics _ rd_ S)
          (terms_inv_handler Pe Ph Pc Ph_handler statics _ rd_ S) _ _ _ _ _ _ _
            s'
@@ -455,6 +457,7 @@ Proof.
     exact
       (apply_cont_value_lands statics _ rd_ (cont_terms_ok Ph)
          (terms_inv Pe Ph Pc) (fun c extra H => H) (terms_inv_over Ph)
+         (fun kinds return_to => iff_refl _)
          (terms_inv_code Pe Ph Pc Pc_body statics _ rd_ S)
          (terms_inv_handler Pe Ph Pc Ph_handler statics _ rd_ S) _ vs s'
          (resolve_terms_ok Ph _ conts C) Hstep).
@@ -506,7 +509,8 @@ Proof.
   pose proof (resolve_terms_ok Ph (ac_continuation ac) _ Hconts) as Hc.
   destruct (resolve (ac_continuation ac) (state_conts (rs_state rs)))
     as [[params metadata handler] def_vars def_conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     try (apply plain_step_terms; exact Hinv).
   destruct (eval_simples (state_vars (rs_state rs)) (ac_args ac)) as [vs | ];
     [ | discriminate ].
@@ -541,11 +545,14 @@ Lemma cont_value_deep_ind (K : cont_value -> Prop) :
     K exn_to ->
     K (Over_application remaining remaining_arity return_arity return_to
          exn_to)) ->
+  (∀ (kinds : list flambda_kind) (return_to : cont_value),
+    K return_to -> K (Return_at kinds return_to)) ->
   ∀ c : cont_value, K c.
 Proof.
-  intros Hclosure Houter Hextra Hover. fix IH 1.
+  intros Hclosure Houter Hextra Hover Hreturn. fix IH 1.
   intros [h vars conts recursive | k | c extra
-         | remaining remaining_arity return_arity return_to exn_to].
+         | remaining remaining_arity return_arity return_to exn_to
+         | kinds return_to].
   - apply Hclosure.
     exact
       ((fix go (conts : list (continuation * cont_value))
@@ -558,6 +565,7 @@ Proof.
   - apply Houter.
   - apply Hextra. apply IH.
   - apply Hover; apply IH.
+  - apply Hreturn. apply IH.
 Qed.
 
 Lemma forallb_pairs_Forall {A B : Type} (f : B -> bool) (l : list (A * B)) :
@@ -630,6 +638,9 @@ Hypothesis f_over :
     f (Over_application remaining remaining_arity return_arity return_to
          exn_to)
     = forallb fv remaining && f return_to && f exn_to.
+Hypothesis f_return :
+  ∀ (kinds : list flambda_kind) (return_to : cont_value),
+    f (Return_at kinds return_to) = f return_to.
 
 Lemma cont_split (c : cont_value) :
   f c = true
@@ -638,7 +649,8 @@ Proof.
   induction c
     as [h vars conts recursive IH | k | c extra IH
        | remaining remaining_arity return_arity return_to exn_to IHreturn
-           IHexn]
+           IHexn
+       | kinds return_to IHreturn_at]
     using cont_value_deep_ind.
   - rewrite f_closure. simpl.
     destruct
@@ -683,6 +695,7 @@ Proof.
       rewrite (proj2 (forallb_Forall fv remaining) Hremaining),
         (IHr2 (conj Htr Hvr)), (IHe2 (conj Hte Hve)).
       reflexivity.
+  - rewrite f_return. simpl. exact IHreturn_at.
 Qed.
 
 Lemma conts_split_all (conts : cont_env) :
@@ -735,7 +748,8 @@ Proof.
   induction c
     as [h vars conts recursive IH | k | c extra IH
        | remaining remaining_arity return_arity return_to exn_to IHreturn
-           IHexn]
+           IHexn
+       | kinds return_to IHreturn_at]
     using cont_value_deep_ind;
     simpl.
   - split; [ reflexivity | ]. split; [ apply forallb_pairs_true | ].
@@ -744,6 +758,7 @@ Proof.
   - exact I.
   - exact IH.
   - exact (conj IHreturn IHexn).
+  - exact IHreturn_at.
 Qed.
 
 Lemma conts_terms_ok_true (conts : cont_env) :
@@ -1258,7 +1273,8 @@ Proof.
   unfold region_apply_cont.
   destruct (resolve (ac_continuation ac) (state_conts (rs_state rs)))
     as [[params metadata handler] def_vars def_conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     try exact Hplain.
   destruct (eval_simples (state_vars (rs_state rs)) (ac_args ac)) as [vs | ];
     [ | discriminate ].
@@ -1309,7 +1325,8 @@ Proof.
   unfold region_apply_cont.
   destruct (resolve (ac_continuation ac) (state_conts (rs_state rs)))
     as [[params metadata handler] def_vars def_conts recursive | k0 | c extra
-       | remaining remaining_arity return_arity return_to exn_to];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     try apply plain_step_exit.
   destruct (eval_simples (state_vars (rs_state rs)) (ac_args ac)) as [vs0 | ];
     [ | discriminate ].
@@ -1404,7 +1421,8 @@ Proof.
   unfold region_apply_cont.
   destruct (resolve (ac_continuation ac) (state_conts (rs_state rs)))
     as [[params metadata handler] def_vars def_conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     try exact Hplain.
   destruct (eval_simples (state_vars (rs_state rs)) (ac_args ac)) as [vs | ];
     [ | discriminate ].

@@ -620,7 +620,8 @@ Lemma observer_closure_ok (id : code_id) (s : symbol)
 Proof.
   destruct c
     as [ [params metadata body] vars conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to ];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     simpl; try contradiction.
   - destruct vars; [ | contradiction ].
     destruct conts; [ | contradiction ].
@@ -1605,8 +1606,10 @@ Qed.
 (* A continuation of the first run and one of the second: the same way
    out, or closures of a handler and of that handler rewritten, with
    lifted environments, or what is left of the same over-application,
-   with lifted arguments and continuations. The handlers of a recursive
-   group are not gone into for [Let]s to lift. *)
+   with lifted arguments and continuations, or what the return
+   continuation of code stands for, at the same kinds, of lifted
+   continuations. The handlers of a recursive group are not gone into
+   for [Let]s to lift. *)
 #[local] Set Warnings "-register-all".
 Inductive cont_lifted (statics' : static_env)
     : cont_value -> cont_value -> Prop :=
@@ -1637,7 +1640,12 @@ Inductive cont_lifted (statics' : static_env)
       (Over_application remaining remaining_arity return_arity return_to
          exn_to)
       (Over_application remaining' remaining_arity return_arity return_to'
-         exn_to').
+         exn_to')
+  | Return_at_lifted (kinds : list flambda_kind)
+      (return_to return_to' : cont_value) :
+    cont_lifted statics' return_to return_to' ->
+    cont_lifted statics' (Return_at kinds return_to)
+      (Return_at kinds return_to').
 
 Definition conts_lifted (statics' : static_env) (conts conts' : cont_env)
     : Prop :=
@@ -1653,7 +1661,8 @@ Lemma observer_lifted (statics' : static_env) (slots : list value_slot)
 Proof.
   destruct c
     as [ [params metadata body] vars conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to ];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     simpl; try contradiction.
   - destruct vars; [ | contradiction ].
     destruct conts; [ | contradiction ].
@@ -1691,7 +1700,8 @@ Proof.
     as [ k | lets at_path h vars vars' conts conts' recursive Hvars Hconts
        | c0 c0' extra extra' Hc0 Hextra
        | remaining remaining' remaining_arity return_arity return_to
-           return_to' exn_to exn_to' Hremaining Hreturn Hexn ].
+           return_to' exn_to exn_to' Hremaining Hreturn Hexn
+       | kinds return_to return_to' Hreturn ].
   - apply Outer_lifted.
   - apply Closure_lifted;
       [ exact (env_lifted_extend _ _ _ _ Hextend Hvars) | ].
@@ -1708,6 +1718,8 @@ Proof.
       [ exact (values_lifted_extend _ _ _ _ Hextend Hremaining)
       | exact (cont_lifted_extend _ _ Hextend _ _ Hreturn)
       | exact (cont_lifted_extend _ _ Hextend _ _ Hexn) ].
+  - apply Return_at_lifted.
+    exact (cont_lifted_extend _ _ Hextend _ _ Hreturn).
 Qed.
 
 Lemma with_extra_args_lifted (statics' : static_env) (c c' : cont_value)
@@ -1903,6 +1915,14 @@ Proof.
     pose proof (H id sym Hsym) as Hok. inversion Hok. assumption.
   - intros id sym Hsym. pose proof (H id sym Hsym) as Hok.
     inversion Hok. assumption.
+Qed.
+
+Lemma known_cont_ok_return_at (kinds : list flambda_kind)
+    (return_to' : cont_value) :
+  known_cont_ok (Return_at kinds return_to') -> known_cont_ok return_to'.
+Proof.
+  intros H id sym Hsym. pose proof (H id sym Hsym) as Hok.
+  inversion Hok. assumption.
 Qed.
 
 (* The closure that the second run calls, lifted from the one that the
@@ -2146,11 +2166,14 @@ Proof.
     | exact Hbind | ].
   assert (Hconts :
     conts_lifted statics'
-      [(code_return_continuation c, return_to);
+      [(code_return_continuation c,
+        Return_at (unarize return_arity) return_to);
        (code_exn_continuation c, exn_to)]
-      [(code_return_continuation c, return_to');
+      [(code_return_continuation c,
+        Return_at (unarize return_arity) return_to');
        (code_exn_continuation c, exn_to')]).
-  { constructor; [ split; [ reflexivity | exact Hreturn ] | ].
+  { constructor;
+      [ split; [ reflexivity | apply Return_at_lifted, Hreturn ] | ].
     constructor; [ split; [ reflexivity | exact Hexn ] | ].
     constructor. }
   destruct Hbody as [Hbody | (sym & Hsym & Hparam & Hbody)]; rewrite Hbody.
@@ -2166,16 +2189,19 @@ Proof.
     eexists 1, _,
       (State (bind_my_closures known (code_body c))
          ((code_my_closure c, Value_symbol sym) :: bound')
-         [(code_return_continuation c, return_to');
+         [(code_return_continuation c,
+           Return_at (unarize return_arity) return_to');
           (code_exn_continuation c, exn_to')]
          statics' hp' rd').
     split; [ reflexivity | ].
     split; [ simpl; rewrite step_let_simple; reflexivity | ].
     pose proof (State_lifted [] root (code_body c) bound
       ((code_my_closure c, Value_symbol sym) :: bound')
-      [(code_return_continuation c, return_to);
+      [(code_return_continuation c,
+        Return_at (unarize return_arity) return_to);
        (code_exn_continuation c, exn_to)]
-      [(code_return_continuation c, return_to');
+      [(code_return_continuation c,
+        Return_at (unarize return_arity) return_to');
        (code_exn_continuation c, exn_to')]
       statics statics' hp hp' rd rd')
       as Hstate.
@@ -2302,7 +2328,8 @@ Proof.
              recursive Hvars Hconts
        | c c' extra extra' Hc IH Hextra
        | remaining remaining' remaining_arity return_arity return_to
-           return_to' exn_to exn_to' Hremaining Hreturn IHreturn Hexn _ ];
+           return_to' exn_to exn_to' Hremaining Hreturn IHreturn Hexn _
+       | kinds return_to return_to' _ IHreturn_at ];
     intros vs vs' statics hp hp' rd rd' Hvs Hstatics Hheap Hok Hcont Hfree.
   - simpl. exists vs', hp', rd'.
     split; [ reflexivity | split; [ exact Hvs | exact Hheap ] ].
@@ -2339,6 +2366,10 @@ Proof.
         [ constructor; [ exact Hpartial | constructor ] | exact Hstatics
         | exact Hheap | exact Hok | exact Hreturn_ok
         | constructor; [ exact Hpartial_free | constructor ] ].
+  - simpl. rewrite (kinds_of_values_lifted statics' vs vs' Hvs).
+    destruct (kinds_eqb (map kind_of_value vs) kinds); [ | exact I ].
+    exact (IHreturn_at vs vs' statics hp hp' rd rd' Hvs Hstatics Hheap Hok
+             (known_cont_ok_return_at kinds return_to' Hcont) Hfree).
 Qed.
 
 (* A call. *)
@@ -2853,7 +2884,8 @@ Qed.
 
 (* A continuation that is no way out, whatever it is applied to: a
    closure, or what is left of an over-application that returns to
-   one. *)
+   one, or what the return continuation of code stands for where the
+   call returns to one. *)
 Inductive cont_closed : cont_value -> Prop :=
   | Closure_closed (h : continuation_handler) (vars : env) (conts : cont_env)
       (recursive : list (continuation * continuation_handler)) :
@@ -2864,7 +2896,9 @@ Inductive cont_closed : cont_value -> Prop :=
     cont_closed return_to ->
     cont_closed
       (Over_application remaining remaining_arity return_arity return_to
-         exn_to).
+         exn_to)
+  | Return_at_closed (kinds : list flambda_kind) (return_to : cont_value) :
+    cont_closed return_to -> cont_closed (Return_at kinds return_to).
 
 (* A full call steps into code or is undefined, and so does a call
    where what is done with a partial application does. *)
@@ -2908,7 +2942,8 @@ Lemma apply_cont_value_closed (c : cont_value) :
 Proof.
   induction 1
     as [ [params metadata handler] vars conts recursive
-       | remaining remaining_arity return_arity return_to exn_to _ IH ];
+       | remaining remaining_arity return_arity return_to exn_to _ IH
+       | kinds return_to _ IHreturn_at ];
     intros vs statics hp rd k exit_vs hp' rd'.
   - simpl.
     destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
@@ -2919,6 +2954,8 @@ Proof.
   - rewrite apply_cont_value_over_application.
     destruct vs as [ | v [ | v' vs]]; [ discriminate | | discriminate ].
     unfold call_function. apply run_call_no_exit. intros partial. apply IH.
+  - simpl. destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ apply IHreturn_at | discriminate ].
 Qed.
 
 (* The continuations of [scope] are bound to continuations that are no
@@ -3260,7 +3297,10 @@ Qed.
    - What is left of an over-application excuses every position, of
      the one value it is given; it returns to a continuation that is
      no way out and excuses every position, as the call it comes from
-     passed the test. *)
+     passed the test.
+   - What the return continuation of code stands for excuses the
+     positions that the continuation that the call returns to
+     excuses. *)
 #[local] Set Warnings "-register-all".
 Inductive cont_plain : cont_value -> (nat -> bool) -> Prop :=
   | Outer_plain (k : continuation) : cont_plain (Outer k) (fun _ => false)
@@ -3323,7 +3363,10 @@ Inductive cont_plain : cont_value -> (nat -> bool) -> Prop :=
     cont_plain
       (Over_application remaining remaining_arity return_arity return_to
          exn_to)
-      (fun _ => true).
+      (fun _ => true)
+  | Return_at_plain (kinds : list flambda_kind) (return_to : cont_value)
+      (m : nat -> bool) :
+    cont_plain return_to m -> cont_plain (Return_at kinds return_to) m.
 
 (* Each continuation bound excuses what is spoilt of its name. *)
 Definition conts_fit (sp : spoilt) (conts : cont_env) : Prop :=
@@ -3517,10 +3560,10 @@ Proof.
   split; [ | split; [ | exact Hcode ] ].
   - intros k' Hk'. rewrite among_cons in Hk'. simpl in Hk'.
     rewrite orb_false_r in Hk'. simpl. rewrite Hk'.
-    exists return_to. split; [ reflexivity | exact Hclosed ].
+    eexists. split; [ reflexivity | apply Return_at_closed, Hclosed ].
   - intros k' c'. simpl. destruct (Pos.eqb k' ret) eqn:Hret.
     + intros [= <-]. exists m_return.
-      split; [ exact Hreturn | intros i _; apply Hany ].
+      split; [ apply Return_at_plain, Hreturn | intros i _; apply Hany ].
     + destruct (Pos.eqb k' exn); [ | discriminate ].
       intros [= <-]. exists m_exn. split; [ exact Hexn | ]. intros i Hi.
       rewrite (knowing_spoils_none [ret] [] body k' i Hc) in Hi;
@@ -3601,7 +3644,8 @@ Proof.
            Hrecursive Hdvars Hscope Hdconts
        | c extra m_c m Hc IH Hextra
        | remaining remaining_arity return_arity return_to exn_to m_return
-           m_exn Hreturn IHreturn Hany Hclosed Hexn _ ];
+           m_exn Hreturn IHreturn Hany Hclosed Hexn _
+       | kinds return_to m _ IHreturn_at ];
     intros vs statics hp rd Hvs Hcode.
   - simpl. exact (args_fit_none _ vs (fun _ => eq_refl) Hvs).
   - simpl.
@@ -3662,6 +3706,8 @@ Proof.
     unfold stays_plain.
     destruct (run_call _ _ _ _ _ _ _ rd_) as [t | k exit_vs | ];
       [ exact (fun H => H) | intros [] | exact (fun _ => I) ].
+  - simpl. destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ exact (IHreturn_at vs statics hp rd Hvs Hcode) | exact I ].
 Qed.
 
 (* A step keeps the invariant, and an exit is with constants and symbols

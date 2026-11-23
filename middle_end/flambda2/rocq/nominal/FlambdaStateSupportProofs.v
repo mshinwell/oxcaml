@@ -410,7 +410,8 @@ Fixpoint cont_value_supported (c : cont_value) {struct c} :
 Proof.
   destruct c
     as [h vars conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to].
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to].
   - refine (supported4 rename_handler rename_env
               (fun r =>
                  map
@@ -438,6 +439,8 @@ Proof.
              return_to exn_to (fun r => eq_refl)
              (cont_value_supported return_to)
              (cont_value_supported exn_to)).
+  - exact (supported1 rename_cont_value rename_cont_value (Return_at kinds)
+             return_to (fun r => eq_refl) (cont_value_supported return_to)).
 Qed.
 
 Lemma cont_env_supported (conts : cont_env) :

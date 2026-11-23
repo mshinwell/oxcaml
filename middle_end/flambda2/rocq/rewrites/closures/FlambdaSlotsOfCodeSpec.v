@@ -425,6 +425,7 @@ Fixpoint cont_slots_give (c : code_id) (f : function_slot)
   | Extra_args k' _ => cont_slots_give c f slot d k'
   | Over_application _ _ _ return_to exn_to =>
     cont_slots_give c f slot d return_to ∧ cont_slots_give c f slot d exn_to
+  | Return_at _ return_to => cont_slots_give c f slot d return_to
   end.
 
 Definition conts_slots_give (c : code_id) (f : function_slot)

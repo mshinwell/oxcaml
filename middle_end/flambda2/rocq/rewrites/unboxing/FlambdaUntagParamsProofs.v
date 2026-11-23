@@ -920,7 +920,9 @@ Definition handlers_ok (active : positions) (untagged : list variable)
    continuations so related; or a closure of a handler that the test
    accepts and a closure of that handler rewritten, under variables and
    continuations that are related; or two so related with the same
-   extra arguments; or what is left of the same over-application. *)
+   extra arguments; or what is left of the same over-application; or
+   what the return continuation of code stands for, at the same kinds,
+   of two so related. *)
 Inductive cont_rel : list nat -> cont_value -> cont_value -> Prop :=
   | Rel_same (c : cont_value) : cont_rel [] c c
   | Rel_plain (hh : continuation_handler) (dv : env) (dc dc' : cont_env)
@@ -958,7 +960,11 @@ Inductive cont_rel : list nat -> cont_value -> cont_value -> Prop :=
       (Over_application remaining remaining_arity return_arity return_to
          exn_to)
       (Over_application remaining remaining_arity return_arity return_to'
-         exn_to').
+         exn_to')
+  | Rel_return_at (kinds : list flambda_kind)
+      (return_to return_to' : cont_value) :
+    cont_rel [] return_to return_to' ->
+    cont_rel [] (Return_at kinds return_to) (Return_at kinds return_to').
 
 Definition conts_rel (active : positions) (conts conts' : cont_env) : Prop :=
   ∀ k1 : continuation,
@@ -1064,7 +1070,7 @@ Proof.
     apply Rel_state_plain.
     intros k'. cbn [positions_of lookup].
     destruct (Pos.eq_dec k' (code_return_continuation c)) as [-> | Hne];
-      [ rewrite !resolve_head; exact Hreturn | ].
+      [ rewrite !resolve_head; apply Rel_return_at, Hreturn | ].
     rewrite !(resolve_other k' (code_return_continuation c)) by exact Hne.
     destruct (Pos.eq_dec k' (code_exn_continuation c)) as [-> | Hne'];
       [ rewrite !resolve_head; exact Hraise | ].
@@ -1120,7 +1126,8 @@ Proof.
            Hrec Hvars Htags Hdc _
        | c c' extra Hc IHc
        | remaining remaining_arity return_arity return_to return_to' exn_to
-           exn_to' Hreturn IHreturn Hraise _];
+           exn_to' Hreturn IHreturn Hraise _
+       | kinds return_to return_to' _ IHreturn_at ];
     intros vs Htagged.
   - rewrite untag_values_nil.
     apply simulated_of_related, result_related_refl, state_rel_refl.
@@ -1161,6 +1168,10 @@ Proof.
     intros partial. specialize (IHreturn [partial]).
     rewrite untag_values_nil in IHreturn. apply IHreturn.
     rewrite moved_from_nil. constructor.
+  - rewrite untag_values_nil. cbn [apply_cont_value].
+    specialize (IHreturn_at vs). rewrite untag_values_nil in IHreturn_at.
+    destruct (kinds_eqb (map kind_of_value vs) kinds); [ | exact I ].
+    apply IHreturn_at. rewrite moved_from_nil. constructor.
 Qed.
 
 Lemma apply_cont_value_plain (c c' : cont_value) (vs : list value)

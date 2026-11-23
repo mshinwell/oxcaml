@@ -303,7 +303,8 @@ Proof.
   induction c
     as [[params metadata handler] def_vars def_conts recursive | k'
        | c IH extra
-       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _
+       | kinds return_to IHreturn]
     using cont_value_over_ind;
     intros vs statics hp rd Hstatics Hc.
   - simpl.
@@ -330,6 +331,8 @@ Proof.
     + apply shape_of_call_calls.
     + intros partial. exact
       (IHreturn [partial] statics hp rd_ Hstatics Hreturn).
+  - simpl. destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ exact (IHreturn vs statics hp rd_ Hstatics Hc) | exact I ].
 Qed.
 
 Lemma call_function_in_scope (outer : list continuation) (callee : value)

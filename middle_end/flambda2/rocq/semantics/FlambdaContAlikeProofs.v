@@ -99,7 +99,9 @@ Variable base : cont_value -> cont_value -> Prop.
    closures of one handler under the same variables, whose continuations
    are in turn alike; or two that are alike, with the same extra
    arguments; or what is left of the same over-application, to return
-   and to raise to continuations that are alike. (The warning silenced
+   and to raise to continuations that are alike; or what the return
+   continuation of code stands for, at the same kinds, with
+   continuations that are alike. (The warning silenced
    is about induction schemes for the nested occurrence, which nothing
    uses.) *)
 #[local] Set Warnings "-register-all".
@@ -123,7 +125,11 @@ Inductive alike : cont_value -> cont_value -> Prop :=
       (Over_application remaining remaining_arity return_arity return_to
          exn_to)
       (Over_application remaining remaining_arity return_arity return_to'
-         exn_to').
+         exn_to')
+  | Alike_return_at (kinds : list flambda_kind)
+      (return_to return_to' : cont_value) :
+    alike return_to return_to' ->
+    alike (Return_at kinds return_to) (Return_at kinds return_to').
 
 Definition conts_alike (conts conts' : cont_env) : Prop :=
   Forall2 (fun kc kc' => fst kc = fst kc' ∧ alike (snd kc) (snd kc')) conts
@@ -232,7 +238,8 @@ Proof.
   - rewrite Hundefined in Hended |- *. apply ended_undefined, Hended.
   - rewrite Hcall in Hended |- *. simpl in Hended |- *.
     refine (IH _ _ _ _ _ _ _ _ _ Hended).
-    apply Forall2_cons; [ split; [ reflexivity | exact Hr ] | ].
+    apply Forall2_cons;
+      [ split; [ reflexivity | apply Alike_return_at, Hr ] | ].
     apply Forall2_cons; [ split; [ reflexivity | exact Hx ] | ].
     apply Forall2_nil.
 Qed.
@@ -289,7 +296,8 @@ Proof.
        | [params metadata handler] def_vars def_conts def_conts' recursive
            Hconts
        | c c' extra Halike IHalike
-       | remaining remaining_arity return_arity r r' x x' Hr IHr Hx IHx];
+       | remaining remaining_arity return_arity r r' x x' Hr IHr Hx IHx
+       | kinds r r' Hr IHr];
     intros vs Hended.
   - (* the same continuation *)
     exact (ended_after_step _ _ _ Hended).
@@ -313,6 +321,10 @@ Proof.
     unfold call_function in Hended |- *.
     exact (run_call_alike_carries n _ _ _ _ _ _ statics _ rd_ b IH Hr Hx
       (fun partial => IHr [partial]) Hended).
+  - (* what the return continuation of code stands for *)
+    simpl in Hended |- *.
+    destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ exact (IHr _ Hended) | apply ended_undefined, Hended ].
 Qed.
 
 (* A run that ends under the first environment ends alike under the

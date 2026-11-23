@@ -971,6 +971,7 @@ Proof.
     refine
       (call_function_lands_bound statics _ rd_ (cont_slots_through c f a b d)
          terms_through (fun cv extra H => H) terms_through_over
+         (fun kinds return_to => iff_refl _)
          (terms_through_code statics _ rd_ S)
          (terms_through_handler statics _ rd_ S) _ _ _ _ _ _ _ s'
          (resolve_slots_through _ conts C) _ Hstep).
@@ -981,7 +982,9 @@ Proof.
     exact
       (apply_cont_value_lands_bound statics _ rd_
          (cont_slots_through c f a b d) terms_through (fun cv extra H => H)
-         terms_through_over (terms_through_code statics _ rd_ S)
+         terms_through_over
+         (fun kinds return_to => iff_refl _)
+         (terms_through_code statics _ rd_ S)
          (terms_through_handler statics _ rd_ S) _ vs s'
          (resolve_slots_through _ conts C) Hstep).
   - (* Switch *)
@@ -2624,7 +2627,8 @@ Proof.
   revert Hc.
   destruct cont
     as [ [params metadata body] vars kept recursive | k0 | c0 extra
-       | remaining remaining_arity return_arity return_to exn_to ];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     simpl; try contradiction; [ | intros _; exact I ].
   destruct vars; [ | contradiction ].
   destruct kept; [ | contradiction ].

@@ -1051,7 +1051,9 @@ Definition handlers_rel (inside : bool) (known : facts)
    extended with hold, and under continuations that are in turn
    related; or two that are related, with the same extra arguments; or
    what is left of the same over-application, to return and to raise
-   to two that are related. The handlers of a closure are in the scope
+   to two that are related; or what the return continuation of code
+   stands for, at the same kinds, of two that are related. The
+   handlers of a closure are in the scope
    of the continuation if the closure was defined in it and is not one
    of a recursive [Let_cont] that binds the name again. The facts are
    those of the static environment, the heap and the record of the
@@ -1099,7 +1101,12 @@ Inductive cont_rel (statics : static_env) (hp : heap) (rd : read_record)
       (Closure (Handler params metadata boxed) vars conts
          [(k, Handler params metadata boxed)])
       (Closure (Handler (params ++ [f]) metadata' unboxed) vars conts
-         [(k, Handler (params ++ [f]) metadata' unboxed)]).
+         [(k, Handler (params ++ [f]) metadata' unboxed)])
+  | Return_at_rel (kinds : list flambda_kind)
+      (return_to return_to' : cont_value) :
+    cont_rel statics hp rd false return_to return_to' ->
+    cont_rel statics hp rd false (Return_at kinds return_to)
+      (Return_at kinds return_to').
 
 Definition conts_rel (statics : static_env) (hp : heap) (rd : read_record)
     (inside : bool) (conts conts' : cont_env) : Prop :=
@@ -1139,7 +1146,8 @@ Proof.
        | c c' extra Hc IH
        | remaining remaining_arity return_arity return_to return_to' exn_to
            exn_to' Hreturn IHreturn Hraise IHraise
-       | known vars conts Hfacts Henters ].
+       | known vars conts Hfacts Henters
+       | kinds return_to return_to' _ IHreturn_at ].
   - apply Same_rel.
   - apply Unboxed_rel, Halike.
   - apply (Closure_rel statics' hp rd inside known);
@@ -1149,6 +1157,7 @@ Proof.
   - apply Over_application_rel; assumption.
   - apply (Unboxed_loop_rel statics' hp rd known);
       [ exact (facts_hold_extend _ _ _ _ _ _ Hfacts Hmore) | exact Henters ].
+  - apply Return_at_rel, IHreturn_at.
 Qed.
 
 Lemma conts_rel_extend (statics statics' : static_env) (hp : heap)
@@ -1176,7 +1185,8 @@ Proof.
        | c c' extra Hc IH
        | remaining remaining_arity return_arity return_to return_to' exn_to
            exn_to' Hreturn IHreturn Hraise IHraise
-       | known vars conts Hfacts Henters ].
+       | known vars conts Hfacts Henters
+       | kinds return_to return_to' _ IHreturn_at ].
   - apply Same_rel.
   - apply Unboxed_rel, Halike.
   - apply (Closure_rel statics hp' rd' inside known);
@@ -1188,6 +1198,7 @@ Proof.
   - apply (Unboxed_loop_rel statics hp' rd' known);
       [ exact (facts_hold_evolves _ _ _ _ _ _ _ Hfacts Hevolves)
       | exact Henters ].
+  - apply Return_at_rel, IHreturn_at.
 Qed.
 
 Lemma conts_rel_evolves (statics : static_env) (hp hp' : heap)
@@ -1349,7 +1360,7 @@ Proof.
     apply (State_rel false no_facts); [ reflexivity | apply no_facts_hold | ].
     intros k'. simpl.
     destruct (Pos.eq_dec k' (code_return_continuation c)) as [-> | Hne];
-      [ rewrite !resolve_head; exact Hreturn | ].
+      [ rewrite !resolve_head; apply Return_at_rel, Hreturn | ].
     rewrite !(resolve_other k' (code_return_continuation c)) by exact Hne.
     destruct (Pos.eq_dec k' (code_exn_continuation c)) as [-> | Hne'];
       [ rewrite !resolve_head; exact Hraise | ].
@@ -1407,7 +1418,8 @@ Proof.
        | c c' extra Hc IH
        | remaining remaining_arity return_arity return_to return_to' exn_to
            exn_to' Hreturn IHreturn Hraise _
-       | known vars conts _ _ ];
+       | known vars conts _ _
+       | kinds return_to return_to' _ IHreturn_at ];
     intros Hinside vs; try discriminate Hinside.
   - destruct (apply_cont_value c vs statics hp rd) as [t | k0 vs0 | ]; simpl;
       [ apply state_rel_refl | auto | exact I ].
@@ -1432,6 +1444,8 @@ Proof.
     unfold call_function.
     apply run_call_rel; [ exact Hreturn | exact Hraise | ].
     intros partial. exact (IHreturn eq_refl [partial]).
+  - simpl. destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ exact (IHreturn_at eq_refl vs) | exact I ].
 Qed.
 
 Lemma apply_cont_rel (ac : apply_cont) (vars : env) (conts conts' : cont_env)
@@ -1708,7 +1722,7 @@ Proof.
   pose proof (Hconts k) as Hc. rewrite Pos.eqb_refl in Hc. simpl in Hc.
   inversion Hc
     as [ | def_vars def_conts Halike | | |
-       | known0 def_vars def_conts Hdef_facts Henters ];
+       | known0 def_vars def_conts Hdef_facts Henters | ];
     match goal with
     | H : _ = resolve k conts |- _ => rename H into Hboxed
     end;

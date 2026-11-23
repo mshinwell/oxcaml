@@ -1,3 +1,4 @@
+open BinPos
 open Datatypes
 open FlambdaKindModel
 open FlambdaMapSpec
@@ -217,3 +218,66 @@ let unit_arities unit_return unit_exn =
 
 let well_kinded_unit slots unit_return unit_exn e =
   well_kinded slots [] (unit_arities unit_return unit_exn) e
+
+(** val apply_cont_returns_at_kinds : continuation -> flambda_kind list ->
+    kind_env -> apply_cont -> bool **)
+
+let apply_cont_returns_at_kinds ret result kinds ac =
+  negb (Pos.eqb ac.ac_continuation ret)
+  || has_arity (kinds_of_simples kinds ac.ac_args) result
+
+(** val apply_returns_at_kinds : continuation -> flambda_kind list -> apply_expr
+    -> bool **)
+
+let apply_returns_at_kinds ret result ap =
+  negb (Pos.eqb ap.ap_exn_continuation ret)
+  && (negb (Pos.eqb ap.ap_continuation ret)
+     || kinds_eqb (unarize ap.ap_return_arity) result)
+
+(** val returns_at_kinds : continuation -> flambda_kind list -> kind_env -> expr
+    -> bool **)
+
+let rec returns_at_kinds ret result kinds = function
+  | Let (x, kind, _, body) ->
+    returns_at_kinds ret result ((x, kind) :: kinds) body
+  | Let_static (_, body) -> returns_at_kinds ret result kinds body
+  | Let_cont_non_recursive (k, h, body) ->
+    (negb (Pos.eqb k ret) && handler_returns_at_kinds ret result kinds h)
+    && returns_at_kinds ret result kinds body
+  | Let_cont_recursive (handlers, body) ->
+    (negb (is_bound ret handlers)
+    && forallb
+         (fun pat ->
+           let _, h = pat in
+           handler_returns_at_kinds ret result kinds h)
+         handlers)
+    && returns_at_kinds ret result kinds body
+  | Apply ap -> apply_returns_at_kinds ret result ap
+  | Apply_cont ac -> apply_cont_returns_at_kinds ret result kinds ac
+  | Switch (_, arms) ->
+    forallb
+      (fun arm -> apply_cont_returns_at_kinds ret result kinds (snd arm))
+      arms
+  | Invalid -> true
+
+(** val handler_returns_at_kinds : continuation -> flambda_kind list -> kind_env
+    -> continuation_handler -> bool **)
+
+and handler_returns_at_kinds ret result kinds = function
+  | Handler (params, metadata, handler) -> (
+    match bind_param_kinds params metadata.hm_params_kinds kinds with
+    | Some handler_kinds0 -> returns_at_kinds ret result handler_kinds0 handler
+    | None -> false)
+
+(** val code_returns_at_kinds : code -> bool **)
+
+let code_returns_at_kinds c =
+  match
+    bind_param_kinds (code_params c) (code_params_kinds c)
+      ((code_my_closure c, Value) :: [])
+  with
+  | Some kinds ->
+    returns_at_kinds
+      (code_return_continuation c)
+      (code_result_kinds c) kinds (code_body c)
+  | None -> false

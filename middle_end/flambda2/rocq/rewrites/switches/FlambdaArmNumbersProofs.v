@@ -416,7 +416,9 @@ Definition closure_mentions (hh : continuation_handler)
    the closure may apply them; or the closure of a handler and that of
    the handler rewritten for what is known of [x] under the variables
    of the closure; or two so related with the same extra arguments; or
-   what is left of the same over-application. *)
+   what is left of the same over-application;
+   or what the return continuation of code stands for, at the same
+   kinds, of two so related. *)
 Inductive cont_rel : cont_value -> cont_value -> Prop :=
   | Rel_same (c : cont_value) : cont_rel c c
   | Rel_plain (hh : continuation_handler) (dv : env) (dc dc' : cont_env)
@@ -446,7 +448,11 @@ Inductive cont_rel : cont_value -> cont_value -> Prop :=
       (Over_application remaining remaining_arity return_arity return_to
          exn_to)
       (Over_application remaining remaining_arity return_arity return_to'
-         exn_to').
+         exn_to')
+  | Rel_return_at (kinds : list flambda_kind)
+      (return_to return_to' : cont_value) :
+    cont_rel return_to return_to' ->
+    cont_rel (Return_at kinds return_to) (Return_at kinds return_to').
 
 (* Two states. An expression and the same rewritten for what is known,
    which holds, under continuations that are related where the
@@ -587,7 +593,7 @@ Proof.
     apply Rel_state_same.
     intros k' _.
     destruct (Pos.eq_dec k' (code_return_continuation c)) as [-> | Hne];
-      [ rewrite !resolve_head; exact Hreturn | ].
+      [ rewrite !resolve_head; apply Rel_return_at, Hreturn | ].
     rewrite !(resolve_other k' (code_return_continuation c)) by exact Hne.
     destruct (Pos.eq_dec k' (code_exn_continuation c)) as [-> | Hne'];
       [ rewrite !resolve_head; exact Hraise | ].
@@ -638,7 +644,8 @@ Proof.
        | source known [ps m he] dv dc dc' recursive Hholds Hsourced Hdc _
        | c c' extra Hc IHc
        | remaining remaining_arity return_arity return_to return_to' exn_to
-           exn_to' Hreturn IHreturn Hraise _];
+           exn_to' Hreturn IHreturn Hraise _
+       | kinds return_to return_to' _ IHreturn_at ];
     intros vs.
   - apply result_related_refl, state_rel_refl.
   - simpl.
@@ -678,6 +685,8 @@ Proof.
     unfold call_function.
     apply run_call_rel; [ exact Hreturn | exact Hraise | ].
     intros partial. exact (IHreturn [partial]).
+  - simpl. destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ exact (IHreturn_at vs) | exact I ].
 Qed.
 
 Lemma call_function_rel (callee : value) (call_kind : call_kind)

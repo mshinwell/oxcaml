@@ -1175,7 +1175,11 @@ Inductive cont_copied : cont_value -> cont_value -> Prop :=
       (Over_application remaining remaining_arity return_arity return_to
          exn_to)
       (Over_application remaining' remaining_arity return_arity return_to'
-         exn_to').
+         exn_to')
+  | Return_at_copied (kinds : list flambda_kind)
+      (return_to return_to' : cont_value) :
+    cont_copied return_to return_to' ->
+    cont_copied (Return_at kinds return_to) (Return_at kinds return_to').
 #[local] Set Warnings "register-all".
 
 Definition conts_copied (conts conts' : cont_env) : Prop :=
@@ -1533,7 +1537,8 @@ Proof.
   cbn [result_lets]. eexists. split; [ reflexivity | ].
   apply State_copied;
     [ exact (Hbody eq_refl) | exact Hbound | | exact Hstatics | exact Hheap ].
-  constructor; [ split; [ reflexivity | exact Hreturn ] | ].
+  constructor;
+    [ split; [ reflexivity | apply Return_at_copied, Hreturn ] | ].
   constructor; [ split; [ reflexivity | exact Hexn ] | constructor ].
 Qed.
 
@@ -1625,7 +1630,8 @@ Proof.
            Hrecursive
        | c c' extra extra' Hc IH Hextra
        | remaining remaining' remaining_arity return_arity return_to
-           return_to' exn_to exn_to' Hremaining Hreturn IHreturn Hexn _ ];
+           return_to' exn_to exn_to' Hremaining Hreturn IHreturn Hexn _
+       | kinds return_to return_to' _ IHreturn_at ];
     intros vs vs' statics statics' hp hp' rd rd' Hvs Hstatics Hfollows Hheap.
   - simpl. exists vs', hp', rd'.
     split; [ reflexivity | split; [ exact Hvs | exact Hheap ] ].
@@ -1660,6 +1666,10 @@ Proof.
       apply IHreturn;
         [ constructor; [ exact Hpartial | constructor ] | exact Hstatics
         | exact Hfollows | exact Hheap ].
+  - simpl. rewrite (kinds_of_values_copied vs vs' Hvs).
+    destruct (kinds_eqb (map kind_of_value vs) kinds); [ | exact I ].
+    exact (IHreturn_at vs vs' statics statics' hp hp' rd rd' Hvs Hstatics
+             Hfollows Hheap).
 Qed.
 
 (* A call. *)

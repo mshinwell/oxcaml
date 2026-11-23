@@ -71,7 +71,10 @@
      stands for the exception continuation of the code called, which is
      how the body of code starts: with one handler installed. The body
      runs with its two continuations bound to nothing, so that applying
-     either leaves the body ([Exit]): by the return continuation, the
+     either leaves the body ([Exit]); the return continuation leaves it
+     with values of the kinds of the return arity of the call and with
+     no others, as on the machine that goes by names
+     (FlambdaSemanticsSpec.Return_at). By the return continuation, the
      call returns to what the stack holds; by the exception
      continuation, the exception is raised again in the caller, with
      the extra arguments of the call after it, to the handler that is
@@ -195,8 +198,10 @@ Inductive leaving : Type :=
    what its return continuation stands for and [extra] the values of its
    extra arguments. The body of the code runs as
    FlambdaSemanticsSpec.call_code has it, but with its return and
-   exception continuations standing for nothing; the stack has the
-   call, and the handler that the body starts with. For an
+   exception continuations standing for nothing, the first under the
+   test of the kinds of the values that [call_code] puts there
+   (FlambdaSemanticsSpec.Return_at); the stack has the call, and the
+   handler that the body starts with. For an
    over-application the call is that of the first arguments, made at
    the result arity of the code as FlambdaSemanticsSpec.run_call makes
    it, and the stack keeps what remains. [return_partial] is what is

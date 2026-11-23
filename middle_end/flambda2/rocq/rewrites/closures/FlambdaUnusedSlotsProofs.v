@@ -119,6 +119,7 @@ Fixpoint trim_cont (c : cont_value) : cont_value :=
   | Over_application remaining remaining_arity return_arity return_to exn_to =>
     Over_application remaining remaining_arity return_arity
       (trim_cont return_to) (trim_cont exn_to)
+  | Return_at kinds return_to => Return_at kinds (trim_cont return_to)
   end.
 
 Definition trim_conts (conts : cont_env) : cont_env :=
@@ -716,7 +717,8 @@ Proof.
   induction c
     as [[params metadata handler] def_vars def_conts recursive | k
        | c IH extra
-       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _
+       | kinds return_to IHreturn_at]
     using cont_value_over_ind;
     intros vs statics hp rd.
   - unfold result_trimmed. simpl.
@@ -737,6 +739,8 @@ Proof.
   - simpl trim_cont. rewrite !apply_cont_value_over_application.
     destruct vs as [ | v [ | v' vs]]; [ exact I | | exact I ].
     apply call_function_drop_from. intros partial. apply IHreturn.
+  - simpl. destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ apply IHreturn_at | exact I ].
 Qed.
 
 Lemma call_function_drop (callee : value) (kind : call_kind)

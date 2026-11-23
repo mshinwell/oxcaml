@@ -15,6 +15,7 @@ open FlambdaStatedScopeSpec
 open FlambdaStatedSymbolsSpec
 open FlambdaTupledSpec
 open FlambdaValueSpec
+open FlambdaWellKindedSpec
 open List
 open ListDef
 open PeanoNat
@@ -672,8 +673,9 @@ let inline_known_apply s kept known_code known_symbols y ap =
           | Some c ->
             if
               negb (among called kept)
-              && (Pos.eqb code0 called && inlinable_b ap c)
-              && call_agrees_stated y s ap c
+              && ((Pos.eqb code0 called && inlinable_b ap c)
+                 && call_agrees_stated y s ap c)
+              && code_returns_at_kinds c
             then
               inlined_body c
                 (inline_renaming

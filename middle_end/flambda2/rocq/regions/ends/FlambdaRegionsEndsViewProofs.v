@@ -338,7 +338,8 @@ Proof.
   change (rs_state (count_uses rs)) with (rs_state rs).
   destruct (resolve (ac_continuation ac) (state_conts (rs_state rs)))
     as [[params metadata handler] def_vars def_conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to]
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to]
     eqn:Hresolve;
     try (apply view_plain; intros; rewrite He; discriminate).
   destruct (eval_simples (state_vars (rs_state rs)) (ac_args ac)) as [vs | ]

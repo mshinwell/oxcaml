@@ -437,7 +437,8 @@ Proof.
   induction c
     as [h vars conts recursive IH | k | c extra IH
        | remaining remaining_arity return_arity return_to exn_to IHreturn
-           IHexn]
+           IHexn
+       | kinds return_to IHreturn_at]
     using cont_value_deep_ind;
     cbn [cont_values_all locations_of_cont_value].
   - assert (Hconts :
@@ -456,6 +457,7 @@ Proof.
   - rewrite locations_bound_app, locations_bound_values, IH. tauto.
   - rewrite !locations_bound_app, locations_bound_values, IHreturn, IHexn.
     reflexivity.
+  - exact IHreturn_at.
 Qed.
 
 Lemma conts_closed (hp : heap) (conts : cont_env) :
@@ -482,8 +484,10 @@ Fixpoint cont_values_all_and (P Q : value -> Prop) (c : cont_value) :
 Proof.
   destruct c
     as [h vars conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to];
-    cbn [cont_values_all]; [ | auto | | ].
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
+    cbn [cont_values_all];
+    [ | auto | | | exact (cont_values_all_and P Q return_to) ].
   - intros [Hvars Hconts] [Hvars' Hconts']. split.
     + apply Forall_forall. intros binding Hin.
       exact (conj (proj1 (Forall_forall _ _) Hvars binding Hin)
@@ -924,7 +928,8 @@ Proof.
   revert Hstep. unfold region_apply_cont.
   destruct (resolve (ac_continuation ac) (state_conts (rs_state rs)))
     as [[params metadata handler] def_vars def_conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     try exact (plain_step_bound rs rs' Hb).
   destruct (eval_simples (state_vars (rs_state rs)) (ac_args ac)) as [vs | ];
     [ | discriminate ].

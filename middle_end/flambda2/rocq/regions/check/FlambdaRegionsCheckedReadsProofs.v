@@ -157,6 +157,7 @@ Proof.
     apply forallb_forall. intros v Hin.
     destruct (Forall2_in_right _ _ _ _ Hholds Hin) as (l0 & _ & Hv).
     exact (caller_holds_live rs a l0 v Hplaced Hv).
+  - intros a l kinds return_to Hret IH Hplaced. exact (IH Hplaced).
   - intros a l l' c Hlasts Hret IH. exact IH.
   - intros a k simples extra c Heval Hholds Hjump Hsome IH Houter Hplaced.
     assert (Hc : spine_live rs c).

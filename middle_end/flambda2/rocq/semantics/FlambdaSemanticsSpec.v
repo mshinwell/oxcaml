@@ -107,7 +107,9 @@
 
    A function call ([call_function]) runs the body of the code of the
    closure called, with the code's return and exception continuations
-   standing for the caller's. There is no stack.
+   standing for the caller's. There is no stack. Where the code
+   returns, the values must be of the kinds of the return arity of the
+   call ([Return_at]).
 
    A call need not give a function as many arguments as its code has
    parameters: it is the generic application of the compiler
@@ -243,7 +245,8 @@
    the two are related.
 
    Kinds. The kinds and arities that terms carry (FlambdaModel.v) are
-   tested where a variable is bound, and nowhere else. A call
+   tested where a variable is bound and where code returns, and
+   nowhere else. A call
    ([call_function]) is undefined unless it agrees with the code called,
    in the three ways given at [call_code] for a full call and in those
    given at [shape_of_closure_call] for the others. Simplify assumes
@@ -255,7 +258,10 @@
    the kinds of its parameters ([apply_cont_value]). So, in every run, a
    variable is bound only to a value of the kind that its binder gives
    (FlambdaWellKindedSpec.v has the statements). The CR at [step] says
-   why the last two are less certain than the first.
+   why the last two are less certain than the first. And code that a
+   call runs is undefined where it returns values of other kinds than
+   those of the return arity of the call ([call_code],
+   [apply_cont_value]; decision D81).
 
    The primitives are those of FlambdaPrimitiveModel.v, and
    [FlambdaPrimitiveSpec.eval_prim] says what each computes. A law of a
@@ -292,7 +298,12 @@ Definition env : Type := list (variable * value).
    arguments than the function has parameters returns to: its result is
    to be called with the arguments that remain ([remaining], given at
    [remaining_arity]), for a result of [return_arity], with the two
-   continuations of the whole call. *)
+   continuations of the whole call.
+   [Return_at] is what the return continuation of code stands for
+   while a call runs the code: the continuation that the call returns
+   to ([return_to]), to be applied to values of the kinds kept
+   ([kinds]) and to no others. The kinds are those of the return arity
+   of the call, unarized ([call_code]). *)
 #[local] Set Warnings "-register-all".
 Inductive cont_value : Type :=
   | Closure (h : continuation_handler) (vars : env)
@@ -301,7 +312,8 @@ Inductive cont_value : Type :=
   | Outer (k : continuation)
   | Extra_args (c : cont_value) (extra : list value)
   | Over_application (remaining : list value)
-      (remaining_arity return_arity : arity) (return_to exn_to : cont_value).
+      (remaining_arity return_arity : arity) (return_to exn_to : cont_value)
+  | Return_at (kinds : list flambda_kind) (return_to : cont_value).
 
 Definition cont_env : Type := list (continuation * cont_value).
 
@@ -675,8 +687,9 @@ Definition with_extra_args (c : cont_value) (extra : list value)
    [my_closure], bound to the closure; the only continuations are the
    return and exception continuations of the code, which stand for what
    the caller's stand for. So there is no stack: to return is to apply
-   the continuation the caller gave. The body must bind nothing static:
-   it would do so at each call.
+   the continuation the caller gave, which is done only to values of
+   the kinds that the call expects (below). The body must bind nothing
+   static: it would do so at each call.
 
    The call must agree with the code, in three ways. Simplify assumes
    each: it replaces by [Invalid] a call that fails one
@@ -707,8 +720,44 @@ Definition with_extra_args (c : cont_value) (extra : list value)
    of it beyond its kind ([values_of_subkinds], against
    [cm_params_subkinds]): the body is not entered with a value of
    another shape. Simplify reads what a parameter states into its
-   type; no test of the compiler is transcribed here. What the code
-   states of its results is not tested. Decision D25, at parameters. *)
+   type; no test of the compiler is transcribed here. Decision D25, at
+   parameters.
+
+   And what the code returns must be of the kinds of the return arity
+   of the call, unarized, which the third test above makes those of
+   the results of the code. The return continuation of the code stands
+   for the continuation that the call returns to, to be applied to
+   values of those kinds and to no others ([Return_at]): a return of
+   another number of values, or of a value of another kind, has no
+   step ([apply_cont_value]). So the test is made where the code
+   returns, by an [Apply_cont], by an arm of a [Switch], or by a call
+   in it that returns there, and not where it is called: code that has
+   such a return in an arm that is not run may be called. A call that
+   the code makes in tail position is given what the return
+   continuation of the code stands for, so it keeps the [Return_at] of
+   the code under its own. The values that return through this chain
+   of tail calls are tested against each stored unarized list of
+   kinds. If two of those lists differ, the return has no step. That
+   is meant: nothing else
+   compares the return arity of a call in tail position with the
+   result arity of the code that makes it. Simplify assumes that what
+   a call returns is of these kinds. Where it knows no more of the
+   results, it gives them the unknown types of the result arity of the
+   code, if it knows the code
+   ([simplify_direct_full_application]), and of the return arity of
+   the call, if it does not
+   ([simplify_function_call_where_callee's_type_unavailable]): both by
+   [Flambda2_types.unknown_types_from_arity]. No test of the compiler
+   is transcribed here: on a return of other kinds in a body that it
+   visits, Simplify stops (simplify/env/continuation_uses.ml,
+   [add_use]). Decision D81. *)
+(* CR mshinwell: what the code states of its results beyond their kinds
+   ([cm_result_subkinds]) is not tested where the code returns. The
+   types that Simplify gives the results of a call
+   ([Flambda2_types.unknown_types_from_arity]) have what the arity
+   states beyond kinds, as those that it gives parameters have
+   (decision D25, at parameters); the return arity of a call of the
+   model states nothing beyond kinds. Decision D81. *)
 Definition call_code (closure : value) (c : code) (vs : list value)
     (args_arity return_arity : arity) (return_to exn_to : cont_value)
     (statics : static_env) (hp : heap) (rd : read_record) : step_result :=
@@ -726,7 +775,8 @@ Definition call_code (closure : value) (c : code) (vs : list value)
     match bind_params (code_params c) vs [(code_my_closure c, closure)] with
     | Some callee_vars =>
       Step (State (code_body c) callee_vars
-        [(code_return_continuation c, return_to);
+        [(code_return_continuation c,
+          Return_at (unarize return_arity) return_to);
          (code_exn_continuation c, exn_to)]
         statics hp rd)
     | None => Undefined
@@ -1179,7 +1229,12 @@ Definition run_call (return_partial : value -> step_result)
    exception continuation is that of the over-application, extra
    arguments included. No variable is bound there, and the kind of the
    value is not tested: a value that can be called is of kind
-   [Value].
+   [Value]. Applying what the return continuation of code stands for
+   ([Return_at]) applies the continuation that the call returns to,
+   where the values are of the kinds kept, in number and each in its
+   place: otherwise there is no step. So code leaves by a way out, which
+   tests nothing, only with values of the kinds of the return arity of
+   the call that runs it. Decision D81.
 
    The values must also be of what the handler states of its
    parameters beyond their kinds ([values_of_subkinds], against
@@ -1217,6 +1272,10 @@ Fixpoint apply_cont_value (c : cont_value) (vs : list value)
         return_arity return_to exn_to statics hp rd
     | _ => Undefined
     end
+  | Return_at kinds return_to =>
+    if kinds_eqb (map kind_of_value vs) kinds
+    then apply_cont_value return_to vs statics hp rd
+    else Undefined
   end.
 
 Definition apply_continuation (k : continuation) (vs : list value)
@@ -1249,13 +1308,15 @@ Definition call_function (callee : value) (kind : call_kind)
    block or of a value slot, where it is stored (the fields of a block
    that a primitive makes are tested, as arguments of the primitive:
    FlambdaPrimitiveSpec.eval_variadic_primitive); the kinds of the
-   values given to a way out of the term; a value that a call returns,
-   against the result arity of the code; and the extra arguments of the
-   exception continuation of a call, against the kinds that the call
-   gives them. The handler that a value returns to, or that an
-   exception reaches with the extra arguments, tests them against its
-   own kinds; and the result arity of the code is compared with that of
-   the call, as two annotations ([call_code]). Decision D10. *)
+   values that the term itself gives to a way out of it; and the extra
+   arguments of the exception continuation of a call, against the
+   kinds that the call gives them. The handler that an exception
+   reaches with the extra arguments tests them against its own kinds.
+   The values that code returns are tested against the return arity of
+   the call that runs it ([call_code]; decision D81), which is
+   compared with the result arity of the code as two annotations, and
+   then by the handler that they return to, against its own kinds.
+   Decision D10. *)
 
 Definition step (s : state) : step_result :=
   match s with
@@ -1631,7 +1692,9 @@ Definition env_values_all (P : value -> Prop) (vars : env) : Prop :=
 (* A continuation holds the values of the environment that its closure
    keeps, and those that the continuations it keeps hold. A way out holds
    none. A continuation with extra arguments holds those, and what the
-   continuation inside holds. *)
+   continuation inside holds. What the return continuation of code
+   stands for holds what the continuation that the call returns to
+   holds. *)
 Fixpoint cont_values_all (P : value -> Prop) (c : cont_value) : Prop :=
   match c with
   | Outer _ => True
@@ -1645,6 +1708,7 @@ Fixpoint cont_values_all (P : value -> Prop) (c : cont_value) : Prop :=
     Forall P remaining
     ∧ cont_values_all P return_to
     ∧ cont_values_all P exn_to
+  | Return_at _ return_to => cont_values_all P return_to
   end.
 
 Definition conts_values_all (P : value -> Prop) (conts : cont_env) : Prop :=

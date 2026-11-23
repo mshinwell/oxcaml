@@ -105,7 +105,8 @@ Definition handler_scoped (vs : list variable) (ks : list continuation)
    kept are in scope in turn. A continuation with extra arguments is in
    scope when the one inside is: the extra arguments are values. What is
    left of an over-application names nothing; the two continuations it
-   keeps are in scope. *)
+   keeps are in scope. What the return continuation of code stands for
+   is in scope when the continuation that the call returns to is. *)
 Fixpoint cont_in_scope (outer : list continuation) (c : cont_value) : Prop :=
   match c with
   | Outer k => among k outer = true
@@ -120,6 +121,7 @@ Fixpoint cont_in_scope (outer : list continuation) (c : cont_value) : Prop :=
         conts
   | Over_application _ _ _ return_to exn_to =>
     cont_in_scope outer return_to ∧ cont_in_scope outer exn_to
+  | Return_at _ return_to => cont_in_scope outer return_to
   end.
 
 Definition conts_in_scope (outer : list continuation) (conts : cont_env)

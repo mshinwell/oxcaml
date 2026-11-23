@@ -1069,7 +1069,7 @@ Proof.
   apply state_well_kinded_intro; [ | | | exact Hstatics | exact Hheap ].
   - refine (well_kinded_weaken (code_body c) _ _ _ _ Hbody).
     unfold arities_of_conts. simpl.
-    rewrite Hreturn_to, Hexn_to, Hreturn_arity.
+    rewrite Hexn_to, Hreturn_arity.
     exact
       (map_included_app_r
          [(code_return_continuation c, code_result_kinds c);
@@ -1079,7 +1079,8 @@ Proof.
       (bind_params_well_kinded (code_params c) vs _ callee_vars Hvs_wk _
          Hbind).
     simpl. rewrite Hclosure_wk. reflexivity.
-  - unfold conts_well_kinded. simpl. rewrite Hreturn_wk, Hexn_wk.
+  - unfold conts_well_kinded. simpl.
+    rewrite Hreturn_wk, Hreturn_to, kinds_eqb_refl, Hexn_wk.
     reflexivity.
 Qed.
 
@@ -1146,7 +1147,8 @@ Proof.
   induction c
     as [[params metadata handler] def_vars def_conts recursive | k
        | c IH extra
-       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _
+       | kinds return_to IHreturn]
     using cont_value_over_ind;
     intros vs statics hp rd Hc Hkinds Hvs_wk Hstatics Hheap.
   - cbn [apply_cont_value].
@@ -1202,6 +1204,12 @@ Proof.
         [ exact Hreturn_wk | | | exact Hstatics | exact Hheap ].
       * simpl. rewrite Hkind, Hreturn_to, Hreturn_arity. reflexivity.
       * simpl. rewrite Hpartial. reflexivity.
+  - cbn [apply_cont_value]. cbn [cont_well_kinded] in Hc.
+    apply andb_true_iff in Hc as [Hc Hreturn_to].
+    apply kinds_eqb_eq in Hreturn_to. cbn [arity_of_cont] in Hkinds.
+    rewrite Hkinds, kinds_eqb_refl.
+    apply (IHreturn vs statics hp rd_ Hc); try assumption.
+    rewrite Hkinds, Hreturn_to. reflexivity.
 Qed.
 
 (* A call of a well-kinded value with well-kinded arguments, returning
@@ -1249,7 +1257,8 @@ Proof.
   induction c
     as [[params metadata handler] def_vars def_conts recursive | k
        | c IH extra
-       | remaining remaining_arity return_arity return_to _ exn_to _];
+       | remaining remaining_arity return_arity return_to _ exn_to _
+       | kinds return_to IHreturn];
     intros given Hc Hgiven.
   - simpl in Hgiven |- *. rewrite cont_well_kinded_closure in Hc.
     apply andb_true_iff in Hc as [Hc _]. apply andb_true_iff in Hc as [_ Hh].
@@ -1270,6 +1279,11 @@ Proof.
     rewrite length_map, length_skipn in Hextra_kinds.
     rewrite length_firstn. lia.
   - simpl in Hgiven |- *. rewrite Hgiven. reflexivity.
+  - cbn [wrong_number_given]. cbn [cont_well_kinded] in Hc.
+    apply andb_true_iff in Hc as [Hc Hreturn_to].
+    apply kinds_eqb_eq in Hreturn_to. cbn [arity_of_cont] in Hgiven.
+    rewrite Hgiven, Nat.eqb_refl. simpl.
+    apply (IHreturn _ Hc). rewrite Hreturn_to. reflexivity.
 Qed.
 
 (* And the kinds of what a well-kinded continuation is given are right,
@@ -1283,7 +1297,8 @@ Proof.
   induction c
     as [[params metadata handler] def_vars def_conts recursive | k
        | c IH extra
-       | remaining remaining_arity return_arity return_to exn_to _ _]
+       | remaining remaining_arity return_arity return_to exn_to _ _
+       | kinds return_to IHreturn]
     using cont_value_over_ind;
     intros given Hc Hgiven.
   - simpl in Hgiven |- *. rewrite Hgiven, kinds_eqb_refl. reflexivity.
@@ -1294,6 +1309,11 @@ Proof.
     apply kinds_eqb_eq in Hextra_kinds. cbn [arity_of_cont] in Hgiven.
     apply (IH _ Hc). rewrite Hgiven, Hextra_kinds. apply firstn_skipn.
   - simpl in Hgiven |- *. rewrite Hgiven, kinds_eqb_refl. reflexivity.
+  - cbn [wrong_kinds_given]. cbn [cont_well_kinded] in Hc.
+    apply andb_true_iff in Hc as [Hc Hreturn_to].
+    apply kinds_eqb_eq in Hreturn_to. cbn [arity_of_cont] in Hgiven.
+    rewrite Hgiven, kinds_eqb_refl. simpl.
+    apply (IHreturn _ Hc). rewrite Hreturn_to. reflexivity.
 Qed.
 
 Lemma step_well_kinded_here (s s' : state) :
@@ -1878,6 +1898,633 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
+(* What code returns                                                        *)
+(* ======================================================================== *)
+
+Theorem return_at_wrong_kinds_undefined :
+  return_at_wrong_kinds_undefined_statement.
+Proof.
+  intros kinds return_to vs statics hp rd Hkinds. simpl.
+  destruct (kinds_eqb (map kind_of_value vs) kinds) eqn:Heq;
+    [ | reflexivity ].
+  apply kinds_eqb_eq in Heq. contradiction.
+Qed.
+
+Theorem call_returns_at_kinds : call_returns_at_kinds_statement.
+Proof.
+  intros closure c vs args_arity return_arity return_to exn_to statics hp rd
+    s Hstep.
+  apply call_code_step in Hstep as (callee_vars & _ & _ & _ & -> & _ & ->).
+  split; [ reflexivity | ]. simpl. apply resolve_head.
+Qed.
+
+(* The kinds of the variables, as their binders give them. *)
+
+Lemma env_at_kinds_nil : env_at_kinds [] [].
+Proof. intros x kind v Hx. discriminate Hx. Qed.
+
+Lemma env_at_kinds_cons (kinds : kind_env) (vars : env) (x : variable)
+    (kind : flambda_kind) (v : value) :
+  env_at_kinds kinds vars ->
+  kind_of_value v = kind ->
+  env_at_kinds ((x, kind) :: kinds) ((x, v) :: vars).
+Proof.
+  intros Henv Hkind y kind' w. simpl.
+  destruct (Pos.eqb y x); [ | apply Henv ].
+  intros [= <-] [= <-]. exact Hkind.
+Qed.
+
+Lemma bind_params_at_kinds (params : list variable) :
+  ∀ (vs : list value) (params_kinds : list flambda_kind)
+    (kinds kinds' : kind_env) (vars vars' : env),
+    bind_param_kinds params params_kinds kinds = Some kinds' ->
+    bind_params params vs vars = Some vars' ->
+    map kind_of_value vs = params_kinds ->
+    env_at_kinds kinds vars ->
+    env_at_kinds kinds' vars'.
+Proof.
+  induction params as [ | x params IH];
+    intros [ | v vs] [ | k params_kinds] kinds kinds' vars vars'; simpl;
+    try discriminate.
+  - intros [= <-] [= <-] _ Henv. exact Henv.
+  - intros Hkinds Hvars [= Hkind Hrest] Henv.
+    apply (IH vs params_kinds _ _ _ _ Hkinds Hvars Hrest).
+    apply env_at_kinds_cons; assumption.
+Qed.
+
+Lemma kind_of_simple_at_kinds (kinds : kind_env) (vars : env) (s : simple)
+    (kind : flambda_kind) (v : value) :
+  env_at_kinds kinds vars ->
+  kind_of_simple kinds s = Some kind ->
+  eval_simple vars s = Some v ->
+  kind_of_value v = kind.
+Proof.
+  intros Henv. destruct s as [x | sym | c]; simpl.
+  - apply Henv.
+  - intros [= <-] [= <-]. reflexivity.
+  - intros [= <-] [= <-]. reflexivity.
+Qed.
+
+Lemma kinds_of_simples_at_kinds (kinds : kind_env) (vars : env)
+    (args : list simple) :
+  env_at_kinds kinds vars ->
+  ∀ (ks : list flambda_kind) (vs : list value),
+    kinds_of_simples kinds args = Some ks ->
+    eval_simples vars args = Some vs ->
+    map kind_of_value vs = ks.
+Proof.
+  intros Henv. induction args as [ | s args IH]; simpl; intros ks vs.
+  - intros [= <-] [= <-]. reflexivity.
+  - destruct (kind_of_simple kinds s) as [k | ] eqn:Hk; [ | discriminate ].
+    destruct (kinds_of_simples kinds args) as [ks' | ]; [ | discriminate ].
+    intros [= <-].
+    destruct (eval_simple vars s) as [v | ] eqn:Hv; [ | discriminate ].
+    destruct (eval_simples vars args) as [vs' | ]; [ | discriminate ].
+    intros [= <-]. simpl.
+    rewrite (kind_of_simple_at_kinds kinds vars s k v Henv Hk Hv),
+      (IH ks' vs' eq_refl eq_refl).
+    reflexivity.
+Qed.
+
+Lemma forallb_lookup {A : Type} (f : A -> bool) (name : positive) (a : A)
+    (bindings : list (positive * A)) :
+  forallb (fun '(_, a) => f a) bindings = true ->
+  lookup name bindings = Some a ->
+  f a = true.
+Proof.
+  induction bindings as [ | [name' a'] bindings IH]; simpl;
+    [ discriminate | ].
+  intros Hall. apply andb_true_iff in Hall as [Ha Hrest].
+  destruct (Pos.eqb name name'); [ | exact (IH Hrest) ].
+  intros [= <-]. exact Ha.
+Qed.
+
+(* A partial application is one value of kind [Value], and the call
+   that makes it expects one. *)
+Lemma partial_call_returns_value (statics : static_env) (callee : value)
+    (kind : call_kind) (vs : list value) (args_arity return_arity : arity)
+    (partial : value) :
+  shape_of_call statics callee kind vs args_arity return_arity
+  = Some (Partial_call partial) ->
+  map kind_of_value [partial] = unarize return_arity.
+Proof.
+  intros Hshape.
+  pose proof
+    (shape_of_call_arities statics callee kind vs args_arity return_arity)
+    as Harities.
+  rewrite Hshape in Harities. destruct Harities as [-> Hkind]. simpl.
+  rewrite Hkind. reflexivity.
+Qed.
+
+(* The relation of the two statements below. A state on the left has
+   more [Return_at] than the same state on the right, in what its
+   continuations stand for; nothing else differs.
+
+   Where [lax] is false, the [Return_at] that the right has not got are
+   at [result], the kinds of the test of the term, and each is one of
+   two sorts. Either it is what [ret] stands for, in a state or in a
+   handler closure that passes the test of the term for [ret] and
+   [result] under kinds that its variables have: then every return
+   through it gives values of the kinds [result]. Or it is under
+   another [Return_at] at the same kinds, or is what an
+   over-application at a return arity of those kinds returns to: a
+   call that the tested term makes and that returns to [ret]. Either
+   way its test passes whenever it is made, and the relation is a
+   bisimulation.
+
+   Where [lax] is true, any [Return_at] may be missing on the right:
+   its test can then fail on the left, and the relation is a
+   simulation. *)
+
+Section Returns.
+
+Variable lax : bool.
+Variable ret : continuation.
+Variable result : list flambda_kind.
+
+(* A handler closure passes the test of the term, under kinds that its
+   variables have. *)
+Definition closure_returns_at_kinds (h : continuation_handler) (vars : env)
+    (recursive : list (continuation * continuation_handler)) : Prop :=
+  ∃ kinds : kind_env,
+    handler_returns_at_kinds ret result kinds h = true
+    ∧ forallb (fun '(_, h) => handler_returns_at_kinds ret result kinds h)
+        recursive
+      = true
+    ∧ env_at_kinds kinds vars
+    ∧ lookup ret recursive = None.
+
+#[local] Set Warnings "-register-all".
+Inductive cont_untested : cont_value -> cont_value -> Prop :=
+  | Same_untested (c : cont_value) : cont_untested c c
+  | Closure_untested (h : continuation_handler) (vars : env)
+      (conts conts' : cont_env)
+      (recursive : list (continuation * continuation_handler)) :
+    (∀ k : continuation,
+      cont_untested (resolve k conts) (resolve k conts')
+      ∨ k = ret
+        ∧ closure_returns_at_kinds h vars recursive
+        ∧ ∃ inner : cont_value,
+            resolve k conts = Return_at result inner
+            ∧ cont_untested inner (resolve k conts')) ->
+    cont_untested (Closure h vars conts recursive)
+      (Closure h vars conts' recursive)
+  | Extra_args_untested (c c' : cont_value) (extra : list value) :
+    cont_untested c c' ->
+    cont_untested (Extra_args c extra) (Extra_args c' extra)
+  | Over_application_untested (remaining : list value)
+      (remaining_arity return_arity : arity)
+      (return_to return_to' exn_to exn_to' : cont_value) :
+    cont_untested return_to return_to' ->
+    cont_untested exn_to exn_to' ->
+    cont_untested
+      (Over_application remaining remaining_arity return_arity return_to
+         exn_to)
+      (Over_application remaining remaining_arity return_arity return_to'
+         exn_to')
+  | Over_application_guarded_untested (remaining : list value)
+      (remaining_arity return_arity : arity)
+      (inner return_to' exn_to exn_to' : cont_value) :
+    unarize return_arity = result ->
+    cont_untested inner return_to' ->
+    cont_untested exn_to exn_to' ->
+    cont_untested
+      (Over_application remaining remaining_arity return_arity
+         (Return_at result inner) exn_to)
+      (Over_application remaining remaining_arity return_arity return_to'
+         exn_to')
+  | Return_at_untested (kinds : list flambda_kind) (c c' : cont_value) :
+    cont_untested c c' -> cont_untested (Return_at kinds c) (Return_at kinds c')
+  | Return_at_guarded_untested (inner c' : cont_value) :
+    cont_untested inner c' ->
+    cont_untested (Return_at result (Return_at result inner))
+      (Return_at result c')
+  | Return_at_lax_untested (kinds : list flambda_kind) (c c' : cont_value) :
+    lax = true -> cont_untested c c' -> cont_untested (Return_at kinds c) c'.
+
+(* What a call returns to, on the two sides: related, or the left has
+   one [Return_at] more, at the return arity of the call. *)
+Definition returns_untested (kinds : list flambda_kind) (c c' : cont_value)
+    : Prop :=
+  cont_untested c c'
+  ∨ kinds = result
+    ∧ ∃ inner : cont_value, c = Return_at result inner ∧ cont_untested inner c'.
+
+(* The continuations of two states: related at each name, or, at
+   [ret], the left has one [Return_at] more, and [checked] holds. *)
+Definition conts_untested (checked : Prop) (conts conts' : cont_env) : Prop :=
+  ∀ k : continuation,
+    cont_untested (resolve k conts) (resolve k conts')
+    ∨ k = ret
+      ∧ checked
+      ∧ ∃ inner : cont_value,
+          resolve k conts = Return_at result inner
+          ∧ cont_untested inner (resolve k conts').
+
+Inductive state_untested : state -> state -> Prop :=
+  | State_untested (e : expr) (vars : env) (conts conts' : cont_env)
+      (statics : static_env) (hp : heap) (rd : read_record) :
+    conts_untested
+      (∃ kinds : kind_env,
+        returns_at_kinds ret result kinds e = true ∧ env_at_kinds kinds vars)
+      conts conts' ->
+    state_untested (State e vars conts statics hp rd)
+      (State e vars conts' statics hp rd).
+
+Definition result_untested (r r' : step_result) : Prop :=
+  if lax then result_simulated state_untested r r'
+  else result_related state_untested r r'.
+
+Lemma conts_untested_weaken (checked checked' : Prop)
+    (conts conts' : cont_env) :
+  (checked -> checked') ->
+  conts_untested checked conts conts' ->
+  conts_untested checked' conts conts'.
+Proof.
+  intros Himplies Hconts k.
+  destruct (Hconts k) as [H | (Hk & Hchecked & Huntested)];
+    [ left; exact H | right; auto ].
+Qed.
+
+Lemma conts_untested_same (checked : Prop) (conts : cont_env) :
+  conts_untested checked conts conts.
+Proof. intros k. left. apply Same_untested. Qed.
+
+Lemma state_untested_refl (s : state) : state_untested s s.
+Proof.
+  destruct s as [e vars conts statics hp rd].
+  apply State_untested, conts_untested_same.
+Qed.
+
+Lemma result_untested_step (s s' : state) :
+  state_untested s s' -> result_untested (Step s) (Step s').
+Proof. intros Hs. unfold result_untested. destruct lax; exact Hs. Qed.
+
+Lemma result_untested_undefined : result_untested Undefined Undefined.
+Proof. unfold result_untested. destruct lax; exact I. Qed.
+
+Lemma result_untested_lax (r : step_result) :
+  lax = true -> result_untested Undefined r.
+Proof. intros Hlax. unfold result_untested. rewrite Hlax. exact I. Qed.
+
+Lemma result_untested_refl (r : step_result) : result_untested r r.
+Proof.
+  unfold result_untested.
+  destruct lax, r as [s | k vs hp rd | ]; simpl; auto using state_untested_refl.
+Qed.
+
+Lemma with_extra_args_untested (c c' : cont_value) (extra : list value) :
+  cont_untested c c' ->
+  cont_untested (with_extra_args c extra) (with_extra_args c' extra).
+Proof.
+  intros Hc.
+  destruct extra; simpl; [ exact Hc | apply Extra_args_untested, Hc ].
+Qed.
+
+Lemma return_at_untested_of (kinds : list flambda_kind) (c c' : cont_value) :
+  returns_untested kinds c c' ->
+  cont_untested (Return_at kinds c) (Return_at kinds c').
+Proof.
+  intros [Hc | (-> & inner & -> & Hinner)];
+    [ apply Return_at_untested, Hc | apply Return_at_guarded_untested, Hinner ].
+Qed.
+
+Lemma over_application_untested_of (remaining : list value)
+    (remaining_arity return_arity : arity)
+    (return_to return_to' exn_to exn_to' : cont_value) :
+  returns_untested (unarize return_arity) return_to return_to' ->
+  cont_untested exn_to exn_to' ->
+  cont_untested
+    (Over_application remaining remaining_arity return_arity return_to exn_to)
+    (Over_application remaining remaining_arity return_arity return_to'
+       exn_to').
+Proof.
+  intros [Hc | (Hkinds & inner & -> & Hinner)] Hexn;
+    [ apply Over_application_untested
+    | apply Over_application_guarded_untested ];
+    assumption.
+Qed.
+
+(* The same full call, returning to what the two sides have. *)
+Lemma call_code_untested (closure : value) (c : code) (vs : list value)
+    (args_arity return_arity : arity)
+    (return_to return_to' exn_to exn_to' : cont_value) (statics : static_env)
+    (hp : heap) (rd : read_record) :
+  returns_untested (unarize return_arity) return_to return_to' ->
+  cont_untested exn_to exn_to' ->
+  result_untested
+    (call_code closure c vs args_arity return_arity return_to exn_to statics hp
+       rd)
+    (call_code closure c vs args_arity return_arity return_to' exn_to' statics
+       hp rd).
+Proof.
+  intros Hreturn Hexn. unfold call_code.
+  destruct (binds_statics (code_body c)); [ apply result_untested_undefined | ].
+  destruct
+    (negb
+       (kinds_eqb (map kind_of_value vs) (unarize args_arity)
+        && kinds_per_parameter_eqb (unarize_per_parameter args_arity)
+             (unarize_per_parameter (code_params_arity c))
+        && arity_eqb return_arity (code_result_arity c)));
+    [ apply result_untested_undefined | ].
+  destruct (negb (values_of_subkinds statics vs (code_params_subkinds c)));
+    [ apply result_untested_undefined | ].
+  destruct (bind_params (code_params c) vs [(code_my_closure c, closure)])
+    as [callee_vars | ]; [ | apply result_untested_undefined ].
+  apply result_untested_step, State_untested. intros k. left.
+  destruct (Pos.eqb_spec k (code_return_continuation c)) as [-> | Hreturn_ne].
+  - rewrite !resolve_head. apply return_at_untested_of, Hreturn.
+  - rewrite !(resolve_other k (code_return_continuation c))
+      by exact Hreturn_ne.
+    destruct (Pos.eqb_spec k (code_exn_continuation c)) as [-> | Hexn_ne].
+    + rewrite !resolve_head. exact Hexn.
+    + rewrite !(resolve_other k (code_exn_continuation c)) by exact Hexn_ne.
+      apply Same_untested.
+Qed.
+
+Lemma run_call_untested (return_partial return_partial' : value -> step_result)
+    (shape : option call_shape) (return_arity : arity)
+    (return_to return_to' exn_to exn_to' : cont_value) (statics : static_env)
+    (hp : heap) (rd : read_record) :
+  returns_untested (unarize return_arity) return_to return_to' ->
+  cont_untested exn_to exn_to' ->
+  (∀ partial : value,
+    shape = Some (Partial_call partial) ->
+    result_untested (return_partial partial) (return_partial' partial)) ->
+  result_untested
+    (run_call return_partial shape return_arity return_to exn_to statics hp rd)
+    (run_call return_partial' shape return_arity return_to' exn_to' statics hp
+       rd).
+Proof.
+  intros Hreturn Hexn Hpartial.
+  destruct shape
+    as [[closure c vs args_arity
+        | closure c vs remaining args_arity remaining_arity | partial] | ];
+    simpl.
+  - apply call_code_untested; assumption.
+  - apply call_code_untested; [ left | exact Hexn ].
+    apply over_application_untested_of; assumption.
+  - apply Hpartial. reflexivity.
+  - apply result_untested_undefined.
+Qed.
+
+(* Applying what the two sides have to the same values. *)
+Lemma apply_cont_value_untested (c c' : cont_value) (statics : static_env)
+    (hp : heap) (rd : read_record) :
+  cont_untested c c' ->
+  ∀ vs : list value,
+    result_untested (apply_cont_value c vs statics hp rd)
+      (apply_cont_value c' vs statics hp rd).
+Proof.
+  intros Hc.
+  induction Hc
+    as [ c | h vars conts conts' recursive Hconts | c c' extra _ IH
+       | remaining remaining_arity return_arity return_to return_to' exn_to
+           exn_to' Hreturn IHreturn Hexn _
+       | remaining remaining_arity return_arity inner return_to' exn_to
+           exn_to' Hkinds Hinner IHinner Hexn _
+       | kinds c c' _ IH | inner c' _ IH | kinds c c' Hlax _ IH ];
+    intros vs.
+  - apply result_untested_refl.
+  - destruct h as [params metadata handler]. simpl.
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata))
+      eqn:Hgiven; [ | apply result_untested_undefined ].
+    destruct (values_of_subkinds statics vs (hm_params_subkinds metadata));
+      [ | apply result_untested_undefined ].
+    destruct (bind_params params vs vars) as [handler_vars | ] eqn:Hbind;
+      [ | apply result_untested_undefined ].
+    apply result_untested_step, State_untested. intros k.
+    rewrite !resolve_rec_closures.
+    destruct (lookup k recursive) as [h' | ] eqn:Hk.
+    + left. apply Closure_untested. intros k'.
+      destruct (Hconts k')
+        as [H | (-> & (kinds & _ & Hrec & Henv & Hnone) & Huntested)];
+        [ left; exact H | right ].
+      split; [ reflexivity | ]. split; [ | exact Huntested ].
+      exists kinds. split; [ | auto ].
+      exact (forallb_lookup _ k h' recursive Hrec Hk).
+    + destruct (Hconts k)
+        as [H | (-> & (kinds & Hh & _ & Henv & _) & Huntested)];
+        [ left; exact H | right ].
+      split; [ reflexivity | ]. split; [ | exact Huntested ].
+      simpl in Hh.
+      destruct (bind_param_kinds params (hm_params_kinds metadata) kinds)
+        as [handler_kinds | ] eqn:Hbound; [ | discriminate ].
+      exists handler_kinds. split; [ exact Hh | ].
+      apply
+        (bind_params_at_kinds params vs _ kinds handler_kinds vars
+           handler_vars Hbound Hbind);
+        [ apply kinds_eqb_eq, Hgiven | exact Henv ].
+  - simpl. apply IH.
+  - rewrite !apply_cont_value_over_application.
+    destruct vs as [ | v [ | v' vs]]; try apply result_untested_undefined.
+    unfold call_function. apply run_call_untested; [ left | | ]; try assumption.
+    intros partial _. apply IHreturn.
+  - rewrite !apply_cont_value_over_application.
+    destruct vs as [ | v [ | v' vs]]; try apply result_untested_undefined.
+    unfold call_function. apply run_call_untested; [ right | | ];
+      [ split; [ exact Hkinds | exists inner; auto ] | exact Hexn | ].
+    intros partial Hshape.
+    cbn [apply_cont_value].
+    rewrite <- Hkinds, (partial_call_returns_value _ _ _ _ _ _ _ Hshape),
+      kinds_eqb_refl.
+    apply IHinner.
+  - simpl. destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ apply IH | apply result_untested_undefined ].
+  - simpl. destruct (kinds_eqb (map kind_of_value vs) result);
+      [ apply IH | apply result_untested_undefined ].
+  - simpl. destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ apply IH | apply result_untested_lax, Hlax ].
+Qed.
+
+Lemma call_function_untested (callee : value) (kind : call_kind)
+    (vs : list value) (args_arity return_arity : arity)
+    (return_to return_to' exn_to exn_to' : cont_value) (statics : static_env)
+    (hp : heap) (rd : read_record) :
+  returns_untested (unarize return_arity) return_to return_to' ->
+  cont_untested exn_to exn_to' ->
+  result_untested
+    (call_function callee kind vs args_arity return_arity return_to exn_to
+       statics hp rd)
+    (call_function callee kind vs args_arity return_arity return_to' exn_to'
+       statics hp rd).
+Proof.
+  intros Hreturn Hexn. unfold call_function.
+  apply run_call_untested; try assumption.
+  intros partial Hshape.
+  destruct Hreturn as [Hc | (Hkinds & inner & -> & Hinner)].
+  - apply apply_cont_value_untested, Hc.
+  - cbn [apply_cont_value].
+    rewrite <- Hkinds, (partial_call_returns_value _ _ _ _ _ _ _ Hshape),
+      kinds_eqb_refl.
+    apply apply_cont_value_untested, Hinner.
+Qed.
+
+(* Related states step alike; where [lax], the right one may do
+   anything once the left one is undefined. *)
+Lemma untested_step (s s' : state) :
+  state_untested s s' -> result_untested (step s) (step s').
+Proof.
+  intros [e vars conts conts' statics hp rd Hconts].
+  destruct e
+    as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+       | scrutinee arms | ];
+    autorewrite with step.
+  - (* Let *)
+    destruct (exec_named statics hp rd vars d) as [[[v hp'] rd'] | ];
+      [ | apply result_untested_undefined ].
+    destruct (kind_eqb (kind_of_value v) kind) eqn:Hkind;
+      [ | apply result_untested_undefined ].
+    apply result_untested_step, State_untested. revert Hconts.
+    apply conts_untested_weaken. intros (kinds & Hcheck & Henv).
+    exists ((x, kind) :: kinds). split; [ exact Hcheck | ].
+    apply env_at_kinds_cons; [ exact Henv | apply kind_eqb_eq, Hkind ].
+  - (* Let_static *)
+    destruct (eval_static_bindings vars bindings statics) as [statics' | ];
+      [ | apply result_untested_undefined ].
+    apply result_untested_step, State_untested. revert Hconts.
+    apply conts_untested_weaken. intros (kinds & Hcheck & Henv).
+    exists kinds. split; [ exact Hcheck | exact Henv ].
+  - (* Let_cont_non_recursive *)
+    apply result_untested_step, State_untested. intros k'.
+    destruct (Pos.eqb_spec k' k) as [-> | Hne].
+    + rewrite !resolve_head. left. apply Closure_untested. intros k'.
+      destruct (Hconts k')
+        as [H | (-> & (kinds & Hcheck & Henv) & Huntested)];
+        [ left; exact H | right ].
+      split; [ reflexivity | ]. split; [ | exact Huntested ].
+      simpl in Hcheck. apply andb_true_iff in Hcheck as [Hcheck _].
+      apply andb_true_iff in Hcheck as [_ Hh].
+      exists kinds. auto.
+    + rewrite !(resolve_other k' k) by exact Hne.
+      destruct (Hconts k')
+        as [H | (-> & (kinds & Hcheck & Henv) & Huntested)];
+        [ left; exact H | right ].
+      split; [ reflexivity | ]. split; [ | exact Huntested ].
+      simpl in Hcheck. apply andb_true_iff in Hcheck as [_ Hbody].
+      exists kinds. auto.
+  - (* Let_cont_recursive *)
+    destruct (handlers_bind_statics handlers);
+      [ apply result_untested_undefined | ].
+    apply result_untested_step, State_untested. intros k.
+    rewrite !resolve_rec_closures.
+    destruct (lookup k handlers) as [h | ] eqn:Hk.
+    + left. apply Closure_untested. intros k'.
+      destruct (Hconts k')
+        as [H | (-> & (kinds & Hcheck & Henv) & Huntested)];
+        [ left; exact H | right ].
+      split; [ reflexivity | ]. split; [ | exact Huntested ].
+      simpl in Hcheck. apply andb_true_iff in Hcheck as [Hcheck _].
+      apply andb_true_iff in Hcheck as [Hfresh Hhandlers].
+      exists kinds.
+      split; [ exact (forallb_lookup _ k h handlers Hhandlers Hk) | ].
+      split; [ exact Hhandlers | ]. split; [ exact Henv | ].
+      unfold is_bound in Hfresh.
+      destruct (lookup ret handlers); [ discriminate | reflexivity ].
+    + destruct (Hconts k)
+        as [H | (-> & (kinds & Hcheck & Henv) & Huntested)];
+        [ left; exact H | right ].
+      split; [ reflexivity | ]. split; [ | exact Huntested ].
+      simpl in Hcheck. apply andb_true_iff in Hcheck as [_ Hbody].
+      exists kinds. auto.
+  - (* Apply *)
+    destruct (eval_simple vars (ap_callee ap)) as [callee | ];
+      [ | apply result_untested_undefined ].
+    destruct (eval_simples vars (ap_args ap)) as [vs | ];
+      [ | apply result_untested_undefined ].
+    destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
+      [ | apply result_untested_undefined ].
+    apply call_function_untested.
+    + destruct (Hconts (ap_continuation ap))
+        as [H | (Hk & (kinds & Hcheck & _) & Huntested)];
+        [ left; exact H | right ].
+      split; [ | exact Huntested ].
+      simpl in Hcheck. unfold apply_returns_at_kinds in Hcheck.
+      apply andb_true_iff in Hcheck as [_ Hcheck].
+      rewrite Hk, Pos.eqb_refl in Hcheck. apply kinds_eqb_eq, Hcheck.
+    + apply with_extra_args_untested.
+      destruct (Hconts (ap_exn_continuation ap))
+        as [H | (Hk & (kinds & Hcheck & _) & _)]; [ exact H | ].
+      simpl in Hcheck. unfold apply_returns_at_kinds in Hcheck.
+      rewrite Hk, Pos.eqb_refl in Hcheck. discriminate Hcheck.
+  - (* Apply_cont *)
+    destruct (eval_simples vars (ac_args ac)) as [vs | ] eqn:Hvs;
+      [ | apply result_untested_undefined ].
+    unfold apply_continuation.
+    destruct (Hconts (ac_continuation ac))
+      as [H | (Hk & (kinds & Hcheck & Henv) & inner & Hret & Hinner)].
+    + apply apply_cont_value_untested, H.
+    + rewrite Hret. cbn [apply_cont_value].
+      simpl in Hcheck. unfold apply_cont_returns_at_kinds in Hcheck.
+      rewrite Hk, Pos.eqb_refl in Hcheck. apply has_arity_eq in Hcheck.
+      rewrite
+        (kinds_of_simples_at_kinds kinds vars (ac_args ac) Henv result vs
+           Hcheck Hvs),
+        kinds_eqb_refl.
+      apply apply_cont_value_untested, Hinner.
+  - (* Switch *)
+    destruct (eval_simple vars scrutinee) as [v | ];
+      [ | apply result_untested_undefined ].
+    destruct (naked_immediate_of_value v) as [i | ];
+      [ | apply result_untested_undefined ].
+    destruct (find_arm i arms) as [ac | ] eqn:Hfind;
+      [ | apply result_untested_undefined ].
+    apply result_untested_step, State_untested. revert Hconts.
+    apply conts_untested_weaken. intros (kinds & Hcheck & Henv).
+    exists kinds. split; [ | exact Henv ].
+    simpl in Hcheck |- *. rewrite forallb_forall in Hcheck.
+    exact (Hcheck (i, ac) (find_arm_in i arms ac Hfind)).
+  - (* Invalid *)
+    apply result_untested_undefined.
+Qed.
+
+End Returns.
+
+Theorem returns_at_kinds_equivalent : returns_at_kinds_equivalent_statement.
+Proof.
+  intros ret result kinds e vars return_to conts statics hp rd Hcheck Henv.
+  apply
+    (bisimulation_equivalent (state_untested false ret result)
+       (untested_step false ret result)).
+  apply State_untested. intros k.
+  destruct (Pos.eqb_spec k ret) as [-> | Hne].
+  - right. split; [ reflexivity | ]. split; [ exists kinds; auto | ].
+    exists return_to. rewrite !resolve_head.
+    split; [ reflexivity | apply Same_untested ].
+  - left. rewrite !(resolve_other k ret) by exact Hne. apply Same_untested.
+Qed.
+
+Theorem code_returns_at_kinds_equivalent :
+  code_returns_at_kinds_equivalent_statement.
+Proof.
+  intros c closure vs callee_vars return_to exn_to statics hp rd Hcheck
+    Hclosure Hkinds Hbind.
+  unfold code_returns_at_kinds in Hcheck.
+  destruct
+    (bind_param_kinds (code_params c) (code_params_kinds c)
+       [(code_my_closure c, Value)])
+    as [kinds | ] eqn:Hbound; [ | discriminate ].
+  apply (returns_at_kinds_equivalent _ _ kinds); [ exact Hcheck | ].
+  apply
+    (bind_params_at_kinds (code_params c) vs _ _ kinds _ callee_vars Hbound
+       Hbind Hkinds).
+  apply env_at_kinds_cons; [ apply env_at_kinds_nil | exact Hclosure ].
+Qed.
+
+Theorem return_at_refines : return_at_refines_statement.
+Proof.
+  intros ret result e vars return_to conts statics hp rd.
+  apply
+    (simulation_refines (state_untested true ret result)
+       (untested_step true ret result)).
+  apply State_untested. intros k. left.
+  destruct (Pos.eqb_spec k ret) as [-> | Hne].
+  - rewrite !resolve_head.
+    apply Return_at_lax_untested; [ reflexivity | apply Same_untested ].
+  - rewrite !(resolve_other k ret) by exact Hne. apply Same_untested.
+Qed.
+
+(* ======================================================================== *)
 (* Examples                                                                 *)
 (* ======================================================================== *)
 
@@ -2185,3 +2832,62 @@ Example no_argument_not_partial :
     [Singleton Value; Singleton Value] [Singleton Value]
   = false.
 Proof. reflexivity. Qed.
+
+(* What code returns (decision D81). The code has one parameter, a
+   naked immediate, and a result arity of one [Value]; its body gives
+   its return continuation what [returned] lists. The call is made at
+   the arities of the code and returns to a way out of the term, which
+   tests nothing: the test is that of what the return continuation of
+   the code stands for. *)
+Definition returning_code (returned : list simple) : code :=
+  Code [1%positive] 2%positive 3%positive 4%positive
+    (make_code_metadata [Singleton naked_immediate] [Singleton Value])
+    (Apply_cont (Apply_cont_expr 3%positive returned None)).
+
+Definition call_of_returning_code (returned : list simple) : state :=
+  State
+    (Apply
+       (Apply_expr (Symbol 1%positive) (Direct 1%positive)
+          [Const (Naked_immediate 0)] 1%positive 2%positive []
+          [Singleton naked_immediate] [Singleton Value]))
+    [] []
+    (Static_env [(1%positive, returning_code returned)]
+       [(1%positive, Static_closure 1%positive [])]) empty_heap no_reads.
+
+(* One value of the kind of the result arity leaves the term. *)
+Example return_of_the_kind_exits :
+  run 2 (call_of_returning_code [Const (Tagged_immediate 7)])
+  = Exit 1%positive [Value_const (Tagged_immediate 7)] empty_heap no_reads.
+Proof. vm_compute. reflexivity. Qed.
+
+(* The parameter, which is a naked immediate, does not: the call has a
+   step, and the return has none. *)
+Example return_of_other_kind_undefined :
+  match step (call_of_returning_code [Var 1%positive]) with
+  | Step s => step s = Undefined
+  | Exit _ _ _ _ | Undefined => False
+  end.
+Proof. vm_compute. reflexivity. Qed.
+
+(* Nor do two values, each of that kind. *)
+Example return_of_two_values_undefined :
+  match
+    step
+      (call_of_returning_code
+         [Const (Tagged_immediate 7); Const (Tagged_immediate 7)])
+  with
+  | Step s => step s = Undefined
+  | Exit _ _ _ _ | Undefined => False
+  end.
+Proof. vm_compute. reflexivity. Qed.
+
+(* The test of the body accepts the first code and refuses the other
+   two. *)
+Example returning_code_tested :
+  code_returns_at_kinds (returning_code [Const (Tagged_immediate 7)]) = true
+  ∧ code_returns_at_kinds (returning_code [Var 1%positive]) = false
+  ∧ code_returns_at_kinds
+      (returning_code
+         [Const (Tagged_immediate 7); Const (Tagged_immediate 7)])
+    = false.
+Proof. repeat split; reflexivity. Qed.

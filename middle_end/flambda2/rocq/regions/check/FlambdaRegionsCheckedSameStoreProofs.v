@@ -498,9 +498,10 @@ Proof.
   { intros s Hin. apply head_below. rewrite He. exact Hin. }
   destruct (resolve (ac_continuation ac) conts)
     as [[params metadata handler] def_vars def_conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to]
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to]
     eqn:Hc_eq.
-  2-4: destruct (plain_step_step rs rs' Hstep) as (s' & Hs' & ->);
+  2-5: destruct (plain_step_step rs rs' Hstep) as (s' & Hs' & ->);
     exists s'; split; [ reflexivity | exact (apply_cont_entered ac s' He Hs') ].
   destruct (eval_simples vars (ac_args ac)) as [vs | ] eqn:Hvs;
     [ | discriminate ].

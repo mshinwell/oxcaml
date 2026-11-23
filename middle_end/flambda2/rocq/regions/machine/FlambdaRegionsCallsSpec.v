@@ -237,7 +237,8 @@ Import ListNotations.
 
 (* The extra arguments of the continuation, and those of the
    continuations that it holds: in the environment of a closure, under
-   extra arguments, in what is left of an over-application. *)
+   extra arguments, in what is left of an over-application, in what
+   the return continuation of code stands for. *)
 Fixpoint cont_held (c : cont_value) : list value :=
   match c with
   | Closure _ _ conts _ => flat_map (fun '(_, c) => cont_held c) conts
@@ -245,6 +246,7 @@ Fixpoint cont_held (c : cont_value) : list value :=
   | Extra_args c extra => extra ++ cont_held c
   | Over_application _ _ _ return_to exn_to =>
     cont_held return_to ++ cont_held exn_to
+  | Return_at _ return_to => cont_held return_to
   end.
 
 Definition conts_held (conts : cont_env) : list value :=
@@ -316,6 +318,7 @@ Fixpoint cont_no_mark (frames : list frame) (c : cont_value) : bool :=
     forallb (value_no_mark frames) remaining
     && cont_no_mark frames return_to
     && cont_no_mark frames exn_to
+  | Return_at _ return_to => cont_no_mark frames return_to
   end.
 
 (* The first part of the test. The last conjunct is of every entry of
@@ -428,6 +431,7 @@ Fixpoint cont_held_older (frames : list frame)
   | Over_application _ _ _ return_to exn_to =>
     cont_held_older frames cells return_to
     && cont_held_older frames cells exn_to
+  | Return_at _ return_to => cont_held_older frames cells return_to
   end.
 
 (* ======================================================================== *)

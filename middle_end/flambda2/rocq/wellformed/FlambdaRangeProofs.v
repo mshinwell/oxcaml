@@ -644,7 +644,8 @@ Proof.
   - destruct c. exact Hc.
   - apply (bind_params_in_range _ _ _ _ Hvs) in Hbind; [ exact Hbind | ].
     intros y w [[= <- <-] | []]. exact Hclosure.
-  - intros k c' [[= <- <-] | [[= <- <-] | []]]; assumption.
+  - intros k c' [[= <- <-] | [[= <- <-] | []]];
+      [ apply Return_at_in_range | ]; assumption.
   - exact (proj1 Hstatics).
   - exact (proj2 Hstatics).
   - exact Hheap.
@@ -700,7 +701,8 @@ Proof.
        | [params metadata handler] vars conts recursive Hh Hvars Hconts _
            Hrecursive
        | remaining remaining_arity return_arity return_to exn_to Hremaining
-           Hreturn IHreturn Hexn _];
+           Hreturn IHreturn Hexn _
+       | kinds return_to _ IHreturn_at];
     intros vs Hvs.
   - exact Hvs.
   - simpl. apply IH. rewrite forallb_app, Hvs, Hextra. reflexivity.
@@ -731,6 +733,8 @@ Proof.
         | apply forallb_Forall; exact Hremaining ].
     + intros partial Hpartial. apply IHreturn. simpl.
       rewrite Hpartial. reflexivity.
+  - simpl. destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ exact (IHreturn_at vs Hvs) | exact I ].
 Qed.
 
 Lemma with_extra_args_in_range (c : cont_value) (extra : list value) :

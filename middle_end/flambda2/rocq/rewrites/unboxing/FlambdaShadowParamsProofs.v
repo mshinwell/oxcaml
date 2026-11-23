@@ -232,7 +232,9 @@ Variable sites : positions.
    continuations so related; or a closure of a handler and a closure
    of that handler rewritten, under variables that agree and
    continuations that are related; or two so related with the same
-   extra arguments; or what is left of the same over-application. *)
+   extra arguments; or what is left of the same over-application;
+   or what the return continuation of code stands for, at the same
+   kinds, of two so related. *)
 Inductive cont_rel : cont_value -> cont_value -> Prop :=
   | Rel_same (c : cont_value) : cont_rel c c
   | Rel_plain (hh : continuation_handler) (dv : env) (dc dc' : cont_env)
@@ -257,7 +259,11 @@ Inductive cont_rel : cont_value -> cont_value -> Prop :=
       (Over_application remaining remaining_arity return_arity return_to
          exn_to)
       (Over_application remaining remaining_arity return_arity return_to'
-         exn_to').
+         exn_to')
+  | Rel_return_at (kinds : list flambda_kind)
+      (return_to return_to' : cont_value) :
+    cont_rel return_to return_to' ->
+    cont_rel (Return_at kinds return_to) (Return_at kinds return_to').
 
 Definition conts_rel (conts conts' : cont_env) : Prop :=
   ∀ k1 : continuation, cont_rel (resolve k1 conts) (resolve k1 conts').
@@ -381,7 +387,7 @@ Proof.
     apply Rel_state_plain.
     intros k'.
     destruct (Pos.eq_dec k' (code_return_continuation c)) as [-> | Hne];
-      [ rewrite !resolve_head; exact Hreturn | ].
+      [ rewrite !resolve_head; apply Rel_return_at, Hreturn | ].
     rewrite !(resolve_other k' (code_return_continuation c)) by exact Hne.
     destruct (Pos.eq_dec k' (code_exn_continuation c)) as [-> | Hne'];
       [ rewrite !resolve_head; exact Hraise | ].
@@ -432,7 +438,8 @@ Proof.
        | us [ps m he] dv dv' dc dc' recursive Hagree Hdc _
        | c c' extra Hc IHc
        | remaining remaining_arity return_arity return_to return_to' exn_to
-           exn_to' Hreturn IHreturn Hraise _];
+           exn_to' Hreturn IHreturn Hraise _
+       | kinds return_to return_to' _ IHreturn_at ];
     intros vs.
   - apply result_related_refl, related_refl.
   - simpl.
@@ -466,6 +473,8 @@ Proof.
     destruct vs as [ | v [ | v' vs]]; try exact I.
     apply run_call_rel; [ exact Hreturn | exact Hraise | ].
     intros partial. exact (IHreturn [partial]).
+  - simpl. destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ exact (IHreturn_at vs) | exact I ].
 Qed.
 
 Lemma call_function_rel (callee : value) (call_kind : call_kind)

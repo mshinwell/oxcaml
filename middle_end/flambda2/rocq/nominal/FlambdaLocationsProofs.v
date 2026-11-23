@@ -505,7 +505,8 @@ Lemma permute_cont_value_identity (c : cont_value) :
 Proof.
   induction c as [h vars conts recursive IH | k | c extra IH
                  | remaining remaining_arity return_arity return_to exn_to
-                     IHreturn IHexn]
+                     IHreturn IHexn
+                 | kinds return_to IHreturn_at]
     using cont_value_induction; simpl.
   - rewrite (act_identity _ _ env_laws).
     rewrite (map_slots_Forall_ext _ (fun c => c) conts IH), map_slots_id.
@@ -513,6 +514,7 @@ Proof.
   - reflexivity.
   - rewrite IH, (act_identity _ _ values_laws). reflexivity.
   - rewrite IHreturn, IHexn, (act_identity _ _ values_laws). reflexivity.
+  - rewrite IHreturn_at. reflexivity.
 Qed.
 
 Lemma permute_cont_value_compose (second first : permutation)
@@ -522,7 +524,8 @@ Lemma permute_cont_value_compose (second first : permutation)
 Proof.
   induction c as [h vars conts recursive IH | k | c extra IH
                  | remaining remaining_arity return_arity return_to exn_to
-                     IHreturn IHexn]
+                     IHreturn IHexn
+                 | kinds return_to IHreturn_at]
     using cont_value_induction; simpl.
   - rewrite (act_compose _ _ env_laws), map_slots_map_slots.
     rewrite (map_slots_Forall_ext _
@@ -533,6 +536,7 @@ Proof.
   - reflexivity.
   - rewrite IH, (act_compose _ _ values_laws). reflexivity.
   - rewrite IHreturn, IHexn, (act_compose _ _ values_laws). reflexivity.
+  - rewrite IHreturn_at. reflexivity.
 Qed.
 
 Lemma locations_of_permute_cont_value (p : permutation) (c : cont_value) :
@@ -541,7 +545,8 @@ Lemma locations_of_permute_cont_value (p : permutation) (c : cont_value) :
 Proof.
   induction c as [h vars conts recursive IH | k | c extra IH
                  | remaining remaining_arity return_arity return_to exn_to
-                     IHreturn IHexn]
+                     IHreturn IHexn
+                 | kinds return_to IHreturn_at]
     using cont_value_induction; simpl.
   - etransitivity; [ | symmetry; apply map_app ]. f_equal.
     + apply (act_names _ _ env_laws).
@@ -554,6 +559,7 @@ Proof.
   - etransitivity; [ | symmetry; apply map_app ]. f_equal.
     + apply (act_names _ _ values_laws).
     + etransitivity; [ | symmetry; apply map_app ]. f_equal; assumption.
+  - exact IHreturn_at.
 Qed.
 
 Lemma permute_cont_value_ext (p p' : permutation) (c : cont_value) :
@@ -563,7 +569,8 @@ Lemma permute_cont_value_ext (p p' : permutation) (c : cont_value) :
 Proof.
   induction c as [h vars conts recursive IH | k | c extra IH
                  | remaining remaining_arity return_arity return_to exn_to
-                     IHreturn IHexn]
+                     IHreturn IHexn
+                 | kinds return_to IHreturn_at]
     using cont_value_induction; simpl; intros Hagree.
   - rewrite (act_ext _ _ env_laws p p' vars).
     + rewrite (map_slots_agree _ _ locations_of_cont_value _ conts IH);
@@ -578,6 +585,7 @@ Proof.
     + left. exact Hl.
     + right. apply in_or_app. right. exact Hl.
     + right. apply in_or_app. left. exact Hl.
+  - rewrite IHreturn_at; [ reflexivity | exact Hagree ].
 Qed.
 
 Lemma cont_value_laws :
@@ -698,7 +706,8 @@ Lemma rename_permute_cont_value (r : renaming) (p : permutation)
 Proof.
   induction c as [h vars conts recursive IH | k | c extra IH
                  | remaining remaining_arity return_arity return_to exn_to
-                     IHreturn IHexn]
+                     IHreturn IHexn
+                 | kinds return_to IHreturn_at]
     using cont_value_induction; simpl.
   - rewrite rename_permute_env. f_equal. rewrite !map_map.
     induction IH as [ | [k c] conts Hc _ IHconts]; simpl; [ reflexivity | ].
@@ -706,6 +715,7 @@ Proof.
   - reflexivity.
   - rewrite IH. reflexivity.
   - rewrite IHreturn, IHexn. reflexivity.
+  - rewrite IHreturn_at. reflexivity.
 Qed.
 
 Theorem rename_permute_state : rename_permute_state_statement.

@@ -218,6 +218,8 @@ Fixpoint permute_cont_value (p : permutation) (c : cont_value) : cont_value :=
     Over_application (map (permute_value p) remaining) remaining_arity
       return_arity (permute_cont_value p return_to)
       (permute_cont_value p exn_to)
+  | Return_at kinds return_to =>
+    Return_at kinds (permute_cont_value p return_to)
   end.
 
 Definition permute_cont_env (p : permutation) (conts : cont_env) : cont_env :=
@@ -287,6 +289,7 @@ Fixpoint locations_of_cont_value (c : cont_value) : list location :=
   | Over_application remaining _ _ return_to exn_to =>
     flat_map locations_of_value remaining
     ++ locations_of_cont_value return_to ++ locations_of_cont_value exn_to
+  | Return_at _ return_to => locations_of_cont_value return_to
   end.
 
 Definition locations_of_cont_env (conts : cont_env) : list location :=

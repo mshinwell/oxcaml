@@ -113,8 +113,10 @@ Definition handlers_related (vars : env)
     handlers handlers'.
 
 (* Closures with related handlers and, in turn, related environments;
-   and what is left of the same over-application, with related
-   continuations. (The warning silenced is about induction schemes,
+   what is left of the same over-application, with related
+   continuations; and what the return continuation of code stands
+   for, at the same kinds, with related continuations. (The warning
+   silenced is about induction schemes,
    which nothing uses.) *)
 #[local] Set Warnings "-register-all".
 Inductive closure_related : cont_value -> cont_value -> Prop :=
@@ -141,7 +143,11 @@ Inductive closure_related : cont_value -> cont_value -> Prop :=
       (Over_application remaining remaining_arity return_arity return_to
          exn_to)
       (Over_application remaining remaining_arity return_arity return_to'
-         exn_to').
+         exn_to')
+  | Return_at_related (kinds : list flambda_kind)
+      (return_to return_to' : cont_value) :
+    closure_related return_to return_to' ->
+    closure_related (Return_at kinds return_to) (Return_at kinds return_to').
 
 Definition cont_env_related (conts conts' : cont_env) : Prop :=
   Forall2
@@ -179,18 +185,22 @@ Lemma closure_related_inv (c c' : cont_value) :
     remaining = remaining' ∧ remaining_arity = remaining_arity'
     ∧ return_arity = return_arity' ∧ closure_related return_to return_to'
     ∧ closure_related exn_to exn_to'
+  | Return_at kinds return_to, Return_at kinds' return_to' =>
+    kinds = kinds' ∧ closure_related return_to return_to'
   | _, _ => False
   end.
 Proof.
   intros Hrel. inversion Hrel; subst.
   - auto.
   - auto.
-  - destruct c' as [h vars conts recursive | k | c extra | ];
-      [ | reflexivity | split; [ reflexivity | apply Closure_same ] | ].
+  - destruct c' as [h vars conts recursive | k | c extra | | ];
+      [ | reflexivity | split; [ reflexivity | apply Closure_same ] | | ].
     + split; [ reflexivity | ]. split; [ apply Handler_same | ].
       split; [ apply cont_env_related_refl | apply handlers_related_refl ].
     + repeat split; apply Closure_same.
+    + split; [ reflexivity | apply Closure_same ].
   - auto 6.
+  - auto.
 Qed.
 
 Lemma with_extra_args_related (c c' : cont_value) (extra : list value) :
@@ -711,9 +721,12 @@ Proof.
     rewrite Hsource in Hended. rewrite Htarget in Hinv |- *.
     simpl in Hended, Hinv |- *.
     assert (Hconts :
-      cont_env_related [(ret, return_to); (exn, exn_to)]
-        [(ret, return_to'); (exn, exn_to')]).
-    { apply Forall2_cons; [ split; [ reflexivity | exact Hreturn ] | ].
+      cont_env_related
+        [(ret, Return_at (unarize return_arity) return_to); (exn, exn_to)]
+        [(ret, Return_at (unarize return_arity) return_to');
+         (exn, exn_to')]).
+    { apply Forall2_cons;
+        [ split; [ reflexivity | apply Return_at_related, Hreturn ] | ].
       apply Forall2_cons; [ split; [ reflexivity | exact Hexn ] | ].
       apply Forall2_nil. }
     destruct Hbody as [Hbody | <-];
@@ -815,12 +828,14 @@ Proof.
   induction c
     as [[params metadata body] def_vars def_conts recursive | exit
        | c IHc extra
-       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _
+       | kinds return_to IHreturn_at]
     using cont_value_over_ind;
     intros c' vs statics statics' hp rd b Hc Hstatics Hinv Hended;
     apply closure_related_inv in Hc.
   - destruct c'
-      as [[params' metadata' body'] def_vars' def_conts' recursive' | | | ];
+      as [[params' metadata' body'] def_vars' def_conts' recursive' | | |
+         | ];
       try contradiction.
     destruct Hc as (<- & Hh & Hconts & Hrec).
     apply handler_related_inv in Hh as (<- & <- & Hbody).
@@ -859,15 +874,15 @@ Proof.
       (carried_related _ _ _ _ _ _ _ _ _ _ _ _ Hbody Hfirst Hkinds_eq
          Hsubkinds' Hbind
          (IH _ _ _ _ _ _ _ _ _ Hconts' Hstatics Hfirst Hended)).
-  - destruct c' as [ | exit' | | ]; try contradiction. subst exit'.
+  - destruct c' as [ | exit' | | | ]; try contradiction. subst exit'.
     exact (ended_exit exit vs _ rd_ b Hended).
-  - destruct c' as [ | | c' extra' | ]; try contradiction.
+  - destruct c' as [ | | c' extra' | | ]; try contradiction.
     destruct Hc as [<- Hc].
     exact
       (IHc c' (vs ++ extra) statics statics' hp rd_ b Hc Hstatics Hinv Hended).
   - destruct c'
       as [ | |
-         | remaining' remaining_arity' return_arity' return_to' exn_to'];
+         | remaining' remaining_arity' return_arity' return_to' exn_to' | ];
       try contradiction.
     destruct Hc as (<- & <- & <- & Hreturn & Hexn).
     rewrite apply_cont_value_over_application in Hended, Hinv |- *.
@@ -886,6 +901,14 @@ Proof.
     + intros partial Hinv' Hpartial.
       exact (IHreturn return_to' [partial] statics statics' hp rd_ b Hreturn
                Hstatics Hinv' Hpartial).
+  - destruct c' as [ | | | | kinds' return_to']; try contradiction.
+    destruct Hc as [<- Hc].
+    simpl in Hended, Hinv |- *.
+    destruct (kinds_eqb (map kind_of_value vs) kinds);
+      simpl in Hended, Hinv |- *; [ | exact (ended_undefined b Hended) ].
+    exact
+      (IHreturn_at return_to' vs statics statics' hp rd_ b Hc Hstatics Hinv
+         Hended).
 Qed.
 
 (* The same call under related static environments, returning to related

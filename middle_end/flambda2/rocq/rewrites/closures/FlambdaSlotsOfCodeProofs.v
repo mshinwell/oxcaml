@@ -66,6 +66,10 @@ Hypothesis Kc_over :
          exn_to)
     <-> Kc return_to ∧ Kc exn_to.
 
+Hypothesis Kc_return :
+  ∀ (kinds : list flambda_kind) (return_to : cont_value),
+    Kc (Return_at kinds return_to) <-> Kc return_to.
+
 Hypothesis Q_code :
   ∀ (called : code_id) (c : code) (callee_vars : env)
     (return_to exn_to : cont_value),
@@ -102,7 +106,8 @@ Lemma call_code_lands_bound (closure : value) (called : code_id) (c : code)
 Proof.
   intros Hcode Hreturn Hexn Hstep.
   apply call_code_step in Hstep as (callee_vars & _ & _ & _ & _ & _ & ->).
-  exact (Q_code called c callee_vars return_to exn_to Hcode Hreturn Hexn).
+  apply (Q_code called c callee_vars _ exn_to Hcode); [ | exact Hexn ].
+  apply Kc_return, Hreturn.
 Qed.
 
 Lemma run_call_lands_bound (return_partial : value -> step_result)
@@ -138,7 +143,8 @@ Proof.
   induction c
     as [[params metadata handler] def_vars def_conts recursive | k
        | c IH extra
-       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _
+       | kinds return_to IHreturn_at]
     using cont_value_over_ind;
     intros vs s' Hc Hstep.
   - simpl in Hstep.
@@ -161,6 +167,9 @@ Proof.
              (shape_of_call_calls _ _ _ _ _ _) Hreturn Hexn)
       in Hstep; [ exact Hstep | ].
     intros partial. exact (IHreturn [partial] s' Hreturn).
+  - simpl in Hstep.
+    destruct (kinds_eqb (map kind_of_value vs) kinds); [ | discriminate ].
+    exact (IHreturn_at _ s' (proj1 (Kc_return kinds return_to) Hc) Hstep).
 Qed.
 
 Lemma call_function_lands_bound (callee : value) (kind : call_kind)
@@ -984,6 +993,7 @@ Proof.
     refine
       (call_function_lands_bound statics _ rd_ (cont_slots_give c f slot d)
          terms_give (fun cv extra H => H) terms_give_over
+         (fun kinds return_to => iff_refl _)
          (terms_give_code statics _ rd_ S)
          (terms_give_handler statics _ rd_ S) _ _ _ _ _ _ _ s'
          (resolve_slots_give _ conts C) _ Hstep).
@@ -994,7 +1004,8 @@ Proof.
     exact
       (apply_cont_value_lands_bound statics _ rd_
          (cont_slots_give c f slot d) terms_give (fun cv extra H => H)
-         terms_give_over (terms_give_code statics _ rd_ S)
+         terms_give_over
+         (fun kinds return_to => iff_refl _) (terms_give_code statics _ rd_ S)
          (terms_give_handler statics _ rd_ S) _ vs s'
          (resolve_slots_give _ conts C) Hstep).
   - (* Switch *)

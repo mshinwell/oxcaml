@@ -129,7 +129,9 @@ Inductive cont_ok : cont_value -> Prop :=
     cont_ok exn_to ->
     cont_ok
       (Over_application remaining remaining_arity return_arity return_to
-         exn_to).
+         exn_to)
+  | Return_at_ok (kinds : list flambda_kind) (return_to : cont_value) :
+    cont_ok return_to -> cont_ok (Return_at kinds return_to).
 
 Definition conts_ok (conts : cont_env) : Prop :=
   Forall (fun kc => cont_ok (snd kc)) conts.
@@ -581,7 +583,7 @@ Proof.
              [(code_my_closure c, closure)] bound);
       [ exact Hvs | | exact Hbind ].
     apply env_free_cons; [ exact Hclosure | intros y w [=] ].
-  - constructor; [ exact Hreturn | ].
+  - constructor; [ apply Return_at_ok, Hreturn | ].
     constructor; [ exact Hexn | constructor ].
 Qed.
 
@@ -638,7 +640,8 @@ Proof.
              Hdconts Hrecursive
        | c extra Hc IH Hextra
        | remaining remaining_arity return_arity return_to exn_to Hremaining
-           Hreturn IHreturn Hexn _ ];
+           Hreturn IHreturn Hexn _
+       | kinds return_to _ IHreturn_at];
     intros vs statics hp rd st Hvs Hstatics.
   - discriminate.
   - simpl.
@@ -665,6 +668,8 @@ Proof.
         | apply forallb_Forall; exact Hremaining ].
     + intros partial Hpartial. apply IHreturn; [ | exact Hstatics ].
       simpl. rewrite Hpartial. reflexivity.
+  - simpl. destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ apply IHreturn_at; assumption | discriminate ].
 Qed.
 
 (* A step keeps the invariant. *)

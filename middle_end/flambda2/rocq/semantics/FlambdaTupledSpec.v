@@ -80,9 +80,10 @@
      each by the projection that Simplify makes
      ([inline_tupled_statement]), and the two are equivalent where the
      callee is a closure of that code, the call returns at the result
-     arity of the code, the value of the tuple is no location and the
-     code states nothing of its parameters beyond their kinds
-     ([inline_tupled_equivalent_statement]).
+     arity of the code, the value of the tuple is no location, the
+     code states nothing of its parameters beyond their kinds, and
+     what its body gives to its return continuation is of the kinds
+     of its result arity ([inline_tupled_equivalent_statement]).
      FlambdaApplySpec.inlinable excludes tupled code, as its bindings
      are of the parameters to the arguments; these are the bindings for
      tupled code. The validation inlines such a call
@@ -449,7 +450,12 @@ Definition inline_tupled_statement : Prop :=
    nothing of the tuple: an undefined call is refined by anything.
    The code must state nothing of its parameters beyond their kinds:
    the call tests the fields of the tuple against what it states, and
-   the projections of the inlined body test their kinds only. *)
+   the projections of the inlined body test their kinds only. And the
+   code must pass the test of what it returns
+   (FlambdaWellKindedSpec.code_returns_at_kinds): the call tests the
+   values that the code returns against its return arity
+   (FlambdaSemanticsSpec.call_code; decision D81), and the inlined
+   body gives them to the continuation of the call as they are. *)
 Definition inline_tupled_equivalent_statement : Prop :=
   ∀ (ap : apply_expr) (called : code_id) (c : code) (r : renaming)
     (tuple : simple) (callee : value) (slots : list (value_slot * value))
@@ -463,5 +469,6 @@ Definition inline_tupled_equivalent_statement : Prop :=
     ap_return_arity ap = code_result_arity c ->
     (∀ l : location, eval_simple vars tuple <> Some (Value_location l)) ->
     subkinds_say_nothing (code_params_subkinds c) = true ->
+    code_returns_at_kinds c = true ->
     equivalent (State (Apply ap) vars conts statics hp rd)
       (State (inlined_tupled_body c r ap tuple) vars conts statics hp rd).

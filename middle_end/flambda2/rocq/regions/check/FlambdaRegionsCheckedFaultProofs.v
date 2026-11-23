@@ -70,7 +70,8 @@ Proof.
   unfold region_apply_cont. cbv zeta.
   destruct (resolve (ac_continuation ac) (state_conts (rs_state rs)))
     as [[params metadata handler] def_vars def_conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     try exact (plain_step_fault rs fault).
   destruct (eval_simples (state_vars (rs_state rs)) (ac_args ac)) as [vs | ];
     [ | intros [= <-]; reflexivity ].

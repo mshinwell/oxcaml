@@ -82,7 +82,9 @@ Inductive cont_free : cont_value -> Prop :=
     cont_free exn_to ->
     cont_free
       (Over_application remaining remaining_arity return_arity return_to
-         exn_to).
+         exn_to)
+  | Return_at_free (kinds : list flambda_kind) (return_to : cont_value) :
+    cont_free return_to -> cont_free (Return_at kinds return_to).
 
 Definition conts_free (conts : cont_env) : Prop :=
   Forall (fun kc => cont_free (snd kc)) conts.
@@ -179,7 +181,7 @@ Proof.
   apply call_code_step in Hstep as (bound & _ & _ & _ & _ & _ & ->).
   split; [ | split; [ | exact Hstatics ] ]; simpl.
   - pose proof (Hstatics called c Hcode) as Hc. destruct c. exact Hc.
-  - constructor; [ exact Hreturn | ].
+  - constructor; [ apply Return_at_free, Hreturn | ].
     constructor; [ exact Hexn | constructor ].
 Qed.
 
@@ -225,7 +227,8 @@ Proof.
              Hrecursive
        | c extra Hc IH
        | remaining remaining_arity return_arity return_to exn_to Hreturn
-           IHreturn Hexn _ ];
+           IHreturn Hexn _
+       | kinds return_to _ IHreturn_at];
     intros vs statics hp rd st Hstatics.
   - discriminate.
   - simpl.
@@ -245,6 +248,8 @@ Proof.
              Hstatics (shape_of_call_calls _ _ _ _ _ _));
       [ exact Hreturn | exact Hexn | ].
     intros partial. apply IHreturn. exact Hstatics.
+  - simpl. destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ apply IHreturn_at; exact Hstatics | discriminate ].
 Qed.
 
 Lemma free_step_components (e : expr) (vars : env) (conts : cont_env)

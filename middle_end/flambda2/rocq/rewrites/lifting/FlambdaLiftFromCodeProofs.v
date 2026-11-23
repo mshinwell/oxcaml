@@ -1182,8 +1182,9 @@ Qed.
 (* A continuation of the first run and one of the second: the same way
    out, or closures of a handler and of that handler rewritten, with
    lifted environments, the symbols of the [Let]s lifted out of the
-   handler being bound; or what is left of the same over-application.
-   The handlers of the recursive group of a closure bind nothing
+   handler being bound; or what is left of the same over-application;
+   or what the return continuation of code stands for, at the same
+   kinds. The handlers of the recursive group of a closure bind nothing
    statically; those of the second are those of the first rewritten,
    each at its path, and the symbols of the [Let]s lifted out of them
    are bound. *)
@@ -1222,7 +1223,12 @@ Inductive cont_lifted_out (statics' : static_env)
       (Over_application remaining remaining_arity return_arity return_to
          exn_to)
       (Over_application remaining' remaining_arity return_arity return_to'
-         exn_to').
+         exn_to')
+  | Return_at_lifted_out (kinds : list flambda_kind)
+      (return_to return_to' : cont_value) :
+    cont_lifted_out statics' return_to return_to' ->
+    cont_lifted_out statics' (Return_at kinds return_to)
+      (Return_at kinds return_to').
 
 Definition conts_lifted_out (statics' : static_env)
     (conts conts' : cont_env) : Prop :=
@@ -1240,7 +1246,8 @@ Lemma observer_lifted_out (statics' : static_env) (slots : list value_slot)
 Proof.
   destruct c
     as [ [params metadata body] vars conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to ];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     simpl; try contradiction.
   - destruct vars; [ | contradiction ].
     destruct conts; [ | contradiction ].
@@ -1289,7 +1296,8 @@ Proof.
            Hconts Hbound Hgroup Hrecursive
        | c0 c0' extra extra' Hc0 Hextra
        | remaining remaining' remaining_arity return_arity return_to
-           return_to' exn_to exn_to' Hremaining Hreturn Hexn ].
+           return_to' exn_to exn_to' Hremaining Hreturn Hexn
+       | kinds return_to return_to' Hreturn ].
   - apply Outer_lifted_out.
   - apply Closure_lifted_out;
       [ exact (env_lifted_extend _ _ _ _ Hextend Hvars) |
@@ -1309,6 +1317,8 @@ Proof.
       [ exact (values_lifted_extend _ _ _ _ Hextend Hremaining)
       | exact (cont_lifted_out_extend _ _ Hextend _ _ Hreturn)
       | exact (cont_lifted_out_extend _ _ Hextend _ _ Hexn) ].
+  - apply Return_at_lifted_out.
+    exact (cont_lifted_out_extend _ _ Hextend _ _ Hreturn).
 Qed.
 
 Lemma with_extra_args_lifted_out (statics' : static_env)
@@ -1638,7 +1648,8 @@ Proof.
   rewrite Hbind'. eexists. split; [ reflexivity | ].
   apply State_lifted_out;
     [ exact Hbound_vars | | exact Hstatics | exact Hbound | exact Hheap ].
-  constructor; [ split; [ reflexivity | exact Hreturn ] | ].
+  constructor;
+    [ split; [ reflexivity | apply Return_at_lifted_out, Hreturn ] | ].
   constructor; [ split; [ reflexivity | exact Hexn ] | ].
   constructor.
 Qed.
@@ -1734,7 +1745,8 @@ Proof.
            group_lets q recursive Hvars Hconts Hbound Hgroup Hrecursive
        | c c' extra extra' Hc IH Hextra
        | remaining remaining' remaining_arity return_arity return_to
-           return_to' exn_to exn_to' Hremaining Hreturn IHreturn Hexn _ ];
+           return_to' exn_to exn_to' Hremaining Hreturn IHreturn Hexn _
+       | kinds return_to return_to' _ IHreturn_at ];
     intros vs vs' statics hp hp' rd rd' Hvs Hstatics Hheap.
   - simpl. exists vs', hp', rd'.
     split; [ reflexivity | split; [ exact Hvs | exact Hheap ] ].
@@ -1765,6 +1777,9 @@ Proof.
     apply IHreturn;
       [ constructor; [ exact Hpartial | constructor ] | exact Hstatics
       | exact Hheap ].
+  - simpl. rewrite (kinds_of_values_lifted statics' vs vs' Hvs).
+    destruct (kinds_eqb (map kind_of_value vs) kinds); [ | exact I ].
+    exact (IHreturn_at vs vs' statics hp hp' rd rd' Hvs Hstatics Hheap).
 Qed.
 
 (* A call. *)

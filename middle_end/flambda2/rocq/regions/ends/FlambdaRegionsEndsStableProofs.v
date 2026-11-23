@@ -138,6 +138,8 @@ Proof.
   - intros a remaining remaining_arity return_arity return_to exn_to
       Hret IHret Hraise IHraise Hkept.
     apply Ends_ret_over; [ exact (IHret Hkept) | exact (IHraise Hkept) ].
+  - intros a kinds return_to Hret IH Hkept.
+    apply Ends_ret_at. exact (IH Hkept).
   - intros a k simples extra c Heval Hraise Hsome IH Hkept.
     apply (Ends_raise_to cert opts ret bottom rs' a k simples extra c Heval
              Hraise).

@@ -200,9 +200,11 @@ Fixpoint rename_cont_value_id (c : cont_value) :
 Proof.
   destruct c
     as [h vars conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     simpl;
-    [ | reflexivity | rewrite (rename_cont_value_id c); reflexivity | ].
+    [ | reflexivity | rewrite (rename_cont_value_id c); reflexivity |
+    | rewrite (rename_cont_value_id return_to); reflexivity ].
   - rewrite rename_handler_id, rename_env_id, rename_handlers_id.
     f_equal.
     induction conts as [ | [k c] conts IH]; simpl; [ reflexivity | ].
@@ -258,10 +260,12 @@ Fixpoint rename_cont_value_ext (c : cont_value) :
 Proof.
   destruct c
     as [h vars conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     simpl;
     [ | rewrite same_continuations; reflexivity
-      | rewrite (rename_cont_value_ext c); reflexivity | ].
+      | rewrite (rename_cont_value_ext c); reflexivity |
+      | rewrite (rename_cont_value_ext return_to); reflexivity ].
   - rewrite
       (rename_handler_ext r r' same_variables same_continuations h),
       rename_env_ext, rename_handlers_ext.
@@ -331,10 +335,12 @@ Fixpoint rename_cont_value_compose (c : cont_value) :
 Proof.
   destruct c
     as [h vars conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     simpl;
     [ | rewrite rename_continuation_compose; reflexivity
-      | rewrite (rename_cont_value_compose c); reflexivity | ].
+      | rewrite (rename_cont_value_compose c); reflexivity |
+      | rewrite (rename_cont_value_compose return_to); reflexivity ].
   - rewrite rename_handler_compose, rename_env_compose,
       rename_handlers_compose.
     f_equal.
@@ -705,7 +711,8 @@ Proof.
   induction c
     as [[params metadata handler] def_vars def_conts recursive | k
        | c IH extra
-       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _
+       | kinds return_to IHreturn_at]
     using cont_value_over_ind;
     intros vs statics hp rd.
   - simpl.
@@ -727,6 +734,8 @@ Proof.
     cbn [rename_cont_value apply_cont_value].
     rewrite shape_of_call_equivariant.
     apply run_call_equivariant. intros partial. apply IHreturn.
+  - simpl. destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ apply IHreturn_at | reflexivity ].
 Qed.
 
 Lemma with_extra_args_equivariant (r : renaming) (c : cont_value)

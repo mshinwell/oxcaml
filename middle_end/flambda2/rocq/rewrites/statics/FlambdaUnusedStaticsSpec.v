@@ -305,6 +305,7 @@ Fixpoint cont_free_of (D : dropped) (c : cont_value) : bool :=
     forallb (value_avoids D) remaining
     && cont_free_of D return_to
     && cont_free_of D exn_to
+  | Return_at _ return_to => cont_free_of D return_to
   end.
 
 Definition allocated_free_of (D : dropped)

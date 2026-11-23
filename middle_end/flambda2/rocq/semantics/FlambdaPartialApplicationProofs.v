@@ -427,7 +427,9 @@ End Late.
    that the term has for it: the handler takes the value returned as its
    one parameter and calls it with the arguments that remain, which its
    environment gives. Continuations are related that are the same but
-   for that, inside one another. (The warning silenced is about
+   for that, inside one another: so what the return continuation of
+   code stands for is related to the same, at the same kinds, of a
+   related continuation. (The warning silenced is about
    induction schemes, which nothing uses.) *)
 #[local] Set Warnings "-register-all".
 Inductive cont_split : cont_value -> cont_value -> Prop :=
@@ -469,7 +471,11 @@ Inductive cont_split : cont_value -> cont_value -> Prop :=
             (Apply
                (Apply_expr (Var p) Indirect_unknown_arity args k exn extra
                   remaining_arity return_arity)))
-         vars conts []).
+         vars conts [])
+  | Split_return_at (kinds : list flambda_kind)
+      (return_to return_to' : cont_value) :
+    cont_split return_to return_to' ->
+    cont_split (Return_at kinds return_to) (Return_at kinds return_to').
 
 Definition conts_split (conts conts' : cont_env) : Prop :=
   Forall2 (fun kc kc' => fst kc = fst kc' ∧ cont_split (snd kc) (snd kc'))
@@ -520,20 +526,25 @@ Lemma cont_split_inv (c c' : cont_value) :
         ∧ ~ var_free_in_simples p (map fst extra)
         ∧ cont_split return_to (resolve k conts)
         ∧ cont_split exn_to (with_extra_args (resolve exn conts) extra_vs)
+  | Return_at kinds return_to =>
+    ∃ return_to' : cont_value,
+      c' = Return_at kinds return_to' ∧ cont_split return_to return_to'
   end.
 Proof.
   intros Hrel. inversion Hrel; subst.
-  - destruct c' as [h vars conts recursive | k | c0 extra | ].
+  - destruct c' as [h vars conts recursive | k | c0 extra | | kinds return_to].
     + exists conts. split; [ reflexivity | apply conts_split_refl ].
     + reflexivity.
     + exists c0. split; [ reflexivity | apply Split_same ].
     + left. eexists _, _. split; [ reflexivity | ].
       split; apply Split_same.
+    + exists return_to. split; [ reflexivity | apply Split_same ].
   - eexists. split; [ reflexivity | assumption ].
   - eexists. split; [ reflexivity | assumption ].
   - left. eexists _, _. split; [ reflexivity | ]. split; assumption.
   - right. eexists _, _, _, _, _, _, _, _. split; [ reflexivity | ].
     repeat (split; [ eassumption | ]). assumption.
+  - eexists. split; [ reflexivity | assumption ].
 Qed.
 
 Lemma with_extra_args_split (c c' : cont_value) (extra : list value) :
@@ -614,7 +625,8 @@ Proof.
     [ | exact I ].
   eexists 0, _. split; [ reflexivity | ].
   apply States_split.
-  repeat (apply Forall2_cons || apply Forall2_nil); split; auto.
+  repeat (apply Forall2_cons || apply Forall2_nil); split; simpl;
+    auto using Split_return_at.
 Qed.
 
 Lemma run_call_split (return_partial return_partial' : value -> step_result)
@@ -667,7 +679,8 @@ Proof.
   induction c
     as [[params metadata body] def_vars def_conts recursive | exit
        | c IH extra
-       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _
+       | kinds return_to IHreturn_at]
     using cont_value_over_ind;
     intros c' vs statics hp rd Hc; apply cont_split_inv in Hc.
   - destruct Hc as (def_conts' & -> & Hconts). simpl.
@@ -711,6 +724,9 @@ Proof.
       unfold call_function.
       apply run_call_split; [ exact Hreturn | exact Hexn | ].
       intros partial. apply IHreturn, Hreturn.
+  - destruct Hc as (return_to' & -> & Hc). simpl.
+    destruct (kinds_eqb (map kind_of_value vs) kinds); [ | exact I ].
+    exact (IHreturn_at return_to' vs statics hp rd_ Hc).
 Qed.
 
 Lemma call_function_split (callee : value) (kind : call_kind)
@@ -821,7 +837,8 @@ Proof.
     [ | exact I ].
   eexists 0, _. split; [ reflexivity | ].
   apply States_split.
-  repeat (apply Forall2_cons || apply Forall2_nil); split; auto.
+  repeat (apply Forall2_cons || apply Forall2_nil); split; simpl;
+    auto using Split_return_at.
 Qed.
 
 Theorem over_application_split : over_application_split_statement.

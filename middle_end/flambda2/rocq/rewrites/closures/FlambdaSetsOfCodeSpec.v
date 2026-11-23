@@ -288,6 +288,7 @@ Fixpoint cont_sets_have (c : code_id) (f : function_slot) (fact : set_fact)
   | Extra_args k' _ => cont_sets_have c f fact k'
   | Over_application _ _ _ return_to exn_to =>
     cont_sets_have c f fact return_to ∧ cont_sets_have c f fact exn_to
+  | Return_at _ return_to => cont_sets_have c f fact return_to
   end.
 
 Definition conts_sets_have (c : code_id) (f : function_slot)

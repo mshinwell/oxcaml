@@ -395,6 +395,9 @@ Hypothesis K_over :
       (Over_application remaining remaining_arity return_arity return_to
          exn_to)
     <-> Forall P remaining ∧ K return_to ∧ K exn_to.
+Hypothesis K_return :
+  ∀ (kinds : list flambda_kind) (return_to : cont_value),
+    K (Return_at kinds return_to) <-> K return_to.
 Hypothesis Q_code :
   ∀ (closure : value) (c : code) (vs : list value) (callee_vars : env)
     (return_to exn_to : cont_value),
@@ -451,8 +454,8 @@ Proof.
   destruct (bind_params (code_params c) vs [(code_my_closure c, closure)])
     as [callee_vars | ] eqn:Hbind; [ | exact I ].
   exact
-    (Q_code closure c vs callee_vars return_to exn_to Hclosure Hvs Hreturn
-       Hexn Hbind).
+    (Q_code closure c vs callee_vars _ exn_to Hclosure Hvs
+       (proj2 (K_return _ return_to) Hreturn) Hexn Hbind).
 Qed.
 
 Lemma run_call_result (return_partial : value -> step_result)
@@ -491,7 +494,8 @@ Proof.
   induction c
     as [[params metadata handler] def_vars def_conts recursive | k
        | c IH extra
-       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _
+       | kinds return_to IHreturn_at]
     using cont_value_over_ind;
     intros vs Hc Hvs.
   - simpl.
@@ -515,6 +519,8 @@ Proof.
     + intros partial. apply shape_of_call_partial.
     + intros partial Hpartial. apply IHreturn; [ exact Hreturn | ].
       apply Forall_cons; [ exact Hpartial | apply Forall_nil ].
+  - simpl. destruct (kinds_eqb (map kind_of_value vs) kinds); [ | exact I ].
+    exact (IHreturn_at vs (proj1 (K_return kinds return_to) Hc) Hvs).
 Qed.
 
 Lemma call_function_result (callee : value) (kind : call_kind)
@@ -563,7 +569,8 @@ Lemma step_call_result (s : state) :
     eval_simple (state_vars s) sim = Some v ->
     Pe v) ->
   call_result (step s).
-Proof using K_extra K_over P_partial P_tuple Pe_P Pe_partial Q_code Q_handler.
+Proof using K_extra K_over K_return P_partial P_tuple Pe_P Pe_partial Q_code
+  Q_handler.
   destruct s as [e vars conts statics0 hp rd].
   cbn [state_expr state_vars state_conts state_statics state_heap
        state_reads].
@@ -796,7 +803,8 @@ Proof.
   induction c
     as [h vars conts recursive IH | k | c extra IH
        | remaining remaining_arity return_arity return_to exn_to IHreturn
-           IHexn]
+           IHexn
+       | kinds return_to IHreturn_at]
     using cont_value_deep_ind;
     simpl.
   - intros Hb Hn. apply andb_true_iff in Hb as [Hb _].
@@ -827,6 +835,7 @@ Proof.
     exact
       (value_no_mark_frames w (forallb_in _ _ w Hbr Hin)
          (forallb_in _ _ w Hnr Hin)).
+  - exact IHreturn_at.
 Qed.
 
 End No_mark_frames.
@@ -1316,6 +1325,7 @@ Proof.
     - intros callee args args_arity H. exact H.
     - exact (no_mark_extra _).
     - exact (no_mark_over _).
+    - intros kinds return_to. reflexivity.
     - exact (marks_code _).
     - intros params metadata handler def_vars def_conts recursive vs
         handler_vars Hc Hvs.
@@ -1366,7 +1376,8 @@ Proof.
   unfold region_places in Hfault. rewrite He in Hfault.
   destruct (resolve (ac_continuation ac) (state_conts (rs_state rs)))
     as [h vars conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     try exact Hfault.
   contradiction (Hnot h vars conts recursive eq_refl).
 Qed.
@@ -1388,7 +1399,8 @@ Proof.
   pose proof (resolve_no_mark (rs_frames rs) (ac_continuation ac) _ M2) as Hc.
   destruct (resolve (ac_continuation ac) (state_conts (rs_state rs)))
     as [[params metadata handler] def_vars def_conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to]
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to]
     eqn:Hresolve;
     try (apply (plain_step_marks rs Hfresh Hmarks);
          [ rewrite He; apply Husable; intros; discriminate
@@ -1708,7 +1720,8 @@ Proof.
   induction c
     as [h vars conts recursive IH | k | c extra IH
        | remaining remaining_arity return_arity return_to exn_to IHreturn
-           IHexn]
+           IHexn
+       | kinds return_to IHreturn_at]
     using cont_value_deep_ind;
     simpl.
   - intros Hb Ho. apply andb_true_iff in Hb as [Hb _].
@@ -1729,6 +1742,7 @@ Proof.
     apply andb_true_iff in Hb as [_ Hbt].
     apply andb_true_iff in Ho as [Hot Hoe].
     rewrite (IHreturn Hbt Hot), (IHexn Hbe Hoe). reflexivity.
+  - exact IHreturn_at.
 Qed.
 
 (* What a continuation has held is among what the continuations of its
@@ -1798,7 +1812,8 @@ Proof.
   induction c
     as [h vars conts recursive IH | k | c extra IH
        | remaining remaining_arity return_arity return_to exn_to IHreturn
-           IHexn]
+           IHexn
+       | kinds return_to IHreturn_at]
     using cont_value_deep_ind;
     simpl.
   - intros Hb. apply andb_true_iff in Hb as [Hb _].
@@ -1812,6 +1827,7 @@ Proof.
   - intros Hb. apply andb_true_iff in Hb as [Hb Hbe].
     apply andb_true_iff in Hb as [_ Hbt].
     rewrite forallb_app, (IHreturn Hbt), (IHexn Hbe). reflexivity.
+  - exact IHreturn_at.
 Qed.
 
 (* The value of a simple of the term is older than what is held, as the
@@ -1858,7 +1874,8 @@ Proof.
   induction c
     as [h vars conts recursive IH | k | c extra IH
        | remaining remaining_arity return_arity return_to exn_to IHreturn
-           IHexn]
+           IHexn
+       | kinds return_to IHreturn_at]
     using cont_value_deep_ind;
     cbn [cont_values_all cont_held].
   - intros [_ Hconts]. apply Forall_forall. intros v Hin.
@@ -1872,6 +1889,7 @@ Proof.
     split; [ exact Hextra | exact (IH Hc) ].
   - intros (_ & Hr & He). apply Forall_app.
     split; [ exact (IHreturn Hr) | exact (IHexn He) ].
+  - exact IHreturn_at.
 Qed.
 
 Lemma conts_held_all (P : value -> Prop) (conts : cont_env) :
@@ -1906,7 +1924,8 @@ Proof.
   induction c
     as [h vars conts recursive IH | k | c extra IH
        | remaining remaining_arity return_arity return_to exn_to IHreturn
-           IHexn]
+           IHexn
+       | kinds return_to IHreturn_at]
     using cont_value_deep_ind;
     cbn [cont_values_all cont_held_older].
   - intros [_ Hconts] Ho. apply andb_true_iff in Ho as [Hov Hoc].
@@ -1922,6 +1941,7 @@ Proof.
   - intros [_ Hc]. exact (IH Hc).
   - intros (_ & Hr & He) Ho. apply andb_true_iff in Ho as [Hor Hoe].
     rewrite (IHreturn Hr Hor), (IHexn He Hoe). reflexivity.
+  - exact IHreturn_at.
 Qed.
 
 (* A value all of whose locations the heap binds is not a location
@@ -2137,6 +2157,7 @@ Proof.
     - intros callee args args_arity H. exact (conj H eq_refl).
     - exact (calls_extra rs).
     - exact (calls_over rs).
+    - intros kinds return_to. reflexivity.
     - exact (calls_code rs).
     - intros params metadata handler def_vars def_conts recursive vs
         handler_vars Hc Hvs.
@@ -2197,7 +2218,8 @@ Proof.
     as Hheld.
   destruct (resolve (ac_continuation ac) (state_conts (rs_state rs)))
     as [[params metadata handler] def_vars def_conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     try (apply (plain_step_calls rs Hfresh Hmarks Hcalls);
          [ rewrite He; apply Husable; intros; discriminate
          | intros x kind d body v hp' rd' Hlet; rewrite He in Hlet;

@@ -326,7 +326,8 @@ Proof.
        | c0 c0' extra extra' Htakes Hc0 Hextra
        | remaining remaining' remaining_arity return_arity return_to
            return_to' exn_to exn_to' Hremaining Hreturn_takes Hexn_takes
-           Hreturn Hexn ].
+           Hreturn Hexn
+       | kinds return_to return_to' Hreturn_takes Hreturn ].
   - apply Erased_outer.
   - simpl in Hall. destruct Hall as [Hall_vars Hall_conts].
     apply Erased_handler;
@@ -350,6 +351,9 @@ Proof.
       | exact Hreturn_takes | exact Hexn_takes
       | exact (cont_erased_transfer _ _ Hreturn Hall_return)
       | exact (cont_erased_transfer _ _ Hexn Hall_exn) ].
+  - simpl in Hall.
+    apply Erased_return_at;
+      [ exact Hreturn_takes | exact (cont_erased_transfer _ _ Hreturn Hall) ].
 Qed.
 
 Lemma conts_erased_transfer (conts conts' : cont_env) :
@@ -2088,7 +2092,8 @@ Proof.
   unfold region_apply_cont.
   destruct (resolve (ac_continuation ac) (state_conts (rs_state rs)))
     as [ h def_vars def_conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to ]
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to]
     eqn:Hresolve;
     try (exfalso;
          pose proof (simples_fault_mark_place rs _ [] Hfault Hmark) as H;
@@ -2128,6 +2133,7 @@ Proof.
     as [
        | rconts0 h1 vars1 vars1' conts1 conts1' recursive1 Hh Hrecursive
            Hagree0 Hvars0 Hconts0
+       |
        |
        | ].
   subst h1 vars1 conts1 recursive1.

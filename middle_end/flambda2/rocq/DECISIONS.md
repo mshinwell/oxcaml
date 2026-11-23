@@ -43,7 +43,8 @@ a `CR` at the place in the `Spec` file.
   overnight, for the review of the human, with a review comment before
   `step` that gives the other reading. Not tested: the field of a
   static block or a value slot where it is stored, a value given to a
-  way out of the term, a value that a call returns. Open in that part.
+  way out of the term. Open in that part. What code returns to a call
+  is tested since: D81.
 - **D11.** The validator does not run the check of kinds; the test tool
   prints the check's answer and goes on. Decided.
 - **D12.** A static check of kinds may refuse only what the compiler
@@ -777,6 +778,29 @@ a `CR` at the place in the `Spec` file.
   provisionally.
 - **D75.** A verdict may rest on what the `.cmx` files of other units
   say, which is trusted. Ruled (18 November 2026), for now.
+- **D81.** What code returns is of the kinds of the return arity of
+  the call that runs it. Ruled by the human on 23 November 2026: a
+  return of another number of values, or of a value of another kind,
+  is undefined. The test is made where the code returns and not where
+  it is called, and adds no step:
+  `FlambdaSemanticsSpec.call_code` binds the return continuation of
+  the code to a `Return_at` of those kinds, unarized, and of the
+  continuation that the call returns to, and `apply_cont_value`
+  applies that continuation only to values of those kinds. A call
+  that the code makes in tail position keeps the test of the code
+  under its own. The inlining of a call of known code is a refinement
+  as before (`FlambdaWellKindedSpec.return_at_refines_statement`); it
+  is an equivalence where the code passes a test of its body
+  (`FlambdaWellKindedSpec.code_returns_at_kinds`, sound by
+  `code_returns_at_kinds_equivalent_statement`), which the validation
+  now asks before it inlines a call in the term after
+  (`FlambdaNormaliseSpec.inline_known_apply`) and which
+  `FlambdaTupledSpec.inline_tupled_equivalent_statement` takes as a
+  premise. Not tested: what the code states of its results beyond
+  their kinds, and the extra arguments of the exception continuation
+  of a call against the kinds that the call gives them. Both are asked
+  of the human, each with a review comment in
+  `FlambdaSemanticsSpec.v`.
 
 ## Discrepancies with the compiler
 

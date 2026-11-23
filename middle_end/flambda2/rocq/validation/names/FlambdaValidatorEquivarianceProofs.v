@@ -912,9 +912,11 @@ Fixpoint cont_free_of_renamed (D : dropped) (r : renaming) (c : cont_value) :
 Proof.
   destruct c
     as [h vars conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     simpl;
-    [ | reflexivity | rewrite (cont_free_of_renamed D r c); reflexivity | ].
+    [ | reflexivity | rewrite (cont_free_of_renamed D r c); reflexivity |
+    | exact (cont_free_of_renamed D r return_to) ].
   - rewrite handler_free_of_renamed, env_free_of_renamed,
       handlers_free_of_renamed.
     do 2 f_equal.

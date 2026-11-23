@@ -781,7 +781,11 @@ Definition reads_unbound_tuple (statics : static_env) (callee : value)
 
 (* The value that the application of a continuation calls, and the
    arguments that it calls it with: the one value given to what is left
-   of an over-application, and the arguments that remain. *)
+   of an over-application, and the arguments that remain. What the
+   return continuation of code stands for calls what the continuation
+   that the call returns to calls, where the values are of the kinds
+   that it keeps, and nothing where they are not, as the machine has no
+   step there (FlambdaSemanticsSpec.apply_cont_value). *)
 Fixpoint called_by_cont (c : cont_value) (vs : list value)
     : option (value * list value) :=
   match c with
@@ -791,6 +795,10 @@ Fixpoint called_by_cont (c : cont_value) (vs : list value)
     | _ => None
     end
   | Extra_args c extra => called_by_cont c (vs ++ extra)
+  | Return_at kinds return_to =>
+    if kinds_eqb (map kind_of_value vs) kinds
+    then called_by_cont return_to vs
+    else None
   | Outer _ | Closure _ _ _ _ => None
   end.
 

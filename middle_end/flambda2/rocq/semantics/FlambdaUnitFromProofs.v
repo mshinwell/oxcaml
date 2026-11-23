@@ -158,7 +158,8 @@ Lemma observer_ok (names_of : static_binding -> list positive)
 Proof.
   destruct c
     as [ [params metadata body] vars conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to ];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     simpl; try contradiction.
   - destruct vars; [ | contradiction ].
     destruct conts; [ | contradiction ].
@@ -201,7 +202,8 @@ Lemma observer_applied_step (slots : list value_slot) (c : cont_value)
 Proof.
   destruct c
     as [ [params metadata body] vars conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to ];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     simpl; try contradiction.
   - destruct vars; [ | contradiction ].
     destruct conts; [ | contradiction ].
@@ -229,7 +231,8 @@ Proof.
   revert Hc.
   destruct c
     as [ [params metadata body] vars kept recursive | k0 | c0 extra
-       | remaining remaining_arity return_arity return_to exn_to ];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     simpl; try contradiction; [ | intros _; exact I ].
   destruct vars; [ | contradiction ].
   destruct kept; [ | contradiction ].

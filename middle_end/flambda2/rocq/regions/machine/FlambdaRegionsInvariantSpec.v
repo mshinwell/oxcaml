@@ -280,6 +280,7 @@ Fixpoint cont_kept (ok : symbol -> bool) (c : cont_value) : bool :=
     forallb (value_kept ok) remaining
     && cont_kept ok return_to
     && cont_kept ok exn_to
+  | Return_at _ return_to => cont_kept ok return_to
   end.
 
 (* ======================================================================== *)
@@ -304,6 +305,7 @@ Fixpoint cont_below (base next : symbol) (c : cont_value) : bool :=
     forallb (value_below next) remaining
     && cont_below base next return_to
     && cont_below base next exn_to
+  | Return_at _ return_to => cont_below base next return_to
   end.
 
 (* A symbol that the machine drew: at or above [base], below [next]. *)
@@ -454,6 +456,7 @@ Fixpoint cont_kept_cells (ok : location -> bool) (c : cont_value) : bool :=
     forallb (value_kept_cells ok) remaining
     && cont_kept_cells ok return_to
     && cont_kept_cells ok exn_to
+  | Return_at _ return_to => cont_kept_cells ok return_to
   end.
 
 (* A location of the heap: one that no local allocation made in a
@@ -589,6 +592,7 @@ Fixpoint cont_no_region_poison (c : cont_value) : bool :=
     forallb value_no_region_poison remaining
     && cont_no_region_poison return_to
     && cont_no_region_poison exn_to
+  | Return_at _ return_to => cont_no_region_poison return_to
   end.
 
 (* The test: nothing that the state has written, and nothing that it

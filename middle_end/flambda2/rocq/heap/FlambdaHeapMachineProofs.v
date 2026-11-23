@@ -283,7 +283,8 @@ Proof.
   induction c
     as [handler vars conts recursive | k | c IH extra
        | remaining remaining_arity return_arity return_to IHreturn exn_to
-           IHexn];
+           IHexn
+       | kinds return_to IHreturn_at];
     intros vs s'; simpl.
   - destruct handler as [params metadata handler].
     destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
@@ -296,6 +297,8 @@ Proof.
   - apply IH.
   - destruct vs as [ | v [ | v2 vs]]; try discriminate.
     apply heap_run_call_heap. intros partial s0. apply IHreturn.
+  - destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ apply IHreturn_at | discriminate ].
 Qed.
 
 Lemma heap_call_function_heap (callee : value) (kind : call_kind)
@@ -371,7 +374,8 @@ Proof.
   induction c
     as [handler vars conts recursive | k | c IH extra
        | remaining remaining_arity return_arity return_to IHreturn exn_to
-           IHexn];
+           IHexn
+       | kinds return_to IHreturn_at];
     intros vs; simpl.
   - destruct handler as [params metadata handler].
     destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
@@ -383,6 +387,8 @@ Proof.
   - apply IH.
   - destruct vs as [ | v [ | v2 vs]]; try exact I.
     apply heap_run_call_agrees. intros partial. apply IHreturn.
+  - destruct (kinds_eqb (map kind_of_value vs) kinds);
+      [ apply IHreturn_at | exact I ].
 Qed.
 
 Lemma heap_call_function_agrees (callee : value) (kind : call_kind)
@@ -3815,11 +3821,14 @@ Lemma cont_value_induction (P : cont_value -> Prop) :
     P exn_to ->
     P (Over_application remaining remaining_arity return_arity return_to
          exn_to)) ->
+  (∀ (kinds : list flambda_kind) (return_to : cont_value),
+    P return_to -> P (Return_at kinds return_to)) ->
   ∀ c : cont_value, P c.
 Proof.
-  intros Hclosure Houter Hextra Hover. fix IH 1.
+  intros Hclosure Houter Hextra Hover Hreturn. fix IH 1.
   intros [handler vars conts recursive | k | c extra
-         | remaining remaining_arity return_arity return_to exn_to].
+         | remaining remaining_arity return_arity return_to exn_to
+         | kinds return_to].
   - apply Hclosure.
     exact
       ((fix go (conts : list (continuation * cont_value))
@@ -3832,6 +3841,7 @@ Proof.
   - apply Houter.
   - apply Hextra. apply IH.
   - apply Hover; apply IH.
+  - apply Hreturn. apply IH.
 Qed.
 
 Lemma Forall2_impl_Forall {A B : Type} (R R1 : A -> B -> Prop) (l : list A)
@@ -3854,13 +3864,15 @@ Proof.
   induction c
     as [handler vars conts recursive IH | k | c extra IH
        | remaining remaining_arity return_arity return_to exn_to IHreturn
-           IHexn]
+           IHexn
+       | kinds return_to IHreturn_at]
     using cont_value_induction; intros c' Hc;
     inversion Hc
       as [k0 | handler0 vars0 vars' conts0 conts' recursive0 Henv Hconts
          | c0 c0' extra0 extra' Hc0 Hextra
          | remaining0 remaining' remaining_arity0 return_arity0 return_to0
-             return_to' exn_to0 exn_to' Hremaining Hreturn Hexn];
+             return_to' exn_to0 exn_to' Hremaining Hreturn Hexn
+         | kinds0 return_to0 return_to' Hreturn];
     subst.
   - apply Related_closure.
     + revert Henv. apply env_related_mono; [ exact Hmono | auto ].
@@ -3873,6 +3885,7 @@ Proof.
   - apply Related_over_application;
       [ revert Hremaining; apply Forall2_mono; exact Hmono
       | exact (IHreturn _ Hreturn) | exact (IHexn _ Hexn) ].
+  - apply Related_return_at. exact (IHreturn_at _ Hreturn).
 Qed.
 
 Lemma conts_related_mono (R R1 : value -> value -> Prop)
@@ -4355,7 +4368,8 @@ Proof.
   apply (states_related_except_intro D r);
     [ exact Hmemories | exact Hcode | | ].
   - revert Henv1. apply env_related_mono; auto.
-  - apply Forall2_cons; [ split; [ reflexivity | exact Hret ] | ].
+  - apply Forall2_cons;
+      [ split; [ reflexivity | apply Related_return_at, Hret ] | ].
     apply Forall2_cons; [ split; [ reflexivity | exact Hexn ] | ].
     apply Forall2_nil.
 Qed.
@@ -4526,8 +4540,14 @@ Proof.
               Hconts
        | c c' extra extra' Hc IH Hextra
        | remaining remaining' remaining_arity return_arity return_to
-           return_to' exn_to exn_to' Hremaining Hreturn IHreturn Hexn IHexn];
+           return_to' exn_to exn_to' Hremaining Hreturn IHreturn Hexn IHexn
+       | kinds return_to return_to' Hreturn IHreturn_at];
     intros vs vs' Hvs.
+  5: {
+    cbn [heap_apply_cont_value].
+    rewrite (related_kinds D r st st' h h' _ _ Hmemories Hvs).
+    destruct (kinds_eqb _ kinds); [ | exact I ].
+    exact (IHreturn_at vs vs' Hvs). }
   4: {
     cbn [heap_apply_cont_value].
     destruct Hvs as [ | v v' vs vs' Hv Hvs]; [ exact I | ].
@@ -5200,8 +5220,10 @@ Proof.
   induction c
     as [handler vars conts recursive IH | k | c extra IH
        | remaining remaining_arity return_arity return_to exn_to IHreturn
-           IHexn]
+           IHexn
+       | kinds return_to IHreturn_at]
     using cont_value_induction; simpl.
+  5: { intros Hc. apply Related_return_at. exact (IHreturn_at Hc). }
   4: { intros (Hremaining & Hreturn & Hexn).
        apply Related_over_application;
          [ | exact (IHreturn Hreturn) | exact (IHexn Hexn) ].
@@ -5478,8 +5500,10 @@ Proof.
   induction c
     as [handler vars conts recursive IH | k | c extra IH
        | remaining remaining_arity return_arity return_to exn_to IHreturn
-           IHexn]
-    using cont_value_induction; [ | auto | | ].
+           IHexn
+       | kinds return_to IHreturn_at]
+    using cont_value_induction; [ | auto | | | ].
+  4: { simpl. exact IHreturn_at. }
   3: { simpl. intros (Hremaining & Hreturn & Hexn).
        split; [ | split; [ exact (IHreturn Hreturn) | exact (IHexn Hexn) ] ].
        intros v Hv.
@@ -5853,8 +5877,13 @@ Proof.
   induction c
     as [handler def_vars def_conts recursive _ | k | c extra IH
        | remaining remaining_arity return_arity return_to exn_to IHreturn
-           IHexn]
+           IHexn
+       | kinds return_to IHreturn_at]
     using cont_value_induction; intros vs s' Hc Hvs.
+  5: {
+    simpl in Hc. cbn [heap_apply_cont_value].
+    destruct (kinds_eqb (map kind_of_value vs) kinds); [ | discriminate ].
+    exact (IHreturn_at vs s' Hc Hvs). }
   4: {
     simpl in Hc. destruct Hc as (Hremaining & Hreturn & Hexn).
     cbn [heap_apply_cont_value].
@@ -6221,7 +6250,8 @@ Proof.
   simpl in Hc_avoids, Hc_binds.
   split; [ exact Hc_avoids | ]. split; [ exact Hc_binds | ].
   split; [ | exact Hcode ].
-  cbn [hs_conts]. unfold conts_code_free_of. cbn [forallb].
+  cbn [hs_conts]. unfold conts_code_free_of.
+  cbn [forallb cont_code_free_of].
   rewrite Hret, Hexn. reflexivity.
 Qed.
 
@@ -6270,8 +6300,13 @@ Proof.
   induction c
     as [handler def_vars def_conts recursive _ | k | c extra IH
        | remaining remaining_arity return_arity return_to exn_to IHreturn
-           IHexn]
+           IHexn
+       | kinds return_to IHreturn_at]
     using cont_value_induction; intros vs s1 Hc.
+  5: {
+    simpl in Hc. cbn [heap_apply_cont_value].
+    destruct (kinds_eqb (map kind_of_value vs) kinds); [ | discriminate ].
+    exact (IHreturn_at vs s1 Hc). }
   4: {
     simpl in Hc. apply andb_true_iff in Hc as [Hreturn Hexn].
     cbn [heap_apply_cont_value].
@@ -6458,8 +6493,10 @@ Proof.
   induction c
     as [handler vars conts recursive IH | k | c extra IH
        | remaining remaining_arity return_arity return_to exn_to IHreturn
-           IHexn]
-    using cont_value_induction; [ | reflexivity | | ].
+           IHexn
+       | kinds return_to IHreturn_at]
+    using cont_value_induction; [ | reflexivity | | | ].
+  4: { simpl. exact IHreturn_at. }
   3: { simpl. intros Hfree. apply andb_true_iff in Hfree as [Hfree Hexn].
        apply andb_true_iff in Hfree as [_ Hreturn].
        rewrite (IHreturn Hreturn), (IHexn Hexn). reflexivity. }
@@ -6489,8 +6526,11 @@ Proof.
   induction c
     as [handler vars conts recursive IH | k | c extra IH
        | remaining remaining_arity return_arity return_to exn_to IHreturn
-           IHexn]
+           IHexn
+       | kinds return_to IHreturn_at]
     using cont_value_induction; intros Hclosed Hfree.
+  5: { simpl in Hclosed, Hfree. apply Related_return_at.
+       exact (IHreturn_at Hclosed Hfree). }
   4: { simpl in Hclosed, Hfree.
        destruct Hclosed as (Hremaining & Hreturn & Hexn).
        apply andb_true_iff in Hfree as [Hfree Hexn_free].

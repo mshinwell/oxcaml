@@ -354,7 +354,8 @@ Lemma observer_free_of (slots : list value_slot) (c : cont_value) :
 Proof.
   destruct c
     as [ [params metadata body] vars conts recursive | k | c extra
-       | remaining remaining_arity return_arity return_to exn_to ];
+       | remaining remaining_arity return_arity return_to exn_to
+       | kinds return_to];
     simpl; try contradiction; [ | intros _; reflexivity ].
   destruct vars; [ | contradiction ].
   destruct conts; [ | contradiction ].

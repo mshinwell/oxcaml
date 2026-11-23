@@ -1,3 +1,4 @@
+open BinPos
 open Datatypes
 open FlambdaKindModel
 open FlambdaMapSpec
@@ -45,3 +46,17 @@ val unit_arities : continuation -> continuation -> arity_env
 
 val well_kinded_unit :
   slot_kinds -> continuation -> continuation -> expr -> bool
+
+val apply_cont_returns_at_kinds :
+  continuation -> flambda_kind list -> kind_env -> apply_cont -> bool
+
+val apply_returns_at_kinds :
+  continuation -> flambda_kind list -> apply_expr -> bool
+
+val returns_at_kinds :
+  continuation -> flambda_kind list -> kind_env -> expr -> bool
+
+val handler_returns_at_kinds :
+  continuation -> flambda_kind list -> kind_env -> continuation_handler -> bool
+
+val code_returns_at_kinds : code -> bool

@@ -639,7 +639,9 @@ Definition handlers_eqb (vm km : name_map)
    environments that match on the names free in the handlers: those of
    the handler itself and of the handlers defined with it, any of which
    it may come to run; or what is left of the same over-application,
-   with continuations that match. *)
+   with continuations that match; or what the return continuation of
+   code stands for, at the same kinds, with continuations that
+   match. *)
 #[local] Set Warnings "-register-all".
 Inductive cont_matches : cont_value -> cont_value -> Prop :=
   | Same_matches (c : cont_value) : cont_matches c c
@@ -674,7 +676,11 @@ Inductive cont_matches : cont_value -> cont_value -> Prop :=
       (Over_application remaining remaining_arity return_arity return_to
          exn_to)
       (Over_application remaining remaining_arity return_arity return_to'
-         exn_to').
+         exn_to')
+  | Return_at_matches (kinds : list flambda_kind)
+      (return_to return_to' : cont_value) :
+    cont_matches return_to return_to' ->
+    cont_matches (Return_at kinds return_to) (Return_at kinds return_to').
 
 Lemma with_extra_args_matches (c c' : cont_value) (extra : list value) :
   cont_matches c c' ->
@@ -1013,7 +1019,8 @@ Proof.
     try contradiction; simpl; [ | exact I ].
   apply (State_matches vm [(ret, ret'); (exn, exn')]);
     [ exact Hc | exact Hbound | | exact Hstatics ].
-  apply (conts_match_cons (fun _ => True)); [ auto | | exact Hreturn ].
+  apply (conts_match_cons (fun _ => True));
+    [ auto | | apply Return_at_matches, Hreturn ].
   apply (conts_match_cons (fun _ => True));
     [ auto | apply conts_match_same | exact Hexn ].
 Qed.
@@ -1159,12 +1166,13 @@ Proof.
     - intros partial. apply IHreturn. exact Hreturn. }
   induction c
     as [h vars conts recursive | exit | c IHc extra
-       | remaining remaining_arity return_arity return_to exn_to IHreturn _]
+       | remaining remaining_arity return_arity return_to exn_to IHreturn _
+       | kinds return_to IHreturn]
     using cont_value_over_ind;
     intros c' vs Hc.
   - inversion Hc
       as [c0 | vm km km' h0 h' vars0 vars' conts0 conts' recursive0
-                 recursive' Hnames Hh Hrec Hvars Hconts | | ];
+                 recursive' Hnames Hh Hrec Hvars Hconts | | | ];
       subst.
     + destruct (closure_matches_itself h vars conts recursive)
         as (km' & Hnames & Hh & Hrec).
@@ -1179,10 +1187,14 @@ Proof.
   - inversion Hc
       as [c0 | |
          | remaining0 remaining_arity0 return_arity0 return_to0 return_to'
-             exn_to0 exn_to' Hreturn Hexn];
+             exn_to0 exn_to' Hreturn Hexn | ];
       subst.
     + apply Hover; [ exact IHreturn | apply Same_matches .. ].
     + apply Hover; assumption.
+  - inversion Hc as [c0 | | | | kinds0 return_to0 return_to' Hreturn];
+      subst; simpl;
+      (destruct (kinds_eqb (map kind_of_value vs) kinds); [ | exact I ]);
+      apply IHreturn; [ apply Same_matches | exact Hreturn ].
 Qed.
 
 (* The same call under matching static environments, returning to matching

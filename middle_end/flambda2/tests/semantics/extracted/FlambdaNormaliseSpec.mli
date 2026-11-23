@@ -15,6 +15,7 @@ open FlambdaStatedScopeSpec
 open FlambdaStatedSymbolsSpec
 open FlambdaTupledSpec
 open FlambdaValueSpec
+open FlambdaWellKindedSpec
 open List
 open ListDef
 open PeanoNat
