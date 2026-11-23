@@ -114,7 +114,11 @@ type names =
     variables_of_the_tests : int;
     (* The variables numbered up to this are printed by their numbers: those of
        the tests, [local] and [for_types_only]. *)
-    variables_with_a_name : int
+    variables_with_a_name : int;
+    (* The links of the code age relation of [env]: a code id and the code id
+       that it is a newer version of, in the order in which they were added.
+       There is none but in the tests of the code age relation. *)
+    code_age_links : (M.code_id * M.code_id) list
   }
 
 let create_names () : names =
@@ -215,7 +219,8 @@ let create_names () : names =
     for_types_only;
     variables_of_the_tests = List.length all_variables + List.length parameters;
     variables_with_a_name =
-      List.length all_variables + List.length parameters + 2
+      List.length all_variables + List.length parameters + 2;
+    code_age_links = []
   }
 
 let parameter (names : names) (kind : MK.flambda_kind) : Variable.t =
@@ -6261,7 +6266,8 @@ let the_lines_of_t7_14_and_t7_15 () =
       : (string * (seen, string) result list) list)
 
 (* The environment of the tests, in the model: the variables and the symbols
-   that [names.env] defines, of which nothing is known. *)
+   that [names.env] defines, of which nothing is known, and the links of its
+   code age relation, added in their order. *)
 let env_of_model (names : names) : Model_env.t * MT.name list =
   let defined =
     List.map
@@ -6270,14 +6276,22 @@ let env_of_model (names : names) : Model_env.t * MT.name list =
           Converter.kind_to_model kind ))
       names.defined
   in
-  ( List.fold_left
+  let env =
+    List.fold_left
       (fun env ((name : MT.name), kind) ->
         match name with
         | Name_var x ->
           Model_env.add_variable_definition env x kind Model_name_mode.normal
         | Name_symbol symbol -> Model_env.add_symbol_definition env symbol)
-      Model_env.create defined,
-    List.map fst defined )
+      Model_env.create defined
+  in
+  let env =
+    List.fold_left
+      (fun env (newer, older) ->
+        Model_env.add_to_code_age_relation env newer (Some older))
+      env names.code_age_links
+  in
+  env, List.map fst defined
 
 (* Equations on variables of the tests, a variable having at most one, whose
    type mentions no variable but those numbered after it: no type is reached
@@ -10699,6 +10713,606 @@ let control_of_the_repaired_test () =
     [160037, true; 160000, false]
 
 (* ======================================================================== *)
+(* The code age relation                                                    *)
+(* ======================================================================== *)
+
+(* The meet of two function types whose code ids are not one code id asks the
+   code age relation of the environment whether one of the two is a newer
+   version of the other: the meet is then the newer of the two, and it is bottom
+   where neither is ([Code_age_relation.meet] of the compiler, which
+   FlambdaCodeAgeRelation.v transcribes). The environment of the other tests has
+   an empty relation, so there such a meet is always bottom. Here two closure
+   types are met in an environment whose relation has links between five code
+   ids that no other test names, the same links in the model and in the
+   compiler.
+
+   The five code ids are of the current unit. The part of the compiler's
+   function that is for a code id of another unit, which asks the resolver of
+   the environment for the relation of that unit, is not run here. *)
+module Code_ages = Flambda2_types__Code_age_relation
+
+let same_code_id (code_id : M.code_id) (code_id' : M.code_id) : bool =
+  N.compare_positive code_id code_id' = 0
+
+(* The names of the tests with five code ids of their own in the place of the
+   code ids of the pool, numbered after every code id numbered before. *)
+let names_for_code_ages (names : names) : names =
+  let unit = Current_unit.get_cu_exn () in
+  let code_ids =
+    List.map
+      (fun name ->
+        names.numbering.code_ids.number
+          (Code_id.create ~name ~debug:Debuginfo.none unit))
+      ["k0"; "k1"; "k2"; "k3"; "k4"]
+  in
+  { names with pool = { names.pool with code_ids } }
+
+(* The names with links added to the code age relation of their environment, in
+   their order; [env_of_model] adds the same links to the environment of the
+   model. *)
+let with_code_age_links (names : names) (links : (M.code_id * M.code_id) list) :
+    names =
+  let code_id = Converter.code_id_of_model names.numbering in
+  { names with
+    env =
+      List.fold_left
+        (fun env (newer, older) ->
+          TE.add_to_code_age_relation env ~new_code_id:(code_id newer)
+            ~old_code_id:(Some (code_id older)))
+        names.env links;
+    code_age_links = names.code_age_links @ links
+  }
+
+(* Links between the code ids of the names. Each code id but the first is, three
+   times in four, made a newer version of one of those before it in the list.
+   Then each code id from the third is, fifteen times in a hundred, given a link
+   to one of those before it once more: where it had one, the relation keeps the
+   second alone. A link goes from a code id to one before it in the list, so no
+   code id is reached from itself: the relation has no cycle. The functions of
+   the compiler may not terminate on a relation with a cycle, and nothing checks
+   a relation when a link is added to it (code_age_relation.ml has a CR about
+   that): the tests give the compiler no relation with a cycle. *)
+let generate_code_age_links (names : names) r : (M.code_id * M.code_id) list =
+  let code_ids = names.pool.code_ids in
+  let links ~from ~percent =
+    List.concat
+      (List.mapi
+         (fun i code_id ->
+           if i >= from && G.chance r ~percent
+           then [code_id, List.nth code_ids (G.below r i)]
+           else [])
+         code_ids)
+  in
+  let first = links ~from:1 ~percent:75 in
+  let again = links ~from:2 ~percent:15 in
+  first @ again
+
+(* What the links say, read here without the model and without the compiler. The
+   code id that a code id is a newer version of is that of the link added last
+   for it; a code id is a newer version of every code id that is reached from it
+   so. *)
+let older_version_by (links : (M.code_id * M.code_id) list)
+    (code_id : M.code_id) : M.code_id option =
+  List.find_map
+    (fun (newer, older) ->
+      if same_code_id newer code_id then Some older else None)
+    (List.rev links)
+
+(* The links of the tests reach no code id from itself; the walk is bounded by
+   their count all the same. *)
+let is_a_newer_version_by (links : (M.code_id * M.code_id) list)
+    (code_id : M.code_id) ~(of_ : M.code_id) : bool =
+  let rec reaches steps code_id =
+    steps > 0
+    &&
+    match older_version_by links code_id with
+    | None -> false
+    | Some older -> same_code_id older of_ || reaches (steps - 1) older
+  in
+  reaches (List.length links) code_id
+
+(* Of two code ids, the one that is a newer version of the other, if one is,
+   with the count of the links from it to the other. *)
+let newer_by (links : (M.code_id * M.code_id) list) (code_id : M.code_id)
+    (code_id' : M.code_id) : (M.code_id * int) option =
+  let links_from code_id ~to_ =
+    let rec count walked code_id =
+      match older_version_by links code_id with
+      | None -> walked
+      | Some older ->
+        if same_code_id older to_ then walked + 1 else count (walked + 1) older
+    in
+    count 0 code_id
+  in
+  if is_a_newer_version_by links code_id ~of_:code_id'
+  then Some (code_id, links_from code_id ~to_:code_id')
+  else if is_a_newer_version_by links code_id' ~of_:code_id
+  then Some (code_id', links_from code_id' ~to_:code_id)
+  else None
+
+(* The cases of a closure type, with its allocation mode and whether it may be
+   null; nothing for another type. *)
+let closures_of (t : MT.flambda_type) :
+    ((M.function_slot * MT.row_like_closures_case) list
+    * MT.Alloc_mode.t
+    * MT.is_null)
+    option =
+  match t with
+  | Type_value (Ok (No_alias (Head_of_kind_value (Ok head, is_null)))) -> (
+    match head with
+    | Closures (Row_like_for_closures cases, alloc_mode) ->
+      Some (cases, alloc_mode, is_null)
+    | Variant _ | Mutable_block _ | Boxed_number _ | String _ -> None)
+  | Type_value
+      ( Unknown | Bottom
+      | Ok (Equals _)
+      | Ok (No_alias (Head_of_kind_value ((Unknown | Bottom), _))) )
+  | Type_naked_immediate _ | Type_naked_number _ | Type_rec_info _
+  | Type_region _ ->
+    None
+
+(* The function types of the entries of a closure type; none for another
+   type. *)
+let function_types_of_closures (t : MT.flambda_type) :
+    (M.function_slot * MT.function_type MT.Or_unknown.t) list =
+  match closures_of t with
+  | None -> []
+  | Some (cases, (_ : MT.Alloc_mode.t), (_ : MT.is_null)) ->
+    List.concat_map
+      (fun ((_ : M.function_slot), (case : MT.row_like_closures_case)) ->
+        let (Closures_entry (function_types, _, _)) = case.case_maps_to in
+        function_types)
+      cases
+
+(* The function slots to which a closure type gives a code id, each with it. *)
+let code_ids_of_closures (t : MT.flambda_type) :
+    (M.function_slot * M.code_id) list =
+  List.filter_map
+    (fun (slot, (function_type : MT.function_type MT.Or_unknown.t)) ->
+      match function_type with
+      | Known { function_type_code_id } -> Some (slot, function_type_code_id)
+      | Unknown -> None)
+    (function_types_of_closures t)
+
+(* The function slots to which two closure types both give a code id, and not
+   the same code id: each with the two. *)
+let slots_of_two_code_ids ((m1, m2) : MT.flambda_type * MT.flambda_type) :
+    (M.function_slot * M.code_id * M.code_id) list =
+  let second = code_ids_of_closures m2 in
+  List.filter_map
+    (fun (slot, code_id) ->
+      match
+        List.find_opt
+          (fun (slot', (_ : M.code_id)) -> N.compare_positive slot slot' = 0)
+          second
+      with
+      | Some ((_ : M.function_slot), code_id') ->
+        if same_code_id code_id code_id'
+        then None
+        else Some (slot, code_id, code_id')
+      | None -> None)
+    (code_ids_of_closures m1)
+
+(* A closure type with each function type of its entries replaced by what [f]
+   makes of it; another type as it is. *)
+let with_function_types
+    (f : MT.function_type MT.Or_unknown.t -> MT.function_type MT.Or_unknown.t)
+    (t : MT.flambda_type) : MT.flambda_type =
+  match closures_of t with
+  | None -> t
+  | Some (cases, alloc_mode, is_null) ->
+    let cases =
+      List.map
+        (fun (slot, (case : MT.row_like_closures_case)) ->
+          let (Closures_entry (function_types, closure_types, value_slot_types))
+              =
+            case.case_maps_to
+          in
+          let function_types =
+            List.map
+              (fun (slot, function_type) -> slot, f function_type)
+              function_types
+          in
+          let case : MT.row_like_closures_case =
+            { case with
+              case_maps_to =
+                Closures_entry (function_types, closure_types, value_slot_types)
+            }
+          in
+          slot, case)
+        cases
+    in
+    let head : MT.head_of_kind_value_non_null =
+      Closures (Row_like_for_closures cases, alloc_mode)
+    in
+    Type_value (Ok (No_alias (Head_of_kind_value (Ok head, is_null))))
+
+(* Two closure types as [generate_meet_of_closures] makes them, with the code
+   ids of the names. About two times in three the second type is then the first
+   with, for most of the function slots to which it gives a code id, a code id
+   chosen again: the two types then differ in their code ids alone. *)
+let generate_meet_of_code_ages (names : names) r :
+    MT.flambda_type * MT.flambda_type =
+  let one, other = generate_meet_of_closures names r in
+  if G.chance r ~percent:35
+  then one, other
+  else
+    let again (function_type : MT.function_type MT.Or_unknown.t) :
+        MT.function_type MT.Or_unknown.t =
+      match function_type with
+      | Unknown -> Unknown
+      | Known _ ->
+        if G.chance r ~percent:25
+        then function_type
+        else Known { function_type_code_id = G.pick r names.pool.code_ids }
+    in
+    one, with_function_types again one
+
+(* The links of the code age relation of the environment, and the two closure
+   types that are met in it. *)
+type meet_with_code_ages =
+  { links : (M.code_id * M.code_id) list;
+    closures : MT.flambda_type * MT.flambda_type
+  }
+
+let generate_meet_with_code_ages (names : names) r : meet_with_code_ages =
+  let links = generate_code_age_links names r in
+  let closures = generate_meet_of_code_ages names r in
+  { links; closures }
+
+let print_meet_with_code_ages ppf { links; closures } =
+  Format.fprintf ppf "@[<v>%a%a@]"
+    (fun ppf ->
+      List.iter (fun (newer, older) ->
+          Format.fprintf ppf "with code%a a newer version of code%a@ "
+            N.print_positive newer N.print_positive older))
+    links print_meet_in_an_environment
+    { equations = []; met = closures }
+
+let shrink_meet_with_code_ages ({ links; closures } as input) =
+  List.mapi
+    (fun i _ -> { input with links = List.filteri (fun j _ -> i <> j) links })
+    links
+  @ List.map
+      (fun ({ equations = _; met } : meet_in_an_environment) ->
+        { input with closures = met })
+      (shrink_meet_in_an_environment { equations = []; met = closures })
+
+(* Where an input stands by its links, read here: whether both types give a
+   function slot a code id and not the same; if so, whether at each such slot
+   one of the two code ids is a newer version of the other, and then the slots,
+   each with the newer code id and the count of the links from it to the
+   other. *)
+type by_the_links =
+  | No_slot_of_two_code_ids
+  | Newer_at_each_slot of (M.function_slot * M.code_id * int) list
+  | Not_related_at_some_slot
+
+let by_the_links ({ links; closures } : meet_with_code_ages) : by_the_links =
+  match slots_of_two_code_ids closures with
+  | [] -> No_slot_of_two_code_ids
+  | _ :: _ as slots ->
+    List.fold_right
+      (fun (slot, code_id, code_id') (at_each : by_the_links) : by_the_links ->
+        match newer_by links code_id code_id', at_each with
+        | Some (newer, count), Newer_at_each_slot at_each ->
+          Newer_at_each_slot ((slot, newer, count) :: at_each)
+        | ( (Some _ | None),
+            ( No_slot_of_two_code_ids | Newer_at_each_slot _
+            | Not_related_at_some_slot ) ) ->
+          Not_related_at_some_slot)
+      slots (Newer_at_each_slot [])
+
+(* The comparison of the meet of the model with the n-way meet of the compiler:
+   the first of [model_against_compiler]. *)
+let against_the_n_way_meet (names : names) : meet_in_an_environment -> outcome =
+  match model_against_compiler names with
+  | { name; compare } :: _ ->
+    if String.equal name "meet: the model and the n-way meet of the compiler"
+    then compare
+    else failwith "the first comparison of the meet is not of the n-way meet"
+  | [] -> failwith "no comparison of the meet"
+
+(* What a meet of two closure types answers. *)
+type answer_of_a_meet =
+  | Meet_has_no_answer of string
+  | Meet_is_bottom
+  | Meet_is of MT.flambda_type
+
+(* The answers of the meet of the model and of the n-way meet of the compiler
+   themselves, in the environments of the names. *)
+let answers_of_the_meets (names : names)
+    ((m1, m2) : MT.flambda_type * MT.flambda_type) :
+    answer_of_a_meet * answer_of_a_meet =
+  let model_env, (_ : MT.name list) = env_of_model names in
+  let of_the_model : answer_of_a_meet =
+    match (the_model Of_the_compiler).meet_of_model model_env m1 m2 with
+    | None -> Meet_has_no_answer "no answer of the meet"
+    | Some Bottom -> Meet_is_bottom
+    | Some (Ok (t, (_ : Model_env.t))) -> Meet_is t
+  in
+  let of_the_compiler : answer_of_a_meet =
+    match
+      or_fatal_error (fun () : answer_of_a_meet ->
+          match
+            n_way.meet names.env (to_compiler names m1) (to_compiler names m2)
+          with
+          | Bottom -> Meet_is_bottom
+          | Ok (t, (_ : TE.t)) -> Meet_is (to_model names t))
+    with
+    | Ok answer -> answer
+    | Error line -> Meet_has_no_answer ("a fatal error: " ^ general line)
+  in
+  of_the_model, of_the_compiler
+
+(* The comparisons of the meet of the model against the meets of the compiler
+   ([model_against_compiler]), each run in the environments that have the links
+   of its input. Then the two meets against what the links say, on the inputs
+   where both types give one function slot a code id and the two code ids are
+   not one: where at some such slot neither code id is a newer version of the
+   other, both meets are bottom; where at each such slot one is, and neither
+   meet is bottom, both give the slot the newer of the two. Last, that the links
+   are in the two environments. *)
+let meets_with_code_ages (names : names) : meet_with_code_ages comparison list =
+  let with_links { links; closures = _ } = with_code_age_links names links in
+  let as_a_meet { links = _; closures } : meet_in_an_environment =
+    { equations = []; met = closures }
+  in
+  let of_the_meet : meet_with_code_ages comparison list =
+    List.mapi
+      (fun i ({ name; compare = _ } : meet_in_an_environment comparison) ->
+        { name;
+          compare =
+            (fun input ->
+              (List.nth (model_against_compiler (with_links input)) i).compare
+                (as_a_meet input))
+        })
+      (model_against_compiler names)
+  in
+  let against_the_n_way_meet input =
+    against_the_n_way_meet (with_links input) (as_a_meet input)
+  in
+  let print_answer ppf (answer : answer_of_a_meet) =
+    match answer with
+    | Meet_has_no_answer why -> Format.fprintf ppf "no answer (%s)" why
+    | Meet_is_bottom -> Format.pp_print_string ppf "bottom"
+    | Meet_is t -> Model_type.print ppf t
+  in
+  let both_answers of_the_model of_the_compiler =
+    Format.asprintf "@[<v>the model:@ %a@ the compiler:@ %a@]" print_answer
+      of_the_model print_answer of_the_compiler
+  in
+  let neither_answers why why' =
+    Not_run
+      (Printf.sprintf "neither answers (the model: %s; the compiler: %s)" why
+         why')
+  in
+  let gives (t : MT.flambda_type) (slot, code_id, (_ : int)) =
+    List.exists
+      (fun (slot', code_id') ->
+        N.compare_positive slot slot' = 0 && same_code_id code_id code_id')
+      (code_ids_of_closures t)
+  in
+  (* On an input where one code id is at each slot a newer version of the other,
+     and that [selects] by its slots: where neither meet is bottom, that both
+     give each slot the newer code id. *)
+  let give_the_newer_code_ids ~selects input =
+    match by_the_links input with
+    | No_slot_of_two_code_ids | Not_related_at_some_slot -> Not_this_comparison
+    | Newer_at_each_slot newer -> (
+      if not (selects newer)
+      then Not_this_comparison
+      else
+        match answers_of_the_meets (with_links input) input.closures with
+        | Meet_has_no_answer why, Meet_has_no_answer why' ->
+          neither_answers why why'
+        | ( (Meet_is in_the_model as of_the_model),
+            (Meet_is in_the_compiler as of_the_compiler) ) ->
+          if
+            List.for_all (gives in_the_model) newer
+            && List.for_all (gives in_the_compiler) newer
+          then Agree
+          else Disagree (both_answers of_the_model of_the_compiler)
+        | (Meet_has_no_answer _ | Meet_is_bottom | Meet_is _), _ ->
+          (* One is bottom, or has no answer, and the other not: the comparison
+             of the two meets says so. *)
+          Not_this_comparison)
+  in
+  (* That each code id has the same older version by the links, in the
+     environment of the model and in that of the compiler. *)
+  let same_older_versions input =
+    let names = with_links input in
+    let model_env, (_ : MT.name list) = env_of_model names in
+    (* The relation of the model is the list of its links, the one added last
+       first. *)
+    let in_the_model code_id =
+      List.find_map
+        (fun (newer, older) ->
+          if same_code_id newer code_id then Some older else None)
+        (Model_env.code_age_relation model_env)
+    in
+    let in_the_compiler code_id =
+      Option.map
+        (Converter.code_id_to_model names.numbering)
+        (Code_ages.get_older_version_of
+           (TE.code_age_relation names.env)
+           (Converter.code_id_of_model names.numbering code_id))
+    in
+    let same = Option.equal same_code_id in
+    if
+      List.for_all
+        (fun code_id ->
+          let by_the_links = older_version_by input.links code_id in
+          same by_the_links (in_the_model code_id)
+          && same by_the_links (in_the_compiler code_id))
+        names.pool.code_ids
+    then Agree
+    else Disagree "the three do not give every code id the same older version"
+  in
+  let has_a_link_given_twice { links; closures = _ } =
+    List.exists
+      (fun (newer, (_ : M.code_id)) ->
+        List.length
+          (List.filter
+             (fun (newer', (_ : M.code_id)) -> same_code_id newer newer')
+             links)
+        > 1)
+      links
+  in
+  of_the_meet
+  @ [ { name =
+          "meet, where both types give a function slot a code id and not the \
+           same: the model and the n-way meet of the compiler";
+        compare =
+          (fun input ->
+            match by_the_links input with
+            | No_slot_of_two_code_ids -> Not_this_comparison
+            | Newer_at_each_slot _ | Not_related_at_some_slot ->
+              against_the_n_way_meet input)
+      };
+      { name =
+          "of which those where, at each such slot, one code id is a newer \
+           version of the other by the links";
+        compare =
+          (fun input ->
+            match by_the_links input with
+            | No_slot_of_two_code_ids | Not_related_at_some_slot ->
+              Not_this_comparison
+            | Newer_at_each_slot _ -> against_the_n_way_meet input)
+      };
+      { name =
+          "of those, where neither meet is bottom: both meets give each such \
+           slot the newer code id";
+        compare = give_the_newer_code_ids ~selects:(fun _ -> true)
+      };
+      { name =
+          "of those again, where at some such slot the newer code id is more \
+           than one link from the other";
+        compare =
+          give_the_newer_code_ids
+            ~selects:
+              (List.exists
+                 (fun ((_ : M.function_slot), (_ : M.code_id), count) ->
+                   count > 1))
+      };
+      { name =
+          "of which those where, at some such slot, neither code id is a newer \
+           version of the other by the links: both meets are bottom";
+        compare =
+          (fun input ->
+            match by_the_links input with
+            | No_slot_of_two_code_ids | Newer_at_each_slot _ ->
+              Not_this_comparison
+            | Not_related_at_some_slot -> (
+              match answers_of_the_meets (with_links input) input.closures with
+              | Meet_is_bottom, Meet_is_bottom -> Agree
+              | Meet_has_no_answer why, Meet_has_no_answer why' ->
+                neither_answers why why'
+              | ( ((Meet_has_no_answer _ | Meet_is_bottom | Meet_is _) as
+                   of_the_model),
+                  of_the_compiler ) ->
+                Disagree (both_answers of_the_model of_the_compiler)))
+      };
+      { name =
+          "the code id that each code id of the family is a newer version of: \
+           the same by the links, in the environment of the model and in that \
+           of the compiler";
+        compare = same_older_versions
+      };
+      { name =
+          "of which those where a code id was given a link twice, the second \
+           in the place of the first";
+        compare =
+          (fun input ->
+            if has_a_link_given_twice input
+            then same_older_versions input
+            else Not_this_comparison)
+      } ]
+
+(* A control of the comparisons of the code age relation, on the first input of
+   the family, by its seed, where both types give a function slot a code id and
+   not the same, one of the two is at each such slot a newer version of the
+   other by the links, and neither meet is bottom. The model sees on it what the
+   n-way meet of the compiler sees. It is a disagreement where the environment
+   of the model alone is without the links, where that of the compiler alone is,
+   and where the environment of the model has each link the other way round. *)
+let control_of_the_code_ages (names : names) ~seed ~count =
+  let check what holds =
+    if holds
+    then Format.printf "  %s: yes@." what
+    else (
+      incr failures;
+      Format.printf "  %s: NO@." what)
+  in
+  Format.printf
+    "@.A control: one of the generated meets of the code age relation, with \
+     the links left out of one of the two environments, and turned round in \
+     that of the model@.";
+  let agrees (outcome : outcome) =
+    match outcome with
+    | Agree -> true
+    | Known_to_disagree _ | Disagree _ | Not_run _ | Not_this_comparison ->
+      false
+  in
+  let is_a_disagreement (outcome : outcome) =
+    match outcome with
+    | Disagree _ -> true
+    | Agree | Known_to_disagree _ | Not_run _ | Not_this_comparison -> false
+  in
+  let first : (int * meet_with_code_ages) option =
+    let rec from case_seed =
+      if case_seed >= seed + count
+      then None
+      else
+        let input =
+          generate_meet_with_code_ages names (Random.of_int case_seed)
+        in
+        match by_the_links input with
+        | Newer_at_each_slot _ -> (
+          match
+            answers_of_the_meets
+              (with_code_age_links names input.links)
+              input.closures
+          with
+          | Meet_is _, Meet_is _ -> Some (case_seed, input)
+          | (Meet_has_no_answer _ | Meet_is_bottom | Meet_is _), _ ->
+            from (case_seed + 1))
+        | No_slot_of_two_code_ids | Not_related_at_some_slot ->
+          from (case_seed + 1)
+    in
+    from seed
+  in
+  match first with
+  | None -> check "there is such a meet" false
+  | Some (case_seed, input) ->
+    Format.printf
+      "  the first meet where both types give a function slot a code id and \
+       not the same, one of the two is at each such slot a newer version of \
+       the other by the links, and neither meet is bottom: seed %d@."
+      case_seed;
+    let with_the_links = with_code_age_links names input.links in
+    let outcome (names : names) =
+      against_the_n_way_meet names { equations = []; met = input.closures }
+    in
+    check
+      "with the links in both environments, the model sees what the compiler \
+       sees"
+      (agrees (outcome with_the_links));
+    check "with no link in the environment of the model: a disagreement"
+      (is_a_disagreement (outcome { with_the_links with code_age_links = [] }));
+    check "with no link in the environment of the compiler: a disagreement"
+      (is_a_disagreement (outcome { names with code_age_links = input.links }));
+    check
+      "with each link the other way round in the environment of the model: a \
+       disagreement"
+      (is_a_disagreement
+         (outcome
+            { with_the_links with
+              code_age_links =
+                List.map (fun (newer, older) -> older, newer) input.links
+            }))
+
+(* ======================================================================== *)
 (* The tests                                                                *)
 (* ======================================================================== *)
 
@@ -11324,6 +11938,23 @@ let () =
     ~shrink:shrink_static_group ~print:print_static_group
     (static_groups names symbols_of_groups);
   control_of_the_static_groups names symbols_of_groups;
+  (* The code ids of this family are made here, after every other test: no
+     number that another test prints depends on them. *)
+  let names_of_code_ages = names_for_code_ages names in
+  run
+    ~title:
+      "Two closure types of one set of closures whose function types name code \
+       ids of a code age relation, for the meet of the model and the n-way \
+       meet of the compiler"
+    ~seed:180000 ~count:1000
+    ~generate:(generate_meet_with_code_ages names_of_code_ages)
+    ~prepare:(fun ({ links = _; closures = m1, m2 } as input) ->
+      ignore (to_compiler names_of_code_ages m1 : TG.t);
+      ignore (to_compiler names_of_code_ages m2 : TG.t);
+      input)
+    ~shrink:shrink_meet_with_code_ages ~print:print_meet_with_code_ages
+    (meets_with_code_ages names_of_code_ages);
+  control_of_the_code_ages names_of_code_ages ~seed:180000 ~count:1000;
   Format.printf "@.%s@."
     (if !failures = 0
      then "No disagreement."

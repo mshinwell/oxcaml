@@ -2,6 +2,7 @@ open BinInt
 open BinNums
 open Datatypes
 open FlambdaBindingTime
+open FlambdaCodeAgeRelation
 open FlambdaEnvAliases
 open FlambdaKindModel
 open FlambdaMapSpec
@@ -222,6 +223,7 @@ module Typing_env = struct
 
   type t =
     { defined_symbols : symbol list;
+      code_age_relation : Code_age_relation.t;
       prev_levels : One_level.t list;
       current_level : One_level.t;
       just_after_level : Cached_level.t;
@@ -233,6 +235,10 @@ module Typing_env = struct
   (** val defined_symbols : t -> symbol list **)
 
   let defined_symbols t0 = t0.defined_symbols
+
+  (** val code_age_relation : t -> Code_age_relation.t **)
+
+  let code_age_relation t0 = t0.code_age_relation
 
   (** val prev_levels : t -> One_level.t list **)
 
@@ -262,6 +268,7 @@ module Typing_env = struct
 
   let make_bottom tenv =
     { defined_symbols = tenv.defined_symbols;
+      code_age_relation = tenv.code_age_relation;
       prev_levels = tenv.prev_levels;
       current_level = tenv.current_level;
       just_after_level = tenv.just_after_level;
@@ -287,6 +294,7 @@ module Typing_env = struct
 
   let create =
     { defined_symbols = [];
+      code_age_relation = Code_age_relation.empty;
       prev_levels = [];
       current_level = One_level.create_empty (Scope.next Scope.initial);
       just_after_level = Cached_level.empty;
@@ -299,6 +307,7 @@ module Typing_env = struct
 
   let with_current_level tenv current_level0 just_after_level0 =
     { defined_symbols = tenv.defined_symbols;
+      code_age_relation = tenv.code_age_relation;
       prev_levels = tenv.prev_levels;
       current_level = current_level0;
       just_after_level = just_after_level0;
@@ -313,6 +322,7 @@ module Typing_env = struct
   let with_current_level_and_next_binding_time tenv current_level0
       just_after_level0 next_binding_time0 =
     { defined_symbols = tenv.defined_symbols;
+      code_age_relation = tenv.code_age_relation;
       prev_levels = tenv.prev_levels;
       current_level = current_level0;
       just_after_level = just_after_level0;
@@ -335,6 +345,7 @@ module Typing_env = struct
 
   let increment_scope tenv =
     { defined_symbols = tenv.defined_symbols;
+      code_age_relation = tenv.code_age_relation;
       prev_levels = tenv.current_level :: tenv.prev_levels;
       current_level =
         { One_level.scope = Scope.next (current_scope tenv);
@@ -485,6 +496,7 @@ module Typing_env = struct
 
   let add_symbol_definition tenv sym =
     { defined_symbols = sym :: tenv.defined_symbols;
+      code_age_relation = tenv.code_age_relation;
       prev_levels = tenv.prev_levels;
       current_level = tenv.current_level;
       just_after_level = tenv.just_after_level;
@@ -497,6 +509,7 @@ module Typing_env = struct
 
   let add_symbol_definitions tenv syms =
     { defined_symbols = app syms tenv.defined_symbols;
+      code_age_relation = tenv.code_age_relation;
       prev_levels = tenv.prev_levels;
       current_level = tenv.current_level;
       just_after_level = tenv.just_after_level;
@@ -515,6 +528,30 @@ module Typing_env = struct
       if Name_mode.equal name_mode0 Name_mode.normal
       then Some (add_symbol_definition tenv sym)
       else None
+
+  (** val with_code_age_relation : t -> Code_age_relation.t -> t **)
+
+  let with_code_age_relation tenv rel =
+    { defined_symbols = tenv.defined_symbols;
+      code_age_relation = rel;
+      prev_levels = tenv.prev_levels;
+      current_level = tenv.current_level;
+      just_after_level = tenv.just_after_level;
+      next_binding_time = tenv.next_binding_time;
+      min_binding_time = tenv.min_binding_time;
+      is_bottom = tenv.is_bottom
+    }
+
+  (** val add_to_code_age_relation : t -> code_id -> code_id option -> t **)
+
+  let add_to_code_age_relation tenv new_code_id old_code_id =
+    let rel =
+      match old_code_id with
+      | Some old_code_id0 ->
+        Code_age_relation.add tenv.code_age_relation new_code_id old_code_id0
+      | None -> tenv.code_age_relation
+    in
+    with_code_age_relation tenv rel
 
   (** val replace_equation : t -> name -> flambda_type -> t **)
 
@@ -684,6 +721,7 @@ module Typing_env = struct
   let closure_env tenv =
     increment_scope
       { defined_symbols = tenv.defined_symbols;
+        code_age_relation = tenv.code_age_relation;
         prev_levels = tenv.prev_levels;
         current_level = tenv.current_level;
         just_after_level = tenv.just_after_level;

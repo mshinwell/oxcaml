@@ -1,5 +1,6 @@
 open Datatypes
 open FlambdaBindingTime
+open FlambdaCodeAgeRelation
 open FlambdaEnvAliases
 open FlambdaExpandHead
 open FlambdaKindModel
@@ -53,6 +54,10 @@ module Meet_env : sig
   val names_to_avoid : t -> variable list
 
   val create : Typing_env.t -> t
+
+  val code_age_relation : t -> Code_age_relation.t
+
+  val code_age_relation_resolver : t -> unit -> Code_age_relation.t option
 
   val with_typing_env : t -> Typing_env.t -> t
 

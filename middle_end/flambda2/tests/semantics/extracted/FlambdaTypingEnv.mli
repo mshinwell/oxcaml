@@ -2,6 +2,7 @@ open BinInt
 open BinNums
 open Datatypes
 open FlambdaBindingTime
+open FlambdaCodeAgeRelation
 open FlambdaEnvAliases
 open FlambdaKindModel
 open FlambdaMapSpec
@@ -93,6 +94,7 @@ module Typing_env : sig
 
   type t =
     { defined_symbols : symbol list;
+      code_age_relation : Code_age_relation.t;
       prev_levels : One_level.t list;
       current_level : One_level.t;
       just_after_level : Cached_level.t;
@@ -102,6 +104,8 @@ module Typing_env : sig
     }
 
   val defined_symbols : t -> symbol list
+
+  val code_age_relation : t -> Code_age_relation.t
 
   val prev_levels : t -> One_level.t list
 
@@ -174,6 +178,10 @@ module Typing_env : sig
   val add_symbol_definitions : t -> symbol list -> t
 
   val add_definition : t -> name -> Name_mode.t -> flambda_kind -> t option
+
+  val with_code_age_relation : t -> Code_age_relation.t -> t
+
+  val add_to_code_age_relation : t -> code_id -> code_id option -> t
 
   val replace_equation : t -> name -> flambda_type -> t
 

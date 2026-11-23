@@ -3357,4 +3357,94 @@ A control: groups of one static constant, the model on one and Simplify on one t
   with only what the model itself sees taken away: a disagreement: yes
   with bottom in the place of what the model itself sees: a disagreement: yes
 
+Two closure types of one set of closures whose function types name code ids of a code age relation, for the meet of the model and the n-way meet of the compiler (1000 cases, seeds 180000 to 180999)
+  1000 converted
+  meet: the model and the n-way meet of the compiler: 1000 agree
+  of which those where the meet is not bottom: 506 agree
+  of which those where a variable that was made is mentioned: 0 agree
+  meet: the model and the binary meet of the compiler: 993 agree, 7 disagree as recorded
+    recorded as the binary meet, which the model does not transcribe, answers otherwise (seed 180171): what is seen of the two answers is not the same
+    on the shrunk input:
+    (Value
+     ((Closures
+       [2 ->
+         ((At_least (closures [1; 2] value_slots [1; 2]))
+          ((function_types []) (closure_types [])
+           (value_slot_types [1 ->
+                               (Value
+                                ((Variant (is_int None) (immediates Unknown)
+                                  (get_tag None) (blocks Unknown)
+                                  (extensions No_extensions)
+                                  (is_unique false)) Not_null))])) [])] Heap)
+      Not_null))
+    and
+    (Value
+     ((Closures
+       [2 ->
+         ((At_least (closures [1; 2] value_slots [1]))
+          ((function_types []) (closure_types [])
+           (value_slot_types [1 -> (Value (= $2))])) [])] Heap) Not_null))
+  of which those where an extension of the types met has an equation on a symbol: 56 agree, 1 disagree as recorded
+    recorded as an input selected for T7-9 by its text (an extension has an equation on a symbol; the cause is not checked), on which the binary meet answers otherwise (seed 180443): what is seen of the two answers is not the same
+    on the shrunk input:
+    (Value
+     ((Closures
+       [1 ->
+         ((At_least (closures [1; 2] value_slots [1; 2]))
+          ((function_types []) (closure_types [])
+           (value_slot_types [1 -> (Value (= $1))])) [])] Heap_or_local)
+      Not_null))
+    and
+    (Value
+     ((Closures
+       [1 ->
+         ((Known (closures [1; 2] value_slots [1; 2]))
+          ((function_types []) (closure_types [])
+           (value_slot_types [1 -> (Value ((Closures [] Heap) Not_null));
+                              2 ->
+                               (Value
+                                ((Variant (is_int None) (immediates Unknown)
+                                  (get_tag None) (blocks Unknown)
+                                  (extensions (Ext (when_immediate [])
+                                               (when_block [$1 ->
+                                                             (Value Unknown)])))
+                                  (is_unique false)) Not_null))])) [])]
+       Heap_or_local) Not_null))
+  of which those where a part of the types met, or of the equations before, is an alias of a symbol: 88 agree, 6 disagree as recorded
+    recorded as an input selected for T7-9 by its text (a part is an alias of a symbol; the cause is not checked), on which the binary meet answers otherwise (seed 180171): what is seen of the two answers is not the same
+    on the shrunk input:
+    (Value
+     ((Closures
+       [2 ->
+         ((At_least (closures [1; 2] value_slots [1; 2]))
+          ((function_types []) (closure_types [])
+           (value_slot_types [1 ->
+                               (Value
+                                ((Variant (is_int None) (immediates Unknown)
+                                  (get_tag None) (blocks Unknown)
+                                  (extensions No_extensions)
+                                  (is_unique false)) Not_null))])) [])] Heap)
+      Not_null))
+    and
+    (Value
+     ((Closures
+       [2 ->
+         ((At_least (closures [1; 2] value_slots [1]))
+          ((function_types []) (closure_types [])
+           (value_slot_types [1 -> (Value (= $2))])) [])] Heap) Not_null))
+  meet, where both types give a function slot a code id and not the same: the model and the n-way meet of the compiler: 455 agree
+  of which those where, at each such slot, one code id is a newer version of the other by the links: 173 agree
+  of those, where neither meet is bottom: both meets give each such slot the newer code id: 124 agree
+  of those again, where at some such slot the newer code id is more than one link from the other: 38 agree
+  of which those where, at some such slot, neither code id is a newer version of the other by the links: both meets are bottom: 282 agree
+  the code id that each code id of the family is a newer version of: the same by the links, in the environment of the model and in that of the compiler: 1000 agree
+  of which those where a code id was given a link twice, the second in the place of the first: 339 agree
+
+A control: one of the generated meets of the code age relation, with the links left out of one of the two environments, and turned round in that of the model
+  the first meet where both types give a function slot a code id and not the same, one of the two is at each such slot a newer version of the other by the links, and neither meet is bottom: seed 180005
+  with the links in both environments, the model sees what the compiler sees: yes
+  with no link in the environment of the model: a disagreement: yes
+  with no link in the environment of the compiler: a disagreement: yes
+  with each link the other way round in the environment of the model: a disagreement: yes
+
 No disagreement.

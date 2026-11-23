@@ -3,6 +3,7 @@ open BinNums
 open BinPos
 open Datatypes
 open FlambdaBindingTime
+open FlambdaCodeAgeRelation
 open FlambdaExpandHead
 open FlambdaKindModel
 open FlambdaMapSpec
@@ -96,7 +97,8 @@ val combine_results3 :
   ('a1 -> 'a2 -> 'a3 -> 'a4) ->
   'a4 Meet_result.t option
 
-val meet_code_id : Meet_env.t -> code_id -> code_id -> code_id Meet_result.t
+val meet_code_id :
+  Meet_env.t -> code_id -> code_id -> code_id Meet_result.t option
 
 val meet_alloc_mode :
   Meet_env.t -> Alloc_mode.t -> Alloc_mode.t -> Alloc_mode.t Meet_result.t

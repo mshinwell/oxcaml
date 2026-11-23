@@ -261,7 +261,9 @@ Separate Extraction
   FlambdaTypeMeaningBoolSpec.value_eqb
   FlambdaTypeWellFormedSpec.type_well_formed
   FlambdaTypingEnv.Typing_env.add_symbol_definition
+  FlambdaTypingEnv.Typing_env.add_to_code_age_relation
   FlambdaTypingEnv.Typing_env.add_variable_definition
+  FlambdaTypingEnv.Typing_env.code_age_relation
   FlambdaTypingEnv.Typing_env.create
   FlambdaTypingEnv.Typing_env.current_scope
   FlambdaTypingEnv.Typing_env.find

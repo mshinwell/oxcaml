@@ -3,6 +3,7 @@ open BinNums
 open BinPos
 open Datatypes
 open FlambdaBindingTime
+open FlambdaCodeAgeRelation
 open FlambdaExpandHead
 open FlambdaKindModel
 open FlambdaMapSpec
@@ -250,12 +251,34 @@ let combine_results3 env meet_a meet_b meet_c left_a right_a left_b right_b
   | None -> None
 
 (** val meet_code_id : Meet_env.t -> code_id -> code_id -> code_id Meet_result.t
-    **)
+    option **)
 
 let meet_code_id env code_id1 code_id2 =
   if Pos.eqb code_id1 code_id2
-  then Meet_result.Ok (Both_inputs, env)
-  else Meet_result.Bottom (New_result ())
+  then Some (Meet_result.Ok (Both_inputs, env))
+  else
+    let rel = Meet_env.code_age_relation env in
+    match
+      Code_age_relation.meet
+        (fun _ -> ())
+        ()
+        (fun _ _ -> true)
+        (S (length rel))
+        rel
+        (Meet_env.code_age_relation_resolver env)
+        code_id1 code_id2
+    with
+    | Some o -> (
+      match o with
+      | Unknown -> Some (Meet_result.Ok (Both_inputs, env))
+      | Ok code_id0 ->
+        if Pos.eqb code_id0 code_id1
+        then Some (Meet_result.Ok (Left_input, env))
+        else if Pos.eqb code_id0 code_id2
+        then Some (Meet_result.Ok (Right_input, env))
+        else Some (Meet_result.Ok (New_result code_id0, env))
+      | Bottom -> Some (Meet_result.Bottom (New_result ())))
+    | None -> None
 
 (** val meet_alloc_mode : Meet_env.t -> Alloc_mode.t -> Alloc_mode.t ->
     Alloc_mode.t Meet_result.t **)
@@ -1390,13 +1413,18 @@ let meet_function_type env func_type1 func_type2 =
   match func_type1 with
   | Or_unknown.Known func_type3 -> (
     match func_type2 with
-    | Or_unknown.Known func_type4 ->
-      Some
-        (map_result
-           (fun code_id0 ->
-             Or_unknown.Known { function_type_code_id = code_id0 })
-           (meet_code_id env func_type3.function_type_code_id
-              func_type4.function_type_code_id))
+    | Or_unknown.Known func_type4 -> (
+      match
+        meet_code_id env func_type3.function_type_code_id
+          func_type4.function_type_code_id
+      with
+      | Some result ->
+        Some
+          (map_result
+             (fun code_id0 ->
+               Or_unknown.Known { function_type_code_id = code_id0 })
+             result)
+      | None -> None)
     | Or_unknown.Unknown -> Some (Meet_result.Ok (Left_input, env)))
   | Or_unknown.Unknown -> (
     match func_type2 with

@@ -1,5 +1,6 @@
 open Datatypes
 open FlambdaBindingTime
+open FlambdaCodeAgeRelation
 open FlambdaEnvAliases
 open FlambdaExpandHead
 open FlambdaKindModel
@@ -77,6 +78,14 @@ module Meet_env = struct
       adding_equations_for_names = [];
       names_to_avoid = []
     }
+
+  (** val code_age_relation : t -> Code_age_relation.t **)
+
+  let code_age_relation env = env.typing_env.Typing_env.code_age_relation
+
+  (** val code_age_relation_resolver : t -> unit -> Code_age_relation.t option **)
+
+  let code_age_relation_resolver _ _ = None
 
   (** val with_typing_env : t -> Typing_env.t -> t **)
 
